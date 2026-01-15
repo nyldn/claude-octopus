@@ -1,0 +1,23 @@
+{
+  "name": "claude-octopus",
+  "version": "1.0.0",
+  "description": "Multi-agent orchestrator for Claude Code - coordinates Codex CLI and Gemini CLI for parallel task execution with intelligent contextual routing",
+  "author": "nyldn",
+  "license": "MIT",
+  "repository": "https://github.com/nyldn/claude-octopus",
+  "keywords": [
+    "claude-code",
+    "multi-agent",
+    "parallel",
+    "codex",
+    "gemini",
+    "orchestration",
+    "ai-agents"
+  ],
+  "skills": [
+    "skill.md"
+  ],
+  "commands": [],
+  "hooks": [],
+  "agents": []
+}
