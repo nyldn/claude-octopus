@@ -1,13 +1,33 @@
-# Claude Octopus
+<p align="center">
+
+```
+   ██████╗██╗      █████╗ ██╗   ██╗██████╗ ███████╗
+  ██╔════╝██║     ██╔══██╗██║   ██║██╔══██╗██╔════╝
+  ██║     ██║     ███████║██║   ██║██║  ██║█████╗
+  ██║     ██║     ██╔══██║██║   ██║██║  ██║██╔══╝
+  ╚██████╗███████╗██║  ██║╚██████╔╝██████╔╝███████╗
+   ╚═════╝╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚══════╝
+   ██████╗  ██████╗████████╗ ██████╗ ██████╗ ██╗   ██╗███████╗
+  ██╔═══██╗██╔════╝╚══██╔══╝██╔═══██╗██╔══██╗██║   ██║██╔════╝
+  ██║   ██║██║        ██║   ██║   ██║██████╔╝██║   ██║███████╗
+  ██║   ██║██║        ██║   ██║   ██║██╔═══╝ ██║   ██║╚════██║
+  ╚██████╔╝╚██████╗   ██║   ╚██████╔╝██║     ╚██████╔╝███████║
+   ╚═════╝  ╚═════╝   ╚═╝    ╚═════╝ ╚═╝      ╚═════╝ ╚══════╝
+```
+
+</p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Claude_Code-Plugin-blueviolet" alt="Claude Code Plugin">
   <img src="https://img.shields.io/badge/Double_Diamond-Design_Thinking-orange" alt="Double Diamond">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
-  <img src="https://img.shields.io/badge/Version-1.0.0-blue" alt="Version 1.0.0">
+  <img src="https://img.shields.io/badge/Version-1.0.1-blue" alt="Version 1.0.1">
 </p>
 
-**Multi-tentacled orchestrator for Claude Code** - using Double Diamond methodology for comprehensive problem exploration, consensus building, and validated delivery.
+<p align="center">
+  <strong>Multi-tentacled orchestrator for Claude Code</strong><br>
+  Using Double Diamond methodology for comprehensive problem exploration, consensus building, and validated delivery.
+</p>
 
 ```
      DISCOVER         DEFINE         DEVELOP          DELIVER
@@ -501,16 +521,18 @@ Override with: `CLAUDE_OCTOPUS_WORKSPACE=/custom/path`
 ./scripts/orchestrate.sh embrace "Create a user notification system with email and push support"
 ```
 
-### Security Audit (Fan-Out)
+### Security Audit (Probe)
 
 ```bash
-./scripts/orchestrate.sh fan-out "Perform security audit focusing on: authentication, input validation, and SQL injection vulnerabilities"
+# Multi-perspective security analysis
+./scripts/orchestrate.sh probe "Perform security audit focusing on: authentication, input validation, and SQL injection vulnerabilities"
 ```
 
-### Large Refactoring (Map-Reduce)
+### Large Refactoring (Tangle)
 
 ```bash
-./scripts/orchestrate.sh map-reduce "Refactor all React class components to functional components with hooks"
+# Parallel implementation with quality gates
+./scripts/orchestrate.sh tangle "Refactor all React class components to functional components with hooks"
 ```
 
 ## Troubleshooting
@@ -619,7 +641,7 @@ python3 ./scripts/coordinator.py map-reduce -p 4 -t 600 "Large refactoring task"
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/amazing-feature`)
