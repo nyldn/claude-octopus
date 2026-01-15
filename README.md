@@ -350,8 +350,8 @@ npm install -g @anthropic/gemini-cli
 
 ```bash
 # Option 1: Environment variable (recommended)
-export GOOGLE_API_KEY="AIza..."
-echo 'export GOOGLE_API_KEY="AIza..."' >> ~/.zshrc
+export GEMINI_API_KEY="AIza..."
+echo 'export GEMINI_API_KEY="AIza..."' >> ~/.zshrc
 
 # Option 2: Use Gemini auth command
 gemini auth login
@@ -383,7 +383,7 @@ This checks for:
 - Codex CLI installation
 - Gemini CLI installation
 - OPENAI_API_KEY environment variable
-- GOOGLE_API_KEY environment variable
+- GEMINI_API_KEY environment variable
 
 ### Environment Variables Summary
 
@@ -394,7 +394,7 @@ Add these to your `~/.zshrc` or `~/.bashrc`:
 export OPENAI_API_KEY="sk-..."
 
 # Google (for Gemini CLI)
-export GOOGLE_API_KEY="AIza..."
+export GEMINI_API_KEY="AIza..."
 
 # Optional: Custom workspace location
 export CLAUDE_OCTOPUS_WORKSPACE="$HOME/.claude-octopus"
@@ -521,7 +521,7 @@ Override with: `CLAUDE_OCTOPUS_WORKSPACE=/custom/path`
 
 ```bash
 ./scripts/orchestrate.sh preflight
-# Verify: codex CLI, gemini CLI, OPENAI_API_KEY, GOOGLE_API_KEY
+# Verify: codex CLI, gemini CLI, OPENAI_API_KEY, GEMINI_API_KEY
 ```
 
 ### Quality gate failures
@@ -585,7 +585,7 @@ which gemini
 npm install -g @anthropic/gemini-cli
 
 # Verify API key is set
-echo $GOOGLE_API_KEY
+echo $GEMINI_API_KEY
 ```
 
 ### Reset workspace
