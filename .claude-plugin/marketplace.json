@@ -12,7 +12,7 @@
       "name": "claude-octopus",
       "source": "./",
       "description": "Multi-tentacled orchestrator using Double Diamond methodology",
-      "version": "1.0.3",
+      "version": "1.1.0",
       "author": {
         "name": "nyldn"
       },
