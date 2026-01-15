@@ -1143,11 +1143,48 @@ preflight_check() {
         log DEBUG "OPENAI_API_KEY: set (${#OPENAI_API_KEY} chars)"
     fi
 
-    if [[ -z "${GOOGLE_API_KEY:-}" ]]; then
-        log ERROR "GOOGLE_API_KEY not set"
-        ((errors++))
+    # Support both GEMINI_API_KEY and GOOGLE_API_KEY (legacy) for Gemini CLI
+    if [[ -z "${GEMINI_API_KEY:-}" && -n "${GOOGLE_API_KEY:-}" ]]; then
+        export GEMINI_API_KEY="$GOOGLE_API_KEY"
+        log DEBUG "Using GOOGLE_API_KEY as GEMINI_API_KEY (legacy fallback)"
+    fi
+
+    if [[ -z "${GEMINI_API_KEY:-}" ]]; then
+        log WARN "GEMINI_API_KEY not set"
+        log INFO "  (Tentacles 5-8 need authentication to grip!)"
+        echo ""
+        echo -e "${YELLOW}🐙 Gemini API key required for full functionality.${NC}"
+        echo ""
+
+        # Offer to open browser
+        read -p "Open Google AI Studio to get an API key? (y/n) " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            local url="https://aistudio.google.com/apikey"
+            log INFO "Opening $url in your browser..."
+            if [[ "$OSTYPE" == "darwin"* ]]; then
+                open "$url"
+            elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
+                xdg-open "$url" 2>/dev/null || sensible-browser "$url" 2>/dev/null
+            fi
+            echo ""
+        fi
+
+        # Prompt for key
+        read -p "Enter your GEMINI_API_KEY (or press Enter to skip): " api_key
+        if [[ -n "$api_key" ]]; then
+            export GEMINI_API_KEY="$api_key"
+            log INFO "GEMINI_API_KEY set for this session"
+            echo ""
+            echo -e "${GREEN}Tip:${NC} Add this to your shell profile for persistence:"
+            echo "  export GEMINI_API_KEY=\"$api_key\""
+            echo ""
+        else
+            log ERROR "GEMINI_API_KEY not provided - Gemini features will fail"
+            ((errors++))
+        fi
     else
-        log DEBUG "GOOGLE_API_KEY: set (${#GOOGLE_API_KEY} chars)"
+        log DEBUG "GEMINI_API_KEY: set (${#GEMINI_API_KEY} chars)"
     fi
 
     # Check workspace
