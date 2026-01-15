@@ -6,7 +6,7 @@
   <img src="https://img.shields.io/badge/Claude_Code-Plugin-blueviolet" alt="Claude Code Plugin">
   <img src="https://img.shields.io/badge/Double_Diamond-Design_Thinking-orange" alt="Double Diamond">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
-  <img src="https://img.shields.io/badge/Version-1.0.3-blue" alt="Version 1.0.3">
+  <img src="https://img.shields.io/badge/Version-1.1.0-blue" alt="Version 1.1.0">
 </p>
 
 ```
@@ -53,12 +53,20 @@ _`) )  .---.__.' / |   |\   \__..--""  """--.,_
 
 </details>
 
+## What's New in 1.1
+
+- **Conditional Branching** - Decision trees for workflow routing (tentacle paths)
+  - `--branch BRANCH` - Force tentacle path: premium|standard|fast
+  - `--on-fail ACTION` - Quality gate failure action: auto|retry|escalate|abort
+- **Quality Gate Decision Tree** - Intelligent branching on quality outcomes
+- **Competitive Analysis** - Research on 8+ competing orchestrators in `docs/`
+
 ## What's New in 1.0
 
 - **Double Diamond Workflow** - Structured design thinking process
 - **Octopus-Themed Commands** - `probe`, `grasp`, `tangle`, `ink`, `embrace`
 - **Smart Auto-Routing** - Intent detection routes to workflows or agents
-- **Premium Model Defaults** - GPT-5.1-Codex-Max for coding tasks
+- **Cost-Aware Routing** - Routes trivial tasks to cheaper models
 - **Quality Gates** - 75% success threshold in development phase
 
 ## Table of Contents

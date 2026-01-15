@@ -5,6 +5,32 @@ All notable changes to Claude Octopus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-01-15
+
+### Added
+- **Conditional Branching** - Decision trees for workflow routing (tentacle paths)
+  - `evaluate_branch_condition()` - Determine which tentacle path to extend based on task type + complexity
+  - `evaluate_quality_branch()` - Decide next action after quality gate (proceed/retry/escalate/abort)
+  - `execute_quality_branch()` - Execute quality gate decisions with themed output
+  - `get_branch_display()` - Octopus-themed branch display names
+- **Branching CLI Flags**
+  - `--branch BRANCH` - Force tentacle path: premium|standard|fast
+  - `--on-fail ACTION` - Quality gate failure action: auto|retry|escalate|abort
+- Branch displayed in task analysis: `Branch: premium (🐙 all tentacles engaged)`
+- Quality gate decision tree replaces hardcoded retry logic
+
+### Changed
+- `auto_route()` now evaluates branch condition and displays selected tentacle path
+- `validate_tangle_results()` uses new quality branch decision tree
+- Help text updated with Conditional Branching section (v3.2)
+
+### Documentation
+- Added `docs/COMPETITIVE_ANALYSIS.md` - Research on 8 competing orchestrators
+- Added `docs/COST_INTELLIGENCE_ROADMAP.md` - Future cost features planned
+- Conflict detection in preflight_check() for known overlapping plugins
+
+---
+
 ## [1.0.3] - 2026-01-15
 
 ### Added
