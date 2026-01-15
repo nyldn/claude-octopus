@@ -10,8 +10,8 @@
 **Multi-tentacled orchestrator for Claude Code** - using Double Diamond methodology for comprehensive problem exploration, consensus building, and validated delivery.
 
 ```
-    DISCOVER          DEFINE           DEVELOP          DELIVER
-      (probe)         (grasp)          (tangle)          (ink)
+     DISCOVER         DEFINE         DEVELOP          DELIVER
+     (probe)          (grasp)        (tangle)          (ink)
 
     \         /     \         /     \         /     \         /
      \   *   /       \   *   /       \   *   /       \   *   /
