@@ -26,13 +26,14 @@ MAGENTA='\033[0;35m'
 NC='\033[0m' # No Color
 
 # Agent configurations
-# Models (Jan 2026):
-# - OpenAI GPT-5.x: gpt-5.2-codex, gpt-5.1-codex-max, gpt-5.1-codex-mini, gpt-5.2
+# Models (Jan 2026) - Premium defaults for Design Thinking workflows:
+# - OpenAI GPT-5.x: gpt-5.1-codex-max (premium), gpt-5.2-codex, gpt-5.1-codex-mini, gpt-5.2
 # - Google Gemini 3.0: gemini-3-pro-preview, gemini-3-flash-preview, gemini-3-pro-image-preview
 get_agent_command() {
     local agent_type="$1"
     case "$agent_type" in
-        codex) echo "codex exec -m gpt-5.2-codex" ;;
+        codex) echo "codex exec -m gpt-5.1-codex-max" ;;          # Premium default
+        codex-standard) echo "codex exec -m gpt-5.2-codex" ;;     # Standard tier
         codex-max) echo "codex exec -m gpt-5.1-codex-max" ;;
         codex-mini) echo "codex exec -m gpt-5.1-codex-mini" ;;
         codex-general) echo "codex exec -m gpt-5.2" ;;
@@ -45,24 +46,62 @@ get_agent_command() {
 }
 
 # List of available agents
-AVAILABLE_AGENTS="codex codex-max codex-mini codex-general gemini gemini-fast gemini-image codex-review"
+AVAILABLE_AGENTS="codex codex-standard codex-max codex-mini codex-general gemini gemini-fast gemini-image codex-review"
 
 # Task classification for contextual agent routing
-# Returns: coding|research|design|copywriting|image|review|general
-# Order matters! More specific patterns checked first.
+# Returns: diamond-discover|diamond-develop|diamond-deliver|coding|research|design|copywriting|image|review|general
+# Order matters! Double Diamond intents checked first, then specific patterns.
 classify_task() {
     local prompt="$1"
     local prompt_lower
     prompt_lower=$(echo "$prompt" | tr '[:upper:]' '[:lower:]')
 
-    # Image generation keywords (highest priority - very specific)
-    if [[ "$prompt_lower" =~ (generate|create|make|draw|render).*(image|picture|photo|illustration|graphic|icon|logo|banner|visual|artwork) ]] || \
-       [[ "$prompt_lower" =~ (image|picture|photo|illustration|graphic|icon|logo|banner).*generat ]] || \
+    # ═══════════════════════════════════════════════════════════════════════════
+    # IMAGE GENERATION (highest priority - checked before Double Diamond)
+    # v3.0: Enhanced to detect app icons, favicons, diagrams, social media banners
+    # ═══════════════════════════════════════════════════════════════════════════
+    if [[ "$prompt_lower" =~ (generate|create|make|draw|render).*(image|picture|photo|illustration|graphic|icon|logo|banner|visual|artwork|favicon|avatar) ]] || \
+       [[ "$prompt_lower" =~ (image|picture|photo|illustration|graphic|icon|logo|banner|favicon|avatar).*generat ]] || \
        [[ "$prompt_lower" =~ (visualize|depict|illustrate|sketch) ]] || \
-       [[ "$prompt_lower" =~ (dall-?e|midjourney|stable.?diffusion|imagen|text.?to.?image) ]]; then
+       [[ "$prompt_lower" =~ (dall-?e|midjourney|stable.?diffusion|imagen|text.?to.?image) ]] || \
+       [[ "$prompt_lower" =~ (app.?icon|favicon|og.?image|social.?media.?(banner|image|graphic)) ]] || \
+       [[ "$prompt_lower" =~ (hero.?image|header.?image|cover.?image|thumbnail) ]] || \
+       [[ "$prompt_lower" =~ (diagram|flowchart|architecture.?diagram|sequence.?diagram|infographic) ]] || \
+       [[ "$prompt_lower" =~ (twitter|linkedin|facebook|instagram).*(image|graphic|banner|post) ]] || \
+       [[ "$prompt_lower" =~ (marketing|promotional).*(image|graphic|visual) ]]; then
         echo "image"
         return
     fi
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # DOUBLE DIAMOND INTENT DETECTION
+    # Routes to full workflow phases, not just single agents
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    # Discover phase: research, explore, investigate
+    if [[ "$prompt_lower" =~ ^(research|explore|investigate|study|discover)[[:space:]] ]] || \
+       [[ "$prompt_lower" =~ (research|explore|investigate).*(option|approach|pattern|practice|alternative) ]]; then
+        echo "diamond-discover"
+        return
+    fi
+
+    # Develop+Deliver phase: build, develop, implement, create
+    if [[ "$prompt_lower" =~ ^(develop|dev|build|implement|construct)[[:space:]] ]] || \
+       [[ "$prompt_lower" =~ (build|develop|implement).*(feature|system|module|component|service) ]]; then
+        echo "diamond-develop"
+        return
+    fi
+
+    # Deliver phase: QA, test, review, validate
+    if [[ "$prompt_lower" =~ ^(qa|test|review|validate|verify|audit|check)[[:space:]] ]] || \
+       [[ "$prompt_lower" =~ (qa|test|review|validate).*(implementation|code|changes|feature) ]]; then
+        echo "diamond-deliver"
+        return
+    fi
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # STANDARD TASK CLASSIFICATION (for single-agent routing)
+    # ═══════════════════════════════════════════════════════════════════════════
 
     # Code review keywords (check before coding - more specific)
     if [[ "$prompt_lower" =~ (review|audit).*(code|commit|pr|pull.?request|module|component|implementation|function|authentication) ]] || \
@@ -139,6 +178,20 @@ TIMEOUT=300
 VERBOSE=false
 DRY_RUN=false
 
+# v3.0 Feature: Autonomy Modes & Quality Control
+# - autonomous: Full auto, proceed on failures
+# - semi-autonomous: Auto with quality gates (default)
+# - supervised: Human approval required after each phase
+# - loop-until-approved: Retry failed tasks until quality gate passes
+AUTONOMY_MODE="${CLAUDE_OCTOPUS_AUTONOMY:-semi-autonomous}"
+QUALITY_THRESHOLD="${CLAUDE_OCTOPUS_QUALITY_THRESHOLD:-75}"
+MAX_QUALITY_RETRIES="${CLAUDE_OCTOPUS_MAX_RETRIES:-3}"
+LOOP_UNTIL_APPROVED=false
+RESUME_SESSION=false
+
+# Session recovery
+SESSION_FILE="${WORKSPACE_DIR}/session.json"
+
 usage() {
     cat << EOF
 ${MAGENTA}
@@ -147,25 +200,54 @@ ${MAGENTA}
  | (_) |__ \ | | | (_) | |_) | |_| \__ \\
   \___/|___/ |_|  \___/|____/ \___/|___/
 ${NC}
-${CYAN}Claude Octopus${NC} - Multi-Agent Orchestrator for Claude Code
-Coordinates Codex CLI and Gemini CLI for parallel task execution.
+${CYAN}                          ___
+                      .-'   \`'.
+                     /         \\
+                     |         ;
+                     |         |           ___.--,
+            _.._     |0) ~ (0) |    _.---'\`__.-( (_.
+     __.--'\`_.. '.__.\    '--. \\_.-' ,.--'\`     \`""\`
+    ( ,.--'\`   ',__ /./;   ;, '.__.\`    __
+    _\`) )  .---.__.' / |   |\   \\__..--""  """--.,_
+    \`---' .'.''-._.-.'\`_./  /\\ '.  \\ _.-~~~\`\`\`\`~~~-._\`-.__.'
+         | |  .' _.-' |  |  \\  \\  '.               \`~---\`
+          \\ \\/ .'     \\  \\   '. '-._)
+           \\/ /        \\  \\    \`=.__\`~-.
+           / /\\         \`) )    / / \`"".\\
+     , _.-'.'\\ \\        / /    ( (     / /
+      \`--~\`   ) )    .-'.'      '.'.  | (
+             (/\`    ( (\`          ) )  '-;    Eight tentacles.
+              \`      '-;         (-'         Infinite possibilities.
+${NC}
+${CYAN}Claude Octopus${NC} - Design Thinking Enabler for Claude Code
+Multi-agent orchestration using Double Diamond methodology.
 
 ${YELLOW}Usage:${NC} $(basename "$0") [OPTIONS] COMMAND [ARGS...]
 
-${YELLOW}Commands:${NC}
+${YELLOW}Double Diamond Commands:${NC} (Design Thinking)
+  probe <prompt>          Discover: Parallel research + synthesis
+  grasp <prompt>          Define: Consensus building on approach
+  tangle <prompt>         Develop: Enhanced map-reduce with validation
+  ink <prompt>            Deliver: Quality gates + final output
+  embrace <prompt>        Full 4-phase Double Diamond workflow
+  preflight               Validate all dependencies are available
+
+${YELLOW}Classic Commands:${NC}
   init                    Initialize workspace for parallel execution
   spawn <agent> <prompt>  Spawn a single agent with given prompt
-  auto <prompt>           Auto-route prompt to best agent based on task type
+  auto <prompt>           Smart-route (uses Double Diamond for research/build/QA)
   parallel <tasks-file>   Execute tasks from JSON file in parallel
   fan-out <prompt>        Send same prompt to all agents, collect results
   map-reduce <prompt>     Decompose task, map to agents, reduce results
   status                  Show status of running agents
   kill [agent-id|all]     Kill running agent(s)
   clean                   Clean workspace and kill all agents
+  aggregate               Combine all results into single document
   help                    Show this help message
 
-${YELLOW}Available Agents:${NC}
-  codex         GPT-5.2-Codex       Complex code generation, refactoring
+${YELLOW}Available Agents:${NC} (Premium defaults)
+  codex         GPT-5.1-Codex-Max   ${GREEN}Premium default${NC} for complex coding
+  codex-standard GPT-5.2-Codex      Standard coding model
   codex-max     GPT-5.1-Codex-Max   Long-running, project-scale work
   codex-mini    GPT-5.1-Codex-Mini  Quick fixes, simple tasks
   codex-general GPT-5.2             Non-coding agentic tasks
@@ -180,21 +262,30 @@ ${YELLOW}Options:${NC}
   -v, --verbose           Verbose output
   -n, --dry-run           Show what would be done without executing
   -d, --dir DIR           Working directory (default: project root)
+  -a, --autonomy MODE     Autonomy mode: autonomous|semi-autonomous|supervised|loop-until-approved
+  -q, --quality NUM       Quality gate threshold percentage (default: $QUALITY_THRESHOLD)
+  -l, --loop              Enable loop-until-approved for quality gates
+  -R, --resume            Resume last interrupted session
 
-${YELLOW}Examples:${NC}
-  # Auto-route to best agent
+${YELLOW}Double Diamond Examples:${NC}
+  # Full workflow - explore, define, develop, deliver
+  $(basename "$0") embrace "Build a user authentication system"
+
+  # Just the research phase
+  $(basename "$0") probe "What are best practices for REST API design?"
+
+  # Define the problem after research
+  $(basename "$0") grasp "Implement caching layer" ./results/probe-synthesis.md
+
+  # Smart auto-routing (detects intent)
+  $(basename "$0") auto "research authentication patterns"    # → runs probe
+  $(basename "$0") auto "build user auth system"              # → runs tangle → ink
+  $(basename "$0") auto "review the implementation"           # → runs ink
+
+${YELLOW}Classic Examples:${NC}
   $(basename "$0") auto "Generate a hero image for the landing page"
-  $(basename "$0") auto "Implement user authentication"
-  $(basename "$0") auto "Review the auth module for security issues"
-
-  # Spawn specific agent
   $(basename "$0") spawn codex "Fix the TypeScript errors in src/components"
-
-  # Fan-out to multiple agents
   $(basename "$0") fan-out "Review the authentication flow for security issues"
-
-  # Map-reduce complex task
-  $(basename "$0") map-reduce "Refactor all API routes to use consistent error handling"
 
 ${YELLOW}Environment Variables:${NC}
   CLAUDE_OCTOPUS_WORKSPACE  Override workspace directory (default: ~/.claude-octopus)
@@ -302,6 +393,369 @@ GITIGNORE
     echo ""
 }
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# v3.0 FEATURE: AUTONOMY MODE HANDLER
+# Controls human oversight level during workflow execution
+# ═══════════════════════════════════════════════════════════════════════════════
+
+handle_autonomy_checkpoint() {
+    local phase="$1"
+    local status="$2"
+
+    case "$AUTONOMY_MODE" in
+        "supervised")
+            echo ""
+            echo -e "${YELLOW}╔═══════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${YELLOW}║  Supervised Mode - Human Approval Required                ║${NC}"
+            echo -e "${YELLOW}╚═══════════════════════════════════════════════════════════╝${NC}"
+            echo -e "Phase ${CYAN}$phase${NC} completed with status: ${GREEN}$status${NC}"
+            echo ""
+            read -p "Continue to next phase? (y/n) " -n 1 -r
+            echo ""
+            if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                log INFO "User chose to stop workflow after $phase phase"
+                exit 0
+            fi
+            ;;
+        "semi-autonomous")
+            if [[ "$status" == "failed" || "$status" == "warning" ]]; then
+                echo ""
+                echo -e "${YELLOW}╔═══════════════════════════════════════════════════════════╗${NC}"
+                echo -e "${YELLOW}║  Quality Gate Issue - Review Required                     ║${NC}"
+                echo -e "${YELLOW}╚═══════════════════════════════════════════════════════════╝${NC}"
+                echo -e "Phase ${CYAN}$phase${NC} has status: ${RED}$status${NC}"
+                echo ""
+                read -p "Continue anyway? (y/n) " -n 1 -r
+                echo ""
+                if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                    log ERROR "User chose to abort due to quality gate $status"
+                    exit 1
+                fi
+            fi
+            ;;
+        "loop-until-approved")
+            # Handled in quality gate logic - LOOP_UNTIL_APPROVED flag
+            ;;
+        "autonomous"|*)
+            # Always continue without prompts
+            log DEBUG "Autonomy mode: continuing automatically"
+            ;;
+    esac
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# v3.0 FEATURE: SESSION RECOVERY
+# Save/restore workflow state for resuming interrupted workflows
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Initialize a new session
+init_session() {
+    local workflow="$1"
+    local prompt="$2"
+    local session_id="${workflow}-$(date +%Y%m%d-%H%M%S)"
+
+    # Ensure jq is available for JSON manipulation
+    if ! command -v jq &> /dev/null; then
+        log WARN "jq not available - session recovery disabled"
+        return 1
+    fi
+
+    mkdir -p "$(dirname "$SESSION_FILE")"
+
+    cat > "$SESSION_FILE" << EOF
+{
+  "session_id": "$session_id",
+  "workflow": "$workflow",
+  "status": "in_progress",
+  "current_phase": null,
+  "started_at": "$(date -Iseconds 2>/dev/null || date +%Y-%m-%dT%H:%M:%S)",
+  "last_checkpoint": null,
+  "prompt": $(printf '%s' "$prompt" | jq -Rs .),
+  "phases": {}
+}
+EOF
+    log INFO "Session initialized: $session_id"
+}
+
+# Save checkpoint after phase completion
+save_session_checkpoint() {
+    local phase="$1"
+    local status="$2"
+    local output_file="$3"
+
+    if [[ ! -f "$SESSION_FILE" ]] || ! command -v jq &> /dev/null; then
+        return 0
+    fi
+
+    local timestamp
+    timestamp=$(date -Iseconds 2>/dev/null || date +%Y-%m-%dT%H:%M:%S)
+
+    jq --arg phase "$phase" \
+       --arg status "$status" \
+       --arg output "$output_file" \
+       --arg time "$timestamp" \
+       '.phases[$phase] = {status: $status, output: $output, timestamp: $time} | .last_checkpoint = $time | .current_phase = $phase' \
+       "$SESSION_FILE" > "${SESSION_FILE}.tmp" && mv "${SESSION_FILE}.tmp" "$SESSION_FILE"
+
+    log DEBUG "Checkpoint saved: $phase ($status)"
+}
+
+# Check for resumable session
+check_resume_session() {
+    if [[ ! -f "$SESSION_FILE" ]] || ! command -v jq &> /dev/null; then
+        return 1
+    fi
+
+    local status workflow phase
+    status=$(jq -r '.status' "$SESSION_FILE" 2>/dev/null)
+
+    if [[ "$status" == "in_progress" ]]; then
+        workflow=$(jq -r '.workflow' "$SESSION_FILE")
+        phase=$(jq -r '.current_phase // "none"' "$SESSION_FILE")
+
+        echo ""
+        echo -e "${YELLOW}╔═══════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${YELLOW}║  Interrupted Session Found                                ║${NC}"
+        echo -e "${YELLOW}╚═══════════════════════════════════════════════════════════╝${NC}"
+        echo -e "Workflow: ${CYAN}$workflow${NC}"
+        echo -e "Last phase: ${CYAN}$phase${NC}"
+        echo ""
+        read -p "Resume from last checkpoint? (y/n) " -n 1 -r
+        echo ""
+
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            return 0  # Resume
+        fi
+    fi
+    return 1  # Start fresh
+}
+
+# Get the phase to resume from
+get_resume_phase() {
+    if [[ -f "$SESSION_FILE" ]] && command -v jq &> /dev/null; then
+        jq -r '.current_phase // ""' "$SESSION_FILE"
+    fi
+}
+
+# Get saved output file for a phase
+get_phase_output() {
+    local phase="$1"
+    if [[ -f "$SESSION_FILE" ]] && command -v jq &> /dev/null; then
+        jq -r ".phases.$phase.output // \"\"" "$SESSION_FILE"
+    fi
+}
+
+# Mark session as complete
+complete_session() {
+    if [[ -f "$SESSION_FILE" ]] && command -v jq &> /dev/null; then
+        jq '.status = "completed"' "$SESSION_FILE" > "${SESSION_FILE}.tmp" && \
+            mv "${SESSION_FILE}.tmp" "$SESSION_FILE"
+        log INFO "Session marked complete"
+    fi
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# v3.0 FEATURE: SPECIALIZED AGENT ROLES
+# Role-based agent selection for different phases of work
+# Each "tentacle" has expertise in a specific domain
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Role-to-agent mapping (function-based for bash 3.x compatibility)
+# Returns agent:model format for a given role
+get_role_mapping() {
+    local role="$1"
+    case "$role" in
+        architect)    echo "codex:gpt-5.1-codex-max" ;;      # System design, planning
+        researcher)   echo "gemini:gemini-3-pro-preview" ;;   # Deep investigation
+        reviewer)     echo "codex-review:gpt-5.2-codex" ;;    # Code review, validation
+        implementer)  echo "codex:gpt-5.1-codex-max" ;;       # Code generation
+        synthesizer)  echo "gemini:gemini-3-flash-preview" ;; # Result aggregation
+        *)            echo "codex:gpt-5.1-codex-max" ;;       # Default
+    esac
+}
+
+# Get agent type for a role
+get_role_agent() {
+    local role="$1"
+    local mapping
+    mapping=$(get_role_mapping "$role")
+    echo "${mapping%%:*}"  # Return agent type (before colon)
+}
+
+# Get model for a role
+get_role_model() {
+    local role="$1"
+    local mapping
+    mapping=$(get_role_mapping "$role")
+    echo "${mapping##*:}"  # Return model (after colon)
+}
+
+# Log role assignment for verbose mode
+log_role_assignment() {
+    local role="$1"
+    local purpose="$2"
+    local agent
+    agent=$(get_role_agent "$role")
+    log DEBUG "Using ${role} role (${agent}) for: ${purpose}"
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# v3.0 FEATURE: NANO BANANA PROMPT REFINEMENT
+# Intelligent prompt enhancement for image generation tasks
+# Analyzes user intent and crafts optimized prompts for visual output
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Refine image prompt using "nano banana" technique
+# Takes raw user prompt and returns an enhanced prompt optimized for image generation
+refine_image_prompt() {
+    local raw_prompt="$1"
+    local image_type="${2:-general}"
+
+    log INFO "Applying nano banana prompt refinement for: $image_type"
+
+    # Build refinement prompt based on image type
+    local refinement_prompt=""
+    case "$image_type" in
+        "app-icon"|"favicon")
+            refinement_prompt="Transform this into a detailed image generation prompt for an app icon/favicon:
+Original request: $raw_prompt
+
+Create a prompt that specifies:
+- Simple, recognizable silhouette that works at small sizes (16x16 to 512x512)
+- Bold colors with good contrast
+- Minimal detail that scales well
+- Professional, modern aesthetic
+- Square format with optional rounded corners
+
+Output ONLY the refined prompt, nothing else."
+            ;;
+        "social-media")
+            refinement_prompt="Transform this into a detailed image generation prompt for social media:
+Original request: $raw_prompt
+
+Create a prompt that specifies:
+- Eye-catching composition with focal point
+- Appropriate aspect ratio (16:9 for banners, 1:1 for posts)
+- Brand-friendly colors and style
+- Space for text overlay if needed
+- Professional quality suitable for marketing
+
+Output ONLY the refined prompt, nothing else."
+            ;;
+        "diagram")
+            refinement_prompt="Transform this into a detailed image generation prompt for a technical diagram:
+Original request: $raw_prompt
+
+Create a prompt that specifies:
+- Clean, professional diagram style
+- Clear visual hierarchy and flow
+- Appropriate use of shapes, arrows, and connections
+- Readable labels and annotations
+- Light or neutral background for clarity
+
+Output ONLY the refined prompt, nothing else."
+            ;;
+        *)
+            refinement_prompt="Transform this into a detailed, optimized image generation prompt:
+Original request: $raw_prompt
+
+Enhance the prompt with:
+- Specific visual style and composition details
+- Lighting, mood, and atmosphere
+- Color palette suggestions
+- Technical specifications (resolution, aspect ratio if implied)
+- Quality modifiers (professional, high-quality, detailed)
+
+Output ONLY the refined prompt, nothing else."
+            ;;
+    esac
+
+    # Use Gemini for intelligent prompt refinement
+    local refined
+    refined=$(run_agent_sync "gemini-fast" "$refinement_prompt" 60 2>/dev/null) || {
+        log WARN "Prompt refinement failed, using original"
+        echo "$raw_prompt"
+        return
+    }
+
+    echo "$refined"
+}
+
+# Detect image type from prompt for targeted refinement
+detect_image_type() {
+    local prompt_lower="$1"
+
+    if [[ "$prompt_lower" =~ (app[[:space:]]?icon|favicon|icon[[:space:]]for[[:space:]]?(an?[[:space:]])?app) ]]; then
+        echo "app-icon"
+    elif [[ "$prompt_lower" =~ (social[[:space:]]?media|twitter|linkedin|facebook|instagram|og[[:space:]]?image|banner|header) ]]; then
+        echo "social-media"
+    elif [[ "$prompt_lower" =~ (diagram|flowchart|architecture|sequence|infographic) ]]; then
+        echo "diagram"
+    else
+        echo "general"
+    fi
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# v3.0 FEATURE: LOOP-UNTIL-APPROVED RETRY LOGIC
+# Retry failed subtasks until quality gate passes
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Store failed tasks for retry (global array - bash 3.x compatible)
+FAILED_SUBTASKS=""  # Newline-separated list for compatibility
+
+# Retry failed subtasks
+retry_failed_subtasks() {
+    local task_group="$1"
+    local retry_count="$2"
+
+    if [[ -z "$FAILED_SUBTASKS" ]]; then
+        log DEBUG "No failed subtasks to retry"
+        return 0
+    fi
+
+    # Count tasks (newline-separated)
+    local task_count
+    task_count=$(echo "$FAILED_SUBTASKS" | grep -c .)
+    log INFO "Retrying $task_count failed subtasks (attempt $retry_count/${MAX_QUALITY_RETRIES})..."
+
+    local pids=""
+    local subtask_num=0
+    local pid_count=0
+
+    # Process newline-separated list
+    while IFS= read -r failed_task; do
+        [[ -z "$failed_task" ]] && continue
+
+        # Parse failed task info (format: agent:prompt)
+        local agent="${failed_task%%:*}"
+        local prompt="${failed_task#*:}"
+
+        spawn_agent "$agent" "$prompt" "tangle-${task_group}-retry${retry_count}-${subtask_num}" &
+        local pid=$!
+        pids="$pids $pid"
+        ((subtask_num++))
+        ((pid_count++))
+    done <<< "$FAILED_SUBTASKS"
+
+    # Wait for retry tasks
+    local completed=0
+    while [[ $completed -lt $pid_count ]]; do
+        completed=0
+        for pid in $pids; do
+            if ! kill -0 "$pid" 2>/dev/null; then
+                ((completed++))
+            fi
+        done
+        echo -ne "\r${YELLOW}Retry progress: $completed/${pid_count} tasks${NC}"
+        sleep 2
+    done
+    echo ""
+
+    # Clear failed tasks for re-evaluation
+    FAILED_SUBTASKS=""
+}
+
 spawn_agent() {
     local agent_type="$1"
     local prompt="$2"
@@ -365,21 +819,60 @@ spawn_agent() {
 
 auto_route() {
     local prompt="$1"
+    local prompt_lower
+    prompt_lower=$(echo "$prompt" | tr '[:upper:]' '[:lower:]')
 
     local task_type
     task_type=$(classify_task "$prompt")
 
-    local agent
-    agent=$(get_agent_for_task "$task_type")
-
     echo ""
     echo -e "${MAGENTA}═══════════════════════════════════════════════════════════${NC}"
-    echo -e "${MAGENTA}  Claude Octopus - Contextual Agent Routing${NC}"
+    echo -e "${MAGENTA}  Claude Octopus - Smart Routing${NC}"
     echo -e "${MAGENTA}═══════════════════════════════════════════════════════════${NC}"
     echo ""
     echo -e "${BLUE}Task Analysis:${NC}"
     echo -e "  Prompt: ${prompt:0:80}..."
     echo -e "  Detected Type: ${GREEN}$task_type${NC}"
+    echo ""
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # DOUBLE DIAMOND WORKFLOW ROUTING
+    # ═══════════════════════════════════════════════════════════════════════════
+    case "$task_type" in
+        diamond-discover)
+            echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${CYAN}║  PROBE (Discover Phase) - Parallel Research               ║${NC}"
+            echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
+            echo "  Routing to probe workflow for multi-perspective research."
+            echo ""
+            probe_discover "$prompt"
+            return
+            ;;
+        diamond-develop)
+            echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${CYAN}║  TANGLE → INK (Develop + Deliver Phases)                  ║${NC}"
+            echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
+            echo "  Routing to tangle (develop) then ink (deliver) workflow."
+            echo ""
+            tangle_develop "$prompt" && ink_deliver "$prompt"
+            return
+            ;;
+        diamond-deliver)
+            echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${CYAN}║  INK (Deliver Phase) - Quality & Validation               ║${NC}"
+            echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
+            echo "  Routing to ink workflow for quality gates and validation."
+            echo ""
+            ink_deliver "$prompt"
+            return
+            ;;
+    esac
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # STANDARD SINGLE-AGENT ROUTING
+    # ═══════════════════════════════════════════════════════════════════════════
+    local agent
+    agent=$(get_agent_for_task "$task_type")
     echo -e "  Selected Agent: ${GREEN}$agent${NC}"
     echo ""
 
@@ -389,6 +882,25 @@ auto_route() {
             echo "  Using gemini-3-pro-image-preview for text-to-image generation."
             echo "  Supports: text-to-image, image editing, multi-turn editing"
             echo "  Output: Up to 4K resolution images"
+            echo ""
+
+            # v3.0: Nano banana prompt refinement for better image results
+            local image_type
+            image_type=$(detect_image_type "$prompt_lower")
+            echo -e "${CYAN}Detected image type: $image_type${NC}"
+            echo -e "${CYAN}Applying nano banana prompt refinement...${NC}"
+            echo ""
+
+            local refined_prompt
+            refined_prompt=$(refine_image_prompt "$prompt" "$image_type")
+
+            echo -e "${GREEN}Refined prompt:${NC}"
+            echo "  ${refined_prompt:0:200}..."
+            echo ""
+
+            log INFO "Routing refined prompt to $agent agent"
+            spawn_agent "$agent" "$refined_prompt"
+            return
             ;;
         review)
             echo -e "${YELLOW}Code Review Task${NC}"
@@ -397,7 +909,7 @@ auto_route() {
             ;;
         coding)
             echo -e "${YELLOW}Coding/Implementation Task${NC}"
-            echo "  Using gpt-5.2-codex for complex code generation and refactoring."
+            echo "  Using gpt-5.1-codex-max (premium) for complex code generation."
             echo "  State-of-the-art on SWE-Bench Pro benchmarks"
             ;;
         design)
@@ -417,7 +929,7 @@ auto_route() {
             ;;
         *)
             echo -e "${YELLOW}General Task${NC}"
-            echo "  Using codex as default for general-purpose tasks."
+            echo "  Using codex (premium) as default for general-purpose tasks."
             ;;
     esac
     echo ""
@@ -593,6 +1105,736 @@ aggregate_results() {
     echo -e "${GREEN}✓${NC} Results aggregated to: $aggregate_file"
 }
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# DOUBLE DIAMOND METHODOLOGY - Design Thinking Commands
+# Octopus-themed commands for the four phases of Double Diamond
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Pre-flight dependency validation
+preflight_check() {
+    # 🐙 Checking if all 8 tentacles are properly attached...
+    log INFO "Running pre-flight checks... 🐙"
+    log INFO "Checking if all tentacles are attached..."
+    local errors=0
+
+    # Check Codex CLI (Tentacle #1-4: OpenAI arms)
+    if ! command -v codex &>/dev/null; then
+        log ERROR "Codex CLI not found. Install: npm install -g @openai/codex"
+        log ERROR "  (That's tentacles 1-4 missing! We need those!)"
+        ((errors++))
+    else
+        log DEBUG "Codex CLI: $(command -v codex)"
+    fi
+
+    # Check Gemini CLI (Tentacle #5-8: Google arms)
+    if ! command -v gemini &>/dev/null; then
+        log ERROR "Gemini CLI not found. Install: npm install -g @google/gemini-cli"
+        log ERROR "  (That's tentacles 5-8 missing! Only half an octopus!)"
+        ((errors++))
+    else
+        log DEBUG "Gemini CLI: $(command -v gemini)"
+    fi
+
+    # Check API keys
+    if [[ -z "${OPENAI_API_KEY:-}" ]]; then
+        log ERROR "OPENAI_API_KEY not set"
+        ((errors++))
+    else
+        log DEBUG "OPENAI_API_KEY: set (${#OPENAI_API_KEY} chars)"
+    fi
+
+    if [[ -z "${GOOGLE_API_KEY:-}" ]]; then
+        log ERROR "GOOGLE_API_KEY not set"
+        ((errors++))
+    else
+        log DEBUG "GOOGLE_API_KEY: set (${#GOOGLE_API_KEY} chars)"
+    fi
+
+    # Check workspace
+    if [[ ! -d "$WORKSPACE_DIR" ]]; then
+        log WARN "Workspace not initialized. Running init..."
+        init_workspace
+    fi
+
+    if [[ $errors -gt 0 ]]; then
+        log ERROR "$errors pre-flight check(s) failed"
+        return 1
+    fi
+
+    log INFO "Pre-flight checks passed 🐙"
+    echo -e "${GREEN}✓${NC} All 8 tentacles accounted for and ready to work!"
+    return 0
+}
+
+# Synchronous agent execution (for sequential steps within phases)
+run_agent_sync() {
+    local agent_type="$1"
+    local prompt="$2"
+    local timeout_secs="${3:-120}"
+
+    local cmd
+    cmd=$(get_agent_command "$agent_type") || return 1
+
+    # shellcheck disable=SC2086
+    run_with_timeout "$timeout_secs" $cmd "$prompt" 2>/dev/null
+}
+
+# Phase 1: PROBE (Discover) - Parallel research with synthesis
+# Like an octopus probing with multiple tentacles simultaneously
+probe_discover() {
+    local prompt="$1"
+    local task_group
+    task_group=$(date +%s)
+
+    echo ""
+    echo -e "${MAGENTA}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${MAGENTA}║  PROBE (Discover Phase) - Parallel Research               ║${NC}"
+    echo -e "${MAGENTA}║  Extending all tentacles into the unknown...              ║${NC}"
+    echo -e "${MAGENTA}║  Who knows what we'll find? 🐙                            ║${NC}"
+    echo -e "${MAGENTA}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+
+    log INFO "Phase 1: Parallel exploration with multiple perspectives"
+
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log INFO "[DRY-RUN] Would probe: $prompt"
+        log INFO "[DRY-RUN] Would spawn 4 parallel research agents"
+        return 0
+    fi
+
+    # Pre-flight validation
+    preflight_check || return 1
+
+    mkdir -p "$RESULTS_DIR" "$LOGS_DIR"
+
+    # Research prompts from different angles
+    local perspectives=(
+        "Analyze the problem space: $prompt. Focus on understanding constraints, requirements, and user needs."
+        "Research existing solutions and patterns for: $prompt. What has been done before? What worked, what failed?"
+        "Explore edge cases and potential challenges for: $prompt. What could go wrong? What's often overlooked?"
+        "Investigate technical feasibility and dependencies for: $prompt. What are the prerequisites?"
+    )
+
+    local pids=()
+    for i in "${!perspectives[@]}"; do
+        local perspective="${perspectives[$i]}"
+        local agent="gemini"
+        [[ $((i % 2)) -eq 0 ]] && agent="codex"
+
+        spawn_agent "$agent" "$perspective" "probe-${task_group}-${i}" &
+        pids+=($!)
+        sleep 0.3
+    done
+
+    log INFO "Spawned ${#pids[@]} parallel research threads"
+
+    # Wait for all to complete with progress
+    local completed=0
+    while [[ $completed -lt ${#pids[@]} ]]; do
+        completed=0
+        for pid in "${pids[@]}"; do
+            if ! kill -0 "$pid" 2>/dev/null; then
+                ((completed++))
+            fi
+        done
+        echo -ne "\r${CYAN}Progress: $completed/${#pids[@]} research threads complete${NC}"
+        sleep 2
+    done
+    echo ""
+
+    # Intelligent synthesis
+    synthesize_probe_results "$task_group" "$prompt"
+}
+
+# Synthesize probe results into insights
+synthesize_probe_results() {
+    local task_group="$1"
+    local original_prompt="$2"
+    local synthesis_file="${RESULTS_DIR}/probe-synthesis-${task_group}.md"
+
+    log INFO "Synthesizing research findings..."
+
+    # Gather all probe results
+    local results=""
+    local result_count=0
+    for result in "$RESULTS_DIR"/probe-${task_group}-*.md; do
+        [[ -f "$result" ]] || continue
+        results+="$(cat "$result")\n\n---\n\n"
+        ((result_count++))
+    done
+
+    if [[ $result_count -eq 0 ]]; then
+        log WARN "No probe results found to synthesize"
+        return 1
+    fi
+
+    # Use Gemini for intelligent synthesis
+    local synthesis_prompt="Synthesize these research findings into a coherent discovery summary.
+
+Original Question: $original_prompt
+
+Identify:
+1. Key insights and patterns across all perspectives
+2. Conflicting perspectives that need resolution
+3. Gaps in understanding that need more research
+4. Recommended approach based on findings
+
+Research findings:
+$results"
+
+    local synthesis
+    synthesis=$(run_agent_sync "gemini" "$synthesis_prompt" 180) || {
+        log WARN "Synthesis failed, using concatenation fallback"
+        synthesis="[Auto-synthesis failed - raw findings below]\n\n$results"
+    }
+
+    cat > "$synthesis_file" << EOF
+# PROBE Phase Synthesis
+## Discovery Summary - $(date)
+## Original Task: $original_prompt
+
+$synthesis
+
+---
+*Synthesized from $result_count research threads (task group: $task_group)*
+EOF
+
+    log INFO "Synthesis complete: $synthesis_file"
+    echo ""
+    echo -e "${GREEN}✓${NC} Probe synthesis saved to: $synthesis_file"
+    echo ""
+}
+
+# Phase 2: GRASP (Define) - Consensus building on approach
+# The octopus grasps the core problem with coordinated tentacles
+grasp_define() {
+    local prompt="$1"
+    local probe_results="${2:-}"
+    local task_group
+    task_group=$(date +%s)
+
+    echo ""
+    echo -e "${MAGENTA}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${MAGENTA}║  GRASP (Define Phase) - Consensus Building                ║${NC}"
+    echo -e "${MAGENTA}║  Eight arms, one decision. Let's reach consensus. 🐙      ║${NC}"
+    echo -e "${MAGENTA}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+
+    log INFO "Phase 2: Building consensus on problem definition"
+
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log INFO "[DRY-RUN] Would grasp: $prompt"
+        log INFO "[DRY-RUN] Would gather 3 perspectives and build consensus"
+        return 0
+    fi
+
+    mkdir -p "$RESULTS_DIR"
+
+    # Include probe context if available
+    local context=""
+    if [[ -n "$probe_results" && -f "$probe_results" ]]; then
+        context="Previous research findings:\n$(cat "$probe_results")\n\n"
+        log INFO "Using probe context from: $probe_results"
+    fi
+
+    # Multiple agents define the problem from their perspective
+    log INFO "Gathering problem definitions from multiple perspectives..."
+
+    local def1 def2 def3
+    def1=$(run_agent_sync "codex" "Based on: $prompt\n${context}Define the core problem statement in 2-3 sentences. What is the essential challenge?" 120)
+    def2=$(run_agent_sync "gemini" "Based on: $prompt\n${context}Define success criteria. How will we know when this is solved correctly? List 3-5 measurable criteria." 120)
+    def3=$(run_agent_sync "gemini" "Based on: $prompt\n${context}Define constraints and boundaries. What are we NOT solving? What are hard limits?" 120)
+
+    # Build consensus
+    local consensus_file="${RESULTS_DIR}/grasp-consensus-${task_group}.md"
+
+    log INFO "Building consensus from perspectives..."
+
+    local consensus_prompt="Review these different problem definitions and create a unified problem statement.
+Resolve any conflicts and synthesize the best elements from each.
+
+Problem Statement Perspective:
+$def1
+
+Success Criteria Perspective:
+$def2
+
+Constraints Perspective:
+$def3
+
+Output a single, clear problem definition document with:
+1. Problem Statement (2-3 sentences)
+2. Success Criteria (bullet points)
+3. Constraints & Boundaries
+4. Recommended Approach"
+
+    local consensus
+    consensus=$(run_agent_sync "gemini" "$consensus_prompt" 180) || {
+        consensus="[Auto-consensus failed - manual review required]\n\nProblem: $def1\n\nSuccess Criteria: $def2\n\nConstraints: $def3"
+    }
+
+    cat > "$consensus_file" << EOF
+# GRASP Phase - Problem Definition Consensus
+## Task: $prompt
+## Generated: $(date)
+
+$consensus
+
+---
+*Consensus built from multiple agent perspectives (task group: $task_group)*
+EOF
+
+    log INFO "Consensus document: $consensus_file"
+    echo ""
+    echo -e "${GREEN}✓${NC} Problem definition saved to: $consensus_file"
+    echo ""
+}
+
+# Phase 3: TANGLE (Develop) - Enhanced map-reduce with validation
+# Tentacles work together in a coordinated tangle of activity
+tangle_develop() {
+    local prompt="$1"
+    local grasp_file="${2:-}"
+    local task_group
+    task_group=$(date +%s)
+
+    echo ""
+    echo -e "${MAGENTA}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${MAGENTA}║  TANGLE (Develop Phase) - Parallel Development            ║${NC}"
+    echo -e "${MAGENTA}║  It looks messy, but trust us - there's method in the     ║${NC}"
+    echo -e "${MAGENTA}║  tentacles. 🐙                                            ║${NC}"
+    echo -e "${MAGENTA}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+
+    log INFO "Phase 3: Parallel development with validation gates"
+
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log INFO "[DRY-RUN] Would tangle: $prompt"
+        log INFO "[DRY-RUN] Would decompose into subtasks and execute in parallel"
+        return 0
+    fi
+
+    mkdir -p "$RESULTS_DIR"
+
+    # Load problem definition if available
+    local context=""
+    if [[ -n "$grasp_file" && -f "$grasp_file" ]]; then
+        context="Problem Definition:\n$(cat "$grasp_file")\n\n"
+        log INFO "Using grasp context from: $grasp_file"
+    fi
+
+    # Step 1: Decompose into validated subtasks
+    log INFO "Step 1: Task decomposition..."
+    local decompose_prompt="Decompose this task into 4-6 independent subtasks that can be executed in parallel.
+Each subtask should be:
+- Self-contained and independently verifiable
+- Clear about inputs and expected outputs
+- Assignable to either a coding agent [CODING] or reasoning agent [REASONING]
+
+${context}Task: $prompt
+
+Output as numbered list with [CODING] or [REASONING] prefix for each subtask."
+
+    local subtasks
+    subtasks=$(run_agent_sync "gemini" "$decompose_prompt" 120) || {
+        log WARN "Decomposition failed, falling back to direct execution"
+        spawn_agent "codex" "$prompt" "tangle-${task_group}-direct"
+        wait
+        return
+    }
+
+    echo -e "${CYAN}Decomposed into subtasks:${NC}"
+    echo "$subtasks"
+    echo ""
+
+    # Step 2: Parallel execution with progress tracking
+    log INFO "Step 2: Parallel execution..."
+    local subtask_num=0
+    local pids=()
+
+    while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+        [[ ! "$line" =~ ^[0-9]+[\.\)] ]] && continue
+
+        local subtask
+        subtask=$(echo "$line" | sed 's/^[0-9]*[\.\)]\s*//')
+        local agent="codex"
+        [[ "$subtask" =~ \[REASONING\] ]] && agent="gemini"
+        subtask=$(echo "$subtask" | sed 's/\[CODING\]\s*//; s/\[REASONING\]\s*//')
+
+        spawn_agent "$agent" "$subtask" "tangle-${task_group}-${subtask_num}" &
+        pids+=($!)
+        ((subtask_num++))
+    done <<< "$subtasks"
+
+    log INFO "Spawned $subtask_num development threads"
+
+    # Wait with progress monitoring
+    local completed=0
+    while [[ $completed -lt ${#pids[@]} ]]; do
+        completed=0
+        for pid in "${pids[@]}"; do
+            if ! kill -0 "$pid" 2>/dev/null; then
+                ((completed++))
+            fi
+        done
+        echo -ne "\r${CYAN}Progress: $completed/${#pids[@]} subtasks complete${NC}"
+        sleep 2
+    done
+    echo ""
+
+    # Step 3: Validation gate
+    log INFO "Step 3: Validation gate..."
+    validate_tangle_results "$task_group" "$prompt"
+}
+
+# Validate tangle results with quality gate
+# v3.0: Supports configurable threshold and loop-until-approved retry logic
+validate_tangle_results() {
+    local task_group="$1"
+    local original_prompt="$2"
+    local validation_file="${RESULTS_DIR}/tangle-validation-${task_group}.md"
+    local quality_retry_count=0
+
+    while true; do
+        # Collect all results
+        local results=""
+        local success_count=0
+        local fail_count=0
+        FAILED_SUBTASKS=""  # Reset for this validation pass (string-based)
+
+        for result in "$RESULTS_DIR"/tangle-${task_group}*.md; do
+            [[ -f "$result" ]] || continue
+            [[ "$result" == *validation* ]] && continue
+
+            if grep -q "Status: SUCCESS" "$result" 2>/dev/null; then
+                ((success_count++))
+            else
+                ((fail_count++))
+                # Extract agent and prompt for retry (if loop-until-approved enabled)
+                if [[ "$LOOP_UNTIL_APPROVED" == "true" ]]; then
+                    local agent prompt_line
+                    agent=$(grep "^# Agent:" "$result" 2>/dev/null | sed 's/# Agent: //')
+                    prompt_line=$(grep "^# Prompt:" "$result" 2>/dev/null | sed 's/# Prompt: //')
+                    if [[ -n "$agent" && -n "$prompt_line" ]]; then
+                        FAILED_SUBTASKS="${FAILED_SUBTASKS}${agent}:${prompt_line}"$'\n'
+                    fi
+                fi
+            fi
+            results+="$(cat "$result")\n\n---\n\n"
+        done
+
+        # Quality gate check (using configurable threshold)
+        local total=$((success_count + fail_count))
+        local success_rate=0
+        [[ $total -gt 0 ]] && success_rate=$((success_count * 100 / total))
+
+        local gate_status="PASSED"
+        local gate_color="${GREEN}"
+        if [[ $success_rate -lt $QUALITY_THRESHOLD ]]; then
+            gate_status="FAILED"
+            gate_color="${RED}"
+        elif [[ $success_rate -lt 90 ]]; then
+            gate_status="WARNING"
+            gate_color="${YELLOW}"
+        fi
+
+        # Loop-until-approved retry logic
+        if [[ "$LOOP_UNTIL_APPROVED" == "true" && "$gate_status" == "FAILED" ]]; then
+            if [[ $quality_retry_count -lt $MAX_QUALITY_RETRIES ]]; then
+                ((quality_retry_count++))
+                echo ""
+                echo -e "${YELLOW}╔═══════════════════════════════════════════════════════════╗${NC}"
+                echo -e "${YELLOW}║  Loop-Until-Approved: Retrying Failed Tasks               ║${NC}"
+                echo -e "${YELLOW}╚═══════════════════════════════════════════════════════════╝${NC}"
+                log WARN "Quality gate at ${success_rate}%, below ${QUALITY_THRESHOLD}%. Retry $quality_retry_count/${MAX_QUALITY_RETRIES}"
+                retry_failed_subtasks "$task_group" "$quality_retry_count"
+
+                # Wait for retry tasks to complete
+                sleep 3
+                continue  # Re-validate
+            else
+                log ERROR "Max retries ($MAX_QUALITY_RETRIES) exceeded. Proceeding with ${success_rate}%"
+            fi
+        fi
+
+        # Write validation report
+        cat > "$validation_file" << EOF
+# TANGLE Phase Validation Report
+## Task: $original_prompt
+## Generated: $(date)
+
+### Quality Gate: ${gate_status}
+- Success Rate: ${success_rate}% (threshold: ${QUALITY_THRESHOLD}%)
+- Successful: ${success_count}/${total} tentacles
+- Failed: ${fail_count}/${total} tentacles
+- Retry Attempts: ${quality_retry_count}/${MAX_QUALITY_RETRIES}
+
+### Subtask Results
+$results
+EOF
+
+        echo ""
+        echo -e "${gate_color}╔═══════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${gate_color}║  Quality Gate: ${gate_status} (${success_rate}% of tentacles succeeded)${NC}"
+        echo -e "${gate_color}╚═══════════════════════════════════════════════════════════╝${NC}"
+
+        if [[ "$gate_status" == "FAILED" ]]; then
+            log WARN "Quality gate failed. Review failures before proceeding to delivery."
+            echo -e "${RED}Review results at: $validation_file${NC}"
+        fi
+
+        log INFO "Validation complete: $validation_file"
+        echo ""
+
+        # Exit loop - validation complete
+        break
+    done
+
+    # Return non-zero if gate failed (but don't exit)
+    [[ "$gate_status" != "FAILED" ]]
+}
+
+# Phase 4: INK (Deliver) - Quality gates + final output
+# The octopus inks the final solution with precision
+ink_deliver() {
+    local prompt="$1"
+    local tangle_results="${2:-}"
+    local task_group
+    task_group=$(date +%s)
+
+    echo ""
+    echo -e "${MAGENTA}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${MAGENTA}║  INK (Deliver Phase) - Final Output                       ║${NC}"
+    echo -e "${MAGENTA}║  Time to release the cloud of excellence! 🐙              ║${NC}"
+    echo -e "${MAGENTA}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+
+    log INFO "Phase 4: Finalizing delivery with quality checks"
+
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log INFO "[DRY-RUN] Would ink: $prompt"
+        log INFO "[DRY-RUN] Would synthesize and deliver final output"
+        return 0
+    fi
+
+    mkdir -p "$RESULTS_DIR"
+
+    # Step 1: Pre-delivery quality checks
+    log INFO "Step 1: Running quality checks..."
+
+    local checks_passed=true
+
+    # Check 1: Results exist
+    if [[ -z "$(ls -A "$RESULTS_DIR"/*.md 2>/dev/null)" ]]; then
+        log ERROR "No results found. Cannot deliver."
+        return 1
+    fi
+
+    # Check 2: No critical failures from tangle phase
+    if [[ -n "$tangle_results" && -f "$tangle_results" ]]; then
+        if grep -q "Quality Gate: FAILED" "$tangle_results" 2>/dev/null; then
+            log WARN "Development phase has failed quality gate. Proceeding with caution."
+            checks_passed=false
+        fi
+    fi
+
+    # Step 2: Synthesize final output
+    log INFO "Step 2: Synthesizing final deliverable..."
+
+    local all_results=""
+    local result_count=0
+    for result in "$RESULTS_DIR"/*.md; do
+        [[ -f "$result" ]] || continue
+        [[ "$result" == *aggregate* || "$result" == *delivery* ]] && continue
+        all_results+="$(cat "$result")\n\n"
+        ((result_count++))
+        [[ $result_count -ge 10 ]] && break  # Limit context size
+    done
+
+    local synthesis_prompt="Create a polished final deliverable from these development results.
+
+Structure the output as:
+1. Executive Summary (2-3 sentences)
+2. Key Deliverables (what was produced)
+3. Implementation Details (technical specifics)
+4. Next Steps / Recommendations
+5. Known Limitations
+
+Original task: $prompt
+
+Results to synthesize:
+$all_results"
+
+    local delivery
+    delivery=$(run_agent_sync "gemini" "$synthesis_prompt" 180) || {
+        delivery="[Synthesis failed - raw results attached]\n\n$all_results"
+    }
+
+    # Step 3: Generate final document
+    local delivery_file="${RESULTS_DIR}/delivery-${task_group}.md"
+
+    cat > "$delivery_file" << EOF
+# DELIVERY DOCUMENT
+## Task: $prompt
+## Generated: $(date)
+## Status: $([[ "$checks_passed" == "true" ]] && echo "COMPLETE" || echo "PARTIAL - Review Required")
+
+---
+
+$delivery
+
+---
+
+## Quality Certification
+- Pre-delivery checks: $([[ "$checks_passed" == "true" ]] && echo "PASSED" || echo "NEEDS REVIEW")
+- Results synthesized: $result_count files
+- Generated by: Claude Octopus Double Diamond
+- Timestamp: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
+EOF
+
+    log INFO "Delivery document: $delivery_file"
+    echo ""
+    echo -e "${GREEN}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${GREEN}║  Delivery complete!                                       ║${NC}"
+    echo -e "${GREEN}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo -e "Final document: ${CYAN}$delivery_file${NC}"
+    echo ""
+}
+
+# EMBRACE - Full 4-phase Double Diamond workflow
+# The octopus embraces the entire problem with all tentacles
+# v3.0: Supports session recovery, autonomy checkpoints
+embrace_full_workflow() {
+    local prompt="$1"
+    local task_group
+    task_group=$(date +%s)
+    local resume_from=""
+
+    echo ""
+    echo -e "${MAGENTA}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${MAGENTA}║  EMBRACE - Full Double Diamond Workflow                   ║${NC}"
+    echo -e "${MAGENTA}║  Full octopus hug incoming! All 8 arms engaged. 🐙        ║${NC}"
+    echo -e "${MAGENTA}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+
+    log INFO "Starting complete Double Diamond workflow"
+    log INFO "Task: $prompt"
+    log INFO "Autonomy mode: $AUTONOMY_MODE"
+    [[ "$LOOP_UNTIL_APPROVED" == "true" ]] && log INFO "Loop-until-approved: enabled"
+    echo ""
+
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log INFO "[DRY-RUN] Would embrace: $prompt"
+        log INFO "[DRY-RUN] Would run all 4 phases: probe → grasp → tangle → ink"
+        return 0
+    fi
+
+    # Session recovery check
+    if [[ "$RESUME_SESSION" == "true" ]] && check_resume_session; then
+        resume_from=$(get_resume_phase)
+        log INFO "Resuming from phase: $resume_from"
+    else
+        init_session "embrace" "$prompt"
+    fi
+
+    # Pre-flight validation
+    if ! preflight_check; then
+        log ERROR "Pre-flight check failed. Aborting workflow."
+        return 1
+    fi
+
+    local workflow_dir="${RESULTS_DIR}/embrace-${task_group}"
+    mkdir -p "$workflow_dir"
+
+    # Track timing
+    local start_time=$SECONDS
+    local probe_synthesis grasp_consensus tangle_validation
+
+    # Phase 1: PROBE (Discover)
+    if [[ -z "$resume_from" || "$resume_from" == "null" ]]; then
+        echo ""
+        echo -e "${CYAN}[1/4] Starting PROBE phase (Discover)...${NC}"
+        echo ""
+        probe_discover "$prompt"
+        probe_synthesis=$(ls -t "$RESULTS_DIR"/probe-synthesis-*.md 2>/dev/null | head -1)
+        save_session_checkpoint "probe" "completed" "$probe_synthesis"
+        handle_autonomy_checkpoint "probe" "completed"
+        sleep 1
+    else
+        probe_synthesis=$(get_phase_output "probe")
+        [[ -z "$probe_synthesis" ]] && probe_synthesis=$(ls -t "$RESULTS_DIR"/probe-synthesis-*.md 2>/dev/null | head -1)
+        log INFO "Skipping probe phase (resuming)"
+    fi
+
+    # Phase 2: GRASP (Define)
+    if [[ -z "$resume_from" || "$resume_from" == "null" || "$resume_from" == "probe" ]]; then
+        echo ""
+        echo -e "${CYAN}[2/4] Starting GRASP phase (Define)...${NC}"
+        echo ""
+        grasp_define "$prompt" "$probe_synthesis"
+        grasp_consensus=$(ls -t "$RESULTS_DIR"/grasp-consensus-*.md 2>/dev/null | head -1)
+        save_session_checkpoint "grasp" "completed" "$grasp_consensus"
+        handle_autonomy_checkpoint "grasp" "completed"
+        sleep 1
+    else
+        grasp_consensus=$(get_phase_output "grasp")
+        [[ -z "$grasp_consensus" ]] && grasp_consensus=$(ls -t "$RESULTS_DIR"/grasp-consensus-*.md 2>/dev/null | head -1)
+        log INFO "Skipping grasp phase (resuming)"
+    fi
+
+    # Phase 3: TANGLE (Develop)
+    if [[ -z "$resume_from" || "$resume_from" == "null" || "$resume_from" == "probe" || "$resume_from" == "grasp" ]]; then
+        echo ""
+        echo -e "${CYAN}[3/4] Starting TANGLE phase (Develop)...${NC}"
+        echo ""
+        tangle_develop "$prompt" "$grasp_consensus"
+        tangle_validation=$(ls -t "$RESULTS_DIR"/tangle-validation-*.md 2>/dev/null | head -1)
+
+        # Check quality gate status for autonomy
+        local tangle_status="completed"
+        if grep -q "Quality Gate: FAILED" "$tangle_validation" 2>/dev/null; then
+            tangle_status="warning"
+        fi
+        save_session_checkpoint "tangle" "$tangle_status" "$tangle_validation"
+        handle_autonomy_checkpoint "tangle" "$tangle_status"
+        sleep 1
+    else
+        tangle_validation=$(get_phase_output "tangle")
+        [[ -z "$tangle_validation" ]] && tangle_validation=$(ls -t "$RESULTS_DIR"/tangle-validation-*.md 2>/dev/null | head -1)
+        log INFO "Skipping tangle phase (resuming)"
+    fi
+
+    # Phase 4: INK (Deliver)
+    echo ""
+    echo -e "${CYAN}[4/4] Starting INK phase (Deliver)...${NC}"
+    echo ""
+    ink_deliver "$prompt" "$tangle_validation"
+    save_session_checkpoint "ink" "completed" "$(ls -t "$RESULTS_DIR"/delivery-*.md 2>/dev/null | head -1)"
+
+    # Mark session complete
+    complete_session
+
+    # Summary
+    local duration=$((SECONDS - start_time))
+
+    echo ""
+    echo -e "${MAGENTA}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${MAGENTA}║  EMBRACE workflow complete!                               ║${NC}"
+    echo -e "${MAGENTA}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    echo -e "Duration: ${duration}s"
+    echo -e "Autonomy: ${AUTONOMY_MODE}"
+    echo -e "Results: ${RESULTS_DIR}/"
+    echo ""
+    echo -e "${CYAN}Phase outputs:${NC}"
+    [[ -n "$probe_synthesis" ]] && echo -e "  Probe:  $probe_synthesis"
+    [[ -n "$grasp_consensus" ]] && echo -e "  Grasp:  $grasp_consensus"
+    [[ -n "$tangle_validation" ]] && echo -e "  Tangle: $tangle_validation"
+    echo -e "  Ink:    $(ls -t "$RESULTS_DIR"/delivery-*.md 2>/dev/null | head -1)"
+    echo ""
+}
+
 show_status() {
     echo ""
     echo -e "${MAGENTA}═══════════════════════════════════════════════════════════${NC}"
@@ -679,16 +1921,54 @@ while [[ $# -gt 0 ]]; do
         -v|--verbose) VERBOSE=true; shift ;;
         -n|--dry-run) DRY_RUN=true; shift ;;
         -d|--dir) PROJECT_ROOT="$2"; shift 2 ;;
+        -a|--autonomy) AUTONOMY_MODE="$2"; shift 2 ;;
+        -q|--quality) QUALITY_THRESHOLD="$2"; shift 2 ;;
+        -l|--loop) LOOP_UNTIL_APPROVED=true; shift ;;
+        -R|--resume) RESUME_SESSION=true; shift ;;
         -h|--help|help) usage ;;
         *) break ;;
     esac
 done
+
+# Handle autonomy mode aliases
+if [[ "$AUTONOMY_MODE" == "loop-until-approved" ]]; then
+    LOOP_UNTIL_APPROVED=true
+fi
 
 # Main command dispatch
 COMMAND="${1:-help}"
 shift || true
 
 case "$COMMAND" in
+    # ═══════════════════════════════════════════════════════════════════════════
+    # DOUBLE DIAMOND COMMANDS
+    # ═══════════════════════════════════════════════════════════════════════════
+    probe)
+        [[ $# -lt 1 ]] && { log ERROR "Usage: probe <prompt>"; exit 1; }
+        probe_discover "$*"
+        ;;
+    grasp)
+        [[ $# -lt 1 ]] && { log ERROR "Usage: grasp <prompt> [probe-results-file]"; exit 1; }
+        grasp_define "$1" "${2:-}"
+        ;;
+    tangle)
+        [[ $# -lt 1 ]] && { log ERROR "Usage: tangle <prompt> [grasp-consensus-file]"; exit 1; }
+        tangle_develop "$1" "${2:-}"
+        ;;
+    ink)
+        [[ $# -lt 1 ]] && { log ERROR "Usage: ink <prompt> [tangle-validation-file]"; exit 1; }
+        ink_deliver "$1" "${2:-}"
+        ;;
+    embrace)
+        [[ $# -lt 1 ]] && { log ERROR "Usage: embrace <prompt>"; exit 1; }
+        embrace_full_workflow "$*"
+        ;;
+    preflight)
+        preflight_check
+        ;;
+    # ═══════════════════════════════════════════════════════════════════════════
+    # CLASSIC COMMANDS
+    # ═══════════════════════════════════════════════════════════════════════════
     init)
         init_workspace
         ;;
