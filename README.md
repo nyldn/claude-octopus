@@ -59,7 +59,6 @@ _`) )  .---.__.' / |   |\   \__..--""  """--.,_
   - `--branch BRANCH` - Force tentacle path: premium|standard|fast
   - `--on-fail ACTION` - Quality gate failure action: auto|retry|escalate|abort
 - **Quality Gate Decision Tree** - Intelligent branching on quality outcomes
-- **Competitive Analysis** - Research on 8+ competing orchestrators in `docs/`
 
 ## What's New in 1.0
 

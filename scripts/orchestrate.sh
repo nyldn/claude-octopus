@@ -1794,7 +1794,6 @@ preflight_check() {
     if [[ $conflicts -gt 0 ]]; then
         log INFO "Found $conflicts potentially overlapping orchestrator(s)"
         log INFO "  Claude Octopus uses external CLIs, so conflicts are unlikely"
-        log INFO "  See: docs/COMPETITIVE_ANALYSIS.md for details"
     fi
 
     if [[ $errors -gt 0 ]]; then
