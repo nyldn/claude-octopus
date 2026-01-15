@@ -1,0 +1,31 @@
+{
+  "name": "nyldn-plugins",
+  "owner": {
+    "name": "nyldn"
+  },
+  "metadata": {
+    "description": "Multi-agent orchestration plugins for Claude Code",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "claude-octopus",
+      "source": ".",
+      "description": "Multi-agent orchestrator using Double Diamond methodology",
+      "version": "1.0.1",
+      "author": {
+        "name": "nyldn"
+      },
+      "repository": "https://github.com/nyldn/claude-octopus",
+      "license": "MIT",
+      "keywords": [
+        "multi-agent",
+        "orchestration",
+        "double-diamond",
+        "codex",
+        "gemini"
+      ],
+      "category": "orchestration"
+    }
+  ]
+}
