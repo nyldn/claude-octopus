@@ -65,3 +65,9 @@ tmp/
 temp/
 *.tmp
 *.temp
+
+# Test output directories (generated during development)
+nanobanana-output/
+test-output/
+*.generated.png
+*.generated.jpg
