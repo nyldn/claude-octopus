@@ -21,9 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 #### Double Diamond Methodology
-Multi-agent orchestration workflow with octopus-themed commands:
+Multi-tentacled orchestration workflow with octopus-themed commands:
 - **probe** - Parallel research from 4 perspectives with AI synthesis (Discover phase)
-- **grasp** - Multi-agent consensus building on problem definition (Define phase)
+- **grasp** - Multi-tentacled consensus building on problem definition (Define phase)
 - **tangle** - Enhanced map-reduce with quality gates (Develop phase)
 - **ink** - Validation and final deliverable generation (Deliver phase)
 - **embrace** - Full 4-phase Double Diamond workflow
@@ -109,4 +109,4 @@ Premium model defaults (Jan 2026):
 ### Notes
 
 Initial release as a Claude Code plugin for Design Thinking workflows.
-Built with multi-agent orchestration using Codex CLI and Gemini CLI.
+Built with multi-tentacled orchestration using Codex CLI and Gemini CLI.

@@ -7,7 +7,7 @@
   <img src="https://img.shields.io/badge/Version-1.0.0-blue" alt="Version 1.0.0">
 </p>
 
-**Multi-agent orchestrator for Claude Code** - using Double Diamond methodology for comprehensive problem exploration, consensus building, and validated delivery.
+**Multi-tentacled orchestrator for Claude Code** - using Double Diamond methodology for comprehensive problem exploration, consensus building, and validated delivery.
 
 ```
     DISCOVER          DEFINE           DEVELOP          DELIVER
@@ -117,7 +117,7 @@ Parallel research from 4 perspectives:
 ### Phase 2: GRASP (Define)
 **Build consensus on the problem**
 
-Multi-agent problem definition:
+Multi-tentacled problem definition:
 - Core problem statement
 - Success criteria
 - Constraints and boundaries

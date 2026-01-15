@@ -1,7 +1,7 @@
 {
   "name": "claude-octopus",
   "version": "1.0.1",
-  "description": "Multi-agent orchestrator for Claude Code - using Double Diamond methodology for comprehensive problem exploration, consensus building, and validated delivery",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology",
   "author": {
     "name": "nyldn"
   },
