@@ -1,20 +1,5 @@
 <p align="center">
-
-```
-   ██████╗██╗      █████╗ ██╗   ██╗██████╗ ███████╗
-  ██╔════╝██║     ██╔══██╗██║   ██║██╔══██╗██╔════╝
-  ██║     ██║     ███████║██║   ██║██║  ██║█████╗
-  ██║     ██║     ██╔══██║██║   ██║██║  ██║██╔══╝
-  ╚██████╗███████╗██║  ██║╚██████╔╝██████╔╝███████╗
-   ╚═════╝╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚══════╝
-   ██████╗  ██████╗████████╗ ██████╗ ██████╗ ██╗   ██╗███████╗
-  ██╔═══██╗██╔════╝╚══██╔══╝██╔═══██╗██╔══██╗██║   ██║██╔════╝
-  ██║   ██║██║        ██║   ██║   ██║██████╔╝██║   ██║███████╗
-  ██║   ██║██║        ██║   ██║   ██║██╔═══╝ ██║   ██║╚════██║
-  ╚██████╔╝╚██████╗   ██║   ╚██████╔╝██║     ╚██████╔╝███████║
-   ╚═════╝  ╚═════╝   ╚═╝    ╚═════╝ ╚═╝      ╚═════╝ ╚══════╝
-```
-
+  <img src="assets/social-preview.jpg" alt="Claude Octopus - Multi-tentacled orchestrator for Claude Code" width="640">
 </p>
 
 <p align="center">
@@ -22,11 +7,6 @@
   <img src="https://img.shields.io/badge/Double_Diamond-Design_Thinking-orange" alt="Double Diamond">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
   <img src="https://img.shields.io/badge/Version-1.0.1-blue" alt="Version 1.0.1">
-</p>
-
-<p align="center">
-  <strong>Multi-tentacled orchestrator for Claude Code</strong><br>
-  Using Double Diamond methodology for comprehensive problem exploration, consensus building, and validated delivery.
 </p>
 
 ```
