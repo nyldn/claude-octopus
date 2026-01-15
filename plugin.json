@@ -1,10 +1,12 @@
 {
   "name": "claude-octopus",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Multi-agent orchestrator for Claude Code - using Double Diamond methodology for comprehensive problem exploration, consensus building, and validated delivery",
   "author": "nyldn",
   "license": "MIT",
   "repository": "https://github.com/nyldn/claude-octopus",
+  "homepage": "https://github.com/nyldn/claude-octopus#readme",
+  "bugs": "https://github.com/nyldn/claude-octopus/issues",
   "keywords": [
     "claude-code",
     "multi-agent",
