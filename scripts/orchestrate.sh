@@ -224,13 +224,16 @@ Multi-agent orchestration using Double Diamond methodology.
 
 ${YELLOW}Usage:${NC} $(basename "$0") [OPTIONS] COMMAND [ARGS...]
 
+${YELLOW}Getting Started:${NC}
+  setup                   ${GREEN}Interactive setup wizard${NC} (recommended for first-time users)
+  preflight               Validate all dependencies are available
+
 ${YELLOW}Double Diamond Commands:${NC} (Design Thinking)
   probe <prompt>          Discover: Parallel research + synthesis
   grasp <prompt>          Define: Consensus building on approach
   tangle <prompt>         Develop: Enhanced map-reduce with validation
   ink <prompt>            Deliver: Quality gates + final output
   embrace <prompt>        Full 4-phase Double Diamond workflow
-  preflight               Validate all dependencies are available
 
 ${YELLOW}Classic Commands:${NC}
   init                    Initialize workspace for parallel execution
@@ -1106,6 +1109,286 @@ aggregate_results() {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# SETUP WIZARD - Interactive first-time setup
+# Guides users through CLI installation and API key configuration
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Config file for storing setup state
+SETUP_CONFIG_FILE="$WORKSPACE_DIR/.setup-complete"
+
+# Open URL in default browser (cross-platform)
+open_browser() {
+    local url="$1"
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        open "$url"
+    elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        xdg-open "$url" 2>/dev/null || sensible-browser "$url" 2>/dev/null || echo "Please open: $url"
+    elif [[ "$OSTYPE" == "msys"* || "$OSTYPE" == "cygwin"* ]]; then
+        start "$url"
+    else
+        echo "Please open: $url"
+    fi
+}
+
+# Interactive setup wizard
+setup_wizard() {
+    echo ""
+    echo -e "${PURPLE}═══════════════════════════════════════════════════════════════${NC}"
+    echo -e "${PURPLE}        🐙 Claude Octopus Setup Wizard 🐙${NC}"
+    echo -e "${PURPLE}═══════════════════════════════════════════════════════════════${NC}"
+    echo ""
+    echo -e "  Welcome! Let's get all 8 tentacles connected and ready to work."
+    echo -e "  This wizard will help you install dependencies and configure API keys."
+    echo ""
+
+    local total_steps=4
+    local current_step=0
+    local shell_profile=""
+    local keys_to_add=""
+
+    # Detect shell profile
+    if [[ -n "${ZSH_VERSION:-}" ]] || [[ "$SHELL" == *"zsh"* ]]; then
+        shell_profile="$HOME/.zshrc"
+    elif [[ -n "${BASH_VERSION:-}" ]] || [[ "$SHELL" == *"bash"* ]]; then
+        shell_profile="$HOME/.bashrc"
+    else
+        shell_profile="$HOME/.profile"
+    fi
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # STEP 1: Check/Install Codex CLI
+    # ═══════════════════════════════════════════════════════════════════════════
+    ((current_step++))
+    echo -e "${CYAN}Step $current_step/$total_steps: Codex CLI (Tentacles 1-4)${NC}"
+    echo -e "  OpenAI's Codex CLI powers our coding tentacles."
+    echo ""
+
+    if command -v codex &>/dev/null; then
+        echo -e "  ${GREEN}✓${NC} Codex CLI already installed: $(command -v codex)"
+    else
+        echo -e "  ${YELLOW}✗${NC} Codex CLI not found"
+        echo ""
+        read -p "  Install Codex CLI now? (requires npm) [Y/n] " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+            echo -e "  ${CYAN}→${NC} Installing Codex CLI..."
+            if npm install -g @openai/codex 2>&1 | sed 's/^/    /'; then
+                echo -e "  ${GREEN}✓${NC} Codex CLI installed successfully"
+            else
+                echo -e "  ${RED}✗${NC} Installation failed. Try manually: npm install -g @openai/codex"
+            fi
+        else
+            echo -e "  ${YELLOW}⚠${NC} Skipped. Install later: npm install -g @openai/codex"
+        fi
+    fi
+    echo ""
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # STEP 2: Check/Install Gemini CLI
+    # ═══════════════════════════════════════════════════════════════════════════
+    ((current_step++))
+    echo -e "${CYAN}Step $current_step/$total_steps: Gemini CLI (Tentacles 5-8)${NC}"
+    echo -e "  Google's Gemini CLI powers our reasoning and image tentacles."
+    echo ""
+
+    if command -v gemini &>/dev/null; then
+        echo -e "  ${GREEN}✓${NC} Gemini CLI already installed: $(command -v gemini)"
+    else
+        echo -e "  ${YELLOW}✗${NC} Gemini CLI not found"
+        echo ""
+        read -p "  Install Gemini CLI now? (requires npm) [Y/n] " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+            echo -e "  ${CYAN}→${NC} Installing Gemini CLI..."
+            if npm install -g @anthropic/gemini-cli 2>&1 | sed 's/^/    /'; then
+                echo -e "  ${GREEN}✓${NC} Gemini CLI installed successfully"
+            else
+                echo -e "  ${RED}✗${NC} Installation failed. Try manually: npm install -g @anthropic/gemini-cli"
+            fi
+        else
+            echo -e "  ${YELLOW}⚠${NC} Skipped. Install later: npm install -g @anthropic/gemini-cli"
+        fi
+    fi
+    echo ""
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # STEP 3: OpenAI API Key
+    # ═══════════════════════════════════════════════════════════════════════════
+    ((current_step++))
+    echo -e "${CYAN}Step $current_step/$total_steps: OpenAI API Key${NC}"
+    echo -e "  Required for Codex CLI (GPT models for coding tasks)."
+    echo ""
+
+    if [[ -n "${OPENAI_API_KEY:-}" ]]; then
+        echo -e "  ${GREEN}✓${NC} OPENAI_API_KEY already set (${#OPENAI_API_KEY} chars)"
+    else
+        echo -e "  ${YELLOW}✗${NC} OPENAI_API_KEY not set"
+        echo ""
+        read -p "  Open OpenAI platform to get an API key? [Y/n] " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+            echo -e "  ${CYAN}→${NC} Opening https://platform.openai.com/api-keys ..."
+            open_browser "https://platform.openai.com/api-keys"
+            sleep 1
+        fi
+        echo ""
+        echo -e "  Paste your OpenAI API key (starts with 'sk-'):"
+        read -p "  → " openai_key
+        if [[ -n "$openai_key" ]]; then
+            export OPENAI_API_KEY="$openai_key"
+            keys_to_add="${keys_to_add}export OPENAI_API_KEY=\"$openai_key\"\n"
+            echo -e "  ${GREEN}✓${NC} OPENAI_API_KEY set for this session"
+        else
+            echo -e "  ${YELLOW}⚠${NC} Skipped. Set later: export OPENAI_API_KEY=\"your-key\""
+        fi
+    fi
+    echo ""
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # STEP 4: Gemini API Key
+    # ═══════════════════════════════════════════════════════════════════════════
+    ((current_step++))
+    echo -e "${CYAN}Step $current_step/$total_steps: Gemini API Key${NC}"
+    echo -e "  Required for Gemini CLI (reasoning and image generation)."
+    echo ""
+
+    # Check for legacy GOOGLE_API_KEY
+    if [[ -z "${GEMINI_API_KEY:-}" && -n "${GOOGLE_API_KEY:-}" ]]; then
+        export GEMINI_API_KEY="$GOOGLE_API_KEY"
+    fi
+
+    if [[ -n "${GEMINI_API_KEY:-}" ]]; then
+        echo -e "  ${GREEN}✓${NC} GEMINI_API_KEY already set (${#GEMINI_API_KEY} chars)"
+    else
+        echo -e "  ${YELLOW}✗${NC} GEMINI_API_KEY not set"
+        echo ""
+        read -p "  Open Google AI Studio to get an API key? [Y/n] " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+            echo -e "  ${CYAN}→${NC} Opening https://aistudio.google.com/apikey ..."
+            open_browser "https://aistudio.google.com/apikey"
+            sleep 1
+        fi
+        echo ""
+        echo -e "  Paste your Gemini API key (starts with 'AIza'):"
+        read -p "  → " gemini_key
+        if [[ -n "$gemini_key" ]]; then
+            export GEMINI_API_KEY="$gemini_key"
+            keys_to_add="${keys_to_add}export GEMINI_API_KEY=\"$gemini_key\"\n"
+            echo -e "  ${GREEN}✓${NC} GEMINI_API_KEY set for this session"
+        else
+            echo -e "  ${YELLOW}⚠${NC} Skipped. Set later: export GEMINI_API_KEY=\"your-key\""
+        fi
+    fi
+    echo ""
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # SUMMARY & PERSISTENCE
+    # ═══════════════════════════════════════════════════════════════════════════
+    echo -e "${PURPLE}═══════════════════════════════════════════════════════════════${NC}"
+    echo -e "${PURPLE}                    Setup Summary${NC}"
+    echo -e "${PURPLE}═══════════════════════════════════════════════════════════════${NC}"
+    echo ""
+
+    # Show status
+    local all_good=true
+    echo -e "  ${CYAN}Dependencies:${NC}"
+    if command -v codex &>/dev/null; then
+        echo -e "    ${GREEN}✓${NC} Codex CLI"
+    else
+        echo -e "    ${RED}✗${NC} Codex CLI"
+        all_good=false
+    fi
+    if command -v gemini &>/dev/null; then
+        echo -e "    ${GREEN}✓${NC} Gemini CLI"
+    else
+        echo -e "    ${RED}✗${NC} Gemini CLI"
+        all_good=false
+    fi
+    echo ""
+    echo -e "  ${CYAN}API Keys:${NC}"
+    if [[ -n "${OPENAI_API_KEY:-}" ]]; then
+        echo -e "    ${GREEN}✓${NC} OPENAI_API_KEY"
+    else
+        echo -e "    ${RED}✗${NC} OPENAI_API_KEY"
+        all_good=false
+    fi
+    if [[ -n "${GEMINI_API_KEY:-}" ]]; then
+        echo -e "    ${GREEN}✓${NC} GEMINI_API_KEY"
+    else
+        echo -e "    ${RED}✗${NC} GEMINI_API_KEY"
+        all_good=false
+    fi
+    echo ""
+
+    # Offer to persist keys
+    if [[ -n "$keys_to_add" ]]; then
+        echo -e "  ${YELLOW}To persist API keys across sessions, add to $shell_profile:${NC}"
+        echo ""
+        echo -e "$keys_to_add" | sed 's/^/    /'
+        echo ""
+        read -p "  Add these to $shell_profile automatically? [Y/n] " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+            echo "" >> "$shell_profile"
+            echo "# Claude Octopus API Keys (added by setup wizard)" >> "$shell_profile"
+            echo -e "$keys_to_add" >> "$shell_profile"
+            echo -e "  ${GREEN}✓${NC} Added to $shell_profile"
+            echo -e "  ${CYAN}→${NC} Run 'source $shell_profile' or restart your terminal"
+        fi
+        echo ""
+    fi
+
+    # Initialize workspace
+    if [[ ! -d "$WORKSPACE_DIR" ]]; then
+        init_workspace
+    fi
+
+    # Mark setup as complete
+    mkdir -p "$WORKSPACE_DIR"
+    date '+%Y-%m-%d %H:%M:%S' > "$SETUP_CONFIG_FILE"
+
+    # Final message
+    if $all_good; then
+        echo -e "${GREEN}═══════════════════════════════════════════════════════════════${NC}"
+        echo -e "${GREEN}  🐙 All 8 tentacles are connected and ready to work! 🐙${NC}"
+        echo -e "${GREEN}═══════════════════════════════════════════════════════════════${NC}"
+        echo ""
+        echo -e "  Try these commands:"
+        echo -e "    ${CYAN}orchestrate.sh preflight${NC}     - Verify everything works"
+        echo -e "    ${CYAN}orchestrate.sh embrace${NC}       - Run full Double Diamond workflow"
+        echo -e "    ${CYAN}orchestrate.sh auto <prompt>${NC} - Smart task routing"
+        echo ""
+    else
+        echo -e "${YELLOW}═══════════════════════════════════════════════════════════════${NC}"
+        echo -e "${YELLOW}  🐙 Some tentacles need attention! Run setup again when ready.${NC}"
+        echo -e "${YELLOW}═══════════════════════════════════════════════════════════════${NC}"
+        echo ""
+        return 1
+    fi
+
+    return 0
+}
+
+# Check if first run (setup not completed)
+check_first_run() {
+    if [[ ! -f "$SETUP_CONFIG_FILE" ]]; then
+        # Check if any required component is missing
+        if ! command -v codex &>/dev/null || \
+           ! command -v gemini &>/dev/null || \
+           [[ -z "${OPENAI_API_KEY:-}" ]] || \
+           [[ -z "${GEMINI_API_KEY:-}" ]]; then
+            echo ""
+            echo -e "${YELLOW}🐙 First time? Run the setup wizard to get started:${NC}"
+            echo -e "   ${CYAN}./scripts/orchestrate.sh setup${NC}"
+            echo ""
+            return 1
+        fi
+    fi
+    return 0
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # DOUBLE DIAMOND METHODOLOGY - Design Thinking Commands
 # Octopus-themed commands for the four phases of Double Diamond
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1976,6 +2259,11 @@ fi
 COMMAND="${1:-help}"
 shift || true
 
+# Check for first-run on commands that need setup (skip for help/setup/preflight)
+if [[ "$COMMAND" != "help" && "$COMMAND" != "setup" && "$COMMAND" != "preflight" && "$COMMAND" != "-h" && "$COMMAND" != "--help" ]]; then
+    check_first_run || true  # Show hint but don't block
+fi
+
 case "$COMMAND" in
     # ═══════════════════════════════════════════════════════════════════════════
     # DOUBLE DIAMOND COMMANDS
@@ -2002,6 +2290,9 @@ case "$COMMAND" in
         ;;
     preflight)
         preflight_check
+        ;;
+    setup)
+        setup_wizard
         ;;
     # ═══════════════════════════════════════════════════════════════════════════
     # CLASSIC COMMANDS

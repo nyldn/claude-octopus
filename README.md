@@ -78,14 +78,27 @@ _`) )  .---.__.' / |   |\   \__..--""  """--.,_
 
 ## Quick Start
 
-### Install via Marketplace
+### 1. Install via Marketplace
 
 ```
 /plugin marketplace add nyldn/claude-octopus
 /plugin install claude-octopus@nyldn-plugins
 ```
 
-### Use It
+### 2. Run Setup Wizard
+
+The setup wizard guides you through installing dependencies and configuring API keys:
+
+```bash
+./scripts/orchestrate.sh setup
+```
+
+This will:
+- Install Codex CLI and Gemini CLI (if needed)
+- Help you get OpenAI and Gemini API keys
+- Optionally save keys to your shell profile
+
+### 3. Use It
 
 ```bash
 # Full Double Diamond workflow (all 4 phases)
