@@ -172,6 +172,115 @@ get_agent_for_task() {
     esac
 }
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# COST-AWARE ROUTING - Complexity estimation and tiered model selection
+# Prevents expensive premium models from being used on trivial tasks
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Estimate task complexity: trivial (1), standard (2), complex (3)
+# Uses keyword analysis and prompt length to determine appropriate model tier
+estimate_complexity() {
+    local prompt="$1"
+    local prompt_lower
+    prompt_lower=$(echo "$prompt" | tr '[:upper:]' '[:lower:]')  # Bash 3.2 compatible
+    local word_count=$(echo "$prompt" | wc -w | tr -d ' ')
+    local score=2  # Default: standard
+
+    # TRIVIAL indicators (reduce score)
+    # Short, simple operations that don't need premium models
+    local trivial_patterns="typo|rename|update.?version|bump.?version|change.*to|fix.?typo|formatting|indent|whitespace|simple|quick|small"
+    local single_file_patterns="in readme|in package|in changelog|in config|\.json|\.md|\.txt|\.yml|\.yaml"
+
+    # Check for trivial indicators
+    if [[ $word_count -lt 12 ]]; then
+        ((score--))
+    fi
+
+    if [[ "$prompt_lower" =~ ($trivial_patterns) ]]; then
+        ((score--))
+    fi
+
+    if [[ "$prompt_lower" =~ ($single_file_patterns) ]]; then
+        ((score--))
+    fi
+
+    # COMPLEX indicators (increase score)
+    # Multi-step, architectural, or comprehensive tasks need premium models
+    local complex_patterns="implement|design|architect|build.*feature|create.*system|from.?scratch|comprehensive|full.?system|entire|integrate|authentication|api|database"
+    local multi_component="and.*and|multiple|across|throughout|all.?files|refactor.*entire|complete"
+
+    # Check for complex indicators
+    if [[ $word_count -gt 40 ]]; then
+        ((score++))
+    fi
+
+    if [[ "$prompt_lower" =~ ($complex_patterns) ]]; then
+        ((score++))
+    fi
+
+    if [[ "$prompt_lower" =~ ($multi_component) ]]; then
+        ((score++))
+    fi
+
+    # Clamp to 1-3 range
+    [[ $score -lt 1 ]] && score=1
+    [[ $score -gt 3 ]] && score=3
+
+    echo "$score"
+}
+
+# Get complexity tier name for display
+get_tier_name() {
+    local complexity="$1"
+    case "$complexity" in
+        1) echo "trivial (🐙 quick mode)" ;;
+        2) echo "standard" ;;
+        3) echo "complex (premium)" ;;
+        *) echo "standard" ;;
+    esac
+}
+
+# Get agent based on task type AND complexity tier
+# This replaces the simple get_agent_for_task for cost-aware routing
+get_tiered_agent() {
+    local task_type="$1"
+    local complexity="${2:-2}"  # Default: standard
+
+    case "$task_type" in
+        image)
+            # Image generation always uses gemini-image
+            echo "gemini-image"
+            ;;
+        review)
+            # Reviews use standard tier (already cost-effective)
+            echo "codex-review"
+            ;;
+        coding|general)
+            # Coding tasks: tier based on complexity
+            case "$complexity" in
+                1) echo "codex-mini" ;;      # Trivial → mini (cheapest)
+                2) echo "codex-standard" ;;  # Standard → standard tier
+                3) echo "codex" ;;           # Complex → premium
+            esac
+            ;;
+        design|copywriting|research)
+            # Gemini tasks: tier based on complexity
+            case "$complexity" in
+                1) echo "gemini-fast" ;;     # Trivial → flash (cheaper)
+                *) echo "gemini" ;;          # Standard+ → pro
+            esac
+            ;;
+        diamond-*)
+            # Double Diamond workflows always use premium
+            echo "codex"
+            ;;
+        *)
+            # Safe default: standard tier
+            echo "codex-standard"
+            ;;
+    esac
+}
+
 # Default settings
 MAX_PARALLEL=3
 TIMEOUT=300
@@ -188,6 +297,10 @@ QUALITY_THRESHOLD="${CLAUDE_OCTOPUS_QUALITY_THRESHOLD:-75}"
 MAX_QUALITY_RETRIES="${CLAUDE_OCTOPUS_MAX_RETRIES:-3}"
 LOOP_UNTIL_APPROVED=false
 RESUME_SESSION=false
+
+# v3.1 Feature: Cost-Aware Routing
+# Complexity tiers: trivial (1), standard (2), complex/premium (3)
+FORCE_TIER=""  # "", "trivial", "standard", "premium"
 
 # Session recovery
 SESSION_FILE="${WORKSPACE_DIR}/session.json"
@@ -269,6 +382,11 @@ ${YELLOW}Options:${NC}
   -q, --quality NUM       Quality gate threshold percentage (default: $QUALITY_THRESHOLD)
   -l, --loop              Enable loop-until-approved for quality gates
   -R, --resume            Resume last interrupted session
+
+${YELLOW}Cost Control:${NC} (v3.1 - Smart model selection based on task complexity)
+  -Q, --quick             Force trivial tier (cheapest models: codex-mini, gemini-fast)
+  -P, --premium           Force premium tier (most capable: codex-max)
+  --tier LEVEL            Explicit tier: trivial|standard|premium
 
 ${YELLOW}Double Diamond Examples:${NC}
   # Full workflow - explore, define, develop, deliver
@@ -828,6 +946,25 @@ auto_route() {
     local task_type
     task_type=$(classify_task "$prompt")
 
+    # ═══════════════════════════════════════════════════════════════════════════
+    # COST-AWARE COMPLEXITY ESTIMATION
+    # ═══════════════════════════════════════════════════════════════════════════
+    local complexity=2
+    if [[ -n "$FORCE_TIER" ]]; then
+        # User override via -Q/--quick, -P/--premium, or --tier
+        case "$FORCE_TIER" in
+            trivial) complexity=1 ;;
+            standard) complexity=2 ;;
+            premium) complexity=3 ;;
+        esac
+        log DEBUG "Complexity forced to $complexity via --tier flag"
+    else
+        # Auto-detect complexity from prompt
+        complexity=$(estimate_complexity "$prompt")
+    fi
+    local tier_name
+    tier_name=$(get_tier_name "$complexity")
+
     echo ""
     echo -e "${MAGENTA}═══════════════════════════════════════════════════════════${NC}"
     echo -e "${MAGENTA}  Claude Octopus - Smart Routing${NC}"
@@ -836,6 +973,7 @@ auto_route() {
     echo -e "${BLUE}Task Analysis:${NC}"
     echo -e "  Prompt: ${prompt:0:80}..."
     echo -e "  Detected Type: ${GREEN}$task_type${NC}"
+    echo -e "  Complexity: ${CYAN}$tier_name${NC}"
     echo ""
 
     # ═══════════════════════════════════════════════════════════════════════════
@@ -872,11 +1010,13 @@ auto_route() {
     esac
 
     # ═══════════════════════════════════════════════════════════════════════════
-    # STANDARD SINGLE-AGENT ROUTING
+    # STANDARD SINGLE-AGENT ROUTING (with cost-aware tier selection)
     # ═══════════════════════════════════════════════════════════════════════════
     local agent
-    agent=$(get_agent_for_task "$task_type")
-    echo -e "  Selected Agent: ${GREEN}$agent${NC}"
+    agent=$(get_tiered_agent "$task_type" "$complexity")
+    local model_name
+    model_name=$(get_agent_command "$agent" | awk '{print $NF}')
+    echo -e "  Selected Agent: ${GREEN}$agent${NC} → ${CYAN}$model_name${NC}"
     echo ""
 
     case "$task_type" in
@@ -907,37 +1047,43 @@ auto_route() {
             ;;
         review)
             echo -e "${YELLOW}Code Review Task${NC}"
-            echo "  Using gpt-5.2-codex in review mode for thorough code analysis."
+            echo "  Using $model_name for thorough code analysis."
             echo "  Focus: Security, performance, best practices, bugs"
             ;;
         coding)
             echo -e "${YELLOW}Coding/Implementation Task${NC}"
-            echo "  Using gpt-5.1-codex-max (premium) for complex code generation."
-            echo "  State-of-the-art on SWE-Bench Pro benchmarks"
+            case "$complexity" in
+                1) echo "  Using $model_name (mini) for quick fixes and simple tasks." ;;
+                2) echo "  Using $model_name (standard) for general coding tasks." ;;
+                3) echo "  Using $model_name (premium) for complex code generation." ;;
+            esac
             ;;
         design)
             echo -e "${YELLOW}Design/UI/UX Task${NC}"
-            echo "  Using gemini-3-pro-preview for design reasoning and analysis."
+            echo "  Using $model_name for design reasoning and analysis."
             echo "  Strong at: Component patterns, accessibility, design systems"
             ;;
         copywriting)
             echo -e "${YELLOW}Copywriting Task${NC}"
-            echo "  Using gemini-3-pro-preview for creative content generation."
+            echo "  Using $model_name for creative content generation."
             echo "  Strong at: Marketing copy, tone adaptation, messaging"
             ;;
         research)
             echo -e "${YELLOW}Research/Analysis Task${NC}"
-            echo "  Using gemini-3-pro-preview for deep analysis and synthesis."
-            echo "  1M token context window for comprehensive analysis"
+            echo "  Using $model_name for deep analysis and synthesis."
             ;;
         *)
             echo -e "${YELLOW}General Task${NC}"
-            echo "  Using codex (premium) as default for general-purpose tasks."
+            case "$complexity" in
+                1) echo "  Using $model_name (mini) - detected as simple task." ;;
+                2) echo "  Using $model_name (standard) for general tasks." ;;
+                3) echo "  Using $model_name (premium) - detected as complex task." ;;
+            esac
             ;;
     esac
     echo ""
 
-    log INFO "Routing to $agent agent (task type: $task_type)"
+    log INFO "Routing to $agent agent (task: $task_type, tier: $tier_name)"
 
     spawn_agent "$agent" "$prompt"
 }
@@ -2245,6 +2391,9 @@ while [[ $# -gt 0 ]]; do
         -q|--quality) QUALITY_THRESHOLD="$2"; shift 2 ;;
         -l|--loop) LOOP_UNTIL_APPROVED=true; shift ;;
         -R|--resume) RESUME_SESSION=true; shift ;;
+        -Q|--quick) FORCE_TIER="trivial"; shift ;;
+        -P|--premium) FORCE_TIER="premium"; shift ;;
+        --tier) FORCE_TIER="$2"; shift 2 ;;
         -h|--help|help) usage ;;
         *) break ;;
     esac
