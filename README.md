@@ -198,6 +198,21 @@ Before installing Claude Octopus, ensure you have:
 
 ## Installation
 
+### Via Plugin Marketplace (Recommended)
+
+In Claude Code, run:
+
+```
+/plugin marketplace add nyldn/claude-octopus
+/plugin install claude-octopus@nyldn-plugins
+```
+
+To update later:
+
+```
+/plugin marketplace update
+```
+
 ### Automated Installation (via Claude Code)
 
 In a Claude Code session, simply ask:
