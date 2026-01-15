@@ -253,6 +253,32 @@ chmod +x ~/git/claude-octopus/scripts/*.sh
 chmod +x ~/git/claude-octopus/scripts/*.py
 ```
 
+### Keeping Up to Date
+
+To update to the latest version:
+
+```bash
+# Navigate to plugin directory
+cd ~/.claude/plugins/claude-octopus
+
+# Pull latest changes
+git pull origin main
+```
+
+Or ask Claude Code:
+
+```
+Update the claude-octopus plugin to the latest version
+```
+
+To update to a specific version:
+
+```bash
+cd ~/.claude/plugins/claude-octopus
+git fetch --tags
+git checkout v1.0.0  # Replace with desired version
+```
+
 ## Agent Setup & Configuration
 
 Claude Octopus requires both **Codex CLI** (OpenAI) and **Gemini CLI** (Google) to be installed and configured.
