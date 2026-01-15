@@ -5,6 +5,31 @@ All notable changes to Claude Octopus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] - 2026-01-15
+
+### Added
+- **Interactive Setup Wizard** (`./scripts/orchestrate.sh setup`)
+  - Step-by-step guided configuration for first-time users
+  - Auto-installs Codex CLI and Gemini CLI via npm
+  - Opens API key pages in browser (OpenAI, Google AI Studio)
+  - Prompts for API keys with validation
+  - Optionally persists keys to shell profile (~/.zshrc or ~/.bashrc)
+- **First-Run Detection** - Suggests setup wizard when dependencies are missing
+- **`/octopus-setup` Command** - Claude Code integration for setup wizard
+- Cross-platform browser opening (macOS, Linux, Windows)
+
+### Fixed
+- **GEMINI_API_KEY** - Fixed environment variable mismatch (was checking GOOGLE_API_KEY)
+- Added legacy GOOGLE_API_KEY fallback for backwards compatibility
+- Interactive prompt for missing Gemini API key in preflight check
+
+### Changed
+- Updated Quick Start docs with setup wizard instructions
+- Reorganized help output with "Getting Started" section
+- Added test output directories to .gitignore
+
+---
+
 ## [1.0.1] - 2026-01-15
 
 ### Added
