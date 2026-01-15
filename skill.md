@@ -1,11 +1,12 @@
 ---
 name: parallel-agents
 description: |
-  Agentic parallelization system for Claude Code that orchestrates Codex CLI and Gemini CLI
-  for parallel task execution. Use when you need to:
-  - Execute multiple independent tasks simultaneously
-  - Fan-out a single prompt to multiple AI agents for diverse perspectives
-  - Decompose complex tasks into subtasks and execute in parallel (map-reduce)
+  Multi-tentacled orchestrator for Claude Code using Double Diamond methodology.
+  Coordinates Codex CLI and Gemini CLI for comprehensive problem solving. Use when you need to:
+  - Run full Double Diamond workflow (probe → grasp → tangle → ink)
+  - Parallel research from multiple perspectives with AI synthesis
+  - Consensus building on problem definitions
+  - Quality-gated parallel implementation with validation
   - Review code from multiple angles using different AI models
 
   NOT for: Simple sequential tasks, tasks requiring human interaction, debugging sessions
