@@ -22,7 +22,7 @@
   ],
   "skills": [
     {
-      "path": "skill.md"
+      "path": "./skill.md"
     }
   ],
   "commands": [],
