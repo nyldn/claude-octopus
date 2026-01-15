@@ -1,7 +1,7 @@
 {
   "name": "claude-octopus",
   "version": "1.0.0",
-  "description": "Design Thinking Enabler for Claude Code - Multi-agent orchestrator using Double Diamond methodology with autonomy modes, session recovery, and nano banana prompt refinement",
+  "description": "Multi-agent orchestrator for Claude Code - using Double Diamond methodology for comprehensive problem exploration, consensus building, and validated delivery",
   "author": "nyldn",
   "license": "MIT",
   "repository": "https://github.com/nyldn/claude-octopus",

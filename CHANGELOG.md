@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 #### Double Diamond Methodology
-Design Thinking workflow with octopus-themed commands:
+Multi-agent orchestration workflow with octopus-themed commands:
 - **probe** - Parallel research from 4 perspectives with AI synthesis (Discover phase)
 - **grasp** - Multi-agent consensus building on problem definition (Define phase)
 - **tangle** - Enhanced map-reduce with quality gates (Develop phase)

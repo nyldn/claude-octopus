@@ -4,10 +4,10 @@
   <img src="https://img.shields.io/badge/Claude_Code-Plugin-blueviolet" alt="Claude Code Plugin">
   <img src="https://img.shields.io/badge/Double_Diamond-Design_Thinking-orange" alt="Double Diamond">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
-  <img src="https://img.shields.io/badge/Version-2.0.0-blue" alt="Version 2.0.0">
+  <img src="https://img.shields.io/badge/Version-1.0.0-blue" alt="Version 1.0.0">
 </p>
 
-**Design Thinking Enabler for Claude Code** - Multi-agent orchestrator using Double Diamond methodology for comprehensive problem exploration, consensus building, and validated delivery.
+**Multi-agent orchestrator for Claude Code** - using Double Diamond methodology for comprehensive problem exploration, consensus building, and validated delivery.
 
 ```
     DISCOVER          DEFINE           DEVELOP          DELIVER
