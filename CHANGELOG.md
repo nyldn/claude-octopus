@@ -5,6 +5,26 @@ All notable changes to Claude Octopus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.3] - 2026-01-15
+
+### Added
+- **Cost-Aware Auto-Routing** - Intelligent model tier selection based on task complexity
+  - Analyzes prompts to estimate complexity (trivial, standard, complex)
+  - Routes trivial tasks to cheaper models (`codex-mini`, `gemini-fast`)
+  - Routes complex tasks to premium models (`codex`, `gemini-pro`)
+  - Prevents expensive models from being wasted on simple tasks
+- **Cost Control CLI Flags**
+  - `-Q, --quick` - Force cheapest model tier
+  - `-P, --premium` - Force premium model tier
+  - `--tier LEVEL` - Explicit tier: trivial|standard|premium
+- Complexity displayed in task analysis output
+
+### Changed
+- `auto_route()` now uses `get_tiered_agent()` for cost-aware model selection
+- Help text updated with Cost Control section
+
+---
+
 ## [1.0.2] - 2026-01-15
 
 ### Added
