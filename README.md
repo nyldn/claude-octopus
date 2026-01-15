@@ -78,10 +78,16 @@ _`) )  .---.__.' / |   |\   \__..--""  """--.,_
 
 ## Quick Start
 
-```bash
-# Initialize workspace
-./scripts/orchestrate.sh init
+### Install via Marketplace
 
+```
+/plugin marketplace add nyldn/claude-octopus
+/plugin install claude-octopus@nyldn-plugins
+```
+
+### Use It
+
+```bash
 # Full Double Diamond workflow (all 4 phases)
 ./scripts/orchestrate.sh embrace "Build a user authentication system"
 
