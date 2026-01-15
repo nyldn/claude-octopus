@@ -20,11 +20,7 @@
     "design-thinking",
     "quality-gates"
   ],
-  "skills": [
-    {
-      "path": "./skill.md"
-    }
-  ],
+  "skills": "./skill.md",
   "commands": [],
   "hooks": [],
   "agents": []
