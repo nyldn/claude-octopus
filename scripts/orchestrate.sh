@@ -303,7 +303,7 @@ evaluate_branch_condition() {
     case "$complexity" in
         3)  # Complex tasks → premium tentacle
             case "$task_type" in
-                coding|review|design) echo "premium" ;;
+                coding|review|design|diamond-*) echo "premium" ;;
                 *) echo "standard" ;;
             esac
             ;;
