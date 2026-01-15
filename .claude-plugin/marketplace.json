@@ -4,7 +4,7 @@
     "name": "nyldn"
   },
   "metadata": {
-    "description": "Multi-agent orchestration plugins for Claude Code",
+    "description": "Multi-tentacled orchestration plugin for Claude Code",
     "version": "1.0.0"
   },
   "plugins": [
