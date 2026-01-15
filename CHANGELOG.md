@@ -25,8 +25,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Help text updated with Conditional Branching section (v3.2)
 
 ### Documentation
-- Added `docs/COMPETITIVE_ANALYSIS.md` - Research on 8 competing orchestrators
-- Added `docs/COST_INTELLIGENCE_ROADMAP.md` - Future cost features planned
 - Conflict detection in preflight_check() for known overlapping plugins
 
 ---
