@@ -53,7 +53,7 @@ _`) )  .---.__.' / |   |\   \__..--""  """--.,_
 
 </details>
 
-## What's New in 2.0
+## What's New in 1.0
 
 - **Double Diamond Workflow** - Structured design thinking process
 - **Octopus-Themed Commands** - `probe`, `grasp`, `tangle`, `ink`, `embrace`
