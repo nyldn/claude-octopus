@@ -10,7 +10,7 @@
   "plugins": [
     {
       "name": "claude-octopus",
-      "source": ".",
+      "source": "./",
       "description": "Multi-agent orchestrator using Double Diamond methodology",
       "version": "1.0.1",
       "author": {
