@@ -2,40 +2,190 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Claude_Code-Plugin-blueviolet" alt="Claude Code Plugin">
+  <img src="https://img.shields.io/badge/Double_Diamond-Design_Thinking-orange" alt="Double Diamond">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
-  <img src="https://img.shields.io/badge/Platform-macOS%20%7C%20Linux-blue" alt="Platform">
+  <img src="https://img.shields.io/badge/Version-2.0.0-blue" alt="Version 2.0.0">
 </p>
 
-**Multi-agent orchestrator for Claude Code** - Coordinates [Codex CLI](https://github.com/openai/codex) and [Gemini CLI](https://github.com/google-gemini/gemini-cli) for parallel task execution with intelligent contextual routing.
+**Design Thinking Enabler for Claude Code** - Multi-agent orchestrator using Double Diamond methodology for comprehensive problem exploration, consensus building, and validated delivery.
 
 ```
-   ___  ___ _____  ___  ____  _   _ ___
-  / _ \/ __|_   _|/ _ \|  _ \| | | / __|
- | (_) |__ \ | | | (_) | |_) | |_| \__ \
-  \___/|___/ |_|  \___/|____/ \___/|___/
+    DISCOVER          DEFINE           DEVELOP          DELIVER
+      (probe)         (grasp)          (tangle)          (ink)
+
+    \         /     \         /     \         /     \         /
+     \   *   /       \   *   /       \   *   /       \   *   /
+      \ * * /         \     /         \ * * /         \     /
+       \   /           \   /           \   /           \   /
+        \ /             \ /             \ /             \ /
+
+   Diverge then      Converge to      Diverge with     Converge to
+    converge          problem          solutions        delivery
 ```
 
-## Features
+> *An octopus uses its 8 arms in parallel. So does this orchestrator. Coincidence? We think not.* 🐙
 
-- **Intelligent Auto-Routing** - Automatically selects the best agent based on task type (coding, design, research, image generation, copywriting, code review)
-- **Fan-Out Pattern** - Send the same prompt to multiple agents for diverse perspectives
-- **Map-Reduce Pattern** - Decompose complex tasks into parallel subtasks
-- **Parallel Execution** - Run multiple agents concurrently with dependency management
-- **Result Aggregation** - Combine outputs from multiple agents into unified reports
+<details>
+<summary>🐙 Click to meet our mascot</summary>
+
+```
+                      ___
+                  .-'   `'.
+                 /         \
+                 |         ;
+                 |         |           ___.--,
+        _.._     |0) ~ (0) |    _.---'`__.-( (_.
+ __.--'`_.. '.__.\    '--. \_.-' ,.--'`     `""`
+( ,.--'`   ',__ /./;   ;, '.__.'`    __
+_`) )  .---.__.' / |   |\   \__..--""  """--.,_
+`---' .'.''-._.-'`_./  /\ '.  \ _.-~~~````~~~-._`-.__.'
+     | |  .' _.-' |  |  \  \  '.               `~---`
+      \ \/ .'     \  \   '. '-._)
+       \/ /        \  \    `=.__`~-.
+       / /\         `) )    / / `"".`\
+ , _.-'.'\ \        / /    ( (     / /
+  `--~`   ) )    .-'.'      '.'.  | (
+         (/`    ( (`          ) )  '-;
+          `      '-;         (-'
+```
+
+*"Eight tentacles, infinite possibilities."*
+
+</details>
+
+## What's New in 2.0
+
+- **Double Diamond Workflow** - Structured design thinking process
+- **Octopus-Themed Commands** - `probe`, `grasp`, `tangle`, `ink`, `embrace`
+- **Smart Auto-Routing** - Intent detection routes to workflows or agents
+- **Premium Model Defaults** - GPT-5.1-Codex-Max for coding tasks
+- **Quality Gates** - 75% success threshold in development phase
 
 ## Table of Contents
 
+- [Quick Start](#quick-start)
+- [Double Diamond Methodology](#double-diamond-methodology)
+- [Smart Auto-Routing](#smart-auto-routing)
 - [Prerequisites](#prerequisites)
 - [Installation](#installation)
 - [Agent Setup & Configuration](#agent-setup--configuration)
-- [Quick Start](#quick-start)
-- [Usage](#usage)
 - [Available Agents](#available-agents)
 - [Command Reference](#command-reference)
 - [Example Workflows](#example-workflows)
 - [Troubleshooting](#troubleshooting)
 - [Contributing](#contributing)
 - [License](#license)
+
+## Quick Start
+
+```bash
+# Initialize workspace
+./scripts/orchestrate.sh init
+
+# Full Double Diamond workflow (all 4 phases)
+./scripts/orchestrate.sh embrace "Build a user authentication system"
+
+# Smart auto-routing (detects intent automatically)
+./scripts/orchestrate.sh auto "research OAuth patterns"           # -> probe
+./scripts/orchestrate.sh auto "build user login"                  # -> tangle + ink
+./scripts/orchestrate.sh auto "review the auth code"              # -> ink
+
+# Individual phases
+./scripts/orchestrate.sh probe "Research authentication best practices"
+./scripts/orchestrate.sh grasp "Define auth requirements"
+./scripts/orchestrate.sh tangle "Implement auth feature"
+./scripts/orchestrate.sh ink "Validate and deliver auth implementation"
+```
+
+## Double Diamond Methodology
+
+Claude Octopus implements the [Double Diamond](https://www.designcouncil.org.uk/our-resources/framework-for-innovation/) design process, providing structured workflows for each phase:
+
+### Phase 1: PROBE (Discover)
+**Diverge then converge on understanding**
+
+Parallel research from 4 perspectives:
+- Problem space analysis (constraints, requirements, needs)
+- Existing solutions research (what worked, what failed)
+- Edge cases exploration (potential challenges)
+- Technical feasibility (prerequisites, dependencies)
+
+```bash
+./scripts/orchestrate.sh probe "What are the best approaches for real-time notifications?"
+```
+
+### Phase 2: GRASP (Define)
+**Build consensus on the problem**
+
+Multi-agent problem definition:
+- Core problem statement
+- Success criteria
+- Constraints and boundaries
+
+```bash
+./scripts/orchestrate.sh grasp "Define requirements for notification system"
+```
+
+### Phase 3: TANGLE (Develop)
+**Diverge with multiple solutions**
+
+Enhanced map-reduce with validation:
+- Task decomposition via LLM
+- Parallel execution across agents
+- Quality gate (75% success threshold)
+
+```bash
+./scripts/orchestrate.sh tangle "Implement notification service"
+```
+
+### Phase 4: INK (Deliver)
+**Converge to validated delivery**
+
+Pre-delivery validation:
+- Quality gate verification
+- Result synthesis
+- Final deliverable generation
+
+```bash
+./scripts/orchestrate.sh ink "Deliver notification system"
+```
+
+### Full Workflow: EMBRACE
+Run all 4 phases sequentially with automatic context passing:
+
+```bash
+./scripts/orchestrate.sh embrace "Create a complete user dashboard feature"
+```
+
+## Smart Auto-Routing
+
+The `auto` command detects intent keywords and routes to the appropriate workflow:
+
+| Keywords | Routes To | Phases |
+|----------|-----------|--------|
+| research, explore, investigate, analyze | `probe` | Discover |
+| develop, dev, build, implement, create | `tangle` + `ink` | Develop + Deliver |
+| qa, test, review, validate, check | `ink` | Deliver (quality focus) |
+| (other coding keywords) | `codex` agent | Single agent |
+| (other design keywords) | `gemini` agent | Single agent |
+
+**Examples:**
+```bash
+./scripts/orchestrate.sh auto "research best practices for caching"     # -> probe
+./scripts/orchestrate.sh auto "build the caching layer"                 # -> tangle + ink
+./scripts/orchestrate.sh auto "review the cache implementation"         # -> ink
+./scripts/orchestrate.sh auto "fix the cache invalidation bug"          # -> codex
+```
+
+## Quality Gates
+
+The `tangle` phase enforces quality gates:
+
+| Score | Status | Behavior |
+|-------|--------|----------|
+| >= 90% | PASSED | Proceed to ink |
+| 75-89% | WARNING | Proceed with caution |
+| < 75% | FAILED | Ink phase flags for review |
 
 ## Prerequisites
 
@@ -174,15 +324,19 @@ gemini --version
 gemini -y -m gemini-3-pro-preview "echo hello"
 ```
 
-### 3. Verify Both Agents
+### 3. Pre-flight Check
 
-Run this command to verify both agents are working:
+Verify all dependencies are configured:
 
 ```bash
-~/.claude/plugins/claude-octopus/scripts/orchestrate.sh -n auto "Test prompt"
+./scripts/orchestrate.sh preflight
 ```
 
-You should see output indicating which agent would be selected (dry-run mode).
+This checks for:
+- Codex CLI installation
+- Gemini CLI installation
+- OPENAI_API_KEY environment variable
+- GOOGLE_API_KEY environment variable
 
 ### Environment Variables Summary
 
@@ -199,125 +353,46 @@ export GOOGLE_API_KEY="AIza..."
 export CLAUDE_OCTOPUS_WORKSPACE="$HOME/.claude-octopus"
 ```
 
-## Quick Start
-
-```bash
-# Initialize workspace
-~/.claude/plugins/claude-octopus/scripts/orchestrate.sh init
-
-# Auto-route to best agent based on task type
-~/.claude/plugins/claude-octopus/scripts/orchestrate.sh auto "Generate a hero image for the landing page"
-~/.claude/plugins/claude-octopus/scripts/orchestrate.sh auto "Implement user authentication with JWT"
-~/.claude/plugins/claude-octopus/scripts/orchestrate.sh auto "Review the auth module for security vulnerabilities"
-
-# Check status
-~/.claude/plugins/claude-octopus/scripts/orchestrate.sh status
-```
-
-## Usage
-
-### Auto-Route (Recommended)
-
-Automatically selects the best agent based on your prompt:
-
-```bash
-./scripts/orchestrate.sh auto "Generate a hero image for the landing page"
-# → Routes to gemini-image (Gemini 3 Pro Image Preview)
-
-./scripts/orchestrate.sh auto "Implement user authentication"
-# → Routes to codex (GPT-5.2-Codex)
-
-./scripts/orchestrate.sh auto "Review the login module for security issues"
-# → Routes to codex-review (GPT-5.2-Codex in review mode)
-
-./scripts/orchestrate.sh auto "Analyze the codebase architecture"
-# → Routes to gemini (Gemini 3 Pro Preview)
-```
-
-### Task Type Detection
-
-| Task Type | Keywords | Agent |
-|-----------|----------|-------|
-| `image` | generate image, create picture, illustration, logo | `gemini-image` |
-| `review` | review code, audit, security check, find bugs | `codex-review` |
-| `coding` | implement, fix, refactor, debug, TypeScript | `codex` |
-| `design` | UI, UX, accessibility, component, layout | `gemini` |
-| `copywriting` | write copy, headline, marketing, tone | `gemini` |
-| `research` | analyze, explain, documentation, best practices | `gemini` |
-
-### Fan-Out Pattern
-
-Send the same prompt to multiple agents simultaneously:
-
-```bash
-./scripts/orchestrate.sh fan-out "Review the authentication flow for security vulnerabilities"
-```
-
-Both Codex and Gemini will analyze the prompt, providing diverse perspectives.
-
-### Map-Reduce Pattern
-
-Decompose complex tasks into parallel subtasks:
-
-```bash
-./scripts/orchestrate.sh map-reduce "Refactor all API routes to use consistent error handling"
-```
-
-1. **Map Phase**: Gemini decomposes the task into independent subtasks
-2. **Execute Phase**: Subtasks are distributed across agents and executed in parallel
-3. **Reduce Phase**: Results are aggregated into a unified output
-
-### Parallel Task Execution
-
-Define tasks in JSON and execute with dependency awareness:
-
-```json
-{
-  "version": "1.0",
-  "project": "my-project",
-  "tasks": [
-    {"id": "lint", "agent": "codex", "prompt": "Run linter and fix issues"},
-    {"id": "types", "agent": "codex", "prompt": "Fix TypeScript errors"},
-    {"id": "review", "agent": "gemini", "prompt": "Review changes", "depends_on": ["lint", "types"]}
-  ],
-  "settings": {
-    "max_parallel": 3,
-    "timeout": 300
-  }
-}
-```
-
-```bash
-./scripts/orchestrate.sh parallel tasks.json
-```
-
 ## Available Agents
 
 | Agent | Model | Best For |
 |-------|-------|----------|
-| `codex` | GPT-5.2-Codex | Complex code generation, deep refactoring |
-| `codex-max` | GPT-5.1-Codex-Max | Long-running, project-scale work |
+| `codex` | GPT-5.1-Codex-Max | Complex code, deep refactoring (premium default) |
+| `codex-standard` | GPT-5.2-Codex | Standard tier implementation |
 | `codex-mini` | GPT-5.1-Codex-Mini | Quick fixes, simple tasks (cost-effective) |
 | `codex-general` | GPT-5.2 | Non-coding agentic tasks |
-| `gemini` | Gemini 3 Pro Preview | Deep analysis, complex reasoning (1M context) |
+| `gemini` | Gemini 3 Pro Preview | Deep analysis, 1M context |
 | `gemini-fast` | Gemini 3 Flash Preview | Speed-critical tasks |
-| `gemini-image` | Gemini 3 Pro Image Preview | Text-to-image generation (up to 4K) |
-| `codex-review` | GPT-5.2-Codex | Specialized code review mode |
+| `gemini-image` | Gemini 3 Pro Image Preview | Image generation (up to 4K) |
+| `codex-review` | GPT-5.2-Codex | Code review mode |
 
 ## Command Reference
+
+### Double Diamond Commands
+
+| Command | Phase | Description |
+|---------|-------|-------------|
+| `probe <prompt>` | Discover | Parallel research with AI synthesis |
+| `grasp <prompt>` | Define | Consensus building on problem definition |
+| `tangle <prompt>` | Develop | Enhanced map-reduce with quality gates |
+| `ink <prompt>` | Deliver | Validation and final delivery |
+| `embrace <prompt>` | All 4 | Full Double Diamond workflow |
+| `preflight` | - | Validate all dependencies |
+
+### Classic Orchestration Commands
 
 | Command | Description |
 |---------|-------------|
 | `init` | Initialize workspace |
 | `spawn <agent> <prompt>` | Spawn single agent |
-| `auto <prompt>` | Auto-route to best agent |
-| `fan-out <prompt>` | Send to all agents |
-| `map-reduce <prompt>` | Decompose and execute |
+| `auto <prompt>` | Smart routing (Double Diamond or agent) |
+| `fan-out <prompt>` | Send to multiple agents |
+| `map-reduce <prompt>` | Decompose and parallelize |
 | `parallel [tasks.json]` | Execute task file |
 | `status` | Show running agents |
 | `kill [id\|all]` | Terminate agents |
 | `clean` | Reset workspace |
-| `aggregate` | Combine results |
+| `aggregate [filter]` | Combine results |
 
 ### Options
 
@@ -328,47 +403,86 @@ Define tasks in JSON and execute with dependency awareness:
 | `-v, --verbose` | false | Verbose logging |
 | `-n, --dry-run` | false | Show without executing |
 | `-d, --dir` | `$PWD` | Working directory |
+| `--context <file>` | - | Context from previous phase |
 
 ## Workspace Structure
 
 ```
 ~/.claude-octopus/
-├── tasks.json      # Task definitions (editable)
-├── results/        # Agent outputs (markdown files)
-├── logs/           # Execution logs
-└── .gitignore      # Excludes ephemeral data
+├── results/
+│   ├── probe-synthesis-*.md      # Research findings
+│   ├── grasp-consensus-*.md      # Problem definitions
+│   ├── tangle-validation-*.md    # Quality gate reports
+│   └── delivery-*.md             # Final deliverables
+├── logs/                         # Execution logs
+├── plans/                        # Execution plan history
+└── .gitignore
 ```
 
 Override with: `CLAUDE_OCTOPUS_WORKSPACE=/custom/path`
 
 ## Example Workflows
 
-### Security Audit
+### Research-First Development
+
+```bash
+# 1. Explore the problem space
+./scripts/orchestrate.sh probe "Authentication patterns for microservices"
+
+# 2. Define the approach (with probe context)
+./scripts/orchestrate.sh grasp "OAuth2 with JWT for our API" \
+  --context ~/.claude-octopus/results/probe-synthesis-*.md
+
+# 3. Implement with validation
+./scripts/orchestrate.sh tangle "Implement OAuth2 authentication"
+
+# 4. Deliver with quality checks
+./scripts/orchestrate.sh ink "Finalize auth implementation"
+```
+
+### Quick Build (Auto-Routed)
+
+```bash
+# Auto-detects "build" intent -> runs tangle + ink
+./scripts/orchestrate.sh auto "build a rate limiting middleware"
+```
+
+### Full Feature Development
+
+```bash
+# All 4 phases in one command
+./scripts/orchestrate.sh embrace "Create a user notification system with email and push support"
+```
+
+### Security Audit (Fan-Out)
 
 ```bash
 ./scripts/orchestrate.sh fan-out "Perform security audit focusing on: authentication, input validation, and SQL injection vulnerabilities"
 ```
 
-### Large Refactoring
+### Large Refactoring (Map-Reduce)
 
 ```bash
 ./scripts/orchestrate.sh map-reduce "Refactor all React class components to functional components with hooks"
 ```
 
-### Multi-Model Code Review
-
-```bash
-./scripts/orchestrate.sh spawn codex-review "Review the latest commit for potential issues"
-./scripts/orchestrate.sh spawn gemini "Analyze code quality and suggest improvements"
-```
-
-### Image Generation
-
-```bash
-./scripts/orchestrate.sh auto "Generate a professional hero image showing team collaboration"
-```
-
 ## Troubleshooting
+
+### Pre-flight check fails
+
+```bash
+./scripts/orchestrate.sh preflight
+# Verify: codex CLI, gemini CLI, OPENAI_API_KEY, GOOGLE_API_KEY
+```
+
+### Quality gate failures
+
+Tangle phase requires 75% success rate. If failing:
+- Break task into smaller subtasks
+- Increase timeout with `-t 600`
+- Check individual agent logs in `~/.claude-octopus/logs/`
+
+*Getting 75% of tentacles to agree is actually impressive coordination. Even real octopuses struggle with that.* 🐙
 
 ### Agents not responding
 
@@ -377,6 +491,8 @@ Override with: `CLAUDE_OCTOPUS_WORKSPACE=/custom/path`
 ./scripts/orchestrate.sh clean
 ```
 
+*Sometimes tentacles need a rest. A clean reset untangles everything.* 🐙
+
 ### Timeout issues
 
 Increase timeout for complex tasks:
@@ -384,6 +500,8 @@ Increase timeout for complex tasks:
 ```bash
 ./scripts/orchestrate.sh -t 600 auto "Complex task..."
 ```
+
+*Even octopuses can't rush perfection. Give those tentacles time to work.* 🐙
 
 ### Missing dependencies
 
@@ -421,27 +539,11 @@ npm install -g @anthropic/gemini-cli
 echo $GOOGLE_API_KEY
 ```
 
-### API Key Issues
-
-**OpenAI (Codex):**
-```bash
-# Test API key
-curl https://api.openai.com/v1/models \
-  -H "Authorization: Bearer $OPENAI_API_KEY"
-```
-
-**Google (Gemini):**
-```bash
-# Test API key
-curl "https://generativelanguage.googleapis.com/v1/models?key=$GOOGLE_API_KEY"
-```
-
-### Permission Denied
+### Reset workspace
 
 ```bash
-# Make scripts executable
-chmod +x ~/.claude/plugins/claude-octopus/scripts/*.sh
-chmod +x ~/.claude/plugins/claude-octopus/scripts/*.py
+./scripts/orchestrate.sh clean
+./scripts/orchestrate.sh init
 ```
 
 ## Python Coordinator (Advanced)
@@ -452,17 +554,20 @@ For more sophisticated task coordination with async execution:
 # Initialize
 python3 ./scripts/coordinator.py init
 
-# Auto-route
+# Double Diamond commands
+python3 ./scripts/coordinator.py probe "Research prompt"
+python3 ./scripts/coordinator.py grasp "Define prompt"
+python3 ./scripts/coordinator.py tangle "Develop prompt"
+python3 ./scripts/coordinator.py ink "Deliver prompt"
+python3 ./scripts/coordinator.py embrace "Full workflow prompt"
+
+# Pre-flight check
+python3 ./scripts/coordinator.py preflight
+
+# Classic commands
 python3 ./scripts/coordinator.py auto "Your prompt here"
-
-# Fan-out
 python3 ./scripts/coordinator.py fan-out "Analyze this code"
-
-# Map-reduce
 python3 ./scripts/coordinator.py map-reduce -p 4 -t 600 "Large refactoring task"
-
-# Execute plan
-python3 ./scripts/coordinator.py plan tasks.json
 ```
 
 ## Contributing
@@ -479,14 +584,36 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
+## The Octopus Philosophy
+
+🐙 **Why an octopus?**
+
+Real octopuses are nature's parallel processing masters:
+
+| Octopus Trait | Claude Octopus Feature |
+|---------------|----------------------|
+| 8 independent arms | Multiple agents working in parallel |
+| Distributed brain (neurons in each arm) | Intelligence at every endpoint |
+| Ink cloud defense | Quality deliverables that make an impression |
+| Master of camouflage | Adapts to any task type seamlessly |
+| Opens jars, solves puzzles | Opens codebases, solves problems |
+| Squeezes through tiny spaces | Fits into any workflow |
+
+*Fun fact: Octopuses have been observed using tools, planning multi-step strategies,
+and even escaping from sealed containers. Our orchestrator does the same, but digitally
+(and with fewer suction cups).*
+
 ## Acknowledgments
 
 - [Claude Code](https://claude.ai/code) - Anthropic's CLI for Claude
 - [Codex CLI](https://github.com/openai/codex) - OpenAI's coding assistant
 - [Gemini CLI](https://github.com/google-gemini/gemini-cli) - Google's Gemini CLI
+- [Double Diamond](https://www.designcouncil.org.uk/our-resources/framework-for-innovation/) - Design Council's framework for innovation
 
 ---
 
 <p align="center">
-  Made with care by <a href="https://github.com/nyldn">nyldn</a>
+  🐙 Made with eight tentacles of love 🐙<br/>
+  <i>All arms working in perfect parallel harmony</i><br/>
+  <a href="https://github.com/nyldn">nyldn</a>
 </p>

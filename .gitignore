@@ -1,5 +1,8 @@
 # Claude Octopus - Git Ignore
 
+# Claude Code
+CLAUDE.md
+
 # macOS
 .DS_Store
 .AppleDouble
