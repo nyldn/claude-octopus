@@ -1,159 +1,167 @@
 ---
-name: claude-octopus
+name: parallel-agents
 description: |
-  Multi-agent orchestrator for Claude Code that coordinates Codex CLI and Gemini CLI
+  Agentic parallelization system for Claude Code that orchestrates Codex CLI and Gemini CLI
   for parallel task execution. Use when you need to:
   - Execute multiple independent tasks simultaneously
   - Fan-out a single prompt to multiple AI agents for diverse perspectives
   - Decompose complex tasks into subtasks and execute in parallel (map-reduce)
-  - Auto-route tasks to the best agent based on task type (coding, design, research, image generation)
   - Review code from multiple angles using different AI models
 
   NOT for: Simple sequential tasks, tasks requiring human interaction, debugging sessions
 ---
 
-# Claude Octopus
+# Claude Octopus - Design Thinking Enabler
 
-Multi-agent orchestrator for Claude Code - coordinates Codex CLI and Gemini CLI for parallel task execution with intelligent contextual routing.
+Multi-agent orchestrator using **Double Diamond methodology** for comprehensive problem exploration, consensus building, and validated delivery.
+
+```
+    DISCOVER          DEFINE           DEVELOP          DELIVER
+      (probe)         (grasp)          (tangle)          (ink)
+
+    \         /     \         /     \         /     \         /
+     \   *   /       \   *   /       \   *   /       \   *   /
+      \ * * /         \     /         \ * * /         \     /
+       \   /           \   /           \   /           \   /
+        \ /             \ /             \ /             \ /
+
+   Diverge then      Converge to      Diverge with     Converge to
+    converge          problem          solutions        delivery
+```
 
 ## Quick Start
 
 ```bash
-# Initialize workspace
-./scripts/orchestrate.sh init
+# Full Double Diamond workflow (all 4 phases)
+./scripts/orchestrate.sh embrace "Build a user authentication system"
 
-# Auto-route: Intelligently routes to best agent based on task type
-./scripts/orchestrate.sh auto "Generate a hero image for the landing page"
-./scripts/orchestrate.sh auto "Implement user authentication with JWT"
-./scripts/orchestrate.sh auto "Review the auth module for security vulnerabilities"
+# Individual phases
+./scripts/orchestrate.sh probe "Research authentication best practices"
+./scripts/orchestrate.sh grasp "Define auth requirements"
+./scripts/orchestrate.sh tangle "Implement auth feature"
+./scripts/orchestrate.sh ink "Validate and deliver auth implementation"
 
-# Fan-out: Same prompt to multiple agents
-./scripts/orchestrate.sh fan-out "Review authentication security"
-
-# Map-reduce: Decompose and parallelize complex task
-./scripts/orchestrate.sh map-reduce "Refactor all API error handling"
-
-# Check status
-./scripts/orchestrate.sh status
+# Smart auto-routing (detects intent automatically)
+./scripts/orchestrate.sh auto "research OAuth patterns"           # -> probe
+./scripts/orchestrate.sh auto "build user login"                  # -> tangle + ink
+./scripts/orchestrate.sh auto "review the auth code"              # -> ink
 ```
 
-## When to Use
+## Double Diamond Workflow
 
-### Contextual Auto-Routing (Recommended)
-Let the orchestrator automatically select the best agent based on your task type:
+### Phase 1: PROBE (Discover)
+**Diverge then converge on understanding**
 
-**Task Types Detected:**
-| Type | Keywords | Agent Used |
-|------|----------|------------|
-| `image` | generate image, create picture, illustration, logo | `gemini-image` |
-| `review` | review code, audit, security check, find bugs | `codex-review` |
-| `coding` | implement, fix, refactor, debug, TypeScript | `codex` |
-| `design` | UI, UX, accessibility, component, layout | `gemini` |
-| `copywriting` | write copy, headline, marketing, tone | `gemini` |
-| `research` | analyze, explain, documentation, best practices | `gemini` |
+Parallel research from 4 perspectives:
+- Problem space analysis (constraints, requirements, needs)
+- Existing solutions research (what worked, what failed)
+- Edge cases exploration (potential challenges)
+- Technical feasibility (prerequisites, dependencies)
 
-**Example:**
 ```bash
-# Image generation → gemini-image (gemini-3-pro-image-preview)
-./scripts/orchestrate.sh auto "Generate a patriotic hero banner image"
-
-# Code implementation → codex (gpt-5.2-codex)
-./scripts/orchestrate.sh auto "Implement user authentication with JWT"
-
-# Code review → codex-review (gpt-5.2-codex in review mode)
-./scripts/orchestrate.sh auto "Review the login component for security issues"
-
-# Design analysis → gemini (gemini-3-pro-preview)
-./scripts/orchestrate.sh auto "Analyze the accessibility of the form components"
+./scripts/orchestrate.sh probe "What are the best approaches for real-time notifications?"
 ```
 
-### Fan-Out Pattern
-Send the same prompt to Codex and Gemini simultaneously to get diverse perspectives:
+### Phase 2: GRASP (Define)
+**Build consensus on the problem**
 
-**Good for:**
-- Code reviews (different models catch different issues)
-- Architecture analysis
-- Security audits
-- Documentation generation
+Multi-agent problem definition:
+- Core problem statement
+- Success criteria
+- Constraints and boundaries
 
-**Example:**
 ```bash
-./scripts/orchestrate.sh fan-out "Analyze the authentication flow for potential security vulnerabilities"
+./scripts/orchestrate.sh grasp "Define requirements for notification system" --context probe-synthesis-*.md
 ```
 
-### Map-Reduce Pattern
-Automatically decompose complex tasks into subtasks, execute in parallel, and synthesize results:
+### Phase 3: TANGLE (Develop)
+**Diverge with multiple solutions**
 
-**Good for:**
-- Large refactoring tasks
-- Codebase-wide changes
-- Multi-file analysis
-- Complex feature implementation
+Enhanced map-reduce with validation:
+- Task decomposition via LLM
+- Parallel execution across agents
+- Quality gate (75% success threshold)
 
-**Example:**
 ```bash
-./scripts/orchestrate.sh map-reduce "Update all API routes to use consistent error handling with proper logging"
+./scripts/orchestrate.sh tangle "Implement notification service" --context grasp-consensus-*.md
 ```
 
-### Parallel Task Execution
-Define explicit tasks in JSON and execute with dependency awareness:
+### Phase 4: INK (Deliver)
+**Converge to validated delivery**
 
-**Good for:**
-- CI/CD-style workflows
-- Multi-step builds with dependencies
-- Orchestrated testing
+Pre-delivery validation:
+- Quality gate verification
+- Result synthesis
+- Final deliverable generation
 
-**Example tasks.json:**
-```json
-{
-  "tasks": [
-    {"id": "lint", "agent": "codex", "prompt": "Run linter and fix issues"},
-    {"id": "types", "agent": "codex", "prompt": "Fix TypeScript errors"},
-    {"id": "review", "agent": "gemini", "prompt": "Review changes", "depends_on": ["lint", "types"]}
-  ]
-}
+```bash
+./scripts/orchestrate.sh ink "Deliver notification system" --context tangle-validation-*.md
 ```
 
-## Agent Selection Guide
+### Full Workflow: EMBRACE
+Run all 4 phases sequentially with automatic context passing:
 
-| Agent | Model | Best For | Characteristics |
-|-------|-------|----------|-----------------|
-| `codex` | gpt-5.2-codex | Complex code generation, deep refactoring | State-of-the-art on SWE-Bench Pro |
-| `codex-max` | gpt-5.1-codex-max | Long-running, project-scale work | Token-efficient, native compaction |
-| `codex-mini` | gpt-5.1-codex-mini | Quick fixes, simple tasks | 4x more cost-effective |
-| `codex-general` | gpt-5.2 | Non-coding agentic tasks | General reasoning |
-| `gemini` | gemini-3-pro-preview | Deep analysis, complex reasoning | 1M context, 76.2% SWE-bench |
-| `gemini-fast` | gemini-3-flash-preview | Speed-critical tasks | Fast iteration, high-frequency |
-| `gemini-image` | gemini-3-pro-image-preview | Image generation | Text-to-image, editing, up to 4K |
-| `codex-review` | gpt-5.2-codex | Code review | Specialized review mode |
-
-## Workspace Structure
-
-After initialization:
+```bash
+./scripts/orchestrate.sh embrace "Create a complete user dashboard feature"
 ```
-~/.claude-octopus/
-├── tasks.json      # Task definitions (editable)
-├── results/        # Agent outputs (markdown files)
-├── logs/           # Execution logs
-└── .gitignore      # Excludes ephemeral data
+
+## Smart Auto-Routing
+
+The `auto` command detects intent keywords and routes to the appropriate workflow:
+
+| Keywords | Routes To | Phases |
+|----------|-----------|--------|
+| research, explore, investigate, analyze | `probe` | Discover |
+| develop, dev, build, implement, create | `tangle` + `ink` | Develop + Deliver |
+| qa, test, review, validate, check | `ink` | Deliver (quality focus) |
+| (other coding keywords) | `codex` agent | Single agent |
+| (other design keywords) | `gemini` agent | Single agent |
+
+**Examples:**
+```bash
+./scripts/orchestrate.sh auto "research best practices for caching"     # -> probe
+./scripts/orchestrate.sh auto "build the caching layer"                 # -> tangle + ink
+./scripts/orchestrate.sh auto "review the cache implementation"         # -> ink
+./scripts/orchestrate.sh auto "fix the cache invalidation bug"          # -> codex
 ```
+
+## Quality Gates
+
+The `tangle` phase enforces quality gates:
+
+| Score | Status | Behavior |
+|-------|--------|----------|
+| >= 90% | PASSED | Proceed to ink |
+| 75-89% | WARNING | Proceed with caution |
+| < 75% | FAILED | Ink phase flags for review |
 
 ## Command Reference
 
-### orchestrate.sh
+### Double Diamond Commands
+
+| Command | Phase | Description |
+|---------|-------|-------------|
+| `probe <prompt>` | Discover | Parallel research with AI synthesis |
+| `grasp <prompt>` | Define | Consensus building on problem definition |
+| `tangle <prompt>` | Develop | Enhanced map-reduce with quality gates |
+| `ink <prompt>` | Deliver | Validation and final delivery |
+| `embrace <prompt>` | All 4 | Full Double Diamond workflow |
+| `preflight` | - | Validate all dependencies |
+
+### Classic Orchestration Commands
 
 | Command | Description |
 |---------|-------------|
 | `init` | Initialize workspace |
 | `spawn <agent> <prompt>` | Spawn single agent |
-| `auto <prompt>` | Auto-route to best agent based on task type |
-| `fan-out <prompt>` | Send to all agents |
-| `map-reduce <prompt>` | Decompose and execute |
+| `auto <prompt>` | Smart routing (Double Diamond or agent) |
+| `fan-out <prompt>` | Send to multiple agents |
+| `map-reduce <prompt>` | Decompose and parallelize |
 | `parallel [tasks.json]` | Execute task file |
 | `status` | Show running agents |
 | `kill [id\|all]` | Terminate agents |
 | `clean` | Reset workspace |
-| `aggregate` | Combine results |
+| `aggregate [filter]` | Combine results |
 
 ### Options
 
@@ -163,65 +171,89 @@ After initialization:
 | `-t, --timeout` | 300 | Timeout per task (seconds) |
 | `-v, --verbose` | false | Verbose logging |
 | `-n, --dry-run` | false | Show without executing |
+| `--context <file>` | - | Context from previous phase |
+
+## Agent Selection (Premium Defaults)
+
+| Agent | Model | Best For |
+|-------|-------|----------|
+| `codex` | gpt-5.1-codex-max | Complex code, deep refactoring (premium default) |
+| `codex-standard` | gpt-5.2-codex | Standard tier implementation |
+| `codex-mini` | gpt-5.1-codex-mini | Quick fixes, simple tasks |
+| `gemini` | gemini-3-pro-preview | Deep analysis, 1M context |
+| `gemini-fast` | gemini-3-flash-preview | Speed-critical tasks |
+| `gemini-image` | gemini-3-pro-image-preview | Image generation |
+| `codex-review` | gpt-5.2-codex | Code review mode |
+
+## Workspace Structure
+
+```
+~/.claude-octopus/
+├── results/
+│   ├── probe-synthesis-*.md      # Research findings
+│   ├── grasp-consensus-*.md      # Problem definitions
+│   ├── tangle-validation-*.md    # Quality gate reports
+│   └── delivery-*.md             # Final deliverables
+├── logs/                         # Execution logs
+├── plans/                        # Execution plan history
+└── .gitignore
+```
 
 ## Example Workflows
 
-### Auto-Routed Image Generation
+### Research-First Development
 ```bash
-./scripts/orchestrate.sh auto "Generate a patriotic hero image with American flag"
-./scripts/orchestrate.sh auto "Create an illustration of a family enjoying benefits"
+# 1. Explore the problem space
+./scripts/orchestrate.sh probe "Authentication patterns for microservices"
+
+# 2. Define the approach (with probe context)
+./scripts/orchestrate.sh grasp "OAuth2 with JWT for our API" \
+  --context ~/.claude-octopus/results/probe-synthesis-*.md
+
+# 3. Implement with validation
+./scripts/orchestrate.sh tangle "Implement OAuth2 authentication"
+
+# 4. Deliver with quality checks
+./scripts/orchestrate.sh ink "Finalize auth implementation"
 ```
 
-### Auto-Routed Code Tasks
+### Quick Build (Auto-Routed)
 ```bash
-# Routes to codex for implementation
-./scripts/orchestrate.sh auto "Implement a React hook for form validation"
-
-# Routes to codex-review for review
-./scripts/orchestrate.sh auto "Review the authentication module for security vulnerabilities"
-
-# Routes to gemini for research/analysis
-./scripts/orchestrate.sh auto "Analyze the codebase architecture and suggest improvements"
+# Auto-detects "build" intent -> runs tangle + ink
+./scripts/orchestrate.sh auto "build a rate limiting middleware"
 ```
 
-### Security Audit
+### Full Feature Development
 ```bash
-./scripts/orchestrate.sh fan-out "Perform security audit focusing on: authentication, input validation, and SQL injection vulnerabilities"
-```
-
-### Codebase Refactoring
-```bash
-./scripts/orchestrate.sh map-reduce "Refactor all React class components to functional components with hooks"
-```
-
-### Multi-Model Code Review
-```bash
-./scripts/orchestrate.sh spawn codex-review "Review the latest commit for potential issues"
-./scripts/orchestrate.sh spawn gemini "Analyze code quality and suggest improvements"
+# All 4 phases in one command
+./scripts/orchestrate.sh embrace "Create a user notification system with email and push support"
 ```
 
 ## Best Practices
 
-1. **Start with auto** for intelligent routing based on task type
-2. **Use fan-out** for exploratory tasks needing multiple perspectives
-3. **Use map-reduce** for complex, decomposable tasks
-4. **Define dependencies** when task order matters
-5. **Set appropriate timeouts** for long-running tasks
-6. **Review aggregated results** before applying changes
-7. **Use verbose mode** when debugging agent issues
+1. **Start with `embrace`** for new features requiring exploration
+2. **Use `probe` alone** when researching before committing to an approach
+3. **Use `auto`** for smart routing based on your intent
+4. **Chain phases** with `--context` for incremental workflows
+5. **Run `preflight`** before long workflows to verify dependencies
+6. **Review quality gates** in tangle output before proceeding to ink
 
 ## Troubleshooting
 
-### Agents not responding
+### Pre-flight check fails
 ```bash
-./scripts/orchestrate.sh kill all
-./scripts/orchestrate.sh clean
+./scripts/orchestrate.sh preflight
+# Verify: codex CLI, gemini CLI, OPENAI_API_KEY, GOOGLE_API_KEY
 ```
 
-### Timeout issues
-Increase timeout: `-t 600` for complex tasks
+### Quality gate failures
+Tangle phase requires 75% success rate. If failing:
+- Break task into smaller subtasks
+- Increase timeout with `-t 600`
+- Check individual agent logs in `~/.claude-octopus/logs/`
 
-### Missing jq
+### Reset workspace
 ```bash
-brew install jq  # Required for JSON task files
+./scripts/orchestrate.sh clean
+./scripts/orchestrate.sh init
 ```
