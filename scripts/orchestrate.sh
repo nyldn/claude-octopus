@@ -1622,6 +1622,31 @@ preflight_check() {
         init_workspace
     fi
 
+    # Check for potentially conflicting plugins (informational only)
+    local conflicts=0
+    local claude_plugins_dir="$HOME/.claude/plugins"
+
+    if [[ -d "$claude_plugins_dir/oh-my-claude-code" ]]; then
+        log WARN "Detected: oh-my-claude-code (has own cost-aware routing)"
+        ((conflicts++))
+    fi
+
+    if [[ -d "$claude_plugins_dir/claude-flow" ]]; then
+        log WARN "Detected: claude-flow (may spawn competing subagents)"
+        ((conflicts++))
+    fi
+
+    if [[ -d "$claude_plugins_dir/agents" ]] || [[ -d "$claude_plugins_dir/wshobson-agents" ]]; then
+        log WARN "Detected: wshobson/agents (large context consumption)"
+        ((conflicts++))
+    fi
+
+    if [[ $conflicts -gt 0 ]]; then
+        log INFO "Found $conflicts potentially overlapping orchestrator(s)"
+        log INFO "  Claude Octopus uses external CLIs, so conflicts are unlikely"
+        log INFO "  See: docs/COMPETITIVE_ANALYSIS.md for details"
+    fi
+
     if [[ $errors -gt 0 ]]; then
         log ERROR "$errors pre-flight check(s) failed"
         return 1
