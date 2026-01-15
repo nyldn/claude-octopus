@@ -11,9 +11,9 @@ description: |
   NOT for: Simple sequential tasks, tasks requiring human interaction, debugging sessions
 ---
 
-# Claude Octopus - Design Thinking Enabler
+# Claude Octopus - Multi-Agent Orchestrator
 
-Multi-agent orchestrator using **Double Diamond methodology** for comprehensive problem exploration, consensus building, and validated delivery.
+**Multi-agent orchestrator for Claude Code** - using Double Diamond methodology for comprehensive problem exploration, consensus building, and validated delivery.
 
 ```
     DISCOVER          DEFINE           DEVELOP          DELIVER
