@@ -281,6 +281,127 @@ get_tiered_agent() {
     esac
 }
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# CONDITIONAL BRANCHING - Tentacle path selection based on task analysis
+# Enables decision trees for workflow routing
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Evaluate which tentacle path to extend
+# Returns: premium, standard, fast, or custom branch name
+evaluate_branch_condition() {
+    local task_type="$1"
+    local complexity="$2"
+    local custom_condition="${3:-}"
+
+    # Check for user-specified branch override
+    if [[ -n "$FORCE_BRANCH" ]]; then
+        echo "$FORCE_BRANCH"
+        return
+    fi
+
+    # Default branching logic based on task type + complexity
+    case "$complexity" in
+        3)  # Complex tasks → premium tentacle
+            case "$task_type" in
+                coding|review|design) echo "premium" ;;
+                *) echo "standard" ;;
+            esac
+            ;;
+        1)  # Trivial tasks → fast tentacle
+            echo "fast"
+            ;;
+        *)  # Standard tasks → standard tentacle
+            echo "standard"
+            ;;
+    esac
+}
+
+# Get display name for branch
+get_branch_display() {
+    local branch="$1"
+    case "$branch" in
+        premium) echo "premium (🐙 all tentacles engaged)" ;;
+        standard) echo "standard (🐙 balanced grip)" ;;
+        fast) echo "fast (🐙 quick touch)" ;;
+        *) echo "$branch" ;;
+    esac
+}
+
+# Evaluate next action based on quality gate outcome
+# Returns: proceed, proceed_warn, retry, escalate, abort
+evaluate_quality_branch() {
+    local success_rate="$1"
+    local retry_count="${2:-0}"
+    local autonomy="${3:-$AUTONOMY_MODE}"
+
+    # Check for explicit on-fail override
+    if [[ "$ON_FAIL_ACTION" != "auto" && $success_rate -lt $QUALITY_THRESHOLD ]]; then
+        case "$ON_FAIL_ACTION" in
+            retry) echo "retry" ;;
+            escalate) echo "escalate" ;;
+            abort) echo "abort" ;;
+        esac
+        return
+    fi
+
+    # Auto-determine action based on success rate and settings
+    if [[ $success_rate -ge 90 ]]; then
+        echo "proceed"  # Quality gate passed
+    elif [[ $success_rate -ge $QUALITY_THRESHOLD ]]; then
+        echo "proceed_warn"  # Passed with warning
+    elif [[ "$LOOP_UNTIL_APPROVED" == "true" && $retry_count -lt $MAX_QUALITY_RETRIES ]]; then
+        echo "retry"  # Auto-retry enabled
+    elif [[ "$autonomy" == "supervised" ]]; then
+        echo "escalate"  # Human decision required
+    else
+        echo "abort"  # Failed, no retry
+    fi
+}
+
+# Execute action based on quality gate branch decision
+execute_quality_branch() {
+    local branch="$1"
+    local task_group="$2"
+    local retry_count="${3:-0}"
+
+    echo ""
+    echo -e "${MAGENTA}┌─────────────────────────────────────────────────────────────┐${NC}"
+    echo -e "${MAGENTA}│  Quality Gate Decision: ${YELLOW}${branch}${MAGENTA}                              │${NC}"
+    echo -e "${MAGENTA}└─────────────────────────────────────────────────────────────┘${NC}"
+    echo ""
+
+    case "$branch" in
+        proceed)
+            log INFO "✓ Quality gate PASSED - proceeding to delivery"
+            return 0
+            ;;
+        proceed_warn)
+            log WARN "⚠ Quality gate PASSED with warnings - proceeding cautiously"
+            return 0
+            ;;
+        retry)
+            log INFO "↻ Quality gate FAILED - retrying (attempt $((retry_count + 1))/$MAX_QUALITY_RETRIES)"
+            return 2  # Signal retry
+            ;;
+        escalate)
+            log WARN "⚡ Quality gate FAILED - escalating to human review"
+            echo ""
+            echo -e "${YELLOW}Manual review required. Results at: ${RESULTS_DIR}/tangle-validation-${task_group}.md${NC}"
+            read -p "Continue anyway? (y/n) " -n 1 -r
+            echo
+            [[ $REPLY =~ ^[Yy]$ ]] && return 0 || return 1
+            ;;
+        abort)
+            log ERROR "✗ Quality gate FAILED - aborting workflow"
+            return 1
+            ;;
+        *)
+            log ERROR "Unknown quality branch: $branch"
+            return 1
+            ;;
+    esac
+}
+
 # Default settings
 MAX_PARALLEL=3
 TIMEOUT=300
@@ -301,6 +422,12 @@ RESUME_SESSION=false
 # v3.1 Feature: Cost-Aware Routing
 # Complexity tiers: trivial (1), standard (2), complex/premium (3)
 FORCE_TIER=""  # "", "trivial", "standard", "premium"
+
+# v3.2 Feature: Conditional Branching
+# Tentacle paths for workflow routing based on conditions
+FORCE_BRANCH=""           # "", "premium", "standard", "fast"
+ON_FAIL_ACTION="auto"     # "auto", "retry", "escalate", "abort"
+CURRENT_BRANCH=""         # Tracks current branch for session recovery
 
 # Session recovery
 SESSION_FILE="${WORKSPACE_DIR}/session.json"
@@ -387,6 +514,10 @@ ${YELLOW}Cost Control:${NC} (v3.1 - Smart model selection based on task complexi
   -Q, --quick             Force trivial tier (cheapest models: codex-mini, gemini-fast)
   -P, --premium           Force premium tier (most capable: codex-max)
   --tier LEVEL            Explicit tier: trivial|standard|premium
+
+${YELLOW}Conditional Branching:${NC} (v3.2 - Decision trees for workflow routing)
+  --branch BRANCH         Force tentacle path: premium|standard|fast
+  --on-fail ACTION        Quality gate failure action: auto|retry|escalate|abort
 
 ${YELLOW}Double Diamond Examples:${NC}
   # Full workflow - explore, define, develop, deliver
@@ -965,15 +1096,25 @@ auto_route() {
     local tier_name
     tier_name=$(get_tier_name "$complexity")
 
+    # ═══════════════════════════════════════════════════════════════════════════
+    # CONDITIONAL BRANCHING - Evaluate which tentacle path to extend
+    # ═══════════════════════════════════════════════════════════════════════════
+    local branch
+    branch=$(evaluate_branch_condition "$task_type" "$complexity")
+    CURRENT_BRANCH="$branch"  # Store for session recovery
+    local branch_display
+    branch_display=$(get_branch_display "$branch")
+
     echo ""
     echo -e "${MAGENTA}═══════════════════════════════════════════════════════════${NC}"
-    echo -e "${MAGENTA}  Claude Octopus - Smart Routing${NC}"
+    echo -e "${MAGENTA}  Claude Octopus - Smart Routing with Branching${NC}"
     echo -e "${MAGENTA}═══════════════════════════════════════════════════════════${NC}"
     echo ""
     echo -e "${BLUE}Task Analysis:${NC}"
     echo -e "  Prompt: ${prompt:0:80}..."
     echo -e "  Detected Type: ${GREEN}$task_type${NC}"
     echo -e "  Complexity: ${CYAN}$tier_name${NC}"
+    echo -e "  Branch: ${MAGENTA}$branch_display${NC}"
     echo ""
 
     # ═══════════════════════════════════════════════════════════════════════════
@@ -1011,9 +1152,18 @@ auto_route() {
 
     # ═══════════════════════════════════════════════════════════════════════════
     # STANDARD SINGLE-AGENT ROUTING (with cost-aware tier selection)
+    # Branch override: premium=3, standard=2, fast=1
     # ═══════════════════════════════════════════════════════════════════════════
+    local agent_complexity="$complexity"
+    if [[ -n "$FORCE_BRANCH" ]]; then
+        case "$FORCE_BRANCH" in
+            premium) agent_complexity=3 ;;
+            standard) agent_complexity=2 ;;
+            fast) agent_complexity=1 ;;
+        esac
+    fi
     local agent
-    agent=$(get_tiered_agent "$task_type" "$complexity")
+    agent=$(get_tiered_agent "$task_type" "$agent_complexity")
     local model_name
     model_name=$(get_agent_command "$agent" | awk '{print $NF}')
     echo -e "  Selected Agent: ${GREEN}$agent${NC} → ${CYAN}$model_name${NC}"
@@ -2030,24 +2180,57 @@ validate_tangle_results() {
             gate_color="${YELLOW}"
         fi
 
-        # Loop-until-approved retry logic
-        if [[ "$LOOP_UNTIL_APPROVED" == "true" && "$gate_status" == "FAILED" ]]; then
-            if [[ $quality_retry_count -lt $MAX_QUALITY_RETRIES ]]; then
-                ((quality_retry_count++))
+        # ═══════════════════════════════════════════════════════════════════════
+        # CONDITIONAL BRANCHING - Quality gate decision tree
+        # ═══════════════════════════════════════════════════════════════════════
+        local quality_branch
+        quality_branch=$(evaluate_quality_branch "$success_rate" "$quality_retry_count")
+
+        case "$quality_branch" in
+            proceed|proceed_warn)
+                # Quality gate passed - continue to delivery
+                ;;
+            retry)
+                # Retry failed tasks
+                if [[ $quality_retry_count -lt $MAX_QUALITY_RETRIES ]]; then
+                    ((quality_retry_count++))
+                    echo ""
+                    echo -e "${YELLOW}╔═══════════════════════════════════════════════════════════╗${NC}"
+                    echo -e "${YELLOW}║  🐙 Branching: Retry Path (attempt $quality_retry_count/$MAX_QUALITY_RETRIES)                    ║${NC}"
+                    echo -e "${YELLOW}╚═══════════════════════════════════════════════════════════╝${NC}"
+                    log WARN "Quality gate at ${success_rate}%, below ${QUALITY_THRESHOLD}%. Retrying..."
+                    retry_failed_subtasks "$task_group" "$quality_retry_count"
+                    sleep 3
+                    continue  # Re-validate
+                else
+                    log ERROR "Max retries ($MAX_QUALITY_RETRIES) exceeded. Proceeding with ${success_rate}%"
+                fi
+                ;;
+            escalate)
+                # Human decision required
                 echo ""
                 echo -e "${YELLOW}╔═══════════════════════════════════════════════════════════╗${NC}"
-                echo -e "${YELLOW}║  Loop-Until-Approved: Retrying Failed Tasks               ║${NC}"
+                echo -e "${YELLOW}║  🐙 Branching: Escalate Path (human review)               ║${NC}"
                 echo -e "${YELLOW}╚═══════════════════════════════════════════════════════════╝${NC}"
-                log WARN "Quality gate at ${success_rate}%, below ${QUALITY_THRESHOLD}%. Retry $quality_retry_count/${MAX_QUALITY_RETRIES}"
-                retry_failed_subtasks "$task_group" "$quality_retry_count"
-
-                # Wait for retry tasks to complete
-                sleep 3
-                continue  # Re-validate
-            else
-                log ERROR "Max retries ($MAX_QUALITY_RETRIES) exceeded. Proceeding with ${success_rate}%"
-            fi
-        fi
+                echo -e "${YELLOW}Quality gate FAILED. Manual review required.${NC}"
+                echo -e "${YELLOW}Results at: ${RESULTS_DIR}/tangle-validation-${task_group}.md${NC}"
+                read -p "Continue anyway? (y/n) " -n 1 -r
+                echo
+                if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                    log ERROR "User declined to continue after quality gate failure"
+                    return 1
+                fi
+                ;;
+            abort)
+                # Abort workflow
+                echo ""
+                echo -e "${RED}╔═══════════════════════════════════════════════════════════╗${NC}"
+                echo -e "${RED}║  🐙 Branching: Abort Path (quality gate failed)           ║${NC}"
+                echo -e "${RED}╚═══════════════════════════════════════════════════════════╝${NC}"
+                log ERROR "Quality gate FAILED with ${success_rate}%. Aborting workflow."
+                return 1
+                ;;
+        esac
 
         # Write validation report
         cat > "$validation_file" << EOF
@@ -2419,6 +2602,8 @@ while [[ $# -gt 0 ]]; do
         -Q|--quick) FORCE_TIER="trivial"; shift ;;
         -P|--premium) FORCE_TIER="premium"; shift ;;
         --tier) FORCE_TIER="$2"; shift 2 ;;
+        --branch) FORCE_BRANCH="$2"; shift 2 ;;
+        --on-fail) ON_FAIL_ACTION="$2"; shift 2 ;;
         -h|--help|help) usage ;;
         *) break ;;
     esac
