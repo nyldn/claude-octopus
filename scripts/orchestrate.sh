@@ -1408,13 +1408,18 @@ handle_auth_command() {
 
             # Check Gemini
             echo ""
-            if [[ -n "$GEMINI_API_KEY" ]]; then
+            if [[ -f "$HOME/.gemini/oauth_creds.json" ]]; then
+                echo -e "  Gemini:  ${GREEN}✓ Authenticated (OAuth)${NC}"
+                local auth_type
+                auth_type=$(grep -o '"selectedType"[[:space:]]*:[[:space:]]*"[^"]*"' ~/.gemini/settings.json 2>/dev/null | sed 's/.*"\([^"]*\)"$/\1/' || echo "oauth")
+                echo -e "  Type:    $auth_type"
+            elif [[ -n "$GEMINI_API_KEY" ]]; then
                 local gemini_preview="${GEMINI_API_KEY:0:8}...${GEMINI_API_KEY: -4}"
                 echo -e "  Gemini:  ${GREEN}✓ Authenticated (API Key)${NC}"
                 echo -e "  Key:     $gemini_preview"
             else
                 echo -e "  Gemini:  ${YELLOW}○ Not configured${NC}"
-                echo "           Set: export GEMINI_API_KEY=\"AIza...\""
+                echo "           Run 'gemini' to login OR set GEMINI_API_KEY"
             fi
             ;;
 
@@ -2183,25 +2188,36 @@ init_interactive() {
     ((step++))
 
     # ─────────────────────────────────────────────────────────────────────────
-    # Step 2: Google Gemini API Key
+    # Step 2: Gemini Authentication
     # ─────────────────────────────────────────────────────────────────────────
-    echo -e "${YELLOW}Step $step/$total_steps: Google Gemini API Key${NC}"
+    echo -e "${YELLOW}Step $step/$total_steps: Gemini Authentication${NC}"
     echo -e "  Required for Gemini CLI (analysis, synthesis, images)"
     echo ""
 
-    if [[ -n "${GEMINI_API_KEY:-}" ]]; then
+    # Check OAuth first (preferred)
+    if [[ -f "$HOME/.gemini/oauth_creds.json" ]]; then
+        echo -e "  ${GREEN}✓${NC} Gemini: OAuth authenticated"
+        local auth_type
+        auth_type=$(grep -o '"selectedType"[[:space:]]*:[[:space:]]*"[^"]*"' ~/.gemini/settings.json 2>/dev/null | sed 's/.*"\([^"]*\)"$/\1/' || echo "oauth")
+        echo -e "      Type: $auth_type"
+    elif [[ -n "${GEMINI_API_KEY:-}" ]]; then
         local masked_gemini="${GEMINI_API_KEY:0:7}...${GEMINI_API_KEY: -4}"
-        echo -e "  ${GREEN}✓${NC} Found: $masked_gemini"
+        echo -e "  ${GREEN}✓${NC} Gemini: API Key found: $masked_gemini"
 
         if [[ "$GEMINI_API_KEY" =~ ^AIza[a-zA-Z0-9_-]{30,}$ ]]; then
             echo -e "  ${GREEN}✓${NC} Format looks valid"
         else
             echo -e "  ${YELLOW}⚠${NC} Format may be incorrect (expected AIza...)"
         fi
+        echo -e "  ${CYAN}Tip:${NC} OAuth is faster. Run 'gemini' and select 'Login with Google'"
     else
-        echo -e "  ${RED}✗${NC} GEMINI_API_KEY not set"
+        echo -e "  ${RED}✗${NC} Gemini: Not authenticated"
         echo ""
-        echo -e "  ${CYAN}To fix:${NC}"
+        echo -e "  ${CYAN}Option 1 (Recommended):${NC} OAuth Login"
+        echo -e "    Run: ${GREEN}gemini${NC}"
+        echo -e "    Select 'Login with Google' and follow browser prompts"
+        echo ""
+        echo -e "  ${CYAN}Option 2:${NC} API Key"
         echo -e "    1. Get your API key from: ${CYAN}https://aistudio.google.com/apikey${NC}"
         echo -e "    2. Add to your shell profile (~/.zshrc or ~/.bashrc):"
         echo -e "       ${GREEN}export GEMINI_API_KEY=\"AIza...\"${NC}"
@@ -2830,11 +2846,11 @@ save_user_config() {
 
     mkdir -p "$(dirname "$USER_CONFIG_FILE")"
 
-    # Auto-detect available API keys
+    # Auto-detect available API keys (check OAuth first, then API keys)
     local has_openai="false"
     local has_gemini="false"
-    [[ -n "${OPENAI_API_KEY:-}" ]] && has_openai="true"
-    [[ -n "${GEMINI_API_KEY:-}" ]] && has_gemini="true"
+    [[ -f "$HOME/.codex/auth.json" || -n "${OPENAI_API_KEY:-}" ]] && has_openai="true"
+    [[ -f "$HOME/.gemini/oauth_creds.json" || -n "${GEMINI_API_KEY:-}" ]] && has_gemini="true"
 
     # Derive settings based on resource tier
     local opus_budget="balanced"
@@ -2949,7 +2965,7 @@ is_agent_available() {
             [[ "$USER_HAS_OPENAI" == "true" || -n "${OPENAI_API_KEY:-}" ]]
             ;;
         gemini|gemini-fast|gemini-image)
-            [[ "$USER_HAS_GEMINI" == "true" || -n "${GEMINI_API_KEY:-}" ]]
+            [[ "$USER_HAS_GEMINI" == "true" || -f "$HOME/.gemini/oauth_creds.json" || -n "${GEMINI_API_KEY:-}" ]]
             ;;
         *)
             return 0  # Unknown agents assumed available
@@ -5047,10 +5063,10 @@ setup_wizard() {
     echo ""
 
     # ═══════════════════════════════════════════════════════════════════════════
-    # STEP 4: Gemini API Key
+    # STEP 4: Gemini Authentication
     # ═══════════════════════════════════════════════════════════════════════════
     ((current_step++))
-    echo -e "${CYAN}Step $current_step/$total_steps: Gemini API Key${NC}"
+    echo -e "${CYAN}Step $current_step/$total_steps: Gemini Authentication${NC}"
     echo -e "  Required for Gemini CLI (reasoning and image generation)."
     echo ""
 
@@ -5059,10 +5075,24 @@ setup_wizard() {
         export GEMINI_API_KEY="$GOOGLE_API_KEY"
     fi
 
-    if [[ -n "${GEMINI_API_KEY:-}" ]]; then
-        echo -e "  ${GREEN}✓${NC} GEMINI_API_KEY already set (${#GEMINI_API_KEY} chars)"
+    # Check OAuth first (preferred)
+    if [[ -f "$HOME/.gemini/oauth_creds.json" ]]; then
+        echo -e "  ${GREEN}✓${NC} Gemini: OAuth authenticated"
+        local auth_type
+        auth_type=$(grep -o '"selectedType"[[:space:]]*:[[:space:]]*"[^"]*"' ~/.gemini/settings.json 2>/dev/null | sed 's/.*"\([^"]*\)"$/\1/' || echo "oauth")
+        echo -e "      Type: $auth_type"
+    elif [[ -n "${GEMINI_API_KEY:-}" ]]; then
+        echo -e "  ${GREEN}✓${NC} Gemini: API key set (${#GEMINI_API_KEY} chars)"
+        echo -e "  ${CYAN}Tip:${NC} OAuth is faster. Run 'gemini' and select 'Login with Google'"
     else
-        echo -e "  ${YELLOW}✗${NC} GEMINI_API_KEY not set"
+        echo -e "  ${YELLOW}✗${NC} Gemini: Not authenticated"
+        echo ""
+        echo -e "  ${CYAN}Option 1 (Recommended):${NC} OAuth Login"
+        echo -e "    Run: ${GREEN}gemini${NC}"
+        echo -e "    Select 'Login with Google' and follow browser prompts"
+        echo ""
+        echo -e "  ${CYAN}Option 2:${NC} API Key"
+        echo -e "    Get key from: https://aistudio.google.com/apikey"
         echo ""
         read -p "  Open Google AI Studio to get an API key? [Y/n] " -n 1 -r
         echo
@@ -5072,14 +5102,14 @@ setup_wizard() {
             sleep 1
         fi
         echo ""
-        echo -e "  Paste your Gemini API key (starts with 'AIza'):"
+        echo -e "  Paste your Gemini API key (starts with 'AIza'), or press Enter if using OAuth:"
         read -p "  → " gemini_key
         if [[ -n "$gemini_key" ]]; then
             export GEMINI_API_KEY="$gemini_key"
             keys_to_add="${keys_to_add}export GEMINI_API_KEY=\"$gemini_key\"\n"
             echo -e "  ${GREEN}✓${NC} GEMINI_API_KEY set for this session"
         else
-            echo -e "  ${YELLOW}⚠${NC} Skipped. Set later: export GEMINI_API_KEY=\"your-key\""
+            echo -e "  ${YELLOW}⚠${NC} Skipped. Authenticate later via 'gemini' OR set GEMINI_API_KEY"
         fi
     fi
     echo ""
@@ -5115,10 +5145,12 @@ setup_wizard() {
         echo -e "    ${RED}✗${NC} OPENAI_API_KEY"
         all_good=false
     fi
-    if [[ -n "${GEMINI_API_KEY:-}" ]]; then
-        echo -e "    ${GREEN}✓${NC} GEMINI_API_KEY"
+    if [[ -f "$HOME/.gemini/oauth_creds.json" ]]; then
+        echo -e "    ${GREEN}✓${NC} Gemini (OAuth)"
+    elif [[ -n "${GEMINI_API_KEY:-}" ]]; then
+        echo -e "    ${GREEN}✓${NC} Gemini (API Key)"
     else
-        echo -e "    ${RED}✗${NC} GEMINI_API_KEY"
+        echo -e "    ${RED}✗${NC} Gemini"
         all_good=false
     fi
     echo ""
@@ -5255,14 +5287,26 @@ preflight_check() {
         log DEBUG "Using GOOGLE_API_KEY as GEMINI_API_KEY (legacy fallback)"
     fi
 
-    if [[ -z "${GEMINI_API_KEY:-}" ]]; then
-        log WARN "GEMINI_API_KEY not set"
+    # Check for Gemini authentication (OAuth preferred, API key fallback)
+    if [[ -f "$HOME/.gemini/oauth_creds.json" ]]; then
+        log INFO "Gemini: Using OAuth authentication (faster)"
+        log DEBUG "Gemini OAuth credentials found (~/.gemini/oauth_creds.json)"
+    elif [[ -n "${GEMINI_API_KEY:-}" ]]; then
+        log INFO "Gemini: Using API key"
+        log DEBUG "GEMINI_API_KEY: set (${#GEMINI_API_KEY} chars)"
+    else
+        log WARN "Gemini: Not authenticated"
         log INFO "  (Tentacles 5-8 need authentication to grip!)"
         echo ""
-        echo -e "${YELLOW}🐙 Gemini API key required for full functionality.${NC}"
+        echo -e "${YELLOW}🐙 Gemini authentication required for full functionality.${NC}"
         echo ""
+        echo -e "  ${CYAN}Option 1 (Recommended):${NC} OAuth Login"
+        echo -e "    Run: ${GREEN}gemini${NC}"
+        echo -e "    Select 'Login with Google' and follow browser prompts"
+        echo ""
+        echo -e "  ${CYAN}Option 2:${NC} API Key"
 
-        # Offer to open browser
+        # Offer to open browser for API key
         read -p "Open Google AI Studio to get an API key? (y/n) " -n 1 -r
         echo
         if [[ $REPLY =~ ^[Yy]$ ]]; then
@@ -5286,11 +5330,10 @@ preflight_check() {
             echo "  export GEMINI_API_KEY=\"$api_key\""
             echo ""
         else
-            log ERROR "GEMINI_API_KEY not provided - Gemini features will fail"
+            log ERROR "Gemini not authenticated - Gemini features will fail"
+            log INFO "  Fix: Run 'gemini' and select 'Login with Google' OR set GEMINI_API_KEY"
             ((errors++))
         fi
-    else
-        log DEBUG "GEMINI_API_KEY: set (${#GEMINI_API_KEY} chars)"
     fi
 
     # Check workspace
