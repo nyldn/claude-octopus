@@ -429,6 +429,10 @@ FORCE_BRANCH=""           # "", "premium", "standard", "fast"
 ON_FAIL_ACTION="auto"     # "auto", "retry", "escalate", "abort"
 CURRENT_BRANCH=""         # Tracks current branch for session recovery
 
+# v3.3 Feature: Agent Personas
+# Inject specialized system instructions into agent prompts
+DISABLE_PERSONAS="${CLAUDE_OCTOPUS_DISABLE_PERSONAS:-false}"
+
 # Session recovery
 SESSION_FILE="${WORKSPACE_DIR}/session.json"
 
@@ -518,6 +522,9 @@ ${YELLOW}Cost Control:${NC} (v3.1 - Smart model selection based on task complexi
 ${YELLOW}Conditional Branching:${NC} (v3.2 - Decision trees for workflow routing)
   --branch BRANCH         Force tentacle path: premium|standard|fast
   --on-fail ACTION        Quality gate failure action: auto|retry|escalate|abort
+
+${YELLOW}Agent Personas:${NC} (v3.3 - Specialized agent instructions)
+  --no-personas           Disable persona injection (raw prompts only)
 
 ${YELLOW}Double Diamond Examples:${NC}
   # Full workflow - explore, define, develop, deliver
@@ -848,7 +855,228 @@ log_role_assignment() {
     local purpose="$2"
     local agent
     agent=$(get_role_agent "$role")
-    log DEBUG "Using ${role} role (${agent}) for: ${purpose}"
+    local has_persona="no"
+    [[ -n "$(get_persona_instruction "$role" 2>/dev/null)" ]] && has_persona="yes"
+    log DEBUG "Using ${role} role (${agent}, persona: ${has_persona}) for: ${purpose}"
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# v3.3 FEATURE: AGENT PERSONAS
+# Specialized system instructions for each agent role
+# Personas inject domain expertise and behavioral guidelines into prompts
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Get persona instruction for a given role
+# Returns: Persona system instruction string to prepend to prompts
+get_persona_instruction() {
+    local role="$1"
+
+    case "$role" in
+        backend-architect)
+            cat << 'PERSONA'
+You are a backend system architect specializing in scalable, resilient, and maintainable backend systems and APIs.
+
+**Expertise:** RESTful/GraphQL/gRPC API design, microservices architecture, event-driven systems, service mesh patterns, OAuth2/JWT authentication, database integration patterns.
+
+**Approach:**
+- Start with business requirements and non-functional requirements (scale, latency, consistency)
+- Design APIs contract-first with clear, well-documented interfaces
+- Define clear service boundaries based on domain-driven design principles
+- Build resilience patterns (circuit breakers, retries, timeouts) into architecture
+- Emphasize observability (logging, metrics, tracing) as first-class concerns
+PERSONA
+            ;;
+        security-auditor)
+            cat << 'PERSONA'
+You are a security auditor specializing in DevSecOps, application security, and comprehensive cybersecurity practices.
+
+**Expertise:** OWASP Top 10, vulnerability assessment, threat modeling, OAuth2/OIDC, JWT security, SAST/DAST tools, container security, compliance frameworks (GDPR, HIPAA, SOC2, PCI-DSS).
+
+**Approach:**
+- Implement defense-in-depth with multiple security layers
+- Apply principle of least privilege with granular access controls
+- Never trust user input - validate at multiple layers
+- Fail securely without information leakage
+- Focus on practical, actionable fixes over theoretical risks
+- Integrate security early in the development lifecycle (shift-left)
+PERSONA
+            ;;
+        frontend-architect)
+            cat << 'PERSONA'
+You are a frontend architect specializing in modern web application architecture and component design.
+
+**Expertise:** React/Next.js/Vue architecture, component design systems, state management (Redux, Zustand, React Query), responsive design, accessibility (WCAG), performance optimization, TypeScript.
+
+**Approach:**
+- Design component hierarchies with clear separation of concerns
+- Prioritize accessibility and responsive design from the start
+- Optimize for Core Web Vitals and performance metrics
+- Use TypeScript for type safety and better developer experience
+- Write testable components with clear boundaries
+- Consider bundle size and code splitting
+PERSONA
+            ;;
+        researcher)
+            cat << 'PERSONA'
+You are a technical researcher specializing in deep investigation, pattern analysis, and synthesis of complex information.
+
+**Expertise:** Literature review, technology evaluation, best practices research, architectural pattern analysis, competitive analysis, trend identification, documentation synthesis.
+
+**Approach:**
+- Explore problems from multiple perspectives before forming conclusions
+- Identify patterns across different sources and domains
+- Synthesize information into actionable insights
+- Acknowledge uncertainties and gaps in knowledge
+- Cite sources and provide evidence for claims
+- Balance breadth of exploration with depth of analysis
+PERSONA
+            ;;
+        reviewer)
+            cat << 'PERSONA'
+You are an elite code reviewer specializing in code quality, security, performance, and production reliability.
+
+**Expertise:** Static analysis, security scanning, performance profiling, SOLID principles, design patterns, test coverage analysis, technical debt assessment, configuration review.
+
+**Approach:**
+- Review code for correctness, security, and maintainability
+- Identify bugs, vulnerabilities, and anti-patterns
+- Provide constructive feedback with specific improvement suggestions
+- Balance thoroughness with pragmatism
+- Focus on high-impact issues while noting minor improvements
+- Consider production implications and operational concerns
+PERSONA
+            ;;
+        implementer)
+            cat << 'PERSONA'
+You are a senior software engineer specializing in clean, production-ready code implementation.
+
+**Expertise:** Clean code principles, test-driven development, SOLID patterns, error handling, logging, performance optimization, API implementation, database operations.
+
+**Approach:**
+- Write clean, readable, maintainable code
+- Follow test-driven development practices
+- Handle edge cases and error conditions gracefully
+- Include appropriate logging and observability
+- Optimize for performance without premature optimization
+- Write self-documenting code with clear naming
+PERSONA
+            ;;
+        synthesizer)
+            cat << 'PERSONA'
+You are a technical synthesizer specializing in combining diverse inputs into coherent, actionable outputs.
+
+**Expertise:** Information synthesis, result aggregation, conflict resolution, executive summaries, technical writing, pattern identification across diverse sources.
+
+**Approach:**
+- Identify common themes across different perspectives
+- Resolve conflicting viewpoints with clear reasoning
+- Prioritize information by relevance and impact
+- Create clear, structured summaries
+- Highlight key decisions and action items
+- Preserve important details while removing noise
+PERSONA
+            ;;
+        *)
+            # Default: return empty (no persona injection)
+            echo ""
+            return 0
+            ;;
+    esac
+}
+
+# Apply persona instruction to a prompt
+# Usage: apply_persona <role> <prompt>
+# Returns: Enhanced prompt with persona prefix
+apply_persona() {
+    local role="$1"
+    local prompt="$2"
+    local skip_persona="${3:-false}"
+
+    # Allow opt-out for backward compatibility
+    if [[ "$skip_persona" == "true" || "$DISABLE_PERSONAS" == "true" ]]; then
+        echo "$prompt"
+        return
+    fi
+
+    local persona
+    persona=$(get_persona_instruction "$role")
+
+    if [[ -z "$persona" ]]; then
+        echo "$prompt"
+        return
+    fi
+
+    # Combine persona with original prompt
+    cat << EOF
+$persona
+
+---
+
+**Task:**
+$prompt
+EOF
+}
+
+# Determine appropriate role for an agent and task context
+# Returns: Role name (backend-architect, security-auditor, researcher, etc.)
+get_role_for_context() {
+    local agent_type="$1"
+    local task_type="$2"
+    local phase="${3:-}"
+
+    # Phase-specific role mapping (highest priority)
+    case "$phase" in
+        probe)
+            echo "researcher"
+            return
+            ;;
+        grasp)
+            echo "synthesizer"
+            return
+            ;;
+        ink)
+            echo "synthesizer"
+            return
+            ;;
+    esac
+
+    # Task-type based role mapping
+    case "$task_type" in
+        review|diamond-deliver)
+            echo "reviewer"
+            ;;
+        coding|diamond-develop)
+            # Refine based on agent type
+            if [[ "$agent_type" == "gemini" || "$agent_type" == "gemini-fast" ]]; then
+                echo "researcher"
+            else
+                echo "implementer"
+            fi
+            ;;
+        design)
+            echo "frontend-architect"
+            ;;
+        research|diamond-discover)
+            echo "researcher"
+            ;;
+        *)
+            # Agent-type fallback
+            case "$agent_type" in
+                codex|codex-max|codex-standard)
+                    echo "implementer"
+                    ;;
+                codex-review)
+                    echo "reviewer"
+                    ;;
+                gemini|gemini-fast)
+                    echo "researcher"
+                    ;;
+                *)
+                    echo ""  # No persona
+                    ;;
+            esac
+            ;;
+    esac
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -982,8 +1210,11 @@ retry_failed_subtasks() {
         # Parse failed task info (format: agent:prompt)
         local agent="${failed_task%%:*}"
         local prompt="${failed_task#*:}"
+        # Determine role based on agent type for retries
+        local role="implementer"
+        [[ "$agent" == "gemini" || "$agent" == "gemini-fast" ]] && role="researcher"
 
-        spawn_agent "$agent" "$prompt" "tangle-${task_group}-retry${retry_count}-${subtask_num}" &
+        spawn_agent "$agent" "$prompt" "tangle-${task_group}-retry${retry_count}-${subtask_num}" "$role" "tangle" &
         local pid=$!
         pids="$pids $pid"
         ((subtask_num++))
@@ -1012,6 +1243,19 @@ spawn_agent() {
     local agent_type="$1"
     local prompt="$2"
     local task_id="${3:-$(date +%s)}"
+    local role="${4:-}"   # Optional role override
+    local phase="${5:-}"  # Optional phase context
+
+    # Determine role if not provided
+    if [[ -z "$role" ]]; then
+        local task_type
+        task_type=$(classify_task "$prompt")
+        role=$(get_role_for_context "$agent_type" "$task_type" "$phase")
+    fi
+
+    # Apply persona to prompt
+    local enhanced_prompt
+    enhanced_prompt=$(apply_persona "$role" "$prompt")
 
     local cmd
     if ! cmd=$(get_agent_command "$agent_type"); then
@@ -1023,11 +1267,12 @@ spawn_agent() {
     local log_file="${LOGS_DIR}/${agent_type}-${task_id}.log"
     local result_file="${RESULTS_DIR}/${agent_type}-${task_id}.md"
 
-    log INFO "Spawning $agent_type agent (task: $task_id)"
-    log DEBUG "Command: $cmd \"$prompt\""
+    log INFO "Spawning $agent_type agent (task: $task_id, role: ${role:-none})"
+    log DEBUG "Command: $cmd"
+    log DEBUG "Phase: ${phase:-none}, Role: ${role:-none}"
 
     if [[ "$DRY_RUN" == "true" ]]; then
-        log INFO "[DRY-RUN] Would execute: $cmd \"$prompt\""
+        log INFO "[DRY-RUN] Would execute: $cmd with role=${role:-none}"
         return 0
     fi
 
@@ -1041,6 +1286,8 @@ spawn_agent() {
 
         echo "# Agent: $agent_type" > "$result_file"
         echo "# Task ID: $task_id" >> "$result_file"
+        echo "# Role: ${role:-none}" >> "$result_file"
+        echo "# Phase: ${phase:-none}" >> "$result_file"
         echo "# Prompt: $prompt" >> "$result_file"
         echo "# Started: $(date)" >> "$result_file"
         echo "" >> "$result_file"
@@ -1048,7 +1295,7 @@ spawn_agent() {
         echo '```' >> "$result_file"
 
         # shellcheck disable=SC2086
-        if run_with_timeout "$TIMEOUT" $cmd "$prompt" >> "$result_file" 2>> "$log_file"; then
+        if run_with_timeout "$TIMEOUT" $cmd "$enhanced_prompt" >> "$result_file" 2>> "$log_file"; then
             echo '```' >> "$result_file"
             echo "" >> "$result_file"
             echo "## Status: SUCCESS" >> "$result_file"
@@ -1811,12 +2058,27 @@ run_agent_sync() {
     local agent_type="$1"
     local prompt="$2"
     local timeout_secs="${3:-120}"
+    local role="${4:-}"   # Optional role override
+    local phase="${5:-}"  # Optional phase context
+
+    # Determine role if not provided
+    if [[ -z "$role" ]]; then
+        local task_type
+        task_type=$(classify_task "$prompt")
+        role=$(get_role_for_context "$agent_type" "$task_type" "$phase")
+    fi
+
+    # Apply persona to prompt
+    local enhanced_prompt
+    enhanced_prompt=$(apply_persona "$role" "$prompt")
+
+    log DEBUG "run_agent_sync: agent=$agent_type, role=${role:-none}, phase=${phase:-none}"
 
     local cmd
     cmd=$(get_agent_command "$agent_type") || return 1
 
     # shellcheck disable=SC2086
-    run_with_timeout "$timeout_secs" $cmd "$prompt" 2>/dev/null
+    run_with_timeout "$timeout_secs" $cmd "$enhanced_prompt" 2>/dev/null
 }
 
 # Phase 1: PROBE (Discover) - Parallel research with synthesis
@@ -1861,7 +2123,7 @@ probe_discover() {
         local agent="gemini"
         [[ $((i % 2)) -eq 0 ]] && agent="codex"
 
-        spawn_agent "$agent" "$perspective" "probe-${task_group}-${i}" &
+        spawn_agent "$agent" "$perspective" "probe-${task_group}-${i}" "researcher" "probe" &
         pids+=($!)
         sleep 0.3
     done
@@ -1981,9 +2243,9 @@ grasp_define() {
     log INFO "Gathering problem definitions from multiple perspectives..."
 
     local def1 def2 def3
-    def1=$(run_agent_sync "codex" "Based on: $prompt\n${context}Define the core problem statement in 2-3 sentences. What is the essential challenge?" 120)
-    def2=$(run_agent_sync "gemini" "Based on: $prompt\n${context}Define success criteria. How will we know when this is solved correctly? List 3-5 measurable criteria." 120)
-    def3=$(run_agent_sync "gemini" "Based on: $prompt\n${context}Define constraints and boundaries. What are we NOT solving? What are hard limits?" 120)
+    def1=$(run_agent_sync "codex" "Based on: $prompt\n${context}Define the core problem statement in 2-3 sentences. What is the essential challenge?" 120 "backend-architect" "grasp")
+    def2=$(run_agent_sync "gemini" "Based on: $prompt\n${context}Define success criteria. How will we know when this is solved correctly? List 3-5 measurable criteria." 120 "researcher" "grasp")
+    def3=$(run_agent_sync "gemini" "Based on: $prompt\n${context}Define constraints and boundaries. What are we NOT solving? What are hard limits?" 120 "researcher" "grasp")
 
     # Build consensus
     local consensus_file="${RESULTS_DIR}/grasp-consensus-${task_group}.md"
@@ -2009,7 +2271,7 @@ Output a single, clear problem definition document with:
 4. Recommended Approach"
 
     local consensus
-    consensus=$(run_agent_sync "gemini" "$consensus_prompt" 180) || {
+    consensus=$(run_agent_sync "gemini" "$consensus_prompt" 180 "synthesizer" "grasp") || {
         consensus="[Auto-consensus failed - manual review required]\n\nProblem: $def1\n\nSuccess Criteria: $def2\n\nConstraints: $def3"
     }
 
@@ -2076,9 +2338,9 @@ ${context}Task: $prompt
 Output as numbered list with [CODING] or [REASONING] prefix for each subtask."
 
     local subtasks
-    subtasks=$(run_agent_sync "gemini" "$decompose_prompt" 120) || {
+    subtasks=$(run_agent_sync "gemini" "$decompose_prompt" 120 "researcher" "tangle") || {
         log WARN "Decomposition failed, falling back to direct execution"
-        spawn_agent "codex" "$prompt" "tangle-${task_group}-direct"
+        spawn_agent "codex" "$prompt" "tangle-${task_group}-direct" "implementer" "tangle"
         wait
         return
     }
@@ -2099,10 +2361,14 @@ Output as numbered list with [CODING] or [REASONING] prefix for each subtask."
         local subtask
         subtask=$(echo "$line" | sed 's/^[0-9]*[\.\)]\s*//')
         local agent="codex"
-        [[ "$subtask" =~ \[REASONING\] ]] && agent="gemini"
+        local role="implementer"
+        if [[ "$subtask" =~ \[REASONING\] ]]; then
+            agent="gemini"
+            role="researcher"
+        fi
         subtask=$(echo "$subtask" | sed 's/\[CODING\]\s*//; s/\[REASONING\]\s*//')
 
-        spawn_agent "$agent" "$subtask" "tangle-${task_group}-${subtask_num}" &
+        spawn_agent "$agent" "$subtask" "tangle-${task_group}-${subtask_num}" "$role" "tangle" &
         pids+=($!)
         ((subtask_num++))
     done <<< "$subtasks"
@@ -2340,7 +2606,7 @@ Results to synthesize:
 $all_results"
 
     local delivery
-    delivery=$(run_agent_sync "gemini" "$synthesis_prompt" 180) || {
+    delivery=$(run_agent_sync "gemini" "$synthesis_prompt" 180 "synthesizer" "ink") || {
         delivery="[Synthesis failed - raw results attached]\n\n$all_results"
     }
 
@@ -2603,6 +2869,7 @@ while [[ $# -gt 0 ]]; do
         --tier) FORCE_TIER="$2"; shift 2 ;;
         --branch) FORCE_BRANCH="$2"; shift 2 ;;
         --on-fail) ON_FAIL_ACTION="$2"; shift 2 ;;
+        --no-personas) DISABLE_PERSONAS=true; shift ;;
         -h|--help|help) usage ;;
         *) break ;;
     esac
