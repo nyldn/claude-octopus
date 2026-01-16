@@ -5,6 +5,48 @@ All notable changes to Claude Octopus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.8.0] - 2026-01-16
+
+### Added - Subscription-Aware Multi-Provider Routing
+
+#### Intelligent Provider Selection
+- **Provider scoring algorithm** (0-150 scale) based on cost, capabilities, and task complexity
+- **Cost optimization strategies**: `balanced` (default), `cost-first`, `quality-first`
+- **OpenRouter integration** as universal fallback with 400+ models
+- Automatic detection of provider tiers from installed CLIs
+
+#### New CLI Flags
+- `--provider <name>` - Force specific provider (codex, gemini, claude, openrouter)
+- `--cost-first` - Prefer cheapest capable provider
+- `--quality-first` - Prefer highest-tier provider
+- `--openrouter-nitro` - Use fastest OpenRouter routing
+- `--openrouter-floor` - Use cheapest OpenRouter routing
+
+#### Enhanced Setup Wizard (9 steps)
+- Step 5: Codex subscription tier (free/plus/pro/api-only)
+- Step 6: Gemini subscription tier (free/google-one/workspace/api-only)
+- Step 7: OpenRouter configuration (optional fallback)
+
+#### New Configuration
+- `~/.claude-octopus/.providers-config` (v2.0 format)
+- Subscription tiers: free, plus, pro, max, workspace, api-only
+- Cost tiers: free, bundled, low, medium, high, pay-per-use
+
+#### New Functions
+- `detect_providers()` - Returns installed CLIs with auth methods
+- `score_provider()` - Score provider for task (0-150 scale)
+- `select_provider()` - Select best provider using scoring
+- `get_tiered_agent_v2()` - Enhanced routing with provider scoring
+- `execute_openrouter()` - Execute prompt via OpenRouter API
+
+### Changed
+
+- Documentation split: CLAUDE.md (users) + .claude/DEVELOPMENT.md (developers)
+- skill.md updated with Provider-Aware Routing section
+- Test suite expanded to 146 tests (+27 multi-provider routing tests)
+
+---
+
 ## [4.7.2] - 2026-01-16
 
 ### Added
