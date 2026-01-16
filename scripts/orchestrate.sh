@@ -2192,21 +2192,41 @@ GITIGNORE
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# v4.3 FEATURE: INTERACTIVE SETUP WIZARD
-# Guides users through complete setup with validation
+# v4.3 FEATURE: INTERACTIVE SETUP WIZARD (DEPRECATED in v4.9)
+# Use 'detect-providers' command instead for Claude Code integration
 # ═══════════════════════════════════════════════════════════════════════════════
 
 init_interactive() {
     echo ""
-    echo -e "${CYAN}╔═══════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${CYAN}║                                                               ║${NC}"
-    echo -e "${CYAN}║     🐙 Claude Octopus Interactive Setup Wizard 🐙             ║${NC}"
-    echo -e "${CYAN}║                                                               ║${NC}"
-    echo -e "${CYAN}║     Let's get all 8 tentacles connected and ready!            ║${NC}"
-    echo -e "${CYAN}║                                                               ║${NC}"
-    echo -e "${CYAN}╚═══════════════════════════════════════════════════════════════╝${NC}"
+    echo -e "${YELLOW}⚠ WARNING: 'init_interactive' is deprecated and will be removed in v5.0${NC}"
     echo ""
+    echo -e "${CYAN}The interactive setup wizard has been deprecated in favor of a simpler flow.${NC}"
+    echo ""
+    echo -e "${CYAN}New approach:${NC}"
+    echo -e "  1. Run: ${GREEN}./scripts/orchestrate.sh detect-providers${NC}"
+    echo -e "     This will check your current setup and give you clear next steps."
+    echo ""
+    echo -e "  2. Or use: ${GREEN}/claude-octopus:setup${NC} in Claude Code"
+    echo -e "     This provides full setup instructions within Claude Code."
+    echo ""
+    echo -e "${CYAN}Why the change?${NC}"
+    echo -e "  • Faster onboarding - you only need ONE provider (Codex OR Gemini)"
+    echo -e "  • Clearer instructions - no confusing interactive prompts"
+    echo -e "  • Works in Claude Code - no need to leave and run terminal commands"
+    echo -e "  • Environment variables for API keys (more secure)"
+    echo ""
+    echo -e "${CYAN}Quick migration:${NC}"
+    echo -e "  Instead of this wizard, just set environment variables in your shell profile:"
+    echo -e "    ${GREEN}export OPENAI_API_KEY=\"sk-...\"${NC}  (for Codex)"
+    echo -e "    ${GREEN}export GEMINI_API_KEY=\"AIza...\"${NC}  (for Gemini)"
+    echo ""
+    echo -e "  Then run: ${GREEN}./scripts/orchestrate.sh detect-providers${NC}"
+    echo ""
+    exit 1
+}
 
+# Deprecated steps from old interactive wizard - keeping helper functions for octopus-configure
+OLD_init_interactive_impl() {
     local step=1
     local total_steps=7
     local issues=0
@@ -3017,6 +3037,131 @@ detect_providers() {
     fi
 
     echo "$result" | xargs  # Trim whitespace
+}
+
+# Command: detect-providers
+# Output parseable provider status for Claude Code skill
+cmd_detect_providers() {
+    echo "Detecting providers..."
+    echo ""
+
+    # Check Codex CLI
+    if command -v codex &>/dev/null; then
+        echo "CODEX_STATUS=ok"
+        if [[ -f "$HOME/.codex/auth.json" ]]; then
+            echo "CODEX_AUTH=oauth"
+        elif [[ -n "${OPENAI_API_KEY:-}" ]]; then
+            echo "CODEX_AUTH=api-key"
+        else
+            echo "CODEX_AUTH=none"
+        fi
+    else
+        echo "CODEX_STATUS=missing"
+        echo "CODEX_AUTH=none"
+    fi
+    echo ""
+
+    # Check Gemini CLI
+    if command -v gemini &>/dev/null; then
+        echo "GEMINI_STATUS=ok"
+        if [[ -f "$HOME/.gemini/oauth_creds.json" ]]; then
+            echo "GEMINI_AUTH=oauth"
+        elif [[ -n "${GEMINI_API_KEY:-}" ]]; then
+            echo "GEMINI_AUTH=api-key"
+        else
+            echo "GEMINI_AUTH=none"
+        fi
+    else
+        echo "GEMINI_STATUS=missing"
+        echo "GEMINI_AUTH=none"
+    fi
+    echo ""
+
+    # Write to cache
+    mkdir -p "$WORKSPACE_DIR"
+    local codex_status=$(command -v codex &>/dev/null && echo "ok" || echo "missing")
+    local codex_auth=$([[ -f "$HOME/.codex/auth.json" ]] && echo "oauth" || [[ -n "${OPENAI_API_KEY:-}" ]] && echo "api-key" || echo "none")
+    local gemini_status=$(command -v gemini &>/dev/null && echo "ok" || echo "missing")
+    local gemini_auth=$([[ -f "$HOME/.gemini/oauth_creds.json" ]] && echo "oauth" || [[ -n "${GEMINI_API_KEY:-}" ]] && echo "api-key" || echo "none")
+
+    cat > "$WORKSPACE_DIR/.provider-cache" <<EOF
+# Auto-generated on $(date)
+# Valid for 1 hour - re-run detect-providers to refresh
+
+# Codex Status
+CODEX_STATUS=$codex_status
+CODEX_AUTH=$codex_auth
+
+# Gemini Status
+GEMINI_STATUS=$gemini_status
+GEMINI_AUTH=$gemini_auth
+
+# Timestamp
+CACHE_TIME=$(date +%s)
+EOF
+
+    echo "Detection complete. Cache written to $WORKSPACE_DIR/.provider-cache"
+    echo ""
+
+    # Show summary
+    echo "Summary:"
+    if [[ "$codex_status" == "ok" && "$codex_auth" != "none" ]]; then
+        echo "  ✓ Codex: Installed and authenticated ($codex_auth)"
+    elif [[ "$codex_status" == "ok" ]]; then
+        echo "  ⚠ Codex: Installed but not authenticated"
+    else
+        echo "  ✗ Codex: Not installed"
+    fi
+
+    if [[ "$gemini_status" == "ok" && "$gemini_auth" != "none" ]]; then
+        echo "  ✓ Gemini: Installed and authenticated ($gemini_auth)"
+    elif [[ "$gemini_status" == "ok" ]]; then
+        echo "  ⚠ Gemini: Installed but not authenticated"
+    else
+        echo "  ✗ Gemini: Not installed"
+    fi
+    echo ""
+
+    # Provide guidance based on results
+    if [[ "$codex_status" == "missing" && "$gemini_status" == "missing" ]]; then
+        echo "⚠ No providers installed. You need at least ONE provider to use Claude Octopus."
+        echo ""
+        echo "Next steps:"
+        echo "  1. Install Codex CLI: npm install -g @openai/codex"
+        echo "     OR"
+        echo "  2. Install Gemini CLI: npm install -g @google/gemini-cli"
+        echo ""
+        echo "Then configure authentication - see: /claude-octopus:setup"
+    elif [[ ("$codex_status" == "ok" && "$codex_auth" == "none") || ("$gemini_status" == "ok" && "$gemini_auth" == "none") ]]; then
+        echo "⚠ Provider(s) installed but not authenticated."
+        echo ""
+        echo "Next steps:"
+        if [[ "$codex_status" == "ok" && "$codex_auth" == "none" ]]; then
+            echo "  Codex: export OPENAI_API_KEY=\"sk-...\" (or run: codex login)"
+        fi
+        if [[ "$gemini_status" == "ok" && "$gemini_auth" == "none" ]]; then
+            echo "  Gemini: export GEMINI_API_KEY=\"AIza...\" (or run: gemini)"
+        fi
+        echo ""
+        echo "See: /claude-octopus:setup for full instructions"
+    else
+        echo "✓ You're all set! At least one provider is ready to use."
+        echo ""
+        if [[ "$codex_status" == "ok" && "$codex_auth" != "none" && "$gemini_status" == "ok" && "$gemini_auth" != "none" ]]; then
+            echo "  Both Codex and Gemini are configured - you'll get the best results!"
+        elif [[ "$codex_status" == "ok" && "$codex_auth" != "none" ]]; then
+            echo "  Codex is configured. You can optionally add Gemini for multi-provider workflows."
+        elif [[ "$gemini_status" == "ok" && "$gemini_auth" != "none" ]]; then
+            echo "  Gemini is configured. You can optionally add Codex for multi-provider workflows."
+        fi
+        echo ""
+        echo "What you can do now (just talk naturally in Claude Code):"
+        echo "  • \"Research OAuth authentication patterns\""
+        echo "  • \"Build a user authentication system\""
+        echo "  • \"Review this code for security issues\""
+        echo "  • \"Use adversarial review to critique my implementation\""
+    fi
+    echo ""
 }
 
 # Load provider configuration from file
@@ -3980,11 +4125,12 @@ get_intent_name() {
         2) echo "frontend" ;;
         3) echo "fullstack" ;;
         4) echo "ux-research" ;;
-        5) echo "ui-design" ;;
-        6) echo "devops" ;;
-        7) echo "data" ;;
-        8) echo "seo" ;;
-        9) echo "security" ;;
+        5) echo "ux-ui-researcher" ;;
+        6) echo "ui-design" ;;
+        7) echo "devops" ;;
+        8) echo "data" ;;
+        9) echo "seo" ;;
+        10) echo "security" ;;
         0) echo "general" ;;
         *) echo "general" ;;
     esac
@@ -3997,7 +4143,8 @@ get_intent_persona() {
         backend|devops) echo "backend-architect" ;;
         frontend) echo "frontend-architect" ;;
         security) echo "security-auditor" ;;
-        ux-research|data) echo "researcher" ;;
+        ux-research|ux-ui-researcher|data) echo "researcher" ;;
+        ui-design) echo "designer" ;;
         *) echo "" ;;  # No default persona
     esac
 }
@@ -4095,18 +4242,19 @@ init_step_intent() {
     echo -e "${YELLOW}Step 6/7: What brings you to the octopus's lair?${NC}"
     echo -e "  ${CYAN}Select your primary use case(s) - this helps us choose the best agents${NC}"
     echo ""
-    echo -e "  ${GREEN}[1]${NC} Backend Development    ${CYAN}(APIs, databases, microservices)${NC}"
-    echo -e "  ${GREEN}[2]${NC} Frontend Development   ${CYAN}(React, Vue, UI components)${NC}"
-    echo -e "  ${GREEN}[3]${NC} Full-Stack Development ${CYAN}(both frontend + backend)${NC}"
-    echo -e "  ${GREEN}[4]${NC} UX Research            ${CYAN}(user research, personas, journey maps)${NC}"
-    echo -e "  ${GREEN}[5]${NC} UI/Product Design      ${CYAN}(wireframes, design systems)${NC}"
-    echo -e "  ${GREEN}[6]${NC} DevOps/Infrastructure  ${CYAN}(CI/CD, Docker, Kubernetes)${NC}"
-    echo -e "  ${GREEN}[7]${NC} Data/Analytics         ${CYAN}(SQL, pipelines, ML)${NC}"
-    echo -e "  ${GREEN}[8]${NC} SEO/Marketing          ${CYAN}(content, optimization)${NC}"
-    echo -e "  ${GREEN}[9]${NC} Code Review/Security   ${CYAN}(audits, vulnerability scanning)${NC}"
+    echo -e "  ${GREEN}[1]${NC} Backend Development       ${CYAN}(APIs, databases, microservices)${NC}"
+    echo -e "  ${GREEN}[2]${NC} Frontend Development      ${CYAN}(React, Vue, UI components)${NC}"
+    echo -e "  ${GREEN}[3]${NC} Full-Stack Development    ${CYAN}(both frontend + backend)${NC}"
+    echo -e "  ${GREEN}[4]${NC} UX Research               ${CYAN}(user research, personas, journey maps)${NC}"
+    echo -e "  ${GREEN}[5]${NC} Researcher UX/UI Design   ${CYAN}(combined research + design)${NC}"
+    echo -e "  ${GREEN}[6]${NC} UI/Product Design         ${CYAN}(wireframes, design systems)${NC}"
+    echo -e "  ${GREEN}[7]${NC} DevOps/Infrastructure     ${CYAN}(CI/CD, Docker, Kubernetes)${NC}"
+    echo -e "  ${GREEN}[8]${NC} Data/Analytics            ${CYAN}(SQL, pipelines, ML)${NC}"
+    echo -e "  ${GREEN}[9]${NC} SEO/Marketing             ${CYAN}(content, optimization)${NC}"
+    echo -e "  ${GREEN}[10]${NC} Code Review/Security     ${CYAN}(audits, vulnerability scanning)${NC}"
     echo -e "  ${GREEN}[0]${NC} General/All of above"
     echo ""
-    read -p "  Enter choices (e.g., '1,2,6' or '0' for all): " intent_choices
+    read -p "  Enter choices (e.g., '1,2,7' or '0' for all): " intent_choices
 
     # Parse choices
     intent_choices="${intent_choices:-0}"
@@ -6670,10 +6818,26 @@ setup_wizard() {
         echo -e "${GREEN}  🐙 All 8 tentacles are connected and ready to work! 🐙${NC}"
         echo -e "${GREEN}═══════════════════════════════════════════════════════════════${NC}"
         echo ""
-        echo -e "  Try these commands:"
-        echo -e "    ${CYAN}orchestrate.sh preflight${NC}     - Verify everything works"
-        echo -e "    ${CYAN}orchestrate.sh embrace${NC}       - Run full Double Diamond workflow"
-        echo -e "    ${CYAN}orchestrate.sh auto <prompt>${NC} - Smart task routing"
+        echo -e "  ${CYAN}What you can do now (just talk naturally in Claude Code):${NC}"
+        echo ""
+        echo -e "  Research & Exploration:"
+        echo -e "    • \"Research OAuth authentication patterns\""
+        echo -e "    • \"Explore database architectures for multi-tenant SaaS\""
+        echo ""
+        echo -e "  Implementation:"
+        echo -e "    • \"Build a user authentication system with JWT\""
+        echo -e "    • \"Implement rate limiting middleware\""
+        echo ""
+        echo -e "  Code Review:"
+        echo -e "    • \"Review this code for security vulnerabilities\""
+        echo -e "    • \"Use adversarial review to critique my implementation\""
+        echo ""
+        echo -e "  Full Workflows:"
+        echo -e "    • \"Research, design, and build a complete dashboard feature\""
+        echo ""
+        echo -e "  ${YELLOW}Advanced:${NC} You can also run commands directly:"
+        echo -e "    ${CYAN}./scripts/orchestrate.sh preflight${NC}  - Verify setup"
+        echo -e "    ${CYAN}./scripts/orchestrate.sh status${NC}     - Check providers"
         echo ""
     else
         echo -e "${YELLOW}═══════════════════════════════════════════════════════════════${NC}"
@@ -8445,6 +8609,9 @@ case "$COMMAND" in
     map-reduce|mapreduce)
         [[ $# -lt 1 ]] && { log ERROR "Usage: map-reduce <prompt>"; exit 1; }
         map_reduce "$*"
+        ;;
+    detect-providers)
+        cmd_detect_providers
         ;;
     status)
         show_status

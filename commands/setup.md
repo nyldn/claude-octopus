@@ -1,50 +1,186 @@
 ---
-description: Run the Claude Octopus setup wizard to install dependencies and configure API keys
+description: Check Claude Octopus setup status and get configuration instructions
 ---
 
 # Claude Octopus Setup
 
-The setup wizard is **interactive** and must be run in your **actual terminal** (not through Claude Code bash commands).
+This command checks your current setup and provides instructions for any missing dependencies.
 
-## What This Does
+## Auto-Detection
 
-The setup wizard will:
-1. **Check/Install Codex CLI** - OpenAI's coding agent (tentacles 1-4)
-2. **Check/Install Gemini CLI** - Google's reasoning agent (tentacles 5-8)
-3. **Configure API Keys** - Detects OAuth or prompts for API keys
-4. **Configure subscription tiers** - Auto-detects from installed CLIs
-5. **Set cost optimization strategy** - Balanced, cost-first, or quality-first
-
-## Run the Wizard
-
-**Please copy and run this command in your terminal:**
+Running setup detection...
 
 ```bash
-cd ~/.claude/plugins/claude-octopus && ./scripts/orchestrate.sh octopus-configure
+./scripts/orchestrate.sh detect-providers
 ```
 
-The wizard is interactive and will guide you through each step with prompts and menus.
+Based on the results above, here's what you need:
 
-## After Setup
+## If You See: CODEX_STATUS=missing
 
-Verify everything is working:
-
+Install Codex CLI:
 ```bash
-cd ~/.claude/plugins/claude-octopus && ./scripts/orchestrate.sh status
+npm install -g @openai/codex
 ```
 
-Then test with a simple probe:
-
+Then configure authentication:
 ```bash
-cd ~/.claude/plugins/claude-octopus && ./scripts/orchestrate.sh probe "Hello Octopus!"
+# Option 1: OAuth (recommended)
+codex login
+
+# Option 2: API Key
+export OPENAI_API_KEY="sk-..."
+# Get key from: https://platform.openai.com/api-keys
 ```
 
-## Quick Status Check
-
-To check if you're already configured, run:
-
+To make the API key permanent, add it to your shell profile:
 ```bash
-cd ~/.claude/plugins/claude-octopus && ./scripts/orchestrate.sh status
+# For zsh (macOS default)
+echo 'export OPENAI_API_KEY="sk-..."' >> ~/.zshrc
+source ~/.zshrc
+
+# For bash
+echo 'export OPENAI_API_KEY="sk-..."' >> ~/.bashrc
+source ~/.bashrc
 ```
 
-If you see authentication methods (oauth or api-key) for Codex and Gemini, you're all set!
+## If You See: GEMINI_STATUS=missing
+
+Install Gemini CLI:
+```bash
+npm install -g @google/gemini-cli
+```
+
+Then configure authentication:
+```bash
+# Option 1: OAuth (recommended)
+gemini  # Opens browser for OAuth
+
+# Option 2: API Key
+export GEMINI_API_KEY="AIza..."
+# Get key from: https://aistudio.google.com/app/apikey
+```
+
+To make the API key permanent, add it to your shell profile:
+```bash
+# For zsh (macOS default)
+echo 'export GEMINI_API_KEY="AIza..."' >> ~/.zshrc
+source ~/.zshrc
+
+# For bash
+echo 'export GEMINI_API_KEY="AIza..."' >> ~/.bashrc
+source ~/.bashrc
+```
+
+## If You See: CODEX_AUTH=none or GEMINI_AUTH=none
+
+The CLI is installed but not authenticated. Configure authentication:
+
+**For Codex:**
+```bash
+# Option 1: OAuth
+codex login
+
+# Option 2: API Key
+export OPENAI_API_KEY="sk-..."
+```
+
+**For Gemini:**
+```bash
+# Option 1: OAuth
+gemini
+
+# Option 2: API Key
+export GEMINI_API_KEY="AIza..."
+```
+
+## Verify Setup
+
+After installing and configuring, verify with:
+```bash
+./scripts/orchestrate.sh detect-providers
+```
+
+You should see at least one provider with status:
+- ✓ Codex: Installed and authenticated (oauth or api-key)
+- ✓ Gemini: Installed and authenticated (oauth or api-key)
+
+## Ready to Use
+
+Once at least ONE provider is configured, you're ready! Claude Octopus automatically activates when you need multi-AI collaboration.
+
+### Just Talk Naturally
+
+You don't need to run commands - just describe what you want in plain English:
+
+**Research & Exploration:**
+> "Research OAuth authentication patterns and summarize the best approaches"
+> "Explore different database architectures for a multi-tenant SaaS application"
+> "Investigate the trade-offs between REST and GraphQL for our API"
+
+**Implementation & Development:**
+> "Build a user authentication system with JWT tokens"
+> "Implement a rate limiting middleware for Express"
+> "Create a responsive navigation component in React"
+
+**Code Review & Quality:**
+> "Review this authentication code for security vulnerabilities"
+> "Check this API implementation for performance issues"
+> "Validate that this component follows accessibility best practices"
+
+**Adversarial Testing:**
+> "Use adversarial review to critique my password reset implementation"
+> "Have two models debate the best approach for session management"
+> "Red team this login form to find security weaknesses"
+
+**Full Workflows:**
+> "Research, design, and implement a complete user dashboard feature"
+> "Build a notification system from research to delivery"
+
+Claude coordinates multiple AI models behind the scenes and provides comprehensive, validated results.
+
+## Do I Need Both Providers?
+
+No! You only need ONE provider (Codex or Gemini) to use Claude Octopus. Both providers give you access to powerful workflows:
+
+- **Codex (OpenAI):** Best for code generation, refactoring, complex logic
+- **Gemini (Google):** Best for analysis, long-context understanding, multi-modal tasks
+
+Having both providers enables multi-AI workflows where different models review each other's work, but a single provider works great for most tasks.
+
+## Troubleshooting
+
+### "npm: command not found"
+
+You need Node.js and npm installed. Install from https://nodejs.org/
+
+### "Permission denied" when installing CLIs
+
+Use `sudo npm install -g` or configure npm to use a user directory:
+```bash
+mkdir ~/.npm-global
+npm config set prefix '~/.npm-global'
+echo 'export PATH=~/.npm-global/bin:$PATH' >> ~/.zshrc
+source ~/.zshrc
+```
+
+### "codex/gemini: command not found" after installation
+
+The CLI may not be in your PATH. Try:
+```bash
+# Reload your shell profile
+source ~/.zshrc  # or source ~/.bashrc
+
+# Or restart your terminal
+```
+
+### API key not persisting after terminal restart
+
+Add the export statement to your shell profile (~/.zshrc or ~/.bashrc) so it loads automatically.
+
+## Getting Help
+
+If you encounter issues:
+1. Run `./scripts/orchestrate.sh preflight` for a detailed system check
+2. Check the logs in `~/.claude-octopus/logs/`
+3. Report issues at: https://github.com/nyldn/claude-octopus/issues
