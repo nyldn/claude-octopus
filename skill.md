@@ -142,6 +142,14 @@ After showing this welcome message, STOP and wait for the user to set up a provi
 
 Expected output format:
 ```
+Detecting Claude Code version...
+
+CLAUDE_CODE_VERSION=2.1.9
+CLAUDE_CODE_STATUS=ok
+CLAUDE_CODE_MINIMUM=2.1.9
+
+✓ Claude Code version: 2.1.9 (meets minimum 2.1.9)
+
 Detecting providers...
 
 CODEX_STATUS=ok
@@ -158,6 +166,38 @@ Summary:
 ### Step 2: Route Based on Detection Results
 
 Parse the output and route accordingly:
+
+**Scenario 0: Claude Code version is outdated (CRITICAL - Check First)**
+```
+CLAUDE_CODE_VERSION=2.1.8
+CLAUDE_CODE_STATUS=outdated
+CLAUDE_CODE_MINIMUM=2.1.9
+```
+
+**Action:** STOP immediately and show this prominent warning:
+
+> "⚠️ **Claude Code Update Required**
+>
+> Your current Claude Code version (2.1.8) is outdated. Claude Octopus requires version 2.1.9 or higher for full functionality.
+>
+> **How to update:**
+>
+> If installed via npm:
+> ```
+> npm update -g @anthropic/claude-code
+> ```
+>
+> If installed via Homebrew:
+> ```
+> brew upgrade claude-code
+> ```
+>
+> If installed via download:
+> Visit https://github.com/anthropics/claude-code/releases
+>
+> **After updating, please restart Claude Code** and then we can proceed with your task."
+
+Do NOT proceed with the task until the user has updated and restarted. The detect-providers output will show this warning prominently.
 
 **Scenario A: Both providers missing**
 ```
