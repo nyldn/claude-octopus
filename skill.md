@@ -12,7 +12,11 @@ description: |
 
   **First-use:** Automatically detects if configuration is needed and guides setup.
 
-  NOT for: Simple sequential tasks, tasks requiring human interaction, debugging sessions
+  NEVER use for:
+  - Built-in Claude Code commands (/plugin, /init, /help, /clear, /commit, /remember, etc.)
+  - Plugin management or Claude Code configuration
+  - Simple sequential tasks, debugging sessions, or human interaction
+  - File operations, git commands, or terminal tasks
 ---
 
 # Claude Octopus - Multi-Tentacled Orchestrator
@@ -56,7 +60,35 @@ description: |
 ./scripts/orchestrate.sh auto "review the auth code"              # -> ink
 ```
 
+## IMPORTANT: When NOT to Use This Skill
+
+**DO NOT use this skill if the user's request involves:**
+
+1. **Built-in Claude Code commands** - Commands starting with `/` that are part of Claude Code itself:
+   - `/plugin` - Plugin management (add, remove, update, list)
+   - `/init` - Project initialization
+   - `/help` - Help documentation
+   - `/clear` - Clear conversation
+   - `/commit` - Git commit operations
+   - `/remember` - Memory management
+   - Any other `/` command that isn't `/parallel-agents` or `/claude-octopus:*`
+
+2. **Direct tool usage** - Simple file operations, git commands, or terminal tasks
+   - Reading/writing files
+   - Running git commands
+   - Basic bash operations
+   - These should use built-in tools directly
+
+3. **Claude Code configuration** - Managing Claude Code itself
+   - Changing settings
+   - Managing plugins
+   - Updating Claude Code
+
+**If the user's request matches any of the above, DO NOT activate this skill. Handle the request using standard Claude Code tools and capabilities instead.**
+
 ## Prerequisites Check (CRITICAL - Run First!)
+
+**Only proceed with this section if you've determined this skill should be used based on the criteria above.**
 
 Before executing ANY claude-octopus command, you MUST verify configuration is complete:
 
