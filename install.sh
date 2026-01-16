@@ -7,11 +7,10 @@ set -euo pipefail
 echo "🐙 Installing Claude Octopus..."
 
 # Configuration
-MARKETPLACE="local"
-CACHE_DIR="$HOME/.claude/plugins/cache/$MARKETPLACE/claude-octopus"
-MARKETPLACE_DIR="$HOME/.claude/plugins/marketplaces/$MARKETPLACE"
+PLUGIN_NAME="claude-octopus"
+MARKETPLACE="claude-octopus-marketplace"
+CACHE_DIR="$HOME/.claude/plugins/cache/$MARKETPLACE/$PLUGIN_NAME"
 INSTALLED_PLUGINS="$HOME/.claude/plugins/installed_plugins.json"
-KNOWN_MARKETPLACES="$HOME/.claude/plugins/known_marketplaces.json"
 
 # Check for jq
 if ! command -v jq &>/dev/null; then
@@ -25,38 +24,31 @@ echo "🧹 Cleaning up old installations..."
 rm -rf "$HOME/.claude/plugins/claude-octopus" 2>/dev/null || true
 rm -rf "$HOME/.claude/plugins/cache/nyldn-plugins/claude-octopus" 2>/dev/null || true
 rm -rf "$HOME/.claude/plugins/cache/parallel-agents-global/parallel-agents" 2>/dev/null || true
-echo "✓ Removed old cache"
+rm -rf "$HOME/.claude/plugins/cache/local/claude-octopus" 2>/dev/null || true
 
-# 1. Set up local marketplace
-echo "📦 Setting up local marketplace..."
-mkdir -p "$MARKETPLACE_DIR"
-if [ ! -f "$KNOWN_MARKETPLACES" ]; then
-    echo '{}' > "$KNOWN_MARKETPLACES"
+# Remove broken marketplace entries
+if [ -f "$HOME/.claude/plugins/known_marketplaces.json" ]; then
+    TMP_FILE=$(mktemp)
+    jq 'del(.local)' "$HOME/.claude/plugins/known_marketplaces.json" > "$TMP_FILE" 2>/dev/null || echo "{}" > "$TMP_FILE"
+    mv "$TMP_FILE" "$HOME/.claude/plugins/known_marketplaces.json"
 fi
+echo "✓ Removed old installations"
 
-TMP_FILE=$(mktemp)
-jq --arg path "$MARKETPLACE_DIR" --arg timestamp "$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")" \
-   '.["local"] = {"source": {"source": "local"}, "installLocation": $path, "lastUpdated": $timestamp}' \
-   "$KNOWN_MARKETPLACES" > "$TMP_FILE"
-mv "$TMP_FILE" "$KNOWN_MARKETPLACES"
-echo "✓ Registered local marketplace"
-
-# 2. Clone plugin to cache location (following Claude Code's pattern)
+# Clone plugin to cache location (following Claude Code's pattern)
 echo "📦 Installing plugin files..."
-# Get latest version
 TEMP_DIR=$(mktemp -d)
 trap 'rm -rf "$TEMP_DIR"' EXIT
 
-git clone --quiet https://github.com/nyldn/claude-octopus.git "$TEMP_DIR/claude-octopus"
-VERSION=$(cd "$TEMP_DIR/claude-octopus" && git rev-parse --short HEAD)
+git clone --quiet https://github.com/nyldn/claude-octopus.git "$TEMP_DIR/$PLUGIN_NAME"
+VERSION=$(cd "$TEMP_DIR/$PLUGIN_NAME" && git rev-parse --short HEAD)
 
 INSTALL_PATH="$CACHE_DIR/$VERSION"
 mkdir -p "$(dirname "$INSTALL_PATH")"
 rm -rf "$INSTALL_PATH"
-cp -r "$TEMP_DIR/claude-octopus" "$INSTALL_PATH"
-echo "✓ Installed to cache ($VERSION)"
+cp -r "$TEMP_DIR/$PLUGIN_NAME" "$INSTALL_PATH"
+echo "✓ Installed to $INSTALL_PATH"
 
-# 3. Register in installed_plugins.json
+# Register in installed_plugins.json
 echo "📝 Registering with Claude Code..."
 if [ ! -f "$INSTALLED_PLUGINS" ]; then
     echo '{"version": 2, "plugins": {}}' > "$INSTALLED_PLUGINS"
@@ -66,15 +58,16 @@ TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
 
 # Remove old entries
 TMP_FILE=$(mktemp)
-jq 'del(.plugins["claude-octopus"]) | del(.plugins["claude-octopus@nyldn-plugins"]) | del(.plugins["parallel-agents@parallel-agents-global"])' "$INSTALLED_PLUGINS" > "$TMP_FILE"
+jq 'del(.plugins["claude-octopus"]) | del(.plugins["claude-octopus@nyldn-plugins"]) | del(.plugins["claude-octopus@local"]) | del(.plugins["parallel-agents@parallel-agents-global"])' "$INSTALLED_PLUGINS" > "$TMP_FILE"
 mv "$TMP_FILE" "$INSTALLED_PLUGINS"
 
-# Add new entry with @local marketplace format
+# Add new entry
 TMP_FILE=$(mktemp)
 jq --arg path "$INSTALL_PATH" \
    --arg version "$VERSION" \
    --arg timestamp "$TIMESTAMP" \
-   '.plugins["claude-octopus@local"] = [{
+   --arg marketplace "$MARKETPLACE" \
+   '.plugins["claude-octopus@\($marketplace)"] = [{
      "scope": "user",
      "installPath": $path,
      "version": $version,
@@ -83,13 +76,13 @@ jq --arg path "$INSTALL_PATH" \
    }]' "$INSTALLED_PLUGINS" > "$TMP_FILE"
 
 mv "$TMP_FILE" "$INSTALLED_PLUGINS"
-echo "✓ Registered as claude-octopus@local"
+echo "✓ Registered as claude-octopus@$MARKETPLACE"
 
 echo ""
 echo "✅ Installation complete!"
 echo ""
 echo "📋 Installation details:"
-echo "   Registry:  claude-octopus@local"
+echo "   Registry:  claude-octopus@$MARKETPLACE"
 echo "   Location:  $INSTALL_PATH"
 echo "   Version:   $VERSION"
 echo ""
