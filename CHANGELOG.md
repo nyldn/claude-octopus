@@ -5,6 +5,25 @@ All notable changes to Claude Octopus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.7.2] - 2026-01-16
+
+### Added
+
+- **Gemini CLI OAuth authentication support** - Prefers `~/.gemini/oauth_creds.json` over `GEMINI_API_KEY`
+  - Matches existing Codex CLI OAuth pattern
+  - OAuth is faster and recommended for interactive use
+  - API key still supported as fallback
+
+### Changed
+
+- `preflight_check()` - OAuth-first detection with clear guidance for both auth methods
+- `is_agent_available()` - Checks OAuth credentials file before API key
+- `save_user_config()` - Detects OAuth for both Codex and Gemini CLIs
+- `auth status` - Shows "Authenticated (OAuth)" with auth type from settings.json
+- Setup Wizard Step 4 - OAuth option presented first with clear instructions
+
+---
+
 ## [4.7.1] - 2026-01-16
 
 ### Added
