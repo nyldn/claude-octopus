@@ -47,6 +47,8 @@ In Claude Code:
 /plugin marketplace add nyldn/claude-octopus
 ```
 
+**First time?** After installing, run `/claude-octopus:welcome` for setup instructions!
+
 Or manually:
 ```bash
 git clone https://github.com/nyldn/claude-octopus.git ~/.claude/plugins/claude-octopus
