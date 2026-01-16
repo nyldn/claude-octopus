@@ -166,6 +166,10 @@ chmod +x ~/git/claude-octopus/scripts/*.sh
 
 **Update:**
 ```bash
+# If installed via marketplace (recommended):
+claude plugin update claude-octopus@nyldn-plugins
+
+# If cloned directly to ~/.claude/plugins/claude-octopus:
 cd ~/.claude/plugins/claude-octopus && git pull
 ```
 
