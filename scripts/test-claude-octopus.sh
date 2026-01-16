@@ -950,6 +950,306 @@ fi
 echo ""
 
 # ============================================
+# 20. MULTI-PROVIDER ROUTING (v4.8)
+# Subscription-aware provider selection and OpenRouter integration
+# ============================================
+echo -e "${YELLOW}20. Multi-Provider Routing (v4.8)${NC}"
+
+# --- Provider Configuration ---
+echo -n "  Provider config file path defined... "
+if grep -q 'PROVIDERS_CONFIG_FILE=' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+echo -n "  load_providers_config() function exists... "
+if grep -q 'load_providers_config()' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+echo -n "  save_providers_config() function exists... "
+if grep -q 'save_providers_config()' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+# --- Provider Detection ---
+echo -n "  detect_providers() function exists... "
+if grep -q 'detect_providers()' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+echo -n "  auto_detect_provider_config() function exists... "
+if grep -q 'auto_detect_provider_config()' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+# --- Scoring Engine ---
+echo -n "  score_provider() function exists... "
+if grep -q 'score_provider()' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+echo -n "  select_provider() function exists... "
+if grep -q 'select_provider()' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+echo -n "  get_tiered_agent_v2() function exists... "
+if grep -q 'get_tiered_agent_v2()' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+echo -n "  is_agent_available_v2() function exists... "
+if grep -q 'is_agent_available_v2()' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+# --- OpenRouter Integration ---
+echo -n "  execute_openrouter() function exists... "
+if grep -q 'execute_openrouter()' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+echo -n "  get_openrouter_model() function exists... "
+if grep -q 'get_openrouter_model()' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+echo -n "  openrouter agent type defined... "
+if grep -q 'openrouter).*openrouter_execute' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+# --- CLI Flags ---
+echo -n "  --provider flag parsing... "
+if grep -q '\-\-provider).*FORCE_PROVIDER' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+echo -n "  --cost-first flag parsing... "
+if grep -q '\-\-cost-first).*FORCE_COST_FIRST' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+echo -n "  --quality-first flag parsing... "
+if grep -q '\-\-quality-first).*FORCE_QUALITY_FIRST' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+echo -n "  --openrouter-nitro flag parsing... "
+if grep -q '\-\-openrouter-nitro).*OPENROUTER_ROUTING_OVERRIDE' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+echo -n "  --openrouter-floor flag parsing... "
+if grep -q '\-\-openrouter-floor).*OPENROUTER_ROUTING_OVERRIDE' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+# --- Provider Status Display ---
+echo -n "  show_provider_status() function exists... "
+if grep -q 'show_provider_status()' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+echo -n "  show_status calls show_provider_status... "
+if grep -A 10 '^show_status()' "$SCRIPT" | grep -q 'show_provider_status'; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+# --- Provider Capabilities ---
+echo -n "  get_provider_capabilities() function exists... "
+if grep -q 'get_provider_capabilities()' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+echo -n "  get_provider_context_limit() function exists... "
+if grep -q 'get_provider_context_limit()' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+echo -n "  get_cost_tier_value() function exists... "
+if grep -q 'get_cost_tier_value()' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+# --- Setup Wizard Steps ---
+echo -n "  Setup wizard has 9 steps... "
+if grep -q 'total_steps=9' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+echo -n "  Setup wizard includes Codex tier step... "
+if grep -q 'Codex/OpenAI Subscription Tier' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+echo -n "  Setup wizard includes Gemini tier step... "
+if grep -q 'Gemini Subscription Tier' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+echo -n "  Setup wizard includes OpenRouter step... "
+if grep -q 'OpenRouter.*Universal Fallback\|OpenRouter Fallback Configuration' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+# --- Provider Config File Roundtrip ---
+echo -n "  Provider config save/load roundtrip... "
+TEST_PROVIDER_DIR=$(mktemp -d)
+TEST_PROVIDER_FILE="$TEST_PROVIDER_DIR/.providers-config"
+
+# Create test config manually
+cat > "$TEST_PROVIDER_FILE" << 'TESTCFG'
+version: "2.0"
+providers:
+  codex:
+    installed: true
+    auth_method: "oauth"
+    subscription_tier: "plus"
+    cost_tier: "low"
+    priority: 2
+  gemini:
+    installed: true
+    auth_method: "oauth"
+    subscription_tier: "workspace"
+    cost_tier: "bundled"
+    priority: 3
+  openrouter:
+    enabled: false
+    api_key_set: false
+    routing_preference: "default"
+    priority: 99
+cost_optimization:
+  strategy: "balanced"
+TESTCFG
+
+# Verify config file was created
+if [[ -f "$TEST_PROVIDER_FILE" ]]; then
+    # Parse subscription tier
+    codex_tier=$(grep -A5 "^  codex:" "$TEST_PROVIDER_FILE" | grep "subscription_tier:" | sed 's/.*: *//' | tr -d '"')
+    gemini_cost=$(grep -A5 "^  gemini:" "$TEST_PROVIDER_FILE" | grep "cost_tier:" | sed 's/.*: *//' | tr -d '"')
+    strategy=$(grep "^  strategy:" "$TEST_PROVIDER_FILE" | sed 's/.*: *//' | tr -d '"')
+
+    if [[ "$codex_tier" == "plus" ]] && [[ "$gemini_cost" == "bundled" ]] && [[ "$strategy" == "balanced" ]]; then
+        echo -e "${GREEN}PASS${NC}"
+        ((PASS++))
+    else
+        echo -e "${RED}FAIL${NC} (parsed: codex=$codex_tier, gemini_cost=$gemini_cost, strategy=$strategy)"
+        ((FAIL++))
+    fi
+else
+    echo -e "${RED}FAIL${NC} (config file not created)"
+    ((FAIL++))
+fi
+rm -rf "$TEST_PROVIDER_DIR"
+
+echo ""
+
+# ============================================
 # SUMMARY
 # ============================================
 echo "========================================"

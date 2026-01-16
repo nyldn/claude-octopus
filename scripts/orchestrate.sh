@@ -105,6 +105,7 @@ get_agent_command() {
         codex-review) echo "codex exec review" ;;                 # Code review mode
         claude) echo "claude --print" ;;                         # Claude Sonnet 4.5
         claude-sonnet) echo "claude --print -m sonnet" ;;        # Claude Sonnet explicit
+        openrouter) echo "openrouter_execute" ;;                 # OpenRouter API (v4.8)
         *) return 1 ;;
     esac
 }
@@ -128,12 +129,13 @@ get_agent_command_array() {
         codex-review)   _cmd_array=(codex exec review) ;;
         claude)         _cmd_array=(claude --print) ;;
         claude-sonnet)  _cmd_array=(claude --print -m sonnet) ;;
+        openrouter)     _cmd_array=(openrouter_execute) ;;       # OpenRouter API (v4.8)
         *) return 1 ;;
     esac
 }
 
 # List of available agents
-AVAILABLE_AGENTS="codex codex-standard codex-max codex-mini codex-general gemini gemini-fast gemini-image codex-review claude claude-sonnet"
+AVAILABLE_AGENTS="codex codex-standard codex-max codex-mini codex-general gemini gemini-fast gemini-image codex-review claude claude-sonnet openrouter"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # USAGE TRACKING & COST REPORTING (v4.1)
@@ -2820,6 +2822,742 @@ USER_HAS_OPENAI="false"
 USER_HAS_GEMINI="false"
 USER_OPUS_BUDGET="balanced"
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# MULTI-PROVIDER SUBSCRIPTION-AWARE ROUTING (v4.8)
+# Intelligent routing based on provider subscriptions, costs, and capabilities
+# ═══════════════════════════════════════════════════════════════════════════════
+
+PROVIDERS_CONFIG_FILE="${WORKSPACE_DIR:-$HOME/.claude-octopus}/.providers-config"
+
+# Provider configuration variables (loaded from file)
+PROVIDER_CODEX_INSTALLED="false"
+PROVIDER_CODEX_AUTH_METHOD="none"
+PROVIDER_CODEX_TIER="free"
+PROVIDER_CODEX_COST_TIER="free"
+PROVIDER_CODEX_PRIORITY=2
+
+PROVIDER_GEMINI_INSTALLED="false"
+PROVIDER_GEMINI_AUTH_METHOD="none"
+PROVIDER_GEMINI_TIER="free"
+PROVIDER_GEMINI_COST_TIER="free"
+PROVIDER_GEMINI_PRIORITY=3
+
+PROVIDER_CLAUDE_INSTALLED="false"
+PROVIDER_CLAUDE_AUTH_METHOD="none"
+PROVIDER_CLAUDE_TIER="pro"
+PROVIDER_CLAUDE_COST_TIER="medium"
+PROVIDER_CLAUDE_PRIORITY=1
+
+PROVIDER_OPENROUTER_ENABLED="false"
+PROVIDER_OPENROUTER_API_KEY_SET="false"
+PROVIDER_OPENROUTER_ROUTING_PREF="default"
+PROVIDER_OPENROUTER_PRIORITY=99
+
+# Cost optimization strategy: cost-first, quality-first, balanced
+COST_OPTIMIZATION_STRATEGY="balanced"
+
+# CLI overrides for provider and routing
+FORCE_PROVIDER=""
+FORCE_COST_FIRST="false"
+FORCE_QUALITY_FIRST="false"
+OPENROUTER_ROUTING_OVERRIDE=""
+
+# Provider capabilities matrix
+# Format: provider:capability1,capability2,...
+get_provider_capabilities() {
+    local provider="$1"
+    case "$provider" in
+        codex)
+            echo "code,chat,review"
+            ;;
+        gemini)
+            echo "code,chat,vision,long-context,analysis"
+            ;;
+        claude)
+            echo "code,chat,analysis,long-context"
+            ;;
+        openrouter)
+            echo "code,chat,vision,analysis,long-context"
+            ;;
+        *)
+            echo "general"
+            ;;
+    esac
+}
+
+# Get context limit for provider:tier combination
+get_provider_context_limit() {
+    local provider="$1"
+    local tier="$2"
+
+    case "$provider:$tier" in
+        gemini:workspace|gemini:api-only)
+            echo "2000000"  # 2M context
+            ;;
+        gemini:*)
+            echo "1000000"  # 1M for free/google-one
+            ;;
+        claude:max-20x|claude:max-5x)
+            echo "200000"
+            ;;
+        claude:*)
+            echo "100000"
+            ;;
+        codex:pro|codex:api-only)
+            echo "128000"
+            ;;
+        codex:*)
+            echo "64000"
+            ;;
+        openrouter:*)
+            echo "128000"  # Varies by model
+            ;;
+        *)
+            echo "32000"
+            ;;
+    esac
+}
+
+# Map cost tier to numeric value for comparison
+get_cost_tier_value() {
+    local cost_tier="$1"
+    case "$cost_tier" in
+        free)       echo 0 ;;
+        bundled)    echo 1 ;;
+        low)        echo 2 ;;
+        medium)     echo 3 ;;
+        high)       echo 4 ;;
+        pay-per-use) echo 5 ;;
+        *)          echo 3 ;;
+    esac
+}
+
+# Detect installed providers and their authentication methods
+# Returns: "provider:auth_method provider:auth_method ..."
+detect_providers() {
+    local result=""
+
+    # Detect Codex CLI
+    if command -v codex &>/dev/null; then
+        local codex_auth="none"
+        if [[ -f "$HOME/.codex/auth.json" ]]; then
+            codex_auth="oauth"
+        elif [[ -n "${OPENAI_API_KEY:-}" ]]; then
+            codex_auth="api-key"
+        fi
+        result="${result}codex:${codex_auth} "
+    fi
+
+    # Detect Gemini CLI
+    if command -v gemini &>/dev/null; then
+        local gemini_auth="none"
+        if [[ -f "$HOME/.gemini/oauth_creds.json" ]]; then
+            gemini_auth="oauth"
+        elif [[ -n "${GEMINI_API_KEY:-}" ]]; then
+            gemini_auth="api-key"
+        fi
+        result="${result}gemini:${gemini_auth} "
+    fi
+
+    # Detect Claude CLI (always available in Claude Code context)
+    if command -v claude &>/dev/null; then
+        result="${result}claude:oauth "
+    fi
+
+    # Detect OpenRouter (API key only)
+    if [[ -n "${OPENROUTER_API_KEY:-}" ]]; then
+        result="${result}openrouter:api-key "
+    fi
+
+    echo "$result" | xargs  # Trim whitespace
+}
+
+# Load provider configuration from file
+load_providers_config() {
+    if [[ ! -f "$PROVIDERS_CONFIG_FILE" ]]; then
+        [[ "$VERBOSE" == "true" ]] && log DEBUG "No providers config found at $PROVIDERS_CONFIG_FILE"
+        # Auto-detect and populate defaults
+        auto_detect_provider_config
+        return 0
+    fi
+
+    # Parse YAML-like config using grep/sed (bash 3.x compatible)
+    # Codex provider
+    PROVIDER_CODEX_INSTALLED=$(grep "^  codex:" -A5 "$PROVIDERS_CONFIG_FILE" 2>/dev/null | grep "installed:" | sed 's/.*: *//' || echo "false")
+    PROVIDER_CODEX_AUTH_METHOD=$(grep "^  codex:" -A5 "$PROVIDERS_CONFIG_FILE" 2>/dev/null | grep "auth_method:" | sed 's/.*: *//' | tr -d '"' || echo "none")
+    PROVIDER_CODEX_TIER=$(grep "^  codex:" -A5 "$PROVIDERS_CONFIG_FILE" 2>/dev/null | grep "subscription_tier:" | sed 's/.*: *//' | tr -d '"' || echo "free")
+    PROVIDER_CODEX_COST_TIER=$(grep "^  codex:" -A5 "$PROVIDERS_CONFIG_FILE" 2>/dev/null | grep "cost_tier:" | sed 's/.*: *//' | tr -d '"' || echo "free")
+    PROVIDER_CODEX_PRIORITY=$(grep "^  codex:" -A5 "$PROVIDERS_CONFIG_FILE" 2>/dev/null | grep "priority:" | sed 's/.*: *//' || echo "2")
+
+    # Gemini provider
+    PROVIDER_GEMINI_INSTALLED=$(grep "^  gemini:" -A5 "$PROVIDERS_CONFIG_FILE" 2>/dev/null | grep "installed:" | sed 's/.*: *//' || echo "false")
+    PROVIDER_GEMINI_AUTH_METHOD=$(grep "^  gemini:" -A5 "$PROVIDERS_CONFIG_FILE" 2>/dev/null | grep "auth_method:" | sed 's/.*: *//' | tr -d '"' || echo "none")
+    PROVIDER_GEMINI_TIER=$(grep "^  gemini:" -A5 "$PROVIDERS_CONFIG_FILE" 2>/dev/null | grep "subscription_tier:" | sed 's/.*: *//' | tr -d '"' || echo "free")
+    PROVIDER_GEMINI_COST_TIER=$(grep "^  gemini:" -A5 "$PROVIDERS_CONFIG_FILE" 2>/dev/null | grep "cost_tier:" | sed 's/.*: *//' | tr -d '"' || echo "free")
+    PROVIDER_GEMINI_PRIORITY=$(grep "^  gemini:" -A5 "$PROVIDERS_CONFIG_FILE" 2>/dev/null | grep "priority:" | sed 's/.*: *//' || echo "3")
+
+    # Claude provider
+    PROVIDER_CLAUDE_INSTALLED=$(grep "^  claude:" -A5 "$PROVIDERS_CONFIG_FILE" 2>/dev/null | grep "installed:" | sed 's/.*: *//' || echo "false")
+    PROVIDER_CLAUDE_AUTH_METHOD=$(grep "^  claude:" -A5 "$PROVIDERS_CONFIG_FILE" 2>/dev/null | grep "auth_method:" | sed 's/.*: *//' | tr -d '"' || echo "oauth")
+    PROVIDER_CLAUDE_TIER=$(grep "^  claude:" -A5 "$PROVIDERS_CONFIG_FILE" 2>/dev/null | grep "subscription_tier:" | sed 's/.*: *//' | tr -d '"' || echo "pro")
+    PROVIDER_CLAUDE_COST_TIER=$(grep "^  claude:" -A5 "$PROVIDERS_CONFIG_FILE" 2>/dev/null | grep "cost_tier:" | sed 's/.*: *//' | tr -d '"' || echo "medium")
+    PROVIDER_CLAUDE_PRIORITY=$(grep "^  claude:" -A5 "$PROVIDERS_CONFIG_FILE" 2>/dev/null | grep "priority:" | sed 's/.*: *//' || echo "1")
+
+    # OpenRouter provider
+    PROVIDER_OPENROUTER_ENABLED=$(grep "^  openrouter:" -A5 "$PROVIDERS_CONFIG_FILE" 2>/dev/null | grep "enabled:" | sed 's/.*: *//' || echo "false")
+    PROVIDER_OPENROUTER_API_KEY_SET=$(grep "^  openrouter:" -A5 "$PROVIDERS_CONFIG_FILE" 2>/dev/null | grep "api_key_set:" | sed 's/.*: *//' || echo "false")
+    PROVIDER_OPENROUTER_ROUTING_PREF=$(grep "^  openrouter:" -A5 "$PROVIDERS_CONFIG_FILE" 2>/dev/null | grep "routing_preference:" | sed 's/.*: *//' | tr -d '"' || echo "default")
+    PROVIDER_OPENROUTER_PRIORITY=$(grep "^  openrouter:" -A5 "$PROVIDERS_CONFIG_FILE" 2>/dev/null | grep "priority:" | sed 's/.*: *//' || echo "99")
+
+    # Cost optimization strategy
+    COST_OPTIMIZATION_STRATEGY=$(grep "^  strategy:" "$PROVIDERS_CONFIG_FILE" 2>/dev/null | sed 's/.*: *//' | tr -d '"' || echo "balanced")
+
+    [[ "$VERBOSE" == "true" ]] && log DEBUG "Loaded providers config: codex=$PROVIDER_CODEX_TIER, gemini=$PROVIDER_GEMINI_TIER, strategy=$COST_OPTIMIZATION_STRATEGY"
+}
+
+# Auto-detect provider configuration from installed CLIs and auth
+auto_detect_provider_config() {
+    local detected
+    detected=$(detect_providers)
+
+    # Process detected providers
+    for entry in $detected; do
+        local provider="${entry%%:*}"
+        local auth="${entry##*:}"
+
+        case "$provider" in
+            codex)
+                PROVIDER_CODEX_INSTALLED="true"
+                PROVIDER_CODEX_AUTH_METHOD="$auth"
+                # Default tier based on auth method
+                if [[ "$auth" == "oauth" ]]; then
+                    PROVIDER_CODEX_TIER="plus"
+                    PROVIDER_CODEX_COST_TIER="low"
+                else
+                    PROVIDER_CODEX_TIER="api-only"
+                    PROVIDER_CODEX_COST_TIER="pay-per-use"
+                fi
+                ;;
+            gemini)
+                PROVIDER_GEMINI_INSTALLED="true"
+                PROVIDER_GEMINI_AUTH_METHOD="$auth"
+                if [[ "$auth" == "oauth" ]]; then
+                    PROVIDER_GEMINI_TIER="free"
+                    PROVIDER_GEMINI_COST_TIER="free"
+                else
+                    PROVIDER_GEMINI_TIER="api-only"
+                    PROVIDER_GEMINI_COST_TIER="pay-per-use"
+                fi
+                ;;
+            claude)
+                PROVIDER_CLAUDE_INSTALLED="true"
+                PROVIDER_CLAUDE_AUTH_METHOD="$auth"
+                PROVIDER_CLAUDE_TIER="pro"
+                PROVIDER_CLAUDE_COST_TIER="medium"
+                ;;
+            openrouter)
+                PROVIDER_OPENROUTER_ENABLED="true"
+                PROVIDER_OPENROUTER_API_KEY_SET="true"
+                ;;
+        esac
+    done
+
+    [[ "$VERBOSE" == "true" ]] && log DEBUG "Auto-detected providers: $detected" || true
+}
+
+# Save provider configuration to file
+save_providers_config() {
+    mkdir -p "$(dirname "$PROVIDERS_CONFIG_FILE")"
+
+    cat > "$PROVIDERS_CONFIG_FILE" << EOF
+version: "2.0"
+created_at: "$(date -Iseconds 2>/dev/null || date +%Y-%m-%dT%H:%M:%S)"
+updated_at: "$(date -Iseconds 2>/dev/null || date +%Y-%m-%dT%H:%M:%S)"
+
+# Multi-Provider Subscription-Aware Configuration (v4.8)
+providers:
+  codex:
+    installed: $PROVIDER_CODEX_INSTALLED
+    auth_method: "$PROVIDER_CODEX_AUTH_METHOD"
+    subscription_tier: "$PROVIDER_CODEX_TIER"
+    cost_tier: "$PROVIDER_CODEX_COST_TIER"
+    priority: $PROVIDER_CODEX_PRIORITY
+
+  gemini:
+    installed: $PROVIDER_GEMINI_INSTALLED
+    auth_method: "$PROVIDER_GEMINI_AUTH_METHOD"
+    subscription_tier: "$PROVIDER_GEMINI_TIER"
+    cost_tier: "$PROVIDER_GEMINI_COST_TIER"
+    priority: $PROVIDER_GEMINI_PRIORITY
+
+  claude:
+    installed: $PROVIDER_CLAUDE_INSTALLED
+    auth_method: "$PROVIDER_CLAUDE_AUTH_METHOD"
+    subscription_tier: "$PROVIDER_CLAUDE_TIER"
+    cost_tier: "$PROVIDER_CLAUDE_COST_TIER"
+    priority: $PROVIDER_CLAUDE_PRIORITY
+
+  openrouter:
+    enabled: $PROVIDER_OPENROUTER_ENABLED
+    api_key_set: $PROVIDER_OPENROUTER_API_KEY_SET
+    routing_preference: "$PROVIDER_OPENROUTER_ROUTING_PREF"
+    priority: $PROVIDER_OPENROUTER_PRIORITY
+
+cost_optimization:
+  strategy: "$COST_OPTIMIZATION_STRATEGY"
+EOF
+
+    log INFO "Providers config saved to $PROVIDERS_CONFIG_FILE"
+}
+
+# Score a provider for a given task type and complexity
+# Returns: 0-150 score (higher is better), or -1 if provider can't handle task
+score_provider() {
+    local provider="$1"
+    local task_type="$2"
+    local complexity="${3:-2}"
+    local score=50  # Base score
+
+    # Check if provider is available
+    local is_available="false"
+    local cost_tier=""
+    local sub_tier=""
+    local priority=50
+
+    case "$provider" in
+        codex)
+            [[ "$PROVIDER_CODEX_INSTALLED" == "true" && "$PROVIDER_CODEX_AUTH_METHOD" != "none" ]] && is_available="true"
+            cost_tier="$PROVIDER_CODEX_COST_TIER"
+            sub_tier="$PROVIDER_CODEX_TIER"
+            priority="$PROVIDER_CODEX_PRIORITY"
+            ;;
+        gemini)
+            [[ "$PROVIDER_GEMINI_INSTALLED" == "true" && "$PROVIDER_GEMINI_AUTH_METHOD" != "none" ]] && is_available="true"
+            cost_tier="$PROVIDER_GEMINI_COST_TIER"
+            sub_tier="$PROVIDER_GEMINI_TIER"
+            priority="$PROVIDER_GEMINI_PRIORITY"
+            ;;
+        claude)
+            [[ "$PROVIDER_CLAUDE_INSTALLED" == "true" ]] && is_available="true"
+            cost_tier="$PROVIDER_CLAUDE_COST_TIER"
+            sub_tier="$PROVIDER_CLAUDE_TIER"
+            priority="$PROVIDER_CLAUDE_PRIORITY"
+            ;;
+        openrouter)
+            [[ "$PROVIDER_OPENROUTER_ENABLED" == "true" && "$PROVIDER_OPENROUTER_API_KEY_SET" == "true" ]] && is_available="true"
+            cost_tier="pay-per-use"
+            sub_tier="api-only"
+            priority="$PROVIDER_OPENROUTER_PRIORITY"
+            ;;
+    esac
+
+    if [[ "$is_available" != "true" ]]; then
+        echo "-1"
+        return
+    fi
+
+    # Check capability match
+    local capabilities
+    capabilities=$(get_provider_capabilities "$provider")
+    local required_capability=""
+
+    case "$task_type" in
+        image)
+            required_capability="vision"
+            ;;
+        research|design|copywriting)
+            required_capability="analysis"
+            ;;
+        coding|review)
+            required_capability="code"
+            ;;
+        *)
+            required_capability="general"
+            ;;
+    esac
+
+    # Vision tasks require vision capability
+    if [[ "$required_capability" == "vision" && ! "$capabilities" =~ vision ]]; then
+        echo "-1"
+        return
+    fi
+
+    # Apply cost scoring based on strategy
+    local cost_value
+    cost_value=$(get_cost_tier_value "$cost_tier")
+
+    local effective_strategy="$COST_OPTIMIZATION_STRATEGY"
+    [[ "$FORCE_COST_FIRST" == "true" ]] && effective_strategy="cost-first"
+    [[ "$FORCE_QUALITY_FIRST" == "true" ]] && effective_strategy="quality-first"
+
+    case "$effective_strategy" in
+        cost-first)
+            # Heavily prefer cheaper options
+            score=$((score + (5 - cost_value) * 15))  # free=+75, bundled=+60, low=+45, medium=+30, high=+15
+            ;;
+        quality-first)
+            # Prefer higher-tier subscriptions
+            case "$sub_tier" in
+                max-20x|pro|workspace) score=$((score + 40)) ;;
+                max-5x|plus|google-one) score=$((score + 25)) ;;
+                free) score=$((score + 5)) ;;
+                api-only) score=$((score + 20)) ;;  # API is still high quality
+            esac
+            ;;
+        balanced|*)
+            # Moderate preference for cost, with some quality bonus
+            score=$((score + (5 - cost_value) * 8))  # free=+40, bundled=+32, etc.
+            case "$sub_tier" in
+                max-20x|pro|workspace) score=$((score + 15)) ;;
+                max-5x|plus|google-one) score=$((score + 10)) ;;
+            esac
+            ;;
+    esac
+
+    # Complexity matching bonus
+    case "$complexity" in
+        3)  # Complex tasks prefer higher tiers
+            case "$sub_tier" in
+                max-20x|pro|workspace) score=$((score + 20)) ;;
+                max-5x|plus|google-one) score=$((score + 10)) ;;
+            esac
+            ;;
+        1)  # Trivial tasks prefer cheaper options
+            case "$cost_tier" in
+                free|bundled) score=$((score + 15)) ;;
+            esac
+            ;;
+    esac
+
+    # Special capability bonuses
+    case "$task_type" in
+        research)
+            # Long context is valuable for research
+            if [[ "$capabilities" =~ long-context ]]; then
+                score=$((score + 15))
+            fi
+            ;;
+        image)
+            if [[ "$capabilities" =~ vision ]]; then
+                score=$((score + 20))
+            fi
+            ;;
+    esac
+
+    # Apply priority penalty (lower priority number = higher preference)
+    score=$((score - priority * 2))
+
+    echo "$score"
+}
+
+# Select best provider for a task using scoring
+# Returns: provider name (codex, gemini, claude, openrouter)
+select_provider() {
+    local task_type="$1"
+    local complexity="${2:-2}"
+
+    # Check for force override
+    if [[ -n "$FORCE_PROVIDER" ]]; then
+        echo "$FORCE_PROVIDER"
+        return 0
+    fi
+
+    # Load config if needed
+    [[ -z "$PROVIDER_CODEX_INSTALLED" || "$PROVIDER_CODEX_INSTALLED" == "false" ]] && load_providers_config
+
+    local best_provider=""
+    local best_score=-1
+
+    for provider in codex gemini claude openrouter; do
+        local score
+        score=$(score_provider "$provider" "$task_type" "$complexity")
+
+        [[ "$VERBOSE" == "true" ]] && log DEBUG "Provider score: $provider = $score (task=$task_type, complexity=$complexity)"
+
+        if [[ "$score" -gt "$best_score" ]]; then
+            best_score="$score"
+            best_provider="$provider"
+        fi
+    done
+
+    if [[ -z "$best_provider" || "$best_score" -lt 0 ]]; then
+        # No suitable provider found, return first available
+        if [[ "$PROVIDER_CODEX_INSTALLED" == "true" && "$PROVIDER_CODEX_AUTH_METHOD" != "none" ]]; then
+            echo "codex"
+        elif [[ "$PROVIDER_GEMINI_INSTALLED" == "true" && "$PROVIDER_GEMINI_AUTH_METHOD" != "none" ]]; then
+            echo "gemini"
+        elif [[ "$PROVIDER_OPENROUTER_ENABLED" == "true" ]]; then
+            echo "openrouter"
+        else
+            echo "codex"  # Default fallback
+        fi
+        return 1
+    fi
+
+    echo "$best_provider"
+}
+
+# Enhanced agent availability check including OpenRouter
+is_agent_available_v2() {
+    local agent="$1"
+
+    # Load config if needed
+    [[ -z "$PROVIDER_CODEX_INSTALLED" ]] && load_providers_config
+
+    case "$agent" in
+        codex|codex-standard|codex-mini|codex-max|codex-general|codex-review)
+            [[ "$PROVIDER_CODEX_INSTALLED" == "true" && "$PROVIDER_CODEX_AUTH_METHOD" != "none" ]]
+            ;;
+        gemini|gemini-fast|gemini-image)
+            [[ "$PROVIDER_GEMINI_INSTALLED" == "true" && "$PROVIDER_GEMINI_AUTH_METHOD" != "none" ]]
+            ;;
+        claude|claude-sonnet)
+            [[ "$PROVIDER_CLAUDE_INSTALLED" == "true" ]]
+            ;;
+        openrouter|openrouter-*)
+            [[ "$PROVIDER_OPENROUTER_ENABLED" == "true" && "$PROVIDER_OPENROUTER_API_KEY_SET" == "true" ]]
+            ;;
+        *)
+            return 0  # Unknown agents assumed available
+            ;;
+    esac
+}
+
+# Enhanced tiered agent selection with provider scoring
+get_tiered_agent_v2() {
+    local task_type="$1"
+    local complexity="${2:-2}"
+
+    # Select best provider
+    local provider
+    provider=$(select_provider "$task_type" "$complexity")
+
+    # Map provider + task_type to specific agent
+    case "$provider" in
+        codex)
+            case "$task_type" in
+                review) echo "codex-review" ;;
+                image)
+                    # Codex can't do images, fallback
+                    if is_agent_available_v2 "gemini-image"; then
+                        echo "gemini-image"
+                    else
+                        echo "openrouter"  # OpenRouter can do images
+                    fi
+                    ;;
+                *)
+                    case "$complexity" in
+                        1) echo "codex-mini" ;;
+                        3) echo "codex-max" ;;
+                        *) echo "codex-standard" ;;
+                    esac
+                    ;;
+            esac
+            ;;
+        gemini)
+            case "$task_type" in
+                image) echo "gemini-image" ;;
+                *)
+                    case "$complexity" in
+                        1) echo "gemini-fast" ;;
+                        *) echo "gemini" ;;
+                    esac
+                    ;;
+            esac
+            ;;
+        claude)
+            case "$complexity" in
+                *) echo "claude" ;;
+            esac
+            ;;
+        openrouter)
+            echo "openrouter"
+            ;;
+        *)
+            echo "codex-standard"
+            ;;
+    esac
+}
+
+# Enhanced fallback with provider scoring
+get_fallback_agent_v2() {
+    local preferred="$1"
+    local task_type="$2"
+
+    if is_agent_available_v2 "$preferred"; then
+        echo "$preferred"
+        return 0
+    fi
+
+    # Use provider scoring to find best alternative
+    local provider
+    provider=$(select_provider "$task_type" 2)
+
+    case "$provider" in
+        codex)
+            echo "codex-standard"
+            ;;
+        gemini)
+            echo "gemini"
+            ;;
+        claude)
+            echo "claude"
+            ;;
+        openrouter)
+            echo "openrouter"
+            ;;
+        *)
+            echo "$preferred"  # Return anyway, will error
+            ;;
+    esac
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# OPENROUTER INTEGRATION (v4.8)
+# Universal fallback using OpenRouter API (400+ models)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Select OpenRouter model based on task type
+get_openrouter_model() {
+    local task_type="$1"
+    local complexity="${2:-2}"
+
+    # Apply routing preference suffix
+    local routing_suffix=""
+    if [[ -n "$OPENROUTER_ROUTING_OVERRIDE" ]]; then
+        routing_suffix="$OPENROUTER_ROUTING_OVERRIDE"
+    elif [[ "$PROVIDER_OPENROUTER_ROUTING_PREF" != "default" ]]; then
+        routing_suffix=":${PROVIDER_OPENROUTER_ROUTING_PREF}"
+    fi
+
+    case "$task_type" in
+        coding|review)
+            case "$complexity" in
+                3) echo "anthropic/claude-sonnet-4${routing_suffix}" ;;
+                1) echo "anthropic/claude-haiku${routing_suffix}" ;;
+                *) echo "anthropic/claude-sonnet-4${routing_suffix}" ;;
+            esac
+            ;;
+        image)
+            echo "google/gemini-2.0-flash${routing_suffix}"
+            ;;
+        research|design)
+            echo "anthropic/claude-sonnet-4${routing_suffix}"
+            ;;
+        *)
+            echo "anthropic/claude-sonnet-4${routing_suffix}"
+            ;;
+    esac
+}
+
+# Execute prompt via OpenRouter API
+execute_openrouter() {
+    local prompt="$1"
+    local task_type="${2:-general}"
+    local complexity="${3:-2}"
+
+    if [[ -z "${OPENROUTER_API_KEY:-}" ]]; then
+        log ERROR "OPENROUTER_API_KEY not set"
+        return 1
+    fi
+
+    local model
+    model=$(get_openrouter_model "$task_type" "$complexity")
+
+    [[ "$VERBOSE" == "true" ]] && log DEBUG "OpenRouter request: model=$model"
+
+    # Build JSON payload (escape special characters in prompt)
+    local escaped_prompt
+    escaped_prompt=$(echo "$prompt" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\t/\\t/g' | tr '\n' ' ')
+
+    local payload
+    payload=$(cat << EOF
+{
+  "model": "$model",
+  "messages": [
+    {"role": "user", "content": "$escaped_prompt"}
+  ]
+}
+EOF
+)
+
+    local response
+    response=$(curl -s -X POST "https://openrouter.ai/api/v1/chat/completions" \
+        -H "Authorization: Bearer ${OPENROUTER_API_KEY}" \
+        -H "Content-Type: application/json" \
+        -H "HTTP-Referer: https://github.com/nyldn/claude-octopus" \
+        -H "X-Title: Claude Octopus" \
+        -d "$payload")
+
+    # Extract content from response
+    local content
+    content=$(echo "$response" | grep -o '"content":"[^"]*"' | head -1 | sed 's/"content":"//; s/"$//')
+
+    if [[ -z "$content" ]]; then
+        # Check for error
+        local error
+        error=$(echo "$response" | grep -o '"error":{[^}]*}' || echo "")
+        if [[ -n "$error" ]]; then
+            log ERROR "OpenRouter error: $error"
+            return 1
+        fi
+        log WARN "Empty response from OpenRouter"
+        echo "$response"  # Return raw response for debugging
+    else
+        # Unescape the content
+        echo "$content" | sed 's/\\n/\n/g; s/\\t/\t/g; s/\\"/"/g'
+    fi
+}
+
+# OpenRouter agent wrapper for spawn_agent compatibility
+openrouter_execute() {
+    local prompt="$1"
+    local task_type="${2:-general}"
+    local complexity="${3:-2}"
+    local output_file="${4:-}"
+
+    if [[ -n "$output_file" ]]; then
+        execute_openrouter "$prompt" "$task_type" "$complexity" > "$output_file" 2>&1
+    else
+        execute_openrouter "$prompt" "$task_type" "$complexity"
+    fi
+}
+
+# Display provider status with subscription tiers
+show_provider_status() {
+    load_providers_config
+
+    echo ""
+    echo -e "${CYAN}╔════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║  ${GREEN}PROVIDER STATUS${CYAN}                                              ║${NC}"
+    echo -e "${CYAN}╠════════════════════════════════════════════════════════════════╣${NC}"
+
+    # Codex
+    local codex_status="${RED}✗${NC}"
+    [[ "$PROVIDER_CODEX_INSTALLED" == "true" && "$PROVIDER_CODEX_AUTH_METHOD" != "none" ]] && codex_status="${GREEN}✓${NC}"
+    echo -e "${CYAN}║${NC}  Codex/OpenAI:   $codex_status  [$PROVIDER_CODEX_AUTH_METHOD]  $PROVIDER_CODEX_TIER ($PROVIDER_CODEX_COST_TIER)  ${CYAN}║${NC}"
+
+    # Gemini
+    local gemini_status="${RED}✗${NC}"
+    [[ "$PROVIDER_GEMINI_INSTALLED" == "true" && "$PROVIDER_GEMINI_AUTH_METHOD" != "none" ]] && gemini_status="${GREEN}✓${NC}"
+    echo -e "${CYAN}║${NC}  Gemini:         $gemini_status  [$PROVIDER_GEMINI_AUTH_METHOD]  $PROVIDER_GEMINI_TIER ($PROVIDER_GEMINI_COST_TIER)  ${CYAN}║${NC}"
+
+    # Claude
+    local claude_status="${RED}✗${NC}"
+    [[ "$PROVIDER_CLAUDE_INSTALLED" == "true" ]] && claude_status="${GREEN}✓${NC}"
+    echo -e "${CYAN}║${NC}  Claude:         $claude_status  [$PROVIDER_CLAUDE_AUTH_METHOD]  $PROVIDER_CLAUDE_TIER ($PROVIDER_CLAUDE_COST_TIER)  ${CYAN}║${NC}"
+
+    # OpenRouter
+    local openrouter_status="${RED}✗${NC}"
+    [[ "$PROVIDER_OPENROUTER_ENABLED" == "true" ]] && openrouter_status="${GREEN}✓${NC}"
+    echo -e "${CYAN}║${NC}  OpenRouter:     $openrouter_status  [api-key]  $PROVIDER_OPENROUTER_ROUTING_PREF (pay-per-use)  ${CYAN}║${NC}"
+
+    echo -e "${CYAN}╠════════════════════════════════════════════════════════════════╣${NC}"
+    echo -e "${CYAN}║${NC}  Cost Strategy:  $COST_OPTIMIZATION_STRATEGY  ${CYAN}║${NC}"
+    echo -e "${CYAN}╚════════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+}
+
 # Load user configuration from file
 load_user_config() {
     if [[ ! -f "$USER_CONFIG_FILE" ]]; then
@@ -4959,10 +5697,27 @@ setup_wizard() {
     echo -e "  This wizard will help you install dependencies and configure API keys."
     echo ""
 
-    local total_steps=4
+    local total_steps=9
     local current_step=0
     local shell_profile=""
     local keys_to_add=""
+
+    # Initialize provider config variables
+    PROVIDER_CODEX_INSTALLED="false"
+    PROVIDER_CODEX_AUTH_METHOD="none"
+    PROVIDER_CODEX_TIER="free"
+    PROVIDER_CODEX_COST_TIER="free"
+    PROVIDER_GEMINI_INSTALLED="false"
+    PROVIDER_GEMINI_AUTH_METHOD="none"
+    PROVIDER_GEMINI_TIER="free"
+    PROVIDER_GEMINI_COST_TIER="free"
+    PROVIDER_CLAUDE_INSTALLED="true"
+    PROVIDER_CLAUDE_AUTH_METHOD="oauth"
+    PROVIDER_CLAUDE_TIER="pro"
+    PROVIDER_CLAUDE_COST_TIER="medium"
+    PROVIDER_OPENROUTER_ENABLED="false"
+    PROVIDER_OPENROUTER_API_KEY_SET="false"
+    COST_OPTIMIZATION_STRATEGY="balanced"
 
     # Detect shell profile
     if [[ -n "${ZSH_VERSION:-}" ]] || [[ "$SHELL" == *"zsh"* ]]; then
@@ -5115,6 +5870,175 @@ setup_wizard() {
     echo ""
 
     # ═══════════════════════════════════════════════════════════════════════════
+    # STEP 5: Codex/OpenAI Subscription Tier (v4.8)
+    # ═══════════════════════════════════════════════════════════════════════════
+    ((current_step++))
+    if command -v codex &>/dev/null && [[ -f "$HOME/.codex/auth.json" || -n "${OPENAI_API_KEY:-}" ]]; then
+        PROVIDER_CODEX_INSTALLED="true"
+        [[ -f "$HOME/.codex/auth.json" ]] && PROVIDER_CODEX_AUTH_METHOD="oauth" || PROVIDER_CODEX_AUTH_METHOD="api-key"
+
+        echo -e "${CYAN}Step $current_step/$total_steps: Codex/OpenAI Subscription Tier${NC}"
+        echo -e "  ${YELLOW}This helps us optimize cost vs quality for your budget.${NC}"
+        echo ""
+        echo -e "  ${GREEN}[1]${NC} Free         ${CYAN}(Limited usage, free tier)${NC}"
+        echo -e "  ${GREEN}[2]${NC} Plus (\$20/mo) ${CYAN}(ChatGPT Plus subscriber)${NC}"
+        echo -e "  ${GREEN}[3]${NC} Pro (\$200/mo) ${CYAN}(ChatGPT Pro subscriber)${NC}"
+        echo -e "  ${GREEN}[4]${NC} API Only     ${CYAN}(Pay-per-use, no subscription)${NC}"
+        echo ""
+        read -p "  Enter choice [1-4, default 2]: " codex_tier_choice
+        codex_tier_choice="${codex_tier_choice:-2}"
+
+        case "$codex_tier_choice" in
+            1) PROVIDER_CODEX_TIER="free"; PROVIDER_CODEX_COST_TIER="free" ;;
+            2) PROVIDER_CODEX_TIER="plus"; PROVIDER_CODEX_COST_TIER="low" ;;
+            3) PROVIDER_CODEX_TIER="pro"; PROVIDER_CODEX_COST_TIER="medium" ;;
+            4) PROVIDER_CODEX_TIER="api-only"; PROVIDER_CODEX_COST_TIER="pay-per-use" ;;
+            *) PROVIDER_CODEX_TIER="plus"; PROVIDER_CODEX_COST_TIER="low" ;;
+        esac
+        echo -e "  ${GREEN}✓${NC} Codex tier set to: $PROVIDER_CODEX_TIER ($PROVIDER_CODEX_COST_TIER)"
+    else
+        echo -e "${CYAN}Step $current_step/$total_steps: Codex/OpenAI Subscription Tier${NC}"
+        echo -e "  ${YELLOW}⚠${NC} Codex not available, skipping tier configuration"
+    fi
+    echo ""
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # STEP 6: Gemini Subscription Tier (v4.8)
+    # ═══════════════════════════════════════════════════════════════════════════
+    ((current_step++))
+    if command -v gemini &>/dev/null && [[ -f "$HOME/.gemini/oauth_creds.json" || -n "${GEMINI_API_KEY:-}" ]]; then
+        PROVIDER_GEMINI_INSTALLED="true"
+        [[ -f "$HOME/.gemini/oauth_creds.json" ]] && PROVIDER_GEMINI_AUTH_METHOD="oauth" || PROVIDER_GEMINI_AUTH_METHOD="api-key"
+
+        echo -e "${CYAN}Step $current_step/$total_steps: Gemini Subscription Tier${NC}"
+        echo -e "  ${YELLOW}This helps us route heavy tasks to 'free' bundled services.${NC}"
+        echo ""
+        echo -e "  ${GREEN}[1]${NC} Free              ${CYAN}(Personal Google account, limited)${NC}"
+        echo -e "  ${GREEN}[2]${NC} Google One (\$10/mo) ${CYAN}(Gemini Advanced with 2M context)${NC}"
+        echo -e "  ${GREEN}[3]${NC} Workspace         ${CYAN}(Bundled with Google Workspace - FREE!)${NC}"
+        echo -e "  ${GREEN}[4]${NC} API Only          ${CYAN}(Pay-per-use, no subscription)${NC}"
+        echo ""
+        read -p "  Enter choice [1-4, default 1]: " gemini_tier_choice
+        gemini_tier_choice="${gemini_tier_choice:-1}"
+
+        case "$gemini_tier_choice" in
+            1) PROVIDER_GEMINI_TIER="free"; PROVIDER_GEMINI_COST_TIER="free" ;;
+            2) PROVIDER_GEMINI_TIER="google-one"; PROVIDER_GEMINI_COST_TIER="low" ;;
+            3) PROVIDER_GEMINI_TIER="workspace"; PROVIDER_GEMINI_COST_TIER="bundled" ;;
+            4) PROVIDER_GEMINI_TIER="api-only"; PROVIDER_GEMINI_COST_TIER="pay-per-use" ;;
+            *) PROVIDER_GEMINI_TIER="free"; PROVIDER_GEMINI_COST_TIER="free" ;;
+        esac
+        echo -e "  ${GREEN}✓${NC} Gemini tier set to: $PROVIDER_GEMINI_TIER ($PROVIDER_GEMINI_COST_TIER)"
+    else
+        echo -e "${CYAN}Step $current_step/$total_steps: Gemini Subscription Tier${NC}"
+        echo -e "  ${YELLOW}⚠${NC} Gemini not available, skipping tier configuration"
+    fi
+    echo ""
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # STEP 7: OpenRouter Fallback Configuration (v4.8)
+    # ═══════════════════════════════════════════════════════════════════════════
+    ((current_step++))
+    echo -e "${CYAN}Step $current_step/$total_steps: OpenRouter (Universal Fallback)${NC}"
+    echo -e "  ${YELLOW}OpenRouter provides 400+ models as a backup when other CLIs unavailable.${NC}"
+    echo ""
+
+    if [[ -n "${OPENROUTER_API_KEY:-}" ]]; then
+        PROVIDER_OPENROUTER_ENABLED="true"
+        PROVIDER_OPENROUTER_API_KEY_SET="true"
+        echo -e "  ${GREEN}✓${NC} OPENROUTER_API_KEY already set"
+    else
+        echo -e "  ${YELLOW}✗${NC} OPENROUTER_API_KEY not set (optional)"
+        echo ""
+        echo -e "  ${CYAN}OpenRouter is optional.${NC} It provides:"
+        echo -e "    - Universal fallback when Codex/Gemini unavailable"
+        echo -e "    - Access to 400+ models (Claude, GPT, Gemini, Llama, etc.)"
+        echo -e "    - Pay-per-use pricing with routing optimization"
+        echo ""
+        read -p "  Configure OpenRouter? [y/N] " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            echo -e "  ${CYAN}→${NC} Get an API key from: https://openrouter.ai/keys"
+            echo ""
+            read -p "  Paste your OpenRouter API key (starts with 'sk-or-'): " openrouter_key
+            if [[ -n "$openrouter_key" ]]; then
+                export OPENROUTER_API_KEY="$openrouter_key"
+                keys_to_add="${keys_to_add}export OPENROUTER_API_KEY=\"$openrouter_key\"\n"
+                PROVIDER_OPENROUTER_ENABLED="true"
+                PROVIDER_OPENROUTER_API_KEY_SET="true"
+                echo -e "  ${GREEN}✓${NC} OPENROUTER_API_KEY set for this session"
+
+                echo ""
+                echo -e "  ${YELLOW}Routing preference:${NC}"
+                echo -e "  ${GREEN}[1]${NC} Default    ${CYAN}(Balanced speed/cost)${NC}"
+                echo -e "  ${GREEN}[2]${NC} Nitro      ${CYAN}(Fastest response, higher cost)${NC}"
+                echo -e "  ${GREEN}[3]${NC} Floor      ${CYAN}(Cheapest option, may be slower)${NC}"
+                read -p "  Enter choice [1-3, default 1]: " routing_choice
+                case "$routing_choice" in
+                    2) PROVIDER_OPENROUTER_ROUTING_PREF="nitro" ;;
+                    3) PROVIDER_OPENROUTER_ROUTING_PREF="floor" ;;
+                    *) PROVIDER_OPENROUTER_ROUTING_PREF="default" ;;
+                esac
+                echo -e "  ${GREEN}✓${NC} OpenRouter routing: $PROVIDER_OPENROUTER_ROUTING_PREF"
+            else
+                echo -e "  ${YELLOW}⚠${NC} Skipped OpenRouter configuration"
+            fi
+        else
+            echo -e "  ${YELLOW}⚠${NC} OpenRouter skipped. Add later: export OPENROUTER_API_KEY=\"your-key\""
+        fi
+    fi
+    echo ""
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # STEP 8: User Intent (moved from original step 6)
+    # ═══════════════════════════════════════════════════════════════════════════
+    ((current_step++))
+    init_step_intent
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # STEP 9: Claude Tier / Cost Strategy (moved from original step 7)
+    # ═══════════════════════════════════════════════════════════════════════════
+    ((current_step++))
+    echo ""
+    echo -e "${CYAN}Step $current_step/$total_steps: Claude Subscription & Cost Strategy${NC}"
+    echo -e "  ${YELLOW}This affects which Claude tier you're using and overall cost optimization.${NC}"
+    echo ""
+    echo -e "  ${GREEN}[1]${NC} Pro (\$20/mo)       ${CYAN}(Claude Pro subscriber)${NC}"
+    echo -e "  ${GREEN}[2]${NC} Max 5x (\$100/mo)   ${CYAN}(5x Pro usage limit)${NC}"
+    echo -e "  ${GREEN}[3]${NC} Max 20x (\$200/mo)  ${CYAN}(20x Pro usage limit)${NC}"
+    echo -e "  ${GREEN}[4]${NC} API Only           ${CYAN}(No Claude subscription, pay-per-use)${NC}"
+    echo ""
+    read -p "  Enter choice [1-4, default 1]: " claude_tier_choice
+    claude_tier_choice="${claude_tier_choice:-1}"
+
+    case "$claude_tier_choice" in
+        1) PROVIDER_CLAUDE_TIER="pro"; PROVIDER_CLAUDE_COST_TIER="medium" ;;
+        2) PROVIDER_CLAUDE_TIER="max-5x"; PROVIDER_CLAUDE_COST_TIER="medium" ;;
+        3) PROVIDER_CLAUDE_TIER="max-20x"; PROVIDER_CLAUDE_COST_TIER="high" ;;
+        4) PROVIDER_CLAUDE_TIER="api-only"; PROVIDER_CLAUDE_COST_TIER="pay-per-use" ;;
+        *) PROVIDER_CLAUDE_TIER="pro"; PROVIDER_CLAUDE_COST_TIER="medium" ;;
+    esac
+    echo -e "  ${GREEN}✓${NC} Claude tier set to: $PROVIDER_CLAUDE_TIER"
+
+    echo ""
+    echo -e "  ${YELLOW}Cost optimization strategy:${NC}"
+    echo -e "  ${GREEN}[1]${NC} Balanced (Recommended) ${CYAN}(Smart mix of cost and quality)${NC}"
+    echo -e "  ${GREEN}[2]${NC} Cost-First              ${CYAN}(Prefer cheapest capable provider)${NC}"
+    echo -e "  ${GREEN}[3]${NC} Quality-First           ${CYAN}(Prefer highest-tier provider)${NC}"
+    read -p "  Enter choice [1-3, default 1]: " strategy_choice
+    case "$strategy_choice" in
+        2) COST_OPTIMIZATION_STRATEGY="cost-first" ;;
+        3) COST_OPTIMIZATION_STRATEGY="quality-first" ;;
+        *) COST_OPTIMIZATION_STRATEGY="balanced" ;;
+    esac
+    echo -e "  ${GREEN}✓${NC} Cost strategy: $COST_OPTIMIZATION_STRATEGY"
+    echo ""
+
+    # Save provider configuration
+    save_providers_config
+    echo -e "  ${GREEN}✓${NC} Provider configuration saved"
+
+    # ═══════════════════════════════════════════════════════════════════════════
     # SUMMARY & PERSISTENCE
     # ═══════════════════════════════════════════════════════════════════════════
     echo -e "${PURPLE}═══════════════════════════════════════════════════════════════${NC}"
@@ -5139,10 +6063,10 @@ setup_wizard() {
     fi
     echo ""
     echo -e "  ${CYAN}API Keys:${NC}"
-    if [[ -n "${OPENAI_API_KEY:-}" ]]; then
-        echo -e "    ${GREEN}✓${NC} OPENAI_API_KEY"
+    if [[ -n "${OPENAI_API_KEY:-}" ]] || [[ -f "$HOME/.codex/auth.json" ]]; then
+        echo -e "    ${GREEN}✓${NC} OpenAI (Codex)"
     else
-        echo -e "    ${RED}✗${NC} OPENAI_API_KEY"
+        echo -e "    ${RED}✗${NC} OpenAI (Codex)"
         all_good=false
     fi
     if [[ -f "$HOME/.gemini/oauth_creds.json" ]]; then
@@ -5153,6 +6077,17 @@ setup_wizard() {
         echo -e "    ${RED}✗${NC} Gemini"
         all_good=false
     fi
+    if [[ -n "${OPENROUTER_API_KEY:-}" ]]; then
+        echo -e "    ${GREEN}✓${NC} OpenRouter (API Key)"
+    else
+        echo -e "    ${YELLOW}○${NC} OpenRouter (Optional)"
+    fi
+    echo ""
+    echo -e "  ${CYAN}Provider Tiers (v4.8):${NC}"
+    echo -e "    Codex:     ${GREEN}$PROVIDER_CODEX_TIER${NC} ($PROVIDER_CODEX_COST_TIER)"
+    echo -e "    Gemini:    ${GREEN}$PROVIDER_GEMINI_TIER${NC} ($PROVIDER_GEMINI_COST_TIER)"
+    echo -e "    Claude:    ${GREEN}$PROVIDER_CLAUDE_TIER${NC} ($PROVIDER_CLAUDE_COST_TIER)"
+    echo -e "    Strategy:  ${GREEN}$COST_OPTIMIZATION_STRATEGY${NC}"
     echo ""
 
     # Offer to persist keys
@@ -6525,6 +7460,9 @@ show_status() {
     echo -e "${MAGENTA}═══════════════════════════════════════════════════════════${NC}"
     echo ""
 
+    # Show provider status (v4.8)
+    show_provider_status
+
     if [[ ! -f "$PID_FILE" ]]; then
         echo -e "${YELLOW}No agents tracked. Workspace may need initialization.${NC}"
         echo "Run: $(basename "$0") init"
@@ -6615,6 +7553,12 @@ while [[ $# -gt 0 ]]; do
         --on-fail) ON_FAIL_ACTION="$2"; shift 2 ;;
         --no-personas) DISABLE_PERSONAS=true; shift ;;
         --ci) CI_MODE=true; AUTONOMY_MODE="autonomous"; shift ;;
+        # Multi-provider routing flags (v4.8)
+        --provider) FORCE_PROVIDER="$2"; shift 2 ;;
+        --cost-first) FORCE_COST_FIRST=true; shift ;;
+        --quality-first) FORCE_QUALITY_FIRST=true; shift ;;
+        --openrouter-nitro) OPENROUTER_ROUTING_OVERRIDE=":nitro"; shift ;;
+        --openrouter-floor) OPENROUTER_ROUTING_OVERRIDE=":floor"; shift ;;
         -h|--help) usage "$@" ;;
         *) break ;;
     esac

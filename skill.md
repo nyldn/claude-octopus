@@ -284,6 +284,96 @@ The `tangle` phase enforces quality gates:
 | `gemini-fast` | gemini-3-flash-preview | Speed-critical tasks |
 | `gemini-image` | gemini-3-pro-image-preview | Image generation |
 | `codex-review` | gpt-5.2-codex | Code review mode |
+| `openrouter` | Various | Universal fallback (400+ models) |
+
+## Provider-Aware Routing (v4.8)
+
+Claude Octopus now intelligently routes tasks based on your subscription tiers and costs.
+
+### Provider Subscription Tiers
+
+| Provider | Tiers | Monthly Cost | Capabilities |
+|----------|-------|--------------|--------------|
+| **Codex/OpenAI** | Free, Plus, Pro, API | $0-200 | code, chat, review |
+| **Gemini** | Free, Google One, Workspace, API | $0-20 or bundled | code, chat, vision, long-context (2M) |
+| **Claude** | Pro, Max 5x, Max 20x, API | $20-200 | code, chat, analysis, long-context |
+| **OpenRouter** | Pay-per-use | Variable | 400+ models, routing variants |
+
+### Cost Optimization Strategies
+
+| Strategy | Description |
+|----------|-------------|
+| `balanced` (default) | Smart mix of cost and quality |
+| `cost-first` | Prefer cheapest capable provider |
+| `quality-first` | Prefer highest-tier provider |
+
+**Example:** If you have Google Workspace (bundled Gemini Pro), the system prefers Gemini for heavy analysis tasks since it's "free" with your work account.
+
+### Routing CLI Flags
+
+```bash
+# Force a specific provider
+./scripts/orchestrate.sh --provider gemini auto "analyze code structure"
+
+# Prefer cheapest option
+./scripts/orchestrate.sh --cost-first auto "research best practices"
+
+# Prefer highest quality
+./scripts/orchestrate.sh --quality-first auto "complex refactoring task"
+
+# OpenRouter routing variants
+./scripts/orchestrate.sh --openrouter-nitro auto "quick task"  # Fastest
+./scripts/orchestrate.sh --openrouter-floor auto "bulk task"   # Cheapest
+```
+
+### Configuration
+
+Provider tiers are configured during `setup` or via the providers config file:
+
+```bash
+# Run setup wizard (includes provider tier steps)
+./scripts/orchestrate.sh setup
+
+# View current provider status
+./scripts/orchestrate.sh status
+```
+
+Configuration file: `~/.claude-octopus/.providers-config`
+
+```yaml
+version: "2.0"
+providers:
+  codex:
+    installed: true
+    auth_method: "oauth"
+    subscription_tier: "plus"    # free|plus|pro|api-only
+    cost_tier: "low"             # free|low|medium|high|bundled|pay-per-use
+
+  gemini:
+    installed: true
+    auth_method: "oauth"
+    subscription_tier: "workspace"  # free|google-one|workspace|api-only
+    cost_tier: "bundled"
+
+  openrouter:
+    enabled: false
+    routing_preference: "default"   # default|nitro|floor
+
+cost_optimization:
+  strategy: "balanced"  # cost-first|quality-first|balanced
+```
+
+### OpenRouter Fallback
+
+OpenRouter provides 400+ models as a universal fallback when Codex/Gemini are unavailable:
+
+```bash
+# Set up OpenRouter API key
+export OPENROUTER_API_KEY="sk-or-..."
+
+# Re-run setup to configure
+./scripts/orchestrate.sh setup
+```
 
 ## Workspace Structure
 
