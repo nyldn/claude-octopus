@@ -87,9 +87,9 @@ If configuration is incomplete, **STOP** and tell the user:
 
 Then automatically invoke the configuration process by telling the user you need to run the configure command. You can do this by saying:
 
-> "I need to configure Claude Octopus for you. Please run: `/octopus-configure`"
+> "I need to configure Claude Octopus for you. Please run: `/claude-octopus:setup`"
 
-This will activate the configure skill which will:
+This will provide instructions to run the setup wizard in your terminal, which will:
 1. Auto-detect installed CLIs
 2. Check for API keys
 3. Guide the user through any missing setup
