@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Prerequisites Check Section** - Automatic configuration detection before command execution
   - Step 1: Status check to verify configuration completeness
   - Step 2: Detection of missing API keys or unconfigured providers
-  - Step 3: Auto-prompt user to run `/octopus-configure` when needed
+  - Step 3: Auto-prompt user to run `/claude-octopus:setup` when needed
   - Step 4: Verification after configuration completes
   - Step 5: Proceed with original task after setup
 - **First-use notice** in skill description - "Automatically detects if configuration is needed and guides setup"
@@ -23,12 +23,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Self-healing** - Skill automatically detects incomplete config and guides through setup
 - **Zero-friction activation** - "Just talk to Claude naturally!" now works on first use
 
+### Fixed
+
+#### Command Registration (Critical)
+- **Changed commands field** from array to directory path: `"./commands/"`
+- Commands now properly register with Claude Code and appear in `/` menu
+- Commands available as `/claude-octopus:setup` and `/claude-octopus:check-updates`
+- Matches official plugin pattern (vercel, plugin-dev, figma, etc.)
+- **Removed `name` field** from command frontmatter (name derived from filename)
+  - `commands/setup.md` → `/claude-octopus:setup`
+  - `commands/check-updates.md` → `/claude-octopus:check-updates`
+
+#### Plugin Validation (Critical)
+- **Fixed Claude Code v2.1.9 schema validation errors**
+- Removed unsupported `hooks` field (not in v2.1.9 schema)
+- Removed unsupported `agents` field (not in v2.1.9 schema)
+- Removed unsupported `plansDirectory` field (not recognized)
+- Simplified plugin.json to match official plugin format
+- Plugin now loads without validation errors
+
 ### Changed
 - Updated skill.md frontmatter description with first-use auto-configuration notice
 - Added comprehensive prerequisites checking instructions to skill.md
+- Updated README.md version badge to 4.8.3
+- Updated marketplace.json version to 4.8.3
 
 ### Notes
-This is a documentation-only change to skill.md - no modifications to orchestrate.sh required. The skill instructions now include prerequisite checking that Claude executes automatically before running any octopus commands.
+This release includes both UX improvements (auto-configuration check) and critical fixes for Claude Code v2.1.9 compatibility. The skill instructions now include prerequisite checking that Claude executes automatically before running any octopus commands. Commands now properly register and appear in the Claude Code command palette.
 
 ---
 
