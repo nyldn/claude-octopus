@@ -55,7 +55,31 @@ _`) )  .---.__.' / |   |\   \__..--""  """--.,_
 
 </details>
 
-## What's New in 4.6
+## What's New in 4.7
+
+- **Crossfire: Adversarial Cross-Model Review** - AI vs AI for better results:
+  - `grapple` - Codex vs Gemini debate until consensus
+  - `squeeze` - Red Team security review (Blue Team vs Red Team)
+  - Constitutional principles system for domain-specific critique
+  - Auto-routing detects "security audit", "red team", "debate" intents
+  - *"Two tentacles wrestling catches more bugs than one."* 🤼
+- **Grapple Command** - Adversarial debate between models:
+  - Round 1: Both models propose solutions independently
+  - Round 2: Cross-critique (each critiques the other)
+  - Round 3: Synthesis determines winner
+  - `--principles` flag: security, performance, maintainability
+  - *"When tentacles disagree, the truth emerges."*
+- **Squeeze Command** - Red Team security testing:
+  - Phase 1: Blue Team (Codex) implements secure solution
+  - Phase 2: Red Team (Gemini) finds vulnerabilities
+  - Phase 3: Remediation fixes all issues
+  - Phase 4: Validation verifies all fixed
+  - *"Squeeze the code until the bugs pop out."* 🦑
+
+<details>
+<summary>Previous versions</summary>
+
+### What's New in 4.6
 
 - **Claude Code v2.1.9 Integration** - Session tracking and hook system:
   - `${CLAUDE_SESSION_ID}` support for cross-session tracking
@@ -77,9 +101,6 @@ _`) )  .---.__.' / |   |\   \__..--""  """--.,_
   - `skills` command lists available personas
   - `code-review`, `security-audit`, `architecture` skill wrappers
   - *"Each tentacle knows its specialty."*
-
-<details>
-<summary>Previous versions</summary>
 
 ### What's New in 4.5
 
@@ -223,6 +244,7 @@ Most Claude Code plugins inject knowledge. **Claude Octopus orchestrates armies.
 - [Smart Setup](#smart-setup)
 - [Double Diamond Methodology](#double-diamond-methodology)
 - [Smart Auto-Routing](#smart-auto-routing)
+- [Crossfire: Adversarial Review](#crossfire-adversarial-review)
 - [Optimization Command](#optimization-command)
 - [Shell Completion](#shell-completion)
 - [Authentication](#authentication)
@@ -444,9 +466,10 @@ The `auto` command detects intent and extends the right tentacle for the job. Ei
 | 🔍 **Probe** | Reach out to explore | research, explore, investigate, study, discover | `probe` (Discover) |
 | 🤝 **Grasp** | Grip the problem | define, clarify, scope, requirements | `grasp` (Define) |
 | 🦑 **Tangle** | Weave solutions | develop, build, implement, construct | `tangle` → `ink` |
-| 🖤 **Ink** | Deliver with impact | qa, test, validate, verify, audit, check | `ink` (Deliver) |
+| 🖤 **Ink** | Deliver with impact | qa, test, validate, verify, check | `ink` (Deliver) |
+| 🤼 **Grapple** | Wrestle to consensus | adversarial, cross-model, debate, both models | `grapple` (Crossfire) |
+| 🦑 **Squeeze** | Test for weaknesses | security audit, red team, pentest, vulnerabilities | `squeeze` (Red Team) |
 | 🎨 **Camouflage** | Adapt to context | design, UI, UX, accessibility, theme, responsive | `gemini` agent |
-| 🔎 **Hunt** | Seek vulnerabilities | code review, security audit, find bugs | `codex-review` agent |
 | ⚡ **Jet** | Move fast | fix, debug, function, class, refactor | `codex` agent |
 | 🖼️ **Squirt** | Create visuals | generate image, icon, logo, diagram, banner | `gemini-image` agent |
 
@@ -457,10 +480,77 @@ The `auto` command detects intent and extends the right tentacle for the job. Ei
 ./scripts/orchestrate.sh auto "research best practices for caching"     # -> 🔍 probe
 ./scripts/orchestrate.sh auto "build the caching layer"                 # -> 🦑 tangle → ink
 ./scripts/orchestrate.sh auto "review the cache implementation"         # -> 🖤 ink
+./scripts/orchestrate.sh auto "security audit the auth module"          # -> 🦑 squeeze
+./scripts/orchestrate.sh auto "have both models debate the API design"  # -> 🤼 grapple
 ./scripts/orchestrate.sh auto "fix the cache invalidation bug"          # -> ⚡ codex
 ./scripts/orchestrate.sh auto "design a responsive dashboard"           # -> 🎨 gemini
 ./scripts/orchestrate.sh auto "generate an app icon"                    # -> 🖼️ gemini-image
 ```
+
+## Crossfire: Adversarial Review
+
+Different AI models have different blind spots. Crossfire commands (v4.7) force models to critique each other, catching 2-3x more issues than single-model review.
+
+### Grapple - Adversarial Debate
+
+*Two tentacles wrestling until consensus* 🤼
+
+```bash
+# Basic grapple
+./scripts/orchestrate.sh grapple "implement password reset API"
+
+# With security principles
+./scripts/orchestrate.sh grapple --principles security "implement JWT authentication"
+
+# With performance principles
+./scripts/orchestrate.sh grapple --principles performance "optimize database queries"
+```
+
+**How it works:**
+
+```
+Round 1: Codex proposes → Gemini proposes (parallel)
+Round 2: Gemini critiques Codex → Codex critiques Gemini
+Round 3: Synthesis determines winner + final implementation
+```
+
+### Squeeze - Red Team Security Review
+
+*Octopus squeezes prey to test for weaknesses* 🦑
+
+```bash
+./scripts/orchestrate.sh squeeze "implement user login form"
+./scripts/orchestrate.sh squeeze "review auth.ts for vulnerabilities"
+```
+
+**How it works:**
+
+| Phase | Team | Action |
+|-------|------|--------|
+| 1 | Blue Team (Codex) | Implements secure solution |
+| 2 | Red Team (Gemini) | Finds vulnerabilities with exploit proofs |
+| 3 | Remediation (Codex) | Fixes all found issues |
+| 4 | Validation (Codex-Review) | Verifies all vulnerabilities fixed |
+
+### Constitutional Principles
+
+Grapple supports domain-specific critique principles:
+
+| Principle | Focus | Use Case |
+|-----------|-------|----------|
+| `general` | Overall quality | Default for most reviews |
+| `security` | OWASP Top 10, secure coding | Auth, payments, user data |
+| `performance` | N+1 queries, caching, async | Database, API optimization |
+| `maintainability` | Clean code, testability | Refactoring, code reviews |
+
+### Cost Estimate
+
+| Command | Agent Calls | Estimated Cost |
+|---------|-------------|----------------|
+| `grapple` | 5 | ~$0.15-0.30 |
+| `squeeze` | 4 | ~$0.12-0.25 |
+
+*More expensive than single-agent, but catches 2-3x more issues. Worth every tentacle.* 🐙
 
 ## Optimization Command
 
@@ -901,6 +991,17 @@ export CLAUDE_OCTOPUS_WORKSPACE="$HOME/.claude-octopus"
 | `kill [id\|all]` | Terminate agents |
 | `clean` | Reset workspace |
 | `aggregate [filter]` | Combine results |
+
+### Crossfire Commands (v4.7)
+
+*"Two tentacles wrestling catches more bugs than one."*
+
+| Command | Description |
+|---------|-------------|
+| `grapple <prompt>` | Adversarial debate: Codex vs Gemini until consensus |
+| `grapple --principles TYPE <prompt>` | Debate with domain principles (security, performance, maintainability) |
+| `squeeze <prompt>` | Red Team security review: Blue Team vs Red Team |
+| `red-team <prompt>` | Alias for squeeze |
 
 ### Optimization Commands (v4.2)
 
