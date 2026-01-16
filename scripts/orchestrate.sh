@@ -436,7 +436,205 @@ DISABLE_PERSONAS="${CLAUDE_OCTOPUS_DISABLE_PERSONAS:-false}"
 # Session recovery
 SESSION_FILE="${WORKSPACE_DIR}/session.json"
 
-usage() {
+# ═══════════════════════════════════════════════════════════════════════════
+# v4.0 FEATURE: SIMPLIFIED CLI WITH PROGRESSIVE DISCLOSURE
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Simple help for beginners (default)
+usage_simple() {
+    cat << EOF
+${MAGENTA}
+   ___  ___ _____  ___  ____  _   _ ___
+  / _ \/ __|_   _|/ _ \|  _ \| | | / __|
+ | (_) |__ \ | | | (_) | |_) | |_| \__ \\
+  \___/|___/ |_|  \___/|____/ \___/|___/
+${NC}
+${CYAN}Claude Octopus${NC} - Multi-agent AI orchestration made simple.
+
+${YELLOW}Quick Start:${NC}
+  ${GREEN}auto${NC} <prompt>           Let AI choose the best approach ${GREEN}(recommended)${NC}
+  ${GREEN}embrace${NC} <prompt>        Full 4-phase workflow (research → define → develop → deliver)
+  ${GREEN}setup${NC}                   Configure everything (run this first!)
+
+${YELLOW}Examples:${NC}
+  $(basename "$0") auto "build a login form with validation"
+  $(basename "$0") auto "research best practices for caching"
+  $(basename "$0") embrace "implement user authentication system"
+
+${YELLOW}Common Options:${NC}
+  -v, --verbose           Show detailed progress
+  -n, --dry-run           Preview without executing
+  -Q, --quick             Use faster/cheaper models
+  -P, --premium           Use most capable models
+
+${YELLOW}Learn More:${NC}
+  $(basename "$0") help --full        Show all commands and options
+  $(basename "$0") help <command>     Get help for specific command
+
+${CYAN}https://github.com/nyldn/claude-octopus${NC}
+EOF
+    exit 0
+}
+
+# Command-specific help
+usage_command() {
+    local cmd="$1"
+    case "$cmd" in
+        auto)
+            cat << EOF
+${YELLOW}auto${NC} - Smart routing (recommended for most tasks)
+
+${YELLOW}Usage:${NC} $(basename "$0") auto <prompt>
+
+Analyzes your prompt and automatically selects the best workflow:
+  • Research tasks    → runs 'research' phase (parallel exploration)
+  • Build tasks       → runs 'develop' + 'deliver' phases
+  • Review tasks      → runs 'deliver' phase (validation)
+  • Simple tasks      → single agent execution
+
+${YELLOW}Examples:${NC}
+  $(basename "$0") auto "research authentication patterns"
+  $(basename "$0") auto "build a REST API for user management"
+  $(basename "$0") auto "review this code for security issues"
+  $(basename "$0") auto "fix the TypeScript errors"
+
+${YELLOW}Options:${NC}
+  -Q, --quick       Use faster/cheaper models
+  -P, --premium     Use most capable models
+  -v, --verbose     Show detailed progress
+EOF
+            ;;
+        embrace)
+            cat << EOF
+${YELLOW}embrace${NC} - Full Double Diamond workflow
+
+${YELLOW}Usage:${NC} $(basename "$0") embrace <prompt>
+
+Runs all 4 phases of the Double Diamond methodology:
+  1. ${CYAN}Research${NC}  - Parallel exploration from multiple perspectives
+  2. ${CYAN}Define${NC}    - Build consensus on the problem/approach
+  3. ${CYAN}Develop${NC}   - Implementation with quality validation
+  4. ${CYAN}Deliver${NC}   - Final quality gates and output
+
+Best for complex features that need thorough exploration.
+
+${YELLOW}Examples:${NC}
+  $(basename "$0") embrace "implement user authentication with OAuth"
+  $(basename "$0") embrace "design and build a caching layer"
+  $(basename "$0") embrace "create a payment processing system"
+
+${YELLOW}Options:${NC}
+  -q, --quality NUM    Quality threshold percentage (default: 75)
+  --autonomy MODE      supervised|semi-autonomous|autonomous
+  -v, --verbose        Show detailed progress
+EOF
+            ;;
+        research|probe)
+            cat << EOF
+${YELLOW}research${NC} (alias: probe) - Parallel exploration phase
+
+${YELLOW}Usage:${NC} $(basename "$0") research <prompt>
+
+Sends your prompt to multiple AI agents in parallel, each exploring
+from a different perspective. Results are synthesized into a
+comprehensive research summary.
+
+${YELLOW}Perspectives used:${NC}
+  • Technical feasibility
+  • Best practices & patterns
+  • Potential challenges
+  • Implementation approaches
+
+${YELLOW}Examples:${NC}
+  $(basename "$0") research "What are the best caching strategies for APIs?"
+  $(basename "$0") research "How should we handle user authentication?"
+
+${YELLOW}Output:${NC}
+  Results saved to: ~/.claude-octopus/results/probe-synthesis-*.md
+EOF
+            ;;
+        define|grasp)
+            cat << EOF
+${YELLOW}define${NC} (alias: grasp) - Consensus building phase
+
+${YELLOW}Usage:${NC} $(basename "$0") define <prompt> [research-file]
+
+Builds consensus on the problem definition and approach.
+Optionally uses output from a previous 'research' phase.
+
+${YELLOW}Examples:${NC}
+  $(basename "$0") define "implement caching layer"
+  $(basename "$0") define "implement caching" ./results/probe-synthesis-123.md
+
+${YELLOW}Output:${NC}
+  Results saved to: ~/.claude-octopus/results/grasp-consensus-*.md
+EOF
+            ;;
+        develop|tangle)
+            cat << EOF
+${YELLOW}develop${NC} (alias: tangle) - Implementation phase
+
+${YELLOW}Usage:${NC} $(basename "$0") develop <prompt> [define-file]
+
+Implements the solution with built-in quality validation.
+Uses a map-reduce pattern: decompose → parallel implement → synthesize.
+
+${YELLOW}Quality Gates:${NC}
+  • ≥90%: ${GREEN}PASSED${NC} - proceed to delivery
+  • 75-89%: ${YELLOW}WARNING${NC} - proceed with caution
+  • <75%: ${RED}FAILED${NC} - needs review
+
+${YELLOW}Examples:${NC}
+  $(basename "$0") develop "build the user authentication API"
+  $(basename "$0") develop "implement caching" ./results/grasp-consensus-123.md
+
+${YELLOW}Output:${NC}
+  Results saved to: ~/.claude-octopus/results/tangle-validation-*.md
+EOF
+            ;;
+        deliver|ink)
+            cat << EOF
+${YELLOW}deliver${NC} (alias: ink) - Final validation and delivery phase
+
+${YELLOW}Usage:${NC} $(basename "$0") deliver <prompt> [develop-file]
+
+Final quality gates and output generation.
+Reviews implementation, runs validation, produces deliverable.
+
+${YELLOW}Examples:${NC}
+  $(basename "$0") deliver "finalize the authentication system"
+  $(basename "$0") deliver "ship it" ./results/tangle-validation-123.md
+
+${YELLOW}Output:${NC}
+  Results saved to: ~/.claude-octopus/results/delivery-*.md
+EOF
+            ;;
+        setup)
+            cat << EOF
+${YELLOW}setup${NC} - Interactive configuration wizard
+
+${YELLOW}Usage:${NC} $(basename "$0") setup
+
+Guides you through:
+  1. Checking/installing dependencies (Codex CLI, Gemini CLI)
+  2. Configuring API keys
+  3. Setting up workspace
+  4. Running a test command
+
+Run this first if you're new to Claude Octopus!
+EOF
+            ;;
+        *)
+            echo "Unknown command: $cmd"
+            echo "Run '$(basename "$0") help --full' for all commands."
+            exit 1
+            ;;
+    esac
+    exit 0
+}
+
+# Full help for advanced users
+usage_full() {
     cat << EOF
 ${MAGENTA}
    ___  ___ _____  ___  ____  _   _ ___
@@ -468,94 +666,100 @@ Multi-agent orchestration using Double Diamond methodology.
 
 ${YELLOW}Usage:${NC} $(basename "$0") [OPTIONS] COMMAND [ARGS...]
 
-${YELLOW}Getting Started:${NC}
-  setup                   ${GREEN}Interactive setup wizard${NC} (recommended for first-time users)
-  preflight               Validate all dependencies are available
+${GREEN}═══════════════════════════════════════════════════════════════════════════${NC}
+${GREEN}ESSENTIALS (start here)${NC}
+${GREEN}═══════════════════════════════════════════════════════════════════════════${NC}
+  ${GREEN}auto${NC} <prompt>           Smart routing - AI chooses best approach
+  ${GREEN}embrace${NC} <prompt>        Full 4-phase Double Diamond workflow
+  ${GREEN}setup${NC}                   Interactive setup wizard
 
-${YELLOW}Double Diamond Commands:${NC} (Design Thinking)
-  probe <prompt>          Discover: Parallel research + synthesis
-  grasp <prompt>          Define: Consensus building on approach
-  tangle <prompt>         Develop: Enhanced map-reduce with validation
-  ink <prompt>            Deliver: Quality gates + final output
-  embrace <prompt>        Full 4-phase Double Diamond workflow
+${YELLOW}═══════════════════════════════════════════════════════════════════════════${NC}
+${YELLOW}DOUBLE DIAMOND PHASES${NC} (can be run individually)
+${YELLOW}═══════════════════════════════════════════════════════════════════════════${NC}
+  research <prompt>       Phase 1: Parallel exploration (alias: probe)
+  define <prompt>         Phase 2: Consensus building (alias: grasp)
+  develop <prompt>        Phase 3: Implementation + validation (alias: tangle)
+  deliver <prompt>        Phase 4: Final quality gates (alias: ink)
 
-${YELLOW}Classic Commands:${NC}
-  init                    Initialize workspace for parallel execution
-  spawn <agent> <prompt>  Spawn a single agent with given prompt
-  auto <prompt>           Smart-route (uses Double Diamond for research/build/QA)
-  parallel <tasks-file>   Execute tasks from JSON file in parallel
-  fan-out <prompt>        Send same prompt to all agents, collect results
-  map-reduce <prompt>     Decompose task, map to agents, reduce results
-  status                  Show status of running agents
-  kill [agent-id|all]     Kill running agent(s)
-  clean                   Clean workspace and kill all agents
-  aggregate               Combine all results into single document
-  help                    Show this help message
+${CYAN}═══════════════════════════════════════════════════════════════════════════${NC}
+${CYAN}ADVANCED ORCHESTRATION${NC}
+${CYAN}═══════════════════════════════════════════════════════════════════════════${NC}
+  spawn <agent> <prompt>  Run single agent directly
+  fan-out <prompt>        Same prompt to all agents, collect results
+  map-reduce <prompt>     Decompose → parallel execute → synthesize
+  ralph <prompt>          Iterate until completion (ralph-wiggum pattern)
+  parallel <tasks.json>   Execute task file in parallel
 
-${YELLOW}Ralph-Wiggum Iteration:${NC} (v3.5 - Loop until complete)
-  ralph <prompt> [agent]  Iterate until completion promise or max iterations
-  iterate <prompt>        Alias for ralph command
+${MAGENTA}═══════════════════════════════════════════════════════════════════════════${NC}
+${MAGENTA}WORKSPACE MANAGEMENT${NC}
+${MAGENTA}═══════════════════════════════════════════════════════════════════════════${NC}
+  init                    Initialize workspace
+  status                  Show running agents
+  kill [id|all]           Stop agents
+  clean                   Clean workspace
+  aggregate               Combine all results
+  preflight               Validate dependencies
 
-${YELLOW}Available Agents:${NC} (Premium defaults)
-  codex         GPT-5.1-Codex-Max   ${GREEN}Premium default${NC} for complex coding
-  codex-standard GPT-5.2-Codex      Standard coding model
-  codex-max     GPT-5.1-Codex-Max   Long-running, project-scale work
-  codex-mini    GPT-5.1-Codex-Mini  Quick fixes, simple tasks
-  codex-general GPT-5.2             Non-coding agentic tasks
-  gemini        Gemini-3-Pro        Deep analysis, complex reasoning
-  gemini-fast   Gemini-3-Flash      Speed-critical tasks
-  gemini-image  Gemini-3-Image      Image generation (text-to-image)
-  codex-review  GPT-5.2-Codex       Specialized code review mode
+${YELLOW}Available Agents:${NC}
+  codex           GPT-5.1-Codex-Max   ${GREEN}Premium${NC} (complex coding)
+  codex-standard  GPT-5.2-Codex       Standard tier
+  codex-mini      GPT-5.1-Codex-Mini  Quick/cheap tasks
+  gemini          Gemini-3-Pro        Deep analysis
+  gemini-fast     Gemini-3-Flash      Speed-critical
 
-${YELLOW}Options:${NC}
+${YELLOW}Common Options:${NC}
+  -v, --verbose           Detailed output
+  -n, --dry-run           Preview without executing
+  -Q, --quick             Use cheaper/faster models
+  -P, --premium           Use most capable models
+  -q, --quality NUM       Quality threshold (default: $QUALITY_THRESHOLD)
+  --autonomy MODE         supervised | semi-autonomous | autonomous
+
+${YELLOW}Advanced Options:${NC}
   -p, --parallel NUM      Max parallel agents (default: $MAX_PARALLEL)
-  -t, --timeout SECS      Timeout per task in seconds (default: $TIMEOUT)
-  -v, --verbose           Verbose output
-  -n, --dry-run           Show what would be done without executing
-  -d, --dir DIR           Working directory (default: project root)
-  -a, --autonomy MODE     Autonomy mode: autonomous|semi-autonomous|supervised|loop-until-approved
-  -q, --quality NUM       Quality gate threshold percentage (default: $QUALITY_THRESHOLD)
-  -l, --loop              Enable loop-until-approved for quality gates
-  -R, --resume            Resume last interrupted session
+  -t, --timeout SECS      Timeout per task (default: $TIMEOUT)
+  --tier LEVEL            Force tier: trivial|standard|premium
+  --on-fail ACTION        auto|retry|escalate|abort
+  --no-personas           Disable agent personas
+  -R, --resume            Resume interrupted session
 
-${YELLOW}Cost Control:${NC} (v3.1 - Smart model selection based on task complexity)
-  -Q, --quick             Force trivial tier (cheapest models: codex-mini, gemini-fast)
-  -P, --premium           Force premium tier (most capable: codex-max)
-  --tier LEVEL            Explicit tier: trivial|standard|premium
+${YELLOW}Examples:${NC}
+  $(basename "$0") auto "build a login form"
+  $(basename "$0") embrace "implement OAuth authentication"
+  $(basename "$0") research "caching strategies for high-traffic APIs"
+  $(basename "$0") develop "user management API" -P --autonomy supervised
 
-${YELLOW}Conditional Branching:${NC} (v3.2 - Decision trees for workflow routing)
-  --branch BRANCH         Force tentacle path: premium|standard|fast
-  --on-fail ACTION        Quality gate failure action: auto|retry|escalate|abort
-
-${YELLOW}Agent Personas:${NC} (v3.3 - Specialized agent instructions)
-  --no-personas           Disable persona injection (raw prompts only)
-
-${YELLOW}Double Diamond Examples:${NC}
-  # Full workflow - explore, define, develop, deliver
-  $(basename "$0") embrace "Build a user authentication system"
-
-  # Just the research phase
-  $(basename "$0") probe "What are best practices for REST API design?"
-
-  # Define the problem after research
-  $(basename "$0") grasp "Implement caching layer" ./results/probe-synthesis.md
-
-  # Smart auto-routing (detects intent)
-  $(basename "$0") auto "research authentication patterns"    # → runs probe
-  $(basename "$0") auto "build user auth system"              # → runs tangle → ink
-  $(basename "$0") auto "review the implementation"           # → runs ink
-
-${YELLOW}Classic Examples:${NC}
-  $(basename "$0") auto "Generate a hero image for the landing page"
-  $(basename "$0") spawn codex "Fix the TypeScript errors in src/components"
-  $(basename "$0") fan-out "Review the authentication flow for security issues"
-
-${YELLOW}Environment Variables:${NC}
-  CLAUDE_OCTOPUS_WORKSPACE  Override workspace directory (default: ~/.claude-octopus)
+${YELLOW}Environment:${NC}
+  CLAUDE_OCTOPUS_WORKSPACE  Override workspace (default: ~/.claude-octopus)
+  OPENAI_API_KEY            Required for Codex CLI
+  GEMINI_API_KEY            Required for Gemini CLI
 
 ${CYAN}https://github.com/nyldn/claude-octopus${NC}
 EOF
     exit 0
+}
+
+# Main usage router
+usage() {
+    local show_full=false
+    local help_cmd=""
+
+    # Check for --full flag or command argument
+    for arg in "$@"; do
+        case "$arg" in
+            --full|-f) show_full=true ;;
+            -*) ;; # ignore other flags
+            *) help_cmd="$arg" ;;
+        esac
+    done
+
+    if [[ -n "$help_cmd" ]]; then
+        usage_command "$help_cmd"
+    elif [[ "$show_full" == "true" ]]; then
+        usage_full
+    else
+        usage_simple
+    fi
 }
 
 log() {
@@ -2416,9 +2620,8 @@ probe_discover() {
 
     echo ""
     echo -e "${MAGENTA}╔═══════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${MAGENTA}║  PROBE (Discover Phase) - Parallel Research               ║${NC}"
-    echo -e "${MAGENTA}║  Extending all tentacles into the unknown...              ║${NC}"
-    echo -e "${MAGENTA}║  Who knows what we'll find? 🐙                            ║${NC}"
+    echo -e "${MAGENTA}║  ${GREEN}RESEARCH${MAGENTA} (Phase 1/4) - Parallel Exploration              ║${NC}"
+    echo -e "${MAGENTA}║  Exploring from multiple perspectives...                  ║${NC}"
     echo -e "${MAGENTA}╚═══════════════════════════════════════════════════════════╝${NC}"
     echo ""
 
@@ -2543,8 +2746,8 @@ grasp_define() {
 
     echo ""
     echo -e "${MAGENTA}╔═══════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${MAGENTA}║  GRASP (Define Phase) - Consensus Building                ║${NC}"
-    echo -e "${MAGENTA}║  Eight arms, one decision. Let's reach consensus. 🐙      ║${NC}"
+    echo -e "${MAGENTA}║  ${GREEN}DEFINE${MAGENTA} (Phase 2/4) - Consensus Building                  ║${NC}"
+    echo -e "${MAGENTA}║  Building agreement on the approach...                    ║${NC}"
     echo -e "${MAGENTA}╚═══════════════════════════════════════════════════════════╝${NC}"
     echo ""
 
@@ -2628,9 +2831,8 @@ tangle_develop() {
 
     echo ""
     echo -e "${MAGENTA}╔═══════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${MAGENTA}║  TANGLE (Develop Phase) - Parallel Development            ║${NC}"
-    echo -e "${MAGENTA}║  It looks messy, but trust us - there's method in the     ║${NC}"
-    echo -e "${MAGENTA}║  tentacles. 🐙                                            ║${NC}"
+    echo -e "${MAGENTA}║  ${GREEN}DEVELOP${MAGENTA} (Phase 3/4) - Implementation                     ║${NC}"
+    echo -e "${MAGENTA}║  Building with quality validation...                      ║${NC}"
     echo -e "${MAGENTA}╚═══════════════════════════════════════════════════════════╝${NC}"
     echo ""
 
@@ -2870,8 +3072,8 @@ ink_deliver() {
 
     echo ""
     echo -e "${MAGENTA}╔═══════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${MAGENTA}║  INK (Deliver Phase) - Final Output                       ║${NC}"
-    echo -e "${MAGENTA}║  Time to release the cloud of excellence! 🐙              ║${NC}"
+    echo -e "${MAGENTA}║  ${GREEN}DELIVER${MAGENTA} (Phase 4/4) - Final Quality Gates                ║${NC}"
+    echo -e "${MAGENTA}║  Validating and shipping...                               ║${NC}"
     echo -e "${MAGENTA}╚═══════════════════════════════════════════════════════════╝${NC}"
     echo ""
 
@@ -2978,8 +3180,8 @@ embrace_full_workflow() {
 
     echo ""
     echo -e "${MAGENTA}╔═══════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${MAGENTA}║  EMBRACE - Full Double Diamond Workflow                   ║${NC}"
-    echo -e "${MAGENTA}║  Full octopus hug incoming! All 8 arms engaged. 🐙        ║${NC}"
+    echo -e "${MAGENTA}║  ${GREEN}EMBRACE${MAGENTA} - Full 4-Phase Workflow                         ║${NC}"
+    echo -e "${MAGENTA}║  Research → Define → Develop → Deliver                    ║${NC}"
     echo -e "${MAGENTA}╚═══════════════════════════════════════════════════════════╝${NC}"
     echo ""
 
@@ -3196,7 +3398,7 @@ while [[ $# -gt 0 ]]; do
         --branch) FORCE_BRANCH="$2"; shift 2 ;;
         --on-fail) ON_FAIL_ACTION="$2"; shift 2 ;;
         --no-personas) DISABLE_PERSONAS=true; shift ;;
-        -h|--help|help) usage ;;
+        -h|--help) usage "$@" ;;
         *) break ;;
     esac
 done
@@ -3217,26 +3419,56 @@ fi
 
 case "$COMMAND" in
     # ═══════════════════════════════════════════════════════════════════════════
-    # DOUBLE DIAMOND COMMANDS
+    # DOUBLE DIAMOND COMMANDS (with intuitive aliases)
     # ═══════════════════════════════════════════════════════════════════════════
-    probe)
-        [[ $# -lt 1 ]] && { log ERROR "Usage: probe <prompt>"; exit 1; }
+    research|probe)
+        # Phase 1: Discover - Parallel exploration
+        if [[ $# -lt 1 ]]; then
+            log ERROR "Missing prompt for research phase"
+            echo "Usage: $(basename "$0") research <prompt>"
+            echo "Example: $(basename "$0") research \"What are best practices for API caching?\""
+            exit 1
+        fi
         probe_discover "$*"
         ;;
-    grasp)
-        [[ $# -lt 1 ]] && { log ERROR "Usage: grasp <prompt> [probe-results-file]"; exit 1; }
+    define|grasp)
+        # Phase 2: Define - Consensus building
+        if [[ $# -lt 1 ]]; then
+            log ERROR "Missing prompt for define phase"
+            echo "Usage: $(basename "$0") define <prompt> [research-results-file]"
+            echo "Example: $(basename "$0") define \"implement caching layer\""
+            exit 1
+        fi
         grasp_define "$1" "${2:-}"
         ;;
-    tangle)
-        [[ $# -lt 1 ]] && { log ERROR "Usage: tangle <prompt> [grasp-consensus-file]"; exit 1; }
+    develop|tangle)
+        # Phase 3: Develop - Implementation with quality gates
+        if [[ $# -lt 1 ]]; then
+            log ERROR "Missing prompt for develop phase"
+            echo "Usage: $(basename "$0") develop <prompt> [define-results-file]"
+            echo "Example: $(basename "$0") develop \"build the caching API\""
+            exit 1
+        fi
         tangle_develop "$1" "${2:-}"
         ;;
-    ink)
-        [[ $# -lt 1 ]] && { log ERROR "Usage: ink <prompt> [tangle-validation-file]"; exit 1; }
+    deliver|ink)
+        # Phase 4: Deliver - Final validation
+        if [[ $# -lt 1 ]]; then
+            log ERROR "Missing prompt for deliver phase"
+            echo "Usage: $(basename "$0") deliver <prompt> [develop-results-file]"
+            echo "Example: $(basename "$0") deliver \"finalize and ship\""
+            exit 1
+        fi
         ink_deliver "$1" "${2:-}"
         ;;
     embrace)
-        [[ $# -lt 1 ]] && { log ERROR "Usage: embrace <prompt>"; exit 1; }
+        # Full 4-phase Double Diamond workflow
+        if [[ $# -lt 1 ]]; then
+            log ERROR "Missing prompt for embrace workflow"
+            echo "Usage: $(basename "$0") embrace <prompt>"
+            echo "Example: $(basename "$0") embrace \"implement user authentication\""
+            exit 1
+        fi
         embrace_full_workflow "$*"
         ;;
     preflight)
@@ -3289,9 +3521,22 @@ case "$COMMAND" in
         [[ $# -lt 1 ]] && { log ERROR "Usage: ralph <prompt> [agent] [max-iterations]"; exit 1; }
         run_with_ralph_loop "${2:-codex}" "$1" "${3:-$RALPH_MAX_ITERATIONS}"
         ;;
+    # ═══════════════════════════════════════════════════════════════════════════
+    # HELP COMMANDS (v4.0 - Progressive disclosure)
+    # ═══════════════════════════════════════════════════════════════════════════
+    help)
+        usage "$@"
+        ;;
     *)
         log ERROR "Unknown command: $COMMAND"
         echo ""
-        usage
+        echo "Did you mean one of these?"
+        echo "  auto      - Smart routing (recommended)"
+        echo "  embrace   - Full 4-phase workflow"
+        echo "  research  - Parallel exploration"
+        echo "  develop   - Implementation with validation"
+        echo ""
+        echo "Run '$(basename "$0") help' for all commands."
+        exit 1
         ;;
 esac
