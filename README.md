@@ -699,7 +699,6 @@ git clone https://github.com/nyldn/claude-octopus.git ~/.claude/plugins/claude-o
 
 # Make scripts executable
 chmod +x ~/.claude/plugins/claude-octopus/scripts/*.sh
-chmod +x ~/.claude/plugins/claude-octopus/scripts/*.py
 
 # Initialize workspace
 ~/.claude/plugins/claude-octopus/scripts/orchestrate.sh init
@@ -715,7 +714,6 @@ chmod +x ~/.claude/plugins/claude-octopus/scripts/*.py
 2. Make scripts executable:
    ```bash
    chmod +x ~/.claude/plugins/claude-octopus/scripts/*.sh
-   chmod +x ~/.claude/plugins/claude-octopus/scripts/*.py
    ```
 
 3. (Optional) Add to PATH for easier access:
@@ -735,7 +733,6 @@ ln -s ~/git/claude-octopus ~/.claude/plugins/claude-octopus
 
 # Make scripts executable
 chmod +x ~/git/claude-octopus/scripts/*.sh
-chmod +x ~/git/claude-octopus/scripts/*.py
 ```
 
 ### Keeping Up to Date
@@ -1105,30 +1102,6 @@ echo $GEMINI_API_KEY
 ```bash
 ./scripts/orchestrate.sh clean
 ./scripts/orchestrate.sh init
-```
-
-## Python Coordinator (Advanced)
-
-For more sophisticated task coordination with async execution:
-
-```bash
-# Initialize
-python3 ./scripts/coordinator.py init
-
-# Double Diamond commands
-python3 ./scripts/coordinator.py probe "Research prompt"
-python3 ./scripts/coordinator.py grasp "Define prompt"
-python3 ./scripts/coordinator.py tangle "Develop prompt"
-python3 ./scripts/coordinator.py ink "Deliver prompt"
-python3 ./scripts/coordinator.py embrace "Full workflow prompt"
-
-# Pre-flight check
-python3 ./scripts/coordinator.py preflight
-
-# Classic commands
-python3 ./scripts/coordinator.py auto "Your prompt here"
-python3 ./scripts/coordinator.py fan-out "Analyze this code"
-python3 ./scripts/coordinator.py map-reduce -p 4 -t 600 "Large refactoring task"
 ```
 
 ## Contributing
