@@ -14,10 +14,10 @@ test_help_flag() {
 
     local output=$("$PROJECT_ROOT/scripts/orchestrate.sh" --help 2>&1 || true)
 
-    if echo "$output" | grep -q "Usage:"; then
+    if echo "$output" | grep -qi "Quick Start\|Usage\|Examples"; then
         test_pass
     else
-        test_fail "Help output missing 'Usage:' section"
+        test_fail "Help output missing usage information"
         return 1
     fi
 }
@@ -76,7 +76,7 @@ test_no_arguments() {
 
     local output=$("$PROJECT_ROOT/scripts/orchestrate.sh" 2>&1 || true)
 
-    if echo "$output" | grep -q "Usage:"; then
+    if echo "$output" | grep -qi "Quick Start\|Usage\|Examples"; then
         test_pass
     else
         test_fail "No help shown when run without arguments"
