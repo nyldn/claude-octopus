@@ -9,6 +9,91 @@
   <img src="https://img.shields.io/badge/Version-4.8.0-blue" alt="Version 4.8.0">
 </p>
 
+# Claude Octopus
+
+**Multi-AI orchestrator for Claude Code** - coordinates Codex, Gemini, and Claude CLIs using Double Diamond methodology.
+
+> *Why have one AI do the work when you can have eight squabble about it productively?* 🐙
+
+## TL;DR
+
+| What It Does | How |
+|--------------|-----|
+| **Parallel AI execution** | Run multiple AI models simultaneously |
+| **Structured workflows** | Double Diamond: Research → Define → Develop → Deliver |
+| **Quality gates** | 75% consensus threshold before delivery |
+| **Smart routing** | Auto-detects intent and picks the right AI model |
+| **Adversarial review** | AI vs AI debate catches more bugs |
+
+**Try it:**
+```bash
+./scripts/orchestrate.sh auto "build user authentication"
+```
+
+---
+
+## Quick Start
+
+### 1. Install
+
+```bash
+# Via Claude Code (recommended)
+/plugin marketplace add nyldn/claude-octopus
+
+# Or clone directly
+git clone https://github.com/nyldn/claude-octopus.git ~/.claude/plugins/claude-octopus
+chmod +x ~/.claude/plugins/claude-octopus/scripts/*.sh
+```
+
+### 2. Configure
+
+```bash
+# Set API keys (add to ~/.zshrc or ~/.bashrc)
+export OPENAI_API_KEY="sk-..."
+export GEMINI_API_KEY="AIza..."
+
+# Run setup wizard
+./scripts/orchestrate.sh setup
+
+# Verify everything works
+./scripts/orchestrate.sh preflight
+```
+
+### 3. Run
+
+```bash
+# Smart auto-routing (recommended)
+./scripts/orchestrate.sh auto "build a REST API for users"
+
+# Or full Double Diamond workflow
+./scripts/orchestrate.sh embrace "create user dashboard feature"
+
+# Preview without API calls
+./scripts/orchestrate.sh -n auto "your prompt"
+```
+
+---
+
+## Core Commands
+
+| Command | What It Does |
+|---------|--------------|
+| `auto <prompt>` | Smart routing - picks best workflow automatically |
+| `embrace <prompt>` | Full 4-phase Double Diamond workflow |
+| `probe <prompt>` | Research phase - parallel exploration |
+| `tangle <prompt>` | Development phase - parallel implementation |
+| `grapple <prompt>` | Adversarial debate between AI models |
+| `squeeze <prompt>` | Red team security review |
+| `setup` | Interactive configuration wizard |
+| `preflight` | Verify all dependencies |
+| `status` | Show provider status and running agents |
+
+**Common options:** `-n` (dry-run), `-v` (verbose), `-t 600` (timeout), `--cost-first`, `--quality-first`
+
+---
+
+## How It Works
+
 ```
      DISCOVER         DEFINE         DEVELOP          DELIVER
      (probe)          (grasp)        (tangle)          (ink)
@@ -23,12 +108,447 @@
     converge          problem          solutions        delivery
 ```
 
-> *An octopus uses its 8 arms in parallel. So does this orchestrator. Coincidence? We think not.* 🐙
->
-> *They say you can't teach an octopus new tricks. They were wrong about the tricks part.* 🎩
+The `auto` command detects your intent and routes to the right phase:
+
+| Keywords | Routes To |
+|----------|-----------|
+| research, explore, investigate | `probe` (Research) |
+| build, implement, create | `tangle` + `ink` (Dev + Deliver) |
+| review, test, validate | `ink` (Quality check) |
+| security audit, red team | `squeeze` (Security) |
+| debate, adversarial | `grapple` (AI vs AI) |
+
+---
 
 <details>
-<summary>🐙 Click to meet our mascot</summary>
+<summary><strong>📋 Prerequisites & Setup Details</strong></summary>
+
+### Required API Keys
+
+| Provider | Get Your Key | Environment Variable |
+|----------|-------------|---------------------|
+| OpenAI | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) | `OPENAI_API_KEY` |
+| Google | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) | `GEMINI_API_KEY` |
+| OpenRouter | [openrouter.ai/keys](https://openrouter.ai/keys) | `OPENROUTER_API_KEY` (optional fallback) |
+
+### System Requirements
+
+- **Bash 4.0+** (macOS: `brew install bash`)
+- **Codex CLI** - `npm install -g @openai/codex`
+- **Gemini CLI** - `npm install -g @google/gemini-cli`
+- **Optional:** `jq` for JSON task files
+
+### Environment Setup
+
+```bash
+# Add to ~/.zshrc or ~/.bashrc
+export OPENAI_API_KEY="sk-..."
+export GEMINI_API_KEY="AIza..."
+export OPENROUTER_API_KEY="sk-or-..."  # Optional fallback
+
+# Reload shell
+source ~/.zshrc
+```
+
+### Installation Options
+
+**Via Plugin Marketplace:**
+```bash
+/plugin marketplace add nyldn/claude-octopus
+```
+
+**Clone & Symlink:**
+```bash
+git clone https://github.com/nyldn/claude-octopus.git ~/git/claude-octopus
+ln -s ~/git/claude-octopus ~/.claude/plugins/claude-octopus
+chmod +x ~/git/claude-octopus/scripts/*.sh
+```
+
+**Update:**
+```bash
+cd ~/.claude/plugins/claude-octopus && git pull
+```
+
+</details>
+
+<details>
+<summary><strong>🔀 Provider-Aware Routing (v4.8)</strong></summary>
+
+Claude Octopus intelligently routes tasks based on your subscription tiers and costs.
+
+### CLI Flags
+
+```bash
+--provider <name>     # Force provider: codex, gemini, claude, openrouter
+--cost-first          # Prefer cheapest capable provider
+--quality-first       # Prefer highest-tier provider
+--openrouter-nitro    # Use fastest OpenRouter routing
+--openrouter-floor    # Use cheapest OpenRouter routing
+```
+
+### Cost Optimization Strategies
+
+| Strategy | Description |
+|----------|-------------|
+| `balanced` (default) | Smart mix of cost and quality |
+| `cost-first` | Prefer cheapest capable provider |
+| `quality-first` | Prefer highest-tier provider |
+
+### Provider Tiers
+
+The setup wizard configures your subscription tier for each provider:
+
+| Provider | Tiers | Cost Behavior |
+|----------|-------|---------------|
+| Codex/OpenAI | free, plus, pro, api-only | Routes based on tier |
+| Gemini | free, google-one, workspace, api-only | Workspace = bundled (free) |
+| Claude | pro, max-5x, max-20x, api-only | Conserves Opus for complex tasks |
+| OpenRouter | pay-per-use | 400+ models as fallback |
+
+**Example:** If you have Google Workspace (bundled Gemini), the system prefers Gemini for heavy analysis since it's "free" with your work account.
+
+```bash
+# Check current provider status
+./scripts/orchestrate.sh status
+
+# Force cost-first routing
+./scripts/orchestrate.sh --cost-first auto "research best practices"
+```
+
+</details>
+
+<details>
+<summary><strong>🤼 Crossfire: Adversarial Review (v4.7)</strong></summary>
+
+Different AI models have different blind spots. Crossfire forces models to critique each other.
+
+### Grapple - Adversarial Debate
+
+```bash
+./scripts/orchestrate.sh grapple "implement password reset API"
+./scripts/orchestrate.sh grapple --principles security "implement JWT auth"
+```
+
+**How it works:**
+```
+Round 1: Codex proposes → Gemini proposes (parallel)
+Round 2: Gemini critiques Codex → Codex critiques Gemini
+Round 3: Synthesis determines winner + final implementation
+```
+
+### Squeeze - Red Team Security Review
+
+```bash
+./scripts/orchestrate.sh squeeze "implement user login form"
+```
+
+| Phase | Team | Action |
+|-------|------|--------|
+| 1 | Blue Team (Codex) | Implements secure solution |
+| 2 | Red Team (Gemini) | Finds vulnerabilities |
+| 3 | Remediation | Fixes all issues |
+| 4 | Validation | Verifies all fixed |
+
+### Constitutional Principles
+
+| Principle | Focus |
+|-----------|-------|
+| `general` | Overall quality (default) |
+| `security` | OWASP Top 10, secure coding |
+| `performance` | N+1 queries, caching, async |
+| `maintainability` | Clean code, testability |
+
+</details>
+
+<details>
+<summary><strong>💎 Double Diamond Methodology</strong></summary>
+
+### Phase 1: PROBE (Discover)
+Parallel research from 4 perspectives - problem space, existing solutions, edge cases, technical feasibility.
+
+```bash
+./scripts/orchestrate.sh probe "What are the best approaches for real-time notifications?"
+```
+
+### Phase 2: GRASP (Define)
+Multi-tentacled consensus on problem definition, success criteria, and constraints.
+
+```bash
+./scripts/orchestrate.sh grasp "Define requirements for notification system"
+```
+
+### Phase 3: TANGLE (Develop)
+Enhanced map-reduce with 75% quality gate threshold.
+
+```bash
+./scripts/orchestrate.sh tangle "Implement notification service"
+```
+
+### Phase 4: INK (Deliver)
+Validation and final deliverable generation.
+
+```bash
+./scripts/orchestrate.sh ink "Deliver notification system"
+```
+
+### Full Workflow
+
+```bash
+./scripts/orchestrate.sh embrace "Create a complete user dashboard feature"
+```
+
+### Quality Gates
+
+| Score | Status | Behavior |
+|-------|--------|----------|
+| >= 90% | PASSED | Proceed to ink |
+| 75-89% | WARNING | Proceed with caution |
+| < 75% | FAILED | Flags for review |
+
+</details>
+
+<details>
+<summary><strong>⚡ Smart Auto-Routing</strong></summary>
+
+The `auto` command extends the right tentacle for the job:
+
+| Tentacle | Keywords | Routes To |
+|----------|----------|-----------|
+| 🔍 Probe | research, explore, investigate | `probe` |
+| 🤝 Grasp | define, clarify, scope | `grasp` |
+| 🦑 Tangle | develop, build, implement | `tangle` → `ink` |
+| 🖤 Ink | qa, test, validate | `ink` |
+| 🤼 Grapple | adversarial, debate | `grapple` |
+| 🦑 Squeeze | security audit, red team | `squeeze` |
+| 🎨 Camouflage | design, UI, UX | `gemini` |
+| ⚡ Jet | fix, debug, refactor | `codex` |
+| 🖼️ Squirt | generate image, icon | `gemini-image` |
+
+**Examples:**
+```bash
+./scripts/orchestrate.sh auto "research caching best practices"    # -> probe
+./scripts/orchestrate.sh auto "build the caching layer"            # -> tangle + ink
+./scripts/orchestrate.sh auto "security audit the auth module"     # -> squeeze
+./scripts/orchestrate.sh auto "fix the cache bug"                  # -> codex
+```
+
+</details>
+
+<details>
+<summary><strong>🛠️ Optimization Command</strong></summary>
+
+Auto-detect optimization domain and route to specialized agents:
+
+| Domain | Keywords | Agent |
+|--------|----------|-------|
+| ⚡ Performance | slow, latency, cpu | `codex` |
+| 💰 Cost | budget, spend, rightsizing | `gemini` |
+| 🗃️ Database | query, index, slow queries | `codex` |
+| 📦 Bundle | webpack, tree-shake, minify | `codex` |
+| ♿ Accessibility | wcag, a11y, aria | `gemini` |
+| 🔍 SEO | meta tags, sitemap | `gemini` |
+| 🖼️ Images | compress, webp, lazy load | `gemini` |
+
+```bash
+./scripts/orchestrate.sh optimize "My app is slow on mobile"
+./scripts/orchestrate.sh optimize "Reduce our AWS bill"
+./scripts/orchestrate.sh auto "full site audit"  # All domains
+```
+
+</details>
+
+<details>
+<summary><strong>🔧 Smart Setup Wizard</strong></summary>
+
+The setup wizard configures Claude Octopus based on your use intent and resource tier.
+
+```bash
+./scripts/orchestrate.sh setup
+```
+
+### Use Intent (affects persona selection)
+
+| Intent | Default Persona |
+|--------|-----------------|
+| Backend Development | backend-architect |
+| Frontend Development | frontend-architect |
+| UX Research | researcher |
+| DevOps/Infrastructure | backend-architect |
+| Security/Code Review | security-auditor |
+
+### Resource Tier (affects model routing)
+
+| Tier | Plan | Behavior |
+|------|------|----------|
+| Conservative | Pro/Free | Cheaper models by default |
+| Balanced | Max 5x | Smart Opus usage |
+| Full Power | Max 20x | Premium models freely |
+| Cost-Aware | API Only | Tracks token costs |
+
+```bash
+# Reconfigure anytime
+./scripts/orchestrate.sh config
+```
+
+</details>
+
+<details>
+<summary><strong>🔐 Authentication</strong></summary>
+
+### Commands
+
+```bash
+./scripts/orchestrate.sh auth status  # Check status
+./scripts/orchestrate.sh login        # OAuth login
+./scripts/orchestrate.sh logout       # Clear tokens
+```
+
+### Methods
+
+| Method | How | Best For |
+|--------|-----|----------|
+| OAuth | `login` command | Subscription users |
+| API Key | Environment variable | API access, CI/CD |
+
+</details>
+
+<details>
+<summary><strong>🤖 Available Agents</strong></summary>
+
+| Agent | Model | Best For |
+|-------|-------|----------|
+| `codex` | GPT-5.1-Codex-Max | Complex code, deep refactoring |
+| `codex-standard` | GPT-5.2-Codex | Standard implementation |
+| `codex-mini` | GPT-5.1-Codex-Mini | Quick fixes (cost-effective) |
+| `gemini` | Gemini 3 Pro | Deep analysis, 1M context |
+| `gemini-fast` | Gemini 3 Flash | Speed-critical tasks |
+| `gemini-image` | Gemini 3 Pro Image | Image generation |
+| `codex-review` | GPT-5.2-Codex | Code review mode |
+| `openrouter` | Various | Universal fallback (400+ models) |
+
+</details>
+
+<details>
+<summary><strong>📚 Full Command Reference</strong></summary>
+
+### Double Diamond
+
+| Command | Description |
+|---------|-------------|
+| `probe <prompt>` | Parallel research (Discover) |
+| `grasp <prompt>` | Consensus building (Define) |
+| `tangle <prompt>` | Quality-gated development (Develop) |
+| `ink <prompt>` | Validation and delivery (Deliver) |
+| `embrace <prompt>` | Full 4-phase workflow |
+
+### Orchestration
+
+| Command | Description |
+|---------|-------------|
+| `auto <prompt>` | Smart routing |
+| `spawn <agent> <prompt>` | Single agent |
+| `fan-out <prompt>` | Multiple agents in parallel |
+| `map-reduce <prompt>` | Decompose and parallelize |
+| `parallel [tasks.json]` | Execute task file |
+
+### Crossfire
+
+| Command | Description |
+|---------|-------------|
+| `grapple <prompt>` | Adversarial debate |
+| `grapple --principles TYPE` | With domain principles |
+| `squeeze <prompt>` | Red team security review |
+
+### Management
+
+| Command | Description |
+|---------|-------------|
+| `status` | Show running agents |
+| `kill [id\|all]` | Terminate agents |
+| `clean` | Reset workspace |
+| `aggregate [filter]` | Combine results |
+
+### Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `-p, --parallel` | 3 | Max concurrent agents |
+| `-t, --timeout` | 300 | Timeout (seconds) |
+| `-v, --verbose` | false | Verbose logging |
+| `-n, --dry-run` | false | Preview only |
+| `--context <file>` | - | Context from previous phase |
+| `--ci` | false | CI mode |
+
+</details>
+
+<details>
+<summary><strong>🐛 Troubleshooting</strong></summary>
+
+### Pre-flight fails
+
+```bash
+./scripts/orchestrate.sh preflight
+# Check: codex CLI, gemini CLI, API keys
+```
+
+### Quality gate failures
+
+- Break into smaller subtasks
+- Increase timeout: `-t 600`
+- Check logs: `~/.claude-octopus/logs/`
+
+### Reset workspace
+
+```bash
+./scripts/orchestrate.sh clean
+./scripts/orchestrate.sh init
+```
+
+### Missing CLIs
+
+```bash
+npm install -g @openai/codex
+npm install -g @google/gemini-cli
+```
+
+</details>
+
+<details>
+<summary><strong>📜 What's New</strong></summary>
+
+### v4.8.0 - Subscription-Aware Multi-Provider Routing
+
+- Provider scoring algorithm (0-150 scale)
+- Cost optimization: `--cost-first`, `--quality-first`
+- OpenRouter integration (400+ models)
+- Enhanced setup wizard (9 steps)
+- Auto-detection of provider tiers
+
+### v4.7.0 - Crossfire: Adversarial Review
+
+- `grapple` - AI vs AI debate
+- `squeeze` - Red team security review
+- Constitutional principles system
+- Auto-routing for security/debate intents
+
+### v4.6.0 - Claude Code v2.1.9 Integration
+
+- Session tracking, hook system
+- Security hardening (path validation, injection prevention)
+- CI/CD mode with GitHub Actions support
+
+### v4.5.0 - Smart Setup Wizard
+
+- Intent-based configuration
+- Resource tier awareness
+- Automatic model routing
+
+[Full Changelog](CHANGELOG.md)
+
+</details>
+
+<details>
+<summary>🐙 Meet the Mascot</summary>
 
 ```
                       ___
@@ -55,1205 +575,25 @@ _`) )  .---.__.' / |   |\   \__..--""  """--.,_
 
 </details>
 
-## What's New in 4.7
-
-- **Crossfire: Adversarial Cross-Model Review** - AI vs AI for better results:
-  - `grapple` - Codex vs Gemini debate until consensus
-  - `squeeze` - Red Team security review (Blue Team vs Red Team)
-  - Constitutional principles system for domain-specific critique
-  - Auto-routing detects "security audit", "red team", "debate" intents
-  - *"Two tentacles wrestling catches more bugs than one."* 🤼
-- **Grapple Command** - Adversarial debate between models:
-  - Round 1: Both models propose solutions independently
-  - Round 2: Cross-critique (each critiques the other)
-  - Round 3: Synthesis determines winner
-  - `--principles` flag: security, performance, maintainability
-  - *"When tentacles disagree, the truth emerges."*
-- **Squeeze Command** - Red Team security testing:
-  - Phase 1: Blue Team (Codex) implements secure solution
-  - Phase 2: Red Team (Gemini) finds vulnerabilities
-  - Phase 3: Remediation fixes all issues
-  - Phase 4: Validation verifies all fixed
-  - *"Squeeze the code until the bugs pop out."* 🦑
-
-<details>
-<summary>Previous versions</summary>
-
-### What's New in 4.6
-
-- **Claude Code v2.1.9 Integration** - Session tracking and hook system:
-  - `${CLAUDE_SESSION_ID}` support for cross-session tracking
-  - `plansDirectory` setting for workspace plans
-  - PreToolUse hooks for quality gate validation
-  - *"The octopus remembers its previous dives."*
-- **Security Hardening** - Production-ready defenses:
-  - Path validation prevents traversal attacks
-  - Array-based command execution eliminates injection vectors
-  - JSON parsing with agent type validation
-  - CI workflow input sanitization
-  - *"Eight arms, zero vulnerabilities."*
-- **CI/CD Mode** - Automated pipeline support:
-  - Auto-detects GitHub Actions, GitLab CI, Jenkins
-  - Auto-fails on quality gate escalation (no human blocking)
-  - GitHub Actions annotations for errors
-  - *"Even in the depths of CI, the octopus swims free."*
-- **Nested Skills Discovery** - Persona-based skill wrappers:
-  - `skills` command lists available personas
-  - `code-review`, `security-audit`, `architecture` skill wrappers
-  - *"Each tentacle knows its specialty."*
-
-### What's New in 4.5
-
-- **Smart Setup Wizard** - Intent and resource-aware configuration:
-  - `init --interactive` now asks about your **use intent** (Backend, Frontend, UX Research, DevOps, etc.)
-  - Configures **resource tier** based on your Claude plan (Pro, Max 5x, Max 20x, API-only)
-  - Automatically adjusts model routing to conserve Opus usage for constrained plans
-  - API key auto-detection with graceful fallbacks
-  - `config` command to reconfigure preferences anytime
-  - *"The octopus learns your tentacle preferences."*
-
-### What's New in 4.4
-
-- **Human-in-the-Loop Reviews** - Quality-gated workflows with approval queues:
-  - `review list` - View pending reviews awaiting approval
-  - `review approve <id>` - Approve and continue with audit logging
-  - `review reject <id>` - Reject with reason, logged for compliance
-  - `review show <id>` - View output files for review items
-- **Audit Trail System** - Complete decision logging for compliance:
-  - `audit [count]` - View recent decisions with timestamps
-  - JSON-structured entries for easy parsing
-  - Tracks all approvals, rejections, and status changes
-  - *"When the tentacles make decisions, the ink records them."*
-- **CI/CD Integration** - GitHub Actions and non-interactive mode:
-  - `--ci` flag for autonomous execution
-  - Auto-detects CI environments (GitHub, GitLab, etc.)
-  - JSON output for pipeline consumption
-  - GitHub Actions workflow template included
-  - *"Even in the depths of CI pipelines, the octopus knows no bounds."*
-
-<details>
-<summary>Previous versions</summary>
-
-### What's New in 4.3
-
-- **Interactive Setup Wizard** - Guided first-time setup experience:
-  - `init --interactive` - Step-by-step configuration wizard
-  - API key validation with format checking
-  - CLI tools verification (Codex, Gemini)
-  - Shell completion auto-installation
-  - Issue detection with actionable fix instructions
-- **Contextual Error Recovery** - Unique error codes with fix suggestions:
-  - E001-E010 error code registry
-  - Actionable "Fix this:" suggestions in every error
-  - "Learn more:" links to relevant help topics
-  - Context-aware troubleshooting
-
-### What's New in 4.2
-
-- **Optimize Command** - Auto-detect and route optimization tasks across 7 domains
-- **Full Site Audit** - Comprehensive multi-domain optimization
-- **Shell Completion** - Tab completion for bash, zsh, and fish
-- **OpenAI Authentication** - Manage Codex CLI auth via OAuth
-
-### What's New in 4.0
-
-- **Simplified CLI** - Progressive disclosure hides complexity from beginners
-  - Simple help by default (3 commands), `help --full` for advanced users
-  - Command-specific help: `help auto`, `help research`, etc.
-- **Intuitive Aliases** - Clear command names that match the workflow
-  - `research` (was: probe), `define` (was: grasp), `develop` (was: tangle), `deliver` (was: ink)
-- **Better Error Messages** - "Did you mean?" suggestions and examples
-- **Phase Progress** - Shows "Phase 1/4", "Phase 2/4" during execution
-- **Curated Agent Personas** - 21 specialized agents (backend-architect, security-auditor, etc.)
-- **Ralph-Wiggum Iteration** - Loop until completion with `ralph` command
-
-### What's New in 1.1
-
-- **Conditional Branching** - Decision trees for workflow routing (tentacle paths)
-  - `--branch BRANCH` - Force tentacle path: premium|standard|fast
-  - `--on-fail ACTION` - Quality gate failure action: auto|retry|escalate|abort
-- **Quality Gate Decision Tree** - Intelligent branching on quality outcomes
-
-### What's New in 1.0
-
-- **Double Diamond Workflow** - Structured design thinking process
-- **Octopus-Themed Commands** - `probe`, `grasp`, `tangle`, `ink`, `embrace`
-- **Smart Auto-Routing** - Intent detection routes to workflows or agents
-- **Cost-Aware Routing** - Routes trivial tasks to cheaper models
-- **Quality Gates** - 75% success threshold in development phase
-
-</details>
-
-</details>
+---
 
 ## Why Claude Octopus?
 
-Most Claude Code plugins inject knowledge. **Claude Octopus orchestrates armies.** 🦑
-
-*Why have one AI do the work when you can have eight squabble about it productively?*
-
 | What Others Do | What We Do |
 |----------------|------------|
-| Inject context via CLAUDE.md | Coordinate multiple AI models in parallel |
 | Single-agent execution | 8 agents working simultaneously |
-| Hope for the best | Quality gates with 75% consensus threshold |
-| One model, one price | Cost-aware routing to cheaper models for simple tasks |
+| Hope for the best | Quality gates with 75% consensus |
+| One model, one price | Cost-aware routing to cheaper models |
 | Ad-hoc workflows | Double Diamond methodology baked in |
-
-### The Architecture Difference
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                      CLAUDE CODE                                 │
-│  ┌───────────────┐  ┌───────────────┐  ┌───────────────┐        │
-│  │ Other Plugins │  │ Other Plugins │  │ Other Plugins │        │
-│  │  (knowledge)  │  │   (hooks)     │  │  (commands)   │        │
-│  └───────────────┘  └───────────────┘  └───────────────┘        │
-│                              │                                   │
-│                              ▼                                   │
-│  ┌───────────────────────────────────────────────────────────┐  │
-│  │                   CLAUDE OCTOPUS                          │  │
-│  │                   (orchestrator)                          │  │
-│  └───────────────────────────────────────────────────────────┘  │
-│         │              │              │              │          │
-└─────────┼──────────────┼──────────────┼──────────────┼──────────┘
-          ▼              ▼              ▼              ▼
-   ┌───────────┐  ┌───────────┐  ┌───────────┐  ┌───────────┐
-   │  Codex    │  │  Codex    │  │  Gemini   │  │  Gemini   │
-   │  (GPT-5)  │  │  (review) │  │  (Pro)    │  │  (Image)  │
-   └───────────┘  └───────────┘  └───────────┘  └───────────┘
-```
-
-### Why This Matters
-
-| Benefit | How |
-|---------|-----|
-| **Faster results** | Parallel execution across 8 agents |
-| **Better quality** | Multiple perspectives + consensus gates |
-| **Lower costs** | Smart routing to appropriate model tiers |
-| **Structured thinking** | Double Diamond prevents jumping to solutions |
-| **Model diversity** | Best-of-breed: GPT for code, Gemini for analysis |
-
-*An octopus doesn't just have 8 arms - it has neurons in each one. Independent intelligence, coordinated action. It's basically a committee that actually works.* 🧠
-
-## Table of Contents
-
-- [Why Claude Octopus?](#why-claude-octopus)
-- [Before You Start](#before-you-start)
-- [Quick Start](#quick-start)
-- [Smart Setup](#smart-setup)
-- [Double Diamond Methodology](#double-diamond-methodology)
-- [Smart Auto-Routing](#smart-auto-routing)
-- [Crossfire: Adversarial Review](#crossfire-adversarial-review)
-- [Optimization Command](#optimization-command)
-- [Shell Completion](#shell-completion)
-- [Authentication](#authentication)
-- [Quality Gates](#quality-gates)
-- [Agent Personas](#agent-personas)
-- [Ralph-Wiggum Iteration](#ralph-wiggum-iteration)
-- [Prerequisites](#prerequisites)
-- [Installation](#installation)
-- [Agent Setup & Configuration](#agent-setup--configuration)
-- [Available Agents](#available-agents)
-- [Command Reference](#command-reference)
-- [Example Workflows](#example-workflows)
-- [Troubleshooting](#troubleshooting)
-- [Contributing](#contributing)
-- [License](#license)
-
-## Before You Start
-
-Claude Octopus orchestrates **multiple AI models** (OpenAI Codex + Google Gemini). You'll need API keys for both:
-
-### Required API Keys
-
-| Provider | Get Your Key | Environment Variable |
-|----------|-------------|---------------------|
-| OpenAI | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) | `OPENAI_API_KEY` |
-| Google | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) | `GEMINI_API_KEY` |
-
-### Set Up Your Keys
-
-```bash
-# Add to your shell profile (~/.bashrc, ~/.zshrc, etc.)
-export OPENAI_API_KEY="sk-..."
-export GEMINI_API_KEY="AIza..."
-```
-
-### System Requirements
-
-- **Bash 4.0+** (macOS: `brew install bash`)
-- **Codex CLI** - `npm install -g @openai/codex` or [installation guide](https://github.com/openai/codex-cli)
-- **Gemini CLI** - `npm install -g @google/gemini-cli` or [installation guide](https://github.com/google-gemini/gemini-cli)
-- **Optional:** `jq` for JSON task files, `coreutils` for macOS timeout
-
-## Quick Start
-
-### 1. Install
-
-```bash
-# Via Claude Code Plugin Marketplace (recommended)
-/plugin marketplace add nyldn/claude-octopus
-
-# Or clone directly
-git clone https://github.com/nyldn/claude-octopus.git ~/.claude/plugins/claude-octopus
-```
-
-### 2. Verify Setup
-
-```bash
-# Check all dependencies are configured
-./scripts/orchestrate.sh preflight
-```
-
-If preflight fails, run the setup wizard:
-```bash
-./scripts/orchestrate.sh setup
-```
-
-### 3. Try It (Dry Run First)
-
-```bash
-# Preview what would happen (no API calls)
-./scripts/orchestrate.sh -n auto "build a hello world function"
-
-# If that looks good, run for real
-./scripts/orchestrate.sh auto "build a hello world function"
-```
-
-### 4. Full Workflow Example
-
-```bash
-# Let AI choose the best approach (recommended)
-./scripts/orchestrate.sh auto "build user authentication"
-
-# Or run the full 4-phase Double Diamond
-./scripts/orchestrate.sh embrace "build user authentication"
-
-# Or run individual phases
-./scripts/orchestrate.sh research "authentication best practices"  # Phase 1
-./scripts/orchestrate.sh define "auth requirements"                # Phase 2
-./scripts/orchestrate.sh develop "implement auth feature"          # Phase 3
-./scripts/orchestrate.sh deliver "validate auth implementation"    # Phase 4
-```
-
-> **Tip:** Use `help` to learn more: `./scripts/orchestrate.sh help` or `./scripts/orchestrate.sh help auto`
-
-## Smart Setup
-
-The interactive setup wizard (v4.5) configures Claude Octopus based on your **use intent** and **resource tier**.
-
-### Run the Setup Wizard
-
-```bash
-./scripts/orchestrate.sh init --interactive
-```
-
-### Step 6: Use Intent
-
-The wizard asks what you'll primarily use Claude Octopus for:
-
-| Intent | Default Persona | Agent Routing |
-|--------|-----------------|---------------|
-| Backend Development | backend-architect | Codex for APIs, databases |
-| Frontend Development | frontend-architect | Codex for UI, components |
-| Full-Stack Development | (varies) | Mixed routing |
-| UX Research | researcher | Gemini for analysis |
-| UI/Product Design | designer | Gemini for design |
-| DevOps/Infrastructure | backend-architect | Codex for automation |
-| Security/Code Review | security-auditor | Codex-review mode |
-| SEO/Marketing | (none) | Gemini for content |
-
-You can select multiple intents (e.g., "1,2,6" for Backend + Frontend + DevOps).
-
-### Step 7: Resource Tier
-
-Configure model routing based on your Claude subscription:
-
-| Tier | Plan | Model Routing |
-|------|------|---------------|
-| **Conservative** | Pro/Free ($0-20/mo) | Cheaper models by default, saves Opus for complex tasks |
-| **Balanced** | Max 5x ($100/mo) | Smart Opus usage, weekly budget awareness |
-| **Full Power** | Max 20x ($200/mo) | Use premium models freely based on task complexity |
-| **Cost-Aware** | API Only | Tracks token costs, prefers efficient models |
-
-### Reconfigure Anytime
-
-```bash
-# Re-run just the preference wizard
-./scripts/orchestrate.sh config
-```
-
-### How It Affects Routing
-
-Your configuration adjusts the `get_tiered_agent()` function:
-
-| Resource Tier | Trivial Tasks | Standard Tasks | Complex Tasks |
-|---------------|---------------|----------------|---------------|
-| Conservative | codex-mini | codex-mini | codex-standard |
-| Balanced | codex-mini | codex-standard | codex |
-| Full Power | codex-standard | codex | codex |
-| Cost-Aware | codex-mini | codex-mini | codex-standard |
-
-*The octopus conserves its ink when appropriate. Why use premium tentacles for simple tasks?* 🐙
-
-## Double Diamond Methodology
-
-Claude Octopus implements the [Double Diamond](https://www.designcouncil.org.uk/our-resources/framework-for-innovation/) design process, providing structured workflows for each phase:
-
-### Phase 1: PROBE (Discover)
-**Diverge then converge on understanding**
-
-Parallel research from 4 perspectives:
-- Problem space analysis (constraints, requirements, needs)
-- Existing solutions research (what worked, what failed)
-- Edge cases exploration (potential challenges)
-- Technical feasibility (prerequisites, dependencies)
-
-```bash
-./scripts/orchestrate.sh probe "What are the best approaches for real-time notifications?"
-```
-
-### Phase 2: GRASP (Define)
-**Build consensus on the problem**
-
-Multi-tentacled problem definition:
-- Core problem statement
-- Success criteria
-- Constraints and boundaries
-
-```bash
-./scripts/orchestrate.sh grasp "Define requirements for notification system"
-```
-
-### Phase 3: TANGLE (Develop)
-**Diverge with multiple solutions**
-
-Enhanced map-reduce with validation:
-- Task decomposition via LLM
-- Parallel execution across agents
-- Quality gate (75% success threshold)
-
-```bash
-./scripts/orchestrate.sh tangle "Implement notification service"
-```
-
-### Phase 4: INK (Deliver)
-**Converge to validated delivery**
-
-Pre-delivery validation:
-- Quality gate verification
-- Result synthesis
-- Final deliverable generation
-
-```bash
-./scripts/orchestrate.sh ink "Deliver notification system"
-```
-
-### Full Workflow: EMBRACE
-Run all 4 phases sequentially with automatic context passing:
-
-```bash
-./scripts/orchestrate.sh embrace "Create a complete user dashboard feature"
-```
-
-## Smart Auto-Routing
-
-The `auto` command detects intent and extends the right tentacle for the job. Eight behaviors, eight arms:
-
-| Tentacle | Behavior | Keywords | Routes To |
-|----------|----------|----------|-----------|
-| 🔍 **Probe** | Reach out to explore | research, explore, investigate, study, discover | `probe` (Discover) |
-| 🤝 **Grasp** | Grip the problem | define, clarify, scope, requirements | `grasp` (Define) |
-| 🦑 **Tangle** | Weave solutions | develop, build, implement, construct | `tangle` → `ink` |
-| 🖤 **Ink** | Deliver with impact | qa, test, validate, verify, check | `ink` (Deliver) |
-| 🤼 **Grapple** | Wrestle to consensus | adversarial, cross-model, debate, both models | `grapple` (Crossfire) |
-| 🦑 **Squeeze** | Test for weaknesses | security audit, red team, pentest, vulnerabilities | `squeeze` (Red Team) |
-| 🎨 **Camouflage** | Adapt to context | design, UI, UX, accessibility, theme, responsive | `gemini` agent |
-| ⚡ **Jet** | Move fast | fix, debug, function, class, refactor | `codex` agent |
-| 🖼️ **Squirt** | Create visuals | generate image, icon, logo, diagram, banner | `gemini-image` agent |
-
-*Each tentacle knows its specialty. The octopus routes to the right one automatically. It's basically an eight-way traffic cop that never sleeps.* 🚦
-
-**Examples:**
-```bash
-./scripts/orchestrate.sh auto "research best practices for caching"     # -> 🔍 probe
-./scripts/orchestrate.sh auto "build the caching layer"                 # -> 🦑 tangle → ink
-./scripts/orchestrate.sh auto "review the cache implementation"         # -> 🖤 ink
-./scripts/orchestrate.sh auto "security audit the auth module"          # -> 🦑 squeeze
-./scripts/orchestrate.sh auto "have both models debate the API design"  # -> 🤼 grapple
-./scripts/orchestrate.sh auto "fix the cache invalidation bug"          # -> ⚡ codex
-./scripts/orchestrate.sh auto "design a responsive dashboard"           # -> 🎨 gemini
-./scripts/orchestrate.sh auto "generate an app icon"                    # -> 🖼️ gemini-image
-```
-
-## Crossfire: Adversarial Review
-
-Different AI models have different blind spots. Crossfire commands (v4.7) force models to critique each other, catching 2-3x more issues than single-model review.
-
-### Grapple - Adversarial Debate
-
-*Two tentacles wrestling until consensus* 🤼
-
-```bash
-# Basic grapple
-./scripts/orchestrate.sh grapple "implement password reset API"
-
-# With security principles
-./scripts/orchestrate.sh grapple --principles security "implement JWT authentication"
-
-# With performance principles
-./scripts/orchestrate.sh grapple --principles performance "optimize database queries"
-```
-
-**How it works:**
-
-```
-Round 1: Codex proposes → Gemini proposes (parallel)
-Round 2: Gemini critiques Codex → Codex critiques Gemini
-Round 3: Synthesis determines winner + final implementation
-```
-
-### Squeeze - Red Team Security Review
-
-*Octopus squeezes prey to test for weaknesses* 🦑
-
-```bash
-./scripts/orchestrate.sh squeeze "implement user login form"
-./scripts/orchestrate.sh squeeze "review auth.ts for vulnerabilities"
-```
-
-**How it works:**
-
-| Phase | Team | Action |
-|-------|------|--------|
-| 1 | Blue Team (Codex) | Implements secure solution |
-| 2 | Red Team (Gemini) | Finds vulnerabilities with exploit proofs |
-| 3 | Remediation (Codex) | Fixes all found issues |
-| 4 | Validation (Codex-Review) | Verifies all vulnerabilities fixed |
-
-### Constitutional Principles
-
-Grapple supports domain-specific critique principles:
-
-| Principle | Focus | Use Case |
-|-----------|-------|----------|
-| `general` | Overall quality | Default for most reviews |
-| `security` | OWASP Top 10, secure coding | Auth, payments, user data |
-| `performance` | N+1 queries, caching, async | Database, API optimization |
-| `maintainability` | Clean code, testability | Refactoring, code reviews |
-
-### Cost Estimate
-
-| Command | Agent Calls | Estimated Cost |
-|---------|-------------|----------------|
-| `grapple` | 5 | ~$0.15-0.30 |
-| `squeeze` | 4 | ~$0.12-0.25 |
-
-*More expensive than single-agent, but catches 2-3x more issues. Worth every tentacle.* 🐙
-
-## Optimization Command
-
-The `optimize` command (v4.2) auto-detects the type of optimization needed and routes to specialized agents.
-
-### Supported Domains
-
-| Domain | Keywords | Agent | Focus |
-|--------|----------|-------|-------|
-| ⚡ Performance | slow, latency, throughput, p99, cpu, memory | `codex` | Bottleneck analysis, profiling, benchmarks |
-| 💰 Cost | cost, budget, spend, bill, rightsizing, reserved | `gemini` | Cloud spend, resource optimization |
-| 🗃️ Database | query, sql, index, slow queries, postgres, mysql | `codex` | Query optimization, indexing, schema |
-| 📦 Bundle | webpack, tree-shake, code-split, minify, vite | `codex` | Bundle size, lazy loading, compression |
-| ♿ Accessibility | wcag, a11y, screen reader, aria, contrast | `gemini` | WCAG compliance, keyboard nav, semantics |
-| 🔍 SEO | search engine, meta tags, structured data, sitemap | `gemini` | Meta optimization, JSON-LD, Core Web Vitals |
-| 🖼️ Images | compress, webp, avif, lazy load, srcset | `gemini` | Format conversion, responsive images, CDN |
-
-### Examples
-
-```bash
-# Auto-detect optimization domain
-./scripts/orchestrate.sh optimize "My app is slow on mobile"
-# -> ⚡ Performance optimization
-
-./scripts/orchestrate.sh optimize "Reduce our AWS bill"
-# -> 💰 Cost optimization
-
-./scripts/orchestrate.sh optimize "Fix slow database queries"
-# -> 🗃️ Database optimization
-
-./scripts/orchestrate.sh optimize "Make the site accessible"
-# -> ♿ Accessibility optimization
-
-./scripts/orchestrate.sh optimize "Improve search rankings"
-# -> 🔍 SEO optimization
-```
-
-### Full Site Audit (Multi-Domain)
-
-For comprehensive optimization across all domains, use phrases like "full site audit" or "audit my website":
-
-```bash
-# Run comprehensive audit across all optimization domains
-./scripts/orchestrate.sh auto "full site audit"
-./scripts/orchestrate.sh auto "comprehensive site optimization"
-./scripts/orchestrate.sh auto "audit my website"
-```
-
-**What happens:**
-1. **Phase 1**: Parallel audits across 5 domains (Performance, Accessibility, SEO, Images, Bundle)
-2. **Phase 2**: AI synthesizes findings into prioritized recommendations
-3. **Phase 3**: Generates unified report with executive summary, priority matrix, and action plan
-
-Output includes:
-- **Executive Summary** - Top 5 most impactful issues
-- **Priority Matrix** - Issues ranked by impact and effort
-- **Quick Wins** - Fixes with immediate ROI
-- **Detailed Reports** - Full findings per domain
-
-*Why audit one thing when you can audit everything? The octopus has 8 tentacles for a reason.* 🔬
-
-## Shell Completion
-
-Tab completion (v4.2) for bash, zsh, and fish. Completes commands, agents, options, and provides context-aware suggestions.
-
-### Installation
-
-```bash
-# Bash - add to ~/.bashrc
-eval "$(./scripts/orchestrate.sh completion bash)"
-
-# Zsh - add to ~/.zshrc
-eval "$(./scripts/orchestrate.sh completion zsh)"
-
-# Fish - save to completions directory
-./scripts/orchestrate.sh completion fish > ~/.config/fish/completions/orchestrate.sh.fish
-```
-
-### Features
-
-- **Command completion** - Tab through all available commands
-- **Agent completion** - Complete agent names after `spawn`
-- **Option completion** - Complete flags with descriptions
-- **Context-aware** - Different completions based on command context
-
-```bash
-./scripts/orchestrate.sh sp<TAB>           # -> spawn
-./scripts/orchestrate.sh spawn co<TAB>     # -> codex, codex-mini, codex-max...
-./scripts/orchestrate.sh --ti<TAB>         # -> --tier, --timeout
-./scripts/orchestrate.sh auth <TAB>        # -> login, logout, status
-```
-
-## Authentication
-
-Manage OpenAI authentication (v4.2) via OAuth or API keys.
-
-### Commands
-
-```bash
-# Check current authentication status
-./scripts/orchestrate.sh auth status
-
-# Login via OpenAI OAuth (opens browser)
-./scripts/orchestrate.sh login
-
-# Logout (clear stored tokens)
-./scripts/orchestrate.sh logout
-```
-
-### Authentication Methods
-
-| Method | How | Best For |
-|--------|-----|----------|
-| **OAuth** | `./scripts/orchestrate.sh login` | OpenAI subscription users |
-| **API Key** | `export OPENAI_API_KEY="sk-..."` | API access, CI/CD |
-
-The `auth status` command shows both OpenAI and Gemini authentication:
-
-```
-╔═══════════════════════════════════════════════════════════╗
-║  🔐 Claude Octopus - Authentication Status                ║
-╚═══════════════════════════════════════════════════════════╝
-
-  OpenAI:  ✓ Authenticated (OAuth)
-  Account: user@example.com
-
-  Gemini:  ✓ Authenticated (API Key)
-  Key:     AIza...XyZ
-```
-
-## Quality Gates
-
-The `tangle` phase enforces quality gates:
-
-| Score | Status | Behavior |
-|-------|--------|----------|
-| >= 90% | PASSED | Proceed to ink |
-| 75-89% | WARNING | Proceed with caution |
-| < 75% | FAILED | Ink phase flags for review |
-
-## Agent Personas
-
-Each agent can adopt a specialized persona with domain expertise. Personas inject role-specific instructions, constraints, and best practices.
-
-| Persona | Expertise | Best For |
-|---------|-----------|----------|
-| `backend-architect` | API design, microservices, scalability | System design, architecture decisions |
-| `security-auditor` | OWASP, vulnerability scanning, threat modeling | Security reviews, penetration testing |
-| `frontend-developer` | React, accessibility, responsive design | UI implementation, component design |
-| `database-optimizer` | Query optimization, indexing, schema design | Performance tuning, data modeling |
-| `devops-engineer` | CI/CD, containers, infrastructure as code | Deployment, automation |
-| `test-automator` | Testing strategies, coverage, E2E | Quality assurance, test implementation |
-| `code-reviewer` | Code quality, maintainability, patterns | Pull request reviews, refactoring |
-
-```bash
-# Personas are automatically selected based on task context
-./scripts/orchestrate.sh auto "design a REST API for user management"
-# -> Uses backend-architect persona
-
-# Or disable personas for raw agent output
-./scripts/orchestrate.sh --no-personas auto "quick fix"
-```
-
-*Curated subset from [wshobson/agents](https://github.com/wshobson/agents) - a community collection of 99+ specialized agent personas. Think of it as a talent agency, but everyone shows up on time and nobody has a rider.* 🎭
-
-## Ralph-Wiggum Iteration
-
-Some tasks need multiple passes. The `ralph` command implements a completion-promise loop: the agent keeps iterating until it signals done or hits max iterations.
-
-```bash
-# Keep working until the agent says it's complete
-./scripts/orchestrate.sh ralph "refactor this module to use async/await"
-
-# Custom iteration limit
-./scripts/orchestrate.sh ralph "migrate all tests to vitest" codex 20
-```
-
-**How it works:**
-
-1. Agent receives the prompt with iteration context
-2. Agent works on the task and outputs progress
-3. If output contains `<promise>COMPLETE</promise>`, loop exits
-4. Otherwise, agent continues with accumulated context
-5. Loop terminates at max iterations (default: 50) if no completion
-
-**Use cases:**
-- Large refactoring that needs multiple passes
-- Migrations that discover more work as they progress
-- Complex debugging that requires iteration
-- Any task where "done" is discovered, not predetermined
-
-*Inspired by the [ralph-wiggum](https://github.com/anthropics/claude-code/tree/main/plugins/ralph-wiggum) Claude Code plugin pattern. Because sometimes "I'm not done yet" is a valid status update.* 🔄
-
-## Prerequisites
-
-See [Before You Start](#before-you-start) for the complete setup guide. Quick checklist:
-
-- [ ] OpenAI API key set (`export OPENAI_API_KEY="sk-..."`)
-- [ ] Google API key set (`export GEMINI_API_KEY="AIza..."`)
-- [ ] Codex CLI installed (`codex --version`)
-- [ ] Gemini CLI installed (`gemini --version`)
-- [ ] Bash 4.0+ (macOS: `brew install bash`)
-
-Run `./scripts/orchestrate.sh preflight` to verify everything is configured.
-
-## Installation
-
-### Via Plugin Marketplace (Recommended)
-
-In Claude Code, run:
-
-```
-/plugin marketplace add nyldn/claude-octopus
-/plugin install claude-octopus@nyldn-plugins
-```
-
-To update later:
-
-```
-/plugin marketplace update
-```
-
-### Automated Installation (via Claude Code)
-
-In a Claude Code session, simply ask:
-
-```
-Install the claude-octopus plugin from https://github.com/nyldn/claude-octopus
-```
-
-Or run these commands:
-
-```bash
-# Clone to Claude plugins directory
-git clone https://github.com/nyldn/claude-octopus.git ~/.claude/plugins/claude-octopus
-
-# Make scripts executable
-chmod +x ~/.claude/plugins/claude-octopus/scripts/*.sh
-
-# Initialize workspace
-~/.claude/plugins/claude-octopus/scripts/orchestrate.sh init
-```
-
-### Manual Installation
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/nyldn/claude-octopus.git ~/.claude/plugins/claude-octopus
-   ```
-
-2. Make scripts executable:
-   ```bash
-   chmod +x ~/.claude/plugins/claude-octopus/scripts/*.sh
-   ```
-
-3. (Optional) Add to PATH for easier access:
-   ```bash
-   echo 'export PATH="$HOME/.claude/plugins/claude-octopus/scripts:$PATH"' >> ~/.zshrc
-   source ~/.zshrc
-   ```
-
-### Clone Anywhere and Symlink
-
-```bash
-# Clone to your preferred location
-git clone https://github.com/nyldn/claude-octopus.git ~/git/claude-octopus
-
-# Create symlink in Claude plugins
-ln -s ~/git/claude-octopus ~/.claude/plugins/claude-octopus
-
-# Make scripts executable
-chmod +x ~/git/claude-octopus/scripts/*.sh
-```
-
-### Keeping Up to Date
-
-To update to the latest version:
-
-```bash
-# Navigate to plugin directory
-cd ~/.claude/plugins/claude-octopus
-
-# Pull latest changes
-git pull origin main
-```
-
-Or ask Claude Code:
-
-```
-Update the claude-octopus plugin to the latest version
-```
-
-To update to a specific version:
-
-```bash
-cd ~/.claude/plugins/claude-octopus
-git fetch --tags
-git checkout v1.0.0  # Replace with desired version
-```
-
-## Agent Setup & Configuration
-
-Claude Octopus requires both **Codex CLI** (OpenAI) and **Gemini CLI** (Google) to be installed and configured.
-
-### 1. Codex CLI Setup (OpenAI)
-
-#### Install Codex CLI
-
-```bash
-# Install via npm
-npm install -g @openai/codex
-
-# Or via Homebrew
-brew install openai/tap/codex
-```
-
-#### Configure OpenAI API Key
-
-```bash
-# Option 1: Environment variable (recommended)
-export OPENAI_API_KEY="sk-..."
-echo 'export OPENAI_API_KEY="sk-..."' >> ~/.zshrc
-
-# Option 2: Use Codex auth command
-codex auth
-```
-
-#### Verify Codex Installation
-
-```bash
-codex --version
-codex exec -m gpt-5.2-codex "echo hello"
-```
-
-### 2. Gemini CLI Setup (Google)
-
-#### Install Gemini CLI
-
-```bash
-# Install via npm
-npm install -g @anthropic/gemini-cli
-
-# Or download from releases
-# https://github.com/google-gemini/gemini-cli/releases
-```
-
-#### Configure Google API Key
-
-```bash
-# Option 1: Environment variable (recommended)
-export GEMINI_API_KEY="AIza..."
-echo 'export GEMINI_API_KEY="AIza..."' >> ~/.zshrc
-
-# Option 2: Use Gemini auth command
-gemini auth login
-```
-
-#### Get a Google API Key
-
-1. Go to [Google AI Studio](https://aistudio.google.com/apikey)
-2. Click "Create API key"
-3. Copy the key and save it securely
-4. Set as environment variable (see above)
-
-#### Verify Gemini Installation
-
-```bash
-gemini --version
-gemini -y -m gemini-3-pro-preview "echo hello"
-```
-
-### 3. Pre-flight Check
-
-Verify all dependencies are configured:
-
-```bash
-./scripts/orchestrate.sh preflight
-```
-
-This checks for:
-- Codex CLI installation
-- Gemini CLI installation
-- OPENAI_API_KEY environment variable
-- GEMINI_API_KEY environment variable
-
-### Environment Variables Summary
-
-Add these to your `~/.zshrc` or `~/.bashrc`:
-
-```bash
-# OpenAI (for Codex CLI)
-export OPENAI_API_KEY="sk-..."
-
-# Google (for Gemini CLI)
-export GEMINI_API_KEY="AIza..."
-
-# Optional: Custom workspace location
-export CLAUDE_OCTOPUS_WORKSPACE="$HOME/.claude-octopus"
-```
-
-## Available Agents
-
-| Agent | Model | Best For |
-|-------|-------|----------|
-| `codex` | GPT-5.1-Codex-Max | Complex code, deep refactoring (premium default) |
-| `codex-standard` | GPT-5.2-Codex | Standard tier implementation |
-| `codex-mini` | GPT-5.1-Codex-Mini | Quick fixes, simple tasks (cost-effective) |
-| `codex-general` | GPT-5.2 | Non-coding agentic tasks |
-| `gemini` | Gemini 3 Pro Preview | Deep analysis, 1M context |
-| `gemini-fast` | Gemini 3 Flash Preview | Speed-critical tasks |
-| `gemini-image` | Gemini 3 Pro Image Preview | Image generation (up to 4K) |
-| `codex-review` | GPT-5.2-Codex | Code review mode |
-
-## Command Reference
-
-### Double Diamond Commands
-
-| Command | Phase | Description |
-|---------|-------|-------------|
-| `probe <prompt>` | Discover | Parallel research with AI synthesis |
-| `grasp <prompt>` | Define | Consensus building on problem definition |
-| `tangle <prompt>` | Develop | Enhanced map-reduce with quality gates |
-| `ink <prompt>` | Deliver | Validation and final delivery |
-| `embrace <prompt>` | All 4 | Full Double Diamond workflow |
-| `preflight` | - | Validate all dependencies |
-
-### Classic Orchestration Commands
-
-| Command | Description |
-|---------|-------------|
-| `init` | Initialize workspace |
-| `spawn <agent> <prompt>` | Spawn single agent |
-| `auto <prompt>` | Smart routing (Double Diamond or agent) |
-| `fan-out <prompt>` | Send to multiple agents |
-| `map-reduce <prompt>` | Decompose and parallelize |
-| `parallel [tasks.json]` | Execute task file |
-| `status` | Show running agents |
-| `kill [id\|all]` | Terminate agents |
-| `clean` | Reset workspace |
-| `aggregate [filter]` | Combine results |
-
-### Crossfire Commands (v4.7)
-
-*"Two tentacles wrestling catches more bugs than one."*
-
-| Command | Description |
-|---------|-------------|
-| `grapple <prompt>` | Adversarial debate: Codex vs Gemini until consensus |
-| `grapple --principles TYPE <prompt>` | Debate with domain principles (security, performance, maintainability) |
-| `squeeze <prompt>` | Red Team security review: Blue Team vs Red Team |
-| `red-team <prompt>` | Alias for squeeze |
-
-### Optimization Commands (v4.2)
-
-| Command | Description |
-|---------|-------------|
-| `optimize <prompt>` | Auto-detect and route optimization (performance, cost, a11y, SEO...) |
-| `optimise <prompt>` | Alias for optimize |
-
-### Authentication Commands (v4.2)
-
-| Command | Description |
-|---------|-------------|
-| `auth status` | Check current authentication status |
-| `login` | Login to OpenAI via OAuth |
-| `logout` | Logout from OpenAI |
-
-### Shell Completion (v4.2)
-
-| Command | Description |
-|---------|-------------|
-| `completion bash` | Generate bash completion script |
-| `completion zsh` | Generate zsh completion script |
-| `completion fish` | Generate fish completion script |
-
-### Review & Audit (v4.4)
-
-*"The ink never forgets."*
-
-| Command | Description |
-|---------|-------------|
-| `review` | List pending reviews |
-| `review approve <id>` | Approve a review item |
-| `review reject <id>` | Reject with reason |
-| `review show <id>` | View output file |
-| `audit [count]` | View audit trail (decisions log) |
-
-### Smart Setup (v4.5)
-
-*"The octopus learns your tentacle preferences."*
-
-| Command | Description |
-|---------|-------------|
-| `init --interactive` | Full 7-step setup wizard |
-| `config` | Reconfigure preferences (intent + resource tier) |
-
-### Options
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `-p, --parallel` | 3 | Max concurrent agents |
-| `-t, --timeout` | 300 | Timeout per task (seconds) |
-| `-v, --verbose` | false | Verbose logging |
-| `-n, --dry-run` | false | Show without executing |
-| `-d, --dir` | `$PWD` | Working directory |
-| `--context <file>` | - | Context from previous phase |
-| `--ci` | false | CI mode (non-interactive, JSON output) |
-
-## Workspace Structure
-
-```
-~/.claude-octopus/
-├── results/
-│   ├── probe-synthesis-*.md      # Research findings
-│   ├── grasp-consensus-*.md      # Problem definitions
-│   ├── tangle-validation-*.md    # Quality gate reports
-│   └── delivery-*.md             # Final deliverables
-├── logs/                         # Execution logs
-├── plans/                        # Execution plan history
-├── review-queue.json             # Pending reviews (v4.4)
-├── audit.log                     # Decision audit trail (v4.4)
-├── .user-config                  # User preferences (v4.5)
-└── .gitignore
-```
-
-Override with: `CLAUDE_OCTOPUS_WORKSPACE=/custom/path`
-
-## Example Workflows
-
-### Research-First Development
-
-```bash
-# 1. Explore the problem space
-./scripts/orchestrate.sh probe "Authentication patterns for microservices"
-
-# 2. Define the approach (with probe context)
-./scripts/orchestrate.sh grasp "OAuth2 with JWT for our API" \
-  --context ~/.claude-octopus/results/probe-synthesis-*.md
-
-# 3. Implement with validation
-./scripts/orchestrate.sh tangle "Implement OAuth2 authentication"
-
-# 4. Deliver with quality checks
-./scripts/orchestrate.sh ink "Finalize auth implementation"
-```
-
-### Quick Build (Auto-Routed)
-
-```bash
-# Auto-detects "build" intent -> runs tangle + ink
-./scripts/orchestrate.sh auto "build a rate limiting middleware"
-```
-
-### Full Feature Development
-
-```bash
-# All 4 phases in one command
-./scripts/orchestrate.sh embrace "Create a user notification system with email and push support"
-```
-
-### Security Audit (Probe)
-
-```bash
-# Multi-perspective security analysis
-./scripts/orchestrate.sh probe "Perform security audit focusing on: authentication, input validation, and SQL injection vulnerabilities"
-```
-
-### Large Refactoring (Tangle)
-
-```bash
-# Parallel implementation with quality gates
-./scripts/orchestrate.sh tangle "Refactor all React class components to functional components with hooks"
-```
-
-## Troubleshooting
-
-### Pre-flight check fails
-
-```bash
-./scripts/orchestrate.sh preflight
-# Verify: codex CLI, gemini CLI, OPENAI_API_KEY, GEMINI_API_KEY
-```
-
-### Quality gate failures
-
-Tangle phase requires 75% success rate. If failing:
-- Break task into smaller subtasks
-- Increase timeout with `-t 600`
-- Check individual agent logs in `~/.claude-octopus/logs/`
-
-*Getting 75% of tentacles to agree is actually impressive coordination. Even real octopuses struggle with that.* 🐙
-
-### Agents not responding
-
-```bash
-./scripts/orchestrate.sh kill all
-./scripts/orchestrate.sh clean
-```
-
-*Sometimes tentacles need a rest. A clean reset untangles everything.* 🐙
-
-### Timeout issues
-
-Increase timeout for complex tasks:
-
-```bash
-./scripts/orchestrate.sh -t 600 auto "Complex task..."
-```
-
-*Even octopuses can't rush perfection. Give those tentacles time to work.* 🐙
-
-### Missing dependencies
-
-```bash
-# Install jq for JSON task files
-brew install jq
-
-# Install coreutils for gtimeout (macOS)
-brew install coreutils
-```
-
-### Codex CLI not found
-
-```bash
-# Check if installed
-which codex
-
-# If not found, install
-npm install -g @openai/codex
-
-# Verify API key is set
-echo $OPENAI_API_KEY
-```
-
-### Gemini CLI not found
-
-```bash
-# Check if installed
-which gemini
-
-# If not found, install
-npm install -g @anthropic/gemini-cli
-
-# Verify API key is set
-echo $GEMINI_API_KEY
-```
-
-### Reset workspace
-
-```bash
-./scripts/orchestrate.sh clean
-./scripts/orchestrate.sh init
-```
-
-## Contributing
-
-Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## The Octopus Philosophy
-
-🐙 **Why an octopus?**
-
-Real octopuses are nature's parallel processing masters:
-
-| Octopus Trait | Claude Octopus Feature |
-|---------------|----------------------|
-| 8 independent arms | Multiple agents working in parallel |
-| Distributed brain (neurons in each arm) | Intelligence at every endpoint |
-| Ink cloud defense | Quality deliverables that make an impression |
-| Master of camouflage | Adapts to any task type seamlessly |
-| Opens jars, solves puzzles | Opens codebases, solves problems |
-| Squeezes through tiny spaces | Fits into any workflow |
-
-*Fun fact: Octopuses have been observed using tools, planning multi-step strategies,
-and even escaping from sealed containers. Our orchestrator does the same, but digitally
-(and with fewer suction cups).*
-
-## Acknowledgments
-
-**Core Dependencies:**
-- [Claude Code](https://claude.ai/code) - Anthropic's CLI for Claude
-- [Codex CLI](https://github.com/openai/codex) - OpenAI's coding assistant
-- [Gemini CLI](https://github.com/google-gemini/gemini-cli) - Google's Gemini CLI
-
-**Methodology & Patterns:**
-- [Double Diamond](https://www.designcouncil.org.uk/our-resources/framework-for-innovation/) - Design Council's framework for innovation
-- [ralph-wiggum](https://github.com/anthropics/claude-code/tree/main/plugins/ralph-wiggum) - Completion-promise iteration pattern
-- [wshobson/agents](https://github.com/wshobson/agents) - Community-curated agent personas and orchestration patterns
+| Single perspective | Adversarial AI-vs-AI review |
 
 ---
 
+## License
+
+MIT License - see [LICENSE](LICENSE)
+
 <p align="center">
   🐙 Made with eight tentacles of love 🐙<br/>
-  <i>All arms working in perfect parallel harmony</i><br/>
   <a href="https://github.com/nyldn">nyldn</a>
 </p>
