@@ -28,6 +28,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - README.md: Simplified Quick Start emphasizing natural conversation over CLI
 - skill.md: Added callout that Claude Code users don't need to run commands
 
+#### Claude Code Version Check
+- **Automatic version detection** - Checks Claude Code version during setup
+- **Minimum version requirement** - Requires Claude Code 2.1.9 or higher
+- **Multiple detection methods** - Tries `claude --version`, `claude version`, and package.json locations
+- **Semantic version comparison** - Properly compares version numbers (e.g., 2.1.9 vs 2.1.8)
+- **Prominent upgrade warnings** - Shows clear update instructions if outdated
+- **Installation-specific guidance** - Provides commands for npm, Homebrew, and direct download
+- **Parseable output** - Returns `CLAUDE_CODE_VERSION`, `CLAUDE_CODE_STATUS` (ok/outdated/unknown), `CLAUDE_CODE_MINIMUM`
+- **Integrated into setup flow** - Runs automatically in `/claude-octopus:setup` and `detect-providers`
+- **Skill routing** - skill.md documents Scenario 0 for outdated version handling (stops execution until updated)
+- **Restart reminder** - Explicitly tells users to restart Claude Code after updating
+
 ### Changed - Simplified Setup Requirements
 
 #### One Provider Required (Not Both)
