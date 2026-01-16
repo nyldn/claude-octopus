@@ -5,6 +5,77 @@ All notable changes to Claude Octopus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.6.0] - 2026-01-15
+
+### Added - Claude Code v2.1.9 Integration
+
+#### Security Hardening
+- **Path Validation** - `validate_workspace_path()` prevents path traversal attacks
+  - Restricts workspace to `$HOME`, `/tmp`, or `/var/tmp`
+  - Blocks `..` path traversal attempts
+  - Rejects paths with dangerous shell characters
+- **Array-Based Command Execution** - `get_agent_command_array()` prevents word-splitting vulnerabilities
+  - Commands executed as proper bash arrays
+  - Removed ShellCheck suppressions for unquoted variables
+- **JSON Parsing Validation** - `extract_json_field()` with error handling
+  - `validate_agent_type()` checks against agent allowlist
+  - Proper error messages for malformed task files
+- **CI Workflow Hardening** - GitHub Actions input sanitization
+  - Inputs via environment variables (not direct interpolation)
+  - Command allowlisting for workflow_dispatch
+  - Injection pattern detection for issue comments
+- **Test File Safety** - Replaced `eval` with `bash -c` in test functions
+
+#### Claude Code v2.1.9 Features
+- **Session ID Integration** - `${CLAUDE_SESSION_ID}` support for cross-session tracking
+  - Session files named with Claude session ID when available
+  - Usage tracking correlates across sessions
+  - `get_linked_sessions()` finds related session files
+- **Plans Directory Alignment** - `plansDirectory` setting in plugin.json
+  - `PLANS_DIR` constant for workspace plans
+  - Created in `init_workspace()`
+- **CI/CD Mode Support** - Respects `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS`
+  - Auto-detects CI environments (GitHub Actions, GitLab CI, Jenkins)
+  - Auto-declines session resume in CI mode
+  - Auto-fails on quality gate escalation (no human review)
+  - GitHub Actions annotations for errors (`::error::`)
+
+#### Hook System
+- **PreToolUse Hooks** - Quality gate validation before file modifications
+  - `hooks/quality-gate-hook.md` - Enforces quality gates
+  - `hooks/session-sync-hook.md` - Syncs Claude session context
+  - Returns `additionalContext` for informed decisions
+
+#### Nested Skills Discovery
+- **Skill Wrappers** - Agent personas as discoverable skills
+  - `agents/skills/code-review.md`
+  - `agents/skills/security-audit.md`
+  - `agents/skills/architecture.md`
+- **Skills Command** - `./scripts/orchestrate.sh skills` lists available skills
+- **Plugin Registration** - Skills and agents in plugin.json
+
+#### Documentation & Testing
+- **SECURITY.md** - Comprehensive security policy
+  - Threat model with trust boundaries
+  - Attack vectors and mitigations
+  - Security controls documentation
+  - Contributor security checklist
+- **Security Tests** - 12 new security test cases
+  - Path validation tests
+  - Command execution safety tests
+  - JSON validation tests
+  - CI mode tests
+  - Claude Code integration tests
+
+### Changed
+- Plugin version bumped to 4.6.0
+- Added `claude-code-2.1.9` keyword to plugin.json
+- `handle_autonomy_checkpoint()` respects CI mode
+- Quality gate escalation respects CI mode
+- Session resume respects CI mode
+
+---
+
 ## [1.1.0] - 2026-01-15
 
 ### Added
