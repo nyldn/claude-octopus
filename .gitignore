@@ -66,6 +66,10 @@ temp/
 *.tmp
 *.temp
 
+# Development and testing
+dev/*
+!dev/.gitkeep
+
 # Test output directories (generated during development)
 nanobanana-output/
 test-output/
