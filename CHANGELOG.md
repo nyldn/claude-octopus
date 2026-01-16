@@ -5,6 +5,47 @@ All notable changes to Claude Octopus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.7.0] - 2026-01-16
+
+### Added - Adversarial Cross-Model Review (Crossfire)
+
+#### New Commands
+
+- **`grapple`** - Adversarial debate between Codex and Gemini
+  - Round 1: Both models propose solutions independently
+  - Round 2: Cross-critique (each model critiques the other's proposal)
+  - Round 3: Synthesis determines winner and final implementation
+  - Supports `--principles` flag for domain-specific critique
+
+- **`squeeze`** - Red Team security review (alias: `red-team`)
+  - Phase 1: Blue Team (Codex) implements secure solution
+  - Phase 2: Red Team (Gemini) finds vulnerabilities with exploit proofs
+  - Phase 3: Remediation fixes all found issues
+  - Phase 4: Validation verifies all vulnerabilities are fixed
+
+#### Constitutional Principles System
+
+- `agents/principles/security.md` - OWASP Top 10, secure coding practices
+- `agents/principles/performance.md` - N+1 queries, caching, async I/O
+- `agents/principles/maintainability.md` - Clean code, testability, SOLID
+- `agents/principles/general.md` - Overall code quality (default)
+
+#### Auto-Routing Integration
+
+- `classify_task()` detects crossfire intents (`crossfire-grapple`, `crossfire-squeeze`)
+- `auto_route()` routes to grapple/squeeze workflows automatically
+- Patterns: "security audit", "red team", "pentest" → squeeze
+- Patterns: "adversarial", "cross-model", "debate" → grapple
+
+### Changed
+
+- Plugin version bumped to 4.7.0
+- Added `crossfire` and `adversarial-review` keywords to plugin.json
+- Updated skill.md with Crossfire documentation
+- Updated command reference tables
+
+---
+
 ## [4.6.0] - 2026-01-15
 
 ### Added - Claude Code v2.1.9 Integration
