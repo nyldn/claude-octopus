@@ -2462,8 +2462,7 @@ init_interactive() {
 # Provides actionable error messages with unique codes
 # ═══════════════════════════════════════════════════════════════════════════════
 
-# Error code registry
-declare -A ERROR_MESSAGES 2>/dev/null || true
+# Error code registry (bash 3.2 compatible - uses regular array)
 ERROR_CODES=(
     "E001:OPENAI_API_KEY not set:export OPENAI_API_KEY=\"sk-...\" && orchestrate.sh preflight:help api-setup"
     "E002:GEMINI_API_KEY not set:export GEMINI_API_KEY=\"AIza...\" && orchestrate.sh preflight:help api-setup"
@@ -5797,6 +5796,90 @@ open_browser() {
     fi
 }
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# ESSENTIAL DEVELOPER TOOLS - Detection and Installation (v4.8.2)
+# Tools that AI coding assistants rely on for auditing, testing, and browser work
+# Compatible with bash 3.2+ (macOS default)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Essential tools list (space-separated for bash 3.2 compat)
+ESSENTIAL_TOOLS_LIST="jq shellcheck gh imagemagick playwright"
+
+# Get tool description
+get_tool_description() {
+    case "$1" in
+        jq)          echo "JSON processor (critical for AI workflows)" ;;
+        shellcheck)  echo "Shell script static analysis" ;;
+        gh)          echo "GitHub CLI for PR/issue automation" ;;
+        imagemagick) echo "Screenshot compression (5MB API limits)" ;;
+        playwright)  echo "Modern browser automation & screenshots" ;;
+        *)           echo "Developer tool" ;;
+    esac
+}
+
+# Check if a tool is installed
+is_tool_installed() {
+    local tool="$1"
+    case "$tool" in
+        imagemagick)
+            command -v convert &>/dev/null || command -v magick &>/dev/null
+            ;;
+        playwright)
+            # Check for playwright in node_modules or global
+            command -v playwright &>/dev/null || [[ -f "node_modules/.bin/playwright" ]] || npx playwright --version &>/dev/null 2>&1
+            ;;
+        *)
+            command -v "$tool" &>/dev/null
+            ;;
+    esac
+}
+
+# Get install command for current platform
+get_install_command() {
+    local tool="$1"
+
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        # macOS - prefer brew
+        case "$tool" in
+            jq)          echo "brew install jq" ;;
+            shellcheck)  echo "brew install shellcheck" ;;
+            gh)          echo "brew install gh" ;;
+            imagemagick) echo "brew install imagemagick" ;;
+            playwright)  echo "npx playwright install" ;;
+        esac
+    else
+        # Linux - apt-get
+        case "$tool" in
+            jq)          echo "sudo apt-get install -y jq" ;;
+            shellcheck)  echo "sudo apt-get install -y shellcheck" ;;
+            gh)          echo "sudo apt-get install -y gh" ;;
+            imagemagick) echo "sudo apt-get install -y imagemagick" ;;
+            playwright)  echo "npx playwright install" ;;
+        esac
+    fi
+}
+
+# Install a single tool
+install_tool() {
+    local tool="$1"
+    local install_cmd
+    install_cmd=$(get_install_command "$tool")
+
+    if [[ -z "$install_cmd" ]]; then
+        echo -e "    ${RED}✗${NC} No install command for $tool"
+        return 1
+    fi
+
+    echo -e "    ${CYAN}→${NC} $install_cmd"
+    if eval "$install_cmd" 2>&1 | sed 's/^/      /'; then
+        echo -e "    ${GREEN}✓${NC} $tool installed"
+        return 0
+    else
+        echo -e "    ${RED}✗${NC} Failed to install $tool"
+        return 1
+    fi
+}
+
 # Interactive setup wizard
 setup_wizard() {
     echo ""
@@ -5808,7 +5891,7 @@ setup_wizard() {
     echo -e "  This wizard will help you install dependencies and configure API keys."
     echo ""
 
-    local total_steps=9
+    local total_steps=10
     local current_step=0
     local shell_profile=""
     local keys_to_add=""
@@ -6151,6 +6234,89 @@ setup_wizard() {
     echo -e "  ${GREEN}✓${NC} Provider configuration saved"
 
     # ═══════════════════════════════════════════════════════════════════════════
+    # STEP 10: Essential Developer Tools (v4.8.2)
+    # ═══════════════════════════════════════════════════════════════════════════
+    ((current_step++))
+    echo ""
+    echo -e "${CYAN}Step $current_step/$total_steps: Essential Developer Tools${NC}"
+    echo -e "  ${YELLOW}Tools that AI coding assistants rely on for auditing, QA, and browser work.${NC}"
+    echo ""
+
+    # Detect tool status
+    local missing_tools=()
+    local installed_tools=()
+    local tool desc
+
+    for tool in jq shellcheck gh imagemagick playwright; do
+        desc=$(get_tool_description "$tool")
+
+        if is_tool_installed "$tool"; then
+            installed_tools+=("$tool")
+            echo -e "  ${GREEN}✓${NC} $tool - $desc"
+        else
+            missing_tools+=("$tool")
+            echo -e "  ${YELLOW}✗${NC} $tool - $desc"
+        fi
+    done
+
+    echo ""
+
+    if [[ ${#missing_tools[@]} -gt 0 ]]; then
+        echo -e "  ${YELLOW}${#missing_tools[@]} tools missing.${NC} These improve AI agent capabilities:"
+        echo ""
+        echo -e "  ${CYAN}Why these tools matter:${NC}"
+        echo -e "    • ${GREEN}jq${NC}       - Parse JSON from API responses (critical!)"
+        echo -e "    • ${GREEN}shellcheck${NC} - Validate shell scripts before running"
+        echo -e "    • ${GREEN}gh${NC}        - Create PRs/issues directly from CLI"
+        echo -e "    • ${GREEN}imagemagick${NC} - Compress screenshots for API limits (5MB)"
+        echo -e "    • ${GREEN}playwright${NC} - Browser automation, screenshots, QA testing"
+        echo ""
+
+        echo -e "  ${GREEN}[1]${NC} Install all missing tools ${CYAN}(Recommended)${NC}"
+        echo -e "  ${GREEN}[2]${NC} Install critical only (jq, shellcheck)"
+        echo -e "  ${GREEN}[3]${NC} Skip for now"
+        echo ""
+        read -p "  Enter choice [1-3, default 1]: " tools_choice
+        tools_choice="${tools_choice:-1}"
+
+        local tools_to_install=()
+        case "$tools_choice" in
+            1)
+                tools_to_install=("${missing_tools[@]}")
+                ;;
+            2)
+                for tool in jq shellcheck; do
+                    if [[ " ${missing_tools[*]} " =~ " $tool " ]]; then
+                        tools_to_install+=("$tool")
+                    fi
+                done
+                ;;
+            3)
+                echo -e "  ${YELLOW}⚠${NC} Skipped. Some AI features may be limited."
+                ;;
+        esac
+
+        if [[ ${#tools_to_install[@]} -gt 0 ]]; then
+            echo ""
+            echo -e "  ${CYAN}Installing ${#tools_to_install[@]} tools...${NC}"
+            echo ""
+
+            local installed_count=0
+            for tool in "${tools_to_install[@]}"; do
+                if install_tool "$tool"; then
+                    ((installed_count++))
+                fi
+            done
+
+            echo ""
+            echo -e "  ${GREEN}✓${NC} Installed $installed_count/${#tools_to_install[@]} tools"
+        fi
+    else
+        echo -e "  ${GREEN}All essential tools already installed!${NC}"
+    fi
+    echo ""
+
+    # ═══════════════════════════════════════════════════════════════════════════
     # SUMMARY & PERSISTENCE
     # ═══════════════════════════════════════════════════════════════════════════
     echo -e "${PURPLE}═══════════════════════════════════════════════════════════════${NC}"
@@ -6200,6 +6366,17 @@ setup_wizard() {
     echo -e "    Gemini:    ${GREEN}$PROVIDER_GEMINI_TIER${NC} ($PROVIDER_GEMINI_COST_TIER)"
     echo -e "    Claude:    ${GREEN}$PROVIDER_CLAUDE_TIER${NC} ($PROVIDER_CLAUDE_COST_TIER)"
     echo -e "    Strategy:  ${GREEN}$COST_OPTIMIZATION_STRATEGY${NC}"
+    echo ""
+    echo -e "  ${CYAN}Essential Tools (v4.8.2):${NC}"
+    local tool_status_count=0
+    for tool in jq shellcheck gh imagemagick playwright; do
+        if is_tool_installed "$tool"; then
+            echo -e "    ${GREEN}✓${NC} $tool"
+            ((tool_status_count++))
+        else
+            echo -e "    ${YELLOW}○${NC} $tool (optional)"
+        fi
+    done
     echo ""
 
     # Offer to persist keys
