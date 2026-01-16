@@ -28,6 +28,12 @@
     "provider-routing",
     "openrouter"
   ],
-  "skills": ["./.claude/skills/*.md"],
+  "skills": [
+    "./.claude/skills/parallel-agents.md",
+    "./.claude/skills/configure.md",
+    "./.claude/skills/architecture.md",
+    "./.claude/skills/code-review.md",
+    "./.claude/skills/security-audit.md"
+  ],
   "commands": "./.claude/commands/"
 }
