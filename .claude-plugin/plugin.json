@@ -8,7 +8,6 @@
   "license": "MIT",
   "repository": "https://github.com/nyldn/claude-octopus",
   "homepage": "https://github.com/nyldn/claude-octopus#readme",
-  "plansDirectory": "~/.claude-octopus/plans/",
   "keywords": [
     "claude-code",
     "multi-agent",
@@ -30,14 +29,5 @@
     "openrouter"
   ],
   "skills": ["./skill.md", "./agents/skills/*.md"],
-  "commands": "./commands/",
-  "hooks": [
-    "./hooks/quality-gate-hook.md",
-    "./hooks/session-sync-hook.md"
-  ],
-  "agents": [
-    "./agents/personas/code-reviewer.md",
-    "./agents/personas/security-auditor.md",
-    "./agents/personas/backend-architect.md"
-  ]
+  "commands": "./commands/"
 }
