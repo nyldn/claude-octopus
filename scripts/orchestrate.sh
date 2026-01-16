@@ -3133,6 +3133,39 @@ load_providers_config() {
     [[ "$VERBOSE" == "true" ]] && log DEBUG "Loaded providers config: codex=$PROVIDER_CODEX_TIER, gemini=$PROVIDER_GEMINI_TIER, strategy=$COST_OPTIMIZATION_STRATEGY"
 }
 
+# Map subscription tier to cost tier
+get_cost_tier_for_subscription() {
+    local provider="$1"
+    local sub_tier="$2"
+
+    case "$provider" in
+        codex)
+            case "$sub_tier" in
+                plus) echo "low" ;;
+                api-only) echo "pay-per-use" ;;
+                *) echo "pay-per-use" ;;
+            esac
+            ;;
+        gemini)
+            case "$sub_tier" in
+                free) echo "free" ;;
+                workspace) echo "bundled" ;;
+                api-only) echo "pay-per-use" ;;
+                *) echo "pay-per-use" ;;
+            esac
+            ;;
+        claude)
+            case "$sub_tier" in
+                pro) echo "medium" ;;
+                *) echo "medium" ;;
+            esac
+            ;;
+        *)
+            echo "pay-per-use"
+            ;;
+    esac
+}
+
 # Auto-detect provider configuration from installed CLIs and auth
 auto_detect_provider_config() {
     local detected
@@ -3147,31 +3180,23 @@ auto_detect_provider_config() {
             codex)
                 PROVIDER_CODEX_INSTALLED="true"
                 PROVIDER_CODEX_AUTH_METHOD="$auth"
-                # Default tier based on auth method
-                if [[ "$auth" == "oauth" ]]; then
-                    PROVIDER_CODEX_TIER="plus"
-                    PROVIDER_CODEX_COST_TIER="low"
-                else
-                    PROVIDER_CODEX_TIER="api-only"
-                    PROVIDER_CODEX_COST_TIER="pay-per-use"
-                fi
+                # Detect tier via API test or fallback to auth-based default
+                PROVIDER_CODEX_TIER=$(detect_tier_openai "$auth")
+                PROVIDER_CODEX_COST_TIER=$(get_cost_tier_for_subscription "codex" "$PROVIDER_CODEX_TIER")
                 ;;
             gemini)
                 PROVIDER_GEMINI_INSTALLED="true"
                 PROVIDER_GEMINI_AUTH_METHOD="$auth"
-                if [[ "$auth" == "oauth" ]]; then
-                    PROVIDER_GEMINI_TIER="free"
-                    PROVIDER_GEMINI_COST_TIER="free"
-                else
-                    PROVIDER_GEMINI_TIER="api-only"
-                    PROVIDER_GEMINI_COST_TIER="pay-per-use"
-                fi
+                # Detect tier via workspace check or fallback to auth-based default
+                PROVIDER_GEMINI_TIER=$(detect_tier_gemini "$auth")
+                PROVIDER_GEMINI_COST_TIER=$(get_cost_tier_for_subscription "gemini" "$PROVIDER_GEMINI_TIER")
                 ;;
             claude)
                 PROVIDER_CLAUDE_INSTALLED="true"
                 PROVIDER_CLAUDE_AUTH_METHOD="$auth"
-                PROVIDER_CLAUDE_TIER="pro"
-                PROVIDER_CLAUDE_COST_TIER="medium"
+                # Detect tier (defaults to pro for Claude Code users)
+                PROVIDER_CLAUDE_TIER=$(detect_tier_claude)
+                PROVIDER_CLAUDE_COST_TIER=$(get_cost_tier_for_subscription "claude" "$PROVIDER_CLAUDE_TIER")
                 ;;
             openrouter)
                 PROVIDER_OPENROUTER_ENABLED="true"
@@ -3181,6 +3206,203 @@ auto_detect_provider_config() {
     done
 
     [[ "$VERBOSE" == "true" ]] && log DEBUG "Auto-detected providers: $detected" || true
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TIER DETECTION - Auto-detect subscription tiers via API calls (v4.8.3)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Tier cache file location
+TIER_CACHE_FILE="${WORKSPACE_DIR}/.tier-cache"
+TIER_CACHE_TTL=86400  # 24 hours in seconds
+
+# Check if tier cache is valid for a provider (not expired)
+tier_cache_valid() {
+    local provider="$1"
+    [[ ! -f "$TIER_CACHE_FILE" ]] && return 1
+
+    local cache_line
+    cache_line=$(grep "^${provider}:" "$TIER_CACHE_FILE" 2>/dev/null || echo "")
+    [[ -z "$cache_line" ]] && return 1
+
+    local timestamp
+    timestamp=$(echo "$cache_line" | cut -d: -f3)
+    [[ -z "$timestamp" ]] && return 1
+
+    local current_time age
+    current_time=$(date +%s)
+    age=$((current_time - timestamp))
+
+    # Cache valid if less than TTL (24 hours)
+    [[ $age -lt $TIER_CACHE_TTL ]] && return 0
+    return 1
+}
+
+# Read tier from cache for a provider
+tier_cache_read() {
+    local provider="$1"
+    local cache_line
+    cache_line=$(grep "^${provider}:" "$TIER_CACHE_FILE" 2>/dev/null || echo "")
+
+    if [[ -z "$cache_line" ]]; then
+        echo ""
+        return 1
+    fi
+
+    # Extract tier from format: provider:tier:timestamp
+    local tier
+    tier=$(echo "$cache_line" | cut -d: -f2)
+
+    # Validate tier is not empty and is a valid value
+    if [[ -z "$tier" ]]; then
+        [[ "$VERBOSE" == "true" ]] && log WARN "Corrupted cache entry for $provider (empty tier)" || true
+        # Remove corrupted entry
+        grep -v "^${provider}:" "$TIER_CACHE_FILE" > "${TIER_CACHE_FILE}.tmp" 2>/dev/null || true
+        mv "${TIER_CACHE_FILE}.tmp" "$TIER_CACHE_FILE" 2>/dev/null || true
+        return 1
+    fi
+
+    echo "$tier"
+    return 0
+}
+
+# Write tier to cache for a provider
+tier_cache_write() {
+    local provider="$1"
+    local tier="$2"
+
+    mkdir -p "$(dirname "$TIER_CACHE_FILE")"
+
+    # Remove old entry if it exists
+    if [[ -f "$TIER_CACHE_FILE" ]]; then
+        grep -v "^${provider}:" "$TIER_CACHE_FILE" > "${TIER_CACHE_FILE}.tmp" 2>/dev/null || true
+        mv "${TIER_CACHE_FILE}.tmp" "$TIER_CACHE_FILE" 2>/dev/null || true
+    fi
+
+    # Append new entry with current timestamp
+    local timestamp
+    timestamp=$(date +%s)
+    echo "${provider}:${tier}:${timestamp}" >> "$TIER_CACHE_FILE"
+
+    [[ "$VERBOSE" == "true" ]] && log DEBUG "Tier cached for $provider: $tier" || true
+}
+
+# Invalidate tier cache (call after config changes)
+tier_cache_invalidate() {
+    rm -f "$TIER_CACHE_FILE" 2>/dev/null || true
+    [[ "$VERBOSE" == "true" ]] && log DEBUG "Tier cache invalidated" || true
+}
+
+# Detect OpenAI/Codex subscription tier via test API call
+detect_tier_openai() {
+    local auth_method="$1"
+    local fallback_tier="api-only"
+
+    # Check cache first
+    if tier_cache_valid "codex"; then
+        local cached_tier
+        cached_tier=$(tier_cache_read "codex")
+        if [[ -n "$cached_tier" ]]; then
+            [[ "$VERBOSE" == "true" ]] && log DEBUG "Using cached Codex tier: $cached_tier" || true
+            echo "$cached_tier"
+            return 0
+        fi
+    fi
+
+    # Set fallback based on auth method
+    if [[ "$auth_method" == "oauth" ]]; then
+        fallback_tier="plus"
+    fi
+
+    # Attempt API detection with minimal test call
+    if command -v codex &>/dev/null; then
+        local test_response
+        # Use 5-second timeout for minimal "ok" prompt (3 tokens)
+        test_response=$(run_with_timeout 5 codex exec "ok" 2>&1 || echo "")
+
+        # Check for tier indicators in response
+        # o3-mini/gpt-4 access suggests plus tier
+        if [[ "$test_response" =~ (o3-mini|gpt-4|o1-preview) ]]; then
+            tier_cache_write "codex" "plus"
+            echo "plus"
+            return 0
+        # Rate limit or error suggests falling back to auth-based default
+        elif [[ "$test_response" =~ (rate_limit|429|invalid|unauthorized) ]]; then
+            [[ "$VERBOSE" == "true" ]] && log DEBUG "Codex API test failed, using fallback: $fallback_tier" || true
+            tier_cache_write "codex" "$fallback_tier"
+            echo "$fallback_tier"
+            return 0
+        fi
+    fi
+
+    # Default fallback
+    tier_cache_write "codex" "$fallback_tier"
+    echo "$fallback_tier"
+    return 0
+}
+
+# Detect Gemini subscription tier via workspace domain check
+detect_tier_gemini() {
+    local auth_method="$1"
+    local fallback_tier="api-only"
+
+    # Check cache first
+    if tier_cache_valid "gemini"; then
+        local cached_tier
+        cached_tier=$(tier_cache_read "gemini")
+        if [[ -n "$cached_tier" ]]; then
+            [[ "$VERBOSE" == "true" ]] && log DEBUG "Using cached Gemini tier: $cached_tier" || true
+            echo "$cached_tier"
+            return 0
+        fi
+    fi
+
+    # Set fallback based on auth method
+    if [[ "$auth_method" == "oauth" ]]; then
+        fallback_tier="free"
+    fi
+
+    # Attempt workspace detection from OAuth settings
+    if [[ -f "$HOME/.gemini/settings.json" ]]; then
+        local settings_content
+        settings_content=$(cat "$HOME/.gemini/settings.json" 2>/dev/null || echo "")
+
+        # Check for workspace domain (non-gmail email suggests workspace)
+        if [[ "$settings_content" =~ \"email\":\"[^\"]+@([^\"]+)\" ]]; then
+            local domain="${BASH_REMATCH[1]}"
+            if [[ "$domain" != "gmail.com" && "$domain" != "googlemail.com" ]]; then
+                tier_cache_write "gemini" "workspace"
+                echo "workspace"
+                return 0
+            fi
+        fi
+    fi
+
+    # Default fallback
+    tier_cache_write "gemini" "$fallback_tier"
+    echo "$fallback_tier"
+    return 0
+}
+
+# Detect Claude subscription tier (defaults to pro for Claude Code users)
+detect_tier_claude() {
+    # Check cache first
+    if tier_cache_valid "claude"; then
+        local cached_tier
+        cached_tier=$(tier_cache_read "claude")
+        if [[ -n "$cached_tier" ]]; then
+            [[ "$VERBOSE" == "true" ]] && log DEBUG "Using cached Claude tier: $cached_tier" || true
+            echo "$cached_tier"
+            return 0
+        fi
+    fi
+
+    # Default to "pro" for Claude Code users (most common)
+    # Phase 3: Add usage API check if available
+    local tier="pro"
+    tier_cache_write "claude" "$tier"
+    echo "$tier"
+    return 0
 }
 
 # Save provider configuration to file
@@ -3226,6 +3448,7 @@ cost_optimization:
 EOF
 
     log INFO "Providers config saved to $PROVIDERS_CONFIG_FILE"
+    tier_cache_invalidate  # Invalidate tier cache after config change
 }
 
 # Score a provider for a given task type and complexity
@@ -6388,65 +6611,24 @@ setup_wizard() {
     # ═══════════════════════════════════════════════════════════════════════════
     # SUMMARY & PERSISTENCE
     # ═══════════════════════════════════════════════════════════════════════════
-    echo -e "${PURPLE}═══════════════════════════════════════════════════════════════${NC}"
-    echo -e "${PURPLE}                    Setup Summary${NC}"
-    echo -e "${PURPLE}═══════════════════════════════════════════════════════════════${NC}"
-    echo ""
 
-    # Show status
+    # Determine if all required components are configured
     local all_good=true
-    echo -e "  ${CYAN}Dependencies:${NC}"
-    if command -v codex &>/dev/null; then
-        echo -e "    ${GREEN}✓${NC} Codex CLI"
-    else
-        echo -e "    ${RED}✗${NC} Codex CLI"
+    if ! command -v codex &>/dev/null; then
         all_good=false
     fi
-    if command -v gemini &>/dev/null; then
-        echo -e "    ${GREEN}✓${NC} Gemini CLI"
-    else
-        echo -e "    ${RED}✗${NC} Gemini CLI"
+    if ! command -v gemini &>/dev/null; then
         all_good=false
     fi
-    echo ""
-    echo -e "  ${CYAN}API Keys:${NC}"
-    if [[ -n "${OPENAI_API_KEY:-}" ]] || [[ -f "$HOME/.codex/auth.json" ]]; then
-        echo -e "    ${GREEN}✓${NC} OpenAI (Codex)"
-    else
-        echo -e "    ${RED}✗${NC} OpenAI (Codex)"
+    if [[ -z "${OPENAI_API_KEY:-}" ]] && [[ ! -f "$HOME/.codex/auth.json" ]]; then
         all_good=false
     fi
-    if [[ -f "$HOME/.gemini/oauth_creds.json" ]]; then
-        echo -e "    ${GREEN}✓${NC} Gemini (OAuth)"
-    elif [[ -n "${GEMINI_API_KEY:-}" ]]; then
-        echo -e "    ${GREEN}✓${NC} Gemini (API Key)"
-    else
-        echo -e "    ${RED}✗${NC} Gemini"
+    if [[ ! -f "$HOME/.gemini/oauth_creds.json" ]] && [[ -z "${GEMINI_API_KEY:-}" ]]; then
         all_good=false
     fi
-    if [[ -n "${OPENROUTER_API_KEY:-}" ]]; then
-        echo -e "    ${GREEN}✓${NC} OpenRouter (API Key)"
-    else
-        echo -e "    ${YELLOW}○${NC} OpenRouter (Optional)"
-    fi
-    echo ""
-    echo -e "  ${CYAN}Provider Tiers (v4.8):${NC}"
-    echo -e "    Codex:     ${GREEN}$PROVIDER_CODEX_TIER${NC} ($PROVIDER_CODEX_COST_TIER)"
-    echo -e "    Gemini:    ${GREEN}$PROVIDER_GEMINI_TIER${NC} ($PROVIDER_GEMINI_COST_TIER)"
-    echo -e "    Claude:    ${GREEN}$PROVIDER_CLAUDE_TIER${NC} ($PROVIDER_CLAUDE_COST_TIER)"
-    echo -e "    Strategy:  ${GREEN}$COST_OPTIMIZATION_STRATEGY${NC}"
-    echo ""
-    echo -e "  ${CYAN}Essential Tools (v4.8.2):${NC}"
-    local tool_status_count=0
-    for tool in jq shellcheck gh imagemagick playwright; do
-        if is_tool_installed "$tool"; then
-            echo -e "    ${GREEN}✓${NC} $tool"
-            ((tool_status_count++))
-        else
-            echo -e "    ${YELLOW}○${NC} $tool (optional)"
-        fi
-    done
-    echo ""
+
+    # Display beautiful configuration summary with tier detection
+    show_config_summary
 
     # Offer to persist keys
     if [[ -n "$keys_to_add" ]]; then
@@ -6502,6 +6684,134 @@ setup_wizard() {
     fi
 
     return 0
+}
+
+# Display comprehensive configuration summary with tier detection indicators
+show_config_summary() {
+    # Load current configuration
+    load_providers_config
+
+    echo ""
+    echo -e "${CYAN}╔═══════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║  ${MAGENTA}🐙 CLAUDE OCTOPUS CONFIGURATION SUMMARY${CYAN}                    ║${NC}"
+    echo -e "${CYAN}╚═══════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+
+    # Helper function to get tier detection indicator
+    get_tier_indicator() {
+        local provider="$1"
+        if tier_cache_valid "$provider"; then
+            echo "${YELLOW}[CACHED]${NC}"
+        else
+            echo "${GREEN}[AUTO-DETECTED]${NC}"
+        fi
+    }
+
+    # Helper function to mask API key
+    mask_api_key() {
+        local key="$1"
+        if [[ -n "$key" && ${#key} -gt 12 ]]; then
+            echo "${key:0:7}...${key: -4}"
+        else
+            echo "***"
+        fi
+    }
+
+    # Codex Status
+    echo -e "  ${CYAN}┌─ CODEX (OpenAI)${NC}"
+    if [[ "$PROVIDER_CODEX_INSTALLED" == "true" && "$PROVIDER_CODEX_AUTH_METHOD" != "none" ]]; then
+        echo -e "  ${CYAN}│${NC}  ${GREEN}✓${NC} Configured"
+        echo -e "  ${CYAN}│${NC}  Auth:      ${GREEN}$PROVIDER_CODEX_AUTH_METHOD${NC}"
+        local tier_indicator
+        tier_indicator=$(get_tier_indicator "codex")
+        echo -e "  ${CYAN}│${NC}  Tier:      ${GREEN}$PROVIDER_CODEX_TIER${NC} $tier_indicator"
+        echo -e "  ${CYAN}│${NC}  Cost Tier: ${GREEN}$PROVIDER_CODEX_COST_TIER${NC}"
+        if [[ "$PROVIDER_CODEX_AUTH_METHOD" == "api-key" && -n "${OPENAI_API_KEY:-}" ]]; then
+            local masked_key
+            masked_key=$(mask_api_key "$OPENAI_API_KEY")
+            echo -e "  ${CYAN}│${NC}  API Key:   ${YELLOW}$masked_key${NC}"
+        fi
+    else
+        echo -e "  ${CYAN}│${NC}  ${RED}✗${NC} Not configured"
+        echo -e "  ${CYAN}│${NC}  ${YELLOW}→${NC} Install: ${CYAN}npm install -g @anthropic/codex${NC}"
+        echo -e "  ${CYAN}│${NC}  ${YELLOW}→${NC} Configure: ${CYAN}codex login${NC}"
+    fi
+    echo ""
+
+    # Gemini Status
+    echo -e "  ${CYAN}┌─ GEMINI (Google)${NC}"
+    if [[ "$PROVIDER_GEMINI_INSTALLED" == "true" && "$PROVIDER_GEMINI_AUTH_METHOD" != "none" ]]; then
+        echo -e "  ${CYAN}│${NC}  ${GREEN}✓${NC} Configured"
+        echo -e "  ${CYAN}│${NC}  Auth:      ${GREEN}$PROVIDER_GEMINI_AUTH_METHOD${NC}"
+        local tier_indicator
+        tier_indicator=$(get_tier_indicator "gemini")
+        echo -e "  ${CYAN}│${NC}  Tier:      ${GREEN}$PROVIDER_GEMINI_TIER${NC} $tier_indicator"
+        echo -e "  ${CYAN}│${NC}  Cost Tier: ${GREEN}$PROVIDER_GEMINI_COST_TIER${NC}"
+        if [[ "$PROVIDER_GEMINI_AUTH_METHOD" == "api-key" && -n "${GEMINI_API_KEY:-}" ]]; then
+            local masked_key
+            masked_key=$(mask_api_key "$GEMINI_API_KEY")
+            echo -e "  ${CYAN}│${NC}  API Key:   ${YELLOW}$masked_key${NC}"
+        fi
+    else
+        echo -e "  ${CYAN}│${NC}  ${RED}✗${NC} Not configured"
+        echo -e "  ${CYAN}│${NC}  ${YELLOW}→${NC} Install: ${CYAN}npm install -g @google/generative-ai-cli${NC}"
+        echo -e "  ${CYAN}│${NC}  ${YELLOW}→${NC} Configure: ${CYAN}gemini login${NC}"
+    fi
+    echo ""
+
+    # Claude Status
+    echo -e "  ${CYAN}┌─ CLAUDE (Anthropic)${NC}"
+    if [[ "$PROVIDER_CLAUDE_INSTALLED" == "true" ]]; then
+        echo -e "  ${CYAN}│${NC}  ${GREEN}✓${NC} Configured"
+        echo -e "  ${CYAN}│${NC}  Auth:      ${GREEN}$PROVIDER_CLAUDE_AUTH_METHOD${NC}"
+        echo -e "  ${CYAN}│${NC}  Tier:      ${GREEN}$PROVIDER_CLAUDE_TIER${NC} ${YELLOW}[DEFAULT]${NC}"
+        echo -e "  ${CYAN}│${NC}  Cost Tier: ${GREEN}$PROVIDER_CLAUDE_COST_TIER${NC}"
+    else
+        echo -e "  ${CYAN}│${NC}  ${YELLOW}○${NC} Available via Claude Code"
+    fi
+    echo ""
+
+    # OpenRouter Status
+    echo -e "  ${CYAN}┌─ OPENROUTER (Universal Fallback)${NC}"
+    if [[ "$PROVIDER_OPENROUTER_ENABLED" == "true" && "$PROVIDER_OPENROUTER_API_KEY_SET" == "true" ]]; then
+        echo -e "  ${CYAN}│${NC}  ${GREEN}✓${NC} Configured (Optional)"
+        if [[ -n "${OPENROUTER_API_KEY:-}" ]]; then
+            local masked_key
+            masked_key=$(mask_api_key "$OPENROUTER_API_KEY")
+            echo -e "  ${CYAN}│${NC}  API Key:   ${YELLOW}$masked_key${NC}"
+        fi
+    else
+        echo -e "  ${CYAN}│${NC}  ${YELLOW}○${NC} Not configured (Optional)"
+        echo -e "  ${CYAN}│${NC}  ${YELLOW}→${NC} Sign up: ${CYAN}https://openrouter.ai${NC}"
+        echo -e "  ${CYAN}│${NC}  ${YELLOW}→${NC} Set: ${CYAN}export OPENROUTER_API_KEY='sk-or-...'${NC}"
+    fi
+    echo ""
+
+    # Cost Optimization Strategy
+    echo -e "  ${CYAN}┌─ COST OPTIMIZATION${NC}"
+    echo -e "  ${CYAN}│${NC}  Strategy:  ${GREEN}$COST_OPTIMIZATION_STRATEGY${NC}"
+    echo ""
+
+    # Configuration Files
+    echo -e "  ${CYAN}┌─ CONFIGURATION FILES${NC}"
+    echo -e "  ${CYAN}│${NC}  Config:    ${YELLOW}$PROVIDERS_CONFIG_FILE${NC}"
+    if [[ -f "$TIER_CACHE_FILE" ]]; then
+        echo -e "  ${CYAN}│${NC}  Tier Cache: ${YELLOW}$TIER_CACHE_FILE${NC} (24h TTL)"
+    else
+        echo -e "  ${CYAN}│${NC}  Tier Cache: ${YELLOW}(not yet created)${NC}"
+    fi
+    echo ""
+
+    # Next Steps
+    echo -e "  ${CYAN}┌─ NEXT STEPS${NC}"
+    echo -e "  ${CYAN}│${NC}  ${GREEN}orchestrate.sh preflight${NC}     - Verify everything works"
+    echo -e "  ${CYAN}│${NC}  ${GREEN}orchestrate.sh status${NC}        - View provider status"
+    echo -e "  ${CYAN}│${NC}  ${GREEN}orchestrate.sh auto <prompt>${NC} - Smart task routing"
+    echo -e "  ${CYAN}│${NC}  ${GREEN}orchestrate.sh embrace <prompt>${NC} - Full Double Diamond workflow"
+    echo ""
+
+    echo -e "${CYAN}╚═══════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
 }
 
 # Check if first run (setup not completed)
