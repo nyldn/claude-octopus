@@ -1,0 +1,247 @@
+# Claude Octopus Agent Configuration
+# Maps curated agents to CLI preferences, phases, and complexity tiers
+#
+# CLI Options: codex, codex-max, codex-mini, codex-review, gemini, gemini-fast
+# Phases: probe (discover), grasp (define), tangle (develop), ink (deliver)
+# Tiers: trivial, standard, premium
+
+version: "1.0"
+description: "Curated agent personas from wshobson/agents adapted for Claude Octopus"
+
+# Phase-to-agent mappings (default agents per phase)
+phase_defaults:
+  probe:
+    primary: researcher
+    agents: [ai-engineer, business-analyst, context-manager]
+  grasp:
+    primary: backend-architect
+    agents: [frontend-developer, database-architect, cloud-architect, graphql-architect]
+  tangle:
+    primary: implementer
+    agents: [tdd-orchestrator, debugger, devops-troubleshooter, python-pro, typescript-pro]
+  ink:
+    primary: code-reviewer
+    agents: [security-auditor, test-automator, performance-engineer, deployment-engineer]
+
+# Individual agent configurations
+agents:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # PROBE PHASE AGENTS (Discovery/Research)
+  # ═══════════════════════════════════════════════════════════════════════════
+  ai-engineer:
+    file: personas/ai-engineer.md
+    cli: gemini
+    model: gemini-3-pro-preview
+    phases: [probe, tangle]
+    tier: premium
+    expertise: [llm-applications, rag-systems, prompt-engineering]
+
+  business-analyst:
+    file: personas/business-analyst.md
+    cli: gemini
+    model: gemini-3-pro-preview
+    phases: [probe, grasp]
+    tier: standard
+    expertise: [requirements, metrics, stakeholder-analysis]
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # GRASP PHASE AGENTS (Architecture/Design)
+  # ═══════════════════════════════════════════════════════════════════════════
+  backend-architect:
+    file: personas/backend-architect.md
+    cli: codex
+    model: gpt-5.1-codex-max
+    phases: [grasp, tangle]
+    tier: premium
+    expertise: [api-design, microservices, distributed-systems]
+
+  frontend-developer:
+    file: personas/frontend-developer.md
+    cli: codex
+    model: gpt-5.1-codex-max
+    phases: [grasp, tangle]
+    tier: premium
+    expertise: [react, nextjs, state-management, accessibility]
+
+  database-architect:
+    file: personas/database-architect.md
+    cli: codex
+    model: gpt-5.1-codex-max
+    phases: [grasp, tangle]
+    tier: premium
+    expertise: [schema-design, sql, nosql, migrations]
+
+  cloud-architect:
+    file: personas/cloud-architect.md
+    cli: codex
+    model: gpt-5.1-codex-max
+    phases: [grasp]
+    tier: premium
+    expertise: [aws, gcp, azure, infrastructure]
+
+  graphql-architect:
+    file: personas/graphql-architect.md
+    cli: codex
+    model: gpt-5.1-codex-max
+    phases: [grasp, tangle]
+    tier: premium
+    expertise: [graphql, federation, resolvers]
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # TANGLE PHASE AGENTS (Development/Implementation)
+  # ═══════════════════════════════════════════════════════════════════════════
+  tdd-orchestrator:
+    file: personas/tdd-orchestrator.md
+    cli: codex
+    model: gpt-5.1-codex-max
+    phases: [tangle]
+    tier: premium
+    expertise: [test-driven-development, red-green-refactor]
+
+  debugger:
+    file: personas/debugger.md
+    cli: codex
+    model: gpt-5.2-codex
+    phases: [tangle, ink]
+    tier: standard
+    expertise: [error-analysis, stack-traces, debugging]
+
+  devops-troubleshooter:
+    file: personas/devops-troubleshooter.md
+    cli: codex
+    model: gpt-5.2-codex
+    phases: [tangle, ink]
+    tier: standard
+    expertise: [deployment, logs, infrastructure-debugging]
+
+  python-pro:
+    file: personas/python-pro.md
+    cli: codex
+    model: gpt-5.1-codex-max
+    phases: [tangle]
+    tier: premium
+    expertise: [python, fastapi, django, async]
+
+  typescript-pro:
+    file: personas/typescript-pro.md
+    cli: codex
+    model: gpt-5.1-codex-max
+    phases: [tangle]
+    tier: premium
+    expertise: [typescript, node, react, types]
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # INK PHASE AGENTS (Delivery/Review)
+  # ═══════════════════════════════════════════════════════════════════════════
+  code-reviewer:
+    file: personas/code-reviewer.md
+    cli: codex-review
+    model: gpt-5.2-codex
+    phases: [ink]
+    tier: premium
+    expertise: [code-quality, best-practices, architecture-review]
+
+  security-auditor:
+    file: personas/security-auditor.md
+    cli: codex-review
+    model: gpt-5.2-codex
+    phases: [ink]
+    tier: premium
+    expertise: [owasp, vulnerability-scanning, security-review]
+
+  test-automator:
+    file: personas/test-automator.md
+    cli: codex
+    model: gpt-5.2-codex
+    phases: [tangle, ink]
+    tier: standard
+    expertise: [unit-tests, integration-tests, e2e-tests]
+
+  performance-engineer:
+    file: personas/performance-engineer.md
+    cli: codex
+    model: gpt-5.2-codex
+    phases: [ink]
+    tier: premium
+    expertise: [profiling, optimization, benchmarking]
+
+  deployment-engineer:
+    file: personas/deployment-engineer.md
+    cli: codex
+    model: gpt-5.2-codex
+    phases: [ink]
+    tier: standard
+    expertise: [ci-cd, kubernetes, docker, gitops]
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # ORCHESTRATION/SUPPORTING AGENTS
+  # ═══════════════════════════════════════════════════════════════════════════
+  context-manager:
+    file: personas/context-manager.md
+    cli: gemini-fast
+    model: gemini-3-flash-preview
+    phases: [probe, grasp, tangle, ink]
+    tier: standard
+    expertise: [context-management, multi-agent-coordination]
+
+  docs-architect:
+    file: personas/docs-architect.md
+    cli: gemini
+    model: gemini-3-pro-preview
+    phases: [ink]
+    tier: standard
+    expertise: [documentation, technical-writing]
+
+  incident-responder:
+    file: personas/incident-responder.md
+    cli: codex
+    model: gpt-5.1-codex-max
+    phases: [tangle, ink]
+    tier: premium
+    expertise: [incident-management, runbooks, postmortems]
+
+  mermaid-expert:
+    file: personas/mermaid-expert.md
+    cli: gemini-fast
+    model: gemini-3-flash-preview
+    phases: [grasp, ink]
+    tier: trivial
+    expertise: [diagrams, flowcharts, sequence-diagrams]
+
+# ═══════════════════════════════════════════════════════════════════════════
+# RALPH-WIGGUM INTEGRATION (Iterative Loop Support)
+# ═══════════════════════════════════════════════════════════════════════════
+ralph_wiggum:
+  enabled: true
+  # Completion promise pattern - agent outputs this when truly done
+  completion_promise: "<promise>COMPLETE</promise>"
+  # Default max iterations for loop modes
+  max_iterations: 50
+  # Phases that support iterative loops
+  loop_phases: [tangle]
+  # Claude Code integration (optional)
+  claude_code:
+    # Auto-detect if claude CLI is available
+    auto_detect: true
+    # Use Claude Code for these task patterns
+    patterns:
+      - "iterate.*until.*pass"
+      - "keep.*trying.*until"
+      - "loop.*until.*complete"
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SKILL TRIGGERS (Progressive Disclosure)
+# ═══════════════════════════════════════════════════════════════════════════
+skill_triggers:
+  api-design:
+    pattern: "(rest|graphql|grpc).*(api|endpoint|service)"
+    skill: api-design-principles
+  security:
+    pattern: "(security|owasp|vulnerability|auth)"
+    skill: security-patterns
+  testing:
+    pattern: "(test|tdd|coverage|e2e)"
+    skill: testing-patterns
+  performance:
+    pattern: "(performance|optimize|profile|benchmark)"
+    skill: performance-optimization
