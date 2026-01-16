@@ -42,6 +42,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Simplified plugin.json to match official plugin format
 - Plugin now loads without validation errors
 
+#### Skill Activation Guards (Critical)
+- **Prevent skill from activating on built-in Claude Code commands**
+- Added explicit exclusions in skill description for `/plugin`, `/init`, `/help`, `/commit`, etc.
+- Added "IMPORTANT: When NOT to Use This Skill" section in skill instructions
+- Skill now properly ignores:
+  - Built-in Claude Code commands (anything starting with `/` except `/parallel-agents` or `/claude-octopus:*`)
+  - Plugin management and Claude Code configuration tasks
+  - Simple file operations, git commands, and terminal tasks
+- Fixes issue where skill was incorrectly triggered on `/plugin` commands
+
 ### Changed
 - Updated skill.md frontmatter description with first-use auto-configuration notice
 - Added comprehensive prerequisites checking instructions to skill.md
