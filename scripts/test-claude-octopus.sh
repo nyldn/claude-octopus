@@ -1250,6 +1250,155 @@ rm -rf "$TEST_PROVIDER_DIR"
 echo ""
 
 # ============================================
+# 21. Performance Optimizations (v4.8.1)
+# ============================================
+echo -e "${YELLOW}21. Performance Optimizations (v4.8.1)${NC}"
+
+# JSON parsing optimization
+echo -n "  json_extract() function exists... "
+if grep -q '^json_extract()' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+echo -n "  json_extract_multi() function exists... "
+if grep -q '^json_extract_multi()' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+echo -n "  json_extract uses bash regex (no subprocess)... "
+if grep -A10 '^json_extract()' "$SCRIPT" | grep -q 'BASH_REMATCH'; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+echo -n "  format_audit_entry uses json_extract_multi... "
+if grep -A5 '^format_audit_entry()' "$SCRIPT" | grep -q 'json_extract_multi'; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+# Config parsing optimization
+echo -n "  load_providers_config uses single-pass parsing... "
+if grep -A20 '^load_providers_config()' "$SCRIPT" | grep -q 'while IFS= read'; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+echo -n "  load_providers_config has no grep|sed chains... "
+# Old pattern was: grep "^  codex:" -A5 | grep | sed
+old_pattern_count=$(grep -A80 '^load_providers_config()' "$SCRIPT" | grep -c 'grep.*-A5.*PROVIDERS_CONFIG_FILE.*|.*grep.*|.*sed' || true)
+if [[ "$old_pattern_count" -eq 0 ]]; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC} (found $old_pattern_count old grep|sed chains)"
+    ((FAIL++))
+fi
+
+# Preflight caching
+echo -n "  PREFLIGHT_CACHE_FILE defined... "
+if grep -q '^PREFLIGHT_CACHE_FILE=' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+echo -n "  PREFLIGHT_CACHE_TTL defined... "
+if grep -q '^PREFLIGHT_CACHE_TTL=' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+echo -n "  preflight_cache_valid() function exists... "
+if grep -q '^preflight_cache_valid()' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+echo -n "  preflight_cache_write() function exists... "
+if grep -q '^preflight_cache_write()' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+echo -n "  preflight_cache_invalidate() function exists... "
+if grep -q '^preflight_cache_invalidate()' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+echo -n "  preflight_check uses cache... "
+if grep -A15 '^preflight_check()' "$SCRIPT" | grep -q 'preflight_cache_valid'; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+echo -n "  setup_wizard invalidates preflight cache... "
+if grep -q 'preflight_cache_invalidate.*# Invalidate cache after config' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+# Logging optimization
+echo -n "  log() has early return for disabled DEBUG... "
+if grep -A5 '^log()' "$SCRIPT" | grep -q '\[.*DEBUG.*VERBOSE.*\].*return 0'; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+# OpenRouter uses keep-alive
+echo -n "  OpenRouter curl uses keep-alive header... "
+if grep -A10 'openrouter.ai/api/v1/chat/completions' "$SCRIPT" | grep -q 'Connection: keep-alive'; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+echo ""
+
+# ============================================
 # SUMMARY
 # ============================================
 echo "========================================"
