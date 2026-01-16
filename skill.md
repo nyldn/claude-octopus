@@ -10,7 +10,8 @@ description: |
   - Adversarial cross-model review (grapple: debate, squeeze: red team)
   - Review code from multiple angles using different AI models
 
-  **First-use:** Automatically detects if configuration is needed and guides setup.
+  **First time?** Run /claude-octopus:welcome for setup instructions.
+  **Setup check:** Automatically detects if providers are configured and guides setup.
 
   NEVER use for:
   - Built-in Claude Code commands (/plugin, /init, /help, /clear, /commit, /remember, etc.)
