@@ -1572,6 +1572,61 @@ ${YELLOW}Created Structure:${NC}
   └── tasks.json  # Example task file
 EOF
             ;;
+        review)
+            cat << EOF
+${YELLOW}review${NC} - Human-in-the-loop review queue (v4.4)
+
+${YELLOW}Usage:${NC} $(basename "$0") review [subcommand] [args]
+
+Manage pending reviews for quality-gated workflows. Items that fail
+quality gates or need human approval are queued for review.
+
+${YELLOW}Subcommands:${NC}
+  list              List all pending reviews (default)
+  approve <id>      Approve a review and log decision
+  reject <id>       Reject with optional reason
+  show <id>         View the output file for a review
+
+${YELLOW}Examples:${NC}
+  $(basename "$0") review                           # List pending reviews
+  $(basename "$0") review approve review-1234567890 # Approve
+  $(basename "$0") review reject review-1234567890 "Needs security fixes"
+  $(basename "$0") review show review-1234567890    # View output
+
+${YELLOW}Notes:${NC}
+  • All decisions are logged to the audit trail
+  • Use 'audit' command to view decision history
+  • Reviews are stored in ~/.claude-octopus/review-queue.json
+EOF
+            ;;
+        audit)
+            cat << EOF
+${YELLOW}audit${NC} - View audit trail of decisions (v4.4)
+
+${YELLOW}Usage:${NC} $(basename "$0") audit [count] [filter]
+
+Shows a log of all review decisions, approvals, rejections, and
+workflow status changes. Essential for compliance and debugging.
+
+${YELLOW}Arguments:${NC}
+  count      Number of recent entries to show (default: 20)
+  filter     Optional grep pattern to filter entries
+
+${YELLOW}Examples:${NC}
+  $(basename "$0") audit                  # Show last 20 entries
+  $(basename "$0") audit 50               # Show last 50 entries
+  $(basename "$0") audit 100 rejected     # Last 100, only rejections
+  $(basename "$0") audit 20 probe         # Last 20, only probe phase
+
+${YELLOW}Entry Format:${NC}
+  Each entry shows: timestamp | action | phase | decision | reviewer
+
+${YELLOW}Notes:${NC}
+  • Audit log stored at ~/.claude-octopus/audit.log
+  • Entries are JSON (one per line) for easy parsing
+  • Integrates with CI/CD for compliance tracking
+EOF
+            ;;
         *)
             echo "Unknown command: $cmd"
             echo "Run '$(basename "$0") help --full' for all commands."
@@ -1674,6 +1729,15 @@ ${BLUE}════════════════════════�
   cost-clear              Clear current session usage
   cost-archive            Archive session to history
 
+${RED}═══════════════════════════════════════════════════════════════════════════${NC}
+${RED}REVIEW & AUDIT${NC} (v4.4 - Human-in-the-loop)
+${RED}═══════════════════════════════════════════════════════════════════════════${NC}
+  review                  List pending reviews
+  review approve <id>     Approve a pending review
+  review reject <id>      Reject with reason
+  review show <id>        View review output
+  audit [count] [filter]  View audit trail (decisions log)
+
 ${YELLOW}Available Agents:${NC}
   codex           GPT-5.1-Codex-Max   ${GREEN}Premium${NC} (complex coding)
   codex-standard  GPT-5.2-Codex       Standard tier
@@ -1696,6 +1760,7 @@ ${YELLOW}Advanced Options:${NC}
   --on-fail ACTION        auto|retry|escalate|abort
   --no-personas           Disable agent personas
   -R, --resume            Resume interrupted session
+  --ci                    CI/CD mode (non-interactive, JSON output)
 
 ${YELLOW}Examples:${NC}
   $(basename "$0") auto "build a login form"
@@ -2179,6 +2244,296 @@ preflight_with_recovery() {
         return 1
     fi
     return 0
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# v4.4 FEATURE: CI/CD MODE AND AUDIT TRAILS
+# Non-interactive execution for GitHub Actions and audit logging
+# ═══════════════════════════════════════════════════════════════════════════════
+
+CI_MODE="${CI:-false}"
+AUDIT_LOG="${WORKSPACE_DIR:-$HOME/.claude-octopus}/audit.log"
+
+# Initialize CI mode from environment
+init_ci_mode() {
+    # Detect CI environment
+    if [[ -n "${CI:-}" ]] || [[ -n "${GITHUB_ACTIONS:-}" ]] || [[ -n "${GITLAB_CI:-}" ]]; then
+        CI_MODE=true
+        AUTONOMY_MODE="autonomous"  # No prompts in CI
+        log INFO "CI environment detected - running in autonomous mode"
+    fi
+}
+
+# Write structured JSON output for CI consumption
+ci_output() {
+    local status="$1"
+    local phase="$2"
+    local message="$3"
+    local output_file="${4:-}"
+
+    if [[ "$CI_MODE" == "true" ]]; then
+        local json_output
+        json_output=$(cat << EOF
+{
+  "status": "$status",
+  "phase": "$phase",
+  "message": "$message",
+  "timestamp": "$(date -Iseconds 2>/dev/null || date +%Y-%m-%dT%H:%M:%S)",
+  "output_file": "$output_file"
+}
+EOF
+)
+        echo "$json_output"
+
+        # Also set GitHub Actions outputs if available
+        if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+            echo "status=$status" >> "$GITHUB_OUTPUT"
+            echo "phase=$phase" >> "$GITHUB_OUTPUT"
+            [[ -n "$output_file" ]] && echo "output_file=$output_file" >> "$GITHUB_OUTPUT"
+        fi
+    fi
+}
+
+# Write to audit log with structured format
+audit_log() {
+    local action="$1"
+    local phase="$2"
+    local decision="$3"
+    local reason="${4:-}"
+    local reviewer="${5:-${USER:-system}}"
+
+    mkdir -p "$(dirname "$AUDIT_LOG")"
+
+    local entry
+    entry=$(cat << EOF
+{"timestamp":"$(date -Iseconds 2>/dev/null || date +%Y-%m-%dT%H:%M:%S)","action":"$action","phase":"$phase","decision":"$decision","reason":"$reason","reviewer":"$reviewer","session":"${SESSION_ID:-unknown}"}
+EOF
+)
+    echo "$entry" >> "$AUDIT_LOG"
+
+    [[ "$VERBOSE" == "true" ]] && log DEBUG "Audit: $action $phase -> $decision"
+}
+
+# Get recent audit entries
+get_audit_trail() {
+    local count="${1:-20}"
+    local filter="${2:-}"
+
+    if [[ ! -f "$AUDIT_LOG" ]]; then
+        echo -e "${YELLOW}No audit trail found.${NC}"
+        echo "Audit entries are created when review decisions are made."
+        echo "Use: $(basename "$0") review approve <id>"
+        return 0
+    fi
+
+    echo -e "${CYAN}╔═══════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║  Audit Trail - Recent Decisions                              ║${NC}"
+    echo -e "${CYAN}╚═══════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+
+    if [[ -n "$filter" ]]; then
+        tail -n "$count" "$AUDIT_LOG" | grep "$filter" | while read -r line; do
+            format_audit_entry "$line"
+        done
+    else
+        tail -n "$count" "$AUDIT_LOG" | while read -r line; do
+            format_audit_entry "$line"
+        done
+    fi
+}
+
+format_audit_entry() {
+    local line="$1"
+
+    # Parse JSON (simple grep-based for bash compatibility)
+    local timestamp action phase decision reviewer
+    timestamp=$(echo "$line" | grep -o '"timestamp":"[^"]*"' | cut -d'"' -f4)
+    action=$(echo "$line" | grep -o '"action":"[^"]*"' | cut -d'"' -f4)
+    phase=$(echo "$line" | grep -o '"phase":"[^"]*"' | cut -d'"' -f4)
+    decision=$(echo "$line" | grep -o '"decision":"[^"]*"' | cut -d'"' -f4)
+    reviewer=$(echo "$line" | grep -o '"reviewer":"[^"]*"' | cut -d'"' -f4)
+
+    # Color-code decision
+    local decision_color="$GREEN"
+    [[ "$decision" == "rejected" || "$decision" == "failed" ]] && decision_color="$RED"
+    [[ "$decision" == "warning" ]] && decision_color="$YELLOW"
+
+    echo -e "  ${CYAN}$timestamp${NC} | $action | $phase | ${decision_color}$decision${NC} | by $reviewer"
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# v4.4 FEATURE: REVIEW QUEUE SYSTEM
+# Manage pending reviews and batch approvals
+# ═══════════════════════════════════════════════════════════════════════════════
+
+REVIEW_QUEUE="${WORKSPACE_DIR:-$HOME/.claude-octopus}/review-queue.json"
+
+# Add item to review queue
+queue_for_review() {
+    local phase="$1"
+    local status="$2"
+    local output_file="$3"
+    local prompt="$4"
+
+    mkdir -p "$(dirname "$REVIEW_QUEUE")"
+
+    local review_id
+    review_id="review-$(date +%s)-$$"
+
+    local entry
+    entry=$(cat << EOF
+{"id":"$review_id","phase":"$phase","status":"$status","output_file":"$output_file","prompt":"$(echo "$prompt" | tr '\n' ' ' | cut -c1-100)","created_at":"$(date -Iseconds 2>/dev/null || date +%Y-%m-%dT%H:%M:%S)","reviewed":false}
+EOF
+)
+
+    # Append to queue file (one JSON object per line)
+    echo "$entry" >> "$REVIEW_QUEUE"
+
+    log INFO "Queued for review: $review_id ($phase)"
+    echo "$review_id"
+}
+
+# List pending reviews
+list_pending_reviews() {
+    if [[ ! -f "$REVIEW_QUEUE" ]]; then
+        echo -e "${YELLOW}No pending reviews.${NC}"
+        return 0
+    fi
+
+    local pending
+    pending=$(grep '"reviewed":false' "$REVIEW_QUEUE" 2>/dev/null || true)
+
+    if [[ -z "$pending" ]]; then
+        echo -e "${GREEN}No pending reviews.${NC}"
+        return 0
+    fi
+
+    echo -e "${CYAN}╔═══════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║  Pending Reviews                                              ║${NC}"
+    echo -e "${CYAN}╚═══════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+
+    local count=0
+    echo "$pending" | while read -r line; do
+        ((count++))
+        local id phase status output created
+        id=$(echo "$line" | grep -o '"id":"[^"]*"' | cut -d'"' -f4)
+        phase=$(echo "$line" | grep -o '"phase":"[^"]*"' | cut -d'"' -f4)
+        status=$(echo "$line" | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
+        output=$(echo "$line" | grep -o '"output_file":"[^"]*"' | cut -d'"' -f4)
+        created=$(echo "$line" | grep -o '"created_at":"[^"]*"' | cut -d'"' -f4)
+
+        local status_color="$GREEN"
+        [[ "$status" == "failed" ]] && status_color="$RED"
+        [[ "$status" == "warning" ]] && status_color="$YELLOW"
+
+        echo -e "  ${YELLOW}$id${NC}"
+        echo -e "    Phase:   $phase"
+        echo -e "    Status:  ${status_color}$status${NC}"
+        echo -e "    Output:  $output"
+        echo -e "    Created: $created"
+        echo ""
+    done
+
+    echo -e "${CYAN}Commands:${NC}"
+    echo -e "  orchestrate.sh review approve <id>    - Approve and continue"
+    echo -e "  orchestrate.sh review reject <id>     - Reject with reason"
+    echo -e "  orchestrate.sh review show <id>       - View output file"
+    echo ""
+}
+
+# Approve a review
+approve_review() {
+    local review_id="$1"
+    local reason="${2:-Approved}"
+
+    if [[ ! -f "$REVIEW_QUEUE" ]]; then
+        echo -e "${RED}No review queue found.${NC}"
+        return 1
+    fi
+
+    # Check if review exists
+    if ! grep -q "\"id\":\"$review_id\"" "$REVIEW_QUEUE"; then
+        echo -e "${RED}Review not found: $review_id${NC}"
+        return 1
+    fi
+
+    # Mark as reviewed
+    local temp_file="${REVIEW_QUEUE}.tmp"
+    sed "s/\"id\":\"$review_id\",\\(.*\\)\"reviewed\":false/\"id\":\"$review_id\",\\1\"reviewed\":true,\"decision\":\"approved\",\"reviewed_at\":\"$(date -Iseconds 2>/dev/null || date +%Y-%m-%dT%H:%M:%S)\"/" "$REVIEW_QUEUE" > "$temp_file"
+    mv "$temp_file" "$REVIEW_QUEUE"
+
+    # Get phase for audit
+    local phase
+    phase=$(grep "\"id\":\"$review_id\"" "$REVIEW_QUEUE" | grep -o '"phase":"[^"]*"' | cut -d'"' -f4)
+
+    # Log to audit trail
+    audit_log "review" "$phase" "approved" "$reason" "${USER:-unknown}"
+
+    echo -e "${GREEN}✓ Approved: $review_id${NC}"
+    echo -e "  Reason: $reason"
+}
+
+# Reject a review
+reject_review() {
+    local review_id="$1"
+    local reason="${2:-Rejected}"
+
+    if [[ ! -f "$REVIEW_QUEUE" ]]; then
+        echo -e "${RED}No review queue found.${NC}"
+        return 1
+    fi
+
+    # Check if review exists
+    if ! grep -q "\"id\":\"$review_id\"" "$REVIEW_QUEUE"; then
+        echo -e "${RED}Review not found: $review_id${NC}"
+        return 1
+    fi
+
+    # Mark as reviewed
+    local temp_file="${REVIEW_QUEUE}.tmp"
+    sed "s/\"id\":\"$review_id\",\\(.*\\)\"reviewed\":false/\"id\":\"$review_id\",\\1\"reviewed\":true,\"decision\":\"rejected\",\"reviewed_at\":\"$(date -Iseconds 2>/dev/null || date +%Y-%m-%dT%H:%M:%S)\"/" "$REVIEW_QUEUE" > "$temp_file"
+    mv "$temp_file" "$REVIEW_QUEUE"
+
+    # Get phase for audit
+    local phase
+    phase=$(grep "\"id\":\"$review_id\"" "$REVIEW_QUEUE" | grep -o '"phase":"[^"]*"' | cut -d'"' -f4)
+
+    # Log to audit trail
+    audit_log "review" "$phase" "rejected" "$reason" "${USER:-unknown}"
+
+    echo -e "${RED}✗ Rejected: $review_id${NC}"
+    echo -e "  Reason: $reason"
+}
+
+# Show review output
+show_review() {
+    local review_id="$1"
+
+    if [[ ! -f "$REVIEW_QUEUE" ]]; then
+        echo -e "${RED}No review queue found.${NC}"
+        return 1
+    fi
+
+    local output_file
+    output_file=$(grep "\"id\":\"$review_id\"" "$REVIEW_QUEUE" | grep -o '"output_file":"[^"]*"' | cut -d'"' -f4)
+
+    if [[ -z "$output_file" ]]; then
+        echo -e "${RED}Review not found: $review_id${NC}"
+        return 1
+    fi
+
+    if [[ ! -f "$output_file" ]]; then
+        echo -e "${RED}Output file not found: $output_file${NC}"
+        return 1
+    fi
+
+    echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
+    echo -e "${CYAN}Review: $review_id${NC}"
+    echo -e "${CYAN}File: $output_file${NC}"
+    echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
+    echo ""
+    cat "$output_file"
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -5057,10 +5412,14 @@ while [[ $# -gt 0 ]]; do
         --branch) FORCE_BRANCH="$2"; shift 2 ;;
         --on-fail) ON_FAIL_ACTION="$2"; shift 2 ;;
         --no-personas) DISABLE_PERSONAS=true; shift ;;
+        --ci) CI_MODE=true; AUTONOMY_MODE="autonomous"; shift ;;
         -h|--help) usage "$@" ;;
         *) break ;;
     esac
 done
+
+# Initialize CI mode from environment (v4.4)
+init_ci_mode
 
 # Handle autonomy mode aliases
 if [[ "$AUTONOMY_MODE" == "loop-until-approved" ]]; then
@@ -5239,6 +5598,43 @@ case "$COMMAND" in
         # Archive current session to history
         archive_usage_session
         echo "Usage session archived to history."
+        ;;
+    # ═══════════════════════════════════════════════════════════════════════════
+    # REVIEW & AUDIT COMMANDS (v4.4 - Human-in-the-loop)
+    # ═══════════════════════════════════════════════════════════════════════════
+    review)
+        subcommand="${1:-list}"
+        shift || true
+        case "$subcommand" in
+            list|ls)
+                list_pending_reviews
+                ;;
+            approve|ok|accept)
+                [[ $# -lt 1 ]] && { log ERROR "Usage: review approve <review-id> [reason]"; exit 1; }
+                approve_review "$1" "${2:-Approved}"
+                ;;
+            reject|deny)
+                [[ $# -lt 1 ]] && { log ERROR "Usage: review reject <review-id> [reason]"; exit 1; }
+                reject_review "$1" "${2:-Rejected}"
+                ;;
+            show|view)
+                [[ $# -lt 1 ]] && { log ERROR "Usage: review show <review-id>"; exit 1; }
+                show_review "$1"
+                ;;
+            *)
+                echo "Review subcommands:"
+                echo "  list            - List pending reviews"
+                echo "  approve <id>    - Approve a review"
+                echo "  reject <id>     - Reject a review"
+                echo "  show <id>       - Show review output"
+                ;;
+        esac
+        ;;
+    audit)
+        # View audit trail
+        count="${1:-20}"
+        filter="${2:-}"
+        get_audit_trail "$count" "$filter"
         ;;
     # ═══════════════════════════════════════════════════════════════════════════
     # HELP COMMANDS (v4.0 - Progressive disclosure)
