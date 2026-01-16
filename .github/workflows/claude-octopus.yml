@@ -1,0 +1,233 @@
+# Claude Octopus - Multi-Agent Orchestration for CI/CD
+# This workflow runs Claude Octopus in CI mode for automated code review and development
+#
+# Required secrets:
+#   OPENAI_API_KEY - Your OpenAI API key for Codex CLI
+#   GEMINI_API_KEY - Your Google AI key for Gemini CLI
+#
+# Optional secrets:
+#   ANTHROPIC_API_KEY - For Claude API integration
+
+name: Claude Octopus
+
+on:
+  # Manual trigger with custom prompt
+  workflow_dispatch:
+    inputs:
+      command:
+        description: 'Command to run (auto, embrace, research, develop, deliver)'
+        required: true
+        default: 'auto'
+        type: choice
+        options:
+          - auto
+          - embrace
+          - research
+          - develop
+          - deliver
+          - review
+      prompt:
+        description: 'Prompt for the AI agents'
+        required: true
+        type: string
+      tier:
+        description: 'Model tier (quick, standard, premium)'
+        required: false
+        default: 'standard'
+        type: choice
+        options:
+          - quick
+          - standard
+          - premium
+
+  # Trigger on pull request for code review
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+  # Trigger on issue comments with /octopus command
+  issue_comment:
+    types: [created]
+
+jobs:
+  # Job for manual workflow dispatch
+  manual-run:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Codex CLI
+        run: npm install -g @openai/codex-cli
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+      - name: Install Gemini CLI
+        run: npm install -g @anthropic-ai/gemini-cli
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
+      - name: Run Claude Octopus
+        id: octopus
+        run: |
+          chmod +x ./scripts/orchestrate.sh
+
+          TIER_FLAG=""
+          case "${{ inputs.tier }}" in
+            quick) TIER_FLAG="-Q" ;;
+            premium) TIER_FLAG="-P" ;;
+          esac
+
+          ./scripts/orchestrate.sh --ci $TIER_FLAG ${{ inputs.command }} "${{ inputs.prompt }}"
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          CI: true
+          GITHUB_OUTPUT: ${{ github.output }}
+
+      - name: Upload Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: octopus-results
+          path: ~/.claude-octopus/results/
+          if-no-files-found: ignore
+
+  # Job for PR code review
+  pr-review:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install CLIs
+        run: |
+          npm install -g @openai/codex-cli
+          npm install -g @anthropic-ai/gemini-cli
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
+      - name: Get Changed Files
+        id: changed
+        run: |
+          FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | tr '\n' ' ')
+          echo "files=$FILES" >> $GITHUB_OUTPUT
+
+      - name: Run Code Review
+        id: review
+        run: |
+          chmod +x ./scripts/orchestrate.sh
+
+          REVIEW_PROMPT="Review the following code changes for quality, security, and best practices: ${{ steps.changed.outputs.files }}"
+
+          ./scripts/orchestrate.sh --ci deliver "$REVIEW_PROMPT" 2>&1 | tee review-output.txt
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          CI: true
+
+      - name: Post Review Comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const output = fs.readFileSync('review-output.txt', 'utf8');
+
+            const body = `## Claude Octopus Code Review
+
+            ${output.slice(0, 60000)}
+
+            ---
+            *Reviewed by Claude Octopus Multi-Agent System*`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+
+  # Job for issue comment commands
+  comment-command:
+    if: github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '/octopus')
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install CLIs
+        run: |
+          npm install -g @openai/codex-cli
+          npm install -g @anthropic-ai/gemini-cli
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
+      - name: Parse Command
+        id: parse
+        run: |
+          COMMENT="${{ github.event.comment.body }}"
+          # Extract command after /octopus
+          PROMPT=$(echo "$COMMENT" | sed 's|^/octopus ||')
+          echo "prompt=$PROMPT" >> $GITHUB_OUTPUT
+
+      - name: Run Claude Octopus
+        id: octopus
+        run: |
+          chmod +x ./scripts/orchestrate.sh
+          ./scripts/orchestrate.sh --ci auto "${{ steps.parse.outputs.prompt }}" 2>&1 | tee octopus-output.txt
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          CI: true
+
+      - name: Reply to Comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const output = fs.readFileSync('octopus-output.txt', 'utf8');
+
+            const body = `## Claude Octopus Response
+
+            ${output.slice(0, 60000)}
+
+            ---
+            *Generated by Claude Octopus Multi-Agent System*`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });

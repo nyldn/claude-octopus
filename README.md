@@ -6,7 +6,7 @@
   <img src="https://img.shields.io/badge/Claude_Code-Plugin-blueviolet" alt="Claude Code Plugin">
   <img src="https://img.shields.io/badge/Double_Diamond-Design_Thinking-orange" alt="Double Diamond">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
-  <img src="https://img.shields.io/badge/Version-4.3.0-blue" alt="Version 4.3.0">
+  <img src="https://img.shields.io/badge/Version-4.4.0-blue" alt="Version 4.4.0">
 </p>
 
 ```
@@ -55,7 +55,29 @@ _`) )  .---.__.' / |   |\   \__..--""  """--.,_
 
 </details>
 
-## What's New in 4.3
+## What's New in 4.4
+
+- **Human-in-the-Loop Reviews** - Quality-gated workflows with approval queues:
+  - `review list` - View pending reviews awaiting approval
+  - `review approve <id>` - Approve and continue with audit logging
+  - `review reject <id>` - Reject with reason, logged for compliance
+  - `review show <id>` - View output files for review items
+- **Audit Trail System** - Complete decision logging for compliance:
+  - `audit [count]` - View recent decisions with timestamps
+  - JSON-structured entries for easy parsing
+  - Tracks all approvals, rejections, and status changes
+  - *"When the tentacles make decisions, the ink records them."*
+- **CI/CD Integration** - GitHub Actions and non-interactive mode:
+  - `--ci` flag for autonomous execution
+  - Auto-detects CI environments (GitHub, GitLab, etc.)
+  - JSON output for pipeline consumption
+  - GitHub Actions workflow template included
+  - *"Even in the depths of CI pipelines, the octopus knows no bounds."*
+
+<details>
+<summary>Previous versions</summary>
+
+### What's New in 4.3
 
 - **Interactive Setup Wizard** - Guided first-time setup experience:
   - `init --interactive` - Step-by-step configuration wizard
@@ -68,9 +90,6 @@ _`) )  .---.__.' / |   |\   \__..--""  """--.,_
   - Actionable "Fix this:" suggestions in every error
   - "Learn more:" links to relevant help topics
   - Context-aware troubleshooting
-
-<details>
-<summary>Previous versions</summary>
 
 ### What's New in 4.2
 
@@ -812,6 +831,18 @@ export CLAUDE_OCTOPUS_WORKSPACE="$HOME/.claude-octopus"
 | `completion zsh` | Generate zsh completion script |
 | `completion fish` | Generate fish completion script |
 
+### Review & Audit (v4.4)
+
+*"The ink never forgets."*
+
+| Command | Description |
+|---------|-------------|
+| `review` | List pending reviews |
+| `review approve <id>` | Approve a review item |
+| `review reject <id>` | Reject with reason |
+| `review show <id>` | View output file |
+| `audit [count]` | View audit trail (decisions log) |
+
 ### Options
 
 | Option | Default | Description |
@@ -822,6 +853,7 @@ export CLAUDE_OCTOPUS_WORKSPACE="$HOME/.claude-octopus"
 | `-n, --dry-run` | false | Show without executing |
 | `-d, --dir` | `$PWD` | Working directory |
 | `--context <file>` | - | Context from previous phase |
+| `--ci` | false | CI mode (non-interactive, JSON output) |
 
 ## Workspace Structure
 
@@ -834,6 +866,8 @@ export CLAUDE_OCTOPUS_WORKSPACE="$HOME/.claude-octopus"
 │   └── delivery-*.md             # Final deliverables
 ├── logs/                         # Execution logs
 ├── plans/                        # Execution plan history
+├── review-queue.json             # Pending reviews (v4.4)
+├── audit.log                     # Decision audit trail (v4.4)
 └── .gitignore
 ```
 
