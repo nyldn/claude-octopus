@@ -47,44 +47,26 @@ In Claude Code:
 /plugin marketplace add nyldn/claude-octopus
 ```
 
-**First time?** After installing, run `/claude-octopus:welcome` for setup instructions!
-
 Or manually:
 ```bash
 git clone https://github.com/nyldn/claude-octopus.git ~/.claude/plugins/claude-octopus
 chmod +x ~/.claude/plugins/claude-octopus/scripts/*.sh
 ```
 
-### 2. Install at Least One Provider
+### 2. Run Setup in Claude Code
 
-**You only need ONE provider to get started** (not both!). Choose based on your preference:
-
-**Option A: OpenAI Codex CLI** (Best for code generation)
-```bash
-npm install -g @openai/codex
-codex login  # OAuth recommended
-# OR
-export OPENAI_API_KEY="sk-..."  # Get from https://platform.openai.com/api-keys
+After installing, run the welcome command in Claude Code:
+```
+/claude-octopus:welcome
 ```
 
-**Option B: Google Gemini CLI** (Best for analysis)
-```bash
-npm install -g @google/gemini-cli
-gemini  # OAuth recommended
-# OR
-export GEMINI_API_KEY="AIza..."  # Get from https://aistudio.google.com/app/apikey
-```
+Claude will:
+- Auto-detect what's already installed
+- Guide you through installing ONE provider (you only need one!)
+- Give you shell-specific instructions
+- Show you conversational examples to get started
 
-To make API keys permanent, add them to your shell profile:
-```bash
-# For zsh (macOS default)
-echo 'export OPENAI_API_KEY="sk-..."' >> ~/.zshrc
-source ~/.zshrc
-
-# For bash
-echo 'export OPENAI_API_KEY="sk-..."' >> ~/.bashrc
-source ~/.bashrc
-```
+**No terminal context switching needed** - Claude guides you through everything!
 
 ### 3. Use It Naturally
 
@@ -104,19 +86,55 @@ Just talk to Claude! Claude Octopus automatically activates when you need multi-
 
 Claude Octopus automatically detects which providers you have and uses them intelligently.
 
-### (Optional) Verify Setup
+---
 
-Want to check your setup? In Claude Code:
+## Provider Installation (Reference)
+
+The `/claude-octopus:welcome` command guides you through this, but here's the reference if you need it:
+
+**You only need ONE provider to get started** (not both!). Choose based on your preference:
+
+### Option A: OpenAI Codex CLI (Best for code generation)
+```bash
+npm install -g @openai/codex
+codex login  # OAuth recommended
+# OR
+export OPENAI_API_KEY="sk-..."  # Get from https://platform.openai.com/api-keys
+```
+
+### Option B: Google Gemini CLI (Best for analysis)
+```bash
+npm install -g @google/gemini-cli
+gemini  # OAuth recommended
+# OR
+export GEMINI_API_KEY="AIza..."  # Get from https://aistudio.google.com/app/apikey
+```
+
+### Making API Keys Permanent
+
+To make API keys available in every terminal session:
+
+```bash
+# For zsh (macOS default)
+echo 'export OPENAI_API_KEY="sk-..."' >> ~/.zshrc
+source ~/.zshrc
+
+# For bash (Linux default)
+echo 'export OPENAI_API_KEY="sk-..."' >> ~/.bashrc
+source ~/.bashrc
+```
+
+### Check Your Setup
+
+To verify everything is working, run in Claude Code:
 ```
 /claude-octopus:setup
 ```
 
-Or run directly:
+Or directly in terminal:
 ```bash
 ./scripts/orchestrate.sh detect-providers
 ```
-
-This shows which providers are installed and authenticated.
 
 ---
 
