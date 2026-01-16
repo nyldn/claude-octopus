@@ -1080,6 +1080,328 @@ get_role_for_context() {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# v3.4 FEATURE: CURATED AGENT LOADER
+# Load specialized agent personas from agents/ directory
+# Integrates wshobson/agents curated subset with CLI-specific routing
+# ═══════════════════════════════════════════════════════════════════════════════
+
+AGENTS_DIR="${PLUGIN_DIR}/agents"
+AGENTS_CONFIG="${AGENTS_DIR}/config.yaml"
+
+# Check if curated agents are available
+has_curated_agents() {
+    [[ -d "$AGENTS_DIR" && -f "$AGENTS_CONFIG" ]]
+}
+
+# Parse YAML value (simple bash parsing, no jq dependency)
+# Usage: parse_yaml_value "file.yaml" "key"
+parse_yaml_value() {
+    local file="$1"
+    local key="$2"
+    grep "^[[:space:]]*${key}:" "$file" 2>/dev/null | head -1 | sed "s/^[[:space:]]*${key}:[[:space:]]*//" | tr -d '"'
+}
+
+# Get agent config value
+# Usage: get_agent_config "backend-architect" "cli"
+get_agent_config() {
+    local agent_name="$1"
+    local field="$2"
+
+    if [[ ! -f "$AGENTS_CONFIG" ]]; then
+        echo ""
+        return 1
+    fi
+
+    # Extract agent block and find field
+    awk -v agent="$agent_name" -v field="$field" '
+        $0 ~ "^  " agent ":" { found=1; next }
+        found && /^  [a-z]/ { found=0 }
+        found && $0 ~ "^    " field ":" {
+            gsub(/^[[:space:]]*[a-z_]+:[[:space:]]*/, "")
+            gsub(/[\[\]"]/, "")
+            print
+            exit
+        }
+    ' "$AGENTS_CONFIG"
+}
+
+# Load persona content from curated agent file
+# Returns the full markdown content (excluding frontmatter)
+load_curated_persona() {
+    local agent_name="$1"
+    local persona_file
+
+    persona_file=$(get_agent_config "$agent_name" "file")
+    [[ -z "$persona_file" ]] && return 1
+
+    local full_path="${AGENTS_DIR}/${persona_file}"
+    [[ ! -f "$full_path" ]] && return 1
+
+    # Extract content after YAML frontmatter (skip --- ... ---)
+    awk '
+        BEGIN { in_frontmatter=0; past_frontmatter=0 }
+        /^---$/ && !past_frontmatter {
+            in_frontmatter = !in_frontmatter
+            if (!in_frontmatter) past_frontmatter=1
+            next
+        }
+        past_frontmatter { print }
+    ' "$full_path"
+}
+
+# Get CLI command for curated agent
+get_curated_agent_cli() {
+    local agent_name="$1"
+    local cli_type
+
+    cli_type=$(get_agent_config "$agent_name" "cli")
+    [[ -z "$cli_type" ]] && cli_type="codex"
+
+    get_agent_command "$cli_type"
+}
+
+# Get agents for a specific phase
+get_phase_agents() {
+    local phase="$1"
+
+    if [[ ! -f "$AGENTS_CONFIG" ]]; then
+        echo ""
+        return
+    fi
+
+    # Extract agents array for phase
+    awk -v phase="$phase" '
+        $0 ~ "^  " phase ":" { found=1; next }
+        found && /^  [a-z]/ { found=0 }
+        found && /agents:/ {
+            gsub(/.*agents:[[:space:]]*\[/, "")
+            gsub(/\].*/, "")
+            gsub(/,/, " ")
+            print
+            exit
+        }
+    ' "$AGENTS_CONFIG"
+}
+
+# Select best curated agent for task
+# Uses phase context and expertise matching
+select_curated_agent() {
+    local prompt="$1"
+    local phase="${2:-}"
+    local prompt_lower
+    prompt_lower=$(echo "$prompt" | tr '[:upper:]' '[:lower:]')
+
+    # Get phase default agents
+    local candidates
+    candidates=$(get_phase_agents "$phase")
+
+    # If no phase specified, check all agents by expertise
+    if [[ -z "$candidates" ]]; then
+        candidates="backend-architect code-reviewer security-auditor test-automator"
+    fi
+
+    # Simple expertise matching
+    for agent in $candidates; do
+        local expertise
+        expertise=$(get_agent_config "$agent" "expertise")
+        for skill in $expertise; do
+            if [[ "$prompt_lower" == *"$skill"* ]]; then
+                echo "$agent"
+                return
+            fi
+        done
+    done
+
+    # Return first candidate as default
+    echo "$candidates" | awk '{print $1}'
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# v3.5 FEATURE: RALPH-WIGGUM ITERATION PATTERN
+# Iterative loop support with completion promises
+# Inspired by anthropics/claude-code/plugins/ralph-wiggum
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Default completion promise pattern
+COMPLETION_PROMISE="${CLAUDE_OCTOPUS_COMPLETION_PROMISE:-<promise>COMPLETE</promise>}"
+RALPH_MAX_ITERATIONS="${CLAUDE_OCTOPUS_RALPH_MAX_ITERATIONS:-50}"
+RALPH_STATE_FILE="${WORKSPACE_DIR}/ralph-state.md"
+
+# Check if output contains completion promise
+check_completion_promise() {
+    local output="$1"
+    local promise="${2:-$COMPLETION_PROMISE}"
+
+    # Extract promise tag pattern
+    local tag_pattern
+    tag_pattern=$(echo "$promise" | sed 's/<promise>\(.*\)<\/promise>/\1/')
+
+    if [[ "$output" == *"<promise>"*"</promise>"* ]]; then
+        # Extract actual promise content
+        local actual_promise
+        actual_promise=$(echo "$output" | grep -o '<promise>[^<]*</promise>' | head -1)
+
+        if [[ "$actual_promise" == "$promise" ]]; then
+            log INFO "Completion promise detected: $actual_promise"
+            return 0
+        fi
+    fi
+    return 1
+}
+
+# Initialize ralph-wiggum style iteration state
+init_ralph_state() {
+    local prompt="$1"
+    local max_iterations="${2:-$RALPH_MAX_ITERATIONS}"
+    local promise="${3:-$COMPLETION_PROMISE}"
+
+    cat > "$RALPH_STATE_FILE" << EOF
+---
+iteration: 0
+max_iterations: $max_iterations
+completion_promise: "$promise"
+started: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
+status: running
+---
+
+# Original Prompt
+$prompt
+
+# Iteration Log
+EOF
+
+    log INFO "Ralph iteration state initialized (max: $max_iterations)"
+}
+
+# Update ralph state after iteration
+update_ralph_state() {
+    local iteration="$1"
+    local status="${2:-running}"
+    local notes="${3:-}"
+
+    [[ ! -f "$RALPH_STATE_FILE" ]] && return 1
+
+    # Update iteration count in frontmatter
+    sed -i.bak "s/^iteration:.*/iteration: $iteration/" "$RALPH_STATE_FILE"
+    sed -i.bak "s/^status:.*/status: $status/" "$RALPH_STATE_FILE"
+    rm -f "${RALPH_STATE_FILE}.bak"
+
+    # Append to iteration log
+    echo "" >> "$RALPH_STATE_FILE"
+    echo "## Iteration $iteration - $(date +"%H:%M:%S")" >> "$RALPH_STATE_FILE"
+    [[ -n "$notes" ]] && echo "$notes" >> "$RALPH_STATE_FILE"
+}
+
+# Get current ralph iteration count
+get_ralph_iteration() {
+    [[ ! -f "$RALPH_STATE_FILE" ]] && echo "0" && return
+    grep "^iteration:" "$RALPH_STATE_FILE" | head -1 | awk '{print $2}'
+}
+
+# Run agent with ralph-wiggum style iteration
+# Keeps iterating until completion promise or max iterations
+run_with_ralph_loop() {
+    local agent_type="$1"
+    local prompt="$2"
+    local max_iterations="${3:-$RALPH_MAX_ITERATIONS}"
+    local promise="${4:-$COMPLETION_PROMISE}"
+
+    init_ralph_state "$prompt" "$max_iterations" "$promise"
+
+    local iteration=0
+    local output=""
+    local completed=false
+
+    echo ""
+    echo -e "${MAGENTA}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${MAGENTA}║  RALPH-WIGGUM ITERATION MODE                              ║${NC}"
+    echo -e "${MAGENTA}║  Iterating until: $promise           ${NC}"
+    echo -e "${MAGENTA}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+
+    while [[ $iteration -lt $max_iterations ]]; do
+        ((iteration++))
+        log INFO "Ralph iteration $iteration/$max_iterations"
+
+        # Build iteration context
+        local iteration_prompt
+        if [[ $iteration -eq 1 ]]; then
+            iteration_prompt="$prompt
+
+When you have completed the task successfully, output exactly: $promise"
+        else
+            iteration_prompt="Continue working on: $prompt
+
+Previous attempt did not complete. Review your work, identify issues, and continue.
+This is iteration $iteration of $max_iterations.
+Output $promise when the task is truly complete."
+        fi
+
+        # Run agent
+        output=$(run_agent_sync "$agent_type" "$iteration_prompt" 300)
+
+        # Check for completion
+        if check_completion_promise "$output" "$promise"; then
+            completed=true
+            update_ralph_state "$iteration" "completed" "Task completed successfully"
+            break
+        fi
+
+        update_ralph_state "$iteration" "running" "Iteration completed, promise not found"
+
+        # Brief pause between iterations
+        sleep 2
+    done
+
+    if [[ "$completed" == "true" ]]; then
+        echo ""
+        echo -e "${GREEN}✓ Ralph loop completed in $iteration iterations${NC}"
+        echo ""
+    else
+        echo ""
+        echo -e "${YELLOW}⚠ Ralph loop reached max iterations ($max_iterations)${NC}"
+        update_ralph_state "$iteration" "max_iterations_reached"
+        echo ""
+    fi
+
+    echo "$output"
+}
+
+# Check if Claude Code CLI is available for advanced iteration
+has_claude_code() {
+    command -v claude &>/dev/null
+}
+
+# Run with Claude Code + ralph-wiggum plugin if available
+run_with_claude_code_ralph() {
+    local prompt="$1"
+    local max_iterations="${2:-$RALPH_MAX_ITERATIONS}"
+    local promise="${3:-$COMPLETION_PROMISE}"
+
+    if ! has_claude_code; then
+        log WARN "Claude Code CLI not found, falling back to native iteration"
+        run_with_ralph_loop "codex" "$prompt" "$max_iterations" "$promise"
+        return
+    fi
+
+    log INFO "Using Claude Code with ralph-wiggum pattern"
+
+    # Check if ralph-wiggum plugin is installed
+    if claude plugin list 2>/dev/null | grep -q "ralph-wiggum"; then
+        # Use actual ralph-wiggum
+        claude "/ralph-loop \"$prompt\" --max-iterations $max_iterations --completion-promise \"$promise\""
+    else
+        # Use Claude Code with manual iteration prompt
+        local iteration_prompt="$prompt
+
+IMPORTANT: When task is complete, output exactly: $promise
+Do not output this promise until the task is truly finished."
+
+        claude --print "$iteration_prompt"
+    fi
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # v3.0 FEATURE: NANO BANANA PROMPT REFINEMENT
 # Intelligent prompt enhancement for image generation tasks
 # Analyzes user intent and crafts optimized prompts for visual output
