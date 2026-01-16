@@ -248,6 +248,270 @@ test_cmd "Help (completion command)" "'$SCRIPT' help completion"
 echo ""
 
 # ============================================
+# 14. README QUALITY REVIEW
+# Scores the README on theme, methodology, humor, and readability
+# ============================================
+echo -e "${YELLOW}14. README Quality Review${NC}"
+
+README_FILE="$SCRIPT_DIR/../README.md"
+README_SCORE=0
+README_MAX=100
+
+if [[ -f "$README_FILE" ]]; then
+    README_CONTENT=$(cat "$README_FILE")
+
+    # ─────────────────────────────────────────────────────────────
+    # OCTOPUS THEME ALIGNMENT (25 points max)
+    # ─────────────────────────────────────────────────────────────
+    THEME_SCORE=0
+    THEME_MAX=25
+
+    # Check for octopus emoji (🐙) - 5 points
+    octopus_count=$(echo "$README_CONTENT" | grep -o '🐙' | wc -l | tr -d ' ')
+    if [[ $octopus_count -ge 5 ]]; then
+        ((THEME_SCORE+=5))
+    elif [[ $octopus_count -ge 3 ]]; then
+        ((THEME_SCORE+=3))
+    elif [[ $octopus_count -ge 1 ]]; then
+        ((THEME_SCORE+=1))
+    fi
+
+    # Check for tentacle references - 5 points
+    tentacle_count=$(echo "$README_CONTENT" | grep -oi 'tentacle' | wc -l | tr -d ' ')
+    if [[ $tentacle_count -ge 5 ]]; then
+        ((THEME_SCORE+=5))
+    elif [[ $tentacle_count -ge 3 ]]; then
+        ((THEME_SCORE+=3))
+    elif [[ $tentacle_count -ge 1 ]]; then
+        ((THEME_SCORE+=2))
+    fi
+
+    # Check for arm/arms references - 3 points
+    if echo "$README_CONTENT" | grep -qi '8 arms\|eight arms'; then
+        ((THEME_SCORE+=3))
+    fi
+
+    # Check for ink references - 3 points
+    ink_count=$(echo "$README_CONTENT" | grep -oi '\bink\b' | wc -l | tr -d ' ')
+    if [[ $ink_count -ge 3 ]]; then
+        ((THEME_SCORE+=3))
+    elif [[ $ink_count -ge 1 ]]; then
+        ((THEME_SCORE+=2))
+    fi
+
+    # Check for octopus ASCII art - 5 points
+    if echo "$README_CONTENT" | grep -q "0) ~ (0)"; then
+        ((THEME_SCORE+=5))
+    fi
+
+    # Check for ocean/marine vocabulary - 4 points
+    if echo "$README_CONTENT" | grep -qiE 'suction|squeeze|camouflage|hunt|jet|squirt'; then
+        ((THEME_SCORE+=4))
+    fi
+
+    echo -n "  Octopus Theme Alignment... "
+    if [[ $THEME_SCORE -ge 20 ]]; then
+        echo -e "${GREEN}$THEME_SCORE/$THEME_MAX${NC} (excellent)"
+    elif [[ $THEME_SCORE -ge 15 ]]; then
+        echo -e "${GREEN}$THEME_SCORE/$THEME_MAX${NC} (good)"
+    elif [[ $THEME_SCORE -ge 10 ]]; then
+        echo -e "${YELLOW}$THEME_SCORE/$THEME_MAX${NC} (fair)"
+    else
+        echo -e "${RED}$THEME_SCORE/$THEME_MAX${NC} (needs work)"
+    fi
+    ((README_SCORE+=THEME_SCORE))
+
+    # ─────────────────────────────────────────────────────────────
+    # DOUBLE DIAMOND METHODOLOGY (25 points max)
+    # ─────────────────────────────────────────────────────────────
+    DD_SCORE=0
+    DD_MAX=25
+
+    # Check for phase names - 4 points each (16 total)
+    if echo "$README_CONTENT" | grep -qi 'probe\|discover'; then ((DD_SCORE+=4)); fi
+    if echo "$README_CONTENT" | grep -qi 'grasp\|define'; then ((DD_SCORE+=4)); fi
+    if echo "$README_CONTENT" | grep -qi 'tangle\|develop'; then ((DD_SCORE+=4)); fi
+    if echo "$README_CONTENT" | grep -qi 'ink\|deliver'; then ((DD_SCORE+=4)); fi
+
+    # Check for "Double Diamond" explicit mention - 3 points
+    if echo "$README_CONTENT" | grep -qi 'double diamond'; then
+        ((DD_SCORE+=3))
+    fi
+
+    # Check for embrace (full workflow) - 3 points
+    if echo "$README_CONTENT" | grep -qi 'embrace'; then
+        ((DD_SCORE+=3))
+    fi
+
+    # Check for diverge/converge language - 3 points
+    if echo "$README_CONTENT" | grep -qiE 'diverge|converge'; then
+        ((DD_SCORE+=3))
+    fi
+
+    echo -n "  Double Diamond Coverage... "
+    if [[ $DD_SCORE -ge 20 ]]; then
+        echo -e "${GREEN}$DD_SCORE/$DD_MAX${NC} (excellent)"
+    elif [[ $DD_SCORE -ge 15 ]]; then
+        echo -e "${GREEN}$DD_SCORE/$DD_MAX${NC} (good)"
+    elif [[ $DD_SCORE -ge 10 ]]; then
+        echo -e "${YELLOW}$DD_SCORE/$DD_MAX${NC} (fair)"
+    else
+        echo -e "${RED}$DD_SCORE/$DD_MAX${NC} (needs work)"
+    fi
+    ((README_SCORE+=DD_SCORE))
+
+    # ─────────────────────────────────────────────────────────────
+    # HUMOR & PERSONALITY (20 points max)
+    # ─────────────────────────────────────────────────────────────
+    HUMOR_SCORE=0
+    HUMOR_MAX=20
+
+    # Check for puns and playful language - 5 points
+    pun_patterns="infinite possibilities|neurons in each|suction cups|untangles everything|tentacles.*love|can't rush perfection"
+    pun_count=$(echo "$README_CONTENT" | grep -oiE "$pun_patterns" | wc -l | tr -d ' ')
+    if [[ $pun_count -ge 3 ]]; then
+        ((HUMOR_SCORE+=5))
+    elif [[ $pun_count -ge 1 ]]; then
+        ((HUMOR_SCORE+=3))
+    fi
+
+    # Check for fun facts - 4 points
+    if echo "$README_CONTENT" | grep -qi 'fun fact\|coincidence'; then
+        ((HUMOR_SCORE+=4))
+    fi
+
+    # Check for italic commentary (*text*) - 4 points
+    italic_count=$(echo "$README_CONTENT" | grep -oE '\*[^*]+\*' | wc -l | tr -d ' ')
+    if [[ $italic_count -ge 5 ]]; then
+        ((HUMOR_SCORE+=4))
+    elif [[ $italic_count -ge 2 ]]; then
+        ((HUMOR_SCORE+=2))
+    fi
+
+    # Check for playful section titles or headers - 4 points
+    if echo "$README_CONTENT" | grep -qi 'Octopus Philosophy\|meet our mascot'; then
+        ((HUMOR_SCORE+=4))
+    fi
+
+    # Check for emojis (beyond octopus) - 3 points
+    emoji_variety=$(echo "$README_CONTENT" | grep -oE '⚡|💰|🗃️|📦|♿|🔍|🖼️|🎨|🔎|🦑|🖤' | sort -u | wc -l | tr -d ' ')
+    if [[ $emoji_variety -ge 5 ]]; then
+        ((HUMOR_SCORE+=3))
+    elif [[ $emoji_variety -ge 3 ]]; then
+        ((HUMOR_SCORE+=2))
+    fi
+
+    echo -n "  Humor & Personality... "
+    if [[ $HUMOR_SCORE -ge 16 ]]; then
+        echo -e "${GREEN}$HUMOR_SCORE/$HUMOR_MAX${NC} (excellent)"
+    elif [[ $HUMOR_SCORE -ge 12 ]]; then
+        echo -e "${GREEN}$HUMOR_SCORE/$HUMOR_MAX${NC} (good)"
+    elif [[ $HUMOR_SCORE -ge 8 ]]; then
+        echo -e "${YELLOW}$HUMOR_SCORE/$HUMOR_MAX${NC} (fair)"
+    else
+        echo -e "${RED}$HUMOR_SCORE/$HUMOR_MAX${NC} (needs work)"
+    fi
+    ((README_SCORE+=HUMOR_SCORE))
+
+    # ─────────────────────────────────────────────────────────────
+    # READABILITY & STRUCTURE (30 points max)
+    # ─────────────────────────────────────────────────────────────
+    READ_SCORE=0
+    READ_MAX=30
+
+    # Check for table of contents - 4 points
+    if echo "$README_CONTENT" | grep -qi 'table of contents'; then
+        ((READ_SCORE+=4))
+    fi
+
+    # Check for code blocks (```) - 6 points
+    code_blocks=$(echo "$README_CONTENT" | grep -c '```' | tr -d ' ')
+    code_blocks=$((code_blocks / 2))  # pairs
+    if [[ $code_blocks -ge 15 ]]; then
+        ((READ_SCORE+=6))
+    elif [[ $code_blocks -ge 10 ]]; then
+        ((READ_SCORE+=4))
+    elif [[ $code_blocks -ge 5 ]]; then
+        ((READ_SCORE+=2))
+    fi
+
+    # Check for tables (|---|) - 5 points
+    table_count=$(echo "$README_CONTENT" | grep -c '|.*|.*|' | tr -d ' ')
+    if [[ $table_count -ge 20 ]]; then
+        ((READ_SCORE+=5))
+    elif [[ $table_count -ge 10 ]]; then
+        ((READ_SCORE+=3))
+    elif [[ $table_count -ge 5 ]]; then
+        ((READ_SCORE+=2))
+    fi
+
+    # Check for section headers (##) - 5 points
+    header_count=$(echo "$README_CONTENT" | grep -c '^##' | tr -d ' ')
+    if [[ $header_count -ge 15 ]]; then
+        ((READ_SCORE+=5))
+    elif [[ $header_count -ge 10 ]]; then
+        ((READ_SCORE+=3))
+    elif [[ $header_count -ge 5 ]]; then
+        ((READ_SCORE+=2))
+    fi
+
+    # Check for examples section - 4 points
+    if echo "$README_CONTENT" | grep -qi 'example'; then
+        ((READ_SCORE+=4))
+    fi
+
+    # Check for troubleshooting section - 3 points
+    if echo "$README_CONTENT" | grep -qi 'troubleshoot'; then
+        ((READ_SCORE+=3))
+    fi
+
+    # Check for badges at top - 3 points
+    if echo "$README_CONTENT" | grep -q 'img.shields.io'; then
+        ((READ_SCORE+=3))
+    fi
+
+    echo -n "  Readability & Structure... "
+    if [[ $READ_SCORE -ge 24 ]]; then
+        echo -e "${GREEN}$READ_SCORE/$READ_MAX${NC} (excellent)"
+    elif [[ $READ_SCORE -ge 18 ]]; then
+        echo -e "${GREEN}$READ_SCORE/$READ_MAX${NC} (good)"
+    elif [[ $READ_SCORE -ge 12 ]]; then
+        echo -e "${YELLOW}$READ_SCORE/$READ_MAX${NC} (fair)"
+    else
+        echo -e "${RED}$READ_SCORE/$READ_MAX${NC} (needs work)"
+    fi
+    ((README_SCORE+=READ_SCORE))
+
+    # ─────────────────────────────────────────────────────────────
+    # OVERALL README SCORE
+    # ─────────────────────────────────────────────────────────────
+    echo ""
+    echo -n "  📖 Overall README Score: "
+
+    # Calculate percentage
+    README_PCT=$((README_SCORE * 100 / README_MAX))
+
+    if [[ $README_PCT -ge 85 ]]; then
+        echo -e "${GREEN}$README_SCORE/$README_MAX ($README_PCT%)${NC} 🐙 Tentacular!"
+        ((PASS++))
+    elif [[ $README_PCT -ge 70 ]]; then
+        echo -e "${GREEN}$README_SCORE/$README_MAX ($README_PCT%)${NC} Good catch!"
+        ((PASS++))
+    elif [[ $README_PCT -ge 55 ]]; then
+        echo -e "${YELLOW}$README_SCORE/$README_MAX ($README_PCT%)${NC} Room to grow"
+        ((PASS++))
+    else
+        echo -e "${RED}$README_SCORE/$README_MAX ($README_PCT%)${NC} Needs more ink!"
+        ((FAIL++))
+    fi
+else
+    echo -e "  ${RED}README.md not found${NC}"
+    ((FAIL++))
+fi
+
+echo ""
+
+# ============================================
 # SUMMARY
 # ============================================
 echo "========================================"
