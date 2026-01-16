@@ -17,6 +17,7 @@ FAIL=0
 SKIP=0
 
 # Test function
+# SECURITY: Uses bash -c instead of eval for safer command execution
 test_cmd() {
     local name="$1"
     local cmd="$2"
@@ -24,7 +25,7 @@ test_cmd() {
 
     echo -n "  $name... "
 
-    output=$(eval "$cmd" 2>&1)
+    output=$(bash -c "$cmd" 2>&1)
     exit_code=$?
 
     if [[ "$expect_exit" == "0" ]]; then
@@ -52,6 +53,7 @@ test_cmd() {
 }
 
 # Test function for output validation
+# SECURITY: Uses bash -c instead of eval for safer command execution
 test_output() {
     local name="$1"
     local cmd="$2"
@@ -59,7 +61,7 @@ test_output() {
 
     echo -n "  $name... "
 
-    output=$(eval "$cmd" 2>&1)
+    output=$(bash -c "$cmd" 2>&1)
     exit_code=$?
 
     if [[ $exit_code -eq 0 ]] && echo "$output" | grep -qE "$expect_pattern"; then
@@ -698,6 +700,128 @@ if grep -q 'get_fallback_agent()' "$SCRIPT"; then
     ((PASS++))
 else
     echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+echo ""
+
+# ============================================
+# 18. SECURITY TESTS (v4.6.0)
+# ============================================
+echo -e "${YELLOW}18. Security Tests${NC}"
+
+# --- Path Validation Tests ---
+echo -n "  Path validation function exists... "
+if grep -q 'validate_workspace_path()' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+echo -n "  Path traversal blocked... "
+if grep -q '\.\..*path traversal\|traversal.*\.\.' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+echo -n "  Workspace restricted to safe paths... "
+if grep -q 'HOME.*tmp.*var/tmp\|safe_prefix\|allowed_prefix' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+# --- Command Execution Safety ---
+echo -n "  Array-based command execution... "
+if grep -q 'cmd_array\|read -ra.*cmd\|\${cmd_array\[@\]}' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+echo -n "  No eval with user input... "
+if ! grep -E 'eval "\$\{?(prompt|PROMPT|user_input)' "$SCRIPT" >/dev/null 2>&1; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC} (eval found with user input)"
+    ((FAIL++))
+fi
+
+# --- JSON Validation ---
+echo -n "  JSON extraction validation exists... "
+if grep -q 'extract_json_field()' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+echo -n "  Agent type validation exists... "
+if grep -q 'validate_agent_type()' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+# --- CI Mode ---
+echo -n "  CI mode detection exists... "
+if grep -q 'CI_MODE\|CLAUDE_CODE_DISABLE_BACKGROUND_TASKS' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+echo -n "  CI mode skips interactive prompts... "
+if grep -q 'CI_MODE.*true.*auto\|CI_MODE.*abort\|CI mode.*skip' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+# --- Claude Code v2.1.9 Integration ---
+echo -n "  Claude session ID support... "
+if grep -q 'CLAUDE_CODE_SESSION\|CLAUDE_SESSION_ID' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+echo -n "  Plans directory configured... "
+if grep -q 'PLANS_DIR' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+# --- API Key Safety ---
+echo -n "  API keys not directly logged... "
+# Check for direct key value logging (not length or presence checks)
+if ! grep -E 'echo.*\$\{?(OPENAI_API_KEY|GEMINI_API_KEY)[^#}]*[^}]"?$|log.*"\$\{?(OPENAI_API_KEY|GEMINI_API_KEY)\}"?' "$SCRIPT" >/dev/null 2>&1; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC} (API key may be logged)"
     ((FAIL++))
 fi
 

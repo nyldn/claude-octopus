@@ -75,21 +75,34 @@ jobs:
 
       - name: Run Claude Octopus
         id: octopus
-        run: |
-          chmod +x ./scripts/orchestrate.sh
-
-          TIER_FLAG=""
-          case "${{ inputs.tier }}" in
-            quick) TIER_FLAG="-Q" ;;
-            premium) TIER_FLAG="-P" ;;
-          esac
-
-          ./scripts/orchestrate.sh --ci $TIER_FLAG ${{ inputs.command }} "${{ inputs.prompt }}"
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           CI: true
           GITHUB_OUTPUT: ${{ github.output }}
+          # SECURITY: Pass inputs via env vars to prevent shell injection
+          OCTOPUS_COMMAND: ${{ inputs.command }}
+          OCTOPUS_PROMPT: ${{ inputs.prompt }}
+          OCTOPUS_TIER: ${{ inputs.tier }}
+        run: |
+          chmod +x ./scripts/orchestrate.sh
+
+          TIER_FLAG=""
+          case "$OCTOPUS_TIER" in
+            quick) TIER_FLAG="-Q" ;;
+            premium) TIER_FLAG="-P" ;;
+          esac
+
+          # SECURITY: Validate command against allowlist
+          case "$OCTOPUS_COMMAND" in
+            auto|embrace|research|develop|deliver|review)
+              ./scripts/orchestrate.sh --ci $TIER_FLAG "$OCTOPUS_COMMAND" "$OCTOPUS_PROMPT"
+              ;;
+            *)
+              echo "::error::Invalid command: $OCTOPUS_COMMAND"
+              exit 1
+              ;;
+          esac
 
       - name: Upload Results
         uses: actions/upload-artifact@v4
@@ -134,16 +147,21 @@ jobs:
 
       - name: Run Code Review
         id: review
-        run: |
-          chmod +x ./scripts/orchestrate.sh
-
-          REVIEW_PROMPT="Review the following code changes for quality, security, and best practices: ${{ steps.changed.outputs.files }}"
-
-          ./scripts/orchestrate.sh --ci deliver "$REVIEW_PROMPT" 2>&1 | tee review-output.txt
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           CI: true
+          # SECURITY: Pass file list via env var to prevent shell injection
+          CHANGED_FILES: ${{ steps.changed.outputs.files }}
+        run: |
+          chmod +x ./scripts/orchestrate.sh
+
+          # SECURITY: Sanitize file list - remove special characters except safe ones
+          SAFE_FILES=$(echo "$CHANGED_FILES" | tr -cd 'a-zA-Z0-9_./ \n-' | head -c 10000)
+
+          REVIEW_PROMPT="Review the following code changes for quality, security, and best practices: $SAFE_FILES"
+
+          ./scripts/orchestrate.sh --ci deliver "$REVIEW_PROMPT" 2>&1 | tee review-output.txt
 
       - name: Post Review Comment
         uses: actions/github-script@v7
@@ -195,21 +213,35 @@ jobs:
 
       - name: Parse Command
         id: parse
+        env:
+          # SECURITY: Pass comment body via env var to prevent shell injection
+          COMMENT_BODY: ${{ github.event.comment.body }}
         run: |
-          COMMENT="${{ github.event.comment.body }}"
           # Extract command after /octopus
-          PROMPT=$(echo "$COMMENT" | sed 's|^/octopus ||')
-          echo "prompt=$PROMPT" >> $GITHUB_OUTPUT
+          RAW_PROMPT="${COMMENT_BODY#/octopus }"
+
+          # SECURITY: Sanitize - remove dangerous shell metacharacters
+          SAFE_PROMPT=$(echo "$RAW_PROMPT" | tr -cd 'a-zA-Z0-9 _.,:;!?@#%^&*()+=[]{}|<>/-' | head -c 5000)
+
+          # SECURITY: Check for potential command injection patterns
+          if echo "$SAFE_PROMPT" | grep -qE '\$\(|`|;[[:space:]]*[a-z]|&&[[:space:]]*[a-z]|\|[[:space:]]*[a-z]'; then
+            echo "::error::Potential command injection detected in comment"
+            exit 1
+          fi
+
+          echo "prompt=$SAFE_PROMPT" >> $GITHUB_OUTPUT
 
       - name: Run Claude Octopus
         id: octopus
-        run: |
-          chmod +x ./scripts/orchestrate.sh
-          ./scripts/orchestrate.sh --ci auto "${{ steps.parse.outputs.prompt }}" 2>&1 | tee octopus-output.txt
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           CI: true
+          # SECURITY: Pass prompt via env var
+          OCTOPUS_PROMPT: ${{ steps.parse.outputs.prompt }}
+        run: |
+          chmod +x ./scripts/orchestrate.sh
+          ./scripts/orchestrate.sh --ci auto "$OCTOPUS_PROMPT" 2>&1 | tee octopus-output.txt
 
       - name: Reply to Comment
         uses: actions/github-script@v7
