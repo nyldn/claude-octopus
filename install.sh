@@ -9,6 +9,7 @@ echo "🐙 Installing Claude Octopus..."
 # Configuration
 PLUGIN_DIR="$HOME/.claude/plugins/claude-octopus"
 INSTALLED_PLUGINS="$HOME/.claude/plugins/installed_plugins.json"
+CACHE_DIR="$HOME/.claude/plugins/cache"
 
 # Check for jq
 if ! command -v jq &>/dev/null; then
@@ -16,6 +17,12 @@ if ! command -v jq &>/dev/null; then
     echo "   Install it with: brew install jq (macOS) or apt-get install jq (Linux)"
     exit 1
 fi
+
+# Clean up old installations (from previous versions)
+echo "🧹 Cleaning up old installations..."
+rm -rf "$CACHE_DIR/nyldn-plugins/claude-octopus" 2>/dev/null || true
+rm -rf "$CACHE_DIR/parallel-agents-global/parallel-agents" 2>/dev/null || true
+echo "✓ Removed old cache"
 
 # 1. Clone/update the plugin
 echo "📦 Installing plugin files..."
@@ -41,6 +48,11 @@ TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
 if [ ! -f "$INSTALLED_PLUGINS" ]; then
     echo '{"version": 2, "plugins": {}}' > "$INSTALLED_PLUGINS"
 fi
+
+# Remove old entries first
+TMP_FILE=$(mktemp)
+jq 'del(.plugins["claude-octopus@nyldn-plugins"]) | del(.plugins["parallel-agents@parallel-agents-global"])' "$INSTALLED_PLUGINS" > "$TMP_FILE"
+mv "$TMP_FILE" "$INSTALLED_PLUGINS"
 
 # Add/update the plugin entry as a local installation
 TMP_FILE=$(mktemp)
