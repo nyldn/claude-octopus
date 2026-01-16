@@ -5,6 +5,68 @@ All notable changes to Claude Octopus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.8.2] - 2026-01-16
+
+### Added - Essential Developer Tools Setup
+
+#### Setup Wizard Step 10: Essential Tools
+- **Tool categories**: Data processing, code auditing, Git, browser automation
+- **Included tools**:
+  - `jq` - JSON processor (critical for AI workflows)
+  - `shellcheck` - Shell script static analysis
+  - `gh` - GitHub CLI for PR/issue automation
+  - `imagemagick` - Screenshot compression (5MB API limits)
+  - `playwright` - Modern browser automation & screenshots
+
+#### New Functions
+- `get_tool_description()` - Get human-readable tool description
+- `is_tool_installed()` - Check if a tool is available
+- `get_install_command()` - Get platform-specific install command (macOS/Linux)
+- `install_tool()` - Install a single tool with progress output
+
+#### Tool Installation Options
+- Option 1: Install all missing tools (recommended)
+- Option 2: Install critical only (jq, shellcheck)
+- Option 3: Skip for now
+
+### Changed
+- Setup wizard expanded to 10 steps
+- Summary shows essential tools status
+- Test suite expanded to 171 tests (+10 essential tools tests)
+
+### Fixed
+- Removed `declare -A` associative arrays for bash 3.2 (macOS) compatibility
+
+---
+
+## [4.8.1] - 2026-01-16
+
+### Added - Performance Optimizations
+
+#### JSON Parsing (~10x faster)
+- `json_extract()` - Single field extraction using bash regex
+- `json_extract_multi()` - Multi-field extraction in single pass
+- No subprocess spawning for simple JSON operations
+
+#### Config Parsing (~5x faster)
+- Rewrote `load_providers_config()` to use single-pass while-read loop
+- Eliminated 30+ grep/sed chains in config parsing
+
+#### Preflight Caching (~50-200ms saved per command)
+- `preflight_cache_valid()` - Check if cache is still valid
+- `preflight_cache_write()` - Write cache with TTL
+- `preflight_cache_invalidate()` - Invalidate on config change
+- 1-hour TTL prevents redundant preflight checks
+
+#### Logging Optimization
+- Early return in `log()` for disabled DEBUG level
+- Skips expensive operations when not needed
+
+### Changed
+- Test suite expanded to 161 tests (+15 performance tests)
+
+---
+
 ## [4.8.0] - 2026-01-16
 
 ### Added - Subscription-Aware Multi-Provider Routing

@@ -12,7 +12,7 @@
       "name": "claude-octopus",
       "source": "./",
       "description": "Multi-tentacled orchestrator using Double Diamond methodology",
-      "version": "4.8.0",
+      "version": "4.8.2",
       "author": {
         "name": "nyldn"
       },
@@ -28,7 +28,10 @@
         "provider-routing",
         "openrouter",
         "crossfire",
-        "adversarial-review"
+        "adversarial-review",
+        "essential-tools",
+        "playwright",
+        "shellcheck"
       ],
       "category": "orchestration"
     }

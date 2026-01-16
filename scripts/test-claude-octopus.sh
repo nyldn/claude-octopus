@@ -1161,8 +1161,8 @@ else
 fi
 
 # --- Setup Wizard Steps ---
-echo -n "  Setup wizard has 9 steps... "
-if grep -q 'total_steps=9' "$SCRIPT"; then
+echo -n "  Setup wizard has 10 steps... "
+if grep -q 'total_steps=10' "$SCRIPT"; then
     echo -e "${GREEN}PASS${NC}"
     ((PASS++))
 else
@@ -1393,6 +1393,113 @@ if grep -A10 'openrouter.ai/api/v1/chat/completions' "$SCRIPT" | grep -q 'Connec
     ((PASS++))
 else
     echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+echo ""
+
+# ============================================
+# 22. Essential Developer Tools (v4.8.2)
+# ============================================
+echo -e "${YELLOW}22. Essential Developer Tools (v4.8.2)${NC}"
+
+# ESSENTIAL_TOOLS_LIST defined
+echo -n "  ESSENTIAL_TOOLS_LIST defined... "
+if grep -q '^ESSENTIAL_TOOLS_LIST=' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+# get_tool_description function
+echo -n "  get_tool_description() function exists... "
+if grep -q '^get_tool_description()' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+# is_tool_installed function
+echo -n "  is_tool_installed() function exists... "
+if grep -q '^is_tool_installed()' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+# get_install_command function
+echo -n "  get_install_command() function exists... "
+if grep -q '^get_install_command()' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+# install_tool function
+echo -n "  install_tool() function exists... "
+if grep -q '^install_tool()' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+# Setup wizard Step 10
+echo -n "  Setup wizard has Essential Developer Tools step... "
+if grep -q 'Essential Developer Tools' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+# Includes jq in tools list
+echo -n "  Essential tools includes jq... "
+if grep 'ESSENTIAL_TOOLS_LIST' "$SCRIPT" | grep -q 'jq'; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+# Includes shellcheck in tools list
+echo -n "  Essential tools includes shellcheck... "
+if grep 'ESSENTIAL_TOOLS_LIST' "$SCRIPT" | grep -q 'shellcheck'; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+# Includes playwright in tools list
+echo -n "  Essential tools includes playwright... "
+if grep 'ESSENTIAL_TOOLS_LIST' "$SCRIPT" | grep -q 'playwright'; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+# Bash 3.2 compatible (no declare -A)
+echo -n "  No associative arrays (bash 3.2 compatible)... "
+if ! grep -q 'declare -A' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC} (found 'declare -A' which breaks bash 3.2)"
     ((FAIL++))
 fi
 
