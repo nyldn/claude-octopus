@@ -42,30 +42,54 @@ Claude coordinates multiple AI models behind the scenes to give you comprehensiv
 
 ### 1. Install the Plugin
 
-> **Note:** Marketplace installation is coming soon. For now, use the installer below.
+**Using Claude's plugin manager (recommended):**
 
-**Install with one command:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/nyldn/claude-octopus/main/install.sh | bash
+# Add the Claude Octopus marketplace
+claude plugin marketplace add nyldn/claude-octopus
+
+# Install the plugin
+claude plugin install claude-octopus@nyldn-plugins --scope user
+
+# Enable it
+claude plugin enable claude-octopus --scope user
+
+# Restart Claude Code
+claude --dangerously-skip-permissions
 ```
 
-This script:
-- ✅ Installs to the correct location (`~/.claude/plugins/claude-octopus`)
-- ✅ Handles updates if already installed
-- ✅ Works on macOS, Linux, and WSL
+That's it! The plugin is now installed and ready to use.
 
 <details>
-<summary>Alternative: Manual Install</summary>
+<summary>Troubleshooting Installation</summary>
 
-```bash
-git clone https://github.com/nyldn/claude-octopus.git ~/.claude/plugins/claude-octopus
-```
+**If `/claude-octopus:setup` shows "Unknown skill" after restart:**
+
+1. Verify the plugin is installed and enabled:
+   ```bash
+   claude plugin list
+   ```
+   Look for `claude-octopus@nyldn-plugins` with status `✔ enabled`
+
+2. Check for errors in debug logs:
+   ```bash
+   tail -100 ~/.claude/debug/*.txt | grep -i "claude-octopus\|error"
+   ```
+
+3. Try reinstalling:
+   ```bash
+   claude plugin uninstall claude-octopus --scope user
+   rm -rf ~/.claude/plugins/cache/nyldn-plugins/claude-octopus
+   claude plugin marketplace update nyldn-plugins
+   claude plugin install claude-octopus@nyldn-plugins --scope user
+   ```
+
+4. Make sure you're on Claude Code v2.1.9 or later:
+   ```bash
+   claude --version
+   ```
 
 </details>
-
-**After installing, restart Claude Code:**
-- Exit Claude Code (Ctrl-C twice or type `/exit`)
-- Restart: `claude --dangerously-skip-permissions`
 
 ### 2. Run Setup in Claude Code
 
@@ -258,25 +282,31 @@ source ~/.zshrc
 
 ### Installation Options
 
-**Via Plugin Marketplace:**
+**Via Plugin Marketplace (recommended):**
 ```bash
-/plugin marketplace add nyldn/claude-octopus
+claude plugin marketplace add nyldn/claude-octopus
+claude plugin install claude-octopus@nyldn-plugins --scope user
+claude plugin enable claude-octopus --scope user
 ```
 
-**Clone & Symlink:**
+**For Plugin Development:**
 ```bash
+# Clone for development
 git clone https://github.com/nyldn/claude-octopus.git ~/git/claude-octopus
-ln -s ~/git/claude-octopus ~/.claude/plugins/claude-octopus
-chmod +x ~/git/claude-octopus/scripts/*.sh
+cd ~/git/claude-octopus
+
+# Make changes, then test by reinstalling
+claude plugin uninstall claude-octopus --scope user
+rm -rf ~/.claude/plugins/cache/nyldn-plugins/claude-octopus
+git add . && git commit -m "Your changes"
+git push
+claude plugin marketplace update nyldn-plugins
+claude plugin install claude-octopus@nyldn-plugins --scope user
 ```
 
 **Update:**
 ```bash
-# If installed via marketplace (recommended):
 claude plugin update claude-octopus@nyldn-plugins
-
-# If cloned directly to ~/.claude/plugins/claude-octopus:
-cd ~/.claude/plugins/claude-octopus && git pull
 ```
 
 </details>
@@ -598,23 +628,30 @@ The configuration wizard sets up Claude Octopus based on your use intent and res
 
 If `/claude-octopus:setup` doesn't work after installation:
 
-1. **Verify installation location:**
+1. **Verify the plugin is installed and enabled:**
    ```bash
-   ls ~/.claude/plugins/claude-octopus/.claude/commands/
-   # Should see: setup.md, check-updates.md
+   claude plugin list | grep claude-octopus
+   # Should show: claude-octopus@nyldn-plugins ... ✔ enabled
    ```
 
 2. **Restart Claude Code completely:**
    - Exit fully (Ctrl-C twice)
    - Restart: `claude --dangerously-skip-permissions`
 
-3. **Reinstall if needed:**
+3. **Check debug logs for errors:**
    ```bash
-   rm -rf ~/.claude/plugins/claude-octopus
-   curl -fsSL https://raw.githubusercontent.com/nyldn/claude-octopus/main/install.sh | bash
+   tail -100 ~/.claude/debug/*.txt | grep -i "claude-octopus\|error"
    ```
 
-4. **Check Claude Code version:**
+4. **Reinstall if needed:**
+   ```bash
+   claude plugin uninstall claude-octopus --scope user
+   rm -rf ~/.claude/plugins/cache/nyldn-plugins/claude-octopus
+   claude plugin marketplace update nyldn-plugins
+   claude plugin install claude-octopus@nyldn-plugins --scope user
+   ```
+
+5. **Check Claude Code version:**
    ```bash
    claude --version  # Need 2.1.9+
    ```
