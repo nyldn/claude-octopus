@@ -42,19 +42,17 @@ Claude coordinates multiple AI models behind the scenes to give you comprehensiv
 
 ### 1. Install the Plugin
 
-**In Claude Code:**
-```
-/plugin marketplace add nyldn/claude-octopus
+**One-line install (recommended):**
+```bash
+curl -fsSL https://raw.githubusercontent.com/nyldn/claude-octopus/main/install.sh | bash
 ```
 
-Then navigate to the plugin UI and install `claude-octopus` from the nyldn-plugins marketplace.
-
-**Or via command line:**
+**Or manually:**
 ```bash
 git clone https://github.com/nyldn/claude-octopus.git ~/.claude/plugins/claude-octopus
 ```
 
-Then restart Claude Code.
+Then **restart Claude Code**.
 
 ### 2. Run Setup in Claude Code
 
