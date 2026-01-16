@@ -6,7 +6,7 @@
   <img src="https://img.shields.io/badge/Claude_Code-Plugin-blueviolet" alt="Claude Code Plugin">
   <img src="https://img.shields.io/badge/Double_Diamond-Design_Thinking-orange" alt="Double Diamond">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
-  <img src="https://img.shields.io/badge/Version-4.4.0-blue" alt="Version 4.4.0">
+  <img src="https://img.shields.io/badge/Version-4.5.0-blue" alt="Version 4.5.0">
 </p>
 
 ```
@@ -55,7 +55,20 @@ _`) )  .---.__.' / |   |\   \__..--""  """--.,_
 
 </details>
 
-## What's New in 4.4
+## What's New in 4.5
+
+- **Smart Setup Wizard** - Intent and resource-aware configuration:
+  - `init --interactive` now asks about your **use intent** (Backend, Frontend, UX Research, DevOps, etc.)
+  - Configures **resource tier** based on your Claude plan (Pro, Max 5x, Max 20x, API-only)
+  - Automatically adjusts model routing to conserve Opus usage for constrained plans
+  - API key auto-detection with graceful fallbacks
+  - `config` command to reconfigure preferences anytime
+  - *"The octopus learns your tentacle preferences."*
+
+<details>
+<summary>Previous versions</summary>
+
+### What's New in 4.4
 
 - **Human-in-the-Loop Reviews** - Quality-gated workflows with approval queues:
   - `review list` - View pending reviews awaiting approval
@@ -127,6 +140,8 @@ _`) )  .---.__.' / |   |\   \__..--""  """--.,_
 
 </details>
 
+</details>
+
 ## Why Claude Octopus?
 
 Most Claude Code plugins inject knowledge. **Claude Octopus orchestrates armies.** 🦑
@@ -182,6 +197,7 @@ Most Claude Code plugins inject knowledge. **Claude Octopus orchestrates armies.
 - [Why Claude Octopus?](#why-claude-octopus)
 - [Before You Start](#before-you-start)
 - [Quick Start](#quick-start)
+- [Smart Setup](#smart-setup)
 - [Double Diamond Methodology](#double-diamond-methodology)
 - [Smart Auto-Routing](#smart-auto-routing)
 - [Optimization Command](#optimization-command)
@@ -277,6 +293,64 @@ If preflight fails, run the setup wizard:
 ```
 
 > **Tip:** Use `help` to learn more: `./scripts/orchestrate.sh help` or `./scripts/orchestrate.sh help auto`
+
+## Smart Setup
+
+The interactive setup wizard (v4.5) configures Claude Octopus based on your **use intent** and **resource tier**.
+
+### Run the Setup Wizard
+
+```bash
+./scripts/orchestrate.sh init --interactive
+```
+
+### Step 6: Use Intent
+
+The wizard asks what you'll primarily use Claude Octopus for:
+
+| Intent | Default Persona | Agent Routing |
+|--------|-----------------|---------------|
+| Backend Development | backend-architect | Codex for APIs, databases |
+| Frontend Development | frontend-architect | Codex for UI, components |
+| Full-Stack Development | (varies) | Mixed routing |
+| UX Research | researcher | Gemini for analysis |
+| UI/Product Design | designer | Gemini for design |
+| DevOps/Infrastructure | backend-architect | Codex for automation |
+| Security/Code Review | security-auditor | Codex-review mode |
+| SEO/Marketing | (none) | Gemini for content |
+
+You can select multiple intents (e.g., "1,2,6" for Backend + Frontend + DevOps).
+
+### Step 7: Resource Tier
+
+Configure model routing based on your Claude subscription:
+
+| Tier | Plan | Model Routing |
+|------|------|---------------|
+| **Conservative** | Pro/Free ($0-20/mo) | Cheaper models by default, saves Opus for complex tasks |
+| **Balanced** | Max 5x ($100/mo) | Smart Opus usage, weekly budget awareness |
+| **Full Power** | Max 20x ($200/mo) | Use premium models freely based on task complexity |
+| **Cost-Aware** | API Only | Tracks token costs, prefers efficient models |
+
+### Reconfigure Anytime
+
+```bash
+# Re-run just the preference wizard
+./scripts/orchestrate.sh config
+```
+
+### How It Affects Routing
+
+Your configuration adjusts the `get_tiered_agent()` function:
+
+| Resource Tier | Trivial Tasks | Standard Tasks | Complex Tasks |
+|---------------|---------------|----------------|---------------|
+| Conservative | codex-mini | codex-mini | codex-standard |
+| Balanced | codex-mini | codex-standard | codex |
+| Full Power | codex-standard | codex | codex |
+| Cost-Aware | codex-mini | codex-mini | codex-standard |
+
+*The octopus conserves its ink when appropriate. Why use premium tentacles for simple tasks?* 🐙
 
 ## Double Diamond Methodology
 
@@ -843,6 +917,15 @@ export CLAUDE_OCTOPUS_WORKSPACE="$HOME/.claude-octopus"
 | `review show <id>` | View output file |
 | `audit [count]` | View audit trail (decisions log) |
 
+### Smart Setup (v4.5)
+
+*"The octopus learns your tentacle preferences."*
+
+| Command | Description |
+|---------|-------------|
+| `init --interactive` | Full 7-step setup wizard |
+| `config` | Reconfigure preferences (intent + resource tier) |
+
 ### Options
 
 | Option | Default | Description |
@@ -868,6 +951,7 @@ export CLAUDE_OCTOPUS_WORKSPACE="$HOME/.claude-octopus"
 ├── plans/                        # Execution plan history
 ├── review-queue.json             # Pending reviews (v4.4)
 ├── audit.log                     # Decision audit trail (v4.4)
+├── .user-config                  # User preferences (v4.5)
 └── .gitignore
 ```
 
