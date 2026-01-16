@@ -39,6 +39,13 @@ description: |
 
 ## Quick Start
 
+> **Note for Claude Code users:** You don't need to run these commands! Just talk naturally to Claude:
+> - "Research OAuth authentication patterns"
+> - "Build a user authentication system"
+> - "Review this code for security issues"
+>
+> The commands below are for direct CLI usage or automation.
+
 ```bash
 # Full Double Diamond workflow (all 4 phases)
 ./scripts/orchestrate.sh embrace "Build a user authentication system"
@@ -86,65 +93,116 @@ description: |
 
 **If the user's request matches any of the above, DO NOT activate this skill. Handle the request using standard Claude Code tools and capabilities instead.**
 
-## Prerequisites Check (CRITICAL - Run First!)
+## Prerequisites Check (Automatic - Fast Detection)
 
 **Only proceed with this section if you've determined this skill should be used based on the criteria above.**
 
-Before executing ANY claude-octopus command, you MUST verify configuration is complete:
+Before executing ANY claude-octopus command, quickly verify at least one provider is available:
 
-### Step 1: Check Configuration Status
+### Step 1: Silent Detection (Non-Blocking)
 
-Run this command to check if Claude Octopus is configured:
-
-```bash
-./scripts/orchestrate.sh status 2>&1 || echo "STATUS_CHECK_FAILED"
-```
-
-### Step 2: Analyze Status Output
-
-Look for these indicators of **incomplete configuration**:
-
-- ❌ "OPENAI_API_KEY not set" or "none" for Codex authentication
-- ❌ "none" for Gemini authentication
-- ❌ "STATUS_CHECK_FAILED" (script error)
-- ❌ Any provider showing "not installed"
-
-If ANY of these appear, configuration is **incomplete**.
-
-### Step 3: Auto-Trigger Configuration
-
-If configuration is incomplete, **STOP** and tell the user:
-
-> "Claude Octopus needs to be configured first. Let me guide you through the setup."
-
-Then automatically invoke the configuration process by telling the user you need to run the configure command. You can do this by saying:
-
-> "I need to configure Claude Octopus for you. Please run: `/claude-octopus:setup`"
-
-This will provide instructions to run the setup wizard in your terminal, which will:
-1. Auto-detect installed CLIs
-2. Check for API keys
-3. Guide the user through any missing setup
-4. Run the configuration wizard
-
-### Step 4: Verify Configuration Complete
-
-After configuration, re-run the status check:
+Run this fast detection script (completes in <1 second):
 
 ```bash
-./scripts/orchestrate.sh status
+./scripts/orchestrate.sh detect-providers
 ```
 
-Confirm you see:
-- ✓ Codex with authentication (oauth or api-key)
-- ✓ Gemini with authentication (oauth or api-key)
-- ✓ Valid cost optimization strategy
+Expected output format:
+```
+Detecting providers...
 
-### Step 5: Proceed with Task
+CODEX_STATUS=ok
+CODEX_AUTH=oauth
 
-Only AFTER configuration is verified complete should you proceed with the user's original request.
+GEMINI_STATUS=ok
+GEMINI_AUTH=none
 
-**IMPORTANT:** Never skip this check. Always verify configuration before running probe, tangle, embrace, grapple, or any other octopus command.
+Summary:
+  ✓ Codex: Installed and authenticated (oauth)
+  ⚠ Gemini: Installed but not authenticated
+```
+
+### Step 2: Route Based on Detection Results
+
+Parse the output and route accordingly:
+
+**Scenario A: Both providers missing**
+```
+CODEX_STATUS=missing
+CODEX_AUTH=none
+GEMINI_STATUS=missing
+GEMINI_AUTH=none
+```
+
+**Action:** STOP and tell the user:
+
+> "Claude Octopus needs at least one AI provider (Codex or Gemini) to work.
+>
+> You have two options:
+>
+> **Option 1: Install Codex CLI**
+> ```
+> npm install -g @openai/codex
+> export OPENAI_API_KEY=\"sk-...\"
+> ```
+> Get API key from: https://platform.openai.com/api-keys
+>
+> **Option 2: Install Gemini CLI**
+> ```
+> npm install -g @google/gemini-cli
+> gemini  # Run OAuth setup
+> ```
+>
+> After installing one, run `/claude-octopus:setup` to verify everything works."
+
+**Scenario B: One provider working, one missing/partial**
+```
+CODEX_STATUS=ok
+CODEX_AUTH=oauth (or api-key)
+GEMINI_STATUS=missing (or ok with AUTH=none)
+```
+
+**Action:** Proceed with the available provider! Tell the user:
+
+> "Great! I see Codex is configured. I'll use it for your task.
+> (Optional: You can install Gemini later for multi-provider workflows.)"
+
+Then proceed with the task using the available provider.
+
+**Scenario C: Both providers working**
+```
+CODEX_STATUS=ok
+CODEX_AUTH=oauth
+GEMINI_STATUS=ok
+GEMINI_AUTH=oauth
+```
+
+**Action:** Proceed immediately! Tell the user:
+
+> "Perfect! Both Codex and Gemini are configured. Let me use both for comprehensive analysis."
+
+Then proceed with the task using both providers.
+
+### Step 3: Graceful Degradation
+
+If only ONE provider is available:
+- Automatically use that provider
+- Tasks that require multiple providers will adapt to use the single provider multiple times
+- Quality results are still achievable with one provider
+
+You do NOT need both providers to proceed. One is sufficient for most tasks.
+
+### Step 4: Cache Results (Optional Optimization)
+
+The detect-providers command writes results to `~/.claude-octopus/.provider-cache` with a timestamp. This cache is valid for 1 hour.
+
+If the cache exists and is fresh (<1 hour old), you can skip re-detection.
+
+### Step 5: Execute Task
+
+Only proceed when at least ONE provider is available and authenticated. Multi-provider tasks will automatically adapt to available providers.
+
+**IMPORTANT:** This detection is fast (~1 second) and non-blocking. Always verify provider availability before running octopus commands, but don't require BOTH providers - one is enough!
 
 ## Double Diamond Workflow
 

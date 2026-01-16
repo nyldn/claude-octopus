@@ -53,24 +53,40 @@ git clone https://github.com/nyldn/claude-octopus.git ~/.claude/plugins/claude-o
 chmod +x ~/.claude/plugins/claude-octopus/scripts/*.sh
 ```
 
-### 2. Configure (One-Time Setup)
+### 2. Install at Least One Provider
 
-Set your API keys in your shell profile (`~/.zshrc` or `~/.bashrc`):
+**You only need ONE provider to get started** (not both!). Choose based on your preference:
+
+**Option A: OpenAI Codex CLI** (Best for code generation)
 ```bash
-export OPENAI_API_KEY="sk-..."
-export GEMINI_API_KEY="AIza..."  # Or use OAuth: run `gemini` and login
+npm install -g @openai/codex
+codex login  # OAuth recommended
+# OR
+export OPENAI_API_KEY="sk-..."  # Get from https://platform.openai.com/api-keys
 ```
 
-Then tell Claude:
+**Option B: Google Gemini CLI** (Best for analysis)
+```bash
+npm install -g @google/gemini-cli
+gemini  # OAuth recommended
+# OR
+export GEMINI_API_KEY="AIza..."  # Get from https://aistudio.google.com/app/apikey
 ```
-Configure Claude Octopus
+
+To make API keys permanent, add them to your shell profile:
+```bash
+# For zsh (macOS default)
+echo 'export OPENAI_API_KEY="sk-..."' >> ~/.zshrc
+source ~/.zshrc
+
+# For bash
+echo 'export OPENAI_API_KEY="sk-..."' >> ~/.bashrc
+source ~/.bashrc
 ```
 
-Claude will auto-detect your setup and configure subscription tiers automatically.
+### 3. Use It Naturally
 
-### 3. Start Using It
-
-Just chat with Claude! Examples:
+Just talk to Claude! Claude Octopus automatically activates when you need multi-AI collaboration:
 
 **For research:**
 > "Research microservices patterns and compare their trade-offs"
@@ -83,6 +99,22 @@ Just chat with Claude! Examples:
 
 **For adversarial testing:**
 > "Use grapple to debate the best approach for session management"
+
+Claude Octopus automatically detects which providers you have and uses them intelligently.
+
+### (Optional) Verify Setup
+
+Want to check your setup? In Claude Code:
+```
+/claude-octopus:setup
+```
+
+Or run directly:
+```bash
+./scripts/orchestrate.sh detect-providers
+```
+
+This shows which providers are installed and authenticated.
 
 ---
 
