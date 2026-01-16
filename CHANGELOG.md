@@ -5,6 +5,21 @@ All notable changes to Claude Octopus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.7.1] - 2026-01-16
+
+### Added
+
+- **Claude CLI agent support** - `claude` and `claude-sonnet` agent types for faster grapple/squeeze
+- **Claude CLI preflight check** - warns if Claude CLI missing (required for grapple/squeeze)
+
+### Changed
+
+- **grapple uses Claude instead of Gemini** - faster debate synthesis with `claude --print`
+- Updated `AVAILABLE_AGENTS` to include `claude` and `claude-sonnet`
+- Added `claude-sonnet-4.5` pricing to cost tracking
+
+---
+
 ## [4.7.0] - 2026-01-16
 
 ### Added - Adversarial Cross-Model Review (Crossfire)
