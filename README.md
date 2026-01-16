@@ -55,16 +55,16 @@ chmod +x ~/.claude/plugins/claude-octopus/scripts/*.sh
 
 ### 2. Run Setup in Claude Code
 
-After installing, run the welcome command in Claude Code:
+After installing, run the setup command in Claude Code:
 ```
-/claude-octopus:welcome
+/claude-octopus:setup
 ```
 
-Claude will:
+This will:
 - Auto-detect what's already installed
-- Guide you through installing ONE provider (you only need one!)
+- Show you exactly what you need (you only need ONE provider!)
 - Give you shell-specific instructions
-- Show you conversational examples to get started
+- Verify your setup when done
 
 **No terminal context switching needed** - Claude guides you through everything!
 
@@ -90,7 +90,7 @@ Claude Octopus automatically detects which providers you have and uses them inte
 
 ## Provider Installation (Reference)
 
-The `/claude-octopus:welcome` command guides you through this, but here's the reference if you need it:
+The `/claude-octopus:setup` command auto-detects and guides you through this, but here's the reference if you need it:
 
 **You only need ONE provider to get started** (not both!). Choose based on your preference:
 
