@@ -65,6 +65,10 @@ _`) )  .---.__.' / |   |\   \__..--""  """--.,_
   - ♿ Accessibility (WCAG, a11y, screen readers)
   - 🔍 SEO (meta tags, structured data, rankings)
   - 🖼️ Images (compression, formats, lazy loading)
+- **Full Site Audit** - Comprehensive multi-domain optimization:
+  - `auto "full site audit"` - Parallel audits across all domains
+  - Synthesized report with priority matrix and action plan
+  - Quick wins identification for immediate ROI
 - **Shell Completion** - Tab completion for bash, zsh, and fish
   - `eval "$(./orchestrate.sh completion bash)"` - Add to shell profile
   - Completes commands, agents, options, and context-aware suggestions
@@ -378,7 +382,29 @@ The `optimize` command (v4.2) auto-detects the type of optimization needed and r
 # -> 🔍 SEO optimization
 ```
 
-*The octopus knows which tentacle to extend for each optimization task. Unlike your last contractor, it actually reads the requirements first.* 📋
+### Full Site Audit (Multi-Domain)
+
+For comprehensive optimization across all domains, use phrases like "full site audit" or "audit my website":
+
+```bash
+# Run comprehensive audit across all optimization domains
+./scripts/orchestrate.sh auto "full site audit"
+./scripts/orchestrate.sh auto "comprehensive site optimization"
+./scripts/orchestrate.sh auto "audit my website"
+```
+
+**What happens:**
+1. **Phase 1**: Parallel audits across 5 domains (Performance, Accessibility, SEO, Images, Bundle)
+2. **Phase 2**: AI synthesizes findings into prioritized recommendations
+3. **Phase 3**: Generates unified report with executive summary, priority matrix, and action plan
+
+Output includes:
+- **Executive Summary** - Top 5 most impactful issues
+- **Priority Matrix** - Issues ranked by impact and effort
+- **Quick Wins** - Fixes with immediate ROI
+- **Detailed Reports** - Full findings per domain
+
+*Why audit one thing when you can audit everything? The octopus has 8 tentacles for a reason.* 🔬
 
 ## Shell Completion
 

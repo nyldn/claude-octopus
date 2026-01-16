@@ -435,7 +435,9 @@ classify_task() {
     fi
 
     # Deliver phase: QA, test, review, validate
-    if [[ "$prompt_lower" =~ ^(qa|test|review|validate|verify|audit|check)[[:space:]] ]] || \
+    # NOTE: Exclude "audit" when followed by site/website/app to allow optimize-audit routing
+    if [[ "$prompt_lower" =~ ^(qa|test|review|validate|verify|check)[[:space:]] ]] || \
+       [[ "$prompt_lower" =~ ^audit[[:space:]] && ! "$prompt_lower" =~ audit.*(site|website|app|application) ]] || \
        [[ "$prompt_lower" =~ (qa|test|review|validate).*(implementation|code|changes|feature) ]]; then
         echo "diamond-deliver"
         return
@@ -447,6 +449,19 @@ classify_task() {
     # NOTE: Order matters! More specific patterns (database, bundle) come before
     #       generic patterns (performance) to ensure correct routing.
     # ═══════════════════════════════════════════════════════════════════════════
+
+    # Multi-domain / Full site audit: comprehensive optimization across all domains
+    # CHECK FIRST - before individual domain patterns
+    if [[ "$prompt_lower" =~ (full|complete|comprehensive|entire|whole).*(audit|optimization|optimize|review) ]] || \
+       [[ "$prompt_lower" =~ (site|website|app|application).*(audit|optimization) ]] || \
+       [[ "$prompt_lower" =~ (audit|optimize|optimise).*(site|website|app|application|everything) ]] || \
+       [[ "$prompt_lower" =~ audit.*(my|the|this).*(site|website|app|application) ]] || \
+       [[ "$prompt_lower" =~ (optimize|optimise).*(everything|all|across.?the.?board) ]] || \
+       [[ "$prompt_lower" =~ (lighthouse|pagespeed|web.?vitals).*(full|complete|audit) ]] || \
+       [[ "$prompt_lower" =~ multi.?(domain|area|aspect).*(optimization|audit) ]]; then
+        echo "optimize-audit"
+        return
+    fi
 
     # Database optimization: query, index, SQL, slow queries (CHECK BEFORE PERFORMANCE)
     if [[ "$prompt_lower" =~ (optimize|optimise).*(database|query|sql|index|postgres|mysql) ]] || \
@@ -2996,6 +3011,179 @@ Focus on:
 - Lazy loading implementation
 - CDN and caching strategies"
             spawn_agent "gemini" "$img_prompt"
+            return
+            ;;
+        optimize-audit)
+            echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${CYAN}║  🔬 OPTIMIZE - Full Site Audit (Multi-Domain)             ║${NC}"
+            echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
+            echo ""
+            echo -e "  ${YELLOW}Running comprehensive audit across all optimization domains...${NC}"
+            echo -e "  Domains: ⚡ Performance │ ♿ Accessibility │ 🔍 SEO │ 🖼️ Images │ 📦 Bundle │ 🗃️ Database"
+            echo ""
+
+            # Define the domains to audit
+            local domains=("performance" "accessibility" "seo" "images" "bundle")
+
+            # Dry-run mode: show plan and exit
+            if [[ "$DRY_RUN" == "true" ]]; then
+                echo -e "  ${CYAN}[DRY-RUN] Full Site Audit Plan:${NC}"
+                echo -e "    Phase 1: Parallel domain audits (${#domains[@]} agents)"
+                for domain in "${domains[@]}"; do
+                    echo -e "      ├─ $domain audit via gemini-fast"
+                done
+                echo -e "    Phase 2: Synthesize results via gemini"
+                echo -e "    Phase 3: Generate unified report"
+                echo ""
+                echo -e "  ${YELLOW}Domains:${NC} ${domains[*]}"
+                echo -e "  ${YELLOW}Output:${NC} \$WORKSPACE/results/full-audit-*.md"
+                return
+            fi
+
+            # Create temp directory for audit results
+            local audit_dir
+            audit_dir="${WORKSPACE:-$HOME/.claude-octopus}/results/audit-$(date +%Y%m%d-%H%M%S)"
+            mkdir -p "$audit_dir"
+            local pids=()
+            local domain_files=()
+
+            # Phase 1: Parallel domain analysis
+            echo -e "  ${CYAN}Phase 1/3: Parallel Domain Analysis${NC}"
+            for domain in "${domains[@]}"; do
+                local domain_prompt
+                local domain_file="$audit_dir/$domain.md"
+                domain_files+=("$domain_file")
+
+                case "$domain" in
+                    performance)
+                        domain_prompt="You are a performance optimization specialist. Analyze for performance issues:
+$prompt
+
+Focus on: load times, Core Web Vitals (LCP, FID, CLS), JavaScript execution, render blocking, caching.
+Output a structured report with findings and recommendations." ;;
+                    accessibility)
+                        domain_prompt="You are an accessibility (a11y) specialist. Audit for accessibility issues:
+$prompt
+
+Focus on: WCAG 2.1 AA compliance, screen reader compatibility, keyboard navigation, color contrast, ARIA usage.
+Output a structured report with findings and recommendations." ;;
+                    seo)
+                        domain_prompt="You are an SEO specialist. Audit for search optimization issues:
+$prompt
+
+Focus on: meta tags, structured data (JSON-LD), heading hierarchy, URL structure, mobile-friendliness, Core Web Vitals.
+Output a structured report with findings and recommendations." ;;
+                    images)
+                        domain_prompt="You are an image optimization specialist. Audit for image optimization issues:
+$prompt
+
+Focus on: format usage (WebP/AVIF), compression, responsive images (srcset), lazy loading, alt text.
+Output a structured report with findings and recommendations." ;;
+                    bundle)
+                        domain_prompt="You are a frontend build specialist. Audit for bundle optimization issues:
+$prompt
+
+Focus on: bundle size, code splitting, tree shaking, unused dependencies, compression (gzip/brotli).
+Output a structured report with findings and recommendations." ;;
+                esac
+
+                echo -e "    ├─ Starting ${domain} audit..."
+                (spawn_agent "gemini-fast" "$domain_prompt" > "$domain_file" 2>&1) &
+                pids+=($!)
+            done
+
+            # Wait for all audits to complete
+            echo -e "    └─ Waiting for ${#pids[@]} audits to complete..."
+            local failed=0
+            for i in "${!pids[@]}"; do
+                if ! wait "${pids[$i]}" 2>/dev/null; then
+                    ((failed++))
+                    echo -e "      ${RED}✗${NC} ${domains[$i]} audit failed"
+                else
+                    echo -e "      ${GREEN}✓${NC} ${domains[$i]} audit complete"
+                fi
+            done
+            echo ""
+
+            # Phase 2: Synthesize results
+            echo -e "  ${CYAN}Phase 2/3: Synthesizing Results${NC}"
+            local synthesis_input=""
+            for i in "${!domains[@]}"; do
+                local domain="${domains[$i]}"
+                local domain_file="${domain_files[$i]}"
+                if [[ -f "$domain_file" ]]; then
+                    synthesis_input+="
+## ${domain^^} AUDIT RESULTS
+$(cat "$domain_file")
+
+---
+"
+                fi
+            done
+
+            local synthesis_prompt="You are a senior web optimization consultant. Synthesize these multi-domain audit results into a comprehensive report:
+
+$synthesis_input
+
+Create a unified report with:
+1. **Executive Summary** - Top 5 most impactful issues across all domains
+2. **Priority Matrix** - Issues ranked by impact (High/Medium/Low) and effort
+3. **Domain Summaries** - Key findings per domain (2-3 bullets each)
+4. **Action Plan** - Recommended order of fixes with rationale
+5. **Quick Wins** - Issues that can be fixed immediately with high ROI
+
+Format as markdown. Be specific and actionable."
+
+            local synthesis_file="$audit_dir/synthesis.md"
+            spawn_agent "gemini" "$synthesis_prompt" > "$synthesis_file" 2>&1
+            echo ""
+
+            # Phase 3: Generate final report
+            echo -e "  ${CYAN}Phase 3/3: Generating Final Report${NC}"
+            local final_report="${WORKSPACE:-$HOME/.claude-octopus}/results/full-audit-$(date +%Y%m%d-%H%M%S).md"
+            {
+                echo "# Full Site Optimization Audit"
+                echo ""
+                echo "_Generated: $(date)_"
+                echo "_Domains Audited: ${domains[*]}_"
+                echo ""
+                echo "---"
+                echo ""
+                if [[ -f "$synthesis_file" ]]; then
+                    cat "$synthesis_file"
+                fi
+                echo ""
+                echo "---"
+                echo ""
+                echo "# Detailed Domain Reports"
+                echo ""
+                for i in "${!domains[@]}"; do
+                    local domain="${domains[$i]}"
+                    local domain_file="${domain_files[$i]}"
+                    echo "## ${domain^} Audit"
+                    echo ""
+                    if [[ -f "$domain_file" ]]; then
+                        cat "$domain_file"
+                    else
+                        echo "_No results available_"
+                    fi
+                    echo ""
+                    echo "---"
+                    echo ""
+                done
+            } > "$final_report"
+
+            echo -e "  ${GREEN}✓${NC} Full audit complete!"
+            echo -e "  ${CYAN}Report:${NC} $final_report"
+            echo ""
+
+            # Display synthesis if available
+            if [[ -f "$synthesis_file" ]]; then
+                echo -e "${CYAN}═══════════════════════════════════════════════════════════${NC}"
+                echo -e "${CYAN}                    AUDIT SYNTHESIS                        ${NC}"
+                echo -e "${CYAN}═══════════════════════════════════════════════════════════${NC}"
+                cat "$synthesis_file"
+            fi
             return
             ;;
         optimize-general)
