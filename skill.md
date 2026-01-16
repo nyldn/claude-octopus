@@ -10,6 +10,8 @@ description: |
   - Adversarial cross-model review (grapple: debate, squeeze: red team)
   - Review code from multiple angles using different AI models
 
+  **First-use:** Automatically detects if configuration is needed and guides setup.
+
   NOT for: Simple sequential tasks, tasks requiring human interaction, debugging sessions
 ---
 
@@ -53,6 +55,64 @@ description: |
 ./scripts/orchestrate.sh auto "build user login"                  # -> tangle + ink
 ./scripts/orchestrate.sh auto "review the auth code"              # -> ink
 ```
+
+## Prerequisites Check (CRITICAL - Run First!)
+
+Before executing ANY claude-octopus command, you MUST verify configuration is complete:
+
+### Step 1: Check Configuration Status
+
+Run this command to check if Claude Octopus is configured:
+
+```bash
+./scripts/orchestrate.sh status 2>&1 || echo "STATUS_CHECK_FAILED"
+```
+
+### Step 2: Analyze Status Output
+
+Look for these indicators of **incomplete configuration**:
+
+- ❌ "OPENAI_API_KEY not set" or "none" for Codex authentication
+- ❌ "none" for Gemini authentication
+- ❌ "STATUS_CHECK_FAILED" (script error)
+- ❌ Any provider showing "not installed"
+
+If ANY of these appear, configuration is **incomplete**.
+
+### Step 3: Auto-Trigger Configuration
+
+If configuration is incomplete, **STOP** and tell the user:
+
+> "Claude Octopus needs to be configured first. Let me guide you through the setup."
+
+Then automatically invoke the configuration process by telling the user you need to run the configure command. You can do this by saying:
+
+> "I need to configure Claude Octopus for you. Please run: `/octopus-configure`"
+
+This will activate the configure skill which will:
+1. Auto-detect installed CLIs
+2. Check for API keys
+3. Guide the user through any missing setup
+4. Run the configuration wizard
+
+### Step 4: Verify Configuration Complete
+
+After configuration, re-run the status check:
+
+```bash
+./scripts/orchestrate.sh status
+```
+
+Confirm you see:
+- ✓ Codex with authentication (oauth or api-key)
+- ✓ Gemini with authentication (oauth or api-key)
+- ✓ Valid cost optimization strategy
+
+### Step 5: Proceed with Task
+
+Only AFTER configuration is verified complete should you proceed with the user's original request.
+
+**IMPORTANT:** Never skip this check. Always verify configuration before running probe, tangle, embrace, grapple, or any other octopus command.
 
 ## Double Diamond Workflow
 
