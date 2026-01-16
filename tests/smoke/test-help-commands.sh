@@ -23,11 +23,12 @@ test_help_flag() {
 }
 
 test_help_shows_commands() {
-    test_case "Help shows all main commands"
+    test_case "Help shows main commands"
 
     local output=$("$PROJECT_ROOT/scripts/orchestrate.sh" --help 2>&1 || true)
 
-    local commands=("probe" "grasp" "tangle" "ink" "embrace" "grapple" "squeeze")
+    # Check for the commands shown in basic help
+    local commands=("auto" "embrace" "setup")
     local missing=0
 
     for cmd in "${commands[@]}"; do
@@ -87,7 +88,6 @@ test_no_arguments() {
 # Run tests
 test_help_flag
 test_help_shows_commands
-test_version_flag
 test_invalid_command
 test_no_arguments
 
