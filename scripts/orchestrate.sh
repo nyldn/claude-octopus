@@ -492,6 +492,10 @@ ${YELLOW}Classic Commands:${NC}
   aggregate               Combine all results into single document
   help                    Show this help message
 
+${YELLOW}Ralph-Wiggum Iteration:${NC} (v3.5 - Loop until complete)
+  ralph <prompt> [agent]  Iterate until completion promise or max iterations
+  iterate <prompt>        Alias for ralph command
+
 ${YELLOW}Available Agents:${NC} (Premium defaults)
   codex         GPT-5.1-Codex-Max   ${GREEN}Premium default${NC} for complex coding
   codex-standard GPT-5.2-Codex      Standard coding model
@@ -3277,6 +3281,13 @@ case "$COMMAND" in
         ;;
     aggregate)
         aggregate_results "${1:-}"
+        ;;
+    # ═══════════════════════════════════════════════════════════════════════════
+    # RALPH-WIGGUM ITERATION COMMANDS (v3.5)
+    # ═══════════════════════════════════════════════════════════════════════════
+    ralph|iterate)
+        [[ $# -lt 1 ]] && { log ERROR "Usage: ralph <prompt> [agent] [max-iterations]"; exit 1; }
+        run_with_ralph_loop "${2:-codex}" "$1" "${3:-$RALPH_MAX_ITERATIONS}"
         ;;
     *)
         log ERROR "Unknown command: $COMMAND"
