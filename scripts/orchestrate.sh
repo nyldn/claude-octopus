@@ -48,6 +48,340 @@ get_agent_command() {
 # List of available agents
 AVAILABLE_AGENTS="codex codex-standard codex-max codex-mini codex-general gemini gemini-fast gemini-image codex-review"
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# USAGE TRACKING & COST REPORTING (v4.1)
+# Tracks token usage, costs, and agent statistics per session
+# Compatible with bash 3.x (no associative arrays)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Get pricing for a model (input:output per million tokens)
+# Returns "input_price:output_price" in USD
+get_model_pricing() {
+    local model="$1"
+    case "$model" in
+        # OpenAI GPT-5.x models
+        gpt-5.1-codex-max)      echo "3.00:15.00" ;;
+        gpt-5.2-codex)          echo "2.00:10.00" ;;
+        gpt-5.1-codex-mini)     echo "0.50:2.00" ;;
+        gpt-5.2)                echo "1.50:7.50" ;;
+        # Google Gemini 3.0 models
+        gemini-3-pro-preview)   echo "2.50:10.00" ;;
+        gemini-3-flash-preview) echo "0.25:1.00" ;;
+        gemini-3-pro-image-preview) echo "5.00:20.00" ;;
+        # Default fallback
+        *)                      echo "1.00:5.00" ;;
+    esac
+}
+
+# Get model for agent type
+get_agent_model() {
+    local agent_type="$1"
+    case "$agent_type" in
+        codex)          echo "gpt-5.1-codex-max" ;;
+        codex-standard) echo "gpt-5.2-codex" ;;
+        codex-max)      echo "gpt-5.1-codex-max" ;;
+        codex-mini)     echo "gpt-5.1-codex-mini" ;;
+        codex-general)  echo "gpt-5.2" ;;
+        gemini)         echo "gemini-3-pro-preview" ;;
+        gemini-fast)    echo "gemini-3-flash-preview" ;;
+        gemini-image)   echo "gemini-3-pro-image-preview" ;;
+        codex-review)   echo "gpt-5.2-codex" ;;
+        *)              echo "unknown" ;;
+    esac
+}
+
+# Session usage tracking file
+USAGE_FILE="${WORKSPACE_DIR}/usage-session.json"
+USAGE_HISTORY_DIR="${WORKSPACE_DIR}/usage-history"
+
+# Initialize usage tracking for current session
+init_usage_tracking() {
+    mkdir -p "$USAGE_HISTORY_DIR"
+
+    # Initialize session usage file
+    cat > "$USAGE_FILE" << 'EOF'
+{
+  "session_id": "",
+  "started_at": "",
+  "total_calls": 0,
+  "total_tokens_estimated": 0,
+  "total_cost_estimated": 0.0,
+  "by_model": {},
+  "by_agent": {},
+  "by_phase": {},
+  "by_role": {},
+  "calls": []
+}
+EOF
+
+    # Set session ID and start time
+    local session_id
+    session_id="session-$(date +%Y%m%d-%H%M%S)"
+    local started_at
+    started_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+    # Update session metadata (using sed for portability)
+    sed -i.bak "s/\"session_id\": \"\"/\"session_id\": \"$session_id\"/" "$USAGE_FILE" 2>/dev/null || \
+        sed -i '' "s/\"session_id\": \"\"/\"session_id\": \"$session_id\"/" "$USAGE_FILE"
+    sed -i.bak "s/\"started_at\": \"\"/\"started_at\": \"$started_at\"/" "$USAGE_FILE" 2>/dev/null || \
+        sed -i '' "s/\"started_at\": \"\"/\"started_at\": \"$started_at\"/" "$USAGE_FILE"
+    rm -f "${USAGE_FILE}.bak" 2>/dev/null
+
+    log DEBUG "Usage tracking initialized: $session_id"
+}
+
+# Estimate tokens from prompt length (rough approximation: ~4 chars per token)
+estimate_tokens() {
+    local text="$1"
+    local char_count=${#text}
+    echo $(( (char_count + 3) / 4 ))  # Round up
+}
+
+# Record an agent call (append to usage tracking)
+record_agent_call() {
+    local agent_type="$1"
+    local model="$2"
+    local prompt="$3"
+    local phase="${4:-unknown}"
+    local role="${5:-none}"
+    local duration_ms="${6:-0}"
+
+    # Skip if dry run
+    [[ "$DRY_RUN" == "true" ]] && return 0
+
+    # Estimate tokens
+    local input_tokens
+    input_tokens=$(estimate_tokens "$prompt")
+    local output_tokens=$((input_tokens * 2))  # Estimate output as 2x input
+    local total_tokens=$((input_tokens + output_tokens))
+
+    # Calculate estimated cost
+    local pricing
+    pricing=$(get_model_pricing "$model")
+    local input_price="${pricing%%:*}"
+    local output_price="${pricing##*:}"
+
+    # Cost = (tokens / 1,000,000) * price_per_million
+    local cost
+    cost=$(awk "BEGIN {printf \"%.6f\", ($input_tokens * $input_price + $output_tokens * $output_price) / 1000000}")
+
+    local timestamp
+    timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+    # Append to calls array using a temp file approach (jq-free for portability)
+    if [[ -f "$USAGE_FILE" ]]; then
+        # Create call record
+        local call_record
+        call_record=$(cat << EOF
+    {
+      "timestamp": "$timestamp",
+      "agent": "$agent_type",
+      "model": "$model",
+      "phase": "$phase",
+      "role": "$role",
+      "input_tokens": $input_tokens,
+      "output_tokens": $output_tokens,
+      "total_tokens": $total_tokens,
+      "cost_usd": $cost,
+      "duration_ms": $duration_ms
+    }
+EOF
+)
+
+        # Update totals in a simple tracking file
+        echo "$timestamp|$agent_type|$model|$phase|$role|$input_tokens|$output_tokens|$total_tokens|$cost|$duration_ms" >> "${USAGE_FILE}.log"
+
+        log DEBUG "Recorded call: agent=$agent_type model=$model tokens=$total_tokens cost=\$$cost"
+    fi
+}
+
+# Generate usage report (bash 3.x compatible using awk)
+generate_usage_report() {
+    local format="${1:-table}"  # table, json, csv
+
+    if [[ ! -f "${USAGE_FILE}.log" ]]; then
+        echo "No usage data recorded in this session."
+        return 0
+    fi
+
+    case "$format" in
+        json)
+            generate_usage_json
+            ;;
+        csv)
+            generate_usage_csv
+            ;;
+        *)
+            generate_usage_table
+            ;;
+    esac
+}
+
+# Generate table format report using awk (bash 3.x compatible)
+generate_usage_table() {
+    local log_file="${USAGE_FILE}.log"
+
+    # Calculate totals using awk
+    local totals
+    totals=$(awk -F'|' '
+        { calls++; tokens+=$8; cost+=$9 }
+        END { printf "%d|%d|%.6f", calls, tokens, cost }
+    ' "$log_file")
+
+    local total_calls total_tokens total_cost
+    total_calls=$(echo "$totals" | cut -d'|' -f1)
+    total_tokens=$(echo "$totals" | cut -d'|' -f2)
+    total_cost=$(echo "$totals" | cut -d'|' -f3)
+
+    echo ""
+    echo -e "${CYAN}╔════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║  ${GREEN}USAGE REPORT${CYAN}                                                 ║${NC}"
+    echo -e "${CYAN}╠════════════════════════════════════════════════════════════════╣${NC}"
+    echo -e "${CYAN}║${NC}                                                                ${CYAN}║${NC}"
+    printf "${CYAN}║${NC}  Total Calls:    ${GREEN}%-6s${NC}                                       ${CYAN}║${NC}\n" "$total_calls"
+    printf "${CYAN}║${NC}  Total Tokens:   ${GREEN}%-10s${NC}                                   ${CYAN}║${NC}\n" "$total_tokens"
+    printf "${CYAN}║${NC}  Total Cost:     ${GREEN}\$%-10s${NC}                                  ${CYAN}║${NC}\n" "$total_cost"
+    echo -e "${CYAN}║${NC}                                                                ${CYAN}║${NC}"
+    echo -e "${CYAN}╠════════════════════════════════════════════════════════════════╣${NC}"
+    echo -e "${CYAN}║${NC}  ${YELLOW}By Model${NC}                           Tokens      Cost    Calls ${CYAN}║${NC}"
+    echo -e "${CYAN}╟────────────────────────────────────────────────────────────────╢${NC}"
+
+    # Aggregate by model using awk
+    awk -F'|' '
+        { model[$3] += $8; cost[$3] += $9; calls[$3]++ }
+        END {
+            for (m in model) {
+                printf "  %-30s %8d  $%-7.4f  %3d\n", m, model[m], cost[m], calls[m]
+            }
+        }
+    ' "$log_file" | while read -r line; do
+        echo -e "${CYAN}║${NC}$line   ${CYAN}║${NC}"
+    done
+
+    echo -e "${CYAN}╠════════════════════════════════════════════════════════════════╣${NC}"
+    echo -e "${CYAN}║${NC}  ${YELLOW}By Agent${NC}                           Tokens      Cost    Calls ${CYAN}║${NC}"
+    echo -e "${CYAN}╟────────────────────────────────────────────────────────────────╢${NC}"
+
+    # Aggregate by agent using awk
+    awk -F'|' '
+        { agent[$2] += $8; cost[$2] += $9; calls[$2]++ }
+        END {
+            for (a in agent) {
+                printf "  %-30s %8d  $%-7.4f  %3d\n", a, agent[a], cost[a], calls[a]
+            }
+        }
+    ' "$log_file" | while read -r line; do
+        echo -e "${CYAN}║${NC}$line   ${CYAN}║${NC}"
+    done
+
+    echo -e "${CYAN}╠════════════════════════════════════════════════════════════════╣${NC}"
+    echo -e "${CYAN}║${NC}  ${YELLOW}By Phase${NC}                           Tokens      Cost    Calls ${CYAN}║${NC}"
+    echo -e "${CYAN}╟────────────────────────────────────────────────────────────────╢${NC}"
+
+    # Aggregate by phase using awk
+    awk -F'|' '
+        { phase[$4] += $8; cost[$4] += $9; calls[$4]++ }
+        END {
+            for (p in phase) {
+                printf "  %-30s %8d  $%-7.4f  %3d\n", p, phase[p], cost[p], calls[p]
+            }
+        }
+    ' "$log_file" | while read -r line; do
+        echo -e "${CYAN}║${NC}$line   ${CYAN}║${NC}"
+    done
+
+    echo -e "${CYAN}╚════════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    echo -e "${YELLOW}Note:${NC} Token counts are estimates (~4 chars/token). Actual costs may vary."
+    echo ""
+}
+
+# Generate CSV format report
+generate_usage_csv() {
+    echo "timestamp,agent,model,phase,role,input_tokens,output_tokens,total_tokens,cost_usd,duration_ms"
+    cat "${USAGE_FILE}.log" | tr '|' ','
+}
+
+# Generate JSON format report (bash 3.x compatible)
+generate_usage_json() {
+    local log_file="${USAGE_FILE}.log"
+
+    # Calculate totals using awk
+    local totals
+    totals=$(awk -F'|' '
+        { calls++; tokens+=$8; cost+=$9 }
+        END { printf "%d|%d|%.6f", calls, tokens, cost }
+    ' "$log_file")
+
+    local total_calls total_tokens total_cost
+    total_calls=$(echo "$totals" | cut -d'|' -f1)
+    total_tokens=$(echo "$totals" | cut -d'|' -f2)
+    total_cost=$(echo "$totals" | cut -d'|' -f3)
+
+    local session_id
+    session_id=$(grep -o '"session_id": "[^"]*"' "$USAGE_FILE" 2>/dev/null | cut -d'"' -f4)
+    local started_at
+    started_at=$(grep -o '"started_at": "[^"]*"' "$USAGE_FILE" 2>/dev/null | cut -d'"' -f4)
+
+    cat << EOF
+{
+  "session_id": "$session_id",
+  "started_at": "$started_at",
+  "generated_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+  "totals": {
+    "calls": $total_calls,
+    "tokens": $total_tokens,
+    "cost_usd": $total_cost
+  },
+  "calls": [
+EOF
+
+    local first=true
+    while IFS='|' read -r timestamp agent model phase role input_tokens output_tokens tokens cost duration; do
+        [[ "$first" == "true" ]] || echo ","
+        first=false
+        cat << EOF
+    {
+      "timestamp": "$timestamp",
+      "agent": "$agent",
+      "model": "$model",
+      "phase": "$phase",
+      "role": "$role",
+      "input_tokens": $input_tokens,
+      "output_tokens": $output_tokens,
+      "total_tokens": $tokens,
+      "cost_usd": $cost,
+      "duration_ms": $duration
+    }
+EOF
+    done < "$log_file"
+
+    echo ""
+    echo "  ]"
+    echo "}"
+}
+
+# Archive current session usage to history
+archive_usage_session() {
+    if [[ -f "${USAGE_FILE}.log" ]]; then
+        local session_id
+        session_id=$(grep -o '"session_id": "[^"]*"' "$USAGE_FILE" 2>/dev/null | cut -d'"' -f4)
+        [[ -z "$session_id" ]] && session_id="session-$(date +%Y%m%d-%H%M%S)"
+
+        mkdir -p "$USAGE_HISTORY_DIR"
+        mv "${USAGE_FILE}.log" "${USAGE_HISTORY_DIR}/${session_id}.log"
+        rm -f "$USAGE_FILE"
+
+        log INFO "Usage session archived: ${session_id}"
+    fi
+}
+
+# Clear current session usage
+clear_usage_session() {
+    rm -f "$USAGE_FILE" "${USAGE_FILE}.log"
+    log INFO "Usage session cleared"
+}
+
 # Task classification for contextual agent routing
 # Returns: diamond-discover|diamond-develop|diamond-deliver|coding|research|design|copywriting|image|review|general
 # Order matters! Double Diamond intents checked first, then specific patterns.
@@ -699,6 +1033,15 @@ ${MAGENTA}═══════════════════════�
   clean                   Clean workspace
   aggregate               Combine all results
   preflight               Validate dependencies
+
+${BLUE}═══════════════════════════════════════════════════════════════════════════${NC}
+${BLUE}COST & USAGE REPORTING${NC} (v4.1)
+${BLUE}═══════════════════════════════════════════════════════════════════════════${NC}
+  cost                    Show usage report (tokens, costs, by model/agent/phase)
+  cost-json               Export usage as JSON
+  cost-csv                Export usage as CSV
+  cost-clear              Clear current session usage
+  cost-archive            Archive session to history
 
 ${YELLOW}Available Agents:${NC}
   codex           GPT-5.1-Codex-Max   ${GREEN}Premium${NC} (complex coding)
@@ -1801,6 +2144,11 @@ spawn_agent() {
     log DEBUG "Command: $cmd"
     log DEBUG "Phase: ${phase:-none}, Role: ${role:-none}"
 
+    # Record usage (get model from agent type)
+    local model
+    model=$(get_agent_model "$agent_type")
+    record_agent_call "$agent_type" "$model" "$enhanced_prompt" "${phase:-unknown}" "${role:-none}" "0"
+
     if [[ "$DRY_RUN" == "true" ]]; then
         log INFO "[DRY-RUN] Would execute: $cmd with role=${role:-none}"
         return 0
@@ -2603,6 +2951,11 @@ run_agent_sync() {
     enhanced_prompt=$(apply_persona "$role" "$prompt")
 
     log DEBUG "run_agent_sync: agent=$agent_type, role=${role:-none}, phase=${phase:-none}"
+
+    # Record usage (get model from agent type)
+    local model
+    model=$(get_agent_model "$agent_type")
+    record_agent_call "$agent_type" "$model" "$enhanced_prompt" "${phase:-unknown}" "${role:-none}" "0"
 
     local cmd
     cmd=$(get_agent_command "$agent_type") || return 1
@@ -3417,6 +3770,12 @@ if [[ "$COMMAND" != "help" && "$COMMAND" != "setup" && "$COMMAND" != "preflight"
     check_first_run || true  # Show hint but don't block
 fi
 
+# Initialize usage tracking for cost reporting (v4.1)
+# Skip for cost/usage commands that just read existing data
+if [[ "$COMMAND" != "cost" && "$COMMAND" != "usage" && "$COMMAND" != "cost-json" && "$COMMAND" != "cost-csv" && "$COMMAND" != "cost-clear" && "$COMMAND" != "cost-archive" && "$COMMAND" != "help" ]]; then
+    init_usage_tracking 2>/dev/null || true
+fi
+
 case "$COMMAND" in
     # ═══════════════════════════════════════════════════════════════════════════
     # DOUBLE DIAMOND COMMANDS (with intuitive aliases)
@@ -3520,6 +3879,31 @@ case "$COMMAND" in
     ralph|iterate)
         [[ $# -lt 1 ]] && { log ERROR "Usage: ralph <prompt> [agent] [max-iterations]"; exit 1; }
         run_with_ralph_loop "${2:-codex}" "$1" "${3:-$RALPH_MAX_ITERATIONS}"
+        ;;
+    # ═══════════════════════════════════════════════════════════════════════════
+    # USAGE & COST REPORTING COMMANDS (v4.1)
+    # ═══════════════════════════════════════════════════════════════════════════
+    cost|usage)
+        # Show usage report (table by default, or json/csv with argument)
+        generate_usage_report "${1:-table}"
+        ;;
+    cost-json)
+        # Export usage as JSON
+        generate_usage_report "json"
+        ;;
+    cost-csv)
+        # Export usage as CSV
+        generate_usage_report "csv"
+        ;;
+    cost-clear)
+        # Clear current session usage
+        clear_usage_session
+        echo "Usage session cleared."
+        ;;
+    cost-archive)
+        # Archive current session to history
+        archive_usage_session
+        echo "Usage session archived to history."
         ;;
     # ═══════════════════════════════════════════════════════════════════════════
     # HELP COMMANDS (v4.0 - Progressive disclosure)
