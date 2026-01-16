@@ -5,6 +5,33 @@ All notable changes to Claude Octopus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.8.3] - 2026-01-16
+
+### Added - Auto-Configuration Check for First-Use Experience
+
+#### Enhanced Main Skill (skill.md)
+- **Prerequisites Check Section** - Automatic configuration detection before command execution
+  - Step 1: Status check to verify configuration completeness
+  - Step 2: Detection of missing API keys or unconfigured providers
+  - Step 3: Auto-prompt user to run `/octopus-configure` when needed
+  - Step 4: Verification after configuration completes
+  - Step 5: Proceed with original task after setup
+- **First-use notice** in skill description - "Automatically detects if configuration is needed and guides setup"
+
+#### User Experience Improvement
+- **Seamless onboarding** - Users no longer need to discover setup command manually
+- **Self-healing** - Skill automatically detects incomplete config and guides through setup
+- **Zero-friction activation** - "Just talk to Claude naturally!" now works on first use
+
+### Changed
+- Updated skill.md frontmatter description with first-use auto-configuration notice
+- Added comprehensive prerequisites checking instructions to skill.md
+
+### Notes
+This is a documentation-only change to skill.md - no modifications to orchestrate.sh required. The skill instructions now include prerequisite checking that Claude executes automatically before running any octopus commands.
+
+---
+
 ## [4.8.2] - 2026-01-16
 
 ### Added - Essential Developer Tools Setup
