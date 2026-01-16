@@ -419,6 +419,14 @@ classify_task() {
         return
     fi
 
+    # Define phase: define, clarify, scope, requirements
+    if [[ "$prompt_lower" =~ ^(define|clarify|scope|specify)[[:space:]] ]] || \
+       [[ "$prompt_lower" =~ (define|clarify).*(requirements|scope|problem|approach|boundaries) ]] || \
+       [[ "$prompt_lower" =~ (what|which).*(requirements|approach|constraints) ]]; then
+        echo "diamond-define"
+        return
+    fi
+
     # Develop+Deliver phase: build, develop, implement, create
     if [[ "$prompt_lower" =~ ^(develop|dev|build|implement|construct)[[:space:]] ]] || \
        [[ "$prompt_lower" =~ (build|develop|implement).*(feature|system|module|component|service) ]]; then
@@ -2248,16 +2256,25 @@ auto_route() {
     case "$task_type" in
         diamond-discover)
             echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
-            echo -e "${CYAN}║  PROBE (Discover Phase) - Parallel Research               ║${NC}"
+            echo -e "${CYAN}║  🔍 PROBE (Discover Phase) - Parallel Research            ║${NC}"
             echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
             echo "  Routing to probe workflow for multi-perspective research."
             echo ""
             probe_discover "$prompt"
             return
             ;;
+        diamond-define)
+            echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${CYAN}║  🤝 GRASP (Define Phase) - Consensus Building             ║${NC}"
+            echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
+            echo "  Routing to grasp workflow for problem definition."
+            echo ""
+            grasp_define "$prompt"
+            return
+            ;;
         diamond-develop)
             echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
-            echo -e "${CYAN}║  TANGLE → INK (Develop + Deliver Phases)                  ║${NC}"
+            echo -e "${CYAN}║  🦑 TANGLE → INK (Develop + Deliver Phases)               ║${NC}"
             echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
             echo "  Routing to tangle (develop) then ink (deliver) workflow."
             echo ""
@@ -2266,7 +2283,7 @@ auto_route() {
             ;;
         diamond-deliver)
             echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
-            echo -e "${CYAN}║  INK (Deliver Phase) - Quality & Validation               ║${NC}"
+            echo -e "${CYAN}║  🖤 INK (Deliver Phase) - Quality & Validation            ║${NC}"
             echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
             echo "  Routing to ink workflow for quality gates and validation."
             echo ""
