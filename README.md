@@ -25,70 +25,64 @@
 | **Smart routing** | Auto-detects intent and picks the right AI model |
 | **Adversarial review** | AI vs AI debate catches more bugs |
 
-**Try it:**
-```bash
-./scripts/orchestrate.sh auto "build user authentication"
-```
+**How to use it:**
+
+Just talk to Claude naturally! Claude Octopus automatically activates when you need multi-AI collaboration:
+
+- 💬 "Research OAuth authentication patterns and summarize the best approaches"
+- 💬 "Build a user authentication system"
+- 💬 "Review this code for security vulnerabilities"
+- 💬 "Use adversarial review to critique my implementation"
+
+Claude coordinates multiple AI models behind the scenes to give you comprehensive, validated results.
 
 ---
 
 ## Quick Start
 
-### 1. Install
+### 1. Install the Plugin
 
-```bash
-# Via Claude Code (recommended)
+In Claude Code:
+```
 /plugin marketplace add nyldn/claude-octopus
+```
 
-# Or clone directly
+Or manually:
+```bash
 git clone https://github.com/nyldn/claude-octopus.git ~/.claude/plugins/claude-octopus
 chmod +x ~/.claude/plugins/claude-octopus/scripts/*.sh
 ```
 
-### 2. Configure
+### 2. Configure (One-Time Setup)
 
+Set your API keys in your shell profile (`~/.zshrc` or `~/.bashrc`):
 ```bash
-# Set API keys (add to ~/.zshrc or ~/.bashrc)
 export OPENAI_API_KEY="sk-..."
-export GEMINI_API_KEY="AIza..."
-
-# Run configuration wizard
-./scripts/orchestrate.sh octopus-configure
-
-# Verify everything works
-./scripts/orchestrate.sh preflight
+export GEMINI_API_KEY="AIza..."  # Or use OAuth: run `gemini` and login
 ```
 
-### 3. Run
-
-```bash
-# Smart auto-routing (recommended)
-./scripts/orchestrate.sh auto "build a REST API for users"
-
-# Or full Double Diamond workflow
-./scripts/orchestrate.sh embrace "create user dashboard feature"
-
-# Preview without API calls
-./scripts/orchestrate.sh -n auto "your prompt"
+Then tell Claude:
+```
+Configure Claude Octopus
 ```
 
----
+Claude will auto-detect your setup and configure subscription tiers automatically.
 
-## Core Commands
+### 3. Start Using It
 
-| Command | What It Does |
-|---------|--------------|
-| `auto <prompt>` | Smart routing - picks best workflow automatically |
-| `embrace <prompt>` | Full 4-phase Double Diamond workflow |
-| `probe <prompt>` | Research phase - parallel exploration |
-| `tangle <prompt>` | Development phase - parallel implementation |
-| `grapple <prompt>` | Adversarial debate between AI models |
-| `squeeze <prompt>` | Red team security review |
-| `octopus-configure` | Interactive configuration wizard |
-| `preflight` | Verify all dependencies |
-| `status` | Show provider status and running agents |
+Just chat with Claude! Examples:
 
-**Common options:** `-n` (dry-run), `-v` (verbose), `-t 600` (timeout), `--cost-first`, `--quality-first`
+**For research:**
+> "Research microservices patterns and compare their trade-offs"
+
+**For development:**
+> "Build a REST API for user management with authentication"
+
+**For code review:**
+> "Review my authentication code for security issues"
+
+**For adversarial testing:**
+> "Use grapple to debate the best approach for session management"
 
 ---
 
@@ -108,17 +102,63 @@ export GEMINI_API_KEY="AIza..."
     converge          problem          solutions        delivery
 ```
 
-The `auto` command detects your intent and routes to the right phase:
+Claude Octopus detects your intent and automatically routes to the right workflow:
 
-| Keywords | Routes To |
-|----------|-----------|
-| research, explore, investigate | `probe` (Research) |
-| build, implement, create | `tangle` + `ink` (Dev + Deliver) |
-| review, test, validate | `ink` (Quality check) |
-| security audit, red team | `squeeze` (Security) |
-| debate, adversarial | `grapple` (AI vs AI) |
+| When You Say... | It Routes To |
+|-----------------|--------------|
+| "Research...", "Explore...", "Investigate..." | **Probe** (Research phase) |
+| "Build...", "Implement...", "Create..." | **Tangle + Ink** (Dev + Deliver) |
+| "Review...", "Test...", "Validate..." | **Ink** (Quality check) |
+| "Security audit...", "Red team..." | **Squeeze** (Security review) |
+| "Debate...", "Use adversarial..." | **Grapple** (AI vs AI) |
 
 ---
+
+<details>
+<summary><strong>🔧 Advanced: Direct CLI Usage</strong></summary>
+
+If you want to run Claude Octopus commands directly (outside of Claude Code):
+
+### Core Commands
+
+| Command | What It Does |
+|---------|--------------|
+| `auto <prompt>` | Smart routing - picks best workflow automatically |
+| `embrace <prompt>` | Full 4-phase Double Diamond workflow |
+| `probe <prompt>` | Research phase - parallel exploration |
+| `tangle <prompt>` | Development phase - parallel implementation |
+| `grapple <prompt>` | Adversarial debate between AI models |
+| `squeeze <prompt>` | Red team security review |
+| `octopus-configure` | Interactive configuration wizard |
+| `preflight` | Verify all dependencies |
+| `status` | Show provider status and running agents |
+
+### Examples
+
+```bash
+# Smart auto-routing
+./scripts/orchestrate.sh auto "build user authentication"
+
+# Full Double Diamond workflow
+./scripts/orchestrate.sh embrace "create user dashboard"
+
+# Specific phases
+./scripts/orchestrate.sh probe "research OAuth patterns"
+./scripts/orchestrate.sh tangle "implement user login"
+
+# Adversarial review
+./scripts/orchestrate.sh grapple "implement JWT auth"
+./scripts/orchestrate.sh squeeze "review login security"
+
+# Configuration
+./scripts/orchestrate.sh octopus-configure
+./scripts/orchestrate.sh preflight
+./scripts/orchestrate.sh status
+```
+
+**Common options:** `-n` (dry-run), `-v` (verbose), `-t 600` (timeout), `--cost-first`, `--quality-first`
+
+</details>
 
 <details>
 <summary><strong>📋 Prerequisites & Setup Details</strong></summary>
