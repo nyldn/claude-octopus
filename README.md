@@ -52,8 +52,8 @@ chmod +x ~/.claude/plugins/claude-octopus/scripts/*.sh
 export OPENAI_API_KEY="sk-..."
 export GEMINI_API_KEY="AIza..."
 
-# Run setup wizard
-./scripts/orchestrate.sh setup
+# Run configuration wizard
+./scripts/orchestrate.sh octopus-configure
 
 # Verify everything works
 ./scripts/orchestrate.sh preflight
@@ -84,7 +84,7 @@ export GEMINI_API_KEY="AIza..."
 | `tangle <prompt>` | Development phase - parallel implementation |
 | `grapple <prompt>` | Adversarial debate between AI models |
 | `squeeze <prompt>` | Red team security review |
-| `setup` | Interactive configuration wizard |
+| `octopus-configure` | Interactive configuration wizard |
 | `preflight` | Verify all dependencies |
 | `status` | Show provider status and running agents |
 
@@ -200,7 +200,7 @@ Claude Octopus intelligently routes tasks based on your subscription tiers and c
 
 ### Provider Tiers
 
-The setup wizard configures your subscription tier for each provider:
+The configuration wizard sets your subscription tier for each provider:
 
 | Provider | Tiers | Cost Behavior |
 |----------|-------|---------------|
@@ -362,12 +362,12 @@ Auto-detect optimization domain and route to specialized agents:
 </details>
 
 <details>
-<summary><strong>🔧 Smart Setup Wizard</strong></summary>
+<summary><strong>🔧 Smart Configuration Wizard</strong></summary>
 
-The setup wizard configures Claude Octopus based on your use intent and resource tier.
+The configuration wizard sets up Claude Octopus based on your use intent and resource tier.
 
 ```bash
-./scripts/orchestrate.sh setup
+./scripts/orchestrate.sh octopus-configure
 ```
 
 ### Use Intent (affects persona selection)

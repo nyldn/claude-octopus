@@ -13,8 +13,8 @@ Claude Octopus is a **Multi-tentacled orchestrator** plugin for Claude Code that
 # Pre-flight check (verify all dependencies)
 ./scripts/orchestrate.sh preflight
 
-# Run setup wizard (configures providers and preferences)
-./scripts/orchestrate.sh setup
+# Run configuration wizard (configures providers and preferences)
+./scripts/orchestrate.sh octopus-configure
 
 # Check provider status
 ./scripts/orchestrate.sh status
