@@ -5,6 +5,93 @@ All notable changes to Claude Octopus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.9.0] - 2026-01-16
+
+### Added - Seamless Claude Code Setup Experience
+
+#### New detect-providers Command
+- **Fast provider detection** - Completes in <1 second, non-blocking
+- **Parseable output** - Clear status codes (CODEX_STATUS=ok/missing, CODEX_AUTH=oauth/api-key/none)
+- **Smart guidance** - Provides targeted next steps based on detection results
+- **Cache support** - Writes results to `~/.claude-octopus/.provider-cache` (1 hour TTL)
+- **Conversational examples** - Shows what users can do naturally in Claude Code
+
+#### Fifth User Role: Researcher UX/UI Design
+- **New combined role** - "Researcher UX/UI Design" for users who do both UX research and UI design
+- Added to user intent selection menu as option [5]
+- Uses "researcher" persona for combined research + design workflow
+- Renumbered existing roles: UI/Product Design [5→6], DevOps [6→7], Data [7→8], SEO [8→9], Security [9→10]
+
+#### Conversational Documentation
+- **Replaced CLI commands** with natural language examples in all user-facing docs
+- Commands/setup.md: Rich conversational examples organized by category (Research, Implementation, Code Review, Adversarial Testing, Full Workflows)
+- README.md: Simplified Quick Start emphasizing natural conversation over CLI
+- skill.md: Added callout that Claude Code users don't need to run commands
+
+### Changed - Simplified Setup Requirements
+
+#### One Provider Required (Not Both)
+- **Breaking change**: Users only need ONE provider (Codex OR Gemini) to get started
+- Previous: Both Codex AND Gemini required
+- New: Choose either based on preference (Codex for code gen, Gemini for analysis)
+- Graceful degradation: Multi-provider tasks adapt to single provider
+- Clear messaging: "You only need ONE provider to use Claude Octopus"
+
+#### Updated Prerequisites Check (skill.md)
+- **Automatic fast detection** - Non-blocking provider check replaces manual status command
+- **Three scenarios** with clear routing logic:
+  - Both missing: Show setup instructions, STOP
+  - One working: Proceed with available provider
+  - Both working: Use both for comprehensive analysis
+- Emphasizes: "One is sufficient for most tasks"
+- Cache optimization: Skip re-detection if cache valid (<1 hour)
+
+#### Setup Command Redesign (commands/setup.md)
+- Complete rewrite focusing on conversational usage
+- Removed references to interactive terminal wizard
+- Added shell-specific instructions (zsh vs bash)
+- Expanded troubleshooting section
+- Clear section: "Do I Need Both Providers?" (Answer: No!)
+
+#### README.md Quick Start Overhaul
+- Simplified from confusing to clear 3-step process
+- Step 2 emphasis: "You only need ONE provider to get started"
+- Shows both OAuth and API key options upfront
+- Removed "Configure Claude Octopus" step (no longer needed)
+- Optional verification step moved to end
+
+### Deprecated
+
+#### Interactive Setup Wizard
+- **init_interactive()** function deprecated (will be removed in v5.0)
+- Shows deprecation warning with migration path
+- Explains benefits of new approach:
+  - Faster onboarding (one provider vs two)
+  - Clearer instructions (no confusing interactive prompts)
+  - Works in Claude Code (no terminal switching)
+  - Environment variables for API keys (more secure)
+- Users redirected to `detect-providers` command
+
+### Fixed
+
+#### Provider Detection Output
+- Fixed auth detection showing duplicate values (e.g., "oauth\napi-key")
+- Now correctly shows single auth method per provider
+
+### Notes
+
+This is a major UX release that redesigns the entire setup experience to align with official Claude Code plugin patterns (Vercel, GitHub, Figma). The goal is to keep users in Claude Code without terminal context switching, while making setup faster and clearer. The interactive wizard is deprecated in favor of fast auto-detection + environment variables.
+
+**Breaking Changes:**
+- Old `init_interactive` wizard shows deprecation warning
+- Documentation now emphasizes conversational usage over CLI commands
+
+**Migration Path:**
+- Existing users: Continue using current setup, or migrate to environment variables
+- New users: Install one CLI, set API key, done
+
+---
+
 ## [4.8.3] - 2026-01-16
 
 ### Added - Auto-Configuration Check for First-Use Experience
