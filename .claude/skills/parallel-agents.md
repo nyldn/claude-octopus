@@ -136,7 +136,7 @@ If the detect-providers command shows BOTH providers are missing (CODEX_STATUS=m
 > - 'Build a user authentication system'
 > - 'Review this code for security issues'
 >
-> Need more detailed setup instructions? Run `/claude-octopus:welcome`"
+> Need guided setup? Run `/claude-octopus:setup`"
 
 After showing this welcome message, STOP and wait for the user to set up a provider. Do not proceed with the original task until at least one provider is configured.
 
