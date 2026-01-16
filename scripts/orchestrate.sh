@@ -103,6 +103,8 @@ get_agent_command() {
         gemini-fast) echo "gemini -y -m gemini-3-flash-preview" ;; # Fast Gemini
         gemini-image) echo "gemini -y -m gemini-3-pro-preview" ;; # Image capable
         codex-review) echo "codex exec review" ;;                 # Code review mode
+        claude) echo "claude --print" ;;                         # Claude Sonnet 4.5
+        claude-sonnet) echo "claude --print -m sonnet" ;;        # Claude Sonnet explicit
         *) return 1 ;;
     esac
 }
@@ -124,12 +126,14 @@ get_agent_command_array() {
         gemini-fast)    _cmd_array=(gemini -y -m gemini-3-flash-preview) ;;
         gemini-image)   _cmd_array=(gemini -y -m gemini-3-pro-preview) ;;
         codex-review)   _cmd_array=(codex exec review) ;;
+        claude)         _cmd_array=(claude --print) ;;
+        claude-sonnet)  _cmd_array=(claude --print -m sonnet) ;;
         *) return 1 ;;
     esac
 }
 
 # List of available agents
-AVAILABLE_AGENTS="codex codex-standard codex-max codex-mini codex-general gemini gemini-fast gemini-image codex-review"
+AVAILABLE_AGENTS="codex codex-standard codex-max codex-mini codex-general gemini gemini-fast gemini-image codex-review claude claude-sonnet"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # USAGE TRACKING & COST REPORTING (v4.1)
@@ -151,6 +155,8 @@ get_model_pricing() {
         gemini-3-pro-preview)   echo "2.50:10.00" ;;
         gemini-3-flash-preview) echo "0.25:1.00" ;;
         gemini-3-pro-image-preview) echo "5.00:20.00" ;;
+        # Claude Sonnet 4.5
+        claude-sonnet-4.5)      echo "3.00:15.00" ;;
         # Default fallback
         *)                      echo "1.00:5.00" ;;
     esac
@@ -169,6 +175,8 @@ get_agent_model() {
         gemini-fast)    echo "gemini-3-flash-preview" ;;
         gemini-image)   echo "gemini-3-pro-image-preview" ;;
         codex-review)   echo "gpt-5.2-codex" ;;
+        claude)         echo "claude-sonnet-4.5" ;;
+        claude-sonnet)  echo "claude-sonnet-4.5" ;;
         *)              echo "unknown" ;;
     esac
 }
@@ -5212,10 +5220,19 @@ preflight_check() {
         log DEBUG "Gemini CLI: $(command -v gemini)"
     fi
 
+    # Check Claude CLI (bonus tentacle for grapple/squeeze)
+    if ! command -v claude &>/dev/null; then
+        log WARN "Claude CLI not found. grapple/squeeze will not work."
+        log INFO "  Install: npm install -g @anthropic/claude-code"
+    else
+        log DEBUG "Claude CLI: $(command -v claude)"
+    fi
+
     # Check API keys (support both env var and OAuth login)
     if [[ -z "${OPENAI_API_KEY:-}" ]]; then
         # Check for OAuth authentication via codex login
         if [[ -f "$HOME/.codex/auth.json" ]]; then
+            log INFO "Codex: Using OAuth authentication (faster)"
             log DEBUG "OPENAI_API_KEY: not set, but OAuth auth found (~/.codex/auth.json)"
         else
             log ERROR "OPENAI_API_KEY not set (and no OAuth auth found)"
@@ -5223,6 +5240,12 @@ preflight_check() {
             ((errors++))
         fi
     else
+        # Check if OAuth is also available (OAuth is preferred for speed)
+        if [[ -f "$HOME/.codex/auth.json" ]]; then
+            log INFO "Codex: Using OAuth authentication (faster)"
+        else
+            log WARN "Codex: Using API key (slower). Run 'codex login' for OAuth"
+        fi
         log DEBUG "OPENAI_API_KEY: set (${#OPENAI_API_KEY} chars)"
     fi
 
@@ -6056,7 +6079,7 @@ grapple_debate() {
     echo ""
     echo -e "${RED}╔═══════════════════════════════════════════════════════════╗${NC}"
     echo -e "${RED}║  🤼 GRAPPLE - Adversarial Cross-Model Review              ║${NC}"
-    echo -e "${RED}║  Codex vs Gemini debate until consensus                   ║${NC}"
+    echo -e "${RED}║  Codex vs Claude debate until consensus                   ║${NC}"
     echo -e "${RED}╚═══════════════════════════════════════════════════════════╝${NC}"
     echo ""
 
@@ -6065,8 +6088,8 @@ grapple_debate() {
     if [[ "$DRY_RUN" == "true" ]]; then
         log INFO "[DRY-RUN] Would grapple on: $prompt"
         log INFO "[DRY-RUN] Principles: $principles"
-        log INFO "[DRY-RUN] Round 1: Generate competing proposals (Codex + Gemini)"
-        log INFO "[DRY-RUN] Round 2: Cross-critique (Gemini critiques Codex, Codex critiques Gemini)"
+        log INFO "[DRY-RUN] Round 1: Generate competing proposals (Codex + Claude)"
+        log INFO "[DRY-RUN] Round 2: Cross-critique (Claude critiques Codex, Codex critiques Claude)"
         log INFO "[DRY-RUN] Round 3: Synthesis and winner determination"
         return 0
     fi
@@ -6097,7 +6120,7 @@ grapple_debate() {
     # Constraint to prevent agentic file exploration
     local no_explore_constraint="IMPORTANT: Do NOT read, explore, or modify any files. Do NOT run any shell commands. Just output your response as TEXT directly. This is a debate exercise, not a coding session."
 
-    local codex_proposal gemini_proposal
+    local codex_proposal claude_proposal
     codex_proposal=$(run_agent_sync "codex" "
 $no_explore_constraint
 
@@ -6107,9 +6130,9 @@ $prompt
 ${principle_text:+Adhere to these principles:
 $principle_text}
 
-Output your implementation with clear reasoning. Be thorough and practical." 120 "implementer" "grapple")
+Output your implementation with clear reasoning. Be thorough and practical." 90 "implementer" "grapple")
 
-    gemini_proposal=$(run_agent_sync "gemini" "
+    claude_proposal=$(run_agent_sync "claude" "
 $no_explore_constraint
 
 You are the PROPOSER. Implement this task with your best approach:
@@ -6118,7 +6141,7 @@ $prompt
 ${principle_text:+Adhere to these principles:
 $principle_text}
 
-Output your implementation with clear reasoning. Be thorough and practical." 120 "researcher" "grapple")
+Output your implementation with clear reasoning. Be thorough and practical." 90 "researcher" "grapple")
 
     # ═══════════════════════════════════════════════════════════════════════
     # Round 2: Cross-critique
@@ -6127,10 +6150,10 @@ Output your implementation with clear reasoning. Be thorough and practical." 120
     echo -e "${CYAN}[Round 2/3] Cross-model critique...${NC}"
     echo ""
 
-    local gemini_critique codex_critique
+    local claude_critique codex_critique
 
-    # Gemini critiques Codex's proposal
-    gemini_critique=$(run_agent_sync "gemini" "
+    # Claude critiques Codex's proposal
+    claude_critique=$(run_agent_sync "claude" "
 $no_explore_constraint
 
 You are a CRITICAL REVIEWER. Your job is to find flaws in this implementation.
@@ -6146,16 +6169,16 @@ Find at least 3 issues. For each:
 ${principle_text:+Evaluate against these principles:
 $principle_text}
 
-Be harsh but fair. If genuinely good, explain why." 90 "security-auditor" "grapple")
+Be harsh but fair. If genuinely good, explain why." 60 "security-auditor" "grapple")
 
-    # Codex critiques Gemini's proposal
+    # Codex critiques Claude's proposal
     codex_critique=$(run_agent_sync "codex-review" "
 $no_explore_constraint
 
 You are a CRITICAL REVIEWER. Your job is to find flaws in this implementation.
 
-IMPLEMENTATION TO CRITIQUE (from Gemini):
-$gemini_proposal
+IMPLEMENTATION TO CRITIQUE (from Claude):
+$claude_proposal
 
 Find at least 3 issues. For each:
 - ISSUE: [specific problem]
@@ -6165,7 +6188,7 @@ Find at least 3 issues. For each:
 ${principle_text:+Evaluate against these principles:
 $principle_text}
 
-Be harsh but fair. If genuinely good, explain why." 90 "code-reviewer" "grapple")
+Be harsh but fair. If genuinely good, explain why." 60 "code-reviewer" "grapple")
 
     # ═══════════════════════════════════════════════════════════════════════
     # Round 3: Synthesis
@@ -6175,7 +6198,7 @@ Be harsh but fair. If genuinely good, explain why." 90 "code-reviewer" "grapple"
     echo ""
 
     local synthesis
-    synthesis=$(run_agent_sync "gemini" "
+    synthesis=$(run_agent_sync "claude" "
 $no_explore_constraint
 
 You are the JUDGE resolving a debate between two AI models.
@@ -6183,13 +6206,13 @@ You are the JUDGE resolving a debate between two AI models.
 CODEX PROPOSAL:
 $codex_proposal
 
-GEMINI'S CRITIQUE OF CODEX:
-$gemini_critique
+CLAUDE'S CRITIQUE OF CODEX:
+$claude_critique
 
-GEMINI PROPOSAL:
-$gemini_proposal
+CLAUDE PROPOSAL:
+$claude_proposal
 
-CODEX'S CRITIQUE OF GEMINI:
+CODEX'S CRITIQUE OF CLAUDE:
 $codex_critique
 
 TASK: Determine the best approach by:
@@ -6198,9 +6221,9 @@ TASK: Determine the best approach by:
 3. What's the FINAL recommended implementation?
 
 Output in this format:
-WINNER: [codex|gemini|hybrid]
+WINNER: [codex|claude|hybrid]
 VALID_CRITIQUES: [list which critiques to incorporate]
-FINAL_IMPLEMENTATION: [the best code/solution, incorporating valid feedback]" 120 "synthesizer" "grapple")
+FINAL_IMPLEMENTATION: [the best code/solution, incorporating valid feedback]" 90 "synthesizer" "grapple")
 
     # ═══════════════════════════════════════════════════════════════════════
     # Save results
@@ -6219,17 +6242,17 @@ FINAL_IMPLEMENTATION: [the best code/solution, incorporating valid feedback]" 12
 ### Codex Proposal
 $codex_proposal
 
-### Gemini Proposal
-$gemini_proposal
+### Claude Proposal
+$claude_proposal
 
 ---
 
 ## Round 2: Cross-Critique
 
-### Gemini's Critique of Codex
-$gemini_critique
+### Claude's Critique of Codex
+$claude_critique
 
-### Codex's Critique of Gemini
+### Codex's Critique of Claude
 $codex_critique
 
 ---
