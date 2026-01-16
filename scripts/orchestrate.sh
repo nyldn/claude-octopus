@@ -502,7 +502,8 @@ classify_task() {
 
     # Squeeze (Red Team): security audit, penetration test, vulnerability review
     if [[ "$prompt_lower" =~ (security|penetration|pen).*(audit|test|review) ]] || \
-       [[ "$prompt_lower" =~ (red.?team|pentest|vulnerability|vuln).*(review|test|audit|assess) ]] || \
+       [[ "$prompt_lower" =~ red.?team ]] || \
+       [[ "$prompt_lower" =~ (pentest|vulnerability|vuln).*(review|test|audit|assess) ]] || \
        [[ "$prompt_lower" =~ (find|check|scan).*(vulnerabilities|security.?issues|exploits) ]] || \
        [[ "$prompt_lower" =~ squeeze ]] || \
        [[ "$prompt_lower" =~ (attack|exploit|hack).*(surface|vector|test) ]]; then
@@ -512,6 +513,7 @@ classify_task() {
 
     # Grapple (Debate): adversarial review, cross-model debate, both models
     if [[ "$prompt_lower" =~ (adversarial|cross.?model).*(review|debate|critique) ]] || \
+       [[ "$prompt_lower" =~ debate.*(architecture|design|implementation|approach|solution) ]] || \
        [[ "$prompt_lower" =~ (debate|grapple|wrestle|compare).*(models?|approaches?|solutions?) ]] || \
        [[ "$prompt_lower" =~ (both|multiple).*(models?|ai|llm).*(review|compare|debate) ]] || \
        [[ "$prompt_lower" =~ (codex|gemini).*(vs|versus|debate|compare) ]] || \
