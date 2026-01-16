@@ -28,21 +28,21 @@ test_orchestrate_syntax() {
     fi
 }
 
-test_setup_skill_syntax() {
-    test_case ".claude/skills/setup.md has valid frontmatter"
+test_main_skill_syntax() {
+    test_case ".claude/skills/parallel-agents.md has valid frontmatter"
 
-    local setup_skill="$PROJECT_ROOT/.claude/skills/setup.md"
+    local main_skill="$PROJECT_ROOT/.claude/skills/parallel-agents.md"
 
-    if [[ ! -f "$setup_skill" ]]; then
-        test_fail "setup.md not found"
+    if [[ ! -f "$main_skill" ]]; then
+        test_fail "parallel-agents.md not found"
         return 1
     fi
 
     # Check frontmatter exists
-    if head -n 1 "$setup_skill" | grep -q "^---$"; then
+    if head -n 1 "$main_skill" | grep -q "^---$"; then
         test_pass
     else
-        test_fail "No frontmatter found in setup.md"
+        test_fail "No frontmatter found in parallel-agents.md"
         return 1
     fi
 }
@@ -85,7 +85,7 @@ test_executable_permissions() {
 
 # Run tests
 test_orchestrate_syntax
-test_setup_skill_syntax
+test_main_skill_syntax
 test_helper_scripts_syntax
 test_executable_permissions
 
