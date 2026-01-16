@@ -6,7 +6,7 @@
   <img src="https://img.shields.io/badge/Claude_Code-Plugin-blueviolet" alt="Claude Code Plugin">
   <img src="https://img.shields.io/badge/Double_Diamond-Design_Thinking-orange" alt="Double Diamond">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
-  <img src="https://img.shields.io/badge/Version-4.5.0-blue" alt="Version 4.5.0">
+  <img src="https://img.shields.io/badge/Version-4.6.0-blue" alt="Version 4.6.0">
 </p>
 
 ```
@@ -55,7 +55,33 @@ _`) )  .---.__.' / |   |\   \__..--""  """--.,_
 
 </details>
 
-## What's New in 4.5
+## What's New in 4.6
+
+- **Claude Code v2.1.9 Integration** - Session tracking and hook system:
+  - `${CLAUDE_SESSION_ID}` support for cross-session tracking
+  - `plansDirectory` setting for workspace plans
+  - PreToolUse hooks for quality gate validation
+  - *"The octopus remembers its previous dives."*
+- **Security Hardening** - Production-ready defenses:
+  - Path validation prevents traversal attacks
+  - Array-based command execution eliminates injection vectors
+  - JSON parsing with agent type validation
+  - CI workflow input sanitization
+  - *"Eight arms, zero vulnerabilities."*
+- **CI/CD Mode** - Automated pipeline support:
+  - Auto-detects GitHub Actions, GitLab CI, Jenkins
+  - Auto-fails on quality gate escalation (no human blocking)
+  - GitHub Actions annotations for errors
+  - *"Even in the depths of CI, the octopus swims free."*
+- **Nested Skills Discovery** - Persona-based skill wrappers:
+  - `skills` command lists available personas
+  - `code-review`, `security-audit`, `architecture` skill wrappers
+  - *"Each tentacle knows its specialty."*
+
+<details>
+<summary>Previous versions</summary>
+
+### What's New in 4.5
 
 - **Smart Setup Wizard** - Intent and resource-aware configuration:
   - `init --interactive` now asks about your **use intent** (Backend, Frontend, UX Research, DevOps, etc.)
@@ -64,9 +90,6 @@ _`) )  .---.__.' / |   |\   \__..--""  """--.,_
   - API key auto-detection with graceful fallbacks
   - `config` command to reconfigure preferences anytime
   - *"The octopus learns your tentacle preferences."*
-
-<details>
-<summary>Previous versions</summary>
 
 ### What's New in 4.4
 
