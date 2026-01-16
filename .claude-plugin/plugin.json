@@ -30,7 +30,7 @@
     "openrouter"
   ],
   "skills": ["./skill.md", "./agents/skills/*.md"],
-  "commands": ["./commands/setup.md", "./commands/check-updates.md"],
+  "commands": "./commands/",
   "hooks": [
     "./hooks/quality-gate-hook.md",
     "./hooks/session-sync-hook.md"
