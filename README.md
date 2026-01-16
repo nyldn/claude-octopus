@@ -6,7 +6,7 @@
   <img src="https://img.shields.io/badge/Claude_Code-Plugin-blueviolet" alt="Claude Code Plugin">
   <img src="https://img.shields.io/badge/Double_Diamond-Design_Thinking-orange" alt="Double Diamond">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
-  <img src="https://img.shields.io/badge/Version-4.0.0-blue" alt="Version 4.0.0">
+  <img src="https://img.shields.io/badge/Version-4.2.0-blue" alt="Version 4.2.0">
 </p>
 
 ```
@@ -53,7 +53,27 @@ _`) )  .---.__.' / |   |\   \__..--""  """--.,_
 
 </details>
 
-## What's New in 4.0
+## What's New in 4.2
+
+- **Optimize Command** - Auto-detect and route optimization tasks across 7 domains:
+  - ⚡ Performance (speed, latency, memory)
+  - 💰 Cost (cloud spend, budget, rightsizing)
+  - 🗃️ Database (queries, indexes, slow queries)
+  - 📦 Bundle (webpack, tree-shaking, code-splitting)
+  - ♿ Accessibility (WCAG, a11y, screen readers)
+  - 🔍 SEO (meta tags, structured data, rankings)
+  - 🖼️ Images (compression, formats, lazy loading)
+- **Shell Completion** - Tab completion for bash, zsh, and fish
+  - `eval "$(./orchestrate.sh completion bash)"` - Add to shell profile
+  - Completes commands, agents, options, and context-aware suggestions
+- **OpenAI Authentication** - Manage Codex CLI auth via OAuth
+  - `auth status` - Check authentication status
+  - `login` / `logout` - OAuth flow for OpenAI subscription access
+
+<details>
+<summary>Previous versions</summary>
+
+### What's New in 4.0
 
 - **Simplified CLI** - Progressive disclosure hides complexity from beginners
   - Simple help by default (3 commands), `help --full` for advanced users
@@ -64,9 +84,6 @@ _`) )  .---.__.' / |   |\   \__..--""  """--.,_
 - **Phase Progress** - Shows "Phase 1/4", "Phase 2/4" during execution
 - **Curated Agent Personas** - 21 specialized agents (backend-architect, security-auditor, etc.)
 - **Ralph-Wiggum Iteration** - Loop until completion with `ralph` command
-
-<details>
-<summary>Previous versions</summary>
 
 ### What's New in 1.1
 
@@ -140,6 +157,9 @@ Most Claude Code plugins inject knowledge. **Claude Octopus orchestrates armies.
 - [Quick Start](#quick-start)
 - [Double Diamond Methodology](#double-diamond-methodology)
 - [Smart Auto-Routing](#smart-auto-routing)
+- [Optimization Command](#optimization-command)
+- [Shell Completion](#shell-completion)
+- [Authentication](#authentication)
 - [Quality Gates](#quality-gates)
 - [Agent Personas](#agent-personas)
 - [Ralph-Wiggum Iteration](#ralph-wiggum-iteration)
@@ -316,6 +336,113 @@ The `auto` command detects intent and extends the right tentacle for the job. Ei
 ./scripts/orchestrate.sh auto "fix the cache invalidation bug"          # -> ⚡ codex
 ./scripts/orchestrate.sh auto "design a responsive dashboard"           # -> 🎨 gemini
 ./scripts/orchestrate.sh auto "generate an app icon"                    # -> 🖼️ gemini-image
+```
+
+## Optimization Command
+
+The `optimize` command (v4.2) auto-detects the type of optimization needed and routes to specialized agents.
+
+### Supported Domains
+
+| Domain | Keywords | Agent | Focus |
+|--------|----------|-------|-------|
+| ⚡ Performance | slow, latency, throughput, p99, cpu, memory | `codex` | Bottleneck analysis, profiling, benchmarks |
+| 💰 Cost | cost, budget, spend, bill, rightsizing, reserved | `gemini` | Cloud spend, resource optimization |
+| 🗃️ Database | query, sql, index, slow queries, postgres, mysql | `codex` | Query optimization, indexing, schema |
+| 📦 Bundle | webpack, tree-shake, code-split, minify, vite | `codex` | Bundle size, lazy loading, compression |
+| ♿ Accessibility | wcag, a11y, screen reader, aria, contrast | `gemini` | WCAG compliance, keyboard nav, semantics |
+| 🔍 SEO | search engine, meta tags, structured data, sitemap | `gemini` | Meta optimization, JSON-LD, Core Web Vitals |
+| 🖼️ Images | compress, webp, avif, lazy load, srcset | `gemini` | Format conversion, responsive images, CDN |
+
+### Examples
+
+```bash
+# Auto-detect optimization domain
+./scripts/orchestrate.sh optimize "My app is slow on mobile"
+# -> ⚡ Performance optimization
+
+./scripts/orchestrate.sh optimize "Reduce our AWS bill"
+# -> 💰 Cost optimization
+
+./scripts/orchestrate.sh optimize "Fix slow database queries"
+# -> 🗃️ Database optimization
+
+./scripts/orchestrate.sh optimize "Make the site accessible"
+# -> ♿ Accessibility optimization
+
+./scripts/orchestrate.sh optimize "Improve search rankings"
+# -> 🔍 SEO optimization
+```
+
+*The octopus knows which tentacle to extend for each optimization task.*
+
+## Shell Completion
+
+Tab completion (v4.2) for bash, zsh, and fish. Completes commands, agents, options, and provides context-aware suggestions.
+
+### Installation
+
+```bash
+# Bash - add to ~/.bashrc
+eval "$(./scripts/orchestrate.sh completion bash)"
+
+# Zsh - add to ~/.zshrc
+eval "$(./scripts/orchestrate.sh completion zsh)"
+
+# Fish - save to completions directory
+./scripts/orchestrate.sh completion fish > ~/.config/fish/completions/orchestrate.sh.fish
+```
+
+### Features
+
+- **Command completion** - Tab through all available commands
+- **Agent completion** - Complete agent names after `spawn`
+- **Option completion** - Complete flags with descriptions
+- **Context-aware** - Different completions based on command context
+
+```bash
+./scripts/orchestrate.sh sp<TAB>           # -> spawn
+./scripts/orchestrate.sh spawn co<TAB>     # -> codex, codex-mini, codex-max...
+./scripts/orchestrate.sh --ti<TAB>         # -> --tier, --timeout
+./scripts/orchestrate.sh auth <TAB>        # -> login, logout, status
+```
+
+## Authentication
+
+Manage OpenAI authentication (v4.2) via OAuth or API keys.
+
+### Commands
+
+```bash
+# Check current authentication status
+./scripts/orchestrate.sh auth status
+
+# Login via OpenAI OAuth (opens browser)
+./scripts/orchestrate.sh login
+
+# Logout (clear stored tokens)
+./scripts/orchestrate.sh logout
+```
+
+### Authentication Methods
+
+| Method | How | Best For |
+|--------|-----|----------|
+| **OAuth** | `./scripts/orchestrate.sh login` | OpenAI subscription users |
+| **API Key** | `export OPENAI_API_KEY="sk-..."` | API access, CI/CD |
+
+The `auth status` command shows both OpenAI and Gemini authentication:
+
+```
+╔═══════════════════════════════════════════════════════════╗
+║  🔐 Claude Octopus - Authentication Status                ║
+╚═══════════════════════════════════════════════════════════╝
+
+  OpenAI:  ✓ Authenticated (OAuth)
+  Account: user@example.com
+
+  Gemini:  ✓ Authenticated (API Key)
+  Key:     AIza...XyZ
 ```
 
 ## Quality Gates
@@ -631,6 +758,29 @@ export CLAUDE_OCTOPUS_WORKSPACE="$HOME/.claude-octopus"
 | `kill [id\|all]` | Terminate agents |
 | `clean` | Reset workspace |
 | `aggregate [filter]` | Combine results |
+
+### Optimization Commands (v4.2)
+
+| Command | Description |
+|---------|-------------|
+| `optimize <prompt>` | Auto-detect and route optimization (performance, cost, a11y, SEO...) |
+| `optimise <prompt>` | Alias for optimize |
+
+### Authentication Commands (v4.2)
+
+| Command | Description |
+|---------|-------------|
+| `auth status` | Check current authentication status |
+| `login` | Login to OpenAI via OAuth |
+| `logout` | Logout from OpenAI |
+
+### Shell Completion (v4.2)
+
+| Command | Description |
+|---------|-------------|
+| `completion bash` | Generate bash completion script |
+| `completion zsh` | Generate zsh completion script |
+| `completion fish` | Generate fish completion script |
 
 ### Options
 
