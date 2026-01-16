@@ -72,6 +72,3 @@ nanobanana-output/
 test-output/
 *.generated.png
 *.generated.jpg
-
-# Internal documentation (not for public distribution)
-docs/
