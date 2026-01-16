@@ -1,5 +1,4 @@
 ---
-name: check-updates
 description: Check for Claude Code updates and assess impact on claude-octopus
 ---
 

@@ -1,5 +1,4 @@
 ---
-name: octopus-setup
 description: Run the Claude Octopus setup wizard to install dependencies and configure API keys
 ---
 
