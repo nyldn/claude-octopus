@@ -85,12 +85,64 @@ _`) )  .---.__.' / |   |\   \__..--""  """--.,_
 
 </details>
 
+## Why Claude Octopus?
+
+Most Claude Code plugins inject knowledge. **Claude Octopus orchestrates armies.**
+
+| What Others Do | What We Do |
+|----------------|------------|
+| Inject context via CLAUDE.md | Coordinate multiple AI models in parallel |
+| Single-agent execution | 8 agents working simultaneously |
+| Hope for the best | Quality gates with 75% consensus threshold |
+| One model, one price | Cost-aware routing to cheaper models for simple tasks |
+| Ad-hoc workflows | Double Diamond methodology baked in |
+
+### The Architecture Difference
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      CLAUDE CODE                                 │
+│  ┌───────────────┐  ┌───────────────┐  ┌───────────────┐        │
+│  │ Other Plugins │  │ Other Plugins │  │ Other Plugins │        │
+│  │  (knowledge)  │  │   (hooks)     │  │  (commands)   │        │
+│  └───────────────┘  └───────────────┘  └───────────────┘        │
+│                              │                                   │
+│                              ▼                                   │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │                   CLAUDE OCTOPUS                          │  │
+│  │                   (orchestrator)                          │  │
+│  └───────────────────────────────────────────────────────────┘  │
+│         │              │              │              │          │
+└─────────┼──────────────┼──────────────┼──────────────┼──────────┘
+          ▼              ▼              ▼              ▼
+   ┌───────────┐  ┌───────────┐  ┌───────────┐  ┌───────────┐
+   │  Codex    │  │  Codex    │  │  Gemini   │  │  Gemini   │
+   │  (GPT-5)  │  │  (review) │  │  (Pro)    │  │  (Image)  │
+   └───────────┘  └───────────┘  └───────────┘  └───────────┘
+```
+
+### Why This Matters
+
+| Benefit | How |
+|---------|-----|
+| **Faster results** | Parallel execution across 8 agents |
+| **Better quality** | Multiple perspectives + consensus gates |
+| **Lower costs** | Smart routing to appropriate model tiers |
+| **Structured thinking** | Double Diamond prevents jumping to solutions |
+| **Model diversity** | Best-of-breed: GPT for code, Gemini for analysis |
+
+*An octopus doesn't just have 8 arms - it has neurons in each one. Independent intelligence, coordinated action.*
+
 ## Table of Contents
 
+- [Why Claude Octopus?](#why-claude-octopus)
 - [Before You Start](#before-you-start)
 - [Quick Start](#quick-start)
 - [Double Diamond Methodology](#double-diamond-methodology)
 - [Smart Auto-Routing](#smart-auto-routing)
+- [Quality Gates](#quality-gates)
+- [Agent Personas](#agent-personas)
+- [Ralph-Wiggum Iteration](#ralph-wiggum-iteration)
 - [Prerequisites](#prerequisites)
 - [Installation](#installation)
 - [Agent Setup & Configuration](#agent-setup--configuration)
@@ -241,22 +293,29 @@ Run all 4 phases sequentially with automatic context passing:
 
 ## Smart Auto-Routing
 
-The `auto` command detects intent keywords and routes to the appropriate workflow:
+The `auto` command detects intent and extends the right tentacle for the job. Eight behaviors, eight arms:
 
-| Keywords | Routes To | Phases |
-|----------|-----------|--------|
-| research, explore, investigate, analyze | `probe` | Discover |
-| develop, dev, build, implement, create | `tangle` + `ink` | Develop + Deliver |
-| qa, test, review, validate, check | `ink` | Deliver (quality focus) |
-| (other coding keywords) | `codex` agent | Single agent |
-| (other design keywords) | `gemini` agent | Single agent |
+| Tentacle | Behavior | Keywords | Routes To |
+|----------|----------|----------|-----------|
+| 🔍 **Probe** | Reach out to explore | research, explore, investigate, study, discover | `probe` (Discover) |
+| 🤝 **Grasp** | Grip the problem | define, clarify, scope, requirements | `grasp` (Define) |
+| 🦑 **Tangle** | Weave solutions | develop, build, implement, construct | `tangle` → `ink` |
+| 🖤 **Ink** | Deliver with impact | qa, test, validate, verify, audit, check | `ink` (Deliver) |
+| 🎨 **Camouflage** | Adapt to context | design, UI, UX, accessibility, theme, responsive | `gemini` agent |
+| 🔎 **Hunt** | Seek vulnerabilities | code review, security audit, find bugs | `codex-review` agent |
+| ⚡ **Jet** | Move fast | fix, debug, function, class, refactor | `codex` agent |
+| 🖼️ **Squirt** | Create visuals | generate image, icon, logo, diagram, banner | `gemini-image` agent |
+
+*Each tentacle knows its specialty. The octopus routes to the right one automatically.*
 
 **Examples:**
 ```bash
-./scripts/orchestrate.sh auto "research best practices for caching"     # -> probe
-./scripts/orchestrate.sh auto "build the caching layer"                 # -> tangle + ink
-./scripts/orchestrate.sh auto "review the cache implementation"         # -> ink
-./scripts/orchestrate.sh auto "fix the cache invalidation bug"          # -> codex
+./scripts/orchestrate.sh auto "research best practices for caching"     # -> 🔍 probe
+./scripts/orchestrate.sh auto "build the caching layer"                 # -> 🦑 tangle → ink
+./scripts/orchestrate.sh auto "review the cache implementation"         # -> 🖤 ink
+./scripts/orchestrate.sh auto "fix the cache invalidation bug"          # -> ⚡ codex
+./scripts/orchestrate.sh auto "design a responsive dashboard"           # -> 🎨 gemini
+./scripts/orchestrate.sh auto "generate an app icon"                    # -> 🖼️ gemini-image
 ```
 
 ## Quality Gates
@@ -268,6 +327,59 @@ The `tangle` phase enforces quality gates:
 | >= 90% | PASSED | Proceed to ink |
 | 75-89% | WARNING | Proceed with caution |
 | < 75% | FAILED | Ink phase flags for review |
+
+## Agent Personas
+
+Each agent can adopt a specialized persona with domain expertise. Personas inject role-specific instructions, constraints, and best practices.
+
+| Persona | Expertise | Best For |
+|---------|-----------|----------|
+| `backend-architect` | API design, microservices, scalability | System design, architecture decisions |
+| `security-auditor` | OWASP, vulnerability scanning, threat modeling | Security reviews, penetration testing |
+| `frontend-developer` | React, accessibility, responsive design | UI implementation, component design |
+| `database-optimizer` | Query optimization, indexing, schema design | Performance tuning, data modeling |
+| `devops-engineer` | CI/CD, containers, infrastructure as code | Deployment, automation |
+| `test-automator` | Testing strategies, coverage, E2E | Quality assurance, test implementation |
+| `code-reviewer` | Code quality, maintainability, patterns | Pull request reviews, refactoring |
+
+```bash
+# Personas are automatically selected based on task context
+./scripts/orchestrate.sh auto "design a REST API for user management"
+# -> Uses backend-architect persona
+
+# Or disable personas for raw agent output
+./scripts/orchestrate.sh --no-personas auto "quick fix"
+```
+
+*Curated subset from [wshobson/agents](https://github.com/wshobson/agents) - a community collection of 99+ specialized agent personas. We sync and adapt the most CLI-relevant agents for orchestration workflows.*
+
+## Ralph-Wiggum Iteration
+
+Some tasks need multiple passes. The `ralph` command implements a completion-promise loop: the agent keeps iterating until it signals done or hits max iterations.
+
+```bash
+# Keep working until the agent says it's complete
+./scripts/orchestrate.sh ralph "refactor this module to use async/await"
+
+# Custom iteration limit
+./scripts/orchestrate.sh ralph "migrate all tests to vitest" codex 20
+```
+
+**How it works:**
+
+1. Agent receives the prompt with iteration context
+2. Agent works on the task and outputs progress
+3. If output contains `<promise>COMPLETE</promise>`, loop exits
+4. Otherwise, agent continues with accumulated context
+5. Loop terminates at max iterations (default: 50) if no completion
+
+**Use cases:**
+- Large refactoring that needs multiple passes
+- Migrations that discover more work as they progress
+- Complex debugging that requires iteration
+- Any task where "done" is discovered, not predetermined
+
+*Inspired by the [ralph-wiggum](https://github.com/anthropics/claude-code/tree/main/plugins/ralph-wiggum) Claude Code plugin pattern.*
 
 ## Prerequisites
 
@@ -733,10 +845,15 @@ and even escaping from sealed containers. Our orchestrator does the same, but di
 
 ## Acknowledgments
 
+**Core Dependencies:**
 - [Claude Code](https://claude.ai/code) - Anthropic's CLI for Claude
 - [Codex CLI](https://github.com/openai/codex) - OpenAI's coding assistant
 - [Gemini CLI](https://github.com/google-gemini/gemini-cli) - Google's Gemini CLI
+
+**Methodology & Patterns:**
 - [Double Diamond](https://www.designcouncil.org.uk/our-resources/framework-for-innovation/) - Design Council's framework for innovation
+- [ralph-wiggum](https://github.com/anthropics/claude-code/tree/main/plugins/ralph-wiggum) - Completion-promise iteration pattern
+- [wshobson/agents](https://github.com/wshobson/agents) - Community-curated agent personas and orchestration patterns
 
 ---
 
