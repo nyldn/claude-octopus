@@ -496,6 +496,31 @@ classify_task() {
     fi
 
     # ═══════════════════════════════════════════════════════════════════════════
+    # CROSSFIRE INTENT DETECTION (Adversarial Cross-Model Review)
+    # Routes to grapple (debate) or squeeze (red team) workflows
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    # Squeeze (Red Team): security audit, penetration test, vulnerability review
+    if [[ "$prompt_lower" =~ (security|penetration|pen).*(audit|test|review) ]] || \
+       [[ "$prompt_lower" =~ (red.?team|pentest|vulnerability|vuln).*(review|test|audit|assess) ]] || \
+       [[ "$prompt_lower" =~ (find|check|scan).*(vulnerabilities|security.?issues|exploits) ]] || \
+       [[ "$prompt_lower" =~ squeeze ]] || \
+       [[ "$prompt_lower" =~ (attack|exploit|hack).*(surface|vector|test) ]]; then
+        echo "crossfire-squeeze"
+        return
+    fi
+
+    # Grapple (Debate): adversarial review, cross-model debate, both models
+    if [[ "$prompt_lower" =~ (adversarial|cross.?model).*(review|debate|critique) ]] || \
+       [[ "$prompt_lower" =~ (debate|grapple|wrestle|compare).*(models?|approaches?|solutions?) ]] || \
+       [[ "$prompt_lower" =~ (both|multiple).*(models?|ai|llm).*(review|compare|debate) ]] || \
+       [[ "$prompt_lower" =~ (codex|gemini).*(vs|versus|debate|compare) ]] || \
+       [[ "$prompt_lower" =~ grapple ]]; then
+        echo "crossfire-grapple"
+        return
+    fi
+
+    # ═══════════════════════════════════════════════════════════════════════════
     # DOUBLE DIAMOND INTENT DETECTION
     # Routes to full workflow phases, not just single agents
     # ═══════════════════════════════════════════════════════════════════════════
@@ -4212,6 +4237,31 @@ auto_route() {
     esac
 
     # ═══════════════════════════════════════════════════════════════════════════
+    # CROSSFIRE ROUTING (Adversarial Cross-Model Review)
+    # Routes to grapple (debate) or squeeze (red team) workflows
+    # ═══════════════════════════════════════════════════════════════════════════
+    case "$task_type" in
+        crossfire-grapple)
+            echo -e "${RED}╔═══════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${RED}║  🤼 GRAPPLE - Adversarial Cross-Model Debate              ║${NC}"
+            echo -e "${RED}╚═══════════════════════════════════════════════════════════╝${NC}"
+            echo "  Routing to grapple workflow: Codex vs Gemini debate."
+            echo ""
+            grapple_debate "$prompt" "general"
+            return
+            ;;
+        crossfire-squeeze)
+            echo -e "${RED}╔═══════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${RED}║  🦑 SQUEEZE - Red Team Security Review                    ║${NC}"
+            echo -e "${RED}╚═══════════════════════════════════════════════════════════╝${NC}"
+            echo "  Routing to squeeze workflow: Blue Team vs Red Team."
+            echo ""
+            squeeze_test "$prompt"
+            return
+            ;;
+    esac
+
+    # ═══════════════════════════════════════════════════════════════════════════
     # OPTIMIZATION ROUTING (v4.2)
     # Routes to specialized agents based on optimization domain
     # ═══════════════════════════════════════════════════════════════════════════
@@ -5984,6 +6034,392 @@ embrace_full_workflow() {
     echo ""
 }
 
+# ═══════════════════════════════════════════════════════════════════════════
+# CROSSFIRE - Adversarial Cross-Model Review
+# Two tentacles wrestling—adversarial debate until consensus 🤼
+# ═══════════════════════════════════════════════════════════════════════════
+
+grapple_debate() {
+    local prompt="$1"
+    local principles="${2:-general}"
+    local task_group
+    task_group=$(date +%s)
+
+    echo ""
+    echo -e "${RED}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${RED}║  🤼 GRAPPLE - Adversarial Cross-Model Review              ║${NC}"
+    echo -e "${RED}║  Codex vs Gemini debate until consensus                   ║${NC}"
+    echo -e "${RED}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+
+    log INFO "Starting adversarial cross-model debate"
+
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log INFO "[DRY-RUN] Would grapple on: $prompt"
+        log INFO "[DRY-RUN] Principles: $principles"
+        log INFO "[DRY-RUN] Round 1: Generate competing proposals (Codex + Gemini)"
+        log INFO "[DRY-RUN] Round 2: Cross-critique (Gemini critiques Codex, Codex critiques Gemini)"
+        log INFO "[DRY-RUN] Round 3: Synthesis and winner determination"
+        return 0
+    fi
+
+    # Pre-flight validation
+    preflight_check || return 1
+
+    mkdir -p "$RESULTS_DIR" "$LOGS_DIR"
+
+    # Load principles if available
+    local principle_text=""
+    local principle_file="$PLUGIN_DIR/agents/principles/${principles}.md"
+    if [[ -f "$principle_file" ]]; then
+        # Extract content after frontmatter
+        principle_text=$(awk '/^---$/{if(++c==2)p=1;next}p' "$principle_file")
+        log INFO "Loaded principles: $principles"
+    else
+        log DEBUG "No principles file found for: $principles"
+    fi
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # Round 1: Parallel proposals
+    # ═══════════════════════════════════════════════════════════════════════
+    echo ""
+    echo -e "${CYAN}[Round 1/3] Generating competing proposals...${NC}"
+    echo ""
+
+    local codex_proposal gemini_proposal
+    codex_proposal=$(run_agent_sync "codex" "
+You are the PROPOSER. Implement this task with your best approach:
+$prompt
+
+${principle_text:+Adhere to these principles:
+$principle_text}
+
+Output your implementation with clear reasoning. Be thorough and practical." 180 "implementer" "grapple")
+
+    gemini_proposal=$(run_agent_sync "gemini" "
+You are the PROPOSER. Implement this task with your best approach:
+$prompt
+
+${principle_text:+Adhere to these principles:
+$principle_text}
+
+Output your implementation with clear reasoning. Be thorough and practical." 180 "researcher" "grapple")
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # Round 2: Cross-critique
+    # ═══════════════════════════════════════════════════════════════════════
+    echo ""
+    echo -e "${CYAN}[Round 2/3] Cross-model critique...${NC}"
+    echo ""
+
+    local gemini_critique codex_critique
+
+    # Gemini critiques Codex's proposal
+    gemini_critique=$(run_agent_sync "gemini" "
+You are a CRITICAL REVIEWER. Your job is to find flaws in this implementation.
+
+IMPLEMENTATION TO CRITIQUE (from Codex):
+$codex_proposal
+
+Find at least 3 issues. For each:
+- ISSUE: [specific problem]
+- IMPACT: [why it matters]
+- FIX: [concrete solution]
+
+${principle_text:+Evaluate against these principles:
+$principle_text}
+
+Be harsh but fair. If genuinely good, explain why." 120 "security-auditor" "grapple")
+
+    # Codex critiques Gemini's proposal
+    codex_critique=$(run_agent_sync "codex-review" "
+You are a CRITICAL REVIEWER. Your job is to find flaws in this implementation.
+
+IMPLEMENTATION TO CRITIQUE (from Gemini):
+$gemini_proposal
+
+Find at least 3 issues. For each:
+- ISSUE: [specific problem]
+- IMPACT: [why it matters]
+- FIX: [concrete solution]
+
+${principle_text:+Evaluate against these principles:
+$principle_text}
+
+Be harsh but fair. If genuinely good, explain why." 120 "code-reviewer" "grapple")
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # Round 3: Synthesis
+    # ═══════════════════════════════════════════════════════════════════════
+    echo ""
+    echo -e "${CYAN}[Round 3/3] Synthesizing debate...${NC}"
+    echo ""
+
+    local synthesis
+    synthesis=$(run_agent_sync "gemini" "
+You are the JUDGE resolving a debate between two AI models.
+
+CODEX PROPOSAL:
+$codex_proposal
+
+GEMINI'S CRITIQUE OF CODEX:
+$gemini_critique
+
+GEMINI PROPOSAL:
+$gemini_proposal
+
+CODEX'S CRITIQUE OF GEMINI:
+$codex_critique
+
+TASK: Determine the best approach by:
+1. Which proposal is stronger overall?
+2. Which critiques are valid?
+3. What's the FINAL recommended implementation?
+
+Output in this format:
+WINNER: [codex|gemini|hybrid]
+VALID_CRITIQUES: [list which critiques to incorporate]
+FINAL_IMPLEMENTATION: [the best code/solution, incorporating valid feedback]" 240 "synthesizer" "grapple")
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # Save results
+    # ═══════════════════════════════════════════════════════════════════════
+    local result_file="$RESULTS_DIR/grapple-${task_group}.md"
+    cat > "$result_file" << EOF
+# Crossfire Review: $prompt
+
+**Generated:** $(date)
+**Principles:** $principles
+
+---
+
+## Round 1: Proposals
+
+### Codex Proposal
+$codex_proposal
+
+### Gemini Proposal
+$gemini_proposal
+
+---
+
+## Round 2: Cross-Critique
+
+### Gemini's Critique of Codex
+$gemini_critique
+
+### Codex's Critique of Gemini
+$codex_critique
+
+---
+
+## Round 3: Synthesis & Winner
+$synthesis
+EOF
+
+    echo ""
+    echo -e "${GREEN}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${GREEN}║  ✓ Crossfire debate complete                             ║${NC}"
+    echo -e "${GREEN}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    echo -e "  Result: ${CYAN}$result_file${NC}"
+    echo ""
+
+    # Record usage
+    record_agent_call "grapple" "multi-model" "$prompt" "grapple" "debate" "0"
+}
+
+# ═══════════════════════════════════════════════════════════════════════════
+# RED TEAM - Adversarial Security Review
+# Octopus squeezes prey to test for weaknesses 🦑
+# ═══════════════════════════════════════════════════════════════════════════
+
+squeeze_test() {
+    local prompt="$1"
+    local task_group
+    task_group=$(date +%s)
+
+    echo ""
+    echo -e "${RED}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${RED}║  🦑 SQUEEZE - Adversarial Security Review                 ║${NC}"
+    echo -e "${RED}║  Blue Team defends, Red Team attacks                      ║${NC}"
+    echo -e "${RED}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+
+    log INFO "Starting red team security review"
+
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log INFO "[DRY-RUN] Would squeeze test: $prompt"
+        log INFO "[DRY-RUN] Phase 1: Blue Team implements secure solution (Codex)"
+        log INFO "[DRY-RUN] Phase 2: Red Team finds vulnerabilities (Gemini)"
+        log INFO "[DRY-RUN] Phase 3: Remediation of found issues (Codex)"
+        log INFO "[DRY-RUN] Phase 4: Validation of fixes (Codex-Review)"
+        return 0
+    fi
+
+    # Pre-flight validation
+    preflight_check || return 1
+
+    mkdir -p "$RESULTS_DIR" "$LOGS_DIR"
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # Phase 1: Blue Team Implementation
+    # ═══════════════════════════════════════════════════════════════════════
+    echo ""
+    echo -e "${BLUE}[Phase 1/4] Blue Team: Implementing secure solution...${NC}"
+    echo ""
+
+    local blue_impl
+    blue_impl=$(run_agent_sync "codex" "
+You are BLUE TEAM (defender). Implement this with security as top priority:
+$prompt
+
+Focus on these security measures:
+- Input validation and sanitization
+- Authentication and authorization checks
+- SQL injection prevention (parameterized queries)
+- XSS prevention (output encoding)
+- CSRF protection where applicable
+- Secure defaults (fail closed, not open)
+- Least privilege principle
+- Proper error handling (no sensitive info leakage)
+
+Output production-ready secure code with security comments." 180 "backend-architect" "squeeze")
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # Phase 2: Red Team Attack
+    # ═══════════════════════════════════════════════════════════════════════
+    echo ""
+    echo -e "${RED}[Phase 2/4] Red Team: Finding vulnerabilities...${NC}"
+    echo ""
+
+    local red_attack
+    red_attack=$(run_agent_sync "gemini" "
+You are RED TEAM (attacker/penetration tester). Find security vulnerabilities in this code:
+
+$blue_impl
+
+For EACH vulnerability found, document:
+VULN: [Vulnerability type - e.g., SQL Injection, XSS, CSRF, etc.]
+CWE: [CWE ID if applicable - e.g., CWE-89]
+LOCATION: [Specific line/function affected]
+ATTACK: [How to exploit this vulnerability]
+PROOF: [Example malicious input or attack payload]
+SEVERITY: [Critical|High|Medium|Low]
+
+Find at least 5 issues. If the code is genuinely secure, explain specifically why each common vulnerability is mitigated.
+
+Be thorough - check for:
+- Injection flaws (SQL, NoSQL, OS command, LDAP)
+- Broken authentication/session management
+- Sensitive data exposure
+- XML/XXE attacks
+- Broken access control
+- Security misconfiguration
+- XSS (stored, reflected, DOM)
+- Insecure deserialization
+- Using components with known vulnerabilities
+- Insufficient logging/monitoring" 180 "security-auditor" "squeeze")
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # Phase 3: Remediation
+    # ═══════════════════════════════════════════════════════════════════════
+    echo ""
+    echo -e "${YELLOW}[Phase 3/4] Remediation: Fixing vulnerabilities...${NC}"
+    echo ""
+
+    local remediation
+    remediation=$(run_agent_sync "codex" "
+Fix ALL vulnerabilities found by Red Team.
+
+ORIGINAL CODE:
+$blue_impl
+
+VULNERABILITIES FOUND BY RED TEAM:
+$red_attack
+
+For EACH vulnerability:
+1. Apply the fix
+2. Add a comment explaining the fix: // FIXED: [vulnerability] - [what was changed]
+
+Output the COMPLETE fixed code with all security improvements applied." 180 "implementer" "squeeze")
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # Phase 4: Validation
+    # ═══════════════════════════════════════════════════════════════════════
+    echo ""
+    echo -e "${GREEN}[Phase 4/4] Validation: Verifying all fixes...${NC}"
+    echo ""
+
+    local validation
+    validation=$(run_agent_sync "codex-review" "
+Verify all vulnerabilities have been properly fixed.
+
+ORIGINAL VULNERABILITIES FOUND:
+$red_attack
+
+REMEDIATED CODE:
+$remediation
+
+For each original vulnerability, verify:
+- [ ] FIXED - vulnerability is properly mitigated
+- [ ] STILL PRESENT - vulnerability still exists (explain why)
+
+Create a checklist showing the status of each fix.
+
+FINAL VERDICT:
+- SECURE: All vulnerabilities fixed
+- NEEDS MORE WORK: Some vulnerabilities remain (list them)
+
+If any issues remain, provide specific guidance on how to fix them." 120 "code-reviewer" "squeeze")
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # Save results
+    # ═══════════════════════════════════════════════════════════════════════
+    local result_file="$RESULTS_DIR/squeeze-${task_group}.md"
+    cat > "$result_file" << EOF
+# Red Team Security Review
+
+**Generated:** $(date)
+
+---
+
+## Task
+$prompt
+
+---
+
+## Phase 1: Blue Team Implementation
+$blue_impl
+
+---
+
+## Phase 2: Red Team Findings
+$red_attack
+
+---
+
+## Phase 3: Remediation
+$remediation
+
+---
+
+## Phase 4: Validation
+$validation
+EOF
+
+    echo ""
+    echo -e "${GREEN}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${GREEN}║  ✓ Red Team exercise complete                            ║${NC}"
+    echo -e "${GREEN}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    echo -e "  Result: ${CYAN}$result_file${NC}"
+    echo ""
+
+    # Record usage
+    record_agent_call "squeeze" "multi-model" "$prompt" "squeeze" "red-team" "0"
+}
+
 show_status() {
     echo ""
     echo -e "${MAGENTA}═══════════════════════════════════════════════════════════${NC}"
@@ -6162,6 +6598,36 @@ case "$COMMAND" in
             exit 1
         fi
         embrace_full_workflow "$*"
+        ;;
+    # ═══════════════════════════════════════════════════════════════════════════
+    # CROSSFIRE COMMANDS (Adversarial Cross-Model Review)
+    # ═══════════════════════════════════════════════════════════════════════════
+    grapple)
+        # Adversarial debate: Codex vs Gemini until consensus
+        if [[ $# -lt 1 ]]; then
+            log ERROR "Missing prompt for grapple review"
+            echo "Usage: $(basename "$0") grapple [--principles TYPE] <prompt>"
+            echo "       $(basename "$0") grapple --principles security \"implement password reset\""
+            echo ""
+            echo "Principles: general, security, performance, maintainability"
+            exit 1
+        fi
+        principles="general"
+        if [[ "$1" == "--principles" ]]; then
+            principles="$2"
+            shift 2
+        fi
+        grapple_debate "$*" "$principles"
+        ;;
+    squeeze|red-team)
+        # Red Team security review: Blue Team defends, Red Team attacks
+        if [[ $# -lt 1 ]]; then
+            log ERROR "Missing prompt for red team review"
+            echo "Usage: $(basename "$0") squeeze <prompt>"
+            echo "       $(basename "$0") squeeze \"review auth.ts for vulnerabilities\""
+            exit 1
+        fi
+        squeeze_test "$*"
         ;;
     preflight)
         preflight_check

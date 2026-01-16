@@ -7,6 +7,7 @@ description: |
   - Parallel research from multiple perspectives with AI synthesis
   - Consensus building on problem definitions
   - Quality-gated parallel implementation with validation
+  - Adversarial cross-model review (grapple: debate, squeeze: red team)
   - Review code from multiple angles using different AI models
 
   NOT for: Simple sequential tasks, tasks requiring human interaction, debugging sessions
@@ -41,6 +42,11 @@ description: |
 ./scripts/orchestrate.sh grasp "Define auth requirements"
 ./scripts/orchestrate.sh tangle "Implement auth feature"
 ./scripts/orchestrate.sh ink "Validate and deliver auth implementation"
+
+# Crossfire: Adversarial cross-model review
+./scripts/orchestrate.sh grapple "implement password reset API"
+./scripts/orchestrate.sh grapple --principles security "implement JWT auth"
+./scripts/orchestrate.sh squeeze "review auth.ts for vulnerabilities"
 
 # Smart auto-routing (detects intent automatically)
 ./scripts/orchestrate.sh auto "research OAuth patterns"           # -> probe
@@ -106,6 +112,87 @@ Run all 4 phases sequentially with automatic context passing:
 ./scripts/orchestrate.sh embrace "Create a complete user dashboard feature"
 ```
 
+## Crossfire: Adversarial Cross-Model Review
+
+Different models have different blind spots. Crossfire commands force models to critique each other's work, catching more issues than single-model review.
+
+### GRAPPLE - Adversarial Debate
+
+*Two tentacles wrestling until consensus*
+
+Codex and Gemini each propose solutions, then critique each other's work. A synthesis determines the winner.
+
+```
+┌─────────────┐     ┌─────────────┐
+│   Codex     │     │   Gemini    │
+│ (Proposer)  │     │ (Proposer)  │
+└──────┬──────┘     └──────┬──────┘
+       │                   │
+       ▼                   ▼
+┌─────────────┐     ┌─────────────┐
+│ PROPOSAL A  │ ←─→ │ PROPOSAL B  │
+└──────┬──────┘     └──────┬──────┘
+       │                   │
+       ▼                   ▼
+┌─────────────┐     ┌─────────────┐
+│  Gemini     │     │   Codex     │
+│ (Critic)    │     │  (Critic)   │
+└──────┬──────┘     └──────┬──────┘
+       │                   │
+       └─────────┬─────────┘
+                 ▼
+       ┌─────────────────┐
+       │   SYNTHESIS     │
+       │ (Winner + Fix)  │
+       └─────────────────┘
+```
+
+```bash
+# Basic grapple
+./scripts/orchestrate.sh grapple "implement password reset API"
+
+# Grapple with security principles
+./scripts/orchestrate.sh grapple --principles security "implement JWT authentication"
+
+# Grapple with performance principles
+./scripts/orchestrate.sh grapple --principles performance "optimize database queries"
+```
+
+### SQUEEZE - Red Team Security Review
+
+*Octopus squeezes prey to test for weaknesses*
+
+Blue Team (Codex) implements secure code. Red Team (Gemini) attacks to find vulnerabilities. Then remediation and validation.
+
+```
+Phase 1: Blue Team implements secure solution
+Phase 2: Red Team finds vulnerabilities
+Phase 3: Remediation fixes all issues
+Phase 4: Validation verifies all fixed
+```
+
+```bash
+./scripts/orchestrate.sh squeeze "implement user login form"
+./scripts/orchestrate.sh squeeze "review auth.ts for vulnerabilities"
+```
+
+### Constitutional Principles
+
+Grapple supports domain-specific critique principles:
+
+| Principle | Focus | Use Case |
+|-----------|-------|----------|
+| `general` | Overall quality | Default for most reviews |
+| `security` | OWASP Top 10, secure coding | Auth, payments, user data |
+| `performance` | N+1 queries, caching, async | Database, API optimization |
+| `maintainability` | Clean code, testability | Refactoring, code reviews |
+
+```bash
+./scripts/orchestrate.sh grapple --principles security "implement password reset"
+./scripts/orchestrate.sh grapple --principles performance "optimize search API"
+./scripts/orchestrate.sh grapple --principles maintainability "refactor user service"
+```
+
 ## Smart Auto-Routing
 
 The `auto` command detects intent keywords and routes to the appropriate workflow:
@@ -115,6 +202,8 @@ The `auto` command detects intent keywords and routes to the appropriate workflo
 | research, explore, investigate, analyze | `probe` | Discover |
 | develop, dev, build, implement, create | `tangle` + `ink` | Develop + Deliver |
 | qa, test, review, validate, check | `ink` | Deliver (quality focus) |
+| security audit, red team, pentest | `squeeze` | Red Team |
+| adversarial, cross-model, debate | `grapple` | Debate |
 | (other coding keywords) | `codex` agent | Single agent |
 | (other design keywords) | `gemini` agent | Single agent |
 
@@ -123,6 +212,8 @@ The `auto` command detects intent keywords and routes to the appropriate workflo
 ./scripts/orchestrate.sh auto "research best practices for caching"     # -> probe
 ./scripts/orchestrate.sh auto "build the caching layer"                 # -> tangle + ink
 ./scripts/orchestrate.sh auto "review the cache implementation"         # -> ink
+./scripts/orchestrate.sh auto "security audit the auth module"          # -> squeeze
+./scripts/orchestrate.sh auto "have both models debate the API design"  # -> grapple
 ./scripts/orchestrate.sh auto "fix the cache invalidation bug"          # -> codex
 ```
 
@@ -148,6 +239,14 @@ The `tangle` phase enforces quality gates:
 | `ink <prompt>` | Deliver | Validation and final delivery |
 | `embrace <prompt>` | All 4 | Full Double Diamond workflow |
 | `preflight` | - | Validate all dependencies |
+
+### Crossfire Commands (Adversarial Review)
+
+| Command | Description |
+|---------|-------------|
+| `grapple <prompt>` | Codex vs Gemini debate until consensus |
+| `grapple --principles TYPE <prompt>` | Debate with domain principles (security, performance, maintainability) |
+| `squeeze <prompt>` | Red Team security review (Blue Team vs Red Team) |
 
 ### Classic Orchestration Commands
 
