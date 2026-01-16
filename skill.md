@@ -108,6 +108,38 @@ Run this fast detection script (completes in <1 second):
 ./scripts/orchestrate.sh detect-providers
 ```
 
+**IMPORTANT - First Time Setup Detection:**
+If the detect-providers command shows BOTH providers are missing (CODEX_STATUS=missing AND GEMINI_STATUS=missing), this is likely a first-time user. Before showing error messages, provide a friendly welcome message:
+
+> "👋 Welcome to Claude Octopus! I see this is your first time using the plugin.
+>
+> To get started, you need to install **one** AI provider (you don't need both):
+>
+> **Option 1: OpenAI Codex** (best for code generation)
+> ```
+> npm install -g @openai/codex
+> codex login  # OAuth recommended
+> ```
+> Or set API key: `export OPENAI_API_KEY="sk-..."`
+> Get key from: https://platform.openai.com/api-keys
+>
+> **Option 2: Google Gemini** (best for analysis)
+> ```
+> npm install -g @google/gemini-cli
+> gemini  # OAuth recommended
+> ```
+> Or set API key: `export GEMINI_API_KEY="AIza..."`
+> Get key from: https://aistudio.google.com/app/apikey
+>
+> Once you've installed one provider, you can start using Claude Octopus by just talking naturally:
+> - 'Research OAuth authentication patterns'
+> - 'Build a user authentication system'
+> - 'Review this code for security issues'
+>
+> Need more detailed setup instructions? Run `/claude-octopus:welcome`"
+
+After showing this welcome message, STOP and wait for the user to set up a provider. Do not proceed with the original task until at least one provider is configured.
+
 Expected output format:
 ```
 Detecting providers...
