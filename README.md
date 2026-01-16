@@ -24,6 +24,8 @@
 ```
 
 > *An octopus uses its 8 arms in parallel. So does this orchestrator. Coincidence? We think not.* 🐙
+>
+> *They say you can't teach an octopus new tricks. They were wrong about the tricks part.* 🎩
 
 <details>
 <summary>🐙 Click to meet our mascot</summary>
@@ -104,7 +106,9 @@ _`) )  .---.__.' / |   |\   \__..--""  """--.,_
 
 ## Why Claude Octopus?
 
-Most Claude Code plugins inject knowledge. **Claude Octopus orchestrates armies.**
+Most Claude Code plugins inject knowledge. **Claude Octopus orchestrates armies.** 🦑
+
+*Why have one AI do the work when you can have eight squabble about it productively?*
 
 | What Others Do | What We Do |
 |----------------|------------|
@@ -148,7 +152,7 @@ Most Claude Code plugins inject knowledge. **Claude Octopus orchestrates armies.
 | **Structured thinking** | Double Diamond prevents jumping to solutions |
 | **Model diversity** | Best-of-breed: GPT for code, Gemini for analysis |
 
-*An octopus doesn't just have 8 arms - it has neurons in each one. Independent intelligence, coordinated action.*
+*An octopus doesn't just have 8 arms - it has neurons in each one. Independent intelligence, coordinated action. It's basically a committee that actually works.* 🧠
 
 ## Table of Contents
 
@@ -326,7 +330,7 @@ The `auto` command detects intent and extends the right tentacle for the job. Ei
 | ⚡ **Jet** | Move fast | fix, debug, function, class, refactor | `codex` agent |
 | 🖼️ **Squirt** | Create visuals | generate image, icon, logo, diagram, banner | `gemini-image` agent |
 
-*Each tentacle knows its specialty. The octopus routes to the right one automatically.*
+*Each tentacle knows its specialty. The octopus routes to the right one automatically. It's basically an eight-way traffic cop that never sleeps.* 🚦
 
 **Examples:**
 ```bash
@@ -374,7 +378,7 @@ The `optimize` command (v4.2) auto-detects the type of optimization needed and r
 # -> 🔍 SEO optimization
 ```
 
-*The octopus knows which tentacle to extend for each optimization task.*
+*The octopus knows which tentacle to extend for each optimization task. Unlike your last contractor, it actually reads the requirements first.* 📋
 
 ## Shell Completion
 
@@ -478,7 +482,7 @@ Each agent can adopt a specialized persona with domain expertise. Personas injec
 ./scripts/orchestrate.sh --no-personas auto "quick fix"
 ```
 
-*Curated subset from [wshobson/agents](https://github.com/wshobson/agents) - a community collection of 99+ specialized agent personas. We sync and adapt the most CLI-relevant agents for orchestration workflows.*
+*Curated subset from [wshobson/agents](https://github.com/wshobson/agents) - a community collection of 99+ specialized agent personas. Think of it as a talent agency, but everyone shows up on time and nobody has a rider.* 🎭
 
 ## Ralph-Wiggum Iteration
 
@@ -506,7 +510,7 @@ Some tasks need multiple passes. The `ralph` command implements a completion-pro
 - Complex debugging that requires iteration
 - Any task where "done" is discovered, not predetermined
 
-*Inspired by the [ralph-wiggum](https://github.com/anthropics/claude-code/tree/main/plugins/ralph-wiggum) Claude Code plugin pattern.*
+*Inspired by the [ralph-wiggum](https://github.com/anthropics/claude-code/tree/main/plugins/ralph-wiggum) Claude Code plugin pattern. Because sometimes "I'm not done yet" is a valid status update.* 🔄
 
 ## Prerequisites
 

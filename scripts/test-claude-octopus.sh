@@ -394,7 +394,13 @@ if [[ -f "$README_FILE" ]]; then
     fi
 
     # Check for emojis (beyond octopus) - 3 points
-    emoji_variety=$(echo "$README_CONTENT" | grep -oE '⚡|💰|🗃️|📦|♿|🔍|🖼️|🎨|🔎|🦑|🖤' | sort -u | wc -l | tr -d ' ')
+    # Count each emoji individually due to multi-byte grep issues
+    emoji_variety=0
+    for emoji in ⚡ 💰 🗃️ 📦 ♿ 🔍 🖼️ 🎨 🔎 🦑 🖤 🎩 🚦 📋 🔄 🎭 🧠 🤝; do
+        if echo "$README_CONTENT" | grep -q "$emoji" 2>/dev/null; then
+            ((emoji_variety++))
+        fi
+    done
     if [[ $emoji_variety -ge 5 ]]; then
         ((HUMOR_SCORE+=3))
     elif [[ $emoji_variety -ge 3 ]]; then
