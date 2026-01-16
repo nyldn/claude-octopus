@@ -42,17 +42,30 @@ Claude coordinates multiple AI models behind the scenes to give you comprehensiv
 
 ### 1. Install the Plugin
 
-**One-line install (recommended):**
+> **Note:** Marketplace installation is coming soon. For now, use the installer below.
+
+**Install with one command:**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/nyldn/claude-octopus/main/install.sh | bash
 ```
 
-**Or manually:**
+This script:
+- ✅ Installs to the correct location (`~/.claude/plugins/claude-octopus`)
+- ✅ Handles updates if already installed
+- ✅ Works on macOS, Linux, and WSL
+
+<details>
+<summary>Alternative: Manual Install</summary>
+
 ```bash
 git clone https://github.com/nyldn/claude-octopus.git ~/.claude/plugins/claude-octopus
 ```
 
-Then **restart Claude Code**.
+</details>
+
+**After installing, restart Claude Code:**
+- Exit Claude Code (Ctrl-C twice or type `/exit`)
+- Restart: `claude --dangerously-skip-permissions`
 
 ### 2. Run Setup in Claude Code
 
@@ -580,6 +593,31 @@ The configuration wizard sets up Claude Octopus based on your use intent and res
 
 <details>
 <summary><strong>🐛 Troubleshooting</strong></summary>
+
+### Commands not showing after install
+
+If `/claude-octopus:setup` doesn't work after installation:
+
+1. **Verify installation location:**
+   ```bash
+   ls ~/.claude/plugins/claude-octopus/.claude/commands/
+   # Should see: setup.md, check-updates.md
+   ```
+
+2. **Restart Claude Code completely:**
+   - Exit fully (Ctrl-C twice)
+   - Restart: `claude --dangerously-skip-permissions`
+
+3. **Reinstall if needed:**
+   ```bash
+   rm -rf ~/.claude/plugins/claude-octopus
+   curl -fsSL https://raw.githubusercontent.com/nyldn/claude-octopus/main/install.sh | bash
+   ```
+
+4. **Check Claude Code version:**
+   ```bash
+   claude --version  # Need 2.1.9+
+   ```
 
 ### Pre-flight fails
 
