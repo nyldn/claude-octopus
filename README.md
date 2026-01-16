@@ -6,7 +6,7 @@
   <img src="https://img.shields.io/badge/Claude_Code-Plugin-blueviolet" alt="Claude Code Plugin">
   <img src="https://img.shields.io/badge/Double_Diamond-Design_Thinking-orange" alt="Double Diamond">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
-  <img src="https://img.shields.io/badge/Version-1.1.0-blue" alt="Version 1.1.0">
+  <img src="https://img.shields.io/badge/Version-4.0.0-blue" alt="Version 4.0.0">
 </p>
 
 ```
@@ -53,14 +53,29 @@ _`) )  .---.__.' / |   |\   \__..--""  """--.,_
 
 </details>
 
-## What's New in 1.1
+## What's New in 4.0
+
+- **Simplified CLI** - Progressive disclosure hides complexity from beginners
+  - Simple help by default (3 commands), `help --full` for advanced users
+  - Command-specific help: `help auto`, `help research`, etc.
+- **Intuitive Aliases** - Clear command names that match the workflow
+  - `research` (was: probe), `define` (was: grasp), `develop` (was: tangle), `deliver` (was: ink)
+- **Better Error Messages** - "Did you mean?" suggestions and examples
+- **Phase Progress** - Shows "Phase 1/4", "Phase 2/4" during execution
+- **Curated Agent Personas** - 21 specialized agents (backend-architect, security-auditor, etc.)
+- **Ralph-Wiggum Iteration** - Loop until completion with `ralph` command
+
+<details>
+<summary>Previous versions</summary>
+
+### What's New in 1.1
 
 - **Conditional Branching** - Decision trees for workflow routing (tentacle paths)
   - `--branch BRANCH` - Force tentacle path: premium|standard|fast
   - `--on-fail ACTION` - Quality gate failure action: auto|retry|escalate|abort
 - **Quality Gate Decision Tree** - Intelligent branching on quality outcomes
 
-## What's New in 1.0
+### What's New in 1.0
 
 - **Double Diamond Workflow** - Structured design thinking process
 - **Octopus-Themed Commands** - `probe`, `grasp`, `tangle`, `ink`, `embrace`
@@ -68,8 +83,11 @@ _`) )  .---.__.' / |   |\   \__..--""  """--.,_
 - **Cost-Aware Routing** - Routes trivial tasks to cheaper models
 - **Quality Gates** - 75% success threshold in development phase
 
+</details>
+
 ## Table of Contents
 
+- [Before You Start](#before-you-start)
 - [Quick Start](#quick-start)
 - [Double Diamond Methodology](#double-diamond-methodology)
 - [Smart Auto-Routing](#smart-auto-routing)
@@ -83,45 +101,83 @@ _`) )  .---.__.' / |   |\   \__..--""  """--.,_
 - [Contributing](#contributing)
 - [License](#license)
 
+## Before You Start
+
+Claude Octopus orchestrates **multiple AI models** (OpenAI Codex + Google Gemini). You'll need API keys for both:
+
+### Required API Keys
+
+| Provider | Get Your Key | Environment Variable |
+|----------|-------------|---------------------|
+| OpenAI | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) | `OPENAI_API_KEY` |
+| Google | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) | `GEMINI_API_KEY` |
+
+### Set Up Your Keys
+
+```bash
+# Add to your shell profile (~/.bashrc, ~/.zshrc, etc.)
+export OPENAI_API_KEY="sk-..."
+export GEMINI_API_KEY="AIza..."
+```
+
+### System Requirements
+
+- **Bash 4.0+** (macOS: `brew install bash`)
+- **Codex CLI** - `npm install -g @openai/codex` or [installation guide](https://github.com/openai/codex-cli)
+- **Gemini CLI** - `npm install -g @google/gemini-cli` or [installation guide](https://github.com/google-gemini/gemini-cli)
+- **Optional:** `jq` for JSON task files, `coreutils` for macOS timeout
+
 ## Quick Start
 
-### 1. Install via Marketplace
+### 1. Install
 
-```
+```bash
+# Via Claude Code Plugin Marketplace (recommended)
 /plugin marketplace add nyldn/claude-octopus
-/plugin install claude-octopus@nyldn-plugins
+
+# Or clone directly
+git clone https://github.com/nyldn/claude-octopus.git ~/.claude/plugins/claude-octopus
 ```
 
-### 2. Run Setup Wizard
+### 2. Verify Setup
 
-The setup wizard guides you through installing dependencies and configuring API keys:
+```bash
+# Check all dependencies are configured
+./scripts/orchestrate.sh preflight
+```
 
+If preflight fails, run the setup wizard:
 ```bash
 ./scripts/orchestrate.sh setup
 ```
 
-This will:
-- Install Codex CLI and Gemini CLI (if needed)
-- Help you get OpenAI and Gemini API keys
-- Optionally save keys to your shell profile
-
-### 3. Use It
+### 3. Try It (Dry Run First)
 
 ```bash
-# Full Double Diamond workflow (all 4 phases)
-./scripts/orchestrate.sh embrace "Build a user authentication system"
+# Preview what would happen (no API calls)
+./scripts/orchestrate.sh -n auto "build a hello world function"
 
-# Smart auto-routing (detects intent automatically)
-./scripts/orchestrate.sh auto "research OAuth patterns"           # -> probe
-./scripts/orchestrate.sh auto "build user login"                  # -> tangle + ink
-./scripts/orchestrate.sh auto "review the auth code"              # -> ink
-
-# Individual phases
-./scripts/orchestrate.sh probe "Research authentication best practices"
-./scripts/orchestrate.sh grasp "Define auth requirements"
-./scripts/orchestrate.sh tangle "Implement auth feature"
-./scripts/orchestrate.sh ink "Validate and deliver auth implementation"
+# If that looks good, run for real
+./scripts/orchestrate.sh auto "build a hello world function"
 ```
+
+### 4. Full Workflow Example
+
+```bash
+# Let AI choose the best approach (recommended)
+./scripts/orchestrate.sh auto "build user authentication"
+
+# Or run the full 4-phase Double Diamond
+./scripts/orchestrate.sh embrace "build user authentication"
+
+# Or run individual phases
+./scripts/orchestrate.sh research "authentication best practices"  # Phase 1
+./scripts/orchestrate.sh define "auth requirements"                # Phase 2
+./scripts/orchestrate.sh develop "implement auth feature"          # Phase 3
+./scripts/orchestrate.sh deliver "validate auth implementation"    # Phase 4
+```
+
+> **Tip:** Use `help` to learn more: `./scripts/orchestrate.sh help` or `./scripts/orchestrate.sh help auto`
 
 ## Double Diamond Methodology
 
@@ -215,12 +271,15 @@ The `tangle` phase enforces quality gates:
 
 ## Prerequisites
 
-Before installing Claude Octopus, ensure you have:
+See [Before You Start](#before-you-start) for the complete setup guide. Quick checklist:
 
-- [Claude Code](https://claude.ai/code) CLI installed
-- Bash 4.0+ (macOS: `brew install bash`)
-- Optional: `jq` for JSON task files (`brew install jq`)
-- Optional: `coreutils` for timeout on macOS (`brew install coreutils`)
+- [ ] OpenAI API key set (`export OPENAI_API_KEY="sk-..."`)
+- [ ] Google API key set (`export GEMINI_API_KEY="AIza..."`)
+- [ ] Codex CLI installed (`codex --version`)
+- [ ] Gemini CLI installed (`gemini --version`)
+- [ ] Bash 4.0+ (macOS: `brew install bash`)
+
+Run `./scripts/orchestrate.sh preflight` to verify everything is configured.
 
 ## Installation
 
