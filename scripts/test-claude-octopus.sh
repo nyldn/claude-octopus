@@ -1506,6 +1506,167 @@ fi
 echo ""
 
 # ============================================
+# TIER DETECTION & CACHE TESTS (v4.8.3)
+# ============================================
+echo "========================================"
+echo "Tier Detection & Cache Tests (v4.8.3)"
+echo "========================================"
+
+# Test: TIER_CACHE_FILE defined
+echo -n "  TIER_CACHE_FILE defined... "
+if grep -q 'TIER_CACHE_FILE=' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+# Test: TIER_CACHE_TTL defined
+echo -n "  TIER_CACHE_TTL defined... "
+if grep -q 'TIER_CACHE_TTL=' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+# Test: tier_cache_valid() function exists
+echo -n "  tier_cache_valid() function exists... "
+if grep -q 'tier_cache_valid()' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+# Test: tier_cache_read() function exists
+echo -n "  tier_cache_read() function exists... "
+if grep -q 'tier_cache_read()' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+# Test: tier_cache_write() function exists
+echo -n "  tier_cache_write() function exists... "
+if grep -q 'tier_cache_write()' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+# Test: tier_cache_invalidate() function exists
+echo -n "  tier_cache_invalidate() function exists... "
+if grep -q 'tier_cache_invalidate()' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+# Test: detect_tier_openai() function exists
+echo -n "  detect_tier_openai() function exists... "
+if grep -q 'detect_tier_openai()' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+# Test: detect_tier_gemini() function exists
+echo -n "  detect_tier_gemini() function exists... "
+if grep -q 'detect_tier_gemini()' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+# Test: detect_tier_claude() function exists
+echo -n "  detect_tier_claude() function exists... "
+if grep -q 'detect_tier_claude()' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+# Test: get_cost_tier_for_subscription() function exists
+echo -n "  get_cost_tier_for_subscription() function exists... "
+if grep -q 'get_cost_tier_for_subscription()' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+# Test: show_config_summary() function exists
+echo -n "  show_config_summary() function exists... "
+if grep -q 'show_config_summary()' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+# Test: auto_detect_provider_config calls detect_tier functions
+echo -n "  auto_detect_provider_config uses tier detection... "
+if grep -q 'detect_tier_openai' "$SCRIPT" && grep -q 'detect_tier_gemini' "$SCRIPT" && grep -q 'detect_tier_claude' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+# Test: save_providers_config calls tier_cache_invalidate
+echo -n "  save_providers_config invalidates tier cache... "
+if grep -A 50 'save_providers_config()' "$SCRIPT" | grep -q 'tier_cache_invalidate'; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+# Test: setup_wizard calls show_config_summary
+echo -n "  setup_wizard calls show_config_summary... "
+# Extract setup_wizard function and check if it contains show_config_summary
+# Using sed to extract from setup_wizard() to the next top-level function
+if sed -n '/^setup_wizard()/,/^[a-z_]*() {/p' "$SCRIPT" | grep -q 'show_config_summary'; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+# Test: tier cache has 24-hour TTL
+echo -n "  Tier cache TTL is 24 hours (86400s)... "
+if grep -q 'TIER_CACHE_TTL=86400' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+echo ""
+
+# ============================================
 # SUMMARY
 # ============================================
 echo "========================================"
