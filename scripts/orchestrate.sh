@@ -94,15 +94,15 @@ NC='\033[0m' # No Color
 get_agent_command() {
     local agent_type="$1"
     case "$agent_type" in
-        codex) echo "codex exec -m gpt-5.1-codex-max" ;;          # Premium default
-        codex-standard) echo "codex exec -m gpt-5.2-codex" ;;     # Standard tier
-        codex-max) echo "codex exec -m gpt-5.1-codex-max" ;;
-        codex-mini) echo "codex exec -m gpt-5.1-codex-mini" ;;
-        codex-general) echo "codex exec -m gpt-5.2" ;;
-        gemini) echo "gemini -y -m gemini-3-pro-preview" ;;
-        gemini-fast) echo "gemini -y -m gemini-3-flash-preview" ;;
-        gemini-image) echo "gemini -y -m gemini-3-pro-image-preview" ;;
-        codex-review) echo "codex exec review -m gpt-5.2-codex" ;;
+        codex) echo "codex exec" ;;                               # Uses default model (o3/gpt-4.1)
+        codex-standard) echo "codex exec" ;;                      # Standard tier
+        codex-max) echo "codex exec" ;;                           # Premium
+        codex-mini) echo "codex exec" ;;                          # Cost-effective
+        codex-general) echo "codex exec" ;;                       # General tasks
+        gemini) echo "gemini -y -m gemini-3-pro-preview" ;;       # Premium Gemini
+        gemini-fast) echo "gemini -y -m gemini-3-flash-preview" ;; # Fast Gemini
+        gemini-image) echo "gemini -y -m gemini-3-pro-preview" ;; # Image capable
+        codex-review) echo "codex exec review" ;;                 # Code review mode
         *) return 1 ;;
     esac
 }
@@ -115,15 +115,15 @@ get_agent_command_array() {
     local agent_type="$1"
     local -n _cmd_array="$2"  # nameref for array output
     case "$agent_type" in
-        codex)          _cmd_array=(codex exec -m gpt-5.1-codex-max) ;;
-        codex-standard) _cmd_array=(codex exec -m gpt-5.2-codex) ;;
-        codex-max)      _cmd_array=(codex exec -m gpt-5.1-codex-max) ;;
-        codex-mini)     _cmd_array=(codex exec -m gpt-5.1-codex-mini) ;;
-        codex-general)  _cmd_array=(codex exec -m gpt-5.2) ;;
+        codex)          _cmd_array=(codex exec) ;;
+        codex-standard) _cmd_array=(codex exec) ;;
+        codex-max)      _cmd_array=(codex exec) ;;
+        codex-mini)     _cmd_array=(codex exec) ;;
+        codex-general)  _cmd_array=(codex exec) ;;
         gemini)         _cmd_array=(gemini -y -m gemini-3-pro-preview) ;;
         gemini-fast)    _cmd_array=(gemini -y -m gemini-3-flash-preview) ;;
-        gemini-image)   _cmd_array=(gemini -y -m gemini-3-pro-image-preview) ;;
-        codex-review)   _cmd_array=(codex exec review -m gpt-5.2-codex) ;;
+        gemini-image)   _cmd_array=(gemini -y -m gemini-3-pro-preview) ;;
+        codex-review)   _cmd_array=(codex exec review) ;;
         *) return 1 ;;
     esac
 }
@@ -5210,10 +5210,16 @@ preflight_check() {
         log DEBUG "Gemini CLI: $(command -v gemini)"
     fi
 
-    # Check API keys
+    # Check API keys (support both env var and OAuth login)
     if [[ -z "${OPENAI_API_KEY:-}" ]]; then
-        log ERROR "OPENAI_API_KEY not set"
-        ((errors++))
+        # Check for OAuth authentication via codex login
+        if [[ -f "$HOME/.codex/auth.json" ]]; then
+            log DEBUG "OPENAI_API_KEY: not set, but OAuth auth found (~/.codex/auth.json)"
+        else
+            log ERROR "OPENAI_API_KEY not set (and no OAuth auth found)"
+            log INFO "  Fix: export OPENAI_API_KEY=\"sk-...\" OR run 'codex login'"
+            ((errors++))
+        fi
     else
         log DEBUG "OPENAI_API_KEY: set (${#OPENAI_API_KEY} chars)"
     fi
@@ -6086,24 +6092,31 @@ grapple_debate() {
     echo -e "${CYAN}[Round 1/3] Generating competing proposals...${NC}"
     echo ""
 
+    # Constraint to prevent agentic file exploration
+    local no_explore_constraint="IMPORTANT: Do NOT read, explore, or modify any files. Do NOT run any shell commands. Just output your response as TEXT directly. This is a debate exercise, not a coding session."
+
     local codex_proposal gemini_proposal
     codex_proposal=$(run_agent_sync "codex" "
+$no_explore_constraint
+
 You are the PROPOSER. Implement this task with your best approach:
 $prompt
 
 ${principle_text:+Adhere to these principles:
 $principle_text}
 
-Output your implementation with clear reasoning. Be thorough and practical." 180 "implementer" "grapple")
+Output your implementation with clear reasoning. Be thorough and practical." 120 "implementer" "grapple")
 
     gemini_proposal=$(run_agent_sync "gemini" "
+$no_explore_constraint
+
 You are the PROPOSER. Implement this task with your best approach:
 $prompt
 
 ${principle_text:+Adhere to these principles:
 $principle_text}
 
-Output your implementation with clear reasoning. Be thorough and practical." 180 "researcher" "grapple")
+Output your implementation with clear reasoning. Be thorough and practical." 120 "researcher" "grapple")
 
     # ═══════════════════════════════════════════════════════════════════════
     # Round 2: Cross-critique
@@ -6116,6 +6129,8 @@ Output your implementation with clear reasoning. Be thorough and practical." 180
 
     # Gemini critiques Codex's proposal
     gemini_critique=$(run_agent_sync "gemini" "
+$no_explore_constraint
+
 You are a CRITICAL REVIEWER. Your job is to find flaws in this implementation.
 
 IMPLEMENTATION TO CRITIQUE (from Codex):
@@ -6129,10 +6144,12 @@ Find at least 3 issues. For each:
 ${principle_text:+Evaluate against these principles:
 $principle_text}
 
-Be harsh but fair. If genuinely good, explain why." 120 "security-auditor" "grapple")
+Be harsh but fair. If genuinely good, explain why." 90 "security-auditor" "grapple")
 
     # Codex critiques Gemini's proposal
     codex_critique=$(run_agent_sync "codex-review" "
+$no_explore_constraint
+
 You are a CRITICAL REVIEWER. Your job is to find flaws in this implementation.
 
 IMPLEMENTATION TO CRITIQUE (from Gemini):
@@ -6146,7 +6163,7 @@ Find at least 3 issues. For each:
 ${principle_text:+Evaluate against these principles:
 $principle_text}
 
-Be harsh but fair. If genuinely good, explain why." 120 "code-reviewer" "grapple")
+Be harsh but fair. If genuinely good, explain why." 90 "code-reviewer" "grapple")
 
     # ═══════════════════════════════════════════════════════════════════════
     # Round 3: Synthesis
@@ -6157,6 +6174,8 @@ Be harsh but fair. If genuinely good, explain why." 120 "code-reviewer" "grapple
 
     local synthesis
     synthesis=$(run_agent_sync "gemini" "
+$no_explore_constraint
+
 You are the JUDGE resolving a debate between two AI models.
 
 CODEX PROPOSAL:
@@ -6179,7 +6198,7 @@ TASK: Determine the best approach by:
 Output in this format:
 WINNER: [codex|gemini|hybrid]
 VALID_CRITIQUES: [list which critiques to incorporate]
-FINAL_IMPLEMENTATION: [the best code/solution, incorporating valid feedback]" 240 "synthesizer" "grapple")
+FINAL_IMPLEMENTATION: [the best code/solution, incorporating valid feedback]" 120 "synthesizer" "grapple")
 
     # ═══════════════════════════════════════════════════════════════════════
     # Save results
@@ -6262,6 +6281,9 @@ squeeze_test() {
 
     mkdir -p "$RESULTS_DIR" "$LOGS_DIR"
 
+    # Constraint to prevent agentic file exploration
+    local no_explore_constraint="IMPORTANT: Do NOT read, explore, or modify any files. Do NOT run any shell commands. Just output your response as TEXT directly. This is a security review exercise, not a coding session."
+
     # ═══════════════════════════════════════════════════════════════════════
     # Phase 1: Blue Team Implementation
     # ═══════════════════════════════════════════════════════════════════════
@@ -6271,6 +6293,8 @@ squeeze_test() {
 
     local blue_impl
     blue_impl=$(run_agent_sync "codex" "
+$no_explore_constraint
+
 You are BLUE TEAM (defender). Implement this with security as top priority:
 $prompt
 
@@ -6295,6 +6319,8 @@ Output production-ready secure code with security comments." 180 "backend-archit
 
     local red_attack
     red_attack=$(run_agent_sync "gemini" "
+$no_explore_constraint
+
 You are RED TEAM (attacker/penetration tester). Find security vulnerabilities in this code:
 
 $blue_impl
@@ -6330,6 +6356,8 @@ Be thorough - check for:
 
     local remediation
     remediation=$(run_agent_sync "codex" "
+$no_explore_constraint
+
 Fix ALL vulnerabilities found by Red Team.
 
 ORIGINAL CODE:
@@ -6353,6 +6381,8 @@ Output the COMPLETE fixed code with all security improvements applied." 180 "imp
 
     local validation
     validation=$(run_agent_sync "codex-review" "
+$no_explore_constraint
+
 Verify all vulnerabilities have been properly fixed.
 
 ORIGINAL VULNERABILITIES FOUND:
