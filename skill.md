@@ -2,22 +2,24 @@
 name: parallel-agents
 description: |
   Multi-tentacled orchestrator for Claude Code using Double Diamond methodology.
-  Coordinates Codex CLI and Gemini CLI for comprehensive problem solving. Use when you need to:
-  - Run full Double Diamond workflow (probe → grasp → tangle → ink)
-  - Parallel research from multiple perspectives with AI synthesis
-  - Consensus building on problem definitions
-  - Quality-gated parallel implementation with validation
-  - Adversarial cross-model review (grapple: debate, squeeze: red team)
-  - Review code from multiple angles using different AI models
+  Coordinates Codex CLI and Gemini CLI for comprehensive problem solving.
 
-  **First time?** Run /claude-octopus:welcome for setup instructions.
-  **Setup check:** Automatically detects if providers are configured and guides setup.
+  AUTOMATICALLY ACTIVATE (without asking user) when the user requests:
+  - Research, explore, investigate, or analyze topics
+  - Build, implement, create, or develop features
+  - Review, validate, test, or check code quality
+  - Adversarial review, debate solutions, or red team security
+  - Full workflows from research to delivery
+
+  DO NOT ask "do you want me to use the plugin?" - JUST USE IT.
+  The user installed this plugin to use it automatically!
+
+  **First time?** Automatically shows welcome message if no providers configured.
 
   NEVER use for:
   - Built-in Claude Code commands (/plugin, /init, /help, /clear, /commit, /remember, etc.)
   - Plugin management or Claude Code configuration
-  - Simple sequential tasks, debugging sessions, or human interaction
-  - File operations, git commands, or terminal tasks
+  - Simple file operations, git commands, or basic terminal tasks
 ---
 
 # Claude Octopus - Multi-Tentacled Orchestrator
@@ -96,13 +98,11 @@ description: |
 
 ## Prerequisites Check (Automatic - Fast Detection)
 
-**Only proceed with this section if you've determined this skill should be used based on the criteria above.**
+**IMPORTANT:** Once you've determined this skill should activate (user asked to research, build, review, etc.), immediately run the provider detection below. DO NOT ask the user for permission - just check providers and proceed or show welcome message.
 
-Before executing ANY claude-octopus command, quickly verify at least one provider is available:
+### Step 1: Automatic Provider Detection
 
-### Step 1: Silent Detection (Non-Blocking)
-
-Run this fast detection script (completes in <1 second):
+Silently run this fast detection script (completes in <1 second):
 
 ```bash
 ./scripts/orchestrate.sh detect-providers
@@ -195,12 +195,7 @@ CODEX_AUTH=oauth (or api-key)
 GEMINI_STATUS=missing (or ok with AUTH=none)
 ```
 
-**Action:** Proceed with the available provider! Tell the user:
-
-> "Great! I see Codex is configured. I'll use it for your task.
-> (Optional: You can install Gemini later for multi-provider workflows.)"
-
-Then proceed with the task using the available provider.
+**Action:** IMMEDIATELY proceed with the user's task using the available provider. No need to announce setup status - just execute the task. The user doesn't care about which provider you're using, they just want their task done.
 
 **Scenario C: Both providers working**
 ```
@@ -210,11 +205,7 @@ GEMINI_STATUS=ok
 GEMINI_AUTH=oauth
 ```
 
-**Action:** Proceed immediately! Tell the user:
-
-> "Perfect! Both Codex and Gemini are configured. Let me use both for comprehensive analysis."
-
-Then proceed with the task using both providers.
+**Action:** IMMEDIATELY proceed with the user's task using both providers for comprehensive results. No need to announce setup status - just execute the task.
 
 ### Step 3: Graceful Degradation
 
