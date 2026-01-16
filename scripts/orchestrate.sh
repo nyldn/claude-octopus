@@ -3039,9 +3039,118 @@ detect_providers() {
     echo "$result" | xargs  # Trim whitespace
 }
 
+# Compare two semantic versions (e.g., "2.1.9" and "2.1.8")
+# Returns: 0 if v1 >= v2, 1 if v1 < v2
+version_compare() {
+    local v1="$1"
+    local v2="$2"
+
+    # Split versions into arrays
+    IFS='.' read -ra V1 <<< "$v1"
+    IFS='.' read -ra V2 <<< "$v2"
+
+    # Compare each component
+    for i in 0 1 2; do
+        local num1="${V1[$i]:-0}"
+        local num2="${V2[$i]:-0}"
+
+        if (( num1 > num2 )); then
+            return 0
+        elif (( num1 < num2 )); then
+            return 1
+        fi
+    done
+
+    return 0  # Equal versions
+}
+
+# Check Claude Code version and return status
+# Sets: CLAUDE_CODE_VERSION, CLAUDE_CODE_STATUS
+check_claude_version() {
+    local min_version="2.1.9"
+    local current_version=""
+    local status="unknown"
+
+    # Try to get version from claude command
+    if command -v claude &>/dev/null; then
+        # Try different version flag formats
+        current_version=$(claude --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+
+        if [[ -z "$current_version" ]]; then
+            # Try alternative: claude version
+            current_version=$(claude version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+        fi
+
+        if [[ -z "$current_version" ]]; then
+            # Try checking package.json if installed via npm
+            if [[ -f "/usr/local/lib/node_modules/@anthropic/claude-code/package.json" ]]; then
+                current_version=$(grep '"version"' /usr/local/lib/node_modules/@anthropic/claude-code/package.json | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+            elif [[ -f "$HOME/.npm-global/lib/node_modules/@anthropic/claude-code/package.json" ]]; then
+                current_version=$(grep '"version"' "$HOME/.npm-global/lib/node_modules/@anthropic/claude-code/package.json" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+            fi
+        fi
+
+        if [[ -n "$current_version" ]]; then
+            if version_compare "$current_version" "$min_version"; then
+                status="ok"
+            else
+                status="outdated"
+            fi
+        else
+            status="unknown"
+        fi
+    else
+        status="not-found"
+    fi
+
+    echo "CLAUDE_CODE_VERSION=${current_version:-unknown}"
+    echo "CLAUDE_CODE_STATUS=$status"
+    echo "CLAUDE_CODE_MINIMUM=$min_version"
+}
+
 # Command: detect-providers
 # Output parseable provider status for Claude Code skill
 cmd_detect_providers() {
+    echo "Detecting Claude Code version..."
+    echo ""
+
+    # Check Claude Code version first
+    check_claude_version
+    echo ""
+
+    # If outdated, show prominent warning
+    local claude_status=$(check_claude_version | grep CLAUDE_CODE_STATUS | cut -d= -f2)
+    local claude_version=$(check_claude_version | grep CLAUDE_CODE_VERSION | cut -d= -f2)
+    local min_version=$(check_claude_version | grep CLAUDE_CODE_MINIMUM | cut -d= -f2)
+
+    if [[ "$claude_status" == "outdated" ]]; then
+        echo "⚠️  WARNING: Claude Code is outdated!"
+        echo ""
+        echo "  Current version: $claude_version"
+        echo "  Required version: $min_version or higher"
+        echo ""
+        echo "Claude Octopus requires Claude Code $min_version+ for full functionality."
+        echo ""
+        echo "How to update:"
+        echo ""
+        echo "  If installed via npm:"
+        echo "    npm update -g @anthropic/claude-code"
+        echo ""
+        echo "  If installed via brew:"
+        echo "    brew upgrade claude-code"
+        echo ""
+        echo "  If installed via download:"
+        echo "    Visit https://github.com/anthropics/claude-code/releases"
+        echo ""
+        echo "After updating, please restart Claude Code for changes to take effect."
+        echo ""
+        echo "═══════════════════════════════════════════════════════════════════"
+        echo ""
+    elif [[ "$claude_status" == "ok" ]]; then
+        echo "✓ Claude Code version: $claude_version (meets minimum $min_version)"
+        echo ""
+    fi
+
     echo "Detecting providers..."
     echo ""
 
