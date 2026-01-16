@@ -1,6 +1,6 @@
 {
   "name": "claude-octopus",
-  "version": "4.7.2",
+  "version": "4.8.0",
   "description": "Multi-tentacled orchestrator using Double Diamond methodology",
   "author": {
     "name": "nyldn"
@@ -22,9 +22,12 @@
     "quality-gates",
     "smart-setup",
     "resource-aware",
-    ""claude-code-2.1.9",
+    "claude-code-2.1.9",
     "crossfire",
-    "adversarial-review""
+    "adversarial-review",
+    "multi-provider",
+    "provider-routing",
+    "openrouter"
   ],
   "skills": ["./skill.md", "./agents/skills/*.md"],
   "commands": ["./commands/setup.md", "./commands/check-updates.md"],
