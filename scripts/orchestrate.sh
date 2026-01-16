@@ -1610,11 +1610,11 @@ ${YELLOW}Output:${NC}
   Results saved to: ~/.claude-octopus/results/delivery-*.md
 EOF
             ;;
-        setup)
+        octopus-configure)
             cat << EOF
-${YELLOW}setup${NC} - Interactive configuration wizard
+${YELLOW}octopus-configure${NC} - Interactive configuration wizard
 
-${YELLOW}Usage:${NC} $(basename "$0") setup
+${YELLOW}Usage:${NC} $(basename "$0") octopus-configure
 
 Guides you through:
   1. Checking/installing dependencies (Codex CLI, Gemini CLI)
@@ -1623,6 +1623,15 @@ Guides you through:
   4. Running a test command
 
 Run this first if you're new to Claude Octopus!
+
+${YELLOW}Alias:${NC} setup (deprecated, use octopus-configure)
+EOF
+            ;;
+        setup)
+            cat << EOF
+${YELLOW}setup${NC} - ${RED}[DEPRECATED]${NC} Use 'octopus-configure' instead
+
+${YELLOW}Usage:${NC} $(basename "$0") octopus-configure
 EOF
             ;;
         optimize|optimise)
@@ -1857,7 +1866,7 @@ ${GREEN}ESSENTIALS (start here)${NC}
 ${GREEN}═══════════════════════════════════════════════════════════════════════════${NC}
   ${GREEN}auto${NC} <prompt>           Smart routing - AI chooses best approach
   ${GREEN}embrace${NC} <prompt>        Full 4-phase Double Diamond workflow
-  ${GREEN}setup${NC}                   Interactive setup wizard
+  ${GREEN}octopus-configure${NC}       Interactive configuration wizard
 
 ${YELLOW}═══════════════════════════════════════════════════════════════════════════${NC}
 ${YELLOW}DOUBLE DIAMOND PHASES${NC} (can be run individually)
@@ -5882,9 +5891,17 @@ install_tool() {
 
 # Interactive setup wizard
 setup_wizard() {
+    # Detect if running in non-interactive mode (e.g., called by Claude Code)
+    local NON_INTERACTIVE=false
+    if [[ ! -t 0 ]] || [[ -n "${CLAUDE_SESSION_ID:-}" ]]; then
+        NON_INTERACTIVE=true
+        echo -e "${YELLOW}⚠ Non-interactive mode detected. Using auto-detected defaults.${NC}"
+        echo ""
+    fi
+
     echo ""
     echo -e "${PURPLE}═══════════════════════════════════════════════════════════════${NC}"
-    echo -e "${PURPLE}        🐙 Claude Octopus Setup Wizard 🐙${NC}"
+    echo -e "${PURPLE}        🐙 Claude Octopus Configuration Wizard 🐙${NC}"
     echo -e "${PURPLE}═══════════════════════════════════════════════════════════════${NC}"
     echo ""
     echo -e "  Welcome! Let's get all 8 tentacles connected and ready to work."
@@ -5990,23 +6007,29 @@ setup_wizard() {
         echo -e "  ${GREEN}✓${NC} OPENAI_API_KEY already set (${#OPENAI_API_KEY} chars)"
     else
         echo -e "  ${YELLOW}✗${NC} OPENAI_API_KEY not set"
-        echo ""
-        read -p "  Open OpenAI platform to get an API key? [Y/n] " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Nn]$ ]]; then
-            echo -e "  ${CYAN}→${NC} Opening https://platform.openai.com/api-keys ..."
-            open_browser "https://platform.openai.com/api-keys"
-            sleep 1
-        fi
-        echo ""
-        echo -e "  Paste your OpenAI API key (starts with 'sk-'):"
-        read -p "  → " openai_key
-        if [[ -n "$openai_key" ]]; then
-            export OPENAI_API_KEY="$openai_key"
-            keys_to_add="${keys_to_add}export OPENAI_API_KEY=\"$openai_key\"\n"
-            echo -e "  ${GREEN}✓${NC} OPENAI_API_KEY set for this session"
+        if [[ "$NON_INTERACTIVE" == "true" ]]; then
+            echo ""
+            echo -e "  ${CYAN}→${NC} To configure: export OPENAI_API_KEY=\"sk-...\""
+            echo -e "  ${CYAN}→${NC} Get your key from: https://platform.openai.com/api-keys"
         else
-            echo -e "  ${YELLOW}⚠${NC} Skipped. Set later: export OPENAI_API_KEY=\"your-key\""
+            echo ""
+            read -p "  Open OpenAI platform to get an API key? [Y/n] " -n 1 -r
+            echo
+            if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+                echo -e "  ${CYAN}→${NC} Opening https://platform.openai.com/api-keys ..."
+                open_browser "https://platform.openai.com/api-keys"
+                sleep 1
+            fi
+            echo ""
+            echo -e "  Paste your OpenAI API key (starts with 'sk-'):"
+            read -p "  → " openai_key
+            if [[ -n "$openai_key" ]]; then
+                export OPENAI_API_KEY="$openai_key"
+                keys_to_add="${keys_to_add}export OPENAI_API_KEY=\"$openai_key\"\n"
+                echo -e "  ${GREEN}✓${NC} OPENAI_API_KEY set for this session"
+            else
+                echo -e "  ${YELLOW}⚠${NC} Skipped. Set later: export OPENAI_API_KEY=\"your-key\""
+            fi
         fi
     fi
     echo ""
@@ -6035,30 +6058,36 @@ setup_wizard() {
         echo -e "  ${CYAN}Tip:${NC} OAuth is faster. Run 'gemini' and select 'Login with Google'"
     else
         echo -e "  ${YELLOW}✗${NC} Gemini: Not authenticated"
-        echo ""
-        echo -e "  ${CYAN}Option 1 (Recommended):${NC} OAuth Login"
-        echo -e "    Run: ${GREEN}gemini${NC}"
-        echo -e "    Select 'Login with Google' and follow browser prompts"
-        echo ""
-        echo -e "  ${CYAN}Option 2:${NC} API Key"
-        echo -e "    Get key from: https://aistudio.google.com/apikey"
-        echo ""
-        read -p "  Open Google AI Studio to get an API key? [Y/n] " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Nn]$ ]]; then
-            echo -e "  ${CYAN}→${NC} Opening https://aistudio.google.com/apikey ..."
-            open_browser "https://aistudio.google.com/apikey"
-            sleep 1
-        fi
-        echo ""
-        echo -e "  Paste your Gemini API key (starts with 'AIza'), or press Enter if using OAuth:"
-        read -p "  → " gemini_key
-        if [[ -n "$gemini_key" ]]; then
-            export GEMINI_API_KEY="$gemini_key"
-            keys_to_add="${keys_to_add}export GEMINI_API_KEY=\"$gemini_key\"\n"
-            echo -e "  ${GREEN}✓${NC} GEMINI_API_KEY set for this session"
+        if [[ "$NON_INTERACTIVE" == "true" ]]; then
+            echo ""
+            echo -e "  ${CYAN}Option 1 (Recommended):${NC} Run: ${GREEN}gemini${NC} and select 'Login with Google'"
+            echo -e "  ${CYAN}Option 2:${NC} export GEMINI_API_KEY=\"AIza...\" (get from https://aistudio.google.com/apikey)"
         else
-            echo -e "  ${YELLOW}⚠${NC} Skipped. Authenticate later via 'gemini' OR set GEMINI_API_KEY"
+            echo ""
+            echo -e "  ${CYAN}Option 1 (Recommended):${NC} OAuth Login"
+            echo -e "    Run: ${GREEN}gemini${NC}"
+            echo -e "    Select 'Login with Google' and follow browser prompts"
+            echo ""
+            echo -e "  ${CYAN}Option 2:${NC} API Key"
+            echo -e "    Get key from: https://aistudio.google.com/apikey"
+            echo ""
+            read -p "  Open Google AI Studio to get an API key? [Y/n] " -n 1 -r
+            echo
+            if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+                echo -e "  ${CYAN}→${NC} Opening https://aistudio.google.com/apikey ..."
+                open_browser "https://aistudio.google.com/apikey"
+                sleep 1
+            fi
+            echo ""
+            echo -e "  Paste your Gemini API key (starts with 'AIza'), or press Enter if using OAuth:"
+            read -p "  → " gemini_key
+            if [[ -n "$gemini_key" ]]; then
+                export GEMINI_API_KEY="$gemini_key"
+                keys_to_add="${keys_to_add}export GEMINI_API_KEY=\"$gemini_key\"\n"
+                echo -e "  ${GREEN}✓${NC} GEMINI_API_KEY set for this session"
+            else
+                echo -e "  ${YELLOW}⚠${NC} Skipped. Authenticate later via 'gemini' OR set GEMINI_API_KEY"
+            fi
         fi
     fi
     echo ""
@@ -6072,15 +6101,22 @@ setup_wizard() {
         [[ -f "$HOME/.codex/auth.json" ]] && PROVIDER_CODEX_AUTH_METHOD="oauth" || PROVIDER_CODEX_AUTH_METHOD="api-key"
 
         echo -e "${CYAN}Step $current_step/$total_steps: Codex/OpenAI Subscription Tier${NC}"
-        echo -e "  ${YELLOW}This helps us optimize cost vs quality for your budget.${NC}"
-        echo ""
-        echo -e "  ${GREEN}[1]${NC} Free         ${CYAN}(Limited usage, free tier)${NC}"
-        echo -e "  ${GREEN}[2]${NC} Plus (\$20/mo) ${CYAN}(ChatGPT Plus subscriber)${NC}"
-        echo -e "  ${GREEN}[3]${NC} Pro (\$200/mo) ${CYAN}(ChatGPT Pro subscriber)${NC}"
-        echo -e "  ${GREEN}[4]${NC} API Only     ${CYAN}(Pay-per-use, no subscription)${NC}"
-        echo ""
-        read -p "  Enter choice [1-4, default 2]: " codex_tier_choice
-        codex_tier_choice="${codex_tier_choice:-2}"
+
+        if [[ "$NON_INTERACTIVE" == "true" ]]; then
+            # Auto-detect based on API key presence
+            codex_tier_choice=2  # Default to Plus tier
+            echo -e "  ${GREEN}✓${NC} Auto-detected: Plus tier (default for API key users)"
+        else
+            echo -e "  ${YELLOW}This helps us optimize cost vs quality for your budget.${NC}"
+            echo ""
+            echo -e "  ${GREEN}[1]${NC} Free         ${CYAN}(Limited usage, free tier)${NC}"
+            echo -e "  ${GREEN}[2]${NC} Plus (\$20/mo) ${CYAN}(ChatGPT Plus subscriber)${NC}"
+            echo -e "  ${GREEN}[3]${NC} Pro (\$200/mo) ${CYAN}(ChatGPT Pro subscriber)${NC}"
+            echo -e "  ${GREEN}[4]${NC} API Only     ${CYAN}(Pay-per-use, no subscription)${NC}"
+            echo ""
+            read -p "  Enter choice [1-4, default 2]: " codex_tier_choice
+            codex_tier_choice="${codex_tier_choice:-2}"
+        fi
 
         case "$codex_tier_choice" in
             1) PROVIDER_CODEX_TIER="free"; PROVIDER_CODEX_COST_TIER="free" ;;
@@ -6105,15 +6141,27 @@ setup_wizard() {
         [[ -f "$HOME/.gemini/oauth_creds.json" ]] && PROVIDER_GEMINI_AUTH_METHOD="oauth" || PROVIDER_GEMINI_AUTH_METHOD="api-key"
 
         echo -e "${CYAN}Step $current_step/$total_steps: Gemini Subscription Tier${NC}"
-        echo -e "  ${YELLOW}This helps us route heavy tasks to 'free' bundled services.${NC}"
-        echo ""
-        echo -e "  ${GREEN}[1]${NC} Free              ${CYAN}(Personal Google account, limited)${NC}"
-        echo -e "  ${GREEN}[2]${NC} Google One (\$10/mo) ${CYAN}(Gemini Advanced with 2M context)${NC}"
-        echo -e "  ${GREEN}[3]${NC} Workspace         ${CYAN}(Bundled with Google Workspace - FREE!)${NC}"
-        echo -e "  ${GREEN}[4]${NC} API Only          ${CYAN}(Pay-per-use, no subscription)${NC}"
-        echo ""
-        read -p "  Enter choice [1-4, default 1]: " gemini_tier_choice
-        gemini_tier_choice="${gemini_tier_choice:-1}"
+
+        if [[ "$NON_INTERACTIVE" == "true" ]]; then
+            # Auto-detect based on auth method
+            if [[ -f "$HOME/.gemini/oauth_creds.json" ]]; then
+                gemini_tier_choice=1  # Free tier for OAuth users
+                echo -e "  ${GREEN}✓${NC} Auto-detected: Free tier (OAuth authenticated)"
+            else
+                gemini_tier_choice=4  # API-only for API key users
+                echo -e "  ${GREEN}✓${NC} Auto-detected: API-only (API key authentication)"
+            fi
+        else
+            echo -e "  ${YELLOW}This helps us route heavy tasks to 'free' bundled services.${NC}"
+            echo ""
+            echo -e "  ${GREEN}[1]${NC} Free              ${CYAN}(Personal Google account, limited)${NC}"
+            echo -e "  ${GREEN}[2]${NC} Google One (\$10/mo) ${CYAN}(Gemini Advanced with 2M context)${NC}"
+            echo -e "  ${GREEN}[3]${NC} Workspace         ${CYAN}(Bundled with Google Workspace - FREE!)${NC}"
+            echo -e "  ${GREEN}[4]${NC} API Only          ${CYAN}(Pay-per-use, no subscription)${NC}"
+            echo ""
+            read -p "  Enter choice [1-4, default 1]: " gemini_tier_choice
+            gemini_tier_choice="${gemini_tier_choice:-1}"
+        fi
 
         case "$gemini_tier_choice" in
             1) PROVIDER_GEMINI_TIER="free"; PROVIDER_GEMINI_COST_TIER="free" ;;
@@ -6142,16 +6190,20 @@ setup_wizard() {
         PROVIDER_OPENROUTER_API_KEY_SET="true"
         echo -e "  ${GREEN}✓${NC} OPENROUTER_API_KEY already set"
     else
-        echo -e "  ${YELLOW}✗${NC} OPENROUTER_API_KEY not set (optional)"
-        echo ""
-        echo -e "  ${CYAN}OpenRouter is optional.${NC} It provides:"
-        echo -e "    - Universal fallback when Codex/Gemini unavailable"
-        echo -e "    - Access to 400+ models (Claude, GPT, Gemini, Llama, etc.)"
-        echo -e "    - Pay-per-use pricing with routing optimization"
-        echo ""
-        read -p "  Configure OpenRouter? [y/N] " -n 1 -r
-        echo
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
+        if [[ "$NON_INTERACTIVE" == "true" ]]; then
+            echo -e "  ${YELLOW}⚠${NC} OpenRouter not configured (optional - skipping in auto mode)"
+        else
+            echo -e "  ${YELLOW}✗${NC} OPENROUTER_API_KEY not set (optional)"
+            echo ""
+            echo -e "  ${CYAN}OpenRouter is optional.${NC} It provides:"
+            echo -e "    - Universal fallback when Codex/Gemini unavailable"
+            echo -e "    - Access to 400+ models (Claude, GPT, Gemini, Llama, etc.)"
+            echo -e "    - Pay-per-use pricing with routing optimization"
+            echo ""
+            read -p "  Configure OpenRouter? [y/N] " -n 1 -r
+            echo
+        fi
+        if [[ "${NON_INTERACTIVE}" != "true" ]] && [[ $REPLY =~ ^[Yy]$ ]]; then
             echo -e "  ${CYAN}→${NC} Get an API key from: https://openrouter.ai/keys"
             echo ""
             read -p "  Paste your OpenRouter API key (starts with 'sk-or-'): " openrouter_key
@@ -6195,15 +6247,21 @@ setup_wizard() {
     ((current_step++))
     echo ""
     echo -e "${CYAN}Step $current_step/$total_steps: Claude Subscription & Cost Strategy${NC}"
-    echo -e "  ${YELLOW}This affects which Claude tier you're using and overall cost optimization.${NC}"
-    echo ""
-    echo -e "  ${GREEN}[1]${NC} Pro (\$20/mo)       ${CYAN}(Claude Pro subscriber)${NC}"
-    echo -e "  ${GREEN}[2]${NC} Max 5x (\$100/mo)   ${CYAN}(5x Pro usage limit)${NC}"
-    echo -e "  ${GREEN}[3]${NC} Max 20x (\$200/mo)  ${CYAN}(20x Pro usage limit)${NC}"
-    echo -e "  ${GREEN}[4]${NC} API Only           ${CYAN}(No Claude subscription, pay-per-use)${NC}"
-    echo ""
-    read -p "  Enter choice [1-4, default 1]: " claude_tier_choice
-    claude_tier_choice="${claude_tier_choice:-1}"
+
+    if [[ "$NON_INTERACTIVE" == "true" ]]; then
+        claude_tier_choice=1  # Default to Pro
+        echo -e "  ${GREEN}✓${NC} Auto-detected: Pro tier (default)"
+    else
+        echo -e "  ${YELLOW}This affects which Claude tier you're using and overall cost optimization.${NC}"
+        echo ""
+        echo -e "  ${GREEN}[1]${NC} Pro (\$20/mo)       ${CYAN}(Claude Pro subscriber)${NC}"
+        echo -e "  ${GREEN}[2]${NC} Max 5x (\$100/mo)   ${CYAN}(5x Pro usage limit)${NC}"
+        echo -e "  ${GREEN}[3]${NC} Max 20x (\$200/mo)  ${CYAN}(20x Pro usage limit)${NC}"
+        echo -e "  ${GREEN}[4]${NC} API Only           ${CYAN}(No Claude subscription, pay-per-use)${NC}"
+        echo ""
+        read -p "  Enter choice [1-4, default 1]: " claude_tier_choice
+        claude_tier_choice="${claude_tier_choice:-1}"
+    fi
 
     case "$claude_tier_choice" in
         1) PROVIDER_CLAUDE_TIER="pro"; PROVIDER_CLAUDE_COST_TIER="medium" ;;
@@ -6215,16 +6273,21 @@ setup_wizard() {
     echo -e "  ${GREEN}✓${NC} Claude tier set to: $PROVIDER_CLAUDE_TIER"
 
     echo ""
-    echo -e "  ${YELLOW}Cost optimization strategy:${NC}"
-    echo -e "  ${GREEN}[1]${NC} Balanced (Recommended) ${CYAN}(Smart mix of cost and quality)${NC}"
-    echo -e "  ${GREEN}[2]${NC} Cost-First              ${CYAN}(Prefer cheapest capable provider)${NC}"
-    echo -e "  ${GREEN}[3]${NC} Quality-First           ${CYAN}(Prefer highest-tier provider)${NC}"
-    read -p "  Enter choice [1-3, default 1]: " strategy_choice
-    case "$strategy_choice" in
-        2) COST_OPTIMIZATION_STRATEGY="cost-first" ;;
-        3) COST_OPTIMIZATION_STRATEGY="quality-first" ;;
-        *) COST_OPTIMIZATION_STRATEGY="balanced" ;;
-    esac
+    if [[ "$NON_INTERACTIVE" == "true" ]]; then
+        COST_OPTIMIZATION_STRATEGY="balanced"
+        echo -e "  ${GREEN}✓${NC} Cost strategy: balanced (default)"
+    else
+        echo -e "  ${YELLOW}Cost optimization strategy:${NC}"
+        echo -e "  ${GREEN}[1]${NC} Balanced (Recommended) ${CYAN}(Smart mix of cost and quality)${NC}"
+        echo -e "  ${GREEN}[2]${NC} Cost-First              ${CYAN}(Prefer cheapest capable provider)${NC}"
+        echo -e "  ${GREEN}[3]${NC} Quality-First           ${CYAN}(Prefer highest-tier provider)${NC}"
+        read -p "  Enter choice [1-3, default 1]: " strategy_choice
+        case "$strategy_choice" in
+            2) COST_OPTIMIZATION_STRATEGY="cost-first" ;;
+            3) COST_OPTIMIZATION_STRATEGY="quality-first" ;;
+            *) COST_OPTIMIZATION_STRATEGY="balanced" ;;
+        esac
+    fi
     echo -e "  ${GREEN}✓${NC} Cost strategy: $COST_OPTIMIZATION_STRATEGY"
     echo ""
 
@@ -6272,12 +6335,18 @@ setup_wizard() {
         echo -e "    • ${GREEN}playwright${NC} - Browser automation, screenshots, QA testing"
         echo ""
 
-        echo -e "  ${GREEN}[1]${NC} Install all missing tools ${CYAN}(Recommended)${NC}"
-        echo -e "  ${GREEN}[2]${NC} Install critical only (jq, shellcheck)"
-        echo -e "  ${GREEN}[3]${NC} Skip for now"
-        echo ""
-        read -p "  Enter choice [1-3, default 1]: " tools_choice
-        tools_choice="${tools_choice:-1}"
+        if [[ "$NON_INTERACTIVE" == "true" ]]; then
+            tools_choice=3  # Skip in non-interactive mode
+            echo -e "  ${YELLOW}⚠${NC} Skipping tool installation in auto mode."
+            echo -e "  ${CYAN}→${NC} To install manually: brew install jq shellcheck gh imagemagick"
+        else
+            echo -e "  ${GREEN}[1]${NC} Install all missing tools ${CYAN}(Recommended)${NC}"
+            echo -e "  ${GREEN}[2]${NC} Install critical only (jq, shellcheck)"
+            echo -e "  ${GREEN}[3]${NC} Skip for now"
+            echo ""
+            read -p "  Enter choice [1-3, default 1]: " tools_choice
+            tools_choice="${tools_choice:-1}"
+        fi
 
         local tools_to_install=()
         case "$tools_choice" in
@@ -6381,20 +6450,27 @@ setup_wizard() {
 
     # Offer to persist keys
     if [[ -n "$keys_to_add" ]]; then
-        echo -e "  ${YELLOW}To persist API keys across sessions, add to $shell_profile:${NC}"
-        echo ""
-        echo -e "$keys_to_add" | sed 's/^/    /'
-        echo ""
-        read -p "  Add these to $shell_profile automatically? [Y/n] " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Nn]$ ]]; then
-            echo "" >> "$shell_profile"
-            echo "# Claude Octopus API Keys (added by setup wizard)" >> "$shell_profile"
-            echo -e "$keys_to_add" >> "$shell_profile"
-            echo -e "  ${GREEN}✓${NC} Added to $shell_profile"
-            echo -e "  ${CYAN}→${NC} Run 'source $shell_profile' or restart your terminal"
+        if [[ "$NON_INTERACTIVE" == "true" ]]; then
+            echo -e "  ${YELLOW}⚠${NC} To persist API keys, add to $shell_profile:"
+            echo ""
+            echo -e "$keys_to_add" | sed 's/^/    /'
+            echo ""
+        else
+            echo -e "  ${YELLOW}To persist API keys across sessions, add to $shell_profile:${NC}"
+            echo ""
+            echo -e "$keys_to_add" | sed 's/^/    /'
+            echo ""
+            read -p "  Add these to $shell_profile automatically? [Y/n] " -n 1 -r
+            echo
+            if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+                echo "" >> "$shell_profile"
+                echo "# Claude Octopus API Keys (added by configuration wizard)" >> "$shell_profile"
+                echo -e "$keys_to_add" >> "$shell_profile"
+                echo -e "  ${GREEN}✓${NC} Added to $shell_profile"
+                echo -e "  ${CYAN}→${NC} Run 'source $shell_profile' or restart your terminal"
+            fi
+            echo ""
         fi
-        echo ""
     fi
 
     # Initialize workspace
@@ -6437,8 +6513,8 @@ check_first_run() {
            [[ -z "${OPENAI_API_KEY:-}" ]] || \
            [[ -z "${GEMINI_API_KEY:-}" ]]; then
             echo ""
-            echo -e "${YELLOW}🐙 First time? Run the setup wizard to get started:${NC}"
-            echo -e "   ${CYAN}./scripts/orchestrate.sh setup${NC}"
+            echo -e "${YELLOW}🐙 First time? Run the configuration wizard to get started:${NC}"
+            echo -e "   ${CYAN}./scripts/orchestrate.sh octopus-configure${NC}"
             echo ""
             return 1
         fi
@@ -8019,7 +8095,12 @@ case "$COMMAND" in
     preflight)
         preflight_check
         ;;
+    octopus-configure)
+        setup_wizard
+        ;;
     setup)
+        # Deprecated: redirect to new command name
+        echo -e "${YELLOW}⚠ 'setup' is deprecated. Use 'octopus-configure' instead.${NC}"
         setup_wizard
         ;;
     # ═══════════════════════════════════════════════════════════════════════════
