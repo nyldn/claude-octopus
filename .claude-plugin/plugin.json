@@ -1,6 +1,6 @@
 {
   "name": "claude-octopus",
-  "version": "4.8.3",
+  "version": "4.9.0",
   "description": "Multi-tentacled orchestrator using Double Diamond methodology",
   "author": {
     "name": "nyldn"
