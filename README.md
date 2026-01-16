@@ -6,7 +6,7 @@
   <img src="https://img.shields.io/badge/Claude_Code-Plugin-blueviolet" alt="Claude Code Plugin">
   <img src="https://img.shields.io/badge/Double_Diamond-Design_Thinking-orange" alt="Double Diamond">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
-  <img src="https://img.shields.io/badge/Version-4.2.0-blue" alt="Version 4.2.0">
+  <img src="https://img.shields.io/badge/Version-4.3.0-blue" alt="Version 4.3.0">
 </p>
 
 ```
@@ -55,29 +55,29 @@ _`) )  .---.__.' / |   |\   \__..--""  """--.,_
 
 </details>
 
-## What's New in 4.2
+## What's New in 4.3
 
-- **Optimize Command** - Auto-detect and route optimization tasks across 7 domains:
-  - ⚡ Performance (speed, latency, memory)
-  - 💰 Cost (cloud spend, budget, rightsizing)
-  - 🗃️ Database (queries, indexes, slow queries)
-  - 📦 Bundle (webpack, tree-shaking, code-splitting)
-  - ♿ Accessibility (WCAG, a11y, screen readers)
-  - 🔍 SEO (meta tags, structured data, rankings)
-  - 🖼️ Images (compression, formats, lazy loading)
-- **Full Site Audit** - Comprehensive multi-domain optimization:
-  - `auto "full site audit"` - Parallel audits across all domains
-  - Synthesized report with priority matrix and action plan
-  - Quick wins identification for immediate ROI
-- **Shell Completion** - Tab completion for bash, zsh, and fish
-  - `eval "$(./orchestrate.sh completion bash)"` - Add to shell profile
-  - Completes commands, agents, options, and context-aware suggestions
-- **OpenAI Authentication** - Manage Codex CLI auth via OAuth
-  - `auth status` - Check authentication status
-  - `login` / `logout` - OAuth flow for OpenAI subscription access
+- **Interactive Setup Wizard** - Guided first-time setup experience:
+  - `init --interactive` - Step-by-step configuration wizard
+  - API key validation with format checking
+  - CLI tools verification (Codex, Gemini)
+  - Shell completion auto-installation
+  - Issue detection with actionable fix instructions
+- **Contextual Error Recovery** - Unique error codes with fix suggestions:
+  - E001-E010 error code registry
+  - Actionable "Fix this:" suggestions in every error
+  - "Learn more:" links to relevant help topics
+  - Context-aware troubleshooting
 
 <details>
 <summary>Previous versions</summary>
+
+### What's New in 4.2
+
+- **Optimize Command** - Auto-detect and route optimization tasks across 7 domains
+- **Full Site Audit** - Comprehensive multi-domain optimization
+- **Shell Completion** - Tab completion for bash, zsh, and fish
+- **OpenAI Authentication** - Manage Codex CLI auth via OAuth
 
 ### What's New in 4.0
 

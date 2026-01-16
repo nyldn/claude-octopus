@@ -251,10 +251,24 @@ test_cmd "Help (completion command)" "'$SCRIPT' help completion"
 echo ""
 
 # ============================================
-# 14. README QUALITY REVIEW
+# 14. PHASE 3: CONFIDENCE BUILDERS (v4.3)
+# ============================================
+echo -e "${YELLOW}14. Phase 3: Confidence Builders${NC}"
+
+# Interactive Setup Wizard
+test_cmd "Help (init command)" "'$SCRIPT' help init"
+test_output "Init help shows --interactive" "'$SCRIPT' help init" "interactive|wizard"
+
+# Error code system (check that the show_error function exists)
+test_output "Error codes defined" "grep -c 'E001\|E002\|E003' '$SCRIPT'" "^[3-9]|^[1-9][0-9]"
+
+echo ""
+
+# ============================================
+# 15. README QUALITY REVIEW
 # Scores the README on theme, methodology, humor, and readability
 # ============================================
-echo -e "${YELLOW}14. README Quality Review${NC}"
+echo -e "${YELLOW}15. README Quality Review${NC}"
 
 README_FILE="$SCRIPT_DIR/../README.md"
 README_SCORE=0
