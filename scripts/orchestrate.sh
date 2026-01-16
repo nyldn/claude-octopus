@@ -10,7 +10,69 @@ PLUGIN_DIR="$(dirname "$SCRIPT_DIR")"
 
 # Workspace location - uses home directory for global installation
 PROJECT_ROOT="${PWD}"
-WORKSPACE_DIR="${CLAUDE_OCTOPUS_WORKSPACE:-${HOME}/.claude-octopus}"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECURITY: Path validation for workspace directory
+# Prevents path traversal attacks and restricts to safe locations
+# ═══════════════════════════════════════════════════════════════════════════════
+validate_workspace_path() {
+    local proposed_path="$1"
+
+    # Expand ~ if present
+    proposed_path="${proposed_path/#\~/$HOME}"
+
+    # Reject paths with path traversal attempts
+    if [[ "$proposed_path" =~ \.\. ]]; then
+        echo "ERROR: CLAUDE_OCTOPUS_WORKSPACE cannot contain '..' (path traversal)" >&2
+        return 1
+    fi
+
+    # Reject paths with dangerous shell characters
+    if [[ "$proposed_path" =~ [[:space:]\;\|\&\$\`\'] ]]; then
+        echo "ERROR: CLAUDE_OCTOPUS_WORKSPACE contains invalid characters" >&2
+        return 1
+    fi
+
+    # Require absolute path
+    if [[ "$proposed_path" != /* ]]; then
+        echo "ERROR: CLAUDE_OCTOPUS_WORKSPACE must be an absolute path" >&2
+        return 1
+    fi
+
+    # Restrict to safe locations ($HOME or /tmp)
+    local is_safe=false
+    for safe_prefix in "$HOME" "/tmp" "/var/tmp"; do
+        if [[ "$proposed_path" == "$safe_prefix"* ]]; then
+            is_safe=true
+            break
+        fi
+    done
+
+    if [[ "$is_safe" != "true" ]]; then
+        echo "ERROR: CLAUDE_OCTOPUS_WORKSPACE must be under \$HOME, /tmp, or /var/tmp" >&2
+        return 1
+    fi
+
+    echo "$proposed_path"
+}
+
+# Apply workspace path validation
+if [[ -n "${CLAUDE_OCTOPUS_WORKSPACE:-}" ]]; then
+    WORKSPACE_DIR=$(validate_workspace_path "$CLAUDE_OCTOPUS_WORKSPACE") || exit 1
+else
+    WORKSPACE_DIR="${HOME}/.claude-octopus"
+fi
+
+# Claude Code v2.1.9 Integration
+CLAUDE_CODE_SESSION="${CLAUDE_SESSION_ID:-}"
+PLANS_DIR="${WORKSPACE_DIR}/plans"
+
+# CI/CD Mode Detection (Claude Code v2.1.9: CLAUDE_CODE_DISABLE_BACKGROUND_TASKS)
+CI_MODE="${CLAUDE_CODE_DISABLE_BACKGROUND_TASKS:-false}"
+if [[ -n "${CI:-}" ]] || [[ -n "${GITHUB_ACTIONS:-}" ]] || [[ -n "${GITLAB_CI:-}" ]] || [[ -n "${JENKINS_URL:-}" ]]; then
+    CI_MODE="true"
+fi
+
 TASKS_FILE="${WORKSPACE_DIR}/tasks.json"
 RESULTS_DIR="${WORKSPACE_DIR}/results"
 LOGS_DIR="${WORKSPACE_DIR}/logs"
@@ -41,6 +103,27 @@ get_agent_command() {
         gemini-fast) echo "gemini -y -m gemini-3-flash-preview" ;;
         gemini-image) echo "gemini -y -m gemini-3-pro-image-preview" ;;
         codex-review) echo "codex exec review -m gpt-5.2-codex" ;;
+        *) return 1 ;;
+    esac
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECURITY: Array-based command execution (safer than word-splitting)
+# Returns command as array elements for proper quoting
+# ═══════════════════════════════════════════════════════════════════════════════
+get_agent_command_array() {
+    local agent_type="$1"
+    local -n _cmd_array="$2"  # nameref for array output
+    case "$agent_type" in
+        codex)          _cmd_array=(codex exec -m gpt-5.1-codex-max) ;;
+        codex-standard) _cmd_array=(codex exec -m gpt-5.2-codex) ;;
+        codex-max)      _cmd_array=(codex exec -m gpt-5.1-codex-max) ;;
+        codex-mini)     _cmd_array=(codex exec -m gpt-5.1-codex-mini) ;;
+        codex-general)  _cmd_array=(codex exec -m gpt-5.2) ;;
+        gemini)         _cmd_array=(gemini -y -m gemini-3-pro-preview) ;;
+        gemini-fast)    _cmd_array=(gemini -y -m gemini-3-flash-preview) ;;
+        gemini-image)   _cmd_array=(gemini -y -m gemini-3-pro-image-preview) ;;
+        codex-review)   _cmd_array=(codex exec review -m gpt-5.2-codex) ;;
         *) return 1 ;;
     esac
 }
@@ -115,8 +198,13 @@ init_usage_tracking() {
 EOF
 
     # Set session ID and start time
+    # Claude Code v2.1.9: Use CLAUDE_SESSION_ID when available for cross-session tracking
     local session_id
-    session_id="session-$(date +%Y%m%d-%H%M%S)"
+    if [[ -n "$CLAUDE_CODE_SESSION" ]]; then
+        session_id="claude-${CLAUDE_CODE_SESSION}"
+    else
+        session_id="session-$(date +%Y%m%d-%H%M%S)"
+    fi
     local started_at
     started_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
@@ -831,6 +919,12 @@ execute_quality_branch() {
             log WARN "⚡ Quality gate FAILED - escalating to human review"
             echo ""
             echo -e "${YELLOW}Manual review required. Results at: ${RESULTS_DIR}/tangle-validation-${task_group}.md${NC}"
+            # Claude Code v2.1.9: CI mode auto-fails on escalation
+            if [[ "$CI_MODE" == "true" ]]; then
+                log ERROR "CI mode: Quality gate FAILED - aborting (no human review available)"
+                echo "::error::Quality gate failed - manual review required"
+                return 1
+            fi
             read -p "Continue anyway? (y/n) " -n 1 -r
             echo
             [[ $REPLY =~ ^[Yy]$ ]] && return 0 || return 1
@@ -1823,6 +1917,62 @@ EOF
     exit 0
 }
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# Claude Code v2.1.9: Nested Skills Discovery
+# Lists available skills from agents/skills/ directory
+# ═══════════════════════════════════════════════════════════════════════════════
+list_available_skills() {
+    echo ""
+    echo -e "${MAGENTA}═══════════════════════════════════════════════════════════${NC}"
+    echo -e "${MAGENTA}  Available Claude Octopus Skills${NC}"
+    echo -e "${MAGENTA}═══════════════════════════════════════════════════════════${NC}"
+    echo ""
+
+    # Core skill
+    echo -e "${GREEN}Core Skill:${NC}"
+    echo -e "  ${CYAN}parallel-agents${NC} - Full Double Diamond orchestration"
+    echo ""
+
+    # Agent-based skills from agents/skills/
+    local skills_dir="${PLUGIN_DIR}/agents/skills"
+    if [[ -d "$skills_dir" ]] && compgen -G "${skills_dir}/*.md" > /dev/null 2>&1; then
+        echo -e "${GREEN}Specialized Skills:${NC}"
+        for skill_file in "$skills_dir"/*.md; do
+            local name desc
+            name=$(basename "$skill_file" .md)
+            # Extract description from frontmatter
+            desc=$(grep -A1 "^description:" "$skill_file" 2>/dev/null | tail -1 | sed 's/^[[:space:]]*//' | head -c 60)
+            printf "  ${CYAN}%-20s${NC} - %s...\n" "$name" "$desc"
+        done
+        echo ""
+    fi
+
+    # Agent personas
+    local personas_dir="${PLUGIN_DIR}/agents/personas"
+    if [[ -d "$personas_dir" ]] && compgen -G "${personas_dir}/*.md" > /dev/null 2>&1; then
+        echo -e "${GREEN}Agent Personas (spawn with 'spawn <agent>'):${NC}"
+        local count=0
+        for persona_file in "$personas_dir"/*.md; do
+            local name
+            name=$(basename "$persona_file" .md)
+            printf "  ${CYAN}%-20s${NC}" "$name"
+            ((count++))
+            if (( count % 3 == 0 )); then
+                echo ""
+            fi
+        done
+        if (( count % 3 != 0 )); then
+            echo ""
+        fi
+        echo ""
+    fi
+
+    echo -e "${YELLOW}Usage:${NC}"
+    echo "  ./scripts/orchestrate.sh spawn <agent> \"prompt\""
+    echo "  ./scripts/orchestrate.sh auto \"prompt\"  # Smart routing"
+    echo ""
+}
+
 # Main usage router
 usage() {
     local show_full=false
@@ -1898,7 +2048,8 @@ run_with_timeout() {
 init_workspace() {
     log INFO "Initializing Claude Octopus workspace at $WORKSPACE_DIR"
 
-    mkdir -p "$WORKSPACE_DIR" "$RESULTS_DIR" "$LOGS_DIR"
+    # Claude Code v2.1.9: Include plans directory for plansDirectory alignment
+    mkdir -p "$WORKSPACE_DIR" "$RESULTS_DIR" "$LOGS_DIR" "$PLANS_DIR"
 
     if [[ ! -f "$TASKS_FILE" ]]; then
         cat > "$TASKS_FILE" << 'TASKS_JSON'
@@ -2956,6 +3107,17 @@ handle_autonomy_checkpoint() {
     local phase="$1"
     local status="$2"
 
+    # Claude Code v2.1.9: CI mode forces autonomous behavior
+    if [[ "$CI_MODE" == "true" ]]; then
+        if [[ "$status" == "failed" ]]; then
+            log ERROR "CI mode: Phase $phase failed - aborting"
+            echo "::error::Phase $phase failed with status: $status"
+            exit 1
+        fi
+        log INFO "CI mode: Auto-continuing after phase $phase (status: $status)"
+        return 0
+    fi
+
     case "$AUTONOMY_MODE" in
         "supervised")
             echo ""
@@ -3006,7 +3168,13 @@ handle_autonomy_checkpoint() {
 init_session() {
     local workflow="$1"
     local prompt="$2"
-    local session_id="${workflow}-$(date +%Y%m%d-%H%M%S)"
+    # Claude Code v2.1.9: Use CLAUDE_SESSION_ID for cross-session tracking
+    local session_id
+    if [[ -n "$CLAUDE_CODE_SESSION" ]]; then
+        session_id="${workflow}-claude-${CLAUDE_CODE_SESSION}"
+    else
+        session_id="${workflow}-$(date +%Y%m%d-%H%M%S)"
+    fi
 
     # Ensure jq is available for JSON manipulation
     if ! command -v jq &> /dev/null; then
@@ -3066,6 +3234,12 @@ check_resume_session() {
     if [[ "$status" == "in_progress" ]]; then
         workflow=$(jq -r '.workflow' "$SESSION_FILE")
         phase=$(jq -r '.current_phase // "none"' "$SESSION_FILE")
+
+        # Claude Code v2.1.9: CI mode auto-declines session resume
+        if [[ "$CI_MODE" == "true" ]]; then
+            log INFO "CI mode: Auto-declining session resume, starting fresh"
+            return 1
+        fi
 
         echo ""
         echo -e "${YELLOW}╔═══════════════════════════════════════════════════════════╗${NC}"
@@ -3923,8 +4097,10 @@ spawn_agent() {
         echo "## Output" >> "$result_file"
         echo '```' >> "$result_file"
 
-        # shellcheck disable=SC2086
-        if run_with_timeout "$TIMEOUT" $cmd "$enhanced_prompt" >> "$result_file" 2>> "$log_file"; then
+        # SECURITY: Use array-based execution to prevent word-splitting vulnerabilities
+        local -a cmd_array
+        read -ra cmd_array <<< "$cmd"
+        if run_with_timeout "$TIMEOUT" "${cmd_array[@]}" "$enhanced_prompt" >> "$result_file" 2>> "$log_file"; then
             echo '```' >> "$result_file"
             echo "" >> "$result_file"
             echo "## Status: SUCCESS" >> "$result_file"
@@ -4462,6 +4638,43 @@ fan_out() {
     echo ""
 }
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECURITY: Safe JSON field extraction with validation
+# Returns empty string on failure, logs errors
+# ═══════════════════════════════════════════════════════════════════════════════
+extract_json_field() {
+    local json="$1"
+    local field="$2"
+    local required="${3:-true}"
+
+    local value
+    if ! value=$(echo "$json" | jq -r ".$field // empty" 2>/dev/null); then
+        log ERROR "JSON parse error extracting field '$field'"
+        return 1
+    fi
+
+    if [[ -z "$value" || "$value" == "null" ]]; then
+        if [[ "$required" == "true" ]]; then
+            log ERROR "Required field '$field' is missing or null"
+            return 1
+        fi
+        echo ""
+        return 0
+    fi
+
+    echo "$value"
+}
+
+# Validate agent type against allowlist
+validate_agent_type() {
+    local agent="$1"
+    if ! echo "$AVAILABLE_AGENTS" | grep -qw "$agent"; then
+        log ERROR "Invalid agent type: $agent (allowed: $AVAILABLE_AGENTS)"
+        return 1
+    fi
+    return 0
+}
+
 parallel_execute() {
     local tasks_file="${1:-$TASKS_FILE}"
 
@@ -4478,19 +4691,52 @@ parallel_execute() {
         return 1
     fi
 
+    # SECURITY: Validate JSON structure first
+    if ! jq -e . "$tasks_file" >/dev/null 2>&1; then
+        log ERROR "Invalid JSON in tasks file: $tasks_file"
+        return 1
+    fi
+
     local task_count
-    task_count=$(jq '.tasks | length' "$tasks_file")
+    task_count=$(jq '.tasks | length' "$tasks_file" 2>/dev/null) || {
+        log ERROR "Failed to read tasks array from file"
+        return 1
+    }
     log INFO "Found $task_count tasks"
 
     local running=0
     local completed=0
+    local skipped=0
     local pids=()
 
     while IFS= read -r task; do
         local task_id agent prompt
-        task_id=$(echo "$task" | jq -r '.id')
-        agent=$(echo "$task" | jq -r '.agent')
-        prompt=$(echo "$task" | jq -r '.prompt')
+
+        # SECURITY: Safe JSON extraction with validation
+        task_id=$(extract_json_field "$task" "id" true) || {
+            log WARN "Skipping task with invalid/missing id"
+            ((skipped++))
+            continue
+        }
+
+        agent=$(extract_json_field "$task" "agent" true) || {
+            log WARN "Skipping task $task_id: invalid/missing agent"
+            ((skipped++))
+            continue
+        }
+
+        # SECURITY: Validate agent type against allowlist
+        validate_agent_type "$agent" || {
+            log WARN "Skipping task $task_id: unknown agent '$agent'"
+            ((skipped++))
+            continue
+        }
+
+        prompt=$(extract_json_field "$task" "prompt" true) || {
+            log WARN "Skipping task $task_id: invalid/missing prompt"
+            ((skipped++))
+            continue
+        }
 
         while [[ $running -ge $MAX_PARALLEL ]]; do
             for i in "${!pids[@]}"; do
@@ -4514,7 +4760,10 @@ parallel_execute() {
     log INFO "Waiting for remaining $running tasks to complete..."
     wait
 
-    log INFO "All $task_count tasks completed"
+    if [[ $skipped -gt 0 ]]; then
+        log WARN "Completed with $skipped skipped tasks (invalid/malformed)"
+    fi
+    log INFO "All $task_count tasks processed ($((task_count - skipped)) executed, $skipped skipped)"
     aggregate_results
 }
 
@@ -5032,8 +5281,10 @@ run_agent_sync() {
     local cmd
     cmd=$(get_agent_command "$agent_type") || return 1
 
-    # shellcheck disable=SC2086
-    run_with_timeout "$timeout_secs" $cmd "$enhanced_prompt" 2>/dev/null
+    # SECURITY: Use array-based execution to prevent word-splitting vulnerabilities
+    local -a cmd_array
+    read -ra cmd_array <<< "$cmd"
+    run_with_timeout "$timeout_secs" "${cmd_array[@]}" "$enhanced_prompt" 2>/dev/null
 }
 
 # Phase 1: PROBE (Discover) - Parallel research with synthesis
@@ -5432,6 +5683,12 @@ validate_tangle_results() {
                 echo -e "${YELLOW}╚═══════════════════════════════════════════════════════════╝${NC}"
                 echo -e "${YELLOW}Quality gate FAILED. Manual review required.${NC}"
                 echo -e "${YELLOW}Results at: ${RESULTS_DIR}/tangle-validation-${task_group}.md${NC}"
+                # Claude Code v2.1.9: CI mode auto-fails on escalation
+                if [[ "$CI_MODE" == "true" ]]; then
+                    log ERROR "CI mode: Quality gate FAILED - aborting (no human review available)"
+                    echo "::error::Quality gate failed in tangle phase - manual review required"
+                    return 1
+                fi
                 read -p "Continue anyway? (y/n) " -n 1 -r
                 echo
                 if [[ ! $REPLY =~ ^[Yy]$ ]]; then
@@ -5953,6 +6210,10 @@ case "$COMMAND" in
         ;;
     clean)
         clean_workspace
+        ;;
+    skills)
+        # Claude Code v2.1.9: List available skills
+        list_available_skills
         ;;
     aggregate)
         aggregate_results "${1:-}"

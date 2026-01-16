@@ -1,6 +1,6 @@
 {
   "name": "claude-octopus",
-  "version": "4.5.0",
+  "version": "4.6.0",
   "description": "Multi-tentacled orchestrator using Double Diamond methodology",
   "author": {
     "name": "nyldn"
@@ -8,6 +8,7 @@
   "license": "MIT",
   "repository": "https://github.com/nyldn/claude-octopus",
   "homepage": "https://github.com/nyldn/claude-octopus#readme",
+  "plansDirectory": "~/.claude-octopus/plans/",
   "keywords": [
     "claude-code",
     "multi-agent",
@@ -20,10 +21,18 @@
     "design-thinking",
     "quality-gates",
     "smart-setup",
-    "resource-aware"
+    "resource-aware",
+    "claude-code-2.1.9"
   ],
-  "skills": "./skill.md",
-  "commands": ["./commands/setup.md"],
-  "hooks": [],
-  "agents": []
+  "skills": ["./skill.md", "./agents/skills/*.md"],
+  "commands": ["./commands/setup.md", "./commands/check-updates.md"],
+  "hooks": [
+    "./hooks/quality-gate-hook.md",
+    "./hooks/session-sync-hook.md"
+  ],
+  "agents": [
+    "./agents/personas/code-reviewer.md",
+    "./agents/personas/security-auditor.md",
+    "./agents/personas/backend-architect.md"
+  ]
 }
