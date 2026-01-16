@@ -828,6 +828,128 @@ fi
 echo ""
 
 # ============================================
+# 19. CROSSFIRE TESTS (v4.7.0)
+# Adversarial Cross-Model Review: grapple and squeeze
+# ============================================
+echo -e "${YELLOW}19. Crossfire Tests (v4.7.0 - Adversarial Review)${NC}"
+
+# --- Dry-Run Tests ---
+test_cmd "Grapple dry-run" "'$SCRIPT' -n grapple 'test debate'"
+test_cmd "Squeeze dry-run" "'$SCRIPT' -n squeeze 'test security review'"
+test_cmd "Red-team alias dry-run" "'$SCRIPT' -n red-team 'test security review'"
+
+# --- Grapple with Principles ---
+test_cmd "Grapple with security principles" "'$SCRIPT' -n grapple --principles security 'test'"
+test_cmd "Grapple with performance principles" "'$SCRIPT' -n grapple --principles performance 'test'"
+test_cmd "Grapple with maintainability principles" "'$SCRIPT' -n grapple --principles maintainability 'test'"
+
+# --- Auto-Routing to Crossfire ---
+test_output "Routes 'security audit' to squeeze" "'$SCRIPT' -n auto 'security audit the auth module'" "squeeze|red-team|crossfire-squeeze"
+test_output "Routes 'red team' to squeeze" "'$SCRIPT' -n auto 'red team the payment system'" "squeeze|red-team|crossfire-squeeze"
+test_output "Routes 'pentest' to squeeze" "'$SCRIPT' -n auto 'pentest the API endpoints'" "squeeze|red-team|crossfire-squeeze"
+test_output "Routes 'adversarial review' to grapple" "'$SCRIPT' -n auto 'adversarial review of the design'" "grapple|crossfire-grapple"
+test_output "Routes 'debate' to grapple" "'$SCRIPT' -n auto 'have models debate the architecture'" "grapple|crossfire-grapple"
+test_output "Routes 'cross-model review' to grapple" "'$SCRIPT' -n auto 'cross-model review of the implementation'" "grapple|crossfire-grapple"
+
+# --- Function Definitions ---
+echo -n "  grapple_debate() function exists... "
+if grep -q 'grapple_debate()' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+echo -n "  squeeze_test() function exists... "
+if grep -q 'squeeze_test()' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+echo -n "  No-explore constraint in grapple... "
+if grep -A 60 'grapple_debate()' "$SCRIPT" | grep -q 'no_explore_constraint\|Do NOT read.*explore'; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+# --- Principles Directory ---
+PRINCIPLES_DIR="$SCRIPT_DIR/../agents/principles"
+
+echo -n "  Principles directory exists... "
+if [[ -d "$PRINCIPLES_DIR" ]]; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+echo -n "  security.md principles file exists... "
+if [[ -f "$PRINCIPLES_DIR/security.md" ]]; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+echo -n "  performance.md principles file exists... "
+if [[ -f "$PRINCIPLES_DIR/performance.md" ]]; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+echo -n "  maintainability.md principles file exists... "
+if [[ -f "$PRINCIPLES_DIR/maintainability.md" ]]; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+echo -n "  general.md principles file exists... "
+if [[ -f "$PRINCIPLES_DIR/general.md" ]]; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+# --- Crossfire Classification ---
+echo -n "  classify_task detects crossfire intents... "
+if grep -A 50 'classify_task()' "$SCRIPT" | grep -qE 'crossfire-grapple|crossfire-squeeze|security.*audit.*squeeze'; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+# --- OAuth Support ---
+echo -n "  OAuth auth file check in preflight... "
+if grep -q '\.codex/auth\.json' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+echo ""
+
+# ============================================
 # SUMMARY
 # ============================================
 echo "========================================"
