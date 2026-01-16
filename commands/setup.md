@@ -4,37 +4,47 @@ description: Run the Claude Octopus setup wizard to install dependencies and con
 
 # Claude Octopus Setup
 
-Run the interactive setup wizard to configure Claude Octopus.
+The setup wizard is **interactive** and must be run in your **actual terminal** (not through Claude Code bash commands).
 
 ## What This Does
 
 The setup wizard will:
 1. **Check/Install Codex CLI** - OpenAI's coding agent (tentacles 1-4)
 2. **Check/Install Gemini CLI** - Google's reasoning agent (tentacles 5-8)
-3. **Configure OpenAI API Key** - Opens platform.openai.com if needed
-4. **Configure Gemini API Key** - Opens aistudio.google.com if needed
-5. **Persist keys** - Optionally adds to your shell profile
+3. **Configure API Keys** - Detects OAuth or prompts for API keys
+4. **Configure subscription tiers** - Auto-detects from installed CLIs
+5. **Set cost optimization strategy** - Balanced, cost-first, or quality-first
 
 ## Run the Wizard
 
-Execute this command in your terminal:
+**Please copy and run this command in your terminal:**
 
 ```bash
-./scripts/orchestrate.sh setup
+cd ~/.claude/plugins/claude-octopus && ./scripts/orchestrate.sh octopus-configure
 ```
 
-The wizard is interactive and will guide you through each step.
+The wizard is interactive and will guide you through each step with prompts and menus.
 
 ## After Setup
 
 Verify everything is working:
 
 ```bash
-./scripts/orchestrate.sh preflight
+cd ~/.claude/plugins/claude-octopus && ./scripts/orchestrate.sh status
 ```
 
-Then try your first command:
+Then test with a simple probe:
 
 ```bash
-./scripts/orchestrate.sh embrace "Hello, Octopus!"
+cd ~/.claude/plugins/claude-octopus && ./scripts/orchestrate.sh probe "Hello Octopus!"
 ```
+
+## Quick Status Check
+
+To check if you're already configured, run:
+
+```bash
+cd ~/.claude/plugins/claude-octopus && ./scripts/orchestrate.sh status
+```
+
+If you see authentication methods (oauth or api-key) for Codex and Gemini, you're all set!
