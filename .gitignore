@@ -63,12 +63,19 @@ temp/
 *.tmp
 *.temp
 
-# Development and testing
-dev/*
-!dev/.gitkeep
+# Development and testing (not tracked in git)
+dev/
+docs/
 
 # Test output directories (generated during development)
 nanobanana-output/
 test-output/
 *.generated.png
 *.generated.jpg
+
+# Test artifacts (from new test infrastructure)
+tests/tmp/
+tests/**/*.log
+test-results*.xml
+coverage*.xml
+/tmp/test_*.log

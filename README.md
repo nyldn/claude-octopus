@@ -42,16 +42,19 @@ Claude coordinates multiple AI models behind the scenes to give you comprehensiv
 
 ### 1. Install the Plugin
 
-In Claude Code:
+**In Claude Code:**
 ```
 /plugin marketplace add nyldn/claude-octopus
 ```
 
-Or manually:
+Then navigate to the plugin UI and install `claude-octopus` from the nyldn-plugins marketplace.
+
+**Or via command line:**
 ```bash
 git clone https://github.com/nyldn/claude-octopus.git ~/.claude/plugins/claude-octopus
-chmod +x ~/.claude/plugins/claude-octopus/scripts/*.sh
 ```
+
+Then restart Claude Code.
 
 ### 2. Run Setup in Claude Code
 
@@ -670,6 +673,51 @@ _`) )  .---.__.' / |   |\   \__..--""  """--.,_
 *"Eight tentacles, infinite possibilities."*
 
 </details>
+
+---
+
+## Testing
+
+### Quick Start
+```bash
+# Run all tests
+make test
+
+# Or using npm
+npm test
+```
+
+### Test Categories
+| Category | Command | Duration | Purpose |
+|----------|---------|----------|---------|
+| Smoke | `make test-smoke` | <30s | Pre-commit validation |
+| Unit | `make test-unit` | 1-2min | Function-level tests |
+| Integration | `make test-integration` | 5-10min | Workflow tests |
+| E2E | `make test-e2e` | 15-30min | Real execution tests |
+| All | `make test-all` | 20-40min | Complete test suite |
+
+### Coverage
+- Current coverage: 95%+ function coverage
+- Quality gates tested at multiple thresholds
+- All Double Diamond workflows validated
+- Error recovery and provider failover tested
+
+### For Developers
+```bash
+# Run specific category
+make test-unit
+
+# Verbose output
+make test-verbose
+
+# Generate coverage report
+make test-coverage
+
+# Clean test artifacts
+make clean-tests
+```
+
+See [tests/README.md](tests/README.md) for comprehensive testing documentation.
 
 ---
 

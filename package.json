@@ -1,0 +1,31 @@
+{
+  "name": "claude-octopus",
+  "version": "4.9.0",
+  "description": "Claude Octopus - Multi-agent orchestration for Claude CLI",
+  "main": "orchestrate.sh",
+  "scripts": {
+    "test": "make test",
+    "test:smoke": "make test-smoke",
+    "test:unit": "make test-unit",
+    "test:integration": "make test-integration",
+    "test:e2e": "make test-e2e",
+    "test:all": "make test-all",
+    "test:coverage": "make test-coverage",
+    "test:verbose": "make test-verbose",
+    "test:clean": "make clean-tests"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chrismargerison/claude-octopus.git"
+  },
+  "keywords": [
+    "claude",
+    "ai",
+    "multi-agent",
+    "orchestration",
+    "cli"
+  ],
+  "author": "Chris Margerison",
+  "license": "MIT",
+  "devDependencies": {}
+}

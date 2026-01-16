@@ -28,6 +28,6 @@
     "provider-routing",
     "openrouter"
   ],
-  "skills": ["./skill.md", "./agents/skills/*.md"],
-  "commands": "./commands/"
+  "skills": ["./.claude/skills/*.md"],
+  "commands": "./.claude/commands/"
 }
