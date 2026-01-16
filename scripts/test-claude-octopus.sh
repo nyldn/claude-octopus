@@ -221,6 +221,9 @@ test_output "Routes cost optimization" "'$SCRIPT' -n auto 'reduce AWS costs'" "o
 test_output "Routes database optimization" "'$SCRIPT' -n auto 'optimize slow database queries'" "optimize-database|OPTIMIZE.*Database"
 test_output "Routes accessibility optimization" "'$SCRIPT' -n auto 'improve accessibility and WCAG'" "optimize-accessibility|OPTIMIZE.*Accessibility"
 test_output "Routes SEO optimization" "'$SCRIPT' -n auto 'optimize for search engines'" "optimize-seo|OPTIMIZE.*SEO"
+test_output "Routes full site audit" "'$SCRIPT' -n auto 'full site audit'" "optimize-audit|Full Site Audit"
+test_output "Routes comprehensive audit" "'$SCRIPT' -n auto 'comprehensive site optimization'" "optimize-audit|Full Site Audit"
+test_output "Routes audit my website" "'$SCRIPT' -n auto 'audit my website'" "optimize-audit|Full Site Audit"
 test_cmd "Help (optimize command)" "'$SCRIPT' help optimize"
 
 echo ""
