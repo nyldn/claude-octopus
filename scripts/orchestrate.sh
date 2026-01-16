@@ -442,6 +442,77 @@ classify_task() {
     fi
 
     # ═══════════════════════════════════════════════════════════════════════════
+    # OPTIMIZATION INTENT DETECTION (v4.2)
+    # Routes to specialized optimization workflows based on domain
+    # NOTE: Order matters! More specific patterns (database, bundle) come before
+    #       generic patterns (performance) to ensure correct routing.
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    # Database optimization: query, index, SQL, slow queries (CHECK BEFORE PERFORMANCE)
+    if [[ "$prompt_lower" =~ (optimize|optimise).*(database|query|sql|index|postgres|mysql) ]] || \
+       [[ "$prompt_lower" =~ (database|query|sql).*(optimize|slow|improve|tune) ]] || \
+       [[ "$prompt_lower" =~ (slow.?quer|explain.?analyze|index.?scan|full.?scan) ]] || \
+       [[ "$prompt_lower" =~ slow.*(database|query|sql) ]]; then
+        echo "optimize-database"
+        return
+    fi
+
+    # Cost optimization: budget, savings, cloud spend, reduce cost
+    if [[ "$prompt_lower" =~ (optimize|optimise|reduce).*(cost|budget|spend|bill|price) ]] || \
+       [[ "$prompt_lower" =~ (cost|budget|spending).*(optimize|reduce|cut|lower) ]] || \
+       [[ "$prompt_lower" =~ (save.?money|cheaper|rightsiz|reserved|spot.?instance) ]]; then
+        echo "optimize-cost"
+        return
+    fi
+
+    # Performance optimization: speed, latency, throughput, memory
+    # Note: Generic "slow" patterns moved here after database to avoid false matches
+    if [[ "$prompt_lower" =~ (optimize|optimise).*(performance|speed|latency|throughput|p99|cpu|memory) ]] || \
+       [[ "$prompt_lower" =~ (performance|speed|latency).*(optimize|improve|fix|slow) ]] || \
+       [[ "$prompt_lower" =~ (slow|sluggish|takes.?too.?long|bottleneck) ]]; then
+        echo "optimize-performance"
+        return
+    fi
+
+    # Bundle/build optimization: webpack, tree-shake, code-split
+    if [[ "$prompt_lower" =~ (optimize|optimise).*(bundle|build|webpack|vite|rollup) ]] || \
+       [[ "$prompt_lower" =~ (bundle|build).*(optimize|size|slow|faster) ]] || \
+       [[ "$prompt_lower" =~ (tree.?shak|code.?split|chunk|minif) ]]; then
+        echo "optimize-bundle"
+        return
+    fi
+
+    # Accessibility optimization: a11y, WCAG, screen reader
+    if [[ "$prompt_lower" =~ (optimize|optimise|improve).*(accessibility|a11y|wcag) ]] || \
+       [[ "$prompt_lower" =~ (accessibility|a11y).*(optimize|improve|fix|audit) ]] || \
+       [[ "$prompt_lower" =~ (screen.?reader|aria|contrast|keyboard.?nav) ]]; then
+        echo "optimize-accessibility"
+        return
+    fi
+
+    # SEO optimization: search engine, meta tags, structured data
+    if [[ "$prompt_lower" =~ (optimize|optimise|improve).*(seo|search.?engine|ranking) ]] || \
+       [[ "$prompt_lower" =~ (seo|search.?engine).*(optimize|improve|fix|audit) ]] || \
+       [[ "$prompt_lower" =~ (meta.?tag|structured.?data|schema.?org|sitemap|robots\.txt) ]]; then
+        echo "optimize-seo"
+        return
+    fi
+
+    # Image optimization: compress, format, lazy load, WebP
+    if [[ "$prompt_lower" =~ (optimize|optimise|compress).*(image|photo|graphic|png|jpg|jpeg) ]] || \
+       [[ "$prompt_lower" =~ (image|photo).*(optimize|compress|reduce|smaller) ]] || \
+       [[ "$prompt_lower" =~ (webp|avif|lazy.?load|srcset|responsive.?image) ]]; then
+        echo "optimize-image"
+        return
+    fi
+
+    # Generic optimize (fallback)
+    if [[ "$prompt_lower" =~ ^(optimize|optimise)[[:space:]] ]]; then
+        echo "optimize-general"
+        return
+    fi
+
+    # ═══════════════════════════════════════════════════════════════════════════
     # STANDARD TASK CLASSIFICATION (for single-agent routing)
     # ═══════════════════════════════════════════════════════════════════════════
 
@@ -778,6 +849,423 @@ DISABLE_PERSONAS="${CLAUDE_OCTOPUS_DISABLE_PERSONAS:-false}"
 # Session recovery
 SESSION_FILE="${WORKSPACE_DIR}/session.json"
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# v4.2 FEATURE: SHELL COMPLETION
+# Generate bash/zsh completion scripts for Claude Octopus
+# ═══════════════════════════════════════════════════════════════════════════════
+
+generate_shell_completion() {
+    local shell_type="${1:-bash}"
+
+    case "$shell_type" in
+        bash)
+            generate_bash_completion
+            ;;
+        zsh)
+            generate_zsh_completion
+            ;;
+        fish)
+            generate_fish_completion
+            ;;
+        *)
+            echo "Unsupported shell: $shell_type"
+            echo "Supported: bash, zsh, fish"
+            exit 1
+            ;;
+    esac
+}
+
+generate_bash_completion() {
+    cat << 'BASH_COMPLETION'
+# Claude Octopus bash completion
+# Add to ~/.bashrc: eval "$(orchestrate.sh completion bash)"
+
+_claude_octopus_completions() {
+    local cur prev commands agents options
+    COMPREPLY=()
+    cur="${COMP_WORDS[COMP_CWORD]}"
+    prev="${COMP_WORDS[COMP_CWORD-1]}"
+
+    # Main commands
+    commands="auto embrace research probe define grasp develop tangle deliver ink spawn fan-out map-reduce ralph iterate optimize setup init status kill clean aggregate preflight cost cost-json cost-csv cost-clear cost-archive auth login logout completion help"
+
+    # Agents for spawn command
+    agents="codex codex-standard codex-max codex-mini codex-general gemini gemini-fast gemini-image codex-review"
+
+    # Options
+    options="-v --verbose -n --dry-run -Q --quick -P --premium -q --quality -p --parallel -t --timeout -a --autonomy -R --resume --no-personas --tier --branch --on-fail -h --help"
+
+    case "$prev" in
+        spawn)
+            COMPREPLY=( $(compgen -W "$agents" -- "$cur") )
+            return 0
+            ;;
+        --autonomy|-a)
+            COMPREPLY=( $(compgen -W "supervised semi-autonomous autonomous" -- "$cur") )
+            return 0
+            ;;
+        --tier)
+            COMPREPLY=( $(compgen -W "trivial standard premium" -- "$cur") )
+            return 0
+            ;;
+        --on-fail)
+            COMPREPLY=( $(compgen -W "auto retry escalate abort" -- "$cur") )
+            return 0
+            ;;
+        completion)
+            COMPREPLY=( $(compgen -W "bash zsh fish" -- "$cur") )
+            return 0
+            ;;
+        auth)
+            COMPREPLY=( $(compgen -W "login logout status" -- "$cur") )
+            return 0
+            ;;
+        help)
+            COMPREPLY=( $(compgen -W "auto embrace research define develop deliver setup --full" -- "$cur") )
+            return 0
+            ;;
+    esac
+
+    if [[ "$cur" == -* ]]; then
+        COMPREPLY=( $(compgen -W "$options" -- "$cur") )
+    else
+        COMPREPLY=( $(compgen -W "$commands" -- "$cur") )
+    fi
+}
+
+complete -F _claude_octopus_completions orchestrate.sh
+complete -F _claude_octopus_completions claude-octopus
+BASH_COMPLETION
+}
+
+generate_zsh_completion() {
+    cat << 'ZSH_COMPLETION'
+#compdef orchestrate.sh claude-octopus
+# Claude Octopus zsh completion
+# Add to ~/.zshrc: eval "$(orchestrate.sh completion zsh)"
+
+_claude_octopus() {
+    local -a commands agents options
+
+    commands=(
+        'auto:Smart routing - AI chooses best approach'
+        'embrace:Full 4-phase Double Diamond workflow'
+        'research:Phase 1 - Parallel exploration (alias: probe)'
+        'probe:Phase 1 - Parallel exploration'
+        'define:Phase 2 - Consensus building (alias: grasp)'
+        'grasp:Phase 2 - Consensus building'
+        'develop:Phase 3 - Implementation (alias: tangle)'
+        'tangle:Phase 3 - Implementation'
+        'deliver:Phase 4 - Validation (alias: ink)'
+        'ink:Phase 4 - Validation'
+        'spawn:Run single agent directly'
+        'fan-out:Same prompt to all agents'
+        'map-reduce:Decompose, execute parallel, synthesize'
+        'ralph:Iterate until completion'
+        'iterate:Iterate until completion (alias: ralph)'
+        'optimize:Auto-detect and route optimization tasks'
+        'setup:Interactive configuration wizard'
+        'init:Initialize workspace'
+        'status:Show running agents'
+        'kill:Stop agents'
+        'clean:Clean workspace'
+        'aggregate:Combine results'
+        'preflight:Validate dependencies'
+        'cost:Show usage report'
+        'cost-json:Export usage as JSON'
+        'cost-csv:Export usage as CSV'
+        'auth:Authentication management'
+        'login:Login to OpenAI'
+        'logout:Logout from OpenAI'
+        'completion:Generate shell completion'
+        'help:Show help'
+    )
+
+    agents=(
+        'codex:GPT-5.1-Codex-Max (premium)'
+        'codex-standard:GPT-5.2-Codex'
+        'codex-max:GPT-5.1-Codex-Max'
+        'codex-mini:GPT-5.1-Codex-Mini (fast)'
+        'codex-general:GPT-5.2'
+        'gemini:Gemini-3-Pro'
+        'gemini-fast:Gemini-3-Flash'
+        'gemini-image:Gemini-3-Pro-Image'
+        'codex-review:Code review mode'
+    )
+
+    _arguments -C \
+        '-v[Verbose output]' \
+        '--verbose[Verbose output]' \
+        '-n[Dry run mode]' \
+        '--dry-run[Dry run mode]' \
+        '-Q[Use quick/cheap models]' \
+        '--quick[Use quick/cheap models]' \
+        '-P[Use premium models]' \
+        '--premium[Use premium models]' \
+        '-q[Quality threshold]:threshold:' \
+        '--quality[Quality threshold]:threshold:' \
+        '-p[Max parallel agents]:number:' \
+        '--parallel[Max parallel agents]:number:' \
+        '-t[Timeout per task]:seconds:' \
+        '--timeout[Timeout per task]:seconds:' \
+        '-a[Autonomy mode]:mode:(supervised semi-autonomous autonomous)' \
+        '--autonomy[Autonomy mode]:mode:(supervised semi-autonomous autonomous)' \
+        '--tier[Force tier]:tier:(trivial standard premium)' \
+        '--no-personas[Disable agent personas]' \
+        '-R[Resume session]' \
+        '--resume[Resume session]' \
+        '-h[Show help]' \
+        '--help[Show help]' \
+        '1:command:->command' \
+        '*::arg:->args'
+
+    case "$state" in
+        command)
+            _describe -t commands 'claude-octopus commands' commands
+            ;;
+        args)
+            case "$words[1]" in
+                spawn)
+                    _describe -t agents 'agents' agents
+                    ;;
+                completion)
+                    _values 'shell' bash zsh fish
+                    ;;
+                auth)
+                    _values 'action' login logout status
+                    ;;
+                help)
+                    _values 'topic' auto embrace research define develop deliver setup --full
+                    ;;
+            esac
+            ;;
+    esac
+}
+
+_claude_octopus "$@"
+ZSH_COMPLETION
+}
+
+generate_fish_completion() {
+    cat << 'FISH_COMPLETION'
+# Claude Octopus fish completion
+# Save to ~/.config/fish/completions/orchestrate.sh.fish
+
+# Disable file completion by default
+complete -c orchestrate.sh -f
+
+# Main commands
+complete -c orchestrate.sh -n "__fish_use_subcommand" -a "auto" -d "Smart routing - AI chooses best approach"
+complete -c orchestrate.sh -n "__fish_use_subcommand" -a "embrace" -d "Full 4-phase Double Diamond workflow"
+complete -c orchestrate.sh -n "__fish_use_subcommand" -a "research" -d "Phase 1 - Parallel exploration"
+complete -c orchestrate.sh -n "__fish_use_subcommand" -a "probe" -d "Phase 1 - Parallel exploration"
+complete -c orchestrate.sh -n "__fish_use_subcommand" -a "define" -d "Phase 2 - Consensus building"
+complete -c orchestrate.sh -n "__fish_use_subcommand" -a "grasp" -d "Phase 2 - Consensus building"
+complete -c orchestrate.sh -n "__fish_use_subcommand" -a "develop" -d "Phase 3 - Implementation"
+complete -c orchestrate.sh -n "__fish_use_subcommand" -a "tangle" -d "Phase 3 - Implementation"
+complete -c orchestrate.sh -n "__fish_use_subcommand" -a "deliver" -d "Phase 4 - Validation"
+complete -c orchestrate.sh -n "__fish_use_subcommand" -a "ink" -d "Phase 4 - Validation"
+complete -c orchestrate.sh -n "__fish_use_subcommand" -a "spawn" -d "Run single agent directly"
+complete -c orchestrate.sh -n "__fish_use_subcommand" -a "fan-out" -d "Same prompt to all agents"
+complete -c orchestrate.sh -n "__fish_use_subcommand" -a "map-reduce" -d "Decompose, execute, synthesize"
+complete -c orchestrate.sh -n "__fish_use_subcommand" -a "ralph" -d "Iterate until completion"
+complete -c orchestrate.sh -n "__fish_use_subcommand" -a "optimize" -d "Auto-detect optimization tasks"
+complete -c orchestrate.sh -n "__fish_use_subcommand" -a "setup" -d "Interactive configuration"
+complete -c orchestrate.sh -n "__fish_use_subcommand" -a "init" -d "Initialize workspace"
+complete -c orchestrate.sh -n "__fish_use_subcommand" -a "status" -d "Show running agents"
+complete -c orchestrate.sh -n "__fish_use_subcommand" -a "cost" -d "Show usage report"
+complete -c orchestrate.sh -n "__fish_use_subcommand" -a "auth" -d "Authentication management"
+complete -c orchestrate.sh -n "__fish_use_subcommand" -a "completion" -d "Generate shell completion"
+complete -c orchestrate.sh -n "__fish_use_subcommand" -a "help" -d "Show help"
+
+# Spawn agents
+complete -c orchestrate.sh -n "__fish_seen_subcommand_from spawn" -a "codex codex-standard codex-max codex-mini gemini gemini-fast gemini-image codex-review"
+
+# Completion shells
+complete -c orchestrate.sh -n "__fish_seen_subcommand_from completion" -a "bash zsh fish"
+
+# Auth actions
+complete -c orchestrate.sh -n "__fish_seen_subcommand_from auth" -a "login logout status"
+
+# Options
+complete -c orchestrate.sh -s v -l verbose -d "Verbose output"
+complete -c orchestrate.sh -s n -l dry-run -d "Dry run mode"
+complete -c orchestrate.sh -s Q -l quick -d "Use quick/cheap models"
+complete -c orchestrate.sh -s P -l premium -d "Use premium models"
+complete -c orchestrate.sh -s q -l quality -d "Quality threshold" -r
+complete -c orchestrate.sh -s p -l parallel -d "Max parallel agents" -r
+complete -c orchestrate.sh -s t -l timeout -d "Timeout per task" -r
+complete -c orchestrate.sh -s a -l autonomy -d "Autonomy mode" -ra "supervised semi-autonomous autonomous"
+complete -c orchestrate.sh -l tier -d "Force tier" -ra "trivial standard premium"
+complete -c orchestrate.sh -l no-personas -d "Disable agent personas"
+complete -c orchestrate.sh -s R -l resume -d "Resume session"
+complete -c orchestrate.sh -s h -l help -d "Show help"
+FISH_COMPLETION
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# v4.2 FEATURE: OPENAI AUTHENTICATION
+# Manage Codex CLI authentication via OpenAI subscription
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Check if Codex is authenticated
+# Returns auth method: "api_key", "oauth", or "none"
+# Always returns 0 (success) - use the output to determine status
+check_codex_auth() {
+    # Check for API key first
+    if [[ -n "$OPENAI_API_KEY" ]]; then
+        echo "api_key"
+        return 0
+    fi
+
+    # Check for Codex CLI auth token
+    local auth_file="${HOME}/.codex/auth.json"
+    if [[ -f "$auth_file" ]]; then
+        # Check if token exists and is not expired
+        if command -v jq &> /dev/null; then
+            local expires_at
+            expires_at=$(jq -r '.expires_at // empty' "$auth_file" 2>/dev/null)
+            if [[ -n "$expires_at" ]]; then
+                local now
+                now=$(date +%s)
+                if [[ "$expires_at" -gt "$now" ]]; then
+                    echo "oauth"
+                    return 0
+                fi
+            fi
+        else
+            # No jq, just check file exists
+            echo "oauth"
+            return 0
+        fi
+    fi
+
+    echo "none"
+    return 0  # Always return 0; caller checks the output string
+}
+
+# Handle auth commands
+handle_auth_command() {
+    local action="${1:-status}"
+    shift || true
+
+    case "$action" in
+        login)
+            echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${CYAN}║  🔐 Claude Octopus - OpenAI Authentication                ║${NC}"
+            echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
+            echo ""
+
+            # Check if already authenticated
+            local auth_status
+            auth_status=$(check_codex_auth)
+            if [[ "$auth_status" != "none" ]]; then
+                echo -e "${YELLOW}Already authenticated via $auth_status${NC}"
+                echo "Use 'logout' to switch accounts."
+                return 0
+            fi
+
+            # Check if Codex CLI is available
+            if ! command -v codex &> /dev/null; then
+                echo -e "${RED}Codex CLI not found.${NC}"
+                echo "Install it first: npm install -g @openai/codex"
+                return 1
+            fi
+
+            echo "Starting OpenAI OAuth login..."
+            echo "This will open your browser for authentication."
+            echo ""
+
+            # Run codex login
+            if codex login; then
+                echo ""
+                echo -e "${GREEN}✓ Successfully authenticated with OpenAI${NC}"
+                echo ""
+                echo "You can now use Claude Octopus with your OpenAI subscription."
+            else
+                echo ""
+                echo -e "${RED}✗ Authentication failed${NC}"
+                echo ""
+                echo "Alternative: Set OPENAI_API_KEY environment variable"
+                echo "  export OPENAI_API_KEY=\"sk-...\""
+                return 1
+            fi
+            ;;
+
+        logout)
+            echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${CYAN}║  🔐 Claude Octopus - Logout                               ║${NC}"
+            echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
+            echo ""
+
+            local auth_file="${HOME}/.codex/auth.json"
+            if [[ -f "$auth_file" ]]; then
+                rm -f "$auth_file"
+                echo -e "${GREEN}✓ Logged out from OpenAI OAuth${NC}"
+            else
+                echo "No OAuth session found."
+            fi
+
+            if [[ -n "$OPENAI_API_KEY" ]]; then
+                echo ""
+                echo -e "${YELLOW}Note: OPENAI_API_KEY is still set in your environment.${NC}"
+                echo "Unset it with: unset OPENAI_API_KEY"
+            fi
+            ;;
+
+        status)
+            echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${CYAN}║  🔐 Claude Octopus - Authentication Status                ║${NC}"
+            echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
+            echo ""
+
+            local auth_status
+            auth_status=$(check_codex_auth)
+
+            case "$auth_status" in
+                api_key)
+                    echo -e "  OpenAI:  ${GREEN}✓ Authenticated (API Key)${NC}"
+                    local key_preview="${OPENAI_API_KEY:0:8}...${OPENAI_API_KEY: -4}"
+                    echo -e "  Key:     $key_preview"
+                    ;;
+                oauth)
+                    echo -e "  OpenAI:  ${GREEN}✓ Authenticated (OAuth)${NC}"
+                    local auth_file="${HOME}/.codex/auth.json"
+                    if command -v jq &> /dev/null && [[ -f "$auth_file" ]]; then
+                        local email
+                        email=$(jq -r '.email // "unknown"' "$auth_file" 2>/dev/null)
+                        echo -e "  Account: $email"
+                    fi
+                    ;;
+                none)
+                    echo -e "  OpenAI:  ${RED}✗ Not authenticated${NC}"
+                    echo ""
+                    echo "  To authenticate:"
+                    echo "    • Run: $(basename "$0") login"
+                    echo "    • Or set: export OPENAI_API_KEY=\"sk-...\""
+                    ;;
+            esac
+
+            # Check Gemini
+            echo ""
+            if [[ -n "$GEMINI_API_KEY" ]]; then
+                local gemini_preview="${GEMINI_API_KEY:0:8}...${GEMINI_API_KEY: -4}"
+                echo -e "  Gemini:  ${GREEN}✓ Authenticated (API Key)${NC}"
+                echo -e "  Key:     $gemini_preview"
+            else
+                echo -e "  Gemini:  ${YELLOW}○ Not configured${NC}"
+                echo "           Set: export GEMINI_API_KEY=\"AIza...\""
+            fi
+            ;;
+
+        *)
+            echo "Unknown auth action: $action"
+            echo "Usage: $(basename "$0") auth [login|logout|status]"
+            exit 1
+            ;;
+    esac
+}
+
 # ═══════════════════════════════════════════════════════════════════════════
 # v4.0 FEATURE: SIMPLIFIED CLI WITH PROGRESSIVE DISCLOSURE
 # ═══════════════════════════════════════════════════════════════════════════
@@ -966,6 +1454,79 @@ Guides you through:
 Run this first if you're new to Claude Octopus!
 EOF
             ;;
+        optimize|optimise)
+            cat << EOF
+${YELLOW}optimize${NC} - Auto-detect and route optimization tasks
+
+${YELLOW}Usage:${NC} $(basename "$0") optimize <prompt>
+
+Automatically detects the type of optimization needed and routes to
+the appropriate specialist agent.
+
+${YELLOW}Supported Domains:${NC}
+  • ${CYAN}Performance${NC}  - Speed, latency, throughput, memory
+  • ${CYAN}Cost${NC}         - Cloud spend, budget, rightsizing
+  • ${CYAN}Database${NC}     - Queries, indexes, slow queries
+  • ${CYAN}Bundle${NC}       - Webpack, tree-shaking, code-splitting
+  • ${CYAN}Accessibility${NC} - WCAG, screen readers, a11y
+  • ${CYAN}SEO${NC}          - Meta tags, structured data, rankings
+  • ${CYAN}Images${NC}       - Compression, formats, lazy loading
+
+${YELLOW}Examples:${NC}
+  $(basename "$0") optimize "My app is slow on mobile"
+  $(basename "$0") optimize "Reduce our AWS bill"
+  $(basename "$0") optimize "Fix slow database queries"
+  $(basename "$0") optimize "Make the site accessible"
+  $(basename "$0") optimize "Improve search rankings"
+
+${YELLOW}Options:${NC}
+  -v, --verbose     Show detailed progress
+  -n, --dry-run     Preview without executing
+EOF
+            ;;
+        auth)
+            cat << EOF
+${YELLOW}auth${NC} - Manage OpenAI authentication
+
+${YELLOW}Usage:${NC} $(basename "$0") auth [login|logout|status]
+
+${YELLOW}Commands:${NC}
+  login     Authenticate with OpenAI via browser OAuth
+  logout    Clear stored OAuth tokens
+  status    Show current authentication status
+
+${YELLOW}Examples:${NC}
+  $(basename "$0") auth status     Check authentication
+  $(basename "$0") login           Login to OpenAI
+  $(basename "$0") logout          Logout from OpenAI
+
+${YELLOW}Notes:${NC}
+  • OAuth login requires the Codex CLI (npm install -g @openai/codex)
+  • Alternative: Set OPENAI_API_KEY environment variable
+EOF
+            ;;
+        completion)
+            cat << EOF
+${YELLOW}completion${NC} - Generate shell completion scripts
+
+${YELLOW}Usage:${NC} $(basename "$0") completion [bash|zsh|fish]
+
+${YELLOW}Installation:${NC}
+  ${CYAN}Bash:${NC}   eval "\$($(basename "$0") completion bash)"
+          Add to ~/.bashrc for persistence
+
+  ${CYAN}Zsh:${NC}    eval "\$($(basename "$0") completion zsh)"
+          Add to ~/.zshrc for persistence
+
+  ${CYAN}Fish:${NC}   $(basename "$0") completion fish > ~/.config/fish/completions/orchestrate.sh.fish
+
+${YELLOW}Features:${NC}
+  • Tab completion for all commands
+  • Agent name completion for spawn
+  • Option completion with descriptions
+  • Context-aware suggestions
+EOF
+            ;;
         *)
             echo "Unknown command: $cmd"
             echo "Run '$(basename "$0") help --full' for all commands."
@@ -1031,6 +1592,23 @@ ${CYAN}════════════════════════�
   map-reduce <prompt>     Decompose → parallel execute → synthesize
   ralph <prompt>          Iterate until completion (ralph-wiggum pattern)
   parallel <tasks.json>   Execute task file in parallel
+
+${GREEN}═══════════════════════════════════════════════════════════════════════════${NC}
+${GREEN}OPTIMIZATION${NC} (v4.2) - Auto-detect and route optimization tasks
+${GREEN}═══════════════════════════════════════════════════════════════════════════${NC}
+  optimize <prompt>       Smart optimization routing (performance, cost, a11y, SEO...)
+
+${BLUE}═══════════════════════════════════════════════════════════════════════════${NC}
+${BLUE}AUTHENTICATION${NC} (v4.2)
+${BLUE}═══════════════════════════════════════════════════════════════════════════${NC}
+  auth [action]           Manage OpenAI authentication (login, logout, status)
+  login                   Login to OpenAI via OAuth
+  logout                  Logout from OpenAI
+
+${CYAN}═══════════════════════════════════════════════════════════════════════════${NC}
+${CYAN}SHELL COMPLETION${NC} (v4.2)
+${CYAN}═══════════════════════════════════════════════════════════════════════════${NC}
+  completion [shell]      Generate shell completion (bash, zsh, fish)
 
 ${MAGENTA}═══════════════════════════════════════════════════════════════════════════${NC}
 ${MAGENTA}WORKSPACE MANAGEMENT${NC}
@@ -2295,6 +2873,145 @@ auto_route() {
             echo "  Routing to ink workflow for quality gates and validation."
             echo ""
             ink_deliver "$prompt"
+            return
+            ;;
+    esac
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # OPTIMIZATION ROUTING (v4.2)
+    # Routes to specialized agents based on optimization domain
+    # ═══════════════════════════════════════════════════════════════════════════
+    case "$task_type" in
+        optimize-performance)
+            echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${CYAN}║  ⚡ OPTIMIZE - Performance (Speed, Latency, Memory)       ║${NC}"
+            echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
+            echo "  Routing to performance optimization workflow."
+            echo ""
+            local perf_prompt="You are a performance engineer. Analyze and optimize: $prompt
+
+Focus on:
+- Identify bottlenecks (CPU, memory, I/O, network)
+- Profile and measure current performance
+- Recommend specific optimizations with expected impact
+- Implement fixes with before/after benchmarks"
+            spawn_agent "codex" "$perf_prompt"
+            return
+            ;;
+        optimize-cost)
+            echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${CYAN}║  💰 OPTIMIZE - Cost (Cloud Spend, Budget, Rightsizing)    ║${NC}"
+            echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
+            echo "  Routing to cost optimization workflow."
+            echo ""
+            local cost_prompt="You are a cloud cost optimization specialist. Analyze and optimize: $prompt
+
+Focus on:
+- Identify over-provisioned resources
+- Recommend rightsizing (instances, storage, databases)
+- Suggest reserved instances or spot instances where applicable
+- Estimate savings with specific recommendations"
+            spawn_agent "gemini" "$cost_prompt"
+            return
+            ;;
+        optimize-database)
+            echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${CYAN}║  🗃️  OPTIMIZE - Database (Queries, Indexes, Schema)        ║${NC}"
+            echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
+            echo "  Routing to database optimization workflow."
+            echo ""
+            local db_prompt="You are a database optimization expert. Analyze and optimize: $prompt
+
+Focus on:
+- Identify slow queries using EXPLAIN ANALYZE
+- Recommend missing or unused indexes
+- Suggest schema optimizations
+- Provide query rewrites with performance comparisons"
+            spawn_agent "codex" "$db_prompt"
+            return
+            ;;
+        optimize-bundle)
+            echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${CYAN}║  📦 OPTIMIZE - Bundle (Build, Webpack, Code-splitting)    ║${NC}"
+            echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
+            echo "  Routing to bundle optimization workflow."
+            echo ""
+            local bundle_prompt="You are a frontend build optimization specialist. Analyze and optimize: $prompt
+
+Focus on:
+- Analyze bundle size and composition
+- Implement tree-shaking and dead code elimination
+- Set up code-splitting and lazy loading
+- Configure optimal minification and compression"
+            spawn_agent "codex" "$bundle_prompt"
+            return
+            ;;
+        optimize-accessibility)
+            echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${CYAN}║  ♿ OPTIMIZE - Accessibility (WCAG, A11y, Screen Readers) ║${NC}"
+            echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
+            echo "  Routing to accessibility optimization workflow."
+            echo ""
+            local a11y_prompt="You are an accessibility specialist. Audit and optimize: $prompt
+
+Focus on:
+- WCAG 2.1 AA compliance checklist
+- Screen reader compatibility
+- Keyboard navigation and focus management
+- Color contrast and visual accessibility
+- ARIA attributes and semantic HTML"
+            spawn_agent "gemini" "$a11y_prompt"
+            return
+            ;;
+        optimize-seo)
+            echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${CYAN}║  🔍 OPTIMIZE - SEO (Search Engine, Meta Tags, Schema)     ║${NC}"
+            echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
+            echo "  Routing to SEO optimization workflow."
+            echo ""
+            local seo_prompt="You are an SEO specialist. Audit and optimize: $prompt
+
+Focus on:
+- Meta tags (title, description, OG tags)
+- Structured data (JSON-LD, Schema.org)
+- Semantic HTML and heading hierarchy
+- Internal linking structure
+- Sitemap and robots.txt configuration
+- Core Web Vitals impact"
+            spawn_agent "gemini" "$seo_prompt"
+            return
+            ;;
+        optimize-image)
+            echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${CYAN}║  🖼️  OPTIMIZE - Images (Compression, Format, Lazy Load)    ║${NC}"
+            echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
+            echo "  Routing to image optimization workflow."
+            echo ""
+            local img_prompt="You are an image optimization specialist. Analyze and optimize: $prompt
+
+Focus on:
+- Format recommendations (WebP, AVIF for modern browsers)
+- Compression settings per image type
+- Responsive images with srcset
+- Lazy loading implementation
+- CDN and caching strategies"
+            spawn_agent "gemini" "$img_prompt"
+            return
+            ;;
+        optimize-general)
+            echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${CYAN}║  🔧 OPTIMIZE - General Analysis                           ║${NC}"
+            echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
+            echo "  Auto-detecting optimization domain..."
+            echo ""
+            # Run analysis to determine best optimization approach
+            local analysis_prompt="Analyze this optimization request and identify the specific domain(s):
+
+$prompt
+
+Domains to consider: performance, cost, database, bundle/build, accessibility, SEO, images.
+Then provide specific optimization recommendations."
+            spawn_agent "gemini" "$analysis_prompt"
             return
             ;;
     esac
@@ -3903,6 +4620,31 @@ case "$COMMAND" in
     ralph|iterate)
         [[ $# -lt 1 ]] && { log ERROR "Usage: ralph <prompt> [agent] [max-iterations]"; exit 1; }
         run_with_ralph_loop "${2:-codex}" "$1" "${3:-$RALPH_MAX_ITERATIONS}"
+        ;;
+    # ═══════════════════════════════════════════════════════════════════════════
+    # OPTIMIZATION COMMANDS (v4.2)
+    # ═══════════════════════════════════════════════════════════════════════════
+    optimize|optimise)
+        [[ $# -lt 1 ]] && { log ERROR "Usage: optimize <prompt>"; exit 1; }
+        auto_route "$*"
+        ;;
+    # ═══════════════════════════════════════════════════════════════════════════
+    # SHELL COMPLETION (v4.2)
+    # ═══════════════════════════════════════════════════════════════════════════
+    completion)
+        generate_shell_completion "${1:-bash}"
+        ;;
+    # ═══════════════════════════════════════════════════════════════════════════
+    # AUTHENTICATION (v4.2)
+    # ═══════════════════════════════════════════════════════════════════════════
+    auth)
+        handle_auth_command "${1:-status}" "${@:2}"
+        ;;
+    login)
+        handle_auth_command "login" "$@"
+        ;;
+    logout)
+        handle_auth_command "logout" "$@"
         ;;
     # ═══════════════════════════════════════════════════════════════════════════
     # USAGE & COST REPORTING COMMANDS (v4.1)

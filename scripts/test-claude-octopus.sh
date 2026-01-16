@@ -210,6 +210,44 @@ test_cmd "Iterate alias dry-run" "'$SCRIPT' -n iterate 'test iteration'"
 echo ""
 
 # ============================================
+# 11. OPTIMIZATION COMMANDS (v4.2)
+# ============================================
+echo -e "${YELLOW}11. Optimization Commands${NC}"
+
+test_cmd "Optimize dry-run" "'$SCRIPT' -n optimize 'make it faster'"
+test_cmd "Optimise alias dry-run" "'$SCRIPT' -n optimise 'make it faster'"
+test_output "Routes performance optimization" "'$SCRIPT' -n auto 'optimize performance and speed'" "optimize-performance|OPTIMIZE.*Performance"
+test_output "Routes cost optimization" "'$SCRIPT' -n auto 'reduce AWS costs'" "optimize-cost|OPTIMIZE.*Cost"
+test_output "Routes database optimization" "'$SCRIPT' -n auto 'optimize slow database queries'" "optimize-database|OPTIMIZE.*Database"
+test_output "Routes accessibility optimization" "'$SCRIPT' -n auto 'improve accessibility and WCAG'" "optimize-accessibility|OPTIMIZE.*Accessibility"
+test_output "Routes SEO optimization" "'$SCRIPT' -n auto 'optimize for search engines'" "optimize-seo|OPTIMIZE.*SEO"
+test_cmd "Help (optimize command)" "'$SCRIPT' help optimize"
+
+echo ""
+
+# ============================================
+# 12. AUTHENTICATION (v4.2)
+# ============================================
+echo -e "${YELLOW}12. Authentication${NC}"
+
+test_cmd "Auth status" "'$SCRIPT' auth status"
+test_cmd "Help (auth command)" "'$SCRIPT' help auth"
+
+echo ""
+
+# ============================================
+# 13. SHELL COMPLETION (v4.2)
+# ============================================
+echo -e "${YELLOW}13. Shell Completion${NC}"
+
+test_cmd "Bash completion" "'$SCRIPT' completion bash"
+test_cmd "Zsh completion" "'$SCRIPT' completion zsh"
+test_cmd "Fish completion" "'$SCRIPT' completion fish"
+test_cmd "Help (completion command)" "'$SCRIPT' help completion"
+
+echo ""
+
+# ============================================
 # SUMMARY
 # ============================================
 echo "========================================"
