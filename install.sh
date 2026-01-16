@@ -6,22 +6,71 @@ set -euo pipefail
 
 echo "🐙 Installing Claude Octopus..."
 
-# Clone to plugins directory
+# Configuration
 PLUGIN_DIR="$HOME/.claude/plugins/claude-octopus"
+INSTALLED_PLUGINS="$HOME/.claude/plugins/installed_plugins.json"
 
-if [ -d "$PLUGIN_DIR" ]; then
-    echo "📦 Updating existing installation..."
-    cd "$PLUGIN_DIR"
-    git pull
-else
-    echo "📦 Installing to $PLUGIN_DIR..."
-    git clone https://github.com/nyldn/claude-octopus.git "$PLUGIN_DIR"
+# Check for jq
+if ! command -v jq &>/dev/null; then
+    echo "❌ Error: jq is required but not installed."
+    echo "   Install it with: brew install jq (macOS) or apt-get install jq (Linux)"
+    exit 1
 fi
+
+# 1. Clone/update the plugin
+echo "📦 Installing plugin files..."
+if [ -d "$PLUGIN_DIR/.git" ]; then
+    cd "$PLUGIN_DIR"
+    git pull --quiet
+    echo "✓ Updated existing installation"
+else
+    rm -rf "$PLUGIN_DIR"
+    git clone --quiet https://github.com/nyldn/claude-octopus.git "$PLUGIN_DIR"
+    echo "✓ Cloned repository"
+fi
+
+# 2. Register in installed_plugins.json as a local plugin
+echo "📝 Registering with Claude Code..."
+mkdir -p "$(dirname "$INSTALLED_PLUGINS")"
+
+# Get current git commit
+VERSION=$(cd "$PLUGIN_DIR" && git rev-parse --short HEAD 2>/dev/null || echo "local")
+TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
+
+# Initialize or update installed_plugins.json
+if [ ! -f "$INSTALLED_PLUGINS" ]; then
+    echo '{"version": 2, "plugins": {}}' > "$INSTALLED_PLUGINS"
+fi
+
+# Add/update the plugin entry as a local installation
+TMP_FILE=$(mktemp)
+jq --arg path "$PLUGIN_DIR" \
+   --arg version "$VERSION" \
+   --arg timestamp "$TIMESTAMP" \
+   '.plugins["claude-octopus"] = [{
+     "scope": "user",
+     "installPath": $path,
+     "version": $version,
+     "installedAt": $timestamp,
+     "lastUpdated": $timestamp,
+     "source": "local"
+   }]' "$INSTALLED_PLUGINS" > "$TMP_FILE"
+
+mv "$TMP_FILE" "$INSTALLED_PLUGINS"
+echo "✓ Registered as local plugin"
 
 echo ""
 echo "✅ Installation complete!"
 echo ""
+echo "📋 Installation details:"
+echo "   Location: $PLUGIN_DIR"
+echo "   Version:  $VERSION"
+echo ""
 echo "Next steps:"
-echo "1. Restart Claude Code"
+echo "1. Restart Claude Code completely (Cmd+Q then reopen)"
 echo "2. Run: /claude-octopus:setup"
+echo ""
+echo "Troubleshooting:"
+echo "- If commands don't appear, check: ~/.claude/debug/*.txt"
+echo "- Verify installation: ls -la $PLUGIN_DIR/.claude/"
 echo ""
