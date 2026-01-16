@@ -1878,6 +1878,13 @@ run_with_ralph_loop() {
     echo -e "${MAGENTA}╚═══════════════════════════════════════════════════════════╝${NC}"
     echo ""
 
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log INFO "[DRY-RUN] Would iterate: $prompt"
+        log INFO "[DRY-RUN] Agent: $agent_type, Max iterations: $max_iterations"
+        log INFO "[DRY-RUN] Completion promise: $promise"
+        return 0
+    fi
+
     while [[ $iteration -lt $max_iterations ]]; do
         ((iteration++))
         log INFO "Ralph iteration $iteration/$max_iterations"
