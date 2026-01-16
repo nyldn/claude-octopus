@@ -670,43 +670,59 @@ get_tier_name() {
 
 # Get agent based on task type AND complexity tier
 # This replaces the simple get_agent_for_task for cost-aware routing
+# v4.5: Now resource-aware based on user config
 get_tiered_agent() {
     local task_type="$1"
     local complexity="${2:-2}"  # Default: standard
+    local agent=""
+
+    # Load user config for resource-aware routing (v4.5)
+    load_user_config 2>/dev/null || true
+
+    # Apply resource tier adjustment
+    local adjusted_complexity
+    adjusted_complexity=$(get_resource_adjusted_tier "$complexity" 2>/dev/null || echo "$complexity")
 
     case "$task_type" in
         image)
             # Image generation always uses gemini-image
-            echo "gemini-image"
+            agent="gemini-image"
             ;;
         review)
             # Reviews use standard tier (already cost-effective)
-            echo "codex-review"
+            agent="codex-review"
             ;;
         coding|general)
-            # Coding tasks: tier based on complexity
-            case "$complexity" in
-                1) echo "codex-mini" ;;      # Trivial → mini (cheapest)
-                2) echo "codex-standard" ;;  # Standard → standard tier
-                3) echo "codex" ;;           # Complex → premium
+            # Coding tasks: tier based on adjusted complexity
+            case "$adjusted_complexity" in
+                1) agent="codex-mini" ;;      # Trivial → mini (cheapest)
+                2) agent="codex-standard" ;;  # Standard → standard tier
+                3) agent="codex" ;;           # Complex → premium
+                *) agent="codex-standard" ;;
             esac
             ;;
         design|copywriting|research)
             # Gemini tasks: tier based on complexity
-            case "$complexity" in
-                1) echo "gemini-fast" ;;     # Trivial → flash (cheaper)
-                *) echo "gemini" ;;          # Standard+ → pro
+            case "$adjusted_complexity" in
+                1) agent="gemini-fast" ;;     # Trivial → flash (cheaper)
+                *) agent="gemini" ;;          # Standard+ → pro
             esac
             ;;
         diamond-*)
-            # Double Diamond workflows always use premium
-            echo "codex"
+            # Double Diamond workflows: respect resource tier
+            case "$USER_RESOURCE_TIER" in
+                pro|api-only) agent="codex-standard" ;;  # Conservative
+                *) agent="codex" ;;                       # Premium
+            esac
             ;;
         *)
             # Safe default: standard tier
-            echo "codex-standard"
+            agent="codex-standard"
             ;;
     esac
+
+    # Apply API key fallback (v4.5)
+    get_fallback_agent "$agent" "$task_type" 2>/dev/null || echo "$agent"
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1572,6 +1588,33 @@ ${YELLOW}Created Structure:${NC}
   └── tasks.json  # Example task file
 EOF
             ;;
+        config|configure|preferences)
+            cat << EOF
+${YELLOW}config${NC} - Update user preferences (v4.5)
+
+${YELLOW}Usage:${NC} $(basename "$0") config
+
+Re-run the preference wizard to update your settings without
+going through the full setup process.
+
+${YELLOW}What you can configure:${NC}
+  • Primary use case (backend, frontend, UX, etc.)
+  • Resource tier (Pro, Max 5x, Max 20x, API-only)
+  • Model routing preferences
+
+${YELLOW}These settings affect:${NC}
+  • Default agent personas for your work type
+  • Model selection (conservative vs. full power)
+  • Cost optimization strategies
+
+${YELLOW}Config file:${NC}
+  ~/.claude-octopus/.user-config
+
+${YELLOW}Examples:${NC}
+  $(basename "$0") config              # Update preferences
+  $(basename "$0") init --interactive  # Full setup (includes config)
+EOF
+            ;;
         review)
             cat << EOF
 ${YELLOW}review${NC} - Human-in-the-loop review queue (v4.4)
@@ -1714,6 +1757,8 @@ ${MAGENTA}═══════════════════════�
 ${MAGENTA}WORKSPACE MANAGEMENT${NC}
 ${MAGENTA}═══════════════════════════════════════════════════════════════════════════${NC}
   init                    Initialize workspace
+  init --interactive      Full guided setup (7 steps)
+  config                  Update preferences (v4.5)
   status                  Show running agents
   kill [id|all]           Stop agents
   clean                   Clean workspace
@@ -1812,7 +1857,7 @@ log() {
         INFO)  echo -e "${BLUE}[$timestamp]${NC} ${GREEN}INFO${NC}: $msg" ;;
         WARN)  echo -e "${BLUE}[$timestamp]${NC} ${YELLOW}WARN${NC}: $msg" ;;
         ERROR) echo -e "${BLUE}[$timestamp]${NC} ${RED}ERROR${NC}: $msg" >&2 ;;
-        DEBUG) [[ "$VERBOSE" == "true" ]] && echo -e "${BLUE}[$timestamp]${NC} ${CYAN}DEBUG${NC}: $msg" || true ;;
+        DEBUG) [[ "$VERBOSE" == "true" ]] && echo -e "${BLUE}[$timestamp]${NC} ${CYAN}DEBUG${NC}: $msg" >&2 || true ;;
     esac
 }
 
@@ -1916,7 +1961,7 @@ init_interactive() {
     echo ""
 
     local step=1
-    local total_steps=5
+    local total_steps=7
     local issues=0
 
     # ─────────────────────────────────────────────────────────────────────────
@@ -2117,6 +2162,21 @@ init_interactive() {
     echo ""
 
     # ─────────────────────────────────────────────────────────────────────────
+    # Step 6: User Intent (v4.5)
+    # ─────────────────────────────────────────────────────────────────────────
+    init_step_intent
+    echo ""
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Step 7: Resource Configuration (v4.5)
+    # ─────────────────────────────────────────────────────────────────────────
+    init_step_resources
+    echo ""
+
+    # Save user configuration
+    save_user_config "$USER_INTENT_PRIMARY" "$USER_INTENT_ALL" "$USER_RESOURCE_TIER"
+
+    # ─────────────────────────────────────────────────────────────────────────
     # Summary
     # ─────────────────────────────────────────────────────────────────────────
     echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
@@ -2125,10 +2185,17 @@ init_interactive() {
     if [[ $issues -eq 0 ]]; then
         echo -e "${GREEN}  🐙 All 8 tentacles are connected and ready! 🐙${NC}"
         echo ""
+        if [[ -n "$USER_INTENT_PRIMARY" && "$USER_INTENT_PRIMARY" != "general" ]]; then
+            echo -e "  ${CYAN}Configured for: $USER_INTENT_PRIMARY development${NC}"
+        fi
+        if [[ -n "$USER_RESOURCE_TIER" && "$USER_RESOURCE_TIER" != "standard" ]]; then
+            echo -e "  ${CYAN}Resource tier: $USER_RESOURCE_TIER${NC}"
+        fi
+        echo ""
         echo -e "  Try these commands:"
         echo -e "    ${CYAN}orchestrate.sh preflight${NC}     - Verify everything works"
         echo -e "    ${CYAN}orchestrate.sh auto <prompt>${NC} - Smart task routing"
-        echo -e "    ${CYAN}orchestrate.sh embrace${NC}       - Full Double Diamond workflow"
+        echo -e "    ${CYAN}orchestrate.sh config${NC}        - Update preferences"
     else
         echo -e "${YELLOW}  🐙 $issues tentacle(s) need attention 🐙${NC}"
         echo ""
@@ -2534,6 +2601,350 @@ show_review() {
     echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
     echo ""
     cat "$output_file"
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# v4.5 FEATURE: USER CONFIG AND SMART SETUP
+# Intent-aware and resource-aware configuration for personalized routing
+# ═══════════════════════════════════════════════════════════════════════════════
+
+USER_CONFIG_FILE="${WORKSPACE_DIR:-$HOME/.claude-octopus}/.user-config"
+
+# User config variables (loaded from file)
+USER_INTENT_PRIMARY=""
+USER_INTENT_ALL=""
+USER_RESOURCE_TIER="standard"
+USER_HAS_OPENAI="false"
+USER_HAS_GEMINI="false"
+USER_OPUS_BUDGET="balanced"
+
+# Load user configuration from file
+load_user_config() {
+    if [[ ! -f "$USER_CONFIG_FILE" ]]; then
+        [[ "$VERBOSE" == "true" ]] && log DEBUG "No user config found at $USER_CONFIG_FILE"
+        return 0
+    fi
+
+    # Parse YAML-like config using grep/sed (bash 3.x compatible)
+    USER_INTENT_PRIMARY=$(grep "^  primary:" "$USER_CONFIG_FILE" 2>/dev/null | sed 's/.*: *//' | tr -d '"' || echo "")
+    USER_INTENT_ALL=$(grep "^  all:" "$USER_CONFIG_FILE" 2>/dev/null | sed 's/.*: *//' | tr -d '[]"' || echo "")
+    USER_RESOURCE_TIER=$(grep "^resource_tier:" "$USER_CONFIG_FILE" 2>/dev/null | sed 's/.*: *//' | tr -d '"' || echo "standard")
+    USER_HAS_OPENAI=$(grep "^  openai:" "$USER_CONFIG_FILE" 2>/dev/null | sed 's/.*: *//' || echo "false")
+    USER_HAS_GEMINI=$(grep "^  gemini:" "$USER_CONFIG_FILE" 2>/dev/null | sed 's/.*: *//' || echo "false")
+    USER_OPUS_BUDGET=$(grep "^  opus_budget:" "$USER_CONFIG_FILE" 2>/dev/null | sed 's/.*: *//' | tr -d '"' || echo "balanced")
+
+    [[ "$VERBOSE" == "true" ]] && log DEBUG "Loaded user config: tier=$USER_RESOURCE_TIER, intent=$USER_INTENT_PRIMARY"
+}
+
+# Save user configuration to file
+save_user_config() {
+    local intent_primary="$1"
+    local intent_all="$2"
+    local resource_tier="$3"
+
+    mkdir -p "$(dirname "$USER_CONFIG_FILE")"
+
+    # Auto-detect available API keys
+    local has_openai="false"
+    local has_gemini="false"
+    [[ -n "${OPENAI_API_KEY:-}" ]] && has_openai="true"
+    [[ -n "${GEMINI_API_KEY:-}" ]] && has_gemini="true"
+
+    # Derive settings based on resource tier
+    local opus_budget="balanced"
+    local default_complexity=2
+    case "$resource_tier" in
+        pro) opus_budget="conservative"; default_complexity=1 ;;
+        max-5x) opus_budget="balanced"; default_complexity=2 ;;
+        max-20x) opus_budget="unlimited"; default_complexity=2 ;;
+        api-only) opus_budget="conservative"; default_complexity=1 ;;
+        *) opus_budget="balanced"; default_complexity=2 ;;
+    esac
+
+    cat > "$USER_CONFIG_FILE" << EOF
+version: "1.0"
+created_at: "$(date -Iseconds 2>/dev/null || date +%Y-%m-%dT%H:%M:%S)"
+updated_at: "$(date -Iseconds 2>/dev/null || date +%Y-%m-%dT%H:%M:%S)"
+
+# User intent - affects persona selection and task routing
+intent:
+  primary: "$intent_primary"
+  all: [$intent_all]
+
+# Resource tier - affects model selection
+resource_tier: "$resource_tier"
+
+# Available API keys (auto-detected)
+available_keys:
+  openai: $has_openai
+  gemini: $has_gemini
+
+# Derived settings (auto-configured based on tier + keys)
+settings:
+  opus_budget: "$opus_budget"
+  default_complexity: $default_complexity
+  prefer_gemini_for_analysis: $has_gemini
+  max_parallel_agents: 3
+EOF
+
+    log INFO "User config saved to $USER_CONFIG_FILE"
+}
+
+# Map intent number to name
+get_intent_name() {
+    local num="$1"
+    case "$num" in
+        1) echo "backend" ;;
+        2) echo "frontend" ;;
+        3) echo "fullstack" ;;
+        4) echo "ux-research" ;;
+        5) echo "ui-design" ;;
+        6) echo "devops" ;;
+        7) echo "data" ;;
+        8) echo "seo" ;;
+        9) echo "security" ;;
+        0) echo "general" ;;
+        *) echo "general" ;;
+    esac
+}
+
+# Get default persona based on user intent
+get_intent_persona() {
+    local intent="$1"
+    case "$intent" in
+        backend|devops) echo "backend-architect" ;;
+        frontend) echo "frontend-architect" ;;
+        security) echo "security-auditor" ;;
+        ux-research|data) echo "researcher" ;;
+        *) echo "" ;;  # No default persona
+    esac
+}
+
+# Adjust complexity tier based on resource budget
+get_resource_adjusted_tier() {
+    local base_complexity="$1"
+
+    # Load config if not already loaded
+    [[ -z "$USER_RESOURCE_TIER" || "$USER_RESOURCE_TIER" == "standard" ]] && load_user_config
+
+    case "$USER_RESOURCE_TIER" in
+        pro|api-only)
+            # Conservative: cap at standard tier
+            if [[ "$base_complexity" -ge 3 ]]; then
+                echo 2
+            else
+                echo 1
+            fi
+            ;;
+        max-5x)
+            # Balanced: use as-is
+            echo "$base_complexity"
+            ;;
+        max-20x)
+            # Unlimited: can boost to premium
+            echo "$base_complexity"
+            ;;
+        *)
+            # Default: use as-is
+            echo "$base_complexity"
+            ;;
+    esac
+}
+
+# Check if an agent is available based on API keys
+is_agent_available() {
+    local agent="$1"
+
+    # Load config if needed
+    [[ -z "$USER_HAS_OPENAI" ]] && load_user_config
+
+    case "$agent" in
+        codex|codex-standard|codex-mini|codex-max)
+            [[ "$USER_HAS_OPENAI" == "true" || -n "${OPENAI_API_KEY:-}" ]]
+            ;;
+        gemini|gemini-fast|gemini-image)
+            [[ "$USER_HAS_GEMINI" == "true" || -n "${GEMINI_API_KEY:-}" ]]
+            ;;
+        *)
+            return 0  # Unknown agents assumed available
+            ;;
+    esac
+}
+
+# Get fallback agent when preferred is unavailable
+get_fallback_agent() {
+    local preferred="$1"
+    local task_type="$2"
+
+    if is_agent_available "$preferred"; then
+        echo "$preferred"
+        return 0
+    fi
+
+    # Fallback logic
+    case "$preferred" in
+        gemini|gemini-fast)
+            # Gemini unavailable, try codex
+            if is_agent_available "codex"; then
+                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: $preferred -> codex (no Gemini)"
+                echo "codex"
+            else
+                echo "$preferred"  # Return anyway, will error
+            fi
+            ;;
+        codex|codex-standard|codex-mini)
+            # Codex unavailable, try gemini
+            if is_agent_available "gemini"; then
+                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: $preferred -> gemini (no OpenAI)"
+                echo "gemini"
+            else
+                echo "$preferred"
+            fi
+            ;;
+        *)
+            echo "$preferred"
+            ;;
+    esac
+}
+
+# Step 6: User intent selection
+init_step_intent() {
+    echo ""
+    echo -e "${YELLOW}Step 6/7: What brings you to the octopus's lair?${NC}"
+    echo -e "  ${CYAN}Select your primary use case(s) - this helps us choose the best agents${NC}"
+    echo ""
+    echo -e "  ${GREEN}[1]${NC} Backend Development    ${CYAN}(APIs, databases, microservices)${NC}"
+    echo -e "  ${GREEN}[2]${NC} Frontend Development   ${CYAN}(React, Vue, UI components)${NC}"
+    echo -e "  ${GREEN}[3]${NC} Full-Stack Development ${CYAN}(both frontend + backend)${NC}"
+    echo -e "  ${GREEN}[4]${NC} UX Research            ${CYAN}(user research, personas, journey maps)${NC}"
+    echo -e "  ${GREEN}[5]${NC} UI/Product Design      ${CYAN}(wireframes, design systems)${NC}"
+    echo -e "  ${GREEN}[6]${NC} DevOps/Infrastructure  ${CYAN}(CI/CD, Docker, Kubernetes)${NC}"
+    echo -e "  ${GREEN}[7]${NC} Data/Analytics         ${CYAN}(SQL, pipelines, ML)${NC}"
+    echo -e "  ${GREEN}[8]${NC} SEO/Marketing          ${CYAN}(content, optimization)${NC}"
+    echo -e "  ${GREEN}[9]${NC} Code Review/Security   ${CYAN}(audits, vulnerability scanning)${NC}"
+    echo -e "  ${GREEN}[0]${NC} General/All of above"
+    echo ""
+    read -p "  Enter choices (e.g., '1,2,6' or '0' for all): " intent_choices
+
+    # Parse choices
+    intent_choices="${intent_choices:-0}"
+    intent_choices=$(echo "$intent_choices" | tr -d ' ')
+
+    local intent_names=""
+    local first_intent=""
+    IFS=',' read -ra CHOICES <<< "$intent_choices"
+    for choice in "${CHOICES[@]}"; do
+        local name
+        name=$(get_intent_name "$choice")
+        if [[ -z "$first_intent" ]]; then
+            first_intent="$name"
+        fi
+        if [[ -z "$intent_names" ]]; then
+            intent_names="\"$name\""
+        else
+            intent_names="$intent_names, \"$name\""
+        fi
+    done
+
+    USER_INTENT_PRIMARY="$first_intent"
+    USER_INTENT_ALL="$intent_names"
+
+    echo ""
+    echo -e "  ${GREEN}✓${NC} Selected: $intent_names"
+    if [[ -n "$first_intent" && "$first_intent" != "general" ]]; then
+        local persona
+        persona=$(get_intent_persona "$first_intent")
+        if [[ -n "$persona" ]]; then
+            echo -e "  ${GREEN}✓${NC} Default persona: $persona"
+        fi
+    fi
+}
+
+# Step 7: Resource tier selection
+init_step_resources() {
+    echo ""
+    echo -e "${YELLOW}Step 7/7: How much tentacle power do you have?${NC}"
+    echo -e "  ${CYAN}This helps us balance quality vs. cost${NC}"
+    echo ""
+    echo -e "  ${GREEN}[1]${NC} Claude Pro or Free     ${CYAN}(\$0-20/mo)${NC} → Conservative mode"
+    echo -e "      ${CYAN}Uses cheaper models by default, saves Opus for complex tasks${NC}"
+    echo ""
+    echo -e "  ${GREEN}[2]${NC} Claude Max 5x          ${CYAN}(\$100/mo)${NC} → Balanced mode"
+    echo -e "      ${CYAN}Smart Opus usage, weekly budget awareness${NC}"
+    echo ""
+    echo -e "  ${GREEN}[3]${NC} Claude Max 20x         ${CYAN}(\$200/mo)${NC} → Full power mode"
+    echo -e "      ${CYAN}Use premium models freely based on task complexity${NC}"
+    echo ""
+    echo -e "  ${GREEN}[4]${NC} API Only (pay-per-token) → Cost-aware mode"
+    echo -e "      ${CYAN}Tracks token costs, prefers efficient models${NC}"
+    echo ""
+    echo -e "  ${GREEN}[5]${NC} Not sure / Skip        → Standard defaults"
+    echo ""
+    read -p "  Select [1-5]: " tier_choice
+
+    case "${tier_choice:-5}" in
+        1) USER_RESOURCE_TIER="pro" ;;
+        2) USER_RESOURCE_TIER="max-5x" ;;
+        3) USER_RESOURCE_TIER="max-20x" ;;
+        4) USER_RESOURCE_TIER="api-only" ;;
+        *) USER_RESOURCE_TIER="standard" ;;
+    esac
+
+    echo ""
+    case "$USER_RESOURCE_TIER" in
+        pro)
+            echo -e "  ${GREEN}✓${NC} Conservative mode: Prioritizing cost-efficient models"
+            echo -e "  ${CYAN}  Codex-mini for simple tasks, standard for complex${NC}"
+            ;;
+        max-5x)
+            echo -e "  ${GREEN}✓${NC} Balanced mode: Smart model selection"
+            echo -e "  ${CYAN}  Full Opus access for complex tasks, efficient for simple${NC}"
+            ;;
+        max-20x)
+            echo -e "  ${GREEN}✓${NC} Full power mode: Premium models available"
+            echo -e "  ${CYAN}  All 8 tentacles at full strength!${NC}"
+            ;;
+        api-only)
+            echo -e "  ${GREEN}✓${NC} Cost-aware mode: Token tracking active"
+            echo -e "  ${CYAN}  Monitoring costs and preferring efficient models${NC}"
+            ;;
+        *)
+            echo -e "  ${GREEN}✓${NC} Standard mode: Balanced defaults"
+            ;;
+    esac
+}
+
+# Reconfigure preferences only
+reconfigure_preferences() {
+    echo ""
+    echo -e "${CYAN}╔═══════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║     🐙 Claude Octopus Configuration Wizard 🐙                 ║${NC}"
+    echo -e "${CYAN}║     Update your preferences without full setup                ║${NC}"
+    echo -e "${CYAN}╚═══════════════════════════════════════════════════════════════╝${NC}"
+
+    # Load existing config
+    load_user_config
+
+    # Show current settings
+    if [[ -n "$USER_INTENT_PRIMARY" ]]; then
+        echo ""
+        echo -e "  Current settings:"
+        echo -e "    Intent: $USER_INTENT_PRIMARY ($USER_INTENT_ALL)"
+        echo -e "    Resource tier: $USER_RESOURCE_TIER"
+        echo ""
+    fi
+
+    # Run just the preference steps
+    init_step_intent
+    init_step_resources
+
+    # Save updated config
+    save_user_config "$USER_INTENT_PRIMARY" "$USER_INTENT_ALL" "$USER_RESOURCE_TIER"
+
+    echo ""
+    echo -e "${GREEN}✓${NC} Configuration updated!"
+    echo -e "  Config saved to: $USER_CONFIG_FILE"
+    echo ""
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -5510,6 +5921,10 @@ case "$COMMAND" in
         else
             init_workspace
         fi
+        ;;
+    config|configure|preferences)
+        # v4.5: Reconfigure user preferences
+        reconfigure_preferences
         ;;
     spawn)
         [[ $# -lt 2 ]] && { log ERROR "Usage: spawn <agent> <prompt>"; exit 1; }

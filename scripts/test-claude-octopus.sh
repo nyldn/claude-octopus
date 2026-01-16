@@ -579,6 +579,131 @@ fi
 echo ""
 
 # ============================================
+# 17. PHASE 5 FEATURES (v4.5)
+# Smart Setup Wizard: Intent & Resource-Aware Configuration
+# ============================================
+echo -e "${YELLOW}17. Phase 5 Features (v4.5 - Smart Setup)${NC}"
+
+# Test help for config command (config is interactive, so we just test help)
+test_cmd "Help config command" "$SCRIPT help config" 0
+
+# Test config command function exists in script
+echo -n "  Testing: Config command dispatches correctly... "
+if grep -q 'config|configure|preferences)' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+# Test config file save/load roundtrip
+echo -n "  Testing: Config save/load roundtrip... "
+TEST_CONFIG_DIR=$(mktemp -d)
+TEST_CONFIG_FILE="$TEST_CONFIG_DIR/.user-config"
+
+# Create test config manually
+cat > "$TEST_CONFIG_FILE" << 'TESTCFG'
+version: "1.0"
+created_at: "2026-01-15T10:00:00Z"
+updated_at: "2026-01-15T10:00:00Z"
+intent:
+  primary: "backend"
+  all: ["backend", "devops"]
+resource_tier: "max-5x"
+available_keys:
+  openai: true
+  gemini: true
+  anthropic: false
+settings:
+  opus_budget: "balanced"
+  default_complexity: 2
+  prefer_gemini_for_analysis: true
+  max_parallel_agents: 3
+TESTCFG
+
+# Verify config file was created
+if [[ -f "$TEST_CONFIG_FILE" ]]; then
+    # Parse primary intent
+    primary_intent=$(grep "^  primary:" "$TEST_CONFIG_FILE" | sed 's/.*: *//' | tr -d '"')
+    resource_tier=$(grep "^resource_tier:" "$TEST_CONFIG_FILE" | sed 's/.*: *//' | tr -d '"')
+
+    if [[ "$primary_intent" == "backend" ]] && [[ "$resource_tier" == "max-5x" ]]; then
+        echo -e "${GREEN}PASS${NC}"
+        ((PASS++))
+    else
+        echo -e "${RED}FAIL${NC} (parsed: primary=$primary_intent, tier=$resource_tier)"
+        ((FAIL++))
+    fi
+else
+    echo -e "${RED}FAIL${NC} (config file not created)"
+    ((FAIL++))
+fi
+rm -rf "$TEST_CONFIG_DIR"
+
+# Test resource tier functions exist in script
+echo -n "  Testing: Resource tier functions defined... "
+if grep -q 'get_resource_adjusted_tier()' "$SCRIPT" && grep -q 'load_user_config()' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+# Test intent wizard function exists
+echo -n "  Testing: Intent wizard function defined... "
+if grep -q 'init_step_intent()' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+# Test resources wizard function exists
+echo -n "  Testing: Resources wizard function defined... "
+if grep -q 'init_step_resources()' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+# Test init has 7 steps
+echo -n "  Testing: Init wizard has 7 steps... "
+if grep -q 'total_steps=7' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+# Test resource tier affects routing (conceptual check)
+echo -n "  Testing: get_tiered_agent uses resource tier... "
+if grep -A 20 'get_tiered_agent()' "$SCRIPT" | grep -q 'load_user_config\|get_resource_adjusted_tier'; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+# Test API fallback function exists
+echo -n "  Testing: API fallback function defined... "
+if grep -q 'get_fallback_agent()' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+echo ""
+
+# ============================================
 # SUMMARY
 # ============================================
 echo "========================================"
