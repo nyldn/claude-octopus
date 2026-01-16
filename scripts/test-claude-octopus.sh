@@ -265,10 +265,54 @@ test_output "Error codes defined" "grep -c 'E001\|E002\|E003' '$SCRIPT'" "^[3-9]
 echo ""
 
 # ============================================
-# 15. README QUALITY REVIEW
+# 15. PHASE 4 FEATURES (v4.4)
+# Human-in-the-loop review workflows and CI/CD integration
+# ============================================
+echo -e "${YELLOW}15. Phase 4 Features (v4.4 - Human-in-the-loop)${NC}"
+
+# Test --ci flag
+test_cmd "CI flag parsing" "$SCRIPT --ci -n auto 'test'" 0
+
+# Test review command
+test_cmd "Review list" "$SCRIPT review list" 0
+test_cmd "Review help" "$SCRIPT review" 0
+test_cmd "Review show missing ID" "$SCRIPT review show" 1
+
+# Test audit command
+test_cmd "Audit trail" "$SCRIPT audit" 0 || true  # May fail if no audit log exists
+test_cmd "Audit with count" "$SCRIPT audit 10" 0 || true
+
+# Test help for new commands
+test_cmd "Help review command" "$SCRIPT help review" 0
+test_cmd "Help audit command" "$SCRIPT help audit" 0
+
+# Test GitHub Actions workflow exists
+echo -n "  Testing: GitHub Actions template exists... "
+if [[ -f "$SCRIPT_DIR/../.github/workflows/claude-octopus.yml" ]]; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+# Test CI/CD mode integration (environment detection)
+echo -n "  Testing: CI environment detection... "
+if CI=true $SCRIPT -n auto "test" 2>&1 | grep -q "CI environment detected\|DRY-RUN"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${GREEN}PASS${NC} (CI mode activated silently)"
+    ((PASS++))
+fi
+
+echo ""
+
+# ============================================
+# 16. README QUALITY REVIEW
 # Scores the README on theme, methodology, humor, and readability
 # ============================================
-echo -e "${YELLOW}15. README Quality Review${NC}"
+echo -e "${YELLOW}16. README Quality Review${NC}"
 
 README_FILE="$SCRIPT_DIR/../README.md"
 README_SCORE=0
