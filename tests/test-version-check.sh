@@ -186,13 +186,13 @@ else
     test_fail "Cache file not created"
 fi
 
-# Test 8: Verify minimum version is 2.1.9
-test_start "Verify minimum required version is 2.1.9"
+# Test 8: Verify minimum version is 2.1.10
+test_start "Verify minimum required version is 2.1.10"
 min_version=$(echo "$output" | grep "CLAUDE_CODE_MINIMUM=" | head -1 | cut -d= -f2)
-if [[ "$min_version" == "2.1.9" ]]; then
-    test_pass "Minimum version correctly set to 2.1.9"
+if [[ "$min_version" == "2.1.10" ]]; then
+    test_pass "Minimum version correctly set to 2.1.10"
 else
-    test_fail "Minimum version should be 2.1.9, got: $min_version"
+    test_fail "Minimum version should be 2.1.10, got: $min_version"
 fi
 
 # Test 9: Test version comparison logic with manual test script
@@ -221,48 +221,48 @@ version_compare() {
 tests_passed=0
 tests_failed=0
 
-# 2.1.9 == 2.1.9 (should pass)
-if version_compare "2.1.9" "2.1.9"; then
-    echo "PASS: 2.1.9 >= 2.1.9"
+# 2.1.10 == 2.1.10 (should pass)
+if version_compare "2.1.10" "2.1.10"; then
+    echo "PASS: 2.1.10 >= 2.1.10"
     ((tests_passed++))
 else
-    echo "FAIL: 2.1.9 >= 2.1.9"
+    echo "FAIL: 2.1.10 >= 2.1.10"
     ((tests_failed++))
 fi
 
-# 2.1.10 > 2.1.9 (should pass)
-if version_compare "2.1.10" "2.1.9"; then
-    echo "PASS: 2.1.10 >= 2.1.9"
+# 2.1.11 > 2.1.10 (should pass)
+if version_compare "2.1.11" "2.1.10"; then
+    echo "PASS: 2.1.11 >= 2.1.10"
     ((tests_passed++))
 else
-    echo "FAIL: 2.1.10 >= 2.1.9"
+    echo "FAIL: 2.1.11 >= 2.1.10"
     ((tests_failed++))
 fi
 
-# 2.1.8 < 2.1.9 (should fail)
-if version_compare "2.1.8" "2.1.9"; then
-    echo "FAIL: 2.1.8 should be < 2.1.9"
+# 2.1.9 < 2.1.10 (should fail)
+if version_compare "2.1.9" "2.1.10"; then
+    echo "FAIL: 2.1.9 should be < 2.1.10"
     ((tests_failed++))
 else
-    echo "PASS: 2.1.8 < 2.1.9 (correctly identified)"
+    echo "PASS: 2.1.9 < 2.1.10 (correctly identified)"
     ((tests_passed++))
 fi
 
-# 3.0.0 > 2.1.9 (should pass)
-if version_compare "3.0.0" "2.1.9"; then
-    echo "PASS: 3.0.0 >= 2.1.9"
+# 3.0.0 > 2.1.10 (should pass)
+if version_compare "3.0.0" "2.1.10"; then
+    echo "PASS: 3.0.0 >= 2.1.10"
     ((tests_passed++))
 else
-    echo "FAIL: 3.0.0 >= 2.1.9"
+    echo "FAIL: 3.0.0 >= 2.1.10"
     ((tests_failed++))
 fi
 
-# 1.9.9 < 2.1.9 (should fail)
-if version_compare "1.9.9" "2.1.9"; then
-    echo "FAIL: 1.9.9 should be < 2.1.9"
+# 1.9.9 < 2.1.10 (should fail)
+if version_compare "1.9.9" "2.1.10"; then
+    echo "FAIL: 1.9.9 should be < 2.1.10"
     ((tests_failed++))
 else
-    echo "PASS: 1.9.9 < 2.1.9 (correctly identified)"
+    echo "PASS: 1.9.9 < 2.1.10 (correctly identified)"
     ((tests_passed++))
 fi
 
@@ -307,7 +307,7 @@ if [[ $TESTS_FAILED -eq 0 ]]; then
     echo "Version check feature is working correctly:"
     echo "  - Claude Code version detection ✓"
     echo "  - Version comparison logic ✓"
-    echo "  - Minimum version enforcement (2.1.9) ✓"
+    echo "  - Minimum version enforcement (2.1.10) ✓"
     echo "  - Upgrade instructions for outdated versions ✓"
     echo "  - Integration with detect-providers ✓"
     echo "  - Cache file creation ✓"

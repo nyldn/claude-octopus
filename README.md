@@ -6,7 +6,7 @@
   <img src="https://img.shields.io/badge/Claude_Code-Plugin-blueviolet" alt="Claude Code Plugin">
   <img src="https://img.shields.io/badge/Double_Diamond-Design_Thinking-orange" alt="Double Diamond">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
-  <img src="https://img.shields.io/badge/Version-7.0.0-blue" alt="Version 7.0.0">
+  <img src="https://img.shields.io/badge/Version-7.1.0-blue" alt="Version 7.1.0">
 </p>
 
 # Claude Octopus
@@ -39,9 +39,35 @@ Claude coordinates multiple AI models behind the scenes to give you comprehensiv
 
 ---
 
-## ✨ What's New in v6.0 - Knowledge Work Mode
+## ✨ What's New in v7.1 - Session-Aware Workflows
 
-**Researchers, consultants, and product managers rejoice!** Claude Octopus now extends knowledge tentacles beyond code.
+**Claude Code 2.1.10 Integration!** Claude Octopus now organizes work by session for better tracking and isolation.
+
+### 🔗 Session-Aware Results
+Results, logs, and plans are now organized per-session:
+```
+~/.claude-octopus/
+├── results/${SESSION_ID}/    # Session-specific results
+├── logs/${SESSION_ID}/       # Session-specific logs
+└── plans/${SESSION_ID}/      # Session-specific plans
+```
+
+### 🚀 Auto-Setup on Init
+Run `claude --init` and Claude Octopus automatically:
+- Creates session workspace
+- Verifies provider availability
+- Validates version compatibility
+
+### 📋 plansDirectory Integration
+Plans integrate with Claude Code's `plansDirectory` setting for centralized storage.
+
+### 🔄 Enhanced PreToolUse Hooks
+Workflow state (phase, quality score, providers) is injected into Claude's context during orchestration.
+
+<details>
+<summary><strong>v6.0 Features (Knowledge Work Mode)</strong></summary>
+
+**Researchers, consultants, and product managers rejoice!** Claude Octopus extends knowledge tentacles beyond code.
 
 ### 🎓 Knowledge Work Mode
 Toggle between development mode and knowledge work mode with a single command:
@@ -65,6 +91,8 @@ Toggle between development mode and knowledge work mode with a single command:
 - `product-writer` (sonnet) - PRDs, user stories, acceptance criteria
 
 [📖 Full Knowledge Workers Guide →](docs/KNOWLEDGE-WORKERS.md)
+
+</details>
 
 <details>
 <summary><strong>v5.0 Features (Agent Discovery & Analytics)</strong></summary>
@@ -151,7 +179,7 @@ That's it! The plugin is automatically enabled and ready to use. Try `/claude-oc
    tail -100 ~/.claude/debug/*.txt | grep -i "claude-octopus\|error"
    ```
 
-4. Make sure you're on Claude Code v2.1.9 or later (from terminal):
+4. Make sure you're on Claude Code v2.1.10 or later (from terminal):
    ```bash
    claude --version
    ```
@@ -737,7 +765,7 @@ If `/claude-octopus:setup` doesn't work after installation:
 
 5. **Check Claude Code version (from terminal):**
    ```bash
-   claude --version  # Need 2.1.9+
+   claude --version  # Need 2.1.10+
    ```
 
 ### Pre-flight fails

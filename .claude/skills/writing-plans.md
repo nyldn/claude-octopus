@@ -234,15 +234,27 @@ Research → Define → Implement → Deliver:
 ```
 ```
 
-### Plan Storage
+### Plan Storage (Claude Code v2.1.10)
 
-Save plans to project documentation:
+Claude Octopus uses session-aware plan storage. Plans are automatically saved to:
+
+```
+~/.claude-octopus/plans/${CLAUDE_SESSION_ID}/YYYY-MM-DD-feature-name.md
+```
+
+This integrates with Claude Code's `plansDirectory` setting. To customize:
+
+```json
+// settings.json
+{
+  "plansDirectory": "~/.claude-octopus/plans"
+}
+```
+
+For project-local plans, save to `docs/plans/`:
 
 ```bash
-# Create plans directory if needed
 mkdir -p docs/plans
-
-# Save plan with date prefix
 # docs/plans/2026-01-17-user-authentication.md
 ```
 

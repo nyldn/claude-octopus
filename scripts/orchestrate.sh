@@ -63,21 +63,44 @@ else
     WORKSPACE_DIR="${HOME}/.claude-octopus"
 fi
 
-# Claude Code v2.1.9 Integration
+# Claude Code v2.1.10 Integration
+# Session-aware workflows: results organized by session ID
 CLAUDE_CODE_SESSION="${CLAUDE_SESSION_ID:-}"
+
+# Session-aware directory structure (v7.1)
+# When CLAUDE_SESSION_ID is available, organize results per-session
+if [[ -n "$CLAUDE_CODE_SESSION" ]]; then
+    SESSION_RESULTS_DIR="${WORKSPACE_DIR}/results/${CLAUDE_CODE_SESSION}"
+    SESSION_LOGS_DIR="${WORKSPACE_DIR}/logs/${CLAUDE_CODE_SESSION}"
+    SESSION_PLANS_DIR="${WORKSPACE_DIR}/plans/${CLAUDE_CODE_SESSION}"
+else
+    SESSION_RESULTS_DIR="${WORKSPACE_DIR}/results"
+    SESSION_LOGS_DIR="${WORKSPACE_DIR}/logs"
+    SESSION_PLANS_DIR="${WORKSPACE_DIR}/plans"
+fi
+
+# Legacy compatibility
 PLANS_DIR="${WORKSPACE_DIR}/plans"
 
-# CI/CD Mode Detection (Claude Code v2.1.9: CLAUDE_CODE_DISABLE_BACKGROUND_TASKS)
+# CI/CD Mode Detection (Claude Code v2.1.10: CLAUDE_CODE_DISABLE_BACKGROUND_TASKS)
 CI_MODE="${CLAUDE_CODE_DISABLE_BACKGROUND_TASKS:-false}"
 if [[ -n "${CI:-}" ]] || [[ -n "${GITHUB_ACTIONS:-}" ]] || [[ -n "${GITLAB_CI:-}" ]] || [[ -n "${JENKINS_URL:-}" ]]; then
     CI_MODE="true"
 fi
 
 TASKS_FILE="${WORKSPACE_DIR}/tasks.json"
-RESULTS_DIR="${WORKSPACE_DIR}/results"
-LOGS_DIR="${WORKSPACE_DIR}/logs"
+RESULTS_DIR="$SESSION_RESULTS_DIR"
+LOGS_DIR="$SESSION_LOGS_DIR"
 PID_FILE="${WORKSPACE_DIR}/pids"
 ANALYTICS_DIR="${WORKSPACE_DIR}/analytics"
+
+init_session_workspace() {
+    mkdir -p "$SESSION_RESULTS_DIR" "$SESSION_LOGS_DIR" "$SESSION_PLANS_DIR"
+    if [[ -n "$CLAUDE_CODE_SESSION" ]]; then
+        echo "$CLAUDE_CODE_SESSION" > "${SESSION_RESULTS_DIR}/.session-id"
+        echo "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "${SESSION_RESULTS_DIR}/.created-at"
+    fi
+}
 
 # Secure temporary directory (cleaned up on exit)
 OCTOPUS_TMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/claude-octopus.XXXXXX")
@@ -3604,7 +3627,7 @@ version_compare() {
 # Check Claude Code version and return status
 # Sets: CLAUDE_CODE_VERSION, CLAUDE_CODE_STATUS
 check_claude_version() {
-    local min_version="2.1.9"
+    local min_version="2.1.10"
     local current_version=""
     local status="unknown"
 
