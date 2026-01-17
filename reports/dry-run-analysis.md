@@ -53,3 +53,51 @@ if [[ "$DRY_RUN" == "true" ]]; then
 fi
 ```
 This ensures downstream variables are populated and file readers don't crash, fixing the Exit Code 1 and timeout issues.
+
+## 6. Benchmark Execution Analysis (January 17, 2026)
+
+### Real-World Dry-Run Validation
+Today we executed the benchmark system with `orchestrate.sh probe` in dry-run mode to validate the infrastructure. Key findings:
+
+**✅ What Worked:**
+- **Agent Lifecycle:** Successfully spawned 4 parallel agents (2 Codex, 2 Gemini) with tracked PIDs
+- **No Hangs:** All agents completed cleanly in ~3 seconds (previously reported hanging was actually exit code 1 = "no results found")
+- **Proper Error Handling:** System correctly detected dry-run mode and logged "No probe results found" instead of crashing
+- **Clean Process Management:** All subprocess PIDs tracked correctly, no zombie processes
+
+**Behavior Observed:**
+```
+[2026-01-17 12:58:11] INFO: Spawning codex agent (task: probe-1768672691-0, role: researcher)
+[2026-01-17 12:58:11] INFO: Agent spawned with PID: 65966
+[2026-01-17 12:58:11] INFO: Spawning gemini agent (task: probe-1768672691-1, role: researcher)
+[2026-01-17 12:58:11] INFO: Agent spawned with PID: 65989
+...
+Progress: 4/4 research threads complete
+[2026-01-17 12:58:14] WARN: No probe results found to synthesize
+```
+
+**Expected vs Actual:**
+- Exit code: 0 (success) - process completed without errors
+- Warning message: Appropriate for dry-run context
+- No hangs or timeouts: Validates async task management works correctly
+
+### Implications for Testing Strategy
+
+**Dry-Run Limitations Confirmed:**
+1. Cannot validate actual LLM quality or multi-agent consensus
+2. Cannot test real error recovery (API failures, rate limits, timeouts)
+3. Cannot measure true performance or cost
+
+**Dry-Run Strengths Validated:**
+1. ✅ Infrastructure validation (spawning, tracking, cleanup)
+2. ✅ Routing logic verification
+3. ✅ CLI argument parsing
+4. ✅ File I/O and directory structure
+5. ✅ Process management and concurrency
+
+**Updated Recommendation:**
+The current dry-run implementation is **suitable for infrastructure tests** but **insufficient for quality validation**. For comprehensive testing:
+- **Smoke tests (dry-run):** Continue using for fast pre-commit validation
+- **Integration tests (mock):** Implement service virtualization with canned responses
+- **E2E tests (real):** Small test cases with actual API calls for quality validation
+- **Benchmarks (real):** Ground truth comparison with real vulnerable code analysis
