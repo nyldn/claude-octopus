@@ -38,6 +38,28 @@ Claude coordinates multiple AI models behind the scenes to give you comprehensiv
 
 ---
 
+## Which Tentacle Do I Need?
+
+Not sure which agent to use? Here are the most common scenarios:
+
+| When You Say... | Claude Octopus Uses... | Why? |
+|-----------------|------------------------|------|
+| "Research OAuth patterns" | `ai-engineer` | LLM/RAG expertise for research |
+| "Design a REST API" | `backend-architect` | Microservices & API design master |
+| "Implement with TDD" | `tdd-orchestrator` | Red-green-refactor guru |
+| "Review for security" | `security-auditor` | OWASP whisperer |
+| "Debug this error" | `debugger` | Stack trace detective |
+| "Optimize performance" | `performance-engineer` | Latency hunter |
+
+**Or just describe what you need!** Claude Octopus auto-routes to the right tentacle:
+
+> "Build user authentication with OAuth and store sessions in Redis"
+> → Routes to: `backend-architect` + `database-architect` working together
+
+📚 **Full catalog:** See [docs/AGENTS.md](docs/AGENTS.md) for all 31 specialized tentacles.
+
+---
+
 ## Quick Start
 
 ### 1. Install the Plugin
