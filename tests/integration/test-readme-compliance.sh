@@ -342,10 +342,10 @@ test_case "Benchmark instructions match actual test infrastructure" "
 # Run Test Suite
 #===============================================================================
 
-run_test_suite
+test_summary
 
 # Return appropriate exit code
-if [[ \$TESTS_FAILED -eq 0 ]]; then
+if [[ $TESTS_FAILED -eq 0 ]]; then
     exit 0
 else
     exit 1
