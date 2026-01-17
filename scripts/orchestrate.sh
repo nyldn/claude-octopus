@@ -27,8 +27,8 @@ validate_workspace_path() {
         return 1
     fi
 
-    # Reject paths with dangerous shell characters
-    if [[ "$proposed_path" =~ [[:space:]\;\|\&\$\`\'] ]]; then
+    # Reject paths with dangerous shell characters (comprehensive list)
+    if [[ "$proposed_path" =~ [[:space:]\;\|\&\$\`\'\"()\<\>!*?\[\]\{\}$'\n'$'\r'] ]]; then
         echo "ERROR: CLAUDE_OCTOPUS_WORKSPACE contains invalid characters" >&2
         return 1
     fi
@@ -78,6 +78,10 @@ RESULTS_DIR="${WORKSPACE_DIR}/results"
 LOGS_DIR="${WORKSPACE_DIR}/logs"
 PID_FILE="${WORKSPACE_DIR}/pids"
 ANALYTICS_DIR="${WORKSPACE_DIR}/analytics"
+
+# Secure temporary directory (cleaned up on exit)
+OCTOPUS_TMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/claude-octopus.XXXXXX")
+trap 'rm -rf "$OCTOPUS_TMP_DIR"' EXIT INT TERM
 
 # Performance: Preflight check cache (avoids repeated CLI checks)
 PREFLIGHT_CACHE_FILE="${WORKSPACE_DIR}/.preflight-cache"
@@ -2445,6 +2449,23 @@ log() {
     esac
 }
 
+# Standard error handling functions
+# Use error() in functions (returns exit code)
+# Use fatal() at top level (exits script)
+error() {
+    local msg="$1"
+    local code="${2:-1}"
+    log ERROR "$msg"
+    return $code
+}
+
+fatal() {
+    local msg="$1"
+    local code="${2:-1}"
+    log ERROR "$msg"
+    exit $code
+}
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # PERFORMANCE OPTIMIZATION: Fast JSON field extraction using bash regex
 # Avoids spawning grep|cut subprocesses (saves ~100ms per call)
@@ -2469,51 +2490,162 @@ json_extract() {
 # Extract multiple JSON fields at once (single pass, no subprocesses)
 # Usage: json_extract_multi "$json_string" field1 field2 field3
 # Sets variables: _field1, _field2, _field3
+# Uses bash nameref (4.3+) to avoid command injection via eval
 json_extract_multi() {
     local json="$1"
     shift
 
     for field in "$@"; do
+        local -n ref="_$field"
         if [[ "$json" =~ \"$field\":\"([^\"]+)\" ]]; then
-            eval "_$field=\"\${BASH_REMATCH[1]}\""
+            ref="${BASH_REMATCH[1]}"
         else
-            eval "_$field=\"\""
+            ref=""
         fi
     done
 }
 
+# Validate output file path to prevent path traversal attacks
+# Returns resolved path on success, exits with error on failure
+validate_output_file() {
+    local file="$1"
+    local resolved
+
+    # Resolve to absolute path
+    resolved=$(realpath "$file" 2>/dev/null) || {
+        log ERROR "Invalid file path: $file"
+        return 1
+    }
+
+    # Must be under RESULTS_DIR
+    if [[ "$resolved" != "$RESULTS_DIR"/* ]]; then
+        log ERROR "File path outside results directory: $file"
+        return 1
+    fi
+
+    # File must exist
+    if [[ ! -f "$resolved" ]]; then
+        log ERROR "File not found: $file"
+        return 1
+    fi
+
+    echo "$resolved"
+    return 0
+}
+
+# Sanitize review ID to prevent sed injection
+# Only allows alphanumeric, hyphen, and underscore characters
+sanitize_review_id() {
+    local id="$1"
+
+    # Only allow alphanumeric, hyphen, underscore
+    if [[ ! "$id" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+        log ERROR "Invalid review ID format: $id"
+        return 1
+    fi
+
+    echo "$id"
+    return 0
+}
+
+# Validate agent command to prevent command injection
+# Only allows whitelisted command prefixes
+validate_agent_command() {
+    local cmd="$1"
+
+    # Whitelist of allowed command prefixes
+    case "$cmd" in
+        codex*|gemini*|claude*|openrouter_execute*)
+            return 0
+            ;;
+        *)
+            log ERROR "Invalid agent command: $cmd"
+            return 1
+            ;;
+    esac
+}
+
+# Properly escape string for JSON
+# Handles all special characters per JSON spec
+json_escape() {
+    local str="$1"
+
+    # Escape in order: backslash first, then other special chars
+    str="${str//\\/\\\\}"     # backslash
+    str="${str//\"/\\\"}"     # double quote
+    str="${str//$'\t'/\\t}"   # tab
+    str="${str//$'\n'/\\n}"   # newline
+    str="${str//$'\r'/\\r}"   # carriage return
+    str="${str//$'\b'/\\b}"   # backspace
+    str="${str//$'\f'/\\f}"   # form feed
+
+    echo "$str"
+}
+
+# Create secure temporary file
+# Returns path to temp file in the secure temp directory
+secure_tempfile() {
+    local prefix="${1:-tmp}"
+    mktemp "${OCTOPUS_TMP_DIR}/${prefix}.XXXXXX"
+}
+
 # Portable timeout function (works on macOS and Linux)
+# Prefers system timeout commands, falls back to manual implementation
 run_with_timeout() {
     local timeout_secs="$1"
     shift
 
-    if command -v gtimeout &> /dev/null; then
+    # Use gtimeout (GNU) or timeout if available
+    if command -v gtimeout &>/dev/null; then
         gtimeout "$timeout_secs" "$@"
-    elif command -v timeout &> /dev/null; then
+        return $?
+    elif command -v timeout &>/dev/null; then
         timeout "$timeout_secs" "$@"
-    else
-        # Fallback: run command with manual timeout using background process
-        "$@" &
-        local cmd_pid=$!
-
-        (
-            sleep "$timeout_secs"
-            if kill -0 "$cmd_pid" 2>/dev/null; then
-                kill -TERM "$cmd_pid" 2>/dev/null
-                sleep 2
-                kill -KILL "$cmd_pid" 2>/dev/null
-            fi
-        ) &
-        local monitor_pid=$!
-
-        wait "$cmd_pid" 2>/dev/null
-        local exit_code=$?
-
-        kill "$monitor_pid" 2>/dev/null
-        wait "$monitor_pid" 2>/dev/null
-
-        return $exit_code
+        return $?
     fi
+
+    # Fallback with proper cleanup
+    local cmd_pid monitor_pid exit_code
+
+    "$@" &
+    cmd_pid=$!
+
+    ( sleep "$timeout_secs" && kill -TERM "$cmd_pid" 2>/dev/null ) &
+    monitor_pid=$!
+
+    if wait "$cmd_pid" 2>/dev/null; then
+        exit_code=0
+    else
+        exit_code=$?
+    fi
+
+    # Clean up monitor process
+    kill "$monitor_pid" 2>/dev/null
+    wait "$monitor_pid" 2>/dev/null
+
+    return $exit_code
+}
+
+# Rotate and clean up old log files
+rotate_logs() {
+    local max_size_mb=50
+
+    [[ ! -d "$LOGS_DIR" ]] && return 0
+
+    for log in "$LOGS_DIR"/*.log; do
+        [[ ! -f "$log" ]] && continue
+
+        # Check file size
+        local size_kb=$(du -k "$log" 2>/dev/null | cut -f1)
+        if [[ ${size_kb:-0} -gt $((max_size_mb * 1024)) ]]; then
+            # Rotate large log files
+            mv "$log" "${log}.1"
+            gzip "${log}.1" 2>/dev/null || true
+        fi
+    done
+
+    # Remove logs older than 7 days
+    find "$LOGS_DIR" -name "*.log.*.gz" -mtime +7 -delete 2>/dev/null || true
 }
 
 init_workspace() {
@@ -2521,6 +2653,9 @@ init_workspace() {
 
     # Claude Code v2.1.9: Include plans directory for plansDirectory alignment
     mkdir -p "$WORKSPACE_DIR" "$RESULTS_DIR" "$LOGS_DIR" "$PLANS_DIR"
+
+    # Rotate old logs
+    rotate_logs
 
     if [[ ! -f "$TASKS_FILE" ]]; then
         cat > "$TASKS_FILE" << 'TASKS_JSON'
@@ -3157,6 +3292,12 @@ approve_review() {
     local review_id="$1"
     local reason="${2:-Approved}"
 
+    # Sanitize review ID to prevent injection
+    review_id=$(sanitize_review_id "$review_id") || {
+        echo -e "${RED}Invalid review ID format${NC}"
+        return 1
+    }
+
     if [[ ! -f "$REVIEW_QUEUE" ]]; then
         echo -e "${RED}No review queue found.${NC}"
         return 1
@@ -3168,8 +3309,9 @@ approve_review() {
         return 1
     fi
 
-    # Mark as reviewed
-    local temp_file="${REVIEW_QUEUE}.tmp"
+    # Mark as reviewed using secure temp file
+    local temp_file
+    temp_file=$(secure_tempfile "review-approve")
     sed "s/\"id\":\"$review_id\",\\(.*\\)\"reviewed\":false/\"id\":\"$review_id\",\\1\"reviewed\":true,\"decision\":\"approved\",\"reviewed_at\":\"$(date -Iseconds 2>/dev/null || date +%Y-%m-%dT%H:%M:%S)\"/" "$REVIEW_QUEUE" > "$temp_file"
     mv "$temp_file" "$REVIEW_QUEUE"
 
@@ -3190,6 +3332,12 @@ reject_review() {
     local review_id="$1"
     local reason="${2:-Rejected}"
 
+    # Sanitize review ID to prevent injection
+    review_id=$(sanitize_review_id "$review_id") || {
+        echo -e "${RED}Invalid review ID format${NC}"
+        return 1
+    }
+
     if [[ ! -f "$REVIEW_QUEUE" ]]; then
         echo -e "${RED}No review queue found.${NC}"
         return 1
@@ -3201,8 +3349,9 @@ reject_review() {
         return 1
     fi
 
-    # Mark as reviewed
-    local temp_file="${REVIEW_QUEUE}.tmp"
+    # Mark as reviewed using secure temp file
+    local temp_file
+    temp_file=$(secure_tempfile "review-reject")
     sed "s/\"id\":\"$review_id\",\\(.*\\)\"reviewed\":false/\"id\":\"$review_id\",\\1\"reviewed\":true,\"decision\":\"rejected\",\"reviewed_at\":\"$(date -Iseconds 2>/dev/null || date +%Y-%m-%dT%H:%M:%S)\"/" "$REVIEW_QUEUE" > "$temp_file"
     mv "$temp_file" "$REVIEW_QUEUE"
 
@@ -3227,7 +3376,7 @@ show_review() {
         return 1
     fi
 
-    local review_line output_file
+    local review_line output_file validated_file
     review_line=$(grep "\"id\":\"$review_id\"" "$REVIEW_QUEUE")
     json_extract "$review_line" "output_file" && output_file="$REPLY" || output_file=""
 
@@ -3236,17 +3385,18 @@ show_review() {
         return 1
     fi
 
-    if [[ ! -f "$output_file" ]]; then
-        echo -e "${RED}Output file not found: $output_file${NC}"
+    # Validate path to prevent traversal attacks
+    validated_file=$(validate_output_file "$output_file") || {
+        echo -e "${RED}Invalid or inaccessible output file: $output_file${NC}"
         return 1
-    fi
+    }
 
     echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
     echo -e "${CYAN}Review: $review_id${NC}"
-    echo -e "${CYAN}File: $output_file${NC}"
+    echo -e "${CYAN}File: $validated_file${NC}"
     echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
     echo ""
-    cat "$output_file"
+    cat "$validated_file"
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -3410,6 +3560,17 @@ detect_providers() {
     # Detect OpenRouter (API key only)
     if [[ -n "${OPENROUTER_API_KEY:-}" ]]; then
         result="${result}openrouter:api-key "
+    fi
+
+    # Fail gracefully with helpful message if no providers found
+    if [[ -z "$result" ]]; then
+        log WARN "No AI providers detected. Install at least one:"
+        log WARN "  - Codex: npm i -g @openai/codex"
+        log WARN "  - Gemini: npm i -g @google/gemini-cli"
+        log WARN "  - Claude: Available in Claude Code context"
+        log WARN "  - OpenRouter: Set OPENROUTER_API_KEY environment variable"
+        echo "none:unavailable"
+        return 1
     fi
 
     echo "$result" | xargs  # Trim whitespace
@@ -3883,17 +4044,23 @@ tier_cache_read() {
     local tier
     tier=$(echo "$cache_line" | cut -d: -f2)
 
-    # Validate tier is not empty and is a valid value
-    if [[ -z "$tier" ]]; then
-        [[ "$VERBOSE" == "true" ]] && log WARN "Corrupted cache entry for $provider (empty tier)" || true
-        # Remove corrupted entry
-        grep -v "^${provider}:" "$TIER_CACHE_FILE" > "${TIER_CACHE_FILE}.tmp" 2>/dev/null || true
-        mv "${TIER_CACHE_FILE}.tmp" "$TIER_CACHE_FILE" 2>/dev/null || true
-        return 1
-    fi
-
-    echo "$tier"
-    return 0
+    # Validate tier value (must be one of the expected values)
+    case "$tier" in
+        free|pro|team|enterprise|api-only)
+            echo "$tier"
+            return 0
+            ;;
+        *)
+            # Invalid or corrupted tier value
+            [[ -n "$tier" ]] && log WARN "Invalid tier in cache for $provider: $tier"
+            # Remove corrupted entry
+            local temp_file
+            temp_file=$(secure_tempfile "tier-cache")
+            grep -v "^${provider}:" "$TIER_CACHE_FILE" > "$temp_file" 2>/dev/null || true
+            mv "$temp_file" "$TIER_CACHE_FILE" 2>/dev/null || true
+            return 1
+            ;;
+    esac
 }
 
 # Write tier to cache for a provider
@@ -4437,9 +4604,9 @@ execute_openrouter() {
 
     [[ "$VERBOSE" == "true" ]] && log DEBUG "OpenRouter request: model=$model"
 
-    # Build JSON payload (escape special characters in prompt)
+    # Build JSON payload (properly escape all special characters)
     local escaped_prompt
-    escaped_prompt=$(echo "$prompt" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\t/\\t/g' | tr '\n' ' ')
+    escaped_prompt=$(json_escape "$prompt")
 
     local payload
     payload=$(cat << EOF
@@ -5846,6 +6013,12 @@ spawn_agent() {
         return 1
     fi
 
+    # Validate command to prevent injection
+    if ! validate_agent_command "$cmd"; then
+        log ERROR "Invalid agent command returned: $cmd"
+        return 1
+    fi
+
     local log_file="${LOGS_DIR}/${agent_type}-${task_id}.log"
     local result_file="${RESULTS_DIR}/${agent_type}-${task_id}.md"
 
@@ -5899,7 +6072,12 @@ spawn_agent() {
     ) &
 
     local pid=$!
-    echo "$pid:$agent_type:$task_id" >> "$PID_FILE"
+
+    # Atomic PID file write with file locking to prevent race conditions
+    (
+        flock -x 200
+        echo "$pid:$agent_type:$task_id" >> "$PID_FILE"
+    ) 200>"${PID_FILE}.lock"
 
     log INFO "Agent spawned with PID: $pid"
     echo "$pid"
@@ -7591,18 +7769,18 @@ check_first_run() {
 
 # Check if preflight cache is valid (not expired)
 preflight_cache_valid() {
-    [[ ! -f "$PREFLIGHT_CACHE_FILE" ]] && return 1
+    # Atomic read to prevent TOCTOU race conditions
+    local cache_content cache_time current_time cache_age
 
-    local cache_time current_time age
-    cache_time=$(cat "$PREFLIGHT_CACHE_FILE" 2>/dev/null | head -1)
+    cache_content=$(cat "$PREFLIGHT_CACHE_FILE" 2>/dev/null) || return 1
+    cache_time=$(echo "$cache_content" | head -1)
     [[ -z "$cache_time" ]] && return 1
 
     current_time=$(date +%s)
-    age=$((current_time - cache_time))
+    cache_age=$((current_time - cache_time))
 
     # Cache valid if less than TTL
-    [[ $age -lt $PREFLIGHT_CACHE_TTL ]] && return 0
-    return 1
+    [[ $cache_age -lt $PREFLIGHT_CACHE_TTL ]]
 }
 
 # Write preflight cache (stores timestamp and status)
