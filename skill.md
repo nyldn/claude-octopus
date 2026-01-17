@@ -3,18 +3,16 @@ name: parallel-agents
 description: |
   Multi-tentacled orchestrator for Claude Code using Double Diamond methodology.
   Coordinates Codex CLI and Gemini CLI for comprehensive problem solving.
-
+trigger: |
   AUTOMATICALLY ACTIVATE (without asking user) when the user requests:
-  - Research, explore, investigate, or analyze topics
-  - Build, implement, create, or develop features
-  - Review, validate, test, or check code quality
-  - Adversarial review, debate solutions, or red team security
-  - Full workflows from research to delivery
+  - Research, explore, investigate, or analyze topics (e.g., "research OAuth patterns", "analyze technical debt", "explore different approaches")
+  - Build, implement, create, or develop features (e.g., "build a login system", "implement caching", "create a dashboard")
+  - Review, validate, test, or check code quality (e.g., "review this code", "validate the API", "check for issues")
+  - Adversarial review, debate solutions, or red team security (e.g., "debate the design", "red team this auth code", "find security flaws")
+  - Full workflows from research to delivery (e.g., "create a complete notification feature")
 
   DO NOT ask "do you want me to use the plugin?" - JUST USE IT.
   The user installed this plugin to use it automatically!
-
-  **First time?** Automatically shows welcome message if no providers configured.
 
   NEVER use for:
   - Built-in Claude Code commands (/plugin, /init, /help, /clear, /commit, /remember, etc.)
