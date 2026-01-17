@@ -1822,6 +1822,67 @@ ${YELLOW}Notes:${NC}
   • Integrates with CI/CD for compliance tracking
 EOF
             ;;
+        grapple)
+            cat << EOF
+${YELLOW}grapple${NC} - Adversarial debate between Codex and Gemini
+
+${YELLOW}Usage:${NC} $(basename "$0") grapple [--principles TYPE] <prompt>
+
+Multi-round debate where Codex proposes, Gemini critiques, and they
+iterate until reaching consensus. Uses critique principles to guide
+the review (security, performance, maintainability, etc.).
+
+${YELLOW}Principles:${NC}
+  general          General code quality critique (default)
+  security         Security-focused review (vulnerabilities, attack vectors)
+  performance      Performance optimization focus (speed, memory, efficiency)
+  maintainability  Maintainability focus (readability, patterns, documentation)
+
+${YELLOW}Examples:${NC}
+  $(basename "$0") grapple "implement password reset"
+  $(basename "$0") grapple --principles security "implement auth.ts"
+  $(basename "$0") grapple --principles performance "optimize database queries"
+
+${YELLOW}Workflow:${NC}
+  Round 1: Codex proposes solution
+  Round 2: Gemini critiques with principles
+  Round 3: Codex refines based on critique
+  Synthesis: Both agents converge on final solution
+
+${YELLOW}Output:${NC}
+  Results saved to: ~/.claude-octopus/results/grapple-*.md
+EOF
+            ;;
+        squeeze|red-team)
+            cat << EOF
+${YELLOW}squeeze${NC} (alias: red-team) - Security testing workflow
+
+${YELLOW}Usage:${NC} $(basename "$0") squeeze <prompt>
+
+Four-phase security review where Blue Team implements, Red Team attacks,
+Blue Team remediates, and validation confirms fixes.
+
+${YELLOW}Phases:${NC}
+  1. Blue Team   - Initial implementation/code review
+  2. Red Team    - Attack simulation, vulnerability discovery
+  3. Remediation - Blue Team fixes identified issues
+  4. Validation  - Confirm vulnerabilities are resolved
+
+${YELLOW}Examples:${NC}
+  $(basename "$0") squeeze "review auth.ts for vulnerabilities"
+  $(basename "$0") squeeze "security audit of payment processing"
+  $(basename "$0") red-team "test API for SQL injection"
+
+${YELLOW}Use Cases:${NC}
+  • Security code reviews
+  • Penetration testing simulations
+  • Vulnerability discovery
+  • Compliance validation
+
+${YELLOW}Output:${NC}
+  Results saved to: ~/.claude-octopus/results/squeeze-*.md
+EOF
+            ;;
         *)
             echo "Unknown command: $cmd"
             echo "Run '$(basename "$0") help --full' for all commands."
@@ -8668,6 +8729,11 @@ case "$COMMAND" in
     # ═══════════════════════════════════════════════════════════════════════════
     research|probe)
         # Phase 1: Discover - Parallel exploration
+        # Handle help flag
+        if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+            usage research
+            exit 0
+        fi
         if [[ $# -lt 1 ]]; then
             log ERROR "Missing prompt for research phase"
             echo "Usage: $(basename "$0") research <prompt>"
@@ -8678,6 +8744,11 @@ case "$COMMAND" in
         ;;
     define|grasp)
         # Phase 2: Define - Consensus building
+        # Handle help flag
+        if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+            usage define
+            exit 0
+        fi
         if [[ $# -lt 1 ]]; then
             log ERROR "Missing prompt for define phase"
             echo "Usage: $(basename "$0") define <prompt> [research-results-file]"
@@ -8688,6 +8759,11 @@ case "$COMMAND" in
         ;;
     develop|tangle)
         # Phase 3: Develop - Implementation with quality gates
+        # Handle help flag
+        if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+            usage develop
+            exit 0
+        fi
         if [[ $# -lt 1 ]]; then
             log ERROR "Missing prompt for develop phase"
             echo "Usage: $(basename "$0") develop <prompt> [define-results-file]"
@@ -8698,6 +8774,11 @@ case "$COMMAND" in
         ;;
     deliver|ink)
         # Phase 4: Deliver - Final validation
+        # Handle help flag
+        if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+            usage deliver
+            exit 0
+        fi
         if [[ $# -lt 1 ]]; then
             log ERROR "Missing prompt for deliver phase"
             echo "Usage: $(basename "$0") deliver <prompt> [develop-results-file]"
@@ -8708,6 +8789,11 @@ case "$COMMAND" in
         ;;
     embrace)
         # Full 4-phase Double Diamond workflow
+        # Handle help flag
+        if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+            usage embrace
+            exit 0
+        fi
         if [[ $# -lt 1 ]]; then
             log ERROR "Missing prompt for embrace workflow"
             echo "Usage: $(basename "$0") embrace <prompt>"
@@ -8721,6 +8807,11 @@ case "$COMMAND" in
     # ═══════════════════════════════════════════════════════════════════════════
     grapple)
         # Adversarial debate: Codex vs Gemini until consensus
+        # Handle help flag
+        if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+            usage grapple
+            exit 0
+        fi
         if [[ $# -lt 1 ]]; then
             log ERROR "Missing prompt for grapple review"
             echo "Usage: $(basename "$0") grapple [--principles TYPE] <prompt>"
@@ -8738,6 +8829,11 @@ case "$COMMAND" in
         ;;
     squeeze|red-team)
         # Red Team security review: Blue Team defends, Red Team attacks
+        # Handle help flag
+        if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+            usage squeeze
+            exit 0
+        fi
         if [[ $# -lt 1 ]]; then
             log ERROR "Missing prompt for red team review"
             echo "Usage: $(basename "$0") squeeze <prompt>"
