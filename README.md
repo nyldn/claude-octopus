@@ -177,6 +177,30 @@ Claude Octopus focuses on multi-AI orchestration. These official Claude Code ski
 
 </details>
 
+### How Skills Work with Claude Octopus
+
+**Important:** Installed skills are available to **Claude (the orchestrator)**, not to the individual agents (Codex/Gemini CLIs) spawned by Claude Octopus.
+
+**Typical workflow:**
+```
+1. User requests a task
+   ↓
+2. Claude (has all skills) uses Claude Octopus for multi-AI orchestration
+   ↓
+3. Octopus spawns Codex/Gemini agents (separate CLIs without skills)
+   ↓
+4. Agents return parallel results
+   ↓
+5. Claude (with skills) validates, tests, and polishes results
+```
+
+**Example:**
+- **Before orchestration:** Claude might use `frontend-design` to establish design principles
+- **During orchestration:** Agents generate code following those principles
+- **After orchestration:** Claude uses `webapp-testing` to validate the result
+
+This separation keeps agents focused on their core tasks while Claude coordinates and applies domain-specific skills.
+
 ---
 
 ## Provider Installation (Reference)
