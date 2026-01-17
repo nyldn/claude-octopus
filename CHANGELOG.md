@@ -5,6 +5,76 @@ All notable changes to Claude Octopus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.0.0] - 2026-01-17
+
+### Security - Critical Fixes
+
+**Command Injection Prevention**
+- Fixed eval-based command injection vulnerability in `json_extract_multi()` (replaced eval with bash nameref)
+- Added `validate_agent_command()` to whitelist allowed agent command prefixes
+- Implemented `sanitize_review_id()` to prevent sed injection attacks
+- Enhanced dangerous character detection in workspace path validation (added quotes, parens, braces, wildcards)
+
+**Path Traversal Protection**
+- Added `validate_output_file()` to prevent path traversal in file operations
+- All file reads now validate paths are under `$RESULTS_DIR`
+- Uses `realpath` to resolve symlinks and detect directory escape attempts
+
+**JSON Escaping**
+- Implemented comprehensive `json_escape()` function for OpenRouter API calls
+- Properly escapes: backslash, quotes, tab, newline, carriage return, backspace, form feed
+- Prevents malformed JSON payloads from user input
+
+### Concurrency - Race Condition Fixes
+
+**Atomic File Operations**
+- PID file writes now use `flock` for atomic operations (prevents corruption under parallel spawning)
+- Cache validation uses atomic read to prevent TOCTOU race conditions
+- Background process monitoring properly reaps zombie processes with `wait`
+
+**Improved Timeout Implementation**
+- Prefers system `timeout`/`gtimeout` commands when available
+- Fallback implementation properly cleans up monitor processes
+- Eliminates race conditions in process termination
+
+**Cache Corruption Recovery**
+- Added validation for tier cache values (free, pro, team, enterprise, api-only)
+- Automatically removes corrupted cache entries
+- Logs warnings for invalid tier values
+
+**Provider Detection**
+- Added graceful fallback when no AI providers detected
+- Provides helpful installation instructions for Codex, Gemini, Claude, OpenRouter
+- Returns error code instead of silent failure
+
+### Reliability - File Handling & Logging
+
+**Secure Temporary Files**
+- Created `OCTOPUS_TMP_DIR` using `mktemp -d` with automatic cleanup on exit
+- Added `secure_tempfile()` function for unpredictable temp file paths
+- Updated all `.tmp` file usage to use secure temp directory
+- Trap ensures cleanup on EXIT, INT, TERM signals
+
+**Log Rotation**
+- Implemented `rotate_logs()` function called during workspace initialization
+- Automatically rotates logs exceeding 50MB
+- Compresses rotated logs with gzip
+- Purges logs older than 7 days
+- Prevents disk exhaustion from unbounded log growth
+
+### Impact
+
+- **Security**: Eliminates 6 critical vulnerability classes (command injection, path traversal, JSON injection)
+- **Stability**: Fixes 4 race conditions causing PID corruption and zombie processes
+- **Reliability**: Prevents temp file prediction attacks and disk exhaustion
+- **Compatibility**: No breaking API changes - backward compatible with v6.x
+
+### Breaking Changes
+
+None - all fixes are internal improvements maintaining API compatibility.
+
+---
+
 ## [6.0.1] - 2026-01-17
 
 ### Fixed
