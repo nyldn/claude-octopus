@@ -42,59 +42,41 @@ Claude coordinates multiple AI models behind the scenes to give you comprehensiv
 
 ### 1. Install the Plugin
 
-**Using Claude's plugin manager (recommended):**
+**Inside Claude Code chat (recommended - just 2 commands):**
 
-```bash
-# Add the Claude Octopus marketplace
-claude plugin marketplace add nyldn/claude-octopus
+Open Claude Code and run these commands in the chat:
 
-# Install the plugin
-claude plugin install claude-octopus@nyldn-plugins --scope user
-
-# Enable it
-claude plugin enable claude-octopus --scope user
-
-# Sync to the latest packaged version (fixes "Unknown skill" in some installs)
-claude plugin update claude-octopus --scope user
-
-# Fully restart Claude Code (Cmd+Q, then reopen)
-claude --dangerously-skip-permissions
+```
+/plugin marketplace add nyldn/claude-octopus
+/plugin install claude-octopus@nyldn-plugins
 ```
 
-That's it! The plugin is now installed and ready to use.
+That's it! The plugin is automatically enabled and ready to use. Try `/claude-octopus:setup` to configure your AI providers.
 
 <details>
 <summary>Troubleshooting Installation</summary>
 
-**If `/claude-octopus:setup` shows "Unknown skill" after restart:**
+**If `/claude-octopus:setup` shows "Unknown skill":**
 
-1. Verify the plugin is installed and enabled:
-   ```bash
-   claude plugin list
+1. Verify the plugin is installed:
    ```
-   Look for `claude-octopus@...` with status `✔ enabled` (it may show as `@nyldn-plugins` or `@local`)
+   /plugin list
+   ```
+   Look for `claude-octopus@nyldn-plugins` in the installed plugins list.
 
-2. Check for errors in debug logs:
+2. Try reinstalling:
+   ```
+   /plugin uninstall claude-octopus
+   /plugin marketplace update nyldn-plugins
+   /plugin install claude-octopus@nyldn-plugins
+   ```
+
+3. Check for errors in debug logs (from terminal):
    ```bash
    tail -100 ~/.claude/debug/*.txt | grep -i "claude-octopus\|error"
    ```
 
-3. Force an update (this often resolves command registration issues):
-   ```bash
-   claude plugin update claude-octopus --scope user
-   ```
-
-4. Try reinstalling:
-   ```bash
-   claude plugin uninstall claude-octopus --scope user
-   rm -rf ~/.claude/plugins/cache/nyldn-plugins/claude-octopus
-   claude plugin marketplace update nyldn-plugins
-   claude plugin install claude-octopus@nyldn-plugins --scope user
-   claude plugin enable claude-octopus --scope user
-   claude plugin update claude-octopus --scope user
-   ```
-
-5. Make sure you're on Claude Code v2.1.9 or later:
+4. Make sure you're on Claude Code v2.1.9 or later (from terminal):
    ```bash
    claude --version
    ```
@@ -292,12 +274,20 @@ source ~/.zshrc
 
 ### Installation Options
 
-**Via Plugin Marketplace (recommended):**
+**Inside Claude Code (recommended - simplest):**
+
+Run these commands in the Claude Code chat:
+```
+/plugin marketplace add nyldn/claude-octopus
+/plugin install claude-octopus@nyldn-plugins
+```
+
+**Using Terminal (alternative):**
+
+Run these commands from your terminal:
 ```bash
 claude plugin marketplace add nyldn/claude-octopus
 claude plugin install claude-octopus@nyldn-plugins --scope user
-claude plugin enable claude-octopus --scope user
-claude plugin update claude-octopus --scope user
 ```
 
 **For Plugin Development:**
@@ -306,18 +296,24 @@ claude plugin update claude-octopus --scope user
 git clone https://github.com/nyldn/claude-octopus.git ~/git/claude-octopus
 cd ~/git/claude-octopus
 
-# Make changes, then test by reinstalling
-claude plugin uninstall claude-octopus --scope user
-rm -rf ~/.claude/plugins/cache/nyldn-plugins/claude-octopus
+# Make changes, then test
 git add . && git commit -m "Your changes"
 git push
-claude plugin marketplace update nyldn-plugins
-claude plugin install claude-octopus@nyldn-plugins --scope user
-claude plugin enable claude-octopus --scope user
-claude plugin update claude-octopus --scope user
+
+# Reinstall from Claude Code chat:
+# /plugin uninstall claude-octopus
+# /plugin marketplace update nyldn-plugins
+# /plugin install claude-octopus@nyldn-plugins
 ```
 
-**Update:**
+**Update Plugin:**
+
+From Claude Code chat:
+```
+/plugin update claude-octopus
+```
+
+Or from terminal:
 ```bash
 claude plugin update claude-octopus --scope user
 ```
@@ -641,32 +637,33 @@ The configuration wizard sets up Claude Octopus based on your use intent and res
 
 If `/claude-octopus:setup` doesn't work after installation:
 
-1. **Verify the plugin is installed and enabled:**
-   ```bash
-   claude plugin list | grep claude-octopus
-   # Should show: claude-octopus@... ... ✔ enabled
+1. **Verify the plugin is installed:**
+
+   In Claude Code chat:
    ```
+   /plugin list
+   ```
+   Look for `claude-octopus@nyldn-plugins` in the installed plugins list.
 
 2. **Restart Claude Code completely:**
-   - Exit fully (Ctrl-C twice)
+   - Exit fully (Ctrl-C twice or Cmd+Q)
    - Restart: `claude --dangerously-skip-permissions`
 
-3. **Check debug logs for errors:**
+3. **Reinstall if needed:**
+
+   In Claude Code chat:
+   ```
+   /plugin uninstall claude-octopus
+   /plugin marketplace update nyldn-plugins
+   /plugin install claude-octopus@nyldn-plugins
+   ```
+
+4. **Check debug logs for errors (from terminal):**
    ```bash
    tail -100 ~/.claude/debug/*.txt | grep -i "claude-octopus\|error"
    ```
 
-4. **Reinstall if needed:**
-   ```bash
-   claude plugin uninstall claude-octopus --scope user
-   rm -rf ~/.claude/plugins/cache/nyldn-plugins/claude-octopus
-   claude plugin marketplace update nyldn-plugins
-   claude plugin install claude-octopus@nyldn-plugins --scope user
-   claude plugin enable claude-octopus --scope user
-   claude plugin update claude-octopus --scope user
-   ```
-
-5. **Check Claude Code version:**
+5. **Check Claude Code version (from terminal):**
    ```bash
    claude --version  # Need 2.1.9+
    ```
