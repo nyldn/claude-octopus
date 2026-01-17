@@ -21,9 +21,9 @@ When Claude Code invokes orchestrate.sh via the Bash tool, this hook:
 - Tool is Bash
 - Command contains `orchestrate.sh`
 
-## Session ID Propagation (Claude Code v2.1.9)
+## Session ID Propagation (Claude Code v2.1.10)
 
-The `${CLAUDE_SESSION_ID}` environment variable is now available in Claude Code v2.1.9. This hook ensures it's properly passed through to orchestrate.sh:
+The `${CLAUDE_SESSION_ID}` environment variable is available in Claude Code. This hook ensures it's properly passed through to orchestrate.sh:
 
 ```bash
 # orchestrate.sh will detect this and use it for session tracking
