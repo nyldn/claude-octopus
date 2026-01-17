@@ -1667,6 +1667,206 @@ fi
 echo ""
 
 # ============================================
+# 23. CLAVIX RESEARCH RECOMMENDATIONS (v5.0)
+# Agent Discovery, Documentation, and Analytics
+# ============================================
+echo -e "${YELLOW}23. Clavix Research Recommendations (v5.0 - Agent Discovery)[0m"
+
+# --- Documentation Files ---
+echo -n "  docs/AGENTS.md exists... "
+if [[ -f "$SCRIPT_DIR/../docs/AGENTS.md" ]]; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+echo -n "  docs/agent-decision-tree.md exists... "
+if [[ -f "$SCRIPT_DIR/../docs/agent-decision-tree.md" ]]; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+echo -n "  docs/monthly-agent-review.md exists... "
+if [[ -f "$SCRIPT_DIR/../docs/monthly-agent-review.md" ]]; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+# --- AGENTS.md Content Quality ---
+echo -n "  AGENTS.md has Double Diamond phases... "
+if [[ -f "$SCRIPT_DIR/../docs/AGENTS.md" ]]; then
+    if grep -q "Probe Phase" "$SCRIPT_DIR/../docs/AGENTS.md" && \
+       grep -q "Grasp Phase" "$SCRIPT_DIR/../docs/AGENTS.md" && \
+       grep -q "Tangle Phase" "$SCRIPT_DIR/../docs/AGENTS.md" && \
+       grep -q "Ink Phase" "$SCRIPT_DIR/../docs/AGENTS.md"; then
+        echo -e "${GREEN}PASS${NC}"
+        ((PASS++))
+    else
+        echo -e "${RED}FAIL${NC}"
+        ((FAIL++))
+    fi
+else
+    echo -e "${RED}FAIL${NC} (file not found)"
+    ((FAIL++))
+fi
+
+echo -n "  AGENTS.md has octopus humor... "
+if [[ -f "$SCRIPT_DIR/../docs/AGENTS.md" ]]; then
+    octopus_count=$(grep -o '🐙' "$SCRIPT_DIR/../docs/AGENTS.md" | wc -l | tr -d ' ')
+    tentacle_count=$(grep -oi 'tentacle' "$SCRIPT_DIR/../docs/AGENTS.md" | wc -l | tr -d ' ')
+    if [[ $octopus_count -ge 1 ]] || [[ $tentacle_count -ge 1 ]]; then
+        echo -e "${GREEN}PASS${NC}"
+        ((PASS++))
+    else
+        echo -e "${RED}FAIL${NC}"
+        ((FAIL++))
+    fi
+else
+    echo -e "${RED}FAIL${NC} (file not found)"
+    ((FAIL++))
+fi
+
+# --- Decision Tree Content ---
+echo -n "  agent-decision-tree.md has Mermaid diagrams... "
+if [[ -f "$SCRIPT_DIR/../docs/agent-decision-tree.md" ]]; then
+    if grep -q "\`\`\`mermaid" "$SCRIPT_DIR/../docs/agent-decision-tree.md"; then
+        echo -e "${GREEN}PASS${NC}"
+        ((PASS++))
+    else
+        echo -e "${RED}FAIL${NC}"
+        ((FAIL++))
+    fi
+else
+    echo -e "${RED}FAIL${NC} (file not found)"
+    ((FAIL++))
+fi
+
+# --- README Updates ---
+echo -n "  README has 'Which Tentacle?' section... "
+if grep -q "Which Tentacle" "$SCRIPT_DIR/../README.md"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+# --- Enhanced Agent Frontmatter ---
+echo -n "  backend-architect.md has when_to_use field... "
+if [[ -f "$SCRIPT_DIR/../agents/personas/backend-architect.md" ]]; then
+    if grep -q "when_to_use:" "$SCRIPT_DIR/../agents/personas/backend-architect.md"; then
+        echo -e "${GREEN}PASS${NC}"
+        ((PASS++))
+    else
+        echo -e "${RED}FAIL${NC}"
+        ((FAIL++))
+    fi
+else
+    echo -e "${RED}FAIL${NC} (file not found)"
+    ((FAIL++))
+fi
+
+echo -n "  code-reviewer.md has avoid_if field... "
+if [[ -f "$SCRIPT_DIR/../agents/personas/code-reviewer.md" ]]; then
+    if grep -q "avoid_if:" "$SCRIPT_DIR/../agents/personas/code-reviewer.md"; then
+        echo -e "${GREEN}PASS${NC}"
+        ((PASS++))
+    else
+        echo -e "${RED}FAIL${NC}"
+        ((FAIL++))
+    fi
+else
+    echo -e "${RED}FAIL${NC} (file not found)"
+    ((FAIL++))
+fi
+
+echo -n "  debugger.md has examples field... "
+if [[ -f "$SCRIPT_DIR/../agents/personas/debugger.md" ]]; then
+    if grep -q "examples:" "$SCRIPT_DIR/../agents/personas/debugger.md"; then
+        echo -e "${GREEN}PASS${NC}"
+        ((PASS++))
+    else
+        echo -e "${RED}FAIL${NC}"
+        ((FAIL++))
+    fi
+else
+    echo -e "${RED}FAIL${NC} (file not found)"
+    ((FAIL++))
+fi
+
+# --- Agent Recommendation Function ---
+echo -n "  recommend_persona_agent() function exists... "
+if grep -q 'recommend_persona_agent()' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+# --- Analytics Functions ---
+echo -n "  log_agent_usage() function exists... "
+if grep -q 'log_agent_usage()' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+echo -n "  generate_analytics_report() function exists... "
+if grep -q 'generate_analytics_report()' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+echo -n "  ANALYTICS_DIR defined... "
+if grep -q 'ANALYTICS_DIR=' "$SCRIPT"; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+# --- Analytics Command ---
+test_cmd "Analytics command dry-run" "'$SCRIPT' analytics"
+
+echo -n "  Analytics command accepts days parameter... "
+# Check that analytics command calls generate_analytics_report with parameter
+if grep -A 2 'analytics)' "$SCRIPT" | grep -q 'generate_analytics_report.*\${1'; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+# --- Privacy-Preserving Logging ---
+echo -n "  Analytics log is privacy-preserving... "
+# Check that the log_agent_usage function doesn't log full prompts
+if grep -A 20 'log_agent_usage()' "$SCRIPT" | grep -q 'prompt_hash\|prompt_length'; then
+    echo -e "${GREEN}PASS${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}FAIL${NC}"
+    ((FAIL++))
+fi
+
+echo ""
+
+# ============================================
 # SUMMARY
 # ============================================
 echo "========================================"
