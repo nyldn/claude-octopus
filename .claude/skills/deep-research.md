@@ -4,6 +4,9 @@ description: |
   Deep research using Claude Octopus probe workflow.
   Auto-invokes when user asks for analysis, investigation, or exploration.
   Parallel multi-perspective research with AI synthesis.
+trigger: |
+  Use this skill when the user wants to "research this topic", "investigate how X works",
+  "analyze the architecture", "explore different approaches to Y", or "what are the options for Z".
 ---
 
 # Deep Research Skill
