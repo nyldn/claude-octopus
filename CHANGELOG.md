@@ -5,6 +5,63 @@ All notable changes to Claude Octopus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.9.5] - 2026-01-17
+
+### Fixed
+
+#### Setup Command Path Resolution (Critical)
+- **Fixed `/claude-octopus:setup` command failing with "no such file or directory" error**
+- Updated `.claude/commands/setup.md` to use `${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh` instead of relative paths
+- Works correctly when plugin installed via marketplace (versioned cache directory)
+- Applied fix to all 3 script invocations in setup command (detect-providers, verify, help)
+
+#### Plugin Installation Simplified
+- **Reduced installation from 4-5 terminal commands to just 2 slash commands**
+- New Quick Start: `/plugin marketplace add` and `/plugin install` (inside Claude Code chat)
+- Matches installation pattern of official plugins (Vercel, Figma, Superpowers, Medusa)
+- Users stay in Claude Code chat instead of switching to terminal
+- README.md Quick Start section completely rewritten for clarity
+
+#### Skill Activation
+- **Removed permission prompt when activating plugin**
+- Plugin now activates automatically when needed
+- Improved user experience for first-time setup
+
+### Added
+
+#### Recommended Companion Skills Documentation
+- **New "Recommended Companion Skills" section in README.md**
+- Organized by category: Testing & Validation, Customization & Extension, Integration, Design & Frontend
+- Recommended skills: webapp-testing, skill-creator, mcp-builder, frontend-design, artifacts-builder
+- Added "How Skills Work with Claude Octopus" explanation
+- Clarifies that skills are available to Claude (orchestrator), not spawned agents
+
+#### Test Infrastructure Validation
+- **New integration test: `test-plugin-lifecycle.sh`** (11/11 assertions passing)
+- Validates full plugin install/uninstall/update workflow
+- Tests marketplace addition, plugin installation, file verification, and cleanup
+- Comprehensive test suite results: 6/7 test suites passing
+- Smoke tests: 4/4 PASSED ✅
+- Unit tests: 3/4 PASSED (1 known issue for internal commands)
+- Integration tests: 2/2 PASSED ✅
+
+### Changed
+
+- README.md installation instructions simplified throughout
+- Troubleshooting sections updated to use slash commands
+- TEST-STATUS.md updated with latest test run results (2026-01-17 03:57)
+
+### Notes
+
+This release focuses on removing installation friction and fixing the critical setup command issue. The 2-command installation process (`/plugin marketplace add` + `/plugin install`) makes Claude Octopus as easy to install as official plugins. The `${CLAUDE_PLUGIN_ROOT}` fix ensures the setup command works correctly regardless of installation method.
+
+**Migration from v4.9.4:**
+- Existing users: Update plugin with `/plugin update claude-octopus`
+- Restart Claude Code after updating
+- Setup command will now work correctly
+
+---
+
 ## [4.9.4] - 2026-01-16
 
 ### Fixed
