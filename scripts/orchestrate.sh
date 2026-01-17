@@ -91,6 +91,9 @@ CYAN='\033[0;36m'
 MAGENTA='\033[0;35m'
 NC='\033[0m' # No Color
 
+# Source async task management and tmux visualization features
+source "${SCRIPT_DIR}/async-tmux-features.sh"
+
 # Agent configurations
 # Models (Jan 2026) - Premium defaults for Design Thinking workflows:
 # - OpenAI GPT-5.x: gpt-5.1-codex-max (premium), gpt-5.2-codex, gpt-5.1-codex-mini, gpt-5.2
@@ -1955,6 +1958,12 @@ ${YELLOW}Advanced Options:${NC}
   --no-personas           Disable agent personas
   -R, --resume            Resume interrupted session
   --ci                    CI/CD mode (non-interactive, JSON output)
+
+${YELLOW}Visualization & Async:${NC}
+  --async                 Enable async task management (better progress tracking)
+  --tmux                  Enable tmux visualization (live agent output in panes)
+  --no-async              Disable async mode
+  --no-tmux               Disable tmux mode
 
 ${YELLOW}Examples:${NC}
   $(basename "$0") auto "build a login form"
@@ -7377,6 +7386,11 @@ probe_discover() {
 
     mkdir -p "$RESULTS_DIR" "$LOGS_DIR"
 
+    # Initialize tmux if enabled
+    if [[ "$TMUX_MODE" == "true" ]]; then
+        tmux_init
+    fi
+
     # Research prompts from different angles
     local perspectives=(
         "Analyze the problem space: $prompt. Focus on understanding constraints, requirements, and user needs."
@@ -7384,33 +7398,58 @@ probe_discover() {
         "Explore edge cases and potential challenges for: $prompt. What could go wrong? What's often overlooked?"
         "Investigate technical feasibility and dependencies for: $prompt. What are the prerequisites?"
     )
+    local pane_titles=(
+        "🔍 Problem Analysis"
+        "📚 Solution Research"
+        "⚠️  Edge Cases"
+        "🔧 Feasibility"
+    )
 
     local pids=()
     for i in "${!perspectives[@]}"; do
         local perspective="${perspectives[$i]}"
         local agent="gemini"
         [[ $((i % 2)) -eq 0 ]] && agent="codex"
+        local task_id="probe-${task_group}-${i}"
 
-        spawn_agent "$agent" "$perspective" "probe-${task_group}-${i}" "researcher" "probe" &
-        pids+=($!)
-        sleep 0.3
+        if [[ "$TMUX_MODE" == "true" ]]; then
+            # Use async+tmux spawning
+            local pid
+            pid=$(spawn_agent_async "$agent" "$perspective" "$task_id" "researcher" "probe" "${pane_titles[$i]}")
+            pids+=("$pid")
+        else
+            # Standard spawning
+            spawn_agent "$agent" "$perspective" "$task_id" "researcher" "probe" &
+            pids+=($!)
+        fi
+        sleep 0.1
     done
 
     log INFO "Spawned ${#pids[@]} parallel research threads"
 
     # Wait for all to complete with progress
-    local completed=0
-    while [[ $completed -lt ${#pids[@]} ]]; do
-        completed=0
-        for pid in "${pids[@]}"; do
-            if ! kill -0 "$pid" 2>/dev/null; then
-                ((completed++))
-            fi
+    if [[ "$ASYNC_MODE" == "true" ]]; then
+        wait_async_agents "${pids[@]}"
+    else
+        # Original progress tracking
+        local completed=0
+        while [[ $completed -lt ${#pids[@]} ]]; do
+            completed=0
+            for pid in "${pids[@]}"; do
+                if ! kill -0 "$pid" 2>/dev/null; then
+                    ((completed++))
+                fi
+            done
+            echo -ne "\r${CYAN}Progress: $completed/${#pids[@]} research threads complete${NC}"
+            sleep 2
         done
-        echo -ne "\r${CYAN}Progress: $completed/${#pids[@]} research threads complete${NC}"
-        sleep 2
-    done
-    echo ""
+        echo ""
+    fi
+
+    # Cleanup tmux if enabled
+    if [[ "$TMUX_MODE" == "true" ]]; then
+        tmux_cleanup
+    fi
 
     # Intelligent synthesis
     synthesize_probe_results "$task_group" "$prompt"
@@ -7585,6 +7624,11 @@ tangle_develop() {
 
     mkdir -p "$RESULTS_DIR"
 
+    # Initialize tmux if enabled
+    if [[ "$TMUX_MODE" == "true" ]]; then
+        tmux_init
+    fi
+
     # Load problem definition if available
     local context=""
     if [[ -n "$grasp_file" && -f "$grasp_file" ]]; then
@@ -7629,32 +7673,54 @@ Output as numbered list with [CODING] or [REASONING] prefix for each subtask."
         subtask=$(echo "$line" | sed 's/^[0-9]*[\.\)]\s*//')
         local agent="codex"
         local role="implementer"
+        local pane_icon="⚙️"
         if [[ "$subtask" =~ \[REASONING\] ]]; then
             agent="gemini"
             role="researcher"
+            pane_icon="🧠"
         fi
         subtask=$(echo "$subtask" | sed 's/\[CODING\]\s*//; s/\[REASONING\]\s*//')
+        local task_id="tangle-${task_group}-${subtask_num}"
+        local pane_title="$pane_icon Subtask $((subtask_num+1))"
 
-        spawn_agent "$agent" "$subtask" "tangle-${task_group}-${subtask_num}" "$role" "tangle" &
-        pids+=($!)
+        if [[ "$TMUX_MODE" == "true" ]]; then
+            # Use async+tmux spawning
+            local pid
+            pid=$(spawn_agent_async "$agent" "$subtask" "$task_id" "$role" "tangle" "$pane_title")
+            pids+=("$pid")
+        else
+            # Standard spawning
+            spawn_agent "$agent" "$subtask" "$task_id" "$role" "tangle" &
+            pids+=($!)
+        fi
         ((subtask_num++))
     done <<< "$subtasks"
 
     log INFO "Spawned $subtask_num development threads"
 
     # Wait with progress monitoring
-    local completed=0
-    while [[ $completed -lt ${#pids[@]} ]]; do
-        completed=0
-        for pid in "${pids[@]}"; do
-            if ! kill -0 "$pid" 2>/dev/null; then
-                ((completed++))
-            fi
+    if [[ "$ASYNC_MODE" == "true" ]]; then
+        wait_async_agents "${pids[@]}"
+    else
+        # Original progress tracking
+        local completed=0
+        while [[ $completed -lt ${#pids[@]} ]]; do
+            completed=0
+            for pid in "${pids[@]}"; do
+                if ! kill -0 "$pid" 2>/dev/null; then
+                    ((completed++))
+                fi
+            done
+            echo -ne "\r${CYAN}Progress: $completed/${#pids[@]} subtasks complete${NC}"
+            sleep 2
         done
-        echo -ne "\r${CYAN}Progress: $completed/${#pids[@]} subtasks complete${NC}"
-        sleep 2
-    done
-    echo ""
+        echo ""
+    fi
+
+    # Cleanup tmux if enabled
+    if [[ "$TMUX_MODE" == "true" ]]; then
+        tmux_cleanup
+    fi
 
     # Step 3: Validation gate
     log INFO "Step 3: Validation gate..."
@@ -8563,6 +8629,11 @@ while [[ $# -gt 0 ]]; do
         --quality-first) FORCE_QUALITY_FIRST=true; shift ;;
         --openrouter-nitro) OPENROUTER_ROUTING_OVERRIDE=":nitro"; shift ;;
         --openrouter-floor) OPENROUTER_ROUTING_OVERRIDE=":floor"; shift ;;
+        # Async and tmux visualization flags
+        --async) ASYNC_MODE=true; shift ;;
+        --no-async) ASYNC_MODE=false; shift ;;
+        --tmux) TMUX_MODE=true; ASYNC_MODE=true; shift ;;
+        --no-tmux) TMUX_MODE=false; shift ;;
         -h|--help) usage "$@" ;;
         *) break ;;
     esac
