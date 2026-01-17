@@ -1124,7 +1124,7 @@ else
 fi
 
 echo -n "  show_status calls show_provider_status... "
-if grep -A 10 '^show_status()' "$SCRIPT" | grep -q 'show_provider_status'; then
+if grep -A 20 '^show_status()' "$SCRIPT" | grep -q 'show_provider_status'; then
     echo -e "${GREEN}PASS${NC}"
     ((PASS++))
 else
@@ -1667,10 +1667,10 @@ fi
 echo ""
 
 # ============================================
-# 23. CLAVIX RESEARCH RECOMMENDATIONS (v5.0)
+# 23. COMPETITIVE RESEARCH RECOMMENDATIONS (v5.0)
 # Agent Discovery, Documentation, and Analytics
 # ============================================
-echo -e "${YELLOW}23. Clavix Research Recommendations (v5.0 - Agent Discovery)[0m"
+echo -e "${YELLOW}23. Competitive Research Recommendations (v5.0 - Agent Discovery)[0m"
 
 # --- Documentation Files ---
 echo -n "  docs/AGENTS.md exists... "

@@ -1,7 +1,7 @@
 {
   "name": "claude-octopus",
-  "version": "5.0.0",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v5.0.0) First time? Run /claude-octopus:setup for guided setup.",
+  "version": "6.0.1",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v6.0.1) Supports code + knowledge work! Run /claude-octopus:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },
@@ -31,7 +31,7 @@
     "analytics",
     "recommendations",
     "decision-trees",
-    "clavix-research"
+    "competitive-research"
   ],
   "skills": [
     "./.claude/skills/parallel-agents.md",

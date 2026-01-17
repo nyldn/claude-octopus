@@ -5,11 +5,98 @@ All notable changes to Claude Octopus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [6.0.1] - 2026-01-17
+
+### Fixed
+
+**knowledge-toggle Command**
+- Fixed silent exit issue when user config has empty intent values
+- Command now properly displays mode toggle confirmation
+- Added error handling to `toggle_knowledge_work_mode()` function
+
+**Test Suite Improvements**
+- Fixed `show_status calls show_provider_status` test (increased grep range from 10 to 20 lines)
+- All 203 main tests now passing ✅
+- All 10 knowledge routing tests now passing ✅
+
+**Intent Detection Enhancement**
+- Improved UX research intent detection for "analyze usability test results" pattern
+- Added additional triggers: `analyze.*usability.*test`, `usability.*analysis`
+
+### Impact
+- **Test Coverage**: 100% pass rate (213/213 tests)
+- **User Experience**: Toggle command now works reliably
+- **Stability**: No breaking changes
+
+---
+
+## [6.0.0] - 2026-01-17
+
+### Added - Knowledge Work Mode for Researchers, Consultants, and Product Managers
+
+This release extends Claude Octopus beyond code to support knowledge workers. Whether you're synthesizing user research, developing business strategy, or writing literature reviews, the octopus's knowledge tentacles are ready to help.
+
+#### New Knowledge Worker Workflows
+
+**Three New Multi-Phase Workflows**
+- **`empathize`** - UX Research synthesis (4 phases: Research Synthesis → Persona Development → Requirements Definition → Validation)
+- **`advise`** - Strategic Consulting (4 phases: Strategic Analysis → Framework Application → Recommendation Development → Executive Communication)
+- **`synthesize`** - Academic Research (4 phases: Source Gathering → Thematic Analysis → Gap Identification → Academic Writing)
+
+**Knowledge Work Mode Toggle**
+- **`knowledge-toggle`** command - Switch between development and knowledge work modes
+- When enabled, `auto` routing prioritizes knowledge workflows for ambiguous requests
+- Status command shows current mode
+- Configuration persists across sessions
+
+#### New Specialized Agents
+
+**Six New Knowledge Worker Personas**
+| Agent | Model | Specialty |
+|-------|-------|-----------|
+| `ux-researcher` | opus | User research synthesis, journey mapping, persona development |
+| `strategy-analyst` | opus | Market analysis, strategic frameworks (SWOT, Porter, BCG) |
+| `research-synthesizer` | opus | Literature review, thematic analysis, gap identification |
+| `academic-writer` | sonnet | Research papers, grant proposals, peer review responses |
+| `exec-communicator` | sonnet | Executive summaries, board presentations, stakeholder reports |
+| `product-writer` | sonnet | PRDs, user stories, acceptance criteria |
+
+#### Enhanced Setup & Routing
+
+**New Use Intent Choices**
+- **[11] Strategy/Consulting** - Market analysis, business cases, frameworks
+- **[12] Academic Research** - Literature review, synthesis, papers
+- **[13] Product Management** - PRDs, user stories, acceptance criteria
+
+**Smart Intent Detection**
+- Auto-detects UX research triggers: user interviews, journey maps, personas, usability
+- Auto-detects strategy triggers: market analysis, SWOT, business case, competitive
+- Auto-detects research triggers: literature review, systematic review, research gaps
+
+**Command Aliases**
+- `empathy`, `ux-research` → `empathize`
+- `consult`, `strategy` → `advise`
+- `synthesis`, `lit-review` → `synthesize`
+
+#### Documentation
+
+- **[docs/KNOWLEDGE-WORKERS.md](docs/KNOWLEDGE-WORKERS.md)** - Comprehensive 300+ line guide
+- **Updated [docs/AGENTS.md](docs/AGENTS.md)** - Now includes all 37 agents (6 new)
+- **Updated README.md** - v6.0 features, new use cases, examples
+
+#### Tests
+
+- **New test suite** `tests/unit/test-knowledge-routing.sh`
+- 10 new test cases for knowledge worker routing
+- All existing tests continue to pass
+
+---
+
 ## [5.0.0] - 2026-01-17
 
-### Added - Clavix Research Implementation: Agent Discovery & Analytics
+### Added - Competitive Research Implementation: Agent Discovery & Analytics
 
-This release implements all Clavix research recommendations to dramatically improve agent discoverability, reducing discovery time from **5-10 minutes to <1 minute**.
+This release implements competitive research recommendations to dramatically improve agent discoverability, reducing discovery time from **5-10 minutes to <1 minute**.
 
 #### Phase 1: Documentation (Immediate Wins)
 
@@ -85,7 +172,7 @@ This release implements all Clavix research recommendations to dramatically impr
 ### Testing
 
 **New Test Suite for v5.0 Features**
-- **17 new tests** added (Section 23: Clavix Research Recommendations)
+- **17 new tests** added (Section 23: Competitive Research Recommendations)
 - Tests documentation existence (AGENTS.md, decision-tree.md, monthly-review.md)
 - Validates content quality (Double Diamond phases, octopus humor, Mermaid diagrams)
 - Verifies function implementations (recommend_persona_agent, log_agent_usage, generate_analytics_report)

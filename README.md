@@ -6,7 +6,7 @@
   <img src="https://img.shields.io/badge/Claude_Code-Plugin-blueviolet" alt="Claude Code Plugin">
   <img src="https://img.shields.io/badge/Double_Diamond-Design_Thinking-orange" alt="Double Diamond">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
-  <img src="https://img.shields.io/badge/Version-5.0.0-blue" alt="Version 5.0.0">
+  <img src="https://img.shields.io/badge/Version-6.0.0-blue" alt="Version 6.0.0">
 </p>
 
 # Claude Octopus
@@ -39,31 +39,49 @@ Claude coordinates multiple AI models behind the scenes to give you comprehensiv
 
 ---
 
-## ✨ What's New in v5.0 - Agent Discovery & Analytics
+## ✨ What's New in v6.0 - Knowledge Work Mode
 
-**Finding the right agent is now 90% faster** - from 5-10 minutes to <1 minute!
+**Researchers, consultants, and product managers rejoice!** Claude Octopus now extends knowledge tentacles beyond code.
+
+### 🎓 Knowledge Work Mode
+Toggle between development mode and knowledge work mode with a single command:
+```bash
+./scripts/orchestrate.sh knowledge-toggle
+```
+
+### 📚 Three New Workflows
+| Workflow | Command | Use For |
+|----------|---------|---------|
+| **Empathize** | `empathize <prompt>` | UX research synthesis, personas, journey maps |
+| **Advise** | `advise <prompt>` | Market analysis, strategic frameworks, business cases |
+| **Synthesize** | `synthesize <prompt>` | Literature review, research synthesis, gap analysis |
+
+### 🆕 Six New Knowledge Agents
+- `ux-researcher` (opus) - User research synthesis and persona development
+- `strategy-analyst` (opus) - Strategic frameworks and market intelligence
+- `research-synthesizer` (opus) - Literature review and thematic analysis
+- `academic-writer` (sonnet) - Research papers and grant proposals
+- `exec-communicator` (sonnet) - Executive summaries and board presentations
+- `product-writer` (sonnet) - PRDs, user stories, acceptance criteria
+
+[📖 Full Knowledge Workers Guide →](docs/KNOWLEDGE-WORKERS.md)
+
+<details>
+<summary><strong>v5.0 Features (Agent Discovery & Analytics)</strong></summary>
 
 ### 🎯 Smart Agent Discovery
-- **📚 [Agent Catalog](docs/AGENTS.md)** - 400+ lines documenting all 31 specialized agents
-  - Organized by Double Diamond phase (Probe/Grasp/Tangle/Ink)
-  - When to use, anti-patterns, and real-world examples
-  - Octopus humor throughout 🐙
+- **📚 [Agent Catalog](docs/AGENTS.md)** - 400+ lines documenting all 37 specialized agents
 - **🌊 [Visual Decision Trees](docs/agent-decision-tree.md)** - Mermaid flowcharts guide you to the right agent
-  - By development phase
-  - By task type (research, design, build, review)
-  - By tech stack (backend, frontend, database, cloud)
 - **🤖 Keyword-Based Recommendations** - Just describe your need
-  - "Need security review?" → `security-auditor`
-  - "Build REST API?" → `backend-architect`
-  - Auto-detects and suggests the perfect tentacle
 
 ### 📊 Usage Analytics (Privacy-First)
 - **Track what works** - See which agents you use most often
 - **Optimize workflows** - Monthly review templates for continuous improvement
-- **Privacy-preserving** - Logs prompt hashes, not content (no PII, no API keys)
 - **Command**: `./scripts/orchestrate.sh analytics [days]`
 
-[📖 Full v5.0 Changelog →](CHANGELOG.md#500---2026-01-17)
+</details>
+
+[📖 Full Changelog →](CHANGELOG.md)
 
 ---
 
@@ -79,13 +97,19 @@ Not sure which agent to use? Here are the most common scenarios:
 | "Review for security" | `security-auditor` | OWASP whisperer |
 | "Debug this error" | `debugger` | Stack trace detective |
 | "Optimize performance" | `performance-engineer` | Latency hunter |
+| "Synthesize user interviews" | `ux-researcher` | Empathy tentacle 🆕 |
+| "Market analysis for expansion" | `strategy-analyst` | Framework master 🆕 |
+| "Literature review on AI" | `research-synthesizer` | Knowledge weaver 🆕 |
 
 **Or just describe what you need!** Claude Octopus auto-routes to the right tentacle:
 
 > "Build user authentication with OAuth and store sessions in Redis"
 > → Routes to: `backend-architect` + `database-architect` working together
 
-🆕 **New in v5.0:** Browse our comprehensive [Agent Catalog](docs/AGENTS.md) with when-to-use guides, anti-patterns, and 400+ lines of examples for all 31 specialized agents!
+> "Analyze competitor pricing strategies and recommend market entry approach" 🆕
+> → Routes to: `advise` workflow with `strategy-analyst` + `exec-communicator`
+
+Browse our comprehensive [Agent Catalog](docs/AGENTS.md) with when-to-use guides, anti-patterns, and 400+ lines of examples for all 37 specialized agents!
 
 ---
 
@@ -702,10 +726,19 @@ npm install -g @google/gemini-cli
 <details>
 <summary><strong>📜 What's New</strong></summary>
 
-### v5.0.0 - Agent Discovery & Analytics ⭐ LATEST
+### v6.0.0 - Knowledge Work Mode ⭐ LATEST
+
+- **Knowledge Work Mode** - Toggle between dev and research modes with `knowledge-toggle`
+- **3 New Workflows** - `empathize`, `advise`, `synthesize` for knowledge workers
+- **6 New Agents** - UX researcher, strategy analyst, research synthesizer, academic writer, exec communicator, product writer
+- **New Use Intents** - Strategy/consulting, academic research, product management
+- [Knowledge Workers Guide](docs/KNOWLEDGE-WORKERS.md) - Complete documentation
+- Total agents: 37 (up from 31)
+
+### v5.0.0 - Agent Discovery & Analytics
 
 - **90% faster agent discovery** - from 5-10 minutes to <1 minute
-- [Agent Catalog](docs/AGENTS.md) - 400+ lines with when/why/examples for all 31 agents
+- [Agent Catalog](docs/AGENTS.md) - 400+ lines with when/why/examples for all 37 agents
 - [Visual Decision Trees](docs/agent-decision-tree.md) - Mermaid flowcharts by phase/task/stack
 - Privacy-preserving usage analytics with `analytics` command
 - Keyword-based agent recommendations
