@@ -1,6 +1,6 @@
 {
   "name": "claude-octopus",
-  "version": "4.9.0",
+  "version": "4.9.5",
   "description": "Claude Octopus - Multi-agent orchestration for Claude CLI",
   "main": "orchestrate.sh",
   "scripts": {
