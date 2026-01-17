@@ -33,7 +33,10 @@
     "./.claude/skills/configure.md",
     "./.claude/skills/architecture.md",
     "./.claude/skills/code-review.md",
-    "./.claude/skills/security-audit.md"
+    "./.claude/skills/security-audit.md",
+    "./.claude/skills/quick-review.md",
+    "./.claude/skills/deep-research.md",
+    "./.claude/skills/adversarial-security.md"
   ],
   "commands": "./.claude/commands/"
 }
