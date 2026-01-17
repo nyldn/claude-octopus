@@ -5,6 +5,30 @@ All notable changes to Claude Octopus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.9.4] - 2026-01-16
+
+### Fixed
+
+#### Installer Marketplace Configuration
+- **Fixed critical bug** preventing Claude Code startup after installation
+- Removed creation of "local" marketplace entry that caused "Marketplace configuration file is corrupted" error
+- Changed to use `claude-octopus-marketplace` as marketplace identifier (doesn't require marketplace to exist)
+- Added cleanup of broken "local" marketplace entries from previous installation attempts
+- Plugin now registers as `claude-octopus@claude-octopus-marketplace`
+
+### Known Issues
+
+The curl-based installer in v4.9.3 and v4.9.4 still does not work reliably due to Claude Code's marketplace architecture requirements. Users should install using the official plugin manager:
+
+```bash
+claude plugin marketplace add nyldn/claude-octopus
+claude plugin install claude-octopus@nyldn-plugins --scope user
+claude plugin enable claude-octopus --scope user
+claude plugin update claude-octopus --scope user
+```
+
+See README.md for updated installation instructions. The install.sh script will be updated in a future release to use these commands.
+
 ## [4.9.0] - 2026-01-16
 
 ### Added - Seamless Claude Code Setup Experience
