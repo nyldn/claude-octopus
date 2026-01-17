@@ -23,6 +23,7 @@
 | **Structured workflows** | Double Diamond: Research → Define → Develop → Deliver |
 | **Quality gates** | 75% consensus threshold before delivery |
 | **Smart routing** | Auto-detects intent and picks the right AI model |
+| **Agent discovery** | Find the right tentacle in <1 min (was 5-10 min) 🆕 |
 | **Adversarial review** | AI vs AI debate catches more bugs |
 
 **How to use it:**
@@ -35,6 +36,34 @@ Just talk to Claude naturally! Claude Octopus automatically activates when you n
 - 💬 "Use adversarial review to critique my implementation"
 
 Claude coordinates multiple AI models behind the scenes to give you comprehensive, validated results.
+
+---
+
+## ✨ What's New in v5.0 - Agent Discovery & Analytics
+
+**Finding the right agent is now 90% faster** - from 5-10 minutes to <1 minute!
+
+### 🎯 Smart Agent Discovery
+- **📚 [Agent Catalog](docs/AGENTS.md)** - 400+ lines documenting all 31 specialized agents
+  - Organized by Double Diamond phase (Probe/Grasp/Tangle/Ink)
+  - When to use, anti-patterns, and real-world examples
+  - Octopus humor throughout 🐙
+- **🌊 [Visual Decision Trees](docs/agent-decision-tree.md)** - Mermaid flowcharts guide you to the right agent
+  - By development phase
+  - By task type (research, design, build, review)
+  - By tech stack (backend, frontend, database, cloud)
+- **🤖 Keyword-Based Recommendations** - Just describe your need
+  - "Need security review?" → `security-auditor`
+  - "Build REST API?" → `backend-architect`
+  - Auto-detects and suggests the perfect tentacle
+
+### 📊 Usage Analytics (Privacy-First)
+- **Track what works** - See which agents you use most often
+- **Optimize workflows** - Monthly review templates for continuous improvement
+- **Privacy-preserving** - Logs prompt hashes, not content (no PII, no API keys)
+- **Command**: `./scripts/orchestrate.sh analytics [days]`
+
+[📖 Full v5.0 Changelog →](CHANGELOG.md#500---2026-01-17)
 
 ---
 
@@ -56,7 +85,7 @@ Not sure which agent to use? Here are the most common scenarios:
 > "Build user authentication with OAuth and store sessions in Redis"
 > → Routes to: `backend-architect` + `database-architect` working together
 
-📚 **Full catalog:** See [docs/AGENTS.md](docs/AGENTS.md) for all 31 specialized tentacles.
+🆕 **New in v5.0:** Browse our comprehensive [Agent Catalog](docs/AGENTS.md) with when-to-use guides, anti-patterns, and 400+ lines of examples for all 31 specialized agents!
 
 ---
 
@@ -140,334 +169,34 @@ Claude Octopus automatically detects which providers you have and uses them inte
 
 ---
 
-## Recommended Companion Skills
+## Companion Skills
 
-Claude Octopus focuses on multi-AI orchestration. These official Claude Code skills extend its capabilities for specific domains:
+Extend Claude Octopus with official Claude Code skills for specific domains:
 
-### For Testing & Validation 🧪
-**`webapp-testing`** - Automated UI testing with Playwright
-- Complements Claude Octopus's `ink` (deliver) phase
-- Test web apps automatically after development
-- Install: `/plugin install webapp-testing`
+- 🧪 **Testing:** `webapp-testing` - Playwright automation
+- 🛠️ **Customization:** `skill-creator` - Build custom workflows
+- 🔌 **Integration:** `mcp-builder` - Connect external APIs
+- 🎨 **Design:** `frontend-design`, `artifacts-builder`, `shadcn` - UI/UX tools
+- 📄 **Documents:** `docx`, `pdf`, `pptx`, `xlsx` - Office file handling
 
-### For Customization & Extension 🛠️
-**`skill-creator`** - Build custom orchestration patterns
-- Create domain-specific workflows for your team
-- Make repeatable task templates
-- Install: `/plugin install skill-creator`
+**How it works:** Skills are available to Claude (the orchestrator), not to spawned agents. Claude coordinates agents and applies skills before/after orchestration.
 
-### For Integration 🔌
-**`mcp-builder`** - Connect to external APIs via MCP servers
-- Extend multi-provider capabilities
-- Build custom integrations with your services
-- Install: `/plugin install mcp-builder`
-
-### For Design & Frontend 🎨
-**`frontend-design`** - Bold, opinionated design decisions
-- Avoid generic aesthetics in React/Tailwind projects
-- Install: `/plugin install frontend-design`
-
-**`artifacts-builder`** - React component building with shadcn/ui
-- Build polished UI components
-- Install: `/plugin install artifacts-builder`
-
-**`shadcn`** (via MCP) - shadcn/ui component library
-- Browse and install shadcn components
-- See: [shadcn MCP server docs](https://github.com/modelcontextprotocol/servers/tree/main/src/shadcn)
-
-<details>
-<summary>View all available official skills</summary>
-
-### Document Processing 📄
-- `docx` - Word document creation/editing
-- `pdf` - PDF manipulation and extraction
-- `pptx` - PowerPoint presentations
-- `xlsx` - Excel spreadsheets with formulas
-
-### Creative & Visual 🎨
-- `algorithmic-art` - Generative art with p5.js
-- `canvas-design` - Visual design in PNG/PDF
-- `slack-gif-creator` - Animated GIFs for Slack
-
-### Communication 💬
-- `brand-guidelines` - Apply brand colors/typography
-- `internal-comms` - Status reports and newsletters
-
-**Install any skill:** `/plugin install <skill-name>`
-
-**Browse all skills:** [Awesome Claude Skills](https://github.com/travisvn/awesome-claude-skills)
-
-</details>
-
-### How Skills Work with Claude Octopus
-
-**Important:** Installed skills are available to **Claude (the orchestrator)**, not to the individual agents (Codex/Gemini CLIs) spawned by Claude Octopus.
-
-**Typical workflow:**
-```
-1. User requests a task
-   ↓
-2. Claude (has all skills) uses Claude Octopus for multi-AI orchestration
-   ↓
-3. Octopus spawns Codex/Gemini agents (separate CLIs without skills)
-   ↓
-4. Agents return parallel results
-   ↓
-5. Claude (with skills) validates, tests, and polishes results
-```
-
-**Example:**
-- **Before orchestration:** Claude might use `frontend-design` to establish design principles
-- **During orchestration:** Agents generate code following those principles
-- **After orchestration:** Claude uses `webapp-testing` to validate the result
-
-This separation keeps agents focused on their core tasks while Claude coordinates and applies domain-specific skills.
+[📖 See all companion skills and examples →](docs/COMPANION-SKILLS.md)
 
 ---
 
-## Workflow Skills: Quick Access to Octopus Patterns
+## Workflow Skills
 
-Claude Octopus includes **workflow skills** - lightweight wrappers that auto-invoke common multi-AI workflows. These activate automatically when you use certain phrases.
+Claude Octopus auto-activates specialized workflows when you use certain phrases:
 
-### 🔍 Quick Code Review (`octopus-quick-review`)
+- 🔍 **Quick Code Review** - "review this code" → 2-5 min multi-agent review with quality gates
+- 🔬 **Deep Research** - "research React state management" → 4-perspective parallel analysis
+- 🛡️ **Adversarial Security** - "security audit" → Red team attack + blue team defense + remediation
 
-**Auto-activates when you say:**
-- "review this code"
-- "check this PR"
-- "quality check"
-- "what's wrong with this code"
+These skills automatically trigger the right Octopus workflow (probe, grasp, tangle, squeeze) based on your request.
 
-**What it does:** Runs grasp (consensus) → tangle (parallel review) workflow
-- Faster than full embrace (2-5 min vs 5-10 min)
-- Multi-agent consensus on issues
-- Quality gates ensure ≥75% agreement
-- Actionable recommendations
+[📖 See all workflow skills and examples →](docs/WORKFLOW-SKILLS.md)
 
-**Example:**
-```
-User: "Review my authentication module for security issues"
-→ Grasp: Multi-agent consensus on security concerns
-→ Tangle: Parallel review (OWASP, performance, maintainability)
-→ Output: Prioritized findings with fixes
-```
-
-### 🔬 Deep Research (`octopus-research`)
-
-**Auto-activates when you say:**
-- "research this topic"
-- "investigate how X works"
-- "explore different approaches"
-- "what are the options for Y"
-
-**What it does:** Runs probe (discover) workflow with 4 parallel perspectives
-- Researcher: Technical analysis and documentation
-- Designer: UX patterns and user impact
-- Implementer: Code examples and implementation
-- Reviewer: Best practices and gotchas
-
-**Example:**
-```
-User: "Research state management options for React"
-→ Probe: 4 agents research from different angles
-→ Synthesis: AI-powered comparison and recommendation
-→ Output: Decision matrix with pros/cons
-```
-
-### 🛡️ Adversarial Security (`octopus-security`)
-
-**Auto-activates when you say:**
-- "security audit"
-- "find vulnerabilities"
-- "red team review"
-- "pentest this code"
-
-**What it does:** Runs squeeze (red team) workflow
-- Blue Team: Reviews defenses
-- Red Team: Finds vulnerabilities with exploit PoCs
-- Remediation: Fixes all issues
-- Validation: Confirms security clearance
-
-**Example:**
-```
-User: "Security audit the authentication module"
-→ Blue Team: Identify attack surface
-→ Red Team: Generate 6 exploit proofs of concept
-→ Remediation: Patch all vulnerabilities
-→ Validation: Re-test and confirm fixes
-```
-
-### 📊 When to Use Which Workflow
-
-| Use Case | Workflow Skill | Time | Agents | Best For |
-|----------|---------------|------|--------|----------|
-| Code review | `quick-review` | 2-5 min | 2-3 | PR checks, quality gates |
-| Research | `deep-research` | 2-3 min | 4 | Architecture decisions |
-| Security testing | `adversarial-security` | 5-10 min | 2 (adversarial) | Finding vulnerabilities |
-| Full workflow | `embrace` | 5-10 min | 4-8 | New features, complete cycle |
-
-### Architecture: Skills vs Orchestrator
-
-Understanding the distinction:
-
-**Claude Octopus = Orchestrator (Complex Workflows)**
-- Multi-agent coordination
-- Quality gates and validation
-- Session recovery
-- Structured workflows (Double Diamond)
-- Best for: Architecture, features, comprehensive analysis
-
-**Workflow Skills = Entry Points (Convenience)**
-- Auto-invoked shortcuts
-- Trigger specific orchestrator workflows
-- Single-purpose and focused
-- Best for: Common patterns, quick access
-
-**Companion Skills = Domain Tools (Specialized)**
-- Testing, design, deployment
-- Work alongside orchestrator
-- Routine, repetitive tasks
-- Best for: Specific domains (UI, testing, docs)
-
-**Example of all three working together:**
-```
-1. User: "Research authentication patterns"
-   → octopus-research skill activates (entry point)
-   → Triggers probe workflow (orchestrator)
-
-2. User: "Build authentication module"
-   → Claude Octopus orchestrates embrace workflow
-   → Agents generate implementation
-
-3. User: "Test the authentication"
-   → webapp-testing skill validates (domain tool)
-   → Results feed back to Claude for review
-```
-
----
-
-## Async Task Management & Tmux Visualization
-
-Claude Octopus includes **async task management** and **tmux visualization** for better performance and transparency during multi-agent workflows.
-
-### Async Mode
-
-Enable async mode for improved progress tracking and parallel execution:
-
-```bash
-./scripts/orchestrate.sh probe "research auth patterns" --async
-```
-
-**Benefits:**
-- Better progress tracking with elapsed time
-- Optimized parallel execution
-- Cleaner console output
-- Lower memory overhead
-
-**When to use:**
-- Multi-agent workflows (probe, tangle)
-- Long-running tasks
-- Resource-constrained environments
-
-### Tmux Visualization
-
-Watch agents work in real-time with tmux panes:
-
-```bash
-./scripts/orchestrate.sh embrace "implement auth system" --tmux
-```
-
-**What you get:**
-- Live agent output in separate tmux panes
-- Auto-balancing layout as agents spawn/complete
-- Visual progress without blocking
-- Titled panes showing agent roles
-
-**Example layout for `probe` phase:**
-```
-┌─────────────────────┬─────────────────────┐
-│ 🔍 Problem Analysis │ 📚 Solution Research│
-├─────────────────────┼─────────────────────┤
-│ ⚠️  Edge Cases      │ 🔧 Feasibility      │
-└─────────────────────┴─────────────────────┘
-```
-
-**Example layout for `tangle` phase:**
-```
-┌──────────────┬──────────────┬──────────────┐
-│ ⚙️ Subtask 1 │ 🧠 Subtask 2 │ ⚙️ Subtask 3 │
-├──────────────┼──────────────┼──────────────┤
-│ ⚙️ Subtask 4 │ 🧠 Subtask 5 │ ⚙️ Subtask 6 │
-└──────────────┴──────────────┴──────────────┘
-```
-
-**Requirements:**
-- `tmux` installed (`brew install tmux` or `apt install tmux`)
-- Automatically enables async mode
-- Works in new session or existing tmux window
-
-**Attaching to session:**
-```bash
-# If session created in background
-tmux attach -t claude-octopus-<pid>
-```
-
-### Environment Variables
-
-Control async/tmux globally:
-
-```bash
-# Enable async by default
-export OCTOPUS_ASYNC_MODE=true
-
-# Enable tmux by default
-export OCTOPUS_TMUX_MODE=true
-
-# Run workflow
-./scripts/orchestrate.sh probe "research caching strategies"
-```
-
-### Disabling Features
-
-```bash
-# Disable async (use standard progress tracking)
-./scripts/orchestrate.sh probe "..." --no-async
-
-# Disable tmux (use terminal output)
-./scripts/orchestrate.sh probe "..." --no-tmux
-```
-
-### Comparison: Standard vs Async vs Tmux
-
-| Feature | Standard | Async | Tmux |
-|---------|----------|-------|------|
-| Progress tracking | Basic (N/M complete) | Detailed (with elapsed time) | Visual (live panes) |
-| Output | Buffered to files | Buffered to files | Live streaming |
-| Performance | Good | Better (optimized waiting) | Good (slight overhead) |
-| User experience | Simple | Informative | Immersive |
-| Requirements | None | None | tmux installed |
-| Best for | Scripts, CI/CD | Interactive use | Development, debugging |
-
-### Performance Tips
-
-**For maximum performance:**
-```bash
-./scripts/orchestrate.sh embrace "task" --async -p 8
-# Enables: async mode + 8 parallel agents
-```
-
-**For best transparency:**
-```bash
-./scripts/orchestrate.sh embrace "task" --tmux --verbose
-# Enables: tmux visualization + detailed logging
-```
-
-**For CI/CD:**
-```bash
-./scripts/orchestrate.sh embrace "task" --ci
-# Uses: standard mode (no tmux), non-interactive, JSON output
-```
-
----
 
 ## Provider Installation (Reference)
 
@@ -590,84 +319,6 @@ If you want to run Claude Octopus commands directly (outside of Claude Code):
 ```
 
 **Common options:** `-n` (dry-run), `-v` (verbose), `-t 600` (timeout), `--cost-first`, `--quality-first`
-
-</details>
-
-<details>
-<summary><strong>📋 Prerequisites & Setup Details</strong></summary>
-
-### Required API Keys
-
-| Provider | Get Your Key | Environment Variable |
-|----------|-------------|---------------------|
-| OpenAI | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) | `OPENAI_API_KEY` |
-| Google | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) | `GEMINI_API_KEY` |
-| OpenRouter | [openrouter.ai/keys](https://openrouter.ai/keys) | `OPENROUTER_API_KEY` (optional fallback) |
-
-### System Requirements
-
-- **Bash 4.0+** (macOS: `brew install bash`)
-- **Codex CLI** - `npm install -g @openai/codex`
-- **Gemini CLI** - `npm install -g @google/gemini-cli`
-- **Optional:** `jq` for JSON task files
-
-### Environment Setup
-
-```bash
-# Add to ~/.zshrc or ~/.bashrc
-export OPENAI_API_KEY="sk-..."
-export GEMINI_API_KEY="AIza..."
-export OPENROUTER_API_KEY="sk-or-..."  # Optional fallback
-
-# Reload shell
-source ~/.zshrc
-```
-
-### Installation Options
-
-**Inside Claude Code (recommended - simplest):**
-
-Run these commands in the Claude Code chat:
-```
-/plugin marketplace add nyldn/claude-octopus
-/plugin install claude-octopus@nyldn-plugins
-```
-
-**Using Terminal (alternative):**
-
-Run these commands from your terminal:
-```bash
-claude plugin marketplace add nyldn/claude-octopus
-claude plugin install claude-octopus@nyldn-plugins --scope user
-```
-
-**For Plugin Development:**
-```bash
-# Clone for development
-git clone https://github.com/nyldn/claude-octopus.git ~/git/claude-octopus
-cd ~/git/claude-octopus
-
-# Make changes, then test
-git add . && git commit -m "Your changes"
-git push
-
-# Reinstall from Claude Code chat:
-# /plugin uninstall claude-octopus
-# /plugin marketplace update nyldn-plugins
-# /plugin install claude-octopus@nyldn-plugins
-```
-
-**Update Plugin:**
-
-From Claude Code chat:
-```
-/plugin update claude-octopus
-```
-
-Or from terminal:
-```bash
-claude plugin update claude-octopus --scope user
-```
 
 </details>
 
@@ -1051,34 +702,51 @@ npm install -g @google/gemini-cli
 <details>
 <summary><strong>📜 What's New</strong></summary>
 
-### v4.8.0 - Subscription-Aware Multi-Provider Routing
+### v5.0.0 - Agent Discovery & Analytics ⭐ LATEST
+
+- **90% faster agent discovery** - from 5-10 minutes to <1 minute
+- [Agent Catalog](docs/AGENTS.md) - 400+ lines with when/why/examples for all 31 agents
+- [Visual Decision Trees](docs/agent-decision-tree.md) - Mermaid flowcharts by phase/task/stack
+- Privacy-preserving usage analytics with `analytics` command
+- Keyword-based agent recommendations
+- Monthly review templates for optimization
+
+### v4.8.0 - Multi-Provider Routing
 
 - Provider scoring algorithm (0-150 scale)
 - Cost optimization: `--cost-first`, `--quality-first`
 - OpenRouter integration (400+ models)
-- Enhanced setup wizard (9 steps)
+- Enhanced setup wizard (10 steps)
 - Auto-detection of provider tiers
 
-### v4.7.0 - Crossfire: Adversarial Review
+### v4.7.0 - Adversarial Review
 
 - `grapple` - AI vs AI debate
 - `squeeze` - Red team security review
 - Constitutional principles system
 - Auto-routing for security/debate intents
 
-### v4.6.0 - Claude Code v2.1.9 Integration
+[Full Changelog →](CHANGELOG.md)
 
-- Session tracking, hook system
-- Security hardening (path validation, injection prevention)
-- CI/CD mode with GitHub Actions support
+</details>
 
-### v4.5.0 - Smart Setup Wizard
+<details>
+<summary><strong>⚡ Advanced Features</strong></summary>
 
-- Intent-based configuration
-- Resource tier awareness
-- Automatic model routing
+### Performance & Visualization
 
-[Full Changelog](CHANGELOG.md)
+**[Async Task Management & Tmux Visualization](docs/ASYNC-TMUX.md)**
+- `--async` - Optimized progress tracking with elapsed time
+- `--tmux` - Watch agents work in real-time with split panes
+- Visual layouts for multi-agent workflows
+- Environment variables for global configuration
+
+### Extended Documentation
+
+- **[Workflow Skills](docs/WORKFLOW-SKILLS.md)** - Deep dive into quick-review, deep-research, and adversarial-security
+- **[Companion Skills](docs/COMPANION-SKILLS.md)** - Full catalog of testing, design, and integration skills
+- **[Agent Catalog](docs/AGENTS.md)** - Complete guide to all 31 specialized agents
+- **[Decision Trees](docs/agent-decision-tree.md)** - Visual flowcharts for agent selection
 
 </details>
 
