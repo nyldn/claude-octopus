@@ -541,6 +541,47 @@ classify_task() {
     fi
 
     # ═══════════════════════════════════════════════════════════════════════════
+    # KNOWLEDGE WORKER INTENT DETECTION (v6.0)
+    # Routes to empathize, advise, synthesize workflows
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    # Empathize: UX research, user research, journey mapping, personas
+    if [[ "$prompt_lower" =~ (user|ux).*(research|interview|synthesis|finding) ]] || \
+       [[ "$prompt_lower" =~ (journey|experience).*(map|mapping) ]] || \
+       [[ "$prompt_lower" =~ (persona|user.?profile|archetype) ]] || \
+       [[ "$prompt_lower" =~ (usability|heuristic).*(evaluation|audit|review|test|analysis|result) ]] || \
+       [[ "$prompt_lower" =~ (analyze|analyse).*(usability|ux).*(test|result) ]] || \
+       [[ "$prompt_lower" =~ (pain.?point|user.?need|empathize|empathy) ]] || \
+       [[ "$prompt_lower" =~ affinity.?(map|diagram|cluster) ]]; then
+        echo "knowledge-empathize"
+        return
+    fi
+
+    # Advise: strategy, consulting, business case, market analysis
+    if [[ "$prompt_lower" =~ (market|competitive).*(analysis|intelligence|landscape) ]] || \
+       [[ "$prompt_lower" =~ (business|investment).*(case|proposal|rationale) ]] || \
+       [[ "$prompt_lower" =~ (strategic|strategy).*(recommendation|option|analysis) ]] || \
+       [[ "$prompt_lower" =~ (swot|porter|pestle|bcg|ansoff) ]] || \
+       [[ "$prompt_lower" =~ (go.?to.?market|gtm|market.?entry) ]] || \
+       [[ "$prompt_lower" =~ (stakeholder|executive).*(analysis|presentation|summary) ]] || \
+       [[ "$prompt_lower" =~ advise ]]; then
+        echo "knowledge-advise"
+        return
+    fi
+
+    # Synthesize: literature review, research synthesis, academic
+    if [[ "$prompt_lower" =~ (literature|lit).*(review|synthesis|survey) ]] || \
+       [[ "$prompt_lower" =~ (research|academic).*(synthesis|summary|review) ]] || \
+       [[ "$prompt_lower" =~ (systematic|scoping|narrative).*(review) ]] || \
+       [[ "$prompt_lower" =~ (annotated.?bibliography|citation.?analysis) ]] || \
+       [[ "$prompt_lower" =~ (research.?gap|knowledge.?gap|state.?of.?the.?art) ]] || \
+       [[ "$prompt_lower" =~ (thematic|meta).*(analysis|synthesis) ]] || \
+       [[ "$prompt_lower" =~ synthesize ]]; then
+        echo "knowledge-synthesize"
+        return
+    fi
+
+    # ═══════════════════════════════════════════════════════════════════════════
     # DOUBLE DIAMOND INTENT DETECTION
     # Routes to full workflow phases, not just single agents
     # ═══════════════════════════════════════════════════════════════════════════
@@ -815,6 +856,42 @@ recommend_persona_agent() {
     # GraphQL patterns → graphql-architect
     if [[ "$prompt_lower" =~ (graphql|resolver|mutation|subscription|federation|apollo) ]]; then
         recommendations="${recommendations}graphql-architect "
+        ((confidence += 25))
+    fi
+
+    # UX Research patterns → ux-researcher (v6.0)
+    if [[ "$prompt_lower" =~ (user.?research|ux.?research|user.?interview|usability|journey.?map|persona) ]]; then
+        recommendations="${recommendations}ux-researcher "
+        ((confidence += 25))
+    fi
+
+    # Strategy/Consulting patterns → strategy-analyst (v6.0)
+    if [[ "$prompt_lower" =~ (market.?analysis|competitive|business.?case|strategic|swot|gtm|go.?to.?market) ]]; then
+        recommendations="${recommendations}strategy-analyst "
+        ((confidence += 25))
+    fi
+
+    # Research Synthesis patterns → research-synthesizer (v6.0)
+    if [[ "$prompt_lower" =~ (literature.?review|research.?synthesis|systematic.?review|annotated.?bibliography) ]]; then
+        recommendations="${recommendations}research-synthesizer "
+        ((confidence += 25))
+    fi
+
+    # Product Writing patterns → product-writer (v6.0)
+    if [[ "$prompt_lower" =~ (prd|product.?requirement|user.?story|acceptance.?criteria|feature.?spec) ]]; then
+        recommendations="${recommendations}product-writer "
+        ((confidence += 25))
+    fi
+
+    # Executive Communication patterns → exec-communicator (v6.0)
+    if [[ "$prompt_lower" =~ (executive.?summary|board.?presentation|stakeholder.?report|workshop.?synthesis) ]]; then
+        recommendations="${recommendations}exec-communicator "
+        ((confidence += 25))
+    fi
+
+    # Academic Writing patterns → academic-writer (v6.0)
+    if [[ "$prompt_lower" =~ (research.?paper|grant.?proposal|abstract|peer.?review|thesis|dissertation) ]]; then
+        recommendations="${recommendations}academic-writer "
         ((confidence += 25))
     fi
 
@@ -2174,6 +2251,14 @@ ${GREEN}OPTIMIZATION${NC} (v4.2) - Auto-detect and route optimization tasks
 ${GREEN}═══════════════════════════════════════════════════════════════════════════${NC}
   optimize <prompt>       Smart optimization routing (performance, cost, a11y, SEO...)
 
+${MAGENTA}═══════════════════════════════════════════════════════════════════════════${NC}
+${MAGENTA}KNOWLEDGE WORK${NC} (v6.0) - Research, consulting, and writing workflows
+${MAGENTA}═══════════════════════════════════════════════════════════════════════════${NC}
+  empathize <prompt>      UX research synthesis (personas, journey maps, pain points)
+  advise <prompt>         Strategic consulting (market analysis, frameworks, business case)
+  synthesize <prompt>     Literature review (research synthesis, gap analysis)
+  knowledge-toggle        Toggle Knowledge Work Mode on/off
+
 ${BLUE}═══════════════════════════════════════════════════════════════════════════${NC}
 ${BLUE}AUTHENTICATION${NC} (v4.2)
 ${BLUE}═══════════════════════════════════════════════════════════════════════════${NC}
@@ -3178,6 +3263,7 @@ USER_RESOURCE_TIER="standard"
 USER_HAS_OPENAI="false"
 USER_HAS_GEMINI="false"
 USER_OPUS_BUDGET="balanced"
+KNOWLEDGE_WORK_MODE="false"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # MULTI-PROVIDER SUBSCRIPTION-AWARE ROUTING (v4.8)
@@ -4458,8 +4544,9 @@ load_user_config() {
     USER_HAS_OPENAI=$(grep "^  openai:" "$USER_CONFIG_FILE" 2>/dev/null | sed 's/.*: *//' || echo "false")
     USER_HAS_GEMINI=$(grep "^  gemini:" "$USER_CONFIG_FILE" 2>/dev/null | sed 's/.*: *//' || echo "false")
     USER_OPUS_BUDGET=$(grep "^  opus_budget:" "$USER_CONFIG_FILE" 2>/dev/null | sed 's/.*: *//' | tr -d '"' || echo "balanced")
+    KNOWLEDGE_WORK_MODE=$(grep "^knowledge_work_mode:" "$USER_CONFIG_FILE" 2>/dev/null | sed 's/.*: *//' | tr -d '"' || echo "false")
 
-    [[ "$VERBOSE" == "true" ]] && log DEBUG "Loaded user config: tier=$USER_RESOURCE_TIER, intent=$USER_INTENT_PRIMARY"
+    [[ "$VERBOSE" == "true" ]] && log DEBUG "Loaded user config: tier=$USER_RESOURCE_TIER, intent=$USER_INTENT_PRIMARY, knowledge_mode=$KNOWLEDGE_WORK_MODE"
 }
 
 # Save user configuration to file
@@ -4488,7 +4575,7 @@ save_user_config() {
     esac
 
     cat > "$USER_CONFIG_FILE" << EOF
-version: "1.0"
+version: "1.1"
 created_at: "$(date -Iseconds 2>/dev/null || date +%Y-%m-%dT%H:%M:%S)"
 updated_at: "$(date -Iseconds 2>/dev/null || date +%Y-%m-%dT%H:%M:%S)"
 
@@ -4499,6 +4586,9 @@ intent:
 
 # Resource tier - affects model selection
 resource_tier: "$resource_tier"
+
+# Knowledge Work Mode (v6.0) - prioritizes research/consulting/writing workflows
+knowledge_work_mode: "$KNOWLEDGE_WORK_MODE"
 
 # Available API keys (auto-detected)
 available_keys:
@@ -4530,6 +4620,10 @@ get_intent_name() {
         8) echo "data" ;;
         9) echo "seo" ;;
         10) echo "security" ;;
+        # v6.0: Knowledge worker intents
+        11) echo "strategy-consulting" ;;
+        12) echo "academic-research" ;;
+        13) echo "product-management" ;;
         0) echo "general" ;;
         *) echo "general" ;;
     esac
@@ -4544,7 +4638,10 @@ get_intent_persona() {
         security) echo "security-auditor" ;;
         ux-research|ux-ui-researcher|data) echo "researcher" ;;
         ui-design) echo "designer" ;;
-        *) echo "" ;;  # No default persona
+        strategy-consulting) echo "strategy-analyst" ;;
+        academic-research) echo "research-synthesizer" ;;
+        product-management) echo "product-writer" ;;
+        *) echo "" ;;
     esac
 }
 
@@ -4641,16 +4738,25 @@ init_step_intent() {
     echo -e "${YELLOW}Step 6/7: What brings you to the octopus's lair?${NC}"
     echo -e "  ${CYAN}Select your primary use case(s) - this helps us choose the best agents${NC}"
     echo ""
+    echo -e "  ${MAGENTA}━━━ Development ━━━${NC}"
     echo -e "  ${GREEN}[1]${NC} Backend Development       ${CYAN}(APIs, databases, microservices)${NC}"
     echo -e "  ${GREEN}[2]${NC} Frontend Development      ${CYAN}(React, Vue, UI components)${NC}"
     echo -e "  ${GREEN}[3]${NC} Full-Stack Development    ${CYAN}(both frontend + backend)${NC}"
+    echo -e "  ${GREEN}[7]${NC} DevOps/Infrastructure     ${CYAN}(CI/CD, Docker, Kubernetes)${NC}"
+    echo -e "  ${GREEN}[8]${NC} Data/Analytics            ${CYAN}(SQL, pipelines, ML)${NC}"
+    echo -e "  ${GREEN}[10]${NC} Code Review/Security     ${CYAN}(audits, vulnerability scanning)${NC}"
+    echo ""
+    echo -e "  ${MAGENTA}━━━ Design ━━━${NC}"
     echo -e "  ${GREEN}[4]${NC} UX Research               ${CYAN}(user research, personas, journey maps)${NC}"
     echo -e "  ${GREEN}[5]${NC} Researcher UX/UI Design   ${CYAN}(combined research + design)${NC}"
     echo -e "  ${GREEN}[6]${NC} UI/Product Design         ${CYAN}(wireframes, design systems)${NC}"
-    echo -e "  ${GREEN}[7]${NC} DevOps/Infrastructure     ${CYAN}(CI/CD, Docker, Kubernetes)${NC}"
-    echo -e "  ${GREEN}[8]${NC} Data/Analytics            ${CYAN}(SQL, pipelines, ML)${NC}"
     echo -e "  ${GREEN}[9]${NC} SEO/Marketing             ${CYAN}(content, optimization)${NC}"
-    echo -e "  ${GREEN}[10]${NC} Code Review/Security     ${CYAN}(audits, vulnerability scanning)${NC}"
+    echo ""
+    echo -e "  ${MAGENTA}━━━ Knowledge Work (v6.0) ━━━${NC}"
+    echo -e "  ${GREEN}[11]${NC} Strategy/Consulting      ${CYAN}(market analysis, business cases, frameworks)${NC}"
+    echo -e "  ${GREEN}[12]${NC} Academic Research        ${CYAN}(literature review, synthesis, papers)${NC}"
+    echo -e "  ${GREEN}[13]${NC} Product Management       ${CYAN}(PRDs, user stories, acceptance criteria)${NC}"
+    echo ""
     echo -e "  ${GREEN}[0]${NC} General/All of above"
     echo ""
     read -p "  Enter choices (e.g., '1,2,7' or '0' for all): " intent_choices
@@ -5915,6 +6021,40 @@ auto_route() {
     esac
 
     # ═══════════════════════════════════════════════════════════════════════════
+    # KNOWLEDGE WORKER ROUTING (v6.0)
+    # Routes to empathize, advise, synthesize workflows
+    # ═══════════════════════════════════════════════════════════════════════════
+    case "$task_type" in
+        knowledge-empathize)
+            echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${CYAN}║  🎯 EMPATHIZE - UX Research Synthesis                     ║${NC}"
+            echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
+            echo "  🐙 Extending empathy tentacles into user understanding..."
+            echo ""
+            empathize_research "$prompt"
+            return
+            ;;
+        knowledge-advise)
+            echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${CYAN}║  📊 ADVISE - Strategic Consulting                         ║${NC}"
+            echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
+            echo "  🐙 Wrapping strategic tentacles around the problem..."
+            echo ""
+            advise_strategy "$prompt"
+            return
+            ;;
+        knowledge-synthesize)
+            echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${CYAN}║  📚 SYNTHESIZE - Research Literature Review               ║${NC}"
+            echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
+            echo "  🐙 Weaving knowledge tentacles through the literature..."
+            echo ""
+            synthesize_research "$prompt"
+            return
+            ;;
+    esac
+
+    # ═══════════════════════════════════════════════════════════════════════════
     # OPTIMIZATION ROUTING (v4.2)
     # Routes to specialized agents based on optimization domain
     # ═══════════════════════════════════════════════════════════════════════════
@@ -6225,6 +6365,51 @@ Then provide specific optimization recommendations."
             return
             ;;
     esac
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # KNOWLEDGE WORK MODE - Suggest knowledge workflows for ambiguous tasks
+    # When enabled, offers knowledge workflow options for research-like tasks
+    # ═══════════════════════════════════════════════════════════════════════════
+    load_user_config 2>/dev/null || true
+    if [[ "$KNOWLEDGE_WORK_MODE" == "true" && "$task_type" =~ ^(research|general|coding)$ ]]; then
+        echo -e "${MAGENTA}╔═══════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${MAGENTA}║  🐙 Knowledge Work Mode Active                            ║${NC}"
+        echo -e "${MAGENTA}╚═══════════════════════════════════════════════════════════╝${NC}"
+        echo ""
+        echo -e "  Your task could benefit from a knowledge workflow:"
+        echo ""
+        echo -e "    ${GREEN}[E]${NC} empathize  - UX research synthesis (personas, journey maps)"
+        echo -e "    ${GREEN}[A]${NC} advise     - Strategic consulting (market analysis, frameworks)"
+        echo -e "    ${GREEN}[S]${NC} synthesize - Literature review (research synthesis, gaps)"
+        echo -e "    ${GREEN}[D]${NC} default    - Continue with standard routing"
+        echo ""
+        
+        if [[ -t 0 && -z "$CI" ]]; then
+            read -p "  Choose workflow [E/A/S/D]: " -n 1 -r kw_choice
+            echo ""
+            case "$kw_choice" in
+                [Ee])
+                    echo -e "  ${GREEN}✓${NC} Routing to empathize workflow..."
+                    empathize_research "$prompt"
+                    return
+                    ;;
+                [Aa])
+                    echo -e "  ${GREEN}✓${NC} Routing to advise workflow..."
+                    advise_strategy "$prompt"
+                    return
+                    ;;
+                [Ss])
+                    echo -e "  ${GREEN}✓${NC} Routing to synthesize workflow..."
+                    synthesize_research "$prompt"
+                    return
+                    ;;
+                *)
+                    echo -e "  ${CYAN}→${NC} Continuing with standard routing..."
+                    echo ""
+                    ;;
+            esac
+        fi
+    fi
 
     # ═══════════════════════════════════════════════════════════════════════════
     # STANDARD SINGLE-AGENT ROUTING (with cost-aware tier selection)
@@ -8804,6 +8989,425 @@ EOF
     record_agent_call "squeeze" "multi-model" "$prompt" "squeeze" "red-team" "0"
 }
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# KNOWLEDGE WORKER WORKFLOWS (v6.0)
+# New tentacles for researchers, consultants, and product designers
+# ═══════════════════════════════════════════════════════════════════════════════
+
+empathize_research() {
+    local prompt="$1"
+    local task_group
+    task_group=$(date +%s)
+
+    echo ""
+    echo -e "${MAGENTA}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${MAGENTA}║  ${CYAN}🎯 EMPATHIZE${MAGENTA} - UX Research Synthesis Workflow            ║${NC}"
+    echo -e "${MAGENTA}║  Understanding users through multiple tentacles...        ║${NC}"
+    echo -e "${MAGENTA}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+
+    log INFO "🐙 Extending empathy tentacles for user research..."
+
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log INFO "[DRY-RUN] Would empathize: $prompt"
+        log INFO "[DRY-RUN] Phase 1: Synthesize research data"
+        log INFO "[DRY-RUN] Phase 2: Map user journeys and create personas"
+        log INFO "[DRY-RUN] Phase 3: Define product requirements"
+        log INFO "[DRY-RUN] Phase 4: Validate through adversarial review"
+        return 0
+    fi
+
+    preflight_check || return 1
+    mkdir -p "$RESULTS_DIR"
+
+    echo -e "${CYAN}🦑 Phase 1/4: Synthesizing research data...${NC}"
+    local synthesis
+    synthesis=$(run_agent_sync "gemini" "You are a UX researcher. Synthesize user research for: $prompt
+
+Analyze the research context and provide:
+1. Key user insights and patterns observed
+2. User pain points ranked by severity
+3. Unmet needs and opportunities
+4. Behavioral themes across user segments
+
+Format as a structured research synthesis." 180 "ux-researcher" "empathize")
+
+    echo -e "${CYAN}🦑 Phase 2/4: Creating personas and journey maps...${NC}"
+    local personas
+    personas=$(run_agent_sync "gemini" "Based on this research synthesis:
+$synthesis
+
+Create:
+1. 2-3 distinct user personas with goals, frustrations, and behaviors
+2. A current-state journey map for the primary persona
+3. Key moments of truth and emotional highs/lows
+
+Use evidence-based persona development." 180 "ux-researcher" "empathize")
+
+    echo -e "${CYAN}🦑 Phase 3/4: Defining product requirements...${NC}"
+    local requirements
+    requirements=$(run_agent_sync "codex" "Based on this UX research:
+
+Research Synthesis:
+$synthesis
+
+Personas and Journeys:
+$personas
+
+Create product requirements:
+1. User stories for addressing top 3 pain points
+2. Acceptance criteria for each story
+3. Success metrics tied to user outcomes
+4. Prioritized backlog recommendations
+
+Original context: $prompt" 180 "product-writer" "empathize")
+
+    echo -e "${CYAN}🦑 Phase 4/4: Validating through adversarial review...${NC}"
+    local validation
+    validation=$(run_agent_sync "gemini" "Critically review this UX research and requirements:
+
+Research: $synthesis
+Personas: $personas
+Requirements: $requirements
+
+Challenge:
+1. Are the personas evidence-based or assumed?
+2. Are there user segments being overlooked?
+3. Do requirements actually address the pain points?
+4. What biases might be present in the analysis?
+
+Provide constructive critique and recommendations." 120 "ux-researcher" "empathize")
+
+    local result_file="$RESULTS_DIR/empathize-${task_group}.md"
+    cat > "$result_file" << EOF
+# UX Research Synthesis: Empathize Workflow
+**Generated:** $(date)
+**Original Context:** $prompt
+
+---
+
+## Phase 1: Research Synthesis
+$synthesis
+
+---
+
+## Phase 2: Personas & Journey Maps
+$personas
+
+---
+
+## Phase 3: Product Requirements
+$requirements
+
+---
+
+## Phase 4: Validation & Critique
+$validation
+
+---
+*Generated by Claude Octopus empathize workflow - extending tentacles into user understanding* 🐙
+EOF
+
+    echo ""
+    echo -e "${GREEN}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${GREEN}║  ✓ Empathize workflow complete - users understood!        ║${NC}"
+    echo -e "${GREEN}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    echo -e "  Result: ${CYAN}$result_file${NC}"
+    echo ""
+
+    log_agent_usage "empathize" "knowledge-work" "$prompt"
+}
+
+advise_strategy() {
+    local prompt="$1"
+    local task_group
+    task_group=$(date +%s)
+
+    echo ""
+    echo -e "${MAGENTA}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${MAGENTA}║  ${CYAN}📊 ADVISE${MAGENTA} - Strategic Consulting Workflow                ║${NC}"
+    echo -e "${MAGENTA}║  Wrapping strategic tentacles around the problem...       ║${NC}"
+    echo -e "${MAGENTA}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+
+    log INFO "🐙 Extending strategic tentacles for consulting analysis..."
+
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log INFO "[DRY-RUN] Would advise: $prompt"
+        log INFO "[DRY-RUN] Phase 1: Market and competitive analysis"
+        log INFO "[DRY-RUN] Phase 2: Strategic framework application"
+        log INFO "[DRY-RUN] Phase 3: Business case and recommendations"
+        log INFO "[DRY-RUN] Phase 4: Executive communication"
+        return 0
+    fi
+
+    preflight_check || return 1
+    mkdir -p "$RESULTS_DIR"
+
+    echo -e "${CYAN}🦑 Phase 1/4: Analyzing market and competitive landscape...${NC}"
+    local analysis
+    analysis=$(run_agent_sync "gemini" "You are a strategy analyst. Analyze the strategic context for: $prompt
+
+Provide:
+1. Market sizing (TAM/SAM/SOM if applicable)
+2. Competitive landscape overview
+3. Key industry trends and disruption factors
+4. PESTLE factors affecting the decision
+
+Be specific with data where possible, noting assumptions." 180 "strategy-analyst" "advise")
+
+    echo -e "${CYAN}🦑 Phase 2/4: Applying strategic frameworks...${NC}"
+    local frameworks
+    frameworks=$(run_agent_sync "gemini" "Based on this analysis:
+$analysis
+
+Apply relevant strategic frameworks:
+1. SWOT Analysis (internal strengths/weaknesses, external opportunities/threats)
+2. Porter's Five Forces (if industry analysis is relevant)
+3. Strategic options matrix with trade-offs
+
+Context: $prompt" 180 "strategy-analyst" "advise")
+
+    echo -e "${CYAN}🦑 Phase 3/4: Building business case and recommendations...${NC}"
+    local recommendations
+    recommendations=$(run_agent_sync "codex" "Based on this strategic analysis:
+
+Market Analysis:
+$analysis
+
+Framework Analysis:
+$frameworks
+
+Develop:
+1. 2-3 strategic options with pros/cons
+2. Recommended option with clear rationale
+3. Implementation considerations and risks
+4. Success metrics and KPIs
+5. 90-day action plan
+
+Original question: $prompt" 180 "strategy-analyst" "advise")
+
+    echo -e "${CYAN}🦑 Phase 4/4: Crafting executive communication...${NC}"
+    local executive_summary
+    executive_summary=$(run_agent_sync "gemini" "Create an executive summary from this strategic analysis:
+
+Analysis: $analysis
+Frameworks: $frameworks
+Recommendations: $recommendations
+
+Format as:
+1. Executive Summary (3-5 bullet points, bottom line up front)
+2. Key recommendation with supporting rationale
+3. Required decisions and asks
+4. Timeline and next steps
+
+Make it board-ready and actionable." 120 "exec-communicator" "advise")
+
+    local result_file="$RESULTS_DIR/advise-${task_group}.md"
+    cat > "$result_file" << EOF
+# Strategic Analysis: Advise Workflow
+**Generated:** $(date)
+**Strategic Question:** $prompt
+
+---
+
+## Executive Summary
+$executive_summary
+
+---
+
+## Phase 1: Market & Competitive Analysis
+$analysis
+
+---
+
+## Phase 2: Strategic Frameworks
+$frameworks
+
+---
+
+## Phase 3: Recommendations & Business Case
+$recommendations
+
+---
+*Generated by Claude Octopus advise workflow - strategic tentacles wrapped around the problem* 🐙
+EOF
+
+    echo ""
+    echo -e "${GREEN}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${GREEN}║  ✓ Advise workflow complete - strategy crystallized!      ║${NC}"
+    echo -e "${GREEN}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    echo -e "  Result: ${CYAN}$result_file${NC}"
+    echo ""
+
+    log_agent_usage "advise" "knowledge-work" "$prompt"
+}
+
+synthesize_research() {
+    local prompt="$1"
+    local task_group
+    task_group=$(date +%s)
+
+    echo ""
+    echo -e "${MAGENTA}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${MAGENTA}║  ${CYAN}📚 SYNTHESIZE${MAGENTA} - Research Synthesis Workflow              ║${NC}"
+    echo -e "${MAGENTA}║  Weaving knowledge tentacles through the literature...    ║${NC}"
+    echo -e "${MAGENTA}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+
+    log INFO "🐙 Extending research tentacles for literature synthesis..."
+
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log INFO "[DRY-RUN] Would synthesize: $prompt"
+        log INFO "[DRY-RUN] Phase 1: Gather and categorize sources"
+        log INFO "[DRY-RUN] Phase 2: Thematic analysis and synthesis"
+        log INFO "[DRY-RUN] Phase 3: Gap identification and future directions"
+        log INFO "[DRY-RUN] Phase 4: Academic writing and formatting"
+        return 0
+    fi
+
+    preflight_check || return 1
+    mkdir -p "$RESULTS_DIR"
+
+    echo -e "${CYAN}🦑 Phase 1/4: Gathering and categorizing sources...${NC}"
+    local gathering
+    gathering=$(run_agent_sync "gemini" "You are a research synthesizer. For the topic: $prompt
+
+Provide:
+1. Key research areas and sub-topics to explore
+2. Major theoretical frameworks relevant to this topic
+3. Seminal works and key researchers in the field
+4. Taxonomy for organizing the literature
+
+Create a structure for systematic review." 180 "research-synthesizer" "synthesize")
+
+    echo -e "${CYAN}🦑 Phase 2/4: Conducting thematic analysis...${NC}"
+    local themes
+    themes=$(run_agent_sync "gemini" "Based on this literature structure:
+$gathering
+
+Conduct thematic analysis:
+1. Identify 4-6 major themes across the literature
+2. Note points of consensus among researchers
+3. Identify conflicting findings and their sources
+4. Trace the evolution of thinking on this topic
+
+Topic: $prompt" 180 "research-synthesizer" "synthesize")
+
+    echo -e "${CYAN}🦑 Phase 3/4: Identifying gaps and future directions...${NC}"
+    local gaps
+    gaps=$(run_agent_sync "codex" "Based on this literature synthesis:
+
+Structure: $gathering
+Themes: $themes
+
+Identify:
+1. Research gaps - what hasn't been studied adequately?
+2. Methodological limitations across studies
+3. Theoretical gaps needing development
+4. Practical implications needing research
+5. Priority research questions for the field
+
+Original topic: $prompt" 180 "research-synthesizer" "synthesize")
+
+    echo -e "${CYAN}🦑 Phase 4/4: Drafting synthesis narrative...${NC}"
+    local narrative
+    narrative=$(run_agent_sync "gemini" "Write a literature review synthesis for:
+
+Topic: $prompt
+Structure: $gathering
+Themes: $themes
+Gaps: $gaps
+
+Create:
+1. Introduction establishing importance and scope
+2. Body organized by themes (not chronologically)
+3. Critical synthesis connecting themes
+4. Conclusion with gaps and future directions
+
+Use academic writing conventions." 180 "academic-writer" "synthesize")
+
+    local result_file="$RESULTS_DIR/synthesize-${task_group}.md"
+    cat > "$result_file" << EOF
+# Literature Synthesis: Research Workflow
+**Generated:** $(date)
+**Research Topic:** $prompt
+
+---
+
+## Synthesis Narrative
+$narrative
+
+---
+
+## Appendix A: Literature Structure
+$gathering
+
+---
+
+## Appendix B: Thematic Analysis
+$themes
+
+---
+
+## Appendix C: Research Gaps & Future Directions
+$gaps
+
+---
+*Generated by Claude Octopus synthesize workflow - knowledge tentacles weaving through the literature* 🐙
+EOF
+
+    echo ""
+    echo -e "${GREEN}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${GREEN}║  ✓ Synthesize workflow complete - knowledge crystallized! ║${NC}"
+    echo -e "${GREEN}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    echo -e "  Result: ${CYAN}$result_file${NC}"
+    echo ""
+
+    log_agent_usage "synthesize" "knowledge-work" "$prompt"
+}
+
+toggle_knowledge_work_mode() {
+    load_user_config || true  # Don't exit if config load fails
+    KNOWLEDGE_WORK_MODE="${KNOWLEDGE_WORK_MODE:-false}"  # Default to false if unset
+
+    if [[ "$KNOWLEDGE_WORK_MODE" == "true" ]]; then
+        KNOWLEDGE_WORK_MODE="false"
+        echo ""
+        echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${CYAN}║  🐙 Knowledge Work Mode: ${RED}OFF${CYAN}                              ║${NC}"
+        echo -e "${CYAN}║  Tentacles retracting from research mode...               ║${NC}"
+        echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
+        echo ""
+        echo -e "  Auto-routing now prioritizes: ${GREEN}development workflows${NC}"
+        echo -e "  Commands: probe, tangle, ink, embrace, grapple, squeeze"
+        echo ""
+    else
+        KNOWLEDGE_WORK_MODE="true"
+        echo ""
+        echo -e "${MAGENTA}╔═══════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${MAGENTA}║  🐙 Knowledge Work Mode: ${GREEN}ON${MAGENTA}                               ║${NC}"
+        echo -e "${MAGENTA}║  Extending knowledge tentacles...                         ║${NC}"
+        echo -e "${MAGENTA}╚═══════════════════════════════════════════════════════════╝${NC}"
+        echo ""
+        echo -e "  Auto-routing now prioritizes: ${GREEN}knowledge workflows${NC}"
+        echo -e "  Commands: empathize, advise, synthesize"
+        echo ""
+        echo -e "  ${CYAN}Available knowledge workflows:${NC}"
+        echo -e "    ${GREEN}empathize${NC}   - UX research (personas, journey maps, pain points)"
+        echo -e "    ${GREEN}advise${NC}      - Strategy consulting (market analysis, frameworks)"
+        echo -e "    ${GREEN}synthesize${NC}  - Academic research (literature review, synthesis)"
+        echo ""
+    fi
+
+    save_user_config "$USER_INTENT_PRIMARY" "$USER_INTENT_ALL" "$USER_RESOURCE_TIER"
+    echo -e "  ${GREEN}✓${NC} Configuration saved. Toggle with: ${CYAN}knowledge-toggle${NC}"
+    echo ""
+}
+
 show_status() {
     echo ""
     echo -e "${MAGENTA}═══════════════════════════════════════════════════════════${NC}"
@@ -8811,7 +9415,15 @@ show_status() {
     echo -e "${MAGENTA}═══════════════════════════════════════════════════════════${NC}"
     echo ""
 
-    # Show provider status (v4.8)
+    load_user_config 2>/dev/null || true
+    if [[ "$KNOWLEDGE_WORK_MODE" == "true" ]]; then
+        echo -e "${BLUE}Mode:${NC} ${MAGENTA}Knowledge Work${NC} 🎓 (empathize, advise, synthesize prioritized)"
+    else
+        echo -e "${BLUE}Mode:${NC} ${GREEN}Development${NC} 💻 (probe, tangle, ink, embrace)"
+    fi
+    echo -e "  Toggle with: ${CYAN}knowledge-toggle${NC}"
+    echo ""
+
     show_provider_status
 
     if [[ ! -f "$PID_FILE" ]]; then
@@ -9127,6 +9739,24 @@ case "$COMMAND" in
         ;;
     aggregate)
         aggregate_results "${1:-}"
+        ;;
+    # ═══════════════════════════════════════════════════════════════════════════
+    # KNOWLEDGE WORKER WORKFLOWS (v6.0)
+    # ═══════════════════════════════════════════════════════════════════════════
+    empathize|empathy|ux-research)
+        [[ $# -lt 1 ]] && { log ERROR "Usage: empathize <prompt>"; exit 1; }
+        empathize_research "$*"
+        ;;
+    advise|consult|strategy)
+        [[ $# -lt 1 ]] && { log ERROR "Usage: advise <prompt>"; exit 1; }
+        advise_strategy "$*"
+        ;;
+    synthesize|synthesis|lit-review)
+        [[ $# -lt 1 ]] && { log ERROR "Usage: synthesize <prompt>"; exit 1; }
+        synthesize_research "$*"
+        ;;
+    knowledge|knowledge-mode|knowledge-toggle)
+        toggle_knowledge_work_mode
         ;;
     # ═══════════════════════════════════════════════════════════════════════════
     # RALPH-WIGGUM ITERATION COMMANDS (v3.5)
