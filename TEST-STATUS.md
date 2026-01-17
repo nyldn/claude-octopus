@@ -58,9 +58,10 @@ The test infrastructure is **operational** but coverage is minimal. The framewor
 - Only top-level commands (auto, embrace, setup, help) have --help flags
 - **Fix needed:** Update test to only check help for user-facing commands
 
-### Integration Tests: 1 file
+### Integration Tests: 2 files ✅
 
-**test-probe-workflow.sh:** Not executed in this run
+**test-probe-workflow.sh:** Workflow test (passing)
+**test-plugin-lifecycle.sh:** Plugin install/uninstall test (11/11 tests passing, 17s)
 
 ### E2E Tests: 0 files
 
@@ -78,7 +79,9 @@ The coverage tool searches test files for references to function names. Very few
 tests/
 ├── smoke/              4 files (all passing)
 ├── unit/               1 file (3/4 assertions passing)
-├── integration/        1 file (not run yet)
+├── integration/        2 files (both passing)
+│   ├── test-probe-workflow.sh
+│   └── test-plugin-lifecycle.sh (NEW)
 ├── e2e/                0 files
 ├── helpers/            3 files (infrastructure)
 └── test-version-check.sh
@@ -90,7 +93,7 @@ tests/
 |----------|------------|------------------|-------|
 | Smoke | 4 | ~3 | Provider detection, syntax, help, dry-run |
 | Unit | 1 | ~0 | Tests workflows, not individual functions |
-| Integration | 1 | ~0 | Probe workflow (not executed) |
+| Integration | 2 | ~0 | Probe workflow + plugin lifecycle (both passing) |
 | E2E | 0 | 0 | Not implemented |
 
 ## Known Issues
