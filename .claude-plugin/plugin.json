@@ -1,7 +1,7 @@
 {
   "name": "claude-octopus",
-  "version": "6.0.1",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v6.0.1) Supports code + knowledge work! Run /claude-octopus:setup for guided setup.",
+  "version": "7.0.0",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.0.0 - Security hardened!) Supports code + knowledge work! Run /claude-octopus:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },
@@ -41,7 +41,12 @@
     "./.claude/skills/security-audit.md",
     "./.claude/skills/quick-review.md",
     "./.claude/skills/deep-research.md",
-    "./.claude/skills/adversarial-security.md"
+    "./.claude/skills/adversarial-security.md",
+    "./.claude/skills/finishing-branch.md",
+    "./.claude/skills/systematic-debugging.md",
+    "./.claude/skills/test-driven-development.md",
+    "./.claude/skills/verification-before-completion.md",
+    "./.claude/skills/writing-plans.md"
   ],
   "commands": "./.claude/commands/"
 }

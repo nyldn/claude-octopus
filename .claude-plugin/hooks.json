@@ -1,0 +1,41 @@
+{
+  "PreToolUse": [
+    {
+      "matcher": {
+        "tool": "Bash",
+        "pattern": "orchestrate\\.sh.*tangle"
+      },
+      "hooks": [
+        {
+          "type": "prompt",
+          "prompt": "Before running tangle phase, check if there are existing validation results that need review."
+        }
+      ]
+    }
+  ],
+  "PostToolUse": [
+    {
+      "matcher": {
+        "tool": "Bash",
+        "pattern": "orchestrate\\.sh.*tangle"
+      },
+      "hooks": [
+        {
+          "type": "command",
+          "command": "${CLAUDE_PLUGIN_ROOT}/hooks/quality-gate.sh"
+        }
+      ]
+    }
+  ],
+  "SessionStart": [
+    {
+      "matcher": {},
+      "hooks": [
+        {
+          "type": "command",
+          "command": "${CLAUDE_PLUGIN_ROOT}/hooks/session-sync.sh"
+        }
+      ]
+    }
+  ]
+}
