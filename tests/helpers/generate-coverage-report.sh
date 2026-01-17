@@ -14,7 +14,7 @@ NC='\033[0m'
 # Paths
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
-ORCHESTRATE="$PROJECT_ROOT/orchestrate.sh"
+ORCHESTRATE="$PROJECT_ROOT/scripts/orchestrate.sh"
 TESTS_DIR="$PROJECT_ROOT/tests"
 
 # Output files

@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Claude Octopus - Test Coverage Report</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 40px auto;
+            padding: 0 20px;
+            background: #f5f5f5;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 2.5em;
+        }
+        .header .subtitle {
+            opacity: 0.9;
+            margin-top: 5px;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .stat-card h3 {
+            margin: 0 0 10px 0;
+            color: #666;
+            font-size: 0.9em;
+            text-transform: uppercase;
+        }
+        .stat-card .value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #333;
+        }
+        .progress {
+            background: #e0e0e0;
+            height: 30px;
+            border-radius: 15px;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+        .progress-bar {
+            height: 100%;
+            background: #f44336;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            transition: width 0.3s ease;
+        }
+        .section {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .section h2 {
+            margin-top: 0;
+            color: #333;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+        .function-list {
+            list-style: none;
+            padding: 0;
+        }
+        .function-list li {
+            padding: 8px 12px;
+            margin: 4px 0;
+            background: #f9f9f9;
+            border-left: 3px solid #f44336;
+            font-family: monospace;
+        }
+        .test-file {
+            padding: 8px 12px;
+            margin: 4px 0;
+            background: #f0f7ff;
+            border-left: 3px solid #2196f3;
+            font-family: monospace;
+        }
+        .timestamp {
+            color: #999;
+            font-size: 0.9em;
+            text-align: center;
+            margin-top: 30px;
+            padding: 20px;
+        }
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            font-weight: bold;
+        }
+        .badge-success { background: #4caf50; color: white; }
+        .badge-warning { background: #ff9800; color: white; }
+        .badge-danger { background: #f44336; color: white; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🐙 Claude Octopus</h1>
+        <div class="subtitle">Test Coverage Report</div>
+    </div>
+
+    <div class="stats">
+        <div class="stat-card">
+            <h3>Total Functions</h3>
+            <div class="value">157</div>
+        </div>
+        <div class="stat-card">
+            <h3>Tested</h3>
+            <div class="value" style="color: #4caf50;">3</div>
+        </div>
+        <div class="stat-card">
+            <h3>Untested</h3>
+            <div class="value" style="color: #f44336;">154</div>
+        </div>
+        <div class="stat-card">
+            <h3>Coverage</h3>
+            <div class="value" style="color: #f44336;">1%</div>
+        </div>
+    </div>
+
+    <div class="progress">
+        <div class="progress-bar" style="width: 1%; background: #f44336;">
+            1%
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Coverage Status</h2>
+        <p>
+            <span class="badge badge-danger">
+                1% Coverage
+            </span>
+            Threshold: 80%
+        </p>
+    </div>
+    <div class="section">
+        <h2>Untested Functions (154)</h2>
+        <ul class="function-list">
+            <li>_claude_octopus</li>
+            <li>_claude_octopus_completions</li>
+            <li>aggregate_results</li>
+            <li>apply_persona</li>
+            <li>approve_review</li>
+            <li>archive_usage_session</li>
+            <li>audit_log</li>
+            <li>auto_detect_provider_config</li>
+            <li>auto_route</li>
+            <li>check_claude_version</li>
+            <li>check_codex_auth</li>
+            <li>check_completion_promise</li>
+            <li>check_first_run</li>
+            <li>check_resume_session</li>
+            <li>ci_output</li>
+            <li>classify_task</li>
+            <li>clean_workspace</li>
+            <li>clear_usage_session</li>
+            <li>cmd_detect_providers</li>
+            <li>complete_session</li>
+            <li>detect_image_type</li>
+            <li>detect_providers</li>
+            <li>detect_tier_claude</li>
+            <li>detect_tier_gemini</li>
+            <li>detect_tier_openai</li>
+            <li>embrace_full_workflow</li>
+            <li>estimate_complexity</li>
+            <li>estimate_tokens</li>
+            <li>evaluate_branch_condition</li>
+            <li>evaluate_quality_branch</li>
+            <li>execute_openrouter</li>
+            <li>execute_quality_branch</li>
+            <li>extract_json_field</li>
+            <li>fan_out</li>
+            <li>format_audit_entry</li>
+            <li>generate_bash_completion</li>
+            <li>generate_fish_completion</li>
+            <li>generate_shell_completion</li>
+            <li>generate_usage_csv</li>
+            <li>generate_usage_json</li>
+            <li>generate_usage_report</li>
+            <li>generate_usage_table</li>
+            <li>generate_zsh_completion</li>
+            <li>get_agent_command</li>
+            <li>get_agent_command_array</li>
+            <li>get_agent_config</li>
+            <li>get_agent_for_task</li>
+            <li>get_agent_model</li>
+            <li>get_audit_trail</li>
+            <li>get_branch_display</li>
+            <li>get_cost_tier_for_subscription</li>
+            <li>get_cost_tier_value</li>
+            <li>get_curated_agent_cli</li>
+            <li>get_fallback_agent</li>
+            <li>get_fallback_agent_v2</li>
+            <li>get_install_command</li>
+            <li>get_intent_name</li>
+            <li>get_intent_persona</li>
+            <li>get_model_pricing</li>
+            <li>get_openrouter_model</li>
+            <li>get_persona_instruction</li>
+            <li>get_phase_agents</li>
+            <li>get_phase_output</li>
+            <li>get_provider_capabilities</li>
+            <li>get_provider_context_limit</li>
+            <li>get_ralph_iteration</li>
+            <li>get_resource_adjusted_tier</li>
+            <li>get_resume_phase</li>
+            <li>get_role_agent</li>
+            <li>get_role_for_context</li>
+            <li>get_role_mapping</li>
+            <li>get_role_model</li>
+            <li>get_tier_name</li>
+            <li>get_tiered_agent</li>
+            <li>get_tiered_agent_v2</li>
+            <li>get_tool_description</li>
+            <li>grapple_debate</li>
+            <li>grasp_define</li>
+            <li>handle_auth_command</li>
+            <li>handle_autonomy_checkpoint</li>
+            <li>has_claude_code</li>
+            <li>has_curated_agents</li>
+            <li>init_ci_mode</li>
+            <li>init_interactive</li>
+            <li>init_ralph_state</li>
+            <li>init_session</li>
+            <li>init_step_intent</li>
+            <li>init_step_resources</li>
+            <li>init_usage_tracking</li>
+            <li>init_workspace</li>
+            <li>ink_deliver</li>
+            <li>install_tool</li>
+            <li>is_agent_available</li>
+            <li>is_agent_available_v2</li>
+            <li>is_tool_installed</li>
+            <li>json_extract</li>
+            <li>json_extract_multi</li>
+            <li>kill_agents</li>
+            <li>list_available_skills</li>
+            <li>list_pending_reviews</li>
+            <li>load_curated_persona</li>
+            <li>load_providers_config</li>
+            <li>load_user_config</li>
+            <li>log_role_assignment</li>
+            <li>map_reduce</li>
+            <li>OLD_init_interactive_impl</li>
+            <li>open_browser</li>
+            <li>openrouter_execute</li>
+            <li>parallel_execute</li>
+            <li>parse_yaml_value</li>
+            <li>preflight_cache_invalidate</li>
+            <li>preflight_cache_read</li>
+            <li>preflight_cache_valid</li>
+            <li>preflight_cache_write</li>
+            <li>preflight_check</li>
+            <li>preflight_with_recovery</li>
+            <li>probe_discover</li>
+            <li>queue_for_review</li>
+            <li>reconfigure_preferences</li>
+            <li>record_agent_call</li>
+            <li>refine_image_prompt</li>
+            <li>reject_review</li>
+            <li>retry_failed_subtasks</li>
+            <li>run_agent_sync</li>
+            <li>run_with_claude_code_ralph</li>
+            <li>run_with_ralph_loop</li>
+            <li>run_with_timeout</li>
+            <li>save_providers_config</li>
+            <li>save_session_checkpoint</li>
+            <li>save_user_config</li>
+            <li>score_provider</li>
+            <li>select_curated_agent</li>
+            <li>select_provider</li>
+            <li>setup_wizard</li>
+            <li>show_config_summary</li>
+            <li>show_error</li>
+            <li>show_provider_status</li>
+            <li>show_review</li>
+            <li>show_status</li>
+            <li>spawn_agent</li>
+            <li>squeeze_test</li>
+            <li>synthesize_probe_results</li>
+            <li>tangle_develop</li>
+            <li>tier_cache_invalidate</li>
+            <li>tier_cache_read</li>
+            <li>tier_cache_valid</li>
+            <li>tier_cache_write</li>
+            <li>update_ralph_state</li>
+            <li>usage_command</li>
+            <li>usage_full</li>
+            <li>usage_simple</li>
+            <li>validate_agent_type</li>
+            <li>validate_tangle_results</li>
+            <li>validate_workspace_path</li>
+        </ul>
+    </div>
+    <div class="section">
+        <h2>Test Files</h2>
+        <div class="test-file">Smoke:        4 files</div>
+        <div class="test-file">Unit:        1 files</div>
+        <div class="test-file">Integration:        1 files</div>
+        <div class="test-file">E2E:        0 files</div>
+    </div>
+
+    <div class="timestamp">
+        Generated: Fri Jan 16 19:01:49 EST 2026<br>
+        Claude Octopus v4.9.0
+    </div>
+</body>
+</html>

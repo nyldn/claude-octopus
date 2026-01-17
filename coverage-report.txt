@@ -1,0 +1,187 @@
+Claude Octopus Test Coverage Report
+====================================
+
+Generated: Fri Jan 16 19:01:49 EST 2026
+
+Summary:
+--------
+Total functions:      157
+Tested functions:     3
+Untested functions:   154
+Coverage:             1%
+
+Untested Functions:
+-------------------
+  - _claude_octopus
+  - _claude_octopus_completions
+  - aggregate_results
+  - apply_persona
+  - approve_review
+  - archive_usage_session
+  - audit_log
+  - auto_detect_provider_config
+  - auto_route
+  - check_claude_version
+  - check_codex_auth
+  - check_completion_promise
+  - check_first_run
+  - check_resume_session
+  - ci_output
+  - classify_task
+  - clean_workspace
+  - clear_usage_session
+  - cmd_detect_providers
+  - complete_session
+  - detect_image_type
+  - detect_providers
+  - detect_tier_claude
+  - detect_tier_gemini
+  - detect_tier_openai
+  - embrace_full_workflow
+  - estimate_complexity
+  - estimate_tokens
+  - evaluate_branch_condition
+  - evaluate_quality_branch
+  - execute_openrouter
+  - execute_quality_branch
+  - extract_json_field
+  - fan_out
+  - format_audit_entry
+  - generate_bash_completion
+  - generate_fish_completion
+  - generate_shell_completion
+  - generate_usage_csv
+  - generate_usage_json
+  - generate_usage_report
+  - generate_usage_table
+  - generate_zsh_completion
+  - get_agent_command
+  - get_agent_command_array
+  - get_agent_config
+  - get_agent_for_task
+  - get_agent_model
+  - get_audit_trail
+  - get_branch_display
+  - get_cost_tier_for_subscription
+  - get_cost_tier_value
+  - get_curated_agent_cli
+  - get_fallback_agent
+  - get_fallback_agent_v2
+  - get_install_command
+  - get_intent_name
+  - get_intent_persona
+  - get_model_pricing
+  - get_openrouter_model
+  - get_persona_instruction
+  - get_phase_agents
+  - get_phase_output
+  - get_provider_capabilities
+  - get_provider_context_limit
+  - get_ralph_iteration
+  - get_resource_adjusted_tier
+  - get_resume_phase
+  - get_role_agent
+  - get_role_for_context
+  - get_role_mapping
+  - get_role_model
+  - get_tier_name
+  - get_tiered_agent
+  - get_tiered_agent_v2
+  - get_tool_description
+  - grapple_debate
+  - grasp_define
+  - handle_auth_command
+  - handle_autonomy_checkpoint
+  - has_claude_code
+  - has_curated_agents
+  - init_ci_mode
+  - init_interactive
+  - init_ralph_state
+  - init_session
+  - init_step_intent
+  - init_step_resources
+  - init_usage_tracking
+  - init_workspace
+  - ink_deliver
+  - install_tool
+  - is_agent_available
+  - is_agent_available_v2
+  - is_tool_installed
+  - json_extract
+  - json_extract_multi
+  - kill_agents
+  - list_available_skills
+  - list_pending_reviews
+  - load_curated_persona
+  - load_providers_config
+  - load_user_config
+  - log_role_assignment
+  - map_reduce
+  - OLD_init_interactive_impl
+  - open_browser
+  - openrouter_execute
+  - parallel_execute
+  - parse_yaml_value
+  - preflight_cache_invalidate
+  - preflight_cache_read
+  - preflight_cache_valid
+  - preflight_cache_write
+  - preflight_check
+  - preflight_with_recovery
+  - probe_discover
+  - queue_for_review
+  - reconfigure_preferences
+  - record_agent_call
+  - refine_image_prompt
+  - reject_review
+  - retry_failed_subtasks
+  - run_agent_sync
+  - run_with_claude_code_ralph
+  - run_with_ralph_loop
+  - run_with_timeout
+  - save_providers_config
+  - save_session_checkpoint
+  - save_user_config
+  - score_provider
+  - select_curated_agent
+  - select_provider
+  - setup_wizard
+  - show_config_summary
+  - show_error
+  - show_provider_status
+  - show_review
+  - show_status
+  - spawn_agent
+  - squeeze_test
+  - synthesize_probe_results
+  - tangle_develop
+  - tier_cache_invalidate
+  - tier_cache_read
+  - tier_cache_valid
+  - tier_cache_write
+  - update_ralph_state
+  - usage_command
+  - usage_full
+  - usage_simple
+  - validate_agent_type
+  - validate_tangle_results
+  - validate_workspace_path
+
+Test Files:
+-----------
+  - helpers/test-framework.sh
+  - integration/test-probe-workflow.sh
+  - smoke/test-detect-providers.sh
+  - smoke/test-dry-run-all.sh
+  - smoke/test-help-commands.sh
+  - smoke/test-syntax.sh
+  - test-version-check.sh
+  - unit/test-routing.sh
+
+Coverage by Category:
+--------------------
+  Smoke tests:               4
+  Unit tests:                1
+  Integration tests:         1
+  E2E tests:                 0
+
