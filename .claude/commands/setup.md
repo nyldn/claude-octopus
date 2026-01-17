@@ -11,7 +11,7 @@ This command checks your current setup and provides instructions for any missing
 Running setup detection...
 
 ```bash
-./scripts/orchestrate.sh detect-providers
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh detect-providers
 ```
 
 Based on the results above, here's what you need:
@@ -98,7 +98,7 @@ export GEMINI_API_KEY="AIza..."
 
 After installing and configuring, verify with:
 ```bash
-./scripts/orchestrate.sh detect-providers
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh detect-providers
 ```
 
 You should see at least one provider with status:
@@ -181,6 +181,6 @@ Add the export statement to your shell profile (~/.zshrc or ~/.bashrc) so it loa
 ## Getting Help
 
 If you encounter issues:
-1. Run `./scripts/orchestrate.sh preflight` for a detailed system check
+1. Run `${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh preflight` for a detailed system check
 2. Check the logs in `~/.claude-octopus/logs/`
 3. Report issues at: https://github.com/nyldn/claude-octopus/issues
