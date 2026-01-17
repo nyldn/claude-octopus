@@ -78,4 +78,6 @@ tests/tmp/
 tests/**/*.log
 test-results*.xml
 coverage*.xml
+coverage-report.html
+coverage-report.txt
 /tmp/test_*.log
