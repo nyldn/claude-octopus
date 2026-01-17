@@ -38,20 +38,32 @@ if [[ -f "$VALIDATION_FILE" ]]; then
 fi
 ```
 
-## additionalContext Return (Claude Code v2.1.9)
+## additionalContext Return (Claude Code v2.1.10)
 
-This hook leverages the new `additionalContext` feature to return structured quality information:
+This hook leverages the `additionalContext` feature (v2.1.9+) to inject workflow state into Claude's context before tool execution:
 
 ```json
 {
-  "octopus_phase": "tangle|ink",
-  "quality_score": 85,
-  "quality_status": "WARNING",
-  "threshold": 75,
-  "pending_reviews": 2,
-  "session_id": "claude-abc123"
+  "octopus_workflow": {
+    "phase": "tangle|ink",
+    "quality_score": 85,
+    "quality_status": "WARNING",
+    "threshold": 75,
+    "pending_reviews": 2
+  },
+  "session": {
+    "id": "claude-abc123",
+    "results_dir": "~/.claude-octopus/results/claude-abc123/",
+    "plans_dir": "~/.claude-octopus/plans/claude-abc123/"
+  },
+  "providers": {
+    "codex": "available",
+    "gemini": "available"
+  }
 }
 ```
+
+This additional context helps Claude make informed decisions during multi-agent orchestration.
 
 ## Response Behavior
 

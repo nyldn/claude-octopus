@@ -5,6 +5,62 @@ All notable changes to Claude Octopus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.1.0] - 2026-01-17
+
+### Added - Claude Code 2.1.10 Integration & Discipline Skills
+
+#### Claude Code 2.1.10 Features
+
+**Session-Aware Workflow Directories**
+- Session ID integration via `${CLAUDE_SESSION_ID}` for cross-session tracking
+- New directory structure: `~/.claude-octopus/results/${SESSION_ID}/`
+- Session-specific subdirectories: tasks/, agents/, quality/, costs/
+- `init_session_workspace()` function creates session-isolated workspace
+- Enables correlation of work across Claude Code sessions
+
+**plansDirectory Integration**
+- Updated `writing-plans.md` skill to document `plansDirectory` setting integration
+- Plans stored in `.claude/plans/` for Claude Code discovery
+- Structured plan format with context, phases, files, and validation
+
+**Setup Hook Event**
+- New `hooks/setup-hook.md` for automatic initialization on `--init`
+- Runs provider detection, workspace initialization, and welcome message
+- Triggered when Claude Code starts with `--init` flag
+
+**PreToolUse additionalContext**
+- Enhanced `hooks/quality-gate-hook.md` with workflow state injection
+- Provides current phase, quality scores, and provider status in tool context
+- Enables informed decision-making in multi-phase workflows
+
+#### New Discipline Skills (from obra/superpowers)
+
+**Five Engineering Discipline Skills**
+- `test-driven-development.md` - TDD with "Iron Law" enforcement (no production code without failing test)
+- `systematic-debugging.md` - Four-phase debugging process (Observe → Hypothesize → Test → Fix)
+- `verification-before-completion.md` - Evidence gate before claiming success
+- `writing-plans.md` - Zero-context implementation plans with plansDirectory integration
+- `finishing-branch.md` - Post-implementation workflow (merge/PR/keep/discard)
+
+### Changed
+
+- Minimum Claude Code version: `2.1.9` → `2.1.10`
+- Plugin version: `7.0.0` → `7.1.0`
+- Updated keyword: `claude-code-2.1.9` → `claude-code-2.1.10`
+- Added Acknowledgments section to README.md crediting obra/superpowers
+
+### Notes
+
+This release integrates Claude Code 2.1.10 features for session-aware workflows and adds five discipline skills inspired by obra/superpowers. The session-aware directory structure enables better tracking and isolation of work across Claude Code sessions.
+
+**Migration from v7.0.0:**
+- Update plugin: `/plugin update claude-octopus`
+- Restart Claude Code
+- Session-aware features activate automatically
+- New skills available immediately after update
+
+---
+
 ## [7.0.0] - 2026-01-17
 
 ### Security - Critical Fixes
