@@ -207,14 +207,19 @@ wait_async_agents() {
 
     log INFO "Waiting for ${#pids[@]} async agents to complete"
 
-    local completed=0
+    local -A completed_pids=()
     local start_time=$(date +%s)
 
-    while [[ $completed -lt ${#pids[@]} ]]; do
-        completed=0
+    while [[ ${#completed_pids[@]} -lt ${#pids[@]} ]]; do
         for pid in "${pids[@]}"; do
+            # Skip already completed PIDs
+            [[ -n "${completed_pids[$pid]:-}" ]] && continue
+
+            # Check if process is still running
             if ! kill -0 "$pid" 2>/dev/null; then
-                ((completed++))
+                # Reap zombie process and capture exit code
+                wait "$pid" 2>/dev/null
+                completed_pids[$pid]=$?
             fi
         done
 
@@ -224,9 +229,9 @@ wait_async_agents() {
         local secs=$((elapsed % 60))
 
         # Show progress with elapsed time
-        echo -ne "\r${CYAN}Progress: $completed/${#pids[@]} agents complete (${mins}m ${secs}s elapsed)${NC}     "
+        echo -ne "\r${CYAN}Progress: ${#completed_pids[@]}/${#pids[@]} agents complete (${mins}m ${secs}s elapsed)${NC}     "
 
-        sleep 1
+        sleep 0.5
     done
 
     echo "" # New line after progress

@@ -6,7 +6,7 @@
   <img src="https://img.shields.io/badge/Claude_Code-Plugin-blueviolet" alt="Claude Code Plugin">
   <img src="https://img.shields.io/badge/Double_Diamond-Design_Thinking-orange" alt="Double Diamond">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
-  <img src="https://img.shields.io/badge/Version-6.0.1-blue" alt="Version 6.0.1">
+  <img src="https://img.shields.io/badge/Version-7.0.0-blue" alt="Version 7.0.0">
 </p>
 
 # Claude Octopus
@@ -389,6 +389,52 @@ The configuration wizard sets your subscription tier for each provider:
 # Force cost-first routing
 ./scripts/orchestrate.sh --cost-first auto "research best practices"
 ```
+
+</details>
+
+<details>
+<summary><strong>🎯 Model Selection & Inheritance</strong></summary>
+
+Claude Octopus agents can specify which Claude model to use. Agents inherit the Claude Code session model by default, but can override for specific use cases.
+
+### Model Options
+
+| Model Value | Behavior | When to Use |
+|-------------|----------|-------------|
+| `inherit` (default) | Uses the Claude Code session model (usually Sonnet) | Most agents - let user control cost/quality |
+| `opus` | Forces Claude Opus 4.5 | Complex reasoning, architecture, strategy |
+| `sonnet` | Forces Claude Sonnet 4.5 | Balanced tasks, implementation, writing |
+| `haiku` | Forces Claude Haiku | Simple, fast tasks (future) |
+
+### Cost Implications
+
+Understanding model costs helps optimize your AI spend:
+
+| Model | Relative Cost | Use For |
+|-------|---------------|---------|
+| **Opus** | ~15× Sonnet | Strategic analysis, complex architecture, adversarial review |
+| **Sonnet** | Baseline | Implementation, code review, documentation |
+| **Haiku** | ~0.2× Sonnet | Simple queries, format conversion |
+
+### Agent Model Configuration
+
+Most agents use `model: inherit` to respect your session preferences:
+
+```yaml
+# agents/personas/backend-architect.md
+---
+model: opus    # Complex architecture tasks justify Opus cost
+---
+```
+
+```yaml
+# agents/personas/frontend-developer.md
+---
+model: inherit  # Let user decide via session model
+---
+```
+
+**Recommendation**: Leave agents on `inherit` unless the task specifically requires Opus-level reasoning (architecture, strategy, complex debugging).
 
 </details>
 
@@ -867,6 +913,16 @@ See [tests/README.md](tests/README.md) for comprehensive testing documentation.
 | One model, one price | Cost-aware routing to cheaper models |
 | Ad-hoc workflows | Double Diamond methodology baked in |
 | Single perspective | Adversarial AI-vs-AI review |
+
+---
+
+## Acknowledgments
+
+Claude Octopus stands on the shoulders of giants:
+
+- **[obra/superpowers](https://github.com/obra/superpowers)** by Jesse Vincent - Several discipline skills (TDD, systematic debugging, verification, planning, branch finishing) were inspired by the excellent patterns in this Claude Code skills library. The "Iron Law" enforcement approach and anti-rationalization techniques are particularly valuable.
+
+- **Double Diamond** methodology by the [UK Design Council](https://www.designcouncil.org.uk/our-resources/the-double-diamond/) - The probe/grasp/tangle/ink workflow structure.
 
 ---
 
