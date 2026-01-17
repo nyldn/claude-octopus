@@ -3,6 +3,13 @@
 # Compares single Claude Opus 4.5 request vs multi-agent orchestration
 # Metrics: Quality, Speed, Cost
 
+# Use bash 4.0+ if available (for associative arrays), fallback to bash 3.2
+if [[ "${BASH_VERSINFO[0]}" -ge 4 ]]; then
+    USE_BASH4=true
+else
+    USE_BASH4=false
+fi
+
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -25,13 +32,13 @@ BENCHMARK_TASKS=(
     "implementation:Implement a simple rate limiting middleware in Express.js with Redis"
 )
 
-# Results storage
-declare -A CLAUDE_TIMES
-declare -A OCTOPUS_TIMES
-declare -A CLAUDE_COSTS
-declare -A OCTOPUS_COSTS
-declare -A CLAUDE_OUTPUTS
-declare -A OCTOPUS_OUTPUTS
+# Results storage (using indexed arrays for bash 3.2 compatibility)
+CLAUDE_TIMES=()
+OCTOPUS_TIMES=()
+CLAUDE_COSTS=()
+OCTOPUS_COSTS=()
+CLAUDE_OUTPUTS=()
+OCTOPUS_OUTPUTS=()
 
 mkdir -p "$BENCHMARK_DIR"
 
