@@ -6,7 +6,7 @@
   <img src="https://img.shields.io/badge/Claude_Code-Plugin-blueviolet" alt="Claude Code Plugin">
   <img src="https://img.shields.io/badge/Double_Diamond-Design_Thinking-orange" alt="Double Diamond">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
-  <img src="https://img.shields.io/badge/Version-6.0.0-blue" alt="Version 6.0.0">
+  <img src="https://img.shields.io/badge/Version-6.0.1-blue" alt="Version 6.0.1">
 </p>
 
 # Claude Octopus
@@ -726,7 +726,7 @@ npm install -g @google/gemini-cli
 <details>
 <summary><strong>📜 What's New</strong></summary>
 
-### v6.0.0 - Knowledge Work Mode ⭐ LATEST
+### v6.0.1 - Knowledge Work Mode ⭐ LATEST
 
 - **Knowledge Work Mode** - Toggle between dev and research modes with `knowledge-toggle`
 - **3 New Workflows** - `empathize`, `advise`, `synthesize` for knowledge workers
