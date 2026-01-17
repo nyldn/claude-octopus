@@ -112,6 +112,43 @@ run_category() {
 # Test Execution
 #==============================================================================
 
+run_benchmark() {
+    local mode="${1:-demo}"
+
+    if [[ "$mode" == "real" ]]; then
+        print_header "Running REAL Execution Benchmark"
+        echo -e "${RED}⚠️  WARNING: This will make real API calls and incur costs!${NC}"
+        echo -e "${YELLOW}This compares actual execution with live agents${NC}\n"
+
+        local benchmark_script="$SCRIPT_DIR/benchmark/real-execution-benchmark.sh"
+
+        if [[ ! -f "$benchmark_script" ]]; then
+            echo -e "${RED}ERROR: Real benchmark script not found${NC}"
+            echo "Expected: $benchmark_script"
+            return 1
+        fi
+
+        bash "$benchmark_script"
+    else
+        print_header "Running Plugin Value Demonstration"
+        echo -e "${YELLOW}This will demonstrate Claude Code baseline vs Claude Code + Octopus Plugin${NC}"
+        echo -e "${YELLOW}Based on architectural analysis and validated test results${NC}"
+        echo -e "${CYAN}For real execution benchmark with API costs, use: benchmark-real${NC}\n"
+
+        local benchmark_script="$SCRIPT_DIR/benchmark/demo-plugin-value.sh"
+
+        if [[ ! -f "$benchmark_script" ]]; then
+            echo -e "${RED}ERROR: Benchmark script not found${NC}"
+            echo "Expected: $benchmark_script"
+            return 1
+        fi
+
+        bash "$benchmark_script"
+    fi
+
+    return $?
+}
+
 run_tests() {
     local start_time=$(date +%s)
 
@@ -134,6 +171,14 @@ run_tests() {
         regression)
             run_category "regression"
             ;;
+        benchmark)
+            run_benchmark "demo"
+            return $?
+            ;;
+        benchmark-real)
+            run_benchmark "real"
+            return $?
+            ;;
         all)
             print_header "Claude Octopus Test Suite"
             echo -e "Running all test categories\n"
@@ -149,7 +194,7 @@ run_tests() {
             ;;
         *)
             echo -e "${RED}Unknown category: $CATEGORY${NC}"
-            echo "Usage: $0 [smoke|unit|integration|e2e|performance|regression|all]"
+            echo "Usage: $0 [smoke|unit|integration|e2e|performance|regression|benchmark|all]"
             exit 1
             ;;
     esac
@@ -245,6 +290,8 @@ Categories:
     e2e             End-to-end tests with real APIs (15-30min)
     performance     Performance and benchmark tests
     regression      Version-specific regression tests
+    benchmark       Demo comparison (fast, free, based on tests)
+    benchmark-real  Real execution comparison (slow, uses API credits!)
     all             Run all test categories (default)
 
 Options:
