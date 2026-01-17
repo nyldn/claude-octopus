@@ -77,6 +77,7 @@ TASKS_FILE="${WORKSPACE_DIR}/tasks.json"
 RESULTS_DIR="${WORKSPACE_DIR}/results"
 LOGS_DIR="${WORKSPACE_DIR}/logs"
 PID_FILE="${WORKSPACE_DIR}/pids"
+ANALYTICS_DIR="${WORKSPACE_DIR}/analytics"
 
 # Performance: Preflight check cache (avoids repeated CLI checks)
 PREFLIGHT_CACHE_FILE="${WORKSPACE_DIR}/.preflight-cache"
@@ -730,6 +731,225 @@ get_agent_for_task() {
         general) echo "codex" ;;       # Default to codex for general tasks
         *) echo "codex" ;;
     esac
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PERSONA AGENT RECOMMENDATION (v5.0)
+# Suggests specialized persona agents based on prompt keyword analysis
+# Returns: agent name or empty string if no strong match
+# ═══════════════════════════════════════════════════════════════════════════════
+
+recommend_persona_agent() {
+    local prompt="$1"
+    local prompt_lower
+    prompt_lower=$(echo "$prompt" | tr '[:upper:]' '[:lower:]')
+    local recommendations=""
+    local confidence=0
+
+    # Backend/API patterns → backend-architect
+    if [[ "$prompt_lower" =~ (api|endpoint|microservice|rest|graphql|grpc|event.?driven|kafka|rabbitmq) ]]; then
+        recommendations="${recommendations}backend-architect "
+        ((confidence += 30))
+    fi
+
+    # Security patterns → security-auditor
+    if [[ "$prompt_lower" =~ (security|vulnerability|owasp|auth|authentication|injection|xss|csrf|pentest) ]]; then
+        recommendations="${recommendations}security-auditor "
+        ((confidence += 25))
+    fi
+
+    # Test/TDD patterns → tdd-orchestrator
+    if [[ "$prompt_lower" =~ (test|tdd|coverage|red.?green|unit.?test|integration.?test) ]]; then
+        recommendations="${recommendations}tdd-orchestrator "
+        ((confidence += 25))
+    fi
+
+    # Debug/error patterns → debugger
+    if [[ "$prompt_lower" =~ (debug|error|stack.?trace|troubleshoot|failing|broken|exception) ]]; then
+        recommendations="${recommendations}debugger "
+        ((confidence += 20))
+    fi
+
+    # Frontend/React patterns → frontend-developer
+    if [[ "$prompt_lower" =~ (react|frontend|ui|component|next\.?js|tailwind|css|responsive) ]]; then
+        recommendations="${recommendations}frontend-developer "
+        ((confidence += 25))
+    fi
+
+    # Database patterns → database-architect
+    if [[ "$prompt_lower" =~ (database|schema|migration|sql|nosql|postgres|mysql|mongodb|redis) ]]; then
+        recommendations="${recommendations}database-architect "
+        ((confidence += 25))
+    fi
+
+    # Cloud/Infrastructure patterns → cloud-architect
+    if [[ "$prompt_lower" =~ (cloud|aws|gcp|azure|infrastructure|terraform|kubernetes|k8s|docker) ]]; then
+        recommendations="${recommendations}cloud-architect "
+        ((confidence += 25))
+    fi
+
+    # Performance patterns → performance-engineer
+    if [[ "$prompt_lower" =~ (performance|optimize|slow|profile|benchmark|latency|n\+1|cache) ]]; then
+        recommendations="${recommendations}performance-engineer "
+        ((confidence += 25))
+    fi
+
+    # Code review patterns → code-reviewer
+    if [[ "$prompt_lower" =~ (review|code.?quality|best.?practice|refactor|clean.?code|solid) ]]; then
+        recommendations="${recommendations}code-reviewer "
+        ((confidence += 20))
+    fi
+
+    # Python patterns → python-pro
+    if [[ "$prompt_lower" =~ (python|fastapi|django|flask|pydantic|asyncio|pip|uv) ]]; then
+        recommendations="${recommendations}python-pro "
+        ((confidence += 25))
+    fi
+
+    # TypeScript patterns → typescript-pro
+    if [[ "$prompt_lower" =~ (typescript|generics|type.?safe|strict|tsconfig|discriminated) ]]; then
+        recommendations="${recommendations}typescript-pro "
+        ((confidence += 25))
+    fi
+
+    # GraphQL patterns → graphql-architect
+    if [[ "$prompt_lower" =~ (graphql|resolver|mutation|subscription|federation|apollo) ]]; then
+        recommendations="${recommendations}graphql-architect "
+        ((confidence += 25))
+    fi
+
+    # Return first recommendation if confidence is high enough
+    local primary
+    primary=$(echo "$recommendations" | awk '{print $1}')
+
+    # Only recommend if we have a match
+    if [[ -n "$primary" ]]; then
+        echo "$primary"
+    fi
+}
+
+# Get agent description from frontmatter (for display purposes)
+get_agent_description() {
+    local agent="$1"
+    local agent_file="$PLUGIN_DIR/agents/personas/$agent.md"
+
+    if [[ -f "$agent_file" ]]; then
+        grep "^description:" "$agent_file" 2>/dev/null | head -1 | sed 's/description:[[:space:]]*//' | cut -c1-80
+    else
+        echo "Specialized agent"
+    fi
+}
+
+# Show agent recommendations when ambiguous (interactive mode only)
+show_agent_recommendations() {
+    local prompt="$1"
+    local recommendations="$2"
+
+    # Only show in interactive mode (not CI, not dry-run)
+    [[ "$CI_MODE" == "true" ]] && return
+    [[ "$DRY_RUN" == "true" ]] && return
+
+    # Count recommendations
+    local rec_array=($recommendations)
+    local count=${#rec_array[@]}
+
+    [[ $count -lt 2 ]] && return
+
+    echo ""
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${CYAN}🐙 Multiple tentacles could handle this task:${NC}"
+    echo ""
+
+    local i=1
+    for agent in "${rec_array[@]}"; do
+        local desc
+        desc=$(get_agent_description "$agent")
+        echo -e "  ${GREEN}$i.${NC} ${YELLOW}$agent${NC}"
+        echo "     $desc"
+        echo ""
+        ((i++))
+    done
+
+    local primary="${rec_array[0]}"
+    echo -e "${CYAN}Recommended: ${GREEN}$primary${NC} (best match based on keywords)"
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# AGENT USAGE ANALYTICS (v5.0)
+# Tracks agent invocations for optimization insights
+# Privacy-preserving: only logs metadata, not prompt content
+# ═══════════════════════════════════════════════════════════════════════════════
+
+log_agent_usage() {
+    local agent="$1"
+    local phase="$2"
+    local prompt="$3"
+
+    mkdir -p "$ANALYTICS_DIR"
+
+    local timestamp=$(date +%s)
+    local date_str=$(date +%Y-%m-%d)
+    local prompt_hash=$(echo "$prompt" | md5sum 2>/dev/null | cut -d' ' -f1 || echo "nohash")
+    local prompt_len=${#prompt}
+
+    echo "$timestamp,$date_str,$agent,$phase,$prompt_hash,$prompt_len" >> "$ANALYTICS_DIR/agent-usage.csv"
+}
+
+generate_analytics_report() {
+    local period=${1:-30}
+    local csv_file="$ANALYTICS_DIR/agent-usage.csv"
+
+    if [[ ! -f "$csv_file" ]]; then
+        echo "No analytics data yet. Usage tracking begins after first agent invocation."
+        return
+    fi
+
+    local cutoff_date
+    if [[ "$(uname)" == "Darwin" ]]; then
+        cutoff_date=$(date -v-${period}d +%s)
+    else
+        cutoff_date=$(date -d "$period days ago" +%s)
+    fi
+
+    cat <<EOF
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🐙 Claude Octopus Agent Usage Report (Last $period Days)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Top 10 Most Used Tentacles:
+EOF
+
+    awk -F',' -v cutoff="$cutoff_date" '
+        $1 >= cutoff { agents[$3]++ }
+        END { for (agent in agents) print agents[agent], agent }
+    ' "$csv_file" | sort -rn | head -10 | nl
+
+    cat <<EOF
+
+Least Used Tentacles:
+EOF
+
+    awk -F',' -v cutoff="$cutoff_date" '
+        $1 >= cutoff { agents[$3]++ }
+        END { for (agent in agents) print agents[agent], agent }
+    ' "$csv_file" | sort -n | head -5 | nl
+
+    cat <<EOF
+
+Usage by Phase:
+EOF
+
+    awk -F',' -v cutoff="$cutoff_date" '
+        $1 >= cutoff && $4 != "" { phases[$4]++ }
+        END { for (phase in phases) print phases[phase], phase }
+    ' "$csv_file" | sort -rn
+
+    cat <<EOF
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+EOF
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -8891,6 +9111,9 @@ case "$COMMAND" in
         ;;
     status)
         show_status
+        ;;
+    analytics)
+        generate_analytics_report "${1:-30}"
         ;;
     kill)
         kill_agents "${1:-all}"
