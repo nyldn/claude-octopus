@@ -1,6 +1,6 @@
 # Claude Octopus Agent Catalog
 
-> *31 specialized tentacles, infinite possibilities. But which one grabs YOUR problem?* 🐙
+> *37 specialized tentacles, infinite possibilities. But which one grabs YOUR problem?* 🐙
 
 ---
 
@@ -18,8 +18,16 @@
 | Design database schema | `database-architect` | Data modeling master |
 | Research AI/LLM patterns | `ai-engineer` | Prompt engineering pro |
 | Optimize performance | `performance-engineer` | Latency hunter |
+| Synthesize user research | `ux-researcher` | Empathy tentacle 🆕 |
+| Develop business strategy | `strategy-analyst` | Framework master 🆕 |
+| Write literature review | `research-synthesizer` | Knowledge weaver 🆕 |
+| Draft research papers | `academic-writer` | Citation ninja 🆕 |
+| Create exec summaries | `exec-communicator` | Boardroom whisperer 🆕 |
+| Write PRDs/user stories | `product-writer` | Requirements master 🆕 |
 
 **Still unsure?** Just describe what you need - Claude Octopus auto-routes to the right tentacle! 🦑
+
+> 🆕 **New in v6.0:** Knowledge Worker agents for researchers, consultants, and product managers. [See Knowledge Workers Guide →](KNOWLEDGE-WORKERS.md)
 
 ---
 
@@ -27,11 +35,12 @@
 
 1. [By Development Phase](#by-development-phase) - Double Diamond workflow
 2. [By Domain](#by-domain) - Backend, Frontend, Quality, Ops
-3. [Top 10 Tentacles](#top-10-tentacles) - The heavy hitters
-4. [Cost Tiers](#cost-tiers) - Token budget awareness
-5. [Common Workflows](#common-workflows) - Multi-tentacle patterns
-6. [The Principles (Don't Invoke Directly)](#the-principles-internal-use-only) - Quality checklists
-7. [Decision Tree](#decision-tree) - When all else fails
+3. [Knowledge Work (v6.0)](#knowledge-work-v60) - Research, consulting, writing 🆕
+4. [Top 10 Tentacles](#top-10-tentacles) - The heavy hitters
+5. [Cost Tiers](#cost-tiers) - Token budget awareness
+6. [Common Workflows](#common-workflows) - Multi-tentacle patterns
+7. [The Principles (Don't Invoke Directly)](#the-principles-internal-use-only) - Quality checklists
+8. [Decision Tree](#decision-tree) - When all else fails
 
 ---
 
@@ -159,6 +168,48 @@ Incidents          → incident-responder (sonnet - SRE)
 Technical Docs     → docs-architect (sonnet - writing)
 Flowcharts         → mermaid-expert (haiku - simple)
 ```
+
+---
+
+## Knowledge Work (v6.0)
+
+> *When your deliverable isn't code, but crystallized knowledge.* 🎓
+
+New in v6.0: Six specialized agents for researchers, consultants, and product managers.
+
+### 🎯 UX Research
+
+```
+User interviews    → ux-researcher (opus - synthesis)
+Journey mapping    → ux-researcher (opus - empathy)
+Pain points        → ux-researcher (opus - definition)
+```
+
+### 📊 Strategy & Consulting
+
+```
+Market analysis    → strategy-analyst (opus - frameworks)
+Business cases     → strategy-analyst (opus - quantification)
+Exec summaries     → exec-communicator (sonnet - clarity)
+```
+
+### 📚 Academic & Research
+
+```
+Literature review  → research-synthesizer (opus - synthesis)
+Gap analysis       → research-synthesizer (opus - identification)
+Academic writing   → academic-writer (sonnet - formatting)
+```
+
+### 📋 Product Management
+
+```
+PRDs & specs       → product-writer (sonnet - clarity)
+User stories       → product-writer (sonnet - structure)
+Acceptance criteria→ product-writer (sonnet - precision)
+```
+
+**Deep dive:** See the full [Knowledge Workers Guide →](KNOWLEDGE-WORKERS.md)
 
 ---
 
