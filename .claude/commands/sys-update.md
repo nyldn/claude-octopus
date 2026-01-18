@@ -25,7 +25,29 @@ Automatically check for updates to claude-octopus plugin, install updates, and d
 ### Step 1: Get Current Version
 
 ```bash
-CURRENT_VERSION=$(grep '"version"' .claude-plugin/plugin.json | head -n 1 | sed 's/.*"version": *"\([^"]*\)".*/\1/')
+# Check if plugin is installed using claude plugin list --json
+PLUGIN_INFO=$(claude plugin list --json 2>/dev/null | grep -A 20 '"id": "claude-octopus@nyldn-plugins"' | head -20)
+
+if [ -z "$PLUGIN_INFO" ]; then
+  echo "❌ Error: claude-octopus plugin is not installed"
+  echo ""
+  echo "To install the plugin, run:"
+  echo "  /plugin marketplace add nyldn/claude-octopus"
+  echo "  /plugin install claude-octopus@nyldn-plugins"
+  echo ""
+  echo "Or visit: https://github.com/nyldn/claude-octopus"
+  exit 1
+fi
+
+# Extract version from plugin info
+CURRENT_VERSION=$(echo "$PLUGIN_INFO" | grep '"version"' | head -n 1 | sed 's/.*"version": *"\([^"]*\)".*/\1/' | tr -d '",')
+
+if [ -z "$CURRENT_VERSION" ]; then
+  echo "⚠️  Warning: Could not determine installed version"
+  echo "Plugin appears to be installed but version could not be read"
+  CURRENT_VERSION="unknown"
+fi
+
 echo "📦 Current version: v$CURRENT_VERSION"
 ```
 
@@ -226,7 +248,8 @@ echo ""
 
 # Step 5e: Verify installation
 echo "🔍 Verifying installation..."
-INSTALLED_VERSION=$(grep '"version"' .claude-plugin/plugin.json | head -n 1 | sed 's/.*"version": *"\([^"]*\)".*/\1/' 2>/dev/null)
+VERIFY_INFO=$(claude plugin list --json 2>/dev/null | grep -A 20 '"id": "claude-octopus@nyldn-plugins"' | head -20)
+INSTALLED_VERSION=$(echo "$VERIFY_INFO" | grep '"version"' | head -n 1 | sed 's/.*"version": *"\([^"]*\)".*/\1/' | tr -d '",')
 
 if [ -z "$INSTALLED_VERSION" ]; then
   echo "⚠️  Warning: Could not verify installed version"

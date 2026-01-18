@@ -5,6 +5,22 @@ All notable changes to Claude Octopus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.5.6] - 2026-01-18
+
+### Fixed
+- **Update check plugin detection**: Fixed `/claude-octopus:update` command to properly detect installed plugin
+  - Changed from checking `.claude-plugin/plugin.json` in current directory to using `claude plugin list --json`
+  - Now works correctly from any directory, not just the plugin source repository
+  - Properly detects marketplace-installed plugins in `~/.claude/plugins/cache/`
+  - Added proper error handling when plugin is not installed
+  - Improved version verification after installation
+
+**Root cause**: Command was looking for `.claude-plugin/plugin.json` in the current working directory, which only exists when running from the plugin source repo. Marketplace-installed plugins are stored in `~/.claude/plugins/cache/` and should be detected via `claude plugin list --json`.
+
+**Impact**: The `/claude-octopus:update` command now correctly detects the installed plugin version from any directory and won't incorrectly report that the plugin is not installed when it actually is.
+
+---
+
 ## [7.5.5] - 2026-01-18
 
 ### Fixed
