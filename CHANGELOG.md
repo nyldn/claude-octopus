@@ -5,6 +5,85 @@ All notable changes to Claude Octopus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.2.0] - 2026-01-17
+
+### Added - Quick Knowledge Mode Toggle & Expert Review
+
+#### Quick Knowledge Mode Toggle
+**Native Claude Code Integration for Mode Switching**
+- New `/claude-octopus:knowledge-mode` command for instant mode switching
+- Short alias `/claude-octopus:km` for quick access
+- Natural language detection: "switch to knowledge mode", "back to dev mode"
+- Enhanced `toggle_knowledge_work_mode()` function with explicit `on/off/status` support
+- Visual status display showing current mode, routing behavior, and available workflows
+- Idempotent operations: running "on" when already enabled shows confirmation
+- Proactive skill `knowledge-work-mode.md` suggests mode changes when detecting task shifts
+
+**Command Features**
+- `km` / `knowledge-mode` - Show current status (default with no args)
+- `km on` / `knowledge-mode on` - Enable knowledge work mode
+- `km off` / `knowledge-mode off` - Enable development mode
+- `km toggle` / `knowledge-toggle` - Toggle between modes
+- Persistent across sessions via `~/.claude-octopus/.user-config`
+
+**User Experience Improvements**
+- Clear emoji indicators: 🔧 Development Mode, 🎓 Knowledge Work Mode
+- Contextual help showing available workflows per mode
+- Quick toggle hints displayed after mode changes
+- Smart defaults: no args = show status (user-friendly)
+
+#### Test Infrastructure & Quality Assurance
+
+**Plugin Expert Review (New Test Suite)**
+- New test: `tests/integration/test-plugin-expert-review.sh`
+- 50 comprehensive checks validating Claude Code plugin best practices
+- Plugin metadata validation (plugin.json, marketplace.json, hooks.json)
+- Documentation completeness (README, LICENSE, CHANGELOG, SECURITY)
+- Skills & commands structure validation
+- Git ignore best practices verification
+- Root directory organization checks
+- Version consistency across package.json, plugin.json, CHANGELOG
+- Security considerations (no hardcoded secrets, .env gitignored)
+- Marketplace readiness validation
+
+**Bug Fixes**
+- Fixed "unbound variable" error in `tests/run-all.sh` when test category empty
+- Changed `"${ALL_RESULTS[@]}"` → `"${ALL_RESULTS[@]+"${ALL_RESULTS[@]}"}"` for safe array expansion
+- All 11 test suites now pass (4 smoke + 2 unit + 5 integration)
+
+**Cleanup & Organization**
+- Removed .DS_Store from root directory
+- Updated package.json version consistency (6.0.0 → 7.1.0 → 7.2.0)
+- Coverage reports properly gitignored
+
+### Changed
+
+- Plugin version: `7.1.0` → `7.2.0`
+- Plugin description updated to highlight quick knowledge mode toggle
+- Added `knowledge-work-mode.md` skill to plugin.json skills array
+- Enhanced help text for knowledge-toggle command with explicit action support
+
+### Testing
+
+**Test Coverage Status**
+```
+Smoke tests:       4/4 passed (1s)
+Unit tests:        2/2 passed (191s)
+Integration tests: 5/5 passed (37s) - includes new expert review
+E2E tests:         0/0 passed
+
+Expert Review: 50/50 checks passed ✅
+Total: 11/11 test suites passing
+```
+
+### Documentation
+
+- Created `.claude/commands/knowledge-mode.md` - Full command documentation
+- Created `.claude/commands/km.md` - Short alias documentation
+- Created `.claude/skills/knowledge-work-mode.md` - Proactive skill for auto-detection
+- Updated command usage examples for Claude Code native experience
+- Documented natural language interface: just say "switch to knowledge mode"
+
 ## [7.1.0] - 2026-01-17
 
 ### Added - Claude Code 2.1.10 Integration & Discipline Skills
