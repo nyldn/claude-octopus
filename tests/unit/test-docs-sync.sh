@@ -316,6 +316,45 @@ check_marketplace_version() {
   fi
 }
 
+# Check command YAML frontmatter (v7.5.5+)
+check_command_frontmatter() {
+  info "\nValidating command YAML frontmatter..."
+
+  local commands_dir=".claude/commands"
+
+  if [ ! -d "$commands_dir" ]; then
+    fail "Commands directory not found: $commands_dir"
+    return 1
+  fi
+
+  # Check each command file
+  for cmd_file in "$commands_dir"/*.md; do
+    if [ ! -f "$cmd_file" ]; then
+      continue
+    fi
+
+    local filename=$(basename "$cmd_file")
+
+    # Check if file has YAML frontmatter
+    if ! head -1 "$cmd_file" | grep -q "^---$"; then
+      fail "$filename: Missing YAML frontmatter"
+      continue
+    fi
+
+    # Check if it uses 'command:' field (correct)
+    if grep -q "^command:" "$cmd_file"; then
+      pass "$filename uses 'command:' field"
+    else
+      # Check if it incorrectly uses 'name:' field
+      if grep -q "^name:" "$cmd_file"; then
+        fail "$filename uses 'name:' instead of 'command:' (run: ./scripts/fix-command-frontmatter.sh)"
+      else
+        fail "$filename: No 'command:' field found"
+      fi
+    fi
+  done
+}
+
 # Main test execution
 main() {
   echo "================================================================"
@@ -338,6 +377,7 @@ main() {
   check_hooks_config
   check_debate_skill
   check_marketplace_version
+  check_command_frontmatter
 
   # Summary
   echo
