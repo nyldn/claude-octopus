@@ -5,6 +5,57 @@ All notable changes to Claude Octopus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.2.4] - 2026-01-18
+
+### Fixed - CI/CD & Command Execution
+
+**GitHub Actions Reliability**
+- Updated all GitHub Actions artifact actions from deprecated v3 to v4
+  - `actions/upload-artifact@v3` → `@v4` (8 instances)
+  - `actions/download-artifact@v3` → `@v4` (1 instance)
+- Eliminated workflow failures caused by GitHub's automatic deprecation enforcement
+- All artifact uploads/downloads now work reliably in CI environment
+
+**Test Suite Robustness**
+- Fixed `test-value-proposition` test failures in GitHub Actions CI
+- Root cause: Strict bash error handling (`set -euo pipefail`) caused early exit
+- Solution: Relaxed to `set -uo pipefail` to allow grep command failures
+- Added file existence checks with clear error messages
+- Test now passes in both local (macOS) and CI (Ubuntu) environments
+- All 19 value proposition checks passing consistently
+
+**Command Execution**
+- Fixed `/claude-octopus:knowledge-mode` and `/claude-octopus:km` commands
+- Commands now execute and show current mode status (not just documentation)
+- Added bash execution blocks to both command files
+- Output shows: current mode, optimization focus, workflows, toggle instructions
+- Matches behavior of other working commands like `/claude-octopus:setup`
+
+### Improved - Documentation
+
+**README Quick Start**
+- Moved Quick Start section from line 260 to line 42 (right after TL;DR)
+- Users can now find installation instructions immediately
+- Clarified installation steps to prevent confusion:
+  - Changed "just 2 commands" with misleading "That's it!" to clear step boundaries
+  - Step 1: Install the Plugin (explicitly marked)
+  - Step 2: Configure Your AI Providers (explicitly marked)
+  - Step 3: Start Using It (usage examples)
+- Removed duplicate Quick Start section
+- Each step has clear expectations and completion criteria
+
+### Changed
+- Plugin version: `7.2.3` → `7.2.4`
+- All GitHub Actions test workflows now passing reliably
+- No more deprecation warnings in CI/CD pipeline
+
+### Impact
+- **Reliability**: CI/CD pipeline fully operational, no more false failures
+- **User Experience**: Commands work as expected, documentation easier to follow
+- **Maintenance**: Test suite validates all changes automatically
+
+---
+
 ## [7.2.3] - 2026-01-17
 
 ### Added - Config Update Optimization
