@@ -1,7 +1,7 @@
 {
-  "name": "co",
-  "version": "7.5.0",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.5.0 - Improved command UX! 60% shorter names, categorized commands, shortcuts!) Visual feedback, natural language workflows, AI debates! Run /co:setup for guided setup.",
+  "name": "claude-octopus",
+  "version": "7.5.2",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.5.2 - Improved command UX with categorized commands, shortcuts!) Visual feedback, natural language workflows, AI debates! Run /claude-octopus:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },

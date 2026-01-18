@@ -5,6 +5,23 @@ All notable changes to Claude Octopus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.5.2] - 2026-01-18
+
+### Fixed
+- **Plugin namespace**: Reverted to `claude-octopus` for stability and familiarity
+- **Removed unsupported field**: Removed `dependencies` field from plugin.json (caused validation errors)
+- **Marketplace registration**: Simplified to single `claude-octopus` entry
+
+### Retained from v7.5.0
+- ✅ **All categorization**: sys-, flow-, skill- naming scheme preserved
+- ✅ **All shortcuts**: 15 shortcut aliases still work
+- ✅ **Command structure**: `/claude-octopus:sys-setup`, `/claude-octopus:flow-probe`, etc.
+- ✅ **Power user shortcuts**: `/claude-octopus:setup`, `/claude-octopus:probe`, etc.
+
+**Impact**: Commands now appear as `/claude-octopus:sys-setup` instead of `/co:sys-setup`, but all categorization and shortcuts are preserved. This provides the UX improvements of v7.5.0 with the stability of the familiar namespace.
+
+---
+
 ## [7.5.0] - 2026-01-18
 
 ### Added - Command UX Improvement with Categorized Naming

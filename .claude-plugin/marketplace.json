@@ -9,10 +9,10 @@
   },
   "plugins": [
     {
-      "name": "co",
+      "name": "claude-octopus",
       "source": "./",
-      "description": "v7.5.0 - Multi-tentacled orchestrator using Double Diamond methodology. Improved UX! 60% shorter command names (/co: instead of /claude-octopus:), categorized commands (sys-, flow-, skill-), 15 shortcuts! Run /co:setup for guided setup.",
-      "version": "7.5.0",
+      "description": "v7.5.2 - Multi-tentacled orchestrator using Double Diamond methodology. Improved UX with categorized commands (sys-, flow-, skill-), 15 shortcuts! Run /claude-octopus:setup for guided setup.",
+      "version": "7.5.2",
       "author": {
         "name": "nyldn"
       },
@@ -40,25 +40,6 @@
         "shortcuts",
         "ux-improvement",
         "categorized-commands"
-      ],
-      "category": "orchestration"
-    },
-    {
-      "name": "claude-octopus",
-      "source": "./",
-      "description": "DEPRECATED: Use 'co' instead. Legacy namespace for backward compatibility. v7.5.0 - All commands still work with /claude-octopus: prefix, but /co: is recommended.",
-      "version": "7.5.0",
-      "author": {
-        "name": "nyldn"
-      },
-      "repository": "https://github.com/nyldn/claude-octopus",
-      "license": "MIT",
-      "keywords": [
-        "multi-agent",
-        "orchestration",
-        "double-diamond",
-        "deprecated",
-        "backward-compatibility"
       ],
       "category": "orchestration"
     }
