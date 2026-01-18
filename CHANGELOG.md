@@ -5,6 +5,35 @@ All notable changes to Claude Octopus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.6.0] - 2026-01-18
+
+### Changed
+- **Shorter command namespace**: Changed plugin name from `claude-octopus` to `co`
+  - All commands now use `/co:` prefix instead of `/claude-octopus:`
+  - Example: `/co:setup`, `/co:debate`, `/co:review`
+  - Much faster to type and easier to remember
+  - Backward compatible - existing installations just see new namespace
+
+### Added
+- **12 new skill commands**: Made skills directly accessible as commands
+  - `/co:debate` - AI Debate Hub for structured three-way debates
+  - `/co:review` - Expert code review with quality assessment
+  - `/co:research` - Deep research with multi-source synthesis
+  - `/co:security` - Security audit with OWASP compliance
+  - `/co:debug` - Systematic debugging with methodical investigation
+  - `/co:tdd` - Test-driven development with red-green-refactor
+  - `/co:docs` - Document delivery with PPTX/DOCX/PDF export
+  - `/co:probe` - Discovery phase (Double Diamond - Research)
+  - `/co:grasp` - Definition phase (Double Diamond - Requirements)
+  - `/co:tangle` - Development phase (Double Diamond - Implementation)
+  - `/co:ink` - Delivery phase (Double Diamond - Quality gates)
+
+**Impact**: Skills are now discoverable via autocomplete! Type `/co:` and see all available commands. No need to remember natural language triggers - though those still work too.
+
+**Total commands**: 18 commands now available (7 system + 11 skill shortcuts)
+
+---
+
 ## [7.5.6] - 2026-01-18
 
 ### Fixed
