@@ -21,15 +21,15 @@ declare -a FAILURES
 # Helper functions
 pass() {
   echo -e "${GREEN}✓${NC} $1"
-  ((PASSED_TESTS++))
-  ((TOTAL_TESTS++))
+  ((PASSED_TESTS++)) || true
+  ((TOTAL_TESTS++)) || true
 }
 
 fail() {
   echo -e "${RED}✗${NC} $1"
   FAILURES+=("$1")
-  ((FAILED_TESTS++))
-  ((TOTAL_TESTS++))
+  ((FAILED_TESTS++)) || true
+  ((TOTAL_TESTS++)) || true
 }
 
 warn() {
@@ -48,7 +48,8 @@ get_plugin_version() {
   fi
 
   # Extract version using grep and sed (portable, no jq needed)
-  grep '"version"' .claude-plugin/plugin.json | sed 's/.*"version": *"\([^"]*\)".*/\1/'
+  # Use head -n 1 to get only the first version (main plugin version, not dependencies)
+  grep '"version"' .claude-plugin/plugin.json | head -n 1 | sed 's/.*"version": *"\([^"]*\)".*/\1/'
 }
 
 # Check if version appears in README badges
@@ -93,17 +94,18 @@ check_readme_structure() {
   local required_sections=(
     "# Claude Octopus"
     "## TL;DR"
-    "## Attribution"
     "## Quick Start"
-    "## What's New"
+    "## Updating the Plugin"
     "## Documentation"
+    "## Attribution"
     "## Acknowledgments"
     "## Contributing"
     "## License"
   )
 
   for section in "${required_sections[@]}"; do
-    if grep -q "^${section}" "$readme"; then
+    # Allow emoji prefixes in section headers
+    if grep -q "^${section}" "$readme" || grep -q "^## .*${section#\#\# }" "$readme"; then
       pass "README has section: $section"
     else
       fail "README missing section: $section"
@@ -261,6 +263,44 @@ check_debate_skill() {
   fi
 }
 
+# Check marketplace.json version sync
+check_marketplace_version() {
+  info "\nValidating marketplace.json version sync..."
+
+  local marketplace_json=".claude-plugin/marketplace.json"
+  local plugin_json=".claude-plugin/plugin.json"
+
+  if [ ! -f "$marketplace_json" ]; then
+    fail "marketplace.json not found"
+    return 1
+  fi
+
+  if [ ! -f "$plugin_json" ]; then
+    fail "plugin.json not found"
+    return 1
+  fi
+
+  # Extract version from plugin.json
+  local plugin_version=$(grep '"version"' "$plugin_json" | head -n 1 | sed 's/.*"version": *"\([^"]*\)".*/\1/')
+
+  # Extract version field from marketplace.json
+  local marketplace_version=$(grep '"version"' "$marketplace_json" | tail -n 1 | sed 's/.*"version": *"\([^"]*\)".*/\1/')
+
+  # Check if versions match
+  if [ "$plugin_version" = "$marketplace_version" ]; then
+    pass "marketplace.json version matches plugin.json ($plugin_version)"
+  else
+    fail "marketplace.json version ($marketplace_version) does not match plugin.json ($plugin_version)"
+  fi
+
+  # Check if version appears at START of description
+  if grep -q "\"description\": \"v${plugin_version}" "$marketplace_json"; then
+    pass "marketplace.json description starts with version (v${plugin_version})"
+  else
+    fail "marketplace.json description should start with 'v${plugin_version} - ...'"
+  fi
+}
+
 # Main test execution
 main() {
   echo "================================================================"
@@ -282,6 +322,7 @@ main() {
   check_workflow_skills
   check_hooks_config
   check_debate_skill
+  check_marketplace_version
 
   # Summary
   echo
