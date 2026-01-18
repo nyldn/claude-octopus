@@ -21,6 +21,14 @@ aliases:
 ✅ **Error-free** - Fixed config update issues
 ✅ **Persistent** - Settings automatically saved
 
+## Current Status
+
+Checking your current mode...
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh knowledge-mode
+```
+
 ## Usage in Claude Code
 
 Just run the command in your conversation:
