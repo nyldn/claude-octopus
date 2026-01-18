@@ -6,7 +6,9 @@ trigger: |
   "configure providers", "set up API keys for octopus", or mentions octopus configuration.
 ---
 
-# Claude Octopus Configuration
+# 🐙 Claude Octopus Configuration
+
+🐙 **CLAUDE OCTOPUS SETUP** - Helping you configure multi-agent orchestration
 
 You are helping the user configure Claude Octopus, a multi-agent orchestration plugin.
 
@@ -30,6 +32,8 @@ You are helping the user configure Claude Octopus, a multi-agent orchestration p
    - Display what was configured
    - Show the detected provider status
    - Provide next steps
+
+**IMPORTANT**: Always start your response with "🐙 **CLAUDE OCTOPUS SETUP**" so users know this is Claude Octopus responding, not generic Claude.
 
 ## Implementation Steps
 
