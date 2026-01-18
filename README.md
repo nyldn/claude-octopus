@@ -6,7 +6,7 @@
   <img src="https://img.shields.io/badge/Claude_Code-Plugin-blueviolet" alt="Claude Code Plugin">
   <img src="https://img.shields.io/badge/Double_Diamond-Design_Thinking-orange" alt="Double Diamond">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
-  <img src="https://img.shields.io/badge/Version-7.3.0-blue" alt="Version 7.3.0">
+  <img src="https://img.shields.io/badge/Version-7.4.0-blue" alt="Version 7.4.0">
 </p>
 
 # Claude Octopus
@@ -23,8 +23,10 @@
 | **Structured workflows** | Double Diamond: Research → Define → Develop → Deliver |
 | **Quality gates** | 75% consensus threshold before delivery |
 | **Smart routing** | Auto-detects intent and picks the right AI model |
-| **Agent discovery** | Find the right tentacle in <1 min (was 5-10 min) 🆕 |
+| **Agent discovery** | Find the right tentacle in <1 min (was 5-10 min) |
+| **AI Debate Hub** | Structured 3-way debates (Claude + Gemini + Codex) 🆕 |
 | **Adversarial review** | AI vs AI debate catches more bugs |
+| **Knowledge work** | UX research, strategy, literature review + document export |
 
 **How to use it:**
 
@@ -36,6 +38,57 @@ Just talk to Claude naturally! Claude Octopus automatically activates when you n
 - 💬 "Use adversarial review to critique my implementation"
 
 Claude coordinates multiple AI models behind the scenes to give you comprehensive, validated results.
+
+---
+
+## 🙏 Attribution & Dependencies
+
+### AI Debate Hub Integration
+
+Claude-octopus integrates **[AI Debate Hub](https://github.com/wolverin0/claude-skills)** by **[wolverin0](https://github.com/wolverin0)**:
+
+- **Original Repository**: https://github.com/wolverin0/claude-skills
+- **Author**: wolverin0
+- **License**: MIT
+- **Integration Type**: Git submodule (read-only reference)
+- **Version**: v4.7
+
+**What it does**: Enables structured three-way debates where Claude, Gemini CLI, and Codex CLI analyze problems from multiple perspectives. Claude actively participates as both a debater and moderator.
+
+**Claude-octopus enhancements**:
+- ✅ Session-aware storage (integrates with Claude Code sessions)
+- ✅ Quality gates for debate responses (75% threshold)
+- ✅ Cost tracking and analytics
+- ✅ Document export to PPTX/DOCX/PDF (via document-delivery skill)
+- ✅ Knowledge mode deliberation workflow
+
+**Usage**:
+```bash
+# Basic debate
+/debate Should we use Redis or in-memory cache?
+
+# Thorough analysis
+/debate -r 3 -d thorough "Review our API architecture"
+
+# Adversarial security review
+/debate -r 5 -d adversarial "Review auth.ts for vulnerabilities"
+
+# Knowledge mode deliberation
+/claude-octopus:km on
+/debate "Should we enter the European market?"
+```
+
+**Initialize submodule** (if not auto-initialized):
+```bash
+git submodule update --init --recursive
+```
+
+**Update to latest** from wolverin0:
+```bash
+git submodule update --remote .dependencies/claude-skills
+```
+
+**Contributing**: Generic improvements to the debate functionality should be contributed to [wolverin0/claude-skills](https://github.com/wolverin0/claude-skills) via pull requests. Claude-octopus-specific integrations remain in this repository.
 
 ---
 

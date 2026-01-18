@@ -10199,6 +10199,52 @@ case "$COMMAND" in
         echo ""
         ;;
     # ═══════════════════════════════════════════════════════════════════════════
+    # AI DEBATE HUB COMMANDS (v7.4 - Integration with wolverin0/claude-skills)
+    # ═══════════════════════════════════════════════════════════════════════════
+    debate|deliberate|consensus)
+        # AI Debate Hub - Structured three-way debates
+        # Check if submodule exists
+        if [[ ! -f ".dependencies/claude-skills/skills/debate.md" ]]; then
+            log ERROR "AI Debate Hub not found. Please initialize the submodule:"
+            echo ""
+            echo "  git submodule update --init --recursive"
+            echo ""
+            echo "AI Debate Hub by wolverin0: https://github.com/wolverin0/claude-skills"
+            exit 1
+        fi
+
+        log INFO "🗣️  AI Debate Hub (by wolverin0)"
+        log INFO "   Enhanced with claude-octopus quality gates and session management"
+
+        # Set integration environment variables
+        export CLAUDE_OCTOPUS_DEBATE_MODE="true"
+        export CLAUDE_CODE_SESSION="${CLAUDE_CODE_SESSION:-}"
+
+        # The debate.md skill will be automatically loaded by Claude Code
+        # The debate-integration.md skill provides enhancements
+        echo ""
+        echo "📖 AI Debate Hub is active"
+        echo ""
+        echo "Original skill: .dependencies/claude-skills/skills/debate.md"
+        echo "Enhancements: .claude/skills/debate-integration.md"
+        echo "Attribution: AI Debate Hub by wolverin0 (MIT License)"
+        echo ""
+        echo "Usage examples:"
+        echo "  /debate Should we use Redis or in-memory cache?"
+        echo "  /debate -r 3 -d thorough \"Review our API architecture\""
+        echo "  /debate -r 5 -d adversarial \"Security review of auth.ts\""
+        echo ""
+        echo "Debate styles:"
+        echo "  quick (1 round) - Fast initial perspectives"
+        echo "  thorough (3 rounds) - Detailed analysis with refinement"
+        echo "  adversarial (5 rounds) - Devil's advocate, stress testing"
+        echo "  collaborative (2 rounds) - Consensus-building"
+        echo ""
+
+        # Note: The actual debate execution is handled by Claude Code's skill system
+        # This command just provides information and sets up the environment
+        ;;
+    # ═══════════════════════════════════════════════════════════════════════════
     # RALPH-WIGGUM ITERATION COMMANDS (v3.5)
     # ═══════════════════════════════════════════════════════════════════════════
     ralph|iterate)
