@@ -41,11 +41,15 @@ Claude coordinates multiple AI models behind the scenes to give you comprehensiv
 
 ---
 
-## 🙏 Attribution & Dependencies
+---
+
+## 🙏 Attribution & Open Source Collaboration
 
 ### AI Debate Hub Integration
 
-Claude-octopus integrates **[AI Debate Hub](https://github.com/wolverin0/claude-skills)** by **[wolverin0](https://github.com/wolverin0)**:
+> **Built on the shoulders of giants** 🤝
+
+Claude-octopus integrates **[AI Debate Hub](https://github.com/wolverin0/claude-skills)** by **[wolverin0](https://github.com/wolverin0)** with deep gratitude and proper attribution:
 
 - **Original Repository**: https://github.com/wolverin0/claude-skills
 - **Author**: wolverin0
@@ -1037,9 +1041,73 @@ See [tests/README.md](tests/README.md) for comprehensive testing documentation.
 
 Claude Octopus stands on the shoulders of giants:
 
-- **[obra/superpowers](https://github.com/obra/superpowers)** by Jesse Vincent - Several discipline skills (TDD, systematic debugging, verification, planning, branch finishing) were inspired by the excellent patterns in this Claude Code skills library. The "Iron Law" enforcement approach and anti-rationalization techniques are particularly valuable.
+- **[wolverin0/claude-skills](https://github.com/wolverin0/claude-skills)** by **wolverin0** - AI Debate Hub enables structured three-way debates between Claude, Gemini CLI, and Codex CLI. Integrated as a git submodule with claude-octopus enhancements (quality gates, cost tracking, document export). wolverin0's innovative "Claude as participant" design pattern is brilliant—Claude doesn't just orchestrate, it actively debates. This integration demonstrates proper open-source collaboration: clear attribution, hybrid approach (original + enhancement layer), and a path to contribute improvements back upstream. MIT License.
 
-- **Double Diamond** methodology by the [UK Design Council](https://www.designcouncil.org.uk/our-resources/the-double-diamond/) - The probe/grasp/tangle/ink workflow structure.
+- **[obra/superpowers](https://github.com/obra/superpowers)** by **Jesse Vincent** - Several discipline skills (TDD, systematic debugging, verification, planning, branch finishing) were inspired by the excellent patterns in this Claude Code skills library. The "Iron Law" enforcement approach and anti-rationalization techniques are particularly valuable. MIT License.
+
+- **Double Diamond** methodology by the [UK Design Council](https://www.designcouncil.org.uk/our-resources/the-double-diamond/) - The probe/grasp/tangle/ink workflow structure provides a proven framework for divergent and convergent thinking in design and development.
+
+---
+
+## Contributing
+
+We believe in giving back to the open source community. Here's how you can contribute:
+
+### To Claude-Octopus
+
+1. **Report Issues**: Found a bug? [Open an issue](https://github.com/nyldn/claude-octopus/issues)
+2. **Suggest Features**: Have an idea? We'd love to hear it!
+3. **Submit PRs**: Improvements welcome—please follow the existing code style
+4. **Share Knowledge**: Write about your experience using claude-octopus
+
+### To Upstream Dependencies
+
+When improving claude-octopus, consider whether enhancements benefit the broader community:
+
+**AI Debate Hub (wolverin0/claude-skills)**
+- Generic improvements to debate functionality → Submit to [wolverin0/claude-skills](https://github.com/wolverin0/claude-skills)
+- Claude-octopus-specific integrations → Keep in this repo
+- Examples: Atomic state writes, retry logic, error messages
+
+**Superpowers (obra/superpowers)**
+- Improvements to discipline skills → Submit to [obra/superpowers](https://github.com/obra/superpowers)
+- Claude-octopus-specific workflows → Keep in this repo
+
+### Contribution Principles
+
+✅ **Do**:
+- Maintain clear attribution
+- Test thoroughly (95%+ coverage standard)
+- Follow existing patterns
+- Document your changes
+- Consider backward compatibility
+
+❌ **Don't**:
+- Break existing workflows
+- Remove attribution
+- Skip tests
+- Introduce unnecessary complexity
+
+### Development Setup
+
+```bash
+# Clone with submodules
+git clone --recursive https://github.com/nyldn/claude-octopus.git
+cd claude-octopus
+
+# Or initialize submodules after cloning
+git submodule update --init --recursive
+
+# Run tests
+make test
+
+# Run specific test suite
+make test-unit
+make test-integration
+make test-e2e
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
 
 ---
 
