@@ -66,6 +66,10 @@ temp/
 # Development workspace (consolidated)
 # All dev artifacts, reports, benchmarks, and WIP files
 .dev/
+reports/
+
+# Development working files
+skill.md
 
 # Test artifacts (from test infrastructure)
 tests/tmp/
