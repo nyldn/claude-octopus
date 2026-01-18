@@ -3,11 +3,20 @@
 # Quick smoke test to verify Claude Octopus adds value over single-agent execution
 # This test runs quickly and doesn't require Claude CLI
 
-set -euo pipefail
+# Use relaxed error handling - grep commands may not find patterns
+set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 ORCHESTRATE="${PROJECT_ROOT}/scripts/orchestrate.sh"
+
+# Verify orchestrate.sh exists before running tests
+if [[ ! -f "$ORCHESTRATE" ]]; then
+    echo "ERROR: orchestrate.sh not found at: $ORCHESTRATE"
+    echo "SCRIPT_DIR: $SCRIPT_DIR"
+    echo "PROJECT_ROOT: $PROJECT_ROOT"
+    exit 1
+fi
 
 # Test counters
 TESTS_RUN=0
@@ -88,8 +97,10 @@ test_multi_agent_parallel_execution() {
     echo ""
 
     # Check probe function code directly to avoid dry-run hang
-    local probe_code
-    probe_code=$(grep -A 50 "probe_discover()" "$ORCHESTRATE" 2>/dev/null || echo "")
+    local probe_code=""
+    if [[ -f "$ORCHESTRATE" ]]; then
+        probe_code=$(grep -A 50 "probe_discover()" "$ORCHESTRATE" 2>/dev/null) || probe_code=""
+    fi
 
     ((TESTS_RUN++))
     if echo "$probe_code" | grep -q "perspectives=" && echo "$probe_code" | grep -q "4"; then
@@ -117,8 +128,10 @@ test_quality_gates_validation() {
     echo ""
 
     # Check tangle function code directly
-    local tangle_code
-    tangle_code=$(grep -A 80 "tangle_develop()" "$ORCHESTRATE" 2>/dev/null || echo "")
+    local tangle_code=""
+    if [[ -f "$ORCHESTRATE" ]]; then
+        tangle_code=$(grep -A 80 "tangle_develop()" "$ORCHESTRATE" 2>/dev/null) || tangle_code=""
+    fi
 
     ((TESTS_RUN++))
     if echo "$tangle_code" | grep -qE "validation|validate"; then
@@ -146,8 +159,10 @@ test_multi_perspective_research() {
     echo ""
 
     # Check probe function for multi-perspective logic
-    local probe_code
-    probe_code=$(grep -A 100 "probe_discover()" "$ORCHESTRATE" 2>/dev/null || echo "")
+    local probe_code=""
+    if [[ -f "$ORCHESTRATE" ]]; then
+        probe_code=$(grep -A 100 "probe_discover()" "$ORCHESTRATE" 2>/dev/null) || probe_code=""
+    fi
 
     ((TESTS_RUN++))
     if echo "$probe_code" | grep -q "perspective"; then
@@ -175,8 +190,10 @@ test_consensus_building() {
     echo ""
 
     # Check grasp function code directly
-    local grasp_code
-    grasp_code=$(grep -A 80 "grasp_define()" "$ORCHESTRATE" 2>/dev/null || echo "")
+    local grasp_code=""
+    if [[ -f "$ORCHESTRATE" ]]; then
+        grasp_code=$(grep -A 80 "grasp_define()" "$ORCHESTRATE" 2>/dev/null) || grasp_code=""
+    fi
 
     ((TESTS_RUN++))
     if echo "$grasp_code" | grep -qE "consensus|agreement"; then
@@ -220,8 +237,10 @@ test_workflow_automation() {
     echo ""
 
     # Check embrace function code directly
-    local embrace_code
-    embrace_code=$(grep -A 100 "embrace_full_workflow()" "$ORCHESTRATE" 2>/dev/null || echo "")
+    local embrace_code=""
+    if [[ -f "$ORCHESTRATE" ]]; then
+        embrace_code=$(grep -A 100 "embrace_full_workflow()" "$ORCHESTRATE" 2>/dev/null) || embrace_code=""
+    fi
 
     ((TESTS_RUN++))
     if echo "$embrace_code" | grep -qE "probe|research"; then
