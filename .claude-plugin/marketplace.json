@@ -11,8 +11,8 @@
     {
       "name": "claude-octopus",
       "source": "./",
-      "description": "v7.5.5 - Multi-tentacled orchestrator using Double Diamond methodology. Fixed command YAML frontmatter! Auto-update with error recovery! Improved UX with categorized commands (sys-, flow-, skill-), 15 shortcuts! Run /claude-octopus:setup for guided setup.",
-      "version": "7.5.5",
+      "description": "v7.6.0 - Shorter /co: commands! All skills now accessible via autocomplete. Uses /co: namespace for all commands. Multi-tentacled orchestrator with AI debates, quality gates, and natural language workflows. Run /co:setup for guided setup.",
+      "version": "7.6.0",
       "author": {
         "name": "nyldn"
       },
