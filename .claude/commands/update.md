@@ -1,6 +1,6 @@
 ---
-name: update
-description: "Shortcut for /co:sys-update - Check for updates to Claude Code and claude-octopus"
+command: update
+description: "Shortcut for /claude-octopus:sys-update - Check for updates to Claude Code and claude-octopus"
 redirect: sys-update
 ---
 
