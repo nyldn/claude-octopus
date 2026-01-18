@@ -139,6 +139,29 @@ You don't need to run commands - just describe what you want in plain English:
 
 Claude coordinates multiple AI models behind the scenes and provides comprehensive, validated results.
 
+## Knowledge Work Mode Setup (Optional)
+
+If you plan to use Knowledge Work Mode for research and analysis:
+
+### Install Document Skills (Recommended)
+
+```
+/plugin install document-skills@anthropic-agent-skills
+```
+
+This adds support for:
+- PDF analysis and extraction
+- DOCX document generation
+- PPTX presentation creation
+- XLSX spreadsheet handling
+
+Then enable knowledge mode:
+```
+/claude-octopus:km on
+```
+
+---
+
 ## Do I Need Both Providers?
 
 No! You only need ONE provider (Codex or Gemini) to use Claude Octopus. Both providers give you access to powerful workflows:
