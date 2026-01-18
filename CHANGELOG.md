@@ -78,6 +78,114 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update from upstream: `git submodule update --remote .dependencies/claude-skills`
 - Contribution path: Submit generic enhancements to wolverin0/claude-skills via PRs
 
+### Added - Visual Feedback System
+
+**Problem Solved**: Users couldn't distinguish between external CLI execution (which costs money) vs Claude subagents (included with Claude Code).
+
+**Visual Indicators** (Hook-Based)
+- 🐙 **Parallel Mode** - Multiple CLIs orchestrated via orchestrate.sh
+- 🔴 **Codex CLI** - OpenAI Codex executing (uses OPENAI_API_KEY)
+- 🟡 **Gemini CLI** - Google Gemini executing (uses GEMINI_API_KEY)
+- 🔵 **Claude Subagent** - Claude Code Task tool (included, no additional cost)
+
+**Implementation**
+- Added PreToolUse hooks to `.claude-plugin/hooks.json`
+- Hooks inject visual indicators when orchestrate.sh or external CLIs execute
+- Automatic detection of provider execution context
+- Cost awareness messaging ("uses your API quotas")
+
+**Example Output**
+```
+User: Research OAuth patterns
+
+Claude:
+🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider research mode
+🔍 Probe Phase: Researching authentication patterns
+
+Providers:
+🔴 Codex CLI - Technical implementation analysis
+🟡 Gemini CLI - Ecosystem and community research
+🔵 Claude - Strategic synthesis
+```
+
+### Added - Natural Language Workflow Triggers
+
+**Problem Solved**: Users had to use CLI commands (`./scripts/orchestrate.sh probe`) instead of natural conversation.
+
+**Workflow Skills** (New in v7.4)
+- `probe-workflow.md` - Research/exploration ("research X", "explore Y")
+- `grasp-workflow.md` - Requirements definition ("define requirements for X")
+- `tangle-workflow.md` - Implementation ("build X", "implement Y")
+- `ink-workflow.md` - Validation/review ("review X", "validate Y")
+
+**Natural Language Triggers**
+- "research OAuth patterns" → probe workflow (multi-provider research)
+- "define requirements for auth system" → grasp workflow (problem definition)
+- "build user authentication" → tangle workflow (implementation)
+- "review auth code for security" → ink workflow (validation)
+
+**Before v7.4**
+```bash
+./scripts/orchestrate.sh probe "research OAuth patterns"
+```
+
+**After v7.4**
+```
+"Research OAuth authentication patterns"
+```
+
+### Fixed - /debate Skill Visibility
+
+**Problem**: `/debate` skill wasn't appearing in Claude Code autocomplete
+
+**Root Cause**: Original debate.md from submodule lacked YAML frontmatter required by Claude Code
+
+**Solution**
+- Created `.claude/skills/debate.md` wrapper with proper YAML frontmatter
+- Embeds content from `.dependencies/claude-skills/skills/debate.md`
+- Registered in `.claude-plugin/plugin.json`
+- Maintains clear attribution to wolverin0
+
+**Result**: `/debate` now appears in autocomplete and triggers properly
+
+### Added - Comprehensive Documentation
+
+**New Documentation Files**
+- `docs/VISUAL-INDICATORS.md` - Complete guide to visual feedback system
+- `docs/TRIGGERS.md` - Detailed guide on what triggers what workflows
+- `docs/CLI-REFERENCE.md` - CLI usage extracted from README (for advanced users)
+- `docs/PLUGIN-ARCHITECTURE.md` - Internal architecture for contributors
+
+**README Rewrite** (Plugin-First Approach)
+- Reduced from 1,121 lines to 463 lines (59% reduction)
+- Plugin usage prioritized over CLI usage
+- Clear cost awareness section
+- Visual indicators prominently featured
+- CLI reference moved to docs/CLI-REFERENCE.md
+
+### Added - Test Suites
+
+**New Test Scripts**
+- `tests/unit/test-skill-frontmatter.sh` - Validates YAML frontmatter in all skills
+- `tests/unit/test-docs-sync.sh` - Ensures README, CHANGELOG, plugin.json are in sync
+
+**Test Coverage**
+- YAML frontmatter structure validation
+- Required fields (name, description, trigger) verification
+- Skill registration in plugin.json
+- Version number consistency across files
+- Documentation file existence
+- Workflow skills presence (v7.4 features)
+- Hooks configuration validation
+
+### Changed - Enhanced parallel-agents.md Skill
+
+**Added Visual Indicators Section**
+- Table explaining indicator meanings
+- Cost awareness information
+- When external CLIs trigger vs Claude subagents
+- Clear distinction between included vs paid API usage
+
 ### Changed
 - Plugin version: `7.3.0` → `7.4.0`
 - Updated `.claude-plugin/plugin.json` with debate skills and dependencies section

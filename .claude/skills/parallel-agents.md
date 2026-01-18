@@ -94,6 +94,39 @@ trigger: |
 
 **If the user's request matches any of the above, DO NOT activate this skill. Handle the request using standard Claude Code tools and capabilities instead.**
 
+## Visual Indicators - Know What's Running
+
+Claude Octopus uses **visual indicators** so you always know which AI is responding:
+
+| Indicator | Meaning | Uses |
+|-----------|---------|------|
+| 🐙 | **Parallel Mode** | Multiple CLIs orchestrated via orchestrate.sh |
+| 🔴 | **Codex CLI** | OpenAI Codex (your OPENAI_API_KEY) |
+| 🟡 | **Gemini CLI** | Google Gemini (your GEMINI_API_KEY) |
+| 🔵 | **Claude Subagent** | Claude Code Task tool (built-in) |
+
+### What Triggers External CLIs vs Subagents
+
+**External CLIs execute when:**
+- Using `/parallel-agents` command explicitly
+- Using `/debate` command (AI Debate Hub)
+- Running orchestrate.sh workflows (probe, grasp, tangle, ink, embrace, grapple, squeeze)
+- Knowledge mode deliberation (when Knowledge Mode is ON)
+- Natural language that triggers this skill (research, build, review tasks)
+
+**Claude Subagents execute when:**
+- Simple file operations (read, write, edit)
+- Git commands and bash operations
+- Code reading and navigation
+- Tasks that don't need multiple perspectives
+- Built-in Claude Code capabilities are sufficient
+
+**Why this matters:** External CLIs use your OpenAI/Google API quotas and incur costs. Claude subagents are included with Claude Code at no additional charge.
+
+When you see 🐙 **CLAUDE OCTOPUS ACTIVATED**, external CLI providers (Codex/Gemini) will be invoked for multi-perspective analysis.
+
+---
+
 ## Prerequisites Check (Automatic - Fast Detection)
 
 **IMPORTANT:** Once you've determined this skill should activate (user asked to research, build, review, etc.), immediately run the provider detection below. DO NOT ask the user for permission - just check providers and proceed or show welcome message.
