@@ -1,5 +1,5 @@
 ---
-name: debate-integration
+name: skill-debate-integration
 description: |
   Claude-octopus integration layer for AI Debate Hub.
   Enhances wolverin0/claude-skills debate functionality with quality gates,

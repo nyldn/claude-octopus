@@ -1,5 +1,5 @@
 ---
-name: knowledge-work-mode
+name: skill-knowledge-work
 description: "Quick toggle between development and knowledge work mode. Use proactively when user mentions research, UX, strategy, or non-coding tasks."
 triggerPatterns:
   - "switch.*mode"

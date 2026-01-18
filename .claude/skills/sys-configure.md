@@ -1,5 +1,8 @@
 ---
-name: configure
+name: sys-configure
+aliases:
+  - config
+  - configure
 description: Configure Claude Octopus providers, API keys, and preferences
 trigger: |
   Use this skill when the user wants to "configure Claude Octopus", "setup octopus",

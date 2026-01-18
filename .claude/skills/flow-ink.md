@@ -1,5 +1,8 @@
 ---
-name: ink-workflow
+name: flow-ink
+aliases:
+  - ink
+  - ink-workflow
 description: |
   Deliver phase workflow - Review, validate, and test using external CLI providers.
   Part of the Double Diamond methodology (Ink = Deliver phase).

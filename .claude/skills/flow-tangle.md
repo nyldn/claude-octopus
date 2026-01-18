@@ -1,5 +1,8 @@
 ---
-name: tangle-workflow
+name: flow-tangle
+aliases:
+  - tangle
+  - tangle-workflow
 description: |
   Develop phase workflow - Build and implement solutions using external CLI providers.
   Part of the Double Diamond methodology (Tangle = Develop phase).

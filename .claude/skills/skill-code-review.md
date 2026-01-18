@@ -1,5 +1,8 @@
 ---
-name: octopus-code-review
+name: skill-code-review
+aliases:
+  - review
+  - code-review
 description: |
   Expert code review skill leveraging the code-reviewer persona.
   Use when you need comprehensive code quality assessment,
