@@ -1,7 +1,7 @@
 {
   "name": "claude-octopus",
-  "version": "7.5.3",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.5.3 - Auto-update with error recovery!) Improved command UX with categorized commands, shortcuts! Visual feedback, natural language workflows, AI debates! Run /claude-octopus:setup for guided setup.",
+  "version": "7.5.4",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.5.4 - Fixed command autocomplete!) Improved command UX with categorized commands, shortcuts! Visual feedback, natural language workflows, AI debates! Run /claude-octopus:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },
@@ -61,5 +61,13 @@
     "./.claude/skills/skill-parallel-agents.md",
     "./.claude/skills/skill-knowledge-work.md"
   ],
-  "commands": "./.claude/commands/"
+  "commands": [
+    "./.claude/commands/sys-setup.md",
+    "./.claude/commands/sys-update.md",
+    "./.claude/commands/skill-knowledge-mode.md",
+    "./.claude/commands/setup.md",
+    "./.claude/commands/update.md",
+    "./.claude/commands/check-update.md",
+    "./.claude/commands/km.md"
+  ]
 }
