@@ -39,6 +39,35 @@ Claude coordinates multiple AI models behind the scenes to give you comprehensiv
 
 ---
 
+## How Model Selection Works
+
+**You don't pick models — keywords in your prompt do it automatically.**
+
+| When you say... | What happens |
+|-----------------|--------------|
+| "Research...", "Explore...", "Investigate..." | Claude handles research |
+| "Build...", "Implement...", "Create..." | Codex writes code, Claude reviews |
+| "Review...", "Audit...", "Check..." | Claude reviews |
+| **"Grapple..."** or **"Adversarial review..."** | AI-vs-AI debate (see below) |
+
+### Triggering the AI-vs-AI Review Loop
+
+To make Claude and Codex debate each other's code, include **"grapple"** or **"adversarial review"** in your prompt:
+
+> "Use adversarial review to critique my auth implementation"
+> "Grapple with this API design"
+
+**What happens:**
+1. **Round 1:** Both Codex and Claude propose implementations (parallel)
+2. **Round 2:** Each model critiques the other's code
+3. **Round 3:** Claude judges and synthesizes the best solution
+
+### Silent Fallback Behavior
+
+If Codex isn't properly configured, Claude Octopus **silently falls back** to Claude/Gemini. You won't see an error — it just uses whatever's available. See [Troubleshooting: Codex Not Triggering](#codex-not-being-used) if you expected Codex but it's not running.
+
+---
+
 ## Quick Start
 
 Get started with Claude Octopus in 2 simple steps:
@@ -830,6 +859,68 @@ If `/claude-octopus:setup` doesn't work after installation:
 npm install -g @openai/codex
 npm install -g @google/gemini-cli
 ```
+
+### Codex not being used?
+
+Even with a Codex subscription, Claude Octopus needs the CLI installed **and** authenticated to route tasks to Codex. If either is missing, it silently falls back to Claude/Gemini.
+
+**Quick diagnosis (run in terminal):**
+
+```bash
+# Check if CLI is installed
+which codex
+# Should show a path like /usr/local/bin/codex, NOT "not found"
+
+# Check if authenticated
+ls ~/.codex/auth.json
+# Should exist if you ran `codex login`
+
+# Or check for API key
+echo $OPENAI_API_KEY
+# Should show "sk-..." if using API key auth
+```
+
+**To fix:**
+
+1. Install CLI if missing:
+   ```bash
+   npm install -g @openai/codex
+   ```
+
+2. Authenticate:
+   ```bash
+   codex login  # OAuth (recommended)
+   # OR
+   export OPENAI_API_KEY="sk-..."  # API key
+   ```
+
+3. Re-run setup so Claude Octopus detects it:
+   ```
+   /claude-octopus:setup
+   ```
+
+4. Verify it's now detected:
+   ```bash
+   cat ~/.claude-octopus/.providers-config | grep -A3 "codex:"
+   # Should show: installed: true
+   ```
+
+### Verifying which model is being used
+
+To see routing decisions and confirm which provider is handling your task:
+
+```bash
+# Check provider status
+./scripts/orchestrate.sh detect-providers
+
+# Run with verbose logging to see routing
+VERBOSE=true ./scripts/orchestrate.sh auto "build a REST API"
+
+# Check logs for routing decisions
+grep -i "fallback\|routing\|provider" ~/.claude-octopus/logs/*.log
+```
+
+If you see `Fallback: codex -> gemini` in verbose output, that confirms Codex isn't available.
 
 </details>
 
