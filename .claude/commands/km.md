@@ -12,6 +12,14 @@ examples:
 
 **Instant** mode switching optimized for Claude Code.
 
+## Current Status
+
+Checking your current mode...
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh knowledge-mode
+```
+
 ## Usage
 
 ```
