@@ -6,7 +6,7 @@
   <img src="https://img.shields.io/badge/Claude_Code-Plugin-blueviolet" alt="Claude Code Plugin">
   <img src="https://img.shields.io/badge/Double_Diamond-Design_Thinking-orange" alt="Double Diamond">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
-  <img src="https://img.shields.io/badge/Version-7.4.2-blue" alt="Version 7.4.2">
+  <img src="https://img.shields.io/badge/Version-7.5.0-blue" alt="Version 7.5.0">
 </p>
 
 # Claude Octopus
@@ -52,15 +52,17 @@ Open Claude Code and run these two commands in the chat:
 
 ```
 /plugin marketplace add nyldn/claude-octopus
-/plugin install claude-octopus@nyldn-plugins
+/plugin install co@nyldn-plugins
 ```
+
+Note: The plugin is now named `co` (short for Claude Octopus). The old `claude-octopus` name still works for backward compatibility.
 
 The plugin is now installed and automatically enabled.
 
 <details>
 <summary>Troubleshooting Installation</summary>
 
-**If `/claude-octopus:setup` shows "Unknown skill" in Step 2:**
+**If `/co:setup` shows "Unknown skill" in Step 2:**
 
 1. Verify the plugin is installed:
    ```
@@ -91,7 +93,7 @@ The plugin is now installed and automatically enabled.
 
 Run the setup command in Claude Code:
 ```
-/claude-octopus:setup
+/co:setup
 ```
 
 This will:
@@ -128,7 +130,7 @@ To get the latest version of Claude Octopus:
 
 ### Option A: Auto-Update (Easiest) 🆕
 ```
-/claude-octopus:check-update --update
+/co:update --update
 ```
 This will automatically check for updates and install the latest version if available.
 
@@ -149,7 +151,53 @@ This will automatically check for updates and install the latest version if avai
 
 ---
 
-## 🆕 What's New in v7.4 - Visual Feedback & Natural Language Workflows
+## 🆕 What's New in v7.5 - Command UX Improvement
+
+**60% shorter commands!** v7.5 introduces an improved command experience with categorized naming and shortcuts.
+
+### Key Improvements
+
+| Before | After | Category |
+|--------|-------|----------|
+| `/claude-octopus:setup` | `/co:setup` | System ✅ |
+| `/claude-octopus:check-update` | `/co:update` | System ✅ |
+| `/claude-octopus:km` | `/co:km` | Mode switching ✅ |
+| `probe-workflow` | `/co:probe` | Workflows (flow-*) ✅ |
+| `code-review` | `/co:review` | Skills (skill-*) ✅ |
+
+### Three-Category System
+
+1. **sys-*** - System commands (setup, update, configure)
+2. **flow-*** - Workflow phases (probe, grasp, tangle, ink)
+3. **skill-*** - All other capabilities (debate, review, security, etc.)
+
+### Shortcuts Everywhere
+
+15 shortcut aliases for frequently-used commands:
+- `/co:setup` → sys-setup
+- `/co:update` → sys-update
+- `/co:km` → skill-knowledge-mode
+- `/co:probe` → flow-probe
+- `/co:review` → skill-code-review
+- `/co:security` → skill-security-audit
+- `/co:research` → skill-deep-research
+- `/co:tdd` → skill-tdd
+- `/co:debug` → skill-debug
+- `/co:docs` → skill-doc-delivery
+- And more!
+
+### Backward Compatible
+
+All old commands still work! Both namespaces are registered:
+- **New**: `/co:setup` (recommended)
+- **Old**: `/claude-octopus:setup` (still works)
+
+📖 **[Migration Guide →](docs/MIGRATION-v7.5.md)**
+📖 **[Command Reference →](docs/COMMAND-REFERENCE.md)**
+
+---
+
+## What's New in v7.4 - Visual Feedback & Natural Language Workflows
 
 **Now you always know what's running!** v7.4 adds visual indicators and natural language workflow triggers.
 
@@ -229,9 +277,9 @@ No more CLI commands! Just talk naturally:
 ### Quick Toggle
 Switch modes instantly in Claude Code:
 ```
-/claude-octopus:km on      # Enable knowledge work mode
-/claude-octopus:km off     # Enable development mode
-/claude-octopus:km         # Check current status
+/co:km on      # Enable knowledge work mode
+/co:km off     # Enable development mode
+/co:km         # Check current status
 ```
 
 ### Natural Language
@@ -388,7 +436,7 @@ Claude-octopus integrates **[AI Debate Hub](https://github.com/wolverin0/claude-
 /debate -r 5 -d adversarial "Review auth.ts for vulnerabilities"
 
 # Knowledge mode deliberation
-/claude-octopus:km on
+/co:km on
 /debate "Should we enter the European market?"
 ```
 

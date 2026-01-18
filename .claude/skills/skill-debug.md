@@ -1,5 +1,8 @@
 ---
-name: systematic-debugging
+name: skill-debug
+aliases:
+  - debug
+  - systematic-debugging
 description: |
   Four-phase debugging process: Investigate → Analyze → Hypothesize → Implement.
   "Iron Law: NO FIXES WITHOUT ROOT CAUSE INVESTIGATION FIRST."

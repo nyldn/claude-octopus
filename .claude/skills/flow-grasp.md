@@ -1,5 +1,8 @@
 ---
-name: grasp-workflow
+name: flow-grasp
+aliases:
+  - grasp
+  - grasp-workflow
 description: |
   Define phase workflow - Clarify and scope problems using external CLI providers.
   Part of the Double Diamond methodology (Grasp = Define phase).

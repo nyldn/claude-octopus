@@ -1,13 +1,14 @@
 ---
-name: knowledge-mode
+name: skill-knowledge-mode
 description: "Instant toggle between dev and research modes (v7.2.1 - faster, clearer)"
-usage: "/claude-octopus:knowledge-mode [on|off|status]"
+usage: "/co:km [on|off|status]"
 examples:
-  - "/claude-octopus:knowledge-mode on"
-  - "/claude-octopus:knowledge-mode off"
-  - "/claude-octopus:knowledge-mode"
+  - "/co:km on"
+  - "/co:km off"
+  - "/co:km"
 aliases:
   - km
+  - knowledge-mode
 ---
 
 # Knowledge Mode - Instant Toggle
@@ -34,9 +35,9 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh knowledge-mode
 Just run the command in your conversation:
 
 ```
-/claude-octopus:knowledge-mode on
-/claude-octopus:knowledge-mode off
-/claude-octopus:knowledge-mode
+/co:km on
+/co:km off
+/co:km
 ```
 
 Or even simpler - **just tell me!**
@@ -101,7 +102,7 @@ After toggling, you'll see a **clearer, more scannable** output:
   Optimized for: Research, UX analysis, strategy
   Workflows: empathize, advise, synthesize
 
-  Switch back: /claude-octopus:km off
+  Switch back: /co:km off
 ```
 
 **Development Mode Active:**
@@ -111,7 +112,7 @@ After toggling, you'll see a **clearer, more scannable** output:
   Optimized for: Code development, technical tasks
   Workflows: embrace, probe, tangle, ink
 
-  Switch to research: /claude-octopus:km on
+  Switch to research: /co:km on
 ```
 
 The new output is:
@@ -123,7 +124,7 @@ The new output is:
 
 ### Enable for Research Session
 ```
-/claude-octopus:knowledge-mode on
+/co:km on
 ```
 Then work naturally:
 - "Synthesize these 10 research papers on AI safety"
@@ -132,13 +133,13 @@ Then work naturally:
 
 ### Quick Status Check
 ```
-/claude-octopus:knowledge-mode
+/co:km
 ```
 (No argument = shows current status)
 
 ### Return to Development
 ```
-/claude-octopus:knowledge-mode off
+/co:km off
 ```
 Then resume coding:
 - "Build an authentication system"
@@ -149,9 +150,9 @@ Then resume coding:
 
 You can also use the shorter command:
 ```
-/claude-octopus:km on
-/claude-octopus:km off
-/claude-octopus:km
+/co:km on
+/co:km off
+/co:km
 ```
 
 ## Persistent Across Sessions
@@ -161,13 +162,13 @@ The mode setting is saved to `~/.claude-octopus/.user-config` and persists acros
 ## Pro Tips
 
 1. **Task-specific toggle**: Turn on knowledge mode for research sprint, then turn off for implementation sprint
-2. **Check before big tasks**: Run `/claude-octopus:knowledge-mode` to confirm you're in the right mode
+2. **Check before big tasks**: Run `/co:km` to confirm you're in the right mode
 3. **Use with auto command**: The mode only affects `auto` routing - direct commands (`empathize`, `embrace`) work regardless of mode
 
 ## Related Commands
 
-- `/claude-octopus:setup` - Initial configuration
-- `/claude-octopus:check-updates` - Check compatibility
+- `/co:setup` - Initial configuration
+- `/co:update` - Check compatibility
 - See available workflows: `${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh help --full`
 
 ## Troubleshooting

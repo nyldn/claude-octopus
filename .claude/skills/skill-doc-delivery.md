@@ -1,5 +1,9 @@
 ---
-name: document-delivery
+name: skill-doc-delivery
+aliases:
+  - docs
+  - document-delivery
+  - doc-delivery
 description: |
   Automatically convert knowledge work outputs (markdown) to professional office documents.
   Supports DOCX (Word), PPTX (PowerPoint), and XLSX (Excel) formats.

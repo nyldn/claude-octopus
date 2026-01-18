@@ -1,5 +1,5 @@
 ---
-name: finishing-branch
+name: skill-finish-branch
 description: |
   Post-implementation workflow: verify tests, present 4 options (merge/PR/keep/discard), execute choice.
   Use when implementation is complete and you need to decide how to integrate the work.
