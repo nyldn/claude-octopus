@@ -6,7 +6,7 @@
   <img src="https://img.shields.io/badge/Claude_Code-Plugin-blueviolet" alt="Claude Code Plugin">
   <img src="https://img.shields.io/badge/Double_Diamond-Design_Thinking-orange" alt="Double Diamond">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
-  <img src="https://img.shields.io/badge/Version-7.4.1-blue" alt="Version 7.4.1">
+  <img src="https://img.shields.io/badge/Version-7.4.2-blue" alt="Version 7.4.2">
 </p>
 
 # Claude Octopus
@@ -128,7 +128,7 @@ To get the latest version of Claude Octopus:
 
 ### Option A: Auto-Update (Easiest) 🆕
 ```
-/claude-octopus:check-updates --update
+/claude-octopus:check-update --update
 ```
 This will automatically check for updates and install the latest version if available.
 

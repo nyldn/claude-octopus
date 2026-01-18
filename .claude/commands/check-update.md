@@ -8,8 +8,8 @@ Check for updates to both Claude Code and claude-octopus plugin. Optionally upda
 
 ## Quick Usage
 
-- `/claude-octopus:check-updates` - Check for updates only
-- `/claude-octopus:check-updates --update` - Check and update if available
+- `/claude-octopus:check-update` - Check for updates only
+- `/claude-octopus:check-update --update` - Check and update if available
 
 ## Steps
 
@@ -50,7 +50,7 @@ curl -s https://api.github.com/repos/nyldn/claude-octopus/releases/latest | grep
    🆕 Update available: vX.Y.Z → vA.B.C
 
    To update, run:
-   /claude-octopus:check-updates --update
+   /claude-octopus:check-update --update
 
    Or update manually:
    /plugin uninstall claude-octopus
@@ -109,7 +109,7 @@ Claude Octopus:
   Status:  🆕 Update available
 
   To update automatically:
-  /claude-octopus:check-updates --update
+  /claude-octopus:check-update --update
 
 Claude Code:
   Current: 2.1.10
