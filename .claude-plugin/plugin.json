@@ -1,7 +1,7 @@
 {
   "name": "claude-octopus",
-  "version": "7.3.0",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.3.0 - Document delivery for knowledge workers!) Supports code + knowledge work! Run /claude-octopus:setup for guided setup.",
+  "version": "7.4.0",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.4.0 - AI Debate Hub integration!) Structured debates + knowledge work + document delivery! Run /claude-octopus:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },
@@ -31,13 +31,20 @@
     "analytics",
     "recommendations",
     "decision-trees",
-    "competitive-research"
+    "competitive-research",
+    "ai-debates",
+    "consensus-building",
+    "multi-perspective",
+    "deliberation",
+    "knowledge-work"
   ],
   "skills": [
     "./.claude/skills/parallel-agents.md",
     "./.claude/skills/configure.md",
     "./.claude/skills/knowledge-work-mode.md",
     "./.claude/skills/document-delivery.md",
+    "./.dependencies/claude-skills/skills/debate.md",
+    "./.claude/skills/debate-integration.md",
     "./.claude/skills/architecture.md",
     "./.claude/skills/code-review.md",
     "./.claude/skills/security-audit.md",
@@ -50,5 +57,30 @@
     "./.claude/skills/verification-before-completion.md",
     "./.claude/skills/writing-plans.md"
   ],
-  "commands": "./.claude/commands/"
+  "commands": "./.claude/commands/",
+  "dependencies": {
+    "claude-skills": {
+      "repository": "https://github.com/wolverin0/claude-skills",
+      "author": "wolverin0",
+      "license": "MIT",
+      "type": "submodule",
+      "path": ".dependencies/claude-skills",
+      "version": "v4.7",
+      "description": "AI Debate Hub - Structured three-way debates between Claude, Gemini, and Codex",
+      "attribution": "Original AI Debate Hub skill by wolverin0",
+      "enhancements": "./.claude/skills/debate-integration.md",
+      "integration": {
+        "type": "hybrid",
+        "originalSkill": "./.dependencies/claude-skills/skills/debate.md",
+        "enhancementLayer": "./.claude/skills/debate-integration.md",
+        "features": [
+          "Session-aware storage (Claude Code integration)",
+          "Quality gates for debate responses (75% threshold)",
+          "Cost tracking and analytics",
+          "Document export (PPTX/DOCX/PDF via document-delivery skill)",
+          "Knowledge mode deliberation workflow"
+        ]
+      }
+    }
+  }
 }
