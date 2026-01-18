@@ -5,6 +5,15 @@ All notable changes to Claude Octopus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.4.2] - 2026-01-18
+
+### Changed
+- **Command rename** - Renamed `/claude-octopus:check-updates` to `/claude-octopus:check-update` (singular) for consistency with other commands
+  - Old: `/claude-octopus:check-updates --update`
+  - New: `/claude-octopus:check-update --update`
+  - Both check for updates to Claude Code AND claude-octopus
+  - Auto-update support unchanged
+
 ## [7.4.1] - 2026-01-18
 
 ### Enhanced

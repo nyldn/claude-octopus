@@ -11,8 +11,8 @@
     {
       "name": "claude-octopus",
       "source": "./",
-      "description": "v7.4.1 - Multi-tentacled orchestrator using Double Diamond methodology. Auto-update support, visual feedback, natural language workflows! Run /claude-octopus:setup for guided setup.",
-      "version": "7.4.1",
+      "description": "v7.4.2 - Multi-tentacled orchestrator using Double Diamond methodology. Auto-update support, visual feedback, natural language workflows! Run /claude-octopus:setup for guided setup.",
+      "version": "7.4.2",
       "author": {
         "name": "nyldn"
       },
