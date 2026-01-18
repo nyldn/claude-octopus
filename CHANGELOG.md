@@ -5,6 +5,117 @@ All notable changes to Claude Octopus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.4.0] - 2026-01-18
+
+### Added - AI Debate Hub Integration
+
+**Attribution**: This release integrates **AI Debate Hub** by **wolverin0** (https://github.com/wolverin0/claude-skills)
+
+**Git Submodule Integration** (Hybrid Approach)
+- Added wolverin0/claude-skills as git submodule at `.dependencies/claude-skills`
+- Original debate.md skill (v4.7) referenced read-only, maintaining clear attribution
+- Integration type: Hybrid (original skill + enhancement layer)
+- License: MIT (both projects)
+
+**AI Debate Hub - Original Features** (by wolverin0)
+- Structured three-way debates: Claude + Gemini CLI + Codex CLI
+- Claude as active participant AND moderator (not just orchestrator)
+- Multi-round debates (1-10 configurable rounds)
+- Four debate styles: quick, thorough, adversarial, collaborative
+- Session persistence via CLI session UUIDs
+- Automatic synthesis generation (consensus, disagreements, recommendations)
+- Token-efficient context management (only injects previous round responses)
+
+**Claude-Octopus Enhancement Layer** (debate-integration.md)
+- Session-aware storage: `~/.claude-octopus/debates/${SESSION_ID}/`
+- Quality gates for debate responses:
+  - Metrics: length, citations, code examples, engagement
+  - Thresholds: >= 75 proceed, 50-74 warn, < 50 re-prompt
+- Cost tracking and analytics integration:
+  - Per-advisor token usage and cost breakdown
+  - Real-time cost estimation (typical: $0.02-$0.50 per debate)
+  - Analytics logging to `~/.claude-octopus/analytics/`
+- Document export integration (via document-delivery skill v7.3.0):
+  - Export debates to PPTX/DOCX/PDF
+  - Professional formatting for stakeholder presentations
+- Knowledge mode deliberation workflow:
+  - `/claude-octopus:km on` + `/debate` = strategic decision-making
+  - Maps knowledge personas (ux-researcher, strategy-analyst, research-synthesizer)
+
+**New Commands**
+- `/debate <question>` - Basic debate invocation
+- `/debate -r N -d STYLE <question>` - With rounds and style
+- `/claude-octopus:deliberate <question>` - Alias for debate command
+- `/debate-export <id> --format pptx` - Export debate results (via integration)
+- `/debate-quality <id>` - Show quality scores (via integration)
+- `/debate-cost <id>` - Show cost breakdown (via integration)
+
+**Debate Styles**
+| Style | Rounds | Purpose | Estimated Cost |
+|-------|--------|---------|----------------|
+| quick | 1 | Fast initial perspectives | $0.02-$0.05 |
+| thorough | 3 | Detailed analysis with refinement | $0.10-$0.20 |
+| adversarial | 5 | Devil's advocate, stress testing | $0.25-$0.50 |
+| collaborative | 2-3 | Consensus-building | $0.08-$0.15 |
+
+**Integration Use Cases**
+1. **Debate Phase in Double Diamond**: `probe → grasp → debate → tangle → ink`
+2. **Enhanced Adversarial Review**: Replace `grapple` with structured debate
+3. **Knowledge Mode Deliberation**: Strategic decisions with multi-perspective analysis
+4. **Security Reviews**: Adversarial debate with defender/attacker roles
+
+**File Structure**
+```
+.dependencies/claude-skills/     ← Git submodule (original by wolverin0)
+  └── skills/debate.md           ← Original skill (read-only reference)
+.claude/skills/
+  └── debate-integration.md      ← Claude-octopus enhancements
+~/.claude-octopus/debates/       ← Session-aware debate storage
+```
+
+**Submodule Management**
+- Initialize: `git submodule update --init --recursive`
+- Update from upstream: `git submodule update --remote .dependencies/claude-skills`
+- Contribution path: Submit generic enhancements to wolverin0/claude-skills via PRs
+
+### Changed
+- Plugin version: `7.3.0` → `7.4.0`
+- Updated `.claude-plugin/plugin.json` with debate skills and dependencies section
+- Updated `package.json` to v7.4.0
+- Updated `.claude-plugin/marketplace.json` to v7.4.0
+- Updated README.md with prominent AI Debate Hub attribution section
+- Added keywords: ai-debates, consensus-building, multi-perspective, deliberation
+
+### Documentation
+- Added comprehensive attribution section in README.md
+- Documented hybrid integration approach in plugin.json dependencies
+- Created debate-integration.md with enhancement details
+- Added debate command routing in orchestrate.sh with usage examples
+- Documented contribution workflow for upstream enhancements
+
+### Impact
+- **Multi-Perspective Analysis**: Structured debates provide comprehensive viewpoints
+- **Consensus Building**: Systematic approach to team decision-making
+- **Quality Assurance**: Adversarial debates catch edge cases and vulnerabilities
+- **Knowledge Work**: Strategic deliberation with domain expert personas
+- **Open Source Collaboration**: Clear attribution enables upstream contributions
+
+### Attribution & License
+**Original Work**: AI Debate Hub by wolverin0
+- Repository: https://github.com/wolverin0/claude-skills
+- License: MIT
+- Version: v4.7
+- Integration: Git submodule (read-only reference)
+
+**Enhancement Layer**: Claude-octopus integration
+- Repository: https://github.com/nyldn/claude-octopus
+- License: MIT
+- Approach: Hybrid (reference original + add enhancements)
+
+Both projects are open source. Generic improvements to debate functionality should be contributed to wolverin0/claude-skills. Claude-octopus-specific integrations remain in this repository.
+
+---
+
 ## [7.3.0] - 2026-01-18
 
 ### Added - Knowledge Worker Document Delivery
