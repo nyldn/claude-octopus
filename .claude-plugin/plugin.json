@@ -1,7 +1,7 @@
 {
-  "name": "claude-octopus",
-  "version": "7.5.6",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.5.6 - Fixed update check plugin detection!) Improved command UX with categorized commands, shortcuts! Visual feedback, natural language workflows, AI debates! Run /claude-octopus:setup for guided setup.",
+  "name": "co",
+  "version": "7.6.0",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.6.0 - Shorter /co: commands!) All commands now use /co: namespace. Skills accessible via commands! Visual feedback, natural language workflows, AI debates! Run /co:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },
@@ -68,6 +68,17 @@
     "./.claude/commands/setup.md",
     "./.claude/commands/update.md",
     "./.claude/commands/check-update.md",
-    "./.claude/commands/km.md"
+    "./.claude/commands/km.md",
+    "./.claude/commands/debate.md",
+    "./.claude/commands/review.md",
+    "./.claude/commands/research.md",
+    "./.claude/commands/security.md",
+    "./.claude/commands/debug.md",
+    "./.claude/commands/tdd.md",
+    "./.claude/commands/docs.md",
+    "./.claude/commands/probe.md",
+    "./.claude/commands/grasp.md",
+    "./.claude/commands/tangle.md",
+    "./.claude/commands/ink.md"
   ]
 }
