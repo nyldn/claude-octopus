@@ -10179,6 +10179,25 @@ case "$COMMAND" in
         # No args = show status, explicit toggle/on/off to change
         toggle_knowledge_work_mode "${1:-status}"
         ;;
+    deliver-docs|export-docs|create-docs)
+        # Document delivery help - show recent outputs and conversion guidance
+        echo ""
+        echo "📄 Document Delivery"
+        echo ""
+        echo "Convert knowledge work outputs to professional office formats:"
+        echo "  • Recent results: ls -lht ~/.claude-octopus/results/ | head -5"
+        echo ""
+        ls -lht ~/.claude-octopus/results/ 2>/dev/null | head -5 || echo "  No results found yet. Run empathize/advise/synthesize first."
+        echo ""
+        echo "To convert, just ask naturally:"
+        echo "  - 'Export the latest synthesis to Word'"
+        echo "  - 'Create a PowerPoint from this research'"
+        echo "  - 'Convert to professional document'"
+        echo ""
+        echo "Make sure document-skills is installed:"
+        echo "  /plugin install document-skills@anthropic-agent-skills"
+        echo ""
+        ;;
     # ═══════════════════════════════════════════════════════════════════════════
     # RALPH-WIGGUM ITERATION COMMANDS (v3.5)
     # ═══════════════════════════════════════════════════════════════════════════

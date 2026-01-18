@@ -5,6 +5,46 @@ All notable changes to Claude Octopus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.3.0] - 2026-01-18
+
+### Added - Knowledge Worker Document Delivery
+
+**Document-Delivery Skill**
+- New skill for converting knowledge work outputs to professional office formats
+- Auto-triggers on export/create/convert document requests
+- Supports DOCX (Word), PPTX (PowerPoint), XLSX (Excel)
+- Integrates with empathize/advise/synthesize workflows
+- Format recommendations based on workflow type:
+  - Empathize → DOCX persona docs or PPTX stakeholder decks
+  - Advise → PPTX strategy presentations or DOCX business cases
+  - Synthesize → DOCX academic reports or PDF publications
+
+**Enhanced Knowledge Mode**
+- Document delivery capability documented in knowledge-work-mode skill
+- Command alias: `/claude-octopus:deliver-docs` for discoverability
+- Also available as: `/claude-octopus:export-docs` and `/claude-octopus:create-docs`
+- Works seamlessly with document-skills@anthropic-agent-skills plugin
+
+**Skill Features**
+- Comprehensive format recommendations by workflow
+- Professional styling tips for DOCX, PPTX, and PDF
+- Conversion guidelines and best practices
+- Example workflows for common use cases
+- Edge case handling (no outputs, missing plugin, etc.)
+- Integration guidance with knowledge mode workflows
+
+### Changed
+- Plugin version: `7.2.4` → `7.3.0`
+- Updated `.claude-plugin/plugin.json` to include document-delivery skill
+- Updated knowledge-work-mode.md with document delivery section
+
+### Impact
+- **Knowledge Workers**: Complete workflow from research to deliverable documents
+- **Professional Output**: Easy conversion to stakeholder-ready formats
+- **Seamless Integration**: Natural language triggers + existing document-skills plugin
+
+---
+
 ## [7.2.4] - 2026-01-18
 
 ### Fixed - CI/CD & Command Execution
