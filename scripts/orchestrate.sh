@@ -9572,11 +9572,83 @@ EOF
 }
 
 toggle_knowledge_work_mode() {
+    local action="${1:-status}"  # Default to status if no argument
     load_user_config || true  # Don't exit if config load fails
     KNOWLEDGE_WORK_MODE="${KNOWLEDGE_WORK_MODE:-false}"  # Default to false if unset
 
-    if [[ "$KNOWLEDGE_WORK_MODE" == "true" ]]; then
-        KNOWLEDGE_WORK_MODE="false"
+    # Handle status check
+    if [[ "$action" == "status" ]]; then
+        echo ""
+        echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        echo -e "${BLUE}Knowledge Work Mode Status${NC}"
+        echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        echo ""
+        if [[ "$KNOWLEDGE_WORK_MODE" == "true" ]]; then
+            echo -e "  Current Mode: ${MAGENTA}🎓 KNOWLEDGE WORK MODE ENABLED${NC}"
+            echo ""
+            echo -e "  Auto-routing behavior:"
+            echo -e "    ✓ \"Review document\" → UX/strategic review"
+            echo -e "    ✓ \"Analyze market\" → Strategy analysis"
+            echo -e "    ✓ \"Research topic\" → Literature synthesis"
+            echo ""
+            echo -e "  ${CYAN}Available workflows:${NC}"
+            echo -e "    ${GREEN}empathize${NC}   - UX research (personas, journey maps)"
+            echo -e "    ${GREEN}advise${NC}      - Strategic consulting (market analysis)"
+            echo -e "    ${GREEN}synthesize${NC}  - Literature review (research synthesis)"
+            echo ""
+            echo -e "  Toggle off: ${CYAN}knowledge-mode off${NC}"
+        else
+            echo -e "  Current Mode: ${GREEN}🔧 DEVELOPMENT MODE (default)${NC}"
+            echo ""
+            echo -e "  Auto-routing behavior:"
+            echo -e "    ✓ \"Review code\" → Code review"
+            echo -e "    ✓ \"Analyze system\" → Technical analysis"
+            echo -e "    ✓ \"Research pattern\" → Technical research"
+            echo ""
+            echo -e "  ${CYAN}Available workflows:${NC}"
+            echo -e "    ${GREEN}embrace${NC}     - Full 4-phase development workflow"
+            echo -e "    ${GREEN}probe${NC}       - Research & exploration"
+            echo -e "    ${GREEN}tangle${NC}      - Implementation & validation"
+            echo ""
+            echo -e "  Toggle on: ${CYAN}knowledge-mode on${NC}"
+        fi
+        echo ""
+        return 0
+    fi
+
+    # Handle explicit on/off or toggle
+    local new_mode="$KNOWLEDGE_WORK_MODE"
+    if [[ "$action" == "on" || "$action" == "enable" ]]; then
+        new_mode="true"
+    elif [[ "$action" == "off" || "$action" == "disable" ]]; then
+        new_mode="false"
+    elif [[ "$action" == "toggle" ]]; then
+        if [[ "$KNOWLEDGE_WORK_MODE" == "true" ]]; then
+            new_mode="false"
+        else
+            new_mode="true"
+        fi
+    else
+        log ERROR "Invalid action: $action. Use: on, off, status, or toggle"
+        exit 1
+    fi
+
+    # Check if state is actually changing
+    if [[ "$new_mode" == "$KNOWLEDGE_WORK_MODE" ]]; then
+        echo ""
+        if [[ "$new_mode" == "true" ]]; then
+            echo -e "${YELLOW}ℹ${NC}  Knowledge Work Mode is already ${MAGENTA}ENABLED${NC}"
+        else
+            echo -e "${YELLOW}ℹ${NC}  Development Mode is already ${GREEN}ACTIVE${NC}"
+        fi
+        echo ""
+        return 0
+    fi
+
+    # Apply the change
+    KNOWLEDGE_WORK_MODE="$new_mode"
+
+    if [[ "$KNOWLEDGE_WORK_MODE" == "false" ]]; then
         echo ""
         echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
         echo -e "${CYAN}║  🐙 Knowledge Work Mode: ${RED}OFF${CYAN}                              ║${NC}"
@@ -9586,8 +9658,9 @@ toggle_knowledge_work_mode() {
         echo -e "  Auto-routing now prioritizes: ${GREEN}development workflows${NC}"
         echo -e "  Commands: probe, tangle, ink, embrace, grapple, squeeze"
         echo ""
+        echo -e "  ${CYAN}Quick toggle:${NC} ${CYAN}knowledge-mode on${NC}"
+        echo ""
     else
-        KNOWLEDGE_WORK_MODE="true"
         echo ""
         echo -e "${MAGENTA}╔═══════════════════════════════════════════════════════════╗${NC}"
         echo -e "${MAGENTA}║  🐙 Knowledge Work Mode: ${GREEN}ON${MAGENTA}                               ║${NC}"
@@ -9602,10 +9675,12 @@ toggle_knowledge_work_mode() {
         echo -e "    ${GREEN}advise${NC}      - Strategy consulting (market analysis, frameworks)"
         echo -e "    ${GREEN}synthesize${NC}  - Academic research (literature review, synthesis)"
         echo ""
+        echo -e "  ${CYAN}Quick toggle:${NC} ${CYAN}knowledge-mode off${NC}"
+        echo ""
     fi
 
     save_user_config "$USER_INTENT_PRIMARY" "$USER_INTENT_ALL" "$USER_RESOURCE_TIER"
-    echo -e "  ${GREEN}✓${NC} Configuration saved. Toggle with: ${CYAN}knowledge-toggle${NC}"
+    echo -e "  ${GREEN}✓${NC} Configuration saved and persists across sessions"
     echo ""
 }
 
@@ -9956,8 +10031,16 @@ case "$COMMAND" in
         [[ $# -lt 1 ]] && { log ERROR "Usage: synthesize <prompt>"; exit 1; }
         synthesize_research "$*"
         ;;
-    knowledge|knowledge-mode|knowledge-toggle)
-        toggle_knowledge_work_mode
+    knowledge-toggle)
+        # Legacy toggle command - always toggles
+        toggle_knowledge_work_mode "toggle"
+        ;;
+    knowledge|knowledge-mode|km)
+        # Enhanced knowledge mode toggle with on/off/status support
+        # Usage: knowledge-mode [on|off|status|toggle]
+        #        km [on|off|status]  (short alias)
+        # No args = show status, explicit toggle/on/off to change
+        toggle_knowledge_work_mode "${1:-status}"
         ;;
     # ═══════════════════════════════════════════════════════════════════════════
     # RALPH-WIGGUM ITERATION COMMANDS (v3.5)
