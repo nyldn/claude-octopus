@@ -3,12 +3,48 @@
     {
       "matcher": {
         "tool": "Bash",
+        "pattern": "orchestrate\\.sh.*(probe|grasp|tangle|ink|embrace|grapple|squeeze)"
+      },
+      "hooks": [
+        {
+          "type": "prompt",
+          "prompt": "🐙 **CLAUDE OCTOPUS ACTIVATED** - Using external CLI providers (Codex/Gemini) for this task. This is NOT a Claude subagent - external APIs will be invoked."
+        }
+      ]
+    },
+    {
+      "matcher": {
+        "tool": "Bash",
         "pattern": "orchestrate\\.sh.*tangle"
       },
       "hooks": [
         {
           "type": "prompt",
           "prompt": "Before running tangle phase, check if there are existing validation results that need review."
+        }
+      ]
+    },
+    {
+      "matcher": {
+        "tool": "Bash",
+        "pattern": "codex exec"
+      },
+      "hooks": [
+        {
+          "type": "prompt",
+          "prompt": "🔴 **Codex CLI Executing** - Using your OpenAI API credentials directly."
+        }
+      ]
+    },
+    {
+      "matcher": {
+        "tool": "Bash",
+        "pattern": "gemini -[yr]"
+      },
+      "hooks": [
+        {
+          "type": "prompt",
+          "prompt": "🟡 **Gemini CLI Executing** - Using your Google API credentials directly."
         }
       ]
     }
