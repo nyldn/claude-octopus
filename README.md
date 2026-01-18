@@ -175,6 +175,27 @@ Claude Octopus automatically detects which providers you have and uses them inte
 
 ---
 
+## Updating the Plugin
+
+To get the latest version of Claude Octopus:
+
+### Option A: Via Plugin UI
+1. `/plugin` to open plugin screen
+2. Navigate to "Installed" tab
+3. Find `claude-octopus@nyldn-plugins`
+4. Click update button if available
+
+### Option B: Reinstall (Most Reliable)
+```
+/plugin uninstall claude-octopus
+/plugin marketplace update nyldn-plugins
+/plugin install claude-octopus@nyldn-plugins
+```
+
+**After updating:** Restart Claude Code to load the new version.
+
+---
+
 ## 🆕 What's New in v7.4 - Visual Feedback & Natural Language Workflows
 
 **Now you always know what's running!** v7.4 adds visual indicators and natural language workflow triggers.
