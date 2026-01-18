@@ -79,3 +79,4 @@ test-results*.xml
 # Coverage reports
 coverage-report.txt
 coverage-report.html
+.dev/
