@@ -152,6 +152,30 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh km status
 - Workflows: `empathize`, `advise`, `synthesize`
 - Agents: `ux-researcher`, `strategy-analyst`, `research-synthesizer`
 
+### Document Delivery 📄
+
+After running empathize/advise/synthesize, convert results to professional formats:
+- **DOCX** - Word documents for reports, business cases, academic papers
+- **PPTX** - PowerPoint presentations for stakeholder decks, strategy briefs
+- **XLSX** - Excel spreadsheets for data analysis, frameworks
+
+Just say:
+- "Export this to Word"
+- "Create a PowerPoint presentation"
+- "Convert to professional document"
+
+Claude will automatically use the document-delivery skill with document-skills plugin.
+
+**Check recent outputs:**
+```bash
+/claude-octopus:deliver-docs
+```
+
+**Prerequisites:** Install document-skills plugin:
+```bash
+/plugin install document-skills@anthropic-agent-skills
+```
+
 ## Proactive Behavior
 
 **DO proactively offer to switch when:**
