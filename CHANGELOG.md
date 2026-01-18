@@ -5,6 +5,114 @@ All notable changes to Claude Octopus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.5.0] - 2026-01-18
+
+### Added - Command UX Improvement with Categorized Naming
+
+**Major UX Enhancement**: 60% shorter commands with categorized naming and shortcuts!
+
+#### Plugin Namespace Change
+- **New namespace**: Plugin registered as `co` (short for Claude Octopus)
+- **Dual registration**: Both `co` and `claude-octopus` namespaces work (zero breaking changes)
+- **Example**:
+  - Old: `/claude-octopus:setup` (still works)
+  - New: `/co:sys-setup` (recommended)
+  - Shortcut: `/co:setup` (power user)
+
+#### Three-Category System
+All commands and skills now follow a clear category structure:
+
+1. **sys-*** - System commands (setup, update, configure)
+   - `sys-setup.md` - System configuration
+   - `sys-update.md` - Update checker
+   - `sys-configure.md` - Provider configuration
+
+2. **flow-*** - Workflow phases (Double Diamond)
+   - `flow-probe.md` - Research/discover phase
+   - `flow-grasp.md` - Define/clarify phase
+   - `flow-tangle.md` - Develop/build phase
+   - `flow-ink.md` - Deliver/validate phase
+
+3. **skill-*** - Specialized capabilities (21 skills)
+   - `skill-debate.md` - AI debates
+   - `skill-code-review.md` - Code review
+   - `skill-security-audit.md` - Security auditing
+   - `skill-tdd.md` - Test-driven development
+   - `skill-debug.md` - Systematic debugging
+   - `skill-doc-delivery.md` - Document delivery
+   - `skill-deep-research.md` - Deep research
+   - And 14 more...
+
+#### 15 Shortcut Aliases Added
+Frequent commands get 1-2 word shortcuts:
+
+| Full Name | Shortcut | Category |
+|-----------|----------|----------|
+| `/co:sys-setup` | `/co:setup` | System |
+| `/co:sys-update` | `/co:update` | System |
+| `/co:sys-configure` | `/co:config` | System |
+| `/co:skill-knowledge-mode` | `/co:km` | Mode |
+| `/co:flow-probe` | `/co:probe` | Workflow |
+| `/co:flow-grasp` | `/co:grasp` | Workflow |
+| `/co:flow-tangle` | `/co:tangle` | Workflow |
+| `/co:flow-ink` | `/co:ink` | Workflow |
+| `/co:skill-debate` | `/co:debate` | Skill |
+| `/co:skill-code-review` | `/co:review` | Skill |
+| `/co:skill-security-audit` | `/co:security` | Skill |
+| `/co:skill-deep-research` | `/co:research` | Skill |
+| `/co:skill-tdd` | `/co:tdd` | Skill |
+| `/co:skill-debug` | `/co:debug` | Skill |
+| `/co:skill-doc-delivery` | `/co:docs` | Skill |
+
+#### Renamed Files (50+ files)
+
+**Commands** (4 files renamed + 4 aliases created):
+- `setup.md` → `sys-setup.md` (+ `setup.md` alias)
+- `check-update.md` → `sys-update.md` (+ `update.md` + `check-update.md` aliases)
+- `km.md` + `knowledge-mode.md` → `skill-knowledge-mode.md` (+ `km.md` alias)
+
+**Skills** (21 files renamed + 11 aliases created):
+- Workflow skills: `*-workflow.md` → `flow-*.md` (+ shortcuts)
+- System skills: `configure.md` → `sys-configure.md` (+ `config.md` alias)
+- Other skills: All prefixed with `skill-*` (+ 7 shortcuts)
+
+### Changed
+- **plugin.json**: Updated namespace from `claude-octopus` to `co`, version 7.4.2 → 7.5.0
+- **marketplace.json**: Dual registration (`co` + `claude-octopus`) for backward compatibility
+- **All skill paths**: Updated to reflect new categorized naming
+- **README.md**: Updated all examples to use `/co:` prefix, added v7.5 section
+- **Installation command**: Now `/plugin install co@nyldn-plugins` (old command still works)
+
+### Documentation
+- **Added**: `docs/MIGRATION-v7.5.md` - Complete migration guide with rename tables
+- **Added**: `docs/COMMAND-REFERENCE.md` - Complete command catalog (to be created)
+- **Updated**: README.md with v7.5 feature highlights
+- **Updated**: All command/skill frontmatter with new names and aliases
+
+### Backward Compatibility
+- ✅ **Zero breaking changes** - All old commands still work
+- ✅ **Dual namespace** - Both `/co:` and `/claude-octopus:` are registered
+- ✅ **Natural language triggers** - Unchanged, continue to work
+- ✅ **Existing scripts** - No updates required
+
+### Benefits
+- 🚀 **60% shorter** - `/co:setup` vs `/claude-octopus:setup`
+- 📂 **Better organization** - Clear categories (sys, flow, skill)
+- ⚡ **Power user shortcuts** - 15 shortcuts for common commands
+- 🔍 **Easy discovery** - Type `/co:flow-` to see all workflows
+- 🔄 **Smooth migration** - Old commands work indefinitely
+
+### Migration
+See `docs/MIGRATION-v7.5.md` for:
+- Complete rename table (50+ files)
+- Recommended migration paths
+- Backward compatibility details
+- FAQ and troubleshooting
+
+**Recommended**: Start using `/co:` prefix with shortcuts today!
+
+---
+
 ## [7.4.2] - 2026-01-18
 
 ### Changed

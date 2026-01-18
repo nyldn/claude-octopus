@@ -1,5 +1,8 @@
 ---
-name: test-driven-development
+name: skill-tdd
+aliases:
+  - tdd
+  - test-driven-development
 description: |
   Enforce TDD discipline: write failing test first, watch it fail, write minimal code.
   "Iron Law: NO PRODUCTION CODE WITHOUT A FAILING TEST FIRST."

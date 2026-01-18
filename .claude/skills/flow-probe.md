@@ -1,5 +1,8 @@
 ---
-name: probe-workflow
+name: flow-probe
+aliases:
+  - probe
+  - probe-workflow
 description: |
   Discover phase workflow - Research and exploration using external CLI providers.
   Part of the Double Diamond methodology (Probe = Discover phase).

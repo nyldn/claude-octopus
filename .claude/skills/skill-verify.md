@@ -1,5 +1,5 @@
 ---
-name: verification-before-completion
+name: skill-verify
 description: |
   Evidence gate: run verification, read output, THEN claim success.
   "Iron Law: NO COMPLETION CLAIMS WITHOUT FRESH VERIFICATION EVIDENCE."

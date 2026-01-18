@@ -1,5 +1,5 @@
 ---
-name: writing-plans
+name: skill-writing-plans
 description: |
   Create zero-context implementation plans with bite-sized tasks (2-5 min each).
   Assumes engineer has no codebase knowledge. Exact file paths, complete code, verification steps.

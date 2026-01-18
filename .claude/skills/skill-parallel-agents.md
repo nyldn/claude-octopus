@@ -1,5 +1,5 @@
 ---
-name: parallel-agents
+name: skill-parallel-agents
 description: |
   Multi-tentacled orchestrator for Claude Code using Double Diamond methodology.
   Coordinates Codex CLI and Gemini CLI for comprehensive problem solving.
