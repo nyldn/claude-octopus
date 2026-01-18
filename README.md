@@ -42,59 +42,6 @@ Claude coordinates multiple AI models behind the scenes to give you comprehensiv
 
 ---
 
-## 🙏 Attribution & Open Source Collaboration
-
-### AI Debate Hub Integration
-
-> **Built on the shoulders of giants** 🤝
-
-Claude-octopus integrates **[AI Debate Hub](https://github.com/wolverin0/claude-skills)** by **[wolverin0](https://github.com/wolverin0)** with deep gratitude and proper attribution:
-
-- **Original Repository**: https://github.com/wolverin0/claude-skills
-- **Author**: wolverin0
-- **License**: MIT
-- **Integration Type**: Git submodule (read-only reference)
-- **Version**: v4.7
-
-**What it does**: Enables structured three-way debates where Claude, Gemini CLI, and Codex CLI analyze problems from multiple perspectives. Claude actively participates as both a debater and moderator.
-
-**Claude-octopus enhancements**:
-- ✅ Session-aware storage (integrates with Claude Code sessions)
-- ✅ Quality gates for debate responses (75% threshold)
-- ✅ Cost tracking and analytics
-- ✅ Document export to PPTX/DOCX/PDF (via document-delivery skill)
-- ✅ Knowledge mode deliberation workflow
-
-**Usage**:
-```bash
-# Basic debate
-/debate Should we use Redis or in-memory cache?
-
-# Thorough analysis
-/debate -r 3 -d thorough "Review our API architecture"
-
-# Adversarial security review
-/debate -r 5 -d adversarial "Review auth.ts for vulnerabilities"
-
-# Knowledge mode deliberation
-/claude-octopus:km on
-/debate "Should we enter the European market?"
-```
-
-**Initialize submodule** (if not auto-initialized):
-```bash
-git submodule update --init --recursive
-```
-
-**Update to latest** from wolverin0:
-```bash
-git submodule update --remote .dependencies/claude-skills
-```
-
-**Contributing**: Generic improvements to the debate functionality should be contributed to [wolverin0/claude-skills](https://github.com/wolverin0/claude-skills) via pull requests. Claude-octopus-specific integrations remain in this repository.
-
----
-
 ## Quick Start
 
 Get started with Claude Octopus in 2 simple steps:
@@ -397,6 +344,59 @@ These make orchestrate.sh workflows accessible through natural conversation!
 ### Developer Guides
 - **[Plugin Architecture](docs/PLUGIN-ARCHITECTURE.md)** - How it all works
 - **[Contributing Guidelines](CONTRIBUTING.md)** - How to contribute
+
+---
+
+## 🙏 Attribution & Open Source Collaboration
+
+### AI Debate Hub Integration
+
+> **Built on the shoulders of giants** 🤝
+
+Claude-octopus integrates **[AI Debate Hub](https://github.com/wolverin0/claude-skills)** by **[wolverin0](https://github.com/wolverin0)** with deep gratitude and proper attribution:
+
+- **Original Repository**: https://github.com/wolverin0/claude-skills
+- **Author**: wolverin0
+- **License**: MIT
+- **Integration Type**: Git submodule (read-only reference)
+- **Version**: v4.7
+
+**What it does**: Enables structured three-way debates where Claude, Gemini CLI, and Codex CLI analyze problems from multiple perspectives. Claude actively participates as both a debater and moderator.
+
+**Claude-octopus enhancements**:
+- ✅ Session-aware storage (integrates with Claude Code sessions)
+- ✅ Quality gates for debate responses (75% threshold)
+- ✅ Cost tracking and analytics
+- ✅ Document export to PPTX/DOCX/PDF (via document-delivery skill)
+- ✅ Knowledge mode deliberation workflow
+
+**Usage**:
+```bash
+# Basic debate
+/debate Should we use Redis or in-memory cache?
+
+# Thorough analysis
+/debate -r 3 -d thorough "Review our API architecture"
+
+# Adversarial security review
+/debate -r 5 -d adversarial "Review auth.ts for vulnerabilities"
+
+# Knowledge mode deliberation
+/claude-octopus:km on
+/debate "Should we enter the European market?"
+```
+
+**Initialize submodule** (if not auto-initialized):
+```bash
+git submodule update --init --recursive
+```
+
+**Update to latest** from wolverin0:
+```bash
+git submodule update --remote .dependencies/claude-skills
+```
+
+**Contributing**: Generic improvements to the debate functionality should be contributed to [wolverin0/claude-skills](https://github.com/wolverin0/claude-skills) via pull requests. Claude-octopus-specific integrations remain in this repository.
 
 ---
 
