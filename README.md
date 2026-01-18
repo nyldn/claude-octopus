@@ -39,6 +39,86 @@ Claude coordinates multiple AI models behind the scenes to give you comprehensiv
 
 ---
 
+## Quick Start
+
+Get started with Claude Octopus in 2 simple steps:
+
+### Step 1: Install the Plugin
+
+Open Claude Code and run these two commands in the chat:
+
+```
+/plugin marketplace add nyldn/claude-octopus
+/plugin install claude-octopus@nyldn-plugins
+```
+
+The plugin is now installed and automatically enabled.
+
+<details>
+<summary>Troubleshooting Installation</summary>
+
+**If `/claude-octopus:setup` shows "Unknown skill" in Step 2:**
+
+1. Verify the plugin is installed:
+   ```
+   /plugin list
+   ```
+   Look for `claude-octopus@nyldn-plugins` in the installed plugins list.
+
+2. Try reinstalling:
+   ```
+   /plugin uninstall claude-octopus
+   /plugin marketplace update nyldn-plugins
+   /plugin install claude-octopus@nyldn-plugins
+   ```
+
+3. Check for errors in debug logs (from terminal):
+   ```bash
+   tail -100 ~/.claude/debug/*.txt | grep -i "claude-octopus\|error"
+   ```
+
+4. Make sure you're on Claude Code v2.1.10 or later (from terminal):
+   ```bash
+   claude --version
+   ```
+
+</details>
+
+### Step 2: Configure Your AI Providers
+
+Run the setup command in Claude Code:
+```
+/claude-octopus:setup
+```
+
+This will:
+- Auto-detect what's already installed
+- Show you exactly what you need (you only need ONE provider!)
+- Give you shell-specific instructions
+- Verify your setup when done
+
+**No terminal context switching needed** - Claude guides you through everything!
+
+### Step 3: Start Using It
+
+Just talk to Claude naturally! Claude Octopus automatically activates when you need multi-AI collaboration:
+
+**For research:**
+> "Research microservices patterns and compare their trade-offs"
+
+**For development:**
+> "Build a REST API for user management with authentication"
+
+**For code review:**
+> "Review my authentication code for security issues"
+
+**For adversarial testing:**
+> "Use grapple to debate the best approach for session management"
+
+Claude Octopus automatically detects which providers you have and uses them intelligently.
+
+---
+
 ## ✨ What's New in v7.2 - Quick Knowledge Mode Toggle
 
 **Instant mode switching for code vs research!** Toggle between Development Mode (code-focused) and Knowledge Work Mode (research, UX, strategy) with a single command.
@@ -174,86 +254,6 @@ Not sure which agent to use? Here are the most common scenarios:
 > → Routes to: `advise` workflow with `strategy-analyst` + `exec-communicator`
 
 Browse our comprehensive [Agent Catalog](docs/AGENTS.md) with when-to-use guides, anti-patterns, and 400+ lines of examples for all 37 specialized agents!
-
----
-
-## Quick Start
-
-### 1. Install the Plugin
-
-**Inside Claude Code chat (recommended - just 2 commands):**
-
-Open Claude Code and run these commands in the chat:
-
-```
-/plugin marketplace add nyldn/claude-octopus
-/plugin install claude-octopus@nyldn-plugins
-```
-
-That's it! The plugin is automatically enabled and ready to use. Try `/claude-octopus:setup` to configure your AI providers.
-
-<details>
-<summary>Troubleshooting Installation</summary>
-
-**If `/claude-octopus:setup` shows "Unknown skill":**
-
-1. Verify the plugin is installed:
-   ```
-   /plugin list
-   ```
-   Look for `claude-octopus@nyldn-plugins` in the installed plugins list.
-
-2. Try reinstalling:
-   ```
-   /plugin uninstall claude-octopus
-   /plugin marketplace update nyldn-plugins
-   /plugin install claude-octopus@nyldn-plugins
-   ```
-
-3. Check for errors in debug logs (from terminal):
-   ```bash
-   tail -100 ~/.claude/debug/*.txt | grep -i "claude-octopus\|error"
-   ```
-
-4. Make sure you're on Claude Code v2.1.10 or later (from terminal):
-   ```bash
-   claude --version
-   ```
-
-</details>
-
-### 2. Run Setup in Claude Code
-
-After installing, run the setup command in Claude Code:
-```
-/claude-octopus:setup
-```
-
-This will:
-- Auto-detect what's already installed
-- Show you exactly what you need (you only need ONE provider!)
-- Give you shell-specific instructions
-- Verify your setup when done
-
-**No terminal context switching needed** - Claude guides you through everything!
-
-### 3. Use It Naturally
-
-Just talk to Claude! Claude Octopus automatically activates when you need multi-AI collaboration:
-
-**For research:**
-> "Research microservices patterns and compare their trade-offs"
-
-**For development:**
-> "Build a REST API for user management with authentication"
-
-**For code review:**
-> "Review my authentication code for security issues"
-
-**For adversarial testing:**
-> "Use grapple to debate the best approach for session management"
-
-Claude Octopus automatically detects which providers you have and uses them intelligently.
 
 ---
 
