@@ -249,7 +249,7 @@ generate_junit_report() {
   <testsuite name="All Tests" tests="$TOTAL_SUITES" failures="$FAILED_SUITES" skipped="$SKIPPED_SUITES" time="$duration">
 EOF
 
-    for result in "${ALL_RESULTS[@]}"; do
+    for result in "${ALL_RESULTS[@]+"${ALL_RESULTS[@]}"}"; do
         local status="${result%%:*}"
         local name="${result#*:}"
 
