@@ -6,7 +6,7 @@
   <img src="https://img.shields.io/badge/Claude_Code-Plugin-blueviolet" alt="Claude Code Plugin">
   <img src="https://img.shields.io/badge/Double_Diamond-Design_Thinking-orange" alt="Double Diamond">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
-  <img src="https://img.shields.io/badge/Version-7.1.0-blue" alt="Version 7.1.0">
+  <img src="https://img.shields.io/badge/Version-7.2.0-blue" alt="Version 7.2.0">
 </p>
 
 # Claude Octopus
@@ -39,6 +39,39 @@ Claude coordinates multiple AI models behind the scenes to give you comprehensiv
 
 ---
 
+## ✨ What's New in v7.2 - Quick Knowledge Mode Toggle
+
+**Instant mode switching for code vs research!** Toggle between Development Mode (code-focused) and Knowledge Work Mode (research, UX, strategy) with a single command.
+
+### 🎯 Quick Toggle
+Switch modes instantly in Claude Code:
+```
+/claude-octopus:km on      # Enable knowledge work mode
+/claude-octopus:km off     # Enable development mode
+/claude-octopus:km         # Check current status
+```
+
+### 💬 Natural Language
+Or just tell me:
+- "Switch to knowledge mode"
+- "Enable research mode"
+- "What mode am I in?"
+
+I'll detect and switch automatically! ✨
+
+### 🔧 What Changes
+| Aspect | Dev Mode 🔧 | Knowledge Mode 🎓 |
+|--------|-------------|-------------------|
+| "Review this" | Code review | UX/strategic review |
+| "Analyze X" | Technical analysis | Market/user analysis |
+| "Research Y" | Technical docs | Academic research |
+| Workflows | embrace, probe, tangle | empathize, advise, synthesize |
+
+**Full details:** Run `/claude-octopus:knowledge-mode` or see [CHANGELOG](CHANGELOG.md#720)
+
+<details>
+<summary><strong>v7.1 Features (Session-Aware Workflows)</strong></summary>
+
 ## ✨ What's New in v7.1 - Session-Aware Workflows
 
 **Claude Code 2.1.10 Integration!** Claude Octopus now organizes work by session for better tracking and isolation.
@@ -64,16 +97,19 @@ Plans integrate with Claude Code's `plansDirectory` setting for centralized stor
 ### 🔄 Enhanced PreToolUse Hooks
 Workflow state (phase, quality score, providers) is injected into Claude's context during orchestration.
 
+</details>
+
 <details>
 <summary><strong>v6.0 Features (Knowledge Work Mode)</strong></summary>
 
 **Researchers, consultants, and product managers rejoice!** Claude Octopus extends knowledge tentacles beyond code.
 
 ### 🎓 Knowledge Work Mode
-Toggle between development mode and knowledge work mode with a single command:
+Toggle between development mode and knowledge work mode:
 ```bash
 ./scripts/orchestrate.sh knowledge-toggle
 ```
+**Note:** Now enhanced in v7.2 with `/claude-octopus:km` command for Claude Code!
 
 ### 📚 Three New Workflows
 | Workflow | Command | Use For |
