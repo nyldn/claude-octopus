@@ -36,7 +36,7 @@ Just talk to Claude naturally! Claude Octopus automatically activates when you n
 - 💬 "Research OAuth authentication patterns and summarize the best approaches"
 - 💬 "Build a user authentication system"
 - 💬 "Review this code for security vulnerabilities"
-- 💬 "/debate Should we use Redis or Memcached?"
+- 💬 "Run a debate about whether we should use Redis or Memcached"
 
 Claude coordinates multiple AI models behind the scenes to give you comprehensive, validated results.
 
@@ -52,17 +52,15 @@ Open Claude Code and run these two commands in the chat:
 
 ```
 /plugin marketplace add nyldn/claude-octopus
-/plugin install co@nyldn-plugins
+/plugin install claude-octopus@nyldn-plugins
 ```
-
-Note: The plugin is now named `co` (short for Claude Octopus). The old `claude-octopus` name still works for backward compatibility.
 
 The plugin is now installed and automatically enabled.
 
 <details>
 <summary>Troubleshooting Installation</summary>
 
-**If `/co:setup` shows "Unknown skill" in Step 2:**
+**If `/claude-octopus:setup` shows "Unknown skill" in Step 2:**
 
 1. Verify the plugin is installed:
    ```
@@ -93,7 +91,7 @@ The plugin is now installed and automatically enabled.
 
 Run the setup command in Claude Code:
 ```
-/co:setup
+/claude-octopus:setup
 ```
 
 This will:
@@ -118,7 +116,7 @@ Just talk to Claude naturally! Claude Octopus automatically activates when you n
 > "Review my authentication code for security issues"
 
 **For debates:**
-> "/debate Should we use GraphQL or REST for our API?"
+> "Run a debate about whether we should use GraphQL or REST for our API"
 
 Claude Octopus automatically detects which providers you have and uses them intelligently.
 
@@ -130,7 +128,7 @@ To get the latest version of Claude Octopus:
 
 ### Option A: Auto-Update (Easiest) 🆕
 ```
-/co:update --update
+/claude-octopus:update --update
 ```
 This will automatically check for updates and install the latest version if available.
 
@@ -151,19 +149,23 @@ This will automatically check for updates and install the latest version if avai
 
 ---
 
-## 🆕 What's New in v7.5 - Command UX Improvement
+## 🆕 What's New in v7.5 - Command Organization & Autocomplete
 
-**60% shorter commands!** v7.5 introduces an improved command experience with categorized naming and shortcuts.
+**Commands now appear in autocomplete!** v7.5 fixes command discovery with proper YAML frontmatter and organized naming.
 
-### Key Improvements
+### Available Commands
 
-| Before | After | Category |
-|--------|-------|----------|
-| `/claude-octopus:setup` | `/co:setup` | System ✅ |
-| `/claude-octopus:check-update` | `/co:update` | System ✅ |
-| `/claude-octopus:km` | `/co:km` | Mode switching ✅ |
-| `probe-workflow` | `/co:probe` | Workflows (flow-*) ✅ |
-| `code-review` | `/co:review` | Skills (skill-*) ✅ |
+All commands use the `/claude-octopus:` namespace and appear in autocomplete:
+
+| Command | Description | Category |
+|---------|-------------|----------|
+| `/claude-octopus:setup` | Check setup status | System ✅ |
+| `/claude-octopus:update` | Check for updates | System ✅ |
+| `/claude-octopus:km` | Toggle knowledge mode | Mode switching ✅ |
+| `/claude-octopus:sys-setup` | Full name for setup | System ✅ |
+| `/claude-octopus:sys-update` | Full name for update | System ✅ |
+| `/claude-octopus:skill-knowledge-mode` | Full name for km | Mode switching ✅ |
+| `/claude-octopus:check-update` | Alias for update | System ✅ |
 
 ### Three-Category System
 
@@ -171,26 +173,13 @@ This will automatically check for updates and install the latest version if avai
 2. **flow-*** - Workflow phases (probe, grasp, tangle, ink)
 3. **skill-*** - All other capabilities (debate, review, security, etc.)
 
-### Shortcuts Everywhere
+### Command Discovery Fixed
 
-15 shortcut aliases for frequently-used commands:
-- `/co:setup` → sys-setup
-- `/co:update` → sys-update
-- `/co:km` → skill-knowledge-mode
-- `/co:probe` → flow-probe
-- `/co:review` → skill-code-review
-- `/co:security` → skill-security-audit
-- `/co:research` → skill-deep-research
-- `/co:tdd` → skill-tdd
-- `/co:debug` → skill-debug
-- `/co:docs` → skill-doc-delivery
-- And more!
-
-### Backward Compatible
-
-All old commands still work! Both namespaces are registered:
-- **New**: `/co:setup` (recommended)
-- **Old**: `/claude-octopus:setup` (still works)
+v7.5.5 fixed YAML frontmatter in all command files:
+- Changed `name:` to `command:` field (required by Claude Code)
+- Commands now appear when typing `/claude-octopus:` or `/claude`
+- Both short aliases (`setup`) and full names (`sys-setup`) work
+- Autocomplete shows all available commands
 
 📖 **[Migration Guide →](docs/MIGRATION-v7.5.md)**
 📖 **[Command Reference →](docs/COMMAND-REFERENCE.md)**
@@ -262,7 +251,7 @@ No more CLI commands! Just talk naturally:
 
 ### What Else Changed
 
-- ✅ `/debate` skill now appears in autocomplete (fixed YAML frontmatter)
+- ✅ Debate skill accessible via natural language ("run a debate about X")
 - ✅ Hook-based visual indicators (PreToolUse hooks)
 - ✅ Four workflow skills (probe, grasp, tangle, ink) with natural language triggers
 - ✅ Enhanced parallel-agents.md with visual indicators section
@@ -277,9 +266,9 @@ No more CLI commands! Just talk naturally:
 ### Quick Toggle
 Switch modes instantly in Claude Code:
 ```
-/co:km on      # Enable knowledge work mode
-/co:km off     # Enable development mode
-/co:km         # Check current status
+/claude-octopus:km on      # Enable knowledge work mode
+/claude-octopus:km off     # Enable development mode
+/claude-octopus:km         # Check current status
 ```
 
 ### Natural Language
@@ -310,7 +299,7 @@ Claude Octopus has different "tentacles" (workflows) for different tasks:
 | **🎯 Grasp** | Define, clarify, scope | Requirements and problem definition | "Define requirements for auth system" |
 | **🛠️ Tangle** | Build, implement, create | Multi-AI implementation approaches | "Build user authentication" |
 | **✅ Ink** | Review, validate, audit | Quality assurance and validation | "Review auth code for security" |
-| **🐙 Debate** | Debate, discuss, deliberate | Structured 3-way AI debates | "/debate Redis vs Memcached?" |
+| **🐙 Debate** | Debate, discuss, deliberate | Structured 3-way AI debates | "Run a debate about Redis vs Memcached" |
 
 **Natural language automatically activates the right tentacle!**
 
@@ -425,19 +414,22 @@ Claude-octopus integrates **[AI Debate Hub](https://github.com/wolverin0/claude-
 - ✅ Knowledge mode deliberation workflow
 
 **Usage**:
+
+Just use natural language to trigger debates:
+
 ```bash
 # Basic debate
-/debate Should we use Redis or in-memory cache?
+"Run a debate about whether we should use Redis or in-memory cache"
 
 # Thorough analysis
-/debate -r 3 -d thorough "Review our API architecture"
+"I want Gemini and Codex to review our API architecture with thorough analysis"
 
 # Adversarial security review
-/debate -r 5 -d adversarial "Review auth.ts for vulnerabilities"
+"Run a debate about security vulnerabilities in auth.ts with adversarial analysis"
 
 # Knowledge mode deliberation
-/co:km on
-/debate "Should we enter the European market?"
+/claude-octopus:km on
+"Debate whether we should enter the European market"
 ```
 
 **Initialize submodule** (if not auto-initialized):
