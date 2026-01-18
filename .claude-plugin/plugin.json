@@ -1,7 +1,7 @@
 {
   "name": "claude-octopus",
-  "version": "7.2.3",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.2.3 - Optimized config updates + document-skills integration!) Supports code + knowledge work! Run /claude-octopus:setup for guided setup.",
+  "version": "7.2.4",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.2.4 - CI/CD fixes + command execution + README improvements!) Supports code + knowledge work! Run /claude-octopus:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },
