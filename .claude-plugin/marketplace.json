@@ -11,8 +11,8 @@
     {
       "name": "claude-octopus",
       "source": "./",
-      "description": "v7.5.2 - Multi-tentacled orchestrator using Double Diamond methodology. Improved UX with categorized commands (sys-, flow-, skill-), 15 shortcuts! Run /claude-octopus:setup for guided setup.",
-      "version": "7.5.2",
+      "description": "v7.5.3 - Multi-tentacled orchestrator using Double Diamond methodology. Auto-update with error recovery! Improved UX with categorized commands (sys-, flow-, skill-), 15 shortcuts! Run /claude-octopus:setup for guided setup.",
+      "version": "7.5.3",
       "author": {
         "name": "nyldn"
       },
