@@ -1,5 +1,5 @@
 ---
-name: sys-setup
+command: sys-setup
 description: Check Claude Octopus setup status and get configuration instructions
 aliases:
   - setup

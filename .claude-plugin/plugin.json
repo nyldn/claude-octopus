@@ -1,7 +1,7 @@
 {
   "name": "claude-octopus",
-  "version": "7.5.4",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.5.4 - Fixed command autocomplete!) Improved command UX with categorized commands, shortcuts! Visual feedback, natural language workflows, AI debates! Run /claude-octopus:setup for guided setup.",
+  "version": "7.5.5",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.5.5 - Fixed command YAML frontmatter!) Improved command UX with categorized commands, shortcuts! Visual feedback, natural language workflows, AI debates! Run /claude-octopus:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },

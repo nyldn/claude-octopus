@@ -1,6 +1,6 @@
 ---
-name: check-update
-description: "Alias for /co:sys-update - Check for updates (backward compatibility)"
+command: check-update
+description: "Alias for /claude-octopus:sys-update - Check for updates (backward compatibility)"
 redirect: sys-update
 ---
 
