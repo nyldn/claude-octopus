@@ -5,13 +5,13 @@ All notable changes to Claude Octopus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [7.5.4] - 2026-01-18
+## [7.5.5] - 2026-01-18
 
 ### Fixed
-- **Command autocomplete**: Commands now appear in slash command autocomplete
-  - Changed `commands` field from directory path to explicit array in plugin.json
-  - Matches the pattern used for skills registration
-  - All 7 commands now properly discovered by Claude Code:
+- **Command YAML frontmatter**: Fixed YAML frontmatter in all command files
+  - Changed `name:` to `command:` in YAML frontmatter (required by Claude Code)
+  - Updated all command descriptions to use `/claude-octopus:` namespace (not `/co:`)
+  - All 7 commands now properly discovered:
     - `/claude-octopus:sys-setup`
     - `/claude-octopus:sys-update`
     - `/claude-octopus:skill-knowledge-mode`
@@ -20,9 +20,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - `/claude-octopus:check-update` (shortcut)
     - `/claude-octopus:km` (shortcut)
 
-**Root cause**: Directory-based auto-discovery (`"commands": "./.claude/commands/"`) wasn't reliably working after the namespace change in v7.5.0-7.5.2. Explicit registration ensures consistent command discovery across Claude Code versions.
+**Root cause**: Command files used `name:` field in YAML frontmatter, but Claude Code requires `command:` field for command discovery. The v7.5.4 fix (explicit registration in plugin.json) was correct, but the command files themselves had incorrect frontmatter.
 
-**Impact**: Users can now discover and use commands via autocomplete by typing `/claude-octopus:` without needing to memorize command names.
+**Impact**: Commands now appear in autocomplete when typing `/claude-octopus:` or `/claude` without needing to memorize command names.
+
+---
+
+## [7.5.4] - 2026-01-18
+
+### Fixed (Partial)
+- **Command registration**: Changed `commands` field from directory path to explicit array in plugin.json
+  - Matches the pattern used for skills registration
+  - This was necessary but not sufficient - YAML frontmatter also needed fixing (see v7.5.5)
+
+**Note**: This version partially fixed the issue but commands still didn't appear due to incorrect YAML frontmatter. See v7.5.5 for complete fix.
 
 ---
 

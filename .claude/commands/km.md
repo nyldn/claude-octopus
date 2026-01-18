@@ -1,8 +1,8 @@
 ---
-name: km
-description: "Shortcut for /co:skill-knowledge-mode - Quick toggle between dev and research modes"
+command: km
+description: "Shortcut for /claude-octopus:skill-knowledge-mode - Quick toggle between dev and research modes"
 redirect: skill-knowledge-mode
-usage: "/co:km [on|off|status]"
+usage: "/claude-octopus:km [on|off|status]"
 ---
 
 # km - Knowledge Mode Quick Toggle (Shortcut)

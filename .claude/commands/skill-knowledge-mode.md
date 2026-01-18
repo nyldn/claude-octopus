@@ -1,11 +1,11 @@
 ---
-name: skill-knowledge-mode
+command: skill-knowledge-mode
 description: "Instant toggle between dev and research modes (v7.2.1 - faster, clearer)"
-usage: "/co:km [on|off|status]"
+usage: "/claude-octopus:km [on|off|status]"
 examples:
-  - "/co:km on"
-  - "/co:km off"
-  - "/co:km"
+  - "/claude-octopus:km on"
+  - "/claude-octopus:km off"
+  - "/claude-octopus:km"
 aliases:
   - km
   - knowledge-mode

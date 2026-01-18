@@ -1,5 +1,5 @@
 ---
-name: sys-update
+command: sys-update
 description: Check for updates to Claude Code and claude-octopus plugin, with auto-install and error debugging
 aliases:
   - update
