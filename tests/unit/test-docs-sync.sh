@@ -155,7 +155,7 @@ check_docs_files() {
   done
 }
 
-# Check all skills are registered in plugin.json
+# Check all primary skills are registered in plugin.json (v7.5+)
 check_skills_registered() {
   info "\nValidating skill registration..."
 
@@ -172,8 +172,12 @@ check_skills_registered() {
     return 1
   fi
 
-  # Find all skill files
-  local skill_files=$(find "$skills_dir" -name "*.md" -type f)
+  # v7.5+: Primary skills follow naming pattern: sys-*, flow-*, skill-*
+  # Shortcut aliases (probe.md, review.md, etc.) are NOT registered in plugin.json
+  # They're defined as aliases in the primary skill's frontmatter
+
+  # Find all primary skill files (sys-*, flow-*, skill-*)
+  local skill_files=$(find "$skills_dir" -name "*.md" -type f | grep -E '(sys-|flow-|skill-).*\.md$')
 
   while IFS= read -r skill_file; do
     local skill_path="./.claude/skills/$(basename "$skill_file")"
@@ -186,15 +190,16 @@ check_skills_registered() {
   done <<< "$skill_files"
 }
 
-# Check workflow skills exist (v7.4)
+# Check workflow skills exist (v7.5+: renamed to flow-*)
 check_workflow_skills() {
-  info "\nValidating workflow skills (v7.4)..."
+  info "\nValidating workflow skills (v7.5+: flow-* naming)..."
 
+  # v7.5+: Workflow skills renamed from *-workflow.md to flow-*.md
   local workflow_skills=(
-    ".claude/skills/probe-workflow.md"
-    ".claude/skills/grasp-workflow.md"
-    ".claude/skills/tangle-workflow.md"
-    ".claude/skills/ink-workflow.md"
+    ".claude/skills/flow-probe.md"
+    ".claude/skills/flow-grasp.md"
+    ".claude/skills/flow-tangle.md"
+    ".claude/skills/flow-ink.md"
   )
 
   for skill in "${workflow_skills[@]}"; do
@@ -237,29 +242,39 @@ check_hooks_config() {
   fi
 }
 
-# Check debate skill fix (v7.4)
+# Check debate skill (v7.5+: renamed to skill-debate.md)
 check_debate_skill() {
-  info "\nValidating debate skill fix (v7.4)..."
+  info "\nValidating debate skill (v7.5+: skill-debate naming)..."
 
-  local debate_skill=".claude/skills/debate.md"
+  # v7.5+: Primary skill is skill-debate.md, debate.md is a shortcut alias
+  local debate_skill=".claude/skills/skill-debate.md"
+  local debate_alias=".claude/skills/debate.md"
 
+  # Check primary skill exists
   if [ ! -f "$debate_skill" ]; then
-    fail "debate.md skill wrapper not found"
+    fail "skill-debate.md not found"
     return 1
   fi
 
-  # Check if debate.md has YAML frontmatter
+  # Check if skill-debate.md has YAML frontmatter
   if head -n 1 "$debate_skill" | grep -q "^---$"; then
-    pass "debate.md has YAML frontmatter"
+    pass "skill-debate.md has YAML frontmatter"
   else
-    fail "debate.md missing YAML frontmatter (required for Claude Code)"
+    fail "skill-debate.md missing YAML frontmatter (required for Claude Code)"
   fi
 
-  # Check if debate.md is registered in plugin.json
-  if grep -q "./.claude/skills/debate.md" ".claude-plugin/plugin.json"; then
-    pass "debate.md registered in plugin.json"
+  # Check if skill-debate.md is registered in plugin.json
+  if grep -q "./.claude/skills/skill-debate.md" ".claude-plugin/plugin.json"; then
+    pass "skill-debate.md registered in plugin.json"
   else
-    fail "debate.md NOT registered in plugin.json"
+    fail "skill-debate.md NOT registered in plugin.json"
+  fi
+
+  # Check that shortcut alias exists
+  if [ -f "$debate_alias" ]; then
+    pass "debate.md shortcut alias exists"
+  else
+    warn "debate.md shortcut alias not found (optional)"
   fi
 }
 
