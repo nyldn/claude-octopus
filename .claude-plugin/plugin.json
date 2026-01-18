@@ -38,6 +38,17 @@
     "deliberation",
     "knowledge-work"
   ],
+  "dependencies": {
+    "claude-skills": {
+      "author": "wolverin0",
+      "repository": "https://github.com/wolverin0/claude-skills",
+      "type": "git-submodule",
+      "path": ".dependencies/claude-skills",
+      "version": "v4.7",
+      "license": "MIT",
+      "description": "AI Debate Hub skill - structured three-way debates between Claude, Gemini, and Codex"
+    }
+  },
   "skills": [
     "./.claude/skills/flow-probe.md",
     "./.claude/skills/flow-grasp.md",

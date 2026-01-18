@@ -35,37 +35,37 @@ test_submodule_initialized() {
 }
 
 test_integration_skill_exists() {
-    test_case "Integration layer skill exists (debate-integration.md)"
+    test_case "Integration layer skill exists (skill-debate-integration.md)"
 
-    local integration_file="$PROJECT_ROOT/.claude/skills/debate-integration.md"
+    local integration_file="$PROJECT_ROOT/.claude/skills/skill-debate-integration.md"
 
     if [[ -f "$integration_file" ]]; then
         test_pass
     else
-        test_fail "debate-integration.md not found at $integration_file"
+        test_fail "skill-debate-integration.md not found at $integration_file"
         return 1
     fi
 }
 
 test_skill_has_frontmatter() {
-    test_case "debate-integration.md has YAML frontmatter"
+    test_case "skill-debate-integration.md has YAML frontmatter"
 
-    local integration_file="$PROJECT_ROOT/.claude/skills/debate-integration.md"
+    local integration_file="$PROJECT_ROOT/.claude/skills/skill-debate-integration.md"
 
     if grep -q "^---$" "$integration_file" && \
-       grep -q "^name: debate-integration$" "$integration_file" && \
+       grep -q "^name: skill-debate-integration$" "$integration_file" && \
        grep -q "^description:" "$integration_file"; then
         test_pass
     else
-        test_fail "debate-integration.md missing required YAML frontmatter"
+        test_fail "skill-debate-integration.md missing required YAML frontmatter"
         return 1
     fi
 }
 
 test_skill_has_attribution() {
-    test_case "debate-integration.md includes wolverin0 attribution"
+    test_case "skill-debate-integration.md includes wolverin0 attribution"
 
-    local integration_file="$PROJECT_ROOT/.claude/skills/debate-integration.md"
+    local integration_file="$PROJECT_ROOT/.claude/skills/skill-debate-integration.md"
 
     if grep -q "wolverin0" "$integration_file" && \
        grep -q "https://github.com/wolverin0/claude-skills" "$integration_file"; then
@@ -81,8 +81,8 @@ test_plugin_json_includes_skills() {
 
     local plugin_file="$PROJECT_ROOT/.claude-plugin/plugin.json"
 
-    if grep -q ".dependencies/claude-skills/skills/debate.md" "$plugin_file" && \
-       grep -q ".claude/skills/debate-integration.md" "$plugin_file"; then
+    if grep -q ".claude/skills/skill-debate.md" "$plugin_file" && \
+       grep -q ".claude/skills/skill-debate-integration.md" "$plugin_file"; then
         test_pass
     else
         test_fail "plugin.json missing debate skill references"
@@ -170,7 +170,7 @@ test_changelog_attribution() {
 }
 
 test_version_consistency() {
-    test_case "Version 7.4.0 consistent across all files"
+    test_case "Version consistency across all files"
 
     local plugin_json="$PROJECT_ROOT/.claude-plugin/plugin.json"
     local package_json="$PROJECT_ROOT/package.json"
@@ -181,9 +181,8 @@ test_version_consistency() {
     # Extract version from marketplace.json plugins array
     local marketplace_version=$(grep -A 3 '"claude-octopus"' "$marketplace_json" | grep '"version"' | sed 's/.*"version": *"\([^"]*\)".*/\1/')
 
-    if [[ "$plugin_version" == "7.4.0" ]] && \
-       [[ "$package_version" == "7.4.0" ]] && \
-       [[ "$marketplace_version" == "7.4.0" ]]; then
+    if [[ "$plugin_version" == "$package_version" ]] && \
+       [[ "$package_version" == "$marketplace_version" ]]; then
         test_pass
     else
         test_fail "Version mismatch: plugin=$plugin_version, package=$package_version, marketplace=$marketplace_version"

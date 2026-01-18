@@ -29,12 +29,12 @@ test_orchestrate_syntax() {
 }
 
 test_main_skill_syntax() {
-    test_case ".claude/skills/parallel-agents.md has valid frontmatter"
+    test_case ".claude/skills/skill-parallel-agents.md has valid frontmatter"
 
-    local main_skill="$PROJECT_ROOT/.claude/skills/parallel-agents.md"
+    local main_skill="$PROJECT_ROOT/.claude/skills/skill-parallel-agents.md"
 
     if [[ ! -f "$main_skill" ]]; then
-        test_fail "parallel-agents.md not found"
+        test_fail "skill-parallel-agents.md not found"
         return 1
     fi
 
@@ -42,7 +42,7 @@ test_main_skill_syntax() {
     if head -n 1 "$main_skill" | grep -q "^---$"; then
         test_pass
     else
-        test_fail "No frontmatter found in parallel-agents.md"
+        test_fail "No frontmatter found in skill-parallel-agents.md"
         return 1
     fi
 }
