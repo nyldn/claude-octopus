@@ -6,7 +6,7 @@
   <img src="https://img.shields.io/badge/Claude_Code-Plugin-blueviolet" alt="Claude Code Plugin">
   <img src="https://img.shields.io/badge/Double_Diamond-Design_Thinking-orange" alt="Double Diamond">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
-  <img src="https://img.shields.io/badge/Version-7.5.6-blue" alt="Version 7.5.6">
+  <img src="https://img.shields.io/badge/Version-7.6.0-blue" alt="Version 7.6.0">
 </p>
 
 # Claude Octopus
@@ -60,7 +60,7 @@ The plugin is now installed and automatically enabled.
 <details>
 <summary>Troubleshooting Installation</summary>
 
-**If `/claude-octopus:setup` shows "Unknown skill" in Step 2:**
+**If `/co:setup` shows "Unknown skill" in Step 2:**
 
 1. Verify the plugin is installed:
    ```
@@ -91,7 +91,7 @@ The plugin is now installed and automatically enabled.
 
 Run the setup command in Claude Code:
 ```
-/claude-octopus:setup
+/co:setup
 ```
 
 This will:
@@ -128,7 +128,7 @@ To get the latest version of Claude Octopus:
 
 ### Option A: Auto-Update (Easiest) 🆕
 ```
-/claude-octopus:update --update
+/co:update --update
 ```
 This will automatically check for updates and install the latest version if available.
 
@@ -149,37 +149,57 @@ This will automatically check for updates and install the latest version if avai
 
 ---
 
-## 🆕 What's New in v7.5 - Command Organization & Autocomplete
+## 🆕 What's New in v7.6 - Shorter Commands & Skill Discovery
 
-**Commands now appear in autocomplete!** v7.5 fixes command discovery with proper YAML frontmatter and organized naming.
+**60% shorter commands!** v7.6 changes the namespace from `/claude-octopus:` to `/co:` and adds 11 new skill commands.
 
-### Available Commands
+### All Available Commands (18 total)
 
-All commands use the `/claude-octopus:` namespace and appear in autocomplete:
+All commands use the `/co:` namespace and appear in autocomplete:
 
-| Command | Description | Category |
-|---------|-------------|----------|
-| `/claude-octopus:setup` | Check setup status | System ✅ |
-| `/claude-octopus:update` | Check for updates | System ✅ |
-| `/claude-octopus:km` | Toggle knowledge mode | Mode switching ✅ |
-| `/claude-octopus:sys-setup` | Full name for setup | System ✅ |
-| `/claude-octopus:sys-update` | Full name for update | System ✅ |
-| `/claude-octopus:skill-knowledge-mode` | Full name for km | Mode switching ✅ |
-| `/claude-octopus:check-update` | Alias for update | System ✅ |
+**System Commands** (7):
+| Command | Description |
+|---------|-------------|
+| `/co:setup` | Check setup status (shortcut for sys-setup) |
+| `/co:update` | Check for updates (shortcut for sys-update) |
+| `/co:km` | Toggle knowledge mode (shortcut for skill-knowledge-mode) |
+| `/co:sys-setup` | Full name: Check Claude Octopus setup |
+| `/co:sys-update` | Full name: Check for plugin updates |
+| `/co:skill-knowledge-mode` | Full name: Toggle dev/research mode |
+| `/co:check-update` | Alias for sys-update |
 
-### Three-Category System
+**Skill Commands** (11) - 🆕 New in v7.6:
+| Command | Description |
+|---------|-------------|
+| `/co:debate` | AI Debate Hub - Structured three-way debates |
+| `/co:review` | Expert code review with quality assessment |
+| `/co:research` | Deep research with multi-source synthesis |
+| `/co:security` | Security audit with OWASP compliance |
+| `/co:debug` | Systematic debugging with investigation |
+| `/co:tdd` | Test-driven development workflows |
+| `/co:docs` | Document delivery (PPTX/DOCX/PDF export) |
+| `/co:probe` | Discovery phase (Double Diamond) |
+| `/co:grasp` | Definition phase (Double Diamond) |
+| `/co:tangle` | Development phase (Double Diamond) |
+| `/co:ink` | Delivery phase (Double Diamond) |
 
-1. **sys-*** - System commands (setup, update, configure)
-2. **flow-*** - Workflow phases (probe, grasp, tangle, ink)
-3. **skill-*** - All other capabilities (debate, review, security, etc.)
+### Major Changes in v7.6
 
-### Command Discovery Fixed
+- ✅ **Shorter namespace**: `/co:` instead of `/claude-octopus:` (60% shorter!)
+- ✅ **Skills as commands**: All major skills now accessible via autocomplete
+- ✅ **Better discoverability**: Type `/co:` and see everything
+- ✅ **Natural language still works**: Commands are shortcuts, triggers remain active
 
-v7.5.5 fixed YAML frontmatter in all command files:
-- Changed `name:` to `command:` field (required by Claude Code)
-- Commands now appear when typing `/claude-octopus:` or `/claude`
-- Both short aliases (`setup`) and full names (`sys-setup`) work
-- Autocomplete shows all available commands
+### Quick Examples
+
+```bash
+/co:setup              # Check your configuration
+/co:debate             # Start a multi-AI debate
+/co:review             # Code review a file/module
+/co:research           # Deep research on a topic
+/co:security           # Security audit
+/co:probe              # Discovery phase research
+```
 
 📖 **[Migration Guide →](docs/MIGRATION-v7.5.md)**
 📖 **[Command Reference →](docs/COMMAND-REFERENCE.md)**
@@ -266,9 +286,9 @@ No more CLI commands! Just talk naturally:
 ### Quick Toggle
 Switch modes instantly in Claude Code:
 ```
-/claude-octopus:km on      # Enable knowledge work mode
-/claude-octopus:km off     # Enable development mode
-/claude-octopus:km         # Check current status
+/co:km on      # Enable knowledge work mode
+/co:km off     # Enable development mode
+/co:km         # Check current status
 ```
 
 ### Natural Language
@@ -428,7 +448,7 @@ Just use natural language to trigger debates:
 "Run a debate about security vulnerabilities in auth.ts with adversarial analysis"
 
 # Knowledge mode deliberation
-/claude-octopus:km on
+/co:km on
 "Debate whether we should enter the European market"
 ```
 
