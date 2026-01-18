@@ -1,7 +1,7 @@
 {
   "name": "claude-octopus",
-  "version": "7.2.4",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.2.4 - CI/CD fixes + command execution + README improvements!) Supports code + knowledge work! Run /claude-octopus:setup for guided setup.",
+  "version": "7.3.0",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.3.0 - Document delivery for knowledge workers!) Supports code + knowledge work! Run /claude-octopus:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },
@@ -37,6 +37,7 @@
     "./.claude/skills/parallel-agents.md",
     "./.claude/skills/configure.md",
     "./.claude/skills/knowledge-work-mode.md",
+    "./.claude/skills/document-delivery.md",
     "./.claude/skills/architecture.md",
     "./.claude/skills/code-review.md",
     "./.claude/skills/security-audit.md",
