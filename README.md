@@ -126,13 +126,19 @@ Claude Octopus automatically detects which providers you have and uses them inte
 
 To get the latest version of Claude Octopus:
 
-### Option A: Via Plugin UI
+### Option A: Auto-Update (Easiest) 🆕
+```
+/claude-octopus:check-updates --update
+```
+This will automatically check for updates and install the latest version if available.
+
+### Option B: Via Plugin UI
 1. `/plugin` to open plugin screen
 2. Navigate to "Installed" tab
 3. Find `claude-octopus@nyldn-plugins`
 4. Click update button if available
 
-### Option B: Reinstall (Most Reliable)
+### Option C: Reinstall Manually
 ```
 /plugin uninstall claude-octopus
 /plugin marketplace update nyldn-plugins

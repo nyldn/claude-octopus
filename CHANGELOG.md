@@ -5,6 +5,26 @@ All notable changes to Claude Octopus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Enhanced
+- **Auto-update support in `/claude-octopus:check-updates`** - Command now supports `--update` flag to automatically update claude-octopus when a new version is available. No more manual reinstall steps!
+  - `/claude-octopus:check-updates` - Check for updates only
+  - `/claude-octopus:check-updates --update` - Check and auto-update if available
+  - Fetches latest version from GitHub releases API
+  - Automatically runs reinstall sequence (uninstall → marketplace update → install)
+  - Shows clear status messages and reminds user to restart Claude Code
+
+### Fixed
+- **Marketplace version visibility** - Version now appears at START of marketplace.json description for easy visibility in plugin UI
+- **Test suite exit codes** - Fixed arithmetic expression exit codes in test-docs-sync.sh (added `|| true`)
+- **README section matching** - Fixed test suite to handle emoji-prefixed section headers
+
+### Added
+- **Marketplace version sync test** - Test suite now validates marketplace.json version matches plugin.json and appears at start of description
+- **Release process documentation** - Added comprehensive docs/RELEASE-PROCESS.md guide with 50+ test checklist
+- **Setup command branding** - `/claude-octopus:setup` now shows 🐙 emoji indicator so users know it's Claude Octopus responding
+
 ## [7.4.0] - 2026-01-18
 
 ### Added - AI Debate Hub Integration
