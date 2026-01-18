@@ -66,6 +66,26 @@ When user returns to coding:
 ${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh km off
 ```
 
+### Recommended Setup (First Time)
+
+For the best knowledge work experience, install document skills:
+```
+/plugin install document-skills@anthropic-agent-skills
+```
+
+This provides:
+- PDF reading and analysis
+- DOCX document creation/editing
+- PPTX presentation generation
+- XLSX spreadsheet handling
+
+Then enable knowledge mode:
+```
+/claude-octopus:km on
+```
+
+The first time you enable knowledge mode, you'll see a recommendation to install document-skills if not already done.
+
 ## Conversation Flow Examples
 
 ### Example 1: User Switching to Research

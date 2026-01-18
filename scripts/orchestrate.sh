@@ -117,6 +117,8 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 MAGENTA='\033[0;35m'
+DIM='\033[2m'
+BOLD='\033[1m'
 NC='\033[0m' # No Color
 
 # Source async task management and tmux visualization features
@@ -9571,116 +9573,251 @@ EOF
     log_agent_usage "synthesize" "knowledge-work" "$prompt"
 }
 
-toggle_knowledge_work_mode() {
-    local action="${1:-status}"  # Default to status if no argument
-    load_user_config || true  # Don't exit if config load fails
-    KNOWLEDGE_WORK_MODE="${KNOWLEDGE_WORK_MODE:-false}"  # Default to false if unset
+# Fast update of knowledge_work_mode in config (v7.2.1 - performance optimization)
+# Updates only the knowledge_work_mode field for instant switching
+update_knowledge_mode_config() {
+    local new_mode="$1"
 
-    # Handle status check
+    mkdir -p "$(dirname "$USER_CONFIG_FILE")"
+
+    # If config exists, update only the knowledge_work_mode line (fast)
+    if [[ -f "$USER_CONFIG_FILE" ]]; then
+        # Use sed to update in-place (BSD sed compatible)
+        if [[ "$(uname)" == "Darwin" ]]; then
+            # macOS
+            sed -i '' "s/^knowledge_work_mode:.*$/knowledge_work_mode: \"$new_mode\"/" "$USER_CONFIG_FILE" 2>/dev/null || {
+                # If sed fails, regenerate the file
+                load_user_config || true
+                save_user_config "${USER_INTENT_PRIMARY:-general}" "${USER_INTENT_ALL:-general}" "${USER_RESOURCE_TIER:-standard}"
+            }
+        else
+            # Linux
+            sed -i "s/^knowledge_work_mode:.*$/knowledge_work_mode: \"$new_mode\"/" "$USER_CONFIG_FILE" 2>/dev/null || {
+                # If sed fails, regenerate the file
+                load_user_config || true
+                save_user_config "${USER_INTENT_PRIMARY:-general}" "${USER_INTENT_ALL:-general}" "${USER_RESOURCE_TIER:-standard}"
+            }
+        fi
+    else
+        # No config exists - create minimal config with just knowledge mode
+        cat > "$USER_CONFIG_FILE" << EOF
+version: "1.1"
+created_at: "$(date -Iseconds 2>/dev/null || date +%Y-%m-%dT%H:%M:%S)"
+updated_at: "$(date -Iseconds 2>/dev/null || date +%Y-%m-%dT%H:%M:%S)"
+
+# User intent - affects persona selection and task routing
+intent:
+  primary: "general"
+  all: [general]
+
+# Resource tier - affects model selection
+resource_tier: "standard"
+
+# Knowledge Work Mode (v6.0) - prioritizes research/consulting/writing workflows
+knowledge_work_mode: "$new_mode"
+
+# Available API keys (auto-detected)
+available_keys:
+  openai: false
+  gemini: false
+
+# Derived settings (auto-configured based on tier + keys)
+settings:
+  opus_budget: "balanced"
+  default_complexity: 2
+  prefer_gemini_for_analysis: false
+  max_parallel_agents: 3
+EOF
+    fi
+}
+
+# Show document-skills recommendation for knowledge mode users (v7.2.2)
+# Only shown once to avoid annoyance
+show_document_skills_info() {
+    cat << 'EOF'
+
+  📄 Recommended for Knowledge Mode:
+
+    document-skills@anthropic-agent-skills provides:
+      • PDF reading and analysis
+      • DOCX document creation/editing
+      • PPTX presentation generation
+      • XLSX spreadsheet handling
+
+    To install in Claude Code:
+      /plugin install document-skills@anthropic-agent-skills
+
+EOF
+}
+
+# Fast update of user intent in config (v7.2.3 - performance optimization)
+# Updates only the intent fields for instant configuration
+update_intent_config() {
+    local new_intent_primary="$1"
+    local new_intent_all="${2:-$new_intent_primary}"
+
+    mkdir -p "$(dirname "$USER_CONFIG_FILE")"
+
+    # If config exists, update only the intent lines (fast)
+    if [[ -f "$USER_CONFIG_FILE" ]]; then
+        # Use sed to update in-place (BSD sed compatible)
+        if [[ "$(uname)" == "Darwin" ]]; then
+            # macOS
+            sed -i '' "s/^  primary:.*$/  primary: \"$new_intent_primary\"/" "$USER_CONFIG_FILE" 2>/dev/null || {
+                # If sed fails, regenerate the file
+                load_user_config || true
+                save_user_config "$new_intent_primary" "$new_intent_all" "${USER_RESOURCE_TIER:-standard}"
+            }
+            sed -i '' "s/^  all:.*$/  all: [$new_intent_all]/" "$USER_CONFIG_FILE" 2>/dev/null
+        else
+            # Linux
+            sed -i "s/^  primary:.*$/  primary: \"$new_intent_primary\"/" "$USER_CONFIG_FILE" 2>/dev/null || {
+                # If sed fails, regenerate the file
+                load_user_config || true
+                save_user_config "$new_intent_primary" "$new_intent_all" "${USER_RESOURCE_TIER:-standard}"
+            }
+            sed -i "s/^  all:.*$/  all: [$new_intent_all]/" "$USER_CONFIG_FILE" 2>/dev/null
+        fi
+    else
+        # No config exists - create full config
+        save_user_config "$new_intent_primary" "$new_intent_all" "standard"
+    fi
+}
+
+# Fast update of resource tier in config (v7.2.3 - performance optimization)
+# Updates only the resource_tier field for instant configuration
+update_resource_tier_config() {
+    local new_tier="$1"
+
+    mkdir -p "$(dirname "$USER_CONFIG_FILE")"
+
+    # If config exists, update only the resource_tier line (fast)
+    if [[ -f "$USER_CONFIG_FILE" ]]; then
+        # Use sed to update in-place (BSD sed compatible)
+        if [[ "$(uname)" == "Darwin" ]]; then
+            # macOS
+            sed -i '' "s/^resource_tier:.*$/resource_tier: \"$new_tier\"/" "$USER_CONFIG_FILE" 2>/dev/null || {
+                # If sed fails, regenerate the file
+                load_user_config || true
+                save_user_config "${USER_INTENT_PRIMARY:-general}" "${USER_INTENT_ALL:-general}" "$new_tier"
+            }
+        else
+            # Linux
+            sed -i "s/^resource_tier:.*$/resource_tier: \"$new_tier\"/" "$USER_CONFIG_FILE" 2>/dev/null || {
+                # If sed fails, regenerate the file
+                load_user_config || true
+                save_user_config "${USER_INTENT_PRIMARY:-general}" "${USER_INTENT_ALL:-general}" "$new_tier"
+            }
+        fi
+    else
+        # No config exists - create full config
+        save_user_config "general" "general" "$new_tier"
+    fi
+}
+
+toggle_knowledge_work_mode() {
+    local action="${1:-status}"
+
+    # Fast load - only read knowledge mode (skip full config)
+    KNOWLEDGE_WORK_MODE="false"
+    if [[ -f "$USER_CONFIG_FILE" ]]; then
+        KNOWLEDGE_WORK_MODE=$(grep "^knowledge_work_mode:" "$USER_CONFIG_FILE" 2>/dev/null | sed 's/.*: *//' | tr -d '"' || echo "false")
+    fi
+
+    # Handle status check (optimized for Claude Code chat)
     if [[ "$action" == "status" ]]; then
         echo ""
-        echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-        echo -e "${BLUE}Knowledge Work Mode Status${NC}"
-        echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-        echo ""
         if [[ "$KNOWLEDGE_WORK_MODE" == "true" ]]; then
-            echo -e "  Current Mode: ${MAGENTA}🎓 KNOWLEDGE WORK MODE ENABLED${NC}"
+            echo -e "  ${MAGENTA}🎓 Knowledge Work Mode${NC} ${GREEN}ENABLED${NC}"
             echo ""
-            echo -e "  Auto-routing behavior:"
-            echo -e "    ✓ \"Review document\" → UX/strategic review"
-            echo -e "    ✓ \"Analyze market\" → Strategy analysis"
-            echo -e "    ✓ \"Research topic\" → Literature synthesis"
+            echo -e "  ${CYAN}Optimized for:${NC} Research, UX analysis, strategy"
+            echo -e "  ${CYAN}Workflows:${NC} empathize, advise, synthesize"
             echo ""
-            echo -e "  ${CYAN}Available workflows:${NC}"
-            echo -e "    ${GREEN}empathize${NC}   - UX research (personas, journey maps)"
-            echo -e "    ${GREEN}advise${NC}      - Strategic consulting (market analysis)"
-            echo -e "    ${GREEN}synthesize${NC}  - Literature review (research synthesis)"
-            echo ""
-            echo -e "  Toggle off: ${CYAN}knowledge-mode off${NC}"
+            echo -e "  ${DIM}Switch back:${NC} /claude-octopus:km off"
         else
-            echo -e "  Current Mode: ${GREEN}🔧 DEVELOPMENT MODE (default)${NC}"
+            echo -e "  ${GREEN}🔧 Development Mode${NC} ${CYAN}ACTIVE${NC}"
             echo ""
-            echo -e "  Auto-routing behavior:"
-            echo -e "    ✓ \"Review code\" → Code review"
-            echo -e "    ✓ \"Analyze system\" → Technical analysis"
-            echo -e "    ✓ \"Research pattern\" → Technical research"
+            echo -e "  ${CYAN}Optimized for:${NC} Code development, technical tasks"
+            echo -e "  ${CYAN}Workflows:${NC} embrace, probe, tangle, ink"
             echo ""
-            echo -e "  ${CYAN}Available workflows:${NC}"
-            echo -e "    ${GREEN}embrace${NC}     - Full 4-phase development workflow"
-            echo -e "    ${GREEN}probe${NC}       - Research & exploration"
-            echo -e "    ${GREEN}tangle${NC}      - Implementation & validation"
-            echo ""
-            echo -e "  Toggle on: ${CYAN}knowledge-mode on${NC}"
+            echo -e "  ${DIM}Switch to research:${NC} /claude-octopus:km on"
         fi
         echo ""
         return 0
     fi
 
-    # Handle explicit on/off or toggle
+    # Determine new mode
     local new_mode="$KNOWLEDGE_WORK_MODE"
-    if [[ "$action" == "on" || "$action" == "enable" ]]; then
-        new_mode="true"
-    elif [[ "$action" == "off" || "$action" == "disable" ]]; then
-        new_mode="false"
-    elif [[ "$action" == "toggle" ]]; then
-        if [[ "$KNOWLEDGE_WORK_MODE" == "true" ]]; then
-            new_mode="false"
-        else
+    case "$action" in
+        on|enable)
             new_mode="true"
-        fi
-    else
-        log ERROR "Invalid action: $action. Use: on, off, status, or toggle"
-        exit 1
-    fi
+            ;;
+        off|disable)
+            new_mode="false"
+            ;;
+        toggle)
+            if [[ "$KNOWLEDGE_WORK_MODE" == "true" ]]; then
+                new_mode="false"
+            else
+                new_mode="true"
+            fi
+            ;;
+        *)
+            echo ""
+            echo -e "${RED}✗${NC} Invalid action: ${BOLD}$action${NC}"
+            echo -e "  ${DIM}Use:${NC} on | off | status | toggle"
+            echo ""
+            exit 1
+            ;;
+    esac
 
-    # Check if state is actually changing
+    # Check if already in that mode
     if [[ "$new_mode" == "$KNOWLEDGE_WORK_MODE" ]]; then
         echo ""
         if [[ "$new_mode" == "true" ]]; then
-            echo -e "${YELLOW}ℹ${NC}  Knowledge Work Mode is already ${MAGENTA}ENABLED${NC}"
+            echo -e "  ${YELLOW}ℹ${NC}  Already in ${MAGENTA}Knowledge Work Mode${NC}"
         else
-            echo -e "${YELLOW}ℹ${NC}  Development Mode is already ${GREEN}ACTIVE${NC}"
+            echo -e "  ${YELLOW}ℹ${NC}  Already in ${GREEN}Development Mode${NC}"
         fi
         echo ""
         return 0
     fi
 
-    # Apply the change
+    # Apply change (fast - updates only one line in config)
+    update_knowledge_mode_config "$new_mode"
     KNOWLEDGE_WORK_MODE="$new_mode"
 
-    if [[ "$KNOWLEDGE_WORK_MODE" == "false" ]]; then
+    # Success output (optimized for Claude Code chat)
+    echo ""
+    if [[ "$new_mode" == "true" ]]; then
+        echo -e "  ${GREEN}✓${NC} Switched to ${MAGENTA}🎓 Knowledge Work Mode${NC}"
         echo ""
-        echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
-        echo -e "${CYAN}║  🐙 Knowledge Work Mode: ${RED}OFF${CYAN}                              ║${NC}"
-        echo -e "${CYAN}║  Tentacles retracting from research mode...               ║${NC}"
-        echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
+        echo -e "  ${DIM}Auto-routing now prioritizes:${NC}"
+        echo -e "    • UX research and synthesis"
+        echo -e "    • Strategy and market analysis"
+        echo -e "    • Literature review and research"
         echo ""
-        echo -e "  Auto-routing now prioritizes: ${GREEN}development workflows${NC}"
-        echo -e "  Commands: probe, tangle, ink, embrace, grapple, squeeze"
-        echo ""
-        echo -e "  ${CYAN}Quick toggle:${NC} ${CYAN}knowledge-mode on${NC}"
-        echo ""
-    else
-        echo ""
-        echo -e "${MAGENTA}╔═══════════════════════════════════════════════════════════╗${NC}"
-        echo -e "${MAGENTA}║  🐙 Knowledge Work Mode: ${GREEN}ON${MAGENTA}                               ║${NC}"
-        echo -e "${MAGENTA}║  Extending knowledge tentacles...                         ║${NC}"
-        echo -e "${MAGENTA}╚═══════════════════════════════════════════════════════════╝${NC}"
-        echo ""
-        echo -e "  Auto-routing now prioritizes: ${GREEN}knowledge workflows${NC}"
-        echo -e "  Commands: empathize, advise, synthesize"
-        echo ""
-        echo -e "  ${CYAN}Available knowledge workflows:${NC}"
-        echo -e "    ${GREEN}empathize${NC}   - UX research (personas, journey maps, pain points)"
-        echo -e "    ${GREEN}advise${NC}      - Strategy consulting (market analysis, frameworks)"
-        echo -e "    ${GREEN}synthesize${NC}  - Academic research (literature review, synthesis)"
-        echo ""
-        echo -e "  ${CYAN}Quick toggle:${NC} ${CYAN}knowledge-mode off${NC}"
-        echo ""
-    fi
+        echo -e "  ${DIM}Available workflows:${NC} empathize, advise, synthesize"
 
-    save_user_config "$USER_INTENT_PRIMARY" "$USER_INTENT_ALL" "$USER_RESOURCE_TIER"
-    echo -e "  ${GREEN}✓${NC} Configuration saved and persists across sessions"
+        # Show document-skills recommendation on first knowledge mode enable (v7.2.2)
+        local first_time_flag="${WORKSPACE_DIR}/.knowledge-mode-setup-done"
+        if [[ ! -f "$first_time_flag" ]]; then
+            show_document_skills_info
+            mkdir -p "$(dirname "$first_time_flag")"
+            touch "$first_time_flag"
+        fi
+    else
+        echo -e "  ${GREEN}✓${NC} Switched to ${GREEN}🔧 Development Mode${NC}"
+        echo ""
+        echo -e "  ${DIM}Auto-routing now prioritizes:${NC}"
+        echo -e "    • Code implementation"
+        echo -e "    • Technical analysis"
+        echo -e "    • Development workflows"
+        echo ""
+        echo -e "  ${DIM}Available workflows:${NC} embrace, probe, tangle, ink"
+    fi
+    echo ""
+    echo -e "  ${DIM}Setting persists across sessions${NC}"
     echo ""
 }
 

@@ -1,6 +1,6 @@
 ---
 name: knowledge-mode
-description: "Toggle between development mode (code-focused) and knowledge work mode (research, UX, strategy)"
+description: "Instant toggle between dev and research modes (v7.2.1 - faster, clearer)"
 usage: "/claude-octopus:knowledge-mode [on|off|status]"
 examples:
   - "/claude-octopus:knowledge-mode on"
@@ -10,9 +10,16 @@ aliases:
   - km
 ---
 
-# Knowledge Mode - Quick Toggle
+# Knowledge Mode - Instant Toggle
 
-Instantly switch between **Development Mode** 🔧 (code-focused) and **Knowledge Work Mode** 🎓 (research, strategy, UX).
+**Instantly** switch between **Development Mode** 🔧 (code-focused) and **Knowledge Work Mode** 🎓 (research, strategy, UX).
+
+## What's New in v7.2.1
+
+✅ **Instant switching** - No loading delays, optimized for speed
+✅ **Clearer output** - Scannable status designed for Claude Code chat
+✅ **Error-free** - Fixed config update issues
+✅ **Persistent** - Settings automatically saved
 
 ## Usage in Claude Code
 
@@ -75,26 +82,34 @@ When **ON**, claude-octopus optimizes for research and strategy:
 - Primary agents: `ux-researcher`, `strategy-analyst`, `research-synthesizer`
 - Workflows: `empathize`, `advise`, `synthesize`
 
-## Current Status
+## Current Status (v7.2.1)
 
-After toggling, you'll see:
+After toggling, you'll see a **clearer, more scannable** output:
 
+**Knowledge Mode Enabled:**
 ```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Knowledge Work Mode Status
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🎓 Knowledge Work Mode ENABLED
 
-Current Mode: 🎓 KNOWLEDGE WORK MODE ENABLED
+  Optimized for: Research, UX analysis, strategy
+  Workflows: empathize, advise, synthesize
 
-Auto-routing behavior:
-  ✓ "Review document" → UX/strategic review
-  ✓ "Analyze market" → Strategy analysis
-  ✓ "Research topic" → Literature synthesis
-  ✓ Available workflows: empathize, advise, synthesize
-
-Toggle back to development mode:
-  /claude-octopus:knowledge-mode off
+  Switch back: /claude-octopus:km off
 ```
+
+**Development Mode Active:**
+```
+  🔧 Development Mode ACTIVE
+
+  Optimized for: Code development, technical tasks
+  Workflows: embrace, probe, tangle, ink
+
+  Switch to research: /claude-octopus:km on
+```
+
+The new output is:
+- **50% shorter** - Less scrolling in chat
+- **More scannable** - Key info stands out
+- **Actionable** - Clear next steps shown
 
 ## Usage Examples
 

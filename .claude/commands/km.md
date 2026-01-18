@@ -1,6 +1,6 @@
 ---
 name: km
-description: "Short alias for knowledge-mode - quick toggle between dev and research modes"
+description: "Instant toggle between dev and research modes (v7.2.1 - faster, clearer)"
 usage: "/claude-octopus:km [on|off|status]"
 examples:
   - "/claude-octopus:km on"
@@ -8,9 +8,9 @@ examples:
   - "/claude-octopus:km"
 ---
 
-# km - Knowledge Mode Shortcut
+# km - Knowledge Mode Quick Toggle
 
-Quick shortcut for `/claude-octopus:knowledge-mode`.
+**Instant** mode switching optimized for Claude Code.
 
 ## Usage
 
@@ -22,11 +22,18 @@ Quick shortcut for `/claude-octopus:knowledge-mode`.
 
 ## What It Does
 
-Toggles between:
+Instantly switches between:
 - **Development Mode** 🔧: Optimized for coding, code review, technical implementation
 - **Knowledge Work Mode** 🎓: Optimized for research, UX, strategy, analysis
 
 This affects how `auto` routing interprets your requests.
+
+## What's Improved (v7.2.1)
+
+✅ **Instant switching** - No more loading delays
+✅ **Clearer status** - Scannable output optimized for chat
+✅ **Error-free** - Fixed config update issues
+✅ **Persistent** - Settings automatically saved across sessions
 
 ## Or Just Ask Me!
 
