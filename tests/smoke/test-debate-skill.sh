@@ -91,16 +91,16 @@ test_plugin_json_includes_skills() {
 }
 
 test_plugin_json_has_dependencies_section() {
-    test_case "plugin.json has dependencies section with attribution"
+    test_case "plugin.json maintains debate skill integration"
 
     local plugin_file="$PROJECT_ROOT/.claude-plugin/plugin.json"
 
-    if grep -q '"dependencies"' "$plugin_file" && \
-       grep -q '"claude-skills"' "$plugin_file" && \
-       grep -q '"wolverin0"' "$plugin_file"; then
+    # NOTE: Dependencies section was removed in v7.6.3 as it's not supported by Claude Code validator
+    # We verify integration by checking that debate skills are included instead
+    if grep -q "skill-debate" "$plugin_file"; then
         test_pass
     else
-        test_fail "plugin.json missing dependencies section or attribution"
+        test_fail "plugin.json missing debate skill integration"
         return 1
     fi
 }
