@@ -2,8 +2,16 @@
 name: octopus-research
 description: |
   Deep research using Claude Octopus probe workflow.
-  Auto-invokes when user asks for analysis, investigation, or exploration.
   Parallel multi-perspective research with AI synthesis.
+  
+  Use PROACTIVELY when user wants deep analysis or investigation:
+  - "research this topic", "investigate how X works"
+  - "analyze the architecture", "explore different approaches to Y"
+  - "what are the options for Z", "deep dive into X"
+  - "comprehensive analysis of Y", "thorough research on Z"
+  
+  DO NOT use for: simple factual queries Claude can answer directly,
+  or questions about specific code in current project (use Read tool).
 trigger: |
   Use this skill when the user wants to "research this topic", "investigate how X works",
   "analyze the architecture", "explore different approaches to Y", or "what are the options for Z".

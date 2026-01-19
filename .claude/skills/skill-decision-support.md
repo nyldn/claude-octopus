@@ -6,6 +6,15 @@ aliases:
 description: |
   Present options and alternatives for decision-making with clear trade-offs and recommendations.
   Helps users make informed choices when multiple approaches are viable.
+  
+  Use PROACTIVELY when user requests options or choices:
+  - "fix or provide options", "fix them or provide me options"
+  - "give me options", "what are my options"
+  - "show me alternatives", "what else can we do"
+  - "help me decide", "which approach should I take"
+  
+  DO NOT use for: research questions (use flow-discover), technical ecosystem research,
+  or implementation questions (use flow-develop).
 trigger: |
   AUTOMATICALLY ACTIVATE when user requests options or choices:
   - "fix or provide options" or "fix them or provide me options"

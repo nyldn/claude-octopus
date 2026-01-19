@@ -9,6 +9,15 @@ description: |
   Define phase workflow - Clarify and scope problems using external CLI providers.
   Part of the Double Diamond methodology (Define phase).
   Uses Codex and Gemini CLIs for multi-perspective problem definition.
+  
+  Use PROACTIVELY when user requests clarification or scoping:
+  - "define the requirements for X", "define exactly what X needs"
+  - "clarify the scope of Y", "scope out the Z feature"
+  - "what exactly does X need to do", "what are the specific requirements"
+  - "help me understand the problem with Y"
+  
+  DO NOT use for: implementation tasks (use flow-develop), research (use flow-discover),
+  review/validation (use flow-deliver), or built-in commands.
 trigger: |
   AUTOMATICALLY ACTIVATE when user requests clarification or scoping:
   - "define the requirements for X"

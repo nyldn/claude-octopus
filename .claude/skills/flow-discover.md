@@ -9,6 +9,17 @@ description: |
   Discover phase workflow - Research and exploration using external CLI providers.
   Part of the Double Diamond methodology (Discover phase).
   Uses Codex and Gemini CLIs for multi-perspective research.
+  
+  Use PROACTIVELY when user requests research or exploration:
+  - "research X", "explore Y", "investigate Z"
+  - "what are the options for X", "what are my choices for Y"
+  - "find information about Y", "look up Z", "analyze different approaches"
+  - "compare X vs Y", "X vs Y comparison", "pros and cons of X"
+  - "what should I use for X", "best tool for Y", "tradeoffs between X and Y"
+  - Questions about best practices, patterns, or ecosystem research
+  
+  DO NOT use for: simple file searches (use Read/Grep), questions Claude can answer directly,
+  debugging issues (use skill-debug), or "what are my options" for decision support.
 trigger: |
   AUTOMATICALLY ACTIVATE when user requests research or exploration:
   - "research X" or "explore Y" or "investigate Z"

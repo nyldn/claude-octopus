@@ -6,6 +6,15 @@ aliases:
 description: |
   Task orchestration and resumption skill for managing todos, saving progress, and resuming work.
   Handles checkpointing, task continuation, and multi-session workflows.
+  
+  Use PROACTIVELY when user requests task management:
+  - "add to the todo's", "add this to todos"
+  - "resume tasks", "continue tasks", "pick up where we left off"
+  - "save progress", "save progress for Claude to pick up", "checkpoint this"
+  - "proceed to next steps", "continue to next"
+  
+  DO NOT use for: git operations (use skill-finish-branch), simple todo viewing,
+  or task completion with push (use skill-finish-branch).
 trigger: |
   AUTOMATICALLY ACTIVATE when user requests task management:
   - "add to the todo's" or "add this to todos"

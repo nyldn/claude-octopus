@@ -7,6 +7,16 @@ aliases:
 description: |
   Process image-based UI/UX feedback to identify, analyze, and fix visual issues.
   Handles screenshots with descriptions, button styling issues, layout problems.
+  
+  Use PROACTIVELY when user provides visual feedback:
+  - "[Image] The /settings should be Y", "[Image] these button styles need to be fixed"
+  - "[Image] When X is set to Y, it shows as Z"
+  - "button styles need to be fixed everywhere"
+  - "UI is a hot mess", "UX still a hot mess"
+  - Screenshots with descriptions of visual issues
+  
+  DO NOT use for: text-only feedback without visual context, general feature requests,
+  code-only issues, or performance problems.
 trigger: |
   AUTOMATICALLY ACTIVATE when user provides visual feedback:
   - "[Image X] The /settings should be Y"

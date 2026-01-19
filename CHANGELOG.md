@@ -5,6 +5,37 @@ All notable changes to Claude Octopus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.7.1] - 2026-01-19
+
+### Fixed
+- **CRITICAL: Auto-invoke now works!** Natural language triggers like "research OAuth 2.0 patterns" now correctly invoke skills
+  - Root cause: Claude Code only reads `description:` field, not `trigger:` field in skill frontmatter
+  - Solution: Moved trigger patterns from `trigger:` field INTO `description:` field with directive language
+  - All skills now use "Use PROACTIVELY when..." pattern that Claude Code recognizes
+
+### Changed
+- Updated 13 skill files with directive descriptions:
+  - `flow-discover.md` - "research X", "explore Y", "compare X vs Y"
+  - `flow-define.md` - "define requirements for X", "clarify scope"
+  - `flow-develop.md` - "build X", "implement Y", "create Z"
+  - `flow-deliver.md` - "review X", "validate Y", "audit for security"
+  - `skill-debate.md` - "run a debate about X", "debate whether X or Y"
+  - `skill-deep-research.md` - "research this topic", "investigate how X works"
+  - `skill-debug.md` - "fix this bug", "why is X failing", "X is broken"
+  - `skill-task-management.md` - "add to todos", "save progress", "resume tasks"
+  - `skill-finish-branch.md` - "commit and push", "ready to merge"
+  - `skill-decision-support.md` - "give me options", "help me decide"
+  - `skill-visual-feedback.md` - "[Image] fix X", "UI is a hot mess"
+  - `skill-iterative-loop.md` - "loop N times", "keep trying until"
+  - `skill-audit.md` - "audit the entire app", "scan for issues"
+
+### Technical Details
+- Leveraged research from `TRIGGER_PATTERNS.md` and `TRIGGERS.md` (previously documented but not implemented)
+- `trigger:` field retained as documentation for when skills are manually invoked
+- Version bumped in `plugin.json` and `README.md`
+
+---
+
 ## [7.7.0] - 2026-01-19
 
 ### 🎯 Major Change: Standard Double Diamond Phase Names
