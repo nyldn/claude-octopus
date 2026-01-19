@@ -174,6 +174,9 @@ run_tests() {
         security)
             run_category "security"
             ;;
+        plugin)
+            run_category "plugin"
+            ;;
         benchmark)
             run_benchmark "demo"
             return $?
@@ -191,6 +194,7 @@ run_tests() {
             run_category "integration"
             run_category "e2e"
             run_category "security"
+            run_category "plugin"
             ;;
         --category=*)
             local cat="${CATEGORY#*=}"
@@ -198,7 +202,7 @@ run_tests() {
             ;;
         *)
             echo -e "${RED}Unknown category: $CATEGORY${NC}"
-            echo "Usage: $0 [smoke|unit|integration|e2e|security|performance|regression|benchmark|all]"
+            echo "Usage: $0 [smoke|unit|integration|e2e|security|plugin|performance|regression|benchmark|all]"
             exit 1
             ;;
     esac

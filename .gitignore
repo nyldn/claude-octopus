@@ -55,6 +55,7 @@ logs/
 # Note: The actual workspace is at ~/.claude-octopus/
 # These are just in case someone runs from the repo directory
 results/
+reports/
 .parallel-agents/
 
 # Temporary files
