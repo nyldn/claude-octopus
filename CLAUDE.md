@@ -1,6 +1,8 @@
 # Claude Octopus - System Instructions
 
-This file provides context for Claude when working in projects with Claude Octopus installed.
+> **Note:** This file provides context when working directly in the claude-octopus repository.
+> For deployed plugins, visual indicator instructions are embedded in each skill file
+> (flow-discover.md, flow-define.md, flow-develop.md, flow-deliver.md, skill-debate.md).
 
 ## Visual Indicators (MANDATORY)
 
