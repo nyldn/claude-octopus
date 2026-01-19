@@ -12,17 +12,21 @@ description: |
 trigger: |
   AUTOMATICALLY ACTIVATE when user requests research or exploration:
   - "research X" or "explore Y" or "investigate Z"
-  - "what are the options for X"
-  - "find information about Y"
-  - "analyze different approaches to Z"
+  - "what are the options for X" or "what are my choices for Y"
+  - "find information about Y" or "look up Z"
+  - "analyze different approaches to Z" or "evaluate approaches"
   - Questions about best practices, patterns, or ecosystem research
-  - Comparative analysis ("compare X vs Y")
+  - Comparative analysis ("compare X vs Y" or "X vs Y comparison")
+  - "what should I use for X" or "best tool for Y"
+  - "pros and cons of X" or "tradeoffs between Y and Z"
 
   DO NOT activate for:
   - Simple file searches or code reading (use Read/Grep tools)
   - Questions Claude can answer directly from knowledge
   - Built-in commands (/plugin, /help, etc.)
   - Questions about specific code in the current project
+  - Debugging issues (use skill-debug instead)
+  - "what are my options" when asking for alternatives (use skill-decision-support)
 ---
 
 # Discover Workflow - Discovery Phase 🔍

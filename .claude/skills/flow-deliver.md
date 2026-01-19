@@ -1,11 +1,13 @@
 ---
-name: flow-ink
+name: flow-deliver
 aliases:
+  - deliver
+  - deliver-workflow
   - ink
   - ink-workflow
 description: |
   Deliver phase workflow - Review, validate, and test using external CLI providers.
-  Part of the Double Diamond methodology (Ink = Deliver phase).
+  Part of the Double Diamond methodology (Deliver phase).
   Uses Codex and Gemini CLIs for multi-perspective validation.
 trigger: |
   AUTOMATICALLY ACTIVATE when user requests validation or review:
@@ -23,7 +25,7 @@ trigger: |
   - Built-in commands (/plugin, /help, etc.)
 ---
 
-# Ink Workflow - Deliver Phase ✅
+# Deliver Workflow - Deliver Phase ✅
 
 **Part of Double Diamond: DELIVER** (convergent thinking)
 
@@ -42,7 +44,7 @@ trigger: |
 
 ## What This Workflow Does
 
-The **ink** phase validates and reviews implementations using external CLI providers:
+The **deliver** phase validates and reviews implementations using external CLI providers:
 
 1. **🔴 Codex CLI** - Code quality, best practices, technical correctness
 2. **🟡 Gemini CLI** - Security audit, edge cases, user experience
@@ -52,9 +54,9 @@ This is the **convergent** phase for delivery - we ensure quality before shippin
 
 ---
 
-## When to Use Ink
+## When to Use Deliver
 
-Use ink when you need:
+Use deliver when you need:
 - **Code Review**: "Review the authentication implementation"
 - **Quality Validation**: "Validate the API endpoints"
 - **Security Audit**: "Check for security vulnerabilities in X"
@@ -62,7 +64,7 @@ Use ink when you need:
 - **Pre-Deployment Check**: "Ensure the feature is ready to ship"
 - **Bug Verification**: "Confirm the bug fix resolves the issue"
 
-**Don't use ink for:**
+**Don't use deliver for:**
 - Building implementations (use tangle-workflow)
 - Research and exploration (use probe-workflow)
 - Requirement definition (use grasp-workflow)
@@ -76,7 +78,7 @@ Before execution, you'll see:
 
 ```
 🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider validation
-✅ Ink Phase: Reviewing and validating implementation
+✅ Deliver Phase: Reviewing and validating implementation
 
 Providers:
 🔴 Codex CLI - Code quality and best practices
@@ -91,7 +93,7 @@ Providers:
 ### Step 1: Invoke Ink Phase
 
 ```bash
-./scripts/orchestrate.sh ink "<user's validation request>"
+./scripts/orchestrate.sh deliver "<user's validation request>"
 ```
 
 ### Step 2: Multi-Provider Validation
@@ -132,12 +134,12 @@ When this skill activates:
    I'll review "<task>" using multiple AI perspectives.
 
    🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider validation
-   ✅ Ink Phase: Validating implementation
+   ✅ Deliver Phase: Validating implementation
    ```
 
 2. **Execute ink workflow**
    ```bash
-   ./scripts/orchestrate.sh ink "<user's validation request>"
+   ./scripts/orchestrate.sh deliver "<user's validation request>"
    ```
 
 3. **Monitor execution and quality gates**
@@ -220,9 +222,9 @@ User: Review the authentication implementation in src/auth/
 
 Claude:
 🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider validation
-✅ Ink Phase: Reviewing authentication implementation
+✅ Deliver Phase: Reviewing authentication implementation
 
-[Executes: ./scripts/orchestrate.sh ink "Review authentication implementation in src/auth/"]
+[Executes: ./scripts/orchestrate.sh deliver "Review authentication implementation in src/auth/"]
 
 [After completion, reads validation and presents:]
 
@@ -352,7 +354,7 @@ User: Validate the new API endpoints are ready to ship
 
 Claude:
 🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider validation
-✅ Ink Phase: Validating API endpoints
+✅ Deliver Phase: Validating API endpoints
 
 [Executes ink workflow]
 

@@ -1,7 +1,7 @@
 ---
-name: grasp
-description: "Shortcut for /co:flow-grasp - Define phase workflow for clarifying requirements"
-redirect: flow-grasp
+name: define
+description: "Shortcut for /co:flow-define - Define phase workflow for clarifying requirements"
+redirect: flow-define
 trigger: |
   AUTOMATICALLY ACTIVATE when user requests clarification or scoping:
   - "define the requirements for X"
@@ -10,18 +10,18 @@ trigger: |
   - "help me understand the problem with Y"
 ---
 
-# Grasp (Shortcut) - Define Phase 🎯
+# Define (Shortcut) - Define Phase 🎯
 
-This is a shortcut alias for `/co:flow-grasp`.
+This is a shortcut alias for `/co:flow-define`.
 
 **Part of Double Diamond: DEFINE** (convergent thinking)
 
 ## What This Does
 
-The **grasp** phase clarifies and scopes problems using external CLI providers:
+The **define** phase clarifies and scopes problems using external CLI providers:
 
 1. **🔴 Codex CLI** - Technical requirements analysis, edge cases, constraints
 2. **🟡 Gemini CLI** - User needs, business requirements, context understanding
 3. **🔵 Claude (You)** - Problem synthesis and requirement definition
 
-For full documentation, see `/co:flow-grasp`.
+For full documentation, see `/co:flow-define`.

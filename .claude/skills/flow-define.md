@@ -1,11 +1,13 @@
 ---
-name: flow-grasp
+name: flow-define
 aliases:
+  - define
+  - define-workflow
   - grasp
   - grasp-workflow
 description: |
   Define phase workflow - Clarify and scope problems using external CLI providers.
-  Part of the Double Diamond methodology (Grasp = Define phase).
+  Part of the Double Diamond methodology (Define phase).
   Uses Codex and Gemini CLIs for multi-perspective problem definition.
 trigger: |
   AUTOMATICALLY ACTIVATE when user requests clarification or scoping:
@@ -23,7 +25,7 @@ trigger: |
   - Built-in commands (/plugin, /help, etc.)
 ---
 
-# Grasp Workflow - Define Phase 🎯
+# Define Workflow - Define Phase 🎯
 
 **Part of Double Diamond: DEFINE** (convergent thinking)
 
@@ -42,7 +44,7 @@ trigger: |
 
 ## What This Workflow Does
 
-The **grasp** phase clarifies and scopes problems using external CLI providers:
+The **define** phase clarifies and scopes problems using external CLI providers:
 
 1. **🔴 Codex CLI** - Technical requirements analysis, edge cases, constraints
 2. **🟡 Gemini CLI** - User needs, business requirements, context understanding
@@ -52,9 +54,9 @@ This is the **convergent** phase after discovery - we narrow down from broad res
 
 ---
 
-## When to Use Grasp
+## When to Use Define
 
-Use grasp when you need:
+Use define when you need:
 - **Requirement Definition**: "Define exactly what the auth system needs to do"
 - **Problem Clarification**: "Clarify the caching requirements"
 - **Scope Definition**: "What's the scope of the notification feature?"
@@ -62,7 +64,7 @@ Use grasp when you need:
 - **Edge Case Analysis**: "What edge cases do we need to handle for Y?"
 - **Requirement Validation**: "Are these requirements complete for Z?"
 
-**Don't use grasp for:**
+**Don't use define for:**
 - Research and exploration (use probe-workflow)
 - Building implementations (use tangle-workflow)
 - Code review and validation (use ink-workflow)
@@ -76,7 +78,7 @@ Before execution, you'll see:
 
 ```
 🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider problem definition
-🎯 Grasp Phase: Clarifying requirements and scope
+🎯 Define Phase: Clarifying requirements and scope
 
 Providers:
 🔴 Codex CLI - Technical requirements
@@ -91,7 +93,7 @@ Providers:
 ### Step 1: Invoke Grasp Phase
 
 ```bash
-./scripts/orchestrate.sh grasp "<user's clarification request>"
+./scripts/orchestrate.sh define "<user's clarification request>"
 ```
 
 ### Step 2: Multi-Provider Problem Definition
@@ -124,12 +126,12 @@ When this skill activates:
    I'll clarify the requirements for "<task>" using multiple AI perspectives.
 
    🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider problem definition
-   🎯 Grasp Phase: Defining requirements
+   🎯 Define Phase: Defining requirements
    ```
 
 2. **Execute grasp workflow**
    ```bash
-   ./scripts/orchestrate.sh grasp "<user's clarification request>"
+   ./scripts/orchestrate.sh define "<user's clarification request>"
    ```
 
 3. **Monitor execution**
@@ -201,9 +203,9 @@ User: Define the exact requirements for our user authentication system
 
 Claude:
 🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider problem definition
-🎯 Grasp Phase: Clarifying authentication requirements
+🎯 Define Phase: Clarifying authentication requirements
 
-[Executes: ./scripts/orchestrate.sh grasp "Define exact requirements for user authentication system"]
+[Executes: ./scripts/orchestrate.sh define "Define exact requirements for user authentication system"]
 
 [After completion, reads synthesis and presents:]
 
@@ -310,7 +312,7 @@ User: What exactly does the notification feature need to do?
 
 Claude:
 🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider problem definition
-🎯 Grasp Phase: Clarifying notification requirements
+🎯 Define Phase: Clarifying notification requirements
 
 [Executes grasp workflow]
 

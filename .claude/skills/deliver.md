@@ -1,7 +1,7 @@
 ---
-name: ink
-description: "Shortcut for /co:flow-ink - Deliver phase workflow for validation and review"
-redirect: flow-ink
+name: deliver
+description: "Shortcut for /co:flow-deliver - Deliver phase workflow for validation and review"
+redirect: flow-deliver
 trigger: |
   AUTOMATICALLY ACTIVATE when user requests validation or review:
   - "review X" or "validate Y" or "test Z"
@@ -10,18 +10,18 @@ trigger: |
   - "find issues in Z"
 ---
 
-# Ink (Shortcut) - Deliver Phase ✅
+# Deliver (Shortcut) - Deliver Phase ✅
 
-This is a shortcut alias for `/co:flow-ink`.
+This is a shortcut alias for `/co:flow-deliver`.
 
 **Part of Double Diamond: DELIVER** (convergent thinking)
 
 ## What This Does
 
-The **ink** phase validates and reviews implementations using external CLI providers:
+The **deliver** phase validates and reviews implementations using external CLI providers:
 
 1. **🔴 Codex CLI** - Code quality, best practices, technical correctness
 2. **🟡 Gemini CLI** - Security audit, edge cases, user experience
 3. **🔵 Claude (You)** - Synthesis and final validation report
 
-For full documentation, see `/co:flow-ink`.
+For full documentation, see `/co:flow-deliver`.
