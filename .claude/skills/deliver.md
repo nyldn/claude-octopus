@@ -1,6 +1,6 @@
 ---
 name: deliver
-description: "Shortcut for /co:flow-deliver - Deliver phase workflow for validation and review"
+description: "Shortcut for /octo:flow-deliver - Deliver phase workflow for validation and review"
 redirect: flow-deliver
 trigger: |
   AUTOMATICALLY ACTIVATE when user requests validation or review:
@@ -12,7 +12,7 @@ trigger: |
 
 # Deliver (Shortcut) - Deliver Phase ✅
 
-This is a shortcut alias for `/co:flow-deliver`.
+This is a shortcut alias for `/octo:flow-deliver`.
 
 **Part of Double Diamond: DELIVER** (convergent thinking)
 
@@ -24,4 +24,4 @@ The **deliver** phase validates and reviews implementations using external CLI p
 2. **🟡 Gemini CLI** - Security audit, edge cases, user experience
 3. **🔵 Claude (You)** - Synthesis and final validation report
 
-For full documentation, see `/co:flow-deliver`.
+For full documentation, see `/octo:flow-deliver`.

@@ -6,7 +6,7 @@
   <img src="https://img.shields.io/badge/Claude_Code-Plugin-blueviolet" alt="Claude Code Plugin">
   <img src="https://img.shields.io/badge/Double_Diamond-Design_Thinking-orange" alt="Double Diamond">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
-  <img src="https://img.shields.io/badge/Version-7.7.2-blue" alt="Version 7.7.2">
+  <img src="https://img.shields.io/badge/Version-7.7.3-blue" alt="Version 7.7.3">
 </p>
 
 # Claude Octopus
@@ -37,7 +37,7 @@ Use the **"octo" prefix** for reliable multi-AI workflows, or slash commands:
 - 💬 `octo build a user authentication system` - Multi-AI implementation
 - 💬 `octo review this code for security` - Multi-AI validation
 - 💬 `octo debate Redis vs Memcached` - Three-way AI debate
-- 💬 `/co:research OAuth patterns` - Command alternative
+- 💬 `/octo:research OAuth patterns` - Command alternative
 
 **Why "octo"?** Common words like "research" may conflict with Claude's base behaviors. The "octo" prefix ensures your request triggers Claude Octopus's multi-AI workflows.
 
@@ -63,7 +63,7 @@ The plugin is now installed and automatically enabled.
 <details>
 <summary>Troubleshooting Installation</summary>
 
-**If `/co:setup` shows "Unknown skill" in Step 2:**
+**If `/octo:setup` shows "Unknown skill" in Step 2:**
 
 1. Verify the plugin is installed:
    ```
@@ -94,7 +94,7 @@ The plugin is now installed and automatically enabled.
 
 Run the setup command in Claude Code:
 ```
-/co:setup
+/octo:setup
 ```
 
 This will:
@@ -123,10 +123,10 @@ Use the **"octo" prefix** for reliable workflow activation:
 
 **Alternative: Slash commands** (always work reliably):
 ```
-/co:research microservices patterns
-/co:develop REST API for user management
-/co:review authentication code
-/co:debate GraphQL vs REST
+/octo:research microservices patterns
+/octo:develop REST API for user management
+/octo:review authentication code
+/octo:debate GraphQL vs REST
 ```
 
 Claude Octopus automatically detects which providers you have and uses them intelligently.
@@ -139,7 +139,7 @@ To get the latest version of Claude Octopus:
 
 ### Option A: Auto-Update (Easiest) 🆕
 ```
-/co:update --update
+/octo:update --update
 ```
 This will automatically check for updates and install the latest version if available.
 
@@ -160,19 +160,21 @@ This will automatically check for updates and install the latest version if avai
 
 ---
 
-## 🆕 What's New in v7.7.2 - Reliable "Octo" Prefix Triggers
+## 🆕 What's New in v7.7.3 - Unified `/octo:` Namespace
 
-**Reliable workflow activation!** v7.7.2 adds the "octo" prefix for guaranteed multi-AI workflow triggers.
+**Unified command namespace!** v7.7.3 changes the command namespace from `/co:` to `/octo:` for complete consistency with the "octo" prefix triggers.
 
-### Why "Octo" Prefix?
+### Why "Octo" Everywhere?
 
-Common words like "research" or "build" may conflict with Claude's base behaviors. The "octo" prefix creates a unique trigger that reliably activates Claude Octopus workflows:
+Common words like "research" or "build" may conflict with Claude's base behaviors. The unified "octo" branding ensures reliable activation:
 
 | Trigger Type | Example | Reliability |
 |--------------|---------|-------------|
-| **Octo prefix** (recommended) | `octo research OAuth patterns` | ✅ Always works |
-| **Slash commands** | `/co:research OAuth patterns` | ✅ Always works |
+| **Octo prefix** | `octo research OAuth patterns` | ✅ Always works |
+| **Slash commands** | `/octo:research OAuth patterns` | ✅ Always works |
 | **Natural language** | `research OAuth patterns` | ⚠️ May conflict |
+
+**Note:** v7.7.3 changed the namespace from `/co:` to `/octo:` for consistency. If you're upgrading, update your muscle memory!
 
 ### Supported Octo Triggers
 
@@ -196,58 +198,58 @@ You can also use the "co-" prefix for the same effect:
 
 ---
 
-## What's New in v7.6 - Shorter Commands & Skill Discovery
+## What's New in v7.6 - Skill Discovery (Historical)
 
-**60% shorter commands!** v7.6 changed the namespace from `/claude-octopus:` to `/co:` and added 11 new skill commands.
+**Note:** v7.6 originally changed the namespace from `/claude-octopus:` to `/co:`. v7.7.3 further changed it to `/octo:` for full consistency.
 
 ### All Available Commands (18 total)
 
-All commands use the `/co:` namespace and appear in autocomplete:
+All commands use the `/octo:` namespace and appear in autocomplete:
 
 **System Commands** (7):
 | Command | Description |
 |---------|-------------|
-| `/co:setup` | Check setup status (shortcut for sys-setup) |
-| `/co:update` | Check for updates (shortcut for sys-update) |
-| `/co:dev` | Switch to Dev Work mode |
-| `/co:km` | Toggle between Dev Work and Knowledge Work modes |
-| `/co:sys-setup` | Full name: Check Claude Octopus setup |
-| `/co:sys-update` | Full name: Check for plugin updates |
-| `/co:check-update` | Alias for sys-update |
+| `/octo:setup` | Check setup status (shortcut for sys-setup) |
+| `/octo:update` | Check for updates (shortcut for sys-update) |
+| `/octo:dev` | Switch to Dev Work mode |
+| `/octo:km` | Toggle between Dev Work and Knowledge Work modes |
+| `/octo:sys-setup` | Full name: Check Claude Octopus setup |
+| `/octo:sys-update` | Full name: Check for plugin updates |
+| `/octo:check-update` | Alias for sys-update |
 
 **Skill Commands** (12) - 🆕 New in v7.7:
 | Command | Description |
 |---------|-------------|
-| `/co:debate` | AI Debate Hub - Structured three-way debates |
-| `/co:review` | Expert code review with quality assessment |
-| `/co:research` | Deep research with multi-source synthesis |
-| `/co:security` | Security audit with OWASP compliance |
-| `/co:debug` | Systematic debugging with investigation |
-| `/co:tdd` | Test-driven development workflows |
-| `/co:docs` | Document delivery (PPTX/DOCX/PDF export) |
-| `/co:embrace` | Full Double Diamond workflow (all 4 phases) |
-| `/co:discover` | Discovery phase (🔍 probe) |
-| `/co:define` | Definition phase (🎯 grasp) |
-| `/co:develop` | Development phase (🛠️ tangle) |
-| `/co:deliver` | Delivery phase (✅ ink) |
+| `/octo:debate` | AI Debate Hub - Structured three-way debates |
+| `/octo:review` | Expert code review with quality assessment |
+| `/octo:research` | Deep research with multi-source synthesis |
+| `/octo:security` | Security audit with OWASP compliance |
+| `/octo:debug` | Systematic debugging with investigation |
+| `/octo:tdd` | Test-driven development workflows |
+| `/octo:docs` | Document delivery (PPTX/DOCX/PDF export) |
+| `/octo:embrace` | Full Double Diamond workflow (all 4 phases) |
+| `/octo:discover` | Discovery phase (🔍 probe) |
+| `/octo:define` | Definition phase (🎯 grasp) |
+| `/octo:develop` | Development phase (🛠️ tangle) |
+| `/octo:deliver` | Delivery phase (✅ ink) |
 
 ### Major Changes in v7.6
 
-- ✅ **Shorter namespace**: `/co:` instead of `/claude-octopus:` (60% shorter!)
+- ✅ **Shorter namespace**: `/octo:` instead of `/claude-octopus:` (60% shorter!)
 - ✅ **Skills as commands**: All major skills now accessible via autocomplete
-- ✅ **Better discoverability**: Type `/co:` and see everything
+- ✅ **Better discoverability**: Type `/octo:` and see everything
 - ✅ **Natural language still works**: Commands are shortcuts, triggers remain active
 
 ### Quick Examples
 
 ```bash
-/co:setup              # Check your configuration
-/co:debate             # Start a multi-AI debate
-/co:review             # Code review a file/module
-/co:research           # Deep research on a topic
-/co:security           # Security audit
-/co:embrace            # Full 4-phase workflow
-/co:discover           # Discovery phase research
+/octo:setup              # Check your configuration
+/octo:debate             # Start a multi-AI debate
+/octo:review             # Code review a file/module
+/octo:research           # Deep research on a topic
+/octo:security           # Security audit
+/octo:embrace            # Full 4-phase workflow
+/octo:discover           # Discovery phase research
 ```
 
 📖 **[Migration Guide →](docs/MIGRATION-v7.5.md)**
@@ -300,7 +302,7 @@ Use the "octo" prefix or slash commands for reliable activation:
 | `octo define X` | Define workflow | 🐙 🎯 |
 | `octo build X` | Develop workflow | 🐙 🛠️ |
 | `octo review X` | Deliver workflow | 🐙 ✅ |
-| `/co:research X` | Discover workflow | 🐙 🔍 |
+| `/octo:research X` | Discover workflow | 🐙 🔍 |
 | "read file.ts" | Claude Read tool (no external CLIs) | (none) |
 
 **Before v7.7.2:**
@@ -316,8 +318,8 @@ Use the "octo" prefix or slash commands for reliable activation:
 "octo build a user authentication system"
 
 # Or use slash commands (always work)
-/co:research OAuth patterns
-/co:develop user authentication
+/octo:research OAuth patterns
+/octo:develop user authentication
 ```
 
 📖 **[Complete Triggers Guide →](docs/TRIGGERS.md)**
@@ -339,9 +341,9 @@ Use the "octo" prefix or slash commands for reliable activation:
 ### Quick Toggle
 Switch modes instantly in Claude Code:
 ```
-/co:dev        # Switch to Dev Work mode (default)
-/co:km on      # Switch to Knowledge Work mode
-/co:km         # Check current status
+/octo:dev        # Switch to Dev Work mode (default)
+/octo:km on      # Switch to Knowledge Work mode
+/octo:km         # Check current status
 ```
 
 ### Natural Language
@@ -373,9 +375,9 @@ Claude Octopus has different "tentacles" (workflows) for different tasks:
 | **🛠️ Develop** (tangle) | Build, implement, create | Multi-AI implementation approaches | `octo build user authentication` |
 | **✅ Deliver** (ink) | Review, validate, audit | Quality assurance and validation | `octo review auth code for security` |
 | **🐙 Debate** | Debate, discuss, deliberate | Structured 3-way AI debates | `octo debate Redis vs Memcached` |
-| **🐙 Embrace** | Complete feature lifecycle | Full 4-phase Double Diamond workflow | `/co:embrace authentication system` |
+| **🐙 Embrace** | Complete feature lifecycle | Full 4-phase Double Diamond workflow | `/octo:embrace authentication system` |
 
-**Use "octo" prefix or `/co:` commands for reliable activation!**
+**Use "octo" prefix or `/octo:` commands for reliable activation!**
 
 ---
 
@@ -503,7 +505,7 @@ Just use natural language to trigger debates:
 "Run a debate about security vulnerabilities in auth.ts with adversarial analysis"
 
 # Knowledge mode deliberation
-/co:km on
+/octo:km on
 "Debate whether we should enter the European market"
 ```
 
