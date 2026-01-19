@@ -983,6 +983,120 @@ show_agent_recommendations() {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# CONTEXT DETECTION (v7.8.1)
+# Auto-detects Dev vs Knowledge context to tailor workflow behavior
+# Returns: "dev" or "knowledge" with confidence level
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Detect context from prompt content and project type
+# Returns: "dev" or "knowledge"
+detect_context() {
+    local prompt="$1"
+    local prompt_lower
+    prompt_lower=$(echo "$prompt" | tr '[:upper:]' '[:lower:]')
+    
+    local dev_score=0
+    local knowledge_score=0
+    local confidence="medium"
+    
+    local knowledge_mode=""
+    if [[ -f "$USER_CONFIG_FILE" ]]; then
+        knowledge_mode=$(grep "^knowledge_work_mode:" "$USER_CONFIG_FILE" 2>/dev/null | sed 's/.*: *//' | tr -d '"' || echo "")
+    fi
+    
+    case "$knowledge_mode" in
+        true|on)
+            echo "knowledge:high:override"
+            return
+            ;;
+        false|off)
+            echo "dev:high:override"
+            return
+            ;;
+    esac
+    
+    # Step 2: Analyze prompt content (strongest signal)
+    # Knowledge context indicators
+    local knowledge_patterns="market|roi|stakeholder|strategy|business.?case|competitive|literature|synthesis|academic|papers|research.?question|persona|user.?research|journey.?map|pain.?point|interview|presentation|report|prd|proposal|executive.?summary|swot|gtm|go.?to.?market|market.?entry|consulting|workshop"
+    
+    # Dev context indicators
+    local dev_patterns="api|endpoint|database|function|class|module|implement|debug|refactor|test|deploy|build|code|migration|schema|controller|component|service|interface|typescript|javascript|python|react|node|sql|html|css|git|commit|pr|pull.?request|fix|bug|error|lint|compile"
+    
+    # Count matches
+    local knowledge_matches
+    knowledge_matches=$(echo "$prompt_lower" | grep -oE "($knowledge_patterns)" 2>/dev/null | wc -l | tr -d ' ')
+    
+    local dev_matches
+    dev_matches=$(echo "$prompt_lower" | grep -oE "($dev_patterns)" 2>/dev/null | wc -l | tr -d ' ')
+    
+    ((dev_score += dev_matches * 2))
+    ((knowledge_score += knowledge_matches * 2))
+    
+    # Step 3: Check project type (secondary signal)
+    # Check for code project indicators
+    if [[ -f "${PROJECT_ROOT}/package.json" ]] || \
+       [[ -f "${PROJECT_ROOT}/Cargo.toml" ]] || \
+       [[ -f "${PROJECT_ROOT}/go.mod" ]] || \
+       [[ -f "${PROJECT_ROOT}/pyproject.toml" ]] || \
+       [[ -f "${PROJECT_ROOT}/pom.xml" ]] || \
+       [[ -f "${PROJECT_ROOT}/Makefile" ]]; then
+        ((dev_score += 1))
+    fi
+    
+    # Check for knowledge project indicators
+    if [[ -d "${PROJECT_ROOT}/research" ]] || \
+       [[ -d "${PROJECT_ROOT}/reports" ]] || \
+       [[ -d "${PROJECT_ROOT}/strategy" ]]; then
+        ((knowledge_score += 1))
+    fi
+    
+    # Step 4: Determine context and confidence
+    if [[ $dev_score -gt $knowledge_score ]]; then
+        if [[ $((dev_score - knowledge_score)) -ge 3 ]]; then
+            confidence="high"
+        fi
+        echo "dev:$confidence:auto"
+    elif [[ $knowledge_score -gt $dev_score ]]; then
+        if [[ $((knowledge_score - dev_score)) -ge 3 ]]; then
+            confidence="high"
+        fi
+        echo "knowledge:$confidence:auto"
+    else
+        # Tie - default to dev in code repos, knowledge otherwise
+        if [[ -f "${PROJECT_ROOT}/package.json" ]] || [[ -f "${PROJECT_ROOT}/Cargo.toml" ]]; then
+            echo "dev:low:fallback"
+        else
+            echo "knowledge:low:fallback"
+        fi
+    fi
+}
+
+# Get display name for context
+get_context_display() {
+    local context_result="$1"
+    local context="${context_result%%:*}"
+    local rest="${context_result#*:}"
+    local confidence="${rest%%:*}"
+    
+    case "$context" in
+        dev) echo "[Dev]" ;;
+        knowledge) echo "[Knowledge]" ;;
+        *) echo "" ;;
+    esac
+}
+
+# Get full context info for verbose mode
+get_context_info() {
+    local context_result="$1"
+    local context="${context_result%%:*}"
+    local rest="${context_result#*:}"
+    local confidence="${rest%%:*}"
+    local method="${rest#*:}"
+    
+    echo "Context: $context (confidence: $confidence, method: $method)"
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # AGENT USAGE ANALYTICS (v5.0)
 # Tracks agent invocations for optimization insights
 # Privacy-preserving: only logs metadata, not prompt content
@@ -6187,6 +6301,12 @@ auto_route() {
     local branch_display
     branch_display=$(get_branch_display "$branch")
 
+    local context_result
+    context_result=$(detect_context "$prompt")
+    local context_display
+    context_display=$(get_context_display "$context_result")
+    local context="${context_result%%:*}"
+
     echo ""
     echo -e "${MAGENTA}═══════════════════════════════════════════════════════════${NC}"
     echo -e "${MAGENTA}  Claude Octopus - Smart Routing with Branching${NC}"
@@ -6195,8 +6315,12 @@ auto_route() {
     echo -e "${BLUE}Task Analysis:${NC}"
     echo -e "  Prompt: ${prompt:0:80}..."
     echo -e "  Detected Type: ${GREEN}$task_type${NC}"
+    echo -e "  Context: ${YELLOW}$context_display${NC}"
     echo -e "  Complexity: ${CYAN}$tier_name${NC}"
     echo -e "  Branch: ${MAGENTA}$branch_display${NC}"
+    if [[ "$VERBOSE" == "true" ]]; then
+        echo -e "  $(get_context_info "$context_result")"
+    fi
     echo ""
 
     # ═══════════════════════════════════════════════════════════════════════════
@@ -6205,36 +6329,36 @@ auto_route() {
     case "$task_type" in
         diamond-discover)
             echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
-            echo -e "${CYAN}║  🔍 PROBE (Discover Phase) - Parallel Research            ║${NC}"
+            echo -e "${CYAN}║  🔍 ${context_display} DISCOVER - Parallel Research                ║${NC}"
             echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
-            echo "  Routing to probe workflow for multi-perspective research."
+            echo "  Routing to discover workflow for multi-perspective research."
             echo ""
             probe_discover "$prompt"
             return
             ;;
         diamond-define)
             echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
-            echo -e "${CYAN}║  🤝 GRASP (Define Phase) - Consensus Building             ║${NC}"
+            echo -e "${CYAN}║  🤝 ${context_display} DEFINE - Consensus Building                 ║${NC}"
             echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
-            echo "  Routing to grasp workflow for problem definition."
+            echo "  Routing to define workflow for problem definition."
             echo ""
             grasp_define "$prompt"
             return
             ;;
         diamond-develop)
             echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
-            echo -e "${CYAN}║  🦑 TANGLE → INK (Develop + Deliver Phases)               ║${NC}"
+            echo -e "${CYAN}║  🦑 ${context_display} DEVELOP → DELIVER                           ║${NC}"
             echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
-            echo "  Routing to tangle (develop) then ink (deliver) workflow."
+            echo "  Routing to develop then deliver workflow."
             echo ""
             tangle_develop "$prompt" && ink_deliver "$prompt"
             return
             ;;
         diamond-deliver)
             echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
-            echo -e "${CYAN}║  🖤 INK (Deliver Phase) - Quality & Validation            ║${NC}"
+            echo -e "${CYAN}║  ✅ ${context_display} DELIVER - Quality & Validation              ║${NC}"
             echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
-            echo "  Routing to ink workflow for quality gates and validation."
+            echo "  Routing to deliver workflow for quality gates and validation."
             echo ""
             ink_deliver "$prompt"
             return
@@ -9761,35 +9885,37 @@ update_resource_tier_config() {
 toggle_knowledge_work_mode() {
     local action="${1:-status}"
 
-    # Fast load - only read knowledge mode (skip full config)
-    KNOWLEDGE_WORK_MODE="false"
+    KNOWLEDGE_WORK_MODE="auto"
     if [[ -f "$USER_CONFIG_FILE" ]]; then
-        KNOWLEDGE_WORK_MODE=$(grep "^knowledge_work_mode:" "$USER_CONFIG_FILE" 2>/dev/null | sed 's/.*: *//' | tr -d '"' || echo "false")
+        KNOWLEDGE_WORK_MODE=$(grep "^knowledge_work_mode:" "$USER_CONFIG_FILE" 2>/dev/null | sed 's/.*: *//' | tr -d '"' || echo "auto")
     fi
 
-    # Handle status check (optimized for Claude Code chat)
     if [[ "$action" == "status" ]]; then
         echo ""
-        if [[ "$KNOWLEDGE_WORK_MODE" == "true" ]]; then
-            echo -e "  ${MAGENTA}🎓 Knowledge Work Mode${NC} ${GREEN}ENABLED${NC}"
-            echo ""
-            echo -e "  ${CYAN}Best for:${NC} User research, strategy analysis, literature reviews"
-            echo -e "  ${DIM}Providers:${NC} Codex + Gemini (same as Dev mode)"
-            echo ""
-            echo -e "  ${DIM}Switch back:${NC} /co:dev"
-        else
-            echo -e "  ${GREEN}🔧 Dev Work Mode${NC} ${CYAN}ACTIVE${NC}"
-            echo ""
-            echo -e "  ${CYAN}Best for:${NC} Building features, debugging code, implementing APIs"
-            echo -e "  ${DIM}Providers:${NC} Codex + Gemini (same as Knowledge mode)"
-            echo ""
-            echo -e "  ${DIM}Switch to research:${NC} /co:km on"
-        fi
+        case "$KNOWLEDGE_WORK_MODE" in
+            true|on)
+                echo -e "  ${MAGENTA}🎓 Knowledge Mode${NC} ${GREEN}FORCED${NC}"
+                echo ""
+                echo -e "  ${CYAN}Best for:${NC} User research, strategy analysis, literature reviews"
+                echo -e "  ${DIM}Switch:${NC} /co:km off (dev) | /co:km auto (auto-detect)"
+                ;;
+            false|off)
+                echo -e "  ${GREEN}🔧 Dev Mode${NC} ${CYAN}FORCED${NC}"
+                echo ""
+                echo -e "  ${CYAN}Best for:${NC} Building features, debugging code, implementing APIs"
+                echo -e "  ${DIM}Switch:${NC} /co:km on (knowledge) | /co:km auto (auto-detect)"
+                ;;
+            *)
+                echo -e "  ${YELLOW}🐙 Auto-Detect Mode${NC} ${CYAN}ACTIVE${NC} (v7.8+)"
+                echo ""
+                echo -e "  ${CYAN}How it works:${NC} Context detected from prompt + project type"
+                echo -e "  ${DIM}Override:${NC} /co:km on (knowledge) | /co:km off (dev)"
+                ;;
+        esac
         echo ""
         return 0
     fi
 
-    # Determine new mode
     local new_mode="$KNOWLEDGE_WORK_MODE"
     case "$action" in
         on|enable)
@@ -9798,67 +9924,72 @@ toggle_knowledge_work_mode() {
         off|disable)
             new_mode="false"
             ;;
+        auto)
+            new_mode="auto"
+            ;;
         toggle)
-            if [[ "$KNOWLEDGE_WORK_MODE" == "true" ]]; then
-                new_mode="false"
-            else
-                new_mode="true"
-            fi
+            case "$KNOWLEDGE_WORK_MODE" in
+                true|on) new_mode="false" ;;
+                false|off) new_mode="auto" ;;
+                *) new_mode="true" ;;
+            esac
             ;;
         *)
             echo ""
             echo -e "${RED}✗${NC} Invalid action: ${BOLD}$action${NC}"
-            echo -e "  ${DIM}Use:${NC} on | off | status | toggle"
+            echo -e "  ${DIM}Use:${NC} on | off | auto | status | toggle"
             echo ""
             exit 1
             ;;
     esac
 
-    # Check if already in that mode
     if [[ "$new_mode" == "$KNOWLEDGE_WORK_MODE" ]]; then
         echo ""
-        if [[ "$new_mode" == "true" ]]; then
-            echo -e "  ${YELLOW}ℹ${NC}  Already in ${MAGENTA}Knowledge Work Mode${NC}"
-        else
-            echo -e "  ${YELLOW}ℹ${NC}  Already in ${GREEN}Development Mode${NC}"
-        fi
+        case "$new_mode" in
+            true|on) echo -e "  ${YELLOW}ℹ${NC}  Already in ${MAGENTA}Knowledge Mode${NC} (forced)" ;;
+            false|off) echo -e "  ${YELLOW}ℹ${NC}  Already in ${GREEN}Dev Mode${NC} (forced)" ;;
+            *) echo -e "  ${YELLOW}ℹ${NC}  Already in ${YELLOW}Auto-Detect Mode${NC}" ;;
+        esac
         echo ""
         return 0
     fi
 
-    # Apply change (fast - updates only one line in config)
     update_knowledge_mode_config "$new_mode"
     KNOWLEDGE_WORK_MODE="$new_mode"
 
-    # Success output (optimized for Claude Code chat)
     echo ""
-    if [[ "$new_mode" == "true" ]]; then
-        echo -e "  ${GREEN}✓${NC} Switched to ${MAGENTA}🎓 Knowledge Work Mode${NC}"
-        echo ""
-        echo -e "  ${DIM}Personas optimized for:${NC}"
-        echo -e "    • User research and UX analysis"
-        echo -e "    • Strategy and market analysis"
-        echo -e "    • Literature review and synthesis"
-        echo ""
-        echo -e "  ${DIM}Providers:${NC} Codex + Gemini (same AI, different personas)"
-
-        # Show document-skills recommendation on first knowledge mode enable (v7.2.2)
-        local first_time_flag="${WORKSPACE_DIR}/.knowledge-mode-setup-done"
-        if [[ ! -f "$first_time_flag" ]]; then
-            show_document_skills_info
-            mkdir -p "$(dirname "$first_time_flag")"
-            touch "$first_time_flag"
-        fi
-    else
-        echo -e "  ${GREEN}✓${NC} Switched to ${GREEN}🔧 Dev Work Mode${NC}"
-        echo ""
-        echo -e "  ${DIM}Personas optimized for:${NC}"
-        echo -e "    • Building features and implementing APIs"
-        echo -e "    • Debugging code and fixing bugs"
-        echo -e "    • Technical architecture and code review"
-        echo ""
-        echo -e "  ${DIM}Providers:${NC} Codex + Gemini (same AI, different personas)"
-    fi
+    case "$new_mode" in
+        true|on)
+            echo -e "  ${GREEN}✓${NC} Switched to ${MAGENTA}🎓 Knowledge Mode${NC} (forced)"
+            echo ""
+            echo -e "  ${DIM}Personas optimized for:${NC}"
+            echo -e "    • User research and UX analysis"
+            echo -e "    • Strategy and market analysis"
+            echo -e "    • Literature review and synthesis"
+            echo ""
+            local first_time_flag="${WORKSPACE_DIR}/.knowledge-mode-setup-done"
+            if [[ ! -f "$first_time_flag" ]]; then
+                show_document_skills_info
+                mkdir -p "$(dirname "$first_time_flag")"
+                touch "$first_time_flag"
+            fi
+            ;;
+        false|off)
+            echo -e "  ${GREEN}✓${NC} Switched to ${GREEN}🔧 Dev Mode${NC} (forced)"
+            echo ""
+            echo -e "  ${DIM}Personas optimized for:${NC}"
+            echo -e "    • Building features and implementing APIs"
+            echo -e "    • Debugging code and fixing bugs"
+            echo -e "    • Technical architecture and code review"
+            ;;
+        *)
+            echo -e "  ${GREEN}✓${NC} Switched to ${YELLOW}🐙 Auto-Detect Mode${NC}"
+            echo ""
+            echo -e "  ${DIM}Context will be detected from:${NC}"
+            echo -e "    • Your prompt (strongest signal)"
+            echo -e "    • Project type (package.json, etc.)"
+            ;;
+    esac
     echo ""
     echo -e "  ${DIM}Setting persists across sessions${NC}"
     echo ""
@@ -9872,12 +10003,18 @@ show_status() {
     echo ""
 
     load_user_config 2>/dev/null || true
-    if [[ "$KNOWLEDGE_WORK_MODE" == "true" ]]; then
-        echo -e "${BLUE}Mode:${NC} ${MAGENTA}Knowledge Work${NC} 🎓 (empathize, advise, synthesize prioritized)"
-    else
-        echo -e "${BLUE}Mode:${NC} ${GREEN}Development${NC} 💻 (probe, tangle, ink, embrace)"
-    fi
-    echo -e "  Toggle with: ${CYAN}knowledge-toggle${NC}"
+    case "$KNOWLEDGE_WORK_MODE" in
+        true|on)
+            echo -e "${BLUE}Mode:${NC} ${MAGENTA}Knowledge Work${NC} 🎓 (forced)"
+            ;;
+        false|off)
+            echo -e "${BLUE}Mode:${NC} ${GREEN}Development${NC} 💻 (forced)"
+            ;;
+        *)
+            echo -e "${BLUE}Mode:${NC} ${YELLOW}Auto-Detect${NC} 🐙 (v7.8+)"
+            ;;
+    esac
+    echo -e "  ${DIM}Change with:${NC} km on | km off | km auto"
     echo ""
 
     show_provider_status
