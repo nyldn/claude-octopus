@@ -2,7 +2,7 @@
 
 Claude Octopus includes **workflow skills** - lightweight wrappers that auto-invoke common multi-AI workflows. These activate automatically when you use certain phrases.
 
-## 🔍 Quick Code Review (`octopus-quick-review`)
+## 🔍 Quick Code Review (`/octo:review`)
 
 **Auto-activates when you say:**
 - "review this code"
@@ -10,7 +10,7 @@ Claude Octopus includes **workflow skills** - lightweight wrappers that auto-inv
 - "quality check"
 - "what's wrong with this code"
 
-**What it does:** Runs grasp (consensus) → tangle (parallel review) workflow
+**What it does:** Runs define (consensus) → develop (parallel review) workflow
 - Faster than full embrace (2-5 min vs 5-10 min)
 - Multi-agent consensus on issues
 - Quality gates ensure ≥75% agreement
@@ -19,12 +19,12 @@ Claude Octopus includes **workflow skills** - lightweight wrappers that auto-inv
 **Example:**
 ```
 User: "Review my authentication module for security issues"
-→ Grasp: Multi-agent consensus on security concerns
-→ Tangle: Parallel review (OWASP, performance, maintainability)
+→ Define: Multi-agent consensus on security concerns
+→ Develop: Parallel review (OWASP, performance, maintainability)
 → Output: Prioritized findings with fixes
 ```
 
-## 🔬 Deep Research (`octopus-research`)
+## 🔬 Deep Research (`/octo:research`)
 
 **Auto-activates when you say:**
 - "research this topic"
@@ -32,7 +32,7 @@ User: "Review my authentication module for security issues"
 - "explore different approaches"
 - "what are the options for Y"
 
-**What it does:** Runs probe (discover) workflow with 4 parallel perspectives
+**What it does:** Runs discover (probe) workflow with 4 parallel perspectives
 - Researcher: Technical analysis and documentation
 - Designer: UX patterns and user impact
 - Implementer: Code examples and implementation
@@ -41,12 +41,12 @@ User: "Review my authentication module for security issues"
 **Example:**
 ```
 User: "Research state management options for React"
-→ Probe: 4 agents research from different angles
+→ Discover: 4 agents research from different angles
 → Synthesis: AI-powered comparison and recommendation
 → Output: Decision matrix with pros/cons
 ```
 
-## 🛡️ Adversarial Security (`octopus-security`)
+## 🛡️ Adversarial Security (`/octo:security`)
 
 **Auto-activates when you say:**
 - "security audit"
@@ -73,10 +73,10 @@ User: "Security audit the authentication module"
 
 | Use Case | Workflow Skill | Time | Agents | Best For |
 |----------|---------------|------|--------|----------|
-| Code review | `quick-review` | 2-5 min | 2-3 | PR checks, quality gates |
-| Research | `deep-research` | 2-3 min | 4 | Architecture decisions |
-| Security testing | `adversarial-security` | 5-10 min | 2 (adversarial) | Finding vulnerabilities |
-| Full workflow | `embrace` | 5-10 min | 4-8 | New features, complete cycle |
+| Code review | `/octo:review` | 2-5 min | 2-3 | PR checks, quality gates |
+| Research | `/octo:research` | 2-3 min | 4 | Architecture decisions |
+| Security testing | `/octo:security` | 5-10 min | 2 (adversarial) | Finding vulnerabilities |
+| Full workflow | `/octo:embrace` | 5-10 min | 4-8 | New features, complete cycle |
 
 ## Architecture: Skills vs Orchestrator
 
@@ -103,11 +103,11 @@ Understanding the distinction:
 
 **Example of all three working together:**
 ```
-1. User: "Research authentication patterns"
-   → octopus-research skill activates (entry point)
-   → Triggers probe workflow (orchestrator)
+1. User: "octo research authentication patterns"
+   → /octo:research skill activates (entry point)
+   → Triggers discover workflow (orchestrator)
 
-2. User: "Build authentication module"
+2. User: "octo build authentication module"
    → Claude Octopus orchestrates embrace workflow
    → Agents generate implementation
 
