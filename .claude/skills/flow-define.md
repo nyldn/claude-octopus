@@ -40,6 +40,24 @@ trigger: |
 
 # Define Workflow - Define Phase 🎯
 
+## ⚠️ MANDATORY: Visual Indicators Protocol
+
+**BEFORE executing ANY workflow actions, you MUST output this banner:**
+
+```
+🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider definition mode
+🎯 Define Phase: [Brief description of what you're defining/scoping]
+
+Providers:
+🔴 Codex CLI - Technical requirements analysis
+🟡 Gemini CLI - Business context and constraints
+🔵 Claude - Consensus building and synthesis
+```
+
+**This is NOT optional.** Users need to see which AI providers are active and understand they are being charged for external API calls (🔴 🟡).
+
+---
+
 **Part of Double Diamond: DEFINE** (convergent thinking)
 
 ```

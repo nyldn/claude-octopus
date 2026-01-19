@@ -40,6 +40,24 @@ trigger: |
 
 # Deliver Workflow - Deliver Phase ✅
 
+## ⚠️ MANDATORY: Visual Indicators Protocol
+
+**BEFORE executing ANY workflow actions, you MUST output this banner:**
+
+```
+🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider validation mode
+✅ Deliver Phase: [Brief description of what you're reviewing/validating]
+
+Providers:
+🔴 Codex CLI - Code quality analysis
+🟡 Gemini CLI - Security and edge cases
+🔵 Claude - Synthesis and recommendations
+```
+
+**This is NOT optional.** Users need to see which AI providers are active and understand they are being charged for external API calls (🔴 🟡).
+
+---
+
 **Part of Double Diamond: DELIVER** (convergent thinking)
 
 ```

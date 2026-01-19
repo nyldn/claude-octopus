@@ -38,6 +38,24 @@ trigger: |
 
 # Develop Workflow - Develop Phase 🛠️
 
+## ⚠️ MANDATORY: Visual Indicators Protocol
+
+**BEFORE executing ANY workflow actions, you MUST output this banner:**
+
+```
+🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider implementation mode
+🛠️ Develop Phase: [Brief description of what you're building]
+
+Providers:
+🔴 Codex CLI - Code generation and patterns
+🟡 Gemini CLI - Alternative approaches
+🔵 Claude - Integration and quality gates
+```
+
+**This is NOT optional.** Users need to see which AI providers are active and understand they are being charged for external API calls (🔴 🟡).
+
+---
+
 **Part of Double Diamond: DEVELOP** (divergent thinking)
 
 ```

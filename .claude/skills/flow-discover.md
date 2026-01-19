@@ -46,6 +46,24 @@ trigger: |
 
 # Discover Workflow - Discovery Phase 🔍
 
+## ⚠️ MANDATORY: Visual Indicators Protocol
+
+**BEFORE executing ANY workflow actions, you MUST output this banner:**
+
+```
+🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider research mode
+🔍 Discover Phase: [Brief description of what you're researching]
+
+Providers:
+🔴 Codex CLI - Technical implementation analysis
+🟡 Gemini CLI - Ecosystem and community research
+🔵 Claude - Strategic synthesis
+```
+
+**This is NOT optional.** Users need to see which AI providers are active and understand they are being charged for external API calls (🔴 🟡).
+
+---
+
 **Part of Double Diamond: DISCOVER** (divergent thinking)
 
 ```
