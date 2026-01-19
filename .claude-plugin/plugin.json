@@ -1,7 +1,7 @@
 {
   "name": "co",
-  "version": "7.6.3",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.6.3 - Plugin install fix!) Only /co:km and /co:dev for mode switching. Visual feedback, natural language workflows, AI debates! Run /co:setup for guided setup.",
+  "version": "7.7.0",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.7.0 - Standard phase names!) /co:embrace for full workflow. Discover/Define/Develop/Deliver phases. Run /co:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },
@@ -39,10 +39,10 @@
     "knowledge-work"
   ],
   "skills": [
-    "./.claude/skills/flow-probe.md",
-    "./.claude/skills/flow-grasp.md",
-    "./.claude/skills/flow-tangle.md",
-    "./.claude/skills/flow-ink.md",
+    "./.claude/skills/flow-discover.md",
+    "./.claude/skills/flow-define.md",
+    "./.claude/skills/flow-develop.md",
+    "./.claude/skills/flow-deliver.md",
     "./.claude/skills/sys-configure.md",
     "./.claude/skills/skill-debate.md",
     "./.claude/skills/skill-debate-integration.md",
@@ -59,7 +59,12 @@
     "./.claude/skills/skill-finish-branch.md",
     "./.claude/skills/skill-verify.md",
     "./.claude/skills/skill-parallel-agents.md",
-    "./.claude/skills/skill-knowledge-work.md"
+    "./.claude/skills/skill-knowledge-work.md",
+    "./.claude/skills/skill-task-management.md",
+    "./.claude/skills/skill-visual-feedback.md",
+    "./.claude/skills/skill-decision-support.md",
+    "./.claude/skills/skill-iterative-loop.md",
+    "./.claude/skills/skill-audit.md"
   ],
   "commands": [
     "./.claude/commands/sys-setup.md",
@@ -76,9 +81,10 @@
     "./.claude/commands/debug.md",
     "./.claude/commands/tdd.md",
     "./.claude/commands/docs.md",
-    "./.claude/commands/probe.md",
-    "./.claude/commands/grasp.md",
-    "./.claude/commands/tangle.md",
-    "./.claude/commands/ink.md"
+    "./.claude/commands/embrace.md",
+    "./.claude/commands/discover.md",
+    "./.claude/commands/define.md",
+    "./.claude/commands/develop.md",
+    "./.claude/commands/deliver.md"
   ]
 }
