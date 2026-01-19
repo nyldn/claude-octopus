@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "7.7.3",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.7.3 - Unified /octo: namespace!) Use 'octo research X' or /octo:discover. Discover/Define/Develop/Deliver phases. Run /octo:setup for guided setup.",
+  "version": "7.7.4",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.7.4 - Unified /octo: namespace!) Use 'octo research X' or /octo:discover. Discover/Define/Develop/Deliver phases. Run /octo:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },
