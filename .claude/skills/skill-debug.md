@@ -7,9 +7,21 @@ description: |
   Four-phase debugging process: Investigate → Analyze → Hypothesize → Implement.
   "Iron Law: NO FIXES WITHOUT ROOT CAUSE INVESTIGATION FIRST."
 trigger: |
-  Use when encountering any bug, test failure, or unexpected behavior.
-  Auto-invoke when user says "fix this bug", "why is X failing", "debug Y".
+  AUTOMATICALLY ACTIVATE when encountering bugs or failures:
+  - "fix this bug" or "debug Y" or "troubleshoot X"
+  - "why is X failing" or "why isn't X working" or "why doesn't X work"
+  - "why did X not work" or "why didn't X happen"
+  - "X does not work" or "X is broken" or "X is not working"
+  - "investigate Y" or "figure out why Z"
+  - "The X button does not work" or "X preview button does not work"
+
   ESPECIALLY use when under time pressure or after multiple failed fix attempts.
+
+  DO NOT activate for:
+  - "Why do we use X?" (explanation, not debugging)
+  - "Why should I choose X?" (decision support, not debugging)
+  - Known issues with clear solutions
+  - Documentation or architecture questions
 ---
 
 # Systematic Debugging
