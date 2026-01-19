@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "7.8.0",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.8.0 - Context-aware detection!) Use 'octo research X' or /octo:discover. Auto-detects Dev vs Knowledge context. Run /octo:setup for guided setup.",
+  "version": "7.8.1",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.8.1 - Context-aware detection!) Use 'octo research X' or /octo:discover. Auto-detects Dev vs Knowledge context. Run /octo:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },

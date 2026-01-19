@@ -19,20 +19,22 @@ This guide documents direct CLI usage of orchestrate.sh for advanced users and a
 
 ### Core Commands
 
-| Command | What It Does |
-|---------|--------------|
-| `auto <prompt>` | Smart routing - picks best workflow automatically |
-| `embrace <prompt>` | Full 4-phase Double Diamond workflow |
-| `probe <prompt>` | Research phase - parallel exploration |
-| `grasp <prompt>` | Define phase - problem clarification |
-| `tangle <prompt>` | Development phase - parallel implementation |
-| `ink <prompt>` | Delivery phase - validation and QA |
-| `grapple <prompt>` | Adversarial debate between AI models |
-| `squeeze <prompt>` | Red team security review |
-| `octopus-configure` | Interactive configuration wizard |
-| `preflight` | Verify all dependencies |
-| `status` | Show provider status and running agents |
-| `detect-providers` | Fast provider detection (< 1 second) |
+| Command | Alias | What It Does |
+|---------|-------|--------------|
+| `auto <prompt>` | | Smart routing - picks best workflow automatically |
+| `embrace <prompt>` | | Full 4-phase Double Diamond workflow |
+| `discover <prompt>` | `probe` | Research phase - parallel exploration |
+| `define <prompt>` | `grasp` | Define phase - problem clarification |
+| `develop <prompt>` | `tangle` | Development phase - parallel implementation |
+| `deliver <prompt>` | `ink` | Delivery phase - validation and QA |
+| `grapple <prompt>` | | Adversarial debate between AI models |
+| `squeeze <prompt>` | `red-team` | Red team security review |
+| `octopus-configure` | `setup` | Interactive configuration wizard |
+| `preflight` | | Verify all dependencies |
+| `status` | | Show provider status and running agents |
+| `detect-providers` | | Fast provider detection (< 1 second) |
+
+**v7.8.0+**: Commands now auto-detect **Dev vs Knowledge context** and adjust behavior accordingly. See [Context Detection](#context-detection) section.
 
 ---
 
@@ -92,8 +94,8 @@ source ~/.bashrc
 ## Double Diamond Workflows
 
 ```
-     DISCOVER         DEFINE         DEVELOP          DELIVER
-     (probe)          (grasp)        (tangle)          (ink)
+     DISCOVER         DEFINE          DEVELOP          DELIVER
+       (probe)        (grasp)         (tangle)           (ink)
 
     \         /     \         /     \         /     \         /
      \   *   /       \   *   /       \   *   /       \   *   /
@@ -105,55 +107,55 @@ source ~/.bashrc
     converge          problem          solutions        delivery
 ```
 
-### Phase 1: PROBE (Discover)
+### Phase 1: DISCOVER (alias: probe)
 
 Parallel research from multiple perspectives - problem space, existing solutions, edge cases, technical feasibility.
 
 ```bash
-./scripts/orchestrate.sh probe "What are the best approaches for real-time notifications?"
+./scripts/orchestrate.sh discover "What are the best approaches for real-time notifications?"
 ```
 
 **Output:**
 - Research synthesis from Codex, Gemini, and Claude
-- Saved to `~/.claude-octopus/results/${SESSION_ID}/probe-synthesis-*.md`
+- Saved to `~/.claude-octopus/results/${SESSION_ID}/discover-synthesis-*.md`
 
-### Phase 2: GRASP (Define)
+### Phase 2: DEFINE (alias: grasp)
 
 Multi-AI consensus on problem definition, success criteria, and constraints.
 
 ```bash
-./scripts/orchestrate.sh grasp "Define requirements for notification system"
+./scripts/orchestrate.sh define "Define requirements for notification system"
 ```
 
 **Output:**
 - Problem definition with requirements
-- Saved to `~/.claude-octopus/results/${SESSION_ID}/grasp-synthesis-*.md`
+- Saved to `~/.claude-octopus/results/${SESSION_ID}/define-synthesis-*.md`
 
-### Phase 3: TANGLE (Develop)
+### Phase 3: DEVELOP (alias: tangle)
 
 Enhanced map-reduce with 75% quality gate threshold.
 
 ```bash
-./scripts/orchestrate.sh tangle "Implement notification service"
+./scripts/orchestrate.sh develop "Implement notification service"
 ```
 
 **Output:**
 - Implementation approaches from multiple providers
 - Quality gate evaluation
-- Saved to `~/.claude-octopus/results/${SESSION_ID}/tangle-synthesis-*.md`
+- Saved to `~/.claude-octopus/results/${SESSION_ID}/develop-synthesis-*.md`
 
-### Phase 4: INK (Deliver)
+### Phase 4: DELIVER (alias: ink)
 
 Validation and final deliverable generation.
 
 ```bash
-./scripts/orchestrate.sh ink "Deliver notification system"
+./scripts/orchestrate.sh deliver "Deliver notification system"
 ```
 
 **Output:**
 - Validation report with quality scores
 - Go/no-go recommendation
-- Saved to `~/.claude-octopus/results/${SESSION_ID}/ink-validation-*.md`
+- Saved to `~/.claude-octopus/results/${SESSION_ID}/deliver-validation-*.md`
 
 ### Full Workflow: EMBRACE
 
@@ -177,18 +179,58 @@ The `auto` command detects intent and routes to the appropriate workflow:
 
 | Intent Keywords | Routes To | Example |
 |----------------|-----------|---------|
-| research, explore, investigate | `probe` | "research caching best practices" |
-| define, clarify, scope | `grasp` | "define caching requirements" |
-| develop, build, implement | `tangle` → `ink` | "build the caching layer" |
-| qa, test, validate, review | `ink` | "review the caching implementation" |
+| research, explore, investigate | `discover` | "research caching best practices" |
+| define, clarify, scope | `define` | "define caching requirements" |
+| develop, build, implement | `develop` → `deliver` | "build the caching layer" |
+| qa, test, validate, review | `deliver` | "review the caching implementation" |
 | adversarial, debate | `grapple` | "adversarial review of cache design" |
 | security audit, red team | `squeeze` | "security audit the auth module" |
 
 **Usage:**
 ```bash
-./scripts/orchestrate.sh auto "research OAuth patterns"           # -> probe
-./scripts/orchestrate.sh auto "build user login"                  # -> tangle + ink
+./scripts/orchestrate.sh auto "research OAuth patterns"           # -> discover
+./scripts/orchestrate.sh auto "build user login"                  # -> develop + deliver
 ./scripts/orchestrate.sh auto "security audit auth.ts"            # -> squeeze
+```
+
+---
+
+## Context Detection (v7.8.0+)
+
+Claude Octopus **auto-detects** whether you're working in a **Dev context** (code-focused) or **Knowledge context** (research/strategy-focused) and adjusts workflow behavior accordingly.
+
+### How It Works
+
+Context is detected from:
+1. **Prompt content** (strongest signal) - Technical terms → Dev, Business terms → Knowledge
+2. **Project type** (secondary signal) - Has `package.json` → Dev, Mostly docs → Knowledge
+
+**Dev Context Indicators:**
+- Technical: "API", "endpoint", "database", "function", "class", "module"
+- Actions: "implement", "debug", "refactor", "test", "deploy", "build"
+
+**Knowledge Context Indicators:**
+- Business/strategy: "market", "ROI", "stakeholders", "strategy", "competitive"
+- Research: "literature", "synthesis", "academic", "papers"
+- UX: "personas", "user research", "journey map"
+
+### Context-Aware Behavior
+
+| Phase | Dev Context | Knowledge Context |
+|-------|-------------|-------------------|
+| **Discover** | Technical patterns, library comparison | Market analysis, competitive research |
+| **Develop** | Code generation, tests | PRDs, strategy docs, presentations |
+| **Deliver** | Code review, security audit | Document review, argument strength |
+
+### Override Context
+
+When auto-detection is wrong, use the knowledge mode toggle:
+
+```bash
+./scripts/orchestrate.sh km on     # Force Knowledge context
+./scripts/orchestrate.sh km off    # Force Dev context
+./scripts/orchestrate.sh km auto   # Return to auto-detection
+./scripts/orchestrate.sh km        # Show current status
 ```
 
 ---
@@ -415,10 +457,10 @@ Quality gates ensure minimum standards before delivery:
 All workflow results are saved to:
 ```
 ~/.claude-octopus/results/${SESSION_ID}/
-├── probe-synthesis-20260118-143022.md
-├── grasp-synthesis-20260118-144530.md
-├── tangle-synthesis-20260118-145800.md
-└── ink-validation-20260118-150200.md
+├── discover-synthesis-20260118-143022.md
+├── define-synthesis-20260118-144530.md
+├── develop-synthesis-20260118-145800.md
+└── deliver-validation-20260118-150200.md
 ```
 
 ### Debate Storage
@@ -444,16 +486,16 @@ Debates are stored in session-aware folders:
 
 ```bash
 # Phase 1: Research authentication patterns
-./scripts/orchestrate.sh probe "authentication best practices for React apps"
+./scripts/orchestrate.sh discover "authentication best practices for React apps"
 
 # Phase 2: Define requirements
-./scripts/orchestrate.sh grasp "define requirements for JWT authentication"
+./scripts/orchestrate.sh define "define requirements for JWT authentication"
 
 # Phase 3: Implement
-./scripts/orchestrate.sh tangle "implement JWT authentication system"
+./scripts/orchestrate.sh develop "implement JWT authentication system"
 
 # Phase 4: Validate
-./scripts/orchestrate.sh ink "validate authentication implementation"
+./scripts/orchestrate.sh deliver "validate authentication implementation"
 ```
 
 ### Or use embrace for all phases:
@@ -475,10 +517,10 @@ Debates are stored in session-aware folders:
 
 ```bash
 # Use cheapest provider for research
-./scripts/orchestrate.sh --cost-first probe "research React state management"
+./scripts/orchestrate.sh --cost-first discover "research React state management"
 
 # Use quality-first for critical implementation
-./scripts/orchestrate.sh --quality-first tangle "implement payment processing"
+./scripts/orchestrate.sh --quality-first develop "implement payment processing"
 ```
 
 ---
@@ -568,7 +610,7 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            const results = fs.readFileSync('~/.claude-octopus/results/latest/ink-validation.md', 'utf8');
+            const results = fs.readFileSync('~/.claude-octopus/results/latest/deliver-validation.md', 'utf8');
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,

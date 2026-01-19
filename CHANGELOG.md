@@ -5,6 +5,40 @@ All notable changes to Claude Octopus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.8.1] - 2026-01-19
+
+### Added - Context Detection in CLI
+
+**Context detection now works in `orchestrate.sh` CLI**, not just skill instructions.
+
+#### CLI Enhancements
+
+- **`auto_route()` shows context** - When using `auto` command, detected context `[Dev]` or `[Knowledge]` is displayed
+- **Phase banners include context** - `🔍 [Dev] DISCOVER` instead of `🔍 PROBE (Discover Phase)`
+- **`km` command supports `auto`** - Use `/co:km auto` to return to auto-detection mode
+
+#### Knowledge Mode Toggle Updates
+
+The `km` command now supports three modes:
+```bash
+./scripts/orchestrate.sh km on     # Force Knowledge context
+./scripts/orchestrate.sh km off    # Force Dev context  
+./scripts/orchestrate.sh km auto   # Return to auto-detection (new!)
+./scripts/orchestrate.sh km        # Show current status
+```
+
+### Fixed
+
+- **CLI-REFERENCE.md** - Updated to use new phase names (`discover`, `define`, `develop`, `deliver`) as primary with old names as aliases
+- **Phase display boxes** - Changed from `PROBE (Discover)` to `DISCOVER` with context indicator
+
+### Housekeeping
+
+- Cleaned up working files from previous session
+- Updated all version references to 7.8.1
+
+---
+
 ## [7.8.0] - 2026-01-19
 
 ### Added - Context-Aware Detection
