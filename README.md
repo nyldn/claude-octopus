@@ -54,7 +54,7 @@ Get started with Claude Octopus in 2 simple steps:
 Open Claude Code and run these two commands in the chat:
 
 ```
-/plugin marketplace add nyldn/claude-octopus
+/plugin marketplace add https://github.com/nyldn/claude-octopus
 /plugin install claude-octopus@nyldn-plugins
 ```
 
@@ -62,6 +62,10 @@ The plugin is now installed and automatically enabled.
 
 <details>
 <summary>Troubleshooting Installation</summary>
+
+**If you get "SSH authentication failed":**
+
+Use the HTTPS URL format (already shown above). The shorthand `nyldn/claude-octopus` requires SSH keys configured with GitHub.
 
 **If `/octo:setup` shows "Unknown skill" in Step 2:**
 
@@ -74,7 +78,6 @@ The plugin is now installed and automatically enabled.
 2. Try reinstalling:
    ```
    /plugin uninstall claude-octopus
-   /plugin marketplace update nyldn-plugins
    /plugin install claude-octopus@nyldn-plugins
    ```
 
@@ -152,7 +155,6 @@ This will automatically check for updates and install the latest version if avai
 ### Option C: Reinstall Manually
 ```
 /plugin uninstall claude-octopus
-/plugin marketplace update nyldn-plugins
 /plugin install claude-octopus@nyldn-plugins
 ```
 
