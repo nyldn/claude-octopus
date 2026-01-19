@@ -1,6 +1,6 @@
 ---
 name: discover
-description: "Shortcut for /co:flow-discover - Discovery phase workflow for research and exploration"
+description: "Shortcut for /octo:flow-discover - Discovery phase workflow for research and exploration"
 redirect: flow-discover
 trigger: |
   AUTOMATICALLY ACTIVATE when user requests research or exploration:
@@ -14,7 +14,7 @@ trigger: |
 
 # Discover (Shortcut) - Discovery Phase 🔍
 
-This is a shortcut alias for `/co:flow-discover`.
+This is a shortcut alias for `/octo:flow-discover`.
 
 **Part of Double Diamond: DISCOVER** (divergent thinking)
 
@@ -26,4 +26,4 @@ The **discover** phase executes multi-perspective research using external CLI pr
 2. **🟡 Gemini CLI** - Broad ecosystem research, community insights, alternative approaches
 3. **🔵 Claude (You)** - Strategic synthesis and recommendation
 
-For full documentation, see `/co:flow-discover`.
+For full documentation, see `/octo:flow-discover`.

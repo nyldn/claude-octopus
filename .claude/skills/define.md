@@ -1,6 +1,6 @@
 ---
 name: define
-description: "Shortcut for /co:flow-define - Define phase workflow for clarifying requirements"
+description: "Shortcut for /octo:flow-define - Define phase workflow for clarifying requirements"
 redirect: flow-define
 trigger: |
   AUTOMATICALLY ACTIVATE when user requests clarification or scoping:
@@ -12,7 +12,7 @@ trigger: |
 
 # Define (Shortcut) - Define Phase 🎯
 
-This is a shortcut alias for `/co:flow-define`.
+This is a shortcut alias for `/octo:flow-define`.
 
 **Part of Double Diamond: DEFINE** (convergent thinking)
 
@@ -24,4 +24,4 @@ The **define** phase clarifies and scopes problems using external CLI providers:
 2. **🟡 Gemini CLI** - User needs, business requirements, context understanding
 3. **🔵 Claude (You)** - Problem synthesis and requirement definition
 
-For full documentation, see `/co:flow-define`.
+For full documentation, see `/octo:flow-define`.
