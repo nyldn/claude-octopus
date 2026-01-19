@@ -89,8 +89,8 @@ Tasks that don't benefit from multiple AI perspectives:
 ### Cost Implications
 
 **External CLIs use your API quotas:**
-- 🔴 Codex CLI: OpenAI API costs (GPT-4 based)
-- 🟡 Gemini CLI: Google AI costs (Gemini Pro)
+- 🔴 Codex CLI: OpenAI API costs (GPT-5.x based)
+- 🟡 Gemini CLI: Google AI costs (Gemini 3.0)
 - Typical costs: $0.01-0.10 per query
 
 **Claude subagents are included:**
