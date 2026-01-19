@@ -1,45 +1,41 @@
 #!/bin/bash
 # Pre-push hook for claude-octopus
-# Ensures version consistency before pushing
+# Runs comprehensive validation before pushing
 
 set -e
 
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-echo -e "${GREEN}🐙 Claude Octopus Pre-Push Check${NC}"
-
-# Get the plugin version from plugin.json
-PLUGIN_VERSION=$(grep '"version"' .claude-plugin/plugin.json | head -1 | sed 's/.*: *"\([^"]*\)".*/\1/')
-
-# Check if README badge matches plugin version
-README_VERSION=$(grep -o 'Version-[0-9.]*' README.md | head -1 | sed 's/Version-//')
-
-if [[ "$PLUGIN_VERSION" != "$README_VERSION" ]]; then
-    echo -e "${RED}ERROR: Version mismatch detected${NC}"
-    echo "  plugin.json: v$PLUGIN_VERSION"
-    echo "  README.md:   v$README_VERSION"
-    echo ""
-    echo "Fix: Update README.md version badge to match plugin.json"
-    exit 1
-fi
-
-# Check if CHANGELOG has entry for current version
-if ! grep -q "\[$PLUGIN_VERSION\]" CHANGELOG.md; then
-    echo -e "${YELLOW}WARNING: No CHANGELOG entry for v$PLUGIN_VERSION${NC}"
-    echo "Consider adding release notes to CHANGELOG.md"
-fi
-
-# Check if tag exists for this version
-if git rev-parse "v$PLUGIN_VERSION" >/dev/null 2>&1; then
-    echo -e "${GREEN}✓ Tag v$PLUGIN_VERSION exists${NC}"
+# Run the full validation script if it exists
+if [[ -x "$ROOT_DIR/scripts/validate-release.sh" ]]; then
+    "$ROOT_DIR/scripts/validate-release.sh"
 else
-    echo -e "${YELLOW}NOTE: Tag v$PLUGIN_VERSION not yet created${NC}"
-    echo "  Create with: git tag -a v$PLUGIN_VERSION -m 'Release v$PLUGIN_VERSION'"
-fi
+    # Fallback to basic checks
+    RED='\033[0;31m'
+    GREEN='\033[0;32m'
+    YELLOW='\033[1;33m'
+    NC='\033[0m'
 
-echo -e "${GREEN}✓ Version check passed (v$PLUGIN_VERSION)${NC}"
+    echo -e "${GREEN}🐙 Claude Octopus Pre-Push Check${NC}"
+
+    PLUGIN_VERSION=$(grep '"version"' .claude-plugin/plugin.json | head -1 | sed 's/.*: *"\([^"]*\)".*/\1/')
+    README_VERSION=$(grep -o 'Version-[0-9.]*' README.md | head -1 | sed 's/Version-//')
+
+    if [[ "$PLUGIN_VERSION" != "$README_VERSION" ]]; then
+        echo -e "${RED}ERROR: Version mismatch detected${NC}"
+        echo "  plugin.json: v$PLUGIN_VERSION"
+        echo "  README.md:   v$README_VERSION"
+        exit 1
+    fi
+
+    if git rev-parse "v$PLUGIN_VERSION" >/dev/null 2>&1; then
+        echo -e "${GREEN}✓ Tag v$PLUGIN_VERSION exists${NC}"
+    else
+        echo -e "${YELLOW}NOTE: Tag v$PLUGIN_VERSION not yet created${NC}"
+        echo "  Create with: git tag -a v$PLUGIN_VERSION -m 'Release v$PLUGIN_VERSION'"
+    fi
+
+    echo -e "${GREEN}✓ Version check passed (v$PLUGIN_VERSION)${NC}"
+fi
 exit 0
