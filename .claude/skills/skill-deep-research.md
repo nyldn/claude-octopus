@@ -4,11 +4,15 @@ description: |
   Deep research using Claude Octopus probe workflow.
   Parallel multi-perspective research with AI synthesis.
   
-  Use PROACTIVELY when user wants deep analysis or investigation:
+  Use PROACTIVELY when user says:
+  - "octo deep-research X", "octo investigate Y", "octo analyze Z"
+  - "co-deep-research X", "co-investigate Y"
   - "research this topic", "investigate how X works"
   - "analyze the architecture", "explore different approaches to Y"
   - "what are the options for Z", "deep dive into X"
   - "comprehensive analysis of Y", "thorough research on Z"
+  
+  PRIORITY TRIGGERS (always invoke): "octo deep-research", "octo investigate", "co-deep-research"
   
   DO NOT use for: simple factual queries Claude can answer directly,
   or questions about specific code in current project (use Read tool).

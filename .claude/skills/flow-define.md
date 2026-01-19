@@ -10,11 +10,15 @@ description: |
   Part of the Double Diamond methodology (Define phase).
   Uses Codex and Gemini CLIs for multi-perspective problem definition.
   
-  Use PROACTIVELY when user requests clarification or scoping:
+  Use PROACTIVELY when user says:
+  - "octo define X", "octo scope Y", "octo clarify Z"
+  - "co-define X", "co-scope Y"
   - "define the requirements for X", "define exactly what X needs"
   - "clarify the scope of Y", "scope out the Z feature"
   - "what exactly does X need to do", "what are the specific requirements"
   - "help me understand the problem with Y"
+  
+  PRIORITY TRIGGERS (always invoke): "octo define", "octo scope", "co-define", "co-scope"
   
   DO NOT use for: implementation tasks (use flow-develop), research (use flow-discover),
   review/validation (use flow-deliver), or built-in commands.

@@ -11,8 +11,8 @@
     {
       "name": "claude-octopus",
       "source": "./",
-      "description": "v7.7.1 - Auto-invoke fix! Say 'research X' and skills activate automatically. /co:discover, /co:define, /co:develop, /co:deliver. Multi-tentacled orchestrator with AI debates, quality gates, and natural language workflows. Run /co:setup for guided setup.",
-      "version": "7.7.1",
+      "description": "v7.7.2 - Octo prefix triggers! Say 'octo research X' for reliable multi-AI workflows. /co:discover, /co:define, /co:develop, /co:deliver. Multi-tentacled orchestrator with AI debates, quality gates. Run /co:setup for guided setup.",
+      "version": "7.7.2",
       "author": {
         "name": "nyldn"
       },
