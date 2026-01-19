@@ -1,7 +1,7 @@
 {
   "name": "co",
-  "version": "7.6.3",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.6.3 - Plugin install fix!) Only /co:km and /co:dev for mode switching. Visual feedback, natural language workflows, AI debates! Run /co:setup for guided setup.",
+  "version": "7.7.0",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.7.0 - Enhanced triggers!) Task management, visual feedback, decision support, iterative loops, auditing. Run /co:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },
@@ -59,7 +59,12 @@
     "./.claude/skills/skill-finish-branch.md",
     "./.claude/skills/skill-verify.md",
     "./.claude/skills/skill-parallel-agents.md",
-    "./.claude/skills/skill-knowledge-work.md"
+    "./.claude/skills/skill-knowledge-work.md",
+    "./.claude/skills/skill-task-management.md",
+    "./.claude/skills/skill-visual-feedback.md",
+    "./.claude/skills/skill-decision-support.md",
+    "./.claude/skills/skill-iterative-loop.md",
+    "./.claude/skills/skill-audit.md"
   ],
   "commands": [
     "./.claude/commands/sys-setup.md",
