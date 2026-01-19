@@ -13,9 +13,8 @@ Automatically check for updates to claude-octopus plugin, install updates, and d
 ## Quick Usage
 
 ```bash
-/claude-octopus:update              # Check for updates only
-/claude-octopus:update --update     # Check and auto-install if outdated
-/claude-octopus:check-update        # Alias for update
+/octo:update              # Check for updates only
+/octo:update --update     # Check and auto-install if outdated
 ```
 
 ---
@@ -134,11 +133,10 @@ Parse command arguments to check if `--update` flag was provided.
 **If --update flag is NOT present:**
 ```bash
 echo "To update automatically, run:"
-echo "  /claude-octopus:update --update"
+echo "  /octo:update --update"
 echo ""
 echo "Or update manually:"
 echo "  /plugin uninstall claude-octopus"
-echo "  /plugin marketplace update nyldn-plugins"
 echo "  /plugin install claude-octopus@nyldn-plugins"
 echo ""
 echo "📚 Changelog: https://github.com/nyldn/claude-octopus/releases/tag/v$LATEST_VERSION"
@@ -182,7 +180,7 @@ echo ""
 UPDATE_ERRORS=""
 
 # Step 5b: Uninstall
-echo "🗑️  Step 1/3: Uninstalling current version..."
+echo "🗑️  Step 1/2: Uninstalling current version..."
 if ! /plugin uninstall claude-octopus 2>&1; then
   UPDATE_ERRORS="$UPDATE_ERRORS\n- Failed to uninstall current version"
   echo "⚠️  Warning: Uninstall may have failed, continuing anyway..."
@@ -191,24 +189,8 @@ else
 fi
 echo ""
 
-# Step 5c: Update marketplace cache
-echo "🔄 Step 2/3: Updating marketplace cache..."
-if ! /plugin marketplace update nyldn-plugins 2>&1; then
-  UPDATE_ERRORS="$UPDATE_ERRORS\n- Failed to update marketplace cache"
-  echo "❌ Error: Marketplace update failed"
-  echo ""
-  echo "Troubleshooting:"
-  echo "  1. Check network connection"
-  echo "  2. Try: /plugin marketplace list"
-  echo "  3. Manually update: /plugin marketplace add nyldn-plugins https://github.com/nyldn/claude-octopus"
-  exit 1
-else
-  echo "✅ Marketplace cache updated"
-fi
-echo ""
-
-# Step 5d: Install latest version
-echo "📦 Step 3/3: Installing v$LATEST_VERSION..."
+# Step 5c: Install latest version
+echo "📦 Step 2/2: Installing v$LATEST_VERSION..."
 INSTALL_OUTPUT=$(/plugin install claude-octopus@nyldn-plugins 2>&1)
 INSTALL_EXIT_CODE=$?
 
@@ -294,7 +276,7 @@ fi
 echo "❌ Update cancelled by user"
 echo ""
 echo "To update later, run:"
-echo "  /claude-octopus:update --update"
+echo "  /octo:update --update"
 exit 0
 ```
 
@@ -338,8 +320,8 @@ curl -s https://api.github.com/rate_limit | grep remaining
 # List available marketplaces
 /plugin marketplace list
 
-# Re-add marketplace
-/plugin marketplace add nyldn-plugins https://github.com/nyldn/claude-octopus
+# Re-add marketplace (use HTTPS URL)
+/plugin marketplace add https://github.com/nyldn/claude-octopus
 ```
 
 ### Installation Issues
