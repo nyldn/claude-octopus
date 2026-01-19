@@ -46,17 +46,46 @@ trigger: |
 
 # Discover Workflow - Discovery Phase 🔍
 
-## ⚠️ MANDATORY: Visual Indicators Protocol
+## ⚠️ MANDATORY: Context Detection & Visual Indicators
 
-**BEFORE executing ANY workflow actions, you MUST output this banner:**
+**BEFORE executing ANY workflow actions, you MUST:**
 
+### Step 1: Detect Work Context
+
+Analyze the user's prompt and project to determine context:
+
+**Knowledge Context Indicators** (in prompt):
+- Business/strategy terms: "market", "ROI", "stakeholders", "strategy", "competitive", "business case"
+- Research terms: "literature", "synthesis", "academic", "papers", "personas", "interviews"
+- Deliverable terms: "presentation", "report", "PRD", "proposal", "executive summary"
+
+**Dev Context Indicators** (in prompt):
+- Technical terms: "API", "endpoint", "database", "function", "implementation", "library"
+- Action terms: "implement", "debug", "refactor", "build", "deploy", "code"
+
+**Also check**: Does the project have `package.json`, `Cargo.toml`, etc.? (suggests Dev Context)
+
+### Step 2: Output Context-Aware Banner
+
+**For Dev Context:**
 ```
 🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider research mode
-🔍 Discover Phase: [Brief description of what you're researching]
+🔍 [Dev] Discover Phase: [Brief description of technical research]
 
 Providers:
 🔴 Codex CLI - Technical implementation analysis
-🟡 Gemini CLI - Ecosystem and community research
+🟡 Gemini CLI - Ecosystem and library comparison
+🔵 Claude - Strategic synthesis
+```
+
+**For Knowledge Context:**
+```
+🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider research mode
+🔍 [Knowledge] Discover Phase: [Brief description of strategic research]
+
+Providers:
+🔴 Codex CLI - Data analysis and frameworks
+🟡 Gemini CLI - Market and competitive research
 🔵 Claude - Strategic synthesis
 ```
 
@@ -94,12 +123,18 @@ This is the **divergent** phase - we cast a wide net to explore all possibilitie
 ## When to Use Discover
 
 Use discover when you need:
-- **Research**: "What are authentication best practices in 2025?"
-- **Exploration**: "What are the different caching strategies available?"
-- **Options Analysis**: "What libraries can I use for date handling?"
-- **Comparative Research**: "Compare Redis vs Memcached for session storage"
-- **Ecosystem Understanding**: "What's the state of React server components?"
+
+### Dev Context Examples
+- **Technical Research**: "What are authentication best practices in 2025?"
+- **Library Comparison**: "Compare Redis vs Memcached for session storage"
 - **Pattern Discovery**: "What are common API pagination patterns?"
+- **Ecosystem Analysis**: "What's the state of React server components?"
+
+### Knowledge Context Examples
+- **Market Research**: "What are the market opportunities in healthcare AI?"
+- **Competitive Analysis**: "Analyze our competitors' pricing strategies"
+- **Literature Review**: "Synthesize research on remote work productivity"
+- **UX Research**: "What are best practices for user onboarding flows?"
 
 **Don't use discover for:**
 - Reading files in the current project (use Read tool)
@@ -157,24 +192,53 @@ Read the synthesis file and present key findings to the user in the chat.
 
 When this skill activates:
 
-1. **Confirm the research question**
+1. **Detect work context**
+   
+   Analyze the user's prompt:
+   - Contains "market", "ROI", "stakeholders", "strategy", "competitive", "personas", "interviews", "presentation", "report", "PRD"? → **Knowledge Context**
+   - Contains "API", "endpoint", "database", "implementation", "library", "code", "function", "deploy"? → **Dev Context**
+   - If ambiguous, check if project has package.json/Cargo.toml → **Dev Context**
+   - Default fallback: **Dev Context** in code repos, **Knowledge Context** otherwise
+
+2. **Confirm research with context-aware banner**
+   
+   **For Dev Context:**
    ```
    I'll research "<question>" using multiple AI perspectives.
 
    🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider research mode
+   🔍 [Dev] Discover Phase: Technical research on <topic>
+   
+   Providers:
+   🔴 Codex CLI - Technical implementation analysis
+   🟡 Gemini CLI - Ecosystem and library comparison
+   🔵 Claude - Strategic synthesis
+   ```
+   
+   **For Knowledge Context:**
+   ```
+   I'll research "<question>" using multiple AI perspectives.
+
+   🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider research mode
+   🔍 [Knowledge] Discover Phase: Strategic research on <topic>
+   
+   Providers:
+   🔴 Codex CLI - Data analysis and frameworks
+   🟡 Gemini CLI - Market and competitive research
+   🔵 Claude - Strategic synthesis
    ```
 
-2. **Execute probe workflow**
+3. **Execute probe workflow**
    ```bash
    ./scripts/orchestrate.sh probe "<user's question>"
    ```
 
-3. **Monitor execution**
+4. **Monitor execution**
    - Watch for provider responses
    - Check for errors or quality issues
    - Ensure all providers complete successfully
 
-4. **Read synthesis results**
+5. **Read synthesis results**
    ```bash
    # Find the latest synthesis file
    SYNTHESIS_FILE=$(ls -t ~/.claude-octopus/results/${CLAUDE_CODE_SESSION}/probe-synthesis-*.md 2>/dev/null | head -n1)
@@ -183,32 +247,60 @@ When this skill activates:
    cat "$SYNTHESIS_FILE"
    ```
 
-5. **Present findings in chat**
-   Structure your response:
+6. **Present context-appropriate findings**
+
+   **For Dev Context:**
    ```
-   # Research Findings: <question>
+   # Technical Research: <question>
 
-   ## Key Insights
-   [Synthesized insights from all providers]
+   ## Key Technical Insights
+   [Synthesized technical insights]
 
-   ## Recommended Approaches
-   [Your strategic recommendation]
+   ## Recommended Implementation Approach
+   [Technical recommendation with code considerations]
+
+   ## Library/Tool Comparison
+   [If applicable, comparison of technical options]
 
    ## Perspectives
+   ### Codex Analysis (Implementation Focus)
+   [Technical implementation details]
 
-   ### Codex Analysis
-   [Key points from Codex]
-
-   ### Gemini Analysis
-   [Key points from Gemini]
+   ### Gemini Analysis (Ecosystem Focus)
+   [Community adoption, alternatives, trends]
 
    ### Claude Synthesis
-   [Your analysis and integration]
+   [Integrated technical recommendation]
 
    ## Next Steps
-   [Actionable recommendations for the user]
+   [Technical action items]
+   ```
+   
+   **For Knowledge Context:**
+   ```
+   # Strategic Research: <question>
 
-   Full research saved to: <synthesis file path>
+   ## Key Strategic Insights
+   [Synthesized business/research insights]
+
+   ## Recommended Approach
+   [Strategic recommendation with business rationale]
+
+   ## Framework Analysis
+   [If applicable, relevant frameworks applied]
+
+   ## Perspectives
+   ### Codex Analysis (Data/Analytical Focus)
+   [Quantitative analysis, data points]
+
+   ### Gemini Analysis (Market/Competitive Focus)
+   [Market trends, competitive landscape]
+
+   ### Claude Synthesis
+   [Integrated strategic recommendation]
+
+   ## Next Steps
+   [Strategic action items]
    ```
 
 ---

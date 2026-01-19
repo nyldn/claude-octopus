@@ -38,18 +38,46 @@ trigger: |
 
 # Develop Workflow - Develop Phase 🛠️
 
-## ⚠️ MANDATORY: Visual Indicators Protocol
+## ⚠️ MANDATORY: Context Detection & Visual Indicators
 
-**BEFORE executing ANY workflow actions, you MUST output this banner:**
+**BEFORE executing ANY workflow actions, you MUST:**
 
+### Step 1: Detect Work Context
+
+Analyze the user's prompt and project to determine context:
+
+**Knowledge Context Indicators** (in prompt):
+- Deliverable terms: "PRD", "proposal", "presentation", "report", "strategy document", "business case"
+- Business terms: "market entry", "competitive analysis", "stakeholder", "executive summary"
+
+**Dev Context Indicators** (in prompt):
+- Technical terms: "API", "endpoint", "function", "module", "service", "component"
+- Action terms: "implement", "code", "build", "create", "develop" + technical noun
+
+**Also check**: Does the project have `package.json`, `Cargo.toml`, etc.? (suggests Dev Context)
+
+### Step 2: Output Context-Aware Banner
+
+**For Dev Context:**
 ```
 🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider implementation mode
-🛠️ Develop Phase: [Brief description of what you're building]
+🛠️ [Dev] Develop Phase: [Brief description of what you're building]
 
 Providers:
 🔴 Codex CLI - Code generation and patterns
 🟡 Gemini CLI - Alternative approaches
 🔵 Claude - Integration and quality gates
+```
+
+**For Knowledge Context:**
+```
+🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider implementation mode
+🛠️ [Knowledge] Develop Phase: [Brief description of deliverable]
+
+Providers:
+🔴 Codex CLI - Structure and framework application
+🟡 Gemini CLI - Content and narrative development
+🔵 Claude - Integration and quality review
 ```
 
 **This is NOT optional.** Users need to see which AI providers are active and understand they are being charged for external API calls (🔴 🟡).
@@ -86,18 +114,27 @@ This is the **divergent** phase for solutions - we explore different implementat
 ## When to Use Develop
 
 Use develop when you need:
+
+### Dev Context Examples
 - **Feature Implementation**: "Build a user authentication system"
 - **Code Generation**: "Create an API endpoint for user registration"
 - **Complex Builds**: "Implement a caching layer with Redis"
-- **Multi-Component Features**: "Add real-time notifications to the app"
 - **Architecture Implementation**: "Create a microservice for payment processing"
 - **Integration Work**: "Integrate Stripe payment processing"
+
+### Knowledge Context Examples
+- **PRD Creation**: "Build a PRD for the mobile onboarding feature"
+- **Strategy Documents**: "Create a market entry strategy for APAC"
+- **Business Cases**: "Build a business case for migrating to cloud"
+- **Presentations**: "Create an executive presentation on Q2 results"
+- **Research Reports**: "Build a competitive analysis report"
 
 **Don't use develop for:**
 - Simple one-line code changes (use Edit tool)
 - Bug fixes (use debugging skills)
-- Code review tasks (use ink-workflow or review skills)
+- Code review tasks (use deliver-workflow or review skills)
 - Reading or exploring code (use Read tool)
+- Simple document edits (use Write tool)
 
 ---
 

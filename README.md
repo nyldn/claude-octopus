@@ -27,7 +27,7 @@
 | **Smart routing** | Auto-detects intent and picks the right AI model |
 | **AI Debate Hub** | Structured 3-way debates (Claude + Gemini + Codex) |
 | **Adversarial review** | AI vs AI debate catches more bugs |
-| **Two work modes** | Dev mode (code) or Knowledge mode (research/UX/strategy) |
+| **Context-aware** | Auto-detects Dev vs Knowledge context for smarter workflows 🆕 |
 
 **How to use it:**
 
@@ -336,33 +336,48 @@ Use the "octo" prefix or slash commands for reliable activation:
 
 ---
 
-## ✨ What's New in v7.6 - Two-Mode System
+## ✨ What's New in v7.8 - Context-Aware Detection
 
-**Choose your work mode!** Claude Octopus now has two equal modes optimized for different tasks. Both use the same AI providers (Codex + Gemini) but with different personas.
+**No more manual mode switching!** Claude Octopus now **auto-detects** whether you're working in a Dev Context (code-focused) or Knowledge Context (research/strategy-focused).
 
-### Quick Toggle
-Switch modes instantly in Claude Code:
+### How It Works
+
+When you use any `octo` workflow, context is automatically detected from:
+
+1. **Your prompt** - Technical terms → Dev, Business terms → Knowledge
+2. **Your project** - Has `package.json` → Dev, Mostly docs → Knowledge
+
+You'll see the detected context in the visual banner:
+
 ```
-/octo:dev        # Switch to Dev Work mode (default)
-/octo:km on      # Switch to Knowledge Work mode
-/octo:km         # Check current status
+🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider research mode
+🔍 [Dev] Discover Phase: Technical research on caching patterns
 ```
 
-### Natural Language
-Or just tell me:
-- "Switch to dev mode"
-- "Switch to knowledge mode"
-- "What mode am I in?"
+or
 
-I'll detect and switch automatically! ✨
+```
+🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider research mode
+🔍 [Knowledge] Discover Phase: Market analysis for APAC expansion
+```
 
-### What Changes
-| Aspect | Dev Mode 🔧 | Knowledge Mode 🎓 |
-|--------|------------|-------------------|
-| **Default Tasks** | Code, test, debug | Research, strategy, UX |
-| **Debate Style** | Technical (code-focused) | Strategic (business-focused) |
-| **Document Export** | Code docs, API specs | Reports, presentations, proposals |
-| **Quality Gates** | Security, performance | Insight depth, evidence quality |
+### What Changes Per Context
+
+| Aspect | Dev Context 🔧 | Knowledge Context 🎓 |
+|--------|---------------|---------------------|
+| **Research Focus** | Libraries, patterns, implementation | Market, competitive, strategic |
+| **Build Output** | Code, tests, APIs | PRDs, presentations, reports |
+| **Review Focus** | Security, performance, quality | Clarity, evidence, completeness |
+| **Agents Used** | codex, backend-architect, code-reviewer | strategy-analyst, ux-researcher, product-writer |
+
+### Override (When Needed)
+
+If auto-detection gets it wrong, you can override:
+```
+/octo:km on      # Force Knowledge Context
+/octo:km off     # Force Dev Context
+/octo:km auto    # Return to auto-detection
+```
 
 ---
 
@@ -416,8 +431,8 @@ These make orchestrate.sh workflows accessible through natural conversation!
 ## Understanding Costs
 
 **External CLIs use your API quotas:**
-- 🔴 Codex CLI: OpenAI API costs (GPT-4 based)
-- 🟡 Gemini CLI: Google AI costs (Gemini Pro)
+- 🔴 Codex CLI: OpenAI API costs (GPT-5.x based)
+- 🟡 Gemini CLI: Google AI costs (Gemini 3.0)
 - Typical costs: $0.01-0.10 per query
 
 **Claude subagents are included:**
