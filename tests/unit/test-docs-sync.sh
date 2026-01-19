@@ -192,14 +192,14 @@ check_skills_registered() {
 
 # Check workflow skills exist (v7.5+: renamed to flow-*)
 check_workflow_skills() {
-  info "\nValidating workflow skills (v7.5+: flow-* naming)..."
+  info "\nValidating workflow skills (v7.7+: Standard Double Diamond names)..."
 
-  # v7.5+: Workflow skills renamed from *-workflow.md to flow-*.md
+  # v7.7+: Workflow skills renamed to standard Double Diamond methodology names
   local workflow_skills=(
-    ".claude/skills/flow-probe.md"
-    ".claude/skills/flow-grasp.md"
-    ".claude/skills/flow-tangle.md"
-    ".claude/skills/flow-ink.md"
+    ".claude/skills/flow-discover.md"
+    ".claude/skills/flow-define.md"
+    ".claude/skills/flow-develop.md"
+    ".claude/skills/flow-deliver.md"
   )
 
   for skill in "${workflow_skills[@]}"; do
