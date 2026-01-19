@@ -6,7 +6,7 @@
   <img src="https://img.shields.io/badge/Claude_Code-Plugin-blueviolet" alt="Claude Code Plugin">
   <img src="https://img.shields.io/badge/Double_Diamond-Design_Thinking-orange" alt="Double Diamond">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
-  <img src="https://img.shields.io/badge/Version-7.7.0-blue" alt="Version 7.6.3">
+  <img src="https://img.shields.io/badge/Version-7.7.0-blue" alt="Version 7.7.0">
 </p>
 
 # Claude Octopus
@@ -14,22 +14,6 @@
 **Multi-AI orchestrator for Claude Code** - coordinates Codex, Gemini, and Claude CLIs using Double Diamond methodology.
 
 > *Why have one AI do the work when you can have eight squabble about it productively?* 🐙
-
-## TL;DR
-
-| What It Does | How |
-|--------------|-----|
-| **Visual feedback** | Know when external CLIs run (🐙 🔴 🟡) vs built-in (🔵) 🆕 |
-| **Natural language workflows** | "research X" → discover, "build X" → develop, "review X" → deliver 🆕 |
-| **Parallel AI execution** | Run multiple AI models simultaneously |
-| **Structured workflows** | Double Diamond: Research → Define → Develop → Deliver |
-| **Quality gates** | 75% consensus threshold before delivery |
-| **Smart routing** | Auto-detects intent and picks the right AI model |
-| **AI Debate Hub** | Structured 3-way debates (Claude + Gemini + Codex) |
-| **Adversarial review** | AI vs AI debate catches more bugs |
-| **Two work modes** | Dev mode (code) or Knowledge mode (research/UX/strategy) |
-
-**How to use it:**
 
 Just talk to Claude naturally! Claude Octopus automatically activates when you need multi-AI collaboration:
 
@@ -122,268 +106,215 @@ Claude Octopus automatically detects which providers you have and uses them inte
 
 ---
 
-## Updating the Plugin
+## Latest Release - v7.7.0
 
-To get the latest version of Claude Octopus:
+**What's New:**
 
-### Option A: Auto-Update (Easiest) 🆕
-```
-/co:update --update
-```
-This will automatically check for updates and install the latest version if available.
+✨ **Standard phase names** - Clearer workflow names: Discover/Define/Develop/Deliver
+🎯 **12 new skill commands** - All major workflows accessible via `/co:` commands
+🔄 **Enhanced natural language** - Improved triggers for all workflows
+🐙 **Integrated parallel-agents** - Consolidated into core plugin for better performance
 
-### Option B: Via Plugin UI
-1. `/plugin` to open plugin screen
-2. Navigate to "Installed" tab
-3. Find `claude-octopus@nyldn-plugins`
-4. Click update button if available
-
-### Option C: Reinstall Manually
-```
-/plugin uninstall claude-octopus
-/plugin marketplace update nyldn-plugins
-/plugin install claude-octopus@nyldn-plugins
-```
-
-**After updating:** Restart Claude Code to load the new version.
+[View full changelog →](CHANGELOG.md)
 
 ---
 
-## 🆕 What's New in v7.6 - Shorter Commands & Skill Discovery
+## Core Features
 
-**60% shorter commands!** v7.6 changes the namespace from `/claude-octopus:` to `/co:` and adds 11 new skill commands.
+### 🐙 Multi-AI Orchestration
+Run multiple AI models simultaneously for comprehensive, validated results:
+- **Parallel execution**: Codex + Gemini + Claude working together
+- **Quality gates**: 75% consensus threshold before delivery
+- **Smart routing**: Auto-detects intent and picks the right AI model
 
-### All Available Commands (18 total)
+### 📊 Double Diamond Workflows
 
-All commands use the `/co:` namespace and appear in autocomplete:
+Structured problem-solving with four phases:
 
-**System Commands** (7):
+| Workflow | When to Use | What It Does | Natural Language Trigger |
+|----------|-------------|--------------|--------------------------|
+| **🔍 Discover** | Research, explore, investigate | Multi-AI research and discovery | "Research OAuth 2.0 patterns" |
+| **🎯 Define** | Define, clarify, scope | Requirements and problem definition | "Define requirements for auth system" |
+| **🛠️ Develop** | Build, implement, create | Multi-AI implementation with quality gates | "Build user authentication" |
+| **✅ Deliver** | Review, validate, audit | Quality assurance and validation | "Review auth code for security" |
+| **🐙 Embrace** | Complete feature lifecycle | Full 4-phase Double Diamond workflow | "Build a complete authentication system" |
+
+### 💬 Natural Language First
+
+No commands to memorize - just talk naturally:
+- "Research X" → Discover workflow
+- "Build X" → Develop workflow
+- "Review X" → Deliver workflow
+- "Run a debate about X" → AI Debate Hub
+
+### 🎭 Adversarial Review
+
+AI vs AI debate catches more bugs:
+- **Debate Hub**: Structured 3-way debates (Claude + Gemini + Codex)
+- **Crossfire**: Models critique each other's work
+- **Multiple perspectives**: Different models = different blind spots
+
+### 👁️ Visual Feedback
+
+Know what's running and what it costs:
+- 🐙 **Parallel Mode** - Multiple CLIs orchestrated (external APIs)
+- 🔴 **Codex CLI** - OpenAI Codex (your OPENAI_API_KEY)
+- 🟡 **Gemini CLI** - Google Gemini (your GEMINI_API_KEY)
+- 🔵 **Claude Subagent** - Built-in Claude Code (no extra cost)
+
+### 🔧 Two Work Modes
+
+Switch between Dev Work and Knowledge Work modes:
+- **Dev Mode** (`/co:dev`): Code, test, debug, security audits
+- **Knowledge Mode** (`/co:km`): Research, strategy, UX, business analysis
+
+Both modes use the same AI providers but with different personas and quality gates.
+
+---
+
+## Usage Examples
+
+### Research & Discovery
+```
+💬 "Research OAuth 2.0 authentication patterns and compare their trade-offs"
+🐙 Triggers: Discover workflow with multi-AI research
+```
+
+### Development & Implementation
+```
+💬 "Build a REST API for user management with JWT authentication"
+🐙 Triggers: Develop workflow with quality gates
+```
+
+### Code Review & Quality
+```
+💬 "Review my authentication code for security vulnerabilities"
+🐙 Triggers: Deliver workflow with adversarial review
+```
+
+### AI Debates & Decision Making
+```
+💬 "Run a debate about whether we should use Redis or Memcached for caching"
+🐙 Triggers: AI Debate Hub with structured 3-way debate
+```
+
+### Complete Feature Workflows
+```
+💬 "Build a complete notification system with email and push support"
+🐙 Triggers: Embrace (full 4-phase: Discover → Define → Develop → Deliver)
+```
+
+### Mode-Specific Tasks
+```
+💬 "Switch to knowledge mode and research market opportunities in fintech"
+🐙 Triggers: Knowledge mode + deep research
+
+💬 "Switch to dev mode and debug this authentication issue"
+🐙 Triggers: Dev mode + systematic debugging
+```
+
+---
+
+## Commands Reference
+
+All commands use the `/co:` namespace (60% shorter than before!):
+
+### System Commands
 | Command | Description |
 |---------|-------------|
-| `/co:setup` | Check setup status (shortcut for sys-setup) |
-| `/co:update` | Check for updates (shortcut for sys-update) |
+| `/co:setup` | Check setup status and configure AI providers |
+| `/co:update` | Check for updates and auto-install |
 | `/co:dev` | Switch to Dev Work mode |
-| `/co:km` | Toggle between Dev Work and Knowledge Work modes |
-| `/co:sys-setup` | Full name: Check Claude Octopus setup |
-| `/co:sys-update` | Full name: Check for plugin updates |
-| `/co:check-update` | Alias for sys-update |
+| `/co:km` | Toggle Knowledge Work mode |
 
-**Skill Commands** (12) - 🆕 New in v7.7:
+### Workflow Commands
 | Command | Description |
 |---------|-------------|
-| `/co:debate` | AI Debate Hub - Structured three-way debates |
+| `/co:discover` | Discovery phase - Multi-AI research |
+| `/co:define` | Definition phase - Problem definition |
+| `/co:develop` | Development phase - Implementation with quality gates |
+| `/co:deliver` | Delivery phase - Quality assurance and validation |
+| `/co:embrace` | Full 4-phase Double Diamond workflow |
+
+### Specialized Skills
+| Command | Description |
+|---------|-------------|
+| `/co:debate` | AI Debate Hub - Structured 3-way debates |
 | `/co:review` | Expert code review with quality assessment |
 | `/co:research` | Deep research with multi-source synthesis |
 | `/co:security` | Security audit with OWASP compliance |
 | `/co:debug` | Systematic debugging with investigation |
 | `/co:tdd` | Test-driven development workflows |
 | `/co:docs` | Document delivery (PPTX/DOCX/PDF export) |
-| `/co:embrace` | Full Double Diamond workflow (all 4 phases) |
-| `/co:discover` | Discovery phase (🔍 probe) |
-| `/co:define` | Definition phase (🎯 grasp) |
-| `/co:develop` | Development phase (🛠️ tangle) |
-| `/co:deliver` | Delivery phase (✅ ink) |
 
-### Major Changes in v7.6
+**Remember:** You don't need to use commands! Natural language works automatically:
+- "Research X" triggers `/co:discover`
+- "Build X" triggers `/co:develop`
+- "Review X" triggers `/co:deliver`
 
-- ✅ **Shorter namespace**: `/co:` instead of `/claude-octopus:` (60% shorter!)
-- ✅ **Skills as commands**: All major skills now accessible via autocomplete
-- ✅ **Better discoverability**: Type `/co:` and see everything
-- ✅ **Natural language still works**: Commands are shortcuts, triggers remain active
-
-### Quick Examples
-
-```bash
-/co:setup              # Check your configuration
-/co:debate             # Start a multi-AI debate
-/co:review             # Code review a file/module
-/co:research           # Deep research on a topic
-/co:security           # Security audit
-/co:embrace            # Full 4-phase workflow
-/co:discover           # Discovery phase research
-```
-
-📖 **[Migration Guide →](docs/MIGRATION-v7.5.md)**
-📖 **[Command Reference →](docs/COMMAND-REFERENCE.md)**
+📖 **[Complete Command Reference →](docs/COMMAND-REFERENCE.md)**
 
 ---
 
-## What's New in v7.4 - Visual Feedback & Natural Language Workflows
+## Setup & Configuration
 
-**Now you always know what's running!** v7.4 adds visual indicators and natural language workflow triggers.
+### Installing & Updating
 
-### Visual Indicators
-
-See exactly which AI is responding:
-
-| Indicator | Meaning | Provider | Cost |
-|-----------|---------|----------|------|
-| 🐙 | **Parallel Mode** | Multiple CLIs orchestrated | Uses external APIs |
-| 🔴 | **Codex CLI** | OpenAI Codex | Your OPENAI_API_KEY |
-| 🟡 | **Gemini CLI** | Google Gemini | Your GEMINI_API_KEY |
-| 🔵 | **Claude Subagent** | Claude Code Task tool | Included with Claude Code |
-
-**Example:**
+**Install the plugin:**
 ```
-User: Research authentication best practices
-
-Claude:
-🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider research mode
-🔍 Discover Phase: Researching authentication patterns
-
-Providers:
-🔴 Codex CLI - Technical implementation analysis
-🟡 Gemini CLI - Ecosystem and community research
-🔵 Claude - Strategic synthesis
-
-[Multi-provider research results...]
+/plugin marketplace add nyldn/claude-octopus
+/plugin install claude-octopus@nyldn-plugins
 ```
 
-**Why this matters:** External CLIs cost money (your API quotas). Visual indicators help you understand costs.
-
-📖 **[Complete Visual Indicators Guide →](docs/VISUAL-INDICATORS.md)**
-
-### Natural Language Workflow Triggers
-
-No more CLI commands! Just talk naturally:
-
-| You Say | What Triggers | Indicator |
-|---------|---------------|-----------|
-| "research X" | Discover workflow | 🐙 🔍 |
-| "define requirements for X" | Define workflow | 🐙 🎯 |
-| "build X" | Develop workflow | 🐙 🛠️ |
-| "review X" | Deliver workflow | 🐙 ✅ |
-| "read file.ts" | Claude Read tool (no external CLIs) | (none) |
-
-**Before v7.7:**
-```bash
-# Had to use CLI commands
-./scripts/orchestrate.sh discover "research OAuth patterns"
-./scripts/orchestrate.sh develop "implement auth system"
+**Update to latest version:**
+```
+/co:update --update
 ```
 
-**v7.7+:**
+Or use Plugin UI: `/plugin` → Installed → claude-octopus → Update
+
+### Configure AI Providers
+
+You only need **ONE** provider (Codex or Gemini):
+
 ```
-# Just talk naturally
-"Research OAuth authentication patterns"
-"Build a user authentication system"
-```
-
-📖 **[Complete Triggers Guide →](docs/TRIGGERS.md)**
-
-### What Else Changed
-
-- ✅ Debate skill accessible via natural language ("run a debate about X")
-- ✅ Hook-based visual indicators (PreToolUse hooks)
-- ✅ Four workflow skills (discover, define, develop, deliver) with natural language triggers
-- ✅ Enhanced parallel-agents.md with visual indicators section
-- ✅ Comprehensive documentation (VISUAL-INDICATORS.md, TRIGGERS.md)
-
----
-
-## ✨ What's New in v7.6 - Two-Mode System
-
-**Choose your work mode!** Claude Octopus now has two equal modes optimized for different tasks. Both use the same AI providers (Codex + Gemini) but with different personas.
-
-### Quick Toggle
-Switch modes instantly in Claude Code:
-```
-/co:dev        # Switch to Dev Work mode (default)
-/co:km on      # Switch to Knowledge Work mode
-/co:km         # Check current status
+/co:setup
 ```
 
-### Natural Language
-Or just tell me:
-- "Switch to dev mode"
-- "Switch to knowledge mode"
-- "What mode am I in?"
+This auto-detects what's installed and guides you through setup. Claude Octopus gracefully degrades if only one provider is available.
 
-I'll detect and switch automatically! ✨
+### Work Modes
 
-### What Changes
-| Aspect | Dev Mode 🔧 | Knowledge Mode 🎓 |
-|--------|------------|-------------------|
-| **Default Tasks** | Code, test, debug | Research, strategy, UX |
-| **Debate Style** | Technical (code-focused) | Strategic (business-focused) |
-| **Document Export** | Code docs, API specs | Reports, presentations, proposals |
-| **Quality Gates** | Security, performance | Insight depth, evidence quality |
+**Dev Mode** (default) - Optimized for code:
+```
+/co:dev
+```
 
----
+**Knowledge Mode** - Optimized for research/strategy:
+```
+/co:km on
+```
 
-## Which Tentacle Does What?
-
-Claude Octopus has different "tentacles" (workflows) for different tasks:
-
-| Tentacle | When to Use | What It Does | Example |
-|----------|-------------|--------------|---------|
-| **🔍 Discover** (probe) | Research, explore, investigate | Multi-AI research and discovery | "Research OAuth 2.0 patterns" |
-| **🎯 Define** (grasp) | Define, clarify, scope | Requirements and problem definition | "Define requirements for auth system" |
-| **🛠️ Develop** (tangle) | Build, implement, create | Multi-AI implementation approaches | "Build user authentication" |
-| **✅ Deliver** (ink) | Review, validate, audit | Quality assurance and validation | "Review auth code for security" |
-| **🐙 Debate** | Debate, discuss, deliberate | Structured 3-way AI debates | "Run a debate about Redis vs Memcached" |
-| **🐙 Embrace** | Complete feature lifecycle | Full 4-phase Double Diamond workflow | "Build a complete authentication system" |
-
-**Natural language automatically activates the right tentacle!**
-
----
-
-## Companion Skills
-
-Claude Octopus includes battle-tested skills for code quality:
-
-- **🏗️ Architecture** - System design and technical decisions
-- **🔍 Code Review** - Comprehensive code quality analysis
-- **🔒 Security Audit** - OWASP compliance and vulnerability detection
-- **⚡ Quick Review** - Fast pre-commit checks
-- **🔬 Deep Research** - Multi-source research synthesis
-- **🛡️ Adversarial Security** - Red team security testing
-- **🎯 Systematic Debugging** - Methodical bug investigation
-- **✅ TDD** - Test-driven development workflows
-- **🎯 Verification** - Pre-completion validation checklist
-
----
-
-## Workflow Skills (Updated in v7.7)
-
-Natural language workflow wrappers for the Double Diamond methodology:
-
-- **discover-workflow.md** (probe) - "research X" → Multi-AI research
-- **define-workflow.md** (grasp) - "define requirements for X" → Problem definition
-- **develop-workflow.md** (tangle) - "build X" → Implementation with quality gates
-- **deliver-workflow.md** (ink) - "review X" → Validation and quality assurance
-- **embrace** - "build complete X" → Full 4-phase workflow
-
-These make orchestrate.sh workflows accessible through natural conversation!
-
----
-
-## Understanding Costs
+### Understanding Costs
 
 **External CLIs use your API quotas:**
-- 🔴 Codex CLI: OpenAI API costs (GPT-4 based)
-- 🟡 Gemini CLI: Google AI costs (Gemini Pro)
-- Typical costs: $0.01-0.10 per query
+- 🔴 Codex CLI: OpenAI API costs (typically $0.01-0.10 per query)
+- 🟡 Gemini CLI: Google AI costs (typically $0.01-0.10 per query)
 
 **Claude subagents are included:**
-- 🔵 Claude Code Task tool: No additional cost
-- Included with your Claude Code subscription
+- 🔵 Claude Code Task tool: No additional cost (included with Claude Code)
 
 **When to use external CLIs (🐙):**
-- Need multiple perspectives on a problem
-- Research requires broad coverage
-- Complex implementation needs different approaches
-- Security review benefits from adversarial analysis
+- Need multiple perspectives
 - High-stakes decisions
+- Security/adversarial review
 
-**When to use Claude only (no indicator):**
+**When to use Claude only:**
 - Simple file operations
-- Single perspective adequate
 - Quick edits or fixes
 - Cost efficiency important
-- Straightforward tasks
 
-📖 **[Visual Indicators Guide](docs/VISUAL-INDICATORS.md)** - Complete cost breakdown
+📖 **[Visual Indicators Guide →](docs/VISUAL-INDICATORS.md)** - Complete cost breakdown
 
 ---
 
@@ -393,7 +324,7 @@ These make orchestrate.sh workflows accessible through natural conversation!
 |----------------|------------|
 | Single-agent execution | 8 agents working simultaneously |
 | Hope for the best | Quality gates with 75% consensus |
-| One model, one price | Cost-aware routing to cheaper models |
+| One model, one price | Cost-aware routing and visual feedback |
 | Ad-hoc workflows | Double Diamond methodology baked in |
 | Single perspective | Adversarial AI-vs-AI review |
 | Guess what's running | Visual indicators (🐙 🔴 🟡 🔵) |
@@ -404,81 +335,69 @@ These make orchestrate.sh workflows accessible through natural conversation!
 ## Documentation
 
 ### User Guides
-- **[Visual Indicators Guide](docs/VISUAL-INDICATORS.md)** - Understanding what's running
+- **[Visual Indicators Guide](docs/VISUAL-INDICATORS.md)** - Understanding what's running and costs
 - **[Triggers Guide](docs/TRIGGERS.md)** - What activates each workflow
+- **[Command Reference](docs/COMMAND-REFERENCE.md)** - Complete command list
 - **[CLI Reference](docs/CLI-REFERENCE.md)** - Direct CLI usage (advanced)
 
 ### Developer Guides
 - **[Plugin Architecture](docs/PLUGIN-ARCHITECTURE.md)** - How it all works
 - **[Contributing Guidelines](CONTRIBUTING.md)** - How to contribute
+- **[Migration Guide](docs/MIGRATION-v7.5.md)** - Upgrading from v7.5
+
+### Companion Skills
+
+Claude Octopus includes battle-tested skills for quality:
+- 🏗️ **Architecture** - System design and technical decisions
+- 🔍 **Code Review** - Comprehensive quality analysis
+- 🔒 **Security Audit** - OWASP compliance and vulnerability detection
+- 🛡️ **Adversarial Security** - Red team security testing
+- 🎯 **Systematic Debugging** - Methodical bug investigation
+- ✅ **TDD** - Test-driven development workflows
+- 🎯 **Verification** - Pre-completion validation checklist
 
 ---
 
-## 🙏 Attribution & Open Source Collaboration
+## Version History
 
-### AI Debate Hub Integration
+**Current: v7.7.0** - Standard phase names, 12 new skill commands
 
-> **Built on the shoulders of giants** 🤝
-
-Claude-octopus integrates **[AI Debate Hub](https://github.com/wolverin0/claude-skills)** by **[wolverin0](https://github.com/wolverin0)** with deep gratitude and proper attribution:
-
-- **Original Repository**: https://github.com/wolverin0/claude-skills
-- **Author**: wolverin0
-- **License**: MIT
-- **Integration Type**: Git submodule (read-only reference)
-- **Version**: v4.7
-
-**What it does**: Enables structured three-way debates where Claude, Gemini CLI, and Codex CLI analyze problems from multiple perspectives. Claude actively participates as both a debater and moderator.
-
-**Claude-octopus enhancements**:
-- ✅ Session-aware storage (integrates with Claude Code sessions)
-- ✅ Quality gates for debate responses (75% threshold)
-- ✅ Cost tracking and analytics
-- ✅ Document export to PPTX/DOCX/PDF (via document-delivery skill)
-- ✅ Knowledge mode deliberation workflow
-
-**Usage**:
-
-Just use natural language to trigger debates:
-
-```bash
-# Basic debate
-"Run a debate about whether we should use Redis or in-memory cache"
-
-# Thorough analysis
-"I want Gemini and Codex to review our API architecture with thorough analysis"
-
-# Adversarial security review
-"Run a debate about security vulnerabilities in auth.ts with adversarial analysis"
-
-# Knowledge mode deliberation
-/co:km on
-"Debate whether we should enter the European market"
-```
-
-**Initialize submodule** (if not auto-initialized):
-```bash
-git submodule update --init --recursive
-```
-
-**Update to latest** from wolverin0:
-```bash
-git submodule update --remote .dependencies/claude-skills
-```
-
-**Contributing**: Generic improvements to the debate functionality should be contributed to [wolverin0/claude-skills](https://github.com/wolverin0/claude-skills) via pull requests. Claude-octopus-specific integrations remain in this repository.
+See [CHANGELOG.md](CHANGELOG.md) for complete version history and migration guides.
 
 ---
 
 ## Acknowledgments
 
-Claude Octopus stands on the shoulders of giants:
+> **Built on the shoulders of giants** 🤝
 
-- **[wolverin0/claude-skills](https://github.com/wolverin0/claude-skills)** by **wolverin0** - AI Debate Hub enables structured three-way debates between Claude, Gemini CLI, and Codex CLI. Integrated as a git submodule with claude-octopus enhancements (quality gates, cost tracking, document export). wolverin0's innovative "Claude as participant" design pattern is brilliant—Claude doesn't just orchestrate, it actively debates. This integration demonstrates proper open-source collaboration: clear attribution, hybrid approach (original + enhancement layer), and a path to contribute improvements back upstream. MIT License.
+Claude Octopus stands on the shoulders of these excellent open source projects:
 
-- **[obra/superpowers](https://github.com/obra/superpowers)** by **Jesse Vincent** - Several discipline skills (TDD, systematic debugging, verification, planning, branch finishing) were inspired by the excellent patterns in this Claude Code skills library. The "Iron Law" enforcement approach and anti-rationalization techniques are particularly valuable. MIT License.
+### AI Debate Hub by wolverin0
 
-- **Double Diamond** methodology by the [UK Design Council](https://www.designcouncil.org.uk/our-resources/the-double-diamond/) - The Discover/Define/Develop/Deliver workflow structure (with playful aliases probe/grasp/tangle/ink) provides a proven framework for divergent and convergent thinking in design and development.
+**[wolverin0/claude-skills](https://github.com/wolverin0/claude-skills)** - AI Debate Hub enables structured three-way debates between Claude, Gemini CLI, and Codex CLI. wolverin0's innovative "Claude as participant" design pattern is brilliant—Claude doesn't just orchestrate, it actively debates.
+
+**Integration**: Git submodule (read-only reference, v4.7)
+
+**Claude-octopus enhancements**:
+- Session-aware storage
+- Quality gates (75% threshold)
+- Cost tracking and analytics
+- Document export (PPTX/DOCX/PDF)
+- Knowledge mode deliberation
+
+**Usage**: `"Run a debate about whether we should use Redis or in-memory cache"`
+
+**Contributing**: Generic debate improvements → [wolverin0/claude-skills](https://github.com/wolverin0/claude-skills) | Claude-octopus integrations → this repo
+
+### Superpowers by Jesse Vincent
+
+**[obra/superpowers](https://github.com/obra/superpowers)** - Discipline skills (TDD, systematic debugging, verification, planning, branch finishing) inspired by excellent patterns in this Claude Code skills library. The "Iron Law" enforcement approach and anti-rationalization techniques are particularly valuable.
+
+### Double Diamond Methodology
+
+**[UK Design Council](https://www.designcouncil.org.uk/our-resources/the-double-diamond/)** - The Discover/Define/Develop/Deliver workflow structure provides a proven framework for divergent and convergent thinking in design and development.
+
+**All projects use MIT License.**
 
 ---
 
