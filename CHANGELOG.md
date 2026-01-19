@@ -5,6 +5,43 @@ All notable changes to Claude Octopus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.6.2] - 2026-01-18
+
+### Changed
+- **Streamlined mode commands**: Simplified to only `/co:km` and `/co:dev`
+  - Removed `/co:skill-knowledge-mode` (long form no longer needed)
+  - Only two clear commands for mode switching remain
+  - Updated command descriptions to be clearer and more concise
+  - Total commands reduced from 19 to 18
+
+**Impact**: Eliminates command duplication and clutter. Autocomplete menu now only shows `/co:km` and `/co:dev` for mode switching, making it much simpler for users.
+
+---
+
+## [7.6.1] - 2026-01-18
+
+### Added
+- **Two-mode system**: Dev Work vs Knowledge Work modes now presented as equal choices
+  - Added `/co:dev` command for switching to Dev Work mode
+  - Added mode selection to first-time setup flow (Step 6/8)
+  - Users now choose their primary mode during setup
+
+### Changed
+- **Simplified mode descriptions**: Removed workflow jargon (embrace, probe, tangle, etc.)
+  - Dev Work Mode: "Building features, debugging code, implementing APIs"
+  - Knowledge Work Mode: "User research, strategy analysis, literature reviews"
+  - Clarified both modes use same AI providers (Codex + Gemini), just different personas
+  - Updated all documentation to present modes as equal choices
+
+### Added (Testing)
+- New test suite: `test-mode-switching.sh` (4 tests, all passing)
+  - Tests mode toggling, persistence, and backward compatibility
+- Extended `test-knowledge-routing.sh` with dev command tests
+
+**Impact**: Makes the distinction between Dev Work and Knowledge Work modes clearer and more accessible, with improved onboarding UX. Full backward compatibility with existing configs.
+
+---
+
 ## [7.6.0] - 2026-01-18
 
 ### Changed
