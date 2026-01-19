@@ -5,6 +5,18 @@ All notable changes to Claude Octopus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.6.3] - 2026-01-18
+
+### Fixed
+- **Plugin installation**: Removed `dependencies` field from plugin.json
+  - Claude Code's plugin validator doesn't recognize the `dependencies` field yet
+  - This was blocking users from installing/updating the plugin
+  - Error: "Plugin has an invalid manifest file... Unrecognized key: dependencies"
+
+**Impact**: Critical fix - users can now successfully install and update the plugin. The `/co:update --update` command will work properly again.
+
+---
+
 ## [7.6.2] - 2026-01-18
 
 ### Changed
