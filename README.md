@@ -20,7 +20,7 @@
 | What It Does | How |
 |--------------|-----|
 | **Visual feedback** | Know when external CLIs run (🐙 🔴 🟡) vs built-in (🔵) 🆕 |
-| **Natural language workflows** | "research X" → probe, "build X" → tangle, "review X" → ink 🆕 |
+| **Natural language workflows** | "research X" → discover, "build X" → develop, "review X" → deliver 🆕 |
 | **Parallel AI execution** | Run multiple AI models simultaneously |
 | **Structured workflows** | Double Diamond: Research → Define → Develop → Deliver |
 | **Quality gates** | 75% consensus threshold before delivery |
@@ -168,7 +168,7 @@ All commands use the `/co:` namespace and appear in autocomplete:
 | `/co:sys-update` | Full name: Check for plugin updates |
 | `/co:check-update` | Alias for sys-update |
 
-**Skill Commands** (11) - 🆕 New in v7.6:
+**Skill Commands** (12) - 🆕 New in v7.7:
 | Command | Description |
 |---------|-------------|
 | `/co:debate` | AI Debate Hub - Structured three-way debates |
@@ -178,10 +178,11 @@ All commands use the `/co:` namespace and appear in autocomplete:
 | `/co:debug` | Systematic debugging with investigation |
 | `/co:tdd` | Test-driven development workflows |
 | `/co:docs` | Document delivery (PPTX/DOCX/PDF export) |
-| `/co:probe` | Discovery phase (Double Diamond) |
-| `/co:grasp` | Definition phase (Double Diamond) |
-| `/co:tangle` | Development phase (Double Diamond) |
-| `/co:ink` | Delivery phase (Double Diamond) |
+| `/co:embrace` | Full Double Diamond workflow (all 4 phases) |
+| `/co:discover` | Discovery phase (🔍 probe) |
+| `/co:define` | Definition phase (🎯 grasp) |
+| `/co:develop` | Development phase (🛠️ tangle) |
+| `/co:deliver` | Delivery phase (✅ ink) |
 
 ### Major Changes in v7.6
 
@@ -198,7 +199,8 @@ All commands use the `/co:` namespace and appear in autocomplete:
 /co:review             # Code review a file/module
 /co:research           # Deep research on a topic
 /co:security           # Security audit
-/co:probe              # Discovery phase research
+/co:embrace            # Full 4-phase workflow
+/co:discover           # Discovery phase research
 ```
 
 📖 **[Migration Guide →](docs/MIGRATION-v7.5.md)**
@@ -227,7 +229,7 @@ User: Research authentication best practices
 
 Claude:
 🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider research mode
-🔍 Probe Phase: Researching authentication patterns
+🔍 Discover Phase: Researching authentication patterns
 
 Providers:
 🔴 Codex CLI - Technical implementation analysis
@@ -247,20 +249,20 @@ No more CLI commands! Just talk naturally:
 
 | You Say | What Triggers | Indicator |
 |---------|---------------|-----------|
-| "research X" | Probe workflow (discover) | 🐙 🔍 |
-| "define requirements for X" | Grasp workflow (define) | 🐙 🎯 |
-| "build X" | Tangle workflow (develop) | 🐙 🛠️ |
-| "review X" | Ink workflow (deliver) | 🐙 ✅ |
+| "research X" | Discover workflow | 🐙 🔍 |
+| "define requirements for X" | Define workflow | 🐙 🎯 |
+| "build X" | Develop workflow | 🐙 🛠️ |
+| "review X" | Deliver workflow | 🐙 ✅ |
 | "read file.ts" | Claude Read tool (no external CLIs) | (none) |
 
-**Before v7.4:**
+**Before v7.7:**
 ```bash
 # Had to use CLI commands
-./scripts/orchestrate.sh probe "research OAuth patterns"
-./scripts/orchestrate.sh tangle "implement auth system"
+./scripts/orchestrate.sh discover "research OAuth patterns"
+./scripts/orchestrate.sh develop "implement auth system"
 ```
 
-**v7.4+:**
+**v7.7+:**
 ```
 # Just talk naturally
 "Research OAuth authentication patterns"
@@ -273,7 +275,7 @@ No more CLI commands! Just talk naturally:
 
 - ✅ Debate skill accessible via natural language ("run a debate about X")
 - ✅ Hook-based visual indicators (PreToolUse hooks)
-- ✅ Four workflow skills (probe, grasp, tangle, ink) with natural language triggers
+- ✅ Four workflow skills (discover, define, develop, deliver) with natural language triggers
 - ✅ Enhanced parallel-agents.md with visual indicators section
 - ✅ Comprehensive documentation (VISUAL-INDICATORS.md, TRIGGERS.md)
 
@@ -315,11 +317,12 @@ Claude Octopus has different "tentacles" (workflows) for different tasks:
 
 | Tentacle | When to Use | What It Does | Example |
 |----------|-------------|--------------|---------|
-| **🔍 Probe** | Research, explore, investigate | Multi-AI research and discovery | "Research OAuth 2.0 patterns" |
-| **🎯 Grasp** | Define, clarify, scope | Requirements and problem definition | "Define requirements for auth system" |
-| **🛠️ Tangle** | Build, implement, create | Multi-AI implementation approaches | "Build user authentication" |
-| **✅ Ink** | Review, validate, audit | Quality assurance and validation | "Review auth code for security" |
+| **🔍 Discover** (probe) | Research, explore, investigate | Multi-AI research and discovery | "Research OAuth 2.0 patterns" |
+| **🎯 Define** (grasp) | Define, clarify, scope | Requirements and problem definition | "Define requirements for auth system" |
+| **🛠️ Develop** (tangle) | Build, implement, create | Multi-AI implementation approaches | "Build user authentication" |
+| **✅ Deliver** (ink) | Review, validate, audit | Quality assurance and validation | "Review auth code for security" |
 | **🐙 Debate** | Debate, discuss, deliberate | Structured 3-way AI debates | "Run a debate about Redis vs Memcached" |
+| **🐙 Embrace** | Complete feature lifecycle | Full 4-phase Double Diamond workflow | "Build a complete authentication system" |
 
 **Natural language automatically activates the right tentacle!**
 
@@ -341,14 +344,15 @@ Claude Octopus includes battle-tested skills for code quality:
 
 ---
 
-## Workflow Skills (New in v7.4)
+## Workflow Skills (Updated in v7.7)
 
-Natural language workflow wrappers:
+Natural language workflow wrappers for the Double Diamond methodology:
 
-- **probe-workflow.md** - "research X" → Multi-AI research
-- **grasp-workflow.md** - "define requirements for X" → Problem definition
-- **tangle-workflow.md** - "build X" → Implementation with quality gates
-- **ink-workflow.md** - "review X" → Validation and quality assurance
+- **discover-workflow.md** (probe) - "research X" → Multi-AI research
+- **define-workflow.md** (grasp) - "define requirements for X" → Problem definition
+- **develop-workflow.md** (tangle) - "build X" → Implementation with quality gates
+- **deliver-workflow.md** (ink) - "review X" → Validation and quality assurance
+- **embrace** - "build complete X" → Full 4-phase workflow
 
 These make orchestrate.sh workflows accessible through natural conversation!
 
@@ -474,7 +478,7 @@ Claude Octopus stands on the shoulders of giants:
 
 - **[obra/superpowers](https://github.com/obra/superpowers)** by **Jesse Vincent** - Several discipline skills (TDD, systematic debugging, verification, planning, branch finishing) were inspired by the excellent patterns in this Claude Code skills library. The "Iron Law" enforcement approach and anti-rationalization techniques are particularly valuable. MIT License.
 
-- **Double Diamond** methodology by the [UK Design Council](https://www.designcouncil.org.uk/our-resources/the-double-diamond/) - The probe/grasp/tangle/ink workflow structure provides a proven framework for divergent and convergent thinking in design and development.
+- **Double Diamond** methodology by the [UK Design Council](https://www.designcouncil.org.uk/our-resources/the-double-diamond/) - The Discover/Define/Develop/Deliver workflow structure (with playful aliases probe/grasp/tangle/ink) provides a proven framework for divergent and convergent thinking in design and development.
 
 ---
 
