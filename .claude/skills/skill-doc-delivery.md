@@ -277,9 +277,9 @@ If user requests export but no workflow was run:
 
 ```
 Response: "I don't see any recent knowledge work outputs. Would you like to run:
-- /claude-octopus:empathize (UX research)
-- /claude-octopus:advise (strategic analysis)
-- /claude-octopus:synthesize (literature review)
+- /octo:empathize (UX research)
+- /octo:advise (strategic analysis)
+- /octo:synthesize (literature review)
 
 Then I can convert the results to your preferred format."
 ```
@@ -329,7 +329,7 @@ This skill is designed to work seamlessly with the three knowledge mode workflow
 
 ```
 Knowledge Work Flow:
-1. Run workflow: /claude-octopus:empathize (or advise/synthesize)
+1. Run workflow: /octo:empathize (or advise/synthesize)
 2. Review markdown output in ~/.claude-octopus/results/
 3. Request conversion: "Export to PowerPoint"
 4. This skill activates automatically
@@ -365,7 +365,7 @@ cat ~/.claude-octopus/results/[filename].md
 
 For questions about:
 - **Document conversion** → Ask about specific format needs
-- **Knowledge workflows** → See /claude-octopus:knowledge-mode
+- **Knowledge workflows** → See /octo:knowledge-mode
 - **Document-skills capabilities** → See /document-skills:* skills
 - **Styling and formatting** → Ask for best practices by format
 

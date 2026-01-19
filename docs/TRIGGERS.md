@@ -242,7 +242,7 @@ This guide explains exactly what natural language phrases trigger external CLI e
 When you've enabled Knowledge Mode, research-oriented tasks automatically use external CLIs:
 
 ```bash
-/claude-octopus:km on
+/octo:km on
 ```
 
 **Then these trigger multi-provider:**

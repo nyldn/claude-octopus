@@ -461,9 +461,11 @@ These make orchestrate.sh workflows accessible through natural conversation!
 ### User Guides
 - **[Visual Indicators Guide](docs/VISUAL-INDICATORS.md)** - Understanding what's running
 - **[Triggers Guide](docs/TRIGGERS.md)** - What activates each workflow
+- **[Command Reference](docs/COMMAND-REFERENCE.md)** - All available commands
 - **[CLI Reference](docs/CLI-REFERENCE.md)** - Direct CLI usage (advanced)
 
 ### Developer Guides
+- **[Architecture Guide](docs/ARCHITECTURE.md)** - Models, providers, and execution flow
 - **[Plugin Architecture](docs/PLUGIN-ARCHITECTURE.md)** - How it all works
 - **[Contributing Guidelines](CONTRIBUTING.md)** - How to contribute
 
