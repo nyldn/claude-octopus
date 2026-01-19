@@ -1,36 +1,40 @@
 ---
 command: km
-description: "Shortcut for /claude-octopus:skill-knowledge-mode - Quick toggle between dev and research modes"
-redirect: skill-knowledge-mode
-usage: "/claude-octopus:km [on|off|status]"
+description: "Toggle between Dev Work and Knowledge Work modes"
+usage: "/co:km [on|off|status]"
+examples:
+  - "/co:km on    # Switch to Knowledge Work mode"
+  - "/co:km off   # Switch to Dev Work mode"
+  - "/co:km       # Show current mode"
 ---
 
-# km - Knowledge Mode Quick Toggle (Shortcut)
+# Knowledge Mode Toggle
 
-This is a shortcut alias for `/co:skill-knowledge-mode`.
-
-**Instant** mode switching optimized for Claude Code.
-
-## Current Status
-
-Checking your current mode...
-
-```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh knowledge-mode
-```
+Toggle between **Dev Work Mode** and **Knowledge Work Mode**.
 
 ## Usage
 
+```bash
+/co:km on      # Switch to Knowledge Work mode
+/co:km off     # Switch to Dev Work mode (same as /co:dev)
+/co:km         # Show current mode status
 ```
-/co:km on      # Enable knowledge work mode
-/co:km off     # Enable development mode
-/co:km         # Show current status
-```
 
-## What It Does
+## Two Work Modes
 
-Instantly switches between:
-- **Development Mode** 🔧: Optimized for coding, code review, technical implementation
-- **Knowledge Work Mode** 🎓: Optimized for research, UX, strategy, analysis
+**Dev Work Mode** 🔧 (default)
+- Best for: Building features, debugging code, implementing APIs
+- Personas: backend-architect, code-reviewer, debugger, test-automator
 
-For full documentation, see `/co:skill-knowledge-mode`.
+**Knowledge Work Mode** 🎓
+- Best for: User research, strategy analysis, literature reviews
+- Personas: ux-researcher, strategy-analyst, research-synthesizer
+
+Both modes use the same AI providers (Codex + Gemini), just optimized with different personas.
+
+## Quick Switch
+
+- `/co:dev` - Switch to Dev Work mode
+- `/co:km on` - Switch to Knowledge Work mode
+
+Your mode choice persists across sessions.

@@ -6,7 +6,7 @@
   <img src="https://img.shields.io/badge/Claude_Code-Plugin-blueviolet" alt="Claude Code Plugin">
   <img src="https://img.shields.io/badge/Double_Diamond-Design_Thinking-orange" alt="Double Diamond">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
-  <img src="https://img.shields.io/badge/Version-7.6.1-blue" alt="Version 7.6.1">
+  <img src="https://img.shields.io/badge/Version-7.6.2-blue" alt="Version 7.6.2">
 </p>
 
 # Claude Octopus
@@ -153,20 +153,19 @@ This will automatically check for updates and install the latest version if avai
 
 **60% shorter commands!** v7.6 changes the namespace from `/claude-octopus:` to `/co:` and adds 11 new skill commands.
 
-### All Available Commands (19 total)
+### All Available Commands (18 total)
 
 All commands use the `/co:` namespace and appear in autocomplete:
 
-**System Commands** (8):
+**System Commands** (7):
 | Command | Description |
 |---------|-------------|
 | `/co:setup` | Check setup status (shortcut for sys-setup) |
 | `/co:update` | Check for updates (shortcut for sys-update) |
 | `/co:dev` | Switch to Dev Work mode |
-| `/co:km` | Toggle knowledge mode (shortcut for skill-knowledge-mode) |
+| `/co:km` | Toggle between Dev Work and Knowledge Work modes |
 | `/co:sys-setup` | Full name: Check Claude Octopus setup |
 | `/co:sys-update` | Full name: Check for plugin updates |
-| `/co:skill-knowledge-mode` | Full name: Toggle dev/research mode |
 | `/co:check-update` | Alias for sys-update |
 
 **Skill Commands** (11) - 🆕 New in v7.6:

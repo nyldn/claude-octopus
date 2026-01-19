@@ -1,7 +1,7 @@
 {
   "name": "co",
-  "version": "7.6.1",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.6.1 - Two-mode system!) Dev Work vs Knowledge Work modes. All commands use /co: namespace. Visual feedback, natural language workflows, AI debates! Run /co:setup for guided setup.",
+  "version": "7.6.2",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.6.2 - Streamlined commands!) Only /co:km and /co:dev for mode switching. Visual feedback, natural language workflows, AI debates! Run /co:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },
@@ -75,7 +75,6 @@
   "commands": [
     "./.claude/commands/sys-setup.md",
     "./.claude/commands/sys-update.md",
-    "./.claude/commands/skill-knowledge-mode.md",
     "./.claude/commands/setup.md",
     "./.claude/commands/update.md",
     "./.claude/commands/check-update.md",
