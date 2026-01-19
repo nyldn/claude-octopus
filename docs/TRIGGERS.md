@@ -2,25 +2,52 @@
 
 This guide explains exactly what natural language phrases trigger external CLI execution versus Claude subagents.
 
+## Reliable Activation: Use "octo" Prefix
+
+**Common words like "research" or "build" may conflict with Claude's base behaviors.** For reliable multi-AI workflow activation, use the "octo" prefix:
+
+| Reliable Trigger | Workflow | Indicator |
+|------------------|----------|-----------|
+| `octo research X` | Discover (probe) | 🐙 🔍 |
+| `octo build X` | Develop (tangle) | 🐙 🛠️ |
+| `octo review X` | Deliver (ink) | 🐙 ✅ |
+| `octo define X` | Define (grasp) | 🐙 🎯 |
+| `octo debate X` | AI Debate Hub | 🐙 |
+
+**Alternative prefixes that also work:**
+- `co-research X`, `co-build X`, `co-review X`
+- `/octo:discover X`, `/octo:develop X`, `/octo:deliver X`
+
+---
+
 ## Quick Reference
 
 | User Says | What Triggers | Provider(s) | Indicator |
 |-----------|---------------|-------------|-----------|
-| "research X" | Probe workflow | Codex + Gemini + Claude | 🐙 🔍 |
-| "build X" | Tangle workflow | Codex + Gemini + Claude | 🐙 🛠️ |
-| "review X" | Ink workflow | Codex + Gemini + Claude | 🐙 ✅ |
-| "define requirements for X" | Grasp workflow | Codex + Gemini + Claude | 🐙 🎯 |
-| "/debate X" | Debate skill | Gemini + Codex + Claude | 🐙 (debate) |
+| `octo research X` | Discover workflow | Codex + Gemini + Claude | 🐙 🔍 |
+| `octo build X` | Develop workflow | Codex + Gemini + Claude | 🐙 🛠️ |
+| `octo review X` | Deliver workflow | Codex + Gemini + Claude | 🐙 ✅ |
+| `octo define X` | Define workflow | Codex + Gemini + Claude | 🐙 🎯 |
+| `octo debate X` | Debate skill | Gemini + Codex + Claude | 🐙 |
 | "read file.ts" | Read tool | Claude only | (none) |
 | "what does this do?" | Analysis | Claude only | (none) |
 
+**Note:** Bare triggers like "research X" may work but can conflict with Claude's base behaviors. Use "octo" prefix for guaranteed activation.
+
 ---
 
-## Probe Workflow (Research)
+## Discover Workflow (Research)
 
 ### Triggers 🐙 🔍
 
-**Exact phrases that trigger probe:**
+**Reliable triggers (always work):**
+- `octo research X`
+- `octo discover X`
+- `octo explore X`
+- `co-research X`
+- `/octo:discover X`
+
+**Natural language triggers (may conflict with Claude's base behaviors):**
 - "research X"
 - "explore Y"
 - "investigate Z"
@@ -32,17 +59,17 @@ This guide explains exactly what natural language phrases trigger external CLI e
 
 **Examples:**
 ```
-✅ "Research OAuth 2.0 authentication patterns"
-   → Triggers probe workflow, multi-provider research
+✅ "octo research OAuth 2.0 authentication patterns"
+   → Guaranteed to trigger discover workflow
 
-✅ "Explore different caching strategies for Node.js"
-   → Triggers probe workflow
+✅ "octo explore different caching strategies for Node.js"
+   → Guaranteed to trigger discover workflow
 
-✅ "What are the options for state management in React?"
-   → Triggers probe workflow
+⚠️ "Research OAuth 2.0 authentication patterns"
+   → May trigger discover workflow (but could conflict with WebSearch)
 
-✅ "Compare Redis vs Memcached for session storage"
-   → Triggers probe workflow
+⚠️ "What are the options for state management in React?"
+   → May trigger discover workflow
 ```
 
 ### Does NOT Trigger
@@ -57,11 +84,18 @@ This guide explains exactly what natural language phrases trigger external CLI e
 
 ---
 
-## Tangle Workflow (Build/Implement)
+## Develop Workflow (Build/Implement)
 
 ### Triggers 🐙 🛠️
 
-**Exact phrases that trigger tangle:**
+**Reliable triggers (always work):**
+- `octo build X`
+- `octo develop X`
+- `octo implement X`
+- `co-build X`
+- `/octo:develop X`
+
+**Natural language triggers (may conflict):**
 - "build X"
 - "implement Y"
 - "create Z"
@@ -72,17 +106,17 @@ This guide explains exactly what natural language phrases trigger external CLI e
 
 **Examples:**
 ```
-✅ "Build a user authentication system"
-   → Triggers tangle workflow, multi-provider implementation
+✅ "octo build a user authentication system"
+   → Guaranteed to trigger develop workflow
 
-✅ "Implement JWT token generation"
-   → Triggers tangle workflow
+✅ "octo implement JWT token generation"
+   → Guaranteed to trigger develop workflow
 
-✅ "Create an API endpoint for user registration"
-   → Triggers tangle workflow
+⚠️ "Build a user authentication system"
+   → May trigger develop workflow (but not guaranteed)
 
-✅ "Add real-time notifications to the app"
-   → Triggers tangle workflow
+⚠️ "Create an API endpoint for user registration"
+   → May trigger develop workflow
 ```
 
 ### Does NOT Trigger
@@ -97,11 +131,18 @@ This guide explains exactly what natural language phrases trigger external CLI e
 
 ---
 
-## Ink Workflow (Review/Validate)
+## Deliver Workflow (Review/Validate)
 
 ### Triggers 🐙 ✅
 
-**Exact phrases that trigger ink:**
+**Reliable triggers (always work):**
+- `octo review X`
+- `octo validate X`
+- `octo deliver X`
+- `co-review X`
+- `/octo:deliver X`
+
+**Natural language triggers (may conflict):**
 - "review X"
 - "validate Y"
 - "test Z"
@@ -114,17 +155,17 @@ This guide explains exactly what natural language phrases trigger external CLI e
 
 **Examples:**
 ```
-✅ "Review the authentication implementation"
-   → Triggers ink workflow, multi-provider validation
+✅ "octo review the authentication implementation"
+   → Guaranteed to trigger deliver workflow
 
-✅ "Validate the API endpoints"
-   → Triggers ink workflow
+✅ "octo validate the API endpoints"
+   → Guaranteed to trigger deliver workflow
 
-✅ "Check for security vulnerabilities in auth.ts"
-   → Triggers ink workflow
+⚠️ "Review the authentication implementation"
+   → May trigger deliver workflow (but not guaranteed)
 
-✅ "Verify the caching layer works correctly"
-   → Triggers ink workflow
+⚠️ "Check for security vulnerabilities in auth.ts"
+   → May trigger deliver workflow
 ```
 
 ### Does NOT Trigger
@@ -138,11 +179,18 @@ This guide explains exactly what natural language phrases trigger external CLI e
 
 ---
 
-## Grasp Workflow (Define/Clarify)
+## Define Workflow (Define/Clarify)
 
 ### Triggers 🐙 🎯
 
-**Exact phrases that trigger grasp:**
+**Reliable triggers (always work):**
+- `octo define X`
+- `octo scope X`
+- `octo clarify X`
+- `co-define X`
+- `/octo:define X`
+
+**Natural language triggers (may conflict):**
 - "define the requirements for X"
 - "clarify the scope of Y"
 - "what exactly does X need to do"
@@ -152,17 +200,17 @@ This guide explains exactly what natural language phrases trigger external CLI e
 
 **Examples:**
 ```
-✅ "Define the exact requirements for our authentication system"
-   → Triggers grasp workflow, multi-provider problem definition
+✅ "octo define the requirements for our authentication system"
+   → Guaranteed to trigger define workflow
 
-✅ "Clarify the scope of the notification feature"
-   → Triggers grasp workflow
+✅ "octo scope the notification feature"
+   → Guaranteed to trigger define workflow
 
-✅ "What exactly does the caching layer need to do?"
-   → Triggers grasp workflow
+⚠️ "Define the exact requirements for our authentication system"
+   → May trigger define workflow (but not guaranteed)
 
-✅ "Scope out the user profile feature"
-   → Triggers grasp workflow
+⚠️ "Clarify the scope of the notification feature"
+   → May trigger define workflow
 ```
 
 ### Does NOT Trigger
@@ -180,28 +228,31 @@ This guide explains exactly what natural language phrases trigger external CLI e
 
 ### Triggers 🐙 (Debate)
 
-**Exact command:**
+**Reliable triggers (always work):**
+- `octo debate X`
+- `co-debate X`
+- `/octo:debate X`
 - `/debate <question>`
 - `/debate -r N -d STYLE <question>`
 
-**Natural language alternatives:**
+**Natural language alternatives (may conflict):**
 - "run a debate about X"
 - "I want gemini and codex to review X"
 - "debate whether X or Y"
 
 **Examples:**
 ```
-✅ /debate Should we use Redis or in-memory cache?
-   → Triggers debate skill, 3-way debate
+✅ "octo debate whether we should use Redis or in-memory cache"
+   → Guaranteed to trigger debate skill
 
-✅ /debate -r 3 -d adversarial "Review our API design"
-   → Triggers debate skill, 3 rounds, adversarial mode
+✅ /octo:debate -r 3 -d adversarial "Review our API design"
+   → Guaranteed to trigger debate skill, 3 rounds
 
-✅ "Run a debate about whether to use TypeScript"
-   → Triggers debate skill
+⚠️ "Run a debate about whether to use TypeScript"
+   → May trigger debate skill
 
-✅ "I want gemini and codex to review this architecture"
-   → Triggers debate skill
+⚠️ "I want gemini and codex to review this architecture"
+   → May trigger debate skill
 ```
 
 ### Does NOT Trigger
@@ -452,15 +503,17 @@ If you want to ensure you're **not** using external CLIs (to save costs):
 
 ## Summary Table
 
-| Trigger Words | Workflow | External CLIs | Typical Cost |
-|---------------|----------|---------------|--------------|
-| research, explore, investigate | Probe | Yes | $0.01-0.05 |
-| build, implement, create | Tangle | Yes | $0.02-0.10 |
-| review, validate, audit | Ink | Yes | $0.02-0.08 |
-| define, clarify, scope | Grasp | Yes | $0.01-0.05 |
-| /debate | Debate | Yes | $0.05-0.15 |
+| Reliable Trigger | Workflow | External CLIs | Typical Cost |
+|------------------|----------|---------------|--------------|
+| `octo research X` | Discover | Yes | $0.01-0.05 |
+| `octo build X` | Develop | Yes | $0.02-0.10 |
+| `octo review X` | Deliver | Yes | $0.02-0.08 |
+| `octo define X` | Define | Yes | $0.01-0.05 |
+| `octo debate X` | Debate | Yes | $0.05-0.15 |
 | read, show, explain | (none) | No | Included |
 | git, bash commands | (none) | No | Included |
+
+**Pro tip:** Always use `octo` prefix for guaranteed workflow activation. Bare triggers like "research X" may work but can conflict with Claude's base behaviors.
 
 ---
 
