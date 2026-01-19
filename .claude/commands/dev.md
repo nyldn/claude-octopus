@@ -7,34 +7,37 @@ aliases:
 
 # Dev Work Mode
 
-Switches to **Dev Work Mode**, optimized for software development tasks.
-
-## What This Does
-
-- Activates development personas (backend-architect, code-reviewer, debugger, etc.)
-- Optimizes for code implementation, debugging, and technical architecture
-- Best for: Building features, fixing bugs, implementing APIs, code review
+Switch to **Dev Work Mode**, optimized for software development.
 
 ## Usage
 
 ```bash
-/co:dev
+/co:dev        # Switch to Dev Work mode
 ```
 
-Or use the alias:
-```bash
-/co:dev-mode
-```
+## What is Dev Work Mode?
 
-## Toggle Back to Knowledge Work Mode
+**Dev Work Mode** 🔧 is optimized for:
+- Building features and implementing APIs
+- Debugging code and fixing bugs
+- Technical architecture and code review
+- Test-driven development
 
-To switch to Knowledge Work Mode (research, UX, strategy):
-```bash
-/co:km on
-```
+**Personas**: backend-architect, code-reviewer, debugger, test-automator, performance-engineer
+
+## Two Work Modes
+
+Claude Octopus has two work modes:
+
+1. **Dev Work Mode** 🔧 (this mode)
+   - For: Software development, code, technical tasks
+
+2. **Knowledge Work Mode** 🎓
+   - For: User research, strategy analysis, literature reviews
+   - Switch: `/co:km on`
+
+Both modes use the same AI providers (Codex + Gemini), just optimized with different personas.
 
 ## Learn More
 
-- Run `/co:setup` to see full configuration options
-- Both modes use the same AI providers (Codex + Gemini)
-- Only the personas and workflows differ between modes
+Run `/co:setup` to configure your preferences and choose your default mode.
