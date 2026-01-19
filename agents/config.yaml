@@ -245,3 +245,32 @@ skill_triggers:
   performance:
     pattern: "(performance|optimize|profile|benchmark)"
     skill: performance-optimization
+
+  # Natural Language Trigger Enhancements (v7.7.0)
+  task-completion:
+    pattern: "(commit.*push|complete.*tasks.*push|wrap.*up.*push)"
+    skill: skill-finish-branch
+
+  task-management:
+    pattern: "(add.*todo|resume.*task|save.*progress|proceed.*next)"
+    skill: skill-task-management
+
+  why-questions:
+    pattern: "(why.*(is|did|isn't|doesn't|didn't).*(not|n't)|why.*fail)"
+    skill: skill-debug
+
+  visual-feedback:
+    pattern: "(\\[Image\\]|button.*styles.*fix|UI.*mess|UX.*mess)"
+    skill: skill-visual-feedback
+
+  options-request:
+    pattern: "(fix.*or.*provide.*option|give.*me.*option|show.*alternative)"
+    skill: skill-decision-support
+
+  iteration:
+    pattern: "(loop.*times|loop.*around.*times|keep.*trying.*until|iterate.*until)"
+    skill: skill-iterative-loop
+
+  audit:
+    pattern: "(audit.*and.*check|audit.*app|process.*to.*audit|scan.*for.*issue)"
+    skill: skill-audit
