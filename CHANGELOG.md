@@ -5,6 +5,30 @@ All notable changes to Claude Octopus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.7.3] - 2026-01-19
+
+### Changed
+- **BREAKING: Unified `/octo:` namespace** - Changed command namespace from `/co:` to `/octo:`
+  - All commands now use `/octo:` prefix (e.g., `/octo:research`, `/octo:develop`, `/octo:setup`)
+  - Provides consistency with "octo" natural language prefix triggers
+  - More memorable and distinctive branding
+  
+### Migration Guide
+If upgrading from v7.7.2 or earlier:
+- `/co:setup` → `/octo:setup`
+- `/co:research` → `/octo:research`
+- `/co:develop` → `/octo:develop`
+- `/co:review` → `/octo:review`
+- `/co:debate` → `/octo:debate`
+- All other `/co:*` commands → `/octo:*`
+
+### Why This Change?
+- "Octo" is now THE way to invoke Claude Octopus (both prefix and namespace)
+- Reduces confusion - one keyword to remember
+- Better discoverability - typing "octo" in autocomplete shows everything
+
+---
+
 ## [7.7.2] - 2026-01-19
 
 ### Added

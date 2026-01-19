@@ -1,6 +1,6 @@
 ---
 name: develop
-description: "Shortcut for /co:flow-develop - Develop phase workflow for building implementations"
+description: "Shortcut for /octo:flow-develop - Develop phase workflow for building implementations"
 redirect: flow-develop
 trigger: |
   AUTOMATICALLY ACTIVATE when user requests building or implementation:
@@ -12,7 +12,7 @@ trigger: |
 
 # Develop (Shortcut) - Develop Phase 🛠️
 
-This is a shortcut alias for `/co:flow-develop`.
+This is a shortcut alias for `/octo:flow-develop`.
 
 **Part of Double Diamond: DEVELOP** (divergent thinking)
 
@@ -24,4 +24,4 @@ The **develop** phase generates multiple implementation approaches using externa
 2. **🟡 Gemini CLI** - Alternative approaches, edge cases, best practices
 3. **🔵 Claude (You)** - Integration, refinement, and final implementation
 
-For full documentation, see `/co:flow-develop`.
+For full documentation, see `/octo:flow-develop`.

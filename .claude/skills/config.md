@@ -1,6 +1,6 @@
 ---
 name: config
-description: "Shortcut for /co:sys-configure - Configure Claude Octopus providers and API keys"
+description: "Shortcut for /octo:sys-configure - Configure Claude Octopus providers and API keys"
 redirect: sys-configure
 trigger: |
   Use this skill when the user wants to "configure Claude Octopus", "setup octopus",
@@ -9,7 +9,7 @@ trigger: |
 
 # Config (Shortcut) - Configure Claude Octopus 🐙
 
-This is a shortcut alias for `/co:sys-configure`.
+This is a shortcut alias for `/octo:sys-configure`.
 
 🐙 **CLAUDE OCTOPUS SETUP** - Helping you configure multi-agent orchestration
 
@@ -21,7 +21,7 @@ This skill helps you configure Claude Octopus:
 - Set up cost optimization preferences
 - Display provider status and next steps
 
-For full documentation, see `/co:sys-configure`.
+For full documentation, see `/octo:sys-configure`.
 
 ## Quick Start
 
