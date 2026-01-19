@@ -1,7 +1,7 @@
 {
   "name": "co",
-  "version": "7.6.2",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.6.2 - Streamlined commands!) Only /co:km and /co:dev for mode switching. Visual feedback, natural language workflows, AI debates! Run /co:setup for guided setup.",
+  "version": "7.6.3",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.6.3 - Plugin install fix!) Only /co:km and /co:dev for mode switching. Visual feedback, natural language workflows, AI debates! Run /co:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },
@@ -38,17 +38,6 @@
     "deliberation",
     "knowledge-work"
   ],
-  "dependencies": {
-    "claude-skills": {
-      "author": "wolverin0",
-      "repository": "https://github.com/wolverin0/claude-skills",
-      "type": "git-submodule",
-      "path": ".dependencies/claude-skills",
-      "version": "v4.7",
-      "license": "MIT",
-      "description": "AI Debate Hub skill - structured three-way debates between Claude, Gemini, and Codex"
-    }
-  },
   "skills": [
     "./.claude/skills/flow-probe.md",
     "./.claude/skills/flow-grasp.md",
