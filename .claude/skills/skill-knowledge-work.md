@@ -81,7 +81,7 @@ This provides:
 
 Then enable knowledge mode:
 ```
-/claude-octopus:km on
+/octo:km on
 ```
 
 The first time you enable knowledge mode, you'll see a recommendation to install document-skills if not already done.
@@ -168,7 +168,7 @@ Claude will automatically use the document-delivery skill with document-skills p
 
 **Check recent outputs:**
 ```bash
-/claude-octopus:deliver-docs
+/octo:deliver-docs
 ```
 
 **Prerequisites:** Install document-skills plugin:
@@ -207,14 +207,14 @@ This will optimize for user research synthesis and analysis. (Just say yes or I 
 | `km toggle` | Switch modes | User explicitly asks to toggle |
 
 Also available as slash command:
-- `/claude-octopus:knowledge-mode on`
-- `/claude-octopus:knowledge-mode off`
-- `/claude-octopus:knowledge-mode`
+- `/octo:knowledge-mode on`
+- `/octo:knowledge-mode off`
+- `/octo:knowledge-mode`
 
 ## Integration with Other Skills
 
-- **Before using `/claude-octopus:deep-research`**: Suggest enabling knowledge mode
-- **Before using `/claude-octopus:code-review`**: Ensure development mode is active
+- **Before using `/octo:deep-research`**: Suggest enabling knowledge mode
+- **Before using `/octo:code-review`**: Ensure development mode is active
 - **When user mentions "empathize", "advise", "synthesize"**: Check if knowledge mode is enabled
 
 ## Persistence
@@ -235,6 +235,6 @@ User only needs to toggle once, it stays that way until changed.
 
 ## Related Skills
 
-- `/claude-octopus:parallel-agents` - Multi-AI orchestration
-- `/claude-octopus:deep-research` - Research workflows (works better in knowledge mode)
-- `/claude-octopus:configure` - Overall plugin configuration
+- `/octo:parallel-agents` - Multi-AI orchestration
+- `/octo:deep-research` - Research workflows (works better in knowledge mode)
+- `/octo:configure` - Overall plugin configuration

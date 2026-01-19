@@ -1,6 +1,6 @@
 ---
 command: setup
-description: "Shortcut for /claude-octopus:sys-setup - Check Claude Octopus setup status"
+description: "Shortcut for /octo:sys-setup - Check Claude Octopus setup status"
 redirect: sys-setup
 ---
 

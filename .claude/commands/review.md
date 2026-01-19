@@ -27,7 +27,7 @@ Just use natural language:
 
 ## Review Types
 
-- **Quick Review**: Pre-commit checks (use `/claude-octopus:quick-review` or just say "quick review")
+- **Quick Review**: Pre-commit checks (use `/octo:quick-review` or just say "quick review")
 - **Full Review**: Comprehensive analysis with security audit
 - **Security Focus**: Deep security and vulnerability assessment
 

@@ -1,6 +1,6 @@
 ---
 command: check-update
-description: "Alias for /claude-octopus:sys-update - Check for updates (backward compatibility)"
+description: "Alias for /octo:sys-update - Check for updates (backward compatibility)"
 redirect: sys-update
 ---
 

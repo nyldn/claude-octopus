@@ -79,7 +79,7 @@ trigger: |
    - `/clear` - Clear conversation
    - `/commit` - Git commit operations
    - `/remember` - Memory management
-   - Any other `/` command that isn't `/parallel-agents` or `/claude-octopus:*`
+   - Any other `/` command that isn't `/parallel-agents` or `/octo:*`
 
 2. **Direct tool usage** - Simple file operations, git commands, or terminal tasks
    - Reading/writing files
@@ -167,7 +167,7 @@ If the detect-providers command shows BOTH providers are missing (CODEX_STATUS=m
 > - 'Build a user authentication system'
 > - 'Review this code for security issues'
 >
-> Need guided setup? Run `/claude-octopus:setup`"
+> Need guided setup? Run `/octo:setup`"
 
 After showing this welcome message, STOP and wait for the user to set up a provider. Do not proceed with the original task until at least one provider is configured.
 
@@ -257,7 +257,7 @@ GEMINI_AUTH=none
 > gemini  # Run OAuth setup
 > ```
 >
-> After installing one, run `/claude-octopus:setup` to verify everything works."
+> After installing one, run `/octo:setup` to verify everything works."
 
 **Scenario B: One provider working, one missing/partial**
 ```

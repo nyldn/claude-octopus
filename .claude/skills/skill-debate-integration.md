@@ -242,7 +242,7 @@ record_debate_analytics() {
 **Integration with Knowledge Mode**:
 ```bash
 # Strategic deliberation workflow
-/claude-octopus:km on
+/octo:km on
 /debate -r 3 -d collaborative "Should we enter European market?"
 
 # After synthesis
@@ -416,7 +416,7 @@ orchestrate.sh grapple --use-debate "Review auth.ts for security"
 
 ```bash
 # Strategic decision-making
-/claude-octopus:km on
+/octo:km on
 /debate -r 3 -d collaborative "Should we enter European market?"
 
 # Personas (from knowledge mode):
@@ -539,7 +539,7 @@ export DEBATE_QUALITY_THRESHOLD=75
 Knowledge work debates should be exported:
 
 ```bash
-/claude-octopus:km on
+/octo:km on
 /debate -r 3 "Strategic decision"
 
 # After synthesis
