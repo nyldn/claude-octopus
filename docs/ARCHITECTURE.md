@@ -36,9 +36,11 @@ Claude Octopus coordinates **three AI providers** to give you multi-perspective 
 
 | Provider | CLI Tool | Underlying Model | Cost Source |
 |----------|----------|------------------|-------------|
-| **Codex CLI** | `codex exec` | GPT-4 / GPT-4 Turbo | Your `OPENAI_API_KEY` |
-| **Gemini CLI** | `gemini -y` | Gemini Pro / Gemini 1.5 Pro | Your `GEMINI_API_KEY` |
-| **Claude** | Built-in | Claude 3.5 Sonnet / Opus | Your Claude Code subscription |
+| **Codex CLI** | `codex exec` | GPT-5.1 Codex Max / GPT-5.2 Codex | Your `OPENAI_API_KEY` |
+| **Gemini CLI** | `gemini -y -m gemini-3-pro-preview` | Gemini 3.0 Pro Preview | Your `GEMINI_API_KEY` |
+| **Claude** | Built-in | Claude Sonnet 4.5 | Your Claude Code subscription |
+
+> **Note:** Models are as of January 2026. The orchestrate.sh script uses the latest available models.
 
 ### What Each Provider Excels At
 
@@ -112,34 +114,37 @@ User Request
 |   Claude Octopus   |
 +---------+----------+
           |
-    +-----+-----+
-    |           |
-    v           v
-+-------+   +-------+
-| Codex |   |Gemini |   <- PARALLEL
-+---+---+   +---+---+
-    |           |
-    v           v
-"Technical   "Business
- constraints"  requirements"
-    |           |
-    +-----+-----+
+          v
+    +-----------+
+    |   Codex   |   <- Step 1: Problem statement
+    +-----------+
           |
           v
-    +----------+
-    |  Claude  |
-    | Consensus|
-    +----------+
+    +-----------+
+    |  Gemini   |   <- Step 2: Success criteria
+    +-----------+
+          |
+          v
+    +-----------+
+    |  Gemini   |   <- Step 3: Constraints
+    +-----------+
+          |
+          v
+    +-----------+
+    |  Gemini   |   <- Step 4: Build consensus
+    | Consensus |
+    +-----------+
           |
           v
    Problem Definition
     + Requirements
 ```
 
-**Execution:**
-1. Codex focuses on technical constraints and system requirements
-2. Gemini focuses on business context and user needs
-3. Claude builds consensus and creates unified requirements
+**Execution:** (Sequential for coherent problem definition)
+1. Codex defines the core problem statement (2-3 sentences)
+2. Gemini defines success criteria (3-5 measurable criteria)
+3. Gemini defines constraints and boundaries
+4. Gemini synthesizes all perspectives into unified requirements
 
 ---
 
@@ -192,11 +197,11 @@ User Request
 4. If failed: Loop back for revision
 5. If passed: Proceed to implementation
 
-**Quality Gate Dimensions:**
-- Code Quality (25%)
-- Security (35%)
-- Best Practices (20%)
-- Completeness (20%)
+**Quality Gate:**
+The quality gate is based on subtask success rate:
+- Measures: percentage of subtasks that completed successfully
+- Threshold: 75% (configurable via `CLAUDE_OCTOPUS_QUALITY_THRESHOLD`)
+- If failed: Can retry, escalate to human review, or abort
 
 ---
 
