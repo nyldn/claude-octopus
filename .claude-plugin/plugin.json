@@ -1,7 +1,7 @@
 {
   "name": "co",
   "version": "7.7.1",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.7.0 - Standard phase names!) /co:embrace for full workflow. Discover/Define/Develop/Deliver phases. Run /co:setup for guided setup.",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.7.1 - Auto-invoke fix!) /co:embrace for full workflow. Discover/Define/Develop/Deliver phases. Run /co:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },
@@ -85,6 +85,10 @@
     "./.claude/commands/discover.md",
     "./.claude/commands/define.md",
     "./.claude/commands/develop.md",
-    "./.claude/commands/deliver.md"
+    "./.claude/commands/deliver.md",
+    "./.claude/commands/probe.md",
+    "./.claude/commands/grasp.md",
+    "./.claude/commands/tangle.md",
+    "./.claude/commands/ink.md"
   ]
 }
