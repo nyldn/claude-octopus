@@ -64,7 +64,19 @@
     "./.claude/skills/skill-visual-feedback.md",
     "./.claude/skills/skill-decision-support.md",
     "./.claude/skills/skill-iterative-loop.md",
-    "./.claude/skills/skill-audit.md"
+    "./.claude/skills/skill-audit.md",
+    "./.claude/skills/config.md",
+    "./.claude/skills/debate.md",
+    "./.claude/skills/debug.md",
+    "./.claude/skills/define.md",
+    "./.claude/skills/deliver.md",
+    "./.claude/skills/develop.md",
+    "./.claude/skills/discover.md",
+    "./.claude/skills/docs.md",
+    "./.claude/skills/research.md",
+    "./.claude/skills/review.md",
+    "./.claude/skills/security.md",
+    "./.claude/skills/tdd.md"
   ],
   "commands": [
     "./.claude/commands/sys-setup.md",
