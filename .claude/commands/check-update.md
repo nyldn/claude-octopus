@@ -6,13 +6,13 @@ redirect: sys-update
 
 # Check-Update (Backward Compatibility Alias)
 
-This is a backward compatibility alias for `/co:sys-update`.
+This is a backward compatibility alias for `/octo:sys-update`.
 
-For new usage, please use `/co:update` or `/co:sys-update`.
+For new usage, please use `/octo:update` or `/octo:sys-update`.
 
 ## Quick Usage
 
-- `/co:update` - Check for updates only
-- `/co:update --update` - Check and update if available
+- `/octo:update` - Check for updates only
+- `/octo:update --update` - Check and update if available
 
-For full documentation, see `/co:sys-update`.
+For full documentation, see `/octo:sys-update`.
