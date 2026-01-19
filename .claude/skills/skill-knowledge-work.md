@@ -1,240 +1,195 @@
 ---
 name: skill-knowledge-work
-description: "Quick toggle between development and knowledge work mode. Use proactively when user mentions research, UX, strategy, or non-coding tasks."
+description: "Override for context auto-detection. Use when auto-detection gets context wrong."
 triggerPatterns:
   - "switch.*mode"
   - "knowledge.*mode"
   - "research.*mode"
   - "toggle.*knowledge"
-  - "enable.*research"
-  - "disable.*research"
+  - "force.*knowledge"
+  - "force.*dev"
 ---
 
-# Knowledge Work Mode - Quick Toggle Skill
+# Knowledge Work Mode - Context Override Skill
 
-This skill helps users quickly switch between **Development Mode** (code-focused) and **Knowledge Work Mode** (research, UX, strategy).
+## Context Auto-Detection (v7.8+)
 
-## When to Use This Skill
+**Claude Octopus now auto-detects work context!** The system analyzes your prompt and project to determine whether you're in a **Dev Context** (code-focused) or **Knowledge Context** (research/strategy-focused).
 
-**Use PROACTIVELY** when you detect the user wants to:
-- Switch from coding to research/analysis work
-- Switch from research back to coding
-- Check what mode they're currently in
-- Work on UX research, market analysis, or strategic planning
+**You typically don't need this skill** - context is detected automatically when you use:
+- `octo research X` - Auto-detects dev vs knowledge research
+- `octo build X` - Auto-detects code vs document building
+- `octo review X` - Auto-detects code vs document review
 
-## Detection Signals
+## When to Use This Override
 
-### Switch to Knowledge Mode
-User mentions:
-- "I want to do some research"
-- "Let's analyze the market"
-- "Help me synthesize these papers"
-- "Create user personas"
-- "Strategic analysis"
-- "UX research"
+**Use ONLY when auto-detection is wrong:**
+- Auto-detection chose Dev but you want Knowledge behavior
+- Auto-detection chose Knowledge but you want Dev behavior
+- You want to force a specific context for the entire session
 
-### Switch to Development Mode
-User mentions:
-- "Back to coding"
-- "Let's build this"
-- "Time to implement"
-- "Ready to code"
+## Override Commands
 
-### Check Status
-User mentions:
-- "What mode am I in?"
-- "Am I in knowledge mode?"
-- "Check my setup"
-
-## How to Use
-
-### Quick Status Check
-When user seems unsure about mode:
+### Force Knowledge Context
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh km status
+/octo:km on
 ```
+All subsequent workflows will use Knowledge Context until reset.
 
-### Enable Knowledge Mode
-When user starts non-coding work:
+### Force Dev Context
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh km on
+/octo:km off
 ```
+All subsequent workflows will use Dev Context until reset.
 
-### Disable Knowledge Mode
-When user returns to coding:
+### Return to Auto-Detection
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh km off
+/octo:km auto
+```
+Context detection returns to automatic mode.
+
+### Check Current Status
+```bash
+/octo:km
+```
+Shows current mode (auto, knowledge, or dev).
+
+## How Auto-Detection Works
+
+When you use any `octo` workflow, context is detected by analyzing:
+
+1. **Prompt Content** (strongest signal):
+   - Knowledge indicators: "market", "ROI", "stakeholders", "strategy", "personas", "presentation", "report", "PRD"
+   - Dev indicators: "API", "endpoint", "database", "implementation", "code", "function", "deploy"
+
+2. **Project Type** (secondary signal):
+   - Has `package.json`, `Cargo.toml`, `go.mod` → Dev Context
+   - Mostly `.md`, `.docx`, `.pdf` files → Knowledge Context
+
+3. **Explicit Override** (if set via `/octo:km`):
+   - Overrides all auto-detection until reset to "auto"
+
+## Visual Indicator Shows Context
+
+When workflows run, you'll see the detected context in the banner:
+
+**Dev Context:**
+```
+🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider research mode
+🔍 [Dev] Discover Phase: Technical research on caching patterns
 ```
 
-### Recommended Setup (First Time)
-
-For the best knowledge work experience, install document skills:
+**Knowledge Context:**
 ```
-/plugin install document-skills@anthropic-agent-skills
+🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider research mode
+🔍 [Knowledge] Discover Phase: Market analysis for APAC expansion
 ```
 
-This provides:
-- PDF reading and analysis
-- DOCX document creation/editing
-- PPTX presentation generation
-- XLSX spreadsheet handling
+## Examples of Auto-Detection in Action
 
-Then enable knowledge mode:
+### Example 1: Technical Research (Auto → Dev)
+
+**User:** "octo research caching strategies for our Node.js API"
+
+**Claude:** (auto-detects Dev Context from "Node.js API")
 ```
+🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider research mode
+🔍 [Dev] Discover Phase: Technical research on caching strategies
+
+[Researches with technical/implementation focus]
+```
+
+### Example 2: Market Research (Auto → Knowledge)
+
+**User:** "octo research market opportunities in healthcare AI"
+
+**Claude:** (auto-detects Knowledge Context from "market opportunities")
+```
+🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider research mode
+🔍 [Knowledge] Discover Phase: Strategic research on healthcare AI market
+
+[Researches with business/strategic focus]
+```
+
+### Example 3: Override When Auto Gets It Wrong
+
+**User:** "octo research React patterns"  
+**Claude:** (auto-detects Dev) `🔍 [Dev] Discover Phase...`
+
+**User:** "Actually, this is for a presentation. Force knowledge mode."
+
+**Claude:** "Setting context override to Knowledge Mode."
+```bash
 /octo:km on
 ```
 
-The first time you enable knowledge mode, you'll see a recommendation to install document-skills if not already done.
+**User:** "octo research React patterns"  
+**Claude:** (uses override) `🔍 [Knowledge] Discover Phase...` (focuses on trends, adoption, strategic implications)
 
-## Conversation Flow Examples
+### Example 4: Check Current Status
 
-### Example 1: User Switching to Research
+**User:** "What context mode am I in?"
 
-**User:** "I want to research authentication best practices before we start coding"
-
-**Claude Response:**
+**Claude:** 
 ```
-I notice you want to do research. Let me switch to Knowledge Work Mode for you, which optimizes auto-routing for research and analysis tasks.
-```
+Current mode: Auto-detection (no override set)
+Last detected context: Dev (based on project having package.json)
 
-Then run:
-```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh km on
+To override: /octo:km on (force Knowledge) or /octo:km off (force Dev)
+To return to auto: /octo:km auto
 ```
 
-**Claude:** "✅ Knowledge Work Mode enabled! I'm now optimized for research, UX analysis, and strategic work. What would you like to research about authentication?"
+## What Changes Per Context
 
-### Example 2: User Switching to Development
+### Dev Context 🔧
+| Workflow | Focus |
+|----------|-------|
+| `octo research X` | Technical implementation, libraries, code patterns |
+| `octo build X` | Code generation, architecture, tests |
+| `octo review X` | Code quality, security, performance |
+| Agents | codex, backend-architect, code-reviewer, security-auditor |
 
-**User:** "Okay, I've done enough research. Let's build the authentication system."
+### Knowledge Context 🎓
+| Workflow | Focus |
+|----------|-------|
+| `octo research X` | Market analysis, competitive research, literature synthesis |
+| `octo build X` | PRDs, strategy docs, presentations, reports |
+| `octo review X` | Document quality, argument strength, completeness |
+| Agents | strategy-analyst, ux-researcher, exec-communicator, product-writer |
 
-**Claude Response:**
-```
-You're ready to start building! Let me switch back to Development Mode.
-```
+## Document Delivery 📄
 
-Then run:
-```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh km off
-```
+After running knowledge workflows, export to professional formats:
+- **DOCX** - Word documents for reports, business cases
+- **PPTX** - PowerPoint presentations for stakeholder decks
+- **XLSX** - Excel spreadsheets for data analysis
 
-**Claude:** "✅ Development Mode active! Let's build that authentication system. Should we start with the overall architecture or jump into a specific component?"
+Just say: "Export this to Word" or "Create a PowerPoint presentation"
 
-### Example 3: User Unsure About Mode
+## Override Command Reference
 
-**User:** "What mode am I in?"
+| Command | Description |
+|---------|-------------|
+| `/octo:km` | Show current status (auto, on, or off) |
+| `/octo:km on` | Force Knowledge Context for all workflows |
+| `/octo:km off` | Force Dev Context for all workflows |
+| `/octo:km auto` | Return to auto-detection (default) |
 
-**Claude Response:**
-```
-Let me check your current mode.
-```
+## When NOT to Use Override
 
-Then run:
-```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh km status
-```
+**Don't override if:**
+- Auto-detection is working correctly
+- You're doing mixed work (let each prompt be detected individually)
+- You just want to see what context was detected (check the banner)
 
-**Claude:** "You're currently in [Mode]. This means auto-routing prioritizes [workflows]. Would you like to switch modes?"
-
-## What Changes Per Mode
-
-### Development Mode (Default) 🔧
-- "Review this" → Code review
-- "Analyze this" → Technical analysis
-- "Research X" → Technical research
-- Workflows: `embrace`, `probe`, `tangle`
-- Agents: `codex`, `gemini`, `code-reviewer`
-
-### Knowledge Work Mode 🎓
-- "Review this" → Document/strategy review
-- "Analyze this" → Market/user analysis
-- "Research X" → Academic/market research
-- Workflows: `empathize`, `advise`, `synthesize`
-- Agents: `ux-researcher`, `strategy-analyst`, `research-synthesizer`
-
-### Document Delivery 📄
-
-After running empathize/advise/synthesize, convert results to professional formats:
-- **DOCX** - Word documents for reports, business cases, academic papers
-- **PPTX** - PowerPoint presentations for stakeholder decks, strategy briefs
-- **XLSX** - Excel spreadsheets for data analysis, frameworks
-
-Just say:
-- "Export this to Word"
-- "Create a PowerPoint presentation"
-- "Convert to professional document"
-
-Claude will automatically use the document-delivery skill with document-skills plugin.
-
-**Check recent outputs:**
-```bash
-/octo:deliver-docs
-```
-
-**Prerequisites:** Install document-skills plugin:
-```bash
-/plugin install document-skills@anthropic-agent-skills
-```
-
-## Proactive Behavior
-
-**DO proactively offer to switch when:**
-- User transitions from coding to research tasks
-- User asks about market analysis, UX, or strategy
-- User wants to synthesize documents or papers
-- User returns from research to implementation
-
-**Example:**
-```
-User: "I want to analyze user feedback before implementing the feature"
-
-Claude: "That sounds like UX research! Would you like me to enable Knowledge Work Mode?
-This will optimize for user research synthesis and analysis. (Just say yes or I can do it now)"
-```
-
-**DON'T:**
-- Switch modes without asking (unless it's obvious)
-- Mention the mode in every response
-- Switch back and forth frequently
-
-## Command Reference
-
-| Command | Description | Use When |
-|---------|-------------|----------|
-| `km` | Show status | User asks what mode they're in |
-| `km on` | Enable knowledge mode | User starts research/UX/strategy work |
-| `km off` | Disable knowledge mode | User returns to coding |
-| `km toggle` | Switch modes | User explicitly asks to toggle |
-
-Also available as slash command:
-- `/octo:knowledge-mode on`
-- `/octo:knowledge-mode off`
-- `/octo:knowledge-mode`
-
-## Integration with Other Skills
-
-- **Before using `/octo:deep-research`**: Suggest enabling knowledge mode
-- **Before using `/octo:code-review`**: Ensure development mode is active
-- **When user mentions "empathize", "advise", "synthesize"**: Check if knowledge mode is enabled
-
-## Persistence
-
-Mode setting persists across:
-- Terminal sessions
-- Claude Code restarts
-- Different projects
-
-User only needs to toggle once, it stays that way until changed.
-
-## Tips
-
-1. **Context-aware**: Look at what the user is working on to suggest the right mode
-2. **Minimize friction**: If obvious, just switch and mention it briefly
-3. **Educate once**: First time, explain what mode does. After that, just do it
-4. **Show status**: When unsure, check status first before suggesting changes
+**Override is for:**
+- Forcing a specific context for an entire session
+- Correcting persistent misdetection
+- Specific use cases where you know better than auto-detect
 
 ## Related Skills
 
-- `/octo:parallel-agents` - Multi-AI orchestration
-- `/octo:deep-research` - Research workflows (works better in knowledge mode)
-- `/octo:configure` - Overall plugin configuration
+- `/octo:discover` - Research workflow (auto-detects context)
+- `/octo:develop` - Build workflow (auto-detects context)  
+- `/octo:deliver` - Review workflow (auto-detects context)
+- `/octo:docs` - Document export (works in both contexts)

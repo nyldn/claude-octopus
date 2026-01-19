@@ -39,6 +39,7 @@
     "knowledge-work"
   ],
   "skills": [
+    "./.claude/skills/skill-context-detection.md",
     "./.claude/skills/flow-discover.md",
     "./.claude/skills/flow-define.md",
     "./.claude/skills/flow-develop.md",

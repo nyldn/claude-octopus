@@ -40,17 +40,45 @@ trigger: |
 
 # Deliver Workflow - Deliver Phase ✅
 
-## ⚠️ MANDATORY: Visual Indicators Protocol
+## ⚠️ MANDATORY: Context Detection & Visual Indicators
 
-**BEFORE executing ANY workflow actions, you MUST output this banner:**
+**BEFORE executing ANY workflow actions, you MUST:**
 
+### Step 1: Detect Work Context
+
+Analyze the user's prompt and project to determine context:
+
+**Knowledge Context Indicators** (in prompt):
+- Document terms: "report", "presentation", "PRD", "proposal", "document", "brief"
+- Quality terms: "argument", "evidence", "clarity", "completeness", "narrative"
+
+**Dev Context Indicators** (in prompt):
+- Code terms: "code", "implementation", "API", "endpoint", "function", "module"
+- Quality terms: "security", "performance", "tests", "coverage", "bugs"
+
+**Also check**: What is being reviewed? Code files → Dev, Documents → Knowledge
+
+### Step 2: Output Context-Aware Banner
+
+**For Dev Context:**
 ```
 🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider validation mode
-✅ Deliver Phase: [Brief description of what you're reviewing/validating]
+✅ [Dev] Deliver Phase: [Brief description of code review]
 
 Providers:
 🔴 Codex CLI - Code quality analysis
 🟡 Gemini CLI - Security and edge cases
+🔵 Claude - Synthesis and recommendations
+```
+
+**For Knowledge Context:**
+```
+🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider validation mode
+✅ [Knowledge] Deliver Phase: [Brief description of document review]
+
+Providers:
+🔴 Codex CLI - Structure and logic analysis
+🟡 Gemini CLI - Content quality and completeness
 🔵 Claude - Synthesis and recommendations
 ```
 
@@ -88,18 +116,26 @@ This is the **convergent** phase for delivery - we ensure quality before shippin
 ## When to Use Deliver
 
 Use deliver when you need:
+
+### Dev Context Examples
 - **Code Review**: "Review the authentication implementation"
-- **Quality Validation**: "Validate the API endpoints"
-- **Security Audit**: "Check for security vulnerabilities in X"
+- **Security Audit**: "Check for security vulnerabilities in auth.ts"
+- **Quality Validation**: "Validate the API endpoints are production-ready"
 - **Implementation Verification**: "Verify the caching layer works correctly"
 - **Pre-Deployment Check**: "Ensure the feature is ready to ship"
-- **Bug Verification**: "Confirm the bug fix resolves the issue"
+
+### Knowledge Context Examples
+- **Document Review**: "Review the PRD for completeness"
+- **Presentation Validation**: "Check the executive presentation for clarity"
+- **Report Quality Check**: "Validate the market analysis report"
+- **Proposal Review**: "Review the business case for stakeholder readiness"
+- **Content Audit**: "Ensure the strategy document is actionable"
 
 **Don't use deliver for:**
-- Building implementations (use tangle-workflow)
-- Research and exploration (use probe-workflow)
-- Requirement definition (use grasp-workflow)
-- Simple code reading (use Read tool)
+- Building implementations (use develop-workflow)
+- Research and exploration (use discover-workflow)
+- Requirement definition (use define-workflow)
+- Simple code/document reading (use Read tool)
 
 ---
 
