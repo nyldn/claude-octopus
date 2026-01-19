@@ -80,3 +80,12 @@ test-results*.xml
 coverage-report.txt
 coverage-report.html
 .dev/
+
+# Private keys and credentials (security)
+*.pem
+*.key
+*credentials*
+credentials.json
+secrets.json
+.env.local
+.env.*.local
