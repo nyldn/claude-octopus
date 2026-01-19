@@ -5,6 +5,61 @@ All notable changes to Claude Octopus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.8.0] - 2026-01-19
+
+### Added - Context-Aware Detection
+
+**No more manual mode switching!** Claude Octopus now auto-detects whether you're working in a Dev Context (code-focused) or Knowledge Context (research/strategy-focused).
+
+#### How It Works
+
+When you use any `octo` workflow, context is automatically detected from:
+1. **Your prompt** - Technical terms → Dev, Business terms → Knowledge
+2. **Your project** - Has `package.json` → Dev, Mostly docs → Knowledge
+
+You'll see the detected context in the visual banner:
+```
+🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider research mode
+🔍 [Dev] Discover Phase: Technical research on caching patterns
+```
+
+#### What Changes Per Context
+
+| Aspect | Dev Context 🔧 | Knowledge Context 🎓 |
+|--------|---------------|---------------------|
+| **Research Focus** | Libraries, patterns, implementation | Market, competitive, strategic |
+| **Build Output** | Code, tests, APIs | PRDs, presentations, reports |
+| **Review Focus** | Security, performance, quality | Clarity, evidence, completeness |
+| **Agents Used** | codex, backend-architect, code-reviewer | strategy-analyst, ux-researcher, product-writer |
+
+#### Override When Needed
+
+If auto-detection gets it wrong:
+```
+/octo:km on      # Force Knowledge Context
+/octo:km off     # Force Dev Context  
+/octo:km auto    # Return to auto-detection
+```
+
+### Changed
+
+- **`/octo:km` is now an override** - No longer the primary way to switch modes; auto-detection handles it
+- **Updated model references** - GPT-5.x and Gemini 3.0 throughout documentation
+- **Flow skills updated** - `flow-discover`, `flow-develop`, `flow-deliver` now include context detection steps
+- **skill-knowledge-work.md** - Completely rewritten as override documentation
+
+### Added
+
+- **`skill-context-detection.md`** - Internal skill documenting the detection algorithm
+- **Context indicators in banners** - `[Dev]` or `[Knowledge]` shown in visual feedback
+
+### Documentation
+
+- Aligned all docs with v7.7.4 namespace changes
+- Updated docs/VISUAL-INDICATORS.md, docs/WORKFLOW-SKILLS.md, docs/agent-decision-tree.md, docs/AGENTS.md
+
+---
+
 ## [7.7.4] - 2026-01-19
 
 ### Added
