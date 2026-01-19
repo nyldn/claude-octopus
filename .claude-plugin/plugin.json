@@ -80,6 +80,7 @@
     "./.claude/commands/update.md",
     "./.claude/commands/check-update.md",
     "./.claude/commands/km.md",
+    "./.claude/commands/dev.md",
     "./.claude/commands/debate.md",
     "./.claude/commands/review.md",
     "./.claude/commands/research.md",

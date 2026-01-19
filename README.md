@@ -27,7 +27,7 @@
 | **Smart routing** | Auto-detects intent and picks the right AI model |
 | **AI Debate Hub** | Structured 3-way debates (Claude + Gemini + Codex) |
 | **Adversarial review** | AI vs AI debate catches more bugs |
-| **Knowledge work** | UX research, strategy, literature review + document export |
+| **Two work modes** | Dev mode (code) or Knowledge mode (research/UX/strategy) |
 
 **How to use it:**
 
@@ -153,15 +153,16 @@ This will automatically check for updates and install the latest version if avai
 
 **60% shorter commands!** v7.6 changes the namespace from `/claude-octopus:` to `/co:` and adds 11 new skill commands.
 
-### All Available Commands (18 total)
+### All Available Commands (19 total)
 
 All commands use the `/co:` namespace and appear in autocomplete:
 
-**System Commands** (7):
+**System Commands** (8):
 | Command | Description |
 |---------|-------------|
 | `/co:setup` | Check setup status (shortcut for sys-setup) |
 | `/co:update` | Check for updates (shortcut for sys-update) |
+| `/co:dev` | Switch to Dev Work mode |
 | `/co:km` | Toggle knowledge mode (shortcut for skill-knowledge-mode) |
 | `/co:sys-setup` | Full name: Check Claude Octopus setup |
 | `/co:sys-update` | Full name: Check for plugin updates |
@@ -279,22 +280,22 @@ No more CLI commands! Just talk naturally:
 
 ---
 
-## ✨ What's New in v7.2 - Quick Knowledge Mode Toggle
+## ✨ What's New in v7.6 - Two-Mode System
 
-**Instant mode switching for code vs research!** Toggle between Development Mode (code-focused) and Knowledge Work Mode (research, UX, strategy) with a single command.
+**Choose your work mode!** Claude Octopus now has two equal modes optimized for different tasks. Both use the same AI providers (Codex + Gemini) but with different personas.
 
 ### Quick Toggle
 Switch modes instantly in Claude Code:
 ```
-/co:km on      # Enable knowledge work mode
-/co:km off     # Enable development mode
+/co:dev        # Switch to Dev Work mode (default)
+/co:km on      # Switch to Knowledge Work mode
 /co:km         # Check current status
 ```
 
 ### Natural Language
 Or just tell me:
+- "Switch to dev mode"
 - "Switch to knowledge mode"
-- "Enable research mode"
 - "What mode am I in?"
 
 I'll detect and switch automatically! ✨

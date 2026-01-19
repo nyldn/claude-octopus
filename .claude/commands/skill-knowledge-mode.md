@@ -75,21 +75,29 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh knowledge-mode status
 
 ## What Changes When You Toggle?
 
-### Development Mode (Default) 🔧
-When **OFF**, claude-octopus optimizes for software engineering:
-- "Review this" → Code review
-- "Analyze this" → Technical analysis
-- "Research X" → Technical research
-- Primary agents: `codex`, `gemini`, `code-reviewer`
-- Workflows: `embrace`, `probe`, `tangle`, `optimize`
+Both modes use the same AI providers (Codex + Gemini), but with different personas optimized for different types of work.
+
+### Dev Work Mode 🔧 (Default)
+When **OFF**, claude-octopus optimizes for software development:
+- **Best for:** Building features, debugging code, implementing APIs
+- **Primary tasks:** Code review, technical architecture, bug fixes
+- **Personas:** backend-architect, code-reviewer, debugger, test-automator
+
+Switch to Dev mode:
+```bash
+/co:dev
+```
 
 ### Knowledge Work Mode 🎓
 When **ON**, claude-octopus optimizes for research and strategy:
-- "Review this" → Document/strategy review
-- "Analyze this" → Market/user analysis
-- "Research X" → Academic/market research
-- Primary agents: `ux-researcher`, `strategy-analyst`, `research-synthesizer`
-- Workflows: `empathize`, `advise`, `synthesize`
+- **Best for:** User research, strategy analysis, literature reviews
+- **Primary tasks:** UX research, market analysis, document synthesis
+- **Personas:** ux-researcher, strategy-analyst, research-synthesizer
+
+Switch to Knowledge mode:
+```bash
+/co:km on
+```
 
 ## Current Status (v7.2.1)
 
@@ -99,18 +107,18 @@ After toggling, you'll see a **clearer, more scannable** output:
 ```
   🎓 Knowledge Work Mode ENABLED
 
-  Optimized for: Research, UX analysis, strategy
-  Workflows: empathize, advise, synthesize
+  Best for: User research, strategy analysis, literature reviews
+  Providers: Codex + Gemini (same as Dev mode)
 
-  Switch back: /co:km off
+  Switch back: /co:dev
 ```
 
-**Development Mode Active:**
+**Dev Work Mode Active:**
 ```
-  🔧 Development Mode ACTIVE
+  🔧 Dev Work Mode ACTIVE
 
-  Optimized for: Code development, technical tasks
-  Workflows: embrace, probe, tangle, ink
+  Best for: Building features, debugging code, implementing APIs
+  Providers: Codex + Gemini (same as Knowledge mode)
 
   Switch to research: /co:km on
 ```
