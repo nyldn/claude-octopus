@@ -1,7 +1,7 @@
 {
   "name": "co",
-  "version": "7.7.1",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.7.1 - Auto-invoke fix!) /co:embrace for full workflow. Discover/Define/Develop/Deliver phases. Run /co:setup for guided setup.",
+  "version": "7.7.2",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.7.2 - Octo prefix triggers!) Use 'octo research X' or /co:discover. Discover/Define/Develop/Deliver phases. Run /co:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },

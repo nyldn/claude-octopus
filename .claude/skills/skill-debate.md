@@ -7,10 +7,14 @@ description: |
   Facilitates multi-perspective analysis with quality gates, cost tracking, and document export.
   Original skill by wolverin0, enhanced for Claude Octopus.
   
-  Use PROACTIVELY when user wants multi-AI debate or deliberation:
+  Use PROACTIVELY when user says:
+  - "octo debate X", "octo deliberate Y"
+  - "co-debate X", "co-deliberate Y"
   - "/debate <question>", "run a debate about X"
   - "I want gemini and codex to review X", "debate whether X or Y"
   - "get multiple AI perspectives on X", "have the AIs discuss X"
+  
+  PRIORITY TRIGGERS (always invoke): "octo debate", "octo deliberate", "co-debate"
   
   Supports flags: -r/--rounds, -d/--debate-style (quick/thorough/adversarial/collaborative).
 trigger: |

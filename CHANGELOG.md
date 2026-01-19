@@ -5,6 +5,33 @@ All notable changes to Claude Octopus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.7.2] - 2026-01-19
+
+### Added
+- **"Octo" prefix triggers** for reliable multi-AI workflow activation
+  - `octo research X` → Discover workflow
+  - `octo build X` → Develop workflow
+  - `octo review X` → Deliver workflow
+  - `octo debate X` → AI Debate Hub
+  - Also supports `co-research X`, `co-build X` patterns
+
+### Fixed
+- **Natural language trigger conflicts** - Common words like "research" may conflict with Claude's base behaviors (e.g., WebSearch)
+  - Solution: Added unique "octo" prefix that reliably triggers Claude Octopus workflows
+  - Skills now list "PRIORITY TRIGGERS" that always invoke the skill
+
+### Changed
+- Updated all workflow skill descriptions with octo prefix triggers:
+  - `flow-discover.md` - "octo research X", "octo discover X", "co-research X"
+  - `flow-define.md` - "octo define X", "octo scope X", "co-define X"
+  - `flow-develop.md` - "octo build X", "octo develop X", "co-build X"
+  - `flow-deliver.md` - "octo review X", "octo validate X", "co-review X"
+  - `skill-debate.md` - "octo debate X", "co-debate X"
+  - `skill-deep-research.md` - "octo deep-research X", "co-deep-research X"
+- Updated README with octo prefix documentation and examples
+
+---
+
 ## [7.7.1] - 2026-01-19
 
 ### Fixed

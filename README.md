@@ -6,7 +6,7 @@
   <img src="https://img.shields.io/badge/Claude_Code-Plugin-blueviolet" alt="Claude Code Plugin">
   <img src="https://img.shields.io/badge/Double_Diamond-Design_Thinking-orange" alt="Double Diamond">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
-  <img src="https://img.shields.io/badge/Version-7.7.1-blue" alt="Version 7.7.1">
+  <img src="https://img.shields.io/badge/Version-7.7.2-blue" alt="Version 7.7.2">
 </p>
 
 # Claude Octopus
@@ -31,12 +31,15 @@
 
 **How to use it:**
 
-Just talk to Claude naturally! Claude Octopus automatically activates when you need multi-AI collaboration:
+Use the **"octo" prefix** for reliable multi-AI workflows, or slash commands:
 
-- 💬 "Research OAuth authentication patterns and summarize the best approaches"
-- 💬 "Build a user authentication system"
-- 💬 "Review this code for security vulnerabilities"
-- 💬 "Run a debate about whether we should use Redis or Memcached"
+- 💬 `octo research OAuth authentication patterns` - Multi-AI research
+- 💬 `octo build a user authentication system` - Multi-AI implementation
+- 💬 `octo review this code for security` - Multi-AI validation
+- 💬 `octo debate Redis vs Memcached` - Three-way AI debate
+- 💬 `/co:research OAuth patterns` - Command alternative
+
+**Why "octo"?** Common words like "research" may conflict with Claude's base behaviors. The "octo" prefix ensures your request triggers Claude Octopus's multi-AI workflows.
 
 Claude coordinates multiple AI models behind the scenes to give you comprehensive, validated results.
 
@@ -104,19 +107,27 @@ This will:
 
 ### Step 3: Start Using It
 
-Just talk to Claude naturally! Claude Octopus automatically activates when you need multi-AI collaboration:
+Use the **"octo" prefix** for reliable workflow activation:
 
 **For research:**
-> "Research microservices patterns and compare their trade-offs"
+> `octo research microservices patterns and compare their trade-offs`
 
 **For development:**
-> "Build a REST API for user management with authentication"
+> `octo build a REST API for user management with authentication`
 
 **For code review:**
-> "Review my authentication code for security issues"
+> `octo review my authentication code for security issues`
 
 **For debates:**
-> "Run a debate about whether we should use GraphQL or REST for our API"
+> `octo debate whether we should use GraphQL or REST for our API`
+
+**Alternative: Slash commands** (always work reliably):
+```
+/co:research microservices patterns
+/co:develop REST API for user management
+/co:review authentication code
+/co:debate GraphQL vs REST
+```
 
 Claude Octopus automatically detects which providers you have and uses them intelligently.
 
@@ -149,9 +160,45 @@ This will automatically check for updates and install the latest version if avai
 
 ---
 
-## 🆕 What's New in v7.6 - Shorter Commands & Skill Discovery
+## 🆕 What's New in v7.7.2 - Reliable "Octo" Prefix Triggers
 
-**60% shorter commands!** v7.6 changes the namespace from `/claude-octopus:` to `/co:` and adds 11 new skill commands.
+**Reliable workflow activation!** v7.7.2 adds the "octo" prefix for guaranteed multi-AI workflow triggers.
+
+### Why "Octo" Prefix?
+
+Common words like "research" or "build" may conflict with Claude's base behaviors. The "octo" prefix creates a unique trigger that reliably activates Claude Octopus workflows:
+
+| Trigger Type | Example | Reliability |
+|--------------|---------|-------------|
+| **Octo prefix** (recommended) | `octo research OAuth patterns` | ✅ Always works |
+| **Slash commands** | `/co:research OAuth patterns` | ✅ Always works |
+| **Natural language** | `research OAuth patterns` | ⚠️ May conflict |
+
+### Supported Octo Triggers
+
+| What You Say | What Activates |
+|--------------|----------------|
+| `octo research X` | 🔍 Discover workflow (multi-AI research) |
+| `octo discover X` | 🔍 Discover workflow |
+| `octo define X` | 🎯 Define workflow (requirements) |
+| `octo build X` | 🛠️ Develop workflow (implementation) |
+| `octo develop X` | 🛠️ Develop workflow |
+| `octo review X` | ✅ Deliver workflow (validation) |
+| `octo deliver X` | ✅ Deliver workflow |
+| `octo debate X` | 🐙 AI Debate Hub (3-way debate) |
+
+### Alternative: "co-" Prefix
+
+You can also use the "co-" prefix for the same effect:
+- `co-research OAuth patterns`
+- `co-build user authentication`
+- `co-review security code`
+
+---
+
+## What's New in v7.6 - Shorter Commands & Skill Discovery
+
+**60% shorter commands!** v7.6 changed the namespace from `/claude-octopus:` to `/co:` and added 11 new skill commands.
 
 ### All Available Commands (18 total)
 
@@ -245,28 +292,32 @@ Providers:
 
 ### Natural Language Workflow Triggers
 
-No more CLI commands! Just talk naturally:
+Use the "octo" prefix or slash commands for reliable activation:
 
 | You Say | What Triggers | Indicator |
 |---------|---------------|-----------|
-| "research X" | Discover workflow | 🐙 🔍 |
-| "define requirements for X" | Define workflow | 🐙 🎯 |
-| "build X" | Develop workflow | 🐙 🛠️ |
-| "review X" | Deliver workflow | 🐙 ✅ |
+| `octo research X` | Discover workflow | 🐙 🔍 |
+| `octo define X` | Define workflow | 🐙 🎯 |
+| `octo build X` | Develop workflow | 🐙 🛠️ |
+| `octo review X` | Deliver workflow | 🐙 ✅ |
+| `/co:research X` | Discover workflow | 🐙 🔍 |
 | "read file.ts" | Claude Read tool (no external CLIs) | (none) |
 
-**Before v7.7:**
+**Before v7.7.2:**
 ```bash
-# Had to use CLI commands
-./scripts/orchestrate.sh discover "research OAuth patterns"
-./scripts/orchestrate.sh develop "implement auth system"
+# Natural language sometimes conflicted with Claude's base behaviors
+"Research OAuth patterns"  # Might use WebSearch instead of multi-AI
 ```
 
-**v7.7+:**
+**v7.7.2+:**
 ```
-# Just talk naturally
-"Research OAuth authentication patterns"
-"Build a user authentication system"
+# Use "octo" prefix for reliable multi-AI workflows
+"octo research OAuth authentication patterns"
+"octo build a user authentication system"
+
+# Or use slash commands (always work)
+/co:research OAuth patterns
+/co:develop user authentication
 ```
 
 📖 **[Complete Triggers Guide →](docs/TRIGGERS.md)**
@@ -317,14 +368,14 @@ Claude Octopus has different "tentacles" (workflows) for different tasks:
 
 | Tentacle | When to Use | What It Does | Example |
 |----------|-------------|--------------|---------|
-| **🔍 Discover** (probe) | Research, explore, investigate | Multi-AI research and discovery | "Research OAuth 2.0 patterns" |
-| **🎯 Define** (grasp) | Define, clarify, scope | Requirements and problem definition | "Define requirements for auth system" |
-| **🛠️ Develop** (tangle) | Build, implement, create | Multi-AI implementation approaches | "Build user authentication" |
-| **✅ Deliver** (ink) | Review, validate, audit | Quality assurance and validation | "Review auth code for security" |
-| **🐙 Debate** | Debate, discuss, deliberate | Structured 3-way AI debates | "Run a debate about Redis vs Memcached" |
-| **🐙 Embrace** | Complete feature lifecycle | Full 4-phase Double Diamond workflow | "Build a complete authentication system" |
+| **🔍 Discover** (probe) | Research, explore, investigate | Multi-AI research and discovery | `octo research OAuth 2.0 patterns` |
+| **🎯 Define** (grasp) | Define, clarify, scope | Requirements and problem definition | `octo define requirements for auth` |
+| **🛠️ Develop** (tangle) | Build, implement, create | Multi-AI implementation approaches | `octo build user authentication` |
+| **✅ Deliver** (ink) | Review, validate, audit | Quality assurance and validation | `octo review auth code for security` |
+| **🐙 Debate** | Debate, discuss, deliberate | Structured 3-way AI debates | `octo debate Redis vs Memcached` |
+| **🐙 Embrace** | Complete feature lifecycle | Full 4-phase Double Diamond workflow | `/co:embrace authentication system` |
 
-**Natural language automatically activates the right tentacle!**
+**Use "octo" prefix or `/co:` commands for reliable activation!**
 
 ---
 
