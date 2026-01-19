@@ -11,8 +11,8 @@
     {
       "name": "claude-octopus",
       "source": "./",
-      "description": "v7.6.0 - Shorter /co: commands! All skills now accessible via autocomplete. Uses /co: namespace for all commands. Multi-tentacled orchestrator with AI debates, quality gates, and natural language workflows. Run /co:setup for guided setup.",
-      "version": "7.6.0",
+      "description": "v7.7.0 - Standard phase names! /co:discover, /co:define, /co:develop, /co:deliver. NEW: /co:embrace for full workflow. Multi-tentacled orchestrator with AI debates, quality gates, and natural language workflows. Run /co:setup for guided setup.",
+      "version": "7.7.0",
       "author": {
         "name": "nyldn"
       },
