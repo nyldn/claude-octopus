@@ -2975,19 +2975,25 @@ OLD_init_interactive_impl() {
     echo ""
 
     # ─────────────────────────────────────────────────────────────────────────
-    # Step 6: User Intent (v4.5)
+    # Step 6: Mode Selection (Dev Work vs Knowledge Work)
+    # ─────────────────────────────────────────────────────────────────────────
+    init_step_mode_selection
+    echo ""
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Step 7: User Intent (v4.5)
     # ─────────────────────────────────────────────────────────────────────────
     init_step_intent
     echo ""
 
     # ─────────────────────────────────────────────────────────────────────────
-    # Step 7: Resource Configuration (v4.5)
+    # Step 8: Resource Configuration (v4.5)
     # ─────────────────────────────────────────────────────────────────────────
     init_step_resources
     echo ""
 
     # Save user configuration
-    save_user_config "$USER_INTENT_PRIMARY" "$USER_INTENT_ALL" "$USER_RESOURCE_TIER"
+    save_user_config "$USER_INTENT_PRIMARY" "$USER_INTENT_ALL" "$USER_RESOURCE_TIER" "$INITIAL_KNOWLEDGE_MODE"
 
     # ─────────────────────────────────────────────────────────────────────────
     # Summary
@@ -3429,7 +3435,7 @@ show_review() {
 # Intent-aware and resource-aware configuration for personalized routing
 # ═══════════════════════════════════════════════════════════════════════════════
 
-USER_CONFIG_FILE="${WORKSPACE_DIR:-$HOME/.claude-octopus}/.user-config"
+USER_CONFIG_FILE="${USER_CONFIG_FILE:-${WORKSPACE_DIR:-$HOME/.claude-octopus}/.user-config}"
 
 # User config variables (loaded from file)
 USER_INTENT_PRIMARY=""
@@ -4746,6 +4752,7 @@ save_user_config() {
     local intent_primary="$1"
     local intent_all="$2"
     local resource_tier="$3"
+    local knowledge_mode="${4:-false}"
 
     mkdir -p "$(dirname "$USER_CONFIG_FILE")"
 
@@ -4780,7 +4787,7 @@ intent:
 resource_tier: "$resource_tier"
 
 # Knowledge Work Mode (v6.0) - prioritizes research/consulting/writing workflows
-knowledge_work_mode: "$KNOWLEDGE_WORK_MODE"
+knowledge_work_mode: "$knowledge_mode"
 
 # Available API keys (auto-detected)
 available_keys:
@@ -4924,10 +4931,44 @@ get_fallback_agent() {
     esac
 }
 
-# Step 6: User intent selection
+# Step 6: Mode selection (Dev Work vs Knowledge Work)
+init_step_mode_selection() {
+    echo ""
+    echo -e "${YELLOW}Step 6/8: Choose your primary work mode${NC}"
+    echo ""
+    echo -e "  ${GREEN}[1]${NC} Dev Work Mode 🔧"
+    echo -e "      ${DIM}For:${NC} Software development, code review, debugging"
+    echo -e "      ${DIM}Examples:${NC} Building APIs, fixing bugs, implementing features"
+    echo ""
+    echo -e "  ${GREEN}[2]${NC} Knowledge Work Mode 🎓"
+    echo -e "      ${DIM}For:${NC} Research, UX analysis, strategy, writing"
+    echo -e "      ${DIM}Examples:${NC} User research, literature reviews, market analysis"
+    echo ""
+    echo -e "  ${DIM}Note: Both modes use Codex + Gemini - only personas differ${NC}"
+    echo -e "  ${DIM}Switch anytime with /co:dev or /co:km${NC}"
+    echo ""
+    read -p "  Choose mode [1-2] (default: 1): " mode_choice
+
+    case "$mode_choice" in
+        2)
+            INITIAL_KNOWLEDGE_MODE="true"
+            echo -e "  ${GREEN}✓${NC} Knowledge Work Mode selected"
+            ;;
+        1|"")
+            INITIAL_KNOWLEDGE_MODE="false"
+            echo -e "  ${GREEN}✓${NC} Dev Work Mode selected (default)"
+            ;;
+        *)
+            echo -e "  ${YELLOW}Invalid choice, using default: Dev Work Mode${NC}"
+            INITIAL_KNOWLEDGE_MODE="false"
+            ;;
+    esac
+}
+
+# Step 7: User intent selection
 init_step_intent() {
     echo ""
-    echo -e "${YELLOW}Step 6/7: What brings you to the octopus's lair?${NC}"
+    echo -e "${YELLOW}Step 7/8: What brings you to the octopus's lair?${NC}"
     echo -e "  ${CYAN}Select your primary use case(s) - this helps us choose the best agents${NC}"
     echo ""
     echo -e "  ${MAGENTA}━━━ Development ━━━${NC}"
@@ -5056,17 +5097,19 @@ reconfigure_preferences() {
     if [[ -n "$USER_INTENT_PRIMARY" ]]; then
         echo ""
         echo -e "  Current settings:"
+        echo -e "    Mode: $([ "$KNOWLEDGE_WORK_MODE" = "true" ] && echo "Knowledge Work" || echo "Dev Work")"
         echo -e "    Intent: $USER_INTENT_PRIMARY ($USER_INTENT_ALL)"
         echo -e "    Resource tier: $USER_RESOURCE_TIER"
         echo ""
     fi
 
     # Run just the preference steps
+    init_step_mode_selection
     init_step_intent
     init_step_resources
 
     # Save updated config
-    save_user_config "$USER_INTENT_PRIMARY" "$USER_INTENT_ALL" "$USER_RESOURCE_TIER"
+    save_user_config "$USER_INTENT_PRIMARY" "$USER_INTENT_ALL" "$USER_RESOURCE_TIER" "$INITIAL_KNOWLEDGE_MODE"
 
     echo ""
     echo -e "${GREEN}✓${NC} Configuration updated!"
@@ -9588,14 +9631,14 @@ update_knowledge_mode_config() {
             sed -i '' "s/^knowledge_work_mode:.*$/knowledge_work_mode: \"$new_mode\"/" "$USER_CONFIG_FILE" 2>/dev/null || {
                 # If sed fails, regenerate the file
                 load_user_config || true
-                save_user_config "${USER_INTENT_PRIMARY:-general}" "${USER_INTENT_ALL:-general}" "${USER_RESOURCE_TIER:-standard}"
+                save_user_config "${USER_INTENT_PRIMARY:-general}" "${USER_INTENT_ALL:-general}" "${USER_RESOURCE_TIER:-standard}" "$new_mode"
             }
         else
             # Linux
             sed -i "s/^knowledge_work_mode:.*$/knowledge_work_mode: \"$new_mode\"/" "$USER_CONFIG_FILE" 2>/dev/null || {
                 # If sed fails, regenerate the file
                 load_user_config || true
-                save_user_config "${USER_INTENT_PRIMARY:-general}" "${USER_INTENT_ALL:-general}" "${USER_RESOURCE_TIER:-standard}"
+                save_user_config "${USER_INTENT_PRIMARY:-general}" "${USER_INTENT_ALL:-general}" "${USER_RESOURCE_TIER:-standard}" "$new_mode"
             }
         fi
     else
@@ -9666,7 +9709,7 @@ update_intent_config() {
             sed -i '' "s/^  primary:.*$/  primary: \"$new_intent_primary\"/" "$USER_CONFIG_FILE" 2>/dev/null || {
                 # If sed fails, regenerate the file
                 load_user_config || true
-                save_user_config "$new_intent_primary" "$new_intent_all" "${USER_RESOURCE_TIER:-standard}"
+                save_user_config "$new_intent_primary" "$new_intent_all" "${USER_RESOURCE_TIER:-standard}" "${KNOWLEDGE_WORK_MODE:-false}"
             }
             sed -i '' "s/^  all:.*$/  all: [$new_intent_all]/" "$USER_CONFIG_FILE" 2>/dev/null
         else
@@ -9674,13 +9717,13 @@ update_intent_config() {
             sed -i "s/^  primary:.*$/  primary: \"$new_intent_primary\"/" "$USER_CONFIG_FILE" 2>/dev/null || {
                 # If sed fails, regenerate the file
                 load_user_config || true
-                save_user_config "$new_intent_primary" "$new_intent_all" "${USER_RESOURCE_TIER:-standard}"
+                save_user_config "$new_intent_primary" "$new_intent_all" "${USER_RESOURCE_TIER:-standard}" "${KNOWLEDGE_WORK_MODE:-false}"
             }
             sed -i "s/^  all:.*$/  all: [$new_intent_all]/" "$USER_CONFIG_FILE" 2>/dev/null
         fi
     else
         # No config exists - create full config
-        save_user_config "$new_intent_primary" "$new_intent_all" "standard"
+        save_user_config "$new_intent_primary" "$new_intent_all" "standard" "false"
     fi
 }
 
@@ -9699,19 +9742,19 @@ update_resource_tier_config() {
             sed -i '' "s/^resource_tier:.*$/resource_tier: \"$new_tier\"/" "$USER_CONFIG_FILE" 2>/dev/null || {
                 # If sed fails, regenerate the file
                 load_user_config || true
-                save_user_config "${USER_INTENT_PRIMARY:-general}" "${USER_INTENT_ALL:-general}" "$new_tier"
+                save_user_config "${USER_INTENT_PRIMARY:-general}" "${USER_INTENT_ALL:-general}" "$new_tier" "${KNOWLEDGE_WORK_MODE:-false}"
             }
         else
             # Linux
             sed -i "s/^resource_tier:.*$/resource_tier: \"$new_tier\"/" "$USER_CONFIG_FILE" 2>/dev/null || {
                 # If sed fails, regenerate the file
                 load_user_config || true
-                save_user_config "${USER_INTENT_PRIMARY:-general}" "${USER_INTENT_ALL:-general}" "$new_tier"
+                save_user_config "${USER_INTENT_PRIMARY:-general}" "${USER_INTENT_ALL:-general}" "$new_tier" "${KNOWLEDGE_WORK_MODE:-false}"
             }
         fi
     else
         # No config exists - create full config
-        save_user_config "general" "general" "$new_tier"
+        save_user_config "general" "general" "$new_tier" "false"
     fi
 }
 
@@ -9730,17 +9773,17 @@ toggle_knowledge_work_mode() {
         if [[ "$KNOWLEDGE_WORK_MODE" == "true" ]]; then
             echo -e "  ${MAGENTA}🎓 Knowledge Work Mode${NC} ${GREEN}ENABLED${NC}"
             echo ""
-            echo -e "  ${CYAN}Optimized for:${NC} Research, UX analysis, strategy"
-            echo -e "  ${CYAN}Workflows:${NC} empathize, advise, synthesize"
+            echo -e "  ${CYAN}Best for:${NC} User research, strategy analysis, literature reviews"
+            echo -e "  ${DIM}Providers:${NC} Codex + Gemini (same as Dev mode)"
             echo ""
-            echo -e "  ${DIM}Switch back:${NC} /claude-octopus:km off"
+            echo -e "  ${DIM}Switch back:${NC} /co:dev"
         else
-            echo -e "  ${GREEN}🔧 Development Mode${NC} ${CYAN}ACTIVE${NC}"
+            echo -e "  ${GREEN}🔧 Dev Work Mode${NC} ${CYAN}ACTIVE${NC}"
             echo ""
-            echo -e "  ${CYAN}Optimized for:${NC} Code development, technical tasks"
-            echo -e "  ${CYAN}Workflows:${NC} embrace, probe, tangle, ink"
+            echo -e "  ${CYAN}Best for:${NC} Building features, debugging code, implementing APIs"
+            echo -e "  ${DIM}Providers:${NC} Codex + Gemini (same as Knowledge mode)"
             echo ""
-            echo -e "  ${DIM}Switch to research:${NC} /claude-octopus:km on"
+            echo -e "  ${DIM}Switch to research:${NC} /co:km on"
         fi
         echo ""
         return 0
@@ -9792,12 +9835,12 @@ toggle_knowledge_work_mode() {
     if [[ "$new_mode" == "true" ]]; then
         echo -e "  ${GREEN}✓${NC} Switched to ${MAGENTA}🎓 Knowledge Work Mode${NC}"
         echo ""
-        echo -e "  ${DIM}Auto-routing now prioritizes:${NC}"
-        echo -e "    • UX research and synthesis"
+        echo -e "  ${DIM}Personas optimized for:${NC}"
+        echo -e "    • User research and UX analysis"
         echo -e "    • Strategy and market analysis"
-        echo -e "    • Literature review and research"
+        echo -e "    • Literature review and synthesis"
         echo ""
-        echo -e "  ${DIM}Available workflows:${NC} empathize, advise, synthesize"
+        echo -e "  ${DIM}Providers:${NC} Codex + Gemini (same AI, different personas)"
 
         # Show document-skills recommendation on first knowledge mode enable (v7.2.2)
         local first_time_flag="${WORKSPACE_DIR}/.knowledge-mode-setup-done"
@@ -9807,14 +9850,14 @@ toggle_knowledge_work_mode() {
             touch "$first_time_flag"
         fi
     else
-        echo -e "  ${GREEN}✓${NC} Switched to ${GREEN}🔧 Development Mode${NC}"
+        echo -e "  ${GREEN}✓${NC} Switched to ${GREEN}🔧 Dev Work Mode${NC}"
         echo ""
-        echo -e "  ${DIM}Auto-routing now prioritizes:${NC}"
-        echo -e "    • Code implementation"
-        echo -e "    • Technical analysis"
-        echo -e "    • Development workflows"
+        echo -e "  ${DIM}Personas optimized for:${NC}"
+        echo -e "    • Building features and implementing APIs"
+        echo -e "    • Debugging code and fixing bugs"
+        echo -e "    • Technical architecture and code review"
         echo ""
-        echo -e "  ${DIM}Available workflows:${NC} embrace, probe, tangle, ink"
+        echo -e "  ${DIM}Providers:${NC} Codex + Gemini (same AI, different personas)"
     fi
     echo ""
     echo -e "  ${DIM}Setting persists across sessions${NC}"
@@ -10171,6 +10214,10 @@ case "$COMMAND" in
     knowledge-toggle)
         # Legacy toggle command - always toggles
         toggle_knowledge_work_mode "toggle"
+        ;;
+    dev|dev-mode)
+        # Switch to Dev Work mode (turns off knowledge mode)
+        toggle_knowledge_work_mode "off"
         ;;
     knowledge|knowledge-mode|km)
         # Enhanced knowledge mode toggle with on/off/status support

@@ -142,26 +142,34 @@ You don't need to run commands - just describe what you want in plain English:
 
 Claude coordinates multiple AI models behind the scenes and provides comprehensive, validated results.
 
-## Knowledge Work Mode Setup (Optional)
+## Choosing Your Work Mode
 
-If you plan to use Knowledge Work Mode for research and analysis:
+Claude Octopus has two work modes optimized for different tasks. Both use the same AI providers (Codex + Gemini) but with different personas:
 
-### Install Document Skills (Recommended)
+### Dev Work Mode 🔧 (Default)
+**Best for:** Building features, debugging code, implementing APIs
 
+Switch to Dev mode:
+```
+/co:dev
+```
+
+### Knowledge Work Mode 🎓
+**Best for:** User research, strategy analysis, literature reviews
+
+Switch to Knowledge mode:
+```
+/co:km on
+```
+
+**For Knowledge Work, we recommend installing document-skills:**
 ```
 /plugin install document-skills@anthropic-agent-skills
 ```
 
-This adds support for:
-- PDF analysis and extraction
-- DOCX document generation
-- PPTX presentation creation
-- XLSX spreadsheet handling
+This adds support for PDF analysis, DOCX/PPTX/XLSX generation, and professional document export.
 
-Then enable knowledge mode:
-```
-/co:km on
-```
+**Note:** The mode you choose during setup will be remembered across sessions. You can switch modes anytime using `/co:dev` or `/co:km on`
 
 ---
 

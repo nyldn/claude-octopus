@@ -191,6 +191,47 @@ test_status_shows_mode() {
     fi
 }
 
+test_dev_command() {
+    test_case "dev command switches to Dev Work mode"
+
+    local output=$("$PROJECT_ROOT/scripts/orchestrate.sh" dev 2>&1)
+    local exit_code=$?
+
+    assert_success "$exit_code" "dev command should succeed"
+    if echo "$output" | grep -qi "dev.*work.*mode\|development.*mode"; then
+        test_pass
+    else
+        test_fail "Should show Dev Work mode activation: $output"
+    fi
+}
+
+test_mode_symmetry() {
+    test_case "/co:dev and /co:km off should be equivalent"
+
+    # First, enable knowledge mode
+    "$PROJECT_ROOT/scripts/orchestrate.sh" knowledge-mode on >/dev/null 2>&1
+
+    # Test dev command output
+    local dev_output=$("$PROJECT_ROOT/scripts/orchestrate.sh" dev 2>&1)
+
+    # Re-enable knowledge mode
+    "$PROJECT_ROOT/scripts/orchestrate.sh" knowledge-mode on >/dev/null 2>&1
+
+    # Test km off output
+    local km_off_output=$("$PROJECT_ROOT/scripts/orchestrate.sh" knowledge-mode off 2>&1)
+
+    # Both should indicate switching to Dev mode
+    if echo "$dev_output" | grep -qi "dev.*work.*mode\|development.*mode"; then
+        if echo "$km_off_output" | grep -qi "dev.*work.*mode\|development.*mode"; then
+            test_pass
+        else
+            test_fail "/co:km off should show Dev mode: $km_off_output"
+        fi
+    else
+        test_fail "/co:dev should show Dev mode: $dev_output"
+    fi
+}
+
 # Run all tests
 test_empathize_command
 test_advise_command
@@ -202,5 +243,7 @@ test_intent_detection_literature
 test_new_intent_choices
 test_command_aliases
 test_status_shows_mode
+test_dev_command
+test_mode_symmetry
 
 test_summary
