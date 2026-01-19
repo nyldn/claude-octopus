@@ -1,7 +1,7 @@
 {
   "name": "co",
-  "version": "7.6.0",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.6.0 - Shorter /co: commands!) All commands now use /co: namespace. Skills accessible via commands! Visual feedback, natural language workflows, AI debates! Run /co:setup for guided setup.",
+  "version": "7.6.1",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.6.1 - Two-mode system!) Dev Work vs Knowledge Work modes. All commands use /co: namespace. Visual feedback, natural language workflows, AI debates! Run /co:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },
