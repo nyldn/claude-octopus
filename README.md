@@ -35,7 +35,7 @@ Get started with Claude Octopus in 2 simple steps:
 Open Claude Code and run these two commands in the chat:
 
 ```
-/plugin marketplace add nyldn/claude-octopus
+/plugin marketplace add https://github.com/nyldn/claude-octopus
 /plugin install claude-octopus@nyldn-plugins
 ```
 
@@ -68,6 +68,21 @@ The plugin is now installed and automatically enabled.
    ```bash
    claude --version
    ```
+
+**If you see "SSH authentication failed" or "Permission denied (publickey)":**
+
+This means Claude Code tried to use SSH instead of HTTPS. Make sure you used the full HTTPS URL:
+
+```
+/plugin marketplace add https://github.com/nyldn/claude-octopus
+```
+
+**NOT** the shorthand: `/plugin marketplace add nyldn/claude-octopus` (this triggers SSH)
+
+Alternatively, configure Git to always use HTTPS:
+```bash
+git config --global url."https://github.com/".insteadOf git@github.com:
+```
 
 </details>
 
@@ -262,7 +277,7 @@ All commands use the `/co:` namespace (60% shorter than before!):
 
 **Install the plugin:**
 ```
-/plugin marketplace add nyldn/claude-octopus
+/plugin marketplace add https://github.com/nyldn/claude-octopus
 /plugin install claude-octopus@nyldn-plugins
 ```
 

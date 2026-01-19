@@ -32,7 +32,7 @@ if [ -z "$PLUGIN_INFO" ]; then
   echo "❌ Error: claude-octopus plugin is not installed"
   echo ""
   echo "To install the plugin, run:"
-  echo "  /plugin marketplace add nyldn/claude-octopus"
+  echo "  /plugin marketplace add https://github.com/nyldn/claude-octopus"
   echo "  /plugin install claude-octopus@nyldn-plugins"
   echo ""
   echo "Or visit: https://github.com/nyldn/claude-octopus"
