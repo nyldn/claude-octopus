@@ -1,7 +1,7 @@
 ---
-name: tangle
-description: "Shortcut for /co:flow-tangle - Develop phase workflow for building implementations"
-redirect: flow-tangle
+name: develop
+description: "Shortcut for /co:flow-develop - Develop phase workflow for building implementations"
+redirect: flow-develop
 trigger: |
   AUTOMATICALLY ACTIVATE when user requests building or implementation:
   - "build X" or "implement Y" or "create Z"
@@ -10,18 +10,18 @@ trigger: |
   - "add functionality for Z"
 ---
 
-# Tangle (Shortcut) - Develop Phase 🛠️
+# Develop (Shortcut) - Develop Phase 🛠️
 
-This is a shortcut alias for `/co:flow-tangle`.
+This is a shortcut alias for `/co:flow-develop`.
 
 **Part of Double Diamond: DEVELOP** (divergent thinking)
 
 ## What This Does
 
-The **tangle** phase generates multiple implementation approaches using external CLI providers:
+The **develop** phase generates multiple implementation approaches using external CLI providers:
 
 1. **🔴 Codex CLI** - Implementation-focused, code generation, technical patterns
 2. **🟡 Gemini CLI** - Alternative approaches, edge cases, best practices
 3. **🔵 Claude (You)** - Integration, refinement, and final implementation
 
-For full documentation, see `/co:flow-tangle`.
+For full documentation, see `/co:flow-develop`.

@@ -1,11 +1,13 @@
 ---
-name: flow-tangle
+name: flow-develop
 aliases:
+  - develop
+  - develop-workflow
   - tangle
   - tangle-workflow
 description: |
   Develop phase workflow - Build and implement solutions using external CLI providers.
-  Part of the Double Diamond methodology (Tangle = Develop phase).
+  Part of the Double Diamond methodology (Develop phase).
   Uses Codex and Gemini CLIs for multi-perspective implementation.
 trigger: |
   AUTOMATICALLY ACTIVATE when user requests building or implementation:
@@ -22,7 +24,7 @@ trigger: |
   - Trivial single-file changes
 ---
 
-# Tangle Workflow - Develop Phase 🛠️
+# Develop Workflow - Develop Phase 🛠️
 
 **Part of Double Diamond: DEVELOP** (divergent thinking)
 
@@ -41,7 +43,7 @@ trigger: |
 
 ## What This Workflow Does
 
-The **tangle** phase generates multiple implementation approaches using external CLI providers:
+The **develop** phase generates multiple implementation approaches using external CLI providers:
 
 1. **🔴 Codex CLI** - Implementation-focused, code generation, technical patterns
 2. **🟡 Gemini CLI** - Alternative approaches, edge cases, best practices
@@ -51,9 +53,9 @@ This is the **divergent** phase for solutions - we explore different implementat
 
 ---
 
-## When to Use Tangle
+## When to Use Develop
 
-Use tangle when you need:
+Use develop when you need:
 - **Feature Implementation**: "Build a user authentication system"
 - **Code Generation**: "Create an API endpoint for user registration"
 - **Complex Builds**: "Implement a caching layer with Redis"
@@ -61,7 +63,7 @@ Use tangle when you need:
 - **Architecture Implementation**: "Create a microservice for payment processing"
 - **Integration Work**: "Integrate Stripe payment processing"
 
-**Don't use tangle for:**
+**Don't use develop for:**
 - Simple one-line code changes (use Edit tool)
 - Bug fixes (use debugging skills)
 - Code review tasks (use ink-workflow or review skills)
@@ -75,7 +77,7 @@ Before execution, you'll see:
 
 ```
 🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider implementation
-🛠️ Tangle Phase: Building and developing solutions
+🛠️ Develop Phase: Building and developing solutions
 
 Providers:
 🔴 Codex CLI - Code generation and patterns
@@ -90,7 +92,7 @@ Providers:
 ### Step 1: Invoke Tangle Phase
 
 ```bash
-./scripts/orchestrate.sh tangle "<user's implementation request>"
+./scripts/orchestrate.sh develop "<user's implementation request>"
 ```
 
 ### Step 2: Multi-Provider Implementation
@@ -131,12 +133,12 @@ When this skill activates:
    I'll implement "<task>" using multiple AI perspectives.
 
    🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider implementation mode
-   🛠️ Tangle Phase: Generating solutions
+   🛠️ Develop Phase: Generating solutions
    ```
 
 2. **Execute tangle workflow**
    ```bash
-   ./scripts/orchestrate.sh tangle "<user's implementation request>"
+   ./scripts/orchestrate.sh develop "<user's implementation request>"
    ```
 
 3. **Monitor execution and quality gates**
@@ -201,9 +203,9 @@ User: Build a user authentication system with JWT
 
 Claude:
 🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider implementation mode
-🛠️ Tangle Phase: Building authentication system
+🛠️ Develop Phase: Building authentication system
 
-[Executes: ./scripts/orchestrate.sh tangle "Build a user authentication system with JWT"]
+[Executes: ./scripts/orchestrate.sh develop "Build a user authentication system with JWT"]
 
 [After completion, reads synthesis and presents:]
 
@@ -265,7 +267,7 @@ User: Create an API endpoint for fetching user notifications
 
 Claude:
 🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider implementation mode
-🛠️ Tangle Phase: Creating API endpoint
+🛠️ Develop Phase: Creating API endpoint
 
 [Executes tangle workflow]
 
