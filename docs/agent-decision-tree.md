@@ -171,7 +171,7 @@ What kind of review?
 ├─ General quality     → code-reviewer
 ├─ Security focused    → security-auditor
 ├─ Performance focused → performance-engineer
-└─ Multiple concerns   → Use /octopus-quick-review skill
+└─ Multiple concerns   → Use /octo:review skill
 ```
 
 ---
@@ -218,10 +218,10 @@ What kind of review?
 
 | Skill | Does What |
 |-------|-----------|
-| `/octopus-quick-review` | Fast code review (grasp + tangle) |
-| `/octopus-research` | Deep research (4-perspective probe) |
-| `/octopus-security` | Security audit (red team/blue team) |
-| `/octopus-architecture` | Full architecture design |
+| `/octo:review` | Fast code review (define + develop) |
+| `/octo:research` | Deep research (4-perspective discover) |
+| `/octo:security` | Security audit (red team/blue team) |
+| `/octo:embrace` | Full 4-phase Double Diamond workflow |
 
 ---
 
