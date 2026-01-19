@@ -6,6 +6,15 @@ aliases:
 description: |
   Four-phase debugging process: Investigate → Analyze → Hypothesize → Implement.
   "Iron Law: NO FIXES WITHOUT ROOT CAUSE INVESTIGATION FIRST."
+  
+  Use PROACTIVELY when encountering bugs or failures:
+  - "fix this bug", "debug Y", "troubleshoot X"
+  - "why is X failing", "why isn't X working", "why doesn't X work"
+  - "X does not work", "X is broken", "X is not working"
+  - "The X button does not work", "investigate Y", "figure out why Z"
+  
+  DO NOT use for: "Why do we use X?" (explanation), "Why should I choose X?" (decision support),
+  known issues with clear solutions, or documentation questions.
 trigger: |
   AUTOMATICALLY ACTIVATE when encountering bugs or failures:
   - "fix this bug" or "debug Y" or "troubleshoot X"

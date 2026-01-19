@@ -9,6 +9,15 @@ description: |
   Deliver phase workflow - Review, validate, and test using external CLI providers.
   Part of the Double Diamond methodology (Deliver phase).
   Uses Codex and Gemini CLIs for multi-perspective validation.
+  
+  Use PROACTIVELY when user requests validation or review:
+  - "review X", "validate Y", "test Z"
+  - "check if X works correctly", "verify the implementation of Y"
+  - "find issues in Z", "quality check for X"
+  - "ensure Y meets requirements", "audit X for security"
+  
+  DO NOT use for: implementation (use flow-develop), research (use flow-discover),
+  requirement definition (use flow-define), or simple code reading.
 trigger: |
   AUTOMATICALLY ACTIVATE when user requests validation or review:
   - "review X" or "validate Y" or "test Z"

@@ -7,6 +7,15 @@ aliases:
 description: |
   Execute tasks in loops with conditions, performing iterative improvements until goals are met.
   Handles "loop N times", "keep trying until", and iterative refinement patterns.
+  
+  Use PROACTIVELY when user requests iterative execution:
+  - "loop X times", "loop around N times"
+  - "loop around 5 times auditing, enhancing, testing"
+  - "keep trying until", "iterate until", "run until X passes"
+  - "loop until Y works", "repeat N times", "try N times"
+  
+  DO NOT use for: single execution requests, manual retry requests,
+  or infinite loops without max iterations.
 trigger: |
   AUTOMATICALLY ACTIVATE when user requests iterative execution:
   - "loop X times" or "loop around N times"
