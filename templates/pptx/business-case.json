@@ -1,0 +1,20 @@
+{
+  "name": "Business Case",
+  "description": "Strategic business case template for investment and approval decisions",
+  "version": "1.0.0",
+  "theme": "executive-theme",
+  "slide_count": 9,
+  "recommended_for": ["Investment proposals", "Strategic initiatives", "New product launches", "Major decisions"],
+  "slides": [
+    {"number": 1, "type": "title", "title": "[Business Case Title]", "subtitle": "[Team | Date]"},
+    {"number": 2, "type": "executive_summary", "title": "Executive Summary", "content_structure": ["Opportunity", "Recommendation", "Financial impact", "Timeline", "Ask"]},
+    {"number": 3, "type": "opportunity", "title": "Market Opportunity", "content_structure": ["Market size", "Growth trends", "Customer pain points", "Competitive landscape"]},
+    {"number": 4, "type": "solution", "title": "Proposed Solution", "content_structure": ["Solution overview", "Key features", "Differentiation", "Success metrics"]},
+    {"number": 5, "type": "financial", "title": "Financial Model", "content_structure": ["Revenue projections", "Cost structure", "ROI analysis", "Break-even timeline"]},
+    {"number": 6, "type": "implementation", "title": "Implementation Plan", "content_structure": ["Phase 1: Foundation", "Phase 2: Scale", "Phase 3: Optimize", "Resource requirements"]},
+    {"number": 7, "type": "risk", "title": "Risk Assessment", "content_structure": ["Key risks", "Mitigation strategies", "Success dependencies", "Alternatives considered"]},
+    {"number": 8, "type": "recommendation", "title": "Recommendation", "content_structure": ["Go/No-Go recommendation", "Investment required", "Expected outcomes", "Decision timeline"]},
+    {"number": 9, "type": "next_steps", "title": "Next Steps", "content_structure": ["Approval process", "Launch timeline", "Key milestones", "Success criteria"]}
+  ],
+  "usage_tips": ["Quantify everything possible", "Show ROI clearly", "Address risks proactively", "Include alternative scenarios", "Make recommendation explicit"]
+}

@@ -345,6 +345,38 @@ Knowledge Work Flow:
 5. **Archive Sources** - Keep original markdown files
 6. **Version Control** - Use descriptive filenames with dates
 
+## Executive Templates (NEW in v7.7.0)
+
+Claude Octopus now includes professional PowerPoint templates for executive communication:
+
+### Available Templates
+
+1. **Executive Summary** (5 slides) - Quick updates and decision briefs
+2. **Board Presentation** (10 slides) - Board meetings and quarterly reviews
+3. **Business Case** (9 slides) - Investment proposals and strategic initiatives
+4. **Status Update** (6 slides) - Regular progress reports
+5. **Workshop Readout** (7 slides) - Workshop synthesis for leadership
+
+### Using Templates
+
+When converting knowledge work to PPTX, Claude automatically suggests appropriate templates:
+
+```
+User: "Export this strategy analysis to PowerPoint"
+
+Claude: "I'll use the business-case template which includes:
+- Executive summary with BLUF
+- Market opportunity analysis
+- Financial model
+- Implementation plan
+- Risk assessment
+Would you like me to proceed?"
+```
+
+**Template location:** `templates/pptx/`
+**Theme system:** `templates/themes/executive-theme.json`
+**Documentation:** `templates/README.md`
+
 ## Quick Reference Commands
 
 ```bash
@@ -359,6 +391,12 @@ ls -lht ~/.claude-octopus/results/ | head -5
 
 # View specific markdown
 cat ~/.claude-octopus/results/[filename].md
+
+# View available templates
+ls templates/pptx/
+
+# Read template documentation
+cat templates/README.md
 ```
 
 ## Getting Help

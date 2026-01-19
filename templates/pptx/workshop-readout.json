@@ -1,0 +1,18 @@
+{
+  "name": "Workshop Readout",
+  "description": "Workshop synthesis template for communicating outcomes to leadership",
+  "version": "1.0.0",
+  "theme": "executive-theme",
+  "slide_count": 7,
+  "recommended_for": ["Workshop summaries", "Session synthesis", "Stakeholder alignment", "Decision documentation"],
+  "slides": [
+    {"number": 1, "type": "title", "title": "[Workshop Name]", "subtitle": "[Synthesis | Date | Facilitator]"},
+    {"number": 2, "type": "overview", "title": "Workshop Overview", "content_structure": ["Objective", "Participants", "Format", "Duration"]},
+    {"number": 3, "type": "themes", "title": "Key Themes", "content_structure": ["Theme #1 with supporting quotes", "Theme #2 with supporting quotes", "Theme #3 with supporting quotes", "Patterns observed"]},
+    {"number": 4, "type": "decisions", "title": "Decisions Made", "content_structure": ["Decision #1 + rationale", "Decision #2 + rationale", "Decision #3 + rationale", "Consensus level"]},
+    {"number": 5, "type": "actions", "title": "Action Items", "content_structure": ["Action | Owner | Due Date", "Action | Owner | Due Date", "Action | Owner | Due Date", "Dependencies"]},
+    {"number": 6, "type": "open", "title": "Open Questions", "content_structure": ["Question requiring follow-up", "Question requiring follow-up", "Parking lot items", "Future discussion topics"]},
+    {"number": 7, "type": "next_steps", "title": "Next Steps", "content_structure": ["Follow-up meeting", "Communication plan", "Progress check-in", "Success metrics"]}
+  ],
+  "usage_tips": ["Include participant quotes", "Show consensus vs dissent", "Assign all action items", "Document open questions", "Set follow-up timeline"]
+}

@@ -1,0 +1,21 @@
+{
+  "name": "Board Presentation",
+  "description": "Comprehensive board deck template for governance and strategic updates",
+  "version": "1.0.0",
+  "theme": "executive-theme",
+  "slide_count": 10,
+  "recommended_for": ["Board meetings", "Quarterly reviews", "Strategic updates", "Governance reporting"],
+  "slides": [
+    {"number": 1, "type": "title", "title": "[Presentation Title]", "subtitle": "[Board Meeting | Date]"},
+    {"number": 2, "type": "agenda", "title": "Agenda", "content_structure": ["Executive Summary", "Performance Metrics", "Strategic Initiatives", "Risk & Mitigation", "Financial Overview", "Q&A"]},
+    {"number": 3, "type": "executive_summary", "title": "Executive Summary", "content_structure": ["Key achievements this quarter", "Critical challenges", "Strategic pivots", "Board decisions needed"]},
+    {"number": 4, "type": "metrics", "title": "Performance Metrics", "content_structure": ["Revenue vs target", "Key KPIs", "Customer metrics", "Operational efficiency"]},
+    {"number": 5, "type": "strategy", "title": "Strategic Updates", "content_structure": ["Initiative progress", "Market changes", "Competitive landscape", "Strategic responses"]},
+    {"number": 6, "type": "risk", "title": "Risk & Mitigation", "content_structure": ["Top risks", "Mitigation strategies", "Contingency plans", "Board oversight items"]},
+    {"number": 7, "type": "financial", "title": "Financial Overview", "content_structure": ["P&L summary", "Cash position", "Runway", "Budget variances"]},
+    {"number": 8, "type": "asks", "title": "Board Decisions Needed", "content_structure": ["Decision #1 with context", "Decision #2 with context", "Approval requests"]},
+    {"number": 9, "type": "next_steps", "title": "Next Steps", "content_structure": ["Action items", "Follow-up meetings", "Next board date"]},
+    {"number": 10, "type": "appendix", "title": "Appendix", "content_structure": ["Supporting data", "Detailed analysis", "References"]}
+  ],
+  "usage_tips": ["Include exec summary upfront", "Use data visualizations for metrics", "Separate risks from mitigation", "Be explicit about board asks", "Prepare appendix for Q&A"]
+}

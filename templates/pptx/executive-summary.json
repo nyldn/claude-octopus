@@ -1,0 +1,80 @@
+{
+  "name": "Executive Summary",
+  "description": "Concise 1-pager deck for busy executives following pyramid principle",
+  "version": "1.0.0",
+  "theme": "executive-theme",
+  "slide_count": 5,
+  "recommended_for": [
+    "Quick updates for C-suite",
+    "Board deck summaries",
+    "Stakeholder briefings",
+    "Decision requests"
+  ],
+  "slides": [
+    {
+      "number": 1,
+      "type": "title",
+      "title": "[Your Key Message]",
+      "subtitle": "[Context | Date | Author]",
+      "notes": "Lead with the conclusion - what decision or understanding should the audience walk away with?"
+    },
+    {
+      "number": 2,
+      "type": "content",
+      "title": "[Problem or Opportunity]",
+      "layout": "title_and_content",
+      "content_structure": [
+        "Situation: What's happening?",
+        "Complication: Why does it matter?",
+        "Impact: What's at stake?"
+      ],
+      "notes": "Set context quickly. Quantify impact wherever possible."
+    },
+    {
+      "number": 3,
+      "type": "content",
+      "title": "[Analysis Summary]",
+      "layout": "title_and_content",
+      "content_structure": [
+        "Key finding #1 with data",
+        "Key finding #2 with data",
+        "Key finding #3 with data"
+      ],
+      "notes": "3-5 bullet points maximum. Use data to support claims. Consider a chart."
+    },
+    {
+      "number": 4,
+      "type": "content",
+      "title": "[Recommendation]",
+      "layout": "title_and_content",
+      "content_structure": [
+        "Recommended action",
+        "Expected outcome",
+        "Resource requirements",
+        "Timeline"
+      ],
+      "notes": "Be explicit about what you're asking for. Include trade-offs if relevant."
+    },
+    {
+      "number": 5,
+      "type": "content",
+      "title": "[Next Steps]",
+      "layout": "title_and_content",
+      "content_structure": [
+        "Immediate action items",
+        "Owner assignments",
+        "Key milestones",
+        "Decision needed by [date]"
+      ],
+      "notes": "Make it actionable. Who does what by when?"
+    }
+  ],
+  "usage_tips": [
+    "Keep total presentation to 5 slides maximum",
+    "Use BLUF (Bottom Line Up Front) approach",
+    "Lead each slide with the conclusion",
+    "Support with 3-5 bullets of evidence",
+    "Include clear ask on recommendation slide",
+    "Quantify impact wherever possible"
+  ]
+}

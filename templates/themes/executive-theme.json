@@ -1,0 +1,98 @@
+{
+  "name": "Executive Theme",
+  "description": "Professional theme for C-suite presentations with conservative, trustworthy design",
+  "version": "1.0.0",
+  "colors": {
+    "primary": "#1F4788",
+    "secondary": "#5B7A9F",
+    "accent": "#E8505B",
+    "background": "#FFFFFF",
+    "text_dark": "#2C3E50",
+    "text_light": "#7F8C8D",
+    "success": "#27AE60",
+    "warning": "#F39C12",
+    "error": "#E74C3C",
+    "gray_light": "#ECF0F1",
+    "gray_medium": "#BDC3C7",
+    "gray_dark": "#95A5A6"
+  },
+  "fonts": {
+    "heading": {
+      "family": "Calibri",
+      "weight": "bold",
+      "fallback": ["Arial", "Helvetica", "sans-serif"]
+    },
+    "body": {
+      "family": "Calibri",
+      "weight": "normal",
+      "fallback": ["Arial", "Helvetica", "sans-serif"]
+    },
+    "emphasis": {
+      "family": "Calibri",
+      "weight": "bold",
+      "fallback": ["Arial", "Helvetica", "sans-serif"]
+    }
+  },
+  "typography": {
+    "title_slide": {
+      "font_size": 44,
+      "line_height": 1.2,
+      "color": "primary"
+    },
+    "slide_title": {
+      "font_size": 32,
+      "line_height": 1.3,
+      "color": "primary"
+    },
+    "body_text": {
+      "font_size": 18,
+      "line_height": 1.5,
+      "color": "text_dark"
+    },
+    "bullet_points": {
+      "font_size": 16,
+      "line_height": 1.6,
+      "color": "text_dark",
+      "indent_level_1": 0.5,
+      "indent_level_2": 1.0
+    },
+    "caption": {
+      "font_size": 12,
+      "line_height": 1.4,
+      "color": "text_light"
+    }
+  },
+  "layout": {
+    "margins": {
+      "top": 0.75,
+      "right": 0.75,
+      "bottom": 0.75,
+      "left": 0.75,
+      "unit": "inches"
+    },
+    "title_position": {
+      "top": 0.5,
+      "unit": "inches"
+    },
+    "content_area": {
+      "top": 1.5,
+      "bottom": 6.5,
+      "unit": "inches"
+    }
+  },
+  "styling": {
+    "bullet_style": "solid_circle",
+    "max_bullets_per_slide": 7,
+    "chart_colors": ["#1F4788", "#5B7A9F", "#E8505B", "#27AE60", "#F39C12"],
+    "table_header_bg": "#1F4788",
+    "table_header_text": "#FFFFFF",
+    "table_row_alt_bg": "#ECF0F1"
+  },
+  "best_practices": {
+    "pyramid_principle": true,
+    "bluf_style": true,
+    "one_idea_per_slide": true,
+    "data_driven": true,
+    "white_space_generous": true
+  }
+}

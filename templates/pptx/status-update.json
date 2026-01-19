@@ -1,0 +1,17 @@
+{
+  "name": "Status Update",
+  "description": "Regular progress update template for stakeholders",
+  "version": "1.0.0",
+  "theme": "executive-theme",
+  "slide_count": 6,
+  "recommended_for": ["Weekly/monthly updates", "Project status", "Initiative progress", "Team updates"],
+  "slides": [
+    {"number": 1, "type": "title", "title": "[Project/Initiative Name]", "subtitle": "[Status Update | Date]"},
+    {"number": 2, "type": "highlights", "title": "Progress Highlights", "content_structure": ["Milestone achieved", "Key deliverable completed", "Team accomplishment", "Early wins"]},
+    {"number": 3, "type": "metrics", "title": "Key Metrics", "content_structure": ["Metric #1: Status vs target", "Metric #2: Status vs target", "Metric #3: Status vs target", "Overall health: Green/Yellow/Red"]},
+    {"number": 4, "type": "blockers", "title": "Blockers & Risks", "content_structure": ["Current blocker #1", "Current blocker #2", "Emerging risks", "Support needed"]},
+    {"number": 5, "type": "next", "title": "Next Milestones", "content_structure": ["Next week", "Next 2 weeks", "Next month", "Critical path items"]},
+    {"number": 6, "type": "asks", "title": "Ask/Support Needed", "content_structure": ["Resource request", "Decision needed", "Escalation required", "Contact: [name]"]}
+  ],
+  "usage_tips": ["Use RAG (Red/Amber/Green) status", "Be transparent about blockers", "Quantify progress", "Make asks specific", "Include contact info"]
+}
