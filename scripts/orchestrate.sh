@@ -1859,11 +1859,11 @@ ${YELLOW}Options:${NC}
   -v, --verbose        Show detailed progress
 EOF
             ;;
-        research|probe)
+        discover|research|probe)
             cat << EOF
-${YELLOW}research${NC} (alias: probe) - Parallel exploration phase
+${YELLOW}discover${NC} (aliases: research, probe) - Parallel exploration phase
 
-${YELLOW}Usage:${NC} $(basename "$0") research <prompt>
+${YELLOW}Usage:${NC} $(basename "$0") discover <prompt>
 
 Sends your prompt to multiple AI agents in parallel, each exploring
 from a different perspective. Results are synthesized into a
@@ -1876,11 +1876,11 @@ ${YELLOW}Perspectives used:${NC}
   • Implementation approaches
 
 ${YELLOW}Examples:${NC}
-  $(basename "$0") research "What are the best caching strategies for APIs?"
-  $(basename "$0") research "How should we handle user authentication?"
+  $(basename "$0") discover "What are the best caching strategies for APIs?"
+  $(basename "$0") discover "How should we handle user authentication?"
 
 ${YELLOW}Output:${NC}
-  Results saved to: ~/.claude-octopus/results/probe-synthesis-*.md
+  Results saved to: ~/.claude-octopus/results/discover-synthesis-*.md
 EOF
             ;;
         define|grasp)
@@ -1894,10 +1894,10 @@ Optionally uses output from a previous 'research' phase.
 
 ${YELLOW}Examples:${NC}
   $(basename "$0") define "implement caching layer"
-  $(basename "$0") define "implement caching" ./results/probe-synthesis-123.md
+  $(basename "$0") define "implement caching" ./results/discover-synthesis-123.md
 
 ${YELLOW}Output:${NC}
-  Results saved to: ~/.claude-octopus/results/grasp-consensus-*.md
+  Results saved to: ~/.claude-octopus/results/define-consensus-*.md
 EOF
             ;;
         develop|tangle)
@@ -1916,10 +1916,10 @@ ${YELLOW}Quality Gates:${NC}
 
 ${YELLOW}Examples:${NC}
   $(basename "$0") develop "build the user authentication API"
-  $(basename "$0") develop "implement caching" ./results/grasp-consensus-123.md
+  $(basename "$0") develop "implement caching" ./results/define-consensus-123.md
 
 ${YELLOW}Output:${NC}
-  Results saved to: ~/.claude-octopus/results/tangle-validation-*.md
+  Results saved to: ~/.claude-octopus/results/develop-validation-*.md
 EOF
             ;;
         deliver|ink)
@@ -1933,10 +1933,10 @@ Reviews implementation, runs validation, produces deliverable.
 
 ${YELLOW}Examples:${NC}
   $(basename "$0") deliver "finalize the authentication system"
-  $(basename "$0") deliver "ship it" ./results/tangle-validation-123.md
+  $(basename "$0") deliver "ship it" ./results/develop-validation-123.md
 
 ${YELLOW}Output:${NC}
-  Results saved to: ~/.claude-octopus/results/delivery-*.md
+  Results saved to: ~/.claude-octopus/results/deliver-result-*.md
 EOF
             ;;
         octopus-configure)
@@ -10015,17 +10015,17 @@ case "$COMMAND" in
     # ═══════════════════════════════════════════════════════════════════════════
     # DOUBLE DIAMOND COMMANDS (with intuitive aliases)
     # ═══════════════════════════════════════════════════════════════════════════
-    research|probe)
+    discover|research|probe)
         # Phase 1: Discover - Parallel exploration
         # Handle help flag
         if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
-            usage research
+            usage discover
             exit 0
         fi
         if [[ $# -lt 1 ]]; then
-            log ERROR "Missing prompt for research phase"
-            echo "Usage: $(basename "$0") research <prompt>"
-            echo "Example: $(basename "$0") research \"What are best practices for API caching?\""
+            log ERROR "Missing prompt for discover phase"
+            echo "Usage: $(basename "$0") discover <prompt>"
+            echo "Example: $(basename "$0") discover \"What are best practices for API caching?\""
             exit 1
         fi
         probe_discover "$*"
