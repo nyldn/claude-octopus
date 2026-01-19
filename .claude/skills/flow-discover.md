@@ -1,29 +1,35 @@
 ---
-name: flow-probe
+name: flow-discover
 aliases:
+  - discover
+  - discover-workflow
   - probe
   - probe-workflow
 description: |
   Discover phase workflow - Research and exploration using external CLI providers.
-  Part of the Double Diamond methodology (Probe = Discover phase).
+  Part of the Double Diamond methodology (Discover phase).
   Uses Codex and Gemini CLIs for multi-perspective research.
 trigger: |
   AUTOMATICALLY ACTIVATE when user requests research or exploration:
   - "research X" or "explore Y" or "investigate Z"
-  - "what are the options for X"
-  - "find information about Y"
-  - "analyze different approaches to Z"
+  - "what are the options for X" or "what are my choices for Y"
+  - "find information about Y" or "look up Z"
+  - "analyze different approaches to Z" or "evaluate approaches"
   - Questions about best practices, patterns, or ecosystem research
-  - Comparative analysis ("compare X vs Y")
+  - Comparative analysis ("compare X vs Y" or "X vs Y comparison")
+  - "what should I use for X" or "best tool for Y"
+  - "pros and cons of X" or "tradeoffs between Y and Z"
 
   DO NOT activate for:
   - Simple file searches or code reading (use Read/Grep tools)
   - Questions Claude can answer directly from knowledge
   - Built-in commands (/plugin, /help, etc.)
   - Questions about specific code in the current project
+  - Debugging issues (use skill-debug instead)
+  - "what are my options" when asking for alternatives (use skill-decision-support)
 ---
 
-# Probe Workflow - Discover Phase 🔍
+# Discover Workflow - Discovery Phase 🔍
 
 **Part of Double Diamond: DISCOVER** (divergent thinking)
 
@@ -42,7 +48,7 @@ trigger: |
 
 ## What This Workflow Does
 
-The **probe** phase executes multi-perspective research using external CLI providers:
+The **discover** phase executes multi-perspective research using external CLI providers:
 
 1. **🔴 Codex CLI** - Technical implementation analysis, code patterns, framework specifics
 2. **🟡 Gemini CLI** - Broad ecosystem research, community insights, alternative approaches
@@ -52,9 +58,9 @@ This is the **divergent** phase - we cast a wide net to explore all possibilitie
 
 ---
 
-## When to Use Probe
+## When to Use Discover
 
-Use probe when you need:
+Use discover when you need:
 - **Research**: "What are authentication best practices in 2025?"
 - **Exploration**: "What are the different caching strategies available?"
 - **Options Analysis**: "What libraries can I use for date handling?"
@@ -62,7 +68,7 @@ Use probe when you need:
 - **Ecosystem Understanding**: "What's the state of React server components?"
 - **Pattern Discovery**: "What are common API pagination patterns?"
 
-**Don't use probe for:**
+**Don't use discover for:**
 - Reading files in the current project (use Read tool)
 - Questions about specific implementation details (use code review)
 - Quick factual questions Claude knows (no need for multi-provider)
@@ -75,7 +81,7 @@ Before execution, you'll see:
 
 ```
 🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider orchestration
-🔍 Probe Phase: Research and exploration mode
+🔍 Discover Phase: Research and exploration mode
 
 Providers:
 🔴 Codex CLI - Technical analysis
@@ -87,10 +93,10 @@ Providers:
 
 ## How It Works
 
-### Step 1: Invoke Probe Phase
+### Step 1: Invoke Discover Phase
 
 ```bash
-./scripts/orchestrate.sh probe "<user's research question>"
+./scripts/orchestrate.sh discover "<user's research question>"
 ```
 
 ### Step 2: Multi-Provider Research
@@ -105,7 +111,7 @@ The orchestrate.sh script will:
 
 Results are saved to:
 ```
-~/.claude-octopus/results/${SESSION_ID}/probe-synthesis-<timestamp>.md
+~/.claude-octopus/results/${SESSION_ID}/discover-synthesis-<timestamp>.md
 ```
 
 ### Step 4: Present Synthesis
@@ -183,7 +189,7 @@ User: Research OAuth 2.0 authentication patterns for React apps
 
 Claude:
 🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider research mode
-🔍 Probe Phase: Researching OAuth 2.0 patterns
+🔍 Discover Phase: Researching OAuth 2.0 patterns
 
 [Executes: ./scripts/orchestrate.sh probe "OAuth 2.0 authentication patterns for React apps"]
 
@@ -231,7 +237,7 @@ User: Compare different state management options for my React app
 
 Claude:
 🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider research mode
-🔍 Probe Phase: Comparing React state management options
+🔍 Discover Phase: Comparing React state management options
 
 [Executes probe workflow]
 

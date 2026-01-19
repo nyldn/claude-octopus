@@ -4,9 +4,19 @@ description: |
   Post-implementation workflow: verify tests, present 4 options (merge/PR/keep/discard), execute choice.
   Use when implementation is complete and you need to decide how to integrate the work.
 trigger: |
-  Use when all tasks are complete and tests pass.
-  Auto-invoke when user says "I'm done with this feature", "ready to merge", 
-  "how do I finish this branch", "create PR for this work".
+  AUTOMATICALLY ACTIVATE when user requests task completion with git operations:
+  - "commit and push" or "git commit and push"
+  - "complete all tasks and commit and push"
+  - "proceed with all todos in sequence and push"
+  - "save and commit" or "wrap this up and push"
+  - "I'm done with this feature" or "ready to merge"
+  - "create PR for this work"
+
+  DO NOT activate for:
+  - Individual file commits (use built-in git tools)
+  - Work in progress without tests passing
+  - Exploratory commits
+  - Simple "git status" or "git diff" commands
 ---
 
 # Finishing a Development Branch
