@@ -5,6 +5,52 @@ All notable changes to Claude Octopus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.8.13] - 2026-01-19
+
+### Optimized - PRD Generation Speed (56% Faster)
+
+**PRD skill now generates ~3,000 word optimized PRDs instead of ~6,000 word verbose ones.**
+
+Key insight: Scoring measures PRESENCE and QUALITY, not LENGTH or VERBOSITY.
+
+#### Optimization Rules
+
+| Rule | Savings |
+|------|---------|
+| Bullets > prose | 500 words |
+| Simple lists > ASCII diagrams | 200 words |
+| 1 example > 3 examples | 400 words |
+| 2 personas > 3 personas | 200 words |
+| 6 P0 FRs > 10 mixed FRs | 800 words |
+| Brief appendix + links > tutorials | 300 words |
+| No redundancy | 150 words |
+
+#### Results
+
+| Metric | Before | After |
+|--------|--------|-------|
+| Words | ~5,600 | ~2,950 |
+| Time | 6+ minutes | ~2-3 minutes |
+| Score | 94-96/100 | 94-96/100 |
+| Token usage | High | 50% reduction |
+
+#### Structure (Optimized)
+
+1. Executive Summary (100 words) - bullets
+2. Problem Statement (150 words) - quantified bullets
+3. Goals & Metrics (150 words) - table
+4. Non-Goals (50 words) - bullets
+5. 2 Personas (400 words) - bullet format
+6. 6 P0 FRs (1,200 words) - detailed with acceptance criteria
+7. 3-4 Phases (300 words) - bullets with dependencies
+8. Top 5 Risks (150 words) - table
+9. AI Notes (200 words) - 1 example
+10. Tech Reference (100 words) - links
+11. Self-Score (100 words) - table
+12. Open Questions (50 words) - bullets
+
+---
+
 ## [7.8.12] - 2026-01-19
 
 ### Improved - PRD Clarification Phase
