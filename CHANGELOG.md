@@ -5,6 +5,32 @@ All notable changes to Claude Octopus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.8.4] - 2026-01-19
+
+### Fixed - PRD Skill Recursive Activation
+
+**Removed natural language triggers from PRD skills** to prevent recursive skill loading loop.
+
+#### Problem
+When invoking "octo design a PRD for X", the skill would load repeatedly (12+ times) without producing output. This was caused by generic trigger phrases like "PRD for" matching content within Claude's own responses.
+
+#### Solution
+- Removed triggers from `skill-prd.md` and `skill-prd-score.md`
+- Skills now only activate via explicit commands:
+  - `/octo:prd <feature>` - Create AI-optimized PRD
+  - `/octo:prd-score <file>` - Score existing PRD
+
+#### Usage
+```bash
+# Create a new PRD
+/octo:prd user authentication system
+
+# Score an existing PRD
+/octo:prd-score docs/auth-prd.md
+```
+
+---
+
 ## [7.8.3] - 2026-01-19
 
 ### Added - PRD Scoring Command
