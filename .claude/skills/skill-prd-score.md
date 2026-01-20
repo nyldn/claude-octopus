@@ -8,6 +8,9 @@ description: |
 
 # PRD Scoring Skill
 
+> **EXECUTION NOTE**: This skill is now loaded. DO NOT search for this file or try to locate it.
+> Proceed directly to Step 1 below. The user's PRD file path is in the conversation context.
+
 ## Purpose
 
 Evaluate existing PRDs against the 100-point AI-optimization framework. Provides section-by-section scoring with specific improvement suggestions.
