@@ -3,14 +3,7 @@ name: skill-prd-score
 description: |
   Score an existing PRD against the 100-point AI-optimization framework.
   Identifies gaps and provides actionable improvement suggestions.
-  Use to validate PRDs before implementation or after drafting.
-triggers:
-  - "score this PRD"
-  - "validate PRD"
-  - "rate this PRD"
-  - "check PRD quality"
-  - "PRD score"
-  - "evaluate PRD"
+  Use /octo:prd-score <file> to invoke.
 ---
 
 # PRD Scoring Skill
@@ -21,11 +14,11 @@ Evaluate existing PRDs against the 100-point AI-optimization framework. Provides
 
 ## When This Skill Activates
 
-- "Score this PRD"
-- "Validate my PRD against the framework"
-- "Rate this PRD for AI implementation"
-- "Check PRD quality"
-- `/octo:prd-score <file>`
+**Via command only** (to prevent recursive activation):
+- `/octo:prd-score docs/my-prd.md`
+- `/octo:prd-score requirements/checkout-spec.md`
+
+Note: Natural language triggers removed due to recursive activation issues.
 
 ## Visual Indicator
 
