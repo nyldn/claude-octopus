@@ -5,6 +5,33 @@ All notable changes to Claude Octopus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.8.10] - 2026-01-19
+
+### Fixed - PRD Skill Stub to Prevent Repeated Loading
+
+**Created minimal stub skill that stops Claude from repeatedly calling Skill().**
+
+#### Problem
+Even after removing skill files (v7.8.9), Claude kept trying to load `Skill(octo:prd)` multiple times when users said "octo design a PRD..." because:
+1. Claude pattern-matches "PRD" and attempts to load a skill
+2. Without a skill file, it keeps retrying
+3. Eventually works but wastes time with 4-5 failed loads
+
+#### Solution
+Created a minimal stub `skill-prd.md` that:
+1. Loads successfully (stops retry loop)
+2. Contains explicit "DO NOT call Skill() again" instruction
+3. Has inline PRD workflow so execution starts immediately
+4. No content that would trigger re-loading
+
+#### Result
+When user says "octo design a PRD...":
+1. Claude loads skill once
+2. Skill says "STOP - execute directly"
+3. PRD workflow begins immediately
+
+---
+
 ## [7.8.9] - 2026-01-19
 
 ### Fixed - PRD Skills Removed from Auto-Triggering
