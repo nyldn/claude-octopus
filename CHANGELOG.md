@@ -5,6 +5,42 @@ All notable changes to Claude Octopus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.8.11] - 2026-01-19
+
+### Added - Live Test Harness
+
+**New test infrastructure for testing real Claude Code sessions.**
+
+Features can't always be tested with mocks - skill loading, natural language triggers, and recursive loops require real execution. The new live test harness:
+
+```bash
+# Run all live tests
+make test-live
+
+# Run specific test
+bash tests/live/test-prd-skill.sh
+
+# Iterative fix-test loop
+bash tests/live/fix-loop.sh tests/live/test-prd-skill.sh
+```
+
+#### New Files
+- `tests/helpers/live-test-harness.sh` - Reusable test framework
+- `tests/live/test-prd-skill.sh` - PRD skill loading tests
+- `tests/live/test-skill-loading.sh` - General skill loading tests
+- `tests/live/fix-loop.sh` - Iterative fix-test automation
+
+#### Test Options
+```bash
+live_test "Test Name" "prompt" \
+    --timeout 120 \
+    --max-skill-loads 2 \
+    --expect "pattern" \
+    --reject "bad pattern"
+```
+
+---
+
 ## [7.8.10] - 2026-01-19
 
 ### Fixed - PRD Skill Stub to Prevent Repeated Loading
