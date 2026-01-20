@@ -5,6 +5,18 @@ All notable changes to Claude Octopus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.8.6] - 2026-01-19
+
+### Fixed - macOS Compatibility
+
+**Fixed `flock: command not found` error on macOS.**
+
+The `flock` command is Linux-only and not available on macOS. Updated orchestrate.sh to:
+- Check if `flock` exists before using it
+- Fall back to simple append on macOS (acceptable for our use case)
+
+---
+
 ## [7.8.5] - 2026-01-19
 
 ### Fixed - PRD Skill External Research
