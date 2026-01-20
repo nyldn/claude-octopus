@@ -3,15 +3,7 @@ name: skill-prd
 description: |
   AI-optimized PRD writing workflow using multi-AI orchestration.
   Creates sequential, dependency-ordered PRDs that AI coding assistants can execute.
-  Scores output against 100-point framework. Use for any PRD, spec, or requirements doc.
-triggers:
-  - "write a PRD for"
-  - "create a PRD"
-  - "PRD for"
-  - "product requirements for"
-  - "write requirements for"
-  - "spec for"
-  - "specification for"
+  Scores output against 100-point framework. Use /octo:prd <feature> to invoke.
 ---
 
 # PRD Writing Skill
@@ -22,10 +14,12 @@ Create AI-optimized Product Requirements Documents that score 90+ on the 100-poi
 
 ## When This Skill Activates
 
-- "Write a PRD for user authentication"
-- "Create product requirements for the checkout flow"
-- "PRD for a notification system"
-- "Spec for API rate limiting"
+**Via command only** (to prevent recursive activation):
+- `/octo:prd user authentication`
+- `/octo:prd checkout flow redesign`
+- `/octo:prd notification system`
+
+Note: Natural language triggers removed due to recursive activation issues.
 
 ## Visual Indicator
 
