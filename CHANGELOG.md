@@ -5,6 +5,33 @@ All notable changes to Claude Octopus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.8.9] - 2026-01-19
+
+### Fixed - PRD Skills Removed from Auto-Triggering
+
+**Removed `skill-prd.md` and `skill-prd-score.md` from the skills registration** to eliminate natural language triggering entirely.
+
+#### Problem
+Even after v7.8.8, saying "octo design a PRD..." still triggered `Skill(octo:prd)` because the skill files were registered in `plugin.json`. After loading, Claude would then search for and re-read the skill file, ignoring the "do not search" execution note.
+
+#### Solution
+- Removed `skill-prd.md` from plugin.json skills list
+- Removed `skill-prd-score.md` from plugin.json skills list
+- PRD functionality now ONLY accessible via explicit commands
+
+#### Usage (Command-Only)
+```bash
+# Create a new PRD - must use explicit command
+/octo:prd user authentication system
+
+# Score an existing PRD - must use explicit command
+/octo:prd-score docs/auth-prd.md
+```
+
+Natural language like "octo design a PRD" will no longer trigger the PRD workflow. Use the slash command instead.
+
+---
+
 ## [7.8.8] - 2026-01-19
 
 ### Fixed - PRD Command Recursive Loop
