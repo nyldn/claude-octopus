@@ -165,6 +165,9 @@ run_tests() {
         e2e)
             run_category "e2e"
             ;;
+        live)
+            run_category "live"
+            ;;
         performance)
             run_category "performance"
             ;;

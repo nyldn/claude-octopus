@@ -1,4 +1,4 @@
-.PHONY: test test-smoke test-unit test-integration test-e2e test-coverage test-all clean-tests help
+.PHONY: test test-smoke test-unit test-integration test-e2e test-live test-coverage test-all clean-tests help
 
 # Default: smoke + unit (fast feedback)
 test: test-smoke test-unit
@@ -25,6 +25,12 @@ test-integration:
 test-e2e:
 	@echo "Running E2E tests..."
 	@./tests/run-all.sh e2e
+
+# Live tests - real Claude Code sessions (2-5min per test, uses API)
+test-live:
+	@echo "Running live tests (real Claude Code sessions)..."
+	@echo "WARNING: This makes real API calls"
+	@./tests/run-all.sh live
 
 # Performance tests
 test-performance:
@@ -65,6 +71,7 @@ help:
 	@echo "  make test-unit         - Run unit tests (1-2min)"
 	@echo "  make test-integration  - Run integration tests (5-10min)"
 	@echo "  make test-e2e          - Run E2E tests (15-30min)"
+	@echo "  make test-live         - Run live tests (real Claude sessions)"
 	@echo "  make test-performance  - Run performance tests"
 	@echo "  make test-regression   - Run regression tests"
 	@echo "  make test-coverage     - Generate coverage report"
