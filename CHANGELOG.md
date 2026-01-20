@@ -5,6 +5,45 @@ All notable changes to Claude Octopus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.8.12] - 2026-01-19
+
+### Improved - PRD Clarification Phase
+
+**PRD skill now asks clarifying questions before writing.**
+
+#### Problem
+v7.8.10 PRD scored 96/100 vs v7.8.1's 98/100 because it skipped clarification and jumped straight to writing. This resulted in:
+- More generic problem statements
+- Missing user segment breakdown
+- Less targeted success metrics
+- 6+ minute execution time due to excessive research
+
+#### Solution
+Added mandatory **Phase 0: Clarification** that asks:
+1. Target Users - Who will use this?
+2. Core Problem - What pain point? Metrics?
+3. Success Criteria - How to measure success?
+4. Constraints - Technical, budget, timeline?
+5. Existing Context - Greenfield or integration?
+
+Also limited research to max 2 web searches (60 seconds) to speed up execution.
+
+#### New Flow
+```
+/octo:prd user authentication
+
+> I'll create a PRD for: user authentication
+> 
+> To make this PRD highly targeted, please answer briefly:
+> 1. Target Users: ...
+> 2. Core Problem: ...
+> [user answers]
+> 
+> [PRD created with targeted content]
+```
+
+---
+
 ## [7.8.11] - 2026-01-19
 
 ### Added - Live Test Harness
