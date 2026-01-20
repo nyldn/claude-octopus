@@ -12,7 +12,7 @@
       "name": "claude-octopus",
       "source": "./",
       "description": "v7.8.0 - Context-aware detection! Say 'octo research X' for multi-AI workflows. Auto-detects Dev vs Knowledge context. Multi-tentacled orchestrator with AI debates, quality gates. Run /octo:setup for guided setup.",
-      "version": "7.8.1",
+      "version": "7.8.2",
       "author": {
         "name": "nyldn"
       },
