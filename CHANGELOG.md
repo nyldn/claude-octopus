@@ -5,6 +5,57 @@ All notable changes to Claude Octopus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.8.2] - 2026-01-19
+
+### Added - AI-Optimized PRD Writing
+
+**New PRD skill and enhanced product-writer persona** for creating PRDs that AI coding assistants can execute effectively.
+
+#### New: `/octo:prd` Command
+
+Write AI-optimized PRDs with automatic quality scoring:
+
+```bash
+/octo:prd user authentication feature
+/octo:prd checkout flow redesign
+```
+
+**Features:**
+- Multi-phase PRD generation workflow
+- Self-scoring against 100-point framework
+- Templates for lightweight, standard, and comprehensive PRDs
+- Integration with Claude Octopus research and debate workflows
+
+#### Enhanced: `product-writer` Persona
+
+Completely rewritten with AI-specific PRD patterns:
+
+| Pattern | Before | After |
+|---------|--------|-------|
+| Structure | Holistic features | Sequential, dependency-ordered phases |
+| Requirements | Generic | FR codes with P0/P1/P2 priorities |
+| Boundaries | Implied | Explicit Non-Goals section |
+| Work sizing | Undefined | 5-15 min phases for frontier LLMs |
+| Acceptance | Vague | Given-When-Then testable criteria |
+| Scoring | None | 100-point self-validation |
+
+#### PRD Scoring Framework
+
+Based on 2026 AI coding assistant research:
+
+- **AI-Specific Optimization (25 pts)**: Sequential phases, explicit boundaries, structured format
+- **Traditional PRD Core (25 pts)**: Problem, goals, personas, technical specs
+- **Implementation Clarity (30 pts)**: Functional/non-functional requirements, architecture, phases
+- **Completeness (20 pts)**: Risks, dependencies, examples, documentation quality
+
+**Score Interpretation:**
+- 90-100: Excellent - Ready for AI implementation
+- 80-89: Good - Minor gaps
+- 70-79: Acceptable - Needs some optimization
+- <70: Needs revision
+
+---
+
 ## [7.8.1] - 2026-01-19
 
 ### Added - Context Detection in CLI
