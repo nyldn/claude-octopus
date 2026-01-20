@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "7.8.2",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.8.2 - AI-optimized PRDs!) Use '/octo:prd <feature>' for 100-point scored PRDs. Auto-detects Dev vs Knowledge context. Run /octo:setup for guided setup.",
+  "version": "7.8.3",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.8.3 - PRD scoring!) Use '/octo:prd-score <file>' to validate PRDs. Auto-detects Dev vs Knowledge context. Run /octo:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },
@@ -40,6 +40,7 @@
   ],
   "skills": [
     "./.claude/skills/skill-prd.md",
+    "./.claude/skills/skill-prd-score.md",
     "./.claude/skills/skill-context-detection.md",
     "./.claude/skills/flow-discover.md",
     "./.claude/skills/flow-define.md",
@@ -82,6 +83,7 @@
   ],
   "commands": [
     "./.claude/commands/prd.md",
+    "./.claude/commands/prd-score.md",
     "./.claude/commands/sys-setup.md",
     "./.claude/commands/sys-update.md",
     "./.claude/commands/setup.md",
