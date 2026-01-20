@@ -11,8 +11,8 @@
     {
       "name": "claude-octopus",
       "source": "./",
-      "description": "v7.8.7 - PRD tools! Use '/octo:prd <feature>' for AI-optimized PRDs. Auto-detects Dev vs Knowledge context. Multi-tentacled orchestrator with AI debates, quality gates. Run /octo:setup for guided setup.",
-      "version": "7.8.7",
+      "description": "v7.8.8 - PRD tools! Use '/octo:prd <feature>' for AI-optimized PRDs. Auto-detects Dev vs Knowledge context. Multi-tentacled orchestrator with AI debates, quality gates. Run /octo:setup for guided setup.",
+      "version": "7.8.8",
       "author": {
         "name": "nyldn"
       },
