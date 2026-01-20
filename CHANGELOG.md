@@ -5,6 +5,40 @@ All notable changes to Claude Octopus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.8.14] - 2026-01-19
+
+### Rollback - Reverted PRD Optimization
+
+**Rolled back v7.8.13 optimizations** - aggressive conciseness reduced PRD quality from 98/100 to 82/100.
+
+#### Why Rollback
+
+| Version | Score | Lines | Notes |
+|---------|-------|-------|-------|
+| v7.8.12 | 98/100 | 761 | AI-first design, comprehensive |
+| v7.8.13 | 82/100 | 363 | Too concise, missing key elements |
+
+The v7.8.13 "optimizations" cut too much:
+- Missing visual architecture diagrams
+- Limited code examples
+- Missing NFRs (security/performance)
+- Brief non-goals allowed scope creep
+
+#### What v7.8.14 Contains
+
+Restored v7.8.12 PRD skill and command:
+- Full clarification phase (5 questions)
+- Comprehensive PRD structure
+- Detailed personas and FRs
+- Architecture considerations
+- Proper scoring framework
+
+#### Trade-off Accepted
+
+PRD generation takes ~5-6 minutes but produces 98/100 quality PRDs. For rapid prototyping, users can ask for a "quick summary" instead.
+
+---
+
 ## [7.8.13] - 2026-01-19
 
 ### Optimized - PRD Generation Speed (56% Faster)
