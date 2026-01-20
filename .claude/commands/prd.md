@@ -9,71 +9,62 @@ arguments:
 
 ## STOP - DO NOT INVOKE /skill OR Skill() AGAIN
 
-Feature to document: **$ARGUMENTS.feature**
+This command is already executing. The feature to document is: **$ARGUMENTS.feature**
 
 ---
 
-## PHASE 0: CLARIFICATION (MANDATORY)
+## PHASE 0: CLARIFICATION (MANDATORY - DO THIS FIRST)
 
-Ask the user:
+Before writing ANY PRD content, ask the user:
 
 ```
 I'll create a PRD for: **$ARGUMENTS.feature**
 
-To make this targeted, please answer briefly:
-1. **Target Users**: Who uses this?
-2. **Core Problem**: What pain point? Metrics?
-3. **Success Criteria**: How to measure?
-4. **Constraints**: Technical, budget, timeline?
-5. **Existing Context**: Greenfield or integration?
+To make this PRD highly targeted, please answer briefly:
 
-(Type "skip" to proceed with assumptions)
+1. **Target Users**: Who will use this? (developers, end-users, admins, agencies?)
+2. **Core Problem**: What pain point does this solve? Any metrics on current impact?
+3. **Success Criteria**: How will you measure success? (KPIs, adoption rate, time saved?)
+4. **Constraints**: Any technical, budget, timeline, or platform constraints?
+5. **Existing Context**: Greenfield project or integrating with existing systems?
+
+(Type "skip" to proceed with assumptions, or answer inline)
 ```
 
-**WAIT for response.**
+**WAIT for user response before proceeding.**
 
 ---
 
-## PHASE 1: QUICK RESEARCH (Max 60 sec)
+## PHASE 1: QUICK RESEARCH (Max 60 seconds)
 
-Max 2 web searches if topic unfamiliar.
+If topic is unfamiliar, do MAX 2 web searches:
+- One for domain/market context
+- One for technical patterns (only if needed)
 
----
-
-## PHASE 2: WRITE PRD (~3,000 words)
-
-### OPTIMIZATION RULES (CRITICAL)
-
-**Scoring = PRESENCE + QUALITY, not LENGTH.**
-
-- **Bullets > prose** (saves 500 words)
-- **Simple lists > ASCII diagrams** (saves 200 words)
-- **1 example > 3 examples** (saves 400 words)
-- **2 personas > 3 personas** (saves 200 words)
-- **6 P0 FRs > 10 mixed FRs** (saves 800 words)
-- **Brief appendix + links > full tutorials** (saves 300 words)
-- **No redundancy** - explain once, reference elsewhere
-
-### Structure
-
-1. Executive Summary (100 words) - bullets
-2. Problem Statement (150 words) - quantified bullets
-3. Goals & Metrics (150 words) - table format
-4. Non-Goals (50 words) - bullet list
-5. 2 User Personas (400 words) - bullet format
-6. 6 P0 Functional Requirements (1,200 words) - FR-001 with acceptance criteria
-7. 3-4 Implementation Phases (300 words) - bullets with dependencies
-8. Top 5 Risks (150 words) - table
-9. AI Optimization Notes (200 words) - 1 example
-10. Technical Reference (100 words) - links + essentials
-11. Self-Score (100 words) - table
-12. Open Questions (50 words) - bullets
+Do NOT over-research. Move to writing quickly.
 
 ---
 
-## PHASE 3: SELF-SCORE
+## PHASE 2: WRITE PRD
 
-100-point framework (table format).
+Include these sections:
+1. Executive Summary (vision + key value)
+2. Problem Statement (quantified, by user segment)
+3. Goals & Metrics (SMART, P0/P1/P2, success metrics table)
+4. Non-Goals (explicit boundaries)
+5. User Personas (2-3 specific personas)
+6. Functional Requirements (FR-001 format)
+7. Implementation Phases (dependency-ordered)
+8. Risks & Mitigations
+
+---
+
+## PHASE 3: SELF-SCORE (100-point framework)
+
+- AI-Specific Optimization: 25 pts
+- Traditional PRD Core: 25 pts
+- Implementation Clarity: 30 pts
+- Completeness: 20 pts
 
 ---
 
@@ -83,4 +74,4 @@ Write to user-specified filename or generate one.
 
 ---
 
-**BEGIN PHASE 0 FOR: $ARGUMENTS.feature**
+**BEGIN PHASE 0 - ASK CLARIFICATION QUESTIONS FOR: $ARGUMENTS.feature**
