@@ -6256,10 +6256,16 @@ spawn_agent() {
     local pid=$!
 
     # Atomic PID file write with file locking to prevent race conditions
-    (
-        flock -x 200
+    # Use flock on Linux, skip locking on macOS (flock not available)
+    if command -v flock &>/dev/null; then
+        (
+            flock -x 200
+            echo "$pid:$agent_type:$task_id" >> "$PID_FILE"
+        ) 200>"${PID_FILE}.lock"
+    else
+        # macOS fallback: simple append (race condition risk is low for our use case)
         echo "$pid:$agent_type:$task_id" >> "$PID_FILE"
-    ) 200>"${PID_FILE}.lock"
+    fi
 
     log INFO "Agent spawned with PID: $pid"
     echo "$pid"
