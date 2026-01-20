@@ -5,6 +5,21 @@ All notable changes to Claude Octopus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.8.7] - 2026-01-19
+
+### Fixed - Skill Execution Clarity
+
+**Added explicit execution notes to PRD skills** to prevent Claude from searching for skill files after they're already loaded.
+
+When a skill loads via `Skill(octo:prd)`, the content is already in context. But Claude was searching the filesystem for the skill file anyway. Added clear instructions:
+
+```
+> **EXECUTION NOTE**: This skill is now loaded. DO NOT search for this file.
+> Proceed directly to Phase 1 below.
+```
+
+---
+
 ## [7.8.6] - 2026-01-19
 
 ### Fixed - macOS Compatibility

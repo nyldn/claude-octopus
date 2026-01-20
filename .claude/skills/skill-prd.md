@@ -8,6 +8,9 @@ description: |
 
 # PRD Writing Skill
 
+> **EXECUTION NOTE**: This skill is now loaded. DO NOT search for this file or try to locate it.
+> Proceed directly to Phase 1 below. The user's feature request is in the conversation context.
+
 ## Purpose
 
 Create AI-optimized Product Requirements Documents that score 90+ on the 100-point PRD framework. Uses multi-AI orchestration to ensure comprehensive coverage and self-validates before delivery.
