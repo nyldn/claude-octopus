@@ -8969,7 +8969,7 @@ grapple_debate() {
     echo ""
     echo -e "${RED}╔═══════════════════════════════════════════════════════════╗${NC}"
     echo -e "${RED}║  🤼 GRAPPLE - Adversarial Cross-Model Review              ║${NC}"
-    echo -e "${RED}║  Codex vs Claude debate until consensus                   ║${NC}"
+    echo -e "${RED}║  Codex vs Gemini vs Claude debate until consensus         ║${NC}"
     echo -e "${RED}╚═══════════════════════════════════════════════════════════╝${NC}"
     echo ""
 
@@ -9010,7 +9010,7 @@ grapple_debate() {
     # Constraint to prevent agentic file exploration
     local no_explore_constraint="IMPORTANT: Do NOT read, explore, or modify any files. Do NOT run any shell commands. Just output your response as TEXT directly. This is a debate exercise, not a coding session."
 
-    local codex_proposal claude_proposal
+    local codex_proposal gemini_proposal claude_proposal
     codex_proposal=$(run_agent_sync "codex" "
 $no_explore_constraint
 
@@ -9021,6 +9021,17 @@ ${principle_text:+Adhere to these principles:
 $principle_text}
 
 Output your implementation with clear reasoning. Be thorough and practical." 90 "implementer" "grapple")
+
+    gemini_proposal=$(run_agent_sync "gemini" "
+$no_explore_constraint
+
+You are the PROPOSER. Implement this task with your best approach:
+$prompt
+
+${principle_text:+Adhere to these principles:
+$principle_text}
+
+Output your implementation with clear reasoning. Be thorough and practical." 90 "researcher" "grapple")
 
     claude_proposal=$(run_agent_sync "claude" "
 $no_explore_constraint
@@ -9040,7 +9051,7 @@ Output your implementation with clear reasoning. Be thorough and practical." 90 
     echo -e "${CYAN}[Round 2/3] Cross-model critique...${NC}"
     echo ""
 
-    local claude_critique codex_critique
+    local claude_critique codex_critique gemini_critique
 
     # Claude critiques Codex's proposal
     claude_critique=$(run_agent_sync "claude" "
@@ -9061,14 +9072,33 @@ $principle_text}
 
 Be harsh but fair. If genuinely good, explain why." 60 "security-auditor" "grapple")
 
-    # Codex critiques Claude's proposal
-    codex_critique=$(run_agent_sync "codex-review" "
+    # Gemini critiques Claude's proposal
+    gemini_critique=$(run_agent_sync "gemini" "
 $no_explore_constraint
 
 You are a CRITICAL REVIEWER. Your job is to find flaws in this implementation.
 
 IMPLEMENTATION TO CRITIQUE (from Claude):
 $claude_proposal
+
+Find at least 3 issues. For each:
+- ISSUE: [specific problem]
+- IMPACT: [why it matters]
+- FIX: [concrete solution]
+
+${principle_text:+Evaluate against these principles:
+$principle_text}
+
+Be harsh but fair. If genuinely good, explain why." 60 "researcher" "grapple")
+
+    # Codex critiques Gemini's proposal
+    codex_critique=$(run_agent_sync "codex-review" "
+$no_explore_constraint
+
+You are a CRITICAL REVIEWER. Your job is to find flaws in this implementation.
+
+IMPLEMENTATION TO CRITIQUE (from Gemini):
+$gemini_proposal
 
 Find at least 3 issues. For each:
 - ISSUE: [specific problem]
@@ -9091,18 +9121,24 @@ Be harsh but fair. If genuinely good, explain why." 60 "code-reviewer" "grapple"
     synthesis=$(run_agent_sync "claude" "
 $no_explore_constraint
 
-You are the JUDGE resolving a debate between two AI models.
+You are the JUDGE resolving a debate between three AI models.
 
 CODEX PROPOSAL:
 $codex_proposal
 
-CLAUDE'S CRITIQUE OF CODEX:
-$claude_critique
+GEMINI PROPOSAL:
+$gemini_proposal
 
 CLAUDE PROPOSAL:
 $claude_proposal
 
-CODEX'S CRITIQUE OF CLAUDE:
+CLAUDE'S CRITIQUE OF CODEX:
+$claude_critique
+
+GEMINI'S CRITIQUE OF CLAUDE:
+$gemini_critique
+
+CODEX'S CRITIQUE OF GEMINI:
 $codex_critique
 
 TASK: Determine the best approach by:
@@ -9111,7 +9147,7 @@ TASK: Determine the best approach by:
 3. What's the FINAL recommended implementation?
 
 Output in this format:
-WINNER: [codex|claude|hybrid]
+WINNER: [codex|gemini|claude|hybrid]
 VALID_CRITIQUES: [list which critiques to incorporate]
 FINAL_IMPLEMENTATION: [the best code/solution, incorporating valid feedback]" 90 "synthesizer" "grapple")
 
@@ -9132,6 +9168,9 @@ FINAL_IMPLEMENTATION: [the best code/solution, incorporating valid feedback]" 90
 ### Codex Proposal
 $codex_proposal
 
+### Gemini Proposal
+$gemini_proposal
+
 ### Claude Proposal
 $claude_proposal
 
@@ -9142,7 +9181,10 @@ $claude_proposal
 ### Claude's Critique of Codex
 $claude_critique
 
-### Codex's Critique of Claude
+### Gemini's Critique of Claude
+$gemini_critique
+
+### Codex's Critique of Gemini
 $codex_critique
 
 ---
