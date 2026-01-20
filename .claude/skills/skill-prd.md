@@ -69,20 +69,37 @@ I'm preparing to write a PRD for [feature]. Before I start:
 
 ---
 
-### Phase 2: Multi-AI Research (Optional - for complex PRDs)
+### Phase 2: Multi-AI Research (Required for complex PRDs)
 
-**For comprehensive PRDs, gather perspectives:**
+**CRITICAL: Choose the right research approach based on topic:**
+
+#### For EXTERNAL topics (new technologies, third-party services):
+Use `librarian` agent and web search - NOT explore (which only searches local files).
 
 ```bash
-# Fire parallel research tasks
-background_task(agent="explore", prompt="Find existing patterns for [feature] in this codebase")
-background_task(agent="librarian", prompt="Research best practices for [feature] implementation")
+# Example: PRD for WordPress on Pressable
+background_task(agent="librarian", prompt="Research Pressable WordPress hosting: features, SSH access, WP-CLI support, deployment workflows, limitations")
+background_task(agent="librarian", prompt="Research Claude Code capabilities for PHP/WordPress development: file editing, terminal access, MCP integrations")
+
+# Use web search for current documentation
+mcp_websearch_web_search_exa(query="Pressable WordPress hosting developer documentation API")
+mcp_websearch_web_search_exa(query="Claude Code WordPress development workflow best practices")
+```
+
+#### For INTERNAL topics (existing codebase features):
+Use `explore` agent to find existing patterns.
+
+```bash
+# Example: PRD for enhancing existing auth system
+background_task(agent="explore", prompt="Find existing authentication patterns in this codebase")
+background_task(agent="librarian", prompt="Research OAuth 2.0 best practices for [framework]")
 ```
 
 **Synthesis questions:**
 - What technical approaches exist?
 - What are common pitfalls?
 - What do successful implementations include?
+- What are the platform/service limitations?
 
 ---
 

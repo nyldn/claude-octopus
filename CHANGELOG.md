@@ -5,6 +5,32 @@ All notable changes to Claude Octopus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.8.5] - 2026-01-19
+
+### Fixed - PRD Skill External Research
+
+**PRD skill now uses correct agents for external vs internal research.**
+
+#### Problem
+When creating PRDs for external topics (like WordPress + Pressable), the skill used `explore` agent which only searches local filesystem. This resulted in 55 useless filesystem searches finding nothing.
+
+#### Solution
+Updated skill-prd.md Phase 2 research guidance:
+- **External topics** (new tech, third-party services) → Use `librarian` agent + web search
+- **Internal topics** (existing codebase) → Use `explore` agent
+
+#### Example Fix
+```bash
+# WRONG (searches local files)
+background_task(agent="explore", prompt="Research WordPress on Pressable")
+
+# CORRECT (searches external docs)
+background_task(agent="librarian", prompt="Research Pressable WordPress hosting features")
+mcp_websearch_web_search_exa(query="Pressable WordPress developer documentation")
+```
+
+---
+
 ## [7.8.4] - 2026-01-19
 
 ### Fixed - PRD Skill Recursive Activation
