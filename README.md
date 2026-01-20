@@ -19,8 +19,6 @@
 
 | What It Does | How |
 |--------------|-----|
-| **Visual feedback** | Know when external CLIs run (🐙 🔴 🟡) vs built-in (🔵) 🆕 |
-| **Natural language workflows** | "research X" → discover, "build X" → develop, "review X" → deliver 🆕 |
 | **Parallel AI execution** | Run multiple AI models simultaneously |
 | **Structured workflows** | Double Diamond: Research → Define → Develop → Deliver |
 | **Quality gates** | 75% consensus threshold before delivery |
@@ -37,11 +35,6 @@ Use the **"octo" prefix** for reliable multi-AI workflows, or slash commands:
 - 💬 `octo build a user authentication system` - Multi-AI implementation
 - 💬 `octo review this code for security` - Multi-AI validation
 - 💬 `octo debate Redis vs Memcached` - Three-way AI debate
-- 💬 `/octo:research OAuth patterns` - Command alternative
-
-**Why "octo"?** Common words like "research" may conflict with Claude's base behaviors. The "octo" prefix ensures your request triggers Claude Octopus's multi-AI workflows.
-
-Claude coordinates multiple AI models behind the scenes to give you comprehensive, validated results.
 
 ---
 
@@ -162,6 +155,39 @@ This will automatically check for updates and install the latest version if avai
 
 ---
 
+## Which Tentacle Does What?
+
+Claude Octopus has different "tentacles" (workflows) for different tasks:
+
+| Tentacle | When to Use | What It Does | Example |
+|----------|-------------|--------------|---------|
+| **🔍 Discover** (probe) | Research, explore, investigate | Multi-AI research and discovery | `octo research OAuth 2.0 patterns` |
+| **🎯 Define** (grasp) | Define, clarify, scope | Requirements and problem definition | `octo define requirements for auth` |
+| **🛠️ Develop** (tangle) | Build, implement, create | Multi-AI implementation approaches | `octo build user authentication` |
+| **✅ Deliver** (ink) | Review, validate, audit | Quality assurance and validation | `octo review auth code for security` |
+| **🐙 Debate** | Debate, discuss, deliberate | Structured 3-way AI debates | `octo debate Redis vs Memcached` |
+| **🐙 Embrace** | Complete feature lifecycle | Full 4-phase Double Diamond workflow | `/octo:embrace authentication system` |
+
+**Use "octo" prefix or `/octo:` commands for reliable activation!**
+
+---
+
+## Companion Skills
+
+Claude Octopus includes battle-tested skills for code quality:
+
+- **🏗️ Architecture** - System design and technical decisions
+- **🔍 Code Review** - Comprehensive code quality analysis
+- **🔒 Security Audit** - OWASP compliance and vulnerability detection
+- **⚡ Quick Review** - Fast pre-commit checks
+- **🔬 Deep Research** - Multi-source research synthesis
+- **🛡️ Adversarial Security** - Red team security testing
+- **🎯 Systematic Debugging** - Methodical bug investigation
+- **✅ TDD** - Test-driven development workflows
+- **🎯 Verification** - Pre-completion validation checklist
+
+---
+
 ## ✨ What's New in v7.8.0 - Context-Aware Detection
 
 **No more manual mode switching!** Claude Octopus now **auto-detects** whether you're working in a Dev Context (code-focused) or Knowledge Context (research/strategy-focused).
@@ -209,37 +235,6 @@ If auto-detection gets it wrong, you can override:
 
 ---
 
-## Which Tentacle Does What?
-
-Claude Octopus has different "tentacles" (workflows) for different tasks:
-
-| Tentacle | When to Use | What It Does | Example |
-|----------|-------------|--------------|---------|
-| **🔍 Discover** (probe) | Research, explore, investigate | Multi-AI research and discovery | `octo research OAuth 2.0 patterns` |
-| **🎯 Define** (grasp) | Define, clarify, scope | Requirements and problem definition | `octo define requirements for auth` |
-| **🛠️ Develop** (tangle) | Build, implement, create | Multi-AI implementation approaches | `octo build user authentication` |
-| **✅ Deliver** (ink) | Review, validate, audit | Quality assurance and validation | `octo review auth code for security` |
-| **🐙 Debate** | Debate, discuss, deliberate | Structured 3-way AI debates | `octo debate Redis vs Memcached` |
-| **🐙 Embrace** | Complete feature lifecycle | Full 4-phase Double Diamond workflow | `/octo:embrace authentication system` |
-
-**Use "octo" prefix or `/octo:` commands for reliable activation!**
-
----
-
-## Companion Skills
-
-Claude Octopus includes battle-tested skills for code quality:
-
-- **🏗️ Architecture** - System design and technical decisions
-- **🔍 Code Review** - Comprehensive code quality analysis
-- **🔒 Security Audit** - OWASP compliance and vulnerability detection
-- **⚡ Quick Review** - Fast pre-commit checks
-- **🔬 Deep Research** - Multi-source research synthesis
-- **🛡️ Adversarial Security** - Red team security testing
-- **🎯 Systematic Debugging** - Methodical bug investigation
-- **✅ TDD** - Test-driven development workflows
-- **🎯 Verification** - Pre-completion validation checklist
-
 ---
 
 ## Workflow Skills (Updated in v7.7)
@@ -285,19 +280,6 @@ These make orchestrate.sh workflows accessible through natural conversation!
 
 ---
 
-## Why Claude Octopus?
-
-| What Others Do | What We Do |
-|----------------|------------|
-| Single-agent execution | 8 agents working simultaneously |
-| Hope for the best | Quality gates with 75% consensus |
-| One model, one price | Cost-aware routing to cheaper models |
-| Ad-hoc workflows | Double Diamond methodology baked in |
-| Single perspective | Adversarial AI-vs-AI review |
-| Guess what's running | Visual indicators (🐙 🔴 🟡 🔵) |
-| CLI commands only | Natural language triggers workflows |
-
----
 
 ## Documentation
 
