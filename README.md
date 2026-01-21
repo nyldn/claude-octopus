@@ -53,6 +53,8 @@ Open Claude Code and run these two commands in the chat:
 
 The plugin is now installed and automatically enabled.
 
+> **⚠️ Important:** Run `/octo:setup` next to configure your AI providers (see Step 2 below).
+
 <details>
 <summary>Troubleshooting Installation</summary>
 
@@ -86,20 +88,23 @@ Use the HTTPS URL format (already shown above). The shorthand `nyldn/claude-octo
 
 </details>
 
-### Step 2: Configure Your AI Providers
+### Step 2: Configure Your AI Providers (Required)
 
-Run the setup command in Claude Code:
+**Run this setup wizard in Claude Code:**
 ```
 /octo:setup
 ```
 
-This will:
+This guided setup will:
 - Auto-detect what's already installed
 - Show you exactly what you need (you only need ONE provider!)
-- Give you shell-specific instructions
-- Verify your setup when done
+- Guide you through installing CLIs (codex/gemini)
+- Help you set up API keys (OPENAI_API_KEY/GEMINI_API_KEY)
+- Verify your configuration when done
 
 **No terminal context switching needed** - Claude guides you through everything!
+
+> **Note:** Without running `/octo:setup`, the plugin won't have access to external AI providers and multi-AI workflows won't work.
 
 ### Step 3: Start Using It
 
