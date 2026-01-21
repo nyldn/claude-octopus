@@ -6,7 +6,7 @@
   <img src="https://img.shields.io/badge/Claude_Code-Plugin-blueviolet" alt="Claude Code Plugin">
   <img src="https://img.shields.io/badge/Double_Diamond-Design_Thinking-orange" alt="Double Diamond">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
-  <img src="https://img.shields.io/badge/Version-7.8.14-blue" alt="Version 7.8.14">
+  <img src="https://img.shields.io/badge/Version-7.8.15-blue" alt="Version 7.8.15">
 </p>
 
 # Claude Octopus
@@ -151,6 +151,19 @@ This will automatically check for updates and install the latest version if avai
 /plugin install claude-octopus@nyldn-plugins
 ```
 
+### Option D: Pin to Specific Version (Claude Code 2.1.14+)
+Lock to a specific git commit SHA for stability:
+```
+/plugin install claude-octopus@nyldn-plugins#<commit-sha>
+```
+
+Example:
+```
+/plugin install claude-octopus@nyldn-plugins#abc123def
+```
+
+This is useful during active development or when you need to reproduce a specific behavior.
+
 **After updating:** Restart Claude Code to load the new version.
 
 ---
@@ -235,6 +248,67 @@ If auto-detection gets it wrong, you can override:
 
 ---
 
+## Which Tentacle Does What?
+
+Claude Octopus has different "tentacles" (workflows) for different tasks:
+
+| Tentacle | When to Use | What It Does | Example |
+|----------|-------------|--------------|---------|
+| **🔍 Discover** (probe) | Research, explore, investigate | Multi-AI research and discovery | `octo research OAuth 2.0 patterns` |
+| **🎯 Define** (grasp) | Define, clarify, scope | Requirements and problem definition | `octo define requirements for auth` |
+| **🛠️ Develop** (tangle) | Build, implement, create | Multi-AI implementation approaches | `octo build user authentication` |
+| **✅ Deliver** (ink) | Review, validate, audit | Quality assurance and validation | `octo review auth code for security` |
+| **🐙 Debate** | Debate, discuss, deliberate | Structured 3-way AI debates | `octo debate Redis vs Memcached` |
+| **🐙 Embrace** | Complete feature lifecycle | Full 4-phase Double Diamond workflow | `/octo:embrace authentication system` |
+
+**Use "octo" prefix or `/octo:` commands for reliable activation!**
+
+---
+
+## Companion Skills
+
+Claude Octopus includes 20+ battle-tested skills organized by category:
+
+### Code Quality
+| Skill | Command | Description |
+|-------|---------|-------------|
+| **Code Review** | `/octo:review` | Comprehensive code quality analysis |
+| **Quick Review** | - | Fast pre-commit checks |
+| **Security Audit** | `/octo:security` | OWASP compliance and vulnerability detection |
+| **Adversarial Security** | - | Red team security testing |
+
+### Development Discipline
+| Skill | Command | Description |
+|-------|---------|-------------|
+| **TDD** | `/octo:tdd` | Test-driven development (red-green-refactor) |
+| **Debugging** | `/octo:debug` | Systematic 4-phase bug investigation |
+| **Verification** | - | Pre-completion validation ("Iron Law") |
+| **Iterative Loop** | - | Loop until exit criteria pass |
+
+### Planning & Architecture
+| Skill | Command | Description |
+|-------|---------|-------------|
+| **Architecture** | - | System design and technical decisions |
+| **PRD Writing** | `/octo:prd` | AI-optimized PRD with 100-point scoring |
+| **Writing Plans** | - | Zero-context implementation plans |
+| **Decision Support** | - | Present options with trade-offs |
+
+### Research & Knowledge
+| Skill | Command | Description |
+|-------|---------|-------------|
+| **Deep Research** | `/octo:research` | Multi-source research synthesis |
+| **AI Debate** | `/octo:debate` | Structured 3-way AI debates |
+| **Knowledge Work** | `/octo:km` | Toggle Dev/Knowledge context |
+
+### Workflow & Delivery
+| Skill | Command | Description |
+|-------|---------|-------------|
+| **Task Management** | - | Todo orchestration and resumption |
+| **Finish Branch** | - | Post-implementation: verify → merge/PR |
+| **Doc Delivery** | `/octo:docs` | Export to DOCX, PPTX, PDF |
+| **Visual Feedback** | - | Process UI/UX screenshot feedback |
+| **Audit** | - | Systematic codebase checking |
+
 ---
 
 ## Workflow Skills (Updated in v7.7)
@@ -280,6 +354,43 @@ These make orchestrate.sh workflows accessible through natural conversation!
 
 ---
 
+
+## Claude Code 2.1.14+ Features
+
+Claude Octopus leverages the latest Claude Code capabilities:
+
+### Bash History Autocomplete
+Type `!` followed by a partial command and press Tab to complete from your bash history:
+```bash
+!octo<Tab>  # Completes to previous orchestrate.sh commands
+```
+
+### Wildcard Bash Permissions
+Pre-approve commands with wildcard patterns in your settings:
+```json
+{
+  "permissions": {
+    "allow": [
+      "Bash(./scripts/orchestrate.sh *)",
+      "Bash(npm *)",
+      "Bash(git * main)"
+    ]
+  }
+}
+```
+
+### Session-Aware Workflows
+All Claude Octopus workflows now display the session ID in visual banners for better debugging and cross-session correlation:
+```
+🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider research mode
+🔍 [Dev] Discover Phase: Technical research on caching patterns
+📋 Session: ses_abc123xyz
+```
+
+### Memory-Optimized Skills
+Heavy skills (PRD, debates, code review) now run in forked contexts to prevent conversation bloat.
+
+---
 
 ## Documentation
 

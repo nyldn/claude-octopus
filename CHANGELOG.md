@@ -5,6 +5,58 @@ All notable changes to Claude Octopus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.8.15] - 2026-01-21
+
+### Added - Claude Code 2.1.14 Feature Integration
+
+**Requires Claude Code 2.1.14+** - Leverages critical bug fixes (context window blocking at 98% instead of 65%, memory leak fixes in parallel subagents).
+
+#### Memory-Optimized Skills (`context: fork`)
+
+Heavy skills now run in forked contexts to prevent conversation bloat:
+
+| Skill | Agent Type | Why Fork |
+|-------|------------|----------|
+| `skill-prd.md` | Plan | PRD generation creates large output |
+| `skill-code-review.md` | Explore | Reviews accumulate findings |
+| `skill-debate.md` | - | Multi-turn debates grow quickly |
+| `skill-deep-research.md` | Explore | Research synthesis is context-heavy |
+
+#### Session-Aware Visual Banners
+
+All flow skills now display session ID for debugging and cross-session correlation:
+```
+🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider research mode
+🔍 [Dev] Discover Phase: Technical research on caching patterns
+📋 Session: ${CLAUDE_SESSION_ID}
+```
+
+#### Native Background Tasks Integration
+
+`flow-discover.md` now documents native `background_task` usage alongside bash backgrounding. The 2.1.14 memory fixes make native background agents reliable for parallel research.
+
+#### LSP Integration Guidance
+
+`skill-architecture.md` now includes recommended LSP tool usage patterns for architecture design work.
+
+#### Documentation Updates
+
+- **SHA Pinning**: Lock plugins to specific git commits for stability
+- **Bash History Autocomplete**: `!` + Tab to complete from history
+- **Wildcard Bash Permissions**: Pre-approve commands with patterns like `Bash(./scripts/orchestrate.sh *)`
+
+### Changed
+
+- Minimum Claude Code version bumped from 2.1.10 to 2.1.14
+- Added `agent: Plan` to PRD skill for specialized planning behavior
+- Added `agent: Explore` to research and review skills
+
+### Fixed
+
+- Fixed `prd-score.md` and `prd.md` using `name:` instead of `command:` in YAML frontmatter
+
+---
+
 ## [7.8.14] - 2026-01-19
 
 ### Rollback - Reverted PRD Optimization

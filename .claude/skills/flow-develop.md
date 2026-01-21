@@ -62,6 +62,7 @@ Analyze the user's prompt and project to determine context:
 ```
 🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider implementation mode
 🛠️ [Dev] Develop Phase: [Brief description of what you're building]
+📋 Session: ${CLAUDE_SESSION_ID}
 
 Providers:
 🔴 Codex CLI - Code generation and patterns
@@ -73,6 +74,7 @@ Providers:
 ```
 🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider implementation mode
 🛠️ [Knowledge] Develop Phase: [Brief description of deliverable]
+📋 Session: ${CLAUDE_SESSION_ID}
 
 Providers:
 🔴 Codex CLI - Structure and framework application
