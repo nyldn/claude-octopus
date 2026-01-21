@@ -28,10 +28,10 @@ Invokes the code-reviewer persona for thorough code analysis during the `ink` (d
 
 ```bash
 # Via orchestrate.sh
-./scripts/orchestrate.sh spawn code-reviewer "Review this pull request for security issues"
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh spawn code-reviewer "Review this pull request for security issues"
 
 # Via auto-routing (detects review intent)
-./scripts/orchestrate.sh auto "review the authentication implementation"
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh auto "review the authentication implementation"
 ```
 
 ## Capabilities

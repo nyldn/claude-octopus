@@ -56,7 +56,7 @@ Auto-invokes when user says:
 User: "Research the best state management options for React"
 
 Claude: *Activates octopus-research skill*
-        *Runs: ./scripts/orchestrate.sh probe "State management options for React"*
+        *Runs: ${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh probe "State management options for React"*
 ```
 
 ## Implementation

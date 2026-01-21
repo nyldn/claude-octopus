@@ -166,7 +166,7 @@ Providers:
 ### Step 1: Invoke Discover Phase
 
 ```bash
-./scripts/orchestrate.sh discover "<user's research question>"
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh discover "<user's research question>"
 ```
 
 ### Step 2: Multi-Provider Research
@@ -251,7 +251,7 @@ When this skill activates:
 
 3. **Execute probe workflow**
    ```bash
-   ./scripts/orchestrate.sh probe "<user's question>"
+   ${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh probe "<user's question>"
    ```
 
 4. **Monitor execution**
@@ -337,7 +337,7 @@ Claude:
 🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider research mode
 🔍 Discover Phase: Researching OAuth 2.0 patterns
 
-[Executes: ./scripts/orchestrate.sh probe "OAuth 2.0 authentication patterns for React apps"]
+[Executes: ${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh probe "OAuth 2.0 authentication patterns for React apps"]
 
 [After completion, reads synthesis and presents:]
 

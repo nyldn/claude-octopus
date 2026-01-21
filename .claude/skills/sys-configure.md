@@ -53,7 +53,7 @@ You are helping the user configure Claude Octopus, a multi-agent orchestration p
 Run the status command to see what's already configured:
 
 ```bash
-./scripts/orchestrate.sh status
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh status
 ```
 
 This will show you:
@@ -78,7 +78,7 @@ For Phase 1, guide the user through the bash-based wizard with clear instruction
 
 3. **Run the configuration wizard**:
    ```bash
-   ./scripts/orchestrate.sh octopus-configure
+   ${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh octopus-configure
    ```
 
 4. **Handle interactive prompts** by informing the user:
@@ -119,10 +119,10 @@ Next steps:
    - export GEMINI_API_KEY="AIza..."
 
 2. Run configuration wizard:
-   ./scripts/orchestrate.sh octopus-configure
+   ${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh octopus-configure
 
 3. Try your first command:
-   ./scripts/orchestrate.sh auto "research OAuth patterns"
+   ${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh auto "research OAuth patterns"
 ```
 
 ## Phase 2 Preview
