@@ -234,7 +234,80 @@ Export debates to professional formats via the document-delivery skill:
 
 When the user invokes `/debate`:
 
-### Step 1: Parse Arguments
+### Step 1: Check Provider Availability & Display Banner
+
+**CRITICAL: Check which AI providers are available and display the visual indicator banner:**
+
+First, check availability:
+```bash
+codex_available=$(command -v codex &> /dev/null && echo "✓" || echo "✗ Not installed")
+gemini_available=$(command -v gemini &> /dev/null && echo "✓" || echo "✗ Not installed")
+```
+
+Then immediately output the required visual indicator banner:
+```
+🐙 **CLAUDE OCTOPUS ACTIVATED** - AI Debate Hub
+🐙 Debate: [Topic/question being debated]
+
+Provider Availability:
+🔴 Codex CLI: [Available ✓ / Not installed ✗]
+🟡 Gemini CLI: [Available ✓ / Not installed ✗]
+🔵 Claude: Available ✓ (Moderator and participant)
+```
+
+**If providers are missing:**
+- If BOTH are unavailable: Inform user that debate requires at least one external provider and suggest running `/octo:setup` to configure them
+- If ONE is unavailable: Note which provider is missing and proceed with available provider(s) and Claude
+
+### Step 2: Ask Clarifying Questions
+
+**Use the AskUserQuestion tool to gather context before starting the debate:**
+
+Ask 3 clarifying questions to ensure high-quality debate:
+
+```javascript
+AskUserQuestion({
+  questions: [
+    {
+      question: "What's your primary goal for this debate?",
+      header: "Goal",
+      multiSelect: false,
+      options: [
+        {label: "Make a technical decision", description: "I need to choose between options"},
+        {label: "Identify risks/concerns", description: "I want to surface potential issues"},
+        {label: "Understand trade-offs", description: "I want to see pros/cons of approaches"},
+        {label: "Get diverse perspectives", description: "I want multiple viewpoints"}
+      ]
+    },
+    {
+      question: "What's the most important factor in your decision?",
+      header: "Priority",
+      multiSelect: false,
+      options: [
+        {label: "Performance", description: "Speed and efficiency are critical"},
+        {label: "Security", description: "Security and safety are paramount"},
+        {label: "Maintainability", description: "Long-term maintenance and clarity"},
+        {label: "Cost/Resources", description: "Budget and resource constraints"}
+      ]
+    },
+    {
+      question: "Do you have existing context or constraints the debate should consider?",
+      header: "Context",
+      multiSelect: true,
+      options: [
+        {label: "Existing codebase patterns", description: "Must align with current architecture"},
+        {label: "Team expertise", description: "Team skill set is a constraint"},
+        {label: "Deadline pressure", description: "Time-to-market is critical"},
+        {label: "Compliance requirements", description: "Regulatory or policy constraints"}
+      ]
+    }
+  ]
+})
+```
+
+**After receiving answers, incorporate them into the debate context.**
+
+### Step 3: Parse Arguments
 ```bash
 # Extract question and flags
 QUESTION="Should we use Redis or in-memory cache?"
@@ -243,7 +316,7 @@ STYLE="thorough"
 ADVISORS="gemini,codex"
 ```
 
-### Step 2: Setup Debate Folder
+### Step 4: Setup Debate Folder
 ```bash
 # Create debate directory structure
 DEBATE_BASE_DIR="${HOME}/.claude-octopus/debates/${CLAUDE_CODE_SESSION:-./debates}"
@@ -265,7 +338,13 @@ cat > "${DEBATE_DIR}/context.md" <<EOF
 ## Question
 ${QUESTION}
 
-## Context
+## Clarifying Context
+
+**Primary Goal**: ${USER_GOAL}
+**Priority Factor**: ${USER_PRIORITY}
+**Constraints**: ${USER_CONSTRAINTS}
+
+## Additional Context
 [Any relevant context from user's message or files]
 EOF
 
@@ -277,27 +356,32 @@ cat > "${DEBATE_DIR}/state.json" <<EOF
   "rounds_total": ${ROUNDS},
   "rounds_completed": 0,
   "advisors": [$(echo "$ADVISORS" | sed 's/,/", "/g' | sed 's/^/"/' | sed 's/$/"/')],
+  "user_context": {
+    "goal": "${USER_GOAL}",
+    "priority": "${USER_PRIORITY}",
+    "constraints": "${USER_CONSTRAINTS}"
+  },
   "status": "active",
   "created_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 }
 EOF
 ```
 
-### Step 3: Conduct Rounds
+### Step 5: Conduct Rounds
 
 For each round:
 
-#### 3.1: Consult Gemini
+#### 5.1: Consult Gemini
 ```bash
 gemini -y "${QUESTION}" > "${DEBATE_DIR}/rounds/r001_gemini.md"
 ```
 
-#### 3.2: Consult Codex
+#### 5.2: Consult Codex
 ```bash
 codex exec "${QUESTION}" > "${DEBATE_DIR}/rounds/r001_codex.md"
 ```
 
-#### 3.3: Write Your Analysis
+#### 5.3: Write Your Analysis
 Use the Read tool to read advisor responses, then write your independent analysis:
 ```bash
 # Read what advisors said
@@ -312,7 +396,7 @@ cat > "${DEBATE_DIR}/rounds/r001_claude.md" <<EOF
 EOF
 ```
 
-#### 3.4: Quality Gates (Claude-Octopus Enhancement)
+#### 5.4: Quality Gates (Claude-Octopus Enhancement)
 After each advisor responds, evaluate response quality:
 ```bash
 evaluate_response_quality() {
@@ -341,7 +425,7 @@ if (( quality_score < 50 )); then
 fi
 ```
 
-### Step 4: Final Synthesis
+### Step 6: Final Synthesis
 
 After all rounds complete, write a comprehensive synthesis:
 
@@ -374,7 +458,7 @@ cat > "${DEBATE_DIR}/synthesis.md" <<EOF
 EOF
 ```
 
-### Step 5: Present Results to User
+### Step 7: Present Results to User
 
 Read the synthesis and present it in the chat:
 ```
