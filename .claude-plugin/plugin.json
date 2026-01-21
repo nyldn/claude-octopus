@@ -1,7 +1,7 @@
 {
   "name": "claude-octopus",
-  "version": "7.9.4",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.9.4) Commands now '/octo:*'. Run /octo:setup for guided setup.",
+  "version": "7.9.5",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.9.5) Commands now '/octo:*'. Run /octo:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },
@@ -70,19 +70,7 @@
     "./.claude/skills/skill-visual-feedback.md",
     "./.claude/skills/skill-decision-support.md",
     "./.claude/skills/skill-iterative-loop.md",
-    "./.claude/skills/skill-audit.md",
-    "./.claude/skills/config.md",
-    "./.claude/skills/debate.md",
-    "./.claude/skills/debug.md",
-    "./.claude/skills/define.md",
-    "./.claude/skills/deliver.md",
-    "./.claude/skills/develop.md",
-    "./.claude/skills/discover.md",
-    "./.claude/skills/docs.md",
-    "./.claude/skills/research.md",
-    "./.claude/skills/review.md",
-    "./.claude/skills/security.md",
-    "./.claude/skills/tdd.md"
+    "./.claude/skills/skill-audit.md"
   ],
   "commands": [
     "./.claude/commands/prd.md",
