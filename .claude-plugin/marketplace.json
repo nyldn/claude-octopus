@@ -11,8 +11,8 @@
     {
       "name": "claude-octopus",
       "source": "./",
-      "description": "v7.9.5 - Commands now '/octo:*'. Auto-detects Dev vs Knowledge context. Multi-tentacled orchestrator with AI debates, quality gates. Run /octo:setup for guided setup.",
-      "version": "7.9.5",
+      "description": "v7.9.6 - Commands now '/octo:*'. Auto-detects Dev vs Knowledge context. Multi-tentacled orchestrator with AI debates, quality gates. Run /octo:setup for guided setup.",
+      "version": "7.9.6",
       "author": {
         "name": "nyldn"
       },
