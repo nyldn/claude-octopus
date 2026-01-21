@@ -29,7 +29,7 @@ Just use natural language:
 ## Audit Types
 
 - **Standard Audit**: OWASP compliance check
-- **Adversarial**: Red team security testing (use `/co:debate` with adversarial mode)
+- **Adversarial**: Red team security testing (use `/octo:debate` with adversarial mode)
 - **Quick Check**: Pre-commit security scan
 
 ## Natural Language Examples

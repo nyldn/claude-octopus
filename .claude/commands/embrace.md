@@ -13,7 +13,7 @@ Run the **complete 4-phase Double Diamond workflow** from research to delivery.
 ## Usage
 
 ```bash
-/co:embrace        # Full workflow with natural language
+/octo:embrace        # Full workflow with natural language
 ```
 
 ## What is Embrace?
@@ -45,7 +45,7 @@ You can configure how much human oversight you want:
 - **Semi-autonomous** - Approval only when quality gates fail
 - **Autonomous** - Runs all 4 phases automatically
 
-Set in `/co:setup` or use orchestrate.sh flags:
+Set in `/octo:setup` or use orchestrate.sh flags:
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh embrace --autonomy supervised "your prompt"
 ${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh embrace --autonomy autonomous "your prompt"
@@ -76,7 +76,7 @@ If quality gates fail in semi-autonomous mode, you'll be prompted to review.
 
 ## Learn More
 
-- `/co:discover` - Run just the research phase
-- `/co:define` - Run just the definition phase
-- `/co:develop` - Run just the development phase
-- `/co:deliver` - Run just the delivery/review phase
+- `/octo:discover` - Run just the research phase
+- `/octo:define` - Run just the definition phase
+- `/octo:develop` - Run just the development phase
+- `/octo:deliver` - Run just the delivery/review phase

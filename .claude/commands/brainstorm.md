@@ -3,14 +3,14 @@ command: octo:brainstorm
 description: "Start a creative thought partner brainstorming session"
 ---
 
-# /co:brainstorm
+# /octo:brainstorm
 
 Start a structured brainstorming session using four breakthrough techniques.
 
 **Usage:**
 ```
-/co:brainstorm
-/co:brainstorm [topic]
+/octo:brainstorm
+/octo:brainstorm [topic]
 ```
 
 **What it does:**
@@ -32,7 +32,7 @@ Start a structured brainstorming session using four breakthrough techniques.
 
 **Example:**
 ```
-/co:brainstorm my approach to customer onboarding
+/octo:brainstorm my approach to customer onboarding
 
 → Starting thought partner session...
 → "What topic or idea would you like to explore today?"
