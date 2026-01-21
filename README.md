@@ -6,7 +6,7 @@
   <img src="https://img.shields.io/badge/Claude_Code-Plugin-blueviolet" alt="Claude Code Plugin">
   <img src="https://img.shields.io/badge/Double_Diamond-Design_Thinking-orange" alt="Double Diamond">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
-  <img src="https://img.shields.io/badge/Version-7.9.1-blue" alt="Version 7.9.1">
+  <img src="https://img.shields.io/badge/Version-7.10.0-blue" alt="Version 7.10.0">
 </p>
 
 # Claude Octopus
@@ -48,7 +48,7 @@ Open Claude Code and run these two commands in the chat:
 
 ```
 /plugin marketplace add https://github.com/nyldn/claude-octopus
-/plugin install claude-octopus@nyldn-plugins
+/plugin install octo@nyldn-plugins
 ```
 
 The plugin is now installed and automatically enabled.
@@ -66,17 +66,17 @@ Use the HTTPS URL format (already shown above). The shorthand `nyldn/claude-octo
    ```
    /plugin list
    ```
-   Look for `claude-octopus@nyldn-plugins` in the installed plugins list.
+   Look for `octo@nyldn-plugins` in the installed plugins list.
 
 2. Try reinstalling:
    ```
-   /plugin uninstall claude-octopus
-   /plugin install claude-octopus@nyldn-plugins
+   /plugin uninstall octo
+   /plugin install octo@nyldn-plugins
    ```
 
 3. Check for errors in debug logs (from terminal):
    ```bash
-   tail -100 ~/.claude/debug/*.txt | grep -i "claude-octopus\|error"
+   tail -100 ~/.claude/debug/*.txt | grep -i "octo\|error"
    ```
 
 4. Make sure you're on Claude Code v2.1.10 or later (from terminal):
@@ -136,24 +136,24 @@ To get the latest version of Claude Octopus:
 ### Option A: Via Plugin UI
 1. `/plugin` to open plugin screen
 2. Navigate to "Installed" tab
-3. Find `claude-octopus@nyldn-plugins`
+3. Find `octo@nyldn-plugins`
 4. Click update button if available
 
 ### Option B: Reinstall Manually
 ```
-/plugin uninstall claude-octopus
-/plugin install claude-octopus@nyldn-plugins
+/plugin uninstall octo
+/plugin install octo@nyldn-plugins
 ```
 
 ### Option C: Pin to Specific Version (Claude Code 2.1.14+)
 Lock to a specific git commit SHA for stability:
 ```
-/plugin install claude-octopus@nyldn-plugins#<commit-sha>
+/plugin install octo@nyldn-plugins#<commit-sha>
 ```
 
 Example:
 ```
-/plugin install claude-octopus@nyldn-plugins#abc123def
+/plugin install octo@nyldn-plugins#abc123def
 ```
 
 This is useful during active development or when you need to reproduce a specific behavior.
@@ -179,17 +179,17 @@ Claude Octopus has different "tentacles" (workflows) for different tasks:
 
 ---
 
-## ✨ What's New in v7.9.x
+## ✨ What's New
 
-### v7.9.1 - Single-Provider Mode
-- **Only need ONE provider!** Codex OR Gemini—not both required
+### v7.10.0 - Plugin Rename (BREAKING)
+- **Plugin renamed**: `claude-octopus` → `octo`
+- **Commands now work as documented**: `/octo:research`, `/octo:debate`, etc.
+- **Migration**: Uninstall old plugin, install new: `/plugin install octo@nyldn-plugins`
+
+### v7.9.x
+- Single-provider mode (only need Codex OR Gemini)
 - Fixed path resolution in skill files
-- Removed deprecated update commands
-
-### v7.9.0 - Command Rename
-- **All commands renamed**: `/co:*` → `/octo:*` (e.g., `/octo:research`, `/octo:debate`)
-- Optimized skill descriptions for better Claude Code discovery
-- Pre-push validation enforces `octo:` prefix format
+- Optimized skill descriptions for Claude Code discovery
 
 ### Context-Aware Detection (v7.8.0)
 
