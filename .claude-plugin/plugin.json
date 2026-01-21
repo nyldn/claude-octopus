@@ -1,5 +1,5 @@
 {
-  "name": "claude-octopus",
+  "name": "octo",
   "version": "7.9.6",
   "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.9.6) Commands now '/octo:*'. Run /octo:setup for guided setup.",
   "author": {
