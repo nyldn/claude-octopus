@@ -5,6 +5,24 @@ description: Delivery phase - Quality assurance, validation, and review
 
 # Ink - Delivery Phase (Double Diamond)
 
+## 🤖 INSTRUCTIONS FOR CLAUDE
+
+When the user invokes this command (e.g., `/octo:ink <arguments>`):
+
+**✓ CORRECT - Use the Skill tool:**
+```
+Skill(skill: "octo:ink", args: "<user's arguments>")
+```
+
+**✗ INCORRECT - Do NOT use Task tool:**
+```
+Task(subagent_type: "octo:ink", ...)  ❌ Wrong! This is a skill, not an agent type
+```
+
+**Why:** This command loads the `flow-ink` skill. Skills use the `Skill` tool, not `Task`.
+
+---
+
 **Auto-loads the `flow-ink` skill for the validation/delivery phase.**
 
 ## Quick Usage
