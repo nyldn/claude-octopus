@@ -48,7 +48,7 @@ Open Claude Code and run these two commands in the chat:
 
 ```
 /plugin marketplace add https://github.com/nyldn/claude-octopus
-/plugin install octo@nyldn-plugins
+/plugin install claude-octopus@nyldn-plugins
 ```
 
 The plugin is now installed and automatically enabled.
@@ -66,17 +66,17 @@ Use the HTTPS URL format (already shown above). The shorthand `nyldn/claude-octo
    ```
    /plugin list
    ```
-   Look for `octo@nyldn-plugins` in the installed plugins list.
+   Look for `claude-octopus@nyldn-plugins` in the installed plugins list.
 
 2. Try reinstalling:
    ```
-   /plugin uninstall octo
-   /plugin install octo@nyldn-plugins
+   /plugin uninstall claude-octopus
+   /plugin install claude-octopus@nyldn-plugins
    ```
 
 3. Check for errors in debug logs (from terminal):
    ```bash
-   tail -100 ~/.claude/debug/*.txt | grep -i "octo\|error"
+   tail -100 ~/.claude/debug/*.txt | grep -i "claude-octopus\|octo\|error"
    ```
 
 4. Make sure you're on Claude Code v2.1.10 or later (from terminal):
@@ -136,24 +136,24 @@ To get the latest version of Claude Octopus:
 ### Option A: Via Plugin UI
 1. `/plugin` to open plugin screen
 2. Navigate to "Installed" tab
-3. Find `octo@nyldn-plugins`
+3. Find `claude-octopus@nyldn-plugins`
 4. Click update button if available
 
 ### Option B: Reinstall Manually
 ```
-/plugin uninstall octo
-/plugin install octo@nyldn-plugins
+/plugin uninstall claude-octopus
+/plugin install claude-octopus@nyldn-plugins
 ```
 
 ### Option C: Pin to Specific Version (Claude Code 2.1.14+)
 Lock to a specific git commit SHA for stability:
 ```
-/plugin install octo@nyldn-plugins#<commit-sha>
+/plugin install claude-octopus@nyldn-plugins#<commit-sha>
 ```
 
 Example:
 ```
-/plugin install octo@nyldn-plugins#abc123def
+/plugin install claude-octopus@nyldn-plugins#abc123def
 ```
 
 This is useful during active development or when you need to reproduce a specific behavior.
@@ -181,10 +181,10 @@ Claude Octopus has different "tentacles" (workflows) for different tasks:
 
 ## ✨ What's New
 
-### v7.9.2 - Plugin Rename
-- **Plugin renamed**: `claude-octopus` → `octo`
-- **Commands now work as documented**: `/octo:research`, `/octo:debate`, etc.
-- **Migration**: Uninstall old plugin, install new: `/plugin install octo@nyldn-plugins`
+### v7.9.2 - Command Prefix Update
+- **Commands now use `/octo:*` prefix**: `/octo:research`, `/octo:debate`, etc.
+- **Plugin name unchanged**: Still `claude-octopus@nyldn-plugins`
+- **All `/co:` references updated** to `/octo:` in docs and command files
 
 ### v7.9.x
 - Single-provider mode (only need Codex OR Gemini)

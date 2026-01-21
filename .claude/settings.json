@@ -1,5 +1,5 @@
 {
   "enabledPlugins": {
-    "octo@nyldn-plugins": true
+    "claude-octopus@nyldn-plugins": true
   }
 }
