@@ -1,5 +1,5 @@
 ---
-command: octo:review
+command: review
 description: Expert code review with comprehensive quality assessment and security analysis
 ---
 

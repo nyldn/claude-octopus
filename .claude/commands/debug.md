@@ -1,5 +1,5 @@
 ---
-command: octo:debug
+command: debug
 description: Systematic debugging with methodical problem investigation
 ---
 

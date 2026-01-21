@@ -1,5 +1,5 @@
 ---
-command: octo:define
+command: define
 description: "Definition phase - Clarify and scope problems with multi-AI consensus"
 aliases:
   - grasp
