@@ -1,5 +1,5 @@
 ---
-command: grasp
+command: octo:grasp
 description: Definition phase - Requirements clarification and scope definition
 ---
 

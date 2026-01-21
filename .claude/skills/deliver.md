@@ -1,6 +1,8 @@
 ---
 name: deliver
-description: "Shortcut for /octo:flow-deliver - Deliver phase workflow for validation and review"
+description: |
+  Deliver phase shortcut. Triggers: "validate this", "review implementation", "verify it works".
+  Redirects to flow-deliver for multi-agent validation and quality assurance.
 redirect: flow-deliver
 trigger: |
   AUTOMATICALLY ACTIVATE when user requests validation or review:

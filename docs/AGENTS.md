@@ -241,7 +241,7 @@ The heavy hitters, based on real-world usage:
 **Superpower:** Code quality, best practices, architecture review
 
 **When to use:**
-- PR reviews (pairs with `/octo:review` skill)
+- PR reviews (pairs with `/co:review` skill)
 - Architecture validation
 - Best practices enforcement
 

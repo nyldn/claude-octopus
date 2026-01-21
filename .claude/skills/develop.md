@@ -1,6 +1,8 @@
 ---
 name: develop
-description: "Shortcut for /octo:flow-develop - Develop phase workflow for building implementations"
+description: |
+  Develop phase shortcut. Triggers: "build this", "implement X", "create feature".
+  Redirects to flow-develop for multi-agent implementation with parallel solutions.
 redirect: flow-develop
 trigger: |
   AUTOMATICALLY ACTIVATE when user requests building or implementation:

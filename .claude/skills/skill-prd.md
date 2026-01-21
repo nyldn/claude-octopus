@@ -1,6 +1,16 @@
 ---
 name: skill-prd
-description: PRD creation - DO NOT LOAD THIS SKILL REPEATEDLY
+description: |
+  AI-optimized PRD creation with 100-point scoring framework.
+  
+  Use PROACTIVELY when user says:
+  - "write a PRD", "create a PRD", "PRD for X"
+  - "product requirements document", "spec this feature"
+  - "document requirements for", "feature specification"
+  
+  PRIORITY TRIGGERS: "octo:prd", "write PRD", "create PRD"
+  
+  DO NOT LOAD REPEATEDLY - execute directly after first load.
 context: fork
 agent: Plan
 ---

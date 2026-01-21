@@ -1,5 +1,5 @@
 ---
-command: deliver
+command: octo:deliver
 description: "Delivery phase - Review, validate, and test with multi-AI quality assurance"
 aliases:
   - ink
@@ -15,7 +15,7 @@ Review, validate, and test using external CLI providers.
 ## Usage
 
 ```bash
-/octo:deliver        # Delivery phase
+/co:deliver        # Delivery phase
 ```
 
 ## Natural Language Examples
@@ -71,4 +71,4 @@ Deliver is phase 4 of 4 in the embrace (full) workflow:
 3. Develop
 4. **Deliver** ← You are here
 
-To run all 4 phases: `/octo:embrace`
+To run all 4 phases: `/co:embrace`

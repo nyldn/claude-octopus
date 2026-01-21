@@ -1,6 +1,8 @@
 ---
 name: discover
-description: "Shortcut for /octo:flow-discover - Discovery phase workflow for research and exploration"
+description: |
+  Discover phase shortcut. Triggers: "research X", "explore options", "investigate".
+  Redirects to flow-discover for multi-agent research and exploration.
 redirect: flow-discover
 trigger: |
   AUTOMATICALLY ACTIVATE when user requests research or exploration:

@@ -1,6 +1,8 @@
 ---
 name: define
-description: "Shortcut for /octo:flow-define - Define phase workflow for clarifying requirements"
+description: |
+  Define phase shortcut. Triggers: "define requirements", "clarify scope", "what needs to happen".
+  Redirects to flow-define for multi-agent requirement clarification.
 redirect: flow-define
 trigger: |
   AUTOMATICALLY ACTIVATE when user requests clarification or scoping:
