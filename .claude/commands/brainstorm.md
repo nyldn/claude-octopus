@@ -1,5 +1,5 @@
 ---
-command: brainstorm
+command: octo:brainstorm
 description: "Start a creative thought partner brainstorming session"
 ---
 

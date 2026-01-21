@@ -1,5 +1,5 @@
 ---
-command: pipeline
+command: octo:pipeline
 description: "Run content analysis pipeline on URL(s) to extract patterns and create anatomy guides"
 ---
 

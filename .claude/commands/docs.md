@@ -1,5 +1,5 @@
 ---
-command: docs
+command: octo:docs
 description: Document delivery with export to PPTX, DOCX, PDF formats
 ---
 

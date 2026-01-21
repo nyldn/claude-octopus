@@ -1,5 +1,5 @@
 ---
-command: setup
+command: octo:setup
 description: "Shortcut for /octo:sys-setup - Check Claude Octopus setup status"
 redirect: sys-setup
 ---

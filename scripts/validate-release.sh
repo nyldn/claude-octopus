@@ -27,12 +27,12 @@ echo "🔒 Checking plugin names..."
 PLUGIN_NAME=$(grep '"name"' "$ROOT_DIR/.claude-plugin/plugin.json" | head -1 | sed 's/.*: *"\([^"]*\)".*/\1/')
 MARKETPLACE_PLUGIN_NAME=$(sed -n '/"plugins"/,/]/p' "$ROOT_DIR/.claude-plugin/marketplace.json" | grep '"name"' | head -1 | sed 's/.*: *"\([^"]*\)".*/\1/')
 
-if [[ "$PLUGIN_NAME" != "octo" ]]; then
-    echo -e "  ${RED}CRITICAL ERROR: plugin.json name is '$PLUGIN_NAME' - MUST be 'octo'${NC}"
-    echo -e "  ${RED}This controls command prefix (/octo:*)${NC}"
+if [[ "$PLUGIN_NAME" != "claude-octopus" ]]; then
+    echo -e "  ${RED}CRITICAL ERROR: plugin.json name is '$PLUGIN_NAME' - MUST be 'claude-octopus'${NC}"
+    echo -e "  ${RED}This controls plugin registration${NC}"
     ((errors++))
 else
-    echo -e "  ${GREEN}✓ plugin.json name: octo (command prefix: /octo:*)${NC}"
+    echo -e "  ${GREEN}✓ plugin.json name: claude-octopus${NC}"
 fi
 
 if [[ "$MARKETPLACE_PLUGIN_NAME" != "claude-octopus" ]]; then
@@ -127,16 +127,16 @@ echo "📛 Checking command frontmatter format..."
 invalid_frontmatter=0
 for cmd_file in "$ROOT_DIR/.claude/commands/"*.md; do
     cmd_name=$(sed -n '2p' "$cmd_file" | grep -o 'command: .*' | sed 's/command: //')
-    if [[ -n "$cmd_name" ]] && [[ "$cmd_name" == *":"* ]]; then
-        echo -e "  ${RED}ERROR: $(basename "$cmd_file") has 'command: $cmd_name' - must NOT contain ':'${NC}"
-        echo -e "  ${RED}  Command prefix is set by plugin name, not frontmatter${NC}"
+    if [[ -n "$cmd_name" ]] && [[ "$cmd_name" != "octo:"* ]]; then
+        echo -e "  ${RED}ERROR: $(basename "$cmd_file") has 'command: $cmd_name' - must start with 'octo:'${NC}"
+        echo -e "  ${RED}  Command prefix must be explicit in frontmatter${NC}"
         ((errors++))
         ((invalid_frontmatter++))
     fi
 done
 
 if [[ $invalid_frontmatter -eq 0 ]]; then
-    echo -e "  ${GREEN}✓ All command frontmatters use correct format (no prefix)${NC}"
+    echo -e "  ${GREEN}✓ All command frontmatters use correct format (octo: prefix)${NC}"
 fi
 
 echo ""
