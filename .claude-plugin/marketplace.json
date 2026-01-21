@@ -9,10 +9,10 @@
   },
   "plugins": [
     {
-      "name": "claude-octopus",
+      "name": "octo",
       "source": "./",
-      "description": "v7.9.1 - PRD tools! Use '/octo:prd <feature>' for AI-optimized PRDs. Auto-detects Dev vs Knowledge context. Multi-tentacled orchestrator with AI debates, quality gates. Run /octo:setup for guided setup.",
-      "version": "7.9.1",
+      "description": "v7.10.0 - BREAKING: Plugin renamed to 'octo'. Commands now '/octo:*'. Auto-detects Dev vs Knowledge context. Multi-tentacled orchestrator with AI debates, quality gates. Run /octo:setup for guided setup.",
+      "version": "7.10.0",
       "author": {
         "name": "nyldn"
       },

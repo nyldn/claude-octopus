@@ -245,11 +245,11 @@ If you're not seeing visual indicators when you expect them:
 ```
 /plugin list
 ```
-Look for `claude-octopus@nyldn-plugins` in the installed list.
+Look for `octo@nyldn-plugins` in the installed list.
 
 ### Check 2: Provider Configuration
 ```
-/co:setup
+/octo:setup
 ```
 Verify that Codex and/or Gemini CLIs are installed.
 
