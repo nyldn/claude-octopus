@@ -15,7 +15,7 @@ Clarify and scope problems using external CLI providers.
 ## Usage
 
 ```bash
-/co:define         # Definition phase
+/octo:define         # Definition phase
 ```
 
 ## Natural Language Examples
@@ -62,4 +62,4 @@ Define is phase 2 of 4 in the embrace (full) workflow:
 3. Develop
 4. Deliver
 
-To run all 4 phases: `/co:embrace`
+To run all 4 phases: `/octo:embrace`

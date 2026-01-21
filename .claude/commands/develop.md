@@ -15,7 +15,7 @@ Build and implement solutions using external CLI providers.
 ## Usage
 
 ```bash
-/co:develop        # Development phase
+/octo:develop        # Development phase
 ```
 
 ## Natural Language Examples
@@ -71,4 +71,4 @@ Develop is phase 3 of 4 in the embrace (full) workflow:
 3. **Develop** ← You are here
 4. Deliver
 
-To run all 4 phases: `/co:embrace`
+To run all 4 phases: `/octo:embrace`
