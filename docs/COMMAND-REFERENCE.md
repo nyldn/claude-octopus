@@ -6,53 +6,53 @@ Complete reference for all Claude Octopus commands.
 
 ## Quick Reference
 
-All commands use the `/octo:` namespace.
+All commands use the `/co:` namespace.
 
 ### System Commands
 
 | Command | Description |
 |---------|-------------|
-| `/octo:setup` | Check setup status and configure providers |
-| `/octo:update` | Check for plugin updates |
-| `/octo:dev` | Switch to Dev Work mode |
-| `/octo:km` | Toggle Knowledge Work mode |
-| `/octo:sys-setup` | Full name for setup |
-| `/octo:sys-update` | Full name for update |
-| `/octo:check-update` | Alias for sys-update |
+| `/co:setup` | Check setup status and configure providers |
+| `/co:update` | Check for plugin updates |
+| `/co:dev` | Switch to Dev Work mode |
+| `/co:km` | Toggle Knowledge Work mode |
+| `/co:sys-setup` | Full name for setup |
+| `/co:sys-update` | Full name for update |
+| `/co:check-update` | Alias for sys-update |
 
 ### Workflow Commands
 
 | Command | Phase | Description |
 |---------|-------|-------------|
-| `/octo:discover` | Discover | Multi-AI research and exploration |
-| `/octo:define` | Define | Requirements clarification and scope |
-| `/octo:develop` | Develop | Multi-AI implementation |
-| `/octo:deliver` | Deliver | Validation and quality assurance |
-| `/octo:embrace` | All | Full 4-phase Double Diamond workflow |
+| `/co:discover` | Discover | Multi-AI research and exploration |
+| `/co:define` | Define | Requirements clarification and scope |
+| `/co:develop` | Develop | Multi-AI implementation |
+| `/co:deliver` | Deliver | Validation and quality assurance |
+| `/co:embrace` | All | Full 4-phase Double Diamond workflow |
 
 ### Skill Commands
 
 | Command | Description |
 |---------|-------------|
-| `/octo:debate` | AI Debate Hub - 3-way debates (Claude + Gemini + Codex) |
-| `/octo:review` | Expert code review with quality assessment |
-| `/octo:research` | Deep research with multi-source synthesis |
-| `/octo:security` | Security audit with OWASP compliance |
-| `/octo:debug` | Systematic debugging with investigation |
-| `/octo:tdd` | Test-driven development workflows |
-| `/octo:docs` | Document delivery (PPTX/DOCX/PDF export) |
+| `/co:debate` | AI Debate Hub - 3-way debates (Claude + Gemini + Codex) |
+| `/co:review` | Expert code review with quality assessment |
+| `/co:research` | Deep research with multi-source synthesis |
+| `/co:security` | Security audit with OWASP compliance |
+| `/co:debug` | Systematic debugging with investigation |
+| `/co:tdd` | Test-driven development workflows |
+| `/co:docs` | Document delivery (PPTX/DOCX/PDF export) |
 
 ---
 
 ## System Commands
 
-### `/octo:setup`
+### `/co:setup`
 
 Check setup status and configure AI providers.
 
 **Usage:**
 ```
-/octo:setup
+/co:setup
 ```
 
 **What it does:**
@@ -72,14 +72,14 @@ Providers:
 You're all set! Try: octo research OAuth patterns
 ```
 
-### `/octo:update`
+### `/co:update`
 
 Check for plugin updates and install if available.
 
 **Usage:**
 ```
-/octo:update           # Check only
-/octo:update --update  # Check and auto-install
+/co:update           # Check only
+/co:update --update  # Check and auto-install
 ```
 
 **What it does:**
@@ -87,15 +87,15 @@ Check for plugin updates and install if available.
 - Shows changelog for new versions
 - Optionally auto-installs updates
 
-### `/octo:km`
+### `/co:km`
 
 Toggle between Dev Work mode and Knowledge Work mode.
 
 **Usage:**
 ```
-/octo:km          # Show current status
-/octo:km on       # Enable Knowledge Work mode
-/octo:km off      # Disable (return to Dev Work mode)
+/co:km          # Show current status
+/co:km on       # Enable Knowledge Work mode
+/co:km off      # Disable (return to Dev Work mode)
 ```
 
 **Modes:**
@@ -104,28 +104,28 @@ Toggle between Dev Work mode and Knowledge Work mode.
 | Dev Work (default) | Code, tests, debugging | Software development |
 | Knowledge Work | Research, strategy, UX | Consulting, research, product work |
 
-### `/octo:dev`
+### `/co:dev`
 
 Shortcut to switch to Dev Work mode.
 
 **Usage:**
 ```
-/octo:dev
+/co:dev
 ```
 
-Equivalent to `/octo:km off`.
+Equivalent to `/co:km off`.
 
 ---
 
 ## Workflow Commands
 
-### `/octo:discover`
+### `/co:discover`
 
 Discovery phase - Multi-AI research and exploration.
 
 **Usage:**
 ```
-/octo:discover OAuth authentication patterns
+/co:discover OAuth authentication patterns
 ```
 
 **What it does:**
@@ -138,13 +138,13 @@ Discovery phase - Multi-AI research and exploration.
 - `octo explore Y`
 - `octo investigate Z`
 
-### `/octo:define`
+### `/co:define`
 
 Definition phase - Clarify requirements and scope.
 
 **Usage:**
 ```
-/octo:define requirements for user authentication
+/co:define requirements for user authentication
 ```
 
 **What it does:**
@@ -157,13 +157,13 @@ Definition phase - Clarify requirements and scope.
 - `octo clarify scope of Y`
 - `octo scope out Z feature`
 
-### `/octo:develop`
+### `/co:develop`
 
 Development phase - Multi-AI implementation.
 
 **Usage:**
 ```
-/octo:develop user authentication system
+/co:develop user authentication system
 ```
 
 **What it does:**
@@ -176,13 +176,13 @@ Development phase - Multi-AI implementation.
 - `octo implement Y`
 - `octo create Z`
 
-### `/octo:deliver`
+### `/co:deliver`
 
 Delivery phase - Validation and quality assurance.
 
 **Usage:**
 ```
-/octo:deliver authentication implementation
+/co:deliver authentication implementation
 ```
 
 **What it does:**
@@ -195,13 +195,13 @@ Delivery phase - Validation and quality assurance.
 - `octo validate Y`
 - `octo audit Z`
 
-### `/octo:embrace`
+### `/co:embrace`
 
 Full Double Diamond workflow - all 4 phases.
 
 **Usage:**
 ```
-/octo:embrace complete authentication system
+/co:embrace complete authentication system
 ```
 
 **What it does:**
@@ -216,15 +216,15 @@ Shows visual indicator: 🐙 (all phases)
 
 ## Skill Commands
 
-### `/octo:debate`
+### `/co:debate`
 
 AI Debate Hub - Structured 3-way debates.
 
 **Usage:**
 ```
-/octo:debate Redis vs Memcached for caching
-/octo:debate -r 3 Should we use GraphQL or REST
-/octo:debate -d adversarial Review auth.ts security
+/co:debate Redis vs Memcached for caching
+/co:debate -r 3 Should we use GraphQL or REST
+/co:debate -d adversarial Review auth.ts security
 ```
 
 **Options:**
@@ -243,14 +243,14 @@ AI Debate Hub - Structured 3-way debates.
 - `run a debate about Z`
 - `I want gemini and codex to review X`
 
-### `/octo:review`
+### `/co:review`
 
 Expert code review with quality assessment.
 
 **Usage:**
 ```
-/octo:review auth.ts
-/octo:review src/components/
+/co:review auth.ts
+/co:review src/components/
 ```
 
 **What it does:**
@@ -259,13 +259,13 @@ Expert code review with quality assessment.
 - Architecture review
 - Best practices enforcement
 
-### `/octo:research`
+### `/co:research`
 
 Deep research with multi-source synthesis.
 
 **Usage:**
 ```
-/octo:research microservices patterns
+/co:research microservices patterns
 ```
 
 **What it does:**
@@ -273,14 +273,14 @@ Deep research with multi-source synthesis.
 - Documentation lookup via librarian
 - Synthesizes findings into actionable insights
 
-### `/octo:security`
+### `/co:security`
 
 Security audit with OWASP compliance.
 
 **Usage:**
 ```
-/octo:security auth.ts
-/octo:security src/api/
+/co:security auth.ts
+/co:security src/api/
 ```
 
 **What it does:**
@@ -289,13 +289,13 @@ Security audit with OWASP compliance.
 - Input validation checks
 - Red team analysis (adversarial testing)
 
-### `/octo:debug`
+### `/co:debug`
 
 Systematic debugging with investigation.
 
 **Usage:**
 ```
-/octo:debug failing test in auth.spec.ts
+/co:debug failing test in auth.spec.ts
 ```
 
 **What it does:**
@@ -304,13 +304,13 @@ Systematic debugging with investigation.
 3. Hypothesize: Form theories
 4. Implement: Fix with verification
 
-### `/octo:tdd`
+### `/co:tdd`
 
 Test-driven development workflows.
 
 **Usage:**
 ```
-/octo:tdd implement user registration
+/co:tdd implement user registration
 ```
 
 **What it does:**
@@ -318,14 +318,14 @@ Test-driven development workflows.
 - Green: Minimal code to pass
 - Refactor: Improve while keeping tests green
 
-### `/octo:docs`
+### `/co:docs`
 
 Document delivery with export options.
 
 **Usage:**
 ```
-/octo:docs create API documentation
-/octo:docs export report.md to PPTX
+/co:docs create API documentation
+/co:docs export report.md to PPTX
 ```
 
 **Supported formats:**
@@ -367,10 +367,10 @@ Instead of slash commands, you can use natural language with the "octo" prefix:
 
 | You Say | Equivalent Command |
 |---------|--------------------|
-| `octo research OAuth patterns` | `/octo:discover OAuth patterns` |
-| `octo build user auth` | `/octo:develop user auth` |
-| `octo review my code` | `/octo:deliver my code` |
-| `octo debate X vs Y` | `/octo:debate X vs Y` |
+| `octo research OAuth patterns` | `/co:discover OAuth patterns` |
+| `octo build user auth` | `/co:develop user auth` |
+| `octo review my code` | `/co:deliver my code` |
+| `octo debate X vs Y` | `/co:debate X vs Y` |
 
 **Why "octo"?** Common words like "research" may conflict with Claude's base behaviors. The "octo" prefix ensures reliable activation.
 

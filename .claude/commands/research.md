@@ -1,5 +1,5 @@
 ---
-command: research
+command: octo:research
 description: Deep research with multi-source synthesis and comprehensive analysis
 ---
 

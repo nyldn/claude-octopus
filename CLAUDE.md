@@ -20,7 +20,7 @@ When executing Claude Octopus workflows, you MUST display visual indicators so u
 ### When to Display Indicators
 
 Display indicators when:
-- Invoking any `/octo:` command
+- Invoking any `/co:` command
 - Running `orchestrate.sh` with any workflow (probe, grasp, tangle, ink, embrace, etc.)
 - User triggers workflow with "octo" prefix ("octo research X", "octo build Y")
 - Executing multi-provider operations
@@ -128,7 +128,7 @@ Without indicators, users have no visibility into what's happening or what they'
 | `octo build X` | Develop | 🐙 🛠️ 🔴 🟡 🔵 |
 | `octo review X` | Deliver | 🐙 ✅ 🔴 🟡 🔵 |
 | `octo debate X` | Debate | 🐙 🔴 🟡 🔵 |
-| `/octo:embrace X` | All 4 phases | 🐙 (all phase emojis) |
+| `/co:embrace X` | All 4 phases | 🐙 (all phase emojis) |
 
 ---
 

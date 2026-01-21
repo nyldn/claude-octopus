@@ -1,7 +1,11 @@
 ---
 name: review
-description: "Shortcut for /octo:skill-code-review - Expert code review with comprehensive quality assessment"
+description: |
+  Expert code review shortcut. Triggers: "review this", "code review", "check my code".
+  Redirects to skill-code-review for comprehensive quality assessment.
 redirect: skill-code-review
+trigger: |
+  "review this code", "code review", "check my code", "review my changes"
 ---
 
 # Review (Shortcut) - Code Review

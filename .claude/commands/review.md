@@ -1,5 +1,5 @@
 ---
-command: review
+command: octo:review
 description: Expert code review with comprehensive quality assessment and security analysis
 ---
 
@@ -27,7 +27,7 @@ Just use natural language:
 
 ## Review Types
 
-- **Quick Review**: Pre-commit checks (use `/octo:quick-review` or just say "quick review")
+- **Quick Review**: Pre-commit checks (use `/co:quick-review` or just say "quick review")
 - **Full Review**: Comprehensive analysis with security audit
 - **Security Focus**: Deep security and vulnerability assessment
 

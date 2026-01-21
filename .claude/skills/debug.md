@@ -1,7 +1,11 @@
 ---
 name: debug
-description: "Shortcut for /octo:skill-debug - Systematic debugging workflow"
+description: |
+  Debugging shortcut. Triggers: "fix this bug", "why is X failing", "troubleshoot".
+  Redirects to skill-debug for systematic root cause investigation.
 redirect: skill-debug
+trigger: |
+  "fix this bug", "debug", "why is X failing", "troubleshoot", "not working"
 ---
 
 # Debug (Shortcut) - Systematic Debugging

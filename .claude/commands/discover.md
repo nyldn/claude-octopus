@@ -1,5 +1,5 @@
 ---
-command: discover
+command: octo:discover
 description: "Discovery phase - Multi-AI research and exploration"
 aliases:
   - probe
@@ -15,7 +15,7 @@ Multi-perspective research using external CLI providers.
 ## Usage
 
 ```bash
-/octo:discover       # Discovery phase
+/co:discover       # Discovery phase
 ```
 
 ## Natural Language Examples
@@ -62,4 +62,4 @@ Discover is phase 1 of 4 in the embrace (full) workflow:
 3. Develop
 4. Deliver
 
-To run all 4 phases: `/octo:embrace`
+To run all 4 phases: `/co:embrace`

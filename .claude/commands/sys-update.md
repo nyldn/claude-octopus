@@ -1,5 +1,5 @@
 ---
-command: sys-update
+command: octo:sys-update
 description: Check for updates to claude-octopus plugin
 aliases:
   - update
@@ -13,15 +13,15 @@ Check for updates to the claude-octopus plugin and optionally auto-update.
 ## Usage
 
 ```
-/octo:update              # Check for updates only
-/octo:update --update     # Check and auto-install if available
+/co:update              # Check for updates only
+/co:update --update     # Check and auto-install if available
 ```
 
 ---
 
 ## How To Implement This Command
 
-When the user runs `/octo:update`, follow these steps:
+When the user runs `/co:update`, follow these steps:
 
 ### Step 1: Get Latest Version from GitHub
 

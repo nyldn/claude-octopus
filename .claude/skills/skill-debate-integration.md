@@ -1,9 +1,12 @@
 ---
 name: skill-debate-integration
 description: |
-  Claude-octopus integration layer for AI Debate Hub.
-  Enhances wolverin0/claude-skills debate functionality with quality gates,
-  cost tracking, session-aware storage, and document export.
+  Integration layer for AI Debate Hub with quality gates, cost tracking, and document export.
+  
+  INTERNAL SKILL - auto-activates with skill-debate. Not directly invoked.
+  Enhances debates with session storage, quality gates, and export capabilities.
+  
+  DO NOT invoke directly - use skill-debate or /octo:debate instead.
 trigger: |
   AUTOMATICALLY ACTIVATE when:
   - User runs /debate command
