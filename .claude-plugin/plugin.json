@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "7.10.0",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.10.0) BREAKING: Plugin renamed to 'octo' - commands now '/octo:*'. Run /octo:setup for guided setup.",
+  "version": "7.9.2",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.9.2) BREAKING: Plugin renamed to 'octo' - commands now '/octo:*'. Run /octo:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },
