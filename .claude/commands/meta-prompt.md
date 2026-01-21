@@ -1,5 +1,5 @@
 ---
-command: octo:meta-prompt
+command: meta-prompt
 description: "Generate an optimized prompt for any task using meta-prompting techniques"
 ---
 

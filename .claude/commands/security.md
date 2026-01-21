@@ -1,5 +1,5 @@
 ---
-command: octo:security
+command: security
 description: Security audit with OWASP compliance and vulnerability detection
 ---
 

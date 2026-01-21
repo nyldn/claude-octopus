@@ -1,5 +1,5 @@
 ---
-command: octo:debate
+command: debate
 description: AI Debate Hub - Structured three-way debates between Claude, Gemini, and Codex
 ---
 
