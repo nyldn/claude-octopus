@@ -22,28 +22,25 @@ echo ""
 # ============================================================================
 # 1. PLUGIN NAME CHECK (CRITICAL - DO NOT CHANGE)
 # ============================================================================
-echo "🔒 Checking plugin name (MUST be 'claude-octopus')..."
+echo "🔒 Checking plugin names..."
 
 PLUGIN_NAME=$(grep '"name"' "$ROOT_DIR/.claude-plugin/plugin.json" | head -1 | sed 's/.*: *"\([^"]*\)".*/\1/')
-MARKETPLACE_PLUGIN_NAME=$(grep '"name"' "$ROOT_DIR/.claude-plugin/marketplace.json" | grep -A1 '"plugins"' -m1 | tail -1 | sed 's/.*: *"\([^"]*\)".*/\1/' 2>/dev/null || echo "")
-
-# More reliable extraction for marketplace plugin name
 MARKETPLACE_PLUGIN_NAME=$(sed -n '/"plugins"/,/]/p' "$ROOT_DIR/.claude-plugin/marketplace.json" | grep '"name"' | head -1 | sed 's/.*: *"\([^"]*\)".*/\1/')
 
-if [[ "$PLUGIN_NAME" != "claude-octopus" ]]; then
-    echo -e "  ${RED}CRITICAL ERROR: plugin.json name is '$PLUGIN_NAME' - MUST be 'claude-octopus'${NC}"
-    echo -e "  ${RED}Changing the plugin name breaks marketplace discovery!${NC}"
+if [[ "$PLUGIN_NAME" != "octo" ]]; then
+    echo -e "  ${RED}CRITICAL ERROR: plugin.json name is '$PLUGIN_NAME' - MUST be 'octo'${NC}"
+    echo -e "  ${RED}This controls command prefix (/octo:*)${NC}"
     ((errors++))
 else
-    echo -e "  ${GREEN}✓ plugin.json name: claude-octopus${NC}"
+    echo -e "  ${GREEN}✓ plugin.json name: octo (command prefix: /octo:*)${NC}"
 fi
 
 if [[ "$MARKETPLACE_PLUGIN_NAME" != "claude-octopus" ]]; then
     echo -e "  ${RED}CRITICAL ERROR: marketplace.json plugin name is '$MARKETPLACE_PLUGIN_NAME' - MUST be 'claude-octopus'${NC}"
-    echo -e "  ${RED}Changing the plugin name breaks marketplace discovery!${NC}"
+    echo -e "  ${RED}This controls install command (claude-octopus@nyldn-plugins)${NC}"
     ((errors++))
 else
-    echo -e "  ${GREEN}✓ marketplace.json plugin name: claude-octopus${NC}"
+    echo -e "  ${GREEN}✓ marketplace.json plugin name: claude-octopus (install name)${NC}"
 fi
 
 echo ""
