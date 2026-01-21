@@ -9,6 +9,25 @@ aliases:
 
 Switch to **Dev Work Mode**, optimized for software development.
 
+## Implementation Instructions
+
+When this command is executed:
+
+1. **Check current mode:**
+   - Config file: `.claude/claude-octopus.local.md`
+   - If file doesn't exist, user is already in Dev Work Mode (default)
+   - Use bash `test -f` to check existence before reading
+
+2. **Switch to Dev Work mode:**
+   - Create/update `.claude/claude-octopus.local.md` with YAML frontmatter
+   - Set `knowledge_mode: false`
+   - Confirm the switch with current mode details
+
+3. **Show confirmation:**
+   - Display Dev Work Mode emoji (🔧)
+   - List active personas
+   - Suggest available commands (octo build, octo review, etc.)
+
 ## Usage
 
 ```bash
