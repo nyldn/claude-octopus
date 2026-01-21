@@ -37,7 +37,7 @@ Natural language that triggers orchestrate.sh workflows:
 When Knowledge Mode is ON, research tasks use external CLIs:
 
 ```
-/octo:km on
+/co:km on
 "Research market opportunities in healthcare"
 ```
 
@@ -249,7 +249,7 @@ Look for `claude-octopus@nyldn-plugins` in the installed list.
 
 ### Check 2: Provider Configuration
 ```
-/octo:setup
+/co:setup
 ```
 Verify that Codex and/or Gemini CLIs are installed.
 

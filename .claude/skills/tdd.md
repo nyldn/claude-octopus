@@ -1,7 +1,11 @@
 ---
 name: tdd
-description: "Shortcut for /octo:skill-tdd - Test-driven development workflow"
+description: |
+  TDD workflow shortcut. Triggers: "write tests first", "test-driven", "red-green-refactor".
+  Redirects to skill-tdd for disciplined test-first development.
 redirect: skill-tdd
+trigger: |
+  "write tests first", "test-driven", "TDD", "red-green-refactor"
 ---
 
 # TDD (Shortcut) - Test-Driven Development

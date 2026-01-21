@@ -1,5 +1,5 @@
 ---
-command: ink
+command: octo:ink
 description: Delivery phase - Quality assurance, validation, and review
 ---
 
