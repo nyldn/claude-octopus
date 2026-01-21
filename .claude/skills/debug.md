@@ -1,5 +1,5 @@
 ---
-name: debug
+name: octo:debug
 description: |
   Debugging shortcut. Triggers: "fix this bug", "why is X failing", "troubleshoot".
   Redirects to skill-debug for systematic root cause investigation.

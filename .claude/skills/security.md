@@ -1,5 +1,5 @@
 ---
-name: security
+name: octo:security
 description: |
   Security audit shortcut. Triggers: "security check", "find vulnerabilities", "OWASP".
   Redirects to skill-security-audit for comprehensive security analysis.

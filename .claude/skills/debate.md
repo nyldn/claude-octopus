@@ -1,5 +1,5 @@
 ---
-name: debate
+name: octo:debate
 description: "Shortcut for /octo:skill-debate - AI Debate Hub for structured three-way debates"
 redirect: skill-debate
 trigger: |

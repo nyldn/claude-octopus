@@ -1,5 +1,5 @@
 ---
-name: discover
+name: octo:discover
 description: |
   Discover phase shortcut. Triggers: "research X", "explore options", "investigate".
   Redirects to flow-discover for multi-agent research and exploration.

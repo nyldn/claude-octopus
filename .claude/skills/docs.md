@@ -1,5 +1,5 @@
 ---
-name: docs
+name: octo:docs
 description: |
   Document delivery shortcut. Triggers: "export to Word", "create PowerPoint", "generate docs".
   Redirects to skill-doc-delivery for professional document creation.

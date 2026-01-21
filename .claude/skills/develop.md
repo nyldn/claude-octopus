@@ -1,5 +1,5 @@
 ---
-name: develop
+name: octo:develop
 description: |
   Develop phase shortcut. Triggers: "build this", "implement X", "create feature".
   Redirects to flow-develop for multi-agent implementation with parallel solutions.

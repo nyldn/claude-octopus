@@ -1,5 +1,5 @@
 ---
-name: config
+name: octo:config
 description: "Shortcut for /octo:sys-configure - Configure Claude Octopus providers and API keys"
 redirect: sys-configure
 trigger: |

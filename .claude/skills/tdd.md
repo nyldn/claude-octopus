@@ -1,5 +1,5 @@
 ---
-name: tdd
+name: octo:tdd
 description: |
   TDD workflow shortcut. Triggers: "write tests first", "test-driven", "red-green-refactor".
   Redirects to skill-tdd for disciplined test-first development.

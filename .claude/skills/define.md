@@ -1,5 +1,5 @@
 ---
-name: define
+name: octo:define
 description: |
   Define phase shortcut. Triggers: "define requirements", "clarify scope", "what needs to happen".
   Redirects to flow-define for multi-agent requirement clarification.

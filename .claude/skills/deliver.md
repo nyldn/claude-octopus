@@ -1,5 +1,5 @@
 ---
-name: deliver
+name: octo:deliver
 description: |
   Deliver phase shortcut. Triggers: "validate this", "review implementation", "verify it works".
   Redirects to flow-deliver for multi-agent validation and quality assurance.
