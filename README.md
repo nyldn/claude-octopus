@@ -60,7 +60,7 @@ The plugin is now installed and automatically enabled.
 
 Use the HTTPS URL format (already shown above). The shorthand `nyldn/claude-octopus` requires SSH keys configured with GitHub.
 
-**If `/co:setup` shows "Unknown skill" in Step 2:**
+**If `/octo:setup` shows "Unknown skill" in Step 2:**
 
 1. Verify the plugin is installed:
    ```
@@ -90,7 +90,7 @@ Use the HTTPS URL format (already shown above). The shorthand `nyldn/claude-octo
 
 Run the setup command in Claude Code:
 ```
-/co:setup
+/octo:setup
 ```
 
 This will:
@@ -119,10 +119,10 @@ Use the **"octo" prefix** for reliable workflow activation:
 
 **Alternative: Slash commands** (always work reliably):
 ```
-/co:research microservices patterns
-/co:develop REST API for user management
-/co:review authentication code
-/co:debate GraphQL vs REST
+/octo:research microservices patterns
+/octo:develop REST API for user management
+/octo:review authentication code
+/octo:debate GraphQL vs REST
 ```
 
 Claude Octopus automatically detects which providers you have and uses them intelligently.
@@ -133,25 +133,19 @@ Claude Octopus automatically detects which providers you have and uses them inte
 
 To get the latest version of Claude Octopus:
 
-### Option A: Auto-Update (Easiest) 🆕
-```
-/co:update --update
-```
-This will automatically check for updates and install the latest version if available.
-
-### Option B: Via Plugin UI
+### Option A: Via Plugin UI
 1. `/plugin` to open plugin screen
 2. Navigate to "Installed" tab
 3. Find `claude-octopus@nyldn-plugins`
 4. Click update button if available
 
-### Option C: Reinstall Manually
+### Option B: Reinstall Manually
 ```
 /plugin uninstall claude-octopus
 /plugin install claude-octopus@nyldn-plugins
 ```
 
-### Option D: Pin to Specific Version (Claude Code 2.1.14+)
+### Option C: Pin to Specific Version (Claude Code 2.1.14+)
 Lock to a specific git commit SHA for stability:
 ```
 /plugin install claude-octopus@nyldn-plugins#<commit-sha>
@@ -179,89 +173,37 @@ Claude Octopus has different "tentacles" (workflows) for different tasks:
 | **🛠️ Develop** (tangle) | Build, implement, create | Multi-AI implementation approaches | `octo build user authentication` |
 | **✅ Deliver** (ink) | Review, validate, audit | Quality assurance and validation | `octo review auth code for security` |
 | **🐙 Debate** | Debate, discuss, deliberate | Structured 3-way AI debates | `octo debate Redis vs Memcached` |
-| **🐙 Embrace** | Complete feature lifecycle | Full 4-phase Double Diamond workflow | `/co:embrace authentication system` |
+| **🐙 Embrace** | Complete feature lifecycle | Full 4-phase Double Diamond workflow | `/octo:embrace authentication system` |
 
-**Use "octo" prefix or `/co:` commands for reliable activation!**
-
----
-
-## Companion Skills
-
-Claude Octopus includes battle-tested skills for code quality:
-
-- **🏗️ Architecture** - System design and technical decisions
-- **🔍 Code Review** - Comprehensive code quality analysis
-- **🔒 Security Audit** - OWASP compliance and vulnerability detection
-- **⚡ Quick Review** - Fast pre-commit checks
-- **🔬 Deep Research** - Multi-source research synthesis
-- **🛡️ Adversarial Security** - Red team security testing
-- **🎯 Systematic Debugging** - Methodical bug investigation
-- **✅ TDD** - Test-driven development workflows
-- **🎯 Verification** - Pre-completion validation checklist
+**Use "octo" prefix or `/octo:` commands for reliable activation!**
 
 ---
 
-## ✨ What's New in v7.8.0 - Context-Aware Detection
+## ✨ What's New in v7.9.x
 
-**No more manual mode switching!** Claude Octopus now **auto-detects** whether you're working in a Dev Context (code-focused) or Knowledge Context (research/strategy-focused).
+### v7.9.1 - Single-Provider Mode
+- **Only need ONE provider!** Codex OR Gemini—not both required
+- Fixed path resolution in skill files
+- Removed deprecated update commands
 
-### How It Works
+### v7.9.0 - Command Rename
+- **All commands renamed**: `/co:*` → `/octo:*` (e.g., `/octo:research`, `/octo:debate`)
+- Optimized skill descriptions for better Claude Code discovery
+- Pre-push validation enforces `octo:` prefix format
 
-When you use any `octo` workflow, context is automatically detected from:
+### Context-Aware Detection (v7.8.0)
 
-1. **Your prompt** - Technical terms → Dev, Business terms → Knowledge
-2. **Your project** - Has `package.json` → Dev, Mostly docs → Knowledge
-
-You'll see the detected context in the visual banner:
-
-```
-🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider research mode
-🔍 [Dev] Discover Phase: Technical research on caching patterns
-```
-
-or
-
-```
-🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider research mode
-🔍 [Knowledge] Discover Phase: Market analysis for APAC expansion
-```
-
-### What Changes Per Context
+Claude Octopus **auto-detects** Dev vs Knowledge context:
 
 | Aspect | Dev Context 🔧 | Knowledge Context 🎓 |
 |--------|---------------|---------------------|
 | **Research Focus** | Libraries, patterns, implementation | Market, competitive, strategic |
 | **Build Output** | Code, tests, APIs | PRDs, presentations, reports |
 | **Review Focus** | Security, performance, quality | Clarity, evidence, completeness |
-| **Agents Used** | codex, backend-architect, code-reviewer | strategy-analyst, ux-researcher, product-writer |
 
-### Override (When Needed)
-
-If auto-detection gets it wrong, you can override:
-```
-/co:km on      # Force Knowledge Context
-/co:km off     # Force Dev Context
-/co:km auto    # Return to auto-detection
-```
+Override with: `/octo:km on` (Knowledge) | `/octo:km off` (Dev) | `/octo:km auto`
 
 📖 **[Full Changelog →](CHANGELOG.md)** - See all version history
-
----
-
-## Which Tentacle Does What?
-
-Claude Octopus has different "tentacles" (workflows) for different tasks:
-
-| Tentacle | When to Use | What It Does | Example |
-|----------|-------------|--------------|---------|
-| **🔍 Discover** (probe) | Research, explore, investigate | Multi-AI research and discovery | `octo research OAuth 2.0 patterns` |
-| **🎯 Define** (grasp) | Define, clarify, scope | Requirements and problem definition | `octo define requirements for auth` |
-| **🛠️ Develop** (tangle) | Build, implement, create | Multi-AI implementation approaches | `octo build user authentication` |
-| **✅ Deliver** (ink) | Review, validate, audit | Quality assurance and validation | `octo review auth code for security` |
-| **🐙 Debate** | Debate, discuss, deliberate | Structured 3-way AI debates | `octo debate Redis vs Memcached` |
-| **🐙 Embrace** | Complete feature lifecycle | Full 4-phase Double Diamond workflow | `/co:embrace authentication system` |
-
-**Use "octo" prefix or `/co:` commands for reliable activation!**
 
 ---
 
@@ -272,16 +214,16 @@ Claude Octopus includes 20+ battle-tested skills organized by category:
 ### Code Quality
 | Skill | Command | Description |
 |-------|---------|-------------|
-| **Code Review** | `/co:review` | Comprehensive code quality analysis |
+| **Code Review** | `/octo:review` | Comprehensive code quality analysis |
 | **Quick Review** | - | Fast pre-commit checks |
-| **Security Audit** | `/co:security` | OWASP compliance and vulnerability detection |
+| **Security Audit** | `/octo:security` | OWASP compliance and vulnerability detection |
 | **Adversarial Security** | - | Red team security testing |
 
 ### Development Discipline
 | Skill | Command | Description |
 |-------|---------|-------------|
-| **TDD** | `/co:tdd` | Test-driven development (red-green-refactor) |
-| **Debugging** | `/co:debug` | Systematic 4-phase bug investigation |
+| **TDD** | `/octo:tdd` | Test-driven development (red-green-refactor) |
+| **Debugging** | `/octo:debug` | Systematic 4-phase bug investigation |
 | **Verification** | - | Pre-completion validation ("Iron Law") |
 | **Iterative Loop** | - | Loop until exit criteria pass |
 
@@ -289,23 +231,23 @@ Claude Octopus includes 20+ battle-tested skills organized by category:
 | Skill | Command | Description |
 |-------|---------|-------------|
 | **Architecture** | - | System design and technical decisions |
-| **PRD Writing** | `/co:prd` | AI-optimized PRD with 100-point scoring |
+| **PRD Writing** | `/octo:prd` | AI-optimized PRD with 100-point scoring |
 | **Writing Plans** | - | Zero-context implementation plans |
 | **Decision Support** | - | Present options with trade-offs |
 
 ### Research & Knowledge
 | Skill | Command | Description |
 |-------|---------|-------------|
-| **Deep Research** | `/co:research` | Multi-source research synthesis |
-| **AI Debate** | `/co:debate` | Structured 3-way AI debates |
-| **Knowledge Work** | `/co:km` | Toggle Dev/Knowledge context |
+| **Deep Research** | `/octo:research` | Multi-source research synthesis |
+| **AI Debate** | `/octo:debate` | Structured 3-way AI debates |
+| **Knowledge Work** | `/octo:km` | Toggle Dev/Knowledge context |
 
 ### Workflow & Delivery
 | Skill | Command | Description |
 |-------|---------|-------------|
 | **Task Management** | - | Todo orchestration and resumption |
 | **Finish Branch** | - | Post-implementation: verify → merge/PR |
-| **Doc Delivery** | `/co:docs` | Export to DOCX, PPTX, PDF |
+| **Doc Delivery** | `/octo:docs` | Export to DOCX, PPTX, PDF |
 | **Visual Feedback** | - | Process UI/UX screenshot feedback |
 | **Audit** | - | Systematic codebase checking |
 
@@ -445,7 +387,7 @@ Just use natural language to trigger debates:
 "Run a debate about security vulnerabilities in auth.ts with adversarial analysis"
 
 # Knowledge mode deliberation
-/co:km on
+/octo:km on
 "Debate whether we should enter the European market"
 ```
 
