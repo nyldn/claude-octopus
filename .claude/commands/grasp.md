@@ -5,6 +5,24 @@ description: Definition phase - Requirements clarification and scope definition
 
 # Grasp - Definition Phase (Double Diamond)
 
+## 🤖 INSTRUCTIONS FOR CLAUDE
+
+When the user invokes this command (e.g., `/octo:grasp <arguments>`):
+
+**✓ CORRECT - Use the Skill tool:**
+```
+Skill(skill: "octo:grasp", args: "<user's arguments>")
+```
+
+**✗ INCORRECT - Do NOT use Task tool:**
+```
+Task(subagent_type: "octo:grasp", ...)  ❌ Wrong! This is a skill, not an agent type
+```
+
+**Why:** This command loads the `flow-grasp` skill. Skills use the `Skill` tool, not `Task`.
+
+---
+
 **Auto-loads the `flow-grasp` skill for the requirements/definition phase.**
 
 ## Quick Usage

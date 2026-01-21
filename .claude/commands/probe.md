@@ -5,6 +5,24 @@ description: Research and discovery phase - Multi-AI research with broad explora
 
 # Probe - Discovery Phase (Double Diamond)
 
+## 🤖 INSTRUCTIONS FOR CLAUDE
+
+When the user invokes this command (e.g., `/octo:probe <arguments>`):
+
+**✓ CORRECT - Use the Skill tool:**
+```
+Skill(skill: "octo:probe", args: "<user's arguments>")
+```
+
+**✗ INCORRECT - Do NOT use Task tool:**
+```
+Task(subagent_type: "octo:probe", ...)  ❌ Wrong! This is a skill, not an agent type
+```
+
+**Why:** This command loads the `flow-probe` skill. Skills use the `Skill` tool, not `Task`.
+
+---
+
 **Auto-loads the `flow-probe` skill for the research/discovery phase.**
 
 ## Quick Usage

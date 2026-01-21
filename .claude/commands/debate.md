@@ -5,6 +5,24 @@ description: AI Debate Hub - Structured three-way debates between Claude, Gemini
 
 # Debate - AI Debate Hub
 
+## 🤖 INSTRUCTIONS FOR CLAUDE
+
+When the user invokes this command (e.g., `/octo:debate <arguments>`):
+
+**✓ CORRECT - Use the Skill tool:**
+```
+Skill(skill: "octo:debate", args: "<user's arguments>")
+```
+
+**✗ INCORRECT - Do NOT use Task tool:**
+```
+Task(subagent_type: "octo:debate", ...)  ❌ Wrong! This is a skill, not an agent type
+```
+
+**Why:** This command loads the `skill-debate` skill. Skills use the `Skill` tool, not `Task`.
+
+---
+
 **Auto-loads the `skill-debate` skill for structured multi-AI debates.**
 
 ## Quick Usage

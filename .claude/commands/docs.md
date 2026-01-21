@@ -5,6 +5,24 @@ description: Document delivery with export to PPTX, DOCX, PDF formats
 
 # Docs - Document Delivery Skill
 
+## 🤖 INSTRUCTIONS FOR CLAUDE
+
+When the user invokes this command (e.g., `/octo:docs <arguments>`):
+
+**✓ CORRECT - Use the Skill tool:**
+```
+Skill(skill: "octo:docs", args: "<user's arguments>")
+```
+
+**✗ INCORRECT - Do NOT use Task tool:**
+```
+Task(subagent_type: "octo:docs", ...)  ❌ Wrong! This is a skill, not an agent type
+```
+
+**Why:** This command loads the `skill-doc-delivery` skill. Skills use the `Skill` tool, not `Task`.
+
+---
+
 **Auto-loads the `skill-doc-delivery` skill for document creation and export.**
 
 ## Quick Usage
