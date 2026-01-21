@@ -1,5 +1,5 @@
 ---
-command: prd
+command: octo:prd
 description: Write an AI-optimized PRD using multi-AI orchestration and 100-point scoring framework
 arguments:
   - name: feature
