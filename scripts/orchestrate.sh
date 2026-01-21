@@ -8148,6 +8148,7 @@ preflight_cache_invalidate() {
 
 # Pre-flight dependency validation
 # Performance: Uses 1-hour cache to avoid repeated CLI checks
+# v7.9.1: Supports single-provider mode (only need ONE of Codex or Gemini)
 preflight_check() {
     local force_check="${1:-false}"
 
@@ -8159,114 +8160,96 @@ preflight_check() {
             log DEBUG "Preflight check: using cached result (passed)"
             return 0
         fi
-        # If cached as failed, re-run to check if issues resolved
     fi
 
-    # 🐙 Checking if all 8 tentacles are properly attached...
     log INFO "Running pre-flight checks... 🐙"
-    log INFO "Checking if all tentacles are attached..."
     local errors=0
+    local has_codex=false
+    local has_gemini=false
+    local codex_auth=false
+    local gemini_auth=false
 
-    # Check Codex CLI (Tentacle #1-4: OpenAI arms)
-    if ! command -v codex &>/dev/null; then
-        log ERROR "Codex CLI not found. Install: npm install -g @openai/codex"
-        log ERROR "  (That's tentacles 1-4 missing! We need those!)"
-        ((errors++))
-    else
+    # Check Codex CLI
+    if command -v codex &>/dev/null; then
+        has_codex=true
         log DEBUG "Codex CLI: $(command -v codex)"
+        if [[ -f "$HOME/.codex/auth.json" ]] || [[ -n "${OPENAI_API_KEY:-}" ]]; then
+            codex_auth=true
+        fi
     fi
 
-    # Check Gemini CLI (Tentacle #5-8: Google arms)
-    if ! command -v gemini &>/dev/null; then
-        log ERROR "Gemini CLI not found. Install: npm install -g @google/gemini-cli"
-        log ERROR "  (That's tentacles 5-8 missing! Only half an octopus!)"
-        ((errors++))
-    else
+    # Check Gemini CLI
+    if command -v gemini &>/dev/null; then
+        has_gemini=true
         log DEBUG "Gemini CLI: $(command -v gemini)"
+        if [[ -f "$HOME/.gemini/oauth_creds.json" ]] || [[ -n "${GEMINI_API_KEY:-}" ]] || [[ -n "${GOOGLE_API_KEY:-}" ]]; then
+            gemini_auth=true
+        fi
     fi
 
-    # Check Claude CLI (bonus tentacle for grapple/squeeze)
-    if ! command -v claude &>/dev/null; then
-        log WARN "Claude CLI not found. grapple/squeeze will not work."
-        log INFO "  Install: npm install -g @anthropic/claude-code"
-    else
+    # v7.9.1: Only need ONE provider to work
+    if [[ "$has_codex" == "false" && "$has_gemini" == "false" ]]; then
+        echo ""
+        echo -e "${RED}╔═══════════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${RED}║  ❌ NO AI PROVIDERS FOUND                                     ║${NC}"
+        echo -e "${RED}╚═══════════════════════════════════════════════════════════════╝${NC}"
+        echo ""
+        echo -e "Claude Octopus needs at least ${YELLOW}ONE${NC} external AI provider."
+        echo ""
+        echo -e "${CYAN}Option 1: Install Codex CLI (OpenAI)${NC}"
+        echo -e "  npm install -g @openai/codex"
+        echo -e "  codex login  ${DIM}# OAuth recommended${NC}"
+        echo ""
+        echo -e "${CYAN}Option 2: Install Gemini CLI (Google)${NC}"
+        echo -e "  npm install -g @google/gemini-cli"
+        echo -e "  gemini       ${DIM}# OAuth recommended${NC}"
+        echo ""
+        echo -e "Run ${GREEN}/octo:setup${NC} for guided configuration."
+        echo ""
+        preflight_cache_write "1"
+        return 1
+    fi
+
+    # Check if at least one provider is authenticated
+    if [[ "$codex_auth" == "false" && "$gemini_auth" == "false" ]]; then
+        echo ""
+        echo -e "${YELLOW}╔═══════════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${YELLOW}║  ⚠️  PROVIDERS FOUND BUT NOT AUTHENTICATED                    ║${NC}"
+        echo -e "${YELLOW}╚═══════════════════════════════════════════════════════════════╝${NC}"
+        echo ""
+        if [[ "$has_codex" == "true" ]]; then
+            echo -e "${CYAN}Codex CLI installed but needs authentication:${NC}"
+            echo -e "  codex login  ${DIM}# OAuth (recommended)${NC}"
+            echo -e "  ${DIM}OR export OPENAI_API_KEY=\"sk-...\"${NC}"
+            echo ""
+        fi
+        if [[ "$has_gemini" == "true" ]]; then
+            echo -e "${CYAN}Gemini CLI installed but needs authentication:${NC}"
+            echo -e "  gemini       ${DIM}# OAuth (recommended)${NC}"
+            echo -e "  ${DIM}OR export GEMINI_API_KEY=\"...\"${NC}"
+            echo ""
+        fi
+        echo -e "Run ${GREEN}/octo:setup${NC} for guided configuration."
+        echo ""
+        preflight_cache_write "1"
+        return 1
+    fi
+
+    # Show what's available
+    local available_providers=""
+    [[ "$codex_auth" == "true" ]] && available_providers="${available_providers}Codex "
+    [[ "$gemini_auth" == "true" ]] && available_providers="${available_providers}Gemini "
+    log INFO "Available providers: $available_providers"
+
+    # Check Claude CLI (optional - for grapple/squeeze)
+    if command -v claude &>/dev/null; then
         log DEBUG "Claude CLI: $(command -v claude)"
     fi
 
-    # Check API keys (support both env var and OAuth login)
-    if [[ -z "${OPENAI_API_KEY:-}" ]]; then
-        # Check for OAuth authentication via codex login
-        if [[ -f "$HOME/.codex/auth.json" ]]; then
-            log INFO "Codex: Using OAuth authentication (faster)"
-            log DEBUG "OPENAI_API_KEY: not set, but OAuth auth found (~/.codex/auth.json)"
-        else
-            log ERROR "OPENAI_API_KEY not set (and no OAuth auth found)"
-            log INFO "  Fix: export OPENAI_API_KEY=\"sk-...\" OR run 'codex login'"
-            ((errors++))
-        fi
-    else
-        # Check if OAuth is also available (OAuth is preferred for speed)
-        if [[ -f "$HOME/.codex/auth.json" ]]; then
-            log INFO "Codex: Using OAuth authentication (faster)"
-        else
-            log WARN "Codex: Using API key (slower). Run 'codex login' for OAuth"
-        fi
-        log DEBUG "OPENAI_API_KEY: set (${#OPENAI_API_KEY} chars)"
-    fi
-
-    # Support both GEMINI_API_KEY and GOOGLE_API_KEY (legacy) for Gemini CLI
+    # Support legacy GOOGLE_API_KEY
     if [[ -z "${GEMINI_API_KEY:-}" && -n "${GOOGLE_API_KEY:-}" ]]; then
         export GEMINI_API_KEY="$GOOGLE_API_KEY"
         log DEBUG "Using GOOGLE_API_KEY as GEMINI_API_KEY (legacy fallback)"
-    fi
-
-    # Check for Gemini authentication (OAuth preferred, API key fallback)
-    if [[ -f "$HOME/.gemini/oauth_creds.json" ]]; then
-        log INFO "Gemini: Using OAuth authentication (faster)"
-        log DEBUG "Gemini OAuth credentials found (~/.gemini/oauth_creds.json)"
-    elif [[ -n "${GEMINI_API_KEY:-}" ]]; then
-        log INFO "Gemini: Using API key"
-        log DEBUG "GEMINI_API_KEY: set (${#GEMINI_API_KEY} chars)"
-    else
-        log WARN "Gemini: Not authenticated"
-        log INFO "  (Tentacles 5-8 need authentication to grip!)"
-        echo ""
-        echo -e "${YELLOW}🐙 Gemini authentication required for full functionality.${NC}"
-        echo ""
-        echo -e "  ${CYAN}Option 1 (Recommended):${NC} OAuth Login"
-        echo -e "    Run: ${GREEN}gemini${NC}"
-        echo -e "    Select 'Login with Google' and follow browser prompts"
-        echo ""
-        echo -e "  ${CYAN}Option 2:${NC} API Key"
-
-        # Offer to open browser for API key
-        read -p "Open Google AI Studio to get an API key? (y/n) " -n 1 -r
-        echo
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
-            local url="https://aistudio.google.com/apikey"
-            log INFO "Opening $url in your browser..."
-            if [[ "$OSTYPE" == "darwin"* ]]; then
-                open "$url"
-            elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
-                xdg-open "$url" 2>/dev/null || sensible-browser "$url" 2>/dev/null
-            fi
-            echo ""
-        fi
-
-        # Prompt for key
-        read -p "Enter your GEMINI_API_KEY (or press Enter to skip): " api_key
-        if [[ -n "$api_key" ]]; then
-            export GEMINI_API_KEY="$api_key"
-            log INFO "GEMINI_API_KEY set for this session"
-            echo ""
-            echo -e "${GREEN}Tip:${NC} Add this to your shell profile for persistence:"
-            echo "  export GEMINI_API_KEY=\"$api_key\""
-            echo ""
-        else
-            log ERROR "Gemini not authenticated - Gemini features will fail"
-            log INFO "  Fix: Run 'gemini' and select 'Login with Google' OR set GEMINI_API_KEY"
-            ((errors++))
-        fi
     fi
 
     # Check workspace

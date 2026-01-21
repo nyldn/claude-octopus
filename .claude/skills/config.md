@@ -28,11 +28,11 @@ For full documentation, see `/octo:sys-configure`.
 Run the status command to see what's configured:
 
 ```bash
-./scripts/orchestrate.sh status
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh status
 ```
 
 Then run the configuration wizard:
 
 ```bash
-./scripts/orchestrate.sh octopus-configure
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh octopus-configure
 ```

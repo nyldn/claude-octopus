@@ -5,6 +5,31 @@ All notable changes to Claude Octopus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.9.1] - 2026-01-21
+
+### Fixed - Path Resolution & Provider Error Handling
+
+#### Absolute Path References
+- Updated all skill and command files to use `${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh` instead of relative `./scripts/orchestrate.sh` paths
+- Prevents "orchestrate.sh not found" errors when commands run from different directories
+
+#### Improved Provider Detection
+- Single-provider mode now works correctly (only need Codex OR Gemini, not both)
+- Clear error messages when no providers are installed:
+  ```
+  ❌ NO AI PROVIDERS FOUND
+  
+  Claude Octopus needs at least ONE external AI provider.
+  
+  Option 1: Install Codex CLI (OpenAI)
+    npm install -g @openai/codex
+    
+  Option 2: Install Gemini CLI (Google)
+    npm install -g @google/gemini-cli
+  ```
+- Clear error messages when providers are installed but not authenticated
+- Removed redundant authentication prompts that blocked workflows
+
 ## [7.9.0] - 2026-01-21
 
 ### Added - Content Pipeline, Creative Tools & Standards

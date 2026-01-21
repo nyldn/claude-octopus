@@ -24,10 +24,10 @@ Invokes the security-auditor persona for thorough security analysis during the `
 
 ```bash
 # Via orchestrate.sh
-./scripts/orchestrate.sh spawn security-auditor "Scan for SQL injection vulnerabilities"
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh spawn security-auditor "Scan for SQL injection vulnerabilities"
 
 # Via auto-routing (detects security intent)
-./scripts/orchestrate.sh auto "security audit the payment processing module"
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh auto "security audit the payment processing module"
 ```
 
 ## Capabilities

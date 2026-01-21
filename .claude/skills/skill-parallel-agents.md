@@ -49,23 +49,23 @@ trigger: |
 
 ```bash
 # Full Double Diamond workflow (all 4 phases)
-./scripts/orchestrate.sh embrace "Build a user authentication system"
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh embrace "Build a user authentication system"
 
 # Individual phases
-./scripts/orchestrate.sh probe "Research authentication best practices"
-./scripts/orchestrate.sh grasp "Define auth requirements"
-./scripts/orchestrate.sh tangle "Implement auth feature"
-./scripts/orchestrate.sh ink "Validate and deliver auth implementation"
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh probe "Research authentication best practices"
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh grasp "Define auth requirements"
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh tangle "Implement auth feature"
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh ink "Validate and deliver auth implementation"
 
 # Crossfire: Adversarial cross-model review
-./scripts/orchestrate.sh grapple "implement password reset API"
-./scripts/orchestrate.sh grapple --principles security "implement JWT auth"
-./scripts/orchestrate.sh squeeze "review auth.ts for vulnerabilities"
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh grapple "implement password reset API"
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh grapple --principles security "implement JWT auth"
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh squeeze "review auth.ts for vulnerabilities"
 
 # Smart auto-routing (detects intent automatically)
-./scripts/orchestrate.sh auto "research OAuth patterns"           # -> probe
-./scripts/orchestrate.sh auto "build user login"                  # -> tangle + ink
-./scripts/orchestrate.sh auto "review the auth code"              # -> ink
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh auto "research OAuth patterns"           # -> probe
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh auto "build user login"                  # -> tangle + ink
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh auto "review the auth code"              # -> ink
 ```
 
 ## IMPORTANT: When NOT to Use This Skill
@@ -136,7 +136,7 @@ When you see 🐙 **CLAUDE OCTOPUS ACTIVATED**, external CLI providers (Codex/Ge
 Silently run this fast detection script (completes in <1 second):
 
 ```bash
-./scripts/orchestrate.sh detect-providers
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh detect-providers
 ```
 
 **IMPORTANT - First Time Setup Detection:**
@@ -311,7 +311,7 @@ Parallel research from 4 perspectives:
 - Technical feasibility (prerequisites, dependencies)
 
 ```bash
-./scripts/orchestrate.sh probe "What are the best approaches for real-time notifications?"
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh probe "What are the best approaches for real-time notifications?"
 ```
 
 ### Phase 2: GRASP (Define)
@@ -323,7 +323,7 @@ Multi-tentacled problem definition:
 - Constraints and boundaries
 
 ```bash
-./scripts/orchestrate.sh grasp "Define requirements for notification system" --context probe-synthesis-*.md
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh grasp "Define requirements for notification system" --context probe-synthesis-*.md
 ```
 
 ### Phase 3: TANGLE (Develop)
@@ -335,7 +335,7 @@ Enhanced map-reduce with validation:
 - Quality gate (75% success threshold)
 
 ```bash
-./scripts/orchestrate.sh tangle "Implement notification service" --context grasp-consensus-*.md
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh tangle "Implement notification service" --context grasp-consensus-*.md
 ```
 
 ### Phase 4: INK (Deliver)
@@ -347,14 +347,14 @@ Pre-delivery validation:
 - Final deliverable generation
 
 ```bash
-./scripts/orchestrate.sh ink "Deliver notification system" --context tangle-validation-*.md
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh ink "Deliver notification system" --context tangle-validation-*.md
 ```
 
 ### Full Workflow: EMBRACE
 Run all 4 phases sequentially with automatic context passing:
 
 ```bash
-./scripts/orchestrate.sh embrace "Create a complete user dashboard feature"
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh embrace "Create a complete user dashboard feature"
 ```
 
 ## Crossfire: Adversarial Cross-Model Review
@@ -394,13 +394,13 @@ Codex and Gemini each propose solutions, then critique each other's work. A synt
 
 ```bash
 # Basic grapple
-./scripts/orchestrate.sh grapple "implement password reset API"
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh grapple "implement password reset API"
 
 # Grapple with security principles
-./scripts/orchestrate.sh grapple --principles security "implement JWT authentication"
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh grapple --principles security "implement JWT authentication"
 
 # Grapple with performance principles
-./scripts/orchestrate.sh grapple --principles performance "optimize database queries"
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh grapple --principles performance "optimize database queries"
 ```
 
 ### SQUEEZE - Red Team Security Review
@@ -417,8 +417,8 @@ Phase 4: Validation verifies all fixed
 ```
 
 ```bash
-./scripts/orchestrate.sh squeeze "implement user login form"
-./scripts/orchestrate.sh squeeze "review auth.ts for vulnerabilities"
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh squeeze "implement user login form"
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh squeeze "review auth.ts for vulnerabilities"
 ```
 
 ### Constitutional Principles
@@ -433,9 +433,9 @@ Grapple supports domain-specific critique principles:
 | `maintainability` | Clean code, testability | Refactoring, code reviews |
 
 ```bash
-./scripts/orchestrate.sh grapple --principles security "implement password reset"
-./scripts/orchestrate.sh grapple --principles performance "optimize search API"
-./scripts/orchestrate.sh grapple --principles maintainability "refactor user service"
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh grapple --principles security "implement password reset"
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh grapple --principles performance "optimize search API"
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh grapple --principles maintainability "refactor user service"
 ```
 
 ## Smart Auto-Routing
@@ -454,12 +454,12 @@ The `auto` command detects intent keywords and routes to the appropriate workflo
 
 **Examples:**
 ```bash
-./scripts/orchestrate.sh auto "research best practices for caching"     # -> probe
-./scripts/orchestrate.sh auto "build the caching layer"                 # -> tangle + ink
-./scripts/orchestrate.sh auto "review the cache implementation"         # -> ink
-./scripts/orchestrate.sh auto "security audit the auth module"          # -> squeeze
-./scripts/orchestrate.sh auto "have both models debate the API design"  # -> grapple
-./scripts/orchestrate.sh auto "fix the cache invalidation bug"          # -> codex
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh auto "research best practices for caching"     # -> probe
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh auto "build the caching layer"                 # -> tangle + ink
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh auto "review the cache implementation"         # -> ink
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh auto "security audit the auth module"          # -> squeeze
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh auto "have both models debate the API design"  # -> grapple
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh auto "fix the cache invalidation bug"          # -> codex
 ```
 
 ## Quality Gates
@@ -558,17 +558,17 @@ Claude Octopus now intelligently routes tasks based on your subscription tiers a
 
 ```bash
 # Force a specific provider
-./scripts/orchestrate.sh --provider gemini auto "analyze code structure"
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh --provider gemini auto "analyze code structure"
 
 # Prefer cheapest option
-./scripts/orchestrate.sh --cost-first auto "research best practices"
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh --cost-first auto "research best practices"
 
 # Prefer highest quality
-./scripts/orchestrate.sh --quality-first auto "complex refactoring task"
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh --quality-first auto "complex refactoring task"
 
 # OpenRouter routing variants
-./scripts/orchestrate.sh --openrouter-nitro auto "quick task"  # Fastest
-./scripts/orchestrate.sh --openrouter-floor auto "bulk task"   # Cheapest
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh --openrouter-nitro auto "quick task"  # Fastest
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh --openrouter-floor auto "bulk task"   # Cheapest
 ```
 
 ### Configuration
@@ -577,10 +577,10 @@ Provider tiers are configured during `setup` or via the providers config file:
 
 ```bash
 # Run setup wizard (includes provider tier steps)
-./scripts/orchestrate.sh setup
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh setup
 
 # View current provider status
-./scripts/orchestrate.sh status
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh status
 ```
 
 Configuration file: `~/.claude-octopus/.providers-config`
@@ -617,7 +617,7 @@ OpenRouter provides 400+ models as a universal fallback when Codex/Gemini are un
 export OPENROUTER_API_KEY="sk-or-..."
 
 # Re-run setup to configure
-./scripts/orchestrate.sh setup
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh setup
 ```
 
 ## Workspace Structure
@@ -639,29 +639,29 @@ export OPENROUTER_API_KEY="sk-or-..."
 ### Research-First Development
 ```bash
 # 1. Explore the problem space
-./scripts/orchestrate.sh probe "Authentication patterns for microservices"
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh probe "Authentication patterns for microservices"
 
 # 2. Define the approach (with probe context)
-./scripts/orchestrate.sh grasp "OAuth2 with JWT for our API" \
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh grasp "OAuth2 with JWT for our API" \
   --context ~/.claude-octopus/results/probe-synthesis-*.md
 
 # 3. Implement with validation
-./scripts/orchestrate.sh tangle "Implement OAuth2 authentication"
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh tangle "Implement OAuth2 authentication"
 
 # 4. Deliver with quality checks
-./scripts/orchestrate.sh ink "Finalize auth implementation"
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh ink "Finalize auth implementation"
 ```
 
 ### Quick Build (Auto-Routed)
 ```bash
 # Auto-detects "build" intent -> runs tangle + ink
-./scripts/orchestrate.sh auto "build a rate limiting middleware"
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh auto "build a rate limiting middleware"
 ```
 
 ### Full Feature Development
 ```bash
 # All 4 phases in one command
-./scripts/orchestrate.sh embrace "Create a user notification system with email and push support"
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh embrace "Create a user notification system with email and push support"
 ```
 
 ## Best Practices
@@ -677,7 +677,7 @@ export OPENROUTER_API_KEY="sk-or-..."
 
 ### Pre-flight check fails
 ```bash
-./scripts/orchestrate.sh preflight
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh preflight
 # Verify: codex CLI, gemini CLI, OPENAI_API_KEY, GOOGLE_API_KEY
 ```
 
@@ -689,6 +689,6 @@ Tangle phase requires 75% success rate. If failing:
 
 ### Reset workspace
 ```bash
-./scripts/orchestrate.sh clean
-./scripts/orchestrate.sh init
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh clean
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh init
 ```

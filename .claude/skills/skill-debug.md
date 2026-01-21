@@ -278,7 +278,7 @@ For complex bugs, use parallel exploration:
 
 ```bash
 # Phase 1 parallelized
-./scripts/orchestrate.sh probe "Investigate auth failure from 4 angles"
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh probe "Investigate auth failure from 4 angles"
 
 # Perspectives:
 # Agent 1: Error message analysis

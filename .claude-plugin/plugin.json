@@ -1,7 +1,7 @@
 {
   "name": "co",
-  "version": "7.9.0",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.9.0) NEW: Content Pipeline, Thought Partner, Meta-Prompt Generator. Use '/octo:pipeline', '/octo:brainstorm', '/octo:meta-prompt'. Run /octo:setup for guided setup.",
+  "version": "7.9.1",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.9.1) NEW: Content Pipeline, Thought Partner, Meta-Prompt Generator. Use '/octo:pipeline', '/octo:brainstorm', '/octo:meta-prompt'. Run /octo:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },

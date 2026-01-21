@@ -161,7 +161,7 @@ Providers:
 ### Step 1: Invoke Tangle Phase
 
 ```bash
-./scripts/orchestrate.sh develop "<user's implementation request>"
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh develop "<user's implementation request>"
 ```
 
 ### Step 2: Multi-Provider Implementation
@@ -207,7 +207,7 @@ When this skill activates:
 
 2. **Execute tangle workflow**
    ```bash
-   ./scripts/orchestrate.sh develop "<user's implementation request>"
+   ${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh develop "<user's implementation request>"
    ```
 
 3. **Monitor execution and quality gates**
@@ -274,7 +274,7 @@ Claude:
 🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider implementation mode
 🛠️ Develop Phase: Building authentication system
 
-[Executes: ./scripts/orchestrate.sh develop "Build a user authentication system with JWT"]
+[Executes: ${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh develop "Build a user authentication system with JWT"]
 
 [After completion, reads synthesis and presents:]
 

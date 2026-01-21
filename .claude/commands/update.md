@@ -1,26 +1,25 @@
 ---
 command: octo:update
-description: "Shortcut for /co:sys-update - Check for updates to Claude Code and claude-octopus"
+description: "Shortcut for /octo:sys-update - Check for updates to Claude Code and claude-octopus"
 redirect: sys-update
 ---
 
 # Update (Shortcut)
 
-This is a shortcut alias for `/co:sys-update`.
+This is a shortcut alias for `/octo:sys-update`.
 
 ## Quick Usage
 
-- `/co:update` - Check for updates only
-- `/co:update --update` - Check and update if available
+- `/octo:update` - Check for updates (shows GitHub, registry, and installed versions)
+- `/octo:update --update` - Check and update if registry has synced
 
-Running update check...
+## What This Command Does
 
-```bash
-# Check current version
-grep '"version"' .claude-plugin/plugin.json | head -n 1
+Checks three version sources to give you complete visibility:
+- 📦 Your installed version
+- 🔵 Plugin registry latest (what's available to install)
+- 🐙 GitHub latest (source of truth)
 
-# Check for latest version
-curl -s https://api.github.com/repos/nyldn/claude-octopus/releases/latest | grep '"tag_name"'
-```
+If GitHub has a newer version but the registry hasn't synced yet (12-24h delay), the command will explain this and set expectations rather than showing confusing "already at latest" messages.
 
-For full update documentation, see `/co:sys-update`.
+For full update documentation and implementation details, see `/octo:sys-update`.
