@@ -6,7 +6,7 @@
   <img src="https://img.shields.io/badge/Claude_Code-Plugin-blueviolet" alt="Claude Code Plugin">
   <img src="https://img.shields.io/badge/Double_Diamond-Design_Thinking-orange" alt="Double Diamond">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
-  <img src="https://img.shields.io/badge/Version-7.10.0-blue" alt="Version 7.10.0">
+  <img src="https://img.shields.io/badge/Version-7.9.2-blue" alt="Version 7.10.0">
 </p>
 
 # Claude Octopus
@@ -181,7 +181,7 @@ Claude Octopus has different "tentacles" (workflows) for different tasks:
 
 ## ✨ What's New
 
-### v7.10.0 - Plugin Rename (BREAKING)
+### v7.9.2 - Plugin Rename
 - **Plugin renamed**: `claude-octopus` → `octo`
 - **Commands now work as documented**: `/octo:research`, `/octo:debate`, etc.
 - **Migration**: Uninstall old plugin, install new: `/plugin install octo@nyldn-plugins`
