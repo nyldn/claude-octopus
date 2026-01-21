@@ -20,7 +20,36 @@ echo "======================================"
 echo ""
 
 # ============================================================================
-# 1. VERSION SYNC CHECK
+# 1. PLUGIN NAME CHECK (CRITICAL - DO NOT CHANGE)
+# ============================================================================
+echo "🔒 Checking plugin name (MUST be 'claude-octopus')..."
+
+PLUGIN_NAME=$(grep '"name"' "$ROOT_DIR/.claude-plugin/plugin.json" | head -1 | sed 's/.*: *"\([^"]*\)".*/\1/')
+MARKETPLACE_PLUGIN_NAME=$(grep '"name"' "$ROOT_DIR/.claude-plugin/marketplace.json" | grep -A1 '"plugins"' -m1 | tail -1 | sed 's/.*: *"\([^"]*\)".*/\1/' 2>/dev/null || echo "")
+
+# More reliable extraction for marketplace plugin name
+MARKETPLACE_PLUGIN_NAME=$(sed -n '/"plugins"/,/]/p' "$ROOT_DIR/.claude-plugin/marketplace.json" | grep '"name"' | head -1 | sed 's/.*: *"\([^"]*\)".*/\1/')
+
+if [[ "$PLUGIN_NAME" != "claude-octopus" ]]; then
+    echo -e "  ${RED}CRITICAL ERROR: plugin.json name is '$PLUGIN_NAME' - MUST be 'claude-octopus'${NC}"
+    echo -e "  ${RED}Changing the plugin name breaks marketplace discovery!${NC}"
+    ((errors++))
+else
+    echo -e "  ${GREEN}✓ plugin.json name: claude-octopus${NC}"
+fi
+
+if [[ "$MARKETPLACE_PLUGIN_NAME" != "claude-octopus" ]]; then
+    echo -e "  ${RED}CRITICAL ERROR: marketplace.json plugin name is '$MARKETPLACE_PLUGIN_NAME' - MUST be 'claude-octopus'${NC}"
+    echo -e "  ${RED}Changing the plugin name breaks marketplace discovery!${NC}"
+    ((errors++))
+else
+    echo -e "  ${GREEN}✓ marketplace.json plugin name: claude-octopus${NC}"
+fi
+
+echo ""
+
+# ============================================================================
+# 2. VERSION SYNC CHECK
 # ============================================================================
 echo "📦 Checking version synchronization..."
 
@@ -58,7 +87,7 @@ fi
 echo ""
 
 # ============================================================================
-# 2. COMMAND REGISTRATION CHECK
+# 3. COMMAND REGISTRATION CHECK
 # ============================================================================
 echo "📝 Checking command registration..."
 
@@ -94,7 +123,7 @@ fi
 echo ""
 
 # ============================================================================
-# 3. COMMAND NAMING FORMAT CHECK
+# 4. COMMAND NAMING FORMAT CHECK
 # ============================================================================
 echo "📛 Checking command naming format (octo: prefix)..."
 
@@ -116,7 +145,7 @@ fi
 echo ""
 
 # ============================================================================
-# 4. SKILL REGISTRATION CHECK
+# 5. SKILL REGISTRATION CHECK
 # ============================================================================
 echo "🎯 Checking skill registration..."
 
@@ -147,7 +176,7 @@ fi
 echo ""
 
 # ============================================================================
-# 5. MARKETPLACE DESCRIPTION VERSION CHECK
+# 6. MARKETPLACE DESCRIPTION VERSION CHECK
 # ============================================================================
 echo "🏪 Checking marketplace description..."
 
@@ -163,7 +192,7 @@ fi
 echo ""
 
 # ============================================================================
-# 6. GIT TAG CHECK
+# 7. GIT TAG CHECK
 # ============================================================================
 echo "🏷️  Checking git tag..."
 
