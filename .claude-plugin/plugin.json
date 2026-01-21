@@ -71,7 +71,8 @@
     "./.claude/skills/skill-visual-feedback.md",
     "./.claude/skills/skill-decision-support.md",
     "./.claude/skills/skill-iterative-loop.md",
-    "./.claude/skills/skill-audit.md"
+    "./.claude/skills/skill-audit.md",
+    "./.claude/skills/skill-intent-contract.md"
   ],
   "commands": [
     "./.claude/commands/prd.md",
