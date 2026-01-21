@@ -18,17 +18,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Clear error messages when no providers are installed:
   ```
   ❌ NO AI PROVIDERS FOUND
-  
+
   Claude Octopus needs at least ONE external AI provider.
-  
+
   Option 1: Install Codex CLI (OpenAI)
     npm install -g @openai/codex
-    
+
   Option 2: Install Gemini CLI (Google)
     npm install -g @google/gemini-cli
   ```
 - Clear error messages when providers are installed but not authenticated
 - Removed redundant authentication prompts that blocked workflows
+
+#### Enhanced Update Experience (`/octo:update`)
+
+**Problem:** Users experienced confusing contradictory messages:
+- First: "New version available! v7.9.0"
+- Then: "Already at latest version (7.8.15)"
+- Result: Confusion, distrust, frustration
+
+**Solution:** Three-source version checking with transparent sync status:
+
+```
+🐙 Claude Octopus Update Check
+==============================
+
+📦 Your version:     v7.8.15
+🔵 Registry latest:  v7.8.15 (matches your version)
+🐙 GitHub latest:    v7.9.0 (released 6 hours ago)
+
+⚠️  Registry Sync Pending
+
+A newer version (v7.9.0) exists on GitHub but hasn't propagated
+to the plugin registry yet. Registry sync typically takes 12-24 hours.
+```
+
+**Key Improvements:**
+- Checks THREE sources: GitHub (truth), installed (current), registry (available)
+- Detects and explains registry sync delays (12-24h is normal)
+- Never says "already at latest" when GitHub has newer version
+- Provides clear timelines: "released 6 hours ago", "sync in 6-18 hours"
+- Only attempts auto-update when registry has synced
+- Sets realistic expectations based on industry research
+
+**Research-Backed:**
+- Chrome extensions: up to 48h propagation
+- npm: 5-15 minutes metadata, longer for CDN
+- VSCode: hours for marketplace sync
+- User insight: People handle nuance better than contradiction
 
 ## [7.9.0] - 2026-01-21
 
