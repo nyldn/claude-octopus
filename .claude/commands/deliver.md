@@ -15,7 +15,7 @@ Review, validate, and test using external CLI providers.
 ## Usage
 
 ```bash
-/co:deliver        # Delivery phase
+/octo:deliver        # Delivery phase
 ```
 
 ## Natural Language Examples
@@ -71,4 +71,4 @@ Deliver is phase 4 of 4 in the embrace (full) workflow:
 3. Develop
 4. **Deliver** ← You are here
 
-To run all 4 phases: `/co:embrace`
+To run all 4 phases: `/octo:embrace`

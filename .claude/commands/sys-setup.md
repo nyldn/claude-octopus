@@ -151,7 +151,7 @@ Claude Octopus has two work modes optimized for different tasks. Both use the sa
 
 Switch to Dev mode:
 ```
-/co:dev
+/octo:dev
 ```
 
 ### Knowledge Work Mode 🎓
@@ -159,7 +159,7 @@ Switch to Dev mode:
 
 Switch to Knowledge mode:
 ```
-/co:km on
+/octo:km on
 ```
 
 **For Knowledge Work, we recommend installing document-skills:**
@@ -169,7 +169,7 @@ Switch to Knowledge mode:
 
 This adds support for PDF analysis, DOCX/PPTX/XLSX generation, and professional document export.
 
-**Note:** The mode you choose during setup will be remembered across sessions. You can switch modes anytime using `/co:dev` or `/co:km on`
+**Note:** The mode you choose during setup will be remembered across sessions. You can switch modes anytime using `/octo:dev` or `/octo:km on`
 
 ---
 
