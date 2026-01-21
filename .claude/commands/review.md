@@ -5,6 +5,24 @@ description: Expert code review with comprehensive quality assessment and securi
 
 # Review - Code Quality Assessment
 
+## 🤖 INSTRUCTIONS FOR CLAUDE
+
+When the user invokes this command (e.g., `/octo:review <arguments>`):
+
+**✓ CORRECT - Use the Skill tool:**
+```
+Skill(skill: "octo:review", args: "<user's arguments>")
+```
+
+**✗ INCORRECT - Do NOT use Task tool:**
+```
+Task(subagent_type: "octo:review", ...)  ❌ Wrong! This is a skill, not an agent type
+```
+
+**Why:** This command loads the `skill-code-review` skill. Skills use the `Skill` tool, not `Task`.
+
+---
+
 **Auto-loads the `skill-code-review` skill for comprehensive code review.**
 
 ## Quick Usage

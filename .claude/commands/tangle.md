@@ -5,6 +5,24 @@ description: Development phase - Multi-AI implementation with quality gates
 
 # Tangle - Development Phase (Double Diamond)
 
+## 🤖 INSTRUCTIONS FOR CLAUDE
+
+When the user invokes this command (e.g., `/octo:tangle <arguments>`):
+
+**✓ CORRECT - Use the Skill tool:**
+```
+Skill(skill: "octo:tangle", args: "<user's arguments>")
+```
+
+**✗ INCORRECT - Do NOT use Task tool:**
+```
+Task(subagent_type: "octo:tangle", ...)  ❌ Wrong! This is a skill, not an agent type
+```
+
+**Why:** This command loads the `flow-tangle` skill. Skills use the `Skill` tool, not `Task`.
+
+---
+
 **Auto-loads the `flow-tangle` skill for the development/implementation phase.**
 
 ## Quick Usage

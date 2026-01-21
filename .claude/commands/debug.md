@@ -5,6 +5,24 @@ description: Systematic debugging with methodical problem investigation
 
 # Debug - Systematic Debugging Skill
 
+## 🤖 INSTRUCTIONS FOR CLAUDE
+
+When the user invokes this command (e.g., `/octo:debug <arguments>`):
+
+**✓ CORRECT - Use the Skill tool:**
+```
+Skill(skill: "octo:debug", args: "<user's arguments>")
+```
+
+**✗ INCORRECT - Do NOT use Task tool:**
+```
+Task(subagent_type: "octo:debug", ...)  ❌ Wrong! This is a skill, not an agent type
+```
+
+**Why:** This command loads the `skill-debug` skill. Skills use the `Skill` tool, not `Task`.
+
+---
+
 **Auto-loads the `skill-debug` skill for methodical bug investigation.**
 
 ## Quick Usage
