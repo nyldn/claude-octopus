@@ -45,3 +45,42 @@ This skill wraps the `backend-architect` persona defined in:
 "Design the caching strategy for the product catalog"
 "Create a microservices decomposition plan"
 ```
+
+## LSP Integration (Claude Code 2.1.14+)
+
+For enhanced structural awareness during architecture design, leverage Claude Code's LSP tools:
+
+### Recommended LSP Tool Usage
+
+1. **Before defining architecture**, gather structural context:
+   ```
+   lsp_document_symbols - Understand existing module structure
+   lsp_find_references  - Identify current dependencies
+   lsp_workspace_symbols - Find related patterns across codebase
+   ```
+
+2. **During design validation**:
+   ```
+   lsp_goto_definition  - Verify interface contracts
+   lsp_hover           - Check type signatures
+   lsp_diagnostics     - Identify type/interface mismatches
+   ```
+
+### Example Workflow
+
+```typescript
+// Step 1: Understand existing structure
+const symbols = await lsp_document_symbols("src/services/user.ts")
+const references = await lsp_find_references("UserService", line=5, char=10)
+
+// Step 2: Identify patterns in codebase
+const patterns = await lsp_workspace_symbols("Service")
+
+// Step 3: Design new architecture informed by existing patterns
+// ... architecture design ...
+
+// Step 4: Validate design with diagnostics
+const issues = await lsp_diagnostics("src/services/*.ts")
+```
+
+This ensures architecture recommendations align with existing codebase patterns and type contracts.

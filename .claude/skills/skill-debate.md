@@ -17,6 +17,7 @@ description: |
   PRIORITY TRIGGERS (always invoke): "octo debate", "octo deliberate", "co-debate"
   
   Supports flags: -r/--rounds, -d/--debate-style (quick/thorough/adversarial/collaborative).
+context: fork
 trigger: |
   AUTOMATICALLY ACTIVATE when user says:
   - "/debate <question>"

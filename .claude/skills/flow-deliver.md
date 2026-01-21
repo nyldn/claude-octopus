@@ -64,6 +64,7 @@ Analyze the user's prompt and project to determine context:
 ```
 🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider validation mode
 ✅ [Dev] Deliver Phase: [Brief description of code review]
+📋 Session: ${CLAUDE_SESSION_ID}
 
 Providers:
 🔴 Codex CLI - Code quality analysis
@@ -75,6 +76,7 @@ Providers:
 ```
 🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider validation mode
 ✅ [Knowledge] Deliver Phase: [Brief description of document review]
+📋 Session: ${CLAUDE_SESSION_ID}
 
 Providers:
 🔴 Codex CLI - Structure and logic analysis

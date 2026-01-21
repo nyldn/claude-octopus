@@ -47,6 +47,7 @@ trigger: |
 ```
 🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider definition mode
 🎯 Define Phase: [Brief description of what you're defining/scoping]
+📋 Session: ${CLAUDE_SESSION_ID}
 
 Providers:
 🔴 Codex CLI - Technical requirements analysis

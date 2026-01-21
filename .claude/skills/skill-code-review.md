@@ -7,6 +7,8 @@ description: |
   Expert code review skill leveraging the code-reviewer persona.
   Use when you need comprehensive code quality assessment,
   security vulnerability detection, or architecture review.
+context: fork
+agent: Explore
 ---
 
 # Code Review Skill

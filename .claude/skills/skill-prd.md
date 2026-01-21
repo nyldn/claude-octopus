@@ -1,6 +1,8 @@
 ---
 name: skill-prd
 description: PRD creation - DO NOT LOAD THIS SKILL REPEATEDLY
+context: fork
+agent: Plan
 ---
 
 # STOP - SKILL ALREADY LOADED
