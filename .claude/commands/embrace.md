@@ -47,8 +47,8 @@ You can configure how much human oversight you want:
 
 Set in `/co:setup` or use orchestrate.sh flags:
 ```bash
-./scripts/orchestrate.sh embrace --autonomy supervised "your prompt"
-./scripts/orchestrate.sh embrace --autonomy autonomous "your prompt"
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh embrace --autonomy supervised "your prompt"
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh embrace --autonomy autonomous "your prompt"
 ```
 
 ## When to Use Embrace

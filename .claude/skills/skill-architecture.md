@@ -24,10 +24,10 @@ Invokes the backend-architect persona for system design during the `grasp` (defi
 
 ```bash
 # Via orchestrate.sh
-./scripts/orchestrate.sh spawn backend-architect "Design a scalable notification system"
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh spawn backend-architect "Design a scalable notification system"
 
 # Via auto-routing (detects architecture intent)
-./scripts/orchestrate.sh auto "architect the event-driven messaging system"
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh auto "architect the event-driven messaging system"
 ```
 
 ## Capabilities

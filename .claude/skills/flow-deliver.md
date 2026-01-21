@@ -162,7 +162,7 @@ Providers:
 ### Step 1: Invoke Ink Phase
 
 ```bash
-./scripts/orchestrate.sh deliver "<user's validation request>"
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh deliver "<user's validation request>"
 ```
 
 ### Step 2: Multi-Provider Validation
@@ -208,7 +208,7 @@ When this skill activates:
 
 2. **Execute ink workflow**
    ```bash
-   ./scripts/orchestrate.sh deliver "<user's validation request>"
+   ${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh deliver "<user's validation request>"
    ```
 
 3. **Monitor execution and quality gates**
@@ -293,7 +293,7 @@ Claude:
 🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider validation
 ✅ Deliver Phase: Reviewing authentication implementation
 
-[Executes: ./scripts/orchestrate.sh deliver "Review authentication implementation in src/auth/"]
+[Executes: ${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh deliver "Review authentication implementation in src/auth/"]
 
 [After completion, reads validation and presents:]
 

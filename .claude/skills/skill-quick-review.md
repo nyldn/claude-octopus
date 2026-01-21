@@ -42,8 +42,8 @@ Auto-invokes when user says:
 User: "Review this authentication module for security issues"
 
 Claude: *Activates octopus-quick-review skill*
-        *Runs: ./scripts/orchestrate.sh grasp "Review authentication module"*
-        *Then: ./scripts/orchestrate.sh tangle "Implement review findings"*
+        *Runs: ${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh grasp "Review authentication module"*
+        *Then: ${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh tangle "Implement review findings"*
 ```
 
 ## Implementation

@@ -125,7 +125,7 @@ Providers:
 ### Step 1: Invoke Grasp Phase
 
 ```bash
-./scripts/orchestrate.sh define "<user's clarification request>"
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh define "<user's clarification request>"
 ```
 
 ### Step 2: Multi-Provider Problem Definition
@@ -163,7 +163,7 @@ When this skill activates:
 
 2. **Execute grasp workflow**
    ```bash
-   ./scripts/orchestrate.sh define "<user's clarification request>"
+   ${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh define "<user's clarification request>"
    ```
 
 3. **Monitor execution**
@@ -237,7 +237,7 @@ Claude:
 🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider problem definition
 🎯 Define Phase: Clarifying authentication requirements
 
-[Executes: ./scripts/orchestrate.sh define "Define exact requirements for user authentication system"]
+[Executes: ${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh define "Define exact requirements for user authentication system"]
 
 [After completion, reads synthesis and presents:]
 

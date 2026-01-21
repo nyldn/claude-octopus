@@ -52,7 +52,7 @@ Auto-invokes when user says:
 User: "Security audit the authentication module"
 
 Claude: *Activates octopus-security skill*
-        *Runs: ./scripts/orchestrate.sh squeeze "Audit authentication module"*
+        *Runs: ${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh squeeze "Audit authentication module"*
 ```
 
 ## Implementation
