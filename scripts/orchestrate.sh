@@ -3749,7 +3749,7 @@ version_compare() {
 # Check Claude Code version and return status
 # Sets: CLAUDE_CODE_VERSION, CLAUDE_CODE_STATUS
 check_claude_version() {
-    local min_version="2.1.10"
+    local min_version="2.1.14"
     local current_version=""
     local status="unknown"
 

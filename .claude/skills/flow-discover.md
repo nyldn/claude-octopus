@@ -71,6 +71,7 @@ Analyze the user's prompt and project to determine context:
 ```
 🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider research mode
 🔍 [Dev] Discover Phase: [Brief description of technical research]
+📋 Session: ${CLAUDE_SESSION_ID}
 
 Providers:
 🔴 Codex CLI - Technical implementation analysis
@@ -82,6 +83,7 @@ Providers:
 ```
 🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider research mode
 🔍 [Knowledge] Discover Phase: [Brief description of strategic research]
+📋 Session: ${CLAUDE_SESSION_ID}
 
 Providers:
 🔴 Codex CLI - Data analysis and frameworks
@@ -174,6 +176,25 @@ The orchestrate.sh script will:
 2. Call **Gemini CLI** with the research question
 3. You (Claude) contribute your analysis
 4. Synthesize all perspectives into recommendations
+
+### Step 2a: Native Background Tasks (Claude Code 2.1.14+)
+
+For enhanced coverage, spawn parallel explore agents alongside CLI calls:
+
+```typescript
+// Fire parallel background tasks for codebase context
+background_task(agent="explore", prompt="Find implementations of [topic] in the codebase")
+background_task(agent="librarian", prompt="Research external documentation for [topic]")
+
+// Continue with CLI orchestration immediately
+// System notifies when background tasks complete
+```
+
+**Benefits of hybrid approach:**
+- External CLIs (Codex/Gemini) provide broad ecosystem research
+- Native background tasks provide codebase-specific context
+- Parallel execution reduces total research time
+- 2.1.14 memory fixes make native parallelism reliable
 
 ### Step 3: Read Results
 

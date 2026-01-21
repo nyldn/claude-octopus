@@ -186,13 +186,13 @@ else
     test_fail "Cache file not created"
 fi
 
-# Test 8: Verify minimum version is 2.1.10
-test_start "Verify minimum required version is 2.1.10"
+# Test 8: Verify minimum version is 2.1.14
+test_start "Verify minimum required version is 2.1.14"
 min_version=$(echo "$output" | grep "CLAUDE_CODE_MINIMUM=" | head -1 | cut -d= -f2)
-if [[ "$min_version" == "2.1.10" ]]; then
-    test_pass "Minimum version correctly set to 2.1.10"
+if [[ "$min_version" == "2.1.14" ]]; then
+    test_pass "Minimum version correctly set to 2.1.14"
 else
-    test_fail "Minimum version should be 2.1.10, got: $min_version"
+    test_fail "Minimum version should be 2.1.14, got: $min_version"
 fi
 
 # Test 9: Test version comparison logic with manual test script
@@ -307,7 +307,7 @@ if [[ $TESTS_FAILED -eq 0 ]]; then
     echo "Version check feature is working correctly:"
     echo "  - Claude Code version detection ✓"
     echo "  - Version comparison logic ✓"
-    echo "  - Minimum version enforcement (2.1.10) ✓"
+    echo "  - Minimum version enforcement (2.1.14) ✓"
     echo "  - Upgrade instructions for outdated versions ✓"
     echo "  - Integration with detect-providers ✓"
     echo "  - Cache file creation ✓"

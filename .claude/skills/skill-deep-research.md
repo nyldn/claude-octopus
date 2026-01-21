@@ -16,6 +16,8 @@ description: |
   
   DO NOT use for: simple factual queries Claude can answer directly,
   or questions about specific code in current project (use Read tool).
+context: fork
+agent: Explore
 trigger: |
   Use this skill when the user wants to "research this topic", "investigate how X works",
   "analyze the architecture", "explore different approaches to Y", or "what are the options for Z".
