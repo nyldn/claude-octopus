@@ -1,5 +1,5 @@
 ---
-command: prd-score
+command: octo:prd-score
 description: Score an existing PRD against the 100-point AI-optimization framework
 arguments:
   - name: file
