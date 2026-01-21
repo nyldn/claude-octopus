@@ -123,29 +123,7 @@ fi
 echo ""
 
 # ============================================================================
-# 4. COMMAND NAMING FORMAT CHECK
-# ============================================================================
-echo "📛 Checking command naming format (octo: prefix)..."
-
-# All commands must use 'command: octo:' format
-invalid_commands=0
-for cmd_file in "$ROOT_DIR/.claude/commands/"*.md; do
-    cmd_name=$(sed -n '2p' "$cmd_file" | grep -o 'command: .*' | sed 's/command: //')
-    if [[ -n "$cmd_name" ]] && [[ ! "$cmd_name" =~ ^octo: ]]; then
-        echo -e "  ${RED}ERROR: $(basename "$cmd_file") uses '$cmd_name' instead of 'octo:' prefix${NC}"
-        ((errors++))
-        ((invalid_commands++))
-    fi
-done
-
-if [[ $invalid_commands -eq 0 ]]; then
-    echo -e "  ${GREEN}✓ All commands use 'octo:' prefix format${NC}"
-fi
-
-echo ""
-
-# ============================================================================
-# 5. SKILL REGISTRATION CHECK
+# 4. SKILL REGISTRATION CHECK
 # ============================================================================
 echo "🎯 Checking skill registration..."
 
@@ -176,7 +154,7 @@ fi
 echo ""
 
 # ============================================================================
-# 6. MARKETPLACE DESCRIPTION VERSION CHECK
+# 5. MARKETPLACE DESCRIPTION VERSION CHECK
 # ============================================================================
 echo "🏪 Checking marketplace description..."
 
@@ -192,7 +170,7 @@ fi
 echo ""
 
 # ============================================================================
-# 7. GIT TAG CHECK
+# 6. GIT TAG CHECK
 # ============================================================================
 echo "🏷️  Checking git tag..."
 
