@@ -1,5 +1,5 @@
 ---
-command: octo:embrace
+command: embrace
 description: "Full Double Diamond workflow - Research → Define → Develop → Deliver"
 aliases:
   - full-cycle
