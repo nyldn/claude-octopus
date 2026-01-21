@@ -1,18 +1,21 @@
 ---
 name: octopus-security-audit
+aliases:
+  - security
+  - security-audit
 description: |
   Comprehensive security audit with OWASP compliance, vulnerability scanning, and penetration testing.
-  
+
   Use PROACTIVELY when user says:
   - "security audit", "security review", "security check"
   - "find vulnerabilities", "vulnerability scan"
   - "OWASP compliance", "check for SQL injection"
   - "pentest this", "penetration test"
   - "check for security issues", "is this secure"
-  
+
   PRIORITY TRIGGERS: "octo security", "security audit", "find vulnerabilities"
-  
-  DO NOT use for: general code review (use skill-code-review), adversarial red team testing 
+
+  DO NOT use for: general code review (use skill-code-review), adversarial red team testing
   (use skill-adversarial-security), debugging (use skill-debug).
 ---
 
