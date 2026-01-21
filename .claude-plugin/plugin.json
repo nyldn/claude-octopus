@@ -100,6 +100,7 @@
     "./.claude/commands/grasp.md",
     "./.claude/commands/tangle.md",
     "./.claude/commands/ink.md",
-    "./.claude/commands/multi.md"
+    "./.claude/commands/multi.md",
+    "./.claude/commands/plan.md"
   ]
 }
