@@ -1,5 +1,5 @@
 ---
-name: review
+name: octo:review
 description: |
   Expert code review shortcut. Triggers: "review this", "code review", "check my code".
   Redirects to skill-code-review for comprehensive quality assessment.

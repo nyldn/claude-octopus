@@ -173,7 +173,34 @@ fi
 echo ""
 
 # ============================================================================
-# 6. MARKETPLACE DESCRIPTION VERSION CHECK
+# 6. SKILL FRONTMATTER FORMAT CHECK
+# ============================================================================
+echo "🏷️  Checking skill frontmatter format..."
+
+invalid_skill_names=0
+for skill_file in "$ROOT_DIR/.claude/skills/"*.md; do
+    skill_name=$(sed -n '2p' "$skill_file" | grep -o 'name: .*' | sed 's/name: //')
+    # Skip if no name found (might be a different format)
+    if [[ -z "$skill_name" ]]; then
+        continue
+    fi
+    # Check if name starts with octo: or contains specific prefixes that are allowed
+    if [[ "$skill_name" != "octo:"* ]] && [[ "$skill_name" != "skill-"* ]] && [[ "$skill_name" != "flow-"* ]] && [[ "$skill_name" != "octopus-"* ]] && [[ "$skill_name" != "sys-"* ]]; then
+        echo -e "  ${RED}ERROR: $(basename "$skill_file") has 'name: $skill_name' - must start with 'octo:' (or use special prefix)${NC}"
+        echo -e "  ${RED}  Skill names without prefix cause command ambiguity${NC}"
+        ((errors++))
+        ((invalid_skill_names++))
+    fi
+done
+
+if [[ $invalid_skill_names -eq 0 ]]; then
+    echo -e "  ${GREEN}✓ All skill names use correct format (octo: or special prefix)${NC}"
+fi
+
+echo ""
+
+# ============================================================================
+# 7. MARKETPLACE DESCRIPTION VERSION CHECK
 # ============================================================================
 echo "🏪 Checking marketplace description..."
 
@@ -189,9 +216,9 @@ fi
 echo ""
 
 # ============================================================================
-# 7. GIT TAG CHECK
+# 8. GIT TAG CHECK
 # ============================================================================
-echo "🏷️  Checking git tag..."
+echo "🔖 Checking git tag..."
 
 EXPECTED_TAG="v$PLUGIN_VERSION"
 if git tag -l "$EXPECTED_TAG" | grep -q "$EXPECTED_TAG"; then

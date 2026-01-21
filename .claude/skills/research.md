@@ -1,5 +1,5 @@
 ---
-name: research
+name: octo:research
 description: |
   Deep research shortcut. Triggers: "research X", "investigate", "deep dive into".
   Redirects to skill-deep-research for multi-source synthesis.
