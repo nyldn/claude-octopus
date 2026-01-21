@@ -1,5 +1,5 @@
 ---
-command: dev
+command: octo:dev
 description: "Switch to Dev Work mode - optimized for software development"
 aliases:
   - dev-mode

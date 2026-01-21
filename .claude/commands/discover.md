@@ -1,5 +1,5 @@
 ---
-command: discover
+command: octo:discover
 description: "Discovery phase - Multi-AI research and exploration"
 aliases:
   - probe
