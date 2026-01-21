@@ -1,7 +1,11 @@
 ---
 name: research
-description: "Shortcut for /octo:skill-deep-research - Deep research and knowledge synthesis"
+description: |
+  Deep research shortcut. Triggers: "research X", "investigate", "deep dive into".
+  Redirects to skill-deep-research for multi-source synthesis.
 redirect: skill-deep-research
+trigger: |
+  "research this", "investigate", "deep dive", "comprehensive analysis"
 ---
 
 # Research (Shortcut) - Deep Research

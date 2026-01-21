@@ -94,17 +94,35 @@ fi
 echo ""
 
 # ============================================================================
-# 3. SKILL REGISTRATION CHECK
+# 3. COMMAND NAMING FORMAT CHECK
+# ============================================================================
+echo "📛 Checking command naming format (octo: prefix)..."
+
+# All commands must use 'command: octo:' format
+invalid_commands=0
+for cmd_file in "$ROOT_DIR/.claude/commands/"*.md; do
+    cmd_name=$(sed -n '2p' "$cmd_file" | grep -o 'command: .*' | sed 's/command: //')
+    if [[ -n "$cmd_name" ]] && [[ ! "$cmd_name" =~ ^octo: ]]; then
+        echo -e "  ${RED}ERROR: $(basename "$cmd_file") uses '$cmd_name' instead of 'octo:' prefix${NC}"
+        ((errors++))
+        ((invalid_commands++))
+    fi
+done
+
+if [[ $invalid_commands -eq 0 ]]; then
+    echo -e "  ${GREEN}✓ All commands use 'octo:' prefix format${NC}"
+fi
+
+echo ""
+
+# ============================================================================
+# 4. SKILL REGISTRATION CHECK
 # ============================================================================
 echo "🎯 Checking skill registration..."
 
-# Get all .md files in skills directory
 SKILL_FILES=$(ls "$ROOT_DIR/.claude/skills/"*.md 2>/dev/null | xargs -n1 basename | sort)
-
-# Get skills registered in plugin.json
 REGISTERED_SKILLS=$(grep -o '\.claude/skills/[^"]*\.md' "$ROOT_DIR/.claude-plugin/plugin.json" | sed 's|.*\.claude/skills/||' | sort)
 
-# Find unregistered skills
 for skill_file in $SKILL_FILES; do
     if ! echo "$REGISTERED_SKILLS" | grep -q "^${skill_file}$"; then
         echo -e "  ${RED}ERROR: Skill file '$skill_file' not registered in plugin.json${NC}"
@@ -112,7 +130,6 @@ for skill_file in $SKILL_FILES; do
     fi
 done
 
-# Find registered but missing skills
 for reg_skill in $REGISTERED_SKILLS; do
     if ! echo "$SKILL_FILES" | grep -q "^${reg_skill}$"; then
         echo -e "  ${RED}ERROR: Registered skill '$reg_skill' does not exist${NC}"
@@ -130,7 +147,7 @@ fi
 echo ""
 
 # ============================================================================
-# 4. MARKETPLACE DESCRIPTION VERSION CHECK
+# 5. MARKETPLACE DESCRIPTION VERSION CHECK
 # ============================================================================
 echo "🏪 Checking marketplace description..."
 
@@ -146,7 +163,7 @@ fi
 echo ""
 
 # ============================================================================
-# 5. GIT TAG CHECK
+# 6. GIT TAG CHECK
 # ============================================================================
 echo "🏷️  Checking git tag..."
 

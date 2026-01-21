@@ -1,5 +1,5 @@
 ---
-command: dev
+command: octo:dev
 description: "Switch to Dev Work mode - optimized for software development"
 aliases:
   - dev-mode
@@ -12,7 +12,7 @@ Switch to **Dev Work Mode**, optimized for software development.
 ## Usage
 
 ```bash
-/octo:dev        # Switch to Dev Work mode
+/co:dev        # Switch to Dev Work mode
 ```
 
 ## What is Dev Work Mode?
@@ -34,10 +34,10 @@ Claude Octopus has two work modes:
 
 2. **Knowledge Work Mode** 🎓
    - For: User research, strategy analysis, literature reviews
-   - Switch: `/octo:km on`
+   - Switch: `/co:km on`
 
 Both modes use the same AI providers (Codex + Gemini), just optimized with different personas.
 
 ## Learn More
 
-Run `/octo:setup` to configure your preferences and choose your default mode.
+Run `/co:setup` to configure your preferences and choose your default mode.

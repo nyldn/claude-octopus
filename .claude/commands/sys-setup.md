@@ -1,5 +1,5 @@
 ---
-command: sys-setup
+command: octo:sys-setup
 description: Check Claude Octopus setup status and get configuration instructions
 aliases:
   - setup
@@ -151,7 +151,7 @@ Claude Octopus has two work modes optimized for different tasks. Both use the sa
 
 Switch to Dev mode:
 ```
-/octo:dev
+/co:dev
 ```
 
 ### Knowledge Work Mode 🎓
@@ -159,7 +159,7 @@ Switch to Dev mode:
 
 Switch to Knowledge mode:
 ```
-/octo:km on
+/co:km on
 ```
 
 **For Knowledge Work, we recommend installing document-skills:**
@@ -169,7 +169,7 @@ Switch to Knowledge mode:
 
 This adds support for PDF analysis, DOCX/PPTX/XLSX generation, and professional document export.
 
-**Note:** The mode you choose during setup will be remembered across sessions. You can switch modes anytime using `/octo:dev` or `/octo:km on`
+**Note:** The mode you choose during setup will be remembered across sessions. You can switch modes anytime using `/co:dev` or `/co:km on`
 
 ---
 

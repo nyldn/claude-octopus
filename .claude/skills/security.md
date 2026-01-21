@@ -1,7 +1,11 @@
 ---
 name: security
-description: "Shortcut for /octo:skill-security-audit - Comprehensive security audit and vulnerability detection"
+description: |
+  Security audit shortcut. Triggers: "security check", "find vulnerabilities", "OWASP".
+  Redirects to skill-security-audit for comprehensive security analysis.
 redirect: skill-security-audit
+trigger: |
+  "security audit", "security check", "find vulnerabilities", "OWASP compliance"
 ---
 
 # Security (Shortcut) - Security Audit

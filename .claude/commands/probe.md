@@ -1,5 +1,5 @@
 ---
-command: probe
+command: octo:probe
 description: Research and discovery phase - Multi-AI research with broad exploration
 ---
 

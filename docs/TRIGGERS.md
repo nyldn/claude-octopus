@@ -16,7 +16,7 @@ This guide explains exactly what natural language phrases trigger external CLI e
 
 **Alternative prefixes that also work:**
 - `co-research X`, `co-build X`, `co-review X`
-- `/octo:discover X`, `/octo:develop X`, `/octo:deliver X`
+- `/co:discover X`, `/co:develop X`, `/co:deliver X`
 
 ---
 
@@ -45,7 +45,7 @@ This guide explains exactly what natural language phrases trigger external CLI e
 - `octo discover X`
 - `octo explore X`
 - `co-research X`
-- `/octo:discover X`
+- `/co:discover X`
 
 **Natural language triggers (may conflict with Claude's base behaviors):**
 - "research X"
@@ -93,7 +93,7 @@ This guide explains exactly what natural language phrases trigger external CLI e
 - `octo develop X`
 - `octo implement X`
 - `co-build X`
-- `/octo:develop X`
+- `/co:develop X`
 
 **Natural language triggers (may conflict):**
 - "build X"
@@ -140,7 +140,7 @@ This guide explains exactly what natural language phrases trigger external CLI e
 - `octo validate X`
 - `octo deliver X`
 - `co-review X`
-- `/octo:deliver X`
+- `/co:deliver X`
 
 **Natural language triggers (may conflict):**
 - "review X"
@@ -188,7 +188,7 @@ This guide explains exactly what natural language phrases trigger external CLI e
 - `octo scope X`
 - `octo clarify X`
 - `co-define X`
-- `/octo:define X`
+- `/co:define X`
 
 **Natural language triggers (may conflict):**
 - "define the requirements for X"
@@ -231,7 +231,7 @@ This guide explains exactly what natural language phrases trigger external CLI e
 **Reliable triggers (always work):**
 - `octo debate X`
 - `co-debate X`
-- `/octo:debate X`
+- `/co:debate X`
 - `/debate <question>`
 - `/debate -r N -d STYLE <question>`
 
@@ -245,7 +245,7 @@ This guide explains exactly what natural language phrases trigger external CLI e
 ✅ "octo debate whether we should use Redis or in-memory cache"
    → Guaranteed to trigger debate skill
 
-✅ /octo:debate -r 3 -d adversarial "Review our API design"
+✅ /co:debate -r 3 -d adversarial "Review our API design"
    → Guaranteed to trigger debate skill, 3 rounds
 
 ⚠️ "Run a debate about whether to use TypeScript"
@@ -293,7 +293,7 @@ This guide explains exactly what natural language phrases trigger external CLI e
 When you've enabled Knowledge Mode, research-oriented tasks automatically use external CLIs:
 
 ```bash
-/octo:km on
+/co:km on
 ```
 
 **Then these trigger multi-provider:**

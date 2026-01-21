@@ -1,13 +1,13 @@
 # Migration Guide: Namespace Changes (v7.5 → v7.7.3)
 
-> **Note:** This guide has been updated for v7.7.3 which changed the namespace from `/co:` to `/octo:`.
+> **Note:** This guide has been updated for v7.7.3 which changed the namespace from `/co:` to `/co:`.
 
 ## What Changed
 
 Claude Octopus has undergone two namespace changes:
 
 ### v7.5: `/claude-octopus:` → `/co:`
-### v7.7.3: `/co:` → `/octo:` (current)
+### v7.7.3: `/co:` → `/co:` (current)
 
 The plugin is now registered as `octo` for complete consistency with the "octo" natural language prefix.
 
@@ -21,8 +21,8 @@ The plugin is now registered as `octo` for complete consistency with the "octo" 
 
 **After (v7.7.3+):**
 ```
-/octo:setup           # Unified with "octo" prefix!
-/octo:update
+/co:setup           # Unified with "octo" prefix!
+/co:update
 ```
 
 ### Three-Category System
@@ -41,21 +41,21 @@ All commands and skills now follow a clear category structure:
 
 | Full Name | Shortcut | Purpose |
 |-----------|----------|---------|
-| `/octo:sys-setup` | `/octo:setup` | System setup |
-| `/octo:sys-update` | `/octo:update` | Check updates |
-| `/octo:sys-configure` | `/octo:config` | Configuration |
-| `/octo:skill-knowledge-mode` | `/octo:km` | Knowledge mode toggle |
-| `/octo:flow-probe` | `/octo:probe` | Research workflow |
-| `/octo:flow-grasp` | `/octo:grasp` | Define workflow |
-| `/octo:flow-tangle` | `/octo:tangle` | Develop workflow |
-| `/octo:flow-ink` | `/octo:ink` | Deliver workflow |
-| `/octo:skill-debate` | `/octo:debate` | AI debates |
-| `/octo:skill-code-review` | `/octo:review` | Code review |
-| `/octo:skill-security-audit` | `/octo:security` | Security audit |
-| `/octo:skill-deep-research` | `/octo:research` | Deep research |
-| `/octo:skill-tdd` | `/octo:tdd` | Test-driven development |
-| `/octo:skill-debug` | `/octo:debug` | Systematic debugging |
-| `/octo:skill-doc-delivery` | `/octo:docs` | Document delivery |
+| `/co:sys-setup` | `/co:setup` | System setup |
+| `/co:sys-update` | `/co:update` | Check updates |
+| `/co:sys-configure` | `/co:config` | Configuration |
+| `/co:skill-knowledge-mode` | `/co:km` | Knowledge mode toggle |
+| `/co:flow-probe` | `/co:probe` | Research workflow |
+| `/co:flow-grasp` | `/co:grasp` | Define workflow |
+| `/co:flow-tangle` | `/co:tangle` | Develop workflow |
+| `/co:flow-ink` | `/co:ink` | Deliver workflow |
+| `/co:skill-debate` | `/co:debate` | AI debates |
+| `/co:skill-code-review` | `/co:review` | Code review |
+| `/co:skill-security-audit` | `/co:security` | Security audit |
+| `/co:skill-deep-research` | `/co:research` | Deep research |
+| `/co:skill-tdd` | `/co:tdd` | Test-driven development |
+| `/co:skill-debug` | `/co:debug` | Systematic debugging |
+| `/co:skill-doc-delivery` | `/co:docs` | Document delivery |
 
 ---
 
@@ -67,16 +67,16 @@ All commands and skills now follow a clear category structure:
 
 | Old Command | New Command (Primary) | Shortcut | Status |
 |-------------|----------------------|----------|--------|
-| `/claude-octopus:setup` | `/octo:sys-setup` | `/octo:setup` | ✅ All work |
-| `/claude-octopus:check-update` | `/octo:sys-update` | `/octo:update` | ✅ All work |
-| `/claude-octopus:km` | `/octo:skill-knowledge-mode` | `/octo:km` | ✅ All work |
-| `probe-workflow` | `/octo:flow-probe` | `/octo:probe` | ✅ All work |
-| `code-review` | `/octo:skill-code-review` | `/octo:review` | ✅ All work |
+| `/claude-octopus:setup` | `/co:sys-setup` | `/co:setup` | ✅ All work |
+| `/claude-octopus:check-update` | `/co:sys-update` | `/co:update` | ✅ All work |
+| `/claude-octopus:km` | `/co:skill-knowledge-mode` | `/co:km` | ✅ All work |
+| `probe-workflow` | `/co:flow-probe` | `/co:probe` | ✅ All work |
+| `code-review` | `/co:skill-code-review` | `/co:review` | ✅ All work |
 
 ### Current Setup
 
 The plugin is registered as `octo` (matching the "octo" natural language prefix):
-- `/octo:setup` works ✅
+- `/co:setup` works ✅
 - Natural language triggers (e.g., "octo research X") work ✅
 
 **Note:** The `/co:` and `/claude-octopus:` namespaces are no longer supported as of v7.7.3.
@@ -94,21 +94,21 @@ Use the `octo` namespace:
 /plugin install claude-octopus@nyldn-plugins
 
 # System commands
-/octo:setup
-/octo:update
+/co:setup
+/co:update
 
 # Mode switching
-/octo:km on
-/octo:km off
+/co:km on
+/co:km off
 
 # Workflows
-/octo:probe "research OAuth patterns"
-/octo:tangle "build authentication"
-/octo:review "check security"
+/co:probe "research OAuth patterns"
+/co:tangle "build authentication"
+/co:review "check security"
 
 # Specialized skills
-/octo:debate "Should we use Redis?"
-/octo:tdd "implement user service"
+/co:debate "Should we use Redis?"
+/co:tdd "implement user service"
 ```
 
 ### For Existing Users (Upgrading from v7.4)
@@ -123,8 +123,8 @@ Continue using old commands while learning the new ones:
 /claude-octopus:km on
 
 # Try new shortcuts gradually
-/octo:setup
-/octo:km on
+/co:setup
+/co:km on
 ```
 
 **Option B: Immediate Switch**
@@ -133,20 +133,20 @@ Replace all old commands with new shortcuts:
 
 | Replace This | With This |
 |--------------|-----------|
-| `/claude-octopus:setup` | `/octo:setup` |
-| `/claude-octopus:check-update` | `/octo:update` |
-| `/claude-octopus:km` | `/octo:km` |
+| `/claude-octopus:setup` | `/co:setup` |
+| `/claude-octopus:check-update` | `/co:update` |
+| `/claude-octopus:km` | `/co:km` |
 
 **Option C: Use Full Categorical Names**
 
 For better discoverability and self-documentation:
 
 ```
-/octo:sys-setup
-/octo:sys-update
-/octo:skill-knowledge-mode
-/octo:flow-probe
-/octo:skill-code-review
+/co:sys-setup
+/co:sys-update
+/co:skill-knowledge-mode
+/co:flow-probe
+/co:skill-code-review
 ```
 
 ---
@@ -210,7 +210,7 @@ For better discoverability and self-documentation:
 
 **After:**
 ```
-/octo:update --update
+/co:update --update
 ```
 
 ### 2. Better Organization
@@ -222,16 +222,16 @@ Commands are now categorized by purpose:
 
 ### 3. Easier Discovery
 
-Type `/octo:flow-` to see all workflow commands
-Type `/octo:skill-` to see all skills
-Type `/octo:sys-` to see all system commands
+Type `/co:flow-` to see all workflow commands
+Type `/co:skill-` to see all skills
+Type `/co:sys-` to see all system commands
 
 ### 4. Power User Shortcuts
 
 Frequent commands get 1-2 word shortcuts:
-- `/octo:setup` instead of `/octo:sys-setup`
-- `/octo:probe` instead of `/octo:flow-probe`
-- `/octo:review` instead of `/octo:skill-code-review`
+- `/co:setup` instead of `/co:sys-setup`
+- `/co:probe` instead of `/co:flow-probe`
+- `/co:review` instead of `/co:skill-code-review`
 
 ### 5. Zero Breaking Changes
 
@@ -248,8 +248,8 @@ All old commands continue to work indefinitely. Migrate at your own pace.
 ### Q: Should I use shortcuts or full names?
 
 **A:** Personal preference:
-- **Shortcuts** (`/octo:setup`) - Faster to type, great for interactive use
-- **Full names** (`/octo:sys-setup`) - More descriptive, better for scripts/documentation
+- **Shortcuts** (`/co:setup`) - Faster to type, great for interactive use
+- **Full names** (`/co:sys-setup`) - More descriptive, better for scripts/documentation
 
 ### Q: What about natural language triggers?
 
@@ -269,7 +269,7 @@ All old commands continue to work indefinitely. Migrate at your own pace.
 /plugin install claude-octopus@nyldn-plugins
 ```
 
-This gives you the `/octo:` namespace that matches the "octo" natural language prefix.
+This gives you the `/co:` namespace that matches the "octo" natural language prefix.
 
 ---
 
@@ -285,22 +285,22 @@ Expected: Setup command executes
 ### Verify New Namespace Works
 
 ```
-/octo:sys-setup
+/co:sys-setup
 Expected: Same as /claude-octopus:setup
 ```
 
 ### Verify Shortcuts Work
 
 ```
-/octo:setup
-Expected: Same as /octo:sys-setup
+/co:setup
+Expected: Same as /co:sys-setup
 ```
 
 ### Verify Natural Language Triggers
 
 ```
 "Research authentication best practices"
-Expected: Auto-triggers /octo:flow-probe
+Expected: Auto-triggers /co:flow-probe
 ```
 
 ---
@@ -329,9 +329,9 @@ If you encounter issues:
 
 ## Summary
 
-✅ **Unified namespace** - `/octo:` matches "octo" natural language prefix
+✅ **Unified namespace** - `/co:` matches "octo" natural language prefix
 ✅ **Clear categorization** - sys-, flow-, skill- prefixes
 ✅ **15 shortcuts** added for common commands
 ✅ **Better discoverability** - grouped by category
 
-Use `/octo:` commands or "octo X" natural language - both work consistently!
+Use `/co:` commands or "octo X" natural language - both work consistently!
