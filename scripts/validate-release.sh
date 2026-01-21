@@ -123,7 +123,29 @@ fi
 echo ""
 
 # ============================================================================
-# 4. SKILL REGISTRATION CHECK
+# 4. COMMAND FRONTMATTER FORMAT CHECK
+# ============================================================================
+echo "📛 Checking command frontmatter format..."
+
+invalid_frontmatter=0
+for cmd_file in "$ROOT_DIR/.claude/commands/"*.md; do
+    cmd_name=$(sed -n '2p' "$cmd_file" | grep -o 'command: .*' | sed 's/command: //')
+    if [[ -n "$cmd_name" ]] && [[ "$cmd_name" == *":"* ]]; then
+        echo -e "  ${RED}ERROR: $(basename "$cmd_file") has 'command: $cmd_name' - must NOT contain ':'${NC}"
+        echo -e "  ${RED}  Command prefix is set by plugin name, not frontmatter${NC}"
+        ((errors++))
+        ((invalid_frontmatter++))
+    fi
+done
+
+if [[ $invalid_frontmatter -eq 0 ]]; then
+    echo -e "  ${GREEN}✓ All command frontmatters use correct format (no prefix)${NC}"
+fi
+
+echo ""
+
+# ============================================================================
+# 5. SKILL REGISTRATION CHECK
 # ============================================================================
 echo "🎯 Checking skill registration..."
 
@@ -154,7 +176,7 @@ fi
 echo ""
 
 # ============================================================================
-# 5. MARKETPLACE DESCRIPTION VERSION CHECK
+# 6. MARKETPLACE DESCRIPTION VERSION CHECK
 # ============================================================================
 echo "🏪 Checking marketplace description..."
 
@@ -170,7 +192,7 @@ fi
 echo ""
 
 # ============================================================================
-# 6. GIT TAG CHECK
+# 7. GIT TAG CHECK
 # ============================================================================
 echo "🏷️  Checking git tag..."
 
