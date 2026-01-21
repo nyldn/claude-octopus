@@ -1,13 +1,17 @@
-.PHONY: test test-smoke test-unit test-integration test-e2e test-live test-coverage test-all clean-tests help
+.PHONY: test test-smoke test-unit test-integration test-e2e test-live test-coverage test-all test-plugin-name clean-tests help
 
 # Default: smoke + unit (fast feedback)
 test: test-smoke test-unit
+
+# Validate plugin name (critical - prevents command prefix breakage)
+test-plugin-name:
+	@./tests/validate-plugin-name.sh
 
 # Run all tests
 test-all: test-smoke test-unit test-integration test-e2e
 
 # Smoke tests (pre-commit, <30s)
-test-smoke:
+test-smoke: test-plugin-name
 	@echo "Running smoke tests..."
 	@./tests/run-all.sh smoke
 
