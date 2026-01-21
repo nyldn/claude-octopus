@@ -1,5 +1,5 @@
 ---
-command: octo:km
+command: km
 description: "Switch to Knowledge Work mode (or toggle with off)"
 usage: "/octo:km [on|off]"
 examples:
