@@ -8,7 +8,101 @@ aliases:
 
 # Embrace - Complete Double Diamond Workflow
 
-Run the **complete 4-phase Double Diamond workflow** from research to delivery.
+## 🤖 INSTRUCTIONS FOR CLAUDE
+
+When the user invokes this command (e.g., `/octo:embrace <arguments>`):
+
+### Step 1: Ask Clarifying Questions
+
+**CRITICAL: Before starting the embrace workflow, use the AskUserQuestion tool to gather context:**
+
+Ask 3 clarifying questions to ensure high-quality workflow execution:
+
+```javascript
+AskUserQuestion({
+  questions: [
+    {
+      question: "What's the scope of this project?",
+      header: "Scope",
+      multiSelect: false,
+      options: [
+        {label: "Small feature", description: "Single component or small addition"},
+        {label: "Medium feature", description: "Multiple components or moderate complexity"},
+        {label: "Large feature", description: "System-wide changes or new subsystem"},
+        {label: "Full system", description: "Complete application or major architecture"}
+      ]
+    },
+    {
+      question: "What areas require the most attention?",
+      header: "Focus Areas",
+      multiSelect: true,
+      options: [
+        {label: "Architecture design", description: "System structure and design patterns"},
+        {label: "Security", description: "Authentication, authorization, data protection"},
+        {label: "Performance", description: "Speed, scalability, optimization"},
+        {label: "User experience", description: "UI/UX and usability"}
+      ]
+    },
+    {
+      question: "What's your preferred level of autonomy?",
+      header: "Autonomy",
+      multiSelect: false,
+      options: [
+        {label: "Supervised (default)", description: "Review and approve after each phase"},
+        {label: "Semi-autonomous", description: "Only intervene if quality gates fail"},
+        {label: "Autonomous", description: "Run all 4 phases automatically"},
+        {label: "Manual", description: "I'll guide each step explicitly"}
+      ]
+    }
+  ]
+})
+```
+
+**After receiving answers:**
+- Store the context for use across all 4 phases
+- Set autonomy mode based on user preference
+- Proceed with the embrace workflow incorporating this context
+
+### Step 2: Check Provider Availability & Display Banner
+
+**Check which AI providers are available and display the visual indicator banner:**
+
+First, check availability:
+```bash
+codex_available=$(command -v codex &> /dev/null && echo "✓" || echo "✗ Not installed")
+gemini_available=$(command -v gemini &> /dev/null && echo "✓" || echo "✗ Not installed")
+```
+
+Then output the banner:
+```
+🐙 **CLAUDE OCTOPUS ACTIVATED** - Full Double Diamond Workflow
+🐙 Embrace: [Brief description of what's being built]
+
+All Phases:
+🔍 Discover - Multi-provider research
+🎯 Define - Consensus building
+🛠️ Develop - Implementation with quality gates
+✅ Deliver - Final validation and review
+
+Provider Availability:
+🔴 Codex CLI: [Available ✓ / Not installed ✗]
+🟡 Gemini CLI: [Available ✓ / Not installed ✗]
+🔵 Claude: Available ✓
+
+Project Context:
+Scope: [User's scope answer]
+Focus: [User's focus areas]
+Autonomy: [User's autonomy preference]
+```
+
+**If providers are missing:**
+- Note in the banner which providers are unavailable
+- Suggest running `/octo:setup` to configure missing providers
+- Proceed with available providers only
+
+### Step 3: Execute Workflow
+
+Run the **complete 4-phase Double Diamond workflow** from research to delivery, passing the user context to each phase.
 
 ## Usage
 
