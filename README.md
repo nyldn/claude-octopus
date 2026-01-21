@@ -6,7 +6,7 @@
   <img src="https://img.shields.io/badge/Claude_Code-Plugin-blueviolet" alt="Claude Code Plugin">
   <img src="https://img.shields.io/badge/Double_Diamond-Design_Thinking-orange" alt="Double Diamond">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
-  <img src="https://img.shields.io/badge/Version-7.9.5-blue" alt="Version 7.9.5">
+  <img src="https://img.shields.io/badge/Version-7.9.6-blue" alt="Version 7.9.6">
 </p>
 
 # Claude Octopus
