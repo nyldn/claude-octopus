@@ -80,3 +80,4 @@ test-results*.xml
 coverage-report.txt
 coverage-report.html
 .dev/
+*.bak
