@@ -9,9 +9,59 @@ description: Test-driven development with red-green-refactor discipline
 
 When the user invokes this command (e.g., `/octo:tdd <arguments>`):
 
+### Step 1: Ask Clarifying Questions
+
+**CRITICAL: Before starting TDD, use the AskUserQuestion tool to gather context:**
+
+Ask 3 clarifying questions to ensure appropriate test strategy:
+
+```javascript
+AskUserQuestion({
+  questions: [
+    {
+      question: "What's your test coverage goal?",
+      header: "Coverage",
+      multiSelect: false,
+      options: [
+        {label: "Critical paths only", description: "Focus on business-critical flows"},
+        {label: "Standard coverage ~80%", description: "Industry-standard coverage target"},
+        {label: "Comprehensive >90%", description: "High coverage for safety-critical code"},
+        {label: "Full mutation testing", description: "Maximum rigor with mutation tests"}
+      ]
+    },
+    {
+      question: "What test style fits this feature?",
+      header: "Test Style",
+      multiSelect: false,
+      options: [
+        {label: "Unit tests focus", description: "Isolated component testing"},
+        {label: "Integration tests", description: "Module interaction testing"},
+        {label: "E2E tests", description: "Full user flow testing"},
+        {label: "Mix of all", description: "Test pyramid approach"}
+      ]
+    },
+    {
+      question: "What's the complexity level of this feature?",
+      header: "Complexity",
+      multiSelect: false,
+      options: [
+        {label: "Simple CRUD", description: "Basic create/read/update/delete"},
+        {label: "Moderate business logic", description: "Some conditional logic and validation"},
+        {label: "Complex algorithms", description: "Significant computation or logic"},
+        {label: "Distributed systems", description: "Multiple services, async, eventual consistency"}
+      ]
+    }
+  ]
+})
+```
+
+**After receiving answers, incorporate them into the TDD approach and test depth.**
+
+### Step 2: Execute TDD with Skill Tool
+
 **✓ CORRECT - Use the Skill tool:**
 ```
-Skill(skill: "octo:tdd", args: "<user's arguments>")
+Skill(skill: "octo:tdd", args: "<user's arguments + context>")
 ```
 
 **✗ INCORRECT - Do NOT use Task tool:**

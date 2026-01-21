@@ -8,6 +8,64 @@ aliases:
 
 # Discover - Discovery Phase 🔍
 
+## 🤖 INSTRUCTIONS FOR CLAUDE
+
+When the user invokes this command (e.g., `/octo:discover <arguments>`):
+
+### Step 1: Ask Clarifying Questions
+
+**CRITICAL: Before starting discovery, use the AskUserQuestion tool to gather context:**
+
+Ask 3 clarifying questions to ensure high-quality research:
+
+```javascript
+AskUserQuestion({
+  questions: [
+    {
+      question: "How deep should the research go?",
+      header: "Depth",
+      multiSelect: false,
+      options: [
+        {label: "Quick overview", description: "High-level summary of key points"},
+        {label: "Moderate depth", description: "Balanced exploration with examples"},
+        {label: "Comprehensive", description: "Detailed analysis with trade-offs"},
+        {label: "Deep dive", description: "Exhaustive research with edge cases"}
+      ]
+    },
+    {
+      question: "What's your primary focus area?",
+      header: "Focus",
+      multiSelect: false,
+      options: [
+        {label: "Technical implementation", description: "Code patterns, frameworks, APIs"},
+        {label: "Best practices", description: "Industry standards and conventions"},
+        {label: "Ecosystem & tools", description: "Libraries, tools, community insights"},
+        {label: "Trade-offs & comparisons", description: "Pros/cons of different approaches"}
+      ]
+    },
+    {
+      question: "How should the output be formatted?",
+      header: "Output",
+      multiSelect: false,
+      options: [
+        {label: "Summary", description: "Concise key findings"},
+        {label: "Detailed report", description: "Comprehensive write-up"},
+        {label: "Comparison table", description: "Side-by-side analysis"},
+        {label: "Recommendations", description: "Actionable next steps"}
+      ]
+    }
+  ]
+})
+```
+
+**After receiving answers, incorporate them into the research execution and pass to multi-AI providers.**
+
+### Step 2: Check Provider Availability & Execute
+
+Check which AI providers are available and proceed with multi-perspective research incorporating user context.
+
+---
+
 **Part of Double Diamond: DISCOVER** (divergent thinking)
 
 Multi-perspective research using external CLI providers.
