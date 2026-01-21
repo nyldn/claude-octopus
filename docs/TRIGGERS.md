@@ -266,23 +266,111 @@ This guide explains exactly what natural language phrases trigger external CLI e
 
 ---
 
-## Parallel Agents Command
+## Multi Command (Force Multi-Provider)
 
-### Triggers 🐙
+### Triggers 🐙 (Force Multi-Provider)
 
-**Exact command:**
-- `/parallel-agents "<task>"`
+**Explicit command:**
+- `/octo:multi "<task>"`
+
+**Natural language triggers (force parallel mode):**
+- "run this with all providers: [task]"
+- "I want all three AI models to look at [topic]"
+- "get multiple perspectives on [question]"
+- "use all providers for [analysis]"
+- "force multi-provider analysis of [topic]"
+- "have all AIs analyze [subject]"
 
 **This is the manual override** - explicitly invoke multi-provider mode for any task, even if it wouldn't normally trigger a workflow.
 
 **Examples:**
 ```
-✅ /parallel-agents "Research OAuth patterns"
-   → Forces multi-provider execution
+✅ /octo:multi "What is OAuth?"
+   → Forces multi-provider execution for simple question
 
-✅ /parallel-agents "Review this code"
-   → Forces multi-provider execution even for simple reviews
+✅ /octo:multi "Explain the difference between JWT and OAuth"
+   → Forces parallel mode even for simple questions
+
+✅ "Run this with all providers: Review this simple function"
+   → Natural language force trigger
+
+✅ "I want all three AI models to look at our architecture"
+   → Forces comprehensive multi-model analysis
+
+⚠️  "octo research OAuth patterns"
+   → Automatically triggers discover workflow (no force needed)
+
+⚠️  "octo build auth system"
+   → Automatically triggers develop workflow (no force needed)
 ```
+
+### When to Force Parallel Mode
+
+**Use forced parallel mode when:**
+- Simple questions deserve multiple perspectives for thorough understanding
+- Comparing how different models approach the same problem
+- High-stakes decisions requiring comprehensive analysis from all providers
+- Automatic routing underestimates task complexity
+- Learning different approaches to the same concept
+
+**Don't force parallel mode when:**
+- Task already auto-triggers workflows (octo research, octo build, octo review)
+- Simple factual questions Claude can answer reliably
+- Cost efficiency is important (see cost implications below)
+- File operations or code navigation tasks
+
+### Cost Implications
+
+Forcing parallel mode uses external CLIs for every task:
+
+| Provider | Cost per Query | What It Uses |
+|----------|----------------|--------------|
+| 🔴 Codex CLI | ~$0.01-0.05 | Your OPENAI_API_KEY |
+| 🟡 Gemini CLI | ~$0.01-0.03 | Your GEMINI_API_KEY |
+| 🔵 Claude | Included | Claude Code subscription |
+
+**Total: ~$0.02-0.08 per forced query**
+
+Use judiciously for tasks where multiple perspectives genuinely add value.
+
+### Comparison: Auto-Trigger vs Force
+
+**Auto-triggered workflows (built-in intelligence):**
+```
+"octo research OAuth" → 🐙 🔍 Discover Phase
+"octo build auth"     → 🐙 🛠️ Develop Phase
+"octo review code"    → 🐙 ✅ Deliver Phase
+```
+→ Automatically uses multi-provider when beneficial
+
+**Forced parallel mode (manual override):**
+```
+/octo:multi "What is OAuth?" → 🐙 Multi-provider mode
+"Run with all providers: explain JWT" → 🐙 Multi-provider mode
+```
+→ Forces multi-provider even for simple tasks
+
+**Key difference:** Forced mode is for tasks that wouldn't normally trigger workflows but where you want comprehensive multi-model perspectives anyway.
+
+### Visual Indicator
+
+When forced parallel mode activates:
+
+```
+🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider mode
+Force parallel execution
+
+Providers:
+🔴 Codex CLI - Technical perspective
+🟡 Gemini CLI - Ecosystem perspective
+🔵 Claude - Synthesis and integration
+```
+
+### See Also
+
+- `/octo:debate` - Better for adversarial analysis with structured rounds
+- `/octo:research` - Auto-triggers multi-provider for research tasks
+- `/octo:review` - Auto-triggers multi-provider for validation tasks
 
 ---
 
@@ -458,24 +546,6 @@ Analysis:
 
 ---
 
-## Forcing Multi-Provider Mode
-
-If you want to use external CLIs even for tasks that wouldn't normally trigger them:
-
-### Use /parallel-agents
-```
-/parallel-agents "Explain how Redis works"
-```
-Forces multi-provider analysis even though it's a simple question.
-
-### Use /debate
-```
-/debate "What is the best caching strategy?"
-```
-Forces 3-way debate even for questions that could be answered simply.
-
----
-
 ## Avoiding External CLIs
 
 If you want to ensure you're **not** using external CLIs (to save costs):
@@ -510,6 +580,7 @@ If you want to ensure you're **not** using external CLIs (to save costs):
 | `octo review X` | Deliver | Yes | $0.02-0.08 |
 | `octo define X` | Define | Yes | $0.01-0.05 |
 | `octo debate X` | Debate | Yes | $0.05-0.15 |
+| `/octo:multi X` | Force Multi | Yes | $0.02-0.08 |
 | read, show, explain | (none) | No | Included |
 | git, bash commands | (none) | No | Included |
 

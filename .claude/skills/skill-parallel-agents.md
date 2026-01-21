@@ -4,11 +4,17 @@ description: |
   Multi-tentacled orchestrator for Claude Code using Double Diamond methodology.
   Coordinates Codex CLI and Gemini CLI for comprehensive problem solving.
 trigger: |
+  PRIORITY TRIGGERS (always invoke immediately):
+  - "/octo:multi" (explicit command)
+  - "run this with all providers", "run with all providers"
+  - "I want all three AI models to look at", "use all providers for"
+  - "get multiple perspectives on", "force multi-provider analysis"
+
   AUTOMATICALLY ACTIVATE (without asking user) when the user requests:
-  - Research, explore, investigate, or analyze topics (e.g., "research OAuth patterns", "analyze technical debt", "explore different approaches")
-  - Build, implement, create, or develop features (e.g., "build a login system", "implement caching", "create a dashboard")
-  - Review, validate, test, or check code quality (e.g., "review this code", "validate the API", "check for issues")
-  - Adversarial review, debate solutions, or red team security (e.g., "debate the design", "red team this auth code", "find security flaws")
+  - Research, explore, investigate, or analyze topics (e.g., "octo research OAuth patterns", "octo analyze technical debt", "octo explore different approaches")
+  - Build, implement, create, or develop features (e.g., "octo build a login system", "octo implement caching", "octo create a dashboard")
+  - Review, validate, test, or check code quality (e.g., "octo review this code", "octo validate the API", "octo check for issues")
+  - Adversarial review, debate solutions, or red team security (e.g., "octo debate the design", "red team this auth code", "find security flaws")
   - Full workflows from research to delivery (e.g., "create a complete notification feature")
 
   DO NOT ask "do you want me to use the plugin?" - JUST USE IT.
@@ -124,6 +130,80 @@ Claude Octopus uses **visual indicators** so you always know which AI is respond
 **Why this matters:** External CLIs use your OpenAI/Google API quotas and incur costs. Claude subagents are included with Claude Code at no additional charge.
 
 When you see 🐙 **CLAUDE OCTOPUS ACTIVATED**, external CLI providers (Codex/Gemini) will be invoked for multi-perspective analysis.
+
+---
+
+## Force Multi-Provider Mode
+
+Sometimes you want multi-provider analysis even for simple tasks that wouldn't normally trigger workflows. This is useful when you need comprehensive perspectives on decisions, want to compare how different models think, or when automatic routing underestimates task complexity.
+
+### Explicit Command
+
+Force multi-provider execution using the `/octo:multi` command:
+
+```
+/octo:multi "Explain how Redis works"
+/octo:multi "What is OAuth?"
+/octo:multi "Review this simple function"
+/octo:multi "Should we use TypeScript?"
+```
+
+### Natural Language Triggers
+
+You can also force multi-provider mode with natural language:
+
+```
+"Run this with all providers: What is JWT?"
+"I want all three AI models to look at our architecture"
+"Get multiple perspectives on this design decision"
+"Use all providers for explaining caching strategies"
+"Force multi-provider analysis of our API design"
+```
+
+### When to Force Parallel Mode
+
+**Use forced parallel mode when:**
+- **High-stakes decisions** require comprehensive analysis from multiple models
+- **Comparing perspectives** - you want to see how different models approach the same problem
+- **Simple questions with depth** - seemingly simple questions that deserve thorough multi-model analysis
+- **Learning different approaches** - exploring how each model thinks about a topic
+- **Automatic routing underestimates complexity** - task appears simple but has nuance
+
+**Don't force parallel mode when:**
+- Task already auto-triggers workflows (`octo research`, `octo build`, `octo review`)
+- Simple factual questions Claude can answer reliably
+- Cost efficiency is important (see cost awareness below)
+- File operations or code navigation (use built-in tools)
+
+### Cost Awareness
+
+Forcing parallel mode uses external CLIs for every task, which incurs API costs:
+
+| Provider | Cost per Query | What It Uses |
+|----------|----------------|--------------|
+| 🔴 Codex CLI | ~$0.01-0.05 | Your OPENAI_API_KEY |
+| 🟡 Gemini CLI | ~$0.01-0.03 | Your GEMINI_API_KEY |
+| 🔵 Claude | Included | Claude Code subscription |
+
+**Total cost per forced query: ~$0.02-0.08**
+
+Use forced parallel mode judiciously for tasks where multiple perspectives genuinely add value. For routine work, let automatic routing decide when multi-provider analysis is beneficial.
+
+### Visual Indicator
+
+When you force parallel mode, you'll see this banner:
+
+```
+🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider mode
+Force parallel execution
+
+Providers:
+🔴 Codex CLI - [Role in this task]
+🟡 Gemini CLI - [Role in this task]
+🔵 Claude - [Role in this task]
+```
+
+Followed by results from each provider marked with their indicators (🔴 🟡 🔵).
 
 ---
 

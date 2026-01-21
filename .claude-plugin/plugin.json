@@ -1,4 +1,5 @@
 {
+  "_comment": "⚠️ CRITICAL: Plugin name MUST be 'octo' for correct command prefixes (/octo:*). See PLUGIN_NAME_LOCK.md. Package name (claude-octopus) is different and in package.json.",
   "name": "octo",
   "version": "7.9.7",
   "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.9.7) Commands now '/octo:*'. Run /octo:setup for guided setup.",
@@ -97,6 +98,7 @@
     "./.claude/commands/probe.md",
     "./.claude/commands/grasp.md",
     "./.claude/commands/tangle.md",
-    "./.claude/commands/ink.md"
+    "./.claude/commands/ink.md",
+    "./.claude/commands/multi.md"
   ]
 }
