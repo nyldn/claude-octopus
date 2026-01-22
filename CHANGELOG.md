@@ -5,6 +5,19 @@ All notable changes to Claude Octopus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.12.1] - 2026-01-22
+
+### Added
+- **`/octo:loop` command**: Command shortcut for skill-iterative-loop functionality
+  - Natural language support: `"Loop 5 times auditing, enhancing, testing"`
+  - Explicit syntax: `/octo:loop "run tests and fix issues" --max 5`
+  - Systematic iteration with progress tracking and exit conditions
+  - Safety features: max iterations enforced, stall detection
+  - Use cases: testing loops, optimization iterations, progressive enhancement, retry patterns
+
+### Fixed
+- Missing command shortcut for iterative loop skill (skill existed but had no `/octo:loop` command)
+
 ## [7.12.0] - 2026-01-22
 
 ### Added - Claude Code v2.1.12+ Feature Integration
