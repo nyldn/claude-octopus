@@ -9,6 +9,21 @@
         {
           "type": "prompt",
           "prompt": "🐙 **CLAUDE OCTOPUS ACTIVATED** - Using external CLI providers (Codex/Gemini) for this task. This is NOT a Claude subagent - external APIs will be invoked."
+        },
+        {
+          "type": "command",
+          "command": "${CLAUDE_PLUGIN_ROOT}/hooks/provider-routing-validator.sh"
+        }
+      ]
+    },
+    {
+      "matcher": {
+        "tool": "TaskCreate"
+      },
+      "hooks": [
+        {
+          "type": "command",
+          "command": "${CLAUDE_PLUGIN_ROOT}/hooks/task-dependency-validator.sh"
         }
       ]
     },
@@ -59,6 +74,18 @@
         {
           "type": "command",
           "command": "${CLAUDE_PLUGIN_ROOT}/hooks/quality-gate.sh"
+        }
+      ]
+    },
+    {
+      "matcher": {
+        "tool": "TaskUpdate",
+        "pattern": ".*completed.*"
+      },
+      "hooks": [
+        {
+          "type": "command",
+          "command": "${CLAUDE_PLUGIN_ROOT}/hooks/task-completion-checkpoint.sh"
         }
       ]
     }

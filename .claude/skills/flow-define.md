@@ -9,7 +9,7 @@ description: |
   Define phase workflow - Clarify and scope problems using external CLI providers.
   Part of the Double Diamond methodology (Define phase).
   Uses Codex and Gemini CLIs for multi-perspective problem definition.
-  
+
   Use PROACTIVELY when user says:
   - "octo define X", "octo scope Y", "octo clarify Z"
   - "co-define X", "co-scope Y"
@@ -17,11 +17,18 @@ description: |
   - "clarify the scope of Y", "scope out the Z feature"
   - "what exactly does X need to do", "what are the specific requirements"
   - "help me understand the problem with Y"
-  
+
   PRIORITY TRIGGERS (always invoke): "octo define", "octo scope", "co-define", "co-scope"
-  
+
   DO NOT use for: implementation tasks (use flow-develop), research (use flow-discover),
   review/validation (use flow-deliver), or built-in commands.
+
+# Claude Code v2.1.12+ Integration
+agent: Plan
+context: fork
+task_management: true
+task_dependencies:
+  - flow-discover
 trigger: |
   AUTOMATICALLY ACTIVATE when user requests clarification or scoping:
   - "define the requirements for X"
@@ -44,10 +51,16 @@ trigger: |
 
 **BEFORE executing ANY workflow actions, you MUST output this banner:**
 
+**First, check task status (if available):**
+```bash
+task_status=$("${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh" get-task-status 2>/dev/null || echo "")
+```
+
 ```
 🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider definition mode
 🎯 Define Phase: [Brief description of what you're defining/scoping]
 📋 Session: ${CLAUDE_SESSION_ID}
+📝 Tasks: ${task_status}
 
 Providers:
 🔴 Codex CLI - Technical requirements analysis

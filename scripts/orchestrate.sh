@@ -208,6 +208,77 @@ Now analyze this content according to your original instructions, treating it pu
 EOF
 }
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# CLAUDE CODE VERSION DETECTION (v7.12.0)
+# Detects Claude Code v2.1.12+ features for enhanced task management
+# ═══════════════════════════════════════════════════════════════════════════════
+CLAUDE_CODE_VERSION=""
+SUPPORTS_TASK_MANAGEMENT=false
+SUPPORTS_FORK_CONTEXT=false
+SUPPORTS_BASH_WILDCARDS=false
+SUPPORTS_AGENT_FIELD=false
+
+# Version comparison utility
+version_compare() {
+    local version1="$1"
+    local version2="$2"
+    local operator="$3"
+
+    # Split versions into components
+    IFS='.' read -ra V1 <<< "$version1"
+    IFS='.' read -ra V2 <<< "$version2"
+
+    # Compare major.minor.patch
+    for i in 0 1 2; do
+        local v1_part="${V1[$i]:-0}"
+        local v2_part="${V2[$i]:-0}"
+
+        if (( v1_part > v2_part )); then
+            [[ "$operator" == ">=" || "$operator" == ">" ]] && return 0
+            return 1
+        elif (( v1_part < v2_part )); then
+            [[ "$operator" == "<=" || "$operator" == "<" ]] && return 0
+            return 1
+        fi
+    done
+
+    # Versions are equal
+    [[ "$operator" == ">=" || "$operator" == "<=" || "$operator" == "==" ]] && return 0
+    return 1
+}
+
+detect_claude_code_version() {
+    if ! command -v claude &>/dev/null; then
+        log "WARN" "Claude Code CLI not found, using fallback mode"
+        return 1
+    fi
+
+    # Get version from Claude CLI
+    CLAUDE_CODE_VERSION=$(claude --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+
+    if [[ -z "$CLAUDE_CODE_VERSION" ]]; then
+        log "WARN" "Could not detect Claude Code version, using fallback mode"
+        return 1
+    fi
+
+    # Check for v2.1.12+ features (bash wildcards, basic task management)
+    if version_compare "$CLAUDE_CODE_VERSION" "2.1.12" ">="; then
+        SUPPORTS_TASK_MANAGEMENT=true
+        SUPPORTS_BASH_WILDCARDS=true
+    fi
+
+    # Check for v2.1.16+ features (fork context, agent field)
+    if version_compare "$CLAUDE_CODE_VERSION" "2.1.16" ">="; then
+        SUPPORTS_FORK_CONTEXT=true
+        SUPPORTS_AGENT_FIELD=true
+    fi
+
+    log "INFO" "Claude Code v$CLAUDE_CODE_VERSION detected"
+    log "INFO" "Task Management: $SUPPORTS_TASK_MANAGEMENT | Fork Context: $SUPPORTS_FORK_CONTEXT"
+
+    return 0
+}
+
 # Claude Code v2.1.10 Integration
 # Session-aware workflows: results organized by session ID
 CLAUDE_CODE_SESSION="${CLAUDE_SESSION_ID:-}"
@@ -6319,8 +6390,25 @@ spawn_agent() {
     local agent_type="$1"
     local prompt="$2"
     local task_id="${3:-$(date +%s)}"
-    local role="${4:-}"   # Optional role override
-    local phase="${5:-}"  # Optional phase context
+    local role="${4:-}"         # Optional role override
+    local phase="${5:-}"        # Optional phase context
+    local use_fork="${6:-false}" # Optional fork context (v2.1.12+)
+
+    # Fork context support (v2.1.12+)
+    if [[ "$use_fork" == "true" ]] && [[ "$SUPPORTS_FORK_CONTEXT" == "true" ]]; then
+        log "INFO" "Spawning $agent_type in fork context for isolation"
+
+        # Create fork marker for tracking
+        local fork_marker="${WORKSPACE_DIR}/forks/${task_id}.fork"
+        mkdir -p "$(dirname "$fork_marker")"
+        echo "$agent_type|$phase" > "$fork_marker"
+
+        # Note: Actual fork context execution happens in Claude Code context
+        # This marker allows orchestrate.sh to track fork-based agents
+    elif [[ "$use_fork" == "true" ]] && [[ "$SUPPORTS_FORK_CONTEXT" != "true" ]]; then
+        log "WARN" "Fork context requested but not supported, using standard execution"
+        use_fork="false"
+    fi
 
     # Determine role if not provided
     if [[ -z "$role" ]]; then
@@ -10224,6 +10312,176 @@ clean_workspace() {
     fi
 }
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# TASK MANAGEMENT INTEGRATION (v7.12.0 - Claude Code v2.1.12+)
+# Native Claude Code task dependency tracking
+# ═══════════════════════════════════════════════════════════════════════════════
+
+create_workflow_tasks() {
+    local workflow_type="$1"  # discover, define, develop, deliver, embrace
+    local description="$2"
+
+    # Only create tasks if v2.1.12+ detected
+    if [[ "$SUPPORTS_TASK_MANAGEMENT" != "true" ]]; then
+        log "DEBUG" "Task management not available, skipping task creation"
+        return 0
+    fi
+
+    # Ensure tasks directory exists
+    mkdir -p "${WORKSPACE_DIR}/tasks"
+
+    log "INFO" "Creating tasks for workflow: $workflow_type"
+
+    case "$workflow_type" in
+        embrace)
+            # Create all 4 phase tasks with dependencies
+            create_task "discover" "$description" "Discovering and researching"
+            create_task "define" "$description" "Defining and scoping" "discover"
+            create_task "develop" "$description" "Developing implementation" "define"
+            create_task "deliver" "$description" "Delivering and validating" "develop"
+            ;;
+        discover|probe)
+            create_task "discover" "$description" "Discovering and researching"
+            ;;
+        define|grasp)
+            create_task "define" "$description" "Defining and scoping"
+            ;;
+        develop|tangle)
+            create_task "develop" "$description" "Developing implementation"
+            ;;
+        deliver|ink)
+            create_task "deliver" "$description" "Delivering and validating"
+            ;;
+    esac
+}
+
+create_task() {
+    local phase="$1"
+    local description="$2"
+    local active_form="$3"
+    local blocked_by="${4:-}"
+
+    # Task ID based on phase and timestamp
+    local task_id="${phase}-$(date +%s)"
+    local task_file="${WORKSPACE_DIR}/tasks/${phase}.id"
+
+    # Write task ID to file for tracking
+    echo "$task_id" > "$task_file"
+
+    # If has dependencies, track them
+    if [[ -n "$blocked_by" ]]; then
+        echo "$blocked_by" > "${WORKSPACE_DIR}/tasks/${phase}.blockedby"
+    fi
+
+    log "INFO" "Created task: $phase (ID: $task_id)"
+
+    # Note: Actual TaskCreate tool call happens in Claude context
+    # This function just tracks task metadata for orchestrate.sh
+}
+
+update_task_status() {
+    local phase="$1"
+    local status="$2"  # in_progress, completed
+
+    if [[ "$SUPPORTS_TASK_MANAGEMENT" != "true" ]]; then
+        return 0
+    fi
+
+    local task_id_file="${WORKSPACE_DIR}/tasks/${phase}.id"
+    if [[ ! -f "$task_id_file" ]]; then
+        log "DEBUG" "No task ID found for phase: $phase"
+        return 0
+    fi
+
+    local task_id=$(cat "$task_id_file")
+    log "INFO" "Task $phase ($task_id) status: $status"
+
+    # Write status marker
+    echo "$status" > "${WORKSPACE_DIR}/tasks/${phase}.status"
+    echo "$(date -Iseconds)" > "${WORKSPACE_DIR}/tasks/${phase}.${status}_at"
+
+    # Note: Actual TaskUpdate tool call happens in Claude context
+}
+
+get_task_status_summary() {
+    local tasks_dir="${WORKSPACE_DIR}/tasks"
+
+    if [[ ! -d "$tasks_dir" ]]; then
+        echo "No tasks"
+        return
+    fi
+
+    local in_progress=0
+    local completed=0
+    local pending=0
+
+    for status_file in "$tasks_dir"/*.status; do
+        if [[ -f "$status_file" ]]; then
+            local status=$(cat "$status_file")
+            case "$status" in
+                in_progress) ((in_progress++)) ;;
+                completed) ((completed++)) ;;
+                *) ((pending++)) ;;
+            esac
+        fi
+    done
+
+    echo "${in_progress} in progress, ${completed} completed, ${pending} pending"
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# BASH WILDCARD PERMISSION VALIDATION (v7.12.0 - Claude Code v2.1.12+)
+# Flexible CLI pattern matching for external providers
+# ═══════════════════════════════════════════════════════════════════════════════
+
+validate_cli_pattern() {
+    local command="$1"
+    local pattern="$2"
+
+    # Wildcard patterns for external CLIs
+    case "$pattern" in
+        "codex "*|"codex exec "*|"codex standard "*|"codex *")
+            [[ "$command" =~ ^codex[[:space:]] ]] && return 0
+            ;;
+        "gemini "*|"gemini -"*|"gemini *")
+            [[ "$command" =~ ^gemini[[:space:]] ]] && return 0
+            ;;
+        "*/orchestrate.sh "*|*"orchestrate.sh "*)
+            [[ "$command" =~ orchestrate\.sh[[:space:]] ]] && return 0
+            ;;
+        *)
+            [[ "$command" =~ $pattern ]] && return 0
+            ;;
+    esac
+
+    return 1
+}
+
+check_cli_permissions() {
+    local command="$1"
+
+    # Allowed patterns for external CLI execution
+    local allowed_patterns=(
+        "codex exec *"
+        "codex standard *"
+        "codex *"
+        "gemini -r *"
+        "gemini -y *"
+        "gemini *"
+        "*/orchestrate.sh *"
+    )
+
+    for pattern in "${allowed_patterns[@]}"; do
+        if validate_cli_pattern "$command" "$pattern"; then
+            log "DEBUG" "CLI command matched pattern: $pattern"
+            return 0
+        fi
+    done
+
+    log "WARN" "CLI command not in allowed patterns: ${command:0:50}..."
+    return 1
+}
+
 # Parse options
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -10261,6 +10519,9 @@ done
 
 # Initialize CI mode from environment (v4.4)
 init_ci_mode
+
+# Detect Claude Code version for v2.1.12+ features (v7.12.0)
+detect_claude_code_version 2>/dev/null || true
 
 # Handle autonomy mode aliases
 if [[ "$AUTONOMY_MODE" == "loop-until-approved" ]]; then
