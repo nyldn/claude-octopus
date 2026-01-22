@@ -11,8 +11,8 @@
     {
       "name": "claude-octopus",
       "source": "./",
-      "description": "v7.11.1 - FIXED: Plugin validation error preventing commands from loading. Commands now '/octo:*'. Multi-tentacled orchestrator with AI debates, intent capture, quality gates. Run /octo:setup for guided setup.",
-      "version": "7.11.1",
+      "description": "v7.12.0 - NEW: Claude Code v2.1.12+ integration with native task management, fork context isolation, agent field routing, enhanced hooks. 100% backward compatible. Commands '/octo:*'. Run /octo:setup for guided setup.",
+      "version": "7.12.0",
       "author": {
         "name": "nyldn"
       },
