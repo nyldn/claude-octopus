@@ -11,8 +11,8 @@
     {
       "name": "claude-octopus",
       "source": "./",
-      "description": "v7.11.0 - NEW: /octo:plan with intelligent routing. Commands now '/octo:*'. Multi-tentacled orchestrator with AI debates, intent capture, quality gates. Run /octo:setup for guided setup.",
-      "version": "7.11.0",
+      "description": "v7.11.1 - FIXED: Plugin validation error preventing commands from loading. Commands now '/octo:*'. Multi-tentacled orchestrator with AI debates, intent capture, quality gates. Run /octo:setup for guided setup.",
+      "version": "7.11.1",
       "author": {
         "name": "nyldn"
       },
