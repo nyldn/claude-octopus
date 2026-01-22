@@ -9,7 +9,7 @@ description: |
   Discover phase workflow - Research and exploration using external CLI providers.
   Part of the Double Diamond methodology (Discover phase).
   Uses Codex and Gemini CLIs for multi-perspective research.
-  
+
   Use PROACTIVELY when user says:
   - "octo research X", "octo discover Y", "octo explore Z"
   - "co-research X", "co-discover Y"
@@ -19,11 +19,19 @@ description: |
   - "compare X vs Y", "X vs Y comparison", "pros and cons of X"
   - "what should I use for X", "best tool for Y", "tradeoffs between X and Y"
   - Questions about best practices, patterns, or ecosystem research
-  
+
   PRIORITY TRIGGERS (always invoke): "octo research", "octo discover", "co-research", "co-discover"
-  
+
   DO NOT use for: simple file searches (use Read/Grep), questions Claude can answer directly,
   debugging issues (use skill-debug), or "what are my options" for decision support.
+
+# Claude Code v2.1.12+ Integration
+agent: Explore
+context: fork
+task_management: true
+task_dependencies:
+  - skill-context-detection
+  - skill-visual-feedback
 trigger: |
   AUTOMATICALLY ACTIVATE when user requests research or exploration:
   - "research X" or "explore Y" or "investigate Z"
@@ -65,13 +73,20 @@ Analyze the user's prompt and project to determine context:
 
 **Also check**: Does the project have `package.json`, `Cargo.toml`, etc.? (suggests Dev Context)
 
-### Step 2: Output Context-Aware Banner
+### Step 2: Output Context-Aware Banner with Task Status
+
+**First, check task status (if available):**
+```bash
+# Get task status summary from orchestrate.sh (v2.1.12+)
+task_status=$("${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh" get-task-status 2>/dev/null || echo "")
+```
 
 **For Dev Context:**
 ```
 🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider research mode
 🔍 [Dev] Discover Phase: [Brief description of technical research]
 📋 Session: ${CLAUDE_SESSION_ID}
+📝 Tasks: ${task_status}
 
 Providers:
 🔴 Codex CLI - Technical implementation analysis
