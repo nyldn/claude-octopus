@@ -89,6 +89,7 @@
     "./.claude/commands/security.md",
     "./.claude/commands/debug.md",
     "./.claude/commands/tdd.md",
+    "./.claude/commands/loop.md",
     "./.claude/commands/docs.md",
     "./.claude/commands/embrace.md",
     "./.claude/commands/discover.md",
