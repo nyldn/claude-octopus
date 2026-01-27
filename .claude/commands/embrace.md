@@ -102,7 +102,33 @@ Autonomy: [User's autonomy preference]
 
 ### Step 3: Execute Workflow
 
-Run the **complete 4-phase Double Diamond workflow** from research to delivery, passing the user context to each phase.
+**Run orchestrate.sh with the embrace command:**
+
+Use the Bash tool to execute:
+```bash
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh embrace "<user's prompt>"
+```
+
+**What happens:**
+1. **Probe Phase** - Multi-provider research via spawn_agent() calls to Codex/Gemini
+2. **Grasp Phase** - Consensus building with run_agent_sync()
+3. **Tangle Phase** - Implementation with quality gates
+4. **Ink Phase** - Final validation and delivery
+
+**Autonomy handling:**
+- Supervised mode: Pauses after each phase for approval
+- Semi-autonomous: Auto-proceeds unless quality gate fails
+- Autonomous: Runs all 4 phases without intervention
+
+**Results saved to:**
+- `~/.claude-octopus/results/probe-synthesis-<timestamp>.md`
+- `~/.claude-octopus/results/grasp-consensus-<timestamp>.md`
+- `~/.claude-octopus/results/tangle-validation-<timestamp>.md`
+- `~/.claude-octopus/results/delivery-<timestamp>.md`
+
+### Step 4: Present Results
+
+After orchestrate.sh completes, read the result files and present synthesis to user.
 
 ## Usage
 
