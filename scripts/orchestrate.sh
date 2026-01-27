@@ -6489,18 +6489,71 @@ spawn_agent() {
         # SECURITY: Use array-based execution to prevent word-splitting vulnerabilities
         local -a cmd_array
         read -ra cmd_array <<< "$cmd"
-        if run_with_timeout "$TIMEOUT" "${cmd_array[@]}" "$enhanced_prompt" >> "$result_file" 2>> "$log_file"; then
+
+        # IMPROVED: Use temp files for reliable output capture (v7.13.2 - Issue #10)
+        local temp_output="${RESULTS_DIR}/.tmp-${task_id}.out"
+        local temp_errors="${RESULTS_DIR}/.tmp-${task_id}.err"
+
+        if run_with_timeout "$TIMEOUT" "${cmd_array[@]}" "$enhanced_prompt" > "$temp_output" 2> "$temp_errors"; then
+            # Filter out CLI header noise and extract actual response
+            # Handles Codex/Gemini CLI format where response follows "codex"/"gemini" marker
+            awk '
+                BEGIN { in_response = 0; header_done = 0; }
+                # Skip CLI startup banner (everything until separator line)
+                /^--------$/ { header_done = 1; next; }
+                !header_done { next; }
+                # Response starts after agent name marker
+                /^(codex|gemini|assistant)$/ { in_response = 1; next; }
+                # Skip thinking blocks
+                /^thinking$/ { next; }
+                # Skip token usage markers
+                /^tokens used$/ { next; }
+                /^[0-9,]+$/ && in_response { next; }
+                # Output actual response content
+                in_response { print; }
+            ' "$temp_output" >> "$result_file"
+
             echo '```' >> "$result_file"
             echo "" >> "$result_file"
             echo "## Status: SUCCESS" >> "$result_file"
+
+            # Append stderr if it contains useful content (not just warnings)
+            if [[ -s "$temp_errors" ]] && ! grep -q "^mcp startup:" "$temp_errors"; then
+                echo "" >> "$result_file"
+                echo "## Warnings/Errors" >> "$result_file"
+                echo '```' >> "$result_file"
+                cat "$temp_errors" >> "$result_file"
+                echo '```' >> "$result_file"
+            fi
         else
             local exit_code=$?
+            # On failure, capture whatever output exists
+            if [[ -s "$temp_output" ]]; then
+                cat "$temp_output" >> "$result_file"
+            else
+                echo "(no output captured)" >> "$result_file"
+            fi
             echo '```' >> "$result_file"
             echo "" >> "$result_file"
             echo "## Status: FAILED (exit code: $exit_code)" >> "$result_file"
+
+            # Append error details
+            if [[ -s "$temp_errors" ]]; then
+                echo "" >> "$result_file"
+                echo "## Error Log" >> "$result_file"
+                echo '```' >> "$result_file"
+                cat "$temp_errors" >> "$result_file"
+                echo '```' >> "$result_file"
+            fi
         fi
 
+        # Cleanup temp files
+        rm -f "$temp_output" "$temp_errors"
+
         echo "# Completed: $(date)" >> "$result_file"
+
+        # Ensure file is fully written before background process exits
+        sync
     ) &
 
     local pid=$!
@@ -6632,7 +6685,7 @@ auto_route() {
             echo -e "${RED}╚═══════════════════════════════════════════════════════════╝${NC}"
             echo "  Routing to grapple workflow: Codex vs Gemini debate."
             echo ""
-            grapple_debate "$prompt" "general"
+            grapple_debate "$prompt" "general" "${DEBATE_ROUNDS:-3}"
             return
             ;;
         crossfire-squeeze)
@@ -9196,17 +9249,27 @@ embrace_full_workflow() {
 grapple_debate() {
     local prompt="$1"
     local principles="${2:-general}"
+    local rounds="${3:-3}"  # v7.13.2: Configurable rounds (default 3)
     local task_group
     task_group=$(date +%s)
+
+    # Validate rounds (3-7 allowed)
+    if [[ $rounds -lt 3 ]]; then
+        log WARN "Minimum 3 rounds required, using 3"
+        rounds=3
+    elif [[ $rounds -gt 7 ]]; then
+        log WARN "Maximum 7 rounds allowed, using 7"
+        rounds=7
+    fi
 
     echo ""
     echo -e "${RED}╔═══════════════════════════════════════════════════════════╗${NC}"
     echo -e "${RED}║  🤼 GRAPPLE - Adversarial Cross-Model Review              ║${NC}"
-    echo -e "${RED}║  Codex vs Claude debate until consensus                   ║${NC}"
+    echo -e "${RED}║  Codex vs Claude debate (${rounds} rounds)                ║${NC}"
     echo -e "${RED}╚═══════════════════════════════════════════════════════════╝${NC}"
     echo ""
 
-    log INFO "Starting adversarial cross-model debate"
+    log INFO "Starting adversarial cross-model debate ($rounds rounds)"
 
     if [[ "$DRY_RUN" == "true" ]]; then
         log INFO "[DRY-RUN] Would grapple on: $prompt"
@@ -9314,17 +9377,79 @@ $principle_text}
 Be harsh but fair. If genuinely good, explain why." 60 "code-reviewer" "grapple")
 
     # ═══════════════════════════════════════════════════════════════════════
-    # Round 3: Synthesis
+    # Rounds 3 to N-1: Rebuttals (v7.13.2)
+    # ═══════════════════════════════════════════════════════════════════════
+    if [[ $rounds -gt 3 ]]; then
+        for ((i=3; i<rounds; i++)); do
+            echo ""
+            echo -e "${CYAN}[Round $i/$rounds] Rebuttal and refinement...${NC}"
+            echo ""
+
+            # Codex defends and refines
+            local codex_rebuttal
+            codex_rebuttal=$(run_agent_sync "codex" "
+$no_explore_constraint
+
+You are DEFENDING your implementation against critique.
+
+YOUR ORIGINAL PROPOSAL:
+$codex_proposal
+
+CRITIQUE YOU RECEIVED:
+$claude_critique
+
+Respond to the critique by:
+1. Acknowledging valid points and proposing improvements
+2. Defending against unfair or incorrect criticism with evidence
+3. Refining your approach based on valid feedback
+
+Be specific, technical, and constructive. Focus on improving the solution." 60 "implementer" "grapple")
+
+            # Claude defends and refines
+            local claude_rebuttal
+            claude_rebuttal=$(run_agent_sync "claude" "
+$no_explore_constraint
+
+You are DEFENDING your implementation against critique.
+
+YOUR ORIGINAL PROPOSAL:
+$claude_proposal
+
+CRITIQUE YOU RECEIVED:
+$codex_critique
+
+Respond to the critique by:
+1. Acknowledging valid points and proposing improvements
+2. Defending against unfair or incorrect criticism with evidence
+3. Refining your approach based on valid feedback
+
+Be specific, technical, and constructive. Focus on improving the solution." 60 "researcher" "grapple")
+
+            # Append rebuttals to proposals
+            codex_proposal="${codex_proposal}
+
+### Rebuttal (Round $i)
+${codex_rebuttal}"
+
+            claude_proposal="${claude_proposal}
+
+### Rebuttal (Round $i)
+${claude_rebuttal}"
+        done
+    fi
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # Final Round: Synthesis
     # ═══════════════════════════════════════════════════════════════════════
     echo ""
-    echo -e "${CYAN}[Round 3/3] Synthesizing debate...${NC}"
+    echo -e "${CYAN}[Round $rounds/$rounds] Final synthesis...${NC}"
     echo ""
 
     local synthesis
     synthesis=$(run_agent_sync "claude" "
 $no_explore_constraint
 
-You are the JUDGE resolving a debate between two AI models.
+You are the JUDGE resolving a $rounds-round debate between two AI models.
 
 CODEX PROPOSAL:
 $codex_proposal
@@ -9338,15 +9463,26 @@ $claude_proposal
 CODEX'S CRITIQUE OF CLAUDE:
 $codex_critique
 
-TASK: Determine the best approach by:
-1. Which proposal is stronger overall?
-2. Which critiques are valid?
-3. What's the FINAL recommended implementation?
+TASK: Provide a comprehensive final judgment with the following sections:
 
-Output in this format:
-WINNER: [codex|claude|hybrid]
-VALID_CRITIQUES: [list which critiques to incorporate]
-FINAL_IMPLEMENTATION: [the best code/solution, incorporating valid feedback]" 90 "synthesizer" "grapple")
+## Winner & Rationale
+[Which approach is stronger and why - codex, claude, or hybrid]
+
+## Valid Critiques
+[List which critiques from each side were valid and should be incorporated]
+
+## Final Recommended Implementation
+[The best solution, synthesizing both perspectives with concrete code/approach]
+
+## Key Trade-offs
+[What are the remaining trade-offs the user should understand]
+
+## Next Steps
+1. [Concrete action item]
+2. [Concrete action item]
+3. [Concrete action item]
+
+Be specific and actionable. Format as markdown." 120 "synthesizer" "grapple")
 
     # ═══════════════════════════════════════════════════════════════════════
     # Save results
@@ -9356,6 +9492,7 @@ FINAL_IMPLEMENTATION: [the best code/solution, incorporating valid feedback]" 90
 # Crossfire Review: $prompt
 
 **Generated:** $(date)
+**Rounds:** $rounds
 **Principles:** $principles
 
 ---
@@ -9380,16 +9517,37 @@ $codex_critique
 
 ---
 
-## Round 3: Synthesis & Winner
+## Round $rounds: Final Synthesis & Winner
 $synthesis
 EOF
 
+    # ═══════════════════════════════════════════════════════════════════════
+    # Conclusion Ceremony (v7.13.2 - Issue #10)
+    # ═══════════════════════════════════════════════════════════════════════
     echo ""
     echo -e "${GREEN}╔═══════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${GREEN}║  ✓ Crossfire debate complete                             ║${NC}"
+    echo -e "${GREEN}║  ✅ DEBATE CONCLUDED                                      ║${NC}"
     echo -e "${GREEN}╚═══════════════════════════════════════════════════════════╝${NC}"
     echo ""
-    echo -e "  Result: ${CYAN}$result_file${NC}"
+    echo -e "  ${GREEN}✓${NC} $rounds rounds completed"
+    echo -e "  ${GREEN}✓${NC} Both perspectives analyzed"
+    echo -e "  ${GREEN}✓${NC} Final synthesis generated"
+    echo ""
+    echo -e "${CYAN}📊 Debate Summary:${NC}"
+    echo -e "  Topic: ${prompt:0:70}..."
+    echo -e "  Participants: ${RED}Codex${NC} (implementer) vs ${BLUE}Claude${NC} (researcher)"
+    echo -e "  Principles: $principles"
+    echo ""
+    echo -e "${YELLOW}💡 Next Steps:${NC}"
+    echo "  1. Review the synthesis above for the recommended approach"
+    echo "  2. Check the complete debate transcript: $result_file"
+    echo "  3. Implement the winning solution or hybrid approach"
+    echo ""
+    echo -e "${CYAN}📁 Results:${NC}"
+    echo -e "  Full debate: ${CYAN}$result_file${NC}"
+    if [[ -n "${CLAUDE_CODE_SESSION:-}" ]]; then
+        echo -e "  Session: ${DIM}$CLAUDE_CODE_SESSION${NC}"
+    fi
     echo ""
 
     # Record usage
@@ -10651,18 +10809,42 @@ case "$COMMAND" in
         fi
         if [[ $# -lt 1 ]]; then
             log ERROR "Missing prompt for grapple review"
-            echo "Usage: $(basename "$0") grapple [--principles TYPE] <prompt>"
-            echo "       $(basename "$0") grapple --principles security \"implement password reset\""
+            echo "Usage: $(basename "$0") grapple [OPTIONS] <prompt>"
+            echo ""
+            echo "Options:"
+            echo "  -r, --rounds N         Number of debate rounds (3-7, default: 3)"
+            echo "  --principles TYPE      Principle set to apply (default: general)"
+            echo ""
+            echo "Examples:"
+            echo "  $(basename "$0") grapple \"redis vs memcached\""
+            echo "  $(basename "$0") grapple -r 5 \"microservices vs monolith\""
+            echo "  $(basename "$0") grapple --principles security \"implement password reset\""
             echo ""
             echo "Principles: general, security, performance, maintainability"
             exit 1
         fi
+
+        # Parse flags (v7.13.2)
         principles="general"
-        if [[ "$1" == "--principles" ]]; then
-            principles="$2"
-            shift 2
-        fi
-        grapple_debate "$*" "$principles"
+        rounds=3
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                --principles)
+                    principles="$2"
+                    shift 2
+                    ;;
+                -r|--rounds)
+                    rounds="$2"
+                    shift 2
+                    ;;
+                *)
+                    # Remaining args are the prompt
+                    break
+                    ;;
+            esac
+        done
+
+        grapple_debate "$*" "$principles" "$rounds"
         ;;
     squeeze|red-team)
         # Red Team security review: Blue Team defends, Red Team attacks
