@@ -156,3 +156,65 @@ Always be mindful that external CLIs cost money:
 - 🔵 Claude: Included with Claude Code subscription
 
 For simple tasks that don't need multi-AI perspectives, suggest using Claude directly without orchestration.
+
+---
+
+## Modular Configuration (Claude Code v2.1.20+)
+
+Claude Octopus uses a modular CLAUDE.md structure for better organization and context management.
+
+### Directory Structure
+
+```
+claude-octopus/
+├── CLAUDE.md                    # Main instructions (this file)
+├── config/
+│   ├── providers/
+│   │   ├── codex/CLAUDE.md     # Codex-specific instructions
+│   │   ├── gemini/CLAUDE.md    # Gemini-specific instructions
+│   │   └── claude/CLAUDE.md    # Claude-specific instructions
+│   └── workflows/CLAUDE.md      # Double Diamond methodology
+```
+
+### Loading Additional Context
+
+Use `--add-dir` flag to load specific configuration modules:
+
+**Load provider-specific context:**
+```bash
+claude --add-dir=config/providers/codex    # When working with Codex
+claude --add-dir=config/providers/gemini   # When working with Gemini
+```
+
+**Load workflow methodology:**
+```bash
+claude --add-dir=config/workflows  # Load Double Diamond instructions
+```
+
+**Load multiple modules:**
+```bash
+claude \
+  --add-dir=config/providers/codex \
+  --add-dir=config/providers/gemini \
+  --add-dir=config/workflows
+```
+
+### Benefits of Modular Configuration
+
+1. **Reduced Context Pollution** - Load only what's needed
+2. **Environment-Specific** - Different configs for different scenarios
+3. **Maintainability** - Update provider configs independently
+4. **Clarity** - Separate concerns (providers vs workflows vs core)
+
+### When to Load Each Module
+
+| Module | When to Load |
+|--------|--------------|
+| `providers/codex` | Working specifically with Codex CLI integration |
+| `providers/gemini` | Working specifically with Gemini CLI integration |
+| `providers/claude` | Understanding Claude's orchestrator role |
+| `workflows` | Learning about Double Diamond methodology |
+
+### Note
+
+The main `CLAUDE.md` (this file) contains essential visual indicators and workflow triggers that are **always loaded** by default.
