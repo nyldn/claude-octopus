@@ -11,8 +11,8 @@
     {
       "name": "claude-octopus",
       "source": "./",
-      "description": "v7.13.0 - Claude Code v2.1.16+ features: Task Management, Session Variables, MCP Detection, Background Permissions, Hook Enhancements, Modular CLAUDE.md. BREAKING: Requires Claude Code v2.1.16+. Commands '/octo:*'. Run /octo:setup for guided setup.",
-      "version": "7.13.0",
+      "description": "v7.13.1 - New: Configurable Codex sandbox for mounted filesystems (SSHFS/NFS/FUSE). Claude Code v2.1.16+ features: Task Management, Session Variables, MCP Detection, Background Permissions. BREAKING: Requires Claude Code v2.1.16+. Commands '/octo:*'. Run /octo:setup.",
+      "version": "7.13.1",
       "author": {
         "name": "nyldn"
       },
