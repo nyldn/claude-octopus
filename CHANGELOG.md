@@ -2,6 +2,36 @@
 
 All notable changes to Claude Octopus will be documented in this file.
 
+## [7.13.1] - 2026-01-27
+
+### ✨ New Features
+
+#### Configurable Codex Sandbox Mode ([#9](https://github.com/nyldn/claude-octopus/issues/9))
+- Add `OCTOPUS_CODEX_SANDBOX` environment variable for sandbox configuration
+- Supports three modes: `workspace-write` (default), `read-only`, `danger-full-access`
+- Enables workflows on mounted filesystems (SSHFS, NFS, FUSE)
+- Automatic warnings when using non-default sandbox modes
+- Comprehensive documentation in `docs/SANDBOX-CONFIGURATION.md`
+
+### 🐛 Bug Fixes
+
+- Close installation issues #11, #12 (already fixed in v7.11.1)
+- Close duplicate PR #10 (fix already merged)
+
+### 📚 Documentation
+
+- Added `docs/SANDBOX-CONFIGURATION.md` - Complete sandbox configuration guide
+- Added security considerations for non-default sandbox modes
+- Added troubleshooting guide for mounted filesystem access
+- Updated issue responses with roadmap and implementation plans
+
+### 🔄 Updated
+
+- Respond to enhancement requests with implementation plans
+- Add labels to feature requests for tracking
+
+---
+
 ## [7.13.0] - 2026-01-27
 
 ### 🎯 Requirements
