@@ -11,8 +11,8 @@
     {
       "name": "claude-octopus",
       "source": "./",
-      "description": "v7.12.1 - NEW: Claude Code v2.1.12+ integration with native task management, fork context isolation, agent field routing, enhanced hooks. Added /octo:loop command. 100% backward compatible. Commands '/octo:*'. Run /octo:setup for guided setup.",
-      "version": "7.12.1",
+      "description": "v7.13.0 - Claude Code v2.1.16+ features: Task Management, Session Variables, MCP Detection, Background Permissions, Hook Enhancements, Modular CLAUDE.md. BREAKING: Requires Claude Code v2.1.16+. Commands '/octo:*'. Run /octo:setup for guided setup.",
+      "version": "7.13.0",
       "author": {
         "name": "nyldn"
       },
@@ -32,7 +32,7 @@
         "essential-tools",
         "playwright",
         "shellcheck",
-        "claude-code-2.1.10",
+        "claude-code-2.1.16",
         "session-aware",
         "discipline-skills",
         "tdd",
