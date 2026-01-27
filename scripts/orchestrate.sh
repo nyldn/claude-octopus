@@ -346,16 +346,29 @@ source "${SCRIPT_DIR}/async-tmux-features.sh"
 # - Google Gemini 3.0: gemini-3-pro-preview, gemini-3-flash-preview, gemini-3-pro-image-preview
 get_agent_command() {
     local agent_type="$1"
+
+    # Configurable sandbox mode (v7.13.1 - Issue #9)
+    # Priority: OCTOPUS_CODEX_SANDBOX env var > default (workspace-write)
+    # Valid values: workspace-write (default), read-only, danger-full-access
+    local codex_sandbox="${OCTOPUS_CODEX_SANDBOX:-workspace-write}"
+    local sandbox_flag="--sandbox ${codex_sandbox}"
+
+    # Warn if non-default sandbox mode is used
+    if [[ "$codex_sandbox" != "workspace-write" && "$codex_sandbox" != "write" ]]; then
+        log "WARN" "Using Codex sandbox mode: ${codex_sandbox}"
+        log "WARN" "This may have security implications. See README for details."
+    fi
+
     case "$agent_type" in
-        codex) echo "codex exec" ;;                               # Uses default model (o3/gpt-4.1)
-        codex-standard) echo "codex exec" ;;                      # Standard tier
-        codex-max) echo "codex exec" ;;                           # Premium
-        codex-mini) echo "codex exec" ;;                          # Cost-effective
-        codex-general) echo "codex exec" ;;                       # General tasks
+        codex) echo "codex exec ${sandbox_flag}" ;;              # Uses default model (o3/gpt-4.1)
+        codex-standard) echo "codex exec ${sandbox_flag}" ;;     # Standard tier
+        codex-max) echo "codex exec ${sandbox_flag}" ;;          # Premium
+        codex-mini) echo "codex exec ${sandbox_flag}" ;;         # Cost-effective
+        codex-general) echo "codex exec ${sandbox_flag}" ;;      # General tasks
         gemini) echo "gemini -y -m gemini-3-pro-preview" ;;       # Premium Gemini
         gemini-fast) echo "gemini -y -m gemini-3-flash-preview" ;; # Fast Gemini
         gemini-image) echo "gemini -y -m gemini-3-pro-preview" ;; # Image capable
-        codex-review) echo "codex exec review" ;;                 # Code review mode
+        codex-review) echo "codex exec review ${sandbox_flag}" ;; # Code review mode
         claude) echo "claude --print" ;;                         # Claude Sonnet 4.5
         claude-sonnet) echo "claude --print -m sonnet" ;;        # Claude Sonnet explicit
         openrouter) echo "openrouter_execute" ;;                 # OpenRouter API (v4.8)
@@ -370,16 +383,20 @@ get_agent_command() {
 get_agent_command_array() {
     local agent_type="$1"
     local -n _cmd_array="$2"  # nameref for array output
+
+    # Configurable sandbox mode (v7.13.1 - Issue #9)
+    local codex_sandbox="${OCTOPUS_CODEX_SANDBOX:-workspace-write}"
+
     case "$agent_type" in
-        codex)          _cmd_array=(codex exec) ;;
-        codex-standard) _cmd_array=(codex exec) ;;
-        codex-max)      _cmd_array=(codex exec) ;;
-        codex-mini)     _cmd_array=(codex exec) ;;
-        codex-general)  _cmd_array=(codex exec) ;;
+        codex)          _cmd_array=(codex exec --sandbox "$codex_sandbox") ;;
+        codex-standard) _cmd_array=(codex exec --sandbox "$codex_sandbox") ;;
+        codex-max)      _cmd_array=(codex exec --sandbox "$codex_sandbox") ;;
+        codex-mini)     _cmd_array=(codex exec --sandbox "$codex_sandbox") ;;
+        codex-general)  _cmd_array=(codex exec --sandbox "$codex_sandbox") ;;
         gemini)         _cmd_array=(gemini -y -m gemini-3-pro-preview) ;;
         gemini-fast)    _cmd_array=(gemini -y -m gemini-3-flash-preview) ;;
         gemini-image)   _cmd_array=(gemini -y -m gemini-3-pro-preview) ;;
-        codex-review)   _cmd_array=(codex exec review) ;;
+        codex-review)   _cmd_array=(codex exec review --sandbox "$codex_sandbox") ;;
         claude)         _cmd_array=(claude --print) ;;
         claude-sonnet)  _cmd_array=(claude --print -m sonnet) ;;
         openrouter)     _cmd_array=(openrouter_execute) ;;       # OpenRouter API (v4.8)

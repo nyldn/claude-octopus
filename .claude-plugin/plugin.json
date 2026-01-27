@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "7.13.0",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.13.0) Integrates Claude Code v2.1.16+ features: Task Management, Session Variables, MCP Detection, Background Permissions. Commands '/octo:*'. Run /octo:setup for guided setup.",
+  "version": "7.13.1",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.13.1) New: Configurable Codex sandbox for mounted filesystems. Integrates Claude Code v2.1.16+ features. Commands '/octo:*'. Run /octo:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },
