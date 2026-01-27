@@ -368,7 +368,7 @@ get_agent_command() {
         gemini) echo "gemini -y -m gemini-3-pro-preview" ;;       # Premium Gemini
         gemini-fast) echo "gemini -y -m gemini-3-flash-preview" ;; # Fast Gemini
         gemini-image) echo "gemini -y -m gemini-3-pro-preview" ;; # Image capable
-        codex-review) echo "codex exec review ${sandbox_flag}" ;; # Code review mode
+        codex-review) echo "codex exec review" ;; # Code review mode (no sandbox support)
         claude) echo "claude --print" ;;                         # Claude Sonnet 4.5
         claude-sonnet) echo "claude --print -m sonnet" ;;        # Claude Sonnet explicit
         openrouter) echo "openrouter_execute" ;;                 # OpenRouter API (v4.8)
@@ -396,7 +396,7 @@ get_agent_command_array() {
         gemini)         _cmd_array=(gemini -y -m gemini-3-pro-preview) ;;
         gemini-fast)    _cmd_array=(gemini -y -m gemini-3-flash-preview) ;;
         gemini-image)   _cmd_array=(gemini -y -m gemini-3-pro-preview) ;;
-        codex-review)   _cmd_array=(codex exec review --sandbox "$codex_sandbox") ;;
+        codex-review)   _cmd_array=(codex exec review) ;; # No sandbox support
         claude)         _cmd_array=(claude --print) ;;
         claude-sonnet)  _cmd_array=(claude --print -m sonnet) ;;
         openrouter)     _cmd_array=(openrouter_execute) ;;       # OpenRouter API (v4.8)
@@ -8484,7 +8484,36 @@ run_agent_sync() {
     # SECURITY: Use array-based execution to prevent word-splitting vulnerabilities
     local -a cmd_array
     read -ra cmd_array <<< "$cmd"
-    run_with_timeout "$timeout_secs" "${cmd_array[@]}" "$enhanced_prompt" 2>/dev/null
+
+    # Capture output and exit code separately
+    local output
+    local exit_code
+    local temp_err="${RESULTS_DIR}/.tmp-agent-error-$$.err"
+
+    output=$(run_with_timeout "$timeout_secs" "${cmd_array[@]}" "$enhanced_prompt" 2>"$temp_err")
+    exit_code=$?
+
+    # Check exit code and handle errors
+    if [[ $exit_code -ne 0 ]]; then
+        log ERROR "Agent $agent_type failed with exit code $exit_code (role=$role, phase=$phase)"
+        if [[ -s "$temp_err" ]]; then
+            log ERROR "Error details: $(cat "$temp_err")"
+        fi
+        rm -f "$temp_err"
+        return $exit_code
+    fi
+
+    # Check if output is suspiciously empty or placeholder
+    if [[ -z "$output" || "$output" == "Provider available" ]]; then
+        log WARN "Agent $agent_type returned empty or placeholder output (role=$role, phase=$phase)"
+        if [[ -s "$temp_err" ]]; then
+            log WARN "Possible issue: $(cat "$temp_err")"
+        fi
+    fi
+
+    rm -f "$temp_err"
+    echo "$output"
+    return 0
 }
 
 # Phase 1: PROBE (Discover) - Parallel research with synthesis
@@ -9316,7 +9345,15 @@ $prompt
 ${principle_text:+Adhere to these principles:
 $principle_text}
 
-Output your implementation with clear reasoning. Be thorough and practical." 90 "implementer" "grapple")
+Output your implementation with clear reasoning. Be thorough and practical." 120 "implementer" "grapple")
+
+    if [[ $? -ne 0 || -z "$codex_proposal" ]]; then
+        echo ""
+        echo -e "${RED}❌ Codex proposal generation failed${NC}"
+        echo -e "   Check logs: ${LOGS_DIR}/"
+        log ERROR "Grapple debate failed: Codex proposal empty or error"
+        return 1
+    fi
 
     claude_proposal=$(run_agent_sync "claude" "
 $no_explore_constraint
@@ -9327,7 +9364,15 @@ $prompt
 ${principle_text:+Adhere to these principles:
 $principle_text}
 
-Output your implementation with clear reasoning. Be thorough and practical." 90 "researcher" "grapple")
+Output your implementation with clear reasoning. Be thorough and practical." 120 "researcher" "grapple")
+
+    if [[ $? -ne 0 || -z "$claude_proposal" ]]; then
+        echo ""
+        echo -e "${RED}❌ Claude proposal generation failed${NC}"
+        echo -e "   Check logs: ${LOGS_DIR}/"
+        log ERROR "Grapple debate failed: Claude proposal empty or error"
+        return 1
+    fi
 
     # ═══════════════════════════════════════════════════════════════════════
     # Round 2: Cross-critique
@@ -9355,7 +9400,15 @@ Find at least 3 issues. For each:
 ${principle_text:+Evaluate against these principles:
 $principle_text}
 
-Be harsh but fair. If genuinely good, explain why." 60 "security-auditor" "grapple")
+Be harsh but fair. If genuinely good, explain why." 90 "security-auditor" "grapple")
+
+    if [[ $? -ne 0 || -z "$claude_critique" ]]; then
+        echo ""
+        echo -e "${RED}❌ Claude critique generation failed${NC}"
+        echo -e "   Check logs: ${LOGS_DIR}/"
+        log ERROR "Grapple debate failed: Claude critique empty or error"
+        return 1
+    fi
 
     # Codex critiques Claude's proposal
     codex_critique=$(run_agent_sync "codex-review" "
@@ -9374,7 +9427,15 @@ Find at least 3 issues. For each:
 ${principle_text:+Evaluate against these principles:
 $principle_text}
 
-Be harsh but fair. If genuinely good, explain why." 60 "code-reviewer" "grapple")
+Be harsh but fair. If genuinely good, explain why." 90 "code-reviewer" "grapple")
+
+    if [[ $? -ne 0 || -z "$codex_critique" ]]; then
+        echo ""
+        echo -e "${RED}❌ Codex critique generation failed${NC}"
+        echo -e "   Check logs: ${LOGS_DIR}/"
+        log ERROR "Grapple debate failed: Codex critique empty or error"
+        return 1
+    fi
 
     # ═══════════════════════════════════════════════════════════════════════
     # Rounds 3 to N-1: Rebuttals (v7.13.2)
@@ -9403,7 +9464,15 @@ Respond to the critique by:
 2. Defending against unfair or incorrect criticism with evidence
 3. Refining your approach based on valid feedback
 
-Be specific, technical, and constructive. Focus on improving the solution." 60 "implementer" "grapple")
+Be specific, technical, and constructive. Focus on improving the solution." 120 "implementer" "grapple")
+
+            if [[ $? -ne 0 || -z "$codex_rebuttal" ]]; then
+                echo ""
+                echo -e "${RED}❌ Codex rebuttal generation failed${NC}"
+                echo -e "   Check logs: ${LOGS_DIR}/"
+                log ERROR "Grapple debate failed: Codex rebuttal empty or error (round $i)"
+                return 1
+            fi
 
             # Claude defends and refines
             local claude_rebuttal
@@ -9423,7 +9492,15 @@ Respond to the critique by:
 2. Defending against unfair or incorrect criticism with evidence
 3. Refining your approach based on valid feedback
 
-Be specific, technical, and constructive. Focus on improving the solution." 60 "researcher" "grapple")
+Be specific, technical, and constructive. Focus on improving the solution." 120 "researcher" "grapple")
+
+            if [[ $? -ne 0 || -z "$claude_rebuttal" ]]; then
+                echo ""
+                echo -e "${RED}❌ Claude rebuttal generation failed${NC}"
+                echo -e "   Check logs: ${LOGS_DIR}/"
+                log ERROR "Grapple debate failed: Claude rebuttal empty or error (round $i)"
+                return 1
+            fi
 
             # Append rebuttals to proposals
             codex_proposal="${codex_proposal}
@@ -9482,7 +9559,15 @@ TASK: Provide a comprehensive final judgment with the following sections:
 2. [Concrete action item]
 3. [Concrete action item]
 
-Be specific and actionable. Format as markdown." 120 "synthesizer" "grapple")
+Be specific and actionable. Format as markdown." 150 "synthesizer" "grapple")
+
+    if [[ $? -ne 0 || -z "$synthesis" ]]; then
+        echo ""
+        echo -e "${RED}❌ Synthesis generation failed${NC}"
+        echo -e "   Check logs: ${LOGS_DIR}/"
+        log ERROR "Grapple debate failed: Synthesis empty or error"
+        return 1
+    fi
 
     # ═══════════════════════════════════════════════════════════════════════
     # Save results
