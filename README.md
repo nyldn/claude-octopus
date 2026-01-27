@@ -173,6 +173,81 @@ This is useful during active development or when you need to reproduce a specifi
 
 ---
 
+## 🌟 Major Features
+
+### Multi-AI Orchestration
+- **Parallel execution**: Run Codex, Gemini, and Claude simultaneously for diverse perspectives
+- **Smart routing**: Automatically selects the best AI model based on task type
+- **Provider flexibility**: Works with any combination of providers (only one required!)
+- **Cost tracking**: Monitors token usage and costs across all providers
+
+### Double Diamond Methodology
+Four structured phases for any project:
+
+1. **🔍 Discover (Probe)** - Multi-AI research and exploration
+   - Parallel information gathering from multiple sources
+   - Synthesizes findings from all AI perspectives
+   - Identifies patterns and opportunities
+
+2. **🎯 Define (Grasp)** - Requirements clarification and scoping
+   - Consensus-based problem definition
+   - Multi-AI validation of requirements
+   - Clear boundaries and acceptance criteria
+
+3. **🛠️ Develop (Tangle)** - Implementation with quality gates
+   - Multiple implementation approaches
+   - Cross-model code review
+   - 75% consensus threshold before delivery
+
+4. **✅ Deliver (Ink)** - Validation and quality assurance
+   - Comprehensive testing strategies
+   - Security audits across all models
+   - Final synthesis and recommendations
+
+### AI Debate System (v7.13.3 Enhanced)
+- **Structured debates**: 3-5 round adversarial reviews between AI models
+- **Cross-critique**: Each model critiques the other's proposals
+- **Multi-round rebuttals**: Extended debates with back-and-forth refinement
+- **Robust error handling**: Clear error messages, no silent failures
+- **Increased timeouts**: 120-150s for complex analysis
+- **Validated outputs**: All agent responses checked before proceeding
+- **100% completion rate**: Thoroughly tested multi-round debate reliability
+
+### Context-Aware Intelligence
+- **Dev vs Knowledge mode detection**: Automatically adapts workflows
+- **Session awareness**: Tracks ongoing work and maintains context
+- **Task management integration**: Claude Code v2.1.20+ task tracking
+- **Intent recognition**: Understands natural language task descriptions
+
+### Quality Assurance
+- **Consensus thresholds**: 75% agreement required for delivery
+- **Adversarial review**: AI models challenge each other's work
+- **Security-first**: Built-in security auditing across all phases
+- **Principle-based**: Apply coding principles (general, performance, security, maintainability)
+
+### Developer Experience
+- **Natural language interface**: Just say "octo research X" or "octo build Y"
+- **Visual feedback**: Emojis and progress indicators (🔴 Codex, 🟡 Gemini, 🔵 Claude)
+- **Comprehensive logging**: Full audit trail of all AI interactions
+- **Result persistence**: All outputs saved to `~/.claude-octopus/results/`
+- **Background processing**: Long-running tasks don't block your workflow
+
+### Extensibility
+- **30+ skills**: Specialized workflows for specific scenarios
+- **28 commands**: Full command palette for all capabilities
+- **MCP support**: Integrates with Model Context Protocol
+- **Plugin architecture**: Extends Claude Code seamlessly
+
+### Recent Improvements (v7.13.3)
+- ✅ **Robust debate error handling**: No more silent failures
+- ✅ **Validation at every step**: 7 checkpoints in debate workflows
+- ✅ **Optimized timeouts**: 120-150s for complex multi-round analysis
+- ✅ **Fixed codex-review bug**: Removed invalid sandbox flag
+- ✅ **100% test success**: All debate scenarios pass reliability testing
+- ✅ **Detailed error logs**: Full context for debugging (agent, role, phase, exit codes)
+
+---
+
 ## Which Tentacle Does What?
 
 Claude Octopus has different "tentacles" (workflows) for different tasks:
