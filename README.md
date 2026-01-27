@@ -6,7 +6,8 @@
   <img src="https://img.shields.io/badge/Claude_Code-Plugin-blueviolet" alt="Claude Code Plugin">
   <img src="https://img.shields.io/badge/Double_Diamond-Design_Thinking-orange" alt="Double Diamond">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
-  <img src="https://img.shields.io/badge/Version-7.12.1-blue" alt="Version 7.12.1">
+  <img src="https://img.shields.io/badge/Version-7.13.0-blue" alt="Version 7.13.0">
+  <img src="https://img.shields.io/badge/Claude_Code-v2.1.16+-blueviolet" alt="Requires Claude Code v2.1.16+">
 </p>
 
 # Claude Octopus
@@ -81,9 +82,14 @@ Use the HTTPS URL format (already shown above). The shorthand `nyldn/claude-octo
    tail -100 ~/.claude/debug/*.txt | grep -i "claude-octopus\|octo\|error"
    ```
 
-4. Make sure you're on Claude Code v2.1.10 or later (from terminal):
+4. Make sure you're on Claude Code v2.1.16 or later (from terminal):
    ```bash
-   claude --version
+   claude --version  # Should be v2.1.16 or higher
+   ```
+
+   **Upgrade if needed:**
+   ```bash
+   claude update
    ```
 
 </details>

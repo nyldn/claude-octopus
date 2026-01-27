@@ -12,7 +12,8 @@
         },
         {
           "type": "command",
-          "command": "${CLAUDE_PLUGIN_ROOT}/hooks/provider-routing-validator.sh"
+          "command": "${CLAUDE_PLUGIN_ROOT}/hooks/provider-routing-validator.sh",
+          "additionalContext": "Session: ${CLAUDE_SESSION_ID}, Workflow: ${OCTOPUS_WORKFLOW_PHASE:-unknown}"
         }
       ]
     },
@@ -96,7 +97,13 @@
       "hooks": [
         {
           "type": "command",
-          "command": "${CLAUDE_PLUGIN_ROOT}/hooks/session-sync.sh"
+          "command": "${CLAUDE_PLUGIN_ROOT}/hooks/session-sync.sh",
+          "additionalContext": "Claude Code Session: ${CLAUDE_SESSION_ID}"
+        },
+        {
+          "type": "command",
+          "command": "${CLAUDE_PLUGIN_ROOT}/scripts/session-manager.sh export",
+          "additionalContext": "Initializing Octopus session variables for multi-provider orchestration"
         }
       ]
     }
