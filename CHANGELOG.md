@@ -2,6 +2,97 @@
 
 All notable changes to Claude Octopus will be documented in this file.
 
+## [7.13.0] - 2026-01-27
+
+### 🎯 Requirements
+- **BREAKING**: Now requires Claude Code v2.1.16 or higher
+- Upgrade with: `claude update`
+
+### ✨ New Features
+
+#### Task Management System (v2.1.16+)
+- Automatic task creation and tracking for all workflow phases
+- Task dependencies ensure proper phase execution order
+- Tasks visible in Claude Code's task list (`/tasks`)
+- Task deletion capability via `TaskUpdate` tool
+
+#### Session Variable Tracking (v2.1.9+)
+- Enhanced session isolation with unique session IDs
+- Per-session result directories for better organization
+- Provider-specific session tracking (Codex, Gemini, Claude)
+- Session metadata stored in `.session-metadata.json`
+
+#### MCP Dynamic Provider Detection (v2.1.0+)
+- Fast provider capability checks using MCP `list_changed` notifications
+- Automatic fallback to command-line detection when MCP unavailable
+- Significantly faster workflow startup times
+- Better error messages when providers unavailable
+
+#### Background Agent Permissions (v2.1.19+)
+- User permission prompts before background AI operations
+- Estimated API cost displayed before execution
+- Respects autonomy mode settings (supervised/semi-autonomous/autonomous)
+- Background operation logging for audit trails
+
+#### Hook System Enhancements (v2.1.9+)
+- Hooks now support `additionalContext` parameter
+- Session-aware hook execution
+- Enhanced provider routing validation
+- Better debugging information in hook output
+
+#### Modular CLAUDE.md Configuration (v2.1.20+)
+- CLAUDE.md split into modular provider and workflow files
+- Provider-specific configs: `config/providers/{codex,gemini,claude}/CLAUDE.md`
+- Workflow methodology: `config/workflows/CLAUDE.md`
+- Load specific modules with `--add-dir` flag
+- Reduces context pollution, loads only what's needed
+
+### 🛠️ Helper Scripts Added
+
+- `scripts/task-manager.sh` - Task creation, tracking, and management
+- `scripts/session-manager.sh` - Session variable export and cleanup
+- `scripts/mcp-provider-detection.sh` - MCP-based provider detection
+- `scripts/permissions-manager.sh` - Background permission handling
+
+### 📚 Documentation
+
+- Added `MIGRATION-7.13.0.md` - Complete upgrade guide
+- Updated README.md with new version requirements
+- Enhanced CLAUDE.md with modular configuration documentation
+- Provider-specific documentation in `config/providers/`
+- Workflow methodology documentation in `config/workflows/`
+
+### 🔄 Updated
+
+- README.md: Updated version badge to 7.13.0
+- README.md: Added Claude Code v2.1.16+ requirement badge
+- package.json: Bumped version to 7.13.0
+- hooks.json: Enhanced with `additionalContext` support
+
+### 🎨 Improvements
+
+- Faster workflow initialization with MCP detection
+- Better cost transparency with permission prompts
+- Clearer workflow progress with task tracking
+- More organized outputs with session isolation
+- Modular configuration for reduced context usage
+
+### 📝 Migration Notes
+
+Existing users should:
+1. Upgrade Claude Code to v2.1.16+: `claude update`
+2. Update plugin: `/plugin update claude-octopus`
+3. Run setup: `/octo:setup`
+4. See `MIGRATION-7.13.0.md` for full details
+
+### 🐛 Bug Fixes
+
+- Fixed session ID tracking across workflow phases
+- Improved provider availability detection reliability
+- Enhanced error handling for missing providers
+
+---
+
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
