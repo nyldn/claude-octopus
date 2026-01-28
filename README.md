@@ -6,7 +6,7 @@
   <img src="https://img.shields.io/badge/Claude_Code-Plugin-blueviolet" alt="Claude Code Plugin">
   <img src="https://img.shields.io/badge/Double_Diamond-Design_Thinking-orange" alt="Double Diamond">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
-  <img src="https://img.shields.io/badge/Version-7.13.3-blue" alt="Version 7.13.3">
+  <img src="https://img.shields.io/badge/Version-7.14.0-blue" alt="Version 7.14.0">
   <img src="https://img.shields.io/badge/Claude_Code-v2.1.20+-blueviolet" alt="Requires Claude Code v2.1.20+">
 </p>
 
@@ -204,7 +204,7 @@ Four structured phases for any project:
    - Security audits across all models
    - Final synthesis and recommendations
 
-### AI Debate System (v7.13.3 Enhanced)
+### AI Debate System (v7.13.3+ Enhanced)
 - **Structured debates**: 3-5 round adversarial reviews between AI models
 - **Cross-critique**: Each model critiques the other's proposals
 - **Multi-round rebuttals**: Extended debates with back-and-forth refinement
@@ -238,7 +238,11 @@ Four structured phases for any project:
 - **MCP support**: Integrates with Model Context Protocol
 - **Plugin architecture**: Extends Claude Code seamlessly
 
-### Recent Improvements (v7.13.3)
+### Recent Improvements (v7.14.0)
+
+**Interactive Research UX** - Deep research skill now asks 3 clarifying questions before execution (depth, focus, format), displays mandatory cost transparency banners, and supports optional task agent integration for codebase context.
+
+### Previous Updates (v7.13.3)
 - ✅ **Robust debate error handling**: No more silent failures
 - ✅ **Validation at every step**: 7 checkpoints in debate workflows
 - ✅ **Optimized timeouts**: 120-150s for complex multi-round analysis
