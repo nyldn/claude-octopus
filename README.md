@@ -180,7 +180,11 @@ Multi-AI features simply won't activate without external providers configured.
 
 ### How much does this actually cost?
 
-**External AI calls use your API keys:**
+**Recommended: Use OAuth subscriptions for predictable costs:**
+- Codex (OpenAI): Fixed monthly subscription (~$20-50/month)
+- Gemini (Google): Fixed pricing or Google Cloud quota
+
+**Alternative: Pay-per-token with API keys:**
 - Codex (OpenAI): ~$0.01-0.05 per query
 - Gemini (Google): ~$0.01-0.03 per query
 - Claude Code subagents: Included (no extra cost)
@@ -430,9 +434,9 @@ You see exactly what will run and what it costs BEFORE it starts.
 - ✅ `octo debate GraphQL vs REST`
 
 **Visual feedback** - Always know what's running and what it costs:
-- 🔴 Codex CLI (uses your OPENAI_API_KEY)
-- 🟡 Gemini CLI (uses your GEMINI_API_KEY)
-- 🔵 Claude (included with Claude Code)
+- 🔴 Codex CLI (OAuth subscription recommended, or API key)
+- 🟡 Gemini CLI (OAuth subscription recommended, or API key)
+- 🔵 Claude (included with Claude Code subscription)
 
 **Comprehensive logging** - Full audit trail saved to `~/.claude-octopus/results/[session-id]/`:
 - `orchestrate.log` - Full execution trace
