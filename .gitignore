@@ -72,8 +72,6 @@ temp/
 
 # Development workspace (consolidated)
 # All dev artifacts, reports, benchmarks, and WIP files
-.dev/
-dev-workspace/
 
 # Development working files
 skill.md
@@ -87,5 +85,4 @@ test-results*.xml
 # Coverage reports
 coverage-report.txt
 coverage-report.html
-.dev/
 *.bak
