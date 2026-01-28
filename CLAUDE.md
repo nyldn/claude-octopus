@@ -159,6 +159,50 @@ For simple tasks that don't need multi-AI perspectives, suggest using Claude dir
 
 ---
 
+## Enforcement Best Practices (Mandatory for Workflow Skills)
+
+Skills that invoke orchestrate.sh MUST use the **Validation Gate Pattern** to ensure proper execution.
+
+### Required Pattern
+
+1. **Add to frontmatter:**
+   ```yaml
+   execution_mode: enforced
+   pre_execution_contract:
+     - interactive_questions_answered
+     - visual_indicators_displayed
+   validation_gates:
+     - orchestrate_sh_executed
+     - synthesis_file_exists
+   ```
+
+2. **Add EXECUTION CONTRACT section** with:
+   - Blocking steps (numbered, mandatory)
+   - Explicit Bash tool calls (not just markdown examples)
+   - Validation gates that verify execution
+   - Clear prohibition statements (what NOT to do)
+
+3. **Use imperative language:**
+   - ✅ "You MUST execute..."
+   - ✅ "PROHIBITED from..."
+   - ✅ "CANNOT SKIP..."
+   - ❌ "You should execute..."
+   - ❌ "It's recommended to..."
+   - ❌ "Consider calling..."
+
+4. **Validate artifacts:**
+   - Check synthesis files exist and are recent
+   - Verify via filesystem checks, not assumptions
+   - Fail explicitly if validation doesn't pass
+
+### Example: skill-deep-research.md
+
+See `/Users/chris/git/claude-octopus/.claude/skills/skill-deep-research.md` for reference implementation of the Validation Gate Pattern.
+
+All future orchestrate.sh-based skills should follow this pattern.
+
+---
+
 ## Modular Configuration (Claude Code v2.1.20+)
 
 Claude Octopus uses a modular CLAUDE.md structure for better organization and context management.
