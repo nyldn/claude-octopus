@@ -29,6 +29,13 @@ context: fork
 task_management: true
 task_dependencies:
   - flow-develop
+execution_mode: enforced
+pre_execution_contract:
+  - context_detected
+  - visual_indicators_displayed
+validation_gates:
+  - orchestrate_sh_executed
+  - validation_file_exists
 trigger: |
   AUTOMATICALLY ACTIVATE when user requests validation or review:
   - "review X" or "validate Y" or "test Z"
@@ -43,6 +50,145 @@ trigger: |
   - Research tasks (use probe-workflow)
   - Requirement definition (use grasp-workflow)
   - Built-in commands (/plugin, /help, etc.)
+---
+
+## ⚠️ EXECUTION CONTRACT (MANDATORY - CANNOT SKIP)
+
+This skill uses **ENFORCED execution mode**. You MUST follow this exact sequence.
+
+### STEP 1: Detect Work Context (MANDATORY)
+
+Analyze the user's prompt and project to determine context:
+
+**Knowledge Context Indicators**:
+- Document terms: "report", "presentation", "PRD", "proposal", "document", "brief"
+- Quality terms: "argument", "evidence", "clarity", "completeness", "narrative"
+
+**Dev Context Indicators**:
+- Code terms: "code", "implementation", "API", "endpoint", "function", "module"
+- Quality terms: "security", "performance", "tests", "coverage", "bugs"
+
+**Also check**: What is being reviewed? Code files → Dev, Documents → Knowledge
+
+**Capture context_type = "Dev" or "Knowledge"**
+
+**DO NOT PROCEED TO STEP 2 until context determined.**
+
+---
+
+### STEP 2: Display Visual Indicators (MANDATORY - BLOCKING)
+
+**Check provider availability:**
+
+```bash
+command -v codex &> /dev/null && codex_status="Available ✓" || codex_status="Not installed ✗"
+command -v gemini &> /dev/null && gemini_status="Available ✓" || gemini_status="Not installed ✗"
+```
+
+**Display this banner BEFORE orchestrate.sh execution:**
+
+**For Dev Context:**
+```
+🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider validation mode
+✅ [Dev] Deliver Phase: [Brief description of code review]
+
+Provider Availability:
+🔴 Codex CLI: ${codex_status} - Code quality analysis
+🟡 Gemini CLI: ${gemini_status} - Security and edge cases
+🔵 Claude: Available ✓ - Synthesis and recommendations
+
+💰 Estimated Cost: $0.02-0.08
+⏱️  Estimated Time: 3-7 minutes
+```
+
+**For Knowledge Context:**
+```
+🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider validation mode
+✅ [Knowledge] Deliver Phase: [Brief description of document review]
+
+Provider Availability:
+🔴 Codex CLI: ${codex_status} - Structure and logic analysis
+🟡 Gemini CLI: ${gemini_status} - Content quality and completeness
+🔵 Claude: Available ✓ - Synthesis and recommendations
+
+💰 Estimated Cost: $0.02-0.08
+⏱️  Estimated Time: 3-7 minutes
+```
+
+**Validation:**
+- If BOTH Codex and Gemini unavailable → STOP, suggest: `/octo:setup`
+- If ONE unavailable → Continue with available provider(s)
+- If BOTH available → Proceed normally
+
+**DO NOT PROCEED TO STEP 3 until banner displayed.**
+
+---
+
+### STEP 3: Execute orchestrate.sh deliver (MANDATORY - Use Bash Tool)
+
+**You MUST execute this command via the Bash tool:**
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh deliver "<user's validation request>"
+```
+
+**CRITICAL: You are PROHIBITED from:**
+- ❌ Reviewing directly without calling orchestrate.sh
+- ❌ Doing single-perspective analysis instead of multi-provider
+- ❌ Claiming you're "simulating" the workflow
+- ❌ Proceeding to Step 4 without running this command
+
+**This is NOT optional. You MUST use the Bash tool to invoke orchestrate.sh.**
+
+---
+
+### STEP 4: Verify Execution (MANDATORY - Validation Gate)
+
+**After orchestrate.sh completes, verify it succeeded:**
+
+```bash
+# Find the latest validation file (created within last 10 minutes)
+VALIDATION_FILE=$(find ~/.claude-octopus/results -name "ink-validation-*.md" -mmin -10 2>/dev/null | head -n1)
+
+if [[ -z "$VALIDATION_FILE" ]]; then
+  echo "❌ VALIDATION FAILED: No validation file found"
+  echo "orchestrate.sh did not execute properly"
+  exit 1
+fi
+
+echo "✅ VALIDATION PASSED: $VALIDATION_FILE"
+cat "$VALIDATION_FILE"
+```
+
+**If validation fails:**
+1. Report error to user
+2. Show logs from `~/.claude-octopus/logs/`
+3. DO NOT proceed with presenting results
+4. DO NOT substitute with direct review
+
+---
+
+### STEP 5: Present Validation Report (Only After Steps 1-4 Complete)
+
+Read the validation file and present:
+- Overall status (✅ PASSED / ⚠️ PASSED WITH WARNINGS / ❌ FAILED)
+- Quality score (XX/100)
+- Summary
+- Critical issues (must fix)
+- Warnings (should fix)
+- Recommendations (nice to have)
+- Validation details from all providers
+- Quality gates results
+- Next steps
+
+**Include attribution:**
+```
+---
+*Multi-AI Validation powered by Claude Octopus*
+*Providers: 🔴 Codex | 🟡 Gemini | 🔵 Claude*
+*Full validation report: $VALIDATION_FILE*
+```
+
 ---
 
 # Deliver Workflow - Deliver Phase ✅
@@ -203,36 +349,48 @@ Read the synthesis and present findings with quality scores to the user.
 
 ## Implementation Instructions
 
-When this skill activates:
+When this skill is invoked, follow the EXECUTION CONTRACT above exactly. The contract includes:
 
-1. **Confirm the validation task**
-   ```
-   I'll review "<task>" using multiple AI perspectives.
+1. **Blocking Step 1**: Detect work context (Dev vs Knowledge)
+2. **Blocking Step 2**: Check providers, display visual indicators
+3. **Blocking Step 3**: Execute orchestrate.sh deliver via Bash tool
+4. **Blocking Step 4**: Verify validation file exists
+5. **Step 5**: Present formatted validation report
 
-   🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider validation
-   ✅ Deliver Phase: Validating implementation
-   ```
+Each step is **mandatory and blocking** - you cannot proceed to the next step until the current one completes successfully.
 
-2. **Execute ink workflow**
-   ```bash
-   ${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh deliver "<user's validation request>"
-   ```
+### Task Management Integration
 
-3. **Monitor execution and quality gates**
-   - Watch for provider responses
-   - Check quality gate scores
-   - Note critical issues or blockers
+Create tasks to track execution progress:
 
-4. **Read validation results**
-   ```bash
-   # Find the latest validation file
-   VALIDATION_FILE=$(ls -t ~/.claude-octopus/results/${CLAUDE_CODE_SESSION}/ink-validation-*.md 2>/dev/null | head -n1)
+```javascript
+// At start of skill execution
+TaskCreate({
+  subject: "Execute deliver workflow with multi-AI providers",
+  description: "Run orchestrate.sh deliver for validation",
+  activeForm: "Running multi-AI deliver workflow"
+})
 
-   # Read validation report
-   cat "$VALIDATION_FILE"
-   ```
+// Mark in_progress when calling orchestrate.sh
+TaskUpdate({taskId: "...", status: "in_progress"})
 
-5. **Present validation report in chat**
+// Mark completed ONLY after validation report presented
+TaskUpdate({taskId: "...", status: "completed"})
+```
+
+### Error Handling
+
+If any step fails:
+- **Step 1 (Context)**: Default to Dev Context if ambiguous
+- **Step 2 (Providers)**: If both unavailable, suggest `/octo:setup` and STOP
+- **Step 3 (orchestrate.sh)**: Show bash error, check logs, report to user
+- **Step 4 (Validation)**: If validation file missing, show orchestrate.sh logs, DO NOT substitute with direct review
+
+Never fall back to direct review if orchestrate.sh execution fails. Report the failure and let the user decide how to proceed.
+
+### Validation Report Format
+
+After successful execution, present validation report with:
    ```
    # Validation Report: <task>
 

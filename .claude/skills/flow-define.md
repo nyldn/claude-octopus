@@ -29,6 +29,12 @@ context: fork
 task_management: true
 task_dependencies:
   - flow-discover
+execution_mode: enforced
+pre_execution_contract:
+  - visual_indicators_displayed
+validation_gates:
+  - orchestrate_sh_executed
+  - synthesis_file_exists
 trigger: |
   AUTOMATICALLY ACTIVATE when user requests clarification or scoping:
   - "define the requirements for X"
@@ -43,6 +49,109 @@ trigger: |
   - Research tasks (use probe-workflow)
   - Review tasks (use ink-workflow)
   - Built-in commands (/plugin, /help, etc.)
+---
+
+## ⚠️ EXECUTION CONTRACT (MANDATORY - CANNOT SKIP)
+
+This skill uses **ENFORCED execution mode**. You MUST follow this exact sequence.
+
+### STEP 1: Display Visual Indicators (MANDATORY - BLOCKING)
+
+**Check provider availability:**
+
+```bash
+command -v codex &> /dev/null && codex_status="Available ✓" || codex_status="Not installed ✗"
+command -v gemini &> /dev/null && gemini_status="Available ✓" || gemini_status="Not installed ✗"
+```
+
+**Display this banner BEFORE orchestrate.sh execution:**
+
+```
+🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider definition mode
+🎯 Define Phase: [Brief description of what you're defining/scoping]
+
+Provider Availability:
+🔴 Codex CLI: ${codex_status} - Technical requirements analysis
+🟡 Gemini CLI: ${gemini_status} - Business context and constraints
+🔵 Claude: Available ✓ - Consensus building and synthesis
+
+💰 Estimated Cost: $0.01-0.05
+⏱️  Estimated Time: 2-5 minutes
+```
+
+**Validation:**
+- If BOTH Codex and Gemini unavailable → STOP, suggest: `/octo:setup`
+- If ONE unavailable → Continue with available provider(s)
+- If BOTH available → Proceed normally
+
+**DO NOT PROCEED TO STEP 2 until banner displayed.**
+
+---
+
+### STEP 2: Execute orchestrate.sh define (MANDATORY - Use Bash Tool)
+
+**You MUST execute this command via the Bash tool:**
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh define "<user's clarification request>"
+```
+
+**CRITICAL: You are PROHIBITED from:**
+- ❌ Defining requirements directly without calling orchestrate.sh
+- ❌ Using direct analysis instead of orchestrate.sh
+- ❌ Claiming you're "simulating" the workflow
+- ❌ Proceeding to Step 3 without running this command
+
+**This is NOT optional. You MUST use the Bash tool to invoke orchestrate.sh.**
+
+---
+
+### STEP 3: Verify Execution (MANDATORY - Validation Gate)
+
+**After orchestrate.sh completes, verify it succeeded:**
+
+```bash
+# Find the latest synthesis file (created within last 10 minutes)
+SYNTHESIS_FILE=$(find ~/.claude-octopus/results -name "grasp-synthesis-*.md" -mmin -10 2>/dev/null | head -n1)
+
+if [[ -z "$SYNTHESIS_FILE" ]]; then
+  echo "❌ VALIDATION FAILED: No synthesis file found"
+  echo "orchestrate.sh did not execute properly"
+  exit 1
+fi
+
+echo "✅ VALIDATION PASSED: $SYNTHESIS_FILE"
+cat "$SYNTHESIS_FILE"
+```
+
+**If validation fails:**
+1. Report error to user
+2. Show logs from `~/.claude-octopus/logs/`
+3. DO NOT proceed with presenting results
+4. DO NOT substitute with direct analysis
+
+---
+
+### STEP 4: Present Problem Definition (Only After Steps 1-3 Complete)
+
+Read the synthesis file and present:
+- Core requirements (must have, should have, nice to have)
+- Technical constraints
+- User needs
+- Edge cases to handle
+- Out of scope items
+- Perspectives from all providers
+- Requirements checklist
+- Next steps (usually tangle phase for implementation)
+
+**Include attribution:**
+```
+---
+*Multi-AI Problem Definition powered by Claude Octopus*
+*Providers: 🔴 Codex | 🟡 Gemini | 🔵 Claude*
+*Full problem definition: $SYNTHESIS_FILE*
+```
+
 ---
 
 # Define Workflow - Define Phase 🎯
@@ -164,36 +273,46 @@ Read the synthesis and present clear, actionable requirements to the user.
 
 ## Implementation Instructions
 
-When this skill activates:
+When this skill is invoked, follow the EXECUTION CONTRACT above exactly. The contract includes:
 
-1. **Confirm the clarification task**
-   ```
-   I'll clarify the requirements for "<task>" using multiple AI perspectives.
+1. **Blocking Step 1**: Display visual indicators with provider status
+2. **Blocking Step 2**: Execute orchestrate.sh define via Bash tool
+3. **Blocking Step 3**: Verify synthesis file exists
+4. **Step 4**: Present formatted problem definition
 
-   🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider problem definition
-   🎯 Define Phase: Defining requirements
-   ```
+Each step is **mandatory and blocking** - you cannot proceed to the next step until the current one completes successfully.
 
-2. **Execute grasp workflow**
-   ```bash
-   ${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh define "<user's clarification request>"
-   ```
+### Task Management Integration
 
-3. **Monitor execution**
-   - Watch for provider responses
-   - Check for requirement gaps
-   - Note conflicting perspectives
+Create tasks to track execution progress:
 
-4. **Read synthesis results**
-   ```bash
-   # Find the latest synthesis file
-   SYNTHESIS_FILE=$(ls -t ~/.claude-octopus/results/${CLAUDE_CODE_SESSION}/grasp-synthesis-*.md 2>/dev/null | head -n1)
+```javascript
+// At start of skill execution
+TaskCreate({
+  subject: "Execute define workflow with multi-AI providers",
+  description: "Run orchestrate.sh define for problem clarification",
+  activeForm: "Running multi-AI define workflow"
+})
 
-   # Read problem definition
-   cat "$SYNTHESIS_FILE"
-   ```
+// Mark in_progress when calling orchestrate.sh
+TaskUpdate({taskId: "...", status: "in_progress"})
 
-5. **Present problem definition in chat**
+// Mark completed ONLY after synthesis file verified
+TaskUpdate({taskId: "...", status: "completed"})
+```
+
+### Error Handling
+
+If any step fails:
+- **Step 1 (Providers)**: If both unavailable, suggest `/octo:setup` and STOP
+- **Step 2 (orchestrate.sh)**: Show bash error, check logs, report to user
+- **Step 3 (Validation)**: If synthesis missing, show orchestrate.sh logs, DO NOT substitute with direct analysis
+
+Never fall back to direct analysis if orchestrate.sh execution fails. Report the failure and let the user decide how to proceed.
+
+### Problem Definition Format
+
+After successful execution, present problem definition with:
    ```
    # Problem Definition: <task>
 

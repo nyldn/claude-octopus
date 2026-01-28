@@ -28,6 +28,13 @@ context: fork
 task_management: true
 task_dependencies:
   - flow-define
+execution_mode: enforced
+pre_execution_contract:
+  - context_detected
+  - visual_indicators_displayed
+validation_gates:
+  - orchestrate_sh_executed
+  - synthesis_file_exists
 trigger: |
   AUTOMATICALLY ACTIVATE when user requests building or implementation:
   - "build X" or "implement Y" or "create Z"
@@ -41,6 +48,143 @@ trigger: |
   - Reading or reviewing code (use Read/review skills)
   - Built-in commands (/plugin, /help, etc.)
   - Trivial single-file changes
+---
+
+## ⚠️ EXECUTION CONTRACT (MANDATORY - CANNOT SKIP)
+
+This skill uses **ENFORCED execution mode**. You MUST follow this exact sequence.
+
+### STEP 1: Detect Work Context (MANDATORY)
+
+Analyze the user's prompt and project to determine context:
+
+**Knowledge Context Indicators**:
+- Deliverable terms: "PRD", "proposal", "presentation", "report", "strategy document", "business case"
+- Business terms: "market entry", "competitive analysis", "stakeholder", "executive summary"
+
+**Dev Context Indicators**:
+- Technical terms: "API", "endpoint", "function", "module", "service", "component"
+- Action terms: "implement", "code", "build", "create", "develop" + technical noun
+
+**Also check**: Does project have `package.json`, `Cargo.toml`, etc.? (suggests Dev Context)
+
+**Capture context_type = "Dev" or "Knowledge"**
+
+**DO NOT PROCEED TO STEP 2 until context determined.**
+
+---
+
+### STEP 2: Display Visual Indicators (MANDATORY - BLOCKING)
+
+**Check provider availability:**
+
+```bash
+command -v codex &> /dev/null && codex_status="Available ✓" || codex_status="Not installed ✗"
+command -v gemini &> /dev/null && gemini_status="Available ✓" || gemini_status="Not installed ✗"
+```
+
+**Display this banner BEFORE orchestrate.sh execution:**
+
+**For Dev Context:**
+```
+🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider implementation mode
+🛠️ [Dev] Develop Phase: [Brief description of what you're building]
+
+Provider Availability:
+🔴 Codex CLI: ${codex_status} - Code generation and patterns
+🟡 Gemini CLI: ${gemini_status} - Alternative approaches
+🔵 Claude: Available ✓ - Integration and quality gates
+
+💰 Estimated Cost: $0.02-0.10
+⏱️  Estimated Time: 3-7 minutes
+```
+
+**For Knowledge Context:**
+```
+🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider implementation mode
+🛠️ [Knowledge] Develop Phase: [Brief description of deliverable]
+
+Provider Availability:
+🔴 Codex CLI: ${codex_status} - Structure and framework application
+🟡 Gemini CLI: ${gemini_status} - Content and narrative development
+🔵 Claude: Available ✓ - Integration and quality review
+
+💰 Estimated Cost: $0.02-0.10
+⏱️  Estimated Time: 3-7 minutes
+```
+
+**Validation:**
+- If BOTH Codex and Gemini unavailable → STOP, suggest: `/octo:setup`
+- If ONE unavailable → Continue with available provider(s)
+- If BOTH available → Proceed normally
+
+**DO NOT PROCEED TO STEP 3 until banner displayed.**
+
+---
+
+### STEP 3: Execute orchestrate.sh develop (MANDATORY - Use Bash Tool)
+
+**You MUST execute this command via the Bash tool:**
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh develop "<user's implementation request>"
+```
+
+**CRITICAL: You are PROHIBITED from:**
+- ❌ Implementing directly without calling orchestrate.sh
+- ❌ Writing code without multi-provider perspectives
+- ❌ Claiming you're "simulating" the workflow
+- ❌ Proceeding to Step 4 without running this command
+
+**This is NOT optional. You MUST use the Bash tool to invoke orchestrate.sh.**
+
+---
+
+### STEP 4: Verify Execution (MANDATORY - Validation Gate)
+
+**After orchestrate.sh completes, verify it succeeded:**
+
+```bash
+# Find the latest synthesis file (created within last 10 minutes)
+SYNTHESIS_FILE=$(find ~/.claude-octopus/results -name "tangle-synthesis-*.md" -mmin -10 2>/dev/null | head -n1)
+
+if [[ -z "$SYNTHESIS_FILE" ]]; then
+  echo "❌ VALIDATION FAILED: No synthesis file found"
+  echo "orchestrate.sh did not execute properly"
+  exit 1
+fi
+
+echo "✅ VALIDATION PASSED: $SYNTHESIS_FILE"
+cat "$SYNTHESIS_FILE"
+```
+
+**If validation fails:**
+1. Report error to user
+2. Show logs from `~/.claude-octopus/logs/`
+3. DO NOT proceed with presenting results
+4. DO NOT substitute with direct implementation
+
+---
+
+### STEP 5: Present Implementation Plan (Only After Steps 1-4 Complete)
+
+Read the synthesis file and present:
+- Recommended approach
+- Implementation steps
+- Code overview from all perspectives (Codex, Gemini, Claude)
+- Quality gates results
+- Request user confirmation before implementing
+
+**After user confirms, STEP 6: Implement the solution using Write/Edit tools**
+
+**Include attribution:**
+```
+---
+*Multi-AI Implementation powered by Claude Octopus*
+*Providers: 🔴 Codex | 🟡 Gemini | 🔵 Claude*
+*Full implementation plan: $SYNTHESIS_FILE*
+```
+
 ---
 
 # Develop Workflow - Develop Phase 🛠️
@@ -202,36 +346,49 @@ After reviewing all perspectives, implement the final solution using Write/Edit 
 
 ## Implementation Instructions
 
-When this skill activates:
+When this skill is invoked, follow the EXECUTION CONTRACT above exactly. The contract includes:
 
-1. **Confirm the implementation task**
-   ```
-   I'll implement "<task>" using multiple AI perspectives.
+1. **Blocking Step 1**: Detect work context (Dev vs Knowledge)
+2. **Blocking Step 2**: Check providers, display visual indicators
+3. **Blocking Step 3**: Execute orchestrate.sh develop via Bash tool
+4. **Blocking Step 4**: Verify synthesis file exists
+5. **Step 5**: Present implementation plan, get user confirmation
+6. **Step 6**: Implement the solution using Write/Edit tools
 
-   🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider implementation mode
-   🛠️ Develop Phase: Generating solutions
-   ```
+Each step is **mandatory and blocking** - you cannot proceed to the next step until the current one completes successfully.
 
-2. **Execute tangle workflow**
-   ```bash
-   ${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh develop "<user's implementation request>"
-   ```
+### Task Management Integration
 
-3. **Monitor execution and quality gates**
-   - Watch for provider responses
-   - Check quality gate results
-   - Note any security or quality warnings
+Create tasks to track execution progress:
 
-4. **Read synthesis results**
-   ```bash
-   # Find the latest synthesis file
-   SYNTHESIS_FILE=$(ls -t ~/.claude-octopus/results/${CLAUDE_CODE_SESSION}/tangle-synthesis-*.md 2>/dev/null | head -n1)
+```javascript
+// At start of skill execution
+TaskCreate({
+  subject: "Execute develop workflow with multi-AI providers",
+  description: "Run orchestrate.sh develop for implementation",
+  activeForm: "Running multi-AI develop workflow"
+})
 
-   # Read all perspectives
-   cat "$SYNTHESIS_FILE"
-   ```
+// Mark in_progress when calling orchestrate.sh
+TaskUpdate({taskId: "...", status: "in_progress"})
 
-5. **Present implementation plan in chat**
+// Mark completed ONLY after implementation finished
+TaskUpdate({taskId: "...", status: "completed"})
+```
+
+### Error Handling
+
+If any step fails:
+- **Step 1 (Context)**: Default to Dev Context if ambiguous
+- **Step 2 (Providers)**: If both unavailable, suggest `/octo:setup` and STOP
+- **Step 3 (orchestrate.sh)**: Show bash error, check logs, report to user
+- **Step 4 (Validation)**: If synthesis missing, show orchestrate.sh logs, DO NOT substitute with direct implementation
+
+Never fall back to direct implementation if orchestrate.sh execution fails. Report the failure and let the user decide how to proceed.
+
+### Implementation Plan Format
+
+After successful execution, present implementation plan with:
    ```
    # Implementation Plan: <task>
 

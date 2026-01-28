@@ -32,6 +32,13 @@ task_management: true
 task_dependencies:
   - skill-context-detection
   - skill-visual-feedback
+execution_mode: enforced
+pre_execution_contract:
+  - context_detected
+  - visual_indicators_displayed
+validation_gates:
+  - orchestrate_sh_executed
+  - synthesis_file_exists
 trigger: |
   AUTOMATICALLY ACTIVATE when user requests research or exploration:
   - "research X" or "explore Y" or "investigate Z"
@@ -50,6 +57,151 @@ trigger: |
   - Questions about specific code in the current project
   - Debugging issues (use skill-debug instead)
   - "what are my options" when asking for alternatives (use skill-decision-support)
+---
+
+## ⚠️ EXECUTION CONTRACT (MANDATORY - CANNOT SKIP)
+
+This skill uses **ENFORCED execution mode**. You MUST follow this exact sequence.
+
+### STEP 1: Detect Work Context (MANDATORY)
+
+Analyze the user's prompt and project to determine context:
+
+**Knowledge Context Indicators**:
+- Business/strategy terms: "market", "ROI", "stakeholders", "strategy", "competitive", "business case"
+- Research terms: "literature", "synthesis", "academic", "papers", "personas", "interviews"
+- Deliverable terms: "presentation", "report", "PRD", "proposal", "executive summary"
+
+**Dev Context Indicators**:
+- Technical terms: "API", "endpoint", "database", "function", "implementation", "library"
+- Action terms: "implement", "debug", "refactor", "build", "deploy", "code"
+
+**Also check**: Does project have `package.json`, `Cargo.toml`, etc.? (suggests Dev Context)
+
+**Capture context_type = "Dev" or "Knowledge"**
+
+**DO NOT PROCEED TO STEP 2 until context determined.**
+
+---
+
+### STEP 2: Display Visual Indicators (MANDATORY - BLOCKING)
+
+**Check provider availability:**
+
+```bash
+command -v codex &> /dev/null && codex_status="Available ✓" || codex_status="Not installed ✗"
+command -v gemini &> /dev/null && gemini_status="Available ✓" || gemini_status="Not installed ✗"
+```
+
+**Display this banner BEFORE orchestrate.sh execution:**
+
+**For Dev Context:**
+```
+🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider research mode
+🔍 [Dev] Discover Phase: [Brief description of technical research]
+
+Provider Availability:
+🔴 Codex CLI: ${codex_status}
+🟡 Gemini CLI: ${gemini_status}
+🔵 Claude: Available ✓ (Strategic synthesis)
+
+💰 Estimated Cost: $0.01-0.05
+⏱️  Estimated Time: 2-5 minutes
+```
+
+**For Knowledge Context:**
+```
+🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider research mode
+🔍 [Knowledge] Discover Phase: [Brief description of strategic research]
+
+Provider Availability:
+🔴 Codex CLI: ${codex_status}
+🟡 Gemini CLI: ${gemini_status}
+🔵 Claude: Available ✓ (Strategic synthesis)
+
+💰 Estimated Cost: $0.01-0.05
+⏱️  Estimated Time: 2-5 minutes
+```
+
+**Validation:**
+- If BOTH Codex and Gemini unavailable → STOP, suggest: `/octo:setup`
+- If ONE unavailable → Continue with available provider(s)
+- If BOTH available → Proceed normally
+
+**DO NOT PROCEED TO STEP 3 until banner displayed.**
+
+---
+
+### STEP 3: Execute orchestrate.sh probe (MANDATORY - Use Bash Tool)
+
+**You MUST execute this command via the Bash tool:**
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh probe "<user's research question>"
+```
+
+**CRITICAL: You are PROHIBITED from:**
+- ❌ Researching directly without calling orchestrate.sh
+- ❌ Using web search instead of orchestrate.sh
+- ❌ Claiming you're "simulating" the workflow
+- ❌ Proceeding to Step 4 without running this command
+
+**This is NOT optional. You MUST use the Bash tool to invoke orchestrate.sh.**
+
+---
+
+### STEP 4: Verify Execution (MANDATORY - Validation Gate)
+
+**After orchestrate.sh completes, verify it succeeded:**
+
+```bash
+# Find the latest synthesis file (created within last 10 minutes)
+SYNTHESIS_FILE=$(find ~/.claude-octopus/results -name "probe-synthesis-*.md" -mmin -10 2>/dev/null | head -n1)
+
+if [[ -z "$SYNTHESIS_FILE" ]]; then
+  echo "❌ VALIDATION FAILED: No synthesis file found"
+  echo "orchestrate.sh did not execute properly"
+  exit 1
+fi
+
+echo "✅ VALIDATION PASSED: $SYNTHESIS_FILE"
+cat "$SYNTHESIS_FILE"
+```
+
+**If validation fails:**
+1. Report error to user
+2. Show logs from `~/.claude-octopus/logs/`
+3. DO NOT proceed with presenting results
+4. DO NOT substitute with direct research
+
+---
+
+### STEP 5: Present Results (Only After Steps 1-4 Complete)
+
+Read the synthesis file and format according to context:
+
+**For Dev Context:**
+- Technical research summary
+- Recommended implementation approach
+- Library/tool comparison (if applicable)
+- Perspectives from all providers
+- Next steps
+
+**For Knowledge Context:**
+- Strategic research summary
+- Recommended approach with business rationale
+- Framework analysis (if applicable)
+- Perspectives from all providers
+- Next steps
+
+**Include attribution:**
+```
+---
+*Multi-AI Research powered by Claude Octopus*
+*Providers: 🔴 Codex | 🟡 Gemini | 🔵 Claude*
+*Full synthesis: $SYNTHESIS_FILE*
+```
+
 ---
 
 # Discover Workflow - Discovery Phase 🔍
@@ -226,64 +378,48 @@ Read the synthesis file and present key findings to the user in the chat.
 
 ## Implementation Instructions
 
-When this skill activates:
+When this skill is invoked, follow the EXECUTION CONTRACT above exactly. The contract includes:
 
-1. **Detect work context**
-   
-   Analyze the user's prompt:
-   - Contains "market", "ROI", "stakeholders", "strategy", "competitive", "personas", "interviews", "presentation", "report", "PRD"? → **Knowledge Context**
-   - Contains "API", "endpoint", "database", "implementation", "library", "code", "function", "deploy"? → **Dev Context**
-   - If ambiguous, check if project has package.json/Cargo.toml → **Dev Context**
-   - Default fallback: **Dev Context** in code repos, **Knowledge Context** otherwise
+1. **Blocking Step 1**: Detect work context (Dev vs Knowledge)
+2. **Blocking Step 2**: Check providers, display visual indicators
+3. **Blocking Step 3**: Execute orchestrate.sh probe via Bash tool
+4. **Blocking Step 4**: Verify synthesis file exists
+5. **Step 5**: Present formatted results
 
-2. **Confirm research with context-aware banner**
-   
-   **For Dev Context:**
-   ```
-   I'll research "<question>" using multiple AI perspectives.
+Each step is **mandatory and blocking** - you cannot proceed to the next step until the current one completes successfully.
 
-   🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider research mode
-   🔍 [Dev] Discover Phase: Technical research on <topic>
-   
-   Providers:
-   🔴 Codex CLI - Technical implementation analysis
-   🟡 Gemini CLI - Ecosystem and library comparison
-   🔵 Claude - Strategic synthesis
-   ```
-   
-   **For Knowledge Context:**
-   ```
-   I'll research "<question>" using multiple AI perspectives.
+### Task Management Integration
 
-   🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider research mode
-   🔍 [Knowledge] Discover Phase: Strategic research on <topic>
-   
-   Providers:
-   🔴 Codex CLI - Data analysis and frameworks
-   🟡 Gemini CLI - Market and competitive research
-   🔵 Claude - Strategic synthesis
-   ```
+Create tasks to track execution progress:
 
-3. **Execute probe workflow**
-   ```bash
-   ${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh probe "<user's question>"
-   ```
+```javascript
+// At start of skill execution
+TaskCreate({
+  subject: "Execute discover workflow with multi-AI providers",
+  description: "Run orchestrate.sh probe with Codex and Gemini",
+  activeForm: "Running multi-AI discover workflow"
+})
 
-4. **Monitor execution**
-   - Watch for provider responses
-   - Check for errors or quality issues
-   - Ensure all providers complete successfully
+// Mark in_progress when calling orchestrate.sh
+TaskUpdate({taskId: "...", status: "in_progress"})
 
-5. **Read synthesis results**
-   ```bash
-   # Find the latest synthesis file
-   SYNTHESIS_FILE=$(ls -t ~/.claude-octopus/results/${CLAUDE_CODE_SESSION}/probe-synthesis-*.md 2>/dev/null | head -n1)
+// Mark completed ONLY after synthesis file verified
+TaskUpdate({taskId: "...", status: "completed"})
+```
 
-   # Read and present to user
-   cat "$SYNTHESIS_FILE"
-   ```
+### Error Handling
 
-6. **Present context-appropriate findings**
+If any step fails:
+- **Step 1 (Context)**: Default to Dev Context if ambiguous
+- **Step 2 (Providers)**: If both unavailable, suggest `/octo:setup` and STOP
+- **Step 3 (orchestrate.sh)**: Show bash error, check logs, report to user
+- **Step 4 (Validation)**: If synthesis missing, show orchestrate.sh logs, DO NOT substitute with direct research
+
+Never fall back to direct research if orchestrate.sh execution fails. Report the failure and let the user decide how to proceed.
+
+### Context-Appropriate Presentation
+
+After successful execution, present findings formatted for context:
 
    **For Dev Context:**
    ```
