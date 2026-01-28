@@ -1,6 +1,25 @@
 #!/usr/bin/env bash
 # Test Enforcement Pattern Implementation
 # Validates that all orchestrate.sh-based skills use the Validation Gate Pattern
+#
+# IMPORTANT: These tests verify DOCUMENTATION only, not runtime enforcement.
+# As of v7.15.0, the enforcement pattern is passive markdown documentation.
+# Claude Code does not programmatically enforce these patterns at runtime.
+#
+# Issue tracking runtime enforcement: https://github.com/anthropics/claude-code/issues/[TBD]
+# See: scratchpad/github-issue-skill-lifecycle-hooks.md for details
+#
+# These tests ensure:
+# - Skills have consistent documentation structure
+# - Enforcement directives are present in skill content
+# - Validation gates are documented
+#
+# These tests DO NOT ensure:
+# - orchestrate.sh is actually executed when skill is invoked
+# - AskUserQuestion is called before proceeding
+# - Validation gates are checked at runtime
+#
+# TODO: Add runtime enforcement tests once Claude Code supports skill lifecycle hooks
 
 set -euo pipefail
 
@@ -415,11 +434,16 @@ echo -e "Failed:       ${RED}$FAIL_COUNT${NC}"
 echo ""
 
 if [[ $FAIL_COUNT -eq 0 ]]; then
-    echo -e "${GREEN}✅ All enforcement pattern tests passed!${NC}"
+    echo -e "${GREEN}✅ All enforcement pattern documentation tests passed!${NC}"
     echo ""
-    info "All 5 orchestrate.sh skills properly enforce the Validation Gate Pattern"
+    echo -e "${YELLOW}⚠️  IMPORTANT NOTE:${NC}"
+    echo -e "   These tests verify DOCUMENTATION structure only."
+    echo -e "   Runtime enforcement requires Claude Code lifecycle hooks (pending)."
+    echo -e "   See: scratchpad/github-issue-skill-lifecycle-hooks.md"
+    echo ""
+    info "All 5 orchestrate.sh skills have consistent Validation Gate Pattern documentation"
     exit 0
 else
-    echo -e "${RED}❌ Some enforcement tests failed${NC}"
+    echo -e "${RED}❌ Some enforcement documentation tests failed${NC}"
     exit 1
 fi
