@@ -111,7 +111,7 @@ This guided 2-minute setup:
 - ✅ Checks what you already have installed (won't duplicate)
 - ✅ Shows exactly what's missing (you only need ONE provider: Codex OR Gemini)
 - ✅ Walks you through CLI installation step-by-step
-- ✅ Helps configure API keys securely
+- ✅ Helps configure authentication (OAuth preferred, API keys supported)
 - ✅ Verifies everything works before you start
 
 **No terminal juggling** - Claude guides you through it all in chat.
@@ -641,11 +641,21 @@ These make orchestrate.sh workflows accessible through natural conversation!
 
 ## Understanding Costs
 
-**External CLIs use your API quotas:**
-- 🔴 **Codex CLI**: Uses your `OPENAI_API_KEY` (GPT-5.x based)
-- 🟡 **Gemini CLI**: Uses your `GEMINI_API_KEY` (Gemini 3.0)
+### Authentication Methods
 
-**Claude subagents are included:**
+**Recommended: OAuth (Subscription Plans)**
+- 🔴 **Codex CLI**: `codex login` → Fixed monthly subscription, unlimited usage
+- 🟡 **Gemini CLI**: `gemini` (OAuth) → Fixed pricing or Google Cloud quota
+- **Why better**: Predictable costs, no surprise bills, better for development
+
+**Alternative: API Keys (Pay-Per-Token)**
+- 🔴 **Codex CLI**: `OPENAI_API_KEY` environment variable → $3-15 per 1M tokens
+- 🟡 **Gemini CLI**: `GEMINI_API_KEY` environment variable → $2.50-10 per 1M tokens
+- **When to use**: One-off usage, no subscription available
+
+orchestrate.sh automatically prioritizes OAuth over API keys when both are present.
+
+**Claude subagents are always included:**
 - 🔵 **Claude Code Task tool**: No additional cost (included with Claude Code subscription)
 
 ### Cost Breakdown by Scenario
