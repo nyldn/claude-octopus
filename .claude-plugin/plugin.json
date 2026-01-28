@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "7.13.3",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.13.3) New: Robust debate error handling with validation and increased timeouts. Configurable Codex sandbox. Integrates Claude Code v2.1.20+ features. Commands '/octo:*'. Run /octo:setup for guided setup.",
+  "version": "7.14.0",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.14.0) New: Modernized deep-research skill with interactive UX (3-question clarification), mandatory cost transparency banners, and optional task agent integration. Commands '/octo:*'. Run /octo:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },
