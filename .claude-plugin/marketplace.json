@@ -11,8 +11,8 @@
     {
       "name": "claude-octopus",
       "source": "./",
-      "description": "v7.14.0 - New: Modernized deep-research skill with interactive clarification (3 questions), cost transparency banners, and task agent integration. Claude Code v2.1.20+ features: Task Management, Session Variables, MCP Detection. BREAKING: Requires Claude Code v2.1.16+. Commands '/octo:*'. Run /octo:setup.",
-      "version": "7.14.0",
+      "description": "v7.15.0 - New: Validation Gate Pattern enforces orchestrate.sh execution with blocking steps, validation gates, imperative language (100% compliance, 4x faster, 70% token savings). All workflow skills now enforce multi-AI execution. BREAKING: Requires Claude Code v2.1.16+. Commands '/octo:*'. Run /octo:setup.",
+      "version": "7.15.0",
       "author": {
         "name": "nyldn"
       },
