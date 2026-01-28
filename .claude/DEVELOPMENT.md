@@ -4,7 +4,7 @@ This document is for **developers working on the Claude Octopus plugin itself**.
 
 ## 📁 File Organization
 
-**IMPORTANT:** Before adding files, read `.dev/FILE-ORGANIZATION.md` for the complete file placement guide.
+**IMPORTANT:** Before adding files, read `../FILE-ORGANIZATION.md` for the complete file placement guide.
 
 Quick reference:
 - **Commands**: `.claude/commands/` (sys-, flow-, skill- prefixes)
@@ -12,7 +12,7 @@ Quick reference:
 - **Agents**: `agents/personas/`, `agents/principles/`, `agents/skills/`
 - **Hooks**: `hooks/` (configured in `.claude-plugin/hooks.json`)
 - **Tests**: `tests/` (smoke, unit, integration, e2e)
-- **Dev files**: `.dev/` (NEVER committed - gitignored)
+- **Dev files**: `../` (NEVER committed - gitignored)
 
 ## 🏗️ Plugin Architecture
 
@@ -431,14 +431,14 @@ tests/helpers/test-framework.sh  # Test utilities
 
 ## 🔗 Resources
 
-- **File Organization**: `.dev/FILE-ORGANIZATION.md` (complete guide)
+- **File Organization**: `../FILE-ORGANIZATION.md` (complete guide)
 - **Main README**: `README.md` (user documentation)
 - **Changelog**: `CHANGELOG.md` (version history)
 - **License**: `LICENSE` (MIT)
 
 ## 🤝 Contributing
 
-1. Read `.dev/FILE-ORGANIZATION.md` first
+1. Read `../FILE-ORGANIZATION.md` first
 2. Create feature branch: `git checkout -b feature/name`
 3. Add tests for new functionality
 4. Update documentation
