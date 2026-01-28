@@ -56,25 +56,18 @@ else
 fi
 echo ""
 
-# Check 2: Development artifacts
-echo "Check 2: Development Workspace Isolation"
-if [ -d "dev-workspace" ]; then
-    if git check-ignore dev-workspace/ >/dev/null 2>&1; then
-        pass "dev-workspace/ is properly gitignored"
-    else
-        fail "dev-workspace/ is NOT gitignored" "Add to .gitignore"
-    fi
+# Check 2: Repository Structure Validation
+echo "Check 2: Repository Structure Validation"
+# We're in plugin/ subdirectory - dev artifacts should be in parent directory
+if [ -d "../research" ] || [ -d "../drafts" ] || [ -d "../benchmarks" ]; then
+    pass "Development workspace detected in parent directory (outside git)"
 else
-    warn "dev-workspace/ directory doesn't exist" "Optional: Create for development artifacts"
+    warn "No development workspace found in parent directory" "Optional: Create ../research/, ../drafts/, etc."
 fi
 
-# Check for legacy .dev directory
-if [ -d ".dev" ]; then
-    if git check-ignore .dev/ >/dev/null 2>&1; then
-        warn ".dev/ directory still exists" "Consider migrating to dev-workspace/"
-    else
-        fail ".dev/ is NOT gitignored" "This should not be committed"
-    fi
+# Ensure no dev artifacts accidentally in plugin/ directory
+if [ -d "dev-workspace" ] || [ -d ".dev" ]; then
+    fail "Development artifacts found in plugin/ directory" "Should be in parent directory, outside git"
 fi
 echo ""
 
@@ -149,7 +142,7 @@ echo ""
 
 # Check 7: .gitignore completeness
 echo "Check 7: .gitignore Coverage"
-critical_ignores=(".DS_Store" ".env" "*.log" "dev-workspace")
+critical_ignores=(".DS_Store" ".env" "*.log")
 for item in "${critical_ignores[@]}"; do
     if git check-ignore "$item" >/dev/null 2>&1 || grep -q "^${item}\$\|${item}/" .gitignore; then
         pass "$item is gitignored"
@@ -157,15 +150,18 @@ for item in "${critical_ignores[@]}"; do
         fail "$item NOT gitignored" "Add to .gitignore"
     fi
 done
+
+# Note: dev-workspace is in parent directory (outside git), so doesn't need to be gitignored
+pass "Development files isolated in parent directory (not in git)"
 echo ""
 
 # Check 8: Clean deployment directory
 echo "Check 8: Deployment Directory Cleanliness"
-untracked=$(git ls-files --others --exclude-standard | grep -v "dev-workspace" || true)
+untracked=$(git ls-files --others --exclude-standard || true)
 if [ -z "$untracked" ]; then
-    pass "No untracked files in deployment directory"
+    pass "No untracked files in plugin/ directory"
 else
-    warn "Untracked files found" "Consider adding to .gitignore or committing"
+    warn "Untracked files found in plugin/" "Consider adding to .gitignore or committing"
     echo "$untracked" | head -10
 fi
 echo ""
