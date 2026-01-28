@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "7.14.0",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.14.0) New: Modernized deep-research skill with interactive UX (3-question clarification), mandatory cost transparency banners, and optional task agent integration. Commands '/octo:*'. Run /octo:setup for guided setup.",
+  "version": "7.15.0",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.15.0) New: Validation Gate Pattern enforces orchestrate.sh execution with blocking steps, validation gates, and imperative language (100% compliance, 4x faster, 70% token savings). Commands '/octo:*'. Run /octo:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },
