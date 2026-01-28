@@ -20,9 +20,17 @@ description: |
   or questions about specific code in current project (use Read tool).
 context: fork
 agent: Explore
+task_management: true
+task_dependencies:
+  - skill-visual-feedback
+  - skill-context-detection
 trigger: |
   Use this skill when the user wants to "research this topic", "investigate how X works",
   "analyze the architecture", "explore different approaches to Y", or "what are the options for Z".
+
+  Execution modes:
+  1. Standard: orchestrate.sh probe (multi-provider research)
+  2. Enhanced: Task agents + probe (when codebase context needed)
 ---
 
 # Deep Research Skill
@@ -61,16 +69,153 @@ Claude: *Activates octopus-research skill*
         *Runs: ${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh probe "State management options for React"*
 ```
 
+## Interactive Clarification
+
+Before starting research, Claude asks 3 clarifying questions:
+
+### Question 1: Research Depth
+How deep should the research go?
+- Quick overview (1-2 min, surface-level)
+- Moderate depth (2-3 min, standard)
+- Comprehensive (3-4 min, thorough)
+- Deep dive (4-5 min, exhaustive)
+
+### Question 2: Primary Focus
+What's your primary focus area?
+- Technical implementation (code patterns, APIs)
+- Best practices (industry standards)
+- Ecosystem & tools (libraries, community)
+- Trade-offs & comparisons (pros/cons)
+
+### Question 3: Output Format
+How should results be formatted?
+- Summary (concise findings)
+- Detailed report (comprehensive)
+- Comparison table (side-by-side)
+- Recommendations (actionable steps)
+
+## ⚠️ MANDATORY: Visual Indicators Protocol
+
+**BEFORE starting ANY research, you MUST output this banner:**
+
+```
+🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider research mode
+🔍 Discover Phase: [Brief description of research topic]
+
+Provider Availability:
+🔴 Codex CLI: [Available ✓ / Not installed ✗]
+🟡 Gemini CLI: [Available ✓ / Not installed ✗]
+🔵 Claude: Available ✓ (Strategic synthesis)
+
+Research Parameters:
+📊 Depth: [user's depth choice]
+🎯 Focus: [user's focus choice]
+📝 Format: [user's format choice]
+
+💰 Estimated Cost: $0.01-0.05
+⏱️  Estimated Time: 2-5 minutes
+```
+
+**This is NOT optional.** Users need to see which AI providers are active and their associated costs.
+
+### Provider Detection
+
+Before displaying banner, check availability:
+```bash
+codex_available=$(command -v codex &> /dev/null && echo "✓" || echo "✗ Not installed")
+gemini_available=$(command -v gemini &> /dev/null && echo "✓" || echo "✗ Not installed")
+```
+
+### Error Handling
+- **Both unavailable**: Stop and suggest `/octo:setup`
+- **One unavailable**: Proceed with available provider(s)
+- **Both available**: Proceed normally
+
+## Task Agent Integration (Optional)
+
+For enhanced execution with codebase context, optionally use Claude Code Task agents alongside orchestrate.sh:
+
+### Hybrid Approach
+
+```typescript
+// Optional: Spawn background task for codebase research
+background_task(agent="explore", prompt="Find [topic] implementations in codebase")
+
+// Continue with probe workflow
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh probe "[question]"
+```
+
+### When to Use
+- **Use Task agents**: Research involves current codebase, need local file context
+- **Use probe only**: Pure ecosystem research, no codebase context needed
+
+### Benefits
+- Parallel execution (codebase + ecosystem research)
+- Task progress tracking
+- Better context integration
+
+**Note**: This is optional and additive. orchestrate.sh remains the primary execution method.
+
 ## Implementation
 
 When this skill is invoked, Claude should:
 
 1. **Detect research intent**: User wants deep analysis
-2. **Invoke probe workflow**:
-   ```bash
-   ${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh probe "[user's research question]"
+
+2. **Ask clarifying questions**:
+   ```javascript
+   AskUserQuestion({
+     questions: [
+       {
+         question: "How deep should the research go?",
+         header: "Depth",
+         multiSelect: false,
+         options: [
+           {label: "Quick overview", description: "High-level summary (1-2 min)"},
+           {label: "Moderate depth", description: "Balanced exploration (2-3 min)"},
+           {label: "Comprehensive", description: "Detailed analysis (3-4 min)"},
+           {label: "Deep dive", description: "Exhaustive research (4-5 min)"}
+         ]
+       },
+       {
+         question: "What's your primary focus area?",
+         header: "Focus",
+         multiSelect: false,
+         options: [
+           {label: "Technical implementation", description: "Code patterns, APIs"},
+           {label: "Best practices", description: "Industry standards"},
+           {label: "Ecosystem & tools", description: "Libraries, community"},
+           {label: "Trade-offs & comparisons", description: "Pros/cons analysis"}
+         ]
+       },
+       {
+         question: "How should the output be formatted?",
+         header: "Output",
+         multiSelect: false,
+         options: [
+           {label: "Summary", description: "Concise findings"},
+           {label: "Detailed report", description: "Comprehensive write-up"},
+           {label: "Comparison table", description: "Side-by-side analysis"},
+           {label: "Recommendations", description: "Actionable next steps"}
+         ]
+       }
+     ]
+   })
    ```
-3. **Present synthesized findings**: Format multi-perspective results
+
+3. **Display visual indicators**:
+
+   a. Check provider availability
+   b. Display banner in chat response (BEFORE orchestrate.sh execution)
+   c. Stop if no providers available
+
+4. **Invoke probe workflow** with context:
+   ```bash
+   ${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh probe "[question]" \
+     --depth "[user choice]" --focus "[user choice]" --format "[user choice]"
+   ```
+
+5. **Present findings** in chosen format
 
 ## Output Format
 
