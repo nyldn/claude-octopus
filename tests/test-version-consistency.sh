@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Test Version Consistency for v7.11.0
-# Validates that version 7.11.0 is consistent across all files
+# Test Version Consistency for v7.15.0
+# Validates that version 7.15.0 is consistent across all files
 
 set -euo pipefail
 
@@ -23,7 +23,7 @@ PASS_COUNT=0
 FAIL_COUNT=0
 
 # Expected version
-EXPECTED_VERSION="7.11.0"
+EXPECTED_VERSION="7.15.0"
 
 echo -e "${BLUE}🧪 Testing Version Consistency (v${EXPECTED_VERSION})${NC}"
 echo ""
@@ -101,30 +101,30 @@ else
     fail "README.md not found" "Expected: $README"
 fi
 
-# Test 5: Check marketplace.json description mentions Intent Mode features
+# Test 5: Check marketplace.json description mentions v7.15.0 features
 echo ""
 echo "Test 5: Checking marketplace.json description..."
 if [[ -f "$MARKETPLACE_JSON" ]]; then
     description=$(grep -A 5 '"description"' "$MARKETPLACE_JSON" || echo "")
 
-    # Check for key v7.11.0 features
-    mentions_intent=false
-    mentions_plan=false
-    mentions_questions=false
+    # Check for key v7.15.0 features
+    mentions_validation=false
+    mentions_enforcement=false
+    mentions_gates=false
 
-    echo "$description" | grep -qi "intent\|/plan" && mentions_intent=true
-    echo "$description" | grep -qi "plan\|routing" && mentions_plan=true
-    echo "$description" | grep -qi "question\|clarif" && mentions_questions=true
+    echo "$description" | grep -qi "validation\|enforcement" && mentions_validation=true
+    echo "$description" | grep -qi "enforc\|blocking" && mentions_enforcement=true
+    echo "$description" | grep -qi "gate\|imperative" && mentions_gates=true
 
     feature_count=0
-    $mentions_intent && ((feature_count++))
-    $mentions_plan && ((feature_count++))
-    $mentions_questions && ((feature_count++))
+    $mentions_validation && ((feature_count++))
+    $mentions_enforcement && ((feature_count++))
+    $mentions_gates && ((feature_count++))
 
     if [[ $feature_count -ge 1 ]]; then
-        pass "marketplace.json description mentions v7.11.0 features"
+        pass "marketplace.json description mentions v7.15.0 features"
     else
-        fail "marketplace.json description outdated" "Should mention Intent Mode, /plan command, or clarifying questions"
+        fail "marketplace.json description outdated" "Should mention Validation Gate Pattern, enforcement, or blocking steps"
     fi
 else
     fail "marketplace.json not found" "Expected: $MARKETPLACE_JSON"
@@ -135,7 +135,7 @@ echo ""
 echo "Test 6: Checking command count in plugin.json..."
 if [[ -f "$PLUGIN_JSON" ]]; then
     COMMAND_COUNT=$(grep -o '"\./\.claude/commands/[^"]*\.md"' "$PLUGIN_JSON" | wc -l | tr -d ' ')
-    EXPECTED_COMMANDS=27
+    EXPECTED_COMMANDS=28
 
     if [[ $COMMAND_COUNT -eq $EXPECTED_COMMANDS ]]; then
         pass "plugin.json has $COMMAND_COUNT commands (expected: $EXPECTED_COMMANDS)"
