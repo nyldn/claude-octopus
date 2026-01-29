@@ -132,7 +132,40 @@ Provider Availability:
 
 ---
 
-### STEP 3: Execute orchestrate.sh probe (MANDATORY - Use Bash Tool)
+### STEP 3: Read Prior State (MANDATORY - State Management)
+
+**Before executing the workflow, read any prior context:**
+
+```bash
+# Initialize state if needed
+"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" init_state
+
+# Set current workflow
+"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" set_current_workflow "flow-discover" "discover"
+
+# Get prior decisions (if any)
+prior_decisions=$("${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" get_decisions "all")
+
+# Get context from previous phases
+prior_context=$("${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" read_state | jq -r '.context')
+
+# Display what you found (if any)
+if [[ "$prior_decisions" != "[]" && "$prior_decisions" != "null" ]]; then
+  echo "📋 Building on prior decisions:"
+  echo "$prior_decisions" | jq -r '.[] | "  - \(.decision) (\(.phase)): \(.rationale)"'
+fi
+```
+
+**This provides context from:**
+- Prior workflow phases (if resuming a session)
+- Architectural decisions already made
+- User vision captured in earlier phases
+
+**DO NOT PROCEED TO STEP 4 until state read.**
+
+---
+
+### STEP 4: Execute orchestrate.sh probe (MANDATORY - Use Bash Tool)
 
 **You MUST execute this command via the Bash tool:**
 
@@ -165,7 +198,7 @@ These spinner verb updates happen automatically - orchestrate.sh calls `update_t
 
 ---
 
-### STEP 4: Verify Execution (MANDATORY - Validation Gate)
+### STEP 5: Verify Execution (MANDATORY - Validation Gate)
 
 **After orchestrate.sh completes, verify it succeeded:**
 
@@ -191,7 +224,31 @@ cat "$SYNTHESIS_FILE"
 
 ---
 
-### STEP 5: Present Results (Only After Steps 1-4 Complete)
+### STEP 6: Update State (MANDATORY - Post-Execution)
+
+**After synthesis is verified, record findings in state:**
+
+```bash
+# Extract key findings from synthesis for summary (keep it concise - 1-3 sentences)
+key_findings=$(head -50 "$SYNTHESIS_FILE" | grep -A 3 "## Key Findings\|## Summary" | tail -3 | tr '\n' ' ')
+
+# Update discover phase context
+"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" update_context \
+  "discover" \
+  "$key_findings"
+
+# Update metrics
+"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" update_metrics "phases_completed" "1"
+"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" update_metrics "provider" "codex"
+"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" update_metrics "provider" "gemini"
+"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" update_metrics "provider" "claude"
+```
+
+**DO NOT PROCEED TO STEP 7 until state updated.**
+
+---
+
+### STEP 7: Present Results (Only After Steps 1-6 Complete)
 
 Read the synthesis file and format according to context:
 
