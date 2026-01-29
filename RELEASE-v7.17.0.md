@@ -2,7 +2,7 @@
 
 **Release Date:** January 29, 2026
 **Version:** 7.17.0 (from 7.16.1)
-**Code Name:** Get-Shit-Done Integration
+**Code Name:** JFDI Enhancement
 
 ## Overview
 
@@ -471,4 +471,4 @@ See [CHANGELOG.md](./CHANGELOG.md) for detailed release notes.
 
 *Released: January 29, 2026*
 *Version: 7.17.0*
-*Code Name: Get-Shit-Done Integration*
+*Code Name: JFDI Enhancement*
