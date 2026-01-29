@@ -11,6 +11,9 @@ PLUGIN_DIR="$(dirname "$SCRIPT_DIR")"
 # Workspace location - uses home directory for global installation
 PROJECT_ROOT="${PWD}"
 
+# Source state manager utilities
+source "${SCRIPT_DIR}/state-manager.sh"
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # SECURITY: Path validation for workspace directory
 # Prevents path traversal attacks and restricts to safe locations
@@ -11256,6 +11259,12 @@ fi
 # Skip for cost/usage commands that just read existing data
 if [[ "$COMMAND" != "cost" && "$COMMAND" != "usage" && "$COMMAND" != "cost-json" && "$COMMAND" != "cost-csv" && "$COMMAND" != "cost-clear" && "$COMMAND" != "cost-archive" && "$COMMAND" != "help" ]]; then
     init_usage_tracking 2>/dev/null || true
+fi
+
+# Initialize state management (v7.17.0)
+# Skip for help and non-workflow commands
+if [[ "$COMMAND" != "help" && "$COMMAND" != "setup" && "$COMMAND" != "preflight" && "$COMMAND" != "cost" && "$COMMAND" != "usage" && "$COMMAND" != "-h" && "$COMMAND" != "--help" ]]; then
+    init_state 2>/dev/null || true
 fi
 
 case "$COMMAND" in
