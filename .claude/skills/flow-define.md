@@ -126,7 +126,90 @@ fi
 
 ---
 
-### STEP 3: Execute orchestrate.sh define (MANDATORY - Use Bash Tool)
+### STEP 3: Phase Discussion - Capture User Vision (MANDATORY - Context Gathering)
+
+**Before executing expensive multi-AI orchestration, capture the user's vision to scope the work effectively.**
+
+**Ask clarifying questions using AskUserQuestion:**
+
+```
+Use AskUserQuestion tool to ask:
+
+1. **User Experience**
+   Question: "How should users interact with this feature?"
+   Header: "User Flow"
+   Options:
+   - label: "API-first (programmatic access)"
+     description: "Build API endpoints first, UI later"
+   - label: "UI-first (user-facing interface)"
+     description: "Build user interface first, API supports it"
+   - label: "Both simultaneously"
+     description: "Develop API and UI in parallel"
+   - label: "Not applicable"
+     description: "This feature doesn't have a user interaction"
+
+2. **Implementation Approach**
+   Question: "What technical approach do you prefer?"
+   Header: "Approach"
+   Options:
+   - label: "Fastest to market"
+     description: "Prioritize speed, use existing libraries"
+   - label: "Most maintainable"
+     description: "Focus on clean architecture, may take longer"
+   - label: "Best performance"
+     description: "Optimize for speed and efficiency"
+   - label: "Let AI decide"
+     description: "Use multi-AI research to determine best approach"
+
+3. **Scope Boundaries**
+   Question: "What's explicitly OUT of scope for this phase?"
+   Header: "Out of Scope"
+   Options:
+   - label: "Testing and QA"
+     description: "Focus on implementation, test later"
+   - label: "Performance optimization"
+     description: "Get it working first, optimize later"
+   - label: "Edge cases"
+     description: "Handle happy path only initially"
+   - label: "Nothing excluded"
+     description: "Everything is in scope"
+   multiSelect: true
+```
+
+**After gathering answers, create context file:**
+
+```bash
+# Source context manager
+source "${CLAUDE_PLUGIN_ROOT}/scripts/context-manager.sh"
+
+# Extract user answers from AskUserQuestion results
+user_flow="[Answer from question 1]"
+approach="[Answer from question 2]"
+out_of_scope="[Answer from question 3]"
+
+# Create context file with user vision
+create_templated_context \
+  "define" \
+  "$(echo "$USER_REQUEST" | head -c 50)..." \
+  "User wants: $user_flow approach with $approach priority" \
+  "$approach" \
+  "Implementation of requested feature" \
+  "$out_of_scope"
+
+echo "📋 Context captured and saved to .claude-octopus/context/define-context.md"
+```
+
+**This context will be used to:**
+- Scope the multi-AI research (discover phase)
+- Focus the requirements definition (define phase)
+- Guide implementation decisions (develop phase)
+- Validate against user expectations (deliver phase)
+
+**DO NOT PROCEED TO STEP 4 until context captured.**
+
+---
+
+### STEP 4: Execute orchestrate.sh define (MANDATORY - Use Bash Tool)
 
 **You MUST execute this command via the Bash tool:**
 
@@ -159,7 +242,7 @@ These spinner verb updates happen automatically - orchestrate.sh calls `update_t
 
 ---
 
-### STEP 4: Verify Execution (MANDATORY - Validation Gate)
+### STEP 5: Verify Execution (MANDATORY - Validation Gate)
 
 **After orchestrate.sh completes, verify it succeeded:**
 
@@ -185,7 +268,7 @@ cat "$SYNTHESIS_FILE"
 
 ---
 
-### STEP 5: Update State (MANDATORY - Post-Execution)
+### STEP 6: Update State (MANDATORY - Post-Execution)
 
 **After synthesis is verified, record findings and decisions in state:**
 
@@ -216,11 +299,11 @@ fi
 "${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" update_metrics "provider" "claude"
 ```
 
-**DO NOT PROCEED TO STEP 6 until state updated.**
+**DO NOT PROCEED TO STEP 7 until state updated.**
 
 ---
 
-### STEP 6: Present Problem Definition (Only After Steps 1-5 Complete)
+### STEP 7: Present Problem Definition (Only After Steps 1-6 Complete)
 
 Read the synthesis file and present:
 - Core requirements (must have, should have, nice to have)
