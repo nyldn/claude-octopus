@@ -122,7 +122,51 @@ Provider Availability:
 
 ---
 
-### STEP 3: Execute orchestrate.sh develop (MANDATORY - Use Bash Tool)
+### STEP 3: Read Prior State (MANDATORY - State Management)
+
+**Before executing the workflow, read any prior context:**
+
+```bash
+# Initialize state if needed
+"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" init_state
+
+# Set current workflow
+"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" set_current_workflow "flow-develop" "develop"
+
+# Get prior decisions (critical for implementation)
+prior_decisions=$("${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" get_decisions "all")
+
+# Get context from discover and define phases
+discover_context=$("${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" get_context "discover")
+define_context=$("${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" get_context "define")
+
+# Display what you found (if any)
+if [[ "$discover_context" != "null" ]]; then
+  echo "📋 Discovery phase findings:"
+  echo "  $discover_context"
+fi
+
+if [[ "$define_context" != "null" ]]; then
+  echo "📋 Definition phase scope:"
+  echo "  $define_context"
+fi
+
+if [[ "$prior_decisions" != "[]" && "$prior_decisions" != "null" ]]; then
+  echo "📋 Implementing with decisions:"
+  echo "$prior_decisions" | jq -r '.[] | "  - \(.decision) (\(.phase)): \(.rationale)"'
+fi
+```
+
+**This provides critical context for implementation:**
+- Technology stack and patterns decided
+- Scope and requirements defined
+- Research findings to inform implementation
+
+**DO NOT PROCEED TO STEP 4 until state read.**
+
+---
+
+### STEP 4: Execute orchestrate.sh develop (MANDATORY - Use Bash Tool)
 
 **You MUST execute this command via the Bash tool:**
 
@@ -155,7 +199,7 @@ These spinner verb updates happen automatically - orchestrate.sh calls `update_t
 
 ---
 
-### STEP 4: Verify Execution (MANDATORY - Validation Gate)
+### STEP 5: Verify Execution (MANDATORY - Validation Gate)
 
 **After orchestrate.sh completes, verify it succeeded:**
 
@@ -181,7 +225,41 @@ cat "$SYNTHESIS_FILE"
 
 ---
 
-### STEP 5: Present Implementation Plan (Only After Steps 1-4 Complete)
+### STEP 6: Update State (MANDATORY - Post-Execution)
+
+**After synthesis is verified, record implementation details in state:**
+
+```bash
+# Extract key implementation decisions from synthesis
+implementation_approach=$(head -50 "$SYNTHESIS_FILE" | grep -A 3 "## Implementation\|## Approach" | tail -3 | tr '\n' ' ')
+
+# Record implementation decisions
+decision_made=$(echo "$implementation_approach" | grep -o "implemented\|using [A-Za-z0-9 ]*\|chose to\|pattern:" | head -1)
+
+if [[ -n "$decision_made" ]]; then
+  "${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" write_decision \
+    "develop" \
+    "$decision_made" \
+    "Multi-AI implementation consensus"
+fi
+
+# Update develop phase context
+"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" update_context \
+  "develop" \
+  "$implementation_approach"
+
+# Update metrics
+"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" update_metrics "phases_completed" "1"
+"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" update_metrics "provider" "codex"
+"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" update_metrics "provider" "gemini"
+"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" update_metrics "provider" "claude"
+```
+
+**DO NOT PROCEED TO STEP 7 until state updated.**
+
+---
+
+### STEP 7: Present Implementation Plan (Only After Steps 1-6 Complete)
 
 Read the synthesis file and present:
 - Recommended approach

@@ -124,7 +124,57 @@ Provider Availability:
 
 ---
 
-### STEP 3: Execute orchestrate.sh deliver (MANDATORY - Use Bash Tool)
+### STEP 3: Read Prior State (MANDATORY - State Management)
+
+**Before executing the workflow, read full project context:**
+
+```bash
+# Initialize state if needed
+"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" init_state
+
+# Set current workflow
+"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" set_current_workflow "flow-deliver" "deliver"
+
+# Get all prior decisions (critical for validation)
+prior_decisions=$("${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" get_decisions "all")
+
+# Get context from all prior phases
+discover_context=$("${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" get_context "discover")
+define_context=$("${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" get_context "define")
+develop_context=$("${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" get_context "develop")
+
+# Display what you found (validation needs full context)
+echo "📋 Validation Context Summary:"
+
+if [[ "$discover_context" != "null" ]]; then
+  echo "  Discovery: $discover_context"
+fi
+
+if [[ "$define_context" != "null" ]]; then
+  echo "  Definition: $define_context"
+fi
+
+if [[ "$develop_context" != "null" ]]; then
+  echo "  Development: $develop_context"
+fi
+
+if [[ "$prior_decisions" != "[]" && "$prior_decisions" != "null" ]]; then
+  echo "  Decisions to validate against:"
+  echo "$prior_decisions" | jq -r '.[] | "    - \(.decision) (\(.phase))"'
+fi
+```
+
+**This provides full context for validation:**
+- Requirements and scope (from define phase)
+- Implementation decisions (from develop phase)
+- Research findings (from discover phase)
+- All architectural decisions to validate against
+
+**DO NOT PROCEED TO STEP 4 until state read.**
+
+---
+
+### STEP 4: Execute orchestrate.sh deliver (MANDATORY - Use Bash Tool)
 
 **You MUST execute this command via the Bash tool:**
 
@@ -157,7 +207,7 @@ These spinner verb updates happen automatically - orchestrate.sh calls `update_t
 
 ---
 
-### STEP 4: Verify Execution (MANDATORY - Validation Gate)
+### STEP 5: Verify Execution (MANDATORY - Validation Gate)
 
 **After orchestrate.sh completes, verify it succeeded:**
 
@@ -183,7 +233,35 @@ cat "$VALIDATION_FILE"
 
 ---
 
-### STEP 5: Present Validation Report (Only After Steps 1-4 Complete)
+### STEP 6: Update State (MANDATORY - Post-Execution)
+
+**After validation is complete, record final metrics:**
+
+```bash
+# Update deliver phase context with validation summary
+validation_summary=$(head -30 "$VALIDATION_FILE" | grep -A 2 "## Summary\|Pass\|Fail" | tail -2 | tr '\n' ' ')
+
+"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" update_context \
+  "deliver" \
+  "$validation_summary"
+
+# Update final metrics (completion of full workflow)
+"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" update_metrics "phases_completed" "1"
+"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" update_metrics "provider" "codex"
+"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" update_metrics "provider" "gemini"
+"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" update_metrics "provider" "claude"
+
+# Display final state summary
+echo ""
+echo "📊 Session Complete - Final Metrics:"
+"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" show_summary
+```
+
+**DO NOT PROCEED TO STEP 7 until state updated.**
+
+---
+
+### STEP 7: Present Validation Report (Only After Steps 1-6 Complete)
 
 Read the validation file and present:
 - Overall status (✅ PASSED / ⚠️ PASSED WITH WARNINGS / ❌ FAILED)

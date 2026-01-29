@@ -88,7 +88,45 @@ Provider Availability:
 
 ---
 
-### STEP 2: Execute orchestrate.sh define (MANDATORY - Use Bash Tool)
+### STEP 2: Read Prior State (MANDATORY - State Management)
+
+**Before executing the workflow, read any prior context:**
+
+```bash
+# Initialize state if needed
+"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" init_state
+
+# Set current workflow
+"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" set_current_workflow "flow-define" "define"
+
+# Get prior decisions (if any)
+prior_decisions=$("${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" get_decisions "all")
+
+# Get context from discover phase
+discover_context=$("${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" get_context "discover")
+
+# Display what you found (if any)
+if [[ "$discover_context" != "null" ]]; then
+  echo "📋 Building on discovery findings:"
+  echo "  $discover_context"
+fi
+
+if [[ "$prior_decisions" != "[]" && "$prior_decisions" != "null" ]]; then
+  echo "📋 Respecting prior decisions:"
+  echo "$prior_decisions" | jq -r '.[] | "  - \(.decision) (\(.phase)): \(.rationale)"'
+fi
+```
+
+**This provides context from:**
+- Discovery phase research (if completed)
+- Prior architectural decisions
+- User vision captured earlier
+
+**DO NOT PROCEED TO STEP 3 until state read.**
+
+---
+
+### STEP 3: Execute orchestrate.sh define (MANDATORY - Use Bash Tool)
 
 **You MUST execute this command via the Bash tool:**
 
@@ -121,7 +159,7 @@ These spinner verb updates happen automatically - orchestrate.sh calls `update_t
 
 ---
 
-### STEP 3: Verify Execution (MANDATORY - Validation Gate)
+### STEP 4: Verify Execution (MANDATORY - Validation Gate)
 
 **After orchestrate.sh completes, verify it succeeded:**
 
@@ -147,7 +185,42 @@ cat "$SYNTHESIS_FILE"
 
 ---
 
-### STEP 4: Present Problem Definition (Only After Steps 1-3 Complete)
+### STEP 5: Update State (MANDATORY - Post-Execution)
+
+**After synthesis is verified, record findings and decisions in state:**
+
+```bash
+# Extract key definition from synthesis
+key_definition=$(head -50 "$SYNTHESIS_FILE" | grep -A 3 "## Problem Definition\|## Summary" | tail -3 | tr '\n' ' ')
+
+# Record any architectural decisions made
+# (You should identify these from the synthesis - e.g., tech stack, approach, patterns)
+decision_made=$(echo "$key_definition" | grep -o "decided to\|chose to\|selected\|using [A-Za-z0-9 ]*" | head -1)
+
+if [[ -n "$decision_made" ]]; then
+  "${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" write_decision \
+    "define" \
+    "$decision_made" \
+    "Consensus from multi-AI definition phase"
+fi
+
+# Update define phase context
+"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" update_context \
+  "define" \
+  "$key_definition"
+
+# Update metrics
+"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" update_metrics "phases_completed" "1"
+"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" update_metrics "provider" "codex"
+"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" update_metrics "provider" "gemini"
+"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" update_metrics "provider" "claude"
+```
+
+**DO NOT PROCEED TO STEP 6 until state updated.**
+
+---
+
+### STEP 6: Present Problem Definition (Only After Steps 1-5 Complete)
 
 Read the synthesis file and present:
 - Core requirements (must have, should have, nice to have)
