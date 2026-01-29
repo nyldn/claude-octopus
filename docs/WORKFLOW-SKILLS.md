@@ -118,4 +118,29 @@ Understanding the distinction:
 
 ---
 
+## 🤖 Deep Autonomy Mode (Background Work)
+
+**Auto-activates when you say:**
+- "work on this in the background"
+- "take the wheel"
+- "autonomous mode"
+- "finish this for me"
+
+**What it does:** Enters a high-reliability, self-correcting mode for long-running tasks.
+- **Reliability First**: Uses atomic file operations (`WriteFile`) instead of shell editing.
+- **Self-Correcting**: Automatically loops (`/octo:loop`) and retries on failure without asking.
+- **Quiet Mode**: Suppresses chatter, reporting only status via JSON or milestones.
+- **Timeout Handling**: Uses extended timeouts for long builds/tests.
+
+**Example:**
+```
+User: "Take the wheel and fix all linting errors in the background"
+→ Activates Deep Autonomy Mode
+→ Loops: Lint -> Parse -> Fix -> Verify
+→ Retries if fix fails
+→ Reports only when ALL errors are fixed or blocked
+```
+
+---
+
 [← Back to README](../README.md)
