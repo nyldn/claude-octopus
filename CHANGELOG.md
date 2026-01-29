@@ -2,6 +2,52 @@
 
 All notable changes to Claude Octopus will be documented in this file.
 
+## [7.15.1] - 2026-01-28
+
+### 📚 Documentation
+
+#### Comprehensive README Rewrite
+- **All 29 expert AI personas now documented** (was 0)
+  - Software Engineering (11): backend-architect, cloud-architect, security-auditor, etc.
+  - Specialized Development (6): ai-engineer, typescript-pro, python-pro, etc.
+  - Documentation & Communication (5): docs-architect, product-writer, etc.
+  - Research & Strategy (4): research-synthesizer, ux-researcher, etc.
+  - Creative & Design (3): thought-partner, mermaid-expert, context-manager
+
+- **Complete command reference** (28 commands vs ~5 before)
+  - Core Workflows, Development Disciplines, AI & Decision Support
+  - Planning & Documentation, Mode Switching, System commands
+
+- **Full skills catalog** (33 skills vs ~8 before)
+  - Research & Knowledge, Code Quality & Security
+  - Development Practices, Architecture & Planning, Workflows
+
+- **Advanced features section**
+  - PRD Scoring (100-point framework)
+  - Meta-Prompt Generation
+  - Content Pipeline, Iterative Loops, Document Export
+
+#### Implementation Plan for v7.16.0
+- Added comprehensive UX enhancement plan (1,500+ lines)
+- Documents 3 HIGH priority features:
+  - Enhanced spinner verbs with provider indicators
+  - Live progress indicators during multi-AI execution
+  - Timeout visibility with warnings
+
+#### Repository Structure
+- Migrated to plugin/ subdirectory structure
+- Workspace root for development files
+- Clean separation of deployment vs development artifacts
+
+### 🔄 Updated
+
+- README.md: Comprehensive rewrite (4x more skills, 5.6x more commands, ∞ more personas)
+- CHANGELOG.md: Added missing entries for v7.14.0 and v7.15.0
+- docs/: Added implementation plans for v7.16.0
+- Version badges: Updated to v7.15.1
+
+---
+
 ## [7.15.0] - 2026-01-28
 
 ### ✨ New Features
