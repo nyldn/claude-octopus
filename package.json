@@ -1,7 +1,7 @@
 {
   "name": "claude-octopus",
-  "version": "7.16.1",
-  "description": "Claude Octopus - Multi-agent orchestration for Claude CLI",
+  "version": "7.17.0",
+  "description": "Claude Octopus - Multi-agent orchestration with state persistence, validation gates, and quick mode",
   "main": "orchestrate.sh",
   "scripts": {
     "test": "make test",
