@@ -64,6 +64,15 @@ else
 fi
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# CLAUDE CODE INTEGRATION: Task Management (v7.16.0)
+# Capture Claude Code v2.1.16+ environment variables for enhanced progress tracking
+# ═══════════════════════════════════════════════════════════════════════════════
+# Get Claude Code task ID if available (for spinner verb updates)
+CLAUDE_TASK_ID="${CLAUDE_CODE_TASK_ID:-}"
+# Get Claude Code control pipe if available (for real-time progress updates)
+CLAUDE_CODE_CONTROL="${CLAUDE_CODE_CONTROL_PIPE:-}"
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # SECURITY: External URL validation (v7.9.0)
 # Validates URLs before fetching external content
 # See: skill-security-framing.md for full documentation
@@ -752,6 +761,108 @@ generate_usage_table() {
     echo ""
     echo -e "${YELLOW}Note:${NC} Token counts are estimates (~4 chars/token). Actual costs may vary."
     echo ""
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# UX ENHANCEMENTS: Feature 1 - Enhanced Spinner Verbs (v7.16.0)
+# Dynamic task progress updates with context-aware verbs
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Update Claude Code task progress with activeForm
+update_task_progress() {
+    local task_id="$1"
+    local active_form="$2"
+
+    # Skip if task progress disabled or missing parameters
+    if [[ "$TASK_PROGRESS_ENABLED" != "true" ]]; then
+        log DEBUG "Task progress disabled - skipping update"
+        return 0
+    fi
+
+    if [[ -z "$task_id" || -z "$active_form" ]]; then
+        log DEBUG "Missing task_id or active_form - skipping update"
+        return 0
+    fi
+
+    if [[ -z "${CLAUDE_CODE_CONTROL_PIPE:-}" ]]; then
+        log DEBUG "CLAUDE_CODE_CONTROL_PIPE not set - skipping update"
+        return 0
+    fi
+
+    if [[ ! -p "$CLAUDE_CODE_CONTROL_PIPE" ]]; then
+        log WARN "CLAUDE_CODE_CONTROL_PIPE is not a pipe: $CLAUDE_CODE_CONTROL_PIPE"
+        return 1
+    fi
+
+    # Write to control pipe for Claude Code to update spinner
+    echo "TASK_UPDATE:${task_id}:activeForm:${active_form}" >> "$CLAUDE_CODE_CONTROL_PIPE" 2>/dev/null || {
+        log WARN "Failed to write to control pipe"
+        return 1
+    }
+
+    log DEBUG "Updated task $task_id: $active_form"
+    return 0
+}
+
+# Get context-aware activeForm verb for agent + phase combination
+get_active_form_verb() {
+    local phase="$1"
+    local agent="$2"
+    local prompt_context="${3:-}"  # Optional: for even more specific verbs
+
+    # Normalize phase name (aliases to canonical names)
+    case "$phase" in
+        probe) phase="discover" ;;
+        grasp) phase="define" ;;
+        tangle) phase="develop" ;;
+        ink) phase="deliver" ;;
+    esac
+
+    # Normalize agent name (remove version suffixes)
+    local agent_base
+    agent_base=$(echo "$agent" | sed 's/-[0-9].*$//' | sed 's/:.*//')
+
+    # Generate phase/agent-specific verb with emoji indicators
+    local verb=""
+    case "$phase" in
+        discover)
+            case "$agent_base" in
+                codex*) verb="🔴 Researching technical patterns (Codex)" ;;
+                gemini*) verb="🟡 Exploring ecosystem and options (Gemini)" ;;
+                claude*) verb="🔵 Synthesizing research findings" ;;
+                *) verb="🔍 Researching and exploring" ;;
+            esac
+            ;;
+        define)
+            case "$agent_base" in
+                codex*) verb="🔴 Analyzing technical requirements (Codex)" ;;
+                gemini*) verb="🟡 Clarifying scope and constraints (Gemini)" ;;
+                claude*) verb="🔵 Building consensus on approach" ;;
+                *) verb="🎯 Defining requirements" ;;
+            esac
+            ;;
+        develop)
+            case "$agent_base" in
+                codex*) verb="🔴 Generating implementation code (Codex)" ;;
+                gemini*) verb="🟡 Exploring alternative approaches (Gemini)" ;;
+                claude*) verb="🔵 Integrating and validating solution" ;;
+                *) verb="🛠️  Developing implementation" ;;
+            esac
+            ;;
+        deliver)
+            case "$agent_base" in
+                codex*) verb="🔴 Analyzing code quality (Codex)" ;;
+                gemini*) verb="🟡 Testing edge cases and security (Gemini)" ;;
+                claude*) verb="🔵 Final review and recommendations" ;;
+                *) verb="✅ Validating and testing" ;;
+            esac
+            ;;
+        *)
+            verb="Processing with $agent"
+            ;;
+    esac
+
+    echo "$verb"
 }
 
 # Generate CSV format report
@@ -6583,6 +6694,13 @@ spawn_agent() {
         # IMPROVED: Use temp files for reliable output capture (v7.13.2 - Issue #10)
         local temp_output="${RESULTS_DIR}/.tmp-${task_id}.out"
         local temp_errors="${RESULTS_DIR}/.tmp-${task_id}.err"
+
+        # Update task progress with context-aware spinner verb (v7.16.0)
+        if [[ -n "$CLAUDE_TASK_ID" ]]; then
+            local active_verb
+            active_verb=$(get_active_form_verb "$phase" "$agent_type" "$prompt")
+            update_task_progress "$CLAUDE_TASK_ID" "$active_verb"
+        fi
 
         if run_with_timeout "$TIMEOUT" "${cmd_array[@]}" "$enhanced_prompt" > "$temp_output" 2> "$temp_errors"; then
             # Filter out CLI header noise and extract actual response
