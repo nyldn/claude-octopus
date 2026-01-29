@@ -18,6 +18,12 @@ description: |
   quick pre-commit checks (use skill-quick-review).
 context: fork
 agent: Explore
+execution_mode: enforced
+pre_execution_contract:
+  - visual_indicators_displayed
+validation_gates:
+  - orchestrate_sh_executed
+  - review_output_exists
 ---
 
 # Code Review Skill

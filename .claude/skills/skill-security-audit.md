@@ -17,6 +17,12 @@ description: |
 
   DO NOT use for: general code review (use skill-code-review), adversarial red team testing
   (use skill-adversarial-security), debugging (use skill-debug).
+execution_mode: enforced
+pre_execution_contract:
+  - visual_indicators_displayed
+validation_gates:
+  - orchestrate_sh_executed
+  - output_artifact_exists
 ---
 
 # Security Audit Skill

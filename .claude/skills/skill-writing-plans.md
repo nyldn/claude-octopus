@@ -18,6 +18,12 @@ trigger: |
   Auto-invoke when user says "plan how to implement X", "create implementation plan", 
   "break down this feature into tasks".
   Use BEFORE writing any implementation code.
+execution_mode: enforced
+pre_execution_contract:
+  - visual_indicators_displayed
+validation_gates:
+  - orchestrate_sh_executed
+  - output_artifact_exists
 ---
 
 # Writing Plans

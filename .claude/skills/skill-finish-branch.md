@@ -26,6 +26,12 @@ trigger: |
   - Work in progress without tests passing
   - Exploratory commits
   - Simple "git status" or "git diff" commands
+execution_mode: enforced
+pre_execution_contract:
+  - visual_indicators_displayed
+validation_gates:
+  - orchestrate_sh_executed
+  - output_artifact_exists
 ---
 
 # Finishing a Development Branch
