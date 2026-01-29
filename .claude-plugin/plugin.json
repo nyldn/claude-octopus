@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "7.16.1",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.16.1) Comprehensive documentation: all 29 expert personas, 28 commands, 33 skills documented. Validation Gate Pattern enforces orchestrate.sh execution (100% compliance, 4x faster, 70% token savings). Commands '/octo:*'. Run /octo:setup for guided setup.",
+  "version": "7.17.0",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.17.0) NEW: Session state persistence, 94% validation compliance, phase discussion, stub detection, quick mode. 29 expert personas, 29 commands, 34 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },
@@ -71,7 +71,8 @@
     "./.claude/skills/skill-decision-support.md",
     "./.claude/skills/skill-iterative-loop.md",
     "./.claude/skills/skill-audit.md",
-    "./.claude/skills/skill-intent-contract.md"
+    "./.claude/skills/skill-intent-contract.md",
+    "./.claude/skills/skill-quick.md"
   ],
   "commands": [
     "./.claude/commands/prd.md",
@@ -101,6 +102,7 @@
     "./.claude/commands/tangle.md",
     "./.claude/commands/ink.md",
     "./.claude/commands/multi.md",
-    "./.claude/commands/plan.md"
+    "./.claude/commands/plan.md",
+    "./.claude/commands/quick.md"
   ]
 }
