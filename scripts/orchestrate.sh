@@ -847,6 +847,7 @@ update_agent_status() {
     local status="$2"  # waiting, running, completed, failed
     local elapsed_ms="${3:-0}"
     local cost="${4:-0.0}"
+    local timeout_secs="${5:-${TIMEOUT:-300}}"  # Use provided or global timeout
 
     # Skip if progress tracking disabled or no progress file
     if [[ "$PROGRESS_TRACKING_ENABLED" != "true" ]]; then
@@ -858,6 +859,24 @@ update_agent_status() {
         return 0
     fi
 
+    # Calculate timeout tracking (v7.16.0 Feature 3)
+    local timeout_ms=$((timeout_secs * 1000))
+    local timeout_warning="false"
+    local remaining_ms=0
+    local timeout_pct=0
+
+    if [[ "$status" == "running" && $elapsed_ms -gt 0 ]]; then
+        # Calculate percentage of timeout used
+        timeout_pct=$((elapsed_ms * 100 / timeout_ms))
+
+        # Warn if at or above 80% threshold
+        if [[ $timeout_pct -ge 80 ]]; then
+            timeout_warning="true"
+            remaining_ms=$((timeout_ms - elapsed_ms))
+            log WARN "Agent $agent_name approaching timeout ($timeout_pct% of ${timeout_secs}s)"
+        fi
+    fi
+
     # Create agent status record (JSON string for jq)
     local agent_record
     agent_record=$(jq -n \
@@ -866,7 +885,11 @@ update_agent_status() {
         --arg started "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
         --argjson elapsed "$elapsed_ms" \
         --argjson cost "$cost" \
-        '{name: $name, status: $status, started_at: $started, elapsed_ms: $elapsed, cost: $cost}')
+        --argjson timeout_ms "$timeout_ms" \
+        --arg timeout_warning "$timeout_warning" \
+        --argjson remaining_ms "$remaining_ms" \
+        --argjson timeout_pct "$timeout_pct" \
+        '{name: $name, status: $status, started_at: $started, elapsed_ms: $elapsed, cost: $cost, timeout_ms: $timeout_ms, timeout_warning: ($timeout_warning == "true"), remaining_ms: $remaining_ms, timeout_pct: $timeout_pct}')
 
     # Use atomic_json_update for race-free updates
     atomic_json_update "$PROGRESS_FILE" \
@@ -914,12 +937,16 @@ display_progress_summary() {
     echo "Provider Results:"
     echo ""
 
-    # Read agents and format status
+    # Read agents and format status with timeout info (v7.16.0 Feature 3)
     jq -r '.agents[] |
         if .status == "completed" then
             "✅ \(.name): Completed (\(.elapsed_ms / 1000)s) - $\(.cost)"
         elif .status == "running" then
-            "⏳ \(.name): Running... (\(.elapsed_ms / 1000)s elapsed)"
+            if .timeout_warning then
+                "⏳ \(.name): Running... (\(.elapsed_ms / 1000)s / \(.timeout_ms / 1000)s timeout - \(.timeout_pct)%)\n⚠️  WARNING: Approaching timeout! (\(.remaining_ms / 1000)s remaining)"
+            else
+                "⏳ \(.name): Running... (\(.elapsed_ms / 1000)s / \(.timeout_ms / 1000)s timeout)"
+            end
         elif .status == "failed" then
             "❌ \(.name): Failed"
         else
@@ -928,6 +955,25 @@ display_progress_summary() {
     ' "$PROGRESS_FILE" 2>/dev/null | sed 's/codex/🔴 Codex CLI/; s/gemini/🟡 Gemini CLI/; s/claude/🔵 Claude/' || echo "  (No agent data available)"
 
     echo ""
+
+    # Show timeout guidance if any warnings (v7.16.0 Feature 3)
+    local has_warnings
+    has_warnings=$(jq -r '[.agents[].timeout_warning] | any' "$PROGRESS_FILE" 2>/dev/null || echo "false")
+
+    if [[ "$has_warnings" == "true" ]]; then
+        local current_timeout
+        current_timeout=$(jq -r '.agents[0].timeout_ms // 300000' "$PROGRESS_FILE" 2>/dev/null)
+        current_timeout=$((current_timeout / 1000))
+        local recommended_timeout=$((current_timeout * 2))
+
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "💡 Timeout Guidance:"
+        echo "   Current timeout: ${current_timeout}s"
+        echo "   Recommended: --timeout ${recommended_timeout}"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo ""
+    fi
+
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     printf "Progress: %s/%s providers completed\n" "$completed" "$total"
     printf "💰 Total Cost: \$%s\n" "$total_cost"
@@ -3312,33 +3358,58 @@ run_with_timeout() {
     local timeout_secs="$1"
     shift
 
+    local exit_code
+
     # Use gtimeout (GNU) or timeout if available
     if command -v gtimeout &>/dev/null; then
         gtimeout "$timeout_secs" "$@"
-        return $?
+        exit_code=$?
     elif command -v timeout &>/dev/null; then
         timeout "$timeout_secs" "$@"
-        return $?
-    fi
-
-    # Fallback with proper cleanup
-    local cmd_pid monitor_pid exit_code
-
-    "$@" &
-    cmd_pid=$!
-
-    ( sleep "$timeout_secs" && kill -TERM "$cmd_pid" 2>/dev/null ) &
-    monitor_pid=$!
-
-    if wait "$cmd_pid" 2>/dev/null; then
-        exit_code=0
-    else
         exit_code=$?
+    else
+        # Fallback with proper cleanup
+        local cmd_pid monitor_pid
+
+        "$@" &
+        cmd_pid=$!
+
+        ( sleep "$timeout_secs" && kill -TERM "$cmd_pid" 2>/dev/null ) &
+        monitor_pid=$!
+
+        if wait "$cmd_pid" 2>/dev/null; then
+            exit_code=0
+        else
+            exit_code=$?
+        fi
+
+        # Clean up monitor process
+        kill "$monitor_pid" 2>/dev/null
+        wait "$monitor_pid" 2>/dev/null
     fi
 
-    # Clean up monitor process
-    kill "$monitor_pid" 2>/dev/null
-    wait "$monitor_pid" 2>/dev/null
+    # Enhanced timeout error messaging (v7.16.0 Feature 3)
+    if [[ $exit_code -eq 124 ]] || [[ $exit_code -eq 143 ]]; then
+        local timeout_mins=$((timeout_secs / 60))
+        local recommended_timeout=$((timeout_secs * 2))
+        local recommended_mins=$((recommended_timeout / 60))
+
+        log ERROR "Operation timed out after ${timeout_secs}s (${timeout_mins}m)"
+        echo "" >&2
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2
+        echo "⚠️  TIMEOUT EXCEEDED" >&2
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2
+        echo "" >&2
+        echo "Operation exceeded the ${timeout_secs}s (${timeout_mins}m) timeout limit." >&2
+        echo "" >&2
+        echo "💡 Possible solutions:" >&2
+        echo "   1. Increase timeout: --timeout ${recommended_timeout} (${recommended_mins}m)" >&2
+        echo "   2. Simplify the prompt to reduce processing time" >&2
+        echo "   3. Check provider API status for slowness" >&2
+        echo "" >&2
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2
+        return 124
+    fi
 
     return $exit_code
 }
