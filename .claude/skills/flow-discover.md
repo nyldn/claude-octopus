@@ -148,6 +148,21 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh probe "<user's research question>"
 
 **This is NOT optional. You MUST use the Bash tool to invoke orchestrate.sh.**
 
+#### What Users See During Execution (v7.16.0+)
+
+If running in Claude Code v2.1.16+, users will see **real-time progress indicators** in the task spinner:
+
+**Phase 1 - External Provider Execution (Parallel):**
+- 🔴 Researching technical patterns (Codex)...
+- 🟡 Exploring ecosystem and options (Gemini)...
+
+**Phase 2 - Synthesis (Sequential):**
+- 🔵 Synthesizing research findings...
+
+These spinner verb updates happen automatically - orchestrate.sh calls `update_task_progress()` before each agent execution. Users see exactly which provider is working and what it's doing.
+
+**If NOT running in Claude Code v2.1.16+:** Progress indicators are silently skipped, no errors shown.
+
 ---
 
 ### STEP 4: Verify Execution (MANDATORY - Validation Gate)
