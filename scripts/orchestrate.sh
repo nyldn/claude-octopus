@@ -209,6 +209,96 @@ EOF
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# UX ENHANCEMENTS: Critical Fixes for v7.16.0
+# File locking, environment validation, dependency checks for progress tracking
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Atomic JSON update with file locking (prevents race conditions)
+atomic_json_update() {
+    local json_file="$1"
+    local jq_expression="$2"
+    shift 2
+
+    local lockfile="${json_file}.lock"
+    local timeout=5
+    local waited=0
+
+    # Wait for lock with timeout
+    while [[ -f "$lockfile" ]] && [[ $waited -lt $((timeout * 10)) ]]; do
+        sleep 0.1
+        waited=$((waited + 1))
+    done
+
+    if [[ -f "$lockfile" ]]; then
+        log WARN "Timeout acquiring lock for $json_file"
+        return 1
+    fi
+
+    # Acquire lock
+    touch "$lockfile"
+    trap "rm -f $lockfile" EXIT
+
+    # Update atomically
+    local tmp_file="${json_file}.tmp.$$"
+    jq "$jq_expression" "$@" "$json_file" > "$tmp_file" && mv "$tmp_file" "$json_file"
+    local result=$?
+
+    # Release lock
+    rm -f "$lockfile"
+    trap - EXIT
+
+    return $result
+}
+
+# Validate Claude Code task integration features
+validate_claude_code_task_features() {
+    local has_task_id=false
+    local has_control_pipe=false
+
+    if [[ -n "${CLAUDE_CODE_TASK_ID:-}" ]]; then
+        has_task_id=true
+        log DEBUG "Claude Code task integration available (TASK_ID set)"
+    fi
+
+    if [[ -n "${CLAUDE_CODE_CONTROL_PIPE:-}" ]] && [[ -p "${CLAUDE_CODE_CONTROL_PIPE}" ]]; then
+        has_control_pipe=true
+        log DEBUG "Claude Code control pipe available"
+    fi
+
+    if [[ "$has_task_id" == "true" && "$has_control_pipe" == "true" ]]; then
+        TASK_PROGRESS_ENABLED=true
+        log DEBUG "Task progress integration enabled"
+    else
+        TASK_PROGRESS_ENABLED=false
+        log DEBUG "Task progress integration disabled (requires Claude Code v2.1.16+)"
+    fi
+}
+
+# Check for required dependencies (jq, etc.)
+check_ux_dependencies() {
+    local all_deps_met=true
+
+    # Check jq for JSON processing
+    if ! command -v jq &>/dev/null; then
+        log WARN "jq not found - progress tracking disabled"
+        log WARN "Install with: brew install jq (macOS) or apt install jq (Linux)"
+        PROGRESS_TRACKING_ENABLED=false
+        all_deps_met=false
+    else
+        PROGRESS_TRACKING_ENABLED=true
+        log DEBUG "jq found - progress tracking enabled"
+    fi
+
+    if [[ "$all_deps_met" == "true" ]]; then
+        log DEBUG "All UX dependencies satisfied"
+        return 0
+    else
+        log WARN "Some UX dependencies missing - features disabled"
+        return 1
+    fi
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # CLAUDE CODE VERSION DETECTION (v7.12.0)
 # Detects Claude Code v2.1.12+ features for enhanced task management
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -10782,6 +10872,12 @@ init_ci_mode
 
 # Detect Claude Code version for v2.1.12+ features (v7.12.0)
 detect_claude_code_version 2>/dev/null || true
+
+# Validate Claude Code task integration features (v7.16.0)
+validate_claude_code_task_features 2>/dev/null || true
+
+# Check UX feature dependencies (v7.16.0)
+check_ux_dependencies 2>/dev/null || true
 
 # Handle autonomy mode aliases
 if [[ "$AUTONOMY_MODE" == "loop-until-approved" ]]; then
