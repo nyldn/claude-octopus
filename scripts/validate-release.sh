@@ -242,6 +242,61 @@ fi
 echo ""
 
 # ============================================================================
+# 9. CHANGELOG ENTRY CHECK
+# ============================================================================
+echo "📝 Checking CHANGELOG entry..."
+
+EXPECTED_TAG="v$PLUGIN_VERSION"
+CHANGELOG_FILE="$ROOT_DIR/CHANGELOG.md"
+
+if [[ -f "$CHANGELOG_FILE" ]]; then
+    # Check if version is mentioned in CHANGELOG
+    if grep -q "## \[$PLUGIN_VERSION\]" "$CHANGELOG_FILE"; then
+        echo -e "  ${GREEN}✓ CHANGELOG.md has entry for v$PLUGIN_VERSION${NC}"
+    else
+        echo -e "  ${RED}ERROR: CHANGELOG.md missing entry for v$PLUGIN_VERSION${NC}"
+        echo -e "  ${RED}  Add a changelog entry before releasing${NC}"
+        ((errors++))
+    fi
+else
+    echo -e "  ${YELLOW}WARNING: CHANGELOG.md not found${NC}"
+    ((warnings++))
+fi
+
+echo ""
+
+# ============================================================================
+# 10. GITHUB RELEASE CHECK
+# ============================================================================
+echo "🚀 Checking GitHub release..."
+
+EXPECTED_TAG="v$PLUGIN_VERSION"
+
+# Check if gh CLI is available
+if ! command -v gh &> /dev/null; then
+    echo -e "  ${YELLOW}NOTE: gh CLI not installed - skipping GitHub release check${NC}"
+    echo -e "  ${YELLOW}  Install with: brew install gh${NC}"
+else
+    # Check if authenticated
+    if ! gh auth status &> /dev/null; then
+        echo -e "  ${YELLOW}NOTE: Not authenticated with GitHub - skipping release check${NC}"
+        echo -e "  ${YELLOW}  Authenticate with: gh auth login${NC}"
+    else
+        # Check if release exists
+        if gh release view "$EXPECTED_TAG" &> /dev/null; then
+            echo -e "  ${GREEN}✓ GitHub release $EXPECTED_TAG exists${NC}"
+        else
+            echo -e "  ${YELLOW}WARNING: GitHub release $EXPECTED_TAG does not exist${NC}"
+            echo -e "  ${YELLOW}  Create release after pushing tag${NC}"
+            echo -e "  ${YELLOW}  Ensure CHANGELOG.md has an entry for this version${NC}"
+            ((warnings++))
+        fi
+    fi
+fi
+
+echo ""
+
+# ============================================================================
 # SUMMARY
 # ============================================================================
 echo "======================================"
