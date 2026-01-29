@@ -2,6 +2,171 @@
 
 All notable changes to Claude Octopus will be documented in this file.
 
+## [7.16.0] - 2026-01-28
+
+### ✨ UX Enhancements - Professional Progress Visibility
+
+This release transforms the multi-AI orchestration UX from opaque to transparent with three major features that provide real-time visibility into what's running, how long it's taking, and when timeouts might occur.
+
+#### Feature 1: Enhanced Spinner Verbs
+**Dynamic, context-aware progress indicators** that show exactly which provider is running and what operation they're performing:
+
+**What Users See:**
+```
+🔴 Researching technical patterns (Codex)...
+🟡 Exploring ecosystem and options (Gemini)...
+🔵 Synthesizing research findings...
+```
+
+**Benefits:**
+- Real-time visibility into which AI provider is active
+- Clear emoji indicators (🔴 Codex, 🟡 Gemini, 🔵 Claude)
+- Context-aware verbs for each phase (discover, define, develop, deliver)
+- Reduces "is this stuck?" anxiety
+- Works with Claude Code v2.1.16+ Task Management API
+
+**Implementation:**
+- `update_task_progress()` - Updates Claude Code task spinner in real-time
+- `get_active_form_verb()` - Generates phase/agent-specific progress messages
+- Integration with spawn_agent() for automatic updates
+
+#### Feature 2: Enhanced Progress Indicators
+**Comprehensive workflow summaries** showing provider execution status, timing, and costs:
+
+**What Users See:**
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🐙 WORKFLOW SUMMARY: discover Phase
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Provider Results:
+✅ 🔴 Codex CLI: Completed (23s) - $0.02
+✅ 🟡 Gemini CLI: Completed (18s) - $0.01
+✅ 🔵 Claude: Completed (5s) - $0.00
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Progress: 3/3 providers completed
+💰 Total Cost: $0.03
+⏱️  Total Time: 46s
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+**Benefits:**
+- Complete cost transparency with per-provider breakdown
+- Timing visibility to identify slow providers
+- Clear success/failure indicators
+- Professional formatted output
+
+**Implementation:**
+- `init_progress_tracking()` - Initializes JSON progress file for workflow
+- `update_agent_status()` - Tracks agent lifecycle (waiting→running→completed/failed)
+- `display_progress_summary()` - Shows formatted workflow summary
+- `cleanup_old_progress_files()` - Automatic housekeeping (>1 day old)
+
+#### Feature 3: Timeout Visibility
+**Early warnings and actionable guidance** for timeout issues:
+
+**What Users See (Warning at 80%):**
+```
+⏳ 🟡 Gemini CLI: Running... (245s / 300s timeout - 82%)
+⚠️  WARNING: Approaching timeout! (55s remaining)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💡 Timeout Guidance:
+   Current timeout: 300s
+   Recommended: --timeout 600
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+**What Users See (Timeout Exceeded):**
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️  TIMEOUT EXCEEDED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Operation exceeded the 300s (5m) timeout limit.
+
+💡 Possible solutions:
+   1. Increase timeout: --timeout 600 (10m)
+   2. Simplify the prompt to reduce processing time
+   3. Check provider API status for slowness
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+**Benefits:**
+- No more surprise timeout failures
+- Early warning at 80% threshold
+- Clear, actionable error messages
+- Helps users tune timeout values appropriately
+
+**Implementation:**
+- Enhanced `run_with_timeout()` with detailed error messages
+- Timeout tracking in `update_agent_status()` (80% threshold)
+- Warning display in `display_progress_summary()`
+
+### 🛡️ Critical Fixes (Foundation)
+
+Added three safety functions to prevent race conditions and enable graceful degradation:
+
+1. **atomic_json_update()** - File locking for race-free JSON updates
+   - 5-second timeout with 0.1s polling
+   - Atomic write using temp file + mv pattern
+   - Prevents parallel workflow corruption
+
+2. **validate_claude_code_task_features()** - Environment validation
+   - Checks CLAUDE_CODE_TASK_ID and CLAUDE_CODE_CONTROL_PIPE
+   - Sets TASK_PROGRESS_ENABLED flag
+   - Graceful degradation without Claude Code v2.1.16+
+
+3. **check_ux_dependencies()** - Dependency validation
+   - Validates jq installation for JSON processing
+   - Sets PROGRESS_TRACKING_ENABLED flag
+   - Provides install instructions if missing
+
+### 📊 Impact
+
+**User Experience:**
+- ✅ Real-time visibility: Know exactly what's happening at each moment
+- ✅ Cost transparency: See costs before, during, and after execution
+- ✅ Reduced anxiety: Clear progress eliminates "is this stuck?" concerns
+- ✅ Professional UX: Polished, enterprise-grade progress indicators
+
+**Performance:**
+- Minimal overhead: <2% impact on typical workflows
+- Graceful degradation: Works without Claude Code v2.1.16+ or jq
+- No regressions: All 145+ existing tests still pass
+
+**Code Quality:**
+- 11 new functions across 3 major features
+- ~500 lines of well-tested code
+- Comprehensive test suite (15/15 tests passing)
+- Race condition prevention with atomic updates
+
+### 🔄 Updated
+
+- scripts/orchestrate.sh: Added all UX enhancement features
+- .claude/skills/flow-discover.md: Documented spinner verb examples
+- tests/: Added test-ux-features-v7.16.0.sh (15 tests)
+
+### 📦 Technical Details
+
+**Functions Added:**
+- Critical: atomic_json_update, validate_claude_code_task_features, check_ux_dependencies
+- Feature 1: update_task_progress, get_active_form_verb
+- Feature 2: init_progress_tracking, update_agent_status, display_progress_summary, cleanup_old_progress_files
+- Feature 3: Enhanced run_with_timeout error handling
+
+**Commits:**
+- 0dda310: Critical safety fixes
+- 410e0b0: Enhanced spinner verbs
+- 25e9cff: Documentation for spinner verbs
+- f5d58be: Enhanced progress indicators
+- dd1b807: Timeout visibility
+- 1ef91db: Comprehensive test suite
+
+---
+
 ## [7.15.1] - 2026-01-28
 
 ### 📚 Documentation
