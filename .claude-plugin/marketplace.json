@@ -11,8 +11,8 @@
     {
       "name": "claude-octopus",
       "source": "./",
-      "description": "v7.15.1 - Comprehensive documentation: all 29 expert personas, 28 commands, 33 skills now fully documented. Validation Gate Pattern enforces multi-AI execution (100% compliance, 4x faster, 70% token savings). BREAKING: Requires Claude Code v2.1.16+. Commands '/octo:*'. Run /octo:setup.",
-      "version": "7.15.1",
+      "description": "v7.16.0 - UX Enhancements: Real-time progress with spinner verbs, workflow summaries with costs/timing, timeout warnings. All 29 personas, 28 commands, 33 skills documented. Validation Gate Pattern enforces multi-AI (100% compliance, 4x faster, 70% token savings). Requires Claude Code v2.1.16+. Run /octo:setup.",
+      "version": "7.16.0",
       "author": {
         "name": "nyldn"
       },
