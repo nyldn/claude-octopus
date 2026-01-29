@@ -2,6 +2,25 @@
 
 All notable changes to Claude Octopus will be documented in this file.
 
+## [7.16.1] - 2026-01-28
+
+### 📚 Documentation
+
+#### Feature /octo:multi in Major Features
+- Added `/octo:multi` command to the Multi-AI Parallel Execution major features section
+- Highlighted manual override capability for forcing multi-AI execution
+- Added "Key capabilities" section covering:
+  - Auto-detection: Skills automatically trigger multi-AI when beneficial
+  - Manual override: Force multi-AI mode with `/octo:multi` command
+  - Graceful degradation: Works with 1, 2, or 3 providers
+- Improved visibility of this important force-execution feature
+
+### 🔄 Updated
+
+- README.md: Enhanced Major Feature #1 with `/octo:multi` examples and capabilities
+
+---
+
 ## [7.16.0] - 2026-01-28
 
 ### ✨ UX Enhancements - Professional Progress Visibility
@@ -563,6 +582,179 @@ All 4 core flow skills now include v2.1.12+ metadata:
 - Path validation still enforced
 - External URL validation unchanged
 - Untrusted content wrapping intact
+
+---
+
+## [7.11.1] - 2026-01-22
+
+### 🐛 Bug Fixes
+
+- **Plugin Validation Error**: Fixed invalid `_comment` field in plugin.json that prevented commands from loading
+- Commands now load correctly in Claude Code without validation errors
+
+### 🧪 Testing
+
+- Added comprehensive test suite for v7.11.0 Intent Mode features
+- Validated plugin.json schema compliance
+
+---
+
+## [7.11.0] - 2026-01-21
+
+### ✨ New Features - Intent Mode
+
+#### Intelligent Plan Builder (`/octo:plan`)
+- New command for capturing user intent and routing to optimal workflow sequences
+- Analyzes request to determine best workflow path (discover → define → develop → deliver)
+- Provides strategic recommendations for complex tasks
+- Integrates with Double Diamond methodology
+
+#### Persistent Intent Contract System
+- Captures and persists user intent across workflow phases
+- Contract stored in session state for reference
+- Enables better context retention across multi-phase workflows
+- Supports workflow resumption with original intent
+
+#### Interactive Clarifying Questions
+- Added 3 clarifying questions to key workflows:
+  - `/octo:discover` - Research depth, focus, format preferences
+  - `/octo:review` - Review focus, depth, format preferences
+  - `/octo:security` - Security scope, compliance, threat model
+  - `/octo:tdd` - Test strategy, coverage, framework preferences
+- Reduces ambiguity and improves workflow targeting
+
+### 🔄 Updated
+
+- Enhanced workflow skills with intent capture and clarification
+- Version bumped to 7.11.0 across all configuration files
+
+---
+
+## [7.10.1] - 2026-01-21
+
+### ✨ Enhancements
+
+- **Provider Validation**: Added provider availability checks to `/octo:debate` and `/octo:embrace` workflows
+- **Interactive Clarification**: Added clarifying questions to debate and full workflow commands
+- Improved user experience with upfront provider status visibility
+
+---
+
+## [7.10.0] - 2026-01-21
+
+### ✨ New Features
+
+#### Force Multi-Provider Execution (`/octo:multi`)
+- New command to explicitly force multi-AI orchestration for any task
+- Bypasses auto-detection and guarantees parallel provider execution
+- Useful when you want diverse perspectives regardless of task complexity
+- Example: `/octo:multi analyze this codebase`
+
+#### Comprehensive Plugin Safeguards
+- 4-layer protection system for plugin integrity
+- Prevents common installation and configuration errors
+- Validates command and skill registration
+- Ensures version synchronization across configuration files
+
+### 🧪 Testing
+
+- Added comprehensive test suite (53 tests total)
+- Validates plugin structure, commands, skills, and safeguards
+- Run with: `make test`
+
+### 🔄 Updated
+
+- Added explicit Skill tool usage instructions to all command files
+- Improved .gitignore to exclude *.bak files
+- Version synchronized across plugin.json, marketplace.json, package.json, README.md
+
+---
+
+## [7.9.7] - 2026-01-21
+
+### 🐛 Bug Fixes
+
+- **Command Namespace Handling**: Fixed plugin.json name to control command prefix correctly
+- **Frontmatter Format**: Removed `octo:` prefix from all command frontmatter files (controlled by plugin.json instead)
+- **Validation Enhancement**: Updated validation script to enforce correct frontmatter format
+
+### 🔄 Changed
+
+- Command files now use clean names without namespace prefix (e.g., "research" not "octo:research")
+- Plugin.json "name" field controls the actual command prefix shown to users
+
+---
+
+## [7.9.6] - 2026-01-21
+
+### 📚 Documentation
+
+- Updated README version badge to 7.9.6
+- Ensured plugin name consistency as "claude-octopus" for marketplace installation
+
+---
+
+## [7.9.5] - 2026-01-21
+
+### 🔨 Refactoring
+
+#### Alias System Migration
+- **Removed**: 12 redundant shortcut skill files (debate.md, debug.md, etc.)
+- **Added**: Missing aliases to skill-deep-research.md and skill-security-audit.md
+- **Adopted**: Claude Code's native alias mechanism instead of non-functional redirect field
+- **Cleaned**: Removed legacy 'co-' prefix triggers (co-debate, co-deep-research, etc.)
+
+### 🔄 Changed
+
+- Plugin now has 32 skills (down from 44 files)
+- Cleaner codebase with proper auto-discovery via aliases
+- Removed confusing legacy naming patterns
+
+### Benefits
+
+- Simpler maintenance with fewer redundant files
+- Better Claude Code integration using native alias mechanism
+- Eliminated non-functional redirect pattern
+- Clearer skill organization without legacy naming confusion
+
+---
+
+## [7.9.4] - 2026-01-21
+
+### 🐛 Bug Fixes
+
+- **Skill Naming**: Added `octo:` prefix to all shortcut skill names for consistency
+- **Validation**: Added skill frontmatter format check to validate-release.sh
+- **Command Ambiguity**: Prevented skill names without proper prefix to avoid conflicts
+
+### 🔄 Updated
+
+- All skill names now follow consistent `octo:` prefix convention
+- Pre-push validation ensures skill naming standards
+
+---
+
+## [7.9.3] - 2026-01-21
+
+### 🐛 Bug Fixes
+
+- **Mode Toggle Commands**: Improved `/octo:km` and `/octo:dev` to handle missing configuration files
+- **Default Behavior**: Fixed `/octo:km` default behavior when no arguments provided
+- **Plugin Naming**: Resolved plugin naming convention issues
+  - Set plugin.json name to 'octo' for correct `/octo:*` command prefixes
+  - Marketplace name remains 'claude-octopus' for installation
+  - Added pre-push validation to prevent incorrect frontmatter prefixes
+
+### 📚 Documentation
+
+- Fixed README badge alt text for clarity
+- Clarified setup step requirements after plugin installation
+
+### 🔄 Changed
+
+- Restored correct plugin naming convention after experimentation
+- Removed `octo:` prefix from command frontmatter (controlled by plugin.json)
+- Enhanced pre-push validation checks
 
 ---
 
