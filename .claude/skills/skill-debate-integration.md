@@ -14,6 +14,12 @@ trigger: |
   - Running in claude-octopus context
 
   Provides enhancements without modifying the original skill.
+execution_mode: enforced
+pre_execution_contract:
+  - visual_indicators_displayed
+validation_gates:
+  - orchestrate_sh_executed
+  - output_artifact_exists
 ---
 
 # AI Debate Hub Integration Layer

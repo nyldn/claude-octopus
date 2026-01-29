@@ -7,6 +7,12 @@ description: |
 trigger: |
   Use this skill when the user says "security audit this code", "find vulnerabilities in X",
   "red team review", "pentest this API", or "check for OWASP issues".
+execution_mode: enforced
+pre_execution_contract:
+  - visual_indicators_displayed
+validation_gates:
+  - orchestrate_sh_executed
+  - output_artifact_exists
 ---
 
 # Adversarial Security Skill

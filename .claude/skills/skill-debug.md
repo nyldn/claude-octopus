@@ -31,6 +31,12 @@ trigger: |
   - "Why should I choose X?" (decision support, not debugging)
   - Known issues with clear solutions
   - Documentation or architecture questions
+execution_mode: enforced
+pre_execution_contract:
+  - visual_indicators_displayed
+validation_gates:
+  - orchestrate_sh_executed
+  - debug_output_exists
 ---
 
 # Systematic Debugging
