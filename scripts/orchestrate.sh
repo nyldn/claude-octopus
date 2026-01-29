@@ -804,6 +804,150 @@ update_task_progress() {
     return 0
 }
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# UX ENHANCEMENTS: Feature 2 - Enhanced Progress Indicators (v7.16.0)
+# File-based progress tracking with workflow summaries
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Progress status file
+PROGRESS_FILE="${WORKSPACE_DIR}/progress-${CLAUDE_CODE_SESSION:-session}.json"
+
+# Initialize progress tracking for a workflow
+init_progress_tracking() {
+    local phase="$1"
+    local total_agents="${2:-0}"
+
+    # Skip if progress tracking disabled
+    if [[ "$PROGRESS_TRACKING_ENABLED" != "true" ]]; then
+        log DEBUG "Progress tracking disabled - skipping init"
+        return 0
+    fi
+
+    # Use atomic write to prevent race conditions
+    cat > "${PROGRESS_FILE}.tmp.$$" << EOF
+{
+  "session_id": "${CLAUDE_CODE_SESSION:-session}",
+  "phase": "$phase",
+  "started_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+  "total_agents": $total_agents,
+  "completed_agents": 0,
+  "total_cost": 0.0,
+  "total_time_ms": 0,
+  "agents": []
+}
+EOF
+    mv "${PROGRESS_FILE}.tmp.$$" "$PROGRESS_FILE"
+
+    log DEBUG "Progress tracking initialized for phase: $phase ($total_agents agents)"
+}
+
+# Update agent status in progress file
+update_agent_status() {
+    local agent_name="$1"
+    local status="$2"  # waiting, running, completed, failed
+    local elapsed_ms="${3:-0}"
+    local cost="${4:-0.0}"
+
+    # Skip if progress tracking disabled or no progress file
+    if [[ "$PROGRESS_TRACKING_ENABLED" != "true" ]]; then
+        return 0
+    fi
+
+    if [[ ! -f "$PROGRESS_FILE" ]]; then
+        log DEBUG "Progress file not found - skipping agent status update"
+        return 0
+    fi
+
+    # Create agent status record (JSON string for jq)
+    local agent_record
+    agent_record=$(jq -n \
+        --arg name "$agent_name" \
+        --arg status "$status" \
+        --arg started "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
+        --argjson elapsed "$elapsed_ms" \
+        --argjson cost "$cost" \
+        '{name: $name, status: $status, started_at: $started, elapsed_ms: $elapsed, cost: $cost}')
+
+    # Use atomic_json_update for race-free updates
+    atomic_json_update "$PROGRESS_FILE" \
+        --argjson agent "$agent_record" \
+        '.agents += [$agent]' || {
+        log WARN "Failed to update agent status for $agent_name"
+        return 1
+    }
+
+    # Update totals if completed
+    if [[ "$status" == "completed" ]]; then
+        atomic_json_update "$PROGRESS_FILE" \
+            --argjson elapsed "$elapsed_ms" \
+            --argjson cost "$cost" \
+            '.completed_agents += 1 | .total_time_ms += $elapsed | .total_cost += $cost' || {
+            log WARN "Failed to update progress totals"
+        }
+    fi
+
+    log DEBUG "Updated agent status: $agent_name -> $status (${elapsed_ms}ms, \$${cost})"
+}
+
+# Format and display progress summary
+display_progress_summary() {
+    if [[ "$PROGRESS_TRACKING_ENABLED" != "true" ]]; then
+        return 0
+    fi
+
+    if [[ ! -f "$PROGRESS_FILE" ]]; then
+        return 0
+    fi
+
+    local phase completed total total_cost total_time
+    phase=$(jq -r '.phase // "unknown"' "$PROGRESS_FILE" 2>/dev/null || echo "unknown")
+    completed=$(jq -r '.completed_agents // 0' "$PROGRESS_FILE" 2>/dev/null || echo "0")
+    total=$(jq -r '.total_agents // 0' "$PROGRESS_FILE" 2>/dev/null || echo "0")
+    total_cost=$(jq -r '.total_cost // 0.0' "$PROGRESS_FILE" 2>/dev/null || echo "0.0")
+    total_time=$(jq -r '(.total_time_ms // 0) / 1000' "$PROGRESS_FILE" 2>/dev/null || echo "0")
+
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "🐙 WORKFLOW SUMMARY: $phase Phase"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    echo "Provider Results:"
+    echo ""
+
+    # Read agents and format status
+    jq -r '.agents[] |
+        if .status == "completed" then
+            "✅ \(.name): Completed (\(.elapsed_ms / 1000)s) - $\(.cost)"
+        elif .status == "running" then
+            "⏳ \(.name): Running... (\(.elapsed_ms / 1000)s elapsed)"
+        elif .status == "failed" then
+            "❌ \(.name): Failed"
+        else
+            "⏸️  \(.name): Waiting"
+        end
+    ' "$PROGRESS_FILE" 2>/dev/null | sed 's/codex/🔴 Codex CLI/; s/gemini/🟡 Gemini CLI/; s/claude/🔵 Claude/' || echo "  (No agent data available)"
+
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    printf "Progress: %s/%s providers completed\n" "$completed" "$total"
+    printf "💰 Total Cost: \$%s\n" "$total_cost"
+    printf "⏱️  Total Time: %ss\n" "$total_time"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+}
+
+# Clean up old progress files (older than 1 day)
+cleanup_old_progress_files() {
+    if [[ "$PROGRESS_TRACKING_ENABLED" != "true" ]]; then
+        return 0
+    fi
+
+    # Remove progress files older than 1 day
+    find "$WORKSPACE_DIR" -name "progress-*.json" -type f -mtime +1 -delete 2>/dev/null || true
+    # Also clean up lock files
+    find "$WORKSPACE_DIR" -name "progress-*.json.lock" -type f -mtime +1 -delete 2>/dev/null || true
+}
+
 # Get context-aware activeForm verb for agent + phase combination
 get_active_form_verb() {
     local phase="$1"
@@ -6695,12 +6839,17 @@ spawn_agent() {
         local temp_output="${RESULTS_DIR}/.tmp-${task_id}.out"
         local temp_errors="${RESULTS_DIR}/.tmp-${task_id}.err"
 
-        # Update task progress with context-aware spinner verb (v7.16.0)
+        # Update task progress with context-aware spinner verb (v7.16.0 Feature 1)
         if [[ -n "$CLAUDE_TASK_ID" ]]; then
             local active_verb
             active_verb=$(get_active_form_verb "$phase" "$agent_type" "$prompt")
             update_task_progress "$CLAUDE_TASK_ID" "$active_verb"
         fi
+
+        # Mark agent as running and capture start time (v7.16.0 Feature 2)
+        local start_time_ms
+        start_time_ms=$(date +%s%3N 2>/dev/null || echo "0")
+        update_agent_status "$agent_type" "running" 0 0.0
 
         if run_with_timeout "$TIMEOUT" "${cmd_array[@]}" "$enhanced_prompt" > "$temp_output" 2> "$temp_errors"; then
             # Filter out CLI header noise and extract actual response
@@ -6733,6 +6882,12 @@ spawn_agent() {
                 cat "$temp_errors" >> "$result_file"
                 echo '```' >> "$result_file"
             fi
+
+            # Mark agent as completed (v7.16.0 Feature 2)
+            local end_time_ms elapsed_ms
+            end_time_ms=$(date +%s%3N 2>/dev/null || echo "$start_time_ms")
+            elapsed_ms=$((end_time_ms - start_time_ms))
+            update_agent_status "$agent_type" "completed" "$elapsed_ms" 0.0
         else
             local exit_code=$?
             # On failure, capture whatever output exists
@@ -6753,6 +6908,12 @@ spawn_agent() {
                 cat "$temp_errors" >> "$result_file"
                 echo '```' >> "$result_file"
             fi
+
+            # Mark agent as failed (v7.16.0 Feature 2)
+            local end_time_ms elapsed_ms
+            end_time_ms=$(date +%s%3N 2>/dev/null || echo "$start_time_ms")
+            elapsed_ms=$((end_time_ms - start_time_ms))
+            update_agent_status "$agent_type" "failed" "$elapsed_ms" 0.0
         fi
 
         # Cleanup temp files
@@ -8751,6 +8912,9 @@ probe_discover() {
 
     mkdir -p "$RESULTS_DIR" "$LOGS_DIR"
 
+    # Initialize progress tracking (v7.16.0 Feature 2)
+    init_progress_tracking "discover" 4
+
     # Initialize tmux if enabled
     if [[ "$TMUX_MODE" == "true" ]]; then
         tmux_init
@@ -8818,6 +8982,9 @@ probe_discover() {
 
     # Intelligent synthesis
     synthesize_probe_results "$task_group" "$prompt"
+
+    # Display workflow summary (v7.16.0 Feature 2)
+    display_progress_summary
 }
 
 # Synthesize probe results into insights
@@ -10996,6 +11163,9 @@ validate_claude_code_task_features 2>/dev/null || true
 
 # Check UX feature dependencies (v7.16.0)
 check_ux_dependencies 2>/dev/null || true
+
+# Cleanup old progress files (v7.16.0)
+cleanup_old_progress_files 2>/dev/null || true
 
 # Handle autonomy mode aliases
 if [[ "$AUTONOMY_MODE" == "loop-until-approved" ]]; then
