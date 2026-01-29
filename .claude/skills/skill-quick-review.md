@@ -7,6 +7,12 @@ description: |
 trigger: |
   Use this skill when the user says "review this code", "check this PR",
   "quality check the implementation", "review my changes", or "what's wrong with this code".
+execution_mode: enforced
+pre_execution_contract:
+  - visual_indicators_displayed
+validation_gates:
+  - orchestrate_sh_executed
+  - output_artifact_exists
 ---
 
 # Quick Review Skill

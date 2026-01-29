@@ -24,6 +24,12 @@ trigger: |
   - Built-in Claude Code commands (/plugin, /init, /help, /clear, /commit, /remember, etc.)
   - Plugin management or Claude Code configuration
   - Simple file operations, git commands, or basic terminal tasks
+execution_mode: enforced
+pre_execution_contract:
+  - visual_indicators_displayed
+validation_gates:
+  - orchestrate_sh_executed
+  - output_artifact_exists
 ---
 
 # Claude Octopus - Multi-Tentacled Orchestrator

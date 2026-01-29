@@ -7,6 +7,12 @@ trigger: |
   Use when about to claim work is complete, fixed, or passing.
   Auto-invoke before: commits, PRs, task completion, moving to next task.
   ALWAYS use before expressing satisfaction ("Done!", "Fixed!", "All passing!").
+execution_mode: enforced
+pre_execution_contract:
+  - visual_indicators_displayed
+validation_gates:
+  - orchestrate_sh_executed
+  - output_artifact_exists
 ---
 
 # Verification Before Completion
