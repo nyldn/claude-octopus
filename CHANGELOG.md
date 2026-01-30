@@ -217,7 +217,7 @@ New quick mode skips orchestration overhead for simple tasks:
 
 **Comprehensive Reverse-Engineering Capabilities**
 
-New `/co:extract` command provides automated extraction and documentation of design systems and product architectures:
+New `/octo:extract` command provides automated extraction and documentation of design systems and product architectures:
 
 **Design System Extraction:**
 - **Token Extraction** - Colors, typography, spacing, shadows from code or CSS
@@ -275,10 +275,10 @@ octopus-extract/
 
 **Usage:**
 ```bash
-/co:extract ./my-app                                    # Interactive mode
-/co:extract ./my-app --mode design --storybook true     # Design only
-/co:extract ./my-app --depth deep --multi-ai force      # Deep analysis
-/co:extract https://example.com --mode design           # URL extraction
+/octo:extract ./my-app                                    # Interactive mode
+/octo:extract ./my-app --mode design --storybook true     # Design only
+/octo:extract ./my-app --depth deep --multi-ai force      # Deep analysis
+/octo:extract https://example.com --mode design           # URL extraction
 ```
 
 **New Files:**

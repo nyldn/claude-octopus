@@ -222,7 +222,7 @@ All 28 commands organized by category:
 - `/octo:docs` - Document delivery (export to PPTX/DOCX/PDF)
 - `/octo:plan` - Intelligent plan builder with optimal routing
 - `/octo:pipeline` - Content analysis pipeline with pattern extraction
-- `/co:extract` - Design system & product reverse-engineering with comprehensive extraction
+- `/octo:extract` - Design system & product reverse-engineering with comprehensive extraction
 
 #### Workflow & Mode Switching
 - `/octo:km` - Switch to Knowledge Work mode (toggle Dev/Knowledge context)
@@ -292,7 +292,7 @@ Complete skills catalog:
 #### Specialized Skills
 - **skill-audit** - Systematic codebase checking and validation
 - **skill-debate-integration** - Debate workflow integration with orchestration
-- **skill-extract** (`/co:extract`) - Design system & product reverse-engineering with comprehensive extraction
+- **skill-extract** (`/octo:extract`) - Design system & product reverse-engineering with comprehensive extraction
 
 ---
 
@@ -410,10 +410,10 @@ Supports DOCX, PPTX, PDF with proper formatting.
 #### Design System & Product Extraction
 Reverse-engineer design systems and product architectures from existing codebases or URLs:
 ```
-/co:extract ./my-app                                    # Interactive mode with guided questions
-/co:extract ./my-app --mode design --storybook true     # Design system only with Storybook
-/co:extract ./my-app --depth deep --multi-ai force      # Deep analysis with all providers
-/co:extract https://example.com --mode design           # Extract from live website
+/octo:extract ./my-app                                    # Interactive mode with guided questions
+/octo:extract ./my-app --mode design --storybook true     # Design system only with Storybook
+/octo:extract ./my-app --depth deep --multi-ai force      # Deep analysis with all providers
+/octo:extract https://example.com --mode design           # Extract from live website
 ```
 
 **What gets extracted:**

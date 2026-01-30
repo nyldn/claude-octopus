@@ -2,23 +2,22 @@
 command: extract
 description: "Design System & Product Reverse-Engineering - Extract tokens, components, architecture, and PRDs from codebases or live products"
 aliases:
-  - co:extract
   - reverse-engineer
   - analyze-codebase
 ---
 
-# /co:extract - Design System & Product Reverse-Engineering
+# /octo:extract - Design System & Product Reverse-Engineering
 
 ## 🤖 INSTRUCTIONS FOR CLAUDE
 
-When the user invokes this command (e.g., `/co:extract <target>` or `/octo:extract <target>`):
+When the user invokes this command (e.g., `/octo:extract <target>` or `/octo:extract <target>`):
 
 ### Step 1: Validate Input & Check Dependencies
 
 **Parse the command arguments:**
 ```bash
 # Expected format:
-# /co:extract <target> [options]
+# /octo:extract <target> [options]
 # target: URL or local directory path
 # options: --mode, --scope, --depth, --output, --storybook, --ignore
 ```
@@ -661,19 +660,19 @@ View full results: ${config.outputDir}/README.md
 
 ```bash
 # Basic usage - extract from local directory
-/co:extract ./my-app
+/octo:extract ./my-app
 
 # Extract from URL
-/co:extract https://example.com
+/octo:extract https://example.com
 
 # With options
-/co:extract ./my-app --mode design --depth deep --storybook true
+/octo:extract ./my-app --mode design --depth deep --storybook true
 
 # Extract with specific output location
-/co:extract ./my-app --output ./extraction-results
+/octo:extract ./my-app --output ./extraction-results
 
 # Quick mode for fast analysis
-/co:extract ./my-app --depth quick
+/octo:extract ./my-app --depth quick
 ```
 
 ---
