@@ -1,5 +1,5 @@
 ---
-skill: extract
+name: skill-extract
 description: "Design System & Product Reverse-Engineering skill - Comprehensive extraction guide"
 ---
 
