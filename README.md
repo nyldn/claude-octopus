@@ -12,7 +12,7 @@
 
 # Claude Octopus
 
-**Your complete AI engineering platform for Claude Code** - Multi-AI orchestration, 29 specialized expert personas, proven workflows, and 30+ battle-tested skills.
+**Your complete AI engineering platform for Claude Code** - Multi-AI orchestration, 29 specialized expert personas, proven workflows, design system extraction, and 35+ battle-tested skills.
 
 > *Transform Claude Code into a full AI engineering team with diverse perspectives, specialized expertise, and structured methodologies.*
 
@@ -31,8 +31,11 @@ Access specialized experts: Backend Architect, Frontend Developer, Security Audi
 ### 📋 **Proven Methodologies**
 Double Diamond workflows (Discover → Define → Develop → Deliver), Test-Driven Development, systematic debugging, and adversarial security auditing.
 
-### ⚡ **30+ Specialized Skills**
-From multi-AI research to PRD writing, code review to content analysis, debate facilitation to document delivery.
+### 🎨 **Design System & Product Extraction**
+Reverse-engineer design systems and product architectures from codebases or URLs. Extract design tokens, components, APIs, and generate comprehensive documentation.
+
+### ⚡ **35+ Specialized Skills**
+From multi-AI research to PRD writing, code review to content analysis, debate facilitation to document delivery, and design system extraction.
 
 **Bottom line:** Stop juggling multiple AI tools and workflows. Claude Octopus gives you everything in one integrated platform.
 
@@ -219,6 +222,7 @@ All 28 commands organized by category:
 - `/octo:docs` - Document delivery (export to PPTX/DOCX/PDF)
 - `/octo:plan` - Intelligent plan builder with optimal routing
 - `/octo:pipeline` - Content analysis pipeline with pattern extraction
+- `/co:extract` - Design system & product reverse-engineering with comprehensive extraction
 
 #### Workflow & Mode Switching
 - `/octo:km` - Switch to Knowledge Work mode (toggle Dev/Knowledge context)
@@ -288,6 +292,7 @@ Complete skills catalog:
 #### Specialized Skills
 - **skill-audit** - Systematic codebase checking and validation
 - **skill-debate-integration** - Debate workflow integration with orchestration
+- **skill-extract** (`/co:extract`) - Design system & product reverse-engineering with comprehensive extraction
 
 ---
 
@@ -401,6 +406,26 @@ Export results to professional formats:
 /octo:docs export synthesis.md to presentation
 ```
 Supports DOCX, PPTX, PDF with proper formatting.
+
+#### Design System & Product Extraction
+Reverse-engineer design systems and product architectures from existing codebases or URLs:
+```
+/co:extract ./my-app                                    # Interactive mode with guided questions
+/co:extract ./my-app --mode design --storybook true     # Design system only with Storybook
+/co:extract ./my-app --depth deep --multi-ai force      # Deep analysis with all providers
+/co:extract https://example.com --mode design           # Extract from live website
+```
+
+**What gets extracted:**
+- **Design Tokens** - Colors, typography, spacing (W3C Design Tokens format)
+- **Components** - Props, variants, usage patterns across React/Vue/Svelte
+- **Architecture** - Service boundaries, API contracts, data models
+- **Features** - Complete feature inventory by domain
+- **Documentation** - Auto-generated PRDs, Storybook stories, C4 diagrams
+
+**Output formats:** JSON, CSS, Markdown, CSV with structured evidence and quality reports.
+
+**Performance:** Quick mode (<2 min), Standard (2-5 min), Deep (5-15 min with multi-AI validation).
 
 ---
 
