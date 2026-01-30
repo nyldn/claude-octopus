@@ -213,6 +213,96 @@ New quick mode skips orchestration overhead for simple tasks:
 
 ---
 
+#### Phase 6: Design System & Product Extraction 🎨
+
+**Comprehensive Reverse-Engineering Capabilities**
+
+New `/co:extract` command provides automated extraction and documentation of design systems and product architectures:
+
+**Design System Extraction:**
+- **Token Extraction** - Colors, typography, spacing, shadows from code or CSS
+  - W3C Design Tokens 2025.10 specification compliance
+  - Priority-based extraction: Code → CSS Variables → Computed Styles → Inferred
+  - CIEDE2000 perceptual color distance algorithm for clustering
+  - Multiple output formats (JSON, CSS, Markdown)
+- **Component Analysis** - Props, variants, usage patterns across React/Vue/Svelte
+  - AST-based TypeScript/JavaScript parsing
+  - Multi-framework support (React, Vue, Svelte)
+  - Variant detection with 7 heuristics
+  - Cross-file usage tracking
+- **Pattern Detection** - Layout patterns, design rules, accessibility guidelines
+- **Storybook Generation** - Auto-generated stories with variants and controls
+
+**Product Architecture Extraction:**
+- **Service Detection** - Microservice boundaries, modules, domain boundaries
+- **API Mapping** - REST, GraphQL, tRPC, gRPC endpoint cataloging
+- **Data Modeling** - ORM schema extraction (Prisma, TypeORM, Sequelize)
+- **Feature Inventory** - Route-based and domain-based feature detection
+- **C4 Diagrams** - Automated architecture visualization (Mermaid)
+
+**Multi-AI Orchestration Support:**
+- Claude: Synthesis, conflict resolution, documentation
+- Codex: Code-level analysis, type extraction, architecture
+- Gemini: Pattern recognition, alternative interpretations, UX insights
+- 67% consensus threshold (2/3 providers must agree)
+
+**Interactive Intent Capture:**
+Uses AskUserQuestion to clarify before execution:
+1. What to extract? (Design / Product / Both)
+2. How deep? (Quick / Standard / Deep)
+3. Additional preferences (Storybook scaffold, C4 diagrams, etc.)
+
+**Structured Output:**
+```
+octopus-extract/
+└── project-name/timestamp/
+    ├── 00_intent/ - Detection reports, intent contract
+    ├── 10_design/ - tokens.json/css/md, components.csv/json, patterns.md
+    ├── 20_product/ - architecture.md/mmd, PRD.md, api-contracts.md
+    └── 90_evidence/ - quality-report.md, references.json
+```
+
+**Quality Gates:**
+- Token coverage validation (fail if 0 tokens in design mode)
+- Component coverage warnings (<50% detection)
+- Architecture completeness checks
+- Multi-AI consensus validation (<50% agreement fails)
+
+**Performance Targets:**
+- Quick: <2 min, 70% coverage
+- Standard: 2-5 min, 85% coverage
+- Deep: 5-15 min, 95% coverage with multi-AI validation
+
+**Usage:**
+```bash
+/co:extract ./my-app                                    # Interactive mode
+/co:extract ./my-app --mode design --storybook true     # Design only
+/co:extract ./my-app --depth deep --multi-ai force      # Deep analysis
+/co:extract https://example.com --mode design           # URL extraction
+```
+
+**New Files:**
+- `.claude/commands/extract.md` - Extract command (530 lines)
+- `.claude/skills/extract-skill.md` - Implementation guide (263 lines)
+- `scripts/extract/core-extractor.sh` - CLI orchestrator (276 lines)
+- `scripts/token-extraction/` - Token extraction pipeline (25 files, ~5,000 lines)
+  - types.ts, pipeline.ts, merger.ts, cli.ts
+  - extractors/: tailwind.ts, css-variables.ts, theme-file.ts, styled-components.ts
+  - outputs/: json.ts, css.ts, markdown.ts
+- `component-analyzer/` - Component analysis engine (15 files, ~6,000 lines)
+  - src/analyzers/: typescript-analyzer.ts, prop-extractor.ts, variant-detector.ts, usage-tracker.ts
+  - src/engine.ts, src/cli.ts, src/generators/inventory-generator.ts
+- `tests/test-extract-command.sh` - Integration tests (15 test cases)
+- `scripts/token-extraction/__tests__/pipeline.test.ts` - Unit tests (50+ tests)
+- `component-analyzer/src/__tests__/engine.test.ts` - Unit tests (40+ tests)
+
+**Integration:**
+- Complements `/octo:research` for design system discovery
+- Feeds into `/octo:prd` for product documentation
+- Output validated by `/octo:review` quality gates
+
+---
+
 ### 🔄 Updated
 
 **All 4 Double Diamond Flows:**
@@ -246,6 +336,16 @@ New quick mode skips orchestration overhead for simple tasks:
 **Quick Mode:**
 - .claude/skills/skill-quick.md
 - .claude/commands/quick.md
+
+**Design System & Product Extraction:**
+- .claude/commands/extract.md
+- .claude/skills/extract-skill.md
+- scripts/extract/core-extractor.sh
+- scripts/token-extraction/ (25 files)
+- component-analyzer/ (15 files)
+- tests/test-extract-command.sh
+- scripts/token-extraction/__tests__/pipeline.test.ts
+- component-analyzer/src/__tests__/engine.test.ts
 
 **Testing:**
 - tests/test-phases-1-2-3.sh (30 comprehensive tests)
