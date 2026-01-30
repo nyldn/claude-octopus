@@ -4,6 +4,13 @@ All notable changes to Claude Octopus will be documented in this file.
 
 ## [7.17.0] - 2026-01-29
 
+### 🐛 Bug Fixes
+
+**Extract Command Loading**
+- Fixed `/octo:extract` command not loading due to missing `scripts/lib/common.sh` dependency
+- Created stub common utilities library to resolve script sourcing errors
+- All 13 extract tests now pass (test suite validation: ✅)
+
 ### ✨ New Features - JFDI Enhancement
 
 This major release integrates battle-tested patterns for session persistence, validation enforcement, and quality gates while preserving the Double Diamond + multi-AI architecture.
