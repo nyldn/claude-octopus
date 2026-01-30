@@ -1,7 +1,7 @@
 {
   "name": "octo",
   "version": "7.17.0",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.17.0) NEW: Session state persistence, 94% validation compliance, phase discussion, stub detection, quick mode. 29 expert personas, 29 commands, 34 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.17.0) NEW: Session state persistence, 94% validation compliance, phase discussion, stub detection, quick mode, design system extraction. 29 expert personas, 30 commands, 35 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },
