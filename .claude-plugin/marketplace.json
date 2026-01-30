@@ -11,7 +11,7 @@
     {
       "name": "claude-octopus",
       "source": "./",
-      "description": "v7.17.0 - JFDI Enhancement: Session state persistence, 94% validation compliance, phase discussion, stub detection, quick mode. All 29 personas, 29 commands, 34 skills. Requires Claude Code v2.1.16+. Run /octo:setup.",
+      "description": "v7.17.0 - JFDI Enhancement + Design System Extraction: Session state, validation gates, stub detection, quick mode, /octo:extract for design tokens & components. 29 personas, 30 commands, 35 skills. Run /octo:setup.",
       "version": "7.17.0",
       "author": {
         "name": "nyldn"
