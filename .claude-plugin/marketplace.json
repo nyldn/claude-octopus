@@ -11,7 +11,7 @@
     {
       "name": "claude-octopus",
       "source": "./",
-      "description": "v7.17.0 - JFDI Enhancement + Design System Extraction: Session state, validation gates, stub detection, quick mode, /octo:extract for design tokens & components. 29 personas, 30 commands, 35 skills. Run /octo:setup.",
+      "description": "v7.17.0 - JFDI Enhancement + Extract Bugfix: Session state, validation gates, stub detection, quick mode. NEW: /octo:extract now working (design tokens, components, architecture). 29 personas, 30 commands, 35 skills. Run /octo:setup.",
       "version": "7.17.0",
       "author": {
         "name": "nyldn"
