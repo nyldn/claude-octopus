@@ -49,6 +49,7 @@ export interface Token {
   path: string[]; // Hierarchical path (e.g., ['colors', 'primary', '500'])
   originalKey?: string; // Original key before normalization
   metadata?: Record<string, any>;
+  feature?: string; // Feature this token belongs to
 }
 
 export enum TokenSource {
@@ -136,6 +137,11 @@ export interface ExtractionOptions {
   validation?: {
     enabled?: boolean;
     generateCertificate?: boolean;
+  };
+  feature?: {
+    name?: string; // --feature <name>
+    detectFeatures?: boolean; // --detect-features
+    scope?: FeatureScope; // Custom scope definition
   };
 }
 
@@ -282,4 +288,40 @@ export interface BrowserElementCapture {
   tagName: string;
   computedStyles: Record<string, string>;
   interactionStates?: InteractionState[];
+}
+/**
+ * Feature Detection & Scoping Types
+ */
+export interface FeatureScope {
+  name: string;
+  includePaths: string[]; // Glob patterns to include
+  excludePaths?: string[]; // Glob patterns to exclude
+  keywords?: string[]; // Keywords for detection
+  relatedFiles?: string[]; // Files detected via dependency analysis
+}
+
+export interface Feature {
+  name: string;
+  description?: string;
+  fileCount: number;
+  tokenCount: number;
+  paths: string[];
+  scope?: FeatureScope;
+  confidence?: number; // 0-1 confidence score for auto-detected features
+}
+
+export interface FeatureDetectionResult {
+  features: Feature[];
+  unassignedFiles: string[]; // Files that don't belong to any feature
+  metadata: {
+    totalFiles: number;
+    totalFeatures: number;
+    detectionMethod: 'manual' | 'directory' | 'keyword' | 'import-clustering' | 'hybrid';
+    timestamp: string;
+  };
+}
+
+export interface FeatureExtractionResult extends ExtractionResult {
+  feature?: Feature; // The feature that was extracted
+  featuresIndex?: Feature[]; // All features if --detect-features was used
 }

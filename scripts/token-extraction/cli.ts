@@ -102,6 +102,32 @@ function parseArgs(args: string[]): CLIOptions {
         };
         break;
 
+      case '--feature':
+        options.feature = {
+          ...options.feature,
+          name: args[++i],
+        };
+        break;
+
+      case '--detect-features':
+        options.feature = {
+          ...options.feature,
+          detectFeatures: true,
+        };
+        break;
+
+      case '--feature-scope':
+        try {
+          options.feature = {
+            ...options.feature,
+            scope: JSON.parse(args[++i]),
+          };
+        } catch (error) {
+          console.error('Error parsing feature scope JSON:', error);
+          process.exit(1);
+        }
+        break;
+
       default:
         if (arg.startsWith('-')) {
           console.error(`Unknown option: ${arg}`);
@@ -136,6 +162,9 @@ Options:
   --with-debate                  Enable multi-AI debate for token validation
   --debate-rounds <number>       Number of debate rounds (default: 2)
   --debate-auto-apply            Auto-apply high-confidence improvements from debate
+  --feature <name>               Extract tokens for a specific feature only
+  --detect-features              Auto-detect features and generate feature index
+  --feature-scope <json>         Provide custom feature scope (JSON format)
 
 Sources:
   - tailwind.config    Tailwind CSS configuration files
@@ -165,6 +194,15 @@ Examples:
 
   # Run with debate and auto-apply improvements
   token-extraction --with-debate --debate-auto-apply
+
+  # Auto-detect features and generate index
+  token-extraction --detect-features
+
+  # Extract tokens for specific feature
+  token-extraction --feature authentication
+
+  # Custom feature scope (JSON)
+  token-extraction --feature-scope '{"name":"auth","includePaths":["src/auth/**"]}'
 
 For more information, visit: https://github.com/nyldn/claude-octopus
   `);
