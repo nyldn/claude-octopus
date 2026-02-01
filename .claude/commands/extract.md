@@ -673,6 +673,12 @@ View full results: ${config.outputDir}/README.md
 
 # Quick mode for fast analysis
 /octo:extract ./my-app --depth quick
+
+# With multi-AI debate for token validation
+/octo:extract ./my-app --with-debate --debate-rounds 2
+
+# Deep extraction with debate
+/octo:extract ./my-app --depth deep --with-debate
 ```
 
 ---
@@ -687,6 +693,54 @@ View full results: ${config.outputDir}/README.md
 | `--output` | path | `./octopus-extract` | Output directory |
 | `--ignore` | glob patterns | Common build dirs | Files to exclude |
 | `--multi-ai` | `true`, `false`, `force` | `auto` | Multi-provider mode |
+| `--with-debate` | flag | `false` | Enable multi-AI debate for token validation |
+| `--debate-rounds` | number | `2` | Number of debate rounds (requires `--with-debate`) |
+
+---
+
+## Multi-AI Debate for Token Validation
+
+The `--with-debate` flag enables a multi-AI debate system that validates and improves extracted design tokens through structured deliberation.
+
+### How It Works
+
+1. **Proposer Phase**: First AI analyzes extracted tokens for issues (naming, values, hierarchy, completeness, type safety)
+2. **Critic Phase**: Second AI challenges the proposer's suggestions, identifies edge cases
+3. **Synthesis Phase**: Third AI synthesizes consensus, resolves conflicts, produces final recommendations
+
+### When to Use Debate
+
+- **High-confidence validation**: Need certainty before committing tokens to production
+- **Complex design systems**: Large token sets with intricate relationships
+- **Team alignment**: Want AI-validated tokens that follow best practices
+- **Quality gates**: Ensuring WCAG compliance, semantic naming, consistency
+
+### Debate Output
+
+Debate generates:
+- **debate-audit-trail.md**: Full debate transcript with proposer, critic, and synthesis
+- **Consensus items**: High-agreement recommendations (≥67% consensus threshold)
+- **Improvements**: Auto-applicable changes with confidence scores
+- **Conflict resolutions**: How disagreements were resolved
+
+### Example Usage
+
+```bash
+# Standard debate (2 rounds)
+/octo:extract ./my-app --with-debate
+
+# Extended debate for complex systems (3 rounds)
+/octo:extract ./my-app --with-debate --debate-rounds 3
+
+# Combine with deep extraction
+/octo:extract ./my-app --depth deep --with-debate
+```
+
+### Performance
+
+- **Time**: +30-60 seconds per debate round (depends on token count)
+- **Providers**: Requires Codex and/or Gemini CLI (graceful degradation if unavailable)
+- **Token count**: Works best with 50-500 tokens; very large sets may take longer
 
 ---
 
@@ -706,6 +760,12 @@ octopus-extract/
         │   ├── tokens.json
         │   ├── tokens.css
         │   ├── tokens.md
+        │   ├── tokens.d.ts
+        │   ├── tailwind.tokens.js
+        │   ├── tokens.styled.ts
+        │   ├── style-dictionary.config.js
+        │   ├── tokens.schema.json
+        │   ├── debate-audit-trail.md (if --with-debate)
         │   ├── components.csv
         │   ├── components.json
         │   ├── patterns.md
