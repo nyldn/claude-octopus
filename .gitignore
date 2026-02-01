@@ -61,6 +61,7 @@ logs/
 # Workspace data (generated at runtime)
 # Note: The actual workspace is at ~/.claude-octopus/
 # These are just in case someone runs from the repo directory
+.claude-octopus/
 results/
 .parallel-agents/
 
@@ -72,6 +73,9 @@ temp/
 
 # Development workspace (consolidated)
 # All dev artifacts, reports, benchmarks, and WIP files
+component-analyzer/
+reports/
+src/
 
 # Development working files
 skill.md
