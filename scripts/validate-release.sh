@@ -217,7 +217,7 @@ fi
 echo ""
 
 # ============================================================================
-# 8. GIT TAG CHECK
+# 8. GIT TAG CHECK & AUTO-CREATE
 # ============================================================================
 echo "🔖 Checking git tag..."
 
@@ -225,18 +225,42 @@ EXPECTED_TAG="v$PLUGIN_VERSION"
 if git tag -l "$EXPECTED_TAG" | grep -q "$EXPECTED_TAG"; then
     TAG_COMMIT=$(git rev-list -n 1 "$EXPECTED_TAG")
     HEAD_COMMIT=$(git rev-parse HEAD)
-    
+
     if [[ "$TAG_COMMIT" == "$HEAD_COMMIT" ]]; then
         echo -e "  ${GREEN}✓ Tag $EXPECTED_TAG exists and points to HEAD${NC}"
     else
         echo -e "  ${YELLOW}WARNING: Tag $EXPECTED_TAG exists but doesn't point to HEAD${NC}"
         echo -e "  ${YELLOW}  Tag points to: ${TAG_COMMIT:0:7}${NC}"
         echo -e "  ${YELLOW}  HEAD is:       ${HEAD_COMMIT:0:7}${NC}"
+        echo -e "  ${YELLOW}  Updating tag to point to current HEAD...${NC}"
+
+        # Delete old tag locally and remotely, create new one
+        git tag -d "$EXPECTED_TAG" >/dev/null 2>&1 || true
+        git push origin ":refs/tags/$EXPECTED_TAG" >/dev/null 2>&1 || true
+
+        # Extract CHANGELOG entry for tag message
+        TAG_MESSAGE=$(awk "/## \[$PLUGIN_VERSION\]/,/^## \[/" "$ROOT_DIR/CHANGELOG.md" | head -20 | tail -n +2)
+        if [[ -n "$TAG_MESSAGE" ]]; then
+            git tag -a "$EXPECTED_TAG" -m "$TAG_MESSAGE"
+        else
+            git tag -a "$EXPECTED_TAG" -m "Release $EXPECTED_TAG"
+        fi
+        echo -e "  ${GREEN}✓ Tag $EXPECTED_TAG updated to point to HEAD${NC}"
         ((warnings++))
     fi
 else
     echo -e "  ${YELLOW}NOTE: Tag $EXPECTED_TAG not yet created${NC}"
-    echo -e "  ${YELLOW}  Create with: git tag -a $EXPECTED_TAG -m 'Release $EXPECTED_TAG'${NC}"
+    echo -e "  ${GREEN}  Auto-creating tag...${NC}"
+
+    # Extract CHANGELOG entry for tag message
+    TAG_MESSAGE=$(awk "/## \[$PLUGIN_VERSION\]/,/^## \[/" "$ROOT_DIR/CHANGELOG.md" | head -20 | tail -n +2)
+    if [[ -n "$TAG_MESSAGE" ]]; then
+        git tag -a "$EXPECTED_TAG" -m "$TAG_MESSAGE"
+        echo -e "  ${GREEN}✓ Tag $EXPECTED_TAG created with CHANGELOG excerpt${NC}"
+    else
+        git tag -a "$EXPECTED_TAG" -m "Release $EXPECTED_TAG"
+        echo -e "  ${GREEN}✓ Tag $EXPECTED_TAG created${NC}"
+    fi
 fi
 
 echo ""
@@ -309,10 +333,41 @@ elif [[ $warnings -gt 0 ]]; then
     echo -e "${YELLOW}⚠️  VALIDATION PASSED WITH WARNINGS: $warnings warning(s)${NC}"
     echo ""
     echo "Consider fixing the warnings before releasing."
+
+    # Auto-push tag if it was created/updated (v7.19.1+)
+    EXPECTED_TAG="v$PLUGIN_VERSION"
+    if git tag -l "$EXPECTED_TAG" | grep -q "$EXPECTED_TAG"; then
+        # Check if tag needs to be pushed (doesn't exist on remote or is different)
+        REMOTE_TAG_SHA=$(git ls-remote origin "refs/tags/$EXPECTED_TAG" 2>/dev/null | cut -f1)
+        LOCAL_TAG_SHA=$(git rev-list -n 1 "$EXPECTED_TAG" 2>/dev/null)
+
+        if [[ -z "$REMOTE_TAG_SHA" ]] || [[ "$REMOTE_TAG_SHA" != "$LOCAL_TAG_SHA" ]]; then
+            echo ""
+            echo -e "${GREEN}📤 Pushing tag $EXPECTED_TAG to remote...${NC}"
+            git push origin "$EXPECTED_TAG" --force 2>/dev/null
+            echo -e "${GREEN}✓ Tag pushed to remote${NC}"
+        fi
+    fi
+
     exit 0
 else
     echo -e "${GREEN}✅ VALIDATION PASSED${NC}"
     echo ""
     echo "Ready to release v$PLUGIN_VERSION!"
+
+    # Auto-push tag if it was created (v7.19.1+)
+    EXPECTED_TAG="v$PLUGIN_VERSION"
+    if git tag -l "$EXPECTED_TAG" | grep -q "$EXPECTED_TAG"; then
+        REMOTE_TAG_SHA=$(git ls-remote origin "refs/tags/$EXPECTED_TAG" 2>/dev/null | cut -f1)
+        LOCAL_TAG_SHA=$(git rev-list -n 1 "$EXPECTED_TAG" 2>/dev/null)
+
+        if [[ -z "$REMOTE_TAG_SHA" ]] || [[ "$REMOTE_TAG_SHA" != "$LOCAL_TAG_SHA" ]]; then
+            echo ""
+            echo -e "${GREEN}📤 Pushing tag $EXPECTED_TAG to remote...${NC}"
+            git push origin "$EXPECTED_TAG" 2>/dev/null
+            echo -e "${GREEN}✓ Tag pushed to remote${NC}"
+        fi
+    fi
+
     exit 0
 fi
