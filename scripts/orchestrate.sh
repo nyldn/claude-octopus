@@ -3858,9 +3858,9 @@ sanitize_review_id() {
 validate_agent_command() {
     local cmd="$1"
 
-    # Whitelist of allowed command prefixes
+    # Whitelist of allowed command prefixes (v7.19.0: added env and NODE_NO_WARNINGS)
     case "$cmd" in
-        codex*|gemini*|claude*|openrouter_execute*)
+        codex*|gemini*|claude*|openrouter_execute*|NODE_NO_WARNINGS*|env*)
             return 0
             ;;
         *)
@@ -7502,7 +7502,8 @@ spawn_agent() {
 
         # Mark agent as running and capture start time (v7.16.0 Feature 2)
         local start_time_ms
-        start_time_ms=$(date +%s%3N 2>/dev/null || echo "0")
+        # Use seconds instead of milliseconds for compatibility (macOS date doesn't support %N)
+        start_time_ms=$(( $(date +%s) * 1000 ))
         update_agent_status "$agent_type" "running" 0 0.0
 
         # v7.19.0 P0.1: Use tee to stream output to both temp file and raw backup
@@ -7548,7 +7549,7 @@ spawn_agent() {
 
             # Mark agent as completed (v7.16.0 Feature 2)
             local end_time_ms elapsed_ms
-            end_time_ms=$(date +%s%3N 2>/dev/null || echo "$start_time_ms")
+            end_time_ms=$(( $(date +%s) * 1000 ))
             elapsed_ms=$((end_time_ms - start_time_ms))
             update_agent_status "$agent_type" "completed" "$elapsed_ms" 0.0
         elif [[ $exit_code -eq 124 ]] || [[ $exit_code -eq 143 ]]; then
@@ -7593,7 +7594,7 @@ spawn_agent() {
 
             # Mark agent as timeout (partial success) (v7.19.0)
             local end_time_ms elapsed_ms
-            end_time_ms=$(date +%s%3N 2>/dev/null || echo "$start_time_ms")
+            end_time_ms=$(( $(date +%s) * 1000 ))
             elapsed_ms=$((end_time_ms - start_time_ms))
             update_agent_status "$agent_type" "timeout" "$elapsed_ms" 0.0
         else
@@ -7620,7 +7621,7 @@ spawn_agent() {
 
             # Mark agent as failed (v7.16.0 Feature 2)
             local end_time_ms elapsed_ms
-            end_time_ms=$(date +%s%3N 2>/dev/null || echo "$start_time_ms")
+            end_time_ms=$(( $(date +%s) * 1000 ))
             elapsed_ms=$((end_time_ms - start_time_ms))
             update_agent_status "$agent_type" "failed" "$elapsed_ms" 0.0
         fi
@@ -9749,33 +9750,37 @@ probe_discover() {
             file_size=$(wc -c < "$result_file" 2>/dev/null || echo "0")
             total_size=$((total_size + file_size))
 
+            # Capitalize first letter of agent name properly
+            local agent_display="${agent^}"
+
             # Categorize based on content and status markers
             if grep -q "Status: SUCCESS" "$result_file"; then
-                echo -e " ${GREEN}✓${NC} ${agent^} probe $i: completed ($(numfmt --to=iec-i --suffix=B $file_size 2>/dev/null || echo "${file_size}B"))"
+                echo -e " ${GREEN}✓${NC} $agent_display probe $i: completed ($(numfmt --to=iec-i --suffix=B $file_size 2>/dev/null || echo "${file_size}B"))"
                 ((success_count++))
             elif grep -q "Status: TIMEOUT" "$result_file"; then
-                echo -e " ${YELLOW}⏳${NC} ${agent^} probe $i: timeout with partial results ($(numfmt --to=iec-i --suffix=B $file_size 2>/dev/null || echo "${file_size}B"))"
+                echo -e " ${YELLOW}⏳${NC} $agent_display probe $i: timeout with partial results ($(numfmt --to=iec-i --suffix=B $file_size 2>/dev/null || echo "${file_size}B"))"
                 ((timeout_count++))
             elif grep -q "Status: FAILED" "$result_file"; then
                 if [[ $file_size -gt 1024 ]]; then
-                    echo -e " ${YELLOW}⚠${NC}  ${agent^} probe $i: failed but has output ($(numfmt --to=iec-i --suffix=B $file_size 2>/dev/null || echo "${file_size}B"))"
+                    echo -e " ${YELLOW}⚠${NC}  $agent_display probe $i: failed but has output ($(numfmt --to=iec-i --suffix=B $file_size 2>/dev/null || echo "${file_size}B"))"
                     ((timeout_count++))  # Count as partial success
                 else
-                    echo -e " ${RED}✗${NC} ${agent^} probe $i: failed ($(numfmt --to=iec-i --suffix=B $file_size 2>/dev/null || echo "${file_size}B"))"
+                    echo -e " ${RED}✗${NC} $agent_display probe $i: failed ($(numfmt --to=iec-i --suffix=B $file_size 2>/dev/null || echo "${file_size}B"))"
                     ((failure_count++))
                 fi
             else
                 # No clear status marker - check file size
                 if [[ $file_size -gt 1024 ]]; then
-                    echo -e " ${YELLOW}?${NC} ${agent^} probe $i: unknown status but has content ($(numfmt --to=iec-i --suffix=B $file_size 2>/dev/null || echo "${file_size}B"))"
+                    echo -e " ${YELLOW}?${NC} $agent_display probe $i: unknown status but has content ($(numfmt --to=iec-i --suffix=B $file_size 2>/dev/null || echo "${file_size}B"))"
                     ((timeout_count++))  # Count as partial success
                 else
-                    echo -e " ${RED}✗${NC} ${agent^} probe $i: empty or missing ($(numfmt --to=iec-i --suffix=B $file_size 2>/dev/null || echo "${file_size}B"))"
+                    echo -e " ${RED}✗${NC} $agent_display probe $i: empty or missing ($(numfmt --to=iec-i --suffix=B $file_size 2>/dev/null || echo "${file_size}B"))"
                     ((failure_count++))
                 fi
             fi
         else
-            echo -e " ${RED}✗${NC} ${agent^} probe $i: result file missing"
+            local agent_display="${agent^}"
+            echo -e " ${RED}✗${NC} $agent_display probe $i: result file missing"
             ((failure_count++))
         fi
     done
