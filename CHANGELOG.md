@@ -2,6 +2,33 @@
 
 All notable changes to Claude Octopus will be documented in this file.
 
+## [7.19.1] - 2026-01-31
+
+### 🐛 Bug Fixes
+
+**Critical Runtime Bugs**
+
+Fixed three bugs that prevented v7.19.0 probe phase execution:
+
+1. **Command Validation** - `validate_agent_command()` now accepts `NODE_NO_WARNINGS` and `env` command prefixes
+   - Issue: Gemini commands with `NODE_NO_WARNINGS=1` prefix were rejected as invalid
+   - Fix: Added `NODE_NO_WARNINGS*` and `env*` to command whitelist
+   - Impact: Gemini warning suppression (P2.2) now works correctly
+
+2. **Timestamp Arithmetic** - Replaced `date +%s%3N` with portable calculation
+   - Issue: `%3N` (nanoseconds) caused "value too great for base" error on macOS
+   - Fix: Use `$(date +%s) * 1000` for millisecond timestamps
+   - Impact: Agent timing metrics now work on all platforms
+
+3. **Variable Substitution** - Fixed `${agent^}` bad substitution error
+   - Issue: Bash parameter expansion failed in status display
+   - Fix: Assign to intermediate `agent_display` variable before expansion
+   - Impact: Rich progress display (P1.2) now renders correctly
+
+All bugs discovered during live embrace workflow execution and fixed immediately.
+
+---
+
 ## [7.19.0] - 2026-01-31
 
 ### 🔧 Critical Performance Fixes - Multi-AI Coordination Overhaul
