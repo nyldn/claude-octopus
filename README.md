@@ -93,19 +93,18 @@ That's it. You now have a complete AI engineering platform.
 
 **Examples:**
 ```bash
-octo research microservices patterns        # Multi-AI research
-octo build user authentication system       # Multi-approach implementation
-octo review this code for security         # Adversarial quality review
-octo debate Redis vs Memcached             # Structured 3-way debate
+/octo:embrace [prompt]             # Full Double Diamond workflow (all 4 phases)
+/octo:debate Redis vs Memcached             # Structured 3-way debate
 /octo:multi analyze this codebase          # Force multi-AI mode (manual override)
+/octo:research microservices patterns        # Multi-AI research
+/octo:build user authentication system       # Multi-approach implementation
+/octo:review this code for security         # Adversarial quality review
 ```
 
 **Key capabilities:**
 - **Auto-detection** - Skills automatically trigger multi-AI when beneficial
 - **Manual override** - Use `/octo:multi` to force multi-AI execution for any task
 - **Graceful degradation** - Works with 1, 2, or 3 providers (adapts to availability)
-
-**New in v7.15.0:** Validation Gate Pattern guarantees multi-AI execution (100% compliance, was 0% before).
 
 ---
 
