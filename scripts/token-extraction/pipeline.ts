@@ -12,6 +12,10 @@ import {
   TokenConflict,
   TokenSource,
   OutputFiles,
+  FeatureScope,
+  Feature,
+  FeatureDetectionResult,
+  FeatureExtractionResult,
 } from './types';
 import { TailwindExtractor } from './extractors/tailwind';
 import { CSSVariablesExtractor } from './extractors/css-variables';
@@ -36,6 +40,9 @@ import {
   generateAuditTrail,
 } from './debate-integration';
 import { DebateResult } from './types';
+import { FeatureDetector } from './extractors/feature-detector';
+import { FeatureScopedExtractor } from './extractors/feature-scoped-extractor';
+import { generateFeatureIndex, generateFeatureExtractionScript } from './outputs/feature-index';
 
 export class TokenExtractionPipeline {
   private options: ExtractionOptions;
@@ -44,6 +51,9 @@ export class TokenExtractionPipeline {
   private accessibilityReport?: AccessibilityReport;
   private debateResult?: DebateResult;
   private debateAuditTrailPath?: string;
+  private featureDetectionResult?: FeatureDetectionResult;
+  private currentFeature?: Feature;
+  private currentScope?: FeatureScope;
 
   constructor(projectRoot: string, options: ExtractionOptions = {}) {
     this.projectRoot = projectRoot;
@@ -61,13 +71,18 @@ export class TokenExtractionPipeline {
   /**
    * Execute the full extraction pipeline
    */
-  async execute(): Promise<ExtractionResult> {
+  async execute(): Promise<FeatureExtractionResult> {
     this.errors = [];
 
     console.log('Starting token extraction pipeline...');
     console.log(`Project root: ${this.projectRoot}`);
     console.log(`Output directory: ${this.options.outputDir}`);
     console.log('');
+
+    // Step 0: Feature detection and scoping (if enabled)
+    if (this.options.feature) {
+      await this.handleFeatureOptions();
+    }
 
     // Step 1: Extract tokens from all sources
     const extractionResults = await this.extractFromAllSources();
@@ -84,8 +99,30 @@ export class TokenExtractionPipeline {
     console.log(`Conflicts detected: ${conflicts.length}`);
     console.log('');
 
+    // Step 3.25: Apply feature scoping (if enabled)
+    let scopedTokens = tokens;
+    let scopedErrors = this.errors;
+    if (this.currentScope) {
+      const scoper = new FeatureScopedExtractor(this.currentScope);
+      scopedTokens = scoper.filterTokens(tokens);
+      scopedErrors = scoper.filterErrors(this.errors);
+      this.errors = scopedErrors;
+
+      // Create feature from scoped results
+      this.currentFeature = {
+        name: this.currentScope.name,
+        fileCount: new Set(scopedTokens.map(t => t.metadata?.filePath).filter(Boolean)).size,
+        tokenCount: scopedTokens.length,
+        paths: this.currentScope.includePaths,
+        scope: this.currentScope,
+      };
+
+      console.log(`After feature scoping (${this.currentScope.name}): ${scopedTokens.length} tokens`);
+      console.log('');
+    }
+
     // Step 3.5: Run debate if enabled
-    let tokensAfterDebate = tokens;
+    let tokensAfterDebate = scopedTokens;
     if (this.options.debate?.enabled) {
       tokensAfterDebate = await this.runDebate(tokens);
     }
@@ -121,17 +158,59 @@ export class TokenExtractionPipeline {
     console.log('');
 
     // Build extraction result
-    const result: ExtractionResult = {
+    const result: FeatureExtractionResult = {
       tokens: tokensWithAccessibility,
       conflicts,
       errors: this.errors,
       sources: this.buildSourcesSummary(extractionResults),
       debate: this.debateResult,
+      feature: this.currentFeature,
+      featuresIndex: this.featureDetectionResult?.features,
     };
 
     this.printSummary(result, outputFiles);
 
     return result;
+  }
+
+  /**
+   * Handle feature detection and scoping options
+   */
+  private async handleFeatureOptions(): Promise<void> {
+    const detector = new FeatureDetector(this.projectRoot);
+
+    // Option 1: Auto-detect all features
+    if (this.options.feature?.detectFeatures) {
+      console.log('Auto-detecting features in codebase...');
+      this.featureDetectionResult = await detector.detectFeatures();
+
+      console.log(`Detected ${this.featureDetectionResult.features.length} features:`);
+      for (const feature of this.featureDetectionResult.features) {
+        console.log(`  - ${feature.name}: ${feature.fileCount} files`);
+      }
+      console.log('');
+    }
+
+    // Option 2: Extract specific feature
+    if (this.options.feature?.name) {
+      console.log(`Extracting tokens for feature: ${this.options.feature.name}`);
+
+      // Create scope for the feature
+      const scope = await detector.createScope(this.options.feature.name);
+      this.currentScope = scope;
+
+      console.log(`Scope includes ${scope.includePaths.length} paths`);
+      console.log('');
+    }
+
+    // Option 3: Use custom scope
+    if (this.options.feature?.scope) {
+      console.log(`Using custom feature scope: ${this.options.feature.scope.name}`);
+      this.currentScope = this.options.feature.scope;
+
+      console.log(`Scope includes ${this.currentScope.includePaths.length} paths`);
+      console.log('');
+    }
   }
 
   /**
@@ -554,6 +633,34 @@ export class TokenExtractionPipeline {
       outputFiles.debateAuditTrail = this.debateAuditTrailPath;
     }
 
+    // Generate feature index if features were detected
+    if (this.featureDetectionResult) {
+      const featureIndexPath = path.join(this.options.outputDir!, 'features-index.json');
+      await generateFeatureIndex(this.featureDetectionResult, {
+        outputPath: featureIndexPath,
+        format: 'json',
+        includeTokenCounts: true,
+        includeFilePaths: true,
+        prettify: true,
+      });
+      console.log(`  Generated: ${featureIndexPath}`);
+
+      // Also generate markdown version
+      const featureIndexMdPath = path.join(this.options.outputDir!, 'features-index.md');
+      await generateFeatureIndex(this.featureDetectionResult, {
+        outputPath: featureIndexMdPath,
+        format: 'markdown',
+        includeTokenCounts: true,
+        includeFilePaths: true,
+      });
+      console.log(`  Generated: ${featureIndexMdPath}`);
+
+      // Generate extraction script
+      const scriptPath = path.join(this.options.outputDir!, 'extract-all-features.sh');
+      await generateFeatureExtractionScript(this.featureDetectionResult.features, scriptPath);
+      console.log(`  Generated: ${scriptPath}`);
+    }
+
     console.log('');
     return outputFiles;
   }
@@ -583,11 +690,28 @@ export class TokenExtractionPipeline {
   /**
    * Print execution summary
    */
-  private printSummary(result: ExtractionResult, outputFiles: OutputFiles): void {
+  private printSummary(result: FeatureExtractionResult, outputFiles: OutputFiles): void {
     console.log('='.repeat(60));
     console.log('EXTRACTION SUMMARY');
     console.log('='.repeat(60));
     console.log('');
+
+    // Feature information (if applicable)
+    if (result.feature) {
+      console.log('Feature:');
+      console.log(`  Name: ${result.feature.name}`);
+      console.log(`  Files: ${result.feature.fileCount}`);
+      console.log(`  Tokens: ${result.feature.tokenCount}`);
+      console.log('');
+    }
+
+    if (result.featuresIndex && result.featuresIndex.length > 0) {
+      console.log('Detected Features:');
+      for (const feature of result.featuresIndex) {
+        console.log(`  - ${feature.name}: ${feature.fileCount} files, ${feature.tokenCount || 0} tokens`);
+      }
+      console.log('');
+    }
 
     // Sources summary
     console.log('Sources:');
@@ -646,7 +770,7 @@ export class TokenExtractionPipeline {
 export async function runTokenExtraction(
   projectRoot: string,
   options?: ExtractionOptions
-): Promise<ExtractionResult> {
+): Promise<FeatureExtractionResult> {
   const pipeline = new TokenExtractionPipeline(projectRoot, options);
   return pipeline.execute();
 }
