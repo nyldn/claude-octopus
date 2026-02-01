@@ -166,6 +166,19 @@ else
 fi
 echo ""
 
+# Check 9: No hardcoded local paths
+echo "Check 9: Hardcoded Local Paths"
+if [ -x "scripts/validate-no-hardcoded-paths.sh" ]; then
+    if scripts/validate-no-hardcoded-paths.sh >/dev/null 2>&1; then
+        pass "No hardcoded local paths (username, absolute paths)"
+    else
+        fail "Hardcoded local paths detected" "Run scripts/validate-no-hardcoded-paths.sh to see details"
+    fi
+else
+    warn "Path validation script not found" "Should exist at scripts/validate-no-hardcoded-paths.sh"
+fi
+echo ""
+
 # Summary
 echo -e "${CYAN}═══════════════════════════════════════════════════════════${NC}"
 echo -e "${BLUE}Deployment Validation Summary${NC}"

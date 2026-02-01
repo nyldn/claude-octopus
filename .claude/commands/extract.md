@@ -785,4 +785,4 @@ Target metrics (as defined in PRD):
 
 ---
 
-*This command implements PRD v2.0 (AI-Executable) as specified in `/Users/chris/git/claude-octopus/prd/prd_claude_octopus_co_extract.md`*
+*This command implements PRD v2.0 (AI-Executable) for design system extraction*
