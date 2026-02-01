@@ -142,7 +142,11 @@ export class FeatureDetector {
 
     if (existingFeature && existingFeature.scope) {
       console.log(`  Using detected scope with ${existingFeature.fileCount} files`);
-      return existingFeature.scope;
+      // Return scope with the requested feature name (not the formatted one)
+      return {
+        ...existingFeature.scope,
+        name: featureName,
+      };
     }
 
     // If not found, create a keyword-based scope
