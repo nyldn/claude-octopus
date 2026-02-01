@@ -319,7 +319,7 @@ else
                 echo -e "  ${GREEN}  Auto-creating GitHub release from CHANGELOG...${NC}"
 
                 # Extract CHANGELOG entry for this version
-                RELEASE_NOTES=$(awk "/## \\[$PLUGIN_VERSION\\]/,/^## \\[/" "$ROOT_DIR/CHANGELOG.md" | head -100 | tail -n +3 | sed '/^## \[/d')
+                RELEASE_NOTES=$(awk "/## \\[$PLUGIN_VERSION\\]/,/^---$/" "$ROOT_DIR/CHANGELOG.md" | sed '$d' | tail -n +3)
 
                 if [[ -n "$RELEASE_NOTES" ]]; then
                     # Create release with CHANGELOG notes and mark as latest
@@ -374,7 +374,7 @@ elif [[ $warnings -gt 0 ]]; then
             if command -v gh &> /dev/null && gh auth status &> /dev/null; then
                 if ! gh release view "$EXPECTED_TAG" &> /dev/null; then
                     echo -e "${GREEN}📝 Creating GitHub release...${NC}"
-                    RELEASE_NOTES=$(awk "/## \\[$PLUGIN_VERSION\\]/,/^## \\[/" "$ROOT_DIR/CHANGELOG.md" | head -100 | tail -n +3 | sed '/^## \[/d')
+                    RELEASE_NOTES=$(awk "/## \\[$PLUGIN_VERSION\\]/,/^---$/" "$ROOT_DIR/CHANGELOG.md" | sed '$d' | tail -n +3)
                     if [[ -n "$RELEASE_NOTES" ]] && gh release create "$EXPECTED_TAG" --title "v$PLUGIN_VERSION" --notes "$RELEASE_NOTES" --latest >/dev/null 2>&1; then
                         echo -e "${GREEN}✓ GitHub release $EXPECTED_TAG created${NC}"
                     fi
@@ -405,7 +405,7 @@ else
             if command -v gh &> /dev/null && gh auth status &> /dev/null; then
                 if ! gh release view "$EXPECTED_TAG" &> /dev/null; then
                     echo -e "${GREEN}📝 Creating GitHub release...${NC}"
-                    RELEASE_NOTES=$(awk "/## \\[$PLUGIN_VERSION\\]/,/^## \\[/" "$ROOT_DIR/CHANGELOG.md" | head -100 | tail -n +3 | sed '/^## \[/d')
+                    RELEASE_NOTES=$(awk "/## \\[$PLUGIN_VERSION\\]/,/^---$/" "$ROOT_DIR/CHANGELOG.md" | sed '$d' | tail -n +3)
                     if [[ -n "$RELEASE_NOTES" ]] && gh release create "$EXPECTED_TAG" --title "v$PLUGIN_VERSION" --notes "$RELEASE_NOTES" --latest >/dev/null 2>&1; then
                         echo -e "${GREEN}✓ GitHub release $EXPECTED_TAG created${NC}"
                     fi
