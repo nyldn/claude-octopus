@@ -467,9 +467,9 @@ get_agent_command() {
         codex-max) echo "codex exec ${sandbox_flag}" ;;          # Premium
         codex-mini) echo "codex exec ${sandbox_flag}" ;;         # Cost-effective
         codex-general) echo "codex exec ${sandbox_flag}" ;;      # General tasks
-        gemini) echo "NODE_NO_WARNINGS=1 gemini -y -m gemini-3-pro-preview" ;;       # Premium Gemini (v7.19.0 P2.2: suppress warnings)
-        gemini-fast) echo "NODE_NO_WARNINGS=1 gemini -y -m gemini-3-flash-preview" ;; # Fast Gemini (v7.19.0 P2.2: suppress warnings)
-        gemini-image) echo "NODE_NO_WARNINGS=1 gemini -y -m gemini-3-pro-preview" ;; # Image capable (v7.19.0 P2.2: suppress warnings)
+        gemini) echo "env NODE_NO_WARNINGS=1 gemini -y -m gemini-3-pro-preview" ;;       # Premium Gemini (v7.19.0 P2.2: suppress warnings)
+        gemini-fast) echo "env NODE_NO_WARNINGS=1 gemini -y -m gemini-3-flash-preview" ;; # Fast Gemini (v7.19.0 P2.2: suppress warnings)
+        gemini-image) echo "env NODE_NO_WARNINGS=1 gemini -y -m gemini-3-pro-preview" ;; # Image capable (v7.19.0 P2.2: suppress warnings)
         codex-review) echo "codex exec review" ;; # Code review mode (no sandbox support)
         claude) echo "claude --print" ;;                         # Claude Sonnet 4.5
         claude-sonnet) echo "claude --print -m sonnet" ;;        # Claude Sonnet explicit
