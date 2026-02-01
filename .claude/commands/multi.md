@@ -7,6 +7,71 @@ description: Force multi-provider parallel execution for any task - manual overr
 
 **Forces multi-provider execution for any task using all available AI providers.**
 
+## 🤖 INSTRUCTIONS FOR CLAUDE
+
+When the user invokes this command (e.g., `/octo:multi <task>`):
+
+### Step 1: Cost Awareness & Intent Confirmation
+
+**CRITICAL: Before forcing multi-provider execution, use AskUserQuestion to confirm intent and cost awareness:**
+
+```javascript
+AskUserQuestion({
+  questions: [
+    {
+      question: "Why do you need multiple AI perspectives?",
+      header: "Intent",
+      multiSelect: false,
+      options: [
+        {label: "High-stakes decision", description: "Critical choice requiring comprehensive analysis"},
+        {label: "Quality validation", description: "Cross-check important work for accuracy"},
+        {label: "Learning different approaches", description: "See how different models think"},
+        {label: "Comparing perspectives", description: "Want to see model-specific insights"},
+        {label: "Just exploring", description: "Curious about multi-AI capabilities"}
+      ]
+    },
+    {
+      question: "Are you aware this uses external API credits?",
+      header: "Cost",
+      multiSelect: false,
+      options: [
+        {label: "Yes, proceed (~$0.02-0.08/query)", description: "I understand this costs money via Codex + Gemini APIs"},
+        {label: "Tell me more about costs", description: "Explain what I'll be charged"},
+        {label: "Use free providers only", description: "Skip Codex/Gemini, use Claude only"}
+      ]
+    }
+  ]
+})
+```
+
+**After receiving answers:**
+
+- **If user selected "Tell me more about costs"**: Explain the cost breakdown, then ask question 2 again
+- **If user selected "Use free providers only"**: Explain that multi requires external providers, suggest using Claude directly instead
+- **If user selected "Yes, proceed"**: Continue with multi-provider execution
+- **Store intent** in context for provider selection (high-stakes → use all 3, exploring → maybe skip one if unavailable)
+
+### Step 2: Check Provider Availability & Execute
+
+Check which AI providers are available:
+
+```javascript
+const codexAvailable = await checkCommandAvailable('codex');
+const geminiAvailable = await checkCommandAvailable('gemini');
+
+if (!codexAvailable && !geminiAvailable) {
+  console.log("⚠️ No external providers available. Multi-provider mode requires Codex and/or Gemini.");
+  console.log("Run `/octo:setup` to configure external providers, or use Claude directly.");
+  return;
+}
+
+// Proceed with available providers
+```
+
+Execute the task with all available providers, incorporating user intent from Step 1.
+
+---
+
 ## Quick Usage
 
 Just use natural language:
