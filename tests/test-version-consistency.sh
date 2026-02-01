@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Test Version Consistency for v7.15.0
-# Validates that version 7.15.0 is consistent across all files
+# Test Version Consistency for v7.19.3
+# Validates that version 7.19.3 is consistent across all files and tests new features
 
 set -euo pipefail
 
@@ -23,7 +23,7 @@ PASS_COUNT=0
 FAIL_COUNT=0
 
 # Expected version
-EXPECTED_VERSION="7.15.0"
+EXPECTED_VERSION="7.19.3"
 
 echo -e "${BLUE}🧪 Testing Version Consistency (v${EXPECTED_VERSION})${NC}"
 echo ""
@@ -101,30 +101,30 @@ else
     fail "README.md not found" "Expected: $README"
 fi
 
-# Test 5: Check marketplace.json description mentions v7.15.0 features
+# Test 5: Check marketplace.json description mentions current features
 echo ""
 echo "Test 5: Checking marketplace.json description..."
 if [[ -f "$MARKETPLACE_JSON" ]]; then
     description=$(grep -A 5 '"description"' "$MARKETPLACE_JSON" || echo "")
 
-    # Check for key v7.15.0 features
-    mentions_validation=false
-    mentions_enforcement=false
-    mentions_gates=false
+    # Check for key features (multi-AI, workflows, automation)
+    mentions_multi_ai=false
+    mentions_workflows=false
+    mentions_automation=false
 
-    echo "$description" | grep -qi "validation\|enforcement" && mentions_validation=true
-    echo "$description" | grep -qi "enforc\|blocking" && mentions_enforcement=true
-    echo "$description" | grep -qi "gate\|imperative" && mentions_gates=true
+    echo "$description" | grep -qi "multi.*ai\|multiple.*ai\|parallel.*ai" && mentions_multi_ai=true
+    echo "$description" | grep -qi "workflow\|double.*diamond" && mentions_workflows=true
+    echo "$description" | grep -qi "automat\|orchestrat" && mentions_automation=true
 
     feature_count=0
-    $mentions_validation && ((feature_count++))
-    $mentions_enforcement && ((feature_count++))
-    $mentions_gates && ((feature_count++))
+    $mentions_multi_ai && ((feature_count++))
+    $mentions_workflows && ((feature_count++))
+    $mentions_automation && ((feature_count++))
 
     if [[ $feature_count -ge 1 ]]; then
-        pass "marketplace.json description mentions v7.15.0 features"
+        pass "marketplace.json description mentions core features"
     else
-        fail "marketplace.json description outdated" "Should mention Validation Gate Pattern, enforcement, or blocking steps"
+        fail "marketplace.json description outdated" "Should mention multi-AI, workflows, or automation"
     fi
 else
     fail "marketplace.json not found" "Expected: $MARKETPLACE_JSON"
@@ -135,7 +135,7 @@ echo ""
 echo "Test 6: Checking command count in plugin.json..."
 if [[ -f "$PLUGIN_JSON" ]]; then
     COMMAND_COUNT=$(grep -o '"\./\.claude/commands/[^"]*\.md"' "$PLUGIN_JSON" | wc -l | tr -d ' ')
-    EXPECTED_COMMANDS=28
+    EXPECTED_COMMANDS=30
 
     if [[ $COMMAND_COUNT -eq $EXPECTED_COMMANDS ]]; then
         pass "plugin.json has $COMMAND_COUNT commands (expected: $EXPECTED_COMMANDS)"
@@ -149,7 +149,7 @@ echo ""
 echo "Test 7: Checking skill count in plugin.json..."
 if [[ -f "$PLUGIN_JSON" ]]; then
     SKILL_COUNT=$(grep -o '"\./\.claude/skills/[^"]*\.md"' "$PLUGIN_JSON" | wc -l | tr -d ' ')
-    EXPECTED_SKILLS=33
+    EXPECTED_SKILLS=35
 
     if [[ $SKILL_COUNT -eq $EXPECTED_SKILLS ]]; then
         pass "plugin.json has $SKILL_COUNT skills (expected: $EXPECTED_SKILLS)"
@@ -180,50 +180,101 @@ if [[ -f "$PLUGIN_JSON" ]]; then
     fi
 fi
 
-# Test 10: Verify v7.11.0 features exist
+# Test 10: Verify core command files exist
 echo ""
-echo "Test 10: Verifying v7.11.0 feature files exist..."
-NEW_FILES=(
+echo "Test 10: Verifying core command files exist..."
+CORE_COMMANDS=(
+    ".claude/commands/extract.md"
     ".claude/commands/plan.md"
-    ".claude/skills/skill-intent-contract.md"
+    ".claude/commands/embrace.md"
+    ".claude/commands/multi.md"
+    ".claude/commands/debate.md"
 )
 
 missing_files=0
-for file in "${NEW_FILES[@]}"; do
+for file in "${CORE_COMMANDS[@]}"; do
     full_path="$PROJECT_ROOT/$file"
     if [[ -f "$full_path" ]]; then
-        pass "v7.11.0 feature file exists: $file"
+        pass "Core command exists: $file"
     else
-        fail "Missing v7.11.0 feature file" "Expected: $file"
+        fail "Missing core command" "Expected: $file"
         ((missing_files++))
     fi
 done
 
-# Test 11: Verify modified files have 3-question pattern
+# Test 11: Verify v7.19.x features - GitHub release automation
 echo ""
-echo "Test 11: Checking modified commands have 3-question pattern..."
-MODIFIED_COMMANDS=("discover.md" "review.md" "security.md" "tdd.md")
-commands_with_questions=0
-
-for cmd in "${MODIFIED_COMMANDS[@]}"; do
-    cmd_path="$PROJECT_ROOT/.claude/commands/$cmd"
-    if [[ -f "$cmd_path" ]]; then
-        if grep -q "AskUserQuestion" "$cmd_path"; then
-            ((commands_with_questions++))
-        fi
+echo "Test 11: Checking GitHub release automation (v7.19.3)..."
+VALIDATE_RELEASE="$PROJECT_ROOT/scripts/validate-release.sh"
+if [[ -f "$VALIDATE_RELEASE" ]]; then
+    # Check for auto-create release functionality
+    if grep -q "gh release create" "$VALIDATE_RELEASE"; then
+        pass "GitHub release auto-creation implemented"
+    else
+        fail "GitHub release auto-creation missing" "v7.19.3: validate-release.sh should auto-create releases"
     fi
-done
 
-if [[ $commands_with_questions -ge 3 ]]; then
-    pass "$commands_with_questions modified commands have 3-question pattern"
+    # Check for --no-verify flag to prevent infinite loop
+    if grep -q "\-\-no-verify" "$VALIDATE_RELEASE"; then
+        pass "Pre-push hook infinite loop prevention implemented"
+    else
+        fail "Missing --no-verify flag" "v7.19.3: Should prevent infinite loop in pre-push hook"
+    fi
 else
-    fail "Modified commands missing 3-question pattern" \
-        "Found $commands_with_questions with questions, expected at least 3"
+    fail "validate-release.sh not found" "Expected: $VALIDATE_RELEASE"
 fi
 
-# Test 12: Check git tag existence (optional - won't fail if missing)
+# Test 12: Verify v7.19.2 feature - Gemini agent execution fix
 echo ""
-echo "Test 12: Checking for git tag v${EXPECTED_VERSION} (optional)..."
+echo "Test 12: Checking Gemini agent execution fix (v7.19.2)..."
+ORCHESTRATE="$PROJECT_ROOT/scripts/orchestrate.sh"
+if [[ -f "$ORCHESTRATE" ]]; then
+    # Check for env prefix in Gemini command
+    if grep -q "env NODE_NO_WARNINGS=1 gemini" "$ORCHESTRATE"; then
+        pass "Gemini agent execution fix implemented (env prefix)"
+    else
+        fail "Gemini agent execution fix missing" "v7.19.2: Should use 'env NODE_NO_WARNINGS=1 gemini'"
+    fi
+else
+    fail "orchestrate.sh not found" "Expected: $ORCHESTRATE"
+fi
+
+# Test 13: Verify v7.19.0 features - Performance fixes
+echo ""
+echo "Test 13: Checking performance fixes (v7.19.0)..."
+if [[ -f "$ORCHESTRATE" ]]; then
+    # Check for result file pipeline improvements
+    if grep -q "tee.*processed.*raw" "$ORCHESTRATE"; then
+        pass "Result file pipeline fix implemented"
+    else
+        info "Result file pipeline may use different implementation"
+    fi
+
+    # Check for timeout handling
+    if grep -q "TIMEOUT.*PARTIAL" "$ORCHESTRATE" || grep -q "124.*timeout" "$ORCHESTRATE"; then
+        pass "Timeout partial output preservation implemented"
+    else
+        info "Timeout handling may use different approach"
+    fi
+fi
+
+# Test 14: Verify extract command (v7.18.0+ feature)
+echo ""
+echo "Test 14: Checking /octo:extract command..."
+EXTRACT_CMD="$PROJECT_ROOT/.claude/commands/extract.md"
+if [[ -f "$EXTRACT_CMD" ]]; then
+    if grep -q "gemini" "$EXTRACT_CMD" && grep -q "codex" "$EXTRACT_CMD"; then
+        pass "Extract command uses multi-AI extraction"
+    else
+        info "Extract command exists but may not use multi-AI"
+    fi
+else
+    fail "extract.md command missing" "v7.18.0: /octo:extract should exist"
+fi
+
+# Test 15: Check git tag existence (optional - won't fail if missing)
+echo ""
+echo "Test 15: Checking for git tag v${EXPECTED_VERSION} (optional)..."
 cd "$PROJECT_ROOT"
 if git rev-parse "v${EXPECTED_VERSION}" >/dev/null 2>&1; then
     pass "Git tag v${EXPECTED_VERSION} exists"
