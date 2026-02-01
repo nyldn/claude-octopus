@@ -3457,6 +3457,320 @@ enhanced_error() {
     echo ""
 }
 
+# v7.19.0 P1.2: Rich progress display with real-time agent status
+display_rich_progress() {
+    local task_group="$1"
+    local total_agents="$2"
+    local start_time="$3"
+    shift 3
+    local pids=("$@")
+
+    # Agent metadata arrays
+    local -a agent_names=()
+    local -a agent_types=()
+
+    # Build agent info from task IDs
+    for i in $(seq 0 $((total_agents - 1))); do
+        local agent="gemini"
+        [[ $((i % 2)) -eq 0 ]] && agent="codex"
+        agent_types+=("$agent")
+
+        case $i in
+            0) agent_names+=("Problem Analysis") ;;
+            1) agent_names+=("Solution Research") ;;
+            2) agent_names+=("Edge Cases") ;;
+            3) agent_names+=("Feasibility") ;;
+            *) agent_names+=("Agent $i") ;;
+        esac
+    done
+
+    # Progress bar function
+    local bar_width=20
+
+    while true; do
+        local all_done=true
+        local completed=0
+
+        # Clear previous output (move cursor up and clear)
+        [[ $completed -gt 0 ]] && printf "\033[%dA" $((total_agents + 4))
+
+        # Header
+        echo -e "${MAGENTA}╔═══════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${MAGENTA}║  ${CYAN}Multi-AI Research Progress${MAGENTA}                             ║${NC}"
+        echo -e "${MAGENTA}╚═══════════════════════════════════════════════════════════╝${NC}"
+
+        # Agent status rows
+        for i in $(seq 0 $((total_agents - 1))); do
+            local task_id="probe-${task_group}-${i}"
+            local agent_type="${agent_types[$i]}"
+            local agent_name="${agent_names[$i]}"
+            local result_file="${RESULTS_DIR}/${agent_type}-${task_id}.md"
+            local pid="${pids[$i]}"
+
+            # Check if agent is still running
+            local running=true
+            if ! kill -0 "$pid" 2>/dev/null; then
+                running=false
+                ((completed++))
+            else
+                all_done=false
+            fi
+
+            # Get file size if result exists
+            local file_size=0
+            local size_display="0B"
+            if [[ -f "$result_file" ]]; then
+                file_size=$(wc -c < "$result_file" 2>/dev/null || echo "0")
+                if [[ $file_size -gt 1048576 ]]; then
+                    size_display="$(( file_size / 1048576 ))MB"
+                elif [[ $file_size -gt 1024 ]]; then
+                    size_display="$(( file_size / 1024 ))KB"
+                else
+                    size_display="${file_size}B"
+                fi
+            fi
+
+            # Determine status and progress
+            local status_icon="⏳"
+            local progress_pct=0
+            local bar_color="${YELLOW}"
+
+            if ! $running; then
+                if [[ $file_size -gt 1024 ]]; then
+                    status_icon="${GREEN}✓${NC}"
+                    progress_pct=100
+                    bar_color="${GREEN}"
+                else
+                    status_icon="${RED}✗${NC}"
+                    progress_pct=0
+                    bar_color="${RED}"
+                fi
+            else
+                # Estimate progress based on file size (rough heuristic)
+                if [[ $file_size -gt 10000 ]]; then
+                    progress_pct=75
+                elif [[ $file_size -gt 5000 ]]; then
+                    progress_pct=50
+                elif [[ $file_size -gt 1000 ]]; then
+                    progress_pct=25
+                else
+                    progress_pct=10
+                fi
+                bar_color="${CYAN}"
+            fi
+
+            # Build progress bar
+            local filled=$(( progress_pct * bar_width / 100 ))
+            local empty=$(( bar_width - filled ))
+            local bar=""
+            for ((j=0; j<filled; j++)); do bar+="═"; done
+            for ((j=0; j<empty; j++)); do bar+=" "; done
+
+            # Display row with emoji for agent type
+            local agent_emoji="🔴"
+            [[ "$agent_type" == "gemini" ]] && agent_emoji="🟡"
+
+            printf " %b %s %-18s [%b%s%b] %6s\n" \
+                "$status_icon" \
+                "$agent_emoji" \
+                "$agent_name" \
+                "$bar_color" \
+                "$bar" \
+                "${NC}" \
+                "$size_display"
+        done
+
+        # Footer with timing
+        local elapsed=$(( $(date +%s) - start_time ))
+        local elapsed_display="${elapsed}s"
+        if [[ $elapsed -gt 60 ]]; then
+            elapsed_display="$(( elapsed / 60 ))m $(( elapsed % 60 ))s"
+        fi
+
+        echo -e "${MAGENTA}─────────────────────────────────────────────────────────────${NC}"
+        printf " Progress: ${CYAN}%d/%d${NC} complete | Elapsed: ${CYAN}%s${NC}\n" \
+            "$completed" "$total_agents" "$elapsed_display"
+
+        # Exit if all done
+        $all_done && break
+
+        sleep 1
+    done
+
+    echo ""
+}
+
+# v7.19.0 P2.3: Result caching for probe workflows
+# Cache directory
+CACHE_DIR="${WORKSPACE_DIR}/.cache/probe-results"
+CACHE_TTL=3600  # 1 hour in seconds
+
+# v7.19.0 P2.4: Progressive synthesis flag
+ENABLE_PROGRESSIVE_SYNTHESIS="${OCTOPUS_PROGRESSIVE_SYNTHESIS:-true}"
+
+# Generate cache key from prompt (SHA256 hash)
+get_cache_key() {
+    local prompt="$1"
+    echo -n "$prompt" | shasum -a 256 | cut -d' ' -f1
+}
+
+# Check if cached result exists and is fresh
+check_cache() {
+    local cache_key="$1"
+    local cache_file="${CACHE_DIR}/${cache_key}.md"
+    local cache_meta="${CACHE_DIR}/${cache_key}.meta"
+
+    # Check if cache files exist
+    [[ ! -f "$cache_file" ]] && return 1
+    [[ ! -f "$cache_meta" ]] && return 1
+
+    # Check if cache is still valid (within TTL)
+    local cache_time
+    cache_time=$(cat "$cache_meta" 2>/dev/null || echo "0")
+    local current_time=$(date +%s)
+    local age=$((current_time - cache_time))
+
+    if [[ $age -lt $CACHE_TTL ]]; then
+        log "INFO" "Cache hit! Age: ${age}s (TTL: ${CACHE_TTL}s)"
+        return 0
+    else
+        log "DEBUG" "Cache expired. Age: ${age}s > TTL: ${CACHE_TTL}s"
+        return 1
+    fi
+}
+
+# Get cached result
+get_cached_result() {
+    local cache_key="$1"
+    local cache_file="${CACHE_DIR}/${cache_key}.md"
+    cat "$cache_file"
+}
+
+# Save result to cache
+save_to_cache() {
+    local cache_key="$1"
+    local result_file="$2"
+    local cache_file="${CACHE_DIR}/${cache_key}.md"
+    local cache_meta="${CACHE_DIR}/${cache_key}.meta"
+
+    mkdir -p "$CACHE_DIR"
+
+    # Copy result to cache
+    cp "$result_file" "$cache_file"
+
+    # Store timestamp
+    date +%s > "$cache_meta"
+
+    log "DEBUG" "Saved to cache: $cache_key"
+}
+
+# Clean up expired cache entries
+cleanup_cache() {
+    [[ ! -d "$CACHE_DIR" ]] && return 0
+
+    local current_time=$(date +%s)
+    local cleaned=0
+
+    for meta_file in "$CACHE_DIR"/*.meta; do
+        [[ ! -f "$meta_file" ]] && continue
+
+        local cache_time
+        cache_time=$(cat "$meta_file" 2>/dev/null || echo "0")
+        local age=$((current_time - cache_time))
+
+        if [[ $age -gt $CACHE_TTL ]]; then
+            local base="${meta_file%.meta}"
+            rm -f "$base.md" "$meta_file"
+            ((cleaned++))
+        fi
+    done
+
+    [[ $cleaned -gt 0 ]] && log "INFO" "Cleaned $cleaned expired cache entries"
+}
+
+# v7.19.0 P2.4: Progressive synthesis - start synthesis as results become available
+progressive_synthesis_monitor() {
+    local task_group="$1"
+    local prompt="$2"
+    local min_results="${3:-2}"  # Start synthesis with minimum 2 results
+    local synthesis_file="${RESULTS_DIR}/probe-synthesis-${task_group}.md"
+    local partial_synthesis="${RESULTS_DIR}/.partial-synthesis-${task_group}.md"
+
+    log "DEBUG" "Progressive synthesis monitor started (min: $min_results results)"
+
+    local last_count=0
+    local synthesis_started=false
+
+    while true; do
+        # Count available results with meaningful content
+        local result_count=0
+        for result in "$RESULTS_DIR"/probe-${task_group}-*.md; do
+            [[ ! -f "$result" ]] && continue
+            local file_size
+            file_size=$(wc -c < "$result" 2>/dev/null || echo "0")
+            [[ $file_size -gt 500 ]] && ((result_count++))
+        done
+
+        # If we have minimum results and haven't started synthesis yet
+        if [[ $result_count -ge $min_results && ! $synthesis_started ]]; then
+            log "INFO" "Progressive synthesis: $result_count results available, starting early synthesis"
+
+            # Run partial synthesis in background
+            (
+                synthesize_probe_results_partial "$task_group" "$prompt" "$result_count" > "$partial_synthesis" 2>&1
+            ) &
+
+            synthesis_started=true
+        fi
+
+        # Update partial synthesis if more results arrived
+        if [[ $synthesis_started && $result_count -gt $last_count ]]; then
+            log "DEBUG" "Progressive synthesis: updating ($result_count results)"
+            # Could update here, but for simplicity we'll just run once
+        fi
+
+        last_count=$result_count
+
+        # Exit if synthesis file exists (main synthesis completed)
+        [[ -f "$synthesis_file" ]] && break
+
+        sleep 2
+    done
+
+    # Cleanup partial synthesis file
+    rm -f "$partial_synthesis"
+    log "DEBUG" "Progressive synthesis monitor stopped"
+}
+
+# Partial synthesis function (lighter version for progressive updates)
+synthesize_probe_results_partial() {
+    local task_group="$1"
+    local original_prompt="$2"
+    local expected_count="$3"
+
+    # Quick synthesis with available results
+    local results=""
+    local result_count=0
+    for result in "$RESULTS_DIR"/probe-${task_group}-*.md; do
+        [[ ! -f "$result" ]] || continue
+        local file_size
+        file_size=$(wc -c < "$result" 2>/dev/null || echo "0")
+        if [[ $file_size -gt 500 ]]; then
+            results+="$(cat "$result")\n\n---\n\n"
+            ((result_count++))
+        fi
+    done
+
+    echo "# Partial Synthesis (${result_count}/${expected_count} results)"
+    echo ""
+    echo "Processing early results while remaining agents complete..."
+    echo ""
+    echo "## Available Insights"
+    echo "$results" | head -500
+    echo ""
+    echo "_Final synthesis will be available when all agents complete_"
+}
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # PERFORMANCE OPTIMIZATION: Fast JSON field extraction using bash regex
 # Avoids spawning grep|cut subprocesses (saves ~100ms per call)
@@ -9326,6 +9640,28 @@ probe_discover() {
         return 1
     fi
 
+    # v7.19.0 P2.3: Check cache for existing results
+    local cache_key
+    cache_key=$(get_cache_key "$prompt")
+
+    if check_cache "$cache_key"; then
+        echo -e "${CYAN}♻️  Using cached results from previous run${NC}"
+        local cached_file="${CACHE_DIR}/${cache_key}.md"
+        local synthesis_file="${RESULTS_DIR}/probe-synthesis-${task_group}.md"
+
+        # Copy cached result to current synthesis file
+        cp "$cached_file" "$synthesis_file"
+
+        log "INFO" "Cache hit - skipping probe execution"
+        echo -e "${GREEN}✓${NC} Synthesis retrieved from cache: $synthesis_file"
+        echo ""
+
+        return 0
+    fi
+
+    # Clean up expired cache entries
+    cleanup_cache
+
     mkdir -p "$RESULTS_DIR" "$LOGS_DIR"
 
     # Initialize progress tracking (v7.16.0 Feature 2)
@@ -9372,23 +9708,21 @@ probe_discover() {
 
     log INFO "Spawned ${#pids[@]} parallel research threads"
 
+    # v7.19.0 P2.4: Start progressive synthesis monitor in background
+    local synthesis_monitor_pid=""
+    if [[ "$ENABLE_PROGRESSIVE_SYNTHESIS" == "true" ]]; then
+        progressive_synthesis_monitor "$task_group" "$prompt" 2 &
+        synthesis_monitor_pid=$!
+        log "DEBUG" "Progressive synthesis monitor started (PID: $synthesis_monitor_pid)"
+    fi
+
     # Wait for all to complete with progress
     if [[ "$ASYNC_MODE" == "true" ]]; then
         wait_async_agents "${pids[@]}"
     else
-        # Original progress tracking
-        local completed=0
-        while [[ $completed -lt ${#pids[@]} ]]; do
-            completed=0
-            for pid in "${pids[@]}"; do
-                if ! kill -0 "$pid" 2>/dev/null; then
-                    ((completed++))
-                fi
-            done
-            echo -ne "\r${CYAN}Progress: $completed/${#pids[@]} research threads complete${NC}"
-            sleep 2
-        done
-        echo ""
+        # v7.19.0 P1.2: Rich progress display
+        local start_time=$(date +%s)
+        display_rich_progress "$task_group" "${#pids[@]}" "$start_time" "${pids[@]}"
     fi
 
     # Cleanup tmux if enabled
@@ -9453,6 +9787,13 @@ probe_discover() {
 
     # Intelligent synthesis (v7.19.0 P1.1: allow with partial results)
     synthesize_probe_results "$task_group" "$prompt" "$usable_results"
+
+    # v7.19.0 P2.4: Stop progressive synthesis monitor
+    if [[ -n "$synthesis_monitor_pid" ]]; then
+        kill "$synthesis_monitor_pid" 2>/dev/null
+        wait "$synthesis_monitor_pid" 2>/dev/null
+        log "DEBUG" "Progressive synthesis monitor stopped"
+    fi
 
     # Display workflow summary (v7.16.0 Feature 2)
     display_progress_summary
@@ -9538,8 +9879,15 @@ $synthesis
 EOF
 
     log INFO "Synthesis complete: $synthesis_file"
+
+    # v7.19.0 P2.3: Save to cache for reuse
+    local cache_key
+    cache_key=$(get_cache_key "$original_prompt")
+    save_to_cache "$cache_key" "$synthesis_file"
+
     echo ""
     echo -e "${GREEN}✓${NC} Probe synthesis saved to: $synthesis_file"
+    echo -e "${CYAN}♻️${NC}  Cached for 1 hour (reuse if prompt unchanged)"
     echo ""
 }
 
