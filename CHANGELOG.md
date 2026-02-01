@@ -2,6 +2,23 @@
 
 All notable changes to Claude Octopus will be documented in this file.
 
+## [7.19.2] - 2026-01-31
+
+### 🐛 Bug Fix
+
+**Critical Gemini Agent Execution**
+
+Fixed bug that prevented Gemini agents from executing in embrace/probe workflows:
+
+- **Issue**: Gemini agents failed immediately with exit code 127: "gtimeout: failed to run command 'NODE_NO_WARNINGS=1': No such file or directory"
+- **Root Cause**: `agent_to_command()` returned `NODE_NO_WARNINGS=1 gemini ...` which, when passed to `gtimeout`, tried to execute `NODE_NO_WARNINGS=1` as a command
+- **Fix**: Added `env` prefix to match `agent_to_command_array()` format: `env NODE_NO_WARNINGS=1 gemini ...`
+- **Impact**: Gemini agents can now complete embrace/probe workflows with warning suppression (P2.2)
+
+Discovered during live embrace workflow testing when 2/4 probe agents (both Gemini) failed instantly.
+
+---
+
 ## [7.19.1] - 2026-01-31
 
 ### 🐛 Bug Fixes
