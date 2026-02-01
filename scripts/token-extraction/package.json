@@ -1,0 +1,47 @@
+{
+  "name": "@claude-octopus/token-extraction",
+  "version": "1.0.0",
+  "description": "Design token extraction pipeline with W3C Design Tokens format support",
+  "main": "index.ts",
+  "types": "index.ts",
+  "bin": {
+    "token-extraction": "./cli.ts"
+  },
+  "scripts": {
+    "extract": "ts-node cli.ts",
+    "example:basic": "ts-node examples/basic-usage.ts",
+    "example:advanced": "ts-node examples/advanced-usage.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest run --coverage"
+  },
+  "keywords": [
+    "design-tokens",
+    "w3c",
+    "tailwind",
+    "css-variables",
+    "styled-components",
+    "emotion",
+    "design-system",
+    "tokens",
+    "theming"
+  ],
+  "author": "Claude Octopus",
+  "license": "MIT",
+  "dependencies": {
+    "@types/tinycolor2": "^1.4.6",
+    "glob": "^10.3.10",
+    "tinycolor2": "^1.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@vitest/ui": "^4.0.18",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3",
+    "vitest": "^4.0.18"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
