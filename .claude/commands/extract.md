@@ -97,6 +97,201 @@ AskUserQuestion({
 }
 ```
 
+### Step 2.5: Feature Selection (For Large Codebases)
+
+**CRITICAL: For codebases with 500+ files, automatically run feature detection and let user choose scope:**
+
+```javascript
+// Detect codebase size
+const fileCount = await getFileCount(target);
+
+if (fileCount > 500 || userSpecified('--detect-features')) {
+  console.log(`🔍 Detected large codebase (${fileCount} files). Running feature detection...`);
+
+  // Run feature detection
+  const detectionResult = await runFeatureDetection(target);
+  /*
+  Returns:
+  {
+    features: [
+      { name: "Authentication", fileCount: 45, confidence: 0.9, paths: [...] },
+      { name: "Payment", fileCount: 32, confidence: 0.85, paths: [...] },
+      { name: "User Profile", fileCount: 28, confidence: 0.8, paths: [...] },
+      ...
+    ],
+    unassignedFiles: 127,
+    totalFiles: 1543
+  }
+  */
+
+  console.log(`✓ Detected ${detectionResult.features.length} features`);
+  console.log(`  Assigned: ${detectionResult.totalFiles - detectionResult.unassignedFiles} files`);
+  console.log(`  Unassigned: ${detectionResult.unassignedFiles} files`);
+  console.log('');
+
+  // Present features to user for selection
+  AskUserQuestion({
+    questions: [
+      {
+        question: "This codebase is large. Which features do you want to extract?",
+        header: "Feature Scope",
+        multiSelect: false,
+        options: [
+          {
+            label: "All features (Recommended)",
+            description: `Extract all ${detectionResult.features.length} features into separate outputs`
+          },
+          {
+            label: "Specific feature only",
+            description: "Choose one feature to extract (faster, focused)"
+          },
+          {
+            label: "Full codebase",
+            description: "Extract everything as one monolithic output (slower, may be overwhelming)"
+          }
+        ]
+      }
+    ]
+  });
+
+  // If user selected "Specific feature only"
+  if (answer === "Specific feature only") {
+    // Build dynamic options from detected features
+    const featureOptions = detectionResult.features.map(feature => ({
+      label: feature.name,
+      description: `${feature.fileCount} files, ${feature.confidence * 100}% confidence`
+    }));
+
+    AskUserQuestion({
+      questions: [
+        {
+          question: "Which feature do you want to extract?",
+          header: "Select Feature",
+          multiSelect: false,
+          options: featureOptions
+        },
+        {
+          question: "Do you want to refine the scope?",
+          header: "Scope Refinement",
+          multiSelect: true,
+          options: [
+            {label: "Exclude test files", description: "Skip **/*.test.ts, **/*.spec.ts"},
+            {label: "Exclude documentation", description: "Skip **/*.md, **/docs/**"},
+            {label: "Include shared utilities", description: "Add src/utils/**, src/lib/**"},
+            {label: "Custom exclude patterns", description: "Manually specify patterns to exclude"}
+          ]
+        }
+      ]
+    });
+
+    // If user selected "Custom exclude patterns"
+    if (refinementAnswers.includes("Custom exclude patterns")) {
+      const customPatterns = await askForInput("Enter glob patterns to exclude (comma-separated):");
+      // Parse and apply custom exclude patterns
+    }
+
+    // Store selected feature scope
+    selectedScope = {
+      name: selectedFeature.name,
+      includePaths: selectedFeature.scope.includePaths,
+      excludePaths: buildExcludePatterns(refinementAnswers),
+      keywords: selectedFeature.scope.keywords
+    };
+  }
+
+  // If user selected "All features"
+  if (answer === "All features") {
+    console.log('📦 Will extract all features into separate outputs');
+    console.log('   Estimated time: ~2-3 minutes per feature');
+    console.log('');
+
+    // Optionally ask about processing order
+    AskUserQuestion({
+      questions: [
+        {
+          question: "How should features be processed?",
+          header: "Processing",
+          multiSelect: false,
+          options: [
+            {label: "Sequential", description: "One at a time (safer, easier to debug)"},
+            {label: "Parallel", description: "All at once (faster, more resource intensive)"}
+          ]
+        }
+      ]
+    });
+  }
+}
+```
+
+**Store feature selection:**
+```json
+{
+  "featureMode": "all" | "specific" | "none",
+  "selectedFeature": {
+    "name": "Authentication",
+    "scope": {
+      "includePaths": ["src/auth/**", "src/features/auth/**"],
+      "excludePaths": ["**/*.test.ts", "**/*.spec.ts"],
+      "keywords": ["auth", "login", "session"]
+    }
+  },
+  "processingMode": "sequential" | "parallel"
+}
+```
+
+**Example Flow:**
+
+```
+🔍 Detected large codebase (1543 files). Running feature detection...
+✓ Detected 8 features
+  Assigned: 1416 files
+  Unassigned: 127 files
+
+┌─────────────────────────────────────────────────────────┐
+│ This codebase is large. Which features do you want to  │
+│ extract?                                                │
+│                                                          │
+│ ○ All features (Recommended)                           │
+│   Extract all 8 features into separate outputs         │
+│                                                          │
+│ ● Specific feature only                                │
+│   Choose one feature to extract (faster, focused)      │
+│                                                          │
+│ ○ Full codebase                                        │
+│   Extract everything as one monolithic output          │
+└─────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────┐
+│ Which feature do you want to extract?                   │
+│                                                          │
+│ ● Authentication                                        │
+│   45 files, 90% confidence                             │
+│                                                          │
+│ ○ Payment                                               │
+│   32 files, 85% confidence                             │
+│                                                          │
+│ ○ User Profile                                          │
+│   28 files, 80% confidence                             │
+└─────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────┐
+│ Do you want to refine the scope?                        │
+│                                                          │
+│ ☑ Exclude test files                                   │
+│   Skip **/*.test.ts, **/*.spec.ts                      │
+│                                                          │
+│ ☐ Exclude documentation                                │
+│   Skip **/*.md, **/docs/**                             │
+│                                                          │
+│ ☐ Include shared utilities                             │
+│   Add src/utils/**, src/lib/**                         │
+└─────────────────────────────────────────────────────────┘
+
+📦 Extracting Authentication feature...
+   Scope: 45 files, excluding tests
+   Keywords: auth, login, session
+```
+
 ### Step 3: Auto-Detection Phase
 
 **Analyze the target to understand what's present:**
@@ -758,18 +953,24 @@ Debate generates:
 
 ## Feature Detection & Scoping
 
-The `--detect-features` and `--feature` flags enable feature-based extraction for large codebases, making it easier to generate focused PRDs and token sets for individual features.
+**For large codebases (500+ files), Claude will automatically detect features and guide you through an interactive selection process.** No need to know JSON or glob patterns upfront!
 
 ### How It Works
 
-1. **Auto-Detection**: Scans codebase using multiple heuristics:
+1. **Automatic Detection** (triggered for 500+ file codebases):
    - **Directory-based**: Detects features from `features/`, `modules/`, `services/` directories
    - **Keyword-based**: Identifies common patterns (auth, payment, user, product, etc.)
    - **Confidence scoring**: High confidence for directory-based (0.9), medium for keywords (0.7)
 
-2. **Feature Scoping**: Filters tokens and files to specific feature boundaries using glob patterns and keywords
+2. **Interactive Selection**:
+   - Presents detected features with file counts and confidence scores
+   - Lets you choose: all features, specific feature, or full codebase
+   - Guides you through scope refinement (exclude tests, docs, etc.)
+   - No JSON required - everything is handled through questions
 
-3. **Index Generation**: Creates master feature index with file counts, token counts, and extraction scripts
+3. **Feature Extraction**: Filters tokens and files to your selected scope using glob patterns and keywords
+
+4. **Index Generation**: Creates master feature index with file counts, token counts, and extraction scripts
 
 ### When to Use Feature Detection
 
@@ -778,21 +979,58 @@ The `--detect-features` and `--feature` flags enable feature-based extraction fo
 - **Team organization**: Align extraction with team boundaries (auth team, payments team, etc.)
 - **Iterative extraction**: Extract high-priority features first, others later
 
-### Usage Examples
+### Interactive Feature Selection (Recommended)
+
+For large codebases, simply run:
 
 ```bash
-# Auto-detect all features in codebase
+# Claude automatically detects features and guides you through selection
+/octo:extract ./my-app
+```
+
+**What happens:**
+1. Detects 500+ files → Triggers automatic feature detection
+2. Shows you: "Detected 8 features (Authentication, Payment, User Profile...)"
+3. Asks: "Which features do you want to extract?"
+   - All features (generates 8 separate outputs)
+   - Specific feature (choose from list)
+   - Full codebase (one monolithic output)
+4. If you choose "Specific feature" → Shows feature list with confidence scores
+5. Asks: "Refine scope?" → Options to exclude tests, docs, or add custom patterns
+6. Proceeds with extraction using your selections
+
+**No flags or JSON required!** The interactive flow handles everything.
+
+### Manual Feature Extraction (Advanced)
+
+If you already know which feature you want:
+
+```bash
+# Force feature detection (even for small codebases)
 /octo:extract ./my-app --detect-features
 
-# Extract tokens for specific feature
+# Skip detection, extract specific feature by name
 /octo:extract ./my-app --feature authentication
 
-# Custom feature scope (JSON)
-/octo:extract ./my-app --feature-scope '{"name":"auth","includePaths":["src/auth/**"],"keywords":["auth","login"]}'
-
-# Combine with debate for validated feature extraction
-/octo:extract ./my-app --feature authentication --with-debate
+# Combine with debate for validated extraction
+/octo:extract ./my-app --feature payment --with-debate
 ```
+
+### Custom Scopes (Expert Mode)
+
+For programmatic/CI use or very specific scopes:
+
+```bash
+# Manually define scope with JSON
+/octo:extract ./my-app --feature-scope '{
+  "name":"auth",
+  "includePaths":["src/auth/**","lib/auth/**"],
+  "excludePaths":["**/*.test.ts"],
+  "keywords":["auth","login","session"]
+}'
+```
+
+**Note:** Most users don't need this - the interactive flow is more user-friendly.
 
 ### Output with Feature Detection
 
