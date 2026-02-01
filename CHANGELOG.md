@@ -2,6 +2,30 @@
 
 All notable changes to Claude Octopus will be documented in this file.
 
+## [7.19.3] - 2026-01-31
+
+### ✨ Features
+
+**Auto-Create GitHub Releases**
+
+Enhanced validate-release.sh to automatically create GitHub releases:
+
+- **Auto-creation**: Releases are now created automatically when tags are pushed to remote
+- **CHANGELOG integration**: Extracts release notes directly from CHANGELOG.md entries
+- **Latest marking**: New releases are automatically marked as "latest"
+- **Pre-push hook fix**: Added `--no-verify` to git push commands to prevent infinite loop
+  - Issue: validate-release.sh → git push → pre-push hook → validate-release.sh (infinite recursion)
+  - Fix: Use `--no-verify` flag to bypass hook when auto-pushing tags
+
+**Backfilled Missing Releases**:
+- Created v7.19.0 GitHub release
+- Created v7.19.1 GitHub release
+- Created v7.19.2 GitHub release
+
+All future releases will be automatically created when version tags are pushed.
+
+---
+
 ## [7.19.2] - 2026-01-31
 
 ### 🐛 Bug Fix
