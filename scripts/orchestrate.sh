@@ -467,9 +467,9 @@ get_agent_command() {
         codex-max) echo "codex exec ${sandbox_flag}" ;;          # Premium
         codex-mini) echo "codex exec ${sandbox_flag}" ;;         # Cost-effective
         codex-general) echo "codex exec ${sandbox_flag}" ;;      # General tasks
-        gemini) echo "gemini -y -m gemini-3-pro-preview" ;;       # Premium Gemini
-        gemini-fast) echo "gemini -y -m gemini-3-flash-preview" ;; # Fast Gemini
-        gemini-image) echo "gemini -y -m gemini-3-pro-preview" ;; # Image capable
+        gemini) echo "NODE_NO_WARNINGS=1 gemini -y -m gemini-3-pro-preview" ;;       # Premium Gemini (v7.19.0 P2.2: suppress warnings)
+        gemini-fast) echo "NODE_NO_WARNINGS=1 gemini -y -m gemini-3-flash-preview" ;; # Fast Gemini (v7.19.0 P2.2: suppress warnings)
+        gemini-image) echo "NODE_NO_WARNINGS=1 gemini -y -m gemini-3-pro-preview" ;; # Image capable (v7.19.0 P2.2: suppress warnings)
         codex-review) echo "codex exec review" ;; # Code review mode (no sandbox support)
         claude) echo "claude --print" ;;                         # Claude Sonnet 4.5
         claude-sonnet) echo "claude --print -m sonnet" ;;        # Claude Sonnet explicit
@@ -495,9 +495,9 @@ get_agent_command_array() {
         codex-max)      _cmd_array=(codex exec --sandbox "$codex_sandbox") ;;
         codex-mini)     _cmd_array=(codex exec --sandbox "$codex_sandbox") ;;
         codex-general)  _cmd_array=(codex exec --sandbox "$codex_sandbox") ;;
-        gemini)         _cmd_array=(gemini -y -m gemini-3-pro-preview) ;;
-        gemini-fast)    _cmd_array=(gemini -y -m gemini-3-flash-preview) ;;
-        gemini-image)   _cmd_array=(gemini -y -m gemini-3-pro-preview) ;;
+        gemini)         _cmd_array=(env NODE_NO_WARNINGS=1 gemini -y -m gemini-3-pro-preview) ;;  # v7.19.0 P2.2: suppress warnings
+        gemini-fast)    _cmd_array=(env NODE_NO_WARNINGS=1 gemini -y -m gemini-3-flash-preview) ;;  # v7.19.0 P2.2: suppress warnings
+        gemini-image)   _cmd_array=(env NODE_NO_WARNINGS=1 gemini -y -m gemini-3-pro-preview) ;;  # v7.19.0 P2.2: suppress warnings
         codex-review)   _cmd_array=(codex exec review) ;; # No sandbox support
         claude)         _cmd_array=(claude --print) ;;
         claude-sonnet)  _cmd_array=(claude --print -m sonnet) ;;
@@ -605,6 +605,157 @@ estimate_tokens() {
     local text="$1"
     local char_count=${#text}
     echo $(( (char_count + 3) / 4 ))  # Round up
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# COST TRANSPARENCY (v7.18.0 - P0.0)
+# Display estimated costs to users BEFORE multi-AI execution
+# Only shows costs for API-based providers (not auth/subscription tiers)
+# Critical for user trust and preventing unexpected API charges
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Check if provider is using API keys (costs money per call)
+is_api_based_provider() {
+    local provider="$1"
+
+    case "$provider" in
+        codex)
+            # Check if using API key (OPENAI_API_KEY) vs auth
+            [[ -n "${OPENAI_API_KEY:-}" ]] && return 0
+            return 1
+            ;;
+        gemini)
+            # Check if using API key (GEMINI_API_KEY) vs auth
+            [[ -n "${GEMINI_API_KEY:-}" ]] && return 0
+            return 1
+            ;;
+        claude)
+            # Claude Code is subscription-based, not per-call
+            return 1
+            ;;
+        *)
+            # Unknown provider, assume API-based for safety
+            return 0
+            ;;
+    esac
+}
+
+# Calculate cost for a single agent call (only for API-based providers)
+calculate_agent_cost() {
+    local agent_type="$1"
+    local prompt_length="${2:-1000}"  # Character count or default
+
+    # Check if this provider costs money
+    if ! is_api_based_provider "$agent_type"; then
+        echo "0.00"
+        return 0
+    fi
+
+    local model
+    model=$(get_agent_model "$agent_type")
+
+    local input_tokens
+    input_tokens=$(estimate_tokens "$(printf '%*s' "$prompt_length" '')")
+    local output_tokens=$((input_tokens * 2))
+
+    local pricing
+    pricing=$(get_model_pricing "$model")
+    local input_price="${pricing%%:*}"
+    local output_price="${pricing##*:}"
+
+    # Cost = (input_tokens / 1M) * input_price + (output_tokens / 1M) * output_price
+    local cost=$(awk "BEGIN {printf \"%.4f\", (($input_tokens / 1000000.0) * $input_price) + (($output_tokens / 1000000.0) * $output_price)}")
+
+    echo "$cost"
+}
+
+# Display cost estimate for a workflow and require user approval
+display_workflow_cost_estimate() {
+    local workflow_name="$1"
+    local num_codex_calls="${2:-4}"
+    local num_gemini_calls="${3:-4}"
+    local prompt_size="${4:-2000}"
+
+    # Skip in non-interactive mode, if disabled, or if called from embrace workflow
+    if [[ ! -t 0 ]] || [[ "${OCTOPUS_SKIP_COST_PROMPT:-false}" == "true" ]] || [[ "${OCTOPUS_SKIP_PHASE_COST_PROMPT:-false}" == "true" ]]; then
+        log "DEBUG" "Cost estimate skipped (non-interactive, disabled, or already shown)"
+        return 0
+    fi
+
+    # Check which providers are API-based (cost money)
+    local codex_is_api=false
+    local gemini_is_api=false
+    local has_costs=false
+
+    is_api_based_provider "codex" && codex_is_api=true && has_costs=true
+    is_api_based_provider "gemini" && gemini_is_api=true && has_costs=true
+
+    # If no API-based providers, skip cost display
+    if [[ "$has_costs" == "false" ]]; then
+        log "INFO" "Using subscription/auth-based providers (no per-call costs)"
+        return 0
+    fi
+
+    # Calculate costs
+    local codex_cost="0.00"
+    local gemini_cost="0.00"
+    local codex_status="Subscription (no per-call cost)"
+    local gemini_status="Subscription (no per-call cost)"
+
+    if [[ "$codex_is_api" == "true" ]]; then
+        codex_cost=$(awk "BEGIN {printf \"%.2f\", $(calculate_agent_cost \"codex\" \"$prompt_size\") * $num_codex_calls}")
+        codex_status="~\$$codex_cost (API key detected)"
+    fi
+
+    if [[ "$gemini_is_api" == "true" ]]; then
+        gemini_cost=$(awk "BEGIN {printf \"%.2f\", $(calculate_agent_cost \"gemini\" \"$prompt_size\") * $num_gemini_calls}")
+        gemini_status="~\$$gemini_cost (API key detected)"
+    fi
+
+    local total_cost=$(awk "BEGIN {printf \"%.2f\", $codex_cost + $gemini_cost}")
+
+    # Display cost estimate
+    echo ""
+    echo -e "${MAGENTA}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${MAGENTA}║  ${YELLOW}💰 MULTI-AI WORKFLOW COST ESTIMATE${MAGENTA}                    ║${NC}"
+    echo -e "${MAGENTA}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    echo -e "${BOLD}Workflow:${NC} $workflow_name"
+    echo ""
+    echo -e "${BOLD}Estimated Costs:${NC}"
+    echo -e "  ${RED}🔴 Codex${NC}  (~${num_codex_calls} requests): ${codex_status}"
+    echo -e "  ${YELLOW}🟡 Gemini${NC} (~${num_gemini_calls} requests): ${gemini_status}"
+    echo -e "  ${BLUE}🔵 Claude${NC} (Sonnet 4.5): ${DIM}Included in Claude Code subscription${NC}"
+    echo ""
+
+    if [[ $(awk "BEGIN {print ($total_cost > 0)}") -eq 1 ]]; then
+        echo -e "${BOLD}Total API Costs: ~\$${total_cost}${NC}"
+        echo ""
+        echo -e "${DIM}Note: Costs shown only for providers using API keys (OPENAI_API_KEY/GEMINI_API_KEY).${NC}"
+        echo -e "${DIM}Actual costs may vary. Disable prompt with: OCTOPUS_SKIP_COST_PROMPT=true${NC}"
+    else
+        echo -e "${GREEN}✓ All providers using subscription/auth-based access (no per-call costs)${NC}"
+        echo ""
+        echo -e "${DIM}To skip this check: OCTOPUS_SKIP_COST_PROMPT=true${NC}"
+    fi
+    echo ""
+
+    # Require approval
+    local response
+    read -p "$(echo -e "${BOLD}Proceed with multi-AI execution?${NC} [Y/n] ")" -r response
+    echo ""
+
+    case "$response" in
+        [Nn]*)
+            echo -e "${YELLOW}⚠ Workflow cancelled by user${NC}"
+            return 1
+            ;;
+        *)
+            echo -e "${GREEN}✓ User approved - proceeding with workflow${NC}"
+            echo ""
+            return 0
+            ;;
+    esac
 }
 
 # Record an agent call (append to usage tracking)
@@ -3232,6 +3383,80 @@ fatal() {
     exit $code
 }
 
+# v7.19.0 P1.3: Enhanced error messages with context and remediation
+enhanced_error() {
+    local error_type="$1"    # e.g., "probe_synthesis", "agent_timeout", "no_results"
+    local context="$2"       # e.g., task_group, agent_type, etc.
+    shift 2
+    local details=("$@")     # Array of detail strings
+
+    echo ""
+    echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${RED}❌ Error: ${error_type}${NC}"
+    echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+
+    # Error-specific messaging
+    case "$error_type" in
+        "probe_synthesis_no_results")
+            echo -e "${YELLOW}Cause:${NC} All probe agents failed to produce meaningful output"
+            echo ""
+            echo -e "${YELLOW}Details:${NC}"
+            for detail in "${details[@]}"; do
+                echo "  • $detail"
+            done
+            echo ""
+            echo -e "${CYAN}Suggested actions:${NC}"
+            echo "  1. Check logs: ls -lh $LOGS_DIR/*probe-${context}*"
+            echo "  2. Verify API keys:"
+            echo "     echo \$OPENAI_API_KEY | cut -c1-10"
+            echo "     echo \$GEMINI_API_KEY | cut -c1-10"
+            echo "  3. Test providers manually:"
+            echo "     codex 'hello world'"
+            echo "     gemini 'hello world'"
+            echo "  4. Increase timeout: --timeout $((TIMEOUT * 2))"
+            ;;
+        "agent_spawn_failed")
+            echo -e "${YELLOW}Cause:${NC} Failed to spawn $context agent"
+            echo ""
+            echo -e "${YELLOW}Details:${NC}"
+            for detail in "${details[@]}"; do
+                echo "  • $detail"
+            done
+            echo ""
+            echo -e "${CYAN}Suggested actions:${NC}"
+            echo "  1. Check if CLI is installed: command -v $context"
+            echo "  2. Check permissions: ls -la \$(command -v $context)"
+            echo "  3. Test manually: $context 'test prompt'"
+            ;;
+        "result_file_empty")
+            echo -e "${YELLOW}Cause:${NC} Agent completed but result file is empty or missing"
+            echo ""
+            echo -e "${YELLOW}Details:${NC}"
+            for detail in "${details[@]}"; do
+                echo "  • $detail"
+            done
+            echo ""
+            echo -e "${CYAN}Suggested actions:${NC}"
+            echo "  1. Check raw output: cat $RESULTS_DIR/.raw-${context}.out"
+            echo "  2. Check error log: cat $LOGS_DIR/*-${context}.log"
+            echo "  3. Output may have been filtered - check filter logic"
+            ;;
+        *)
+            echo -e "${YELLOW}Context:${NC} $context"
+            echo ""
+            echo -e "${YELLOW}Details:${NC}"
+            for detail in "${details[@]}"; do
+                echo "  • $detail"
+            done
+            ;;
+    esac
+
+    echo ""
+    echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+}
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # PERFORMANCE OPTIMIZATION: Fast JSON field extraction using bash regex
 # Avoids spawning grep|cut subprocesses (saves ~100ms per call)
@@ -3418,11 +3643,18 @@ run_with_timeout() {
 }
 
 # Rotate and clean up old log files
+# v7.19.0 P2.1: Enhanced with age-based cleanup and stats
 rotate_logs() {
     local max_size_mb=50
+    local max_age_days="${1:-30}"  # Default 30 days, configurable
 
     [[ ! -d "$LOGS_DIR" ]] && return 0
 
+    local rotated=0
+    local deleted=0
+    local total_freed=0
+
+    # Rotate large log files
     for log in "$LOGS_DIR"/*.log; do
         [[ ! -f "$log" ]] && continue
 
@@ -3432,11 +3664,43 @@ rotate_logs() {
             # Rotate large log files
             mv "$log" "${log}.1"
             gzip "${log}.1" 2>/dev/null || true
+            ((rotated++))
+            log DEBUG "Rotated large log: $(basename "$log") (${size_kb}KB)"
         fi
     done
 
-    # Remove logs older than 7 days
-    find "$LOGS_DIR" -name "*.log.*.gz" -mtime +7 -delete 2>/dev/null || true
+    # v7.19.0 P2.1: Remove old logs (both .log and .log.*.gz)
+    # Find uncompressed logs older than max_age_days
+    while IFS= read -r -d '' old_log; do
+        local size_kb=$(du -k "$old_log" 2>/dev/null | cut -f1)
+        total_freed=$((total_freed + size_kb))
+        rm -f "$old_log"
+        ((deleted++))
+        log DEBUG "Deleted old log: $(basename "$old_log") (${size_kb}KB)"
+    done < <(find "$LOGS_DIR" -name "*.log" -mtime "+$max_age_days" -print0 2>/dev/null)
+
+    # Find compressed logs older than max_age_days
+    while IFS= read -r -d '' old_log; do
+        local size_kb=$(du -k "$old_log" 2>/dev/null | cut -f1)
+        total_freed=$((total_freed + size_kb))
+        rm -f "$old_log"
+        ((deleted++))
+        log DEBUG "Deleted old compressed log: $(basename "$old_log") (${size_kb}KB)"
+    done < <(find "$LOGS_DIR" -name "*.log.*.gz" -mtime "+$max_age_days" -print0 2>/dev/null)
+
+    # Also clean up old .raw files (v7.19.0 debugging artifacts)
+    while IFS= read -r -d '' raw_file; do
+        local size_kb=$(du -k "$raw_file" 2>/dev/null | cut -f1)
+        total_freed=$((total_freed + size_kb))
+        rm -f "$raw_file"
+        log DEBUG "Deleted old raw output: $(basename "$raw_file") (${size_kb}KB)"
+    done < <(find "$RESULTS_DIR" -name ".raw-*.out" -mtime "+7" -print0 2>/dev/null)
+
+    # Report if anything was cleaned up
+    if [[ $rotated -gt 0 ]] || [[ $deleted -gt 0 ]]; then
+        local freed_mb=$((total_freed / 1024))
+        log INFO "Log cleanup: rotated $rotated, deleted $deleted files, freed ${freed_mb}MB"
+    fi
 }
 
 init_workspace() {
@@ -6910,8 +7174,10 @@ spawn_agent() {
         read -ra cmd_array <<< "$cmd"
 
         # IMPROVED: Use temp files for reliable output capture (v7.13.2 - Issue #10)
+        # v7.19.0 P0.1: Real-time output streaming to result file
         local temp_output="${RESULTS_DIR}/.tmp-${task_id}.out"
         local temp_errors="${RESULTS_DIR}/.tmp-${task_id}.err"
+        local raw_output="${RESULTS_DIR}/.raw-${task_id}.out"  # Backup of unfiltered output
 
         # Update task progress with context-aware spinner verb (v7.16.0 Feature 1)
         if [[ -n "$CLAUDE_TASK_ID" ]]; then
@@ -6925,7 +7191,16 @@ spawn_agent() {
         start_time_ms=$(date +%s%3N 2>/dev/null || echo "0")
         update_agent_status "$agent_type" "running" 0 0.0
 
-        if run_with_timeout "$TIMEOUT" "${cmd_array[@]}" "$enhanced_prompt" > "$temp_output" 2> "$temp_errors"; then
+        # v7.19.0 P0.1: Use tee to stream output to both temp file and raw backup
+        local exit_code=0
+        if run_with_timeout "$TIMEOUT" "${cmd_array[@]}" "$enhanced_prompt" 2> "$temp_errors" | tee "$raw_output" > "$temp_output"; then
+            exit_code=0
+        else
+            exit_code=$?
+        fi
+
+        # v7.19.0 P0.1: Process output regardless of exit code (preserves partial results)
+        if [[ $exit_code -eq 0 ]]; then
             # Filter out CLI header noise and extract actual response
             # Handles Codex/Gemini CLI format where response follows "codex"/"gemini" marker
             awk '
@@ -6962,11 +7237,57 @@ spawn_agent() {
             end_time_ms=$(date +%s%3N 2>/dev/null || echo "$start_time_ms")
             elapsed_ms=$((end_time_ms - start_time_ms))
             update_agent_status "$agent_type" "completed" "$elapsed_ms" 0.0
+        elif [[ $exit_code -eq 124 ]] || [[ $exit_code -eq 143 ]]; then
+            # v7.19.0 P0.2: TIMEOUT - Preserve partial output
+            # Process whatever output exists (may be significant partial work)
+            if [[ -s "$temp_output" ]]; then
+                awk '
+                    BEGIN { in_response = 0; header_done = 0; }
+                    /^--------$/ { header_done = 1; next; }
+                    !header_done { next; }
+                    /^(codex|gemini|assistant)$/ { in_response = 1; next; }
+                    /^thinking$/ { next; }
+                    /^tokens used$/ { next; }
+                    /^[0-9,]+$/ && in_response { next; }
+                    in_response { print; }
+                ' "$temp_output" >> "$result_file"
+            elif [[ -s "$raw_output" ]]; then
+                # Fallback: use raw output if filtered output is empty
+                cat "$raw_output" >> "$result_file"
+            else
+                echo "(no output captured before timeout)" >> "$result_file"
+            fi
+            echo '```' >> "$result_file"
+            echo "" >> "$result_file"
+            echo "## Status: TIMEOUT - PARTIAL RESULTS (exit code: $exit_code)" >> "$result_file"
+            echo "" >> "$result_file"
+            echo "⚠️  **Warning**: Agent timed out after ${TIMEOUT}s but partial output preserved above." >> "$result_file"
+            echo "" >> "$result_file"
+            echo "**Recommendations**:" >> "$result_file"
+            echo "- Partial results may still be valuable" >> "$result_file"
+            echo "- Consider increasing timeout: \`--timeout $((TIMEOUT * 2))\`" >> "$result_file"
+            echo "- Simplify prompt to reduce complexity" >> "$result_file"
+
+            # Append error details
+            if [[ -s "$temp_errors" ]]; then
+                echo "" >> "$result_file"
+                echo "## Error Log" >> "$result_file"
+                echo '```' >> "$result_file"
+                cat "$temp_errors" >> "$result_file"
+                echo '```' >> "$result_file"
+            fi
+
+            # Mark agent as timeout (partial success) (v7.19.0)
+            local end_time_ms elapsed_ms
+            end_time_ms=$(date +%s%3N 2>/dev/null || echo "$start_time_ms")
+            elapsed_ms=$((end_time_ms - start_time_ms))
+            update_agent_status "$agent_type" "timeout" "$elapsed_ms" 0.0
         else
-            local exit_code=$?
-            # On failure, capture whatever output exists
+            # v7.19.0 P0.2: Other failures - still try to preserve output
             if [[ -s "$temp_output" ]]; then
                 cat "$temp_output" >> "$result_file"
+            elif [[ -s "$raw_output" ]]; then
+                cat "$raw_output" >> "$result_file"
             else
                 echo "(no output captured)" >> "$result_file"
             fi
@@ -6990,8 +7311,23 @@ spawn_agent() {
             update_agent_status "$agent_type" "failed" "$elapsed_ms" 0.0
         fi
 
-        # Cleanup temp files
+        # v7.19.0 P0.1: Verify result file has meaningful content
+        local result_size
+        result_size=$(wc -c < "$result_file" 2>/dev/null || echo "0")
+        if [[ $result_size -lt 1024 ]] && [[ -s "$raw_output" ]]; then
+            # Result file is suspiciously small but raw output exists - append raw output
+            echo "" >> "$result_file"
+            echo "## Raw Output (filter may have removed valid content)" >> "$result_file"
+            echo '```' >> "$result_file"
+            cat "$raw_output" >> "$result_file"
+            echo '```' >> "$result_file"
+        fi
+
+        # Cleanup temp files (keep raw_output for debugging if result is empty)
         rm -f "$temp_output" "$temp_errors"
+        if [[ $result_size -ge 1024 ]]; then
+            rm -f "$raw_output"  # Clean up if result looks good
+        fi
 
         echo "# Completed: $(date)" >> "$result_file"
 
@@ -8984,6 +9320,12 @@ probe_discover() {
     # Pre-flight validation
     preflight_check || return 1
 
+    # Cost transparency (v7.18.0 - P0.0)
+    if ! display_workflow_cost_estimate "Probe (Discover Phase)" 4 0 1500; then
+        log "WARN" "Workflow cancelled by user after cost review"
+        return 1
+    fi
+
     mkdir -p "$RESULTS_DIR" "$LOGS_DIR"
 
     # Initialize progress tracking (v7.16.0 Feature 2)
@@ -9054,8 +9396,63 @@ probe_discover() {
         tmux_cleanup
     fi
 
-    # Intelligent synthesis
-    synthesize_probe_results "$task_group" "$prompt"
+    # v7.19.0 P0.3: Check agent status and report results
+    echo ""
+    echo -e "${CYAN}Analyzing results...${NC}"
+    local success_count=0
+    local timeout_count=0
+    local failure_count=0
+    local total_size=0
+
+    for i in "${!perspectives[@]}"; do
+        local task_id="probe-${task_group}-${i}"
+        local agent="gemini"
+        [[ $((i % 2)) -eq 0 ]] && agent="codex"
+        local result_file="${RESULTS_DIR}/${agent}-${task_id}.md"
+
+        if [[ -f "$result_file" ]]; then
+            local file_size
+            file_size=$(wc -c < "$result_file" 2>/dev/null || echo "0")
+            total_size=$((total_size + file_size))
+
+            # Categorize based on content and status markers
+            if grep -q "Status: SUCCESS" "$result_file"; then
+                echo -e " ${GREEN}✓${NC} ${agent^} probe $i: completed ($(numfmt --to=iec-i --suffix=B $file_size 2>/dev/null || echo "${file_size}B"))"
+                ((success_count++))
+            elif grep -q "Status: TIMEOUT" "$result_file"; then
+                echo -e " ${YELLOW}⏳${NC} ${agent^} probe $i: timeout with partial results ($(numfmt --to=iec-i --suffix=B $file_size 2>/dev/null || echo "${file_size}B"))"
+                ((timeout_count++))
+            elif grep -q "Status: FAILED" "$result_file"; then
+                if [[ $file_size -gt 1024 ]]; then
+                    echo -e " ${YELLOW}⚠${NC}  ${agent^} probe $i: failed but has output ($(numfmt --to=iec-i --suffix=B $file_size 2>/dev/null || echo "${file_size}B"))"
+                    ((timeout_count++))  # Count as partial success
+                else
+                    echo -e " ${RED}✗${NC} ${agent^} probe $i: failed ($(numfmt --to=iec-i --suffix=B $file_size 2>/dev/null || echo "${file_size}B"))"
+                    ((failure_count++))
+                fi
+            else
+                # No clear status marker - check file size
+                if [[ $file_size -gt 1024 ]]; then
+                    echo -e " ${YELLOW}?${NC} ${agent^} probe $i: unknown status but has content ($(numfmt --to=iec-i --suffix=B $file_size 2>/dev/null || echo "${file_size}B"))"
+                    ((timeout_count++))  # Count as partial success
+                else
+                    echo -e " ${RED}✗${NC} ${agent^} probe $i: empty or missing ($(numfmt --to=iec-i --suffix=B $file_size 2>/dev/null || echo "${file_size}B"))"
+                    ((failure_count++))
+                fi
+            fi
+        else
+            echo -e " ${RED}✗${NC} ${agent^} probe $i: result file missing"
+            ((failure_count++))
+        fi
+    done
+
+    echo ""
+    local usable_results=$((success_count + timeout_count))
+    echo -e "${CYAN}Results summary: ${GREEN}$success_count${NC} success, ${YELLOW}$timeout_count${NC} partial, ${RED}$failure_count${NC} failed | Total: $(numfmt --to=iec-i --suffix=B $total_size 2>/dev/null || echo "${total_size}B")${NC}"
+    echo ""
+
+    # Intelligent synthesis (v7.19.0 P1.1: allow with partial results)
+    synthesize_probe_results "$task_group" "$prompt" "$usable_results"
 
     # Display workflow summary (v7.16.0 Feature 2)
     display_progress_summary
@@ -9065,22 +9462,48 @@ probe_discover() {
 synthesize_probe_results() {
     local task_group="$1"
     local original_prompt="$2"
+    local usable_results="${3:-0}"  # v7.19.0 P1.1: Accept usable result count
     local synthesis_file="${RESULTS_DIR}/probe-synthesis-${task_group}.md"
 
     log INFO "Synthesizing research findings..."
 
-    # Gather all probe results
+    # v7.19.0 P1.1: Gather all probe results with size filtering
     local results=""
     local result_count=0
+    local total_content_size=0
     for result in "$RESULTS_DIR"/probe-${task_group}-*.md; do
         [[ -f "$result" ]] || continue
-        results+="$(cat "$result")\n\n---\n\n"
-        ((result_count++))
+
+        # Check if file has meaningful content (>500 bytes of actual content)
+        local file_size
+        file_size=$(wc -c < "$result" 2>/dev/null || echo "0")
+
+        if [[ $file_size -gt 500 ]]; then
+            results+="$(cat "$result")\n\n---\n\n"
+            ((result_count++))
+            total_content_size=$((total_content_size + file_size))
+        else
+            log DEBUG "Skipping $result (too small: ${file_size}B)"
+        fi
     done
 
+    # v7.19.0 P1.1: Graceful degradation - proceed with 2+ results
     if [[ $result_count -eq 0 ]]; then
-        log WARN "No probe results found to synthesize"
+        # v7.19.0 P1.3: Use enhanced error messaging
+        local error_details=()
+        error_details+=("All agents either failed, timed out without output, or produced empty results")
+        error_details+=("Expected 4 probe results, found 0 with meaningful content")
+        error_details+=("Check individual agent status in logs directory")
+        enhanced_error "probe_synthesis_no_results" "$task_group" "${error_details[@]}"
         return 1
+    elif [[ $result_count -eq 1 ]]; then
+        log WARN "Only 1 usable result found (minimum 2 recommended)"
+        log WARN "Synthesis quality may be reduced with limited perspectives"
+        log WARN "Proceeding anyway..."
+    elif [[ $result_count -lt 4 ]]; then
+        log WARN "Proceeding with $result_count/$usable_results usable results ($(numfmt --to=iec-i --suffix=B $total_content_size 2>/dev/null || echo "${total_content_size}B"))"
+    else
+        log INFO "All $result_count results available for synthesis ($(numfmt --to=iec-i --suffix=B $total_content_size 2>/dev/null || echo "${total_content_size}B"))"
     fi
 
     # Use Gemini for intelligent synthesis
@@ -9141,6 +9564,12 @@ grasp_define() {
         log INFO "[DRY-RUN] Would grasp: $prompt"
         log INFO "[DRY-RUN] Would gather 3 perspectives and build consensus"
         return 0
+    fi
+
+    # Cost transparency (v7.18.0 - P0.0)
+    if ! display_workflow_cost_estimate "Grasp (Define Phase)" 1 2 1200; then
+        log "WARN" "Workflow cancelled by user after cost review"
+        return 1
     fi
 
     mkdir -p "$RESULTS_DIR"
@@ -9226,6 +9655,12 @@ tangle_develop() {
         log INFO "[DRY-RUN] Would tangle: $prompt"
         log INFO "[DRY-RUN] Would decompose into subtasks and execute in parallel"
         return 0
+    fi
+
+    # Cost transparency (v7.18.0 - P0.0)
+    if ! display_workflow_cost_estimate "Tangle (Develop Phase)" 2 2 1800; then
+        log "WARN" "Workflow cancelled by user after cost review"
+        return 1
     fi
 
     mkdir -p "$RESULTS_DIR"
@@ -9502,6 +9937,12 @@ ink_deliver() {
         return 0
     fi
 
+    # Cost transparency (v7.18.0 - P0.0)
+    if ! display_workflow_cost_estimate "Ink (Deliver Phase)" 1 2 1500; then
+        log "WARN" "Workflow cancelled by user after cost review"
+        return 1
+    fi
+
     mkdir -p "$RESULTS_DIR"
 
     # Step 1: Pre-delivery quality checks
@@ -9622,6 +10063,16 @@ embrace_full_workflow() {
         init_session "embrace" "$prompt"
     fi
 
+    # Cost transparency (v7.18.0 - P0.0)
+    # Display estimated costs and require user approval BEFORE execution
+    if ! display_workflow_cost_estimate "Embrace (Full Double Diamond)" 4 4 2000; then
+        log "WARN" "Workflow cancelled by user after cost review"
+        return 1
+    fi
+
+    # Set flag to skip individual phase cost prompts (already shown above)
+    export OCTOPUS_SKIP_PHASE_COST_PROMPT="true"
+
     # Pre-flight validation
     if ! preflight_check; then
         log ERROR "Pre-flight check failed. Aborting workflow."
@@ -9717,6 +10168,9 @@ embrace_full_workflow() {
     [[ -n "$tangle_validation" ]] && echo -e "  Tangle: $tangle_validation"
     echo -e "  Ink:    $(ls -t "$RESULTS_DIR"/delivery-*.md 2>/dev/null | head -1)"
     echo ""
+
+    # Clean up flag so it doesn't affect subsequent standalone calls
+    unset OCTOPUS_SKIP_PHASE_COST_PROMPT
 }
 
 # ═══════════════════════════════════════════════════════════════════════════
