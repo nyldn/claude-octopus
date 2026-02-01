@@ -76,6 +76,8 @@ temp/
 component-analyzer/
 reports/
 src/
+docs/IMPLEMENTATION-PLAN*.md
+scripts/token-extraction/
 
 # Development working files
 skill.md

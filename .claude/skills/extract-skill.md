@@ -215,8 +215,7 @@ This skill is informed by research on:
 
 ## Contributing
 
-See implementation plan in PRD:
-`/Users/chris/git/claude-octopus/prd/prd_claude_octopus_co_extract.md`
+See implementation plan in project documentation.
 
 Implementation phases:
 1. Foundation & CLI (Week 1)

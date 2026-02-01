@@ -213,7 +213,7 @@ Use imperative, blocking language:
 
 ### Research Skill (skill-deep-research.md)
 
-See `/Users/chris/git/claude-octopus/.claude/skills/skill-deep-research.md` for reference implementation.
+See `.claude/skills/skill-deep-research.md` for reference implementation.
 
 **Key elements:**
 - Visual indicators showing all 3 providers
