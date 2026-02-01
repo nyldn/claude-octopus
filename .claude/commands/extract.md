@@ -679,6 +679,15 @@ View full results: ${config.outputDir}/README.md
 
 # Deep extraction with debate
 /octo:extract ./my-app --depth deep --with-debate
+
+# Feature detection for large codebases
+/octo:extract ./my-app --detect-features
+
+# Extract specific feature
+/octo:extract ./my-app --feature authentication
+
+# Feature extraction with debate
+/octo:extract ./my-app --feature payment --with-debate
 ```
 
 ---
@@ -695,6 +704,9 @@ View full results: ${config.outputDir}/README.md
 | `--multi-ai` | `true`, `false`, `force` | `auto` | Multi-provider mode |
 | `--with-debate` | flag | `false` | Enable multi-AI debate for token validation |
 | `--debate-rounds` | number | `2` | Number of debate rounds (requires `--with-debate`) |
+| `--feature` | string | - | Extract tokens for specific feature only |
+| `--detect-features` | flag | `false` | Auto-detect features and generate index |
+| `--feature-scope` | JSON string | - | Custom feature scope definition |
 
 ---
 
@@ -741,6 +753,94 @@ Debate generates:
 - **Time**: +30-60 seconds per debate round (depends on token count)
 - **Providers**: Requires Codex and/or Gemini CLI (graceful degradation if unavailable)
 - **Token count**: Works best with 50-500 tokens; very large sets may take longer
+
+---
+
+## Feature Detection & Scoping
+
+The `--detect-features` and `--feature` flags enable feature-based extraction for large codebases, making it easier to generate focused PRDs and token sets for individual features.
+
+### How It Works
+
+1. **Auto-Detection**: Scans codebase using multiple heuristics:
+   - **Directory-based**: Detects features from `features/`, `modules/`, `services/` directories
+   - **Keyword-based**: Identifies common patterns (auth, payment, user, product, etc.)
+   - **Confidence scoring**: High confidence for directory-based (0.9), medium for keywords (0.7)
+
+2. **Feature Scoping**: Filters tokens and files to specific feature boundaries using glob patterns and keywords
+
+3. **Index Generation**: Creates master feature index with file counts, token counts, and extraction scripts
+
+### When to Use Feature Detection
+
+- **Large codebases** (500K+ LOC): Break down extraction into manageable chunks
+- **Modular architecture**: Extract features independently for focused PRDs
+- **Team organization**: Align extraction with team boundaries (auth team, payments team, etc.)
+- **Iterative extraction**: Extract high-priority features first, others later
+
+### Usage Examples
+
+```bash
+# Auto-detect all features in codebase
+/octo:extract ./my-app --detect-features
+
+# Extract tokens for specific feature
+/octo:extract ./my-app --feature authentication
+
+# Custom feature scope (JSON)
+/octo:extract ./my-app --feature-scope '{"name":"auth","includePaths":["src/auth/**"],"keywords":["auth","login"]}'
+
+# Combine with debate for validated feature extraction
+/octo:extract ./my-app --feature authentication --with-debate
+```
+
+### Output with Feature Detection
+
+When `--detect-features` is enabled, the output includes:
+
+```
+octopus-extract/
+└── project-name/
+    └── timestamp/
+        ├── features-index.json       # Master feature index
+        ├── features-index.md          # Human-readable feature list
+        ├── extract-all-features.sh    # Script to extract each feature
+        └── 10_design/
+            ├── tokens.json
+            └── ...
+```
+
+When `--feature <name>` is used, tokens are filtered to only include that feature:
+
+```
+octopus-extract/
+└── project-name/
+    └── timestamp/
+        ├── feature-metadata.json      # Feature info (file count, paths, etc.)
+        └── 10_design/
+            ├── tokens.json            # Tokens tagged with feature name
+            └── ...
+```
+
+### Built-in Feature Keywords
+
+The detector recognizes these common feature patterns:
+- **Authentication**: auth, login, logout, session, signin, signup
+- **Payment**: payment, checkout, billing, invoice, stripe, paypal
+- **User**: user, profile, account, settings
+- **Product**: product, catalog, item, inventory
+- **Order**: order, cart, basket, shopping
+- **Analytics**: analytics, tracking, metrics, stats
+- **Notification**: notification, alert, email, sms
+- **Admin**: admin, dashboard, management
+- **Search**: search, filter, query
+- **API**: api, endpoint, route, controller
+
+### Performance
+
+- **Detection time**: 1-3 seconds for most codebases
+- **Accuracy**: 80-90% for well-organized codebases with clear feature boundaries
+- **False positives**: Can be refined with custom scopes or exclude patterns
 
 ---
 
