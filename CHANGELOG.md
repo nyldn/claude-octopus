@@ -146,7 +146,7 @@ This release fixes critical systemic issues with multi-AI coordination that caus
 #### **P2 - Quality of Life Improvements** 🟢
 
 **P2.1 - Enhanced Log Management**
-- **Issue**: 100+ log files in `/Users/chris/.claude-octopus/logs`, no cleanup
+- **Issue**: 100+ log files in `~/.claude-octopus/logs`, no cleanup
 - **Fix**:
   - Age-based cleanup (default 30 days, configurable)
   - Clean up both .log and .log.*.gz files
