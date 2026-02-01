@@ -28,12 +28,22 @@ import { generateStyleDictionaryOutput } from './outputs/style-dictionary';
 import { generateSchemaOutput } from './outputs/schema';
 import { AccessibilityAuditor } from './accessibility/accessibility-audit';
 import { AccessibilityReport } from './accessibility/types';
+import { BrowserExtractor } from './extractors/browser-extractor';
+import { InteractionStatesExtractor } from './extractors/interaction-states';
+import {
+  runDebateOnTokens,
+  applyDebateImprovements,
+  generateAuditTrail,
+} from './debate-integration';
+import { DebateResult } from './types';
 
 export class TokenExtractionPipeline {
   private options: ExtractionOptions;
   private projectRoot: string;
   private errors: ExtractionError[] = [];
   private accessibilityReport?: AccessibilityReport;
+  private debateResult?: DebateResult;
+  private debateAuditTrailPath?: string;
 
   constructor(projectRoot: string, options: ExtractionOptions = {}) {
     this.projectRoot = projectRoot;
@@ -74,8 +84,14 @@ export class TokenExtractionPipeline {
     console.log(`Conflicts detected: ${conflicts.length}`);
     console.log('');
 
+    // Step 3.5: Run debate if enabled
+    let tokensAfterDebate = tokens;
+    if (this.options.debate?.enabled) {
+      tokensAfterDebate = await this.runDebate(tokens);
+    }
+
     // Step 4: Validate tokens
-    const { valid: validTokens, invalid: invalidTokens } = await this.validateTokens(tokens);
+    const { valid: validTokens, invalid: invalidTokens} = await this.validateTokens(tokensAfterDebate);
 
     if (invalidTokens.length > 0) {
       console.warn(`Warning: ${invalidTokens.length} invalid tokens found`);
@@ -110,6 +126,7 @@ export class TokenExtractionPipeline {
       conflicts,
       errors: this.errors,
       sources: this.buildSourcesSummary(extractionResults),
+      debate: this.debateResult,
     };
 
     this.printSummary(result, outputFiles);
@@ -208,6 +225,53 @@ export class TokenExtractionPipeline {
       console.log(`  Found ${result.tokens.length} tokens`);
       if (result.errors.length > 0) {
         this.errors.push(...result.errors);
+      }
+    }
+
+    // Extract from browser (if enabled)
+    if (this.options.browserExtraction?.enabled && this.options.browserExtraction?.url) {
+      console.log('Extracting from browser...');
+
+      // Note: In real implementation, this would use MCP tools
+      // For now, we'll use mock mode which doesn't require actual browser connection
+      const browserExtractor = new BrowserExtractor({
+        url: this.options.browserExtraction.url,
+        tabId: 0, // Would come from MCP in real implementation
+        selectors: this.options.browserExtraction.selectors,
+        captureAll: !this.options.browserExtraction.selectors || this.options.browserExtraction.selectors.length === 0,
+      });
+
+      const browserResult = await browserExtractor.extract();
+      results.push({
+        source: TokenSource.BROWSER_EXTRACTION,
+        tokens: browserResult.tokens,
+        errors: browserResult.errors,
+      });
+      console.log(`  Found ${browserResult.tokens.length} tokens from browser`);
+      if (browserResult.errors.length > 0) {
+        this.errors.push(...browserResult.errors);
+      }
+
+      // Extract interaction states if enabled
+      if (this.options.browserExtraction.includeInteractionStates) {
+        console.log('Extracting interaction states...');
+        const statesExtractor = new InteractionStatesExtractor({
+          url: this.options.browserExtraction.url,
+          tabId: 0, // Would come from MCP in real implementation
+          selectors: this.options.browserExtraction.selectors,
+        });
+
+        const statesResult = await statesExtractor.extract();
+        results.push({
+          source: TokenSource.INTERACTION_STATES,
+          tokens: statesResult.tokens,
+          errors: statesResult.errors,
+        });
+        console.log(`  Found ${statesResult.tokens.length} interaction state tokens`);
+        console.log(`  Captured ${statesResult.metadata.interactionStatesFound} states`);
+        if (statesResult.errors.length > 0) {
+          this.errors.push(...statesResult.errors);
+        }
       }
     }
 
@@ -313,6 +377,57 @@ export class TokenExtractionPipeline {
     console.log('');
 
     return [...tokens, ...accessibilityTokens];
+  }
+
+  /**
+   * Run multi-AI debate on tokens
+   */
+  private async runDebate(tokens: Token[]): Promise<Token[]> {
+    console.log('Running multi-AI debate on tokens...');
+
+    const debateOptions = {
+      rounds: this.options.debate?.rounds || 2,
+      consensusThreshold: this.options.debate?.consensusThreshold || 0.67,
+      providers: this.options.debate?.providers || ['claude', 'codex', 'gemini'],
+      autoApply: this.options.debate?.autoApply ?? false,
+      minConfidence: this.options.debate?.minConfidence || 0.75,
+    };
+
+    console.log(`  Rounds: ${debateOptions.rounds}`);
+    console.log(`  Consensus threshold: ${debateOptions.consensusThreshold}`);
+    console.log(`  Min confidence for auto-apply: ${debateOptions.minConfidence}`);
+    console.log('');
+
+    // Run debate
+    const debateResult = await runDebateOnTokens(tokens, debateOptions);
+    this.debateResult = debateResult;
+
+    // Apply improvements if confidence threshold is met
+    let improvedTokens = tokens;
+    if (debateOptions.autoApply) {
+      console.log('Applying high-confidence improvements...');
+      improvedTokens = applyDebateImprovements(tokens, debateResult);
+      console.log('');
+    } else {
+      console.log('Auto-apply disabled - improvements available in audit trail');
+      console.log('');
+    }
+
+    // Generate and save audit trail
+    const auditTrail = generateAuditTrail(tokens, improvedTokens, debateResult);
+    const auditPath = path.join(this.options.outputDir!, 'debate-audit-trail.md');
+
+    // Ensure output directory exists
+    const fs = await import('fs/promises');
+    await fs.mkdir(this.options.outputDir!, { recursive: true });
+    await fs.writeFile(auditPath, auditTrail, 'utf-8');
+
+    this.debateAuditTrailPath = auditPath;
+
+    console.log(`Debate audit trail saved to: ${auditPath}`);
+    console.log('');
+
+    return improvedTokens;
   }
 
   /**
@@ -432,6 +547,11 @@ export class TokenExtractionPipeline {
       });
       outputFiles.schema = outputPath;
       console.log(`  Generated: ${outputPath}`);
+    }
+
+    // Add debate audit trail if debate was run
+    if (this.debateAuditTrailPath) {
+      outputFiles.debateAuditTrail = this.debateAuditTrailPath;
     }
 
     console.log('');

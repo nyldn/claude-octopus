@@ -79,6 +79,29 @@ function parseArgs(args: string[]): CLIOptions {
         options.preserveOriginalKeys = true;
         break;
 
+      case '--with-debate':
+        options.debate = {
+          ...options.debate,
+          enabled: true,
+        };
+        break;
+
+      case '--debate-rounds':
+        options.debate = {
+          ...options.debate,
+          enabled: true,
+          rounds: parseInt(args[++i], 10),
+        };
+        break;
+
+      case '--debate-auto-apply':
+        options.debate = {
+          ...options.debate,
+          enabled: true,
+          autoApply: true,
+        };
+        break;
+
       default:
         if (arg.startsWith('-')) {
           console.error(`Unknown option: ${arg}`);
@@ -110,6 +133,9 @@ Options:
   --exclude-sources <sources>    Exclude specific sources (comma-separated)
   --no-validate                  Skip token validation
   --preserve-keys                Preserve original token keys in metadata
+  --with-debate                  Enable multi-AI debate for token validation
+  --debate-rounds <number>       Number of debate rounds (default: 2)
+  --debate-auto-apply            Auto-apply high-confidence improvements from debate
 
 Sources:
   - tailwind.config    Tailwind CSS configuration files
@@ -133,6 +159,12 @@ Examples:
 
   # Skip validation
   token-extraction --no-validate
+
+  # Run with multi-AI debate
+  token-extraction --with-debate --debate-rounds 2
+
+  # Run with debate and auto-apply improvements
+  token-extraction --with-debate --debate-auto-apply
 
 For more information, visit: https://github.com/nyldn/claude-octopus
   `);

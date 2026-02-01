@@ -56,6 +56,8 @@ Options:
   --output DIR           Output directory (default: ./octopus-extract)
   --storybook BOOL       Generate Storybook scaffold: true|false (default: true)
   --multi-ai MODE        Multi-AI mode: auto|force|false (default: auto)
+  --with-debate          Enable multi-AI debate for token validation
+  --debate-rounds NUM    Number of debate rounds (default: 2)
   --ignore PATTERNS      Comma-separated glob patterns to ignore
   --help                 Show this help message
 
@@ -63,6 +65,7 @@ Examples:
   extract.sh ./my-app
   extract.sh https://example.com --mode design --depth deep
   extract.sh ./my-app --output ./results --multi-ai force
+  extract.sh ./my-app --with-debate --debate-rounds 2
 
 EOF
 }
@@ -76,6 +79,8 @@ parse_args() {
   STORYBOOK="true"
   MULTI_AI="auto"
   IGNORE_PATTERNS=""
+  WITH_DEBATE="false"
+  DEBATE_ROUNDS="2"
 
   while [[ $# -gt 0 ]]; do
     case $1 in
@@ -101,6 +106,14 @@ parse_args() {
         ;;
       --ignore)
         IGNORE_PATTERNS="$2"
+        shift 2
+        ;;
+      --with-debate)
+        WITH_DEBATE="true"
+        shift
+        ;;
+      --debate-rounds)
+        DEBATE_ROUNDS="$2"
         shift 2
         ;;
       --help|-h)
@@ -284,23 +297,41 @@ main() {
   log_info "  Mode: ${MODE}"
   log_info "  Depth: ${DEPTH}"
   log_info "  Multi-AI: ${MULTI_AI}"
+  log_info "  Debate: ${WITH_DEBATE}"
+  if [[ "${WITH_DEBATE}" == "true" ]]; then
+    log_info "  Debate Rounds: ${DEBATE_ROUNDS}"
+  fi
   log_info "  Output: ${extraction_dir}"
   echo ""
 
-  # TODO: Implement actual extraction pipelines
-  # These would call separate scripts for each phase:
-  # - Auto-detection
-  # - Token extraction
-  # - Component analysis
-  # - Architecture extraction
-  # - PRD generation
-
-  log_info "🚀 Starting extraction pipelines..."
+  # Run token extraction pipeline
+  log_info "🚀 Starting token extraction pipeline..."
   echo ""
 
-  # Placeholder: In real implementation, call extraction scripts here
-  log_warning "⚠️  Extraction pipelines not yet implemented"
-  log_warning "This is a skeleton implementation. Full extraction logic coming soon."
+  # Build CLI arguments
+  local cli_args=(
+    "--project" "${TARGET}"
+    "--output" "${extraction_dir}/10_design"
+    "--formats" "json,css,markdown,typescript,tailwind,styled-components,style-dictionary,schema"
+  )
+
+  # Add debate flags if enabled
+  if [[ "${WITH_DEBATE}" == "true" ]]; then
+    cli_args+=("--with-debate")
+    cli_args+=("--debate-rounds" "${DEBATE_ROUNDS}")
+  fi
+
+  # Execute TypeScript CLI
+  cd "${PLUGIN_ROOT}/scripts/token-extraction" || exit 1
+
+  if npx tsx cli.ts "${cli_args[@]}"; then
+    log_success "✅ Token extraction completed successfully"
+  else
+    log_error "❌ Token extraction failed"
+    exit 1
+  fi
+
+  echo ""
 
   echo ""
   log_success "✅ Extraction setup complete!"
