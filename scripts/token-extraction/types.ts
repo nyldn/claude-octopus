@@ -57,6 +57,8 @@ export enum TokenSource {
   THEME_FILE = 'theme-file',
   STYLED_COMPONENTS = 'styled-components',
   EMOTION_THEME = 'emotion-theme',
+  BROWSER_EXTRACTION = 'browser-extraction',
+  INTERACTION_STATES = 'interaction-states',
 }
 
 export interface SourcePriority {
@@ -83,6 +85,7 @@ export interface ExtractionResult {
       tokensExtracted: number;
     };
   };
+  debate?: DebateResult;
 }
 
 export interface ExtractionError {
@@ -196,6 +199,7 @@ export interface OutputFiles {
   styledComponents?: string; // Path to tokens.styled.ts
   styleDictionary?: string; // Path to style-dictionary.config.js
   schema?: string; // Path to tokens.schema.json
+  debateAuditTrail?: string; // Path to debate-audit-trail.md
 }
 
 export interface MergeStrategy {
@@ -249,4 +253,33 @@ export interface ValidationGate {
   status: 'passed' | 'failed' | 'warning';
   details: string;
   required: boolean;
+}
+
+/**
+ * Browser Extraction Types
+ */
+export interface BrowserExtractionResult {
+  tokens: Token[];
+  errors: ExtractionError[];
+  metadata: {
+    url: string;
+    timestamp: string;
+    elementsCaptured: number;
+    interactionStatesFound: number;
+  };
+}
+
+export interface InteractionState {
+  selector: string;
+  element: string;
+  state: 'hover' | 'focus' | 'active' | 'disabled' | 'checked';
+  styles: Record<string, string>;
+  computed: boolean;
+}
+
+export interface BrowserElementCapture {
+  selector: string;
+  tagName: string;
+  computedStyles: Record<string, string>;
+  interactionStates?: InteractionState[];
 }
