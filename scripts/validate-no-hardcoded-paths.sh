@@ -21,6 +21,7 @@ violations=0
 # Check for absolute user paths in deployment files (only git-tracked files)
 echo "Checking for absolute user paths (/Users/*, /home/*)..."
 hardcoded_users=$(git ls-files | grep -E "\.(md|sh|js|json|yaml)$" | \
+  grep -v "validate-no-hardcoded-paths.sh" | \
   xargs grep -n "/Users/[^/]*/\|/home/[^/]*/" 2>/dev/null | \
   grep -v "~/" | \
   grep -v "# Example:" | \
@@ -40,6 +41,7 @@ fi
 echo ""
 echo "Checking for developer usernames..."
 dev_usernames=$(git ls-files | grep -E "\.(md|sh|js|json)$" | \
+  grep -v "validate-no-hardcoded-paths.sh" | \
   xargs grep -n "/Users/chris\|/home/chris\|/Users/.*/git/" 2>/dev/null || true)
 
 if [ -n "$dev_usernames" ]; then
@@ -58,6 +60,7 @@ fi
 echo ""
 echo "Checking for absolute git repository paths..."
 git_paths=$(git ls-files | grep -E "\.(md|sh)$" | \
+  grep -v "validate-no-hardcoded-paths.sh" | \
   xargs grep -n "git/claude-octopus\|/claude-octopus/plugin/" 2>/dev/null || true)
 
 if [ -n "$git_paths" ]; then
