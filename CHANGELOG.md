@@ -2,6 +2,75 @@
 
 All notable changes to Claude Octopus will be documented in this file.
 
+## [7.20.0] - 2026-02-01
+
+### ✨ Features
+
+**Phase 1: Feature Card System for /octo:extract**
+
+Implemented feature detection and scoping for large codebases (500K+ LOC, 1000+ files):
+
+- **Auto-Detection**: Scans codebases using directory structure and keyword patterns
+  - Directory-based detection (features/, modules/, services/) with 90% confidence
+  - Keyword-based detection (auth, payment, user, etc.) with 70% confidence
+  - Feature merging (combines >50% overlapping features)
+  - Unassigned file tracking
+- **Interactive Feature Selection**: Guided flow for choosing scope
+  - Auto-triggers for 500+ file codebases
+  - Visual feature cards with file counts and confidence scores
+  - Scope refinement (exclude tests, docs, custom patterns)
+  - No JSON knowledge required
+- **Feature Extraction**: Scope-based token filtering
+  - `--feature <name>` - Extract specific feature
+  - `--detect-features` - Auto-detect all features
+  - `--feature-scope <json>` - Custom scope (expert mode)
+- **Output Generation**: Master feature index
+  - `features-index.json` - Machine-readable index
+  - `features-index.md` - Human-readable documentation
+  - `extract-all-features.sh` - Batch extraction script
+
+**Core Implementation**:
+- FeatureDetector (390 lines) - Auto-detection engine
+- FeatureScopedExtractor (132 lines) - Token filtering
+- Feature index generators (220 lines)
+- 36 comprehensive unit tests (100% passing)
+
+**Interactive Command Flows**
+
+Standardized interactive question patterns across commands:
+
+- **multi.md**: Added cost awareness questions
+  - Confirms intent before multi-provider execution
+  - Informed consent for ~$0.02-0.08/query external API costs
+  - Exit paths ("tell me more", "use free providers only")
+- **Interactive Questions Guide**: Best practices documentation
+  - Two-step execution pattern (Ask → Execute)
+  - Question design guidelines (2-4 options, clear descriptions)
+  - Real-world examples from 7 commands
+  - Implementation checklist and testing strategies
+
+**Documentation**:
+- PHASE1_PROGRESS.md - Implementation summary
+- INTERACTIVE_QUESTIONS_GUIDE.md - Command development best practices
+- Updated extract.md with feature selection flows
+- 7 commands now follow consistent interactive pattern
+
+### 📊 Testing
+
+- 36/36 feature detection tests passing ✅
+- 114/120 total tests passing (6 pre-existing failures in pipeline.test.ts)
+- 90%+ code coverage for new features
+
+### 🎯 Impact
+
+- Lower barrier to entry for feature extraction
+- No manual JSON configuration needed
+- Consistent UX across all complex commands
+- Informed consent for costly operations
+- Scalable extraction for large codebases
+
+---
+
 ## [7.19.3] - 2026-01-31
 
 ### ✨ Features
