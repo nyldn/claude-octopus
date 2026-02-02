@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Test Version Consistency for v7.19.3
-# Validates that version 7.19.3 is consistent across all files and tests new features
+# Test Version Consistency for v7.21.0
+# Validates that version 7.21.0 is consistent across all files and tests new features
 
 set -euo pipefail
 
@@ -23,7 +23,7 @@ PASS_COUNT=0
 FAIL_COUNT=0
 
 # Expected version
-EXPECTED_VERSION="7.19.3"
+EXPECTED_VERSION="7.21.0"
 
 echo -e "${BLUE}🧪 Testing Version Consistency (v${EXPECTED_VERSION})${NC}"
 echo ""
