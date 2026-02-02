@@ -81,6 +81,16 @@ docs/IMPLEMENTATION-PLAN*.md
 # Development working files
 skill.md
 
+# Progress tracking and working files (should be in scratchpad, not plugin dir)
+PHASE*_PROGRESS.md
+PHASE*_COMPLETE.md
+*_PROGRESS.md
+*_TODO.md
+*_NOTES.md
+scratch_*.md
+temp_*.md
+WIP_*.md
+
 # Test artifacts (from test infrastructure)
 tests/tmp/
 tests/**/*.log

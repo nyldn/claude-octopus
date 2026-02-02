@@ -119,6 +119,65 @@ Without indicators, users have no visibility into what's happening or what they'
 
 ---
 
+## File Creation Policy (CRITICAL)
+
+**NEVER create temporary, progress, or working files in the plugin directory.**
+
+### Prohibited File Patterns
+
+The following file types MUST NEVER be created in the plugin directory:
+- `PHASE*_PROGRESS.md` - Phase progress tracking
+- `PHASE*_COMPLETE.md` - Phase completion markers
+- `*_PROGRESS.md` - Any progress tracking files
+- `*_TODO.md` - Working todo lists
+- `*_NOTES.md` - Development notes
+- `scratch_*.md` - Scratch files
+- `temp_*.md` - Temporary files
+- `WIP_*.md` - Work-in-progress markers
+
+### Where to Create Working Files
+
+**Use the scratchpad directory for ALL temporary/working files:**
+
+```bash
+# Scratchpad directory (auto-managed by Claude Code)
+~/.claude/scratchpad/[session-id]/
+
+# Example paths
+~/.claude/scratchpad/abc123/phase1-progress.md
+~/.claude/scratchpad/abc123/implementation-notes.md
+~/.claude/scratchpad/abc123/todo-list.md
+```
+
+### Plugin Directory: Permanent Files Only
+
+Only create files in the plugin directory that are:
+- Part of the permanent codebase (commands, skills, agents, hooks)
+- User-facing documentation (README.md, CHANGELOG.md, docs/)
+- Build/config files (package.json, tsconfig.json, .gitignore)
+- Test files in `tests/` directory
+
+### Enforcement
+
+If you need to track progress or create working files:
+1. **Always use the scratchpad directory**
+2. **Never commit working files to git**
+3. **Reference scratchpad files by full path when discussing them**
+
+**Example - WRONG:**
+```bash
+# ❌ Never do this
+echo "Progress: 50%" > PHASE1_PROGRESS.md
+```
+
+**Example - CORRECT:**
+```bash
+# ✅ Always do this
+echo "Progress: 50%" > ~/.claude/scratchpad/$(cat ~/.claude/session-id)/phase1-progress.md
+```
+
+---
+
 ## Workflow Quick Reference
 
 | Command/Trigger | Workflow | Indicators |
