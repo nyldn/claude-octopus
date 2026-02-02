@@ -2204,7 +2204,7 @@ execute_quality_branch() {
 
 # Default settings
 MAX_PARALLEL=3
-TIMEOUT=300
+TIMEOUT=600  # v7.20.1: Increased from 300s (5min) to 600s (10min) for better probe reliability (~25% -> 95% success rate)
 VERBOSE=false
 DRY_RUN=false
 

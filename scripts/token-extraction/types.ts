@@ -18,6 +18,20 @@ export type TokenType =
   | 'border'
   | 'transition';
 
+/**
+ * Token categories for grouping and organization
+ */
+export enum TokenCategory {
+  Color = 'color',
+  Spacing = 'spacing',
+  Typography = 'typography',
+  Border = 'border',
+  Shadow = 'shadow',
+  Animation = 'animation',
+  Layout = 'layout',
+  Other = 'other',
+}
+
 export interface W3CDesignToken {
   $type?: TokenType;
   $value: any;
