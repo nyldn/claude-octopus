@@ -1,0 +1,25 @@
+# Project State
+
+> Last Updated: {{LAST_UPDATED}}
+>
+> Status enum values: ready, planned, planning, building, in_progress, complete, complete_with_gaps, shipped, blocked, paused
+
+## Current Position
+
+**Phase:** {{CURRENT_PHASE}}
+**Position:** {{PHASE_POSITION}}
+**Status:** {{STATUS}}
+
+## Blockers
+
+{{BLOCKERS_PLACEHOLDER}}
+
+## Next Actions
+
+- [ ] {{NEXT_ACTION}}
+
+## History
+
+| Timestamp | Phase | Action | Notes |
+|-----------|-------|--------|-------|
+| {{TIMESTAMP}} | {{PHASE}} | initialized | Project created |
