@@ -1,0 +1,18 @@
+{
+  "version": "1.0.0",
+  "created_at": "{{CREATED_AT}}",
+  "workflow": {
+    "autonomy_mode": "semi-autonomous",
+    "quality_gate_threshold": 75
+  },
+  "providers": {
+    "codex": { "enabled": true },
+    "gemini": { "enabled": true },
+    "claude": { "enabled": true }
+  },
+  "context_tier": "auto",
+  "checkpoints": {
+    "enabled": true,
+    "prefix": "octo-checkpoint"
+  }
+}
