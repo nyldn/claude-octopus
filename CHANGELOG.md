@@ -2,6 +2,75 @@
 
 All notable changes to Claude Octopus will be documented in this file.
 
+## [7.23.0] - 2026-02-03
+
+### Added
+
+**Native Claude Code Integration** - Full integration with Claude Code v2.1.20+ features:
+
+- **Native Task Management**: Migrated from TodoWrite to Claude Code's native task system
+  - Uses `TaskCreate`, `TaskUpdate`, `TaskList`, `TaskGet` APIs
+  - Tasks now visible in native Claude Code UI
+  - Task dependencies with `blockedBy`/`blocks` support
+  - Better progress tracking and visualization
+
+- **Hybrid Plan Mode Routing**: Intelligent routing between native and octopus planning
+  - Detects when native `EnterPlanMode` is beneficial (simple, well-defined planning)
+  - Routes to multi-AI orchestration for complex/high-stakes decisions
+  - Updated `/octo:plan` with hybrid routing logic
+  - Best of both worlds approach
+
+- **Enhanced State Persistence**: Resilient to context clearing
+  - `skill-resume-enhanced.md` with auto-reload protocol
+  - State survives native plan mode's `ExitPlanMode` context clearing
+  - Workflows auto-restore from `.claude-octopus/state.json`
+  - Seamless multi-day project continuity
+
+- **Migration Tools**: Smooth transition path
+  - `migrate-todos.sh` - Automated TodoWrite → TaskCreate migration
+  - MIGRATION-7.23.0.md - Comprehensive user migration guide (5-10 min)
+  - Backward compatibility flag (`use_native_tasks: false`)
+
+### Changed
+
+- **skill-task-management**: Updated to use native Task tools
+  - Added `skill-task-management-v2.md` with native API examples
+  - Deprecated `TodoWrite` (still available via backward compatibility)
+
+- **flow-discover**: Added native plan mode compatibility detection
+  - Detects when plan mode is active
+  - Documents state persistence behavior
+  - Ensures workflows survive context clearing
+
+- **Documentation**: Comprehensive native integration guides
+  - NATIVE-INTEGRATION.md - Technical integration guide
+  - IMPLEMENTATION_SUMMARY.md - Complete implementation overview
+  - Updated all skills to reference native features
+
+### Fixed
+
+- State persistence across context clearing (plan mode ExitPlanMode)
+- Task tracking now integrated with Claude Code UI
+- Multi-session workflow continuity improved
+
+### Migration
+
+**Migrating from v7.22.x:**
+
+1. **Backup existing todos**: `cp .claude/todos.md .claude/todos.md.backup`
+2. **Run migration**: `~/.claude/plugins/cache/nyldn-plugins/claude-octopus/7.23.0/scripts/migrate-todos.sh`
+3. **Verify tasks**: `/tasks` command shows migrated tasks
+4. **Optional**: Set `use_native_tasks: false` in `.claude/claude-octopus.local.md` for legacy behavior
+
+See MIGRATION-7.23.0.md for complete migration guide.
+
+### Notes
+
+- 42 skills total (was 40) - added skill-task-management-v2.md and skill-resume-enhanced.md
+- Multi-AI orchestration (Codex + Gemini + Claude) continues as core feature
+- All existing workflows remain compatible
+- Native integration improves UX without breaking changes
+
 ## [7.22.01] - 2026-02-03
 
 ### Fixed
