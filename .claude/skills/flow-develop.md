@@ -50,6 +50,33 @@ trigger: |
   - Trivial single-file changes
 ---
 
+## Pre-Development: State Check
+
+Before starting development:
+1. Read `.octo/STATE.md` to verify Define phase complete
+2. Update STATE.md:
+   - current_phase: 3
+   - phase_position: "Development"
+   - status: "in_progress"
+
+```bash
+# Verify Define phase is complete
+if [[ -f ".octo/STATE.md" ]]; then
+  define_status=$("${CLAUDE_PLUGIN_ROOT}/scripts/octo-state.sh" get_phase_status 2)
+  if [[ "$define_status" != "complete" ]]; then
+    echo "⚠️ Warning: Define phase not marked complete. Consider running definition first."
+  fi
+fi
+
+# Update state for Development phase
+"${CLAUDE_PLUGIN_ROOT}/scripts/octo-state.sh" update_state \
+  --phase 3 \
+  --position "Development" \
+  --status "in_progress"
+```
+
+---
+
 ## ⚠️ EXECUTION CONTRACT (MANDATORY - CANNOT SKIP)
 
 This skill uses **ENFORCED execution mode**. You MUST follow this exact sequence.
@@ -676,6 +703,32 @@ After writing code, ensure:
 - 🔵 Claude analysis included with Claude Code
 
 Tangle workflows typically cost $0.02-0.10 per task depending on complexity and code length.
+
+---
+
+## Post-Development: Checkpoint
+
+After development completes:
+1. Update `.octo/STATE.md` with completion
+2. Create checkpoint: `git tag octo-checkpoint-post-develop-$(date +%Y%m%d-%H%M%S)`
+3. Add history entry with files modified
+
+```bash
+# Update state after Development completion
+"${CLAUDE_PLUGIN_ROOT}/scripts/octo-state.sh" update_state \
+  --status "complete" \
+  --history "Develop phase completed"
+
+# Create git checkpoint tag
+checkpoint_tag="octo-checkpoint-post-develop-$(date +%Y%m%d-%H%M%S)"
+git tag "$checkpoint_tag" -m "Post-develop checkpoint from embrace workflow"
+echo "📌 Created checkpoint: $checkpoint_tag"
+
+# Record files modified in this phase
+modified_files=$(git diff --name-only HEAD~1 2>/dev/null || echo "See git log")
+"${CLAUDE_PLUGIN_ROOT}/scripts/octo-state.sh" update_state \
+  --history "Files modified: $modified_files"
+```
 
 ---
 
