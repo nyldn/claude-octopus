@@ -12,7 +12,7 @@
 
 # Claude Octopus
 
-**Your complete AI engineering platform for Claude Code** - Multi-AI orchestration, 29 specialized expert personas, proven workflows, design system extraction, and 35+ battle-tested skills.
+**Your complete AI engineering platform for Claude Code** - Multi-AI orchestration, 29 specialized expert personas, proven workflows, design system extraction, and 40 battle-tested skills.
 
 > *Transform Claude Code into a full AI engineering team with diverse perspectives, specialized expertise, and structured methodologies.*
 
@@ -34,8 +34,8 @@ Double Diamond workflows (Discover → Define → Develop → Deliver), Test-Dri
 ### 🎨 **Design System & Product Extraction**
 Reverse-engineer design systems and product architectures from codebases or URLs. Extract design tokens, components, APIs, and generate comprehensive documentation.
 
-### ⚡ **35+ Specialized Skills**
-From multi-AI research to PRD writing, code review to content analysis, debate facilitation to document delivery, and design system extraction.
+### ⚡ **40 Specialized Skills**
+From multi-AI research to PRD writing, code review to content analysis, debate facilitation to document delivery, design system extraction, and project lifecycle management.
 
 **Bottom line:** Stop juggling multiple AI tools and workflows. Claude Octopus gives you everything in one integrated platform.
 
@@ -193,7 +193,7 @@ Proven design methodology adapted for AI engineering.
 
 ### 4. Complete Command Reference
 
-All 28 commands organized by category:
+All 30 commands organized by category:
 
 #### Core Workflows
 - `/octo:research` - Deep research with multi-source synthesis
@@ -234,13 +234,20 @@ All 28 commands organized by category:
 - `/octo:tangle` - Alias for develop
 - `/octo:ink` - Alias for deliver
 
+#### Project Lifecycle (v7.22.0)
+- `/octo:status` - Show project progress dashboard
+- `/octo:issues` - Track issues across sessions
+- `/octo:rollback` - Restore from checkpoint (git tag)
+- `/octo:resume` - Restore context from previous session
+- `/octo:ship` - Finalize project with Multi-AI validation
+
 #### System
 - `/octo:setup` - Setup wizard for AI provider configuration
 - `/octo:sys-setup` - System setup status and configuration instructions
 
 ---
 
-### 5. 30+ Specialized Skills
+### 5. 40 Specialized Skills
 
 Complete skills catalog:
 
@@ -292,6 +299,13 @@ Complete skills catalog:
 - **skill-audit** - Systematic codebase checking and validation
 - **skill-debate-integration** - Debate workflow integration with orchestration
 - **skill-extract** (`/octo:extract`) - Design system & product reverse-engineering with comprehensive extraction
+
+#### Project Lifecycle (v7.22.0)
+- **skill-status** (`/octo:status`) - Project progress dashboard with phase tracking
+- **skill-issues** (`/octo:issues`) - Cross-session issue tracking and management
+- **skill-rollback** (`/octo:rollback`) - Checkpoint recovery using git tags
+- **skill-resume** (`/octo:resume`) - Session restoration with context reload
+- **skill-ship** (`/octo:ship`) - Multi-AI delivery validation and lessons capture
 
 ---
 
@@ -528,7 +542,7 @@ Multi-AI features simply won't activate without external providers.
 ### Is this actively maintained?
 
 **Yes!**
-- Current version: v7.15.0 (January 2026)
+- Current version: v7.22.0 (February 2026)
 - 95%+ test coverage
 - Active development: [Recent commits](https://github.com/nyldn/claude-octopus/commits/main)
 - Issue tracking: [Report bugs](https://github.com/nyldn/claude-octopus/issues)
