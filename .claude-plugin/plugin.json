@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "7.22.0",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.22.0) NEW: Project Lifecycle - .octo/ state management, /octo:status dashboard, /octo:resume session restore, /octo:ship Multi-AI validation, /octo:issues tracking, /octo:rollback checkpoints. 95% probe success, cost transparency, validation gates. 29 expert personas, 30 commands, 40 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
+  "version": "7.22.01",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.22.01) NEW: Project Lifecycle - .octo/ state management, /octo:status dashboard, /octo:resume session restore, /octo:ship Multi-AI validation, /octo:issues tracking, /octo:rollback checkpoints. 95% probe success, cost transparency, validation gates. 29 expert personas, 30 commands, 40 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },
