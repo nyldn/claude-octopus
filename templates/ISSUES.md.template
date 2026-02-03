@@ -1,0 +1,25 @@
+# Project Issues
+
+> Cross-session issue tracking for {{PROJECT_NAME}}
+
+## Open Issues
+
+| ID | Severity | Description | Created | Phase |
+|----|----------|-------------|---------|-------|
+| <!-- Issues will be appended here --> |
+
+## Resolved Issues
+
+| ID | Severity | Description | Created | Resolved | Resolution |
+|----|----------|-------------|---------|----------|------------|
+| <!-- Resolved issues moved here --> |
+
+---
+
+**Issue ID Format:** ISS-YYYYMMDD-NNN (e.g., ISS-20260203-001)
+
+**Severity Levels:**
+- critical: Blocks progress
+- high: Significant impact
+- medium: Should address
+- low: Nice to fix

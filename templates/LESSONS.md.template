@@ -1,0 +1,33 @@
+# Lessons Learned
+
+> Knowledge captured from {{PROJECT_NAME}}
+
+## Lessons by Phase
+
+### Discover
+<!-- Lessons from research phase -->
+
+### Define  
+<!-- Lessons from definition phase -->
+
+### Develop
+<!-- Lessons from implementation phase -->
+
+### Deliver
+<!-- Lessons from validation phase -->
+
+## Patterns to Repeat
+
+- <!-- What worked well -->
+
+## Anti-patterns to Avoid
+
+- <!-- What to avoid next time -->
+
+---
+
+**Lesson Format:**
+- **Date:** YYYY-MM-DD
+- **Phase:** Discover/Define/Develop/Deliver
+- **Description:** What happened
+- **Impact:** How it affected the project
