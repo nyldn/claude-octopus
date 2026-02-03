@@ -51,6 +51,33 @@ trigger: |
   - Built-in commands (/plugin, /help, etc.)
 ---
 
+## Pre-Definition: State Check
+
+Before starting definition:
+1. Read `.octo/STATE.md` to verify Discover phase complete
+2. Update STATE.md:
+   - current_phase: 2
+   - phase_position: "Definition"
+   - status: "in_progress"
+
+```bash
+# Verify Discover phase is complete
+if [[ -f ".octo/STATE.md" ]]; then
+  discover_status=$("${CLAUDE_PLUGIN_ROOT}/scripts/octo-state.sh" get_phase_status 1)
+  if [[ "$discover_status" != "complete" ]]; then
+    echo "⚠️ Warning: Discover phase not marked complete. Consider running discovery first."
+  fi
+fi
+
+# Update state for Definition phase
+"${CLAUDE_PLUGIN_ROOT}/scripts/octo-state.sh" update_state \
+  --phase 2 \
+  --position "Definition" \
+  --status "in_progress"
+```
+
+---
+
 ## ⚠️ EXECUTION CONTRACT (MANDATORY - CANNOT SKIP)
 
 This skill uses **ENFORCED execution mode**. You MUST follow this exact sequence.
@@ -704,6 +731,28 @@ Before completing grasp workflow, ensure:
 - 🔵 Claude analysis included with Claude Code
 
 Grasp workflows typically cost $0.01-0.05 per task depending on complexity.
+
+---
+
+## Post-Definition: State Update
+
+After definition completes:
+1. Update `.octo/STATE.md` with completion
+2. Populate `.octo/ROADMAP.md` with defined phases and success criteria
+
+```bash
+# Update state after Definition completion
+"${CLAUDE_PLUGIN_ROOT}/scripts/octo-state.sh" update_state \
+  --status "complete" \
+  --history "Define phase completed"
+
+# Populate ROADMAP.md with defined requirements
+if [[ -f "$SYNTHESIS_FILE" ]]; then
+  echo "📝 Updating .octo/ROADMAP.md with defined phases..."
+  "${CLAUDE_PLUGIN_ROOT}/scripts/octo-state.sh" update_roadmap \
+    --from-synthesis "$SYNTHESIS_FILE"
+fi
+```
 
 ---
 

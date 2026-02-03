@@ -59,6 +59,32 @@ trigger: |
   - "what are my options" when asking for alternatives (use skill-decision-support)
 ---
 
+## Pre-Discovery: Project Initialization
+
+Before starting discovery:
+1. Check if `.octo/` directory exists
+2. If NOT exists: Call `./scripts/octo-state.sh init_project` to create it
+3. Update `.octo/STATE.md`:
+   - current_phase: 1
+   - phase_position: "Discovery"
+   - status: "in_progress"
+
+```bash
+# Check and initialize .octo/ state
+if [[ ! -d ".octo" ]]; then
+  echo "📁 Initializing .octo/ project state..."
+  "${CLAUDE_PLUGIN_ROOT}/scripts/octo-state.sh" init_project
+fi
+
+# Update state for Discovery phase
+"${CLAUDE_PLUGIN_ROOT}/scripts/octo-state.sh" update_state \
+  --phase 1 \
+  --position "Discovery" \
+  --status "in_progress"
+```
+
+---
+
 ## ⚠️ EXECUTION CONTRACT (MANDATORY - CANNOT SKIP)
 
 This skill uses **ENFORCED execution mode**. You MUST follow this exact sequence.
@@ -709,6 +735,31 @@ See **skill-security-framing.md** for complete documentation on:
 - URL validation rules (HTTPS only, no localhost/private IPs)
 - Content sanitization patterns
 - Prompt injection defense
+
+---
+
+## Post-Discovery: State Update
+
+After discovery completes:
+1. Update `.octo/STATE.md`:
+   - status: "complete" (for this phase)
+   - Add history entry: "Discover phase completed"
+2. Populate `.octo/PROJECT.md` with research findings (vision, requirements)
+
+```bash
+# Update state after Discovery completion
+"${CLAUDE_PLUGIN_ROOT}/scripts/octo-state.sh" update_state \
+  --status "complete" \
+  --history "Discover phase completed"
+
+# Populate PROJECT.md with research findings
+if [[ -f "$SYNTHESIS_FILE" ]]; then
+  echo "📝 Updating .octo/PROJECT.md with discovery findings..."
+  "${CLAUDE_PLUGIN_ROOT}/scripts/octo-state.sh" update_project \
+    --section "vision" \
+    --content "$(head -100 "$SYNTHESIS_FILE" | grep -A 10 'Key.*Findings\|Summary' || echo 'See synthesis file')"
+fi
+```
 
 ---
 
