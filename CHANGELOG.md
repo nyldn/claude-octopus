@@ -2,6 +2,12 @@
 
 All notable changes to Claude Octopus will be documented in this file.
 
+## [7.22.01] - 2026-02-03
+
+### Fixed
+
+- Marketplace display version synchronization
+
 ## [7.22.0] - 2026-02-03
 
 ### Added
