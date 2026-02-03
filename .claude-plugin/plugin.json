@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "7.22.01",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.22.01) NEW: Project Lifecycle - .octo/ state management, /octo:status dashboard, /octo:resume session restore, /octo:ship Multi-AI validation, /octo:issues tracking, /octo:rollback checkpoints. 95% probe success, cost transparency, validation gates. 29 expert personas, 30 commands, 40 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
+  "version": "7.23.0",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.23.0) NEW: Native Claude Code integration - uses TaskCreate/TaskUpdate, hybrid plan mode routing, state persistence across context clearing, auto-resume. Project Lifecycle - .octo/ state management. 95% probe success, cost transparency, validation gates. 29 expert personas, 30 commands, 42 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },
@@ -67,6 +67,7 @@
     "./.claude/skills/skill-parallel-agents.md",
     "./.claude/skills/skill-knowledge-work.md",
     "./.claude/skills/skill-task-management.md",
+    "./.claude/skills/skill-task-management-v2.md",
     "./.claude/skills/skill-visual-feedback.md",
     "./.claude/skills/skill-decision-support.md",
     "./.claude/skills/skill-iterative-loop.md",
@@ -78,6 +79,7 @@
     "./.claude/skills/skill-issues.md",
     "./.claude/skills/skill-rollback.md",
     "./.claude/skills/skill-resume.md",
+    "./.claude/skills/skill-resume-enhanced.md",
     "./.claude/skills/skill-ship.md"
   ],
   "commands": [

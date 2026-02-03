@@ -11,8 +11,8 @@
     {
       "name": "claude-octopus",
       "source": "./",
-      "description": "v7.22.01 - Project Lifecycle: .octo/ state management, /octo:status dashboard, /octo:resume session restore, /octo:ship Multi-AI validation, /octo:issues tracking, /octo:rollback checkpoints. 95% probe success, cost transparency, validation gates. 29 personas, 30 commands, 40 skills. Run /octo:setup.",
-      "version": "7.22.01",
+      "description": "v7.23.0 - Native Integration: TaskCreate/TaskUpdate, hybrid plan mode, state persistence, auto-resume. Project Lifecycle: .octo/ state management. 95% probe success, cost transparency, validation gates. 29 personas, 30 commands, 42 skills. Run /octo:setup.",
+      "version": "7.23.0",
       "author": {
         "name": "nyldn"
       },

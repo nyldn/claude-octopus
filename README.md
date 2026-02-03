@@ -6,7 +6,7 @@
   <img src="https://img.shields.io/badge/Claude_Code-Plugin-blueviolet" alt="Claude Code Plugin">
   <img src="https://img.shields.io/badge/Double_Diamond-Design_Thinking-orange" alt="Double Diamond">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
-  <img src="https://img.shields.io/badge/Version-7.22.01-blue" alt="Version 7.22.01">
+  <img src="https://img.shields.io/badge/Version-7.23.0-blue" alt="Version 7.23.0">
   <img src="https://img.shields.io/badge/Claude_Code-v2.1.20+-blueviolet" alt="Requires Claude Code v2.1.20+">
 </p>
 
@@ -234,7 +234,7 @@ All 30 commands organized by category:
 - `/octo:tangle` - Alias for develop
 - `/octo:ink` - Alias for deliver
 
-#### Project Lifecycle (v7.22.01)
+#### Project Lifecycle (v7.22.01+)
 - `/octo:status` - Show project progress dashboard
 - `/octo:issues` - Track issues across sessions
 - `/octo:rollback` - Restore from checkpoint (git tag)
@@ -300,7 +300,7 @@ Complete skills catalog:
 - **skill-debate-integration** - Debate workflow integration with orchestration
 - **skill-extract** (`/octo:extract`) - Design system & product reverse-engineering with comprehensive extraction
 
-#### Project Lifecycle (v7.22.01)
+#### Project Lifecycle (v7.22.01+)
 - **skill-status** (`/octo:status`) - Project progress dashboard with phase tracking
 - **skill-issues** (`/octo:issues`) - Cross-session issue tracking and management
 - **skill-rollback** (`/octo:rollback`) - Checkpoint recovery using git tags
@@ -542,7 +542,7 @@ Multi-AI features simply won't activate without external providers.
 ### Is this actively maintained?
 
 **Yes!**
-- Current version: v7.22.01 (February 2026)
+- Current version: v7.23.0 (February 2026)
 - 95%+ test coverage
 - Active development: [Recent commits](https://github.com/nyldn/claude-octopus/commits/main)
 - Issue tracking: [Report bugs](https://github.com/nyldn/claude-octopus/issues)
