@@ -85,6 +85,38 @@ fi
 
 ---
 
+## Native Plan Mode Compatibility (v7.23.0+)
+
+**IMPORTANT:** claude-octopus workflows are designed to persist across context clearing.
+
+### Detecting Native Plan Mode
+
+Check if native plan mode is active:
+
+```bash
+# Check for native plan mode markers
+if [[ -n "${PLAN_MODE_ACTIVE}" ]] || claude-code plan status 2>/dev/null | grep -q "active"; then
+    echo "⚠️  Native plan mode detected"
+    echo ""
+    echo "   Claude Octopus uses file-based state (.claude-octopus/)"
+    echo "   State will persist across plan mode context clears"
+    echo "   Multi-AI orchestration will continue normally"
+    echo ""
+fi
+```
+
+### State Persistence Across Context Clearing
+
+**How it works:**
+- Native plan mode may clear Claude's memory via `ExitPlanMode`
+- claude-octopus state persists in `.claude-octopus/state.json`
+- Each workflow phase reads prior state at startup
+- Context is automatically restored from files
+
+**No action required** - state management handles this automatically via STEP 3 in the execution contract.
+
+---
+
 ## ⚠️ EXECUTION CONTRACT (MANDATORY - CANNOT SKIP)
 
 This skill uses **ENFORCED execution mode**. You MUST follow this exact sequence.
