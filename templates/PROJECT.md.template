@@ -1,0 +1,29 @@
+# {{PROJECT_NAME}}
+
+> Created: {{CREATED_DATE}}
+
+## Vision
+
+{{VISION_PLACEHOLDER}}
+
+## Requirements
+
+### Functional Requirements
+- [ ] {{REQUIREMENT_1}}
+
+### Non-Functional Requirements
+- [ ] {{NFR_1}}
+
+## Constraints
+
+- {{CONSTRAINT_1}}
+
+## Success Criteria
+
+- [ ] {{SUCCESS_CRITERION_1}}
+
+## Stakeholders
+
+| Role | Responsibility |
+|------|---------------|
+| {{ROLE}} | {{RESPONSIBILITY}} |

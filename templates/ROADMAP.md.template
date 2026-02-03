@@ -1,0 +1,35 @@
+# {{PROJECT_NAME}} Roadmap
+
+> Created: {{CREATED_DATE}}
+
+## Phases (Double Diamond)
+
+### Phase 1: Discover
+**Goal:** Research and explore the problem space
+**Status:** not_started
+**Success Criteria:**
+- [ ] {{DISCOVER_CRITERION}}
+
+### Phase 2: Define
+**Goal:** Converge on problem definition and approach
+**Status:** not_started
+**Success Criteria:**
+- [ ] {{DEFINE_CRITERION}}
+
+### Phase 3: Develop
+**Goal:** Implement the solution
+**Status:** not_started
+**Success Criteria:**
+- [ ] {{DEVELOP_CRITERION}}
+
+### Phase 4: Deliver
+**Goal:** Validate and ship
+**Status:** not_started
+**Success Criteria:**
+- [ ] {{DELIVER_CRITERION}}
+
+## Milestones
+
+| Milestone | Target Date | Status |
+|-----------|-------------|--------|
+| {{MILESTONE}} | {{DATE}} | not_started |
