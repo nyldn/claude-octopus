@@ -42,6 +42,98 @@ All commands use the `/co:` namespace.
 | `/co:tdd` | Test-driven development workflows |
 | `/co:docs` | Document delivery (PPTX/DOCX/PDF export) |
 
+### Project Lifecycle Commands
+
+| Command | Description |
+|---------|-------------|
+| `/octo:status` | Show project progress dashboard |
+| `/octo:resume` | Restore context from previous session |
+| `/octo:ship` | Finalize project with Multi-AI validation |
+| `/octo:issues` | Track issues across sessions |
+| `/octo:rollback` | Restore from checkpoint |
+
+---
+
+## Project Lifecycle Commands
+
+Commands for managing project state across sessions.
+
+### `/octo:status`
+
+Show project progress dashboard.
+
+**Usage:** `/octo:status`
+
+**Output:**
+- Current phase and position
+- Roadmap progress with checkmarks
+- Active blockers
+- Suggested next action
+
+---
+
+### `/octo:resume`
+
+Restore context from previous session.
+
+**Usage:** `/octo:resume`
+
+**Behavior:**
+1. Reads `.octo/STATE.md` for current position
+2. Loads context using adaptive tier
+3. Shows restoration summary
+4. Suggests next action
+
+---
+
+### `/octo:ship`
+
+Finalize project with Multi-AI validation.
+
+**Usage:** `/octo:ship`
+
+**Behavior:**
+1. Verifies project ready (all phases complete)
+2. Runs Multi-AI security audit (Codex + Gemini + Claude)
+3. Captures lessons learned
+4. Archives project state
+5. Creates shipped checkpoint
+
+---
+
+### `/octo:issues`
+
+Track issues across sessions.
+
+**Usage:** `/octo:issues [list|add|resolve|show] [args]`
+
+**Subcommands:**
+- `list` - Show all open issues (default)
+- `add <description>` - Add new issue
+- `resolve <id>` - Mark issue resolved
+- `show <id>` - Show issue details
+
+**Issue ID Format:** `ISS-YYYYMMDD-NNN`
+
+**Severity Levels:** critical, high, medium, low
+
+---
+
+### `/octo:rollback`
+
+Restore from checkpoint.
+
+**Usage:** `/octo:rollback [list|<tag>]`
+
+**Subcommands:**
+- `list` - Show available checkpoints (default)
+- `<tag>` - Rollback to specific checkpoint
+
+**Safety:**
+- Creates pre-rollback checkpoint automatically
+- Preserves LESSONS.md (never rolled back)
+- Requires explicit "ROLLBACK" confirmation
+
 ---
 
 ## System Commands

@@ -6,7 +6,7 @@
   <img src="https://img.shields.io/badge/Claude_Code-Plugin-blueviolet" alt="Claude Code Plugin">
   <img src="https://img.shields.io/badge/Double_Diamond-Design_Thinking-orange" alt="Double Diamond">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
-  <img src="https://img.shields.io/badge/Version-7.21.0-blue" alt="Version 7.21.0">
+  <img src="https://img.shields.io/badge/Version-7.22.0-blue" alt="Version 7.22.0">
   <img src="https://img.shields.io/badge/Claude_Code-v2.1.20+-blueviolet" alt="Requires Claude Code v2.1.20+">
 </p>
 
@@ -425,6 +425,57 @@ Reverse-engineer design systems and product architectures from existing codebase
 **Output formats:** JSON, CSS, Markdown, CSV with structured evidence and quality reports.
 
 **Performance:** Quick mode (<2 min), Standard (2-5 min), Deep (5-15 min with multi-AI validation).
+
+---
+
+## Project Lifecycle Management
+
+Claude-Octopus includes project-level state management with the `.octo/` directory for tracking progress across sessions.
+
+### Lifecycle Commands
+
+| Command | Description |
+|---------|-------------|
+| `/octo:embrace` | End-to-end workflow (auto-creates `.octo/` on first run) |
+| `/octo:status` | Show project progress dashboard |
+| `/octo:resume` | Restore context from previous session |
+| `/octo:ship` | Finalize project with Multi-AI validation |
+| `/octo:issues` | Track issues across sessions |
+| `/octo:rollback` | Restore from checkpoint |
+
+### Project State Directory
+
+When you run `/octo:embrace`, a `.octo/` directory is created:
+
+```
+.octo/
+├── PROJECT.md      # Vision and requirements
+├── ROADMAP.md      # Phase breakdown (Double Diamond)
+├── STATE.md        # Current position and history
+├── config.json     # Workflow preferences
+├── ISSUES.md       # Cross-session issue tracking
+└── LESSONS.md      # Lessons learned
+```
+
+### Workflow
+
+```
+/octo:embrace
+    ├── Discover (research) → Updates PROJECT.md
+    ├── Define (consensus) → Updates ROADMAP.md
+    ├── Develop (build) → Creates checkpoint
+    └── Deliver (validate) → Routes to /octo:ship
+        │
+        ↓
+/octo:ship → Captures lessons, archives, ships
+```
+
+### Session Continuity
+
+- Run `/octo:status` to see where you are
+- Run `/octo:resume` to restore context and continue
+- Issues persist across sessions in `.octo/ISSUES.md`
+- Lessons are never lost (preserved across rollbacks)
 
 ---
 
