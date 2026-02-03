@@ -1,6 +1,6 @@
 {
   "name": "octo",
-  "version": "7.21.0",
+  "version": "7.22.0",
   "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.19.0) NEW: ALL 10 performance fixes - 95% probe success (up from 25%), rich progress display, result caching, progressive synthesis, timeout preservation, graceful degradation, enhanced errors. Cost transparency, session state persistence, 94% validation compliance, phase discussion, stub detection, quick mode, design system extraction. 29 expert personas, 30 commands, 35 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
   "author": {
     "name": "nyldn"
@@ -73,7 +73,12 @@
     "./.claude/skills/skill-audit.md",
     "./.claude/skills/skill-intent-contract.md",
     "./.claude/skills/skill-quick.md",
-    "./.claude/skills/extract-skill.md"
+    "./.claude/skills/extract-skill.md",
+    "./.claude/skills/skill-status.md",
+    "./.claude/skills/skill-issues.md",
+    "./.claude/skills/skill-rollback.md",
+    "./.claude/skills/skill-resume.md",
+    "./.claude/skills/skill-ship.md"
   ],
   "commands": [
     "./.claude/commands/prd.md",
