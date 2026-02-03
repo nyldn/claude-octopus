@@ -100,11 +100,60 @@ Can you describe in 1-2 sentences what you're trying to accomplish?
 
 2. Store answers from the 5 questions in the contract
 
-### Step 3: Analyze and Route
+### Step 3: Analyze and Route (v7.24.0+: Hybrid Planning)
 
-**Based on the answers, calculate phase weights and route intelligently:**
+**NEW in v7.24.0:** Intelligent routing between native plan mode and octopus workflows.
 
-#### Routing Logic
+#### Native Plan Mode Detection
+
+First, check if native `EnterPlanMode` would be beneficial:
+
+```javascript
+// Conditions that favor native plan mode
+const nativePlanModePreferred = (
+  goal === "Build something" &&
+  scope_clarity === "Clear requirements" &&
+  knowledge_level === "Well-informed" &&
+  !requires_multi_ai &&  // Simple single-phase planning
+  !success.includes("Team alignment")  // No multi-perspective needs
+)
+
+if (nativePlanModePreferred) {
+  // Suggest native plan mode
+  AskUserQuestion({
+    questions: [{
+      question: "Would you like to use native plan mode or multi-AI orchestration?",
+      header: "Planning Mode",
+      multiSelect: false,
+      options: [
+        {
+          label: "Native plan mode (Recommended)",
+          description: "Fast, single-phase planning with Claude. Good for straightforward implementation plans."
+        },
+        {
+          label: "Multi-AI orchestration",
+          description: "Research with Codex + Gemini + Claude. Better for complex problems requiring diverse perspectives."
+        }
+      ]
+    }]
+  })
+}
+```
+
+**When to use native EnterPlanMode:**
+- ✅ Single-phase planning (just need a plan, no execution)
+- ✅ Well-defined requirements
+- ✅ Quick architectural decisions
+- ✅ When context clearing after planning is OK
+
+**When to use /octo:plan (octopus workflows):**
+- ✅ Multi-AI orchestration (Codex + Gemini + Claude)
+- ✅ Double Diamond 4-phase execution
+- ✅ State needs to persist across sessions
+- ✅ Complex intent capture with routing
+- ✅ High-stakes decisions requiring multiple perspectives
+
+#### Routing Logic (Octopus Workflows)
 
 ```
 IF knowledge_level == "Just starting":
@@ -124,15 +173,21 @@ IF "Working solution" OR "Production-ready" in success:
 
 IF "High stakes" in constraints:
   DELIVER_WEIGHT += 15%  (more validation)
+  requires_multi_ai = true  (multiple perspectives needed)
 
 IF goal == "Research a topic":
   ROUTE_TO: discover (weighted heavy)
+  requires_multi_ai = true
 
 IF goal == "Make a decision":
   ROUTE_TO: debate OR (discover + define)
+  requires_multi_ai = true
 
 IF goal == "Build something":
-  ROUTE_TO: embrace (all 4 phases, weighted)
+  IF scope_clarity in ["Clear requirements", "Fully specified"] AND NOT requires_multi_ai:
+    SUGGEST: native plan mode
+  ELSE:
+    ROUTE_TO: embrace (all 4 phases, weighted)
 
 IF goal == "Review/improve existing":
   ROUTE_TO: review OR deliver
