@@ -11,7 +11,7 @@
     {
       "name": "claude-octopus",
       "source": "./",
-      "description": "v7.19.0 - Performance Overhaul: 95% probe success (up from 25%), rich progress display, result caching, progressive synthesis, timeout preservation, graceful degradation. Cost transparency, session state, validation gates. 29 personas, 30 commands, 35 skills. Run /octo:setup.",
+      "description": "v7.22.0 - Project Lifecycle: .octo/ state management, /octo:status dashboard, /octo:resume session restore, /octo:ship Multi-AI validation, /octo:issues tracking, /octo:rollback checkpoints. 95% probe success, cost transparency, validation gates. 29 personas, 30 commands, 40 skills. Run /octo:setup.",
       "version": "7.22.0",
       "author": {
         "name": "nyldn"
