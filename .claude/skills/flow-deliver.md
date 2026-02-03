@@ -52,6 +52,33 @@ trigger: |
   - Built-in commands (/plugin, /help, etc.)
 ---
 
+## Pre-Delivery: State Check
+
+Before starting delivery:
+1. Read `.octo/STATE.md` to verify Develop phase complete
+2. Update STATE.md:
+   - current_phase: 4
+   - phase_position: "Delivery"
+   - status: "in_progress"
+
+```bash
+# Verify Develop phase is complete
+if [[ -f ".octo/STATE.md" ]]; then
+  develop_status=$("${CLAUDE_PLUGIN_ROOT}/scripts/octo-state.sh" get_phase_status 3)
+  if [[ "$develop_status" != "complete" ]]; then
+    echo "⚠️ Warning: Develop phase not marked complete. Consider completing development first."
+  fi
+fi
+
+# Update state for Delivery phase
+"${CLAUDE_PLUGIN_ROOT}/scripts/octo-state.sh" update_state \
+  --phase 4 \
+  --position "Delivery" \
+  --status "in_progress"
+```
+
+---
+
 ## ⚠️ EXECUTION CONTRACT (MANDATORY - CANNOT SKIP)
 
 This skill uses **ENFORCED execution mode**. You MUST follow this exact sequence.
@@ -763,6 +790,35 @@ Before marking validation complete, ensure:
 - 🔵 Claude analysis included with Claude Code
 
 Ink workflows typically cost $0.02-0.08 per validation depending on codebase size and complexity.
+
+---
+
+## Post-Delivery: Route to Ship
+
+After delivery validation completes:
+1. Update `.octo/STATE.md`:
+   - status: "complete"
+   - Add history entry: "All phases complete, ready to ship"
+2. Suggest: "Project ready! Run `/octo:ship` to finalize and archive."
+
+```bash
+# Update state after Delivery completion
+"${CLAUDE_PLUGIN_ROOT}/scripts/octo-state.sh" update_state \
+  --status "complete" \
+  --history "All phases complete, ready to ship"
+
+# Display completion message with next steps
+echo ""
+echo "🎉 **EMBRACE WORKFLOW COMPLETE**"
+echo ""
+echo "All four phases have been completed:"
+echo "  ✅ Discover - Research and exploration"
+echo "  ✅ Define - Requirements and scope"
+echo "  ✅ Develop - Implementation"
+echo "  ✅ Deliver - Validation and quality"
+echo ""
+echo "📦 **Project ready! Run \`/octo:ship\` to finalize and archive.**"
+```
 
 ---
 
