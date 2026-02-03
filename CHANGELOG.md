@@ -2,6 +2,45 @@
 
 All notable changes to Claude Octopus will be documented in this file.
 
+## [7.22.0] - 2026-02-03
+
+### Added
+
+**Project Lifecycle Commands** - End-to-end project management with state persistence:
+
+- `/octo:status` - Progress dashboard showing current phase and suggested actions
+- `/octo:resume` - Session restoration with adaptive context loading
+- `/octo:ship` - Multi-AI delivery validation with lessons learned capture
+- `/octo:issues` - Cross-session issue tracking with severity levels
+- `/octo:rollback` - Checkpoint-based recovery with safety measures
+
+**`.octo/` Project State Directory** - Project-level state management:
+
+- `PROJECT.md` - Vision and requirements
+- `ROADMAP.md` - Phase breakdown aligned with Double Diamond
+- `STATE.md` - Current position, history, and blockers
+- `config.json` - Workflow preferences and provider settings
+- `ISSUES.md` - Issue tracking with auto-generated IDs
+- `LESSONS.md` - Lessons learned (preserved across rollbacks)
+
+**`octo-state.sh`** - New script for project state management:
+
+- Adaptive 6-tier context system (minimal/planning/execution/brownfield/full/auto)
+- Atomic writes with temp file + mv pattern
+- Input validation for phase and status enums
+
+### Changed
+
+- **Enhanced `/octo:embrace`**: Now auto-creates `.octo/` directory on first run
+- **Flow skills updated**: All 4 Double Diamond phases now update `.octo/STATE.md`
+- **Checkpoint integration**: Develop phase creates git tag checkpoints
+
+### Notes
+
+- Multi-AI Orchestration (Codex + Gemini + Claude) remains the core differentiator
+- All existing commands and workflows continue to work unchanged
+- 6 templates added for `.octo/` directory initialization
+
 ## [7.21.0] - 2026-02-02
 
 ### 🐛 Bug Fixes
