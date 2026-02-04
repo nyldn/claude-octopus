@@ -6,7 +6,7 @@
   <img src="https://img.shields.io/badge/Claude_Code-Plugin-blueviolet" alt="Claude Code Plugin">
   <img src="https://img.shields.io/badge/Double_Diamond-Design_Thinking-orange" alt="Double Diamond">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
-  <img src="https://img.shields.io/badge/Version-7.23.0-blue" alt="Version 7.23.0">
+  <img src="https://img.shields.io/badge/Version-7.25.0-blue" alt="Version 7.25.0">
   <img src="https://img.shields.io/badge/Claude_Code-v2.1.20+-blueviolet" alt="Requires Claude Code v2.1.20+">
 </p>
 
@@ -542,7 +542,7 @@ Multi-AI features simply won't activate without external providers.
 ### Is this actively maintained?
 
 **Yes!**
-- Current version: v7.23.0 (February 2026)
+- Current version: v7.25.0 (February 2026)
 - 95%+ test coverage
 - Active development: [Recent commits](https://github.com/nyldn/claude-octopus/commits/main)
 - Issue tracking: [Report bugs](https://github.com/nyldn/claude-octopus/issues)

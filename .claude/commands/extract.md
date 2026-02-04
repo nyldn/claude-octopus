@@ -12,6 +12,70 @@ aliases:
 
 When the user invokes this command (e.g., `/octo:extract <target>` or `/octo:extract <target>`):
 
+### Step 0: PDF Page Selection (if target is PDF)
+
+**CRITICAL: For PDF files > 10 pages, ask user which pages to extract:**
+
+```javascript
+// Check if target is a PDF file
+if (target.endsWith('.pdf') && isFile(target)) {
+  // Use Claude Octopus PDF page selection utility
+  const pageCount = await getPdfPageCount(target);
+
+  if (pageCount > 10) {
+    console.log(`📄 Large PDF detected: ${pageCount} pages`);
+    console.log(`Reading all pages may use ${pageCount * 750} tokens (~${Math.ceil(pageCount/133)} API calls).`);
+
+    const selection = await AskUserQuestion({
+      questions: [{
+        question: `This PDF has ${pageCount} pages. Which pages would you like to extract?`,
+        header: "PDF Pages",
+        multiSelect: false,
+        options: [
+          {label: "First 10 pages", description: "Quick overview (pages 1-10)"},
+          {label: "Specific pages", description: "Enter custom page range"},
+          {label: "All pages", description: `Full document (~${Math.ceil(pageCount/133)} API calls)`}
+        ]
+      }]
+    });
+
+    let pageParam = "";
+    if (selection === "First 10 pages") {
+      pageParam = "1-10";
+    } else if (selection === "Specific pages") {
+      pageParam = await askForInput("Enter page range (e.g., 1-5, 10, 15-20):");
+    }
+    // else "All pages" - use empty string
+
+    // Store for use in extraction phases
+    target = { path: target, pages: pageParam };
+    console.log(`✓ Will extract pages: ${pageParam || 'all'}`);
+  }
+}
+```
+
+**Example output:**
+```
+📄 Large PDF detected: 45 pages
+Reading all pages may use 33,750 tokens (~34 API calls).
+
+┌─────────────────────────────────────────────────────────┐
+│ This PDF has 45 pages. Which pages would you like to   │
+│ extract?                                                 │
+│                                                          │
+│ ● First 10 pages                                        │
+│   Quick overview (pages 1-10)                           │
+│                                                          │
+│ ○ Specific pages                                        │
+│   Enter custom page range                               │
+│                                                          │
+│ ○ All pages                                             │
+│   Full document (~34 API calls)                         │
+└─────────────────────────────────────────────────────────┘
+
+✓ Will extract pages: 1-10
+```
+
 ### Step 1: Validate Input & Check Dependencies
 
 **Parse the command arguments:**
