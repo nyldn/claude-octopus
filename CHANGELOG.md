@@ -2,6 +2,23 @@
 
 All notable changes to Claude Octopus will be documented in this file.
 
+## [7.25.1] - 2026-02-04
+
+### Documentation
+
+- **Performance Benchmarks**: Added benchmark data to README.md showing `/octo:plan` performs 39% better than default Claude Code
+  - New "Performance Benchmarks" section added after Quick Start
+  - Highlights intelligent phase weighting based on user intent
+  - Documents optimal workflow routing (native vs. multi-AI)
+  - Shows intent contract capture reducing clarification rounds
+  - Explains hybrid planning approach adapting to task complexity
+
+### Changed
+
+- **README.md**: Version badge updated to v7.25.1
+- **Manifest Files**: Version updated across plugin.json, marketplace.json, package.json
+- **Test Suite**: Updated expected version in test-version-consistency.sh
+
 ## [7.25.0] - 2026-02-03
 
 ### Added
