@@ -23,7 +23,7 @@ PASS_COUNT=0
 FAIL_COUNT=0
 
 # Expected version
-EXPECTED_VERSION="7.25.0"
+EXPECTED_VERSION="7.25.1"
 
 echo -e "${BLUE}🧪 Testing Version Consistency (v${EXPECTED_VERSION})${NC}"
 echo ""
