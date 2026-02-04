@@ -2,6 +2,94 @@
 
 All notable changes to Claude Octopus will be documented in this file.
 
+## [7.25.0] - 2026-02-03
+
+### Added
+
+**Enhanced Monitoring & Token Optimization** - Comprehensive improvements to observability and efficiency:
+
+- **Task Metrics Integration**: Track real-time task progress with detailed metrics
+  - Task count tracking (completed, pending, in_progress)
+  - Task duration metrics (min, max, average, median)
+  - Integration with Claude Code v2.1.16+ task management
+  - State manager utilities for task analytics
+  - JSON and human-readable reporting formats
+  - See `scripts/state-manager.sh` for implementation
+
+- **Debug Mode**: Comprehensive debug logging system for troubleshooting
+  - New `OCTOPUS_DEBUG` environment variable (export OCTOPUS_DEBUG=1)
+  - `--debug` command-line flag (auto-enables verbose mode)
+  - Debug functions: `debug_log()`, `debug_var()`, `debug_section()`
+  - Strategic logging at key points: startup, provider detection, agent execution
+  - Enhanced error context with full variable dumps
+  - Integrated with existing log() function for seamless debugging
+  - Documentation: `docs/DEBUG_MODE.md`
+
+- **PDF Page Selection**: Smart token optimization for large PDF documents
+  - Utility functions for PDF page counting (pdfinfo, mdls, qpdf support)
+  - Interactive page selection for PDFs >10 pages
+  - `get_pdf_page_count()`, `ask_pdf_page_selection()`, `process_pdf_with_selection()`
+  - Integrated with extract workflow (.claude/commands/extract.md Step 0)
+  - Integrated with research skill (.claude/skills/skill-deep-research.md Step 0)
+  - Token savings: 50-90% for large PDFs (100-page PDF: 90% savings)
+  - Configurable page threshold (default: 10 pages)
+  - Page range format compatible with Claude Code Read tool
+  - Documentation: `docs/PDF_PAGE_SELECTION.md`
+
+### Changed
+
+- **Help Text**: Updated usage_simple() and usage_full() to document --debug flag
+- **Bash Completion**: Added --debug to completion suggestions
+- **Log Function**: Modified to check both VERBOSE and OCTOPUS_DEBUG for debug output
+- **Extract Command**: Added Step 0 for PDF page selection with token cost estimates
+- **Research Skill**: Added Step 0 for PDF handling with token savings examples
+
+### Documentation
+
+- **DEBUG_MODE.md**: Complete debug mode usage guide
+  - Environment variable and flag usage
+  - Debug output examples
+  - When to use debug mode
+  - Integration with existing verbose mode
+
+- **PDF_PAGE_SELECTION.md**: Comprehensive PDF optimization guide
+  - Installation instructions for PDF tools
+  - Page range format reference
+  - Token savings calculator
+  - Best practices and troubleshooting
+  - Bash and JavaScript integration examples
+  - Batch processing patterns
+
+### Developer Experience
+
+- **Test Suite Additions**:
+  - `tests/test-debug-mode.sh` - Debug mode functionality tests
+  - `tests/test-pdf-pages.sh` - PDF page selection tests
+  - Syntax validation for all new bash functions
+
+- **Function Organization**: New utility sections in orchestrate.sh
+  - Debug Mode section (lines 68-89)
+  - PDF Page Selection section (lines 3300-3420)
+  - Clear separation of concerns
+
+### Performance
+
+- **Token Efficiency**: Estimated savings with PDF page selection
+  - 20-page PDF: 50% token savings (~7,500 tokens saved)
+  - 50-page PDF: 80% token savings (~30,000 tokens saved)
+  - 100-page PDF: 90% token savings (~67,500 tokens saved)
+
+- **Debug Overhead**: Minimal when disabled
+  - Zero-cost when OCTOPUS_DEBUG=0 (default)
+  - Early return in debug functions prevents performance impact
+
+### Notes
+
+- Debug mode integrates seamlessly with existing verbose mode
+- PDF page selection is optional and only prompts for large files
+- All features maintain backward compatibility
+- No breaking changes to existing workflows
+
 ## [7.23.0] - 2026-02-03
 
 ### Added

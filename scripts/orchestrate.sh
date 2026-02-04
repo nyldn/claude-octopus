@@ -67,6 +67,32 @@ else
 fi
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# DEBUG MODE: Enhanced logging and troubleshooting (v7.23.0)
+# Enable with: export OCTOPUS_DEBUG=1
+# ═══════════════════════════════════════════════════════════════════════════════
+OCTOPUS_DEBUG="${OCTOPUS_DEBUG:-0}"
+
+debug_log() {
+    if [[ "$OCTOPUS_DEBUG" == "1" ]]; then
+        echo -e "\n${DIM}[DEBUG $(date '+%H:%M:%S')]${NC} $*" >&2
+    fi
+}
+
+debug_var() {
+    if [[ "$OCTOPUS_DEBUG" == "1" ]]; then
+        local var_name="$1"
+        local var_value="${!var_name}"
+        echo -e "${DIM}[DEBUG]${NC} ${var_name}=${var_value}" >&2
+    fi
+}
+
+debug_section() {
+    if [[ "$OCTOPUS_DEBUG" == "1" ]]; then
+        echo -e "\n${DIM}[DEBUG]${NC} ═══ $* ═══" >&2
+    fi
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # CLAUDE CODE INTEGRATION: Task Management (v7.16.0)
 # Capture Claude Code v2.1.16+ environment variables for enhanced progress tracking
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -2280,7 +2306,7 @@ _claude_octopus_completions() {
     agents="codex codex-standard codex-max codex-mini codex-general gemini gemini-fast gemini-image codex-review"
 
     # Options
-    options="-v --verbose -n --dry-run -Q --quick -P --premium -q --quality -p --parallel -t --timeout -a --autonomy -R --resume --no-personas --tier --branch --on-fail -h --help"
+    options="-v --verbose --debug -n --dry-run -Q --quick -P --premium -q --quality -p --parallel -t --timeout -a --autonomy -R --resume --no-personas --tier --branch --on-fail -h --help"
 
     case "$prev" in
         spawn)
@@ -2685,6 +2711,7 @@ ${YELLOW}Examples:${NC}
 
 ${YELLOW}Common Options:${NC}
   -v, --verbose           Show detailed progress
+  --debug                 Enable debug logging (includes verbose)
   -n, --dry-run           Preview without executing
   -Q, --quick             Use faster/cheaper models
   -P, --premium           Use most capable models
@@ -3231,6 +3258,7 @@ ${YELLOW}Available Agents:${NC}
 
 ${YELLOW}Common Options:${NC}
   -v, --verbose           Detailed output
+  --debug                 Enable debug logging (includes verbose)
   -n, --dry-run           Preview without executing
   -Q, --quick             Use cheaper/faster models
   -P, --premium           Use most capable models
@@ -3260,12 +3288,148 @@ ${YELLOW}Examples:${NC}
 
 ${YELLOW}Environment:${NC}
   CLAUDE_OCTOPUS_WORKSPACE  Override workspace (default: ~/.claude-octopus)
+  OCTOPUS_DEBUG             Enable debug logging (export OCTOPUS_DEBUG=1)
   OPENAI_API_KEY            Required for Codex CLI
   GEMINI_API_KEY            Required for Gemini CLI
 
 ${CYAN}https://github.com/nyldn/claude-octopus${NC}
 EOF
     exit 0
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PDF Page Selection Utility (v7.23.0)
+# Helps users select specific pages from large PDFs to save tokens
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Get PDF page count using various methods
+get_pdf_page_count() {
+    local pdf_file="$1"
+
+    debug_log "Getting page count for PDF: $pdf_file"
+
+    # Method 1: Try pdfinfo (from poppler-utils)
+    if command -v pdfinfo &>/dev/null; then
+        local count
+        count=$(pdfinfo "$pdf_file" 2>/dev/null | grep "^Pages:" | awk '{print $2}')
+        if [[ -n "$count" && "$count" =~ ^[0-9]+$ ]]; then
+            debug_log "PDF page count (pdfinfo): $count"
+            echo "$count"
+            return 0
+        fi
+    fi
+
+    # Method 2: Try mdls (macOS only)
+    if command -v mdls &>/dev/null; then
+        local count
+        count=$(mdls -name kMDItemNumberOfPages "$pdf_file" 2>/dev/null | awk '{print $3}')
+        if [[ -n "$count" && "$count" =~ ^[0-9]+$ ]]; then
+            debug_log "PDF page count (mdls): $count"
+            echo "$count"
+            return 0
+        fi
+    fi
+
+    # Method 3: Try qpdf
+    if command -v qpdf &>/dev/null; then
+        local count
+        count=$(qpdf --show-npages "$pdf_file" 2>/dev/null)
+        if [[ -n "$count" && "$count" =~ ^[0-9]+$ ]]; then
+            debug_log "PDF page count (qpdf): $count"
+            echo "$count"
+            return 0
+        fi
+    fi
+
+    debug_log "Could not determine PDF page count"
+    echo "0"
+    return 1
+}
+
+# Ask user which pages to extract from a PDF
+# Returns page range string suitable for Claude Code's Read tool (e.g., "1-5", "10-20")
+ask_pdf_page_selection() {
+    local pdf_file="$1"
+    local page_count="$2"
+    local threshold="${3:-10}"  # Default threshold: 10 pages
+
+    debug_section "PDF Page Selection"
+    debug_var "pdf_file"
+    debug_var "page_count"
+    debug_var "threshold"
+
+    # If page count is unknown or below threshold, read all pages
+    if [[ "$page_count" -eq 0 || "$page_count" -le "$threshold" ]]; then
+        debug_log "PDF is small ($page_count pages), reading all pages"
+        echo ""  # Empty string means all pages
+        return 0
+    fi
+
+    # PDF is large, ask user for page selection
+    echo ""
+    echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${YELLOW}📄 Large PDF Detected${NC}"
+    echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+    echo -e "  File: ${CYAN}$(basename "$pdf_file")${NC}"
+    echo -e "  Pages: ${CYAN}$page_count${NC}"
+    echo ""
+    echo -e "Reading all pages may use significant tokens."
+    echo -e "Which pages would you like to extract?"
+    echo ""
+    echo -e "${DIM}Examples:${NC}"
+    echo -e "  ${GREEN}1-10${NC}     - Pages 1 through 10"
+    echo -e "  ${GREEN}5${NC}        - Just page 5"
+    echo -e "  ${GREEN}1-5,10-15${NC} - Pages 1-5 and 10-15"
+    echo -e "  ${GREEN}all${NC}      - All pages (may use many tokens)"
+    echo ""
+
+    local pages
+    read -p "$(echo -e "${CYAN}Pages to extract:${NC} ")" pages
+
+    # Handle "all" response
+    if [[ "$pages" == "all" || "$pages" == "ALL" ]]; then
+        echo ""
+        return 0
+    fi
+
+    # Validate page range format
+    if [[ "$pages" =~ ^[0-9,\-]+$ ]]; then
+        debug_log "User selected pages: $pages"
+        echo "$pages"
+        return 0
+    else
+        log WARN "Invalid page range format: $pages"
+        echo ""
+        return 1
+    fi
+}
+
+# Process PDF with page selection (convenience wrapper)
+# Usage: process_pdf_with_selection "/path/to/file.pdf"
+# Returns: page range string or empty for all pages
+process_pdf_with_selection() {
+    local pdf_file="$1"
+    local threshold="${2:-10}"
+
+    if [[ ! -f "$pdf_file" ]]; then
+        log ERROR "PDF file not found: $pdf_file"
+        return 1
+    fi
+
+    if [[ ! "$pdf_file" =~ \.pdf$ ]]; then
+        log ERROR "File is not a PDF: $pdf_file"
+        return 1
+    fi
+
+    local page_count
+    page_count=$(get_pdf_page_count "$pdf_file")
+
+    local pages
+    pages=$(ask_pdf_page_selection "$pdf_file" "$page_count" "$threshold")
+
+    echo "$pages"
+    return 0
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -3352,7 +3516,8 @@ log() {
     shift
 
     # Performance: Skip expensive operations for disabled DEBUG logs
-    [[ "$level" == "DEBUG" && "$VERBOSE" != "true" ]] && return 0
+    # Allow DEBUG logs if either VERBOSE or OCTOPUS_DEBUG is enabled
+    [[ "$level" == "DEBUG" && "$VERBOSE" != "true" && "$OCTOPUS_DEBUG" != "1" ]] && return 0
 
     local msg="$*"
     local timestamp
@@ -3389,6 +3554,11 @@ enhanced_error() {
     local context="$2"       # e.g., task_group, agent_type, etc.
     shift 2
     local details=("$@")     # Array of detail strings
+
+    debug_section "Enhanced error triggered"
+    debug_var "error_type"
+    debug_var "context"
+    debug_log "Details: ${details[*]}"
 
     echo ""
     echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
@@ -4905,7 +5075,10 @@ get_cost_tier_value() {
 detect_providers() {
     local result=""
 
+    debug_section "Detecting AI providers"
+
     # Detect Codex CLI
+    debug_log "Checking for Codex CLI..."
     if command -v codex &>/dev/null; then
         local codex_auth="none"
         if [[ -f "$HOME/.codex/auth.json" ]]; then
@@ -4914,9 +5087,13 @@ detect_providers() {
             codex_auth="api-key"
         fi
         result="${result}codex:${codex_auth} "
+        debug_log "✓ Codex CLI found with auth: ${codex_auth}"
+    else
+        debug_log "✗ Codex CLI not found"
     fi
 
     # Detect Gemini CLI
+    debug_log "Checking for Gemini CLI..."
     if command -v gemini &>/dev/null; then
         local gemini_auth="none"
         if [[ -f "$HOME/.gemini/oauth_creds.json" ]]; then
@@ -4925,20 +5102,32 @@ detect_providers() {
             gemini_auth="api-key"
         fi
         result="${result}gemini:${gemini_auth} "
+        debug_log "✓ Gemini CLI found with auth: ${gemini_auth}"
+    else
+        debug_log "✗ Gemini CLI not found"
     fi
 
     # Detect Claude CLI (always available in Claude Code context)
+    debug_log "Checking for Claude CLI..."
     if command -v claude &>/dev/null; then
         result="${result}claude:oauth "
+        debug_log "✓ Claude CLI found"
+    else
+        debug_log "✗ Claude CLI not found"
     fi
 
     # Detect OpenRouter (API key only)
+    debug_log "Checking for OpenRouter API key..."
     if [[ -n "${OPENROUTER_API_KEY:-}" ]]; then
         result="${result}openrouter:api-key "
+        debug_log "✓ OpenRouter API key found"
+    else
+        debug_log "✗ OpenRouter API key not found"
     fi
 
     # Fail gracefully with helpful message if no providers found
     if [[ -z "$result" ]]; then
+        debug_log "No AI providers detected"
         log WARN "No AI providers detected. Install at least one:"
         log WARN "  - Codex: npm i -g @openai/codex"
         log WARN "  - Gemini: npm i -g @google/gemini-cli"
@@ -4948,6 +5137,8 @@ detect_providers() {
         return 1
     fi
 
+    local providers_found="$result"
+    debug_log "Detected providers: ${providers_found}"
     echo "$result" | xargs  # Trim whitespace
 }
 
@@ -9566,14 +9757,22 @@ run_agent_sync() {
     enhanced_prompt=$(apply_persona "$role" "$prompt")
 
     log DEBUG "run_agent_sync: agent=$agent_type, role=${role:-none}, phase=${phase:-none}"
+    debug_section "Agent execution"
+    debug_var "agent_type"
+    debug_var "role"
+    debug_var "phase"
+    debug_var "timeout_secs"
+    debug_log "Prompt length: ${#prompt} chars"
 
     # Record usage (get model from agent type)
     local model
     model=$(get_agent_model "$agent_type")
+    debug_var "model"
     record_agent_call "$agent_type" "$model" "$enhanced_prompt" "${phase:-unknown}" "${role:-none}" "0"
 
     local cmd
     cmd=$(get_agent_command "$agent_type") || return 1
+    debug_log "Command: $cmd"
 
     # SECURITY: Use array-based execution to prevent word-splitting vulnerabilities
     local -a cmd_array
@@ -9584,8 +9783,11 @@ run_agent_sync() {
     local exit_code
     local temp_err="${RESULTS_DIR}/.tmp-agent-error-$$.err"
 
+    debug_log "Executing agent ${agent_type} with timeout ${timeout_secs}s..."
     output=$(run_with_timeout "$timeout_secs" "${cmd_array[@]}" "$enhanced_prompt" 2>"$temp_err")
     exit_code=$?
+    debug_log "Agent ${agent_type} completed with exit code: ${exit_code}"
+    debug_log "Output length: ${#output} chars"
 
     # Check exit code and handle errors
     if [[ $exit_code -ne 0 ]]; then
@@ -9616,6 +9818,10 @@ probe_discover() {
     local prompt="$1"
     local task_group
     task_group=$(date +%s)
+
+    debug_section "Starting PROBE/DISCOVER phase"
+    debug_log "Prompt: $prompt"
+    debug_var "task_group"
 
     echo ""
     echo -e "${MAGENTA}╔═══════════════════════════════════════════════════════════╗${NC}"
@@ -12004,6 +12210,7 @@ while [[ $# -gt 0 ]]; do
         -p|--parallel) MAX_PARALLEL="$2"; shift 2 ;;
         -t|--timeout) TIMEOUT="$2"; shift 2 ;;
         -v|--verbose) VERBOSE=true; shift ;;
+        --debug) OCTOPUS_DEBUG=1; VERBOSE=true; shift ;;
         -n|--dry-run) DRY_RUN=true; shift ;;
         -d|--dir) PROJECT_ROOT="$2"; shift 2 ;;
         -a|--autonomy) AUTONOMY_MODE="$2"; shift 2 ;;
@@ -12056,6 +12263,13 @@ fi
 # Main command dispatch
 COMMAND="${1:-help}"
 shift || true
+
+debug_section "Orchestrate.sh starting"
+debug_var "COMMAND"
+debug_var "OCTOPUS_DEBUG"
+debug_var "WORKSPACE_DIR"
+debug_var "PROJECT_ROOT"
+debug_log "Arguments: $*"
 
 # Check for first-run on commands that need setup (skip for help/setup/preflight)
 if [[ "$COMMAND" != "help" && "$COMMAND" != "setup" && "$COMMAND" != "preflight" && "$COMMAND" != "-h" && "$COMMAND" != "--help" ]]; then

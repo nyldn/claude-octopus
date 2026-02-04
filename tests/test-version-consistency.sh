@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Test Version Consistency for v7.22.0
-# Validates that version 7.22.0 is consistent across all files and tests new features
+# Test Version Consistency for v7.25.0
+# Validates that version 7.25.0 is consistent across all files and tests new features
 
 set -euo pipefail
 
@@ -23,7 +23,7 @@ PASS_COUNT=0
 FAIL_COUNT=0
 
 # Expected version
-EXPECTED_VERSION="7.22.0"
+EXPECTED_VERSION="7.25.0"
 
 echo -e "${BLUE}🧪 Testing Version Consistency (v${EXPECTED_VERSION})${NC}"
 echo ""
@@ -149,7 +149,7 @@ echo ""
 echo "Test 7: Checking skill count in plugin.json..."
 if [[ -f "$PLUGIN_JSON" ]]; then
     SKILL_COUNT=$(grep -o '"\./\.claude/skills/[^"]*\.md"' "$PLUGIN_JSON" | wc -l | tr -d ' ')
-    EXPECTED_SKILLS=40
+    EXPECTED_SKILLS=42
 
     if [[ $SKILL_COUNT -eq $EXPECTED_SKILLS ]]; then
         pass "plugin.json has $SKILL_COUNT skills (expected: $EXPECTED_SKILLS)"
