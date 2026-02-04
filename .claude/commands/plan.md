@@ -1,6 +1,6 @@
 ---
 command: plan
-description: "Intelligent plan builder - captures intent and routes to optimal workflow sequence"
+description: "Intelligent plan builder - creates strategic execution plans (doesn't execute). Use /octo:embrace to execute plans."
 aliases:
   - build-plan
   - intent
@@ -8,7 +8,14 @@ aliases:
 
 # Plan - Intelligent Plan Builder
 
-**Creates custom workflow sequences based on user intent with routing intelligence.**
+**Creates strategic execution plans based on user intent. Saves plans for review and optional execution with /octo:embrace.**
+
+## Key Behavior
+
+- **Creates plans** - Captures intent, analyzes requirements, generates weighted execution strategy
+- **Saves to files** - Stores plan (`.claude/session-plan.md`) and intent contract (`.claude/session-intent.md`)
+- **Doesn't execute** - Plans are saved for review; execution requires user confirmation
+- **Optional execution** - Can invoke `/octo:embrace` immediately or user can execute later
 
 ## 🤖 INSTRUCTIONS FOR CLAUDE
 
@@ -239,114 +246,141 @@ YOUR INVOLVEMENT: [Checkpoints / Semi-autonomous / Hands-off]
 Time estimate: [Rough estimate based on scope]
 ```
 
-### Step 5: Confirm Execution
+### Step 5: Save the Plan
 
-**Ask user to confirm before proceeding:**
+**CRITICAL: The plan command creates plans, it does NOT execute them by default.**
 
-```javascript
-AskUserQuestion({
-  questions: [
-    {
-      question: "Does this plan look good?",
-      header: "Proceed",
-      multiSelect: false,
-      options: [
-        {label: "Yes, execute it", description: "Run the plan as shown"},
-        {label: "Adjust weights", description: "I want to change phase emphasis"},
-        {label: "Different approach", description: "Suggest an alternative"},
-        {label: "Let me think", description: "Just show me the plan for now"}
-      ]
-    }
-  ]
-})
-```
-
-**If "Adjust weights":** Let user specify which phases to emphasize/de-emphasize
-**If "Different approach":** Ask what they'd prefer and regenerate
-**If "Let me think":** Save plan to `.claude/session-plan.md` and exit
-
-### Step 6: Execute the Plan
-
-**Run the weighted workflow sequence:**
-
-1. **Check provider availability** (codex, gemini CLIs)
-
-2. **Execute each phase with appropriate depth:**
-   - <20% weight: Light touch, quick pass
-   - 20-30% weight: Standard depth
-   - 30-40% weight: Extended exploration
-   - >40% weight: Deep dive, comprehensive
-
-3. **Pass intent contract through all phases** so they stay aligned
-
-4. **At checkpoints** (if user wants involvement):
-   - Show progress
-   - Validate against intent contract
-   - Ask if adjustments needed
-
-5. **Reference the intent contract** at key decision points
-
-### Step 7: Validate Against Intent Contract
-
-**When execution completes:**
-
-1. Read `.claude/session-intent.md`
-2. Check each success criterion:
-   - ✓ Met — explain how
-   - ✗ Not met — explain why, what's needed
-   - ~ Partially met — explain gaps
-
-3. Check boundaries (constraints respected?)
-
-4. Generate validation report:
+1. **Save plan to `.claude/session-plan.md`:**
 
 ```markdown
-# Validation Report
+# Session Plan
 
-## Success Criteria Check
-### Minimum Viable Success
-- [✓] Criterion 1: [How it was met]
-- [✗] Criterion 2: [Why not met, what's needed]
+**Created:** [timestamp]
+**Intent Contract:** See .claude/session-intent.md
 
-### Excellence Criteria
-- [~] Criterion 1: [Partial progress]
+## What You'll End Up With
+[Clear description of deliverable]
 
-## Boundary Check
-- [✓] Constraint 1 respected
-- [✓] Constraint 2 respected
+## How We'll Get There
 
-## Gaps & Next Steps
-[If any criteria not met, list concrete next steps]
+### Phase Weights
+- Discover: [X]% - [Brief description]
+- Define: [X]% - [Brief description]
+- Develop: [X]% - [Brief description]
+- Deliver: [X]% - [Brief description]
 
-## Overall Assessment
-[Does this fulfill the original intent? Yes/No + summary]
+### Execution Commands
+To execute this plan, run:
+\`\`\`bash
+/octo:embrace "[user's goal]"
+\`\`\`
+
+Or execute phases individually:
+- `/octo:discover` (if Discover > 20%)
+- `/octo:define` (if Define > 20%)
+- `/octo:develop` (if Develop > 20%)
+- `/octo:deliver` (if Deliver > 20%)
+
+## Provider Requirements
+🔴 Codex CLI: [Available ✓ / Not installed ✗]
+🟡 Gemini CLI: [Available ✓ / Not installed ✗]
+🔵 Claude: Available ✓
+
+## Success Criteria
+[From intent contract]
+
+## Next Steps
+1. Review this plan
+2. Adjust if needed (re-run /octo:plan)
+3. Execute with /octo:embrace when ready
 ```
 
-5. Present validation report to user
-6. Ask if they want to address gaps
-7. Update intent contract status
+2. **Display the plan to the user** (same visualization as before)
 
-### Step 8: Offer Next Actions
+3. **Show completion message:**
 
-**After validation:**
+```
+✅ Plan saved to .claude/session-plan.md
+
+To execute this plan, run:
+  /octo:embrace "[user's goal]"
+
+Or adjust the plan:
+  /octo:plan  (re-run to modify)
+```
+
+### Step 6: Offer Next Actions (Optional Execution)
+
+**Ask user what they want to do with the plan:**
 
 ```javascript
 AskUserQuestion({
   questions: [
     {
-      question: "What would you like to do next?",
-      header: "Next",
+      question: "What would you like to do with this plan?",
+      header: "Next Action",
       multiSelect: false,
       options: [
-        {label: "Address gaps", description: "Fix criteria that weren't met"},
-        {label: "Export results", description: "Save to document (PPTX/PDF/DOCX)"},
-        {label: "Start implementation", description: "Move to code"},
-        {label: "Done", description: "This completes my goal"}
+        {label: "Review and execute later", description: "Plan saved, I'll run /octo:embrace when ready (Recommended)"},
+        {label: "Adjust plan weights", description: "Change phase emphasis before saving"},
+        {label: "Execute now", description: "Run /octo:embrace immediately with this plan"},
+        {label: "Different approach", description: "Suggest an alternative strategy"}
       ]
     }
   ]
 })
 ```
+
+**If "Review and execute later":**
+- Save plan and exit
+- User can review `.claude/session-plan.md` at their leisure
+- User runs `/octo:embrace` when ready
+
+**If "Adjust plan weights":**
+- Ask which phases to emphasize/de-emphasize
+- Regenerate plan visualization
+- Save updated plan
+- Return to Step 6 (ask again what to do)
+
+**If "Execute now":**
+- Invoke `/octo:embrace` skill with the user's goal
+- Pass the intent contract and phase weights
+- Let embrace workflow handle execution
+
+**If "Different approach":**
+- Ask what they'd prefer
+- Regenerate from Step 3
+- Return to Step 6 (ask again what to do)
+
+### Step 7: Integration with /octo:embrace (Optional Execution)
+
+**If user chose "Execute now" in Step 6:**
+
+The plan command should invoke the `/octo:embrace` skill, which handles:
+- Execution of all 4 phases (Discover → Define → Develop → Deliver)
+- Using the phase weights from the plan
+- Referencing the intent contract
+- Validation against success criteria
+- Final reporting
+
+**Important:** The plan command itself does NOT execute workflows. It delegates to `/octo:embrace` for execution.
+
+### Step 8: Plan Command Completes
+
+**The plan command exits after:**
+- Creating and saving the plan (`.claude/session-plan.md`)
+- Creating the intent contract (`.claude/session-intent.md`)
+- Optionally invoking `/octo:embrace` if user requested immediate execution
+
+**The plan command does NOT:**
+- Execute workflows directly (delegates to `/octo:embrace`)
+- Validate results (that's `/octo:embrace`'s responsibility)
+- Implement anything (that's what workflows do)
+
+**Clear separation of concerns:**
+- `/octo:plan` → Creates strategic plans
+- `/octo:embrace` → Executes plans through 4-phase workflow
+- Individual phase commands → Execute specific phases
 
 ---
 
@@ -359,31 +393,45 @@ User: /octo:plan
 
 [After 5 questions show research need]
 
-Claude presents:
+Claude presents plan:
 DISCOVER ████████████████████ 50%
 DEFINE ██████ 15%
 DEVELOP ████ 10%
 DELIVER ██████████ 25%
 
 "You'll get: Comprehensive research report with recommendations"
-→ Routes to heavy discover, light define, validation
+
+✅ Plan saved to .claude/session-plan.md
+
+To execute this plan, run:
+  /octo:embrace "research topic X"
+
+[Asks: "What would you like to do with this plan?"]
+User selects: "Review and execute later"
+
+→ Plan saved, user reviews it, runs /octo:embrace when ready
 ```
 
-### Example 2: Build Mode
+### Example 2: Build Mode with Immediate Execution
 
 ```
 User: /octo:plan
 
 [After 5 questions show build need with clear requirements]
 
-Claude presents:
+Claude presents plan:
 DISCOVER ████ 10%
 DEFINE ██████ 15%
 DEVELOP ████████████████ 40%
 DELIVER ██████████████ 35%
 
 "You'll get: Working implementation with tests"
-→ Routes to light discover, heavy develop/deliver
+
+[Asks: "What would you like to do with this plan?"]
+User selects: "Execute now"
+
+→ Invokes /octo:embrace immediately
+→ Execution begins with saved plan and intent contract
 ```
 
 ### Example 3: Decision Mode
@@ -393,10 +441,15 @@ User: /octo:plan "Should we use Redis or PostgreSQL?"
 
 [After 5 questions show decision need]
 
-Claude presents:
-→ Routes to /octo:debate (special case)
+Claude presents plan:
+→ Recommends /octo:debate for this type of decision
 
-"You'll get: Multi-AI debate with recommendation"
+Plan saved with recommendation to use debate workflow
+
+[Asks: "What would you like to do with this plan?"]
+User selects: "Execute now"
+
+→ Invokes /octo:debate instead of /octo:embrace
 ```
 
 ---
@@ -431,17 +484,24 @@ This closes the loop between user intention and delivered results.
 ## Benefits
 
 **For Users:**
-- Don't need to know which command to use
-- Clear plan before execution starts
-- Customized approach based on their situation
-- Validation against original goals
+- **Creates strategic plans** without automatic execution
+- **Review before committing** - see the plan, adjust if needed
+- **Execute when ready** - run `/octo:embrace` at your own pace
+- **Intent contract** - captures goals and validates against them
+- **Customized approach** - phase weights adapt to your situation
+- **Clear separation** - planning vs. execution are distinct steps
 
 **For Complex Tasks:**
-- Intelligent routing based on context
-- Phase weighting optimizes for user needs
-- Intent contract ensures alignment
-- Validation prevents missed requirements
+- **Intelligent routing** - recommends best workflow based on context
+- **Phase weighting** - optimizes effort distribution
+- **Intent contract** - ensures alignment throughout execution
+- **Flexible execution** - save plan, review, adjust, then execute
+
+**Workflow Separation:**
+- `/octo:plan` → Strategic planning (creates plans, doesn't execute)
+- `/octo:embrace` → Execution (runs the full 4-phase workflow)
+- Individual phases → Execute specific phases independently
 
 ---
 
-**Ready to use!** Users can invoke with `/octo:plan` and get intelligently routed workflows.
+**Ready to use!** Users can invoke with `/octo:plan` to create customized execution plans, then execute with `/octo:embrace` when ready.
