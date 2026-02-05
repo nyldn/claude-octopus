@@ -1,22 +1,6 @@
 ---
 name: octopus-quick
-description: |
-  Quick execution mode for ad-hoc tasks without full workflow overhead.
-  Skips research, planning, and multi-AI orchestration for simple tasks.
-
-  Use PROACTIVELY for:
-  - "quick fix", "fast change", "ad-hoc task"
-  - Single-file changes or small tweaks
-  - Bug fixes with known solutions
-  - Configuration updates
-  - Small refactorings
-  - Documentation fixes
-  - Dependency updates
-
-  PRIORITY TRIGGERS: "/octo:quick", "quick fix", "ad-hoc"
-
-  DO NOT use for: new features, architecture changes, multi-file refactorings,
-  security-sensitive changes, or tasks requiring research.
+description: Quick execution for ad-hoc tasks without workflow overhead
 aliases:
   - quick
   - quick-mode

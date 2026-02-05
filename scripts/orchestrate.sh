@@ -345,6 +345,9 @@ SUPPORTS_TASK_MANAGEMENT=false
 SUPPORTS_FORK_CONTEXT=false
 SUPPORTS_BASH_WILDCARDS=false
 SUPPORTS_AGENT_FIELD=false
+SUPPORTS_AGENT_TEAMS=false
+SUPPORTS_AUTO_MEMORY=false
+AGENT_TEAMS_ENABLED="${CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS:-0}"
 
 # Version comparison utility
 version_compare() {
@@ -401,8 +404,14 @@ detect_claude_code_version() {
         SUPPORTS_AGENT_FIELD=true
     fi
 
+    # Check for v2.1.32+ features (agent teams, auto memory)
+    if version_compare "$CLAUDE_CODE_VERSION" "2.1.32" ">="; then
+        SUPPORTS_AGENT_TEAMS=true
+        SUPPORTS_AUTO_MEMORY=true
+    fi
+
     log "INFO" "Claude Code v$CLAUDE_CODE_VERSION detected"
-    log "INFO" "Task Management: $SUPPORTS_TASK_MANAGEMENT | Fork Context: $SUPPORTS_FORK_CONTEXT"
+    log "INFO" "Task Management: $SUPPORTS_TASK_MANAGEMENT | Fork Context: $SUPPORTS_FORK_CONTEXT | Agent Teams: $SUPPORTS_AGENT_TEAMS"
 
     return 0
 }
@@ -499,6 +508,7 @@ get_agent_command() {
         codex-review) echo "codex exec review" ;; # Code review mode (no sandbox support)
         claude) echo "claude --print" ;;                         # Claude Sonnet 4.5
         claude-sonnet) echo "claude --print -m sonnet" ;;        # Claude Sonnet explicit
+        claude-opus) echo "claude --print -m opus" ;;            # Claude Opus 4.6 (v8.0)
         openrouter) echo "openrouter_execute" ;;                 # OpenRouter API (v4.8)
         *) return 1 ;;
     esac
@@ -527,13 +537,14 @@ get_agent_command_array() {
         codex-review)   _cmd_array=(codex exec review) ;; # No sandbox support
         claude)         _cmd_array=(claude --print) ;;
         claude-sonnet)  _cmd_array=(claude --print -m sonnet) ;;
+        claude-opus)    _cmd_array=(claude --print -m opus) ;;  # v8.0: Opus 4.6
         openrouter)     _cmd_array=(openrouter_execute) ;;       # OpenRouter API (v4.8)
         *) return 1 ;;
     esac
 }
 
 # List of available agents
-AVAILABLE_AGENTS="codex codex-standard codex-max codex-mini codex-general gemini gemini-fast gemini-image codex-review claude claude-sonnet openrouter"
+AVAILABLE_AGENTS="codex codex-standard codex-max codex-mini codex-general gemini gemini-fast gemini-image codex-review claude claude-sonnet claude-opus openrouter"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # USAGE TRACKING & COST REPORTING (v4.1)
@@ -555,8 +566,9 @@ get_model_pricing() {
         gemini-3-pro-preview)   echo "2.50:10.00" ;;
         gemini-3-flash-preview) echo "0.25:1.00" ;;
         gemini-3-pro-image-preview) echo "5.00:20.00" ;;
-        # Claude Sonnet 4.5
+        # Claude models
         claude-sonnet-4.5)      echo "3.00:15.00" ;;
+        claude-opus-4.6)        echo "5.00:25.00" ;;
         # Default fallback
         *)                      echo "1.00:5.00" ;;
     esac
@@ -577,6 +589,7 @@ get_agent_model() {
         codex-review)   echo "gpt-5.2-codex" ;;
         claude)         echo "claude-sonnet-4.5" ;;
         claude-sonnet)  echo "claude-sonnet-4.5" ;;
+        claude-opus)    echo "claude-opus-4.6" ;;
         *)              echo "unknown" ;;
     esac
 }
@@ -751,7 +764,12 @@ display_workflow_cost_estimate() {
     echo -e "${BOLD}Estimated Costs:${NC}"
     echo -e "  ${RED}🔴 Codex${NC}  (~${num_codex_calls} requests): ${codex_status}"
     echo -e "  ${YELLOW}🟡 Gemini${NC} (~${num_gemini_calls} requests): ${gemini_status}"
-    echo -e "  ${BLUE}🔵 Claude${NC} (Sonnet 4.5): ${DIM}Included in Claude Code subscription${NC}"
+    # Dynamic Claude model name based on workflow agents
+    local claude_model_label="Sonnet 4.5"
+    if echo "${WORKFLOW_AGENTS:-}" | grep -q "claude-opus"; then
+        claude_model_label="Opus 4.6"
+    fi
+    echo -e "  ${BLUE}🔵 Claude${NC} ($claude_model_label): ${DIM}Included in Claude Code subscription${NC}"
     echo ""
 
     if [[ $(awk "BEGIN {print ($total_cost > 0)}") -eq 1 ]]; then
@@ -6137,7 +6155,7 @@ get_openrouter_model() {
     case "$task_type" in
         coding|review)
             case "$complexity" in
-                3) echo "anthropic/claude-sonnet-4${routing_suffix}" ;;
+                3) echo "anthropic/claude-opus-4-6${routing_suffix}" ;;   # v8.0: Opus for premium
                 1) echo "anthropic/claude-haiku${routing_suffix}" ;;
                 *) echo "anthropic/claude-sonnet-4${routing_suffix}" ;;
             esac
@@ -6250,7 +6268,11 @@ show_provider_status() {
     # Claude
     local claude_status="${RED}✗${NC}"
     [[ "$PROVIDER_CLAUDE_INSTALLED" == "true" ]] && claude_status="${GREEN}✓${NC}"
-    echo -e "${CYAN}║${NC}  Claude:         $claude_status  [$PROVIDER_CLAUDE_AUTH_METHOD]  $PROVIDER_CLAUDE_TIER ($PROVIDER_CLAUDE_COST_TIER)  ${CYAN}║${NC}"
+    local agent_teams_info=""
+    if [[ "$SUPPORTS_AGENT_TEAMS" == "true" ]]; then
+        agent_teams_info="  [Agent Teams: available]"
+    fi
+    echo -e "${CYAN}║${NC}  Claude:         $claude_status  [$PROVIDER_CLAUDE_AUTH_METHOD]  $PROVIDER_CLAUDE_TIER ($PROVIDER_CLAUDE_COST_TIER)${agent_teams_info}  ${CYAN}║${NC}"
 
     # OpenRouter
     local openrouter_status="${RED}✗${NC}"
@@ -6851,7 +6873,8 @@ get_role_mapping() {
         researcher)   echo "gemini:gemini-3-pro-preview" ;;   # Deep investigation
         reviewer)     echo "codex-review:gpt-5.2-codex" ;;    # Code review, validation
         implementer)  echo "codex:gpt-5.1-codex-max" ;;       # Code generation
-        synthesizer)  echo "gemini:gemini-3-flash-preview" ;; # Result aggregation
+        synthesizer)  echo "claude:claude-sonnet-4.5" ;;      # Result aggregation (v8.0: upgraded to Claude)
+        strategist)   echo "claude-opus:claude-opus-4.6" ;;   # Premium synthesis (v8.0: Opus 4.6)
         *)            echo "codex:gpt-5.1-codex-max" ;;       # Default
     esac
 }

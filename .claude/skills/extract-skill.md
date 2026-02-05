@@ -1,6 +1,6 @@
 ---
 name: skill-extract
-description: "Design System & Product Reverse-Engineering skill - Comprehensive extraction guide"
+description: Design system and product reverse-engineering
 ---
 
 # Extract Skill - Implementation Guide

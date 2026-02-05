@@ -1,19 +1,6 @@
 ---
 name: octopus-architecture
-description: |
-  System architecture and design for APIs, microservices, and distributed systems.
-
-  Use PROACTIVELY when user says:
-  - "design the architecture", "architect this system"
-  - "API design", "design the API contract"
-  - "microservices architecture", "system design"
-  - "database schema design", "scalability planning"
-  - "event-driven architecture", "distributed systems"
-
-  PRIORITY TRIGGERS: "octo architecture", "design architecture", "system design"
-
-  DO NOT use for: code implementation (use flow-develop), debugging (use skill-debug),
-  code review (use skill-code-review).
+description: System architecture and API design with multi-AI consensus
 execution_mode: enforced
 pre_execution_contract:
   - visual_indicators_displayed

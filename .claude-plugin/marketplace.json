@@ -11,8 +11,8 @@
     {
       "name": "claude-octopus",
       "source": "./",
-      "description": "v7.25.1 - Performance benchmarks documented. Task metrics, debug mode, PDF page selection. Native Integration: TaskCreate/TaskUpdate, hybrid plan mode, state persistence. Project Lifecycle: .octo/ state management. 95% probe success, cost transparency, validation gates. 29 personas, 30 commands, 42 skills. Run /octo:setup.",
-      "version": "7.25.1",
+      "description": "v8.0.0 - Opus 4.6 model support, Agent Teams detection, auto memory guidance, skill description compression. Task metrics, debug mode, PDF page selection. Native Integration: TaskCreate/TaskUpdate, hybrid plan mode, state persistence. Project Lifecycle: .octo/ state management. 29 personas, 32 commands, 43 skills. Run /octo:setup.",
+      "version": "8.0.0",
       "author": {
         "name": "nyldn"
       },

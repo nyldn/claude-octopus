@@ -5,18 +5,7 @@ aliases:
   - define-workflow
   - grasp
   - grasp-workflow
-description: |
-  Define phase workflow - Clarify and scope problems using external CLI providers.
-  Part of the Double Diamond methodology (Define phase).
-  Uses Codex and Gemini CLIs for multi-perspective problem definition.
-
-  Use PROACTIVELY when user says:
-  - "octo define X", "octo scope Y", "octo clarify Z"
-  - "co-define X", "co-scope Y"
-  - "define the requirements for X", "define exactly what X needs"
-  - "clarify the scope of Y", "scope out the Z feature"
-  - "what exactly does X need to do", "what are the specific requirements"
-  - "help me understand the problem with Y"
+description: Multi-AI requirements scoping using Codex and Gemini CLIs (Double Diamond Define phase)
 
   PRIORITY TRIGGERS (always invoke): "octo define", "octo scope", "co-define", "co-scope"
 

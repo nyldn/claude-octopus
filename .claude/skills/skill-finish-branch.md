@@ -1,17 +1,6 @@
 ---
 name: skill-finish-branch
-description: |
-  Post-implementation workflow: verify tests, present 4 options (merge/PR/keep/discard), execute choice.
-  Use when implementation is complete and you need to decide how to integrate the work.
-  
-  Use PROACTIVELY when user requests task completion with git operations:
-  - "commit and push", "git commit and push"
-  - "complete all tasks and commit and push", "proceed with all todos in sequence and push"
-  - "save and commit", "wrap this up and push"
-  - "I'm done with this feature", "ready to merge", "create PR for this work"
-  
-  DO NOT use for: individual file commits, work in progress without tests passing,
-  or simple git status/diff commands.
+description: "Post-implementation: verify tests, merge/PR/keep/discard"
 trigger: |
   AUTOMATICALLY ACTIVATE when user requests task completion with git operations:
   - "commit and push" or "git commit and push"

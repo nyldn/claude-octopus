@@ -6,13 +6,13 @@
   <img src="https://img.shields.io/badge/Claude_Code-Plugin-blueviolet" alt="Claude Code Plugin">
   <img src="https://img.shields.io/badge/Double_Diamond-Design_Thinking-orange" alt="Double Diamond">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
-  <img src="https://img.shields.io/badge/Version-7.25.1-blue" alt="Version 7.25.1">
-  <img src="https://img.shields.io/badge/Claude_Code-v2.1.20+-blueviolet" alt="Requires Claude Code v2.1.20+">
+  <img src="https://img.shields.io/badge/Version-8.0.0-blue" alt="Version 8.0.0">
+  <img src="https://img.shields.io/badge/Claude_Code-v2.1.32+-blueviolet" alt="Requires Claude Code v2.1.32+">
 </p>
 
 # Claude Octopus
 
-**Your complete AI engineering platform for Claude Code** - Multi-AI orchestration, 29 specialized expert personas, proven workflows, design system extraction, and 40 battle-tested skills.
+**Your complete AI engineering platform for Claude Code** - Multi-AI orchestration with Opus 4.6 support, 29 specialized expert personas, proven workflows, design system extraction, and 43 battle-tested skills.
 
 > *Transform Claude Code into a full AI engineering team with diverse perspectives, specialized expertise, and structured methodologies.*
 
@@ -34,7 +34,7 @@ Double Diamond workflows (Discover → Define → Develop → Deliver), Test-Dri
 ### 🎨 **Design System & Product Extraction**
 Reverse-engineer design systems and product architectures from codebases or URLs. Extract design tokens, components, APIs, and generate comprehensive documentation.
 
-### ⚡ **40 Specialized Skills**
+### ⚡ **43 Specialized Skills**
 From multi-AI research to PRD writing, code review to content analysis, debate facilitation to document delivery, design system extraction, and project lifecycle management.
 
 **Bottom line:** Stop juggling multiple AI tools and workflows. Claude Octopus gives you everything in one integrated platform.
@@ -265,7 +265,7 @@ All 30 commands organized by category:
 
 ---
 
-### 5. 40 Specialized Skills
+### 5. 43 Specialized Skills
 
 Complete skills catalog:
 
@@ -560,7 +560,7 @@ Multi-AI features simply won't activate without external providers.
 ### Is this actively maintained?
 
 **Yes!**
-- Current version: v7.25.0 (February 2026)
+- Current version: v8.0.0 (February 2026)
 - 95%+ test coverage
 - Active development: [Recent commits](https://github.com/nyldn/claude-octopus/commits/main)
 - Issue tracking: [Report bugs](https://github.com/nyldn/claude-octopus/issues)

@@ -71,6 +71,7 @@ run_test_suite "$SCRIPT_DIR/test-plan-command.sh"
 run_test_suite "$SCRIPT_DIR/test-intent-contract-skill.sh"
 run_test_suite "$SCRIPT_DIR/test-enforcement-pattern.sh"
 run_test_suite "$SCRIPT_DIR/test-version-consistency.sh"
+run_test_suite "$SCRIPT_DIR/test-v8.0.0-opus-integration.sh"
 
 # Final summary
 echo ""
