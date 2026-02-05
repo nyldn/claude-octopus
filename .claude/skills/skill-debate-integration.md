@@ -1,12 +1,6 @@
 ---
 name: skill-debate-integration
-description: |
-  Integration layer for AI Debate Hub with quality gates, cost tracking, and document export.
-  
-  INTERNAL SKILL - auto-activates with skill-debate. Not directly invoked.
-  Enhances debates with session storage, quality gates, and export capabilities.
-  
-  DO NOT invoke directly - use skill-debate or /octo:debate instead.
+description: "Internal: quality gates and export for AI debates"
 trigger: |
   AUTOMATICALLY ACTIVATE when:
   - User runs /debate command

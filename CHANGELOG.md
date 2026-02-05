@@ -2,110 +2,110 @@
 
 All notable changes to Claude Octopus will be documented in this file.
 
-## [7.25.1] - 2026-02-04
-
-### Documentation
-
-- **Performance Benchmarks**: Added benchmark data to README.md showing `/octo:plan` performs 39% better than default Claude Code
-  - New "Performance Benchmarks" section added after Quick Start
-  - Highlights intelligent phase weighting based on user intent
-  - Documents optimal workflow routing (native vs. multi-AI)
-  - Shows intent contract capture reducing clarification rounds
-  - Explains hybrid planning approach adapting to task complexity
-
-### Changed
-
-- **README.md**: Version badge updated to v7.25.1
-- **Manifest Files**: Version updated across plugin.json, marketplace.json, package.json
-- **Test Suite**: Updated expected version in test-version-consistency.sh
-
-## [7.25.0] - 2026-02-03
+## [8.0.0] - 2026-02-05
 
 ### Added
 
-**Enhanced Monitoring & Token Optimization** - Comprehensive improvements to observability and efficiency:
+**Opus 4.6 & Claude Code 2.1.32 Integration** - Major release leveraging latest Claude capabilities:
 
-- **Task Metrics Integration**: Track real-time task progress with detailed metrics
-  - Task count tracking (completed, pending, in_progress)
-  - Task duration metrics (min, max, average, median)
-  - Integration with Claude Code v2.1.16+ task management
-  - State manager utilities for task analytics
-  - JSON and human-readable reporting formats
-  - See `scripts/state-manager.sh` for implementation
+- **Claude Opus 4.6 agent type** (`claude-opus`) for premium synthesis and strategic analysis
+  - New `get_agent_command`/`get_agent_command_array` entries for `claude --print -m opus`
+  - Model pricing: $5.00/$25.00 per MTok (input/output)
+  - OpenRouter routing updated to `anthropic/claude-opus-4-6` for complexity level 3
 
-- **Debug Mode**: Comprehensive debug logging system for troubleshooting
-  - New `OCTOPUS_DEBUG` environment variable (export OCTOPUS_DEBUG=1)
-  - `--debug` command-line flag (auto-enables verbose mode)
-  - Debug functions: `debug_log()`, `debug_var()`, `debug_section()`
-  - Strategic logging at key points: startup, provider detection, agent execution
-  - Enhanced error context with full variable dumps
-  - Integrated with existing log() function for seamless debugging
-  - Documentation: `docs/DEBUG_MODE.md`
+- **Claude Code v2.1.32 feature flags**
+  - `SUPPORTS_AGENT_TEAMS` - Detects Agent Teams availability
+  - `SUPPORTS_AUTO_MEMORY` - Detects auto memory support
+  - `AGENT_TEAMS_ENABLED` - Reads `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` env var
+  - Provider status display shows Agent Teams indicator when available
 
-- **PDF Page Selection**: Smart token optimization for large PDF documents
-  - Utility functions for PDF page counting (pdfinfo, mdls, qpdf support)
-  - Interactive page selection for PDFs >10 pages
-  - `get_pdf_page_count()`, `ask_pdf_page_selection()`, `process_pdf_with_selection()`
-  - Integrated with extract workflow (.claude/commands/extract.md Step 0)
-  - Integrated with research skill (.claude/skills/skill-deep-research.md Step 0)
-  - Token savings: 50-90% for large PDFs (100-page PDF: 90% savings)
-  - Configurable page threshold (default: 10 pages)
-  - Page range format compatible with Claude Code Read tool
-  - Documentation: `docs/PDF_PAGE_SELECTION.md`
+- **New agent personas** in `agents/config.yaml`
+  - `strategy-analyst` (claude-opus) - Strategic analysis and market research
+  - `research-synthesizer` (claude-opus) - Research synthesis and literature review
+
+- **Role mapping updates**
+  - `strategist` role maps to `claude-opus` for premium synthesis tasks
+  - `synthesizer` role upgraded from `gemini-fast` to `claude` for better quality
+
+- **Auto Memory guidance** in CLAUDE.md for persisting user preferences across sessions
 
 ### Changed
 
-- **Help Text**: Updated usage_simple() and usage_full() to document --debug flag
-- **Bash Completion**: Added --debug to completion suggestions
-- **Log Function**: Modified to check both VERBOSE and OCTOPUS_DEBUG for debug output
-- **Extract Command**: Added Step 0 for PDF page selection with token cost estimates
-- **Research Skill**: Added Step 0 for PDF handling with token savings examples
+- **Skill description compression** - All 43 skill descriptions reduced to single-line (<120 chars) to fit within 2% context budget (~4,000 tokens)
+- **Cost banner** dynamically shows "Opus 4.6" or "Sonnet 4.5" based on workflow agents
+- **metrics-tracker.sh** updated with `claude-opus-4-6` pricing ($5.00/MTok)
+- **model-config.md** updated with Opus 4.6 as premium option, Opus 4.5 marked legacy
+- **Provider CLAUDE.md** documents Opus 4.6 vs Sonnet 4.5 routing guidance
+- Version bump: 7.25.1 → 8.0.0
 
-### Documentation
+## [7.24.0] - 2026-02-03
 
-- **DEBUG_MODE.md**: Complete debug mode usage guide
-  - Environment variable and flag usage
-  - Debug output examples
-  - When to use debug mode
-  - Integration with existing verbose mode
+### Added
 
-- **PDF_PAGE_SELECTION.md**: Comprehensive PDF optimization guide
-  - Installation instructions for PDF tools
-  - Page range format reference
-  - Token savings calculator
-  - Best practices and troubleshooting
-  - Bash and JavaScript integration examples
-  - Batch processing patterns
+**Enhanced Multi-AI Orchestration** - Four major features for improved developer experience:
 
-### Developer Experience
+- **Smart Router** (`/octo`) - Single entry point with natural language intent detection
+  - Analyzes keywords and context to route to optimal workflow
+  - Confidence scoring (>80% auto-route, 70-80% confirm, <70% clarify)
+  - Routes to: discover, develop, plan, validate, debate, embrace
+  - Supports all 6 workflow types with intelligent fallbacks
+  - Issue: #13
 
-- **Test Suite Additions**:
-  - `tests/test-debug-mode.sh` - Debug mode functionality tests
-  - `tests/test-pdf-pages.sh` - PDF page selection tests
-  - Syntax validation for all new bash functions
+- **Model Configuration** - Runtime model selection for cost/performance optimization
+  - 4-tier precedence: env vars > overrides > config > defaults
+  - `/octo:model-config` command for easy management
+  - `OCTOPUS_CODEX_MODEL` and `OCTOPUS_GEMINI_MODEL` environment variables
+  - Persistent configuration in `~/.claude-octopus/config/providers.json`
+  - Per-project or per-session model customization
+  - Issue: #16
 
-- **Function Organization**: New utility sections in orchestrate.sh
-  - Debug Mode section (lines 68-89)
-  - PDF Page Selection section (lines 3300-3420)
-  - Clear separation of concerns
+- **Validation Workflow** - Comprehensive quality assurance with multi-AI debate
+  - 5-step workflow: Scope Analysis → Multi-AI Debate → Quality Scoring → Issue Extraction → Report Generation
+  - 4-dimensional scoring: Code Quality (25%), Security (35%), Best Practices (20%), Completeness (20%)
+  - Pass threshold: 75/100
+  - Automated issue categorization (Critical, High, Medium, Low)
+  - Generates `VALIDATION_REPORT.md` and `ISSUES.md`
+  - Interactive questions for validation priorities and triggers
+  - Issue: #14
 
-### Performance
+- **Z-index Detection** - Browser-based layer analysis for design system extraction
+  - Step 4.5 added to `/octo:extract` workflow
+  - Detects all elements with explicit z-index and positioning
+  - Identifies stacking contexts and conflicts
+  - Generates layer hierarchy table and stacking context tree
+  - Recommendations for z-index management
+  - Graceful degradation when browser MCP unavailable
+  - Issue: #15
 
-- **Token Efficiency**: Estimated savings with PDF page selection
-  - 20-page PDF: 50% token savings (~7,500 tokens saved)
-  - 50-page PDF: 80% token savings (~30,000 tokens saved)
-  - 100-page PDF: 90% token savings (~67,500 tokens saved)
+### Changed
 
-- **Debug Overhead**: Minimal when disabled
-  - Zero-cost when OCTOPUS_DEBUG=0 (default)
-  - Early return in debug functions prevents performance impact
+- Updated plugin count: 30 → 31 commands (added `/octo`, `/octo:model-config`)
+- Updated skill count: 42 → 43 skills (added `skill-validate.md`)
+- Enhanced extract workflow with optional z-index analysis
+- Improved visual indicators for all multi-AI workflows
 
-### Notes
+### Fixed
 
-- Debug mode integrates seamlessly with existing verbose mode
-- PDF page selection is optional and only prompts for large files
-- All features maintain backward compatibility
-- No breaking changes to existing workflows
+- N/A (no bug fixes in this release)
+
+### Dependencies
+
+- Browser MCP (optional): Required for z-index detection in extract workflow
+- jq: Required for model configuration management
+
+### Test Coverage
+
+- Phase 1 (Model Configuration): 10 tests
+- Phase 2 (Smart Router): 20 tests
+- Phase 3 (Validation Workflow): 26 tests
+- Phase 4 (Z-index Detection): 27 tests
+- **Total**: 83 tests passing
+
+### Breaking Changes
+
+- None - Full backward compatibility with v7.23.0
+
+---
 
 ## [7.23.0] - 2026-02-03
 

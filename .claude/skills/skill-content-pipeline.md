@@ -4,10 +4,7 @@ aliases:
   - content-pipeline
   - content-analysis
   - pattern-extraction
-description: |
-  Multi-stage content analysis pipeline for external content.
-  Fetches, sanitizes, deconstructs, synthesizes, and generates actionable outputs.
-  Creates anatomy guides and interview templates from reference content.
+description: Multi-stage content analysis pipeline for external URLs
 context: fork
 trigger: |
   Use PROACTIVELY when user wants to:
@@ -117,9 +114,15 @@ Please provide an alternative URL or paste the content directly.
 
 ## Stage 2: Content Fetching & Sanitization
 
-### Fetch Each URL
+### Fetch Content
 
+**For URLs:**
 Use WebFetch tool for each validated URL.
+
+**For Local PDFs:**
+Use `read_file` with the `pages` parameter for specific sections.
+- **Large PDFs:** Ask user for relevant page ranges (e.g., "pages 10-25") to avoid token limits.
+- **Full PDFs:** Only read full content if < 50 pages.
 
 ### Apply Security Frame
 

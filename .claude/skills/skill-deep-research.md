@@ -3,21 +3,7 @@ name: octopus-research
 aliases:
   - research
   - deep-research
-description: |
-  Deep research using Claude Octopus probe workflow.
-  Parallel multi-perspective research with AI synthesis.
-
-  Use PROACTIVELY when user says:
-  - "octo deep-research X", "octo investigate Y", "octo analyze Z"
-  - "research this topic", "investigate how X works"
-  - "analyze the architecture", "explore different approaches to Y"
-  - "what are the options for Z", "deep dive into X"
-  - "comprehensive analysis of Y", "thorough research on Z"
-
-  PRIORITY TRIGGERS (always invoke): "octo deep-research", "octo investigate"
-
-  DO NOT use for: simple factual queries Claude can answer directly,
-  or questions about specific code in current project (use Read tool).
+description: Deep multi-AI parallel research with cost transparency and synthesis
 context: fork
 agent: Explore
 task_management: true
@@ -43,58 +29,6 @@ trigger: |
 ## ⚠️ EXECUTION CONTRACT (MANDATORY - CANNOT SKIP)
 
 This skill uses **ENFORCED execution mode**. You MUST follow this exact sequence.
-
-### STEP 0: PDF Page Selection (if research involves PDFs)
-
-**CRITICAL: For large PDF files (>10 pages), ask user which pages to analyze:**
-
-If the research question references a PDF file or if PDF files are provided:
-
-1. Check if PDF exists and get page count
-2. For PDFs > 10 pages, ask user for page selection
-3. Pass page information to orchestrate.sh
-
-**Example flow:**
-```javascript
-// Check if research involves PDFs
-const pdfFiles = detectPdfFilesInContext();
-
-for (const pdfFile of pdfFiles) {
-  const pageCount = await getPdfPageCount(pdfFile);
-
-  if (pageCount > 10) {
-    console.log(`📄 Large PDF detected: ${pdfFile} (${pageCount} pages)`);
-
-    const selection = await AskUserQuestion({
-      questions: [{
-        question: `This PDF has ${pageCount} pages. Which pages should be analyzed?`,
-        header: "PDF Pages",
-        multiSelect: false,
-        options: [
-          {label: "First 10 pages", description: "Quick overview"},
-          {label: "Entire document", description: `All ${pageCount} pages`},
-          {label: "Specific range", description: "Enter custom page numbers"}
-        ]
-      }]
-    });
-
-    // Store for use in research
-    if (selection === "Specific range") {
-      const pages = await askForInput("Enter page range (e.g., 1-5, 10-15):");
-      // Include in research prompt: "Analyze pages {pages} of {pdfFile}..."
-    }
-  }
-}
-```
-
-**Why this matters:**
-- Large PDFs can consume 100K+ tokens (e.g., 100-page PDF = ~75,000 tokens)
-- Reading first 10 pages = ~7,500 tokens (90% savings)
-- Better to analyze targeted sections than entire document
-
-**See:** `/docs/PDF_PAGE_SELECTION.md` for full documentation.
-
----
 
 ### STEP 1: Interactive Questions (BLOCKING - Answer before proceeding)
 

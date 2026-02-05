@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "7.25.1",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v7.25.1) Task metrics integration, debug mode (OCTOPUS_DEBUG), PDF page selection for token optimization. Native Claude Code integration - TaskCreate/TaskUpdate, hybrid plan mode routing. Project Lifecycle - .octo/ state management. 95% probe success, cost transparency, validation gates. 29 expert personas, 30 commands, 42 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
+  "version": "8.0.0",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v8.0.0) Opus 4.6 model support, Agent Teams detection, auto memory guidance, skill description compression. Task metrics, debug mode, PDF page selection. Native Claude Code integration - TaskCreate/TaskUpdate, hybrid plan mode. Project Lifecycle - .octo/ state management. 29 expert personas, 32 commands, 43 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },
@@ -80,7 +80,8 @@
     "./.claude/skills/skill-rollback.md",
     "./.claude/skills/skill-resume.md",
     "./.claude/skills/skill-resume-enhanced.md",
-    "./.claude/skills/skill-ship.md"
+    "./.claude/skills/skill-ship.md",
+    "./.claude/skills/skill-validate.md"
   ],
   "commands": [
     "./.claude/commands/prd.md",
@@ -112,6 +113,8 @@
     "./.claude/commands/multi.md",
     "./.claude/commands/plan.md",
     "./.claude/commands/quick.md",
-    "./.claude/commands/extract.md"
+    "./.claude/commands/extract.md",
+    "./.claude/commands/model-config.md",
+    "./.claude/commands/octo.md"
   ]
 }

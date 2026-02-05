@@ -212,9 +212,24 @@ Providers:
 Always be mindful that external CLIs cost money:
 - 🔴 Codex: ~$0.01-0.05 per query (GPT-4 based)
 - 🟡 Gemini: ~$0.01-0.03 per query (Gemini Pro)
-- 🔵 Claude: Included with Claude Code subscription
+- 🔵 Claude (Sonnet 4.5): Included with Claude Code subscription
+- 🔵 Claude (Opus 4.6): $5/$25 per MTok input/output when using `claude-opus` agent type
 
 For simple tasks that don't need multi-AI perspectives, suggest using Claude directly without orchestration.
+
+---
+
+## Auto Memory Integration (Claude Code v2.1.32+)
+
+Claude Code's auto memory (`~/.claude/projects/.../memory/MEMORY.md`) persists across conversations. When working with Claude Octopus, record the following in auto memory:
+
+- **User's preferred autonomy mode** (interactive vs autonomous workflow execution)
+- **Provider availability** (which CLIs are installed, auth methods configured)
+- **Frequently used commands** (e.g., user prefers `/octo:quick` over full embrace)
+- **Past project contexts** (tech stack, coding conventions, deployment targets)
+- **Model preferences** (whether user prefers Opus 4.6 for premium tasks)
+
+This enables faster workflow startup by skipping provider detection and preference questions in subsequent sessions.
 
 ---
 

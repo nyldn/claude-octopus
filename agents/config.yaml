@@ -1,7 +1,7 @@
 # Claude Octopus Agent Configuration
 # Maps curated agents to CLI preferences, phases, and complexity tiers
 #
-# CLI Options: codex, codex-max, codex-mini, codex-review, gemini, gemini-fast
+# CLI Options: codex, codex-max, codex-mini, codex-review, gemini, gemini-fast, claude-opus
 # Phases: probe (discover), grasp (define), tangle (develop), ink (deliver)
 # Tiers: trivial, standard, premium
 
@@ -176,6 +176,25 @@ agents:
   # ═══════════════════════════════════════════════════════════════════════════
   # ORCHESTRATION/SUPPORTING AGENTS
   # ═══════════════════════════════════════════════════════════════════════════
+  # ═══════════════════════════════════════════════════════════════════════════
+  # CLAUDE OPUS AGENTS (Premium Claude tasks - v8.0)
+  # ═══════════════════════════════════════════════════════════════════════════
+  strategy-analyst:
+    file: personas/strategy-analyst.md
+    cli: claude-opus
+    model: claude-opus-4.6
+    phases: [probe, grasp]
+    tier: premium
+    expertise: [strategic-analysis, market-research, business-strategy]
+
+  research-synthesizer:
+    file: personas/research-synthesizer.md
+    cli: claude-opus
+    model: claude-opus-4.6
+    phases: [probe]
+    tier: premium
+    expertise: [research-synthesis, literature-review, knowledge-integration]
+
   context-manager:
     file: personas/context-manager.md
     cli: gemini-fast

@@ -5,12 +5,7 @@ aliases:
   - brainstorm
   - ideation
   - creative-session
-description: |
-  Creative thought partner for structured brainstorming sessions.
-  Uses four breakthrough techniques: Pattern Spotting, Paradox Hunting,
-  Naming the Unnamed, and Contrast Creation.
-  
-  Facilitates discovery of hidden insights, novel concepts, and unique strategies.
+description: Creative brainstorming with Pattern Spotting and Paradox Hunting
 trigger: |
   Use PROACTIVELY when user wants to:
   - "brainstorm", "think through this with me"

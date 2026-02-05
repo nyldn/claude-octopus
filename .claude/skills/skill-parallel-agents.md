@@ -1,8 +1,6 @@
 ---
 name: skill-parallel-agents
-description: |
-  Multi-tentacled orchestrator for Claude Code using Double Diamond methodology.
-  Coordinates Codex CLI and Gemini CLI for comprehensive problem solving.
+description: Multi-tentacled orchestration using Double Diamond methodology
 trigger: |
   PRIORITY TRIGGERS (always invoke immediately):
   - "/octo:multi" (explicit command)

@@ -3,19 +3,7 @@ name: skill-code-review
 aliases:
   - review
   - code-review
-description: |
-  Expert code review with comprehensive quality assessment, security analysis, and architecture feedback.
-  
-  Use PROACTIVELY when user says:
-  - "review this code", "code review X", "review my changes"
-  - "check this PR", "review this pull request"
-  - "what's wrong with this code", "find issues in X"
-  - "quality check", "review for best practices"
-  
-  PRIORITY TRIGGERS: "octo review", "code review", "review this"
-  
-  DO NOT use for: debugging (use skill-debug), security-only audits (use skill-security-audit),
-  quick pre-commit checks (use skill-quick-review).
+description: Expert multi-AI code review with quality and security analysis
 context: fork
 agent: Explore
 execution_mode: enforced

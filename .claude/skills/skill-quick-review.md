@@ -1,9 +1,6 @@
 ---
 name: octopus-quick-review
-description: |
-  Quick code review using Claude Octopus grasp + tangle workflow.
-  Auto-invokes when user asks for code review, PR review, or quality check.
-  Faster than full embrace workflow - focuses on consensus and implementation.
+description: Fast pre-commit code review using multi-AI consensus
 trigger: |
   Use this skill when the user says "review this code", "check this PR",
   "quality check the implementation", "review my changes", or "what's wrong with this code".
