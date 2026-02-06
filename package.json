@@ -1,7 +1,7 @@
 {
   "name": "claude-octopus",
-  "version": "8.1.0",
-  "description": "Claude Octopus - Multi-agent orchestration with smart routing, model configuration, validation workflows, and z-index detection",
+  "version": "8.2.0",
+  "description": "Claude Octopus - Multi-agent orchestration with state persistence, validation gates, and quick mode",
   "main": "orchestrate.sh",
   "scripts": {
     "test": "make test",

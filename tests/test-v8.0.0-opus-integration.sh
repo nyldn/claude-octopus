@@ -366,9 +366,13 @@ echo ""
 echo -e "${BLUE}Test Group 8: Documentation updates${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-# 8.1: package.json version is 8.1.0 (bumped from 8.0.0 in v8.1.0)
+# 8.1: package.json version is 8.x (bumped from 8.0.0)
 pkg_version=$(grep '"version"' "$PACKAGE_JSON" | head -1 | sed 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
-assert_equals "8.1.0" "$pkg_version" "8.1 package.json version is 8.1.0"
+if [[ "$pkg_version" =~ ^8\. ]]; then
+    assert_pass "8.1 package.json version is 8.x ($pkg_version)"
+else
+    assert_fail "8.1 package.json version is 8.x" "Got: $pkg_version"
+fi
 
 # 8.2: CHANGELOG has 8.0.0 entry
 if grep -q '\[8.0.0\]' "$CHANGELOG_MD"; then

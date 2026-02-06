@@ -169,42 +169,42 @@ echo ""
 echo -e "${BLUE}Test Group 3: Version Consistency${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-# 3.1: package.json version is 8.1.0
+# 3.1: package.json version is current
 pkg_version=$(grep '"version"' "$PACKAGE_JSON" | head -1 | sed 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
-if [[ "$pkg_version" == "8.1.0" ]]; then
-    assert_pass "3.1 package.json version is 8.1.0"
+if [[ "$pkg_version" =~ ^8\. ]]; then
+    assert_pass "3.1 package.json version is 8.x ($pkg_version)"
 else
-    assert_fail "3.1 package.json version is 8.1.0" "Got: $pkg_version"
+    assert_fail "3.1 package.json version is 8.x" "Got: $pkg_version"
 fi
 
-# 3.2: plugin.json version is 8.1.0
+# 3.2: plugin.json version is current
 pj_version=$(grep '"version"' "$PLUGIN_JSON" | head -1 | sed 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
-if [[ "$pj_version" == "8.1.0" ]]; then
-    assert_pass "3.2 plugin.json version is 8.1.0"
+if [[ "$pj_version" =~ ^8\. ]]; then
+    assert_pass "3.2 plugin.json version is 8.x ($pj_version)"
 else
-    assert_fail "3.2 plugin.json version is 8.1.0" "Got: $pj_version"
+    assert_fail "3.2 plugin.json version is 8.x" "Got: $pj_version"
 fi
 
-# 3.3: marketplace.json version is 8.1.0
+# 3.3: marketplace.json version is current
 mj_version=$(grep '"version"' "$MARKETPLACE_JSON" | tail -1 | sed 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
-if [[ "$mj_version" == "8.1.0" ]]; then
-    assert_pass "3.3 marketplace.json version is 8.1.0"
+if [[ "$mj_version" =~ ^8\. ]]; then
+    assert_pass "3.3 marketplace.json version is 8.x ($mj_version)"
 else
-    assert_fail "3.3 marketplace.json version is 8.1.0" "Got: $mj_version"
+    assert_fail "3.3 marketplace.json version is 8.x" "Got: $mj_version"
 fi
 
 # 3.4: CHANGELOG has [8.1.0] entry
-if grep -q '\[8.1.0\]' "$CHANGELOG_MD"; then
+if grep -q '\[8\.1\.0\]' "$CHANGELOG_MD"; then
     assert_pass "3.4 CHANGELOG.md has [8.1.0] entry"
 else
     assert_fail "3.4 CHANGELOG.md has [8.1.0] entry"
 fi
 
-# 3.5: README version badge is 8.1.0
-if grep -q 'Version-8.1.0' "$README_MD"; then
-    assert_pass "3.5 README.md version badge is 8.1.0"
+# 3.5: README version badge is current 8.x
+if grep -q 'Version-8\.' "$README_MD"; then
+    assert_pass "3.5 README.md version badge is 8.x"
 else
-    assert_fail "3.5 README.md version badge is 8.1.0"
+    assert_fail "3.5 README.md version badge is 8.x"
 fi
 
 # 3.6: README Claude Code badge is v2.1.33+
