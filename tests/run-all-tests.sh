@@ -38,14 +38,14 @@ run_test_suite() {
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo ""
 
-    ((TOTAL_SUITES++))
+    TOTAL_SUITES=$((TOTAL_SUITES + 1))
 
     if bash "$test_file"; then
-        ((PASSED_SUITES++))
+        PASSED_SUITES=$((PASSED_SUITES + 1))
         echo ""
         echo -e "${GREEN}✅ Suite passed: ${test_name}${NC}"
     else
-        ((FAILED_SUITES++))
+        FAILED_SUITES=$((FAILED_SUITES + 1))
         echo ""
         echo -e "${RED}❌ Suite failed: ${test_name}${NC}"
     fi
