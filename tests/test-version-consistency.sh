@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Test Version Consistency for v8.0.0
-# Validates that version 8.0.0 is consistent across all files and tests new features
+# Test Version Consistency for v8.1.0
+# Validates that version is consistent across all files and tests new features
 
 set -euo pipefail
 
@@ -23,21 +23,21 @@ PASS_COUNT=0
 FAIL_COUNT=0
 
 # Expected version
-EXPECTED_VERSION="8.0.0"
+EXPECTED_VERSION="8.1.0"
 
 echo -e "${BLUE}🧪 Testing Version Consistency (v${EXPECTED_VERSION})${NC}"
 echo ""
 
 # Helper functions
 pass() {
-    ((TEST_COUNT++))
-    ((PASS_COUNT++))
+    TEST_COUNT=$((TEST_COUNT + 1))
+    PASS_COUNT=$((PASS_COUNT + 1))
     echo -e "${GREEN}✅ PASS${NC}: $1"
 }
 
 fail() {
-    ((TEST_COUNT++))
-    ((FAIL_COUNT++))
+    TEST_COUNT=$((TEST_COUNT + 1))
+    FAIL_COUNT=$((FAIL_COUNT + 1))
     echo -e "${RED}❌ FAIL${NC}: $1"
     echo -e "   ${YELLOW}$2${NC}"
 }
