@@ -2,6 +2,27 @@
 
 All notable changes to Claude Octopus will be documented in this file.
 
+## [8.2.0] - 2026-02-06
+
+### Added
+
+**Agent Persona Enhanced Fields** - Three new config.yaml fields per agent:
+- `memory` - Scope for persistent agent memory (project/none)
+- `skills` - Skill files to preload into agent context
+- `permissionMode` - Permission mode (plan/acceptEdits/default)
+
+**Skills Preloading in spawn_agent()** - Automatic skill injection:
+- Loads skill file content and prepends to agent prompts
+- 6 agents mapped to matching skills (code-reviewer, security-auditor, debugger, backend-architect, tdd-orchestrator, docs-architect)
+- Feature-gated behind `SUPPORTS_AGENT_TYPE_ROUTING`
+
+**New Helper Functions:**
+- `get_agent_memory()` - Read memory scope from config
+- `get_agent_skills()` - Read skill list from config
+- `get_agent_permission_mode()` - Read permission mode from config
+- `load_agent_skill_content()` - Extract skill file content (strips frontmatter)
+- `build_skill_context()` - Build combined skill context for injection
+
 ## [8.1.0] - 2026-02-05
 
 ### Added

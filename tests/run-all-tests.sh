@@ -73,6 +73,7 @@ run_test_suite "$SCRIPT_DIR/test-enforcement-pattern.sh"
 run_test_suite "$SCRIPT_DIR/test-version-consistency.sh"
 run_test_suite "$SCRIPT_DIR/test-v8.0.0-opus-integration.sh"
 run_test_suite "$SCRIPT_DIR/test-v8.1.0-feature-detection.sh"
+run_test_suite "$SCRIPT_DIR/test-v8.2.0-agent-fields.sh"
 
 # Final summary
 echo ""
