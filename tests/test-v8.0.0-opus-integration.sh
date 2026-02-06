@@ -366,9 +366,9 @@ echo ""
 echo -e "${BLUE}Test Group 8: Documentation updates${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-# 8.1: package.json version is 8.0.0
+# 8.1: package.json version is 8.1.0 (bumped from 8.0.0 in v8.1.0)
 pkg_version=$(grep '"version"' "$PACKAGE_JSON" | head -1 | sed 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
-assert_equals "8.0.0" "$pkg_version" "8.1 package.json version is 8.0.0"
+assert_equals "8.1.0" "$pkg_version" "8.1 package.json version is 8.1.0"
 
 # 8.2: CHANGELOG has 8.0.0 entry
 if grep -q '\[8.0.0\]' "$CHANGELOG_MD"; then
@@ -399,10 +399,10 @@ else
 fi
 
 # 8.6: Auto Memory guidance section exists
-if grep -q 'Auto Memory Integration' "$PLUGIN_CLAUDE_MD"; then
-    assert_pass "8.6 Auto Memory Integration section in CLAUDE.md"
+if grep -q 'Auto Memory' "$PLUGIN_CLAUDE_MD"; then
+    assert_pass "8.6 Auto Memory section in CLAUDE.md"
 else
-    assert_fail "8.6 Auto Memory Integration section in CLAUDE.md"
+    assert_fail "8.6 Auto Memory section in CLAUDE.md"
 fi
 
 echo ""

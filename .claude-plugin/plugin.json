@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "8.0.0",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v8.0.0) Opus 4.6 model support, Agent Teams detection, auto memory guidance, skill description compression. Task metrics, debug mode, PDF page selection. Native Claude Code integration - TaskCreate/TaskUpdate, hybrid plan mode. Project Lifecycle - .octo/ state management. 29 expert personas, 32 commands, 43 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
+  "version": "8.1.0",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v8.1.0) v2.1.33 feature detection, complexity-based Claude agent routing. Opus 4.6 model support, Agent Teams detection, auto memory guidance, skill description compression. Task metrics, debug mode, PDF page selection. Native Claude Code integration - TaskCreate/TaskUpdate, hybrid plan mode. Project Lifecycle - .octo/ state management. 29 expert personas, 32 commands, 43 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },

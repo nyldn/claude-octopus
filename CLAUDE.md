@@ -219,9 +219,9 @@ For simple tasks that don't need multi-AI perspectives, suggest using Claude dir
 
 ---
 
-## Auto Memory Integration (Claude Code v2.1.32+)
+## Auto Memory & Persistent Memory Integration (Claude Code v2.1.32+, enhanced in v2.1.33+)
 
-Claude Code's auto memory (`~/.claude/projects/.../memory/MEMORY.md`) persists across conversations. When working with Claude Octopus, record the following in auto memory:
+Claude Code's auto memory (`~/.claude/projects/.../memory/MEMORY.md`) persists across conversations. When `SUPPORTS_PERSISTENT_MEMORY` is detected (v2.1.33+), memory persistence is guaranteed across sessions. Record the following in auto memory:
 
 - **User's preferred autonomy mode** (interactive vs autonomous workflow execution)
 - **Provider availability** (which CLIs are installed, auth methods configured)
