@@ -25,14 +25,14 @@ echo ""
 
 # Helper functions
 pass() {
-    ((TEST_COUNT++))
-    ((PASS_COUNT++))
+    TEST_COUNT=$((TEST_COUNT + 1))
+    PASS_COUNT=$((PASS_COUNT + 1))
     echo -e "${GREEN}✅ PASS${NC}: $1"
 }
 
 fail() {
-    ((TEST_COUNT++))
-    ((FAIL_COUNT++))
+    TEST_COUNT=$((TEST_COUNT + 1))
+    FAIL_COUNT=$((FAIL_COUNT + 1))
     echo -e "${RED}❌ FAIL${NC}: $1"
     echo -e "   ${YELLOW}$2${NC}"
 }
@@ -86,7 +86,7 @@ while IFS= read -r cmd_path; do
         pass "Command file exists: $cmd_file"
     else
         fail "Missing command file" "File not found: $full_path"
-        ((MISSING_FILES++))
+        MISSING_FILES=$((MISSING_FILES + 1))
     fi
 done <<< "$REGISTERED_COMMANDS"
 
@@ -109,7 +109,7 @@ if [[ -d "$COMMANDS_DIR" ]]; then
             basename=$(basename "$cmd_file")
             if ! echo "$REGISTERED_COMMANDS" | grep -q "$basename"; then
                 fail "Unregistered command file" "File exists but not in plugin.json: $basename"
-                ((UNREGISTERED++))
+                UNREGISTERED=$((UNREGISTERED + 1))
             fi
         fi
     done
@@ -133,21 +133,21 @@ if [[ -d "$COMMANDS_DIR" ]]; then
             # Check for opening ---
             if ! head -1 "$cmd_file" | grep -q '^---$'; then
                 fail "Invalid frontmatter" "$basename missing opening ---"
-                ((INVALID_FRONTMATTER++))
+                INVALID_FRONTMATTER=$((INVALID_FRONTMATTER + 1))
                 continue
             fi
 
             # Check for command: field
             if ! grep -q '^command:' "$cmd_file"; then
                 fail "Missing command field" "$basename has no command: field"
-                ((INVALID_FRONTMATTER++))
+                INVALID_FRONTMATTER=$((INVALID_FRONTMATTER + 1))
                 continue
             fi
 
             # Check for description: field
             if ! grep -q '^description:' "$cmd_file"; then
                 fail "Missing description field" "$basename has no description: field"
-                ((INVALID_FRONTMATTER++))
+                INVALID_FRONTMATTER=$((INVALID_FRONTMATTER + 1))
                 continue
             fi
         fi
@@ -169,7 +169,7 @@ for essential in "${ESSENTIAL_COMMANDS[@]}"; do
         pass "Essential command exists: $essential"
     else
         fail "Missing essential command" "Expected: $essential"
-        ((MISSING_ESSENTIAL++))
+        MISSING_ESSENTIAL=$((MISSING_ESSENTIAL + 1))
     fi
 done
 
@@ -187,7 +187,7 @@ if [[ -d "$COMMANDS_DIR" ]]; then
             # Check if this command name already exists
             if [[ ${#COMMAND_NAMES[@]} -gt 0 ]] && [[ " ${COMMAND_NAMES[@]} " =~ " ${cmd_name} " ]]; then
                 fail "Duplicate command name" "Command '$cmd_name' appears in multiple files"
-                ((DUPLICATES++))
+                DUPLICATES=$((DUPLICATES + 1))
             else
                 COMMAND_NAMES+=("$cmd_name")
             fi

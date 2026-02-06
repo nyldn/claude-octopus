@@ -24,14 +24,14 @@ echo ""
 
 # Helper functions
 pass() {
-    ((TEST_COUNT++))
-    ((PASS_COUNT++))
+    TEST_COUNT=$((TEST_COUNT + 1))
+    PASS_COUNT=$((PASS_COUNT + 1))
     echo -e "${GREEN}✅ PASS${NC}: $1"
 }
 
 fail() {
-    ((TEST_COUNT++))
-    ((FAIL_COUNT++))
+    TEST_COUNT=$((TEST_COUNT + 1))
+    FAIL_COUNT=$((FAIL_COUNT + 1))
     echo -e "${RED}❌ FAIL${NC}: $1"
     echo -e "   ${YELLOW}$2${NC}"
 }
@@ -52,7 +52,7 @@ for cmd_file in "${COMMANDS_WITH_QUESTIONS[@]}"; do
         pass "Command file exists: $cmd_file"
     else
         fail "Missing command file" "File not found: $COMMANDS_DIR/$cmd_file"
-        ((MISSING_FILES++))
+        MISSING_FILES=$((MISSING_FILES + 1))
     fi
 done
 
