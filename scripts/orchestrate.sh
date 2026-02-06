@@ -347,6 +347,9 @@ SUPPORTS_BASH_WILDCARDS=false
 SUPPORTS_AGENT_FIELD=false
 SUPPORTS_AGENT_TEAMS=false
 SUPPORTS_AUTO_MEMORY=false
+SUPPORTS_PERSISTENT_MEMORY=false   # v8.1: Claude Code v2.1.33+
+SUPPORTS_HOOK_EVENTS=false         # v8.1: Claude Code v2.1.33+
+SUPPORTS_AGENT_TYPE_ROUTING=false  # v8.1: Claude Code v2.1.33+
 AGENT_TEAMS_ENABLED="${CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS:-0}"
 
 # Version comparison utility
@@ -410,8 +413,16 @@ detect_claude_code_version() {
         SUPPORTS_AUTO_MEMORY=true
     fi
 
+    # Check for v2.1.33+ features (persistent memory, hook events, agent type routing)
+    if version_compare "$CLAUDE_CODE_VERSION" "2.1.33" ">="; then
+        SUPPORTS_PERSISTENT_MEMORY=true
+        SUPPORTS_HOOK_EVENTS=true
+        SUPPORTS_AGENT_TYPE_ROUTING=true
+    fi
+
     log "INFO" "Claude Code v$CLAUDE_CODE_VERSION detected"
     log "INFO" "Task Management: $SUPPORTS_TASK_MANAGEMENT | Fork Context: $SUPPORTS_FORK_CONTEXT | Agent Teams: $SUPPORTS_AGENT_TEAMS"
+    log "INFO" "Persistent Memory: $SUPPORTS_PERSISTENT_MEMORY | Hook Events: $SUPPORTS_HOOK_EVENTS | Agent Type Routing: $SUPPORTS_AGENT_TYPE_ROUTING"
 
     return 0
 }
@@ -6033,7 +6044,7 @@ is_agent_available_v2() {
         gemini|gemini-fast|gemini-image)
             [[ "$PROVIDER_GEMINI_INSTALLED" == "true" && "$PROVIDER_GEMINI_AUTH_METHOD" != "none" ]]
             ;;
-        claude|claude-sonnet)
+        claude|claude-sonnet|claude-opus)
             [[ "$PROVIDER_CLAUDE_INSTALLED" == "true" ]]
             ;;
         openrouter|openrouter-*)
@@ -6088,9 +6099,15 @@ get_tiered_agent_v2() {
             esac
             ;;
         claude)
-            case "$complexity" in
-                *) echo "claude" ;;
-            esac
+            if [[ "$SUPPORTS_AGENT_TYPE_ROUTING" == "true" ]]; then
+                case "$complexity" in
+                    1) echo "claude" ;;          # Haiku tier
+                    3) echo "claude-opus" ;;     # Opus 4.6 for premium
+                    *) echo "claude" ;;          # Sonnet (default)
+                esac
+            else
+                echo "claude"
+            fi
             ;;
         openrouter)
             echo "openrouter"
@@ -7077,11 +7094,19 @@ get_role_for_context() {
             return
             ;;
         grasp)
-            echo "synthesizer"
+            if [[ "$SUPPORTS_AGENT_TYPE_ROUTING" == "true" ]]; then
+                echo "strategist"
+            else
+                echo "synthesizer"
+            fi
             return
             ;;
         ink)
-            echo "synthesizer"
+            if [[ "$SUPPORTS_AGENT_TYPE_ROUTING" == "true" ]]; then
+                echo "strategist"
+            else
+                echo "synthesizer"
+            fi
             return
             ;;
     esac

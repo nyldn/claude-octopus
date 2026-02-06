@@ -2,6 +2,24 @@
 
 All notable changes to Claude Octopus will be documented in this file.
 
+## [8.1.0] - 2026-02-05
+
+### Added
+
+**Claude Code v2.1.33 Feature Detection** - Three new feature flags:
+- `SUPPORTS_PERSISTENT_MEMORY` - Persistent memory support detection
+- `SUPPORTS_HOOK_EVENTS` - Hook event system detection
+- `SUPPORTS_AGENT_TYPE_ROUTING` - Agent type routing detection
+
+**Complexity-Based Claude Agent Routing** - Smarter model selection:
+- complexity=3 routes to `claude-opus` (Opus 4.6) in `get_tiered_agent_v2()`
+- `grasp` phase upgrades to `strategist` role (Opus 4.6) when routing available
+- `ink` phase upgrades to `strategist` role (Opus 4.6) when routing available
+- Feature-gated behind `SUPPORTS_AGENT_TYPE_ROUTING` with graceful fallback
+
+### Fixed
+- `is_agent_available_v2()` now explicitly handles `claude-opus` agent type
+
 ## [8.0.0] - 2026-02-05
 
 ### Added
