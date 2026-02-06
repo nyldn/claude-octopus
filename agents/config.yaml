@@ -4,6 +4,9 @@
 # CLI Options: codex, codex-max, codex-mini, codex-review, gemini, gemini-fast, claude-opus
 # Phases: probe (discover), grasp (define), tangle (develop), ink (deliver)
 # Tiers: trivial, standard, premium
+# permissionMode: plan (read-only), acceptEdits (can write), default (standard)
+# memory: project (cross-session context), none (stateless)
+# skills: list of skill files to preload into agent context
 
 version: "1.0"
 description: "Curated agent personas from wshobson/agents adapted for Claude Octopus"
@@ -35,6 +38,7 @@ agents:
     phases: [probe, tangle]
     tier: premium
     expertise: [llm-applications, rag-systems, prompt-engineering]
+    permissionMode: plan
 
   business-analyst:
     file: personas/business-analyst.md
@@ -43,6 +47,7 @@ agents:
     phases: [probe, grasp]
     tier: standard
     expertise: [requirements, metrics, stakeholder-analysis]
+    permissionMode: plan
 
   # ═══════════════════════════════════════════════════════════════════════════
   # GRASP PHASE AGENTS (Architecture/Design)
@@ -54,6 +59,9 @@ agents:
     phases: [grasp, tangle]
     tier: premium
     expertise: [api-design, microservices, distributed-systems]
+    memory: project
+    skills: [skill-architecture]
+    permissionMode: plan
 
   frontend-developer:
     file: personas/frontend-developer.md
@@ -62,6 +70,7 @@ agents:
     phases: [grasp, tangle]
     tier: premium
     expertise: [react, nextjs, state-management, accessibility]
+    permissionMode: plan
 
   database-architect:
     file: personas/database-architect.md
@@ -70,6 +79,7 @@ agents:
     phases: [grasp, tangle]
     tier: premium
     expertise: [schema-design, sql, nosql, migrations]
+    permissionMode: plan
 
   cloud-architect:
     file: personas/cloud-architect.md
@@ -78,6 +88,7 @@ agents:
     phases: [grasp]
     tier: premium
     expertise: [aws, gcp, azure, infrastructure]
+    permissionMode: plan
 
   graphql-architect:
     file: personas/graphql-architect.md
@@ -86,6 +97,7 @@ agents:
     phases: [grasp, tangle]
     tier: premium
     expertise: [graphql, federation, resolvers]
+    permissionMode: plan
 
   # ═══════════════════════════════════════════════════════════════════════════
   # TANGLE PHASE AGENTS (Development/Implementation)
@@ -97,6 +109,8 @@ agents:
     phases: [tangle]
     tier: premium
     expertise: [test-driven-development, red-green-refactor]
+    skills: [skill-tdd]
+    permissionMode: acceptEdits
 
   debugger:
     file: personas/debugger.md
@@ -105,6 +119,9 @@ agents:
     phases: [tangle, ink]
     tier: standard
     expertise: [error-analysis, stack-traces, debugging]
+    memory: project
+    skills: [skill-debug]
+    permissionMode: acceptEdits
 
   devops-troubleshooter:
     file: personas/devops-troubleshooter.md
@@ -113,6 +130,7 @@ agents:
     phases: [tangle, ink]
     tier: standard
     expertise: [deployment, logs, infrastructure-debugging]
+    permissionMode: acceptEdits
 
   python-pro:
     file: personas/python-pro.md
@@ -121,6 +139,7 @@ agents:
     phases: [tangle]
     tier: premium
     expertise: [python, fastapi, django, async]
+    permissionMode: acceptEdits
 
   typescript-pro:
     file: personas/typescript-pro.md
@@ -129,6 +148,7 @@ agents:
     phases: [tangle]
     tier: premium
     expertise: [typescript, node, react, types]
+    permissionMode: acceptEdits
 
   # ═══════════════════════════════════════════════════════════════════════════
   # INK PHASE AGENTS (Delivery/Review)
@@ -140,6 +160,9 @@ agents:
     phases: [ink]
     tier: premium
     expertise: [code-quality, best-practices, architecture-review]
+    memory: project
+    skills: [skill-code-review]
+    permissionMode: default
 
   security-auditor:
     file: personas/security-auditor.md
@@ -148,6 +171,9 @@ agents:
     phases: [ink]
     tier: premium
     expertise: [owasp, vulnerability-scanning, security-review]
+    memory: project
+    skills: [skill-security-audit]
+    permissionMode: default
 
   test-automator:
     file: personas/test-automator.md
@@ -156,6 +182,7 @@ agents:
     phases: [tangle, ink]
     tier: standard
     expertise: [unit-tests, integration-tests, e2e-tests]
+    permissionMode: acceptEdits
 
   performance-engineer:
     file: personas/performance-engineer.md
@@ -164,6 +191,8 @@ agents:
     phases: [ink]
     tier: premium
     expertise: [profiling, optimization, benchmarking]
+    memory: project
+    permissionMode: default
 
   deployment-engineer:
     file: personas/deployment-engineer.md
@@ -172,6 +201,7 @@ agents:
     phases: [ink]
     tier: standard
     expertise: [ci-cd, kubernetes, docker, gitops]
+    permissionMode: default
 
   # ═══════════════════════════════════════════════════════════════════════════
   # ORCHESTRATION/SUPPORTING AGENTS
@@ -186,6 +216,7 @@ agents:
     phases: [probe, grasp]
     tier: premium
     expertise: [strategic-analysis, market-research, business-strategy]
+    permissionMode: plan
 
   research-synthesizer:
     file: personas/research-synthesizer.md
@@ -194,6 +225,7 @@ agents:
     phases: [probe]
     tier: premium
     expertise: [research-synthesis, literature-review, knowledge-integration]
+    permissionMode: plan
 
   context-manager:
     file: personas/context-manager.md
@@ -202,6 +234,8 @@ agents:
     phases: [probe, grasp, tangle, ink]
     tier: standard
     expertise: [context-management, multi-agent-coordination]
+    memory: project
+    permissionMode: plan
 
   docs-architect:
     file: personas/docs-architect.md
@@ -210,6 +244,8 @@ agents:
     phases: [ink]
     tier: standard
     expertise: [documentation, technical-writing]
+    skills: [skill-doc-delivery]
+    permissionMode: default
 
   incident-responder:
     file: personas/incident-responder.md
@@ -218,6 +254,7 @@ agents:
     phases: [tangle, ink]
     tier: premium
     expertise: [incident-management, runbooks, postmortems]
+    permissionMode: acceptEdits
 
   mermaid-expert:
     file: personas/mermaid-expert.md
@@ -226,6 +263,7 @@ agents:
     phases: [grasp, ink]
     tier: trivial
     expertise: [diagrams, flowcharts, sequence-diagrams]
+    permissionMode: plan
 
 # ═══════════════════════════════════════════════════════════════════════════
 # RALPH-WIGGUM INTEGRATION (Iterative Loop Support)

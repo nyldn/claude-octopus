@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "8.1.0",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v8.1.0) v2.1.33 feature detection, complexity-based Claude agent routing. Opus 4.6 model support, Agent Teams detection, auto memory guidance, skill description compression. Task metrics, debug mode, PDF page selection. Native Claude Code integration - TaskCreate/TaskUpdate, hybrid plan mode. Project Lifecycle - .octo/ state management. 29 expert personas, 32 commands, 43 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
+  "version": "8.2.0",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v8.2.0) Agent persona enhanced fields, skills preloading. v2.1.33 feature detection, complexity-based Claude agent routing. Opus 4.6 model support, Agent Teams detection, auto memory guidance, skill description compression. Task metrics, debug mode, PDF page selection. Native Claude Code integration - TaskCreate/TaskUpdate, hybrid plan mode. Project Lifecycle - .octo/ state management. 29 expert personas, 30 commands, 43 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },
@@ -64,6 +64,7 @@
     "./.claude/skills/skill-doc-delivery.md",
     "./.claude/skills/skill-finish-branch.md",
     "./.claude/skills/skill-verify.md",
+    "./.claude/skills/skill-validate.md",
     "./.claude/skills/skill-parallel-agents.md",
     "./.claude/skills/skill-knowledge-work.md",
     "./.claude/skills/skill-task-management.md",
@@ -80,10 +81,10 @@
     "./.claude/skills/skill-rollback.md",
     "./.claude/skills/skill-resume.md",
     "./.claude/skills/skill-resume-enhanced.md",
-    "./.claude/skills/skill-ship.md",
-    "./.claude/skills/skill-validate.md"
+    "./.claude/skills/skill-ship.md"
   ],
   "commands": [
+    "./.claude/commands/octo.md",
     "./.claude/commands/prd.md",
     "./.claude/commands/pipeline.md",
     "./.claude/commands/brainstorm.md",
@@ -114,7 +115,6 @@
     "./.claude/commands/plan.md",
     "./.claude/commands/quick.md",
     "./.claude/commands/extract.md",
-    "./.claude/commands/model-config.md",
-    "./.claude/commands/octo.md"
+    "./.claude/commands/model-config.md"
   ]
 }

@@ -14,6 +14,9 @@ PROJECT_ROOT="${PWD}"
 # Source state manager utilities
 source "${SCRIPT_DIR}/state-manager.sh"
 
+# Source metrics tracker (v7.25.0)
+source "${SCRIPT_DIR}/metrics-tracker.sh"
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # SECURITY: Path validation for workspace directory
 # Prevents path traversal attacks and restricts to safe locations
@@ -65,32 +68,6 @@ if [[ -n "${CLAUDE_OCTOPUS_WORKSPACE:-}" ]]; then
 else
     WORKSPACE_DIR="${HOME}/.claude-octopus"
 fi
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# DEBUG MODE: Enhanced logging and troubleshooting (v7.23.0)
-# Enable with: export OCTOPUS_DEBUG=1
-# ═══════════════════════════════════════════════════════════════════════════════
-OCTOPUS_DEBUG="${OCTOPUS_DEBUG:-0}"
-
-debug_log() {
-    if [[ "$OCTOPUS_DEBUG" == "1" ]]; then
-        echo -e "\n${DIM}[DEBUG $(date '+%H:%M:%S')]${NC} $*" >&2
-    fi
-}
-
-debug_var() {
-    if [[ "$OCTOPUS_DEBUG" == "1" ]]; then
-        local var_name="$1"
-        local var_value="${!var_name}"
-        echo -e "${DIM}[DEBUG]${NC} ${var_name}=${var_value}" >&2
-    fi
-}
-
-debug_section() {
-    if [[ "$OCTOPUS_DEBUG" == "1" ]]; then
-        echo -e "\n${DIM}[DEBUG]${NC} ═══ $* ═══" >&2
-    fi
-}
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # CLAUDE CODE INTEGRATION: Task Management (v7.16.0)
@@ -585,9 +562,65 @@ get_model_pricing() {
     esac
 }
 
-# Get model for agent type
+# Get model for agent type with 4-tier precedence
+# Priority 1: Environment variables (OCTOPUS_CODEX_MODEL, OCTOPUS_GEMINI_MODEL)
+# Priority 2: Config file overrides (~/.claude-octopus/config/providers.json -> overrides)
+# Priority 3: Config file defaults (~/.claude-octopus/config/providers.json -> providers)
+# Priority 4: Hard-coded defaults (existing case statement)
 get_agent_model() {
     local agent_type="$1"
+    local config_file="${HOME}/.claude-octopus/config/providers.json"
+    local model=""
+
+    # Determine base provider type
+    local provider=""
+    case "$agent_type" in
+        codex|codex-standard|codex-max|codex-mini|codex-general|codex-review)
+            provider="codex"
+            ;;
+        gemini|gemini-fast|gemini-image)
+            provider="gemini"
+            ;;
+        claude|claude-sonnet|claude-opus)
+            provider="claude"
+            ;;
+    esac
+
+    # Priority 1: Check environment variables
+    if [[ "$provider" == "codex" && -n "${OCTOPUS_CODEX_MODEL:-}" ]]; then
+        log "DEBUG" "Model from env var: OCTOPUS_CODEX_MODEL=${OCTOPUS_CODEX_MODEL} (tier 1)"
+        echo "${OCTOPUS_CODEX_MODEL}"
+        return 0
+    fi
+    if [[ "$provider" == "gemini" && -n "${OCTOPUS_GEMINI_MODEL:-}" ]]; then
+        log "DEBUG" "Model from env var: OCTOPUS_GEMINI_MODEL=${OCTOPUS_GEMINI_MODEL} (tier 1)"
+        echo "${OCTOPUS_GEMINI_MODEL}"
+        return 0
+    fi
+
+    # Priority 2 & 3: Check config file (if jq is available)
+    if [[ -f "$config_file" ]] && command -v jq &> /dev/null; then
+        # Priority 2: Check overrides
+        if [[ -n "$provider" ]]; then
+            model=$(jq -r ".overrides.${provider} // empty" "$config_file" 2>/dev/null || true)
+            if [[ -n "$model" && "$model" != "null" ]]; then
+                log "DEBUG" "Model from config override: $model (tier 2)"
+                echo "$model"
+                return 0
+            fi
+
+            # Priority 3: Check provider defaults
+            model=$(jq -r ".providers.${provider}.model // empty" "$config_file" 2>/dev/null || true)
+            if [[ -n "$model" && "$model" != "null" ]]; then
+                log "DEBUG" "Model from config default: $model (tier 3)"
+                echo "$model"
+                return 0
+            fi
+        fi
+    fi
+
+    # Priority 4: Hard-coded defaults (existing behavior)
+    log "DEBUG" "Using hard-coded default model (tier 4)"
     case "$agent_type" in
         codex)          echo "gpt-5.1-codex-max" ;;
         codex-standard) echo "gpt-5.2-codex" ;;
@@ -603,6 +636,89 @@ get_agent_model() {
         claude-opus)    echo "claude-opus-4.6" ;;
         *)              echo "unknown" ;;
     esac
+}
+
+# Set provider model in config file
+# Usage: set_provider_model <provider> <model> [--session]
+set_provider_model() {
+    local provider="$1"
+    local model="$2"
+    local session_only="${3:-}"
+    local config_file="${HOME}/.claude-octopus/config/providers.json"
+
+    # Validate provider
+    if [[ ! "$provider" =~ ^(codex|gemini)$ ]]; then
+        echo "ERROR: Invalid provider. Must be 'codex' or 'gemini'" >&2
+        return 1
+    fi
+
+    # Validate model name (basic check - not empty, no special characters)
+    if [[ -z "$model" || "$model" =~ [[:space:]\;\|\&\$\`\'\"()\<\>] ]]; then
+        echo "ERROR: Invalid model name" >&2
+        return 1
+    fi
+
+    # Ensure config file exists
+    if [[ ! -f "$config_file" ]]; then
+        mkdir -p "$(dirname "$config_file")"
+        cat > "$config_file" << 'EOF'
+{
+  "version": "1.0",
+  "providers": {
+    "codex": {"model": "claude-sonnet-4-5", "fallback": "claude-sonnet-4-5"},
+    "gemini": {"model": "gemini-2.0-flash-thinking-exp-01-21", "fallback": "gemini-2.0-flash-exp"}
+  },
+  "overrides": {}
+}
+EOF
+    fi
+
+    # Check if jq is available
+    if ! command -v jq &> /dev/null; then
+        echo "ERROR: jq is required for model configuration" >&2
+        return 1
+    fi
+
+    # Update config file
+    if [[ "$session_only" == "--session" ]]; then
+        # Set session-level override
+        jq ".overrides.${provider} = \"${model}\"" "$config_file" > "${config_file}.tmp" && mv "${config_file}.tmp" "$config_file"
+        echo "✓ Set session override: $provider → $model"
+    else
+        # Set persistent default
+        jq ".providers.${provider}.model = \"${model}\"" "$config_file" > "${config_file}.tmp" && mv "${config_file}.tmp" "$config_file"
+        echo "✓ Set default model: $provider → $model"
+    fi
+}
+
+# Reset provider model to defaults
+# Usage: reset_provider_model <provider|all>
+reset_provider_model() {
+    local provider="$1"
+    local config_file="${HOME}/.claude-octopus/config/providers.json"
+
+    if [[ ! -f "$config_file" ]]; then
+        echo "No configuration file found"
+        return 0
+    fi
+
+    if ! command -v jq &> /dev/null; then
+        echo "ERROR: jq is required for model configuration" >&2
+        return 1
+    fi
+
+    if [[ "$provider" == "all" ]]; then
+        # Clear all overrides
+        jq '.overrides = {}' "$config_file" > "${config_file}.tmp" && mv "${config_file}.tmp" "$config_file"
+        echo "✓ Cleared all model overrides"
+    elif [[ "$provider" =~ ^(codex|gemini)$ ]]; then
+        # Clear specific override
+        jq "del(.overrides.${provider})" "$config_file" > "${config_file}.tmp" && mv "${config_file}.tmp" "$config_file"
+        echo "✓ Cleared $provider override"
+    else
+        echo "ERROR: Invalid provider. Use 'codex', 'gemini', or 'all'" >&2
+        return 1
+    fi
 }
 
 # Session usage tracking file
@@ -2335,7 +2451,7 @@ _claude_octopus_completions() {
     agents="codex codex-standard codex-max codex-mini codex-general gemini gemini-fast gemini-image codex-review"
 
     # Options
-    options="-v --verbose --debug -n --dry-run -Q --quick -P --premium -q --quality -p --parallel -t --timeout -a --autonomy -R --resume --no-personas --tier --branch --on-fail -h --help"
+    options="-v --verbose -n --dry-run -Q --quick -P --premium -q --quality -p --parallel -t --timeout -a --autonomy -R --resume --no-personas --tier --branch --on-fail -h --help"
 
     case "$prev" in
         spawn)
@@ -2740,7 +2856,7 @@ ${YELLOW}Examples:${NC}
 
 ${YELLOW}Common Options:${NC}
   -v, --verbose           Show detailed progress
-  --debug                 Enable debug logging (includes verbose)
+  --debug                 Enable debug logging (very verbose)
   -n, --dry-run           Preview without executing
   -Q, --quick             Use faster/cheaper models
   -P, --premium           Use most capable models
@@ -3287,7 +3403,7 @@ ${YELLOW}Available Agents:${NC}
 
 ${YELLOW}Common Options:${NC}
   -v, --verbose           Detailed output
-  --debug                 Enable debug logging (includes verbose)
+  --debug                 Enable debug logging (very verbose)
   -n, --dry-run           Preview without executing
   -Q, --quick             Use cheaper/faster models
   -P, --premium           Use most capable models
@@ -3317,148 +3433,12 @@ ${YELLOW}Examples:${NC}
 
 ${YELLOW}Environment:${NC}
   CLAUDE_OCTOPUS_WORKSPACE  Override workspace (default: ~/.claude-octopus)
-  OCTOPUS_DEBUG             Enable debug logging (export OCTOPUS_DEBUG=1)
   OPENAI_API_KEY            Required for Codex CLI
   GEMINI_API_KEY            Required for Gemini CLI
 
 ${CYAN}https://github.com/nyldn/claude-octopus${NC}
 EOF
     exit 0
-}
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# PDF Page Selection Utility (v7.23.0)
-# Helps users select specific pages from large PDFs to save tokens
-# ═══════════════════════════════════════════════════════════════════════════════
-
-# Get PDF page count using various methods
-get_pdf_page_count() {
-    local pdf_file="$1"
-
-    debug_log "Getting page count for PDF: $pdf_file"
-
-    # Method 1: Try pdfinfo (from poppler-utils)
-    if command -v pdfinfo &>/dev/null; then
-        local count
-        count=$(pdfinfo "$pdf_file" 2>/dev/null | grep "^Pages:" | awk '{print $2}')
-        if [[ -n "$count" && "$count" =~ ^[0-9]+$ ]]; then
-            debug_log "PDF page count (pdfinfo): $count"
-            echo "$count"
-            return 0
-        fi
-    fi
-
-    # Method 2: Try mdls (macOS only)
-    if command -v mdls &>/dev/null; then
-        local count
-        count=$(mdls -name kMDItemNumberOfPages "$pdf_file" 2>/dev/null | awk '{print $3}')
-        if [[ -n "$count" && "$count" =~ ^[0-9]+$ ]]; then
-            debug_log "PDF page count (mdls): $count"
-            echo "$count"
-            return 0
-        fi
-    fi
-
-    # Method 3: Try qpdf
-    if command -v qpdf &>/dev/null; then
-        local count
-        count=$(qpdf --show-npages "$pdf_file" 2>/dev/null)
-        if [[ -n "$count" && "$count" =~ ^[0-9]+$ ]]; then
-            debug_log "PDF page count (qpdf): $count"
-            echo "$count"
-            return 0
-        fi
-    fi
-
-    debug_log "Could not determine PDF page count"
-    echo "0"
-    return 1
-}
-
-# Ask user which pages to extract from a PDF
-# Returns page range string suitable for Claude Code's Read tool (e.g., "1-5", "10-20")
-ask_pdf_page_selection() {
-    local pdf_file="$1"
-    local page_count="$2"
-    local threshold="${3:-10}"  # Default threshold: 10 pages
-
-    debug_section "PDF Page Selection"
-    debug_var "pdf_file"
-    debug_var "page_count"
-    debug_var "threshold"
-
-    # If page count is unknown or below threshold, read all pages
-    if [[ "$page_count" -eq 0 || "$page_count" -le "$threshold" ]]; then
-        debug_log "PDF is small ($page_count pages), reading all pages"
-        echo ""  # Empty string means all pages
-        return 0
-    fi
-
-    # PDF is large, ask user for page selection
-    echo ""
-    echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${YELLOW}📄 Large PDF Detected${NC}"
-    echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo ""
-    echo -e "  File: ${CYAN}$(basename "$pdf_file")${NC}"
-    echo -e "  Pages: ${CYAN}$page_count${NC}"
-    echo ""
-    echo -e "Reading all pages may use significant tokens."
-    echo -e "Which pages would you like to extract?"
-    echo ""
-    echo -e "${DIM}Examples:${NC}"
-    echo -e "  ${GREEN}1-10${NC}     - Pages 1 through 10"
-    echo -e "  ${GREEN}5${NC}        - Just page 5"
-    echo -e "  ${GREEN}1-5,10-15${NC} - Pages 1-5 and 10-15"
-    echo -e "  ${GREEN}all${NC}      - All pages (may use many tokens)"
-    echo ""
-
-    local pages
-    read -p "$(echo -e "${CYAN}Pages to extract:${NC} ")" pages
-
-    # Handle "all" response
-    if [[ "$pages" == "all" || "$pages" == "ALL" ]]; then
-        echo ""
-        return 0
-    fi
-
-    # Validate page range format
-    if [[ "$pages" =~ ^[0-9,\-]+$ ]]; then
-        debug_log "User selected pages: $pages"
-        echo "$pages"
-        return 0
-    else
-        log WARN "Invalid page range format: $pages"
-        echo ""
-        return 1
-    fi
-}
-
-# Process PDF with page selection (convenience wrapper)
-# Usage: process_pdf_with_selection "/path/to/file.pdf"
-# Returns: page range string or empty for all pages
-process_pdf_with_selection() {
-    local pdf_file="$1"
-    local threshold="${2:-10}"
-
-    if [[ ! -f "$pdf_file" ]]; then
-        log ERROR "PDF file not found: $pdf_file"
-        return 1
-    fi
-
-    if [[ ! "$pdf_file" =~ \.pdf$ ]]; then
-        log ERROR "File is not a PDF: $pdf_file"
-        return 1
-    fi
-
-    local page_count
-    page_count=$(get_pdf_page_count "$pdf_file")
-
-    local pages
-    pages=$(ask_pdf_page_selection "$pdf_file" "$page_count" "$threshold")
-
-    echo "$pages"
-    return 0
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -3544,9 +3524,9 @@ log() {
     local level="$1"
     shift
 
+    # v7.25.0: Support OCTOPUS_DEBUG environment variable
     # Performance: Skip expensive operations for disabled DEBUG logs
-    # Allow DEBUG logs if either VERBOSE or OCTOPUS_DEBUG is enabled
-    [[ "$level" == "DEBUG" && "$VERBOSE" != "true" && "$OCTOPUS_DEBUG" != "1" ]] && return 0
+    [[ "$level" == "DEBUG" && "$VERBOSE" != "true" && "$OCTOPUS_DEBUG" != "true" ]] && return 0
 
     local msg="$*"
     local timestamp
@@ -3583,11 +3563,6 @@ enhanced_error() {
     local context="$2"       # e.g., task_group, agent_type, etc.
     shift 2
     local details=("$@")     # Array of detail strings
-
-    debug_section "Enhanced error triggered"
-    debug_var "error_type"
-    debug_var "context"
-    debug_log "Details: ${details[*]}"
 
     echo ""
     echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
@@ -5104,10 +5079,7 @@ get_cost_tier_value() {
 detect_providers() {
     local result=""
 
-    debug_section "Detecting AI providers"
-
     # Detect Codex CLI
-    debug_log "Checking for Codex CLI..."
     if command -v codex &>/dev/null; then
         local codex_auth="none"
         if [[ -f "$HOME/.codex/auth.json" ]]; then
@@ -5116,13 +5088,9 @@ detect_providers() {
             codex_auth="api-key"
         fi
         result="${result}codex:${codex_auth} "
-        debug_log "✓ Codex CLI found with auth: ${codex_auth}"
-    else
-        debug_log "✗ Codex CLI not found"
     fi
 
     # Detect Gemini CLI
-    debug_log "Checking for Gemini CLI..."
     if command -v gemini &>/dev/null; then
         local gemini_auth="none"
         if [[ -f "$HOME/.gemini/oauth_creds.json" ]]; then
@@ -5131,32 +5099,20 @@ detect_providers() {
             gemini_auth="api-key"
         fi
         result="${result}gemini:${gemini_auth} "
-        debug_log "✓ Gemini CLI found with auth: ${gemini_auth}"
-    else
-        debug_log "✗ Gemini CLI not found"
     fi
 
     # Detect Claude CLI (always available in Claude Code context)
-    debug_log "Checking for Claude CLI..."
     if command -v claude &>/dev/null; then
         result="${result}claude:oauth "
-        debug_log "✓ Claude CLI found"
-    else
-        debug_log "✗ Claude CLI not found"
     fi
 
     # Detect OpenRouter (API key only)
-    debug_log "Checking for OpenRouter API key..."
     if [[ -n "${OPENROUTER_API_KEY:-}" ]]; then
         result="${result}openrouter:api-key "
-        debug_log "✓ OpenRouter API key found"
-    else
-        debug_log "✗ OpenRouter API key not found"
     fi
 
     # Fail gracefully with helpful message if no providers found
     if [[ -z "$result" ]]; then
-        debug_log "No AI providers detected"
         log WARN "No AI providers detected. Install at least one:"
         log WARN "  - Codex: npm i -g @openai/codex"
         log WARN "  - Gemini: npm i -g @google/gemini-cli"
@@ -5166,8 +5122,6 @@ detect_providers() {
         return 1
     fi
 
-    local providers_found="$result"
-    debug_log "Detected providers: ${providers_found}"
     echo "$result" | xargs  # Trim whitespace
 }
 
@@ -7196,6 +7150,69 @@ get_agent_config() {
     ' "$AGENTS_CONFIG"
 }
 
+# v8.2.0: Get agent memory scope from config (project/none)
+get_agent_memory() {
+    local agent_name="$1"
+    local memory
+    memory=$(get_agent_config "$agent_name" "memory")
+    echo "${memory:-none}"
+}
+
+# v8.2.0: Get agent skills list from config
+get_agent_skills() {
+    local agent_name="$1"
+    local skills
+    skills=$(get_agent_config "$agent_name" "skills")
+    echo "${skills:-}"
+}
+
+# v8.2.0: Get agent permission mode from config (plan/acceptEdits/default)
+get_agent_permission_mode() {
+    local agent_name="$1"
+    local mode
+    mode=$(get_agent_config "$agent_name" "permissionMode")
+    echo "${mode:-default}"
+}
+
+# v8.2.0: Load skill file content (strips YAML frontmatter)
+load_agent_skill_content() {
+    local skill_name="$1"
+    local skill_file="${PLUGIN_DIR}/.claude/skills/${skill_name}.md"
+
+    if [[ -f "$skill_file" ]]; then
+        # Extract content after YAML frontmatter
+        awk '
+            BEGIN { in_fm=0; past_fm=0 }
+            /^---$/ && !past_fm { in_fm=!in_fm; if (!in_fm) past_fm=1; next }
+            past_fm { print }
+        ' "$skill_file"
+    fi
+}
+
+# v8.2.0: Build combined skill context for agent prompt injection
+build_skill_context() {
+    local agent_name="$1"
+    local skills
+    skills=$(get_agent_skills "$agent_name")
+
+    [[ -z "$skills" ]] && return
+
+    local context=""
+    for skill in $(echo "$skills" | tr ',' ' '); do
+        skill=$(echo "$skill" | tr -d '[:space:]')
+        local content
+        content=$(load_agent_skill_content "$skill")
+        if [[ -n "$content" ]]; then
+            context+="
+--- Skill: ${skill} ---
+${content}
+"
+        fi
+    done
+
+    echo "$context"
+}
+
 # Load persona content from curated agent file
 # Returns the full markdown content (excluding frontmatter)
 load_curated_persona() {
@@ -7647,6 +7664,10 @@ spawn_agent() {
     local phase="${5:-}"        # Optional phase context
     local use_fork="${6:-false}" # Optional fork context (v2.1.12+)
 
+    # v7.25.0: Debug logging
+    log "DEBUG" "spawn_agent: agent=$agent_type, task_id=$task_id, role=${role:-auto}, phase=${phase:-none}, fork=$use_fork"
+    log "DEBUG" "spawn_agent: prompt_length=${#prompt} chars"
+
     # Fork context support (v2.1.12+)
     if [[ "$use_fork" == "true" ]] && [[ "$SUPPORTS_FORK_CONTEXT" == "true" ]]; then
         log "INFO" "Spawning $agent_type in fork context for isolation"
@@ -7674,6 +7695,24 @@ spawn_agent() {
     local enhanced_prompt
     enhanced_prompt=$(apply_persona "$role" "$prompt")
 
+    # v8.2.0: Load agent skill context if available
+    if [[ "$SUPPORTS_AGENT_TYPE_ROUTING" == "true" ]]; then
+        local curated_agent=""
+        curated_agent=$(select_curated_agent "$prompt" "$phase") || true
+        if [[ -n "$curated_agent" ]]; then
+            local skill_context
+            skill_context=$(build_skill_context "$curated_agent")
+            if [[ -n "$skill_context" ]]; then
+                enhanced_prompt="${skill_context}
+
+---
+
+${enhanced_prompt}"
+                log "DEBUG" "Injected skill context for agent: $curated_agent"
+            fi
+        fi
+    fi
+
     local cmd
     if ! cmd=$(get_agent_command "$agent_type"); then
         log ERROR "Unknown agent type: $agent_type"
@@ -7694,10 +7733,36 @@ spawn_agent() {
     log DEBUG "Command: $cmd"
     log DEBUG "Phase: ${phase:-none}, Role: ${role:-none}"
 
+    # v8.2.0: Log enhanced agent fields
+    if [[ "$SUPPORTS_AGENT_TYPE_ROUTING" == "true" ]]; then
+        local curated_name
+        curated_name=$(select_curated_agent "$prompt" "$phase") || true
+        if [[ -n "$curated_name" ]]; then
+            local agent_mem agent_perm
+            agent_mem=$(get_agent_memory "$curated_name")
+            agent_perm=$(get_agent_permission_mode "$curated_name")
+            log "DEBUG" "Agent fields: memory=$agent_mem, permissionMode=$agent_perm"
+        fi
+    fi
+
     # Record usage (get model from agent type)
     local model
     model=$(get_agent_model "$agent_type")
+    log "DEBUG" "Model selected: $model (from agent_type=$agent_type)"
     record_agent_call "$agent_type" "$model" "$enhanced_prompt" "${phase:-unknown}" "${role:-none}" "0"
+
+    # Record metrics start (v7.25.0)
+    local metrics_id=""
+    if command -v record_agent_start &> /dev/null; then
+        metrics_id=$(record_agent_start "$agent_type" "$model" "$enhanced_prompt" "${phase:-unknown}") || true
+
+        # Store metrics mapping for batch completion recording
+        if [[ -n "$metrics_id" ]]; then
+            local metrics_base="${WORKSPACE_DIR:-${HOME}/.claude-octopus}"
+            local metrics_map="${metrics_base}/.metrics-map"
+            echo "${task_group}-${task_id}:${metrics_id}:${agent_type}:${model}" >> "$metrics_map"
+        fi
+    fi
 
     if [[ "$DRY_RUN" == "true" ]]; then
         log INFO "[DRY-RUN] Would execute: $cmd with role=${role:-none}"
@@ -9805,22 +9870,20 @@ run_agent_sync() {
     enhanced_prompt=$(apply_persona "$role" "$prompt")
 
     log DEBUG "run_agent_sync: agent=$agent_type, role=${role:-none}, phase=${phase:-none}"
-    debug_section "Agent execution"
-    debug_var "agent_type"
-    debug_var "role"
-    debug_var "phase"
-    debug_var "timeout_secs"
-    debug_log "Prompt length: ${#prompt} chars"
 
     # Record usage (get model from agent type)
     local model
     model=$(get_agent_model "$agent_type")
-    debug_var "model"
     record_agent_call "$agent_type" "$model" "$enhanced_prompt" "${phase:-unknown}" "${role:-none}" "0"
+
+    # v7.25.0: Record metrics start
+    local metrics_id=""
+    if command -v record_agent_start &> /dev/null; then
+        metrics_id=$(record_agent_start "$agent_type" "$model" "$enhanced_prompt" "${phase:-unknown}") || true
+    fi
 
     local cmd
     cmd=$(get_agent_command "$agent_type") || return 1
-    debug_log "Command: $cmd"
 
     # SECURITY: Use array-based execution to prevent word-splitting vulnerabilities
     local -a cmd_array
@@ -9831,11 +9894,8 @@ run_agent_sync() {
     local exit_code
     local temp_err="${RESULTS_DIR}/.tmp-agent-error-$$.err"
 
-    debug_log "Executing agent ${agent_type} with timeout ${timeout_secs}s..."
     output=$(run_with_timeout "$timeout_secs" "${cmd_array[@]}" "$enhanced_prompt" 2>"$temp_err")
     exit_code=$?
-    debug_log "Agent ${agent_type} completed with exit code: ${exit_code}"
-    debug_log "Output length: ${#output} chars"
 
     # Check exit code and handle errors
     if [[ $exit_code -ne 0 ]]; then
@@ -9856,6 +9916,12 @@ run_agent_sync() {
     fi
 
     rm -f "$temp_err"
+
+    # v7.25.0: Record metrics completion
+    if [[ -n "$metrics_id" ]] && command -v record_agent_complete &> /dev/null; then
+        record_agent_complete "$metrics_id" "$agent_type" "$model" "$output" "${phase:-unknown}" 2>/dev/null || true
+    fi
+
     echo "$output"
     return 0
 }
@@ -9867,10 +9933,6 @@ probe_discover() {
     local task_group
     task_group=$(date +%s)
 
-    debug_section "Starting PROBE/DISCOVER phase"
-    debug_log "Prompt: $prompt"
-    debug_var "task_group"
-
     echo ""
     echo -e "${MAGENTA}╔═══════════════════════════════════════════════════════════╗${NC}"
     echo -e "${MAGENTA}║  ${GREEN}RESEARCH${MAGENTA} (Phase 1/4) - Parallel Exploration              ║${NC}"
@@ -9879,6 +9941,7 @@ probe_discover() {
     echo ""
 
     log INFO "Phase 1: Parallel exploration with multiple perspectives"
+    log "DEBUG" "probe_discover: task_group=$task_group, results_dir=$RESULTS_DIR"
 
     if [[ "$DRY_RUN" == "true" ]]; then
         log INFO "[DRY-RUN] Would probe: $prompt"
@@ -9983,6 +10046,11 @@ probe_discover() {
     # Cleanup tmux if enabled
     if [[ "$TMUX_MODE" == "true" ]]; then
         tmux_cleanup
+    fi
+
+    # v7.25.0: Record agent completion metrics
+    if command -v record_agents_batch_complete &> /dev/null; then
+        record_agents_batch_complete "probe" "$task_group" 2>/dev/null || true
     fi
 
     # v7.19.0 P0.3: Check agent status and report results
@@ -10370,6 +10438,11 @@ Output as numbered list with [CODING] or [REASONING] prefix for each subtask."
         tmux_cleanup
     fi
 
+    # v7.25.0: Record agent completion metrics
+    if command -v record_agents_batch_complete &> /dev/null; then
+        record_agents_batch_complete "tangle" "$task_group" 2>/dev/null || true
+    fi
+
     # Step 3: Validation gate
     log INFO "Step 3: Validation gate..."
     validate_tangle_results "$task_group" "$prompt"
@@ -10700,6 +10773,12 @@ embrace_full_workflow() {
         echo ""
         probe_discover "$prompt"
         probe_synthesis=$(ls -t "$RESULTS_DIR"/probe-synthesis-*.md 2>/dev/null | head -1)
+
+        # v7.25.0: Display phase metrics
+        if command -v display_phase_metrics &> /dev/null; then
+            display_phase_metrics "probe" 2>/dev/null || true
+        fi
+
         save_session_checkpoint "probe" "completed" "$probe_synthesis"
         handle_autonomy_checkpoint "probe" "completed"
         sleep 1
@@ -10716,6 +10795,12 @@ embrace_full_workflow() {
         echo ""
         grasp_define "$prompt" "$probe_synthesis"
         grasp_consensus=$(ls -t "$RESULTS_DIR"/grasp-consensus-*.md 2>/dev/null | head -1)
+
+        # v7.25.0: Display phase metrics
+        if command -v display_phase_metrics &> /dev/null; then
+            display_phase_metrics "grasp" 2>/dev/null || true
+        fi
+
         save_session_checkpoint "grasp" "completed" "$grasp_consensus"
         handle_autonomy_checkpoint "grasp" "completed"
         sleep 1
@@ -10732,6 +10817,11 @@ embrace_full_workflow() {
         echo ""
         tangle_develop "$prompt" "$grasp_consensus"
         tangle_validation=$(ls -t "$RESULTS_DIR"/tangle-validation-*.md 2>/dev/null | head -1)
+
+        # v7.25.0: Display phase metrics
+        if command -v display_phase_metrics &> /dev/null; then
+            display_phase_metrics "tangle" 2>/dev/null || true
+        fi
 
         # Check quality gate status for autonomy
         local tangle_status="completed"
@@ -10752,6 +10842,12 @@ embrace_full_workflow() {
     echo -e "${CYAN}[4/4] Starting INK phase (Deliver)...${NC}"
     echo ""
     ink_deliver "$prompt" "$tangle_validation"
+
+    # v7.25.0: Display phase metrics
+    if command -v display_phase_metrics &> /dev/null; then
+        display_phase_metrics "ink" 2>/dev/null || true
+    fi
+
     save_session_checkpoint "ink" "completed" "$(ls -t "$RESULTS_DIR"/delivery-*.md 2>/dev/null | head -1)"
 
     # Mark session complete
@@ -10775,6 +10871,12 @@ embrace_full_workflow() {
     [[ -n "$tangle_validation" ]] && echo -e "  Tangle: $tangle_validation"
     echo -e "  Ink:    $(ls -t "$RESULTS_DIR"/delivery-*.md 2>/dev/null | head -1)"
     echo ""
+
+    # v7.25.0: Display session metrics
+    if command -v display_session_metrics &> /dev/null; then
+        display_session_metrics 2>/dev/null || true
+        display_provider_breakdown 2>/dev/null || true
+    fi
 
     # Clean up flag so it doesn't affect subsequent standalone calls
     unset OCTOPUS_SKIP_PHASE_COST_PROMPT
@@ -12258,7 +12360,7 @@ while [[ $# -gt 0 ]]; do
         -p|--parallel) MAX_PARALLEL="$2"; shift 2 ;;
         -t|--timeout) TIMEOUT="$2"; shift 2 ;;
         -v|--verbose) VERBOSE=true; shift ;;
-        --debug) OCTOPUS_DEBUG=1; VERBOSE=true; shift ;;
+        --debug) OCTOPUS_DEBUG=true; VERBOSE=true; shift ;;  # v7.25.0: Debug mode
         -n|--dry-run) DRY_RUN=true; shift ;;
         -d|--dir) PROJECT_ROOT="$2"; shift 2 ;;
         -a|--autonomy) AUTONOMY_MODE="$2"; shift 2 ;;
@@ -12312,13 +12414,6 @@ fi
 COMMAND="${1:-help}"
 shift || true
 
-debug_section "Orchestrate.sh starting"
-debug_var "COMMAND"
-debug_var "OCTOPUS_DEBUG"
-debug_var "WORKSPACE_DIR"
-debug_var "PROJECT_ROOT"
-debug_log "Arguments: $*"
-
 # Check for first-run on commands that need setup (skip for help/setup/preflight)
 if [[ "$COMMAND" != "help" && "$COMMAND" != "setup" && "$COMMAND" != "preflight" && "$COMMAND" != "-h" && "$COMMAND" != "--help" ]]; then
     check_first_run || true  # Show hint but don't block
@@ -12328,6 +12423,7 @@ fi
 # Skip for cost/usage commands that just read existing data
 if [[ "$COMMAND" != "cost" && "$COMMAND" != "usage" && "$COMMAND" != "cost-json" && "$COMMAND" != "cost-csv" && "$COMMAND" != "cost-clear" && "$COMMAND" != "cost-archive" && "$COMMAND" != "help" ]]; then
     init_usage_tracking 2>/dev/null || true
+    init_metrics_tracking 2>/dev/null || true  # v7.25.0: Enhanced metrics
 fi
 
 # Initialize state management (v7.17.0)
