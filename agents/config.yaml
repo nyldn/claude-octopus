@@ -1,9 +1,12 @@
 # Claude Octopus Agent Configuration
 # Maps curated agents to CLI preferences, phases, and complexity tiers
 #
-# CLI Options: codex, codex-max, codex-mini, codex-review, gemini, gemini-fast
+# CLI Options: codex (gpt-5.3-codex), codex-max, codex-mini, codex-review, gemini, gemini-fast, claude-opus
 # Phases: probe (discover), grasp (define), tangle (develop), ink (deliver)
 # Tiers: trivial, standard, premium
+# permissionMode: plan (read-only), acceptEdits (can write), default (standard)
+# memory: project (codebase learning), user (cross-project prefs), local (ephemeral run context)
+# skills: list of skill files to preload into agent context
 
 version: "1.0"
 description: "Curated agent personas from wshobson/agents adapted for Claude Octopus"
@@ -35,6 +38,8 @@ agents:
     phases: [probe, tangle]
     tier: premium
     expertise: [llm-applications, rag-systems, prompt-engineering]
+    memory: local
+    permissionMode: plan
 
   business-analyst:
     file: personas/business-analyst.md
@@ -43,6 +48,8 @@ agents:
     phases: [probe, grasp]
     tier: standard
     expertise: [requirements, metrics, stakeholder-analysis]
+    memory: user
+    permissionMode: plan
 
   # ═══════════════════════════════════════════════════════════════════════════
   # GRASP PHASE AGENTS (Architecture/Design)
@@ -50,42 +57,53 @@ agents:
   backend-architect:
     file: personas/backend-architect.md
     cli: codex
-    model: gpt-5.1-codex-max
+    model: gpt-5.3-codex
     phases: [grasp, tangle]
     tier: premium
     expertise: [api-design, microservices, distributed-systems]
+    memory: project
+    skills: [skill-architecture]
+    permissionMode: plan
 
   frontend-developer:
     file: personas/frontend-developer.md
     cli: codex
-    model: gpt-5.1-codex-max
+    model: gpt-5.3-codex
     phases: [grasp, tangle]
     tier: premium
     expertise: [react, nextjs, state-management, accessibility]
+    memory: project
+    permissionMode: plan
 
   database-architect:
     file: personas/database-architect.md
     cli: codex
-    model: gpt-5.1-codex-max
+    model: gpt-5.3-codex
     phases: [grasp, tangle]
     tier: premium
     expertise: [schema-design, sql, nosql, migrations]
+    memory: project
+    permissionMode: plan
 
   cloud-architect:
     file: personas/cloud-architect.md
     cli: codex
-    model: gpt-5.1-codex-max
+    model: gpt-5.3-codex
     phases: [grasp]
     tier: premium
     expertise: [aws, gcp, azure, infrastructure]
+    memory: local
+    permissionMode: plan
 
   graphql-architect:
     file: personas/graphql-architect.md
     cli: codex
-    model: gpt-5.1-codex-max
+    model: gpt-5.3-codex
     phases: [grasp, tangle]
     tier: premium
     expertise: [graphql, federation, resolvers]
+    memory: local
+    permissionMode: plan
 
   # ═══════════════════════════════════════════════════════════════════════════
   # TANGLE PHASE AGENTS (Development/Implementation)
@@ -93,10 +111,13 @@ agents:
   tdd-orchestrator:
     file: personas/tdd-orchestrator.md
     cli: codex
-    model: gpt-5.1-codex-max
+    model: gpt-5.3-codex
     phases: [tangle]
     tier: premium
     expertise: [test-driven-development, red-green-refactor]
+    memory: local
+    skills: [skill-tdd]
+    permissionMode: acceptEdits
 
   debugger:
     file: personas/debugger.md
@@ -105,6 +126,9 @@ agents:
     phases: [tangle, ink]
     tier: standard
     expertise: [error-analysis, stack-traces, debugging]
+    memory: project
+    skills: [skill-debug]
+    permissionMode: acceptEdits
 
   devops-troubleshooter:
     file: personas/devops-troubleshooter.md
@@ -113,22 +137,28 @@ agents:
     phases: [tangle, ink]
     tier: standard
     expertise: [deployment, logs, infrastructure-debugging]
+    memory: local
+    permissionMode: acceptEdits
 
   python-pro:
     file: personas/python-pro.md
     cli: codex
-    model: gpt-5.1-codex-max
+    model: gpt-5.3-codex
     phases: [tangle]
     tier: premium
     expertise: [python, fastapi, django, async]
+    memory: local
+    permissionMode: acceptEdits
 
   typescript-pro:
     file: personas/typescript-pro.md
     cli: codex
-    model: gpt-5.1-codex-max
+    model: gpt-5.3-codex
     phases: [tangle]
     tier: premium
     expertise: [typescript, node, react, types]
+    memory: local
+    permissionMode: acceptEdits
 
   # ═══════════════════════════════════════════════════════════════════════════
   # INK PHASE AGENTS (Delivery/Review)
@@ -140,6 +170,9 @@ agents:
     phases: [ink]
     tier: premium
     expertise: [code-quality, best-practices, architecture-review]
+    memory: project
+    skills: [skill-code-review]
+    permissionMode: default
 
   security-auditor:
     file: personas/security-auditor.md
@@ -148,6 +181,9 @@ agents:
     phases: [ink]
     tier: premium
     expertise: [owasp, vulnerability-scanning, security-review]
+    memory: project
+    skills: [skill-security-audit]
+    permissionMode: default
 
   test-automator:
     file: personas/test-automator.md
@@ -156,6 +192,8 @@ agents:
     phases: [tangle, ink]
     tier: standard
     expertise: [unit-tests, integration-tests, e2e-tests]
+    memory: local
+    permissionMode: acceptEdits
 
   performance-engineer:
     file: personas/performance-engineer.md
@@ -164,6 +202,8 @@ agents:
     phases: [ink]
     tier: premium
     expertise: [profiling, optimization, benchmarking]
+    memory: project
+    permissionMode: default
 
   deployment-engineer:
     file: personas/deployment-engineer.md
@@ -172,10 +212,35 @@ agents:
     phases: [ink]
     tier: standard
     expertise: [ci-cd, kubernetes, docker, gitops]
+    memory: local
+    permissionMode: default
 
   # ═══════════════════════════════════════════════════════════════════════════
   # ORCHESTRATION/SUPPORTING AGENTS
   # ═══════════════════════════════════════════════════════════════════════════
+  # ═══════════════════════════════════════════════════════════════════════════
+  # CLAUDE OPUS AGENTS (Premium Claude tasks - v8.0)
+  # ═══════════════════════════════════════════════════════════════════════════
+  strategy-analyst:
+    file: personas/strategy-analyst.md
+    cli: claude-opus
+    model: claude-opus-4.6
+    phases: [probe, grasp]
+    tier: premium
+    expertise: [strategic-analysis, market-research, business-strategy]
+    memory: user
+    permissionMode: plan
+
+  research-synthesizer:
+    file: personas/research-synthesizer.md
+    cli: claude-opus
+    model: claude-opus-4.6
+    phases: [probe]
+    tier: premium
+    expertise: [research-synthesis, literature-review, knowledge-integration]
+    memory: user
+    permissionMode: plan
+
   context-manager:
     file: personas/context-manager.md
     cli: gemini-fast
@@ -183,6 +248,8 @@ agents:
     phases: [probe, grasp, tangle, ink]
     tier: standard
     expertise: [context-management, multi-agent-coordination]
+    memory: project
+    permissionMode: plan
 
   docs-architect:
     file: personas/docs-architect.md
@@ -191,14 +258,19 @@ agents:
     phases: [ink]
     tier: standard
     expertise: [documentation, technical-writing]
+    memory: local
+    skills: [skill-doc-delivery]
+    permissionMode: default
 
   incident-responder:
     file: personas/incident-responder.md
     cli: codex
-    model: gpt-5.1-codex-max
+    model: gpt-5.3-codex
     phases: [tangle, ink]
     tier: premium
     expertise: [incident-management, runbooks, postmortems]
+    memory: local
+    permissionMode: acceptEdits
 
   mermaid-expert:
     file: personas/mermaid-expert.md
@@ -207,6 +279,8 @@ agents:
     phases: [grasp, ink]
     tier: trivial
     expertise: [diagrams, flowcharts, sequence-diagrams]
+    memory: local
+    permissionMode: plan
 
 # ═══════════════════════════════════════════════════════════════════════════
 # RALPH-WIGGUM INTEGRATION (Iterative Loop Support)

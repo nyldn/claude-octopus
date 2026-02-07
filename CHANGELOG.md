@@ -2,6 +2,198 @@
 
 All notable changes to Claude Octopus will be documented in this file.
 
+## [8.3.0] - 2026-02-06
+
+### Added
+
+**Claude Code v2.1.34 Integration** - Event-driven workflows, native metrics, and Workflow-as-Code:
+
+- **v2.1.34 feature detection** in orchestrate.sh
+  - `SUPPORTS_STABLE_AGENT_TEAMS` flag - Stable Agent Teams (crash fix in v2.1.34)
+  - `SUPPORTS_AGENT_MEMORY` flag - Memory frontmatter scope (v2.1.33+)
+  - Version detection log line shows both new capability flags
+
+- **TeammateIdle hook** (`hooks/teammate-idle-hook.md` + `hooks/teammate-idle-dispatch.sh`)
+  - Reactive agent scheduling - assigns queued tasks to idle agents
+  - Reads `~/.claude-octopus/session.json` for agent queue state
+  - Writes idle event metrics to `~/.claude-octopus/metrics/idle-events.jsonl`
+
+- **TaskCompleted hook** (`hooks/task-completed-hook.md` + `hooks/task-completed-transition.sh`)
+  - Automatic phase transitions (probe → grasp → tangle → ink → complete)
+  - Supports supervised/semi-autonomous/autonomous autonomy modes
+  - Records completion metrics to `~/.claude-octopus/metrics/completion-events.jsonl`
+  - Writes phase completion records to results directory
+
+- **Memory frontmatter** on all 29 agent personas
+  - `project` scope (8 agents): backend-architect, code-reviewer, database-architect, debugger, frontend-developer, security-auditor, context-manager, performance-engineer
+  - `user` scope (9 agents): strategy-analyst, thought-partner, product-writer, exec-communicator, ux-researcher, business-analyst, academic-writer, content-analyst, research-synthesizer
+  - `local` scope (12 agents): ai-engineer, cloud-architect, graphql-architect, devops-troubleshooter, test-automator, deployment-engineer, mermaid-expert, docs-architect, incident-responder, python-pro, typescript-pro, tdd-orchestrator
+
+- **Task(agent_type) restrictions** on 10 persona frontmatter `tools` fields
+  - Governs which sub-agents each persona can spawn
+  - Examples: code-reviewer can spawn security-auditor and performance-engineer; tdd-orchestrator can spawn code-reviewer
+
+- **Native Task metrics integration** in metrics-tracker.sh
+  - Accepts `token_count`, `tool_uses`, `duration_ms` from Claude Code v2.1.30+ Task tool
+  - Falls back to character-based estimation when native metrics unavailable
+  - Tracks `metrics_source: "native" | "estimated"` per phase entry
+  - Displays native vs estimated tokens side-by-side when available
+
+- **Workflow-as-Code schema** (`workflows/schema.yaml` + `workflows/embrace.yaml`)
+  - Declarative YAML for defining multi-agent workflows
+  - Phase definitions with agent configs, transitions, and quality gates
+  - Support for `auto`, `approval`, `quality_gate`, and `event` transition types
+  - embrace.yaml codifies the full Double Diamond 4-phase workflow
+
+- **Event-driven phase transitions** in `embrace_full_workflow()`
+  - Exports `OCTOPUS_WORKFLOW_PHASE`, `OCTOPUS_WORKFLOW_TYPE`, `OCTOPUS_TASK_GROUP`
+  - Writes `~/.claude-octopus/session.json` at each phase boundary
+  - Phase map in session state for hooks to read
+  - Clean env var cleanup on workflow completion
+
+- **Debate skill v5.0** - Agent Teams collaboration
+  - `--advisors` flag now accepts persona names (e.g., `security-auditor,performance-engineer`)
+  - Personas participate via `Task(octo:personas:*)` - stateless, no session resume needed
+  - state.json schema v7 with `type: "agent_team"` participant entries
+  - N-way debate support (beyond 3-way)
+
+- **GPT-5.3-Codex upgrade** - Premium Codex model updated from gpt-5.1-codex-max to gpt-5.3-codex
+  - 25% faster execution, high-capability designation (cybersecurity-trained)
+  - New SWE-Bench Pro and Terminal-Bench leader
+  - `codex exec --model gpt-5.3-codex` passed explicitly for premium/max tiers
+  - Updated pricing: $4.00/$16.00 per MTok (input/output)
+  - Updated across: orchestrate.sh, config.yaml, metrics-tracker.sh, provider docs, skill files
+
+### Changed
+
+- **agents/config.yaml** - Added `memory:` field to all agent entries + model upgraded to gpt-5.3-codex
+- **metrics-tracker.sh** - Version bumped to v8.3.0, updated session JSON schema with native metric fields, added gpt-5.3-codex pricing
+- **hooks.json** - Added `TeammateIdle` and `TaskCompleted` event handlers
+- **orchestrate.sh** - Default codex model now gpt-5.3-codex, role mappings updated, help text updated
+- **config/providers/codex/CLAUDE.md** - Updated CLI examples and cost estimates for GPT-5.3-Codex
+- Version bump: 8.2.0 → 8.3.0
+
+## [8.2.0] - 2026-02-06
+
+### Added
+
+- **Agent persona enhanced fields** - memory, skills, permissionMode in agents/config.yaml for all 23 agents
+- **Skills preloading** in spawn_agent() with 5 new helper functions
+- **README.md rewrite** - 715 → 335 lines, corrected command count (32), updated install instructions
+
+## [8.1.0] - 2026-02-05
+
+### Added
+
+- **Claude Code v2.1.33 feature detection** - Three new flags: `SUPPORTS_PERSISTENT_MEMORY`, `SUPPORTS_HOOK_EVENTS`, `SUPPORTS_AGENT_TYPE_ROUTING`
+- **Complexity-based Claude agent routing** - Complexity=3 tasks routed to claude-opus (Opus 4.6)
+- **Grasp/ink phase upgrades** - Strategist role when agent type routing is available
+
+## [8.0.0] - 2026-02-05
+
+### Added
+
+**Opus 4.6 & Claude Code 2.1.32 Integration** - Major release leveraging latest Claude capabilities:
+
+- **Claude Opus 4.6 agent type** (`claude-opus`) for premium synthesis and strategic analysis
+  - New `get_agent_command`/`get_agent_command_array` entries for `claude --print -m opus`
+  - Model pricing: $5.00/$25.00 per MTok (input/output)
+  - OpenRouter routing updated to `anthropic/claude-opus-4-6` for complexity level 3
+
+- **Claude Code v2.1.32 feature flags**
+  - `SUPPORTS_AGENT_TEAMS` - Detects Agent Teams availability
+  - `SUPPORTS_AUTO_MEMORY` - Detects auto memory support
+  - `AGENT_TEAMS_ENABLED` - Reads `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` env var
+  - Provider status display shows Agent Teams indicator when available
+
+- **New agent personas** in `agents/config.yaml`
+  - `strategy-analyst` (claude-opus) - Strategic analysis and market research
+  - `research-synthesizer` (claude-opus) - Research synthesis and literature review
+
+- **Role mapping updates**
+  - `strategist` role maps to `claude-opus` for premium synthesis tasks
+  - `synthesizer` role upgraded from `gemini-fast` to `claude` for better quality
+
+- **Auto Memory guidance** in CLAUDE.md for persisting user preferences across sessions
+
+### Changed
+
+- **Skill description compression** - All 43 skill descriptions reduced to single-line (<120 chars) to fit within 2% context budget (~4,000 tokens)
+- **Cost banner** dynamically shows "Opus 4.6" or "Sonnet 4.5" based on workflow agents
+- **metrics-tracker.sh** updated with `claude-opus-4-6` pricing ($5.00/MTok)
+- **model-config.md** updated with Opus 4.6 as premium option, Opus 4.5 marked legacy
+- **Provider CLAUDE.md** documents Opus 4.6 vs Sonnet 4.5 routing guidance
+- Version bump: 7.25.1 → 8.0.0
+
+## [7.24.0] - 2026-02-03
+
+### Added
+
+**Enhanced Multi-AI Orchestration** - Four major features for improved developer experience:
+
+- **Smart Router** (`/octo`) - Single entry point with natural language intent detection
+  - Analyzes keywords and context to route to optimal workflow
+  - Confidence scoring (>80% auto-route, 70-80% confirm, <70% clarify)
+  - Routes to: discover, develop, plan, validate, debate, embrace
+  - Supports all 6 workflow types with intelligent fallbacks
+  - Issue: #13
+
+- **Model Configuration** - Runtime model selection for cost/performance optimization
+  - 4-tier precedence: env vars > overrides > config > defaults
+  - `/octo:model-config` command for easy management
+  - `OCTOPUS_CODEX_MODEL` and `OCTOPUS_GEMINI_MODEL` environment variables
+  - Persistent configuration in `~/.claude-octopus/config/providers.json`
+  - Per-project or per-session model customization
+  - Issue: #16
+
+- **Validation Workflow** - Comprehensive quality assurance with multi-AI debate
+  - 5-step workflow: Scope Analysis → Multi-AI Debate → Quality Scoring → Issue Extraction → Report Generation
+  - 4-dimensional scoring: Code Quality (25%), Security (35%), Best Practices (20%), Completeness (20%)
+  - Pass threshold: 75/100
+  - Automated issue categorization (Critical, High, Medium, Low)
+  - Generates `VALIDATION_REPORT.md` and `ISSUES.md`
+  - Interactive questions for validation priorities and triggers
+  - Issue: #14
+
+- **Z-index Detection** - Browser-based layer analysis for design system extraction
+  - Step 4.5 added to `/octo:extract` workflow
+  - Detects all elements with explicit z-index and positioning
+  - Identifies stacking contexts and conflicts
+  - Generates layer hierarchy table and stacking context tree
+  - Recommendations for z-index management
+  - Graceful degradation when browser MCP unavailable
+  - Issue: #15
+
+### Changed
+
+- Updated plugin count: 30 → 31 commands (added `/octo`, `/octo:model-config`)
+- Updated skill count: 42 → 43 skills (added `skill-validate.md`)
+- Enhanced extract workflow with optional z-index analysis
+- Improved visual indicators for all multi-AI workflows
+
+### Fixed
+
+- N/A (no bug fixes in this release)
+
+### Dependencies
+
+- Browser MCP (optional): Required for z-index detection in extract workflow
+- jq: Required for model configuration management
+
+### Test Coverage
+
+- Phase 1 (Model Configuration): 10 tests
+- Phase 2 (Smart Router): 20 tests
+- Phase 3 (Validation Workflow): 26 tests
+- Phase 4 (Z-index Detection): 27 tests
+- **Total**: 83 tests passing
+
+### Breaking Changes
+
+- None - Full backward compatibility with v7.23.0
+
+---
+
 ## [7.23.0] - 2026-02-03
 
 ### Added
