@@ -1,10 +1,6 @@
 ---
 name: skill-intent-contract
-description: |
-  Persistent intent contract system that captures user goals, success criteria,
-  and constraints at the start of workflows and validates outputs against them.
-
-  Automatically invoked by workflows to create closed-loop accountability.
+description: Capture user goals and validate outputs against them
 ---
 
 # Intent Contract System

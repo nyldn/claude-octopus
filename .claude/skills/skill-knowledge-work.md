@@ -1,17 +1,6 @@
 ---
 name: skill-knowledge-work
-description: |
-  Override context auto-detection when it gets the wrong mode (Dev vs Knowledge).
-  
-  Use PROACTIVELY when user says:
-  - "switch to knowledge mode", "switch to dev mode"
-  - "force knowledge context", "force dev context"
-  - "this is research not code", "this is code not research"
-  - "toggle knowledge mode", "km on", "km off"
-  
-  PRIORITY TRIGGERS: "octo:km", "knowledge mode", "switch mode"
-  
-  Usually NOT needed - context is auto-detected. Only use when auto-detection fails.
+description: "Override context auto-detection (Dev vs Knowledge mode)"
 triggerPatterns:
   - "switch.*mode"
   - "knowledge.*mode"

@@ -3,15 +3,7 @@ name: sys-configure
 aliases:
   - config
   - configure
-description: |
-  Configure Claude Octopus providers, API keys, and preferences.
-  
-  Use PROACTIVELY when user says:
-  - "configure octopus", "setup octopus", "octo setup"
-  - "configure providers", "set up API keys"
-  - "octopus configuration", "configure CLI providers"
-  
-  PRIORITY TRIGGERS: "octo:setup", "configure octopus", "setup providers"
+description: Configure Claude Octopus providers and preferences
 trigger: |
   Use this skill when the user wants to "configure Claude Octopus", "setup octopus",
   "configure providers", "set up API keys for octopus", or mentions octopus configuration.

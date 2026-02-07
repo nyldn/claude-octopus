@@ -3,16 +3,7 @@ name: skill-issues
 aliases:
   - issues
   - issue-tracking
-description: |
-  Track and manage project issues across sessions with persistent storage.
-  Handles issue creation, resolution, and status tracking in .octo/ISSUES.md.
-  
-  Use PROACTIVELY when user mentions:
-  - "issue" or "issues" or "problem"
-  - "track this" or "remember this blocker"
-  - "add issue" or "create issue"
-  - "resolve issue" or "close issue"
-  - "show issues" or "list issues"
+description: Track and manage project issues across sessions
 trigger: |
   AUTOMATICALLY ACTIVATE when user mentions:
   - "issue" or "issues" or "problem"

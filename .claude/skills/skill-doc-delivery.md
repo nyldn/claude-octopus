@@ -4,18 +4,7 @@ aliases:
   - docs
   - document-delivery
   - doc-delivery
-description: |
-  Convert markdown to professional office documents (DOCX, PPTX, XLSX).
-  
-  Use PROACTIVELY when user says:
-  - "export to Word", "create PowerPoint", "convert to DOCX"
-  - "create presentation from this", "make this a deck"
-  - "export to Excel", "generate spreadsheet"
-  - "professional document", "business case document"
-  
-  PRIORITY TRIGGERS: "octo docs", "export to", "create presentation"
-  
-  DO NOT use for: markdown editing (edit directly), PDF generation, web publishing.
+description: Convert markdown to DOCX, PPTX, XLSX office documents
 trigger: |
   AUTOMATICALLY ACTIVATE when user requests:
   - Export knowledge work to office formats (e.g., "export to Word", "create PowerPoint", "convert to DOCX")

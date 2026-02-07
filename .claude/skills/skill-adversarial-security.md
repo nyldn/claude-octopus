@@ -1,9 +1,6 @@
 ---
 name: octopus-security
-description: |
-  Adversarial security testing using Claude Octopus squeeze workflow.
-  Auto-invokes for security audits, penetration testing, and vulnerability scanning.
-  Blue team → Red team → Remediation → Validation cycle.
+description: Adversarial red team security testing with blue/red team cycle
 trigger: |
   Use this skill when the user says "security audit this code", "find vulnerabilities in X",
   "red team review", "pentest this API", or "check for OWASP issues".
