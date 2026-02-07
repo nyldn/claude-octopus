@@ -2,44 +2,92 @@
 
 All notable changes to Claude Octopus will be documented in this file.
 
+## [8.3.0] - 2026-02-06
+
+### Added
+
+**Claude Code v2.1.34 Integration** - Event-driven workflows, native metrics, and Workflow-as-Code:
+
+- **v2.1.34 feature detection** in orchestrate.sh
+  - `SUPPORTS_STABLE_AGENT_TEAMS` flag - Stable Agent Teams (crash fix in v2.1.34)
+  - `SUPPORTS_AGENT_MEMORY` flag - Memory frontmatter scope (v2.1.33+)
+  - Version detection log line shows both new capability flags
+
+- **TeammateIdle hook** (`hooks/teammate-idle-hook.md` + `hooks/teammate-idle-dispatch.sh`)
+  - Reactive agent scheduling - assigns queued tasks to idle agents
+  - Reads `~/.claude-octopus/session.json` for agent queue state
+  - Writes idle event metrics to `~/.claude-octopus/metrics/idle-events.jsonl`
+
+- **TaskCompleted hook** (`hooks/task-completed-hook.md` + `hooks/task-completed-transition.sh`)
+  - Automatic phase transitions (probe → grasp → tangle → ink → complete)
+  - Supports supervised/semi-autonomous/autonomous autonomy modes
+  - Records completion metrics to `~/.claude-octopus/metrics/completion-events.jsonl`
+  - Writes phase completion records to results directory
+
+- **Memory frontmatter** on all 29 agent personas
+  - `project` scope (8 agents): backend-architect, code-reviewer, database-architect, debugger, frontend-developer, security-auditor, context-manager, performance-engineer
+  - `user` scope (9 agents): strategy-analyst, thought-partner, product-writer, exec-communicator, ux-researcher, business-analyst, academic-writer, content-analyst, research-synthesizer
+  - `local` scope (12 agents): ai-engineer, cloud-architect, graphql-architect, devops-troubleshooter, test-automator, deployment-engineer, mermaid-expert, docs-architect, incident-responder, python-pro, typescript-pro, tdd-orchestrator
+
+- **Task(agent_type) restrictions** on 10 persona frontmatter `tools` fields
+  - Governs which sub-agents each persona can spawn
+  - Examples: code-reviewer can spawn security-auditor and performance-engineer; tdd-orchestrator can spawn code-reviewer
+
+- **Native Task metrics integration** in metrics-tracker.sh
+  - Accepts `token_count`, `tool_uses`, `duration_ms` from Claude Code v2.1.30+ Task tool
+  - Falls back to character-based estimation when native metrics unavailable
+  - Tracks `metrics_source: "native" | "estimated"` per phase entry
+  - Displays native vs estimated tokens side-by-side when available
+
+- **Workflow-as-Code schema** (`workflows/schema.yaml` + `workflows/embrace.yaml`)
+  - Declarative YAML for defining multi-agent workflows
+  - Phase definitions with agent configs, transitions, and quality gates
+  - Support for `auto`, `approval`, `quality_gate`, and `event` transition types
+  - embrace.yaml codifies the full Double Diamond 4-phase workflow
+
+- **Event-driven phase transitions** in `embrace_full_workflow()`
+  - Exports `OCTOPUS_WORKFLOW_PHASE`, `OCTOPUS_WORKFLOW_TYPE`, `OCTOPUS_TASK_GROUP`
+  - Writes `~/.claude-octopus/session.json` at each phase boundary
+  - Phase map in session state for hooks to read
+  - Clean env var cleanup on workflow completion
+
+- **Debate skill v5.0** - Agent Teams collaboration
+  - `--advisors` flag now accepts persona names (e.g., `security-auditor,performance-engineer`)
+  - Personas participate via `Task(octo:personas:*)` - stateless, no session resume needed
+  - state.json schema v7 with `type: "agent_team"` participant entries
+  - N-way debate support (beyond 3-way)
+
+- **GPT-5.3-Codex upgrade** - Premium Codex model updated from gpt-5.1-codex-max to gpt-5.3-codex
+  - 25% faster execution, high-capability designation (cybersecurity-trained)
+  - New SWE-Bench Pro and Terminal-Bench leader
+  - `codex exec --model gpt-5.3-codex` passed explicitly for premium/max tiers
+  - Updated pricing: $4.00/$16.00 per MTok (input/output)
+  - Updated across: orchestrate.sh, config.yaml, metrics-tracker.sh, provider docs, skill files
+
+### Changed
+
+- **agents/config.yaml** - Added `memory:` field to all agent entries + model upgraded to gpt-5.3-codex
+- **metrics-tracker.sh** - Version bumped to v8.3.0, updated session JSON schema with native metric fields, added gpt-5.3-codex pricing
+- **hooks.json** - Added `TeammateIdle` and `TaskCompleted` event handlers
+- **orchestrate.sh** - Default codex model now gpt-5.3-codex, role mappings updated, help text updated
+- **config/providers/codex/CLAUDE.md** - Updated CLI examples and cost estimates for GPT-5.3-Codex
+- Version bump: 8.2.0 → 8.3.0
+
 ## [8.2.0] - 2026-02-06
 
 ### Added
 
-**Agent Persona Enhanced Fields** - Three new config.yaml fields per agent:
-- `memory` - Scope for persistent agent memory (project/none)
-- `skills` - Skill files to preload into agent context
-- `permissionMode` - Permission mode (plan/acceptEdits/default)
-
-**Skills Preloading in spawn_agent()** - Automatic skill injection:
-- Loads skill file content and prepends to agent prompts
-- 6 agents mapped to matching skills (code-reviewer, security-auditor, debugger, backend-architect, tdd-orchestrator, docs-architect)
-- Feature-gated behind `SUPPORTS_AGENT_TYPE_ROUTING`
-
-**New Helper Functions:**
-- `get_agent_memory()` - Read memory scope from config
-- `get_agent_skills()` - Read skill list from config
-- `get_agent_permission_mode()` - Read permission mode from config
-- `load_agent_skill_content()` - Extract skill file content (strips frontmatter)
-- `build_skill_context()` - Build combined skill context for injection
+- **Agent persona enhanced fields** - memory, skills, permissionMode in agents/config.yaml for all 23 agents
+- **Skills preloading** in spawn_agent() with 5 new helper functions
+- **README.md rewrite** - 715 → 335 lines, corrected command count (32), updated install instructions
 
 ## [8.1.0] - 2026-02-05
 
 ### Added
 
-**Claude Code v2.1.33 Feature Detection** - Three new feature flags:
-- `SUPPORTS_PERSISTENT_MEMORY` - Persistent memory support detection
-- `SUPPORTS_HOOK_EVENTS` - Hook event system detection
-- `SUPPORTS_AGENT_TYPE_ROUTING` - Agent type routing detection
-
-**Complexity-Based Claude Agent Routing** - Smarter model selection:
-- complexity=3 routes to `claude-opus` (Opus 4.6) in `get_tiered_agent_v2()`
-- `grasp` phase upgrades to `strategist` role (Opus 4.6) when routing available
-- `ink` phase upgrades to `strategist` role (Opus 4.6) when routing available
-- Feature-gated behind `SUPPORTS_AGENT_TYPE_ROUTING` with graceful fallback
-
-### Fixed
-- `is_agent_available_v2()` now explicitly handles `claude-opus` agent type
+- **Claude Code v2.1.33 feature detection** - Three new flags: `SUPPORTS_PERSISTENT_MEMORY`, `SUPPORTS_HOOK_EVENTS`, `SUPPORTS_AGENT_TYPE_ROUTING`
+- **Complexity-based Claude agent routing** - Complexity=3 tasks routed to claude-opus (Opus 4.6)
+- **Grasp/ink phase upgrades** - Strategist role when agent type routing is available
 
 ## [8.0.0] - 2026-02-05
 

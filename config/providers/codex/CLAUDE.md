@@ -14,11 +14,11 @@ This file contains Codex-specific instructions for Claude Octopus workflows.
 ### Invoking Codex
 
 ```bash
-# Basic query
+# Basic query (uses CLI default model)
 codex "your question here"
 
-# With specific model
-codex -m gpt-4 "your question here"
+# With GPT-5.3-Codex (premium, high-capability)
+codex --model gpt-5.3-codex "your question here"
 
 # Reading from stdin
 echo "your question" | codex
@@ -44,10 +44,10 @@ Use Codex for:
 
 ### Cost Considerations
 
-- Codex uses GPT-4 based models
-- Estimated cost: ~$0.01-0.05 per query
+- Codex uses GPT-5.3-Codex (high-capability model, $4.00/$16.00 per MTok input/output)
+- Estimated cost: ~$0.02-0.10 per query
 - Cost depends on input/output token count
-- Uses your personal OPENAI_API_KEY
+- Uses your personal OPENAI_API_KEY (or OAuth via `codex auth`)
 
 ## Security
 

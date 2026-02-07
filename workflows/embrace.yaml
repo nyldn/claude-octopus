@@ -1,0 +1,246 @@
+# Embrace Workflow - Full Double Diamond
+# Workflow-as-Code definition for the complete 4-phase cycle
+# Schema: workflows/schema.yaml v1.0
+
+name: embrace
+description: "Full Double Diamond workflow: Research -> Define -> Develop -> Deliver"
+version: "1.0.0"
+
+autonomy_modes:
+  supervised:
+    description: "Review and approve after each phase"
+    transition_type: approval
+  semi_autonomous:
+    description: "Auto-proceed unless quality gate fails"
+    transition_type: quality_gate
+  autonomous:
+    description: "Run all 4 phases without intervention"
+    transition_type: auto
+
+providers:
+  codex:
+    indicator: "🔴"
+    cost_source: "OPENAI_API_KEY"
+    detection: "command -v codex"
+    optional: true
+  gemini:
+    indicator: "🟡"
+    cost_source: "GEMINI_API_KEY"
+    detection: "command -v gemini"
+    optional: true
+  claude:
+    indicator: "🔵"
+    cost_source: "included"
+    detection: "always"
+    optional: false
+
+phases:
+  - name: probe
+    alias: discover
+    description: "Multi-provider research and exploration"
+    emoji: "🔍"
+    timeout_seconds: 600
+    agents:
+      - provider: codex
+        role: "Technical implementation analysis"
+        parallel: true
+        prompt_template: |
+          Research the following topic from a technical implementation perspective.
+          Focus on code patterns, libraries, architecture decisions, and trade-offs.
+          Topic: {{prompt}}
+      - provider: gemini
+        role: "Ecosystem and community research"
+        parallel: true
+        prompt_template: |
+          Research the following topic from an ecosystem and community perspective.
+          Focus on best practices, industry trends, community solutions, and alternatives.
+          Topic: {{prompt}}
+      - provider: claude
+        role: "Strategic synthesis and gap analysis"
+        parallel: true
+        task_type: "Task(Explore)"
+        memory_scope: project
+        prompt_template: |
+          Analyze the current codebase for relevant context on: {{prompt}}
+          Identify existing patterns, gaps, and integration points.
+    transition:
+      type: auto
+      next: grasp
+      on_failure: halt
+    quality_gate:
+      threshold: 0.5
+      checks:
+        - "At least 2 providers returned results"
+        - "Results contain actionable findings"
+    outputs:
+      - "probe-synthesis-{{task_group}}.md"
+      - "probe-codex-{{task_group}}.md"
+      - "probe-gemini-{{task_group}}.md"
+
+  - name: grasp
+    alias: define
+    description: "Consensus building and requirements definition"
+    emoji: "🎯"
+    timeout_seconds: 600
+    agents:
+      - provider: claude
+        role: "Synthesize research into actionable requirements"
+        parallel: false
+        memory_scope: project
+        prompt_template: |
+          Based on the research from the discover phase:
+
+          {{probe_synthesis}}
+
+          Create a consensus definition that includes:
+          1. Problem statement (validated by multiple sources)
+          2. Agreed approach (where providers converge)
+          3. Open questions (where providers diverge)
+          4. Requirements list (prioritized P0/P1/P2)
+          5. Success criteria (measurable outcomes)
+    transition:
+      type: auto
+      next: tangle
+      on_failure: halt
+    quality_gate:
+      threshold: 0.75
+      checks:
+        - "Requirements are clearly defined"
+        - "Success criteria are measurable"
+        - "Provider consensus >= 75%"
+    outputs:
+      - "grasp-consensus-{{task_group}}.md"
+
+  - name: tangle
+    alias: develop
+    description: "Multi-AI implementation with quality gates"
+    emoji: "🛠️"
+    timeout_seconds: 900
+    agents:
+      - provider: codex
+        role: "Code generation and patterns"
+        parallel: true
+        prompt_template: |
+          Implement the following requirements:
+          {{grasp_consensus}}
+
+          Generate production-ready code following the established patterns.
+      - provider: gemini
+        role: "Alternative approaches and edge cases"
+        parallel: true
+        prompt_template: |
+          Review the following requirements and suggest:
+          1. Alternative implementation approaches
+          2. Edge cases to handle
+          3. Security considerations
+          4. Performance optimizations
+
+          Requirements: {{grasp_consensus}}
+      - provider: claude
+        role: "Integration, quality gates, and implementation"
+        parallel: false
+        task_type: "Task(octo:personas:code-reviewer)"
+        memory_scope: project
+        prompt_template: |
+          Implement the solution based on:
+          - Requirements: {{grasp_consensus}}
+          - Codex patterns: {{tangle_codex}}
+          - Gemini review: {{tangle_gemini}}
+
+          Apply quality gates: security, performance, best practices.
+    transition:
+      type: quality_gate
+      next: ink
+      on_failure: retry
+    quality_gate:
+      threshold: 0.75
+      checks:
+        - "Code passes quality review"
+        - "Security checks pass"
+        - "No critical issues found"
+        - "Best practices followed"
+    outputs:
+      - "tangle-validation-{{task_group}}.md"
+      - "tangle-implementation-{{task_group}}.md"
+
+  - name: ink
+    alias: deliver
+    description: "Final validation, review, and delivery"
+    emoji: "✅"
+    timeout_seconds: 600
+    agents:
+      - provider: codex
+        role: "Code quality analysis"
+        parallel: true
+        prompt_template: |
+          Review the implementation for quality:
+          {{tangle_implementation}}
+
+          Check: code style, patterns, documentation, test coverage.
+      - provider: gemini
+        role: "Security and edge case review"
+        parallel: true
+        prompt_template: |
+          Security and edge case review of:
+          {{tangle_implementation}}
+
+          Check: OWASP top 10, input validation, error handling, edge cases.
+      - provider: claude
+        role: "Final synthesis and recommendations"
+        parallel: false
+        memory_scope: project
+        prompt_template: |
+          Final delivery review combining:
+          - Implementation: {{tangle_implementation}}
+          - Quality review: {{ink_codex}}
+          - Security review: {{ink_gemini}}
+
+          Produce final delivery report with:
+          1. Summary of what was built
+          2. Quality assessment
+          3. Known limitations
+          4. Recommendations for next steps
+    transition:
+      type: auto
+      next: complete
+      on_failure: halt
+      event: TaskCompleted
+    quality_gate:
+      threshold: 0.80
+      checks:
+        - "All quality checks pass"
+        - "No critical security issues"
+        - "Documentation is complete"
+    outputs:
+      - "delivery-{{task_group}}.md"
+
+quality_gates:
+  consensus:
+    description: "Multi-provider agreement threshold"
+    threshold: 0.75
+    on_failure: escalate
+  security:
+    description: "Security validation"
+    threshold: 1.0
+    checks:
+      - "No hardcoded secrets"
+      - "Input validation present"
+      - "OWASP top 10 addressed"
+    on_failure: halt
+  best_practices:
+    description: "Code quality standards"
+    threshold: 0.80
+    checks:
+      - "Follows project conventions"
+      - "Error handling complete"
+      - "No performance anti-patterns"
+    on_failure: retry
+
+metadata:
+  created: "2026-02-06"
+  min_claude_code_version: "2.1.33"
+  features_required:
+    - "TeammateIdle"
+    - "TaskCompleted"
+    - "agent_memory"
+    - "task_agent_type"

@@ -2,6 +2,8 @@
 name: tdd-orchestrator
 description: Master TDD orchestrator specializing in red-green-refactor discipline, multi-agent workflow coordination, and comprehensive test-driven development practices. Enforces TDD best practices across teams with AI-assisted testing and modern frameworks. Use PROACTIVELY for TDD implementation and governance.
 model: opus
+memory: local
+tools: ["Read", "Write", "Edit", "Glob", "Grep", "Bash", "Task(Bash)", "Task(octo:personas:code-reviewer)"]
 when_to_use: |
   - Building new features with test-first approach
   - Comprehensive test coverage for complex logic

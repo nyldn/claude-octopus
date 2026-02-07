@@ -1,5 +1,5 @@
 ---
-command: model-config
+name: model-config
 description: Configure AI provider models for Claude Octopus workflows
 version: 1.0.0
 category: configuration
@@ -51,7 +51,7 @@ Models are selected using 4-tier precedence:
    - Stored in `~/.claude-octopus/config/providers.json` → `providers`
 
 4. **Hard-coded defaults** (lowest priority)
-   - Codex: `gpt-5.1-codex-max`
+   - Codex: `gpt-5.3-codex`
    - Gemini: `gemini-3-pro-preview`
 
 ## Supported Models
@@ -61,7 +61,7 @@ Models are selected using 4-tier precedence:
 - `claude-opus-4-6` - Maximum capability (premium)
 - `claude-opus-4-5` - Legacy (replaced by claude-opus-4-6)
 - `gpt-5.2-codex` - OpenAI's code-optimized model
-- `gpt-5.1-codex-max` - Maximum context window
+- `gpt-5.3-codex` - Maximum context window
 
 ### Gemini (Google)
 - `gemini-2.0-flash-thinking-exp-01-21` - Fast with reasoning (default)
