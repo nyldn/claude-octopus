@@ -12,7 +12,7 @@
       "name": "claude-octopus",
       "source": "./",
       "description": "v8.2.0 - Agent persona enhanced fields, skills preloading. v2.1.33 feature detection, complexity-based Claude agent routing. Opus 4.6 model support, Agent Teams detection, auto memory guidance, skill description compression. Task metrics, debug mode, PDF page selection. Native Integration: TaskCreate/TaskUpdate, hybrid plan mode, state persistence. Project Lifecycle: .octo/ state management. 29 personas, 30 commands, 43 skills. Run /octo:setup.",
-      "version": "8.2.0",
+      "version": "8.3.0",
       "author": {
         "name": "nyldn"
       },
