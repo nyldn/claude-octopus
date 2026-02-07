@@ -138,22 +138,22 @@ Automated validation ensures extraction quality:
 
 ### Basic Extraction
 ```bash
-/co:extract ./my-app
+/octo:extract ./my-app
 ```
 
 ### Design-Only Extraction
 ```bash
-/co:extract ./my-app --mode design --storybook true
+/octo:extract ./my-app --mode design --storybook true
 ```
 
 ### Deep Analysis with Multi-AI
 ```bash
-/co:extract ./my-app --depth deep --multi-ai force
+/octo:extract ./my-app --depth deep --multi-ai force
 ```
 
 ### URL Extraction
 ```bash
-/co:extract https://example.com --mode design --depth quick
+/octo:extract https://example.com --mode design --depth quick
 ```
 
 ## Integration with Other Skills

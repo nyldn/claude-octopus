@@ -54,26 +54,92 @@ run_test_suite() {
 # Make all test scripts executable
 chmod +x "$SCRIPT_DIR"/*.sh
 
-# Run all test suites in order
-echo -e "${BLUE}Found test suites:${NC}"
-for test_file in "$SCRIPT_DIR"/test-*.sh; do
-    if [[ -f "$test_file" ]]; then
-        echo "  - $(basename "$test_file")"
-    fi
+# Parse category flag (compatible with run-all.sh wrapper)
+category="all"
+for arg in "$@"; do
+    case "$arg" in
+        --smoke) category="smoke" ;;
+        --unit) category="unit" ;;
+        --integration) category="integration" ;;
+        --e2e) category="e2e" ;;
+        --live) category="live" ;;
+        --performance) category="performance" ;;
+        --regression) category="regression" ;;
+        --all) category="all" ;;
+    esac
 done
 
-# Run tests in priority order
-run_test_suite "$SCRIPT_DIR/validate-plugin-name.sh"
-run_test_suite "$SCRIPT_DIR/test-command-registration.sh"
-run_test_suite "$SCRIPT_DIR/test-multi-command.sh"
-run_test_suite "$SCRIPT_DIR/test-intent-questions.sh"
-run_test_suite "$SCRIPT_DIR/test-plan-command.sh"
-run_test_suite "$SCRIPT_DIR/test-intent-contract-skill.sh"
-run_test_suite "$SCRIPT_DIR/test-enforcement-pattern.sh"
-run_test_suite "$SCRIPT_DIR/test-version-consistency.sh"
-run_test_suite "$SCRIPT_DIR/test-v8.0.0-opus-integration.sh"
-run_test_suite "$SCRIPT_DIR/test-v8.1.0-feature-detection.sh"
-run_test_suite "$SCRIPT_DIR/test-v8.2.0-agent-fields.sh"
+declare -a TEST_SUITES=()
+case "$category" in
+    smoke)
+        TEST_SUITES=(
+            "$SCRIPT_DIR/validate-plugin-name.sh"
+            "$SCRIPT_DIR/test-command-registration.sh"
+            "$SCRIPT_DIR/test-version-consistency.sh"
+        )
+        ;;
+    unit)
+        TEST_SUITES=(
+            "$SCRIPT_DIR/validate-plugin-name.sh"
+            "$SCRIPT_DIR/test-command-registration.sh"
+            "$SCRIPT_DIR/test-multi-command.sh"
+            "$SCRIPT_DIR/test-intent-questions.sh"
+            "$SCRIPT_DIR/test-plan-command.sh"
+            "$SCRIPT_DIR/test-intent-contract-skill.sh"
+            "$SCRIPT_DIR/test-enforcement-pattern.sh"
+            "$SCRIPT_DIR/test-version-consistency.sh"
+        )
+        ;;
+    integration|regression|all)
+        TEST_SUITES=(
+            "$SCRIPT_DIR/validate-plugin-name.sh"
+            "$SCRIPT_DIR/test-command-registration.sh"
+            "$SCRIPT_DIR/test-multi-command.sh"
+            "$SCRIPT_DIR/test-intent-questions.sh"
+            "$SCRIPT_DIR/test-plan-command.sh"
+            "$SCRIPT_DIR/test-intent-contract-skill.sh"
+            "$SCRIPT_DIR/test-enforcement-pattern.sh"
+            "$SCRIPT_DIR/test-version-consistency.sh"
+            "$SCRIPT_DIR/test-v8.0.0-opus-integration.sh"
+            "$SCRIPT_DIR/test-v8.1.0-feature-detection.sh"
+            "$SCRIPT_DIR/test-v8.2.0-agent-fields.sh"
+        )
+        ;;
+    e2e|live|performance)
+        # No dedicated suites yet; default to integration coverage.
+        TEST_SUITES=(
+            "$SCRIPT_DIR/test-v8.0.0-opus-integration.sh"
+            "$SCRIPT_DIR/test-v8.1.0-feature-detection.sh"
+            "$SCRIPT_DIR/test-v8.2.0-agent-fields.sh"
+        )
+        ;;
+    *)
+        echo -e "${YELLOW}Unknown category '$category', defaulting to all${NC}"
+        TEST_SUITES=(
+            "$SCRIPT_DIR/validate-plugin-name.sh"
+            "$SCRIPT_DIR/test-command-registration.sh"
+            "$SCRIPT_DIR/test-multi-command.sh"
+            "$SCRIPT_DIR/test-intent-questions.sh"
+            "$SCRIPT_DIR/test-plan-command.sh"
+            "$SCRIPT_DIR/test-intent-contract-skill.sh"
+            "$SCRIPT_DIR/test-enforcement-pattern.sh"
+            "$SCRIPT_DIR/test-version-consistency.sh"
+            "$SCRIPT_DIR/test-v8.0.0-opus-integration.sh"
+            "$SCRIPT_DIR/test-v8.1.0-feature-detection.sh"
+            "$SCRIPT_DIR/test-v8.2.0-agent-fields.sh"
+        )
+        ;;
+esac
+
+echo -e "${BLUE}Selected category:${NC} $category"
+echo -e "${BLUE}Planned suites:${NC}"
+for suite in "${TEST_SUITES[@]}"; do
+    echo "  - $(basename "$suite")"
+done
+
+for suite in "${TEST_SUITES[@]}"; do
+    run_test_suite "$suite"
+done
 
 # Final summary
 echo ""

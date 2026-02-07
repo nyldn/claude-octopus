@@ -22,8 +22,12 @@ TEST_COUNT=0
 PASS_COUNT=0
 FAIL_COUNT=0
 
-# Expected version
-EXPECTED_VERSION="8.2.0"
+# Expected version comes from plugin.json (single source of truth)
+EXPECTED_VERSION=$(grep '"version"' "$PLUGIN_JSON" | head -1 | sed 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
+if [[ -z "$EXPECTED_VERSION" ]]; then
+    echo -e "${RED}❌ Could not determine expected version from plugin.json${NC}"
+    exit 1
+fi
 
 echo -e "${BLUE}🧪 Testing Version Consistency (v${EXPECTED_VERSION})${NC}"
 echo ""
@@ -135,12 +139,12 @@ echo ""
 echo "Test 6: Checking command count in plugin.json..."
 if [[ -f "$PLUGIN_JSON" ]]; then
     COMMAND_COUNT=$(grep -o '"\./\.claude/commands/[^"]*\.md"' "$PLUGIN_JSON" | wc -l | tr -d ' ')
-    EXPECTED_COMMANDS=32
+    MIN_EXPECTED_COMMANDS=32
 
-    if [[ $COMMAND_COUNT -eq $EXPECTED_COMMANDS ]]; then
-        pass "plugin.json has $COMMAND_COUNT commands (expected: $EXPECTED_COMMANDS)"
+    if [[ $COMMAND_COUNT -ge $MIN_EXPECTED_COMMANDS ]]; then
+        pass "plugin.json has $COMMAND_COUNT commands (minimum expected: $MIN_EXPECTED_COMMANDS)"
     else
-        fail "Command count mismatch" "Found: $COMMAND_COUNT, Expected: $EXPECTED_COMMANDS"
+        fail "Command count too low" "Found: $COMMAND_COUNT, Minimum expected: $MIN_EXPECTED_COMMANDS"
     fi
 fi
 

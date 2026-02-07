@@ -20,7 +20,7 @@ When executing Claude Octopus workflows, you MUST display visual indicators so u
 ### When to Display Indicators
 
 Display indicators when:
-- Invoking any `/co:` command
+- Invoking any `/octo:` command
 - Running `orchestrate.sh` with any workflow (probe, grasp, tangle, ink, embrace, etc.)
 - User triggers workflow with "octo" prefix ("octo research X", "octo build Y")
 - Executing multi-provider operations
@@ -187,7 +187,7 @@ echo "Progress: 50%" > ~/.claude/scratchpad/$(cat ~/.claude/session-id)/phase1-p
 | `octo build X` | Develop | 🐙 🛠️ 🔴 🟡 🔵 |
 | `octo review X` | Deliver | 🐙 ✅ 🔴 🟡 🔵 |
 | `octo debate X` | Debate | 🐙 🔴 🟡 🔵 |
-| `/co:embrace X` | All 4 phases | 🐙 (all phase emojis) |
+| `/octo:embrace X` | All 4 phases | 🐙 (all phase emojis) |
 
 ---
 

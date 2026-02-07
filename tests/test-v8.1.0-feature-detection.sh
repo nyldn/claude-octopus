@@ -14,7 +14,7 @@
 set -eo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PLUGIN_DIR="$(dirname "$SCRIPT_DIR")/plugin"
+PLUGIN_DIR="$(dirname "$SCRIPT_DIR")"
 ORCHESTRATE_SH="${PLUGIN_DIR}/scripts/orchestrate.sh"
 PACKAGE_JSON="${PLUGIN_DIR}/package.json"
 PLUGIN_JSON="${PLUGIN_DIR}/.claude-plugin/plugin.json"
@@ -207,8 +207,8 @@ else
     assert_fail "3.5 README.md version badge is 8.x"
 fi
 
-# 3.6: README Claude Code badge is v2.1.33+
-if grep -q 'v2\.1\.33' "$README_MD"; then
+# 3.6: README Claude Code badge is v2.1.33+ (accept newer patch/minor)
+if grep -Eq 'v2\.1\.(3[3-9]|[4-9][0-9])\+' "$README_MD"; then
     assert_pass "3.6 README.md Claude Code badge is v2.1.33+"
 else
     assert_fail "3.6 README.md Claude Code badge is v2.1.33+"

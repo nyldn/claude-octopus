@@ -1995,7 +1995,7 @@ to the plugin registry yet. Registry sync typically takes 12-24 hours.
 
 This release introduces comprehensive content analysis, creative brainstorming, and prompt engineering capabilities, along with new development standards for skills.
 
-#### Content Pipeline Architecture (`/co:pipeline`)
+#### Content Pipeline Architecture (`/octo:pipeline`)
 
 New 6-stage content analysis workflow:
 
@@ -2013,7 +2013,7 @@ New 6-stage content analysis workflow:
 - `commands/pipeline.md` - Shortcut command
 - `agents/personas/content-analyst.md` - Pattern extraction persona
 
-#### Creative Thought Partner (`/co:brainstorm`)
+#### Creative Thought Partner (`/octo:brainstorm`)
 
 Structured brainstorming using four breakthrough techniques:
 
@@ -2029,7 +2029,7 @@ Structured brainstorming using four breakthrough techniques:
 - `commands/brainstorm.md` - Shortcut command
 - `agents/personas/thought-partner.md` - Facilitation persona
 
-#### Meta-Prompt Generator (`/co:meta-prompt`)
+#### Meta-Prompt Generator (`/octo:meta-prompt`)
 
 Generate optimized prompts using proven techniques:
 
@@ -2077,9 +2077,9 @@ Three new documentation standards for skill development:
 
 | Command | Description |
 |---------|-------------|
-| `/co:pipeline` | Run content analysis pipeline |
-| `/co:brainstorm` | Start thought partner session |
-| `/co:meta-prompt` | Generate optimized prompts |
+| `/octo:pipeline` | Run content analysis pipeline |
+| `/octo:brainstorm` | Start thought partner session |
+| `/octo:meta-prompt` | Generate optimized prompts |
 
 ### New Personas
 
@@ -2247,7 +2247,7 @@ Also limited research to max 2 web searches (60 seconds) to speed up execution.
 
 #### New Flow
 ```
-/co:prd user authentication
+/octo:prd user authentication
 
 > I'll create a PRD for: user authentication
 > 
@@ -2341,10 +2341,10 @@ Even after v7.8.8, saying "octo design a PRD..." still triggered `Skill(octo:prd
 #### Usage (Command-Only)
 ```bash
 # Create a new PRD - must use explicit command
-/co:prd user authentication system
+/octo:prd user authentication system
 
 # Score an existing PRD - must use explicit command
-/co:prd-score docs/auth-prd.md
+/octo:prd-score docs/auth-prd.md
 ```
 
 Natural language like "octo design a PRD" will no longer trigger the PRD workflow. Use the slash command instead.
@@ -2358,7 +2358,7 @@ Natural language like "octo design a PRD" will no longer trigger the PRD workflo
 **Removed `/skill` directive from PRD commands** to eliminate the recursive skill loading loop that caused commands to trigger 8+ times.
 
 #### Problem
-When running `/co:prd <feature>`, the command file contained:
+When running `/octo:prd <feature>`, the command file contained:
 ```
 /skill skill-prd
 
@@ -2375,7 +2375,7 @@ This caused a loop: command loads skill → skill triggers again → infinite re
 
 #### Result
 Commands now execute ONCE without looping. The workflow:
-1. User runs `/co:prd WordPress integration`
+1. User runs `/octo:prd WordPress integration`
 2. Command executes with inline instructions
 3. PRD is created without recursive activation
 
@@ -2446,16 +2446,16 @@ When invoking "octo design a PRD for X", the skill would load repeatedly (12+ ti
 #### Solution
 - Removed triggers from `skill-prd.md` and `skill-prd-score.md`
 - Skills now only activate via explicit commands:
-  - `/co:prd <feature>` - Create AI-optimized PRD
-  - `/co:prd-score <file>` - Score existing PRD
+  - `/octo:prd <feature>` - Create AI-optimized PRD
+  - `/octo:prd-score <file>` - Score existing PRD
 
 #### Usage
 ```bash
 # Create a new PRD
-/co:prd user authentication system
+/octo:prd user authentication system
 
 # Score an existing PRD
-/co:prd-score docs/auth-prd.md
+/octo:prd-score docs/auth-prd.md
 ```
 
 ---
@@ -2464,15 +2464,15 @@ When invoking "octo design a PRD for X", the skill would load repeatedly (12+ ti
 
 ### Added - PRD Scoring Command
 
-**New `/co:prd-score` command** to validate existing PRDs against the 100-point AI-optimization framework.
+**New `/octo:prd-score` command** to validate existing PRDs against the 100-point AI-optimization framework.
 
-#### New: `/co:prd-score` Command
+#### New: `/octo:prd-score` Command
 
 Score and validate any PRD file:
 
 ```bash
-/co:prd-score docs/auth-prd.md
-/co:prd-score requirements/checkout-spec.md
+/octo:prd-score docs/auth-prd.md
+/octo:prd-score requirements/checkout-spec.md
 ```
 
 **Features:**
@@ -2509,13 +2509,13 @@ Score and validate any PRD file:
 
 **New PRD skill and enhanced product-writer persona** for creating PRDs that AI coding assistants can execute effectively.
 
-#### New: `/co:prd` Command
+#### New: `/octo:prd` Command
 
 Write AI-optimized PRDs with automatic quality scoring:
 
 ```bash
-/co:prd user authentication feature
-/co:prd checkout flow redesign
+/octo:prd user authentication feature
+/octo:prd checkout flow redesign
 ```
 
 **Features:**
@@ -2564,7 +2564,7 @@ Based on 2026 AI coding assistant research:
 
 - **`auto_route()` shows context** - When using `auto` command, detected context `[Dev]` or `[Knowledge]` is displayed
 - **Phase banners include context** - `🔍 [Dev] DISCOVER` instead of `🔍 PROBE (Discover Phase)`
-- **`km` command supports `auto`** - Use `/co:km auto` to return to auto-detection mode
+- **`km` command supports `auto`** - Use `/octo:km auto` to return to auto-detection mode
 
 #### Knowledge Mode Toggle Updates
 
@@ -2619,14 +2619,14 @@ You'll see the detected context in the visual banner:
 
 If auto-detection gets it wrong:
 ```
-/co:km on      # Force Knowledge Context
-/co:km off     # Force Dev Context  
-/co:km auto    # Return to auto-detection
+/octo:km on      # Force Knowledge Context
+/octo:km off     # Force Dev Context  
+/octo:km auto    # Return to auto-detection
 ```
 
 ### Changed
 
-- **`/co:km` is now an override** - No longer the primary way to switch modes; auto-detection handles it
+- **`/octo:km` is now an override** - No longer the primary way to switch modes; auto-detection handles it
 - **Updated model references** - GPT-5.x and Gemini 3.0 throughout documentation
 - **Flow skills updated** - `flow-discover`, `flow-develop`, `flow-deliver` now include context detection steps
 - **skill-knowledge-work.md** - Completely rewritten as override documentation
@@ -2677,19 +2677,19 @@ Users need to understand:
 ## [7.7.3] - 2026-01-19
 
 ### Changed
-- **BREAKING: Unified `/co:` namespace** - Changed command namespace from `/co:` to `/co:`
-  - All commands now use `/co:` prefix (e.g., `/co:research`, `/co:develop`, `/co:setup`)
+- **BREAKING: Unified `/octo:` namespace** - Changed command namespace from `/octo:` to `/octo:`
+  - All commands now use `/octo:` prefix (e.g., `/octo:research`, `/octo:develop`, `/octo:setup`)
   - Provides consistency with "octo" natural language prefix triggers
   - More memorable and distinctive branding
   
 ### Migration Guide
 If upgrading from v7.7.2 or earlier:
-- `/co:setup` → `/co:setup`
-- `/co:research` → `/co:research`
-- `/co:develop` → `/co:develop`
-- `/co:review` → `/co:review`
-- `/co:debate` → `/co:debate`
-- All other `/co:*` commands → `/co:*`
+- `/octo:setup` → `/octo:setup`
+- `/octo:research` → `/octo:research`
+- `/octo:develop` → `/octo:develop`
+- `/octo:review` → `/octo:review`
+- `/octo:debate` → `/octo:debate`
+- All other `/octo:*` commands → `/octo:*`
 
 ### Why This Change?
 - "Octo" is now THE way to invoke Claude Octopus (both prefix and namespace)
@@ -2762,10 +2762,10 @@ If upgrading from v7.7.2 or earlier:
 
 **BREAKING (but backward compatible)**: Renamed all workflow phases to standard Double Diamond methodology names:
 
-- **`/co:probe` → `/co:discover`** (probe kept as alias)
-- **`/co:grasp` → `/co:define`** (grasp kept as alias)
-- **`/co:tangle` → `/co:develop`** (tangle kept as alias)
-- **`/co:ink` → `/co:deliver`** (ink kept as alias)
+- **`/octo:probe` → `/octo:discover`** (probe kept as alias)
+- **`/octo:grasp` → `/octo:define`** (grasp kept as alias)
+- **`/octo:tangle` → `/octo:develop`** (tangle kept as alias)
+- **`/octo:ink` → `/octo:deliver`** (ink kept as alias)
 
 **Why this change?**
 - Standard Double Diamond methodology uses Discover/Define/Develop/Deliver
@@ -2774,7 +2774,7 @@ If upgrading from v7.7.2 or earlier:
 - All old commands still work via aliases - **100% backward compatible**
 
 **New Features:**
-- **`/co:embrace`** - Full 4-phase Double Diamond workflow command
+- **`/octo:embrace`** - Full 4-phase Double Diamond workflow command
   - Runs all phases: Discover → Define → Develop → Deliver
   - Configurable autonomy modes (supervised/semi-autonomous/autonomous)
   - Quality gates and session recovery
@@ -2845,20 +2845,20 @@ If upgrading from v7.7.2 or earlier:
   - This was blocking users from installing/updating the plugin
   - Error: "Plugin has an invalid manifest file... Unrecognized key: dependencies"
 
-**Impact**: Critical fix - users can now successfully install and update the plugin. The `/co:update --update` command will work properly again.
+**Impact**: Critical fix - users can now successfully install and update the plugin. The `/octo:update --update` command will work properly again.
 
 ---
 
 ## [7.6.2] - 2026-01-18
 
 ### Changed
-- **Streamlined mode commands**: Simplified to only `/co:km` and `/co:dev`
-  - Removed `/co:skill-knowledge-mode` (long form no longer needed)
+- **Streamlined mode commands**: Simplified to only `/octo:km` and `/octo:dev`
+  - Removed `/octo:skill-knowledge-mode` (long form no longer needed)
   - Only two clear commands for mode switching remain
   - Updated command descriptions to be clearer and more concise
   - Total commands reduced from 19 to 18
 
-**Impact**: Eliminates command duplication and clutter. Autocomplete menu now only shows `/co:km` and `/co:dev` for mode switching, making it much simpler for users.
+**Impact**: Eliminates command duplication and clutter. Autocomplete menu now only shows `/octo:km` and `/octo:dev` for mode switching, making it much simpler for users.
 
 ---
 
@@ -2866,7 +2866,7 @@ If upgrading from v7.7.2 or earlier:
 
 ### Added
 - **Two-mode system**: Dev Work vs Knowledge Work modes now presented as equal choices
-  - Added `/co:dev` command for switching to Dev Work mode
+  - Added `/octo:dev` command for switching to Dev Work mode
   - Added mode selection to first-time setup flow (Step 6/8)
   - Users now choose their primary mode during setup
 
@@ -2890,26 +2890,26 @@ If upgrading from v7.7.2 or earlier:
 
 ### Changed
 - **Shorter command namespace**: Changed plugin name from `claude-octopus` to `co`
-  - All commands now use `/co:` prefix instead of `/claude-octopus:`
-  - Example: `/co:setup`, `/co:debate`, `/co:review`
+  - All commands now use `/octo:` prefix instead of `/claude-octopus:`
+  - Example: `/octo:setup`, `/octo:debate`, `/octo:review`
   - Much faster to type and easier to remember
   - Backward compatible - existing installations just see new namespace
 
 ### Added
 - **12 new skill commands**: Made skills directly accessible as commands
-  - `/co:debate` - AI Debate Hub for structured three-way debates
-  - `/co:review` - Expert code review with quality assessment
-  - `/co:research` - Deep research with multi-source synthesis
-  - `/co:security` - Security audit with OWASP compliance
-  - `/co:debug` - Systematic debugging with methodical investigation
-  - `/co:tdd` - Test-driven development with red-green-refactor
-  - `/co:docs` - Document delivery with PPTX/DOCX/PDF export
-  - `/co:probe` - Discovery phase (Double Diamond - Research)
-  - `/co:grasp` - Definition phase (Double Diamond - Requirements)
-  - `/co:tangle` - Development phase (Double Diamond - Implementation)
-  - `/co:ink` - Delivery phase (Double Diamond - Quality gates)
+  - `/octo:debate` - AI Debate Hub for structured three-way debates
+  - `/octo:review` - Expert code review with quality assessment
+  - `/octo:research` - Deep research with multi-source synthesis
+  - `/octo:security` - Security audit with OWASP compliance
+  - `/octo:debug` - Systematic debugging with methodical investigation
+  - `/octo:tdd` - Test-driven development with red-green-refactor
+  - `/octo:docs` - Document delivery with PPTX/DOCX/PDF export
+  - `/octo:probe` - Discovery phase (Double Diamond - Research)
+  - `/octo:grasp` - Definition phase (Double Diamond - Requirements)
+  - `/octo:tangle` - Development phase (Double Diamond - Implementation)
+  - `/octo:ink` - Delivery phase (Double Diamond - Quality gates)
 
-**Impact**: Skills are now discoverable via autocomplete! Type `/co:` and see all available commands. No need to remember natural language triggers - though those still work too.
+**Impact**: Skills are now discoverable via autocomplete! Type `/octo:` and see all available commands. No need to remember natural language triggers - though those still work too.
 
 **Total commands**: 18 commands now available (7 system + 11 skill shortcuts)
 
@@ -2936,7 +2936,7 @@ If upgrading from v7.7.2 or earlier:
 ### Fixed
 - **Command YAML frontmatter**: Fixed YAML frontmatter in all command files
   - Changed `name:` to `command:` in YAML frontmatter (required by Claude Code)
-  - Updated all command descriptions to use `/claude-octopus:` namespace (not `/co:`)
+  - Updated all command descriptions to use `/claude-octopus:` namespace (not `/octo:`)
   - All 7 commands now properly discovered:
     - `/claude-octopus:sys-setup`
     - `/claude-octopus:sys-update`
@@ -2994,7 +2994,7 @@ If upgrading from v7.7.2 or earlier:
 - ✅ **Command structure**: `/claude-octopus:sys-setup`, `/claude-octopus:flow-probe`, etc.
 - ✅ **Power user shortcuts**: `/claude-octopus:setup`, `/claude-octopus:probe`, etc.
 
-**Impact**: Commands now appear as `/claude-octopus:sys-setup` instead of `/co:sys-setup`, but all categorization and shortcuts are preserved. This provides the UX improvements of v7.5.0 with the stability of the familiar namespace.
+**Impact**: Commands now appear as `/claude-octopus:sys-setup` instead of `/octo:sys-setup`, but all categorization and shortcuts are preserved. This provides the UX improvements of v7.5.0 with the stability of the familiar namespace.
 
 ---
 
@@ -3009,8 +3009,8 @@ If upgrading from v7.7.2 or earlier:
 - **Dual registration**: Both `co` and `claude-octopus` namespaces work (zero breaking changes)
 - **Example**:
   - Old: `/claude-octopus:setup` (still works)
-  - New: `/co:sys-setup` (recommended)
-  - Shortcut: `/co:setup` (power user)
+  - New: `/octo:sys-setup` (recommended)
+  - Shortcut: `/octo:setup` (power user)
 
 #### Three-Category System
 All commands and skills now follow a clear category structure:
@@ -3041,21 +3041,21 @@ Frequent commands get 1-2 word shortcuts:
 
 | Full Name | Shortcut | Category |
 |-----------|----------|----------|
-| `/co:sys-setup` | `/co:setup` | System |
-| `/co:sys-update` | `/co:update` | System |
-| `/co:sys-configure` | `/co:config` | System |
-| `/co:skill-knowledge-mode` | `/co:km` | Mode |
-| `/co:flow-probe` | `/co:probe` | Workflow |
-| `/co:flow-grasp` | `/co:grasp` | Workflow |
-| `/co:flow-tangle` | `/co:tangle` | Workflow |
-| `/co:flow-ink` | `/co:ink` | Workflow |
-| `/co:skill-debate` | `/co:debate` | Skill |
-| `/co:skill-code-review` | `/co:review` | Skill |
-| `/co:skill-security-audit` | `/co:security` | Skill |
-| `/co:skill-deep-research` | `/co:research` | Skill |
-| `/co:skill-tdd` | `/co:tdd` | Skill |
-| `/co:skill-debug` | `/co:debug` | Skill |
-| `/co:skill-doc-delivery` | `/co:docs` | Skill |
+| `/octo:sys-setup` | `/octo:setup` | System |
+| `/octo:sys-update` | `/octo:update` | System |
+| `/octo:sys-configure` | `/octo:config` | System |
+| `/octo:skill-knowledge-mode` | `/octo:km` | Mode |
+| `/octo:flow-probe` | `/octo:probe` | Workflow |
+| `/octo:flow-grasp` | `/octo:grasp` | Workflow |
+| `/octo:flow-tangle` | `/octo:tangle` | Workflow |
+| `/octo:flow-ink` | `/octo:ink` | Workflow |
+| `/octo:skill-debate` | `/octo:debate` | Skill |
+| `/octo:skill-code-review` | `/octo:review` | Skill |
+| `/octo:skill-security-audit` | `/octo:security` | Skill |
+| `/octo:skill-deep-research` | `/octo:research` | Skill |
+| `/octo:skill-tdd` | `/octo:tdd` | Skill |
+| `/octo:skill-debug` | `/octo:debug` | Skill |
+| `/octo:skill-doc-delivery` | `/octo:docs` | Skill |
 
 #### Renamed Files (50+ files)
 
@@ -3073,7 +3073,7 @@ Frequent commands get 1-2 word shortcuts:
 - **plugin.json**: Updated namespace from `claude-octopus` to `co`, version 7.4.2 → 7.5.0
 - **marketplace.json**: Dual registration (`co` + `claude-octopus`) for backward compatibility
 - **All skill paths**: Updated to reflect new categorized naming
-- **README.md**: Updated all examples to use `/co:` prefix, added v7.5 section
+- **README.md**: Updated all examples to use `/octo:` prefix, added v7.5 section
 - **Installation command**: Now `/plugin install co@nyldn-plugins` (old command still works)
 
 ### Documentation
@@ -3084,15 +3084,15 @@ Frequent commands get 1-2 word shortcuts:
 
 ### Backward Compatibility
 - ✅ **Zero breaking changes** - All old commands still work
-- ✅ **Dual namespace** - Both `/co:` and `/claude-octopus:` are registered
+- ✅ **Dual namespace** - Both `/octo:` and `/claude-octopus:` are registered
 - ✅ **Natural language triggers** - Unchanged, continue to work
 - ✅ **Existing scripts** - No updates required
 
 ### Benefits
-- 🚀 **60% shorter** - `/co:setup` vs `/claude-octopus:setup`
+- 🚀 **60% shorter** - `/octo:setup` vs `/claude-octopus:setup`
 - 📂 **Better organization** - Clear categories (sys, flow, skill)
 - ⚡ **Power user shortcuts** - 15 shortcuts for common commands
-- 🔍 **Easy discovery** - Type `/co:flow-` to see all workflows
+- 🔍 **Easy discovery** - Type `/octo:flow-` to see all workflows
 - 🔄 **Smooth migration** - Old commands work indefinitely
 
 ### Migration
@@ -3102,7 +3102,7 @@ See `docs/MIGRATION-v7.5.md` for:
 - Backward compatibility details
 - FAQ and troubleshooting
 
-**Recommended**: Start using `/co:` prefix with shortcuts today!
+**Recommended**: Start using `/octo:` prefix with shortcuts today!
 
 ---
 

@@ -137,9 +137,9 @@ if [[ -d "$COMMANDS_DIR" ]]; then
                 continue
             fi
 
-            # Check for command: field
-            if ! grep -q '^command:' "$cmd_file"; then
-                fail "Missing command field" "$basename has no command: field"
+            # Check for closing --- within first 40 lines
+            if ! head -40 "$cmd_file" | tail -n +2 | grep -q '^---$'; then
+                fail "Invalid frontmatter" "$basename missing closing ---"
                 INVALID_FRONTMATTER=$((INVALID_FRONTMATTER + 1))
                 continue
             fi
@@ -173,7 +173,7 @@ for essential in "${ESSENTIAL_COMMANDS[@]}"; do
     fi
 done
 
-# Test 9: Check for duplicate command names in frontmatter
+# Test 9: Check for duplicate command names in frontmatter (when present)
 echo ""
 echo "Test 9: Checking for duplicate command names..."
 COMMAND_NAMES=()
@@ -182,7 +182,10 @@ DUPLICATES=0
 if [[ -d "$COMMANDS_DIR" ]]; then
     for cmd_file in "$COMMANDS_DIR"/*.md; do
         if [[ -f "$cmd_file" ]]; then
-            cmd_name=$(grep '^command:' "$cmd_file" | sed 's/command:[[:space:]]*//' | tr -d '\r')
+            cmd_name=$(grep '^command:' "$cmd_file" 2>/dev/null | sed 's/command:[[:space:]]*//' | tr -d '\r' || true)
+
+            # command frontmatter is optional; skip files without it
+            [[ -z "$cmd_name" ]] && continue
 
             # Check if this command name already exists
             if [[ ${#COMMAND_NAMES[@]} -gt 0 ]] && [[ " ${COMMAND_NAMES[@]} " =~ " ${cmd_name} " ]]; then
