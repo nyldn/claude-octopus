@@ -1,5 +1,5 @@
 ---
-command: octo
+name: octo
 description: Smart router - Single entry point with natural language intent detection
 version: 1.0.0
 category: workflow
