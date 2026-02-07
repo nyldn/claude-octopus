@@ -214,8 +214,22 @@ Always be mindful that external CLIs cost money:
 - 🟡 Gemini: ~$0.01-0.03 per query (Gemini Pro)
 - 🔵 Claude (Sonnet 4.5): Included with Claude Code subscription
 - 🔵 Claude (Opus 4.6): $5/$25 per MTok input/output when using `claude-opus` agent type
+- 🔵 Claude (Opus 4.6 Fast): **$30/$150 per MTok** (6x standard) - lower latency, extra-usage billing (v2.1.36+)
 
 For simple tasks that don't need multi-AI perspectives, suggest using Claude directly without orchestration.
+
+### Fast Opus 4.6 Mode (Claude Code v2.1.36+)
+
+**WARNING: Fast Opus is 6x more expensive than standard Opus.** It uses extra-usage billing at $30/$150 per MTok (vs $5/$25 standard). It provides lower latency but identical quality.
+
+When `SUPPORTS_FAST_OPUS=true` is detected, orchestrate.sh routes conservatively:
+- **Default: standard mode** for all multi-phase workflows (embrace, discover, develop, etc.)
+- **Fast mode only** for interactive single-shot Opus queries where the user is actively waiting
+- **Never fast in autonomous/background mode** (no human waiting = no latency benefit)
+- **User override**: Set `OCTOPUS_OPUS_MODE=fast` to force fast everywhere (costly!)
+- **User override**: Set `OCTOPUS_OPUS_MODE=standard` to force standard everywhere (default behavior)
+
+Always warn users about the cost difference before enabling fast mode.
 
 ---
 

@@ -329,6 +329,8 @@ SUPPORTS_HOOK_EVENTS=false         # v8.1: Claude Code v2.1.33+
 SUPPORTS_AGENT_TYPE_ROUTING=false  # v8.1: Claude Code v2.1.33+
 SUPPORTS_STABLE_AGENT_TEAMS=false  # v8.3: Claude Code v2.1.34+
 SUPPORTS_AGENT_MEMORY=false        # v8.3: Claude Code v2.1.33+ (memory frontmatter)
+SUPPORTS_FAST_OPUS=false           # v8.4: Claude Code v2.1.36+ (fast mode for Opus 4.6)
+SUPPORTS_STATUSLINE_API=false      # v8.4: Claude Code v2.1.33+ (statusline context_window data)
 AGENT_TEAMS_ENABLED="${CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS:-0}"
 
 # Version comparison utility
@@ -400,15 +402,25 @@ detect_claude_code_version() {
         SUPPORTS_AGENT_MEMORY=true
     fi
 
+    # Check for v2.1.33+ statusline API (context_window.used_percentage, cost tracking)
+    if version_compare "$CLAUDE_CODE_VERSION" "2.1.33" ">="; then
+        SUPPORTS_STATUSLINE_API=true
+    fi
+
     # Check for v2.1.34+ features (stable agent teams, sandbox security)
     if version_compare "$CLAUDE_CODE_VERSION" "2.1.34" ">="; then
         SUPPORTS_STABLE_AGENT_TEAMS=true
     fi
 
+    # Check for v2.1.36+ features (fast mode for Opus 4.6)
+    if version_compare "$CLAUDE_CODE_VERSION" "2.1.36" ">="; then
+        SUPPORTS_FAST_OPUS=true
+    fi
+
     log "INFO" "Claude Code v$CLAUDE_CODE_VERSION detected"
     log "INFO" "Task Management: $SUPPORTS_TASK_MANAGEMENT | Fork Context: $SUPPORTS_FORK_CONTEXT | Agent Teams: $SUPPORTS_AGENT_TEAMS"
     log "INFO" "Persistent Memory: $SUPPORTS_PERSISTENT_MEMORY | Hook Events: $SUPPORTS_HOOK_EVENTS | Agent Type Routing: $SUPPORTS_AGENT_TYPE_ROUTING"
-    log "INFO" "Stable Agent Teams: $SUPPORTS_STABLE_AGENT_TEAMS | Agent Memory: $SUPPORTS_AGENT_MEMORY"
+    log "INFO" "Stable Agent Teams: $SUPPORTS_STABLE_AGENT_TEAMS | Agent Memory: $SUPPORTS_AGENT_MEMORY | Fast Opus: $SUPPORTS_FAST_OPUS"
 
     return 0
 }
@@ -474,6 +486,65 @@ NC='\033[0m' # No Color
 # Source async task management and tmux visualization features
 source "${SCRIPT_DIR}/async-tmux-features.sh"
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# FAST OPUS 4.6 MODE SELECTION (v8.4 - Claude Code v2.1.36+)
+# Routes between fast/standard Opus based on task context
+#
+# IMPORTANT: Fast Opus is 6x MORE EXPENSIVE than standard:
+#   Standard: $5/$25 per MTok (input/output)
+#   Fast (<200K ctx): $30/$150 per MTok (input/output)
+#   Fast (>200K ctx): $60/$225 per MTok (input/output)
+#
+# Fast mode trades cost for speed. Default is STANDARD (cost-efficient).
+# Only use fast when user explicitly requests it or for interactive single-shot tasks.
+# ═══════════════════════════════════════════════════════════════════════════════
+OCTOPUS_OPUS_MODE="${OCTOPUS_OPUS_MODE:-auto}"  # auto | fast | standard
+
+select_opus_mode() {
+    local phase="${1:-}"
+    local tier="${2:-premium}"
+    local autonomy="${3:-supervised}"
+
+    # User override takes precedence
+    if [[ "$OCTOPUS_OPUS_MODE" == "fast" ]]; then
+        echo "fast"
+        return
+    elif [[ "$OCTOPUS_OPUS_MODE" == "standard" ]]; then
+        echo "standard"
+        return
+    fi
+
+    # Fast mode not available - always standard
+    if [[ "$SUPPORTS_FAST_OPUS" != "true" ]]; then
+        echo "standard"
+        return
+    fi
+
+    # Auto mode: CONSERVATIVE - fast only for interactive single-phase tasks
+    # Fast is 6x more expensive, so default to standard for multi-phase workflows
+    case "$autonomy" in
+        autonomous|semi-autonomous)
+            # Background/autonomous workflows: NEVER use fast (no human waiting)
+            echo "standard"
+            return
+            ;;
+    esac
+
+    # Supervised mode: fast only for single-shot interactive tasks
+    # Full embrace workflows should stay standard (4 phases = high cost)
+    case "$phase" in
+        probe|grasp|tangle|ink)
+            # Inside a multi-phase workflow: stay standard to control costs
+            echo "standard"
+            ;;
+        *)
+            # Single-shot Opus task (no phase context): fast for responsiveness
+            # User is actively waiting for a direct Opus query
+            echo "fast"
+            ;;
+    esac
+}
+
 # Agent configurations
 # Models (Feb 2026) - Premium defaults for Design Thinking workflows:
 # - OpenAI GPT-5.3: gpt-5.3-codex (premium), gpt-5.2-codex, gpt-5.1-codex-mini, gpt-5.2
@@ -506,6 +577,7 @@ get_agent_command() {
         claude) echo "claude --print" ;;                         # Claude Sonnet 4.5
         claude-sonnet) echo "claude --print -m sonnet" ;;        # Claude Sonnet explicit
         claude-opus) echo "claude --print -m opus" ;;            # Claude Opus 4.6 (v8.0)
+        claude-opus-fast) echo "claude --print -m opus --fast" ;; # Claude Opus 4.6 Fast (v8.4: v2.1.36+)
         openrouter) echo "openrouter_execute" ;;                 # OpenRouter API (v4.8)
         *) return 1 ;;
     esac
@@ -535,13 +607,14 @@ get_agent_command_array() {
         claude)         _cmd_array=(claude --print) ;;
         claude-sonnet)  _cmd_array=(claude --print -m sonnet) ;;
         claude-opus)    _cmd_array=(claude --print -m opus) ;;  # v8.0: Opus 4.6
+        claude-opus-fast) _cmd_array=(claude --print -m opus --fast) ;; # v8.4: Opus 4.6 Fast (v2.1.36+)
         openrouter)     _cmd_array=(openrouter_execute) ;;       # OpenRouter API (v4.8)
         *) return 1 ;;
     esac
 }
 
 # List of available agents
-AVAILABLE_AGENTS="codex codex-standard codex-max codex-mini codex-general gemini gemini-fast gemini-image codex-review claude claude-sonnet claude-opus openrouter"
+AVAILABLE_AGENTS="codex codex-standard codex-max codex-mini codex-general gemini gemini-fast gemini-image codex-review claude claude-sonnet claude-opus claude-opus-fast openrouter"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # USAGE TRACKING & COST REPORTING (v4.1)
@@ -567,6 +640,7 @@ get_model_pricing() {
         # Claude models
         claude-sonnet-4.5)      echo "3.00:15.00" ;;
         claude-opus-4.6)        echo "5.00:25.00" ;;
+        claude-opus-4.6-fast)   echo "30.00:150.00" ;;  # v8.4: Fast mode - 6x cost for lower latency
         # Default fallback
         *)                      echo "1.00:5.00" ;;
     esac
@@ -644,6 +718,7 @@ get_agent_model() {
         claude)         echo "claude-sonnet-4.5" ;;
         claude-sonnet)  echo "claude-sonnet-4.5" ;;
         claude-opus)    echo "claude-opus-4.6" ;;
+        claude-opus-fast) echo "claude-opus-4.6-fast" ;;  # v8.4: Fast Opus
         *)              echo "unknown" ;;
     esac
 }
@@ -7720,6 +7795,23 @@ spawn_agent() {
 ${enhanced_prompt}"
                 log "DEBUG" "Injected skill context for agent: $curated_agent"
             fi
+        fi
+    fi
+
+    # v8.4: Auto-route claude-opus to fast mode when appropriate
+    # WARNING: Fast Opus is 6x more expensive ($30/$150 vs $5/$25 per MTok)
+    # Only used for interactive single-shot tasks, never for multi-phase workflows
+    if [[ "$agent_type" == "claude-opus" ]] && [[ "$SUPPORTS_FAST_OPUS" == "true" ]]; then
+        local opus_tier
+        opus_tier=$(get_agent_config "${curated_agent:-}" "tier" 2>/dev/null) || opus_tier="premium"
+        local session_autonomy
+        session_autonomy=$(jq -r '.autonomy // "supervised"' "${HOME}/.claude-octopus/session.json" 2>/dev/null) || session_autonomy="supervised"
+        local opus_mode
+        opus_mode=$(select_opus_mode "$phase" "$opus_tier" "$session_autonomy")
+        if [[ "$opus_mode" == "fast" ]]; then
+            agent_type="claude-opus-fast"
+            log "INFO" "Auto-routing to Opus 4.6 Fast mode (phase=$phase, tier=$opus_tier, autonomy=$session_autonomy)"
+            log "WARN" "Fast Opus is 6x more expensive: \$30/\$150 per MTok vs \$5/\$25 standard"
         fi
     fi
 
