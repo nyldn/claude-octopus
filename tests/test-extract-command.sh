@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Test suite for /co:extract command
+# Test suite for /octo:extract command
 # Tests the extraction pipeline components
 
 set -euo pipefail
@@ -379,7 +379,7 @@ test_examples() {
 main() {
   echo ""
   echo "================================================"
-  echo "  /co:extract Test Suite"
+  echo "  /octo:extract Test Suite"
   echo "================================================"
   echo ""
 

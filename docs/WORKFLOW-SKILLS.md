@@ -2,7 +2,7 @@
 
 Claude Octopus includes **workflow skills** - lightweight wrappers that auto-invoke common multi-AI workflows. These activate automatically when you use certain phrases.
 
-## 🔍 Quick Code Review (`/co:review`)
+## 🔍 Quick Code Review (`/octo:review`)
 
 **Auto-activates when you say:**
 - "review this code"
@@ -24,7 +24,7 @@ User: "Review my authentication module for security issues"
 → Output: Prioritized findings with fixes
 ```
 
-## 🔬 Deep Research (`/co:research`)
+## 🔬 Deep Research (`/octo:research`)
 
 **Auto-activates when you say:**
 - "research this topic"
@@ -46,7 +46,7 @@ User: "Research state management options for React"
 → Output: Decision matrix with pros/cons
 ```
 
-## 🛡️ Adversarial Security (`/co:security`)
+## 🛡️ Adversarial Security (`/octo:security`)
 
 **Auto-activates when you say:**
 - "security audit"
@@ -73,10 +73,10 @@ User: "Security audit the authentication module"
 
 | Use Case | Workflow Skill | Time | Agents | Best For |
 |----------|---------------|------|--------|----------|
-| Code review | `/co:review` | 2-5 min | 2-3 | PR checks, quality gates |
-| Research | `/co:research` | 2-3 min | 4 | Architecture decisions |
-| Security testing | `/co:security` | 5-10 min | 2 (adversarial) | Finding vulnerabilities |
-| Full workflow | `/co:embrace` | 5-10 min | 4-8 | New features, complete cycle |
+| Code review | `/octo:review` | 2-5 min | 2-3 | PR checks, quality gates |
+| Research | `/octo:research` | 2-3 min | 4 | Architecture decisions |
+| Security testing | `/octo:security` | 5-10 min | 2 (adversarial) | Finding vulnerabilities |
+| Full workflow | `/octo:embrace` | 5-10 min | 4-8 | New features, complete cycle |
 
 ## Architecture: Skills vs Orchestrator
 
@@ -104,7 +104,7 @@ Understanding the distinction:
 **Example of all three working together:**
 ```
 1. User: "octo research authentication patterns"
-   → /co:research skill activates (entry point)
+   → /octo:research skill activates (entry point)
    → Triggers discover workflow (orchestrator)
 
 2. User: "octo build authentication module"

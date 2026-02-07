@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Core extraction orchestrator for /co:extract command
+# Core extraction orchestrator for /octo:extract command
 # Implements PRD v2.0 - Design System & Product Reverse-Engineering
 
 set -euo pipefail
@@ -244,7 +244,7 @@ main() {
   parse_args "$@"
 
   echo ""
-  log_info "🐙 Claude Octopus - /co:extract v${EXTRACTION_VERSION}"
+  log_info "🐙 Claude Octopus - /octo:extract v${EXTRACTION_VERSION}"
   echo ""
 
   # Validate target

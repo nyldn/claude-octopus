@@ -206,7 +206,7 @@ test_dev_command() {
 }
 
 test_mode_symmetry() {
-    test_case "/co:dev and /co:km off should be equivalent"
+    test_case "/octo:dev and /octo:km off should be equivalent"
 
     # First, enable knowledge mode
     "$PROJECT_ROOT/scripts/orchestrate.sh" knowledge-mode on >/dev/null 2>&1
@@ -225,10 +225,10 @@ test_mode_symmetry() {
         if echo "$km_off_output" | grep -qi "dev.*work.*mode\|development.*mode"; then
             test_pass
         else
-            test_fail "/co:km off should show Dev mode: $km_off_output"
+            test_fail "/octo:km off should show Dev mode: $km_off_output"
         fi
     else
-        test_fail "/co:dev should show Dev mode: $dev_output"
+        test_fail "/octo:dev should show Dev mode: $dev_output"
     fi
 }
 

@@ -16,7 +16,7 @@
 set -eo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PLUGIN_DIR="$(dirname "$SCRIPT_DIR")/plugin"
+PLUGIN_DIR="$(dirname "$SCRIPT_DIR")"
 ORCHESTRATE_SH="${PLUGIN_DIR}/scripts/orchestrate.sh"
 METRICS_SH="${PLUGIN_DIR}/scripts/metrics-tracker.sh"
 AGENTS_YAML="${PLUGIN_DIR}/agents/config.yaml"
@@ -381,11 +381,11 @@ else
     assert_fail "8.2 CHANGELOG.md has [8.0.0] entry"
 fi
 
-# 8.3: model-config.md references claude-opus-4-6
-if grep -q 'claude-opus-4-6' "$MODEL_CONFIG_MD"; then
-    assert_pass "8.3 model-config.md references claude-opus-4-6"
+# 8.3: model-config.md references current Codex model family
+if grep -Eq 'gpt-5\.[0-9]-codex|gpt-5\.[0-9]-codex-mini' "$MODEL_CONFIG_MD"; then
+    assert_pass "8.3 model-config.md references GPT-5 Codex models"
 else
-    assert_fail "8.3 model-config.md references claude-opus-4-6"
+    assert_fail "8.3 model-config.md references GPT-5 Codex models"
 fi
 
 # 8.4: Provider CLAUDE.md documents Opus 4.6

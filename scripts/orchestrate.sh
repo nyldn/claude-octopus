@@ -7,6 +7,8 @@ set -eo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_DIR="$(dirname "$SCRIPT_DIR")"
+# Keep debug flag defined even when nounset is enabled by sourced scripts.
+OCTOPUS_DEBUG="${OCTOPUS_DEBUG:-false}"
 
 # Workspace location - uses home directory for global installation
 PROJECT_ROOT="${PWD}"
@@ -551,6 +553,7 @@ select_opus_mode() {
 # - Google Gemini 3.0: gemini-3-pro-preview, gemini-3-flash-preview, gemini-3-pro-image-preview
 get_agent_command() {
     local agent_type="$1"
+    local model=""
 
     # Configurable sandbox mode (v7.13.1 - Issue #9)
     # Priority: OCTOPUS_CODEX_SANDBOX env var > default (workspace-write)
@@ -565,14 +568,14 @@ get_agent_command() {
     fi
 
     case "$agent_type" in
-        codex) echo "codex exec --model gpt-5.3-codex ${sandbox_flag}" ;;  # GPT-5.3-Codex (premium, high-capability)
-        codex-standard) echo "codex exec ${sandbox_flag}" ;;     # Standard tier (CLI default)
-        codex-max) echo "codex exec --model gpt-5.3-codex ${sandbox_flag}" ;;  # Premium (same as codex)
-        codex-mini) echo "codex exec ${sandbox_flag}" ;;         # Cost-effective
-        codex-general) echo "codex exec ${sandbox_flag}" ;;      # General tasks
-        gemini) echo "env NODE_NO_WARNINGS=1 gemini -y -m gemini-3-pro-preview" ;;       # Premium Gemini (v7.19.0 P2.2: suppress warnings)
-        gemini-fast) echo "env NODE_NO_WARNINGS=1 gemini -y -m gemini-3-flash-preview" ;; # Fast Gemini (v7.19.0 P2.2: suppress warnings)
-        gemini-image) echo "env NODE_NO_WARNINGS=1 gemini -y -m gemini-3-pro-preview" ;; # Image capable (v7.19.0 P2.2: suppress warnings)
+        codex|codex-standard|codex-max|codex-mini|codex-general)
+            model=$(get_agent_model "$agent_type")
+            echo "codex exec --model ${model} ${sandbox_flag}"
+            ;;
+        gemini|gemini-fast|gemini-image)
+            model=$(get_agent_model "$agent_type")
+            echo "env NODE_NO_WARNINGS=1 gemini -y -m ${model}"  # v7.19.0 P2.2: suppress warnings
+            ;;
         codex-review) echo "codex exec review" ;; # Code review mode (no sandbox support)
         claude) echo "claude --print" ;;                         # Claude Sonnet 4.5
         claude-sonnet) echo "claude --print -m sonnet" ;;        # Claude Sonnet explicit
@@ -590,19 +593,20 @@ get_agent_command() {
 get_agent_command_array() {
     local agent_type="$1"
     local -n _cmd_array="$2"  # nameref for array output
+    local model=""
 
     # Configurable sandbox mode (v7.13.1 - Issue #9)
     local codex_sandbox="${OCTOPUS_CODEX_SANDBOX:-workspace-write}"
 
     case "$agent_type" in
-        codex)          _cmd_array=(codex exec --model gpt-5.3-codex --sandbox "$codex_sandbox") ;;
-        codex-standard) _cmd_array=(codex exec --sandbox "$codex_sandbox") ;;
-        codex-max)      _cmd_array=(codex exec --model gpt-5.3-codex --sandbox "$codex_sandbox") ;;
-        codex-mini)     _cmd_array=(codex exec --sandbox "$codex_sandbox") ;;
-        codex-general)  _cmd_array=(codex exec --sandbox "$codex_sandbox") ;;
-        gemini)         _cmd_array=(env NODE_NO_WARNINGS=1 gemini -y -m gemini-3-pro-preview) ;;  # v7.19.0 P2.2: suppress warnings
-        gemini-fast)    _cmd_array=(env NODE_NO_WARNINGS=1 gemini -y -m gemini-3-flash-preview) ;;  # v7.19.0 P2.2: suppress warnings
-        gemini-image)   _cmd_array=(env NODE_NO_WARNINGS=1 gemini -y -m gemini-3-pro-preview) ;;  # v7.19.0 P2.2: suppress warnings
+        codex|codex-standard|codex-max|codex-mini|codex-general)
+            model=$(get_agent_model "$agent_type")
+            _cmd_array=(codex exec --model "$model" --sandbox "$codex_sandbox")
+            ;;
+        gemini|gemini-fast|gemini-image)
+            model=$(get_agent_model "$agent_type")
+            _cmd_array=(env NODE_NO_WARNINGS=1 gemini -y -m "$model")  # v7.19.0 P2.2: suppress warnings
+            ;;
         codex-review)   _cmd_array=(codex exec review) ;; # No sandbox support
         claude)         _cmd_array=(claude --print) ;;
         claude-sonnet)  _cmd_array=(claude --print -m sonnet) ;;
@@ -750,8 +754,8 @@ set_provider_model() {
 {
   "version": "1.0",
   "providers": {
-    "codex": {"model": "claude-sonnet-4-5", "fallback": "claude-sonnet-4-5"},
-    "gemini": {"model": "gemini-2.0-flash-thinking-exp-01-21", "fallback": "gemini-2.0-flash-exp"}
+    "codex": {"model": "gpt-5.3-codex", "fallback": "gpt-5.2-codex"},
+    "gemini": {"model": "gemini-3-pro-preview", "fallback": "gemini-3-flash-preview"}
   },
   "overrides": {}
 }
@@ -5680,7 +5684,7 @@ tier_cache_read() {
 
     # Validate tier value (must be one of the expected values)
     case "$tier" in
-        free|pro|team|enterprise|api-only)
+        free|plus|pro|team|enterprise|api-only)
             echo "$tier"
             return 0
             ;;
@@ -6558,7 +6562,7 @@ init_step_mode_selection() {
     echo -e "      ${DIM}Examples:${NC} User research, literature reviews, market analysis"
     echo ""
     echo -e "  ${DIM}Note: Both modes use Codex + Gemini - only personas differ${NC}"
-    echo -e "  ${DIM}Switch anytime with /co:dev or /co:km${NC}"
+    echo -e "  ${DIM}Switch anytime with /octo:dev or /octo:km${NC}"
     echo ""
     read -p "  Choose mode [1-2] (default: 1): " mode_choice
 
@@ -9660,7 +9664,7 @@ show_config_summary() {
         fi
     else
         echo -e "  ${CYAN}│${NC}  ${RED}✗${NC} Not configured"
-        echo -e "  ${CYAN}│${NC}  ${YELLOW}→${NC} Install: ${CYAN}npm install -g @anthropic/codex${NC}"
+        echo -e "  ${CYAN}│${NC}  ${YELLOW}→${NC} Install: ${CYAN}npm install -g @openai/codex${NC}"
         echo -e "  ${CYAN}│${NC}  ${YELLOW}→${NC} Configure: ${CYAN}codex login${NC}"
     fi
     echo ""
@@ -9681,7 +9685,7 @@ show_config_summary() {
         fi
     else
         echo -e "  ${CYAN}│${NC}  ${RED}✗${NC} Not configured"
-        echo -e "  ${CYAN}│${NC}  ${YELLOW}→${NC} Install: ${CYAN}npm install -g @google/generative-ai-cli${NC}"
+        echo -e "  ${CYAN}│${NC}  ${YELLOW}→${NC} Install: ${CYAN}npm install -g @google/gemini-cli${NC}"
         echo -e "  ${CYAN}│${NC}  ${YELLOW}→${NC} Configure: ${CYAN}gemini login${NC}"
     fi
     echo ""
@@ -12279,19 +12283,19 @@ toggle_knowledge_work_mode() {
                 echo -e "  ${MAGENTA}🎓 Knowledge Mode${NC} ${GREEN}FORCED${NC}"
                 echo ""
                 echo -e "  ${CYAN}Best for:${NC} User research, strategy analysis, literature reviews"
-                echo -e "  ${DIM}Switch:${NC} /co:km off (dev) | /co:km auto (auto-detect)"
+                echo -e "  ${DIM}Switch:${NC} /octo:km off (dev) | /octo:km auto (auto-detect)"
                 ;;
             false|off)
                 echo -e "  ${GREEN}🔧 Dev Mode${NC} ${CYAN}FORCED${NC}"
                 echo ""
                 echo -e "  ${CYAN}Best for:${NC} Building features, debugging code, implementing APIs"
-                echo -e "  ${DIM}Switch:${NC} /co:km on (knowledge) | /co:km auto (auto-detect)"
+                echo -e "  ${DIM}Switch:${NC} /octo:km on (knowledge) | /octo:km auto (auto-detect)"
                 ;;
             *)
                 echo -e "  ${YELLOW}🐙 Auto-Detect Mode${NC} ${CYAN}ACTIVE${NC} (v7.8+)"
                 echo ""
                 echo -e "  ${CYAN}How it works:${NC} Context detected from prompt + project type"
-                echo -e "  ${DIM}Override:${NC} /co:km on (knowledge) | /co:km off (dev)"
+                echo -e "  ${DIM}Override:${NC} /octo:km on (knowledge) | /octo:km off (dev)"
                 ;;
         esac
         echo ""
