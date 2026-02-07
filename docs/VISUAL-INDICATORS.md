@@ -37,7 +37,7 @@ Natural language that triggers orchestrate.sh workflows:
 When Knowledge Mode is ON, research tasks use external CLIs:
 
 ```
-/co:km on
+/octo:km on
 "Research market opportunities in healthcare"
 ```
 

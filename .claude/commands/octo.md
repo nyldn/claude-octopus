@@ -34,7 +34,7 @@ The router uses keyword matching and confidence scoring to determine the best wo
 | **Research** | research, investigate, explore, learn, study, understand, analyze | `/octo:discover` | 70% |
 | **Build (Clear)** | build X, create Y, implement Z, develop X | `/octo:develop` | 80% |
 | **Build (Vague)** | build, create, make (without specific target) | `/octo:plan` | 60% |
-| **Validate** | validate, review, check, audit, inspect, verify | `/octo:validate` | 75% |
+| **Validate** | validate, review, check, audit, inspect, verify | `/octo:review` | 75% |
 | **Debate** | should, vs, or, compare, versus, decide, which | `/octo:debate` | 70% |
 | **Lifecycle** | end-to-end, complete, full, entire, whole | `/octo:embrace` | 85% |
 
@@ -70,8 +70,8 @@ The router uses keyword matching and confidence scoring to determine the best wo
 ### Validation Intent
 ```bash
 /octo validate the authentication implementation
-# → Routes to /octo:validate (NEW in v7.24.0)
-# 🛡️ Multi-AI quality assurance and validation
+# → Routes to /octo:review
+# 🛡️ Multi-AI quality assurance and review
 ```
 
 ### Debate Intent
@@ -108,7 +108,7 @@ You can always bypass the router and call workflows directly:
 /octo:debate       # AI debate
 /octo:embrace      # Full lifecycle
 /octo:plan         # Requirements planning
-/octo:validate     # Quality validation (NEW)
+/octo:review       # Quality review and validation
 ```
 
 ## Advanced Usage
@@ -131,7 +131,7 @@ export OCTOPUS_CODEX_MODEL="claude-opus-4-6"
 ```bash
 # Router can suggest chaining
 /octo build and validate authentication system
-# → Suggests: /octo:develop → /octo:validate
+# → Suggests: /octo:develop → /octo:review
 ```
 
 ---

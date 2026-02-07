@@ -16,7 +16,7 @@ This guide explains exactly what natural language phrases trigger external CLI e
 
 **Alternative prefixes that also work:**
 - `co-research X`, `co-build X`, `co-review X`
-- `/co:discover X`, `/co:develop X`, `/co:deliver X`
+- `/octo:discover X`, `/octo:develop X`, `/octo:deliver X`
 
 ---
 
@@ -45,7 +45,7 @@ This guide explains exactly what natural language phrases trigger external CLI e
 - `octo discover X`
 - `octo explore X`
 - `co-research X`
-- `/co:discover X`
+- `/octo:discover X`
 
 **Natural language triggers (may conflict with Claude's base behaviors):**
 - "research X"
@@ -93,7 +93,7 @@ This guide explains exactly what natural language phrases trigger external CLI e
 - `octo develop X`
 - `octo implement X`
 - `co-build X`
-- `/co:develop X`
+- `/octo:develop X`
 
 **Natural language triggers (may conflict):**
 - "build X"
@@ -140,7 +140,7 @@ This guide explains exactly what natural language phrases trigger external CLI e
 - `octo validate X`
 - `octo deliver X`
 - `co-review X`
-- `/co:deliver X`
+- `/octo:deliver X`
 
 **Natural language triggers (may conflict):**
 - "review X"
@@ -188,7 +188,7 @@ This guide explains exactly what natural language phrases trigger external CLI e
 - `octo scope X`
 - `octo clarify X`
 - `co-define X`
-- `/co:define X`
+- `/octo:define X`
 
 **Natural language triggers (may conflict):**
 - "define the requirements for X"
@@ -231,7 +231,7 @@ This guide explains exactly what natural language phrases trigger external CLI e
 **Reliable triggers (always work):**
 - `octo debate X`
 - `co-debate X`
-- `/co:debate X`
+- `/octo:debate X`
 - `/debate <question>`
 - `/debate -r N -d STYLE <question>`
 
@@ -245,7 +245,7 @@ This guide explains exactly what natural language phrases trigger external CLI e
 ✅ "octo debate whether we should use Redis or in-memory cache"
    → Guaranteed to trigger debate skill
 
-✅ /co:debate -r 3 -d adversarial "Review our API design"
+✅ /octo:debate -r 3 -d adversarial "Review our API design"
    → Guaranteed to trigger debate skill, 3 rounds
 
 ⚠️ "Run a debate about whether to use TypeScript"
@@ -381,7 +381,7 @@ Providers:
 When you've enabled Knowledge Mode, research-oriented tasks automatically use external CLIs:
 
 ```bash
-/co:km on
+/octo:km on
 ```
 
 **Then these trigger multi-provider:**

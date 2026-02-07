@@ -56,7 +56,7 @@ Claude Octopus coordinates **three AI providers** to give you multi-perspective 
 
 ### Discover Phase (probe)
 
-**Trigger:** `octo research X` or `/co:discover`
+**Trigger:** `octo research X` or `/octo:discover`
 
 ```
 User Request
@@ -104,7 +104,7 @@ User Request
 
 ### Define Phase (grasp)
 
-**Trigger:** `octo define X` or `/co:define`
+**Trigger:** `octo define X` or `/octo:define`
 
 ```
 User Request
@@ -150,7 +150,7 @@ User Request
 
 ### Develop Phase (tangle)
 
-**Trigger:** `octo build X` or `/co:develop`
+**Trigger:** `octo build X` or `/octo:develop`
 
 ```
 User Request
@@ -207,7 +207,7 @@ The quality gate is based on subtask success rate:
 
 ### Deliver Phase (ink)
 
-**Trigger:** `octo review X` or `/co:deliver`
+**Trigger:** `octo review X` or `/octo:deliver`
 
 ```
 User Request
@@ -264,7 +264,7 @@ User Request
 
 ### Debate (grapple)
 
-**Trigger:** `octo debate X vs Y` or `/co:debate`
+**Trigger:** `octo debate X vs Y` or `/octo:debate`
 
 ```
 User Question
@@ -318,7 +318,7 @@ User Question
 
 ### Full Workflow (embrace)
 
-**Trigger:** `/co:embrace`
+**Trigger:** `/octo:embrace`
 
 ```
 User Request
@@ -376,7 +376,7 @@ All four phases run sequentially. Each phase uses the output of the previous pha
 | Strategy | How |
 |----------|-----|
 | **Use one provider** | Only install Codex OR Gemini (not both) |
-| **Skip unnecessary phases** | Use `/co:develop` instead of `/co:embrace` for simple tasks |
+| **Skip unnecessary phases** | Use `/octo:develop` instead of `/octo:embrace` for simple tasks |
 | **Use Claude-only** | For simple tasks, don't use "octo" prefix - just ask directly |
 
 ---
@@ -387,7 +387,7 @@ Claude Octopus auto-detects which providers are available:
 
 ```bash
 # Check status
-/co:setup
+/octo:setup
 
 # Output example:
 # Providers:

@@ -82,17 +82,23 @@ The router parses your intent and selects the right workflow. Above 80% confiden
 
 ### Multi-AI Orchestration
 
-Claude Octopus coordinates three AI providers in parallel. Each brings a distinct perspective:
+Claude Octopus coordinates three AI providers - Codex, Gemini, and Claude - running them in parallel across every workflow. This isn't just a debate feature. Multi-AI orchestration powers the entire plugin:
 
-| Provider | Powered By | Strength |
+- **`/octo:embrace`** runs a full 4-phase lifecycle where Codex and Gemini research independently in the Discover phase, build consensus in Define, propose competing implementations in Develop, then cross-review in Deliver
+- **`/octo:extract`** uses Codex to analyze code structure while Gemini maps the design system, with Claude synthesizing tokens, components, and architecture into exportable formats
+- **`/octo:research`** sends the same question to all providers simultaneously, then synthesizes three independent analyses into one report
+- **`/octo:review`** has Codex check code quality and patterns while Gemini scans for security and edge cases, with Claude producing the final assessment
+- **`/octo:debate`** structures a formal multi-round argument where each provider takes and defends a position
+
+| Provider | Powered By | Role Across Workflows |
 |----------|-----------|----------|
-| Codex (OpenAI) | GPT-5.3-Codex | Implementation depth, code patterns, technical analysis |
-| Gemini (Google) | Gemini 3 Pro | Ecosystem breadth, alternative approaches, research synthesis |
-| Claude (Anthropic) | Sonnet 4.5 / Opus 4.6 | Strategic synthesis, quality assessment, final recommendations |
+| Codex (OpenAI) | GPT-5.3-Codex | Implementation depth - code patterns, technical analysis, architecture proposals |
+| Gemini (Google) | Gemini 3 Pro | Ecosystem breadth - alternative approaches, security review, research synthesis |
+| Claude (Anthropic) | Sonnet 4.5 / Opus 4.6 | Orchestration and synthesis - quality gates, final recommendations, consensus building |
 
-Results are synthesized through a 75% consensus threshold. When providers agree, you get a unified recommendation. When they disagree, you see the debate - and you're better informed for it.
+Each workflow uses providers differently. Research runs them in parallel. Define runs them sequentially for coherent problem scoping. Develop runs them in parallel for competing proposals, then merges through a 75% consensus quality gate. Deliver cross-validates with adversarial review.
 
-**Graceful degradation:** Works with 1, 2, or 3 providers. If only one external provider is configured, you get dual-perspective analysis. With no external providers, you still get all 29 personas, structured workflows, and every skill - multi-AI features simply won't activate.
+**Graceful degradation:** Works with 1, 2, or 3 providers. With one external provider, you get dual-perspective analysis. With none, you still get all 29 personas, structured workflows, and every skill - multi-AI orchestration simply runs through Claude alone.
 
 ### Double Diamond Workflows
 

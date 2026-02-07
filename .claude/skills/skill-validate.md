@@ -122,7 +122,7 @@ Validation Layers:
 
 Use the Bash tool to execute:
 ```bash
-cd /Users/chris/git/claude-octopus/plugin
+cd "${CLAUDE_PLUGIN_ROOT}"
 ./scripts/orchestrate.sh debate \
   --topic "Validation of <target>" \
   --rounds 1 \

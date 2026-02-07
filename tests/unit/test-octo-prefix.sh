@@ -43,7 +43,7 @@ for cmd_file in "$COMMANDS_DIR"/*.md; do
 done
 
 echo ""
-echo "Test 2: No /co: references in skill files..."
+echo "Test 2: No /octo: references in skill files..."
 SKILLS_DIR="$PROJECT_ROOT/.claude/skills"
 
 if [ ! -d "$SKILLS_DIR" ]; then
@@ -51,13 +51,13 @@ if [ ! -d "$SKILLS_DIR" ]; then
     exit 1
 fi
 
-co_refs=$(grep -l "/co:" "$SKILLS_DIR"/*.md 2>/dev/null || true)
+co_refs=$(grep -l "/octo:" "$SKILLS_DIR"/*.md 2>/dev/null || true)
 
 if [ -z "$co_refs" ]; then
-    echo -e "${GREEN}✓${NC} No /co: references found in skill files"
+    echo -e "${GREEN}✓${NC} No /octo: references found in skill files"
     ((PASSED++))
 else
-    echo -e "${RED}✗${NC} Found /co: references in:"
+    echo -e "${RED}✗${NC} Found /octo: references in:"
     for f in $co_refs; do
         echo "   - $(basename "$f")"
     done

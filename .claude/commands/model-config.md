@@ -23,7 +23,7 @@ Configure which AI models are used by Claude Octopus workflows. This allows you 
 /octo:model-config
 
 # Set codex model (persistent)
-/octo:model-config codex claude-opus-4-6
+/octo:model-config codex gpt-5.3-codex
 
 # Set gemini model (persistent)
 /octo:model-config gemini gemini-2.0-pro-exp
@@ -57,11 +57,10 @@ Models are selected using 4-tier precedence:
 ## Supported Models
 
 ### Codex (OpenAI)
-- `claude-sonnet-4-5` - Balanced performance (default)
-- `claude-opus-4-6` - Maximum capability (premium)
-- `claude-opus-4-5` - Legacy (replaced by claude-opus-4-6)
+- `gpt-5.3-codex` - Maximum capability for coding workflows (default)
 - `gpt-5.2-codex` - OpenAI's code-optimized model
-- `gpt-5.3-codex` - Maximum context window
+- `gpt-5.1-codex-mini` - Fastest and most cost-efficient coding model
+- `gpt-5.2` - General-purpose fallback
 
 ### Gemini (Google)
 - `gemini-2.0-flash-thinking-exp-01-21` - Fast with reasoning (default)
@@ -74,7 +73,7 @@ Models are selected using 4-tier precedence:
 ### Premium Research Workflow
 ```bash
 # Use premium models for important research
-export OCTOPUS_CODEX_MODEL="claude-opus-4-6"
+export OCTOPUS_CODEX_MODEL="gpt-5.3-codex"
 export OCTOPUS_GEMINI_MODEL="gemini-2.0-pro-exp"
 /octo:discover OAuth security patterns
 ```
@@ -82,7 +81,7 @@ export OCTOPUS_GEMINI_MODEL="gemini-2.0-pro-exp"
 ### Fast Prototyping
 ```bash
 # Use fast models for quick iteration
-/octo:model-config codex claude-sonnet-4-5
+/octo:model-config codex gpt-5.1-codex-mini
 /octo:model-config gemini gemini-2.0-flash-exp
 /octo:develop user profile component
 ```
@@ -104,8 +103,8 @@ Location: `~/.claude-octopus/config/providers.json`
   "version": "1.0",
   "providers": {
     "codex": {
-      "model": "claude-sonnet-4-5",
-      "fallback": "claude-opus-4-6"
+      "model": "gpt-5.3-codex",
+      "fallback": "gpt-5.2-codex"
     },
     "gemini": {
       "model": "gemini-2.0-flash-thinking-exp-01-21",
@@ -156,7 +155,7 @@ When the user invokes `/octo:model-config`, you MUST:
 3. **Set Model** (`<provider> <model>` or with `--session`):
    ```bash
    # Call set_provider_model from orchestrate.sh
-   source /Users/chris/git/claude-octopus/plugin/scripts/orchestrate.sh
+   source "${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh"
    set_provider_model <provider> <model> [--session]
 
    # Show updated configuration
@@ -166,7 +165,7 @@ When the user invokes `/octo:model-config`, you MUST:
 4. **Reset Model** (`reset <provider|all>`):
    ```bash
    # Call reset_provider_model from orchestrate.sh
-   source /Users/chris/git/claude-octopus/plugin/scripts/orchestrate.sh
+   source "${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh"
    reset_provider_model <provider>
 
    # Show updated configuration
