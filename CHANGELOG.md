@@ -2,6 +2,51 @@
 
 All notable changes to Claude Octopus will be documented in this file.
 
+## [8.4.0] - 2026-02-07
+
+### Added
+
+**Fast Opus 4.6 Auto-Routing** (Claude Code v2.1.36+):
+
+- **`SUPPORTS_FAST_OPUS` feature flag** in version detection
+  - Detects Claude Code v2.1.36+ which introduced `/fast` mode for Opus 4.6
+  - Enables cost-aware model routing between standard and fast Opus
+
+- **`select_opus_mode()` routing function** in orchestrate.sh
+  - Conservative routing: defaults to standard (cost-efficient) for all multi-phase workflows
+  - Fast only for interactive single-shot Opus queries (no phase context)
+  - Never uses fast in autonomous/background mode (no human waiting)
+  - Fast Opus is 6x more expensive ($30/$150 vs $5/$25 per MTok)
+  - User override via `OCTOPUS_OPUS_MODE=fast|standard|auto` environment variable
+
+- **`claude-opus-fast` agent type** in get_agent_command/get_agent_command_array
+  - Maps to `claude --print -m opus --fast`
+  - Pricing tracked as `claude-opus-4.6-fast` ($30/$150 per MTok) in cost reporting
+  - Added to `AVAILABLE_AGENTS` list
+  - Cost warning logged when fast mode is auto-selected
+
+- **`fast_mode: opt-in` config field** on claude-opus agents (strategy-analyst, research-synthesizer)
+  - Marks agents that support fast Opus but require explicit user opt-in due to 6x cost
+  - Default behavior is standard mode; fast only when `OCTOPUS_OPUS_MODE=fast`
+
+- **Context window monitoring statusline** (`hooks/octopus-statusline.sh`)
+  - Displays real-time context usage with color-coded progress bar
+  - Shows active workflow phase when session.json exists
+  - Tracks cumulative session cost from `cost.total_cost_usd`
+  - Color thresholds: green (<70%), yellow (70-89%), red (>=90%)
+
+- **`SUPPORTS_STATUSLINE_API` feature flag** for Claude Code v2.1.33+
+  - Tracks availability of context_window.used_percentage in statusline API
+  - Enables proactive context exhaustion warnings
+
+### Changed
+
+- Version detection log line now includes Fast Opus status
+- CLAUDE.md cost awareness section updated with Fast Opus pricing
+- CLAUDE.md added Fast Opus 4.6 Mode documentation section
+
+---
+
 ## [8.3.0] - 2026-02-06
 
 ### Added

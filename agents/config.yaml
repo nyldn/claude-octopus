@@ -230,6 +230,7 @@ agents:
     expertise: [strategic-analysis, market-research, business-strategy]
     memory: user
     permissionMode: plan
+    fast_mode: opt-in  # v8.4: fast Opus available but 6x cost, user must explicitly request
 
   research-synthesizer:
     file: personas/research-synthesizer.md
@@ -240,6 +241,7 @@ agents:
     expertise: [research-synthesis, literature-review, knowledge-integration]
     memory: user
     permissionMode: plan
+    fast_mode: opt-in  # v8.4: fast Opus available but 6x cost, user must explicitly request
 
   context-manager:
     file: personas/context-manager.md

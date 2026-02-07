@@ -1,7 +1,7 @@
 {
   "name": "claude-octopus",
-  "version": "8.3.0",
-  "description": "Claude Octopus - Multi-agent orchestration with state persistence, validation gates, and quick mode",
+  "version": "8.4.0",
+  "description": "Claude Octopus - Multi-agent orchestration with Fast Opus 4.6 routing, context monitoring, and validation gates",
   "main": "orchestrate.sh",
   "scripts": {
     "test": "make test",
