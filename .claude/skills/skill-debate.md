@@ -34,9 +34,10 @@ trigger: |
 🐙 Debate: [Topic/question being debated]
 
 Participants:
-🔴 Codex CLI - Technical perspective
-🟡 Gemini CLI - Ecosystem perspective
-🔵 Claude - Moderator and active participant
+🔴 Codex CLI - Technical implementation perspective
+🟡 Gemini CLI - Ecosystem and strategic perspective
+🔵 Sonnet 4.5 - Independent analytical perspective
+🐙 Claude - Moderator and synthesis
 ```
 
 **This is NOT optional.** Users need to see which AI providers are active and understand they are being charged for external API calls (🔴 🟡).
