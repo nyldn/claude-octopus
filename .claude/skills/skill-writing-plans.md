@@ -1,18 +1,6 @@
 ---
 name: skill-writing-plans
-description: |
-  Create zero-context implementation plans with bite-sized tasks (2-5 min each).
-  
-  Use PROACTIVELY when user says:
-  - "plan how to implement X", "create implementation plan"
-  - "break down this feature", "break into tasks"
-  - "create a plan for", "write a plan"
-  - "how should I implement", "implementation steps"
-  
-  PRIORITY TRIGGERS: "create plan", "implementation plan", "break down"
-  
-  DO NOT use for: high-level architecture (use skill-architecture), research (use flow-discover),
-  documentation writing (use skill-doc-delivery).
+description: Zero-context implementation plans with bite-sized tasks
 trigger: |
   Use when you have a spec or requirements for a multi-step task.
   Auto-invoke when user says "plan how to implement X", "create implementation plan", 

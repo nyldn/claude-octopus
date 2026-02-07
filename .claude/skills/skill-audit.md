@@ -4,17 +4,7 @@ aliases:
   - audit
   - systematic-check
   - comprehensive-audit
-description: |
-  Systematic audit and checking processes for finding issues across the codebase.
-  Creates comprehensive checklists and methodically verifies each item.
-  
-  Use PROACTIVELY when user requests auditing:
-  - "audit and check the entire app", "audit X for Y"
-  - "check for broken features", "process to audit"
-  - "systematic check", "scan for issues", "find all instances of X"
-  
-  DO NOT use for: security audits (use skill-security-audit), code reviews (use skill-code-review),
-  or simple grep/search operations.
+description: Systematic codebase auditing with comprehensive checklists
 trigger: |
   AUTOMATICALLY ACTIVATE when user requests auditing:
   - "audit and check the entire app"

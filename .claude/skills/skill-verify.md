@@ -1,8 +1,6 @@
 ---
 name: skill-verify
-description: |
-  Evidence gate: run verification, read output, THEN claim success.
-  "Iron Law: NO COMPLETION CLAIMS WITHOUT FRESH VERIFICATION EVIDENCE."
+description: "Evidence gate: verify before claiming success"
 trigger: |
   Use when about to claim work is complete, fixed, or passing.
   Auto-invoke before: commits, PRs, task completion, moving to next task.

@@ -5,19 +5,7 @@ aliases:
   - discover-workflow
   - probe
   - probe-workflow
-description: |
-  Discover phase workflow - Research and exploration using external CLI providers.
-  Part of the Double Diamond methodology (Discover phase).
-  Uses Codex and Gemini CLIs for multi-perspective research.
-
-  Use PROACTIVELY when user says:
-  - "octo research X", "octo discover Y", "octo explore Z"
-  - "co-research X", "co-discover Y"
-  - "research X", "explore Y", "investigate Z"
-  - "what are the options for X", "what are my choices for Y"
-  - "find information about Y", "look up Z", "analyze different approaches"
-  - "compare X vs Y", "X vs Y comparison", "pros and cons of X"
-  - "what should I use for X", "best tool for Y", "tradeoffs between X and Y"
+description: Multi-AI research using Codex and Gemini CLIs (Double Diamond Discover phase)
   - Questions about best practices, patterns, or ecosystem research
 
   PRIORITY TRIGGERS (always invoke): "octo research", "octo discover", "co-research", "co-discover"

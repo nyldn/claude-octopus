@@ -5,23 +5,7 @@ aliases:
   - deliver-workflow
   - ink
   - ink-workflow
-description: |
-  Deliver phase workflow - Review, validate, and test using external CLI providers.
-  Part of the Double Diamond methodology (Deliver phase).
-  Uses Codex and Gemini CLIs for multi-perspective validation.
-
-  Use PROACTIVELY when user says:
-  - "octo review X", "octo validate Y", "octo deliver Z"
-  - "co-review X", "co-validate Y", "co-deliver Z"
-  - "review X", "validate Y", "test Z"
-  - "check if X works correctly", "verify the implementation of Y"
-  - "find issues in Z", "quality check for X"
-  - "ensure Y meets requirements", "audit X for security"
-
-  PRIORITY TRIGGERS (always invoke): "octo review", "octo validate", "octo deliver", "co-review", "co-deliver"
-
-  DO NOT use for: implementation (use flow-develop), research (use flow-discover),
-  requirement definition (use flow-define), or simple code reading.
+description: Multi-AI validation and review using Codex and Gemini CLIs (Double Diamond Deliver phase)
 
 # Claude Code v2.1.12+ Integration
 agent: general-purpose

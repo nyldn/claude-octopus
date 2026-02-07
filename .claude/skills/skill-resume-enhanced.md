@@ -4,23 +4,7 @@ aliases:
   - resume
   - resume-session
   - context-resume
-description: |
-  Enhanced session resumption skill for v7.25.0+
-  Resilient to context clearing from native plan mode (EnterPlanMode/ExitPlanMode).
-
-  Automatically reloads state from .claude-octopus/state.json and restores:
-  - Prior workflow phases and their findings
-  - Architectural decisions made
-  - Current tasks and their status
-  - Blockers and impediments
-  - Metrics and execution history
-
-  Use PROACTIVELY when:
-  - Starting a new conversation after context was cleared
-  - User says "resume", "continue from where we left off", "what was I working on"
-  - Detecting prior state exists (.claude-octopus/state.json)
-
-  DO NOT use for: Simple task resumption (use skill-task-management), git operations
+description: Enhanced session resumption resilient to context clearing
 trigger: |
   AUTOMATICALLY ACTIVATE when:
   - User says "resume", "continue", "pick up where we left off"

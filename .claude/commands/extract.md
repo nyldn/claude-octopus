@@ -455,6 +455,284 @@ ${executionPlan.phases.filter(p => p.enabled).map(p =>
 `);
 ```
 
+### Step 4.5: Z-index and Stacking Context Analysis (Optional)
+
+**Browser-based layer analysis for live products:**
+
+```javascript
+// Check if browser MCP is available
+const browserMCPAvailable = await checkBrowserMCP();
+
+if (browserMCPAvailable && isLiveURL(target)) {
+  console.log('📐 Analyzing z-index and stacking contexts...');
+
+  try {
+    // Execute z-index detection script
+    const zIndexAnalysis = await mcp__claude_in_chrome__javascript_tool({
+      action: 'javascript_exec',
+      tabId: currentTabId,
+      text: `
+        // Get all elements with explicit z-index
+        const elementsWithZIndex = Array.from(document.querySelectorAll('*'))
+          .map(el => {
+            const computed = window.getComputedStyle(el);
+            const zIndex = computed.zIndex;
+            const position = computed.position;
+
+            // Only include elements with explicit z-index and positioning
+            if (zIndex !== 'auto' && position !== 'static') {
+              // Helper: Get CSS selector for element
+              const getSelector = (element) => {
+                if (element.id) return '#' + element.id;
+                if (element.className) {
+                  const classes = Array.from(element.classList).join('.');
+                  return element.tagName.toLowerCase() + '.' + classes;
+                }
+                return element.tagName.toLowerCase();
+              };
+
+              // Helper: Check if element creates stacking context
+              const createsStackingContext = (element) => {
+                const style = window.getComputedStyle(element);
+                return (
+                  style.opacity !== '1' ||
+                  style.transform !== 'none' ||
+                  style.filter !== 'none' ||
+                  style.perspective !== 'none' ||
+                  style.clipPath !== 'none' ||
+                  style.mask !== 'none' ||
+                  style.mixBlendMode !== 'normal' ||
+                  style.isolation === 'isolate' ||
+                  (style.position === 'fixed' || style.position === 'sticky') ||
+                  style.willChange === 'transform' ||
+                  style.willChange === 'opacity' ||
+                  style.contain === 'layout' ||
+                  style.contain === 'paint' ||
+                  (style.position !== 'static' && zIndex !== 'auto')
+                );
+              };
+
+              // Helper: Find stacking context parent
+              const getStackingContextParent = (element) => {
+                let parent = element.parentElement;
+                while (parent) {
+                  if (createsStackingContext(parent)) {
+                    return getSelector(parent);
+                  }
+                  parent = parent.parentElement;
+                }
+                return 'html';
+              };
+
+              // Get bounding rect for overlap detection
+              const rect = el.getBoundingClientRect();
+
+              return {
+                selector: getSelector(el),
+                zIndex: parseInt(zIndex),
+                position: position,
+                createsStackingContext: createsStackingContext(el),
+                parent: getStackingContextParent(el),
+                rect: {
+                  top: rect.top,
+                  left: rect.left,
+                  width: rect.width,
+                  height: rect.height
+                },
+                visible: rect.width > 0 && rect.height > 0
+              };
+            }
+          })
+          .filter(Boolean)
+          .sort((a, b) => a.zIndex - b.zIndex);
+
+        // Detect conflicts (elements that may overlap)
+        const conflicts = [];
+        for (let i = 0; i < elementsWithZIndex.length; i++) {
+          for (let j = i + 1; j < elementsWithZIndex.length; j++) {
+            const el1 = elementsWithZIndex[i];
+            const el2 = elementsWithZIndex[j];
+
+            // Check if rectangles overlap
+            const overlaps = !(
+              el1.rect.left + el1.rect.width < el2.rect.left ||
+              el2.rect.left + el2.rect.width < el1.rect.left ||
+              el1.rect.top + el1.rect.height < el2.rect.top ||
+              el2.rect.top + el2.rect.height < el1.rect.top
+            );
+
+            if (overlaps && el1.visible && el2.visible) {
+              conflicts.push({
+                lower: el1.selector,
+                lowerZ: el1.zIndex,
+                higher: el2.selector,
+                higherZ: el2.zIndex,
+                warning: el1.zIndex >= el2.zIndex ? 'Lower z-index may obscure higher element' : null
+              });
+            }
+          }
+        }
+
+        // Return analysis
+        ({
+          elements: elementsWithZIndex,
+          conflicts: conflicts,
+          summary: {
+            totalElements: elementsWithZIndex.length,
+            zIndexRange: {
+              min: Math.min(...elementsWithZIndex.map(e => e.zIndex)),
+              max: Math.max(...elementsWithZIndex.map(e => e.zIndex))
+            },
+            stackingContexts: elementsWithZIndex.filter(e => e.createsStackingContext).length,
+            potentialConflicts: conflicts.length
+          }
+        })
+      `
+    });
+
+    // Add z-index section to anatomy guide
+    const zIndexSection = generateZIndexSection(zIndexAnalysis);
+    anatomyGuide.sections.push(zIndexSection);
+
+    console.log(`✓ Analyzed ${zIndexAnalysis.summary.totalElements} layered elements`);
+    console.log(`  • Z-index range: ${zIndexAnalysis.summary.zIndexRange.min} to ${zIndexAnalysis.summary.zIndexRange.max}`);
+    console.log(`  • Stacking contexts: ${zIndexAnalysis.summary.stackingContexts}`);
+    console.log(`  • Potential conflicts: ${zIndexAnalysis.summary.potentialConflicts}`);
+
+  } catch (error) {
+    console.log('⚠️  Z-index analysis skipped:', error.message);
+    console.log('   (Browser MCP connection issue - continuing without z-index data)');
+  }
+} else {
+  if (!isLiveURL(target)) {
+    console.log('ℹ️  Z-index analysis skipped: Not a live URL (codebase extraction)');
+  } else {
+    console.log('ℹ️  Z-index analysis skipped: Browser MCP not available');
+    console.log('   Install claude-in-chrome extension for layer analysis:');
+    console.log('   https://github.com/modelcontextprotocol/servers/tree/main/src/claude-in-chrome');
+  }
+}
+
+// Helper: Generate z-index section for anatomy guide
+function generateZIndexSection(analysis) {
+  const { elements, conflicts, summary } = analysis;
+
+  // Build layer hierarchy table
+  const layerTable = elements.map(el =>
+    `| ${el.selector} | ${el.zIndex} | ${el.position} | ${el.createsStackingContext ? 'Yes' : 'No'} | ${el.parent} |`
+  ).join('\n');
+
+  // Build stacking context tree
+  const stackingTree = buildStackingContextTree(elements);
+
+  // Build conflict warnings
+  const conflictWarnings = conflicts
+    .filter(c => c.warning)
+    .map(c => `- ⚠️ \`${c.lower}\` (z:${c.lowerZ}) may be obscured by \`${c.higher}\` (z:${c.higherZ})`)
+    .join('\n');
+
+  return {
+    title: 'Layer Hierarchy & Z-Index',
+    content: `
+## Layer Hierarchy & Z-Index
+
+### Summary
+- **Total Layered Elements**: ${summary.totalElements}
+- **Z-Index Range**: ${summary.zIndexRange.min} to ${summary.zIndexRange.max}
+- **Stacking Contexts**: ${summary.stackingContexts}
+- **Potential Conflicts**: ${summary.potentialConflicts}
+
+### Layer Hierarchy (by z-index)
+
+| Element | Z-Index | Position | Creates Context | Parent Context |
+|---------|---------|----------|-----------------|----------------|
+${layerTable}
+
+### Stacking Context Tree
+
+\`\`\`
+${stackingTree}
+\`\`\`
+
+${conflicts.length > 0 ? `
+### Potential Conflicts
+
+${conflictWarnings || 'No conflicts detected'}
+
+**Note**: Elements with overlapping rectangles and incorrect z-index ordering may cause visual issues.
+` : ''}
+
+### Recommendations
+
+1. **Standardize Z-Index Scale**
+   - Use a consistent scale (e.g., 0, 100, 200, 300...)
+   - Document z-index purposes in comments
+   - Avoid arbitrary values
+
+2. **Minimize Stacking Contexts**
+   - Only create stacking contexts when necessary
+   - Document intentional stacking contexts
+
+3. **Avoid Inline Z-Index**
+   - Define z-index in stylesheets, not inline styles
+   - Use CSS custom properties for z-index values
+
+4. **Layer Naming Convention**
+   - Consider CSS custom properties: \`--z-modal: 1000;\`
+   - Group related layers: navigation (100-199), modals (1000-1099), etc.
+`
+  };
+}
+
+// Helper: Build stacking context tree visualization
+function buildStackingContextTree(elements) {
+  const tree = {};
+
+  elements.forEach(el => {
+    if (!tree[el.parent]) tree[el.parent] = [];
+    tree[el.parent].push(el);
+  });
+
+  const buildNode = (parent, indent = 0) => {
+    const children = tree[parent] || [];
+    const prefix = '  '.repeat(indent);
+
+    return children.map(child => {
+      const marker = child.createsStackingContext ? '🔲' : '  ';
+      const line = `${prefix}${marker} ${child.selector} (z:${child.zIndex})`;
+      const subtree = buildNode(child.selector, indent + 1);
+      return subtree ? `${line}\n${subtree}` : line;
+    }).join('\n');
+  };
+
+  return buildNode('html');
+}
+
+async function checkBrowserMCP() {
+  try {
+    // Check if browser MCP tools are available
+    const hasBrowserMCP = typeof mcp__claude_in_chrome__javascript_tool === 'function';
+    return hasBrowserMCP;
+  } catch {
+    return false;
+  }
+}
+
+function isLiveURL(target) {
+  return target.startsWith('http://') || target.startsWith('https://');
+}
+```
+
+**Graceful Degradation**: If browser MCP is not available or the target is a codebase (not a live URL), z-index analysis is skipped with a helpful message. The extraction continues without layer data.
+
+**Output**: Z-index section is added to the anatomy guide with:
+- Layer hierarchy table (sorted by z-index)
+- Stacking context tree visualization
+- Conflict detection and warnings
+- Recommendations for z-index management
+
+---
+
 ### Step 5: Execute Extraction Pipelines
 
 **Phase 5.1: Design Token Extraction** (if enabled)

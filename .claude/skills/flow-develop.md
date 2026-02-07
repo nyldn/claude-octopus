@@ -5,19 +5,7 @@ aliases:
   - develop-workflow
   - tangle
   - tangle-workflow
-description: |
-  Develop phase workflow - Build and implement solutions using external CLI providers.
-  Part of the Double Diamond methodology (Develop phase).
-  Uses Codex and Gemini CLIs for multi-perspective implementation.
-
-  Use PROACTIVELY when user says:
-  - "octo build X", "octo develop Y", "octo implement Z"
-  - "co-build X", "co-develop Y", "co-implement Z"
-  - "build X", "implement Y", "create Z"
-  - "develop a feature for X", "write code to do Y"
-  - "add functionality for Z", "generate implementation for X"
-
-  PRIORITY TRIGGERS (always invoke): "octo build", "octo develop", "octo implement", "co-build", "co-develop"
+description: Multi-AI implementation using Codex and Gemini CLIs (Double Diamond Develop phase)
 
   DO NOT use for: simple code edits (use Edit tool), reading/reviewing code,
   built-in commands, or trivial single-file changes.

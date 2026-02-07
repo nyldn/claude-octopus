@@ -4,15 +4,7 @@ aliases:
   - security-framing
   - content-sanitization
   - url-validation
-description: |
-  Security framing standard for handling untrusted external content.
-  Provides URL validation, content wrapping, and safe analysis patterns.
-  
-  Use PROACTIVELY when ANY workflow fetches external URLs or analyzes
-  content from unknown sources. This skill is a DEPENDENCY for:
-  - flow-discover (web research)
-  - skill-deep-research (external sources)
-  - skill-content-pipeline (content analysis)
+description: URL validation and content wrapping for untrusted sources
 trigger: |
   This skill provides SECURITY UTILITIES - it should be referenced by other skills,
   not invoked directly by users. Auto-integrate when:

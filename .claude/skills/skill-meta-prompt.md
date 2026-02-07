@@ -5,12 +5,7 @@ aliases:
   - prompt-generator
   - prompt-optimizer
   - prompt-engineering
-description: |
-  Generate optimized prompts using proven techniques.
-  Task Decomposition, Fresh Eyes Review, Iterative Verification,
-  No Guessing, and Specialized Experts.
-  
-  Creates well-structured, verifiable, low-hallucination prompts.
+description: Generate optimized prompts using proven techniques
 trigger: |
   Use PROACTIVELY when user wants to:
   - "create a prompt for", "write a prompt for"

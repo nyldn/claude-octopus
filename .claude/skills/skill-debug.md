@@ -3,18 +3,7 @@ name: skill-debug
 aliases:
   - debug
   - systematic-debugging
-description: |
-  Four-phase debugging process: Investigate → Analyze → Hypothesize → Implement.
-  "Iron Law: NO FIXES WITHOUT ROOT CAUSE INVESTIGATION FIRST."
-  
-  Use PROACTIVELY when encountering bugs or failures:
-  - "fix this bug", "debug Y", "troubleshoot X"
-  - "why is X failing", "why isn't X working", "why doesn't X work"
-  - "X does not work", "X is broken", "X is not working"
-  - "The X button does not work", "investigate Y", "figure out why Z"
-  
-  DO NOT use for: "Why do we use X?" (explanation), "Why should I choose X?" (decision support),
-  known issues with clear solutions, or documentation questions.
+description: "Four-phase debugging: Investigate, Analyze, Hypothesize, Implement"
 trigger: |
   AUTOMATICALLY ACTIVATE when encountering bugs or failures:
   - "fix this bug" or "debug Y" or "troubleshoot X"
@@ -265,6 +254,13 @@ If you catch yourself thinking:
 | "One more attempt" | 3+ failures = architectural problem. |
 
 ---
+
+## Platform Debugging
+
+If you suspect the issue is with the Claude Code environment itself (e.g., network errors, context limits, tool failures):
+
+- **Run `/debug`**: This native command generates a debug bundle to help troubleshoot platform issues.
+- **Check `/debug` output**: Look for "Context limit", "API error", or "Tool execution failed".
 
 ## Integration with Claude Octopus
 

@@ -1,9 +1,6 @@
 ---
 name: skill-context-detection
-description: |
-  Auto-detect work context (Dev vs Knowledge) to tailor workflow behavior.
-  Used internally by flow-discover, flow-develop, and flow-deliver skills.
-  NOT a user-facing skill - invoked automatically by other skills.
+description: "Auto-detect work context (Dev vs Knowledge) for workflow tailoring"
 ---
 
 # Context Detection - Internal Skill
