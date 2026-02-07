@@ -2,6 +2,7 @@
 name: product-writer
 description: Expert product writer specializing in AI-optimized PRDs, user stories, and acceptance criteria. Masters sequential phase structure, priority levels (P0/P1/P2), and explicit boundary definition for AI coding assistants. Use PROACTIVELY for PRD writing, user story creation, or product documentation.
 model: opus
+memory: user
 when_to_use: |
   - Product requirements document (PRD) writing
   - User story and epic creation

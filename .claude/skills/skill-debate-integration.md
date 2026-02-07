@@ -1,12 +1,6 @@
 ---
 name: skill-debate-integration
-description: |
-  Integration layer for AI Debate Hub with quality gates, cost tracking, and document export.
-  
-  INTERNAL SKILL - auto-activates with skill-debate. Not directly invoked.
-  Enhances debates with session storage, quality gates, and export capabilities.
-  
-  DO NOT invoke directly - use skill-debate or /octo:debate instead.
+description: "Internal: quality gates and export for AI debates"
 trigger: |
   AUTOMATICALLY ACTIVATE when:
   - User runs /debate command
@@ -169,7 +163,7 @@ fi
         "input_tokens": 2800,
         "output_tokens": 4400,
         "cost_usd": 0.074,
-        "model": "gpt-5.1-codex-max"
+        "model": "gpt-5.3-codex"
       }
     },
     "model_pricing": {
@@ -177,7 +171,7 @@ fi
         "input_per_million": 2.50,
         "output_per_million": 10.00
       },
-      "gpt-5.1-codex-max": {
+      "gpt-5.3-codex": {
         "input_per_million": 3.00,
         "output_per_million": 15.00
       }
@@ -360,13 +354,13 @@ Show cost breakdown for debate:
 #   Gemini (gemini-3-pro):
 #     Tokens: 8,100 (3,200 input / 4,900 output)
 #     Cost: $0.068
-#   Codex (gpt-5.1-codex-max):
+#   Codex (gpt-5.3-codex):
 #     Tokens: 7,200 (2,800 input / 4,400 output)
 #     Cost: $0.074
 #
 # Pricing (per million tokens):
 #   gemini-3-pro: $2.50 input / $10.00 output
-#   gpt-5.1-codex-max: $3.00 input / $15.00 output
+#   gpt-5.3-codex: $3.00 input / $15.00 output
 ```
 
 ### /debate-viewer (New)

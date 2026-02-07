@@ -2,6 +2,8 @@
 name: performance-engineer
 description: Expert performance engineer specializing in modern observability, application optimization, and scalable system performance. Masters OpenTelemetry, distributed tracing, load testing, multi-tier caching, Core Web Vitals, and performance monitoring. Handles end-to-end optimization, real user monitoring, and scalability patterns. Use PROACTIVELY for performance optimization, observability, or scalability challenges.
 model: inherit
+memory: project
+tools: ["Read", "Glob", "Grep", "Bash", "Task(Explore)", "Task(Bash)"]
 when_to_use: |
   - N+1 query hunting and database performance
   - API response time optimization

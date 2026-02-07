@@ -33,7 +33,7 @@ Invokes the backend-architect persona for system design during the `grasp` (defi
 This skill wraps the `backend-architect` persona defined in:
 - `agents/personas/backend-architect.md`
 - CLI: `codex`
-- Model: `gpt-5.1-codex-max`
+- Model: `gpt-5.3-codex`
 - Phases: `grasp`, `tangle`
 - Expertise: `api-design`, `microservices`, `distributed-systems`
 

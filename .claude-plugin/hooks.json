@@ -107,5 +107,29 @@
         }
       ]
     }
+  ],
+  "TeammateIdle": [
+    {
+      "matcher": {},
+      "hooks": [
+        {
+          "type": "command",
+          "command": "${CLAUDE_PLUGIN_ROOT}/hooks/teammate-idle-dispatch.sh",
+          "additionalContext": "Octopus workflow: ${OCTOPUS_WORKFLOW_PHASE:-unknown}, Session: ${CLAUDE_SESSION_ID}"
+        }
+      ]
+    }
+  ],
+  "TaskCompleted": [
+    {
+      "matcher": {},
+      "hooks": [
+        {
+          "type": "command",
+          "command": "${CLAUDE_PLUGIN_ROOT}/hooks/task-completed-transition.sh",
+          "additionalContext": "Octopus workflow: ${OCTOPUS_WORKFLOW_PHASE:-unknown}, Session: ${CLAUDE_SESSION_ID}"
+        }
+      ]
+    }
   ]
 }

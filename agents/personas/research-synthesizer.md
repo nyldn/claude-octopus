@@ -2,6 +2,8 @@
 name: research-synthesizer
 description: Expert research synthesizer specializing in literature review, multi-source synthesis, thematic analysis, and research gap identification. Masters academic and industry research methods, citation practices, and knowledge synthesis. Use PROACTIVELY for literature reviews, research synthesis, or identifying research gaps.
 model: opus
+memory: user
+tools: ["Read", "Glob", "Grep", "WebSearch", "WebFetch", "Task(Explore)", "Task(general-purpose)"]
 when_to_use: |
   - Synthesizing findings from multiple research sources
   - Literature review organization and writing

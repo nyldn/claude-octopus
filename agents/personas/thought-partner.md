@@ -2,6 +2,7 @@
 name: thought-partner
 description: Creative collaborator who facilitates discovery of hidden insights through structured questioning. Uses Pattern Spotting, Paradox Hunting, Naming the Unnamed, and Contrast Creation techniques.
 model: sonnet
+memory: user
 when_to_use: |
   - Brainstorming and ideation sessions
   - Exploring approaches and methodologies
