@@ -6,8 +6,8 @@
   <img src="https://img.shields.io/badge/Claude_Code-Plugin-blueviolet" alt="Claude Code Plugin">
   <img src="https://img.shields.io/badge/Double_Diamond-Design_Thinking-orange" alt="Double Diamond">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
-  <img src="https://img.shields.io/badge/Version-8.2.0-blue" alt="Version 8.2.0">
-  <img src="https://img.shields.io/badge/Claude_Code-v2.1.33+-blueviolet" alt="Requires Claude Code v2.1.33+">
+  <img src="https://img.shields.io/badge/Version-8.3.0-blue" alt="Version 8.3.0">
+  <img src="https://img.shields.io/badge/Claude_Code-v2.1.34+-blueviolet" alt="Requires Claude Code v2.1.34+">
 </p>
 
 # Claude Octopus
@@ -24,86 +24,243 @@ Inside Claude Code, run:
 
 ```
 /plugin marketplace add nyldn/claude-octopus
-```
-
-Then install:
-
-```
 /plugin install claude-octopus@nyldn-plugins
 ```
 
-Configure your AI providers:
+Then configure your AI providers:
 
 ```
 /octo:setup
 ```
 
-The setup wizard checks what you have, shows what's missing, and walks you through it. You only need **one** external provider (Codex or Gemini) - Claude is built-in.
+The setup wizard detects what you have installed, shows what's missing, and walks you through configuration. You only need **one** external provider (Codex or Gemini) to get multi-AI features - Claude is built-in.
+
+**Requirements:** Claude Code v2.1.34+
 
 ---
 
-## What It Does
+## Quick Start
+
+### For Developers
+
+```
+/octo:research OAuth 2.1 implementation patterns     # Multi-AI research
+/octo:review                                          # Security-aware code review
+/octo:tdd                                             # Red-green-refactor with discipline
+/octo:debug                                           # Systematic 4-phase debugging
+/octo:security                                        # OWASP vulnerability scan
+/octo:embrace build user authentication               # Full lifecycle: research to delivery
+```
+
+### For Knowledge Workers
+
+```
+/octo:research competitor landscape for B2B SaaS      # Multi-source synthesis
+/octo:prd                                             # AI-optimized PRD with 100-point scoring
+/octo:brainstorm                                      # Creative thought partner session
+/octo:debate build vs buy for analytics platform      # Structured three-way AI debate
+/octo:docs                                            # Export to PPTX, DOCX, PDF
+/octo:embrace write market entry strategy             # Full lifecycle: research to deliverable
+```
+
+### The Smart Router
+
+Don't remember the exact command? Just describe what you need:
+
+```
+/octo research microservices patterns      -> routes to discover phase
+/octo build user authentication            -> routes to develop phase
+/octo review this PR for security issues   -> routes to deliver phase
+/octo compare Redis vs DynamoDB            -> routes to debate
+```
+
+The router parses your intent and selects the right workflow. Above 80% confidence it auto-routes; between 70-80% it confirms; below 70% it asks for clarification.
+
+---
+
+## How It Works
 
 ### Multi-AI Orchestration
 
-Run Codex, Gemini, and Claude in parallel. Get three independent analyses synthesized into one result.
+Claude Octopus coordinates three AI providers in parallel. Each brings a distinct perspective:
 
-```
-/octo:research OAuth authentication patterns
-/octo:debate Redis vs Memcached for session storage
-/octo:review this code for security vulnerabilities
-```
+| Provider | Powered By | Strength |
+|----------|-----------|----------|
+| Codex (OpenAI) | GPT-5.3-Codex | Implementation depth, code patterns, technical analysis |
+| Gemini (Google) | Gemini 3 Pro | Ecosystem breadth, alternative approaches, research synthesis |
+| Claude (Anthropic) | Sonnet 4.5 / Opus 4.6 | Strategic synthesis, quality assessment, final recommendations |
 
-Each provider brings a different angle: Codex for implementation depth, Gemini for ecosystem breadth, Claude for synthesis. Results come back in 2-5 minutes with a 75% consensus threshold - if the AIs disagree, you see the debate.
+Results are synthesized through a 75% consensus threshold. When providers agree, you get a unified recommendation. When they disagree, you see the debate - and you're better informed for it.
 
-Works with 1, 2, or 3 providers. Degrades gracefully.
-
-### 29 Expert Personas
-
-Specialized AI experts that activate automatically based on your request, or can be invoked explicitly.
-
-**Software Engineering** - backend-architect, frontend-developer, cloud-architect, devops-troubleshooter, deployment-engineer, database-architect, security-auditor, performance-engineer, code-reviewer, debugger, incident-responder
-
-**Specialized Development** - ai-engineer, typescript-pro, python-pro, graphql-architect, test-automator, tdd-orchestrator
-
-**Documentation & Communication** - docs-architect, product-writer, academic-writer, exec-communicator, content-analyst
-
-**Research & Strategy** - research-synthesizer, ux-researcher, strategy-analyst, business-analyst
-
-**Creative & Design** - thought-partner, mermaid-expert, context-manager
-
-Personas activate proactively:
-```
-"I need a security audit of my auth code"   -> security-auditor
-"Review my API design"                       -> backend-architect
-"Help me write a research paper"             -> academic-writer
-```
+**Graceful degradation:** Works with 1, 2, or 3 providers. If only one external provider is configured, you get dual-perspective analysis. With no external providers, you still get all 29 personas, structured workflows, and every skill - multi-AI features simply won't activate.
 
 ### Double Diamond Workflows
 
-Proven design methodology (Discover, Define, Develop, Deliver) adapted for AI engineering.
+Four structured phases adapted from the UK Design Council's proven methodology:
+
+```
+  DISCOVER          DEFINE           DEVELOP          DELIVER
+  (diverge)        (converge)       (diverge)        (converge)
+     /\               /\               /\               /\
+    /  \             /  \             /  \             /  \
+   / Re \           / Sc \           / Bu \           / Va \
+  / search\        / ope  \         / ild  \         / lidate\
+ /________\       /________\       /________\       /________\
+```
 
 | Phase | Command | Alias | What Happens |
 |-------|---------|-------|--------------|
-| Discover | `/octo:discover` | `/octo:probe` | Multi-AI research and exploration |
-| Define | `/octo:define` | `/octo:grasp` | Requirements clarification with consensus |
-| Develop | `/octo:develop` | `/octo:tangle` | Implementation with quality gates |
-| Deliver | `/octo:deliver` | `/octo:ink` | Adversarial review and validation |
+| Discover | `/octo:discover` | `/octo:probe` | Multi-AI research and broad exploration |
+| Define | `/octo:define` | `/octo:grasp` | Requirements clarification with consensus building |
+| Develop | `/octo:develop` | `/octo:tangle` | Implementation with quality gates (75% threshold) |
+| Deliver | `/octo:deliver` | `/octo:ink` | Adversarial review, security checks, go/no-go scoring |
 | **All 4** | `/octo:embrace` | - | Complete lifecycle in one command |
 
-Each phase has quality gates. Sessions persist across context windows. The `.octo/` directory tracks state, issues, and lessons learned.
+Each phase has quality gates that must pass before proceeding. If a gate fails, the workflow pauses for revision rather than shipping questionable work.
 
-### Smart Router
+Run phases individually or chain them. `/octo:embrace` runs all four in sequence, with configurable autonomy:
 
-Type naturally and Claude Octopus routes to the right workflow:
+- **Supervised** (default) - Review and approve after each phase
+- **Semi-autonomous** - Auto-proceed unless a quality gate fails
+- **Autonomous** - Run all 4 phases without intervention
+
+### 29 Expert Personas
+
+Specialized AI agents that activate automatically based on your request. Each persona has domain expertise, a preferred AI provider, and memory that persists across sessions.
+
+**Software Engineering** (11 personas)
+backend-architect, frontend-developer, cloud-architect, devops-troubleshooter, deployment-engineer, database-architect, security-auditor, performance-engineer, code-reviewer, debugger, incident-responder
+
+**Specialized Development** (6 personas)
+ai-engineer, typescript-pro, python-pro, graphql-architect, test-automator, tdd-orchestrator
+
+**Documentation & Communication** (5 personas)
+docs-architect, product-writer, academic-writer, exec-communicator, content-analyst
+
+**Research & Strategy** (4 personas)
+research-synthesizer, ux-researcher, strategy-analyst, business-analyst
+
+**Creative & Design** (3 personas)
+thought-partner, mermaid-expert, context-manager
+
+**How activation works:** Personas trigger proactively based on intent detection. When you say "audit my API for vulnerabilities," the security-auditor activates automatically. When you say "write a research paper," academic-writer takes over. No explicit invocation needed.
 
 ```
-/octo research microservices patterns      -> discover phase
-/octo build user authentication            -> develop phase
-/octo review this PR                       -> deliver phase
+"I need a security audit of my auth code"       -> security-auditor persona
+"Review my API design for scalability"           -> backend-architect persona
+"Help me write a PRD for the new feature"        -> product-writer persona
+"Research market sizing for AI developer tools"  -> strategy-analyst persona
+"Create a sequence diagram for the auth flow"    -> mermaid-expert persona
 ```
 
-Confidence scoring: >80% auto-routes, 70-80% confirms with you, <70% asks for clarification.
+### Context-Aware Intelligence
+
+Claude Octopus auto-detects whether you're doing development work or knowledge work and adapts everything: research sources, output formats, review criteria, and persona selection.
+
+**Dev mode** (activates in code repositories): Research targets libraries and patterns. Output is code and tests. Reviews check security and performance.
+
+**Knowledge mode** (`/octo:km on`): Research targets market data and strategy. Output is PRDs and reports. Reviews check clarity and evidence quality.
+
+Auto-detection uses file signatures - `package.json` triggers dev mode, business keywords trigger knowledge mode. Override anytime with `/octo:km on|off|auto` or `/octo:dev`.
+
+---
+
+## Developer Workflows
+
+### Code Review
+
+```
+/octo:review
+```
+
+Multi-perspective code review combining Codex (code quality, patterns), Gemini (security, edge cases), and Claude (synthesis, recommendations). Checks architecture, security vulnerabilities, performance bottlenecks, and maintainability.
+
+### Test-Driven Development
+
+```
+/octo:tdd
+```
+
+Enforces red-green-refactor discipline. Write failing tests first, implement minimally to pass, then refactor with confidence. The TDD orchestrator prevents skipping steps.
+
+### Debugging
+
+```
+/octo:debug
+```
+
+Systematic 4-phase debugging: Investigate (gather evidence), Analyze (form hypotheses), Hypothesize (rank causes), Implement (fix and verify). No more random `console.log` scattering.
+
+### Security Audit
+
+```
+/octo:security
+```
+
+OWASP Top 10 compliance checking, vulnerability detection, dependency scanning, and adversarial security testing. The security-auditor persona brings specialized knowledge of attack vectors.
+
+### Design System Extraction
+
+```
+/octo:extract ./my-app                                    # Interactive mode
+/octo:extract ./my-app --mode design --storybook true     # Design system with Storybook
+/octo:extract ./my-app --depth deep --multi-ai force      # Deep analysis, all providers
+/octo:extract https://example.com --mode design           # From live website
+```
+
+Reverse-engineers design tokens (W3C format), components (React/Vue/Svelte), architecture (service boundaries, API contracts), and features. Outputs JSON, CSS, Markdown, CSV.
+
+---
+
+## Knowledge Worker Workflows
+
+### Deep Research
+
+```
+/octo:research competitor landscape for B2B SaaS tools
+```
+
+Multi-source synthesis combining Codex (technical analysis), Gemini (ecosystem research), and Claude (strategic synthesis). The research skill asks 3 clarifying questions (depth, focus, format) before execution, so you get exactly what you need.
+
+### PRD Writing
+
+```
+/octo:prd
+```
+
+Write AI-optimized PRDs scored against a 100-point framework. Structures requirements in sequential phases with P0/P1/P2 priority levels and explicit boundary definitions. Score existing PRDs with `/octo:prd-score`.
+
+### AI Debate
+
+```
+/octo:debate build vs buy for analytics platform
+```
+
+Structured three-way debate between Codex, Gemini, and Claude. Each takes a position, provides evidence, and responds to counterarguments. Multiple styles: quick (1 round), thorough (2-3 rounds), adversarial (active critique), or collaborative (build on ideas).
+
+### Brainstorming
+
+```
+/octo:brainstorm
+```
+
+Creative thought partner session using Pattern Spotting, Paradox Hunting, Naming the Unnamed, and Contrast Creation techniques. Helps surface hidden insights and unexpected connections.
+
+### Document Delivery
+
+```
+/octo:docs
+```
+
+Export your work to PPTX, DOCX, or PDF. Converts markdown deliverables into professional document formats ready for stakeholder review.
+
+### Content Analysis
+
+```
+/octo:pipeline https://example.com/article
+```
+
+Multi-stage content analysis pipeline. Reverse-engineers article anatomy, extracts recreatable patterns and frameworks, identifies psychological techniques and structural elements.
 
 ---
 
@@ -145,7 +302,7 @@ Confidence scoring: >80% auto-routes, 70-80% confirms with you, <70% asks for cl
 | `/octo:plan` | Strategic plan builder (doesn't execute) |
 | `/octo:docs` | Export to PPTX, DOCX, PDF |
 | `/octo:pipeline` | Content analysis and pattern extraction |
-| `/octo:extract` | Design system & product reverse-engineering |
+| `/octo:extract` | Design system and product reverse-engineering |
 
 ### Project Lifecycle
 | Command | Description |
@@ -177,9 +334,9 @@ Confidence scoring: >80% auto-routes, 70-80% confirms with you, <70% asks for cl
 
 ## 43 Skills
 
-Skills are the capabilities that power commands and personas. They activate automatically - you don't need to invoke them directly.
+Skills are the engine behind commands and personas. They activate automatically when needed - you don't invoke them directly.
 
-**Workflows** - flow-discover, flow-define, flow-develop, flow-deliver
+**Workflow Phases** - flow-discover, flow-define, flow-develop, flow-deliver
 
 **Research & Knowledge** - skill-deep-research, skill-debate, skill-debate-integration, skill-thought-partner, skill-meta-prompt, skill-knowledge-work
 
@@ -197,20 +354,7 @@ Skills are the capabilities that power commands and personas. They activate auto
 
 **Mode & Config** - skill-context-detection, sys-configure, extract-skill
 
----
-
-## Design System Extraction
-
-Reverse-engineer design systems and product architectures:
-
-```
-/octo:extract ./my-app                                    # Interactive mode
-/octo:extract ./my-app --mode design --storybook true     # Design system with Storybook
-/octo:extract ./my-app --depth deep --multi-ai force      # Deep analysis, all providers
-/octo:extract https://example.com --mode design           # From live website
-```
-
-Extracts design tokens (W3C format), components (React/Vue/Svelte), architecture (service boundaries, API contracts), and features. Outputs JSON, CSS, Markdown, CSV.
+**How skills relate to commands:** Commands are what you type. Skills are what runs. When you run `/octo:review`, it activates the skill-code-review skill, which invokes the code-reviewer persona, which routes to the appropriate AI providers. You interact with commands; skills handle execution.
 
 ---
 
@@ -228,7 +372,9 @@ Track state across sessions with the `.octo/` directory:
 └── LESSONS.md      # Lessons learned (preserved across rollbacks)
 ```
 
-Created automatically on first `/octo:embrace`. Use `/octo:status` to check progress, `/octo:resume` to continue where you left off.
+Created automatically on first `/octo:embrace`. Use `/octo:status` for a progress dashboard, `/octo:resume` to continue where you left off, `/octo:issues` to track cross-session problems, and `/octo:rollback` to restore from git tag checkpoints.
+
+LESSONS.md is intentionally preserved across rollbacks - mistakes are worth remembering.
 
 ---
 
@@ -244,7 +390,7 @@ Supports runtime model selection with 4-tier precedence:
 1. Environment variables (`OCTOPUS_CODEX_MODEL`, `OCTOPUS_GEMINI_MODEL`)
 2. Runtime overrides
 3. Config file settings
-4. Built-in defaults
+4. Built-in defaults (GPT-5.3-Codex, Gemini 3 Pro, Claude Sonnet 4.5)
 
 For premium tasks, complexity-based routing automatically upgrades to Opus 4.6.
 
@@ -254,8 +400,17 @@ For premium tasks, complexity-based routing automatically upgrades to Opus 4.6.
 
 You see cost estimates **before** execution. Interactive research asks 3 questions (depth, focus, format) then shows exactly what will run and how much it costs.
 
-| Scenario | Time | Est. Cost |
-|----------|------|-----------|
+**Most users pay nothing extra.** If you authenticate Codex via `codex login` (ChatGPT account) and Gemini via Google account OAuth, usage is covered by your existing subscriptions - no per-token API charges. Claude is included with your Claude Code subscription.
+
+| Auth Method | Codex Cost | Gemini Cost | Claude Cost |
+|-------------|-----------|-------------|-------------|
+| OAuth login (recommended) | Included in ChatGPT Plus/Pro/Team | Included in Google AI subscription | Included in Claude Code |
+| API key (`OPENAI_API_KEY` / `GEMINI_API_KEY`) | ~$0.02-0.10/query | ~$0.01-0.03/query | Included in Claude Code |
+
+If you do use API keys, here are the per-workflow estimates:
+
+| Scenario | Time | Est. API Cost |
+|----------|------|---------------|
 | Quick research | 1-2 min | $0.01-0.02 |
 | Standard research | 2-3 min | $0.02-0.05 |
 | Deep dive | 4-5 min | $0.05-0.10 |
@@ -267,27 +422,34 @@ Works without external providers too - you still get 29 personas, all workflows,
 
 ---
 
-## Context-Aware Intelligence
-
-Auto-detects Dev vs Knowledge work and adapts behavior.
-
-**Dev mode** (default in code repos): research focuses on libraries and patterns, output is code and tests, review checks security and performance.
-
-**Knowledge mode** (`/octo:km on`): research focuses on market data and strategy, output is PRDs and reports, review checks clarity and evidence.
-
-Auto-detection uses file signatures (`package.json` = dev, business keywords = knowledge). Override with `/octo:km on|off|auto`.
-
----
-
 ## FAQ
 
-**Do I need all three AI providers?** No. You need one external provider (Codex or Gemini). Claude is built-in. Both external providers gives maximum diversity.
+**Do I need all three AI providers?**
+No. One external provider (Codex or Gemini) plus the built-in Claude gives you multi-AI features. Both external providers gives maximum diversity. No external providers still gives you personas, workflows, and skills.
 
-**Will this break my existing setup?** No. Only activates with `octo` prefix or `/octo:*` commands. Results stored separately in `~/.claude-octopus/`. Uninstall cleanly.
+**Will this break my existing Claude Code setup?**
+No. Claude Octopus only activates with the `octo` prefix or `/octo:*` commands. Results are stored separately in `~/.claude-octopus/`. Uninstalls cleanly with no residual configuration changes.
 
-**Can I use it without external AIs?** Yes. You get all 29 personas, structured workflows, context intelligence, task management, and every skill. Multi-AI features simply won't activate.
+**Can I use it without external AIs?**
+Yes. You get all 29 personas, structured workflows, context intelligence, task management, and every skill. Multi-AI features (parallel analysis, debate, consensus) won't activate without external providers.
 
-**How do I update?** Run `/plugin` > Installed > update, or reinstall:
+**What happens if an external provider times out?**
+The workflow continues with available providers. If Codex fails, Gemini and Claude complete the work. If both fail, Claude handles it solo. You'll see the provider status in the visual indicators.
+
+**What's the difference between `/octo:quick` and full workflows?**
+`/octo:quick` skips the structured phases and quality gates - it's a fast path for ad-hoc tasks that don't need the full Double Diamond treatment. Use it for simple tasks; use `/octo:embrace` for complex features.
+
+**Can I share `.octo/` state across a team?**
+Yes. The `.octo/` directory is designed to be committed to your repository. Team members can use `/octo:resume` to pick up where others left off. ISSUES.md and LESSONS.md provide cross-session continuity.
+
+**Does this work offline?**
+Partially. Claude (via Claude Code) works with your subscription. External providers (Codex, Gemini) require internet access. All personas and workflow logic run locally.
+
+**How do I see what's happening under the hood?**
+Visual indicators show active providers in real-time. For deeper debugging, check logs in `~/.claude-octopus/logs/` or enable debug mode.
+
+**How do I update?**
+Run `/plugin` > Installed > update, or reinstall:
 ```
 /plugin uninstall claude-octopus@nyldn-plugins
 /plugin install claude-octopus@nyldn-plugins
