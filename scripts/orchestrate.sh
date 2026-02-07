@@ -327,6 +327,8 @@ SUPPORTS_AUTO_MEMORY=false
 SUPPORTS_PERSISTENT_MEMORY=false   # v8.1: Claude Code v2.1.33+
 SUPPORTS_HOOK_EVENTS=false         # v8.1: Claude Code v2.1.33+
 SUPPORTS_AGENT_TYPE_ROUTING=false  # v8.1: Claude Code v2.1.33+
+SUPPORTS_STABLE_AGENT_TEAMS=false  # v8.3: Claude Code v2.1.34+
+SUPPORTS_AGENT_MEMORY=false        # v8.3: Claude Code v2.1.33+ (memory frontmatter)
 AGENT_TEAMS_ENABLED="${CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS:-0}"
 
 # Version comparison utility
@@ -390,16 +392,23 @@ detect_claude_code_version() {
         SUPPORTS_AUTO_MEMORY=true
     fi
 
-    # Check for v2.1.33+ features (persistent memory, hook events, agent type routing)
+    # Check for v2.1.33+ features (persistent memory, hook events, agent type routing, agent memory)
     if version_compare "$CLAUDE_CODE_VERSION" "2.1.33" ">="; then
         SUPPORTS_PERSISTENT_MEMORY=true
         SUPPORTS_HOOK_EVENTS=true
         SUPPORTS_AGENT_TYPE_ROUTING=true
+        SUPPORTS_AGENT_MEMORY=true
+    fi
+
+    # Check for v2.1.34+ features (stable agent teams, sandbox security)
+    if version_compare "$CLAUDE_CODE_VERSION" "2.1.34" ">="; then
+        SUPPORTS_STABLE_AGENT_TEAMS=true
     fi
 
     log "INFO" "Claude Code v$CLAUDE_CODE_VERSION detected"
     log "INFO" "Task Management: $SUPPORTS_TASK_MANAGEMENT | Fork Context: $SUPPORTS_FORK_CONTEXT | Agent Teams: $SUPPORTS_AGENT_TEAMS"
     log "INFO" "Persistent Memory: $SUPPORTS_PERSISTENT_MEMORY | Hook Events: $SUPPORTS_HOOK_EVENTS | Agent Type Routing: $SUPPORTS_AGENT_TYPE_ROUTING"
+    log "INFO" "Stable Agent Teams: $SUPPORTS_STABLE_AGENT_TEAMS | Agent Memory: $SUPPORTS_AGENT_MEMORY"
 
     return 0
 }
@@ -466,8 +475,8 @@ NC='\033[0m' # No Color
 source "${SCRIPT_DIR}/async-tmux-features.sh"
 
 # Agent configurations
-# Models (Jan 2026) - Premium defaults for Design Thinking workflows:
-# - OpenAI GPT-5.x: gpt-5.1-codex-max (premium), gpt-5.2-codex, gpt-5.1-codex-mini, gpt-5.2
+# Models (Feb 2026) - Premium defaults for Design Thinking workflows:
+# - OpenAI GPT-5.3: gpt-5.3-codex (premium), gpt-5.2-codex, gpt-5.1-codex-mini, gpt-5.2
 # - Google Gemini 3.0: gemini-3-pro-preview, gemini-3-flash-preview, gemini-3-pro-image-preview
 get_agent_command() {
     local agent_type="$1"
@@ -485,9 +494,9 @@ get_agent_command() {
     fi
 
     case "$agent_type" in
-        codex) echo "codex exec ${sandbox_flag}" ;;              # Uses default model (o3/gpt-4.1)
-        codex-standard) echo "codex exec ${sandbox_flag}" ;;     # Standard tier
-        codex-max) echo "codex exec ${sandbox_flag}" ;;          # Premium
+        codex) echo "codex exec --model gpt-5.3-codex ${sandbox_flag}" ;;  # GPT-5.3-Codex (premium, high-capability)
+        codex-standard) echo "codex exec ${sandbox_flag}" ;;     # Standard tier (CLI default)
+        codex-max) echo "codex exec --model gpt-5.3-codex ${sandbox_flag}" ;;  # Premium (same as codex)
         codex-mini) echo "codex exec ${sandbox_flag}" ;;         # Cost-effective
         codex-general) echo "codex exec ${sandbox_flag}" ;;      # General tasks
         gemini) echo "env NODE_NO_WARNINGS=1 gemini -y -m gemini-3-pro-preview" ;;       # Premium Gemini (v7.19.0 P2.2: suppress warnings)
@@ -514,9 +523,9 @@ get_agent_command_array() {
     local codex_sandbox="${OCTOPUS_CODEX_SANDBOX:-workspace-write}"
 
     case "$agent_type" in
-        codex)          _cmd_array=(codex exec --sandbox "$codex_sandbox") ;;
+        codex)          _cmd_array=(codex exec --model gpt-5.3-codex --sandbox "$codex_sandbox") ;;
         codex-standard) _cmd_array=(codex exec --sandbox "$codex_sandbox") ;;
-        codex-max)      _cmd_array=(codex exec --sandbox "$codex_sandbox") ;;
+        codex-max)      _cmd_array=(codex exec --model gpt-5.3-codex --sandbox "$codex_sandbox") ;;
         codex-mini)     _cmd_array=(codex exec --sandbox "$codex_sandbox") ;;
         codex-general)  _cmd_array=(codex exec --sandbox "$codex_sandbox") ;;
         gemini)         _cmd_array=(env NODE_NO_WARNINGS=1 gemini -y -m gemini-3-pro-preview) ;;  # v7.19.0 P2.2: suppress warnings
@@ -546,6 +555,7 @@ get_model_pricing() {
     local model="$1"
     case "$model" in
         # OpenAI GPT-5.x models
+        gpt-5.3-codex)          echo "4.00:16.00" ;;
         gpt-5.1-codex-max)      echo "3.00:15.00" ;;
         gpt-5.2-codex)          echo "2.00:10.00" ;;
         gpt-5.1-codex-mini)     echo "0.50:2.00" ;;
@@ -622,15 +632,15 @@ get_agent_model() {
     # Priority 4: Hard-coded defaults (existing behavior)
     log "DEBUG" "Using hard-coded default model (tier 4)"
     case "$agent_type" in
-        codex)          echo "gpt-5.1-codex-max" ;;
+        codex)          echo "gpt-5.3-codex" ;;
         codex-standard) echo "gpt-5.2-codex" ;;
-        codex-max)      echo "gpt-5.1-codex-max" ;;
+        codex-max)      echo "gpt-5.3-codex" ;;
         codex-mini)     echo "gpt-5.1-codex-mini" ;;
         codex-general)  echo "gpt-5.2" ;;
         gemini)         echo "gemini-3-pro-preview" ;;
         gemini-fast)    echo "gemini-3-flash-preview" ;;
         gemini-image)   echo "gemini-3-pro-image-preview" ;;
-        codex-review)   echo "gpt-5.2-codex" ;;
+        codex-review)   echo "gpt-5.3-codex" ;;
         claude)         echo "claude-sonnet-4.5" ;;
         claude-sonnet)  echo "claude-sonnet-4.5" ;;
         claude-opus)    echo "claude-opus-4.6" ;;
@@ -2540,9 +2550,9 @@ _claude_octopus() {
     )
 
     agents=(
-        'codex:GPT-5.1-Codex-Max (premium)'
+        'codex:GPT-5.3-Codex (premium, high-capability)'
         'codex-standard:GPT-5.2-Codex'
-        'codex-max:GPT-5.1-Codex-Max'
+        'codex-max:GPT-5.3-Codex'
         'codex-mini:GPT-5.1-Codex-Mini (fast)'
         'codex-general:GPT-5.2'
         'gemini:Gemini-3-Pro'
@@ -3395,7 +3405,7 @@ ${RED}════════════════════════�
   audit [count] [filter]  View audit trail (decisions log)
 
 ${YELLOW}Available Agents:${NC}
-  codex           GPT-5.1-Codex-Max   ${GREEN}Premium${NC} (complex coding)
+  codex           GPT-5.3-Codex       ${GREEN}Premium${NC} (high-capability coding)
   codex-standard  GPT-5.2-Codex       Standard tier
   codex-mini      GPT-5.1-Codex-Mini  Quick/cheap tasks
   gemini          Gemini-3-Pro        Deep analysis
@@ -6840,13 +6850,13 @@ complete_session() {
 get_role_mapping() {
     local role="$1"
     case "$role" in
-        architect)    echo "codex:gpt-5.1-codex-max" ;;      # System design, planning
+        architect)    echo "codex:gpt-5.3-codex" ;;            # System design, planning (v8.3: GPT-5.3-Codex)
         researcher)   echo "gemini:gemini-3-pro-preview" ;;   # Deep investigation
-        reviewer)     echo "codex-review:gpt-5.2-codex" ;;    # Code review, validation
-        implementer)  echo "codex:gpt-5.1-codex-max" ;;       # Code generation
+        reviewer)     echo "codex-review:gpt-5.3-codex" ;;    # Code review, validation (v8.3: GPT-5.3-Codex)
+        implementer)  echo "codex:gpt-5.3-codex" ;;           # Code generation (v8.3: GPT-5.3-Codex)
         synthesizer)  echo "claude:claude-sonnet-4.5" ;;      # Result aggregation (v8.0: upgraded to Claude)
         strategist)   echo "claude-opus:claude-opus-4.6" ;;   # Premium synthesis (v8.0: Opus 4.6)
-        *)            echo "codex:gpt-5.1-codex-max" ;;       # Default
+        *)            echo "codex:gpt-5.3-codex" ;;           # Default (v8.3: GPT-5.3-Codex)
     esac
 }
 
@@ -9945,7 +9955,7 @@ probe_discover() {
 
     if [[ "$DRY_RUN" == "true" ]]; then
         log INFO "[DRY-RUN] Would probe: $prompt"
-        log INFO "[DRY-RUN] Would spawn 4 parallel research agents"
+        log INFO "[DRY-RUN] Would spawn 5 parallel research agents (Codex, Gemini, Sonnet 4.5)"
         return 0
     fi
 
@@ -9953,7 +9963,7 @@ probe_discover() {
     preflight_check || return 1
 
     # Cost transparency (v7.18.0 - P0.0)
-    if ! display_workflow_cost_estimate "Probe (Discover Phase)" 4 0 1500; then
+    if ! display_workflow_cost_estimate "Probe (Discover Phase)" 5 0 1500; then
         log "WARN" "Workflow cancelled by user after cost review"
         return 1
     fi
@@ -9983,7 +9993,7 @@ probe_discover() {
     mkdir -p "$RESULTS_DIR" "$LOGS_DIR"
 
     # Initialize progress tracking (v7.16.0 Feature 2)
-    init_progress_tracking "discover" 4
+    init_progress_tracking "discover" 5
 
     # Initialize tmux if enabled
     if [[ "$TMUX_MODE" == "true" ]]; then
@@ -9996,19 +10006,21 @@ probe_discover() {
         "Research existing solutions and patterns for: $prompt. What has been done before? What worked, what failed?"
         "Explore edge cases and potential challenges for: $prompt. What could go wrong? What's often overlooked?"
         "Investigate technical feasibility and dependencies for: $prompt. What are the prerequisites?"
+        "Synthesize cross-cutting concerns for: $prompt. What themes emerge across problem space, solutions, and feasibility?"
     )
     local pane_titles=(
         "🔍 Problem Analysis"
         "📚 Solution Research"
         "⚠️  Edge Cases"
         "🔧 Feasibility"
+        "🔵 Cross-Synthesis"
     )
 
     local pids=()
+    local probe_agents=("codex" "gemini" "claude-sonnet" "codex" "gemini")
     for i in "${!perspectives[@]}"; do
         local perspective="${perspectives[$i]}"
-        local agent="gemini"
-        [[ $((i % 2)) -eq 0 ]] && agent="codex"
+        local agent="${probe_agents[$i]}"
         local task_id="probe-${task_group}-${i}"
 
         if [[ "$TMUX_MODE" == "true" ]]; then
@@ -10063,8 +10075,7 @@ probe_discover() {
 
     for i in "${!perspectives[@]}"; do
         local task_id="probe-${task_group}-${i}"
-        local agent="gemini"
-        [[ $((i % 2)) -eq 0 ]] && agent="codex"
+        local agent="${probe_agents[$i]}"
         local result_file="${RESULTS_DIR}/${agent}-${task_id}.md"
 
         if [[ -f "$result_file" ]]; then
@@ -10237,7 +10248,7 @@ grasp_define() {
 
     if [[ "$DRY_RUN" == "true" ]]; then
         log INFO "[DRY-RUN] Would grasp: $prompt"
-        log INFO "[DRY-RUN] Would gather 3 perspectives and build consensus"
+        log INFO "[DRY-RUN] Would gather 4 perspectives (Codex, Gemini, Sonnet 4.5) and build consensus"
         return 0
     fi
 
@@ -10262,7 +10273,7 @@ grasp_define() {
     local def1 def2 def3
     def1=$(run_agent_sync "codex" "Based on: $prompt\n${context}Define the core problem statement in 2-3 sentences. What is the essential challenge?" 120 "backend-architect" "grasp")
     def2=$(run_agent_sync "gemini" "Based on: $prompt\n${context}Define success criteria. How will we know when this is solved correctly? List 3-5 measurable criteria." 120 "researcher" "grasp")
-    def3=$(run_agent_sync "gemini" "Based on: $prompt\n${context}Define constraints and boundaries. What are we NOT solving? What are hard limits?" 120 "researcher" "grasp")
+    def3=$(run_agent_sync "claude-sonnet" "Based on: $prompt\n${context}Define constraints and boundaries. What are we NOT solving? What are hard limits?" 120 "researcher" "grasp")
 
     # Build consensus
     local consensus_file="${RESULTS_DIR}/grasp-consensus-${task_group}.md"
@@ -10657,6 +10668,19 @@ ink_deliver() {
         [[ $result_count -ge 10 ]] && break  # Limit context size
     done
 
+    # Sonnet 4.5 quality review before synthesis
+    log INFO "Step 2a: Sonnet 4.5 quality review..."
+    local sonnet_review
+    sonnet_review=$(run_agent_sync "claude-sonnet" "Review these development results for quality, completeness, and correctness.
+Flag any issues, gaps, or improvements needed.
+
+Original task: $prompt
+
+Results:
+$all_results" 120 "code-reviewer" "ink") || {
+        sonnet_review="[Quality review unavailable]"
+    }
+
     local synthesis_prompt="Create a polished final deliverable from these development results.
 
 Structure the output as:
@@ -10667,6 +10691,9 @@ Structure the output as:
 5. Known Limitations
 
 Original task: $prompt
+
+Quality Review (from Sonnet 4.5):
+$sonnet_review
 
 Results to synthesize:
 $all_results"
@@ -10710,6 +10737,7 @@ EOF
 # EMBRACE - Full 4-phase Double Diamond workflow
 # The octopus embraces the entire problem with all tentacles
 # v3.0: Supports session recovery, autonomy checkpoints
+# v8.3: Event-driven phase transitions via TeammateIdle/TaskCompleted hooks
 embrace_full_workflow() {
     local prompt="$1"
     local task_group
@@ -10727,6 +10755,39 @@ embrace_full_workflow() {
     log INFO "Task: $prompt"
     log INFO "Autonomy mode: $AUTONOMY_MODE"
     [[ "$LOOP_UNTIL_APPROVED" == "true" ]] && log INFO "Loop-until-approved: enabled"
+
+    # v8.3: Export workflow phase for event-driven hooks (TeammateIdle, TaskCompleted)
+    export OCTOPUS_WORKFLOW_PHASE="init"
+    export OCTOPUS_WORKFLOW_TYPE="embrace"
+    export OCTOPUS_TASK_GROUP="$task_group"
+    export OCTOPUS_TOTAL_PHASES=4
+    export OCTOPUS_COMPLETED_PHASES=0
+
+    # v8.3: Write session state for hook handlers to read
+    _write_embrace_session_state() {
+        local phase="$1"
+        local status="$2"
+        local session_dir="${HOME}/.claude-octopus"
+        mkdir -p "$session_dir"
+        if command -v jq &> /dev/null; then
+            jq -n \
+                --arg phase "$phase" \
+                --arg status "$status" \
+                --arg workflow "embrace" \
+                --arg group "$task_group" \
+                --arg autonomy "$AUTONOMY_MODE" \
+                --argjson completed "$OCTOPUS_COMPLETED_PHASES" \
+                --argjson total "$OCTOPUS_TOTAL_PHASES" \
+                '{workflow: $workflow, current_phase: $phase, phase_status: $status,
+                  task_group: $group, autonomy_mode: $autonomy,
+                  completed_phases: $completed, total_phases: $total,
+                  phase_map: {probe: "grasp", grasp: "tangle", tangle: "ink", ink: "complete"},
+                  updated_at: now | todate}' \
+                > "$session_dir/session.json" 2>/dev/null || true
+        fi
+    }
+
+    _write_embrace_session_state "init" "starting"
     echo ""
 
     if [[ "$DRY_RUN" == "true" ]]; then
@@ -10768,6 +10829,8 @@ embrace_full_workflow() {
 
     # Phase 1: PROBE (Discover)
     if [[ -z "$resume_from" || "$resume_from" == "null" ]]; then
+        export OCTOPUS_WORKFLOW_PHASE="probe"
+        _write_embrace_session_state "probe" "running"
         echo ""
         echo -e "${CYAN}[1/4] Starting PROBE phase (Discover)...${NC}"
         echo ""
@@ -10779,6 +10842,8 @@ embrace_full_workflow() {
             display_phase_metrics "probe" 2>/dev/null || true
         fi
 
+        OCTOPUS_COMPLETED_PHASES=1
+        _write_embrace_session_state "probe" "completed"
         save_session_checkpoint "probe" "completed" "$probe_synthesis"
         handle_autonomy_checkpoint "probe" "completed"
         sleep 1
@@ -10790,6 +10855,8 @@ embrace_full_workflow() {
 
     # Phase 2: GRASP (Define)
     if [[ -z "$resume_from" || "$resume_from" == "null" || "$resume_from" == "probe" ]]; then
+        export OCTOPUS_WORKFLOW_PHASE="grasp"
+        _write_embrace_session_state "grasp" "running"
         echo ""
         echo -e "${CYAN}[2/4] Starting GRASP phase (Define)...${NC}"
         echo ""
@@ -10801,6 +10868,8 @@ embrace_full_workflow() {
             display_phase_metrics "grasp" 2>/dev/null || true
         fi
 
+        OCTOPUS_COMPLETED_PHASES=2
+        _write_embrace_session_state "grasp" "completed"
         save_session_checkpoint "grasp" "completed" "$grasp_consensus"
         handle_autonomy_checkpoint "grasp" "completed"
         sleep 1
@@ -10812,6 +10881,8 @@ embrace_full_workflow() {
 
     # Phase 3: TANGLE (Develop)
     if [[ -z "$resume_from" || "$resume_from" == "null" || "$resume_from" == "probe" || "$resume_from" == "grasp" ]]; then
+        export OCTOPUS_WORKFLOW_PHASE="tangle"
+        _write_embrace_session_state "tangle" "running"
         echo ""
         echo -e "${CYAN}[3/4] Starting TANGLE phase (Develop)...${NC}"
         echo ""
@@ -10828,6 +10899,8 @@ embrace_full_workflow() {
         if grep -q "Quality Gate: FAILED" "$tangle_validation" 2>/dev/null; then
             tangle_status="warning"
         fi
+        OCTOPUS_COMPLETED_PHASES=3
+        _write_embrace_session_state "tangle" "$tangle_status"
         save_session_checkpoint "tangle" "$tangle_status" "$tangle_validation"
         handle_autonomy_checkpoint "tangle" "$tangle_status"
         sleep 1
@@ -10838,6 +10911,8 @@ embrace_full_workflow() {
     fi
 
     # Phase 4: INK (Deliver)
+    export OCTOPUS_WORKFLOW_PHASE="ink"
+    _write_embrace_session_state "ink" "running"
     echo ""
     echo -e "${CYAN}[4/4] Starting INK phase (Deliver)...${NC}"
     echo ""
@@ -10848,6 +10923,9 @@ embrace_full_workflow() {
         display_phase_metrics "ink" 2>/dev/null || true
     fi
 
+    OCTOPUS_COMPLETED_PHASES=4
+    export OCTOPUS_WORKFLOW_PHASE="complete"
+    _write_embrace_session_state "ink" "completed"
     save_session_checkpoint "ink" "completed" "$(ls -t "$RESULTS_DIR"/delivery-*.md 2>/dev/null | head -1)"
 
     # Mark session complete
@@ -10878,8 +10956,13 @@ embrace_full_workflow() {
         display_provider_breakdown 2>/dev/null || true
     fi
 
-    # Clean up flag so it doesn't affect subsequent standalone calls
+    # Clean up exported flags so they don't affect subsequent standalone calls
     unset OCTOPUS_SKIP_PHASE_COST_PROMPT
+    unset OCTOPUS_WORKFLOW_PHASE
+    unset OCTOPUS_WORKFLOW_TYPE
+    unset OCTOPUS_TASK_GROUP
+    unset OCTOPUS_TOTAL_PHASES
+    unset OCTOPUS_COMPLETED_PHASES
 }
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -10906,7 +10989,7 @@ grapple_debate() {
     echo ""
     echo -e "${RED}╔═══════════════════════════════════════════════════════════╗${NC}"
     echo -e "${RED}║  🤼 GRAPPLE - Adversarial Cross-Model Review              ║${NC}"
-    echo -e "${RED}║  Codex vs Claude debate (${rounds} rounds)                ║${NC}"
+    echo -e "${RED}║  Codex vs Gemini vs Sonnet 4.5 debate (${rounds} rounds)  ║${NC}"
     echo -e "${RED}╚═══════════════════════════════════════════════════════════╝${NC}"
     echo ""
 
@@ -10915,8 +10998,8 @@ grapple_debate() {
     if [[ "$DRY_RUN" == "true" ]]; then
         log INFO "[DRY-RUN] Would grapple on: $prompt"
         log INFO "[DRY-RUN] Principles: $principles"
-        log INFO "[DRY-RUN] Round 1: Generate competing proposals (Codex + Claude)"
-        log INFO "[DRY-RUN] Round 2: Cross-critique (Claude critiques Codex, Codex critiques Claude)"
+        log INFO "[DRY-RUN] Round 1: Generate competing proposals (Codex + Gemini + Sonnet 4.5)"
+        log INFO "[DRY-RUN] Round 2: Cross-critique (each critiques the other two)"
         log INFO "[DRY-RUN] Round 3: Synthesis and winner determination"
         return 0
     fi
@@ -10947,7 +11030,7 @@ grapple_debate() {
     # Constraint to prevent agentic file exploration
     local no_explore_constraint="IMPORTANT: Do NOT read, explore, or modify any files. Do NOT run any shell commands. Just output your response as TEXT directly. This is a debate exercise, not a coding session."
 
-    local codex_proposal claude_proposal
+    local codex_proposal gemini_proposal sonnet_proposal
     codex_proposal=$(run_agent_sync "codex" "
 $no_explore_constraint
 
@@ -10967,7 +11050,7 @@ Output your implementation with clear reasoning. Be thorough and practical." 120
         return 1
     fi
 
-    claude_proposal=$(run_agent_sync "claude" "
+    gemini_proposal=$(run_agent_sync "gemini" "
 $no_explore_constraint
 
 You are the PROPOSER. Implement this task with your best approach:
@@ -10978,11 +11061,30 @@ $principle_text}
 
 Output your implementation with clear reasoning. Be thorough and practical." 120 "researcher" "grapple")
 
-    if [[ $? -ne 0 || -z "$claude_proposal" ]]; then
+    if [[ $? -ne 0 || -z "$gemini_proposal" ]]; then
         echo ""
-        echo -e "${RED}❌ Claude proposal generation failed${NC}"
+        echo -e "${RED}❌ Gemini proposal generation failed${NC}"
         echo -e "   Check logs: ${LOGS_DIR}/"
-        log ERROR "Grapple debate failed: Claude proposal empty or error"
+        log ERROR "Grapple debate failed: Gemini proposal empty or error"
+        return 1
+    fi
+
+    sonnet_proposal=$(run_agent_sync "claude-sonnet" "
+$no_explore_constraint
+
+You are the PROPOSER. Implement this task with your best approach:
+$prompt
+
+${principle_text:+Adhere to these principles:
+$principle_text}
+
+Output your implementation with clear reasoning. Be thorough and practical." 120 "researcher" "grapple")
+
+    if [[ $? -ne 0 || -z "$sonnet_proposal" ]]; then
+        echo ""
+        echo -e "${RED}❌ Sonnet proposal generation failed${NC}"
+        echo -e "   Check logs: ${LOGS_DIR}/"
+        log ERROR "Grapple debate failed: Sonnet proposal empty or error"
         return 1
     fi
 
@@ -10993,45 +11095,22 @@ Output your implementation with clear reasoning. Be thorough and practical." 120
     echo -e "${CYAN}[Round 2/3] Cross-model critique...${NC}"
     echo ""
 
-    local claude_critique codex_critique
+    local codex_critique gemini_critique sonnet_critique
 
-    # Claude critiques Codex's proposal
-    claude_critique=$(run_agent_sync "claude" "
-$no_explore_constraint
-
-You are a CRITICAL REVIEWER. Your job is to find flaws in this implementation.
-
-IMPLEMENTATION TO CRITIQUE (from Codex):
-$codex_proposal
-
-Find at least 3 issues. For each:
-- ISSUE: [specific problem]
-- IMPACT: [why it matters]
-- FIX: [concrete solution]
-
-${principle_text:+Evaluate against these principles:
-$principle_text}
-
-Be harsh but fair. If genuinely good, explain why." 90 "security-auditor" "grapple")
-
-    if [[ $? -ne 0 || -z "$claude_critique" ]]; then
-        echo ""
-        echo -e "${RED}❌ Claude critique generation failed${NC}"
-        echo -e "   Check logs: ${LOGS_DIR}/"
-        log ERROR "Grapple debate failed: Claude critique empty or error"
-        return 1
-    fi
-
-    # Codex critiques Claude's proposal
+    # Codex critiques Gemini + Sonnet proposals
     codex_critique=$(run_agent_sync "codex-review" "
 $no_explore_constraint
 
-You are a CRITICAL REVIEWER. Your job is to find flaws in this implementation.
+You are a CRITICAL REVIEWER. Your job is to find flaws in these implementations.
 
-IMPLEMENTATION TO CRITIQUE (from Claude):
-$claude_proposal
+IMPLEMENTATION 1 TO CRITIQUE (from Gemini):
+$gemini_proposal
 
-Find at least 3 issues. For each:
+IMPLEMENTATION 2 TO CRITIQUE (from Sonnet 4.5):
+$sonnet_proposal
+
+Find at least 3 issues across both. For each:
+- SOURCE: [Gemini or Sonnet]
 - ISSUE: [specific problem]
 - IMPACT: [why it matters]
 - FIX: [concrete solution]
@@ -11049,6 +11128,68 @@ Be harsh but fair. If genuinely good, explain why." 90 "code-reviewer" "grapple"
         return 1
     fi
 
+    # Gemini critiques Codex + Sonnet proposals
+    gemini_critique=$(run_agent_sync "gemini" "
+$no_explore_constraint
+
+You are a CRITICAL REVIEWER. Your job is to find flaws in these implementations.
+
+IMPLEMENTATION 1 TO CRITIQUE (from Codex):
+$codex_proposal
+
+IMPLEMENTATION 2 TO CRITIQUE (from Sonnet 4.5):
+$sonnet_proposal
+
+Find at least 3 issues across both. For each:
+- SOURCE: [Codex or Sonnet]
+- ISSUE: [specific problem]
+- IMPACT: [why it matters]
+- FIX: [concrete solution]
+
+${principle_text:+Evaluate against these principles:
+$principle_text}
+
+Be harsh but fair. If genuinely good, explain why." 90 "security-auditor" "grapple")
+
+    if [[ $? -ne 0 || -z "$gemini_critique" ]]; then
+        echo ""
+        echo -e "${RED}❌ Gemini critique generation failed${NC}"
+        echo -e "   Check logs: ${LOGS_DIR}/"
+        log ERROR "Grapple debate failed: Gemini critique empty or error"
+        return 1
+    fi
+
+    # Sonnet critiques Codex + Gemini proposals
+    sonnet_critique=$(run_agent_sync "claude-sonnet" "
+$no_explore_constraint
+
+You are a CRITICAL REVIEWER. Your job is to find flaws in these implementations.
+
+IMPLEMENTATION 1 TO CRITIQUE (from Codex):
+$codex_proposal
+
+IMPLEMENTATION 2 TO CRITIQUE (from Gemini):
+$gemini_proposal
+
+Find at least 3 issues across both. For each:
+- SOURCE: [Codex or Gemini]
+- ISSUE: [specific problem]
+- IMPACT: [why it matters]
+- FIX: [concrete solution]
+
+${principle_text:+Evaluate against these principles:
+$principle_text}
+
+Be harsh but fair. If genuinely good, explain why." 90 "code-reviewer" "grapple")
+
+    if [[ $? -ne 0 || -z "$sonnet_critique" ]]; then
+        echo ""
+        echo -e "${RED}❌ Sonnet critique generation failed${NC}"
+        echo -e "   Check logs: ${LOGS_DIR}/"
+        log ERROR "Grapple debate failed: Sonnet critique empty or error"
+        return 1
+    fi
+
     # ═══════════════════════════════════════════════════════════════════════
     # Rounds 3 to N-1: Rebuttals (v7.13.2)
     # ═══════════════════════════════════════════════════════════════════════
@@ -11063,15 +11204,18 @@ Be harsh but fair. If genuinely good, explain why." 90 "code-reviewer" "grapple"
             codex_rebuttal=$(run_agent_sync "codex" "
 $no_explore_constraint
 
-You are DEFENDING your implementation against critique.
+You are DEFENDING your implementation against critiques from Gemini and Sonnet.
 
 YOUR ORIGINAL PROPOSAL:
 $codex_proposal
 
-CRITIQUE YOU RECEIVED:
-$claude_critique
+CRITIQUE FROM GEMINI:
+$gemini_critique
 
-Respond to the critique by:
+CRITIQUE FROM SONNET:
+$sonnet_critique
+
+Respond to both critiques by:
 1. Acknowledging valid points and proposing improvements
 2. Defending against unfair or incorrect criticism with evidence
 3. Refining your approach based on valid feedback
@@ -11086,31 +11230,65 @@ Be specific, technical, and constructive. Focus on improving the solution." 120 
                 return 1
             fi
 
-            # Claude defends and refines
-            local claude_rebuttal
-            claude_rebuttal=$(run_agent_sync "claude" "
+            # Gemini defends and refines
+            local gemini_rebuttal
+            gemini_rebuttal=$(run_agent_sync "gemini" "
 $no_explore_constraint
 
-You are DEFENDING your implementation against critique.
+You are DEFENDING your implementation against critiques from Codex and Sonnet.
 
 YOUR ORIGINAL PROPOSAL:
-$claude_proposal
+$gemini_proposal
 
-CRITIQUE YOU RECEIVED:
+CRITIQUE FROM CODEX:
 $codex_critique
 
-Respond to the critique by:
+CRITIQUE FROM SONNET:
+$sonnet_critique
+
+Respond to both critiques by:
 1. Acknowledging valid points and proposing improvements
 2. Defending against unfair or incorrect criticism with evidence
 3. Refining your approach based on valid feedback
 
 Be specific, technical, and constructive. Focus on improving the solution." 120 "researcher" "grapple")
 
-            if [[ $? -ne 0 || -z "$claude_rebuttal" ]]; then
+            if [[ $? -ne 0 || -z "$gemini_rebuttal" ]]; then
                 echo ""
-                echo -e "${RED}❌ Claude rebuttal generation failed${NC}"
+                echo -e "${RED}❌ Gemini rebuttal generation failed${NC}"
                 echo -e "   Check logs: ${LOGS_DIR}/"
-                log ERROR "Grapple debate failed: Claude rebuttal empty or error (round $i)"
+                log ERROR "Grapple debate failed: Gemini rebuttal empty or error (round $i)"
+                return 1
+            fi
+
+            # Sonnet defends and refines
+            local sonnet_rebuttal
+            sonnet_rebuttal=$(run_agent_sync "claude-sonnet" "
+$no_explore_constraint
+
+You are DEFENDING your implementation against critiques from Codex and Gemini.
+
+YOUR ORIGINAL PROPOSAL:
+$sonnet_proposal
+
+CRITIQUE FROM CODEX:
+$codex_critique
+
+CRITIQUE FROM GEMINI:
+$gemini_critique
+
+Respond to both critiques by:
+1. Acknowledging valid points and proposing improvements
+2. Defending against unfair or incorrect criticism with evidence
+3. Refining your approach based on valid feedback
+
+Be specific, technical, and constructive. Focus on improving the solution." 120 "researcher" "grapple")
+
+            if [[ $? -ne 0 || -z "$sonnet_rebuttal" ]]; then
+                echo ""
+                echo -e "${RED}❌ Sonnet rebuttal generation failed${NC}"
+                echo -e "   Check logs: ${LOGS_DIR}/"
+                log ERROR "Grapple debate failed: Sonnet rebuttal empty or error (round $i)"
                 return 1
             fi
 
@@ -11120,10 +11298,15 @@ Be specific, technical, and constructive. Focus on improving the solution." 120 
 ### Rebuttal (Round $i)
 ${codex_rebuttal}"
 
-            claude_proposal="${claude_proposal}
+            gemini_proposal="${gemini_proposal}
 
 ### Rebuttal (Round $i)
-${claude_rebuttal}"
+${gemini_rebuttal}"
+
+            sonnet_proposal="${sonnet_proposal}
+
+### Rebuttal (Round $i)
+${sonnet_rebuttal}"
         done
     fi
 
@@ -11138,30 +11321,36 @@ ${claude_rebuttal}"
     synthesis=$(run_agent_sync "claude" "
 $no_explore_constraint
 
-You are the JUDGE resolving a $rounds-round debate between two AI models.
+You are the JUDGE resolving a $rounds-round debate between three AI models.
 
 CODEX PROPOSAL:
 $codex_proposal
 
-CLAUDE'S CRITIQUE OF CODEX:
-$claude_critique
+GEMINI PROPOSAL:
+$gemini_proposal
 
-CLAUDE PROPOSAL:
-$claude_proposal
+SONNET 4.5 PROPOSAL:
+$sonnet_proposal
 
-CODEX'S CRITIQUE OF CLAUDE:
+CODEX'S CRITIQUE (of Gemini + Sonnet):
 $codex_critique
+
+GEMINI'S CRITIQUE (of Codex + Sonnet):
+$gemini_critique
+
+SONNET'S CRITIQUE (of Codex + Gemini):
+$sonnet_critique
 
 TASK: Provide a comprehensive final judgment with the following sections:
 
 ## Winner & Rationale
-[Which approach is stronger and why - codex, claude, or hybrid]
+[Which approach is strongest and why - codex, gemini, sonnet, or hybrid]
 
 ## Valid Critiques
-[List which critiques from each side were valid and should be incorporated]
+[List which critiques from each participant were valid and should be incorporated]
 
 ## Final Recommended Implementation
-[The best solution, synthesizing both perspectives with concrete code/approach]
+[The best solution, synthesizing all three perspectives with concrete code/approach]
 
 ## Key Trade-offs
 [What are the remaining trade-offs the user should understand]
@@ -11191,6 +11380,7 @@ Be specific and actionable. Format as markdown." 150 "synthesizer" "grapple")
 **Generated:** $(date)
 **Rounds:** $rounds
 **Principles:** $principles
+**Participants:** Codex, Gemini, Sonnet 4.5
 
 ---
 
@@ -11199,18 +11389,24 @@ Be specific and actionable. Format as markdown." 150 "synthesizer" "grapple")
 ### Codex Proposal
 $codex_proposal
 
-### Claude Proposal
-$claude_proposal
+### Gemini Proposal
+$gemini_proposal
+
+### Sonnet 4.5 Proposal
+$sonnet_proposal
 
 ---
 
 ## Round 2: Cross-Critique
 
-### Claude's Critique of Codex
-$claude_critique
-
-### Codex's Critique of Claude
+### Codex's Critique (of Gemini + Sonnet)
 $codex_critique
+
+### Gemini's Critique (of Codex + Sonnet)
+$gemini_critique
+
+### Sonnet's Critique (of Codex + Gemini)
+$sonnet_critique
 
 ---
 
@@ -11227,12 +11423,12 @@ EOF
     echo -e "${GREEN}╚═══════════════════════════════════════════════════════════╝${NC}"
     echo ""
     echo -e "  ${GREEN}✓${NC} $rounds rounds completed"
-    echo -e "  ${GREEN}✓${NC} Both perspectives analyzed"
+    echo -e "  ${GREEN}✓${NC} All three perspectives analyzed"
     echo -e "  ${GREEN}✓${NC} Final synthesis generated"
     echo ""
     echo -e "${CYAN}📊 Debate Summary:${NC}"
     echo -e "  Topic: ${prompt:0:70}..."
-    echo -e "  Participants: ${RED}Codex${NC} (implementer) vs ${BLUE}Claude${NC} (researcher)"
+    echo -e "  Participants: ${RED}Codex${NC} vs ${YELLOW}Gemini${NC} vs ${BLUE}Sonnet 4.5${NC}"
     echo -e "  Principles: $principles"
     echo ""
     echo -e "${YELLOW}💡 Next Steps:${NC}"

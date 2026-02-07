@@ -606,7 +606,7 @@ The `tangle` phase enforces quality gates:
 
 | Agent | Model | Best For |
 |-------|-------|----------|
-| `codex` | gpt-5.1-codex-max | Complex code, deep refactoring (premium default) |
+| `codex` | gpt-5.3-codex | Complex code, deep refactoring (premium default) |
 | `codex-standard` | gpt-5.2-codex | Standard tier implementation |
 | `codex-mini` | gpt-5.1-codex-mini | Quick fixes, simple tasks |
 | `gemini` | gemini-3-pro-preview | Deep analysis, 1M context |

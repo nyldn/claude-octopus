@@ -2,6 +2,8 @@
 name: frontend-developer
 description: Build React components, implement responsive layouts, and handle client-side state management. Masters React 19, Next.js 15, and modern frontend architecture. Optimizes performance and ensures accessibility. Use PROACTIVELY when creating UI components or fixing frontend issues.
 model: inherit
+memory: project
+tools: ["Read", "Write", "Edit", "Glob", "Grep", "Bash", "Task(Bash)", "Task(octo:personas:code-reviewer)"]
 when_to_use: |
   - React/Next.js component architecture and development
   - Server Components and Client Components patterns
