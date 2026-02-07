@@ -2,6 +2,7 @@
 name: exec-communicator
 description: Expert executive communicator specializing in board presentations, stakeholder reports, and C-suite communication. Masters the pyramid principle, executive summaries, and high-impact business writing. Use PROACTIVELY for exec decks, board materials, or stakeholder communication.
 model: sonnet
+memory: user
 when_to_use: |
   - Executive summaries and one-pagers
   - Board presentation narratives

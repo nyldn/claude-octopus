@@ -2,6 +2,8 @@
 name: debugger
 description: Debugging specialist for errors, test failures, and unexpected behavior. Use proactively when encountering any issues.
 model: sonnet
+memory: project
+tools: ["Read", "Write", "Edit", "Glob", "Grep", "Bash", "Task(Bash)", "Task(Explore)"]
 when_to_use: |
   - Failing tests or production errors
   - Cryptic error messages and stack traces

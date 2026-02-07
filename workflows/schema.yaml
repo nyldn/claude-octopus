@@ -1,0 +1,51 @@
+# Workflow-as-Code Schema for Claude Octopus v8.3.0
+# Declarative YAML schema for defining multi-agent workflows
+#
+# Usage: Workflows define phases, agents, transitions, and quality gates
+# in a declarative format. orchestrate.sh reads these definitions at runtime
+# instead of hardcoding phase logic.
+#
+# Schema version: 1.0
+
+# --- Top-level workflow fields ---
+
+# name: (required) Workflow identifier
+# description: (required) Human-readable description
+# version: (required) Schema version (semver)
+# autonomy_modes: (required) Supported autonomy levels
+# phases: (required) Ordered list of workflow phases
+# quality_gates: (optional) Global quality gate definitions
+# providers: (optional) Provider configuration overrides
+# metadata: (optional) Additional workflow metadata
+
+# --- Phase schema ---
+# phases[].name: (required) Phase identifier
+# phases[].alias: (optional) Alternative name (e.g., probe -> discover)
+# phases[].description: (required) What this phase does
+# phases[].emoji: (required) Visual indicator emoji
+# phases[].agents: (required) Agent configuration for this phase
+# phases[].transition: (required) How to move to next phase
+# phases[].quality_gate: (optional) Phase-specific quality requirements
+# phases[].timeout_seconds: (optional) Phase timeout, default 600
+# phases[].outputs: (required) Expected output artifacts
+
+# --- Agent configuration ---
+# phases[].agents[].provider: (required) codex | gemini | claude
+# phases[].agents[].role: (required) What this agent does in the phase
+# phases[].agents[].model: (optional) Model override
+# phases[].agents[].prompt_template: (required) Prompt with {{variable}} placeholders
+# phases[].agents[].parallel: (optional) Run in parallel with other agents, default true
+# phases[].agents[].memory_scope: (optional) project | user | local
+# phases[].agents[].task_type: (optional) Task(agent_type) restriction
+
+# --- Transition schema ---
+# phases[].transition.type: auto | approval | quality_gate | event
+# phases[].transition.next: Phase name to transition to
+# phases[].transition.on_failure: retry | skip | halt
+# phases[].transition.event: (optional) Hook event that triggers transition (e.g., TaskCompleted)
+
+# --- Quality gate schema ---
+# quality_gates[].name: Gate identifier
+# quality_gates[].threshold: Minimum score (0.0-1.0) to pass
+# quality_gates[].checks: List of validation checks
+# quality_gates[].on_failure: retry | halt | escalate
