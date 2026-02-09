@@ -103,6 +103,7 @@ case "$category" in
             "$SCRIPT_DIR/test-v8.0.0-opus-integration.sh"
             "$SCRIPT_DIR/test-v8.1.0-feature-detection.sh"
             "$SCRIPT_DIR/test-v8.2.0-agent-fields.sh"
+            "$SCRIPT_DIR/test-v8.5.0-strategic-features.sh"
         )
         ;;
     e2e|live|performance)
@@ -111,6 +112,7 @@ case "$category" in
             "$SCRIPT_DIR/test-v8.0.0-opus-integration.sh"
             "$SCRIPT_DIR/test-v8.1.0-feature-detection.sh"
             "$SCRIPT_DIR/test-v8.2.0-agent-fields.sh"
+            "$SCRIPT_DIR/test-v8.5.0-strategic-features.sh"
         )
         ;;
     *)
@@ -127,6 +129,7 @@ case "$category" in
             "$SCRIPT_DIR/test-v8.0.0-opus-integration.sh"
             "$SCRIPT_DIR/test-v8.1.0-feature-detection.sh"
             "$SCRIPT_DIR/test-v8.2.0-agent-fields.sh"
+            "$SCRIPT_DIR/test-v8.5.0-strategic-features.sh"
         )
         ;;
 esac
