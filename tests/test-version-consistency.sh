@@ -289,6 +289,71 @@ else
     # Don't fail - tag might not be created yet
 fi
 
+# Test 16: validate-release.sh pipefail safety (v8.5.0 fix)
+echo ""
+echo "Test 16: Checking validate-release.sh pipefail safety (v8.5.0)..."
+VALIDATE_RELEASE="$PROJECT_ROOT/scripts/validate-release.sh"
+if [[ -f "$VALIDATE_RELEASE" ]]; then
+    # grep in pipelines under set -euo pipefail must use || true
+    # to avoid crashing when grep finds no match
+    cmd_frontmatter_line=$(grep -n "grep -o 'command: " "$VALIDATE_RELEASE" | head -1)
+    if echo "$cmd_frontmatter_line" | grep -q '|| true'; then
+        pass "Command frontmatter grep has pipefail guard (|| true)"
+    else
+        fail "Command frontmatter grep missing pipefail guard" \
+            "v8.5.0 fix: grep in pipe needs || true under set -euo pipefail"
+    fi
+
+    skill_frontmatter_line=$(grep -n "grep -o 'name: " "$VALIDATE_RELEASE" | head -1)
+    if echo "$skill_frontmatter_line" | grep -q '|| true'; then
+        pass "Skill frontmatter grep has pipefail guard (|| true)"
+    else
+        fail "Skill frontmatter grep missing pipefail guard" \
+            "v8.5.0 fix: grep in pipe needs || true under set -euo pipefail"
+    fi
+else
+    fail "validate-release.sh not found" "Expected: $VALIDATE_RELEASE"
+fi
+
+# Test 17: Skill name prefix validation (v8.5.0 fix)
+echo ""
+echo "Test 17: Checking skill name prefixes match validation rules..."
+VALID_PREFIXES="skill-|flow-|octopus-|sys-"
+invalid_skills=0
+for skill_file in "$PROJECT_ROOT/.claude/skills/"*.md; do
+    skill_name=$(sed -n '2p' "$skill_file" | grep -o 'name: .*' | sed 's/name: //' || true)
+    if [[ -z "$skill_name" ]]; then
+        continue
+    fi
+    if ! echo "$skill_name" | grep -qE "^($VALID_PREFIXES)"; then
+        fail "Skill '$(basename "$skill_file")' has invalid name prefix: '$skill_name'" \
+            "Must use skill-, flow-, sys-, or octopus- prefix"
+        ((invalid_skills++))
+    fi
+done
+if [[ $invalid_skills -eq 0 ]]; then
+    pass "All skill names use valid prefixes (skill-, flow-, sys-, octopus-)"
+fi
+
+# Test 18: Command frontmatter handles both 'command:' and 'name:' fields
+echo ""
+echo "Test 18: Checking command frontmatter field consistency..."
+mixed_format=0
+for cmd_file in "$PROJECT_ROOT/.claude/commands/"*.md; do
+    line2=$(sed -n '2p' "$cmd_file")
+    # Line 2 should be either 'command: X' or 'name: X' but not crash validation
+    if echo "$line2" | grep -qE '^(command|name): '; then
+        : # valid format
+    else
+        fail "Command '$(basename "$cmd_file")' has unexpected line 2 format: '$line2'" \
+            "Expected 'command: <name>' or 'name: <name>'"
+        ((mixed_format++))
+    fi
+done
+if [[ $mixed_format -eq 0 ]]; then
+    pass "All command files have valid frontmatter field on line 2"
+fi
+
 # Summary
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
