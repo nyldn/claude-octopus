@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "8.4.0",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v8.4.0) Fast Opus 4.6 auto-routing (v2.1.36+), context window monitoring statusline, cost-optimized agent routing. Claude Code v2.1.34+ integration, GPT-5.3-Codex, event-driven workflows, Debate v5.0 Agent Teams, Workflow-as-Code YAML. 29 expert personas, 38 commands, 43 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
+  "version": "8.5.0",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v8.5.0) YAML-driven workflow runtime, cross-memory warm start, Agent Teams migration, METRICC-inspired HUD statusline, auth-mode-aware cost estimates, /fast toggle detection. Claude Code v2.1.37+ integration, GPT-5.3-Codex, 29 expert personas, 38 commands, 43 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },
