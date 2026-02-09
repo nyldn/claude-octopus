@@ -660,6 +660,72 @@ fi
 echo ""
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Test Group 10: Release Validation Safety (v8.5.0 fixes)
+# ═══════════════════════════════════════════════════════════════════════════════
+echo -e "${BLUE}Test Group 10: Release Validation Safety${NC}"
+echo "------------------------------------------------------------"
+
+VALIDATE_RELEASE="$PLUGIN_DIR/scripts/validate-release.sh"
+
+# 10.1: validate-release.sh exists
+if [[ -f "$VALIDATE_RELEASE" ]]; then
+    assert_pass "10.1 validate-release.sh exists"
+else
+    assert_fail "10.1 validate-release.sh exists"
+fi
+
+# 10.2: Command frontmatter grep has pipefail guard
+if grep "grep -o 'command: " "$VALIDATE_RELEASE" | grep -q '|| true'; then
+    assert_pass "10.2 Command frontmatter grep has pipefail guard (|| true)"
+else
+    assert_fail "10.2 Command frontmatter grep has pipefail guard (|| true)"
+fi
+
+# 10.3: Skill frontmatter grep has pipefail guard
+if grep "grep -o 'name: " "$VALIDATE_RELEASE" | grep -q '|| true'; then
+    assert_pass "10.3 Skill frontmatter grep has pipefail guard (|| true)"
+else
+    assert_fail "10.3 Skill frontmatter grep has pipefail guard (|| true)"
+fi
+
+# 10.4: All skill files use valid name prefixes
+invalid_skill_count=0
+for skill_file in "$PLUGIN_DIR/.claude/skills/"*.md; do
+    sname=$(sed -n '2p' "$skill_file" | grep -o 'name: .*' | sed 's/name: //' || true)
+    if [[ -n "$sname" ]] && ! echo "$sname" | grep -qE '^(skill-|flow-|octopus-|sys-)'; then
+        invalid_skill_count=$((invalid_skill_count + 1))
+    fi
+done
+if [[ $invalid_skill_count -eq 0 ]]; then
+    assert_pass "10.4 All skill names use valid prefixes"
+else
+    assert_fail "10.4 All skill names use valid prefixes ($invalid_skill_count invalid)"
+fi
+
+# 10.5: validate-release.sh uses set -euo pipefail
+if head -10 "$VALIDATE_RELEASE" | grep -q 'set -euo pipefail'; then
+    assert_pass "10.5 validate-release.sh uses strict mode (set -euo pipefail)"
+else
+    assert_fail "10.5 validate-release.sh uses strict mode (set -euo pipefail)"
+fi
+
+# 10.6: No command frontmatter uses namespace prefix (octo:)
+has_namespace=0
+for cmd_file in "$PLUGIN_DIR/.claude/commands/"*.md; do
+    cname=$(sed -n '2p' "$cmd_file" | grep -o 'command: .*' | sed 's/command: //' || true)
+    if [[ -n "$cname" ]] && [[ "$cname" == *":"* ]]; then
+        has_namespace=$((has_namespace + 1))
+    fi
+done
+if [[ $has_namespace -eq 0 ]]; then
+    assert_pass "10.6 No commands use namespace prefix in frontmatter"
+else
+    assert_fail "10.6 No commands use namespace prefix in frontmatter ($has_namespace found)"
+fi
+
+echo ""
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # SUMMARY
 # ═══════════════════════════════════════════════════════════════════════════════
 echo "============================================================"
