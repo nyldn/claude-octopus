@@ -126,7 +126,7 @@ echo "📛 Checking command frontmatter format..."
 
 invalid_frontmatter=0
 for cmd_file in "$ROOT_DIR/.claude/commands/"*.md; do
-    cmd_name=$(sed -n '2p' "$cmd_file" | grep -o 'command: .*' | sed 's/command: //')
+    cmd_name=$(sed -n '2p' "$cmd_file" | grep -o 'command: .*' | sed 's/command: //' || true)
     # Commands should NOT have "octo:" prefix in frontmatter (Claude Code adds it automatically)
     if [[ -n "$cmd_name" ]] && [[ "$cmd_name" == *":"* ]]; then
         echo -e "  ${RED}ERROR: $(basename "$cmd_file") has 'command: $cmd_name' - must NOT include namespace prefix${NC}"
@@ -180,7 +180,7 @@ echo "🏷️  Checking skill frontmatter format..."
 
 invalid_skill_names=0
 for skill_file in "$ROOT_DIR/.claude/skills/"*.md; do
-    skill_name=$(sed -n '2p' "$skill_file" | grep -o 'name: .*' | sed 's/name: //')
+    skill_name=$(sed -n '2p' "$skill_file" | grep -o 'name: .*' | sed 's/name: //' || true)
     # Skip if no name found (might be a different format)
     if [[ -z "$skill_name" ]]; then
         continue

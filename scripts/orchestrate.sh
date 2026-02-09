@@ -424,6 +424,52 @@ detect_claude_code_version() {
     log "INFO" "Persistent Memory: $SUPPORTS_PERSISTENT_MEMORY | Hook Events: $SUPPORTS_HOOK_EVENTS | Agent Type Routing: $SUPPORTS_AGENT_TYPE_ROUTING"
     log "INFO" "Stable Agent Teams: $SUPPORTS_STABLE_AGENT_TEAMS | Agent Memory: $SUPPORTS_AGENT_MEMORY | Fast Opus: $SUPPORTS_FAST_OPUS"
 
+    # v8.5: Detect /fast toggle after version detection
+    detect_fast_mode
+    log "INFO" "User /fast mode: $USER_FAST_MODE"
+
+    return 0
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# /FAST TOGGLE DETECTION (v8.5 - Claude Code v2.1.36+)
+# Detects whether user has enabled /fast mode in their Claude Code session
+# ═══════════════════════════════════════════════════════════════════════════════
+USER_FAST_MODE="false"
+
+detect_fast_mode() {
+    # Check 1: Explicit env var from Claude Code (if exposed)
+    if [[ "${CLAUDE_CODE_FAST_MODE:-}" == "true" || "${CLAUDE_CODE_FAST_MODE:-}" == "1" ]]; then
+        USER_FAST_MODE="true"
+        log "INFO" "/fast mode detected via CLAUDE_CODE_FAST_MODE env var"
+        return 0
+    fi
+
+    # Check 2: Check Claude Code settings.json for fast mode state
+    local settings_file="${HOME}/.claude/settings.json"
+    if [[ -f "$settings_file" ]] && command -v jq &>/dev/null; then
+        local fast_setting
+        fast_setting=$(jq -r '.preferences.fastMode // .fastMode // false' "$settings_file" 2>/dev/null) || fast_setting="false"
+        if [[ "$fast_setting" == "true" ]]; then
+            USER_FAST_MODE="true"
+            log "INFO" "/fast mode detected via settings.json"
+            return 0
+        fi
+    fi
+
+    # Check 3: Check local project settings
+    local local_settings="${HOME}/.claude/projects/$(pwd | tr '/' '-')/settings.json"
+    if [[ -f "$local_settings" ]] && command -v jq &>/dev/null; then
+        local fast_local
+        fast_local=$(jq -r '.preferences.fastMode // .fastMode // false' "$local_settings" 2>/dev/null) || fast_local="false"
+        if [[ "$fast_local" == "true" ]]; then
+            USER_FAST_MODE="true"
+            log "INFO" "/fast mode detected via project settings"
+            return 0
+        fi
+    fi
+
+    USER_FAST_MODE="false"
     return 0
 }
 
@@ -531,6 +577,25 @@ select_opus_mode() {
             return
             ;;
     esac
+
+    # v8.5: If user toggled /fast in Claude Code, enable fast for single-shot tasks
+    # but still protect multi-phase workflows from cost explosion
+    if [[ "$USER_FAST_MODE" == "true" ]]; then
+        case "$phase" in
+            probe|grasp|tangle|ink)
+                # Inside a multi-phase workflow: stay standard even with /fast
+                log "WARN" "/fast mode active but inside multi-phase workflow - using standard to control costs"
+                echo "standard"
+                ;;
+            *)
+                # Single-shot task with /fast: honor user preference
+                log "INFO" "/fast mode active - using fast Opus for single-shot task"
+                log "WARN" "Fast Opus is 6x more expensive: \$30/\$150 per MTok vs \$5/\$25 standard"
+                echo "fast"
+                ;;
+        esac
+        return
+    fi
 
     # Supervised mode: fast only for single-shot interactive tasks
     # Full embrace workflows should stay standard (4 phases = high cost)
@@ -863,7 +928,7 @@ estimate_tokens() {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# COST TRANSPARENCY (v7.18.0 - P0.0)
+# COST TRANSPARENCY (v7.18.0 - P0.0, enhanced v8.5)
 # Display estimated costs to users BEFORE multi-AI execution
 # Only shows costs for API-based providers (not auth/subscription tiers)
 # Critical for user trust and preventing unexpected API charges
@@ -922,6 +987,107 @@ calculate_agent_cost() {
     local cost=$(awk "BEGIN {printf \"%.4f\", (($input_tokens / 1000000.0) * $input_price) + (($output_tokens / 1000000.0) * $output_price)}")
 
     echo "$cost"
+}
+
+# v8.5: Estimate total workflow cost (auth-mode aware)
+# Returns a formatted cost estimate string for a workflow
+# Respects is_api_based_provider() - auth-connected providers show "included"
+estimate_workflow_cost() {
+    local workflow_name="$1"
+    local prompt_length="${2:-2000}"
+
+    # Define expected agent calls per workflow
+    local codex_calls=0
+    local gemini_calls=0
+    local claude_calls=0
+
+    case "$workflow_name" in
+        embrace)
+            codex_calls=8; gemini_calls=6; claude_calls=8 ;;
+        probe|discover)
+            codex_calls=3; gemini_calls=2; claude_calls=2 ;;
+        grasp|define)
+            codex_calls=2; gemini_calls=1; claude_calls=2 ;;
+        tangle|develop)
+            codex_calls=2; gemini_calls=2; claude_calls=3 ;;
+        ink|deliver)
+            codex_calls=2; gemini_calls=2; claude_calls=2 ;;
+        *)
+            codex_calls=2; gemini_calls=2; claude_calls=2 ;;
+    esac
+
+    local codex_cost="0.00"
+    local gemini_cost="0.00"
+    local codex_label="" gemini_label="" claude_label=""
+    local has_any_cost=false
+
+    # Codex cost
+    if is_api_based_provider "codex"; then
+        local per_call
+        per_call=$(calculate_agent_cost "codex" "$prompt_length")
+        codex_cost=$(awk "BEGIN {printf \"%.2f\", $per_call * $codex_calls}")
+        local codex_high
+        codex_high=$(awk "BEGIN {printf \"%.2f\", $codex_cost * 1.5}")
+        codex_label="~\$${codex_cost}-${codex_high} (${codex_calls} calls, API key)"
+        has_any_cost=true
+    else
+        codex_label="Included (auth-connected)"
+    fi
+
+    # Gemini cost
+    if is_api_based_provider "gemini"; then
+        local per_call
+        per_call=$(calculate_agent_cost "gemini" "$prompt_length")
+        gemini_cost=$(awk "BEGIN {printf \"%.2f\", $per_call * $gemini_calls}")
+        local gemini_high
+        gemini_high=$(awk "BEGIN {printf \"%.2f\", $gemini_cost * 1.5}")
+        gemini_label="~\$${gemini_cost}-${gemini_high} (${gemini_calls} calls, API key)"
+        has_any_cost=true
+    else
+        gemini_label="Included (auth-connected)"
+    fi
+
+    # Claude is always subscription-based
+    claude_label="Included (subscription)"
+
+    local total_low
+    total_low=$(awk "BEGIN {printf \"%.2f\", $codex_cost + $gemini_cost}")
+    local total_high
+    total_high=$(awk "BEGIN {printf \"%.2f\", ($codex_cost + $gemini_cost) * 1.5}")
+
+    # Return structured result (pipe-delimited for easy parsing)
+    echo "${has_any_cost}|${codex_label}|${gemini_label}|${claude_label}|${total_low}|${total_high}"
+}
+
+# v8.5: Compact cost estimate display (non-interactive, no approval prompt)
+# Used for inline cost display within phase entry functions
+show_cost_estimate() {
+    local workflow_name="$1"
+    local prompt_length="${2:-2000}"
+
+    local estimate
+    estimate=$(estimate_workflow_cost "$workflow_name" "$prompt_length")
+
+    local has_cost codex_label gemini_label claude_label total_low total_high
+    IFS='|' read -r has_cost codex_label gemini_label claude_label total_low total_high <<< "$estimate"
+
+    # If ALL providers are auth-connected, skip the cost estimate entirely
+    if [[ "$has_cost" == "false" ]]; then
+        log "DEBUG" "All providers auth-connected, skipping cost estimate for $workflow_name"
+        return 0
+    fi
+
+    echo -e "  ${BOLD}Estimated Costs:${NC}"
+    echo -e "    ${RED}🔴${NC} Codex:  ${codex_label}"
+    echo -e "    ${YELLOW}🟡${NC} Gemini: ${gemini_label}"
+    echo -e "    ${BLUE}🔵${NC} Claude: ${claude_label}"
+
+    if [[ "$USER_FAST_MODE" == "true" ]] && [[ "$SUPPORTS_FAST_OPUS" == "true" ]]; then
+        echo -e "    ${YELLOW}⚡${NC} /fast mode active - Opus costs 6x higher for single-shot tasks"
+    fi
+
+    echo -e "    ${BOLD}Total estimated: ~\$${total_low}-${total_high}${NC}"
+    echo ""
 }
 
 # Display cost estimate for a workflow and require user approval
@@ -6341,6 +6507,24 @@ show_provider_status() {
 
     echo -e "${CYAN}╠════════════════════════════════════════════════════════════════╣${NC}"
     echo -e "${CYAN}║${NC}  Cost Strategy:  $COST_OPTIMIZATION_STRATEGY  ${CYAN}║${NC}"
+
+    # v8.5: Show /fast mode and Opus mode status
+    local fast_info=""
+    if [[ "$USER_FAST_MODE" == "true" ]]; then
+        fast_info="${YELLOW}⚡ ON${NC} (6x cost for lower latency)"
+    else
+        fast_info="${DIM}off${NC}"
+    fi
+    echo -e "${CYAN}║${NC}  /fast Mode:     $fast_info  ${CYAN}║${NC}"
+
+    local opus_mode_info=""
+    case "$OCTOPUS_OPUS_MODE" in
+        fast)     opus_mode_info="${YELLOW}fast (forced)${NC}" ;;
+        standard) opus_mode_info="${GREEN}standard (forced)${NC}" ;;
+        auto)     opus_mode_info="${DIM}auto${NC}" ;;
+    esac
+    echo -e "${CYAN}║${NC}  Opus Mode:      $opus_mode_info  ${CYAN}║${NC}"
+
     echo -e "${CYAN}╚════════════════════════════════════════════════════════════════╝${NC}"
     echo ""
 }
@@ -7745,6 +7929,126 @@ retry_failed_subtasks() {
     FAILED_SUBTASKS=""
 }
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# CROSS-MEMORY WARM START (v8.5 - Claude Code v2.1.33+)
+# Injects persistent memory context into agent prompts for cross-session learning
+# Reads from MEMORY.md files based on agent memory scope (project/user/local)
+# ═══════════════════════════════════════════════════════════════════════════════
+MEMORY_INJECTION_ENABLED="${OCTOPUS_MEMORY_INJECTION:-true}"
+
+# Build memory context from MEMORY.md files
+# Args: $1=memory_scope (project|user|local)
+# Returns: compact context block (max ~500 tokens / ~2000 chars) or empty string
+build_memory_context() {
+    local scope="${1:-none}"
+
+    # Guard: only works with persistent memory support
+    if [[ "$SUPPORTS_PERSISTENT_MEMORY" != "true" ]]; then
+        return
+    fi
+
+    # Guard: disabled by user
+    if [[ "$MEMORY_INJECTION_ENABLED" != "true" ]]; then
+        return
+    fi
+
+    # Skip if no scope
+    if [[ "$scope" == "none" || -z "$scope" ]]; then
+        return
+    fi
+
+    local memory_file=""
+    case "$scope" in
+        project)
+            # Claude Code stores project memory by path hash
+            # Try common locations
+            local project_hash
+            project_hash=$(echo "$PROJECT_ROOT" | tr '/' '-')
+            memory_file="${HOME}/.claude/projects/${project_hash}/memory/MEMORY.md"
+            if [[ ! -f "$memory_file" ]]; then
+                # Try with leading dash (Claude Code convention)
+                memory_file="${HOME}/.claude/projects/-${project_hash}/memory/MEMORY.md"
+            fi
+            ;;
+        user)
+            memory_file="${HOME}/.claude/memory/MEMORY.md"
+            ;;
+        local)
+            memory_file="${PROJECT_ROOT}/.claude/memory/MEMORY.md"
+            ;;
+    esac
+
+    if [[ -z "$memory_file" || ! -f "$memory_file" ]]; then
+        log "DEBUG" "No memory file found for scope=$scope (tried: $memory_file)"
+        return
+    fi
+
+    # Read memory file and truncate to ~2000 chars (roughly 500 tokens)
+    local content
+    content=$(head -c 2000 "$memory_file" 2>/dev/null) || return
+
+    if [[ -z "$content" ]]; then
+        return
+    fi
+
+    # If truncated, add ellipsis
+    if [[ $(wc -c < "$memory_file" 2>/dev/null) -gt 2000 ]]; then
+        content="${content}
+...
+(memory truncated to fit context)"
+    fi
+
+    log "DEBUG" "Memory context loaded: scope=$scope, size=${#content} chars"
+    echo "$content"
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# AGENT TEAMS CONDITIONAL MIGRATION (v8.5 - Claude Code v2.1.34+)
+# Claude-to-Claude agents can use native Agent Teams instead of bash subprocesses
+# Codex and Gemini remain bash-spawned (external CLIs)
+# ═══════════════════════════════════════════════════════════════════════════════
+OCTOPUS_AGENT_TEAMS="${OCTOPUS_AGENT_TEAMS:-auto}"  # auto | native | legacy
+
+# Check if an agent should use Agent Teams dispatch
+# Returns 0 (true) if agent should use native teams, 1 (false) for legacy bash
+should_use_agent_teams() {
+    local agent_type="$1"
+
+    # User override: force legacy mode
+    if [[ "$OCTOPUS_AGENT_TEAMS" == "legacy" ]]; then
+        return 1
+    fi
+
+    # User override: force native for Claude agents
+    if [[ "$OCTOPUS_AGENT_TEAMS" == "native" ]]; then
+        case "$agent_type" in
+            claude|claude-sonnet|claude-opus|claude-opus-fast)
+                if [[ "$SUPPORTS_STABLE_AGENT_TEAMS" == "true" ]]; then
+                    return 0
+                else
+                    log "WARN" "Agent Teams forced but SUPPORTS_STABLE_AGENT_TEAMS not available"
+                    return 1
+                fi
+                ;;
+            *)
+                # Non-Claude agents always use legacy (external CLIs)
+                return 1
+                ;;
+        esac
+    fi
+
+    # Auto mode: use teams for Claude agents when stable teams are available
+    if [[ "$SUPPORTS_STABLE_AGENT_TEAMS" == "true" ]]; then
+        case "$agent_type" in
+            claude|claude-sonnet|claude-opus|claude-opus-fast)
+                return 0
+                ;;
+        esac
+    fi
+
+    return 1
+}
+
 spawn_agent() {
     local agent_type="$1"
     local prompt="$2"
@@ -7839,7 +8143,7 @@ ${enhanced_prompt}"
     log DEBUG "Command: $cmd"
     log DEBUG "Phase: ${phase:-none}, Role: ${role:-none}"
 
-    # v8.2.0: Log enhanced agent fields
+    # v8.2.0: Log enhanced agent fields + v8.5: Inject memory context
     if [[ "$SUPPORTS_AGENT_TYPE_ROUTING" == "true" ]]; then
         local curated_name
         curated_name=$(select_curated_agent "$prompt" "$phase") || true
@@ -7848,6 +8152,20 @@ ${enhanced_prompt}"
             agent_mem=$(get_agent_memory "$curated_name")
             agent_perm=$(get_agent_permission_mode "$curated_name")
             log "DEBUG" "Agent fields: memory=$agent_mem, permissionMode=$agent_perm"
+
+            # v8.5: Cross-memory warm start - inject memory context into prompt
+            if [[ -n "$agent_mem" && "$agent_mem" != "none" ]]; then
+                local memory_context
+                memory_context=$(build_memory_context "$agent_mem")
+                if [[ -n "$memory_context" ]]; then
+                    enhanced_prompt="## Previous Context (from ${agent_mem} memory)
+${memory_context}
+---
+
+${enhanced_prompt}"
+                    log "INFO" "Injected ${agent_mem} memory context (${#memory_context} chars) for agent: $curated_name"
+                fi
+            fi
         fi
     fi
 
@@ -7877,6 +8195,52 @@ ${enhanced_prompt}"
 
     mkdir -p "$RESULTS_DIR" "$LOGS_DIR"
     touch "$PID_FILE"
+
+    # v8.5: Agent Teams dispatch for Claude agents
+    if should_use_agent_teams "$agent_type"; then
+        log "INFO" "Dispatching via Agent Teams: $agent_type (task: $task_id)"
+
+        # Write structured agent instruction for Claude Code's native team dispatch
+        # The agent instruction file is picked up by teammate-idle-dispatch.sh
+        local teams_dir="${WORKSPACE_DIR}/agent-teams"
+        mkdir -p "$teams_dir"
+
+        local agent_instruction_file="${teams_dir}/${task_id}.json"
+        if command -v jq &>/dev/null; then
+            jq -n \
+                --arg agent_type "$agent_type" \
+                --arg task_id "$task_id" \
+                --arg role "${role:-none}" \
+                --arg phase "${phase:-none}" \
+                --arg model "$model" \
+                --arg prompt "$enhanced_prompt" \
+                --arg result_file "$result_file" \
+                '{agent_type: $agent_type, task_id: $task_id, role: $role,
+                  phase: $phase, model: $model, prompt: $prompt,
+                  result_file: $result_file, dispatch_method: "agent_teams",
+                  dispatched_at: now | todate}' \
+                > "$agent_instruction_file" 2>/dev/null
+        fi
+
+        # Output structured instruction for Claude Code to pick up
+        echo "AGENT_TEAMS_DISPATCH:${agent_type}:${task_id}:${role:-none}:${phase:-none}"
+
+        # Write initial result file header
+        echo "# Agent: $agent_type (via Agent Teams)" > "$result_file"
+        echo "# Task ID: $task_id" >> "$result_file"
+        echo "# Role: ${role:-none}" >> "$result_file"
+        echo "# Phase: ${phase:-none}" >> "$result_file"
+        echo "# Dispatch: Agent Teams (native)" >> "$result_file"
+        echo "# Started: $(date)" >> "$result_file"
+        echo "" >> "$result_file"
+
+        log "DEBUG" "Agent Teams instruction written to: $agent_instruction_file"
+        return 0
+    fi
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # LEGACY PATH: Execute agent in bash subprocess (Codex/Gemini or teams unavailable)
+    # ═══════════════════════════════════════════════════════════════════════════
 
     # Execute agent in background
     (
@@ -10032,6 +10396,432 @@ run_agent_sync() {
     return 0
 }
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# WORKFLOW-AS-CODE RUNTIME (v8.5)
+# YAML-driven workflow execution - reads embrace.yaml at runtime instead of
+# hardcoding phase logic. Falls back to hardcoded functions if YAML not available.
+#
+# Feature flag: OCTOPUS_YAML_RUNTIME=auto|enabled|disabled (default: auto)
+# auto = use YAML if file exists and parses correctly
+# enabled = require YAML (fail if not found)
+# disabled = always use hardcoded logic
+# ═══════════════════════════════════════════════════════════════════════════════
+OCTOPUS_YAML_RUNTIME="${OCTOPUS_YAML_RUNTIME:-auto}"
+
+# Lightweight YAML parser for workflow files
+# Extracts structured data from embrace.yaml using awk
+# No external deps required (uses awk/sed, falls back gracefully)
+parse_yaml_workflow() {
+    local yaml_file="$1"
+
+    if [[ ! -f "$yaml_file" ]]; then
+        log "WARN" "Workflow YAML not found: $yaml_file"
+        return 1
+    fi
+
+    # Use yq if available for robust parsing, else awk fallback
+    if command -v yq &>/dev/null; then
+        # Validate YAML structure
+        if ! yq eval '.name' "$yaml_file" &>/dev/null; then
+            log "ERROR" "Invalid YAML in $yaml_file"
+            return 1
+        fi
+        log "DEBUG" "YAML parsed with yq: $yaml_file"
+        return 0
+    fi
+
+    # awk-based validation: check required top-level keys
+    local has_name has_phases
+    has_name=$(awk '/^name:/' "$yaml_file")
+    has_phases=$(awk '/^phases:/' "$yaml_file")
+
+    if [[ -z "$has_name" || -z "$has_phases" ]]; then
+        log "ERROR" "YAML missing required fields (name, phases): $yaml_file"
+        return 1
+    fi
+
+    log "DEBUG" "YAML parsed with awk fallback: $yaml_file"
+    return 0
+}
+
+# Extract phase list from workflow YAML
+# Returns newline-separated list of phase names
+yaml_get_phases() {
+    local yaml_file="$1"
+
+    if command -v yq &>/dev/null; then
+        yq eval '.phases[].name' "$yaml_file" 2>/dev/null
+    else
+        # awk fallback: extract phase names from "- name: <phase>" lines under phases:
+        awk '
+            /^phases:/ { in_phases=1; next }
+            in_phases && /^[a-z]/ { exit }
+            in_phases && /^  - name:/ {
+                gsub(/^  - name:[[:space:]]*/, "")
+                gsub(/["\047]/, "")
+                print
+            }
+        ' "$yaml_file"
+    fi
+}
+
+# Extract phase config for a specific phase
+# Returns key=value pairs for the phase
+yaml_get_phase_config() {
+    local yaml_file="$1"
+    local phase_name="$2"
+    local field="$3"
+
+    if command -v yq &>/dev/null; then
+        yq eval ".phases[] | select(.name == \"$phase_name\") | .$field" "$yaml_file" 2>/dev/null
+    else
+        # awk fallback for simple fields
+        awk -v phase="$phase_name" -v field="$field" '
+            /^  - name:/ {
+                gsub(/^  - name:[[:space:]]*/, "")
+                gsub(/["\047]/, "")
+                current_phase = $0
+            }
+            current_phase == phase && $0 ~ "^    " field ":" {
+                gsub(/^[[:space:]]*[a-z_]+:[[:space:]]*/, "")
+                gsub(/["\047]/, "")
+                print
+                exit
+            }
+        ' "$yaml_file"
+    fi
+}
+
+# Extract agents for a specific phase
+# Returns provider:role:parallel lines
+yaml_get_phase_agents() {
+    local yaml_file="$1"
+    local phase_name="$2"
+
+    if command -v yq &>/dev/null; then
+        yq eval ".phases[] | select(.name == \"$phase_name\") | .agents[] | .provider + \":\" + .role + \":\" + (.parallel // true | tostring)" "$yaml_file" 2>/dev/null
+    else
+        # awk fallback: extract agents block for the phase
+        awk -v phase="$phase_name" '
+            /^  - name:/ {
+                gsub(/^  - name:[[:space:]]*/, "")
+                gsub(/["\047]/, "")
+                current_phase = $0
+            }
+            current_phase == phase && /^      - provider:/ {
+                gsub(/^      - provider:[[:space:]]*/, "")
+                provider = $0
+            }
+            current_phase == phase && /^        role:/ {
+                gsub(/^        role:[[:space:]]*/, "")
+                gsub(/["\047]/, "")
+                role = $0
+            }
+            current_phase == phase && /^        parallel:/ {
+                gsub(/^        parallel:[[:space:]]*/, "")
+                parallel = $0
+            }
+            current_phase == phase && /^        prompt_template:/ {
+                # End of agent block, emit
+                if (provider != "") {
+                    if (parallel == "") parallel = "true"
+                    print provider ":" role ":" parallel
+                    provider = ""; role = ""; parallel = ""
+                }
+            }
+            # New phase starts
+            current_phase == phase && /^  - name:/ && !/name: *phase/ { exit }
+        ' "$yaml_file"
+    fi
+}
+
+# Extract prompt template for a specific phase agent
+yaml_get_agent_prompt() {
+    local yaml_file="$1"
+    local phase_name="$2"
+    local provider="$3"
+
+    if command -v yq &>/dev/null; then
+        yq eval ".phases[] | select(.name == \"$phase_name\") | .agents[] | select(.provider == \"$provider\") | .prompt_template" "$yaml_file" 2>/dev/null
+    else
+        # For awk fallback, return empty - hardcoded prompts will be used
+        echo ""
+    fi
+}
+
+# Resolve template variables in prompt
+# Supports: {{prompt}}, {{previous_phase_output}}, {{probe_synthesis}}, etc.
+resolve_prompt_template() {
+    local template="$1"
+    local prompt="$2"
+    local previous_output="${3:-}"
+
+    local resolved="$template"
+    resolved="${resolved//\{\{prompt\}\}/$prompt}"
+    resolved="${resolved//\{\{previous_phase_output\}\}/$previous_output}"
+    resolved="${resolved//\{\{probe_synthesis\}\}/$previous_output}"
+    resolved="${resolved//\{\{grasp_consensus\}\}/$previous_output}"
+    resolved="${resolved//\{\{tangle_implementation\}\}/$previous_output}"
+
+    echo "$resolved"
+}
+
+# Execute a single workflow phase from YAML definition
+# Spawns agents as defined, respects parallel/sequential flags, evaluates quality gates
+execute_workflow_phase() {
+    local yaml_file="$1"
+    local phase_name="$2"
+    local prompt="$3"
+    local previous_output="${4:-}"
+    local task_group="$5"
+
+    local emoji
+    emoji=$(yaml_get_phase_config "$yaml_file" "$phase_name" "emoji") || emoji="🐙"
+    local description
+    description=$(yaml_get_phase_config "$yaml_file" "$phase_name" "description") || description="$phase_name"
+    local alias_name
+    alias_name=$(yaml_get_phase_config "$yaml_file" "$phase_name" "alias") || alias_name="$phase_name"
+
+    echo ""
+    echo -e "${MAGENTA}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${MAGENTA}║  ${GREEN}${alias_name^^}${MAGENTA} - ${description}${MAGENTA}${NC}"
+    echo -e "${MAGENTA}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+
+    log "INFO" "YAML Runtime: Executing phase '$phase_name' ($description)"
+
+    # Get agents for this phase
+    local agents_raw
+    agents_raw=$(yaml_get_phase_agents "$yaml_file" "$phase_name")
+
+    if [[ -z "$agents_raw" ]]; then
+        log "WARN" "No agents defined for phase $phase_name in YAML, using defaults"
+        return 1
+    fi
+
+    local pids=()
+    local agent_idx=0
+
+    # Update session state for hooks
+    local session_dir="${HOME}/.claude-octopus"
+    mkdir -p "$session_dir"
+
+    # Count total agents for this phase
+    local total_agents
+    total_agents=$(echo "$agents_raw" | wc -l | tr -d ' ')
+
+    # Write phase task info for task-completed-transition.sh
+    if command -v jq &>/dev/null && [[ -f "$session_dir/session.json" ]]; then
+        jq --argjson total "$total_agents" \
+           '.phase_tasks = {total: $total, completed: 0}' \
+           "$session_dir/session.json" > "$session_dir/session.json.tmp" \
+           && mv "$session_dir/session.json.tmp" "$session_dir/session.json" 2>/dev/null || true
+    fi
+
+    # Spawn agents
+    while IFS=':' read -r provider role is_parallel; do
+        [[ -z "$provider" ]] && continue
+
+        local task_id="${phase_name}-${task_group}-${agent_idx}"
+
+        # Resolve prompt template
+        local agent_prompt
+        agent_prompt=$(yaml_get_agent_prompt "$yaml_file" "$phase_name" "$provider")
+        if [[ -n "$agent_prompt" ]]; then
+            agent_prompt=$(resolve_prompt_template "$agent_prompt" "$prompt" "$previous_output")
+        else
+            # Fallback: construct prompt from role
+            agent_prompt="$role: $prompt"
+            if [[ -n "$previous_output" ]]; then
+                agent_prompt="$agent_prompt
+
+Previous phase output:
+$previous_output"
+            fi
+        fi
+
+        # Map provider to agent type
+        local agent_type="$provider"
+        case "$provider" in
+            claude) agent_type="claude-sonnet" ;;
+        esac
+
+        # Check provider availability
+        case "$provider" in
+            codex)
+                if ! command -v codex &>/dev/null && [[ -z "${OPENAI_API_KEY:-}" ]]; then
+                    log "WARN" "Codex not available, skipping agent in phase $phase_name"
+                    ((agent_idx++))
+                    continue
+                fi
+                ;;
+            gemini)
+                if ! command -v gemini &>/dev/null && [[ -z "${GEMINI_API_KEY:-}" ]]; then
+                    log "WARN" "Gemini not available, skipping agent in phase $phase_name"
+                    ((agent_idx++))
+                    continue
+                fi
+                ;;
+        esac
+
+        if [[ "$is_parallel" == "true" ]]; then
+            spawn_agent "$agent_type" "$agent_prompt" "$task_id" "$role" "$phase_name" &
+            pids+=($!)
+        else
+            # Sequential agent - wait for parallel agents first
+            if [[ ${#pids[@]} -gt 0 ]]; then
+                log "DEBUG" "Waiting for ${#pids[@]} parallel agents before sequential agent"
+                for pid in "${pids[@]}"; do
+                    wait "$pid" 2>/dev/null || true
+                done
+                pids=()
+            fi
+            spawn_agent "$agent_type" "$agent_prompt" "$task_id" "$role" "$phase_name"
+        fi
+
+        ((agent_idx++))
+        sleep 0.1
+    done <<< "$agents_raw"
+
+    # Wait for remaining parallel agents
+    if [[ ${#pids[@]} -gt 0 ]]; then
+        log "INFO" "Waiting for ${#pids[@]} parallel agents in phase $phase_name"
+        for pid in "${pids[@]}"; do
+            wait "$pid" 2>/dev/null || true
+        done
+    fi
+
+    # Collect phase output
+    local phase_output=""
+    local result_files
+    result_files=$(ls -t "$RESULTS_DIR"/${phase_name}-${task_group}-*.md 2>/dev/null || true)
+    if [[ -n "$result_files" ]]; then
+        for f in $result_files; do
+            phase_output+="$(cat "$f" 2>/dev/null)
+---
+"
+        done
+    fi
+
+    # Write synthesis file
+    local synthesis_file="${RESULTS_DIR}/${phase_name}-synthesis-${task_group}.md"
+    if [[ -n "$phase_output" ]]; then
+        echo "# ${phase_name^} Phase Synthesis" > "$synthesis_file"
+        echo "# Generated by YAML Runtime" >> "$synthesis_file"
+        echo "# Task Group: $task_group" >> "$synthesis_file"
+        echo "" >> "$synthesis_file"
+        echo "$phase_output" >> "$synthesis_file"
+    fi
+
+    # Evaluate quality gate
+    local qg_threshold
+    qg_threshold=$(yaml_get_phase_config "$yaml_file" "$phase_name" "threshold") || qg_threshold="0.5"
+    local result_count
+    result_count=$(echo "$result_files" | wc -l | tr -d ' ')
+    if [[ $result_count -ge 1 ]]; then
+        log "INFO" "Phase $phase_name quality gate: $result_count results (threshold: $qg_threshold)"
+    else
+        log "WARN" "Phase $phase_name quality gate: no results produced"
+    fi
+
+    log "INFO" "YAML Runtime: Phase '$phase_name' complete ($result_count agent results)"
+    echo "$synthesis_file"
+}
+
+# Top-level YAML workflow runner
+# Loads a workflow YAML file and executes all phases in sequence
+run_yaml_workflow() {
+    local workflow_name="$1"
+    local prompt="$2"
+    local task_group="${3:-$(date +%s)}"
+
+    local yaml_file="${PLUGIN_DIR}/workflows/${workflow_name}.yaml"
+
+    # Parse and validate
+    if ! parse_yaml_workflow "$yaml_file"; then
+        log "ERROR" "Failed to parse workflow YAML: $yaml_file"
+        return 1
+    fi
+
+    # Get phase list
+    local phases
+    phases=$(yaml_get_phases "$yaml_file")
+    if [[ -z "$phases" ]]; then
+        log "ERROR" "No phases found in workflow YAML: $yaml_file"
+        return 1
+    fi
+
+    local phase_count
+    phase_count=$(echo "$phases" | wc -l | tr -d ' ')
+    log "INFO" "YAML Runtime: Starting workflow '$workflow_name' with $phase_count phases"
+
+    local phase_num=0
+    local previous_output=""
+    local all_outputs=()
+
+    while IFS= read -r phase_name; do
+        [[ -z "$phase_name" ]] && continue
+        ((phase_num++))
+
+        echo ""
+        echo -e "${CYAN}[${phase_num}/${phase_count}] Starting ${phase_name^^} phase...${NC}"
+        echo ""
+
+        # Update workflow state
+        export OCTOPUS_WORKFLOW_PHASE="$phase_name"
+        export OCTOPUS_COMPLETED_PHASES=$((phase_num - 1))
+
+        # Update session.json for hooks
+        local session_dir="${HOME}/.claude-octopus"
+        if command -v jq &>/dev/null && [[ -f "$session_dir/session.json" ]]; then
+            jq --arg phase "$phase_name" --arg status "running" \
+               --argjson completed "$((phase_num - 1))" \
+               '.current_phase = $phase | .phase_status = $status | .completed_phases = $completed' \
+               "$session_dir/session.json" > "$session_dir/session.json.tmp" \
+               && mv "$session_dir/session.json.tmp" "$session_dir/session.json" 2>/dev/null || true
+        fi
+
+        # Read previous phase output if available
+        if [[ -n "$previous_output" && -f "$previous_output" ]]; then
+            local prev_content
+            prev_content=$(head -c 8000 "$previous_output" 2>/dev/null) || prev_content=""
+        else
+            local prev_content=""
+        fi
+
+        # Execute phase
+        local phase_result
+        phase_result=$(execute_workflow_phase "$yaml_file" "$phase_name" "$prompt" "$prev_content" "$task_group")
+
+        previous_output="$phase_result"
+        all_outputs+=("$phase_result")
+
+        # Update session state
+        if command -v jq &>/dev/null && [[ -f "$session_dir/session.json" ]]; then
+            jq --arg phase "$phase_name" --arg status "completed" \
+               --argjson completed "$phase_num" \
+               '.current_phase = $phase | .phase_status = $status | .completed_phases = $completed' \
+               "$session_dir/session.json" > "$session_dir/session.json.tmp" \
+               && mv "$session_dir/session.json.tmp" "$session_dir/session.json" 2>/dev/null || true
+        fi
+
+        # Handle autonomy checkpoint
+        handle_autonomy_checkpoint "$phase_name" "completed" 2>/dev/null || true
+
+        # v7.25.0: Display phase metrics
+        if command -v display_phase_metrics &>/dev/null; then
+            display_phase_metrics "$phase_name" 2>/dev/null || true
+        fi
+
+        sleep 1
+    done <<< "$phases"
+
+    log "INFO" "YAML Runtime: Workflow '$workflow_name' complete ($phase_num phases executed)"
+
+    # Return the last synthesis file path
+    echo "${all_outputs[-1]:-}"
+}
+
 # Phase 1: PROBE (Discover) - Parallel research with synthesis
 # Like an octopus probing with multiple tentacles simultaneously
 probe_discover() {
@@ -10860,6 +11650,7 @@ embrace_full_workflow() {
     export OCTOPUS_COMPLETED_PHASES=0
 
     # v8.3: Write session state for hook handlers to read
+    # v8.5: Enhanced with phase_tasks and agent_queue for hook integration
     _write_embrace_session_state() {
         local phase="$1"
         local status="$2"
@@ -10878,6 +11669,9 @@ embrace_full_workflow() {
                   task_group: $group, autonomy_mode: $autonomy,
                   completed_phases: $completed, total_phases: $total,
                   phase_map: {probe: "grasp", grasp: "tangle", tangle: "ink", ink: "complete"},
+                  phase_tasks: {total: 0, completed: 0},
+                  agent_queue: [],
+                  quality_gates: {passed: false, failed: false},
                   updated_at: now | todate}' \
                 > "$session_dir/session.json" 2>/dev/null || true
         fi
@@ -10885,6 +11679,9 @@ embrace_full_workflow() {
 
     _write_embrace_session_state "init" "starting"
     echo ""
+
+    # v8.5: Show compact cost estimate in banner
+    show_cost_estimate "embrace" "${#prompt}"
 
     if [[ "$DRY_RUN" == "true" ]]; then
         log INFO "[DRY-RUN] Would embrace: $prompt"
@@ -10921,6 +11718,86 @@ embrace_full_workflow() {
 
     # Track timing
     local start_time=$SECONDS
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # v8.5: YAML RUNTIME DELEGATION
+    # If YAML workflow file exists and runtime is enabled, delegate to YAML runner
+    # Otherwise fall through to hardcoded logic (backward compatibility)
+    # ═══════════════════════════════════════════════════════════════════════════
+    local yaml_file="${PLUGIN_DIR}/workflows/embrace.yaml"
+    local use_yaml_runtime=false
+
+    case "$OCTOPUS_YAML_RUNTIME" in
+        enabled)
+            if [[ -f "$yaml_file" ]]; then
+                use_yaml_runtime=true
+            else
+                log "ERROR" "YAML runtime enabled but embrace.yaml not found: $yaml_file"
+                return 1
+            fi
+            ;;
+        auto)
+            if [[ -f "$yaml_file" ]] && [[ -z "$resume_from" || "$resume_from" == "null" ]]; then
+                # Auto mode: try YAML if file exists and not resuming
+                if parse_yaml_workflow "$yaml_file" 2>/dev/null; then
+                    use_yaml_runtime=true
+                    log "INFO" "YAML runtime auto-enabled: embrace.yaml found and valid"
+                else
+                    log "WARN" "YAML runtime auto-disabled: embrace.yaml parsing failed"
+                fi
+            fi
+            ;;
+        disabled)
+            log "DEBUG" "YAML runtime disabled by user"
+            ;;
+    esac
+
+    if [[ "$use_yaml_runtime" == "true" ]]; then
+        log "INFO" "Delegating to YAML workflow runtime for embrace workflow"
+        echo -e "${CYAN}Using YAML-driven workflow runtime (embrace.yaml)${NC}"
+        echo ""
+
+        local yaml_result
+        yaml_result=$(run_yaml_workflow "embrace" "$prompt" "$task_group")
+
+        # Mark workflow complete
+        export OCTOPUS_WORKFLOW_PHASE="complete"
+        export OCTOPUS_COMPLETED_PHASES=4
+        _write_embrace_session_state "complete" "finished"
+        complete_session
+
+        local duration=$((SECONDS - start_time))
+
+        echo ""
+        echo -e "${MAGENTA}╔═══════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${MAGENTA}║  EMBRACE workflow complete! (YAML Runtime)                ║${NC}"
+        echo -e "${MAGENTA}╚═══════════════════════════════════════════════════════════╝${NC}"
+        echo ""
+        echo -e "Duration: ${duration}s"
+        echo -e "Autonomy: ${AUTONOMY_MODE}"
+        echo -e "Runtime: YAML (embrace.yaml)"
+        echo -e "Results: ${RESULTS_DIR}/"
+        echo ""
+
+        # v7.25.0: Display session metrics
+        if command -v display_session_metrics &>/dev/null; then
+            display_session_metrics 2>/dev/null || true
+            display_provider_breakdown 2>/dev/null || true
+        fi
+
+        # Clean up exported flags
+        unset OCTOPUS_SKIP_PHASE_COST_PROMPT
+        unset OCTOPUS_WORKFLOW_PHASE
+        unset OCTOPUS_WORKFLOW_TYPE
+        unset OCTOPUS_TASK_GROUP
+        unset OCTOPUS_TOTAL_PHASES
+        unset OCTOPUS_COMPLETED_PHASES
+        return 0
+    fi
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # HARDCODED PHASE LOGIC (fallback when YAML runtime not available)
+    # ═══════════════════════════════════════════════════════════════════════════
     local probe_synthesis grasp_consensus tangle_validation
 
     # Phase 1: PROBE (Discover)
