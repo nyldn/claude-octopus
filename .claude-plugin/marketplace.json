@@ -11,8 +11,8 @@
     {
       "name": "claude-octopus",
       "source": "./",
-      "description": "v8.4.0 - Fast Opus 4.6 auto-routing (v2.1.36+), context window monitoring statusline, cost-optimized model selection. v2.1.34+ integration, GPT-5.3-Codex, event-driven workflows, Agent Teams, Workflow-as-Code YAML. 29 personas, 32 commands, 43 skills. Run /octo:setup.",
-      "version": "8.4.0",
+      "description": "v8.5.0 - YAML workflow runtime, cross-memory warm start, Agent Teams migration, Node.js HUD statusline, auth-mode cost estimates, /fast toggle detection. v2.1.37+ integration, GPT-5.3-Codex, 29 personas, 38 commands, 43 skills. Run /octo:setup.",
+      "version": "8.5.0",
       "author": {
         "name": "nyldn"
       },
