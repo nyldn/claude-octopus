@@ -2,6 +2,53 @@
 
 All notable changes to Claude Octopus will be documented in this file.
 
+## [8.5.0] - 2026-02-08
+
+### Added
+
+**YAML-Driven Workflow Runtime** (Opp 6):
+
+- **`run_yaml_workflow()`** reads `embrace.yaml` at execution time instead of hardcoded phase logic
+- **`execute_workflow_phase()`** generic phase executor with parallel/sequential agent spawning
+- Template variable resolution: `{{prompt}}`, `{{probe_synthesis}}`, `{{grasp_consensus}}`
+- Feature flag: `OCTOPUS_YAML_RUNTIME=auto|enabled|disabled` (default: auto)
+- Falls back to hardcoded logic if YAML parsing fails
+
+**Cross-Memory Warm Start** (Opp 3):
+
+- **`build_memory_context()`** injects MEMORY.md content into agent prompts
+- Supports project, user, and local memory scopes from `config.yaml`
+- Guarded by `SUPPORTS_PERSISTENT_MEMORY` flag and `OCTOPUS_MEMORY_INJECTION` env var
+
+**Agent Teams Conditional Migration** (Opp 5):
+
+- **`should_use_agent_teams()`** routes Claude agents through native Agent Teams when available
+- Codex/Gemini agents remain bash-spawned (external CLIs)
+- Feature flag: `OCTOPUS_AGENT_TEAMS=auto|native|legacy` (default: auto)
+
+**METRICC-Inspired Node.js HUD** (Opp 4):
+
+- **`octopus-hud.mjs`** - Rich statusline with context bar, cost display, workflow phase, provider indicators, agent progress, quality gates
+- Auth-mode aware cost display; bash fallback preserved
+
+**Auth-Mode-Aware Cost Estimates** (Opp 2):
+
+- **`estimate_workflow_cost()`** and **`show_cost_estimate()`** display pre-execution cost table
+- Distinguishes API-key providers (shows $$) vs auth-connected (shows "Included")
+- Skips cost display entirely when all providers are auth-connected
+
+**/fast Toggle Detection** (Opp 7):
+
+- **`detect_fast_mode()`** checks `CLAUDE_CODE_FAST_MODE` env var and `~/.claude/settings.json`
+- Protects multi-phase workflows from cost explosion even when /fast is active
+
+### Fixed
+
+- `validate-release.sh` grep pipes crash under `pipefail` when no match (added `|| true` guards)
+- `skill-validate.md` name prefix corrected from `validate` to `skill-validate`
+
+---
+
 ## [8.4.0] - 2026-02-07
 
 ### Added
