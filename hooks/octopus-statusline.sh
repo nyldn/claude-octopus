@@ -3,6 +3,10 @@
 # Requires Claude Code v2.1.33+ (statusline API with context_window data)
 # ═══════════════════════════════════════════════════════════════════════════════
 #
+# v8.5: Delegates to Node.js HUD (octopus-hud.mjs) when available for richer
+# display including agent tracking, quality gates, and provider indicators.
+# Falls back to bash implementation when Node.js is not available.
+#
 # Displays: [Octopus] Phase: <phase> | Context: <pct>% | Cost: $<cost>
 # Changes color based on context window usage:
 #   Green  (<70%) - Safe
@@ -11,7 +15,25 @@
 
 set -euo pipefail
 
+# Read stdin once and store it
 input=$(cat)
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+HUD_MJS="${SCRIPT_DIR}/octopus-hud.mjs"
+
+# v8.5: Delegate to Node.js HUD if available
+if command -v node &>/dev/null && [[ -f "$HUD_MJS" ]]; then
+    output=$(echo "$input" | node "$HUD_MJS" 2>/dev/null) || output=""
+    if [[ -n "$output" ]]; then
+        echo "$output"
+        exit 0
+    fi
+    # Fall through to bash implementation if Node.js HUD returned empty
+fi
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# BASH FALLBACK - Original statusline implementation
+# ═══════════════════════════════════════════════════════════════════════════════
 
 SESSION_FILE="${HOME}/.claude-octopus/session.json"
 
@@ -50,7 +72,7 @@ COST_FMT=$(printf '$%.2f' "$COST")
 # Get active phase from session file (if workflow is running)
 PHASE=""
 if [[ -f "$SESSION_FILE" ]] && command -v jq &>/dev/null; then
-    PHASE=$(jq -r '.phase // empty' "$SESSION_FILE" 2>/dev/null)
+    PHASE=$(jq -r '.current_phase // .phase // empty' "$SESSION_FILE" 2>/dev/null)
 fi
 
 if [[ -n "$PHASE" && "$PHASE" != "null" ]]; then
