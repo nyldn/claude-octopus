@@ -1,0 +1,73 @@
+#!/bin/bash
+# Claude Octopus Frontend Gate Hook (v8.6.0)
+# Domain-specific quality gate for frontend-developer persona
+# Validates: Accessibility (ARIA/semantic), responsive design (breakpoint/viewport)
+# Returns JSON decision: {"decision": "continue|block", "reason": "..."}
+set -euo pipefail
+
+# Read tool output from stdin
+output=$(cat 2>/dev/null || true)
+
+# If no output or very short, continue (likely non-analysis command)
+if [[ ${#output} -lt 100 ]]; then
+    echo '{"decision": "continue"}'
+    exit 0
+fi
+
+issues=()
+
+# Check 1: Accessibility considerations
+a11y_found=false
+for pattern in "aria" "semantic" "accessibility" "a11y" "screen.reader" "alt.text" \
+               "role=" "tabindex" "focus" "keyboard" "wcag" "contrast" "label"; do
+    if echo "$output" | grep -qiE "$pattern"; then
+        a11y_found=true
+        break
+    fi
+done
+
+if [[ "$a11y_found" != "true" ]]; then
+    issues+=("Missing accessibility considerations (ARIA, semantic HTML, screen reader support)")
+fi
+
+# Check 2: Responsive design awareness
+responsive_found=false
+for pattern in "responsive" "breakpoint" "viewport" "mobile" "tablet" "desktop" \
+               "media.query" "@media" "flex" "grid" "container.query" "rem" "em" \
+               "min-width" "max-width" "clamp("; do
+    if echo "$output" | grep -qiE "$pattern"; then
+        responsive_found=true
+        break
+    fi
+done
+
+if [[ "$responsive_found" != "true" ]]; then
+    issues+=("Missing responsive design considerations (breakpoints, viewport, mobile-first)")
+fi
+
+# Check 3: Component structure or React patterns
+component_found=false
+for pattern in "component" "props" "state" "hook" "useEffect" "useState" "render" \
+               "jsx" "tsx" "className" "style" "css" "tailwind" "module"; do
+    if echo "$output" | grep -qiE "$pattern"; then
+        component_found=true
+        break
+    fi
+done
+
+if [[ "$component_found" != "true" ]]; then
+    issues+=("Missing component structure references (props, state, hooks, styling)")
+fi
+
+# Decision
+if [[ ${#issues[@]} -gt 1 ]]; then
+    reason=$(printf '%s; ' "${issues[@]}")
+    reason="${reason%; }"
+    echo "{\"decision\": \"block\", \"reason\": \"Frontend review incomplete: ${reason}\"}"
+elif [[ ${#issues[@]} -eq 1 ]]; then
+    echo "{\"decision\": \"continue\", \"reason\": \"Warning: ${issues[0]}\"}"
+else
+    echo '{"decision": "continue"}'
+fi
+
+exit 0

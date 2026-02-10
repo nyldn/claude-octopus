@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "8.5.0",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v8.5.0) YAML-driven workflow runtime, cross-memory warm start, Agent Teams migration, METRICC-inspired HUD statusline, auth-mode-aware cost estimates, /fast toggle detection. Claude Code v2.1.37+ integration, GPT-5.3-Codex, 29 expert personas, 38 commands, 43 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
+  "version": "8.6.0",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v8.6.0) Inline hooks on agent personas, per-phase cost accounting with native Task metrics. YAML workflow runtime, cross-memory warm start, Agent Teams, Node.js HUD. Claude Code v2.1.37+ integration, GPT-5.3-Codex, 29 expert personas, 38 commands, 43 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },

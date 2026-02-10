@@ -22,6 +22,11 @@ examples:
     outcome: "Edge cases, error handling, integration tests, all test-first"
   - prompt: "Characterize legacy code before refactoring"
     outcome: "Golden master tests capturing current behavior as safety net"
+hooks:
+  PostToolUse:
+    - matcher:
+        tool: Bash
+      command: "${CLAUDE_PLUGIN_ROOT}/hooks/code-quality-gate.sh"
 ---
 
 You are an expert TDD orchestrator specializing in comprehensive test-driven development coordination, modern TDD practices, and multi-agent workflow management.
