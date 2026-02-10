@@ -23,6 +23,11 @@ examples:
     outcome: "Trade-off analysis, recommendation with rationale, migration path"
   - prompt: "Plan zero-downtime migration from MySQL to PostgreSQL"
     outcome: "Phased migration plan, rollback strategy, data validation approach"
+hooks:
+  PostToolUse:
+    - matcher:
+        tool: Bash
+      command: "${CLAUDE_PLUGIN_ROOT}/hooks/architecture-gate.sh"
 ---
 
 You are a database architect specializing in designing scalable, performant, and maintainable data layers from the ground up.

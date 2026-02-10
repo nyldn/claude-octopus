@@ -341,12 +341,86 @@ record_agents_batch_complete() {
         local output
         output=$(cat "$result" 2>/dev/null || echo "")
 
+        # v8.6.0: Extract native metrics from result file
+        local native_tokens="" native_tools="" native_duration=""
+        if declare -f parse_task_metrics &>/dev/null; then
+            parse_task_metrics "$output"
+            native_tokens="$_PARSED_TOKENS"
+            native_tools="$_PARSED_TOOL_USES"
+            native_duration="$_PARSED_DURATION_MS"
+        fi
+
         # Record completion
-        record_agent_complete "$metrics_id" "$agent_type" "$model" "$output" "$phase"
+        record_agent_complete "$metrics_id" "$agent_type" "$model" "$output" "$phase" \
+            "$native_tokens" "$native_tools" "$native_duration"
 
         # Remove from map
         sed -i.bak "/^${task_group}-${task_id}:/d" "$metrics_map" 2>/dev/null || true
     done
+}
+
+# Display per-phase cost breakdown table (v8.6.0)
+# Reads metrics-session.json and renders a table grouped by phase and provider
+display_per_phase_cost_table() {
+    local base
+    base=$(get_metrics_base)
+    local metrics_file="${base}/metrics-session.json"
+
+    if [[ ! -f "$metrics_file" ]] || ! command -v jq &>/dev/null; then
+        return 0
+    fi
+
+    # Check if there are any phase entries
+    local phase_count
+    phase_count=$(jq '.phases | length' "$metrics_file" 2>/dev/null || echo "0")
+    if [[ "$phase_count" == "0" ]]; then
+        return 0
+    fi
+
+    echo ""
+    echo "Per-Phase Cost Breakdown:"
+    echo "┌──────────┬──────────────┬────────────┬──────────┬──────────┐"
+    echo "│ Phase    │ Provider     │ Tokens     │ Cost     │ Duration │"
+    echo "├──────────┼──────────────┼────────────┼──────────┼──────────┤"
+
+    local has_native=false
+
+    # Iterate unique phases and providers
+    jq -r '.phases[] | "\(.phase)\t\(.agent)\t\(.estimated_tokens // 0)\t\(.estimated_cost_usd // 0)\t\(.duration_seconds // 0)\t\(.has_native_metrics // false)"' \
+        "$metrics_file" 2>/dev/null | while IFS=$'\t' read -r phase agent tokens cost duration native; do
+
+        # Determine provider emoji
+        local provider_label
+        case "$agent" in
+            codex*) provider_label="🔴 codex" ;;
+            gemini*) provider_label="🟡 gemini" ;;
+            claude*) provider_label="🔵 claude" ;;
+            *) provider_label="   $agent" ;;
+        esac
+
+        # Format native indicator
+        local token_display="$tokens"
+        if [[ "$native" == "true" ]]; then
+            token_display="${tokens}*"
+            has_native=true
+        fi
+
+        # Format duration
+        local dur_display="${duration}s"
+
+        # Format cost
+        local cost_display
+        cost_display=$(printf '$%.3f' "$cost" 2>/dev/null || echo "\$$cost")
+
+        printf "│ %-8s │ %-12s │ %10s │ %8s │ %8s │\n" \
+            "$phase" "$provider_label" "$token_display" "$cost_display" "$dur_display"
+    done
+
+    echo "└──────────┴──────────────┴────────────┴──────────┴──────────┘"
+
+    if [[ "$has_native" == "true" ]]; then
+        echo "  * = native metrics (from Task tool)"
+    fi
 }
 
 # Export functions
@@ -359,3 +433,4 @@ export -f get_model_cost
 export -f display_phase_metrics
 export -f display_session_metrics
 export -f display_provider_breakdown
+export -f display_per_phase_cost_table

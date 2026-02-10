@@ -333,6 +333,7 @@ SUPPORTS_STABLE_AGENT_TEAMS=false  # v8.3: Claude Code v2.1.34+
 SUPPORTS_AGENT_MEMORY=false        # v8.3: Claude Code v2.1.33+ (memory frontmatter)
 SUPPORTS_FAST_OPUS=false           # v8.4: Claude Code v2.1.36+ (fast mode for Opus 4.6)
 SUPPORTS_STATUSLINE_API=false      # v8.4: Claude Code v2.1.33+ (statusline context_window data)
+SUPPORTS_NATIVE_TASK_METRICS=false # v8.6: Claude Code v2.1.30+ (token counts in Task tool results)
 AGENT_TEAMS_ENABLED="${CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS:-0}"
 
 # Version comparison utility
@@ -419,10 +420,16 @@ detect_claude_code_version() {
         SUPPORTS_FAST_OPUS=true
     fi
 
+    # Check for v2.1.30+ features (native token counts in Task tool results)
+    if version_compare "$CLAUDE_CODE_VERSION" "2.1.30" ">="; then
+        SUPPORTS_NATIVE_TASK_METRICS=true
+    fi
+
     log "INFO" "Claude Code v$CLAUDE_CODE_VERSION detected"
     log "INFO" "Task Management: $SUPPORTS_TASK_MANAGEMENT | Fork Context: $SUPPORTS_FORK_CONTEXT | Agent Teams: $SUPPORTS_AGENT_TEAMS"
     log "INFO" "Persistent Memory: $SUPPORTS_PERSISTENT_MEMORY | Hook Events: $SUPPORTS_HOOK_EVENTS | Agent Type Routing: $SUPPORTS_AGENT_TYPE_ROUTING"
     log "INFO" "Stable Agent Teams: $SUPPORTS_STABLE_AGENT_TEAMS | Agent Memory: $SUPPORTS_AGENT_MEMORY | Fast Opus: $SUPPORTS_FAST_OPUS"
+    log "INFO" "Native Task Metrics: $SUPPORTS_NATIVE_TASK_METRICS"
 
     # v8.5: Detect /fast toggle after version detection
     detect_fast_mode
@@ -925,6 +932,26 @@ estimate_tokens() {
     local text="$1"
     local char_count=${#text}
     echo $(( (char_count + 3) / 4 ))  # Round up
+}
+
+# Parse native Task tool metrics from <usage> blocks (v8.6.0)
+# Sets globals: _PARSED_TOKENS, _PARSED_TOOL_USES, _PARSED_DURATION_MS
+# Guards on SUPPORTS_NATIVE_TASK_METRICS. Falls back gracefully on parse failure.
+parse_task_metrics() {
+    local output="$1"
+    _PARSED_TOKENS="" ; _PARSED_TOOL_USES="" ; _PARSED_DURATION_MS=""
+    [[ "$SUPPORTS_NATIVE_TASK_METRICS" != "true" ]] && return 0
+
+    local usage_block
+    usage_block=$(echo "$output" | sed -n '/<usage>/,/<\/usage>/p' 2>/dev/null || true)
+    if [[ -n "$usage_block" ]]; then
+        _PARSED_TOKENS=$(echo "$usage_block" | grep -oE 'total_tokens:\s*[0-9]+' | grep -oE '[0-9]+' || true)
+        _PARSED_TOOL_USES=$(echo "$usage_block" | grep -oE 'tool_uses:\s*[0-9]+' | grep -oE '[0-9]+' || true)
+        _PARSED_DURATION_MS=$(echo "$usage_block" | grep -oE 'duration_ms:\s*[0-9]+' | grep -oE '[0-9]+' || true)
+    fi
+    [[ "$_PARSED_TOKENS" =~ ^[0-9]+$ ]] || _PARSED_TOKENS=""
+    [[ "$_PARSED_TOOL_USES" =~ ^[0-9]+$ ]] || _PARSED_TOOL_USES=""
+    [[ "$_PARSED_DURATION_MS" =~ ^[0-9]+$ ]] || _PARSED_DURATION_MS=""
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -8148,6 +8175,9 @@ ${enhanced_prompt}"
         local curated_name
         curated_name=$(select_curated_agent "$prompt" "$phase") || true
         if [[ -n "$curated_name" ]]; then
+            # v8.6.0: Export persona name for domain-specific gate scripts
+            export OCTOPUS_AGENT_PERSONA="${curated_name}"
+
             local agent_mem agent_perm
             agent_mem=$(get_agent_memory "$curated_name")
             agent_perm=$(get_agent_permission_mode "$curated_name")
@@ -8311,6 +8341,17 @@ ${enhanced_prompt}"
             echo '```' >> "$result_file"
             echo "" >> "$result_file"
             echo "## Status: SUCCESS" >> "$result_file"
+
+            # v8.6.0: Preserve native metrics block for batch completion
+            if [[ -s "$raw_output" ]]; then
+                local usage_block
+                usage_block=$(sed -n '/<usage>/,/<\/usage>/p' "$raw_output" 2>/dev/null || true)
+                if [[ -n "$usage_block" ]]; then
+                    echo "" >> "$result_file"
+                    echo "## Native Metrics" >> "$result_file"
+                    echo "$usage_block" >> "$result_file"
+                fi
+            fi
 
             # Append stderr if it contains useful content (not just warnings)
             if [[ -s "$temp_errors" ]] && ! grep -q "^mcp startup:" "$temp_errors"; then
@@ -10389,7 +10430,10 @@ run_agent_sync() {
 
     # v7.25.0: Record metrics completion
     if [[ -n "$metrics_id" ]] && command -v record_agent_complete &> /dev/null; then
-        record_agent_complete "$metrics_id" "$agent_type" "$model" "$output" "${phase:-unknown}" 2>/dev/null || true
+        # v8.6.0: Pass native metrics from Task tool output
+        parse_task_metrics "$output"
+        record_agent_complete "$metrics_id" "$agent_type" "$model" "$output" "${phase:-unknown}" \
+            "$_PARSED_TOKENS" "$_PARSED_TOOL_USES" "$_PARSED_DURATION_MS" 2>/dev/null || true
     fi
 
     echo "$output"
@@ -11783,6 +11827,10 @@ embrace_full_workflow() {
         if command -v display_session_metrics &>/dev/null; then
             display_session_metrics 2>/dev/null || true
             display_provider_breakdown 2>/dev/null || true
+            # v8.6.0: Per-phase cost breakdown
+            if command -v display_per_phase_cost_table &>/dev/null; then
+                display_per_phase_cost_table 2>/dev/null || true
+            fi
         fi
 
         # Clean up exported flags
@@ -11927,6 +11975,10 @@ embrace_full_workflow() {
     if command -v display_session_metrics &> /dev/null; then
         display_session_metrics 2>/dev/null || true
         display_provider_breakdown 2>/dev/null || true
+        # v8.6.0: Per-phase cost breakdown
+        if command -v display_per_phase_cost_table &>/dev/null; then
+            display_per_phase_cost_table 2>/dev/null || true
+        fi
     fi
 
     # Clean up exported flags so they don't affect subsequent standalone calls

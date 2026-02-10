@@ -2,6 +2,32 @@
 
 All notable changes to Claude Octopus will be documented in this file.
 
+## [8.6.0] - 2026-02-09
+
+### Added
+
+**Inline Hooks on Agent Personas** (OPP 1):
+
+- **Domain-specific gate scripts** - 5 new PostToolUse hooks that validate agent output quality:
+  - `security-gate.sh` - OWASP coverage (2+), severity classifications, remediation steps
+  - `code-quality-gate.sh` - Actionable findings (2+), severity levels, root cause (incident-responder)
+  - `perf-gate.sh` - Quantified metrics (ms/MB/req/s), before/after benchmarks
+  - `frontend-gate.sh` - Accessibility (ARIA/semantic), responsive design, component structure
+  - `architecture-gate.sh` - API contracts, migration safety, IaC references, CI/CD rollback (persona-aware)
+- **`hooks:` frontmatter** added to 10 agent personas for automatic PostToolUse quality gates
+- **`OCTOPUS_AGENT_PERSONA` export** in `spawn_agent()` enables persona-aware gate behavior
+
+**Token Count Parsing for Per-Phase Cost Accounting** (OPP 2):
+
+- **`SUPPORTS_NATIVE_TASK_METRICS`** feature flag (Claude Code v2.1.30+)
+- **`parse_task_metrics()`** extracts `total_tokens`, `tool_uses`, `duration_ms` from `<usage>` blocks
+- **Native metrics wired** into `run_agent_sync()` and `record_agent_complete()` calls
+- **`<usage>` block preserved** in `spawn_agent()` result files for batch completion parsing
+- **`display_per_phase_cost_table()`** renders per-phase cost breakdown with provider indicators
+- Native vs estimated metrics distinguished with `*` marker in cost table output
+
+---
+
 ## [8.5.0] - 2026-02-08
 
 ### Added

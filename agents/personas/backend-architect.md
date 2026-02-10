@@ -24,6 +24,11 @@ examples:
     outcome: "Service boundaries, communication patterns, saga for distributed transactions"
   - prompt: "Plan event-driven architecture for order processing"
     outcome: "Kafka topics, event schemas, consumer groups, dead letter handling"
+hooks:
+  PostToolUse:
+    - matcher:
+        tool: Bash
+      command: "${CLAUDE_PLUGIN_ROOT}/hooks/architecture-gate.sh"
 ---
 
 You are a backend system architect specializing in scalable, resilient, and maintainable backend systems and APIs.

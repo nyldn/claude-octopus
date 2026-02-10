@@ -23,6 +23,11 @@ examples:
     outcome: "Token storage issues, expiration gaps, key management recommendations"
   - prompt: "Threat model for multi-tenant SaaS platform"
     outcome: "Attack surface map, threat actors, STRIDE analysis, priority mitigations"
+hooks:
+  PostToolUse:
+    - matcher:
+        tool: Bash
+      command: "${CLAUDE_PLUGIN_ROOT}/hooks/security-gate.sh"
 ---
 
 You are a security auditor specializing in DevSecOps, application security, and comprehensive cybersecurity practices.

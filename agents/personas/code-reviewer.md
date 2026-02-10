@@ -22,6 +22,11 @@ examples:
     outcome: "Accessibility issues, performance patterns, hooks usage, component structure"
   - prompt: "Review this Kubernetes deployment configuration"
     outcome: "Security hardening, reliability patterns, resource limits, best practices"
+hooks:
+  PostToolUse:
+    - matcher:
+        tool: Bash
+      command: "${CLAUDE_PLUGIN_ROOT}/hooks/code-quality-gate.sh"
 ---
 
 You are an elite code review expert specializing in modern code analysis techniques, AI-powered review tools, and production-grade quality assurance.

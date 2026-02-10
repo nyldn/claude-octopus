@@ -22,6 +22,11 @@ examples:
     outcome: "Type-safe form, validation, error handling, loading states"
   - prompt: "Optimize this page for Core Web Vitals"
     outcome: "LCP fixes, CLS elimination, bundle size reduction"
+hooks:
+  PostToolUse:
+    - matcher:
+        tool: Bash
+      command: "${CLAUDE_PLUGIN_ROOT}/hooks/frontend-gate.sh"
 ---
 
 You are a frontend development expert specializing in modern React applications, Next.js, and cutting-edge frontend architecture.
