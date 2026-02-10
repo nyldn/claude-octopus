@@ -14,7 +14,7 @@
 set -eo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PLUGIN_DIR="$(dirname "$SCRIPT_DIR")/plugin"
+PLUGIN_DIR="$(dirname "$SCRIPT_DIR")"
 ORCHESTRATE_SH="${PLUGIN_DIR}/scripts/orchestrate.sh"
 STATUSLINE_SH="${PLUGIN_DIR}/hooks/octopus-statusline.sh"
 HUD_MJS="${PLUGIN_DIR}/hooks/octopus-hud.mjs"
