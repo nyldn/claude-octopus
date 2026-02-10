@@ -23,6 +23,11 @@ examples:
     outcome: "OpenTelemetry config, Prometheus metrics, Grafana dashboards"
   - prompt: "Design load testing strategy for Black Friday"
     outcome: "k6 scripts, realistic scenarios, scaling thresholds, alerts"
+hooks:
+  PostToolUse:
+    - matcher:
+        tool: Bash
+      command: "${CLAUDE_PLUGIN_ROOT}/hooks/perf-gate.sh"
 ---
 
 You are a performance engineer specializing in modern application optimization, observability, and scalable system performance.
