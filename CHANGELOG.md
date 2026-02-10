@@ -2,6 +2,47 @@
 
 All notable changes to Claude Octopus will be documented in this file.
 
+## [8.7.0] - 2026-02-10
+
+### Added
+
+**Security Hardening** (P0):
+
+- **`wrap_cli_output()`** wraps codex/gemini output in `<external-cli-output trust="untrusted">` markers
+- **`build_provider_env()`** isolates external CLI environment variables to essentials only (PATH, HOME, API key)
+- **`record_result_hash()` / `verify_result_integrity()`** SHA-256 integrity verification for agent result files
+- **`OCTOPUS_GEMINI_SANDBOX`** configurable Gemini sandbox mode (prompt-mode/auto-accept/pipe-mode)
+- **`budget-gate.sh`** PreToolUse hook enforces session cost budget via `OCTOPUS_MAX_COST_USD`
+- Master switch: `OCTOPUS_SECURITY_V870=true` (default on, set to false to disable all security features)
+
+**Performance Optimization** (P1):
+
+- **`select_model_tier()` / `get_tier_model()`** phase-optimized model selection (budget/standard/premium)
+- **`check_convergence()`** heading-based Jaccard similarity for early termination when agents converge
+- **`check_cache_semantic()`** bigram-based fuzzy cache matching for probe results
+- **`deduplicate_results()`** heading-based duplicate detection (log-only in v8.7.0)
+- **`enforce_context_budget()`** truncates prompts to configurable token limit (default: 12000)
+- **`provider-router.sh`** latency-based provider routing (round-robin/fastest/cheapest)
+- Config: `OCTOPUS_COST_MODE`, `OCTOPUS_CONVERGENCE_ENABLED`, `OCTOPUS_SEMANTIC_CACHE`, `OCTOPUS_DEDUP_ENABLED`
+
+**Agent Teams Bridge** (P2):
+
+- **`agent-teams-bridge.sh`** unified task-ledger at `~/.claude-octopus/bridge/task-ledger.json`
+- Lockfile-based atomic concurrent access (`bridge_atomic_ledger_update()`)
+- Task lifecycle: `bridge_register_task()`, `bridge_mark_task_complete()`, `bridge_check_phase_complete()`
+- Quality gates: `bridge_inject_gate_task()`, `bridge_evaluate_gate()`
+- Cross-provider dispatch: `bridge_get_idle_dispatch_target()`, `bridge_enqueue_cross_provider_task()`
+- Memory: `bridge_write_warm_start_memory()`, `bridge_generate_phase_summary()`
+- **`agent-teams-phase-gate.sh`** TaskCompleted hook for phase transitions via bridge ledger
+- Feature gate: `SUPPORTS_AGENT_TEAMS_BRIDGE` (Claude Code v2.1.38+)
+- embrace.yaml: `bridge_config` and `gate_tasks` per phase
+
+### Fixed
+
+- **Bash 3.2 compatibility**: Replaced 3 instances of `${var^^}` (bash 4+) with `tr '[:lower:]' '[:upper:]'`
+
+---
+
 ## [8.6.0] - 2026-02-09
 
 ### Added

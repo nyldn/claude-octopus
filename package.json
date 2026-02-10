@@ -1,7 +1,7 @@
 {
   "name": "claude-octopus",
-  "version": "8.6.0",
-  "description": "Claude Octopus - Multi-agent orchestration with YAML workflow runtime, cross-memory warm start, Agent Teams, and Node.js HUD",
+  "version": "8.7.0",
+  "description": "Claude Octopus - Multi-agent orchestration with security hardening, performance optimization, and Agent Teams Bridge",
   "main": "orchestrate.sh",
   "scripts": {
     "test": "make test",

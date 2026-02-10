@@ -19,6 +19,12 @@ source "${SCRIPT_DIR}/state-manager.sh"
 # Source metrics tracker (v7.25.0)
 source "${SCRIPT_DIR}/metrics-tracker.sh"
 
+# Source provider router (v8.7.0)
+source "${SCRIPT_DIR}/provider-router.sh"
+
+# Source agent teams bridge (v8.7.0)
+source "${SCRIPT_DIR}/agent-teams-bridge.sh"
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # SECURITY: Path validation for workspace directory
 # Prevents path traversal attacks and restricts to safe locations
@@ -226,6 +232,73 @@ EOF
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# SECURITY: CLI output wrapping for untrusted external provider output (v8.7.0)
+# Wraps codex/gemini output in trust markers; passes claude output unchanged
+# ═══════════════════════════════════════════════════════════════════════════════
+wrap_cli_output() {
+    local provider="$1"
+    local output="$2"
+
+    if [[ "${OCTOPUS_SECURITY_V870:-true}" != "true" ]]; then
+        echo "$output"
+        return
+    fi
+
+    case "$provider" in
+        codex*|gemini*)
+            cat << EOF
+<external-cli-output provider="$provider" trust="untrusted">
+$output
+</external-cli-output>
+EOF
+            ;;
+        *)
+            echo "$output"
+            ;;
+    esac
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECURITY: Result integrity verification (v8.7.0)
+# SHA-256 hash recording and verification for agent result files
+# ═══════════════════════════════════════════════════════════════════════════════
+record_result_hash() {
+    local result_file="$1"
+    local manifest_dir="${WORKSPACE_DIR:-${HOME}/.claude-octopus}"
+    local manifest="${manifest_dir}/.integrity-manifest"
+
+    [[ "${OCTOPUS_SECURITY_V870:-true}" != "true" ]] && return 0
+    [[ ! -f "$result_file" ]] && return 0
+
+    mkdir -p "$manifest_dir"
+    local hash
+    hash=$(shasum -a 256 "$result_file" 2>/dev/null | awk '{print $1}') || return 0
+    echo "${result_file}:${hash}:$(date +%s)" >> "$manifest"
+}
+
+verify_result_integrity() {
+    local result_file="$1"
+    local manifest_dir="${WORKSPACE_DIR:-${HOME}/.claude-octopus}"
+    local manifest="${manifest_dir}/.integrity-manifest"
+
+    [[ "${OCTOPUS_SECURITY_V870:-true}" != "true" ]] && return 0
+    [[ ! -f "$manifest" || ! -f "$result_file" ]] && return 0
+
+    local recorded_hash
+    recorded_hash=$(grep "^${result_file}:" "$manifest" 2>/dev/null | tail -1 | cut -d: -f2)
+    [[ -z "$recorded_hash" ]] && return 0
+
+    local current_hash
+    current_hash=$(shasum -a 256 "$result_file" 2>/dev/null | awk '{print $1}') || return 0
+
+    if [[ "$recorded_hash" != "$current_hash" ]]; then
+        log "WARN" "INTEGRITY: Hash mismatch for $result_file (expected=$recorded_hash, got=$current_hash)"
+        return 1
+    fi
+    return 0
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # UX ENHANCEMENTS: Critical Fixes for v7.16.0
 # File locking, environment validation, dependency checks for progress tracking
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -334,7 +407,11 @@ SUPPORTS_AGENT_MEMORY=false        # v8.3: Claude Code v2.1.33+ (memory frontmat
 SUPPORTS_FAST_OPUS=false           # v8.4: Claude Code v2.1.36+ (fast mode for Opus 4.6)
 SUPPORTS_STATUSLINE_API=false      # v8.4: Claude Code v2.1.33+ (statusline context_window data)
 SUPPORTS_NATIVE_TASK_METRICS=false # v8.6: Claude Code v2.1.30+ (token counts in Task tool results)
+SUPPORTS_AGENT_TEAMS_BRIDGE=false  # v8.7: Claude Code v2.1.38+ (unified task-ledger bridge)
 AGENT_TEAMS_ENABLED="${CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS:-0}"
+OCTOPUS_SECURITY_V870="${OCTOPUS_SECURITY_V870:-true}"
+OCTOPUS_GEMINI_SANDBOX="${OCTOPUS_GEMINI_SANDBOX:-prompt-mode}"
+OCTOPUS_MAX_COST_USD="${OCTOPUS_MAX_COST_USD:-}"
 
 # Version comparison utility
 version_compare() {
@@ -425,11 +502,16 @@ detect_claude_code_version() {
         SUPPORTS_NATIVE_TASK_METRICS=true
     fi
 
+    # Check for v2.1.38+ features (Agent Teams Bridge - unified task ledger)
+    if version_compare "$CLAUDE_CODE_VERSION" "2.1.38" ">="; then
+        SUPPORTS_AGENT_TEAMS_BRIDGE=true
+    fi
+
     log "INFO" "Claude Code v$CLAUDE_CODE_VERSION detected"
     log "INFO" "Task Management: $SUPPORTS_TASK_MANAGEMENT | Fork Context: $SUPPORTS_FORK_CONTEXT | Agent Teams: $SUPPORTS_AGENT_TEAMS"
     log "INFO" "Persistent Memory: $SUPPORTS_PERSISTENT_MEMORY | Hook Events: $SUPPORTS_HOOK_EVENTS | Agent Type Routing: $SUPPORTS_AGENT_TYPE_ROUTING"
     log "INFO" "Stable Agent Teams: $SUPPORTS_STABLE_AGENT_TEAMS | Agent Memory: $SUPPORTS_AGENT_MEMORY | Fast Opus: $SUPPORTS_FAST_OPUS"
-    log "INFO" "Native Task Metrics: $SUPPORTS_NATIVE_TASK_METRICS"
+    log "INFO" "Native Task Metrics: $SUPPORTS_NATIVE_TASK_METRICS | Agent Teams Bridge: $SUPPORTS_AGENT_TEAMS_BRIDGE"
 
     # v8.5: Detect /fast toggle after version detection
     detect_fast_mode
@@ -646,7 +728,14 @@ get_agent_command() {
             ;;
         gemini|gemini-fast|gemini-image)
             model=$(get_agent_model "$agent_type")
-            echo "env NODE_NO_WARNINGS=1 gemini -y -m ${model}"  # v7.19.0 P2.2: suppress warnings
+            # v8.7.0: Configurable Gemini sandbox mode
+            local gemini_flag="-y"
+            case "${OCTOPUS_GEMINI_SANDBOX:-prompt-mode}" in
+                auto-accept) gemini_flag="-y" ;;
+                prompt-mode)  gemini_flag="" ;;
+                pipe-mode)    gemini_flag="--pipe" ;;
+            esac
+            echo "env NODE_NO_WARNINGS=1 gemini ${gemini_flag} -m ${model}"
             ;;
         codex-review) echo "codex exec review" ;; # Code review mode (no sandbox support)
         claude) echo "claude --print" ;;                         # Claude Sonnet 4.5
@@ -677,7 +766,13 @@ get_agent_command_array() {
             ;;
         gemini|gemini-fast|gemini-image)
             model=$(get_agent_model "$agent_type")
-            _cmd_array=(env NODE_NO_WARNINGS=1 gemini -y -m "$model")  # v7.19.0 P2.2: suppress warnings
+            # v8.7.0: Configurable Gemini sandbox mode
+            case "${OCTOPUS_GEMINI_SANDBOX:-prompt-mode}" in
+                auto-accept) _cmd_array=(env NODE_NO_WARNINGS=1 gemini -y -m "$model") ;;
+                prompt-mode)  _cmd_array=(env NODE_NO_WARNINGS=1 gemini -m "$model") ;;
+                pipe-mode)    _cmd_array=(env NODE_NO_WARNINGS=1 gemini --pipe -m "$model") ;;
+                *)            _cmd_array=(env NODE_NO_WARNINGS=1 gemini -m "$model") ;;
+            esac
             ;;
         codex-review)   _cmd_array=(codex exec review) ;; # No sandbox support
         claude)         _cmd_array=(claude --print) ;;
@@ -686,6 +781,31 @@ get_agent_command_array() {
         claude-opus-fast) _cmd_array=(claude --print -m opus --fast) ;; # v8.4: Opus 4.6 Fast (v2.1.36+)
         openrouter)     _cmd_array=(openrouter_execute) ;;       # OpenRouter API (v4.8)
         *) return 1 ;;
+    esac
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECURITY: Environment isolation for external CLI providers (v8.7.0)
+# Returns env prefix that limits environment variables to essentials only
+# ═══════════════════════════════════════════════════════════════════════════════
+build_provider_env() {
+    local provider="$1"
+
+    if [[ "${OCTOPUS_SECURITY_V870:-true}" != "true" ]]; then
+        return 0
+    fi
+
+    case "$provider" in
+        codex*)
+            echo "env -i PATH=\"$PATH\" HOME=\"$HOME\" OPENAI_API_KEY=\"${OPENAI_API_KEY:-}\" TMPDIR=\"${TMPDIR:-/tmp}\""
+            ;;
+        gemini*)
+            echo "env -i PATH=\"$PATH\" HOME=\"$HOME\" GEMINI_API_KEY=\"${GEMINI_API_KEY:-}\" GOOGLE_API_KEY=\"${GOOGLE_API_KEY:-}\" NODE_NO_WARNINGS=1 TMPDIR=\"${TMPDIR:-/tmp}\""
+            ;;
+        *)
+            # Claude and other providers: no isolation needed
+            return 0
+            ;;
     esac
 }
 
@@ -720,6 +840,300 @@ get_model_pricing() {
         # Default fallback
         *)                      echo "1.00:5.00" ;;
     esac
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PERFORMANCE: Phase-optimized model tier selection (v8.7.0)
+# Selects budget/standard/premium model tier based on phase, role, and agent type
+# Config: OCTOPUS_COST_MODE=premium|standard|budget (default: standard)
+# ═══════════════════════════════════════════════════════════════════════════════
+OCTOPUS_COST_MODE="${OCTOPUS_COST_MODE:-standard}"
+
+select_model_tier() {
+    local phase="$1"
+    local role="${2:-none}"
+    local agent_type="$3"
+
+    # Override: if cost mode is explicitly set, use it uniformly
+    if [[ "$OCTOPUS_COST_MODE" == "budget" || "$OCTOPUS_COST_MODE" == "premium" ]]; then
+        echo "$OCTOPUS_COST_MODE"
+        return
+    fi
+
+    # Standard mode: phase-aware tier selection
+    case "$phase" in
+        probe|discover)
+            case "$agent_type" in
+                claude*) echo "standard" ;;
+                *)       echo "budget" ;;
+            esac
+            ;;
+        tangle|develop)
+            case "$agent_type" in
+                claude*) echo "premium" ;;
+                *)       echo "standard" ;;
+            esac
+            ;;
+        ink|deliver)
+            echo "standard"
+            ;;
+        grasp|define)
+            echo "standard"
+            ;;
+        *)
+            echo "standard"
+            ;;
+    esac
+}
+
+get_tier_model() {
+    local tier="$1"
+    local agent_type="$2"
+
+    case "$agent_type" in
+        codex*)
+            case "$tier" in
+                budget)   echo "gpt-5.1-codex-mini" ;;
+                standard) echo "gpt-5.2-codex" ;;
+                premium)  echo "gpt-5.3-codex" ;;
+                *)        echo "gpt-5.2-codex" ;;
+            esac
+            ;;
+        gemini*)
+            case "$tier" in
+                budget)   echo "gemini-3-flash-preview" ;;
+                standard) echo "gemini-3-pro-preview" ;;
+                premium)  echo "gemini-3-pro-preview" ;;
+                *)        echo "gemini-3-pro-preview" ;;
+            esac
+            ;;
+        claude-opus*)
+            echo "" ;; # Don't override opus selection
+        claude*)
+            case "$tier" in
+                premium)  echo "" ;; # Let caller decide on opus
+                *)        echo "" ;; # Use default
+            esac
+            ;;
+        *)
+            echo ""
+            ;;
+    esac
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PERFORMANCE: Convergence-based early termination (v8.7.0)
+# Detects when parallel agents produce converging results and terminates early
+# Config: OCTOPUS_CONVERGENCE_ENABLED=false, OCTOPUS_CONVERGENCE_THRESHOLD=0.8
+# ═══════════════════════════════════════════════════════════════════════════════
+OCTOPUS_CONVERGENCE_ENABLED="${OCTOPUS_CONVERGENCE_ENABLED:-false}"
+OCTOPUS_CONVERGENCE_THRESHOLD="${OCTOPUS_CONVERGENCE_THRESHOLD:-0.8}"
+
+extract_headings() {
+    local file="$1"
+    grep '^#' "$file" 2>/dev/null | tr '[:upper:]' '[:lower:]' | sort -u || true
+}
+
+# Jaccard similarity using loops (bash 3.2 compatible - no comm/paste)
+jaccard_similarity() {
+    local set_a="$1"
+    local set_b="$2"
+
+    [[ -z "$set_a" || -z "$set_b" ]] && echo "0" && return
+
+    local -a arr_a arr_b
+    local intersection=0
+    local union_count=0
+
+    # Read sets into arrays
+    while IFS= read -r line; do arr_a+=("$line"); done <<< "$set_a"
+    while IFS= read -r line; do arr_b+=("$line"); done <<< "$set_b"
+
+    # Count intersection
+    for a in "${arr_a[@]}"; do
+        for b in "${arr_b[@]}"; do
+            if [[ "$a" == "$b" ]]; then
+                intersection=$((intersection + 1))
+                break
+            fi
+        done
+    done
+
+    # Union = |A| + |B| - |intersection|
+    union_count=$(( ${#arr_a[@]} + ${#arr_b[@]} - intersection ))
+    [[ $union_count -eq 0 ]] && echo "0" && return
+
+    awk -v i="$intersection" -v u="$union_count" 'BEGIN { printf "%.2f", i / u }'
+}
+
+check_convergence() {
+    local result_pattern="$1"
+
+    [[ "$OCTOPUS_CONVERGENCE_ENABLED" != "true" ]] && return 1
+
+    local files=()
+    for f in $result_pattern; do
+        [[ -f "$f" ]] && files+=("$f")
+    done
+
+    [[ ${#files[@]} -lt 2 ]] && return 1
+
+    local converged=0
+    local i j
+    for (( i=0; i < ${#files[@]}; i++ )); do
+        for (( j=i+1; j < ${#files[@]}; j++ )); do
+            local headings_a headings_b sim
+            headings_a=$(extract_headings "${files[$i]}")
+            headings_b=$(extract_headings "${files[$j]}")
+            sim=$(jaccard_similarity "$headings_a" "$headings_b")
+            if awk -v s="$sim" -v t="$OCTOPUS_CONVERGENCE_THRESHOLD" 'BEGIN { exit !(s >= t) }'; then
+                converged=$((converged + 1))
+            fi
+        done
+    done
+
+    [[ $converged -ge 1 ]] && return 0
+    return 1
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PERFORMANCE: Semantic probe cache (v8.7.0)
+# Bigram-based fuzzy matching for cache lookups
+# Config: OCTOPUS_SEMANTIC_CACHE=false, OCTOPUS_CACHE_SIMILARITY_THRESHOLD=0.7
+# ═══════════════════════════════════════════════════════════════════════════════
+OCTOPUS_SEMANTIC_CACHE="${OCTOPUS_SEMANTIC_CACHE:-false}"
+OCTOPUS_CACHE_SIMILARITY_THRESHOLD="${OCTOPUS_CACHE_SIMILARITY_THRESHOLD:-0.7}"
+
+generate_bigrams() {
+    local text="$1"
+    # Normalize: lowercase, remove punctuation, split into words
+    local words
+    words=$(echo "$text" | tr '[:upper:]' '[:lower:]' | tr -cs '[:alnum:]' ' ' | tr -s ' ')
+
+    local -a word_arr
+    read -ra word_arr <<< "$words"
+
+    local i
+    for (( i=0; i < ${#word_arr[@]} - 1; i++ )); do
+        echo "${word_arr[$i]} ${word_arr[$((i+1))]}"
+    done
+}
+
+bigram_similarity() {
+    local text_a="$1"
+    local text_b="$2"
+
+    local bigrams_a bigrams_b
+    bigrams_a=$(generate_bigrams "$text_a")
+    bigrams_b=$(generate_bigrams "$text_b")
+
+    jaccard_similarity "$bigrams_a" "$bigrams_b"
+}
+
+check_cache_semantic() {
+    local prompt="$1"
+
+    [[ "$OCTOPUS_SEMANTIC_CACHE" != "true" ]] && return 1
+    [[ ! -d "${CACHE_DIR:-}" ]] && return 1
+
+    # Try exact match first
+    local cache_key
+    cache_key=$(echo "$prompt" | shasum -a 256 | awk '{print $1}')
+    if check_cache "$cache_key" 2>/dev/null; then
+        echo "$cache_key"
+        return 0
+    fi
+
+    # Scan bigram files for fuzzy matches
+    local best_key=""
+    local best_sim="0"
+    for bigram_file in "${CACHE_DIR}"/*.bigrams; do
+        [[ ! -f "$bigram_file" ]] && continue
+
+        local cached_prompt
+        cached_prompt=$(cat "$bigram_file" 2>/dev/null || true)
+        [[ -z "$cached_prompt" ]] && continue
+
+        local sim
+        sim=$(bigram_similarity "$prompt" "$cached_prompt")
+
+        if awk -v s="$sim" -v t="$OCTOPUS_CACHE_SIMILARITY_THRESHOLD" -v b="$best_sim" \
+           'BEGIN { exit !(s >= t && s > b) }'; then
+            best_sim="$sim"
+            best_key="${bigram_file%.bigrams}"
+            best_key="${best_key##*/}"
+        fi
+    done
+
+    if [[ -n "$best_key" ]]; then
+        log "DEBUG" "Semantic cache hit: similarity=$best_sim for key=$best_key"
+        echo "$best_key"
+        return 0
+    fi
+
+    return 1
+}
+
+save_to_cache_semantic() {
+    local cache_key="$1"
+    local result_file="$2"
+    local prompt="$3"
+
+    # Save regular cache entry
+    save_to_cache "$cache_key" "$result_file"
+
+    # Save bigrams file for semantic matching
+    if [[ "$OCTOPUS_SEMANTIC_CACHE" == "true" ]]; then
+        echo "$prompt" > "${CACHE_DIR}/${cache_key}.bigrams"
+    fi
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PERFORMANCE: Result deduplication and context budget (v8.7.0)
+# Dedup: Heading-based duplicate detection (log-only in v8.7.0)
+# Context budget: Truncate prompts to token limit before sending to agents
+# Config: OCTOPUS_DEDUP_ENABLED=false, OCTOPUS_CONTEXT_BUDGET=12000
+# ═══════════════════════════════════════════════════════════════════════════════
+OCTOPUS_DEDUP_ENABLED="${OCTOPUS_DEDUP_ENABLED:-false}"
+OCTOPUS_CONTEXT_BUDGET="${OCTOPUS_CONTEXT_BUDGET:-12000}"
+
+deduplicate_results() {
+    local files=("$@")
+
+    [[ "$OCTOPUS_DEDUP_ENABLED" != "true" ]] && return 0
+    [[ ${#files[@]} -lt 2 ]] && return 0
+
+    local i j
+    for (( i=0; i < ${#files[@]}; i++ )); do
+        [[ ! -f "${files[$i]}" ]] && continue
+        for (( j=i+1; j < ${#files[@]}; j++ )); do
+            [[ ! -f "${files[$j]}" ]] && continue
+            local headings_a headings_b sim
+            headings_a=$(extract_headings "${files[$i]}")
+            headings_b=$(extract_headings "${files[$j]}")
+            sim=$(jaccard_similarity "$headings_a" "$headings_b")
+            if awk -v s="$sim" 'BEGIN { exit !(s >= 0.9) }'; then
+                log "INFO" "DEDUP: High similarity ($sim) between ${files[$i]##*/} and ${files[$j]##*/} (log-only in v8.7.0)"
+            fi
+        done
+    done
+}
+
+enforce_context_budget() {
+    local prompt="$1"
+    local budget="${OCTOPUS_CONTEXT_BUDGET:-12000}"
+
+    # Rough token estimate: ~4 chars per token
+    local char_budget=$((budget * 4))
+
+    if [[ ${#prompt} -gt $char_budget ]]; then
+        log "DEBUG" "Context budget: truncating prompt from ${#prompt} to $char_budget chars (~$budget tokens)"
+        echo "${prompt:0:$char_budget}
+
+[... truncated to fit context budget of ~$budget tokens ...]"
+    else
+        echo "$prompt"
+    fi
 }
 
 # Get model for agent type with 4-tier precedence
@@ -8115,6 +8529,9 @@ spawn_agent() {
     local enhanced_prompt
     enhanced_prompt=$(apply_persona "$role" "$prompt")
 
+    # v8.7.0: Enforce context budget
+    enhanced_prompt=$(enforce_context_budget "$enhanced_prompt")
+
     # v8.2.0: Load agent skill context if available
     if [[ "$SUPPORTS_AGENT_TYPE_ROUTING" == "true" ]]; then
         local curated_agent=""
@@ -8199,11 +8616,25 @@ ${enhanced_prompt}"
         fi
     fi
 
-    # Record usage (get model from agent type)
+    # Record usage (get model from agent type, with tier override)
     local model
     model=$(get_agent_model "$agent_type")
+    # v8.7.0: Phase-optimized model tier selection
+    if [[ "$OCTOPUS_COST_MODE" != "standard" || -n "${phase:-}" ]]; then
+        local tier
+        tier=$(select_model_tier "${phase:-unknown}" "${role:-none}" "$agent_type")
+        local tier_model
+        tier_model=$(get_tier_model "$tier" "$agent_type")
+        if [[ -n "$tier_model" ]]; then
+            log "DEBUG" "Model tier: $tier -> $tier_model (overriding $model)"
+            model="$tier_model"
+        fi
+    fi
     log "DEBUG" "Model selected: $model (from agent_type=$agent_type)"
     record_agent_call "$agent_type" "$model" "$enhanced_prompt" "${phase:-unknown}" "${role:-none}" "0"
+
+    # v8.7.0: Register task in bridge ledger
+    bridge_register_task "$task_id" "$agent_type" "${phase:-unknown}" "${role:-none}"
 
     # Record metrics start (v7.25.0)
     local metrics_id=""
@@ -8338,6 +8769,13 @@ ${enhanced_prompt}"
                 in_response { print; }
             ' "$temp_output" >> "$result_file"
 
+            # v8.7.0: Add trust marker for external CLI output
+            case "$agent_type" in codex*|gemini*)
+                if [[ "${OCTOPUS_SECURITY_V870:-true}" == "true" ]]; then
+                    sed -i.bak '1s/^/<!-- trust=untrusted provider='"$agent_type"' -->\n/' "$result_file" 2>/dev/null || true
+                    rm -f "${result_file}.bak"
+                fi ;; esac
+
             echo '```' >> "$result_file"
             echo "" >> "$result_file"
             echo "## Status: SUCCESS" >> "$result_file"
@@ -8460,6 +8898,9 @@ ${enhanced_prompt}"
         fi
 
         echo "# Completed: $(date)" >> "$result_file"
+
+        # v8.7.0: Record result hash for integrity verification
+        record_result_hash "$result_file"
 
         # Ensure file is fully written before background process exits
         sync
@@ -8863,7 +9304,7 @@ Output a structured report with findings and recommendations." ;;
                 local domain_file="${domain_files[$i]}"
                 if [[ -f "$domain_file" ]]; then
                     synthesis_input+="
-## ${domain^^} AUDIT RESULTS
+## $(echo "$domain" | tr '[:lower:]' '[:upper:]') AUDIT RESULTS
 $(cat "$domain_file")
 
 ---
@@ -10418,6 +10859,10 @@ run_agent_sync() {
         return $exit_code
     fi
 
+    # v8.7.0: Wrap external CLI output with trust markers
+    case "$agent_type" in codex*|gemini*)
+        output=$(wrap_cli_output "$agent_type" "$output") ;; esac
+
     # Check if output is suspiciously empty or placeholder
     if [[ -z "$output" || "$output" == "Provider available" ]]; then
         log WARN "Agent $agent_type returned empty or placeholder output (role=$role, phase=$phase)"
@@ -10628,11 +11073,19 @@ execute_workflow_phase() {
 
     echo ""
     echo -e "${MAGENTA}╔═══════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${MAGENTA}║  ${GREEN}${alias_name^^}${MAGENTA} - ${description}${MAGENTA}${NC}"
+    local alias_upper
+    alias_upper=$(echo "$alias_name" | tr '[:lower:]' '[:upper:]')
+    echo -e "${MAGENTA}║  ${GREEN}${alias_upper}${MAGENTA} - ${description}${MAGENTA}${NC}"
     echo -e "${MAGENTA}╚═══════════════════════════════════════════════════════════╝${NC}"
     echo ""
 
     log "INFO" "YAML Runtime: Executing phase '$phase_name' ($description)"
+
+    # v8.7.0: Update bridge phase and inject quality gate
+    bridge_update_current_phase "$phase_name"
+    local qg_threshold_val
+    qg_threshold_val=$(yaml_get_phase_config "$yaml_file" "$phase_name" "threshold") || qg_threshold_val="0.75"
+    bridge_inject_gate_task "$phase_name" "quality" "$qg_threshold_val"
 
     # Get agents for this phase
     local agents_raw
@@ -10727,12 +11180,39 @@ $previous_output"
         sleep 0.1
     done <<< "$agents_raw"
 
-    # Wait for remaining parallel agents
+    # Wait for remaining parallel agents (v8.7.0: convergence-aware polling)
     if [[ ${#pids[@]} -gt 0 ]]; then
         log "INFO" "Waiting for ${#pids[@]} parallel agents in phase $phase_name"
-        for pid in "${pids[@]}"; do
-            wait "$pid" 2>/dev/null || true
-        done
+        if [[ "$OCTOPUS_CONVERGENCE_ENABLED" == "true" ]]; then
+            # Convergence-aware: poll results while waiting
+            local wait_start=$SECONDS
+            local max_wait=${TIMEOUT:-600}
+            while [[ $(( SECONDS - wait_start )) -lt $max_wait ]]; do
+                local all_done=true
+                for pid in "${pids[@]}"; do
+                    if kill -0 "$pid" 2>/dev/null; then
+                        all_done=false
+                        break
+                    fi
+                done
+                [[ "$all_done" == "true" ]] && break
+
+                # Check convergence on available results
+                if check_convergence "$RESULTS_DIR/${phase_name}-${task_group}-*.md"; then
+                    log "INFO" "CONVERGENCE: Early termination - agents converged in phase $phase_name"
+                    break
+                fi
+                sleep 2
+            done
+            # Wait for remaining pids to avoid zombies
+            for pid in "${pids[@]}"; do
+                wait "$pid" 2>/dev/null || true
+            done
+        else
+            for pid in "${pids[@]}"; do
+                wait "$pid" 2>/dev/null || true
+            done
+        fi
     fi
 
     # Collect phase output
@@ -10741,10 +11221,22 @@ $previous_output"
     result_files=$(ls -t "$RESULTS_DIR"/${phase_name}-${task_group}-*.md 2>/dev/null || true)
     if [[ -n "$result_files" ]]; then
         for f in $result_files; do
+            # v8.7.0: Verify result integrity before reading
+            if ! verify_result_integrity "$f"; then
+                log "WARN" "Skipping tampered result file: $f"
+                continue
+            fi
             phase_output+="$(cat "$f" 2>/dev/null)
 ---
 "
         done
+    fi
+
+    # v8.7.0: Run deduplication check on results (log-only in v8.7.0)
+    if [[ -n "$result_files" ]]; then
+        local -a dedup_files
+        for f in $result_files; do dedup_files+=("$f"); done
+        deduplicate_results "${dedup_files[@]}"
     fi
 
     # Write synthesis file
@@ -10769,6 +11261,12 @@ $previous_output"
     fi
 
     log "INFO" "YAML Runtime: Phase '$phase_name' complete ($result_count agent results)"
+
+    # v8.7.0: Generate phase summary for bridge and refresh provider stats
+    bridge_generate_phase_summary "$phase_name" "$synthesis_file"
+    bridge_evaluate_gate "$phase_name" || log "WARN" "Phase $phase_name quality gate did not pass"
+    refresh_provider_stats
+
     echo "$synthesis_file"
 }
 
@@ -10799,6 +11297,9 @@ run_yaml_workflow() {
     phase_count=$(echo "$phases" | wc -l | tr -d ' ')
     log "INFO" "YAML Runtime: Starting workflow '$workflow_name' with $phase_count phases"
 
+    # v8.7.0: Initialize bridge ledger
+    bridge_init_ledger "$workflow_name" "$task_group"
+
     local phase_num=0
     local previous_output=""
     local all_outputs=()
@@ -10808,7 +11309,9 @@ run_yaml_workflow() {
         ((phase_num++))
 
         echo ""
-        echo -e "${CYAN}[${phase_num}/${phase_count}] Starting ${phase_name^^} phase...${NC}"
+        local phase_upper
+        phase_upper=$(echo "$phase_name" | tr '[:lower:]' '[:upper:]')
+        echo -e "${CYAN}[${phase_num}/${phase_count}] Starting ${phase_upper} phase...${NC}"
         echo ""
 
         # Update workflow state
