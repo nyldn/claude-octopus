@@ -11,8 +11,8 @@
     {
       "name": "claude-octopus",
       "source": "./",
-      "description": "v8.6.0 - Inline hooks on agent personas, per-phase cost accounting with native Task metrics. YAML workflow runtime, cross-memory warm start, Agent Teams, Node.js HUD. v2.1.37+ integration, GPT-5.3-Codex, 29 personas, 38 commands, 43 skills. Run /octo:setup.",
-      "version": "8.6.0",
+      "description": "v8.7.0 - Security hardening, performance optimization, Agent Teams Bridge. CLI trust markers, env isolation, result integrity, model tier selection, convergence detection, semantic cache, unified task ledger. v2.1.38+ integration, GPT-5.3-Codex, 29 personas, 38 commands, 43 skills. Run /octo:setup.",
+      "version": "8.7.0",
       "author": {
         "name": "nyldn"
       },

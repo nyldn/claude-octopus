@@ -72,6 +72,9 @@ phases:
       checks:
         - "At least 2 providers returned results"
         - "Results contain actionable findings"
+    gate_tasks:
+      - type: quality
+        threshold: 0.5
     outputs:
       - "probe-synthesis-{{task_group}}.md"
       - "probe-codex-{{task_group}}.md"
@@ -108,6 +111,9 @@ phases:
         - "Requirements are clearly defined"
         - "Success criteria are measurable"
         - "Provider consensus >= 75%"
+    gate_tasks:
+      - type: quality
+        threshold: 0.75
     outputs:
       - "grasp-consensus-{{task_group}}.md"
 
@@ -159,6 +165,9 @@ phases:
         - "Security checks pass"
         - "No critical issues found"
         - "Best practices followed"
+    gate_tasks:
+      - type: quality
+        threshold: 0.75
     outputs:
       - "tangle-validation-{{task_group}}.md"
       - "tangle-implementation-{{task_group}}.md"
@@ -211,6 +220,9 @@ phases:
         - "All quality checks pass"
         - "No critical security issues"
         - "Documentation is complete"
+    gate_tasks:
+      - type: quality
+        threshold: 0.80
     outputs:
       - "delivery-{{task_group}}.md"
 
@@ -238,9 +250,15 @@ quality_gates:
 
 metadata:
   created: "2026-02-06"
+  updated: "2026-02-10"
   min_claude_code_version: "2.1.33"
   features_required:
     - "TeammateIdle"
     - "TaskCompleted"
     - "agent_memory"
     - "task_agent_type"
+  bridge_config:
+    ledger_path: "~/.claude-octopus/bridge/task-ledger.json"
+    warm_start: true
+    gate_timeout_seconds: 60
+    min_claude_code_version: "2.1.38"
