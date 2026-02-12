@@ -728,14 +728,11 @@ get_agent_command() {
             ;;
         gemini|gemini-fast|gemini-image)
             model=$(get_agent_model "$agent_type")
-            # v8.7.0: Configurable Gemini sandbox mode
-            local gemini_flag="-y"
-            case "${OCTOPUS_GEMINI_SANDBOX:-prompt-mode}" in
-                auto-accept) gemini_flag="-y" ;;
-                prompt-mode)  gemini_flag="" ;;
-                pipe-mode)    gemini_flag="--pipe" ;;
-            esac
-            echo "env NODE_NO_WARNINGS=1 gemini ${gemini_flag} -m ${model}"
+            # v8.7.1: Fixed Gemini CLI invocation
+            # -p is REQUIRED for headless mode. Prompt is piped via stdin.
+            # NOTE: This string form is for validation/logging only.
+            # Actual execution uses get_agent_command_array which preserves -p "".
+            echo "env NODE_NO_WARNINGS=1 gemini -p -m ${model}"
             ;;
         codex-review) echo "codex exec review" ;; # Code review mode (no sandbox support)
         claude) echo "claude --print" ;;                         # Claude Sonnet 4.5
@@ -766,13 +763,10 @@ get_agent_command_array() {
             ;;
         gemini|gemini-fast|gemini-image)
             model=$(get_agent_model "$agent_type")
-            # v8.7.0: Configurable Gemini sandbox mode
-            case "${OCTOPUS_GEMINI_SANDBOX:-prompt-mode}" in
-                auto-accept) _cmd_array=(env NODE_NO_WARNINGS=1 gemini -y -m "$model") ;;
-                prompt-mode)  _cmd_array=(env NODE_NO_WARNINGS=1 gemini -m "$model") ;;
-                pipe-mode)    _cmd_array=(env NODE_NO_WARNINGS=1 gemini --pipe -m "$model") ;;
-                *)            _cmd_array=(env NODE_NO_WARNINGS=1 gemini -m "$model") ;;
-            esac
+            # v8.7.1: Fixed Gemini CLI invocation
+            # -p "" is REQUIRED for headless mode. The empty string argument tells Gemini
+            # to read the prompt from stdin. Without -p, Gemini enters interactive REPL.
+            _cmd_array=(env NODE_NO_WARNINGS=1 gemini -p "" -m "$model")
             ;;
         codex-review)   _cmd_array=(codex exec review) ;; # No sandbox support
         claude)         _cmd_array=(claude --print) ;;
@@ -8529,8 +8523,9 @@ spawn_agent() {
     local enhanced_prompt
     enhanced_prompt=$(apply_persona "$role" "$prompt")
 
-    # v8.7.0: Enforce context budget
-    enhanced_prompt=$(enforce_context_budget "$enhanced_prompt")
+    # NOTE: Context budget enforcement moved AFTER skill + memory injection (v8.7.1 fix)
+    # Previously enforce_context_budget() was called here, BEFORE skills/memory were injected,
+    # meaning skills and memory could push the total prompt far beyond the budget limit.
 
     # v8.2.0: Load agent skill context if available
     if [[ "$SUPPORTS_AGENT_TYPE_ROUTING" == "true" ]]; then
@@ -8615,6 +8610,11 @@ ${enhanced_prompt}"
             fi
         fi
     fi
+
+    # v8.7.1: Enforce context budget AFTER all injections (persona + skills + memory)
+    # This ensures the budget applies to the complete prompt, not just the base prompt.
+    # Previously this was called before skill/memory injection, allowing unbounded growth.
+    enhanced_prompt=$(enforce_context_budget "$enhanced_prompt")
 
     # Record usage (get model from agent type, with tier override)
     local model
@@ -8718,9 +8718,12 @@ ${enhanced_prompt}"
         echo "## Output" >> "$result_file"
         echo '```' >> "$result_file"
 
-        # SECURITY: Use array-based execution to prevent word-splitting vulnerabilities
+        # v8.7.1: Use get_agent_command_array for proper quoting (preserves empty strings like -p "")
         local -a cmd_array
-        read -ra cmd_array <<< "$cmd"
+        if ! get_agent_command_array "$agent_type" cmd_array; then
+            log ERROR "Failed to build command array for: $agent_type"
+            return 1
+        fi
 
         # IMPROVED: Use temp files for reliable output capture (v7.13.2 - Issue #10)
         # v7.19.0 P0.1: Real-time output streaming to result file
@@ -8741,9 +8744,11 @@ ${enhanced_prompt}"
         start_time_ms=$(( $(date +%s) * 1000 ))
         update_agent_status "$agent_type" "running" 0 0.0
 
-        # v7.19.0 P0.1: Use tee to stream output to both temp file and raw backup
+        # v8.7.1: Pipe prompt via stdin instead of CLI positional argument
+        # This avoids ARG_MAX limits (typically 2MB) for large prompts with skills/memory.
+        # printf '%s' is used instead of echo to avoid escape sequence interpretation.
         local exit_code=0
-        if run_with_timeout "$TIMEOUT" "${cmd_array[@]}" "$enhanced_prompt" 2> "$temp_errors" | tee "$raw_output" > "$temp_output"; then
+        if printf '%s' "$enhanced_prompt" | run_with_timeout "$TIMEOUT" "${cmd_array[@]}" 2> "$temp_errors" | tee "$raw_output" > "$temp_output"; then
             exit_code=0
         else
             exit_code=$?
@@ -8751,21 +8756,25 @@ ${enhanced_prompt}"
 
         # v7.19.0 P0.1: Process output regardless of exit code (preserves partial results)
         if [[ $exit_code -eq 0 ]]; then
-            # Filter out CLI header noise and extract actual response
-            # Handles Codex/Gemini CLI format where response follows "codex"/"gemini" marker
+            # v8.7.1: Updated output parser for both interactive and headless CLI modes
+            # Headless mode (Gemini -p, Codex exec) returns raw response without headers.
+            # Interactive mode has CLI banner + "--------" separator + agent name marker.
             awk '
-                BEGIN { in_response = 0; header_done = 0; }
-                # Skip CLI startup banner (everything until separator line)
-                /^--------$/ { header_done = 1; next; }
-                !header_done { next; }
-                # Response starts after agent name marker
+                BEGIN { in_response = 0; header_done = 0; has_header = 0; }
+                # Detect CLI startup banner separator
+                /^--------$/ { header_done = 1; has_header = 1; next; }
+                # If we see a header separator, skip everything before it
+                has_header && !header_done { next; }
+                # Response starts after agent name marker (interactive mode)
                 /^(codex|gemini|assistant)$/ { in_response = 1; next; }
                 # Skip thinking blocks
                 /^thinking$/ { next; }
                 # Skip token usage markers
                 /^tokens used$/ { next; }
                 /^[0-9,]+$/ && in_response { next; }
-                # Output actual response content
+                # In headless mode (no header detected), output everything
+                !has_header { print; next; }
+                # In interactive mode, output after response marker
                 in_response { print; }
             ' "$temp_output" >> "$result_file"
 
@@ -10821,6 +10830,9 @@ run_agent_sync() {
     local enhanced_prompt
     enhanced_prompt=$(apply_persona "$role" "$prompt")
 
+    # v8.7.1: Enforce context budget after persona application
+    enhanced_prompt=$(enforce_context_budget "$enhanced_prompt")
+
     log DEBUG "run_agent_sync: agent=$agent_type, role=${role:-none}, phase=${phase:-none}"
 
     # Record usage (get model from agent type)
@@ -10837,16 +10849,21 @@ run_agent_sync() {
     local cmd
     cmd=$(get_agent_command "$agent_type") || return 1
 
-    # SECURITY: Use array-based execution to prevent word-splitting vulnerabilities
+    # v8.7.1: Use get_agent_command_array for proper quoting (preserves empty strings like -p "")
     local -a cmd_array
-    read -ra cmd_array <<< "$cmd"
+    if ! get_agent_command_array "$agent_type" cmd_array; then
+        log ERROR "Failed to build command array for: $agent_type"
+        rm -f "$temp_err"
+        return 1
+    fi
 
     # Capture output and exit code separately
     local output
     local exit_code
     local temp_err="${RESULTS_DIR}/.tmp-agent-error-$$.err"
 
-    output=$(run_with_timeout "$timeout_secs" "${cmd_array[@]}" "$enhanced_prompt" 2>"$temp_err")
+    # v8.7.1: Pipe prompt via stdin to avoid ARG_MAX limits
+    output=$(printf '%s' "$enhanced_prompt" | run_with_timeout "$timeout_secs" "${cmd_array[@]}" 2>"$temp_err")
     exit_code=$?
 
     # Check exit code and handle errors
