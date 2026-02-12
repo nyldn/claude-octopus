@@ -9,7 +9,7 @@
   },
   "plugins": [
     {
-      "name": "claude-octopus",
+      "name": "octo",
       "source": "./",
       "description": "v8.7.0 - Security hardening, performance optimization, Agent Teams Bridge. CLI trust markers, env isolation, result integrity, model tier selection, convergence detection, semantic cache, unified task ledger. v2.1.38+ integration, GPT-5.3-Codex, 29 personas, 38 commands, 43 skills. Run /octo:setup.",
       "version": "8.7.0",
