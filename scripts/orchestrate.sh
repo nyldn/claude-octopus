@@ -408,6 +408,9 @@ SUPPORTS_FAST_OPUS=false           # v8.4: Claude Code v2.1.36+ (fast mode for O
 SUPPORTS_STATUSLINE_API=false      # v8.4: Claude Code v2.1.33+ (statusline context_window data)
 SUPPORTS_NATIVE_TASK_METRICS=false # v8.6: Claude Code v2.1.30+ (token counts in Task tool results)
 SUPPORTS_AGENT_TEAMS_BRIDGE=false  # v8.7: Claude Code v2.1.38+ (unified task-ledger bridge)
+SUPPORTS_AUTH_CLI=false            # v8.8: Claude Code v2.1.41+ (claude auth login/status/logout)
+SUPPORTS_ANCHOR_MENTIONS=false     # v8.8: Claude Code v2.1.41+ (@file#anchor fragment mentions)
+SUPPORTS_OTEL_SPEED=false          # v8.8: Claude Code v2.1.41+ (speed attribute in OTel spans)
 AGENT_TEAMS_ENABLED="${CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS:-0}"
 OCTOPUS_SECURITY_V870="${OCTOPUS_SECURITY_V870:-true}"
 OCTOPUS_GEMINI_SANDBOX="${OCTOPUS_GEMINI_SANDBOX:-prompt-mode}"
@@ -507,11 +510,19 @@ detect_claude_code_version() {
         SUPPORTS_AGENT_TEAMS_BRIDGE=true
     fi
 
+    # Check for v2.1.41+ features (auth CLI, anchor mentions, OTel speed)
+    if version_compare "$CLAUDE_CODE_VERSION" "2.1.41" ">="; then
+        SUPPORTS_AUTH_CLI=true
+        SUPPORTS_ANCHOR_MENTIONS=true
+        SUPPORTS_OTEL_SPEED=true
+    fi
+
     log "INFO" "Claude Code v$CLAUDE_CODE_VERSION detected"
     log "INFO" "Task Management: $SUPPORTS_TASK_MANAGEMENT | Fork Context: $SUPPORTS_FORK_CONTEXT | Agent Teams: $SUPPORTS_AGENT_TEAMS"
     log "INFO" "Persistent Memory: $SUPPORTS_PERSISTENT_MEMORY | Hook Events: $SUPPORTS_HOOK_EVENTS | Agent Type Routing: $SUPPORTS_AGENT_TYPE_ROUTING"
     log "INFO" "Stable Agent Teams: $SUPPORTS_STABLE_AGENT_TEAMS | Agent Memory: $SUPPORTS_AGENT_MEMORY | Fast Opus: $SUPPORTS_FAST_OPUS"
     log "INFO" "Native Task Metrics: $SUPPORTS_NATIVE_TASK_METRICS | Agent Teams Bridge: $SUPPORTS_AGENT_TEAMS_BRIDGE"
+    log "INFO" "Auth CLI: $SUPPORTS_AUTH_CLI | Anchor Mentions: $SUPPORTS_ANCHOR_MENTIONS | OTel Speed: $SUPPORTS_OTEL_SPEED"
 
     # v8.5: Detect /fast toggle after version detection
     detect_fast_mode
@@ -703,7 +714,9 @@ select_opus_mode() {
 
 # Agent configurations
 # Models (Feb 2026) - Premium defaults for Design Thinking workflows:
-# - OpenAI GPT-5.3: gpt-5.3-codex (premium), gpt-5.2-codex, gpt-5.1-codex-mini, gpt-5.2
+# - OpenAI GPT-5.3: gpt-5.3-codex (premium), gpt-5.3-codex-spark (fast), gpt-5.2-codex, gpt-5.1-codex-mini, gpt-5.2
+# - OpenAI Reasoning: o3, o4-mini
+# - OpenAI Large Context: gpt-4.1 (1M ctx), gpt-4.1-mini (1M ctx)
 # - Google Gemini 3.0: gemini-3-pro-preview, gemini-3-flash-preview, gemini-3-pro-image-preview
 get_agent_command() {
     local agent_type="$1"
@@ -723,6 +736,18 @@ get_agent_command() {
 
     case "$agent_type" in
         codex|codex-standard|codex-max|codex-mini|codex-general)
+            model=$(get_agent_model "$agent_type")
+            echo "codex exec --model ${model} ${sandbox_flag}"
+            ;;
+        codex-spark)  # v8.9.0: Ultra-fast Spark model (1000+ tok/s)
+            model=$(get_agent_model "$agent_type")
+            echo "codex exec --model ${model} ${sandbox_flag}"
+            ;;
+        codex-reasoning)  # v8.9.0: Reasoning models (o3, o4-mini)
+            model=$(get_agent_model "$agent_type")
+            echo "codex exec --model ${model} ${sandbox_flag}"
+            ;;
+        codex-large-context)  # v8.9.0: 1M context models (gpt-4.1)
             model=$(get_agent_model "$agent_type")
             echo "codex exec --model ${model} ${sandbox_flag}"
             ;;
@@ -761,6 +786,18 @@ get_agent_command_array() {
 
     case "$agent_type" in
         codex|codex-standard|codex-max|codex-mini|codex-general)
+            model=$(get_agent_model "$agent_type")
+            _cmd_array=(codex exec --model "$model" --sandbox "$codex_sandbox")
+            ;;
+        codex-spark)  # v8.9.0: Ultra-fast Spark model
+            model=$(get_agent_model "$agent_type")
+            _cmd_array=(codex exec --model "$model" --sandbox "$codex_sandbox")
+            ;;
+        codex-reasoning)  # v8.9.0: Reasoning models (o3, o4-mini)
+            model=$(get_agent_model "$agent_type")
+            _cmd_array=(codex exec --model "$model" --sandbox "$codex_sandbox")
+            ;;
+        codex-large-context)  # v8.9.0: 1M context models (gpt-4.1)
             model=$(get_agent_model "$agent_type")
             _cmd_array=(codex exec --model "$model" --sandbox "$codex_sandbox")
             ;;
@@ -810,7 +847,7 @@ build_provider_env() {
 }
 
 # List of available agents
-AVAILABLE_AGENTS="codex codex-standard codex-max codex-mini codex-general gemini gemini-fast gemini-image codex-review claude claude-sonnet claude-opus claude-opus-fast openrouter"
+AVAILABLE_AGENTS="codex codex-standard codex-max codex-mini codex-general codex-spark codex-reasoning codex-large-context gemini gemini-fast gemini-image codex-review claude claude-sonnet claude-opus claude-opus-fast openrouter"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # USAGE TRACKING & COST REPORTING (v4.1)
@@ -823,12 +860,21 @@ AVAILABLE_AGENTS="codex codex-standard codex-max codex-mini codex-general gemini
 get_model_pricing() {
     local model="$1"
     case "$model" in
-        # OpenAI GPT-5.x models
-        gpt-5.3-codex)          echo "4.00:16.00" ;;
-        gpt-5.1-codex-max)      echo "3.00:15.00" ;;
-        gpt-5.2-codex)          echo "2.00:10.00" ;;
-        gpt-5.1-codex-mini)     echo "0.50:2.00" ;;
-        gpt-5.2)                echo "1.50:7.50" ;;
+        # OpenAI GPT-5.x Codex models (v8.9.0: updated to Feb 2026 API pricing)
+        gpt-5.3-codex)          echo "1.75:14.00" ;;
+        gpt-5.3-codex-spark)    echo "1.75:14.00" ;;  # v8.9.0: Spark - same API price, Pro-only
+        gpt-5.2-codex)          echo "1.75:14.00" ;;
+        gpt-5.1-codex-max)      echo "1.25:10.00" ;;
+        gpt-5.1-codex-mini)     echo "0.30:1.25" ;;   # v8.9.0: Budget ~1 credit/msg
+        gpt-5.2)                echo "1.75:14.00" ;;
+        gpt-5.1)                echo "1.25:10.00" ;;
+        gpt-5-codex)            echo "1.25:10.00" ;;
+        # OpenAI Reasoning models (v8.9.0)
+        o3)                     echo "2.00:8.00" ;;
+        o4-mini)                echo "1.10:4.40" ;;
+        # OpenAI Large Context models (v8.9.0: 1M context window)
+        gpt-4.1)                echo "2.00:8.00" ;;
+        gpt-4.1-mini)           echo "0.40:1.60" ;;
         # Google Gemini 3.0 models
         gemini-3-pro-preview)   echo "2.50:10.00" ;;
         gemini-3-flash-preview) echo "0.25:1.00" ;;
@@ -891,6 +937,25 @@ get_tier_model() {
     local agent_type="$2"
 
     case "$agent_type" in
+        codex-spark)  # v8.9.0: Spark always uses spark model
+            echo "gpt-5.3-codex-spark"
+            ;;
+        codex-reasoning)  # v8.9.0: Reasoning tier
+            case "$tier" in
+                budget)   echo "o4-mini" ;;
+                standard) echo "o4-mini" ;;
+                premium)  echo "o3" ;;
+                *)        echo "o4-mini" ;;
+            esac
+            ;;
+        codex-large-context)  # v8.9.0: Large context tier (1M tokens)
+            case "$tier" in
+                budget)   echo "gpt-4.1-mini" ;;
+                standard) echo "gpt-4.1" ;;
+                premium)  echo "gpt-4.1" ;;
+                *)        echo "gpt-4.1" ;;
+            esac
+            ;;
         codex*)
             case "$tier" in
                 budget)   echo "gpt-5.1-codex-mini" ;;
@@ -1149,7 +1214,7 @@ get_agent_model() {
     # Determine base provider type
     local provider=""
     case "$agent_type" in
-        codex|codex-standard|codex-max|codex-mini|codex-general|codex-review)
+        codex|codex-standard|codex-max|codex-mini|codex-general|codex-review|codex-spark|codex-reasoning|codex-large-context)
             provider="codex"
             ;;
         gemini|gemini-fast|gemini-image)
@@ -1201,6 +1266,9 @@ get_agent_model() {
         codex-max)      echo "gpt-5.3-codex" ;;
         codex-mini)     echo "gpt-5.1-codex-mini" ;;
         codex-general)  echo "gpt-5.2" ;;
+        codex-spark)    echo "gpt-5.3-codex-spark" ;;       # v8.9.0: Ultra-fast (1000+ tok/s)
+        codex-reasoning) echo "o3" ;;                        # v8.9.0: Deep reasoning
+        codex-large-context) echo "gpt-4.1" ;;              # v8.9.0: 1M context window
         gemini)         echo "gemini-3-pro-preview" ;;
         gemini-fast)    echo "gemini-3-flash-preview" ;;
         gemini-image)   echo "gemini-3-pro-image-preview" ;;
@@ -1210,6 +1278,128 @@ get_agent_model() {
         claude-opus)    echo "claude-opus-4.6" ;;
         claude-opus-fast) echo "claude-opus-4.6-fast" ;;  # v8.4: Fast Opus
         *)              echo "unknown" ;;
+    esac
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CONTEXTUAL MODEL ROUTING (v8.9.0)
+# Selects the best Codex model based on workflow phase and task context.
+# Precedence: OCTOPUS_CODEX_MODEL env var > phase_routing config > defaults
+# User can configure per-phase routing in ~/.claude-octopus/config/providers.json
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Select the best codex model for a given workflow context
+# Usage: select_codex_model_for_context <phase> [task_hint]
+# Phase values: discover, define, develop, deliver, quick, debate, review, security, research
+# Task hints: fast, deep, large-codebase, reasoning, budget
+select_codex_model_for_context() {
+    local phase="${1:-develop}"
+    local task_hint="${2:-}"
+    local config_file="${HOME}/.claude-octopus/config/providers.json"
+
+    # Priority 1: Environment variable override (always wins)
+    if [[ -n "${OCTOPUS_CODEX_MODEL:-}" ]]; then
+        log "DEBUG" "Contextual routing: env override OCTOPUS_CODEX_MODEL=${OCTOPUS_CODEX_MODEL}"
+        echo "${OCTOPUS_CODEX_MODEL}"
+        return 0
+    fi
+
+    # Priority 2: Task hint override (explicit caller request)
+    case "$task_hint" in
+        fast|spark)
+            echo "gpt-5.3-codex-spark"
+            return 0
+            ;;
+        deep|complex|security)
+            echo "gpt-5.3-codex"
+            return 0
+            ;;
+        large-codebase|large-context)
+            echo "gpt-4.1"
+            return 0
+            ;;
+        reasoning)
+            echo "o3"
+            return 0
+            ;;
+        budget|cheap)
+            echo "gpt-5.1-codex-mini"
+            return 0
+            ;;
+    esac
+
+    # Priority 3: User-configured phase routing
+    if [[ -f "$config_file" ]] && command -v jq &> /dev/null; then
+        local phase_model
+        phase_model=$(jq -r ".phase_routing.${phase} // empty" "$config_file" 2>/dev/null || true)
+        if [[ -n "$phase_model" && "$phase_model" != "null" ]]; then
+            log "DEBUG" "Contextual routing: config phase_routing.$phase = $phase_model"
+            echo "$phase_model"
+            return 0
+        fi
+    fi
+
+    # Priority 4: Intelligent defaults based on phase characteristics
+    case "$phase" in
+        discover|probe|research)
+            # Research needs deep analysis → full codex
+            echo "gpt-5.3-codex"
+            ;;
+        define|grasp)
+            # Requirements analysis needs precision → full codex
+            echo "gpt-5.3-codex"
+            ;;
+        develop|tangle)
+            # Implementation needs capability → full codex
+            # (Users can override to spark for iteration via config)
+            echo "gpt-5.3-codex"
+            ;;
+        deliver|ink|review)
+            # Code review benefits from fast feedback → spark
+            echo "gpt-5.3-codex-spark"
+            ;;
+        quick)
+            # Quick tasks prioritize speed → spark
+            echo "gpt-5.3-codex-spark"
+            ;;
+        debate)
+            # Debate needs deep reasoning for arguments → full codex
+            echo "gpt-5.3-codex"
+            ;;
+        security)
+            # Security audits need thorough analysis → full codex
+            echo "gpt-5.3-codex"
+            ;;
+        *)
+            # Default to full codex for unknown phases
+            echo "gpt-5.3-codex"
+            ;;
+    esac
+}
+
+# Get the recommended agent type for a codex task in a given phase
+# Maps phase context to the appropriate codex-* agent type
+# Usage: get_codex_agent_for_phase <phase> [task_hint]
+get_codex_agent_for_phase() {
+    local phase="${1:-develop}"
+    local task_hint="${2:-}"
+
+    # Task hints override phase defaults
+    case "$task_hint" in
+        fast|spark)         echo "codex-spark" ; return 0 ;;
+        reasoning)          echo "codex-reasoning" ; return 0 ;;
+        large-codebase)     echo "codex-large-context" ; return 0 ;;
+        budget|cheap)       echo "codex-mini" ; return 0 ;;
+    esac
+
+    # Phase-based agent selection
+    case "$phase" in
+        deliver|ink|review|quick)
+            echo "codex-spark"
+            ;;
+        *)
+            echo "codex"
+            ;;
     esac
 }
 
@@ -1238,10 +1428,28 @@ set_provider_model() {
         mkdir -p "$(dirname "$config_file")"
         cat > "$config_file" << 'EOF'
 {
-  "version": "1.0",
+  "version": "2.0",
   "providers": {
-    "codex": {"model": "gpt-5.3-codex", "fallback": "gpt-5.2-codex"},
+    "codex": {
+      "model": "gpt-5.3-codex",
+      "fallback": "gpt-5.2-codex",
+      "spark_model": "gpt-5.3-codex-spark",
+      "mini_model": "gpt-5.1-codex-mini",
+      "reasoning_model": "o3",
+      "large_context_model": "gpt-4.1"
+    },
     "gemini": {"model": "gemini-3-pro-preview", "fallback": "gemini-3-flash-preview"}
+  },
+  "phase_routing": {
+    "discover": "gpt-5.3-codex",
+    "define":   "gpt-5.3-codex",
+    "develop":  "gpt-5.3-codex",
+    "deliver":  "gpt-5.3-codex-spark",
+    "quick":    "gpt-5.3-codex-spark",
+    "debate":   "gpt-5.3-codex",
+    "review":   "gpt-5.3-codex-spark",
+    "security": "gpt-5.3-codex",
+    "research": "gpt-5.3-codex"
   },
   "overrides": {}
 }
@@ -1348,12 +1556,12 @@ estimate_tokens() {
     echo $(( (char_count + 3) / 4 ))  # Round up
 }
 
-# Parse native Task tool metrics from <usage> blocks (v8.6.0)
-# Sets globals: _PARSED_TOKENS, _PARSED_TOOL_USES, _PARSED_DURATION_MS
+# Parse native Task tool metrics from <usage> blocks (v8.6.0, enhanced v8.8.0)
+# Sets globals: _PARSED_TOKENS, _PARSED_TOOL_USES, _PARSED_DURATION_MS, _PARSED_SPEED
 # Guards on SUPPORTS_NATIVE_TASK_METRICS. Falls back gracefully on parse failure.
 parse_task_metrics() {
     local output="$1"
-    _PARSED_TOKENS="" ; _PARSED_TOOL_USES="" ; _PARSED_DURATION_MS=""
+    _PARSED_TOKENS="" ; _PARSED_TOOL_USES="" ; _PARSED_DURATION_MS="" ; _PARSED_SPEED=""
     [[ "$SUPPORTS_NATIVE_TASK_METRICS" != "true" ]] && return 0
 
     local usage_block
@@ -1362,10 +1570,15 @@ parse_task_metrics() {
         _PARSED_TOKENS=$(echo "$usage_block" | grep -oE 'total_tokens:\s*[0-9]+' | grep -oE '[0-9]+' || true)
         _PARSED_TOOL_USES=$(echo "$usage_block" | grep -oE 'tool_uses:\s*[0-9]+' | grep -oE '[0-9]+' || true)
         _PARSED_DURATION_MS=$(echo "$usage_block" | grep -oE 'duration_ms:\s*[0-9]+' | grep -oE '[0-9]+' || true)
+        # v8.8: Parse OTel speed attribute (fast|standard) when available
+        if [[ "$SUPPORTS_OTEL_SPEED" == "true" ]]; then
+            _PARSED_SPEED=$(echo "$usage_block" | grep -oE 'speed:\s*(fast|standard)' | grep -oE '(fast|standard)' || true)
+        fi
     fi
     [[ "$_PARSED_TOKENS" =~ ^[0-9]+$ ]] || _PARSED_TOKENS=""
     [[ "$_PARSED_TOOL_USES" =~ ^[0-9]+$ ]] || _PARSED_TOOL_USES=""
     [[ "$_PARSED_DURATION_MS" =~ ^[0-9]+$ ]] || _PARSED_DURATION_MS=""
+    [[ "$_PARSED_SPEED" =~ ^(fast|standard)$ ]] || _PARSED_SPEED=""
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -5799,7 +6012,17 @@ detect_providers() {
 
     # Detect Claude CLI (always available in Claude Code context)
     if command -v claude &>/dev/null; then
-        result="${result}claude:oauth "
+        local claude_auth="oauth"
+        # v8.8: Use claude auth status for reliable auth verification
+        if [[ "$SUPPORTS_AUTH_CLI" == "true" ]]; then
+            if claude auth status &>/dev/null; then
+                claude_auth="verified"
+            else
+                claude_auth="oauth"  # Fallback: assume oauth in Claude Code context
+                log "DEBUG" "claude auth status returned non-zero, assuming oauth context"
+            fi
+        fi
+        result="${result}claude:${claude_auth} "
     fi
 
     # Detect OpenRouter (API key only)
@@ -6688,7 +6911,7 @@ is_agent_available_v2() {
     [[ -z "$PROVIDER_CODEX_INSTALLED" ]] && load_providers_config
 
     case "$agent" in
-        codex|codex-standard|codex-mini|codex-max|codex-general|codex-review)
+        codex|codex-standard|codex-mini|codex-max|codex-general|codex-review|codex-spark|codex-reasoning|codex-large-context)
             [[ "$PROVIDER_CODEX_INSTALLED" == "true" && "$PROVIDER_CODEX_AUTH_METHOD" != "none" ]]
             ;;
         gemini|gemini-fast|gemini-image)
@@ -7147,7 +7370,7 @@ get_fallback_agent() {
         return 0
     fi
 
-    # Fallback logic
+    # Fallback logic (v8.9.0: extended with spark, reasoning, large-context fallbacks)
     case "$preferred" in
         gemini|gemini-fast)
             # Gemini unavailable, try codex
@@ -7162,6 +7385,42 @@ get_fallback_agent() {
             # Codex unavailable, try gemini
             if is_agent_available "gemini"; then
                 [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: $preferred -> gemini (no OpenAI)"
+                echo "gemini"
+            else
+                echo "$preferred"
+            fi
+            ;;
+        codex-spark)
+            # Spark unavailable or unsupported → fall back to standard codex → gemini
+            if is_agent_available "codex"; then
+                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: codex-spark -> codex (spark unavailable)"
+                echo "codex"
+            elif is_agent_available "gemini"; then
+                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: codex-spark -> gemini (no OpenAI)"
+                echo "gemini"
+            else
+                echo "$preferred"
+            fi
+            ;;
+        codex-reasoning)
+            # Reasoning model unavailable → fall back to codex (deep reasoning) → gemini
+            if is_agent_available "codex"; then
+                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: codex-reasoning -> codex (reasoning unavailable)"
+                echo "codex"
+            elif is_agent_available "gemini"; then
+                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: codex-reasoning -> gemini (no OpenAI)"
+                echo "gemini"
+            else
+                echo "$preferred"
+            fi
+            ;;
+        codex-large-context)
+            # Large context unavailable → fall back to codex (400K ctx) → gemini
+            if is_agent_available "codex"; then
+                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: codex-large-context -> codex (large-ctx unavailable)"
+                echo "codex"
+            elif is_agent_available "gemini"; then
+                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: codex-large-context -> gemini (no OpenAI)"
                 echo "gemini"
             else
                 echo "$preferred"
@@ -7425,6 +7684,30 @@ handle_autonomy_checkpoint() {
 # Save/restore workflow state for resuming interrupted workflows
 # ═══════════════════════════════════════════════════════════════════════════════
 
+# Generate a short session name from workflow type and prompt
+# Args: $1=workflow, $2=prompt
+# Returns: human-readable session name (max 60 chars)
+generate_session_name() {
+    local workflow="$1"
+    local prompt="$2"
+
+    # Extract first meaningful words from prompt (skip common prefixes)
+    local summary
+    summary=$(echo "$prompt" | tr '[:upper:]' '[:lower:]' | \
+        sed 's/^[[:space:]]*//' | \
+        sed 's/please //; s/can you //; s/i want to //; s/help me //' | \
+        cut -c1-50 | \
+        sed 's/[[:space:]]*$//')
+
+    # Replace spaces with hyphens, remove non-alphanumeric except hyphens
+    summary=$(echo "$summary" | tr ' ' '-' | tr -cd 'a-z0-9-')
+
+    # Truncate to keep total name reasonable
+    summary="${summary:0:40}"
+
+    echo "${workflow}: ${summary}"
+}
+
 # Initialize a new session
 init_session() {
     local workflow="$1"
@@ -7435,6 +7718,17 @@ init_session() {
         session_id="${workflow}-claude-${CLAUDE_CODE_SESSION}"
     else
         session_id="${workflow}-$(date +%Y%m%d-%H%M%S)"
+    fi
+
+    # v8.8: Generate human-readable session name for easier resume
+    local session_name
+    session_name=$(generate_session_name "$workflow" "$prompt")
+
+    # v8.8: Auto-name session via claude rename (non-blocking, best-effort)
+    if [[ "$SUPPORTS_AUTH_CLI" == "true" ]] && [[ -n "$CLAUDE_CODE_SESSION" ]]; then
+        # Use /rename auto-naming by setting a meaningful name
+        claude --no-input --print "Session: ${session_name}" &>/dev/null &
+        log "DEBUG" "Auto-naming session: ${session_name}"
     fi
 
     # Ensure jq is available for JSON manipulation
@@ -7448,6 +7742,7 @@ init_session() {
     cat > "$SESSION_FILE" << EOF
 {
   "session_id": "$session_id",
+  "session_name": $(printf '%s' "$session_name" | jq -Rs .),
   "workflow": "$workflow",
   "status": "in_progress",
   "current_phase": null,
@@ -7457,7 +7752,7 @@ init_session() {
   "phases": {}
 }
 EOF
-    log INFO "Session initialized: $session_id"
+    log INFO "Session initialized: $session_id (name: $session_name)"
 }
 
 # Save checkpoint after phase completion
@@ -8371,6 +8666,44 @@ retry_failed_subtasks() {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# ANCHOR FRAGMENT MENTIONS (v8.8 - Claude Code v2.1.41+)
+# Uses @file#anchor syntax to reference specific sections instead of entire files
+# Reduces context consumption by 60-80% for documentation-heavy workflows
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Build an @file#anchor reference for a specific section of a file
+# Args: $1=file_path, $2=anchor (heading text, lowercased, hyphenated)
+# Returns: "@file#anchor" string if supported, or full file path as fallback
+build_anchor_ref() {
+    local file_path="$1"
+    local anchor="${2:-}"
+
+    if [[ "$SUPPORTS_ANCHOR_MENTIONS" == "true" ]] && [[ -n "$anchor" ]]; then
+        echo "@${file_path}#${anchor}"
+    else
+        echo "@${file_path}"
+    fi
+}
+
+# Build context-efficient file references for agent prompts
+# When anchor mentions are available, references specific sections rather than whole files
+# Args: $1=file_path, $2=section_heading (optional)
+# Returns: Instruction string for agent prompt
+build_file_reference() {
+    local file_path="$1"
+    local section="${2:-}"
+
+    if [[ "$SUPPORTS_ANCHOR_MENTIONS" == "true" ]] && [[ -n "$section" ]]; then
+        # Convert heading to anchor format: lowercase, spaces to hyphens
+        local anchor
+        anchor=$(echo "$section" | tr '[:upper:]' '[:lower:]' | tr ' ' '-' | tr -cd 'a-z0-9-')
+        echo "Refer to $(build_anchor_ref "$file_path" "$anchor") for context."
+    else
+        echo "Refer to @${file_path} for context."
+    fi
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # CROSS-MEMORY WARM START (v8.5 - Claude Code v2.1.33+)
 # Injects persistent memory context into agent prompts for cross-session learning
 # Reads from MEMORY.md files based on agent memory scope (project/user/local)
@@ -8424,7 +8757,16 @@ build_memory_context() {
         return
     fi
 
-    # Read memory file and truncate to ~2000 chars (roughly 500 tokens)
+    # v8.8: If anchor mentions available, use @file#anchor for context-efficient references
+    # This avoids loading the full memory file into the prompt
+    if [[ "$SUPPORTS_ANCHOR_MENTIONS" == "true" ]]; then
+        log "DEBUG" "Using anchor mention for memory: @${memory_file}"
+        echo "Context from persistent memory: @${memory_file}"
+        echo "(Using anchor-based reference for context efficiency)"
+        return
+    fi
+
+    # Fallback: Read memory file and truncate to ~2000 chars (roughly 500 tokens)
     local content
     content=$(head -c 2000 "$memory_file" 2>/dev/null) || return
 

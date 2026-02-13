@@ -108,6 +108,15 @@ You should see at least one provider with status:
 - ✓ Codex: Installed and authenticated (oauth or api-key)
 - ✓ Gemini: Installed and authenticated (oauth or api-key)
 
+### Quick Auth Check (Claude Code v2.1.41+)
+
+If you have Claude Code v2.1.41+, you can also verify Claude's own auth status:
+```bash
+claude auth status
+```
+
+This confirms your Claude session is active and authenticated. Octopus uses this for reliable provider detection when available.
+
 ## Ready to Use
 
 Once at least ONE provider is configured, you're ready! Claude Octopus automatically activates when you need multi-AI collaboration.

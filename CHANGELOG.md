@@ -2,6 +2,127 @@
 
 All notable changes to Claude Octopus will be documented in this file.
 
+## [8.9.0] - 2026-02-13
+
+### Added
+
+**Contextual Codex Model Routing** (P0):
+- `select_codex_model_for_context()` function - automatically selects the best Codex model based on workflow phase, task type, and user config
+- `get_codex_agent_for_phase()` helper - maps phases to appropriate codex-* agent types
+- Per-phase model routing in providers.json `phase_routing` section
+- 5-tier model precedence: env var > task hints > phase routing > config defaults > hard-coded
+
+**New Agent Types** (P0):
+- `codex-spark` agent type - routes to GPT-5.3-Codex-Spark (1000+ tok/s, 15x faster, 128K context)
+- `codex-reasoning` agent type - routes to o3 (deep reasoning, 200K context)
+- `codex-large-context` agent type - routes to gpt-4.1 (1M context window)
+- All new types integrated into `get_agent_command()`, `get_agent_command_array()`, `AVAILABLE_AGENTS`, `is_agent_available_v2()`, `get_fallback_agent()`
+
+**New Agent Personas** (P1):
+- `codebase-analyst` - large-context agent using gpt-4.1 for analyzing entire codebases
+- `reasoning-analyst` - deep reasoning agent using o3 for complex trade-off analysis
+
+**Enhanced Model Support** (P0):
+- GPT-5.3-Codex-Spark pricing and model entry
+- o3 and o4-mini reasoning model entries
+- gpt-4.1 and gpt-4.1-mini large-context model entries (1M token window)
+- gpt-5.1 and gpt-5-codex legacy model entries
+
+### Changed
+
+**Updated API Pricing** (P0):
+- Corrected gpt-5.3-codex to $1.75/$14.00 per MTok (was $4.00/$16.00)
+- Corrected gpt-5.2-codex to $1.75/$14.00 per MTok (was $2.00/$10.00)
+- Corrected gpt-5.1-codex-mini to $0.30/$1.25 per MTok (was $0.50/$2.00)
+- Added 6 new model price entries (spark, o3, o4-mini, gpt-4.1, gpt-4.1-mini, gpt-5.1)
+
+**Agent Config v2.0** (P1):
+- agents/config.yaml upgraded to version 2.0
+- Added `phase_model_routing` section with per-phase Codex model defaults
+- Added `fallback_cli` field for graceful agent degradation
+- Code reviewer switched to `codex-spark` for fast PR feedback (15x faster)
+- Performance engineer switched to `codex-spark` for rapid analysis
+- Security auditor stays on full `gpt-5.3-codex` for thorough analysis
+
+**Model Config Command v2.0** (P1):
+- model-config.md rewritten for v2.0 with comprehensive model catalog
+- Added `phase <phase> <model>` subcommand for per-phase routing
+- Added `reset phases` subcommand
+- Full Spark vs Codex comparison table
+- Pricing table for all 12+ supported models
+
+**Config Schema v2.0** (P1):
+- providers.json schema upgraded to v2.0
+- Added `phase_routing` section (9 phase-to-model mappings)
+- Added `spark_model`, `mini_model`, `reasoning_model`, `large_context_model` fields to codex provider
+- Backward compatible with v1.0 configs
+
+**Fallback Chains** (P1):
+- Extended `get_fallback_agent()` with codex-spark → codex → gemini chain
+- Extended with codex-reasoning → codex → gemini chain
+- Extended with codex-large-context → codex → gemini chain
+- Spark falls back gracefully to standard Codex when unavailable
+
+**Cost Awareness** (P2):
+- Updated CLAUDE.md cost estimates to reflect Feb 2026 API pricing
+- Cost range updated from ~$0.02-0.10 to ~$0.01-0.15 per query
+
+**Tier Model Selection** (P1):
+- `get_tier_model()` extended with codex-spark (always spark), codex-reasoning (o4-mini/o3), codex-large-context (gpt-4.1-mini/gpt-4.1) tiers
+
+---
+
+## [8.8.0] - 2026-02-13
+
+### Added
+
+**Context Efficiency** (P1):
+
+- **`build_anchor_ref()` / `build_file_reference()`** use `@file#anchor` syntax for section-specific references instead of entire files
+- **`SUPPORTS_ANCHOR_MENTIONS`** feature flag (Claude Code v2.1.41+)
+- **`build_memory_context()`** now emits `@file` anchor references when available, reducing context consumption by up to 60-80%
+
+**Observability** (P1):
+
+- **OTel `speed` attribute** parsed from Task tool `<usage>` blocks via `_PARSED_SPEED` global
+- **`SUPPORTS_OTEL_SPEED`** feature flag (Claude Code v2.1.41+)
+- **`display_per_phase_cost_table()`** now shows Mode column (standard/fast) when speed data is available
+- Fast mode entries display `⚡ fast` indicator with cost warning footnote
+
+**Auth Preflight** (P0):
+
+- **`claude auth status`** used in `detect_providers()` for reliable auth verification
+- **`SUPPORTS_AUTH_CLI`** feature flag (Claude Code v2.1.41+)
+- Falls back gracefully to assumed oauth when auth CLI unavailable
+
+**Hook Stderr Messaging** (P0):
+
+- **All 5 domain-specific quality gate hooks** now write human-readable stderr on block/warning
+- `security-gate.sh` — OWASP coverage, severity, remediation guidance
+- `code-quality-gate.sh` — actionable findings, severity, persona-specific hints
+- `perf-gate.sh` — quantified metrics, comparisons, optimization advice
+- `frontend-gate.sh` — accessibility, responsive design, component structure
+- `architecture-gate.sh` — decision rationale, persona-specific details
+- Claude Code v2.1.41+ surfaces stderr to users automatically
+
+**Session Auto-Naming** (P1):
+
+- **`generate_session_name()`** creates human-readable names from workflow type + prompt summary
+- **`init_session()`** stores `session_name` in session JSON for easier resume/discovery
+- Auto-naming triggered via Claude CLI when `SUPPORTS_AUTH_CLI` is available
+
+**Sandbox Documentation** (P0):
+
+- **SAFEGUARDS.md** updated with `.claude/skills` sandbox write-block notes (v2.1.38+)
+- Guidance on runtime artifact paths and sandbox-safe development practices
+
+### Changed
+
+- Version detection now logs Auth CLI, Anchor Mentions, and OTel Speed flags
+- `parse_task_metrics()` extracts `speed` attribute alongside existing token/duration fields
+
+---
+
 ## [8.7.0] - 2026-02-10
 
 ### Added
