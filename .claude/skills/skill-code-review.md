@@ -7,172 +7,64 @@ description: Expert multi-AI code review with quality and security analysis
 context: fork
 agent: Explore
 execution_mode: enforced
-pre_execution_contract:
-  - visual_indicators_displayed
-validation_gates:
-  - orchestrate_sh_executed
-  - review_output_exists
 ---
 
-# Code Review Skill
+# STOP. READ THIS FIRST.
 
-Invokes the code-reviewer persona for thorough code analysis during the `ink` (deliver) phase.
+**You are FORBIDDEN from reviewing code directly.** You MUST call orchestrate.sh via Bash.
 
-## Usage
-
-```bash
-# Via orchestrate.sh
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh spawn code-reviewer "Review this pull request for security issues"
-
-# Via auto-routing (detects review intent)
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh auto "review the authentication implementation"
-```
-
-## Capabilities
-
-- AI-powered code quality analysis
-- Security vulnerability detection
-- Performance optimization suggestions
-- Architecture and design pattern review
-- Best practices enforcement
-
-## Persona Reference
-
-This skill wraps the `code-reviewer` persona defined in:
-- `agents/personas/code-reviewer.md`
-- CLI: `codex-review`
-- Model: `gpt-5.2-codex`
-- Phases: `ink`
-
-## Example Prompts
-
-```
-"Review this PR for OWASP Top 10 vulnerabilities"
-"Analyze the error handling in src/api/"
-"Check for memory leaks in the connection pool"
-"Review the test coverage for the auth module"
-```
+Do NOT use Task agents, native personas (code-reviewer, etc.), or direct analysis.
+The ONLY acceptable action is running the Bash command below.
 
 ---
 
-## Implementation Completeness Verification
+## Step 1: Display banner
 
-After the code-reviewer persona completes, run stub detection to verify implementation completeness.
+```
+🐙 CLAUDE OCTOPUS ACTIVATED - Multi-provider code review
+📝 Review: <brief description of what's being reviewed>
 
-### Stub Detection Process
+Providers:
+🔴 Codex CLI - Code quality analysis
+🟡 Gemini CLI - Alternative patterns and edge cases
+🔵 Claude - Synthesis and recommendations
+```
 
-**Step 1: Get changed files**
+## Step 2: Execute orchestrate.sh (USE BASH TOOL NOW)
 
 ```bash
-# Get files changed in the commit/PR
-if [ -n "$COMMIT_RANGE" ]; then
-    changed_files=$(git diff --name-only "$COMMIT_RANGE")
+OCTOPUS_AGENT_TEAMS=legacy "${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh" auto "review <user's code review request>"
+```
+
+**WAIT for completion. Do NOT proceed until it finishes.**
+
+If it fails, show the error. Do NOT fall back to direct code review.
+
+## Step 3: Read results
+
+```bash
+RESULT_FILE=$(find ~/.claude-octopus/results -name "delivery-*.md" | sort -r | head -n1)
+if [[ -z "$RESULT_FILE" ]]; then
+  echo "ERROR: No result file found"
+  ls -lt ~/.claude-octopus/results/ 2>/dev/null | head -5
 else
-    changed_files=$(git diff --name-only HEAD~1..HEAD)
+  echo "OK: $RESULT_FILE"
+  cat "$RESULT_FILE"
 fi
-
-# Filter for source code files
-source_files=$(echo "$changed_files" | grep -E "\.(ts|tsx|js|jsx|py|go)$")
 ```
 
-**Step 2: Check for stub patterns**
+## Step 4: Present results with attribution footer
 
-For each changed file, check for common stub indicators:
-
-```bash
-for file in $source_files; do
-    echo "Checking $file for stubs..."
-
-    # Check 1: Comment-based stubs
-    stub_count=$(grep -E "(TODO|FIXME|PLACEHOLDER|XXX)" "$file" 2>/dev/null | wc -l | tr -d ' ')
-
-    if [ "$stub_count" -gt 0 ]; then
-        echo "⚠️  WARNING: Found $stub_count stub indicators in $file"
-        grep -n -E "(TODO|FIXME|PLACEHOLDER)" "$file" | head -3
-    fi
-
-    # Check 2: Empty function bodies
-    empty_functions=$(grep -E "function.*\{\s*\}|const.*=>.*\{\s*\}" "$file" 2>/dev/null | wc -l | tr -d ' ')
-
-    if [ "$empty_functions" -gt 0 ]; then
-        echo "❌ ERROR: Found $empty_functions empty functions in $file"
-        echo "   Empty functions must be implemented before merge"
-    fi
-
-    # Check 3: Return null/undefined
-    null_returns=$(grep -E "return (null|undefined);" "$file" 2>/dev/null | wc -l | tr -d ' ')
-
-    if [ "$null_returns" -gt 0 ]; then
-        echo "⚠️  WARNING: Found $null_returns null/undefined returns in $file"
-        echo "   Verify these are intentional, not stubs"
-    fi
-
-    # Check 4: Substantive content check
-    substantive_lines=$(grep -vE "^\s*(//|/\*|\*|import|export|$)" "$file" 2>/dev/null | wc -l | tr -d ' ')
-
-    if [[ "$file" == *.tsx ]] && [ "$substantive_lines" -lt 10 ]; then
-        echo "⚠️  WARNING: Component $file only has $substantive_lines substantive lines"
-        echo "   Components should typically be >10 lines"
-    fi
-
-    # Check 5: Mock/test data in production
-    mock_data=$(grep -E "const.*(mock|test|dummy|fake).*=" "$file" 2>/dev/null | wc -l | tr -d ' ')
-
-    if [ "$mock_data" -gt 0 ]; then
-        echo "⚠️  WARNING: Found $mock_data references to mock/test data in $file"
-        echo "   Ensure these are not placeholders for production code"
-    fi
-done
+```
+---
+Multi-AI Code Review powered by Claude Octopus
+Providers: 🔴 Codex | 🟡 Gemini | 🔵 Claude
 ```
 
-**Step 3: Add findings to review synthesis**
+---
 
-Include stub detection results in the review output:
+## What NOT to do
 
-```markdown
-## Implementation Completeness
-
-**Stub Detection Results:**
-
-✅ **Fully Implemented Files:**
-- src/components/UserProfile.tsx (42 substantive lines)
-- src/api/users.ts (67 substantive lines)
-
-⚠️  **Files with Warnings:**
-- src/components/Dashboard.tsx
-  - 3 TODO comments (non-blocking)
-  - Consider addressing before release
-
-❌ **Files Requiring Implementation:**
-- src/utils/analytics.ts
-  - 2 empty functions detected (BLOCKING)
-  - Must implement before merge
-
-**Verification Levels:**
-- Level 1 (Exists): 5/5 files ✅
-- Level 2 (Substantive): 3/5 files ⚠️
-- Level 3 (Wired): 4/5 files ✅
-- Level 4 (Functional): Tests pending
-
-**Recommendation:**
-- Fix empty functions in analytics.ts before merge
-- Address TODO comments in Dashboard.tsx in follow-up PR
-- All other files meet implementation standards
-```
-
-### Stub Detection Reference
-
-See `.claude/references/stub-detection.md` for comprehensive patterns and detection strategies.
-
-### When to Block Merge
-
-**BLOCKING Issues (must fix):**
-- ❌ Empty function bodies
-- ❌ Mock data in production code paths
-- ❌ Components not imported/wired anywhere
-- ❌ API endpoints returning empty objects
-
-**NON-BLOCKING Issues (note in review):**
-- ⚠️ TODO/FIXME comments (create follow-up tickets)
-- ⚠️ Null returns (if intentional)
-- ⚠️ Low line count (if appropriate for the component)
+- Do NOT use `Task(octo:personas:code-reviewer)` or any Task agent
+- Do NOT review the code yourself
+- If orchestrate.sh fails, tell the user - do NOT work around it

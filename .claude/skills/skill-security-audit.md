@@ -1,54 +1,67 @@
 ---
 name: octopus-security-audit
 aliases:
-  - security
   - security-audit
 description: OWASP compliance, vulnerability scanning, and penetration testing
 execution_mode: enforced
-pre_execution_contract:
-  - visual_indicators_displayed
-validation_gates:
-  - orchestrate_sh_executed
-  - output_artifact_exists
 ---
 
-# Security Audit Skill
+# STOP. READ THIS FIRST.
 
-Invokes the security-auditor persona for thorough security analysis during the `ink` (deliver) phase.
+**You are FORBIDDEN from doing security audits directly.** You MUST call orchestrate.sh via Bash.
 
-## Usage
+Do NOT use Task agents, native personas (security-auditor, etc.), or direct analysis.
+The ONLY acceptable action is running the Bash command below.
+
+---
+
+## Step 1: Display banner
+
+```
+🐙 CLAUDE OCTOPUS ACTIVATED - Security audit mode
+🔐 Audit: <brief description of target>
+
+Providers:
+🔴 Codex CLI - Vulnerability scanning
+🟡 Gemini CLI - OWASP compliance check
+🔵 Claude - Risk synthesis
+```
+
+## Step 2: Execute orchestrate.sh (USE BASH TOOL NOW)
 
 ```bash
-# Via orchestrate.sh
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh spawn security-auditor "Scan for SQL injection vulnerabilities"
-
-# Via auto-routing (detects security intent)
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh auto "security audit the payment processing module"
+OCTOPUS_AGENT_TEAMS=legacy "${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh" auto "security audit <user's audit target>"
 ```
 
-## Capabilities
+**WAIT for completion. Do NOT proceed until it finishes.**
 
-- OWASP Top 10 vulnerability detection
-- SQL injection and XSS scanning
-- Authentication/authorization review
-- Secrets and credential detection
-- Dependency vulnerability assessment
-- Security configuration review
+If it fails, show the error. Do NOT fall back to direct security analysis.
 
-## Persona Reference
+## Step 3: Read results
 
-This skill wraps the `security-auditor` persona defined in:
-- `agents/personas/security-auditor.md`
-- CLI: `codex-review`
-- Model: `gpt-5.2-codex`
-- Phases: `ink`
-- Expertise: `owasp`, `vulnerability-scanning`, `security-review`
+```bash
+RESULT_FILE=$(find ~/.claude-octopus/results -name "squeeze-*.md" | sort -r | head -n1)
+if [[ -z "$RESULT_FILE" ]]; then
+  echo "ERROR: No result file found"
+  ls -lt ~/.claude-octopus/results/ 2>/dev/null | head -5
+else
+  echo "OK: $RESULT_FILE"
+  cat "$RESULT_FILE"
+fi
+```
 
-## Example Prompts
+## Step 4: Present results with attribution footer
 
 ```
-"Scan for hardcoded credentials in the codebase"
-"Check for CSRF vulnerabilities in form handlers"
-"Review the API authentication implementation"
-"Analyze the encryption at rest configuration"
+---
+Multi-AI Security Audit powered by Claude Octopus
+Providers: 🔴 Codex | 🟡 Gemini | 🔵 Claude
 ```
+
+---
+
+## What NOT to do
+
+- Do NOT use `Task(octo:personas:security-auditor)` or any Task agent
+- Do NOT audit security yourself
+- If orchestrate.sh fails, tell the user - do NOT work around it
