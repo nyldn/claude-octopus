@@ -498,5 +498,5 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 MIT - see [LICENSE](LICENSE)
 
 <p align="center">
-  <a href="https://github.com/nyldn">nyldn</a> | MIT License | <a href="https://github.com/ayoahha/claude-octopus/issues">Report Issues</a>
+  <a href="https://github.com/ayoahha">ayoahha</a> | MIT License | <a href="https://github.com/ayoahha/claude-octopus/issues">Report Issues</a>
 </p>

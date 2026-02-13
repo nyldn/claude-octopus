@@ -116,14 +116,14 @@ if [[ -f "$MARKETPLACE_JSON" ]]; then
     mentions_workflows=false
     mentions_automation=false
 
-    echo "$description" | grep -qi "multi.*ai\|multiple.*ai\|parallel.*ai" && mentions_multi_ai=true
-    echo "$description" | grep -qi "workflow\|double.*diamond" && mentions_workflows=true
-    echo "$description" | grep -qi "automat\|orchestrat" && mentions_automation=true
+    echo "$description" | grep -qi "multi.*ai\|multiple.*ai\|parallel.*ai" && mentions_multi_ai=true || true
+    echo "$description" | grep -qi "workflow\|double.*diamond" && mentions_workflows=true || true
+    echo "$description" | grep -qi "automat\|orchestrat" && mentions_automation=true || true
 
     feature_count=0
-    $mentions_multi_ai && ((feature_count++))
-    $mentions_workflows && ((feature_count++))
-    $mentions_automation && ((feature_count++))
+    $mentions_multi_ai && ((feature_count++)) || true
+    $mentions_workflows && ((feature_count++)) || true
+    $mentions_automation && ((feature_count++)) || true
 
     if [[ $feature_count -ge 1 ]]; then
         pass "marketplace.json description mentions core features"

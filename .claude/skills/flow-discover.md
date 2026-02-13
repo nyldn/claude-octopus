@@ -71,7 +71,7 @@ If it fails, show the error to the user. Do NOT fall back to direct research.
 ## Step 3: Read the synthesis file
 
 ```bash
-SYNTHESIS_FILE=$(find ~/.claude-octopus/results -name "probe-synthesis-*.md" -mmin -10 2>/dev/null | head -n1)
+SYNTHESIS_FILE=$(find ~/.claude-octopus/results -name "probe-synthesis-*.md" 2>/dev/null | sort -r | head -n1)
 if [[ -z "$SYNTHESIS_FILE" ]]; then
   echo "ERROR: No synthesis file found"
   ls -lt ~/.claude-octopus/results/ 2>/dev/null | head -5

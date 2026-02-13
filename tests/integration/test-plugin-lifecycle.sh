@@ -34,7 +34,7 @@ setup_test_env() {
 restore_original_state() {
     if [[ "$ORIGINAL_STATE" != "0" ]]; then
         echo -e "${YELLOW}  → Restoring original plugin state...${NC}"
-        claude plugin marketplace add nyldn/claude-octopus 2>/dev/null || true
+        claude plugin marketplace add ayoahha/claude-octopus 2>/dev/null || true
         claude plugin install claude-octopus@ayoahha-plugins --scope user 2>/dev/null || true
     fi
 }
