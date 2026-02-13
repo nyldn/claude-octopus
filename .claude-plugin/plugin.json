@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "8.7.1",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v8.7.1) Fork maintenance, CI fixes, namespace rename. Security hardening, performance optimization, Agent Teams Bridge. Claude Code v2.1.38+ integration, GPT-5.3-Codex, 29 expert personas, 38 commands, 43 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
+  "version": "8.7.2",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v8.7.2) Fix provider invocation in commands. Security hardening, performance optimization, Agent Teams Bridge. Claude Code v2.1.38+ integration, GPT-5.3-Codex, 29 expert personas, 38 commands, 43 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
   "author": {
     "name": "ayoahha"
   },

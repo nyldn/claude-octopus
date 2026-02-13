@@ -1,6 +1,6 @@
 {
   "name": "claude-octopus",
-  "version": "8.7.1",
+  "version": "8.7.2",
   "description": "Claude Octopus - Multi-agent orchestration with security hardening, performance optimization, and Agent Teams Bridge",
   "main": "orchestrate.sh",
   "scripts": {

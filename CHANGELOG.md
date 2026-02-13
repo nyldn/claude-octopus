@@ -2,6 +2,14 @@
 
 All notable changes to Claude Octopus will be documented in this file.
 
+## [8.7.2] - 2026-02-13
+
+### Fixed
+
+- **Provider invocation**: Commands (research, probe, discover, grasp, define, tangle, develop, ink, deliver, review, validate, security, debug) now embed orchestrate.sh calls directly instead of using Skill tool indirection. The plugin rename from "octo" to "claude-octopus" had broken the Skill prefix, causing silent "Unknown skill" failures where providers (Codex/Gemini) were never invoked.
+
+---
+
 ## [8.7.1] - 2026-02-13
 
 ### Fixed
