@@ -1,8 +1,9 @@
 #!/bin/bash
-# Claude Octopus Architecture Gate Hook (v8.6.0)
+# Claude Octopus Architecture Gate Hook (v8.6.0, enhanced v8.8.0)
 # Domain-specific quality gate for backend-architect, database-architect, cloud-architect, deployment-engineer
 # Selects checks via OCTOPUS_AGENT_PERSONA env var
 # Returns JSON decision: {"decision": "continue|block", "reason": "..."}
+# v8.8: Writes human-readable stderr on block (displayed by Claude Code v2.1.41+)
 set -euo pipefail
 
 # Read tool output from stdin
@@ -100,8 +101,12 @@ esac
 if [[ ${#issues[@]} -gt 1 ]]; then
     reason=$(printf '%s; ' "${issues[@]}")
     reason="${reason%; }"
+    # v8.8: Write stderr so Claude Code v2.1.41+ displays blocking reason to user
+    echo "🏗️ Architecture gate BLOCKED [${persona}]: ${reason}" >&2
+    echo "   Fix: Include decision rationale/trade-offs and persona-specific details (API contracts, migrations, IaC, CI/CD)." >&2
     echo "{\"decision\": \"block\", \"reason\": \"Architecture review incomplete: ${reason}\"}"
 elif [[ ${#issues[@]} -eq 1 ]]; then
+    echo "🏗️ Architecture gate warning [${persona}]: ${issues[0]}" >&2
     echo "{\"decision\": \"continue\", \"reason\": \"Warning: ${issues[0]}\"}"
 else
     echo '{"decision": "continue"}'
