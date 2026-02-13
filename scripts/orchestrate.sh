@@ -8937,7 +8937,7 @@ ${enhanced_prompt}"
         echo "$pid:$agent_type:$task_id" >> "$PID_FILE"
     fi
 
-    log INFO "Agent spawned with PID: $pid"
+    log INFO "Agent spawned with PID: $pid" >&2
     echo "$pid"
 }
 
