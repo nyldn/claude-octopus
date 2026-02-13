@@ -11476,9 +11476,8 @@ probe_discover() {
 
     local pids=()
     local probe_agents=("codex" "gemini" "claude-sonnet" "codex" "gemini")
-    local start_time=$(date +%s)
-    local synthesis_done=false
-    trap '[[ "$synthesis_done" == "true" ]] && exit 0' TERM
+    local start_time
+    start_time=$(date +%s)
     for i in "${!perspectives[@]}"; do
         local perspective="${perspectives[$i]}"
         local agent="${probe_agents[$i]}"
@@ -11592,7 +11591,7 @@ probe_discover() {
 
     # Intelligent synthesis (v7.19.0 P1.1: allow with partial results)
     synthesize_probe_results "$task_group" "$prompt" "$usable_results"
-    synthesis_done=true
+    trap 'exit 0' TERM
 
     # v7.19.0 P2.4: Stop progressive synthesis monitor
     if [[ -n "$synthesis_monitor_pid" ]]; then
