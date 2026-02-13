@@ -23,7 +23,7 @@
 Inside Claude Code, run:
 
 ```
-/plugin marketplace add nyldn/claude-octopus
+/plugin marketplace add https://github.com/nyldn/claude-octopus
 /plugin install claude-octopus@nyldn-plugins
 ```
 

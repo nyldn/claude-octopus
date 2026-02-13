@@ -34,7 +34,7 @@ setup_test_env() {
 restore_original_state() {
     if [[ "$ORIGINAL_STATE" != "0" ]]; then
         echo -e "${YELLOW}  → Restoring original plugin state...${NC}"
-        claude plugin marketplace add nyldn/claude-octopus 2>/dev/null || true
+        claude plugin marketplace add https://github.com/nyldn/claude-octopus 2>/dev/null || true
         claude plugin install claude-octopus@nyldn-plugins --scope user 2>/dev/null || true
     fi
 }
@@ -67,7 +67,7 @@ test_add_marketplace() {
     fi
 
     # Add marketplace
-    local output=$(claude plugin marketplace add nyldn/claude-octopus 2>&1)
+    local output=$(claude plugin marketplace add https://github.com/nyldn/claude-octopus 2>&1)
     local exit_code=$?
 
     # Check if marketplace was added or already exists
