@@ -1,1 +1,16 @@
-{}
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/pr-target-guard.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
