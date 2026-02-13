@@ -1,8 +1,9 @@
 #!/bin/bash
-# Claude Octopus Security Gate Hook (v8.6.0)
+# Claude Octopus Security Gate Hook (v8.6.0, enhanced v8.8.0)
 # Domain-specific quality gate for security-auditor persona
 # Validates: OWASP category coverage (2+), severity classifications, remediation present
 # Returns JSON decision: {"decision": "continue|block", "reason": "..."}
+# v8.8: Writes human-readable stderr on block (displayed by Claude Code v2.1.41+)
 set -euo pipefail
 
 # Read tool output from stdin
@@ -60,8 +61,12 @@ fi
 if [[ ${#issues[@]} -gt 1 ]]; then
     reason=$(printf '%s; ' "${issues[@]}")
     reason="${reason%; }"
+    # v8.8: Write stderr so Claude Code v2.1.41+ displays blocking reason to user
+    echo "🔒 Security gate BLOCKED: ${reason}" >&2
+    echo "   Fix: Ensure analysis covers 2+ OWASP categories, includes severity levels, and provides remediation steps." >&2
     echo "{\"decision\": \"block\", \"reason\": \"Security audit incomplete: ${reason}\"}"
 elif [[ ${#issues[@]} -eq 1 ]]; then
+    echo "🔒 Security gate warning: ${issues[0]}" >&2
     echo "{\"decision\": \"continue\", \"reason\": \"Warning: ${issues[0]}\"}"
 else
     echo '{"decision": "continue"}'

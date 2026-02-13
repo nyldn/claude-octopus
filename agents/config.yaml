@@ -1,15 +1,19 @@
 # Claude Octopus Agent Configuration
 # Maps curated agents to CLI preferences, phases, and complexity tiers
 #
-# CLI Options: codex (gpt-5.3-codex), codex-max, codex-mini, codex-review, gemini, gemini-fast, claude-opus
+# CLI Options: codex (gpt-5.3-codex), codex-max, codex-mini, codex-spark, codex-reasoning,
+#              codex-large-context, codex-review, gemini, gemini-fast, claude-opus
+# Models (v8.9.0): gpt-5.3-codex (flagship), gpt-5.3-codex-spark (ultra-fast),
+#                  gpt-5.2-codex, gpt-5.1-codex-mini (budget), o3 (reasoning),
+#                  gpt-4.1 (1M context), gpt-4.1-mini (1M context, budget)
 # Phases: probe (discover), grasp (define), tangle (develop), ink (deliver)
 # Tiers: trivial, standard, premium
 # permissionMode: plan (read-only), acceptEdits (can write), default (standard)
 # memory: project (codebase learning), user (cross-project prefs), local (ephemeral run context)
 # skills: list of skill files to preload into agent context
 
-version: "1.0"
-description: "Curated agent personas from wshobson/agents adapted for Claude Octopus"
+version: "2.0"
+description: "Curated agent personas with contextual Codex model routing (v8.9.0)"
 
 # Phase-to-agent mappings (default agents per phase)
 phase_defaults:
@@ -25,6 +29,18 @@ phase_defaults:
   ink:
     primary: code-reviewer
     agents: [security-auditor, test-automator, performance-engineer, deployment-engineer]
+
+# v8.9.0: Phase-to-model routing defaults for Codex agents
+# These can be overridden per-user in ~/.claude-octopus/config/providers.json → phase_routing
+phase_model_routing:
+  probe:   gpt-5.3-codex           # Deep research needs max reasoning
+  grasp:   gpt-5.3-codex           # Requirements analysis needs precision
+  tangle:  gpt-5.3-codex           # Complex implementation (override to spark for iteration)
+  ink:     gpt-5.3-codex-spark     # Fast review feedback loops (15x faster)
+  quick:   gpt-5.3-codex-spark     # Speed over depth
+  debate:  gpt-5.3-codex           # Deep reasoning for arguments
+  review:  gpt-5.3-codex-spark     # Rapid PR reviews
+  security: gpt-5.3-codex          # Thorough security analysis
 
 # Individual agent configurations
 agents:
@@ -162,11 +178,14 @@ agents:
 
   # ═══════════════════════════════════════════════════════════════════════════
   # INK PHASE AGENTS (Delivery/Review)
+  # v8.9.0: Review agents use codex-spark for fast feedback (15x faster)
+  # Security agents stay on full codex for thorough analysis
   # ═══════════════════════════════════════════════════════════════════════════
   code-reviewer:
     file: personas/code-reviewer.md
-    cli: codex-review
-    model: gpt-5.2-codex
+    cli: codex-spark              # v8.9.0: Fast review via Spark (was codex-review)
+    model: gpt-5.3-codex-spark
+    fallback_cli: codex-review    # v8.9.0: Falls back to codex-review if spark unavailable
     phases: [ink]
     tier: premium
     expertise: [code-quality, best-practices, architecture-review]
@@ -176,8 +195,8 @@ agents:
 
   security-auditor:
     file: personas/security-auditor.md
-    cli: codex-review
-    model: gpt-5.2-codex
+    cli: codex                    # v8.9.0: Stays on full codex for deep security analysis
+    model: gpt-5.3-codex
     phases: [ink]
     tier: premium
     expertise: [owasp, vulnerability-scanning, security-review]
@@ -197,8 +216,9 @@ agents:
 
   performance-engineer:
     file: personas/performance-engineer.md
-    cli: codex
-    model: gpt-5.2-codex
+    cli: codex-spark              # v8.9.0: Fast perf analysis via Spark
+    model: gpt-5.3-codex-spark
+    fallback_cli: codex
     phases: [ink]
     tier: premium
     expertise: [profiling, optimization, benchmarking]
@@ -284,6 +304,32 @@ agents:
     memory: local
     permissionMode: plan
 
+  # ═══════════════════════════════════════════════════════════════════════════
+  # SPECIALIZED CODEX AGENTS (v8.9.0)
+  # Large-context and reasoning agents for specific use cases
+  # ═══════════════════════════════════════════════════════════════════════════
+  codebase-analyst:
+    file: personas/code-reviewer.md       # Reuses code-reviewer persona
+    cli: codex-large-context              # v8.9.0: gpt-4.1 with 1M context window
+    model: gpt-4.1
+    fallback_cli: codex
+    phases: [probe, ink]
+    tier: premium
+    expertise: [large-codebase-analysis, architecture-review, dependency-analysis]
+    memory: project
+    permissionMode: plan
+
+  reasoning-analyst:
+    file: personas/strategy-analyst.md    # Reuses strategy-analyst persona
+    cli: codex-reasoning                  # v8.9.0: o3 deep reasoning model
+    model: o3
+    fallback_cli: codex
+    phases: [probe, grasp]
+    tier: premium
+    expertise: [complex-reasoning, trade-off-analysis, decision-making]
+    memory: local
+    permissionMode: plan
+
 # ═══════════════════════════════════════════════════════════════════════════
 # RALPH-WIGGUM INTEGRATION (Iterative Loop Support)
 # ═══════════════════════════════════════════════════════════════════════════
@@ -326,27 +372,21 @@ skill_triggers:
   task-completion:
     pattern: "(commit.*push|complete.*tasks.*push|wrap.*up.*push)"
     skill: skill-finish-branch
-
   task-management:
     pattern: "(add.*todo|resume.*task|save.*progress|proceed.*next)"
     skill: skill-task-management
-
   why-questions:
     pattern: "(why.*(is|did|isn't|doesn't|didn't).*(not|n't)|why.*fail)"
     skill: skill-debug
-
   visual-feedback:
     pattern: "(\\[Image\\]|button.*styles.*fix|UI.*mess|UX.*mess)"
     skill: skill-visual-feedback
-
   options-request:
     pattern: "(fix.*or.*provide.*option|give.*me.*option|show.*alternative)"
     skill: skill-decision-support
-
   iteration:
     pattern: "(loop.*times|loop.*around.*times|keep.*trying.*until|iterate.*until)"
     skill: skill-iterative-loop
-
   audit:
     pattern: "(audit.*and.*check|audit.*app|process.*to.*audit|scan.*for.*issue)"
     skill: skill-audit
