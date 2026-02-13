@@ -120,6 +120,10 @@ All notable changes to Claude Octopus will be documented in this file.
 
 - Version detection now logs Auth CLI, Anchor Mentions, and OTel Speed flags
 - `parse_task_metrics()` extracts `speed` attribute alongside existing token/duration fields
+<<<<<<< HEAD
+=======
+- Install instructions changed from `nyldn/claude-octopus` shorthand to full HTTPS URL
+>>>>>>> e84f3ac (Update plugin submodule to v8.9.0 - contextual Codex model routing)
 
 ---
 
