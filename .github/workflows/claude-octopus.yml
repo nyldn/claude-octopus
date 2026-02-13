@@ -65,12 +65,12 @@ jobs:
           node-version: '20'
 
       - name: Install Codex CLI
-        run: npm install -g @openai/codex-cli 2>/dev/null || echo "::warning::Codex CLI not available on npm - install manually"
+        run: npm install -g @openai/codex 2>/dev/null || echo "::warning::Codex CLI not available on npm - install manually"
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
       - name: Install Gemini CLI
-        run: npm install -g @anthropic-ai/gemini-cli 2>/dev/null || echo "::warning::Gemini CLI not available on npm - install manually"
+        run: npm install -g @google/gemini-cli 2>/dev/null || echo "::warning::Gemini CLI not available on npm - install manually"
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
@@ -134,8 +134,8 @@ jobs:
 
       - name: Install CLIs
         run: |
-          npm install -g @openai/codex-cli 2>/dev/null || echo "::warning::Codex CLI not available on npm - install manually"
-          npm install -g @anthropic-ai/gemini-cli 2>/dev/null || echo "::warning::Gemini CLI not available on npm - install manually"
+          npm install -g @openai/codex 2>/dev/null || echo "::warning::Codex CLI not available on npm - install manually"
+          npm install -g @google/gemini-cli 2>/dev/null || echo "::warning::Gemini CLI not available on npm - install manually"
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -206,8 +206,8 @@ jobs:
 
       - name: Install CLIs
         run: |
-          npm install -g @openai/codex-cli 2>/dev/null || echo "::warning::Codex CLI not available on npm - install manually"
-          npm install -g @anthropic-ai/gemini-cli 2>/dev/null || echo "::warning::Gemini CLI not available on npm - install manually"
+          npm install -g @openai/codex 2>/dev/null || echo "::warning::Codex CLI not available on npm - install manually"
+          npm install -g @google/gemini-cli 2>/dev/null || echo "::warning::Gemini CLI not available on npm - install manually"
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}

@@ -128,13 +128,13 @@ else
     pass "Old command aliases removed from triggers"
 fi
 
-# Test 10: Force Multi-Provider Mode section exists
+# Test 10: Skill has execution steps for multi-provider orchestration
 echo ""
-echo "Test 10: Checking Force Multi-Provider Mode section..."
-if grep -q '## Force Multi-Provider Mode' "$SKILL_FILE"; then
-    pass "Force Multi-Provider Mode section exists"
+echo "Test 10: Checking multi-provider execution steps..."
+if grep -q '## Step 2: Execute orchestrate.sh' "$SKILL_FILE"; then
+    pass "Skill has orchestrate.sh execution step"
 else
-    fail "Missing section" "Skill should have Force Multi-Provider Mode section"
+    fail "Missing execution step" "Skill should have 'Step 2: Execute orchestrate.sh' section"
 fi
 
 # Test 11: Natural language triggers preserved

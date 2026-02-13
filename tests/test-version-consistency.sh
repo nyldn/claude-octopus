@@ -121,9 +121,9 @@ if [[ -f "$MARKETPLACE_JSON" ]]; then
     echo "$description" | grep -qi "automat\|orchestrat" && mentions_automation=true
 
     feature_count=0
-    $mentions_multi_ai && ((feature_count++))
-    $mentions_workflows && ((feature_count++))
-    $mentions_automation && ((feature_count++))
+    $mentions_multi_ai && ((feature_count++)) || true
+    $mentions_workflows && ((feature_count++)) || true
+    $mentions_automation && ((feature_count++)) || true
 
     if [[ $feature_count -ge 1 ]]; then
         pass "marketplace.json description mentions core features"
