@@ -13,7 +13,7 @@ When the user invokes this command (e.g., `/octo:ink <arguments>`):
 
 Output this text to the user before executing:
 
-```
+```text
 🐙 CLAUDE OCTOPUS ACTIVATED - Multi-provider validation mode
 ✅ Deliver Phase: <brief description of what's being validated>
 
@@ -52,7 +52,7 @@ fi
 
 Read the synthesis file content and present it to the user with this footer:
 
-```
+```text
 ---
 Multi-AI Validation powered by Claude Octopus
 Providers: 🔴 Codex | 🟡 Gemini | 🔵 Claude
@@ -92,7 +92,7 @@ The **Deliver** phase of the Double Diamond methodology:
 
 ## Natural Language Examples
 
-```
+```text
 "Review the authentication module for production"
 "Ink validation of the payment processing code"
 "Quality assurance check for the new API"

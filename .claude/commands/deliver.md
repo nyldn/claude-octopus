@@ -15,7 +15,7 @@ When the user invokes this command (e.g., `/octo:deliver <arguments>`):
 
 Output this text to the user before executing:
 
-```
+```text
 🐙 CLAUDE OCTOPUS ACTIVATED - Multi-provider validation mode
 ✅ Deliver Phase: <brief description of what's being validated>
 
@@ -54,7 +54,7 @@ fi
 
 Read the synthesis file content and present it to the user with this footer:
 
-```
+```text
 ---
 Multi-AI Validation powered by Claude Octopus
 Providers: 🔴 Codex | 🟡 Gemini | 🔵 Claude
@@ -76,7 +76,7 @@ Full synthesis: <path to synthesis file>
 
 ## Natural Language Examples
 
-```
+```text
 "Review the authentication code for security"
 "Validate the caching implementation"
 "Test the notification system"

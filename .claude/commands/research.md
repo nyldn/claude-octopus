@@ -13,7 +13,7 @@ When the user invokes this command (e.g., `/octo:research <arguments>`):
 
 Output this text to the user before executing:
 
-```
+```text
 🐙 CLAUDE OCTOPUS ACTIVATED - Multi-provider research mode
 🔍 Deep Research: <brief description of topic>
 
@@ -52,7 +52,7 @@ fi
 
 Read the synthesis file content and present it to the user with this footer:
 
-```
+```text
 ---
 Multi-AI Research powered by Claude Octopus
 Providers: 🔴 Codex | 🟡 Gemini | 🔵 Claude
@@ -69,7 +69,7 @@ Full synthesis: <path to synthesis file>
 ## Quick Usage
 
 Just use natural language:
-```
+```text
 "Research OAuth 2.0 authentication patterns"
 "Deep research on microservices architecture best practices"
 "Research the trade-offs between Redis and Memcached"

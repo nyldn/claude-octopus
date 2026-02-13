@@ -13,7 +13,7 @@ When the user invokes this command (e.g., `/octo:validate <arguments>`):
 
 Output this text to the user before executing:
 
-```
+```text
 🐙 CLAUDE OCTOPUS ACTIVATED - Multi-provider validation mode
 ✅ Validate: <brief description of target>
 
@@ -52,7 +52,7 @@ fi
 
 Read the result file content and present it to the user with this footer:
 
-```
+```text
 ---
 Multi-AI Validation powered by Claude Octopus
 Providers: 🔴 Codex | 🟡 Gemini | 🔵 Claude

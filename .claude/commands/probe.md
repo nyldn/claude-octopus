@@ -13,7 +13,7 @@ When the user invokes this command (e.g., `/octo:probe <arguments>`):
 
 Output this text to the user before executing:
 
-```
+```text
 🐙 CLAUDE OCTOPUS ACTIVATED - Multi-provider research mode
 🔍 Discover Phase: <brief description of research topic>
 
@@ -52,7 +52,7 @@ fi
 
 Read the synthesis file content and present it to the user with this footer:
 
-```
+```text
 ---
 Multi-AI Research powered by Claude Octopus
 Providers: 🔴 Codex | 🟡 Gemini | 🔵 Claude
@@ -92,7 +92,7 @@ The **Discover** phase of the Double Diamond methodology:
 
 ## Natural Language Examples
 
-```
+```text
 "Research OAuth 2.0 vs JWT authentication"
 "Probe database options for our use case"
 "Explore state management patterns for React"

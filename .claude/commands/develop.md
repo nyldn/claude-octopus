@@ -15,7 +15,7 @@ When the user invokes this command (e.g., `/octo:develop <arguments>`):
 
 Output this text to the user before executing:
 
-```
+```text
 🐙 CLAUDE OCTOPUS ACTIVATED - Multi-provider implementation mode
 🛠️ Develop Phase: <brief description of what's being built>
 
@@ -54,7 +54,7 @@ fi
 
 Read the synthesis file content and present it to the user with this footer:
 
-```
+```text
 ---
 Multi-AI Implementation powered by Claude Octopus
 Providers: 🔴 Codex | 🟡 Gemini | 🔵 Claude
@@ -76,7 +76,7 @@ Full synthesis: <path to synthesis file>
 
 ## Natural Language Examples
 
-```
+```text
 "Build a user authentication system"
 "Implement OAuth 2.0 flow"
 "Create a caching layer for the API"

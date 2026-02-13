@@ -15,7 +15,7 @@ When the user invokes this command (e.g., `/octo:define <arguments>`):
 
 Output this text to the user before executing:
 
-```
+```text
 🐙 CLAUDE OCTOPUS ACTIVATED - Multi-provider definition mode
 🎯 Define Phase: <brief description of what needs scoping>
 
@@ -54,7 +54,7 @@ fi
 
 Read the synthesis file content and present it to the user with this footer:
 
-```
+```text
 ---
 Multi-AI Definition powered by Claude Octopus
 Providers: 🔴 Codex | 🟡 Gemini | 🔵 Claude
@@ -76,7 +76,7 @@ Full synthesis: <path to synthesis file>
 
 ## Natural Language Examples
 
-```
+```text
 "Define the requirements for user authentication"
 "Clarify the scope of the caching feature"
 "What exactly does the notification system need to do?"

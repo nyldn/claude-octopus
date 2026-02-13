@@ -63,7 +63,7 @@ AskUserQuestion({
 
 Output this text to the user before executing:
 
-```
+```text
 🐙 CLAUDE OCTOPUS ACTIVATED - Multi-provider research mode
 🔍 Discover Phase: <brief description of research topic>
 
@@ -102,7 +102,7 @@ fi
 
 Read the synthesis file content and present it to the user with this footer:
 
-```
+```text
 ---
 Multi-AI Research powered by Claude Octopus
 Providers: 🔴 Codex | 🟡 Gemini | 🔵 Claude
@@ -124,7 +124,7 @@ Full synthesis: <path to synthesis file>
 
 ## Natural Language Examples
 
-```
+```text
 "Research OAuth authentication patterns"
 "Explore caching strategies for high-traffic APIs"
 "Investigate microservices best practices"

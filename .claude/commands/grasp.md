@@ -13,7 +13,7 @@ When the user invokes this command (e.g., `/octo:grasp <arguments>`):
 
 Output this text to the user before executing:
 
-```
+```text
 🐙 CLAUDE OCTOPUS ACTIVATED - Multi-provider definition mode
 🎯 Define Phase: <brief description of what needs scoping>
 
@@ -52,7 +52,7 @@ fi
 
 Read the synthesis file content and present it to the user with this footer:
 
-```
+```text
 ---
 Multi-AI Definition powered by Claude Octopus
 Providers: 🔴 Codex | 🟡 Gemini | 🔵 Claude
@@ -92,7 +92,7 @@ The **Define** phase of the Double Diamond methodology:
 
 ## Natural Language Examples
 
-```
+```text
 "Define the requirements for user authentication"
 "Grasp what we need for the payment system integration"
 "Clarify the scope of the API v2 redesign"

@@ -61,7 +61,7 @@ AskUserQuestion({
 
 Output this text to the user before executing:
 
-```
+```text
 🐙 CLAUDE OCTOPUS ACTIVATED - Multi-provider code review
 📝 Review: <brief description of what's being reviewed>
 
@@ -100,7 +100,7 @@ fi
 
 Read the result file content and present it to the user with this footer:
 
-```
+```text
 ---
 Multi-AI Code Review powered by Claude Octopus
 Providers: 🔴 Codex | 🟡 Gemini | 🔵 Claude
@@ -117,7 +117,7 @@ Full report: <path to result file>
 ## Quick Usage
 
 Just use natural language:
-```
+```text
 "Review my authentication code for security issues"
 "Code review the API endpoints in src/api/"
 "Review this PR for quality and performance"
@@ -134,7 +134,7 @@ Just use natural language:
 
 ## Natural Language Examples
 
-```
+```text
 "Review the auth module for security vulnerabilities"
 "Quick review of my changes before I commit"
 "Comprehensive code review of the payment processing code"

@@ -13,7 +13,7 @@ When the user invokes this command (e.g., `/octo:debug <arguments>`):
 
 Output this text to the user before executing:
 
-```
+```text
 🐙 CLAUDE OCTOPUS ACTIVATED - Multi-provider debugging mode
 🔧 Debug: <brief description of the bug>
 
@@ -52,7 +52,7 @@ fi
 
 Read the synthesis file content and present it to the user with this footer:
 
-```
+```text
 ---
 Multi-AI Debugging powered by Claude Octopus
 Providers: 🔴 Codex | 🟡 Gemini | 🔵 Claude
@@ -85,7 +85,7 @@ Full synthesis: <path to synthesis file>
 
 ## Natural Language Examples
 
-```
+```text
 "Debug the failing test in test_auth.py"
 "Help me debug why the API is returning 500 errors"
 "Systematic debugging of the memory usage issue"

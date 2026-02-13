@@ -13,7 +13,7 @@ When the user invokes this command (e.g., `/octo:tangle <arguments>`):
 
 Output this text to the user before executing:
 
-```
+```text
 🐙 CLAUDE OCTOPUS ACTIVATED - Multi-provider implementation mode
 🛠️ Develop Phase: <brief description of what's being built>
 
@@ -52,7 +52,7 @@ fi
 
 Read the synthesis file content and present it to the user with this footer:
 
-```
+```text
 ---
 Multi-AI Implementation powered by Claude Octopus
 Providers: 🔴 Codex | 🟡 Gemini | 🔵 Claude
@@ -90,7 +90,7 @@ The **Develop** phase of the Double Diamond methodology:
 
 ## Natural Language Examples
 
-```
+```text
 "Build a user authentication system with OAuth"
 "Tangle the payment processing integration"
 "Develop the real-time notification system"

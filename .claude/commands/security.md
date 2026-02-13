@@ -61,7 +61,7 @@ AskUserQuestion({
 
 Output this text to the user before executing:
 
-```
+```text
 🐙 CLAUDE OCTOPUS ACTIVATED - Security audit mode
 🔐 Audit: <brief description of target>
 
@@ -100,7 +100,7 @@ fi
 
 Read the result file content and present it to the user with this footer:
 
-```
+```text
 ---
 Multi-AI Security Audit powered by Claude Octopus
 Providers: 🔴 Codex | 🟡 Gemini | 🔵 Claude
@@ -117,7 +117,7 @@ Full report: <path to result file>
 ## Quick Usage
 
 Just use natural language:
-```
+```text
 "Security audit of the authentication module"
 "Check auth.ts for security vulnerabilities"
 "Security review of our API endpoints"
@@ -135,7 +135,7 @@ Just use natural language:
 
 ## Natural Language Examples
 
-```
+```text
 "Security audit of the payment processing code"
 "Check for SQL injection vulnerabilities in the API"
 "Comprehensive security review of user authentication"
