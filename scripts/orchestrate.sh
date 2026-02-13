@@ -4326,37 +4326,31 @@ display_rich_progress() {
     local task_group="$1"
     local total_agents="$2"
     local start_time="$3"
-    shift 3
+    local agents_str="$4"
+    local names_str="$5"
+    shift 5
     local pids=("$@")
 
-    # Agent metadata arrays
-    local -a agent_names=()
+    # Agent metadata arrays from caller
     local -a agent_types=()
-
-    # Build agent info from task IDs
-    for i in $(seq 0 $((total_agents - 1))); do
-        local agent="gemini"
-        [[ $((i % 2)) -eq 0 ]] && agent="codex"
-        agent_types+=("$agent")
-
-        case $i in
-            0) agent_names+=("Problem Analysis") ;;
-            1) agent_names+=("Solution Research") ;;
-            2) agent_names+=("Edge Cases") ;;
-            3) agent_names+=("Feasibility") ;;
-            *) agent_names+=("Agent $i") ;;
-        esac
-    done
+    local -a agent_names=()
+    IFS=',' read -ra agent_types <<< "$agents_str"
+    IFS=',' read -ra agent_names <<< "$names_str"
 
     # Progress bar function
     local bar_width=20
+    local first_iteration=true
 
     while true; do
         local all_done=true
         local completed=0
 
         # Clear previous output (move cursor up and clear)
-        [[ $completed -gt 0 ]] && printf "\033[%dA" $((total_agents + 4))
+        if $first_iteration; then
+            first_iteration=false
+        else
+            printf "\033[%dA" $((total_agents + 5))
+        fi
 
         # Header
         echo -e "${MAGENTA}╔═══════════════════════════════════════════════════════════╗${NC}"
@@ -4433,6 +4427,7 @@ display_rich_progress() {
             # Display row with emoji for agent type
             local agent_emoji="🔴"
             [[ "$agent_type" == "gemini" ]] && agent_emoji="🟡"
+            [[ "$agent_type" == "claude-sonnet" ]] && agent_emoji="🔵"
 
             printf " %b %s %-18s [%b%s%b] %6s\n" \
                 "$status_icon" \
@@ -11481,6 +11476,8 @@ probe_discover() {
 
     local pids=()
     local probe_agents=("codex" "gemini" "claude-sonnet" "codex" "gemini")
+    local start_time
+    start_time=$(date +%s)
     for i in "${!perspectives[@]}"; do
         local perspective="${perspectives[$i]}"
         local agent="${probe_agents[$i]}"
@@ -11518,8 +11515,10 @@ probe_discover() {
         wait_async_agents "${pids[@]}"
     else
         # v7.19.0 P1.2: Rich progress display
-        local start_time=$(date +%s)
-        display_rich_progress "$task_group" "${#pids[@]}" "$start_time" "${pids[@]}"
+        local agents_csv names_csv
+        agents_csv=$(IFS=','; echo "${probe_agents[*]}")
+        names_csv=$(IFS=','; echo "${pane_titles[*]}")
+        display_rich_progress "$task_group" "${#pids[@]}" "$start_time" "$agents_csv" "$names_csv" "${pids[@]}"
     fi
 
     # Cleanup tmux if enabled
@@ -11592,6 +11591,7 @@ probe_discover() {
 
     # Intelligent synthesis (v7.19.0 P1.1: allow with partial results)
     synthesize_probe_results "$task_group" "$prompt" "$usable_results"
+    trap 'exit 0' TERM
 
     # v7.19.0 P2.4: Stop progressive synthesis monitor
     if [[ -n "$synthesis_monitor_pid" ]]; then
