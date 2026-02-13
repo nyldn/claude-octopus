@@ -4616,7 +4616,7 @@ synthesize_probe_results_partial() {
     local results=""
     local result_count=0
     for result in "$RESULTS_DIR"/*-probe-${task_group}-*.md; do
-        [[ ! -f "$result" ]] || continue
+        [[ -f "$result" ]] || continue
         local file_size
         file_size=$(wc -c < "$result" 2>/dev/null || echo "0")
         if [[ $file_size -gt 500 ]]; then
@@ -10861,7 +10861,6 @@ run_agent_sync() {
     local -a cmd_array
     if ! get_agent_command_array "$agent_type" cmd_array; then
         log ERROR "Failed to build command array for: $agent_type"
-        rm -f "$temp_err"
         return 1
     fi
 
