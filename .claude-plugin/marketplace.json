@@ -1,7 +1,7 @@
 {
-  "name": "nyldn-plugins",
+  "name": "ayoahha-plugins",
   "owner": {
-    "name": "nyldn"
+    "name": "ayoahha"
   },
   "metadata": {
     "description": "Multi-tentacled orchestration plugin for Claude Code",
@@ -14,7 +14,7 @@
       "description": "v8.7.0 - Security hardening, performance optimization, Agent Teams Bridge. CLI trust markers, env isolation, result integrity, model tier selection, convergence detection, semantic cache, unified task ledger. v2.1.38+ integration, GPT-5.3-Codex, 29 personas, 38 commands, 43 skills. Run /octo:setup.",
       "version": "8.7.0",
       "author": {
-        "name": "nyldn"
+        "name": "ayoahha"
       },
       "repository": "https://github.com/ayoahha/claude-octopus",
       "license": "MIT",

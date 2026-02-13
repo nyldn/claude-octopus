@@ -37,7 +37,7 @@ fi
 
 if [[ "$MARKETPLACE_PLUGIN_NAME" != "claude-octopus" ]]; then
     echo -e "  ${RED}CRITICAL ERROR: marketplace.json plugin name is '$MARKETPLACE_PLUGIN_NAME' - MUST be 'claude-octopus'${NC}"
-    echo -e "  ${RED}This controls install command (claude-octopus@nyldn-plugins)${NC}"
+    echo -e "  ${RED}This controls install command (claude-octopus@ayoahha-plugins)${NC}"
     ((errors++))
 else
     echo -e "  ${GREEN}✓ marketplace.json plugin name: claude-octopus (install name)${NC}"

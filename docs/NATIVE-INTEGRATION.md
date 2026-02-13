@@ -54,7 +54,7 @@ See [MIGRATION-7.23.0.md](../MIGRATION-7.23.0.md) for complete migration guide.
 cp .claude/todos.md .claude/todos.md.backup
 
 # Run migration
-~/.claude/plugins/cache/nyldn-plugins/claude-octopus/7.23.0/scripts/migrate-todos.sh
+~/.claude/plugins/cache/ayoahha-plugins/claude-octopus/7.23.0/scripts/migrate-todos.sh
 
 # Verify tasks
 /tasks
@@ -477,7 +477,7 @@ Each phase includes validation:
 **Solution:**
 ```bash
 # Run migration
-~/.claude/plugins/cache/nyldn-plugins/claude-octopus/7.23.0/scripts/migrate-todos.sh
+~/.claude/plugins/cache/ayoahha-plugins/claude-octopus/7.23.0/scripts/migrate-todos.sh
 
 # View native tasks
 /tasks
@@ -571,7 +571,7 @@ const task = TaskGet({ taskId: "1" })
 
 ---
 
-**Questions?** Open an issue: https://github.com/nyldn/claude-octopus/issues
+**Questions?** Open an issue: https://github.com/ayoahha/claude-octopus/issues
 
 ---
 
