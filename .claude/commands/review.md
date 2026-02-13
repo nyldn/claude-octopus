@@ -5,7 +5,7 @@ description: Expert code review with comprehensive quality assessment and securi
 
 # Review - Code Quality Assessment
 
-## 🤖 INSTRUCTIONS FOR CLAUDE
+## INSTRUCTIONS FOR CLAUDE
 
 When the user invokes this command (e.g., `/octo:review <arguments>`):
 
@@ -55,25 +55,64 @@ AskUserQuestion({
 })
 ```
 
-**After receiving answers, incorporate them into the review focus and depth.**
+**After receiving answers, incorporate them into the review prompt.**
 
-### Step 2: Execute Review with Skill Tool
+### Step 2: Display Banner
 
-**✓ CORRECT - Use the Skill tool:**
+Output this text to the user before executing:
+
 ```
-Skill(skill: "octo:review", args: "<user's arguments + context>")
+🐙 CLAUDE OCTOPUS ACTIVATED - Multi-provider code review
+📝 Review: <brief description of what's being reviewed>
+
+Providers:
+🔴 Codex CLI - Code quality analysis
+🟡 Gemini CLI - Alternative patterns and edge cases
+🔵 Claude - Synthesis and recommendations
 ```
 
-**✗ INCORRECT - Do NOT use Task tool:**
-```
-Task(subagent_type: "octo:review", ...)  ❌ Wrong! This is a skill, not an agent type
+### Step 3: Execute orchestrate.sh (USE BASH TOOL NOW)
+
+**CRITICAL: You MUST execute this bash command. Do NOT skip it.**
+
+```bash
+OCTOPUS_AGENT_TEAMS=legacy "${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh" auto "review <user's code review request>"
 ```
 
-**Why:** This command loads the `skill-code-review` skill. Skills use the `Skill` tool, not `Task`.
+**WAIT for completion. Do NOT proceed until it finishes.**
 
+If it fails, show the error. Do NOT fall back to direct code review.
+
+### Step 4: Read Results
+
+```bash
+RESULT_FILE=$(find ~/.claude-octopus/results -name "delivery-*.md" 2>/dev/null | sort -r | head -n1)
+if [[ -z "$RESULT_FILE" ]]; then
+  echo "ERROR: No result file found"
+  ls -lt ~/.claude-octopus/results/ 2>/dev/null | head -5
+else
+  echo "OK: $RESULT_FILE"
+  cat "$RESULT_FILE"
+fi
+```
+
+### Step 5: Present Results
+
+Read the result file content and present it to the user with this footer:
+
+```
 ---
+Multi-AI Code Review powered by Claude Octopus
+Providers: 🔴 Codex | 🟡 Gemini | 🔵 Claude
+Full report: <path to result file>
+```
 
-**Auto-loads the `skill-code-review` skill for comprehensive code review.**
+## PROHIBITIONS
+
+- Do NOT review code yourself without orchestrate.sh
+- Do NOT use Skill tool or Task tool as substitute
+- Do NOT use `Task(octo:personas:code-reviewer)` or any Task agent
+- If orchestrate.sh fails, tell the user - do NOT work around it
 
 ## Quick Usage
 
@@ -93,12 +132,6 @@ Just use natural language:
 - Test coverage and quality
 - Error handling and edge cases
 
-## Review Types
-
-- **Quick Review**: Pre-commit checks (use `/octo:quick-review` or just say "quick review")
-- **Full Review**: Comprehensive analysis with security audit
-- **Security Focus**: Deep security and vulnerability assessment
-
 ## Natural Language Examples
 
 ```
@@ -106,5 +139,3 @@ Just use natural language:
 "Quick review of my changes before I commit"
 "Comprehensive code review of the payment processing code"
 ```
-
-The skill will automatically analyze your code and provide detailed feedback with specific recommendations.

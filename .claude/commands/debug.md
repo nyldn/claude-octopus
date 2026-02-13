@@ -3,36 +3,68 @@ command: debug
 description: Systematic debugging with methodical problem investigation
 ---
 
-# Debug - Systematic Debugging Skill
+# Debug - Multi-AI Debugging
 
-## 🤖 INSTRUCTIONS FOR CLAUDE
+## INSTRUCTIONS FOR CLAUDE
 
 When the user invokes this command (e.g., `/octo:debug <arguments>`):
 
-**✓ CORRECT - Use the Skill tool:**
+### Step 1: Display Banner
+
+Output this text to the user before executing:
+
 ```
-Skill(skill: "octo:debug", args: "<user's arguments>")
+🐙 CLAUDE OCTOPUS ACTIVATED - Multi-provider debugging mode
+🔧 Debug: <brief description of the bug>
+
+Providers:
+🔴 Codex CLI - Code analysis and root cause
+🟡 Gemini CLI - Pattern matching and similar issues
+🔵 Claude - Synthesis and fix recommendation
 ```
 
-**✗ INCORRECT - Do NOT use Task tool:**
-```
-Task(subagent_type: "octo:debug", ...)  ❌ Wrong! This is a skill, not an agent type
+### Step 2: Execute orchestrate.sh (USE BASH TOOL NOW)
+
+**CRITICAL: You MUST execute this bash command. Do NOT skip it.**
+
+```bash
+OCTOPUS_AGENT_TEAMS=legacy "${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh" probe "Debug: <user's bug description>"
 ```
 
-**Why:** This command loads the `skill-debug` skill. Skills use the `Skill` tool, not `Task`.
+**WAIT for completion. Do NOT proceed until it finishes.**
 
+If it fails, show the error. Do NOT fall back to direct debugging.
+
+### Step 3: Read Synthesis
+
+```bash
+SYNTHESIS_FILE=$(find ~/.claude-octopus/results -name "probe-synthesis-*.md" 2>/dev/null | sort -r | head -n1)
+if [[ -z "$SYNTHESIS_FILE" ]]; then
+  echo "ERROR: No synthesis file found"
+  ls -lt ~/.claude-octopus/results/ 2>/dev/null | head -5
+else
+  echo "OK: $SYNTHESIS_FILE"
+  cat "$SYNTHESIS_FILE"
+fi
+```
+
+### Step 4: Present Results
+
+Read the synthesis file content and present it to the user with this footer:
+
+```
 ---
-
-**Auto-loads the `skill-debug` skill for methodical bug investigation.**
-
-## Quick Usage
-
-Just use natural language:
+Multi-AI Debugging powered by Claude Octopus
+Providers: 🔴 Codex | 🟡 Gemini | 🔵 Claude
+Full synthesis: <path to synthesis file>
 ```
-"Debug why the login is failing"
-"Help me debug this memory leak"
-"Systematically debug the API timeout issue"
-```
+
+## PROHIBITIONS
+
+- Do NOT debug the issue yourself without orchestrate.sh
+- Do NOT use Skill tool or Task tool as substitute
+- Do NOT use `Task(octo:personas:debugger)` or any Task agent
+- If orchestrate.sh fails, tell the user - do NOT work around it
 
 ## Debugging Approach
 

@@ -2,13 +2,12 @@
 command: discover
 description: "Discovery phase - Multi-AI research and exploration"
 aliases:
-  - probe
   - research-phase
 ---
 
 # Discover - Discovery Phase 🔍
 
-## 🤖 INSTRUCTIONS FOR CLAUDE
+## INSTRUCTIONS FOR CLAUDE
 
 When the user invokes this command (e.g., `/octo:discover <arguments>`):
 
@@ -58,17 +57,64 @@ AskUserQuestion({
 })
 ```
 
-**After receiving answers, incorporate them into the research execution and pass to multi-AI providers.**
+**After receiving answers, incorporate them into the research prompt.**
 
-### Step 2: Check Provider Availability & Execute
+### Step 2: Display Banner
 
-Check which AI providers are available and proceed with multi-perspective research incorporating user context.
+Output this text to the user before executing:
 
+```
+🐙 CLAUDE OCTOPUS ACTIVATED - Multi-provider research mode
+🔍 Discover Phase: <brief description of research topic>
+
+Providers:
+🔴 Codex CLI - Technical implementation analysis
+🟡 Gemini CLI - Ecosystem and community research
+🔵 Claude - Strategic synthesis
+```
+
+### Step 3: Execute orchestrate.sh (USE BASH TOOL NOW)
+
+**CRITICAL: You MUST execute this bash command. Do NOT skip it.**
+
+```bash
+OCTOPUS_AGENT_TEAMS=legacy "${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh" probe "<user's research question>"
+```
+
+**WAIT for completion. Do NOT proceed until it finishes.**
+
+If it fails, show the error. Do NOT fall back to direct research.
+
+### Step 4: Read Synthesis
+
+```bash
+SYNTHESIS_FILE=$(find ~/.claude-octopus/results -name "probe-synthesis-*.md" 2>/dev/null | sort -r | head -n1)
+if [[ -z "$SYNTHESIS_FILE" ]]; then
+  echo "ERROR: No synthesis file found"
+  ls -lt ~/.claude-octopus/results/ 2>/dev/null | head -5
+else
+  echo "OK: $SYNTHESIS_FILE"
+  cat "$SYNTHESIS_FILE"
+fi
+```
+
+### Step 5: Present Results
+
+Read the synthesis file content and present it to the user with this footer:
+
+```
 ---
+Multi-AI Research powered by Claude Octopus
+Providers: 🔴 Codex | 🟡 Gemini | 🔵 Claude
+Full synthesis: <path to synthesis file>
+```
 
-**Part of Double Diamond: DISCOVER** (divergent thinking)
+## PROHIBITIONS
 
-Multi-perspective research using external CLI providers.
+- Do NOT research the topic yourself without orchestrate.sh
+- Do NOT use Skill tool or Task tool as substitute
+- Do NOT use WebSearch, WebFetch, or any Task agents
+- If orchestrate.sh fails, tell the user - do NOT work around it
 
 ## Usage
 
@@ -78,44 +124,16 @@ Multi-perspective research using external CLI providers.
 
 ## Natural Language Examples
 
-Just describe what you want to research:
-
 ```
 "Research OAuth authentication patterns"
 "Explore caching strategies for high-traffic APIs"
 "Investigate microservices best practices"
-"What are the options for real-time data sync?"
 ```
-
-## What This Phase Does
-
-The **discover** phase executes multi-perspective research using external CLI providers:
-
-1. **🔴 Codex CLI** - Technical implementation analysis, code patterns, framework specifics
-2. **🟡 Gemini CLI** - Broad ecosystem research, community insights, alternative approaches
-3. **🔵 Claude (You)** - Strategic synthesis and recommendation
-
-This is the **divergent** phase - we cast a wide net to explore all possibilities before narrowing down.
-
-## When to Use Discover
-
-Use discover when you need:
-- **Research**: "What are authentication best practices in 2025?"
-- **Exploration**: "What are the different caching strategies available?"
-- **Options Analysis**: "What libraries can I use for date handling?"
-- **Comparative Research**: "Compare Redis vs Memcached for session storage"
-- **Ecosystem Understanding**: "What's the state of React server components?"
-- **Pattern Discovery**: "What are common API pagination patterns?"
-
-**Don't use discover for:**
-- Reading files in the current project (use Read tool)
-- Questions about specific implementation details (use code review)
-- Quick factual questions Claude knows (no need for multi-provider)
 
 ## Part of the Full Workflow
 
 Discover is phase 1 of 4 in the embrace (full) workflow:
-1. **Discover** ← You are here
+1. **Discover** - You are here
 2. Define
 3. Develop
 4. Deliver

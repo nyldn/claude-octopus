@@ -3,27 +3,68 @@ command: research
 description: Deep research with multi-source synthesis and comprehensive analysis
 ---
 
-# Research - Deep Research Skill
+# Research - Deep Multi-AI Research
 
-## 🤖 INSTRUCTIONS FOR CLAUDE
+## INSTRUCTIONS FOR CLAUDE
 
 When the user invokes this command (e.g., `/octo:research <arguments>`):
 
-**✓ CORRECT - Use the Skill tool:**
+### Step 1: Display Banner
+
+Output this text to the user before executing:
+
 ```
-Skill(skill: "octo:research", args: "<user's arguments>")
+🐙 CLAUDE OCTOPUS ACTIVATED - Multi-provider research mode
+🔍 Deep Research: <brief description of topic>
+
+Providers:
+🔴 Codex CLI - Technical analysis
+🟡 Gemini CLI - Ecosystem research
+🔵 Claude - Strategic synthesis
 ```
 
-**✗ INCORRECT - Do NOT use Task tool:**
-```
-Task(subagent_type: "octo:research", ...)  ❌ Wrong! This is a skill, not an agent type
+### Step 2: Execute orchestrate.sh (USE BASH TOOL NOW)
+
+**CRITICAL: You MUST execute this bash command. Do NOT skip it.**
+
+```bash
+OCTOPUS_AGENT_TEAMS=legacy "${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh" probe "<user's research question>"
 ```
 
-**Why:** This command loads the `skill-deep-research` skill. Skills use the `Skill` tool, not `Task`.
+**WAIT for completion. Do NOT proceed until it finishes.**
 
+If it fails, show the error. Do NOT fall back to direct research.
+
+### Step 3: Read Synthesis
+
+```bash
+SYNTHESIS_FILE=$(find ~/.claude-octopus/results -name "probe-synthesis-*.md" -mmin -10 2>/dev/null | sort -r | head -n1)
+if [[ -z "$SYNTHESIS_FILE" ]]; then
+  echo "ERROR: No synthesis file found"
+  ls -lt ~/.claude-octopus/results/ 2>/dev/null | head -5
+else
+  echo "OK: $SYNTHESIS_FILE"
+  cat "$SYNTHESIS_FILE"
+fi
+```
+
+### Step 4: Present Results
+
+Read the synthesis file content and present it to the user with this footer:
+
+```
 ---
+Multi-AI Research powered by Claude Octopus
+Providers: 🔴 Codex | 🟡 Gemini | 🔵 Claude
+Full synthesis: <path to synthesis file>
+```
 
-**Auto-loads the `skill-deep-research` skill for comprehensive research tasks.**
+## PROHIBITIONS
+
+- Do NOT research the topic yourself without orchestrate.sh
+- Do NOT use Skill tool or Task tool as substitute
+- Do NOT use WebSearch, WebFetch, or any Task agents
+- If orchestrate.sh fails, tell the user - do NOT work around it
 
 ## Quick Usage
 
@@ -41,18 +82,3 @@ Just use natural language:
 - Pros/cons evaluation
 - Best practice recommendations
 - Implementation considerations
-
-## Research Depth
-
-The skill automatically adapts to your needs:
-- **Quick**: Fast overview of key concepts
-- **Standard**: Comprehensive analysis with examples
-- **Deep**: Thorough research with citations and evidence
-
-## Natural Language Examples
-
-```
-"Research GraphQL vs REST API design patterns"
-"I need deep research on Kubernetes security best practices"
-"Research authentication strategies for microservices"
-```

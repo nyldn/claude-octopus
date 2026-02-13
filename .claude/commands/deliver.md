@@ -2,15 +2,71 @@
 command: deliver
 description: "Delivery phase - Review, validate, and test with multi-AI quality assurance"
 aliases:
-  - ink
   - review-phase
 ---
 
 # Deliver - Delivery Phase ✅
 
-**Part of Double Diamond: DELIVER** (convergent thinking)
+## INSTRUCTIONS FOR CLAUDE
 
-Review, validate, and test using external CLI providers.
+When the user invokes this command (e.g., `/octo:deliver <arguments>`):
+
+### Step 1: Display Banner
+
+Output this text to the user before executing:
+
+```
+🐙 CLAUDE OCTOPUS ACTIVATED - Multi-provider validation mode
+✅ Deliver Phase: <brief description of what's being validated>
+
+Providers:
+🔴 Codex CLI - Code quality, best practices, technical correctness
+🟡 Gemini CLI - Security audit, edge cases, user experience
+🔵 Claude - Synthesis and final validation report
+```
+
+### Step 2: Execute orchestrate.sh (USE BASH TOOL NOW)
+
+**CRITICAL: You MUST execute this bash command. Do NOT skip it.**
+
+```bash
+OCTOPUS_AGENT_TEAMS=legacy "${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh" deliver "<user's validation request>"
+```
+
+**WAIT for completion. Do NOT proceed until it finishes.**
+
+If it fails, show the error. Do NOT fall back to direct review.
+
+### Step 3: Read Synthesis
+
+```bash
+SYNTHESIS_FILE=$(find ~/.claude-octopus/results -name "delivery-*.md" 2>/dev/null | sort -r | head -n1)
+if [[ -z "$SYNTHESIS_FILE" ]]; then
+  echo "ERROR: No synthesis file found"
+  ls -lt ~/.claude-octopus/results/ 2>/dev/null | head -5
+else
+  echo "OK: $SYNTHESIS_FILE"
+  cat "$SYNTHESIS_FILE"
+fi
+```
+
+### Step 4: Present Results
+
+Read the synthesis file content and present it to the user with this footer:
+
+```
+---
+Multi-AI Validation powered by Claude Octopus
+Providers: 🔴 Codex | 🟡 Gemini | 🔵 Claude
+Full synthesis: <path to synthesis file>
+```
+
+## PROHIBITIONS
+
+- Do NOT review/validate yourself without orchestrate.sh
+- Do NOT use Skill tool or Task tool as substitute
+- Do NOT use any Task agents or native personas
+- If orchestrate.sh fails, tell the user - do NOT work around it
 
 ## Usage
 
@@ -20,24 +76,12 @@ Review, validate, and test using external CLI providers.
 
 ## Natural Language Examples
 
-Just describe what you want to validate:
-
 ```
 "Review the authentication code for security"
 "Validate the caching implementation"
 "Test the notification system"
 "Quality check the API endpoints"
 ```
-
-## What This Phase Does
-
-The **deliver** phase validates and reviews implementations using external CLI providers:
-
-1. **🔴 Codex CLI** - Code quality, best practices, technical correctness
-2. **🟡 Gemini CLI** - Security audit, edge cases, user experience
-3. **🔵 Claude (You)** - Synthesis and final validation report
-
-This is the **convergent** phase - we ensure the solution meets quality standards before delivery.
 
 ## Quality Checks
 
@@ -55,8 +99,6 @@ Use deliver when you need:
 - **Validation**: "Validate Z"
 - **Testing**: "Test the implementation"
 - **Quality Check**: "Check if X works correctly"
-- **Verification**: "Verify the implementation of Y"
-- **Issue Finding**: "Find issues in Z"
 
 **Don't use deliver for:**
 - Implementation tasks (use develop phase)
@@ -69,6 +111,6 @@ Deliver is phase 4 of 4 in the embrace (full) workflow:
 1. Discover
 2. Define
 3. Develop
-4. **Deliver** ← You are here
+4. **Deliver** - You are here
 
 To run all 4 phases: `/octo:embrace`
