@@ -2,6 +2,23 @@
 
 All notable changes to Claude Octopus will be documented in this file.
 
+## [8.7.1] - 2026-02-13
+
+### Fixed
+
+- **CI workflow `test.yml`**: Upgraded actions/checkout v3->v4, removed broken `coverage` and `e2e` jobs, simplified `test-summary`
+- **CI workflow `claude-octopus.yml`**: Corrected npm package names (`@openai/codex`, `@google/gemini-cli`)
+- **Bash strict mode bugs**: Fixed `((var++))` under `set -e` in test-version-consistency, test-intent-contract-skill, test-enforcement-pattern (added `|| true`)
+- **Pipeline failures**: Fixed `echo | grep && var=true` under `pipefail` in test-version-consistency
+- **Test expectations**: Corrected Claude CLI flag `-m` to `--model` in test-v8.0.0-opus-integration, updated test-enforcement-pattern to match actual skill content
+- **Namespace rename**: `nyldn` -> `ayoahha` across package.json, README.md, marketplace.json, test-plugin-lifecycle.sh
+- **orchestrate.sh**: Fixed inverted file guard (line 4619), removed undefined `temp_err` variable (line 10864)
+- **Skill files**: Removed stale `-mmin -10` time filter from flow-discover.md and skill-debug.md
+- **Plugin name**: marketplace.json `"octo"` -> `"claude-octopus"` to match validate-release.sh expectations
+- **`.gitignore`**: Added verification marker patterns (`.claude-verified-*`, `.codex-verified-*`)
+
+---
+
 ## [8.7.0] - 2026-02-10
 
 ### Added
