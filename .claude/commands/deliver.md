@@ -30,6 +30,7 @@ Providers:
 **CRITICAL: You MUST execute this bash command. Do NOT skip it.**
 
 ```bash
+CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(jq -r '.plugins["octo@ayoahha-plugins"][0].installPath' ~/.claude/plugins/installed_plugins.json)}"
 OCTOPUS_AGENT_TEAMS=legacy "${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh" deliver "<user's validation request>"
 ```
 

@@ -14,6 +14,7 @@ This command checks your current setup and provides instructions for any missing
 Running setup detection...
 
 ```bash
+CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(jq -r '.plugins["octo@ayoahha-plugins"][0].installPath' ~/.claude/plugins/installed_plugins.json)}"
 ${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh detect-providers
 ```
 
@@ -101,6 +102,7 @@ export GEMINI_API_KEY="AIza..."
 
 After installing and configuring, verify with:
 ```bash
+CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(jq -r '.plugins["octo@ayoahha-plugins"][0].installPath' ~/.claude/plugins/installed_plugins.json)}"
 ${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh detect-providers
 ```
 
