@@ -7,18 +7,10 @@ All notable changes to Claude Octopus will be documented in this file.
 ### Added
 
 **New OpenRouter-Backed Agent Types** (P0 - Issue #24):
-- `openrouter-glm5` agent type → `z-ai/glm-5` (77.8% SWE-bench, $0.80/$2.56 per MTok, 203K ctx)
-- `openrouter-kimi` agent type → `moonshotai/kimi-k2.5` (cheapest, $0.45/$2.25 per MTok, 262K ctx)
-- `openrouter-deepseek` agent type → `deepseek/deepseek-r1` (visible reasoning traces, $0.70/$2.50 per MTok, 164K ctx)
-- `openrouter_execute_model()` function for fixed-model OpenRouter API calls
-- All three types integrated into `get_agent_command()`, `get_agent_command_array()`, `AVAILABLE_AGENTS`, `get_agent_model()`, `get_model_pricing()`, `is_agent_available_v2()`, `get_fallback_agent()`, `get_tiered_agent_v2()`
-
-**Intelligent Task-Based Routing** (P1):
-- `get_tiered_agent_v2()` now routes OpenRouter provider to model-specific agents based on task type
-- `review` tasks → `openrouter-glm5` (lowest hallucination rate, best SWE-bench)
-- `research`/`design` tasks → `openrouter-kimi` (262K context window, cheapest per token)
-- `security`/`reasoning` tasks → `openrouter-deepseek` (visible `<think>` reasoning chains)
-- Model-specific context windows: GLM-5 203K, Kimi 262K, DeepSeek R1 164K
+- `openrouter-glm5` → GLM-5 (77.8% SWE-bench, $0.80/$2.56/MTok, 203K ctx)
+- `openrouter-kimi` → Kimi K2.5 ($0.45/$2.25/MTok, 262K ctx, multimodal)
+- `openrouter-deepseek` → DeepSeek R1 (visible reasoning traces, $0.70/$2.50/MTok, 164K ctx)
+- Intelligent task routing: review→GLM-5, research→Kimi, security→DeepSeek R1
 
 ## [8.10.0] - 2026-02-13
 
