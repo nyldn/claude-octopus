@@ -11,8 +11,8 @@
     {
       "name": "claude-octopus",
       "source": "./",
-      "description": "v8.11.0 - Three new OpenRouter-backed agents: GLM-5 (code review, 77.8% SWE-bench), Kimi K2.5 (research, 262K context), DeepSeek R1 (visible reasoning traces). Intelligent task routing: review→GLM-5, research→Kimi, security→DeepSeek. 31 personas, 38 commands, 43 skills. Run /octo:setup.",
-      "version": "8.11.0",
+      "description": "v8.12.0 - New /octo:deck slide deck generator with outline approval gate and PPTX export. 4-step pipeline: brief → research → outline → render. 31 personas, 39 commands, 44 skills. Run /octo:setup.",
+      "version": "8.12.0",
       "author": {
         "name": "nyldn"
       },
