@@ -247,6 +247,11 @@ Location: `~/.claude-octopus/config/providers.json`
 - GPT-5.3-Codex-Spark requires OpenAI Pro subscription ($200/mo)
 - Phase routing only affects Codex model selection (Gemini has its own model defaults)
 - Cost implications vary significantly between models - see pricing table above
+- **Gemini sandbox modes** (`OCTOPUS_GEMINI_SANDBOX`):
+  - `headless` (default, v8.10.0) - Stdin-based prompt delivery with `-p ""`, `-o text`, `--approval-mode yolo`
+  - `interactive` - Launch Gemini in interactive mode (for manual use)
+  - `auto-accept` - Legacy alias for `headless`
+  - `prompt-mode` - Legacy alias for `interactive`
 
 ---
 

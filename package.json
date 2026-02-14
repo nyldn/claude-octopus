@@ -1,7 +1,7 @@
 {
   "name": "claude-octopus",
-  "version": "8.9.0",
-  "description": "Claude Octopus - Multi-agent orchestration with contextual Codex model routing, Spark support, and per-phase selection",
+  "version": "8.10.0",
+  "description": "Claude Octopus - Multi-agent orchestration with fixed Gemini headless mode, contextual Codex model routing, and per-phase selection",
   "main": "orchestrate.sh",
   "scripts": {
     "test": "make test",

@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "8.9.0",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v8.9.0) Contextual Codex model routing: GPT-5.3-Codex-Spark (15x faster for reviews), per-phase model selection, gpt-4.1 (1M context), o3 reasoning. Updated API pricing, 5-tier model precedence. Claude Code v2.1.41+ integration, 31 expert personas, 38 commands, 43 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
+  "version": "8.10.0",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v8.10.0) Fixed Gemini CLI headless mode (Issue #25): stdin-based prompt delivery, -p flag for headless, -o text output, --approval-mode yolo. Context budget enforcement after all injections. Claude Code v2.1.41+ integration, 31 expert personas, 38 commands, 43 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },
