@@ -2,6 +2,23 @@
 
 All notable changes to Claude Octopus will be documented in this file.
 
+## [8.12.0] - 2026-02-14
+
+### Added
+
+**New `/octo:deck` Slide Deck Skill** (Issue #29):
+- `skill-deck.md` — 4-step pipeline: gather brief, optional research, outline approval gate, PPTX render
+- `deck.md` command — `/octo:deck` entry point with usage examples
+- AskUserQuestion-based outline wireframe gate — user approves slide structure before rendering
+- Delegates to `document-skills:pptx` for PowerPoint generation (no new dependencies)
+- Audience-specific slide templates: executives, engineers, investors, general
+- Integration with `/octo:discover` for research-backed presentations
+
+### Changed
+
+- Skill count: 43 → 44
+- Command count: 38 → 39
+
 ## [8.11.0] - 2026-02-13
 
 ### Added
