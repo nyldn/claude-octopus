@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "8.11.0",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v8.11.0) Three new OpenRouter-backed agent types: GLM-5 (code review, 77.8% SWE-bench), Kimi K2.5 (research, 262K context), DeepSeek R1 (visible reasoning traces). Intelligent task-based routing: review→GLM-5, research→Kimi, security→DeepSeek. 31 expert personas, 38 commands, 43 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
+  "version": "8.12.0",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v8.12.0) New /octo:deck skill: generate slide decks from briefs with outline approval and PPTX export via document-skills. 4-step pipeline: brief → research → outline gate → render. 31 expert personas, 39 commands, 44 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },
@@ -81,7 +81,8 @@
     "./.claude/skills/skill-rollback.md",
     "./.claude/skills/skill-resume.md",
     "./.claude/skills/skill-resume-enhanced.md",
-    "./.claude/skills/skill-ship.md"
+    "./.claude/skills/skill-ship.md",
+    "./.claude/skills/skill-deck.md"
   ],
   "commands": [
     "./.claude/commands/octo.md",
@@ -121,6 +122,7 @@
     "./.claude/commands/resume.md",
     "./.claude/commands/ship.md",
     "./.claude/commands/issues.md",
-    "./.claude/commands/rollback.md"
+    "./.claude/commands/rollback.md",
+    "./.claude/commands/deck.md"
   ]
 }
