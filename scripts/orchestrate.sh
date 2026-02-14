@@ -413,7 +413,7 @@ SUPPORTS_ANCHOR_MENTIONS=false     # v8.8: Claude Code v2.1.41+ (@file#anchor fr
 SUPPORTS_OTEL_SPEED=false          # v8.8: Claude Code v2.1.41+ (speed attribute in OTel spans)
 AGENT_TEAMS_ENABLED="${CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS:-0}"
 OCTOPUS_SECURITY_V870="${OCTOPUS_SECURITY_V870:-true}"
-OCTOPUS_GEMINI_SANDBOX="${OCTOPUS_GEMINI_SANDBOX:-prompt-mode}"
+OCTOPUS_GEMINI_SANDBOX="${OCTOPUS_GEMINI_SANDBOX:-headless}"  # v8.10.0: Changed default from prompt-mode to headless (Issue #25)
 OCTOPUS_MAX_COST_USD="${OCTOPUS_MAX_COST_USD:-}"
 
 # Version comparison utility
@@ -753,14 +753,18 @@ get_agent_command() {
             ;;
         gemini|gemini-fast|gemini-image)
             model=$(get_agent_model "$agent_type")
-            # v8.7.0: Configurable Gemini sandbox mode
-            local gemini_flag="-y"
-            case "${OCTOPUS_GEMINI_SANDBOX:-prompt-mode}" in
-                auto-accept) gemini_flag="-y" ;;
-                prompt-mode)  gemini_flag="" ;;
-                pipe-mode)    gemini_flag="--pipe" ;;
+            # v8.10.0: Fixed headless mode (Issue #25)
+            # Prompt delivered via stdin by callers (avoids OS arg limits)
+            # Callers add -p "" for headless mode trigger
+            # -o text: clean output, --approval-mode yolo: auto-accept (replaces deprecated -y)
+            case "${OCTOPUS_GEMINI_SANDBOX:-headless}" in
+                headless|auto-accept)
+                    echo "env NODE_NO_WARNINGS=1 gemini -o text --approval-mode yolo -m ${model}" ;;
+                interactive|prompt-mode)
+                    echo "env NODE_NO_WARNINGS=1 gemini -m ${model}" ;;
+                *)
+                    echo "env NODE_NO_WARNINGS=1 gemini -o text --approval-mode yolo -m ${model}" ;;
             esac
-            echo "env NODE_NO_WARNINGS=1 gemini ${gemini_flag} -m ${model}"
             ;;
         codex-review) echo "codex exec review" ;; # Code review mode (no sandbox support)
         claude) echo "claude --print" ;;                         # Claude Sonnet 4.5
@@ -803,12 +807,16 @@ get_agent_command_array() {
             ;;
         gemini|gemini-fast|gemini-image)
             model=$(get_agent_model "$agent_type")
-            # v8.7.0: Configurable Gemini sandbox mode
-            case "${OCTOPUS_GEMINI_SANDBOX:-prompt-mode}" in
-                auto-accept) _cmd_array=(env NODE_NO_WARNINGS=1 gemini -y -m "$model") ;;
-                prompt-mode)  _cmd_array=(env NODE_NO_WARNINGS=1 gemini -m "$model") ;;
-                pipe-mode)    _cmd_array=(env NODE_NO_WARNINGS=1 gemini --pipe -m "$model") ;;
-                *)            _cmd_array=(env NODE_NO_WARNINGS=1 gemini -m "$model") ;;
+            # v8.10.0: Fixed headless mode (Issue #25)
+            # Prompt delivered via stdin by callers (avoids OS arg limits)
+            # Callers add -p "" for headless mode trigger
+            case "${OCTOPUS_GEMINI_SANDBOX:-headless}" in
+                headless|auto-accept)
+                    _cmd_array=(env NODE_NO_WARNINGS=1 gemini -o text --approval-mode yolo -m "$model") ;;
+                interactive|prompt-mode)
+                    _cmd_array=(env NODE_NO_WARNINGS=1 gemini -m "$model") ;;
+                *)
+                    _cmd_array=(env NODE_NO_WARNINGS=1 gemini -o text --approval-mode yolo -m "$model") ;;
             esac
             ;;
         codex-review)   _cmd_array=(codex exec review) ;; # No sandbox support
@@ -8871,10 +8879,8 @@ spawn_agent() {
     local enhanced_prompt
     enhanced_prompt=$(apply_persona "$role" "$prompt")
 
-    # v8.7.0: Enforce context budget
-    enhanced_prompt=$(enforce_context_budget "$enhanced_prompt")
-
     # v8.2.0: Load agent skill context if available
+    # NOTE: enforce_context_budget() moved AFTER all injections (v8.10.0 Issue #25)
     if [[ "$SUPPORTS_AGENT_TYPE_ROUTING" == "true" ]]; then
         local curated_agent=""
         curated_agent=$(select_curated_agent "$prompt" "$phase") || true
@@ -8957,6 +8963,10 @@ ${enhanced_prompt}"
             fi
         fi
     fi
+
+    # v8.10.0: Enforce context budget AFTER all injections (skill + memory)
+    # Previously called before injections, causing final prompt to exceed budget (Issue #25)
+    enhanced_prompt=$(enforce_context_budget "$enhanced_prompt")
 
     # Record usage (get model from agent type, with tier override)
     local model
@@ -9084,11 +9094,22 @@ ${enhanced_prompt}"
         update_agent_status "$agent_type" "running" 0 0.0
 
         # v7.19.0 P0.1: Use tee to stream output to both temp file and raw backup
+        # v8.10.0: Gemini uses stdin-based prompt delivery (Issue #25)
+        # -p "" triggers headless mode; prompt content comes via stdin to avoid OS arg limits
         local exit_code=0
-        if run_with_timeout "$TIMEOUT" "${cmd_array[@]}" "$enhanced_prompt" 2> "$temp_errors" | tee "$raw_output" > "$temp_output"; then
-            exit_code=0
+        if [[ "$agent_type" == gemini* ]]; then
+            cmd_array+=(-p "")
+            if printf '%s' "$enhanced_prompt" | run_with_timeout "$TIMEOUT" "${cmd_array[@]}" 2> "$temp_errors" | tee "$raw_output" > "$temp_output"; then
+                exit_code=0
+            else
+                exit_code=$?
+            fi
         else
-            exit_code=$?
+            if run_with_timeout "$TIMEOUT" "${cmd_array[@]}" "$enhanced_prompt" 2> "$temp_errors" | tee "$raw_output" > "$temp_output"; then
+                exit_code=0
+            else
+                exit_code=$?
+            fi
         fi
 
         # v7.19.0 P0.1: Process output regardless of exit code (preserves partial results)
@@ -11188,7 +11209,14 @@ run_agent_sync() {
     local exit_code
     local temp_err="${RESULTS_DIR}/.tmp-agent-error-$$.err"
 
-    output=$(run_with_timeout "$timeout_secs" "${cmd_array[@]}" "$enhanced_prompt" 2>"$temp_err")
+    # v8.10.0: Gemini uses stdin-based prompt delivery (Issue #25)
+    # -p "" triggers headless mode; prompt content comes via stdin to avoid OS arg limits
+    if [[ "$agent_type" == gemini* ]]; then
+        cmd_array+=(-p "")
+        output=$(printf '%s' "$enhanced_prompt" | run_with_timeout "$timeout_secs" "${cmd_array[@]}" 2>"$temp_err")
+    else
+        output=$(run_with_timeout "$timeout_secs" "${cmd_array[@]}" "$enhanced_prompt" 2>"$temp_err")
+    fi
     exit_code=$?
 
     # Check exit code and handle errors

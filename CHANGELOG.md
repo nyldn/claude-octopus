@@ -2,6 +2,39 @@
 
 All notable changes to Claude Octopus will be documented in this file.
 
+## [8.10.0] - 2026-02-13
+
+### Fixed
+
+**Gemini CLI Headless Mode** (P0 - Issue #25):
+- Fixed Gemini CLI launching in interactive REPL mode instead of headless mode
+- Added `-p ""` flag for reliable headless execution (prompt via stdin)
+- Added `-o text` flag for clean text output (no ANSI escapes, no interactive UI)
+- Replaced deprecated `-y` flag with `--approval-mode yolo`
+- Removed invalid `--pipe` flag from `pipe-mode` option (flag doesn't exist in Gemini CLI v0.28+)
+
+**Stdin-Based Prompt Delivery** (P0 - Issue #25):
+- Changed from positional argument to stdin pipe for Gemini prompts in `run_agent_sync()` and `spawn_agent()`
+- Pattern: `printf '%s' "$prompt" | gemini -p "" -o text --approval-mode yolo`
+- Eliminates OS argument length limits (~128KB Linux, ~256KB macOS)
+- Prevents large prompts with injected skills/memory from crashing
+
+**Context Budget Enforcement Ordering** (P1 - Issue #25):
+- Moved `enforce_context_budget()` call in `spawn_agent()` to AFTER skill and memory context injection
+- Previously called before injections, allowing final prompt to exceed configured budget
+
+### Changed
+
+**Gemini Sandbox Modes** (P1):
+- Default changed from `prompt-mode` to `headless` (`OCTOPUS_GEMINI_SANDBOX`)
+- `auto-accept` kept as backward-compatible alias for `headless`
+- `prompt-mode` kept as backward-compatible alias for `interactive`
+- Removed broken `pipe-mode` (referenced non-existent `--pipe` flag)
+
+**Debate Skill** (P1):
+- Updated direct Gemini invocation in `skill-debate.md` to use stdin-based prompt delivery
+- Changed from `gemini -y "${QUESTION}"` to `printf '%s' "${QUESTION}" | gemini -p "" -o text --approval-mode yolo`
+
 ## [8.9.0] - 2026-02-13
 
 ### Added

@@ -361,7 +361,7 @@ For each round:
 
 #### 5.1: Consult Gemini
 ```bash
-gemini -y "${QUESTION}" > "${DEBATE_DIR}/rounds/r001_gemini.md"
+printf '%s' "${QUESTION}" | gemini -p "" -o text --approval-mode yolo > "${DEBATE_DIR}/rounds/r001_gemini.md"
 ```
 
 #### 5.2: Consult Codex
@@ -471,7 +471,7 @@ Claude:
 1. Creates debate folder at ~/.claude-octopus/debates/${SESSION_ID}/042-redis-vs-memcached/
 2. Writes context.md with question
 3. Round 1:
-   - Calls gemini -y "Should we use Redis or in-memory cache?"
+   - Calls printf '%s' "Should we use Redis..." | gemini -p "" -o text --approval-mode yolo
    - Calls codex exec "Should we use Redis or in-memory cache?"
    - Writes own analysis considering both perspectives
 4. Writes synthesis.md with final recommendation
