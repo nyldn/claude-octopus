@@ -772,6 +772,9 @@ get_agent_command() {
         claude-opus) echo "claude --print -m opus" ;;            # Claude Opus 4.6 (v8.0)
         claude-opus-fast) echo "claude --print -m opus --fast" ;; # Claude Opus 4.6 Fast (v8.4: v2.1.36+)
         openrouter) echo "openrouter_execute" ;;                 # OpenRouter API (v4.8)
+        openrouter-glm5) echo "openrouter_execute_model z-ai/glm-5" ;;           # v8.11.0: GLM-5 via OpenRouter
+        openrouter-kimi) echo "openrouter_execute_model moonshotai/kimi-k2.5" ;; # v8.11.0: Kimi K2.5 via OpenRouter
+        openrouter-deepseek) echo "openrouter_execute_model deepseek/deepseek-r1" ;; # v8.11.0: DeepSeek R1 via OpenRouter
         *) return 1 ;;
     esac
 }
@@ -825,6 +828,9 @@ get_agent_command_array() {
         claude-opus)    _cmd_array=(claude --print -m opus) ;;  # v8.0: Opus 4.6
         claude-opus-fast) _cmd_array=(claude --print -m opus --fast) ;; # v8.4: Opus 4.6 Fast (v2.1.36+)
         openrouter)     _cmd_array=(openrouter_execute) ;;       # OpenRouter API (v4.8)
+        openrouter-glm5)     _cmd_array=(openrouter_execute_model "z-ai/glm-5") ;;           # v8.11.0: GLM-5
+        openrouter-kimi)     _cmd_array=(openrouter_execute_model "moonshotai/kimi-k2.5") ;; # v8.11.0: Kimi K2.5
+        openrouter-deepseek) _cmd_array=(openrouter_execute_model "deepseek/deepseek-r1") ;; # v8.11.0: DeepSeek R1
         *) return 1 ;;
     esac
 }
@@ -855,7 +861,7 @@ build_provider_env() {
 }
 
 # List of available agents
-AVAILABLE_AGENTS="codex codex-standard codex-max codex-mini codex-general codex-spark codex-reasoning codex-large-context gemini gemini-fast gemini-image codex-review claude claude-sonnet claude-opus claude-opus-fast openrouter"
+AVAILABLE_AGENTS="codex codex-standard codex-max codex-mini codex-general codex-spark codex-reasoning codex-large-context gemini gemini-fast gemini-image codex-review claude claude-sonnet claude-opus claude-opus-fast openrouter openrouter-glm5 openrouter-kimi openrouter-deepseek"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # USAGE TRACKING & COST REPORTING (v4.1)
@@ -891,6 +897,10 @@ get_model_pricing() {
         claude-sonnet-4.5)      echo "3.00:15.00" ;;
         claude-opus-4.6)        echo "5.00:25.00" ;;
         claude-opus-4.6-fast)   echo "30.00:150.00" ;;  # v8.4: Fast mode - 6x cost for lower latency
+        # OpenRouter models (v8.11.0)
+        z-ai/glm-5)             echo "0.80:2.56" ;;    # GLM-5: code review specialist
+        moonshotai/kimi-k2.5)   echo "0.45:2.25" ;;    # Kimi K2.5: research, 262K context
+        deepseek/deepseek-r1)   echo "0.70:2.50" ;;    # DeepSeek R1: visible reasoning traces
         # Default fallback
         *)                      echo "1.00:5.00" ;;
     esac
@@ -1231,6 +1241,9 @@ get_agent_model() {
         claude|claude-sonnet|claude-opus)
             provider="claude"
             ;;
+        openrouter|openrouter-glm5|openrouter-kimi|openrouter-deepseek)
+            provider="openrouter"
+            ;;
     esac
 
     # Priority 1: Check environment variables
@@ -1285,6 +1298,10 @@ get_agent_model() {
         claude-sonnet)  echo "claude-sonnet-4.5" ;;
         claude-opus)    echo "claude-opus-4.6" ;;
         claude-opus-fast) echo "claude-opus-4.6-fast" ;;  # v8.4: Fast Opus
+        openrouter)       echo "anthropic/claude-sonnet-4" ;;  # Generic OpenRouter
+        openrouter-glm5)  echo "z-ai/glm-5" ;;                # v8.11.0: GLM-5 (77.8% SWE-bench)
+        openrouter-kimi)  echo "moonshotai/kimi-k2.5" ;;      # v8.11.0: Kimi K2.5 (262K ctx)
+        openrouter-deepseek) echo "deepseek/deepseek-r1" ;;   # v8.11.0: DeepSeek R1 (reasoning)
         *)              echo "unknown" ;;
     esac
 }
@@ -5969,7 +5986,16 @@ get_provider_context_limit() {
             echo "64000"
             ;;
         openrouter:*)
-            echo "128000"  # Varies by model
+            echo "128000"  # Varies by model (generic)
+            ;;
+        openrouter-glm5:*)
+            echo "203000"  # GLM-5: 203K context
+            ;;
+        openrouter-kimi:*)
+            echo "262000"  # Kimi K2.5: 262K context
+            ;;
+        openrouter-deepseek:*)
+            echo "164000"  # DeepSeek R1: 164K context
             ;;
         *)
             echo "32000"
@@ -6991,7 +7017,33 @@ get_tiered_agent_v2() {
             fi
             ;;
         openrouter)
-            echo "openrouter"
+            # v8.11.0: Route to model-specific agents based on task type
+            case "$task_type" in
+                review)
+                    if is_agent_available_v2 "openrouter-glm5"; then
+                        echo "openrouter-glm5"   # GLM-5: best for code review (77.8% SWE-bench)
+                    else
+                        echo "openrouter"
+                    fi
+                    ;;
+                research|design)
+                    if is_agent_available_v2 "openrouter-kimi"; then
+                        echo "openrouter-kimi"    # Kimi K2.5: 262K context, cheapest
+                    else
+                        echo "openrouter"
+                    fi
+                    ;;
+                security|reasoning)
+                    if is_agent_available_v2 "openrouter-deepseek"; then
+                        echo "openrouter-deepseek" # DeepSeek R1: visible reasoning traces
+                    else
+                        echo "openrouter"
+                    fi
+                    ;;
+                *)
+                    echo "openrouter"
+                    ;;
+            esac
             ;;
         *)
             echo "codex-standard"
@@ -7141,6 +7193,71 @@ openrouter_execute() {
         execute_openrouter "$prompt" "$task_type" "$complexity" > "$output_file" 2>&1
     else
         execute_openrouter "$prompt" "$task_type" "$complexity"
+    fi
+}
+
+# OpenRouter model-specific agent wrapper (v8.11.0)
+# Used by openrouter-glm5, openrouter-kimi, openrouter-deepseek
+# First arg is the fixed model ID, remaining args are prompt/task/complexity/output
+openrouter_execute_model() {
+    local model="$1"
+    local prompt="$2"
+    local task_type="${3:-general}"
+    local complexity="${4:-2}"
+    local output_file="${5:-}"
+
+    if [[ -z "${OPENROUTER_API_KEY:-}" ]]; then
+        log ERROR "OPENROUTER_API_KEY not set"
+        return 1
+    fi
+
+    [[ "$VERBOSE" == "true" ]] && log DEBUG "OpenRouter model-specific request: model=$model"
+
+    # Build JSON payload
+    local escaped_prompt
+    escaped_prompt=$(json_escape "$prompt")
+
+    local payload
+    payload=$(cat << EOF
+{
+  "model": "$model",
+  "messages": [
+    {"role": "user", "content": "$escaped_prompt"}
+  ]
+}
+EOF
+)
+
+    local response
+    response=$(curl -s -X POST "https://openrouter.ai/api/v1/chat/completions" \
+        -H "Authorization: Bearer ${OPENROUTER_API_KEY}" \
+        -H "Content-Type: application/json" \
+        -H "Connection: keep-alive" \
+        -H "HTTP-Referer: https://github.com/nyldn/claude-octopus" \
+        -H "X-Title: Claude Octopus" \
+        -d "$payload")
+
+    # Extract content from response
+    local content=""
+    if json_extract "$response" "content"; then
+        content="$REPLY"
+    fi
+
+    if [[ -z "$content" ]]; then
+        if [[ "$response" =~ \"error\":\{([^\}]*)\} ]]; then
+            log ERROR "OpenRouter error: ${BASH_REMATCH[1]}"
+            return 1
+        fi
+        log WARN "Empty response from OpenRouter ($model)"
+        echo "$response"
+    else
+        local result
+        result=$(echo "$content" | sed 's/\\n/\n/g; s/\\t/\t/g; s/\\"/"/g')
+        if [[ -n "$output_file" ]]; then
+            echo "$result" > "$output_file"
+        else
+            echo "$result"
+        fi
     fi
 }
 
@@ -7429,6 +7546,21 @@ get_fallback_agent() {
                 echo "codex"
             elif is_agent_available "gemini"; then
                 [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: codex-large-context -> gemini (no OpenAI)"
+                echo "gemini"
+            else
+                echo "$preferred"
+            fi
+            ;;
+        openrouter-glm5|openrouter-kimi|openrouter-deepseek)
+            # v8.11.0: Model-specific OpenRouter → generic openrouter → codex → gemini
+            if is_agent_available "openrouter"; then
+                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: $preferred -> openrouter (model-specific unavailable)"
+                echo "openrouter"
+            elif is_agent_available "codex"; then
+                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: $preferred -> codex (no OpenRouter)"
+                echo "codex"
+            elif is_agent_available "gemini"; then
+                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: $preferred -> gemini (no OpenRouter/OpenAI)"
                 echo "gemini"
             else
                 echo "$preferred"
