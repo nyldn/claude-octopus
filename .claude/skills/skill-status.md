@@ -6,6 +6,8 @@ trigger: |
   - "status" or "progress" or "where am I"
   - "what's next" or "next step"
   - "show status" or "project status"
+  - "what have I been working on" or "summarize recent work"
+  - "update project memory" or "update CLAUDE.md"
 ---
 
 # Project Status Dashboard
@@ -26,6 +28,8 @@ Display current project status, roadmap progress, blockers, and intelligent next
 - "What should I do next?"
 - "What's the current phase?"
 - "Are there any blockers?"
+- "What have I been working on?" or "Summarize recent work"
+- "Update project memory" or "Update CLAUDE.md"
 
 **Do NOT use for:**
 - Creating new projects (use /octo:embrace)
@@ -328,6 +332,64 @@ Review blockers above. Use `/octo:issues` to track and resolve issues.
 
 ---
 
+### Phase 6: Recent Activity Summary (Cross-Session)
+
+When the user asks "what have I been working on", "summarize recent work", or "update project memory", generate a cross-session activity summary.
+
+#### Step 1: Gather Recent Activity
+
+```bash
+# Recent git commits (last 7 days or last 20 commits)
+git log --oneline --since="7 days ago" --no-merges 2>/dev/null | head -20
+
+# Recent tags/releases
+git tag --sort=-creatordate | head -5
+
+# Recent branches worked on
+git branch --sort=-committerdate | head -5
+
+# Recent orchestration results (if any)
+ls -lt ~/.claude-octopus/results/ 2>/dev/null | head -10
+```
+
+#### Step 2: Summarize Activity
+
+Build a concise summary grouped by theme:
+
+```markdown
+## Recent Activity (Last 7 Days)
+
+### Commits
+- [theme 1]: brief summary of related commits
+- [theme 2]: brief summary of related commits
+
+### Releases
+- v8.10.0 - Gemini CLI headless fix
+- v8.9.0 - Contextual Codex model routing
+
+### Active Branches
+- main (current)
+
+### Orchestration Sessions
+- [count] workflows executed, [count] synthesis files generated
+```
+
+#### Step 3: Suggest CLAUDE.md Updates
+
+If the recent activity reveals patterns not captured in `CLAUDE.md`, suggest specific additions:
+
+```markdown
+### Suggested CLAUDE.md Updates
+
+Based on recent activity, consider adding:
+- [specific suggestion based on new patterns, conventions, or decisions]
+- [specific suggestion based on new tooling or workflow changes]
+```
+
+**Only suggest updates that reflect durable project knowledge** (conventions, architecture decisions, provider configs) — NOT transient status like "currently working on X".
+
+---
+
 ## Integration with Other Skills
 
 ### With flow-* skills
@@ -423,6 +485,8 @@ You're in phase 3.
 | "where am I" | Display current phase and position |
 | "show progress" | Display roadmap with completion markers |
 | "any blockers" | Extract and display blockers from STATE.md |
+| "what have I been working on" | Git log + results → Cross-session activity summary |
+| "update project memory" | Activity summary → Suggest CLAUDE.md additions |
 
 ---
 
