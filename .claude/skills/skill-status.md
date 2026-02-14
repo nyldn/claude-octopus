@@ -339,14 +339,19 @@ When the user asks "what have I been working on", "summarize recent work", or "u
 #### Step 1: Gather Recent Activity
 
 ```bash
-# Recent git commits (last 7 days or last 20 commits)
-git log --oneline --since="7 days ago" --no-merges 2>/dev/null | head -20
+# Check if we're inside a git repository
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    # Recent git commits (last 7 days or last 20 commits)
+    git log --oneline --since="7 days ago" --no-merges 2>/dev/null | head -20
 
-# Recent tags/releases
-git tag --sort=-creatordate | head -5
+    # Recent tags/releases
+    git tag --sort=-creatordate | head -5
 
-# Recent branches worked on
-git branch --sort=-committerdate | head -5
+    # Recent branches worked on
+    git branch --sort=-committerdate | head -5
+else
+    echo "Not a git repository; skipping git activity summary."
+fi
 
 # Recent orchestration results (if any)
 ls -lt ~/.claude-octopus/results/ 2>/dev/null | head -10

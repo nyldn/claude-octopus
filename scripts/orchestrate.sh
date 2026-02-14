@@ -410,7 +410,7 @@ SUPPORTS_NATIVE_TASK_METRICS=false # v8.6: Claude Code v2.1.30+ (token counts in
 SUPPORTS_AGENT_TEAMS_BRIDGE=false  # v8.7: Claude Code v2.1.38+ (unified task-ledger bridge)
 SUPPORTS_AUTH_CLI=false            # v8.8: Claude Code v2.1.41+ (claude auth login/status/logout)
 SUPPORTS_ANCHOR_MENTIONS=false     # v8.8: Claude Code v2.1.41+ (@file#anchor fragment mentions)
-SUPPORTS_OTEL_SPEED=false          # v8.8: Claude Code v2.1.41+ (speed attribute in OTel spans)
+SUPPORTS_OTEL_SPEED=false          # v8.8: Claude Code v2.1.41+ (speed attribute in OTel spans, added in v2.1.39 Feb 11 2026, gated at v2.1.41)
 AGENT_TEAMS_ENABLED="${CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS:-0}"
 OCTOPUS_SECURITY_V870="${OCTOPUS_SECURITY_V870:-true}"
 OCTOPUS_GEMINI_SANDBOX="${OCTOPUS_GEMINI_SANDBOX:-headless}"  # v8.10.0: Changed default from prompt-mode to headless (Issue #25)
@@ -6043,12 +6043,13 @@ detect_providers() {
     if command -v claude &>/dev/null; then
         local claude_auth="oauth"
         # v8.8: Use claude auth status for reliable auth verification
+        # v8.12.2: Wrap with timeout to prevent hanging during detect_providers
         if [[ "$SUPPORTS_AUTH_CLI" == "true" ]]; then
-            if claude auth status &>/dev/null; then
+            if run_with_timeout 5 claude auth status &>/dev/null; then
                 claude_auth="verified"
             else
                 claude_auth="oauth"  # Fallback: assume oauth in Claude Code context
-                log "DEBUG" "claude auth status returned non-zero, assuming oauth context"
+                log "DEBUG" "claude auth status returned non-zero or timed out, assuming oauth context"
             fi
         fi
         result="${result}claude:${claude_auth} "
@@ -9230,8 +9231,9 @@ ${enhanced_prompt}"
         # v7.19.0 P0.1: Use tee to stream output to both temp file and raw backup
         # v8.10.0: Gemini uses stdin-based prompt delivery (Issue #25)
         # -p "" triggers headless mode; prompt content comes via stdin to avoid OS arg limits
+        # v8.12.2: Only add -p "" for non-interactive Gemini modes
         local exit_code=0
-        if [[ "$agent_type" == gemini* ]]; then
+        if [[ "$agent_type" == gemini* && "${OCTOPUS_GEMINI_SANDBOX:-headless}" != "interactive" && "${OCTOPUS_GEMINI_SANDBOX:-headless}" != "prompt-mode" ]]; then
             cmd_array+=(-p "")
             if printf '%s' "$enhanced_prompt" | run_with_timeout "$TIMEOUT" "${cmd_array[@]}" 2> "$temp_errors" | tee "$raw_output" > "$temp_output"; then
                 exit_code=0
@@ -11355,7 +11357,8 @@ run_agent_sync() {
 
     # v8.10.0: Gemini uses stdin-based prompt delivery (Issue #25)
     # -p "" triggers headless mode; prompt content comes via stdin to avoid OS arg limits
-    if [[ "$agent_type" == gemini* ]]; then
+    # v8.12.2: Only add -p "" for non-interactive Gemini modes
+    if [[ "$agent_type" == gemini* && "${OCTOPUS_GEMINI_SANDBOX:-headless}" != "interactive" && "${OCTOPUS_GEMINI_SANDBOX:-headless}" != "prompt-mode" ]]; then
         cmd_array+=(-p "")
         output=$(printf '%s' "$enhanced_prompt" | run_with_timeout "$timeout_secs" "${cmd_array[@]}" 2>"$temp_err")
     else
@@ -11392,7 +11395,7 @@ run_agent_sync() {
         # v8.6.0: Pass native metrics from Task tool output
         parse_task_metrics "$output"
         record_agent_complete "$metrics_id" "$agent_type" "$model" "$output" "${phase:-unknown}" \
-            "$_PARSED_TOKENS" "$_PARSED_TOOL_USES" "$_PARSED_DURATION_MS" 2>/dev/null || true
+            "$_PARSED_TOKENS" "$_PARSED_TOOL_USES" "$_PARSED_DURATION_MS" "${_PARSED_SPEED:-}" 2>/dev/null || true
     fi
 
     echo "$output"

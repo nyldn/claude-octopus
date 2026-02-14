@@ -63,7 +63,7 @@ record_agent_start() {
 }
 
 # Record agent call completion
-# Args: agent_id agent_type model output [phase] [native_token_count] [native_tool_uses] [native_duration_ms]
+# Args: agent_id agent_type model output [phase] [native_token_count] [native_tool_uses] [native_duration_ms] [speed]
 record_agent_complete() {
     local agent_id="$1"
     local agent_type="$2"
@@ -73,6 +73,7 @@ record_agent_complete() {
     local native_token_count="${6:-}"
     local native_tool_uses="${7:-}"
     local native_duration_ms="${8:-}"
+    local speed="${9:-}"
 
     local base
     base=$(get_metrics_base)
@@ -126,6 +127,11 @@ record_agent_complete() {
             native_fields=", \"native_token_count\": $token_count, \"native_tool_uses\": $tool_use_count, \"metrics_source\": \"native\""
         else
             native_fields=", \"metrics_source\": \"estimated\""
+        fi
+
+        # v8.12.2: Include speed field if available
+        if [[ -n "$speed" ]]; then
+            native_fields="${native_fields}, \"speed\": \"$speed\""
         fi
 
         local phase_entry=$(cat <<EOF
@@ -352,7 +358,7 @@ record_agents_batch_complete() {
 
         # Record completion
         record_agent_complete "$metrics_id" "$agent_type" "$model" "$output" "$phase" \
-            "$native_tokens" "$native_tools" "$native_duration"
+            "$native_tokens" "$native_tools" "$native_duration" "${_PARSED_SPEED:-}"
 
         # Remove from map
         sed -i.bak "/^${task_group}-${task_id}:/d" "$metrics_map" 2>/dev/null || true

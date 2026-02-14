@@ -302,10 +302,10 @@ When the user invokes `/octo:model-config`, you MUST:
 4. **Set Phase Routing** (`phase <phase> <model>`):
    ```bash
    # Update phase_routing in config file
-   local config_file="${HOME}/.claude-octopus/config/providers.json"
-   jq ".phase_routing.${phase} = \"${model}\"" "$config_file" > "${config_file}.tmp" && mv "${config_file}.tmp" "$config_file"
+   config_file="${HOME}/.claude-octopus/config/providers.json"
+   jq --arg phase "$phase" --arg model "$model" '.phase_routing[$phase] = $model' "$config_file" > "${config_file}.tmp" && mv "${config_file}.tmp" "$config_file"
    echo "✓ Set phase routing: $phase → $model"
-   cat ~/.claude-octopus/config/providers.json | jq '.phase_routing'
+   jq '.phase_routing' "$config_file"
    ```
 
 5. **Reset Model** (`reset <provider|phases|all>`):

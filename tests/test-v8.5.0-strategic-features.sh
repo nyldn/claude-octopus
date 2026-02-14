@@ -637,7 +637,7 @@ else
 fi
 
 # 9.3: build_memory_context truncates to ~2000 chars
-if grep -A 50 '^build_memory_context()' "$ORCHESTRATE_SH" | grep -q 'head -c 2000'; then
+if grep -A 70 '^build_memory_context()' "$ORCHESTRATE_SH" | grep -q 'head -c 2000'; then
     assert_pass "9.3 build_memory_context truncates to 2000 chars"
 else
     assert_fail "9.3 build_memory_context truncates to 2000 chars"

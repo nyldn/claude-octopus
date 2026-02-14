@@ -338,7 +338,7 @@ Multi-stage content analysis pipeline. Reverse-engineers article anatomy, extrac
 
 ---
 
-## 43 Skills
+## 44 Skills
 
 Skills are the engine behind commands and personas. They activate automatically when needed - you don't invoke them directly.
 

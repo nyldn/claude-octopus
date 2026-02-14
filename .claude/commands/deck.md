@@ -10,7 +10,7 @@ description: Generate slide deck presentations from briefs or research
 When the user invokes this command (e.g., `/octo:deck <arguments>`):
 
 **Use the Skill tool:**
-```
+```text
 Skill(skill: "octo:deck", args: "<user's arguments>")
 ```
 
@@ -23,7 +23,7 @@ Skill(skill: "octo:deck", args: "<user's arguments>")
 ## Quick Usage
 
 Just describe what you need:
-```
+```text
 "Create a pitch deck for our Series A"
 "Build a 10-slide project update for leadership"
 "Make a technical presentation about our API architecture"
@@ -45,7 +45,7 @@ Just describe what you need:
 
 ## Examples
 
-```
+```text
 /octo:deck investor pitch for AI-powered logistics startup
 /octo:deck quarterly business review for engineering leadership
 /octo:deck technical deep-dive on our microservices migration

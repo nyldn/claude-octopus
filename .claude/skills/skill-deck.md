@@ -26,12 +26,12 @@ Generate professional slide decks from briefs with optional research, outline ap
 
 The `document-skills` plugin MUST be installed for PPTX rendering:
 
-```
+```bash
 /plugin list | grep document-skills
 ```
 
 If not installed, tell the user:
-```
+```text
 The document-skills plugin is required for PPTX generation.
 Install it with: /plugin install document-skills@anthropic-agent-skills
 ```
@@ -161,7 +161,7 @@ This skill works well in combination with:
 ## Example Workflows
 
 ### Quick Deck from Brief
-```
+```text
 User: "Create a 10-slide deck about our Q1 results"
 → Step 1: Clarify audience (executives)
 → Step 2: Skip (user has the data)
@@ -170,7 +170,7 @@ User: "Create a 10-slide deck about our Q1 results"
 ```
 
 ### Research-Backed Deck
-```
+```text
 User: "Build a presentation about AI trends in healthcare"
 → Step 1: Clarify audience and scope
 → Step 2: Research using Task agents
@@ -179,7 +179,7 @@ User: "Build a presentation about AI trends in healthcare"
 ```
 
 ### Deep Research + Deck
-```
+```text
 User: "I need a comprehensive investor deck about the autonomous vehicles market"
 → Suggest: "/octo:discover autonomous vehicles market" first
 → Then: "/octo:deck" using the research synthesis
