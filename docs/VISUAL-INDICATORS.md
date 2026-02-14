@@ -245,7 +245,7 @@ If you're not seeing visual indicators when you expect them:
 ```
 /plugin list
 ```
-Look for `claude-octopus@ayoahha-plugins` in the installed list.
+Look for `octo@ayoahha-plugins` in the installed list.
 
 ### Check 2: Provider Configuration
 ```

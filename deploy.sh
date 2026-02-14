@@ -200,7 +200,7 @@ if [ $CHECKS_FAILED -eq 0 ]; then
     echo "Next steps:"
     echo "  1. git push origin main"
     echo "  2. Verify GitHub Actions (if configured)"
-    echo "  3. Test plugin installation: /plugin install claude-octopus@ayoahha-plugins"
+    echo "  3. Test plugin installation: /plugin install octo@ayoahha-plugins"
     echo ""
     exit 0
 else

@@ -24,7 +24,7 @@ Inside Claude Code, run:
 
 ```
 /plugin marketplace add https://github.com/ayoahha/claude-octopus
-/plugin install claude-octopus@ayoahha-plugins
+/plugin install octo@ayoahha-plugins
 ```
 
 Then configure your AI providers:
@@ -457,8 +457,8 @@ Visual indicators show active providers in real-time. For deeper debugging, chec
 **How do I update?**
 Run `/plugin` > Installed > update, or reinstall:
 ```
-/plugin uninstall claude-octopus@ayoahha-plugins
-/plugin install claude-octopus@ayoahha-plugins
+/plugin uninstall octo@ayoahha-plugins
+/plugin install octo@ayoahha-plugins
 ```
 
 ---

@@ -3,7 +3,7 @@
 #
 # Recommended installation method (preferred over curl|bash):
 #   claude plugin marketplace add https://github.com/ayoahha/claude-octopus
-#   claude plugin install claude-octopus@ayoahha-plugins --scope user
+#   claude plugin install octo@ayoahha-plugins --scope user
 #   claude plugin enable claude-octopus --scope user
 #   claude plugin update claude-octopus --scope user
 #
@@ -19,7 +19,7 @@ if ! command -v claude >/dev/null 2>&1; then
   echo ""
   echo "Install Claude Code first, then install the plugin with:"
   echo "  claude plugin marketplace add https://github.com/ayoahha/claude-octopus"
-  echo "  claude plugin install claude-octopus@ayoahha-plugins --scope user"
+  echo "  claude plugin install octo@ayoahha-plugins --scope user"
   echo "  claude plugin enable claude-octopus --scope user"
   echo "  claude plugin update claude-octopus --scope user"
   exit 1
@@ -32,7 +32,7 @@ claude plugin marketplace add https://github.com/ayoahha/claude-octopus >/dev/nu
 claude plugin marketplace update ayoahha-plugins >/dev/null 2>&1 || true
 
 # Install/enable/update (idempotent).
-claude plugin install claude-octopus@ayoahha-plugins --scope user >/dev/null 2>&1 || true
+claude plugin install octo@ayoahha-plugins --scope user >/dev/null 2>&1 || true
 claude plugin enable claude-octopus --scope user >/dev/null 2>&1 || true
 claude plugin update claude-octopus --scope user >/dev/null 2>&1 || true
 
