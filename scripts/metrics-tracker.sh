@@ -359,7 +359,7 @@ record_agents_batch_complete() {
     done
 }
 
-# Display per-phase cost breakdown table (v8.6.0)
+# Display per-phase cost breakdown table (v8.6.0, enhanced v8.8.0 with speed column)
 # Reads metrics-session.json and renders a table grouped by phase and provider
 display_per_phase_cost_table() {
     local base
@@ -377,17 +377,28 @@ display_per_phase_cost_table() {
         return 0
     fi
 
+    # v8.8: Check if any entries have speed data for column display
+    local has_speed
+    has_speed=$(jq '[.phases[] | select(.speed != null and .speed != "")] | length > 0' "$metrics_file" 2>/dev/null || echo "false")
+
     echo ""
     echo "Per-Phase Cost Breakdown:"
-    echo "┌──────────┬──────────────┬────────────┬──────────┬──────────┐"
-    echo "│ Phase    │ Provider     │ Tokens     │ Cost     │ Duration │"
-    echo "├──────────┼──────────────┼────────────┼──────────┼──────────┤"
+    if [[ "$has_speed" == "true" ]]; then
+        echo "┌──────────┬──────────────┬────────────┬──────────┬──────────┬──────────┐"
+        echo "│ Phase    │ Provider     │ Tokens     │ Cost     │ Duration │ Mode     │"
+        echo "├──────────┼──────────────┼────────────┼──────────┼──────────┼──────────┤"
+    else
+        echo "┌──────────┬──────────────┬────────────┬──────────┬──────────┐"
+        echo "│ Phase    │ Provider     │ Tokens     │ Cost     │ Duration │"
+        echo "├──────────┼──────────────┼────────────┼──────────┼──────────┤"
+    fi
 
     local has_native=false
+    local has_fast=false
 
     # Iterate unique phases and providers
-    jq -r '.phases[] | "\(.phase)\t\(.agent)\t\(.estimated_tokens // 0)\t\(.estimated_cost_usd // 0)\t\(.duration_seconds // 0)\t\(.has_native_metrics // false)"' \
-        "$metrics_file" 2>/dev/null | while IFS=$'\t' read -r phase agent tokens cost duration native; do
+    jq -r '.phases[] | "\(.phase)\t\(.agent)\t\(.estimated_tokens // 0)\t\(.estimated_cost_usd // 0)\t\(.duration_seconds // 0)\t\(.has_native_metrics // false)\t\(.speed // "")"' \
+        "$metrics_file" 2>/dev/null | while IFS=$'\t' read -r phase agent tokens cost duration native speed; do
 
         # Determine provider emoji
         local provider_label
@@ -412,15 +423,40 @@ display_per_phase_cost_table() {
         local cost_display
         cost_display=$(printf '$%.3f' "$cost" 2>/dev/null || echo "\$$cost")
 
-        printf "│ %-8s │ %-12s │ %10s │ %8s │ %8s │\n" \
-            "$phase" "$provider_label" "$token_display" "$cost_display" "$dur_display"
+        # v8.8: Format speed mode indicator
+        local speed_display=""
+        if [[ "$speed" == "fast" ]]; then
+            speed_display="⚡ fast"
+            has_fast=true
+        elif [[ "$speed" == "standard" ]]; then
+            speed_display="  std"
+        fi
+
+        if [[ "$has_speed" == "true" ]]; then
+            printf "│ %-8s │ %-12s │ %10s │ %8s │ %8s │ %-8s │\n" \
+                "$phase" "$provider_label" "$token_display" "$cost_display" "$dur_display" "$speed_display"
+        else
+            printf "│ %-8s │ %-12s │ %10s │ %8s │ %8s │\n" \
+                "$phase" "$provider_label" "$token_display" "$cost_display" "$dur_display"
+        fi
     done
 
-    echo "└──────────┴──────────────┴────────────┴──────────┴──────────┘"
-
-    if [[ "$has_native" == "true" ]]; then
-        echo "  * = native metrics (from Task tool)"
+    if [[ "$has_speed" == "true" ]]; then
+        echo "└──────────┴──────────────┴────────────┴──────────┴──────────┴──────────┘"
+    else
+        echo "└──────────┴──────────────┴────────────┴──────────┴──────────┘"
     fi
+
+    local notes=()
+    if [[ "$has_native" == "true" ]]; then
+        notes+=("* = native metrics (from Task tool)")
+    fi
+    if [[ "$has_fast" == "true" ]]; then
+        notes+=("⚡ = fast mode (6x cost vs standard)")
+    fi
+    for note in "${notes[@]}"; do
+        echo "  $note"
+    done
 }
 
 # Export functions

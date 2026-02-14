@@ -6,13 +6,13 @@
   <img src="https://img.shields.io/badge/Claude_Code-Plugin-blueviolet" alt="Claude Code Plugin">
   <img src="https://img.shields.io/badge/Double_Diamond-Design_Thinking-orange" alt="Double Diamond">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
-  <img src="https://img.shields.io/badge/Version-8.7.2-blue" alt="Version 8.7.2">
+  <img src="https://img.shields.io/badge/Version-8.12.2-blue" alt="Version 8.12.2">
   <img src="https://img.shields.io/badge/Claude_Code-v2.1.34+-blueviolet" alt="Requires Claude Code v2.1.34+">
 </p>
 
 # Claude Octopus
 
-**Multi-AI orchestration plugin for Claude Code** - Run Codex, Gemini, and Claude simultaneously with 29 expert personas, Double Diamond workflows, and 43 specialized skills.
+**Multi-AI orchestration plugin for Claude Code** - Run Codex, Gemini, and Claude simultaneously with 29 expert personas, Double Diamond workflows, and 44 specialized skills.
 
 > *Three AI perspectives in the time it takes for one. Structured workflows that actually get followed.*
 
@@ -23,7 +23,7 @@
 Inside Claude Code, run:
 
 ```
-/plugin marketplace add ayoahha/claude-octopus
+/plugin marketplace add https://github.com/ayoahha/claude-octopus
 /plugin install claude-octopus@ayoahha-plugins
 ```
 
