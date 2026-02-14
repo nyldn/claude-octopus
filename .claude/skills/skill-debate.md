@@ -44,6 +44,35 @@ Participants:
 
 ---
 
+## CRITICAL: External CLI Syntax (v0.101.0+)
+
+**You MUST use these exact command patterns. Do NOT improvise flags.**
+
+**Codex CLI** (non-interactive headless mode):
+```bash
+codex exec --full-auto "YOUR PROMPT HERE"
+```
+- MUST use `exec` subcommand — bare `codex "prompt"` launches interactive TUI
+- MUST use `--full-auto` — NOT `-q`, `--quiet`, or `-y` (these flags DO NOT EXIST)
+- Do NOT use `--sandbox` unless you need write access (default is workspace-write)
+- Do NOT pipe stdin to codex — pass prompt as positional argument after flags
+
+**Gemini CLI** (non-interactive headless mode):
+```bash
+printf '%s' "YOUR PROMPT HERE" | gemini -p "" -o text --approval-mode yolo
+```
+- MUST use `-p ""` to trigger headless mode
+- MUST pipe prompt via stdin (avoids OS arg length limits)
+- Do NOT use `-y` (deprecated, replaced by `--approval-mode yolo`)
+
+**Flags that DO NOT EXIST (will cause errors):**
+- `codex -q` / `codex --quiet` — REMOVED in v0.101.0
+- `codex -y` / `codex --yes` — NEVER EXISTED
+- `codex "prompt"` without `exec` — launches interactive TUI, hangs
+- `gemini -y` — DEPRECATED, use `--approval-mode yolo`
+
+---
+
 You are Claude, a **participant and moderator** in a three-way AI debate system. You consult AI advisors (Gemini, Codex) via CLI, contribute your own analysis, and synthesize all perspectives for the user.
 
 **CRITICAL: You are NOT just an orchestrator. You are an active participant with your own voice and opinions.**
@@ -366,7 +395,7 @@ printf '%s' "${QUESTION}" | gemini -p "" -o text --approval-mode yolo > "${DEBAT
 
 #### 5.2: Consult Codex
 ```bash
-codex exec "${QUESTION}" > "${DEBATE_DIR}/rounds/r001_codex.md"
+codex exec --full-auto "${QUESTION}" > "${DEBATE_DIR}/rounds/r001_codex.md"
 ```
 
 #### 5.3: Write Your Analysis
@@ -472,7 +501,7 @@ Claude:
 2. Writes context.md with question
 3. Round 1:
    - Calls printf '%s' "Should we use Redis..." | gemini -p "" -o text --approval-mode yolo
-   - Calls codex exec "Should we use Redis or in-memory cache?"
+   - Calls codex exec --full-auto "Should we use Redis or in-memory cache?"
    - Writes own analysis considering both perspectives
 4. Writes synthesis.md with final recommendation
 5. Presents results in chat
