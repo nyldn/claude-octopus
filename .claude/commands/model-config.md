@@ -106,6 +106,16 @@ Models are selected using a 5-tier precedence system:
 | `gpt-4.1` | **1M** | Large codebase analysis, dependency mapping | $2.00/$8.00 per MTok |
 | `gpt-4.1-mini` | **1M** | Budget large-context tasks | $0.40/$1.60 per MTok |
 
+### OpenRouter Models (v8.11.0)
+
+| Agent Type | Model | Context | Best For | Cost |
+|------------|-------|---------|----------|------|
+| `openrouter-glm5` | `z-ai/glm-5` | 203K | Code review (77.8% SWE-bench, lowest hallucination) | $0.80/$2.56 per MTok |
+| `openrouter-kimi` | `moonshotai/kimi-k2.5` | **262K** | Research, large context, multimodal | $0.45/$2.25 per MTok |
+| `openrouter-deepseek` | `deepseek/deepseek-r1` | 164K | Deep reasoning (visible `<think>` traces) | $0.70/$2.50 per MTok |
+
+Requires `OPENROUTER_API_KEY` to be set. These are automatically selected when OpenRouter is the chosen provider via `get_tiered_agent_v2()` task routing.
+
 ### Gemini (Google)
 
 | Model | Best For | Cost |
