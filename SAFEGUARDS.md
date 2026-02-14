@@ -117,6 +117,37 @@ Files:
 
 ---
 
+## 🛡️ Sandbox Write Restrictions (v2.1.38+)
+
+**Status:** ⚠️ **AWARENESS REQUIRED** - Claude Code blocks writes to `.claude/skills` in sandbox mode
+
+### What Changed
+
+As of Claude Code v2.1.38, sandbox mode explicitly blocks writes to the `.claude/skills` directory. This is a security hardening measure to prevent untrusted code from modifying skill definitions.
+
+### Impact on Claude Octopus
+
+- **Installation:** The `install.sh` script and plugin manager handle skill installation outside sandbox mode, so normal installation is unaffected.
+- **Dynamic skill generation:** Any workflow or hook that attempts to create or modify files in `.claude/skills` at runtime will fail silently in sandboxed environments.
+- **Development:** When developing new skills locally, ensure you're not running in sandbox mode (`/sandbox` to check).
+
+### What to Do
+
+1. **Never generate skills dynamically** at runtime — all skills should be pre-defined in the plugin package
+2. **Use `~/.claude-octopus/` for runtime artifacts** — this directory is outside the sandbox boundary
+3. **Test in sandbox mode** before releasing — run `make test-smoke` with sandbox enabled to catch write failures early
+
+### Detection
+
+```bash
+# Check if running in sandbox mode
+claude /sandbox  # Shows current sandbox status
+```
+
+If a hook or script fails silently, check if it's attempting to write to a sandboxed path.
+
+---
+
 ## 🛡️ Other Critical Configuration
 
 ### Command Frontmatter Format
@@ -227,5 +258,5 @@ If plugin name gets changed accidentally:
 
 ---
 
-**Last Updated:** 2026-01-21
+**Last Updated:** 2026-02-13
 **Status:** All safeguards active and tested ✅

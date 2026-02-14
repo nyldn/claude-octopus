@@ -27,6 +27,11 @@ Resilient session resumption that survives context clearing from native plan mod
 - Decision history replay
 - Seamless multi-day project continuity
 
+**Enhanced in v8.8.0:**
+- Session auto-naming: workflows auto-generate descriptive session names (e.g., "embrace: auth-system-redesign") for easier discovery when resuming
+- Session names stored in `~/.claude-octopus/sessions/session.json` as `session_name` field
+- Claude Code v2.1.41+ `/rename` integration for session list readability
+
 ---
 
 ## How It Works

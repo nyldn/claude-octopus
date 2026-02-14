@@ -298,7 +298,7 @@ for skill_file in "$SKILLS_DIR"/*.md; do
     fi
 done
 if [[ $multiline_count -eq 0 ]]; then
-    assert_pass "7.1 No multi-line description: | blocks remain (all 43 compressed)"
+    assert_pass "7.1 No multi-line description: | blocks remain (all 44 compressed)"
 else
     assert_fail "7.1 No multi-line description: | blocks remain" "Found $multiline_count files with multi-line descriptions"
 fi
@@ -356,7 +356,7 @@ fi
 
 # 7.5: Correct skill file count
 skill_count=$(find "$SKILLS_DIR" -name "*.md" -type f | wc -l | tr -d ' ')
-assert_equals "43" "$skill_count" "7.5 Skill directory contains exactly 43 files"
+assert_equals "44" "$skill_count" "7.5 Skill directory contains exactly 44 files"
 
 echo ""
 

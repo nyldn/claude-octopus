@@ -34,7 +34,7 @@ setup_test_env() {
 restore_original_state() {
     if [[ "$ORIGINAL_STATE" != "0" ]]; then
         echo -e "${YELLOW}  → Restoring original plugin state...${NC}"
-        claude plugin marketplace add ayoahha/claude-octopus 2>/dev/null || true
+        claude plugin marketplace add https://github.com/ayoahha/claude-octopus 2>/dev/null || true
         claude plugin install claude-octopus@ayoahha-plugins --scope user 2>/dev/null || true
     fi
 }
@@ -59,7 +59,7 @@ test_claude_cli_available() {
 #==============================================================================
 
 test_add_marketplace() {
-    test_case "Add nyldn/claude-octopus marketplace"
+    test_case "Add ayoahha/claude-octopus marketplace"
 
     if ! command -v claude &>/dev/null; then
         test_skip "Claude CLI not available"
@@ -67,7 +67,7 @@ test_add_marketplace() {
     fi
 
     # Add marketplace
-    local output=$(claude plugin marketplace add nyldn/claude-octopus 2>&1)
+    local output=$(claude plugin marketplace add https://github.com/ayoahha/claude-octopus 2>&1)
     local exit_code=$?
 
     # Check if marketplace was added or already exists
