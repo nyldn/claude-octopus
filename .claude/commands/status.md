@@ -11,6 +11,7 @@ Display current Claude Octopus state, active agents, and provider readiness.
 Run:
 
 ```bash
+CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(jq -r '.plugins["octo@ayoahha-plugins"][0].installPath' ~/.claude/plugins/installed_plugins.json)}"
 ${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh status
 ```
 
