@@ -48,9 +48,10 @@ Map user flags to orchestrate.sh grapple options:
 
 Output this text to the user before executing:
 
-```
-🐙 CLAUDE OCTOPUS ACTIVATED - AI Debate Hub
+```text
+🐙 **CLAUDE OCTOPUS ACTIVATED** - AI Debate Hub
 🐙 Debate: <brief description of debate topic>
+🧭 Phase: Orchestration
 
 Participants:
 🔴 Codex CLI - Technical implementation perspective
@@ -89,7 +90,7 @@ If no synthesis file exists, report the failure. Do NOT substitute with your own
 
 Read the synthesis file content and present it to the user with this footer:
 
-```
+```text
 ---
 Multi-AI Debate powered by Claude Octopus
 Participants: 🔴 Codex | 🟡 Gemini | 🔵 Claude
