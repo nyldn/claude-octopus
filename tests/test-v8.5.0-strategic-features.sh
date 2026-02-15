@@ -33,6 +33,25 @@ TESTS_RUN=0
 TESTS_PASSED=0
 TESTS_FAILED=0
 
+# Pre-extract function bodies to avoid grep -A N | grep -q broken pipes
+# (SIGPIPE + pipefail = intermittent failures in CI)
+BODY_detect_fast_mode=$(grep -A 30 '^detect_fast_mode()' "$ORCHESTRATE_SH" || true)
+BODY_select_opus_mode=$(grep -A 60 '^select_opus_mode()' "$ORCHESTRATE_SH" || true)
+BODY_show_provider_status=$(grep -A 50 '^show_provider_status()' "$ORCHESTRATE_SH" || true)
+BODY_estimate_workflow_cost=$(grep -A 40 '^estimate_workflow_cost()' "$ORCHESTRATE_SH" || true)
+BODY_show_cost_estimate=$(grep -A 30 '^show_cost_estimate()' "$ORCHESTRATE_SH" || true)
+BODY_embrace_full_workflow=$(grep -A 200 '^embrace_full_workflow()' "$ORCHESTRATE_SH" || true)
+BODY_build_memory_context=$(grep -A 70 '^build_memory_context()' "$ORCHESTRATE_SH" || true)
+BODY_spawn_agent=$(grep -A 200 '^spawn_agent()' "$ORCHESTRATE_SH" || true)
+BODY_should_use_agent_teams=$(grep -A 40 '^should_use_agent_teams()' "$ORCHESTRATE_SH" || true)
+BODY_parse_yaml_workflow=$(grep -A 30 '^parse_yaml_workflow()' "$ORCHESTRATE_SH" || true)
+BODY_yaml_get_phases=$(grep -A 20 '^yaml_get_phases()' "$ORCHESTRATE_SH" || true)
+BODY_yaml_get_phase_config=$(grep -A 20 '^yaml_get_phase_config()' "$ORCHESTRATE_SH" || true)
+BODY_yaml_get_phase_agents=$(grep -A 20 '^yaml_get_phase_agents()' "$ORCHESTRATE_SH" || true)
+BODY_resolve_prompt_template=$(grep -A 20 '^resolve_prompt_template()' "$ORCHESTRATE_SH" || true)
+BODY_execute_workflow_phase=$(grep -A 60 '^execute_workflow_phase()' "$ORCHESTRATE_SH" || true)
+BODY_run_yaml_workflow=$(grep -A 40 '^run_yaml_workflow()' "$ORCHESTRATE_SH" || true)
+
 assert_pass() {
     local test_name="$1"
     TESTS_RUN=$((TESTS_RUN + 1))
@@ -133,14 +152,14 @@ else
 fi
 
 # 1.3: detect_fast_mode checks CLAUDE_CODE_FAST_MODE env var
-if grep -A 30 '^detect_fast_mode()' "$ORCHESTRATE_SH" | grep -q 'CLAUDE_CODE_FAST_MODE'; then
+if echo "$BODY_detect_fast_mode" | grep -q 'CLAUDE_CODE_FAST_MODE'; then
     assert_pass "1.3 detect_fast_mode checks CLAUDE_CODE_FAST_MODE env var"
 else
     assert_fail "1.3 detect_fast_mode checks CLAUDE_CODE_FAST_MODE env var"
 fi
 
 # 1.4: detect_fast_mode checks settings.json
-if grep -A 30 '^detect_fast_mode()' "$ORCHESTRATE_SH" | grep -q 'settings.json'; then
+if echo "$BODY_detect_fast_mode" | grep -q 'settings.json'; then
     assert_pass "1.4 detect_fast_mode checks settings.json"
 else
     assert_fail "1.4 detect_fast_mode checks settings.json"
@@ -154,21 +173,21 @@ else
 fi
 
 # 1.6: select_opus_mode references USER_FAST_MODE
-if grep -A 50 '^select_opus_mode()' "$ORCHESTRATE_SH" | grep -q 'USER_FAST_MODE'; then
+if echo "$BODY_select_opus_mode" | grep -q 'USER_FAST_MODE'; then
     assert_pass "1.6 select_opus_mode references USER_FAST_MODE"
 else
     assert_fail "1.6 select_opus_mode references USER_FAST_MODE"
 fi
 
 # 1.7: /fast mode protects multi-phase workflows from cost explosion
-if grep -A 60 '^select_opus_mode()' "$ORCHESTRATE_SH" | grep -q 'inside multi-phase workflow.*using standard'; then
+if echo "$BODY_select_opus_mode" | grep -q 'inside multi-phase workflow.*using standard'; then
     assert_pass "1.7 /fast mode protects multi-phase workflows"
 else
     assert_fail "1.7 /fast mode protects multi-phase workflows"
 fi
 
 # 1.8: show_provider_status displays /fast mode status
-if grep -A 50 '^show_provider_status()' "$ORCHESTRATE_SH" | grep -q '/fast Mode'; then
+if echo "$BODY_show_provider_status" | grep -q '/fast Mode'; then
     assert_pass "1.8 show_provider_status displays /fast mode status"
 else
     assert_fail "1.8 show_provider_status displays /fast mode status"
@@ -197,42 +216,42 @@ else
 fi
 
 # 2.3: estimate_workflow_cost handles embrace workflow
-if grep -A 20 '^estimate_workflow_cost()' "$ORCHESTRATE_SH" | grep -q 'embrace)'; then
+if echo "$BODY_estimate_workflow_cost" | grep -q 'embrace)'; then
     assert_pass "2.3 estimate_workflow_cost handles embrace workflow"
 else
     assert_fail "2.3 estimate_workflow_cost handles embrace workflow"
 fi
 
 # 2.4: estimate_workflow_cost calls is_api_based_provider
-if grep -A 40 '^estimate_workflow_cost()' "$ORCHESTRATE_SH" | grep -q 'is_api_based_provider'; then
+if echo "$BODY_estimate_workflow_cost" | grep -q 'is_api_based_provider'; then
     assert_pass "2.4 estimate_workflow_cost calls is_api_based_provider"
 else
     assert_fail "2.4 estimate_workflow_cost calls is_api_based_provider"
 fi
 
 # 2.5: show_cost_estimate skips when all providers are auth-connected
-if grep -A 20 '^show_cost_estimate()' "$ORCHESTRATE_SH" | grep -q 'has_cost.*false'; then
+if echo "$BODY_show_cost_estimate" | grep -q 'has_cost.*false'; then
     assert_pass "2.5 show_cost_estimate skips when all auth-connected"
 else
     assert_fail "2.5 show_cost_estimate skips when all auth-connected"
 fi
 
 # 2.6: show_cost_estimate shows /fast mode warning when active
-if grep -A 30 '^show_cost_estimate()' "$ORCHESTRATE_SH" | grep -q 'USER_FAST_MODE.*true'; then
+if echo "$BODY_show_cost_estimate" | grep -q 'USER_FAST_MODE.*true'; then
     assert_pass "2.6 show_cost_estimate shows /fast mode warning"
 else
     assert_fail "2.6 show_cost_estimate shows /fast mode warning"
 fi
 
 # 2.7: embrace_full_workflow calls show_cost_estimate
-if grep -A 80 '^embrace_full_workflow()' "$ORCHESTRATE_SH" | grep -q 'show_cost_estimate'; then
+if echo "$BODY_embrace_full_workflow" | grep -q 'show_cost_estimate'; then
     assert_pass "2.7 embrace_full_workflow calls show_cost_estimate"
 else
     assert_fail "2.7 embrace_full_workflow calls show_cost_estimate"
 fi
 
 # 2.8: estimate_workflow_cost handles individual phases (probe/grasp/tangle/ink)
-phase_count=$(grep -A 30 '^estimate_workflow_cost()' "$ORCHESTRATE_SH" | grep -c 'probe\|grasp\|tangle\|ink\|discover\|define\|develop\|deliver')
+phase_count=$(echo "$BODY_estimate_workflow_cost" | grep -c 'probe\|grasp\|tangle\|ink\|discover\|define\|develop\|deliver')
 if [[ "$phase_count" -ge 4 ]]; then
     assert_pass "2.8 estimate_workflow_cost handles individual phases ($phase_count matches)"
 else
@@ -262,40 +281,40 @@ else
 fi
 
 # 3.3: build_memory_context guards on SUPPORTS_PERSISTENT_MEMORY
-if grep -A 20 '^build_memory_context()' "$ORCHESTRATE_SH" | grep -q 'SUPPORTS_PERSISTENT_MEMORY.*true'; then
+if echo "$BODY_build_memory_context" | grep -q 'SUPPORTS_PERSISTENT_MEMORY.*true'; then
     assert_pass "3.3 build_memory_context guards on SUPPORTS_PERSISTENT_MEMORY"
 else
     assert_fail "3.3 build_memory_context guards on SUPPORTS_PERSISTENT_MEMORY"
 fi
 
 # 3.4: build_memory_context handles project/user/local scopes
-if grep -A 40 '^build_memory_context()' "$ORCHESTRATE_SH" | grep -q 'project)'; then
+if echo "$BODY_build_memory_context" | grep -q 'project)'; then
     assert_pass "3.4 build_memory_context handles project scope"
 else
     assert_fail "3.4 build_memory_context handles project scope"
 fi
 
-if grep -A 40 '^build_memory_context()' "$ORCHESTRATE_SH" | grep -q 'user)'; then
+if echo "$BODY_build_memory_context" | grep -q 'user)'; then
     assert_pass "3.5 build_memory_context handles user scope"
 else
     assert_fail "3.5 build_memory_context handles user scope"
 fi
 
-if grep -A 40 '^build_memory_context()' "$ORCHESTRATE_SH" | grep -q 'local)'; then
+if echo "$BODY_build_memory_context" | grep -q 'local)'; then
     assert_pass "3.6 build_memory_context handles local scope"
 else
     assert_fail "3.6 build_memory_context handles local scope"
 fi
 
 # 3.7: build_memory_context reads MEMORY.md files
-if grep -A 40 '^build_memory_context()' "$ORCHESTRATE_SH" | grep -q 'MEMORY.md'; then
+if echo "$BODY_build_memory_context" | grep -q 'MEMORY.md'; then
     assert_pass "3.7 build_memory_context reads MEMORY.md files"
 else
     assert_fail "3.7 build_memory_context reads MEMORY.md files"
 fi
 
 # 3.8: spawn_agent injects memory via build_memory_context
-if grep -A 200 '^spawn_agent()' "$ORCHESTRATE_SH" | grep -q 'build_memory_context'; then
+if echo "$BODY_spawn_agent" | grep -q 'build_memory_context'; then
     assert_pass "3.8 spawn_agent injects memory via build_memory_context"
 else
     assert_fail "3.8 spawn_agent injects memory via build_memory_context"
@@ -388,35 +407,35 @@ else
 fi
 
 # 5.3: should_use_agent_teams handles legacy override
-if grep -A 15 '^should_use_agent_teams()' "$ORCHESTRATE_SH" | grep -q '"legacy"'; then
+if echo "$BODY_should_use_agent_teams" | grep -q '"legacy"'; then
     assert_pass "5.3 should_use_agent_teams handles legacy override"
 else
     assert_fail "5.3 should_use_agent_teams handles legacy override"
 fi
 
 # 5.4: should_use_agent_teams checks SUPPORTS_STABLE_AGENT_TEAMS
-if grep -A 30 '^should_use_agent_teams()' "$ORCHESTRATE_SH" | grep -q 'SUPPORTS_STABLE_AGENT_TEAMS'; then
+if echo "$BODY_should_use_agent_teams" | grep -q 'SUPPORTS_STABLE_AGENT_TEAMS'; then
     assert_pass "5.4 should_use_agent_teams checks SUPPORTS_STABLE_AGENT_TEAMS"
 else
     assert_fail "5.4 should_use_agent_teams checks SUPPORTS_STABLE_AGENT_TEAMS"
 fi
 
 # 5.5: should_use_agent_teams only allows Claude agent types
-if grep -A 40 '^should_use_agent_teams()' "$ORCHESTRATE_SH" | grep -q 'claude|claude-sonnet|claude-opus|claude-opus-fast'; then
+if echo "$BODY_should_use_agent_teams" | grep -q 'claude|claude-sonnet|claude-opus|claude-opus-fast'; then
     assert_pass "5.5 should_use_agent_teams only allows Claude agent types"
 else
     assert_fail "5.5 should_use_agent_teams only allows Claude agent types"
 fi
 
 # 5.6: spawn_agent calls should_use_agent_teams
-if grep -A 200 '^spawn_agent()' "$ORCHESTRATE_SH" | grep -q 'should_use_agent_teams'; then
+if echo "$BODY_spawn_agent" | grep -q 'should_use_agent_teams'; then
     assert_pass "5.6 spawn_agent calls should_use_agent_teams"
 else
     assert_fail "5.6 spawn_agent calls should_use_agent_teams"
 fi
 
 # 5.7: Agent Teams path writes dispatch instruction file
-if grep -A 200 '^spawn_agent()' "$ORCHESTRATE_SH" | grep -q 'AGENT_TEAMS_DISPATCH'; then
+if echo "$BODY_spawn_agent" | grep -q 'AGENT_TEAMS_DISPATCH'; then
     assert_pass "5.7 Agent Teams path writes dispatch instruction"
 else
     assert_fail "5.7 Agent Teams path writes dispatch instruction"
@@ -494,14 +513,14 @@ else
 fi
 
 # 6.9: embrace_full_workflow delegates to YAML runtime
-if grep -A 150 '^embrace_full_workflow()' "$ORCHESTRATE_SH" | grep -q 'run_yaml_workflow'; then
+if echo "$BODY_embrace_full_workflow" | grep -q 'run_yaml_workflow'; then
     assert_pass "6.9 embrace_full_workflow delegates to YAML runtime"
 else
     assert_fail "6.9 embrace_full_workflow delegates to YAML runtime"
 fi
 
 # 6.10: YAML runtime has feature flag check (auto/enabled/disabled)
-if grep -A 150 '^embrace_full_workflow()' "$ORCHESTRATE_SH" | grep -q 'OCTOPUS_YAML_RUNTIME'; then
+if echo "$BODY_embrace_full_workflow" | grep -q 'OCTOPUS_YAML_RUNTIME'; then
     assert_pass "6.10 YAML runtime delegation checks feature flag"
 else
     assert_fail "6.10 YAML runtime delegation checks feature flag"
@@ -515,7 +534,7 @@ else
 fi
 
 # 6.12: YAML runtime references embrace.yaml
-if grep -A 20 '^run_yaml_workflow()' "$ORCHESTRATE_SH" | grep -q 'workflows/.*yaml'; then
+if echo "$BODY_run_yaml_workflow" | grep -q 'workflows/.*yaml'; then
     assert_pass "6.12 YAML runtime references workflow YAML files"
 else
     assert_fail "6.12 YAML runtime references workflow YAML files"
@@ -551,7 +570,7 @@ else
 fi
 
 # 7.4: execute_workflow_phase updates phase_tasks for task-completed-transition.sh
-if grep -A 100 '^execute_workflow_phase()' "$ORCHESTRATE_SH" | grep -q 'phase_tasks'; then
+if echo "$BODY_execute_workflow_phase" | grep -q 'phase_tasks'; then
     assert_pass "7.4 execute_workflow_phase updates phase_tasks"
 else
     assert_fail "7.4 execute_workflow_phase updates phase_tasks"
@@ -623,7 +642,7 @@ echo -e "${BLUE}Test Group 9: Cross-Cutting Concerns${NC}"
 echo "------------------------------------------------------------"
 
 # 9.1: resolve_prompt_template handles {{prompt}} placeholder
-if grep -A 10 '^resolve_prompt_template()' "$ORCHESTRATE_SH" | grep -q 'prompt'; then
+if echo "$BODY_resolve_prompt_template" | grep -q 'prompt'; then
     assert_pass "9.1 resolve_prompt_template handles {{prompt}} placeholder"
 else
     assert_fail "9.1 resolve_prompt_template handles {{prompt}} placeholder"
@@ -637,7 +656,7 @@ else
 fi
 
 # 9.3: build_memory_context truncates to ~2000 chars
-if grep -A 70 '^build_memory_context()' "$ORCHESTRATE_SH" | grep -q 'head -c 2000'; then
+if echo "$BODY_build_memory_context" | grep -q 'head -c 2000'; then
     assert_pass "9.3 build_memory_context truncates to 2000 chars"
 else
     assert_fail "9.3 build_memory_context truncates to 2000 chars"

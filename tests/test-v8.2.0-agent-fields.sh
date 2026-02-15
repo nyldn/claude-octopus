@@ -61,50 +61,56 @@ echo ""
 echo -e "${BLUE}Test Group 1: Config.yaml Field Declarations${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
+# Pre-extract agent config sections to avoid grep -A | grep -q broken pipes
+CFG_AI_ENGINEER=$(grep -A 10 '  ai-engineer:' "$CONFIG_YAML" || true)
+CFG_TDD_ORCHESTRATOR=$(grep -A 10 '  tdd-orchestrator:' "$CONFIG_YAML" || true)
+CFG_CODE_REVIEWER=$(grep -A 10 '  code-reviewer:' "$CONFIG_YAML" || true)
+CFG_SECURITY_AUDITOR=$(grep -A 10 '  security-auditor:' "$CONFIG_YAML" || true)
+
 # 1.1: permissionMode exists for probe agent (ai-engineer)
-if grep -A 10 '  ai-engineer:' "$CONFIG_YAML" | grep -q 'permissionMode: plan'; then
+if echo "$CFG_AI_ENGINEER" | grep -q 'permissionMode: plan'; then
     assert_pass "1.1 ai-engineer has permissionMode: plan (probe agent)"
 else
     assert_fail "1.1 ai-engineer has permissionMode: plan (probe agent)"
 fi
 
 # 1.2: permissionMode exists for tangle agent (tdd-orchestrator)
-if grep -A 10 '  tdd-orchestrator:' "$CONFIG_YAML" | grep -q 'permissionMode: acceptEdits'; then
+if echo "$CFG_TDD_ORCHESTRATOR" | grep -q 'permissionMode: acceptEdits'; then
     assert_pass "1.2 tdd-orchestrator has permissionMode: acceptEdits (tangle agent)"
 else
     assert_fail "1.2 tdd-orchestrator has permissionMode: acceptEdits (tangle agent)"
 fi
 
 # 1.3: permissionMode exists for ink agent (code-reviewer)
-if grep -A 10 '  code-reviewer:' "$CONFIG_YAML" | grep -q 'permissionMode: default'; then
+if echo "$CFG_CODE_REVIEWER" | grep -q 'permissionMode: default'; then
     assert_pass "1.3 code-reviewer has permissionMode: default (ink agent)"
 else
     assert_fail "1.3 code-reviewer has permissionMode: default (ink agent)"
 fi
 
 # 1.4: memory: project exists for code-reviewer
-if grep -A 10 '  code-reviewer:' "$CONFIG_YAML" | grep -q 'memory: project'; then
+if echo "$CFG_CODE_REVIEWER" | grep -q 'memory: project'; then
     assert_pass "1.4 code-reviewer has memory: project"
 else
     assert_fail "1.4 code-reviewer has memory: project"
 fi
 
 # 1.5: memory: project exists for security-auditor
-if grep -A 10 '  security-auditor:' "$CONFIG_YAML" | grep -q 'memory: project'; then
+if echo "$CFG_SECURITY_AUDITOR" | grep -q 'memory: project'; then
     assert_pass "1.5 security-auditor has memory: project"
 else
     assert_fail "1.5 security-auditor has memory: project"
 fi
 
 # 1.6: skills field exists for code-reviewer -> skill-code-review
-if grep -A 10 '  code-reviewer:' "$CONFIG_YAML" | grep -q 'skills:.*skill-code-review'; then
+if echo "$CFG_CODE_REVIEWER" | grep -q 'skills:.*skill-code-review'; then
     assert_pass "1.6 code-reviewer has skills: [skill-code-review]"
 else
     assert_fail "1.6 code-reviewer has skills: [skill-code-review]"
 fi
 
 # 1.7: skills field exists for tdd-orchestrator -> skill-tdd
-if grep -A 10 '  tdd-orchestrator:' "$CONFIG_YAML" | grep -q 'skills:.*skill-tdd'; then
+if echo "$CFG_TDD_ORCHESTRATOR" | grep -q 'skills:.*skill-tdd'; then
     assert_pass "1.7 tdd-orchestrator has skills: [skill-tdd]"
 else
     assert_fail "1.7 tdd-orchestrator has skills: [skill-tdd]"
@@ -161,22 +167,27 @@ else
     assert_fail "2.5 build_skill_context() function exists"
 fi
 
+# Pre-extract function bodies to avoid grep -A | grep -q broken pipes
+BODY_GET_AGENT_MEMORY=$(grep -A 5 'get_agent_memory()' "$ORCHESTRATE_SH" || true)
+BODY_LOAD_SKILL_CONTENT=$(grep -A 10 'load_agent_skill_content()' "$ORCHESTRATE_SH" || true)
+BODY_BUILD_SKILL_CTX=$(grep -A 15 'build_skill_context()' "$ORCHESTRATE_SH" || true)
+
 # 2.6: Functions use get_agent_config internally
-if grep -A 5 'get_agent_memory()' "$ORCHESTRATE_SH" | grep -q 'get_agent_config'; then
+if echo "$BODY_GET_AGENT_MEMORY" | grep -q 'get_agent_config'; then
     assert_pass "2.6 get_agent_memory uses get_agent_config internally"
 else
     assert_fail "2.6 get_agent_memory uses get_agent_config internally"
 fi
 
 # 2.7: load_agent_skill_content strips YAML frontmatter (awk pattern)
-if grep -A 10 'load_agent_skill_content()' "$ORCHESTRATE_SH" | grep -q 'in_fm.*past_fm'; then
+if echo "$BODY_LOAD_SKILL_CONTENT" | grep -q 'in_fm.*past_fm'; then
     assert_pass "2.7 load_agent_skill_content strips YAML frontmatter (awk pattern)"
 else
     assert_fail "2.7 load_agent_skill_content strips YAML frontmatter (awk pattern)"
 fi
 
 # 2.8: build_skill_context iterates skills list
-if grep -A 15 'build_skill_context()' "$ORCHESTRATE_SH" | grep -q 'for skill in'; then
+if echo "$BODY_BUILD_SKILL_CTX" | grep -q 'for skill in'; then
     assert_pass "2.8 build_skill_context iterates skills list"
 else
     assert_fail "2.8 build_skill_context iterates skills list"
@@ -190,22 +201,25 @@ echo ""
 echo -e "${BLUE}Test Group 3: spawn_agent Skills Injection${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
+# Extract spawn_agent body once to avoid repeated grep -A | grep -q broken pipes
+SPAWN_AGENT_BODY=$(grep -A 100 '^spawn_agent()' "$ORCHESTRATE_SH" || true)
+
 # 3.1: spawn_agent references build_skill_context
-if grep -A 100 '^spawn_agent()' "$ORCHESTRATE_SH" | grep -q 'build_skill_context'; then
+if echo "$SPAWN_AGENT_BODY" | grep -q 'build_skill_context'; then
     assert_pass "3.1 spawn_agent references build_skill_context"
 else
     assert_fail "3.1 spawn_agent references build_skill_context"
 fi
 
 # 3.2: spawn_agent references select_curated_agent for skill lookup
-if grep -A 100 '^spawn_agent()' "$ORCHESTRATE_SH" | grep -q 'select_curated_agent.*prompt.*phase'; then
+if echo "$SPAWN_AGENT_BODY" | grep -q 'select_curated_agent.*prompt.*phase'; then
     assert_pass "3.2 spawn_agent references select_curated_agent for skill lookup"
 else
     assert_fail "3.2 spawn_agent references select_curated_agent for skill lookup"
 fi
 
 # 3.3: Skills injection gated behind SUPPORTS_AGENT_TYPE_ROUTING
-if grep -A 100 '^spawn_agent()' "$ORCHESTRATE_SH" | grep -q 'SUPPORTS_AGENT_TYPE_ROUTING.*true'; then
+if echo "$SPAWN_AGENT_BODY" | grep -q 'SUPPORTS_AGENT_TYPE_ROUTING.*true'; then
     assert_pass "3.3 Skills injection gated behind SUPPORTS_AGENT_TYPE_ROUTING"
 else
     assert_fail "3.3 Skills injection gated behind SUPPORTS_AGENT_TYPE_ROUTING"
@@ -226,7 +240,7 @@ else
 fi
 
 # 3.6: Skill content prepended before persona+prompt (skill_context before enhanced_prompt)
-if grep -A 100 '^spawn_agent()' "$ORCHESTRATE_SH" | grep -q 'enhanced_prompt="${skill_context}'; then
+if echo "$SPAWN_AGENT_BODY" | grep -q 'enhanced_prompt="${skill_context}'; then
     assert_pass "3.6 Skill content prepended before persona+prompt"
 else
     assert_fail "3.6 Skill content prepended before persona+prompt"
