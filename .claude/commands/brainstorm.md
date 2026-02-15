@@ -3,6 +3,9 @@ command: brainstorm
 description: "Start a creative thought partner brainstorming session"
 ---
 
+> **Note:** This is a Claude-only interactive session. No external providers (Codex/Gemini)
+> are called. For multi-AI perspectives, use `/octo:debate` instead.
+
 # /octo:brainstorm
 
 Start a structured brainstorming session using four breakthrough techniques.
