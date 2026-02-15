@@ -27,11 +27,18 @@ trigger: |
 
 # STOP. READ THIS FIRST.
 
-**You are FORBIDDEN from debating directly.** You MUST call orchestrate.sh via Bash.
+## EXECUTION CONTRACT
 
-Do NOT consult Codex/Gemini directly via CLI. Do NOT debate the topic yourself.
-Do NOT use Task agents, web search, or any other method.
-The ONLY acceptable action is running the Bash command below.
+1. You MUST call `orchestrate.sh grapple` via the Bash tool.
+2. You MUST display the visual indicator banner BEFORE execution.
+3. You are PROHIBITED from debating the topic yourself.
+4. You are PROHIBITED from calling codex/gemini CLI directly.
+5. You are PROHIBITED from using Task agents, web search, or native personas.
+6. You CANNOT SKIP the orchestrate.sh call for any reason.
+7. You MUST verify `validation_gates`: confirm orchestrate.sh exited 0 and a
+   synthesis file exists in `~/.claude-octopus/results/grapple-*.md`.
+8. If orchestrate.sh fails, report the error. You are PROHIBITED from
+   falling back to direct debate or any workaround.
 
 ---
 
@@ -54,9 +61,9 @@ Output this text to the user before executing:
 🧭 Phase: Orchestration
 
 Participants:
-🔴 Codex CLI - Technical implementation perspective
-🟡 Gemini CLI - Ecosystem and strategic perspective
-🔵 Claude - Moderator and synthesis
+🔴 Codex CLI - Technical implementation perspective (~$0.01–$0.15/query)
+🟡 Gemini CLI - Ecosystem and strategic perspective (~$0.01–$0.03/query)
+🔵 Claude - Moderator and synthesis (included with subscription)
 ```
 
 ## Step 3: Execute orchestrate.sh (USE BASH TOOL NOW)
@@ -93,7 +100,7 @@ Read the synthesis file content and present it to the user with this footer:
 ```text
 ---
 Multi-AI Debate powered by Claude Octopus
-Participants: 🔴 Codex | 🟡 Gemini | 🔵 Claude
+Participants: 🔴 Codex (~$0.01–$0.15) | 🟡 Gemini (~$0.01–$0.03) | 🔵 Claude (included)
 Full synthesis: <path to synthesis file>
 ```
 
