@@ -23,8 +23,8 @@
 Inside Claude Code, run:
 
 ```
-/plugin marketplace add https://github.com/ayoahha/claude-octopus
-/plugin install octo@ayoahha-plugins
+/plugin marketplace add https://github.com/adrivellen/claude-octopus
+/plugin install octo@adrivellen-plugins
 ```
 
 Then configure your AI providers:
@@ -457,8 +457,8 @@ Visual indicators show active providers in real-time. For deeper debugging, chec
 **How do I update?**
 Run `/plugin` > Installed > update, or reinstall:
 ```
-/plugin uninstall octo@ayoahha-plugins
-/plugin install octo@ayoahha-plugins
+/plugin uninstall octo@adrivellen-plugins
+/plugin install octo@adrivellen-plugins
 ```
 
 ---
@@ -485,9 +485,9 @@ Run `/plugin` > Installed > update, or reinstall:
 
 ## Contributing
 
-1. [Report Issues](https://github.com/ayoahha/claude-octopus/issues)
+1. [Report Issues](https://github.com/adrivellen/claude-octopus/issues)
 2. Submit PRs following existing code style
-3. Development: `git clone --recursive https://github.com/ayoahha/claude-octopus.git && make test`
+3. Development: `git clone --recursive https://github.com/adrivellen/claude-octopus.git && make test`
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
@@ -498,5 +498,5 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 MIT - see [LICENSE](LICENSE)
 
 <p align="center">
-  <a href="https://github.com/ayoahha">ayoahha</a> | MIT License | <a href="https://github.com/ayoahha/claude-octopus/issues">Report Issues</a>
+  <a href="https://github.com/adrivellen">adrivellen</a> | MIT License | <a href="https://github.com/adrivellen/claude-octopus/issues">Report Issues</a>
 </p>

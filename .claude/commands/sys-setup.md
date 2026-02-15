@@ -14,7 +14,7 @@ This command checks your current setup and provides instructions for any missing
 Running setup detection...
 
 ```bash
-CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(jq -r '.plugins["octo@ayoahha-plugins"][0].installPath' ~/.claude/plugins/installed_plugins.json)}"
+CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(jq -r '.plugins["octo@adrivellen-plugins"][0].installPath' ~/.claude/plugins/installed_plugins.json)}"
 ${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh detect-providers
 ```
 
@@ -102,7 +102,7 @@ export GEMINI_API_KEY="AIza..."
 
 After installing and configuring, verify with:
 ```bash
-CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(jq -r '.plugins["octo@ayoahha-plugins"][0].installPath' ~/.claude/plugins/installed_plugins.json)}"
+CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(jq -r '.plugins["octo@adrivellen-plugins"][0].installPath' ~/.claude/plugins/installed_plugins.json)}"
 ${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh detect-providers
 ```
 
@@ -228,4 +228,4 @@ Add the export statement to your shell profile (~/.zshrc or ~/.bashrc) so it loa
 If you encounter issues:
 1. Run `${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh preflight` for a detailed system check
 2. Check the logs in `~/.claude-octopus/logs/`
-3. Report issues at: https://github.com/ayoahha/claude-octopus/issues
+3. Report issues at: https://github.com/adrivellen/claude-octopus/issues

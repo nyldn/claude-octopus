@@ -37,7 +37,7 @@ fi
 
 if [[ "$MARKETPLACE_PLUGIN_NAME" != "octo" ]]; then
     echo -e "  ${RED}CRITICAL ERROR: marketplace.json plugin name is '$MARKETPLACE_PLUGIN_NAME' - MUST be 'octo'${NC}"
-    echo -e "  ${RED}This controls install command (octo@ayoahha-plugins)${NC}"
+    echo -e "  ${RED}This controls install command (octo@adrivellen-plugins)${NC}"
     ((errors++))
 else
     echo -e "  ${GREEN}✓ marketplace.json plugin name: octo (install name)${NC}"

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Claude Octopus - Multi-Agent Orchestrator
 # Coordinates multiple AI agents (Codex CLI, Gemini CLI) for parallel task execution
-# https://github.com/ayoahha/claude-octopus
+# https://github.com/adrivellen/claude-octopus
 
 set -eo pipefail
 
@@ -3799,7 +3799,7 @@ ${YELLOW}Learn More:${NC}
   $(basename "$0") help --full        Show all commands and options
   $(basename "$0") help <command>     Get help for specific command
 
-${CYAN}https://github.com/ayoahha/claude-octopus${NC}
+${CYAN}https://github.com/adrivellen/claude-octopus${NC}
 EOF
     exit 0
 }
@@ -4370,7 +4370,7 @@ ${YELLOW}Environment:${NC}
   OPENAI_API_KEY            Required for Codex CLI
   GEMINI_API_KEY            Required for Gemini CLI
 
-${CYAN}https://github.com/ayoahha/claude-octopus${NC}
+${CYAN}https://github.com/adrivellen/claude-octopus${NC}
 EOF
     exit 0
 }
@@ -7154,7 +7154,7 @@ EOF
         -H "Authorization: Bearer ${OPENROUTER_API_KEY}" \
         -H "Content-Type: application/json" \
         -H "Connection: keep-alive" \
-        -H "HTTP-Referer: https://github.com/ayoahha/claude-octopus" \
+        -H "HTTP-Referer: https://github.com/adrivellen/claude-octopus" \
         -H "X-Title: Claude Octopus" \
         -d "$payload")
 
@@ -7229,7 +7229,7 @@ EOF
         -H "Authorization: Bearer ${OPENROUTER_API_KEY}" \
         -H "Content-Type: application/json" \
         -H "Connection: keep-alive" \
-        -H "HTTP-Referer: https://github.com/ayoahha/claude-octopus" \
+        -H "HTTP-Referer: https://github.com/adrivellen/claude-octopus" \
         -H "X-Title: Claude Octopus" \
         -d "$payload")
 
