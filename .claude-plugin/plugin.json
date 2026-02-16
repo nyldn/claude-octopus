@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "8.13.0",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v8.13.0) New release/doctor commands, debate --synthesize flag, status debate recap. One-command releases, environment diagnostics, consensus-to-deliverable pipeline. 31 expert personas, 39 commands, 44 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
+  "version": "8.14.0",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v8.14.0) State management wired into workflow lifecycle, codebase-aware discover phase, human-readable STATE.md generation. Persistent project state across sessions. 31 expert personas, 39 commands, 44 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },

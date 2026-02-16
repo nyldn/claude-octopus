@@ -2,6 +2,28 @@
 
 All notable changes to Claude Octopus will be documented in this file.
 
+## [8.14.0] - 2026-02-15
+
+### Added
+
+**Persistent state management wired into workflow lifecycle (P0):**
+- `state-manager.sh` functions (`init_state`, `set_current_workflow`, `update_context`, `update_metrics`) now called from `init_session()`, `save_session_checkpoint()`, `complete_session()`, and `spawn_agent()`
+- Phase context captured after each embrace phase (probe/grasp/tangle/ink) via `update_context()`
+- Provider usage tracked per `spawn_agent()` call (codex/gemini/claude counters)
+- `/octo:status` now shows project state section (workflow, phase, decisions, blockers)
+
+**Codebase-aware discover/probe phase (P1):**
+- When running `probe_discover()` inside a git repo with source files, a 6th agent is spawned to analyze the local codebase
+- Maps tech stack, architecture patterns, file structure, and coding conventions
+- Dynamic agent count (5 or 6) replaces hardcoded progress tracking
+
+**Human-readable STATE.md generation:**
+- New `write_state_md()` function in `state-manager.sh` renders `state.json` to `.claude-octopus/STATE.md`
+- Generated at every checkpoint and session completion for LLM context restoration
+- Includes: current position, provider usage, decisions, active blockers, phase context
+
+---
+
 ## [8.13.0] - 2026-02-15
 
 ### Added

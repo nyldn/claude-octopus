@@ -7893,6 +7893,10 @@ init_session() {
 }
 EOF
     log INFO "Session initialized: $session_id (name: $session_name)"
+
+    # v8.14.0: Initialize persistent state tracking
+    init_state 2>/dev/null || true
+    set_current_workflow "$workflow" "init" 2>/dev/null || true
 }
 
 # Save checkpoint after phase completion
@@ -7914,6 +7918,11 @@ save_session_checkpoint() {
        --arg time "$timestamp" \
        '.phases[$phase] = {status: $status, output: $output, timestamp: $time} | .last_checkpoint = $time | .current_phase = $phase' \
        "$SESSION_FILE" > "${SESSION_FILE}.tmp" && mv "${SESSION_FILE}.tmp" "$SESSION_FILE"
+
+    # v8.14.0: Sync to persistent state
+    set_current_workflow "$(jq -r '.workflow // ""' "$SESSION_FILE" 2>/dev/null)" "$phase" 2>/dev/null || true
+    update_metrics "phases_completed" "1" 2>/dev/null || true
+    write_state_md 2>/dev/null || true
 
     log DEBUG "Checkpoint saved: $phase ($status)"
 }
@@ -7976,6 +7985,10 @@ complete_session() {
             mv "${SESSION_FILE}.tmp" "$SESSION_FILE"
         log INFO "Session marked complete"
     fi
+
+    # v8.14.0: Mark persistent state as completed
+    set_current_workflow "completed" "done" 2>/dev/null || true
+    write_state_md 2>/dev/null || true
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -9116,6 +9129,16 @@ ${enhanced_prompt}"
     fi
     log "DEBUG" "Model selected: $model (from agent_type=$agent_type)"
     record_agent_call "$agent_type" "$model" "$enhanced_prompt" "${phase:-unknown}" "${role:-none}" "0"
+
+    # v8.14.0: Track provider usage in persistent state
+    local provider_name
+    case "$agent_type" in
+        codex*) provider_name="codex" ;;
+        gemini*) provider_name="gemini" ;;
+        claude*) provider_name="claude" ;;
+        *) provider_name="$agent_type" ;;
+    esac
+    update_metrics "provider" "$provider_name" 2>/dev/null || true
 
     # v8.7.0: Register task in bridge ledger
     bridge_register_task "$task_id" "$agent_type" "${phase:-unknown}" "${role:-none}"
@@ -12012,7 +12035,7 @@ probe_discover() {
 
     if [[ "$DRY_RUN" == "true" ]]; then
         log INFO "[DRY-RUN] Would probe: $prompt"
-        log INFO "[DRY-RUN] Would spawn 5 parallel research agents (Codex, Gemini, Sonnet 4.5)"
+        log INFO "[DRY-RUN] Would spawn 5+ parallel research agents (Codex, Gemini, Sonnet 4.5, +codebase if in git repo)"
         return 0
     fi
 
@@ -12049,9 +12072,6 @@ probe_discover() {
 
     mkdir -p "$RESULTS_DIR" "$LOGS_DIR"
 
-    # Initialize progress tracking (v7.16.0 Feature 2)
-    init_progress_tracking "discover" 5
-
     # Initialize tmux if enabled
     if [[ "$TMUX_MODE" == "true" ]]; then
         tmux_init
@@ -12072,9 +12092,24 @@ probe_discover() {
         "🔧 Feasibility"
         "🔵 Cross-Synthesis"
     )
+    local probe_agents=("codex" "gemini" "claude-sonnet" "codex" "gemini")
+
+    # v8.14.0: Codebase-aware discovery — add 6th agent when inside a git repo
+    if git rev-parse --is-inside-work-tree &>/dev/null 2>&1; then
+        local src_dirs
+        src_dirs=$(find . -maxdepth 2 -type f \( -name "*.ts" -o -name "*.py" -o -name "*.go" -o -name "*.rs" -o -name "*.java" -o -name "*.js" \) 2>/dev/null | head -1)
+        if [[ -n "$src_dirs" ]]; then
+            perspectives+=("Analyze the LOCAL CODEBASE in the current directory for: $prompt. Run: find . -type f -name '*.ts' -o -name '*.py' -o -name '*.js' | head -30, then read key files. Report: tech stack, architecture patterns, file structure, coding conventions, and how they relate to the prompt. Focus on ACTUAL code, not hypotheticals.")
+            pane_titles+=("📂 Codebase Analysis")
+            probe_agents+=("claude-sonnet")
+            log INFO "Codebase detected - adding local codebase analysis agent"
+        fi
+    fi
+
+    # Initialize progress tracking with actual agent count (dynamic, may be 5 or 6)
+    init_progress_tracking "discover" "${#perspectives[@]}"
 
     local pids=()
-    local probe_agents=("codex" "gemini" "claude-sonnet" "codex" "gemini")
     for i in "${!perspectives[@]}"; do
         local perspective="${perspectives[$i]}"
         local agent="${probe_agents[$i]}"
@@ -12990,6 +13025,9 @@ embrace_full_workflow() {
             display_phase_metrics "probe" 2>/dev/null || true
         fi
 
+        # v8.14.0: Capture phase context in persistent state
+        update_context "discover" "$(head -20 "$probe_synthesis" 2>/dev/null | tr '\n' ' ')" 2>/dev/null || true
+
         OCTOPUS_COMPLETED_PHASES=1
         _write_embrace_session_state "probe" "completed"
         save_session_checkpoint "probe" "completed" "$probe_synthesis"
@@ -13015,6 +13053,9 @@ embrace_full_workflow() {
         if command -v display_phase_metrics &> /dev/null; then
             display_phase_metrics "grasp" 2>/dev/null || true
         fi
+
+        # v8.14.0: Capture phase context in persistent state
+        update_context "define" "$(head -20 "$grasp_consensus" 2>/dev/null | tr '\n' ' ')" 2>/dev/null || true
 
         OCTOPUS_COMPLETED_PHASES=2
         _write_embrace_session_state "grasp" "completed"
@@ -13047,6 +13088,9 @@ embrace_full_workflow() {
         if grep -q "Quality Gate: FAILED" "$tangle_validation" 2>/dev/null; then
             tangle_status="warning"
         fi
+        # v8.14.0: Capture phase context in persistent state
+        update_context "develop" "$(head -20 "$tangle_validation" 2>/dev/null | tr '\n' ' ')" 2>/dev/null || true
+
         OCTOPUS_COMPLETED_PHASES=3
         _write_embrace_session_state "tangle" "$tangle_status"
         save_session_checkpoint "tangle" "$tangle_status" "$tangle_validation"
@@ -13071,10 +13115,15 @@ embrace_full_workflow() {
         display_phase_metrics "ink" 2>/dev/null || true
     fi
 
+    # v8.14.0: Capture phase context in persistent state
+    local ink_output
+    ink_output=$(ls -t "$RESULTS_DIR"/delivery-*.md 2>/dev/null | head -1)
+    update_context "deliver" "$(head -20 "$ink_output" 2>/dev/null | tr '\n' ' ')" 2>/dev/null || true
+
     OCTOPUS_COMPLETED_PHASES=4
     export OCTOPUS_WORKFLOW_PHASE="complete"
     _write_embrace_session_state "ink" "completed"
-    save_session_checkpoint "ink" "completed" "$(ls -t "$RESULTS_DIR"/delivery-*.md 2>/dev/null | head -1)"
+    save_session_checkpoint "ink" "completed" "$ink_output"
 
     # Mark session complete
     complete_session
@@ -14489,6 +14538,23 @@ show_status() {
         local result_count
         result_count=$(find "$RESULTS_DIR" -name "*.md" -type f | wc -l | tr -d ' ')
         echo -e "${BLUE}Results:${NC} $result_count files in $RESULTS_DIR"
+    fi
+
+    # v8.14.0: Show persistent project state
+    if [[ -f ".claude-octopus/state.json" ]]; then
+        echo ""
+        echo -e "${BLUE}Project State:${NC}"
+        local wf ph pc dc ab
+        wf=$(jq -r '.current_workflow // "none"' .claude-octopus/state.json 2>/dev/null)
+        ph=$(jq -r '.current_phase // "none"' .claude-octopus/state.json 2>/dev/null)
+        pc=$(jq -r '.metrics.phases_completed // 0' .claude-octopus/state.json 2>/dev/null)
+        dc=$(jq -r '.decisions | length // 0' .claude-octopus/state.json 2>/dev/null)
+        echo -e "  Workflow: ${CYAN}${wf}${NC} | Phase: ${CYAN}${ph}${NC}"
+        echo -e "  Phases completed: $pc | Decisions: $dc"
+        ab=$(jq -r '[.blockers[] | select(.status == "active")] | length // 0' .claude-octopus/state.json 2>/dev/null)
+        if [[ "$ab" -gt 0 ]] 2>/dev/null; then
+            echo -e "  ${YELLOW}Active blockers: $ab${NC}"
+        fi
     fi
 
     # Recent debates (v8.13.0)

@@ -345,6 +345,59 @@ show_summary() {
     echo "Active Blockers: $(jq -r '[.blockers[] | select(.status == "active")] | length' "$STATE_FILE")"
 }
 
+# v8.14.0: Generate human-readable STATE.md from state.json
+write_state_md() {
+    if [ ! -f "$STATE_FILE" ]; then
+        return 0
+    fi
+
+    local state_md="$STATE_DIR/STATE.md"
+    local wf ph start pc et
+
+    wf=$(jq -r '.current_workflow // "none"' "$STATE_FILE")
+    ph=$(jq -r '.current_phase // "none"' "$STATE_FILE")
+    start=$(jq -r '.session_start // "unknown"' "$STATE_FILE")
+    pc=$(jq -r '.metrics.phases_completed // 0' "$STATE_FILE")
+    et=$(jq -r '.metrics.total_execution_time_minutes // 0' "$STATE_FILE")
+
+    local provider_usage decisions active_blockers phase_context
+
+    provider_usage=$(jq -r '.metrics.provider_usage | to_entries[] | "- **\(.key):** \(.value) calls"' "$STATE_FILE" 2>/dev/null || echo "None tracked.")
+    decisions=$(jq -r '.decisions[] | "- [\(.phase)] \(.decision) — \(.rationale) (\(.date))"' "$STATE_FILE" 2>/dev/null || echo "None yet.")
+    active_blockers=$(jq -r '.blockers[] | select(.status == "active") | "- [\(.phase)] \(.description) (since \(.created))"' "$STATE_FILE" 2>/dev/null || echo "None.")
+    phase_context=$(jq -r '.context | to_entries[] | select(.value != null) | "### \(.key | ascii_upcase)\n\(.value)\n"' "$STATE_FILE" 2>/dev/null || echo "No context captured yet.")
+
+    cat > "$state_md" << STATEMD
+# Project State
+
+**Last updated:** $(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+## Current Position
+
+- **Workflow:** $wf
+- **Phase:** $ph
+- **Session start:** $start
+- **Phases completed:** $pc
+- **Execution time:** ${et} minutes
+
+## Provider Usage
+
+$provider_usage
+
+## Decisions
+
+$decisions
+
+## Active Blockers
+
+$active_blockers
+
+## Phase Context
+
+$(echo -e "$phase_context")
+STATEMD
+}
+
 # Main command dispatcher
 main() {
     local command="${1:-help}"
@@ -393,6 +446,9 @@ main() {
         show_summary)
             show_summary
             ;;
+        write_state_md)
+            write_state_md
+            ;;
         help)
             cat <<EOF
 Claude Octopus State Manager
@@ -418,6 +474,7 @@ Commands:
   get_decisions [phase]                       Get decisions (all or by phase)
   get_active_blockers                         Get active blockers
   show_summary                                Display state summary
+  write_state_md                              Generate human-readable STATE.md
   help                                        Show this help
 
 Examples:

@@ -11,8 +11,8 @@
     {
       "name": "claude-octopus",
       "source": "./",
-      "description": "v8.13.0 - New release/doctor commands, debate --synthesize flag, status debate recap. One-command releases, environment diagnostics. 31 personas, 39 commands, 44 skills. Run /octo:setup.",
-      "version": "8.13.0",
+      "description": "v8.14.0 - State management wired into workflow lifecycle, codebase-aware discover phase, human-readable STATE.md. Persistent project state across sessions. 31 personas, 39 commands, 44 skills. Run /octo:setup.",
+      "version": "8.14.0",
       "author": {
         "name": "nyldn"
       },
