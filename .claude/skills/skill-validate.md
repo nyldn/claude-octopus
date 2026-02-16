@@ -118,9 +118,15 @@ Validation Layers:
 🔵 Claude - Security and integration review
 ```
 
-**You MUST execute orchestrate.sh with debate mode:**
+**You MUST use the Bash tool to check provider availability:**
 
-Use the Bash tool to execute:
+```bash
+command -v codex && echo "CODEX_AVAILABLE" || echo "CODEX_UNAVAILABLE"
+command -v gemini && echo "GEMINI_AVAILABLE" || echo "GEMINI_UNAVAILABLE"
+```
+
+**You MUST use the Bash tool to execute orchestrate.sh with debate mode:**
+
 ```bash
 cd "${CLAUDE_PLUGIN_ROOT}"
 ./scripts/orchestrate.sh debate \
@@ -130,6 +136,13 @@ cd "${CLAUDE_PLUGIN_ROOT}"
   --context "<validation trigger>" \
   --mode validation
 ```
+
+❌ You CANNOT validate code directly without this Bash call
+❌ You CANNOT use Task/Explore agents as substitute for orchestrate.sh
+❌ You CANNOT claim you are "simulating" the workflow
+❌ You CANNOT skip to presenting results without orchestrate.sh execution
+
+**This is NOT optional. You MUST use the Bash tool to invoke orchestrate.sh.**
 
 **Debate Focus by Priority:**
 

@@ -11,8 +11,8 @@
     {
       "name": "octo",
       "source": "./",
-      "description": "v8.16.0 - Multi-AI orchestration with Double Diamond workflows. All upstream features through v8.15.1 + fork fixes. 31 personas, 41 commands, 44 skills. Run /octo:setup.",
-      "version": "8.16.0",
+      "description": "v8.16.1 - Multi-AI orchestration with Double Diamond workflows. All upstream features through v8.15.1 + fork fixes. 31 personas, 41 commands, 44 skills. Run /octo:setup.",
+      "version": "8.16.1",
       "author": {
         "name": "adrivellen"
       },

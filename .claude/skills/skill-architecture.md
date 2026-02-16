@@ -46,6 +46,18 @@ Provider Availability:
 
 ---
 
+### STEP 1.5: Provider Detection (BLOCKING)
+
+Use the Bash tool to execute:
+```bash
+command -v codex && echo "CODEX_AVAILABLE" || echo "CODEX_UNAVAILABLE"
+command -v gemini && echo "GEMINI_AVAILABLE" || echo "GEMINI_UNAVAILABLE"
+```
+
+**You MUST use the Bash tool for this check.** Do NOT assume provider availability.
+
+---
+
 ### STEP 2: Execute orchestrate.sh spawn (MANDATORY - Use Bash Tool)
 
 **You MUST execute this command via the Bash tool:**
@@ -56,9 +68,11 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh spawn backend-architect "<user's ar
 
 **CRITICAL: You are PROHIBITED from:**
 - ❌ Designing architecture directly without calling orchestrate.sh
+- ❌ Using Task/Explore agents as substitute for orchestrate.sh
 - ❌ Using direct analysis as a substitute
 - ❌ Claiming you're "simulating" the workflow
 - ❌ Proceeding to Step 3 without running this command
+- ❌ Skipping to presenting results without orchestrate.sh execution
 
 **This is NOT optional. You MUST use the Bash tool to invoke orchestrate.sh.**
 

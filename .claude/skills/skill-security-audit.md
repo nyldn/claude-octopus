@@ -52,3 +52,61 @@ This skill wraps the `security-auditor` persona defined in:
 "Review the API authentication implementation"
 "Analyze the encryption at rest configuration"
 ```
+
+---
+
+## EXECUTION CONTRACT (MANDATORY - BLOCKING)
+
+**You are PROHIBITED from proceeding without completing these steps in order.**
+
+### STEP 1: Provider Detection (BLOCKING)
+
+Use the Bash tool to execute:
+```bash
+command -v codex && echo "CODEX_AVAILABLE" || echo "CODEX_UNAVAILABLE"
+command -v gemini && echo "GEMINI_AVAILABLE" || echo "GEMINI_UNAVAILABLE"
+```
+
+**You MUST use the Bash tool for this check.** Do NOT assume provider availability.
+
+### STEP 2: Visual Indicators (BLOCKING)
+
+Display the provider banner. DO NOT PROCEED without displaying it.
+
+```
+🐙 **CLAUDE OCTOPUS ACTIVATED** - Security Audit mode
+🔒 Audit: [Brief description of target being audited]
+
+Providers:
+🔴 Codex CLI - Vulnerability pattern detection
+🟡 Gemini CLI - OWASP compliance and ecosystem review
+🔵 Claude - Threat modeling and synthesis
+```
+
+### STEP 3: Execute orchestrate.sh via Bash tool (MANDATORY)
+
+**You MUST use the Bash tool to invoke orchestrate.sh:**
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh spawn security-auditor "<user's security audit request>"
+```
+
+❌ You CANNOT audit code directly without this Bash call
+❌ You CANNOT use Task/Explore agents as substitute for orchestrate.sh
+❌ You CANNOT claim you are "simulating" the workflow
+❌ You CANNOT skip to presenting results without orchestrate.sh execution
+
+**This is NOT optional. You MUST use the Bash tool to invoke orchestrate.sh.**
+
+### STEP 4: Verify Execution (VALIDATION GATE)
+
+Use the Bash tool to verify orchestrate.sh completed:
+```bash
+if [ $? -ne 0 ]; then
+  echo "❌ VALIDATION FAILED: orchestrate.sh spawn security-auditor failed"
+  exit 1
+fi
+echo "✅ VALIDATION PASSED: Security audit completed via orchestrate.sh"
+```
+
+If validation fails, STOP and report the error. Do NOT substitute with direct analysis.
