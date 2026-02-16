@@ -2,6 +2,24 @@
 
 All notable changes to Claude Octopus will be documented in this file.
 
+## [8.15.0] - 2026-02-16
+
+### Added
+
+**Scheduled workflow runner (`scripts/scheduler/`):**
+- Daemon mode with PID management, heartbeat monitoring, and FIFO IPC for CLI control
+- Pure Bash 5-field cron parser supporting wildcards, ranges, steps, lists, and shortcuts (@hourly, @daily, etc.)
+- Job executor with `flock`-based non-reentrant lock, process group kill (`setsid`), timeout enforcement, and runtime cost polling
+- Three-layer cost control: admission (daily ledger check), runtime (metrics polling every 15s), emergency (KILL_ALL/PAUSE_ALL switches)
+- Policy engine with workflow allowlist, workspace validation (no traversal, no root), deny-flags check, and budget admission
+- Atomic JSON state store reusing `state-manager.sh` patterns with append-only event log and daily cost ledger
+- `scheduler-security-gate.sh` PreToolUse hook blocking dangerous flags and out-of-workspace file access during scheduled jobs
+- CLI entry point (`octopus-scheduler.sh`): start, stop, status, emergency-stop, add, list, remove, enable, disable, logs
+- Commands: `/octo:scheduler` (daemon management), `/octo:schedule` (job management)
+- 51 unit tests for cron parser, 20 integration tests for scheduler lifecycle (store, policy, ledger, kill switches)
+
+---
+
 ## [8.14.0] - 2026-02-15
 
 ### Added
