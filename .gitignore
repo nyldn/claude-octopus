@@ -71,19 +71,11 @@ temp/
 *.tmp
 *.temp
 
-# Development workspace (consolidated)
-# All dev artifacts, reports, benchmarks, and WIP files
-component-analyzer/
-reports/
-src/
+# Development working files (should not be in public repo)
 docs/IMPLEMENTATION-PLAN*.md
 
 # Development working files
 skill.md
-
-# Verification markers (pre-commit hook artifacts)
-.claude-verified-*
-.codex-verified-*
 
 # Progress tracking and working files (should be in scratchpad, not plugin dir)
 PHASE*_PROGRESS.md

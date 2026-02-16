@@ -1,15 +1,15 @@
 # Native Integration Guide
 
-**Version:** v7.23.0+
+**Version:** v8.15.1+
 **Last Updated:** February 2026
 
-This guide explains how claude-octopus integrates with native Claude Code features introduced in v2.1.20+.
+This guide explains how claude-octopus integrates with native Claude Code features.
 
 ---
 
 ## Overview
 
-claude-octopus v7.23.0+ uses a **hybrid approach** that combines:
+claude-octopus uses a **hybrid approach** that combines:
 
 1. **Native Claude Code features** (where beneficial)
 2. **Claude-octopus orchestration** (where multi-AI needed)
@@ -22,7 +22,7 @@ claude-octopus v7.23.0+ uses a **hybrid approach** that combines:
 
 | Feature | Native Claude Code | Claude-Octopus | When to Use |
 |---------|-------------------|----------------|-------------|
-| **Task Management** | TaskCreate/TaskUpdate/TaskList | (v7.23.0+) Uses native tools | Always use native (v7.23.0+) |
+| **Task Management** | TaskCreate/TaskUpdate/TaskList | Uses native tools | Always use native |
 | **Planning** | EnterPlanMode/ExitPlanMode | /octo:plan with intent contracts | Simple: native, Complex: octopus |
 | **State Persistence** | Context summarization | .claude-octopus/state.json | Multi-session projects: octopus |
 | **Multi-AI Orchestration** | Not available | Codex + Gemini + Claude | When diverse perspectives needed |
@@ -30,35 +30,9 @@ claude-octopus v7.23.0+ uses a **hybrid approach** that combines:
 
 ---
 
-## 1. Task Management Integration (v7.23.0+)
+## 1. Task Management Integration
 
-### What Changed
-
-**Before v7.23.0:**
-- Used `TodoWrite` tool for task tracking
-- Tasks in `.claude/todos.md` markdown files
-- No native UI integration
-
-**After v7.23.0:**
-- Uses native `TaskCreate`, `TaskUpdate`, `TaskList`, `TaskGet`
-- Tasks show in Claude Code's native UI
-- Better progress tracking and visualization
-
-### Migration Path
-
-See [MIGRATION-7.23.0.md](../MIGRATION-7.23.0.md) for complete migration guide.
-
-**Quick migration:**
-```bash
-# Backup existing todos
-cp .claude/todos.md .claude/todos.md.backup
-
-# Run migration
-~/.claude/plugins/cache/adrivellen-plugins/claude-octopus/7.23.0/scripts/migrate-todos.sh
-
-# Verify tasks
-/tasks
-```
+Uses native `TaskCreate`, `TaskUpdate`, `TaskList`, `TaskGet` for all task tracking. Tasks show in Claude Code's native UI with progress tracking and visualization.
 
 ### API Usage
 
@@ -112,11 +86,11 @@ TaskCreate({
 
 ---
 
-## 2. Plan Mode Integration (v7.24.0+)
+## 2. Plan Mode Integration
 
 ### Hybrid Planning Approach
 
-claude-octopus v7.24.0+ uses **intelligent routing** between native plan mode and octopus workflows.
+claude-octopus uses **intelligent routing** between native plan mode and octopus workflows.
 
 #### When to Use Native EnterPlanMode
 
@@ -188,7 +162,7 @@ See [State Persistence](#3-state-persistence-v725) below.
 
 ---
 
-## 3. State Persistence (v7.25.0+)
+## 3. State Persistence
 
 ### The Problem
 
@@ -458,30 +432,11 @@ Each phase includes validation:
 
 ## 7. Troubleshooting
 
-### Issue: "TodoWrite tool not found"
-
-**Cause:** You're on v7.23.0+ which removed TodoWrite
-
-**Solution:** See [MIGRATION-7.23.0.md](../MIGRATION-7.23.0.md)
-
 ### Issue: "Context keeps clearing"
 
 **Cause:** Native plan mode's ExitPlanMode behavior
 
 **Solution:** This is expected. Octopus auto-reloads from state.json.
-
-### Issue: "Tasks not showing"
-
-**Cause:** May not have migrated to native tasks
-
-**Solution:**
-```bash
-# Run migration
-~/.claude/plugins/cache/adrivellen-plugins/claude-octopus/7.23.0/scripts/migrate-todos.sh
-
-# View native tasks
-/tasks
-```
 
 ### Issue: "State not persisting"
 
@@ -497,15 +452,6 @@ ls .claude-octopus/state.json
 ```
 
 ---
-
-## 8. Migration Timeline
-
-| Version | Features | Release |
-|---------|----------|---------|
-| v7.22.01 | Last version with TodoWrite | Feb 2026 |
-| **v7.23.0** | **Task migration + compatibility layer** | **Feb 2026** |
-| v7.24.0 | Hybrid plan mode routing | Mar 2026 |
-| v7.25.0 | Enhanced state persistence + resume | Apr 2026 |
 
 ---
 
@@ -564,14 +510,12 @@ const task = TaskGet({ taskId: "1" })
 
 ## 10. Resources
 
-- [Migration Guide](../MIGRATION-7.23.0.md) - Migrate from v7.22.x
-- [Integration Plan](../../analysis/NATIVE_INTEGRATION_PLAN.md) - Technical details
 - [Architecture](ARCHITECTURE.md) - Overall system design
 - [Command Reference](COMMAND-REFERENCE.md) - All commands
 
 ---
 
-**Questions?** Open an issue: https://github.com/adrivellen/claude-octopus/issues
+**Questions?** Open an issue: https://github.com/nyldn/claude-octopus/issues
 
 ---
 

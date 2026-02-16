@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Claude Octopus - Multi-Agent Orchestrator
 # Coordinates multiple AI agents (Codex CLI, Gemini CLI) for parallel task execution
-# https://github.com/adrivellen/claude-octopus
+# https://github.com/nyldn/claude-octopus
 
 set -eo pipefail
 
@@ -410,7 +410,7 @@ SUPPORTS_NATIVE_TASK_METRICS=false # v8.6: Claude Code v2.1.30+ (token counts in
 SUPPORTS_AGENT_TEAMS_BRIDGE=false  # v8.7: Claude Code v2.1.38+ (unified task-ledger bridge)
 SUPPORTS_AUTH_CLI=false            # v8.8: Claude Code v2.1.41+ (claude auth login/status/logout)
 SUPPORTS_ANCHOR_MENTIONS=false     # v8.8: Claude Code v2.1.41+ (@file#anchor fragment mentions)
-SUPPORTS_OTEL_SPEED=false          # v8.8: Claude Code v2.1.41+ (speed attribute in OTel spans, added in v2.1.39 Feb 11 2026, gated at v2.1.41)
+SUPPORTS_OTEL_SPEED=false          # v8.8: Claude Code v2.1.41+ (speed attribute in OTel spans)
 AGENT_TEAMS_ENABLED="${CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS:-0}"
 OCTOPUS_SECURITY_V870="${OCTOPUS_SECURITY_V870:-true}"
 OCTOPUS_GEMINI_SANDBOX="${OCTOPUS_GEMINI_SANDBOX:-headless}"  # v8.10.0: Changed default from prompt-mode to headless (Issue #25)
@@ -768,9 +768,9 @@ get_agent_command() {
             ;;
         codex-review) echo "codex exec review" ;; # Code review mode (no sandbox support)
         claude) echo "claude --print" ;;                         # Claude Sonnet 4.5
-        claude-sonnet) echo "claude --print --model sonnet" ;;        # Claude Sonnet explicit
-        claude-opus) echo "claude --print --model opus" ;;            # Claude Opus 4.6 (v8.0)
-        claude-opus-fast) echo "claude --print --model opus --fast" ;; # Claude Opus 4.6 Fast (v8.4: v2.1.36+)
+        claude-sonnet) echo "claude --print -m sonnet" ;;        # Claude Sonnet explicit
+        claude-opus) echo "claude --print -m opus" ;;            # Claude Opus 4.6 (v8.0)
+        claude-opus-fast) echo "claude --print -m opus --fast" ;; # Claude Opus 4.6 Fast (v8.4: v2.1.36+)
         openrouter) echo "openrouter_execute" ;;                 # OpenRouter API (v4.8)
         openrouter-glm5) echo "openrouter_execute_model z-ai/glm-5" ;;           # v8.11.0: GLM-5 via OpenRouter
         openrouter-kimi) echo "openrouter_execute_model moonshotai/kimi-k2.5" ;; # v8.11.0: Kimi K2.5 via OpenRouter
@@ -824,9 +824,9 @@ get_agent_command_array() {
             ;;
         codex-review)   _cmd_array=(codex exec review) ;; # No sandbox support
         claude)         _cmd_array=(claude --print) ;;
-        claude-sonnet)  _cmd_array=(claude --print --model sonnet) ;;
-        claude-opus)    _cmd_array=(claude --print --model opus) ;;  # v8.0: Opus 4.6
-        claude-opus-fast) _cmd_array=(claude --print --model opus --fast) ;; # v8.4: Opus 4.6 Fast (v2.1.36+)
+        claude-sonnet)  _cmd_array=(claude --print -m sonnet) ;;
+        claude-opus)    _cmd_array=(claude --print -m opus) ;;  # v8.0: Opus 4.6
+        claude-opus-fast) _cmd_array=(claude --print -m opus --fast) ;; # v8.4: Opus 4.6 Fast (v2.1.36+)
         openrouter)     _cmd_array=(openrouter_execute) ;;       # OpenRouter API (v4.8)
         openrouter-glm5)     _cmd_array=(openrouter_execute_model "z-ai/glm-5") ;;           # v8.11.0: GLM-5
         openrouter-kimi)     _cmd_array=(openrouter_execute_model "moonshotai/kimi-k2.5") ;; # v8.11.0: Kimi K2.5
@@ -2856,7 +2856,7 @@ show_agent_recommendations() {
         echo -e "  ${GREEN}$i.${NC} ${YELLOW}$agent${NC}"
         echo "     $desc"
         echo ""
-        ((i++)) || true
+        ((i++))
     done
 
     local primary="${rec_array[0]}"
@@ -3094,15 +3094,15 @@ estimate_complexity() {
 
     # Check for complex indicators
     if [[ $word_count -gt 40 ]]; then
-        ((score++)) || true
+        ((score++))
     fi
 
     if [[ "$prompt_lower" =~ ($complex_patterns) ]]; then
-        ((score++)) || true
+        ((score++))
     fi
 
     if [[ "$prompt_lower" =~ ($multi_component) ]]; then
-        ((score++)) || true
+        ((score++))
     fi
 
     # Clamp to 1-3 range
@@ -3799,7 +3799,7 @@ ${YELLOW}Learn More:${NC}
   $(basename "$0") help --full        Show all commands and options
   $(basename "$0") help <command>     Get help for specific command
 
-${CYAN}https://github.com/adrivellen/claude-octopus${NC}
+${CYAN}https://github.com/nyldn/claude-octopus${NC}
 EOF
     exit 0
 }
@@ -4370,7 +4370,7 @@ ${YELLOW}Environment:${NC}
   OPENAI_API_KEY            Required for Codex CLI
   GEMINI_API_KEY            Required for Gemini CLI
 
-${CYAN}https://github.com/adrivellen/claude-octopus${NC}
+${CYAN}https://github.com/nyldn/claude-octopus${NC}
 EOF
     exit 0
 }
@@ -4414,7 +4414,7 @@ list_available_skills() {
             local name
             name=$(basename "$persona_file" .md)
             printf "  ${CYAN}%-20s${NC}" "$name"
-            ((count++)) || true
+            ((count++))
             if (( count % 3 == 0 )); then
                 echo ""
             fi
@@ -4570,31 +4570,37 @@ display_rich_progress() {
     local task_group="$1"
     local total_agents="$2"
     local start_time="$3"
-    local agents_str="$4"
-    local names_str="$5"
-    shift 5
+    shift 3
     local pids=("$@")
 
-    # Agent metadata arrays from caller
-    local -a agent_types=()
+    # Agent metadata arrays
     local -a agent_names=()
-    IFS=',' read -ra agent_types <<< "$agents_str"
-    IFS=',' read -ra agent_names <<< "$names_str"
+    local -a agent_types=()
+
+    # Build agent info from task IDs
+    for i in $(seq 0 $((total_agents - 1))); do
+        local agent="gemini"
+        [[ $((i % 2)) -eq 0 ]] && agent="codex"
+        agent_types+=("$agent")
+
+        case $i in
+            0) agent_names+=("Problem Analysis") ;;
+            1) agent_names+=("Solution Research") ;;
+            2) agent_names+=("Edge Cases") ;;
+            3) agent_names+=("Feasibility") ;;
+            *) agent_names+=("Agent $i") ;;
+        esac
+    done
 
     # Progress bar function
     local bar_width=20
-    local first_iteration=true
 
     while true; do
         local all_done=true
         local completed=0
 
         # Clear previous output (move cursor up and clear)
-        if $first_iteration; then
-            first_iteration=false
-        else
-            printf "\033[%dA" $((total_agents + 5))
-        fi
+        [[ $completed -gt 0 ]] && printf "\033[%dA" $((total_agents + 4))
 
         # Header
         echo -e "${MAGENTA}╔═══════════════════════════════════════════════════════════╗${NC}"
@@ -4613,7 +4619,7 @@ display_rich_progress() {
             local running=true
             if ! kill -0 "$pid" 2>/dev/null; then
                 running=false
-                ((completed++)) || true
+                ((completed++))
             else
                 all_done=false
             fi
@@ -4671,7 +4677,6 @@ display_rich_progress() {
             # Display row with emoji for agent type
             local agent_emoji="🔴"
             [[ "$agent_type" == "gemini" ]] && agent_emoji="🟡"
-            [[ "$agent_type" == "claude-sonnet" ]] && agent_emoji="🔵"
 
             printf " %b %s %-18s [%b%s%b] %6s\n" \
                 "$status_icon" \
@@ -4784,7 +4789,7 @@ cleanup_cache() {
         if [[ $age -gt $CACHE_TTL ]]; then
             local base="${meta_file%.meta}"
             rm -f "$base.md" "$meta_file"
-            ((cleaned++)) || true
+            ((cleaned++))
         fi
     done
 
@@ -4807,11 +4812,11 @@ progressive_synthesis_monitor() {
     while true; do
         # Count available results with meaningful content
         local result_count=0
-        for result in "$RESULTS_DIR"/*-probe-${task_group}-*.md; do
+        for result in "$RESULTS_DIR"/probe-${task_group}-*.md; do
             [[ ! -f "$result" ]] && continue
             local file_size
             file_size=$(wc -c < "$result" 2>/dev/null || echo "0")
-            [[ $file_size -gt 500 ]] && ((result_count++)) || true
+            [[ $file_size -gt 500 ]] && ((result_count++))
         done
 
         # If we have minimum results and haven't started synthesis yet
@@ -4854,13 +4859,13 @@ synthesize_probe_results_partial() {
     # Quick synthesis with available results
     local results=""
     local result_count=0
-    for result in "$RESULTS_DIR"/*-probe-${task_group}-*.md; do
-        [[ -f "$result" ]] || continue
+    for result in "$RESULTS_DIR"/probe-${task_group}-*.md; do
+        [[ ! -f "$result" ]] || continue
         local file_size
         file_size=$(wc -c < "$result" 2>/dev/null || echo "0")
         if [[ $file_size -gt 500 ]]; then
             results+="$(cat "$result")\n\n---\n\n"
-            ((result_count++)) || true
+            ((result_count++))
         fi
     done
 
@@ -5081,7 +5086,7 @@ rotate_logs() {
             # Rotate large log files
             mv "$log" "${log}.1"
             gzip "${log}.1" 2>/dev/null || true
-            ((rotated++)) || true
+            ((rotated++))
             log DEBUG "Rotated large log: $(basename "$log") (${size_kb}KB)"
         fi
     done
@@ -5092,7 +5097,7 @@ rotate_logs() {
         local size_kb=$(du -k "$old_log" 2>/dev/null | cut -f1)
         total_freed=$((total_freed + size_kb))
         rm -f "$old_log"
-        ((deleted++)) || true
+        ((deleted++))
         log DEBUG "Deleted old log: $(basename "$old_log") (${size_kb}KB)"
     done < <(find "$LOGS_DIR" -name "*.log" -mtime "+$max_age_days" -print0 2>/dev/null)
 
@@ -5101,7 +5106,7 @@ rotate_logs() {
         local size_kb=$(du -k "$old_log" 2>/dev/null | cut -f1)
         total_freed=$((total_freed + size_kb))
         rm -f "$old_log"
-        ((deleted++)) || true
+        ((deleted++))
         log DEBUG "Deleted old compressed log: $(basename "$old_log") (${size_kb}KB)"
     done < <(find "$LOGS_DIR" -name "*.log.*.gz" -mtime "+$max_age_days" -print0 2>/dev/null)
 
@@ -5240,10 +5245,10 @@ OLD_init_interactive_impl() {
         echo -e "    3. Run: ${CYAN}source ~/.zshrc${NC} (or restart your terminal)"
         echo ""
         read -p "  Press Enter to continue (or Ctrl+C to exit and fix)..."
-        ((issues++)) || true
+        ((issues++))
     fi
     echo ""
-    ((step++)) || true
+    ((step++))
 
     # ─────────────────────────────────────────────────────────────────────────
     # Step 2: Gemini Authentication
@@ -5282,10 +5287,10 @@ OLD_init_interactive_impl() {
         echo -e "    3. Run: ${CYAN}source ~/.zshrc${NC} (or restart your terminal)"
         echo ""
         read -p "  Press Enter to continue (or Ctrl+C to exit and fix)..."
-        ((issues++)) || true
+        ((issues++))
     fi
     echo ""
-    ((step++)) || true
+    ((step++))
 
     # ─────────────────────────────────────────────────────────────────────────
     # Step 3: CLI Tools
@@ -5302,7 +5307,7 @@ OLD_init_interactive_impl() {
     else
         echo -e "  ${RED}✗${NC} Codex CLI not found"
         echo -e "    Install: ${CYAN}npm install -g @openai/codex${NC}"
-        ((issues++)) || true
+        ((issues++))
     fi
 
     # Check Gemini CLI
@@ -5313,7 +5318,7 @@ OLD_init_interactive_impl() {
     else
         echo -e "  ${RED}✗${NC} Gemini CLI not found"
         echo -e "    Install: ${CYAN}npm install -g @google/gemini-cli${NC}"
-        ((issues++)) || true
+        ((issues++))
     fi
 
     # Check jq (optional)
@@ -5324,7 +5329,7 @@ OLD_init_interactive_impl() {
         echo -e "    Install: ${CYAN}brew install jq${NC}"
     fi
     echo ""
-    ((step++)) || true
+    ((step++))
 
     # ─────────────────────────────────────────────────────────────────────────
     # Step 4: Workspace Configuration
@@ -5358,7 +5363,7 @@ OLD_init_interactive_impl() {
     mkdir -p "$current_workspace/results" "$current_workspace/logs"
     echo -e "  ${GREEN}✓${NC} Workspace ready"
     echo ""
-    ((step++)) || true
+    ((step++))
 
     # ─────────────────────────────────────────────────────────────────────────
     # Step 5: Shell Completion
@@ -5742,7 +5747,7 @@ list_pending_reviews() {
 
     local count=0
     echo "$pending" | while read -r line; do
-        ((count++)) || true
+        ((count++))
         # Performance: Single-pass JSON extraction (no subprocesses)
         json_extract_multi "$line" id phase status output_file created_at
 
@@ -6043,13 +6048,12 @@ detect_providers() {
     if command -v claude &>/dev/null; then
         local claude_auth="oauth"
         # v8.8: Use claude auth status for reliable auth verification
-        # v8.12.2: Wrap with timeout to prevent hanging during detect_providers
         if [[ "$SUPPORTS_AUTH_CLI" == "true" ]]; then
-            if run_with_timeout 5 claude auth status &>/dev/null; then
+            if claude auth status &>/dev/null; then
                 claude_auth="verified"
             else
                 claude_auth="oauth"  # Fallback: assume oauth in Claude Code context
-                log "DEBUG" "claude auth status returned non-zero or timed out, assuming oauth context"
+                log "DEBUG" "claude auth status returned non-zero, assuming oauth context"
             fi
         fi
         result="${result}claude:${claude_auth} "
@@ -7154,7 +7158,7 @@ EOF
         -H "Authorization: Bearer ${OPENROUTER_API_KEY}" \
         -H "Content-Type: application/json" \
         -H "Connection: keep-alive" \
-        -H "HTTP-Referer: https://github.com/adrivellen/claude-octopus" \
+        -H "HTTP-Referer: https://github.com/nyldn/claude-octopus" \
         -H "X-Title: Claude Octopus" \
         -d "$payload")
 
@@ -7229,7 +7233,7 @@ EOF
         -H "Authorization: Bearer ${OPENROUTER_API_KEY}" \
         -H "Content-Type: application/json" \
         -H "Connection: keep-alive" \
-        -H "HTTP-Referer: https://github.com/adrivellen/claude-octopus" \
+        -H "HTTP-Referer: https://github.com/nyldn/claude-octopus" \
         -H "X-Title: Claude Octopus" \
         -d "$payload")
 
@@ -7889,6 +7893,10 @@ init_session() {
 }
 EOF
     log INFO "Session initialized: $session_id (name: $session_name)"
+
+    # v8.14.0: Initialize persistent state tracking
+    init_state 2>/dev/null || true
+    set_current_workflow "$workflow" "init" 2>/dev/null || true
 }
 
 # Save checkpoint after phase completion
@@ -7910,6 +7918,11 @@ save_session_checkpoint() {
        --arg time "$timestamp" \
        '.phases[$phase] = {status: $status, output: $output, timestamp: $time} | .last_checkpoint = $time | .current_phase = $phase' \
        "$SESSION_FILE" > "${SESSION_FILE}.tmp" && mv "${SESSION_FILE}.tmp" "$SESSION_FILE"
+
+    # v8.14.0: Sync to persistent state
+    set_current_workflow "$(jq -r '.workflow // ""' "$SESSION_FILE" 2>/dev/null)" "$phase" 2>/dev/null || true
+    update_metrics "phases_completed" "1" 2>/dev/null || true
+    write_state_md 2>/dev/null || true
 
     log DEBUG "Checkpoint saved: $phase ($status)"
 }
@@ -7972,6 +7985,10 @@ complete_session() {
             mv "${SESSION_FILE}.tmp" "$SESSION_FILE"
         log INFO "Session marked complete"
     fi
+
+    # v8.14.0: Mark persistent state as completed
+    set_current_workflow "completed" "done" 2>/dev/null || true
+    write_state_md 2>/dev/null || true
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -8560,7 +8577,7 @@ run_with_ralph_loop() {
     fi
 
     while [[ $iteration -lt $max_iterations ]]; do
-        ((iteration++)) || true
+        ((iteration++))
         log INFO "Ralph iteration $iteration/$max_iterations"
 
         # Build iteration context
@@ -8776,12 +8793,11 @@ retry_failed_subtasks() {
         local role="implementer"
         [[ "$agent" == "gemini" || "$agent" == "gemini-fast" ]] && role="researcher"
 
-        # v8.7.1: spawn_agent already backgrounds internally - capture its PID output
-        local pid
-        pid=$(spawn_agent "$agent" "$prompt" "tangle-${task_group}-retry${retry_count}-${subtask_num}" "$role" "tangle")
+        spawn_agent "$agent" "$prompt" "tangle-${task_group}-retry${retry_count}-${subtask_num}" "$role" "tangle" &
+        local pid=$!
         pids="$pids $pid"
-        ((subtask_num++)) || true
-        ((pid_count++)) || true
+        ((subtask_num++))
+        ((pid_count++))
     done <<< "$FAILED_SUBTASKS"
 
     # Wait for retry tasks
@@ -8790,7 +8806,7 @@ retry_failed_subtasks() {
         completed=0
         for pid in $pids; do
             if ! kill -0 "$pid" 2>/dev/null; then
-                ((completed++)) || true
+                ((completed++))
             fi
         done
         echo -ne "\r${YELLOW}Retry progress: $completed/${pid_count} tasks${NC}"
@@ -9008,7 +9024,6 @@ spawn_agent() {
     local enhanced_prompt
     enhanced_prompt=$(apply_persona "$role" "$prompt")
 
-    # NOTE: enforce_context_budget() moved AFTER all injections (v8.10.0 Issue #25)
     # v8.2.0: Load agent skill context if available
     # NOTE: enforce_context_budget() moved AFTER all injections (v8.10.0 Issue #25)
     if [[ "$SUPPORTS_AGENT_TYPE_ROUTING" == "true" ]]; then
@@ -9115,6 +9130,16 @@ ${enhanced_prompt}"
     log "DEBUG" "Model selected: $model (from agent_type=$agent_type)"
     record_agent_call "$agent_type" "$model" "$enhanced_prompt" "${phase:-unknown}" "${role:-none}" "0"
 
+    # v8.14.0: Track provider usage in persistent state
+    local provider_name
+    case "$agent_type" in
+        codex*) provider_name="codex" ;;
+        gemini*) provider_name="gemini" ;;
+        claude*) provider_name="claude" ;;
+        *) provider_name="$agent_type" ;;
+    esac
+    update_metrics "provider" "$provider_name" 2>/dev/null || true
+
     # v8.7.0: Register task in bridge ledger
     bridge_register_task "$task_id" "$agent_type" "${phase:-unknown}" "${role:-none}"
 
@@ -9188,9 +9213,7 @@ ${enhanced_prompt}"
     # Execute agent in background
     (
         cd "$PROJECT_ROOT" || exit 1
-        set +e          # v8.7.1: Disable exit-on-error inherited from parent (prevents subshell death)
-        set +o pipefail # v8.7.1: Disable pipefail inherited from parent
-        set -f          # Disable glob expansion
+        set -f  # Disable glob expansion
 
         echo "# Agent: $agent_type" > "$result_file"
         echo "# Task ID: $task_id" >> "$result_file"
@@ -9202,12 +9225,9 @@ ${enhanced_prompt}"
         echo "## Output" >> "$result_file"
         echo '```' >> "$result_file"
 
-        # v8.7.1: Use get_agent_command_array for proper quoting (preserves empty strings like -p "")
+        # SECURITY: Use array-based execution to prevent word-splitting vulnerabilities
         local -a cmd_array
-        if ! get_agent_command_array "$agent_type" cmd_array; then
-            log ERROR "Failed to build command array for: $agent_type"
-            return 1
-        fi
+        read -ra cmd_array <<< "$cmd"
 
         # IMPROVED: Use temp files for reliable output capture (v7.13.2 - Issue #10)
         # v7.19.0 P0.1: Real-time output streaming to result file
@@ -9231,9 +9251,8 @@ ${enhanced_prompt}"
         # v7.19.0 P0.1: Use tee to stream output to both temp file and raw backup
         # v8.10.0: Gemini uses stdin-based prompt delivery (Issue #25)
         # -p "" triggers headless mode; prompt content comes via stdin to avoid OS arg limits
-        # v8.12.2: Only add -p "" for non-interactive Gemini modes
         local exit_code=0
-        if [[ "$agent_type" == gemini* && "${OCTOPUS_GEMINI_SANDBOX:-headless}" != "interactive" && "${OCTOPUS_GEMINI_SANDBOX:-headless}" != "prompt-mode" ]]; then
+        if [[ "$agent_type" == gemini* ]]; then
             cmd_array+=(-p "")
             if printf '%s' "$enhanced_prompt" | run_with_timeout "$TIMEOUT" "${cmd_array[@]}" 2> "$temp_errors" | tee "$raw_output" > "$temp_output"; then
                 exit_code=0
@@ -9250,25 +9269,21 @@ ${enhanced_prompt}"
 
         # v7.19.0 P0.1: Process output regardless of exit code (preserves partial results)
         if [[ $exit_code -eq 0 ]]; then
-            # v8.7.1: Updated output parser for both interactive and headless CLI modes
-            # Headless mode (Gemini -p, Codex exec) returns raw response without headers.
-            # Interactive mode has CLI banner + "--------" separator + agent name marker.
+            # Filter out CLI header noise and extract actual response
+            # Handles Codex/Gemini CLI format where response follows "codex"/"gemini" marker
             awk '
-                BEGIN { in_response = 0; header_done = 0; has_header = 0; }
-                # Detect CLI startup banner separator
-                /^--------$/ { header_done = 1; has_header = 1; next; }
-                # If we see a header separator, skip everything before it
-                has_header && !header_done { next; }
-                # Response starts after agent name marker (interactive mode)
+                BEGIN { in_response = 0; header_done = 0; }
+                # Skip CLI startup banner (everything until separator line)
+                /^--------$/ { header_done = 1; next; }
+                !header_done { next; }
+                # Response starts after agent name marker
                 /^(codex|gemini|assistant)$/ { in_response = 1; next; }
                 # Skip thinking blocks
                 /^thinking$/ { next; }
                 # Skip token usage markers
                 /^tokens used$/ { next; }
                 /^[0-9,]+$/ && in_response { next; }
-                # In headless mode (no header detected), output everything
-                !has_header { print; next; }
-                # In interactive mode, output after response marker
+                # Output actual response content
                 in_response { print; }
             ' "$temp_output" >> "$result_file"
 
@@ -9423,7 +9438,7 @@ ${enhanced_prompt}"
         echo "$pid:$agent_type:$task_id" >> "$PID_FILE"
     fi
 
-    log INFO "Agent spawned with PID: $pid" >&2
+    log INFO "Agent spawned with PID: $pid"
     echo "$pid"
 }
 
@@ -9791,7 +9806,7 @@ Output a structured report with findings and recommendations." ;;
             local failed=0
             for i in "${!pids[@]}"; do
                 if ! wait "${pids[$i]}" 2>/dev/null; then
-                    ((failed++)) || true
+                    ((failed++))
                     echo -e "      ${RED}✗${NC} ${domains[$i]} audit failed"
                 else
                     echo -e "      ${GREEN}✓${NC} ${domains[$i]} audit complete"
@@ -10135,26 +10150,26 @@ parallel_execute() {
         # SECURITY: Safe JSON extraction with validation
         task_id=$(extract_json_field "$task" "id" true) || {
             log WARN "Skipping task with invalid/missing id"
-            ((skipped++)) || true
+            ((skipped++))
             continue
         }
 
         agent=$(extract_json_field "$task" "agent" true) || {
             log WARN "Skipping task $task_id: invalid/missing agent"
-            ((skipped++)) || true
+            ((skipped++))
             continue
         }
 
         # SECURITY: Validate agent type against allowlist
         validate_agent_type "$agent" || {
             log WARN "Skipping task $task_id: unknown agent '$agent'"
-            ((skipped++)) || true
+            ((skipped++))
             continue
         }
 
         prompt=$(extract_json_field "$task" "prompt" true) || {
             log WARN "Skipping task $task_id: invalid/missing prompt"
-            ((skipped++)) || true
+            ((skipped++))
             continue
         }
 
@@ -10163,7 +10178,7 @@ parallel_execute() {
                 if ! kill -0 "${pids[$i]}" 2>/dev/null; then
                     unset 'pids[i]'
                     ((running--))
-                    ((completed++)) || true
+                    ((completed++))
                 fi
             done
             sleep 1
@@ -10172,7 +10187,7 @@ parallel_execute() {
         local pid
         pid=$(spawn_agent "$agent" "$prompt" "$task_id")
         pids+=("$pid")
-        ((running++)) || true
+        ((running++))
 
         log INFO "Progress: $completed/$task_count completed, $running running"
     done < <(jq -c '.tasks[]' "$tasks_file")
@@ -10227,7 +10242,7 @@ map_reduce() {
         local agent="${agents[$((subtask_num % ${#agents[@]}))]}"
 
         spawn_agent "$agent" "$subtask" "${task_group}-subtask-${subtask_num}"
-        ((subtask_num++)) || true
+        ((subtask_num++))
     done < "$decompose_result"
 
     log INFO "Spawned $subtask_num subtask agents"
@@ -10259,7 +10274,7 @@ aggregate_results() {
         echo "" >> "$aggregate_file"
         cat "$result" >> "$aggregate_file"
         echo "" >> "$aggregate_file"
-        ((result_count++)) || true
+        ((result_count++))
     done
 
     echo "---" >> "$aggregate_file"
@@ -10429,7 +10444,7 @@ setup_wizard() {
     # ═══════════════════════════════════════════════════════════════════════════
     # STEP 1: Check/Install Codex CLI
     # ═══════════════════════════════════════════════════════════════════════════
-    ((current_step++)) || true
+    ((current_step++))
     echo -e "${CYAN}Step $current_step/$total_steps: Codex CLI (Tentacles 1-4)${NC}"
     echo -e "  OpenAI's Codex CLI powers our coding tentacles."
     echo ""
@@ -10457,7 +10472,7 @@ setup_wizard() {
     # ═══════════════════════════════════════════════════════════════════════════
     # STEP 2: Check/Install Gemini CLI
     # ═══════════════════════════════════════════════════════════════════════════
-    ((current_step++)) || true
+    ((current_step++))
     echo -e "${CYAN}Step $current_step/$total_steps: Gemini CLI (Tentacles 5-8)${NC}"
     echo -e "  Google's Gemini CLI powers our reasoning and image tentacles."
     echo ""
@@ -10485,7 +10500,7 @@ setup_wizard() {
     # ═══════════════════════════════════════════════════════════════════════════
     # STEP 3: OpenAI API Key
     # ═══════════════════════════════════════════════════════════════════════════
-    ((current_step++)) || true
+    ((current_step++))
     echo -e "${CYAN}Step $current_step/$total_steps: OpenAI API Key${NC}"
     echo -e "  Required for Codex CLI (GPT models for coding tasks)."
     echo ""
@@ -10524,7 +10539,7 @@ setup_wizard() {
     # ═══════════════════════════════════════════════════════════════════════════
     # STEP 4: Gemini Authentication
     # ═══════════════════════════════════════════════════════════════════════════
-    ((current_step++)) || true
+    ((current_step++))
     echo -e "${CYAN}Step $current_step/$total_steps: Gemini Authentication${NC}"
     echo -e "  Required for Gemini CLI (reasoning and image generation)."
     echo ""
@@ -10582,7 +10597,7 @@ setup_wizard() {
     # ═══════════════════════════════════════════════════════════════════════════
     # STEP 5: Codex/OpenAI Subscription Tier (v4.8)
     # ═══════════════════════════════════════════════════════════════════════════
-    ((current_step++)) || true
+    ((current_step++))
     if command -v codex &>/dev/null && [[ -f "$HOME/.codex/auth.json" || -n "${OPENAI_API_KEY:-}" ]]; then
         PROVIDER_CODEX_INSTALLED="true"
         [[ -f "$HOME/.codex/auth.json" ]] && PROVIDER_CODEX_AUTH_METHOD="oauth" || PROVIDER_CODEX_AUTH_METHOD="api-key"
@@ -10622,7 +10637,7 @@ setup_wizard() {
     # ═══════════════════════════════════════════════════════════════════════════
     # STEP 6: Gemini Subscription Tier (v4.8)
     # ═══════════════════════════════════════════════════════════════════════════
-    ((current_step++)) || true
+    ((current_step++))
     if command -v gemini &>/dev/null && [[ -f "$HOME/.gemini/oauth_creds.json" || -n "${GEMINI_API_KEY:-}" ]]; then
         PROVIDER_GEMINI_INSTALLED="true"
         [[ -f "$HOME/.gemini/oauth_creds.json" ]] && PROVIDER_GEMINI_AUTH_METHOD="oauth" || PROVIDER_GEMINI_AUTH_METHOD="api-key"
@@ -10667,7 +10682,7 @@ setup_wizard() {
     # ═══════════════════════════════════════════════════════════════════════════
     # STEP 7: OpenRouter Fallback Configuration (v4.8)
     # ═══════════════════════════════════════════════════════════════════════════
-    ((current_step++)) || true
+    ((current_step++))
     echo -e "${CYAN}Step $current_step/$total_steps: OpenRouter (Universal Fallback)${NC}"
     echo -e "  ${YELLOW}OpenRouter provides 400+ models as a backup when other CLIs unavailable.${NC}"
     echo ""
@@ -10725,13 +10740,13 @@ setup_wizard() {
     # ═══════════════════════════════════════════════════════════════════════════
     # STEP 8: User Intent (moved from original step 6)
     # ═══════════════════════════════════════════════════════════════════════════
-    ((current_step++)) || true
+    ((current_step++))
     init_step_intent
 
     # ═══════════════════════════════════════════════════════════════════════════
     # STEP 9: Claude Tier / Cost Strategy (moved from original step 7)
     # ═══════════════════════════════════════════════════════════════════════════
-    ((current_step++)) || true
+    ((current_step++))
     echo ""
     echo -e "${CYAN}Step $current_step/$total_steps: Claude Subscription & Cost Strategy${NC}"
 
@@ -10786,7 +10801,7 @@ setup_wizard() {
     # ═══════════════════════════════════════════════════════════════════════════
     # STEP 10: Essential Developer Tools (v4.8.2)
     # ═══════════════════════════════════════════════════════════════════════════
-    ((current_step++)) || true
+    ((current_step++))
     echo ""
     echo -e "${CYAN}Step $current_step/$total_steps: Essential Developer Tools${NC}"
     echo -e "  ${YELLOW}Tools that AI coding assistants rely on for auditing, QA, and browser work.${NC}"
@@ -10860,7 +10875,7 @@ setup_wizard() {
             local installed_count=0
             for tool in "${tools_to_install[@]}"; do
                 if install_tool "$tool"; then
-                    ((installed_count++)) || true
+                    ((installed_count++))
                 fi
             done
 
@@ -11275,17 +11290,17 @@ preflight_check() {
 
     if [[ -d "$claude_plugins_dir/oh-my-claude-code" ]]; then
         log WARN "Detected: oh-my-claude-code (has own cost-aware routing)"
-        ((conflicts++)) || true
+        ((conflicts++))
     fi
 
     if [[ -d "$claude_plugins_dir/claude-flow" ]]; then
         log WARN "Detected: claude-flow (may spawn competing subagents)"
-        ((conflicts++)) || true
+        ((conflicts++))
     fi
 
     if [[ -d "$claude_plugins_dir/agents" ]] || [[ -d "$claude_plugins_dir/wshobson-agents" ]]; then
         log WARN "Detected: wshobson/agents (large context consumption)"
-        ((conflicts++)) || true
+        ((conflicts++))
     fi
 
     if [[ $conflicts -gt 0 ]]; then
@@ -11303,6 +11318,128 @@ preflight_check() {
     echo -e "${GREEN}✓${NC} All 8 tentacles accounted for and ready to work!"
     preflight_cache_write "0"  # Cache success
     return 0
+}
+
+# v8.13.0: One-command release cycle
+do_release() {
+    local version
+    version=$(jq -r '.version' "$SCRIPT_DIR/../.claude-plugin/plugin.json")
+    local tag="v$version"
+
+    echo -e "${MAGENTA}═══════════════════════════════════════════════════════════${NC}"
+    echo -e "${MAGENTA}  Claude Octopus Release: $tag${NC}"
+    echo -e "${MAGENTA}═══════════════════════════════════════════════════════════${NC}"
+
+    # Step 1: Validate
+    echo -e "\n${BLUE}Step 1: Validating...${NC}"
+    bash "$SCRIPT_DIR/validate-release.sh" || { echo "Validation failed"; return 1; }
+
+    # Step 2: Ensure tag exists and points to HEAD
+    echo -e "\n${BLUE}Step 2: Tagging...${NC}"
+    local head_sha
+    head_sha=$(git rev-parse HEAD)
+    local tag_sha
+    tag_sha=$(git rev-list -n 1 "$tag" 2>/dev/null || echo "")
+    if [[ "$tag_sha" != "$head_sha" ]]; then
+        git tag -d "$tag" 2>/dev/null || true
+        git tag "$tag"
+        echo -e "${GREEN}✓ Tag $tag -> $(git rev-parse --short HEAD)${NC}"
+    else
+        echo -e "${GREEN}✓ Tag $tag already at HEAD${NC}"
+    fi
+
+    # Step 3: Pull --rebase to incorporate any remote changes
+    echo -e "\n${BLUE}Step 3: Syncing with remote...${NC}"
+    git fetch origin main --tags 2>/dev/null
+    git rebase origin/main 2>/dev/null || {
+        echo -e "${RED}Rebase conflict. Resolve manually, then re-run.${NC}"
+        return 1
+    }
+
+    # Step 4: Re-tag after rebase (HEAD may have changed)
+    local new_head
+    new_head=$(git rev-parse HEAD)
+    if [[ "$new_head" != "$head_sha" ]]; then
+        git tag -d "$tag" 2>/dev/null || true
+        git tag "$tag"
+        echo -e "${GREEN}✓ Re-tagged after rebase: $tag -> $(git rev-parse --short HEAD)${NC}"
+    fi
+
+    # Step 5: Push tag (force, to handle existing remote tags)
+    echo -e "\n${BLUE}Step 4: Pushing tag...${NC}"
+    git push origin "$tag" --force --no-verify 2>/dev/null
+    echo -e "${GREEN}✓ Tag pushed${NC}"
+
+    # Step 6: Push main
+    echo -e "\n${BLUE}Step 5: Pushing main...${NC}"
+    git push origin main --no-verify
+    echo -e "${GREEN}✓ Branch pushed${NC}"
+
+    echo -e "\n${GREEN}═══════════════════════════════════════════════════════════${NC}"
+    echo -e "${GREEN}  ✅ Released $tag${NC}"
+    echo -e "${GREEN}═══════════════════════════════════════════════════════════${NC}"
+}
+
+# v8.13.0: Environment diagnostics
+do_doctor() {
+    echo -e "${MAGENTA}═══════════════════════════════════════════════════════════${NC}"
+    echo -e "${MAGENTA}  Claude Octopus Doctor${NC}"
+    echo -e "${MAGENTA}═══════════════════════════════════════════════════════════${NC}"
+
+    # Claude Code version
+    echo -e "\n${BLUE}Claude Code:${NC} v${CLAUDE_CODE_VERSION:-unknown}"
+
+    # Codex CLI
+    if command -v codex &>/dev/null; then
+        local codex_ver
+        codex_ver=$(codex --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")
+        echo -e "${BLUE}Codex CLI:${NC}   v${codex_ver} ($(command -v codex))"
+        if [[ "$codex_ver" != "unknown" ]] && [[ "$codex_ver" =~ ^0\.(([0-9]{1,2})|9[0-9])\. ]]; then
+            echo -e "  ${YELLOW}⚠ Codex <0.100.0 may use deprecated flags (-q, -y)${NC}"
+        else
+            echo -e "  ${GREEN}✓ Compatible${NC}"
+        fi
+    else
+        echo -e "${BLUE}Codex CLI:${NC}   ${RED}Not installed${NC}"
+    fi
+
+    # Gemini CLI
+    if command -v gemini &>/dev/null; then
+        local gemini_ver
+        gemini_ver=$(gemini --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")
+        echo -e "${BLUE}Gemini CLI:${NC}  v${gemini_ver} ($(command -v gemini))"
+        echo -e "  ${GREEN}✓ Compatible${NC}"
+    else
+        echo -e "${BLUE}Gemini CLI:${NC}  ${RED}Not installed${NC}"
+    fi
+
+    # Authentication status
+    echo -e "\n${BLUE}Authentication:${NC}"
+    if [[ -f "$HOME/.codex/auth.json" ]] || [[ -n "${OPENAI_API_KEY:-}" ]]; then
+        echo -e "  ${GREEN}✓${NC} Codex: authenticated"
+    elif command -v codex &>/dev/null; then
+        echo -e "  ${RED}✗${NC} Codex: not authenticated"
+    fi
+    if [[ -f "$HOME/.gemini/oauth_creds.json" ]] || [[ -n "${GEMINI_API_KEY:-}" ]] || [[ -n "${GOOGLE_API_KEY:-}" ]]; then
+        echo -e "  ${GREEN}✓${NC} Gemini: authenticated"
+    elif command -v gemini &>/dev/null; then
+        echo -e "  ${RED}✗${NC} Gemini: not authenticated"
+    fi
+
+    # Plugin version
+    local plugin_ver
+    plugin_ver=$(jq -r '.version' "$SCRIPT_DIR/../.claude-plugin/plugin.json" 2>/dev/null || echo "unknown")
+    local skill_count
+    skill_count=$(jq '.skills | length' "$SCRIPT_DIR/../.claude-plugin/plugin.json" 2>/dev/null || echo "?")
+    local cmd_count
+    cmd_count=$(jq '.commands | length' "$SCRIPT_DIR/../.claude-plugin/plugin.json" 2>/dev/null || echo "?")
+    echo -e "\n${BLUE}Plugin:${NC}      v${plugin_ver}"
+    echo -e "${BLUE}Skills:${NC}      ${skill_count}"
+    echo -e "${BLUE}Commands:${NC}    ${cmd_count}"
+
+    # Run full preflight
+    echo ""
+    preflight_check true
 }
 
 # Synchronous agent execution (for sequential steps within phases)
@@ -11324,9 +11461,6 @@ run_agent_sync() {
     local enhanced_prompt
     enhanced_prompt=$(apply_persona "$role" "$prompt")
 
-    # v8.7.1: Enforce context budget after persona application
-    enhanced_prompt=$(enforce_context_budget "$enhanced_prompt")
-
     log DEBUG "run_agent_sync: agent=$agent_type, role=${role:-none}, phase=${phase:-none}"
 
     # Record usage (get model from agent type)
@@ -11343,12 +11477,9 @@ run_agent_sync() {
     local cmd
     cmd=$(get_agent_command "$agent_type") || return 1
 
-    # v8.7.1: Use get_agent_command_array for proper quoting (preserves empty strings like -p "")
+    # SECURITY: Use array-based execution to prevent word-splitting vulnerabilities
     local -a cmd_array
-    if ! get_agent_command_array "$agent_type" cmd_array; then
-        log ERROR "Failed to build command array for: $agent_type"
-        return 1
-    fi
+    read -ra cmd_array <<< "$cmd"
 
     # Capture output and exit code separately
     local output
@@ -11357,8 +11488,7 @@ run_agent_sync() {
 
     # v8.10.0: Gemini uses stdin-based prompt delivery (Issue #25)
     # -p "" triggers headless mode; prompt content comes via stdin to avoid OS arg limits
-    # v8.12.2: Only add -p "" for non-interactive Gemini modes
-    if [[ "$agent_type" == gemini* && "${OCTOPUS_GEMINI_SANDBOX:-headless}" != "interactive" && "${OCTOPUS_GEMINI_SANDBOX:-headless}" != "prompt-mode" ]]; then
+    if [[ "$agent_type" == gemini* ]]; then
         cmd_array+=(-p "")
         output=$(printf '%s' "$enhanced_prompt" | run_with_timeout "$timeout_secs" "${cmd_array[@]}" 2>"$temp_err")
     else
@@ -11395,7 +11525,7 @@ run_agent_sync() {
         # v8.6.0: Pass native metrics from Task tool output
         parse_task_metrics "$output"
         record_agent_complete "$metrics_id" "$agent_type" "$model" "$output" "${phase:-unknown}" \
-            "$_PARSED_TOKENS" "$_PARSED_TOOL_USES" "$_PARSED_DURATION_MS" "${_PARSED_SPEED:-}" 2>/dev/null || true
+            "$_PARSED_TOKENS" "$_PARSED_TOOL_USES" "$_PARSED_DURATION_MS" 2>/dev/null || true
     fi
 
     echo "$output"
@@ -11665,24 +11795,22 @@ $previous_output"
             codex)
                 if ! command -v codex &>/dev/null && [[ -z "${OPENAI_API_KEY:-}" ]]; then
                     log "WARN" "Codex not available, skipping agent in phase $phase_name"
-                    ((agent_idx++)) || true
+                    ((agent_idx++))
                     continue
                 fi
                 ;;
             gemini)
                 if ! command -v gemini &>/dev/null && [[ -z "${GEMINI_API_KEY:-}" ]]; then
                     log "WARN" "Gemini not available, skipping agent in phase $phase_name"
-                    ((agent_idx++)) || true
+                    ((agent_idx++))
                     continue
                 fi
                 ;;
         esac
 
         if [[ "$is_parallel" == "true" ]]; then
-            # v8.7.1: spawn_agent already backgrounds internally - capture its PID output
-            local pid
-            pid=$(spawn_agent "$agent_type" "$agent_prompt" "$task_id" "$role" "$phase_name")
-            pids+=("$pid")
+            spawn_agent "$agent_type" "$agent_prompt" "$task_id" "$role" "$phase_name" &
+            pids+=($!)
         else
             # Sequential agent - wait for parallel agents first
             if [[ ${#pids[@]} -gt 0 ]]; then
@@ -11695,7 +11823,7 @@ $previous_output"
             spawn_agent "$agent_type" "$agent_prompt" "$task_id" "$role" "$phase_name"
         fi
 
-        ((agent_idx++)) || true
+        ((agent_idx++))
         sleep 0.1
     done <<< "$agents_raw"
 
@@ -11825,7 +11953,7 @@ run_yaml_workflow() {
 
     while IFS= read -r phase_name; do
         [[ -z "$phase_name" ]] && continue
-        ((phase_num++)) || true
+        ((phase_num++))
 
         echo ""
         local phase_upper
@@ -11907,7 +12035,7 @@ probe_discover() {
 
     if [[ "$DRY_RUN" == "true" ]]; then
         log INFO "[DRY-RUN] Would probe: $prompt"
-        log INFO "[DRY-RUN] Would spawn 5 parallel research agents (Codex, Gemini, Sonnet 4.5)"
+        log INFO "[DRY-RUN] Would spawn 5+ parallel research agents (Codex, Gemini, Sonnet 4.5, +codebase if in git repo)"
         return 0
     fi
 
@@ -11944,9 +12072,6 @@ probe_discover() {
 
     mkdir -p "$RESULTS_DIR" "$LOGS_DIR"
 
-    # Initialize progress tracking (v7.16.0 Feature 2)
-    init_progress_tracking "discover" 5
-
     # Initialize tmux if enabled
     if [[ "$TMUX_MODE" == "true" ]]; then
         tmux_init
@@ -11967,11 +12092,24 @@ probe_discover() {
         "🔧 Feasibility"
         "🔵 Cross-Synthesis"
     )
+    local probe_agents=("codex" "gemini" "claude-sonnet" "codex" "gemini")
+
+    # v8.14.0: Codebase-aware discovery — add 6th agent when inside a git repo
+    if git rev-parse --is-inside-work-tree &>/dev/null 2>&1; then
+        local src_dirs
+        src_dirs=$(find . -maxdepth 2 -type f \( -name "*.ts" -o -name "*.py" -o -name "*.go" -o -name "*.rs" -o -name "*.java" -o -name "*.js" \) 2>/dev/null | head -1)
+        if [[ -n "$src_dirs" ]]; then
+            perspectives+=("Analyze the LOCAL CODEBASE in the current directory for: $prompt. Run: find . -type f -name '*.ts' -o -name '*.py' -o -name '*.js' | head -30, then read key files. Report: tech stack, architecture patterns, file structure, coding conventions, and how they relate to the prompt. Focus on ACTUAL code, not hypotheticals.")
+            pane_titles+=("📂 Codebase Analysis")
+            probe_agents+=("claude-sonnet")
+            log INFO "Codebase detected - adding local codebase analysis agent"
+        fi
+    fi
+
+    # Initialize progress tracking with actual agent count (dynamic, may be 5 or 6)
+    init_progress_tracking "discover" "${#perspectives[@]}"
 
     local pids=()
-    local probe_agents=("codex" "gemini" "claude-sonnet" "codex" "gemini")
-    local start_time
-    start_time=$(date +%s)
     for i in "${!perspectives[@]}"; do
         local perspective="${perspectives[$i]}"
         local agent="${probe_agents[$i]}"
@@ -11984,12 +12122,8 @@ probe_discover() {
             pids+=("$pid")
         else
             # Standard spawning
-            # v8.7.1: spawn_agent already launches a background subshell internally,
-            # so do NOT add '&' here - it would create a wrapper PID that dies immediately,
-            # causing the monitoring loop to declare agents complete after 0 seconds.
-            local pid
-            pid=$(spawn_agent "$agent" "$perspective" "$task_id" "researcher" "probe")
-            pids+=("$pid")
+            spawn_agent "$agent" "$perspective" "$task_id" "researcher" "probe" &
+            pids+=($!)
         fi
         sleep 0.1
     done
@@ -12009,10 +12143,8 @@ probe_discover() {
         wait_async_agents "${pids[@]}"
     else
         # v7.19.0 P1.2: Rich progress display
-        local agents_csv names_csv
-        agents_csv=$(IFS=','; echo "${probe_agents[*]}")
-        names_csv=$(IFS=','; echo "${pane_titles[*]}")
-        display_rich_progress "$task_group" "${#pids[@]}" "$start_time" "$agents_csv" "$names_csv" "${pids[@]}"
+        local start_time=$(date +%s)
+        display_rich_progress "$task_group" "${#pids[@]}" "$start_time" "${pids[@]}"
     fi
 
     # Cleanup tmux if enabled
@@ -12049,17 +12181,17 @@ probe_discover() {
             # Categorize based on content and status markers
             if grep -q "Status: SUCCESS" "$result_file"; then
                 echo -e " ${GREEN}✓${NC} $agent_display probe $i: completed ($(numfmt --to=iec-i --suffix=B $file_size 2>/dev/null || echo "${file_size}B"))"
-                ((success_count++)) || true
+                ((success_count++))
             elif grep -q "Status: TIMEOUT" "$result_file"; then
                 echo -e " ${YELLOW}⏳${NC} $agent_display probe $i: timeout with partial results ($(numfmt --to=iec-i --suffix=B $file_size 2>/dev/null || echo "${file_size}B"))"
-                ((timeout_count++)) || true
+                ((timeout_count++))
             elif grep -q "Status: FAILED" "$result_file"; then
                 if [[ $file_size -gt 1024 ]]; then
                     echo -e " ${YELLOW}⚠${NC}  $agent_display probe $i: failed but has output ($(numfmt --to=iec-i --suffix=B $file_size 2>/dev/null || echo "${file_size}B"))"
                     ((timeout_count++))  # Count as partial success
                 else
                     echo -e " ${RED}✗${NC} $agent_display probe $i: failed ($(numfmt --to=iec-i --suffix=B $file_size 2>/dev/null || echo "${file_size}B"))"
-                    ((failure_count++)) || true
+                    ((failure_count++))
                 fi
             else
                 # No clear status marker - check file size
@@ -12068,13 +12200,13 @@ probe_discover() {
                     ((timeout_count++))  # Count as partial success
                 else
                     echo -e " ${RED}✗${NC} $agent_display probe $i: empty or missing ($(numfmt --to=iec-i --suffix=B $file_size 2>/dev/null || echo "${file_size}B"))"
-                    ((failure_count++)) || true
+                    ((failure_count++))
                 fi
             fi
         else
             local agent_display="${agent^}"
             echo -e " ${RED}✗${NC} $agent_display probe $i: result file missing"
-            ((failure_count++)) || true
+            ((failure_count++))
         fi
     done
 
@@ -12085,7 +12217,6 @@ probe_discover() {
 
     # Intelligent synthesis (v7.19.0 P1.1: allow with partial results)
     synthesize_probe_results "$task_group" "$prompt" "$usable_results"
-    trap 'exit 0' TERM
 
     # v7.19.0 P2.4: Stop progressive synthesis monitor
     if [[ -n "$synthesis_monitor_pid" ]]; then
@@ -12111,7 +12242,7 @@ synthesize_probe_results() {
     local results=""
     local result_count=0
     local total_content_size=0
-    for result in "$RESULTS_DIR"/*-probe-${task_group}-*.md; do
+    for result in "$RESULTS_DIR"/probe-${task_group}-*.md; do
         [[ -f "$result" ]] || continue
 
         # Check if file has meaningful content (>500 bytes of actual content)
@@ -12120,7 +12251,7 @@ synthesize_probe_results() {
 
         if [[ $file_size -gt 500 ]]; then
             results+="$(cat "$result")\n\n---\n\n"
-            ((result_count++)) || true
+            ((result_count++))
             total_content_size=$((total_content_size + file_size))
         else
             log DEBUG "Skipping $result (too small: ${file_size}B)"
@@ -12377,12 +12508,11 @@ Output as numbered list with [CODING] or [REASONING] prefix for each subtask."
             pid=$(spawn_agent_async "$agent" "$subtask" "$task_id" "$role" "tangle" "$pane_title")
             pids+=("$pid")
         else
-            # v8.7.1: spawn_agent already backgrounds internally - capture its PID output
-            local pid
-            pid=$(spawn_agent "$agent" "$subtask" "$task_id" "$role" "tangle")
-            pids+=("$pid")
+            # Standard spawning
+            spawn_agent "$agent" "$subtask" "$task_id" "$role" "tangle" &
+            pids+=($!)
         fi
-        ((subtask_num++)) || true
+        ((subtask_num++))
     done <<< "$subtasks"
 
     log INFO "Spawned $subtask_num development threads"
@@ -12397,7 +12527,7 @@ Output as numbered list with [CODING] or [REASONING] prefix for each subtask."
             completed=0
             for pid in "${pids[@]}"; do
                 if ! kill -0 "$pid" 2>/dev/null; then
-                    ((completed++)) || true
+                    ((completed++))
                 fi
             done
             echo -ne "\r${CYAN}Progress: $completed/${#pids[@]} subtasks complete${NC}"
@@ -12436,14 +12566,14 @@ validate_tangle_results() {
         local fail_count=0
         FAILED_SUBTASKS=""  # Reset for this validation pass (string-based)
 
-        for result in "$RESULTS_DIR"/*-tangle-${task_group}*.md; do
+        for result in "$RESULTS_DIR"/tangle-${task_group}*.md; do
             [[ -f "$result" ]] || continue
             [[ "$result" == *validation* ]] && continue
 
             if grep -q "Status: SUCCESS" "$result" 2>/dev/null; then
-                ((success_count++)) || true
+                ((success_count++))
             else
-                ((fail_count++)) || true
+                ((fail_count++))
                 # Extract agent and prompt for retry (if loop-until-approved enabled)
                 if [[ "$LOOP_UNTIL_APPROVED" == "true" ]]; then
                     local agent prompt_line
@@ -12485,7 +12615,7 @@ validate_tangle_results() {
             retry)
                 # Retry failed tasks
                 if [[ $quality_retry_count -lt $MAX_QUALITY_RETRIES ]]; then
-                    ((quality_retry_count++)) || true
+                    ((quality_retry_count++))
                     echo ""
                     echo -e "${YELLOW}╔═══════════════════════════════════════════════════════════╗${NC}"
                     echo -e "${YELLOW}║  🐙 Branching: Retry Path (attempt $quality_retry_count/$MAX_QUALITY_RETRIES)                    ║${NC}"
@@ -12626,7 +12756,7 @@ ink_deliver() {
         [[ -f "$result" ]] || continue
         [[ "$result" == *aggregate* || "$result" == *delivery* ]] && continue
         all_results+="$(cat "$result")\n\n"
-        ((result_count++)) || true
+        ((result_count++))
         [[ $result_count -ge 10 ]] && break  # Limit context size
     done
 
@@ -12895,6 +13025,9 @@ embrace_full_workflow() {
             display_phase_metrics "probe" 2>/dev/null || true
         fi
 
+        # v8.14.0: Capture phase context in persistent state
+        update_context "discover" "$(head -20 "$probe_synthesis" 2>/dev/null | tr '\n' ' ')" 2>/dev/null || true
+
         OCTOPUS_COMPLETED_PHASES=1
         _write_embrace_session_state "probe" "completed"
         save_session_checkpoint "probe" "completed" "$probe_synthesis"
@@ -12920,6 +13053,9 @@ embrace_full_workflow() {
         if command -v display_phase_metrics &> /dev/null; then
             display_phase_metrics "grasp" 2>/dev/null || true
         fi
+
+        # v8.14.0: Capture phase context in persistent state
+        update_context "define" "$(head -20 "$grasp_consensus" 2>/dev/null | tr '\n' ' ')" 2>/dev/null || true
 
         OCTOPUS_COMPLETED_PHASES=2
         _write_embrace_session_state "grasp" "completed"
@@ -12952,6 +13088,9 @@ embrace_full_workflow() {
         if grep -q "Quality Gate: FAILED" "$tangle_validation" 2>/dev/null; then
             tangle_status="warning"
         fi
+        # v8.14.0: Capture phase context in persistent state
+        update_context "develop" "$(head -20 "$tangle_validation" 2>/dev/null | tr '\n' ' ')" 2>/dev/null || true
+
         OCTOPUS_COMPLETED_PHASES=3
         _write_embrace_session_state "tangle" "$tangle_status"
         save_session_checkpoint "tangle" "$tangle_status" "$tangle_validation"
@@ -12976,10 +13115,15 @@ embrace_full_workflow() {
         display_phase_metrics "ink" 2>/dev/null || true
     fi
 
+    # v8.14.0: Capture phase context in persistent state
+    local ink_output
+    ink_output=$(ls -t "$RESULTS_DIR"/delivery-*.md 2>/dev/null | head -1)
+    update_context "deliver" "$(head -20 "$ink_output" 2>/dev/null | tr '\n' ' ')" 2>/dev/null || true
+
     OCTOPUS_COMPLETED_PHASES=4
     export OCTOPUS_WORKFLOW_PHASE="complete"
     _write_embrace_session_state "ink" "completed"
-    save_session_checkpoint "ink" "completed" "$(ls -t "$RESULTS_DIR"/delivery-*.md 2>/dev/null | head -1)"
+    save_session_checkpoint "ink" "completed" "$ink_output"
 
     # Mark session complete
     complete_session
@@ -14377,10 +14521,10 @@ show_status() {
 
     echo -e "${BLUE}Active Agents:${NC}"
     while IFS=: read -r pid agent task_id; do
-        ((total++)) || true
+        ((total++))
         if kill -0 "$pid" 2>/dev/null; then
             echo -e "  ${GREEN}●${NC} PID $pid - $agent ($task_id) - RUNNING"
-            ((running++)) || true
+            ((running++))
         else
             echo -e "  ${RED}○${NC} PID $pid - $agent ($task_id) - COMPLETED"
         fi
@@ -14394,6 +14538,43 @@ show_status() {
         local result_count
         result_count=$(find "$RESULTS_DIR" -name "*.md" -type f | wc -l | tr -d ' ')
         echo -e "${BLUE}Results:${NC} $result_count files in $RESULTS_DIR"
+    fi
+
+    # v8.14.0: Show persistent project state
+    if [[ -f ".claude-octopus/state.json" ]]; then
+        echo ""
+        echo -e "${BLUE}Project State:${NC}"
+        local wf ph pc dc ab
+        wf=$(jq -r '.current_workflow // "none"' .claude-octopus/state.json 2>/dev/null)
+        ph=$(jq -r '.current_phase // "none"' .claude-octopus/state.json 2>/dev/null)
+        pc=$(jq -r '.metrics.phases_completed // 0' .claude-octopus/state.json 2>/dev/null)
+        dc=$(jq -r '.decisions | length // 0' .claude-octopus/state.json 2>/dev/null)
+        echo -e "  Workflow: ${CYAN}${wf}${NC} | Phase: ${CYAN}${ph}${NC}"
+        echo -e "  Phases completed: $pc | Decisions: $dc"
+        ab=$(jq -r '[.blockers[] | select(.status == "active")] | length // 0' .claude-octopus/state.json 2>/dev/null)
+        if [[ "$ab" -gt 0 ]] 2>/dev/null; then
+            echo -e "  ${YELLOW}Active blockers: $ab${NC}"
+        fi
+    fi
+
+    # Recent debates (v8.13.0)
+    local debate_base="$HOME/.claude-octopus/debates"
+    if [[ -d "$debate_base" ]]; then
+        local recent_debates
+        recent_debates=$(find "$debate_base" -name "synthesis.md" -mtime -7 2>/dev/null | head -5)
+        if [[ -n "$recent_debates" ]]; then
+            echo ""
+            echo -e "${BLUE}Recent Debates (7 days):${NC}"
+            while IFS= read -r synth_file; do
+                local debate_dir
+                debate_dir=$(dirname "$synth_file")
+                local topic
+                topic=$(basename "$debate_dir")
+                local date
+                date=$(stat -f "%Sm" -t "%Y-%m-%d" "$synth_file" 2>/dev/null || date -r "$synth_file" "+%Y-%m-%d" 2>/dev/null || echo "unknown")
+                echo -e "  ✓ $topic ($date)"
+            done <<< "$recent_debates"
+        fi
     fi
 
     echo ""
@@ -14544,9 +14725,9 @@ get_task_status_summary() {
         if [[ -f "$status_file" ]]; then
             local status=$(cat "$status_file")
             case "$status" in
-                in_progress) ((in_progress++)) || true ;;
-                completed) ((completed++)) || true ;;
-                *) ((pending++)) || true ;;
+                in_progress) ((in_progress++)) ;;
+                completed) ((completed++)) ;;
+                *) ((pending++)) ;;
             esac
         fi
     done
@@ -14830,6 +15011,12 @@ case "$COMMAND" in
         ;;
     preflight)
         preflight_check
+        ;;
+    release)
+        do_release
+        ;;
+    doctor)
+        do_doctor
         ;;
     octopus-configure)
         setup_wizard

@@ -2,6 +2,23 @@
 
 All notable changes to Claude Octopus will be documented in this file.
 
+## [8.16.0] - 2026-02-16
+
+### Merged
+
+**Fork merge: upstream v8.13.0 through v8.15.1**
+- Merged all upstream features from v8.13.0 through v8.15.1 (315 commits)
+- Adopted new scheduled workflow commands (`/octo:schedule`, `/octo:scheduler`)
+- Resolved 69 file conflicts (add/add from unrelated histories)
+- Preserved fork-specific fixes: ownership migration, SIGPIPE fix, debate skill improvements
+
+### Changed
+
+- Command count: 39 → 41
+- Version bump: 8.13.0 → 8.16.0
+
+---
+
 ## [8.13.0] - 2026-02-16
 
 ### Changed

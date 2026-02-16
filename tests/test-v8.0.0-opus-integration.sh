@@ -83,14 +83,14 @@ echo -e "${BLUE}Test Group 1: orchestrate.sh - claude-opus agent type${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # 1.1: get_agent_command has claude-opus case
-if grep -q 'claude-opus) echo "claude --print --model opus"' "$ORCHESTRATE_SH"; then
-    assert_pass "1.1 get_agent_command has claude-opus → 'claude --print --model opus'"
+if grep -q 'claude-opus) echo "claude --print -m opus"' "$ORCHESTRATE_SH"; then
+    assert_pass "1.1 get_agent_command has claude-opus → 'claude --print -m opus'"
 else
-    assert_fail "1.1 get_agent_command has claude-opus → 'claude --print --model opus'"
+    assert_fail "1.1 get_agent_command has claude-opus → 'claude --print -m opus'"
 fi
 
 # 1.2: get_agent_command_array has claude-opus case
-if grep -q 'claude-opus).*_cmd_array=(claude --print --model opus)' "$ORCHESTRATE_SH"; then
+if grep -q 'claude-opus).*_cmd_array=(claude --print -m opus)' "$ORCHESTRATE_SH"; then
     assert_pass "1.2 get_agent_command_array has claude-opus entry"
 else
     assert_fail "1.2 get_agent_command_array has claude-opus entry"
@@ -298,7 +298,7 @@ for skill_file in "$SKILLS_DIR"/*.md; do
     fi
 done
 if [[ $multiline_count -eq 0 ]]; then
-    assert_pass "7.1 No multi-line description: | blocks remain (all 44 compressed)"
+    assert_pass "7.1 No multi-line description: | blocks remain (all 43 compressed)"
 else
     assert_fail "7.1 No multi-line description: | blocks remain" "Found $multiline_count files with multi-line descriptions"
 fi

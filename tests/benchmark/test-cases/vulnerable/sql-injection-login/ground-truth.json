@@ -1,0 +1,128 @@
+{
+  "test_case": "sql-injection-login",
+  "language": "python",
+  "description": "Authentication module with multiple security vulnerabilities",
+  "lines_of_code": 95,
+  "expected_issues": [
+    {
+      "id": 1,
+      "severity": "CRITICAL",
+      "cwe": "CWE-89",
+      "category": "SQL Injection",
+      "location": "code.py:32",
+      "description": "SQL injection in login query via string concatenation",
+      "attack_vector": "username = \"' OR '1'='1\" allows authentication bypass"
+    },
+    {
+      "id": 2,
+      "severity": "CRITICAL",
+      "cwe": "CWE-256",
+      "category": "Plaintext Password Storage",
+      "location": "code.py:36",
+      "description": "Passwords stored and compared in plain text",
+      "attack_vector": "Database compromise exposes all passwords"
+    },
+    {
+      "id": 3,
+      "severity": "HIGH",
+      "cwe": "CWE-331",
+      "category": "Weak Session Management",
+      "location": "code.py:38",
+      "description": "Session token is predictable (just user ID)",
+      "attack_vector": "Session hijacking via ID enumeration"
+    },
+    {
+      "id": 4,
+      "severity": "CRITICAL",
+      "cwe": "CWE-89",
+      "category": "SQL Injection",
+      "location": "code.py:51",
+      "description": "SQL injection in admin check query",
+      "attack_vector": "user_id parameter allows SQL injection"
+    },
+    {
+      "id": 5,
+      "severity": "HIGH",
+      "cwe": "CWE-799",
+      "category": "No Rate Limiting",
+      "location": "code.py:61",
+      "description": "Login endpoint lacks rate limiting",
+      "attack_vector": "Brute force password attacks"
+    },
+    {
+      "id": 6,
+      "severity": "HIGH",
+      "cwe": "CWE-352",
+      "category": "No CSRF Protection",
+      "location": "code.py:61",
+      "description": "POST endpoint lacks CSRF token validation",
+      "attack_vector": "Cross-site request forgery attacks"
+    },
+    {
+      "id": 7,
+      "severity": "MEDIUM",
+      "cwe": "CWE-20",
+      "category": "No Input Validation",
+      "location": "code.py:69",
+      "description": "Username and password not validated before use",
+      "attack_vector": "Malformed input may cause unexpected behavior"
+    },
+    {
+      "id": 8,
+      "severity": "MEDIUM",
+      "cwe": "CWE-209",
+      "category": "Information Disclosure",
+      "location": "code.py:74",
+      "description": "Error message reveals whether username exists",
+      "attack_vector": "Username enumeration"
+    },
+    {
+      "id": 9,
+      "severity": "HIGH",
+      "cwe": "CWE-639",
+      "category": "Insecure Direct Object Reference",
+      "location": "code.py:80",
+      "description": "User can specify their own user_id for admin check",
+      "attack_vector": "Privilege escalation by changing user_id parameter"
+    },
+    {
+      "id": 10,
+      "severity": "MEDIUM",
+      "cwe": "CWE-358",
+      "category": "Hardcoded Secret",
+      "location": "code.py:9",
+      "description": "Flask secret key is hardcoded",
+      "attack_vector": "Session forgery if key is known"
+    },
+    {
+      "id": 11,
+      "severity": "MEDIUM",
+      "cwe": "CWE-489",
+      "category": "Debug Mode Enabled",
+      "location": "code.py:89",
+      "description": "Flask debug mode enabled in production",
+      "attack_vector": "Information disclosure via debug pages"
+    },
+    {
+      "id": 12,
+      "severity": "LOW",
+      "cwe": "CWE-200",
+      "category": "Insecure Network Binding",
+      "location": "code.py:89",
+      "description": "Application binds to 0.0.0.0 (all interfaces)",
+      "attack_vector": "Exposes application to unnecessary network interfaces"
+    }
+  ],
+  "minimum_expected_findings": {
+    "critical": 3,
+    "high": 3,
+    "medium": 4,
+    "low": 1,
+    "total": 11
+  },
+  "target_metrics": {
+    "true_positive_rate": 0.90,
+    "false_positive_rate": 0.10,
+    "f1_score": 0.85
+  }
+}

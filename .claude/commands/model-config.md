@@ -292,7 +292,6 @@ When the user invokes `/octo:model-config`, you MUST:
 3. **Set Model** (`<provider> <model>` or with `--session`):
    ```bash
    # Call set_provider_model from orchestrate.sh
-   CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(jq -r '.plugins["octo@adrivellen-plugins"][0].installPath' ~/.claude/plugins/installed_plugins.json)}"
    source "${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh"
    set_provider_model <provider> <model> [--session]
 
@@ -303,16 +302,15 @@ When the user invokes `/octo:model-config`, you MUST:
 4. **Set Phase Routing** (`phase <phase> <model>`):
    ```bash
    # Update phase_routing in config file
-   config_file="${HOME}/.claude-octopus/config/providers.json"
-   jq --arg phase "$phase" --arg model "$model" '.phase_routing[$phase] = $model' "$config_file" > "${config_file}.tmp" && mv "${config_file}.tmp" "$config_file"
+   local config_file="${HOME}/.claude-octopus/config/providers.json"
+   jq ".phase_routing.${phase} = \"${model}\"" "$config_file" > "${config_file}.tmp" && mv "${config_file}.tmp" "$config_file"
    echo "✓ Set phase routing: $phase → $model"
-   jq '.phase_routing' "$config_file"
+   cat ~/.claude-octopus/config/providers.json | jq '.phase_routing'
    ```
 
 5. **Reset Model** (`reset <provider|phases|all>`):
    ```bash
    # Call reset_provider_model from orchestrate.sh
-   CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(jq -r '.plugins["octo@adrivellen-plugins"][0].installPath' ~/.claude/plugins/installed_plugins.json)}"
    source "${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh"
    reset_provider_model <provider>
 
