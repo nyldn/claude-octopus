@@ -40,32 +40,28 @@ This guide explains the internal architecture of Claude Octopus for contributors
 ```json
 {
   "name": "claude-octopus",
-  "version": "7.4.0",
+  "version": "8.15.1",
   "description": "Multi-tentacled orchestrator...",
   "skills": [
-    "./.claude/skills/parallel-agents.md",
-    "./.claude/skills/probe-workflow.md",
-    "./.claude/skills/grasp-workflow.md",
-    "./.claude/skills/tangle-workflow.md",
-    "./.claude/skills/ink-workflow.md",
-    "./.claude/skills/debate.md",
+    "./.claude/skills/skill-parallel-agents.md",
+    "./.claude/skills/flow-discover.md",
+    "./.claude/skills/flow-define.md",
+    "./.claude/skills/flow-develop.md",
+    "./.claude/skills/flow-deliver.md",
+    "./.claude/skills/skill-debate.md",
     ...
   ],
-  "commands": "./.claude/commands/",
-  "dependencies": {
-    "claude-skills": {
-      "repository": "https://github.com/wolverin0/claude-skills",
-      "type": "submodule",
-      "path": ".dependencies/claude-skills"
-    }
-  }
+  "commands": [
+    "./.claude/commands/octo.md",
+    "./.claude/commands/embrace.md",
+    ...
+  ]
 }
 ```
 
 **Key Fields:**
-- `skills`: Array of markdown files defining skills
-- `commands`: Directory containing slash commands
-- `dependencies`: Git submodules and external dependencies
+- `skills`: Array of markdown files defining skills (44 total)
+- `commands`: Array of markdown files defining slash commands (41 total)
 
 ---
 
@@ -326,34 +322,19 @@ fi
 
 ---
 
-### 6. AI Debate Hub Integration
+### 6. AI Debate Hub
 
-**Location:** `.dependencies/claude-skills/` (git submodule)
+**Location:** `.claude/skills/skill-debate.md` + `.claude/skills/skill-debate-integration.md`
 
-**Integration Type:** Hybrid - original skill + enhancement layer
+**Origin:** Based on [wolverin0/claude-skills](https://github.com/wolverin0/claude-skills) (MIT License), now fully integrated.
 
 #### Architecture
 
 ```
-.dependencies/claude-skills/
-└── skills/
-    └── debate.md                    # Original skill by wolverin0
-
 .claude/skills/
-├── debate.md                        # Wrapper with YAML frontmatter
-└── debate-integration.md            # Enhancement layer
+├── skill-debate.md                  # Debate skill with YAML frontmatter
+└── skill-debate-integration.md      # Enhancement layer (quality gates, cost tracking)
 ```
-
-**Wrapper Strategy:**
-1. `.claude/skills/debate.md` - Proper YAML frontmatter for Claude Code
-2. Content from `.dependencies/claude-skills/skills/debate.md` embedded
-3. Enhancements (quality gates, cost tracking) in `debate-integration.md`
-
-**Why wrapper?**
-- Original submodule is read-only (don't modify upstream)
-- Wrapper adds Claude Code-specific YAML frontmatter
-- Enhancement layer adds claude-octopus features
-- Maintains clear separation: original + enhancements
 
 ---
 
@@ -437,34 +418,28 @@ evaluate_quality() {
 claude-octopus/
 ├── .claude-plugin/
 │   ├── plugin.json                 # Plugin manifest
+│   ├── marketplace.json            # Marketplace registry
 │   └── hooks.json                  # Hook definitions
 ├── .claude/
-│   ├── commands/                   # Slash commands
+│   ├── commands/                   # Slash commands (41)
 │   ├── hooks/                      # Hook scripts
-│   │   ├── visual-feedback.sh      # Visual indicators
-│   │   ├── quality-gate.sh         # Quality validation
-│   │   └── session-sync.sh         # Session propagation
-│   └── skills/                     # Skill definitions
-│       ├── parallel-agents.md      # Main orchestration skill
-│       ├── probe-workflow.md       # Research workflow
-│       ├── grasp-workflow.md       # Define workflow
-│       ├── tangle-workflow.md      # Develop workflow
-│       ├── ink-workflow.md         # Deliver workflow
-│       ├── debate.md               # Debate wrapper
-│       └── debate-integration.md   # Debate enhancements
-├── .dependencies/
-│   └── claude-skills/              # AI Debate Hub submodule
+│   └── skills/                     # Skill definitions (44)
+│       ├── flow-discover.md        # Research workflow
+│       ├── flow-define.md          # Define workflow
+│       ├── flow-develop.md         # Develop workflow
+│       ├── flow-deliver.md         # Deliver workflow
+│       ├── skill-debate.md         # Debate skill
+│       ├── skill-deep-research.md  # Deep research
+│       └── ...                     # 38 more skills
+├── agents/
+│   └── config.yaml                 # Agent persona definitions
 ├── scripts/
 │   └── orchestrate.sh              # Core orchestration engine
 ├── tests/
 │   ├── unit/                       # Unit tests
 │   ├── integration/                # Integration tests
 │   └── smoke/                      # Smoke tests
-└── docs/
-    ├── VISUAL-INDICATORS.md        # Visual indicators guide
-    ├── TRIGGERS.md                 # Trigger patterns guide
-    ├── CLI-REFERENCE.md            # CLI documentation
-    └── PLUGIN-ARCHITECTURE.md      # This file
+└── docs/                           # Documentation
 ```
 
 ---
@@ -605,12 +580,6 @@ detect_providers() {
 - **Never commit API keys** to git
 - **Use environment variables** for API keys
 - **Validate keys** before use
-
-### Submodule Security
-
-- **Read-only submodules:** `.dependencies/` is read-only
-- **Pin to specific commits:** Don't auto-update without review
-- **Verify signatures:** Check submodule integrity
 
 ### Hook Execution
 
