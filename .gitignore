@@ -71,15 +71,7 @@ temp/
 *.tmp
 *.temp
 
-# Embedded git repos (local research clones)
-research/agents/
-research/get-shit-done/
-
-# Development workspace (consolidated)
-# All dev artifacts, reports, benchmarks, and WIP files
-component-analyzer/
-reports/
-src/
+# Development working files (should not be in public repo)
 docs/IMPLEMENTATION-PLAN*.md
 
 # Development working files

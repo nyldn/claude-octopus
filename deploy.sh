@@ -58,16 +58,12 @@ echo ""
 
 # Check 2: Repository Structure Validation
 echo "Check 2: Repository Structure Validation"
-# We're in plugin/ subdirectory - dev artifacts should be in parent directory
-if [ -d "../research" ] || [ -d "../drafts" ] || [ -d "../benchmarks" ]; then
-    pass "Development workspace detected in parent directory (outside git)"
+# Ensure no dev artifacts accidentally in the public repo
+dev_dirs=$(find . -maxdepth 1 -type d \( -name "dev-workspace" -o -name ".dev" -o -name "analysis" -o -name "prd" -o -name "benchmarks" \) 2>/dev/null || true)
+if [ -z "$dev_dirs" ]; then
+    pass "No development artifacts in repository"
 else
-    warn "No development workspace found in parent directory" "Optional: Create ../research/, ../drafts/, etc."
-fi
-
-# Ensure no dev artifacts accidentally in plugin/ directory
-if [ -d "dev-workspace" ] || [ -d ".dev" ]; then
-    fail "Development artifacts found in plugin/ directory" "Should be in parent directory, outside git"
+    fail "Development artifacts found in repository" "$dev_dirs"
 fi
 echo ""
 
