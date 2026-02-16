@@ -2,6 +2,20 @@
 
 All notable changes to Claude Octopus will be documented in this file.
 
+## [8.16.1] - 2026-02-16
+
+### Fixed
+
+**Enforce Bash tool calls for Codex/Gemini CLI invocations in 5 skills**
+- Added EXECUTION CONTRACT with BLOCKING steps to `skill-debate.md` forcing `codex exec --full-auto` and `gemini` via Bash tool
+- Added EXECUTION CONTRACT with orchestrate.sh spawn to `skill-code-review.md`
+- Added EXECUTION CONTRACT with orchestrate.sh spawn to `skill-security-audit.md`
+- Reinforced EXECUTION CONTRACT in `skill-architecture.md` with provider detection step and explicit Task/Explore prohibition
+- Reinforced EXECUTION CONTRACT in `skill-validate.md` with provider detection and explicit prohibitions
+- All 5 skills now contain CANNOT prohibitions preventing Claude from substituting Task/Explore agents for CLI calls
+
+---
+
 ## [8.16.0] - 2026-02-16
 
 ### Merged

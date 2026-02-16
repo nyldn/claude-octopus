@@ -552,6 +552,67 @@ Claude:
 
 ---
 
+## EXECUTION CONTRACT (MANDATORY - BLOCKING)
+
+**You are PROHIBITED from proceeding without completing these steps in order.**
+
+### STEP 1: Provider Detection (BLOCKING)
+
+Use the Bash tool to execute:
+```bash
+command -v codex && echo "CODEX_AVAILABLE" || echo "CODEX_UNAVAILABLE"
+command -v gemini && echo "GEMINI_AVAILABLE" || echo "GEMINI_UNAVAILABLE"
+```
+
+**You MUST use the Bash tool for this check.** Do NOT assume provider availability.
+
+### STEP 2: Visual Indicators (BLOCKING)
+
+Display the provider banner. DO NOT PROCEED without displaying it.
+
+```
+🐙 **CLAUDE OCTOPUS ACTIVATED** - AI Debate Hub
+🐙 Debate: [Topic/question being debated]
+
+Participants:
+🔴 Codex CLI - [Available/Unavailable]
+🟡 Gemini CLI - [Available/Unavailable]
+🔵 Claude - Moderator and participant
+```
+
+### STEP 3: Execute CLI calls via Bash tool (MANDATORY)
+
+**For each debate round**, you MUST use the Bash tool to invoke external CLIs directly:
+
+**Codex invocation (MANDATORY Bash tool call):**
+```bash
+codex exec --full-auto "YOUR DEBATE PROMPT HERE" > "${DEBATE_DIR}/rounds/r00N_codex.md"
+```
+
+**Gemini invocation (MANDATORY Bash tool call):**
+```bash
+printf '%s' "YOUR DEBATE PROMPT HERE" | gemini -p "" -o text --approval-mode yolo > "${DEBATE_DIR}/rounds/r00N_gemini.md"
+```
+
+❌ You CANNOT research/analyze directly without these Bash calls
+❌ You CANNOT use Task/Explore agents as substitute for Codex/Gemini
+❌ You CANNOT claim you are "simulating" the workflow
+❌ You CANNOT skip to presenting results without CLI execution
+❌ You CANNOT write advisor responses yourself instead of calling CLIs
+
+**This is NOT optional. You MUST use the Bash tool to invoke codex and gemini.**
+
+### STEP 4: Verify Execution (VALIDATION GATE)
+
+Use the Bash tool to check the output files exist:
+```bash
+ls -la "${DEBATE_DIR}/rounds/r001_codex.md" "${DEBATE_DIR}/rounds/r001_gemini.md" 2>&1
+```
+
+If validation fails, STOP and report the error. Do NOT substitute with direct analysis.
+
+---
+
 ## Quality Checklist
 
 Before completing a debate, ensure:
