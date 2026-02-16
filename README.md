@@ -16,20 +16,14 @@ Multi-provider orchestration for Claude Code. Run Codex, Gemini, and Claude in p
 
 ## Quickstart
 
-**Install** — run this inside Claude Code:
-
-```
-/install https://github.com/nyldn/claude-octopus
-```
-
-Or from your terminal:
+**Install** — inside Claude Code or from your terminal:
 
 ```bash
-claude plugin marketplace add https://github.com/nyldn/claude-octopus
-claude plugin install claude-octopus@nyldn-plugins --scope user
+/plugin marketplace add https://github.com/nyldn/claude-octopus.git
+/plugin install claude-octopus@nyldn-plugins
 ```
 
-Then run setup inside Claude Code:
+Then run setup:
 
 ```
 /octo:setup
@@ -156,7 +150,7 @@ Everything except multi-AI features. You get all 29 personas, structured workflo
 
 **Provider transparency** — Visual indicators (colored dots) show exactly which providers are running and when external APIs are called. You always know what's happening.
 
-**Clean uninstall** — `/uninstall https://github.com/nyldn/claude-octopus` inside Claude Code removes everything. No residual config changes.
+**Clean uninstall** — `/plugin uninstall claude-octopus@nyldn-plugins` removes everything. No residual config changes.
 
 ---
 
