@@ -71,6 +71,10 @@ temp/
 *.tmp
 *.temp
 
+# Embedded git repos (local research clones)
+research/agents/
+research/get-shit-done/
+
 # Development workspace (consolidated)
 # All dev artifacts, reports, benchmarks, and WIP files
 component-analyzer/
