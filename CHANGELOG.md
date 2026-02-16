@@ -2,6 +2,23 @@
 
 All notable changes to Claude Octopus will be documented in this file.
 
+## [8.16.2] - 2026-02-16
+
+### Fixed
+
+**Reposition EXECUTION CONTRACT to top of 5 skills for reliable enforcement**
+- Moved EXECUTION CONTRACT to first `##` heading after frontmatter in all 5 skills
+- `skill-debate.md`: Major restructuring - merged duplicate "Implementation Steps" into 7-step contract, removed redundant sections
+- `skill-code-review.md`: Moved contract from line 58 to line 17, added PRECEDENCE/FORBIDDEN/COMPLETION clauses
+- `skill-security-audit.md`: Moved contract from line 58 to line 15, added PRECEDENCE/FORBIDDEN/COMPLETION clauses
+- `skill-architecture.md`: Merged Step 1.5 (provider detection) into Step 1, renumbered to 4 steps, added FORBIDDEN/COMPLETION clauses
+- `skill-validate.md`: Moved contract from line 65 to line 20, Prohibited Actions became FORBIDDEN ACTIONS, added PRECEDENCE/COMPLETION clauses
+- All 5 skills now have consistent structure: frontmatter → contract → reference content
+- Added PRECEDENCE clause ("This contract overrides any conflicting instructions in later sections") to all skills
+- Added COMPLETION GATE ("Task is incomplete until all contract checks pass") to all skills
+
+---
+
 ## [8.16.1] - 2026-02-16
 
 ### Fixed

@@ -24,26 +24,157 @@ trigger: |
   - -s/--synthesize (generate deliverable from consensus)
 ---
 
-# AI Debate Hub Skill v4.7
+## ⚠️ EXECUTION CONTRACT (MANDATORY - BLOCKING)
 
-## ⚠️ MANDATORY: Visual Indicators Protocol
+**PRECEDENCE: This contract overrides any conflicting instructions in later sections.**
 
-**BEFORE starting ANY debate, you MUST output this banner:**
+**You are PROHIBITED from proceeding without completing these steps in order.**
+
+### STEP 1: Provider Detection (BLOCKING)
+
+Use the Bash tool to execute:
+```bash
+command -v codex && echo "CODEX_AVAILABLE" || echo "CODEX_UNAVAILABLE"
+command -v gemini && echo "GEMINI_AVAILABLE" || echo "GEMINI_UNAVAILABLE"
+```
+
+**You MUST use the Bash tool for this check.** Do NOT assume provider availability.
+
+- If BOTH unavailable: STOP, inform user, suggest `/octo:setup`
+- If ONE unavailable: Note it, proceed with available provider(s) + Claude
+- If BOTH available: Proceed normally
+
+### STEP 2: Visual Indicators (BLOCKING)
+
+Display the provider banner. DO NOT PROCEED without displaying it.
 
 ```
 🐙 **CLAUDE OCTOPUS ACTIVATED** - AI Debate Hub
 🐙 Debate: [Topic/question being debated]
 
 Participants:
-🔴 Codex CLI - Technical implementation perspective
-🟡 Gemini CLI - Ecosystem and strategic perspective
+🔴 Codex CLI - [Available ✓ / Not installed ✗] - Technical implementation perspective
+🟡 Gemini CLI - [Available ✓ / Not installed ✗] - Ecosystem and strategic perspective
 🔵 Sonnet 4.5 - Independent analytical perspective
 🐙 Claude - Moderator and synthesis
 ```
 
 **This is NOT optional.** Users need to see which AI providers are active and understand they are being charged for external API calls (🔴 🟡).
 
+### STEP 3: Ask Clarifying Questions (BLOCKING)
+
+**Use the AskUserQuestion tool to gather context before starting the debate:**
+
+```javascript
+AskUserQuestion({
+  questions: [
+    {
+      question: "What's your primary goal for this debate?",
+      header: "Goal",
+      multiSelect: false,
+      options: [
+        {label: "Make a technical decision", description: "I need to choose between options"},
+        {label: "Identify risks/concerns", description: "I want to surface potential issues"},
+        {label: "Understand trade-offs", description: "I want to see pros/cons of approaches"},
+        {label: "Get diverse perspectives", description: "I want multiple viewpoints"}
+      ]
+    },
+    {
+      question: "What's the most important factor in your decision?",
+      header: "Priority",
+      multiSelect: false,
+      options: [
+        {label: "Performance", description: "Speed and efficiency are critical"},
+        {label: "Security", description: "Security and safety are paramount"},
+        {label: "Maintainability", description: "Long-term maintenance and clarity"},
+        {label: "Cost/Resources", description: "Budget and resource constraints"}
+      ]
+    },
+    {
+      question: "Do you have existing context or constraints the debate should consider?",
+      header: "Context",
+      multiSelect: true,
+      options: [
+        {label: "Existing codebase patterns", description: "Must align with current architecture"},
+        {label: "Team expertise", description: "Team skill set is a constraint"},
+        {label: "Deadline pressure", description: "Time-to-market is critical"},
+        {label: "Compliance requirements", description: "Regulatory or policy constraints"}
+      ]
+    }
+  ]
+})
+```
+
+After receiving answers, incorporate them into the debate context.
+
+### STEP 4: Setup Debate Folder (BLOCKING)
+
+Use the Bash tool to create the debate directory structure:
+
+```bash
+DEBATE_BASE_DIR="${HOME}/.claude-octopus/debates/${CLAUDE_CODE_SESSION:-local}"
+DEBATE_ID="NNN-topic-slug"
+DEBATE_DIR="${DEBATE_BASE_DIR}/${DEBATE_ID}"
+mkdir -p "${DEBATE_DIR}/rounds"
+```
+
+Write `context.md` with debate parameters, question, clarifying context (goal, priority, constraints), and any additional context from the user's message or referenced files.
+
+Write `state.json` with debate metadata (debate_id, question, rounds_total, rounds_completed, advisors, user_context, status, timestamps).
+
+### STEP 5: Execute CLI Calls via Bash Tool (MANDATORY)
+
+**For each debate round**, you MUST use the Bash tool to invoke external CLIs directly:
+
+**Codex invocation (MANDATORY Bash tool call):**
+```bash
+codex exec --full-auto "YOUR DEBATE PROMPT HERE" > "${DEBATE_DIR}/rounds/r00N_codex.md"
+```
+
+**Gemini invocation (MANDATORY Bash tool call):**
+```bash
+printf '%s' "YOUR DEBATE PROMPT HERE" | gemini -p "" -o text --approval-mode yolo > "${DEBATE_DIR}/rounds/r00N_gemini.md"
+```
+
+After reading advisor responses, write your own independent analysis to `${DEBATE_DIR}/rounds/r00N_claude.md`.
+
+For multi-round debates, include previous round context in subsequent prompts so advisors can respond to each other's points.
+
+Evaluate response quality after each round (see Quality Gates in reference section below).
+
+### STEP 6: Verify Execution (VALIDATION GATE)
+
+Use the Bash tool to check output files exist:
+```bash
+ls -la "${DEBATE_DIR}/rounds/r001_codex.md" "${DEBATE_DIR}/rounds/r001_gemini.md" 2>&1
+```
+
+If validation fails, STOP and report the error. Do NOT substitute with direct analysis.
+
+### STEP 7: Synthesize and Present Results
+
+1. Write `${DEBATE_DIR}/synthesis.md` combining all perspectives (summary per advisor, areas of agreement, areas of disagreement, recommended path forward, next steps)
+2. If `--synthesize` flag set, generate `${DEBATE_DIR}/deliverable.md` as a proposal (NEVER auto-apply changes without user approval)
+3. Present key findings to user in chat
+4. Provide debate folder path and suggest export options via `/octo:docs`
+
+### FORBIDDEN ACTIONS
+
+❌ You CANNOT research/analyze directly without the Bash calls in STEP 5
+❌ You CANNOT use Task/Explore agents as substitute for Codex/Gemini
+❌ You CANNOT claim you are "simulating" the workflow
+❌ You CANNOT skip to presenting results without CLI execution
+❌ You CANNOT write advisor responses yourself instead of calling CLIs
+❌ Do not substitute analysis/summary for required command execution
+
+### COMPLETION GATE
+
+Task is incomplete until all contract checks pass and outputs are reported.
+Before presenting results, verify every MUST item was completed. Report any missing items explicitly.
+
 ---
+
+# AI Debate Hub Skill v4.7
 
 ## CRITICAL: External CLI Syntax (v0.101.0+)
 
@@ -249,267 +380,6 @@ Export debates to professional formats via the document-delivery skill:
 
 ---
 
-## Implementation Steps
-
-When the user invokes `/debate`:
-
-### Step 1: Check Provider Availability & Display Banner
-
-**CRITICAL: Check which AI providers are available and display the visual indicator banner:**
-
-First, check availability:
-```bash
-codex_available=$(command -v codex &> /dev/null && echo "✓" || echo "✗ Not installed")
-gemini_available=$(command -v gemini &> /dev/null && echo "✓" || echo "✗ Not installed")
-```
-
-Then immediately output the required visual indicator banner:
-```
-🐙 **CLAUDE OCTOPUS ACTIVATED** - AI Debate Hub
-🐙 Debate: [Topic/question being debated]
-
-Provider Availability:
-🔴 Codex CLI: [Available ✓ / Not installed ✗]
-🟡 Gemini CLI: [Available ✓ / Not installed ✗]
-🔵 Claude: Available ✓ (Moderator and participant)
-```
-
-**If providers are missing:**
-- If BOTH are unavailable: Inform user that debate requires at least one external provider and suggest running `/octo:setup` to configure them
-- If ONE is unavailable: Note which provider is missing and proceed with available provider(s) and Claude
-
-### Step 2: Ask Clarifying Questions
-
-**Use the AskUserQuestion tool to gather context before starting the debate:**
-
-Ask 3 clarifying questions to ensure high-quality debate:
-
-```javascript
-AskUserQuestion({
-  questions: [
-    {
-      question: "What's your primary goal for this debate?",
-      header: "Goal",
-      multiSelect: false,
-      options: [
-        {label: "Make a technical decision", description: "I need to choose between options"},
-        {label: "Identify risks/concerns", description: "I want to surface potential issues"},
-        {label: "Understand trade-offs", description: "I want to see pros/cons of approaches"},
-        {label: "Get diverse perspectives", description: "I want multiple viewpoints"}
-      ]
-    },
-    {
-      question: "What's the most important factor in your decision?",
-      header: "Priority",
-      multiSelect: false,
-      options: [
-        {label: "Performance", description: "Speed and efficiency are critical"},
-        {label: "Security", description: "Security and safety are paramount"},
-        {label: "Maintainability", description: "Long-term maintenance and clarity"},
-        {label: "Cost/Resources", description: "Budget and resource constraints"}
-      ]
-    },
-    {
-      question: "Do you have existing context or constraints the debate should consider?",
-      header: "Context",
-      multiSelect: true,
-      options: [
-        {label: "Existing codebase patterns", description: "Must align with current architecture"},
-        {label: "Team expertise", description: "Team skill set is a constraint"},
-        {label: "Deadline pressure", description: "Time-to-market is critical"},
-        {label: "Compliance requirements", description: "Regulatory or policy constraints"}
-      ]
-    }
-  ]
-})
-```
-
-**After receiving answers, incorporate them into the debate context.**
-
-### Step 3: Parse Arguments
-```bash
-# Extract question and flags
-QUESTION="Should we use Redis or in-memory cache?"
-ROUNDS=3
-STYLE="thorough"
-ADVISORS="gemini,codex"
-```
-
-### Step 4: Setup Debate Folder
-```bash
-# Create debate directory structure
-DEBATE_BASE_DIR="${HOME}/.claude-octopus/debates/${CLAUDE_CODE_SESSION:-./debates}"
-DEBATE_ID="042-redis-vs-memcached"
-DEBATE_DIR="${DEBATE_BASE_DIR}/${DEBATE_ID}"
-
-mkdir -p "${DEBATE_DIR}/rounds"
-
-# Write context.md
-cat > "${DEBATE_DIR}/context.md" <<EOF
-# Debate: ${QUESTION}
-
-**Debate ID**: ${DEBATE_ID}
-**Rounds**: ${ROUNDS}
-**Style**: ${STYLE}
-**Advisors**: ${ADVISORS}
-**Started**: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
-
-## Question
-${QUESTION}
-
-## Clarifying Context
-
-**Primary Goal**: ${USER_GOAL}
-**Priority Factor**: ${USER_PRIORITY}
-**Constraints**: ${USER_CONSTRAINTS}
-
-## Additional Context
-[Any relevant context from user's message or files]
-EOF
-
-# Initialize state.json
-cat > "${DEBATE_DIR}/state.json" <<EOF
-{
-  "debate_id": "${DEBATE_ID}",
-  "question": "${QUESTION}",
-  "rounds_total": ${ROUNDS},
-  "rounds_completed": 0,
-  "advisors": [$(echo "$ADVISORS" | sed 's/,/", "/g' | sed 's/^/"/' | sed 's/$/"/')],
-  "user_context": {
-    "goal": "${USER_GOAL}",
-    "priority": "${USER_PRIORITY}",
-    "constraints": "${USER_CONSTRAINTS}"
-  },
-  "status": "active",
-  "created_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-}
-EOF
-```
-
-### Step 5: Conduct Rounds
-
-For each round:
-
-#### 5.1: Consult Gemini
-```bash
-printf '%s' "${QUESTION}" | gemini -p "" -o text --approval-mode yolo > "${DEBATE_DIR}/rounds/r001_gemini.md"
-```
-
-#### 5.2: Consult Codex
-```bash
-codex exec --full-auto "${QUESTION}" > "${DEBATE_DIR}/rounds/r001_codex.md"
-```
-
-#### 5.3: Write Your Analysis
-Use the Read tool to read advisor responses, then write your independent analysis:
-```bash
-# Read what advisors said
-GEMINI_RESPONSE=$(cat "${DEBATE_DIR}/rounds/r001_gemini.md")
-CODEX_RESPONSE=$(cat "${DEBATE_DIR}/rounds/r001_codex.md")
-
-# Write your analysis
-cat > "${DEBATE_DIR}/rounds/r001_claude.md" <<EOF
-# Claude's Analysis - Round 1
-
-[Your independent analysis here, considering but not just summarizing advisor perspectives]
-EOF
-```
-
-#### 5.4: Quality Gates (Claude-Octopus Enhancement)
-After each advisor responds, evaluate response quality:
-```bash
-evaluate_response_quality() {
-    local response_file="$1"
-    local advisor="$2"
-
-    word_count=$(wc -w < "$response_file")
-    has_citations=$(grep -c '\[' "$response_file" || echo 0)
-    has_code=$(grep -c '```' "$response_file" || echo 0)
-    addresses_others=$(grep -ciE '(gemini|codex|claude)' "$response_file" || echo 0)
-
-    score=0
-    (( word_count >= 50 && word_count <= 1000 )) && (( score += 25 ))
-    (( has_citations > 0 )) && (( score += 25 ))
-    (( has_code > 0 )) && (( score += 25 ))
-    (( addresses_others > 0 )) && (( score += 25 ))
-
-    echo "$score"
-}
-
-quality_score=$(evaluate_response_quality "${DEBATE_DIR}/rounds/r001_gemini.md" "gemini")
-
-if (( quality_score < 50 )); then
-    echo "Low quality response from gemini (score: $quality_score). Re-prompting..."
-    # Re-prompt for more detail
-fi
-```
-
-### Step 6: Final Synthesis
-
-After all rounds complete, write a comprehensive synthesis:
-
-```bash
-cat > "${DEBATE_DIR}/synthesis.md" <<EOF
-# Final Synthesis: ${QUESTION}
-
-## Summary of Perspectives
-
-### Gemini's Perspective
-[Key points from Gemini across all rounds]
-
-### Codex's Perspective
-[Key points from Codex across all rounds]
-
-### Claude's Perspective
-[Your key points across all rounds]
-
-## Areas of Agreement
-[Where all advisors converged]
-
-## Areas of Disagreement
-[Key points of contention]
-
-## Recommended Path Forward
-[Your final recommendation based on all perspectives]
-
-## Next Steps
-[Concrete action items for the user]
-EOF
-```
-
-### Step 7: Present Results to User
-
-Read the synthesis and present it in the chat:
-```
-I've completed a ${ROUNDS}-round debate on "${QUESTION}".
-
-[Include key findings from synthesis.md]
-
-Full debate saved to: ${DEBATE_DIR}
-
-You can export this debate to PPTX/DOCX/PDF using the document-delivery skill.
-```
-
-### Step 7.5: Generate Deliverable (when --synthesize is set)
-
-If the user passed `--synthesize` (or `-s`), generate a concrete deliverable after synthesis:
-
-1. Read the synthesis.md file
-2. Identify the consensus recommendations and action items
-3. Generate ONE of the following based on context:
-   - **For code topics**: A plan with file paths and proposed changes
-   - **For content topics**: A draft document (e.g., rewritten README, PRD outline)
-   - **For architecture topics**: A decision record with rationale
-4. Save to `${DEBATE_DIR}/deliverable.md`
-5. Show the deliverable to the user with AskUserQuestion:
-   - "Apply this" — proceed with implementation
-   - "Refine" — adjust the deliverable
-   - "Save only" — keep it as reference, don't act
-
-IMPORTANT: The deliverable is a PROPOSAL. Never auto-apply changes without user approval.
-
----
-
 ## Example Usage
 
 ### Example 1: Quick Debate
@@ -549,67 +419,6 @@ Claude:
 6. Synthesis with quality scores for each advisor
 7. Present results with cost tracking
 ```
-
----
-
-## EXECUTION CONTRACT (MANDATORY - BLOCKING)
-
-**You are PROHIBITED from proceeding without completing these steps in order.**
-
-### STEP 1: Provider Detection (BLOCKING)
-
-Use the Bash tool to execute:
-```bash
-command -v codex && echo "CODEX_AVAILABLE" || echo "CODEX_UNAVAILABLE"
-command -v gemini && echo "GEMINI_AVAILABLE" || echo "GEMINI_UNAVAILABLE"
-```
-
-**You MUST use the Bash tool for this check.** Do NOT assume provider availability.
-
-### STEP 2: Visual Indicators (BLOCKING)
-
-Display the provider banner. DO NOT PROCEED without displaying it.
-
-```
-🐙 **CLAUDE OCTOPUS ACTIVATED** - AI Debate Hub
-🐙 Debate: [Topic/question being debated]
-
-Participants:
-🔴 Codex CLI - [Available/Unavailable]
-🟡 Gemini CLI - [Available/Unavailable]
-🔵 Claude - Moderator and participant
-```
-
-### STEP 3: Execute CLI calls via Bash tool (MANDATORY)
-
-**For each debate round**, you MUST use the Bash tool to invoke external CLIs directly:
-
-**Codex invocation (MANDATORY Bash tool call):**
-```bash
-codex exec --full-auto "YOUR DEBATE PROMPT HERE" > "${DEBATE_DIR}/rounds/r00N_codex.md"
-```
-
-**Gemini invocation (MANDATORY Bash tool call):**
-```bash
-printf '%s' "YOUR DEBATE PROMPT HERE" | gemini -p "" -o text --approval-mode yolo > "${DEBATE_DIR}/rounds/r00N_gemini.md"
-```
-
-❌ You CANNOT research/analyze directly without these Bash calls
-❌ You CANNOT use Task/Explore agents as substitute for Codex/Gemini
-❌ You CANNOT claim you are "simulating" the workflow
-❌ You CANNOT skip to presenting results without CLI execution
-❌ You CANNOT write advisor responses yourself instead of calling CLIs
-
-**This is NOT optional. You MUST use the Bash tool to invoke codex and gemini.**
-
-### STEP 4: Verify Execution (VALIDATION GATE)
-
-Use the Bash tool to check the output files exist:
-```bash
-ls -la "${DEBATE_DIR}/rounds/r001_codex.md" "${DEBATE_DIR}/rounds/r001_gemini.md" 2>&1
-```
-
-If validation fails, STOP and report the error. Do NOT substitute with direct analysis.
 
 ---
 

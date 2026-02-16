@@ -14,6 +14,72 @@ validation_gates:
   - review_output_exists
 ---
 
+## ⚠️ EXECUTION CONTRACT (MANDATORY - BLOCKING)
+
+**PRECEDENCE: This contract overrides any conflicting instructions in later sections.**
+
+**You are PROHIBITED from proceeding without completing these steps in order.**
+
+### STEP 1: Provider Detection (BLOCKING)
+
+Use the Bash tool to execute:
+```bash
+command -v codex && echo "CODEX_AVAILABLE" || echo "CODEX_UNAVAILABLE"
+command -v gemini && echo "GEMINI_AVAILABLE" || echo "GEMINI_UNAVAILABLE"
+```
+
+**You MUST use the Bash tool for this check.** Do NOT assume provider availability.
+
+### STEP 2: Visual Indicators (BLOCKING)
+
+Display the provider banner. DO NOT PROCEED without displaying it.
+
+```
+🐙 **CLAUDE OCTOPUS ACTIVATED** - Code Review mode
+🔍 Review: [Brief description of code being reviewed]
+
+Providers:
+🔴 Codex CLI - Code quality and pattern analysis
+🟡 Gemini CLI - Security and edge case detection
+🔵 Claude - Synthesis and recommendations
+```
+
+### STEP 3: Execute orchestrate.sh via Bash tool (MANDATORY)
+
+**You MUST use the Bash tool to invoke orchestrate.sh:**
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh spawn code-reviewer "<user's review request>"
+```
+
+### STEP 4: Verify Execution (VALIDATION GATE)
+
+Use the Bash tool to verify orchestrate.sh completed:
+```bash
+if [ $? -ne 0 ]; then
+  echo "❌ VALIDATION FAILED: orchestrate.sh spawn code-reviewer failed"
+  exit 1
+fi
+echo "✅ VALIDATION PASSED: Code review completed via orchestrate.sh"
+```
+
+If validation fails, STOP and report the error. Do NOT substitute with direct analysis.
+
+### FORBIDDEN ACTIONS
+
+❌ You CANNOT review code directly without the orchestrate.sh Bash call
+❌ You CANNOT use Task/Explore agents as substitute for orchestrate.sh
+❌ You CANNOT claim you are "simulating" the workflow
+❌ You CANNOT skip to presenting results without orchestrate.sh execution
+❌ Do not substitute analysis/summary for required command execution
+
+### COMPLETION GATE
+
+Task is incomplete until all contract checks pass and outputs are reported.
+Before presenting results, verify every MUST item was completed. Report any missing items explicitly.
+
+---
+
 # Code Review Skill
 
 Invokes the code-reviewer persona for thorough code analysis during the `ink` (deliver) phase.
@@ -52,64 +118,6 @@ This skill wraps the `code-reviewer` persona defined in:
 "Check for memory leaks in the connection pool"
 "Review the test coverage for the auth module"
 ```
-
----
-
-## EXECUTION CONTRACT (MANDATORY - BLOCKING)
-
-**You are PROHIBITED from proceeding without completing these steps in order.**
-
-### STEP 1: Provider Detection (BLOCKING)
-
-Use the Bash tool to execute:
-```bash
-command -v codex && echo "CODEX_AVAILABLE" || echo "CODEX_UNAVAILABLE"
-command -v gemini && echo "GEMINI_AVAILABLE" || echo "GEMINI_UNAVAILABLE"
-```
-
-**You MUST use the Bash tool for this check.** Do NOT assume provider availability.
-
-### STEP 2: Visual Indicators (BLOCKING)
-
-Display the provider banner. DO NOT PROCEED without displaying it.
-
-```
-🐙 **CLAUDE OCTOPUS ACTIVATED** - Code Review mode
-🔍 Review: [Brief description of code being reviewed]
-
-Providers:
-🔴 Codex CLI - Code quality and pattern analysis
-🟡 Gemini CLI - Security and edge case detection
-🔵 Claude - Synthesis and recommendations
-```
-
-### STEP 3: Execute orchestrate.sh via Bash tool (MANDATORY)
-
-**You MUST use the Bash tool to invoke orchestrate.sh:**
-
-```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh spawn code-reviewer "<user's review request>"
-```
-
-❌ You CANNOT review code directly without this Bash call
-❌ You CANNOT use Task/Explore agents as substitute for orchestrate.sh
-❌ You CANNOT claim you are "simulating" the workflow
-❌ You CANNOT skip to presenting results without orchestrate.sh execution
-
-**This is NOT optional. You MUST use the Bash tool to invoke orchestrate.sh.**
-
-### STEP 4: Verify Execution (VALIDATION GATE)
-
-Use the Bash tool to verify orchestrate.sh completed:
-```bash
-if [ $? -ne 0 ]; then
-  echo "❌ VALIDATION FAILED: orchestrate.sh spawn code-reviewer failed"
-  exit 1
-fi
-echo "✅ VALIDATION PASSED: Code review completed via orchestrate.sh"
-```
-
-If validation fails, STOP and report the error. Do NOT substitute with direct analysis.
 
 ---
 

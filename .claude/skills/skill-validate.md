@@ -17,56 +17,13 @@ validation_gates:
   - validation_report_generated
 ---
 
-# Validation Workflow
+## ⚠️ EXECUTION CONTRACT (MANDATORY - BLOCKING)
 
-Comprehensive validation combining multi-AI debate, 4-dimensional quality scoring, and automated issue extraction. Provides objective quality assessment with actionable recommendations.
-
-## Overview
-
-The validation workflow uses three AI perspectives (Codex, Gemini, Claude) to evaluate code quality, security, best practices, and completeness. It generates a detailed validation report with scores, identified issues, and recommendations.
-
-**Pass Threshold**: 75/100
-
-## Usage
-
-```bash
-# Validate specific files
-/octo:validate src/auth.ts
-
-# Validate directory
-/octo:validate src/components/
-
-# Validate with focus area
-/octo:validate api/ --focus security
-
-# Validate against reference
-/octo:validate src/ --reference extraction-results/
-```
-
-## Workflow Steps
-
-### Step 1: Scope Analysis
-Interactive questions to understand validation context and priorities.
-
-### Step 2: Multi-AI Debate
-Single round debate with validation-specific focus from each AI provider.
-
-### Step 3: Quality Scoring
-4-dimensional scoring across key quality metrics (75% threshold to pass).
-
-### Step 4: Issue Extraction
-Automated extraction and categorization of issues from debate outputs.
-
-### Step 5: Validation Report
-Comprehensive report with scores, issues, AI perspectives, and recommendations.
-
----
-
-## EXECUTION CONTRACT (Mandatory)
+**PRECEDENCE: This contract overrides any conflicting instructions in later sections.**
 
 When the user invokes `/octo:validate <target>`, you MUST follow these steps sequentially. Each step is BLOCKING - you CANNOT skip or simulate any step.
 
-### 🛡️ STEP 1: Scope Analysis (BLOCKING)
+### STEP 1: Scope Analysis (BLOCKING)
 
 **You MUST use AskUserQuestion tool to gather validation context:**
 
@@ -102,9 +59,7 @@ Question 2:
 
 **Validation Gate**: User must answer both questions before proceeding.
 
----
-
-### 🛡️ STEP 2: Multi-AI Debate (BLOCKING)
+### STEP 2: Multi-AI Debate (BLOCKING)
 
 **You MUST display visual indicators:**
 
@@ -137,45 +92,9 @@ cd "${CLAUDE_PLUGIN_ROOT}"
   --mode validation
 ```
 
-❌ You CANNOT validate code directly without this Bash call
-❌ You CANNOT use Task/Explore agents as substitute for orchestrate.sh
-❌ You CANNOT claim you are "simulating" the workflow
-❌ You CANNOT skip to presenting results without orchestrate.sh execution
+**Validation Gate**: Debate must complete with outputs from all available providers.
 
-**This is NOT optional. You MUST use the Bash tool to invoke orchestrate.sh.**
-
-**Debate Focus by Priority:**
-
-- **Security**: Vulnerabilities, OWASP compliance, authentication/authorization, data protection, injection attacks
-- **Code Quality**: Maintainability, readability, complexity, duplication, naming conventions, design patterns
-- **Best Practices**: Framework conventions, ecosystem standards, idioms, community patterns, linting compliance
-- **Performance**: Bottlenecks, inefficient algorithms, resource usage, scalability issues, caching opportunities
-
-**AI Roles:**
-
-🔴 **Codex (Technical Quality)**:
-- Code structure and organization
-- Design patterns and anti-patterns
-- Technical debt identification
-- Implementation quality
-
-🟡 **Gemini (Ecosystem Best Practices)**:
-- Framework/language conventions
-- Community standards
-- Third-party library usage
-- Ecosystem integration
-
-🔵 **Claude (Security & Integration)**:
-- Security vulnerabilities
-- Authentication/authorization
-- Data validation and sanitization
-- Cross-cutting concerns
-
-**Validation Gate**: Debate must complete with outputs from all 3 providers.
-
----
-
-### 🛡️ STEP 3: Quality Scoring (BLOCKING)
+### STEP 3: Quality Scoring (BLOCKING)
 
 **You MUST calculate scores across 4 dimensions:**
 
@@ -237,9 +156,7 @@ Pass Threshold = 75/100
 
 **Validation Gate**: All 4 dimensions must be scored with justification.
 
----
-
-### 🛡️ STEP 4: Issue Extraction (BLOCKING)
+### STEP 4: Issue Extraction (BLOCKING)
 
 **You MUST extract and categorize issues from debate outputs:**
 
@@ -306,193 +223,13 @@ Parse debate outputs and extract concrete issues. Categorize by severity:
 
 **Validation Gate**: Issues must be extracted and categorized by severity.
 
----
-
-### 🛡️ STEP 5: Validation Report (BLOCKING)
+### STEP 5: Validation Report (BLOCKING)
 
 **You MUST generate comprehensive validation report:**
 
-Create a report at `~/.claude-octopus/validation/<timestamp>/VALIDATION_REPORT.md`:
+Create report at `~/.claude-octopus/validation/<timestamp>/VALIDATION_REPORT.md` and `~/.claude-octopus/validation/<timestamp>/ISSUES.md`.
 
-```markdown
-# Validation Report
-
-**Target**: <what was validated>
-**Timestamp**: <ISO 8601 timestamp>
-**Trigger**: <Pre-commit/Pre-deployment/Security audit/General review>
-**Priorities**: <User's selected priorities>
-
----
-
-## Executive Summary
-
-**Overall Score**: <X>/100 - <PASS/FAIL>
-
-<If PASS>
-✅ The code meets quality standards (≥75/100). Minor improvements recommended.
-</If PASS>
-
-<If FAIL>
-❌ The code does not meet quality standards (<75/100). Significant improvements required before deployment.
-</If FAIL>
-
-**Critical Issues**: <count>
-**High Priority Issues**: <count>
-**Medium Priority Issues**: <count>
-**Low Priority Issues**: <count>
-
----
-
-## Dimension Scores
-
-### 🏗️ Code Quality: <X>/25
-<Justification based on debate outputs>
-
-**Strengths**:
-- <Positive finding 1>
-- <Positive finding 2>
-
-**Areas for Improvement**:
-- <Issue 1>
-- <Issue 2>
-
----
-
-### 🔒 Security: <X>/35
-<Justification based on debate outputs>
-
-**Strengths**:
-- <Positive finding 1>
-- <Positive finding 2>
-
-**Vulnerabilities**:
-- <Vulnerability 1>
-- <Vulnerability 2>
-
----
-
-### ✨ Best Practices: <X>/20
-<Justification based on debate outputs>
-
-**Adherence**:
-- <Convention followed 1>
-- <Convention followed 2>
-
-**Deviations**:
-- <Deviation 1>
-- <Deviation 2>
-
----
-
-### ✅ Completeness: <X>/20
-<Justification based on debate outputs>
-
-**Complete**:
-- <Complete aspect 1>
-- <Complete aspect 2>
-
-**Gaps**:
-- <Gap 1>
-- <Gap 2>
-
----
-
-## AI Perspectives
-
-### 🔴 Codex Analysis (Technical Quality)
-<Summary of Codex findings from debate>
-
-**Key Points**:
-- <Point 1>
-- <Point 2>
-- <Point 3>
-
----
-
-### 🟡 Gemini Analysis (Ecosystem Best Practices)
-<Summary of Gemini findings from debate>
-
-**Key Points**:
-- <Point 1>
-- <Point 2>
-- <Point 3>
-
----
-
-### 🔵 Claude Analysis (Security & Integration)
-<Summary of Claude findings from debate>
-
-**Key Points**:
-- <Point 1>
-- <Point 2>
-- <Point 3>
-
----
-
-## Identified Issues
-
-<Include all extracted issues from Step 4, grouped by severity>
-
-### Critical Issues (<count>)
-<List of critical issues>
-
-### High Priority Issues (<count>)
-<List of high priority issues>
-
-### Medium Priority Issues (<count>)
-<List of medium priority issues>
-
-### Low Priority Issues (<count>)
-<List of low priority issues>
-
----
-
-## Recommendations
-
-### Immediate Actions (Required)
-1. <Action for critical issue 1>
-2. <Action for critical issue 2>
-
-### Short-term Improvements (This Sprint)
-1. <Action for high priority issue 1>
-2. <Action for high priority issue 2>
-
-### Long-term Enhancements (Next Quarter)
-1. <Action for medium priority issue 1>
-2. <Action for completeness gap 1>
-
----
-
-## Next Steps
-
-<If PASS>
-1. ✅ Code is ready for deployment
-2. Address medium/low priority issues in future iterations
-3. Consider security hardening for production environment
-</If PASS>
-
-<If FAIL>
-1. ❌ DO NOT deploy until critical/high issues are resolved
-2. Fix critical security vulnerabilities immediately
-3. Address high priority code quality issues
-4. Re-run validation after fixes
-</If FAIL>
-
----
-
-**Report Generated**: <timestamp>
-**Validation Tool**: Claude Octopus v7.24.0
-```
-
-**Also create**: `~/.claude-octopus/validation/<timestamp>/ISSUES.md` with just the issues list for easy reference.
-
-**Validation Gate**: Both files must be created and user must be shown the summary.
-
----
-
-## After Completion
-
-**You MUST display to the user:**
+**You MUST display summary to user:**
 
 ```
 🛡️ **VALIDATION COMPLETE**
@@ -513,37 +250,109 @@ Overall Score: <X>/100 - <PASS ✅ / FAIL ❌>
 
 📄 Full Report: ~/.claude-octopus/validation/<timestamp>/VALIDATION_REPORT.md
 📋 Issues List: ~/.claude-octopus/validation/<timestamp>/ISSUES.md
-
-<If PASS>
-✅ Code meets quality standards. Ready for deployment.
-</If PASS>
-
-<If FAIL>
-❌ Code does not meet quality standards. Address critical/high issues before deployment.
-</If FAIL>
 ```
 
-**Then offer next actions:**
-```
-What would you like to do next?
+Then offer next actions:
 1. View full validation report
 2. Export to PPTX/PDF (via /octo:docs)
 3. Create GitHub issues for findings
 4. Re-run validation after fixes
 5. Continue with deployment
-```
+
+**Validation Gate**: Both files must be created and user must be shown the summary.
+
+### FORBIDDEN ACTIONS
+
+❌ You CANNOT skip interactive questions (STEP 1)
+❌ You CANNOT simulate orchestrate.sh execution (STEP 2)
+❌ You CANNOT skip quality scoring (STEP 3)
+❌ You CANNOT skip issue extraction (STEP 4)
+❌ You CANNOT skip report generation (STEP 5)
+❌ You CANNOT mark as complete without validation gates passing
+❌ You CANNOT create temporary files in plugin directory (use ~/.claude-octopus/validation/)
+❌ You CANNOT use Task/Explore agents as substitute for orchestrate.sh
+❌ Do not substitute analysis/summary for required command execution
+
+### COMPLETION GATE
+
+Task is incomplete until all contract checks pass and outputs are reported.
+Before presenting results, verify every MUST item was completed. Report any missing items explicitly.
 
 ---
 
-## Prohibited Actions
+# Validation Workflow
 
-❌ **CANNOT SKIP** interactive questions (Step 1)
-❌ **CANNOT SIMULATE** orchestrate.sh execution (Step 2)
-❌ **CANNOT SKIP** quality scoring (Step 3)
-❌ **CANNOT SKIP** issue extraction (Step 4)
-❌ **CANNOT SKIP** report generation (Step 5)
-❌ **CANNOT** mark as complete without validation gates passing
-❌ **CANNOT** create temporary files in plugin directory (use ~/.claude-octopus/validation/)
+Comprehensive validation combining multi-AI debate, 4-dimensional quality scoring, and automated issue extraction. Provides objective quality assessment with actionable recommendations.
+
+## Overview
+
+The validation workflow uses three AI perspectives (Codex, Gemini, Claude) to evaluate code quality, security, best practices, and completeness. It generates a detailed validation report with scores, identified issues, and recommendations.
+
+**Pass Threshold**: 75/100
+
+## Usage
+
+```bash
+# Validate specific files
+/octo:validate src/auth.ts
+
+# Validate directory
+/octo:validate src/components/
+
+# Validate with focus area
+/octo:validate api/ --focus security
+
+# Validate against reference
+/octo:validate src/ --reference extraction-results/
+```
+
+## Workflow Steps
+
+### Step 1: Scope Analysis
+Interactive questions to understand validation context and priorities.
+
+### Step 2: Multi-AI Debate
+Single round debate with validation-specific focus from each AI provider.
+
+### Step 3: Quality Scoring
+4-dimensional scoring across key quality metrics (75% threshold to pass).
+
+### Step 4: Issue Extraction
+Automated extraction and categorization of issues from debate outputs.
+
+### Step 5: Validation Report
+Comprehensive report with scores, issues, AI perspectives, and recommendations.
+
+---
+
+## AI Roles Reference
+
+🔴 **Codex (Technical Quality)**:
+- Code structure and organization
+- Design patterns and anti-patterns
+- Technical debt identification
+- Implementation quality
+
+🟡 **Gemini (Ecosystem Best Practices)**:
+- Framework/language conventions
+- Community standards
+- Third-party library usage
+- Ecosystem integration
+
+🔵 **Claude (Security & Integration)**:
+- Security vulnerabilities
+- Authentication/authorization
+- Data validation and sanitization
+- Cross-cutting concerns
+
+---
+
+## Debate Focus by Priority
+
+- **Security**: Vulnerabilities, OWASP compliance, authentication/authorization, data protection, injection attacks
+- **Code Quality**: Maintainability, readability, complexity, duplication, naming conventions, design patterns
+- **Best Practices**: Framework conventions, ecosystem standards, idioms, community patterns, linting compliance
+- **Performance**: Bottlenecks, inefficient algorithms, resource usage, scalability issues, caching opportunities
 
 ---
 

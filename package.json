@@ -1,6 +1,6 @@
 {
   "name": "claude-octopus",
-  "version": "8.16.1",
+  "version": "8.16.2",
   "description": "Claude Octopus - Multi-agent orchestration with all upstream features through v8.15.1 plus fork-specific fixes",
   "main": "orchestrate.sh",
   "scripts": {

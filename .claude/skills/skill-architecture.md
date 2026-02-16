@@ -9,18 +9,24 @@ validation_gates:
   - persona_output_exists
 ---
 
-## ⚠️ EXECUTION CONTRACT (MANDATORY - CANNOT SKIP)
+## ⚠️ EXECUTION CONTRACT (MANDATORY - BLOCKING)
+
+**PRECEDENCE: This contract overrides any conflicting instructions in later sections.**
 
 This skill uses **ENFORCED execution mode**. You MUST follow this exact sequence.
 
-### STEP 1: Display Visual Indicators (MANDATORY - BLOCKING)
+### STEP 1: Provider Detection and Visual Indicators (BLOCKING)
 
-**Check provider availability:**
+Use the Bash tool to check provider availability:
 
 ```bash
 command -v codex &> /dev/null && codex_status="Available ✓" || codex_status="Not installed ✗"
 command -v gemini &> /dev/null && gemini_status="Available ✓" || gemini_status="Not installed ✗"
+echo "CODEX: $codex_status"
+echo "GEMINI: $gemini_status"
 ```
+
+**You MUST use the Bash tool for this check.** Do NOT assume provider availability.
 
 **Display this banner BEFORE orchestrate.sh execution:**
 
@@ -32,31 +38,13 @@ Provider Availability:
 🔴 Codex CLI: ${codex_status} - Backend architecture patterns
 🟡 Gemini CLI: ${gemini_status} - Alternative approaches
 🔵 Claude: Available ✓ - Synthesis and recommendations
-
-💰 Estimated Cost: $0.02-0.08
-⏱️  Estimated Time: 3-7 minutes
 ```
 
-**Validation:**
-- If BOTH Codex and Gemini unavailable → STOP, suggest: `/octo:setup`
-- If ONE unavailable → Continue with available provider(s)
-- If BOTH available → Proceed normally
+- If BOTH Codex and Gemini unavailable: STOP, suggest `/octo:setup`
+- If ONE unavailable: Continue with available provider(s)
+- If BOTH available: Proceed normally
 
 **DO NOT PROCEED TO STEP 2 until banner displayed.**
-
----
-
-### STEP 1.5: Provider Detection (BLOCKING)
-
-Use the Bash tool to execute:
-```bash
-command -v codex && echo "CODEX_AVAILABLE" || echo "CODEX_UNAVAILABLE"
-command -v gemini && echo "GEMINI_AVAILABLE" || echo "GEMINI_UNAVAILABLE"
-```
-
-**You MUST use the Bash tool for this check.** Do NOT assume provider availability.
-
----
 
 ### STEP 2: Execute orchestrate.sh spawn (MANDATORY - Use Bash Tool)
 
@@ -66,30 +54,17 @@ command -v gemini && echo "GEMINI_AVAILABLE" || echo "GEMINI_UNAVAILABLE"
 ${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh spawn backend-architect "<user's architecture request>"
 ```
 
-**CRITICAL: You are PROHIBITED from:**
-- ❌ Designing architecture directly without calling orchestrate.sh
-- ❌ Using Task/Explore agents as substitute for orchestrate.sh
-- ❌ Using direct analysis as a substitute
-- ❌ Claiming you're "simulating" the workflow
-- ❌ Proceeding to Step 3 without running this command
-- ❌ Skipping to presenting results without orchestrate.sh execution
-
 **This is NOT optional. You MUST use the Bash tool to invoke orchestrate.sh.**
 
----
-
-### STEP 3: Verify Execution (MANDATORY - Validation Gate)
+### STEP 3: Verify Execution (VALIDATION GATE)
 
 **After orchestrate.sh completes, verify it succeeded:**
 
 ```bash
-# Check for persona output (varies by persona type)
-# For spawn commands, check exit code and output
 if [ $? -ne 0 ]; then
   echo "❌ VALIDATION FAILED: orchestrate.sh spawn failed"
   exit 1
 fi
-
 echo "✅ VALIDATION PASSED: Architecture design completed"
 ```
 
@@ -98,8 +73,6 @@ echo "✅ VALIDATION PASSED: Architecture design completed"
 2. Show logs from `~/.claude-octopus/logs/`
 3. DO NOT proceed with presenting results
 4. DO NOT substitute with direct design
-
----
 
 ### STEP 4: Present Results (Only After Steps 1-3 Complete)
 
@@ -111,6 +84,19 @@ Present the architecture design from the persona execution.
 *Multi-AI Architecture Design powered by Claude Octopus*
 *Providers: 🔴 Codex | 🟡 Gemini | 🔵 Claude*
 ```
+
+### FORBIDDEN ACTIONS
+
+❌ You CANNOT design architecture directly without the orchestrate.sh Bash call
+❌ You CANNOT use Task/Explore agents as substitute for orchestrate.sh
+❌ You CANNOT claim you are "simulating" the workflow
+❌ You CANNOT skip to presenting results without orchestrate.sh execution
+❌ Do not substitute analysis/summary for required command execution
+
+### COMPLETION GATE
+
+Task is incomplete until all contract checks pass and outputs are reported.
+Before presenting results, verify every MUST item was completed. Report any missing items explicitly.
 
 ---
 
