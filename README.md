@@ -70,6 +70,7 @@ Each command orchestrates up to three AI providers, applies quality gates, and p
 | `/octo:extract` | Reverse-engineer design systems from code or URLs |
 | `/octo:deck` | Slide deck generation with outline approval gate |
 | `/octo:docs` | Export to PPTX, DOCX, PDF |
+| `/octo:schedule` | Scheduled workflow runner with cron, budget gates, kill switches |
 | `/octo:brainstorm` | Creative thought partner session |
 
 Don't remember the command name? Just describe what you need:
