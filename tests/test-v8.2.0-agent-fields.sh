@@ -110,12 +110,12 @@ else
     assert_fail "1.7 tdd-orchestrator has skills: [skill-tdd]"
 fi
 
-# 1.8: All 23 agents have permissionMode field (count indented lines only, not comments)
+# 1.8: All 25 agents have permissionMode field (count indented lines only, not comments)
 agent_count=$(grep -c '^    permissionMode:' "$CONFIG_YAML" || echo "0")
-if [[ "$agent_count" -eq 23 ]]; then
-    assert_pass "1.8 All 23 agents have permissionMode field (count: $agent_count)"
+if [[ "$agent_count" -eq 25 ]]; then
+    assert_pass "1.8 All 25 agents have permissionMode field (count: $agent_count)"
 else
-    assert_fail "1.8 All 23 agents have permissionMode field" "Found: $agent_count, Expected: 23"
+    assert_fail "1.8 All 25 agents have permissionMode field" "Found: $agent_count, Expected: 25"
 fi
 
 echo ""
