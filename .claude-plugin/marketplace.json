@@ -12,7 +12,7 @@
       "name": "claude-octopus",
       "source": "./",
       "description": "v8.15.0 - Scheduled workflow runner with daemon mode, cron scheduling, budget gates, kill switches. Persistent project state across sessions. 31 personas, 41 commands, 44 skills. Run /octo:setup.",
-      "version": "8.15.0",
+      "version": "8.15.1",
       "author": {
         "name": "nyldn"
       },

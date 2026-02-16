@@ -1,3 +1,12 @@
+## [8.15.1] - 2026-02-16
+
+### Changed
+- Repository cleaned: private development content removed from git history
+- Removed broken circular submodule reference (.dependencies/claude-skills)
+- Cleaned deploy.sh and .gitignore for standalone public repo
+- Install instructions now use https:// URL format (fixes reported install issues)
+
+
 # Changelog
 
 All notable changes to Claude Octopus will be documented in this file.
