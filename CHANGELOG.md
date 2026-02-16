@@ -2,6 +2,21 @@
 
 All notable changes to Claude Octopus will be documented in this file.
 
+## [8.13.0] - 2026-02-16
+
+### Changed
+
+**Ownership migration and fork maintenance fixes**
+- Migrated repository ownership from `ayoahha` to `adrivellen`
+- Fixed SIGPIPE broken pipe errors in integration tests
+- Added EXECUTION CONTRACT section and cost notes to debate skill
+- Added language tags to fenced code blocks and phase line in banner
+- Enforced orchestrate.sh dispatch for `/octo:debate` command
+- Auto-resolve `CLAUDE_PLUGIN_ROOT` from `installed_plugins.json`
+- Fixed marketplace plugin name mismatch with `plugin.json`
+
+---
+
 ## [8.12.2] - 2026-02-14
 
 ### Merged

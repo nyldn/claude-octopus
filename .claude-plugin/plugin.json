@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "8.12.2",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v8.12.2) Fork merge: upstream features through v8.12.0 + fork fixes (simplified skills, bash strict mode, provider invocation). 31 expert personas, 39 commands, 44 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
+  "version": "8.13.0",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v8.13.0) Fork merge: upstream features through v8.12.0 + fork fixes (simplified skills, bash strict mode, provider invocation, ownership migration). 31 expert personas, 39 commands, 44 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
   "author": {
     "name": "adrivellen"
   },
