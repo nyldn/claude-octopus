@@ -344,6 +344,38 @@ fi
 echo ""
 
 # ============================================================================
+# HELPER: Push tag if needed (v8.13.0 - deduplicated, always --force)
+# ============================================================================
+push_tag_if_needed() {
+    local tag="$1"
+    if git tag -l "$tag" | grep -q "$tag"; then
+        REMOTE_TAG_SHA=$(git ls-remote origin "refs/tags/$tag" 2>/dev/null | cut -f1)
+        LOCAL_TAG_SHA=$(git rev-list -n 1 "$tag" 2>/dev/null)
+
+        if [[ "$REMOTE_TAG_SHA" == "$LOCAL_TAG_SHA" ]] && [[ -n "$REMOTE_TAG_SHA" ]]; then
+            echo -e "${GREEN}✓ Tag $tag already up to date on remote${NC}"
+            return 0
+        fi
+
+        echo ""
+        echo -e "${GREEN}📤 Pushing tag $tag to remote...${NC}"
+        git push --no-verify origin "$tag" --force 2>/dev/null
+        echo -e "${GREEN}✓ Tag pushed to remote${NC}"
+
+        # Auto-create GitHub release if gh is available and authenticated
+        if command -v gh &> /dev/null && gh auth status &> /dev/null; then
+            if ! gh release view "$tag" &> /dev/null; then
+                echo -e "${GREEN}📝 Creating GitHub release...${NC}"
+                RELEASE_NOTES=$(awk "/## \\[$PLUGIN_VERSION\\]/,/^---$/" "$ROOT_DIR/CHANGELOG.md" | sed '$d' | tail -n +3)
+                if [[ -n "$RELEASE_NOTES" ]] && gh release create "$tag" --title "v$PLUGIN_VERSION" --notes "$RELEASE_NOTES" --latest >/dev/null 2>&1; then
+                    echo -e "${GREEN}✓ GitHub release $tag created${NC}"
+                fi
+            fi
+        fi
+    fi
+}
+
+# ============================================================================
 # SUMMARY
 # ============================================================================
 echo "======================================"
@@ -356,63 +388,12 @@ elif [[ $warnings -gt 0 ]]; then
     echo -e "${YELLOW}⚠️  VALIDATION PASSED WITH WARNINGS: $warnings warning(s)${NC}"
     echo ""
     echo "Consider fixing the warnings before releasing."
-
-    # Auto-push tag if it was created/updated (v7.19.1+)
-    EXPECTED_TAG="v$PLUGIN_VERSION"
-    if git tag -l "$EXPECTED_TAG" | grep -q "$EXPECTED_TAG"; then
-        # Check if tag needs to be pushed (doesn't exist on remote or is different)
-        REMOTE_TAG_SHA=$(git ls-remote origin "refs/tags/$EXPECTED_TAG" 2>/dev/null | cut -f1)
-        LOCAL_TAG_SHA=$(git rev-list -n 1 "$EXPECTED_TAG" 2>/dev/null)
-
-        if [[ -z "$REMOTE_TAG_SHA" ]] || [[ "$REMOTE_TAG_SHA" != "$LOCAL_TAG_SHA" ]]; then
-            echo ""
-            echo -e "${GREEN}📤 Pushing tag $EXPECTED_TAG to remote...${NC}"
-            git push --no-verify origin "$EXPECTED_TAG" --force 2>/dev/null
-            echo -e "${GREEN}✓ Tag pushed to remote${NC}"
-
-            # Auto-create GitHub release if gh is available and authenticated
-            if command -v gh &> /dev/null && gh auth status &> /dev/null; then
-                if ! gh release view "$EXPECTED_TAG" &> /dev/null; then
-                    echo -e "${GREEN}📝 Creating GitHub release...${NC}"
-                    RELEASE_NOTES=$(awk "/## \\[$PLUGIN_VERSION\\]/,/^---$/" "$ROOT_DIR/CHANGELOG.md" | sed '$d' | tail -n +3)
-                    if [[ -n "$RELEASE_NOTES" ]] && gh release create "$EXPECTED_TAG" --title "v$PLUGIN_VERSION" --notes "$RELEASE_NOTES" --latest >/dev/null 2>&1; then
-                        echo -e "${GREEN}✓ GitHub release $EXPECTED_TAG created${NC}"
-                    fi
-                fi
-            fi
-        fi
-    fi
-
+    push_tag_if_needed "v$PLUGIN_VERSION"
     exit 0
 else
     echo -e "${GREEN}✅ VALIDATION PASSED${NC}"
     echo ""
     echo "Ready to release v$PLUGIN_VERSION!"
-
-    # Auto-push tag if it was created (v7.19.1+)
-    EXPECTED_TAG="v$PLUGIN_VERSION"
-    if git tag -l "$EXPECTED_TAG" | grep -q "$EXPECTED_TAG"; then
-        REMOTE_TAG_SHA=$(git ls-remote origin "refs/tags/$EXPECTED_TAG" 2>/dev/null | cut -f1)
-        LOCAL_TAG_SHA=$(git rev-list -n 1 "$EXPECTED_TAG" 2>/dev/null)
-
-        if [[ -z "$REMOTE_TAG_SHA" ]] || [[ "$REMOTE_TAG_SHA" != "$LOCAL_TAG_SHA" ]]; then
-            echo ""
-            echo -e "${GREEN}📤 Pushing tag $EXPECTED_TAG to remote...${NC}"
-            git push --no-verify origin "$EXPECTED_TAG" 2>/dev/null
-            echo -e "${GREEN}✓ Tag pushed to remote${NC}"
-
-            # Auto-create GitHub release if gh is available and authenticated
-            if command -v gh &> /dev/null && gh auth status &> /dev/null; then
-                if ! gh release view "$EXPECTED_TAG" &> /dev/null; then
-                    echo -e "${GREEN}📝 Creating GitHub release...${NC}"
-                    RELEASE_NOTES=$(awk "/## \\[$PLUGIN_VERSION\\]/,/^---$/" "$ROOT_DIR/CHANGELOG.md" | sed '$d' | tail -n +3)
-                    if [[ -n "$RELEASE_NOTES" ]] && gh release create "$EXPECTED_TAG" --title "v$PLUGIN_VERSION" --notes "$RELEASE_NOTES" --latest >/dev/null 2>&1; then
-                        echo -e "${GREEN}✓ GitHub release $EXPECTED_TAG created${NC}"
-                    fi
-                fi
-            fi
-        fi
-    fi
-
+    push_tag_if_needed "v$PLUGIN_VERSION"
     exit 0
 fi

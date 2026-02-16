@@ -21,6 +21,7 @@ trigger: |
   - -c/--context-file FILE
   - -w/--max-words N
   - -t/--topic NAME
+  - -s/--synthesize (generate deliverable from consensus)
 ---
 
 # AI Debate Hub Skill v4.7
@@ -127,6 +128,7 @@ Users can mention files naturally - you resolve them to full paths:
 | `--context-file FILE` | `-c FILE` | none | File to include as context |
 | `--max-words N` | `-w N` | 300 | Word limit per response |
 | `--topic NAME` | `-t NAME` | auto | Topic slug for folder naming |
+| `--synthesize` | `-s` | off | Generate a deliverable (markdown file, diff, or plan) from consensus |
 
 ### Flag Precedence Rules
 
@@ -487,6 +489,24 @@ Full debate saved to: ${DEBATE_DIR}
 
 You can export this debate to PPTX/DOCX/PDF using the document-delivery skill.
 ```
+
+### Step 7.5: Generate Deliverable (when --synthesize is set)
+
+If the user passed `--synthesize` (or `-s`), generate a concrete deliverable after synthesis:
+
+1. Read the synthesis.md file
+2. Identify the consensus recommendations and action items
+3. Generate ONE of the following based on context:
+   - **For code topics**: A plan with file paths and proposed changes
+   - **For content topics**: A draft document (e.g., rewritten README, PRD outline)
+   - **For architecture topics**: A decision record with rationale
+4. Save to `${DEBATE_DIR}/deliverable.md`
+5. Show the deliverable to the user with AskUserQuestion:
+   - "Apply this" — proceed with implementation
+   - "Refine" — adjust the deliverable
+   - "Save only" — keep it as reference, don't act
+
+IMPORTANT: The deliverable is a PROPOSAL. Never auto-apply changes without user approval.
 
 ---
 
