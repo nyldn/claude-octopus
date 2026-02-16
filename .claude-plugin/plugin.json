@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "8.14.0",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v8.14.0) State management wired into workflow lifecycle, codebase-aware discover phase, human-readable STATE.md generation. Persistent project state across sessions. 31 expert personas, 39 commands, 44 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
+  "version": "8.15.0",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v8.15.0) Scheduled workflow runner with daemon mode, cron scheduling, budget gates, and kill switches. State management wired into workflow lifecycle, codebase-aware discover phase, human-readable STATE.md generation. Persistent project state across sessions. 31 expert personas, 41 commands, 44 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },
@@ -36,7 +36,11 @@
     "consensus-building",
     "multi-perspective",
     "deliberation",
-    "knowledge-work"
+    "knowledge-work",
+    "scheduler",
+    "cron",
+    "daemon",
+    "automation"
   ],
   "skills": [
     "./.claude/skills/skill-prd.md",
@@ -123,6 +127,8 @@
     "./.claude/commands/ship.md",
     "./.claude/commands/issues.md",
     "./.claude/commands/rollback.md",
-    "./.claude/commands/deck.md"
+    "./.claude/commands/deck.md",
+    "./.claude/commands/scheduler.md",
+    "./.claude/commands/schedule.md"
   ]
 }
