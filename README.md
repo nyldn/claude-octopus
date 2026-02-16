@@ -7,7 +7,7 @@ Multi-provider orchestration for Claude Code. Run Codex, Gemini, and Claude in p
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-8.15.1-blue" alt="Version 8.15.0">
+  <img src="https://img.shields.io/badge/Version-8.15.1-blue" alt="Version 8.15.1">
   <img src="https://img.shields.io/badge/Claude_Code-v2.1.34+-blueviolet" alt="Requires Claude Code v2.1.34+">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
 </p>
@@ -16,8 +16,19 @@ Multi-provider orchestration for Claude Code. Run Codex, Gemini, and Claude in p
 
 ## Quickstart
 
-```
+**Install** — run this inside Claude Code (interactive mode) or from your terminal:
+
+```bash
+# Inside Claude Code
 /install https://github.com/nyldn/claude-octopus
+
+# Or from your terminal
+claude install https://github.com/nyldn/claude-octopus
+```
+
+Then run setup:
+
+```
 /octo:setup
 ```
 
@@ -142,7 +153,7 @@ Everything except multi-AI features. You get all 29 personas, structured workflo
 
 **Provider transparency** — Visual indicators (colored dots) show exactly which providers are running and when external APIs are called. You always know what's happening.
 
-**Clean uninstall** — `/uninstall https://github.com/nyldn/claude-octopus` removes everything. No residual config changes.
+**Clean uninstall** — `claude uninstall https://github.com/nyldn/claude-octopus` (or `/uninstall` inside Claude Code) removes everything. No residual config changes.
 
 ---
 
