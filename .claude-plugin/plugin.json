@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "8.12.0",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v8.12.0) New /octo:deck skill: generate slide decks from briefs with outline approval and PPTX export via document-skills. 4-step pipeline: brief → research → outline gate → render. 31 expert personas, 39 commands, 44 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
+  "version": "8.13.0",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v8.13.0) New release/doctor commands, debate --synthesize flag, status debate recap. One-command releases, environment diagnostics, consensus-to-deliverable pipeline. 31 expert personas, 39 commands, 44 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },

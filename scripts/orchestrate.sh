@@ -11297,6 +11297,128 @@ preflight_check() {
     return 0
 }
 
+# v8.13.0: One-command release cycle
+do_release() {
+    local version
+    version=$(jq -r '.version' "$SCRIPT_DIR/../.claude-plugin/plugin.json")
+    local tag="v$version"
+
+    echo -e "${MAGENTA}═══════════════════════════════════════════════════════════${NC}"
+    echo -e "${MAGENTA}  Claude Octopus Release: $tag${NC}"
+    echo -e "${MAGENTA}═══════════════════════════════════════════════════════════${NC}"
+
+    # Step 1: Validate
+    echo -e "\n${BLUE}Step 1: Validating...${NC}"
+    bash "$SCRIPT_DIR/validate-release.sh" || { echo "Validation failed"; return 1; }
+
+    # Step 2: Ensure tag exists and points to HEAD
+    echo -e "\n${BLUE}Step 2: Tagging...${NC}"
+    local head_sha
+    head_sha=$(git rev-parse HEAD)
+    local tag_sha
+    tag_sha=$(git rev-list -n 1 "$tag" 2>/dev/null || echo "")
+    if [[ "$tag_sha" != "$head_sha" ]]; then
+        git tag -d "$tag" 2>/dev/null || true
+        git tag "$tag"
+        echo -e "${GREEN}✓ Tag $tag -> $(git rev-parse --short HEAD)${NC}"
+    else
+        echo -e "${GREEN}✓ Tag $tag already at HEAD${NC}"
+    fi
+
+    # Step 3: Pull --rebase to incorporate any remote changes
+    echo -e "\n${BLUE}Step 3: Syncing with remote...${NC}"
+    git fetch origin main --tags 2>/dev/null
+    git rebase origin/main 2>/dev/null || {
+        echo -e "${RED}Rebase conflict. Resolve manually, then re-run.${NC}"
+        return 1
+    }
+
+    # Step 4: Re-tag after rebase (HEAD may have changed)
+    local new_head
+    new_head=$(git rev-parse HEAD)
+    if [[ "$new_head" != "$head_sha" ]]; then
+        git tag -d "$tag" 2>/dev/null || true
+        git tag "$tag"
+        echo -e "${GREEN}✓ Re-tagged after rebase: $tag -> $(git rev-parse --short HEAD)${NC}"
+    fi
+
+    # Step 5: Push tag (force, to handle existing remote tags)
+    echo -e "\n${BLUE}Step 4: Pushing tag...${NC}"
+    git push origin "$tag" --force --no-verify 2>/dev/null
+    echo -e "${GREEN}✓ Tag pushed${NC}"
+
+    # Step 6: Push main
+    echo -e "\n${BLUE}Step 5: Pushing main...${NC}"
+    git push origin main --no-verify
+    echo -e "${GREEN}✓ Branch pushed${NC}"
+
+    echo -e "\n${GREEN}═══════════════════════════════════════════════════════════${NC}"
+    echo -e "${GREEN}  ✅ Released $tag${NC}"
+    echo -e "${GREEN}═══════════════════════════════════════════════════════════${NC}"
+}
+
+# v8.13.0: Environment diagnostics
+do_doctor() {
+    echo -e "${MAGENTA}═══════════════════════════════════════════════════════════${NC}"
+    echo -e "${MAGENTA}  Claude Octopus Doctor${NC}"
+    echo -e "${MAGENTA}═══════════════════════════════════════════════════════════${NC}"
+
+    # Claude Code version
+    echo -e "\n${BLUE}Claude Code:${NC} v${CLAUDE_CODE_VERSION:-unknown}"
+
+    # Codex CLI
+    if command -v codex &>/dev/null; then
+        local codex_ver
+        codex_ver=$(codex --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")
+        echo -e "${BLUE}Codex CLI:${NC}   v${codex_ver} ($(command -v codex))"
+        if [[ "$codex_ver" != "unknown" ]] && [[ "$codex_ver" =~ ^0\.(([0-9]{1,2})|9[0-9])\. ]]; then
+            echo -e "  ${YELLOW}⚠ Codex <0.100.0 may use deprecated flags (-q, -y)${NC}"
+        else
+            echo -e "  ${GREEN}✓ Compatible${NC}"
+        fi
+    else
+        echo -e "${BLUE}Codex CLI:${NC}   ${RED}Not installed${NC}"
+    fi
+
+    # Gemini CLI
+    if command -v gemini &>/dev/null; then
+        local gemini_ver
+        gemini_ver=$(gemini --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")
+        echo -e "${BLUE}Gemini CLI:${NC}  v${gemini_ver} ($(command -v gemini))"
+        echo -e "  ${GREEN}✓ Compatible${NC}"
+    else
+        echo -e "${BLUE}Gemini CLI:${NC}  ${RED}Not installed${NC}"
+    fi
+
+    # Authentication status
+    echo -e "\n${BLUE}Authentication:${NC}"
+    if [[ -f "$HOME/.codex/auth.json" ]] || [[ -n "${OPENAI_API_KEY:-}" ]]; then
+        echo -e "  ${GREEN}✓${NC} Codex: authenticated"
+    elif command -v codex &>/dev/null; then
+        echo -e "  ${RED}✗${NC} Codex: not authenticated"
+    fi
+    if [[ -f "$HOME/.gemini/oauth_creds.json" ]] || [[ -n "${GEMINI_API_KEY:-}" ]] || [[ -n "${GOOGLE_API_KEY:-}" ]]; then
+        echo -e "  ${GREEN}✓${NC} Gemini: authenticated"
+    elif command -v gemini &>/dev/null; then
+        echo -e "  ${RED}✗${NC} Gemini: not authenticated"
+    fi
+
+    # Plugin version
+    local plugin_ver
+    plugin_ver=$(jq -r '.version' "$SCRIPT_DIR/../.claude-plugin/plugin.json" 2>/dev/null || echo "unknown")
+    local skill_count
+    skill_count=$(jq '.skills | length' "$SCRIPT_DIR/../.claude-plugin/plugin.json" 2>/dev/null || echo "?")
+    local cmd_count
+    cmd_count=$(jq '.commands | length' "$SCRIPT_DIR/../.claude-plugin/plugin.json" 2>/dev/null || echo "?")
+    echo -e "\n${BLUE}Plugin:${NC}      v${plugin_ver}"
+    echo -e "${BLUE}Skills:${NC}      ${skill_count}"
+    echo -e "${BLUE}Commands:${NC}    ${cmd_count}"
+
+    # Run full preflight
+    echo ""
+    preflight_check true
+}
+
 # Synchronous agent execution (for sequential steps within phases)
 run_agent_sync() {
     local agent_type="$1"
@@ -14369,6 +14491,26 @@ show_status() {
         echo -e "${BLUE}Results:${NC} $result_count files in $RESULTS_DIR"
     fi
 
+    # Recent debates (v8.13.0)
+    local debate_base="$HOME/.claude-octopus/debates"
+    if [[ -d "$debate_base" ]]; then
+        local recent_debates
+        recent_debates=$(find "$debate_base" -name "synthesis.md" -mtime -7 2>/dev/null | head -5)
+        if [[ -n "$recent_debates" ]]; then
+            echo ""
+            echo -e "${BLUE}Recent Debates (7 days):${NC}"
+            while IFS= read -r synth_file; do
+                local debate_dir
+                debate_dir=$(dirname "$synth_file")
+                local topic
+                topic=$(basename "$debate_dir")
+                local date
+                date=$(stat -f "%Sm" -t "%Y-%m-%d" "$synth_file" 2>/dev/null || date -r "$synth_file" "+%Y-%m-%d" 2>/dev/null || echo "unknown")
+                echo -e "  ✓ $topic ($date)"
+            done <<< "$recent_debates"
+        fi
+    fi
+
     echo ""
 }
 
@@ -14803,6 +14945,12 @@ case "$COMMAND" in
         ;;
     preflight)
         preflight_check
+        ;;
+    release)
+        do_release
+        ;;
+    doctor)
+        do_doctor
         ;;
     octopus-configure)
         setup_wizard

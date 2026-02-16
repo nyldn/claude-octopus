@@ -2,6 +2,38 @@
 
 All notable changes to Claude Octopus will be documented in this file.
 
+## [8.13.0] - 2026-02-15
+
+### Added
+
+**`orchestrate.sh release` command (P0):**
+- One-command release cycle: validate → tag → rebase → force-push tag → push main
+- Eliminates manual 4-5 step tag wrestling dance on shared remotes
+- Handles tag conflicts automatically with `--force` push
+
+**`orchestrate.sh doctor` command (P1):**
+- Environment diagnostics: Claude Code, Codex CLI, Gemini CLI versions at a glance
+- Compatibility warnings (e.g., Codex <0.100.0 deprecated flags)
+- Authentication status, plugin version, skill/command counts
+- Runs full preflight check at the end
+
+**Debate `--synthesize` flag (P2):**
+- `-s`/`--synthesize` generates a concrete deliverable from debate consensus
+- Auto-detects context: code topics → plan with file paths, content → draft doc, architecture → decision record
+- Saves to `${DEBATE_DIR}/deliverable.md` with user approval gate (Apply/Refine/Save only)
+
+**Status debate recap (P2):**
+- `/octo:status` now shows recent debates from the last 7 days
+- Displays topic name and date for quick session resumption context
+
+### Fixed
+
+- `validate-release.sh`: Success path now uses `--force` for tag push (was missing, causing failures when tag existed on remote)
+- `validate-release.sh`: Skips tag push entirely when remote SHA already matches local (avoids unnecessary network calls)
+- Deduplicated tag push logic into shared `push_tag_if_needed()` function
+
+---
+
 ## [8.12.0] - 2026-02-14
 
 ### Added
