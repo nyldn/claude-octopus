@@ -63,6 +63,19 @@
           "prompt": "🟡 **Gemini CLI Executing** - Using your Google API credentials directly."
         }
       ]
+    },
+    {
+      "matcher": {
+        "tool": "Bash",
+        "pattern": "octopus-scheduler\\.sh|orchestrate\\.sh"
+      },
+      "hooks": [
+        {
+          "type": "command",
+          "command": "${CLAUDE_PLUGIN_ROOT}/hooks/scheduler-security-gate.sh",
+          "additionalContext": "Scheduler job: ${OCTOPUS_JOB_ID:-none}"
+        }
+      ]
     }
   ],
   "PostToolUse": [
