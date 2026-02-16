@@ -1,3 +1,0 @@
-[submodule ".dependencies/claude-skills"]
-	path = .dependencies/claude-skills
-	url = https://github.com/wolverin0/claude-skills.git
