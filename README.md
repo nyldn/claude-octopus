@@ -7,7 +7,7 @@ Multi-provider orchestration for Claude Code. Run Codex, Gemini, and Claude in p
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-8.13.0-blue" alt="Version 8.13.0">
+  <img src="https://img.shields.io/badge/Version-8.14.0-blue" alt="Version 8.14.0">
   <img src="https://img.shields.io/badge/Claude_Code-v2.1.34+-blueviolet" alt="Requires Claude Code v2.1.34+">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
 </p>

@@ -1,7 +1,7 @@
 {
   "name": "claude-octopus",
-  "version": "8.13.0",
-  "description": "Claude Octopus - Multi-agent orchestration with release/doctor commands, debate --synthesize, and status debate recap",
+  "version": "8.14.0",
+  "description": "Claude Octopus - Multi-agent orchestration with persistent state management, codebase-aware discover, and STATE.md generation",
   "main": "orchestrate.sh",
   "scripts": {
     "test": "make test",
