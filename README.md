@@ -1,6 +1,6 @@
 # Claude Octopus
 
-Multi-provider orchestration for Claude Code. Run Codex, Gemini, and Claude in parallel to research, build, review, and debate — with structured workflows that enforce quality gates.
+Every model has blind spots. Claude Octopus fills them by orchestrating Codex, Gemini, and Claude together — three perspectives, adversarial review, and consensus gathering so no single model's gaps slip through.
 
 <p align="center">
   <img src="assets/social-preview.jpg" alt="Claude Octopus" width="640">
