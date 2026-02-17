@@ -411,6 +411,13 @@ SUPPORTS_AGENT_TEAMS_BRIDGE=false  # v8.7: Claude Code v2.1.38+ (unified task-le
 SUPPORTS_AUTH_CLI=false            # v8.8: Claude Code v2.1.41+ (claude auth login/status/logout)
 SUPPORTS_ANCHOR_MENTIONS=false     # v8.8: Claude Code v2.1.41+ (@file#anchor fragment mentions)
 SUPPORTS_OTEL_SPEED=false          # v8.8: Claude Code v2.1.41+ (speed attribute in OTel spans)
+SUPPORTS_PROMPT_CACHE_OPT=false    # v8.16: Claude Code v2.1.42+ (date out of system prompt)
+SUPPORTS_FAST_STARTUP=false        # v8.16: Claude Code v2.1.42+ (deferred Zod schema)
+SUPPORTS_EFFORT_CALLOUT=false      # v8.16: Claude Code v2.1.42+ (Opus 4.6 effort display)
+SUPPORTS_ENTERPRISE_FIX=false      # v8.16: Claude Code v2.1.43+ (Bedrock/Vertex/Foundry model fix)
+SUPPORTS_STRUCTURED_OUTPUTS=false  # v8.16: Claude Code v2.1.43+ (structured-outputs on enterprise)
+SUPPORTS_STABLE_AUTH=false         # v8.16: Claude Code v2.1.44+ (auth refresh reliability)
+OCTOPUS_BACKEND="api"              # v8.16: Detected backend (api|bedrock|vertex|foundry)
 AGENT_TEAMS_ENABLED="${CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS:-0}"
 OCTOPUS_SECURITY_V870="${OCTOPUS_SECURITY_V870:-true}"
 OCTOPUS_GEMINI_SANDBOX="${OCTOPUS_GEMINI_SANDBOX:-headless}"  # v8.10.0: Changed default from prompt-mode to headless (Issue #25)
@@ -517,17 +524,87 @@ detect_claude_code_version() {
         SUPPORTS_OTEL_SPEED=true
     fi
 
+    # Check for v2.1.42+ features (prompt cache optimization, fast startup, effort callout)
+    if version_compare "$CLAUDE_CODE_VERSION" "2.1.42" ">="; then
+        SUPPORTS_PROMPT_CACHE_OPT=true
+        SUPPORTS_FAST_STARTUP=true
+        SUPPORTS_EFFORT_CALLOUT=true
+    fi
+
+    # Check for v2.1.43+ features (enterprise backend fixes, structured outputs)
+    if version_compare "$CLAUDE_CODE_VERSION" "2.1.43" ">="; then
+        SUPPORTS_ENTERPRISE_FIX=true
+        SUPPORTS_STRUCTURED_OUTPUTS=true
+    fi
+
+    # Check for v2.1.44+ features (stable auth refresh)
+    if version_compare "$CLAUDE_CODE_VERSION" "2.1.44" ">="; then
+        SUPPORTS_STABLE_AUTH=true
+    fi
+
     log "INFO" "Claude Code v$CLAUDE_CODE_VERSION detected"
     log "INFO" "Task Management: $SUPPORTS_TASK_MANAGEMENT | Fork Context: $SUPPORTS_FORK_CONTEXT | Agent Teams: $SUPPORTS_AGENT_TEAMS"
     log "INFO" "Persistent Memory: $SUPPORTS_PERSISTENT_MEMORY | Hook Events: $SUPPORTS_HOOK_EVENTS | Agent Type Routing: $SUPPORTS_AGENT_TYPE_ROUTING"
     log "INFO" "Stable Agent Teams: $SUPPORTS_STABLE_AGENT_TEAMS | Agent Memory: $SUPPORTS_AGENT_MEMORY | Fast Opus: $SUPPORTS_FAST_OPUS"
     log "INFO" "Native Task Metrics: $SUPPORTS_NATIVE_TASK_METRICS | Agent Teams Bridge: $SUPPORTS_AGENT_TEAMS_BRIDGE"
     log "INFO" "Auth CLI: $SUPPORTS_AUTH_CLI | Anchor Mentions: $SUPPORTS_ANCHOR_MENTIONS | OTel Speed: $SUPPORTS_OTEL_SPEED"
+    log "INFO" "Prompt Cache Opt: $SUPPORTS_PROMPT_CACHE_OPT | Enterprise Fix: $SUPPORTS_ENTERPRISE_FIX | Stable Auth: $SUPPORTS_STABLE_AUTH"
 
     # v8.5: Detect /fast toggle after version detection
     detect_fast_mode
     log "INFO" "User /fast mode: $USER_FAST_MODE"
 
+    return 0
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ENTERPRISE BACKEND DETECTION (v8.16 - Claude Code v2.1.42+)
+# Detects whether Claude Code is running on an enterprise backend
+# (AWS Bedrock, Google Vertex AI, or Anthropic Foundry)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+detect_enterprise_backend() {
+    # Bedrock: AWS credentials + region
+    if [[ -n "${AWS_BEDROCK_REGION:-}" ]] || [[ -n "${AWS_REGION:-}" && -n "${AWS_ACCESS_KEY_ID:-}" ]]; then
+        OCTOPUS_BACKEND="bedrock"
+        OCTOPUS_AUTH_REFRESH_INTERVAL="${OCTOPUS_AUTH_REFRESH_INTERVAL:-150}"
+        log "INFO" "Enterprise backend detected: AWS Bedrock (auth refresh: ${OCTOPUS_AUTH_REFRESH_INTERVAL}s)"
+        return 0
+    fi
+
+    # Vertex: GCP project
+    if [[ -n "${GOOGLE_CLOUD_PROJECT:-}" ]] || [[ -n "${VERTEX_PROJECT:-}" ]]; then
+        OCTOPUS_BACKEND="vertex"
+        log "INFO" "Enterprise backend detected: Google Vertex AI"
+        return 0
+    fi
+
+    # Foundry: Anthropic enterprise
+    if [[ -n "${ANTHROPIC_FOUNDRY_ORG:-}" ]] || [[ -n "${ANTHROPIC_FOUNDRY_BASE_URL:-}" ]]; then
+        OCTOPUS_BACKEND="foundry"
+        log "INFO" "Enterprise backend detected: Anthropic Foundry"
+        return 0
+    fi
+
+    # Auth CLI detection (v2.1.41+): parse `claude auth status` output
+    if [[ "$SUPPORTS_AUTH_CLI" == "true" ]]; then
+        local auth_output
+        auth_output=$(claude auth status 2>/dev/null || true)
+        if [[ "$auth_output" == *"bedrock"* || "$auth_output" == *"Bedrock"* ]]; then
+            OCTOPUS_BACKEND="bedrock"
+            OCTOPUS_AUTH_REFRESH_INTERVAL="${OCTOPUS_AUTH_REFRESH_INTERVAL:-150}"
+            log "INFO" "Enterprise backend detected via auth CLI: AWS Bedrock"
+        elif [[ "$auth_output" == *"vertex"* || "$auth_output" == *"Vertex"* ]]; then
+            OCTOPUS_BACKEND="vertex"
+            log "INFO" "Enterprise backend detected via auth CLI: Google Vertex AI"
+        elif [[ "$auth_output" == *"foundry"* || "$auth_output" == *"Foundry"* ]]; then
+            OCTOPUS_BACKEND="foundry"
+            log "INFO" "Enterprise backend detected via auth CLI: Anthropic Foundry"
+        fi
+    fi
+
+    OCTOPUS_BACKEND="${OCTOPUS_BACKEND:-api}"
+    log "DEBUG" "Backend: $OCTOPUS_BACKEND"
     return 0
 }
 
@@ -9033,11 +9110,14 @@ spawn_agent() {
             local skill_context
             skill_context=$(build_skill_context "$curated_agent")
             if [[ -n "$skill_context" ]]; then
-                enhanced_prompt="${skill_context}
+                # v8.16: Append (not prepend) skill context for prompt cache optimization
+                # Stable persona prefix stays at top for better cache hits
+                enhanced_prompt="${enhanced_prompt}
 
 ---
 
-${enhanced_prompt}"
+## Agent Skill Context
+${skill_context}"
                 log "DEBUG" "Injected skill context for agent: $curated_agent"
             fi
         fi
@@ -9098,11 +9178,14 @@ ${enhanced_prompt}"
                 local memory_context
                 memory_context=$(build_memory_context "$agent_mem")
                 if [[ -n "$memory_context" ]]; then
-                    enhanced_prompt="## Previous Context (from ${agent_mem} memory)
-${memory_context}
+                    # v8.16: Append (not prepend) memory context for prompt cache optimization
+                    # Stable persona prefix stays at top for better cache hits
+                    enhanced_prompt="${enhanced_prompt}
+
 ---
 
-${enhanced_prompt}"
+## Previous Context (from ${agent_mem} memory)
+${memory_context}"
                     log "INFO" "Injected ${agent_mem} memory context (${#memory_context} chars) for agent: $curated_name"
                 fi
             fi
@@ -9251,20 +9334,67 @@ ${enhanced_prompt}"
         # v7.19.0 P0.1: Use tee to stream output to both temp file and raw backup
         # v8.10.0: Gemini uses stdin-based prompt delivery (Issue #25)
         # -p "" triggers headless mode; prompt content comes via stdin to avoid OS arg limits
-        local exit_code=0
+
+        # v8.16: Auth-aware retry for enterprise backends
+        local max_auth_retries=0
+        if [[ "$OCTOPUS_BACKEND" != "api" ]]; then
+            max_auth_retries="${OCTOPUS_AUTH_RETRIES:-2}"
+        fi
+        # On stable auth (v2.1.44+), reduce retry aggressiveness
+        if [[ "$SUPPORTS_STABLE_AUTH" == "true" ]]; then
+            max_auth_retries=$((max_auth_retries > 1 ? 1 : max_auth_retries))
+        fi
+
+        # Append gemini headless flag once before retry loop
         if [[ "$agent_type" == gemini* ]]; then
             cmd_array+=(-p "")
-            if printf '%s' "$enhanced_prompt" | run_with_timeout "$TIMEOUT" "${cmd_array[@]}" 2> "$temp_errors" | tee "$raw_output" > "$temp_output"; then
-                exit_code=0
+        fi
+
+        local auth_attempt=0
+        local exit_code=0
+        while true; do
+            exit_code=0
+            if [[ "$agent_type" == gemini* ]]; then
+                if printf '%s' "$enhanced_prompt" | run_with_timeout "$TIMEOUT" "${cmd_array[@]}" 2> "$temp_errors" | tee "$raw_output" > "$temp_output"; then
+                    exit_code=0
+                else
+                    exit_code=$?
+                fi
             else
-                exit_code=$?
+                if run_with_timeout "$TIMEOUT" "${cmd_array[@]}" "$enhanced_prompt" 2> "$temp_errors" | tee "$raw_output" > "$temp_output"; then
+                    exit_code=0
+                else
+                    exit_code=$?
+                fi
             fi
-        else
-            if run_with_timeout "$TIMEOUT" "${cmd_array[@]}" "$enhanced_prompt" 2> "$temp_errors" | tee "$raw_output" > "$temp_output"; then
-                exit_code=0
-            else
-                exit_code=$?
+
+            # v8.16: Check if failure is auth-related and retryable
+            if [[ $exit_code -ne 0 ]] && [[ $auth_attempt -lt $max_auth_retries ]]; then
+                local stderr_content=""
+                [[ -s "$temp_errors" ]] && stderr_content=$(cat "$temp_errors")
+                if [[ "$stderr_content" == *"unauthorized"* ]] || \
+                   [[ "$stderr_content" == *"401"* ]] || \
+                   [[ "$stderr_content" == *"auth"* ]] || \
+                   [[ "$stderr_content" == *"credential"* ]] || \
+                   [[ "$stderr_content" == *"token expired"* ]] || \
+                   [[ "$stderr_content" == *"refresh"* ]]; then
+                    ((auth_attempt++))
+                    local backoff=$((auth_attempt * 5))
+                    log "WARN" "Auth failure detected (attempt $auth_attempt/$max_auth_retries), retrying in ${backoff}s..."
+                    sleep "$backoff"
+                    # Clear temp files for retry
+                    > "$temp_output"
+                    > "$temp_errors"
+                    > "$raw_output"
+                    continue
+                fi
             fi
+            break
+        done
+
+        # v8.16: Log auth retry metrics if retries occurred
+        if [[ $auth_attempt -gt 0 ]]; then
+            log "INFO" "Auth retries used: $auth_attempt/$max_auth_retries (backend=$OCTOPUS_BACKEND, exit=$exit_code)"
         fi
 
         # v7.19.0 P0.1: Process output regardless of exit code (preserves partial results)
@@ -11271,6 +11401,9 @@ preflight_check() {
     if command -v claude &>/dev/null; then
         log DEBUG "Claude CLI: $(command -v claude)"
     fi
+
+    # v8.16: Detect enterprise backend
+    detect_enterprise_backend
 
     # Support legacy GOOGLE_API_KEY
     if [[ -z "${GEMINI_API_KEY:-}" && -n "${GOOGLE_API_KEY:-}" ]]; then
