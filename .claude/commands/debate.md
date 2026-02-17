@@ -1,29 +1,16 @@
 ---
 command: debate
 description: AI Debate Hub - Structured three-way debates between Claude, Gemini, and Codex
+skill: skill-debate
 ---
 
-# Debate - AI Debate Hub
+## STOP - DO NOT INVOKE /skill OR Skill() AGAIN
 
-## 🤖 INSTRUCTIONS FOR CLAUDE
-
-When the user invokes this command (e.g., `/octo:debate <arguments>`):
-
-**✓ CORRECT - Use the Skill tool:**
-```
-Skill(skill: "octo:debate", args: "<user's arguments>")
-```
-
-**✗ INCORRECT - Do NOT use Task tool:**
-```
-Task(subagent_type: "octo:debate", ...)  ❌ Wrong! This is a skill, not an agent type
-```
-
-**Why:** This command loads the `skill-debate` skill. Skills use the `Skill` tool, not `Task`.
+This command is already executing. The `skill-debate` skill has been loaded via frontmatter binding.
 
 ---
 
-**Auto-loads the `skill-debate` skill for structured multi-AI debates.**
+**Structured multi-AI debates powered by the `skill-debate` skill.**
 
 ## Quick Usage
 
