@@ -89,7 +89,7 @@ result=$(get_agent_model "gemini")
 assert_equals "gemini-3-pro-preview" "$result" "Gemini default model"
 
 result=$(get_agent_model "claude")
-assert_equals "claude-sonnet-4.5" "$result" "Claude default model"
+assert_equals "claude-sonnet-4.6" "$result" "Claude default model"
 
 echo ""
 

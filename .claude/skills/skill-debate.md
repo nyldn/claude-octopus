@@ -37,7 +37,7 @@ trigger: |
 Participants:
 🔴 Codex CLI - Technical implementation perspective
 🟡 Gemini CLI - Ecosystem and strategic perspective
-🔵 Sonnet 4.5 - Independent analytical perspective
+🔵 Sonnet 4.6 - Independent analytical perspective
 🐙 Claude - Moderator and synthesis
 ```
 

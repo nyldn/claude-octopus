@@ -105,7 +105,7 @@ Current state:
 - [What's in progress]
 - [What's next]
 
-Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 ```
 
 **Option B: Todo-based checkpoint (if no git or user prefers)**

@@ -417,6 +417,9 @@ SUPPORTS_EFFORT_CALLOUT=false      # v8.16: Claude Code v2.1.42+ (Opus 4.6 effor
 SUPPORTS_ENTERPRISE_FIX=false      # v8.16: Claude Code v2.1.43+ (Bedrock/Vertex/Foundry model fix)
 SUPPORTS_STRUCTURED_OUTPUTS=false  # v8.16: Claude Code v2.1.43+ (structured-outputs on enterprise)
 SUPPORTS_STABLE_AUTH=false         # v8.16: Claude Code v2.1.44+ (auth refresh reliability)
+SUPPORTS_SONNET_46=false           # v8.17: Claude Code v2.1.45+ (Sonnet 4.6 model support)
+SUPPORTS_PER_PROJECT_PLUGINS=false # v8.17: Claude Code v2.1.45+ (enabledPlugins from --add-dir)
+SUPPORTS_IMMEDIATE_PLUGIN_INSTALL=false # v8.17: Claude Code v2.1.45+ (no restart after install)
 OCTOPUS_BACKEND="api"              # v8.16: Detected backend (api|bedrock|vertex|foundry)
 AGENT_TEAMS_ENABLED="${CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS:-0}"
 OCTOPUS_SECURITY_V870="${OCTOPUS_SECURITY_V870:-true}"
@@ -542,6 +545,13 @@ detect_claude_code_version() {
         SUPPORTS_STABLE_AUTH=true
     fi
 
+    # Check for v2.1.45+ features (Sonnet 4.6, per-project plugins, immediate plugin install)
+    if version_compare "$CLAUDE_CODE_VERSION" "2.1.45" ">="; then
+        SUPPORTS_SONNET_46=true
+        SUPPORTS_PER_PROJECT_PLUGINS=true
+        SUPPORTS_IMMEDIATE_PLUGIN_INSTALL=true
+    fi
+
     log "INFO" "Claude Code v$CLAUDE_CODE_VERSION detected"
     log "INFO" "Task Management: $SUPPORTS_TASK_MANAGEMENT | Fork Context: $SUPPORTS_FORK_CONTEXT | Agent Teams: $SUPPORTS_AGENT_TEAMS"
     log "INFO" "Persistent Memory: $SUPPORTS_PERSISTENT_MEMORY | Hook Events: $SUPPORTS_HOOK_EVENTS | Agent Type Routing: $SUPPORTS_AGENT_TYPE_ROUTING"
@@ -549,6 +559,7 @@ detect_claude_code_version() {
     log "INFO" "Native Task Metrics: $SUPPORTS_NATIVE_TASK_METRICS | Agent Teams Bridge: $SUPPORTS_AGENT_TEAMS_BRIDGE"
     log "INFO" "Auth CLI: $SUPPORTS_AUTH_CLI | Anchor Mentions: $SUPPORTS_ANCHOR_MENTIONS | OTel Speed: $SUPPORTS_OTEL_SPEED"
     log "INFO" "Prompt Cache Opt: $SUPPORTS_PROMPT_CACHE_OPT | Enterprise Fix: $SUPPORTS_ENTERPRISE_FIX | Stable Auth: $SUPPORTS_STABLE_AUTH"
+    log "INFO" "Sonnet 4.6: $SUPPORTS_SONNET_46 | Per-Project Plugins: $SUPPORTS_PER_PROJECT_PLUGINS"
 
     # v8.5: Detect /fast toggle after version detection
     detect_fast_mode
@@ -844,7 +855,7 @@ get_agent_command() {
             esac
             ;;
         codex-review) echo "codex exec review" ;; # Code review mode (no sandbox support)
-        claude) echo "claude --print" ;;                         # Claude Sonnet 4.5
+        claude) echo "claude --print" ;;                         # Claude Sonnet 4.6
         claude-sonnet) echo "claude --print -m sonnet" ;;        # Claude Sonnet explicit
         claude-opus) echo "claude --print -m opus" ;;            # Claude Opus 4.6 (v8.0)
         claude-opus-fast) echo "claude --print -m opus --fast" ;; # Claude Opus 4.6 Fast (v8.4: v2.1.36+)
@@ -972,6 +983,7 @@ get_model_pricing() {
         gemini-3-pro-image-preview) echo "5.00:20.00" ;;
         # Claude models
         claude-sonnet-4.5)      echo "3.00:15.00" ;;
+        claude-sonnet-4.6)      echo "3.00:15.00" ;;   # v8.17: Sonnet 4.6 (same pricing as 4.5)
         claude-opus-4.6)        echo "5.00:25.00" ;;
         claude-opus-4.6-fast)   echo "30.00:150.00" ;;  # v8.4: Fast mode - 6x cost for lower latency
         # OpenRouter models (v8.11.0)
@@ -1371,8 +1383,8 @@ get_agent_model() {
         gemini-fast)    echo "gemini-3-flash-preview" ;;
         gemini-image)   echo "gemini-3-pro-image-preview" ;;
         codex-review)   echo "gpt-5.3-codex" ;;
-        claude)         echo "claude-sonnet-4.5" ;;
-        claude-sonnet)  echo "claude-sonnet-4.5" ;;
+        claude)         echo "claude-sonnet-4.6" ;;   # v8.17: Sonnet 4.6 default
+        claude-sonnet)  echo "claude-sonnet-4.6" ;;   # v8.17: Sonnet 4.6 explicit
         claude-opus)    echo "claude-opus-4.6" ;;
         claude-opus-fast) echo "claude-opus-4.6-fast" ;;  # v8.4: Fast Opus
         openrouter)       echo "anthropic/claude-sonnet-4" ;;  # Generic OpenRouter
@@ -1903,7 +1915,7 @@ display_workflow_cost_estimate() {
     echo -e "  ${RED}🔴 Codex${NC}  (~${num_codex_calls} requests): ${codex_status}"
     echo -e "  ${YELLOW}🟡 Gemini${NC} (~${num_gemini_calls} requests): ${gemini_status}"
     # Dynamic Claude model name based on workflow agents
-    local claude_model_label="Sonnet 4.5"
+    local claude_model_label="Sonnet 4.6"
     if echo "${WORKFLOW_AGENTS:-}" | grep -q "claude-opus"; then
         claude_model_label="Opus 4.6"
     fi
@@ -8083,7 +8095,7 @@ get_role_mapping() {
         researcher)   echo "gemini:gemini-3-pro-preview" ;;   # Deep investigation
         reviewer)     echo "codex-review:gpt-5.3-codex" ;;    # Code review, validation (v8.3: GPT-5.3-Codex)
         implementer)  echo "codex:gpt-5.3-codex" ;;           # Code generation (v8.3: GPT-5.3-Codex)
-        synthesizer)  echo "claude:claude-sonnet-4.5" ;;      # Result aggregation (v8.0: upgraded to Claude)
+        synthesizer)  echo "claude:claude-sonnet-4.6" ;;      # Result aggregation (v8.17: Sonnet 4.6)
         strategist)   echo "claude-opus:claude-opus-4.6" ;;   # Premium synthesis (v8.0: Opus 4.6)
         *)            echo "codex:gpt-5.3-codex" ;;           # Default (v8.3: GPT-5.3-Codex)
     esac
@@ -12177,7 +12189,7 @@ probe_discover() {
 
     if [[ "$DRY_RUN" == "true" ]]; then
         log INFO "[DRY-RUN] Would probe: $prompt"
-        log INFO "[DRY-RUN] Would spawn 5+ parallel research agents (Codex, Gemini, Sonnet 4.5, +codebase if in git repo)"
+        log INFO "[DRY-RUN] Would spawn 5+ parallel research agents (Codex, Gemini, Sonnet 4.6, +codebase if in git repo)"
         return 0
     fi
 
@@ -12482,7 +12494,7 @@ grasp_define() {
 
     if [[ "$DRY_RUN" == "true" ]]; then
         log INFO "[DRY-RUN] Would grasp: $prompt"
-        log INFO "[DRY-RUN] Would gather 4 perspectives (Codex, Gemini, Sonnet 4.5) and build consensus"
+        log INFO "[DRY-RUN] Would gather 4 perspectives (Codex, Gemini, Sonnet 4.6) and build consensus"
         return 0
     fi
 
@@ -12902,8 +12914,8 @@ ink_deliver() {
         [[ $result_count -ge 10 ]] && break  # Limit context size
     done
 
-    # Sonnet 4.5 quality review before synthesis
-    log INFO "Step 2a: Sonnet 4.5 quality review..."
+    # Sonnet 4.6 quality review before synthesis
+    log INFO "Step 2a: Sonnet 4.6 quality review..."
     local sonnet_review
     sonnet_review=$(run_agent_sync "claude-sonnet" "Review these development results for quality, completeness, and correctness.
 Flag any issues, gaps, or improvements needed.
@@ -12926,7 +12938,7 @@ Structure the output as:
 
 Original task: $prompt
 
-Quality Review (from Sonnet 4.5):
+Quality Review (from Sonnet 4.6):
 $sonnet_review
 
 Results to synthesize:
@@ -13332,7 +13344,7 @@ grapple_debate() {
     echo ""
     echo -e "${RED}╔═══════════════════════════════════════════════════════════╗${NC}"
     echo -e "${RED}║  🤼 GRAPPLE - Adversarial Cross-Model Review              ║${NC}"
-    echo -e "${RED}║  Codex vs Gemini vs Sonnet 4.5 debate (${rounds} rounds)  ║${NC}"
+    echo -e "${RED}║  Codex vs Gemini vs Sonnet 4.6 debate (${rounds} rounds)  ║${NC}"
     echo -e "${RED}╚═══════════════════════════════════════════════════════════╝${NC}"
     echo ""
 
@@ -13341,7 +13353,7 @@ grapple_debate() {
     if [[ "$DRY_RUN" == "true" ]]; then
         log INFO "[DRY-RUN] Would grapple on: $prompt"
         log INFO "[DRY-RUN] Principles: $principles"
-        log INFO "[DRY-RUN] Round 1: Generate competing proposals (Codex + Gemini + Sonnet 4.5)"
+        log INFO "[DRY-RUN] Round 1: Generate competing proposals (Codex + Gemini + Sonnet 4.6)"
         log INFO "[DRY-RUN] Round 2: Cross-critique (each critiques the other two)"
         log INFO "[DRY-RUN] Round 3: Synthesis and winner determination"
         return 0
@@ -13449,7 +13461,7 @@ You are a CRITICAL REVIEWER. Your job is to find flaws in these implementations.
 IMPLEMENTATION 1 TO CRITIQUE (from Gemini):
 $gemini_proposal
 
-IMPLEMENTATION 2 TO CRITIQUE (from Sonnet 4.5):
+IMPLEMENTATION 2 TO CRITIQUE (from Sonnet 4.6):
 $sonnet_proposal
 
 Find at least 3 issues across both. For each:
@@ -13480,7 +13492,7 @@ You are a CRITICAL REVIEWER. Your job is to find flaws in these implementations.
 IMPLEMENTATION 1 TO CRITIQUE (from Codex):
 $codex_proposal
 
-IMPLEMENTATION 2 TO CRITIQUE (from Sonnet 4.5):
+IMPLEMENTATION 2 TO CRITIQUE (from Sonnet 4.6):
 $sonnet_proposal
 
 Find at least 3 issues across both. For each:
@@ -13723,7 +13735,7 @@ Be specific and actionable. Format as markdown." 150 "synthesizer" "grapple")
 **Generated:** $(date)
 **Rounds:** $rounds
 **Principles:** $principles
-**Participants:** Codex, Gemini, Sonnet 4.5
+**Participants:** Codex, Gemini, Sonnet 4.6
 
 ---
 
@@ -13735,7 +13747,7 @@ $codex_proposal
 ### Gemini Proposal
 $gemini_proposal
 
-### Sonnet 4.5 Proposal
+### Sonnet 4.6 Proposal
 $sonnet_proposal
 
 ---
@@ -13771,7 +13783,7 @@ EOF
     echo ""
     echo -e "${CYAN}📊 Debate Summary:${NC}"
     echo -e "  Topic: ${prompt:0:70}..."
-    echo -e "  Participants: ${RED}Codex${NC} vs ${YELLOW}Gemini${NC} vs ${BLUE}Sonnet 4.5${NC}"
+    echo -e "  Participants: ${RED}Codex${NC} vs ${YELLOW}Gemini${NC} vs ${BLUE}Sonnet 4.6${NC}"
     echo -e "  Principles: $principles"
     echo ""
     echo -e "${YELLOW}💡 Next Steps:${NC}"

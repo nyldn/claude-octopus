@@ -438,7 +438,7 @@ Creating `~/.claude-octopus/scheduler/switches/KILL_ALL` immediately terminates 
 |----------|---------------|-------|
 | Codex CLI | ~$0.01-0.15 | Depends on model (GPT-5.3-Codex, Spark, Mini) |
 | Gemini CLI | ~$0.01-0.03 | Gemini Pro |
-| Claude (Sonnet 4.5) | Included | Part of Claude Code subscription |
+| Claude (Sonnet 4.6) | Included | Part of Claude Code subscription |
 | Claude (Opus 4.6) | $5/$25 per MTok | Input/output pricing |
 
 A typical `squeeze` (security review) job using all three providers costs roughly $0.10-0.50 per run.

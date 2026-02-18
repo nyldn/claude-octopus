@@ -139,7 +139,7 @@ git commit -m "quick: [brief description]
 
 [Detailed explanation if needed]
 
-Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 ```
 
 **Commit message format:**
@@ -222,7 +222,7 @@ echo "📝 Summary saved to: $summary_file"
    git add README.md
    git commit -m "quick: fix typo in README (recieve → receive)
 
-   Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
+   Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
    ```
 
 4. **Record in state**

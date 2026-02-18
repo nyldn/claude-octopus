@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Test: v8.2.0 Sonnet 4.5 Agent in Multi-Agent Workflows
+# Test: v8.2.0 Sonnet 4.6 Agent in Multi-Agent Workflows
 # Validates that claude-sonnet is wired into:
 #   - grapple_debate() as a 3rd participant (with gemini)
 #   - probe_discover() as a 5th perspective
@@ -45,7 +45,7 @@ assert_fail() {
 
 echo ""
 echo -e "${BLUE}╔══════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║  🐙 v8.2.0 Sonnet 4.5 in Multi-Agent Workflows            ║${NC}"
+echo -e "${BLUE}║  🐙 v8.2.0 Sonnet 4.6 in Multi-Agent Workflows            ║${NC}"
 echo -e "${BLUE}╚══════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 
@@ -100,11 +100,11 @@ else
     assert_fail "1.6 grapple_debate has sonnet_critique"
 fi
 
-# 1.7: Banner shows "Sonnet 4.5"
-if echo "$GRAPPLE_FN" | grep -q 'Sonnet 4.5'; then
-    assert_pass "1.7 grapple_debate banner mentions Sonnet 4.5"
+# 1.7: Banner shows "Sonnet 4.6"
+if echo "$GRAPPLE_FN" | grep -q 'Sonnet 4.6'; then
+    assert_pass "1.7 grapple_debate banner mentions Sonnet 4.6"
 else
-    assert_fail "1.7 grapple_debate banner mentions Sonnet 4.5"
+    assert_fail "1.7 grapple_debate banner mentions Sonnet 4.6"
 fi
 
 # 1.8: Summary shows 3 participants
@@ -233,11 +233,11 @@ echo ""
 echo -e "${BLUE}Test Group 5: skill-debate.md Updates${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-# 5.1: skill-debate.md mentions Sonnet 4.5
-if grep -q 'Sonnet 4.5' "$SKILL_DEBATE"; then
-    assert_pass "5.1 skill-debate.md mentions Sonnet 4.5"
+# 5.1: skill-debate.md mentions Sonnet 4.6
+if grep -q 'Sonnet 4.6' "$SKILL_DEBATE"; then
+    assert_pass "5.1 skill-debate.md mentions Sonnet 4.6"
 else
-    assert_fail "5.1 skill-debate.md mentions Sonnet 4.5"
+    assert_fail "5.1 skill-debate.md mentions Sonnet 4.6"
 fi
 
 # 5.2: skill-debate.md shows 4 participants (Codex, Gemini, Sonnet, Claude)
@@ -254,7 +254,7 @@ echo ""
 # SUMMARY
 # ═══════════════════════════════════════════════════════════════════════════════
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo -e "${BLUE}Test Summary - v8.2.0 Sonnet 4.5 in Multi-Agent Workflows${NC}"
+echo -e "${BLUE}Test Summary - v8.2.0 Sonnet 4.6 in Multi-Agent Workflows${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo -e "Total tests:  ${BLUE}$TESTS_RUN${NC}"
 echo -e "Passed:       ${GREEN}$TESTS_PASSED${NC}"
@@ -262,7 +262,7 @@ echo -e "Failed:       ${RED}$TESTS_FAILED${NC}"
 echo ""
 
 if [[ $TESTS_FAILED -eq 0 ]]; then
-    echo -e "${GREEN}✅ All Sonnet 4.5 multi-agent workflow tests passed!${NC}"
+    echo -e "${GREEN}✅ All Sonnet 4.6 multi-agent workflow tests passed!${NC}"
     exit 0
 else
     echo -e "${RED}❌ $TESTS_FAILED test(s) failed${NC}"

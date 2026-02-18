@@ -190,10 +190,10 @@ else
 fi
 
 # 3.2: synthesizer role upgraded to claude (from gemini-flash)
-if grep -q 'synthesizer).*echo "claude:claude-sonnet-4\.5"' "$ORCHESTRATE_SH"; then
-    assert_pass "3.2 synthesizer role upgraded to claude:claude-sonnet-4.5"
+if grep -q 'synthesizer).*echo "claude:claude-sonnet-4\.6"' "$ORCHESTRATE_SH"; then
+    assert_pass "3.2 synthesizer role upgraded to claude:claude-sonnet-4.6"
 else
-    assert_fail "3.2 synthesizer role upgraded to claude:claude-sonnet-4.5"
+    assert_fail "3.2 synthesizer role upgraded to claude:claude-sonnet-4.6"
 fi
 
 echo ""
