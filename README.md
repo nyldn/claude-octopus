@@ -151,7 +151,7 @@ Everything except multi-AI features. You get all 29 personas, structured workflo
 
 **Provider transparency** — Visual indicators (colored dots) show exactly which providers are running and when external APIs are called. You always know what's happening.
 
-**Clean uninstall** — `/plugin uninstall claude-octopus@nyldn-plugins` removes everything. No residual config changes.
+**Clean uninstall** — `/plugin uninstall claude-octopus@nyldn-plugins` removes everything. If you see a scope error, add `--scope project`. No residual config changes.
 
 ---
 

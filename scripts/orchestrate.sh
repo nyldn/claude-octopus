@@ -11570,6 +11570,15 @@ do_doctor() {
     echo -e "${BLUE}Skills:${NC}      ${skill_count}"
     echo -e "${BLUE}Commands:${NC}    ${cmd_count}"
 
+    # Install scope detection
+    if [[ "$PLUGIN_DIR" == "$HOME/.claude/plugins/"* ]]; then
+        echo -e "${BLUE}Scope:${NC}       user"
+    elif [[ "$PLUGIN_DIR" == *"/.claude/plugins/"* ]]; then
+        echo -e "${BLUE}Scope:${NC}       project (${PLUGIN_DIR})"
+    else
+        echo -e "${BLUE}Scope:${NC}       manual/dev (${PLUGIN_DIR})"
+    fi
+
     # Run full preflight
     echo ""
     preflight_check true
