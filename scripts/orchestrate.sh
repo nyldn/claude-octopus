@@ -420,6 +420,11 @@ SUPPORTS_STABLE_AUTH=false         # v8.16: Claude Code v2.1.44+ (auth refresh r
 SUPPORTS_SONNET_46=false           # v8.17: Claude Code v2.1.45+ (Sonnet 4.6 model support)
 SUPPORTS_PER_PROJECT_PLUGINS=false # v8.17: Claude Code v2.1.45+ (enabledPlugins from --add-dir)
 SUPPORTS_IMMEDIATE_PLUGIN_INSTALL=false # v8.17: Claude Code v2.1.45+ (no restart after install)
+SUPPORTS_STABLE_BG_AGENTS=false       # v8.18: Claude Code v2.1.47+ (background agents return final answer)
+SUPPORTS_HOOK_LAST_MESSAGE=false      # v8.18: Claude Code v2.1.47+ (last_assistant_message in Stop/SubagentStop)
+SUPPORTS_AGENT_MODEL_FIELD=false      # v8.18: Claude Code v2.1.47+ (model field honored in team teammates)
+SUPPORTS_DEFERRED_SESSION_HOOKS=false # v8.18: Claude Code v2.1.47+ (SessionStart hooks deferred ~500ms)
+SUPPORTS_PARALLEL_FILE_SAFETY=false   # v8.18: Claude Code v2.1.47+ (file write/edit errors don't abort siblings)
 OCTOPUS_BACKEND="api"              # v8.16: Detected backend (api|bedrock|vertex|foundry)
 AGENT_TEAMS_ENABLED="${CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS:-0}"
 OCTOPUS_SECURITY_V870="${OCTOPUS_SECURITY_V870:-true}"
@@ -552,6 +557,15 @@ detect_claude_code_version() {
         SUPPORTS_IMMEDIATE_PLUGIN_INSTALL=true
     fi
 
+    # Check for v2.1.47+ features (stable bg agents, hook last_message, agent model field, deferred hooks, parallel file safety)
+    if version_compare "$CLAUDE_CODE_VERSION" "2.1.47" ">="; then
+        SUPPORTS_STABLE_BG_AGENTS=true
+        SUPPORTS_HOOK_LAST_MESSAGE=true
+        SUPPORTS_AGENT_MODEL_FIELD=true
+        SUPPORTS_DEFERRED_SESSION_HOOKS=true
+        SUPPORTS_PARALLEL_FILE_SAFETY=true
+    fi
+
     log "INFO" "Claude Code v$CLAUDE_CODE_VERSION detected"
     log "INFO" "Task Management: $SUPPORTS_TASK_MANAGEMENT | Fork Context: $SUPPORTS_FORK_CONTEXT | Agent Teams: $SUPPORTS_AGENT_TEAMS"
     log "INFO" "Persistent Memory: $SUPPORTS_PERSISTENT_MEMORY | Hook Events: $SUPPORTS_HOOK_EVENTS | Agent Type Routing: $SUPPORTS_AGENT_TYPE_ROUTING"
@@ -560,6 +574,7 @@ detect_claude_code_version() {
     log "INFO" "Auth CLI: $SUPPORTS_AUTH_CLI | Anchor Mentions: $SUPPORTS_ANCHOR_MENTIONS | OTel Speed: $SUPPORTS_OTEL_SPEED"
     log "INFO" "Prompt Cache Opt: $SUPPORTS_PROMPT_CACHE_OPT | Enterprise Fix: $SUPPORTS_ENTERPRISE_FIX | Stable Auth: $SUPPORTS_STABLE_AUTH"
     log "INFO" "Sonnet 4.6: $SUPPORTS_SONNET_46 | Per-Project Plugins: $SUPPORTS_PER_PROJECT_PLUGINS"
+    log "INFO" "Stable BG Agents: $SUPPORTS_STABLE_BG_AGENTS | Hook Last Message: $SUPPORTS_HOOK_LAST_MESSAGE | Agent Model Field: $SUPPORTS_AGENT_MODEL_FIELD"
 
     # v8.5: Detect /fast toggle after version detection
     detect_fast_mode
