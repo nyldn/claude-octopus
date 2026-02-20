@@ -1,3 +1,24 @@
+## [8.16.0] - 2026-02-20
+
+### Added
+
+**Modular doctor diagnostics (`orchestrate.sh doctor`):**
+- Replaced monolithic `do_doctor()` with 8 modular check categories, each a separate function producing structured results
+- **providers** — Claude Code version, Codex CLI version + deprecated flag detection, Gemini CLI version and path
+- **auth** — Codex auth (auth.json / OPENAI_API_KEY), Gemini auth (oauth_creds.json / GEMINI_API_KEY), at-least-one-provider gate, enterprise backend detection
+- **config** — Plugin version, install scope, feature flag consistency vs detected CC version (e.g. SUPPORTS_SONNET_46 on v2.1.45+), backend detection
+- **state** — state.json validity, stale result files (>7 days warning), workspace writability, preflight cache freshness
+- **hooks** — hooks.json validity, each command script exists at resolved path and is executable, CLAUDE_PLUGIN_ROOT resolution
+- **scheduler** — Daemon PID alive check, job count, budget gate (OCTOPUS_MAX_COST_USD), active kill switches
+- **skills** — All skill and command files listed in plugin.json exist on disk
+- **conflicts** — oh-my-claude-code, claude-flow, wshobson/agents detection
+- Category filtering: `doctor providers` runs only provider checks
+- Verbose mode: `doctor --verbose` shows all checks including passes (default hides passing checks)
+- JSON output: `doctor --json` produces structured JSON array for programmatic consumption
+- Combined usage: `doctor hooks --verbose`, `doctor --json auth`
+
+---
+
 ## [8.15.1] - 2026-02-16
 
 ### Changed
