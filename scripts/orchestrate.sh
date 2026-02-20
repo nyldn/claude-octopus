@@ -11540,75 +11540,545 @@ do_release() {
     echo -e "${GREEN}═══════════════════════════════════════════════════════════${NC}"
 }
 
-# v8.13.0: Environment diagnostics
-do_doctor() {
-    echo -e "${MAGENTA}═══════════════════════════════════════════════════════════${NC}"
-    echo -e "${MAGENTA}  Claude Octopus Doctor${NC}"
-    echo -e "${MAGENTA}═══════════════════════════════════════════════════════════${NC}"
+# ═══════════════════════════════════════════════════════════════════════════════
+# MODULAR DOCTOR SYSTEM (v8.16.0)
+# 8 check categories, structured results, category filtering, JSON output
+# ═══════════════════════════════════════════════════════════════════════════════
 
-    # Claude Code version
-    echo -e "\n${BLUE}Claude Code:${NC} v${CLAUDE_CODE_VERSION:-unknown}"
+# Result accumulator (parallel arrays for bash 3.x compat)
+DOCTOR_RESULTS_NAME=()
+DOCTOR_RESULTS_CAT=()
+DOCTOR_RESULTS_STATUS=()   # pass|warn|fail
+DOCTOR_RESULTS_MSG=()
+DOCTOR_RESULTS_DETAIL=()
+
+doctor_add() {
+    local name="$1" cat="$2" status="$3" msg="$4" detail="${5:-}"
+    DOCTOR_RESULTS_NAME+=("$name")
+    DOCTOR_RESULTS_CAT+=("$cat")
+    DOCTOR_RESULTS_STATUS+=("$status")
+    DOCTOR_RESULTS_MSG+=("$msg")
+    DOCTOR_RESULTS_DETAIL+=("$detail")
+}
+
+# --- Category 1: Providers ---
+doctor_check_providers() {
+    # Claude Code version + compatibility
+    local cc_ver="${CLAUDE_CODE_VERSION:-}"
+    if [[ -n "$cc_ver" ]]; then
+        doctor_add "claude-code-version" "providers" "pass" \
+            "Claude Code v${cc_ver}" "$(command -v claude 2>/dev/null || echo 'path unknown')"
+    else
+        doctor_add "claude-code-version" "providers" "warn" \
+            "Claude Code version unknown" "Could not detect version"
+    fi
 
     # Codex CLI
     if command -v codex &>/dev/null; then
-        local codex_ver
+        local codex_ver codex_path
         codex_ver=$(codex --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")
-        echo -e "${BLUE}Codex CLI:${NC}   v${codex_ver} ($(command -v codex))"
+        codex_path=$(command -v codex)
         if [[ "$codex_ver" != "unknown" ]] && [[ "$codex_ver" =~ ^0\.(([0-9]{1,2})|9[0-9])\. ]]; then
-            echo -e "  ${YELLOW}⚠ Codex <0.100.0 may use deprecated flags (-q, -y)${NC}"
+            doctor_add "codex-cli" "providers" "warn" \
+                "Codex CLI v${codex_ver} (deprecated flags)" \
+                "${codex_path} — versions <0.100.0 may use deprecated flags (-q, -y)"
         else
-            echo -e "  ${GREEN}✓ Compatible${NC}"
+            doctor_add "codex-cli" "providers" "pass" \
+                "Codex CLI v${codex_ver}" "$codex_path"
         fi
     else
-        echo -e "${BLUE}Codex CLI:${NC}   ${RED}Not installed${NC}"
+        doctor_add "codex-cli" "providers" "warn" \
+            "Codex CLI not installed" "npm install -g @openai/codex"
     fi
 
     # Gemini CLI
     if command -v gemini &>/dev/null; then
-        local gemini_ver
+        local gemini_ver gemini_path
         gemini_ver=$(gemini --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")
-        echo -e "${BLUE}Gemini CLI:${NC}  v${gemini_ver} ($(command -v gemini))"
-        echo -e "  ${GREEN}✓ Compatible${NC}"
+        gemini_path=$(command -v gemini)
+        doctor_add "gemini-cli" "providers" "pass" \
+            "Gemini CLI v${gemini_ver}" "$gemini_path"
     else
-        echo -e "${BLUE}Gemini CLI:${NC}  ${RED}Not installed${NC}"
+        doctor_add "gemini-cli" "providers" "warn" \
+            "Gemini CLI not installed" "npm install -g @google/gemini-cli"
+    fi
+}
+
+# --- Category 2: Auth ---
+doctor_check_auth() {
+    # Codex auth
+    if command -v codex &>/dev/null; then
+        if [[ -f "$HOME/.codex/auth.json" ]] || [[ -n "${OPENAI_API_KEY:-}" ]]; then
+            local method="auth.json"
+            [[ -n "${OPENAI_API_KEY:-}" ]] && method="OPENAI_API_KEY"
+            doctor_add "codex-auth" "auth" "pass" \
+                "Codex authenticated" "via $method"
+        else
+            doctor_add "codex-auth" "auth" "fail" \
+                "Codex not authenticated" "Run: codex login  OR  export OPENAI_API_KEY=\"sk-...\""
+        fi
     fi
 
-    # Authentication status
-    echo -e "\n${BLUE}Authentication:${NC}"
-    if [[ -f "$HOME/.codex/auth.json" ]] || [[ -n "${OPENAI_API_KEY:-}" ]]; then
-        echo -e "  ${GREEN}✓${NC} Codex: authenticated"
-    elif command -v codex &>/dev/null; then
-        echo -e "  ${RED}✗${NC} Codex: not authenticated"
+    # Gemini auth
+    if command -v gemini &>/dev/null; then
+        if [[ -f "$HOME/.gemini/oauth_creds.json" ]] || [[ -n "${GEMINI_API_KEY:-}" ]] || [[ -n "${GOOGLE_API_KEY:-}" ]]; then
+            local method="oauth_creds.json"
+            [[ -n "${GEMINI_API_KEY:-}" ]] && method="GEMINI_API_KEY"
+            [[ -n "${GOOGLE_API_KEY:-}" ]] && method="GOOGLE_API_KEY"
+            doctor_add "gemini-auth" "auth" "pass" \
+                "Gemini authenticated" "via $method"
+        else
+            doctor_add "gemini-auth" "auth" "fail" \
+                "Gemini not authenticated" "Run: gemini  OR  export GEMINI_API_KEY=\"...\""
+        fi
     fi
-    if [[ -f "$HOME/.gemini/oauth_creds.json" ]] || [[ -n "${GEMINI_API_KEY:-}" ]] || [[ -n "${GOOGLE_API_KEY:-}" ]]; then
-        echo -e "  ${GREEN}✓${NC} Gemini: authenticated"
-    elif command -v gemini &>/dev/null; then
-        echo -e "  ${RED}✗${NC} Gemini: not authenticated"
+
+    # At least one provider must be authenticated
+    local any_auth=false
+    if [[ -f "$HOME/.codex/auth.json" ]] || [[ -n "${OPENAI_API_KEY:-}" ]] || \
+       [[ -f "$HOME/.gemini/oauth_creds.json" ]] || [[ -n "${GEMINI_API_KEY:-}" ]] || [[ -n "${GOOGLE_API_KEY:-}" ]]; then
+        any_auth=true
     fi
+    if [[ "$any_auth" == "false" ]]; then
+        doctor_add "any-provider-auth" "auth" "fail" \
+            "No provider authenticated" "At least one of Codex or Gemini must be authenticated"
+    else
+        doctor_add "any-provider-auth" "auth" "pass" \
+            "At least one provider authenticated" ""
+    fi
+
+    # Enterprise backend
+    local backend="${OCTOPUS_BACKEND:-api}"
+    if [[ "$backend" != "api" ]]; then
+        doctor_add "enterprise-backend" "auth" "pass" \
+            "Enterprise backend: $backend" ""
+    fi
+}
+
+# --- Category 3: Config ---
+doctor_check_config() {
+    local plugin_json="$SCRIPT_DIR/../.claude-plugin/plugin.json"
 
     # Plugin version
     local plugin_ver
-    plugin_ver=$(jq -r '.version' "$SCRIPT_DIR/../.claude-plugin/plugin.json" 2>/dev/null || echo "unknown")
-    local skill_count
-    skill_count=$(jq '.skills | length' "$SCRIPT_DIR/../.claude-plugin/plugin.json" 2>/dev/null || echo "?")
-    local cmd_count
-    cmd_count=$(jq '.commands | length' "$SCRIPT_DIR/../.claude-plugin/plugin.json" 2>/dev/null || echo "?")
-    echo -e "\n${BLUE}Plugin:${NC}      v${plugin_ver}"
-    echo -e "${BLUE}Skills:${NC}      ${skill_count}"
-    echo -e "${BLUE}Commands:${NC}    ${cmd_count}"
-
-    # Install scope detection
-    if [[ "$PLUGIN_DIR" == "$HOME/.claude/plugins/"* ]]; then
-        echo -e "${BLUE}Scope:${NC}       user"
-    elif [[ "$PLUGIN_DIR" == *"/.claude/plugins/"* ]]; then
-        echo -e "${BLUE}Scope:${NC}       project (${PLUGIN_DIR})"
+    plugin_ver=$(jq -r '.version' "$plugin_json" 2>/dev/null || echo "unknown")
+    if [[ "$plugin_ver" != "unknown" ]]; then
+        doctor_add "plugin-version" "config" "pass" \
+            "Plugin v${plugin_ver}" ""
     else
-        echo -e "${BLUE}Scope:${NC}       manual/dev (${PLUGIN_DIR})"
+        doctor_add "plugin-version" "config" "fail" \
+            "Cannot read plugin version" "$plugin_json"
     fi
 
-    # Run full preflight
+    # Install scope
+    local scope="unknown"
+    if [[ "$PLUGIN_DIR" == "$HOME/.claude/plugins/"* ]]; then
+        scope="user"
+    elif [[ "$PLUGIN_DIR" == *"/.claude/plugins/"* ]]; then
+        scope="project"
+    else
+        scope="manual/dev"
+    fi
+    doctor_add "install-scope" "config" "pass" \
+        "Install scope: $scope" "$PLUGIN_DIR"
+
+    # Feature flag / CC version consistency
+    local cc_ver="${CLAUDE_CODE_VERSION:-}"
+    if [[ -n "$cc_ver" ]]; then
+        # Check SUPPORTS_SONNET_46 should be true on v2.1.45+
+        if version_compare "$cc_ver" "2.1.45" ">=" 2>/dev/null && [[ "$SUPPORTS_SONNET_46" != "true" ]]; then
+            doctor_add "flag-sonnet-46" "config" "warn" \
+                "SUPPORTS_SONNET_46 is false on CC v${cc_ver}" \
+                "Expected true for v2.1.45+; feature detection may have failed"
+        fi
+        # Check SUPPORTS_STABLE_BG_AGENTS should be true on v2.1.47+
+        if version_compare "$cc_ver" "2.1.47" ">=" 2>/dev/null && [[ "$SUPPORTS_STABLE_BG_AGENTS" != "true" ]]; then
+            doctor_add "flag-stable-bg" "config" "warn" \
+                "SUPPORTS_STABLE_BG_AGENTS is false on CC v${cc_ver}" \
+                "Expected true for v2.1.47+; feature detection may have failed"
+        fi
+    fi
+
+    # OCTOPUS_BACKEND correctly detected
+    local backend="${OCTOPUS_BACKEND:-api}"
+    doctor_add "backend-detection" "config" "pass" \
+        "Backend: $backend" ""
+}
+
+# --- Category 4: State ---
+doctor_check_state() {
+    # state.json integrity
+    if [[ -f ".claude-octopus/state.json" ]]; then
+        if jq empty ".claude-octopus/state.json" 2>/dev/null; then
+            doctor_add "state-json" "state" "pass" \
+                "state.json valid" ".claude-octopus/state.json"
+        else
+            doctor_add "state-json" "state" "fail" \
+                "state.json is invalid JSON" "File exists but cannot be parsed"
+        fi
+    else
+        doctor_add "state-json" "state" "pass" \
+            "No project state (normal for new projects)" ""
+    fi
+
+    # Stale results files (older than 7 days)
+    if [[ -d "${WORKSPACE_DIR}/results" ]]; then
+        local stale_count
+        stale_count=$(find "${WORKSPACE_DIR}/results" -name "*.md" -type f -mtime +7 2>/dev/null | wc -l | tr -d ' ')
+        if [[ "$stale_count" -gt 0 ]]; then
+            doctor_add "stale-results" "state" "warn" \
+                "${stale_count} result file(s) older than 7 days" \
+                "In ${WORKSPACE_DIR}/results — consider cleanup with: orchestrate.sh cleanup"
+        else
+            doctor_add "stale-results" "state" "pass" \
+                "No stale result files" ""
+        fi
+    fi
+
+    # Workspace dir exists and is writable
+    if [[ -d "$WORKSPACE_DIR" && -w "$WORKSPACE_DIR" ]]; then
+        doctor_add "workspace-writable" "state" "pass" \
+            "Workspace writable" "$WORKSPACE_DIR"
+    elif [[ -d "$WORKSPACE_DIR" ]]; then
+        doctor_add "workspace-writable" "state" "fail" \
+            "Workspace not writable" "$WORKSPACE_DIR"
+    else
+        doctor_add "workspace-writable" "state" "fail" \
+            "Workspace directory missing" "$WORKSPACE_DIR"
+    fi
+
+    # Preflight cache staleness
+    if [[ -f "$PREFLIGHT_CACHE_FILE" ]]; then
+        if preflight_cache_valid; then
+            doctor_add "preflight-cache" "state" "pass" \
+                "Preflight cache valid" "$PREFLIGHT_CACHE_FILE"
+        else
+            doctor_add "preflight-cache" "state" "warn" \
+                "Preflight cache stale" "Will re-run on next workflow invocation"
+        fi
+    else
+        doctor_add "preflight-cache" "state" "pass" \
+            "No preflight cache (will create on first run)" ""
+    fi
+}
+
+# --- Category 5: Hooks ---
+doctor_check_hooks() {
+    local hooks_json="$SCRIPT_DIR/../.claude-plugin/hooks.json"
+    if [[ ! -f "$hooks_json" ]]; then
+        doctor_add "hooks-file" "hooks" "fail" \
+            "hooks.json not found" "$hooks_json"
+        return
+    fi
+
+    if ! jq empty "$hooks_json" 2>/dev/null; then
+        doctor_add "hooks-file" "hooks" "fail" \
+            "hooks.json is invalid JSON" "$hooks_json"
+        return
+    fi
+
+    doctor_add "hooks-file" "hooks" "pass" \
+        "hooks.json valid" "$hooks_json"
+
+    # Extract all command paths from hooks.json and verify each exists
+    local commands
+    commands=$(jq -r '.. | objects | select(.command?) | .command' "$hooks_json" 2>/dev/null || true)
+    if [[ -z "$commands" ]]; then
+        return
+    fi
+
+    local hook_count=0
+    local broken_count=0
+    while IFS= read -r cmd_path; do
+        [[ -z "$cmd_path" ]] && continue
+        ((hook_count++))
+
+        # Resolve ${CLAUDE_PLUGIN_ROOT} to actual plugin dir
+        local resolved_path="$cmd_path"
+        resolved_path="${resolved_path//\$\{CLAUDE_PLUGIN_ROOT\}/$PLUGIN_DIR}"
+        resolved_path="${resolved_path//\$CLAUDE_PLUGIN_ROOT/$PLUGIN_DIR}"
+
+        # Handle paths with arguments (take only first word)
+        local script_path
+        script_path=$(echo "$resolved_path" | awk '{print $1}')
+
+        if [[ ! -f "$script_path" ]]; then
+            doctor_add "hook-script-$(basename "$script_path")" "hooks" "fail" \
+                "Hook script missing: $(basename "$script_path")" "$cmd_path -> $script_path"
+            ((broken_count++))
+        elif [[ ! -x "$script_path" ]]; then
+            doctor_add "hook-script-$(basename "$script_path")" "hooks" "warn" \
+                "Hook script not executable: $(basename "$script_path")" "$script_path"
+            ((broken_count++))
+        fi
+    done <<< "$commands"
+
+    if [[ $broken_count -eq 0 && $hook_count -gt 0 ]]; then
+        doctor_add "hook-scripts-all" "hooks" "pass" \
+            "All $hook_count hook scripts valid" ""
+    fi
+}
+
+# --- Category 6: Scheduler ---
+doctor_check_scheduler() {
+    local sched_dir="${HOME}/.claude-octopus/scheduler"
+    local runtime_dir="${sched_dir}/runtime"
+    local pid_file="${runtime_dir}/daemon.pid"
+    local jobs_dir="${sched_dir}/jobs"
+    local switches_dir="${sched_dir}/switches"
+
+    # Daemon running check
+    if [[ -f "$pid_file" ]]; then
+        local daemon_pid
+        daemon_pid=$(cat "$pid_file" 2>/dev/null)
+        if [[ -n "$daemon_pid" ]] && kill -0 "$daemon_pid" 2>/dev/null; then
+            doctor_add "scheduler-daemon" "scheduler" "pass" \
+                "Scheduler daemon running" "PID $daemon_pid"
+        else
+            doctor_add "scheduler-daemon" "scheduler" "warn" \
+                "Scheduler PID file stale" "PID $daemon_pid not running; start with /octo:scheduler start"
+        fi
+    else
+        doctor_add "scheduler-daemon" "scheduler" "pass" \
+            "Scheduler not configured (normal)" "Start with /octo:scheduler start"
+    fi
+
+    # Jobs directory
+    if [[ -d "$jobs_dir" ]]; then
+        local job_count
+        job_count=$(find "$jobs_dir" -name "*.json" -type f 2>/dev/null | wc -l | tr -d ' ')
+        doctor_add "scheduler-jobs" "scheduler" "pass" \
+            "${job_count} scheduled job(s)" "$jobs_dir"
+    fi
+
+    # Budget gate
+    if [[ -n "${OCTOPUS_MAX_COST_USD:-}" ]]; then
+        doctor_add "budget-gate" "scheduler" "pass" \
+            "Budget gate: \$${OCTOPUS_MAX_COST_USD}/day" ""
+    else
+        doctor_add "budget-gate" "scheduler" "warn" \
+            "No budget gate configured" "Set OCTOPUS_MAX_COST_USD to limit daily spend"
+    fi
+
+    # Kill switches
+    if [[ -d "$switches_dir" ]]; then
+        local kill_files
+        kill_files=$(find "$switches_dir" -name "*.kill" -type f 2>/dev/null | wc -l | tr -d ' ')
+        if [[ "$kill_files" -gt 0 ]]; then
+            doctor_add "kill-switches" "scheduler" "warn" \
+                "${kill_files} kill switch(es) active" "Check ${switches_dir}/*.kill"
+        else
+            doctor_add "kill-switches" "scheduler" "pass" \
+                "No kill switches active" ""
+        fi
+    fi
+}
+
+# --- Category 7: Skills ---
+doctor_check_skills() {
+    local plugin_json="$SCRIPT_DIR/../.claude-plugin/plugin.json"
+    if [[ ! -f "$plugin_json" ]]; then
+        doctor_add "plugin-json" "skills" "fail" \
+            "plugin.json not found" "$plugin_json"
+        return
+    fi
+
+    # Verify skill files exist
+    local skill_total skill_missing=0
+    skill_total=$(jq '.skills | length' "$plugin_json" 2>/dev/null || echo "0")
+    local i=0
+    while [[ $i -lt $skill_total ]]; do
+        local skill_path
+        skill_path=$(jq -r ".skills[$i]" "$plugin_json" 2>/dev/null)
+        # Resolve relative paths from plugin dir
+        local resolved="${PLUGIN_DIR}/${skill_path#./}"
+        if [[ ! -f "$resolved" ]]; then
+            doctor_add "skill-missing-$(basename "$skill_path")" "skills" "fail" \
+                "Skill file missing: $(basename "$skill_path")" "$resolved"
+            ((skill_missing++))
+        fi
+        ((i++))
+    done
+    if [[ $skill_missing -eq 0 ]]; then
+        doctor_add "skills-all" "skills" "pass" \
+            "All $skill_total skill files present" ""
+    fi
+
+    # Verify command files exist
+    local cmd_total cmd_missing=0
+    cmd_total=$(jq '.commands | length' "$plugin_json" 2>/dev/null || echo "0")
+    i=0
+    while [[ $i -lt $cmd_total ]]; do
+        local cmd_path
+        cmd_path=$(jq -r ".commands[$i]" "$plugin_json" 2>/dev/null)
+        local resolved="${PLUGIN_DIR}/${cmd_path#./}"
+        if [[ ! -f "$resolved" ]]; then
+            doctor_add "cmd-missing-$(basename "$cmd_path")" "skills" "fail" \
+                "Command file missing: $(basename "$cmd_path")" "$resolved"
+            ((cmd_missing++))
+        fi
+        ((i++))
+    done
+    if [[ $cmd_missing -eq 0 ]]; then
+        doctor_add "commands-all" "skills" "pass" \
+            "All $cmd_total command files present" ""
+    fi
+}
+
+# --- Category 8: Conflicts ---
+doctor_check_conflicts() {
+    local claude_plugins_dir="$HOME/.claude/plugins"
+    local conflicts=0
+
+    if [[ -d "$claude_plugins_dir/oh-my-claude-code" ]]; then
+        doctor_add "conflict-oh-my-claude" "conflicts" "warn" \
+            "oh-my-claude-code detected" "Has own cost-aware routing — may overlap with Octopus provider selection"
+        ((conflicts++))
+    fi
+
+    if [[ -d "$claude_plugins_dir/claude-flow" ]]; then
+        doctor_add "conflict-claude-flow" "conflicts" "warn" \
+            "claude-flow detected" "May spawn competing subagents"
+        ((conflicts++))
+    fi
+
+    if [[ -d "$claude_plugins_dir/agents" ]] || [[ -d "$claude_plugins_dir/wshobson-agents" ]]; then
+        doctor_add "conflict-wshobson-agents" "conflicts" "warn" \
+            "wshobson/agents detected" "Large context consumption"
+        ((conflicts++))
+    fi
+
+    if [[ $conflicts -eq 0 ]]; then
+        doctor_add "no-conflicts" "conflicts" "pass" \
+            "No conflicting plugins detected" ""
+    fi
+}
+
+# --- Output: Human-readable ---
+doctor_output_human() {
+    local verbose="${1:-false}"
+    local total=${#DOCTOR_RESULTS_NAME[@]}
+    local pass_count=0 warn_count=0 fail_count=0
+    local current_cat=""
+
+    for ((i=0; i<total; i++)); do
+        local status="${DOCTOR_RESULTS_STATUS[$i]}"
+        case "$status" in
+            pass) ((pass_count++)) ;;
+            warn) ((warn_count++)) ;;
+            fail) ((fail_count++)) ;;
+        esac
+    done
+
+    for ((i=0; i<total; i++)); do
+        local name="${DOCTOR_RESULTS_NAME[$i]}"
+        local cat="${DOCTOR_RESULTS_CAT[$i]}"
+        local status="${DOCTOR_RESULTS_STATUS[$i]}"
+        local msg="${DOCTOR_RESULTS_MSG[$i]}"
+        local detail="${DOCTOR_RESULTS_DETAIL[$i]}"
+
+        # Skip passing checks in non-verbose mode
+        if [[ "$verbose" != "true" && "$status" == "pass" ]]; then
+            continue
+        fi
+
+        # Print category header on change
+        if [[ "$cat" != "$current_cat" ]]; then
+            current_cat="$cat"
+            echo -e "\n${BOLD}${BLUE}[$cat]${NC}"
+        fi
+
+        # Status icon
+        local icon
+        case "$status" in
+            pass) icon="${GREEN}✓${NC}" ;;
+            warn) icon="${YELLOW}⚠${NC}" ;;
+            fail) icon="${RED}✗${NC}" ;;
+        esac
+
+        echo -e "  ${icon} ${msg}"
+        if [[ -n "$detail" && "$verbose" == "true" ]]; then
+            echo -e "    ${DIM}${detail}${NC}"
+        fi
+    done
+
+    # All-clear message in non-verbose mode
+    if [[ "$verbose" != "true" && $warn_count -eq 0 && $fail_count -eq 0 ]]; then
+        echo -e "\n  ${GREEN}✓${NC} All checks passed. Use ${DIM}--verbose${NC} to see details."
+    fi
+
+    # Summary line
     echo ""
-    preflight_check true
+    local summary="${BOLD}Summary:${NC} ${GREEN}${pass_count} passed${NC}"
+    [[ $warn_count -gt 0 ]] && summary+=", ${YELLOW}${warn_count} warning(s)${NC}"
+    [[ $fail_count -gt 0 ]] && summary+=", ${RED}${fail_count} failure(s)${NC}"
+    echo -e "$summary"
+
+    if [[ $fail_count -gt 0 ]]; then
+        return 1
+    fi
+    return 0
+}
+
+# --- Output: JSON ---
+doctor_output_json() {
+    local total=${#DOCTOR_RESULTS_NAME[@]}
+    local json="["
+    for ((i=0; i<total; i++)); do
+        [[ $i -gt 0 ]] && json+=","
+        # Escape strings for JSON safety
+        local name="${DOCTOR_RESULTS_NAME[$i]}"
+        local cat="${DOCTOR_RESULTS_CAT[$i]}"
+        local status="${DOCTOR_RESULTS_STATUS[$i]}"
+        local msg="${DOCTOR_RESULTS_MSG[$i]//\"/\\\"}"
+        local detail="${DOCTOR_RESULTS_DETAIL[$i]//\"/\\\"}"
+        json+="{\"name\":\"$name\",\"category\":\"$cat\",\"status\":\"$status\",\"message\":\"$msg\",\"detail\":\"$detail\"}"
+    done
+    json+="]"
+    echo "$json"
+}
+
+# --- Main Doctor Runner ---
+do_doctor() {
+    local category_filter=""
+    local verbose=false
+    local json_output=false
+
+    # Parse arguments
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --verbose|-v) verbose=true ;;
+            --json) json_output=true ;;
+            -*) ;; # ignore unknown flags
+            *) [[ -z "$category_filter" ]] && category_filter="$1" ;;
+        esac
+        shift
+    done
+
+    # Reset results
+    DOCTOR_RESULTS_NAME=()
+    DOCTOR_RESULTS_CAT=()
+    DOCTOR_RESULTS_STATUS=()
+    DOCTOR_RESULTS_MSG=()
+    DOCTOR_RESULTS_DETAIL=()
+
+    # Run checks (filtered if category specified)
+    local categories=(providers auth config state hooks scheduler skills conflicts)
+    for cat in "${categories[@]}"; do
+        if [[ -z "$category_filter" || "$category_filter" == "$cat" ]]; then
+            "doctor_check_${cat}"
+        fi
+    done
+
+    # Output
+    if [[ "$json_output" == "true" ]]; then
+        doctor_output_json
+    else
+        echo -e "${MAGENTA}═══════════════════════════════════════════════════════════${NC}"
+        echo -e "${MAGENTA}  Claude Octopus Doctor${NC}"
+        echo -e "${MAGENTA}═══════════════════════════════════════════════════════════${NC}"
+        doctor_output_human "$verbose"
+    fi
 }
 
 # Synchronous agent execution (for sequential steps within phases)
@@ -15185,7 +15655,8 @@ case "$COMMAND" in
         do_release
         ;;
     doctor)
-        do_doctor
+        shift
+        do_doctor "$@"
         ;;
     octopus-configure)
         setup_wizard
