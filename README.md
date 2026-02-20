@@ -7,7 +7,7 @@ Every model has blind spots. Claude Octopus fills them by orchestrating Codex, G
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-8.15.1-blue" alt="Version 8.15.1">
+  <img src="https://img.shields.io/badge/Version-8.16.0-blue" alt="Version 8.16.0">
   <img src="https://img.shields.io/badge/Claude_Code-v2.1.34+-blueviolet" alt="Requires Claude Code v2.1.34+">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
 </p>
@@ -72,6 +72,7 @@ Each command orchestrates up to three AI providers, applies quality gates, and p
 | `/octo:docs` | Export to PPTX, DOCX, PDF |
 | `/octo:schedule` | Scheduled workflow runner with cron, budget gates, kill switches |
 | `/octo:brainstorm` | Creative thought partner session |
+| `doctor` | Environment diagnostics — 8 check categories with filtering and JSON output |
 
 Don't remember the command name? Just describe what you need:
 
