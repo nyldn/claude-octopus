@@ -86,7 +86,8 @@
     "./.claude/skills/skill-resume.md",
     "./.claude/skills/skill-resume-enhanced.md",
     "./.claude/skills/skill-ship.md",
-    "./.claude/skills/skill-deck.md"
+    "./.claude/skills/skill-deck.md",
+    "./.claude/skills/flow-spec.md"
   ],
   "commands": [
     "./.claude/commands/octo.md",
@@ -129,6 +130,7 @@
     "./.claude/commands/rollback.md",
     "./.claude/commands/deck.md",
     "./.claude/commands/scheduler.md",
-    "./.claude/commands/schedule.md"
+    "./.claude/commands/schedule.md",
+    "./.claude/commands/spec.md"
   ]
 }
