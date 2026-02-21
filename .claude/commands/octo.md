@@ -37,6 +37,7 @@ The router uses keyword matching and confidence scoring to determine the best wo
 | **Validate** | validate, review, check, audit, inspect, verify | `/octo:review` | 75% |
 | **Debate** | should, vs, or, compare, versus, decide, which | `/octo:debate` | 70% |
 | **Specify** | spec, specify, specification, requirements, define scope, nlspec | `/octo:spec` | 75% |
+| **Parallel** | parallel, team, decompose, work packages, compound, multi-instance | `/octo:parallel` | 80% |
 | **Lifecycle** | end-to-end, complete, full, entire, whole | `/octo:embrace` | 85% |
 
 ### Confidence Levels
@@ -109,6 +110,7 @@ You can always bypass the router and call workflows directly:
 /octo:debate       # AI debate
 /octo:embrace      # Full lifecycle
 /octo:spec         # NLSpec authoring
+/octo:parallel     # Team of Teams - parallel work packages
 /octo:plan         # Requirements planning
 /octo:review       # Quality review and validation
 ```
@@ -168,6 +170,9 @@ Match keywords against the routing table:
 **Debate Keywords**: should, vs, or, compare, versus, decide, which
 - If found → Debate intent
 
+**Parallel Keywords**: parallel, team, teams, decompose, "work packages", compound, "break down", "split into", multi-instance
+- If found → Parallel intent
+
 **Lifecycle Keywords**: end-to-end, complete, full, entire, whole, everything
 - If found → Lifecycle intent
 
@@ -207,7 +212,8 @@ I'm not sure which workflow fits best. Here are your options:
 3. **Build** (/octo:develop) - Implementation with quality gates
 4. **Validate** (/octo:validate) - Quality assurance and validation
 5. **Debate** (/octo:debate) - Three-way AI debate
-6. **Lifecycle** (/octo:embrace) - Full 4-phase workflow
+6. **Parallel** (/octo:parallel) - Team of Teams parallel work packages
+7. **Lifecycle** (/octo:embrace) - Full 4-phase workflow
 
 Which would you like, or would you like to rephrase your request?
 ```
@@ -234,6 +240,9 @@ Skill: "validate", args: "<user query>"
 
 # For debate intent
 Skill: "debate", args: "<user query>"
+
+# For parallel intent
+Skill: "parallel", args: "<user query>"
 
 # For lifecycle intent
 Skill: "embrace", args: "<user query>"
