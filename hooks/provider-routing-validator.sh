@@ -71,6 +71,29 @@ parse_workflow_command() {
     fi
 }
 
+# v8.19: Check smoke test cache status (Issue #34)
+# Non-blocking: warns only, does not prevent execution
+check_smoke_test_status() {
+    local workspace_dir="${CLAUDE_OCTOPUS_WORKSPACE:-${HOME}/.claude-octopus}"
+    local cache_file="${workspace_dir}/.smoke-test-cache"
+
+    [[ -f "$cache_file" ]] || return 0
+
+    local cache_time cache_status current_time cache_age cache_ttl
+    cache_time=$(head -1 "$cache_file" 2>/dev/null || echo "0")
+    cache_status=$(sed -n '3p' "$cache_file" 2>/dev/null || echo "")
+    current_time=$(date +%s)
+    cache_age=$((current_time - cache_time))
+    cache_ttl=3600
+
+    # Only warn if cache is recent and shows failure
+    if [[ $cache_age -lt $cache_ttl && "$cache_status" == "1" ]]; then
+        echo "⚠️  Provider smoke test previously failed — workflow may produce empty results"
+        echo "   Re-run: bash orchestrate.sh doctor smoke"
+        log "WARN" "Smoke test cache indicates previous failure (${cache_age}s ago)"
+    fi
+}
+
 # Main validation logic
 main() {
     log "INFO" "Provider routing validation hook triggered"
@@ -83,6 +106,9 @@ main() {
         log "DEBUG" "No command to validate, proceeding"
         exit 0
     fi
+
+    # Check smoke test status (non-blocking warning)
+    check_smoke_test_status
 
     # Validate providers for this workflow
     parse_workflow_command "$bash_command"

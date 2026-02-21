@@ -3440,6 +3440,7 @@ MAX_PARALLEL=3
 TIMEOUT=600  # v7.20.1: Increased from 300s (5min) to 600s (10min) for better probe reliability (~25% -> 95% success rate)
 VERBOSE=false
 DRY_RUN=false
+SKIP_SMOKE_TEST="${OCTOPUS_SKIP_SMOKE_TEST:-false}"
 
 # v3.0 Feature: Autonomy Modes & Quality Control
 # - autonomous: Full auto, proceed on failures
@@ -4478,6 +4479,7 @@ ${YELLOW}Advanced Options:${NC}
   --tier LEVEL            Force tier: trivial|standard|premium
   --on-fail ACTION        auto|retry|escalate|abort
   --no-personas           Disable agent personas
+  --skip-smoke-test       Skip provider smoke test (not recommended)
   -R, --resume            Resume interrupted session
   --ci                    CI/CD mode (non-interactive, JSON output)
 
@@ -11351,6 +11353,286 @@ preflight_cache_read() {
 # Invalidate preflight cache (call after setup or config changes)
 preflight_cache_invalidate() {
     rm -f "$PREFLIGHT_CACHE_FILE" 2>/dev/null || true
+    rm -f "$SMOKE_TEST_CACHE_FILE" 2>/dev/null || true
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PROVIDER SMOKE TEST (v8.19.0 - Issue #34)
+# Fast parallel test that catches real provider failures before workflow starts
+# ═══════════════════════════════════════════════════════════════════════════════
+
+SMOKE_TEST_CACHE_FILE="${WORKSPACE_DIR}/.smoke-test-cache"
+
+# Compute cache key from current model config (auto-invalidates on config change)
+smoke_test_cache_key() {
+    local codex_model gemini_model codex_sandbox gemini_sandbox
+    codex_model=$(get_agent_model "codex" 2>/dev/null || echo "default")
+    gemini_model=$(get_agent_model "gemini" 2>/dev/null || echo "default")
+    codex_sandbox="${OCTOPUS_CODEX_SANDBOX:-workspace-write}"
+    gemini_sandbox="${OCTOPUS_GEMINI_SANDBOX:-headless}"
+    echo "${codex_model}:${gemini_model}:${codex_sandbox}:${gemini_sandbox}"
+}
+
+# Check if smoke test cache is still valid (same config, within TTL)
+smoke_test_cache_valid() {
+    [[ -f "$SMOKE_TEST_CACHE_FILE" ]] || return 1
+
+    local cache_time cache_key cache_status current_time cache_age
+    cache_time=$(head -1 "$SMOKE_TEST_CACHE_FILE" 2>/dev/null || echo "0")
+    cache_key=$(sed -n '2p' "$SMOKE_TEST_CACHE_FILE" 2>/dev/null || echo "")
+    cache_status=$(sed -n '3p' "$SMOKE_TEST_CACHE_FILE" 2>/dev/null || echo "1")
+    current_time=$(date +%s)
+    cache_age=$((current_time - cache_time))
+
+    # Invalid if expired or config changed
+    [[ $cache_age -lt $PREFLIGHT_CACHE_TTL ]] || return 1
+    [[ "$cache_key" == "$(smoke_test_cache_key)" ]] || return 1
+
+    # Return cached status (0=passed, 1=failed)
+    return "$cache_status"
+}
+
+# Write smoke test cache (stores timestamp, config key, and status)
+smoke_test_cache_write() {
+    local status="$1"
+    mkdir -p "$(dirname "$SMOKE_TEST_CACHE_FILE")"
+    {
+        date +%s
+        smoke_test_cache_key
+        echo "$status"
+    } > "$SMOKE_TEST_CACHE_FILE"
+}
+
+# Classify provider error from stderr output
+_classify_smoke_error() {
+    local stderr_output="$1"
+
+    if echo "$stderr_output" | grep -qiE "model.*not found|does not exist|unknown model|invalid model|no such model"; then
+        echo "MODEL_NOT_FOUND"
+    elif echo "$stderr_output" | grep -qiE "auth|unauthorized|forbidden|401|403|invalid.*key|expired.*token|login required"; then
+        echo "AUTH_FAILURE"
+    elif echo "$stderr_output" | grep -qiE "rate.?limit|429|too many requests|quota"; then
+        echo "RATE_LIMITED"
+    elif echo "$stderr_output" | grep -qiE "policy|blocked|safety|filtered|content.?filter|recitation"; then
+        echo "POLICY_BLOCKED"
+    else
+        echo "UNKNOWN"
+    fi
+}
+
+# Display actionable error message for a smoke test failure
+_display_smoke_test_error() {
+    local provider="$1"
+    local error_type="$2"
+    local model="${3:-}"
+
+    case "$error_type" in
+        MODEL_NOT_FOUND)
+            echo -e "  ${RED}✗${NC} ${provider}: Model '${model}' not available"
+            if [[ "$provider" == "codex" ]]; then
+                echo -e "    ${DIM}Fix: export OCTOPUS_CODEX_MODEL=gpt-5.3-codex${NC}"
+            else
+                echo -e "    ${DIM}Fix: export OCTOPUS_GEMINI_MODEL=gemini-3-pro-preview${NC}"
+            fi
+            ;;
+        AUTH_FAILURE)
+            echo -e "  ${RED}✗${NC} ${provider}: Authentication failed"
+            if [[ "$provider" == "codex" ]]; then
+                echo -e "    ${DIM}Fix: codex login  OR  export OPENAI_API_KEY=\"sk-...\"${NC}"
+            else
+                echo -e "    ${DIM}Fix: gemini  (OAuth)  OR  export GEMINI_API_KEY=\"...\"${NC}"
+            fi
+            ;;
+        RATE_LIMITED)
+            echo -e "  ${YELLOW}⚠${NC} ${provider}: Rate limited (429). Wait and retry."
+            ;;
+        POLICY_BLOCKED)
+            echo -e "  ${RED}✗${NC} ${provider}: Request blocked by policy"
+            if [[ "$provider" == "gemini" ]]; then
+                echo -e "    ${DIM}Fix: Check Gemini safety settings / API restrictions${NC}"
+            else
+                echo -e "    ${DIM}Fix: Check OpenAI usage policy / content filter settings${NC}"
+            fi
+            ;;
+        TIMEOUT)
+            echo -e "  ${YELLOW}⚠${NC} ${provider}: Smoke test timed out. Provider may be slow or down."
+            ;;
+        UNKNOWN)
+            echo -e "  ${RED}✗${NC} ${provider}: Smoke test failed (unknown error)"
+            echo -e "    ${DIM}Run with VERBOSE=true for details${NC}"
+            ;;
+    esac
+}
+
+# Test a single provider by sending a trivial prompt
+_smoke_test_provider() {
+    local provider="$1"
+    local smoke_timeout="${2:-10}"
+    local result_file="$3"
+    local agent_type model cmd stderr_file exit_code
+
+    # Determine agent type and get model
+    case "$provider" in
+        codex) agent_type="codex" ;;
+        gemini) agent_type="gemini" ;;
+        *) echo "SKIP" > "$result_file"; return 0 ;;
+    esac
+
+    model=$(get_agent_model "$agent_type" 2>/dev/null || echo "")
+    stderr_file=$(secure_tempfile "smoke-stderr-${provider}")
+
+    log DEBUG "Smoke test ${provider}: model=${model}"
+
+    # Build and execute command with trivial prompt
+    local cmd_str
+    cmd_str=$(get_agent_command "$agent_type")
+
+    if [[ -z "$cmd_str" ]]; then
+        echo "SKIP" > "$result_file"
+        return 0
+    fi
+
+    # Send trivial prompt with timeout
+    local smoke_exit=0
+    if [[ "$provider" == "codex" ]]; then
+        run_with_timeout "$smoke_timeout" \
+            $cmd_str "Reply with exactly: ok" \
+            >/dev/null 2>"$stderr_file" || smoke_exit=$?
+    else
+        # Gemini: prompt via stdin with -p "" for headless trigger
+        echo "Reply with exactly: ok" | run_with_timeout "$smoke_timeout" \
+            $cmd_str -p "" \
+            >/dev/null 2>"$stderr_file" || smoke_exit=$?
+    fi
+
+    if [[ $smoke_exit -eq 0 ]]; then
+        echo "PASS" > "$result_file"
+        log DEBUG "Smoke test ${provider}: passed"
+    elif [[ $smoke_exit -eq 124 ]]; then
+        # 124 = timeout exit code from GNU timeout / run_with_timeout
+        echo "TIMEOUT:${model}" > "$result_file"
+        log DEBUG "Smoke test ${provider}: timed out"
+    else
+        local error_type
+        error_type=$(_classify_smoke_error "$(cat "$stderr_file" 2>/dev/null)")
+        echo "${error_type}:${model}" > "$result_file"
+        log DEBUG "Smoke test ${provider}: failed (${error_type})"
+        [[ "$VERBOSE" == "true" ]] && cat "$stderr_file" >&2
+    fi
+
+    rm -f "$stderr_file" 2>/dev/null
+}
+
+# Orchestrate parallel smoke tests for all available providers
+provider_smoke_test() {
+    local force_check="${1:-false}"
+
+    # Skip if user opted out
+    if [[ "$SKIP_SMOKE_TEST" == "true" ]]; then
+        log DEBUG "Smoke test: skipped (--skip-smoke-test)"
+        return 0
+    fi
+
+    # Return cached result if valid (unless forced)
+    if [[ "$force_check" != "true" ]] && smoke_test_cache_valid; then
+        log DEBUG "Smoke test: using cached result (passed)"
+        return 0
+    fi
+
+    log INFO "Running provider smoke test... 🐙"
+
+    # Determine which providers are available (from preflight state)
+    local has_codex=false has_gemini=false
+    command -v codex &>/dev/null && has_codex=true
+    command -v gemini &>/dev/null && has_gemini=true
+
+    if [[ "$has_codex" == "false" && "$has_gemini" == "false" ]]; then
+        log WARN "Smoke test: no providers to test"
+        return 0
+    fi
+
+    # Launch parallel smoke tests
+    local codex_result_file gemini_result_file
+    codex_result_file=$(secure_tempfile "smoke-codex")
+    gemini_result_file=$(secure_tempfile "smoke-gemini")
+    local pids=()
+
+    if [[ "$has_codex" == "true" ]]; then
+        _smoke_test_provider "codex" 10 "$codex_result_file" &
+        pids+=($!)
+    else
+        echo "SKIP" > "$codex_result_file"
+    fi
+
+    if [[ "$has_gemini" == "true" ]]; then
+        _smoke_test_provider "gemini" 10 "$gemini_result_file" &
+        pids+=($!)
+    else
+        echo "SKIP" > "$gemini_result_file"
+    fi
+
+    # Wait for all background tests
+    for pid in "${pids[@]}"; do
+        wait "$pid" 2>/dev/null || true
+    done
+
+    # Collect results
+    local codex_result gemini_result
+    codex_result=$(cat "$codex_result_file" 2>/dev/null || echo "SKIP")
+    gemini_result=$(cat "$gemini_result_file" 2>/dev/null || echo "SKIP")
+    rm -f "$codex_result_file" "$gemini_result_file" 2>/dev/null
+
+    local pass_count=0 fail_count=0 skip_count=0
+
+    for result in "$codex_result" "$gemini_result"; do
+        case "${result%%:*}" in
+            PASS) ((pass_count++)) ;;
+            SKIP) ((skip_count++)) ;;
+            *) ((fail_count++)) ;;
+        esac
+    done
+
+    # Display results
+    if [[ $fail_count -gt 0 ]]; then
+        echo ""
+        if [[ "$codex_result" != "PASS" && "$codex_result" != "SKIP" ]]; then
+            local codex_error="${codex_result%%:*}"
+            local codex_model="${codex_result#*:}"
+            _display_smoke_test_error "Codex" "$codex_error" "$codex_model"
+        fi
+        if [[ "$gemini_result" != "PASS" && "$gemini_result" != "SKIP" ]]; then
+            local gemini_error="${gemini_result%%:*}"
+            local gemini_model="${gemini_result#*:}"
+            _display_smoke_test_error "Gemini" "$gemini_error" "$gemini_model"
+        fi
+        echo ""
+    fi
+
+    # Pass if at least one provider succeeds (consistent with v7.9.1 single-provider mode)
+    if [[ $pass_count -gt 0 ]]; then
+        if [[ $fail_count -gt 0 ]]; then
+            log WARN "Smoke test: degraded mode ($pass_count/$((pass_count + fail_count)) providers passed)"
+        else
+            log INFO "Smoke test passed ($pass_count provider(s) verified)"
+        fi
+        smoke_test_cache_write "0"
+        return 0
+    fi
+
+    # All providers failed
+    log ERROR "Smoke test failed: no providers responded successfully"
+    echo -e "${RED}╔═══════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${RED}║  ❌ PROVIDER SMOKE TEST FAILED                                ║${NC}"
+    echo -e "${RED}╚═══════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    echo -e "No AI providers could process a test request."
+    echo -e "This means workflows will produce ${YELLOW}empty results${NC}."
+    echo ""
+    echo -e "${DIM}Skip with: --skip-smoke-test  (not recommended)${NC}"
+    echo -e "${DIM}Re-test:   bash orchestrate.sh doctor smoke${NC}"
+    echo ""
+    smoke_test_cache_write "1"
+    return 1
 }
 
 # Pre-flight dependency validation
@@ -11500,6 +11782,14 @@ preflight_check() {
 
     log INFO "Pre-flight checks passed 🐙"
     echo -e "${GREEN}✓${NC} All 8 tentacles accounted for and ready to work!"
+
+    # v8.19: Provider smoke test (Issue #34)
+    if ! provider_smoke_test "$force_check"; then
+        log ERROR "Provider smoke test failed"
+        preflight_cache_write "1"
+        return 1
+    fi
+
     preflight_cache_write "0"  # Cache success
     return 0
 }
@@ -11990,6 +12280,52 @@ doctor_check_conflicts() {
     fi
 }
 
+# --- Category 9: Smoke Test (v8.19.0 - Issue #34) ---
+doctor_check_smoke() {
+    # Cache status
+    if [[ -f "$SMOKE_TEST_CACHE_FILE" ]]; then
+        local cache_time cache_key cache_status current_time cache_age
+        cache_time=$(head -1 "$SMOKE_TEST_CACHE_FILE" 2>/dev/null || echo "0")
+        cache_key=$(sed -n '2p' "$SMOKE_TEST_CACHE_FILE" 2>/dev/null || echo "")
+        cache_status=$(sed -n '3p' "$SMOKE_TEST_CACHE_FILE" 2>/dev/null || echo "1")
+        current_time=$(date +%s)
+        cache_age=$((current_time - cache_time))
+
+        if [[ $cache_age -lt $PREFLIGHT_CACHE_TTL && "$cache_key" == "$(smoke_test_cache_key)" ]]; then
+            if [[ "$cache_status" == "0" ]]; then
+                doctor_add "smoke-cache" "smoke" "pass" \
+                    "Smoke test cache valid (passed ${cache_age}s ago)" "$cache_key"
+            else
+                doctor_add "smoke-cache" "smoke" "fail" \
+                    "Smoke test cache valid (FAILED ${cache_age}s ago)" "$cache_key"
+            fi
+        else
+            doctor_add "smoke-cache" "smoke" "warn" \
+                "Smoke test cache expired or stale" "Will re-test on next run"
+        fi
+    else
+        doctor_add "smoke-cache" "smoke" "warn" \
+            "No smoke test cache found" "Will test on next run"
+    fi
+
+    # Current model config
+    local codex_model gemini_model
+    codex_model=$(get_agent_model "codex" 2>/dev/null || echo "not configured")
+    gemini_model=$(get_agent_model "gemini" 2>/dev/null || echo "not configured")
+
+    doctor_add "smoke-codex-model" "smoke" "pass" \
+        "Codex model: ${codex_model}" "OCTOPUS_CODEX_MODEL=${OCTOPUS_CODEX_MODEL:-<default>}"
+    doctor_add "smoke-gemini-model" "smoke" "pass" \
+        "Gemini model: ${gemini_model}" "OCTOPUS_GEMINI_MODEL=${OCTOPUS_GEMINI_MODEL:-<default>}"
+
+    # Skip flag
+    if [[ "$SKIP_SMOKE_TEST" == "true" ]]; then
+        doctor_add "smoke-skip" "smoke" "warn" \
+            "Smoke test DISABLED (--skip-smoke-test or OCTOPUS_SKIP_SMOKE_TEST=true)" \
+            "Not recommended — provider failures will only be caught at runtime"
+    fi
+}
+
 # --- Output: Human-readable ---
 doctor_output_human() {
     local verbose="${1:-false}"
@@ -12099,7 +12435,7 @@ do_doctor() {
     DOCTOR_RESULTS_DETAIL=()
 
     # Run checks (filtered if category specified)
-    local categories=(providers auth config state hooks scheduler skills conflicts)
+    local categories=(providers auth config state smoke hooks scheduler skills conflicts)
     for cat in "${categories[@]}"; do
         if [[ -z "$category_filter" || "$category_filter" == "$cat" ]]; then
             "doctor_check_${cat}"
@@ -15482,6 +15818,7 @@ while [[ $# -gt 0 ]]; do
         --branch) FORCE_BRANCH="$2"; shift 2 ;;
         --on-fail) ON_FAIL_ACTION="$2"; shift 2 ;;
         --no-personas) DISABLE_PERSONAS=true; shift ;;
+        --skip-smoke-test) SKIP_SMOKE_TEST=true; shift ;;
         --ci) CI_MODE=true; AUTONOMY_MODE="autonomous"; shift ;;
         # Multi-provider routing flags (v4.8)
         --provider) FORCE_PROVIDER="$2"; shift 2 ;;
