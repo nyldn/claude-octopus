@@ -144,5 +144,17 @@
         }
       ]
     }
+  ],
+  "ConfigChange": [
+    {
+      "matcher": {},
+      "hooks": [
+        {
+          "type": "command",
+          "command": "${CLAUDE_PLUGIN_ROOT}/hooks/config-change-handler.sh",
+          "additionalContext": "Session: ${CLAUDE_SESSION_ID}, Workflow: ${OCTOPUS_WORKFLOW_PHASE:-unknown}"
+        }
+      ]
+    }
   ]
 }

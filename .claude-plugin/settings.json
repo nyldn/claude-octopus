@@ -1,0 +1,7 @@
+{
+  "OCTOPUS_ROUTING_MODE": "round-robin",
+  "OCTOPUS_AUTONOMY": "supervised",
+  "OCTOPUS_OPUS_MODE": "standard",
+  "OCTOPUS_MAX_COST_USD": "",
+  "OCTOPUS_GEMINI_SANDBOX": "headless"
+}
