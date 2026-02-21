@@ -1,3 +1,14 @@
+## [8.17.1] - 2026-02-21
+
+### Fixed
+
+- **Auto-migrate stale provider model names** (Issue #39): `migrate_provider_config()` detects and replaces deprecated model names (e.g. `claude-sonnet-4-5`, `gemini-2.0-flash-thinking`) with current equivalents on first access, preventing smoke test failures for users with older configs
+- **Test runner auto-discovery**: Replaced hardcoded 12-test list with glob-based discovery (56 suites found), added `--fail-fast`, `--list`, `--root`, `--everything` flags
+- **False-positive test assertions**: Fixed `|| true` pattern that masked real failures, pass-in-both-branches logic, and `-n` flag ordering across 15 invocations in 3 test files
+- **Stale test references**: Removed obsolete submodule tests, updated assertion patterns to match current output format
+
+---
+
 ## [8.17.0] - 2026-02-21
 
 ### Added
