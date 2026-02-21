@@ -1,3 +1,19 @@
+## [8.17.0] - 2026-02-21
+
+### Added
+
+**Team of Teams — `/octo:parallel` (E20):**
+- Hierarchical multi-instance orchestration: decompose compound tasks into independent `claude -p` work packages
+- Each work package runs as a separate `claude -p` process with the full Octopus plugin loaded
+- 7-step enforced execution contract: clarifying questions, visual indicators, state read, WBS decomposition, instruction generation, staggered launch & monitoring, aggregation
+- Work Breakdown Structure (WBS) stored in `.octo/parallel/wbs.json`
+- Per-WP coordination files: `instructions.md`, `launch.sh`, `output.md`, `agent.log`, `exit-code`, `.done`
+- 12-second stagger between process launches, 15-second polling, 10-minute timeout
+- Smart router integration: `/octo parallel`, `/octo team`, keyword-based routing
+- New command: `/octo:parallel` (aliases: `/octo:team`, `/octo:teams`)
+
+---
+
 ## [8.16.0] - 2026-02-20
 
 ### Added

@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "8.16.0",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v8.16.0) Modular doctor diagnostics with 8 check categories, filtering, and JSON output. Scheduled workflow runner with daemon mode, cron scheduling, budget gates, and kill switches. State management wired into workflow lifecycle, codebase-aware discover phase, human-readable STATE.md generation. Persistent project state across sessions. 31 expert personas, 41 commands, 44 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
+  "version": "8.17.0",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v8.17.0) Team of Teams parallel orchestration with independent claude -p work packages. Modular doctor diagnostics with 8 check categories, filtering, and JSON output. Scheduled workflow runner with daemon mode, cron scheduling, budget gates, and kill switches. State management wired into workflow lifecycle, codebase-aware discover phase, human-readable STATE.md generation. Persistent project state across sessions. 31 expert personas, 43 commands, 46 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },
