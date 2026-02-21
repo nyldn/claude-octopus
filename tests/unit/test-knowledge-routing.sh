@@ -13,7 +13,7 @@ test_suite "Knowledge Worker Routing (v6.0)"
 test_empathize_command() {
     test_case "empathize command executes in dry-run mode"
 
-    local output=$("$PROJECT_ROOT/scripts/orchestrate.sh" empathize -n "synthesize user interview findings" 2>&1)
+    local output=$("$PROJECT_ROOT/scripts/orchestrate.sh" -n empathize "synthesize user interview findings" 2>&1)
     local exit_code=$?
 
     assert_success "$exit_code" "empathize should succeed in dry-run"
@@ -27,7 +27,7 @@ test_empathize_command() {
 test_advise_command() {
     test_case "advise command executes in dry-run mode"
 
-    local output=$("$PROJECT_ROOT/scripts/orchestrate.sh" advise -n "analyze market entry strategy" 2>&1)
+    local output=$("$PROJECT_ROOT/scripts/orchestrate.sh" -n advise "analyze market entry strategy" 2>&1)
     local exit_code=$?
 
     assert_success "$exit_code" "advise should succeed in dry-run"
@@ -41,7 +41,7 @@ test_advise_command() {
 test_synthesize_command() {
     test_case "synthesize command executes in dry-run mode"
 
-    local output=$("$PROJECT_ROOT/scripts/orchestrate.sh" synthesize -n "literature review on machine learning" 2>&1)
+    local output=$("$PROJECT_ROOT/scripts/orchestrate.sh" -n synthesize "literature review on machine learning" 2>&1)
     local exit_code=$?
 
     assert_success "$exit_code" "synthesize should succeed in dry-run"
@@ -77,7 +77,7 @@ test_intent_detection_ux_research() {
     )
 
     for prompt in "${prompts[@]}"; do
-        local output=$("$PROJECT_ROOT/scripts/orchestrate.sh" auto -n "$prompt" 2>&1)
+        local output=$("$PROJECT_ROOT/scripts/orchestrate.sh" -n auto "$prompt" 2>&1)
         if echo "$output" | grep -qi "empathize\|ux.*research\|knowledge.*empathize"; then
             continue
         else
@@ -100,7 +100,7 @@ test_intent_detection_strategy() {
     )
 
     for prompt in "${prompts[@]}"; do
-        local output=$("$PROJECT_ROOT/scripts/orchestrate.sh" auto -n "$prompt" 2>&1)
+        local output=$("$PROJECT_ROOT/scripts/orchestrate.sh" -n auto "$prompt" 2>&1)
         if echo "$output" | grep -qi "advise\|strategy\|knowledge.*advise"; then
             continue
         else
@@ -123,7 +123,7 @@ test_intent_detection_literature() {
     )
 
     for prompt in "${prompts[@]}"; do
-        local output=$("$PROJECT_ROOT/scripts/orchestrate.sh" auto -n "$prompt" 2>&1)
+        local output=$("$PROJECT_ROOT/scripts/orchestrate.sh" -n auto "$prompt" 2>&1)
         if echo "$output" | grep -qi "synthesize\|literature\|knowledge.*synthesize"; then
             continue
         else
@@ -167,7 +167,7 @@ test_command_aliases() {
         local alias="${alias_pair%%:*}"
         local expected="${alias_pair##*:}"
 
-        local output=$("$PROJECT_ROOT/scripts/orchestrate.sh" "$alias" -n "test prompt" 2>&1)
+        local output=$("$PROJECT_ROOT/scripts/orchestrate.sh" -n "$alias" "test prompt" 2>&1)
         local exit_code=$?
 
         if [[ $exit_code -ne 0 ]]; then
@@ -180,33 +180,34 @@ test_command_aliases() {
 }
 
 test_status_shows_mode() {
-    test_case "status command shows Knowledge Work Mode"
+    test_case "status command shows current mode"
 
     local output=$("$PROJECT_ROOT/scripts/orchestrate.sh" status 2>&1)
 
-    if echo "$output" | grep -qi "mode.*knowledge\|mode.*development\|knowledge-toggle"; then
+    # Status output shows "Mode:" line with one of: Development, Knowledge, Auto-Detect
+    if echo "$output" | grep -qi "Mode:.*Development\|Mode:.*Knowledge\|Mode:.*Auto-Detect"; then
         test_pass
     else
-        test_fail "Status should show current mode: $output"
+        test_fail "Status should show current mode"
     fi
 }
 
 test_dev_command() {
-    test_case "dev command switches to Dev Work mode"
+    test_case "dev command activates Dev mode"
 
     local output=$("$PROJECT_ROOT/scripts/orchestrate.sh" dev 2>&1)
     local exit_code=$?
 
     assert_success "$exit_code" "dev command should succeed"
-    if echo "$output" | grep -qi "dev.*work.*mode\|development.*mode"; then
+    if echo "$output" | grep -qi "Dev Mode"; then
         test_pass
     else
-        test_fail "Should show Dev Work mode activation: $output"
+        test_fail "Should show Dev Mode activation"
     fi
 }
 
 test_mode_symmetry() {
-    test_case "/octo:dev and /octo:km off should be equivalent"
+    test_case "/octo:dev and /octo:km off both result in Dev mode"
 
     # First, enable knowledge mode
     "$PROJECT_ROOT/scripts/orchestrate.sh" knowledge-mode on >/dev/null 2>&1
@@ -220,15 +221,15 @@ test_mode_symmetry() {
     # Test km off output
     local km_off_output=$("$PROJECT_ROOT/scripts/orchestrate.sh" knowledge-mode off 2>&1)
 
-    # Both should indicate switching to Dev mode
-    if echo "$dev_output" | grep -qi "dev.*work.*mode\|development.*mode"; then
-        if echo "$km_off_output" | grep -qi "dev.*work.*mode\|development.*mode"; then
+    # Both should indicate Dev mode
+    if echo "$dev_output" | grep -qi "Dev Mode"; then
+        if echo "$km_off_output" | grep -qi "Dev Mode"; then
             test_pass
         else
-            test_fail "/octo:km off should show Dev mode: $km_off_output"
+            test_fail "/octo:km off should show Dev Mode: $km_off_output"
         fi
     else
-        test_fail "/octo:dev should show Dev mode: $dev_output"
+        test_fail "/octo:dev should show Dev Mode: $dev_output"
     fi
 }
 
