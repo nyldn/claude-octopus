@@ -36,6 +36,7 @@ The router uses keyword matching and confidence scoring to determine the best wo
 | **Build (Vague)** | build, create, make (without specific target) | `/octo:plan` | 60% |
 | **Validate** | validate, review, check, audit, inspect, verify | `/octo:review` | 75% |
 | **Debate** | should, vs, or, compare, versus, decide, which | `/octo:debate` | 70% |
+| **Specify** | spec, specify, specification, requirements, define scope, nlspec | `/octo:spec` | 75% |
 | **Lifecycle** | end-to-end, complete, full, entire, whole | `/octo:embrace` | 85% |
 
 ### Confidence Levels
@@ -107,6 +108,7 @@ You can always bypass the router and call workflows directly:
 /octo:deliver      # Delivery phase
 /octo:debate       # AI debate
 /octo:embrace      # Full lifecycle
+/octo:spec         # NLSpec authoring
 /octo:plan         # Requirements planning
 /octo:review       # Quality review and validation
 ```
@@ -160,6 +162,9 @@ Match keywords against the routing table:
 **Validation Keywords**: validate, review, check, audit, inspect, verify
 - If found → Validation intent
 
+**Specify Keywords**: spec, specify, specification, requirements, "define scope", nlspec, "write spec"
+- If found → Specify intent
+
 **Debate Keywords**: should, vs, or, compare, versus, decide, which
 - If found → Debate intent
 
@@ -198,10 +203,11 @@ Wait for user confirmation before routing.
 I'm not sure which workflow fits best. Here are your options:
 
 1. **Research** (/octo:discover) - Multi-AI research and exploration
-2. **Build** (/octo:develop) - Implementation with quality gates
-3. **Validate** (/octo:validate) - Quality assurance and validation
-4. **Debate** (/octo:debate) - Three-way AI debate
-5. **Lifecycle** (/octo:embrace) - Full 4-phase workflow
+2. **Specify** (/octo:spec) - Structured NLSpec authoring
+3. **Build** (/octo:develop) - Implementation with quality gates
+4. **Validate** (/octo:validate) - Quality assurance and validation
+5. **Debate** (/octo:debate) - Three-way AI debate
+6. **Lifecycle** (/octo:embrace) - Full 4-phase workflow
 
 Which would you like, or would you like to rephrase your request?
 ```
@@ -220,8 +226,11 @@ Skill: "develop", args: "<user query>"
 # For build (vague) intent
 Skill: "plan", args: "<user query>"
 
+# For specify intent
+Skill: "spec", args: "<user query>"
+
 # For validation intent
-Skill: "validate", args: "<user query>"  # NEW in v7.24.0
+Skill: "validate", args: "<user query>"
 
 # For debate intent
 Skill: "debate", args: "<user query>"
