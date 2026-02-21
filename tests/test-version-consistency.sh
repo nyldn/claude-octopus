@@ -153,7 +153,7 @@ echo ""
 echo "Test 7: Checking skill count in plugin.json..."
 if [[ -f "$PLUGIN_JSON" ]]; then
     SKILL_COUNT=$(grep -o '"\./\.claude/skills/[^"]*\.md"' "$PLUGIN_JSON" | wc -l | tr -d ' ')
-    EXPECTED_SKILLS=44
+    EXPECTED_SKILLS=46
 
     if [[ $SKILL_COUNT -eq $EXPECTED_SKILLS ]]; then
         pass "plugin.json has $SKILL_COUNT skills (expected: $EXPECTED_SKILLS)"

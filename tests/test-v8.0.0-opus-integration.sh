@@ -356,7 +356,7 @@ fi
 
 # 7.5: Correct skill file count
 skill_count=$(find "$SKILLS_DIR" -name "*.md" -type f | wc -l | tr -d ' ')
-assert_equals "44" "$skill_count" "7.5 Skill directory contains exactly 44 files"
+assert_equals "46" "$skill_count" "7.5 Skill directory contains exactly 46 files"
 
 echo ""
 
