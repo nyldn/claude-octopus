@@ -18,7 +18,7 @@ test_provider_detection() {
     mock_provider_available "gemini" "true"
 
     # Test that orchestrate can detect providers (dry-run)
-    local output=$("$PROJECT_ROOT/scripts/orchestrate.sh" probe -n "test" 2>&1)
+    local output=$("$PROJECT_ROOT/scripts/orchestrate.sh" -n probe "test" 2>&1)
     local exit_code=$?
 
     # Should succeed when providers available
@@ -33,7 +33,7 @@ test_single_provider_fallback() {
     mock_provider_available "codex" "true"
     mock_command "gemini" "exit 127"
 
-    local output=$("$PROJECT_ROOT/scripts/orchestrate.sh" probe -n "test" 2>&1)
+    local output=$("$PROJECT_ROOT/scripts/orchestrate.sh" -n probe "test" 2>&1)
     local exit_code=$?
 
     # Should still work with single provider
@@ -51,7 +51,7 @@ test_command_execution() {
     local commands=("probe" "grasp" "tangle" "ink" "embrace" "grapple" "squeeze")
 
     for cmd in "${commands[@]}"; do
-        local result=$("$PROJECT_ROOT/scripts/orchestrate.sh" "$cmd" -n "test" 2>&1)
+        local result=$("$PROJECT_ROOT/scripts/orchestrate.sh" -n "$cmd" "test" 2>&1)
         local code=$?
 
         if [[ $code -ne 0 ]]; then

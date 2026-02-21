@@ -9,31 +9,6 @@ source "$SCRIPT_DIR/../helpers/test-framework.sh"
 
 test_suite "AI Debate Hub Integration"
 
-test_submodule_exists() {
-    test_case "Git submodule .dependencies/claude-skills exists"
-
-    if [[ -f "$PROJECT_ROOT/.gitmodules" ]]; then
-        test_pass
-    else
-        test_fail ".gitmodules not found"
-        return 1
-    fi
-}
-
-test_submodule_initialized() {
-    test_case "Submodule is initialized with debate.md skill"
-
-    local skill_file="$PROJECT_ROOT/.dependencies/claude-skills/skills/debate.md"
-
-    if [[ -f "$skill_file" ]]; then
-        test_pass
-    else
-        test_fail "debate.md skill not found at $skill_file"
-        echo "  Hint: Run 'git submodule update --init --recursive'"
-        return 1
-    fi
-}
-
 test_integration_skill_exists() {
     test_case "Integration layer skill exists (skill-debate-integration.md)"
 
@@ -105,22 +80,22 @@ test_plugin_json_has_dependencies_section() {
     fi
 }
 
-test_original_skill_content() {
-    test_case "Original debate.md skill contains expected content"
+test_debate_skill_content() {
+    test_case "skill-debate.md contains expected content"
 
-    local skill_file="$PROJECT_ROOT/.dependencies/claude-skills/skills/debate.md"
+    local skill_file="$PROJECT_ROOT/.claude/skills/skill-debate.md"
 
     if [[ ! -f "$skill_file" ]]; then
-        test_skip "Submodule not initialized"
-        return 0
+        test_fail "skill-debate.md not found"
+        return 1
     fi
 
-    if grep -q "AI Debate Hub" "$skill_file" && \
+    if grep -q "Debate" "$skill_file" && \
        grep -q "Gemini" "$skill_file" && \
        grep -q "Codex" "$skill_file"; then
         test_pass
     else
-        test_fail "Original debate.md missing expected content"
+        test_fail "skill-debate.md missing expected content"
         return 1
     fi
 }
@@ -191,14 +166,12 @@ test_version_consistency() {
 }
 
 # Run all tests
-test_submodule_exists
-test_submodule_initialized
 test_integration_skill_exists
 test_skill_has_frontmatter
 test_skill_has_attribution
 test_plugin_json_includes_skills
 test_plugin_json_has_dependencies_section
-test_original_skill_content
+test_debate_skill_content
 test_debate_command_routing
 test_readme_attribution
 test_changelog_attribution
