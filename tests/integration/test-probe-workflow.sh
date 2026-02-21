@@ -20,7 +20,7 @@ test_probe_basic_execution() {
     mock_codex "$response_file" 0
 
     # Execute probe in dry-run
-    local output=$("$PROJECT_ROOT/scripts/orchestrate.sh" probe -n "Research OAuth authentication" 2>&1)
+    local output=$("$PROJECT_ROOT/scripts/orchestrate.sh" -n probe "Research OAuth authentication" 2>&1)
     local exit_code=$?
 
     assert_success "$exit_code" "Probe should execute successfully"
@@ -38,7 +38,7 @@ test_probe_with_multiple_agents() {
     mock_alternating "codex" "gemini" "$codex_response" "$gemini_response"
 
     # Execute probe
-    local output=$("$PROJECT_ROOT/scripts/orchestrate.sh" probe -n "Research database patterns" 2>&1)
+    local output=$("$PROJECT_ROOT/scripts/orchestrate.sh" -n probe "Research database patterns" 2>&1)
     local exit_code=$?
 
     # Should complete successfully
@@ -48,21 +48,27 @@ test_probe_with_multiple_agents() {
 }
 
 test_probe_output_format() {
-    test_case "Probe output follows expected format"
+    test_case "Probe dry-run produces output"
 
     local response=$(generate_probe_response "API design")
     local response_file=$(create_success_response "codex" "$response")
 
     mock_codex "$response_file" 0
 
-    local output=$("$PROJECT_ROOT/scripts/orchestrate.sh" probe -n "Research API design" 2>&1)
+    local output exit_code=0
+    output=$("$PROJECT_ROOT/scripts/orchestrate.sh" -n probe "Research API design" 2>&1) || exit_code=$?
 
-    # Check for key sections in probe output
-    if echo "$output" | grep -qi "research\|findings\|analysis\|recommendations"; then
+    if [[ $exit_code -ne 0 ]]; then
+        test_fail "Probe dry-run exited with $exit_code"
+        return 1
+    fi
+
+    # Dry-run should produce some output (banner, dry-run notice, etc.)
+    if [[ -n "$output" ]]; then
         test_pass
     else
-        # Dry run might not show actual output, just check it succeeded
-        test_pass
+        test_fail "Probe dry-run produced no output"
+        return 1
     fi
 }
 
@@ -72,14 +78,17 @@ test_probe_handles_timeout() {
     # Mock timeout scenario
     mock_timeout "codex" 2
 
-    local output=$("$PROJECT_ROOT/scripts/orchestrate.sh" probe -n "Research with timeout" 2>&1 || true)
+    local output exit_code=0
+    output=$("$PROJECT_ROOT/scripts/orchestrate.sh" -n probe "Research with timeout" 2>&1) || exit_code=$?
 
-    # In dry-run mode, timeout might not trigger, but should still handle gracefully
-    if echo "$output" | grep -qi "timeout\|timed out"; then
+    # In dry-run mode, timeout won't trigger — just verify it doesn't crash
+    if [[ $exit_code -eq 0 ]]; then
+        test_skip "Timeout not exercised in dry-run mode"
+    elif echo "$output" | grep -qi "timeout\|timed out"; then
         test_pass
     else
-        # If no timeout message in dry-run, that's OK
-        test_skip "Timeout not tested in dry-run mode"
+        test_fail "Probe failed unexpectedly (exit $exit_code): $output"
+        return 1
     fi
 }
 
@@ -92,7 +101,7 @@ test_probe_parallel_mode() {
     mock_codex "$response_file" 0
 
     # Test with parallel flag if available
-    local output=$("$PROJECT_ROOT/scripts/orchestrate.sh" probe -n "Research microservices" 2>&1)
+    local output=$("$PROJECT_ROOT/scripts/orchestrate.sh" -n probe "Research microservices" 2>&1)
     local exit_code=$?
 
     assert_success "$exit_code" "Parallel probe should succeed"

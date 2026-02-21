@@ -14,13 +14,13 @@ test_detect_both_providers() {
     test_case "Detects both codex and gemini when available"
 
     # Test detection logic (dry run) - flag must come before command
-    local output=$("$PROJECT_ROOT/scripts/orchestrate.sh" -n probe "test" 2>&1 || true)
+    local output exit_code=0
+    output=$("$PROJECT_ROOT/scripts/orchestrate.sh" -n probe "test" 2>&1) || exit_code=$?
 
-    # Just verify dry-run completes without error
-    if [[ $? -eq 0 ]]; then
+    if [[ $exit_code -eq 0 ]]; then
         test_pass
     else
-        test_fail "Provider detection dry-run failed"
+        test_fail "Provider detection dry-run failed (exit $exit_code): $output"
         return 1
     fi
 }
@@ -29,13 +29,13 @@ test_detect_single_provider() {
     test_case "Works with single provider available"
 
     # Test detection (dry run) - flag must come before command
-    local output=$("$PROJECT_ROOT/scripts/orchestrate.sh" -n probe "test" 2>&1 || true)
+    local output exit_code=0
+    output=$("$PROJECT_ROOT/scripts/orchestrate.sh" -n probe "test" 2>&1) || exit_code=$?
 
-    # Should not fail in dry-run mode
-    if [[ $? -eq 0 ]]; then
+    if [[ $exit_code -eq 0 ]]; then
         test_pass
     else
-        test_fail "Single provider dry-run should work"
+        test_fail "Single provider dry-run should work (exit $exit_code): $output"
         return 1
     fi
 }
