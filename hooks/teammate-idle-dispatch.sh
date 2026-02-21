@@ -39,9 +39,13 @@ if [[ "$QUEUE_LENGTH" -gt 0 ]]; then
     echo "{\"event\":\"teammate_idle\",\"phase\":\"$CURRENT_PHASE\",\"dispatched_task\":\"$NEXT_TASK\",\"dispatched_role\":\"$NEXT_ROLE\",\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" \
         >> "${METRICS_DIR}/idle-events.jsonl"
 
-    # Output context for Claude to use
-    echo "🐙 TeammateIdle: Dispatching queued task to idle agent"
-    echo "Phase: $CURRENT_PHASE | Role: $NEXT_ROLE | Queue remaining: $((QUEUE_LENGTH - 1))"
+    # Feed task back to teammate via stderr (stdout is not returned to Claude)
+    # Exit code 2 = "don't go idle, here's more work" with stderr as feedback
+    echo "🐙 TeammateIdle: Dispatching queued task to idle agent" >&2
+    echo "Phase: $CURRENT_PHASE | Role: $NEXT_ROLE | Queue remaining: $((QUEUE_LENGTH - 1))" >&2
+    echo "" >&2
+    echo "Your next task: $NEXT_TASK" >&2
+    exit 2
 else
     # No more work - check if phase should transition
     COMPLETED=$(jq -r '.phase_tasks.completed // 0' "$SESSION_FILE" 2>/dev/null)

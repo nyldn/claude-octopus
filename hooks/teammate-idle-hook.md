@@ -40,38 +40,19 @@ if [[ -f "$SESSION_FILE" ]]; then
 fi
 ```
 
-## additionalContext Return
+## How It Works
 
-When an idle teammate is detected and work is available:
+TeammateIdle hooks use exit codes and stderr to control agent behavior:
 
-```json
-{
-  "octopus_idle_agent": {
-    "phase": "probe|grasp|tangle|ink",
-    "queued_tasks_remaining": 3,
-    "next_task": "Research OAuth authentication patterns",
-    "agent_role": "ai-engineer",
-    "utilization": {
-      "agents_active": 1,
-      "agents_idle": 2,
-      "agents_total": 3
-    }
-  }
-}
-```
+- **Exit 0** (default): Let the teammate go idle (no more work)
+- **Exit 2**: Keep the teammate working — stderr is fed back as feedback/instructions
 
-When no work is available (phase agents all complete):
+When work is available, the hook:
+1. Dequeues the next task from `session.json`
+2. Writes the task description to **stderr** (fed back to the teammate as context)
+3. Exits with code **2** (tells Claude Code to keep the teammate active)
 
-```json
-{
-  "octopus_idle_agent": {
-    "phase": "probe",
-    "queued_tasks_remaining": 0,
-    "phase_complete": true,
-    "ready_for_transition": true
-  }
-}
-```
+When no work remains, the hook exits with code 0 (teammate goes idle).
 
 ## Integration with Workflow Phases
 
