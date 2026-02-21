@@ -1347,6 +1347,73 @@ enforce_context_budget() {
     fi
 }
 
+# Migrate stale model names in providers.json to current defaults (Issue #39)
+# Runs once per session; rewrites config file in-place if stale models found.
+_PROVIDER_CONFIG_MIGRATED="${_PROVIDER_CONFIG_MIGRATED:-false}"
+migrate_provider_config() {
+    [[ "$_PROVIDER_CONFIG_MIGRATED" == "true" ]] && return 0
+    _PROVIDER_CONFIG_MIGRATED=true
+
+    local config_file="${HOME}/.claude-octopus/config/providers.json"
+    [[ -f "$config_file" ]] || return 0
+    command -v jq &>/dev/null || return 0
+
+    local changed=false
+    local tmp_file="${config_file}.tmp.$$"
+
+    # Map of deprecated model names → current replacements
+    # Codex stale models (pre-GPT-5 era and wrong-provider models)
+    local -a stale_models=(
+        '.providers.codex.model'
+        '.providers.codex.fallback'
+        '.providers.gemini.model'
+        '.providers.gemini.fallback'
+        '.overrides.codex'
+        '.overrides.gemini'
+    )
+
+    local content
+    content=$(cat "$config_file")
+
+    for path in "${stale_models[@]}"; do
+        local current_val
+        current_val=$(echo "$content" | jq -r "$path // empty" 2>/dev/null) || continue
+        [[ -z "$current_val" ]] && continue
+
+        local replacement=""
+        case "$current_val" in
+            # Codex models that are actually Claude models (wrong provider)
+            claude-sonnet-4-5|claude-sonnet-4-5-20250514|claude-3-5-sonnet*|claude-sonnet-4*)
+                if [[ "$path" == *codex* ]]; then
+                    replacement="gpt-5.3-codex"
+                fi
+                ;;
+            # Expired Gemini preview models
+            gemini-2.0-flash-thinking*|gemini-2.0-flash-exp*|gemini-exp-*)
+                replacement="gemini-3-flash-preview"
+                ;;
+            gemini-2.0-pro*|gemini-1.5-pro*|gemini-pro)
+                replacement="gemini-3-pro-preview"
+                ;;
+            # Old GPT models for Codex
+            gpt-4o*|gpt-4-turbo*|gpt-4-*|o1-*|chatgpt-*)
+                replacement="gpt-5.3-codex"
+                ;;
+        esac
+
+        if [[ -n "$replacement" ]]; then
+            log "WARN" "Migrating stale model in config: ${path} '${current_val}' → '${replacement}'"
+            content=$(echo "$content" | jq "${path} = \"${replacement}\"" 2>/dev/null) || continue
+            changed=true
+        fi
+    done
+
+    if [[ "$changed" == "true" ]]; then
+        echo "$content" > "$tmp_file" && mv "$tmp_file" "$config_file"
+        log "INFO" "Updated ${config_file} with current model names"
+    fi
+}
+
 # Get model for agent type with 4-tier precedence
 # Priority 1: Environment variables (OCTOPUS_CODEX_MODEL, OCTOPUS_GEMINI_MODEL)
 # Priority 2: Config file overrides (~/.claude-octopus/config/providers.json -> overrides)
@@ -1356,6 +1423,9 @@ get_agent_model() {
     local agent_type="$1"
     local config_file="${HOME}/.claude-octopus/config/providers.json"
     local model=""
+
+    # Auto-migrate stale model names on first call (Issue #39)
+    migrate_provider_config
 
     # Determine base provider type
     local provider=""
