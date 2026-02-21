@@ -123,6 +123,7 @@ agents:
 
   # ═══════════════════════════════════════════════════════════════════════════
   # TANGLE PHASE AGENTS (Development/Implementation)
+  # isolation: worktree (v8.19 / CC v2.1.50+) — runs agent in isolated git worktree to prevent file conflicts
   # ═══════════════════════════════════════════════════════════════════════════
   tdd-orchestrator:
     file: personas/tdd-orchestrator.md
@@ -134,6 +135,7 @@ agents:
     memory: local
     skills: [skill-tdd]
     permissionMode: acceptEdits
+    isolation: worktree
 
   debugger:
     file: personas/debugger.md
@@ -145,6 +147,7 @@ agents:
     memory: project
     skills: [skill-debug]
     permissionMode: acceptEdits
+    isolation: worktree
 
   devops-troubleshooter:
     file: personas/devops-troubleshooter.md
@@ -155,6 +158,7 @@ agents:
     expertise: [deployment, logs, infrastructure-debugging]
     memory: local
     permissionMode: acceptEdits
+    isolation: worktree
 
   python-pro:
     file: personas/python-pro.md
@@ -165,6 +169,7 @@ agents:
     expertise: [python, fastapi, django, async]
     memory: local
     permissionMode: acceptEdits
+    isolation: worktree
 
   typescript-pro:
     file: personas/typescript-pro.md
@@ -175,6 +180,7 @@ agents:
     expertise: [typescript, node, react, types]
     memory: local
     permissionMode: acceptEdits
+    isolation: worktree
 
   # ═══════════════════════════════════════════════════════════════════════════
   # INK PHASE AGENTS (Delivery/Review)
@@ -213,6 +219,7 @@ agents:
     expertise: [unit-tests, integration-tests, e2e-tests]
     memory: local
     permissionMode: acceptEdits
+    isolation: worktree
 
   performance-engineer:
     file: personas/performance-engineer.md
@@ -293,6 +300,7 @@ agents:
     expertise: [incident-management, runbooks, postmortems]
     memory: local
     permissionMode: acceptEdits
+    isolation: worktree
 
   mermaid-expert:
     file: personas/mermaid-expert.md

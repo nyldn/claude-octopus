@@ -425,6 +425,13 @@ SUPPORTS_HOOK_LAST_MESSAGE=false      # v8.18: Claude Code v2.1.47+ (last_assist
 SUPPORTS_AGENT_MODEL_FIELD=false      # v8.18: Claude Code v2.1.47+ (model field honored in team teammates)
 SUPPORTS_DEFERRED_SESSION_HOOKS=false # v8.18: Claude Code v2.1.47+ (SessionStart hooks deferred ~500ms)
 SUPPORTS_PARALLEL_FILE_SAFETY=false   # v8.18: Claude Code v2.1.47+ (file write/edit errors don't abort siblings)
+SUPPORTS_CONFIG_CHANGE_HOOK=false      # v8.19: Claude Code v2.1.49+ (ConfigChange hook event)
+SUPPORTS_PLUGIN_SCOPE_AUTODETECT=false # v8.19: Claude Code v2.1.49+ (plugin enable/disable auto-scope)
+SUPPORTS_SDK_MODEL_CAPS=false          # v8.19: Claude Code v2.1.49+ (supportsEffort, supportedEffortLevels)
+SUPPORTS_WORKTREE_ISOLATION=false      # v8.19: Claude Code v2.1.50+ (isolation: worktree in agent defs)
+SUPPORTS_WORKTREE_HOOKS=false          # v8.19: Claude Code v2.1.50+ (WorktreeCreate/WorktreeRemove hooks)
+SUPPORTS_AGENTS_CLI=false              # v8.19: Claude Code v2.1.50+ (claude agents list command)
+SUPPORTS_FAST_OPUS_1M=false            # v8.19: Claude Code v2.1.50+ (fast Opus 4.6 with full 1M context)
 OCTOPUS_BACKEND="api"              # v8.16: Detected backend (api|bedrock|vertex|foundry)
 AGENT_TEAMS_ENABLED="${CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS:-0}"
 OCTOPUS_SECURITY_V870="${OCTOPUS_SECURITY_V870:-true}"
@@ -566,6 +573,21 @@ detect_claude_code_version() {
         SUPPORTS_PARALLEL_FILE_SAFETY=true
     fi
 
+    # Check for v2.1.49+ features (ConfigChange hook, plugin scope fix, SDK model caps)
+    if version_compare "$CLAUDE_CODE_VERSION" "2.1.49" ">="; then
+        SUPPORTS_CONFIG_CHANGE_HOOK=true
+        SUPPORTS_PLUGIN_SCOPE_AUTODETECT=true
+        SUPPORTS_SDK_MODEL_CAPS=true
+    fi
+
+    # Check for v2.1.50+ features (worktree isolation, worktree hooks, agents CLI, fast opus 1M)
+    if version_compare "$CLAUDE_CODE_VERSION" "2.1.50" ">="; then
+        SUPPORTS_WORKTREE_ISOLATION=true
+        SUPPORTS_WORKTREE_HOOKS=true
+        SUPPORTS_AGENTS_CLI=true
+        SUPPORTS_FAST_OPUS_1M=true
+    fi
+
     log "INFO" "Claude Code v$CLAUDE_CODE_VERSION detected"
     log "INFO" "Task Management: $SUPPORTS_TASK_MANAGEMENT | Fork Context: $SUPPORTS_FORK_CONTEXT | Agent Teams: $SUPPORTS_AGENT_TEAMS"
     log "INFO" "Persistent Memory: $SUPPORTS_PERSISTENT_MEMORY | Hook Events: $SUPPORTS_HOOK_EVENTS | Agent Type Routing: $SUPPORTS_AGENT_TYPE_ROUTING"
@@ -575,6 +597,8 @@ detect_claude_code_version() {
     log "INFO" "Prompt Cache Opt: $SUPPORTS_PROMPT_CACHE_OPT | Enterprise Fix: $SUPPORTS_ENTERPRISE_FIX | Stable Auth: $SUPPORTS_STABLE_AUTH"
     log "INFO" "Sonnet 4.6: $SUPPORTS_SONNET_46 | Per-Project Plugins: $SUPPORTS_PER_PROJECT_PLUGINS"
     log "INFO" "Stable BG Agents: $SUPPORTS_STABLE_BG_AGENTS | Hook Last Message: $SUPPORTS_HOOK_LAST_MESSAGE | Agent Model Field: $SUPPORTS_AGENT_MODEL_FIELD"
+    log "INFO" "ConfigChange Hook: $SUPPORTS_CONFIG_CHANGE_HOOK | Plugin Scope Auto: $SUPPORTS_PLUGIN_SCOPE_AUTODETECT | SDK Model Caps: $SUPPORTS_SDK_MODEL_CAPS"
+    log "INFO" "Worktree Isolation: $SUPPORTS_WORKTREE_ISOLATION | Worktree Hooks: $SUPPORTS_WORKTREE_HOOKS | Agents CLI: $SUPPORTS_AGENTS_CLI | Fast Opus 1M: $SUPPORTS_FAST_OPUS_1M"
 
     # v8.5: Detect /fast toggle after version detection
     detect_fast_mode
@@ -11696,6 +11720,18 @@ doctor_check_config() {
             doctor_add "flag-stable-bg" "config" "warn" \
                 "SUPPORTS_STABLE_BG_AGENTS is false on CC v${cc_ver}" \
                 "Expected true for v2.1.47+; feature detection may have failed"
+        fi
+        # Check SUPPORTS_CONFIG_CHANGE_HOOK should be true on v2.1.49+
+        if version_compare "$cc_ver" "2.1.49" ">=" 2>/dev/null && [[ "$SUPPORTS_CONFIG_CHANGE_HOOK" != "true" ]]; then
+            doctor_add "flag-config-change" "config" "warn" \
+                "SUPPORTS_CONFIG_CHANGE_HOOK is false on CC v${cc_ver}" \
+                "Expected true for v2.1.49+; feature detection may have failed"
+        fi
+        # Check SUPPORTS_WORKTREE_ISOLATION should be true on v2.1.50+
+        if version_compare "$cc_ver" "2.1.50" ">=" 2>/dev/null && [[ "$SUPPORTS_WORKTREE_ISOLATION" != "true" ]]; then
+            doctor_add "flag-worktree" "config" "warn" \
+                "SUPPORTS_WORKTREE_ISOLATION is false on CC v${cc_ver}" \
+                "Expected true for v2.1.50+; feature detection may have failed"
         fi
     fi
 
