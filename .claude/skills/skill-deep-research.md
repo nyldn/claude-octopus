@@ -189,6 +189,25 @@ Read the synthesis file and format according to `format_choice`:
 
 ---
 
+## Task Management Integration
+
+Create tasks to track execution progress:
+
+```javascript
+// At start of skill execution
+TaskCreate({
+  subject: "Execute deep research with multi-AI providers",
+  description: "Run orchestrate.sh probe with Codex and Gemini for deep research",
+  activeForm: "Running multi-AI deep research"
+})
+
+// Mark in_progress when calling orchestrate.sh
+TaskUpdate({taskId: "...", status: "in_progress"})
+
+// Mark completed ONLY after synthesis file verified
+TaskUpdate({taskId: "...", status: "completed"})
+```
+
 ## Error Handling
 
 If any step fails:
