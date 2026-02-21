@@ -3,7 +3,7 @@ command: research
 description: Deep research with multi-source synthesis and comprehensive analysis
 ---
 
-# Research - Deep Research Skill
+# Research - Deep Multi-AI Research
 
 ## 🤖 INSTRUCTIONS FOR CLAUDE
 
@@ -11,19 +11,19 @@ When the user invokes this command (e.g., `/octo:research <arguments>`):
 
 **✓ CORRECT - Use the Skill tool:**
 ```
-Skill(skill: "octo:research", args: "<user's arguments>")
+Skill(skill: "octo:discover", args: "<user's arguments>")
 ```
 
 **✗ INCORRECT - Do NOT use Task tool:**
 ```
-Task(subagent_type: "octo:research", ...)  ❌ Wrong! This is a skill, not an agent type
+Task(subagent_type: "octo:discover", ...)  ❌ Wrong! This is a skill, not an agent type
 ```
 
-**Why:** This command loads the `skill-deep-research` skill. Skills use the `Skill` tool, not `Task`.
+**Why:** This command loads the `flow-discover` skill for multi-AI research. Skills use the `Skill` tool, not `Task`.
 
 ---
 
-**Auto-loads the `skill-deep-research` skill for comprehensive research tasks.**
+**Auto-loads the `flow-discover` skill for comprehensive research tasks.**
 
 ## Quick Usage
 
@@ -34,20 +34,13 @@ Just use natural language:
 "Research the trade-offs between Redis and Memcached"
 ```
 
-## What You Get
+## What Is Research?
 
-- Multi-source synthesis (academic papers, documentation, community discussions)
-- Comparative analysis of different approaches
-- Pros/cons evaluation
-- Best practice recommendations
-- Implementation considerations
-
-## Research Depth
-
-The skill automatically adapts to your needs:
-- **Quick**: Fast overview of key concepts
-- **Standard**: Comprehensive analysis with examples
-- **Deep**: Thorough research with citations and evidence
+An alias for the **Discover** phase of the Double Diamond methodology:
+- Multi-AI research (Claude + Gemini + Codex)
+- Comprehensive analysis of options
+- Trade-off evaluation
+- Best practice identification
 
 ## Natural Language Examples
 
