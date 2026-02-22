@@ -11,8 +11,8 @@
     {
       "name": "claude-octopus",
       "source": "./",
-      "description": "v8.18.0 - 8 squad-inspired features: reviewer lockout, sentinel monitor, per-provider history, structured decisions, design ceremonies, response mode tuning, earned skills, dependency-aware parallel WBS. 31 personas, 44 commands, 46 skills. Run /octo:setup.",
-      "version": "8.18.0",
+      "description": "v8.19.0 - 8 Veritas-inspired features: configurable quality gates, observation importance, error learning, heartbeat & dynamic timeout, cross-model review (4x10), agent routing rules, tool policy RBAC, crash-recovery. 31 personas, 44 commands, 46 skills. Run /octo:setup.",
+      "version": "8.19.0",
       "author": {
         "name": "nyldn"
       },

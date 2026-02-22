@@ -1,3 +1,51 @@
+## [8.19.0] - 2026-02-21
+
+### Added
+
+**8 Veritas Kanban-Inspired Features** — patterns from [BradGroux/veritas-kanban](https://github.com/BradGroux/veritas-kanban) local-first task management + AI agent orchestration applied to Octopus:
+
+1. **Configurable Quality Gate Thresholds**: Per-phase env vars (`OCTOPUS_GATE_PROBE`, `OCTOPUS_GATE_GRASP`, `OCTOPUS_GATE_TANGLE`, `OCTOPUS_GATE_INK`, `OCTOPUS_GATE_SECURITY`) override hardcoded thresholds. Security floor enforces minimum 100%. Supports phase aliases (probe/discover, grasp/define, etc.). Falls back to global `QUALITY_THRESHOLD` for unknown phases.
+
+2. **Observation Importance Scoring**: Numeric importance (1-10) auto-scored by decision type and confidence. Security findings base=8, quality gates=7, debates=6, phase completions=5. Confidence adjusts +/-1. `search_observations()` filters by keyword and minimum importance. High-importance observations (>=7) injected into embrace workflow context.
+
+3. **Error Learning Loop**: Structured error capture in `.octo/errors/error-log.md` with append-only markdown entries capped at 100. `search_similar_errors()` scans for keyword matches. `flag_repeat_error()` logs WARN and writes structured decision when >=2 matches. Retry prompts include error context from previous failures.
+
+4. **Agent Heartbeat & Dynamic Timeout**: Background heartbeat monitor touches `.octo/agents/{pid}.heartbeat` every 30s with macOS/Linux `stat` compatibility. `compute_dynamic_timeout()` replaces fixed 120s: direct=60s, standard=120s, full=300s, crossfire=180s, security=240s. `OCTOPUS_AGENT_TIMEOUT` env var overrides all.
+
+5. **Cross-Model Review Scoring (4x10)**: 4-dimensional review scoring (security/reliability/performance/accessibility, 0-10). Extracts explicit "Security: N/10" patterns with keyword heuristic fallback. Visual scorecard with bar charts. `OCTOPUS_REVIEW_4X10=true` enables strict gate requiring all dimensions at 10/10. Cross-model reviewer assignment (codex->gemini, gemini->codex).
+
+6. **Agent Routing Rules**: JSON-based routing rules in `.octo/routing-rules.json` with first-match-wins evaluation. Matches by task_type or keyword. `create_default_routing_rules()` generates sensible defaults (security->security-auditor, performance->performance-engineer, etc.). Does not overwrite existing rules.
+
+7. **Tool Policy RBAC for Personas**: Role-based tool access restrictions via prompt injection. Policies: `read_search` (researcher), `read_exec` (code-reviewer), `read_communicate` (synthesizer), `full` (implementer). `OCTOPUS_TOOL_POLICIES=true` (default) enables enforcement. Unknown roles default to full access.
+
+8. **Crash-Recovery with Secret Sanitization**: Agent checkpoints on failure/timeout with 10+ regex-based secret stripping patterns (sk-*, AKIA*, ghp_/gho_*, glpat-*, xox*, Bearer, JWT, private keys, connection strings, password=). 24h expiry with 5-min debounce. Partial output truncated to 4096 chars. Checkpoint context (max 1500 chars) injected into retry prompts.
+
+### New Environment Variables
+
+| Variable | Default | Feature |
+|----------|---------|---------|
+| `OCTOPUS_GATE_PROBE` | `50` | Probe phase quality threshold |
+| `OCTOPUS_GATE_GRASP` | `75` | Grasp phase quality threshold |
+| `OCTOPUS_GATE_TANGLE` | `75` | Tangle phase quality threshold |
+| `OCTOPUS_GATE_INK` | `80` | Ink phase quality threshold |
+| `OCTOPUS_GATE_SECURITY` | `100` | Security gate floor |
+| `OCTOPUS_REVIEW_4X10` | `false` | Strict 4x10 review gate |
+| `OCTOPUS_AGENT_TIMEOUT` | (empty=auto) | Override dynamic timeout |
+| `OCTOPUS_TOOL_POLICIES` | `true` | Enable tool policy RBAC |
+
+### New Test Suites
+
+- `tests/unit/test-gate-thresholds.sh` (9 tests)
+- `tests/unit/test-observation-importance.sh` (9 tests)
+- `tests/unit/test-error-learning.sh` (9 tests)
+- `tests/unit/test-heartbeat-timeout.sh` (12 tests)
+- `tests/unit/test-cross-model-review.sh` (11 tests)
+- `tests/unit/test-routing-rules.sh` (11 tests)
+- `tests/unit/test-tool-policy.sh` (13 tests)
+- `tests/unit/test-crash-recovery.sh` (18 tests)
+
+---
+
 ## [8.18.0] - 2026-02-21
 
 ### Added

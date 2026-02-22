@@ -11,9 +11,16 @@
 # permissionMode: plan (read-only), acceptEdits (can write), default (standard)
 # memory: project (codebase learning), user (cross-project prefs), local (ephemeral run context)
 # skills: list of skill files to preload into agent context
+#
+# v8.19.0 Tool Policy RBAC (via OCTOPUS_TOOL_POLICIES env var):
+# Roles are mapped to tool policies that restrict tool access via prompt injection.
+#   read_search   → Read, Glob, Grep, WebSearch only (researcher, ai-engineer, business-analyst, research-synthesizer)
+#   read_exec     → Read, Glob, Grep + Bash read-only (code-reviewer, security-auditor, performance-engineer)
+#   read_communicate → Read, Glob, Grep only (synthesizer, orchestrator, context-manager, docs-architect)
+#   full          → No restrictions (implementer, tdd-orchestrator, debugger, python-pro, typescript-pro)
 
 version: "2.0"
-description: "Curated agent personas with contextual Codex model routing (v8.9.0)"
+description: "Curated agent personas with contextual Codex model routing (v8.9.0, v8.19.0 tool policies)"
 
 # Phase-to-agent mappings (default agents per phase)
 phase_defaults:

@@ -3551,6 +3551,23 @@ OCTOPUS_RESPONSE_MODE="${OCTOPUS_RESPONSE_MODE:-auto}"
 # v8.18.0 Feature: Pre-Work Design Review Ceremony
 OCTOPUS_CEREMONIES="${OCTOPUS_CEREMONIES:-true}"
 
+# v8.19.0 Feature: Configurable Quality Gate Thresholds (Veritas-inspired)
+# Per-phase env vars override the global QUALITY_THRESHOLD
+OCTOPUS_GATE_PROBE="${OCTOPUS_GATE_PROBE:-50}"
+OCTOPUS_GATE_GRASP="${OCTOPUS_GATE_GRASP:-75}"
+OCTOPUS_GATE_TANGLE="${OCTOPUS_GATE_TANGLE:-75}"
+OCTOPUS_GATE_INK="${OCTOPUS_GATE_INK:-80}"
+OCTOPUS_GATE_SECURITY="${OCTOPUS_GATE_SECURITY:-100}"
+
+# v8.19.0 Feature: Cross-Model Review Scoring (4x10)
+OCTOPUS_REVIEW_4X10="${OCTOPUS_REVIEW_4X10:-false}"
+
+# v8.19.0 Feature: Agent Heartbeat & Dynamic Timeout
+OCTOPUS_AGENT_TIMEOUT="${OCTOPUS_AGENT_TIMEOUT:-}"
+
+# v8.19.0 Feature: Tool Policy RBAC for Personas
+OCTOPUS_TOOL_POLICIES="${OCTOPUS_TOOL_POLICIES:-true}"
+
 # v8.18.0 Feature: Reviewer Lockout Protocol
 # When a provider's output is rejected during quality gates,
 # lock it out from self-revision and route retries to an alternate provider.
@@ -3692,6 +3709,7 @@ write_structured_decision() {
     local confidence="${5:-medium}"  # low | medium | high
     local rationale="${6:-}" # why this decision was made
     local related="${7:-}"   # related decision IDs or refs
+    local importance="${8:-}"  # v8.19.0: optional importance (1-10), auto-scored if empty
 
     local decisions_dir="${WORKSPACE_DIR}/.octo"
     local decisions_file="$decisions_dir/decisions.md"
@@ -3702,6 +3720,11 @@ write_structured_decision() {
     local decision_id
     decision_id="D-$(date +%s)-$$"
 
+    # v8.19.0: Auto-score importance if not provided
+    if [[ -z "$importance" ]]; then
+        importance=$(score_importance "$type" "$confidence" "$scope")
+    fi
+
     # Append structured entry (git-mergeable: append-only, no edits to existing lines)
     cat >> "$decisions_file" << DECEOF
 
@@ -3710,6 +3733,7 @@ write_structured_decision() {
 **Summary:** ${summary}
 **Scope:** ${scope:-project-wide}
 **Confidence:** ${confidence}
+**Importance:** ${importance}
 **Rationale:** ${rationale:-No rationale provided}
 ${related:+**Related:** ${related}}
 ---
@@ -3939,6 +3963,717 @@ detect_response_mode() {
     else
         echo "standard"
     fi
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# v8.19.0 FEATURE: CONFIGURABLE QUALITY GATE THRESHOLDS (Veritas-inspired)
+# Per-phase env vars override hardcoded thresholds. Security floor: always 100.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+get_gate_threshold() {
+    local phase="$1"
+
+    local threshold
+    case "$phase" in
+        probe|discover)
+            threshold="${OCTOPUS_GATE_PROBE}"
+            ;;
+        grasp|define)
+            threshold="${OCTOPUS_GATE_GRASP}"
+            ;;
+        tangle|develop)
+            threshold="${OCTOPUS_GATE_TANGLE}"
+            ;;
+        ink|deliver)
+            threshold="${OCTOPUS_GATE_INK}"
+            ;;
+        security)
+            threshold="${OCTOPUS_GATE_SECURITY}"
+            # Security floor: never allow below 100
+            if [[ "$threshold" -lt 100 ]]; then
+                log WARN "Security gate threshold clamped to 100 (was $threshold)"
+                threshold=100
+            fi
+            ;;
+        *)
+            # Fallback to global QUALITY_THRESHOLD for unknown phases
+            threshold="${QUALITY_THRESHOLD}"
+            ;;
+    esac
+
+    echo "$threshold"
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# v8.19.0 FEATURE: OBSERVATION IMPORTANCE SCORING (Veritas-inspired)
+# Numeric importance (1-10) auto-scored by decision type and confidence.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+score_importance() {
+    local type="$1"
+    local confidence="${2:-medium}"
+    local scope="${3:-}"
+
+    # Base scores by decision type
+    local base_score
+    case "$type" in
+        security-finding) base_score=8 ;;
+        quality-gate)     base_score=7 ;;
+        debate-synthesis) base_score=6 ;;
+        phase-completion) base_score=5 ;;
+        *)                base_score=5 ;;
+    esac
+
+    # Confidence adjustment
+    case "$confidence" in
+        high) base_score=$((base_score + 1)) ;;
+        low)  base_score=$((base_score - 1)) ;;
+    esac
+
+    # Clamp 1-10
+    [[ $base_score -lt 1 ]] && base_score=1
+    [[ $base_score -gt 10 ]] && base_score=10
+
+    echo "$base_score"
+}
+
+search_observations() {
+    local keywords="$1"
+    local min_importance="${2:-1}"
+
+    local decisions_file="${WORKSPACE_DIR}/.octo/decisions.md"
+    if [[ ! -f "$decisions_file" ]]; then
+        return 0
+    fi
+
+    local current_entry=""
+    local current_importance=0
+    local matches=""
+
+    while IFS= read -r line; do
+        if [[ "$line" == "### type:"* ]]; then
+            # Process previous entry if it matches
+            if [[ -n "$current_entry" && $current_importance -ge $min_importance ]]; then
+                if echo "$current_entry" | grep -qi "$keywords"; then
+                    matches="${matches}${current_entry}
+---
+"
+                fi
+            fi
+            current_entry="$line"
+            current_importance=0
+        elif [[ "$line" == "**Importance:"* ]]; then
+            current_importance=$(echo "$line" | grep -o '[0-9]*' | head -1)
+            current_entry="${current_entry}
+${line}"
+        elif [[ "$line" != "---" ]]; then
+            current_entry="${current_entry}
+${line}"
+        fi
+    done < "$decisions_file"
+
+    # Process last entry
+    if [[ -n "$current_entry" && $current_importance -ge $min_importance ]]; then
+        if echo "$current_entry" | grep -qi "$keywords"; then
+            matches="${matches}${current_entry}"
+        fi
+    fi
+
+    if [[ -n "$matches" ]]; then
+        echo "$matches"
+    fi
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# v8.19.0 FEATURE: ERROR LEARNING LOOP (Veritas-inspired)
+# Structured error capture with similar-error detection and repeat flagging.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+record_error() {
+    local agent="$1"
+    local task="$2"
+    local error_msg="$3"
+    local exit_code="${4:-1}"
+    local attempt_desc="${5:-}"
+
+    local error_dir="${WORKSPACE_DIR}/.octo/errors"
+    local error_file="$error_dir/error-log.md"
+    mkdir -p "$error_dir"
+
+    # Cap at 100 entries: count existing, trim oldest if needed
+    if [[ -f "$error_file" ]]; then
+        local entry_count
+        entry_count=$(grep -c "^### ERROR |" "$error_file" 2>/dev/null || echo "0")
+        if [[ "$entry_count" -ge 100 ]]; then
+            # Remove first entry (everything up to second ### ERROR)
+            local second_entry_line
+            second_entry_line=$(grep -n "^### ERROR |" "$error_file" | sed -n '2p' | cut -d: -f1)
+            if [[ -n "$second_entry_line" ]]; then
+                tail -n +"$second_entry_line" "$error_file" > "${error_file}.tmp" && mv "${error_file}.tmp" "$error_file"
+            fi
+        fi
+    fi
+
+    local timestamp
+    timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+    # Sanitize error message (truncate, remove control chars)
+    local safe_error="${error_msg:0:500}"
+    safe_error=$(echo "$safe_error" | tr -d '\000-\011\013-\037')
+
+    cat >> "$error_file" << ERREOF
+
+### ERROR | $timestamp | agent: $agent | exit_code: $exit_code
+**Task:** ${task:0:200}
+**Error:** $safe_error
+**Attempt:** ${attempt_desc:-Initial attempt}
+**Root Cause:** Pending analysis
+**Prevention:** Pending
+---
+ERREOF
+
+    log DEBUG "Recorded error: agent=$agent, exit_code=$exit_code"
+}
+
+search_similar_errors() {
+    local keywords="$1"
+
+    local error_file="${WORKSPACE_DIR}/.octo/errors/error-log.md"
+    if [[ ! -f "$error_file" ]]; then
+        echo "0"
+        return
+    fi
+
+    local match_count
+    match_count=$(grep -ci "$keywords" "$error_file" 2>/dev/null || echo "0")
+    echo "$match_count"
+}
+
+flag_repeat_error() {
+    local keywords="$1"
+
+    local match_count
+    match_count=$(search_similar_errors "$keywords")
+
+    if [[ "$match_count" -ge 2 ]]; then
+        log WARN "Repeat error detected ($match_count occurrences): $keywords"
+        write_structured_decision \
+            "security-finding" \
+            "flag_repeat_error" \
+            "Repeat error pattern detected ($match_count occurrences): ${keywords:0:100}" \
+            "error-learning" \
+            "high" \
+            "Same error pattern has occurred $match_count times, suggesting a systemic issue" \
+            "" 2>/dev/null || true
+        return 0
+    fi
+    return 1
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# v8.19.0 FEATURE: AGENT HEARTBEAT & DYNAMIC TIMEOUT (Veritas-inspired)
+# Background heartbeat monitor + task-type-aware timeout calculation.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+start_heartbeat_monitor() {
+    local pid="$1"
+    local task_id="$2"
+
+    local heartbeat_dir="${WORKSPACE_DIR}/.octo/agents"
+    mkdir -p "$heartbeat_dir"
+    local heartbeat_file="$heartbeat_dir/${pid}.heartbeat"
+
+    # Background process: touch heartbeat every 30s, self-terminate when PID dies
+    (
+        while kill -0 "$pid" 2>/dev/null; do
+            touch "$heartbeat_file"
+            sleep 30
+        done
+        rm -f "$heartbeat_file"
+    ) &
+    disown
+
+    log DEBUG "Heartbeat monitor started for PID $pid (task: $task_id)"
+}
+
+check_agent_heartbeat() {
+    local pid="$1"
+
+    local heartbeat_file="${WORKSPACE_DIR}/.octo/agents/${pid}.heartbeat"
+
+    if [[ ! -f "$heartbeat_file" ]]; then
+        echo "missing"
+        return
+    fi
+
+    # Get file modification time (macOS vs Linux compatible)
+    local mod_time
+    if stat -f %m "$heartbeat_file" &>/dev/null; then
+        # macOS
+        mod_time=$(stat -f %m "$heartbeat_file")
+    else
+        # Linux
+        mod_time=$(stat -c %Y "$heartbeat_file")
+    fi
+
+    local now
+    now=$(date +%s)
+    local age=$((now - mod_time))
+
+    if [[ $age -gt 90 ]]; then
+        echo "stale"
+    else
+        echo "alive"
+    fi
+}
+
+compute_dynamic_timeout() {
+    local task_type="${1:-standard}"
+    local prompt="${2:-}"
+
+    # Env override takes precedence
+    if [[ -n "${OCTOPUS_AGENT_TIMEOUT:-}" ]]; then
+        echo "$OCTOPUS_AGENT_TIMEOUT"
+        return
+    fi
+
+    # Response mode mapping
+    local response_mode="${OCTOPUS_RESPONSE_MODE:-auto}"
+    case "$response_mode" in
+        direct|lightweight)
+            echo "60"
+            return
+            ;;
+    esac
+
+    # Task type mapping
+    case "$task_type" in
+        direct|lightweight|trivial)
+            echo "60"
+            ;;
+        full|premium|complex)
+            echo "300"
+            ;;
+        crossfire|debate)
+            echo "180"
+            ;;
+        security|audit)
+            echo "240"
+            ;;
+        *)
+            echo "120"
+            ;;
+    esac
+}
+
+cleanup_heartbeat() {
+    local pid="$1"
+    rm -f "${WORKSPACE_DIR}/.octo/agents/${pid}.heartbeat"
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# v8.19.0 FEATURE: CROSS-MODEL REVIEW SCORING 4x10 (Veritas-inspired)
+# 4-dimensional review scoring: security/reliability/performance/accessibility
+# ═══════════════════════════════════════════════════════════════════════════════
+
+score_cross_model_review() {
+    local review_output="$1"
+
+    local sec=5 rel=5 perf=5 acc=5
+
+    # Try explicit "Security: 8/10" patterns first
+    local explicit_sec explicit_rel explicit_perf explicit_acc
+    explicit_sec=$(echo "$review_output" | grep -oi 'security[: ]*[0-9]*/10' | head -1 | grep -o '[0-9]*/' | tr -d '/')
+    explicit_rel=$(echo "$review_output" | grep -oi 'reliability[: ]*[0-9]*/10' | head -1 | grep -o '[0-9]*/' | tr -d '/')
+    explicit_perf=$(echo "$review_output" | grep -oi 'performance[: ]*[0-9]*/10' | head -1 | grep -o '[0-9]*/' | tr -d '/')
+    explicit_acc=$(echo "$review_output" | grep -oi 'accessib[a-z]*[: ]*[0-9]*/10' | head -1 | grep -o '[0-9]*/' | tr -d '/')
+
+    [[ -n "$explicit_sec" ]] && sec="$explicit_sec"
+    [[ -n "$explicit_rel" ]] && rel="$explicit_rel"
+    [[ -n "$explicit_perf" ]] && perf="$explicit_perf"
+    [[ -n "$explicit_acc" ]] && acc="$explicit_acc"
+
+    # Heuristic fallback for missing dimensions
+    if [[ -z "$explicit_sec" ]]; then
+        if echo "$review_output" | grep -qi "vulnerab\|injection\|xss\|csrf\|insecure"; then
+            sec=4
+        elif echo "$review_output" | grep -qi "secure\|no.vulnerab\|safe"; then
+            sec=8
+        fi
+    fi
+
+    if [[ -z "$explicit_rel" ]]; then
+        if echo "$review_output" | grep -qi "crash\|unstable\|race.condition\|deadlock"; then
+            rel=4
+        elif echo "$review_output" | grep -qi "robust\|reliable\|stable\|resilient"; then
+            rel=8
+        fi
+    fi
+
+    if [[ -z "$explicit_perf" ]]; then
+        if echo "$review_output" | grep -qi "slow\|bottleneck\|n+1\|leak"; then
+            perf=4
+        elif echo "$review_output" | grep -qi "fast\|optimized\|efficient\|performant"; then
+            perf=8
+        fi
+    fi
+
+    if [[ -z "$explicit_acc" ]]; then
+        if echo "$review_output" | grep -qi "inaccessib\|no.aria\|missing.alt"; then
+            acc=4
+        elif echo "$review_output" | grep -qi "accessible\|wcag\|aria\|a11y"; then
+            acc=8
+        fi
+    fi
+
+    # Clamp all to 0-10
+    for var in sec rel perf acc; do
+        local val="${!var}"
+        [[ "$val" -lt 0 ]] 2>/dev/null && eval "$var=0"
+        [[ "$val" -gt 10 ]] 2>/dev/null && eval "$var=10"
+    done
+
+    echo "${sec}:${rel}:${perf}:${acc}"
+}
+
+format_review_scorecard() {
+    local sec="$1" rel="$2" perf="$3" acc="$4"
+
+    local bar_full="████████████████████"  # 20 chars = 10 blocks
+    local bar_empty="░░░░░░░░░░░░░░░░░░░░"
+
+    _bar() {
+        local val="$1"
+        local filled=$((val * 2))
+        local empty=$((20 - filled))
+        echo "${bar_full:0:$filled}${bar_empty:0:$empty} ${val}/10"
+    }
+
+    echo "╔══════════════════════════════════════╗"
+    echo "║  CROSS-MODEL REVIEW SCORECARD (4x10) ║"
+    echo "╠══════════════════════════════════════╣"
+    echo "║  Security:      $(_bar "$sec") ║"
+    echo "║  Reliability:   $(_bar "$rel") ║"
+    echo "║  Performance:   $(_bar "$perf") ║"
+    echo "║  Accessibility: $(_bar "$acc") ║"
+    echo "╚══════════════════════════════════════╝"
+}
+
+get_cross_model_reviewer() {
+    local author_provider="$1"
+
+    case "$author_provider" in
+        codex*) echo "gemini" ;;
+        gemini*) echo "codex" ;;
+        claude*) echo "codex" ;;
+        *) echo "codex" ;;
+    esac
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# v8.19.0 FEATURE: AGENT ROUTING RULES (Veritas-inspired)
+# JSON-based routing rules with first-match-wins evaluation.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+load_routing_rules() {
+    local rules_file="${WORKSPACE_DIR}/.octo/routing-rules.json"
+
+    if [[ ! -f "$rules_file" ]]; then
+        return 1
+    fi
+
+    if ! command -v jq &>/dev/null; then
+        log WARN "jq required for routing rules, skipping"
+        return 1
+    fi
+
+    cat "$rules_file"
+}
+
+match_routing_rule() {
+    local task_type="$1"
+    local prompt="$2"
+
+    local rules_json
+    rules_json=$(load_routing_rules 2>/dev/null) || return 1
+
+    if ! command -v jq &>/dev/null; then
+        return 1
+    fi
+
+    local rule_count
+    rule_count=$(echo "$rules_json" | jq '.rules | length' 2>/dev/null) || return 1
+
+    local prompt_lower
+    prompt_lower=$(echo "$prompt" | tr '[:upper:]' '[:lower:]')
+
+    local i=0
+    while [[ $i -lt $rule_count ]]; do
+        local match_type match_keywords prefer
+        match_type=$(echo "$rules_json" | jq -r ".rules[$i].match.task_type // \"\"" 2>/dev/null)
+        match_keywords=$(echo "$rules_json" | jq -r ".rules[$i].match.keywords // \"\"" 2>/dev/null)
+        prefer=$(echo "$rules_json" | jq -r ".rules[$i].prefer // \"\"" 2>/dev/null)
+
+        local matched=false
+
+        # Match by task_type
+        if [[ -n "$match_type" && "$task_type" == "$match_type" ]]; then
+            matched=true
+        fi
+
+        # Match by keywords (any keyword match)
+        if [[ -n "$match_keywords" && "$matched" == "false" ]]; then
+            local keyword
+            for keyword in $match_keywords; do
+                if echo "$prompt_lower" | grep -qw "$keyword"; then
+                    matched=true
+                    break
+                fi
+            done
+        fi
+
+        if [[ "$matched" == "true" && -n "$prefer" ]]; then
+            echo "$prefer"
+            return 0
+        fi
+
+        ((i++))
+    done
+
+    return 1
+}
+
+create_default_routing_rules() {
+    local rules_file="${WORKSPACE_DIR}/.octo/routing-rules.json"
+
+    # Don't overwrite existing
+    if [[ -f "$rules_file" ]]; then
+        return 0
+    fi
+
+    mkdir -p "$(dirname "$rules_file")"
+
+    cat > "$rules_file" << 'ROUTINGEOF'
+{
+  "rules": [
+    {"match": {"task_type": "security"}, "prefer": "security-auditor", "fallback": "code-reviewer"},
+    {"match": {"keywords": "security vulnerability audit"}, "prefer": "security-auditor", "fallback": "code-reviewer"},
+    {"match": {"keywords": "performance optimize bottleneck"}, "prefer": "performance-engineer", "fallback": "backend-architect"},
+    {"match": {"keywords": "test testing tdd"}, "prefer": "tdd-orchestrator", "fallback": "test-automator"},
+    {"match": {"keywords": "database schema migration"}, "prefer": "database-architect", "fallback": "backend-architect"},
+    {"match": {"keywords": "deploy ci cd pipeline"}, "prefer": "deployment-engineer", "fallback": "cloud-architect"},
+    {"match": {"keywords": "frontend react component"}, "prefer": "frontend-developer", "fallback": "typescript-pro"}
+  ]
+}
+ROUTINGEOF
+
+    log INFO "Created default routing rules: $rules_file"
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# v8.19.0 FEATURE: TOOL POLICY RBAC FOR PERSONAS (Veritas-inspired)
+# Role-based tool access restrictions enforced via prompt injection.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+get_tool_policy() {
+    local role="$1"
+
+    case "$role" in
+        researcher|ai-engineer|business-analyst|research-synthesizer|ux-researcher)
+            echo "read_search"
+            ;;
+        implementer|tdd-orchestrator|debugger|python-pro|typescript-pro|frontend-developer)
+            echo "full"
+            ;;
+        code-reviewer|security-auditor|performance-engineer|test-automator)
+            echo "read_exec"
+            ;;
+        synthesizer|orchestrator|context-manager|docs-architect|exec-communicator|academic-writer|product-writer)
+            echo "read_communicate"
+            ;;
+        *)
+            echo "full"
+            ;;
+    esac
+}
+
+apply_tool_policy() {
+    local role="$1"
+    local prompt="$2"
+
+    # Disabled by env var
+    if [[ "${OCTOPUS_TOOL_POLICIES}" != "true" ]]; then
+        echo "$prompt"
+        return
+    fi
+
+    local policy
+    policy=$(get_tool_policy "$role")
+
+    local restriction=""
+    case "$policy" in
+        read_search)
+            restriction="TOOL POLICY: You MUST NOT use Write, Edit, or Bash for modifications. Only Read, Glob, Grep, WebSearch, and WebFetch are permitted for this role."
+            ;;
+        read_exec)
+            restriction="TOOL POLICY: You MUST NOT use Write or Edit. You may use Bash for read-only commands like running tests. Read, Glob, Grep are permitted."
+            ;;
+        read_communicate)
+            restriction="TOOL POLICY: You MUST NOT use Write, Edit, or Bash. Only Read, Glob, and Grep are permitted for this role."
+            ;;
+        full)
+            # No restrictions
+            echo "$prompt"
+            return
+            ;;
+    esac
+
+    if [[ -n "$restriction" ]]; then
+        echo "${restriction}
+
+${prompt}"
+    else
+        echo "$prompt"
+    fi
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# v8.19.0 FEATURE: CRASH-RECOVERY WITH SECRET SANITIZATION (Veritas-inspired)
+# Agent checkpoints on failure/timeout with regex-based secret stripping.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+sanitize_secrets() {
+    local text="$1"
+
+    # Apply sed-based stripping patterns
+    echo "$text" | sed \
+        -e 's/sk-[A-Za-z0-9_-]\{20,\}/[REDACTED-API-KEY]/g' \
+        -e 's/AKIA[A-Z0-9]\{16\}/[REDACTED-AWS-KEY]/g' \
+        -e 's/ghp_[A-Za-z0-9]\{36,\}/[REDACTED-GITHUB-PAT]/g' \
+        -e 's/gho_[A-Za-z0-9]\{36,\}/[REDACTED-GITHUB-OAUTH]/g' \
+        -e 's/glpat-[A-Za-z0-9_-]\{20,\}/[REDACTED-GITLAB-PAT]/g' \
+        -e 's/xoxb-[A-Za-z0-9-]\{20,\}/[REDACTED-SLACK-BOT]/g' \
+        -e 's/xoxp-[A-Za-z0-9-]\{20,\}/[REDACTED-SLACK-USER]/g' \
+        -e 's/Bearer [A-Za-z0-9._-]\{20,\}/Bearer [REDACTED-BEARER]/g' \
+        -e 's/eyJ[A-Za-z0-9_-]*\.eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*/[REDACTED-JWT]/g' \
+        -e 's/-----BEGIN[A-Z ]*PRIVATE KEY-----[^-]*-----END[A-Z ]*PRIVATE KEY-----/[REDACTED-PRIVATE-KEY]/g' \
+        -e 's|postgres://[^[:space:]]*|[REDACTED-CONNECTION-STRING]|g' \
+        -e 's|mysql://[^[:space:]]*|[REDACTED-CONNECTION-STRING]|g' \
+        -e 's|mongodb://[^[:space:]]*|[REDACTED-CONNECTION-STRING]|g' \
+        -e 's|mongodb+srv://[^[:space:]]*|[REDACTED-CONNECTION-STRING]|g' \
+        -e 's|redis://[^[:space:]]*|[REDACTED-CONNECTION-STRING]|g' \
+        -e 's/password=[^[:space:]&]*/password=[REDACTED-PASSWORD]/g'
+}
+
+save_agent_checkpoint() {
+    local task_id="$1"
+    local agent_type="$2"
+    local phase="$3"
+    local partial_output="${4:-}"
+
+    local checkpoint_dir="${WORKSPACE_DIR}/.octo/checkpoints"
+    local checkpoint_file="$checkpoint_dir/${task_id}.checkpoint.json"
+    mkdir -p "$checkpoint_dir"
+
+    # Debounce: skip if checkpoint < 5 minutes old
+    if [[ -f "$checkpoint_file" ]]; then
+        local mod_time now age
+        if stat -f %m "$checkpoint_file" &>/dev/null; then
+            mod_time=$(stat -f %m "$checkpoint_file")
+        else
+            mod_time=$(stat -c %Y "$checkpoint_file")
+        fi
+        now=$(date +%s)
+        age=$((now - mod_time))
+        if [[ $age -lt 300 ]]; then
+            log DEBUG "Checkpoint debounce: skipping (${age}s < 300s)"
+            return 0
+        fi
+    fi
+
+    # Sanitize and truncate
+    local safe_output
+    safe_output=$(sanitize_secrets "${partial_output:0:4096}")
+
+    local timestamp
+    timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+    if command -v jq &>/dev/null; then
+        jq -n \
+            --arg task_id "$task_id" \
+            --arg agent_type "$agent_type" \
+            --arg phase "$phase" \
+            --arg output "$safe_output" \
+            --arg timestamp "$timestamp" \
+            '{task_id: $task_id, agent_type: $agent_type, phase: $phase,
+              partial_output: $output, timestamp: $timestamp}' \
+            > "$checkpoint_file" 2>/dev/null
+    else
+        # Fallback without jq: simple format (escape quotes in output)
+        local escaped_output
+        escaped_output=$(echo "$safe_output" | sed 's/"/\\"/g' | tr '\n' ' ')
+        cat > "$checkpoint_file" << CKPTEOF
+{"task_id":"$task_id","agent_type":"$agent_type","phase":"$phase","partial_output":"$escaped_output","timestamp":"$timestamp"}
+CKPTEOF
+    fi
+
+    log DEBUG "Saved checkpoint: $checkpoint_file"
+}
+
+load_agent_checkpoint() {
+    local task_id="$1"
+
+    local checkpoint_file="${WORKSPACE_DIR}/.octo/checkpoints/${task_id}.checkpoint.json"
+
+    if [[ ! -f "$checkpoint_file" ]]; then
+        return 1
+    fi
+
+    # Check age: expire after 24h
+    local mod_time now age
+    if stat -f %m "$checkpoint_file" &>/dev/null; then
+        mod_time=$(stat -f %m "$checkpoint_file")
+    else
+        mod_time=$(stat -c %Y "$checkpoint_file")
+    fi
+    now=$(date +%s)
+    age=$((now - mod_time))
+
+    if [[ $age -gt 86400 ]]; then
+        log DEBUG "Checkpoint expired (${age}s > 86400s): $checkpoint_file"
+        rm -f "$checkpoint_file"
+        return 1
+    fi
+
+    cat "$checkpoint_file"
+}
+
+cleanup_expired_checkpoints() {
+    local checkpoint_dir="${WORKSPACE_DIR}/.octo/checkpoints"
+
+    if [[ ! -d "$checkpoint_dir" ]]; then
+        return 0
+    fi
+
+    local now
+    now=$(date +%s)
+
+    for checkpoint in "$checkpoint_dir"/*.checkpoint.json; do
+        [[ -f "$checkpoint" ]] || continue
+
+        local mod_time age
+        if stat -f %m "$checkpoint" &>/dev/null; then
+            mod_time=$(stat -f %m "$checkpoint")
+        else
+            mod_time=$(stat -c %Y "$checkpoint")
+        fi
+        age=$((now - mod_time))
+
+        if [[ $age -gt 86400 ]]; then
+            rm -f "$checkpoint"
+            log DEBUG "Cleaned up expired checkpoint: $(basename "$checkpoint")"
+        fi
+    done
 }
 
 # v8.18.0 Feature: Earned Skills System
@@ -8898,7 +9633,8 @@ apply_persona() {
     fi
 
     # Combine persona with original prompt
-    cat << EOF
+    local combined
+    combined=$(cat << EOF
 $persona
 
 ---
@@ -8906,6 +9642,12 @@ $persona
 **Task:**
 $prompt
 EOF
+)
+
+    # v8.19.0: Apply tool policy RBAC
+    combined=$(apply_tool_policy "$role" "$combined")
+
+    echo "$combined"
 }
 
 # Determine appropriate role for an agent and task context
@@ -9514,6 +10256,18 @@ retry_failed_subtasks() {
         local role="implementer"
         [[ "$agent" == "gemini" || "$agent" == "gemini-fast" ]] && role="researcher"
 
+        # v8.19.0: Search for similar errors and inject context into retry prompt
+        local error_keyword
+        error_keyword=$(echo "$prompt" | tr '[:upper:]' '[:lower:]' | tr -cs '[:alnum:]' ' ' | head -c 50)
+        local similar_count
+        similar_count=$(search_similar_errors "$error_keyword" 2>/dev/null) || similar_count=0
+        if [[ "$similar_count" -gt 0 ]]; then
+            prompt="[RETRY CONTEXT: This task has failed $similar_count time(s) previously. Analyze error patterns before attempting.]
+
+$prompt"
+            flag_repeat_error "$error_keyword" 2>/dev/null || true
+        fi
+
         spawn_agent "$agent" "$prompt" "tangle-${task_group}-retry${retry_count}-${subtask_num}" "$role" "tangle" &
         local pid=$!
         pids="$pids $pid"
@@ -9741,9 +10495,44 @@ spawn_agent() {
         role=$(get_role_for_context "$agent_type" "$task_type" "$phase")
     fi
 
+    # v8.19.0: Check routing rules for role override
+    local routed_role
+    routed_role=$(match_routing_rule "$(classify_task "$prompt" 2>/dev/null)" "$prompt" 2>/dev/null) || true
+    if [[ -n "$routed_role" ]]; then
+        log DEBUG "Routing rules override: $role -> $routed_role"
+        role="$routed_role"
+    fi
+
+    # v8.19.0: Check for checkpoint (crash-recovery)
+    local checkpoint_ctx=""
+    local checkpoint_data
+    checkpoint_data=$(load_agent_checkpoint "$task_id" 2>/dev/null) || true
+    if [[ -n "$checkpoint_data" ]]; then
+        local partial_output
+        if command -v jq &>/dev/null; then
+            partial_output=$(echo "$checkpoint_data" | jq -r '.partial_output // ""' 2>/dev/null)
+        else
+            partial_output=$(echo "$checkpoint_data" | grep -o '"partial_output":"[^"]*"' | sed 's/"partial_output":"//;s/"$//')
+        fi
+        if [[ -n "$partial_output" ]]; then
+            checkpoint_ctx="${partial_output:0:1500}"
+            log INFO "Loaded checkpoint for task $task_id (${#checkpoint_ctx} chars)"
+        fi
+    fi
+
     # Apply persona to prompt
     local enhanced_prompt
     enhanced_prompt=$(apply_persona "$role" "$prompt")
+
+    # v8.19.0: Inject checkpoint context if available
+    if [[ -n "$checkpoint_ctx" ]]; then
+        enhanced_prompt="${enhanced_prompt}
+
+---
+
+## Previous Attempt Context (crash-recovery)
+${checkpoint_ctx}"
+    fi
 
     # v8.2.0: Load agent skill context if available
     # NOTE: enforce_context_budget() moved AFTER all injections (v8.10.0 Issue #25)
@@ -10170,6 +10959,13 @@ ${earned_skills_ctx}"
                 echo '```' >> "$result_file"
             fi
 
+            # v8.19.0: Record timeout error and save checkpoint
+            record_error "$agent_type" "$prompt" "Agent timed out" "124" "spawn_agent timeout" 2>/dev/null || true
+            local timeout_partial=""
+            [[ -s "$temp_output" ]] && timeout_partial=$(cat "$temp_output")
+            [[ -z "$timeout_partial" && -s "$raw_output" ]] && timeout_partial=$(cat "$raw_output")
+            save_agent_checkpoint "$task_id" "$agent_type" "${phase:-unknown}" "$timeout_partial" 2>/dev/null || true
+
             # Mark agent as timeout (partial success) (v7.19.0)
             local end_time_ms elapsed_ms
             end_time_ms=$(( $(date +%s) * 1000 ))
@@ -10196,6 +10992,17 @@ ${earned_skills_ctx}"
                 cat "$temp_errors" >> "$result_file"
                 echo '```' >> "$result_file"
             fi
+
+            # v8.19.0: Record error for learning loop
+            local error_detail=""
+            [[ -s "$temp_errors" ]] && error_detail=$(head -5 "$temp_errors")
+            record_error "$agent_type" "$prompt" "${error_detail:-Unknown error}" "$exit_code" "spawn_agent failure" 2>/dev/null || true
+
+            # v8.19.0: Save checkpoint for crash-recovery
+            local partial_for_checkpoint=""
+            [[ -s "$temp_output" ]] && partial_for_checkpoint=$(cat "$temp_output")
+            [[ -z "$partial_for_checkpoint" && -s "$raw_output" ]] && partial_for_checkpoint=$(cat "$raw_output")
+            save_agent_checkpoint "$task_id" "$agent_type" "${phase:-unknown}" "$partial_for_checkpoint" 2>/dev/null || true
 
             # Mark agent as failed (v7.16.0 Feature 2)
             local end_time_ms elapsed_ms
@@ -10229,9 +11036,15 @@ ${earned_skills_ctx}"
 
         # Ensure file is fully written before background process exits
         sync
+
+        # v8.19.0: Cleanup heartbeat (self-terminating monitor handles this too)
+        cleanup_heartbeat "$$" 2>/dev/null || true
     ) &
 
     local pid=$!
+
+    # v8.19.0: Start heartbeat monitor for agent process
+    start_heartbeat_monitor "$pid" "$task_id"
 
     # Atomic PID file write with file locking to prevent race conditions
     # Use flock on Linux, skip locking on macOS (flock not available)
@@ -13122,6 +13935,13 @@ run_agent_sync() {
     local role="${4:-}"   # Optional role override
     local phase="${5:-}"  # Optional phase context
 
+    # v8.19.0: Dynamic timeout calculation (when caller uses default 120)
+    if [[ "$timeout_secs" -eq 120 ]]; then
+        local task_type_for_timeout
+        task_type_for_timeout=$(classify_task "$prompt" 2>/dev/null) || task_type_for_timeout="standard"
+        timeout_secs=$(compute_dynamic_timeout "$task_type_for_timeout" "$prompt")
+    fi
+
     # Determine role if not provided
     if [[ -z "$role" ]]; then
         local task_type
@@ -14291,14 +15111,16 @@ validate_tangle_results() {
             results+="$(cat "$result")\n\n---\n\n"
         done
 
-        # Quality gate check (using configurable threshold)
+        # Quality gate check (using configurable per-phase threshold - v8.19.0)
+        local tangle_threshold
+        tangle_threshold=$(get_gate_threshold "tangle")
         local total=$((success_count + fail_count))
         local success_rate=0
         [[ $total -gt 0 ]] && success_rate=$((success_count * 100 / total))
 
         local gate_status="PASSED"
         local gate_color="${GREEN}"
-        if [[ $success_rate -lt $QUALITY_THRESHOLD ]]; then
+        if [[ $success_rate -lt $tangle_threshold ]]; then
             gate_status="FAILED"
             gate_color="${RED}"
         elif [[ $success_rate -lt 90 ]]; then
@@ -14306,14 +15128,14 @@ validate_tangle_results() {
             gate_color="${YELLOW}"
         fi
 
-        # v8.18.0: Record quality gate decision
+        # v8.19.0: Log threshold applied
         write_structured_decision \
             "quality-gate" \
             "validate_tangle_results" \
-            "Quality gate ${gate_status}: ${success_rate}% success rate (threshold: ${QUALITY_THRESHOLD}%)" \
+            "Quality gate ${gate_status}: ${success_rate}% success rate (threshold: ${tangle_threshold}%)" \
             "tangle-${task_group}" \
-            "$(if [[ $success_rate -ge 90 ]]; then echo "high"; elif [[ $success_rate -ge $QUALITY_THRESHOLD ]]; then echo "medium"; else echo "low"; fi)" \
-            "Success: ${success_count}/${total}, failures: ${fail_count}" \
+            "$(if [[ $success_rate -ge 90 ]]; then echo "high"; elif [[ $success_rate -ge $tangle_threshold ]]; then echo "medium"; else echo "low"; fi)" \
+            "Success: ${success_count}/${total}, failures: ${fail_count}, threshold: ${tangle_threshold}%" \
             "" 2>/dev/null || true
 
         # ═══════════════════════════════════════════════════════════════════════
@@ -14334,7 +15156,7 @@ validate_tangle_results() {
                     echo -e "${YELLOW}╔═══════════════════════════════════════════════════════════╗${NC}"
                     echo -e "${YELLOW}║  🐙 Branching: Retry Path (attempt $quality_retry_count/$MAX_QUALITY_RETRIES)                    ║${NC}"
                     echo -e "${YELLOW}╚═══════════════════════════════════════════════════════════╝${NC}"
-                    log WARN "Quality gate at ${success_rate}%, below ${QUALITY_THRESHOLD}%. Retrying..."
+                    log WARN "Quality gate at ${success_rate}%, below ${tangle_threshold}%. Retrying..."
                     # v8.18.0: Lock providers that failed quality gate
                     while IFS= read -r failed_task; do
                         [[ -z "$failed_task" ]] && continue
@@ -14488,6 +15310,7 @@ ink_deliver() {
     local sonnet_review
     sonnet_review=$(run_agent_sync "claude-sonnet" "Review these development results for quality, completeness, and correctness.
 Flag any issues, gaps, or improvements needed.
+Rate each dimension explicitly as 'Security: N/10', 'Reliability: N/10', 'Performance: N/10', 'Accessibility: N/10'.
 
 Original task: $prompt
 
@@ -14495,6 +15318,43 @@ Results:
 $all_results" 120 "code-reviewer" "ink") || {
         sonnet_review="[Quality review unavailable]"
     }
+
+    # v8.19.0: Cross-model review scoring (4x10)
+    local review_scores
+    review_scores=$(score_cross_model_review "$sonnet_review")
+    local rev_sec rev_rel rev_perf rev_acc
+    IFS=':' read -r rev_sec rev_rel rev_perf rev_acc <<< "$review_scores"
+
+    echo ""
+    format_review_scorecard "$rev_sec" "$rev_rel" "$rev_perf" "$rev_acc"
+    echo ""
+
+    # Record scorecard via structured decision
+    write_structured_decision \
+        "quality-gate" \
+        "ink_deliver/cross-model-review" \
+        "Review scorecard: sec=${rev_sec} rel=${rev_rel} perf=${rev_perf} acc=${rev_acc}" \
+        "ink-delivery" \
+        "high" \
+        "4x10 cross-model review scores" \
+        "" 2>/dev/null || true
+
+    # v8.19.0: Strict 4x10 gate (when enabled)
+    if [[ "$OCTOPUS_REVIEW_4X10" == "true" ]]; then
+        if [[ "$rev_sec" -lt 10 || "$rev_rel" -lt 10 || "$rev_perf" -lt 10 || "$rev_acc" -lt 10 ]]; then
+            log ERROR "4x10 gate FAILED: all dimensions must be 10/10 (sec=$rev_sec rel=$rev_rel perf=$rev_perf acc=$rev_acc)"
+            write_structured_decision \
+                "quality-gate" \
+                "ink_deliver/4x10-gate" \
+                "4x10 gate FAILED: sec=${rev_sec} rel=${rev_rel} perf=${rev_perf} acc=${rev_acc}" \
+                "ink-delivery" \
+                "high" \
+                "Strict 4x10 gate requires all dimensions at 10/10" \
+                "" 2>/dev/null || true
+            return 1
+        fi
+        log INFO "4x10 gate PASSED: all dimensions at 10/10"
+    fi
 
     local synthesis_prompt="Create a polished final deliverable from these development results.
 
@@ -14568,8 +15428,26 @@ embrace_full_workflow() {
 
     log INFO "Starting complete Double Diamond workflow"
 
+    # v8.19.0: Cleanup expired checkpoints
+    cleanup_expired_checkpoints 2>/dev/null || true
+
     # v8.18.0: Reset lockouts for new workflow
     reset_provider_lockouts
+
+    # v8.19.0: Inject high-importance observations into workflow context
+    local high_obs
+    high_obs=$(search_observations "" 7 2>/dev/null) || true
+    if [[ -n "$high_obs" ]]; then
+        local obs_ctx="${high_obs:0:1500}"
+        prompt="${prompt}
+
+---
+
+## High-Importance Observations from Previous Sessions
+${obs_ctx}"
+        log DEBUG "Injected ${#obs_ctx} chars of high-importance observations"
+    fi
+
     log INFO "Task: $prompt"
     log INFO "Autonomy mode: $AUTONOMY_MODE"
     [[ "$LOOP_UNTIL_APPROVED" == "true" ]] && log INFO "Loop-until-approved: enabled"
