@@ -142,6 +142,7 @@ cat > .octo/parallel/wbs.json << 'WBSEOF'
       "scope": "<what this WP covers>",
       "expected_outputs": ["<list of files this WP should produce>"],
       "dependencies": [],
+      "wave": 1,
       "status": "pending"
     }
   ]
@@ -163,6 +164,101 @@ fi
 ```
 
 **DO NOT PROCEED TO STEP 5 until WBS validated.**
+
+---
+
+### STEP 4.5: Dependency Validation & Wave Assignment (MANDATORY)
+
+If any work package has non-empty `dependencies`, validate the dependency graph and assign wave numbers.
+
+**Skip this step** if all work packages have `"dependencies": []` — they all get wave 1 (backward compatible).
+
+**Run dependency validation and wave assignment:**
+
+```bash
+python3 << 'DEPEOF'
+import json, sys
+
+with open('.octo/parallel/wbs.json') as f:
+    wbs = json.load(f)
+
+packages = wbs['work_packages']
+ids = {wp['id'] for wp in packages}
+deps = {wp['id']: wp.get('dependencies', []) for wp in packages}
+
+# Check for missing references
+errors = []
+for wp_id, wp_deps in deps.items():
+    for dep in wp_deps:
+        if dep not in ids:
+            errors.append(f"WP {wp_id} depends on unknown {dep}")
+
+if errors:
+    print("DEPENDENCY VALIDATION: FAILED")
+    for e in errors:
+        print(f"  ERROR: {e}")
+    sys.exit(1)
+
+# Cycle detection (DFS)
+WHITE, GRAY, BLACK = 0, 1, 2
+color = {wp_id: WHITE for wp_id in ids}
+
+def has_cycle(node, path):
+    color[node] = GRAY
+    for dep in deps[node]:
+        if color[dep] == GRAY:
+            cycle = path[path.index(dep):] + [dep]
+            return cycle
+        if color[dep] == WHITE:
+            result = has_cycle(dep, path + [dep])
+            if result:
+                return result
+    color[node] = BLACK
+    return None
+
+for wp_id in ids:
+    if color[wp_id] == WHITE:
+        cycle = has_cycle(wp_id, [wp_id])
+        if cycle:
+            print(f"DEPENDENCY VALIDATION: FAILED - Cycle detected: {' -> '.join(cycle)}")
+            sys.exit(1)
+
+# Topological sort and wave assignment
+waves = {}
+assigned = set()
+
+def get_wave(wp_id):
+    if wp_id in waves:
+        return waves[wp_id]
+    if not deps[wp_id]:
+        waves[wp_id] = 1
+        return 1
+    max_dep_wave = max(get_wave(d) for d in deps[wp_id])
+    waves[wp_id] = max_dep_wave + 1
+    return waves[wp_id]
+
+for wp_id in ids:
+    get_wave(wp_id)
+
+# Update WBS with wave assignments
+for wp in packages:
+    wp['wave'] = waves[wp['id']]
+
+with open('.octo/parallel/wbs.json', 'w') as f:
+    json.dump(wbs, f, indent=2)
+
+max_wave = max(waves.values())
+print(f"DEPENDENCY VALIDATION: PASSED")
+print(f"Waves assigned: {max_wave}")
+for w in range(1, max_wave + 1):
+    wave_wps = [wp_id for wp_id, wave in waves.items() if wave == w]
+    print(f"  Wave {w}: {', '.join(wave_wps)}")
+DEPEOF
+```
+
+**If validation fails:** Report the error to the user and STOP. Do not proceed with invalid dependencies.
+
+**DO NOT PROCEED TO STEP 5 until dependencies validated (or step skipped for independent WPs).**
 
 ---
 
@@ -199,6 +295,10 @@ cat > ".octo/parallel/WP-N/instructions.md" << 'INSTREOF'
 - Code must compile/parse without errors
 - Follow existing project conventions
 - Include basic error handling
+
+## Dependency Context
+- This WP depends on: <list of dependency WP IDs, or "none">
+- Outputs from completed dependencies will be provided below when available
 INSTREOF
 ```
 
@@ -251,73 +351,122 @@ fi
 
 ---
 
-### STEP 6: Launch & Monitor (MANDATORY)
+### STEP 6: Launch & Monitor — Wave-Based Execution (MANDATORY)
 
-Launch each work package as a background process with a 12-second stagger between spawns.
+Launch work packages in dependency waves. Wave 1 runs first; Wave 2 starts only after Wave 1 completes (with outputs injected); and so on.
 
-**Launch sequence:**
+**If all WPs are in Wave 1** (no dependencies), this behaves identically to the original launch — backward compatible.
+
+**Wave-based launch sequence:**
 
 ```bash
 PROJECT_ROOT="$(pwd)"
-WP_COUNT=$(python3 -c "import json; print(len(json.load(open('.octo/parallel/wbs.json'))['work_packages']))")
+WBS_FILE=".octo/parallel/wbs.json"
+MAX_WAVE=$(python3 -c "import json; wbs=json.load(open('$WBS_FILE')); print(max(wp.get('wave',1) for wp in wbs['work_packages']))")
+TIMEOUT=600  # 10 minutes per wave
 
-echo "Launching $WP_COUNT work packages with 12-second stagger..."
+echo "Executing $MAX_WAVE wave(s)..."
 
-for i in $(seq 1 "$WP_COUNT"); do
-  echo "Launching WP-$i at $(date '+%H:%M:%S')..."
-  bash ".octo/parallel/WP-$i/launch.sh" &
-  WP_PID=$!
-  echo "$WP_PID" > ".octo/parallel/WP-$i/pid"
-  echo "  WP-$i launched (PID: $WP_PID)"
+for WAVE in $(seq 1 "$MAX_WAVE"); do
+  echo ""
+  echo "=== WAVE $WAVE ==="
+  echo ""
 
-  # 12-second stagger between launches (skip after last)
-  if [[ "$i" -lt "$WP_COUNT" ]]; then
-    echo "  Waiting 12 seconds before next launch..."
-    sleep 12
-  fi
-done
+  # Get WPs for this wave
+  WAVE_WPS=$(python3 -c "
+import json
+wbs=json.load(open('$WBS_FILE'))
+wps=[wp['id'] for wp in wbs['work_packages'] if wp.get('wave',1)==$WAVE]
+print(' '.join(wps))
+  ")
 
-echo "All $WP_COUNT work packages launched."
-```
+  # Inject outputs from completed dependency WPs into instructions
+  for WP_ID in $WAVE_WPS; do
+    WP_NUM="${WP_ID#WP-}"
+    WP_DIR=".octo/parallel/$WP_ID"
 
-**Monitor loop — poll for completion:**
+    # Get dependencies for this WP
+    DEPS=$(python3 -c "
+import json
+wbs=json.load(open('$WBS_FILE'))
+wp=[w for w in wbs['work_packages'] if w['id']=='$WP_ID'][0]
+print(' '.join(wp.get('dependencies',[])))
+    ")
 
-```bash
-TIMEOUT=600  # 10 minutes per WP
-START_TIME=$(date +%s)
-COMPLETED=0
-
-echo "Monitoring work packages (timeout: ${TIMEOUT}s per WP)..."
-
-while [[ "$COMPLETED" -lt "$WP_COUNT" ]]; do
-  COMPLETED=0
-  for i in $(seq 1 "$WP_COUNT"); do
-    if [[ -f ".octo/parallel/WP-$i/.done" ]]; then
-      COMPLETED=$((COMPLETED + 1))
+    if [[ -n "$DEPS" ]]; then
+      echo "Injecting dependency outputs into $WP_ID..."
+      echo "" >> "$WP_DIR/instructions.md"
+      echo "## Outputs from Dependencies" >> "$WP_DIR/instructions.md"
+      for DEP in $DEPS; do
+        DEP_DIR=".octo/parallel/$DEP"
+        if [[ -f "$DEP_DIR/output.md" ]]; then
+          echo "" >> "$WP_DIR/instructions.md"
+          echo "### From $DEP:" >> "$WP_DIR/instructions.md"
+          head -c 4000 "$DEP_DIR/output.md" >> "$WP_DIR/instructions.md"
+        fi
+      done
     fi
   done
 
-  ELAPSED=$(( $(date +%s) - START_TIME ))
-  echo "Progress: $COMPLETED/$WP_COUNT complete (${ELAPSED}s elapsed)"
+  # Launch WPs in this wave with 12s stagger
+  WAVE_COUNT=0
+  for WP_ID in $WAVE_WPS; do
+    WP_NUM="${WP_ID#WP-}"
+    echo "Launching $WP_ID at $(date '+%H:%M:%S')..."
+    bash ".octo/parallel/$WP_ID/launch.sh" &
+    WP_PID=$!
+    echo "$WP_PID" > ".octo/parallel/$WP_ID/pid"
+    echo "  $WP_ID launched (PID: $WP_PID)"
+    WAVE_COUNT=$((WAVE_COUNT + 1))
 
-  if [[ "$ELAPSED" -gt "$((TIMEOUT * WP_COUNT))" ]]; then
-    echo "TIMEOUT: Not all work packages completed within $(( TIMEOUT * WP_COUNT ))s"
-    break
-  fi
+    # 12-second stagger within wave (skip after last)
+    REMAINING=$(echo "$WAVE_WPS" | wc -w | tr -d ' ')
+    if [[ "$WAVE_COUNT" -lt "$REMAINING" ]]; then
+      echo "  Waiting 12 seconds before next launch..."
+      sleep 12
+    fi
+  done
 
-  if [[ "$COMPLETED" -lt "$WP_COUNT" ]]; then
-    sleep 15
-  fi
+  # Monitor this wave
+  START_TIME=$(date +%s)
+  COMPLETED=0
+  WAVE_TOTAL=$(echo "$WAVE_WPS" | wc -w | tr -d ' ')
+
+  echo "Monitoring Wave $WAVE ($WAVE_TOTAL WPs, timeout: ${TIMEOUT}s)..."
+
+  while [[ "$COMPLETED" -lt "$WAVE_TOTAL" ]]; do
+    COMPLETED=0
+    for WP_ID in $WAVE_WPS; do
+      if [[ -f ".octo/parallel/$WP_ID/.done" ]]; then
+        COMPLETED=$((COMPLETED + 1))
+      fi
+    done
+
+    ELAPSED=$(( $(date +%s) - START_TIME ))
+    echo "Wave $WAVE progress: $COMPLETED/$WAVE_TOTAL complete (${ELAPSED}s elapsed)"
+
+    if [[ "$ELAPSED" -gt "$TIMEOUT" ]]; then
+      echo "TIMEOUT: Wave $WAVE did not complete within ${TIMEOUT}s"
+      break
+    fi
+
+    if [[ "$COMPLETED" -lt "$WAVE_TOTAL" ]]; then
+      sleep 15
+    fi
+  done
+
+  echo "Wave $WAVE complete: $COMPLETED/$WAVE_TOTAL finished."
 done
 
-echo "Monitoring complete: $COMPLETED/$WP_COUNT work packages finished."
+echo ""
+echo "All waves executed."
 ```
 
 **Validation gate: `processes_launched`** — Verify PID files exist for all WPs.
 
-**IMPORTANT:** The launch and monitor commands above should be run via the Bash tool. You may need to combine them or run the monitor as a separate polling step. The monitor loop will block until all WPs complete or timeout.
+**IMPORTANT:** The launch and monitor commands above should be run via the Bash tool. You may need to combine them or run the monitor as a separate polling step. The monitor loop will block until each wave completes or times out.
 
-**DO NOT PROCEED TO STEP 7 until monitoring complete.**
+**DO NOT PROCEED TO STEP 7 until all waves complete.**
 
 ---
 
@@ -439,6 +588,8 @@ Created and managed by this skill:
 - CANNOT write vague instructions — explicit file paths are MANDATORY
 - CANNOT launch more than 10 work packages
 - CANNOT skip the monitoring loop
+- CANNOT launch a wave before its dependency wave completes
+- CANNOT skip dependency validation when dependencies exist
 
 ---
 

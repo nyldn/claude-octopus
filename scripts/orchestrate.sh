@@ -3540,6 +3540,518 @@ DISABLE_PERSONAS="${CLAUDE_OCTOPUS_DISABLE_PERSONAS:-false}"
 # Session recovery
 SESSION_FILE="${WORKSPACE_DIR}/session.json"
 
+# v8.18.0 Feature: Sentinel Work Monitor
+# GitHub-aware work monitor that triages issues/PRs/CI failures
+OCTOPUS_SENTINEL_ENABLED="${OCTOPUS_SENTINEL_ENABLED:-false}"
+OCTOPUS_SENTINEL_INTERVAL="${OCTOPUS_SENTINEL_INTERVAL:-600}"
+
+# v8.18.0 Feature: Response Mode Auto-Tuning
+OCTOPUS_RESPONSE_MODE="${OCTOPUS_RESPONSE_MODE:-auto}"
+
+# v8.18.0 Feature: Pre-Work Design Review Ceremony
+OCTOPUS_CEREMONIES="${OCTOPUS_CEREMONIES:-true}"
+
+# v8.18.0 Feature: Reviewer Lockout Protocol
+# When a provider's output is rejected during quality gates,
+# lock it out from self-revision and route retries to an alternate provider.
+LOCKED_PROVIDERS=""
+
+lock_provider() {
+    local provider="$1"
+    if ! echo "$LOCKED_PROVIDERS" | grep -qw "$provider"; then
+        LOCKED_PROVIDERS="${LOCKED_PROVIDERS:+$LOCKED_PROVIDERS }$provider"
+        log WARN "Provider locked out: $provider (will not self-revise)"
+    fi
+}
+
+is_provider_locked() {
+    local provider="$1"
+    echo "$LOCKED_PROVIDERS" | grep -qw "$provider"
+}
+
+get_alternate_provider() {
+    local locked_provider="$1"
+    case "$locked_provider" in
+        codex|codex-fast|codex-mini)
+            if ! is_provider_locked "gemini"; then
+                echo "gemini"
+            elif ! is_provider_locked "claude-sonnet"; then
+                echo "claude-sonnet"
+            else
+                echo "$locked_provider"  # All locked, use original
+            fi
+            ;;
+        gemini|gemini-fast)
+            if ! is_provider_locked "codex"; then
+                echo "codex"
+            elif ! is_provider_locked "claude-sonnet"; then
+                echo "claude-sonnet"
+            else
+                echo "$locked_provider"
+            fi
+            ;;
+        claude-sonnet|claude*)
+            if ! is_provider_locked "codex"; then
+                echo "codex"
+            elif ! is_provider_locked "gemini"; then
+                echo "gemini"
+            else
+                echo "$locked_provider"
+            fi
+            ;;
+        *)
+            echo "$locked_provider"
+            ;;
+    esac
+}
+
+reset_provider_lockouts() {
+    if [[ -n "$LOCKED_PROVIDERS" ]]; then
+        log INFO "Resetting provider lockouts (were: $LOCKED_PROVIDERS)"
+    fi
+    LOCKED_PROVIDERS=""
+}
+
+# v8.18.0 Feature: Per-Provider History Files
+# Each provider accumulates project-specific knowledge in .octo/providers/{name}-history.md
+
+append_provider_history() {
+    local provider="$1"
+    local phase="$2"
+    local task_brief="$3"
+    local learned="$4"
+
+    local history_dir="${WORKSPACE_DIR}/.octo/providers"
+    local history_file="$history_dir/${provider}-history.md"
+    mkdir -p "$history_dir"
+
+    local timestamp
+    timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+    # Append structured entry
+    cat >> "$history_file" << HISTEOF
+### ${phase} | ${timestamp}
+**Task:** ${task_brief:0:100}
+**Learned:** ${learned:0:200}
+---
+HISTEOF
+
+    # Cap at 50 entries: count entries and trim oldest if exceeded
+    local entry_count
+    entry_count=$(grep -c "^### " "$history_file" 2>/dev/null || echo "0")
+    if [[ "$entry_count" -gt 50 ]]; then
+        local excess=$((entry_count - 50))
+        # Remove oldest entries (from top of file)
+        local trim_line
+        trim_line=$(grep -n "^### " "$history_file" | sed -n "$((excess + 1))p" | cut -d: -f1)
+        if [[ -n "$trim_line" && "$trim_line" -gt 1 ]]; then
+            tail -n "+$trim_line" "$history_file" > "$history_file.tmp" && mv "$history_file.tmp" "$history_file"
+        fi
+    fi
+
+    log DEBUG "Appended provider history for $provider (phase: $phase)"
+}
+
+read_provider_history() {
+    local provider="$1"
+    local history_file="${WORKSPACE_DIR}/.octo/providers/${provider}-history.md"
+
+    if [[ -f "$history_file" ]]; then
+        cat "$history_file"
+    fi
+}
+
+build_provider_context() {
+    local agent_type="$1"
+    local base_provider="${agent_type%%-*}"  # codex-fast -> codex
+    local history
+    history=$(read_provider_history "$base_provider")
+
+    if [[ -z "$history" ]]; then
+        return
+    fi
+
+    # Truncate to max 2000 chars for prompt injection
+    if [[ ${#history} -gt 2000 ]]; then
+        history="${history:0:2000}..."
+    fi
+
+    echo "## Provider History (${base_provider})
+Recent learnings from this project:
+${history}"
+}
+
+# v8.18.0 Feature: Structured Decision Format
+# Append-only .octo/decisions.md with structured, git-mergeable entries
+
+write_structured_decision() {
+    local type="$1"          # quality-gate | debate-synthesis | phase-completion | security-finding
+    local source="$2"        # which function/phase generated this
+    local summary="$3"       # one-line summary
+    local scope="${4:-}"     # files/areas affected
+    local confidence="${5:-medium}"  # low | medium | high
+    local rationale="${6:-}" # why this decision was made
+    local related="${7:-}"   # related decision IDs or refs
+
+    local decisions_dir="${WORKSPACE_DIR}/.octo"
+    local decisions_file="$decisions_dir/decisions.md"
+    mkdir -p "$decisions_dir"
+
+    local timestamp
+    timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    local decision_id
+    decision_id="D-$(date +%s)-$$"
+
+    # Append structured entry (git-mergeable: append-only, no edits to existing lines)
+    cat >> "$decisions_file" << DECEOF
+
+### type: ${type} | timestamp: ${timestamp} | source: ${source}
+**ID:** ${decision_id}
+**Summary:** ${summary}
+**Scope:** ${scope:-project-wide}
+**Confidence:** ${confidence}
+**Rationale:** ${rationale:-No rationale provided}
+${related:+**Related:** ${related}}
+---
+DECEOF
+
+    log DEBUG "Recorded structured decision: $decision_id ($type from $source)"
+
+    # Backward compat: also write to state.json via write_decision() if available
+    if command -v write_decision &>/dev/null 2>&1; then
+        write_decision "${source}" "${summary}" "${rationale:-$type}" 2>/dev/null || true
+    fi
+}
+
+# v8.18.0 Feature: Pre-Work Design Review Ceremony
+# Before tangle phase, each provider states its approach; conflicts are resolved.
+# After failures, a retrospective fires.
+
+design_review_ceremony() {
+    local prompt="$1"
+    local context="${2:-}"
+
+    # Skip in dry-run or when ceremonies disabled
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log INFO "[DRY-RUN] Would run design review ceremony"
+        return 0
+    fi
+    if [[ "$OCTOPUS_CEREMONIES" != "true" ]]; then
+        log DEBUG "Ceremonies disabled (OCTOPUS_CEREMONIES=$OCTOPUS_CEREMONIES)"
+        return 0
+    fi
+
+    echo ""
+    echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║  📋 DESIGN REVIEW CEREMONY                               ║${NC}"
+    echo -e "${CYAN}║  Each provider states their approach before implementation ║${NC}"
+    echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+
+    local ceremony_prompt="You are participating in a design review ceremony before implementation begins.
+
+Task: $prompt
+${context:+Context: $context}
+
+State your HIGH-LEVEL approach in 3-5 bullet points:
+1. Architecture/pattern choice and why
+2. Key dependencies or prerequisites
+3. Risk areas and mitigation strategies
+4. Testing approach
+5. Integration considerations
+
+Be concise and specific. This is a planning exercise, not implementation."
+
+    # Gather approaches from available providers
+    local codex_approach="" gemini_approach="" sonnet_approach=""
+
+    log INFO "Design review: gathering provider approaches..."
+
+    codex_approach=$(run_agent_sync "codex" "$ceremony_prompt" 60 "implementer" "ceremony" 2>/dev/null) || true
+    gemini_approach=$(run_agent_sync "gemini" "$ceremony_prompt" 60 "researcher" "ceremony" 2>/dev/null) || true
+    sonnet_approach=$(run_agent_sync "claude-sonnet" "$ceremony_prompt" 60 "code-reviewer" "ceremony" 2>/dev/null) || true
+
+    # Synthesize conflicts and resolution
+    local synthesis
+    synthesis=$(run_agent_sync "claude" "You are synthesizing a design review ceremony.
+
+Three providers stated their approach to this task:
+
+CODEX APPROACH:
+${codex_approach:-[unavailable]}
+
+GEMINI APPROACH:
+${gemini_approach:-[unavailable]}
+
+SONNET APPROACH:
+${sonnet_approach:-[unavailable]}
+
+Identify:
+1. CONFLICTS: Where do the approaches disagree?
+2. GAPS: What did everyone miss?
+3. RESOLUTION: The recommended unified approach (2-3 sentences)
+
+Be brief and actionable." 60 "synthesizer" "ceremony" 2>/dev/null) || true
+
+    if [[ -n "$synthesis" ]]; then
+        echo -e "${GREEN}Design Review Summary:${NC}"
+        echo "$synthesis" | head -20
+        echo ""
+
+        # Record outcome
+        write_structured_decision \
+            "phase-completion" \
+            "design_review_ceremony" \
+            "Design review completed for: ${prompt:0:60}" \
+            "" \
+            "medium" \
+            "${synthesis:0:200}" \
+            "" 2>/dev/null || true
+    fi
+
+    log INFO "Design review ceremony complete"
+}
+
+retrospective_ceremony() {
+    local prompt="$1"
+    local failure_context="${2:-}"
+
+    # Skip in dry-run or when ceremonies disabled
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log INFO "[DRY-RUN] Would run retrospective ceremony"
+        return 0
+    fi
+    if [[ "$OCTOPUS_CEREMONIES" != "true" ]]; then
+        log DEBUG "Ceremonies disabled"
+        return 0
+    fi
+
+    echo ""
+    echo -e "${YELLOW}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${YELLOW}║  🔍 RETROSPECTIVE CEREMONY                               ║${NC}"
+    echo -e "${YELLOW}║  Analyzing what went wrong and how to improve             ║${NC}"
+    echo -e "${YELLOW}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+
+    local retro_prompt="Analyze this failure and provide root-cause analysis.
+
+Original task: $prompt
+Failure context: ${failure_context:-Quality gate failed during development phase}
+
+Provide:
+1. ROOT CAUSE: Why did this fail? (1-2 sentences)
+2. CONTRIBUTING FACTORS: What made it worse?
+3. PREVENTION: How to avoid this next time (actionable)
+4. IMMEDIATE FIX: What should be tried now
+
+Be specific and actionable. No platitudes."
+
+    local retro_analysis
+    retro_analysis=$(run_agent_sync "claude-sonnet" "$retro_prompt" 60 "code-reviewer" "retrospective" 2>/dev/null) || true
+
+    if [[ -n "$retro_analysis" ]]; then
+        echo -e "${YELLOW}Retrospective Analysis:${NC}"
+        echo "$retro_analysis" | head -15
+        echo ""
+
+        # Record findings
+        write_structured_decision \
+            "quality-gate" \
+            "retrospective_ceremony" \
+            "Retrospective on failure: ${prompt:0:60}" \
+            "" \
+            "high" \
+            "${retro_analysis:0:200}" \
+            "" 2>/dev/null || true
+    fi
+
+    log INFO "Retrospective ceremony complete"
+}
+
+# v8.18.0 Feature: Response Mode Auto-Tuning
+# Auto-detect task complexity and adjust execution depth
+
+detect_response_mode() {
+    local prompt="$1"
+    local task_type="${2:-}"
+    local prompt_lower
+    prompt_lower=$(echo "$prompt" | tr '[:upper:]' '[:lower:]')
+
+    # Check for env var override first
+    if [[ "$OCTOPUS_RESPONSE_MODE" != "auto" ]]; then
+        echo "$OCTOPUS_RESPONSE_MODE"
+        return
+    fi
+
+    # User signal detection
+    if echo "$prompt_lower" | grep -qwE "quick|fast|simple|brief|short"; then
+        echo "direct"
+        return
+    fi
+    if echo "$prompt_lower" | grep -qwE "thorough|comprehensive|complete|detailed|in-depth|exhaustive"; then
+        echo "full"
+        return
+    fi
+
+    # Task type heuristics
+    case "${task_type}" in
+        crossfire-*)
+            echo "full"
+            return
+            ;;
+        image-*)
+            echo "lightweight"
+            return
+            ;;
+        diamond-*)
+            echo "standard"
+            return
+            ;;
+    esac
+
+    # Word count heuristics
+    local word_count
+    word_count=$(echo "$prompt" | wc -w | tr -d ' ')
+
+    if [[ $word_count -lt 10 ]]; then
+        echo "direct"
+        return
+    fi
+    if [[ $word_count -gt 80 ]]; then
+        echo "full"
+        return
+    fi
+
+    # Technical keyword density scoring
+    local tech_score=0
+    local tech_keywords="api database schema migration authentication authorization security performance optimization architecture microservice docker kubernetes terraform infrastructure pipeline deployment integration webhook endpoint middleware"
+
+    for keyword in $tech_keywords; do
+        if echo "$prompt_lower" | grep -qw "$keyword"; then
+            ((tech_score++)) || true
+        fi
+    done
+
+    if [[ $tech_score -ge 3 ]]; then
+        echo "full"
+    elif [[ $tech_score -ge 1 ]]; then
+        echo "standard"
+    else
+        echo "standard"
+    fi
+}
+
+# v8.18.0 Feature: Earned Skills System
+# Providers discover repeatable patterns → skill files in .octo/skills/earned/
+
+earn_skill() {
+    local name="$1"
+    local source="$2"       # which function discovered this
+    local pattern="$3"      # the repeatable pattern
+    local context="${4:-}"  # when to apply
+    local example="${5:-}"  # example usage
+
+    local skills_dir="${WORKSPACE_DIR}/.octo/skills/earned"
+    mkdir -p "$skills_dir"
+
+    # Sanitize name for filename
+    local safe_name
+    safe_name=$(echo "$name" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | sed 's/--*/-/g' | sed 's/^-//;s/-$//')
+    local skill_file="$skills_dir/${safe_name}.md"
+
+    local timestamp
+    timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+    # Count existing occurrences to determine confidence
+    local occurrence=1
+    if [[ -f "$skill_file" ]]; then
+        occurrence=$(( $(grep -c "^#### Occurrence" "$skill_file" 2>/dev/null || echo "0") + 1 ))
+    fi
+
+    # Confidence lifecycle: 1=low, 3+=medium, 5+=high
+    local confidence="low"
+    [[ $occurrence -ge 3 ]] && confidence="medium"
+    [[ $occurrence -ge 5 ]] && confidence="high"
+
+    # Append occurrence entry
+    cat >> "$skill_file" << SKILLEOF
+#### Occurrence $occurrence | $timestamp | source: $source
+**Pattern:** ${pattern:0:300}
+**Context:** ${context:-General}
+**Example:** ${example:-None provided}
+**Confidence:** $confidence
+---
+SKILLEOF
+
+    # Update header with latest confidence
+    if [[ $occurrence -eq 1 ]]; then
+        # New skill: add header
+        local tmp_file="${skill_file}.tmp"
+        {
+            echo "# Earned Skill: $name"
+            echo "**Confidence:** $confidence | **Occurrences:** $occurrence"
+            echo ""
+            cat "$skill_file"
+        } > "$tmp_file" && mv "$tmp_file" "$skill_file"
+    else
+        # Update existing header
+        if grep -q "^\*\*Confidence:\*\*" "$skill_file"; then
+            sed -i.bak "s/^\*\*Confidence:\*\*.*/\*\*Confidence:\*\* $confidence | \*\*Occurrences:\*\* $occurrence/" "$skill_file"
+            rm -f "${skill_file}.bak"
+        fi
+    fi
+
+    # Max 20 skills: archive lowest-confidence when exceeded
+    local skill_count
+    skill_count=$(ls -1 "$skills_dir"/*.md 2>/dev/null | wc -l | tr -d ' ')
+    if [[ "$skill_count" -gt 20 ]]; then
+        # Find skill with lowest confidence (fewest occurrences)
+        local lowest_file="" lowest_count=999
+        for sf in "$skills_dir"/*.md; do
+            local sc
+            sc=$(grep -c "^#### Occurrence" "$sf" 2>/dev/null || echo "0")
+            if [[ $sc -lt $lowest_count ]]; then
+                lowest_count=$sc
+                lowest_file="$sf"
+            fi
+        done
+        if [[ -n "$lowest_file" && "$lowest_file" != "$skill_file" ]]; then
+            local archive_dir="$skills_dir/archived"
+            mkdir -p "$archive_dir"
+            mv "$lowest_file" "$archive_dir/"
+            log DEBUG "Archived lowest-confidence skill: $(basename "$lowest_file")"
+        fi
+    fi
+
+    log DEBUG "Earned skill: $name (confidence: $confidence, occurrences: $occurrence)"
+}
+
+load_earned_skills() {
+    local skills_dir="${WORKSPACE_DIR}/.octo/skills/earned"
+
+    if [[ ! -d "$skills_dir" ]]; then
+        return
+    fi
+
+    local skills_content=""
+    for skill_file in "$skills_dir"/*.md; do
+        [[ -f "$skill_file" ]] || continue
+        # Read just the header and latest occurrence
+        local header
+        header=$(head -3 "$skill_file")
+        local latest
+        latest=$(grep -A 5 "^#### Occurrence" "$skill_file" | tail -6)
+        skills_content="${skills_content}
+${header}
+${latest}
+"
+    done
+
+    if [[ -n "$skills_content" ]]; then
+        echo "$skills_content"
+    fi
+}
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # v4.2 FEATURE: SHELL COMPLETION
 # Generate bash/zsh completion scripts for Claude Octopus
@@ -8989,6 +9501,15 @@ retry_failed_subtasks() {
         # Parse failed task info (format: agent:prompt)
         local agent="${failed_task%%:*}"
         local prompt="${failed_task#*:}"
+
+        # v8.18.0: Lockout protocol - reroute to alternate provider if locked
+        if is_provider_locked "$agent"; then
+            local alt_agent
+            alt_agent=$(get_alternate_provider "$agent")
+            log WARN "Provider $agent is locked out, rerouting retry to $alt_agent"
+            agent="$alt_agent"
+        fi
+
         # Determine role based on agent type for retries
         local role="implementer"
         [[ "$agent" == "gemini" || "$agent" == "gemini-fast" ]] && role="researcher"
@@ -9315,6 +9836,35 @@ ${memory_context}"
         fi
     fi
 
+    # v8.18.0: Inject per-provider history context
+    local provider_ctx
+    provider_ctx=$(build_provider_context "$agent_type")
+    if [[ -n "$provider_ctx" ]]; then
+        enhanced_prompt="${enhanced_prompt}
+
+---
+
+${provider_ctx}"
+        log "DEBUG" "Injected provider history context (${#provider_ctx} chars) for $agent_type"
+    fi
+
+    # v8.18.0: Inject earned skills context
+    local earned_skills_ctx
+    earned_skills_ctx=$(load_earned_skills 2>/dev/null)
+    if [[ -n "$earned_skills_ctx" ]]; then
+        # Truncate to 1500 chars
+        if [[ ${#earned_skills_ctx} -gt 1500 ]]; then
+            earned_skills_ctx="${earned_skills_ctx:0:1500}..."
+        fi
+        enhanced_prompt="${enhanced_prompt}
+
+---
+
+## Earned Project Skills
+${earned_skills_ctx}"
+        log "DEBUG" "Injected earned skills context (${#earned_skills_ctx} chars)"
+    fi
+
     # v8.10.0: Enforce context budget AFTER all injections (skill + memory)
     # Previously called before injections, causing final prompt to exceed budget (Issue #25)
     enhanced_prompt=$(enforce_context_budget "$enhanced_prompt")
@@ -9576,6 +10126,10 @@ ${memory_context}"
             end_time_ms=$(( $(date +%s) * 1000 ))
             elapsed_ms=$((end_time_ms - start_time_ms))
             update_agent_status "$agent_type" "completed" "$elapsed_ms" 0.0
+            # v8.18.0: Record provider learning
+            local result_summary
+            result_summary=$(head -c 200 "$result_file" 2>/dev/null | tr '\n' ' ')
+            append_provider_history "$agent_type" "${phase:-unknown}" "${enhanced_prompt:0:100}" "$result_summary" 2>/dev/null || true
         elif [[ $exit_code -eq 124 ]] || [[ $exit_code -eq 143 ]]; then
             # v7.19.0 P0.2: TIMEOUT - Preserve partial output
             # Process whatever output exists (may be significant partial work)
@@ -9748,10 +10302,47 @@ auto_route() {
     echo -e "  Context: ${YELLOW}$context_display${NC}"
     echo -e "  Complexity: ${CYAN}$tier_name${NC}"
     echo -e "  Branch: ${MAGENTA}$branch_display${NC}"
+
+    # v8.18.0: Response mode auto-tuning
+    local response_mode
+    response_mode=$(detect_response_mode "$prompt" "$task_type")
+    echo -e "  Response Mode: ${MAGENTA}${response_mode}${NC}"
+
     if [[ "$VERBOSE" == "true" ]]; then
         echo -e "  $(get_context_info "$context_result")"
     fi
     echo ""
+
+    # v8.18.0: Response mode short-circuits
+    case "$response_mode" in
+        direct)
+            echo ""
+            echo -e "${GREEN}  → Direct mode: Claude handles natively (no external providers)${NC}"
+            echo ""
+            # Log to provider history
+            append_provider_history "claude" "auto-route" "direct mode: ${prompt:0:60}" "Handled natively without external providers" 2>/dev/null || true
+            return 0
+            ;;
+        lightweight)
+            echo ""
+            echo -e "${CYAN}  → Lightweight mode: single cross-check${NC}"
+            echo ""
+            local fast_provider
+            fast_provider=$(select_fastest_provider "codex" "gemini" 2>/dev/null || echo "codex")
+            local cross_check
+            cross_check=$(run_agent_sync "$fast_provider" "Quick cross-check on this task. Identify any obvious issues, missing considerations, or better approaches in 3-5 bullet points:
+
+$prompt" 60 "code-reviewer" "auto-route" 2>/dev/null) || true
+            if [[ -n "$cross_check" ]]; then
+                echo -e "${CYAN}Cross-check (${fast_provider}):${NC}"
+                echo "$cross_check" | head -10
+                echo ""
+            fi
+            # Log to provider history
+            append_provider_history "$fast_provider" "auto-route" "lightweight cross-check: ${prompt:0:60}" "${cross_check:0:100}" 2>/dev/null || true
+            return 0
+            ;;
+    esac
 
     # ═══════════════════════════════════════════════════════════════════════════
     # DOUBLE DIAMOND WORKFLOW ROUTING
@@ -12542,6 +13133,32 @@ run_agent_sync() {
     local enhanced_prompt
     enhanced_prompt=$(apply_persona "$role" "$prompt")
 
+    # v8.18.0: Inject per-provider history context
+    local provider_ctx
+    provider_ctx=$(build_provider_context "$agent_type")
+    if [[ -n "$provider_ctx" ]]; then
+        enhanced_prompt="${enhanced_prompt}
+
+---
+
+${provider_ctx}"
+    fi
+
+    # v8.18.0: Inject earned skills context
+    local earned_skills_ctx
+    earned_skills_ctx=$(load_earned_skills 2>/dev/null)
+    if [[ -n "$earned_skills_ctx" ]]; then
+        if [[ ${#earned_skills_ctx} -gt 1500 ]]; then
+            earned_skills_ctx="${earned_skills_ctx:0:1500}..."
+        fi
+        enhanced_prompt="${enhanced_prompt}
+
+---
+
+## Earned Project Skills
+${earned_skills_ctx}"
+    fi
+
     log DEBUG "run_agent_sync: agent=$agent_type, role=${role:-none}, phase=${phase:-none}"
 
     # Record usage (get model from agent type)
@@ -13522,6 +14139,9 @@ tangle_develop() {
         return 1
     fi
 
+    # v8.18.0: Reset lockouts for new tangle phase
+    reset_provider_lockouts
+
     mkdir -p "$RESULTS_DIR"
 
     # Initialize tmux if enabled
@@ -13535,6 +14155,9 @@ tangle_develop() {
         context="Problem Definition:\n$(cat "$grasp_file")\n\n"
         log INFO "Using grasp context from: $grasp_file"
     fi
+
+    # v8.18.0: Pre-work design review ceremony
+    design_review_ceremony "$prompt" "$context"
 
     # Step 1: Decompose into validated subtasks
     log INFO "Step 1: Task decomposition..."
@@ -13683,6 +14306,16 @@ validate_tangle_results() {
             gate_color="${YELLOW}"
         fi
 
+        # v8.18.0: Record quality gate decision
+        write_structured_decision \
+            "quality-gate" \
+            "validate_tangle_results" \
+            "Quality gate ${gate_status}: ${success_rate}% success rate (threshold: ${QUALITY_THRESHOLD}%)" \
+            "tangle-${task_group}" \
+            "$(if [[ $success_rate -ge 90 ]]; then echo "high"; elif [[ $success_rate -ge $QUALITY_THRESHOLD ]]; then echo "medium"; else echo "low"; fi)" \
+            "Success: ${success_count}/${total}, failures: ${fail_count}" \
+            "" 2>/dev/null || true
+
         # ═══════════════════════════════════════════════════════════════════════
         # CONDITIONAL BRANCHING - Quality gate decision tree
         # ═══════════════════════════════════════════════════════════════════════
@@ -13702,6 +14335,12 @@ validate_tangle_results() {
                     echo -e "${YELLOW}║  🐙 Branching: Retry Path (attempt $quality_retry_count/$MAX_QUALITY_RETRIES)                    ║${NC}"
                     echo -e "${YELLOW}╚═══════════════════════════════════════════════════════════╝${NC}"
                     log WARN "Quality gate at ${success_rate}%, below ${QUALITY_THRESHOLD}%. Retrying..."
+                    # v8.18.0: Lock providers that failed quality gate
+                    while IFS= read -r failed_task; do
+                        [[ -z "$failed_task" ]] && continue
+                        local failed_agent="${failed_task%%:*}"
+                        lock_provider "$failed_agent"
+                    done <<< "$FAILED_SUBTASKS"
                     retry_failed_subtasks "$task_group" "$quality_retry_count"
                     sleep 3
                     continue  # Re-validate
@@ -13826,6 +14465,9 @@ ink_deliver() {
             log WARN "Development phase has failed quality gate. Proceeding with caution."
             checks_passed=false
         fi
+
+        # v8.18.0: Run retrospective on quality gate failure
+        retrospective_ceremony "$prompt" "Quality gate FAILED in tangle phase"
     fi
 
     # Step 2: Synthesize final output
@@ -13925,6 +14567,9 @@ embrace_full_workflow() {
     echo ""
 
     log INFO "Starting complete Double Diamond workflow"
+
+    # v8.18.0: Reset lockouts for new workflow
+    reset_provider_lockouts
     log INFO "Task: $prompt"
     log INFO "Autonomy mode: $AUTONOMY_MODE"
     [[ "$LOOP_UNTIL_APPROVED" == "true" ]] && log INFO "Loop-until-approved: enabled"
@@ -14205,6 +14850,24 @@ embrace_full_workflow() {
     export OCTOPUS_WORKFLOW_PHASE="complete"
     _write_embrace_session_state "ink" "completed"
     save_session_checkpoint "ink" "completed" "$ink_output"
+
+    # v8.18.0: Record phase completion decision
+    write_structured_decision \
+        "phase-completion" \
+        "embrace_full_workflow" \
+        "Full embrace workflow completed: ${prompt:0:80}" \
+        "" \
+        "high" \
+        "All 4 phases completed: probe → grasp → tangle → ink" \
+        "" 2>/dev/null || true
+
+    # v8.18.0: Earn skill from embrace completion
+    earn_skill \
+        "workflow-${prompt:0:30}" \
+        "embrace_full_workflow" \
+        "Full Double Diamond execution pattern" \
+        "For comprehensive end-to-end tasks" \
+        "probe→grasp→tangle→ink completed for: ${prompt:0:60}" 2>/dev/null || true
 
     # Mark session complete
     complete_session
@@ -14725,6 +15388,24 @@ EOF
     fi
     echo ""
 
+    # v8.18.0: Record debate synthesis decision
+    write_structured_decision \
+        "debate-synthesis" \
+        "grapple_debate" \
+        "Debate concluded on: ${prompt:0:80}" \
+        "" \
+        "high" \
+        "3-way debate (Codex vs Gemini vs Sonnet) with $rounds rounds" \
+        "" 2>/dev/null || true
+
+    # v8.18.0: Earn skill from debate synthesis
+    earn_skill \
+        "debate-${prompt:0:30}" \
+        "grapple_debate" \
+        "Multi-perspective analysis pattern for: ${prompt:0:60}" \
+        "When evaluating trade-offs or comparing approaches" \
+        "${synthesis:0:100}" 2>/dev/null || true
+
     # Record usage
     record_agent_call "grapple" "multi-model" "$prompt" "grapple" "debate" "0"
 }
@@ -14927,8 +15608,172 @@ EOF
     echo -e "  Result: ${CYAN}$result_file${NC}"
     echo ""
 
+    # v8.18.0: Record security finding
+    write_structured_decision \
+        "security-finding" \
+        "squeeze_test" \
+        "Red team exercise completed: ${prompt:0:80}" \
+        "" \
+        "high" \
+        "Blue Team defense + Red Team attack + Remediation + Validation" \
+        "" 2>/dev/null || true
+
+    # v8.18.0: Earn skill from security exercise
+    earn_skill \
+        "security-${prompt:0:30}" \
+        "squeeze_test" \
+        "Red team security review pattern" \
+        "When implementing security-sensitive features" \
+        "Blue→Red→Remediate→Validate for: ${prompt:0:60}" 2>/dev/null || true
+
     # Record usage
     record_agent_call "squeeze" "multi-model" "$prompt" "squeeze" "red-team" "0"
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SENTINEL - GitHub-Aware Work Monitor (v8.18.0)
+# Triages issues, PRs, and CI failures without auto-executing workflows
+# ═══════════════════════════════════════════════════════════════════════════════
+
+sentinel_tick() {
+    local triage_dir="${WORKSPACE_DIR}/.octo/sentinel"
+    local triage_log="$triage_dir/triage-log.md"
+    mkdir -p "$triage_dir"
+
+    if [[ "$OCTOPUS_SENTINEL_ENABLED" != "true" ]]; then
+        log WARN "Sentinel is disabled. Set OCTOPUS_SENTINEL_ENABLED=true to enable."
+        return 1
+    fi
+
+    if ! command -v gh &>/dev/null; then
+        log ERROR "Sentinel requires GitHub CLI (gh). Install with: brew install gh"
+        return 1
+    fi
+
+    echo ""
+    echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║  🔭 SENTINEL - GitHub Work Monitor                       ║${NC}"
+    echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+
+    local timestamp
+    timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    local triage_count=0
+
+    # ── Triage Issues ──
+    log INFO "Sentinel: Scanning issues..."
+    local issues=""
+    issues=$(gh issue list --label octopus --json number,title,labels,createdAt --limit 10 2>/dev/null) || true
+
+    if [[ -n "$issues" && "$issues" != "[]" ]]; then
+        local issue_count
+        issue_count=$(echo "$issues" | jq 'length' 2>/dev/null || echo "0")
+        echo -e "  ${GREEN}Issues:${NC} $issue_count tagged with 'octopus' label"
+
+        echo "$issues" | jq -r '.[] | "\(.number)|\(.title)"' 2>/dev/null | while IFS='|' read -r num title; do
+            # Dedup: skip if already triaged
+            if grep -q "Issue #${num}" "$triage_log" 2>/dev/null; then
+                continue
+            fi
+
+            local task_type
+            task_type=$(classify_task "$title" 2>/dev/null || echo "unknown")
+            local recommended=""
+            case "$task_type" in
+                crossfire-*) recommended="/octo:develop" ;;
+                knowledge-*) recommended="/octo:research" ;;
+                image-*) recommended="/octo:quick" ;;
+                *) recommended="/octo:tangle" ;;
+            esac
+
+            echo "### Issue #${num}: ${title}" >> "$triage_log"
+            echo "- **Triaged:** ${timestamp}" >> "$triage_log"
+            echo "- **Classification:** ${task_type}" >> "$triage_log"
+            echo "- **Recommended:** ${recommended}" >> "$triage_log"
+            echo "---" >> "$triage_log"
+            ((triage_count++)) || true
+
+            echo -e "    #${num}: ${title:0:60} → ${YELLOW}${recommended}${NC}"
+        done
+    else
+        echo -e "  ${DIM:-}Issues: No octopus-labeled issues found${NC}"
+    fi
+
+    # ── Triage PRs ──
+    log INFO "Sentinel: Scanning pull requests..."
+    local prs=""
+    prs=$(gh pr list --json number,title,reviewDecision,createdAt --limit 10 2>/dev/null) || true
+
+    if [[ -n "$prs" && "$prs" != "[]" ]]; then
+        local review_needed
+        review_needed=$(echo "$prs" | jq '[.[] | select(.reviewDecision == "REVIEW_REQUIRED" or .reviewDecision == "")] | length' 2>/dev/null || echo "0")
+        echo -e "  ${GREEN}PRs:${NC} $review_needed needing review"
+
+        echo "$prs" | jq -r '.[] | select(.reviewDecision == "REVIEW_REQUIRED" or .reviewDecision == "") | "\(.number)|\(.title)"' 2>/dev/null | while IFS='|' read -r num title; do
+            if grep -q "PR #${num}" "$triage_log" 2>/dev/null; then
+                continue
+            fi
+
+            echo "### PR #${num}: ${title}" >> "$triage_log"
+            echo "- **Triaged:** ${timestamp}" >> "$triage_log"
+            echo "- **Recommended:** /octo:ink (review)" >> "$triage_log"
+            echo "---" >> "$triage_log"
+            ((triage_count++)) || true
+
+            echo -e "    #${num}: ${title:0:60} → ${YELLOW}/octo:ink${NC}"
+        done
+    else
+        echo -e "  ${DIM:-}PRs: No PRs needing review${NC}"
+    fi
+
+    # ── Triage CI Failures ──
+    log INFO "Sentinel: Scanning CI runs..."
+    local runs=""
+    runs=$(gh run list --status failure --json databaseId,displayTitle,conclusion,createdAt --limit 5 2>/dev/null) || true
+
+    if [[ -n "$runs" && "$runs" != "[]" ]]; then
+        local fail_count
+        fail_count=$(echo "$runs" | jq 'length' 2>/dev/null || echo "0")
+        echo -e "  ${RED}CI Failures:${NC} $fail_count recent failures"
+
+        echo "$runs" | jq -r '.[] | "\(.databaseId)|\(.displayTitle)"' 2>/dev/null | while IFS='|' read -r id title; do
+            if grep -q "CI #${id}" "$triage_log" 2>/dev/null; then
+                continue
+            fi
+
+            echo "### CI #${id}: ${title}" >> "$triage_log"
+            echo "- **Triaged:** ${timestamp}" >> "$triage_log"
+            echo "- **Recommended:** /octo:debug" >> "$triage_log"
+            echo "---" >> "$triage_log"
+            ((triage_count++)) || true
+
+            echo -e "    CI #${id}: ${title:0:60} → ${YELLOW}/octo:debug${NC}"
+        done
+    else
+        echo -e "  ${DIM:-}CI: No recent failures${NC}"
+    fi
+
+    echo ""
+    echo -e "  ${CYAN}Triage log:${NC} $triage_log"
+    echo ""
+
+    log INFO "Sentinel tick complete. New items triaged: $triage_count"
+}
+
+sentinel_watch() {
+    if [[ "$OCTOPUS_SENTINEL_ENABLED" != "true" ]]; then
+        log ERROR "Sentinel is disabled. Set OCTOPUS_SENTINEL_ENABLED=true to enable."
+        return 1
+    fi
+
+    echo -e "${CYAN}🔭 Sentinel watching (interval: ${OCTOPUS_SENTINEL_INTERVAL}s)${NC}"
+    echo -e "${CYAN}   Press Ctrl+C to stop${NC}"
+    echo ""
+
+    while true; do
+        sentinel_tick
+        sleep "$OCTOPUS_SENTINEL_INTERVAL"
+    done
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -16090,6 +16935,32 @@ case "$COMMAND" in
             exit 1
         fi
         squeeze_test "$*"
+        ;;
+    sentinel)
+        # v8.18.0: GitHub-aware work monitor
+        if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+            echo "Usage: $(basename "$0") sentinel [OPTIONS]"
+            echo ""
+            echo "GitHub-aware work monitor that triages issues, PRs, and CI failures."
+            echo ""
+            echo "Options:"
+            echo "  --watch       Continuous monitoring mode (polls every OCTOPUS_SENTINEL_INTERVAL seconds)"
+            echo "  --help, -h    Show this help"
+            echo ""
+            echo "Environment Variables:"
+            echo "  OCTOPUS_SENTINEL_ENABLED    Enable sentinel (default: false)"
+            echo "  OCTOPUS_SENTINEL_INTERVAL   Poll interval in seconds (default: 600)"
+            echo ""
+            echo "Examples:"
+            echo "  OCTOPUS_SENTINEL_ENABLED=true $(basename "$0") sentinel"
+            echo "  OCTOPUS_SENTINEL_ENABLED=true $(basename "$0") sentinel --watch"
+            exit 0
+        fi
+        if [[ "${1:-}" == "--watch" ]]; then
+            sentinel_watch
+        else
+            sentinel_tick
+        fi
         ;;
     preflight)
         preflight_check

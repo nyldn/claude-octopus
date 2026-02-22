@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "8.17.1",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v8.17.1) Team of Teams parallel orchestration with independent claude -p work packages. Modular doctor diagnostics with 8 check categories, filtering, and JSON output. Scheduled workflow runner with daemon mode, cron scheduling, budget gates, and kill switches. State management wired into workflow lifecycle, codebase-aware discover phase, human-readable STATE.md generation. Persistent project state across sessions. 31 expert personas, 43 commands, 46 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
+  "version": "8.18.0",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v8.18.0) Reviewer lockout protocol, sentinel work monitor, per-provider history, structured decisions, design review ceremonies, response mode auto-tuning, earned skills system, dependency-aware parallel WBS. Team of Teams parallel orchestration. Scheduled workflows. Persistent state. 31 expert personas, 44 commands, 46 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },
@@ -133,6 +133,7 @@
     "./.claude/commands/scheduler.md",
     "./.claude/commands/schedule.md",
     "./.claude/commands/spec.md",
-    "./.claude/commands/parallel.md"
+    "./.claude/commands/parallel.md",
+    "./.claude/commands/sentinel.md"
   ]
 }

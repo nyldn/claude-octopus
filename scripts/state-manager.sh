@@ -395,6 +395,9 @@ $active_blockers
 ## Phase Context
 
 $(echo -e "$phase_context")
+
+## Recent Structured Decisions
+$(if [[ -f "${STATE_DIR}/../.octo/decisions.md" ]]; then tail -60 "${STATE_DIR}/../.octo/decisions.md" 2>/dev/null || echo "No structured decisions recorded."; else echo "No structured decisions recorded."; fi)
 STATEMD
 }
 

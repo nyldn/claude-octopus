@@ -1,3 +1,40 @@
+## [8.18.0] - 2026-02-21
+
+### Added
+
+**8 Squad-Inspired Features** — patterns from multi-agent framework research applied to Octopus:
+
+1. **Reviewer Lockout Protocol**: When a provider's output is rejected during quality gates, it is locked out from self-revision and retries are routed to an alternate provider. Prevents the same model from reviewing its own failures.
+
+2. **Structured Decision Format**: Append-only `.octo/decisions.md` with structured, git-mergeable entries. Each decision records type, timestamp, source, confidence level, rationale, and scope. Integrated into quality gates, debates, phase completions, and security reviews. STATE.md now includes recent structured decisions.
+
+3. **Per-Provider History Files**: Each provider accumulates project-specific knowledge in `.octo/providers/{name}-history.md`. History is capped at 50 entries and injected into agent prompts (max 2000 chars) for project continuity across sessions.
+
+4. **Pre-Work Design Review Ceremony**: Before the tangle phase, each provider states its high-level approach; Claude synthesizes conflicts, gaps, and a unified resolution. After quality gate failures, a retrospective ceremony performs root-cause analysis. Controlled via `OCTOPUS_CEREMONIES` env var.
+
+5. **Earned Skills System**: Providers discover repeatable patterns stored as skill files in `.octo/skills/earned/`. Skills have a confidence lifecycle (low → medium at 3 occurrences → high at 5). Max 20 active skills with automatic archival of lowest-confidence. Injected into agent prompts alongside provider history.
+
+6. **Response Mode Auto-Tuning**: Auto-detects task complexity and adjusts execution depth (direct/lightweight/standard/full). User signals ("quick", "thorough"), task type, word count, and technical keyword density all factor in. Direct mode skips external providers entirely; lightweight runs a single cross-check. Override via `OCTOPUS_RESPONSE_MODE` env var.
+
+7. **Dependency-Aware Parallel WBS**: Extended `/octo:parallel` to support dependent work packages launched in waves. Python-based dependency validation with cycle detection, missing reference checking, and topological sort for wave assignment. Outputs from completed waves are injected into downstream work packages. Backward compatible: empty dependencies = single wave.
+
+8. **Sentinel Work Monitor**: GitHub-aware work monitor (`/octo:sentinel`) that triages issues (by `octopus` label), PRs (needing review), and CI failures. Writes findings to `.octo/sentinel/triage-log.md` with deduplication. Recommends workflows but never auto-executes. New command registered in plugin.json (44th command).
+
+### New Command
+
+- `/octo:sentinel` — GitHub-aware work monitor (triage-only, never auto-executes)
+
+### New Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OCTOPUS_SENTINEL_ENABLED` | `false` | Enable sentinel work monitor |
+| `OCTOPUS_SENTINEL_INTERVAL` | `600` | Sentinel poll interval (seconds) |
+| `OCTOPUS_CEREMONIES` | `true` | Enable design review/retrospective ceremonies |
+| `OCTOPUS_RESPONSE_MODE` | `auto` | Response mode override (direct/lightweight/standard/full/auto) |
+
+---
+
 ## [8.17.1] - 2026-02-21
 
 ### Fixed
