@@ -25,6 +25,9 @@ source "${SCRIPT_DIR}/provider-router.sh"
 # Source agent teams bridge (v8.7.0)
 source "${SCRIPT_DIR}/agent-teams-bridge.sh"
 
+# Source intelligence library (v8.20.0)
+source "${SCRIPT_DIR}/lib/intelligence.sh" 2>/dev/null || true
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # SECURITY: Path validation for workspace directory
 # Prevents path traversal attacks and restricts to safe locations
@@ -3567,6 +3570,18 @@ OCTOPUS_AGENT_TIMEOUT="${OCTOPUS_AGENT_TIMEOUT:-}"
 
 # v8.19.0 Feature: Tool Policy RBAC for Personas
 OCTOPUS_TOOL_POLICIES="${OCTOPUS_TOOL_POLICIES:-true}"
+
+# v8.20.0 Feature: Provider Intelligence (shadow = log only, active = influences routing, off = disabled)
+OCTOPUS_PROVIDER_INTELLIGENCE="${OCTOPUS_PROVIDER_INTELLIGENCE:-shadow}"
+
+# v8.20.0 Feature: Smart Cost Routing (aggressive/balanced/premium)
+OCTOPUS_COST_TIER="${OCTOPUS_COST_TIER:-balanced}"
+
+# v8.20.0 Feature: Consensus Mode (moderator = current behavior, quorum = 2/3 wins)
+OCTOPUS_CONSENSUS="${OCTOPUS_CONSENSUS:-moderator}"
+
+# v8.20.0 Feature: File Path Validation (non-blocking warnings)
+OCTOPUS_FILE_VALIDATION="${OCTOPUS_FILE_VALIDATION:-true}"
 
 # v8.18.0 Feature: Reviewer Lockout Protocol
 # When a provider's output is rejected during quality gates,
@@ -9720,6 +9735,54 @@ get_role_for_context() {
     esac
 }
 
+# v8.20.0: Wrapper for get_role_for_context with intelligence + capability matching
+get_role_for_context_v820() {
+    local agent_type="$1"
+    local task_type="$2"
+    local phase="${3:-}"
+    local prompt="${4:-}"
+
+    # Get base role from existing logic
+    local role
+    role=$(get_role_for_context "$agent_type" "$task_type" "$phase")
+
+    # v8.20.0: Capability matching override
+    if [[ -n "$prompt" ]] && type extract_task_capabilities &>/dev/null 2>&1; then
+        local task_caps
+        task_caps=$(extract_task_capabilities "$prompt")
+        if [[ -n "$task_caps" ]]; then
+            local best_match
+            best_match=$(find_best_capability_match "$task_caps" "$phase")
+            if [[ -n "$best_match" && "$best_match" != "$role" ]]; then
+                local current_score best_score
+                current_score=$(score_capability_match "$role" "$task_caps" 2>/dev/null || echo "0")
+                best_score=$(score_capability_match "$best_match" "$task_caps" 2>/dev/null || echo "0")
+                if [[ $best_score -gt $((current_score + 20)) ]]; then
+                    log "DEBUG" "Capability match override: $role -> $best_match (score: ${best_score}% vs ${current_score}%)"
+                    role="$best_match"
+                fi
+            fi
+        fi
+    fi
+
+    # v8.20.0: Provider intelligence override
+    if [[ -n "$task_type" ]] && type suggest_routing_override &>/dev/null 2>&1; then
+        local pi_mode="${OCTOPUS_PROVIDER_INTELLIGENCE:-shadow}"
+        local suggestion
+        suggestion=$(suggest_routing_override "$role" "$task_type" "$phase" 2>/dev/null)
+        if [[ -n "$suggestion" ]]; then
+            if [[ "$pi_mode" == "active" ]]; then
+                log "INFO" "Intelligence override: $role -> $suggestion"
+                role="$suggestion"
+            elif [[ "$pi_mode" == "shadow" ]]; then
+                log "DEBUG" "Intelligence suggestion: $role -> $suggestion (not applied -- shadow mode)"
+            fi
+        fi
+    fi
+
+    echo "$role"
+}
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # v3.4 FEATURE: CURATED AGENT LOADER
 # Load specialized agent personas from agents/ directory
@@ -10919,6 +10982,8 @@ ${earned_skills_ctx}"
             local result_summary
             result_summary=$(head -c 200 "$result_file" 2>/dev/null | tr '\n' ' ')
             append_provider_history "$agent_type" "${phase:-unknown}" "${enhanced_prompt:0:100}" "$result_summary" 2>/dev/null || true
+            # v8.20.0: Record outcome for provider intelligence
+            record_outcome "$agent_type" "$agent_type" "${task_type:-unknown}" "${phase:-unknown}" "success" "$elapsed_ms" 2>/dev/null || true
         elif [[ $exit_code -eq 124 ]] || [[ $exit_code -eq 143 ]]; then
             # v7.19.0 P0.2: TIMEOUT - Preserve partial output
             # Process whatever output exists (may be significant partial work)
@@ -10971,6 +11036,8 @@ ${earned_skills_ctx}"
             end_time_ms=$(( $(date +%s) * 1000 ))
             elapsed_ms=$((end_time_ms - start_time_ms))
             update_agent_status "$agent_type" "timeout" "$elapsed_ms" 0.0
+            # v8.20.0: Record timeout for provider intelligence
+            record_outcome "$agent_type" "$agent_type" "${task_type:-unknown}" "${phase:-unknown}" "timeout" "$elapsed_ms" 2>/dev/null || true
         else
             # v7.19.0 P0.2: Other failures - still try to preserve output
             if [[ -s "$temp_output" ]]; then
@@ -11009,6 +11076,8 @@ ${earned_skills_ctx}"
             end_time_ms=$(( $(date +%s) * 1000 ))
             elapsed_ms=$((end_time_ms - start_time_ms))
             update_agent_status "$agent_type" "failed" "$elapsed_ms" 0.0
+            # v8.20.0: Record failure for provider intelligence
+            record_outcome "$agent_type" "$agent_type" "${task_type:-unknown}" "${phase:-unknown}" "fail" "$elapsed_ms" 2>/dev/null || true
         fi
 
         # v7.19.0 P0.1: Verify result file has meaningful content
@@ -11071,6 +11140,18 @@ auto_route() {
     task_type=$(classify_task "$prompt")
 
     # ═══════════════════════════════════════════════════════════════════════════
+    # v8.20.0: TRIVIAL TASK FAST PATH
+    # ═══════════════════════════════════════════════════════════════════════════
+    if [[ "${OCTOPUS_COST_TIER:-balanced}" != "premium" ]] && type detect_trivial_task &>/dev/null 2>&1; then
+        local trivial_result
+        trivial_result=$(detect_trivial_task "$prompt")
+        if [[ "$trivial_result" == "trivial" ]]; then
+            handle_trivial_task "$prompt"
+            return 0
+        fi
+    fi
+
+    # ═══════════════════════════════════════════════════════════════════════════
     # COST-AWARE COMPLEXITY ESTIMATION
     # ═══════════════════════════════════════════════════════════════════════════
     local complexity=2
@@ -11088,6 +11169,15 @@ auto_route() {
     fi
     local tier_name
     tier_name=$(get_tier_name "$complexity")
+
+    # v8.20.0: Apply cost-aware agent selection
+    if type select_cost_aware_agent &>/dev/null 2>&1; then
+        local cost_agent
+        cost_agent=$(select_cost_aware_agent "$task_type" "$complexity")
+        if [[ "$cost_agent" != "$task_type" && "$cost_agent" != "skip" ]]; then
+            log "INFO" "Cost routing: complexity=$complexity, tier=${OCTOPUS_COST_TIER:-balanced}"
+        fi
+    fi
 
     # ═══════════════════════════════════════════════════════════════════════════
     # CONDITIONAL BRANCHING - Evaluate which tentacle path to extend
@@ -15094,6 +15184,13 @@ validate_tangle_results() {
             [[ -f "$result" ]] || continue
             [[ "$result" == *validation* ]] && continue
 
+            # v8.20.0: Run file path validation (non-blocking warnings)
+            if [[ "${OCTOPUS_FILE_VALIDATION:-true}" == "true" ]] && type run_file_validation &>/dev/null 2>&1; then
+                local agent_from_file
+                agent_from_file=$(basename "$result" .md | sed 's/tangle-[0-9]*-//')
+                run_file_validation "$agent_from_file" "$(cat "$result" 2>/dev/null)" 2>/dev/null || true
+            fi
+
             if grep -q "Status: SUCCESS" "$result" 2>/dev/null; then
                 ((success_count++))
             else
@@ -16133,14 +16230,31 @@ ${sonnet_rebuttal}"
         done
     fi
 
+    # v8.20.0: Quorum consensus mode — check for 2/3 agreement before synthesis
+    local synthesis=""
+    if [[ "${OCTOPUS_CONSENSUS:-moderator}" == "quorum" ]]; then
+        echo ""
+        echo -e "${CYAN}[Quorum Mode] Checking for 2/3 agreement...${NC}"
+        local quorum_result
+        quorum_result=$(apply_consensus "quorum" "$codex_proposal" "$gemini_proposal" "$sonnet_proposal" "$prompt")
+        if [[ -n "$quorum_result" && "$quorum_result" != "MODERATOR_MODE" ]]; then
+            synthesis="## Quorum Result (2/3 Agreement)
+
+$quorum_result"
+            echo -e "${GREEN}  ✓ Quorum reached — using majority position${NC}"
+        else
+            echo -e "${YELLOW}  No quorum — falling back to moderator synthesis${NC}"
+        fi
+    fi
+
     # ═══════════════════════════════════════════════════════════════════════
-    # Final Round: Synthesis
+    # Final Round: Synthesis (Moderator Mode)
     # ═══════════════════════════════════════════════════════════════════════
+    if [[ -z "$synthesis" ]]; then
     echo ""
     echo -e "${CYAN}[Round $rounds/$rounds] Final synthesis...${NC}"
     echo ""
 
-    local synthesis
     synthesis=$(run_agent_sync "claude" "
 $no_explore_constraint
 
@@ -16192,6 +16306,7 @@ Be specific and actionable. Format as markdown." 150 "synthesizer" "grapple")
         log ERROR "Grapple debate failed: Synthesis empty or error"
         return 1
     fi
+    fi  # end of: if [[ -z "$synthesis" ]] (quorum may have set it already)
 
     # ═══════════════════════════════════════════════════════════════════════
     # Save results
