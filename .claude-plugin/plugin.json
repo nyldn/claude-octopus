@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "8.19.0",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v8.19.0) 8 Veritas-inspired features: configurable quality gates, observation importance scoring, error learning loop, agent heartbeat & dynamic timeout, cross-model review scoring (4x10), agent routing rules, tool policy RBAC, crash-recovery with secret sanitization. Team of Teams parallel orchestration. Scheduled workflows. Persistent state. 31 expert personas, 44 commands, 46 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
+  "version": "8.20.0",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v8.20.0) Provider Intelligence, Smart Cost Routing, Capability Matching, Quorum Consensus, File Path Validation. 31 expert personas, 44 commands, 46 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },

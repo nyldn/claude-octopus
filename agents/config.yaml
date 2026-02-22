@@ -20,7 +20,7 @@
 #   full          → No restrictions (implementer, tdd-orchestrator, debugger, python-pro, typescript-pro)
 
 version: "2.0"
-description: "Curated agent personas with contextual Codex model routing (v8.9.0, v8.19.0 tool policies)"
+description: "Curated agent personas with contextual Codex model routing (v8.9.0, v8.19.0 tool policies, v8.20.0 capabilities)"
 
 # Phase-to-agent mappings (default agents per phase)
 phase_defaults:
@@ -61,6 +61,7 @@ agents:
     phases: [probe, tangle]
     tier: premium
     expertise: [llm-applications, rag-systems, prompt-engineering]
+    capabilities: [llm-applications, rag-systems, prompt-engineering, ai-agents, vector-search]
     memory: local
     permissionMode: plan
 
@@ -71,6 +72,7 @@ agents:
     phases: [probe, grasp]
     tier: standard
     expertise: [requirements, metrics, stakeholder-analysis]
+    capabilities: [requirements, metrics, stakeholder-analysis, data-analysis]
     memory: user
     permissionMode: plan
 
@@ -84,6 +86,7 @@ agents:
     phases: [grasp, tangle]
     tier: premium
     expertise: [api-design, microservices, distributed-systems]
+    capabilities: [api-design, microservices, distributed-systems, system-design, scalability]
     memory: project
     skills: [skill-architecture]
     permissionMode: plan
@@ -95,6 +98,7 @@ agents:
     phases: [grasp, tangle]
     tier: premium
     expertise: [react, nextjs, state-management, accessibility]
+    capabilities: [react, css, accessibility, typescript, state-management, nextjs]
     memory: project
     permissionMode: plan
 
@@ -105,6 +109,7 @@ agents:
     phases: [grasp, tangle]
     tier: premium
     expertise: [schema-design, sql, nosql, migrations]
+    capabilities: [schema-design, query-optimization, sql, nosql, migrations]
     memory: project
     permissionMode: plan
 
@@ -115,6 +120,7 @@ agents:
     phases: [grasp]
     tier: premium
     expertise: [aws, gcp, azure, infrastructure]
+    capabilities: [aws, gcp, azure, infrastructure, kubernetes, terraform]
     memory: local
     permissionMode: plan
 
@@ -125,6 +131,7 @@ agents:
     phases: [grasp, tangle]
     tier: premium
     expertise: [graphql, federation, resolvers]
+    capabilities: [graphql, federation, resolvers, api-design]
     memory: local
     permissionMode: plan
 
@@ -139,6 +146,7 @@ agents:
     phases: [tangle]
     tier: premium
     expertise: [test-driven-development, red-green-refactor]
+    capabilities: [test-writing, coverage-analysis, test-driven-development, refactoring]
     memory: local
     skills: [skill-tdd]
     permissionMode: acceptEdits
@@ -151,6 +159,7 @@ agents:
     phases: [tangle, ink]
     tier: standard
     expertise: [error-analysis, stack-traces, debugging]
+    capabilities: [error-analysis, stack-traces, debugging, profiling]
     memory: project
     skills: [skill-debug]
     permissionMode: acceptEdits
@@ -163,6 +172,7 @@ agents:
     phases: [tangle, ink]
     tier: standard
     expertise: [deployment, logs, infrastructure-debugging]
+    capabilities: [ci-cd, kubernetes, docker, infrastructure, debugging]
     memory: local
     permissionMode: acceptEdits
     isolation: worktree
@@ -174,6 +184,7 @@ agents:
     phases: [tangle]
     tier: premium
     expertise: [python, fastapi, django, async]
+    capabilities: [python, fastapi, django, async, testing]
     memory: local
     permissionMode: acceptEdits
     isolation: worktree
@@ -185,6 +196,7 @@ agents:
     phases: [tangle]
     tier: premium
     expertise: [typescript, node, react, types]
+    capabilities: [typescript, node, react, types, testing]
     memory: local
     permissionMode: acceptEdits
     isolation: worktree
@@ -202,6 +214,7 @@ agents:
     phases: [ink]
     tier: premium
     expertise: [code-quality, best-practices, architecture-review]
+    capabilities: [code-quality, best-practices, architecture-review, refactoring]
     memory: project
     skills: [skill-code-review]
     permissionMode: default
@@ -213,6 +226,7 @@ agents:
     phases: [ink]
     tier: premium
     expertise: [owasp, vulnerability-scanning, security-review]
+    capabilities: [vulnerability-scanning, owasp-compliance, security-review, authentication]
     memory: project
     skills: [skill-security-audit]
     permissionMode: default
@@ -224,6 +238,7 @@ agents:
     phases: [tangle, ink]
     tier: standard
     expertise: [unit-tests, integration-tests, e2e-tests]
+    capabilities: [test-writing, coverage-analysis, unit-tests, integration-tests, e2e-tests]
     memory: local
     permissionMode: acceptEdits
     isolation: worktree
@@ -236,6 +251,7 @@ agents:
     phases: [ink]
     tier: premium
     expertise: [profiling, optimization, benchmarking]
+    capabilities: [profiling, query-optimization, scalability, benchmarking]
     memory: project
     permissionMode: default
 
@@ -246,6 +262,7 @@ agents:
     phases: [ink]
     tier: standard
     expertise: [ci-cd, kubernetes, docker, gitops]
+    capabilities: [ci-cd, kubernetes, docker, gitops, terraform]
     memory: local
     permissionMode: default
 
@@ -262,6 +279,7 @@ agents:
     phases: [probe, grasp]
     tier: premium
     expertise: [strategic-analysis, market-research, business-strategy]
+    capabilities: [strategic-analysis, market-research, business-strategy, data-analysis]
     memory: user
     permissionMode: plan
     fast_mode: opt-in  # v8.4: fast Opus available but 6x cost, user must explicitly request
@@ -273,6 +291,7 @@ agents:
     phases: [probe]
     tier: premium
     expertise: [research-synthesis, literature-review, knowledge-integration]
+    capabilities: [research-synthesis, literature-review, knowledge-integration, documentation]
     memory: user
     permissionMode: plan
     fast_mode: opt-in  # v8.4: fast Opus available but 6x cost, user must explicitly request
@@ -284,6 +303,7 @@ agents:
     phases: [probe, grasp, tangle, ink]
     tier: standard
     expertise: [context-management, multi-agent-coordination]
+    capabilities: [context-management, multi-agent-coordination, documentation]
     memory: project
     permissionMode: plan
 
@@ -294,6 +314,7 @@ agents:
     phases: [ink]
     tier: standard
     expertise: [documentation, technical-writing]
+    capabilities: [documentation, technical-writing, api-design]
     memory: local
     skills: [skill-doc-delivery]
     permissionMode: default
@@ -305,6 +326,7 @@ agents:
     phases: [tangle, ink]
     tier: premium
     expertise: [incident-management, runbooks, postmortems]
+    capabilities: [incident-management, debugging, infrastructure, monitoring]
     memory: local
     permissionMode: acceptEdits
     isolation: worktree
@@ -316,6 +338,7 @@ agents:
     phases: [grasp, ink]
     tier: trivial
     expertise: [diagrams, flowcharts, sequence-diagrams]
+    capabilities: [diagrams, flowcharts, sequence-diagrams, documentation]
     memory: local
     permissionMode: plan
 
@@ -331,6 +354,7 @@ agents:
     phases: [probe, ink]
     tier: premium
     expertise: [large-codebase-analysis, architecture-review, dependency-analysis]
+    capabilities: [architecture-review, code-quality, large-codebase-analysis, refactoring]
     memory: project
     permissionMode: plan
 
@@ -342,6 +366,7 @@ agents:
     phases: [probe, grasp]
     tier: premium
     expertise: [complex-reasoning, trade-off-analysis, decision-making]
+    capabilities: [complex-reasoning, trade-off-analysis, strategic-analysis, system-design]
     memory: local
     permissionMode: plan
 
