@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "8.22.1",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v8.22.1) Test suite fixes, OpenClaw id fix (#40), octo-claw rename. 31 expert personas, 44 commands, 46 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
+  "version": "8.22.2",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v8.22.2) Ship OpenClaw dist files, CI fixes. 31 expert personas, 44 commands, 46 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },

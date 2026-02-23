@@ -1,6 +1,6 @@
 {
   "name": "claude-octopus",
-  "version": "8.22.1",
+  "version": "8.22.2",
   "description": "Claude Octopus - Multi-agent orchestration with persistent state management, codebase-aware discover, and STATE.md generation",
   "main": "orchestrate.sh",
   "scripts": {
