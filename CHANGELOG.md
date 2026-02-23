@@ -1,3 +1,11 @@
+## [8.22.5] - 2026-02-23
+
+### Fixed
+
+- **OpenClaw Register Crash**: Guard `api.getConfig()` with `?? {}` fallback — OpenClaw passes `undefined` config during initial registration, causing `TypeError: Cannot read properties of undefined (reading 'enabledWorkflows')` (closes #48).
+
+---
+
 ## [8.22.4] - 2026-02-23
 
 ### Removed

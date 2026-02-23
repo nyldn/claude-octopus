@@ -224,7 +224,7 @@ const WORKFLOW_TOOLS: OpenClawTool[] = [
 // --- Extension Entry Point ---
 
 export default function register(api: OpenClawApi) {
-  const config = api.getConfig();
+  const config = api.getConfig() ?? {};
   const enabledWorkflows = (config.enabledWorkflows as string[]) ?? [
     "discover",
     "define",
