@@ -1,8 +1,10 @@
 #!/bin/bash
 # tests/unit/test-intelligence.sh
-# Tests for scripts/lib/intelligence.sh — v8.20.0 intelligence features
+# Tests for scripts/lib/intelligence.sh + scripts/lib/personas.sh
 # Covers: JSON wrappers, Provider Intelligence, Cost Routing,
-#         Capability Matching, Quorum Consensus, File Path Validation
+#         Capability Matching, Quorum Consensus, File Path Validation,
+#         Baseline Telemetry (v8.20.1), Anti-Drift Checkpoints (v8.21.0),
+#         Persona Packs (v8.21.0)
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -16,7 +18,7 @@ export PLUGIN_DIR="$PROJECT_ROOT"
 # Source the library under test
 source "$PROJECT_ROOT/scripts/lib/intelligence.sh"
 
-test_suite "Intelligence Library (v8.20.0)"
+test_suite "Intelligence Library (v8.20.0 — v8.21.0)"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # JSON Wrapper Tests
@@ -434,6 +436,276 @@ test_run_file_validation_disabled() {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Baseline Telemetry Tests (v8.20.1)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+test_record_task_metric() {
+    test_case "record_task_metric writes to metrics.jsonl"
+
+    export OCTOPUS_PROVIDER_INTELLIGENCE="shadow"
+    local orig_ws="$WORKSPACE_DIR"
+    WORKSPACE_DIR="$TEST_TMP_DIR/workspace-metrics"
+    mkdir -p "$WORKSPACE_DIR/.octo"
+    local metrics_file="$WORKSPACE_DIR/.octo/metrics.jsonl"
+    rm -f "$metrics_file"
+
+    record_task_metric "task_duration_ms" "1500"
+    record_task_metric "task_duration_ms" "2000"
+    WORKSPACE_DIR="$orig_ws"
+
+    if [[ -f "$metrics_file" ]]; then
+        local count
+        count=$(wc -l < "$metrics_file" | tr -d ' ')
+        if assert_equals "2" "$count" "Should have 2 metric entries" && \
+           assert_contains "$(cat "$metrics_file")" '"metric":"task_duration_ms"' "Should contain metric name"; then
+            test_pass
+        fi
+    else
+        test_fail "Metrics file not created"
+    fi
+}
+
+test_get_metric_summary() {
+    test_case "get_metric_summary computes stats"
+
+    local orig_ws="$WORKSPACE_DIR"
+    WORKSPACE_DIR="$TEST_TMP_DIR/workspace-summary"
+    mkdir -p "$WORKSPACE_DIR/.octo"
+    local metrics_file="$WORKSPACE_DIR/.octo/metrics.jsonl"
+    rm -f "$metrics_file"
+
+    # Write some metrics
+    echo '{"metric":"duration","value":"100","timestamp":"2026-02-22T00:00:00Z","session":"test"}' >> "$metrics_file"
+    echo '{"metric":"duration","value":"200","timestamp":"2026-02-22T00:00:00Z","session":"test"}' >> "$metrics_file"
+    echo '{"metric":"duration","value":"300","timestamp":"2026-02-22T00:00:00Z","session":"test"}' >> "$metrics_file"
+
+    local result
+    result=$(get_metric_summary "duration")
+    WORKSPACE_DIR="$orig_ws"
+
+    # Expected: count=3 sum=600 min=100 max=300 avg=200
+    if assert_contains "$result" "3" "Should have count 3" && \
+       assert_contains "$result" "600" "Should have sum 600"; then
+        test_pass
+    fi
+}
+
+test_get_metric_summary_empty() {
+    test_case "get_metric_summary returns zeros for no data"
+
+    local orig_ws="$WORKSPACE_DIR"
+    WORKSPACE_DIR="$TEST_TMP_DIR/workspace-empty-metrics"
+    mkdir -p "$WORKSPACE_DIR/.octo"
+    rm -f "$WORKSPACE_DIR/.octo/metrics.jsonl"
+
+    local result
+    result=$(get_metric_summary "nonexistent")
+    WORKSPACE_DIR="$orig_ws"
+
+    if assert_equals "0 0 0 0 0" "$result" "Should return all zeros"; then
+        test_pass
+    fi
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Anti-Drift Checkpoint Tests (v8.21.0)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+test_drift_check_ok() {
+    test_case "check_output_drift returns ok for normal output"
+
+    local prompt="Build a React frontend with TypeScript"
+    local output="Here is the React TypeScript component implementation with proper typing and hooks. The frontend uses functional components with useState and useEffect for state management."
+
+    local result
+    result=$(check_output_drift "$prompt" "$output" "codex")
+
+    if assert_equals "ok" "$result" "Normal output should return ok"; then
+        test_pass
+    fi
+}
+
+test_drift_check_too_short() {
+    test_case "check_output_drift warns on very short output"
+
+    local result
+    result=$(check_output_drift "Build a complex system" "OK done" "codex")
+
+    if assert_contains "$result" "warn:output_too_short" "Should warn about short output"; then
+        test_pass
+    fi
+}
+
+test_drift_check_refusal() {
+    test_case "check_output_drift detects agent refusal"
+
+    local result
+    result=$(check_output_drift "Build authentication" "I cannot help with that request because it violates my guidelines. Please try something else." "codex")
+
+    if assert_equals "drift:agent_refusal" "$result" "Should detect refusal"; then
+        test_pass
+    fi
+}
+
+test_drift_check_low_overlap() {
+    test_case "check_output_drift warns on low key term overlap"
+
+    local prompt="kubernetes docker deployment infrastructure cloud scaling containers"
+    local output="The recipe calls for flour, sugar, eggs, and butter. Mix thoroughly and bake at 350 degrees for thirty minutes until golden brown on top."
+
+    local result
+    result=$(check_output_drift "$prompt" "$output" "codex")
+
+    if assert_contains "$result" "warn:low_key_term_overlap" "Should warn about low term overlap"; then
+        test_pass
+    fi
+}
+
+test_run_drift_check_off() {
+    test_case "run_drift_check is no-op when disabled"
+
+    export OCTOPUS_ANTI_DRIFT="off"
+    run_drift_check "test" "test" "codex" "tangle"
+    local exit_code=$?
+    export OCTOPUS_ANTI_DRIFT="warn"
+
+    if assert_equals "0" "$exit_code" "Should exit 0 when disabled"; then
+        test_pass
+    fi
+}
+
+test_run_drift_check_nonblocking() {
+    test_case "run_drift_check always returns 0 (non-blocking)"
+
+    export OCTOPUS_ANTI_DRIFT="warn"
+    run_drift_check "Build auth" "I cannot help with that" "codex" "tangle"
+    local exit_code=$?
+
+    if assert_equals "0" "$exit_code" "Should always return 0 even on drift"; then
+        test_pass
+    fi
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Persona Packs Tests (v8.21.0)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Source the personas library
+source "$PROJECT_ROOT/scripts/lib/personas.sh"
+
+test_discover_packs_empty() {
+    test_case "discover_persona_packs returns empty when no packs exist"
+
+    local orig_home="$HOME"
+    local orig_root="${PROJECT_ROOT}"
+    HOME="$TEST_TMP_DIR/fake-home"
+    PROJECT_ROOT="$TEST_TMP_DIR/fake-project"
+    mkdir -p "$HOME" "$PROJECT_ROOT"
+
+    local result
+    result=$(discover_persona_packs)
+
+    HOME="$orig_home"
+    PROJECT_ROOT="$orig_root"
+
+    if assert_equals "" "$result" "Should return empty with no packs"; then
+        test_pass
+    fi
+}
+
+test_discover_packs_found() {
+    test_case "discover_persona_packs finds packs with pack.yaml"
+
+    local pack_dir="$TEST_TMP_DIR/personas/test-pack"
+    mkdir -p "$pack_dir"
+    echo 'name: "Test Pack"' > "$pack_dir/pack.yaml"
+
+    local result
+    result=$(discover_persona_packs "$TEST_TMP_DIR/personas")
+
+    if assert_contains "$result" "test-pack" "Should find test pack"; then
+        test_pass
+    fi
+}
+
+test_load_pack_metadata() {
+    test_case "load_persona_pack extracts metadata"
+
+    local pack_dir="$TEST_TMP_DIR/pack-meta"
+    mkdir -p "$pack_dir"
+    cat > "$pack_dir/pack.yaml" << 'YAML'
+name: "Security Hardened"
+version: "2.0.0"
+author: "tester"
+description: "Security-focused personas"
+personas:
+  - file: strict-auditor.md
+    replaces: security-auditor
+YAML
+
+    local result
+    result=$(load_persona_pack "$pack_dir")
+
+    if assert_contains "$result" "name=Security Hardened" "Should extract name" && \
+       assert_contains "$result" "version=2.0.0" "Should extract version" && \
+       assert_contains "$result" "author=tester" "Should extract author"; then
+        test_pass
+    fi
+}
+
+test_load_pack_missing_name() {
+    test_case "load_persona_pack fails on missing name"
+
+    local pack_dir="$TEST_TMP_DIR/pack-no-name"
+    mkdir -p "$pack_dir"
+    echo 'version: "1.0.0"' > "$pack_dir/pack.yaml"
+
+    local exit_code=0
+    local result
+    result=$(load_persona_pack "$pack_dir" 2>/dev/null) || exit_code=$?
+
+    if assert_equals "1" "$exit_code" "Should fail without name field"; then
+        test_pass
+    fi
+}
+
+test_get_pack_personas_entries() {
+    test_case "get_pack_personas extracts persona entries"
+
+    local pack_dir="$TEST_TMP_DIR/pack-entries"
+    mkdir -p "$pack_dir"
+    cat > "$pack_dir/pack.yaml" << 'YAML'
+name: "Test Pack"
+personas:
+  - file: custom-reviewer.md
+    replaces: code-reviewer
+  - file: extended-architect.md
+    extends: backend-architect
+YAML
+
+    local result
+    result=$(get_pack_personas "$pack_dir")
+
+    if assert_contains "$result" "custom-reviewer.md|replaces|code-reviewer" "Should parse replaces entry" && \
+       assert_contains "$result" "extended-architect.md|extends|backend-architect" "Should parse extends entry"; then
+        test_pass
+    fi
+}
+
+test_persona_packs_off() {
+    test_case "auto_load_persona_packs respects OCTOPUS_PERSONA_PACKS=off"
+
+    export OCTOPUS_PERSONA_PACKS="off"
+    auto_load_persona_packs
+    local exit_code=$?
+    export OCTOPUS_PERSONA_PACKS="auto"
+
+    if assert_equals "0" "$exit_code" "Should exit 0 when disabled"; then
+        test_pass
+    fi
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # Run all tests
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -474,6 +746,27 @@ test_apply_consensus_quorum
 test_check_file_references_existing
 test_check_file_references_missing
 test_run_file_validation_disabled
+
+# Baseline Telemetry (v8.20.1)
+test_record_task_metric
+test_get_metric_summary
+test_get_metric_summary_empty
+
+# Anti-Drift Checkpoints (v8.21.0)
+test_drift_check_ok
+test_drift_check_too_short
+test_drift_check_refusal
+test_drift_check_low_overlap
+test_run_drift_check_off
+test_run_drift_check_nonblocking
+
+# Persona Packs (v8.21.0)
+test_discover_packs_empty
+test_discover_packs_found
+test_load_pack_metadata
+test_load_pack_missing_name
+test_get_pack_personas_entries
+test_persona_packs_off
 
 # Print summary
 test_summary

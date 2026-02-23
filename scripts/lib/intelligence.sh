@@ -640,6 +640,171 @@ apply_consensus() {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# BASELINE TELEMETRY (v8.20.1)
+# Lightweight usage metrics for measuring intelligence feature impact
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Record a task metric
+# Usage: record_task_metric <metric_name> <value>
+record_task_metric() {
+    local metric_name="$1"
+    local value="$2"
+
+    [[ "${OCTOPUS_PROVIDER_INTELLIGENCE:-shadow}" == "off" ]] && return 0
+
+    local metrics_file="${WORKSPACE_DIR:-.}/.octo/metrics.jsonl"
+    local timestamp
+    timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date +%s)
+    local session_id="${CLAUDE_CODE_SESSION:-unknown}"
+
+    local entry
+    if _intelligence_has_jq; then
+        entry=$(jq -n -c \
+            --arg m "$metric_name" \
+            --arg v "$value" \
+            --arg ts "$timestamp" \
+            --arg s "$session_id" \
+            '{metric:$m, value:$v, timestamp:$ts, session:$s}' 2>/dev/null)
+    else
+        entry="{\"metric\":\"$metric_name\",\"value\":\"$value\",\"timestamp\":\"$timestamp\",\"session\":\"$session_id\"}"
+    fi
+
+    octo_db_append "$metrics_file" "$entry" 1000
+}
+
+# Get summary statistics for a metric within a time window
+# Returns: count sum min max avg (space-separated)
+# Usage: get_metric_summary <metric_name> [window_hours]
+get_metric_summary() {
+    local metric_name="$1"
+    local window_hours="${2:-24}"
+    local metrics_file="${WORKSPACE_DIR:-.}/.octo/metrics.jsonl"
+    local default="0 0 0 0 0"
+
+    [[ -f "$metrics_file" ]] || { echo "$default"; return 0; }
+
+    # Extract matching metric values
+    local values
+    values=$(grep "\"metric\":\"$metric_name\"" "$metrics_file" 2>/dev/null | \
+        grep -o '"value":"[^"]*"' | sed 's/"value":"//;s/"//' | \
+        grep -E '^[0-9]+\.?[0-9]*$')
+
+    [[ -z "$values" ]] && { echo "$default"; return 0; }
+
+    # Compute stats using awk
+    echo "$values" | awk '
+        BEGIN { count=0; sum=0; min=999999999; max=0 }
+        {
+            count++; sum+=$1
+            if ($1 < min) min=$1
+            if ($1 > max) max=$1
+        }
+        END {
+            if (count > 0) {
+                printf "%d %d %d %d %d", count, sum, min, max, int(sum/count)
+            } else {
+                print "0 0 0 0 0"
+            }
+        }
+    '
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ANTI-DRIFT CHECKPOINTS (v8.21.0 — F3 simplified)
+# Lightweight output validation using heuristic checks
+# Ships as warnings only — never blocks, discards, or modifies output
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Check if agent output has drifted from the prompt intent
+# Returns: "ok", "warn:<reason>", or "drift:<reason>"
+# Usage: check_output_drift <prompt> <output> <agent_type>
+check_output_drift() {
+    local prompt="$1"
+    local output="$2"
+    local agent_type="$3"
+
+    local output_len=${#output}
+
+    # Length check: flag suspiciously short or extremely long outputs
+    if [[ $output_len -lt 50 ]]; then
+        echo "warn:output_too_short (${output_len} chars)"
+        return 0
+    fi
+    if [[ $output_len -gt 50000 ]]; then
+        echo "warn:output_too_long (${output_len} chars)"
+        return 0
+    fi
+
+    # Refusal detection
+    local output_start
+    output_start=$(echo "${output:0:100}" | tr '[:upper:]' '[:lower:]')
+    if [[ "$output_start" =~ ^(i\ cannot|i\'m\ sorry|i\ can\'t|as\ an\ ai|i\ apologize) ]]; then
+        echo "drift:agent_refusal"
+        return 0
+    fi
+
+    # Key term presence: extract significant words from prompt, check output
+    local prompt_lower
+    prompt_lower=$(echo "$prompt" | tr '[:upper:]' '[:lower:]')
+    local output_lower
+    output_lower=$(echo "${output:0:2000}" | tr '[:upper:]' '[:lower:]')
+
+    local key_terms
+    key_terms=$(echo "$prompt_lower" | tr -cs '[:alpha:]' '\n' | \
+        grep -vxE '(the|a|an|is|are|was|were|to|for|in|on|of|and|or|but|with|that|this|it|not|be|have|do|will|would|could|should|can|may|from|by|at|as|if|then|than|so|no|yes|all|each|every|some|such|only|just|also|very|how|what|when|where|why|which|who|about|please|make|use|create|add|get|set|run|check|help|want|need)' | \
+        sort | uniq | head -8)
+
+    local key_count=0 found_count=0
+    for term in $key_terms; do
+        [[ ${#term} -lt 3 ]] && continue
+        ((key_count++))
+        if [[ "$output_lower" == *"$term"* ]]; then
+            ((found_count++))
+        fi
+    done
+
+    # If we have 4+ key terms and less than 25% appear in output, flag it
+    if [[ $key_count -ge 4 && $found_count -lt $((key_count / 4 + 1)) ]]; then
+        echo "warn:low_key_term_overlap ($found_count/$key_count terms)"
+        return 0
+    fi
+
+    echo "ok"
+}
+
+# Run drift check on agent output (non-blocking)
+# Usage: run_drift_check <prompt> <output> <agent_type> <phase>
+run_drift_check() {
+    local prompt="$1"
+    local output="$2"
+    local agent_type="$3"
+    local phase="$4"
+
+    [[ "${OCTOPUS_ANTI_DRIFT:-warn}" == "off" ]] && return 0
+
+    local result
+    result=$(check_output_drift "$prompt" "$output" "$agent_type")
+
+    case "$result" in
+        ok)
+            log "DEBUG" "Drift check passed for $agent_type" 2>/dev/null || true
+            ;;
+        warn:*)
+            local reason="${result#warn:}"
+            log "WARN" "Drift warning for $agent_type: $reason" 2>/dev/null || true
+            record_task_metric "drift_warning" "1" 2>/dev/null || true
+            ;;
+        drift:*)
+            local reason="${result#drift:}"
+            log "ERROR" "Drift detected in $agent_type: $reason" 2>/dev/null || true
+            record_task_metric "drift_detected" "1" 2>/dev/null || true
+            ;;
+    esac
+
+    return 0  # Always non-blocking
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # FILE PATH VALIDATION (Commit 5 — F15 simplified)
 # Non-blocking warnings for nonexistent file references
 # ═══════════════════════════════════════════════════════════════════════════════

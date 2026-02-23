@@ -28,6 +28,12 @@ source "${SCRIPT_DIR}/agent-teams-bridge.sh"
 # Source intelligence library (v8.20.0)
 source "${SCRIPT_DIR}/lib/intelligence.sh" 2>/dev/null || true
 
+# Source persona packs library (v8.21.0)
+source "${SCRIPT_DIR}/lib/personas.sh" 2>/dev/null || true
+
+# Source routing library (v8.21.0)
+source "${SCRIPT_DIR}/lib/routing.sh" 2>/dev/null || true
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # SECURITY: Path validation for workspace directory
 # Prevents path traversal attacks and restricts to safe locations
@@ -2601,276 +2607,7 @@ clear_usage_session() {
     log INFO "Usage session cleared"
 }
 
-# Task classification for contextual agent routing
-# Returns: diamond-discover|diamond-develop|diamond-deliver|coding|research|design|copywriting|image|review|general
-# Order matters! Double Diamond intents checked first, then specific patterns.
-classify_task() {
-    local prompt="$1"
-    local prompt_lower
-    prompt_lower=$(echo "$prompt" | tr '[:upper:]' '[:lower:]')
-
-    # ═══════════════════════════════════════════════════════════════════════════
-    # IMAGE GENERATION (highest priority - checked before Double Diamond)
-    # v3.0: Enhanced to detect app icons, favicons, diagrams, social media banners
-    # ═══════════════════════════════════════════════════════════════════════════
-    if [[ "$prompt_lower" =~ (generate|create|make|draw|render).*(image|picture|photo|illustration|graphic|icon|logo|banner|visual|artwork|favicon|avatar) ]] || \
-       [[ "$prompt_lower" =~ (image|picture|photo|illustration|graphic|icon|logo|banner|favicon|avatar).*generat ]] || \
-       [[ "$prompt_lower" =~ (visualize|depict|illustrate|sketch) ]] || \
-       [[ "$prompt_lower" =~ (dall-?e|midjourney|stable.?diffusion|imagen|text.?to.?image) ]] || \
-       [[ "$prompt_lower" =~ (app.?icon|favicon|og.?image|social.?media.?(banner|image|graphic)) ]] || \
-       [[ "$prompt_lower" =~ (hero.?image|header.?image|cover.?image|thumbnail) ]] || \
-       [[ "$prompt_lower" =~ (diagram|flowchart|architecture.?diagram|sequence.?diagram|infographic) ]] || \
-       [[ "$prompt_lower" =~ (twitter|linkedin|facebook|instagram).*(image|graphic|banner|post) ]] || \
-       [[ "$prompt_lower" =~ (marketing|promotional).*(image|graphic|visual) ]]; then
-        echo "image"
-        return
-    fi
-
-    # ═══════════════════════════════════════════════════════════════════════════
-    # CROSSFIRE INTENT DETECTION (Adversarial Cross-Model Review)
-    # Routes to grapple (debate) or squeeze (red team) workflows
-    # ═══════════════════════════════════════════════════════════════════════════
-
-    # Squeeze (Red Team): security audit, penetration test, vulnerability review
-    if [[ "$prompt_lower" =~ (security|penetration|pen).*(audit|test|review) ]] || \
-       [[ "$prompt_lower" =~ red.?team ]] || \
-       [[ "$prompt_lower" =~ (pentest|vulnerability|vuln).*(review|test|audit|assess) ]] || \
-       [[ "$prompt_lower" =~ (find|check|scan).*(vulnerabilities|security.?issues|exploits) ]] || \
-       [[ "$prompt_lower" =~ squeeze ]] || \
-       [[ "$prompt_lower" =~ (attack|exploit|hack).*(surface|vector|test) ]]; then
-        echo "crossfire-squeeze"
-        return
-    fi
-
-    # Grapple (Debate): adversarial review, cross-model debate, both models
-    if [[ "$prompt_lower" =~ (adversarial|cross.?model).*(review|debate|critique) ]] || \
-       [[ "$prompt_lower" =~ debate.*(architecture|design|implementation|approach|solution) ]] || \
-       [[ "$prompt_lower" =~ (debate|grapple|wrestle|compare).*(models?|approaches?|solutions?) ]] || \
-       [[ "$prompt_lower" =~ (both|multiple).*(models?|ai|llm).*(review|compare|debate) ]] || \
-       [[ "$prompt_lower" =~ (codex|gemini).*(vs|versus|debate|compare) ]] || \
-       [[ "$prompt_lower" =~ grapple ]]; then
-        echo "crossfire-grapple"
-        return
-    fi
-
-    # ═══════════════════════════════════════════════════════════════════════════
-    # KNOWLEDGE WORKER INTENT DETECTION (v6.0)
-    # Routes to empathize, advise, synthesize workflows
-    # ═══════════════════════════════════════════════════════════════════════════
-
-    # Empathize: UX research, user research, journey mapping, personas
-    if [[ "$prompt_lower" =~ (user|ux).*(research|interview|synthesis|finding) ]] || \
-       [[ "$prompt_lower" =~ (journey|experience).*(map|mapping) ]] || \
-       [[ "$prompt_lower" =~ (persona|user.?profile|archetype) ]] || \
-       [[ "$prompt_lower" =~ (usability|heuristic).*(evaluation|audit|review|test|analysis|result) ]] || \
-       [[ "$prompt_lower" =~ (analyze|analyse).*(usability|ux).*(test|result) ]] || \
-       [[ "$prompt_lower" =~ (pain.?point|user.?need|empathize|empathy) ]] || \
-       [[ "$prompt_lower" =~ affinity.?(map|diagram|cluster) ]]; then
-        echo "knowledge-empathize"
-        return
-    fi
-
-    # Advise: strategy, consulting, business case, market analysis
-    if [[ "$prompt_lower" =~ (market|competitive).*(analysis|intelligence|landscape) ]] || \
-       [[ "$prompt_lower" =~ (business|investment).*(case|proposal|rationale) ]] || \
-       [[ "$prompt_lower" =~ (strategic|strategy).*(recommendation|option|analysis) ]] || \
-       [[ "$prompt_lower" =~ (swot|porter|pestle|bcg|ansoff) ]] || \
-       [[ "$prompt_lower" =~ (go.?to.?market|gtm|market.?entry) ]] || \
-       [[ "$prompt_lower" =~ (stakeholder|executive).*(analysis|presentation|summary) ]] || \
-       [[ "$prompt_lower" =~ advise ]]; then
-        echo "knowledge-advise"
-        return
-    fi
-
-    # Synthesize: literature review, research synthesis, academic
-    if [[ "$prompt_lower" =~ (literature|lit).*(review|synthesis|survey) ]] || \
-       [[ "$prompt_lower" =~ (research|academic).*(synthesis|summary|review) ]] || \
-       [[ "$prompt_lower" =~ (systematic|scoping|narrative).*(review) ]] || \
-       [[ "$prompt_lower" =~ (annotated.?bibliography|citation.?analysis) ]] || \
-       [[ "$prompt_lower" =~ (research.?gap|knowledge.?gap|state.?of.?the.?art) ]] || \
-       [[ "$prompt_lower" =~ (thematic|meta).*(analysis|synthesis) ]] || \
-       [[ "$prompt_lower" =~ synthesize ]]; then
-        echo "knowledge-synthesize"
-        return
-    fi
-
-    # ═══════════════════════════════════════════════════════════════════════════
-    # DOUBLE DIAMOND INTENT DETECTION
-    # Routes to full workflow phases, not just single agents
-    # ═══════════════════════════════════════════════════════════════════════════
-
-    # Discover phase: research, explore, investigate
-    if [[ "$prompt_lower" =~ ^(research|explore|investigate|study|discover)[[:space:]] ]] || \
-       [[ "$prompt_lower" =~ (research|explore|investigate).*(option|approach|pattern|practice|alternative) ]]; then
-        echo "diamond-discover"
-        return
-    fi
-
-    # Define phase: define, clarify, scope, requirements
-    if [[ "$prompt_lower" =~ ^(define|clarify|scope|specify)[[:space:]] ]] || \
-       [[ "$prompt_lower" =~ (define|clarify).*(requirements|scope|problem|approach|boundaries) ]] || \
-       [[ "$prompt_lower" =~ (what|which).*(requirements|approach|constraints) ]]; then
-        echo "diamond-define"
-        return
-    fi
-
-    # Develop+Deliver phase: build, develop, implement, create
-    if [[ "$prompt_lower" =~ ^(develop|dev|build|implement|construct)[[:space:]] ]] || \
-       [[ "$prompt_lower" =~ (build|develop|implement).*(feature|system|module|component|service) ]]; then
-        echo "diamond-develop"
-        return
-    fi
-
-    # Deliver phase: QA, test, review, validate
-    # NOTE: Exclude "audit" when followed by site/website/app to allow optimize-audit routing
-    if [[ "$prompt_lower" =~ ^(qa|test|review|validate|verify|check)[[:space:]] ]] || \
-       [[ "$prompt_lower" =~ ^audit[[:space:]] && ! "$prompt_lower" =~ audit.*(site|website|app|application) ]] || \
-       [[ "$prompt_lower" =~ (qa|test|review|validate).*(implementation|code|changes|feature) ]]; then
-        echo "diamond-deliver"
-        return
-    fi
-
-    # ═══════════════════════════════════════════════════════════════════════════
-    # OPTIMIZATION INTENT DETECTION (v4.2)
-    # Routes to specialized optimization workflows based on domain
-    # NOTE: Order matters! More specific patterns (database, bundle) come before
-    #       generic patterns (performance) to ensure correct routing.
-    # ═══════════════════════════════════════════════════════════════════════════
-
-    # Multi-domain / Full site audit: comprehensive optimization across all domains
-    # CHECK FIRST - before individual domain patterns
-    if [[ "$prompt_lower" =~ (full|complete|comprehensive|entire|whole).*(audit|optimization|optimize|review) ]] || \
-       [[ "$prompt_lower" =~ (site|website|app|application).*(audit|optimization) ]] || \
-       [[ "$prompt_lower" =~ (audit|optimize|optimise).*(site|website|app|application|everything) ]] || \
-       [[ "$prompt_lower" =~ audit.*(my|the|this).*(site|website|app|application) ]] || \
-       [[ "$prompt_lower" =~ (optimize|optimise).*(everything|all|across.?the.?board) ]] || \
-       [[ "$prompt_lower" =~ (lighthouse|pagespeed|web.?vitals).*(full|complete|audit) ]] || \
-       [[ "$prompt_lower" =~ multi.?(domain|area|aspect).*(optimization|audit) ]]; then
-        echo "optimize-audit"
-        return
-    fi
-
-    # Database optimization: query, index, SQL, slow queries (CHECK BEFORE PERFORMANCE)
-    if [[ "$prompt_lower" =~ (optimize|optimise).*(database|query|sql|index|postgres|mysql) ]] || \
-       [[ "$prompt_lower" =~ (database|query|sql).*(optimize|slow|improve|tune) ]] || \
-       [[ "$prompt_lower" =~ (slow.?quer|explain.?analyze|index.?scan|full.?scan) ]] || \
-       [[ "$prompt_lower" =~ slow.*(database|query|sql) ]]; then
-        echo "optimize-database"
-        return
-    fi
-
-    # Cost optimization: budget, savings, cloud spend, reduce cost
-    if [[ "$prompt_lower" =~ (optimize|optimise|reduce).*(cost|budget|spend|bill|price) ]] || \
-       [[ "$prompt_lower" =~ (cost|budget|spending).*(optimize|reduce|cut|lower) ]] || \
-       [[ "$prompt_lower" =~ (save.?money|cheaper|rightsiz|reserved|spot.?instance) ]]; then
-        echo "optimize-cost"
-        return
-    fi
-
-    # Performance optimization: speed, latency, throughput, memory
-    # Note: Generic "slow" patterns moved here after database to avoid false matches
-    if [[ "$prompt_lower" =~ (optimize|optimise).*(performance|speed|latency|throughput|p99|cpu|memory) ]] || \
-       [[ "$prompt_lower" =~ (performance|speed|latency).*(optimize|improve|fix|slow) ]] || \
-       [[ "$prompt_lower" =~ (slow|sluggish|takes.?too.?long|bottleneck) ]]; then
-        echo "optimize-performance"
-        return
-    fi
-
-    # Bundle/build optimization: webpack, tree-shake, code-split
-    if [[ "$prompt_lower" =~ (optimize|optimise).*(bundle|build|webpack|vite|rollup) ]] || \
-       [[ "$prompt_lower" =~ (bundle|build).*(optimize|size|slow|faster) ]] || \
-       [[ "$prompt_lower" =~ (tree.?shak|code.?split|chunk|minif) ]]; then
-        echo "optimize-bundle"
-        return
-    fi
-
-    # Accessibility optimization: a11y, WCAG, screen reader
-    if [[ "$prompt_lower" =~ (optimize|optimise|improve).*(accessibility|a11y|wcag) ]] || \
-       [[ "$prompt_lower" =~ (accessibility|a11y).*(optimize|improve|fix|audit) ]] || \
-       [[ "$prompt_lower" =~ (screen.?reader|aria|contrast|keyboard.?nav) ]]; then
-        echo "optimize-accessibility"
-        return
-    fi
-
-    # SEO optimization: search engine, meta tags, structured data
-    if [[ "$prompt_lower" =~ (optimize|optimise|improve).*(seo|search.?engine|ranking) ]] || \
-       [[ "$prompt_lower" =~ (seo|search.?engine).*(optimize|improve|fix|audit) ]] || \
-       [[ "$prompt_lower" =~ (meta.?tag|structured.?data|schema.?org|sitemap|robots\.txt) ]]; then
-        echo "optimize-seo"
-        return
-    fi
-
-    # Image optimization: compress, format, lazy load, WebP
-    if [[ "$prompt_lower" =~ (optimize|optimise|compress).*(image|photo|graphic|png|jpg|jpeg) ]] || \
-       [[ "$prompt_lower" =~ (image|photo).*(optimize|compress|reduce|smaller) ]] || \
-       [[ "$prompt_lower" =~ (webp|avif|lazy.?load|srcset|responsive.?image) ]]; then
-        echo "optimize-image"
-        return
-    fi
-
-    # Generic optimize (fallback)
-    if [[ "$prompt_lower" =~ ^(optimize|optimise)[[:space:]] ]]; then
-        echo "optimize-general"
-        return
-    fi
-
-    # ═══════════════════════════════════════════════════════════════════════════
-    # STANDARD TASK CLASSIFICATION (for single-agent routing)
-    # ═══════════════════════════════════════════════════════════════════════════
-
-    # Code review keywords (check before coding - more specific)
-    if [[ "$prompt_lower" =~ (review|audit).*(code|commit|pr|pull.?request|module|component|implementation|function|authentication) ]] || \
-       [[ "$prompt_lower" =~ (code|security|performance).*(review|audit) ]] || \
-       [[ "$prompt_lower" =~ review.*(for|the).*(security|vulnerability|issue|bug|problem) ]] || \
-       [[ "$prompt_lower" =~ (find|spot|identify|check).*(bug|issue|problem|vulnerability|vulnerabilities) ]]; then
-        echo "review"
-        return
-    fi
-
-    # Copywriting/content keywords (check before coding - "write" overlap)
-    if [[ "$prompt_lower" =~ (write|draft|compose|edit).*(copy|content|text|message|email|blog|article|marketing) ]] || \
-       [[ "$prompt_lower" =~ (marketing|advertising|promotional).*(copy|content|text) ]] || \
-       [[ "$prompt_lower" =~ (headline|tagline|slogan|cta|call.?to.?action) ]] || \
-       [[ "$prompt_lower" =~ (tone|voice|brand.?messaging|marketing.?copy) ]] || \
-       [[ "$prompt_lower" =~ (rewrite|rephrase|improve.?the.?wording) ]]; then
-        echo "copywriting"
-        return
-    fi
-
-    # Design/UI/UX keywords (check before coding - accessibility is design)
-    if [[ "$prompt_lower" =~ (accessibility|a11y|wcag|contrast|color.?scheme) ]] || \
-       [[ "$prompt_lower" =~ (ui|ux|interface|layout|wireframe|prototype|mockup) ]] || \
-       [[ "$prompt_lower" =~ (design.?system|component.?library|style.?guide|theme) ]] || \
-       [[ "$prompt_lower" =~ (responsive|mobile|tablet|breakpoint) ]] || \
-       [[ "$prompt_lower" =~ (tailwind|shadcn|radix|styled) ]]; then
-        echo "design"
-        return
-    fi
-
-    # Research/analysis keywords (check before coding - "analyze" overlap)
-    if [[ "$prompt_lower" =~ (research|investigate|explore|study|compare) ]] || \
-       [[ "$prompt_lower" =~ (what|why|how|explain|understand|summarize|overview) ]] || \
-       [[ "$prompt_lower" =~ (documentation|docs|readme|architecture|structure) ]] || \
-       [[ "$prompt_lower" =~ analyze.*(codebase|architecture|project|structure|pattern) ]] || \
-       [[ "$prompt_lower" =~ (best.?practice|pattern|approach|strategy|recommendation) ]]; then
-        echo "research"
-        return
-    fi
-
-    # Coding/implementation keywords
-    if [[ "$prompt_lower" =~ (implement|develop|program|build|fix|debug|refactor) ]] || \
-       [[ "$prompt_lower" =~ (create|write|add).*(function|class|component|module|api|endpoint|hook) ]] || \
-       [[ "$prompt_lower" =~ (function|class|module|api|endpoint|route|service) ]] || \
-       [[ "$prompt_lower" =~ (typescript|javascript|python|react|next\.?js|node|sql|html|css) ]] || \
-       [[ "$prompt_lower" =~ (error|bug|test|compile|lint|type.?check) ]] || \
-       [[ "$prompt_lower" =~ (add|remove|update|delete|modify).*(feature|method|handler) ]]; then
-        echo "coding"
-        return
-    fi
-
-    # Default to general
-    echo "general"
-}
+# classify_task() — extracted to lib/routing.sh (v8.21.0)
 
 # Get best agent for task type
 get_agent_for_task() {
@@ -2887,136 +2624,7 @@ get_agent_for_task() {
     esac
 }
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# PERSONA AGENT RECOMMENDATION (v5.0)
-# Suggests specialized persona agents based on prompt keyword analysis
-# Returns: agent name or empty string if no strong match
-# ═══════════════════════════════════════════════════════════════════════════════
-
-recommend_persona_agent() {
-    local prompt="$1"
-    local prompt_lower
-    prompt_lower=$(echo "$prompt" | tr '[:upper:]' '[:lower:]')
-    local recommendations=""
-    local confidence=0
-
-    # Backend/API patterns → backend-architect
-    if [[ "$prompt_lower" =~ (api|endpoint|microservice|rest|graphql|grpc|event.?driven|kafka|rabbitmq) ]]; then
-        recommendations="${recommendations}backend-architect "
-        ((confidence += 30))
-    fi
-
-    # Security patterns → security-auditor
-    if [[ "$prompt_lower" =~ (security|vulnerability|owasp|auth|authentication|injection|xss|csrf|pentest) ]]; then
-        recommendations="${recommendations}security-auditor "
-        ((confidence += 25))
-    fi
-
-    # Test/TDD patterns → tdd-orchestrator
-    if [[ "$prompt_lower" =~ (test|tdd|coverage|red.?green|unit.?test|integration.?test) ]]; then
-        recommendations="${recommendations}tdd-orchestrator "
-        ((confidence += 25))
-    fi
-
-    # Debug/error patterns → debugger
-    if [[ "$prompt_lower" =~ (debug|error|stack.?trace|troubleshoot|failing|broken|exception) ]]; then
-        recommendations="${recommendations}debugger "
-        ((confidence += 20))
-    fi
-
-    # Frontend/React patterns → frontend-developer
-    if [[ "$prompt_lower" =~ (react|frontend|ui|component|next\.?js|tailwind|css|responsive) ]]; then
-        recommendations="${recommendations}frontend-developer "
-        ((confidence += 25))
-    fi
-
-    # Database patterns → database-architect
-    if [[ "$prompt_lower" =~ (database|schema|migration|sql|nosql|postgres|mysql|mongodb|redis) ]]; then
-        recommendations="${recommendations}database-architect "
-        ((confidence += 25))
-    fi
-
-    # Cloud/Infrastructure patterns → cloud-architect
-    if [[ "$prompt_lower" =~ (cloud|aws|gcp|azure|infrastructure|terraform|kubernetes|k8s|docker) ]]; then
-        recommendations="${recommendations}cloud-architect "
-        ((confidence += 25))
-    fi
-
-    # Performance patterns → performance-engineer
-    if [[ "$prompt_lower" =~ (performance|optimize|slow|profile|benchmark|latency|n\+1|cache) ]]; then
-        recommendations="${recommendations}performance-engineer "
-        ((confidence += 25))
-    fi
-
-    # Code review patterns → code-reviewer
-    if [[ "$prompt_lower" =~ (review|code.?quality|best.?practice|refactor|clean.?code|solid) ]]; then
-        recommendations="${recommendations}code-reviewer "
-        ((confidence += 20))
-    fi
-
-    # Python patterns → python-pro
-    if [[ "$prompt_lower" =~ (python|fastapi|django|flask|pydantic|asyncio|pip|uv) ]]; then
-        recommendations="${recommendations}python-pro "
-        ((confidence += 25))
-    fi
-
-    # TypeScript patterns → typescript-pro
-    if [[ "$prompt_lower" =~ (typescript|generics|type.?safe|strict|tsconfig|discriminated) ]]; then
-        recommendations="${recommendations}typescript-pro "
-        ((confidence += 25))
-    fi
-
-    # GraphQL patterns → graphql-architect
-    if [[ "$prompt_lower" =~ (graphql|resolver|mutation|subscription|federation|apollo) ]]; then
-        recommendations="${recommendations}graphql-architect "
-        ((confidence += 25))
-    fi
-
-    # UX Research patterns → ux-researcher (v6.0)
-    if [[ "$prompt_lower" =~ (user.?research|ux.?research|user.?interview|usability|journey.?map|persona) ]]; then
-        recommendations="${recommendations}ux-researcher "
-        ((confidence += 25))
-    fi
-
-    # Strategy/Consulting patterns → strategy-analyst (v6.0)
-    if [[ "$prompt_lower" =~ (market.?analysis|competitive|business.?case|strategic|swot|gtm|go.?to.?market) ]]; then
-        recommendations="${recommendations}strategy-analyst "
-        ((confidence += 25))
-    fi
-
-    # Research Synthesis patterns → research-synthesizer (v6.0)
-    if [[ "$prompt_lower" =~ (literature.?review|research.?synthesis|systematic.?review|annotated.?bibliography) ]]; then
-        recommendations="${recommendations}research-synthesizer "
-        ((confidence += 25))
-    fi
-
-    # Product Writing patterns → product-writer (v6.0)
-    if [[ "$prompt_lower" =~ (prd|product.?requirement|user.?story|acceptance.?criteria|feature.?spec) ]]; then
-        recommendations="${recommendations}product-writer "
-        ((confidence += 25))
-    fi
-
-    # Executive Communication patterns → exec-communicator (v6.0)
-    if [[ "$prompt_lower" =~ (executive.?summary|board.?presentation|stakeholder.?report|workshop.?synthesis) ]]; then
-        recommendations="${recommendations}exec-communicator "
-        ((confidence += 25))
-    fi
-
-    # Academic Writing patterns → academic-writer (v6.0)
-    if [[ "$prompt_lower" =~ (research.?paper|grant.?proposal|abstract|peer.?review|thesis|dissertation) ]]; then
-        recommendations="${recommendations}academic-writer "
-        ((confidence += 25))
-    fi
-
-    # Return first recommendation if confidence is high enough
-    local primary
-    primary=$(echo "$recommendations" | awk '{print $1}')
-
-    # Only recommend if we have a match
-    if [[ -n "$primary" ]]; then
-        echo "$primary"
-    fi
-}
+# recommend_persona_agent() — extracted to lib/routing.sh (v8.21.0)
 
 # Get agent description from frontmatter (for display purposes)
 get_agent_description() {
@@ -3261,68 +2869,7 @@ EOF
 # Prevents expensive premium models from being used on trivial tasks
 # ═══════════════════════════════════════════════════════════════════════════════
 
-# Estimate task complexity: trivial (1), standard (2), complex (3)
-# Uses keyword analysis and prompt length to determine appropriate model tier
-estimate_complexity() {
-    local prompt="$1"
-    local prompt_lower
-    prompt_lower=$(echo "$prompt" | tr '[:upper:]' '[:lower:]')  # Bash 3.2 compatible
-    local word_count=$(echo "$prompt" | wc -w | tr -d ' ')
-    local score=2  # Default: standard
-
-    # TRIVIAL indicators (reduce score)
-    # Short, simple operations that don't need premium models
-    local trivial_patterns="typo|rename|update.?version|bump.?version|change.*to|fix.?typo|formatting|indent|whitespace|simple|quick|small"
-    local single_file_patterns="in readme|in package|in changelog|in config|\.json|\.md|\.txt|\.yml|\.yaml"
-
-    # Check for trivial indicators
-    if [[ $word_count -lt 12 ]]; then
-        ((score--))
-    fi
-
-    if [[ "$prompt_lower" =~ ($trivial_patterns) ]]; then
-        ((score--))
-    fi
-
-    if [[ "$prompt_lower" =~ ($single_file_patterns) ]]; then
-        ((score--))
-    fi
-
-    # COMPLEX indicators (increase score)
-    # Multi-step, architectural, or comprehensive tasks need premium models
-    local complex_patterns="implement|design|architect|build.*feature|create.*system|from.?scratch|comprehensive|full.?system|entire|integrate|authentication|api|database"
-    local multi_component="and.*and|multiple|across|throughout|all.?files|refactor.*entire|complete"
-
-    # Check for complex indicators
-    if [[ $word_count -gt 40 ]]; then
-        ((score++))
-    fi
-
-    if [[ "$prompt_lower" =~ ($complex_patterns) ]]; then
-        ((score++))
-    fi
-
-    if [[ "$prompt_lower" =~ ($multi_component) ]]; then
-        ((score++))
-    fi
-
-    # Clamp to 1-3 range
-    [[ $score -lt 1 ]] && score=1
-    [[ $score -gt 3 ]] && score=3
-
-    echo "$score"
-}
-
-# Get complexity tier name for display
-get_tier_name() {
-    local complexity="$1"
-    case "$complexity" in
-        1) echo "trivial (🐙 quick mode)" ;;
-        2) echo "standard" ;;
-        3) echo "complex (premium)" ;;
-        *) echo "standard" ;;
-    esac
-}
+# estimate_complexity() + get_tier_name() — extracted to lib/routing.sh (v8.21.0)
 
 # Get agent based on task type AND complexity tier
 # This replaces the simple get_agent_for_task for cost-aware routing
@@ -3582,6 +3129,12 @@ OCTOPUS_CONSENSUS="${OCTOPUS_CONSENSUS:-moderator}"
 
 # v8.20.0 Feature: File Path Validation (non-blocking warnings)
 OCTOPUS_FILE_VALIDATION="${OCTOPUS_FILE_VALIDATION:-true}"
+
+# v8.21.0 Feature: Anti-Drift Checkpoints (heuristic output validation, warnings only)
+OCTOPUS_ANTI_DRIFT="${OCTOPUS_ANTI_DRIFT:-warn}"
+
+# v8.21.0 Feature: Persona Packs (community persona customization)
+OCTOPUS_PERSONA_PACKS="${OCTOPUS_PERSONA_PACKS:-auto}"
 
 # v8.18.0 Feature: Reviewer Lockout Protocol
 # When a provider's output is rejected during quality gates,
@@ -9665,75 +9218,7 @@ EOF
     echo "$combined"
 }
 
-# Determine appropriate role for an agent and task context
-# Returns: Role name (backend-architect, security-auditor, researcher, etc.)
-get_role_for_context() {
-    local agent_type="$1"
-    local task_type="$2"
-    local phase="${3:-}"
-
-    # Phase-specific role mapping (highest priority)
-    case "$phase" in
-        probe)
-            echo "researcher"
-            return
-            ;;
-        grasp)
-            if [[ "$SUPPORTS_AGENT_TYPE_ROUTING" == "true" ]]; then
-                echo "strategist"
-            else
-                echo "synthesizer"
-            fi
-            return
-            ;;
-        ink)
-            if [[ "$SUPPORTS_AGENT_TYPE_ROUTING" == "true" ]]; then
-                echo "strategist"
-            else
-                echo "synthesizer"
-            fi
-            return
-            ;;
-    esac
-
-    # Task-type based role mapping
-    case "$task_type" in
-        review|diamond-deliver)
-            echo "reviewer"
-            ;;
-        coding|diamond-develop)
-            # Refine based on agent type
-            if [[ "$agent_type" == "gemini" || "$agent_type" == "gemini-fast" ]]; then
-                echo "researcher"
-            else
-                echo "implementer"
-            fi
-            ;;
-        design)
-            echo "frontend-architect"
-            ;;
-        research|diamond-discover)
-            echo "researcher"
-            ;;
-        *)
-            # Agent-type fallback
-            case "$agent_type" in
-                codex|codex-max|codex-standard)
-                    echo "implementer"
-                    ;;
-                codex-review)
-                    echo "reviewer"
-                    ;;
-                gemini|gemini-fast)
-                    echo "researcher"
-                    ;;
-                *)
-                    echo ""  # No persona
-                    ;;
-            esac
-            ;;
-    esac
-}
+# get_role_for_context() — extracted to lib/routing.sh (v8.21.0)
 
 # v8.20.0: Wrapper for get_role_for_context with intelligence + capability matching
 get_role_for_context_v820() {
@@ -10587,6 +10072,24 @@ spawn_agent() {
     local enhanced_prompt
     enhanced_prompt=$(apply_persona "$role" "$prompt")
 
+    # v8.21.0: Check for persona pack override
+    if type get_persona_override &>/dev/null 2>&1 && [[ "${OCTOPUS_PERSONA_PACKS:-auto}" != "off" ]]; then
+        local persona_override_file
+        persona_override_file=$(get_persona_override "${curated_name:-$agent_type}" 2>/dev/null)
+        if [[ -n "$persona_override_file" && -f "$persona_override_file" ]]; then
+            local pack_persona
+            pack_persona=$(cat "$persona_override_file" 2>/dev/null)
+            if [[ -n "$pack_persona" ]]; then
+                enhanced_prompt="${pack_persona}
+
+---
+
+${enhanced_prompt}"
+                log "INFO" "Applied persona pack override from: $persona_override_file"
+            fi
+        fi
+    fi
+
     # v8.19.0: Inject checkpoint context if available
     if [[ -n "$checkpoint_ctx" ]]; then
         enhanced_prompt="${enhanced_prompt}
@@ -10984,6 +10487,12 @@ ${earned_skills_ctx}"
             append_provider_history "$agent_type" "${phase:-unknown}" "${enhanced_prompt:0:100}" "$result_summary" 2>/dev/null || true
             # v8.20.0: Record outcome for provider intelligence
             record_outcome "$agent_type" "$agent_type" "${task_type:-unknown}" "${phase:-unknown}" "success" "$elapsed_ms" 2>/dev/null || true
+            # v8.20.1: Record task duration metric
+            record_task_metric "task_duration_ms" "$elapsed_ms" 2>/dev/null || true
+            # v8.21.0: Anti-drift checkpoint (non-blocking)
+            if type run_drift_check &>/dev/null 2>&1; then
+                run_drift_check "${enhanced_prompt:-$prompt}" "$(cat "$result_file" 2>/dev/null)" "$agent_type" "${phase:-unknown}" 2>/dev/null || true
+            fi
         elif [[ $exit_code -eq 124 ]] || [[ $exit_code -eq 143 ]]; then
             # v7.19.0 P0.2: TIMEOUT - Preserve partial output
             # Process whatever output exists (may be significant partial work)
@@ -11177,6 +10686,8 @@ auto_route() {
         if [[ "$cost_agent" != "$task_type" && "$cost_agent" != "skip" ]]; then
             log "INFO" "Cost routing: complexity=$complexity, tier=${OCTOPUS_COST_TIER:-balanced}"
         fi
+        # v8.20.1: Record cost tier metric
+        record_task_metric "cost_tier_used" "${OCTOPUS_COST_TIER:-balanced}" 2>/dev/null || true
     fi
 
     # ═══════════════════════════════════════════════════════════════════════════
@@ -14043,6 +13554,24 @@ run_agent_sync() {
     local enhanced_prompt
     enhanced_prompt=$(apply_persona "$role" "$prompt")
 
+    # v8.21.0: Check for persona pack override (run_agent_sync)
+    if type get_persona_override &>/dev/null 2>&1 && [[ "${OCTOPUS_PERSONA_PACKS:-auto}" != "off" ]]; then
+        local persona_override_file
+        persona_override_file=$(get_persona_override "$agent_type" 2>/dev/null)
+        if [[ -n "$persona_override_file" && -f "$persona_override_file" ]]; then
+            local pack_persona
+            pack_persona=$(cat "$persona_override_file" 2>/dev/null)
+            if [[ -n "$pack_persona" ]]; then
+                enhanced_prompt="${pack_persona}
+
+---
+
+${enhanced_prompt}"
+                log "INFO" "Applied persona pack override from: $persona_override_file"
+            fi
+        fi
+    fi
+
     # v8.18.0: Inject per-provider history context
     local provider_ctx
     provider_ctx=$(build_provider_context "$agent_type")
@@ -15224,6 +14753,9 @@ validate_tangle_results() {
             gate_status="WARNING"
             gate_color="${YELLOW}"
         fi
+
+        # v8.20.1: Record quality gate metric
+        record_task_metric "quality_gate" "$success_rate" 2>/dev/null || true
 
         # v8.19.0: Log threshold applied
         write_structured_decision \
@@ -17784,6 +17316,11 @@ fi
 # Skip for help and non-workflow commands
 if [[ "$COMMAND" != "help" && "$COMMAND" != "setup" && "$COMMAND" != "preflight" && "$COMMAND" != "cost" && "$COMMAND" != "usage" && "$COMMAND" != "-h" && "$COMMAND" != "--help" ]]; then
     init_state 2>/dev/null || true
+
+    # v8.21.0: Auto-load persona packs from standard paths
+    if type auto_load_persona_packs &>/dev/null 2>&1; then
+        auto_load_persona_packs 2>/dev/null || true
+    fi
 fi
 
 case "$COMMAND" in

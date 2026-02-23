@@ -1,5 +1,5 @@
 ---
-name: model-config
+command: model-config
 description: Configure AI provider models for Claude Octopus workflows
 version: 2.0.0
 category: configuration
