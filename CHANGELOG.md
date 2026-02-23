@@ -1,3 +1,11 @@
+## [8.22.6] - 2026-02-23
+
+### Changed
+
+- Add release.sh automation script
+
+---
+
 ## [8.22.5] - 2026-02-23
 
 ### Fixed
