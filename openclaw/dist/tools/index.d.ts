@@ -13,5 +13,4 @@ export interface SkillRegistryEntry {
     file: string;
 }
 export declare const SKILL_REGISTRY: SkillRegistryEntry[];
-export declare const REGISTRY_VERSION = "2026-02-23T04:26:11Z";
 export declare const REGISTRY_COUNT = 90;

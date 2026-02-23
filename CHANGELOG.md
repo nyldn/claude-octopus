@@ -1,5 +1,9 @@
 ## [8.22.6] - 2026-02-23
 
+### Fixed
+
+- **OpenClaw Runtime API Mismatch**: Rewrite OpenClaw extension to match the actual `OpenClawPluginApi` contract from `openclaw@2026.2.22-2`. Replaces `api.getConfig()` (non-existent method) with `api.pluginConfig`, `api.log()` with `api.logger`, and migrates tool format from custom `{run, parameters: JSON}` to the real `AgentTool` interface using `{execute, parameters: TypeBox, label}` with proper `AgentToolResult` return type (closes #50).
+
 ### Changed
 
 - Add release.sh automation script

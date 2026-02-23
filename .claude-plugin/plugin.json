@@ -1,7 +1,7 @@
 {
   "name": "octo",
   "version": "8.22.6",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v8.22.6) Fix OpenClaw register crash, full OpenClaw compatibility. 31 expert personas, 44 commands, 46 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v8.22.6) Fix OpenClaw runtime API mismatch. 31 expert personas, 44 commands, 46 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },
