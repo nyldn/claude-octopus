@@ -41,24 +41,24 @@ for cmd_file in "$COMMANDS_DIR"/*.md; do
     # Check if file has YAML frontmatter
     if ! head -1 "$cmd_file" | grep -q "^---$"; then
         echo -e "${RED}✗${NC} $filename: Missing YAML frontmatter"
-        ((FAILED++))
+        FAILED=$((FAILED + 1))
         continue
     fi
 
     # Check if it uses 'command:' field
     if grep -q "^command:" "$cmd_file"; then
         echo -e "${GREEN}✓${NC} $filename uses 'command:' field"
-        ((PASSED++))
+        PASSED=$((PASSED + 1))
     else
         # Check if it incorrectly uses 'name:' field
         if grep -q "^name:" "$cmd_file"; then
             echo -e "${RED}✗${NC} $filename uses 'name:' instead of 'command:'"
             echo -e "   ${YELLOW}FIX:${NC} Change 'name:' to 'command:' in YAML frontmatter"
             echo -e "   ${YELLOW}RUN:${NC} ./scripts/fix-command-frontmatter.sh"
-            ((FAILED++))
+            FAILED=$((FAILED + 1))
         else
             echo -e "${RED}✗${NC} $filename: No 'command:' or 'name:' field found"
-            ((FAILED++))
+            FAILED=$((FAILED + 1))
         fi
     fi
 done

@@ -107,7 +107,7 @@ HEADER
         # Escape quotes in description
         description=$(echo "$description" | sed 's/"/\\"/g')
         echo "  { name: \"${name}\", description: \"${description}\", type: \"${type}\", file: \"${file}.md\" }," >> "$tmp_file"
-        ((count++))
+        count=$((count + 1))
     done < <(extract_skills "$SKILLS_DIR" "skill")
 
     # Process commands
@@ -115,7 +115,7 @@ HEADER
         [[ -z "$name" ]] && continue
         description=$(echo "$description" | sed 's/"/\\"/g')
         echo "  { name: \"${name}\", description: \"${description}\", type: \"${type}\", file: \"${file}.md\" }," >> "$tmp_file"
-        ((count++))
+        count=$((count + 1))
     done < <(extract_skills "$COMMANDS_DIR" "command")
 
     echo "];" >> "$tmp_file"
