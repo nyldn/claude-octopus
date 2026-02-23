@@ -85,6 +85,20 @@ exit(0 if p.get('id') else 1)
         fail "id field is missing from openclaw.plugin.json (required by OpenClaw gateway)"
     fi
 
+    # Check id matches package name (OpenClaw config key derived from unscoped pkg name — see #45)
+    # Manifest id must match unscoped package.json name so plugins.entries.<key> resolves correctly.
+    if python3 -c "
+import json, os
+manifest = json.load(open('$OPENCLAW_PLUGIN'))
+pkg = json.load(open(os.path.join(os.path.dirname('$OPENCLAW_PLUGIN'), 'package.json')))
+pkg_name = pkg.get('name', '').split('/')[-1]  # strip npm scope
+exit(0 if manifest.get('id') == pkg_name else 1)
+" 2>/dev/null; then
+        pass "id matches unscoped package name (required for install registration)"
+    else
+        fail "openclaw.plugin.json id must match unscoped package.json name (OpenClaw config validation — see #45)"
+    fi
+
     # Check extension entry point exists (OpenClaw rejects missing entries — see #41)
     if [[ -f "$PLUGIN_ROOT/openclaw/dist/index.js" ]]; then
         pass "extension entry point dist/index.js exists"

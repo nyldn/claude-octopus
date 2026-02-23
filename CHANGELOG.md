@@ -1,3 +1,16 @@
+## [8.22.3] - 2026-02-23
+
+### Fixed
+
+- **OpenClaw Install Registration**: Changed `package.json` name from `@octo-claw/openclaw` to `@octo-claw/octo-claw` so install directory matches manifest id `octo-claw`. OpenClaw derives config entry key from unscoped package name, so it must match manifest id or config validation fails with `plugin not found` (closes #45).
+- **CI Coverage Permissions**: Added `pull-requests: write` and `issues: write` permissions to test workflow. Made PR comment step non-fatal with `continue-on-error`.
+
+### Changed
+
+- **Validation**: Added check that `openclaw.plugin.json` id matches unscoped package name to prevent registration mismatch.
+
+---
+
 ## [8.22.2] - 2026-02-23
 
 ### Fixed
