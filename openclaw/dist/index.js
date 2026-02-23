@@ -171,7 +171,7 @@ const WORKFLOW_TOOLS = [
 ];
 // --- Extension Entry Point ---
 export default function register(api) {
-    const config = api.getConfig();
+    const config = api.getConfig() ?? {};
     const enabledWorkflows = config.enabledWorkflows ?? [
         "discover",
         "define",
