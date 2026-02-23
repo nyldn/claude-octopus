@@ -1,0 +1,43 @@
+{
+  "name": "claude-octopus",
+  "displayName": "Claude Octopus",
+  "version": "1.0.0",
+  "description": "Multi-agent orchestration with Double Diamond methodology. Brings 46 skills, expert code review, structured AI debates, and multi-provider workflows to OpenClaw.",
+  "category": "tools",
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "claudeCodePath": {
+        "type": "string",
+        "description": "Path to the claude CLI binary. Auto-detected if not set.",
+        "default": "claude"
+      },
+      "orchestrateShPath": {
+        "type": "string",
+        "description": "Path to orchestrate.sh. Auto-detected from plugin installation.",
+        "default": ""
+      },
+      "defaultAutonomy": {
+        "type": "string",
+        "enum": ["supervised", "semi-autonomous", "autonomous"],
+        "description": "Default autonomy level for workflows.",
+        "default": "supervised"
+      },
+      "enabledWorkflows": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "enum": ["discover", "define", "develop", "deliver", "embrace", "debate", "review", "security"]
+        },
+        "description": "Which Octopus workflows to expose as OpenClaw tools.",
+        "default": ["discover", "define", "develop", "deliver", "embrace", "debate", "review"]
+      },
+      "mcpServerUrl": {
+        "type": "string",
+        "description": "URL of the Claude Octopus MCP server. Defaults to stdio transport.",
+        "default": ""
+      }
+    },
+    "additionalProperties": false
+  }
+}

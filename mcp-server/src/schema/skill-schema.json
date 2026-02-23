@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/nyldn/claude-octopus/skill-schema/v1",
+  "title": "Universal Skill Metadata Schema",
+  "description": "Common skill metadata format consumable by both Claude Code plugins and OpenClaw extensions. Skills are authored in Markdown with YAML frontmatter; this schema defines the portable metadata fields.",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Unique skill identifier (kebab-case).",
+      "pattern": "^[a-z][a-z0-9-]*$"
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable skill description (1-2 sentences)."
+    },
+    "version": {
+      "type": "string",
+      "description": "Semantic version of the skill.",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "aliases": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Alternative names that trigger this skill."
+    },
+    "triggers": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Natural language patterns that activate this skill."
+    },
+    "parameters": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "type": {
+            "type": "string",
+            "enum": ["string", "number", "boolean", "enum"]
+          },
+          "description": { "type": "string" },
+          "required": { "type": "boolean", "default": false },
+          "default": {},
+          "values": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Allowed values for enum type."
+          }
+        },
+        "required": ["name", "type", "description"]
+      },
+      "description": "Input parameters the skill accepts."
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "workflow",
+        "review",
+        "research",
+        "development",
+        "security",
+        "testing",
+        "documentation",
+        "utility"
+      ],
+      "description": "Skill category for organization and discovery."
+    },
+    "providers": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["claude", "codex", "gemini"]
+      },
+      "description": "AI providers this skill uses."
+    },
+    "platforms": {
+      "type": "object",
+      "properties": {
+        "claude-code": {
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string",
+              "description": "Claude Code command path (e.g., ./.claude/commands/review.md)"
+            },
+            "skill": {
+              "type": "string",
+              "description": "Claude Code skill path (e.g., ./.claude/skills/skill-code-review.md)"
+            },
+            "context": {
+              "type": "string",
+              "enum": ["fork", "inherit"],
+              "default": "fork"
+            }
+          }
+        },
+        "openclaw": {
+          "type": "object",
+          "properties": {
+            "tool_name": {
+              "type": "string",
+              "description": "OpenClaw tool registration name"
+            },
+            "category": {
+              "type": "string",
+              "enum": ["tools", "providers", "channels", "memory"]
+            }
+          }
+        }
+      },
+      "description": "Platform-specific metadata for cross-platform skills."
+    },
+    "estimated_cost": {
+      "type": "object",
+      "properties": {
+        "min_usd": { "type": "number" },
+        "max_usd": { "type": "number" }
+      },
+      "description": "Estimated cost range per invocation."
+    }
+  },
+  "required": ["name", "description"],
+  "additionalProperties": true
+}
