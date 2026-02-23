@@ -108,80 +108,6 @@ jobs:
           path: /tmp/test_*.log
           retention-days: 7
 
-  coverage:
-    name: Coverage Report
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    needs: [smoke, unit]
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Make scripts executable
-        run: |
-          chmod +x scripts/orchestrate.sh
-          chmod +x tests/**/*.sh
-          find tests -name "*.sh" -type f -exec chmod +x {} \;
-
-      - name: Generate coverage report
-        run: make test-coverage || true
-        continue-on-error: true
-
-      - name: Upload coverage report
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report
-          path: |
-            coverage-report.txt
-            coverage-report.html
-          retention-days: 90
-
-      - name: Comment coverage on PR
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v6
-        with:
-          script: |
-            const fs = require('fs');
-            const coverage = fs.readFileSync('coverage-report.txt', 'utf8');
-
-            // Extract coverage percentage
-            const match = coverage.match(/Coverage:\s+(\d+)%/);
-            const percent = match ? match[1] : 'unknown';
-
-            // Create comment body
-            const body = `## Test Coverage Report\n\n` +
-                        `📊 Coverage: **${percent}%**\n\n` +
-                        `<details>\n<summary>View Full Report</summary>\n\n` +
-                        '```\n' + coverage + '\n```\n' +
-                        `</details>`;
-
-            // Post comment
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: body
-            });
-
-      - name: Check coverage threshold
-        continue-on-error: true
-        run: |
-          MIN_COVERAGE=80
-          if [ -f "coverage-report.txt" ]; then
-            ACTUAL=$(grep "Coverage:" coverage-report.txt | grep -oE "[0-9]+" || echo "0")
-
-            if [ "$ACTUAL" -lt "$MIN_COVERAGE" ]; then
-              echo "⚠️  Coverage $ACTUAL% is below minimum $MIN_COVERAGE%"
-              echo "This is a warning - tests can still pass"
-              exit 0
-            else
-              echo "✅ Coverage $ACTUAL% meets minimum $MIN_COVERAGE%"
-            fi
-          else
-            echo "⚠️  Coverage report not found"
-          fi
-
   e2e:
     name: End-to-End Tests
     runs-on: ubuntu-latest
@@ -227,7 +153,7 @@ jobs:
   test-summary:
     name: Test Summary
     runs-on: ubuntu-latest
-    needs: [smoke, unit, integration, coverage]
+    needs: [smoke, unit, integration]
     if: always()
 
     steps:
@@ -245,12 +171,3 @@ jobs:
           echo "| Smoke | ${{ needs.smoke.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Unit | ${{ needs.unit.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Integration | ${{ needs.integration.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Coverage | ${{ needs.coverage.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          if [ -f "coverage-report/coverage-report.txt" ]; then
-            echo "## Coverage Report" >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-            cat coverage-report/coverage-report.txt >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-          fi
