@@ -74,6 +74,17 @@ OPENCLAW_PLUGIN="$PLUGIN_ROOT/openclaw/openclaw.plugin.json"
 if [[ -f "$OPENCLAW_PLUGIN" ]]; then
     pass "openclaw.plugin.json exists"
 
+    # Check required id field (OpenClaw gateway crashes without it — see #40)
+    if python3 -c "
+import json
+p = json.load(open('$OPENCLAW_PLUGIN'))
+exit(0 if p.get('id') else 1)
+" 2>/dev/null; then
+        pass "id field is present"
+    else
+        fail "id field is missing from openclaw.plugin.json (required by OpenClaw gateway)"
+    fi
+
     # Check configSchema
     if python3 -c "
 import json
