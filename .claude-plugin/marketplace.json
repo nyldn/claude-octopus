@@ -11,7 +11,7 @@
     {
       "name": "claude-octopus",
       "source": "./",
-      "description": "v8.22.6 - Add release.sh automation script. 31 personas, 44 commands, 46 skills. Run /octo:setup.",
+      "description": "v8.22.6 - Fix OpenClaw runtime API mismatch. 31 personas, 44 commands, 46 skills. Run /octo:setup.",
       "version": "8.22.6",
       "author": {
         "name": "nyldn"
