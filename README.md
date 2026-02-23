@@ -7,7 +7,7 @@ Every model has blind spots. Claude Octopus fills them by orchestrating Codex, G
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-8.22.1-blue" alt="Version 8.22.1">
+  <img src="https://img.shields.io/badge/Version-8.22.2-blue" alt="Version 8.22.2">
   <img src="https://img.shields.io/badge/Claude_Code-v2.1.34+-blueviolet" alt="Requires Claude Code v2.1.34+">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
 </p>
