@@ -1,5 +1,5 @@
 {
-  "name": "@octo-claw/openclaw",
+  "name": "@octo-claw/octo-claw",
   "version": "1.0.0",
   "description": "OpenClaw extension for Claude Octopus — bridges Double Diamond workflows to OpenClaw",
   "type": "module",
