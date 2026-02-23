@@ -21,15 +21,15 @@ declare -a FAILURES
 # Helper functions
 pass() {
   echo -e "${GREEN}✓${NC} $1"
-  ((PASSED_TESTS++))
-  ((TOTAL_TESTS++))
+  PASSED_TESTS=$((PASSED_TESTS + 1))
+  TOTAL_TESTS=$((TOTAL_TESTS + 1))
 }
 
 fail() {
   echo -e "${RED}✗${NC} $1"
   FAILURES+=("$1")
-  ((FAILED_TESTS++))
-  ((TOTAL_TESTS++))
+  FAILED_TESTS=$((FAILED_TESTS + 1))
+  TOTAL_TESTS=$((TOTAL_TESTS + 1))
 }
 
 warn() {
@@ -114,11 +114,12 @@ validate_frontmatter() {
 
   # Validate 'description' is not empty (v8.0: all descriptions are single-line)
   if $has_description; then
-    local desc_value=$(echo "$frontmatter" | grep "^description:" | sed 's/description: *//')
+    local desc_line=$(echo "$frontmatter" | grep "^description:")
+    local desc_value=$(echo "$desc_line" | sed 's/description: *//')
     if [ -n "$desc_value" ]; then
       pass "$filename: 'description' has value"
-      # v8.0: Verify single-line format (no multi-line | blocks)
-      if echo "$frontmatter" | grep -A 1 "^description:" | grep -q "|"; then
+      # v8.0: Verify single-line format — check if description line itself ends with |
+      if echo "$desc_line" | grep -qE "^description:[[:space:]]*\|[[:space:]]*$"; then
         fail "$filename: 'description' uses multi-line format (should be single-line per v8.0)"
       fi
     else

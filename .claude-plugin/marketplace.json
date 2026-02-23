@@ -11,8 +11,8 @@
     {
       "name": "claude-octopus",
       "source": "./",
-      "description": "v8.21.0 - Persona Packs, Anti-Drift Checkpoints, Baseline Telemetry, lib/ modular extraction (routing.sh, personas.sh). 31 personas, 44 commands, 46 skills. Run /octo:setup.",
-      "version": "8.21.0",
+      "description": "v8.22.0 - OpenClaw compatibility, MCP server, shared skill schema. 31 personas, 44 commands, 46 skills. Run /octo:setup.",
+      "version": "8.22.0",
       "author": {
         "name": "nyldn"
       },

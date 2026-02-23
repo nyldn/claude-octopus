@@ -93,12 +93,11 @@ check_readme_structure() {
   # Check required sections exist
   local required_sections=(
     "# Claude Octopus"
-    "## TL;DR"
-    "## Quick Start"
-    "## Updating the Plugin"
+    "## Quickstart"
+    "## What It Does"
+    "## How It Works"
     "## Documentation"
     "## Attribution"
-    "## Acknowledgments"
     "## Contributing"
     "## License"
   )

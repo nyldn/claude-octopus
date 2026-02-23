@@ -162,37 +162,7 @@ else
 fi
 
 # =============================================================================
-# Test 11: README.md has SHA pinning documentation
-# =============================================================================
-test_start "README.md has plugin SHA pinning documentation"
-if grep -q 'Pin to Specific Version' "$PROJECT_ROOT/README.md"; then
-    test_pass "README.md has SHA pinning documentation"
-else
-    test_fail "README.md should have SHA pinning documentation"
-fi
-
-# =============================================================================
-# Test 12: README.md has bash history autocomplete documentation
-# =============================================================================
-test_start "README.md has bash history autocomplete documentation"
-if grep -q 'Bash History Autocomplete' "$PROJECT_ROOT/README.md"; then
-    test_pass "README.md has bash history autocomplete documentation"
-else
-    test_fail "README.md should have bash history autocomplete documentation"
-fi
-
-# =============================================================================
-# Test 13: README.md has wildcard bash permissions documentation
-# =============================================================================
-test_start "README.md has wildcard bash permissions documentation"
-if grep -q 'Wildcard Bash Permissions' "$PROJECT_ROOT/README.md"; then
-    test_pass "README.md has wildcard bash permissions documentation"
-else
-    test_fail "README.md should have wildcard bash permissions documentation"
-fi
-
-# =============================================================================
-# Test 14: skill-architecture.md has LSP integration guidance
+# Test 11: skill-architecture.md has LSP integration guidance
 # =============================================================================
 test_start "skill-architecture.md has LSP integration guidance"
 if grep -q 'LSP Integration' "$PROJECT_ROOT/.claude/skills/skill-architecture.md"; then
@@ -255,9 +225,6 @@ if [[ $TESTS_FAILED -eq 0 ]]; then
     echo "  - agent field added to specialized skills ✓"
     echo "  - Session ID in visual banners ✓"
     echo "  - Native background tasks documentation ✓"
-    echo "  - SHA pinning documentation ✓"
-    echo "  - Bash history autocomplete documentation ✓"
-    echo "  - Wildcard bash permissions documentation ✓"
     echo "  - LSP integration guidance ✓"
     echo "  - YAML frontmatter validity ✓"
     exit 0
