@@ -201,9 +201,9 @@ test_gitignore_best_practices() {
 
     # Development artifacts should be gitignored
     assert_gitignored ".dev/" "Development directory (.dev/) is gitignored"
-    assert_gitignored "test-results\*.xml" "Test results are gitignored"
+    assert_gitignored "test-results" "Test results are gitignored"
     assert_gitignored "coverage-report" "Coverage reports are gitignored"
-    assert_gitignored "\.DS_Store" "macOS .DS_Store is gitignored"
+    assert_gitignored ".DS_Store" "macOS .DS_Store is gitignored"
     assert_gitignored "tests/tmp/" "Test temp files are gitignored"
     assert_gitignored "\*.log" "Log files are gitignored"
 

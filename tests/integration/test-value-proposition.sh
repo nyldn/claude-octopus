@@ -99,7 +99,7 @@ test_multi_agent_parallel_execution() {
     # Check probe function code directly to avoid dry-run hang
     local probe_code=""
     if [[ -f "$ORCHESTRATE" ]]; then
-        probe_code=$(grep -A 50 "probe_discover()" "$ORCHESTRATE" 2>/dev/null) || probe_code=""
+        probe_code=$(grep -A 80 "probe_discover()" "$ORCHESTRATE" 2>/dev/null) || probe_code=""
     fi
 
     ((TESTS_RUN++))

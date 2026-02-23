@@ -71,6 +71,9 @@ temp/
 *.tmp
 *.temp
 
+# Development directory
+.dev/
+
 # Development working files (should not be in public repo)
 docs/IMPLEMENTATION-PLAN*.md
 
