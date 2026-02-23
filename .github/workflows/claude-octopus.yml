@@ -64,12 +64,12 @@ jobs:
           node-version: '20'
 
       - name: Install Codex CLI
-        run: npm install -g @openai/codex-cli
+        run: npm install -g @openai/codex
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
       - name: Install Gemini CLI
-        run: npm install -g @anthropic-ai/gemini-cli
+        run: npm install -g @google/gemini-cli
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
@@ -133,8 +133,8 @@ jobs:
 
       - name: Install CLIs
         run: |
-          npm install -g @openai/codex-cli
-          npm install -g @anthropic-ai/gemini-cli
+          npm install -g @openai/codex
+          npm install -g @google/gemini-cli
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -205,8 +205,8 @@ jobs:
 
       - name: Install CLIs
         run: |
-          npm install -g @openai/codex-cli
-          npm install -g @anthropic-ai/gemini-cli
+          npm install -g @openai/codex
+          npm install -g @google/gemini-cli
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}

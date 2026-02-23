@@ -15,6 +15,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { Type, type TSchema, type Static } from "@sinclair/typebox";
 import { loadSkills } from "./skill-loader.js";
 
 const execFileAsync = promisify(execFile);
@@ -22,32 +23,51 @@ const execFileAsync = promisify(execFile);
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PLUGIN_ROOT = resolve(__dirname, "../..");
 
-// --- Types (OpenClaw API interface) ---
+// --- Types (OpenClaw Plugin API — matching openclaw@2026.2.22-2) ---
 
-interface OpenClawToolContext {
-  channelId: string;
-  userId: string;
-  threadId?: string;
-  session: {
-    id: string;
-    transcript: unknown[];
-  };
+interface TextContent {
+  type: "text";
+  text: string;
 }
 
-interface OpenClawTool {
+interface AgentToolResult {
+  content: TextContent[];
+  details: unknown;
+}
+
+interface AgentTool {
   name: string;
+  label: string;
   description: string;
-  parameters: Record<string, unknown>;
-  run: (
+  parameters: TSchema;
+  execute: (
+    toolCallId: string,
     params: Record<string, unknown>,
-    context: OpenClawToolContext
-  ) => Promise<string>;
+    signal?: AbortSignal
+  ) => Promise<AgentToolResult>;
 }
 
-interface OpenClawApi {
-  registerTool: (tool: OpenClawTool) => void;
-  getConfig: () => Record<string, unknown>;
-  log: (level: string, message: string) => void;
+interface PluginLogger {
+  debug?: (message: string) => void;
+  info: (message: string) => void;
+  warn: (message: string) => void;
+  error: (message: string) => void;
+}
+
+interface OpenClawPluginApi {
+  id: string;
+  name: string;
+  config: Record<string, unknown>;
+  pluginConfig?: Record<string, unknown>;
+  logger: PluginLogger;
+  registerTool: (tool: AgentTool, opts?: { name?: string; names?: string[]; optional?: boolean }) => void;
+  resolvePath: (input: string) => string;
+}
+
+// --- Helpers ---
+
+function textResult(text: string): AgentToolResult {
+  return { content: [{ type: "text", text }], details: {} };
 }
 
 // --- Execution ---
@@ -80,87 +100,77 @@ async function executeOrchestrate(
 
 // --- Tool Definitions ---
 
-const WORKFLOW_TOOLS: OpenClawTool[] = [
+interface WorkflowDef {
+  name: string;
+  label: string;
+  description: string;
+  parameters: TSchema;
+  run: (params: Record<string, unknown>) => Promise<string>;
+}
+
+const WORKFLOW_DEFS: WorkflowDef[] = [
   {
     name: "octopus_discover",
+    label: "Octopus Discover",
     description:
       "Run multi-provider research using Codex and Gemini CLIs for broad exploration.",
-    parameters: {
-      type: "object",
-      properties: {
-        prompt: { type: "string", description: "Topic to research" },
-      },
-      required: ["prompt"],
-    },
+    parameters: Type.Object({
+      prompt: Type.String({ description: "Topic to research" }),
+    }),
     run: async (params) => executeOrchestrate("probe", params.prompt as string),
   },
   {
     name: "octopus_define",
+    label: "Octopus Define",
     description:
       "Build consensus on requirements, scope, and approach using multi-AI synthesis.",
-    parameters: {
-      type: "object",
-      properties: {
-        prompt: {
-          type: "string",
-          description: "Requirements or scope to define",
-        },
-      },
-      required: ["prompt"],
-    },
+    parameters: Type.Object({
+      prompt: Type.String({ description: "Requirements or scope to define" }),
+    }),
     run: async (params) => executeOrchestrate("grasp", params.prompt as string),
   },
   {
     name: "octopus_develop",
+    label: "Octopus Develop",
     description:
       "Implement with quality gates and multi-provider validation.",
-    parameters: {
-      type: "object",
-      properties: {
-        prompt: { type: "string", description: "What to implement" },
-        quality_threshold: {
-          type: "number",
-          description: "Minimum quality score (0-100)",
-          default: 75,
-        },
-      },
-      required: ["prompt"],
-    },
+    parameters: Type.Object({
+      prompt: Type.String({ description: "What to implement" }),
+      quality_threshold: Type.Optional(
+        Type.Number({ description: "Minimum quality score (0-100)", default: 75 })
+      ),
+    }),
     run: async (params) =>
       executeOrchestrate("tangle", params.prompt as string),
   },
   {
     name: "octopus_deliver",
+    label: "Octopus Deliver",
     description:
       "Final validation, adversarial review, and delivery of completed work.",
-    parameters: {
-      type: "object",
-      properties: {
-        prompt: {
-          type: "string",
-          description: "What to validate and deliver",
-        },
-      },
-      required: ["prompt"],
-    },
+    parameters: Type.Object({
+      prompt: Type.String({ description: "What to validate and deliver" }),
+    }),
     run: async (params) => executeOrchestrate("ink", params.prompt as string),
   },
   {
     name: "octopus_embrace",
+    label: "Octopus Embrace",
     description:
       "Full Double Diamond workflow: Discover → Define → Develop → Deliver.",
-    parameters: {
-      type: "object",
-      properties: {
-        prompt: { type: "string", description: "Full task or project" },
-        autonomy: {
-          type: "string",
-          enum: ["supervised", "semi-autonomous", "autonomous"],
-          default: "supervised",
-        },
-      },
-      required: ["prompt"],
-    },
+    parameters: Type.Object({
+      prompt: Type.String({ description: "Full task or project" }),
+      autonomy: Type.Optional(
+        Type.Union(
+          [
+            Type.Literal("supervised"),
+            Type.Literal("semi-autonomous"),
+            Type.Literal("autonomous"),
+          ],
+          { default: "supervised" }
+        )
+      ),
+    }),
     run: async (params) =>
       executeOrchestrate("embrace", params.prompt as string, [
         `--autonomy`, (params.autonomy as string) ?? "supervised",
@@ -168,21 +178,26 @@ const WORKFLOW_TOOLS: OpenClawTool[] = [
   },
   {
     name: "octopus_debate",
+    label: "Octopus Debate",
     description:
       "Three-way AI debate between Claude, Gemini, and Codex on any topic.",
-    parameters: {
-      type: "object",
-      properties: {
-        question: { type: "string", description: "Question to debate" },
-        rounds: { type: "number", default: 1, description: "Debate rounds" },
-        style: {
-          type: "string",
-          enum: ["quick", "thorough", "adversarial", "collaborative"],
-          default: "quick",
-        },
-      },
-      required: ["question"],
-    },
+    parameters: Type.Object({
+      question: Type.String({ description: "Question to debate" }),
+      rounds: Type.Optional(
+        Type.Number({ default: 1, description: "Debate rounds" })
+      ),
+      style: Type.Optional(
+        Type.Union(
+          [
+            Type.Literal("quick"),
+            Type.Literal("thorough"),
+            Type.Literal("adversarial"),
+            Type.Literal("collaborative"),
+          ],
+          { default: "quick" }
+        )
+      ),
+    }),
     run: async (params) =>
       executeOrchestrate("grapple", params.question as string, [
         "-r",
@@ -193,29 +208,23 @@ const WORKFLOW_TOOLS: OpenClawTool[] = [
   },
   {
     name: "octopus_review",
+    label: "Octopus Review",
     description:
       "Expert code review with multi-provider security and architecture analysis.",
-    parameters: {
-      type: "object",
-      properties: {
-        target: { type: "string", description: "File or directory to review" },
-      },
-      required: ["target"],
-    },
+    parameters: Type.Object({
+      target: Type.String({ description: "File or directory to review" }),
+    }),
     run: async (params) =>
       executeOrchestrate("codex-review", params.target as string),
   },
   {
     name: "octopus_security",
+    label: "Octopus Security",
     description:
       "Comprehensive security audit with OWASP compliance and vulnerability detection.",
-    parameters: {
-      type: "object",
-      properties: {
-        target: { type: "string", description: "File or directory to audit" },
-      },
-      required: ["target"],
-    },
+    parameters: Type.Object({
+      target: Type.String({ description: "File or directory to audit" }),
+    }),
     run: async (params) =>
       executeOrchestrate("squeeze", params.target as string),
   },
@@ -223,9 +232,9 @@ const WORKFLOW_TOOLS: OpenClawTool[] = [
 
 // --- Extension Entry Point ---
 
-export default function register(api: OpenClawApi) {
-  const config = api.getConfig() ?? {};
-  const enabledWorkflows = (config.enabledWorkflows as string[]) ?? [
+export default function register(api: OpenClawPluginApi) {
+  const pluginConfig = api.pluginConfig ?? {};
+  const enabledWorkflows = (pluginConfig.enabledWorkflows as string[]) ?? [
     "discover",
     "define",
     "develop",
@@ -236,33 +245,41 @@ export default function register(api: OpenClawApi) {
     "security",
   ];
 
-  api.log("info", `Claude Octopus OpenClaw extension loading...`);
-  api.log("info", `Plugin root: ${PLUGIN_ROOT}`);
+  api.logger.info(`Claude Octopus OpenClaw extension loading...`);
+  api.logger.info(`Plugin root: ${PLUGIN_ROOT}`);
 
   // Register workflow tools
-  for (const tool of WORKFLOW_TOOLS) {
-    const workflowName = tool.name.replace("octopus_", "");
+  for (const def of WORKFLOW_DEFS) {
+    const workflowName = def.name.replace("octopus_", "");
     if (enabledWorkflows.includes(workflowName)) {
+      const tool: AgentTool = {
+        name: def.name,
+        label: def.label,
+        description: def.description,
+        parameters: def.parameters,
+        execute: async (_toolCallId, params) => textResult(await def.run(params)),
+      };
       api.registerTool(tool);
-      api.log("info", `Registered tool: ${tool.name}`);
+      api.logger.info(`Registered tool: ${def.name}`);
     }
   }
 
   // Register introspection tool
   api.registerTool({
     name: "octopus_list_skills",
+    label: "Octopus List Skills",
     description: "List all available Claude Octopus skills.",
-    parameters: { type: "object", properties: {} },
-    run: async () => {
+    parameters: Type.Object({}),
+    execute: async () => {
       const skills = await loadSkills(PLUGIN_ROOT);
-      return skills
+      const text = skills
         .map((s) => `- ${s.name}: ${s.description}`)
         .join("\n");
+      return textResult(text);
     },
   });
 
-  api.log(
-    "info",
+  api.logger.info(
     `Claude Octopus extension loaded: ${enabledWorkflows.length} workflows registered.`
   );
 }
