@@ -135,7 +135,7 @@ test_plugin_metadata() {
     assert_file_exists ".claude-plugin/plugin.json" "plugin.json exists"
     assert_valid_json ".claude-plugin/plugin.json" "plugin.json is valid JSON"
     assert_file_contains ".claude-plugin/plugin.json" '"version"' "plugin.json has version field"
-    assert_file_contains ".claude-plugin/plugin.json" '"name".*claude-octopus' "plugin.json has correct name"
+    assert_file_contains ".claude-plugin/plugin.json" '"name".*octo' "plugin.json has correct name"
     assert_file_contains ".claude-plugin/plugin.json" '"skills"' "plugin.json declares skills"
     assert_file_contains ".claude-plugin/plugin.json" '"commands"' "plugin.json declares commands"
 
@@ -168,11 +168,11 @@ test_skills_structure() {
     assert_dir_exists_custom ".claude/skills" "skills directory exists"
 
     # Verify key skills exist (from plugin.json)
-    assert_file_exists ".claude/skills/parallel-agents.md" "parallel-agents skill exists"
-    assert_file_exists ".claude/skills/configure.md" "configure skill exists"
+    assert_file_exists ".claude/skills/flow-discover.md" "flow-discover skill exists"
+    assert_file_exists ".claude/skills/flow-define.md" "flow-define skill exists"
 
     # Check that skills have proper frontmatter structure
-    local skill_file="$PROJECT_ROOT/.claude/skills/parallel-agents.md"
+    local skill_file="$PROJECT_ROOT/.claude/skills/flow-discover.md"
     if [[ -f "$skill_file" ]]; then
         TOTAL_TESTS=$((TOTAL_TESTS + 1))
         if head -1 "$skill_file" | grep -q "^---$"; then
@@ -193,7 +193,7 @@ test_commands_structure() {
 
     # Verify key commands exist
     assert_file_exists ".claude/commands/setup.md" "setup command exists"
-    assert_file_exists ".claude/commands/check-updates.md" "check-updates command exists"
+    assert_file_exists ".claude/commands/debate.md" "debate command exists"
 }
 
 test_gitignore_best_practices() {

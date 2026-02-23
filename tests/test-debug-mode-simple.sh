@@ -2,7 +2,7 @@
 # Simple test suite for debug mode (v7.25.0)
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PLUGIN_DIR="$(cd "$SCRIPT_DIR/.." && pwd)/plugin"
+PLUGIN_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 ORCHESTRATE="${PLUGIN_DIR}/scripts/orchestrate.sh"
 
 # Test counter

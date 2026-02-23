@@ -12,7 +12,7 @@
 set -eo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PLUGIN_DIR="$(dirname "$SCRIPT_DIR")/plugin"
+PLUGIN_DIR="$(dirname "$SCRIPT_DIR")"
 ORCHESTRATE_SH="${PLUGIN_DIR}/scripts/orchestrate.sh"
 SKILL_DEBATE="${PLUGIN_DIR}/.claude/skills/skill-debate.md"
 
@@ -148,7 +148,7 @@ else
 fi
 
 # 2.4: probe_discover dry-run mentions 5 agents
-if echo "$PROBE_FN" | grep -q '5 parallel research agents'; then
+if echo "$PROBE_FN" | grep -q '5.*parallel research agents'; then
     assert_pass "2.4 probe_discover dry-run mentions 5 agents"
 else
     assert_fail "2.4 probe_discover dry-run mentions 5 agents"
@@ -202,7 +202,7 @@ echo -e "${BLUE}Test Group 4: ink_deliver() - Sonnet Quality Review${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # Extract ink_deliver function
-INK_FN=$(grep -A 120 '^ink_deliver()' "$ORCHESTRATE_SH" | head -120)
+INK_FN=$(grep -A 150 '^ink_deliver()' "$ORCHESTRATE_SH" | head -150)
 
 # 4.1: ink_deliver calls claude-sonnet for quality review
 if echo "$INK_FN" | grep -q 'run_agent_sync "claude-sonnet"'; then

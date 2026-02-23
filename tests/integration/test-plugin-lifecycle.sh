@@ -209,8 +209,8 @@ test_verify_plugin_config() {
     local name=$(jq -r '.name' "$plugin_json" 2>/dev/null)
     local skills=$(jq -r '.skills | length' "$plugin_json" 2>/dev/null)
 
-    if [[ "$name" != "claude-octopus" ]]; then
-        test_fail "Plugin name mismatch: expected 'claude-octopus', got '$name'"
+    if [[ "$name" != "octo" ]]; then
+        test_fail "Plugin name mismatch: expected 'octo', got '$name'"
         return 1
     fi
 

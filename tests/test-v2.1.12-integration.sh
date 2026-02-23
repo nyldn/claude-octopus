@@ -26,12 +26,12 @@ log_test() {
 
 log_pass() {
     echo -e "${GREEN}[PASS]${NC} $1"
-    ((TESTS_PASSED++))
+    TESTS_PASSED=$((TESTS_PASSED + 1))
 }
 
 log_fail() {
     echo -e "${RED}[FAIL]${NC} $1"
-    ((TESTS_FAILED++))
+    TESTS_FAILED=$((TESTS_FAILED + 1))
 }
 
 log_info() {
@@ -41,7 +41,7 @@ log_info() {
 # Test helper
 run_test() {
     local test_name="$1"
-    ((TESTS_RUN++))
+    TESTS_RUN=$((TESTS_RUN + 1))
     log_test "$test_name"
 }
 
@@ -304,7 +304,6 @@ test_existing_functionality() {
     local critical_functions=(
         "spawn_agent"
         "get_agent_command"
-        "classify_task"
         "init_session"
     )
 

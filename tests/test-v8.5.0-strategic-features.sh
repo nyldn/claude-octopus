@@ -409,14 +409,14 @@ else
 fi
 
 # 5.6: spawn_agent calls should_use_agent_teams
-if grep -A 200 '^spawn_agent()' "$ORCHESTRATE_SH" | grep -q 'should_use_agent_teams'; then
+if grep -A 300 '^spawn_agent()' "$ORCHESTRATE_SH" | grep -q 'should_use_agent_teams'; then
     assert_pass "5.6 spawn_agent calls should_use_agent_teams"
 else
     assert_fail "5.6 spawn_agent calls should_use_agent_teams"
 fi
 
 # 5.7: Agent Teams path writes dispatch instruction file
-if grep -A 250 '^spawn_agent()' "$ORCHESTRATE_SH" | grep -q 'AGENT_TEAMS_DISPATCH'; then
+if grep -A 300 '^spawn_agent()' "$ORCHESTRATE_SH" | grep -q 'AGENT_TEAMS_DISPATCH'; then
     assert_pass "5.7 Agent Teams path writes dispatch instruction"
 else
     assert_fail "5.7 Agent Teams path writes dispatch instruction"
@@ -494,7 +494,7 @@ else
 fi
 
 # 6.9: embrace_full_workflow delegates to YAML runtime
-if grep -A 150 '^embrace_full_workflow()' "$ORCHESTRATE_SH" | grep -q 'run_yaml_workflow'; then
+if grep -A 200 '^embrace_full_workflow()' "$ORCHESTRATE_SH" | grep -q 'run_yaml_workflow'; then
     assert_pass "6.9 embrace_full_workflow delegates to YAML runtime"
 else
     assert_fail "6.9 embrace_full_workflow delegates to YAML runtime"

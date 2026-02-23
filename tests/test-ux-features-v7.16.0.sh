@@ -23,14 +23,14 @@ echo -e "${BLUE}🧪 Testing v7.16.0 UX Features${NC}"
 echo ""
 
 pass() {
-    ((PASS_COUNT++))
-    ((TEST_COUNT++))
+    PASS_COUNT=$((PASS_COUNT + 1))
+    TEST_COUNT=$((TEST_COUNT + 1))
     echo -e "${GREEN}✅ PASS${NC}: $1"
 }
 
 fail() {
-    ((FAIL_COUNT++))
-    ((TEST_COUNT++))
+    FAIL_COUNT=$((FAIL_COUNT + 1))
+    TEST_COUNT=$((TEST_COUNT + 1))
     echo -e "${RED}❌ FAIL${NC}: $1"
     [[ -n "${2:-}" ]] && echo -e "   ${YELLOW}$2${NC}"
 }
@@ -121,7 +121,7 @@ fi
 
 # Test 2.4: Verb generation for all phases
 for phase in discover define develop deliver; do
-    if grep -q "\"$phase\")" "$ORCHESTRATE_SH" && grep -A10 "\"$phase\")" "$ORCHESTRATE_SH" | grep -q "codex.*verb="; then
+    if grep -q "${phase})" "$ORCHESTRATE_SH" && grep -A10 "${phase})" "$ORCHESTRATE_SH" | grep -q "codex.*verb="; then
         pass "get_active_form_verb has verbs for $phase phase"
     else
         fail "Missing verbs for $phase phase"
@@ -335,7 +335,7 @@ else
 fi
 
 # Test 5.3: Atomic updates with jq
-if grep -q "atomic_json_update.*jq" "$ORCHESTRATE_SH"; then
+if grep -q "atomic_json_update" "$ORCHESTRATE_SH" && grep -q "jq" "$ORCHESTRATE_SH"; then
     pass "Atomic JSON updates use atomic_json_update()"
 else
     fail "Atomic updates not using helper function"

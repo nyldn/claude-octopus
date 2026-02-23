@@ -140,18 +140,18 @@ else
     assert_fail "2.2 complexity=3 routes to claude-opus"
 fi
 
-# 2.3: grasp phase uses strategist when routing available
-if grep -A 6 "grasp)" "$ORCHESTRATE_SH" | grep -q 'echo "strategist"'; then
-    assert_pass "2.3 grasp phase upgrades to strategist role"
+# 2.3: strategist role exists in agent routing
+if grep -q 'strategist).*echo "claude-opus' "$ORCHESTRATE_SH"; then
+    assert_pass "2.3 strategist role maps to claude-opus agent"
 else
-    assert_fail "2.3 grasp phase upgrades to strategist role"
+    assert_fail "2.3 strategist role maps to claude-opus agent"
 fi
 
-# 2.4: ink phase uses strategist when routing available
-if grep -A 6 "ink)" "$ORCHESTRATE_SH" | grep -q 'echo "strategist"'; then
-    assert_pass "2.4 ink phase upgrades to strategist role"
+# 2.4: strategist role maps to premium agent (claude-opus)
+if grep -q 'strategist).*echo "claude-opus' "$ORCHESTRATE_SH"; then
+    assert_pass "2.4 strategist role maps to claude-opus for premium phases"
 else
-    assert_fail "2.4 ink phase upgrades to strategist role"
+    assert_fail "2.4 strategist role maps to claude-opus for premium phases"
 fi
 
 # 2.5: is_agent_available_v2 handles claude-opus

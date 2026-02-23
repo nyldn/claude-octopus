@@ -4,7 +4,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 ORCHESTRATE="$PROJECT_ROOT/scripts/orchestrate.sh"
 
 # Colors
@@ -21,17 +21,17 @@ TESTS_FAILED=0
 
 # Test helper functions
 test_start() {
-    ((TESTS_RUN++))
+    TESTS_RUN=$((TESTS_RUN + 1))
     echo -e "\n${BLUE}[TEST $TESTS_RUN]${NC} $1"
 }
 
 test_pass() {
-    ((TESTS_PASSED++))
+    TESTS_PASSED=$((TESTS_PASSED + 1))
     echo -e "${GREEN}✓ PASS${NC}: $1"
 }
 
 test_fail() {
-    ((TESTS_FAILED++))
+    TESTS_FAILED=$((TESTS_FAILED + 1))
     echo -e "${RED}✗ FAIL${NC}: $1"
 }
 

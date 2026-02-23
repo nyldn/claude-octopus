@@ -5,7 +5,7 @@
 set -eo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PLUGIN_DIR="$(dirname "$SCRIPT_DIR")/plugin"
+PLUGIN_DIR="$(dirname "$SCRIPT_DIR")"
 CONFIG_FILE="${HOME}/.claude-octopus/config/providers.json"
 BACKUP_FILE="${CONFIG_FILE}.backup"
 
