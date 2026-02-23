@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "claude-octopus": {
+      "command": "node",
+      "args": ["./mcp-server/dist/index.js"],
+      "env": {
+        "CLAUDE_OCTOPUS_MCP_MODE": "true"
+      }
+    }
+  }
+}
