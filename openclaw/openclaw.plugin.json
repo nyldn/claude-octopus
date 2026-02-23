@@ -1,6 +1,6 @@
 {
-  "id": "claude-octopus",
-  "name": "claude-octopus",
+  "id": "octo-claw",
+  "name": "octo-claw",
   "displayName": "Claude Octopus",
   "version": "1.0.0",
   "description": "Multi-agent orchestration with Double Diamond methodology. Brings 46 skills, expert code review, structured AI debates, and multi-provider workflows to OpenClaw.",

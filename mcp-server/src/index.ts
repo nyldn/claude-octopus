@@ -101,7 +101,7 @@ async function loadSkillMetadata(): Promise<SkillMeta[]> {
 // --- Server Setup ---
 
 const server = new McpServer({
-  name: "claude-octopus",
+  name: "octo-claw",
   version: "1.0.0",
 });
 

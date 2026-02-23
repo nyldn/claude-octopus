@@ -113,11 +113,11 @@ if [[ -f "$MCP_JSON" ]]; then
 import json
 m = json.load(open('$MCP_JSON'))
 servers = m.get('mcpServers', {})
-exit(0 if 'claude-octopus' in servers else 1)
+exit(0 if 'octo-claw' in servers else 1)
 " 2>/dev/null; then
-        pass "claude-octopus MCP server is defined"
+        pass "octo-claw MCP server is defined"
     else
-        fail "claude-octopus MCP server not found in .mcp.json"
+        fail "octo-claw MCP server not found in .mcp.json"
     fi
 else
     fail ".mcp.json not found at plugin root"
