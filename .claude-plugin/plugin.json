@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "8.21.0",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v8.21.0) Persona Packs, Anti-Drift Checkpoints, Baseline Telemetry, lib/ extraction (routing.sh, personas.sh). 31 expert personas, 44 commands, 46 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
+  "version": "8.22.0",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v8.22.0) OpenClaw compatibility, MCP server, shared skill schema. 31 expert personas, 44 commands, 46 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },

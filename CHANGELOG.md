@@ -1,3 +1,82 @@
+## [8.22.0] - 2026-02-22
+
+### Added
+
+**OpenClaw Compatibility Layer** — Three new components enable cross-platform usage without modifying the core Claude Code plugin:
+
+1. **MCP Server** (`mcp-server/`): Model Context Protocol server exposing 10 Octopus tools (`octopus_discover`, `octopus_define`, `octopus_develop`, `octopus_deliver`, `octopus_embrace`, `octopus_debate`, `octopus_review`, `octopus_security`, `octopus_list_skills`, `octopus_status`). Auto-starts via `.mcp.json` when plugin is enabled. Built with `@modelcontextprotocol/sdk`.
+
+2. **OpenClaw Extension** (`openclaw/`): Adapter package for OpenClaw AI assistant framework. Registers Octopus workflows as native OpenClaw tools. Configurable via `openclaw.plugin.json` with workflow selection, autonomy modes, and path resolution.
+
+3. **Shared Skill Schema** (`mcp-server/src/schema/skill-schema.json`): Universal JSON Schema for skill metadata supporting both Claude Code and OpenClaw platforms. Defines name, description, parameters, triggers, aliases, and platform-specific configuration.
+
+**Build Tooling:**
+- `scripts/build-openclaw.sh` — Generates OpenClaw tool registry from skill YAML frontmatter (90 entries). `--check` mode for CI drift detection.
+- `tests/validate-openclaw.sh` — 13-check validation suite covering plugin integrity, OpenClaw manifest, MCP config, registry sync, and schema validation.
+
+### Architecture
+
+Zero modifications to existing plugin files. Compatibility layers wrap around the plugin via:
+- `.mcp.json` at plugin root (Claude Code auto-discovers this)
+- `openclaw/` directory with separate `package.json` and extension entry point
+- `mcp-server/` directory with separate `package.json` and MCP server
+
+All execution routes through `orchestrate.sh` — behavioral parity guaranteed.
+
+---
+
+## [8.21.0] - 2026-02-22
+
+### Added
+
+1. **Persona Packs**: Community persona customization via `.octopus/personas/` with `pack.yaml` manifests. Replace or extend built-in personas. Auto-loading from standard paths.
+
+2. **Anti-Drift Checkpoints**: Heuristic output validation (length, refusal patterns, key term overlap) in shadow/warn mode. Always non-blocking — alerts operators without stopping workflows.
+
+3. **Baseline Telemetry**: `record_task_metric()`/`get_metric_summary()` for tracking task duration, quality gate pass rates, and cost tier distribution. Privacy-safe, local-only.
+
+4. **lib/ Modular Extraction (Round 2)**:
+   - `lib/routing.sh` — `classify_task`, `estimate_complexity`, `recommend_persona_agent`, `get_role_for_context` (510 lines extracted from orchestrate.sh)
+   - `lib/personas.sh` — Persona loading, pack resolution, agent-persona mapping (265 lines)
+
+### Fixed
+
+- Pre-existing frontmatter bugs in `model-config.md` and `octo.md` command files
+
+---
+
+## [8.20.0] - 2026-02-22
+
+### Added
+
+**Provider Intelligence** — 5 features extracted into `lib/intelligence.sh` (700 lines), the first modular extraction from the orchestrate.sh monolith:
+
+1. **Provider Intelligence**: Bayesian trust scoring with shadow mode default and 5% fairness floor to prevent provider starvation from temporary failure streaks.
+
+2. **Smart Cost Routing**: 3-tier routing (aggressive/balanced/premium) with trivial task fast path. Automatically selects cost-appropriate providers based on task complexity.
+
+3. **Capability Matching**: YAML-based agent capabilities (25 agents) with intersection scoring. Routes tasks to agents whose capabilities best match the request.
+
+4. **Quorum Consensus**: Moderator + quorum (2/3 wins) modes in `grapple_debate`. Adds structured consensus-building beyond simple majority.
+
+5. **File Path Validation**: Non-blocking warnings for nonexistent file references in prompts and outputs.
+
+### New Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OCTOPUS_PROVIDER_INTELLIGENCE` | `shadow` | Provider intelligence mode (off/shadow/enforce) |
+| `OCTOPUS_COST_TIER` | `balanced` | Cost routing tier (aggressive/balanced/premium) |
+| `OCTOPUS_CONSENSUS` | `moderator` | Consensus mode (moderator/quorum) |
+| `OCTOPUS_FILE_VALIDATION` | `warn` | File path validation (off/warn) |
+
+### Infrastructure
+
+- Centralized JSON wrappers (`octo_db_get`/`octo_db_set`/`octo_db_append`) with `jq` fallback
+- 26 unit tests in `tests/unit/test-intelligence.sh`
+
+---
+
 ## [8.19.0] - 2026-02-21
 
 ### Added

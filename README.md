@@ -7,7 +7,7 @@ Every model has blind spots. Claude Octopus fills them by orchestrating Codex, G
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-8.21.0-blue" alt="Version 8.21.0">
+  <img src="https://img.shields.io/badge/Version-8.22.0-blue" alt="Version 8.22.0">
   <img src="https://img.shields.io/badge/Claude_Code-v2.1.34+-blueviolet" alt="Requires Claude Code v2.1.34+">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
 </p>
@@ -115,7 +115,7 @@ Four structured phases adapted from the UK Design Council's methodology:
 
 Run phases individually or all four with `/octo:embrace`. Configure autonomy: supervised (approve each phase), semi-autonomous (intervene on failures), or autonomous (run all four).
 
-### 29 Personas
+### 31 Personas
 
 Specialized agents that activate automatically based on your request. When you say "audit my API for vulnerabilities," security-auditor activates. When you say "write a research paper," academic-writer takes over.
 
@@ -138,7 +138,7 @@ OAuth users pay nothing beyond their existing subscriptions.
 
 ### What Works Without External Providers
 
-Everything except multi-AI features. You get all 29 personas, structured workflows, smart routing, context detection, and every skill. Multi-AI orchestration (parallel analysis, debate, consensus) activates when external providers are configured.
+Everything except multi-AI features. You get all 31 personas, structured workflows, smart routing, context detection, and every skill. Multi-AI orchestration (parallel analysis, debate, consensus) activates when external providers are configured.
 
 ---
 
@@ -153,6 +153,58 @@ Everything except multi-AI features. You get all 29 personas, structured workflo
 **Provider transparency** — Visual indicators (colored dots) show exactly which providers are running and when external APIs are called. You always know what's happening.
 
 **Clean uninstall** — `/plugin uninstall claude-octopus@nyldn-plugins` removes everything. If you see a scope error, add `--scope project`. No residual config changes.
+
+---
+
+## OpenClaw Compatibility
+
+Claude Octopus ships with a compatibility layer for [OpenClaw](https://github.com/openclaw/openclaw), the open-source AI assistant framework. This lets you expose Octopus workflows to messaging platforms (Telegram, Discord, Signal, WhatsApp) without modifying the Claude Code plugin.
+
+### Architecture
+
+```
+Claude Code Plugin (unchanged)
+  └── .mcp.json ─── MCP Server ─── orchestrate.sh
+                                        ↑
+OpenClaw Extension ─────────────────────┘
+```
+
+Three components, zero changes to the core plugin:
+
+| Component | Location | Purpose |
+|-----------|----------|---------|
+| MCP Server | `mcp-server/` | Exposes 10 Octopus tools via Model Context Protocol |
+| OpenClaw Extension | `openclaw/` | Wraps workflows for OpenClaw's extension API |
+| Skill Schema | `mcp-server/src/schema/skill-schema.json` | Universal skill metadata format |
+
+### MCP Server
+
+The MCP server auto-starts when the plugin is enabled (via `.mcp.json`). It exposes:
+
+- `octopus_discover`, `octopus_define`, `octopus_develop`, `octopus_deliver` — Individual phases
+- `octopus_embrace` — Full Double Diamond workflow
+- `octopus_debate`, `octopus_review`, `octopus_security` — Specialized workflows
+- `octopus_list_skills`, `octopus_status` — Introspection
+
+Any MCP-compatible client can connect to the server.
+
+### OpenClaw Extension
+
+Install in an OpenClaw instance:
+
+```bash
+npm install @claude-octopus/openclaw
+```
+
+The extension registers as an OpenClaw plugin with configurable workflows, autonomy modes, and Claude Code path resolution.
+
+### Build & Validate
+
+```bash
+./scripts/build-openclaw.sh          # Regenerate skill registry from frontmatter
+./scripts/build-openclaw.sh --check  # CI mode — exits non-zero if out of sync
+./tests/validate-openclaw.sh         # 13-check validation suite
+```
 
 ---
 
@@ -174,7 +226,7 @@ The workflow continues with available providers. You'll see the status in the vi
 - [Command Reference](docs/COMMAND-REFERENCE.md) — All 39 commands
 - [Architecture](docs/ARCHITECTURE.md) — How it works internally
 - [Plugin Architecture](docs/PLUGIN-ARCHITECTURE.md) — Plugin structure
-- [Agents & Personas](docs/AGENTS.md) — All 29 personas
+- [Agents & Personas](docs/AGENTS.md) — All 31 personas
 - [Visual Indicators](docs/VISUAL-INDICATORS.md) — Provider status
 - [Debug Mode](docs/DEBUG_MODE.md) — Troubleshooting
 - [Changelog](CHANGELOG.md)
