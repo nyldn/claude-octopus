@@ -1,3 +1,18 @@
+## [8.22.2] - 2026-02-23
+
+### Fixed
+
+- **OpenClaw Dist Shipping**: Whitelisted `openclaw/dist/` and `mcp-server/dist/` in `.gitignore` so compiled extension files ship with the repo — fixes install failure (closes #41).
+- **CI Test Suite**: Fixed `((0++))` arithmetic crashes under `set -e` in 3 unit tests and `build-openclaw.sh`. Fixed integration test assertions for `.gitignore` patterns and insufficient grep context windows. All 58 tests now pass.
+
+### Changed
+
+- **Branch Protection**: Enabled on `main` requiring Smoke Tests, Unit Tests, and Integration Tests CI checks. Enforced for admins.
+- **Pre-push Hook**: Added git pre-push hook running full test suite before every push.
+- **Validation**: Added `dist/index.js` existence check to `tests/validate-openclaw.sh` to prevent regression.
+
+---
+
 ## [8.22.1] - 2026-02-23
 
 ### Fixed
