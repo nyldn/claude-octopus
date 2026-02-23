@@ -85,6 +85,13 @@ exit(0 if p.get('id') else 1)
         fail "id field is missing from openclaw.plugin.json (required by OpenClaw gateway)"
     fi
 
+    # Check extension entry point exists (OpenClaw rejects missing entries — see #41)
+    if [[ -f "$PLUGIN_ROOT/openclaw/dist/index.js" ]]; then
+        pass "extension entry point dist/index.js exists"
+    else
+        fail "openclaw/dist/index.js missing (must be committed, not gitignored)"
+    fi
+
     # Check configSchema
     if python3 -c "
 import json
