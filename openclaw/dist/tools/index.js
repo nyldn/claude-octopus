@@ -98,6 +98,5 @@ export const SKILL_REGISTRY = [
     { name: "tdd", description: "Test-driven development with red-green-refactor discipline", type: "command", file: "tdd.md" },
     { name: "validate", description: "Run comprehensive multi-AI validation on code or project targets", type: "command", file: "validate.md" },
 ];
-export const REGISTRY_VERSION = "2026-02-23T04:26:11Z";
 export const REGISTRY_COUNT = 90;
 //# sourceMappingURL=index.js.map
