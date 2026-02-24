@@ -64,6 +64,7 @@ export const SKILL_REGISTRY: SkillRegistryEntry[] = [
   { name: "skill-writing-plans", description: "Zero-context implementation plans with bite-sized tasks", type: "skill", file: "skill-writing-plans.md" },
   { name: "sys-configure", description: "Configure Claude Octopus providers and preferences", type: "skill", file: "sys-configure.md" },
   { name: "brainstorm", description: "Start a creative thought partner brainstorming session", type: "command", file: "brainstorm.md" },
+  { name: "claw", description: "OpenClaw instance administration — manage hosts across macOS, Ubuntu/Debian, Docker, OCI, and Proxmox", type: "command", file: "claw.md" },
   { name: "debate", description: "AI Debate Hub - Structured three-way debates between Claude, Gemini, and Codex", type: "command", file: "debate.md" },
   { name: "debug", description: "Systematic debugging with methodical problem investigation", type: "command", file: "debug.md" },
   { name: "deck", description: "Generate slide deck presentations from briefs or research", type: "command", file: "deck.md" },
@@ -73,6 +74,7 @@ export const SKILL_REGISTRY: SkillRegistryEntry[] = [
   { name: "develop", description: "Development phase - Build solutions with multi-AI implementation and quality gates", type: "command", file: "develop.md" },
   { name: "discover", description: "Discovery phase - Multi-AI research and exploration", type: "command", file: "discover.md" },
   { name: "docs", description: "Document delivery with export to PPTX, DOCX, PDF formats", type: "command", file: "docs.md" },
+  { name: "doctor", description: "Environment diagnostics — check providers, auth, config, hooks, scheduler, and more", type: "command", file: "doctor.md" },
   { name: "embrace", description: "Full Double Diamond workflow - Research → Define → Develop → Deliver", type: "command", file: "embrace.md" },
   { name: "extract", description: "Design System & Product Reverse-Engineering - Extract tokens, components, architecture, and PRDs from codebases or live products", type: "command", file: "extract.md" },
   { name: "grasp", description: "Definition phase - Requirements clarification and scope definition", type: "command", file: "grasp.md" },
@@ -109,4 +111,4 @@ export const SKILL_REGISTRY: SkillRegistryEntry[] = [
   { name: "validate", description: "Run comprehensive multi-AI validation on code or project targets", type: "command", file: "validate.md" },
 ];
 
-export const REGISTRY_COUNT = 92;
+export const REGISTRY_COUNT = 94;
