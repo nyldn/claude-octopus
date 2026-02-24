@@ -136,6 +136,8 @@
     "./.claude/commands/schedule.md",
     "./.claude/commands/spec.md",
     "./.claude/commands/parallel.md",
-    "./.claude/commands/sentinel.md"
+    "./.claude/commands/sentinel.md",
+    "./.claude/commands/claw.md",
+    "./.claude/commands/doctor.md"
   ]
 }

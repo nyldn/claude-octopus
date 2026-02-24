@@ -411,13 +411,13 @@ test_plugin_json_unchanged() {
 }
 
 test_no_openclaw_in_skills() {
-    test_case "No OpenClaw-specific code in .claude/skills/ or .claude/commands/ (excluding skill-claw.md)"
+    test_case "No OpenClaw-specific code in .claude/skills/ or .claude/commands/ (excluding claw files)"
     local found=""
-    # skill-claw.md is intentionally OpenClaw-specific (sysadmin skill for managing OpenClaw instances)
+    # skill-claw.md and claw.md are intentionally OpenClaw-specific (sysadmin skill for managing OpenClaw instances)
     if grep -rl 'openclaw\|OpenClaw' "$PROJECT_ROOT/.claude/skills/" 2>/dev/null | grep -v 'skill-claw\.md' | head -1 | grep -q .; then
         found="skills"
     fi
-    if grep -rl 'openclaw\|OpenClaw' "$PROJECT_ROOT/.claude/commands/" 2>/dev/null | head -1 | grep -q .; then
+    if grep -rl 'openclaw\|OpenClaw' "$PROJECT_ROOT/.claude/commands/" 2>/dev/null | grep -v 'claw\.md' | head -1 | grep -q .; then
         found="$found commands"
     fi
 
