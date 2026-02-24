@@ -25,6 +25,7 @@ export const SKILL_REGISTRY: SkillRegistryEntry[] = [
   { name: "octopus-security", description: "Adversarial red team security testing with blue/red team cycle", type: "skill", file: "skill-adversarial-security.md" },
   { name: "octopus-architecture", description: "System architecture and API design with multi-AI consensus", type: "skill", file: "skill-architecture.md" },
   { name: "skill-audit", description: "Systematic codebase auditing with comprehensive checklists", type: "skill", file: "skill-audit.md" },
+  { name: "skill-claw", description: "OpenClaw instance administration — manage hosts across macOS, Ubuntu/Debian, Docker, OCI, and Proxmox", type: "skill", file: "skill-claw.md" },
   { name: "skill-code-review", description: "Expert multi-AI code review with quality and security analysis", type: "skill", file: "skill-code-review.md" },
   { name: "skill-content-pipeline", description: "Multi-stage content analysis pipeline for external URLs", type: "skill", file: "skill-content-pipeline.md" },
   { name: "skill-context-detection", description: "Auto-detect work context (Dev vs Knowledge) for workflow tailoring", type: "skill", file: "skill-context-detection.md" },
@@ -35,6 +36,7 @@ export const SKILL_REGISTRY: SkillRegistryEntry[] = [
   { name: "skill-deck", description: "Generate slide decks from briefs with optional multi-AI research", type: "skill", file: "skill-deck.md" },
   { name: "octopus-research", description: "Deep multi-AI parallel research with cost transparency and synthesis", type: "skill", file: "skill-deep-research.md" },
   { name: "skill-doc-delivery", description: "Convert markdown to DOCX, PPTX, XLSX office documents", type: "skill", file: "skill-doc-delivery.md" },
+  { name: "skill-doctor", description: "Environment diagnostics — check providers, auth, config, hooks, scheduler, and more", type: "skill", file: "skill-doctor.md" },
   { name: "skill-finish-branch", description: "Post-implementation: verify tests, merge/PR/keep/discard", type: "skill", file: "skill-finish-branch.md" },
   { name: "skill-intent-contract", description: "Capture user goals and validate outputs against them", type: "skill", file: "skill-intent-contract.md" },
   { name: "skill-issues", description: "Track and manage project issues across sessions", type: "skill", file: "skill-issues.md" },
@@ -107,4 +109,4 @@ export const SKILL_REGISTRY: SkillRegistryEntry[] = [
   { name: "validate", description: "Run comprehensive multi-AI validation on code or project targets", type: "command", file: "validate.md" },
 ];
 
-export const REGISTRY_COUNT = 90;
+export const REGISTRY_COUNT = 92;
