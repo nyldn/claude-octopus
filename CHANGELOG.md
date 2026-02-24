@@ -1,3 +1,11 @@
+## [8.23.1] - 2026-02-24
+
+### Changed
+
+- Add missing /octo:claw and /octo:doctor command files
+
+---
+
 ## [8.23.0] - 2026-02-24
 
 ### Changed
