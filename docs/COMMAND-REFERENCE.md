@@ -17,6 +17,7 @@ All commands use the `/octo:` namespace.
 | `/octo:km` | Toggle Knowledge Work mode |
 | `/octo:sys-setup` | Full setup command |
 | `/octo:model-config` | Configure provider model selection |
+| `/octo:doctor` | Environment diagnostics with 9 check categories |
 
 ### Workflow Commands
 
@@ -161,6 +162,41 @@ Providers:
 
 You're all set! Try: octo research OAuth patterns
 ```
+
+### `/octo:doctor`
+
+Run environment diagnostics across 9 check categories.
+
+**Usage:**
+```
+/octo:doctor                    # Run all checks
+/octo:doctor providers          # Check provider installation only
+/octo:doctor auth --verbose     # Detailed auth status
+/octo:doctor --json             # Machine-readable output
+```
+
+**Check categories:**
+
+| Category | What it checks |
+|----------|---------------|
+| `providers` | Claude Code version, Codex CLI, Gemini CLI |
+| `auth` | Authentication status for each provider |
+| `config` | Plugin version, install scope, feature flags |
+| `state` | Project state.json, stale results, workspace writable |
+| `smoke` | Smoke test cache, model configuration |
+| `hooks` | hooks.json validity, hook scripts |
+| `scheduler` | Scheduler daemon, jobs, budget gates, kill switches |
+| `skills` | Skill files loaded and valid |
+| `conflicts` | Conflicting plugin detection |
+
+**Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--verbose`, `-v` | Show detailed output for each check |
+| `--json` | Output results as JSON |
+
+---
 
 ### `/octo:km`
 
