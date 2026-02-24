@@ -94,7 +94,7 @@ check_readme_structure() {
   local required_sections=(
     "# Claude Octopus"
     "## Quickstart"
-    "## What It Does"
+    "## 8 Tentacles"
     "## How It Works"
     "## Documentation"
     "## Attribution"
