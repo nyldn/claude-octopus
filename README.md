@@ -12,15 +12,32 @@ Every model has blind spots. Claude Octopus fills them by orchestrating Codex, G
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
 </p>
 
+**Three brains, one workflow.** Other multi-AI tools run providers in parallel and hand you three answers. Octopus assigns each model a distinct role — Codex for implementation depth, Gemini for ecosystem breadth, Claude for synthesis — then enforces a 75% consensus gate before anything ships. Disagreements get caught, not ignored.
+
+**Methodology, not just machinery.** Built on the Double Diamond framework, every task moves through four structured phases: discover, define, develop, deliver. Quality gates between phases mean sloppy work can't advance. Other orchestrators give you infrastructure to build workflows on — Octopus gives you the workflows.
+
+**31 specialized personas.** Not generic agents. A security-auditor that thinks in OWASP. A backend-architect that designs APIs. A tdd-orchestrator that enforces red-green-refactor. Personas activate automatically based on what you ask — say "audit my API" and the right expert shows up.
+
+**Works with just Claude. Scales to three.** Zero external providers needed to start. You get every persona, every workflow, every skill on day one. Add Codex or Gemini and multi-AI orchestration lights up — parallel research, adversarial debate, cross-model review.
+
+**You always know what's running and what it costs.** Visual indicators show exactly which providers are active and whose billing they hit. No hidden API calls, no surprise charges.
+
 ---
 
 ## Quickstart
 
-**Install** — inside Claude Code or from your terminal:
+**Install from Claude Code:**
 
-```bash
+```
 /plugin marketplace add https://github.com/nyldn/claude-octopus.git
 /plugin install claude-octopus@nyldn-plugins
+```
+
+**Or from your terminal:**
+
+```bash
+claude -p "/plugin marketplace add https://github.com/nyldn/claude-octopus.git"
+claude -p "/plugin install claude-octopus@nyldn-plugins"
 ```
 
 Then run setup:
@@ -31,29 +48,24 @@ Then run setup:
 
 Setup detects installed providers, shows what's missing, and walks you through configuration. You need **zero** external providers to start — Claude is built in. Add Codex or Gemini for multi-AI features.
 
-**Try it now:**
-
-```bash
-/octo:research OAuth 2.1 patterns          # Multi-source synthesis
-/octo:review                                # Code review with security analysis
-/octo:debate monorepo vs microservices      # Three-way AI debate
-```
-
 ---
 
-## What It Does
+## 8 Tentacles
 
-Five commands that show the full range:
+Eight commands — one per arm. Each orchestrates up to three AI providers, applies quality gates, and produces a deliverable.
 
 ```bash
-/octo:embrace build stripe integration     # Full lifecycle: research -> PRD -> code -> review
-/octo:research htmx vs react in 2026       # Triple-perspective synthesis from 3 providers
-/octo:tdd create user auth                 # Disciplined red-green-refactor orchestration
-/octo:debate monorepo vs microservices     # Formal adversarial debate between AI providers
-/octo:deck q3 product strategy             # Brief -> research -> outline gate -> PPTX export
+/octo:embrace build stripe integration     # Full lifecycle: research → define → develop → deliver
+/octo:research htmx vs react in 2026       # Multi-source synthesis from three AI providers
+/octo:review                                # Code review with security analysis
+/octo:tdd create user auth                 # Red-green-refactor with test discipline
+/octo:debate monorepo vs microservices     # Structured three-way AI debate
+/octo:prd mobile checkout redesign          # AI-optimized PRD with 100-point scoring
+/octo:security                              # OWASP vulnerability scan
+/octo:deck q3 product strategy              # Research → outline gate → PPTX export
 ```
 
-Each command orchestrates up to three AI providers, applies quality gates, and produces a deliverable. Here's the full set:
+Here's the full set:
 
 ### Core Commands
 
@@ -72,7 +84,7 @@ Each command orchestrates up to three AI providers, applies quality gates, and p
 | `/octo:docs` | Export to PPTX, DOCX, PDF |
 | `/octo:schedule` | Scheduled workflow runner with cron, budget gates, kill switches |
 | `/octo:brainstorm` | Creative thought partner session |
-| `doctor` | Environment diagnostics — 8 check categories with filtering and JSON output |
+| `/octo:doctor` | Environment diagnostics — 9 check categories with filtering and JSON output |
 
 Don't remember the command name? Just describe what you need:
 
