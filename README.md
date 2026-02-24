@@ -84,6 +84,7 @@ Here's the full set:
 | `/octo:docs` | Export to PPTX, DOCX, PDF |
 | `/octo:schedule` | Scheduled workflow runner with cron, budget gates, kill switches |
 | `/octo:brainstorm` | Creative thought partner session |
+| `/octo:claw` | OpenClaw instance admin — manage hosts across macOS, Ubuntu/Debian, Docker, OCI, Proxmox |
 | `/octo:doctor` | Environment diagnostics — 9 check categories with filtering and JSON output |
 
 Don't remember the command name? Just describe what you need:
