@@ -1,3 +1,11 @@
+## [8.23.0] - 2026-02-24
+
+### Changed
+
+- Add /octo:claw OpenClaw sysadmin command, /octo:doctor health diagnostics, and openclaw-admin standalone repo
+
+---
+
 ## [8.22.6] - 2026-02-23
 
 ### Fixed
