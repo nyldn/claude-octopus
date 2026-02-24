@@ -17,6 +17,7 @@ All commands use the `/octo:` namespace.
 | `/octo:km` | Toggle Knowledge Work mode |
 | `/octo:sys-setup` | Full setup command |
 | `/octo:model-config` | Configure provider model selection |
+| `/octo:doctor` | Environment diagnostics with 9 check categories |
 
 ### Workflow Commands
 
@@ -39,6 +40,7 @@ All commands use the `/octo:` namespace.
 | `/octo:debug` | Systematic debugging with investigation |
 | `/octo:tdd` | Test-driven development workflows |
 | `/octo:docs` | Document delivery (PPTX/DOCX/PDF export) |
+| `/octo:claw` | OpenClaw instance admin across macOS, Ubuntu/Debian, Docker, OCI, Proxmox |
 
 ### Project Lifecycle Commands
 
@@ -161,6 +163,41 @@ Providers:
 
 You're all set! Try: octo research OAuth patterns
 ```
+
+### `/octo:doctor`
+
+Run environment diagnostics across 9 check categories.
+
+**Usage:**
+```
+/octo:doctor                    # Run all checks
+/octo:doctor providers          # Check provider installation only
+/octo:doctor auth --verbose     # Detailed auth status
+/octo:doctor --json             # Machine-readable output
+```
+
+**Check categories:**
+
+| Category | What it checks |
+|----------|---------------|
+| `providers` | Claude Code version, Codex CLI, Gemini CLI |
+| `auth` | Authentication status for each provider |
+| `config` | Plugin version, install scope, feature flags |
+| `state` | Project state.json, stale results, workspace writable |
+| `smoke` | Smoke test cache, model configuration |
+| `hooks` | hooks.json validity, hook scripts |
+| `scheduler` | Scheduler daemon, jobs, budget gates, kill switches |
+| `skills` | Skill files loaded and valid |
+| `conflicts` | Conflicting plugin detection |
+
+**Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--verbose`, `-v` | Show detailed output for each check |
+| `--json` | Output results as JSON |
+
+---
 
 ### `/octo:km`
 
@@ -407,6 +444,40 @@ Document delivery with export options.
 - DOCX (Word)
 - PPTX (PowerPoint)
 - PDF
+
+### `/octo:claw`
+
+OpenClaw instance administration across five platforms.
+
+**Usage:**
+```
+/octo:claw                              # Auto-detect platform, run diagnostics
+/octo:claw update openclaw              # Update OpenClaw to latest stable
+/octo:claw harden my server             # Run security hardening checklist
+/octo:claw setup openclaw on proxmox    # Guided installation on Proxmox LXC
+/octo:claw check gateway health         # Gateway and channel diagnostics
+```
+
+**Supported platforms:**
+
+| Platform | What it manages |
+|----------|----------------|
+| macOS | Homebrew, launchd, Application Firewall, APFS, FileVault |
+| Ubuntu/Debian | apt, systemd, ufw, journalctl, unattended-upgrades |
+| Docker | docker compose, container health, volumes, log drivers |
+| Oracle OCI | ARM instances, VCN/NSG networking, block volumes, Tailscale |
+| Proxmox | VMs (qm), LXC containers (pct), ZFS, vzdump, clustering |
+
+**OpenClaw management:**
+- Gateway lifecycle: start, stop, restart, status, health, logs
+- Diagnostics: `openclaw doctor`, `openclaw security audit`
+- Configuration: channels, models, agents, sessions, skills, plugins
+- Updates: channel management (stable/beta/dev), backup, rollback
+
+**Natural language triggers:**
+- `octo manage my openclaw server`
+- `octo harden my server`
+- `octo check server health`
 
 ---
 
