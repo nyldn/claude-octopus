@@ -203,10 +203,16 @@ Any MCP-compatible client can connect to the server.
 
 ### OpenClaw Extension
 
-Install in an OpenClaw instance:
+Install in an OpenClaw instance from git:
 
 ```bash
-npm install @claude-octopus/openclaw
+npm install github:nyldn/claude-octopus#main --prefix openclaw
+```
+
+Or clone and link locally:
+
+```bash
+cd openclaw && npm install && npm run build
 ```
 
 The extension registers as an OpenClaw plugin with configurable workflows, autonomy modes, and Claude Code path resolution.
