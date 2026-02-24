@@ -319,6 +319,18 @@ agents:
     skills: [skill-doc-delivery]
     permissionMode: default
 
+  openclaw-admin:
+    file: personas/openclaw-admin.md
+    cli: codex
+    model: gpt-5.3-codex
+    phases: [grasp, tangle, ink]
+    tier: premium
+    expertise: [sysadmin, openclaw, infrastructure, security-hardening]
+    capabilities: [sysadmin, openclaw, docker, proxmox, oci, macos, ubuntu, security-hardening]
+    memory: project
+    skills: [skill-claw]
+    permissionMode: acceptEdits
+
   incident-responder:
     file: personas/incident-responder.md
     cli: codex
@@ -430,3 +442,6 @@ skill_triggers:
   audit:
     pattern: "(audit.*and.*check|audit.*app|process.*to.*audit|scan.*for.*issue)"
     skill: skill-audit
+  openclaw-admin:
+    pattern: "(openclaw|manage.*server|sysadmin|proxmox|oci.*instance|server.*health|harden.*server)"
+    skill: skill-claw
