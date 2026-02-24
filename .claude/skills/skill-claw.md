@@ -233,7 +233,7 @@ Route to the appropriate workflow based on user intent:
 
 1. **Backup** config, credentials, and workspace:
    ```bash
-   cp -r ~/.openclaw/openclaw.json ~/.openclaw/openclaw.json.bak
+   cp ~/.openclaw/openclaw.json ~/.openclaw/openclaw.json.bak
    cp -r ~/.openclaw/credentials/ ~/.openclaw/credentials.bak/
    ```
 2. **Update** using the appropriate method:
