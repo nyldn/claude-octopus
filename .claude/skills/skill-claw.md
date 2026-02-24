@@ -16,6 +16,12 @@ trigger: |
   - "harden my server" or "secure my host" or "firewall setup"
   - "openclaw on docker" or "openclaw compose"
   - "openclaw backup" or "openclaw restore" or "openclaw migrate"
+  - "tailscale" or "tailnet" or "tailscale serve" or "tailscale funnel"
+  - "telegram bot" or "slack bot" or "discord bot" or "whatsapp" or "signal"
+  - "openclaw telegram" or "openclaw slack" or "openclaw channels"
+  - "gogcli" or "google workspace" or "google drive cli"
+  - "openclaw scheduler" or "openclaw cron" or "openclaw memory"
+  - "openclaw plugins" or "openclaw skills" or "openclaw mcp"
 
   DO NOT activate for:
   - OpenClaw extension development (use plugin-dev skills)
@@ -55,6 +61,9 @@ Never assume the OS or hosting environment. Never make changes without checking 
 - Backup and disaster recovery
 - Platform-specific configuration (macOS, Ubuntu/Debian, Docker, OCI, Proxmox)
 - Channel configuration (WhatsApp, Telegram, Discord, Slack, Signal)
+- Tailscale setup and management (Serve, Funnel, SSH, ACLs)
+- gogcli (Google Workspace CLI) setup and troubleshooting
+- OpenClaw scheduler, memory, plugins, and MCP server management
 
 **Do NOT use for:**
 - Writing OpenClaw extensions or plugins (use plugin-dev skills)
@@ -319,6 +328,39 @@ openclaw cron status|list|add|edit|rm     # Scheduled jobs
 ```
 
 ---
+
+## Tailscale Management
+
+```bash
+tailscale up [--ssh]                             # Connect to tailnet
+tailscale serve https / http://127.0.0.1:18789  # Expose OpenClaw to tailnet
+tailscale serve status                           # Check serve config
+tailscale status                                 # List connected devices
+tailscale ping <hostname>                        # Test connectivity
+tailscale netcheck                               # Network diagnostics
+```
+
+**Rules:**
+- Use `tailscale serve` for OpenClaw access (tailnet only)
+- Warn before `tailscale funnel` (exposes to public internet)
+- Docker: use sidecar pattern with `network_mode: "service:tailscale"`
+- Proxmox LXC: add TUN device to container config before installing
+
+## Channel Integration
+
+| Channel | Library | Admin Setup |
+|---------|---------|-------------|
+| WhatsApp | Baileys | `openclaw channels login whatsapp` → scan QR |
+| Telegram | Grammy | Token from @BotFather → set in config |
+| Discord | discord.js | Bot token from Developer Portal |
+| Slack | Bolt | App manifest + bot/app tokens (Socket Mode) |
+| Signal | signal-cli | `openclaw channels login signal` → linked device |
+
+```bash
+openclaw channels list|status|add|remove|login|logout
+openclaw channels dm-allow <channel> user:@username
+openclaw channels info <channel> [--dm-list|--detailed]
+```
 
 ## Integration with Other Skills
 
