@@ -254,7 +254,7 @@ wrap_cli_output() {
     fi
 
     case "$provider" in
-        codex*|gemini*)
+        codex*|gemini*|perplexity*)
             cat << EOF
 <external-cli-output provider="$provider" trust="untrusted">
 $output
@@ -917,6 +917,10 @@ get_agent_command() {
         openrouter-glm5) echo "openrouter_execute_model z-ai/glm-5" ;;           # v8.11.0: GLM-5 via OpenRouter
         openrouter-kimi) echo "openrouter_execute_model moonshotai/kimi-k2.5" ;; # v8.11.0: Kimi K2.5 via OpenRouter
         openrouter-deepseek) echo "openrouter_execute_model deepseek/deepseek-r1" ;; # v8.11.0: DeepSeek R1 via OpenRouter
+        perplexity|perplexity-fast)  # v8.24.0: Perplexity Sonar — web-grounded research (Issue #22)
+            model=$(get_agent_model "$agent_type")
+            echo "perplexity_execute $model"
+            ;;
         *) return 1 ;;
     esac
 }
@@ -973,6 +977,10 @@ get_agent_command_array() {
         openrouter-glm5)     _cmd_array=(openrouter_execute_model "z-ai/glm-5") ;;           # v8.11.0: GLM-5
         openrouter-kimi)     _cmd_array=(openrouter_execute_model "moonshotai/kimi-k2.5") ;; # v8.11.0: Kimi K2.5
         openrouter-deepseek) _cmd_array=(openrouter_execute_model "deepseek/deepseek-r1") ;; # v8.11.0: DeepSeek R1
+        perplexity|perplexity-fast)  # v8.24.0: Perplexity Sonar (Issue #22)
+            model=$(get_agent_model "$agent_type")
+            _cmd_array=(perplexity_execute "$model")
+            ;;
         *) return 1 ;;
     esac
 }
@@ -995,6 +1003,9 @@ build_provider_env() {
         gemini*)
             echo "env -i PATH=\"$PATH\" HOME=\"$HOME\" GEMINI_API_KEY=\"${GEMINI_API_KEY:-}\" GOOGLE_API_KEY=\"${GOOGLE_API_KEY:-}\" NODE_NO_WARNINGS=1 TMPDIR=\"${TMPDIR:-/tmp}\""
             ;;
+        perplexity*)
+            echo "env -i PATH=\"$PATH\" HOME=\"$HOME\" PERPLEXITY_API_KEY=\"${PERPLEXITY_API_KEY:-}\" TMPDIR=\"${TMPDIR:-/tmp}\""
+            ;;
         *)
             # Claude and other providers: no isolation needed
             return 0
@@ -1003,7 +1014,7 @@ build_provider_env() {
 }
 
 # List of available agents
-AVAILABLE_AGENTS="codex codex-standard codex-max codex-mini codex-general codex-spark codex-reasoning codex-large-context gemini gemini-fast gemini-image codex-review claude claude-sonnet claude-opus claude-opus-fast openrouter openrouter-glm5 openrouter-kimi openrouter-deepseek"
+AVAILABLE_AGENTS="codex codex-standard codex-max codex-mini codex-general codex-spark codex-reasoning codex-large-context gemini gemini-fast gemini-image codex-review claude claude-sonnet claude-opus claude-opus-fast openrouter openrouter-glm5 openrouter-kimi openrouter-deepseek perplexity perplexity-fast"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # USAGE TRACKING & COST REPORTING (v4.1)
@@ -1044,6 +1055,9 @@ get_model_pricing() {
         z-ai/glm-5)             echo "0.80:2.56" ;;    # GLM-5: code review specialist
         moonshotai/kimi-k2.5)   echo "0.45:2.25" ;;    # Kimi K2.5: research, 262K context
         deepseek/deepseek-r1)   echo "0.70:2.50" ;;    # DeepSeek R1: visible reasoning traces
+        # Perplexity Sonar models (v8.24.0 - Issue #22)
+        sonar-pro)              echo "3.00:15.00" ;;   # Sonar Pro: deep web research
+        sonar)                  echo "1.00:1.00" ;;    # Sonar: fast web search
         # Default fallback
         *)                      echo "1.00:5.00" ;;
     esac
@@ -1457,6 +1471,9 @@ get_agent_model() {
         openrouter|openrouter-glm5|openrouter-kimi|openrouter-deepseek)
             provider="openrouter"
             ;;
+        perplexity|perplexity-fast)
+            provider="perplexity"
+            ;;
     esac
 
     # Priority 1: Check environment variables
@@ -1468,6 +1485,11 @@ get_agent_model() {
     if [[ "$provider" == "gemini" && -n "${OCTOPUS_GEMINI_MODEL:-}" ]]; then
         log "DEBUG" "Model from env var: OCTOPUS_GEMINI_MODEL=${OCTOPUS_GEMINI_MODEL} (tier 1)"
         echo "${OCTOPUS_GEMINI_MODEL}"
+        return 0
+    fi
+    if [[ "$provider" == "perplexity" && -n "${OCTOPUS_PERPLEXITY_MODEL:-}" ]]; then
+        log "DEBUG" "Model from env var: OCTOPUS_PERPLEXITY_MODEL=${OCTOPUS_PERPLEXITY_MODEL} (tier 1)"
+        echo "${OCTOPUS_PERPLEXITY_MODEL}"
         return 0
     fi
 
@@ -1515,6 +1537,8 @@ get_agent_model() {
         openrouter-glm5)  echo "z-ai/glm-5" ;;                # v8.11.0: GLM-5 (77.8% SWE-bench)
         openrouter-kimi)  echo "moonshotai/kimi-k2.5" ;;      # v8.11.0: Kimi K2.5 (262K ctx)
         openrouter-deepseek) echo "deepseek/deepseek-r1" ;;   # v8.11.0: DeepSeek R1 (reasoning)
+        perplexity)       echo "sonar-pro" ;;                # v8.24.0: Sonar Pro — web-grounded research
+        perplexity-fast)  echo "sonar" ;;                    # v8.24.0: Sonar — fast web search
         *)              echo "unknown" ;;
     esac
 }
@@ -1845,6 +1869,11 @@ is_api_based_provider() {
             # Claude Code is subscription-based, not per-call
             return 1
             ;;
+        perplexity)
+            # v8.24.0: Perplexity Sonar API (Issue #22)
+            [[ -n "${PERPLEXITY_API_KEY:-}" ]] && return 0
+            return 1
+            ;;
         *)
             # Unknown provider, assume API-based for safety
             return 0
@@ -1998,10 +2027,12 @@ display_workflow_cost_estimate() {
     # Check which providers are API-based (cost money)
     local codex_is_api=false
     local gemini_is_api=false
+    local perplexity_is_api=false
     local has_costs=false
 
     is_api_based_provider "codex" && codex_is_api=true && has_costs=true
     is_api_based_provider "gemini" && gemini_is_api=true && has_costs=true
+    is_api_based_provider "perplexity" && perplexity_is_api=true && has_costs=true
 
     # If no API-based providers, skip cost display
     if [[ "$has_costs" == "false" ]]; then
@@ -2012,8 +2043,10 @@ display_workflow_cost_estimate() {
     # Calculate costs
     local codex_cost="0.00"
     local gemini_cost="0.00"
+    local perplexity_cost="0.00"
     local codex_status="Subscription (no per-call cost)"
     local gemini_status="Subscription (no per-call cost)"
+    local perplexity_status="Not configured"
 
     if [[ "$codex_is_api" == "true" ]]; then
         codex_cost=$(awk "BEGIN {printf \"%.2f\", $(calculate_agent_cost \"codex\" \"$prompt_size\") * $num_codex_calls}")
@@ -2025,7 +2058,12 @@ display_workflow_cost_estimate() {
         gemini_status="~\$$gemini_cost (API key detected)"
     fi
 
-    local total_cost=$(awk "BEGIN {printf \"%.2f\", $codex_cost + $gemini_cost}")
+    if [[ "$perplexity_is_api" == "true" ]]; then
+        perplexity_cost=$(awk "BEGIN {printf \"%.2f\", $(calculate_agent_cost \"perplexity\" \"$prompt_size\") * 1}")
+        perplexity_status="~\$$perplexity_cost (API key detected)"
+    fi
+
+    local total_cost=$(awk "BEGIN {printf \"%.2f\", $codex_cost + $gemini_cost + $perplexity_cost}")
 
     # Display cost estimate
     echo ""
@@ -2044,12 +2082,15 @@ display_workflow_cost_estimate() {
         claude_model_label="Opus 4.6"
     fi
     echo -e "  ${BLUE}🔵 Claude${NC} ($claude_model_label): ${DIM}Included in Claude Code subscription${NC}"
+    if [[ "$perplexity_is_api" == "true" ]]; then
+        echo -e "  ${MAGENTA}🟣 Perplexity${NC} (~1 request): ${perplexity_status}"
+    fi
     echo ""
 
     if [[ $(awk "BEGIN {print ($total_cost > 0)}") -eq 1 ]]; then
         echo -e "${BOLD}Total API Costs: ~\$${total_cost}${NC}"
         echo ""
-        echo -e "${DIM}Note: Costs shown only for providers using API keys (OPENAI_API_KEY/GEMINI_API_KEY).${NC}"
+        echo -e "${DIM}Note: Costs shown only for providers using API keys (OPENAI_API_KEY/GEMINI_API_KEY/PERPLEXITY_API_KEY).${NC}"
         echo -e "${DIM}Actual costs may vary. Disable prompt with: OCTOPUS_SKIP_COST_PROMPT=true${NC}"
     else
         echo -e "${GREEN}✓ All providers using subscription/auth-based access (no per-call costs)${NC}"
@@ -5997,6 +6038,8 @@ validate_agent_command() {
             return 0 ;;
         "openrouter_execute"*) # openrouter_execute and openrouter_execute_model
             return 0 ;;
+        "perplexity_execute"*) # v8.24.0: Perplexity Sonar API (Issue #22)
+            return 0 ;;
         "env NODE_NO_WARNINGS="*) # only allow env with NODE_NO_WARNINGS prefix
             return 0 ;;
         *)
@@ -8289,6 +8332,88 @@ EOF
     fi
 }
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# PERPLEXITY SONAR API (v8.24.0 - Issue #22)
+# Web-grounded research provider — live internet search with citations
+# Env: PERPLEXITY_API_KEY required
+# Models: sonar-pro (deep research), sonar (fast search)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+perplexity_execute() {
+    local model="$1"
+    local prompt="$2"
+    local output_file="${3:-}"
+
+    if [[ -z "${PERPLEXITY_API_KEY:-}" ]]; then
+        log ERROR "PERPLEXITY_API_KEY not set — get one at https://www.perplexity.ai/settings/api"
+        return 1
+    fi
+
+    [[ "$VERBOSE" == "true" ]] && log DEBUG "Perplexity Sonar request: model=$model" || true
+
+    # Build JSON payload — Perplexity uses OpenAI-compatible chat completions API
+    local escaped_prompt
+    escaped_prompt=$(json_escape "$prompt")
+
+    local payload
+    payload=$(cat << EOF
+{
+  "model": "$model",
+  "messages": [
+    {"role": "system", "content": "You are a research assistant with live web access. Provide detailed, factual answers with citations. Always include source URLs when referencing specific information."},
+    {"role": "user", "content": "$escaped_prompt"}
+  ]
+}
+EOF
+)
+
+    local response
+    response=$(curl -s -X POST "https://api.perplexity.ai/chat/completions" \
+        -H "Authorization: Bearer ${PERPLEXITY_API_KEY}" \
+        -H "Content-Type: application/json" \
+        -H "Connection: keep-alive" \
+        -d "$payload")
+
+    # Extract content from response (same format as OpenAI-compatible API)
+    local content=""
+    if json_extract "$response" "content"; then
+        content="$REPLY"
+    fi
+
+    # Extract citations if available (Perplexity-specific field)
+    local citations=""
+    if command -v jq &>/dev/null; then
+        citations=$(echo "$response" | jq -r '.citations // [] | to_entries[] | "[\(.key + 1)] \(.value)"' 2>/dev/null) || true
+    fi
+
+    if [[ -z "$content" ]]; then
+        if [[ "$response" =~ \"error\":\{([^\}]*)\} ]]; then
+            log ERROR "Perplexity error: ${BASH_REMATCH[1]}"
+            return 1
+        fi
+        log WARN "Empty response from Perplexity ($model)"
+        echo "$response"
+    else
+        local result
+        result=$(echo "$content" | sed 's/\\n/\n/g; s/\\t/\t/g; s/\\"/"/g')
+
+        # Append citations if present
+        if [[ -n "$citations" ]]; then
+            result="${result}
+
+---
+**Sources:**
+${citations}"
+        fi
+
+        if [[ -n "$output_file" ]]; then
+            echo "$result" > "$output_file"
+        else
+            echo "$result"
+        fi
+    fi
+}
+
 # Display provider status with subscription tiers
 show_provider_status() {
     load_providers_config
@@ -8321,6 +8446,11 @@ show_provider_status() {
     local openrouter_status="${RED}✗${NC}"
     [[ "$PROVIDER_OPENROUTER_ENABLED" == "true" ]] && openrouter_status="${GREEN}✓${NC}"
     echo -e "${CYAN}║${NC}  OpenRouter:     $openrouter_status  [api-key]  $PROVIDER_OPENROUTER_ROUTING_PREF (pay-per-use)  ${CYAN}║${NC}"
+
+    # Perplexity (v8.24.0)
+    local perplexity_status="${RED}✗${NC}"
+    [[ -n "${PERPLEXITY_API_KEY:-}" ]] && perplexity_status="${GREEN}✓${NC}"
+    echo -e "${CYAN}║${NC}  Perplexity:     $perplexity_status  [api-key]  sonar-pro (pay-per-use)  ${CYAN}║${NC}"
 
     echo -e "${CYAN}╠════════════════════════════════════════════════════════════════╣${NC}"
     echo -e "${CYAN}║${NC}  Cost Strategy:  $COST_OPTIMIZATION_STRATEGY  ${CYAN}║${NC}"
@@ -10459,7 +10589,7 @@ ${earned_skills_ctx}"
             ' "$temp_output" >> "$result_file"
 
             # v8.7.0: Add trust marker for external CLI output
-            case "$agent_type" in codex*|gemini*)
+            case "$agent_type" in codex*|gemini*|perplexity*)
                 if [[ "${OCTOPUS_SECURITY_V870:-true}" == "true" ]]; then
                     sed -i.bak '1s/^/<!-- trust=untrusted provider='"$agent_type"' -->\n/' "$result_file" 2>/dev/null || true
                     rm -f "${result_file}.bak"
@@ -13719,7 +13849,7 @@ ${earned_skills_ctx}"
     fi
 
     # v8.7.0: Wrap external CLI output with trust markers
-    case "$agent_type" in codex*|gemini*)
+    case "$agent_type" in codex*|gemini*|perplexity*)
         output=$(wrap_cli_output "$agent_type" "$output") ;; esac
 
     # Check if output is suspiciously empty or placeholder
@@ -14247,7 +14377,7 @@ probe_discover() {
 
     if [[ "$DRY_RUN" == "true" ]]; then
         log INFO "[DRY-RUN] Would probe: $prompt"
-        log INFO "[DRY-RUN] Would spawn 5+ parallel research agents (Codex, Gemini, Sonnet 4.6, +codebase if in git repo)"
+        log INFO "[DRY-RUN] Would spawn 5+ parallel research agents (Codex, Gemini, Sonnet 4.6, +codebase if in git repo, +Perplexity if API key set)"
         return 0
     fi
 
@@ -14255,7 +14385,10 @@ probe_discover() {
     preflight_check || return 1
 
     # Cost transparency (v7.18.0 - P0.0)
-    if ! display_workflow_cost_estimate "Probe (Discover Phase)" 5 0 1500; then
+    # v8.24.0: Perplexity adds +1 external call when available
+    local probe_external_calls=5
+    [[ -n "${PERPLEXITY_API_KEY:-}" ]] && ((++probe_external_calls))
+    if ! display_workflow_cost_estimate "Probe (Discover Phase)" "$probe_external_calls" 0 1500; then
         log "WARN" "Workflow cancelled by user after cost review"
         return 1
     fi
@@ -14318,7 +14451,16 @@ probe_discover() {
         fi
     fi
 
-    # Initialize progress tracking with actual agent count (dynamic, may be 5 or 6)
+    # v8.24.0: Web-grounded research via Perplexity Sonar (Issue #22)
+    # Adds a live web search perspective when PERPLEXITY_API_KEY is available
+    if [[ -n "${PERPLEXITY_API_KEY:-}" ]]; then
+        perspectives+=("Search the live web for the latest information about: $prompt. Find recent articles, documentation, blog posts, GitHub repos, and community discussions. Include source URLs and publication dates. Focus on information from the last 12 months that may not be in training data.")
+        pane_titles+=("🟣 Web Research")
+        probe_agents+=("perplexity")
+        log INFO "Perplexity API key detected - adding web-grounded research agent"
+    fi
+
+    # Initialize progress tracking with actual agent count (dynamic, may be 5, 6, or 7)
     init_progress_tracking "discover" "${#perspectives[@]}"
 
     local pids=()

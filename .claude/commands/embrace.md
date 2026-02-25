@@ -87,6 +87,7 @@ All Phases:
 Provider Availability:
 🔴 Codex CLI: [Available ✓ / Not installed ✗]
 🟡 Gemini CLI: [Available ✓ / Not installed ✗]
+🟣 Perplexity: [Available ✓ / Not configured ✗]
 🔵 Claude: Available ✓
 
 Project Context:
