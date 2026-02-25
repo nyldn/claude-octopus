@@ -86,7 +86,7 @@ cd "${CLAUDE_PLUGIN_ROOT}" && bash scripts/orchestrate.sh doctor auth --verbose
 
 | Category | What it checks |
 |----------|---------------|
-| `providers` | Claude Code version, Codex CLI installed, Gemini CLI installed |
+| `providers` | Claude Code version, Codex CLI installed, Gemini CLI installed, Perplexity API key |
 | `auth` | Authentication status for each provider |
 | `config` | Plugin version, install scope, feature flags |
 | `state` | Project state.json, stale results, workspace writable |
@@ -110,6 +110,7 @@ All checks pass — no action needed.
 |-------|-----|
 | Codex CLI not found | `npm install -g @openai/codex` or install via `codex login` |
 | Gemini CLI not found | Install Gemini CLI from Google |
+| Perplexity not configured | `export PERPLEXITY_API_KEY="pplx-..."` (optional) |
 | Auth expired | Re-run `codex login` or `gemini login` |
 | Stale state | Delete `.octo/state.json` and re-initialize |
 | Invalid hooks.json | Check `hooks.json` syntax — must be valid JSON |

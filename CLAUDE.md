@@ -15,6 +15,7 @@ When executing Claude Octopus workflows, you MUST display visual indicators so u
 | 🐙 | Claude Octopus multi-AI mode active | Multiple APIs |
 | 🔴 | Codex CLI executing | User's OPENAI_API_KEY |
 | 🟡 | Gemini CLI executing | User's GEMINI_API_KEY |
+| 🟣 | Perplexity Sonar web search | User's PERPLEXITY_API_KEY |
 | 🔵 | Claude subagent processing | Included with Claude Code |
 
 ### When to Display Indicators
@@ -196,6 +197,7 @@ echo "Progress: 50%" > ~/.claude/scratchpad/$(cat ~/.claude/session-id)/phase1-p
 Before running workflows, check provider availability:
 - Codex CLI: `command -v codex` or check for OPENAI_API_KEY
 - Gemini CLI: `command -v gemini` or check for GEMINI_API_KEY
+- Perplexity: check for PERPLEXITY_API_KEY (API-only, no CLI needed)
 
 If a provider is unavailable, note it in the banner:
 ```
@@ -212,6 +214,7 @@ Providers:
 Always be mindful that external CLIs cost money:
 - 🔴 Codex: ~$0.01-0.15 per query depending on model (GPT-5.3-Codex $1.75/$14 MTok, Spark 15x faster, Mini ~$0.30/$1.25 MTok)
 - 🟡 Gemini: ~$0.01-0.03 per query (Gemini Pro)
+- 🟣 Perplexity: ~$0.01-0.05 per query (Sonar Pro $3/$15 MTok, Sonar $1/$1 MTok)
 - 🔵 Claude (Sonnet 4.6): Included with Claude Code subscription
 - 🔵 Claude (Opus 4.6): $5/$25 per MTok input/output when using `claude-opus` agent type
 - 🔵 Claude (Opus 4.6 Fast): **$30/$150 per MTok** (6x standard) - lower latency, extra-usage billing (v2.1.36+)

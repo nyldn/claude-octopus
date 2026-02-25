@@ -73,6 +73,7 @@ init_state() {
     "provider_usage": {
       "codex": 0,
       "gemini": 0,
+      "perplexity": 0,
       "claude": 0
     }
   }
@@ -339,6 +340,7 @@ show_summary() {
     echo "  Provider Usage:"
     echo "    - Codex: $(jq -r '.metrics.provider_usage.codex' "$STATE_FILE")"
     echo "    - Gemini: $(jq -r '.metrics.provider_usage.gemini' "$STATE_FILE")"
+    echo "    - Perplexity: $(jq -r '.metrics.provider_usage.perplexity // 0' "$STATE_FILE")"
     echo "    - Claude: $(jq -r '.metrics.provider_usage.claude' "$STATE_FILE")"
     echo ""
     echo "Decisions: $(jq -r '.decisions | length' "$STATE_FILE")"

@@ -149,9 +149,10 @@ command -v gemini &> /dev/null && gemini_status="Available ✓" || gemini_status
 Provider Availability:
 🔴 Codex CLI: ${codex_status}
 🟡 Gemini CLI: ${gemini_status}
+🟣 Perplexity: ${perplexity_status}
 🔵 Claude: Available ✓ (Strategic synthesis)
 
-💰 Estimated Cost: $0.01-0.05
+💰 Estimated Cost: $0.01-0.08
 ⏱️  Estimated Time: 2-5 minutes
 ```
 
@@ -163,9 +164,10 @@ Provider Availability:
 Provider Availability:
 🔴 Codex CLI: ${codex_status}
 🟡 Gemini CLI: ${gemini_status}
+🟣 Perplexity: ${perplexity_status}
 🔵 Claude: Available ✓ (Strategic synthesis)
 
-💰 Estimated Cost: $0.01-0.05
+💰 Estimated Cost: $0.01-0.08
 ⏱️  Estimated Time: 2-5 minutes
 ```
 
@@ -401,7 +403,8 @@ The **discover** phase executes multi-perspective research using external CLI pr
 
 1. **🔴 Codex CLI** - Technical implementation analysis, code patterns, framework specifics
 2. **🟡 Gemini CLI** - Broad ecosystem research, community insights, alternative approaches
-3. **🔵 Claude (You)** - Strategic synthesis and recommendation
+3. **🟣 Perplexity** - Live web search with citations (when PERPLEXITY_API_KEY is set)
+4. **🔵 Claude (You)** - Strategic synthesis and recommendation
 
 This is the **divergent** phase - we cast a wide net to explore all possibilities before narrowing down.
 
@@ -441,6 +444,7 @@ Before execution, you'll see:
 Providers:
 🔴 Codex CLI - Technical analysis
 🟡 Gemini CLI - Ecosystem research
+🟣 Perplexity - Live web search (if configured)
 🔵 Claude - Strategic synthesis
 ```
 
@@ -697,6 +701,7 @@ Before completing probe workflow, ensure:
 **External API Usage:**
 - 🔴 Codex CLI uses your OPENAI_API_KEY (costs apply)
 - 🟡 Gemini CLI uses your GEMINI_API_KEY (costs apply)
+- 🟣 Perplexity uses your PERPLEXITY_API_KEY (costs apply, optional)
 - 🔵 Claude analysis included with Claude Code
 
 Probe workflows typically cost $0.01-0.05 per query depending on complexity and response length.
