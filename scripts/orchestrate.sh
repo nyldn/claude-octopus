@@ -860,15 +860,21 @@ get_agent_command() {
 
     # Configurable sandbox mode (v7.13.1 - Issue #9)
     # Priority: OCTOPUS_CODEX_SANDBOX env var > default (workspace-write)
-    # Valid values: workspace-write (default), read-only, danger-full-access
+    # Valid values: workspace-write (default), write, read-only
     local codex_sandbox="${OCTOPUS_CODEX_SANDBOX:-workspace-write}"
-    local sandbox_flag="--sandbox ${codex_sandbox}"
 
-    # Warn if non-default sandbox mode is used
-    if [[ "$codex_sandbox" != "workspace-write" && "$codex_sandbox" != "write" ]]; then
-        log "WARN" "Using Codex sandbox mode: ${codex_sandbox}"
-        log "WARN" "This may have security implications. See README for details."
-    fi
+    # Security: reject values not in allowlist
+    case "$codex_sandbox" in
+        workspace-write|write|read-only)
+            ;;
+        *)
+            log "ERROR" "Invalid OCTOPUS_CODEX_SANDBOX value: '${codex_sandbox}'. Allowed: workspace-write, write, read-only"
+            log "ERROR" "Falling back to workspace-write for safety."
+            codex_sandbox="workspace-write"
+            ;;
+    esac
+
+    local sandbox_flag="--sandbox ${codex_sandbox}"
 
     case "$agent_type" in
         codex|codex-standard|codex-max|codex-mini|codex-general)
@@ -5981,11 +5987,18 @@ sanitize_review_id() {
 validate_agent_command() {
     local cmd="$1"
 
-    # Whitelist of allowed command prefixes (v7.19.0: added env and NODE_NO_WARNINGS)
+    # Whitelist of allowed command prefixes (v7.19.0: tightened to exact patterns)
     case "$cmd" in
-        codex*|gemini*|claude*|openrouter_execute*|NODE_NO_WARNINGS*|env*)
-            return 0
-            ;;
+        "codex "*|"codex")
+            return 0 ;;
+        "gemini "*|"gemini")
+            return 0 ;;
+        "claude "*|"claude")
+            return 0 ;;
+        "openrouter_execute"*) # openrouter_execute and openrouter_execute_model
+            return 0 ;;
+        "env NODE_NO_WARNINGS="*) # only allow env with NODE_NO_WARNINGS prefix
+            return 0 ;;
         *)
             log ERROR "Invalid agent command: $cmd"
             return 1
@@ -11639,8 +11652,17 @@ install_tool() {
         return 1
     fi
 
+    # Security: validate tool against allowlist before executing
+    case "$tool" in
+        jq|shellcheck|gh|imagemagick|playwright) ;;
+        *)
+            echo -e "    ${RED}✗${NC} Unknown tool: $tool"
+            return 1
+            ;;
+    esac
+
     echo -e "    ${CYAN}→${NC} $install_cmd"
-    if eval "$install_cmd" 2>&1 | sed 's/^/      /'; then
+    if bash -c "$install_cmd" 2>&1 | sed 's/^/      /'; then
         echo -e "    ${GREEN}✓${NC} $tool installed"
         return 0
     else

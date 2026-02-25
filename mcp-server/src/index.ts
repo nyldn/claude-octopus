@@ -48,7 +48,23 @@ async function runOrchestrate(
       cwd: PLUGIN_ROOT,
       timeout: 300_000,
       env: {
-        ...process.env,
+        // Security: only forward required env vars, not the full process.env
+        PATH: process.env.PATH,
+        HOME: process.env.HOME,
+        TMPDIR: process.env.TMPDIR,
+        SHELL: process.env.SHELL,
+        USER: process.env.USER,
+        // AI provider keys
+        OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+        GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+        GOOGLE_API_KEY: process.env.GOOGLE_API_KEY,
+        OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
+        // Octopus config
+        ...Object.fromEntries(
+          Object.entries(process.env).filter(([k]) =>
+            k.startsWith("CLAUDE_OCTOPUS_") || k.startsWith("OCTOPUS_")
+          )
+        ),
         CLAUDE_OCTOPUS_MCP_MODE: "true",
       },
     });
@@ -164,7 +180,7 @@ server.tool(
     prompt: z.string().describe("The full task or project to execute"),
     autonomy: z
       .enum(["supervised", "semi-autonomous", "autonomous"])
-      .default("autonomous")
+      .default("supervised")
       .describe("How much human oversight to apply"),
   },
   async ({ prompt, autonomy }) => {

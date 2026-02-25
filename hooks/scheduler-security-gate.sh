@@ -53,13 +53,19 @@ if [[ "$TOOL_NAME" == "Read" ]] || [[ "$TOOL_NAME" == "Write" ]] || [[ "$TOOL_NA
         FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // .tool_input.path // ""' 2>/dev/null || echo "")
 
         if [[ -n "$FILE_PATH" ]]; then
-            # Resolve to absolute path for comparison
-            resolved_path=$(cd "$(dirname "$FILE_PATH")" 2>/dev/null && echo "$(pwd)/$(basename "$FILE_PATH")" || echo "$FILE_PATH")
+            # Security: use realpath for symlink-safe canonicalization
+            resolved_path=$(realpath "$FILE_PATH" 2>/dev/null) || {
+                echo '{"decision": "block", "reason": "Scheduler security gate: cannot resolve file path"}'
+                exit 0
+            }
 
-            # Allow access to workspace and scheduler dirs
-            if [[ "$resolved_path" != "${WORKSPACE}"* ]] && \
-               [[ "$resolved_path" != "${HOME}/.claude-octopus"* ]] && \
-               [[ "$resolved_path" != "${HOME}/.claude"* ]]; then
+            # Normalize allowed paths with trailing slash for safe prefix matching
+            local safe_workspace="${WORKSPACE%/}/"
+            local safe_octopus="${HOME}/.claude-octopus/"
+
+            # Allow access to workspace and octopus config only (not ~/.claude)
+            if [[ "$resolved_path" != "${safe_workspace}"* ]] && \
+               [[ "$resolved_path" != "${safe_octopus}"* ]]; then
                 echo "{\"decision\": \"block\", \"reason\": \"Scheduler security gate: file access outside workspace blocked: ${FILE_PATH}\"}"
                 exit 0
             fi
