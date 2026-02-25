@@ -5833,7 +5833,7 @@ progressive_synthesis_monitor() {
     while true; do
         # Count available results with meaningful content
         local result_count=0
-        for result in "$RESULTS_DIR"/probe-${task_group}-*.md; do
+        for result in "$RESULTS_DIR"/*-probe-${task_group}-*.md; do
             [[ ! -f "$result" ]] && continue
             local file_size
             file_size=$(wc -c < "$result" 2>/dev/null || echo "0")
@@ -5880,7 +5880,7 @@ synthesize_probe_results_partial() {
     # Quick synthesis with available results
     local results=""
     local result_count=0
-    for result in "$RESULTS_DIR"/probe-${task_group}-*.md; do
+    for result in "$RESULTS_DIR"/*-probe-${task_group}-*.md; do
         [[ ! -f "$result" ]] || continue
         local file_size
         file_size=$(wc -c < "$result" 2>/dev/null || echo "0")
@@ -14004,7 +14004,7 @@ $previous_output"
                 [[ "$all_done" == "true" ]] && break
 
                 # Check convergence on available results
-                if check_convergence "$RESULTS_DIR/${phase_name}-${task_group}-*.md"; then
+                if check_convergence "$RESULTS_DIR"/*-${phase_name}-${task_group}-*.md; then
                     log "INFO" "CONVERGENCE: Early termination - agents converged in phase $phase_name"
                     break
                 fi
@@ -14024,7 +14024,7 @@ $previous_output"
     # Collect phase output
     local phase_output=""
     local result_files
-    result_files=$(ls -t "$RESULTS_DIR"/${phase_name}-${task_group}-*.md 2>/dev/null || true)
+    result_files=$(ls -t "$RESULTS_DIR"/*-${phase_name}-${task_group}-*.md 2>/dev/null || true)
     if [[ -n "$result_files" ]]; then
         for f in $result_files; do
             # v8.7.0: Verify result integrity before reading
@@ -14372,6 +14372,24 @@ probe_discover() {
     echo ""
     local usable_results=$((success_count + timeout_count))
     echo -e "${CYAN}Results summary: ${GREEN}$success_count${NC} success, ${YELLOW}$timeout_count${NC} partial, ${RED}$failure_count${NC} failed | Total: $(numfmt --to=iec-i --suffix=B $total_size 2>/dev/null || echo "${total_size}B")${NC}"
+
+    # v8.23.2: Surface per-provider failure summary so users know which providers actually contributed
+    if [[ $failure_count -gt 0 ]]; then
+        local failed_providers=""
+        for i in "${!perspectives[@]}"; do
+            local task_id="probe-${task_group}-${i}"
+            local agent="${probe_agents[$i]}"
+            local result_file="${RESULTS_DIR}/${agent}-${task_id}.md"
+            if [[ ! -f "$result_file" ]] || grep -q "Status: FAILED" "$result_file" 2>/dev/null; then
+                failed_providers="${failed_providers:+$failed_providers, }${agent}"
+            fi
+        done
+        if [[ -n "$failed_providers" ]]; then
+            echo -e "${YELLOW}⚠  Failed providers: ${failed_providers}${NC}"
+            echo -e "${YELLOW}   Results will be synthesized from successful providers only.${NC}"
+            echo -e "${YELLOW}   Check logs for details: ${LOGS_DIR}/${NC}"
+        fi
+    fi
     echo ""
 
     # Intelligent synthesis (v7.19.0 P1.1: allow with partial results)
@@ -14401,7 +14419,7 @@ synthesize_probe_results() {
     local results=""
     local result_count=0
     local total_content_size=0
-    for result in "$RESULTS_DIR"/probe-${task_group}-*.md; do
+    for result in "$RESULTS_DIR"/*-probe-${task_group}-*.md; do
         [[ -f "$result" ]] || continue
 
         # Check if file has meaningful content (>500 bytes of actual content)
@@ -14522,8 +14540,16 @@ grasp_define() {
     log INFO "Gathering problem definitions from multiple perspectives..."
 
     local def1 def2 def3
-    def1=$(run_agent_sync "codex" "Based on: $prompt\n${context}Define the core problem statement in 2-3 sentences. What is the essential challenge?" 120 "backend-architect" "grasp")
-    def2=$(run_agent_sync "gemini" "Based on: $prompt\n${context}Define success criteria. How will we know when this is solved correctly? List 3-5 measurable criteria." 120 "researcher" "grasp")
+    def1=$(run_agent_sync "codex" "Based on: $prompt\n${context}Define the core problem statement in 2-3 sentences. What is the essential challenge?" 120 "backend-architect" "grasp") || {
+        log WARN "Codex failed for problem definition, falling back to Claude"
+        echo -e " ${YELLOW}⚠${NC}  Codex unavailable for problem definition — falling back to Claude"
+        def1=$(run_agent_sync "claude-sonnet" "Based on: $prompt\n${context}Define the core problem statement in 2-3 sentences. What is the essential challenge?" 120 "backend-architect" "grasp") || true
+    }
+    def2=$(run_agent_sync "gemini" "Based on: $prompt\n${context}Define success criteria. How will we know when this is solved correctly? List 3-5 measurable criteria." 120 "researcher" "grasp") || {
+        log WARN "Gemini failed for success criteria, falling back to Claude"
+        echo -e " ${YELLOW}⚠${NC}  Gemini unavailable for success criteria — falling back to Claude"
+        def2=$(run_agent_sync "claude-sonnet" "Based on: $prompt\n${context}Define success criteria. How will we know when this is solved correctly? List 3-5 measurable criteria." 120 "researcher" "grasp") || true
+    }
     def3=$(run_agent_sync "claude-sonnet" "Based on: $prompt\n${context}Define constraints and boundaries. What are we NOT solving? What are hard limits?" 120 "researcher" "grasp")
 
     # Build consensus
@@ -14731,7 +14757,7 @@ validate_tangle_results() {
         local fail_count=0
         FAILED_SUBTASKS=""  # Reset for this validation pass (string-based)
 
-        for result in "$RESULTS_DIR"/tangle-${task_group}*.md; do
+        for result in "$RESULTS_DIR"/*-tangle-${task_group}*.md; do
             [[ -f "$result" ]] || continue
             [[ "$result" == *validation* ]] && continue
 
@@ -16017,7 +16043,19 @@ Focus on these security measures:
 - Least privilege principle
 - Proper error handling (no sensitive info leakage)
 
-Output production-ready secure code with security comments." 180 "backend-architect" "squeeze")
+Output production-ready secure code with security comments." 180 "backend-architect" "squeeze") || {
+        log WARN "Codex failed for blue team implementation, falling back to Claude"
+        echo -e " ${YELLOW}⚠${NC}  Codex unavailable — falling back to Claude"
+        blue_impl=$(run_agent_sync "claude-sonnet" "
+$no_explore_constraint
+
+You are BLUE TEAM (defender). Implement this with security as top priority:
+$prompt
+
+Focus on: input validation, auth checks, SQL injection prevention, XSS prevention, CSRF protection, secure defaults, least privilege, proper error handling.
+
+Output production-ready secure code with security comments." 180 "backend-architect" "squeeze") || true
+    }
 
     # ═══════════════════════════════════════════════════════════════════════
     # Phase 2: Red Team Attack
@@ -16054,7 +16092,19 @@ Be thorough - check for:
 - XSS (stored, reflected, DOM)
 - Insecure deserialization
 - Using components with known vulnerabilities
-- Insufficient logging/monitoring" 180 "security-auditor" "squeeze")
+- Insufficient logging/monitoring" 180 "security-auditor" "squeeze") || {
+        log WARN "Gemini failed for red team attack, falling back to Claude"
+        echo -e " ${YELLOW}⚠${NC}  Gemini unavailable — falling back to Claude"
+        red_attack=$(run_agent_sync "claude-sonnet" "
+$no_explore_constraint
+
+You are RED TEAM (attacker/penetration tester). Find security vulnerabilities in this code:
+
+$blue_impl
+
+For EACH vulnerability, document: VULN, CWE, LOCATION, ATTACK vector, PROOF (payload), SEVERITY.
+Find at least 5 issues. Check for injection, auth, XSS, CSRF, access control, misconfig." 180 "security-auditor" "squeeze") || true
+    }
 
     # ═══════════════════════════════════════════════════════════════════════
     # Phase 3: Remediation
@@ -16079,7 +16129,22 @@ For EACH vulnerability:
 1. Apply the fix
 2. Add a comment explaining the fix: // FIXED: [vulnerability] - [what was changed]
 
-Output the COMPLETE fixed code with all security improvements applied." 180 "implementer" "squeeze")
+Output the COMPLETE fixed code with all security improvements applied." 180 "implementer" "squeeze") || {
+        log WARN "Codex failed for remediation, falling back to Claude"
+        echo -e " ${YELLOW}⚠${NC}  Codex unavailable for remediation — falling back to Claude"
+        remediation=$(run_agent_sync "claude-sonnet" "
+$no_explore_constraint
+
+Fix ALL vulnerabilities found by Red Team.
+
+ORIGINAL CODE:
+$blue_impl
+
+VULNERABILITIES FOUND:
+$red_attack
+
+For EACH vulnerability: apply the fix and add a comment. Output the COMPLETE fixed code." 180 "implementer" "squeeze") || true
+    }
 
     # ═══════════════════════════════════════════════════════════════════════
     # Phase 4: Validation
@@ -16110,7 +16175,18 @@ FINAL VERDICT:
 - SECURE: All vulnerabilities fixed
 - NEEDS MORE WORK: Some vulnerabilities remain (list them)
 
-If any issues remain, provide specific guidance on how to fix them." 120 "code-reviewer" "squeeze")
+If any issues remain, provide specific guidance on how to fix them." 120 "code-reviewer" "squeeze") || {
+        log WARN "Codex-review failed for validation, falling back to Claude"
+        echo -e " ${YELLOW}⚠${NC}  Codex-review unavailable — falling back to Claude"
+        validation=$(run_agent_sync "claude-sonnet" "
+$no_explore_constraint
+
+Verify all vulnerabilities have been properly fixed. VULNERABILITIES: $red_attack
+
+REMEDIATED CODE: $remediation
+
+Create a checklist: FIXED or STILL PRESENT for each. Give FINAL VERDICT: SECURE or NEEDS MORE WORK." 120 "code-reviewer" "squeeze") || true
+    }
 
     # ═══════════════════════════════════════════════════════════════════════
     # Save results
@@ -16364,7 +16440,11 @@ Analyze the research context and provide:
 3. Unmet needs and opportunities
 4. Behavioral themes across user segments
 
-Format as a structured research synthesis." 180 "ux-researcher" "empathize")
+Format as a structured research synthesis." 180 "ux-researcher" "empathize") || {
+        log WARN "Gemini failed for research synthesis, falling back to Claude"
+        echo -e " ${YELLOW}⚠${NC}  Gemini unavailable — falling back to Claude"
+        synthesis=$(run_agent_sync "claude-sonnet" "You are a UX researcher. Synthesize user research for: $prompt. Provide: key insights, pain points, unmet needs, behavioral themes." 180 "ux-researcher" "empathize") || true
+    }
 
     echo -e "${CYAN}🦑 Phase 2/4: Creating personas and journey maps...${NC}"
     local personas
@@ -16376,7 +16456,11 @@ Create:
 2. A current-state journey map for the primary persona
 3. Key moments of truth and emotional highs/lows
 
-Use evidence-based persona development." 180 "ux-researcher" "empathize")
+Use evidence-based persona development." 180 "ux-researcher" "empathize") || {
+        log WARN "Gemini failed for personas, falling back to Claude"
+        echo -e " ${YELLOW}⚠${NC}  Gemini unavailable — falling back to Claude"
+        personas=$(run_agent_sync "claude-sonnet" "Based on this research: $synthesis. Create 2-3 user personas and a journey map for the primary persona." 180 "ux-researcher" "empathize") || true
+    }
 
     echo -e "${CYAN}🦑 Phase 3/4: Defining product requirements...${NC}"
     local requirements
@@ -16394,7 +16478,11 @@ Create product requirements:
 3. Success metrics tied to user outcomes
 4. Prioritized backlog recommendations
 
-Original context: $prompt" 180 "product-writer" "empathize")
+Original context: $prompt" 180 "product-writer" "empathize") || {
+        log WARN "Codex failed for requirements, falling back to Claude"
+        echo -e " ${YELLOW}⚠${NC}  Codex unavailable — falling back to Claude"
+        requirements=$(run_agent_sync "claude-sonnet" "Based on research: $synthesis and personas: $personas. Create: user stories, acceptance criteria, success metrics, prioritized backlog. Context: $prompt" 180 "product-writer" "empathize") || true
+    }
 
     echo -e "${CYAN}🦑 Phase 4/4: Validating through adversarial review...${NC}"
     local validation
@@ -16410,7 +16498,11 @@ Challenge:
 3. Do requirements actually address the pain points?
 4. What biases might be present in the analysis?
 
-Provide constructive critique and recommendations." 120 "ux-researcher" "empathize")
+Provide constructive critique and recommendations." 120 "ux-researcher" "empathize") || {
+        log WARN "Gemini failed for validation, falling back to Claude"
+        echo -e " ${YELLOW}⚠${NC}  Gemini unavailable — falling back to Claude"
+        validation=$(run_agent_sync "claude-sonnet" "Critically review this UX research. Research: $synthesis. Personas: $personas. Requirements: $requirements. Challenge assumptions and identify biases." 120 "ux-researcher" "empathize") || true
+    }
 
     local result_file="$RESULTS_DIR/empathize-${task_group}.md"
     cat > "$result_file" << EOF
@@ -16489,7 +16581,11 @@ Provide:
 3. Key industry trends and disruption factors
 4. PESTLE factors affecting the decision
 
-Be specific with data where possible, noting assumptions." 180 "strategy-analyst" "advise")
+Be specific with data where possible, noting assumptions." 180 "strategy-analyst" "advise") || {
+        log WARN "Gemini failed for market analysis, falling back to Claude"
+        echo -e " ${YELLOW}⚠${NC}  Gemini unavailable — falling back to Claude"
+        analysis=$(run_agent_sync "claude-sonnet" "You are a strategy analyst. Analyze the strategic context for: $prompt. Provide: market sizing, competitive landscape, industry trends, PESTLE factors." 180 "strategy-analyst" "advise") || true
+    }
 
     echo -e "${CYAN}🦑 Phase 2/4: Applying strategic frameworks...${NC}"
     local frameworks
@@ -16501,7 +16597,11 @@ Apply relevant strategic frameworks:
 2. Porter's Five Forces (if industry analysis is relevant)
 3. Strategic options matrix with trade-offs
 
-Context: $prompt" 180 "strategy-analyst" "advise")
+Context: $prompt" 180 "strategy-analyst" "advise") || {
+        log WARN "Gemini failed for strategic frameworks, falling back to Claude"
+        echo -e " ${YELLOW}⚠${NC}  Gemini unavailable — falling back to Claude"
+        frameworks=$(run_agent_sync "claude-sonnet" "Based on this analysis: $analysis. Apply SWOT, Porter's Five Forces, and strategic options matrix. Context: $prompt" 180 "strategy-analyst" "advise") || true
+    }
 
     echo -e "${CYAN}🦑 Phase 3/4: Building business case and recommendations...${NC}"
     local recommendations
@@ -16520,7 +16620,11 @@ Develop:
 4. Success metrics and KPIs
 5. 90-day action plan
 
-Original question: $prompt" 180 "strategy-analyst" "advise")
+Original question: $prompt" 180 "strategy-analyst" "advise") || {
+        log WARN "Codex failed for recommendations, falling back to Claude"
+        echo -e " ${YELLOW}⚠${NC}  Codex unavailable — falling back to Claude"
+        recommendations=$(run_agent_sync "claude-sonnet" "Based on analysis: $analysis and frameworks: $frameworks. Develop: strategic options, recommendation, risks, KPIs, 90-day plan. Question: $prompt" 180 "strategy-analyst" "advise") || true
+    }
 
     echo -e "${CYAN}🦑 Phase 4/4: Crafting executive communication...${NC}"
     local executive_summary
@@ -16536,7 +16640,11 @@ Format as:
 3. Required decisions and asks
 4. Timeline and next steps
 
-Make it board-ready and actionable." 120 "exec-communicator" "advise")
+Make it board-ready and actionable." 120 "exec-communicator" "advise") || {
+        log WARN "Gemini failed for executive summary, falling back to Claude"
+        echo -e " ${YELLOW}⚠${NC}  Gemini unavailable — falling back to Claude"
+        executive_summary=$(run_agent_sync "claude-sonnet" "Create a board-ready executive summary from: Analysis: $analysis. Recommendations: $recommendations. Format: bullet points, key recommendation, decisions, timeline." 120 "exec-communicator" "advise") || true
+    }
 
     local result_file="$RESULTS_DIR/advise-${task_group}.md"
     cat > "$result_file" << EOF
@@ -16615,7 +16723,11 @@ Provide:
 3. Seminal works and key researchers in the field
 4. Taxonomy for organizing the literature
 
-Create a structure for systematic review." 180 "research-synthesizer" "synthesize")
+Create a structure for systematic review." 180 "research-synthesizer" "synthesize") || {
+        log WARN "Gemini failed for literature gathering, falling back to Claude"
+        echo -e " ${YELLOW}⚠${NC}  Gemini unavailable — falling back to Claude"
+        gathering=$(run_agent_sync "claude-sonnet" "You are a research synthesizer. For: $prompt. Provide: key research areas, theoretical frameworks, seminal works, taxonomy for systematic review." 180 "research-synthesizer" "synthesize") || true
+    }
 
     echo -e "${CYAN}🦑 Phase 2/4: Conducting thematic analysis...${NC}"
     local themes
@@ -16628,7 +16740,11 @@ Conduct thematic analysis:
 3. Identify conflicting findings and their sources
 4. Trace the evolution of thinking on this topic
 
-Topic: $prompt" 180 "research-synthesizer" "synthesize")
+Topic: $prompt" 180 "research-synthesizer" "synthesize") || {
+        log WARN "Gemini failed for thematic analysis, falling back to Claude"
+        echo -e " ${YELLOW}⚠${NC}  Gemini unavailable — falling back to Claude"
+        themes=$(run_agent_sync "claude-sonnet" "Based on: $gathering. Identify 4-6 themes, consensus points, conflicts, and evolution of thinking. Topic: $prompt" 180 "research-synthesizer" "synthesize") || true
+    }
 
     echo -e "${CYAN}🦑 Phase 3/4: Identifying gaps and future directions...${NC}"
     local gaps
@@ -16644,7 +16760,11 @@ Identify:
 4. Practical implications needing research
 5. Priority research questions for the field
 
-Original topic: $prompt" 180 "research-synthesizer" "synthesize")
+Original topic: $prompt" 180 "research-synthesizer" "synthesize") || {
+        log WARN "Codex failed for gap identification, falling back to Claude"
+        echo -e " ${YELLOW}⚠${NC}  Codex unavailable — falling back to Claude"
+        gaps=$(run_agent_sync "claude-sonnet" "Based on structure: $gathering and themes: $themes. Identify: research gaps, methodological limitations, theoretical gaps, practical implications, priority questions. Topic: $prompt" 180 "research-synthesizer" "synthesize") || true
+    }
 
     echo -e "${CYAN}🦑 Phase 4/4: Drafting synthesis narrative...${NC}"
     local narrative
@@ -16661,7 +16781,11 @@ Create:
 3. Critical synthesis connecting themes
 4. Conclusion with gaps and future directions
 
-Use academic writing conventions." 180 "academic-writer" "synthesize")
+Use academic writing conventions." 180 "academic-writer" "synthesize") || {
+        log WARN "Gemini failed for synthesis narrative, falling back to Claude"
+        echo -e " ${YELLOW}⚠${NC}  Gemini unavailable — falling back to Claude"
+        narrative=$(run_agent_sync "claude-sonnet" "Write a literature review for: $prompt. Structure: $gathering. Themes: $themes. Gaps: $gaps. Use academic writing conventions, organize by themes." 180 "academic-writer" "synthesize") || true
+    }
 
     local result_file="$RESULTS_DIR/synthesize-${task_group}.md"
     cat > "$result_file" << EOF
