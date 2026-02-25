@@ -71,7 +71,8 @@ daemon_remove_pid() {
 
 daemon_setup_fifo() {
     rm -f "$CONTROL_FIFO"
-    mkfifo "$CONTROL_FIFO"
+    # Security: restrictive permissions — only owner can read/write
+    (umask 077; mkfifo "$CONTROL_FIFO")
 }
 
 daemon_cleanup_fifo() {

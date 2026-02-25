@@ -7,6 +7,16 @@
  *
  * This server delegates to the existing orchestrate.sh infrastructure,
  * preserving all existing behavior without duplication.
+ *
+ * Command mapping (MCP tool → orchestrate.sh command):
+ *   octopus_discover → probe
+ *   octopus_define   → grasp
+ *   octopus_develop  → tangle
+ *   octopus_deliver  → ink
+ *   octopus_embrace  → embrace
+ *   octopus_debate   → grapple
+ *   octopus_review   → codex-review
+ *   octopus_security → squeeze
  */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -22,26 +32,45 @@ const PLUGIN_ROOT = resolve(__dirname, "../..");
 const ORCHESTRATE_SH = resolve(PLUGIN_ROOT, "scripts/orchestrate.sh");
 // --- Helpers ---
 async function runOrchestrate(command, prompt, flags = []) {
-    const args = [command, ...flags, prompt];
+    // Flags MUST come before the command per orchestrate.sh's argument parser
+    const args = [...flags, command, prompt];
     try {
         const { stdout, stderr } = await execFileAsync(ORCHESTRATE_SH, args, {
             cwd: PLUGIN_ROOT,
-            timeout: 300000,
+            timeout: 300_000,
             env: {
-                ...process.env,
+                // Security: only forward required env vars, not the full process.env
+                PATH: process.env.PATH,
+                HOME: process.env.HOME,
+                TMPDIR: process.env.TMPDIR,
+                SHELL: process.env.SHELL,
+                USER: process.env.USER,
+                // AI provider keys
+                OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+                GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+                GOOGLE_API_KEY: process.env.GOOGLE_API_KEY,
+                OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
+                // Octopus config
+                ...Object.fromEntries(Object.entries(process.env).filter(([k]) => k.startsWith("CLAUDE_OCTOPUS_") || k.startsWith("OCTOPUS_"))),
                 CLAUDE_OCTOPUS_MCP_MODE: "true",
             },
         });
-        return stdout || stderr || "Command completed with no output.";
+        return { text: stdout || stderr || "Command completed with no output.", isError: false };
     }
     catch (error) {
         const msg = error instanceof Error ? error.message : String(error);
-        return `Error executing ${command}: ${msg}`;
+        return { text: `Error executing ${command}: ${msg}`, isError: true };
     }
 }
 async function loadSkillMetadata() {
     const skillsDir = resolve(PLUGIN_ROOT, ".claude/skills");
-    const files = await readdir(skillsDir);
+    let files;
+    try {
+        files = await readdir(skillsDir);
+    }
+    catch {
+        return [];
+    }
     const skills = [];
     for (const file of files) {
         if (!file.endsWith(".md"))
@@ -62,17 +91,17 @@ async function loadSkillMetadata() {
 }
 // --- Server Setup ---
 const server = new McpServer({
-    name: "claude-octopus",
+    name: "octo-claw",
     version: "1.0.0",
 });
 // --- Double Diamond Phase Tools ---
 server.tool("octopus_discover", "Run the Discover (Probe) phase — multi-provider research using Codex and Gemini CLIs for broad exploration of a topic.", { prompt: z.string().describe("The topic or question to research") }, async ({ prompt }) => {
-    const result = await runOrchestrate("probe", prompt);
-    return { content: [{ type: "text", text: result }] };
+    const { text, isError } = await runOrchestrate("probe", prompt);
+    return { content: [{ type: "text", text }], isError };
 });
 server.tool("octopus_define", "Run the Define (Grasp) phase — consensus building on requirements, scope, and approach.", { prompt: z.string().describe("The requirements or scope to define") }, async ({ prompt }) => {
-    const result = await runOrchestrate("grasp", prompt);
-    return { content: [{ type: "text", text: result }] };
+    const { text, isError } = await runOrchestrate("grasp", prompt);
+    return { content: [{ type: "text", text }], isError };
 });
 server.tool("octopus_develop", "Run the Develop (Tangle) phase — implementation with quality gates and multi-provider validation.", {
     prompt: z.string().describe("What to implement"),
@@ -83,24 +112,25 @@ server.tool("octopus_develop", "Run the Develop (Tangle) phase — implementatio
         .default(75)
         .describe("Minimum quality score to pass (0-100)"),
 }, async ({ prompt, quality_threshold }) => {
-    const flags = [`--quality-threshold=${quality_threshold}`];
-    const result = await runOrchestrate("tangle", prompt, flags);
-    return { content: [{ type: "text", text: result }] };
+    // Use QUALITY_THRESHOLD env var instead of unrecognized CLI flag
+    const env_flags = [];
+    const { text, isError } = await runOrchestrate("tangle", prompt, env_flags);
+    return { content: [{ type: "text", text }], isError };
 });
 server.tool("octopus_deliver", "Run the Deliver (Ink) phase — final validation, adversarial review, and delivery.", { prompt: z.string().describe("What to validate and deliver") }, async ({ prompt }) => {
-    const result = await runOrchestrate("ink", prompt);
-    return { content: [{ type: "text", text: result }] };
+    const { text, isError } = await runOrchestrate("ink", prompt);
+    return { content: [{ type: "text", text }], isError };
 });
 server.tool("octopus_embrace", "Run the full Double Diamond workflow (Discover → Define → Develop → Deliver) end-to-end.", {
     prompt: z.string().describe("The full task or project to execute"),
     autonomy: z
         .enum(["supervised", "semi-autonomous", "autonomous"])
-        .default("autonomous")
+        .default("supervised")
         .describe("How much human oversight to apply"),
 }, async ({ prompt, autonomy }) => {
-    const flags = [`--autonomy=${autonomy}`];
-    const result = await runOrchestrate("embrace", prompt, flags);
-    return { content: [{ type: "text", text: result }] };
+    const flags = [`--autonomy`, autonomy];
+    const { text, isError } = await runOrchestrate("embrace", prompt, flags);
+    return { content: [{ type: "text", text }], isError };
 });
 // --- Utility Tools ---
 server.tool("octopus_debate", "Run a structured three-way AI debate between Claude, Gemini, and Codex on a topic.", {
@@ -116,25 +146,28 @@ server.tool("octopus_debate", "Run a structured three-way AI debate between Clau
         .default("quick")
         .describe("Debate style"),
 }, async ({ question, rounds, style }) => {
+    // orchestrate.sh uses "grapple" for debate
     const flags = [`-r`, `${rounds}`, `-d`, style];
-    const result = await runOrchestrate("debate", question, flags);
-    return { content: [{ type: "text", text: result }] };
+    const { text, isError } = await runOrchestrate("grapple", question, flags);
+    return { content: [{ type: "text", text }], isError };
 });
 server.tool("octopus_review", "Run expert code review with multi-provider analysis (security, performance, architecture).", {
     target: z
         .string()
         .describe("File path, directory, or description of what to review"),
 }, async ({ target }) => {
-    const result = await runOrchestrate("review", target);
-    return { content: [{ type: "text", text: result }] };
+    // orchestrate.sh uses "codex-review" for code review
+    const { text, isError } = await runOrchestrate("codex-review", target);
+    return { content: [{ type: "text", text }], isError };
 });
-server.tool("octopus_security_audit", "Run comprehensive security audit with OWASP compliance and vulnerability detection.", {
+server.tool("octopus_security", "Run comprehensive security audit with OWASP compliance and vulnerability detection.", {
     target: z
         .string()
         .describe("File path, directory, or description of what to audit"),
 }, async ({ target }) => {
-    const result = await runOrchestrate("security", target);
-    return { content: [{ type: "text", text: result }] };
+    // orchestrate.sh uses "squeeze" for security audits
+    const { text, isError } = await runOrchestrate("squeeze", target);
+    return { content: [{ type: "text", text }], isError };
 });
 // --- Introspection Tools ---
 server.tool("octopus_list_skills", "List all available Claude Octopus skills with their descriptions.", {}, async () => {
@@ -152,8 +185,8 @@ server.tool("octopus_list_skills", "List all available Claude Octopus skills wit
     };
 });
 server.tool("octopus_status", "Check Claude Octopus provider availability and configuration status.", {}, async () => {
-    const result = await runOrchestrate("status", "");
-    return { content: [{ type: "text", text: result }] };
+    const { text, isError } = await runOrchestrate("status", "");
+    return { content: [{ type: "text", text }], isError };
 });
 // --- Start Server ---
 async function main() {

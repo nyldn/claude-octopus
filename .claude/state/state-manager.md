@@ -323,7 +323,7 @@ The state manager includes built-in safety:
 - ✅ Record decisions with clear rationale
 - ✅ Update context after each phase
 - ✅ Track meaningful metrics
-- ✅ Commit state file to git for persistence
+- ✅ Add `.claude-octopus/` to `.gitignore` (state may contain sensitive context)
 
 ### DON'T:
 - ❌ Store large content in state (use files)

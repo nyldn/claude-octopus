@@ -14,7 +14,7 @@ SWITCHES_DIR="${SCHEDULER_DIR}/switches"
 
 # Initialize scheduler directory structure
 store_init() {
-    mkdir -p "$JOBS_DIR" "$RUNS_DIR" "$RUNTIME_DIR" "$LOGS_DIR" \
+    mkdir -p -m 700 "$JOBS_DIR" "$RUNS_DIR" "$RUNTIME_DIR" "$LOGS_DIR" \
              "$LEDGER_DIR" "$SWITCHES_DIR"
 
     # Initialize daily ledger if missing
