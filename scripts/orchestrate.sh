@@ -7296,12 +7296,24 @@ cmd_detect_providers() {
     fi
     echo ""
 
+    # Check Perplexity API (v8.24.0 - Issue #22)
+    if [[ -n "${PERPLEXITY_API_KEY:-}" ]]; then
+        echo "PERPLEXITY_STATUS=ok"
+        echo "PERPLEXITY_AUTH=api-key"
+    else
+        echo "PERPLEXITY_STATUS=not-configured"
+        echo "PERPLEXITY_AUTH=none"
+    fi
+    echo ""
+
     # Write to cache
     mkdir -p "$WORKSPACE_DIR"
     local codex_status=$(command -v codex &>/dev/null && echo "ok" || echo "missing")
     local codex_auth=$([[ -f "$HOME/.codex/auth.json" ]] && echo "oauth" || [[ -n "${OPENAI_API_KEY:-}" ]] && echo "api-key" || echo "none")
     local gemini_status=$(command -v gemini &>/dev/null && echo "ok" || echo "missing")
     local gemini_auth=$([[ -f "$HOME/.gemini/oauth_creds.json" ]] && echo "oauth" || [[ -n "${GEMINI_API_KEY:-}" ]] && echo "api-key" || echo "none")
+    local perplexity_status=$([[ -n "${PERPLEXITY_API_KEY:-}" ]] && echo "ok" || echo "not-configured")
+    local perplexity_auth=$([[ -n "${PERPLEXITY_API_KEY:-}" ]] && echo "api-key" || echo "none")
 
     cat > "$WORKSPACE_DIR/.provider-cache" <<EOF
 # Auto-generated on $(date)
@@ -7314,6 +7326,10 @@ CODEX_AUTH=$codex_auth
 # Gemini Status
 GEMINI_STATUS=$gemini_status
 GEMINI_AUTH=$gemini_auth
+
+# Perplexity Status (v8.24.0)
+PERPLEXITY_STATUS=$perplexity_status
+PERPLEXITY_AUTH=$perplexity_auth
 
 # Timestamp
 CACHE_TIME=$(date +%s)
@@ -7338,6 +7354,13 @@ EOF
         echo "  ⚠ Gemini: Installed but not authenticated"
     else
         echo "  ✗ Gemini: Not installed"
+    fi
+
+    # Perplexity (optional, v8.24.0)
+    if [[ "$perplexity_status" == "ok" ]]; then
+        echo "  ✓ Perplexity: Configured ($perplexity_auth) — web search enabled in discover workflows"
+    else
+        echo "  ○ Perplexity: Not configured (optional — adds live web search to research)"
     fi
     echo ""
 
@@ -7372,6 +7395,11 @@ EOF
             echo "  Codex is configured. You can optionally add Gemini for multi-provider workflows."
         elif [[ "$gemini_status" == "ok" && "$gemini_auth" != "none" ]]; then
             echo "  Gemini is configured. You can optionally add Codex for multi-provider workflows."
+        fi
+        if [[ "$perplexity_status" != "ok" ]]; then
+            echo ""
+            echo "  💡 Optional: Add Perplexity for live web search in research workflows:"
+            echo "     export PERPLEXITY_API_KEY=\"pplx-...\"  # https://www.perplexity.ai/settings/api"
         fi
         echo ""
         echo "What you can do now (just talk naturally in Claude Code):"
@@ -13196,6 +13224,15 @@ doctor_check_providers() {
         doctor_add "gemini-cli" "providers" "warn" \
             "Gemini CLI not installed" "npm install -g @google/gemini-cli"
     fi
+
+    # Perplexity API (v8.24.0 - optional)
+    if [[ -n "${PERPLEXITY_API_KEY:-}" ]]; then
+        doctor_add "perplexity-api" "providers" "pass" \
+            "Perplexity API configured" "PERPLEXITY_API_KEY set — web search enabled in discover workflows"
+    else
+        doctor_add "perplexity-api" "providers" "info" \
+            "Perplexity not configured (optional)" "export PERPLEXITY_API_KEY=\"pplx-...\" for live web search"
+    fi
 }
 
 # --- Category 2: Auth ---
@@ -13225,6 +13262,12 @@ doctor_check_auth() {
             doctor_add "gemini-auth" "auth" "fail" \
                 "Gemini not authenticated" "Run: gemini  OR  export GEMINI_API_KEY=\"...\""
         fi
+    fi
+
+    # Perplexity auth (v8.24.0 - optional, info-only)
+    if [[ -n "${PERPLEXITY_API_KEY:-}" ]]; then
+        doctor_add "perplexity-auth" "auth" "pass" \
+            "Perplexity authenticated" "via PERPLEXITY_API_KEY"
     fi
 
     # At least one provider must be authenticated

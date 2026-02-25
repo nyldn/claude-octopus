@@ -75,6 +75,28 @@ echo 'export GEMINI_API_KEY="AIza..."' >> ~/.bashrc
 source ~/.bashrc
 ```
 
+## Optional: Add Perplexity for Web Search
+
+Perplexity adds live web search to research workflows. When configured, discover/probe phases automatically include a web-grounded research agent with source citations.
+
+```bash
+export PERPLEXITY_API_KEY="pplx-..."
+# Get key from: https://www.perplexity.ai/settings/api
+```
+
+To make the API key permanent, add it to your shell profile:
+```bash
+# For zsh (macOS default)
+echo 'export PERPLEXITY_API_KEY="pplx-..."' >> ~/.zshrc
+source ~/.zshrc
+
+# For bash
+echo 'export PERPLEXITY_API_KEY="pplx-..."' >> ~/.bashrc
+source ~/.bashrc
+```
+
+**Note:** Perplexity is fully optional. All workflows work without it. It simply adds an extra web search perspective (~$0.01-0.05/query).
+
 ## If You See: CODEX_AUTH=none or GEMINI_AUTH=none
 
 The CLI is installed but not authenticated. Configure authentication:
@@ -107,6 +129,7 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh detect-providers
 You should see at least one provider with status:
 - ✓ Codex: Installed and authenticated (oauth or api-key)
 - ✓ Gemini: Installed and authenticated (oauth or api-key)
+- ✓ Perplexity: Configured (api-key) — optional, adds web search
 
 ### Quick Auth Check (Claude Code v2.1.41+)
 
@@ -188,8 +211,9 @@ No! You only need ONE provider (Codex or Gemini) to use Claude Octopus. Both pro
 
 - **Codex (OpenAI):** Best for code generation, refactoring, complex logic
 - **Gemini (Google):** Best for analysis, long-context understanding, multi-modal tasks
+- **Perplexity (optional):** Adds live web search with citations to research workflows
 
-Having both providers enables multi-AI workflows where different models review each other's work, but a single provider works great for most tasks.
+Having both providers enables multi-AI workflows where different models review each other's work, but a single provider works great for most tasks. Perplexity is a bonus — it grounds research in live web data.
 
 ## Troubleshooting
 
