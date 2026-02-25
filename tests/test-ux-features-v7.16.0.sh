@@ -286,7 +286,8 @@ else
 fi
 
 # Test 4.3: 80% threshold check
-if grep -q "80" "$ORCHESTRATE_SH" && grep -A5 -B5 "80" "$ORCHESTRATE_SH" | grep -q "timeout_pct"; then
+# Note: avoid grep -q in pipelines — under pipefail, early exit causes SIGPIPE (exit 141)
+if grep -q "timeout_pct.*80\|80.*timeout_pct" "$ORCHESTRATE_SH" || grep -q 'timeout_pct -ge 80' "$ORCHESTRATE_SH"; then
     pass "80% threshold implemented"
 else
     fail "80% threshold missing"
