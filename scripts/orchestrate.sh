@@ -11611,7 +11611,28 @@ is_tool_installed() {
             command -v playwright &>/dev/null || [[ -f "node_modules/.bin/playwright" ]] || npx playwright --version &>/dev/null 2>&1
             ;;
         *)
-            command -v "$tool" &>/dev/null
+            command -v "$tool" &>/dev/null && return 0
+            # Windows: check common install paths not in PATH
+            if [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "mingw"* ]] || [[ "$OSTYPE" == "cygwin" ]]; then
+                case "$tool" in
+                    gh)
+                        [[ -f "/c/Program Files/GitHub CLI/gh.exe" ]] || \
+                        [[ -f "/c/ProgramData/chocolatey/bin/gh.exe" ]] || \
+                        [[ -f "$LOCALAPPDATA/Microsoft/WinGet/Links/gh.exe" ]] 2>/dev/null
+                        ;;
+                    jq)
+                        [[ -f "/c/ProgramData/chocolatey/bin/jq.exe" ]] || \
+                        [[ -f "$LOCALAPPDATA/Microsoft/WinGet/Links/jq.exe" ]] 2>/dev/null
+                        ;;
+                    shellcheck)
+                        [[ -f "/c/ProgramData/chocolatey/bin/shellcheck.exe" ]] || \
+                        [[ -f "$LOCALAPPDATA/Microsoft/WinGet/Links/shellcheck.exe" ]] 2>/dev/null
+                        ;;
+                    *) return 1 ;;
+                esac
+            else
+                return 1
+            fi
             ;;
     esac
 }
@@ -11628,6 +11649,38 @@ get_install_command() {
             gh)          echo "brew install gh" ;;
             imagemagick) echo "brew install imagemagick" ;;
             playwright)  echo "npx playwright install" ;;
+        esac
+    elif [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "mingw"* ]] || [[ "$OSTYPE" == "cygwin" ]]; then
+        # Windows (Git Bash / MSYS2 / Cygwin) - prefer winget, fall back to choco
+        local pm=""
+        if command -v winget &>/dev/null; then
+            pm="winget"
+        elif command -v choco &>/dev/null; then
+            pm="choco"
+        fi
+        case "$pm" in
+            winget)
+                case "$tool" in
+                    jq)          echo "winget install --id jqlang.jq --accept-source-agreements --accept-package-agreements" ;;
+                    shellcheck)  echo "winget install --id koalaman.shellcheck --accept-source-agreements --accept-package-agreements" ;;
+                    gh)          echo "winget install --id GitHub.cli --accept-source-agreements --accept-package-agreements" ;;
+                    imagemagick) echo "winget install --id ImageMagick.ImageMagick --accept-source-agreements --accept-package-agreements" ;;
+                    playwright)  echo "npx playwright install" ;;
+                esac
+                ;;
+            choco)
+                case "$tool" in
+                    jq)          echo "choco install jq -y" ;;
+                    shellcheck)  echo "choco install shellcheck -y" ;;
+                    gh)          echo "choco install gh -y" ;;
+                    imagemagick) echo "choco install imagemagick -y" ;;
+                    playwright)  echo "npx playwright install" ;;
+                esac
+                ;;
+            *)
+                # No package manager found — give manual instructions
+                echo "echo 'No package manager found. Install $tool manually via winget or choco, then restart your shell.'"
+                ;;
         esac
     else
         # Linux - apt-get
