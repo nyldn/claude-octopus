@@ -26,8 +26,11 @@ if [[ -z "$COMMAND" ]]; then
 fi
 
 # Block destructive system commands
-# 1. rm -rf on system paths
-if echo "$COMMAND" | grep -qE 'rm\s+-[a-zA-Z]*r[a-zA-Z]*f.*(/(etc|var|usr|boot|sys|proc|home)|~|\$HOME)'; then
+# NOTE: These are defense-in-depth guardrails that catch accidental misuse.
+# They are not a security boundary against determined adversaries.
+
+# 1. rm -rf on system paths (short-form and long-form flags)
+if echo "$COMMAND" | grep -qE '(rm\s+-[a-zA-Z]*r[a-zA-Z]*f|rm\s+--recursive\s+--force|rm\s+-r\s+-f|rm\s+-f\s+-r).*(/(etc|var|usr|boot|sys|proc|home)|~|\$HOME)'; then
     echo '{"decision": "block", "reason": "Sysadmin safety gate: destructive rm -rf on system path blocked"}'
     exit 0
 fi
@@ -44,8 +47,8 @@ if echo "$COMMAND" | grep -qE 'docker\s+compose\s+down\s+-v'; then
     exit 0
 fi
 
-# 4. Disabling firewall entirely
-if echo "$COMMAND" | grep -qE '(ufw\s+disable|pfctl\s+-d|systemctl\s+stop\s+(ufw|firewalld|nftables))'; then
+# 4. Disabling firewall entirely (including mask, reset)
+if echo "$COMMAND" | grep -qE '(ufw\s+(disable|reset)|pfctl\s+-d|systemctl\s+(stop|mask)\s+(ufw|firewalld|nftables))'; then
     echo '{"decision": "block", "reason": "Sysadmin safety gate: disabling firewall entirely is unsafe — modify rules instead"}'
     exit 0
 fi
@@ -56,9 +59,13 @@ if echo "$COMMAND" | grep -qE 'iptables\s+-F'; then
     exit 0
 fi
 
-# 6. Running unverified install scripts as root
-if echo "$COMMAND" | grep -qE 'curl.*\|\s*sudo\s+(ba)?sh'; then
-    echo '{"decision": "block", "reason": "Sysadmin safety gate: piping curl to sudo sh is dangerous — download and inspect the script first"}'
+# 6. Running unverified install scripts as root (curl and wget, various patterns)
+if echo "$COMMAND" | grep -qE '(curl|wget).*\|\s*sudo\s+(ba|z)?sh'; then
+    echo '{"decision": "block", "reason": "Sysadmin safety gate: piping downloads to sudo sh is dangerous — download and inspect the script first"}'
+    exit 0
+fi
+if echo "$COMMAND" | grep -qE 'sudo\s+(ba|z)?sh\s+-c\s+.*\$\((curl|wget)'; then
+    echo '{"decision": "block", "reason": "Sysadmin safety gate: running downloaded content as root via command substitution is dangerous"}'
     exit 0
 fi
 

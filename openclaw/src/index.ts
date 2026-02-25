@@ -72,6 +72,9 @@ function textResult(text: string): AgentToolResult {
 
 // --- Execution ---
 
+// Allowed autonomy values for runtime validation
+const VALID_AUTONOMY = new Set(["supervised", "semi-autonomous", "autonomous"]);
+
 async function executeOrchestrate(
   command: string,
   prompt: string,
@@ -86,7 +89,23 @@ async function executeOrchestrate(
       cwd: PLUGIN_ROOT,
       timeout: 300_000,
       env: {
-        ...process.env,
+        // Security: only forward required env vars, not the full process.env
+        PATH: process.env.PATH,
+        HOME: process.env.HOME,
+        TMPDIR: process.env.TMPDIR,
+        SHELL: process.env.SHELL,
+        USER: process.env.USER,
+        // AI provider keys
+        OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+        GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+        GOOGLE_API_KEY: process.env.GOOGLE_API_KEY,
+        OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
+        // Octopus config
+        ...Object.fromEntries(
+          Object.entries(process.env).filter(([k]) =>
+            k.startsWith("CLAUDE_OCTOPUS_") || k.startsWith("OCTOPUS_")
+          )
+        ),
         CLAUDE_OCTOPUS_MCP_MODE: "true",
         CLAUDE_OCTOPUS_OPENCLAW: "true",
       },
@@ -171,10 +190,15 @@ const WORKFLOW_DEFS: WorkflowDef[] = [
         )
       ),
     }),
-    run: async (params) =>
-      executeOrchestrate("embrace", params.prompt as string, [
-        `--autonomy`, (params.autonomy as string) ?? "supervised",
-      ]),
+    run: async (params) => {
+      const autonomy = (params.autonomy as string) ?? "supervised";
+      if (!VALID_AUTONOMY.has(autonomy)) {
+        return `Error: invalid autonomy value '${autonomy}'. Allowed: supervised, semi-autonomous, autonomous`;
+      }
+      return executeOrchestrate("embrace", params.prompt as string, [
+        `--autonomy`, autonomy,
+      ]);
+    },
   },
   {
     name: "octopus_debate",

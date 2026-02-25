@@ -311,7 +311,7 @@ cat > ".octo/parallel/WP-N/launch.sh" << 'LAUNCHEOF'
 #!/bin/bash
 cd "<absolute-project-root-path>"
 unset CLAUDECODE
-cat "$(dirname "$0")/instructions.md" | claude -p --dangerously-skip-permissions > "$(dirname "$0")/output.md" 2>"$(dirname "$0")/agent.log"
+cat "$(dirname "$0")/instructions.md" | claude -p > "$(dirname "$0")/output.md" 2>"$(dirname "$0")/agent.log"
 echo $? > "$(dirname "$0")/exit-code"
 touch "$(dirname "$0")/.done"
 LAUNCHEOF

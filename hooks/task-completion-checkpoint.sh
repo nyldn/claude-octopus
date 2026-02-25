@@ -7,7 +7,7 @@ set -euo pipefail
 
 # Get the plugin root directory
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
-WORKSPACE_DIR="${OCTOPUS_WORKSPACE:-/tmp/octopus}"
+WORKSPACE_DIR="${OCTOPUS_WORKSPACE:-${HOME}/.claude-octopus/workspace}"
 CHECKPOINT_DIR="${WORKSPACE_DIR}/checkpoints"
 
 # Initialize checkpoint directory
