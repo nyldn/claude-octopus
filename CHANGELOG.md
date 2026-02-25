@@ -1,3 +1,11 @@
+## [8.25.0] - 2026-02-25
+
+### Changed
+
+- **Dark Factory Mode** (closes #37): Spec-in, software-out autonomous pipeline with `/octo:factory` command. Wraps embrace workflow with scenario holdout testing (E19), satisfaction scoring (E21), and non-interactive execution (E22). 7 new functions: `parse_factory_spec`, `generate_factory_scenarios`, `split_holdout_scenarios`, `run_holdout_tests`, `score_satisfaction`, `generate_factory_report`, `factory_run`. Weighted 4-dimension scoring (behavior 40%, constraints 20%, holdout 25%, quality 15%) with PASS/WARN/FAIL verdicts. Retry on failure with remediation context. Artifacts stored at `.octo/factory/<run-id>/`.
+
+---
+
 ## [8.23.1] - 2026-02-24
 
 ### Changed

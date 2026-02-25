@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "8.23.1",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v8.23.1) Fix OpenClaw runtime API mismatch. 31 expert personas, 44 commands, 48 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
+  "version": "8.25.0",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v8.25.0) Dark Factory Mode — spec-in, software-out autonomous pipeline. 31 expert personas, 45 commands, 49 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },
@@ -90,7 +90,8 @@
     "./.claude/skills/flow-spec.md",
     "./.claude/skills/flow-parallel.md",
     "./.claude/skills/skill-doctor.md",
-    "./.claude/skills/skill-claw.md"
+    "./.claude/skills/skill-claw.md",
+    "./.claude/skills/skill-factory.md"
   ],
   "commands": [
     "./.claude/commands/octo.md",
@@ -138,6 +139,7 @@
     "./.claude/commands/parallel.md",
     "./.claude/commands/sentinel.md",
     "./.claude/commands/claw.md",
-    "./.claude/commands/doctor.md"
+    "./.claude/commands/doctor.md",
+    "./.claude/commands/factory.md"
   ]
 }

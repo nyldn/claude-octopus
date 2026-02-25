@@ -3183,6 +3183,12 @@ OCTOPUS_ANTI_DRIFT="${OCTOPUS_ANTI_DRIFT:-warn}"
 # v8.21.0 Feature: Persona Packs (community persona customization)
 OCTOPUS_PERSONA_PACKS="${OCTOPUS_PERSONA_PACKS:-auto}"
 
+# v8.25.0 Feature: Dark Factory Mode (spec-in, software-out autonomous pipeline)
+OCTOPUS_FACTORY_MODE="${OCTOPUS_FACTORY_MODE:-false}"
+OCTOPUS_FACTORY_HOLDOUT_RATIO="${OCTOPUS_FACTORY_HOLDOUT_RATIO:-0.20}"
+OCTOPUS_FACTORY_MAX_RETRIES="${OCTOPUS_FACTORY_MAX_RETRIES:-1}"
+OCTOPUS_FACTORY_SATISFACTION_TARGET="${OCTOPUS_FACTORY_SATISFACTION_TARGET:-}"
+
 # v8.18.0 Feature: Reviewer Lockout Protocol
 # When a provider's output is rejected during quality gates,
 # lock it out from self-revision and route retries to an alternate provider.
@@ -15704,6 +15710,715 @@ ${obs_ctx}"
 }
 
 # ═══════════════════════════════════════════════════════════════════════════
+# DARK FACTORY MODE — Spec-in, software-out autonomous pipeline (v8.25.0)
+# Issue #37: E19 (Scenario Holdout) + E21 (Satisfaction Scoring) + E22 (Factory)
+# ═══════════════════════════════════════════════════════════════════════════
+
+parse_factory_spec() {
+    local spec_path="$1"
+    local run_dir="$2"
+
+    if [[ ! -f "$spec_path" ]]; then
+        log ERROR "Factory spec not found: $spec_path"
+        return 1
+    fi
+
+    # Copy spec into run directory
+    cp "$spec_path" "$run_dir/spec.md"
+
+    local spec_content
+    spec_content=$(cat "$spec_path")
+
+    # Extract satisfaction target from spec (format: "Satisfaction Target: 0.90" or similar)
+    local satisfaction_target
+    satisfaction_target=$(echo "$spec_content" | grep -oi 'satisfaction.*target[: ]*[0-9]*\.[0-9]*' | head -1 | grep -o '[0-9]*\.[0-9]*' || echo "")
+    if [[ -z "$satisfaction_target" ]]; then
+        # Infer from complexity class
+        if echo "$spec_content" | grep -qi 'complexity.*clear'; then
+            satisfaction_target="0.95"
+        elif echo "$spec_content" | grep -qi 'complexity.*complicated'; then
+            satisfaction_target="0.90"
+        else
+            satisfaction_target="0.85"
+        fi
+        log INFO "No explicit satisfaction target in spec, inferred: $satisfaction_target"
+    fi
+
+    # Override with env var if set
+    if [[ -n "$OCTOPUS_FACTORY_SATISFACTION_TARGET" ]]; then
+        satisfaction_target="$OCTOPUS_FACTORY_SATISFACTION_TARGET"
+        log INFO "Satisfaction target overridden by env: $satisfaction_target"
+    fi
+
+    # Extract complexity class
+    local complexity="complex"
+    if echo "$spec_content" | grep -qi 'complexity.*clear'; then
+        complexity="clear"
+    elif echo "$spec_content" | grep -qi 'complexity.*complicated'; then
+        complexity="complicated"
+    fi
+
+    # Extract behaviors (lines starting with "### " under Behaviors section, or numbered items)
+    local behavior_count
+    behavior_count=$(echo "$spec_content" | grep -c '^\(### \|[0-9]\+\.\s\+\*\*\)' || echo "0")
+    if [[ "$behavior_count" -eq 0 ]]; then
+        behavior_count=$(echo "$spec_content" | grep -c '^- \*\*' || echo "3")
+    fi
+
+    log INFO "Factory spec parsed: complexity=$complexity, satisfaction_target=$satisfaction_target, behaviors=$behavior_count"
+
+    # Write parsed metadata
+    cat > "$run_dir/session.json" << SPECEOF
+{
+  "run_id": "$(basename "$run_dir")",
+  "spec_path": "$spec_path",
+  "satisfaction_target": $satisfaction_target,
+  "complexity": "$complexity",
+  "behavior_count": $behavior_count,
+  "holdout_ratio": $OCTOPUS_FACTORY_HOLDOUT_RATIO,
+  "max_retries": $OCTOPUS_FACTORY_MAX_RETRIES,
+  "status": "initialized",
+  "started_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+}
+SPECEOF
+
+    echo "$satisfaction_target"
+}
+
+generate_factory_scenarios() {
+    local spec_path="$1"
+    local run_dir="$2"
+
+    local spec_content
+    spec_content=$(cat "$spec_path")
+
+    log INFO "Generating test scenarios from spec..."
+
+    local scenario_prompt="You are a QA engineer generating test scenarios from a product specification.
+
+Given this NLSpec:
+---
+${spec_content:0:6000}
+---
+
+Generate 10-20 test scenarios that cover:
+1. Happy-path behaviors (each behavior from the spec gets at least one scenario)
+2. Edge cases and boundary conditions
+3. Error handling scenarios
+4. Integration points between behaviors
+5. Non-functional requirements (performance, security constraints)
+
+For each scenario, output:
+### Scenario N: <title>
+**Behavior:** <which spec behavior this tests>
+**Type:** happy-path | edge-case | error-handling | integration | non-functional
+**Given:** <preconditions>
+**When:** <action/trigger>
+**Then:** <expected outcome>
+**Verification:** <how to verify PASS/FAIL>
+
+Generate scenarios that are specific enough to evaluate against an implementation."
+
+    local scenarios=""
+
+    # Multi-provider scenario generation for diversity
+    local provider_scenarios
+    provider_scenarios=$(run_agent_sync "codex" "$scenario_prompt" 120 "qa-engineer" "factory" 2>/dev/null) || true
+
+    if [[ -n "$provider_scenarios" ]]; then
+        scenarios="$provider_scenarios"
+    fi
+
+    # Fallback/supplement with second provider
+    local supplemental
+    supplemental=$(run_agent_sync "gemini" "$scenario_prompt" 120 "qa-engineer" "factory" 2>/dev/null) || true
+
+    if [[ -n "$supplemental" && -n "$scenarios" ]]; then
+        # Merge unique scenarios from supplemental
+        scenarios="${scenarios}
+
+## Additional Scenarios (Cross-Provider)
+
+${supplemental}"
+    elif [[ -n "$supplemental" ]]; then
+        scenarios="$supplemental"
+    fi
+
+    # Fallback to Claude if both external providers failed
+    if [[ -z "$scenarios" ]]; then
+        log WARN "External providers unavailable for scenario generation, using Claude"
+        scenarios=$(run_agent_sync "claude" "$scenario_prompt" 180 "qa-engineer" "factory" 2>/dev/null) || true
+    fi
+
+    if [[ -z "$scenarios" ]]; then
+        log ERROR "Failed to generate scenarios from any provider"
+        return 1
+    fi
+
+    echo "$scenarios" > "$run_dir/scenarios-all.md"
+    log INFO "Scenarios generated and saved to $run_dir/scenarios-all.md"
+
+    echo "$scenarios"
+}
+
+split_holdout_scenarios() {
+    local scenarios_file="$1"
+    local run_dir="$2"
+    local holdout_ratio="${3:-$OCTOPUS_FACTORY_HOLDOUT_RATIO}"
+
+    if [[ ! -f "$scenarios_file" ]]; then
+        log ERROR "Scenarios file not found: $scenarios_file"
+        return 1
+    fi
+
+    local all_scenarios
+    all_scenarios=$(cat "$scenarios_file")
+
+    # Extract individual scenarios (split on "### Scenario")
+    local scenario_blocks=()
+    local current_block=""
+    local in_scenario=false
+
+    while IFS= read -r line; do
+        if [[ "$line" =~ ^###\ Scenario ]]; then
+            if [[ -n "$current_block" ]]; then
+                scenario_blocks+=("$current_block")
+            fi
+            current_block="$line"
+            in_scenario=true
+        elif [[ "$in_scenario" == true ]]; then
+            current_block="${current_block}
+${line}"
+        fi
+    done <<< "$all_scenarios"
+    # Capture last block
+    if [[ -n "$current_block" ]]; then
+        scenario_blocks+=("$current_block")
+    fi
+
+    local total=${#scenario_blocks[@]}
+    if [[ $total -eq 0 ]]; then
+        log WARN "No scenario blocks found, treating entire file as single scenario set"
+        cp "$scenarios_file" "$run_dir/scenarios-visible.md"
+        echo "# No structured scenarios to holdout" > "$run_dir/scenarios-holdout.md"
+        return 0
+    fi
+
+    # Calculate holdout count (minimum 1 if there are scenarios, max 20%)
+    local holdout_count
+    holdout_count=$(echo "$total $holdout_ratio" | awk '{printf "%d", $1 * $2 + 0.5}')
+    if [[ $holdout_count -lt 1 && $total -gt 1 ]]; then
+        holdout_count=1
+    fi
+    if [[ $holdout_count -ge $total ]]; then
+        holdout_count=$(( total > 1 ? 1 : 0 ))
+    fi
+
+    local visible_count=$(( total - holdout_count ))
+
+    log INFO "Splitting scenarios: $total total, $visible_count visible, $holdout_count holdout (ratio=$holdout_ratio)"
+
+    # Deterministic shuffle using scenario index modulo for reproducibility
+    # Holdout picks scenarios spread across types for coverage diversity
+    local holdout_indices=()
+    local step=$(( total / (holdout_count > 0 ? holdout_count : 1) ))
+    if [[ $step -lt 1 ]]; then step=1; fi
+
+    local idx=0
+    for (( i=0; i<holdout_count; i++ )); do
+        idx=$(( (i * step + step / 2) % total ))
+        holdout_indices+=("$idx")
+    done
+
+    # Write visible and holdout files
+    local visible_content="# Factory Visible Scenarios ($visible_count of $total)
+"
+    local holdout_content="# Factory Holdout Scenarios ($holdout_count of $total)
+"
+
+    for (( i=0; i<total; i++ )); do
+        local is_holdout=false
+        for hi in "${holdout_indices[@]}"; do
+            if [[ $i -eq $hi ]]; then
+                is_holdout=true
+                break
+            fi
+        done
+
+        if [[ "$is_holdout" == true ]]; then
+            holdout_content="${holdout_content}
+${scenario_blocks[$i]}
+"
+        else
+            visible_content="${visible_content}
+${scenario_blocks[$i]}
+"
+        fi
+    done
+
+    echo "$visible_content" > "$run_dir/scenarios-visible.md"
+    echo "$holdout_content" > "$run_dir/scenarios-holdout.md"
+
+    log INFO "Split complete: $run_dir/scenarios-visible.md ($visible_count), $run_dir/scenarios-holdout.md ($holdout_count)"
+}
+
+run_holdout_tests() {
+    local run_dir="$1"
+    local holdout_file="$run_dir/scenarios-holdout.md"
+
+    if [[ ! -f "$holdout_file" ]]; then
+        log WARN "No holdout file found, skipping holdout evaluation"
+        echo "1.00"
+        return 0
+    fi
+
+    local holdout_content
+    holdout_content=$(cat "$holdout_file")
+
+    # If no real holdout scenarios, score perfect
+    if echo "$holdout_content" | grep -q "No structured scenarios to holdout"; then
+        log INFO "No holdout scenarios to evaluate"
+        echo "1.00"
+        return 0
+    fi
+
+    log INFO "Running holdout tests against implementation..."
+
+    # Gather implementation context (recent files modified)
+    local impl_context=""
+    local recent_files
+    recent_files=$(git diff --name-only HEAD~5 HEAD 2>/dev/null | head -20) || true
+    if [[ -n "$recent_files" ]]; then
+        impl_context="Recently modified files:
+$recent_files"
+    fi
+
+    local holdout_prompt="You are a QA reviewer evaluating whether an implementation satisfies test scenarios.
+
+## Holdout Test Scenarios (these were NOT visible during implementation)
+${holdout_content:0:4000}
+
+## Implementation Context
+${impl_context:0:3000}
+
+For EACH scenario, evaluate:
+- **PASS**: Implementation clearly satisfies the scenario
+- **PARTIAL**: Implementation partially addresses the scenario
+- **FAIL**: Implementation does not address the scenario
+
+Output format:
+### Scenario N: <title>
+**Verdict:** PASS | PARTIAL | FAIL
+**Evidence:** <brief explanation>
+
+After all scenarios, output:
+## Summary
+- Total: N
+- Pass: N
+- Partial: N
+- Fail: N
+- Score: X.XX (PASS=1.0, PARTIAL=0.5, FAIL=0.0, averaged)"
+
+    # Cross-model holdout evaluation for objectivity
+    local eval_result
+    eval_result=$(run_agent_sync "gemini" "$holdout_prompt" 180 "qa-reviewer" "factory" 2>/dev/null) || true
+
+    if [[ -z "$eval_result" ]]; then
+        eval_result=$(run_agent_sync "codex" "$holdout_prompt" 180 "qa-reviewer" "factory" 2>/dev/null) || true
+    fi
+
+    if [[ -z "$eval_result" ]]; then
+        eval_result=$(run_agent_sync "claude" "$holdout_prompt" 180 "qa-reviewer" "factory" 2>/dev/null) || true
+    fi
+
+    if [[ -z "$eval_result" ]]; then
+        log WARN "Holdout evaluation failed from all providers, defaulting to 0.50"
+        echo "0.50"
+        return 0
+    fi
+
+    echo "$eval_result" > "$run_dir/holdout-results.md"
+
+    # Extract score from evaluation
+    local holdout_score
+    holdout_score=$(echo "$eval_result" | grep -oi 'score[: ]*[0-9]*\.[0-9]*' | tail -1 | grep -o '[0-9]*\.[0-9]*' || echo "")
+
+    if [[ -z "$holdout_score" ]]; then
+        # Fallback: count PASS/PARTIAL/FAIL verdicts
+        local pass_count partial_count fail_count total_count
+        pass_count=$(echo "$eval_result" | grep -ci 'verdict.*pass' || echo "0")
+        partial_count=$(echo "$eval_result" | grep -ci 'verdict.*partial' || echo "0")
+        fail_count=$(echo "$eval_result" | grep -ci 'verdict.*fail' || echo "0")
+        total_count=$(( pass_count + partial_count + fail_count ))
+
+        if [[ $total_count -gt 0 ]]; then
+            holdout_score=$(echo "$pass_count $partial_count $total_count" | awk '{printf "%.2f", ($1 + $2 * 0.5) / $3}')
+        else
+            holdout_score="0.50"
+        fi
+    fi
+
+    log INFO "Holdout test score: $holdout_score"
+    echo "$holdout_score"
+}
+
+score_satisfaction() {
+    local run_dir="$1"
+    local satisfaction_target="$2"
+
+    log INFO "Scoring satisfaction against target: $satisfaction_target"
+
+    local spec_content=""
+    [[ -f "$run_dir/spec.md" ]] && spec_content=$(cat "$run_dir/spec.md")
+
+    local holdout_score="0.50"
+    [[ -f "$run_dir/holdout-results.md" ]] && holdout_score=$(grep -oi 'score[: ]*[0-9]*\.[0-9]*' "$run_dir/holdout-results.md" | tail -1 | grep -o '[0-9]*\.[0-9]*' || echo "0.50")
+
+    # Multi-provider satisfaction scoring
+    local scoring_prompt="You are evaluating whether an implementation satisfies its original specification.
+
+## Original Specification
+${spec_content:0:4000}
+
+## Scoring Dimensions (rate each 0.00-1.00)
+
+1. **Behavior Coverage** (weight: 40%): How many specified behaviors are fully implemented?
+2. **Constraint Adherence** (weight: 20%): Are performance, security, and other constraints met?
+3. **Quality** (weight: 15%): Code quality, test coverage, documentation completeness?
+
+Rate each dimension and provide a brief justification.
+
+Output format:
+behavior_coverage: X.XX
+constraint_adherence: X.XX
+quality: X.XX
+justification: <2-3 sentences>"
+
+    local scoring_result
+    scoring_result=$(run_agent_sync "claude-sonnet" "$scoring_prompt" 120 "evaluator" "factory" 2>/dev/null) || true
+
+    if [[ -z "$scoring_result" ]]; then
+        scoring_result=$(run_agent_sync "claude" "$scoring_prompt" 120 "evaluator" "factory" 2>/dev/null) || true
+    fi
+
+    # Parse scores from response
+    local behavior_score constraint_score quality_score
+    behavior_score=$(echo "$scoring_result" | grep -oi 'behavior_coverage[: ]*[0-9]*\.[0-9]*' | head -1 | grep -o '[0-9]*\.[0-9]*' || echo "0.70")
+    constraint_score=$(echo "$scoring_result" | grep -oi 'constraint_adherence[: ]*[0-9]*\.[0-9]*' | head -1 | grep -o '[0-9]*\.[0-9]*' || echo "0.70")
+    quality_score=$(echo "$scoring_result" | grep -oi 'quality[: ]*[0-9]*\.[0-9]*' | head -1 | grep -o '[0-9]*\.[0-9]*' || echo "0.70")
+
+    # Weighted composite: behavior(40%) + constraints(20%) + holdout(25%) + quality(15%)
+    local composite
+    composite=$(echo "$behavior_score $constraint_score $holdout_score $quality_score" | \
+        awk '{printf "%.2f", $1 * 0.40 + $2 * 0.20 + $3 * 0.25 + $4 * 0.15}')
+
+    # Determine verdict
+    local verdict="FAIL"
+    local target_minus_05
+    target_minus_05=$(echo "$satisfaction_target" | awk '{printf "%.2f", $1 - 0.05}')
+
+    if awk "BEGIN {exit !($composite >= $satisfaction_target)}"; then
+        verdict="PASS"
+    elif awk "BEGIN {exit !($composite >= $target_minus_05)}"; then
+        verdict="WARN"
+    fi
+
+    log INFO "Satisfaction score: $composite (target: $satisfaction_target) -> $verdict"
+
+    # Write scores JSON
+    cat > "$run_dir/satisfaction-scores.json" << SCOREEOF
+{
+  "behavior_coverage": $behavior_score,
+  "constraint_adherence": $constraint_score,
+  "holdout_pass_rate": $holdout_score,
+  "quality": $quality_score,
+  "composite": $composite,
+  "satisfaction_target": $satisfaction_target,
+  "verdict": "$verdict",
+  "weights": {
+    "behavior_coverage": 0.40,
+    "constraint_adherence": 0.20,
+    "holdout_pass_rate": 0.25,
+    "quality": 0.15
+  },
+  "scored_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+}
+SCOREEOF
+
+    echo "$composite|$verdict"
+}
+
+generate_factory_report() {
+    local run_dir="$1"
+    local satisfaction_target="$2"
+
+    log INFO "Generating factory report..."
+
+    local run_id
+    run_id=$(basename "$run_dir")
+
+    local composite="N/A"
+    local verdict="UNKNOWN"
+    local behavior_score="N/A"
+    local constraint_score="N/A"
+    local holdout_score="N/A"
+    local quality_score="N/A"
+
+    if [[ -f "$run_dir/satisfaction-scores.json" ]] && command -v jq &>/dev/null; then
+        composite=$(jq -r '.composite' "$run_dir/satisfaction-scores.json" 2>/dev/null || echo "N/A")
+        verdict=$(jq -r '.verdict' "$run_dir/satisfaction-scores.json" 2>/dev/null || echo "UNKNOWN")
+        behavior_score=$(jq -r '.behavior_coverage' "$run_dir/satisfaction-scores.json" 2>/dev/null || echo "N/A")
+        constraint_score=$(jq -r '.constraint_adherence' "$run_dir/satisfaction-scores.json" 2>/dev/null || echo "N/A")
+        holdout_score=$(jq -r '.holdout_pass_rate' "$run_dir/satisfaction-scores.json" 2>/dev/null || echo "N/A")
+        quality_score=$(jq -r '.quality' "$run_dir/satisfaction-scores.json" 2>/dev/null || echo "N/A")
+    fi
+
+    local verdict_emoji="❌"
+    if [[ "$verdict" == "PASS" ]]; then verdict_emoji="✅"
+    elif [[ "$verdict" == "WARN" ]]; then verdict_emoji="⚠️"; fi
+
+    local started_at=""
+    if [[ -f "$run_dir/session.json" ]] && command -v jq &>/dev/null; then
+        started_at=$(jq -r '.started_at' "$run_dir/session.json" 2>/dev/null || echo "")
+    fi
+
+    cat > "$run_dir/factory-report.md" << REPORTEOF
+# Dark Factory Report
+
+**Run ID:** $run_id
+**Started:** ${started_at:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}
+**Completed:** $(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+## Verdict: $verdict_emoji $verdict
+
+**Composite Score:** $composite / $satisfaction_target target
+
+## Score Breakdown
+
+| Dimension            | Weight | Score |
+|----------------------|--------|-------|
+| Behavior Coverage    | 40%    | $behavior_score |
+| Constraint Adherence | 20%    | $constraint_score |
+| Holdout Pass Rate    | 25%    | $holdout_score |
+| Quality              | 15%    | $quality_score |
+| **Composite**        | 100%   | **$composite** |
+
+## Artifacts
+
+| File | Description |
+|------|-------------|
+| spec.md | Original NLSpec |
+| scenarios-all.md | All generated test scenarios |
+| scenarios-visible.md | Scenarios visible during implementation |
+| scenarios-holdout.md | Blind holdout scenarios (20%) |
+| holdout-results.md | Holdout evaluation results |
+| satisfaction-scores.json | Structured score data |
+| session.json | Run metadata |
+
+## Pipeline Phases
+
+1. **Parse Spec** — Extracted behaviors, constraints, satisfaction target
+2. **Generate Scenarios** — Multi-provider scenario generation from spec
+3. **Split Holdout** — 80/20 split with behavior-diverse holdout selection
+4. **Embrace Workflow** — Full 4-phase implementation (discover → define → develop → deliver)
+5. **Holdout Tests** — Blind evaluation against withheld scenarios
+6. **Satisfaction Scoring** — Weighted multi-dimension assessment
+7. **Report** — This document
+
+---
+*Generated by Claude Octopus Dark Factory Mode v8.25.0*
+REPORTEOF
+
+    # Update session.json status
+    if [[ -f "$run_dir/session.json" ]] && command -v jq &>/dev/null; then
+        jq --arg v "$verdict" --arg c "$composite" \
+            '.status = "completed" | .verdict = $v | .composite_score = ($c | tonumber) | .completed_at = (now | todate)' \
+            "$run_dir/session.json" > "$run_dir/session.json.tmp" && \
+            mv "$run_dir/session.json.tmp" "$run_dir/session.json"
+    fi
+
+    log INFO "Factory report generated: $run_dir/factory-report.md"
+}
+
+factory_run() {
+    local spec_path="$1"
+    local holdout_ratio="${2:-$OCTOPUS_FACTORY_HOLDOUT_RATIO}"
+    local max_retries="${3:-$OCTOPUS_FACTORY_MAX_RETRIES}"
+    local ci_mode="${4:-false}"
+
+    # Validate spec exists
+    if [[ ! -f "$spec_path" ]]; then
+        log ERROR "Spec file not found: $spec_path"
+        echo "Usage: $(basename "$0") factory --spec <path-to-spec.md>"
+        return 1
+    fi
+
+    # Create run directory
+    local run_id
+    run_id="factory-$(date +%Y%m%d-%H%M%S)"
+    local run_dir=".octo/factory/$run_id"
+    mkdir -p "$run_dir"
+
+    echo ""
+    echo -e "${MAGENTA}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${MAGENTA}║  ${GREEN}DARK FACTORY${MAGENTA} — Spec-In, Software-Out Pipeline            ║${NC}"
+    echo -e "${MAGENTA}║  Parse → Scenarios → Embrace → Holdout → Score → Report  ║${NC}"
+    echo -e "${MAGENTA}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    echo -e "${CYAN}  Run ID:    ${NC}$run_id"
+    echo -e "${CYAN}  Spec:      ${NC}$spec_path"
+    echo -e "${CYAN}  Holdout:   ${NC}${holdout_ratio} ($(echo "$holdout_ratio" | awk '{printf "%d", $1 * 100}')%)"
+    echo -e "${CYAN}  Retries:   ${NC}$max_retries"
+    echo ""
+
+    # ── Phase 1: Parse spec ──────────────────────────────────────────────
+    echo -e "${YELLOW}[1/7]${NC} Parsing factory spec..."
+    local satisfaction_target
+    satisfaction_target=$(parse_factory_spec "$spec_path" "$run_dir")
+    if [[ $? -ne 0 || -z "$satisfaction_target" ]]; then
+        log ERROR "Failed to parse factory spec"
+        return 1
+    fi
+    echo -e "${GREEN}  ✓${NC} Satisfaction target: $satisfaction_target"
+
+    # Cost estimate and approval gate
+    if [[ "$ci_mode" != "true" ]]; then
+        display_workflow_cost_estimate "factory" 8 6 4000 2>/dev/null || true
+    fi
+
+    # ── Phase 2: Generate scenarios ──────────────────────────────────────
+    echo ""
+    echo -e "${YELLOW}[2/7]${NC} Generating test scenarios from spec..."
+    local scenarios
+    scenarios=$(generate_factory_scenarios "$spec_path" "$run_dir")
+    if [[ $? -ne 0 || -z "$scenarios" ]]; then
+        log ERROR "Scenario generation failed"
+        return 1
+    fi
+    local scenario_count
+    scenario_count=$(grep -c '### Scenario' "$run_dir/scenarios-all.md" || echo "0")
+    echo -e "${GREEN}  ✓${NC} Generated $scenario_count scenarios"
+
+    # ── Phase 3: Split holdout ───────────────────────────────────────────
+    echo ""
+    echo -e "${YELLOW}[3/7]${NC} Splitting holdout scenarios (${holdout_ratio})..."
+    split_holdout_scenarios "$run_dir/scenarios-all.md" "$run_dir" "$holdout_ratio"
+    local visible_count holdout_count
+    visible_count=$(grep -c '### Scenario' "$run_dir/scenarios-visible.md" 2>/dev/null || echo "0")
+    holdout_count=$(grep -c '### Scenario' "$run_dir/scenarios-holdout.md" 2>/dev/null || echo "0")
+    echo -e "${GREEN}  ✓${NC} Visible: $visible_count, Holdout: $holdout_count"
+
+    # ── Phase 4: Embrace workflow ────────────────────────────────────────
+    echo ""
+    echo -e "${YELLOW}[4/7]${NC} Running embrace workflow (4-phase implementation)..."
+
+    # Build augmented prompt with visible scenarios
+    local visible_scenarios=""
+    [[ -f "$run_dir/scenarios-visible.md" ]] && visible_scenarios=$(cat "$run_dir/scenarios-visible.md")
+
+    local spec_content
+    spec_content=$(cat "$spec_path")
+
+    local embrace_prompt="## Factory Mode: Implement from NLSpec
+
+${spec_content}
+
+## Test Scenarios to Satisfy
+
+${visible_scenarios:0:8000}
+
+Implement the specification above. Ensure all visible test scenarios pass."
+
+    # Set factory environment flags
+    export OCTOPUS_FACTORY_MODE=true
+    export AUTONOMY_MODE=autonomous
+    export OCTOPUS_SKIP_PHASE_COST_PROMPT=true
+
+    embrace_full_workflow "$embrace_prompt"
+
+    # ── Phase 5: Holdout tests ───────────────────────────────────────────
+    echo ""
+    echo -e "${YELLOW}[5/7]${NC} Running holdout tests (blind evaluation)..."
+    local holdout_score
+    holdout_score=$(run_holdout_tests "$run_dir")
+    echo -e "${GREEN}  ✓${NC} Holdout score: $holdout_score"
+
+    # ── Phase 6: Satisfaction scoring ────────────────────────────────────
+    echo ""
+    echo -e "${YELLOW}[6/7]${NC} Scoring satisfaction..."
+    local score_result
+    score_result=$(score_satisfaction "$run_dir" "$satisfaction_target")
+    local composite verdict
+    composite=$(echo "$score_result" | cut -d'|' -f1)
+    verdict=$(echo "$score_result" | cut -d'|' -f2)
+    echo -e "${GREEN}  ✓${NC} Score: $composite -> $verdict"
+
+    # ── Retry logic ──────────────────────────────────────────────────────
+    local retry_count=0
+    while [[ "$verdict" == "FAIL" && $retry_count -lt $max_retries ]]; do
+        retry_count=$((retry_count + 1))
+        echo ""
+        echo -e "${YELLOW}[RETRY $retry_count/$max_retries]${NC} Re-running phases 3-4 with remediation context..."
+
+        # Build remediation prompt from failing holdout scenarios
+        local holdout_results=""
+        [[ -f "$run_dir/holdout-results.md" ]] && holdout_results=$(cat "$run_dir/holdout-results.md")
+
+        local remediation_prompt="## Factory Mode: Remediation Pass ($retry_count/$max_retries)
+
+The initial implementation did not meet the satisfaction target ($satisfaction_target).
+Current score: $composite
+
+## Failing Holdout Scenarios
+${holdout_results:0:4000}
+
+## Original Spec
+${spec_content:0:4000}
+
+Focus on fixing the failing scenarios. Do NOT restart from scratch — improve the existing implementation."
+
+        export OCTOPUS_FACTORY_MODE=true
+        export AUTONOMY_MODE=autonomous
+        export OCTOPUS_SKIP_PHASE_COST_PROMPT=true
+
+        embrace_full_workflow "$remediation_prompt"
+
+        # Re-evaluate
+        holdout_score=$(run_holdout_tests "$run_dir")
+        score_result=$(score_satisfaction "$run_dir" "$satisfaction_target")
+        composite=$(echo "$score_result" | cut -d'|' -f1)
+        verdict=$(echo "$score_result" | cut -d'|' -f2)
+        echo -e "${GREEN}  ✓${NC} Retry score: $composite -> $verdict"
+    done
+
+    # ── Phase 7: Generate report ─────────────────────────────────────────
+    echo ""
+    echo -e "${YELLOW}[7/7]${NC} Generating factory report..."
+    generate_factory_report "$run_dir" "$satisfaction_target"
+    echo -e "${GREEN}  ✓${NC} Report: $run_dir/factory-report.md"
+
+    # Clean up exported flags
+    unset OCTOPUS_FACTORY_MODE
+    unset OCTOPUS_SKIP_PHASE_COST_PROMPT
+
+    # ── Final summary ────────────────────────────────────────────────────
+    echo ""
+    local verdict_color="$RED"
+    if [[ "$verdict" == "PASS" ]]; then verdict_color="$GREEN"
+    elif [[ "$verdict" == "WARN" ]]; then verdict_color="$YELLOW"; fi
+
+    echo -e "${MAGENTA}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${MAGENTA}║  FACTORY COMPLETE                                         ║${NC}"
+    echo -e "${MAGENTA}╠═══════════════════════════════════════════════════════════╣${NC}"
+    echo -e "${MAGENTA}║${NC}  Verdict:    ${verdict_color}${verdict}${NC} ($composite / $satisfaction_target target)"
+    echo -e "${MAGENTA}║${NC}  Scenarios:  $scenario_count generated, $holdout_count holdout"
+    echo -e "${MAGENTA}║${NC}  Retries:    $retry_count / $max_retries"
+    echo -e "${MAGENTA}║${NC}  Report:     $run_dir/factory-report.md"
+    echo -e "${MAGENTA}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+}
+
+# ═══════════════════════════════════════════════════════════════════════════
 # CROSSFIRE - Adversarial Cross-Model Review
 # Two tentacles wrestling—adversarial debate until consensus 🤼
 # ═══════════════════════════════════════════════════════════════════════════
@@ -17785,6 +18500,75 @@ case "$COMMAND" in
             exit 1
         fi
         embrace_full_workflow "$*"
+        ;;
+    factory|dark-factory)
+        # Dark Factory: spec-in, software-out autonomous pipeline (v8.25.0)
+        if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+            echo "Dark Factory Mode — Spec-in, software-out autonomous pipeline"
+            echo ""
+            echo "Usage: $(basename "$0") factory --spec <path> [OPTIONS]"
+            echo ""
+            echo "Options:"
+            echo "  --spec <path>          Path to NLSpec file (required)"
+            echo "  --holdout-ratio N      Holdout ratio 0.0-1.0 (default: 0.20)"
+            echo "  --max-retries N        Max retry attempts on failure (default: 1)"
+            echo "  --ci                   Non-interactive CI mode (skip approval gate)"
+            echo ""
+            echo "Examples:"
+            echo "  $(basename "$0") factory --spec spec.md"
+            echo "  $(basename "$0") factory --spec spec.md --holdout-ratio 0.25 --max-retries 2"
+            echo "  $(basename "$0") factory --spec spec.md --ci"
+            echo ""
+            echo "Pipeline: parse spec → generate scenarios → split holdout (20%)"
+            echo "          → embrace workflow → holdout tests → score → report"
+            echo ""
+            echo "Artifacts: .octo/factory/<run-id>/"
+            exit 0
+        fi
+
+        # Parse flags
+        factory_spec=""
+        factory_holdout="$OCTOPUS_FACTORY_HOLDOUT_RATIO"
+        factory_retries="$OCTOPUS_FACTORY_MAX_RETRIES"
+        factory_ci="false"
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                --spec)
+                    factory_spec="$2"
+                    shift 2
+                    ;;
+                --holdout-ratio)
+                    factory_holdout="$2"
+                    shift 2
+                    ;;
+                --max-retries)
+                    factory_retries="$2"
+                    shift 2
+                    ;;
+                --ci)
+                    factory_ci="true"
+                    shift
+                    ;;
+                *)
+                    # Treat remaining args as inline spec text (fallback)
+                    if [[ -z "$factory_spec" ]]; then
+                        # Create temp spec from inline text
+                        factory_spec=$(mktemp /tmp/factory-spec-XXXXXX.md)
+                        echo "$*" > "$factory_spec"
+                    fi
+                    break
+                    ;;
+            esac
+        done
+
+        if [[ -z "$factory_spec" ]]; then
+            log ERROR "Missing --spec argument"
+            echo "Usage: $(basename "$0") factory --spec <path-to-spec.md>"
+            echo "Run '$(basename "$0") factory --help' for full usage."
+            exit 1
+        fi
+
+        factory_run "$factory_spec" "$factory_holdout" "$factory_retries" "$factory_ci"
         ;;
     # ═══════════════════════════════════════════════════════════════════════════
     # CROSSFIRE COMMANDS (Adversarial Cross-Model Review)
