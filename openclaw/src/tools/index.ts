@@ -37,6 +37,7 @@ export const SKILL_REGISTRY: SkillRegistryEntry[] = [
   { name: "octopus-research", description: "Deep multi-AI parallel research with cost transparency and synthesis", type: "skill", file: "skill-deep-research.md" },
   { name: "skill-doc-delivery", description: "Convert markdown to DOCX, PPTX, XLSX office documents", type: "skill", file: "skill-doc-delivery.md" },
   { name: "skill-doctor", description: "Environment diagnostics — check providers, auth, config, hooks, scheduler, and more", type: "skill", file: "skill-doctor.md" },
+  { name: "skill-factory", description: "Dark Factory Mode — spec-in, software-out autonomous pipeline with holdout testing and satisfaction scoring", type: "skill", file: "skill-factory.md" },
   { name: "skill-finish-branch", description: "Post-implementation: verify tests, merge/PR/keep/discard", type: "skill", file: "skill-finish-branch.md" },
   { name: "skill-intent-contract", description: "Capture user goals and validate outputs against them", type: "skill", file: "skill-intent-contract.md" },
   { name: "skill-issues", description: "Track and manage project issues across sessions", type: "skill", file: "skill-issues.md" },
@@ -77,6 +78,7 @@ export const SKILL_REGISTRY: SkillRegistryEntry[] = [
   { name: "doctor", description: "Environment diagnostics — check providers, auth, config, hooks, scheduler, and more", type: "command", file: "doctor.md" },
   { name: "embrace", description: "Full Double Diamond workflow - Research → Define → Develop → Deliver", type: "command", file: "embrace.md" },
   { name: "extract", description: "Design System & Product Reverse-Engineering - Extract tokens, components, architecture, and PRDs from codebases or live products", type: "command", file: "extract.md" },
+  { name: "factory", description: "Dark Factory Mode - Spec-in, software-out autonomous pipeline", type: "command", file: "factory.md" },
   { name: "grasp", description: "Definition phase - Requirements clarification and scope definition", type: "command", file: "grasp.md" },
   { name: "ink", description: "Delivery phase - Quality assurance, validation, and review", type: "command", file: "ink.md" },
   { name: "issues", description: "Track, inspect, and resolve cross-session Octopus issues", type: "command", file: "issues.md" },
@@ -111,4 +113,4 @@ export const SKILL_REGISTRY: SkillRegistryEntry[] = [
   { name: "validate", description: "Run comprehensive multi-AI validation on code or project targets", type: "command", file: "validate.md" },
 ];
 
-export const REGISTRY_COUNT = 94;
+export const REGISTRY_COUNT = 96;
