@@ -19,7 +19,7 @@ trigger: |
 
 ## Overview
 
-Run environment diagnostics across 9 check categories. Identifies misconfigured providers, stale state, broken hooks, and other issues that prevent Claude Octopus from working correctly.
+Run environment diagnostics across 10 check categories. Identifies misconfigured providers, stale state, broken hooks, and other issues that prevent Claude Octopus from working correctly.
 
 **Core principle:** Detect problems before they surface in workflows.
 
@@ -49,7 +49,7 @@ Run environment diagnostics across 9 check categories. Identifies misconfigured 
 cd "${CLAUDE_PLUGIN_ROOT}" && bash scripts/orchestrate.sh doctor
 ```
 
-This runs all 9 check categories and displays a formatted report.
+This runs all 10 check categories and displays a formatted report.
 
 ### Step 2: Filter by Category (Optional)
 
@@ -65,6 +65,7 @@ cd "${CLAUDE_PLUGIN_ROOT}" && bash scripts/orchestrate.sh doctor hooks
 cd "${CLAUDE_PLUGIN_ROOT}" && bash scripts/orchestrate.sh doctor scheduler
 cd "${CLAUDE_PLUGIN_ROOT}" && bash scripts/orchestrate.sh doctor skills
 cd "${CLAUDE_PLUGIN_ROOT}" && bash scripts/orchestrate.sh doctor conflicts
+cd "${CLAUDE_PLUGIN_ROOT}" && bash scripts/orchestrate.sh doctor agents
 ```
 
 ### Step 3: Verbose or JSON Output
@@ -95,6 +96,7 @@ cd "${CLAUDE_PLUGIN_ROOT}" && bash scripts/orchestrate.sh doctor auth --verbose
 | `scheduler` | Scheduler daemon, jobs, budget gates, kill switches |
 | `skills` | Skill files loaded and valid |
 | `conflicts` | Conflicting plugins detection |
+| `agents` | Agent definitions, worktree isolation, CLI registration, version compatibility |
 
 ---
 
@@ -133,7 +135,7 @@ All checks pass — no action needed.
 
 | User Input | Action |
 |------------|--------|
-| `/octo:doctor` | Run all 9 categories |
+| `/octo:doctor` | Run all 10 categories |
 | `/octo:doctor providers` | Check provider installation only |
 | `/octo:doctor auth --verbose` | Detailed auth status |
 | `/octo:doctor --json` | Machine-readable output |

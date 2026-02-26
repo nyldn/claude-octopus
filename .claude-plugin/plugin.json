@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "8.25.0",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v8.25.0) Dark Factory Mode — spec-in, software-out autonomous pipeline. 31 expert personas, 45 commands, 49 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
+  "version": "8.26.0",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v8.26.0) Changelog Integration — version detection through v2.1.59, worktree hooks, native auto-memory. 31 expert personas, 45 commands, 49 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },
