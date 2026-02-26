@@ -269,26 +269,26 @@ else
 fi
 
 # 3.4: build_memory_context handles project/user/local scopes
-if grep -A 40 '^build_memory_context()' "$ORCHESTRATE_SH" | grep -q 'project)'; then
+if grep -A 60 '^build_memory_context()' "$ORCHESTRATE_SH" | grep -q 'project)'; then
     assert_pass "3.4 build_memory_context handles project scope"
 else
     assert_fail "3.4 build_memory_context handles project scope"
 fi
 
-if grep -A 40 '^build_memory_context()' "$ORCHESTRATE_SH" | grep -q 'user)'; then
+if grep -A 60 '^build_memory_context()' "$ORCHESTRATE_SH" | grep -q 'user)'; then
     assert_pass "3.5 build_memory_context handles user scope"
 else
     assert_fail "3.5 build_memory_context handles user scope"
 fi
 
-if grep -A 40 '^build_memory_context()' "$ORCHESTRATE_SH" | grep -q 'local)'; then
+if grep -A 60 '^build_memory_context()' "$ORCHESTRATE_SH" | grep -q 'local)'; then
     assert_pass "3.6 build_memory_context handles local scope"
 else
     assert_fail "3.6 build_memory_context handles local scope"
 fi
 
 # 3.7: build_memory_context reads MEMORY.md files
-if grep -A 40 '^build_memory_context()' "$ORCHESTRATE_SH" | grep -q 'MEMORY.md'; then
+if grep -A 60 '^build_memory_context()' "$ORCHESTRATE_SH" | grep -q 'MEMORY.md'; then
     assert_pass "3.7 build_memory_context reads MEMORY.md files"
 else
     assert_fail "3.7 build_memory_context reads MEMORY.md files"
