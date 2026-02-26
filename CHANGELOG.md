@@ -1,3 +1,16 @@
+## [8.26.0] - 2026-02-26
+
+### Changed
+
+- **Changelog Integration** (Claude Code v2.1.46-v2.1.59): 9 new feature flags, 2 new version detection blocks (v2.1.51+, v2.1.59+). Tracks remote control, npm registries, fast Bash, disk persistence, account env vars, managed settings, native auto-memory, agent memory GC, smart Bash prefixes.
+- **Worktree Lifecycle Hooks**: WorktreeCreate and WorktreeRemove handlers (`worktree-setup.sh`, `worktree-teardown.sh`). Propagates provider env vars, copies `.octo` state, cleans up on teardown. 8 hook event types (was 6).
+- **Settings Enhancement**: 8 new configurable defaults — Codex sandbox, memory injection, persona packs, worktree isolation, parallel agent limit, quality gate threshold, cost warnings, tool policies.
+- **Doctor Agents Category**: 10th diagnostic category. Checks agent definitions, worktree coverage, native CLI registration, version compatibility warnings.
+- **Native Auto-Memory Delegation**: When v2.1.59+ detected, skip redundant project/user memory injection. Retain provider-specific cross-session context.
+- **Agent Isolation Expansion**: security-auditor and deployment-engineer now use worktree isolation (10 agents total, was 8).
+
+---
+
 ## [8.25.0] - 2026-02-25
 
 ### Changed

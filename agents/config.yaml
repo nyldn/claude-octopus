@@ -230,6 +230,7 @@ agents:
     memory: project
     skills: [skill-security-audit]
     permissionMode: default
+    isolation: worktree    # v8.26: Prevents lock contention during deep analysis
 
   test-automator:
     file: personas/test-automator.md
@@ -265,6 +266,7 @@ agents:
     capabilities: [ci-cd, kubernetes, docker, gitops, terraform]
     memory: local
     permissionMode: default
+    isolation: worktree    # v8.26: May modify infra files, needs isolation
 
   # ═══════════════════════════════════════════════════════════════════════════
   # ORCHESTRATION/SUPPORTING AGENTS

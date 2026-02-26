@@ -156,5 +156,29 @@
         }
       ]
     }
+  ],
+  "WorktreeCreate": [
+    {
+      "matcher": {},
+      "hooks": [
+        {
+          "type": "command",
+          "command": "${CLAUDE_PLUGIN_ROOT}/hooks/worktree-setup.sh",
+          "additionalContext": "Session: ${CLAUDE_SESSION_ID}, Workflow: ${OCTOPUS_WORKFLOW_PHASE:-unknown}"
+        }
+      ]
+    }
+  ],
+  "WorktreeRemove": [
+    {
+      "matcher": {},
+      "hooks": [
+        {
+          "type": "command",
+          "command": "${CLAUDE_PLUGIN_ROOT}/hooks/worktree-teardown.sh",
+          "additionalContext": "Session: ${CLAUDE_SESSION_ID}, Workflow: ${OCTOPUS_WORKFLOW_PHASE:-unknown}"
+        }
+      ]
+    }
   ]
 }
