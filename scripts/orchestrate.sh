@@ -441,6 +441,15 @@ SUPPORTS_WORKTREE_ISOLATION=false      # v8.19: Claude Code v2.1.50+ (isolation:
 SUPPORTS_WORKTREE_HOOKS=false          # v8.19: Claude Code v2.1.50+ (WorktreeCreate/WorktreeRemove hooks)
 SUPPORTS_AGENTS_CLI=false              # v8.19: Claude Code v2.1.50+ (claude agents list command)
 SUPPORTS_FAST_OPUS_1M=false            # v8.19: Claude Code v2.1.50+ (fast Opus 4.6 with full 1M context)
+SUPPORTS_REMOTE_CONTROL=false           # v8.26: Claude Code v2.1.51+ (remote control API)
+SUPPORTS_NPM_PLUGIN_REGISTRIES=false    # v8.26: Claude Code v2.1.51+ (custom npm registries for plugins)
+SUPPORTS_FAST_BASH=false                # v8.26: Claude Code v2.1.51+ (BashTool skips login shell)
+SUPPORTS_AGGRESSIVE_DISK_PERSIST=false  # v8.26: Claude Code v2.1.51+ (tool results >50K to disk)
+SUPPORTS_ACCOUNT_ENV_VARS=false         # v8.26: Claude Code v2.1.51+ (ACCOUNT_UUID/USER_EMAIL/ORG_UUID)
+SUPPORTS_MANAGED_SETTINGS_PLATFORM=false # v8.26: Claude Code v2.1.51+ (macOS plist/Windows Registry)
+SUPPORTS_NATIVE_AUTO_MEMORY=false       # v8.26: Claude Code v2.1.59+ (native auto-memory + /memory cmd)
+SUPPORTS_AGENT_MEMORY_GC=false          # v8.26: Claude Code v2.1.59+ (completed subagent state released)
+SUPPORTS_SMART_BASH_PREFIXES=false      # v8.26: Claude Code v2.1.59+ (smart compound bash prefixes)
 OCTOPUS_BACKEND="api"              # v8.16: Detected backend (api|bedrock|vertex|foundry)
 AGENT_TEAMS_ENABLED="${CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS:-0}"
 OCTOPUS_SECURITY_V870="${OCTOPUS_SECURITY_V870:-true}"
@@ -597,6 +606,23 @@ detect_claude_code_version() {
         SUPPORTS_FAST_OPUS_1M=true
     fi
 
+    # Check for v2.1.51+ features (remote control, npm registries, fast bash, disk persist, account env vars, managed settings)
+    if version_compare "$CLAUDE_CODE_VERSION" "2.1.51" ">="; then
+        SUPPORTS_REMOTE_CONTROL=true
+        SUPPORTS_NPM_PLUGIN_REGISTRIES=true
+        SUPPORTS_FAST_BASH=true
+        SUPPORTS_AGGRESSIVE_DISK_PERSIST=true
+        SUPPORTS_ACCOUNT_ENV_VARS=true
+        SUPPORTS_MANAGED_SETTINGS_PLATFORM=true
+    fi
+
+    # Check for v2.1.59+ features (native auto-memory, agent memory GC, smart bash prefixes)
+    if version_compare "$CLAUDE_CODE_VERSION" "2.1.59" ">="; then
+        SUPPORTS_NATIVE_AUTO_MEMORY=true
+        SUPPORTS_AGENT_MEMORY_GC=true
+        SUPPORTS_SMART_BASH_PREFIXES=true
+    fi
+
     log "INFO" "Claude Code v$CLAUDE_CODE_VERSION detected"
     log "INFO" "Task Management: $SUPPORTS_TASK_MANAGEMENT | Fork Context: $SUPPORTS_FORK_CONTEXT | Agent Teams: $SUPPORTS_AGENT_TEAMS"
     log "INFO" "Persistent Memory: $SUPPORTS_PERSISTENT_MEMORY | Hook Events: $SUPPORTS_HOOK_EVENTS | Agent Type Routing: $SUPPORTS_AGENT_TYPE_ROUTING"
@@ -608,6 +634,8 @@ detect_claude_code_version() {
     log "INFO" "Stable BG Agents: $SUPPORTS_STABLE_BG_AGENTS | Hook Last Message: $SUPPORTS_HOOK_LAST_MESSAGE | Agent Model Field: $SUPPORTS_AGENT_MODEL_FIELD"
     log "INFO" "ConfigChange Hook: $SUPPORTS_CONFIG_CHANGE_HOOK | Plugin Scope Auto: $SUPPORTS_PLUGIN_SCOPE_AUTODETECT | SDK Model Caps: $SUPPORTS_SDK_MODEL_CAPS"
     log "INFO" "Worktree Isolation: $SUPPORTS_WORKTREE_ISOLATION | Worktree Hooks: $SUPPORTS_WORKTREE_HOOKS | Agents CLI: $SUPPORTS_AGENTS_CLI | Fast Opus 1M: $SUPPORTS_FAST_OPUS_1M"
+    log "INFO" "Remote Control: $SUPPORTS_REMOTE_CONTROL | NPM Registries: $SUPPORTS_NPM_PLUGIN_REGISTRIES | Fast Bash: $SUPPORTS_FAST_BASH | Disk Persist: $SUPPORTS_AGGRESSIVE_DISK_PERSIST"
+    log "INFO" "Native Auto-Memory: $SUPPORTS_NATIVE_AUTO_MEMORY | Agent Memory GC: $SUPPORTS_AGENT_MEMORY_GC | Smart Bash Prefixes: $SUPPORTS_SMART_BASH_PREFIXES"
 
     # v8.5: Detect /fast toggle after version detection
     detect_fast_mode
@@ -10079,6 +10107,16 @@ build_memory_context() {
         return
     fi
 
+    # v8.26: When native auto-memory is active (v2.1.59+), delegate project/user memory
+    # to Claude Code's native system. Keep Octopus injection for local scope only
+    # (provider-specific ephemeral context not visible to native memory).
+    if [[ "$SUPPORTS_NATIVE_AUTO_MEMORY" == "true" ]]; then
+        if [[ "$scope" == "project" || "$scope" == "user" ]]; then
+            log "DEBUG" "Delegating $scope memory to native auto-memory (v2.1.59+)"
+            return
+        fi
+    fi
+
     # Skip if no scope
     if [[ "$scope" == "none" || -z "$scope" ]]; then
         return
@@ -10350,7 +10388,13 @@ ${skill_context}"
             log "DEBUG" "Agent fields: memory=$agent_mem, permissionMode=$agent_perm"
 
             # v8.5: Cross-memory warm start - inject memory context into prompt
-            if [[ -n "$agent_mem" && "$agent_mem" != "none" ]]; then
+            # v8.26: Skip when native auto-memory handles project/user scope (v2.1.59+)
+            local _skip_mem=false
+            if [[ "$SUPPORTS_NATIVE_AUTO_MEMORY" == "true" && "$agent_mem" != "local" && "$agent_mem" != "none" ]]; then
+                _skip_mem=true
+                log "DEBUG" "Skipping Octopus memory injection for $curated_name (scope=$agent_mem, native auto-memory active)"
+            fi
+            if [[ "$_skip_mem" != "true" && -n "$agent_mem" && "$agent_mem" != "none" ]]; then
                 local memory_context
                 memory_context=$(build_memory_context "$agent_mem")
                 if [[ -n "$memory_context" ]]; then
@@ -13655,6 +13699,54 @@ doctor_check_smoke() {
     fi
 }
 
+# --- Category 10: Agents (v8.26.0 - Changelog Integration) ---
+doctor_check_agents() {
+    local config_file="${PLUGIN_DIR}/agents/config.yaml"
+    if [[ ! -f "$config_file" ]]; then
+        doctor_add "agents-config" "agents" "fail" \
+            "agents/config.yaml not found" "Expected at: $config_file"
+        return
+    fi
+
+    local agent_count
+    agent_count=$(grep -c '^\s\{2\}[a-z]' "$config_file" 2>/dev/null || echo "0")
+    doctor_add "agents-count" "agents" "pass" \
+        "${agent_count} agent definitions found" ""
+
+    local worktree_agents
+    worktree_agents=$(grep -c 'isolation: worktree' "$config_file" 2>/dev/null || echo "0")
+    doctor_add "agents-worktree" "agents" "pass" \
+        "${worktree_agents} agents with worktree isolation" ""
+
+    if [[ "$SUPPORTS_AGENTS_CLI" == "true" ]]; then
+        local cli_output
+        cli_output=$(claude agents 2>/dev/null | head -20 || echo "")
+        if [[ -n "$cli_output" ]]; then
+            local cli_count
+            cli_count=$(echo "$cli_output" | grep -c "^" || echo "0")
+            doctor_add "agents-cli" "agents" "pass" \
+                "Claude agents CLI: ${cli_count} agents registered" ""
+        else
+            doctor_add "agents-cli" "agents" "warn" \
+                "Claude agents CLI returned no data" "Run 'claude agents' manually"
+        fi
+    else
+        doctor_add "agents-cli" "agents" "info" \
+            "Claude agents CLI not available (requires v2.1.50+)" ""
+    fi
+
+    if [[ -n "${CLAUDE_CODE_VERSION:-}" ]]; then
+        if version_compare "$CLAUDE_CODE_VERSION" "2.1.50" "<" 2>/dev/null; then
+            doctor_add "agents-version" "agents" "warn" \
+                "Claude Code < v2.1.50 — multi-agent memory leaks possible" \
+                "Recommend upgrading for worktree isolation and embrace stability"
+        else
+            doctor_add "agents-version" "agents" "pass" \
+                "Claude Code v${CLAUDE_CODE_VERSION} — multi-agent stable" ""
+        fi
+    fi
+}
+
 # --- Output: Human-readable ---
 doctor_output_human() {
     local verbose="${1:-false}"
@@ -13764,7 +13856,7 @@ do_doctor() {
     DOCTOR_RESULTS_DETAIL=()
 
     # Run checks (filtered if category specified)
-    local categories=(providers auth config state smoke hooks scheduler skills conflicts)
+    local categories=(providers auth config state smoke hooks scheduler skills conflicts agents)
     for cat in "${categories[@]}"; do
         if [[ -z "$category_filter" || "$category_filter" == "$cat" ]]; then
             "doctor_check_${cat}"
