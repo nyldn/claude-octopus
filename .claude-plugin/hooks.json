@@ -76,6 +76,15 @@
           "additionalContext": "Scheduler job: ${OCTOPUS_JOB_ID:-none}"
         }
       ]
+    },
+    {
+      "matcher": {"tool": "EnterPlanMode"},
+      "hooks": [
+        {
+          "type": "command",
+          "command": "${CLAUDE_PLUGIN_ROOT}/hooks/plan-mode-interceptor.sh"
+        }
+      ]
     }
   ],
   "PostToolUse": [
@@ -117,6 +126,10 @@
           "type": "command",
           "command": "${CLAUDE_PLUGIN_ROOT}/scripts/session-manager.sh export",
           "additionalContext": "Initializing Octopus session variables for multi-provider orchestration"
+        },
+        {
+          "type": "command",
+          "command": "${CLAUDE_PLUGIN_ROOT}/hooks/context-reinforcement.sh"
         }
       ]
     }

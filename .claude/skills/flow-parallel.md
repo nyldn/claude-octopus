@@ -5,13 +5,14 @@ aliases:
   - team
   - teams
   - team-of-teams
-description: Team of Teams — decompose compound tasks across independent claude instances
+description: "Parallel task decomposition"
 execution_mode: enforced
 validation_gates:
   - wbs_generated
   - instructions_written
   - processes_launched
   - all_work_packages_complete
+invocation: human_only
 ---
 
 # STOP - SKILL ALREADY LOADED
