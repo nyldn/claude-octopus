@@ -14799,7 +14799,8 @@ Identify:
 1. Key insights and patterns across all perspectives
 2. Conflicting perspectives that need resolution
 3. Gaps in understanding that need more research
-4. Recommended approach based on findings
+4. Priority Matrix — rank findings by impact (High/Medium/Low) and effort (Low/Medium/High) in a table
+5. Recommended approach based on findings
 
 Research findings:
 $results"
@@ -18646,7 +18647,7 @@ case "$COMMAND" in
                     if [[ -z "$factory_spec" ]]; then
                         # Create temp spec from inline text
                         factory_spec=$(mktemp /tmp/factory-spec-XXXXXX.md)
-                        echo "$*" > "$factory_spec"
+                        echo "$@" > "$factory_spec"
                     fi
                     break
                     ;;
@@ -18709,7 +18710,7 @@ case "$COMMAND" in
             esac
         done
 
-        grapple_debate "$*" "$principles" "$rounds"
+        grapple_debate "$@" "$principles" "$rounds"
         ;;
     squeeze|red-team)
         # Red Team security review: Blue Team defends, Red Team attacks
