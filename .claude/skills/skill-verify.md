@@ -17,9 +17,9 @@ validation_gates:
 
 ## The Iron Law
 
-```
+<HARD-GATE>
 NO COMPLETION CLAIMS WITHOUT FRESH VERIFICATION EVIDENCE
-```
+</HARD-GATE>
 
 Claiming work is complete without verification is dishonesty, not efficiency.
 

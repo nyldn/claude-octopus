@@ -3,7 +3,7 @@ name: skill-debug
 aliases:
   - debug
   - systematic-debugging
-description: "Four-phase debugging: Investigate, Analyze, Hypothesize, Implement"
+description: "Systematic debugging workflow"
 trigger: |
   AUTOMATICALLY ACTIVATE when encountering bugs or failures:
   - "fix this bug" or "debug Y" or "troubleshoot X"
@@ -32,9 +32,9 @@ validation_gates:
 
 ## The Iron Law
 
-```
+<HARD-GATE>
 NO FIXES WITHOUT ROOT CAUSE INVESTIGATION FIRST
-```
+</HARD-GATE>
 
 Random fixes waste time and create new bugs. Quick patches mask underlying issues.
 
