@@ -3,7 +3,7 @@ name: octopus-research
 aliases:
   - research
   - deep-research
-description: Deep multi-AI parallel research with cost transparency and synthesis
+description: "Deep research with multi-source synthesis"
 context: fork
 agent: Explore
 task_management: true
@@ -17,6 +17,7 @@ pre_execution_contract:
 validation_gates:
   - orchestrate_sh_executed
   - synthesis_file_exists
+invocation: human_only
 trigger: |
   Use this skill when the user wants to "research this topic", "investigate how X works",
   "analyze the architecture", "explore different approaches to Y", or "what are the options for Z".
@@ -26,10 +27,12 @@ trigger: |
 
 ## ⚠️ EXECUTION CONTRACT (MANDATORY - CANNOT SKIP)
 
+<HARD-GATE>
 **CRITICAL: You MUST call orchestrate.sh via the Bash tool. Do NOT research the topic yourself.
 Do NOT use Task agents, web search, or your own knowledge as a substitute. The ONLY valid
 execution path is: Bash → orchestrate.sh probe. If you produce research findings without
 a Bash call to orchestrate.sh, you have violated this contract.**
+</HARD-GATE>
 
 This skill uses **ENFORCED execution mode**. You MUST follow this exact sequence.
 

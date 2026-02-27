@@ -5,12 +5,13 @@ aliases:
   - dark-factory
   - build-from-spec
   - autonomous-build
-description: Dark Factory Mode — spec-in, software-out autonomous pipeline with holdout testing and satisfaction scoring
+description: "Autonomous build pipeline"
 execution_mode: enforced
 validation_gates:
   - spec_file_validated
   - orchestrate_sh_executed
   - factory_report_exists
+invocation: human_only
 ---
 
 # STOP - SKILL ALREADY LOADED
@@ -83,12 +84,14 @@ With optional flags based on Step 1 answers:
 - `--max-retries <value>` if custom retry count
 - `--ci` if user approved non-interactive mode
 
+<HARD-GATE>
 PROHIBITED from:
 - Running embrace directly (MUST use factory command which wraps it)
 - Simulating or faking holdout testing
 - Substituting direct Claude analysis for multi-provider scoring
 - Skipping the factory pipeline
 - Creating working/progress files in plugin directory
+</HARD-GATE>
 
 ### STEP 6: Verify Factory Report (MANDATORY — Validation Gate)
 ```bash

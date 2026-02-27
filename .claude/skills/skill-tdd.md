@@ -3,7 +3,7 @@ name: skill-tdd
 aliases:
   - tdd
   - test-driven-development
-description: "TDD discipline: write failing test first, then minimal code"
+description: "Test-driven development workflow"
 trigger: |
   Use when implementing any feature, bugfix, or behavior change.
   Auto-invoke when user says "implement X", "add feature Y", "fix bug Z".
@@ -14,9 +14,9 @@ trigger: |
 
 ## The Iron Law
 
-```
+<HARD-GATE>
 NO PRODUCTION CODE WITHOUT A FAILING TEST FIRST
-```
+</HARD-GATE>
 
 **Violating the letter of this rule is violating the spirit of this rule.**
 

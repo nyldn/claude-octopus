@@ -1,3 +1,16 @@
+## [8.27.0] - 2026-02-26
+
+### Changed
+
+- **Context Compaction Survival** (P0): SessionStart hook (`context-reinforcement.sh`) re-injects Iron Laws after context compaction. Enforcement rules no longer lost on conversation compression.
+- **Description Trap Audit** (P1): 5 skill descriptions rewritten to opaque, outcome-focused format. Prevents model from skipping full skill reads.
+- **XML Enforcement Tags** (P1): `<HARD-GATE>` tags on 5 Iron Laws for higher model compliance. Applied to skill-deep-research, skill-factory, skill-tdd, skill-verify, skill-debug.
+- **Human-Only Skill Flag** (P1): `invocation: human_only` on 5 expensive skills — prevents auto-triggering without explicit user invocation.
+- **Two-Stage Review Pipeline** (P2): New `skill-staged-review.md` — Stage 1 validates spec compliance against intent contract, Stage 2 runs stub detection and code quality. Gate between stages.
+- **EnterPlanMode Interception** (P2): PreToolUse hook (`plan-mode-interceptor.sh`) re-injects enforcement rules when entering plan mode.
+
+---
+
 ## [8.26.0] - 2026-02-26
 
 ### Changed
