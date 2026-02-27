@@ -484,6 +484,46 @@ get_tier_name() {
     esac
 }
 
+# Classify task into Cynefin domain (Simple/Complicated/Complex/Chaotic)
+# Uses complexity score + task_type + prompt signals to determine domain
+# Usage: classify_cynefin <prompt> <task_type> <complexity>
+classify_cynefin() {
+    local prompt="$1"
+    local task_type="$2"
+    local complexity="${3:-2}"
+    local prompt_lower
+    prompt_lower=$(echo "$prompt" | tr '[:upper:]' '[:lower:]')
+
+    # Chaotic signals: urgency + unknown, production incidents, crisis
+    local chaotic_patterns="urgent|emergency|broken|down|outage|incident|crash|critical.*bug|production.*fail|asap"
+    if [[ "$prompt_lower" =~ ($chaotic_patterns) ]]; then
+        echo "Chaotic"
+        return 0
+    fi
+
+    # Simple: trivial complexity, well-known patterns, single-step
+    if [[ "$complexity" -le 1 ]]; then
+        echo "Simple"
+        return 0
+    fi
+
+    # Complex: high complexity, emergent/novel, research-heavy
+    local complex_signals="explore|investigate|design.*new|novel|prototype|experiment|uncertain|unknown|from.?scratch|architecture"
+    if [[ "$complexity" -ge 3 ]] && [[ "$prompt_lower" =~ ($complex_signals) ]]; then
+        echo "Complex"
+        return 0
+    fi
+
+    # Complex: debate/research task types indicate emergent domains
+    if [[ "$task_type" =~ ^(crossfire-grapple|diamond-discover|diamond-embrace) ]]; then
+        echo "Complex"
+        return 0
+    fi
+
+    # Complicated: known solutions exist, expertise required
+    echo "Complicated"
+}
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # ROLE MAPPING
 # ═══════════════════════════════════════════════════════════════════════════════
