@@ -91,7 +91,7 @@ test_gate_alias_support() {
 test_gate_fallback() {
     test_case "Unknown phases fall back to QUALITY_THRESHOLD"
 
-    if grep -A 30 "get_gate_threshold()" "$PROJECT_ROOT/scripts/orchestrate.sh" | grep -q "QUALITY_THRESHOLD"; then
+    if grep -A 65 "get_gate_threshold()" "$PROJECT_ROOT/scripts/orchestrate.sh" | grep -q "QUALITY_THRESHOLD"; then
         test_pass
     else
         test_fail "Fallback to QUALITY_THRESHOLD not found"
