@@ -3622,35 +3622,64 @@ detect_response_mode() {
 get_gate_threshold() {
     local phase="$1"
 
-    local threshold
+    # Check for explicit env var override first
+    local override=""
     case "$phase" in
-        probe|discover)
-            threshold="${OCTOPUS_GATE_PROBE}"
-            ;;
-        grasp|define)
-            threshold="${OCTOPUS_GATE_GRASP}"
-            ;;
-        tangle|develop)
-            threshold="${OCTOPUS_GATE_TANGLE}"
-            ;;
-        ink|deliver)
-            threshold="${OCTOPUS_GATE_INK}"
-            ;;
+        probe|discover) override="${OCTOPUS_GATE_PROBE}" ;;
+        grasp|define)   override="${OCTOPUS_GATE_GRASP}" ;;
+        tangle|develop) override="${OCTOPUS_GATE_TANGLE}" ;;
+        ink|deliver)    override="${OCTOPUS_GATE_INK}" ;;
         security)
-            threshold="${OCTOPUS_GATE_SECURITY}"
+            override="${OCTOPUS_GATE_SECURITY}"
             # Security floor: never allow below 100
-            if [[ "$threshold" -lt 100 ]]; then
-                log WARN "Security gate threshold clamped to 100 (was $threshold)"
-                threshold=100
+            if [[ -n "$override" && "$override" -lt 100 ]]; then
+                log WARN "Security gate threshold clamped to 100 (was $override)"
+                override=100
             fi
-            ;;
-        *)
-            # Fallback to global QUALITY_THRESHOLD for unknown phases
-            threshold="${QUALITY_THRESHOLD}"
+            echo "${override:-100}"
+            return 0
             ;;
     esac
 
-    echo "$threshold"
+    # If explicit override, use it
+    if [[ -n "$override" ]]; then
+        echo "$override"
+        return 0
+    fi
+
+    # SPC: Calculate threshold from historical quality_gate data (mean - 3σ lower bound)
+    local metrics_file="${WORKSPACE_DIR:-.}/.octo/metrics.jsonl"
+    if [[ -f "$metrics_file" ]]; then
+        local spc_threshold
+        spc_threshold=$(grep '"metric":"quality_gate"' "$metrics_file" 2>/dev/null | \
+            grep -o '"value":"[^"]*"' | sed 's/"value":"//;s/"//' | \
+            grep -E '^[0-9]+\.?[0-9]*$' | awk '
+            {
+                values[NR] = $1; count++; sum += $1
+            }
+            END {
+                if (count >= 5) {
+                    mean = sum / count
+                    sumsq = 0
+                    for (i = 1; i <= count; i++) sumsq += (values[i] - mean)^2
+                    stddev = sqrt(sumsq / count)
+                    lcl = mean - 3 * stddev
+                    # Clamp: never below 50 or above 95
+                    if (lcl < 50) lcl = 50
+                    if (lcl > 95) lcl = 95
+                    printf "%d", lcl
+                }
+            }')
+
+        if [[ -n "$spc_threshold" ]]; then
+            log "DEBUG" "SPC threshold for $phase: $spc_threshold (from historical data)"
+            echo "$spc_threshold"
+            return 0
+        fi
+    fi
+
+    # Fallback to static default
+    echo "${QUALITY_THRESHOLD}"
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -10931,11 +10960,16 @@ auto_route() {
     echo -e "${MAGENTA}  Claude Octopus - Smart Routing with Branching${NC}"
     echo -e "${MAGENTA}═══════════════════════════════════════════════════════════${NC}"
     echo ""
+    # Cynefin domain classification
+    local cynefin_domain
+    cynefin_domain=$(classify_cynefin "$prompt" "$task_type" "$complexity")
+
     echo -e "${BLUE}Task Analysis:${NC}"
     echo -e "  Prompt: ${prompt:0:80}..."
     echo -e "  Detected Type: ${GREEN}$task_type${NC}"
     echo -e "  Context: ${YELLOW}$context_display${NC}"
     echo -e "  Complexity: ${CYAN}$tier_name${NC}"
+    echo -e "  Domain: ${CYAN}$cynefin_domain${NC}"
     echo -e "  Branch: ${MAGENTA}$branch_display${NC}"
 
     # v8.18.0: Response mode auto-tuning
@@ -15807,6 +15841,62 @@ ${obs_ctx}"
 # Issue #37: E19 (Scenario Holdout) + E21 (Satisfaction Scoring) + E22 (Factory)
 # ═══════════════════════════════════════════════════════════════════════════
 
+assess_spec_maturity() {
+    local spec_path="$1"
+
+    if [[ ! -f "$spec_path" ]]; then
+        echo "Skeleton|0|{}"
+        return 0
+    fi
+
+    local spec_content
+    spec_content=$(cat "$spec_path")
+
+    # Count NLSpec template sections
+    local has_purpose=0 has_actors=0 has_behaviors=0
+    local has_constraints=0 has_dependencies=0 has_acceptance=0
+
+    echo "$spec_content" | grep -qi '## Purpose' && has_purpose=1
+    echo "$spec_content" | grep -qi '## Actors' && has_actors=1
+    echo "$spec_content" | grep -qi '## Behaviors' && has_behaviors=1
+    echo "$spec_content" | grep -qi '## Constraints' && has_constraints=1
+    echo "$spec_content" | grep -qi '## Dependencies' && has_dependencies=1
+    echo "$spec_content" | grep -qi '## Acceptance' && has_acceptance=1
+
+    local sections=$((has_purpose + has_actors + has_behaviors + has_constraints + has_dependencies + has_acceptance))
+
+    # Quality markers (edge cases, preconditions, postconditions)
+    local has_edge_cases=0 has_preconditions=0 has_postconditions=0
+    echo "$spec_content" | grep -qi 'edge.case\|exception\|error.handling' && has_edge_cases=1
+    echo "$spec_content" | grep -qi 'precondition' && has_preconditions=1
+    echo "$spec_content" | grep -qi 'postcondition' && has_postconditions=1
+
+    local quality_markers=$((has_edge_cases + has_preconditions + has_postconditions))
+
+    # Determine maturity level
+    local level
+    if [[ $sections -lt 2 ]]; then
+        level="Skeleton"
+    elif [[ $sections -lt 4 ]]; then
+        level="Draft"
+    elif [[ $sections -lt 5 ]]; then
+        level="Structured"
+    elif [[ $sections -lt 6 || $quality_markers -lt 2 ]]; then
+        level="Validated"
+    else
+        level="Mature"
+    fi
+
+    # Build JSON
+    local json
+    json=$(cat <<MATEOF
+{"level":"$level","sections":$sections,"quality_markers":$quality_markers,"detail":{"purpose":$has_purpose,"actors":$has_actors,"behaviors":$has_behaviors,"constraints":$has_constraints,"dependencies":$has_dependencies,"acceptance":$has_acceptance,"edge_cases":$has_edge_cases,"preconditions":$has_preconditions,"postconditions":$has_postconditions},"assessed_at":"$(date -u +%Y-%m-%dT%H:%M:%SZ)"}
+MATEOF
+)
+
+    echo "${level}|${sections}|${json}"
+}
+
 parse_factory_spec() {
     local spec_path="$1"
     local run_dir="$2"
@@ -15860,7 +15950,7 @@ parse_factory_spec() {
 
     log INFO "Factory spec parsed: complexity=$complexity, satisfaction_target=$satisfaction_target, behaviors=$behavior_count"
 
-    # Write parsed metadata
+    # Write parsed metadata (includes maturity from pre-flight E27 assessment)
     cat > "$run_dir/session.json" << SPECEOF
 {
   "run_id": "$(basename "$run_dir")",
@@ -15870,6 +15960,7 @@ parse_factory_spec() {
   "behavior_count": $behavior_count,
   "holdout_ratio": $OCTOPUS_FACTORY_HOLDOUT_RATIO,
   "max_retries": $OCTOPUS_FACTORY_MAX_RETRIES,
+  "maturity": $maturity_json,
   "status": "initialized",
   "started_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 }
@@ -16155,6 +16246,92 @@ After all scenarios, output:
     echo "$holdout_score"
 }
 
+score_nlspec_quality() {
+    local spec_path="$1"
+    local output_dir="${2:-.}"
+
+    if [[ ! -f "$spec_path" ]]; then
+        log ERROR "Spec not found for NQS scoring: $spec_path"
+        echo "0|FAIL"
+        return 0
+    fi
+
+    local spec_content
+    spec_content=$(cat "$spec_path" | head -500)
+
+    local nqs_prompt="You are a specification quality analyst. Score this NLSpec on 12 dimensions (0.0-1.0 each).
+
+## Specification
+${spec_content:0:6000}
+
+## Scoring Dimensions (score each 0.0-1.0)
+1. completeness — All required sections present and substantive
+2. clarity — Clear, unambiguous language; no vague terms like 'should handle appropriately'
+3. testability — Behaviors specific enough to write automated tests against
+4. feasibility — Requirements are technically realistic and achievable
+5. specificity — Concrete details, not generic descriptions
+6. structure — Logical organization, clear hierarchy, consistent formatting
+7. consistency — No contradictions or conflicting requirements
+8. behavioral_coverage — All major use cases and user flows addressed
+9. constraint_clarity — Performance, security, scale targets are quantified
+10. dependency_completeness — External services, libraries, APIs identified
+11. acceptance_criteria — Clear satisfaction targets with measurable metrics
+12. complexity_match — Complexity classification matches actual content scope
+
+## Output Format (STRICT — output ONLY this JSON, no other text)
+{\"completeness\":0.0,\"clarity\":0.0,\"testability\":0.0,\"feasibility\":0.0,\"specificity\":0.0,\"structure\":0.0,\"consistency\":0.0,\"behavioral_coverage\":0.0,\"constraint_clarity\":0.0,\"dependency_completeness\":0.0,\"acceptance_criteria\":0.0,\"complexity_match\":0.0}"
+
+    local nqs_result
+    nqs_result=$(run_agent_sync "claude-sonnet" "$nqs_prompt" 120 "spec-quality-analyst" "factory" 2>/dev/null) || true
+
+    if [[ -z "$nqs_result" ]]; then
+        nqs_result=$(run_agent_sync "gemini" "$nqs_prompt" 120 "spec-quality-analyst" "factory" 2>/dev/null) || true
+    fi
+
+    if [[ -z "$nqs_result" ]]; then
+        log WARN "NQS scoring failed from all providers"
+        echo "0|FAIL"
+        return 0
+    fi
+
+    # Extract JSON from response (find first { to last })
+    local json_scores
+    json_scores=$(echo "$nqs_result" | grep -o '{[^}]*}' | head -1)
+
+    if [[ -z "$json_scores" ]]; then
+        log WARN "NQS scoring returned unparseable result"
+        echo "0|FAIL"
+        return 0
+    fi
+
+    # Calculate composite score (equal weights: 8.33% each)
+    local composite
+    composite=$(echo "$json_scores" | grep -o '[0-9]*\.[0-9]*' | awk '
+        { sum += $1; count++ }
+        END {
+            if (count > 0) printf "%d", (sum / count) * 100
+            else print "0"
+        }')
+
+    # Determine verdict
+    local verdict="FAIL"
+    if [[ "$composite" -ge 85 ]]; then
+        verdict="PASS"
+    elif [[ "$composite" -ge 75 ]]; then
+        verdict="WARN"
+    fi
+
+    # Write scores file if output directory provided
+    if [[ -d "$output_dir" ]]; then
+        cat > "$output_dir/nqs-scores.json" << NQSEOF
+{"composite":$composite,"verdict":"$verdict","dimensions":$json_scores,"scored_at":"$(date -u +%Y-%m-%dT%H:%M:%SZ)"}
+NQSEOF
+    fi
+
+    log INFO "NQS score: $composite ($verdict)"
+    echo "${composite}|${verdict}"
+}
+
 score_satisfaction() {
     local run_dir="$1"
     local satisfaction_target="$2"
@@ -16346,6 +16523,24 @@ factory_run() {
         return 1
     fi
 
+    # ── Pre-flight: Specification Maturity Assessment (E27) ──────────────
+    local maturity_result maturity_level maturity_sections maturity_json
+    maturity_result=$(assess_spec_maturity "$spec_path")
+    maturity_level=$(echo "$maturity_result" | cut -d'|' -f1)
+    maturity_sections=$(echo "$maturity_result" | cut -d'|' -f2)
+    maturity_json=$(echo "$maturity_result" | cut -d'|' -f3)
+
+    if [[ "$maturity_level" == "Skeleton" ]]; then
+        log ERROR "Spec maturity too low: $maturity_level ($maturity_sections/6 sections)"
+        echo -e "${RED}  ✗ Maturity: $maturity_level ($maturity_sections/6 sections)${NC}"
+        echo "  Factory requires at least Draft level. Use /octo:spec to develop the specification."
+        return 1
+    fi
+
+    if [[ "$maturity_level" == "Draft" ]]; then
+        log WARN "Spec maturity is Draft ($maturity_sections/6 sections) — results may be limited"
+    fi
+
     # Create run directory
     local run_id
     run_id="factory-$(date +%Y%m%d-%H%M%S)"
@@ -16360,6 +16555,7 @@ factory_run() {
     echo ""
     echo -e "${CYAN}  Run ID:    ${NC}$run_id"
     echo -e "${CYAN}  Spec:      ${NC}$spec_path"
+    echo -e "${CYAN}  Maturity:  ${NC}$maturity_level ($maturity_sections/6 sections)"
     echo -e "${CYAN}  Holdout:   ${NC}${holdout_ratio} ($(echo "$holdout_ratio" | awk '{printf "%d", $1 * 100}')%)"
     echo -e "${CYAN}  Retries:   ${NC}$max_retries"
     echo ""
@@ -16373,6 +16569,24 @@ factory_run() {
         return 1
     fi
     echo -e "${GREEN}  ✓${NC} Satisfaction target: $satisfaction_target"
+
+    # ── Phase 1b: NQS Quality Score (E25) ────────────────────────────────
+    echo -e "${YELLOW}[1b/7]${NC} Scoring spec quality (NQS)..."
+    local nqs_result nqs_score nqs_verdict
+    nqs_result=$(score_nlspec_quality "$spec_path" "$run_dir")
+    nqs_score=$(echo "$nqs_result" | cut -d'|' -f1)
+    nqs_verdict=$(echo "$nqs_result" | cut -d'|' -f2)
+
+    if [[ "$nqs_verdict" == "FAIL" ]]; then
+        echo -e "${RED}  ✗ NQS Score: ${nqs_score}/100 (minimum 85 required)${NC}"
+        echo "  Spec quality too low for autonomous execution. Use /octo:spec to improve."
+        log ERROR "NQS gate failed: $nqs_score/100"
+        return 1
+    elif [[ "$nqs_verdict" == "WARN" ]]; then
+        echo -e "${YELLOW}  ⚠ NQS Score: ${nqs_score}/100 (proceeding with caution)${NC}"
+    else
+        echo -e "${GREEN}  ✓${NC} NQS Score: ${nqs_score}/100"
+    fi
 
     # Cost estimate and approval gate
     if [[ "$ci_mode" != "true" ]]; then
@@ -16580,13 +16794,19 @@ grapple_debate() {
     codex_proposal=$(run_agent_sync "codex" "
 $no_explore_constraint
 
-You are the PROPOSER. Implement this task with your best approach:
+You are formulating a HYPOTHESIS. Propose your best approach to this task:
 $prompt
 
 ${principle_text:+Adhere to these principles:
 $principle_text}
 
-Output your implementation with clear reasoning. Be thorough and practical." 120 "implementer" "grapple")
+Structure your response:
+1. HYPOTHESIS: Your proposed approach and why it should work
+2. KEY ASSUMPTIONS: List 3-5 assumptions your approach depends on
+3. FALSIFICATION CRITERIA: What evidence would DISPROVE this approach?
+4. IMPLEMENTATION: Your concrete implementation
+
+Be thorough and practical." 120 "implementer" "grapple")
 
     if [[ $? -ne 0 || -z "$codex_proposal" ]]; then
         echo ""
@@ -16599,13 +16819,19 @@ Output your implementation with clear reasoning. Be thorough and practical." 120
     gemini_proposal=$(run_agent_sync "gemini" "
 $no_explore_constraint
 
-You are the PROPOSER. Implement this task with your best approach:
+You are formulating a HYPOTHESIS. Propose your best approach to this task:
 $prompt
 
 ${principle_text:+Adhere to these principles:
 $principle_text}
 
-Output your implementation with clear reasoning. Be thorough and practical." 120 "researcher" "grapple")
+Structure your response:
+1. HYPOTHESIS: Your proposed approach and why it should work
+2. KEY ASSUMPTIONS: List 3-5 assumptions your approach depends on
+3. FALSIFICATION CRITERIA: What evidence would DISPROVE this approach?
+4. IMPLEMENTATION: Your concrete implementation
+
+Be thorough and practical." 120 "researcher" "grapple")
 
     if [[ $? -ne 0 || -z "$gemini_proposal" ]]; then
         echo ""
@@ -16618,13 +16844,19 @@ Output your implementation with clear reasoning. Be thorough and practical." 120
     sonnet_proposal=$(run_agent_sync "claude-sonnet" "
 $no_explore_constraint
 
-You are the PROPOSER. Implement this task with your best approach:
+You are formulating a HYPOTHESIS. Propose your best approach to this task:
 $prompt
 
 ${principle_text:+Adhere to these principles:
 $principle_text}
 
-Output your implementation with clear reasoning. Be thorough and practical." 120 "researcher" "grapple")
+Structure your response:
+1. HYPOTHESIS: Your proposed approach and why it should work
+2. KEY ASSUMPTIONS: List 3-5 assumptions your approach depends on
+3. FALSIFICATION CRITERIA: What evidence would DISPROVE this approach?
+4. IMPLEMENTATION: Your concrete implementation
+
+Be thorough and practical." 120 "researcher" "grapple")
 
     if [[ $? -ne 0 || -z "$sonnet_proposal" ]]; then
         echo ""
@@ -16643,28 +16875,28 @@ Output your implementation with clear reasoning. Be thorough and practical." 120
 
     local codex_critique gemini_critique sonnet_critique
 
-    # Codex critiques Gemini + Sonnet proposals
+    # Codex falsifies Gemini + Sonnet hypotheses
     codex_critique=$(run_agent_sync "codex-review" "
 $no_explore_constraint
 
-You are a CRITICAL REVIEWER. Your job is to find flaws in these implementations.
+You are a FALSIFIER using Analysis of Competing Hypotheses (ACH). Your job is to DISPROVE these proposals by testing their stated assumptions.
 
-IMPLEMENTATION 1 TO CRITIQUE (from Gemini):
+HYPOTHESIS 1 (from Gemini):
 $gemini_proposal
 
-IMPLEMENTATION 2 TO CRITIQUE (from Sonnet 4.6):
+HYPOTHESIS 2 (from Sonnet 4.6):
 $sonnet_proposal
 
-Find at least 3 issues across both. For each:
-- SOURCE: [Gemini or Sonnet]
-- ISSUE: [specific problem]
-- IMPACT: [why it matters]
-- FIX: [concrete solution]
+For each hypothesis, attempt to falsify it:
+- ASSUMPTION TESTED: [which stated assumption you're challenging]
+- FALSIFYING EVIDENCE: [concrete evidence or scenario that disproves it]
+- SEVERITY: [Critical/High/Medium — would this break the approach?]
+- UNFALSIFIED: [which assumptions survived your analysis]
 
 ${principle_text:+Evaluate against these principles:
 $principle_text}
 
-Be harsh but fair. If genuinely good, explain why." 90 "code-reviewer" "grapple")
+Focus on falsification, not preference. An approach with unfalsified assumptions is stronger than one that 'feels better'." 90 "code-reviewer" "grapple")
 
     if [[ $? -ne 0 || -z "$codex_critique" ]]; then
         echo ""
@@ -16674,28 +16906,28 @@ Be harsh but fair. If genuinely good, explain why." 90 "code-reviewer" "grapple"
         return 1
     fi
 
-    # Gemini critiques Codex + Sonnet proposals
+    # Gemini falsifies Codex + Sonnet hypotheses
     gemini_critique=$(run_agent_sync "gemini" "
 $no_explore_constraint
 
-You are a CRITICAL REVIEWER. Your job is to find flaws in these implementations.
+You are a FALSIFIER using Analysis of Competing Hypotheses (ACH). Your job is to DISPROVE these proposals by testing their stated assumptions.
 
-IMPLEMENTATION 1 TO CRITIQUE (from Codex):
+HYPOTHESIS 1 (from Codex):
 $codex_proposal
 
-IMPLEMENTATION 2 TO CRITIQUE (from Sonnet 4.6):
+HYPOTHESIS 2 (from Sonnet 4.6):
 $sonnet_proposal
 
-Find at least 3 issues across both. For each:
-- SOURCE: [Codex or Sonnet]
-- ISSUE: [specific problem]
-- IMPACT: [why it matters]
-- FIX: [concrete solution]
+For each hypothesis, attempt to falsify it:
+- ASSUMPTION TESTED: [which stated assumption you're challenging]
+- FALSIFYING EVIDENCE: [concrete evidence or scenario that disproves it]
+- SEVERITY: [Critical/High/Medium — would this break the approach?]
+- UNFALSIFIED: [which assumptions survived your analysis]
 
 ${principle_text:+Evaluate against these principles:
 $principle_text}
 
-Be harsh but fair. If genuinely good, explain why." 90 "security-auditor" "grapple")
+Focus on falsification, not preference. An approach with unfalsified assumptions is stronger than one that 'feels better'." 90 "security-auditor" "grapple")
 
     if [[ $? -ne 0 || -z "$gemini_critique" ]]; then
         echo ""
@@ -16705,23 +16937,23 @@ Be harsh but fair. If genuinely good, explain why." 90 "security-auditor" "grapp
         return 1
     fi
 
-    # Sonnet critiques Codex + Gemini proposals
+    # Sonnet falsifies Codex + Gemini hypotheses
     sonnet_critique=$(run_agent_sync "claude-sonnet" "
 $no_explore_constraint
 
-You are a CRITICAL REVIEWER. Your job is to find flaws in these implementations.
+You are a FALSIFIER using Analysis of Competing Hypotheses (ACH). Your job is to DISPROVE these proposals by testing their stated assumptions.
 
-IMPLEMENTATION 1 TO CRITIQUE (from Codex):
+HYPOTHESIS 1 (from Codex):
 $codex_proposal
 
-IMPLEMENTATION 2 TO CRITIQUE (from Gemini):
+HYPOTHESIS 2 (from Gemini):
 $gemini_proposal
 
-Find at least 3 issues across both. For each:
-- SOURCE: [Codex or Gemini]
-- ISSUE: [specific problem]
-- IMPACT: [why it matters]
-- FIX: [concrete solution]
+For each hypothesis, attempt to falsify it:
+- ASSUMPTION TESTED: [which stated assumption you're challenging]
+- FALSIFYING EVIDENCE: [concrete evidence or scenario that disproves it]
+- SEVERITY: [Critical/High/Medium — would this break the approach?]
+- UNFALSIFIED: [which assumptions survived your analysis]
 
 ${principle_text:+Evaluate against these principles:
 $principle_text}
@@ -16884,39 +17116,42 @@ $quorum_result"
     synthesis=$(run_agent_sync "claude" "
 $no_explore_constraint
 
-You are the JUDGE resolving a $rounds-round debate between three AI models.
+You are the JUDGE evaluating a $rounds-round ACH (Analysis of Competing Hypotheses) debate between three AI models. Your role is to determine which hypotheses SURVIVED falsification, not which 'feels best'.
 
-CODEX PROPOSAL:
+CODEX HYPOTHESIS:
 $codex_proposal
 
-GEMINI PROPOSAL:
+GEMINI HYPOTHESIS:
 $gemini_proposal
 
-SONNET 4.5 PROPOSAL:
+SONNET 4.6 HYPOTHESIS:
 $sonnet_proposal
 
-CODEX'S CRITIQUE (of Gemini + Sonnet):
+CODEX'S FALSIFICATION ATTEMPTS (against Gemini + Sonnet):
 $codex_critique
 
-GEMINI'S CRITIQUE (of Codex + Sonnet):
+GEMINI'S FALSIFICATION ATTEMPTS (against Codex + Sonnet):
 $gemini_critique
 
-SONNET'S CRITIQUE (of Codex + Gemini):
+SONNET'S FALSIFICATION ATTEMPTS (against Codex + Gemini):
 $sonnet_critique
 
-TASK: Provide a comprehensive final judgment with the following sections:
+TASK: Evaluate based on falsification survival. Provide:
 
-## Winner & Rationale
-[Which approach is strongest and why - codex, gemini, sonnet, or hybrid]
+## Falsification Results
+[For each hypothesis: which assumptions were falsified vs survived. Rate robustness.]
 
-## Valid Critiques
-[List which critiques from each participant were valid and should be incorporated]
+## Most Robust Approach
+[Which hypothesis has the most unfalsified assumptions — codex, gemini, sonnet, or hybrid]
+
+## Falsified Elements to Avoid
+[Concrete things that were disproven — do NOT include these in the final approach]
 
 ## Final Recommended Implementation
-[The best solution, synthesizing all three perspectives with concrete code/approach]
+[The most robust solution, built from unfalsified elements across all three hypotheses]
 
-## Key Trade-offs
-[What are the remaining trade-offs the user should understand]
+## Remaining Unknowns
+[Assumptions that were neither proven nor disproven — risks to monitor]
 
 ## Next Steps
 1. [Concrete action item]
