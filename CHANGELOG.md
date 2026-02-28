@@ -1,3 +1,11 @@
+## [8.31.0] - 2026-02-28
+
+### Changed
+
+- Multi-model intelligence improvements
+
+---
+
 ## [8.30.0] - 2026-02-28
 
 ### Changed

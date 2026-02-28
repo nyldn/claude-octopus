@@ -282,7 +282,7 @@ Provider Availability:
 
 **Use the AskUserQuestion tool to gather context before starting the debate:**
 
-Ask 3 clarifying questions to ensure high-quality debate:
+Ask 4 clarifying questions to ensure high-quality debate:
 
 ```javascript
 AskUserQuestion({
@@ -296,6 +296,15 @@ AskUserQuestion({
         {label: "Identify risks/concerns", description: "I want to surface potential issues"},
         {label: "Understand trade-offs", description: "I want to see pros/cons of approaches"},
         {label: "Get diverse perspectives", description: "I want multiple viewpoints"}
+      ]
+    },
+    {
+      question: "How should the AI models evaluate the topic?",
+      header: "Evaluation",
+      multiSelect: false,
+      options: [
+        {label: "Cross-critique (Recommended)", description: "Models challenge each other's proposals directly — deeper analysis but may anchor on first responses"},
+        {label: "Independent evaluation", description: "Models evaluate independently without seeing others' work — prevents groupthink and anchoring bias"}
       ]
     },
     {
@@ -324,7 +333,10 @@ AskUserQuestion({
 })
 ```
 
-**After receiving answers, incorporate them into the debate context.**
+**After receiving answers:**
+- If user selected "Cross-critique": use `--mode cross-critique` (default ACH falsification)
+- If user selected "Independent evaluation": use `--mode blinded` (no cross-contamination)
+- Incorporate all other answers into the debate context.
 
 ### Step 3: Parse Arguments
 ```bash

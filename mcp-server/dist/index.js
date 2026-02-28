@@ -145,9 +145,13 @@ server.tool("octopus_debate", "Run a structured three-way AI debate between Clau
         .enum(["quick", "thorough", "adversarial", "collaborative"])
         .default("quick")
         .describe("Debate style"),
-}, async ({ question, rounds, style }) => {
+    mode: z
+        .enum(["cross-critique", "blinded"])
+        .default("cross-critique")
+        .describe("Evaluation mode: cross-critique (ACH falsification) or blinded (independent evaluation, prevents anchoring bias)"),
+}, async ({ question, rounds, style, mode }) => {
     // orchestrate.sh uses "grapple" for debate
-    const flags = [`-r`, `${rounds}`, `-d`, style];
+    const flags = [`-r`, `${rounds}`, `-d`, style, `--mode`, mode];
     const { text, isError } = await runOrchestrate("grapple", question, flags);
     return { content: [{ type: "text", text }], isError };
 });
