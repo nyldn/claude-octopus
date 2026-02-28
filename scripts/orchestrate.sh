@@ -1509,6 +1509,31 @@ migrate_provider_config() {
 # Priority 4: Hard-coded defaults (existing case statement)
 get_agent_model() {
     local agent_type="$1"
+    local resolved_model
+    resolved_model=$(_get_agent_model_raw "$agent_type")
+
+    # v8.31.0: Apply model restriction service if configured
+    local provider=""
+    case "$agent_type" in
+        codex*) provider="codex" ;;
+        gemini*) provider="gemini" ;;
+        claude*) provider="claude" ;;
+        openrouter*) provider="openrouter" ;;
+        perplexity*) provider="perplexity" ;;
+    esac
+    if [[ -n "$provider" ]]; then
+        local fallback
+        fallback=$(validate_model_allowed "$provider" "$resolved_model")
+        if [[ $? -ne 0 && -n "$fallback" ]]; then
+            echo "$fallback"
+            return 0
+        fi
+    fi
+    echo "$resolved_model"
+}
+
+_get_agent_model_raw() {
+    local agent_type="$1"
     local config_file="${HOME}/.claude-octopus/config/providers.json"
     local model=""
 
@@ -1600,6 +1625,40 @@ get_agent_model() {
         perplexity-fast)  echo "sonar" ;;                    # v8.24.0: Sonar — fast web search
         *)              echo "unknown" ;;
     esac
+}
+
+# v8.31.0: Model restriction service — per-provider allowlists for cost/compliance control
+# Set OCTOPUS_CODEX_ALLOWED_MODELS, OCTOPUS_GEMINI_ALLOWED_MODELS, etc. (comma-separated)
+# Empty or unset = no restriction (all models allowed)
+validate_model_allowed() {
+    local provider="$1"
+    local model="$2"
+
+    local allowlist_var=""
+    case "$provider" in
+        codex)      allowlist_var="OCTOPUS_CODEX_ALLOWED_MODELS" ;;
+        gemini)     allowlist_var="OCTOPUS_GEMINI_ALLOWED_MODELS" ;;
+        claude)     allowlist_var="OCTOPUS_CLAUDE_ALLOWED_MODELS" ;;
+        openrouter) allowlist_var="OCTOPUS_OPENROUTER_ALLOWED_MODELS" ;;
+        perplexity) allowlist_var="OCTOPUS_PERPLEXITY_ALLOWED_MODELS" ;;
+        *)          return 0 ;;  # Unknown provider — allow
+    esac
+
+    local allowlist="${!allowlist_var:-}"
+    [[ -z "$allowlist" ]] && return 0  # No allowlist = all allowed
+
+    # Check if model is in comma-separated allowlist
+    if echo ",$allowlist," | grep -Fc ",$model," >/dev/null 2>&1; then
+        return 0
+    fi
+
+    log WARN "Model '$model' blocked by $allowlist_var (allowed: $allowlist)"
+    # Return the first allowed model as fallback
+    local fallback
+    fallback=$(echo "$allowlist" | cut -d',' -f1)
+    log WARN "Falling back to: $fallback"
+    echo "$fallback"
+    return 1
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -15343,6 +15402,50 @@ validate_tangle_results() {
             "" 2>/dev/null || true
 
         # ═══════════════════════════════════════════════════════════════════════
+        # v8.31.0: Anti-sycophancy challenge — devil's advocate on high-pass results
+        # Runs silently when results pass too easily (90%+), forcing a critical look
+        # ═══════════════════════════════════════════════════════════════════════
+        if [[ "$gate_status" == "PASSED" && $success_rate -ge 90 && "${OCTOPUS_ANTISYCOPHANCY:-true}" != "false" ]]; then
+            echo -e "  ${DIM}Running anti-sycophancy check...${NC}"
+            # Randomized bypass token prevents prompt injection from LLM-generated results
+            local clean_token="GENUINELY_CLEAN_${RANDOM}${RANDOM}"
+            local challenge_result=""
+            challenge_result=$(run_agent_sync "claude-sonnet" "
+IMPORTANT: Do NOT read, explore, or modify any files. Do NOT run any shell commands. Output TEXT only.
+
+You are a DEVIL'S ADVOCATE reviewer. This implementation passed quality gates with ${success_rate}% success.
+
+YOUR JOB: Find problems the initial review MISSED. Assume the reviewers were too lenient.
+Identify at least 2 concrete issues or risks.
+
+If you genuinely cannot find real issues, respond with exactly: ${clean_token}
+and explain why each concern is actually handled correctly.
+
+Do NOT say 'looks good' without specific evidence.
+Do NOT invent problems that don't exist — but be genuinely critical.
+
+Original task: ${original_prompt}
+
+Results to challenge:
+$(head -c 3000 <<< "$results")
+" 60 "code-reviewer" "quality-gate") || true
+
+            if [[ -n "$challenge_result" ]] && ! echo "$challenge_result" | grep -Fc "$clean_token" >/dev/null 2>&1; then
+                gate_status="CHALLENGED"
+                gate_color="${YELLOW}"
+                echo -e "  ${YELLOW}⚠ Anti-sycophancy challenge raised concerns — review recommended${NC}"
+                log WARN "Anti-sycophancy challenge raised concerns on ${success_rate}% pass rate"
+                results+="
+---
+## Anti-Sycophancy Challenge (v8.31.0)
+$challenge_result
+"
+            else
+                echo -e "  ${GREEN}✓ Anti-sycophancy check passed — results confirmed${NC}"
+            fi
+        fi
+
+        # ═══════════════════════════════════════════════════════════════════════
         # CONDITIONAL BRANCHING - Quality gate decision tree
         # ═══════════════════════════════════════════════════════════════════════
         local quality_branch
@@ -16912,6 +17015,7 @@ grapple_debate() {
     local prompt="$1"
     local principles="${2:-general}"
     local rounds="${3:-3}"  # v7.13.2: Configurable rounds (default 3)
+    local debate_mode="${4:-cross-critique}"  # v8.31.0: cross-critique (ACH) or blinded (independent)
     local task_group
     task_group=$(date +%s)
 
@@ -16924,14 +17028,23 @@ grapple_debate() {
         rounds=7
     fi
 
+    # v8.31.0: Blinded mode skips rebuttals (nothing to rebut against)
+    if [[ "$debate_mode" == "blinded" && $rounds -gt 3 ]]; then
+        log WARN "Blinded mode uses 3 rounds (no rebuttals). Ignoring -r $rounds"
+        rounds=3
+    fi
+
     echo ""
     echo -e "${RED}╔═══════════════════════════════════════════════════════════╗${NC}"
     echo -e "${RED}║  🤼 GRAPPLE - Adversarial Cross-Model Review              ║${NC}"
     echo -e "${RED}║  Codex vs Gemini vs Sonnet 4.6 debate (${rounds} rounds)  ║${NC}"
+    if [[ "$debate_mode" == "blinded" ]]; then
+    echo -e "${RED}║  Mode: Blinded (independent evaluation, no anchoring)     ║${NC}"
+    fi
     echo -e "${RED}╚═══════════════════════════════════════════════════════════╝${NC}"
     echo ""
 
-    log INFO "Starting adversarial cross-model debate ($rounds rounds)"
+    log INFO "Starting adversarial cross-model debate ($rounds rounds, mode: $debate_mode)"
 
     if [[ "$DRY_RUN" == "true" ]]; then
         log INFO "[DRY-RUN] Would grapple on: $prompt"
@@ -16968,6 +17081,14 @@ grapple_debate() {
     # Constraint to prevent agentic file exploration
     local no_explore_constraint="IMPORTANT: Do NOT read, explore, or modify any files. Do NOT run any shell commands. Just output your response as TEXT directly. This is a debate exercise, not a coding session."
 
+    # v8.31.0: Debate integrity rules — always-on quality constraints
+    local debate_integrity_rules="
+DEBATE INTEGRITY RULES (MANDATORY — follow these in every response):
+- ANTI-CONTRARIAN: Do NOT disagree just to create conflict. If an approach is genuinely sound, acknowledge it with specific technical evidence.
+- ANTI-RUBBER-STAMP: Do NOT agree just to be agreeable. If you see a real flaw, name it concretely even if the overall approach is good.
+- EVIDENCE-BASED: Every claim (positive or negative) MUST cite a specific technical reason, not vague sentiment like 'feels cleaner' or 'seems better'.
+- PROPORTIONAL: A minor style issue is NOT a critical flaw. A fundamental architecture mistake is NOT a 'minor concern'. Calibrate severity honestly."
+
     local codex_proposal gemini_proposal sonnet_proposal
     codex_proposal=$(run_agent_sync "codex" "
 $no_explore_constraint
@@ -16984,6 +17105,7 @@ Structure your response:
 3. FALSIFICATION CRITERIA: What evidence would DISPROVE this approach?
 4. IMPLEMENTATION: Your concrete implementation
 
+$debate_integrity_rules
 Be thorough and practical." 120 "implementer" "grapple")
 
     if [[ $? -ne 0 || -z "$codex_proposal" ]]; then
@@ -17009,6 +17131,7 @@ Structure your response:
 3. FALSIFICATION CRITERIA: What evidence would DISPROVE this approach?
 4. IMPLEMENTATION: Your concrete implementation
 
+$debate_integrity_rules
 Be thorough and practical." 120 "researcher" "grapple")
 
     if [[ $? -ne 0 || -z "$gemini_proposal" ]]; then
@@ -17034,6 +17157,7 @@ Structure your response:
 3. FALSIFICATION CRITERIA: What evidence would DISPROVE this approach?
 4. IMPLEMENTATION: Your concrete implementation
 
+$debate_integrity_rules
 Be thorough and practical." 120 "researcher" "grapple")
 
     if [[ $? -ne 0 || -z "$sonnet_proposal" ]]; then
@@ -17045,16 +17169,104 @@ Be thorough and practical." 120 "researcher" "grapple")
     fi
 
     # ═══════════════════════════════════════════════════════════════════════
-    # Round 2: Cross-critique
+    # Round 2: Critique — mode-aware (v8.31.0)
+    # cross-critique: ACH falsification — models see each other's proposals
+    # blinded: Independent evaluation — models evaluate against criteria only
     # ═══════════════════════════════════════════════════════════════════════
     echo ""
-    echo -e "${CYAN}[Round 2/3] Cross-model critique...${NC}"
+    if [[ "$debate_mode" == "blinded" ]]; then
+        echo -e "${CYAN}[Round 2/3] Independent evaluation (blinded — no cross-contamination)...${NC}"
+    else
+        echo -e "${CYAN}[Round 2/3] Cross-model critique (ACH falsification)...${NC}"
+    fi
     echo ""
 
     local codex_critique gemini_critique sonnet_critique
 
-    # Codex falsifies Gemini + Sonnet hypotheses
-    codex_critique=$(run_agent_sync "codex-review" "
+    if [[ "$debate_mode" == "blinded" ]]; then
+        # ── BLINDED MODE: Each model evaluates independently against criteria ──
+        # No model sees another's proposals — prevents anchoring bias
+
+        codex_critique=$(run_agent_sync "codex-review" "
+$no_explore_constraint
+
+You are an INDEPENDENT EVALUATOR. You have NOT seen any other model's proposals.
+Evaluate this task and identify potential risks, failure modes, and overlooked concerns:
+
+TASK:
+$prompt
+
+${principle_text:+Evaluate against these principles:
+$principle_text}
+
+Provide your INDEPENDENT assessment:
+- TOP 3 RISKS: What could go wrong with common approaches to this task?
+- OVERLOOKED CONCERNS: What do teams typically miss when solving this?
+- CRITICAL ASSUMPTIONS: What assumptions would need to be true for any solution to work?
+- EVALUATION CRITERIA: How should solutions be judged? Rate each criterion by importance (1-10).
+$debate_integrity_rules" 90 "code-reviewer" "grapple")
+
+        if [[ $? -ne 0 || -z "$codex_critique" ]]; then
+            echo -e "${RED}❌ Codex evaluation failed${NC}"
+            log ERROR "Grapple debate failed: Codex blinded evaluation empty or error"
+            return 1
+        fi
+
+        gemini_critique=$(run_agent_sync "gemini" "
+$no_explore_constraint
+
+You are an INDEPENDENT EVALUATOR. You have NOT seen any other model's proposals.
+Evaluate this task and identify potential risks, failure modes, and overlooked concerns:
+
+TASK:
+$prompt
+
+${principle_text:+Evaluate against these principles:
+$principle_text}
+
+Provide your INDEPENDENT assessment:
+- TOP 3 RISKS: What could go wrong with common approaches to this task?
+- OVERLOOKED CONCERNS: What do teams typically miss when solving this?
+- CRITICAL ASSUMPTIONS: What assumptions would need to be true for any solution to work?
+- EVALUATION CRITERIA: How should solutions be judged? Rate each criterion by importance (1-10).
+$debate_integrity_rules" 90 "security-auditor" "grapple")
+
+        if [[ $? -ne 0 || -z "$gemini_critique" ]]; then
+            echo -e "${RED}❌ Gemini evaluation failed${NC}"
+            log ERROR "Grapple debate failed: Gemini blinded evaluation empty or error"
+            return 1
+        fi
+
+        sonnet_critique=$(run_agent_sync "claude-sonnet" "
+$no_explore_constraint
+
+You are an INDEPENDENT EVALUATOR. You have NOT seen any other model's proposals.
+Evaluate this task and identify potential risks, failure modes, and overlooked concerns:
+
+TASK:
+$prompt
+
+${principle_text:+Evaluate against these principles:
+$principle_text}
+
+Provide your INDEPENDENT assessment:
+- TOP 3 RISKS: What could go wrong with common approaches to this task?
+- OVERLOOKED CONCERNS: What do teams typically miss when solving this?
+- CRITICAL ASSUMPTIONS: What assumptions would need to be true for any solution to work?
+- EVALUATION CRITERIA: How should solutions be judged? Rate each criterion by importance (1-10).
+$debate_integrity_rules" 90 "code-reviewer" "grapple")
+
+        if [[ $? -ne 0 || -z "$sonnet_critique" ]]; then
+            echo -e "${RED}❌ Sonnet evaluation failed${NC}"
+            log ERROR "Grapple debate failed: Sonnet blinded evaluation empty or error"
+            return 1
+        fi
+
+    else
+        # ── CROSS-CRITIQUE MODE (default): ACH falsification ──
+
+        # Codex falsifies Gemini + Sonnet hypotheses
+        codex_critique=$(run_agent_sync "codex-review" "
 $no_explore_constraint
 
 You are a FALSIFIER using Analysis of Competing Hypotheses (ACH). Your job is to DISPROVE these proposals by testing their stated assumptions.
@@ -17074,18 +17286,17 @@ For each hypothesis, attempt to falsify it:
 ${principle_text:+Evaluate against these principles:
 $principle_text}
 
-Focus on falsification, not preference. An approach with unfalsified assumptions is stronger than one that 'feels better'." 90 "code-reviewer" "grapple")
+Focus on falsification, not preference. An approach with unfalsified assumptions is stronger than one that 'feels better'.
+$debate_integrity_rules" 90 "code-reviewer" "grapple")
 
-    if [[ $? -ne 0 || -z "$codex_critique" ]]; then
-        echo ""
-        echo -e "${RED}❌ Codex critique generation failed${NC}"
-        echo -e "   Check logs: ${LOGS_DIR}/"
-        log ERROR "Grapple debate failed: Codex critique empty or error"
-        return 1
-    fi
+        if [[ $? -ne 0 || -z "$codex_critique" ]]; then
+            echo -e "${RED}❌ Codex critique generation failed${NC}"
+            log ERROR "Grapple debate failed: Codex critique empty or error"
+            return 1
+        fi
 
-    # Gemini falsifies Codex + Sonnet hypotheses
-    gemini_critique=$(run_agent_sync "gemini" "
+        # Gemini falsifies Codex + Sonnet hypotheses
+        gemini_critique=$(run_agent_sync "gemini" "
 $no_explore_constraint
 
 You are a FALSIFIER using Analysis of Competing Hypotheses (ACH). Your job is to DISPROVE these proposals by testing their stated assumptions.
@@ -17105,18 +17316,17 @@ For each hypothesis, attempt to falsify it:
 ${principle_text:+Evaluate against these principles:
 $principle_text}
 
-Focus on falsification, not preference. An approach with unfalsified assumptions is stronger than one that 'feels better'." 90 "security-auditor" "grapple")
+Focus on falsification, not preference. An approach with unfalsified assumptions is stronger than one that 'feels better'.
+$debate_integrity_rules" 90 "security-auditor" "grapple")
 
-    if [[ $? -ne 0 || -z "$gemini_critique" ]]; then
-        echo ""
-        echo -e "${RED}❌ Gemini critique generation failed${NC}"
-        echo -e "   Check logs: ${LOGS_DIR}/"
-        log ERROR "Grapple debate failed: Gemini critique empty or error"
-        return 1
-    fi
+        if [[ $? -ne 0 || -z "$gemini_critique" ]]; then
+            echo -e "${RED}❌ Gemini critique generation failed${NC}"
+            log ERROR "Grapple debate failed: Gemini critique empty or error"
+            return 1
+        fi
 
-    # Sonnet falsifies Codex + Gemini hypotheses
-    sonnet_critique=$(run_agent_sync "claude-sonnet" "
+        # Sonnet falsifies Codex + Gemini hypotheses
+        sonnet_critique=$(run_agent_sync "claude-sonnet" "
 $no_explore_constraint
 
 You are a FALSIFIER using Analysis of Competing Hypotheses (ACH). Your job is to DISPROVE these proposals by testing their stated assumptions.
@@ -17136,14 +17346,13 @@ For each hypothesis, attempt to falsify it:
 ${principle_text:+Evaluate against these principles:
 $principle_text}
 
-Be harsh but fair. If genuinely good, explain why." 90 "code-reviewer" "grapple")
+$debate_integrity_rules" 90 "code-reviewer" "grapple")
 
-    if [[ $? -ne 0 || -z "$sonnet_critique" ]]; then
-        echo ""
-        echo -e "${RED}❌ Sonnet critique generation failed${NC}"
-        echo -e "   Check logs: ${LOGS_DIR}/"
-        log ERROR "Grapple debate failed: Sonnet critique empty or error"
-        return 1
+        if [[ $? -ne 0 || -z "$sonnet_critique" ]]; then
+            echo -e "${RED}❌ Sonnet critique generation failed${NC}"
+            log ERROR "Grapple debate failed: Sonnet critique empty or error"
+            return 1
+        fi
     fi
 
     # ═══════════════════════════════════════════════════════════════════════
@@ -17176,6 +17385,7 @@ Respond to both critiques by:
 2. Defending against unfair or incorrect criticism with evidence
 3. Refining your approach based on valid feedback
 
+$debate_integrity_rules
 Be specific, technical, and constructive. Focus on improving the solution." 120 "implementer" "grapple")
 
             if [[ $? -ne 0 || -z "$codex_rebuttal" ]]; then
@@ -17207,6 +17417,7 @@ Respond to both critiques by:
 2. Defending against unfair or incorrect criticism with evidence
 3. Refining your approach based on valid feedback
 
+$debate_integrity_rules
 Be specific, technical, and constructive. Focus on improving the solution." 120 "researcher" "grapple")
 
             if [[ $? -ne 0 || -z "$gemini_rebuttal" ]]; then
@@ -17238,6 +17449,7 @@ Respond to both critiques by:
 2. Defending against unfair or incorrect criticism with evidence
 3. Refining your approach based on valid feedback
 
+$debate_integrity_rules
 Be specific, technical, and constructive. Focus on improving the solution." 120 "researcher" "grapple")
 
             if [[ $? -ne 0 || -z "$sonnet_rebuttal" ]]; then
@@ -17291,8 +17503,64 @@ $quorum_result"
     echo -e "${CYAN}[Round $rounds/$rounds] Final synthesis...${NC}"
     echo ""
 
-    synthesis=$(run_agent_sync "claude" "
-$no_explore_constraint
+    # v8.31.0: Mode-aware synthesis prompt
+    local synthesis_prompt=""
+    if [[ "$debate_mode" == "blinded" ]]; then
+        synthesis_prompt="$no_explore_constraint
+
+You are the JUDGE synthesizing a $rounds-round BLINDED debate between three AI models.
+Each model proposed independently (Round 1) and evaluated independently (Round 2) — no model saw another's work. This prevents anchoring bias but means models may have identified different concerns.
+
+CODEX PROPOSAL:
+$codex_proposal
+
+GEMINI PROPOSAL:
+$gemini_proposal
+
+SONNET 4.6 PROPOSAL:
+$sonnet_proposal
+
+CODEX'S INDEPENDENT EVALUATION:
+$codex_critique
+
+GEMINI'S INDEPENDENT EVALUATION:
+$gemini_critique
+
+SONNET'S INDEPENDENT EVALUATION:
+$sonnet_critique
+
+$debate_integrity_rules
+
+WARNING: Do NOT default to 'all approaches have merit' or 'a hybrid of all three'.
+If one approach is clearly superior, say so. If all are flawed, say THAT.
+Where models CONVERGE independently, that signal is especially strong (no anchoring).
+Where models DIVERGE, that signals genuine uncertainty — surface it honestly.
+
+TASK: Synthesize the independent perspectives. Provide:
+
+## Convergence Analysis
+[Where did models independently agree? These are high-confidence findings.]
+
+## Divergence Analysis
+[Where did models disagree? What does each model see that others miss?]
+
+## Most Robust Approach
+[Which proposal best survives the independent evaluations?]
+
+## Final Recommended Implementation
+[The strongest solution, informed by all three independent perspectives]
+
+## Remaining Unknowns
+[Concerns raised by only one model — risks to monitor]
+
+## Next Steps
+1. [Concrete action item]
+2. [Concrete action item]
+3. [Concrete action item]
+
+Be specific and actionable. Format as markdown."
+    else
+        synthesis_prompt="$no_explore_constraint
 
 You are the JUDGE evaluating a $rounds-round ACH (Analysis of Competing Hypotheses) debate between three AI models. Your role is to determine which hypotheses SURVIVED falsification, not which 'feels best'.
 
@@ -17313,6 +17581,12 @@ $gemini_critique
 
 SONNET'S FALSIFICATION ATTEMPTS (against Codex + Gemini):
 $sonnet_critique
+
+$debate_integrity_rules
+
+WARNING: Do NOT default to 'all approaches have merit' or 'a hybrid of all three'.
+If one approach is clearly superior, say so. If all are flawed, say THAT.
+Convergent agreement between models may indicate shared blind spots, not correctness.
 
 TASK: Evaluate based on falsification survival. Provide:
 
@@ -17336,7 +17610,10 @@ TASK: Evaluate based on falsification survival. Provide:
 2. [Concrete action item]
 3. [Concrete action item]
 
-Be specific and actionable. Format as markdown." 150 "synthesizer" "grapple")
+Be specific and actionable. Format as markdown."
+    fi
+
+    synthesis=$(run_agent_sync "claude" "$synthesis_prompt" 150 "synthesizer" "grapple")
 
     if [[ $? -ne 0 || -z "$synthesis" ]]; then
         echo ""
@@ -17356,6 +17633,7 @@ Be specific and actionable. Format as markdown." 150 "synthesizer" "grapple")
 
 **Generated:** $(date)
 **Rounds:** $rounds
+**Mode:** $debate_mode
 **Principles:** $principles
 **Participants:** Codex, Gemini, Sonnet 4.6
 
@@ -17374,15 +17652,15 @@ $sonnet_proposal
 
 ---
 
-## Round 2: Cross-Critique
+## Round 2: $(if [[ "$debate_mode" == "blinded" ]]; then echo "Independent Evaluations (Blinded)"; else echo "Cross-Critique"; fi)
 
-### Codex's Critique (of Gemini + Sonnet)
+### Codex's $(if [[ "$debate_mode" == "blinded" ]]; then echo "Evaluation"; else echo "Critique (of Gemini + Sonnet)"; fi)
 $codex_critique
 
-### Gemini's Critique (of Codex + Sonnet)
+### Gemini's $(if [[ "$debate_mode" == "blinded" ]]; then echo "Evaluation"; else echo "Critique (of Codex + Sonnet)"; fi)
 $gemini_critique
 
-### Sonnet's Critique (of Codex + Gemini)
+### Sonnet's $(if [[ "$debate_mode" == "blinded" ]]; then echo "Evaluation"; else echo "Critique (of Codex + Gemini)"; fi)
 $sonnet_critique
 
 ---
@@ -19110,9 +19388,10 @@ case "$COMMAND" in
             exit 1
         fi
 
-        # Parse flags (v7.13.2)
+        # Parse flags (v7.13.2, v8.31.0: --mode)
         principles="general"
         rounds=3
+        debate_mode="cross-critique"
         while [[ $# -gt 0 ]]; do
             case "$1" in
                 --principles)
@@ -19123,6 +19402,10 @@ case "$COMMAND" in
                     rounds="$2"
                     shift 2
                     ;;
+                --mode)
+                    debate_mode="$2"
+                    shift 2
+                    ;;
                 *)
                     # Remaining args are the prompt
                     break
@@ -19130,7 +19413,7 @@ case "$COMMAND" in
             esac
         done
 
-        grapple_debate "$@" "$principles" "$rounds"
+        grapple_debate "$@" "$principles" "$rounds" "$debate_mode"
         ;;
     squeeze|red-team)
         # Red Team security review: Blue Team defends, Red Team attacks

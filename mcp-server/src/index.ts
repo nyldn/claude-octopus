@@ -207,10 +207,14 @@ server.tool(
       .enum(["quick", "thorough", "adversarial", "collaborative"])
       .default("quick")
       .describe("Debate style"),
+    mode: z
+      .enum(["cross-critique", "blinded"])
+      .default("cross-critique")
+      .describe("Evaluation mode: cross-critique (ACH falsification) or blinded (independent evaluation, prevents anchoring bias)"),
   },
-  async ({ question, rounds, style }) => {
+  async ({ question, rounds, style, mode }) => {
     // orchestrate.sh uses "grapple" for debate
-    const flags = [`-r`, `${rounds}`, `-d`, style];
+    const flags = [`-r`, `${rounds}`, `--mode`, mode];
     const { text, isError } = await runOrchestrate("grapple", question, flags);
     return { content: [{ type: "text" as const, text }], isError };
   }
