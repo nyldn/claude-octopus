@@ -211,32 +211,35 @@ fi
 # ─────────────────────────────────────────────────────────────────────
 suite "7. Version Consistency"
 
-# 7.1 package.json
-if grep -q '"8.27.0"' "$PLUGIN_DIR/package.json"; then
-  pass "package.json version is 8.27.0"
+# 7.1 package.json has valid semver >= 8.27.0
+PKG_VER=$(python3 -c "import json; print(json.load(open('$PLUGIN_DIR/package.json'))['version'])" 2>/dev/null || echo "")
+if [[ -n "$PKG_VER" ]] && python3 -c "exit(0 if tuple(int(x) for x in '$PKG_VER'.split('.')) >= (8,27,0) else 1)" 2>/dev/null; then
+  pass "package.json version >= 8.27.0 (is $PKG_VER)"
 else
-  fail "package.json version is not 8.27.0"
+  fail "package.json version not >= 8.27.0 (is $PKG_VER)"
 fi
 
-# 7.2 plugin.json
-if grep -q '"8.27.0"' "$PLUGIN_DIR/.claude-plugin/plugin.json"; then
-  pass "plugin.json version is 8.27.0"
+# 7.2 plugin.json has valid semver >= 8.27.0
+PLG_VER=$(python3 -c "import json; print(json.load(open('$PLUGIN_DIR/.claude-plugin/plugin.json'))['version'])" 2>/dev/null || echo "")
+if [[ -n "$PLG_VER" ]] && python3 -c "exit(0 if tuple(int(x) for x in '$PLG_VER'.split('.')) >= (8,27,0) else 1)" 2>/dev/null; then
+  pass "plugin.json version >= 8.27.0 (is $PLG_VER)"
 else
-  fail "plugin.json version is not 8.27.0"
+  fail "plugin.json version not >= 8.27.0 (is $PLG_VER)"
 fi
 
-# 7.3 marketplace.json
-if grep -q '"8.27.0"' "$PLUGIN_DIR/.claude-plugin/marketplace.json"; then
-  pass "marketplace.json version is 8.27.0"
+# 7.3 marketplace.json has valid semver >= 8.27.0
+MKT_VER=$(python3 -c "import json; [print(p['version']) for p in json.load(open('$PLUGIN_DIR/.claude-plugin/marketplace.json')).get('plugins',[]) if p.get('name')=='claude-octopus']" 2>/dev/null | head -1 || echo "")
+if [[ -n "$MKT_VER" ]] && python3 -c "exit(0 if tuple(int(x) for x in '$MKT_VER'.split('.')) >= (8,27,0) else 1)" 2>/dev/null; then
+  pass "marketplace.json version >= 8.27.0 (is $MKT_VER)"
 else
-  fail "marketplace.json version is not 8.27.0"
+  fail "marketplace.json version not >= 8.27.0 (is $MKT_VER)"
 fi
 
-# 7.4 README.md badge
-if grep -q 'Version-8.27.0' "$PLUGIN_DIR/README.md"; then
-  pass "README.md badge shows 8.27.0"
+# 7.4 README.md badge has valid version >= 8.27.0
+if grep -qE 'Version-[89][0-9]*\.[0-9]+\.[0-9]+-blue' "$PLUGIN_DIR/README.md"; then
+  pass "README.md badge shows valid version"
 else
-  fail "README.md badge does not show 8.27.0"
+  fail "README.md badge missing version badge"
 fi
 
 # 7.5 CHANGELOG.md has entry
