@@ -1,6 +1,6 @@
 # Claude Octopus
 
-Every model has blind spots. Claude Octopus fills them by orchestrating Codex, Gemini, and Claude together — three perspectives, adversarial review, and consensus gathering so no single model's gaps slip through.
+A Claude Code plugin that turns one model into three. Orchestrates Codex, Gemini, and Claude with distinct roles, adversarial review, and consensus gates — so no single model's blind spots slip through.
 
 <p align="center">
   <img src="assets/social-preview.jpg" alt="Claude Octopus" width="640">
@@ -14,13 +14,32 @@ Every model has blind spots. Claude Octopus fills them by orchestrating Codex, G
 
 **Three brains, one workflow.** Other multi-AI tools run providers in parallel and hand you three answers. Octopus assigns each model a distinct role — Codex for implementation depth, Gemini for ecosystem breadth, Claude for synthesis — then enforces a 75% consensus gate before anything ships. Disagreements get caught, not ignored.
 
+**Spec in, software out.** Dark Factory mode takes a spec and autonomously runs the full pipeline — research, define, develop, deliver — with holdout testing and satisfaction scoring. You review the output, not every step.
+
 **Methodology, not just machinery.** Built on the Double Diamond framework, every task moves through four structured phases: discover, define, develop, deliver. Quality gates between phases mean sloppy work can't advance. Other orchestrators give you infrastructure to build workflows on — Octopus gives you the workflows.
 
-**31 specialized personas.** Not generic agents. A security-auditor that thinks in OWASP. A backend-architect that designs APIs. A tdd-orchestrator that enforces red-green-refactor. Personas activate automatically based on what you ask — say "audit my API" and the right expert shows up.
+**31 specialized personas, 39 commands.** Not generic agents. A security-auditor that thinks in OWASP. A backend-architect that designs APIs. A tdd-orchestrator that enforces red-green-refactor. Personas activate automatically based on what you ask — say "audit my API" and the right expert shows up. Don't know the command name? Just say what you need — the smart router figures it out.
 
 **Works with just Claude. Scales to three.** Zero external providers needed to start. You get every persona, every workflow, every skill on day one. Add Codex or Gemini and multi-AI orchestration lights up — parallel research, adversarial debate, cross-model review.
 
-**You always know what's running and what it costs.** Visual indicators show exactly which providers are active and whose billing they hit. No hidden API calls, no surprise charges.
+**Full cost transparency.** Visual indicators show exactly which providers are active and whose billing they hit. Smart cost routing picks the cheapest provider that can handle the job. No hidden API calls, no surprise charges.
+
+---
+
+## Recent Updates
+
+| Version | What shipped |
+|---------|-------------|
+| **8.30** | **Agent continuation** — iterative retries resume where they left off instead of starting over |
+| **8.27** | **Context compaction survival** — enforcement rules persist through conversation compression |
+| **8.26** | **Worktree isolation** — agents work in isolated git worktrees; 8 new configurable settings |
+| **8.25** | **Dark Factory mode** — autonomous spec-to-software pipeline with holdout testing and satisfaction scoring |
+| **8.23** | **OpenClaw admin + Doctor diagnostics** — `/octo:claw` for host management, `/octo:doctor` for 9-category health checks |
+| **8.22** | **OpenClaw compatibility layer** — MCP server exposes 10 Octopus tools to any MCP-compatible client |
+| **8.20** | **Provider intelligence** — Bayesian trust scoring, smart cost routing, capability matching |
+| **8.18** | **Sentinel + Team of Teams** — GitHub-aware work monitor, parallel multi-instance orchestration with dependency waves |
+
+[Full changelog](CHANGELOG.md)
 
 ---
 
@@ -50,43 +69,33 @@ Setup detects installed providers, shows what's missing, and walks you through c
 
 ---
 
-## 8 Tentacles
+## Top 8 Tentacles
 
 Eight commands — one per arm. Each orchestrates up to three AI providers, applies quality gates, and produces a deliverable.
 
 ```bash
 /octo:embrace build stripe integration     # Full lifecycle: research → define → develop → deliver
+/octo:factory "build a CLI that converts CSV to JSON"  # Autonomous pipeline — spec in, software out
+/octo:debate monorepo vs microservices     # Structured three-way AI debate with consensus
 /octo:research htmx vs react in 2026       # Multi-source synthesis from three AI providers
-/octo:review                                # Code review with security analysis
+/octo:review                                # Code review with security + 4x10 scoring
 /octo:tdd create user auth                 # Red-green-refactor with test discipline
-/octo:debate monorepo vs microservices     # Structured three-way AI debate
+/octo:security                              # OWASP vulnerability scan + remediation
 /octo:prd mobile checkout redesign          # AI-optimized PRD with 100-point scoring
-/octo:security                              # OWASP vulnerability scan
-/octo:deck q3 product strategy              # Research → outline gate → PPTX export
 ```
-
-Here's the full set:
-
-### Core Commands
 
 | Command | What it does |
 |---------|-------------|
 | `/octo:embrace` | Full 4-phase workflow: discover, define, develop, deliver |
+| `/octo:factory` | Dark Factory — autonomous spec-to-software pipeline with holdout testing |
+| `/octo:debate` | Structured three-way AI debate with consensus scoring |
 | `/octo:research` | Deep multi-source research with synthesis |
-| `/octo:review` | Multi-perspective code review |
+| `/octo:review` | Multi-perspective code review with 4-dimension scoring |
 | `/octo:tdd` | Test-driven development with red-green-refactor |
-| `/octo:debug` | Systematic 4-phase debugging |
-| `/octo:security` | OWASP vulnerability scan |
-| `/octo:debate` | Structured three-way AI debate |
+| `/octo:security` | OWASP vulnerability scan and remediation |
 | `/octo:prd` | AI-optimized PRD with 100-point scoring |
-| `/octo:extract` | Reverse-engineer design systems from code or URLs |
-| `/octo:deck` | Slide deck generation with outline approval gate |
-| `/octo:docs` | Export to PPTX, DOCX, PDF |
-| `/octo:schedule` | Scheduled workflow runner with cron, budget gates, kill switches |
-| `/octo:brainstorm` | Creative thought partner session |
-| `/octo:claw` | OpenClaw instance admin — manage hosts across macOS, Ubuntu/Debian, Docker, OCI, Proxmox |
-| `/octo:doctor` | Environment diagnostics — 9 check categories with filtering and JSON output |
-| `/octo:factory` | Dark Factory Mode — spec-in, software-out autonomous pipeline with holdout testing |
+
+Plus 31 more: debug, extract, deck, docs, schedule, parallel, sentinel, brainstorm, claw, doctor, and [the full set](docs/COMMAND-REFERENCE.md).
 
 Don't remember the command name? Just describe what you need:
 
@@ -97,8 +106,6 @@ Don't remember the command name? Just describe what you need:
 ```
 
 The smart router parses your intent and selects the right workflow.
-
-[Full command reference (39 commands)](docs/COMMAND-REFERENCE.md)
 
 ---
 
