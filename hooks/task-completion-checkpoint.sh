@@ -27,6 +27,12 @@ else
     TASK_DATA=$(cat)
 fi
 
+# v8.29.0: Capture last assistant message for phase context recovery
+LAST_MESSAGE=""
+if [[ "${SUPPORTS_HOOK_LAST_MESSAGE:-false}" == "true" && -n "$TASK_DATA" ]]; then
+    LAST_MESSAGE=$(echo "$TASK_DATA" | grep -o '"last_assistant_message"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/.*: *"//;s/"$//' 2>/dev/null | head -c 500 || true)
+fi
+
 # Create checkpoint file
 create_checkpoint() {
     local task_id="${1:-unknown}"
@@ -37,6 +43,12 @@ create_checkpoint() {
 
     log "INFO" "Creating checkpoint for task: $task_id (status: $status)"
 
+    # Add last message summary to checkpoint if available
+    local ESCAPED_MESSAGE=""
+    if [[ -n "$LAST_MESSAGE" ]]; then
+        ESCAPED_MESSAGE=$(printf '%s' "$LAST_MESSAGE" | python3 -c 'import sys,json; print(json.dumps(sys.stdin.read()))' 2>/dev/null | sed 's/^"//;s/"$//' || echo "$LAST_MESSAGE")
+    fi
+
     # Write checkpoint data
     cat > "$checkpoint_file" <<EOF
 {
@@ -44,7 +56,8 @@ create_checkpoint() {
   "status": "$status",
   "timestamp": $timestamp,
   "session_id": "${CLAUDE_SESSION_ID:-unknown}",
-  "completed_at": "$(date -Iseconds)"
+  "completed_at": "$(date -Iseconds)",
+  "last_message_summary": "${ESCAPED_MESSAGE:-}"
 }
 EOF
 

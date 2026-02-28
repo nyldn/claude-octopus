@@ -59,6 +59,7 @@ agents:
     cli: gemini
     model: gemini-3-pro-preview
     phases: [probe, tangle]
+    background: true
     tier: premium
     expertise: [llm-applications, rag-systems, prompt-engineering]
     capabilities: [llm-applications, rag-systems, prompt-engineering, ai-agents, vector-search]
@@ -70,6 +71,7 @@ agents:
     cli: gemini
     model: gemini-3-pro-preview
     phases: [probe, grasp]
+    background: true
     tier: standard
     expertise: [requirements, metrics, stakeholder-analysis]
     capabilities: [requirements, metrics, stakeholder-analysis, data-analysis]
@@ -303,6 +305,7 @@ agents:
     cli: gemini-fast
     model: gemini-3-flash-preview
     phases: [probe, grasp, tangle, ink]
+    background: true
     tier: standard
     expertise: [context-management, multi-agent-coordination]
     capabilities: [context-management, multi-agent-coordination, documentation]
