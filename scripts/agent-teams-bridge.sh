@@ -379,6 +379,46 @@ bridge_mark_workflow_complete() {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# BRIDGE: Agent ID storage for continuation/resume (v8.30)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Store Claude Code's agentId for a given task_id in the ledger
+# Called by the flow skill after Agent tool returns an agentId
+bridge_store_agent_id() {
+    local task_id="$1"
+    local agent_id="$2"
+
+    bridge_is_enabled || return 0
+    [[ -z "$task_id" || -z "$agent_id" ]] && return 1
+
+    bridge_atomic_ledger_update \
+        --arg id "$task_id" \
+        --arg agent_id "$agent_id" \
+        '.tasks[$id].agent_id = $agent_id'
+
+    log "DEBUG" "BRIDGE: Stored agent_id=$agent_id for task=$task_id"
+}
+
+# Retrieve stored agentId for a given task_id
+# Returns the agent_id string or empty if not found
+bridge_get_agent_id() {
+    local task_id="$1"
+
+    bridge_is_enabled || return 1
+    [[ ! -f "$_BRIDGE_LEDGER" ]] && return 1
+    command -v jq &>/dev/null || return 1
+
+    local agent_id
+    agent_id=$(jq -r ".tasks.\"$task_id\".agent_id // empty" "$_BRIDGE_LEDGER" 2>/dev/null)
+
+    if [[ -n "$agent_id" ]]; then
+        echo "$agent_id"
+        return 0
+    fi
+    return 1
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # BRIDGE: Cleanup
 # ═══════════════════════════════════════════════════════════════════════════════
 bridge_cleanup() {
