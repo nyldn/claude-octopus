@@ -111,6 +111,19 @@
           "command": "${CLAUDE_PLUGIN_ROOT}/hooks/task-completion-checkpoint.sh"
         }
       ]
+    },
+    {
+      "matcher": {
+        "tool": "Bash",
+        "pattern": "orchestrate\\.sh.*(probe|grasp|tangle|ink|embrace)"
+      },
+      "hooks": [
+        {
+          "type": "command",
+          "command": "${CLAUDE_PLUGIN_ROOT}/hooks/telemetry-webhook.sh",
+          "async": true
+        }
+      ]
     }
   ],
   "SessionStart": [
