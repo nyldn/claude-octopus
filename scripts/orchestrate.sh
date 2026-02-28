@@ -655,6 +655,16 @@ detect_claude_code_version() {
     log "INFO" "Native Auto-Memory: $SUPPORTS_NATIVE_AUTO_MEMORY | Agent Memory GC: $SUPPORTS_AGENT_MEMORY_GC | Smart Bash Prefixes: $SUPPORTS_SMART_BASH_PREFIXES"
     log "INFO" "HTTP Hooks: $SUPPORTS_HTTP_HOOKS | Shared WT Config: $SUPPORTS_WORKTREE_SHARED_CONFIG | Batch: $SUPPORTS_BATCH_COMMAND | MCP Opt-Out: $SUPPORTS_MCP_OPT_OUT"
 
+    # v8.29.0: Context window control
+    OCTOPUS_CONTEXT_WINDOW="${OCTOPUS_CONTEXT_WINDOW:-auto}"
+    if [[ "$OCTOPUS_CONTEXT_WINDOW" == "standard" && "$SUPPORTS_FAST_OPUS_1M" == "true" ]]; then
+        export CLAUDE_CODE_DISABLE_1M_CONTEXT=1
+        log "INFO" "1M context window disabled by OCTOPUS_CONTEXT_WINDOW=standard"
+    elif [[ "$OCTOPUS_CONTEXT_WINDOW" == "auto" ]]; then
+        # auto: let Claude Code decide based on model and mode
+        unset CLAUDE_CODE_DISABLE_1M_CONTEXT 2>/dev/null || true
+    fi
+
     # v8.5: Detect /fast toggle after version detection
     detect_fast_mode
     log "INFO" "User /fast mode: $USER_FAST_MODE"
@@ -15426,6 +15436,28 @@ $all_results" 120 "code-reviewer" "ink") || {
             return 1
         fi
         log INFO "4x10 gate PASSED: all dimensions at 10/10"
+    fi
+
+    # v8.29.0: Code simplification pass — identify over-engineering
+    if [[ "$SUPPORTS_BATCH_COMMAND" == "true" ]]; then
+        log "INFO" "Running simplification review..."
+        local simplify_prompt="Review the following code changes for unnecessary complexity. Identify:
+1. Premature abstractions (helpers/utilities used only once)
+2. Over-engineered error handling for impossible scenarios
+3. Unnecessary indirection or wrapper layers
+4. Code that could be simplified without losing functionality
+Be specific — list files and line numbers. If the code is already clean, say so.
+
+Code to review:
+${all_results}"
+        local simplify_result
+        simplify_result=$(run_agent_sync "claude-sonnet" "$simplify_prompt" 120 "code-reviewer" "ink") || true
+        if [[ -n "$simplify_result" ]]; then
+            all_results="${all_results}
+
+--- SIMPLIFICATION REVIEW ---
+${simplify_result}"
+        fi
     fi
 
     local synthesis_prompt="Create a polished final deliverable from these development results.
