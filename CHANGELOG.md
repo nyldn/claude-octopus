@@ -1,3 +1,11 @@
+## [8.30.0] - 2026-02-28
+
+### Changed
+
+- Agent continuation/resume for iterative tangle retries
+
+---
+
 ## [8.27.0] - 2026-02-26
 
 ### Changed
