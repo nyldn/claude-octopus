@@ -456,6 +456,7 @@ SUPPORTS_MEMORY_LEAK_FIXES=false       # v8.29: Claude Code v2.1.63+ (18+ memory
 SUPPORTS_BATCH_COMMAND=false           # v8.29: Claude Code v2.1.63+ (/batch bundled command)
 SUPPORTS_MCP_OPT_OUT=false            # v8.29: Claude Code v2.1.63+ (ENABLE_CLAUDEAI_MCP_SERVERS=false)
 SUPPORTS_SKILL_CACHE_RESET=false      # v8.29: Claude Code v2.1.63+ (/clear resets cached skills)
+SUPPORTS_CONTINUATION=false           # v8.30: Agent resume/continuation for iterative retries
 OCTOPUS_BACKEND="api"              # v8.16: Detected backend (api|bedrock|vertex|foundry)
 AGENT_TEAMS_ENABLED="${CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS:-0}"
 OCTOPUS_SECURITY_V870="${OCTOPUS_SECURITY_V870:-true}"
@@ -536,9 +537,10 @@ detect_claude_code_version() {
         SUPPORTS_STATUSLINE_API=true
     fi
 
-    # Check for v2.1.34+ features (stable agent teams, sandbox security)
+    # Check for v2.1.34+ features (stable agent teams, sandbox security, agent continuation)
     if version_compare "$CLAUDE_CODE_VERSION" "2.1.34" ">="; then
         SUPPORTS_STABLE_AGENT_TEAMS=true
+        SUPPORTS_CONTINUATION=true
     fi
 
     # Check for v2.1.36+ features (fast mode for Opus 4.6)
@@ -654,6 +656,7 @@ detect_claude_code_version() {
     log "INFO" "Remote Control: $SUPPORTS_REMOTE_CONTROL | NPM Registries: $SUPPORTS_NPM_PLUGIN_REGISTRIES | Fast Bash: $SUPPORTS_FAST_BASH | Disk Persist: $SUPPORTS_AGGRESSIVE_DISK_PERSIST"
     log "INFO" "Native Auto-Memory: $SUPPORTS_NATIVE_AUTO_MEMORY | Agent Memory GC: $SUPPORTS_AGENT_MEMORY_GC | Smart Bash Prefixes: $SUPPORTS_SMART_BASH_PREFIXES"
     log "INFO" "HTTP Hooks: $SUPPORTS_HTTP_HOOKS | Shared WT Config: $SUPPORTS_WORKTREE_SHARED_CONFIG | Batch: $SUPPORTS_BATCH_COMMAND | MCP Opt-Out: $SUPPORTS_MCP_OPT_OUT"
+    log "INFO" "Continuation: $SUPPORTS_CONTINUATION | Skill Cache Reset: $SUPPORTS_SKILL_CACHE_RESET"
 
     # v8.29.0: Context window control
     OCTOPUS_CONTEXT_WINDOW="${OCTOPUS_CONTEXT_WINDOW:-auto}"
@@ -10078,11 +10081,46 @@ $prompt"
             flag_repeat_error "$error_keyword" 2>/dev/null || true
         fi
 
-        spawn_agent "$agent" "$prompt" "tangle-${task_group}-retry${retry_count}-${subtask_num}" "$role" "tangle" &
-        local pid=$!
-        pids="$pids $pid"
-        ((subtask_num++)) || true
-        ((pid_count++)) || true
+        # v8.30: Attempt agent continuation/resume before cold spawn
+        local retry_task_id="tangle-${task_group}-retry${retry_count}-${subtask_num}"
+        local _did_resume=false
+        if [[ "$SUPPORTS_CONTINUATION" == "true" ]]; then
+            # Look up agent_id from the original task (subtask_num maps to original)
+            local orig_task_id="tangle-${task_group}-${subtask_num}"
+            if [[ $retry_count -gt 1 ]]; then
+                orig_task_id="tangle-${task_group}-retry$((retry_count - 1))-${subtask_num}"
+            fi
+            local prev_agent_id
+            prev_agent_id=$(bridge_get_agent_id "$orig_task_id" 2>/dev/null) || true
+            if [[ -n "$prev_agent_id" ]]; then
+                local iteration_prompt="Continue working on the previous task. The output was insufficient.
+
+Revise and improve your response:
+$prompt"
+                if resume_agent "$prev_agent_id" "$iteration_prompt" "$retry_task_id" "$role" "tangle"; then
+                    _did_resume=true
+                    log "INFO" "Resumed agent $prev_agent_id for retry (task=$retry_task_id)"
+                else
+                    log "DEBUG" "Resume failed for agent $prev_agent_id, falling back to cold spawn"
+                fi
+            fi
+        fi
+
+        if [[ "$_did_resume" == "true" ]]; then
+            # Resume dispatches via Agent Teams (no background pid)
+            ((subtask_num++)) || true
+        elif should_use_agent_teams "$agent" 2>/dev/null; then
+            # Agent Teams dispatch (no background pid)
+            spawn_agent "$agent" "$prompt" "$retry_task_id" "$role" "tangle"
+            ((subtask_num++)) || true
+        else
+            # Legacy bash subprocess
+            spawn_agent "$agent" "$prompt" "$retry_task_id" "$role" "tangle" &
+            local pid=$!
+            pids="$pids $pid"
+            ((subtask_num++)) || true
+            ((pid_count++)) || true
+        fi
     done <<< "$FAILED_SUBTASKS"
 
     # Wait for retry tasks
@@ -10278,6 +10316,83 @@ should_use_agent_teams() {
     fi
 
     return 1
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# v8.30: Agent continuation/resume for iterative retries
+# Resumes a previous agent's transcript instead of cold-spawning a new one.
+# Only works for Claude agents via Agent Teams. Falls back to spawn_agent() on failure.
+# ═══════════════════════════════════════════════════════════════════════════════
+resume_agent() {
+    local agent_id="$1"
+    local prompt="$2"
+    local task_id="${3:-$(date +%s)}"
+    local role="${4:-}"
+    local phase="${5:-}"
+
+    # Gate: continuation must be supported
+    if [[ "$SUPPORTS_CONTINUATION" != "true" ]]; then
+        log "DEBUG" "resume_agent: SUPPORTS_CONTINUATION=false, falling back"
+        return 1
+    fi
+
+    # Gate: agent_id must be non-empty
+    if [[ -z "$agent_id" ]]; then
+        log "DEBUG" "resume_agent: empty agent_id, falling back"
+        return 1
+    fi
+
+    # Gate: Agent Teams must be available (resume only works for Claude agents)
+    if [[ "$SUPPORTS_STABLE_AGENT_TEAMS" != "true" ]]; then
+        log "DEBUG" "resume_agent: Agent Teams not available, falling back"
+        return 1
+    fi
+
+    log "INFO" "Resuming agent $agent_id for task $task_id (phase=${phase:-none}, role=${role:-none})"
+
+    # Write resume instruction JSON for Claude Code's Agent tool
+    local teams_dir="${WORKSPACE_DIR}/agent-teams"
+    mkdir -p "$teams_dir"
+
+    local resume_instruction_file="${teams_dir}/${task_id}.json"
+    if command -v jq &>/dev/null; then
+        jq -n \
+            --arg agent_id "$agent_id" \
+            --arg task_id "$task_id" \
+            --arg role "${role:-none}" \
+            --arg phase "${phase:-none}" \
+            --arg prompt "$prompt" \
+            --arg result_file "${RESULTS_DIR}/claude-${task_id}.md" \
+            '{dispatch_method: "resume", agent_id: $agent_id,
+              task_id: $task_id, role: $role, phase: $phase,
+              prompt: $prompt, result_file: $result_file,
+              dispatched_at: now | todate}' \
+            > "$resume_instruction_file" 2>/dev/null
+    else
+        log "WARN" "resume_agent: jq not available, falling back"
+        return 1
+    fi
+
+    # Register task in bridge ledger
+    bridge_register_task "$task_id" "claude-resume" "${phase:-unknown}" "${role:-none}"
+
+    # Emit structured signal for Claude Code to pick up
+    echo "AGENT_TEAMS_RESUME:${agent_id}:${task_id}:${role:-none}:${phase:-none}"
+
+    # Write initial result file header
+    local result_file="${RESULTS_DIR}/claude-${task_id}.md"
+    mkdir -p "$RESULTS_DIR"
+    echo "# Agent: claude (resumed via continuation)" > "$result_file"
+    echo "# Task ID: $task_id" >> "$result_file"
+    echo "# Resumed Agent: $agent_id" >> "$result_file"
+    echo "# Role: ${role:-none}" >> "$result_file"
+    echo "# Phase: ${phase:-none}" >> "$result_file"
+    echo "# Dispatch: Agent Teams (resume)" >> "$result_file"
+    echo "# Started: $(date)" >> "$result_file"
+    echo "" >> "$result_file"
+
+    log "DEBUG" "Resume instruction written to: $resume_instruction_file"
+    return 0
 }
 
 spawn_agent() {
@@ -10575,8 +10690,15 @@ ${earned_skills_ctx}"
                 '{agent_type: $agent_type, task_id: $task_id, role: $role,
                   phase: $phase, model: $model, prompt: $prompt,
                   result_file: $result_file, dispatch_method: "agent_teams",
-                  dispatched_at: now | todate}' \
+                  agent_id: "", dispatched_at: now | todate}' \
                 > "$agent_instruction_file" 2>/dev/null
+        fi
+
+        # v8.30: Write task_id mapping for agent_id correlation (continuation support)
+        if [[ "$SUPPORTS_CONTINUATION" == "true" ]]; then
+            local task_map_file="${teams_dir}/.task-agent-map"
+            echo "${task_id}:" >> "$task_map_file"
+            log "DEBUG" "Registered task $task_id for agent_id correlation"
         fi
 
         # Output structured instruction for Claude Code to pick up
