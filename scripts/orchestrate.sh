@@ -450,6 +450,12 @@ SUPPORTS_MANAGED_SETTINGS_PLATFORM=false # v8.26: Claude Code v2.1.51+ (macOS pl
 SUPPORTS_NATIVE_AUTO_MEMORY=false       # v8.26: Claude Code v2.1.59+ (native auto-memory + /memory cmd)
 SUPPORTS_AGENT_MEMORY_GC=false          # v8.26: Claude Code v2.1.59+ (completed subagent state released)
 SUPPORTS_SMART_BASH_PREFIXES=false      # v8.26: Claude Code v2.1.59+ (smart compound bash prefixes)
+SUPPORTS_HTTP_HOOKS=false              # v8.29: Claude Code v2.1.63+ (HTTP POST hooks instead of shell)
+SUPPORTS_WORKTREE_SHARED_CONFIG=false  # v8.29: Claude Code v2.1.63+ (project configs shared across worktrees)
+SUPPORTS_MEMORY_LEAK_FIXES=false       # v8.29: Claude Code v2.1.63+ (18+ memory leak fixes, long sessions stable)
+SUPPORTS_BATCH_COMMAND=false           # v8.29: Claude Code v2.1.63+ (/batch bundled command)
+SUPPORTS_MCP_OPT_OUT=false            # v8.29: Claude Code v2.1.63+ (ENABLE_CLAUDEAI_MCP_SERVERS=false)
+SUPPORTS_SKILL_CACHE_RESET=false      # v8.29: Claude Code v2.1.63+ (/clear resets cached skills)
 OCTOPUS_BACKEND="api"              # v8.16: Detected backend (api|bedrock|vertex|foundry)
 AGENT_TEAMS_ENABLED="${CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS:-0}"
 OCTOPUS_SECURITY_V870="${OCTOPUS_SECURITY_V870:-true}"
@@ -623,6 +629,17 @@ detect_claude_code_version() {
         SUPPORTS_SMART_BASH_PREFIXES=true
     fi
 
+    # Check for v2.1.63+ features (HTTP hooks, shared worktree config, memory fixes, batch, MCP opt-out)
+    if version_compare "$CLAUDE_CODE_VERSION" "2.1.63" ">="; then
+        SUPPORTS_HTTP_HOOKS=true
+        SUPPORTS_WORKTREE_SHARED_CONFIG=true
+        export SUPPORTS_WORKTREE_SHARED_CONFIG  # Exported for worktree-setup.sh hook
+        SUPPORTS_MEMORY_LEAK_FIXES=true
+        SUPPORTS_BATCH_COMMAND=true
+        SUPPORTS_MCP_OPT_OUT=true
+        SUPPORTS_SKILL_CACHE_RESET=true
+    fi
+
     log "INFO" "Claude Code v$CLAUDE_CODE_VERSION detected"
     log "INFO" "Task Management: $SUPPORTS_TASK_MANAGEMENT | Fork Context: $SUPPORTS_FORK_CONTEXT | Agent Teams: $SUPPORTS_AGENT_TEAMS"
     log "INFO" "Persistent Memory: $SUPPORTS_PERSISTENT_MEMORY | Hook Events: $SUPPORTS_HOOK_EVENTS | Agent Type Routing: $SUPPORTS_AGENT_TYPE_ROUTING"
@@ -636,6 +653,7 @@ detect_claude_code_version() {
     log "INFO" "Worktree Isolation: $SUPPORTS_WORKTREE_ISOLATION | Worktree Hooks: $SUPPORTS_WORKTREE_HOOKS | Agents CLI: $SUPPORTS_AGENTS_CLI | Fast Opus 1M: $SUPPORTS_FAST_OPUS_1M"
     log "INFO" "Remote Control: $SUPPORTS_REMOTE_CONTROL | NPM Registries: $SUPPORTS_NPM_PLUGIN_REGISTRIES | Fast Bash: $SUPPORTS_FAST_BASH | Disk Persist: $SUPPORTS_AGGRESSIVE_DISK_PERSIST"
     log "INFO" "Native Auto-Memory: $SUPPORTS_NATIVE_AUTO_MEMORY | Agent Memory GC: $SUPPORTS_AGENT_MEMORY_GC | Smart Bash Prefixes: $SUPPORTS_SMART_BASH_PREFIXES"
+    log "INFO" "HTTP Hooks: $SUPPORTS_HTTP_HOOKS | Shared WT Config: $SUPPORTS_WORKTREE_SHARED_CONFIG | Batch: $SUPPORTS_BATCH_COMMAND | MCP Opt-Out: $SUPPORTS_MCP_OPT_OUT"
 
     # v8.5: Detect /fast toggle after version detection
     detect_fast_mode
@@ -13430,6 +13448,12 @@ doctor_check_config() {
                 "SUPPORTS_WORKTREE_ISOLATION is false on CC v${cc_ver}" \
                 "Expected true for v2.1.50+; feature detection may have failed"
         fi
+        # Check SUPPORTS_HTTP_HOOKS should be true on v2.1.63+
+        if version_compare "$cc_ver" "2.1.63" ">=" 2>/dev/null && [[ "$SUPPORTS_HTTP_HOOKS" != "true" ]]; then
+            doctor_add "flag-http-hooks" "config" "warn" \
+                "SUPPORTS_HTTP_HOOKS is false on CC v${cc_ver}" \
+                "Expected true for v2.1.63+; feature detection may have failed"
+        fi
     fi
 
     # OCTOPUS_BACKEND correctly detected
@@ -18743,6 +18767,13 @@ fi
 # Skip for help and non-workflow commands
 if [[ "$COMMAND" != "help" && "$COMMAND" != "setup" && "$COMMAND" != "preflight" && "$COMMAND" != "cost" && "$COMMAND" != "usage" && "$COMMAND" != "-h" && "$COMMAND" != "--help" ]]; then
     init_state 2>/dev/null || true
+
+    # v8.29.0: Check if ConfigChange hook signaled settings were modified
+    RELOAD_SIGNAL="${HOME}/.claude-octopus/.config-reload-signal"
+    if [[ -f "$RELOAD_SIGNAL" ]]; then
+        log "INFO" "ConfigChange detected — settings reloaded from environment"
+        rm -f "$RELOAD_SIGNAL"
+    fi
 
     # v8.21.0: Auto-load persona packs from standard paths
     if type auto_load_persona_packs &>/dev/null 2>&1; then
