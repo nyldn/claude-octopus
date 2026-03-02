@@ -20,7 +20,7 @@ export const SKILL_REGISTRY: SkillRegistryEntry[] = [
   { name: "flow-deliver", description: "Multi-AI validation and review using Codex and Gemini CLIs (Double Diamond Deliver phase)", type: "skill", file: "flow-deliver.md" },
   { name: "flow-develop", description: "Multi-AI implementation using Codex and Gemini CLIs (Double Diamond Develop phase)", type: "skill", file: "flow-develop.md" },
   { name: "flow-discover", description: "Multi-AI research using Codex and Gemini CLIs (Double Diamond Discover phase)", type: "skill", file: "flow-discover.md" },
-  { name: "flow-parallel", description: "Parallel task decomposition", type: "skill", file: "flow-parallel.md" },
+  { name: "flow-parallel", description: "Decompose and execute large changes, migrations, or multi-issue fixes in parallel with quality gates", type: "skill", file: "flow-parallel.md" },
   { name: "flow-spec", description: "NLSpec authoring — structured specification from multi-AI research", type: "skill", file: "flow-spec.md" },
   { name: "octopus-security", description: "Adversarial red team security testing with blue/red team cycle", type: "skill", file: "skill-adversarial-security.md" },
   { name: "octopus-architecture", description: "System architecture and API design with multi-AI consensus", type: "skill", file: "skill-architecture.md" },
