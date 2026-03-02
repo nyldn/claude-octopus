@@ -1,3 +1,11 @@
+## [8.31.1] - 2026-03-01
+
+### Changed
+
+- Add /octo:batch alias and strengthen parallel quality defaults
+
+---
+
 ## [8.31.0] - 2026-02-28
 
 ### Changed

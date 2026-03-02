@@ -7,7 +7,7 @@ A Claude Code plugin that turns one model into three. Orchestrates Codex, Gemini
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-8.31.0-blue" alt="Version 8.31.0">
+  <img src="https://img.shields.io/badge/Version-8.31.1-blue" alt="Version 8.31.1">
   <img src="https://img.shields.io/badge/Claude_Code-v2.1.50+-blueviolet" alt="Requires Claude Code v2.1.50+">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
 </p>
