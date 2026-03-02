@@ -2,10 +2,11 @@
 name: flow-parallel
 aliases:
   - parallel
+  - batch
   - team
   - teams
   - team-of-teams
-description: "Parallel task decomposition"
+description: "Decompose and execute large changes, migrations, or multi-issue fixes in parallel with quality gates"
 execution_mode: enforced
 validation_gates:
   - wbs_generated
@@ -292,10 +293,15 @@ cat > ".octo/parallel/WP-N/instructions.md" << 'INSTREOF'
 - This WP produces: <what downstream consumers can expect>
 - This WP consumes: <what it needs from the project, NOT from other WPs>
 
-## Quality Expectations
+## Quality Requirements (MANDATORY)
 - Code must compile/parse without errors
-- Follow existing project conventions
-- Include basic error handling
+- Follow existing project conventions (naming, structure, patterns)
+- Run any existing tests related to your changes — do NOT skip tests
+- Run the project linter if one exists (eslint, ruff, golangci-lint, etc.)
+- No `type: ignore`, `@ts-ignore`, `any` casts, or suppression comments unless the existing code already uses them
+- No placeholder code — no `TODO`, `FIXME`, or stub implementations
+- Verify your changes work by running or testing them before completing
+- If you break existing tests, fix them — do not delete or skip them
 
 ## Dependency Context
 - This WP depends on: <list of dependency WP IDs, or "none">
@@ -517,13 +523,17 @@ echo "=== SUMMARY ==="
 echo "Total: $WP_COUNT | Succeeded: $SUCCEEDED | Failed: $FAILED"
 ```
 
-**Then read each output.md** using the Read tool and present an integrated summary to the user:
+**Then read each output.md** using the Read tool and **review quality before declaring success:**
 
 1. Read all `output.md` files from completed WPs
 2. Flag any failed WPs (non-zero exit code) with their `agent.log` content
-3. Present a unified summary of what was accomplished
+3. **Quality spot-check each succeeded WP** — scan output for:
+   - Suppression markers (`@ts-ignore`, `type: ignore`, `noqa`, `eslint-disable`)
+   - Placeholder code (`TODO`, `FIXME`, `not implemented`, stub functions)
+   - Test skip markers (`skip`, `xit`, `xdescribe`, `pytest.mark.skip`)
+   - If any found: flag as **QUALITY WARNING** (do not auto-fail, but surface to user)
 4. List any files created or modified across all WPs
-5. Note any integration points that need manual attention
+5. Note any integration points that need manual attention (shared interfaces, overlapping files)
 
 **Present results in this format:**
 
@@ -641,4 +651,48 @@ Decomposition:
 
 Each WP runs as independent claude -p with full Octopus plugin.
 Results aggregated after all complete.
+```
+
+### Example: Migration (batch-style)
+
+```
+User: /octo:batch migrate all components in src/components/ from class components to functional React with hooks
+
+Decomposition:
+  WP-1: Form components (src/components/forms/)
+  WP-2: Layout components (src/components/layout/)
+  WP-3: Data display components (src/components/tables/, src/components/charts/)
+  WP-4: Navigation components (src/components/nav/)
+
+Each WP migrates its directory, runs existing tests, fixes any failures.
+No overlapping files — safe to merge all results.
+```
+
+### Example: Fix multiple issues in parallel
+
+```
+User: /octo:parallel fix issue #12, issue #15, and issue #22
+
+Decomposition (after reading each issue):
+  WP-1: Fix #12 — login redirect loop (src/auth/login.ts)
+  WP-2: Fix #15 — pagination off-by-one (src/api/pagination.ts)
+  WP-3: Fix #22 — dark mode toggle not persisting (src/hooks/useTheme.ts)
+
+No file overlaps detected — all three run in Wave 1.
+Each WP runs related tests before marking complete.
+```
+
+### Example: Build independent tools in parallel
+
+```
+User: /octo:parallel build a confluence scraper in go, a markdown-to-obsidian converter, a qdrant vectorizer, and a CLI search tool
+
+Decomposition:
+  WP-1: Confluence scraper (cmd/scraper/) — Wave 1
+  WP-2: Markdown-to-Obsidian converter (cmd/converter/) — Wave 2 (depends on WP-1 output format)
+  WP-3: Qdrant vectorizer (cmd/vectorizer/) — Wave 2 (depends on WP-2 output format)
+  WP-4: CLI search tool (cmd/search/) — Wave 2 (depends on WP-3 schema)
+
+Wave 1 completes first, output format injected into Wave 2 instructions.
+Each WP builds, runs go test, and verifies the binary works.
 ```
