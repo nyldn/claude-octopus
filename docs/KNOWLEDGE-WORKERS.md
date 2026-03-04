@@ -194,6 +194,29 @@ These tentacles are the backbone of v6.0. Use them individually with the `spawn`
 - **Avoid If**: You are still in user research; use `ux-researcher`.
 - **Example Prompt**: *"Write 10 user stories with acceptance criteria for our new mobile onboarding flow."*
 
+### 📣 marketing-strategist
+- **Model**: `sonnet` (Data-driven growth)
+- **When to Use**: Campaign planning, growth funnels, SEO strategy, brand positioning, attribution modeling.
+- **Superpower**: Connecting audience insights with business objectives across channels.
+- **Avoid If**: You need financial modeling; use `finance-analyst`. For market sizing, use `strategy-analyst`.
+- **Example Prompt**: *"Design a content marketing strategy and AARRR funnel for our developer tools SaaS."*
+
+### 💰 finance-analyst
+- **Model**: `sonnet` (Quantitative rigor)
+- **When to Use**: Financial modeling, budgeting, forecasting, ROI/NPV, unit economics, pricing.
+- **Superpower**: Translating business plans into rigorous financial frameworks with scenario analysis.
+- **Avoid If**: You need market sizing; use `strategy-analyst`. For BI dashboards, use `business-analyst`.
+- **Example Prompt**: *"Build a 3-year SaaS financial model with unit economics and runway analysis."*
+- **Note**: Informational analysis only — not accounting or tax advice.
+
+### ⚖️ legal-compliance-advisor
+- **Model**: `sonnet` (Regulatory precision)
+- **When to Use**: GDPR/CCPA/HIPAA compliance, SOC 2 readiness, privacy policies, contract review, regulatory risk.
+- **Superpower**: Translating complex regulations into actionable compliance checklists.
+- **Avoid If**: You need security vulnerability scanning; use `security-auditor`.
+- **Example Prompt**: *"Review our data handling practices for GDPR compliance and create a remediation roadmap."*
+- **Note**: Informational compliance guidance only — not legal counsel.
+
 ---
 
 ## Smart Routing & Intent

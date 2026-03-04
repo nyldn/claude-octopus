@@ -318,6 +318,8 @@ cat > ".octo/parallel/WP-N/launch.sh" << 'LAUNCHEOF'
 #!/bin/bash
 cd "<absolute-project-root-path>"
 unset CLAUDECODE
+# v8.32.0: Credential isolation — work packages don't need provider keys
+unset OPENAI_API_KEY GEMINI_API_KEY GOOGLE_API_KEY OPENROUTER_API_KEY PERPLEXITY_API_KEY
 cat "$(dirname "$0")/instructions.md" | claude -p > "$(dirname "$0")/output.md" 2>"$(dirname "$0")/agent.log"
 echo $? > "$(dirname "$0")/exit-code"
 touch "$(dirname "$0")/.done"

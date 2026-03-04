@@ -1166,6 +1166,71 @@ select_model_tier() {
     esac
 }
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# EFFORT LEVEL MAPPING (v8.32.0)
+# Maps phase + complexity to Claude SDK effort levels (low/medium/high)
+# Gated by SUPPORTS_SDK_MODEL_CAPS (Claude Code v2.1.49+)
+# Override: OCTOPUS_EFFORT_OVERRIDE=low|medium|high
+# ═══════════════════════════════════════════════════════════════════════════════
+
+get_effort_level() {
+    local phase="$1"
+    local complexity="${2:-2}"  # 1=low, 2=medium, 3=high
+
+    # Not supported — return empty (caller should omit effort field)
+    if [[ "$SUPPORTS_SDK_MODEL_CAPS" != "true" ]]; then
+        echo ""
+        return
+    fi
+
+    # User override — validate against enum
+    if [[ -n "${OCTOPUS_EFFORT_OVERRIDE:-}" ]]; then
+        case "$OCTOPUS_EFFORT_OVERRIDE" in
+            low|medium|high) echo "$OCTOPUS_EFFORT_OVERRIDE"; return ;;
+            *) log "WARN" "Invalid OCTOPUS_EFFORT_OVERRIDE='$OCTOPUS_EFFORT_OVERRIDE' — ignoring (use low|medium|high)" ;;
+        esac
+    fi
+
+    # Phase-aware mapping
+    local effort=""
+    case "$phase" in
+        probe|discover)
+            # Research: low complexity = low effort, high = medium (never high — broad not deep)
+            case "$complexity" in
+                1) effort="low" ;;
+                3) effort="medium" ;;
+                *) effort="low" ;;
+            esac
+            ;;
+        grasp|define)
+            # Scoping: always medium — needs reasoning but not maximum depth
+            effort="medium"
+            ;;
+        tangle|develop)
+            # Implementation: scale with complexity — this is where depth matters
+            case "$complexity" in
+                1) effort="medium" ;;
+                3) effort="high" ;;
+                *) effort="medium" ;;
+            esac
+            ;;
+        ink|deliver)
+            # Review: medium for standard, high for complex (security, architecture)
+            case "$complexity" in
+                3) effort="high" ;;
+                *) effort="medium" ;;
+            esac
+            ;;
+        *)
+            effort="medium"
+            ;;
+    esac
+
+    # Defensive default
+    effort="${effort:-medium}"
+    echo "$effort"
+}
+
 get_tier_model() {
     local tier="$1"
     local agent_type="$2"
@@ -2266,6 +2331,17 @@ record_agent_call() {
     local timestamp
     timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
+    # v8.32.0: Account env vars for per-user traceability (Claude Code v2.1.51+)
+    local account_uuid="${CLAUDE_ACCOUNT_UUID:-unknown}"
+    local account_org="${CLAUDE_ORG_UUID:-unknown}"
+    # Hash email for PII protection — log UUID freely
+    local account_email_hash="unknown"
+    if [[ -n "${CLAUDE_USER_EMAIL:-}" ]] && command -v sha256sum &>/dev/null; then
+        account_email_hash=$(printf '%s' "$CLAUDE_USER_EMAIL" | sha256sum | cut -d' ' -f1)
+    elif [[ -n "${CLAUDE_USER_EMAIL:-}" ]] && command -v shasum &>/dev/null; then
+        account_email_hash=$(printf '%s' "$CLAUDE_USER_EMAIL" | shasum -a 256 | cut -d' ' -f1)
+    fi
+
     # Append to calls array using a temp file approach (jq-free for portability)
     if [[ -f "$USAGE_FILE" ]]; then
         # Create call record
@@ -2281,13 +2357,16 @@ record_agent_call() {
       "output_tokens": $output_tokens,
       "total_tokens": $total_tokens,
       "cost_usd": $cost,
-      "duration_ms": $duration_ms
+      "duration_ms": $duration_ms,
+      "account_uuid": "$account_uuid",
+      "org_uuid": "$account_org",
+      "email_hash": "$account_email_hash"
     }
 EOF
 )
 
         # Update totals in a simple tracking file
-        echo "$timestamp|$agent_type|$model|$phase|$role|$input_tokens|$output_tokens|$total_tokens|$cost|$duration_ms" >> "${USAGE_FILE}.log"
+        echo "$timestamp|$agent_type|$model|$phase|$role|$input_tokens|$output_tokens|$total_tokens|$cost|$duration_ms|$account_uuid" >> "${USAGE_FILE}.log"
 
         log DEBUG "Recorded call: agent=$agent_type model=$model tokens=$total_tokens cost=\$$cost"
     fi
@@ -4819,7 +4898,7 @@ FISH_COMPLETION
 # Always returns 0 (success) - use the output to determine status
 check_codex_auth() {
     # Check for API key first
-    if [[ -n "$OPENAI_API_KEY" ]]; then
+    if [[ -n "${OPENAI_API_KEY:-}" ]]; then
         echo "api_key"
         return 0
     fi
@@ -8676,6 +8755,29 @@ load_user_config() {
     [[ "$VERBOSE" == "true" ]] && log DEBUG "Loaded user config: tier=$USER_RESOURCE_TIER, intent=$USER_INTENT_PRIMARY, knowledge_mode=$KNOWLEDGE_WORK_MODE" || true
 }
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# CONFIG HOT-RELOAD (v8.32.0)
+# Reads config-reload-signal written by ConfigChange hook (v2.1.49+)
+# Call at workflow entry points to pick up setting changes mid-session
+# ═══════════════════════════════════════════════════════════════════════════════
+
+check_config_reload() {
+    [[ "$SUPPORTS_CONFIG_CHANGE_HOOK" != "true" ]] && return 0
+
+    local signal_file="${HOME}/.claude-octopus/.config-reload-signal"
+    [[ ! -f "$signal_file" ]] && return 0
+
+    local signal_time
+    signal_time=$(cat "$signal_file" 2>/dev/null) || return 0
+
+    # Consume the signal (remove file so we don't reload again)
+    rm -f "$signal_file" 2>/dev/null || true
+
+    log "INFO" "Config change detected at $signal_time — reloading user config"
+    load_user_config
+    return 0
+}
+
 # Save user configuration to file
 save_user_config() {
     local intent_primary="$1"
@@ -9191,6 +9293,10 @@ generate_session_name() {
 init_session() {
     local workflow="$1"
     local prompt="$2"
+
+    # v8.32.0: Check for mid-session config changes before starting workflow
+    check_config_reload
+
     # Claude Code v2.1.9: Use CLAUDE_SESSION_ID for cross-session tracking
     local session_id
     if [[ -n "$CLAUDE_CODE_SESSION" ]]; then
@@ -10432,8 +10538,8 @@ resume_agent() {
         return 1
     fi
 
-    # Register task in bridge ledger
-    bridge_register_task "$task_id" "claude-resume" "${phase:-unknown}" "${role:-none}"
+    # Register task in bridge ledger (non-fatal if ledger missing)
+    bridge_register_task "$task_id" "claude-resume" "${phase:-unknown}" "${role:-none}" || true
 
     # Emit structured signal for Claude Code to pick up
     echo "AGENT_TEAMS_RESUME:${agent_id}:${task_id}:${role:-none}:${phase:-none}"
@@ -10703,25 +10809,25 @@ ${earned_skills_ctx}"
     esac
     update_metrics "provider" "$provider_name" 2>/dev/null || true
 
-    # v8.7.0: Register task in bridge ledger
-    bridge_register_task "$task_id" "$agent_type" "${phase:-unknown}" "${role:-none}"
+    # v8.7.0: Register task in bridge ledger (non-fatal if ledger missing)
+    bridge_register_task "$task_id" "$agent_type" "${phase:-unknown}" "${role:-none}" || true
 
     # Record metrics start (v7.25.0)
     local metrics_id=""
     if command -v record_agent_start &> /dev/null; then
         metrics_id=$(record_agent_start "$agent_type" "$model" "$enhanced_prompt" "${phase:-unknown}") || true
-
-        # Store metrics mapping for batch completion recording
-        if [[ -n "$metrics_id" ]]; then
-            local metrics_base="${WORKSPACE_DIR:-${HOME}/.claude-octopus}"
-            local metrics_map="${metrics_base}/.metrics-map"
-            echo "${task_group}-${task_id}:${metrics_id}:${agent_type}:${model}" >> "$metrics_map"
-        fi
     fi
 
     if [[ "$DRY_RUN" == "true" ]]; then
         log INFO "[DRY-RUN] Would execute: $cmd with role=${role:-none}"
         return 0
+    fi
+
+    # Store metrics mapping for batch completion recording (after DRY_RUN gate)
+    if [[ -n "$metrics_id" ]]; then
+        local metrics_base="${WORKSPACE_DIR:-${HOME}/.claude-octopus}"
+        local metrics_map="${metrics_base}/.metrics-map"
+        echo "${task_group:-${task_id}}:${metrics_id}:${agent_type}:${model}" >> "$metrics_map"
     fi
 
     mkdir -p "$RESULTS_DIR" "$LOGS_DIR"
@@ -10770,9 +10876,15 @@ ${earned_skills_ctx}"
         echo "# Phase: ${phase:-none}" >> "$result_file"
         echo "# Dispatch: Agent Teams (native)" >> "$result_file"
         echo "# Started: $(date)" >> "$result_file"
+        if [[ "$SUPPORTS_HOOK_LAST_MESSAGE" == "true" ]]; then
+            echo "# Result-capture: SubagentStop hook" >> "$result_file"
+        fi
         echo "" >> "$result_file"
 
         log "DEBUG" "Agent Teams instruction written to: $agent_instruction_file"
+        if [[ "$SUPPORTS_HOOK_LAST_MESSAGE" == "true" ]]; then
+            log "DEBUG" "Result capture via SubagentStop hook (last_assistant_message)"
+        fi
         return 0
     fi
 
@@ -10796,8 +10908,16 @@ ${earned_skills_ctx}"
         echo '```' >> "$result_file"
 
         # SECURITY: Use array-based execution to prevent word-splitting vulnerabilities
+        # v8.32.0: Per-provider credential isolation — each agent only sees its own API key
         local -a cmd_array
-        read -ra cmd_array <<< "$cmd"
+        local env_prefix
+        env_prefix=$(build_provider_env "$agent_type")
+        if [[ -n "$env_prefix" ]]; then
+            read -ra cmd_array <<< "$env_prefix $cmd"
+            log "DEBUG" "Credential isolation active for $agent_type"
+        else
+            read -ra cmd_array <<< "$cmd"
+        fi
 
         # IMPROVED: Use temp files for reliable output capture (v7.13.2 - Issue #10)
         # v7.19.0 P0.1: Real-time output streaming to result file
@@ -10884,8 +11004,18 @@ ${earned_skills_ctx}"
             log "INFO" "Auth retries used: $auth_attempt/$max_auth_retries (backend=$OCTOPUS_BACKEND, exit=$exit_code)"
         fi
 
+        # v8.32: Skip CLI output capture if SubagentStop hook already wrote the result
+        local _hook_captured=false
+        if [[ "$SUPPORTS_HOOK_LAST_MESSAGE" == "true" ]] && grep -q "Capture: SubagentStop hook" "$result_file" 2>/dev/null; then
+            _hook_captured=true
+            log "DEBUG" "Result already captured by SubagentStop hook, skipping CLI output parse"
+        fi
+
         # v7.19.0 P0.1: Process output regardless of exit code (preserves partial results)
-        if [[ $exit_code -eq 0 ]]; then
+        if [[ "$_hook_captured" == "true" ]]; then
+            # Hook already wrote ## Output + ## Status: SUCCESS — skip to post-processing
+            :
+        elif [[ $exit_code -eq 0 ]]; then
             # Filter out CLI header noise and extract actual response
             # Handles Codex/Gemini CLI format where response follows "codex"/"gemini" marker
             awk '

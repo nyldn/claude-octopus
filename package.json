@@ -1,8 +1,8 @@
 {
-  "name": "claude-octopus",
+  "name": "@anthropic-plugins/claude-octopus",
   "version": "8.31.1",
-  "description": "Claude Octopus - Multi-agent orchestration with persistent state management, codebase-aware discover, and STATE.md generation",
-  "main": "orchestrate.sh",
+  "description": "Claude Octopus - Multi-AI orchestration plugin for Claude Code. Three brains, one workflow.",
+  "main": "scripts/orchestrate.sh",
   "scripts": {
     "test": "make test",
     "test:smoke": "make test-smoke",
@@ -12,20 +12,51 @@
     "test:all": "make test-all",
     "test:coverage": "make test-coverage",
     "test:verbose": "make test-verbose",
-    "test:clean": "make clean-tests"
+    "test:clean": "make clean-tests",
+    "prepublishOnly": "node -e \"const p=require('./package.json'); if(!/^\\d+\\.\\d+\\.\\d+$/.test(p.version)){process.exit(1)}\" && test -f scripts/orchestrate.sh && test -f README.md"
   },
+  "files": [
+    "scripts/",
+    "agents/",
+    "hooks/",
+    "workflows/",
+    "templates/",
+    "config/",
+    ".claude/",
+    "mcp-server/",
+    "openclaw/",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "CLAUDE.md",
+    "SAFEGUARDS.md",
+    "install.sh",
+    "deploy.sh",
+    "Makefile"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/nyldn/claude-octopus.git"
   },
   "keywords": [
     "claude",
+    "claude-code",
+    "claude-code-plugin",
     "ai",
     "multi-agent",
     "orchestration",
-    "cli"
+    "codex",
+    "gemini",
+    "multi-ai"
   ],
   "author": "nyldn",
   "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "devDependencies": {}
 }

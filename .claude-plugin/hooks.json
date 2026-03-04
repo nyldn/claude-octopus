@@ -206,5 +206,17 @@
         }
       ]
     }
+  ],
+  "SubagentStop": [
+    {
+      "matcher": {},
+      "hooks": [
+        {
+          "type": "command",
+          "command": "${CLAUDE_PLUGIN_ROOT}/hooks/subagent-result-capture.sh",
+          "timeout": 10
+        }
+      ]
+    }
   ]
 }

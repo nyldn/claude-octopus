@@ -407,6 +407,24 @@ recommend_persona_agent() {
         ((confidence += 25))
     fi
 
+    # Marketing Strategy patterns -> marketing-strategist (v8.32)
+    if [[ "$prompt_lower" =~ (marketing.?strategy|campaign.?plan|content.?strategy|seo.?strategy|social.?media.?strategy|brand.?position|growth.?hack|funnel.?optim|lead.?gen) ]]; then
+        recommendations="${recommendations}marketing-strategist "
+        ((confidence += 25))
+    fi
+
+    # Finance Analysis patterns -> finance-analyst (v8.32)
+    if [[ "$prompt_lower" =~ (financial.?model|budget.?plan|forecast.?revenue|roi.?analysis|cash.?flow|burn.?rate|unit.?economics|pricing.?model|cost.?optim) ]]; then
+        recommendations="${recommendations}finance-analyst "
+        ((confidence += 25))
+    fi
+
+    # Legal Compliance patterns -> legal-compliance-advisor (v8.32)
+    if [[ "$prompt_lower" =~ (compliance.?review|gdpr|ccpa|hipaa|soc.?2|privacy.?policy|contract.?review|regulatory.?risk|terms.?of.?service|data.?protection) ]]; then
+        recommendations="${recommendations}legal-compliance-advisor "
+        ((confidence += 25))
+    fi
+
     # Return first recommendation if confidence is high enough
     local primary
     primary=$(echo "$recommendations" | awk '{print $1}')

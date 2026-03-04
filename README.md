@@ -12,17 +12,17 @@ A Claude Code plugin that turns one model into three. Orchestrates Codex, Gemini
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
 </p>
 
-**Three brains, one workflow.** Other multi-AI tools run providers in parallel and hand you three answers. Octopus assigns each model a distinct role — Codex for implementation depth, Gemini for ecosystem breadth, Claude for synthesis — then enforces a 75% consensus gate before anything ships. Disagreements get caught, not ignored.
+🐙 **Three brains, one workflow.** Other multi-AI tools run providers in parallel and hand you three answers. Octopus assigns each model a distinct role — Codex for implementation depth, Gemini for ecosystem breadth, Claude for synthesis — then enforces a 75% consensus gate before anything ships. Disagreements get caught, not ignored.
 
-**Spec in, software out.** Dark Factory mode takes a spec and autonomously runs the full pipeline — research, define, develop, deliver — with holdout testing and satisfaction scoring. You review the output, not every step.
+⚡ **Spec in, software out.** Dark Factory mode takes a spec and autonomously runs the full pipeline — research, define, develop, deliver — with holdout testing and satisfaction scoring. You review the output, not every step.
 
-**Methodology, not just machinery.** Built on the Double Diamond framework, every task moves through four structured phases: discover, define, develop, deliver. Quality gates between phases mean sloppy work can't advance. Other orchestrators give you infrastructure to build workflows on — Octopus gives you the workflows.
+🔄 **Methodology, not just machinery.** Built on the Double Diamond framework, every task moves through four structured phases: discover, define, develop, deliver. Quality gates between phases mean sloppy work can't advance. Other orchestrators give you infrastructure to build workflows on — Octopus gives you the workflows.
 
-**31 specialized personas, 39 commands.** Not generic agents. A security-auditor that thinks in OWASP. A backend-architect that designs APIs. A tdd-orchestrator that enforces red-green-refactor. Personas activate automatically based on what you ask — say "audit my API" and the right expert shows up. Don't know the command name? Just say what you need — the smart router figures it out.
+🐙 **33 specialized personas, 39 commands.** Not generic agents. A security-auditor that thinks in OWASP. A backend-architect that designs APIs. A tdd-orchestrator that enforces red-green-refactor. Personas activate automatically based on what you ask — say "audit my API" and the right expert shows up. Don't know the command name? Just say what you need — the smart router figures it out.
 
-**Works with just Claude. Scales to three.** Zero external providers needed to start. You get every persona, every workflow, every skill on day one. Add Codex or Gemini and multi-AI orchestration lights up — parallel research, adversarial debate, cross-model review.
+🐙 **Works with just Claude. Scales to three.** Zero external providers needed to start. You get every persona, every workflow, every skill on day one. Add Codex or Gemini and multi-AI orchestration lights up — parallel research, adversarial debate, cross-model review.
 
-**Full cost transparency.** Visual indicators show exactly which providers are active and whose billing they hit. Smart cost routing picks the cheapest provider that can handle the job. No hidden API calls, no surprise charges.
+💰 **Full cost transparency.** Visual indicators show exactly which providers are active and whose billing they hit. Smart cost routing picks the cheapest provider that can handle the job. No hidden API calls, no surprise charges.
 
 ---
 
@@ -71,7 +71,7 @@ Setup detects installed providers, shows what's missing, and walks you through c
 
 ## Top 8 Tentacles
 
-Eight commands — one per arm. Each orchestrates up to three AI providers, applies quality gates, and produces a deliverable.
+🐙 Eight commands — one per arm. *A real octopus has eight arms, each with its own neurons that can act independently.* These eight tentacles work the same way: each orchestrates up to three AI providers, applies quality gates, and produces a deliverable.
 
 ```bash
 /octo:embrace build stripe integration     # Full lifecycle: research → define → develop → deliver
@@ -109,6 +109,27 @@ The smart router parses your intent and selects the right workflow.
 
 ---
 
+## Which Tentacle?
+
+Not sure which command to use? Pick by goal:
+
+| I want to... | Use |
+|--------------|-----|
+| Research a topic thoroughly | `/octo:research` or `/octo:discover` |
+| Debate two approaches | `/octo:debate` |
+| Build a feature end-to-end | `/octo:embrace` |
+| Review existing code | `/octo:review` |
+| Write tests first, then code | `/octo:tdd` |
+| Scan for vulnerabilities | `/octo:security` |
+| Write a product spec | `/octo:prd` |
+| Go from spec to shipping code | `/octo:factory` |
+| Debug a tricky issue | `/octo:debug` |
+| Just run something quick | `/octo:quick` |
+
+Or skip the table — type `/octo <what you want>` and the smart router picks for you. 🔍
+
+---
+
 ## How It Works
 
 ### Three Providers, One Workflow
@@ -136,11 +157,11 @@ Four structured phases adapted from the UK Design Council's methodology:
 
 Run phases individually or all four with `/octo:embrace`. Configure autonomy: supervised (approve each phase), semi-autonomous (intervene on failures), or autonomous (run all four).
 
-### 31 Personas
+### 33 Personas
 
 Specialized agents that activate automatically based on your request. When you say "audit my API for vulnerabilities," security-auditor activates. When you say "write a research paper," academic-writer takes over.
 
-Categories: Software Engineering (11), Specialized Development (6), Documentation & Communication (5), Research & Strategy (4), Creative & Design (3).
+Categories: Software Engineering (11), Specialized Development (6), Documentation & Communication (5), Research & Strategy (4), Business & Compliance (3), Creative & Design (4).
 
 [Full persona reference](docs/AGENTS.md) | [All 44 skills](docs/COMMAND-REFERENCE.md)
 
@@ -159,7 +180,7 @@ OAuth users pay nothing beyond their existing subscriptions.
 
 ### What Works Without External Providers
 
-Everything except multi-AI features. You get all 31 personas, structured workflows, smart routing, context detection, and every skill. Multi-AI orchestration (parallel analysis, debate, consensus) activates when external providers are configured.
+Everything except multi-AI features. You get all 33 personas, structured workflows, smart routing, context detection, and every skill. Multi-AI orchestration (parallel analysis, debate, consensus) activates when external providers are configured.
 
 ---
 
@@ -246,6 +267,9 @@ No. Activates only with the `octo` prefix. Results stored separately. Uninstalls
 **What happens if a provider times out?**
 The workflow continues with available providers. You'll see the status in the visual indicators.
 
+**Why "octopus"?**
+🐙 *Fun fact: a real octopus has three hearts, blue blood, and 500 million neurons — two-thirds of which live in its eight arms.* Each arm can taste, touch, and act independently. Claude Octopus works the same way: each tentacle (command) operates autonomously with its own squeeze of logic, then ink flows back as the final deliverable. The crossfire review? That's the squeeze — adversarial pressure that untangles everything before it ships.
+
 ---
 
 ## Documentation
@@ -253,7 +277,7 @@ The workflow continues with available providers. You'll see the status in the vi
 - [Command Reference](docs/COMMAND-REFERENCE.md) — All 39 commands
 - [Architecture](docs/ARCHITECTURE.md) — How it works internally
 - [Plugin Architecture](docs/PLUGIN-ARCHITECTURE.md) — Plugin structure
-- [Agents & Personas](docs/AGENTS.md) — All 31 personas
+- [Agents & Personas](docs/AGENTS.md) — All 33 personas
 - [Visual Indicators](docs/VISUAL-INDICATORS.md) — Provider status
 - [Debug Mode](docs/DEBUG_MODE.md) — Troubleshooting
 - [Changelog](CHANGELOG.md)

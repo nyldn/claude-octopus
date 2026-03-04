@@ -1,0 +1,24 @@
+# Development & test files
+tests/
+docs/
+assets/
+.github/
+.git/
+.gitignore
+
+# Development docs
+CONTRIBUTING.md
+SECURITY.md
+STEELMAN.md
+
+# Build artifacts & local state
+.octo/
+*.log
+*.tmp
+
+# Editor & OS files
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*~

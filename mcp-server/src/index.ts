@@ -17,6 +17,9 @@
  *   octopus_debate   → grapple
  *   octopus_review   → codex-review
  *   octopus_security → squeeze
+ *
+ * IDE integration tools:
+ *   octopus_set_editor_context → Inject IDE state (file, selection, cursor) into orchestration
  */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -33,6 +36,28 @@ const execFileAsync = promisify(execFile);
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PLUGIN_ROOT = resolve(__dirname, "../..");
 const ORCHESTRATE_SH = resolve(PLUGIN_ROOT, "scripts/orchestrate.sh");
+
+// --- IDE Context State ---
+
+/** Editor context injected by IDE extensions via octopus_set_editor_context */
+let editorContext: {
+  filename?: string;
+  selection?: string;
+  cursorLine?: number;
+  languageId?: string;
+  workspaceRoot?: string;
+} = {};
+
+// Security: these env vars must never be overridden via MCP client environment.
+// They control security hardening, sandbox modes, and autonomy levels.
+const BLOCKED_ENV_VARS = new Set([
+  "OCTOPUS_SECURITY_V870",
+  "OCTOPUS_GEMINI_SANDBOX",
+  "OCTOPUS_CODEX_SANDBOX",
+  "CLAUDE_OCTOPUS_AUTONOMY",
+]);
+
+const MAX_SELECTION_LENGTH = 50_000; // 50KB max for editor selection
 
 // --- Helpers ---
 
@@ -54,24 +79,36 @@ async function runOrchestrate(
         TMPDIR: process.env.TMPDIR,
         SHELL: process.env.SHELL,
         USER: process.env.USER,
-        // AI provider keys
-        OPENAI_API_KEY: process.env.OPENAI_API_KEY,
-        GEMINI_API_KEY: process.env.GEMINI_API_KEY,
-        GOOGLE_API_KEY: process.env.GOOGLE_API_KEY,
-        OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
-        // Octopus config
+        // v8.32.0: Provider keys forwarded to orchestrate.sh which handles
+        // per-agent credential isolation via build_provider_env().
+        // Only forward keys that are set (avoid undefined in env).
+        ...(process.env.OPENAI_API_KEY && { OPENAI_API_KEY: process.env.OPENAI_API_KEY }),
+        ...(process.env.GEMINI_API_KEY && { GEMINI_API_KEY: process.env.GEMINI_API_KEY }),
+        ...(process.env.GOOGLE_API_KEY && { GOOGLE_API_KEY: process.env.GOOGLE_API_KEY }),
+        ...(process.env.OPENROUTER_API_KEY && { OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY }),
+        ...(process.env.PERPLEXITY_API_KEY && { PERPLEXITY_API_KEY: process.env.PERPLEXITY_API_KEY }),
+        // Octopus config — explicit allowlist (never forward security-governing vars)
         ...Object.fromEntries(
           Object.entries(process.env).filter(([k]) =>
-            k.startsWith("CLAUDE_OCTOPUS_") || k.startsWith("OCTOPUS_")
+            (k.startsWith("CLAUDE_OCTOPUS_") || k.startsWith("OCTOPUS_")) &&
+            !BLOCKED_ENV_VARS.has(k)
           )
         ),
         CLAUDE_OCTOPUS_MCP_MODE: "true",
+        // IDE context — injected by octopus_set_editor_context tool
+        ...(editorContext.filename && { OCTOPUS_IDE_FILENAME: editorContext.filename }),
+        ...(editorContext.selection && { OCTOPUS_IDE_SELECTION: editorContext.selection }),
+        ...(editorContext.cursorLine !== undefined && { OCTOPUS_IDE_CURSOR_LINE: String(editorContext.cursorLine) }),
+        ...(editorContext.languageId && { OCTOPUS_IDE_LANGUAGE: editorContext.languageId }),
+        ...(editorContext.workspaceRoot && { OCTOPUS_IDE_WORKSPACE: editorContext.workspaceRoot }),
       },
     });
     return { text: stdout || stderr || "Command completed with no output.", isError: false };
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
-    return { text: `Error executing ${command}: ${msg}`, isError: true };
+    // Sanitize potential API key leaks from error messages
+    const sanitized = msg.replace(/[A-Za-z_]+KEY=[^\s]+/g, "[REDACTED]");
+    return { text: `Error executing ${command}: ${sanitized}`, isError: true };
   }
 }
 
@@ -250,6 +287,76 @@ server.tool(
   }
 );
 
+// --- IDE Integration Tools ---
+
+server.tool(
+  "octopus_set_editor_context",
+  "Inject IDE editor state (active file, selection, cursor position) into Octopus workflows. Call this before running any workflow tool to give Octopus awareness of what the user is working on in their IDE.",
+  {
+    filename: z
+      .string()
+      .optional()
+      .describe("Absolute path to the active editor file"),
+    selection: z
+      .string()
+      .optional()
+      .describe("Currently selected text in the editor"),
+    cursor_line: z
+      .number()
+      .optional()
+      .describe("Current cursor line number (1-based)"),
+    language_id: z
+      .string()
+      .optional()
+      .describe("Language identifier of the active file (e.g., typescript, python, rust)"),
+    workspace_root: z
+      .string()
+      .optional()
+      .describe("Root directory of the current IDE workspace"),
+  },
+  async ({ filename, selection, cursor_line, language_id, workspace_root }) => {
+    // Validate paths — reject path traversal attempts
+    for (const [label, value] of [["filename", filename], ["workspace_root", workspace_root]] as const) {
+      if (value && /\.\.[\\/]/.test(value)) {
+        return {
+          content: [{ type: "text" as const, text: `Error: ${label} cannot contain '..'` }],
+          isError: true,
+        };
+      }
+    }
+
+    // Truncate oversized selections to prevent env var size exhaustion
+    const safeSel = selection && selection.length > MAX_SELECTION_LENGTH
+      ? selection.slice(0, MAX_SELECTION_LENGTH)
+      : selection;
+
+    editorContext = {
+      filename,
+      selection: safeSel,
+      cursorLine: cursor_line,
+      languageId: language_id,
+      workspaceRoot: workspace_root,
+    };
+
+    const parts: string[] = [];
+    if (filename) parts.push(`file: ${filename}`);
+    if (cursor_line) parts.push(`line: ${cursor_line}`);
+    if (language_id) parts.push(`lang: ${language_id}`);
+    if (safeSel) parts.push(`selection: ${safeSel.length} chars`);
+    if (workspace_root) parts.push(`workspace: ${workspace_root}`);
+
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: `Editor context updated: ${parts.join(", ") || "cleared"}`,
+        },
+      ],
+      isError: false,
+    };
+  }
+);
+
 // --- Introspection Tools ---
 
 server.tool(
@@ -285,6 +392,8 @@ server.tool(
 // --- Start Server ---
 
 async function main() {
+  // SECURITY: stdio transport is scoped to the spawning process (local IDE only).
+  // If switching to HTTP/SSE/WebSocket, add bearer token authentication.
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }

@@ -1,6 +1,6 @@
 # Claude Octopus Agent Catalog
 
-> *37 specialized tentacles, infinite possibilities. But which one grabs YOUR problem?* 🐙
+> *40 specialized tentacles, infinite possibilities. But which one grabs YOUR problem?* 🐙
 
 **Note on Permissions:** As of v7.13.0, you have full control over background agent execution. You will be prompted for permission before any background agent (e.g., Codex, Gemini) starts, ensuring cost transparency and control.
 
@@ -26,6 +26,9 @@
 | Draft research papers | `academic-writer` | Citation ninja 🆕 |
 | Create exec summaries | `exec-communicator` | Boardroom whisperer 🆕 |
 | Write PRDs/user stories | `product-writer` | Requirements master 🆕 |
+| Plan marketing campaigns | `marketing-strategist` | Growth funnel guru 🆕 |
+| Build financial models | `finance-analyst` | Spreadsheet surgeon 🆕 |
+| Review compliance/GDPR | `legal-compliance-advisor` | Regulatory navigator 🆕 |
 
 **Still unsure?** Just describe what you need - Claude Octopus auto-routes to the right tentacle! 🦑
 
@@ -177,7 +180,7 @@ Flowcharts         → mermaid-expert (haiku - simple)
 
 > *When your deliverable isn't code, but crystallized knowledge.* 🎓
 
-New in v6.0: Six specialized agents for researchers, consultants, and product managers.
+New in v6.0: Nine specialized agents for researchers, consultants, marketers, and product managers.
 
 ### 🎯 UX Research
 
@@ -209,6 +212,30 @@ Academic writing   → academic-writer (sonnet - formatting)
 PRDs & specs       → product-writer (sonnet - clarity)
 User stories       → product-writer (sonnet - structure)
 Acceptance criteria→ product-writer (sonnet - precision)
+```
+
+### 📣 Marketing & Growth
+
+```
+Campaign planning  → marketing-strategist (sonnet - channels)
+Growth funnels     → marketing-strategist (sonnet - optimization)
+SEO & content      → marketing-strategist (sonnet - strategy)
+```
+
+### 💰 Finance & Pricing
+
+```
+Financial models   → finance-analyst (sonnet - projections)
+Unit economics     → finance-analyst (sonnet - metrics)
+Pricing strategy   → finance-analyst (sonnet - optimization)
+```
+
+### ⚖️ Legal & Compliance
+
+```
+GDPR/CCPA review   → legal-compliance-advisor (sonnet - regulations)
+SOC 2 readiness    → legal-compliance-advisor (sonnet - controls)
+Contract review    → legal-compliance-advisor (sonnet - risk)
 ```
 
 **Deep dive:** See the full [Knowledge Workers Guide →](KNOWLEDGE-WORKERS.md)
@@ -362,7 +389,7 @@ Most expensive, use for critical decisions.
 ### 💰 Standard (Sonnet)
 Mid-range, good for focused tasks.
 
-`debugger`, `test-automator`, `docs-architect`, `business-analyst`, `devops-troubleshooter`, `incident-responder`
+`debugger`, `test-automator`, `docs-architect`, `business-analyst`, `devops-troubleshooter`, `incident-responder`, `marketing-strategist`, `finance-analyst`, `legal-compliance-advisor`
 
 ### 💵 Trivial (Haiku)
 Cheapest, use for simple tasks.
@@ -448,5 +475,5 @@ What phase are you in?
 ---
 
 <p align="center">
-  🐙 <em>"31 tentacles, one purpose: your code, done right."</em> 🐙
+  🐙 <em>"34 tentacles, one purpose: your code, done right."</em> 🐙
 </p>

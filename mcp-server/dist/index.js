@@ -45,11 +45,11 @@ async function runOrchestrate(command, prompt, flags = []) {
                 TMPDIR: process.env.TMPDIR,
                 SHELL: process.env.SHELL,
                 USER: process.env.USER,
-                // AI provider keys
-                OPENAI_API_KEY: process.env.OPENAI_API_KEY,
-                GEMINI_API_KEY: process.env.GEMINI_API_KEY,
-                GOOGLE_API_KEY: process.env.GOOGLE_API_KEY,
-                OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
+                // v8.32.0: Provider keys forwarded to orchestrate.sh which handles per-agent credential isolation
+                ...(process.env.OPENAI_API_KEY && { OPENAI_API_KEY: process.env.OPENAI_API_KEY }),
+                ...(process.env.GEMINI_API_KEY && { GEMINI_API_KEY: process.env.GEMINI_API_KEY }),
+                ...(process.env.GOOGLE_API_KEY && { GOOGLE_API_KEY: process.env.GOOGLE_API_KEY }),
+                ...(process.env.OPENROUTER_API_KEY && { OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY }),
                 // Octopus config
                 ...Object.fromEntries(Object.entries(process.env).filter(([k]) => k.startsWith("CLAUDE_OCTOPUS_") || k.startsWith("OCTOPUS_"))),
                 CLAUDE_OCTOPUS_MCP_MODE: "true",

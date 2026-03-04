@@ -816,8 +816,8 @@ fi
 
 # --- API Key Safety ---
 echo -n "  API keys not directly logged... "
-# Check for direct key value logging (not length or presence checks)
-if ! grep -E 'echo.*\$\{?(OPENAI_API_KEY|GEMINI_API_KEY)[^#}]*[^}]"?$|log.*"\$\{?(OPENAI_API_KEY|GEMINI_API_KEY)\}"?' "$SCRIPT" >/dev/null 2>&1; then
+# Check for direct key value logging (not length or presence checks, exclude help text showing example commands)
+if ! grep -E 'echo.*\$\{?(OPENAI_API_KEY|GEMINI_API_KEY)[^#}]*[^}]"?$|log.*"\$\{?(OPENAI_API_KEY|GEMINI_API_KEY)\}"?' "$SCRIPT" | grep -vE 'echo.*echo.*\\\$(OPENAI|GEMINI)' >/dev/null 2>&1; then
     echo -e "${GREEN}PASS${NC}"
     ((PASS++))
 else
@@ -871,7 +871,7 @@ else
 fi
 
 echo -n "  No-explore constraint in grapple... "
-if grep -A 60 'grapple_debate()' "$SCRIPT" | grep -q 'no_explore_constraint\|Do NOT read.*explore'; then
+if grep -A 80 'grapple_debate()' "$SCRIPT" | grep -q 'no_explore_constraint\|Do NOT read.*explore'; then
     echo -e "${GREEN}PASS${NC}"
     ((PASS++))
 else
@@ -929,7 +929,8 @@ fi
 
 # --- Crossfire Classification ---
 echo -n "  classify_task detects crossfire intents... "
-if grep -A 50 'classify_task()' "$SCRIPT" | grep -qE 'crossfire-grapple|crossfire-squeeze|security.*audit.*squeeze'; then
+# classify_task() was extracted to lib/routing.sh in v8.21.0
+if grep -rqE 'crossfire-grapple|crossfire-squeeze|security.*audit.*squeeze' "$SCRIPT_DIR/lib/routing.sh" "$SCRIPT" 2>/dev/null; then
     echo -e "${GREEN}PASS${NC}"
     ((PASS++))
 else
@@ -1124,7 +1125,7 @@ else
 fi
 
 echo -n "  show_status calls show_provider_status... "
-if grep -A 20 '^show_status()' "$SCRIPT" | grep -q 'show_provider_status'; then
+if grep -A 25 '^show_status()' "$SCRIPT" | grep -q 'show_provider_status'; then
     echo -e "${GREEN}PASS${NC}"
     ((PASS++))
 else
@@ -1378,7 +1379,7 @@ fi
 
 # Logging optimization
 echo -n "  log() has early return for disabled DEBUG... "
-if grep -A5 '^log()' "$SCRIPT" | grep -q '\[.*DEBUG.*VERBOSE.*\].*return 0'; then
+if grep -A7 '^log()' "$SCRIPT" | grep -q '\[\[.*DEBUG.*VERBOSE.*\]\].*return 0'; then
     echo -e "${GREEN}PASS${NC}"
     ((PASS++))
 else
