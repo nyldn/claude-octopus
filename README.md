@@ -18,7 +18,7 @@ A Claude Code plugin that turns one model into three. Orchestrates Codex, Gemini
 
 🔄 **Methodology, not just machinery.** Built on the Double Diamond framework, every task moves through four structured phases: discover, define, develop, deliver. Quality gates between phases mean sloppy work can't advance. Other orchestrators give you infrastructure to build workflows on — Octopus gives you the workflows.
 
-🐙 **33 specialized personas, 39 commands.** Not generic agents. A security-auditor that thinks in OWASP. A backend-architect that designs APIs. A tdd-orchestrator that enforces red-green-refactor. Personas activate automatically based on what you ask — say "audit my API" and the right expert shows up. Don't know the command name? Just say what you need — the smart router figures it out.
+🐙 **34 specialized personas, 40 commands.** Not generic agents. A security-auditor that thinks in OWASP. A backend-architect that designs APIs. A tdd-orchestrator that enforces red-green-refactor. Personas activate automatically based on what you ask — say "audit my API" and the right expert shows up. Don't know the command name? Just say what you need — the smart router figures it out.
 
 🐙 **Works with just Claude. Scales to three.** Zero external providers needed to start. You get every persona, every workflow, every skill on day one. Add Codex or Gemini and multi-AI orchestration lights up — parallel research, adversarial debate, cross-model review.
 
@@ -95,7 +95,7 @@ Setup detects installed providers, shows what's missing, and walks you through c
 | `/octo:security` | OWASP vulnerability scan and remediation |
 | `/octo:prd` | AI-optimized PRD with 100-point scoring |
 
-Plus 31 more: debug, extract, deck, docs, schedule, parallel, sentinel, brainstorm, claw, doctor, and [the full set](docs/COMMAND-REFERENCE.md).
+Plus 32 more: debug, extract, deck, docs, design, schedule, parallel, sentinel, brainstorm, claw, doctor, and [the full set](docs/COMMAND-REFERENCE.md).
 
 Don't remember the command name? Just describe what you need:
 
@@ -161,9 +161,9 @@ Run phases individually or all four with `/octo:embrace`. Configure autonomy: su
 
 Specialized agents that activate automatically based on your request. When you say "audit my API for vulnerabilities," security-auditor activates. When you say "write a research paper," academic-writer takes over.
 
-Categories: Software Engineering (11), Specialized Development (6), Documentation & Communication (5), Research & Strategy (4), Business & Compliance (3), Creative & Design (4).
+Categories: Software Engineering (11), Specialized Development (6), Documentation & Communication (5), Research & Strategy (4), Business & Compliance (3), Creative & Design (5).
 
-[Full persona reference](docs/AGENTS.md) | [All 44 skills](docs/COMMAND-REFERENCE.md)
+[Full persona reference](docs/AGENTS.md) | [All 45 skills](docs/COMMAND-REFERENCE.md)
 
 ---
 
@@ -180,7 +180,7 @@ OAuth users pay nothing beyond their existing subscriptions.
 
 ### What Works Without External Providers
 
-Everything except multi-AI features. You get all 33 personas, structured workflows, smart routing, context detection, and every skill. Multi-AI orchestration (parallel analysis, debate, consensus) activates when external providers are configured.
+Everything except multi-AI features. You get all 34 personas, structured workflows, smart routing, context detection, and every skill. Multi-AI orchestration (parallel analysis, debate, consensus) activates when external providers are configured.
 
 ---
 
@@ -274,10 +274,10 @@ The workflow continues with available providers. You'll see the status in the vi
 
 ## Documentation
 
-- [Command Reference](docs/COMMAND-REFERENCE.md) — All 39 commands
+- [Command Reference](docs/COMMAND-REFERENCE.md) — All 40 commands
 - [Architecture](docs/ARCHITECTURE.md) — How it works internally
 - [Plugin Architecture](docs/PLUGIN-ARCHITECTURE.md) — Plugin structure
-- [Agents & Personas](docs/AGENTS.md) — All 33 personas
+- [Agents & Personas](docs/AGENTS.md) — All 34 personas
 - [Visual Indicators](docs/VISUAL-INDICATORS.md) — Provider status
 - [Debug Mode](docs/DEBUG_MODE.md) — Troubleshooting
 - [Changelog](CHANGELOG.md)

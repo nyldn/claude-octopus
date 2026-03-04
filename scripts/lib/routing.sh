@@ -425,6 +425,12 @@ recommend_persona_agent() {
         ((confidence += 25))
     fi
 
+    # UI/UX Design patterns -> ui-ux-designer (v8.33)
+    if [[ "$prompt_lower" =~ (design.?system|style.?guide|color.?palette|font.?pair|ui.?style|ux.?design|component.?spec|design.?token|landing.?page.?design|dashboard.?design) ]]; then
+        recommendations="${recommendations}ui-ux-designer "
+        ((confidence += 25))
+    fi
+
     # Return first recommendation if confidence is high enough
     local primary
     primary=$(echo "$recommendations" | awk '{print $1}')

@@ -60,6 +60,7 @@ export const SKILL_REGISTRY: SkillRegistryEntry[] = [
   { name: "skill-task-management", description: "Task orchestration, checkpointing, and multi-session workflows", type: "skill", file: "skill-task-management.md" },
   { name: "skill-tdd", description: "Test-driven development workflow", type: "skill", file: "skill-tdd.md" },
   { name: "skill-thought-partner", description: "Creative brainstorming with Pattern Spotting and Paradox Hunting", type: "skill", file: "skill-thought-partner.md" },
+  { name: "octopus-ui-ux-design", description: "Design UI/UX with style guides, palettes, and component specs", type: "skill", file: "skill-ui-ux-design.md" },
   { name: "skill-validate", description: "Multi-AI validation combining debate, quality scoring, and issue extraction", type: "skill", file: "skill-validate.md" },
   { name: "skill-verify", description: "Evidence gate: verify before claiming success", type: "skill", file: "skill-verify.md" },
   { name: "skill-visual-feedback", description: "Process screenshot-based UI/UX feedback to fix visual issues", type: "skill", file: "skill-visual-feedback.md" },
@@ -112,7 +113,8 @@ export const SKILL_REGISTRY: SkillRegistryEntry[] = [
   { name: "sys-setup", description: "Check Claude Octopus setup status and get configuration instructions", type: "command", file: "sys-setup.md" },
   { name: "tangle", description: "Development phase - Multi-AI implementation with quality gates", type: "command", file: "tangle.md" },
   { name: "tdd", description: "Test-driven development with red-green-refactor discipline", type: "command", file: "tdd.md" },
+  { name: "ui-ux-design", description: "Design UI/UX systems with style guides, palettes, typography, and component specs", type: "command", file: "ui-ux-design.md" },
   { name: "validate", description: "Run comprehensive multi-AI validation on code or project targets", type: "command", file: "validate.md" },
 ];
 
-export const REGISTRY_COUNT = 98;
+export const REGISTRY_COUNT = 100;

@@ -1,6 +1,6 @@
 # Claude Octopus Agent Catalog
 
-> *40 specialized tentacles, infinite possibilities. But which one grabs YOUR problem?* 🐙
+> *41 specialized tentacles, infinite possibilities. But which one grabs YOUR problem?* 🐙
 
 **Note on Permissions:** As of v7.13.0, you have full control over background agent execution. You will be prompted for permission before any background agent (e.g., Codex, Gemini) starts, ensuring cost transparency and control.
 
@@ -29,6 +29,7 @@
 | Plan marketing campaigns | `marketing-strategist` | Growth funnel guru 🆕 |
 | Build financial models | `finance-analyst` | Spreadsheet surgeon 🆕 |
 | Review compliance/GDPR | `legal-compliance-advisor` | Regulatory navigator 🆕 |
+| Design UI/UX systems | `ui-ux-designer` | Design intelligence 🆕 |
 
 **Still unsure?** Just describe what you need - Claude Octopus auto-routes to the right tentacle! 🦑
 
@@ -180,7 +181,7 @@ Flowcharts         → mermaid-expert (haiku - simple)
 
 > *When your deliverable isn't code, but crystallized knowledge.* 🎓
 
-New in v6.0: Nine specialized agents for researchers, consultants, marketers, and product managers.
+New in v6.0: Ten specialized agents for researchers, consultants, designers, marketers, and product managers.
 
 ### 🎯 UX Research
 
@@ -228,6 +229,14 @@ SEO & content      → marketing-strategist (sonnet - strategy)
 Financial models   → finance-analyst (sonnet - projections)
 Unit economics     → finance-analyst (sonnet - metrics)
 Pricing strategy   → finance-analyst (sonnet - optimization)
+```
+
+### 🎨 UI/UX Design
+
+```
+Design systems     → ui-ux-designer (sonnet - BM25 intelligence)
+Color & typography → ui-ux-designer (sonnet - data-driven)
+Component specs    → ui-ux-designer (sonnet - handoff)
 ```
 
 ### ⚖️ Legal & Compliance
@@ -389,7 +398,7 @@ Most expensive, use for critical decisions.
 ### 💰 Standard (Sonnet)
 Mid-range, good for focused tasks.
 
-`debugger`, `test-automator`, `docs-architect`, `business-analyst`, `devops-troubleshooter`, `incident-responder`, `marketing-strategist`, `finance-analyst`, `legal-compliance-advisor`
+`debugger`, `test-automator`, `docs-architect`, `business-analyst`, `devops-troubleshooter`, `incident-responder`, `ui-ux-designer`, `marketing-strategist`, `finance-analyst`, `legal-compliance-advisor`
 
 ### 💵 Trivial (Haiku)
 Cheapest, use for simple tasks.
@@ -475,5 +484,5 @@ What phase are you in?
 ---
 
 <p align="center">
-  🐙 <em>"34 tentacles, one purpose: your code, done right."</em> 🐙
+  🐙 <em>"35 tentacles, one purpose: your code, done right."</em> 🐙
 </p>

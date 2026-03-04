@@ -217,6 +217,14 @@ These tentacles are the backbone of v6.0. Use them individually with the `spawn`
 - **Example Prompt**: *"Review our data handling practices for GDPR compliance and create a remediation roadmap."*
 - **Note**: Informational compliance guidance only — not legal counsel.
 
+### 🎨 ui-ux-designer
+- **Model**: `sonnet` (Data-driven design)
+- **When to Use**: Design system creation, style guide selection, color palette and typography choices, component specifications, UI style direction.
+- **Superpower**: BM25 search over curated databases of 67 styles, 96 palettes, 57 font pairings, and 100 UX reasoning rules. Every design decision is grounded in data, not intuition.
+- **Avoid If**: You need pure user research without design output; use `ux-researcher`. For code implementation, use `frontend-developer`.
+- **Example Prompt**: *"Design a style guide with color palette and typography for a health tech SaaS dashboard."*
+- **Note**: Requires `vendors/ui-ux-pro-max-skill` submodule. Falls back to Claude's built-in design knowledge if unavailable.
+
 ---
 
 ## Smart Routing & Intent
