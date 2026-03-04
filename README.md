@@ -18,11 +18,11 @@ A Claude Code plugin that turns one model into three. Orchestrates Codex, Gemini
 
 🔄 **Methodology, not just machinery.** Built on the Double Diamond framework, every task moves through four structured phases: discover, define, develop, deliver. Quality gates between phases mean sloppy work can't advance. Other orchestrators give you infrastructure to build workflows on — Octopus gives you the workflows.
 
-🐙 **34 specialized personas, 40 commands.** Not generic agents. A security-auditor that thinks in OWASP. A backend-architect that designs APIs. A tdd-orchestrator that enforces red-green-refactor. Personas activate automatically based on what you ask — say "audit my API" and the right expert shows up. Don't know the command name? Just say what you need — the smart router figures it out.
+🐙 **34 specialized personas, 49 commands, 51 skills.** Not generic agents. A security-auditor that thinks in OWASP. A backend-architect that designs APIs. A ui-ux-designer grounded in BM25 design intelligence. Personas activate automatically based on what you ask — say "audit my API" and the right expert shows up. Don't know the command name? Just say what you need — the smart router figures it out.
 
 🐙 **Works with just Claude. Scales to three.** Zero external providers needed to start. You get every persona, every workflow, every skill on day one. Add Codex or Gemini and multi-AI orchestration lights up — parallel research, adversarial debate, cross-model review.
 
-💰 **Subscription Advantage.** uses Auth primarily so no API costs if you have a subscription to GPT and/or Gemini.
+💰 **Subscription Advantage.** Codex and Gemini authenticate via OAuth, so if you already subscribe to ChatGPT or Google AI you pay nothing extra — no API keys required.
 
 ---
 
@@ -30,14 +30,14 @@ A Claude Code plugin that turns one model into three. Orchestrates Codex, Gemini
 
 | Version | What shipped |
 |---------|-------------|
+| **8.33** | **UI/UX design workflow** — BM25 design intelligence with 320+ searchable styles, palettes, fonts, and UX rules |
+| **8.32** | **Knowledge worker personas** — marketing strategist, finance analyst, legal compliance advisor |
+| **8.31** | **Debate integrity** — anti-sycophancy gate, blinded consensus mode, model restriction service |
 | **8.30** | **Agent continuation** — iterative retries resume where they left off instead of starting over |
 | **8.27** | **Context compaction survival** — enforcement rules persist through conversation compression |
 | **8.26** | **Worktree isolation** — agents work in isolated git worktrees; 8 new configurable settings |
 | **8.25** | **Dark Factory mode** — autonomous spec-to-software pipeline with holdout testing and satisfaction scoring |
 | **8.23** | **OpenClaw admin + Doctor diagnostics** — `/octo:claw` for host management, `/octo:doctor` for 9-category health checks |
-| **8.22** | **OpenClaw compatibility layer** — MCP server exposes 10 Octopus tools to any MCP-compatible client |
-| **8.20** | **Provider intelligence** — Bayesian trust scoring, smart cost routing, capability matching |
-| **8.18** | **Sentinel + Team of Teams** — GitHub-aware work monitor, parallel multi-instance orchestration with dependency waves |
 
 [Full changelog](CHANGELOG.md)
 
@@ -78,24 +78,13 @@ Setup detects installed providers, shows what's missing, and walks you through c
 /octo:factory "build a CLI that converts CSV to JSON"  # Autonomous pipeline — spec in, software out
 /octo:debate monorepo vs microservices     # Structured three-way AI debate with consensus
 /octo:research htmx vs react in 2026       # Multi-source synthesis from three AI providers
-/octo:review                                # Code review with security + 4x10 scoring
+/octo:design mobile checkout redesign       # UI/UX design with BM25 style intelligence
 /octo:tdd create user auth                 # Red-green-refactor with test discipline
 /octo:security                              # OWASP vulnerability scan + remediation
 /octo:prd mobile checkout redesign          # AI-optimized PRD with 100-point scoring
 ```
 
-| Command | What it does |
-|---------|-------------|
-| `/octo:embrace` | Full 4-phase workflow: discover, define, develop, deliver |
-| `/octo:factory` | Dark Factory — autonomous spec-to-software pipeline with holdout testing |
-| `/octo:debate` | Structured three-way AI debate with consensus scoring |
-| `/octo:research` | Deep multi-source research with synthesis |
-| `/octo:review` | Multi-perspective code review with 4-dimension scoring |
-| `/octo:tdd` | Test-driven development with red-green-refactor |
-| `/octo:security` | OWASP vulnerability scan and remediation |
-| `/octo:prd` | AI-optimized PRD with 100-point scoring |
-
-Plus 32 more: debug, extract, deck, docs, design, schedule, parallel, sentinel, brainstorm, claw, doctor, and [the full set](docs/COMMAND-REFERENCE.md).
+Plus 41 more: review, debug, extract, deck, docs, schedule, parallel, sentinel, brainstorm, claw, doctor, and [the full set](docs/COMMAND-REFERENCE.md).
 
 Don't remember the command name? Just describe what you need:
 
@@ -118,6 +107,7 @@ Not sure which command to use? Pick by goal:
 | Research a topic thoroughly | `/octo:research` or `/octo:discover` |
 | Debate two approaches | `/octo:debate` |
 | Build a feature end-to-end | `/octo:embrace` |
+| Design a UI or style system | `/octo:design` |
 | Review existing code | `/octo:review` |
 | Write tests first, then code | `/octo:tdd` |
 | Scan for vulnerabilities | `/octo:security` |
@@ -157,13 +147,13 @@ Four structured phases adapted from the UK Design Council's methodology:
 
 Run phases individually or all four with `/octo:embrace`. Configure autonomy: supervised (approve each phase), semi-autonomous (intervene on failures), or autonomous (run all four).
 
-### 33 Personas
+### 34 Personas
 
-Specialized agents that activate automatically based on your request. When you say "audit my API for vulnerabilities," security-auditor activates. When you say "write a research paper," academic-writer takes over.
+Specialized agents that activate automatically based on your request. When you say "audit my API for vulnerabilities," security-auditor activates. When you say "design a dashboard," ui-ux-designer takes over.
 
 Categories: Software Engineering (11), Specialized Development (6), Documentation & Communication (5), Research & Strategy (4), Business & Compliance (3), Creative & Design (5).
 
-[Full persona reference](docs/AGENTS.md) | [All 45 skills](docs/COMMAND-REFERENCE.md)
+[Full persona reference](docs/AGENTS.md) | [All 51 skills](docs/COMMAND-REFERENCE.md)
 
 ---
 
@@ -274,7 +264,7 @@ The workflow continues with available providers. You'll see the status in the vi
 
 ## Documentation
 
-- [Command Reference](docs/COMMAND-REFERENCE.md) — All 40 commands
+- [Command Reference](docs/COMMAND-REFERENCE.md) — All 49 commands
 - [Architecture](docs/ARCHITECTURE.md) — How it works internally
 - [Plugin Architecture](docs/PLUGIN-ARCHITECTURE.md) — Plugin structure
 - [Agents & Personas](docs/AGENTS.md) — All 34 personas

@@ -7,6 +7,8 @@ set -eo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_DIR="$(dirname "$SCRIPT_DIR")"
+# Cache platform detection — avoids repeated subprocess spawns (v8.33.0)
+OCTOPUS_PLATFORM="$(uname)"
 # Keep debug flag defined even when nounset is enabled by sourced scripts.
 OCTOPUS_DEBUG="${OCTOPUS_DEBUG:-false}"
 
@@ -961,7 +963,7 @@ get_agent_command() {
             # v8.32.0: GEMINI_FORCE_FILE_STORAGE=true on macOS avoids Keychain prompts
             # when calling Gemini CLI from bash subprocesses (OAuth still works)
             local gemini_env="env NODE_NO_WARNINGS=1"
-            if [[ "$(uname)" == "Darwin" && -z "${GEMINI_API_KEY:-}" ]]; then
+            if [[ "$OCTOPUS_PLATFORM" == "Darwin" && -z "${GEMINI_API_KEY:-}" ]]; then
                 gemini_env="env NODE_NO_WARNINGS=1 GEMINI_FORCE_FILE_STORAGE=true"
             fi
             case "${OCTOPUS_GEMINI_SANDBOX:-headless}" in
@@ -3069,7 +3071,7 @@ generate_analytics_report() {
     fi
 
     local cutoff_date
-    if [[ "$(uname)" == "Darwin" ]]; then
+    if [[ "$OCTOPUS_PLATFORM" == "Darwin" ]]; then
         cutoff_date=$(date -v-${period}d +%s)
     else
         cutoff_date=$(date -d "$period days ago" +%s)
@@ -6573,7 +6575,7 @@ OLD_init_interactive_impl() {
         auth_type=$(grep -o '"selectedType"[[:space:]]*:[[:space:]]*"[^"]*"' ~/.gemini/settings.json 2>/dev/null | sed 's/.*"\([^"]*\)"$/\1/' || echo "oauth")
         echo -e "      Type: $auth_type"
         # macOS keychain prompt warning for OAuth users
-        if [[ "$(uname)" == "Darwin" ]]; then
+        if [[ "$OCTOPUS_PLATFORM" == "Darwin" ]]; then
             echo -e "  ${GREEN}✓${NC} macOS keychain bypass active (file-based token storage)"
         fi
     elif [[ -n "${GEMINI_API_KEY:-}" ]]; then
@@ -12479,7 +12481,7 @@ setup_wizard() {
         auth_type=$(grep -o '"selectedType"[[:space:]]*:[[:space:]]*"[^"]*"' ~/.gemini/settings.json 2>/dev/null | sed 's/.*"\([^"]*\)"$/\1/' || echo "oauth")
         echo -e "      Type: $auth_type"
         # macOS keychain prompt warning for OAuth users
-        if [[ "$(uname)" == "Darwin" ]]; then
+        if [[ "$OCTOPUS_PLATFORM" == "Darwin" ]]; then
             echo -e "  ${GREEN}✓${NC} macOS keychain bypass active (file-based token storage)"
         fi
     elif [[ -n "${GEMINI_API_KEY:-}" ]]; then
@@ -18717,7 +18719,7 @@ update_knowledge_mode_config() {
     # If config exists, update only the knowledge_work_mode line (fast)
     if [[ -f "$USER_CONFIG_FILE" ]]; then
         # Use sed to update in-place (BSD sed compatible)
-        if [[ "$(uname)" == "Darwin" ]]; then
+        if [[ "$OCTOPUS_PLATFORM" == "Darwin" ]]; then
             # macOS
             sed -i '' "s/^knowledge_work_mode:.*$/knowledge_work_mode: \"$new_mode\"/" "$USER_CONFIG_FILE" 2>/dev/null || {
                 # If sed fails, regenerate the file
@@ -18795,7 +18797,7 @@ update_intent_config() {
     # If config exists, update only the intent lines (fast)
     if [[ -f "$USER_CONFIG_FILE" ]]; then
         # Use sed to update in-place (BSD sed compatible)
-        if [[ "$(uname)" == "Darwin" ]]; then
+        if [[ "$OCTOPUS_PLATFORM" == "Darwin" ]]; then
             # macOS
             sed -i '' "s/^  primary:.*$/  primary: \"$new_intent_primary\"/" "$USER_CONFIG_FILE" 2>/dev/null || {
                 # If sed fails, regenerate the file
@@ -18828,7 +18830,7 @@ update_resource_tier_config() {
     # If config exists, update only the resource_tier line (fast)
     if [[ -f "$USER_CONFIG_FILE" ]]; then
         # Use sed to update in-place (BSD sed compatible)
-        if [[ "$(uname)" == "Darwin" ]]; then
+        if [[ "$OCTOPUS_PLATFORM" == "Darwin" ]]; then
             # macOS
             sed -i '' "s/^resource_tier:.*$/resource_tier: \"$new_tier\"/" "$USER_CONFIG_FILE" 2>/dev/null || {
                 # If sed fails, regenerate the file
