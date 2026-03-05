@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "8.36.0",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v8.36.0) Superpowers-Inspired Hardening \u2014 context compaction survival, description trap fixes, HARD-GATE enforcement tags, human-only skill flags, staged review pipeline. 32 expert personas, 49 commands, 50 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
+  "version": "8.35.0",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v8.35.0) Superpowers-Inspired Hardening — context compaction survival, description trap fixes, HARD-GATE enforcement tags, human-only skill flags, staged review pipeline. 32 expert personas, 49 commands, 50 skills. Commands '/octo:*'. Run /octo:setup for guided setup. Compatible with Claude Code and Factory AI Droid.",
   "author": {
     "name": "nyldn"
   },
@@ -9,6 +9,8 @@
   "repository": "https://github.com/nyldn/claude-octopus",
   "homepage": "https://github.com/nyldn/claude-octopus#readme",
   "keywords": [
+    "factory-ai",
+    "droid",
     "claude-code",
     "multi-agent",
     "parallel",
@@ -19,27 +21,13 @@
     "double-diamond",
     "design-thinking",
     "quality-gates",
-    "smart-setup",
-    "resource-aware",
-    "claude-code-2.1.50",
-    "crossfire",
-    "adversarial-review",
     "multi-provider",
     "provider-routing",
-    "openrouter",
     "agent-discovery",
-    "analytics",
-    "recommendations",
-    "decision-trees",
-    "competitive-research",
     "ai-debates",
     "consensus-building",
-    "multi-perspective",
-    "deliberation",
     "knowledge-work",
     "scheduler",
-    "cron",
-    "daemon",
     "automation"
   ],
   "skills": [

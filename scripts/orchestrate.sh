@@ -9,6 +9,20 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_DIR="$(dirname "$SCRIPT_DIR")"
 # Cache platform detection — avoids repeated subprocess spawns (v8.33.0)
 OCTOPUS_PLATFORM="$(uname)"
+
+# v8.36.0: Host runtime detection — Claude Code vs Factory AI Droid
+# Factory's plugin interop resolves ${CLAUDE_PLUGIN_ROOT} automatically,
+# but we detect the host for version checking and env var fallbacks.
+if [[ -n "${DROID_PLUGIN_ROOT:-}" ]]; then
+    OCTOPUS_HOST="factory"
+    # Factory provides DROID_PLUGIN_ROOT; ensure CLAUDE_PLUGIN_ROOT is also set
+    export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$DROID_PLUGIN_ROOT}"
+elif [[ -n "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
+    OCTOPUS_HOST="claude"
+else
+    OCTOPUS_HOST="standalone"
+fi
+
 # Keep debug flag defined even when nounset is enabled by sourced scripts.
 OCTOPUS_DEBUG="${OCTOPUS_DEBUG:-false}"
 
@@ -513,16 +527,29 @@ version_compare() {
 }
 
 detect_claude_code_version() {
-    if ! command -v claude &>/dev/null; then
+    # v8.36.0: Support Factory AI Droid runtime alongside Claude Code
+    if [[ "$OCTOPUS_HOST" == "factory" ]]; then
+        if command -v droid &>/dev/null; then
+            CLAUDE_CODE_VERSION=$(droid --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+            log "INFO" "Factory AI Droid detected (v${CLAUDE_CODE_VERSION:-unknown})"
+        fi
+        # Factory's plugin format is interop with Claude Code — enable all modern features
+        # Factory supports the full plugin API (hooks, skills, commands, agents)
+        if [[ -z "$CLAUDE_CODE_VERSION" ]]; then
+            # Assume latest feature parity if version can't be detected
+            CLAUDE_CODE_VERSION="2.1.69"
+            log "INFO" "Factory AI host: assuming feature parity with Claude Code v2.1.69"
+        fi
+    elif ! command -v claude &>/dev/null; then
         log "WARN" "Claude Code CLI not found, using fallback mode"
         return 1
+    else
+        # Get version from Claude CLI
+        CLAUDE_CODE_VERSION=$(claude --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
     fi
 
-    # Get version from Claude CLI
-    CLAUDE_CODE_VERSION=$(claude --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
-
     if [[ -z "$CLAUDE_CODE_VERSION" ]]; then
-        log "WARN" "Could not detect Claude Code version, using fallback mode"
+        log "WARN" "Could not detect host platform version, using fallback mode"
         return 1
     fi
 

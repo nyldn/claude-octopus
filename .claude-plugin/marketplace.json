@@ -11,8 +11,8 @@
     {
       "name": "claude-octopus",
       "source": "./",
-      "description": "v8.35.0 - Adaptive effort, worktree statusline, InstructionsLoaded hook. 32 personas, 49 commands, 50 skills. Run /octo:setup.",
-      "version": "8.35.0",
+      "description": "v8.36.0 - Factory AI dual-platform support. 32 personas, 49 commands, 50 skills. Run /octo:setup.",
+      "version": "8.36.0",
       "author": {
         "name": "nyldn"
       },

@@ -7,8 +7,9 @@ A Claude Code plugin that turns one model into three. Orchestrates Codex, Gemini
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-8.35.0-blue" alt="Version 8.35.0">
+  <img src="https://img.shields.io/badge/Version-8.36.0-blue" alt="Version 8.36.0">
   <img src="https://img.shields.io/badge/Claude_Code-v2.1.50+-blueviolet" alt="Requires Claude Code v2.1.50+">
+  <img src="https://img.shields.io/badge/Factory_AI-Compatible-orange" alt="Factory AI Compatible">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
 </p>
 
@@ -30,6 +31,7 @@ A Claude Code plugin that turns one model into three. Orchestrates Codex, Gemini
 
 | Version | What shipped |
 |---------|-------------|
+| **8.36** | **Factory AI support** — dual-platform compatibility, auto-detection of Claude Code vs Factory Droid runtime |
 | **8.33** | **UI/UX design workflow** — BM25 design intelligence with 320+ searchable styles, palettes, fonts, and UX rules |
 | **8.32** | **Knowledge worker personas** — marketing strategist, finance analyst, legal compliance advisor |
 | **8.31** | **Debate integrity** — anti-sycophancy gate, blinded consensus mode, model restriction service |
@@ -58,6 +60,15 @@ A Claude Code plugin that turns one model into three. Orchestrates Codex, Gemini
 claude -p "/plugin marketplace add https://github.com/nyldn/claude-octopus.git"
 claude -p "/plugin install claude-octopus@nyldn-plugins"
 ```
+
+**Factory AI (Droid):**
+
+```bash
+droid plugin marketplace add https://github.com/nyldn/claude-octopus
+droid plugin install claude-octopus@nyldn-plugins
+```
+
+> See [docs/FACTORY-AI.md](docs/FACTORY-AI.md) for full Factory AI setup instructions.
 
 Then run setup:
 

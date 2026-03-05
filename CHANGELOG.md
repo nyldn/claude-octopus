@@ -1,3 +1,15 @@
+## [8.36.0] - 2026-03-05
+
+### Added
+
+- Factory AI dual-platform support — `.factory-plugin/plugin.json` manifest, auto-detection of Claude Code vs Factory Droid runtime
+- Platform detection shim in `orchestrate.sh` — `OCTOPUS_HOST` variable (claude/factory/standalone)
+- `detect_claude_code_version()` now handles Factory Droid via `droid --version` with feature parity assumption
+- `docs/FACTORY-AI.md` — install guide, architecture notes, troubleshooting for Factory AI users
+- Factory AI install instructions in README with marketplace and direct install methods
+
+---
+
 ## [8.35.0] - 2026-03-05
 
 ### Added
