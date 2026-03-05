@@ -1,0 +1,111 @@
+# CodeRabbit configuration for Claude Octopus
+# Docs: https://docs.coderabbit.ai/reference/configuration
+
+language: en-US
+
+reviews:
+  # Block merge until CodeRabbit comments are resolved
+  request_changes_workflow: true
+  high_level_summary: true
+  review_status: true
+  commit_status: true
+  profile: assertive
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - main
+
+  path_filters:
+    # Skip generated/vendored content
+    - "!vendors/**"
+    - "!node_modules/**"
+    - "!*.lock"
+
+  path_instructions:
+    # ── Shell scripts ──────────────────────────────────────────────────
+    - path: "scripts/**/*.sh"
+      instructions: |
+        Shell script conventions for this project:
+        - Shebang must be `#!/usr/bin/env bash`
+        - Error handling: prefer `set -euo pipefail` (or `set -eo pipefail` for sourced files)
+        - CRITICAL: Never use `grep -q` with `set -eo pipefail` — it causes SIGPIPE.
+          Use `grep -c ... >/dev/null` instead, or guard with `|| true`.
+        - When using `grep -c` as a fallback, use `|| true` not `|| echo "0"` to avoid
+          multiline values that break numeric comparisons.
+        - Standard dir detection: `SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"`
+        - Use `log INFO|WARN|ERROR|DEBUG` for output, not raw echo (except in test scripts).
+        - Cleanup via trap: `trap 'rm -rf "$tmpdir"' EXIT INT TERM`
+
+    - path: "hooks/*.sh"
+      instructions: |
+        Hook scripts run during git operations (pre-push, etc.):
+        - Never use `git commit --amend` in hooks — it rewrites history during push.
+        - Hooks must exit 0 on success, non-zero to abort the operation.
+        - Keep hooks fast — they block the user's git workflow.
+
+    # ── Skill files ────────────────────────────────────────────────────
+    - path: ".claude/skills/*.md"
+      instructions: |
+        Skill file conventions:
+        - YAML frontmatter is required with fields: name, description, trigger
+        - Description MUST be 120 characters or fewer (enforced by test suite).
+        - Description MUST NOT contain: "independent", "compound", "team of teams", "claude instances"
+        - Trigger section format: "AUTOMATICALLY ACTIVATE when..." followed by "DO NOT activate for:"
+        - When referencing orchestrate.sh, use `${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh`
+        - Skills that invoke orchestrate.sh should use the Validation Gate Pattern
+          (execution_mode: enforced, pre_execution_contract, validation_gates).
+
+    # ── Persona/agent files ────────────────────────────────────────────
+    - path: "agents/personas/*.md"
+      instructions: |
+        Persona file conventions:
+        - Required frontmatter: name, description, model, memory, tools
+        - model should be one of: sonnet, inherit, claude-opus-4.6
+        - memory should be: user (cross-project) or project (isolated)
+        - tools must include at minimum: Read, Glob, Grep
+        - Description should mention "Use PROACTIVELY" to guide agent routing.
+        - Include when_to_use and avoid_if sections.
+
+    # ── Test files ─────────────────────────────────────────────────────
+    - path: "tests/**/*.sh"
+      instructions: |
+        Test conventions:
+        - Source test framework: `source "$SCRIPT_DIR/../helpers/test-framework.sh"`
+        - Use test_suite, test_case, test_pass, test_fail assertions.
+        - Do not hardcode version numbers in assertions — use >= comparisons.
+        - Temp dirs: `TEST_TMP_DIR="/tmp/octopus-tests-$$"` with cleanup trap.
+        - grep -q is acceptable in test scripts (they use `set -e` not `set -eo pipefail`).
+
+    # ── orchestrate.sh (main engine) ──────────────────────────────────
+    - path: "scripts/orchestrate.sh"
+      instructions: |
+        This is the main orchestration engine (~19K lines). Key conventions:
+        - Cannot be sourced safely (has main execution block at bottom).
+        - Feature flags: SUPPORTS_* vars declared ~line 400-460.
+        - Model validation: `validate_model_allowed()` uses `grep -Fc` for literal matching.
+        - `get_agent_model()` wraps `_get_agent_model_raw()` — model restriction validates here.
+        - SIGPIPE-safe: use `grep -c` not `grep -q` throughout.
+        - JSON output: escape double quotes in variables before embedding in JSON strings.
+
+    # ── Routing ────────────────────────────────────────────────────────
+    - path: "scripts/lib/routing.sh"
+      instructions: |
+        Routing patterns use compound regex terms to avoid false positives.
+        Example: use `marketing.?strategy` not bare `marketing`.
+        New patterns should be added to recommend_persona_agent() with
+        compound terms that distinguish intent from casual mentions.
+
+    # ── GitHub workflows ───────────────────────────────────────────────
+    - path: ".github/workflows/*.yml"
+      instructions: |
+        CI pipeline runs: smoke → unit → integration → e2e (cascading).
+        All scripts must be chmod +x before execution.
+        Test artifacts upload as JUnit XML via actions/upload-artifact@v4.
+
+    # ── Marketplace/plugin metadata ────────────────────────────────────
+    - path: ".claude-plugin/*.json"
+      instructions: |
+        Plugin metadata files. marketplace.json is auto-synced by sync-marketplace.sh.
+        Version in plugin.json is the source of truth — all other version references
+        (README badge, marketplace description) must match.
