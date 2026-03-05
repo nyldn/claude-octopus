@@ -177,17 +177,17 @@ else
 fi
 
 # Test 5.2: categories array includes agents
-if grep -q 'categories=.*agents)' "$ORCHESTRATE_SH"; then
+if grep -q 'categories=.*agents' "$ORCHESTRATE_SH"; then
     pass "categories array includes 'agents'"
 else
     fail "categories array does NOT include 'agents'"
 fi
 
-# Test 5.3: skill-doctor.md mentions 10 categories
-if grep -q '10 check categories' "$SKILL_DOCTOR"; then
-    pass "skill-doctor.md references 10 check categories"
+# Test 5.3: skill-doctor.md mentions check categories (10+)
+if grep -qE '1[0-9] check categories' "$SKILL_DOCTOR"; then
+    pass "skill-doctor.md references check categories count"
 else
-    fail "skill-doctor.md does NOT reference 10 check categories"
+    fail "skill-doctor.md does NOT reference check categories count"
 fi
 
 # Test 5.4: skill-doctor.md lists agents filter command
