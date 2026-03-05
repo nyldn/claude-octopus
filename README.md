@@ -65,7 +65,7 @@ claude -p "/plugin install claude-octopus@nyldn-plugins"
 
 ```bash
 droid plugin marketplace add https://github.com/nyldn/claude-octopus
-droid plugin install claude-octopus@nyldn-plugins
+droid plugin install claude-octopus@claude-octopus
 ```
 
 > See [docs/FACTORY-AI.md](docs/FACTORY-AI.md) for full Factory AI setup instructions.
