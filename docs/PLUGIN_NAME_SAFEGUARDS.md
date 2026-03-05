@@ -16,7 +16,7 @@ Commands were breaking because the plugin name kept getting changed:
 .claude-plugin/plugin.json        ← In-file comment
 .claude-plugin/PLUGIN_NAME_LOCK.md ← Detailed explanation
 .claude-plugin/README.md           ← Quick warning
-SAFEGUARDS.md                      ← Comprehensive reference
+CLAUDE.md                          ← System instructions
 ```
 
 ### Layer 2: Automated Tests

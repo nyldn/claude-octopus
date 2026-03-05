@@ -19,7 +19,7 @@
 ### More Information
 
 - **Detailed explanation:** `PLUGIN_NAME_LOCK.md`
-- **All safeguards:** `../SAFEGUARDS.md`
+- **All safeguards:** `../docs/PLUGIN_NAME_SAFEGUARDS.md`
 - **Validate:** Run `make test-plugin-name`
 
 ---

@@ -11,8 +11,8 @@
     {
       "name": "claude-octopus",
       "source": "./",
-      "description": "v8.36.0 - Factory AI dual-platform support. 32 personas, 49 commands, 50 skills. Run /octo:setup.",
-      "version": "8.36.0",
+      "description": "v8.37.0 - Root cleanup, trimmed CHANGELOG. 32 personas, 49 commands, 50 skills. Run /octo:setup.",
+      "version": "8.37.0",
       "author": {
         "name": "nyldn"
       },
