@@ -431,6 +431,36 @@ recommend_persona_agent() {
         ((confidence += 25))
     fi
 
+    # DevOps/Troubleshooting patterns -> devops-troubleshooter (v8.35)
+    if [[ "$prompt_lower" =~ (ci.?cd.?pipeline|deploy.?fail|container.?issue|helm.?chart|github.?action|devops.?debug|infra.?troubleshoot|build.?broken|pipeline.?fail) ]]; then
+        recommendations="${recommendations}devops-troubleshooter "
+        ((confidence += 25))
+    fi
+
+    # Incident Response patterns -> incident-responder (v8.35)
+    if [[ "$prompt_lower" =~ (incident.?response|outage|postmortem|post.?mortem|runbook|on.?call|pager.?duty|sev.?[0-9]|production.?down|site.?reliability) ]]; then
+        recommendations="${recommendations}incident-responder "
+        ((confidence += 25))
+    fi
+
+    # Diagram/Mermaid patterns -> mermaid-expert (v8.35)
+    if [[ "$prompt_lower" =~ (mermaid.?diagram|sequence.?diagram|er.?diagram|class.?diagram|gantt.?chart|state.?diagram|flowchart.?diagram|generate.?diagram) ]]; then
+        recommendations="${recommendations}mermaid-expert "
+        ((confidence += 25))
+    fi
+
+    # AI/ML Engineering patterns -> ai-engineer (v8.35)
+    if [[ "$prompt_lower" =~ (llm.?application|rag.?system|vector.?search|embedding|prompt.?engineer|ai.?agent|langchain|llamaindex|fine.?tun) ]]; then
+        recommendations="${recommendations}ai-engineer "
+        ((confidence += 25))
+    fi
+
+    # Business Analysis patterns -> business-analyst (v8.35)
+    if [[ "$prompt_lower" =~ (kpi.?framework|dashboard.?metric|stakeholder.?analysis|requirement.?gather|business.?intelligence|data.?driven.?decision|process.?map) ]]; then
+        recommendations="${recommendations}business-analyst "
+        ((confidence += 25))
+    fi
+
     # Return first recommendation if confidence is high enough
     local primary
     primary=$(echo "$recommendations" | awk '{print $1}')

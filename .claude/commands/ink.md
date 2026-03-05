@@ -19,11 +19,11 @@ Skill(skill: "octo:ink", args: "<user's arguments>")
 Task(subagent_type: "octo:ink", ...)  ❌ Wrong! This is a skill, not an agent type
 ```
 
-**Why:** This command loads the `flow-ink` skill. Skills use the `Skill` tool, not `Task`.
+**Why:** This command loads the `flow-deliver` skill (alias: `ink`). Skills use the `Skill` tool, not `Task`.
 
 ---
 
-**Auto-loads the `flow-ink` skill for the validation/delivery phase.**
+**Auto-loads the `flow-deliver` skill for the validation/delivery phase.**
 
 ## Quick Usage
 

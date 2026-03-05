@@ -57,7 +57,6 @@ export const SKILL_REGISTRY: SkillRegistryEntry[] = [
   { name: "skill-staged-review", description: "Two-stage spec-then-quality review pipeline", type: "skill", file: "skill-staged-review.md" },
   { name: "skill-status", description: "Show project progress dashboard and suggest next actions", type: "skill", file: "skill-status.md" },
   { name: "skill-task-management", description: "Task management using native Claude Code TaskCreate/TaskUpdate tools", type: "skill", file: "skill-task-management-v2.md" },
-  { name: "skill-task-management", description: "Task orchestration, checkpointing, and multi-session workflows", type: "skill", file: "skill-task-management.md" },
   { name: "skill-tdd", description: "Test-driven development workflow", type: "skill", file: "skill-tdd.md" },
   { name: "skill-thought-partner", description: "Creative brainstorming with Pattern Spotting and Paradox Hunting", type: "skill", file: "skill-thought-partner.md" },
   { name: "octopus-ui-ux-design", description: "Design UI/UX with style guides, palettes, and component specs", type: "skill", file: "skill-ui-ux-design.md" },
@@ -117,4 +116,4 @@ export const SKILL_REGISTRY: SkillRegistryEntry[] = [
   { name: "validate", description: "Run comprehensive multi-AI validation on code or project targets", type: "command", file: "validate.md" },
 ];
 
-export const REGISTRY_COUNT = 100;
+export const REGISTRY_COUNT = 99;

@@ -1,7 +1,7 @@
 {
   "name": "octo",
   "version": "8.34.0",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v8.34.0) Superpowers-Inspired Hardening \u2014 context compaction survival, description trap fixes, HARD-GATE enforcement tags, human-only skill flags, staged review pipeline. 34 expert personas, 49 commands, 51 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v8.34.0) Superpowers-Inspired Hardening \u2014 context compaction survival, description trap fixes, HARD-GATE enforcement tags, human-only skill flags, staged review pipeline. 32 expert personas, 49 commands, 50 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },
@@ -71,7 +71,6 @@
     "./.claude/skills/skill-validate.md",
     "./.claude/skills/skill-parallel-agents.md",
     "./.claude/skills/skill-knowledge-work.md",
-    "./.claude/skills/skill-task-management.md",
     "./.claude/skills/skill-task-management-v2.md",
     "./.claude/skills/skill-visual-feedback.md",
     "./.claude/skills/skill-decision-support.md",

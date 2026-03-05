@@ -18,7 +18,7 @@ A Claude Code plugin that turns one model into three. Orchestrates Codex, Gemini
 
 🔄 **Methodology, not just machinery.** Built on the Double Diamond framework, every task moves through four structured phases: discover, define, develop, deliver. Quality gates between phases mean sloppy work can't advance. Other orchestrators give you infrastructure to build workflows on — Octopus gives you the workflows.
 
-🐙 **34 specialized personas, 49 commands, 51 skills.** Not generic agents. A security-auditor that thinks in OWASP. A backend-architect that designs APIs. A ui-ux-designer grounded in BM25 design intelligence. Personas activate automatically based on what you ask — say "audit my API" and the right expert shows up. Don't know the command name? Just say what you need — the smart router figures it out.
+🐙 **32 specialized personas, 49 commands, 50 skills.** Not generic agents. A security-auditor that thinks in OWASP. A backend-architect that designs APIs. A ui-ux-designer grounded in BM25 design intelligence. Personas activate automatically based on what you ask — say "audit my API" and the right expert shows up. Don't know the command name? Just say what you need — the smart router figures it out.
 
 🐙 **Works with just Claude. Scales to three.** Zero external providers needed to start. You get every persona, every workflow, every skill on day one. Add Codex or Gemini and multi-AI orchestration lights up — parallel research, adversarial debate, cross-model review.
 
@@ -147,13 +147,13 @@ Four structured phases adapted from the UK Design Council's methodology:
 
 Run phases individually or all four with `/octo:embrace`. Configure autonomy: supervised (approve each phase), semi-autonomous (intervene on failures), or autonomous (run all four).
 
-### 34 Personas
+### 32 Personas
 
 Specialized agents that activate automatically based on your request. When you say "audit my API for vulnerabilities," security-auditor activates. When you say "design a dashboard," ui-ux-designer takes over.
 
-Categories: Software Engineering (11), Specialized Development (6), Documentation & Communication (5), Research & Strategy (4), Business & Compliance (3), Creative & Design (5).
+Categories: Software Engineering (11), Specialized Development (6), Documentation & Communication (5), Research & Strategy (3), Business & Compliance (3), Creative & Design (4).
 
-[Full persona reference](docs/AGENTS.md) | [All 51 skills](docs/COMMAND-REFERENCE.md)
+[Full persona reference](docs/AGENTS.md) | [All 50 skills](docs/COMMAND-REFERENCE.md)
 
 ---
 
@@ -170,7 +170,7 @@ OAuth users pay nothing beyond their existing subscriptions.
 
 ### What Works Without External Providers
 
-Everything except multi-AI features. You get all 34 personas, structured workflows, smart routing, context detection, and every skill. Multi-AI orchestration (parallel analysis, debate, consensus) activates when external providers are configured.
+Everything except multi-AI features. You get all 32 personas, structured workflows, smart routing, context detection, and every skill. Multi-AI orchestration (parallel analysis, debate, consensus) activates when external providers are configured.
 
 ---
 
@@ -267,7 +267,7 @@ The workflow continues with available providers. You'll see the status in the vi
 - [Command Reference](docs/COMMAND-REFERENCE.md) — All 49 commands
 - [Architecture](docs/ARCHITECTURE.md) — How it works internally
 - [Plugin Architecture](docs/PLUGIN-ARCHITECTURE.md) — Plugin structure
-- [Agents & Personas](docs/AGENTS.md) — All 34 personas
+- [Agents & Personas](docs/AGENTS.md) — All 32 personas
 - [Visual Indicators](docs/VISUAL-INDICATORS.md) — Provider status
 - [Debug Mode](docs/DEBUG_MODE.md) — Troubleshooting
 - [Changelog](CHANGELOG.md)

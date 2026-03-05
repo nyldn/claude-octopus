@@ -19,11 +19,11 @@ Skill(skill: "octo:probe", args: "<user's arguments>")
 Task(subagent_type: "octo:probe", ...)  ❌ Wrong! This is a skill, not an agent type
 ```
 
-**Why:** This command loads the `flow-probe` skill. Skills use the `Skill` tool, not `Task`.
+**Why:** This command loads the `flow-discover` skill (alias: `probe`). Skills use the `Skill` tool, not `Task`.
 
 ---
 
-**Auto-loads the `flow-probe` skill for the research/discovery phase.**
+**Auto-loads the `flow-discover` skill for the research/discovery phase.**
 
 ## Quick Usage
 

@@ -271,6 +271,99 @@ agents:
     isolation: worktree    # v8.26: May modify infra files, needs isolation
 
   # ═══════════════════════════════════════════════════════════════════════════
+  # KNOWLEDGE WORK AGENTS (v6.0, v8.32, v8.33)
+  # ═══════════════════════════════════════════════════════════════════════════
+  ux-researcher:
+    file: personas/ux-researcher.md
+    cli: gemini
+    model: gemini-3-pro-preview
+    phases: [probe, grasp]
+    tier: standard
+    expertise: [user-research, journey-mapping, usability, personas]
+    capabilities: [user-research, journey-mapping, usability, personas, affinity-mapping]
+    memory: user
+    permissionMode: plan
+
+  exec-communicator:
+    file: personas/exec-communicator.md
+    cli: gemini
+    model: gemini-3-pro-preview
+    phases: [grasp, ink]
+    tier: standard
+    expertise: [executive-communication, board-presentations, stakeholder-reports]
+    capabilities: [executive-communication, board-presentations, stakeholder-reports, workshop-synthesis]
+    memory: user
+    permissionMode: plan
+
+  product-writer:
+    file: personas/product-writer.md
+    cli: codex
+    model: gpt-5.3-codex
+    phases: [probe, grasp]
+    tier: premium
+    expertise: [prd-writing, user-stories, acceptance-criteria]
+    capabilities: [prd-writing, user-stories, acceptance-criteria, feature-specs]
+    memory: user
+    skills: [skill-prd]
+    permissionMode: plan
+
+  academic-writer:
+    file: personas/academic-writer.md
+    cli: gemini
+    model: gemini-3-pro-preview
+    phases: [probe, ink]
+    tier: standard
+    expertise: [research-papers, grant-proposals, scholarly-communication]
+    capabilities: [research-papers, grant-proposals, scholarly-communication, literature-review]
+    memory: user
+    permissionMode: plan
+
+  marketing-strategist:
+    file: personas/marketing-strategist.md
+    cli: gemini
+    model: gemini-3-pro-preview
+    phases: [probe, grasp]
+    tier: standard
+    expertise: [campaign-planning, growth-funnels, seo, brand-positioning]
+    capabilities: [campaign-planning, growth-funnels, seo, brand-positioning, content-strategy]
+    memory: user
+    permissionMode: plan
+
+  finance-analyst:
+    file: personas/finance-analyst.md
+    cli: gemini
+    model: gemini-3-pro-preview
+    phases: [probe, grasp]
+    tier: standard
+    expertise: [financial-modeling, budgeting, forecasting, unit-economics]
+    capabilities: [financial-modeling, budgeting, forecasting, unit-economics, pricing]
+    memory: user
+    permissionMode: plan
+
+  legal-compliance-advisor:
+    file: personas/legal-compliance-advisor.md
+    cli: gemini
+    model: gemini-3-pro-preview
+    phases: [probe, grasp]
+    tier: standard
+    expertise: [gdpr, ccpa, hipaa, soc2, privacy-policy, regulatory-risk]
+    capabilities: [gdpr, ccpa, hipaa, soc2, privacy-policy, regulatory-risk, contract-review]
+    memory: user
+    permissionMode: plan
+
+  ui-ux-designer:
+    file: personas/ui-ux-designer.md
+    cli: codex
+    model: gpt-5.3-codex
+    phases: [grasp, tangle]
+    tier: premium
+    expertise: [design-systems, style-guides, component-specs, ui-design]
+    capabilities: [design-systems, style-guides, component-specs, ui-design, color-theory]
+    memory: user
+    skills: [skill-ui-ux-design]
+    permissionMode: plan
+
+  # ═══════════════════════════════════════════════════════════════════════════
   # ORCHESTRATION/SUPPORTING AGENTS
   # ═══════════════════════════════════════════════════════════════════════════
   # ═══════════════════════════════════════════════════════════════════════════

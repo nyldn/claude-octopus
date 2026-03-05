@@ -1,6 +1,6 @@
 # Claude Octopus Agent Catalog
 
-> *41 specialized tentacles, infinite possibilities. But which one grabs YOUR problem?* 🐙
+> *39 specialized tentacles, infinite possibilities. But which one grabs YOUR problem?* 🐙
 
 **Note on Permissions:** As of v7.13.0, you have full control over background agent execution. You will be prompted for permission before any background agent (e.g., Codex, Gemini) starts, ensuring cost transparency and control.
 
@@ -484,5 +484,5 @@ What phase are you in?
 ---
 
 <p align="center">
-  🐙 <em>"35 tentacles, one purpose: your code, done right."</em> 🐙
+  🐙 <em>"39 tentacles, one purpose: your code, done right."</em> 🐙
 </p>

@@ -11,7 +11,7 @@
     {
       "name": "claude-octopus",
       "source": "./",
-      "description": "v8.34.0 - Recurrence detection, issue categorization, JSONL decision logging, CodeRabbit integration. 34 personas, 49 commands, 51 skills. Run /octo:setup.",
+      "description": "v8.34.0 - Recurrence detection, issue categorization, JSONL decision logging, CodeRabbit integration. 32 personas, 49 commands, 50 skills. Run /octo:setup.",
       "version": "8.34.0",
       "author": {
         "name": "nyldn"
