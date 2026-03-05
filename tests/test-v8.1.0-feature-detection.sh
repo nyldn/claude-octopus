@@ -193,11 +193,11 @@ else
     assert_fail "3.3 marketplace.json version is 8.x" "Got: $mj_version"
 fi
 
-# 3.4: CHANGELOG has [8.1.0] entry
-if grep -q '\[8\.1\.0\]' "$CHANGELOG_MD"; then
-    assert_pass "3.4 CHANGELOG.md has [8.1.0] entry"
+# 3.4: CHANGELOG exists with version entries (v8.37.0 trimmed pre-8.22.0 history)
+if [[ -f "$CHANGELOG_MD" ]] && grep -q '\[8\.' "$CHANGELOG_MD"; then
+    assert_pass "3.4 CHANGELOG.md has version entries"
 else
-    assert_fail "3.4 CHANGELOG.md has [8.1.0] entry"
+    assert_fail "3.4 CHANGELOG.md has version entries"
 fi
 
 # 3.5: README version badge is current 8.x

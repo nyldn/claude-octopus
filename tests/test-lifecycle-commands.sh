@@ -167,13 +167,13 @@ for template in "${EXPECTED_TEMPLATES[@]}"; do
 done
 
 echo ""
-echo "Test 11: Checking CHANGELOG.md mentions v7.22.0..."
+echo "Test 11: Checking CHANGELOG.md has version entries..."
 CHANGELOG="$PROJECT_ROOT/CHANGELOG.md"
 if [[ -f "$CHANGELOG" ]]; then
-    if grep -q "7.22.0" "$CHANGELOG"; then
-        pass "CHANGELOG.md mentions v7.22.0"
+    if grep -q '\[8\.' "$CHANGELOG"; then
+        pass "CHANGELOG.md has version entries"
     else
-        fail "CHANGELOG.md missing v7.22.0" "Should document v7.22.0 release"
+        fail "CHANGELOG.md missing version entries" "Should have at least one version"
     fi
 fi
 

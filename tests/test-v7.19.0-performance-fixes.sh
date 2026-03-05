@@ -512,12 +512,12 @@ test_integration_version_consistency() {
         TESTS_FAILED=$((TESTS_FAILED + 1))
     fi
 
-    # Check CHANGELOG has 7.19.0 entry
-    if grep -q "7\.19\.0" "$PLUGIN_ROOT/CHANGELOG.md"; then
-        echo -e "${GREEN}✓${NC} CHANGELOG mentions 7.19.0"
+    # Check CHANGELOG exists and has version entries (v8.37.0 trimmed pre-8.22.0 history)
+    if [[ -f "$PLUGIN_ROOT/CHANGELOG.md" ]] && grep -q '\[8\.' "$PLUGIN_ROOT/CHANGELOG.md"; then
+        echo -e "${GREEN}✓${NC} CHANGELOG exists with version entries"
         TESTS_PASSED=$((TESTS_PASSED + 1))
     else
-        echo -e "${RED}✗${NC} CHANGELOG missing 7.19.0 mention"
+        echo -e "${RED}✗${NC} CHANGELOG missing or empty"
         TESTS_FAILED=$((TESTS_FAILED + 1))
     fi
 }
@@ -527,31 +527,12 @@ test_integration_documentation() {
 
     test_case "All features documented in CHANGELOG"
 
-    local features=(
-        "P0.1.*Result File Pipeline"
-        "P0.2.*Timeout Preservation"
-        "P0.3.*Agent Status Tracking"
-        "P1.1.*Graceful Degradation"
-        "P1.2.*Rich Progress Display"
-        "P1.3.*Enhanced Error Messages"
-        "P2.1.*Log Management"
-        "P2.2.*Gemini.*Warnings"
-        "P2.3.*Result Caching"
-        "P2.4.*Progressive Synthesis"
-    )
-
-    local documented=0
-    for feature in "${features[@]}"; do
-        if grep -q "$feature" "$PLUGIN_ROOT/CHANGELOG.md"; then
-            ((documented++))
-        fi
-    done
-
-    if [[ $documented -eq ${#features[@]} ]]; then
-        echo -e "${GREEN}✓${NC} All 10 features documented in CHANGELOG"
+    # v8.37.0 trimmed CHANGELOG to recent versions — just verify it exists with entries
+    if [[ -f "$PLUGIN_ROOT/CHANGELOG.md" ]] && grep -qc '\[8\.' "$PLUGIN_ROOT/CHANGELOG.md" >/dev/null; then
+        echo -e "${GREEN}✓${NC} CHANGELOG has version entries"
         TESTS_PASSED=$((TESTS_PASSED + 1))
     else
-        echo -e "${YELLOW}⚠${NC}  Only $documented/10 features documented"
+        echo -e "${RED}✗${NC} CHANGELOG missing or has no version entries"
         TESTS_FAILED=$((TESTS_FAILED + 1))
     fi
 }

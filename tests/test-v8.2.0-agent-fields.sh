@@ -266,11 +266,11 @@ else
     assert_fail "4.3 marketplace.json version is 8.x" "Got: $mj_version"
 fi
 
-# 4.4: CHANGELOG has [8.2.0] section
-if grep -q '\[8\.2\.0\]' "$CHANGELOG_MD"; then
-    assert_pass "4.4 CHANGELOG.md has [8.2.0] section"
+# 4.4: CHANGELOG exists with version entries (v8.37.0 trimmed pre-8.22.0 history)
+if [[ -f "$CHANGELOG_MD" ]] && grep -q '\[8\.' "$CHANGELOG_MD"; then
+    assert_pass "4.4 CHANGELOG.md has version entries"
 else
-    assert_fail "4.4 CHANGELOG.md has [8.2.0] section"
+    assert_fail "4.4 CHANGELOG.md has version entries"
 fi
 
 # 4.5: README badge shows 8.x
@@ -287,18 +287,18 @@ else
     assert_fail "4.6 plugin.json description mentions v8.x"
 fi
 
-# 4.7: CHANGELOG mentions "Agent Persona Enhanced Fields"
-if grep -qi 'Agent persona enhanced fields' "$CHANGELOG_MD"; then
-    assert_pass "4.7 CHANGELOG mentions Agent Persona Enhanced Fields"
+# 4.7: CHANGELOG exists with version entries (v8.37.0 trimmed pre-8.22.0 history)
+if [[ -f "$CHANGELOG_MD" ]] && grep -q '\[8\.' "$CHANGELOG_MD"; then
+    assert_pass "4.7 CHANGELOG has version entries"
 else
-    assert_fail "4.7 CHANGELOG mentions Agent Persona Enhanced Fields"
+    assert_fail "4.7 CHANGELOG has version entries"
 fi
 
-# 4.8: CHANGELOG mentions "Skills Preloading"
-if grep -qi 'Skills preloading' "$CHANGELOG_MD"; then
-    assert_pass "4.8 CHANGELOG mentions Skills Preloading"
+# 4.8: CHANGELOG has recent entries
+if grep -q '\[8\.3' "$CHANGELOG_MD"; then
+    assert_pass "4.8 CHANGELOG has recent version entries"
 else
-    assert_fail "4.8 CHANGELOG mentions Skills Preloading"
+    assert_fail "4.8 CHANGELOG has recent version entries"
 fi
 
 echo ""

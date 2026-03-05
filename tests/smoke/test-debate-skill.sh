@@ -130,16 +130,15 @@ test_readme_attribution() {
 }
 
 test_changelog_attribution() {
-    test_case "CHANGELOG.md documents AI Debate Hub integration"
+    test_case "CHANGELOG.md has version entries"
 
     local changelog="$PROJECT_ROOT/CHANGELOG.md"
 
-    if grep -q "AI Debate Hub" "$changelog" && \
-       grep -q "wolverin0" "$changelog" && \
-       grep -q "7.4.0" "$changelog"; then
+    # v8.37.0 trimmed pre-8.22.0 history; just verify CHANGELOG exists with entries
+    if [[ -f "$changelog" ]] && grep -q '\[8\.' "$changelog"; then
         test_pass
     else
-        test_fail "CHANGELOG.md missing AI Debate Hub integration notes"
+        test_fail "CHANGELOG.md missing or has no version entries"
         return 1
     fi
 }

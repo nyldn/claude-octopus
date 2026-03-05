@@ -374,11 +374,11 @@ else
     assert_fail "8.1 package.json version is 8.x" "Got: $pkg_version"
 fi
 
-# 8.2: CHANGELOG has 8.0.0 entry
-if grep -q '\[8.0.0\]' "$CHANGELOG_MD"; then
-    assert_pass "8.2 CHANGELOG.md has [8.0.0] entry"
+# 8.2: CHANGELOG exists with version entries (v8.37.0 trimmed pre-8.22.0 history)
+if [[ -f "$CHANGELOG_MD" ]] && grep -q '\[8\.' "$CHANGELOG_MD"; then
+    assert_pass "8.2 CHANGELOG.md has version entries"
 else
-    assert_fail "8.2 CHANGELOG.md has [8.0.0] entry"
+    assert_fail "8.2 CHANGELOG.md has version entries"
 fi
 
 # 8.3: model-config.md references current Codex model family
