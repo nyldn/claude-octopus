@@ -1,3 +1,28 @@
+## [8.39.0] - 2026-03-05
+
+### Added
+
+- GPT-5.4 model support: `gpt-5.4` ($2.50/$15 MTok) and `gpt-5.4-pro` ($30/$180 MTok, API-key only)
+- `gpt-5-codex-mini` ($0.25/$2.00 MTok) — budget model replacing `gpt-5.1-codex-mini`
+- `gpt-5` base model ($1.25/$10 MTok)
+- `o3-pro` ($20/$80 MTok) and `o3-mini` ($1.10/$4.40 MTok) reasoning models (API-key only)
+- OAuth vs API-key availability documentation for all OpenAI models
+
+### Changed
+
+- Default codex premium model: `gpt-5.3-codex` → `gpt-5.4`
+- Default codex-max model: `gpt-5.3-codex` → `gpt-5.4`
+- Default codex-mini model: `gpt-5.1-codex-mini` → `gpt-5-codex-mini`
+- Default codex-review model: `gpt-5.3-codex` → `gpt-5.4`
+- Stale model migration targets updated to `gpt-5.4`
+
+### Fixed
+
+- `gpt-5.1-codex-mini` pricing corrected: $0.30/$1.25 → $0.25/$2.00 per MTok
+- Bash 3.2 compatibility: replaced `${var^}` and `${var,,}` (Bash 4+) with POSIX-compatible `_ucfirst()` / `_lowercase()` helpers — fixes `octo:embrace` on stock macOS (Issue #108)
+
+---
+
 ## [8.38.3] - 2026-03-05
 
 ### Fixed

@@ -497,6 +497,10 @@ OCTOPUS_SECURITY_V870="${OCTOPUS_SECURITY_V870:-true}"
 OCTOPUS_GEMINI_SANDBOX="${OCTOPUS_GEMINI_SANDBOX:-headless}"  # v8.10.0: Changed default from prompt-mode to headless (Issue #25)
 OCTOPUS_MAX_COST_USD="${OCTOPUS_MAX_COST_USD:-}"
 
+# POSIX-compatible string case helpers (macOS ships bash 3.2 which lacks ${var^} and ${var,,})
+_ucfirst() { local _c; _c=$(printf '%s' "${1:0:1}" | tr '[:lower:]' '[:upper:]'); printf '%s' "${_c}${1:1}"; }
+_lowercase() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
+
 # Version comparison utility
 version_compare() {
     local version1="$1"
@@ -987,11 +991,13 @@ select_opus_mode() {
 }
 
 # Agent configurations
-# Models (Feb 2026) - Premium defaults for Design Thinking workflows:
-# - OpenAI GPT-5.3: gpt-5.3-codex (premium), gpt-5.3-codex-spark (fast), gpt-5.2-codex, gpt-5.1-codex-mini, gpt-5.2
-# - OpenAI Reasoning: o3, o4-mini
-# - OpenAI Large Context: gpt-4.1 (1M ctx), gpt-4.1-mini (1M ctx)
+# Models (Mar 2026) - Premium defaults for Design Thinking workflows:
+# - OpenAI GPT-5.x: gpt-5.4 (premium, OAuth+API), gpt-5.4-pro (API-key only), gpt-5.3-codex, gpt-5.3-codex-spark (fast),
+#                    gpt-5.2-codex, gpt-5-codex-mini (budget), gpt-5 (standard), gpt-5.2, gpt-5.1
+# - OpenAI Reasoning: o3, o3-pro (API-key only), o4-mini (API-key only), o3-mini (API-key only)
+# - OpenAI Large Context: gpt-4.1 (1M ctx, API-key only), gpt-4.1-mini (1M ctx, API-key only)
 # - Google Gemini 3.0: gemini-3-pro-preview, gemini-3-flash-preview, gemini-3-pro-image-preview
+# Note: "API-key only" models require OPENAI_API_KEY; they are NOT available via ChatGPT subscription/OAuth.
 get_agent_command() {
     local agent_type="$1"
     local model=""
@@ -1171,21 +1177,27 @@ AVAILABLE_AGENTS="codex codex-standard codex-max codex-mini codex-general codex-
 get_model_pricing() {
     local model="$1"
     case "$model" in
-        # OpenAI GPT-5.x Codex models (v8.9.0: updated to Feb 2026 API pricing)
+        # OpenAI GPT-5.x models (v8.39.0: updated to Mar 2026 pricing)
+        gpt-5.4)                echo "2.50:15.00" ;;   # v8.39.0: GPT-5.4 (OAuth + API)
+        gpt-5.4-pro)            echo "30.00:180.00" ;; # v8.39.0: GPT-5.4 Pro (API-key only)
         gpt-5.3-codex)          echo "1.75:14.00" ;;
-        gpt-5.3-codex-spark)    echo "1.75:14.00" ;;  # v8.9.0: Spark - same API price, Pro-only
+        gpt-5.3-codex-spark)    echo "1.75:14.00" ;;   # Spark - same API price, Pro-only
         gpt-5.2-codex)          echo "1.75:14.00" ;;
         gpt-5.1-codex-max)      echo "1.25:10.00" ;;
-        gpt-5.1-codex-mini)     echo "0.30:1.25" ;;   # v8.9.0: Budget ~1 credit/msg
+        gpt-5-codex-mini)       echo "0.25:2.00" ;;    # v8.39.0: Budget (renamed from gpt-5.1-codex-mini)
+        gpt-5.1-codex-mini)     echo "0.25:2.00" ;;    # v8.39.0: Fixed pricing ($0.30/$1.25 → $0.25/$2.00), alias
+        gpt-5)                  echo "1.25:10.00" ;;   # v8.39.0: GPT-5 base
         gpt-5.2)                echo "1.75:14.00" ;;
         gpt-5.1)                echo "1.25:10.00" ;;
         gpt-5-codex)            echo "1.25:10.00" ;;
-        # OpenAI Reasoning models (v8.9.0)
+        # OpenAI Reasoning models (v8.9.0; v8.39.0: added o3-pro, o3-mini — all API-key only)
         o3)                     echo "2.00:8.00" ;;
+        o3-pro)                 echo "20.00:80.00" ;;  # v8.39.0: API-key only
         o4-mini)                echo "1.10:4.40" ;;
-        # OpenAI Large Context models (v8.9.0: 1M context window)
-        gpt-4.1)                echo "2.00:8.00" ;;
-        gpt-4.1-mini)           echo "0.40:1.60" ;;
+        o3-mini)                echo "1.10:4.40" ;;    # v8.39.0: API-key only
+        # OpenAI Large Context models (1M context window, API-key only)
+        gpt-4.1)                echo "2.00:8.00" ;;    # API-key only
+        gpt-4.1-mini)           echo "0.40:1.60" ;;    # API-key only
         # Google Gemini 3.0 models
         gemini-3-pro-preview)   echo "2.50:10.00" ;;
         gemini-3-flash-preview) echo "0.25:1.00" ;;
@@ -1628,7 +1640,7 @@ migrate_provider_config() {
             # Codex models that are actually Claude models (wrong provider)
             claude-sonnet-4-5|claude-sonnet-4-5-20250514|claude-3-5-sonnet*|claude-sonnet-4*)
                 if [[ "$path" == *codex* ]]; then
-                    replacement="gpt-5.3-codex"
+                    replacement="gpt-5.4"
                 fi
                 ;;
             # Expired Gemini preview models
@@ -1640,7 +1652,7 @@ migrate_provider_config() {
                 ;;
             # Old GPT models for Codex
             gpt-4o*|gpt-4-turbo*|gpt-4-*|o1-*|chatgpt-*)
-                replacement="gpt-5.3-codex"
+                replacement="gpt-5.4"
                 ;;
         esac
 
@@ -1756,18 +1768,18 @@ _get_agent_model_raw() {
     # Priority 4: Hard-coded defaults (existing behavior)
     log "DEBUG" "Using hard-coded default model (tier 4)"
     case "$agent_type" in
-        codex)          echo "gpt-5.3-codex" ;;
+        codex)          echo "gpt-5.4" ;;                     # v8.39.0: GPT-5.4 (was gpt-5.3-codex)
         codex-standard) echo "gpt-5.2-codex" ;;
-        codex-max)      echo "gpt-5.3-codex" ;;
-        codex-mini)     echo "gpt-5.1-codex-mini" ;;
+        codex-max)      echo "gpt-5.4" ;;                     # v8.39.0: GPT-5.4 (was gpt-5.3-codex)
+        codex-mini)     echo "gpt-5-codex-mini" ;;            # v8.39.0: renamed (was gpt-5.1-codex-mini)
         codex-general)  echo "gpt-5.2" ;;
         codex-spark)    echo "gpt-5.3-codex-spark" ;;       # v8.9.0: Ultra-fast (1000+ tok/s)
-        codex-reasoning) echo "o3" ;;                        # v8.9.0: Deep reasoning
-        codex-large-context) echo "gpt-4.1" ;;              # v8.9.0: 1M context window
+        codex-reasoning) echo "o3" ;;                        # v8.9.0: Deep reasoning (API-key only)
+        codex-large-context) echo "gpt-4.1" ;;              # v8.9.0: 1M context window (API-key only)
         gemini)         echo "gemini-3-pro-preview" ;;
         gemini-fast)    echo "gemini-3-flash-preview" ;;
         gemini-image)   echo "gemini-3-pro-image-preview" ;;
-        codex-review)   echo "gpt-5.3-codex" ;;
+        codex-review)   echo "gpt-5.4" ;;                     # v8.39.0: GPT-5.4 (was gpt-5.3-codex)
         claude)         echo "claude-sonnet-4.6" ;;   # v8.17: Sonnet 4.6 default
         claude-sonnet)  echo "claude-sonnet-4.6" ;;   # v8.17: Sonnet 4.6 explicit
         claude-opus)    echo "claude-opus-4.6" ;;
@@ -6763,7 +6775,7 @@ OLD_init_interactive_impl() {
     echo ""
     read -p "  Use this location? [Y/n]: " use_default
 
-    if [[ "${use_default,,}" == "n" ]]; then
+    if [[ "$(_lowercase "$use_default")" == "n" ]]; then
         read -p "  Enter new workspace path: " new_workspace
         if [[ -n "$new_workspace" ]]; then
             echo ""
@@ -6793,7 +6805,7 @@ OLD_init_interactive_impl() {
 
     read -p "  Install shell completion? [Y/n]: " install_completion
 
-    if [[ "${install_completion,,}" != "n" ]]; then
+    if [[ "$(_lowercase "$install_completion")" != "n" ]]; then
         local script_path
         script_path="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/orchestrate.sh"
 
@@ -11857,7 +11869,7 @@ Format as markdown. Be specific and actionable."
                 for i in "${!domains[@]}"; do
                     local domain="${domains[$i]}"
                     local domain_file="${domain_files[$i]}"
-                    echo "## ${domain^} Audit"
+                    echo "## $(_ucfirst "$domain") Audit"
                     echo ""
                     if [[ -f "$domain_file" ]]; then
                         cat "$domain_file"
@@ -13746,6 +13758,47 @@ doctor_add() {
 }
 
 # --- Category 1: Providers ---
+# v8.39.0: Update external CLI dependencies to latest versions
+cmd_update_clis() {
+    echo -e "${CYAN}🐙 Claude Octopus — CLI Update${NC}"
+    echo ""
+
+    local updated=0 failed=0
+
+    # Update Codex CLI
+    echo -e "  ${YELLOW}→${NC} Updating Codex CLI (@openai/codex)..."
+    if npm install -g @openai/codex 2>&1 | sed 's/^/    /'; then
+        local codex_ver
+        codex_ver=$(codex --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")
+        echo -e "  ${GREEN}✓${NC} Codex CLI updated to v${codex_ver}"
+        ((updated++))
+    else
+        echo -e "  ${RED}✗${NC} Codex CLI update failed. Try manually: npm install -g @openai/codex"
+        ((failed++))
+    fi
+    echo ""
+
+    # Update Gemini CLI
+    echo -e "  ${YELLOW}→${NC} Updating Gemini CLI (@google/gemini-cli)..."
+    if npm install -g @google/gemini-cli 2>&1 | sed 's/^/    /'; then
+        local gemini_ver
+        gemini_ver=$(gemini --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")
+        echo -e "  ${GREEN}✓${NC} Gemini CLI updated to v${gemini_ver}"
+        ((updated++))
+    else
+        echo -e "  ${RED}✗${NC} Gemini CLI update failed. Try manually: npm install -g @google/gemini-cli"
+        ((failed++))
+    fi
+    echo ""
+
+    # Summary
+    if [[ $failed -eq 0 ]]; then
+        echo -e "${GREEN}✅ All CLIs updated successfully (${updated} packages)${NC}"
+    else
+        echo -e "${YELLOW}⚠ ${updated} updated, ${failed} failed${NC}"
+    fi
+}
+
 doctor_check_providers() {
     # Claude Code version + compatibility
     local cc_ver="${CLAUDE_CODE_VERSION:-}"
@@ -13764,8 +13817,8 @@ doctor_check_providers() {
         codex_path=$(command -v codex)
         if [[ "$codex_ver" != "unknown" ]] && [[ "$codex_ver" =~ ^0\.(([0-9]{1,2})|9[0-9])\. ]]; then
             doctor_add "codex-cli" "providers" "warn" \
-                "Codex CLI v${codex_ver} (deprecated flags)" \
-                "${codex_path} — versions <0.100.0 may use deprecated flags (-q, -y)"
+                "Codex CLI v${codex_ver} (outdated)" \
+                "${codex_path} — run orchestrate.sh update-clis or: npm install -g @openai/codex"
         else
             doctor_add "codex-cli" "providers" "pass" \
                 "Codex CLI v${codex_ver}" "$codex_path"
@@ -14976,7 +15029,7 @@ $previous_output"
     # Write synthesis file
     local synthesis_file="${RESULTS_DIR}/${phase_name}-synthesis-${task_group}.md"
     if [[ -n "$phase_output" ]]; then
-        echo "# ${phase_name^} Phase Synthesis" > "$synthesis_file"
+        echo "# $(_ucfirst "$phase_name") Phase Synthesis" > "$synthesis_file"
         echo "# Generated by YAML Runtime" >> "$synthesis_file"
         echo "# Task Group: $task_group" >> "$synthesis_file"
         echo "" >> "$synthesis_file"
@@ -15280,7 +15333,7 @@ probe_discover() {
             total_size=$((total_size + file_size))
 
             # Capitalize first letter of agent name properly
-            local agent_display="${agent^}"
+            local agent_display="$(_ucfirst "$agent")"
 
             # Categorize based on content and status markers
             if grep -q "Status: SUCCESS" "$result_file"; then
@@ -15308,7 +15361,7 @@ probe_discover() {
                 fi
             fi
         else
-            local agent_display="${agent^}"
+            local agent_display="$(_ucfirst "$agent")"
             echo -e " ${RED}✗${NC} $agent_display probe $i: result file missing"
             ((failure_count++)) || true
         fi
@@ -19874,6 +19927,9 @@ case "$COMMAND" in
         ;;
     detect-providers)
         cmd_detect_providers
+        ;;
+    update-clis)
+        cmd_update_clis
         ;;
     status)
         show_status
