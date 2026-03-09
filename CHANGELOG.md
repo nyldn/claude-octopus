@@ -1,3 +1,40 @@
+## [8.43.0] - 2026-03-08
+
+### Added
+
+- **Context-aware quality injection** — `flow-develop.md` and `flow-deliver.md` now detect 6
+  dev subtypes (frontend-ui, cli-tool, api-service, infra, data, general) and inject
+  domain-specific quality criteria into provider prompts. Frontend tasks get accessibility
+  and self-containment rules; CLI tasks get exit code and help text checks; API tasks get
+  input validation and auth requirements.
+- **BM25 design intelligence auto-injection** — when `frontend-ui` subtype is detected in the
+  develop phase, the BM25 search engine is queried for style and UX patterns relevant to
+  the task, injected directly into the provider prompt.
+- **Reference integrity gate** — `quality-gate.sh` now scans recently created HTML, shell
+  scripts, and Docker Compose files for broken file references (missing scripts, stylesheets,
+  sourced files, Dockerfiles). Blocks with actionable error listing each broken reference.
+- **Three-way adversarial design critique** — `/octo:design-ui-ux` now runs a mandatory
+  critique step between Define and Develop phases. Codex (implementation critique), Gemini
+  (ecosystem critique), and Claude (independent design critique) all review the proposed
+  design direction in parallel. Issues are triaged, fixes applied, and a visible revision
+  diff is shown before tokens/components are generated.
+
+### Changed
+
+- **Implementer persona** — added deliverable integrity rules: every referenced file must
+  exist, prefer self-contained deliverables, single artifacts stay as one file.
+- **Researcher persona** — added output quality bar: evidence-backed claims, trade-off
+  disclosure, explicit uncertainty acknowledgment.
+- **Synthesizer persona** — added synthesis integrity rules: explicit conflict surfacing,
+  completeness validation against original request, standalone output requirement.
+- **Task decomposition** — both `tangle_develop()` and `map_reduce()` now include cohesion
+  rules preventing single-deliverable fragmentation. "2-6 subtasks; fewer is better when
+  tightly coupled" replaces the old "4-6 independent subtasks."
+- **`aggregate_results()`** — now synthesizes via Gemini instead of concatenating markdown
+  files. Falls back to concatenation if Gemini unavailable.
+- **Design workflow banner** — now shows provider availability (Codex, Gemini, Claude) and
+  the critique phase in the pipeline indicator.
+
 ## [8.42.0] - 2026-03-08
 
 ### Added
