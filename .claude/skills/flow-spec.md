@@ -28,7 +28,7 @@ This skill uses **ENFORCED execution mode**. You MUST follow this exact 8-step s
 
 **Ask via AskUserQuestion BEFORE any other action.**
 
-You MUST gather these inputs from the user:
+You MUST gather these inputs from the user — spec quality depends on knowing actors, constraints, and complexity upfront; without these the research query is too broad and the spec will have gaps:
 
 ```
 AskUserQuestion with these questions:
@@ -134,13 +134,13 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh probe "specification research for: 
 Incorporate the user's answers from Step 1 into the probe query to focus the research.
 
 **CRITICAL: You are PROHIBITED from:**
-- Researching directly without calling orchestrate.sh
+- Researching directly without calling orchestrate.sh — direct spec writing skips the multi-AI research that surfaces edge cases, alternative architectures, and constraint interactions
 - Using web search instead of orchestrate.sh
 - Claiming you're "simulating" the workflow
 - Proceeding to Step 5 without running this command
 - Substituting with direct Claude analysis
 
-**This is NOT optional. You MUST use the Bash tool to invoke orchestrate.sh.**
+**You MUST use the Bash tool to invoke orchestrate.sh.**
 
 ---
 
@@ -166,7 +166,7 @@ cat "$SYNTHESIS_FILE"
 1. Report error to user
 2. Show logs from `~/.claude-octopus/logs/`
 3. DO NOT proceed with generating NLSpec
-4. DO NOT substitute with direct research
+4. DO NOT substitute with direct research — fallback to single-model analysis skips the multi-provider synthesis that surfaces edge cases and alternative approaches
 
 ---
 
@@ -362,8 +362,8 @@ If any step fails:
 - CANNOT skip orchestrate.sh probe execution
 - CANNOT simulate or fake multi-AI research
 - CANNOT substitute direct Claude analysis for probe results
-- CANNOT skip completeness validation
-- CANNOT proceed past a failed validation gate
+- CANNOT skip completeness validation — an incomplete spec (missing actors, behaviors, or constraints) produces ambiguous implementation targets that cause rework
+- CANNOT proceed past a failed validation gate — gates exist to catch missing sections before the spec reaches implementers
 - CANNOT create working/progress files in plugin directory
 
 ---

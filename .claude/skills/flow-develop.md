@@ -135,7 +135,7 @@ This gives providers concrete design guidance (style direction, UX patterns) wit
 orchestrate.sh develop "<user prompt>\n\nQuality requirements for this deliverable:\n<supplement text>\n<design intelligence if found>"
 ```
 
-**DO NOT PROCEED TO STEP 2 until context determined.**
+**DO NOT PROCEED TO STEP 2 until context determined.** Context type (Dev vs Knowledge) and dev subtype determine which quality supplements and design intelligence to inject — wrong context wastes provider credits on irrelevant analysis.
 
 ---
 
@@ -183,7 +183,7 @@ Provider Availability:
 - If ONE unavailable → Continue with available provider(s)
 - If BOTH available → Proceed normally
 
-**DO NOT PROCEED TO STEP 3 until banner displayed.**
+**DO NOT PROCEED TO STEP 3 until banner displayed.** The banner shows users which providers will run and what costs they'll incur — starting API calls without this visibility violates cost transparency.
 
 ---
 
@@ -240,12 +240,12 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh develop "<user's implementation req
 ```
 
 **CRITICAL: You are PROHIBITED from:**
-- ❌ Implementing directly without calling orchestrate.sh
+- ❌ Implementing directly without calling orchestrate.sh — single-model implementation misses alternative approaches and edge cases that Codex and Gemini surface through independent analysis
 - ❌ Writing code without multi-provider perspectives
 - ❌ Claiming you're "simulating" the workflow
 - ❌ Proceeding to Step 4 without running this command
 
-**This is NOT optional. You MUST use the Bash tool to invoke orchestrate.sh.**
+**You MUST use the Bash tool to invoke orchestrate.sh.**
 
 #### What Users See During Execution (v7.16.0+)
 
@@ -286,7 +286,7 @@ cat "$SYNTHESIS_FILE"
 1. Report error to user
 2. Show logs from `~/.claude-octopus/logs/`
 3. DO NOT proceed with presenting results
-4. DO NOT substitute with direct implementation
+4. DO NOT substitute with direct implementation — fallback to single-model implementation skips the multi-provider synthesis that catches design flaws early
 
 ---
 

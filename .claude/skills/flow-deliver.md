@@ -101,7 +101,7 @@ When context_type is Dev, determine the **subtype** to inject domain-appropriate
 orchestrate.sh deliver "<user prompt>\n\nDomain-specific validation criteria:\n<supplement text>"
 ```
 
-**DO NOT PROCEED TO STEP 2 until context determined.**
+**DO NOT PROCEED TO STEP 2 until context determined.** Context type (Dev vs Knowledge) and dev subtype determine which validation supplements to inject — wrong context produces a review that checks irrelevant criteria.
 
 ---
 
@@ -149,7 +149,7 @@ Provider Availability:
 - If ONE unavailable → Continue with available provider(s)
 - If BOTH available → Proceed normally
 
-**DO NOT PROCEED TO STEP 3 until banner displayed.**
+**DO NOT PROCEED TO STEP 3 until banner displayed.** The banner shows users which providers will run and what costs they'll incur — starting API calls without this visibility violates cost transparency.
 
 ---
 
@@ -212,12 +212,12 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh deliver "<user's validation request
 ```
 
 **CRITICAL: You are PROHIBITED from:**
-- ❌ Reviewing directly without calling orchestrate.sh
+- ❌ Reviewing directly without calling orchestrate.sh — adversarial multi-AI review catches blind spots that a single reviewer misses; Codex finds code quality issues while Gemini catches security and edge cases
 - ❌ Doing single-perspective analysis instead of multi-provider
 - ❌ Claiming you're "simulating" the workflow
 - ❌ Proceeding to Step 4 without running this command
 
-**This is NOT optional. You MUST use the Bash tool to invoke orchestrate.sh.**
+**You MUST use the Bash tool to invoke orchestrate.sh.**
 
 #### What Users See During Execution (v7.16.0+)
 
@@ -258,7 +258,7 @@ cat "$VALIDATION_FILE"
 1. Report error to user
 2. Show logs from `~/.claude-octopus/logs/`
 3. DO NOT proceed with presenting results
-4. DO NOT substitute with direct review
+4. DO NOT substitute with direct review — fallback to single-model review defeats the adversarial multi-provider validation that catches blind spots
 
 ---
 

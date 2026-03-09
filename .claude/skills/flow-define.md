@@ -100,7 +100,7 @@ Provider Availability:
 - If ONE unavailable → Continue with available provider(s)
 - If BOTH available → Proceed normally
 
-**DO NOT PROCEED TO STEP 2 until banner displayed.**
+**DO NOT PROCEED TO STEP 2 until banner displayed.** The banner shows users which providers will run and what costs they'll incur — starting API calls without this visibility violates cost transparency.
 
 ---
 
@@ -228,7 +228,7 @@ echo "📋 Context captured and saved to .claude-octopus/context/define-context.
 - Guide implementation decisions (develop phase)
 - Validate against user expectations (deliver phase)
 
-**DO NOT PROCEED TO STEP 4 until context captured.**
+**DO NOT PROCEED TO STEP 4 until context captured.** User vision (UX approach, priorities, out-of-scope items) scopes the multi-AI research — without it, providers research too broadly and the definition misses the user's actual intent.
 
 ---
 
@@ -241,12 +241,12 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh define "<user's clarification reque
 ```
 
 **CRITICAL: You are PROHIBITED from:**
-- ❌ Defining requirements directly without calling orchestrate.sh
+- ❌ Defining requirements directly without calling orchestrate.sh — single-model analysis misses the technical-vs-business perspective split that Codex and Gemini provide, producing requirements with blind spots
 - ❌ Using direct analysis instead of orchestrate.sh
 - ❌ Claiming you're "simulating" the workflow
 - ❌ Proceeding to Step 3 without running this command
 
-**This is NOT optional. You MUST use the Bash tool to invoke orchestrate.sh.**
+**You MUST use the Bash tool to invoke orchestrate.sh.**
 
 #### What Users See During Execution (v7.16.0+)
 
@@ -287,7 +287,7 @@ cat "$SYNTHESIS_FILE"
 1. Report error to user
 2. Show logs from `~/.claude-octopus/logs/`
 3. DO NOT proceed with presenting results
-4. DO NOT substitute with direct analysis
+4. DO NOT substitute with direct analysis — fallback to single-model analysis defeats the purpose of multi-provider consensus and produces narrower requirements
 
 ---
 

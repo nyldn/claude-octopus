@@ -126,7 +126,7 @@ Analyze the user's prompt and project to determine context:
 
 **Capture context_type = "Dev" or "Knowledge"**
 
-**DO NOT PROCEED TO STEP 2 until context determined.**
+**DO NOT PROCEED TO STEP 2 until context determined.** Context type (Dev vs Knowledge) determines which provider prompts to use — wrong context produces irrelevant research that wastes provider credits.
 
 ---
 
@@ -176,7 +176,7 @@ Provider Availability:
 - If ONE unavailable → Continue with available provider(s)
 - If BOTH available → Proceed normally
 
-**DO NOT PROCEED TO STEP 3 until banner displayed.**
+**DO NOT PROCEED TO STEP 3 until banner displayed.** The banner shows users which providers will run and what costs they'll incur — starting API calls without this visibility violates cost transparency.
 
 ---
 
@@ -222,12 +222,12 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh probe "<user's research question>"
 ```
 
 **CRITICAL: You are PROHIBITED from:**
-- ❌ Researching directly without calling orchestrate.sh
+- ❌ Researching directly without calling orchestrate.sh — single-model research misses perspectives that Codex (implementation depth) and Gemini (ecosystem breadth) bring; direct analysis cannot match multi-provider synthesis
 - ❌ Using web search instead of orchestrate.sh
 - ❌ Claiming you're "simulating" the workflow
 - ❌ Proceeding to Step 4 without running this command
 
-**This is NOT optional. You MUST use the Bash tool to invoke orchestrate.sh.**
+**You MUST use the Bash tool to invoke orchestrate.sh.**
 
 #### What Users See During Execution (v7.16.0+)
 
@@ -268,7 +268,7 @@ cat "$SYNTHESIS_FILE"
 1. Report error to user
 2. Show logs from `~/.claude-octopus/logs/`
 3. DO NOT proceed with presenting results
-4. DO NOT substitute with direct research
+4. DO NOT substitute with direct research — fallback to single-model analysis defeats the purpose of multi-provider synthesis and produces narrower findings
 
 ---
 

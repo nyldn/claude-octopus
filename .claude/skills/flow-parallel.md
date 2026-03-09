@@ -34,7 +34,7 @@ This skill uses **ENFORCED execution mode**. You MUST follow this exact 7-step s
 
 **Ask via AskUserQuestion BEFORE any other action.**
 
-You MUST gather these inputs from the user:
+You MUST gather these inputs from the user — without scope, count, and dependency answers, the decomposition will be generic and produce overlapping work packages that cause merge conflicts:
 
 ```
 AskUserQuestion with these questions:
@@ -153,7 +153,7 @@ cat > .octo/parallel/wbs.json << 'WBSEOF'
 WBSEOF
 ```
 
-**You MUST write actual WBS content** based on your analysis of the compound task. The JSON above is a template — populate it with real decomposition.
+**You MUST write actual WBS content** based on your analysis of the compound task. The JSON above is a template — populate it with real decomposition. Template or placeholder WBS produces vague instructions that agents interpret differently, causing duplicate work or missed scope.
 
 **Validation gate: `wbs_generated`** — Verify `.octo/parallel/wbs.json` exists and contains valid JSON:
 
@@ -310,7 +310,7 @@ cat > ".octo/parallel/WP-N/instructions.md" << 'INSTREOF'
 INSTREOF
 ```
 
-**CRITICAL:** Every instructions.md MUST contain explicit file paths. Vague descriptions like "create the auth module" are PROHIBITED — specify exact paths like `src/auth/oauth.ts`.
+**CRITICAL:** Every instructions.md MUST contain explicit file paths — parallel agents interpret vague scope independently, so without explicit paths two WPs may modify the same file or leave gaps between them. Vague descriptions like "create the auth module" are PROHIBITED — specify exact paths like `src/auth/oauth.ts`.
 
 #### `launch.sh`
 
@@ -655,16 +655,16 @@ Created and managed by this skill:
 
 ## Prohibitions (MANDATORY - CANNOT VIOLATE)
 
-- CANNOT use Task tool subagents as substitute (they don't load plugins)
-- CANNOT skip WBS decomposition (Step 4)
+- CANNOT use Task tool subagents as substitute — Task subagents run in isolated sandboxes without plugin access, so they get no Octopus quality gates, personas, or provider orchestration
+- CANNOT skip WBS decomposition (Step 4) — without decomposition, agents receive the full compound task and produce overlapping, uncoordinated output
 - CANNOT launch without instruction files (Step 5 must precede Step 6)
-- CANNOT skip 12-second stagger between launches
+- CANNOT skip 12-second stagger between launches — simultaneous process spawning causes CPU/memory contention that degrades all agents' performance
 - CANNOT declare success without checking exit codes
 - CANNOT proceed to next step without completing current step
 - CANNOT write vague instructions — explicit file paths are MANDATORY
-- CANNOT launch more than 10 work packages
-- CANNOT skip the monitoring loop
-- CANNOT launch a wave before its dependency wave completes
+- CANNOT launch more than 10 work packages — beyond 10, resource contention and merge complexity outweigh parallelism gains
+- CANNOT skip the monitoring loop — without monitoring, failed or hung agents go undetected and the orchestrator reports false success
+- CANNOT launch a wave before its dependency wave completes — later waves consume outputs from earlier waves, so premature launch produces agents working with missing context
 - CANNOT skip dependency validation when dependencies exist
 
 ---

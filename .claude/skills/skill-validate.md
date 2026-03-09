@@ -229,7 +229,7 @@ Pass Threshold = 75/100
 
 ### 🛡️ STEP 4: Issue Extraction (BLOCKING)
 
-**You MUST extract and categorize issues from debate outputs:**
+**You MUST extract and categorize issues from debate outputs** — raw debate output is unstructured text; extraction produces an actionable issue list the user can triage, rather than walls of provider prose:
 
 Parse debate outputs and extract concrete issues. Categorize by severity:
 
@@ -525,9 +525,9 @@ What would you like to do next?
 
 ## Prohibited Actions
 
-❌ **CANNOT SKIP** interactive questions (Step 1)
-❌ **CANNOT SIMULATE** orchestrate.sh execution (Step 2)
-❌ **CANNOT SKIP** quality scoring (Step 3)
+❌ **CANNOT SKIP** interactive questions (Step 1) — without user-selected priorities, the debate prompt is unfocused and scores arbitrary dimensions rather than what matters for this validation
+❌ **CANNOT SIMULATE** orchestrate.sh execution (Step 2) — simulated output isn't grounded in actual code analysis; real providers read real files and find real issues
+❌ **CANNOT SKIP** quality scoring (Step 3) — without dimensional scores, the report is just opinions with no threshold comparison to determine pass/fail
 ❌ **CANNOT SKIP** issue extraction (Step 4)
 ❌ **CANNOT SKIP** report generation (Step 5)
 ❌ **CANNOT** mark as complete without validation gates passing
