@@ -83,6 +83,24 @@ Analyze the user's prompt and project to determine context:
 
 **Capture context_type = "Dev" or "Knowledge"**
 
+#### Step 1b: Detect Dev Subtype (if Dev context)
+
+When context_type is Dev, determine the **subtype** to inject domain-appropriate validation criteria into the review prompt. Append the matching validation supplement after the user's prompt when calling orchestrate.sh in Step 4.
+
+| Subtype | Trigger keywords | Validation supplement |
+|---------|-----------------|---------------------|
+| `frontend-ui` | "page", "widget", "component", "UI", "HTML", "CSS", "form", "dashboard", "layout" | Verify: all referenced files exist (scripts, stylesheets, images). Check ARIA labels and roles, keyboard navigability, touch target sizes (44px min). Flag innerHTML usage. Confirm progressive enhancement (fallbacks for navigator.share, localStorage, etc). Test self-containment: does this work if opened/run with zero setup? |
+| `cli-tool` | "CLI", "command-line", "terminal", "script", "flag", "argument" | Verify: --help flag works, exit codes are meaningful (0/1/2), stderr vs stdout used correctly, argument edge cases handled (missing args, invalid input, --unknown-flag). |
+| `api-service` | "API", "endpoint", "REST", "GraphQL", "gRPC", "server", "route" | Verify: input validation at every endpoint, consistent error response format, auth on protected routes, rate limiting considered, schema/contract documented. |
+| `infra` | "deploy", "terraform", "docker", "CI", "pipeline", "Kubernetes", "helm" | Verify: operations are idempotent, no hardcoded secrets, rollback path exists, health checks included, destroy operations require confirmation. |
+| `data` | "ETL", "pipeline", "migration", "schema", "database", "SQL" | Verify: migrations are reversible, data validation at ingestion, backup strategy documented, no data loss on failure. |
+| `general` | Default if no subtype matches | No supplement — use standard review criteria. |
+
+**How to apply:** When calling orchestrate.sh in Step 4, append the validation supplement:
+```
+orchestrate.sh deliver "<user prompt>\n\nDomain-specific validation criteria:\n<supplement text>"
+```
+
 **DO NOT PROCEED TO STEP 2 until context determined.**
 
 ---
@@ -314,6 +332,8 @@ Analyze the user's prompt and project to determine context:
 - Quality terms: "security", "performance", "tests", "coverage", "bugs"
 
 **Also check**: What is being reviewed? Code files → Dev, Documents → Knowledge
+
+**Step 1b: Detect Dev Subtype** — see EXECUTION CONTRACT Step 1b above for subtype table and validation supplements. Append the matching supplement to the prompt before calling orchestrate.sh.
 
 ### Step 2: Output Context-Aware Banner
 

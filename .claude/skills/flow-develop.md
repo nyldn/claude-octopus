@@ -85,6 +85,56 @@ Analyze the user's prompt and project to determine context:
 
 **Capture context_type = "Dev" or "Knowledge"**
 
+#### Step 1b: Detect Dev Subtype (if Dev context)
+
+When context_type is Dev, determine the **subtype** to inject domain-appropriate quality guidance into the prompt sent to providers. Append the matching supplement text after the user's prompt.
+
+| Subtype | Trigger keywords | Quality supplement |
+|---------|-----------------|-------------------|
+| `frontend-ui` | "page", "widget", "component", "UI", "HTML", "CSS", "form", "dashboard", "layout" | See **frontend-ui enrichment** below. |
+| `cli-tool` | "CLI", "command-line", "terminal", "script", "flag", "argument" | Help text via --help flag. Meaningful exit codes (0 success, 1 user error, 2 system error). Stdin/stdout/stderr used correctly. Argument validation with clear error messages. |
+| `api-service` | "API", "endpoint", "REST", "GraphQL", "gRPC", "server", "route" | Input validation at boundaries. Consistent error response format. Auth/authz on every endpoint. Rate limiting consideration. OpenAPI/schema documentation. |
+| `infra` | "deploy", "terraform", "docker", "CI", "pipeline", "Kubernetes", "helm" | Idempotent operations. Secrets never hardcoded. Rollback path documented. Health checks included. |
+| `data` | "ETL", "pipeline", "migration", "schema", "database", "SQL" | Idempotent migrations. Backup/rollback strategy. Data validation at ingestion. |
+| `general` | Default if no subtype matches | No supplement — use base implementer persona only. |
+
+#### frontend-ui enrichment
+
+When `frontend-ui` subtype is detected, do TWO things:
+
+**A. Inject quality supplement into the prompt:**
+Self-contained files preferred. Accessibility: ARIA labels, keyboard nav, 44px touch targets (WCAG 2.5.5). Safe DOM: createElement over innerHTML. Progressive enhancement: feature-detect APIs (navigator.share, localStorage) with fallbacks. Persist user prefs via localStorage.
+
+**B. Pull design intelligence from BM25 (if available):**
+
+Before calling orchestrate.sh, check if the design intelligence engine exists and query it for relevant design context:
+
+```bash
+SEARCH_PY="${CLAUDE_PLUGIN_ROOT}/vendors/ui-ux-pro-max-skill/src/ui-ux-pro-max/scripts/search.py"
+if [[ -f "$SEARCH_PY" ]]; then
+    # Detect relevant domains from the prompt
+    design_context=""
+    # Style query — what visual style fits this task?
+    style_hit=$(python3 "$SEARCH_PY" "<user's task description>" --domain style --top 1 2>/dev/null || true)
+    [[ -n "$style_hit" ]] && design_context+="Design style suggestion: $style_hit\n"
+    # UX query — relevant UX patterns
+    ux_hit=$(python3 "$SEARCH_PY" "<user's task description>" --domain ux --top 1 2>/dev/null || true)
+    [[ -n "$ux_hit" ]] && design_context+="UX pattern: $ux_hit\n"
+    # Append to prompt if hits found
+    if [[ -n "$design_context" ]]; then
+        # Append design intelligence to the orchestrate.sh prompt
+        prompt="${prompt}\n\nDesign intelligence (from BM25 search):\n${design_context}"
+    fi
+fi
+```
+
+This gives providers concrete design guidance (style direction, UX patterns) without requiring the user to run `/octo:design-ui-ux` separately. If the search engine isn't installed, implementation proceeds with the quality supplement only.
+
+**How to apply:** When calling orchestrate.sh in Step 4, append the quality supplement (and design intelligence if available) to the prompt:
+```
+orchestrate.sh develop "<user prompt>\n\nQuality requirements for this deliverable:\n<supplement text>\n<design intelligence if found>"
+```
+
 **DO NOT PROCEED TO STEP 2 until context determined.**
 
 ---
@@ -314,6 +364,8 @@ Analyze the user's prompt and project to determine context:
 - Action terms: "implement", "code", "build", "create", "develop" + technical noun
 
 **Also check**: Does the project have `package.json`, `Cargo.toml`, etc.? (suggests Dev Context)
+
+**Step 1b: Detect Dev Subtype** — see EXECUTION CONTRACT Step 1b above for subtype table and quality supplements. Append the matching supplement to the prompt before calling orchestrate.sh.
 
 ### Step 2: Output Context-Aware Banner
 

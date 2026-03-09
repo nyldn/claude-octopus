@@ -9737,6 +9737,12 @@ You are a technical researcher specializing in deep investigation, pattern analy
 - Acknowledge uncertainties and gaps in knowledge
 - Cite sources and provide evidence for claims
 - Balance breadth of exploration with depth of analysis
+
+**Output quality bar (MANDATORY):**
+- Back claims with specific evidence — tool names, version numbers, benchmark data, RFC/spec references, not just assertions
+- Distinguish established best practices from emerging/experimental approaches
+- For each recommendation, state at least one trade-off or limitation
+- If information is unavailable or uncertain, say so explicitly rather than guessing
 PERSONA
             ;;
         reviewer)
@@ -9767,6 +9773,12 @@ You are a senior software engineer specializing in clean, production-ready code 
 - Include appropriate logging and observability
 - Optimize for performance without premature optimization
 - Write self-documenting code with clear naming
+
+**Deliverable integrity (MANDATORY):**
+- Every file you reference must exist — if code imports, sources, or links another file, that file must be created in the same deliverable
+- Prefer self-contained deliverables — fewer files with inline code beats many files with broken cross-references
+- If the task produces a single artifact (script, page, config), deliver it as ONE complete file unless there is a clear architectural reason to split
+- Validate your own output: would this work if someone ran/opened it right now with zero additional setup?
 PERSONA
             ;;
         synthesizer)
@@ -9782,6 +9794,12 @@ You are a technical synthesizer specializing in combining diverse inputs into co
 - Create clear, structured summaries
 - Highlight key decisions and action items
 - Preserve important details while removing noise
+
+**Synthesis integrity (MANDATORY):**
+- When sources conflict, state the conflict explicitly and explain your resolution rationale — do not silently pick one perspective
+- Verify your synthesis addresses every dimension of the original request — if a dimension is missing from all sources, flag it as a gap
+- Deduplicate overlapping content but preserve distinct nuances from each source
+- The final output must stand alone — a reader who sees only the synthesis (not the inputs) should get a complete picture
 PERSONA
             ;;
         *)
@@ -12281,7 +12299,9 @@ map_reduce() {
     log INFO "Map-Reduce: Decomposing task and distributing to agents"
 
     log INFO "Phase 1: Task decomposition with Gemini"
-    local decompose_prompt="Analyze this task and break it into 3-5 independent subtasks that can be executed in parallel. Output as a simple numbered list. Task: $main_prompt"
+    local decompose_prompt="Analyze this task and break it into subtasks that can be executed in parallel.
+If the task produces a single deliverable (one file, one script, one page, one config), keep it as ONE subtask — do not split it. Only decompose when subtasks are truly independent with no cross-file references. Aim for 2-5 subtasks; fewer is better when the work is tightly coupled.
+Output as a simple numbered list. Task: $main_prompt"
 
     local decompose_result="${RESULTS_DIR}/decompose-${task_group}.txt"
 
@@ -12327,30 +12347,68 @@ map_reduce() {
 aggregate_results() {
     local filter="${1:-}"
     local aggregate_file="${RESULTS_DIR}/aggregate-$(date +%s).md"
+    local raw_concat="${RESULTS_DIR}/.raw-concat-$$.md"
 
     log INFO "Aggregating results..."
 
+    # Phase 1: Collect raw results
+    local result_count=0
+    > "$raw_concat"
+    for result in "$RESULTS_DIR"/*.md; do
+        [[ -f "$result" ]] || continue
+        [[ "$result" == *aggregate* ]] && continue
+        [[ "$result" == *.raw-concat* ]] && continue
+        [[ -n "$filter" && "$result" != *"$filter"* ]] && continue
+
+        echo "---" >> "$raw_concat"
+        echo "## Source: $(basename "$result")" >> "$raw_concat"
+        echo "" >> "$raw_concat"
+        cat "$result" >> "$raw_concat"
+        echo "" >> "$raw_concat"
+        ((result_count++)) || true
+    done
+
+    # Phase 2: Synthesize if we have a provider available and multiple results
+    if [[ $result_count -gt 1 ]] && command -v gemini &> /dev/null && [[ "$DRY_RUN" != "true" ]]; then
+        log INFO "Synthesizing $result_count results (not just concatenating)..."
+        local synthesis_prompt
+        synthesis_prompt="Synthesize these $result_count subtask results into ONE coherent output.
+Rules:
+- Merge overlapping content; preserve distinct contributions from each source
+- If sources conflict, state the conflict and your resolution
+- The output must stand alone — a reader should get the complete picture without seeing the inputs
+- Structure the output logically, not by source
+
+Subtask results:
+$(cat "$raw_concat")"
+
+        local synthesis_result
+        if synthesis_result=$(printf '%s' "$synthesis_prompt" | run_with_timeout "$TIMEOUT" gemini 2>/dev/null) && [[ -n "$synthesis_result" ]]; then
+            echo "# Claude Octopus - Synthesized Results" > "$aggregate_file"
+            echo "" >> "$aggregate_file"
+            echo "Generated: $(date)" >> "$aggregate_file"
+            echo "Sources: $result_count subtask outputs" >> "$aggregate_file"
+            echo "" >> "$aggregate_file"
+            echo "$synthesis_result" >> "$aggregate_file"
+            rm -f "$raw_concat"
+            log INFO "Synthesized $result_count results to: $aggregate_file"
+            echo ""
+            echo -e "${GREEN}✓${NC} Results synthesized to: $aggregate_file"
+            return
+        fi
+        log WARN "Synthesis failed, falling back to concatenation"
+    fi
+
+    # Fallback: concatenation (single result or no synthesis provider)
     echo "# Claude Octopus - Aggregated Results" > "$aggregate_file"
     echo "" >> "$aggregate_file"
     echo "Generated: $(date)" >> "$aggregate_file"
     echo "" >> "$aggregate_file"
-
-    local result_count=0
-    for result in "$RESULTS_DIR"/*.md; do
-        [[ -f "$result" ]] || continue
-        [[ "$result" == *aggregate* ]] && continue
-        [[ -n "$filter" && "$result" != *"$filter"* ]] && continue
-
-        echo "---" >> "$aggregate_file"
-        echo "" >> "$aggregate_file"
-        cat "$result" >> "$aggregate_file"
-        echo "" >> "$aggregate_file"
-        ((result_count++)) || true
-    done
-
-    echo "---" >> "$aggregate_file"
+    cat "$raw_concat" >> "$aggregate_file"
+    echo "" >> "$aggregate_file"
     echo "**Total Results: $result_count**" >> "$aggregate_file"
 
+    rm -f "$raw_concat"
     log INFO "Aggregated $result_count results to: $aggregate_file"
     echo ""
     echo -e "${GREEN}✓${NC} Results aggregated to: $aggregate_file"
@@ -15725,11 +15783,13 @@ tangle_develop() {
 
     # Step 1: Decompose into validated subtasks
     log INFO "Step 1: Task decomposition..."
-    local decompose_prompt="Decompose this task into 4-6 independent subtasks that can be executed in parallel.
+    local decompose_prompt="Decompose this task into subtasks that can be executed in parallel.
 Each subtask should be:
 - Self-contained and independently verifiable
 - Clear about inputs and expected outputs
 - Assignable to either a coding agent [CODING] or reasoning agent [REASONING]
+
+**Cohesion rule:** If the task produces a single deliverable (one file, one script, one page, one config), keep it as ONE subtask — do not split it. Only decompose when subtasks are truly independent with no cross-file references between them. Aim for 2-6 subtasks; fewer is better when the work is tightly coupled.
 
 ${context}Task: $prompt
 
