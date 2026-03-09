@@ -1,3 +1,11 @@
+## [8.47.0] - 2026-03-09
+
+### Changed
+
+- Dual-backend scheduler: guided wizard, job dashboard, coworkd/daemon detection
+
+---
+
 ## [8.46.0] - 2026-03-09
 
 ### Changed
