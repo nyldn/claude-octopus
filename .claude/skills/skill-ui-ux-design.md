@@ -91,14 +91,19 @@ AskUserQuestion({
 Pipeline:
 🔍 Phase 1: Design Research (BM25 search + context detection)
 🎯 Phase 2: Design Direction (synthesis + style selection)
+🐙 Phase 2b: Design Critique (adversarial review before committing)
 🛠️ Phase 3: Design System (tokens, components, layouts)
 ✅ Phase 4: Validation (accessibility, handoff specs)
+
+Providers:
+🔴 Codex CLI: [Available ✓ / Not installed ✗] — Implementation critique
+🟡 Gemini CLI: [Available ✓ / Not installed ✗] — Ecosystem critique
+🔵 Claude (Sonnet): Available ✓ — Design + independent critique
 
 Tools:
 🔍 BM25 Design Intelligence: [checking...]
 🎨 Figma MCP: [Available / Not configured]
 🧩 shadcn MCP: [Available / Not configured]
-🔵 Claude (ui-ux-designer): Available
 ```
 
 ### STEP 3: Check Design Intelligence
@@ -157,10 +162,73 @@ Synthesize search results into a design direction document:
 4. **Layout approach** — grid system, spacing scale, responsive strategy
 5. **Design principles** — 3-5 guiding principles derived from UX search results
 
-If Codex/Gemini are available via orchestrate.sh, run a quick debate on the design direction:
-```bash
-"${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh" grapple "Which design direction is better for <product>: <option A> vs <option B>" --rounds 1
+**Output: Write the design direction as a structured section you can reference in the next step.**
+
+### STEP 5b: Design Critique — Three-Way Adversarial Review (MANDATORY)
+
+**This step runs by default.** Before committing to the design direction, it must survive adversarial critique from up to three independent perspectives. This catches accessibility failures, impractical choices, and BM25 blind spots before they get baked into tokens and components.
+
+**Critique prompt** (sent to all participants):
 ```
+Review this proposed design direction and find problems. Be adversarial — your job is to catch flaws, not validate choices.
+
+[The full design direction from Step 5]
+
+Critique dimensions:
+1. ACCESSIBILITY — Do the proposed colors meet WCAG AA contrast ratios (4.5:1 text, 3:1 large text)? Are the font sizes readable at the proposed scale? Are touch targets viable?
+2. PRACTICALITY — Does this typography actually render well on the stated tech stack? Are the fonts available and performant (file size, loading)? Does the spacing scale work with the layout system?
+3. FIT — Does the visual style actually match the product type and audience? Would a user of [product type] feel comfortable with this aesthetic?
+4. GAPS — What did the research miss? Are there common UX patterns for this product type that aren't addressed? Are there competitive norms being ignored?
+
+For each issue found, state: what's wrong, why it matters, and what to do instead.
+```
+
+**Three participants, run in parallel:**
+
+```bash
+# Check provider availability
+codex_available=$(command -v codex &> /dev/null && echo "true" || echo "false")
+gemini_available=$(command -v gemini &> /dev/null && echo "true" || echo "false")
+
+# 🔴 Codex — implementation-focused critique (font loading, CSS practicality, bundle impact)
+if [[ "$codex_available" == "true" ]]; then
+    codex exec --full-auto "<critique prompt>" > /tmp/design-critique-codex.md &
+fi
+
+# 🟡 Gemini — ecosystem-focused critique (competitive patterns, alternative approaches, accessibility standards)
+if [[ "$gemini_available" == "true" ]]; then
+    printf '%s' "<critique prompt>" | gemini -p "" -o text --approval-mode yolo > /tmp/design-critique-gemini.md &
+fi
+
+wait
+```
+
+**🔵 Claude (Sonnet) — independent design critique.** You MUST also write your own adversarial critique. Do NOT just summarize what Codex/Gemini said. Approach the design direction as if you didn't create it — actively look for problems across all four dimensions. This is your independent third perspective, same as in `/octo:debate`.
+
+**Display all critiques with provider indicators:**
+```
+🔴 **Codex Critique:** [implementation concerns — font loading, CSS viability, bundle size]
+🟡 **Gemini Critique:** [ecosystem concerns — competitive patterns, alternative approaches]
+🔵 **Claude Critique:** [design concerns — accessibility gaps, fit issues, missing patterns]
+```
+
+If only 1-2 providers are available, run with what you have. Even Claude-only critique (minimum case) is valuable because you're explicitly switching from "designer who made the choices" to "reviewer finding problems."
+
+**After collecting all critiques, synthesize and revise:**
+
+1. **Triage issues** — group by severity (must-fix, should-fix, acknowledged trade-off)
+2. **Fix must-fix items** — adjust colors for contrast, swap impractical fonts, add missing patterns
+3. **Address should-fix items** — incorporate where feasible, note rationale for deferrals
+4. **Log trade-offs** — document what you're keeping despite critique and why
+5. **Show the diff** — present what changed between original and revised direction:
+```
+📋 **Design Direction Revisions:**
+- [Changed] Primary blue #2563EB → #1D4ED8 (contrast ratio 4.2:1 → 5.8:1, per Codex)
+- [Added] Fallback font stack for body text (per Gemini)
+- [Kept] Glassmorphism style despite Codex concern — appropriate for SaaS dashboard audience
+```
+
+**The revised design direction feeds into Phase 3. Do NOT proceed with an uncritiqued direction.**
 
 ### STEP 6: Phase 3 — Develop (Design System)
 

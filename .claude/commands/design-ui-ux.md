@@ -61,11 +61,12 @@ Tools:
 
 **Quick mode**: Run search, present results, offer to expand into full design system.
 
-**Full mode**: Execute the 4-phase design workflow:
-1. Discover - Search databases, detect project context, pull Figma if available
-2. Define - Synthesize into design direction with multi-AI debate (if providers available)
-3. Develop - Generate design tokens, component specs, page layouts
-4. Deliver - Validate accessibility, create handoff specs, push to Figma if connected
+**Full mode**: Execute the design workflow:
+1. Discover - Search BM25 databases, detect project context, pull Figma if available
+2. Define - Synthesize search results into design direction (style, palette, typography, layout)
+3. Critique - Adversarial review of the design direction via Codex/Gemini (or Claude self-critique). Catches accessibility failures, impractical choices, and research blind spots before they become tokens
+4. Develop - Generate design tokens, component specs, page layouts (incorporating critique fixes)
+5. Deliver - Validate accessibility, create handoff specs, push to Figma if connected
 
 ### Step 5: Present Results
 
