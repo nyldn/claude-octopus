@@ -7,7 +7,7 @@ A Claude Code plugin that turns one model into three. Orchestrates Codex, Gemini
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-8.43.0-blue" alt="Version 8.43.0">
+  <img src="https://img.shields.io/badge/Version-8.44.0-blue" alt="Version 8.44.0">
   <img src="https://img.shields.io/badge/Claude_Code-v2.1.50+-blueviolet" alt="Requires Claude Code v2.1.50+">
   <img src="https://img.shields.io/badge/Factory_AI-Compatible-orange" alt="Factory AI Compatible">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
@@ -31,6 +31,7 @@ A Claude Code plugin that turns one model into three. Orchestrates Codex, Gemini
 
 | Version | What shipped |
 |---------|-------------|
+| **8.44** | **Agent lifecycle & PR integration** — agent registry with persistent tracking, worktree-per-agent parallelism, PR comment posting from reviews |
 | **8.43** | **Output quality & design critique** — context-aware quality injection (6 dev subtypes), reference integrity gate, three-way adversarial design critique, synthesis over concatenation |
 | **8.42** | **Workflow compliance & security** — mandatory execution enforcement, interactive next-steps, anti-injection nonces, Multi-LLM debate gates |
 | **8.41** | **Feature adoption** — 3 new hooks, 10 native agents, auto-memory persistence, Factory droid generation, command consolidation |

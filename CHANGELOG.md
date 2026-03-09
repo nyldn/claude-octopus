@@ -1,3 +1,26 @@
+## [8.44.0] - 2026-03-09
+
+### Added
+
+- **Agent registry** — `scripts/agent-registry.sh` provides persistent lifecycle tracking for
+  spawned coding agents. Tracks agent ID, branch, worktree path, status, PR number, and CI
+  status across sessions. Commands: register, update, get, list, health, cleanup.
+- **Worktree-per-agent in `/octo:parallel`** — each work package now runs in its own isolated
+  git worktree, eliminating file write contention when multiple agents modify files
+  simultaneously. Worktrees are auto-created before launch and cleaned up after completion.
+- **PR comment posting** — `/octo:review`, `/octo:staged-review`, and `/octo:deliver` now
+  detect open PRs on the current branch and post review findings as PR comments via
+  `gh pr comment`. Auto-posts in automated workflows (embrace, factory), asks first in
+  standalone mode.
+
+### Changed
+
+- **`flow-parallel.md` launch template** — work packages create isolated worktrees, register
+  in agent registry on spawn, and update registry status on completion or failure.
+- **`flow-deliver.md`** — Step 7 now includes PR comment posting after validation report.
+- **`skill-code-review.md`** — added post-review PR comment section with auto/ask behavior.
+- **`skill-staged-review.md`** — combined report posted to PR when available.
+
 ## [8.43.0] - 2026-03-08
 
 ### Added

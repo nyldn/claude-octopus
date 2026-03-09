@@ -74,10 +74,11 @@ Architecture:
   WP-1..WP-N (claude -p) - Independent workers with full plugin capabilities
 
 Each worker:
-  - Runs as independent claude -p process
+  - Runs as independent claude -p process in its own git worktree
   - Loads full Octopus plugin
   - Has own context, tools, and quality gates
   - Produces output.md + exit-code
+  - Tracked in agent registry (~/.claude-octopus/agents/registry.json)
 
 Estimated Time: 5-15 minutes (depending on task complexity)
 ```
@@ -313,22 +314,67 @@ INSTREOF
 
 #### `launch.sh`
 
+**v8.44.0: Each work package runs in its own git worktree** for full file isolation. This prevents write contention when multiple agents modify files simultaneously.
+
 ```bash
 cat > ".octo/parallel/WP-N/launch.sh" << 'LAUNCHEOF'
 #!/bin/bash
-cd "<absolute-project-root-path>"
+set -e
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="<absolute-project-root-path>"
+WP_ID="WP-N"
+WORKTREE_DIR="${PROJECT_ROOT}/../.octo-worktree-${WP_ID}"
+REGISTRY="${CLAUDE_PLUGIN_ROOT:-}/scripts/agent-registry.sh"
+
+# v8.44.0: Create isolated worktree for this work package
+cd "$PROJECT_ROOT"
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+git worktree add "$WORKTREE_DIR" "$CURRENT_BRANCH" 2>/dev/null || {
+    # Worktree may already exist from a retry — reuse it
+    if [[ -d "$WORKTREE_DIR" ]]; then
+        cd "$WORKTREE_DIR" && git checkout "$CURRENT_BRANCH" && git pull --ff-only 2>/dev/null || true
+    else
+        echo "ERROR: Failed to create worktree at $WORKTREE_DIR" >&2
+        echo 1 > "$SCRIPT_DIR/exit-code"
+        touch "$SCRIPT_DIR/.done"
+        exit 1
+    fi
+}
+
+# Register agent in registry
+if [[ -x "$REGISTRY" ]]; then
+    "$REGISTRY" register "$WP_ID" "$CURRENT_BRANCH" "$WORKTREE_DIR" 2>/dev/null || true
+fi
+
+cd "$WORKTREE_DIR"
 unset CLAUDECODE
 # v8.32.0: Credential isolation — work packages don't need provider keys
 unset OPENAI_API_KEY GEMINI_API_KEY GOOGLE_API_KEY OPENROUTER_API_KEY PERPLEXITY_API_KEY
-cat "$(dirname "$0")/instructions.md" | claude -p > "$(dirname "$0")/output.md" 2>"$(dirname "$0")/agent.log"
-echo $? > "$(dirname "$0")/exit-code"
-touch "$(dirname "$0")/.done"
+cat "$SCRIPT_DIR/instructions.md" | claude -p > "$SCRIPT_DIR/output.md" 2>"$SCRIPT_DIR/agent.log"
+EXIT_CODE=$?
+echo $EXIT_CODE > "$SCRIPT_DIR/exit-code"
+touch "$SCRIPT_DIR/.done"
+
+# Update agent registry with completion status
+if [[ -x "$REGISTRY" ]]; then
+    if [[ "$EXIT_CODE" -eq 0 ]]; then
+        "$REGISTRY" update "$WP_ID" --status done 2>/dev/null || true
+    else
+        "$REGISTRY" update "$WP_ID" --status failed --error "Exit code $EXIT_CODE" 2>/dev/null || true
+    fi
+fi
+
+# Clean up worktree (agent finished, changes are in output.md not the worktree)
+cd "$PROJECT_ROOT"
+git worktree remove "$WORKTREE_DIR" --force 2>/dev/null || true
 LAUNCHEOF
 
 chmod +x ".octo/parallel/WP-N/launch.sh"
 ```
 
 **You MUST replace `<absolute-project-root-path>`** with the actual project root (use `pwd` to determine it).
+
+**Worktree fallback:** If git worktree is unavailable (shallow clone, detached HEAD), the agent falls back to running in the project root. The error is logged but execution continues.
 
 **Validation gate: `instructions_written`** — Verify all instruction files exist:
 
@@ -564,6 +610,18 @@ Coordination Files: .octo/parallel/
 ```
 
 **Validation gate: `all_work_packages_complete`** — All WPs have `.done` files and exit codes checked.
+
+**Agent registry summary** (v8.44.0):
+
+```bash
+# Show agent registry status for this parallel run
+REGISTRY="${CLAUDE_PLUGIN_ROOT}/scripts/agent-registry.sh"
+if [[ -x "$REGISTRY" ]]; then
+  echo ""
+  echo "=== AGENT REGISTRY ==="
+  "$REGISTRY" list
+fi
+```
 
 ---
 

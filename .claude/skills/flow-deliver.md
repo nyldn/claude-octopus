@@ -290,7 +290,7 @@ echo "📊 Session Complete - Final Metrics:"
 
 ---
 
-### STEP 7: Present Validation Report (Only After Steps 1-6 Complete)
+### STEP 7: Present Validation Report & Post to PR (Only After Steps 1-6 Complete)
 
 Read the validation file and present:
 - Overall status (✅ PASSED / ⚠️ PASSED WITH WARNINGS / ❌ FAILED)
@@ -310,6 +310,52 @@ Read the validation file and present:
 *Providers: 🔴 Codex | 🟡 Gemini | 🔵 Claude*
 *Full validation report: $VALIDATION_FILE*
 ```
+
+#### Post to PR (v8.44.0)
+
+After presenting the report, check if the current branch has an open PR and post the validation summary as a PR comment:
+
+```bash
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+PR_NUM=""
+
+if [[ -n "$CURRENT_BRANCH" && "$CURRENT_BRANCH" != "main" && "$CURRENT_BRANCH" != "master" ]]; then
+    if command -v gh &>/dev/null; then
+        PR_NUM=$(gh pr list --head "$CURRENT_BRANCH" --json number --jq '.[0].number' 2>/dev/null || echo "")
+    fi
+fi
+
+if [[ -n "$PR_NUM" ]]; then
+    # Extract summary section from validation file for PR comment
+    REVIEW_SUMMARY=$(head -60 "$VALIDATION_FILE")
+
+    gh pr comment "$PR_NUM" --body "## Deliver Phase — Validation Report
+
+${REVIEW_SUMMARY}
+
+---
+*Multi-AI validation by Claude Octopus (/octo:deliver)*
+*Providers: 🔴 Codex | 🟡 Gemini | 🔵 Claude*"
+
+    echo "Validation report posted to PR #${PR_NUM}"
+
+    # Update agent registry
+    REGISTRY="${CLAUDE_PLUGIN_ROOT}/scripts/agent-registry.sh"
+    if [[ -x "$REGISTRY" ]]; then
+        AGENT_ID="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")"
+        "$REGISTRY" update "$AGENT_ID" --pr "$PR_NUM" 2>/dev/null || true
+    fi
+fi
+```
+
+**Behavior:**
+- Auto-posts when running inside `/octo:embrace` or `/octo:factory`
+- When running standalone via `/octo:deliver`, asks user first:
+  ```
+  "PR #N found. Post validation report as a PR comment?"
+  Options: "Yes, post to PR", "No, terminal only"
+  ```
+- If no PR or `gh` CLI unavailable, skips silently
 
 ---
 

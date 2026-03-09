@@ -255,3 +255,37 @@ Stage 1 gates Stage 2. Both must pass for overall PASS.
 ```
 
 **Build the right thing, then build it right.**
+
+---
+
+## Post Results to PR (v8.44.0)
+
+After the combined report is generated, check for an open PR and post findings.
+
+```bash
+# Detect open PR on current branch
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+PR_NUM=""
+
+if [[ -n "$CURRENT_BRANCH" && "$CURRENT_BRANCH" != "main" && "$CURRENT_BRANCH" != "master" ]]; then
+    if command -v gh &>/dev/null; then
+        PR_NUM=$(gh pr list --head "$CURRENT_BRANCH" --json number --jq '.[0].number' 2>/dev/null || echo "")
+    fi
+fi
+
+if [[ -n "$PR_NUM" ]]; then
+    # Post combined report as PR comment
+    gh pr comment "$PR_NUM" --body "## Staged Review — Claude Octopus
+
+${COMBINED_REPORT}
+
+---
+*Staged review by Claude Octopus (/octo:staged-review)*"
+
+    echo "Staged review posted to PR #${PR_NUM}"
+fi
+```
+
+**Behavior:**
+- Auto-posts when running inside `/octo:deliver` or `/octo:embrace` workflows
+- Asks user first when invoked standalone via `/octo:staged-review`
