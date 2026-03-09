@@ -60,7 +60,20 @@ When the user invokes `/octo:sentinel`, you MUST:
 OCTOPUS_SENTINEL_ENABLED=true bash scripts/orchestrate.sh sentinel $ARGUMENTS
 ```
 
-### 3. Present Results
+### 3. Fire Reaction Engine (v8.45.0)
+After triage, run the reaction engine to auto-respond to detected events:
+```bash
+# Check all active agents and fire reactions
+REACTIONS="${CLAUDE_PLUGIN_ROOT:-}/scripts/reactions.sh"
+if [[ -x "$REACTIONS" ]]; then
+  "$REACTIONS" check-all
+fi
+```
+
+This automatically forwards CI failure logs to agents, forwards review comments, and escalates stuck agents — without requiring any new user commands.
+
+### 4. Present Results
 - Show triaged items with recommended workflows
+- Show any reactions that fired (CI log forwarding, escalations)
 - Display path to triage log
 - If --watch mode, explain how to stop (Ctrl+C)

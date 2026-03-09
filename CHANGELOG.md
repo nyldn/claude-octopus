@@ -1,3 +1,31 @@
+## [8.45.0] - 2026-03-09
+
+### Added
+
+- **Reaction engine** — `scripts/reactions.sh` provides configurable auto-response to agent
+  lifecycle events. Detects CI failures, review comments, stuck agents, and PR approvals.
+  Dispatches actions: forward CI logs to agents, forward review comments, notify, escalate.
+  Retry tracking with max retries and escalation timeout (default 30m for CI, 60m for reviews).
+- **13-state PR lifecycle** — agent registry expanded from 4 statuses (running, retrying, done,
+  failed) to 13: running, retrying, pr_open, ci_pending, ci_failed, review_pending,
+  changes_requested, approved, mergeable, merged, done, failed, stuck.
+- **Reaction inbox** — agents receive CI failure logs and review comments in
+  `~/.claude-octopus/agents/reactions/inbox/<agent-id>/` for processing.
+- **Escalation with timeout** — if an agent exceeds max retries or escalation timeout, the
+  reaction engine displays a prominent escalation notice and logs to `escalations.log`.
+- **Project-level reaction config** — `.octo/reactions.conf` overrides embedded defaults using
+  pipe-delimited rules (EVENT|ACTION|MAX_RETRIES|ESCALATE_AFTER_MIN|ENABLED).
+
+### Changed
+
+- **`agent-registry.sh health --react`** — new `--react` flag fires the reaction engine after
+  detecting state changes. Health checks now monitor all active agents (not just running/retrying).
+- **`flow-parallel.md` monitoring loop** — reaction engine fires between poll cycles to auto-handle
+  CI failures and review comments while work packages execute.
+- **`/octo:sentinel`** — execution contract now includes reaction engine step after triage, so
+  CI failures and review comments are auto-forwarded to agents during monitoring.
+- **Agent registry cleanup** — `merged` status treated as terminal alongside `done` and `failed`.
+
 ## [8.44.0] - 2026-03-09
 
 ### Added

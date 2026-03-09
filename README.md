@@ -7,7 +7,7 @@ A Claude Code plugin that turns one model into three. Orchestrates Codex, Gemini
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-8.44.0-blue" alt="Version 8.44.0">
+  <img src="https://img.shields.io/badge/Version-8.45.0-blue" alt="Version 8.45.0">
   <img src="https://img.shields.io/badge/Claude_Code-v2.1.50+-blueviolet" alt="Requires Claude Code v2.1.50+">
   <img src="https://img.shields.io/badge/Factory_AI-Compatible-orange" alt="Factory AI Compatible">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
@@ -31,6 +31,7 @@ A Claude Code plugin that turns one model into three. Orchestrates Codex, Gemini
 
 | Version | What shipped |
 |---------|-------------|
+| **8.45** | **Reaction engine** — configurable auto-response to CI failures, review comments, stuck agents; 13-state PR lifecycle tracking; escalation with timeout; transparent integration into health/sentinel/parallel |
 | **8.44** | **Agent lifecycle & PR integration** — agent registry with persistent tracking, worktree-per-agent parallelism, PR comment posting from reviews |
 | **8.43** | **Output quality & design critique** — context-aware quality injection (6 dev subtypes), reference integrity gate, three-way adversarial design critique, synthesis over concatenation |
 | **8.42** | **Workflow compliance & security** — mandatory execution enforcement, interactive next-steps, anti-injection nonces, Multi-LLM debate gates |
@@ -168,6 +169,37 @@ Specialized agents that activate automatically based on your request. When you s
 Categories: Software Engineering (11), Specialized Development (6), Documentation & Communication (5), Research & Strategy (3), Business & Compliance (3), Creative & Design (4).
 
 [Full persona reference](docs/AGENTS.md) | [All 50 skills](docs/COMMAND-REFERENCE.md)
+
+### Reaction Engine
+
+When agents create PRs, the reaction engine monitors what happens next — CI failures, review comments, stale agents — and responds automatically. No new commands to learn. It fires transparently inside workflows you already use:
+
+| Integration Point | When It Fires |
+|-------------------|---------------|
+| `/octo:parallel` | Between poll cycles while monitoring work packages |
+| `/octo:sentinel` | After triage scan completes |
+| `agent-registry.sh health --react` | On-demand health check |
+
+**What it auto-handles:**
+
+| Event | Reaction | Limits |
+|-------|----------|--------|
+| CI failure | Collects failure logs into agent inbox | 3 retries, escalates after 30m |
+| Changes requested | Collects review comments into agent inbox | 2 retries, escalates after 60m |
+| Agent stuck | Escalates to human | After 15m with no progress |
+| PR approved + CI green | Notifies you it's ready to merge | — |
+| PR merged | Marks agent complete | — |
+
+**Override defaults per project** by creating `.octo/reactions.conf`:
+
+```
+# EVENT|ACTION|MAX_RETRIES|ESCALATE_AFTER_MIN|ENABLED
+ci_failed|forward_logs|5|45|true
+changes_requested|forward_comments|3|90|true
+stuck|escalate|0|10|true
+```
+
+Reactions track 13 agent lifecycle states: `running` → `pr_open` → `ci_pending` → `ci_failed` / `review_pending` → `changes_requested` / `approved` → `mergeable` → `merged` → `done`.
 
 ---
 

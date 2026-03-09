@@ -11,8 +11,8 @@
     {
       "name": "claude-octopus",
       "source": "./",
-      "description": "v8.44.0 - Agent registry, worktree-per-agent parallelism, PR comment posting. 32 personas, 38 commands, 50 skills. Run /octo:setup.",
-      "version": "8.44.0",
+      "description": "v8.45.0 - Reaction engine: auto-respond to CI failures, review comments, stuck agents. 32 personas, 38 commands, 50 skills. Run /octo:setup.",
+      "version": "8.45.0",
       "author": {
         "name": "nyldn"
       },

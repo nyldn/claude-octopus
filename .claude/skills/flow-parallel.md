@@ -506,6 +506,11 @@ print(' '.join(wp.get('dependencies',[])))
     fi
 
     if [[ "$COMPLETED" -lt "$WAVE_TOTAL" ]]; then
+      # v8.45.0: Fire reaction engine between poll cycles
+      REACTIONS="${CLAUDE_PLUGIN_ROOT:-}/scripts/reactions.sh"
+      if [[ -x "$REACTIONS" ]]; then
+        "$REACTIONS" check-all 2>/dev/null || true
+      fi
       sleep 15
     fi
   done

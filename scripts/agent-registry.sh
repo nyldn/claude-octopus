@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Claude Octopus Agent Registry (v8.44.0)
+# Claude Octopus Agent Registry (v8.45.0)
 # Persistent lifecycle tracking for spawned coding agents.
 # Tracks: agent ID, branch, worktree, status, PR number, CI status.
 #
@@ -8,11 +8,16 @@
 #   agent-registry.sh update     <id> --status <status> [--pr <num>] [--ci <pass|fail|pending>]
 #   agent-registry.sh get        <id>
 #   agent-registry.sh list       [--status <status>] [--json]
-#   agent-registry.sh health     [--auto-update]
+#   agent-registry.sh health     [--auto-update] [--react]
 #   agent-registry.sh cleanup    [--max-age <days>]
+#
+# Statuses (v8.45.0 — expanded PR lifecycle):
+#   running, retrying, pr_open, ci_pending, ci_failed, review_pending,
+#   changes_requested, approved, mergeable, merged, done, failed, stuck
 
 set -eo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REGISTRY_DIR="${HOME}/.claude-octopus/agents"
 REGISTRY_FILE="${REGISTRY_DIR}/registry.json"
 ARCHIVE_DIR="${REGISTRY_DIR}/archive"
@@ -155,7 +160,7 @@ cmd_update() {
             (if $ci != "" then .ci = $ci else . end) |
             (if $error != "" then .error = $error else . end) |
             .updated_at = $now |
-            (if ($status == "done" or $status == "failed") then .completed_at = $now else . end)
+            (if ($status == "done" or $status == "failed" or $status == "merged") then .completed_at = $now else . end)
         else . end]
     ' "$REGISTRY_FILE")
 
@@ -218,8 +223,11 @@ cmd_list() {
     while IFS=$'\t' read -r id branch status pr ci started; do
         local status_color="$NC"
         case "$status" in
-            running|retrying) status_color="$YELLOW" ;;
-            done) status_color="$GREEN" ;;
+            running|retrying|ci_pending) status_color="$YELLOW" ;;
+            pr_open|review_pending) status_color="$CYAN" ;;
+            approved|mergeable) status_color="$GREEN" ;;
+            changes_requested|ci_failed|stuck) status_color="$RED" ;;
+            merged|done) status_color="$GREEN" ;;
             failed) status_color="$RED" ;;
         esac
 
@@ -236,30 +244,43 @@ cmd_list() {
 }
 
 # Health check: verify agent status against GitHub
+# v8.45.0: --react flag fires reaction engine after detecting state changes
 cmd_health() {
     _init
 
     local auto_update=false
-    [[ "${1:-}" == "--auto-update" ]] && auto_update=true
+    local react_mode=false
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --auto-update) auto_update=true; shift ;;
+            --react) react_mode=true; auto_update=true; shift ;;
+            *) shift ;;
+        esac
+    done
 
-    local running_agents
-    running_agents=$(jq '[.agents[] | select(.status == "running" or .status == "retrying")]' "$REGISTRY_FILE")
+    # v8.45.0: Check all active agents, not just running/retrying
+    local active_statuses='"running","retrying","pr_open","ci_pending","ci_failed","review_pending","changes_requested","approved","mergeable"'
+    local active_agents
+    active_agents=$(jq "[.agents[] | select(.status as \$s | [${active_statuses}] | index(\$s) != null)]" "$REGISTRY_FILE")
     local count
-    count=$(echo "$running_agents" | jq 'length')
+    count=$(echo "$active_agents" | jq 'length')
 
     if [[ "$count" -eq 0 ]]; then
-        echo "No running agents to check."
+        echo "No active agents to check."
         return
     fi
 
-    echo -e "${BLUE}Checking health of $count running agent(s)...${NC}"
+    echo -e "${BLUE}Checking health of $count active agent(s)...${NC}"
     echo ""
 
-    echo "$running_agents" | jq -r '.[].id' | while read -r id; do
-        local branch
-        branch=$(echo "$running_agents" | jq -r --arg id "$id" '.[] | select(.id == $id) | .branch')
+    local REACTIONS="${SCRIPT_DIR:-$(cd "$(dirname "$0")" && pwd)}/reactions.sh"
 
-        echo -n "  $id ($branch): "
+    echo "$active_agents" | jq -r '.[].id' | while read -r id; do
+        local branch current_status
+        branch=$(echo "$active_agents" | jq -r --arg id "$id" '.[] | select(.id == $id) | .branch')
+        current_status=$(echo "$active_agents" | jq -r --arg id "$id" '.[] | select(.id == $id) | .status')
+
+        echo -n "  $id ($branch) [$current_status]: "
 
         # Check for open PR on this branch
         local pr_num=""
@@ -268,27 +289,70 @@ cmd_health() {
         fi
 
         if [[ -n "$pr_num" ]]; then
-            echo -n "PR #$pr_num found"
+            echo -n "PR #$pr_num"
+
+            # Check if PR is merged
+            local pr_state
+            pr_state=$(gh pr view "$pr_num" --json state --jq '.state' 2>/dev/null || echo "")
+
+            if [[ "$pr_state" == "MERGED" ]]; then
+                echo " — merged"
+                if [[ "$auto_update" == true ]]; then
+                    cmd_update "$id" --status "merged" --pr "$pr_num"
+                fi
+                if [[ "$react_mode" == true && -x "$REACTIONS" ]]; then
+                    "$REACTIONS" react "$id" "merged" 2>/dev/null || true
+                fi
+                continue
+            fi
 
             # Check CI status
             local ci_status="pending"
             local checks_output
             checks_output=$(gh pr checks "$pr_num" 2>&1 || true)
-            if echo "$checks_output" | grep -qc "fail" 2>/dev/null; then
+            if echo "$checks_output" | grep -c "fail" >/dev/null 2>&1; then
                 ci_status="fail"
-            elif echo "$checks_output" | grep -qc "pass" 2>/dev/null && ! echo "$checks_output" | grep -qc "pending" 2>/dev/null; then
+            elif echo "$checks_output" | grep -c "pass" >/dev/null 2>&1 && ! echo "$checks_output" | grep -c "pending" >/dev/null 2>&1; then
                 ci_status="pass"
             fi
 
-            echo ", CI: $ci_status"
+            # Check review state
+            local review_state=""
+            review_state=$(gh pr view "$pr_num" --json reviewDecision --jq '.reviewDecision' 2>/dev/null || echo "")
+
+            echo -n ", CI: $ci_status"
+            [[ -n "$review_state" ]] && echo -n ", review: $review_state"
+            echo ""
 
             if [[ "$auto_update" == true ]]; then
                 cmd_update "$id" --pr "$pr_num" --ci "$ci_status"
-                if [[ "$ci_status" == "pass" ]]; then
-                    cmd_update "$id" --status "done"
-                elif [[ "$ci_status" == "fail" ]]; then
-                    cmd_update "$id" --status "failed" --error "CI failed"
+
+                # v8.45.0: Set granular status based on PR lifecycle
+                local new_status="$current_status"
+                if [[ "$ci_status" == "fail" ]]; then
+                    new_status="ci_failed"
+                elif [[ "$review_state" == "CHANGES_REQUESTED" ]]; then
+                    new_status="changes_requested"
+                elif [[ "$review_state" == "APPROVED" && "$ci_status" == "pass" ]]; then
+                    new_status="mergeable"
+                elif [[ "$review_state" == "APPROVED" ]]; then
+                    new_status="approved"
+                elif [[ "$ci_status" == "pass" ]]; then
+                    new_status="review_pending"
+                elif [[ "$ci_status" == "pending" ]]; then
+                    new_status="ci_pending"
+                else
+                    new_status="pr_open"
                 fi
+
+                if [[ "$new_status" != "$current_status" ]]; then
+                    cmd_update "$id" --status "$new_status"
+                fi
+            fi
+
+            # v8.45.0: Fire reactions
+            if [[ "$react_mode" == true && -x "$REACTIONS" ]]; then
+                "$REACTIONS" check "$id" 2>/dev/null || true
             fi
         else
             # No PR yet — check if worktree process is alive
@@ -306,6 +370,10 @@ cmd_health() {
                     fi
                 fi
             else
+                # Check for stuck agent
+                if [[ "$react_mode" == true && -x "$REACTIONS" ]]; then
+                    "$REACTIONS" check "$id" 2>/dev/null || true
+                fi
                 echo "no PR, no worktree — status unknown"
             fi
         fi
@@ -329,11 +397,11 @@ cmd_cleanup() {
         return 0
     fi
 
-    # Archive old completed/failed agents
+    # Archive old completed/failed/merged agents
     local archived
     archived=$(jq --arg cutoff "$cutoff" '
         [.agents[] | select(
-            (.status == "done" or .status == "failed") and
+            (.status == "done" or .status == "failed" or .status == "merged") and
             (.completed_at != null) and
             (.completed_at < $cutoff)
         )]
@@ -357,7 +425,7 @@ cmd_cleanup() {
         updated=$(jq --arg cutoff "$cutoff" '
             .agents = [.agents[] | select(
                 not(
-                    (.status == "done" or .status == "failed") and
+                    (.status == "done" or .status == "failed" or .status == "merged") and
                     (.completed_at != null) and
                     (.completed_at < $cutoff)
                 )
@@ -395,10 +463,12 @@ Commands:
   update   <id> --status <s> ...     Update agent status, PR, CI
   get      <id>                      Get agent details (JSON)
   list     [--status <s>] [--json]   List agents
-  health   [--auto-update]           Check health of running agents
+  health   [--auto-update] [--react] Check health + fire reactions
   cleanup  [--max-age <days>]        Archive old completed agents
 
-Statuses: running, retrying, done, failed
+Statuses: running, retrying, pr_open, ci_pending, ci_failed,
+          review_pending, changes_requested, approved, mergeable,
+          merged, done, failed, stuck
 CI values: pass, fail, pending
 EOF
         exit 1

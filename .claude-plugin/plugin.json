@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "8.44.0",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v8.44.0) Agent registry, worktree-per-agent parallelism, PR comment posting. 32 expert personas, 38 commands, 50 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
+  "version": "8.45.0",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v8.45.0) Reaction engine — auto-responds to CI failures, review comments, stuck agents. 32 expert personas, 38 commands, 50 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },
