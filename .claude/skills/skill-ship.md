@@ -1,7 +1,7 @@
 ---
 name: skill-ship
 user-invocable: true
-description: Finalize and deliver completed work with Multi-AI validation
+description: "Package and finalize completed work for delivery — use when a feature is done and ready to ship"
 trigger: |
   AUTOMATICALLY ACTIVATE when user mentions:
   - "ship" or "deliver" or "finalize"

@@ -5,7 +5,7 @@ aliases:
   - dark-factory
   - build-from-spec
   - autonomous-build
-description: "Autonomous build pipeline"
+description: "Run a full build-and-ship pipeline from a spec — use for hands-off project generation"
 execution_mode: enforced
 validation_gates:
   - spec_file_validated

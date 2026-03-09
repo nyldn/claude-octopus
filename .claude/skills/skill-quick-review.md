@@ -1,6 +1,6 @@
 ---
 name: octopus-quick-review
-description: Fast pre-commit code review using multi-AI consensus
+description: "Quick code review before committing — use for fast sanity checks on staged or recent changes"
 trigger: |
   Use this skill when the user says "review this code", "check this PR",
   "quality check the implementation", "review my changes", or "what's wrong with this code".

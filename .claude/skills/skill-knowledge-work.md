@@ -1,6 +1,6 @@
 ---
 name: skill-knowledge-work
-description: "Override context auto-detection (Dev vs Knowledge mode)"
+description: "Switch to Knowledge Work mode for research and writing — use when task is non-code focused"
 triggerPatterns:
   - "switch.*mode"
   - "knowledge.*mode"

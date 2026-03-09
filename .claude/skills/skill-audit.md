@@ -4,7 +4,7 @@ aliases:
   - audit
   - systematic-check
   - comprehensive-audit
-description: Systematic codebase auditing with comprehensive checklists
+description: "Audit codebases for quality, consistency, and broken patterns — use for pre-release or tech debt review"
 trigger: |
   AUTOMATICALLY ACTIVATE when user requests auditing:
   - "audit and check the entire app"

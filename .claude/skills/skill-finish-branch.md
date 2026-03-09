@@ -1,6 +1,6 @@
 ---
 name: skill-finish-branch
-description: "Post-implementation: verify tests, merge/PR/keep/discard"
+description: "Wrap up a branch — run tests, create PR, merge or discard — use when implementation is done"
 trigger: |
   AUTOMATICALLY ACTIVATE when user requests task completion with git operations:
   - "commit and push" or "git commit and push"

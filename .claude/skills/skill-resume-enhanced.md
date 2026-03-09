@@ -4,7 +4,7 @@ aliases:
   - resume
   - resume-session
   - context-resume
-description: Enhanced session resumption resilient to context clearing
+description: "Resume work after context compaction or session breaks — use when standard resume isn't enough"
 trigger: |
   AUTOMATICALLY ACTIVATE when:
   - User says "resume", "continue", "pick up where we left off"

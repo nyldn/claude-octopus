@@ -1,7 +1,7 @@
 ---
 name: skill-validate
 user-invocable: true
-description: Multi-AI validation combining debate, quality scoring, and issue extraction
+description: "Validate work with scoring and issue extraction — use before shipping or after major changes"
 version: 1.0.0
 category: workflow
 tags: [validation, quality-assurance, debate, security, testing]

@@ -1,6 +1,6 @@
 ---
 name: skill-intent-contract
-description: Capture user goals and validate outputs against them
+description: "Lock in user goals upfront and validate outputs against them — use to prevent scope drift"
 ---
 
 # Intent Contract System

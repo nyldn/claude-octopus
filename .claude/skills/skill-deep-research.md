@@ -3,7 +3,7 @@ name: octopus-research
 aliases:
   - research
   - deep-research
-description: "Deep research with multi-source synthesis"
+description: "Thorough research across multiple sources — use for complex topics needing broad synthesis"
 context: fork
 agent: Explore
 task_management: true

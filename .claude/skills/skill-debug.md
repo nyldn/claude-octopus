@@ -3,7 +3,7 @@ name: skill-debug
 aliases:
   - debug
   - systematic-debugging
-description: "Systematic debugging workflow"
+description: "Debug issues methodically — use when stuck on errors, test failures, or unexpected behavior"
 trigger: |
   AUTOMATICALLY ACTIVATE when encountering bugs or failures:
   - "fix this bug" or "debug Y" or "troubleshoot X"

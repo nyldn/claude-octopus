@@ -1,7 +1,7 @@
 ---
 name: skill-resume
 user-invocable: true
-description: Restore context from previous session and continue workflow
+description: "Pick up where you left off from a previous session — use after context resets or new conversations"
 trigger: |
   AUTOMATICALLY ACTIVATE when user mentions:
   - "resume" or "continue" or "pick up where I left off"

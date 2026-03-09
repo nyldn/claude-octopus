@@ -5,7 +5,7 @@ aliases:
   - prompt-generator
   - prompt-optimizer
   - prompt-engineering
-description: Generate optimized prompts using proven techniques
+description: "Craft better prompts using proven optimization techniques — use when your prompt needs refinement"
 trigger: |
   Use PROACTIVELY when user wants to:
   - "create a prompt for", "write a prompt for"

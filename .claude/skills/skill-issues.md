@@ -4,7 +4,7 @@ user-invocable: true
 aliases:
   - issues
   - issue-tracking
-description: Track and manage project issues across sessions
+description: "Track project blockers, bugs, and gaps across sessions — use when issues pile up or need triage"
 trigger: |
   AUTOMATICALLY ACTIVATE when user mentions:
   - "issue" or "issues" or "problem"

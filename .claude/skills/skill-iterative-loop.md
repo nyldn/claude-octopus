@@ -4,7 +4,7 @@ aliases:
   - iterative-loop
   - loop-execution
   - repeat-until
-description: Execute tasks in loops with conditions until goals are met
+description: "Run tasks in a loop until goals are met — use for iterative refinement, polling, or convergence"
 trigger: |
   AUTOMATICALLY ACTIVATE when user requests iterative execution:
   - "loop X times" or "loop around N times"

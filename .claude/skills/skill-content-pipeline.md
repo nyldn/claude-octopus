@@ -4,7 +4,7 @@ aliases:
   - content-pipeline
   - content-analysis
   - pattern-extraction
-description: Multi-stage content analysis pipeline for external URLs
+description: "Extract patterns and anatomy from URLs — use to reverse-engineer content strategies from live pages"
 context: fork
 trigger: |
   Use PROACTIVELY when user wants to:

@@ -1,6 +1,6 @@
 ---
 name: skill-verify
-description: "Evidence gate: verify before claiming success"
+description: "Verify claims with actual evidence before declaring success — use to prevent false completion"
 trigger: |
   Use when about to claim work is complete, fixed, or passing.
   Auto-invoke before: commits, PRs, task completion, moving to next task.

@@ -3,7 +3,7 @@ name: skill-task-management
 aliases:
   - task-management
   - todo-orchestration
-description: Task management using native Claude Code TaskCreate/TaskUpdate tools
+description: "Manage tasks with Claude Code native tools — use to track TODOs, delegate work, and monitor progress"
 trigger: |
   AUTOMATICALLY ACTIVATE when user requests task management:
   - "add to the todo's" or "add this to todos"

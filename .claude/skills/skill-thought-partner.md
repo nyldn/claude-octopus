@@ -5,7 +5,7 @@ aliases:
   - brainstorm
   - ideation
   - creative-session
-description: Creative brainstorming with Pattern Spotting and Paradox Hunting
+description: "Brainstorm creatively with pattern spotting and paradox hunting — use for ideation and exploration"
 trigger: |
   Use PROACTIVELY when user wants to:
   - "brainstorm", "think through this with me"

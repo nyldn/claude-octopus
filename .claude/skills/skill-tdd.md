@@ -3,7 +3,7 @@ name: skill-tdd
 aliases:
   - tdd
   - test-driven-development
-description: "Test-driven development workflow"
+description: "Build features with tests-before-code rigor — use for new features needing test coverage"
 trigger: |
   Use when implementing any feature, bugfix, or behavior change.
   Auto-invoke when user says "implement X", "add feature Y", "fix bug Z".

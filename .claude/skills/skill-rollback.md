@@ -1,7 +1,7 @@
 ---
 name: skill-rollback
 user-invocable: true
-description: Rollback to a previous checkpoint using git tags
+description: "Roll back to a previous checkpoint via git — use when a change went wrong and you need to revert"
 trigger: |
   AUTOMATICALLY ACTIVATE when user mentions:
   - "rollback" or "revert" or "undo"
