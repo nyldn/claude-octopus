@@ -247,19 +247,21 @@ Add the export statement to your shell profile (~/.zshrc or ~/.bashrc) so it loa
 
 ### Can't update or uninstall the plugin
 
-If you see "not installed in user scope", the plugin was installed at project scope. Try:
+The plugin update UI is currently broken — "Failed to update: Plugin 'octo' not found" is a known issue. Manual cleanup is required:
 
-```
-/plugin uninstall claude-octopus@nyldn-plugins --scope project
+**Step 1:** Edit `~/.claude/settings.json` → remove `"octo@nyldn-plugins"` from the `enabledPlugins` array.
+
+**Step 2:** Remove plugin files:
+```bash
+rm -rf ~/.claude/plugins/octo@nyldn-plugins
+rm -rf ~/.claude/installed-plugins/octo@nyldn-plugins
 ```
 
-Then reinstall:
+**Step 3:** Reinstall:
 ```
 /plugin marketplace add https://github.com/nyldn/claude-octopus.git
 /plugin install claude-octopus@nyldn-plugins
 ```
-
-To check your install scope, run `/octo:status` or ask Claude to run `orchestrate.sh doctor`.
 
 ## Getting Help
 

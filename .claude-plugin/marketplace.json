@@ -11,7 +11,7 @@
     {
       "name": "claude-octopus",
       "source": "./",
-      "description": "v8.49.1 - Fix /octo:setup command name mismatch (closes #17). 32 personas, 38 commands, 50 skills. Run /octo:setup.",
+      "description": "v8.49.1 - Fix /octo:setup command name mismatch. 32 personas, 38 commands, 50 skills. Run /octo:setup.",
       "version": "8.49.1",
       "author": {
         "name": "nyldn"

@@ -2,7 +2,8 @@
 
 ### Changed
 
-- Fix /octo:setup command name mismatch (closes #17)
+- Fix /octo:setup command name mismatch
+- Update setup.md troubleshooting with correct manual reinstall steps for broken plugin update UI (#17)
 
 ---
 
