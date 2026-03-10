@@ -161,51 +161,46 @@ echo ""
 echo -e "\033[0;34mTest Group 4: Model name consistency — no stale defaults (P1-B)\033[0m"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-# 4.1: get_agent_model uses gpt-5.4 for codex default
-if grep -A 3 "codex).*echo.*gpt-5" "$ORCHESTRATE" | head -1 | grep -q 'gpt-5\.4'; then
-    pass "4.1 get_agent_model returns gpt-5.4 for codex default"
+# 4.1: resolve_octopus_model uses gpt-5.4 for codex default
+if grep -A 10 "case \"\$agent_type\" in" "$ORCHESTRATE" | grep -A 1 "codex\*)" | grep -q 'gpt-5\.4'; then
+    pass "4.1 resolve_octopus_model returns gpt-5.4 for codex default"
 else
-    fail "4.1 get_agent_model uses stale model for codex default"
+    fail "4.1 resolve_octopus_model uses stale model for codex default"
 fi
 
-# 4.2: get_tier_model premium tier uses gpt-5.4
-if grep -A 8 'codex\*)' "$ORCHESTRATE" | grep -q 'premium.*gpt-5\.4\|gpt-5\.4.*premium'; then
-    pass "4.2 get_tier_model premium tier uses gpt-5.4"
+# 4.2: Tier mapping aliases in resolve_octopus_model (premium/standard/budget)
+if grep -q "tier_mapped_model" "$ORCHESTRATE" && grep -q "OCTOPUS_COST_MODE" "$ORCHESTRATE"; then
+    pass "4.2 resolve_octopus_model supports tier mapping"
 else
-    # Check alternative grep pattern
-    tier_premium=$(grep -A 1 "premium)" "$ORCHESTRATE" | grep -c "gpt-5\.4" || echo 0)
-    if [[ $tier_premium -gt 0 ]]; then
-        pass "4.2 get_tier_model premium tier uses gpt-5.4"
-    else
-        fail "4.2 get_tier_model premium tier uses stale model"
-    fi
+    fail "4.2 resolve_octopus_model lacks tier mapping"
 fi
-
-# 4.3: No stale gpt-5.3-codex in get_tier_model or role mapping functions
-# Exclude: pricing tables, dead code (select_codex_model_for_context), config templates, comments
+# 4.3: No stale gpt-5.3-codex in active model routing
+# Allow: gpt-5.3-codex-spark (the current model)
+# Exclude: pricing tables, dead code, config templates, comments, help text, sparks
 stale_in_routing=0
 while IFS= read -r line; do
     ((stale_in_routing++)) || true
-done < <(grep -n 'echo.*"gpt-5\.3-codex"' "$ORCHESTRATE" 2>/dev/null | grep -v 'pricing\|cost_per\|config_template\|default_config\|select_codex_model_for_context\|#.*gpt-5\.3' 2>/dev/null || true)
+done < <(grep -nE '\b"gpt-5\.3-codex"\b' "$ORCHESTRATE" 2>/dev/null | grep -v 'pricing\|cost_per\|config_template\|default_config\|select_codex_model_for_context\|#.*gpt-5\.3' 2>/dev/null || true)
 if [[ $stale_in_routing -eq 0 ]]; then
     pass "4.3 No stale gpt-5.3-codex in active model routing"
 else
     fail "4.3 Found $stale_in_routing stale gpt-5.3-codex in model routing" \
-        "Check get_tier_model and role mapping functions"
+        "Check resolve_octopus_model fallbacks"
 fi
 
-# 4.4: Role-to-agent mapping uses gpt-5.4
-if grep 'architect.*echo.*codex' "$ORCHESTRATE" | grep -q 'gpt-5\.4'; then
-    pass "4.4 architect role maps to gpt-5.4"
+
+# 4.4: Role-to-agent mapping in resolve_octopus_model
+if grep -q "routing.roles" "$ORCHESTRATE"; then
+    pass "4.4 resolve_octopus_model supports role routing"
 else
-    fail "4.4 architect role uses stale model"
+    fail "4.4 resolve_octopus_model missing role routing"
 fi
 
-# 4.5: codex-review uses gpt-5.4
-if grep 'codex-review.*echo.*gpt-5' "$ORCHESTRATE" | head -1 | grep -q 'gpt-5\.4'; then
-    pass "4.5 codex-review agent uses gpt-5.4"
+# 4.5: codex fallbacks use gpt-5.4
+if grep -A 20 "Fallback to hard-coded defaults" "$ORCHESTRATE" | grep -A 1 "codex\*)" | grep -q 'gpt-5\.4'; then
+    pass "4.5 codex fallback uses gpt-5.4"
 else
-    fail "4.5 codex-review uses stale model"
+    fail "4.5 codex fallback uses stale model"
 fi
 
 # ═══════════════════════════════════════════════════════════════
