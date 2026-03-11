@@ -6,9 +6,9 @@
 
 ## Introduction
 
-Claude Octopus v6.0 introduces **Knowledge Work Mode**, a specialized suite of workflows and agents designed for researchers, consultants, product managers, and academic writers. While the core of Claude Octopus remains rooted in elite software engineering, these new features acknowledge that "development" begins long before the first line of code and continues long after the PR is merged.
+Claude Octopus includes **Knowledge Work Mode**, a specialized suite of workflows and agents designed for researchers, consultants, product managers, and academic writers. While the core of Claude Octopus remains rooted in elite software engineering, these features acknowledge that "development" begins long before the first line of code and continues long after the PR is merged.
 
-Traditional AI coding assistants focus on the "Tangle" (Develop) phase. Claude Octopus v6.0 recognizes that high-value output requires a deep "Probe" (Discover) and "Grasp" (Define) phase—especially when the deliverable isn't just code, but a strategic decision or a synthesized body of knowledge.
+Traditional AI coding assistants focus on the "Tangle" (Develop) phase. Claude Octopus recognizes that high-value output requires a deep "Probe" (Discover) and "Grasp" (Define) phase, especially when the deliverable isn't just code, but a strategic decision or a synthesized body of knowledge.
 
 Whether you are synthesizing user interviews, architecting a market entry strategy, or weaving together 50 academic papers into a coherent literature review, the knowledge tentacles of Claude Octopus are designed to handle the heavy lifting of information processing.
 
@@ -16,23 +16,30 @@ Whether you are synthesizing user interviews, architecting a market entry strate
 
 ## Quick Start
 
-### Enable Knowledge Work Mode
-Knowledge Work Mode is a global toggle that shifts the "brain" of the Octopus to prioritize research and strategy analysis over code generation. You can toggle it on or off with a single command:
+### Plugin-First Workflow
+For most Claude Code users, knowledge work should start from the plugin commands rather than direct `orchestrate.sh` subcommands.
 
 ```bash
-./scripts/orchestrate.sh knowledge-toggle
+/octo:km on
+/octo:octo synthesize recent customer interviews
+/octo:research competitive landscape for AI testing tools
+/octo:prd write a product brief for enterprise SSO onboarding
+/octo:spec turn this research into a delivery-ready specification
 ```
 
-When enabled, the `auto` command will interpret ambiguous requests (like "Review this document") as knowledge tasks rather than code review tasks.
+When Knowledge Work mode is enabled, router-driven requests bias toward research, synthesis, and strategy analysis instead of code generation. Switch back with `/octo:dev`.
 
-### Basic Commands
-Each knowledge workflow can be triggered directly, bypassing the need for auto-routing:
+### Advanced Direct CLI Commands
+If you are automating outside the plugin, `orchestrate.sh` also exposes knowledge-specific entry points:
 
 | Command | Goal | Primary Tentacle | Phase Count |
 |---------|------|------------------|-------------|
-| `empathize <prompt>` | UX Research Synthesis | `ux-researcher` | 4 Phases |
-| `advise <prompt>` | Strategic Consulting | `strategy-analyst` | 4 Phases |
-| `synthesize <prompt>` | Literature Review | `research-synthesizer` | 4 Phases |
+| `./scripts/orchestrate.sh empathize <prompt>` | UX Research Synthesis | `ux-researcher` | 4 phases |
+| `./scripts/orchestrate.sh advise <prompt>` | Strategic Consulting | `strategy-analyst` | 4 phases |
+| `./scripts/orchestrate.sh synthesize <prompt>` | Literature Review | `research-synthesizer` | 4 phases |
+| `./scripts/orchestrate.sh knowledge-toggle` | Toggle Knowledge Work Mode | Router + mode switch | Global toggle |
+
+For plugin command details, see the [Command and Usage Reference](./COMMAND-REFERENCE.md).
 
 ---
 
@@ -150,7 +157,7 @@ The `academic-writer` drafts the formal review.
 
 ## Specialized Knowledge Agents
 
-These tentacles are the backbone of v6.0. Use them individually with the `spawn` command for targeted tasks.
+These agents power knowledge-oriented workflows. For most users, reach them through `/octo:km`, `/octo:octo`, `/octo:research`, `/octo:prd`, or `/octo:spec`. Advanced users can also call them directly with `./scripts/orchestrate.sh spawn <agent> "<prompt>"`.
 
 ### 🧠 ux-researcher
 - **Model**: `opus` (Maximum empathy and reasoning)
@@ -232,7 +239,11 @@ These tentacles are the backbone of v6.0. Use them individually with the `spawn`
 Knowledge work behavior is heavily influenced by your configuration.
 
 ### Selection of Intent
-When you run `./scripts/orchestrate.sh config`, you can select specialized intents (choices 11, 12, 13) which sets your default persona and primary companion.
+At the plugin level, the main switch is mode selection:
+- `/octo:km on` biases routing toward research, synthesis, and strategy
+- `/octo:dev` returns routing to software-delivery defaults
+
+If you are using the raw CLI, `./scripts/orchestrate.sh config` also exposes specialized knowledge-oriented intents.
 
 | Choice | Intent | Default Companion |
 |--------|--------|-------------------|
@@ -241,7 +252,7 @@ When you run `./scripts/orchestrate.sh config`, you can select specialized inten
 | **[13]** | **Product Management** | `product-writer` |
 
 ### Knowledge Work Mode Toggle
-Setting `KNOWLEDGE_WORK_MODE="true"` (via `knowledge-toggle`) changes the following:
+Setting `KNOWLEDGE_WORK_MODE="true"` or running `/octo:km on` changes the following:
 1.  **Keyword Sensitivity**: Keywords like "review" trigger `code-reviewer` when OFF, but trigger `exec-communicator` or `ux-researcher` when ON.
 2.  **Phase Preference**: `auto` will prefer running `empathize` over `probe` for research tasks.
 3.  **Persona Tuning**: Personas are injected with "information density" instructions rather than "code correctness" instructions.
@@ -254,17 +265,17 @@ You can customize the depth and focus of any knowledge workflow by adding specif
 
 ### Customizing Frameworks
 By default, the `advise` workflow uses standard management consulting frameworks. You can override these:
-- `advise "Should we pivot?" --use-frameworks "Blue Ocean Strategy, 7S Framework"`
-- `advise "Market entry" --focus "Geopolitical risk analysis"`
+- `./scripts/orchestrate.sh advise "Should we pivot?" --use-frameworks "Blue Ocean Strategy, 7S Framework"`
+- `./scripts/orchestrate.sh advise "Market entry" --focus "Geopolitical risk analysis"`
 
 ### Adjusting Synthesis Granularity
 The `synthesize` workflow can be tuned for breadth or depth:
-- `synthesize "Edge computing" --breadth high` (Scans a wide range of sub-topics)
-- `synthesize "Edge computing" --depth critical` (Deep-dives into the 3 most controversial papers)
+- `./scripts/orchestrate.sh synthesize "Edge computing" --breadth high` (Scans a wide range of sub-topics)
+- `./scripts/orchestrate.sh synthesize "Edge computing" --depth critical` (Deep-dives into the 3 most controversial papers)
 
 ### Persona-Driven Critiques
 Use the `grapple` command to have two different knowledge agents debate a topic:
-- `grapple "What is our 2026 product strategy?" --persona1 strategy-analyst --persona2 product-writer`
+- `./scripts/orchestrate.sh grapple "What is our 2026 product strategy?" --persona1 strategy-analyst --persona2 product-writer`
 This forces a debate between high-level business strategy and low-level product feasibility.
 
 ---
@@ -280,11 +291,11 @@ Knowledge work often involves massive amounts of text. If you hit context limits
 **2. "Insights seem too generic"**
 This usually happens when the raw research data provided is too thin.
 - Provide direct quotes or transcript excerpts.
-- Use the `ux-researcher` agent directly to "interrogate" the data: `spawn ux-researcher "What are the contradictions in these 5 interviews?"`
+- Use the `ux-researcher` agent directly to "interrogate" the data: `./scripts/orchestrate.sh spawn ux-researcher "What are the contradictions in these 5 interviews?"`
 
 **3. "Adversarial review is too aggressive"**
 In Phase 4 of Empathize, the agent is trained to be highly critical to avoid groupthink.
-- If the critique is too harsh, you can dial it back in your prompt: `empathize "..." --critique-tone constructive`.
+- If the critique is too harsh, you can dial it back in your prompt: `./scripts/orchestrate.sh empathize "..." --critique-tone constructive`.
 
 ---
 
@@ -297,7 +308,7 @@ A: Yes, if you use the `pdf`, `docx`, or `xlsx` companion skills. These skills w
 A: We recommend **Gemini 3 Pro** for Phases 1 and 2 (due to the 1M+ context window) and **Claude Opus** for Phase 3 (due to reasoning depth).
 
 **Q: How do I get my data into the Octopus?**
-A: You can paste text directly into the prompt, reference local files (e.g., `empathize "Analyze transcripts in ./docs/interviews/"`), or use the `webfetch` tool to pull research from URLs.
+A: You can paste text directly into the prompt, reference local files (for example `./scripts/orchestrate.sh empathize "Analyze transcripts in ./docs/interviews/"`), or use the plugin/browser tools to pull research from URLs.
 
 **Q: Can I run knowledge work in CI/CD?**
 A: Yes! Use the `--ci` flag. This is useful for automatically generating release notes (`product-writer`) or summarizing research papers added to a repository.

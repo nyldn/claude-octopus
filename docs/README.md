@@ -16,7 +16,8 @@ Start here if you are not sure which doc you need.
 - [SCHEDULER.md](./SCHEDULER.md) - Scheduled jobs and daemon management
 - [SANDBOX-CONFIGURATION.md](./SANDBOX-CONFIGURATION.md) - Codex sandbox setup
 - [FACTORY-AI.md](./FACTORY-AI.md) - Factory AI compatibility notes
-- [DEBUG_MODE.md](./DEBUG_MODE.md) - Debug flag behavior and troubleshooting
+- [CLI-REFERENCE.md](./CLI-REFERENCE.md#execution-modes) - Async mode, tmux visualization, and direct CLI operations
+- [CLI-REFERENCE.md](./CLI-REFERENCE.md#debug-mode) - Debug flag behavior and troubleshooting
 
 ## Contributor and Internal Docs
 
@@ -25,15 +26,22 @@ Start here if you are not sure which doc you need.
 - [architecture/auto-detection-engine.md](./architecture/auto-detection-engine.md) - Detection engine internals
 - [RELEASE_AUTOMATION.md](./RELEASE_AUTOMATION.md) - Release process
 
+## Recommended Companion Skills
+
+- `webapp-testing` - UI validation after Octopus generates or refactors app code
+- `frontend-design` - Stronger visual design direction for React and Tailwind work
+- `skill-creator` - Create your own domain-specific wrappers around Octopus workflows
+- `mcp-builder` - Connect Octopus workflows to external APIs and services
+
+These are companion tools for Claude itself, not for the external Codex or Gemini processes spawned by Octopus.
+
 ## Specialized Guides
 
-- [COMPANION-SKILLS.md](./COMPANION-SKILLS.md) - Complementary official skills
 - [NATIVE-INTEGRATION.md](./NATIVE-INTEGRATION.md) - Native task and state integration
 - [PDF_PAGE_SELECTION.md](./PDF_PAGE_SELECTION.md) - PDF-specific extraction behavior
-- [ASYNC-TMUX.md](./ASYNC-TMUX.md) - Async task management and tmux visualization
 
 ## Project Maintenance
 
 - [FEATURE-GAP.md](./FEATURE-GAP.md) - Claude Code feature adoption tracker
-- [PLUGIN_NAME_SAFEGUARDS.md](./PLUGIN_NAME_SAFEGUARDS.md) - Naming and packaging safeguards
+- [PLUGIN-ARCHITECTURE.md](./PLUGIN-ARCHITECTURE.md) - Internal structure, extension points, and command-prefix safeguards
 - [monthly-agent-review.md](./monthly-agent-review.md) - Monthly review checklist

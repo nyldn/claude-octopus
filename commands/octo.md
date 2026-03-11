@@ -2,19 +2,22 @@
 description: Smart router - Single entry point with natural language intent detection
 ---
 
-# Smart Router (/octo)
+# Smart Router (/octo:octo)
 
 Single entry point for all Claude Octopus workflows with natural language intent detection. The router analyzes your request and automatically routes to the optimal workflow.
 
 ## Usage
 
 ```bash
-# Just describe what you want - the router figures out the workflow
-/octo research OAuth authentication patterns
-/octo build user authentication system
-/octo validate src/auth.ts
-/octo should we use Redis or Memcached?
-/octo create a complete e-commerce platform
+# Slash command form
+/octo:octo research OAuth authentication patterns
+/octo:octo build user authentication system
+/octo:octo validate src/auth.ts
+/octo:octo should we use Redis or Memcached?
+/octo:octo create a complete e-commerce platform
+
+# Plain language form
+octo research OAuth authentication patterns
 ```
 
 ## Routing Intelligence
@@ -44,42 +47,42 @@ The router uses keyword matching and confidence scoring to determine the best wo
 
 ### Research Intent
 ```bash
-/octo research OAuth security patterns
+/octo:octo research OAuth security patterns
 # → Routes to /octo:discover
 # 🔍 Multi-AI research and exploration
 ```
 
 ### Build Intent (Clear)
 ```bash
-/octo build user authentication with JWT
+/octo:octo build user authentication with JWT
 # → Routes to /octo:develop
 # 🛠️ Multi-AI implementation with quality gates
 ```
 
 ### Build Intent (Vague)
 ```bash
-/octo build something for users
+/octo:octo build something for users
 # → Routes to /octo:plan (with clarification)
 # 🎯 Clarifies requirements before routing
 ```
 
 ### Validation Intent
 ```bash
-/octo validate the authentication implementation
+/octo:octo validate the authentication implementation
 # → Routes to /octo:review
 # 🛡️ Multi-AI quality assurance and review
 ```
 
 ### Debate Intent
 ```bash
-/octo should we use TypeScript or JavaScript?
+/octo:octo should we use TypeScript or JavaScript?
 # → Routes to /octo:debate
 # 🐙 Three-way AI debate (Codex, Gemini, Claude)
 ```
 
 ### Lifecycle Intent
 ```bash
-/octo complete implementation of payment system
+/octo:octo complete implementation of payment system
 # → Routes to /octo:embrace
 # 🐙 Full 4-phase workflow (Discover → Define → Develop → Deliver)
 ```
@@ -121,14 +124,14 @@ You can always bypass the router and call workflows directly:
 ```bash
 # Use model configuration with router
 export OCTOPUS_CODEX_MODEL="claude-opus-4-6"
-/octo research advanced ML architectures
+/octo:octo research advanced ML architectures
 # → Uses premium model for research
 ```
 
 ### Chain Workflows
 ```bash
 # Router can suggest chaining
-/octo build and validate authentication system
+/octo:octo build and validate authentication system
 # → Suggests: /octo:develop → /octo:review
 ```
 
@@ -136,7 +139,7 @@ export OCTOPUS_CODEX_MODEL="claude-opus-4-6"
 
 ## EXECUTION CONTRACT (Mandatory)
 
-When the user invokes `/octo <query>`, you MUST:
+When the user invokes `/octo:octo <query>` or says `octo <query>`, you MUST:
 
 ### 1. Parse User Query
 
@@ -204,7 +207,7 @@ I'm not sure which workflow fits best. Here are your options:
 1. **Research** (/octo:discover) - Multi-AI research and exploration
 2. **Specify** (/octo:spec) - Structured NLSpec authoring
 3. **Build** (/octo:develop) - Implementation with quality gates
-4. **Validate** (/octo:validate) - Quality assurance and validation
+4. **Validate** (/octo:review) - Quality assurance and validation
 5. **Debate** (/octo:debate) - Three-way AI debate
 6. **Parallel** (/octo:parallel) - Team of Teams parallel work packages
 7. **Lifecycle** (/octo:embrace) - Full 4-phase workflow
@@ -278,7 +281,7 @@ Providers:
 
 ### Example 1: High Confidence Research
 ```
-User: /octo research OAuth 2.0 security best practices
+User: /octo:octo research OAuth 2.0 security best practices
 
 Analysis:
 - Keywords: "research" (research intent)
@@ -301,7 +304,7 @@ Providers:
 
 ### Example 2: Medium Confidence Build
 ```
-User: /octo create authentication
+User: /octo:octo create authentication
 
 Analysis:
 - Keywords: "create" (build intent, vague)
@@ -320,7 +323,7 @@ Should I proceed with implementation, or plan first? (implement/plan)
 
 ### Example 3: Low Confidence Ambiguous
 ```
-User: /octo do something with the database
+User: /octo:octo do something with the database
 
 Analysis:
 - Keywords: "do" (no clear intent)
@@ -340,7 +343,7 @@ Please clarify what you'd like to accomplish.
 
 ### Example 4: Debate Intent
 ```
-User: /octo should we use Redis or Memcached for session storage?
+User: /octo:octo should we use Redis or Memcached for session storage?
 
 Analysis:
 - Keywords: "should", "or" (debate intent)

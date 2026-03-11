@@ -104,9 +104,9 @@ Plus 30 more: review, debug, extract, deck, docs, schedule, parallel, sentinel, 
 Don't remember the command name? Just describe what you need:
 
 ```
-/octo research microservices patterns    -> routes to discover phase
-/octo build user authentication          -> routes to develop phase
-/octo compare Redis vs DynamoDB          -> routes to debate
+/octo:octo research microservices patterns    -> routes to discover phase
+/octo:octo build user authentication          -> routes to develop phase
+/octo:octo compare Redis vs DynamoDB          -> routes to debate
 ```
 
 The smart router parses your intent and selects the right workflow.
@@ -131,7 +131,7 @@ Not sure which command to use? Pick by goal:
 | Debug a tricky issue | `/octo:debug` |
 | Just run something quick | `/octo:quick` |
 
-Or skip the table — type `/octo <what you want>` and the smart router picks for you. 🔍
+Or skip the table — type `/octo:octo <what you want>` or just say `octo <what you want>`, and the smart router picks for you. 🔍
 
 ---
 
@@ -316,7 +316,7 @@ The workflow continues with available providers. You'll see the status in the vi
 - [Architecture](docs/ARCHITECTURE.md) — Provider flow and execution model
 - [Plugin Architecture](docs/PLUGIN-ARCHITECTURE.md) — Internal plugin structure
 - [Agents & Personas](docs/AGENTS.md) — All 32 personas
-- [Debug Mode](docs/DEBUG_MODE.md) — Troubleshooting
+- [CLI Reference](docs/CLI-REFERENCE.md) — Direct CLI usage, debug mode, async, and tmux
 - [Changelog](CHANGELOG.md)
 
 ---

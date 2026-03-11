@@ -1,8 +1,8 @@
 # Claude Octopus Agent Catalog
 
-> *39 specialized tentacles, infinite possibilities. But which one grabs YOUR problem?* 🐙
+> *32 specialized personas, infinite possibilities. But which one grabs YOUR problem?* 🐙
 
-**Note on Permissions:** As of v7.13.0, you have full control over background agent execution. You will be prompted for permission before any background agent (e.g., Codex, Gemini) starts, ensuring cost transparency and control.
+**Note on Permissions:** Current releases prompt before background provider execution so you can approve Codex or Gemini usage explicitly.
 
 ---
 
@@ -33,7 +33,7 @@
 
 **Still unsure?** Just describe what you need - Claude Octopus auto-routes to the right tentacle! 🦑
 
-> 🆕 **New in v6.0:** Knowledge Worker agents for researchers, consultants, and product managers. [See Knowledge Workers Guide →](KNOWLEDGE-WORKERS.md)
+Knowledge-worker personas for researchers, consultants, and product managers are also included. [See Knowledge Workers Guide →](KNOWLEDGE-WORKERS.md)
 
 ---
 
@@ -41,7 +41,7 @@
 
 1. [By Development Phase](#by-development-phase) - Double Diamond workflow
 2. [By Domain](#by-domain) - Backend, Frontend, Quality, Ops
-3. [Knowledge Work (v6.0)](#knowledge-work-v60) - Research, consulting, writing 🆕
+3. [Knowledge Work](#knowledge-work) - Research, consulting, writing
 4. [Top 10 Tentacles](#top-10-tentacles) - The heavy hitters
 5. [Cost Tiers](#cost-tiers) - Token budget awareness
 6. [Common Workflows](#common-workflows) - Multi-tentacle patterns
@@ -177,11 +177,11 @@ Flowcharts         → mermaid-expert (haiku - simple)
 
 ---
 
-## Knowledge Work (v6.0)
+## Knowledge Work
 
 > *When your deliverable isn't code, but crystallized knowledge.* 🎓
 
-New in v6.0: Ten specialized agents for researchers, consultants, designers, marketers, and product managers.
+Claude Octopus also includes specialized agents for researchers, consultants, designers, marketers, and product managers.
 
 ### 🎯 UX Research
 

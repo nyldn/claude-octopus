@@ -1,18 +1,18 @@
 # Command and Usage Reference
 
-Complete reference for all 38 Claude Octopus commands, plus the activation and provider-indicator rules that used to live in separate docs.
+Complete reference for all 38 Claude Octopus slash commands, plus activation rules, provider indicators, and the project-lifecycle features that are triggered by natural language rather than slash commands.
 
 ---
 
 ## Quick Reference
 
-All commands use the `/octo:` namespace.
+All slash commands use the `/octo:` namespace. The smart router command is `/octo:octo`, and the plain-language trigger remains `octo ...`.
 
 ### Smart Router
 
 | Command | Description |
 |---------|-------------|
-| `/octo` | Natural language router — detects intent and routes to the right workflow |
+| `/octo:octo` | Smart router — detects intent and routes to the right workflow |
 
 ### System Commands
 
@@ -107,17 +107,21 @@ These are invoked via natural language or skill triggers — not slash commands.
 
 ## Smart Router
 
-### `/octo`
+### `/octo:octo`
 
 Single entry point with natural language intent detection. Analyzes your request and routes to the optimal workflow automatically.
 
+**You can invoke the router in two ways:**
+- Slash command: `/octo:octo <request>`
+- Plain language: `octo <request>`
+
 **Usage:**
 ```
-/octo research OAuth authentication patterns
-/octo build user authentication system
-/octo validate src/auth.ts
-/octo should we use Redis or Memcached?
-/octo create a complete e-commerce platform
+/octo:octo research OAuth authentication patterns
+/octo:octo build user authentication system
+/octo:octo validate src/auth.ts
+/octo:octo should we use Redis or Memcached?
+/octo:octo create a complete e-commerce platform
 ```
 
 **Routing table:**
@@ -167,7 +171,7 @@ Providers:
   Codex CLI: ready
   Gemini CLI: ready
 
-You're all set! Try: /octo research OAuth patterns
+You're all set! Try: /octo:octo research OAuth patterns
 ```
 
 **Troubleshooting:** If you see "Failed to update: Plugin 'octo' not found", run `/octo:setup` for reinstall instructions, or see [issue #17](https://github.com/nyldn/claude-octopus/issues/17).
@@ -713,7 +717,7 @@ Force multi-provider parallel execution for any task — manual override mode.
 
 **Cost:** Uses external API credits (Codex + Gemini). Confirms before running.
 
-**When to use:** High-stakes decisions, cross-checking important work, comparing model perspectives. For most tasks, the router (`/octo`) or specific workflow commands are better.
+**When to use:** High-stakes decisions, cross-checking important work, comparing model perspectives. For most tasks, the router (`/octo:octo` or `octo ...`) or specific workflow commands are better.
 
 ---
 
@@ -1020,7 +1024,7 @@ OpenClaw instance administration across five platforms.
 
 These features are triggered by natural language — they are not slash commands. Claude auto-activates them based on context.
 
-### `/octo:status`
+### `Status`
 
 Show where you are in the workflow and what to do next.
 
@@ -1034,7 +1038,7 @@ Show where you are in the workflow and what to do next.
 
 ---
 
-### `/octo:resume`
+### `Resume`
 
 Pick up where you left off from a previous session.
 
@@ -1048,7 +1052,7 @@ Pick up where you left off from a previous session.
 
 ---
 
-### `/octo:ship`
+### `Ship`
 
 Package and finalize completed work for delivery.
 
@@ -1063,7 +1067,7 @@ Package and finalize completed work for delivery.
 
 ---
 
-### `/octo:issues`
+### `Issues`
 
 Track blockers, bugs, and gaps across sessions.
 
@@ -1081,7 +1085,7 @@ Track blockers, bugs, and gaps across sessions.
 
 ---
 
-### `/octo:rollback`
+### `Rollback`
 
 Roll back to a previous checkpoint via git.
 

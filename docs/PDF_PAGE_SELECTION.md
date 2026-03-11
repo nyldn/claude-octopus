@@ -300,7 +300,7 @@ pages=$(ask_pdf_page_selection "$pdf_file" "$page_count" 5)  # 5-page threshold
 
 ## Related Features
 
-- **Debug Mode**: See [DEBUG_MODE.md](DEBUG_MODE.md)
+- **Debug Mode**: See [CLI-REFERENCE.md#debug-mode](./CLI-REFERENCE.md#debug-mode)
 - **Extract Workflow**: See `.claude/commands/extract.md`
 - **Research Skills**: See `.claude/skills/skill-deep-research.md`
 

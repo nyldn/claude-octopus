@@ -39,8 +39,8 @@ This guide explains the internal architecture of Claude Octopus for contributors
 
 ```json
 {
-  "name": "claude-octopus",
-  "version": "8.15.1",
+  "name": "octo",
+  "version": "8.49.1",
   "description": "Multi-tentacled orchestrator...",
   "skills": [
     "./.claude/skills/skill-parallel-agents.md",
@@ -60,8 +60,26 @@ This guide explains the internal architecture of Claude Octopus for contributors
 ```
 
 **Key Fields:**
-- `skills`: Array of markdown files defining skills (44 total)
-- `commands`: Array of markdown files defining slash commands (41 total)
+- `skills`: Array of markdown files defining skills (50 total in the current manifest)
+- `commands`: Array of markdown files defining slash commands (38 total in the current manifest)
+
+#### Command Prefix Safeguard
+
+The plugin manifest name must remain `octo`.
+
+| File | Value | Purpose |
+|------|-------|---------|
+| `package.json` | `claude-octopus` | Package and marketplace identity |
+| `.claude-plugin/plugin.json` | `octo` | Command prefix for `/octo:*` |
+
+If the plugin name changes, command paths change with it:
+- `octo` + `discover` -> `/octo:discover`
+- `claude-octopus` + `discover` -> `/claude-octopus:discover`
+
+**Why this matters:**
+- It breaks existing user workflows and docs immediately
+- It changes every slash-command path exposed by the plugin
+- The repository already includes validation for this via `make test-plugin-name` and `./tests/validate-plugin-name.sh`
 
 ---
 
@@ -99,10 +117,10 @@ Instructions for Claude on how to handle this task...
 2. `description` - Clear description (used in skill discovery)
 3. `trigger` - When to activate (natural language patterns)
 
-**Example: probe-workflow.md**
+**Example: flow-discover.md**
 ```yaml
 ---
-name: probe-workflow
+name: flow-discover
 description: |
   Discover phase workflow - Research and exploration using external CLI providers.
 trigger: |
@@ -116,21 +134,21 @@ trigger: |
 ---
 ```
 
-#### Workflow Skills (v7.4)
+#### Workflow Skills
 
-New in v7.4: Natural language workflow wrappers
+Claude Octopus uses flow-based wrappers for the core Double Diamond phases.
 
 | Skill | File | Triggers | Wrapper For |
 |-------|------|----------|-------------|
-| Probe | probe-workflow.md | "research X" | `orchestrate.sh probe` |
-| Grasp | grasp-workflow.md | "define requirements for X" | `orchestrate.sh grasp` |
-| Tangle | tangle-workflow.md | "build X", "implement Y" | `orchestrate.sh tangle` |
-| Ink | ink-workflow.md | "review X", "validate Y" | `orchestrate.sh ink` |
+| Discover | flow-discover.md | "research X" | `orchestrate.sh probe` |
+| Define | flow-define.md | "define requirements for X" | `orchestrate.sh grasp` |
+| Develop | flow-develop.md | "build X", "implement Y" | `orchestrate.sh tangle` |
+| Deliver | flow-deliver.md | "review X", "validate Y" | `orchestrate.sh ink` |
 
 **How they work:**
 1. User says natural language trigger (e.g., "research OAuth patterns")
 2. Claude Code matches trigger pattern to skill
-3. Skill activates and instructs Claude to execute `orchestrate.sh probe`
+3. Skill activates and instructs Claude to execute the matching `orchestrate.sh` phase
 4. Orchestrate.sh coordinates external CLIs
 5. Results are synthesized and returned to chat
 
@@ -151,7 +169,7 @@ Hooks inject additional context or execute commands at specific points in the wo
 | `SessionStart` | When session begins | Initialize state, sync session |
 | `Stop` | When session ends | Cleanup, save state |
 
-#### Visual Indicators Hook (v7.4)
+#### Visual Indicators Hook
 
 ```json
 {
@@ -390,7 +408,7 @@ evaluate_quality() {
    ↓
 2. Claude Code: Match trigger patterns in skills
    ↓
-3. probe-workflow.md: AUTOMATICALLY ACTIVATE
+3. flow-discover.md: AUTOMATICALLY ACTIVATE
    ↓
 4. PreToolUse Hook: Inject "🐙 CLAUDE OCTOPUS ACTIVATED"
    ↓
@@ -486,6 +504,17 @@ claude-octopus/
    ```
 3. **Test:** Trigger the command and verify indicator appears
 4. **Document:** Add to the visual indicators section in `docs/COMMAND-REFERENCE.md`
+
+### Preserving the Command Prefix
+
+Before changing plugin metadata, verify the command prefix stays stable:
+
+```bash
+make test-plugin-name
+./tests/validate-plugin-name.sh
+```
+
+If `.claude-plugin/plugin.json` ever stops using `"name": "octo"`, every `/octo:*` command path becomes a breaking change.
 
 ### Adding a Quality Gate
 
