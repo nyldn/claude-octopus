@@ -2,7 +2,7 @@
 
 This guide documents direct CLI usage of orchestrate.sh for advanced users and automation scenarios.
 
-**Note:** For plugin users, natural language triggers (documented in [TRIGGERS.md](./TRIGGERS.md)) are the recommended way to use Claude Octopus. This CLI reference is for:
+**Note:** For plugin users, natural language triggers are documented in the [Command and Usage Reference](./COMMAND-REFERENCE.md#natural-language-triggers). This CLI reference is for:
 - Automation scripts
 - CI/CD pipelines
 - Direct command-line usage outside Claude Code
@@ -623,11 +623,11 @@ jobs:
 
 ## See Also
 
-- **[Visual Indicators Guide](./VISUAL-INDICATORS.md)** - Understanding what's running in plugin mode
-- **[Triggers Guide](./TRIGGERS.md)** - Natural language triggers for plugin users
+- **[Command and Usage Reference](./COMMAND-REFERENCE.md)** - Slash commands, natural-language triggers, and provider indicators
 - **[Plugin Architecture](./PLUGIN-ARCHITECTURE.md)** - How the plugin works internally
+- **[Documentation Guide](./README.md)** - Docs landing page
 - **[README](../README.md)** - Main documentation
 
 ---
 
-**For plugin users:** The natural language interface (documented in [TRIGGERS.md](./TRIGGERS.md)) is the recommended way to use Claude Octopus. Use this CLI reference for automation, CI/CD, or advanced power-user scenarios.
+**For plugin users:** The natural language interface is the recommended way to use Claude Octopus. Use this CLI reference for automation, CI/CD, or advanced power-user scenarios.

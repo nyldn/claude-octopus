@@ -146,30 +146,30 @@ else
     fail "Natural language triggers missing" "Triggers should include 'run this with all providers'"
 fi
 
-# Test 12: TRIGGERS.md documentation updated
+# Test 12: COMMAND-REFERENCE.md documentation updated
 echo ""
-echo "Test 12: Validating TRIGGERS.md documentation..."
-TRIGGERS_DOC="$PROJECT_ROOT/docs/TRIGGERS.md"
-if grep -q '## Multi Command' "$TRIGGERS_DOC"; then
-    pass "TRIGGERS.md has 'Multi Command' section"
+echo "Test 12: Validating COMMAND-REFERENCE.md documentation..."
+REFERENCE_DOC="$PROJECT_ROOT/docs/COMMAND-REFERENCE.md"
+if grep -q '### `/octo:multi`' "$REFERENCE_DOC"; then
+    pass "COMMAND-REFERENCE.md has /octo:multi section"
 else
-    fail "Missing documentation section" "TRIGGERS.md should have '## Multi Command' section"
+    fail "Missing documentation section" "COMMAND-REFERENCE.md should have a /octo:multi section"
 fi
 
-# Test 13: TRIGGERS.md shows only /octo:multi
+# Test 13: COMMAND-REFERENCE.md shows only /octo:multi
 echo ""
-echo "Test 13: Checking TRIGGERS.md command syntax..."
-if grep -A 3 'Explicit command:' "$TRIGGERS_DOC" | grep -q '/octo:multi'; then
-    pass "TRIGGERS.md shows /octo:multi command"
+echo "Test 13: Checking COMMAND-REFERENCE.md command syntax..."
+if grep -A 8 '### `/octo:multi`' "$REFERENCE_DOC" | grep -q '/octo:multi'; then
+    pass "COMMAND-REFERENCE.md shows /octo:multi command"
 else
-    fail "Documentation missing command" "TRIGGERS.md should document /octo:multi"
+    fail "Documentation missing command" "COMMAND-REFERENCE.md should document /octo:multi"
 fi
 
-# Test 14: No parallel-agents references in TRIGGERS.md
+# Test 14: No parallel-agents references in COMMAND-REFERENCE.md
 echo ""
 echo "Test 14: Checking for old command references in docs..."
-if grep -q 'parallel-agents' "$TRIGGERS_DOC"; then
-    fail "Old command name in docs" "TRIGGERS.md should not reference parallel-agents"
+if grep -q 'parallel-agents' "$REFERENCE_DOC"; then
+    fail "Old command name in docs" "COMMAND-REFERENCE.md should not reference parallel-agents"
 else
     pass "No references to old command name in docs"
 fi

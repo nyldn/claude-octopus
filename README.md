@@ -310,12 +310,12 @@ The workflow continues with available providers. You'll see the status in the vi
 
 ## Documentation
 
-- [Command Reference](docs/COMMAND-REFERENCE.md) — All 38 commands
+- [Documentation Guide](docs/README.md) — Start here
+- [Command Reference](docs/COMMAND-REFERENCE.md) — Commands, triggers, and provider indicators
 - [Feature Gap Analysis](docs/FEATURE-GAP.md) — CC feature adoption tracker
-- [Architecture](docs/ARCHITECTURE.md) — How it works internally
-- [Plugin Architecture](docs/PLUGIN-ARCHITECTURE.md) — Plugin structure
+- [Architecture](docs/ARCHITECTURE.md) — Provider flow and execution model
+- [Plugin Architecture](docs/PLUGIN-ARCHITECTURE.md) — Internal plugin structure
 - [Agents & Personas](docs/AGENTS.md) — All 32 personas
-- [Visual Indicators](docs/VISUAL-INDICATORS.md) — Provider status
 - [Debug Mode](docs/DEBUG_MODE.md) — Troubleshooting
 - [Changelog](CHANGELOG.md)
 

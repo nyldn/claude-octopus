@@ -485,7 +485,7 @@ claude-octopus/
    }
    ```
 3. **Test:** Trigger the command and verify indicator appears
-4. **Document:** Add to VISUAL-INDICATORS.md
+4. **Document:** Add to the visual indicators section in `docs/COMMAND-REFERENCE.md`
 
 ### Adding a Quality Gate
 
@@ -617,7 +617,7 @@ tail -f ~/.claude/debug/*.txt | grep -i hook
 ## See Also
 
 - **[README](../README.md)** - Main documentation
-- **[Visual Indicators Guide](./VISUAL-INDICATORS.md)** - Understanding visual feedback
-- **[Triggers Guide](./TRIGGERS.md)** - Natural language patterns
+- **[Command and Usage Reference](./COMMAND-REFERENCE.md)** - Commands, triggers, and provider indicators
 - **[CLI Reference](./CLI-REFERENCE.md)** - Direct CLI usage
+- **[Documentation Guide](./README.md)** - Docs landing page
 - **[CONTRIBUTING.md](../CONTRIBUTING.md)** - Contribution guidelines

@@ -183,4 +183,4 @@ Then you'll see results from each provider marked with their indicator (ðŸ”´ ðŸŸ
 - `/octo:debate` - Structured three-way debates (better for adversarial analysis)
 - `/octo:research` - Research workflow (auto-triggers multi-provider for research)
 - `/octo:review` - Review workflow (auto-triggers multi-provider for validation)
-- [TRIGGERS.md](../../docs/TRIGGERS.md) - Full guide to what triggers multi-provider mode
+- [COMMAND-REFERENCE.md](../../docs/COMMAND-REFERENCE.md#natural-language-triggers) - Activation rules and forced multi-provider guidance

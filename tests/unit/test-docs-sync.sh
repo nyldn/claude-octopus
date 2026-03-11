@@ -139,8 +139,8 @@ check_docs_files() {
   info "\nValidating documentation files..."
 
   local required_docs=(
-    "docs/VISUAL-INDICATORS.md"
-    "docs/TRIGGERS.md"
+    "docs/README.md"
+    "docs/COMMAND-REFERENCE.md"
     "docs/CLI-REFERENCE.md"
     "docs/PLUGIN-ARCHITECTURE.md"
   )

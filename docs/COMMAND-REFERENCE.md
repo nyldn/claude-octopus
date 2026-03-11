@@ -1,6 +1,6 @@
-# Command Reference
+# Command and Usage Reference
 
-Complete reference for all 38 Claude Octopus commands.
+Complete reference for all 38 Claude Octopus commands, plus the activation and provider-indicator rules that used to live in separate docs.
 
 ---
 
@@ -1108,6 +1108,11 @@ When Claude Octopus activates external CLIs, you'll see visual indicators:
 | 🟣 | Perplexity Sonar search | Your PERPLEXITY_API_KEY |
 | 🔵 | Claude subagent | Included with Claude Code |
 
+**Rule of thumb:**
+- `/octo:*` commands and `octo ...` natural-language requests can activate external providers
+- Simple file reads, git commands, shell commands, and small edits stay Claude-only
+- `/octo:multi` is the manual override when you want all providers on a task that would normally stay single-model
+
 **Example:**
 ```
 🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider research mode
@@ -1119,13 +1124,11 @@ Providers:
 🔵 Claude - Strategic synthesis
 ```
 
-📖 See [Visual Indicators Guide](./VISUAL-INDICATORS.md) for details.
-
 ---
 
 ## Natural Language Triggers
 
-Instead of slash commands, you can use natural language with the "octo" prefix:
+Instead of slash commands, you can use natural language with the `octo` prefix:
 
 | You Say | Equivalent Command |
 |---------|--------------------|
@@ -1135,16 +1138,27 @@ Instead of slash commands, you can use natural language with the "octo" prefix:
 | `octo debate X vs Y` | `/octo:debate X vs Y` |
 | `octo plan a new feature` | `/octo:plan new feature` |
 | `octo spec out the chat system` | `/octo:spec chat system` |
+| `run this with all providers: review auth.ts` | `/octo:multi "review auth.ts"` |
 
-**Why "octo"?** Common words like "research" or "review" may conflict with Claude's built-in behaviors. The "octo" prefix ensures reliable activation.
+**Reliable activators:**
+- `octo research ...`, `octo discover ...`, `/octo:discover ...`
+- `octo define ...`, `octo scope ...`, `/octo:define ...`
+- `octo build ...`, `octo implement ...`, `/octo:develop ...`
+- `octo review ...`, `octo validate ...`, `/octo:review ...`
+- `/octo:multi ...` or "run this with all providers ..." for forced parallel mode
 
-📖 See [Triggers Guide](./TRIGGERS.md) for the complete list.
+**Usually Claude-only:**
+- "read `file.ts`", "show git status", "find all routes", "fix this typo"
+- factual questions or small edits that do not benefit from multi-provider orchestration
+
+**Why `octo`?** Common words like "research" or "review" may conflict with Claude's built-in behaviors. The `octo` prefix ensures reliable activation.
+
+**Need a quick shortcut?** The most common wrappers are still `/octo:research`, `/octo:review`, and `/octo:security`; they are regular commands, not a separate doc set.
 
 ---
 
 ## See Also
 
-- **[Visual Indicators Guide](./VISUAL-INDICATORS.md)** — Understanding what's running and what it costs
-- **[Triggers Guide](./TRIGGERS.md)** — What activates each workflow
+- **[Documentation Guide](./README.md)** — Pick the right doc quickly
 - **[CLI Reference](./CLI-REFERENCE.md)** — Direct CLI usage (advanced)
 - **[README](../README.md)** — Main documentation
