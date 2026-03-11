@@ -234,7 +234,7 @@ test_cost_routing_balanced() {
     local result
     result=$(select_cost_aware_agent "backend-architect" "0")
 
-    if assert_equals "codex-spark" "$result" "Should use spark in balanced mode for complexity=0"; then
+    if assert_equals "codex" "$result" "Should use codex in balanced mode for complexity=0"; then
         test_pass
     fi
 }
