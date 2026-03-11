@@ -1020,11 +1020,11 @@ OpenClaw instance administration across five platforms.
 
 These features are triggered by natural language — they are not slash commands. Claude auto-activates them based on context.
 
-### Status
+### `/octo:status`
 
 Show where you are in the workflow and what to do next.
 
-**Trigger:** "show status", "where am I", "what's next", "progress", "what have I been working on"
+**Invocation:** Skill-based — triggered by natural language: "show status", "where am I", "what's next", "progress", "what have I been working on"
 
 **Output:**
 - Current phase and position
@@ -1034,11 +1034,11 @@ Show where you are in the workflow and what to do next.
 
 ---
 
-### Resume
+### `/octo:resume`
 
 Pick up where you left off from a previous session.
 
-**Trigger:** "resume", "continue", "pick up where I left off", "what was I doing", "restore session"
+**Invocation:** Skill-based — triggered by: "resume", "continue", "pick up where I left off", "what was I doing", "restore session"
 
 **Behavior:**
 1. Reads `.octo/STATE.md` for current position
@@ -1048,11 +1048,11 @@ Pick up where you left off from a previous session.
 
 ---
 
-### Ship
+### `/octo:ship`
 
 Package and finalize completed work for delivery.
 
-**Trigger:** "ship", "deliver", "finalize", "I'm done", "complete the project"
+**Invocation:** Skill-based — triggered by: "ship", "deliver", "finalize", "I'm done", "complete the project"
 
 **Behavior:**
 1. Verifies project is ready (all phases complete)
@@ -1063,11 +1063,11 @@ Package and finalize completed work for delivery.
 
 ---
 
-### Issues
+### `/octo:issues`
 
 Track blockers, bugs, and gaps across sessions.
 
-**Trigger:** "add issue", "show issues", "track this problem", "what issues do we have"
+**Invocation:** Skill-based — triggered by: "add issue", "show issues", "track this problem", "what issues do we have"
 
 **Subcommands (via natural language):**
 - List all open issues
@@ -1081,11 +1081,11 @@ Track blockers, bugs, and gaps across sessions.
 
 ---
 
-### Rollback
+### `/octo:rollback`
 
 Roll back to a previous checkpoint via git.
 
-**Trigger:** "rollback", "revert", "undo", "go back to", "restore checkpoint"
+**Invocation:** Skill-based — triggered by: "rollback", "revert", "undo", "go back to", "restore checkpoint"
 
 **Usage:** "rollback to checkpoint X", "list checkpoints", "revert last change"
 
