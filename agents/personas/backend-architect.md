@@ -24,6 +24,7 @@ examples:
     outcome: "Service boundaries, communication patterns, saga for distributed transactions"
   - prompt: "Plan event-driven architecture for order processing"
     outcome: "Kafka topics, event schemas, consumer groups, dead letter handling"
+readonly: true
 hooks:
   PostToolUse:
     - matcher:

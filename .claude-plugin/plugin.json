@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "8.52.0",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v8.52.0) Reaction engine \u2014 auto-responds to CI failures, review comments, stuck agents. 32 expert personas, 38 commands, 50 skills. Commands use '/octo:*', including the '/octo:octo' smart router. Run /octo:setup for guided setup.",
+  "version": "8.53.0",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v8.53.0) Agent ergonomics \u2014 readonly frontmatter, user-scope agents (~/.claude/agents/), /octo:resume. 32 expert personas, 39 commands, 50 skills. Commands use '/octo:*', including the '/octo:octo' smart router. Run /octo:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },
@@ -132,6 +132,7 @@
     "./.claude/commands/staged-review.md",
     "./.claude/commands/design-ui-ux.md",
     "./.claude/commands/debate.md",
-    "./.claude/commands/research.md"
+    "./.claude/commands/research.md",
+    "./.claude/commands/resume.md"
   ]
 }

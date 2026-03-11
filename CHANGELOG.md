@@ -1,3 +1,19 @@
+## [8.53.0] - 2026-03-11
+
+### Added
+
+- **`readonly: true` frontmatter** — Add `readonly: true` to any agent persona `.md` file to enforce read-only tool policy (blocks Write/Edit/Bash modifications). Implemented via `get_agent_readonly()` with awk-based frontmatter parsing, new `agent_name` param in `apply_tool_policy()` and `apply_persona()`. `backend-architect` added as live example.
+- **User-scope agents (`~/.claude/agents/`)** — Personal agent personas placed in `~/.claude/agents/*.md` are automatically discovered for description lookup and agent listing. `USER_AGENTS_DIR` constant; plugin agents take precedence on name collision.
+- **`/octo:resume <agent-id>`** — Resume a previous Claude agent by transcript ID. Wraps `resume_agent()` via new `agent-resume` dispatch case. Requires `SUPPORTS_CONTINUATION` (CC v2.1.55+) and `SUPPORTS_STABLE_AGENT_TEAMS`.
+
+### Internal
+
+- `get_agent_readonly()` — awk-based YAML frontmatter parser (not `head -20 | grep`) to avoid false positives in body content
+- `apply_persona()` 4th param `agent_name`, threaded to `apply_tool_policy()` 3rd param
+- `spawn_agent()` pre-computes `curated_name_early` before `apply_persona` call
+- OpenClaw registry rebuilt (89 entries)
+- 39 commands, 50 skills
+
 ## [8.52.0] - 2026-03-11
 
 ### Added

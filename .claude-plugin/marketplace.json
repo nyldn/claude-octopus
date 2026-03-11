@@ -11,8 +11,8 @@
     {
       "name": "claude-octopus",
       "source": "./",
-      "description": "v8.52.0 - CC v2.1.73 sync (6 new flags: modelOverrides, loop enterprise fix, subagent model fix, session resume hook fix, bg cleanup, skill deadlock fix). Multi-LLM /octo:review \u2014 3-round parallel fleet (Codex + Gemini + Claude + Perplexity), inline PR comments, REVIEW.md support, verified findings. 32 personas, 38 commands, 50 skills. Run /octo:setup.",
-      "version": "8.52.0",
+      "description": "v8.53.0 - Agent ergonomics: readonly frontmatter, user-scope agents, /octo:resume. 32 personas, 39 commands, 50 skills. Run /octo:setup.",
+      "version": "8.53.0",
       "author": {
         "name": "nyldn"
       },

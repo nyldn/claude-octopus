@@ -94,6 +94,7 @@ export const SKILL_REGISTRY: SkillRegistryEntry[] = [
   { name: "prd", description: "Write an AI-optimized PRD using multi-AI orchestration and 100-point scoring framework", type: "command", file: "prd.md" },
   { name: "quick", description: "Quick execution mode for ad-hoc tasks without full workflow overhead", type: "command", file: "quick.md" },
   { name: "research", description: "Deep research with multi-source synthesis and comprehensive analysis", type: "command", file: "research.md" },
+  { name: "resume", description: "Resume a previous agent by ID — continue an interrupted task where it left off", type: "command", file: "resume.md" },
   { name: "review", description: "Expert multi-LLM code review with inline PR comments — competes with CC Code Review", type: "command", file: "review.md" },
   { name: "schedule", description: "Manage scheduled workflow jobs (add via wizard, dashboard, list, remove, enable, disable, logs)", type: "command", file: "schedule.md" },
   { name: "scheduler", description: "Manage the scheduled workflow runner daemon (start/stop/status)", type: "command", file: "scheduler.md" },
@@ -105,4 +106,4 @@ export const SKILL_REGISTRY: SkillRegistryEntry[] = [
   { name: "tdd", description: "Test-driven development with red-green-refactor discipline", type: "command", file: "tdd.md" },
 ];
 
-export const REGISTRY_COUNT = 88;
+export const REGISTRY_COUNT = 89;

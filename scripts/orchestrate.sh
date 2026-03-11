@@ -1565,7 +1565,7 @@ resolve_octopus_model() {
     local config_file="${HOME}/.claude-octopus/config/providers.json"
     local resolved_model=""
 
-    # 0. Session Cache (v8.51.0)
+    # 0. Session Cache (v8.53.0)
     # Uses a process-local memory cache + optional file-based cache for cross-process speed
     local cache_key
     # v8.49.0: Field-delimited cache key prevents collisions
@@ -3447,6 +3447,11 @@ get_agent_description() {
     local agent="$1"
     local agent_file="$PLUGIN_DIR/agents/personas/$agent.md"
 
+    # v8.53.0: Fall back to user-scope agents
+    if [[ ! -f "$agent_file" ]]; then
+        agent_file="${USER_AGENTS_DIR}/${agent}.md"
+    fi
+
     if [[ -f "$agent_file" ]]; then
         grep "^description:" "$agent_file" 2>/dev/null | head -1 | sed 's/description:[[:space:]]*//' | cut -c1-80
     else
@@ -4937,11 +4942,24 @@ get_tool_policy() {
 apply_tool_policy() {
     local role="$1"
     local prompt="$2"
+    local agent_name="${3:-}"   # v8.53.0: optional agent name for readonly check
 
     # Disabled by env var
     if [[ "${OCTOPUS_TOOL_POLICIES}" != "true" ]]; then
         echo "$prompt"
         return
+    fi
+
+    # v8.53.0: readonly: true in frontmatter takes precedence over role-based policy
+    if [[ -n "$agent_name" ]]; then
+        local is_readonly
+        is_readonly=$(get_agent_readonly "$agent_name")
+        if [[ "$is_readonly" == "true" ]]; then
+            echo "TOOL POLICY (readonly: true): You MUST NOT use Write, Edit, or Bash for modifications. Only Read, Glob, Grep, WebSearch, and WebFetch are permitted.
+
+${prompt}"
+            return
+        fi
     fi
 
     local policy
@@ -6290,25 +6308,23 @@ list_available_skills() {
         echo ""
     fi
 
-    # Agent personas
-    local personas_dir="${PLUGIN_DIR}/agents/personas"
-    if [[ -d "$personas_dir" ]] && compgen -G "${personas_dir}/*.md" > /dev/null 2>&1; then
-        echo -e "${GREEN}Agent Personas (spawn with 'spawn <agent>'):${NC}"
-        local count=0
-        for persona_file in "$personas_dir"/*.md; do
+    # Agent personas (v8.53.0: scans plugin + user-scope dirs)
+    echo -e "${GREEN}Agent Personas (spawn with 'spawn <agent>'):${NC}"
+    local count=0
+    for personas_dir_scan in "${PLUGIN_DIR}/agents/personas" "${USER_AGENTS_DIR}"; do
+        [[ -d "$personas_dir_scan" ]] || continue
+        compgen -G "${personas_dir_scan}/*.md" > /dev/null 2>&1 || continue
+        for persona_file in "$personas_dir_scan"/*.md; do
             local name
             name=$(basename "$persona_file" .md)
             printf "  ${CYAN}%-20s${NC}" "$name"
             ((count++)) || true
-            if (( count % 3 == 0 )); then
-                echo ""
-            fi
+            if (( count % 3 == 0 )); then echo ""; fi
         done
-        if (( count % 3 != 0 )); then
-            echo ""
-        fi
-        echo ""
-    fi
+    done
+    if (( count % 3 != 0 )); then echo ""; fi
+    if (( count == 0 )); then echo "  (none found)"; fi
+    echo ""
 
     echo -e "${YELLOW}Usage:${NC}"
     echo "  ./scripts/orchestrate.sh spawn <agent> \"prompt\""
@@ -10915,6 +10931,7 @@ apply_persona() {
     local role="$1"
     local prompt="$2"
     local skip_persona="${3:-false}"
+    local agent_name="${4:-}"   # v8.53.0: optional agent name for readonly policy
 
     # Allow opt-out for backward compatibility
     if [[ "$skip_persona" == "true" || "$DISABLE_PERSONAS" == "true" ]]; then
@@ -10942,8 +10959,8 @@ $prompt
 EOF
 )
 
-    # v8.19.0: Apply tool policy RBAC
-    combined=$(apply_tool_policy "$role" "$combined")
+    # v8.19.0: Apply tool policy RBAC (v8.53.0: pass agent_name for readonly check)
+    combined=$(apply_tool_policy "$role" "$combined" "$agent_name")
 
     echo "$combined"
 }
@@ -11007,6 +11024,10 @@ get_role_for_context_v820() {
 AGENTS_DIR="${PLUGIN_DIR}/agents"
 AGENTS_CONFIG="${AGENTS_DIR}/config.yaml"
 
+# v8.53.0: User-scope agents directory (Cursor-inspired: ~/.cursor/agents/)
+# Users can add personal agent personas here without modifying the plugin.
+USER_AGENTS_DIR="${HOME}/.claude/agents"
+
 # Check if curated agents are available
 has_curated_agents() {
     [[ -d "$AGENTS_DIR" && -f "$AGENTS_CONFIG" ]]
@@ -11066,6 +11087,30 @@ get_agent_permission_mode() {
     local mode
     mode=$(get_agent_config "$agent_name" "permissionMode")
     echo "${mode:-default}"
+}
+
+# v8.53.0: Get readonly flag from agent persona frontmatter
+# Returns "true" if the persona file has "readonly: true" in its YAML frontmatter.
+# Falls back to user-scope agents dir (USER_AGENTS_DIR) if not in plugin personas.
+# Parses only within --- frontmatter delimiters to avoid false positives in body content.
+get_agent_readonly() {
+    local agent_name="$1"
+    local persona_file="${PLUGIN_DIR}/agents/personas/${agent_name}.md"
+
+    if [[ ! -f "$persona_file" ]]; then
+        persona_file="${USER_AGENTS_DIR:-${HOME}/.claude/agents}/${agent_name}.md"
+    fi
+
+    [[ ! -f "$persona_file" ]] && echo "false" && return
+
+    # Extract only YAML frontmatter (between --- delimiters), then grep for readonly
+    local val
+    val=$(awk '
+        BEGIN { in_fm=0; past_fm=0 }
+        /^---$/ && !past_fm { in_fm=!in_fm; if (!in_fm) past_fm=1; next }
+        in_fm && /^readonly:/ { print; exit }
+    ' "$persona_file" | sed 's/readonly:[[:space:]]*//' | tr -d '"' | tr '[:upper:]' '[:lower:]')
+    echo "${val:-false}"
 }
 
 # v8.2.0: Load skill file content (strips YAML frontmatter)
@@ -11939,14 +11984,20 @@ spawn_agent() {
         export CLAUDE_BASH_NO_LOGIN=true
     fi
 
-    # Apply persona to prompt
+    # v8.53.0: Pre-compute curated_name before apply_persona so readonly flag is available
+    local curated_name_early=""
+    if [[ "$SUPPORTS_AGENT_TYPE_ROUTING" == "true" ]]; then
+        curated_name_early=$(select_curated_agent "$prompt" "$phase") || true
+    fi
+
+    # Apply persona to prompt (v8.53.0: pass curated_name for readonly frontmatter check)
     local enhanced_prompt
-    enhanced_prompt=$(apply_persona "$role" "$prompt")
+    enhanced_prompt=$(apply_persona "$role" "$prompt" "false" "${curated_name_early:-}")
 
     # v8.21.0: Check for persona pack override
     if type get_persona_override &>/dev/null 2>&1 && [[ "${OCTOPUS_PERSONA_PACKS:-auto}" != "off" ]]; then
         local persona_override_file
-        persona_override_file=$(get_persona_override "${curated_name:-$agent_type}" 2>/dev/null)
+        persona_override_file=$(get_persona_override "${curated_name_early:-${curated_name:-$agent_type}}" 2>/dev/null)
         if [[ -n "$persona_override_file" && -f "$persona_override_file" ]]; then
             local pack_persona
             pack_persona=$(cat "$persona_override_file" 2>/dev/null)
@@ -15923,9 +15974,9 @@ run_agent_sync() {
         role=$(get_role_for_context "$agent_type" "$task_type" "$phase")
     fi
 
-    # Apply persona to prompt
+    # Apply persona to prompt (v8.53.0: empty agent_name — readonly not enforced in sync agents)
     local enhanced_prompt
-    enhanced_prompt=$(apply_persona "$role" "$prompt")
+    enhanced_prompt=$(apply_persona "$role" "$prompt" "false" "")
 
     # v8.21.0: Check for persona pack override (run_agent_sync)
     if type get_persona_override &>/dev/null 2>&1 && [[ "${OCTOPUS_PERSONA_PACKS:-auto}" != "off" ]]; then
@@ -21495,6 +21546,30 @@ case "$COMMAND" in
     config|configure|preferences)
         # v4.5: Reconfigure user preferences
         reconfigure_preferences
+        ;;
+    agent-resume)
+        # v8.53.0: Resume a previous agent by ID
+        # Wraps resume_agent() — requires SUPPORTS_CONTINUATION + SUPPORTS_STABLE_AGENT_TEAMS
+        if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+            echo "Usage: $(basename "$0") agent-resume <agent-id> [prompt] [task-id]"
+            echo "Resumes a previous Claude agent transcript. Requires CC v2.1.55+ and Agent Teams."
+            echo "Example: $(basename "$0") agent-resume abc123 'continue the refactor'"
+            exit 0
+        fi
+        if [[ $# -lt 1 || -z "${1:-}" ]]; then
+            log ERROR "agent-resume: missing agent-id"
+            echo "Usage: $(basename "$0") agent-resume <agent-id> [prompt] [task-id]"
+            exit 1
+        fi
+        local _agent_id="$1"
+        local _resume_prompt="${2:-Continue where you left off.}"
+        local _resume_task="${3:-$(date +%s)}"
+        resume_agent "$_agent_id" "$_resume_prompt" "$_resume_task" || {
+            log ERROR "resume_agent failed for agent_id=$_agent_id"
+            log INFO "Requirements: SUPPORTS_CONTINUATION=true (CC v2.1.55+) AND SUPPORTS_STABLE_AGENT_TEAMS=true"
+            log INFO "Run: $(basename "$0") doctor  to check environment flags"
+            exit 1
+        }
         ;;
     spawn)
         [[ $# -lt 2 ]] && { log ERROR "Usage: spawn <agent> <prompt>"; exit 1; }

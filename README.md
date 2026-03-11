@@ -7,7 +7,7 @@ A Claude Code plugin that turns one model into three. Orchestrates Codex, Gemini
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-8.52.0-blue" alt="Version 8.52.0">
+  <img src="https://img.shields.io/badge/Version-8.53.0-blue" alt="Version 8.53.0">
   <img src="https://img.shields.io/badge/Claude_Code-v2.1.50+-blueviolet" alt="Requires Claude Code v2.1.50+">
   <img src="https://img.shields.io/badge/Factory_AI-Compatible-orange" alt="Factory AI Compatible">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
@@ -19,7 +19,7 @@ A Claude Code plugin that turns one model into three. Orchestrates Codex, Gemini
 
 🔄 **Methodology, not just machinery.** Built on the Double Diamond framework, every task moves through four structured phases: discover, define, develop, deliver. Quality gates between phases mean sloppy work can't advance. Other orchestrators give you infrastructure to build workflows on — Octopus gives you the workflows.
 
-🐙 **32 specialized personas, 38 commands, 50 skills.** Not generic agents. A security-auditor that thinks in OWASP. A backend-architect that designs APIs. A ui-ux-designer grounded in BM25 design intelligence. Personas activate automatically based on what you ask — say "audit my API" and the right expert shows up. Don't know the command name? Just say what you need — the smart router figures it out.
+🐙 **32 specialized personas, 39 commands, 50 skills.** Not generic agents. A security-auditor that thinks in OWASP. A backend-architect that designs APIs. A ui-ux-designer grounded in BM25 design intelligence. Personas activate automatically based on what you ask — say "audit my API" and the right expert shows up. Don't know the command name? Just say what you need — the smart router figures it out.
 
 🐙 **Works with just Claude. Scales to three.** Zero external providers needed to start. You get every persona, every workflow, every skill on day one. Add Codex or Gemini and multi-AI orchestration lights up — parallel research, adversarial debate, cross-model review.
 
@@ -31,6 +31,7 @@ A Claude Code plugin that turns one model into three. Orchestrates Codex, Gemini
 
 | Version | What shipped |
 |---------|-------------|
+| **8.53** | **Agent ergonomics** — `readonly: true` frontmatter for read-only agents, user-scope agents from `~/.claude/agents/`, `/octo:resume` for agent continuation |
 | **8.45** | **Reaction engine** — configurable auto-response to CI failures, review comments, stuck agents; 13-state PR lifecycle tracking; escalation with timeout; transparent integration into health/sentinel/parallel |
 | **8.44** | **Agent lifecycle & PR integration** — agent registry with persistent tracking, worktree-per-agent parallelism, PR comment posting from reviews |
 | **8.43** | **Output quality & design critique** — context-aware quality injection (6 dev subtypes), reference integrity gate, three-way adversarial design critique, synthesis over concatenation |

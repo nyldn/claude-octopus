@@ -228,7 +228,7 @@ else
 fi
 
 # 3.6: Skill content appended after persona+prompt (v8.16 cache optimization)
-if grep -A 120 '^spawn_agent()' "$ORCHESTRATE_SH" | grep -q 'Agent Skill Context'; then
+if grep -A 140 '^spawn_agent()' "$ORCHESTRATE_SH" | grep -q 'Agent Skill Context'; then
     assert_pass "3.6 Skill content appended after persona+prompt (cache-optimized)"
 else
     assert_fail "3.6 Skill content appended after persona+prompt (cache-optimized)"
