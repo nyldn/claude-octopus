@@ -1,6 +1,6 @@
 # Command Reference
 
-Complete reference for all Claude Octopus commands.
+Complete reference for all 38 Claude Octopus commands.
 
 ---
 
@@ -8,131 +8,135 @@ Complete reference for all Claude Octopus commands.
 
 All commands use the `/octo:` namespace.
 
+### Smart Router
+
+| Command | Description |
+|---------|-------------|
+| `/octo` | Natural language router — detects intent and routes to the right workflow |
+
 ### System Commands
 
 | Command | Description |
 |---------|-------------|
-| `/octo:setup` | Check setup status and configure providers |
-| `/octo:dev` | Switch to Dev Work mode |
+| `/octo:setup` | Check setup status and configure providers (alias: `/octo:sys-setup`) |
+| `/octo:doctor` | Environment diagnostics across 9 check categories |
+| `/octo:model-config` | Configure provider model selection per workflow phase |
 | `/octo:km` | Toggle Knowledge Work mode |
-| `/octo:sys-setup` | Alias for `/octo:setup` |
-| `/octo:model-config` | Configure provider model selection |
-| `/octo:doctor` | Environment diagnostics with 9 check categories |
+| `/octo:dev` | Switch to Dev Work mode |
 
-### Workflow Commands
+### Double Diamond Workflow
 
 | Command | Phase | Description |
 |---------|-------|-------------|
+| `/octo:embrace` | All | Full 4-phase Double Diamond workflow |
 | `/octo:discover` | Discover | Multi-AI research and exploration |
 | `/octo:define` | Define | Requirements clarification and scope |
 | `/octo:develop` | Develop | Multi-AI implementation |
 | `/octo:deliver` | Deliver | Validation and quality assurance |
-| `/octo:embrace` | All | Full 4-phase Double Diamond workflow |
+| `/octo:plan` | Pre-flight | Strategic plan builder (doesn't execute) |
 
-### Skill Commands
+### Research & Knowledge
 
 | Command | Description |
 |---------|-------------|
-| `/octo:debate` | AI Debate Hub - 3-way debates (Claude + Gemini + Codex) |
-| `/octo:review` | Expert code review with quality assessment |
 | `/octo:research` | Deep research with multi-source synthesis |
+| `/octo:brainstorm` | Creative thought partner brainstorming session |
+| `/octo:debate` | AI Debate Hub — 3-way debates (Claude + Gemini + Codex) |
+| `/octo:prd` | Write an AI-optimized PRD with 100-point scoring |
+| `/octo:prd-score` | Score an existing PRD against the framework |
+| `/octo:spec` | NLSpec authoring from multi-AI research |
+
+### Code Quality & Review
+
+| Command | Description |
+|---------|-------------|
+| `/octo:review` | Expert code review with quality assessment and PR comment posting |
+| `/octo:staged-review` | Two-stage review: spec compliance then code quality |
 | `/octo:security` | Security audit with OWASP compliance |
-| `/octo:debug` | Systematic debugging with investigation |
-| `/octo:tdd` | Test-driven development workflows |
-| `/octo:docs` | Document delivery (PPTX/DOCX/PDF export) |
+| `/octo:debug` | Systematic debugging with root cause investigation |
+| `/octo:tdd` | Test-driven development with red-green-refactor |
+
+### Parallel & Orchestration
+
+| Command | Description |
+|---------|-------------|
+| `/octo:parallel` | Team of Teams — decompose compound tasks across independent Claude instances |
+| `/octo:factory` | Dark Factory Mode — spec-in, software-out autonomous pipeline |
+| `/octo:multi` | Force multi-provider parallel execution for any task |
+| `/octo:loop` | Iterative execution with conditions until goals are met |
+| `/octo:quick` | Quick execution without full workflow overhead |
+
+### Content & Docs
+
+| Command | Description |
+|---------|-------------|
+| `/octo:docs` | Document delivery with export to PPTX, DOCX, PDF |
+| `/octo:deck` | Slide deck generator from briefs or research |
+| `/octo:pipeline` | Content analysis pipeline — extract patterns from URLs |
+| `/octo:meta-prompt` | Generate optimized prompts using meta-prompting techniques |
+| `/octo:extract` | Design system & product reverse-engineering from codebases or live products |
+| `/octo:design-ui-ux` | Full UI/UX design workflow with BM25 design intelligence |
+
+### Monitoring & Scheduling
+
+| Command | Description |
+|---------|-------------|
+| `/octo:sentinel` | GitHub-aware work monitor — triage issues, PRs, and CI failures |
+| `/octo:schedule` | Manage scheduled workflow jobs (wizard, dashboard, enable/disable) |
+| `/octo:scheduler` | Manage the scheduler daemon (start/stop/status) |
+
+### Admin
+
+| Command | Description |
+|---------|-------------|
 | `/octo:claw` | OpenClaw instance admin across macOS, Ubuntu/Debian, Docker, OCI, Proxmox |
 
-### Project Lifecycle Commands
+### Project Lifecycle (Skill-Based)
 
-| Command | Description |
-|---------|-------------|
-| `/octo:status` | Show project progress dashboard |
-| `/octo:resume` | Restore context from previous session |
-| `/octo:ship` | Finalize project with Multi-AI validation |
-| `/octo:issues` | Track issues across sessions |
-| `/octo:rollback` | Restore from checkpoint |
+These are invoked via natural language or skill triggers — not slash commands.
 
----
-
-## Project Lifecycle Commands
-
-Commands for managing project state across sessions.
-
-### `/octo:status`
-
-Show project progress dashboard.
-
-**Usage:** `/octo:status`
-
-**Output:**
-- Current phase and position
-- Roadmap progress with checkmarks
-- Active blockers
-- Suggested next action
+| Feature | Natural Language | Description |
+|---------|-----------------|-------------|
+| Status | "show status", "where am I" | Project progress dashboard |
+| Resume | "resume", "continue", "pick up where I left off" | Restore context from previous session |
+| Ship | "ship", "finalize", "I'm done" | Finalize project with Multi-AI validation |
+| Issues | "add issue", "show issues" | Track blockers and bugs across sessions |
+| Rollback | "rollback", "revert", "restore checkpoint" | Restore from git checkpoint |
 
 ---
 
-### `/octo:resume`
+## Smart Router
 
-Restore context from previous session.
+### `/octo`
 
-**Usage:** `/octo:resume`
+Single entry point with natural language intent detection. Analyzes your request and routes to the optimal workflow automatically.
 
-**Behavior:**
-1. Reads `.octo/STATE.md` for current position
-2. Loads context using adaptive tier
-3. Shows restoration summary
-4. Suggests next action
+**Usage:**
+```
+/octo research OAuth authentication patterns
+/octo build user authentication system
+/octo validate src/auth.ts
+/octo should we use Redis or Memcached?
+/octo create a complete e-commerce platform
+```
 
----
+**Routing table:**
 
-### `/octo:ship`
+| Intent | Keywords | Routes To |
+|--------|----------|-----------|
+| Research | research, investigate, explore, analyze | `/octo:discover` |
+| Build (specific) | build X, create Y, implement Z | `/octo:develop` |
+| Build (vague) | build, create, make (no clear target) | `/octo:plan` |
+| Validate | validate, review, check, audit, verify | `/octo:review` |
+| Debate | should, vs, or, compare, versus, which | `/octo:debate` |
+| Specify | spec, specify, requirements, nlspec | `/octo:spec` |
+| Parallel | parallel, decompose, work packages, multi-instance | `/octo:parallel` |
+| Lifecycle | end-to-end, complete, full, entire, whole | `/octo:embrace` |
 
-Finalize project with Multi-AI validation.
-
-**Usage:** `/octo:ship`
-
-**Behavior:**
-1. Verifies project ready (all phases complete)
-2. Runs Multi-AI security audit (Codex + Gemini + Claude)
-3. Captures lessons learned
-4. Archives project state
-5. Creates shipped checkpoint
-
----
-
-### `/octo:issues`
-
-Track issues across sessions.
-
-**Usage:** `/octo:issues [list|add|resolve|show] [args]`
-
-**Subcommands:**
-- `list` - Show all open issues (default)
-- `add <description>` - Add new issue
-- `resolve <id>` - Mark issue resolved
-- `show <id>` - Show issue details
-
-**Issue ID Format:** `ISS-YYYYMMDD-NNN`
-
-**Severity Levels:** critical, high, medium, low
-
----
-
-### `/octo:rollback`
-
-Restore from checkpoint.
-
-**Usage:** `/octo:rollback [list|<tag>]`
-
-**Subcommands:**
-- `list` - Show available checkpoints (default)
-- `<tag>` - Rollback to specific checkpoint
-
-**Safety:**
-- Creates pre-rollback checkpoint automatically
-- Preserves LESSONS.md (never rolled back)
-- Requires explicit "ROLLBACK" confirmation
+**Confidence levels:**
+- `>80%` — Auto-routes with notification
+- `70–80%` — Shows suggestion, asks for confirmation
+- `<70%` — Lists options, asks to clarify
 
 ---
 
@@ -142,6 +146,8 @@ Restore from checkpoint.
 
 Check setup status and configure AI providers.
 
+**Aliases:** `/octo:sys-setup`
+
 **Usage:**
 ```
 /octo:setup
@@ -149,7 +155,7 @@ Check setup status and configure AI providers.
 
 **What it does:**
 - Auto-detects installed providers (Codex CLI, Gemini CLI)
-- Shows which providers are available
+- Shows which providers are available and their auth status
 - Provides installation instructions for missing providers
 - Verifies API keys and authentication
 
@@ -161,8 +167,12 @@ Providers:
   Codex CLI: ready
   Gemini CLI: ready
 
-You're all set! Try: octo research OAuth patterns
+You're all set! Try: /octo research OAuth patterns
 ```
+
+**Troubleshooting:** If you see "Failed to update: Plugin 'octo' not found", run `/octo:setup` for reinstall instructions, or see [issue #17](https://github.com/nyldn/claude-octopus/issues/17).
+
+---
 
 ### `/octo:doctor`
 
@@ -199,6 +209,35 @@ Run environment diagnostics across 9 check categories.
 
 ---
 
+### `/octo:model-config`
+
+Configure which AI models are used across Claude Octopus workflows.
+
+**Usage:**
+```
+/octo:model-config                          # View current config
+/octo:model-config show phases              # Show per-phase routing table
+/octo:model-config codex gpt-5.4            # Set Codex model
+/octo:model-config codex gpt-5.3-codex-spark  # Fast Spark model
+/octo:model-config gemini gemini-3-pro-preview  # Set Gemini model
+/octo:model-config cost-mode budget         # Use cheaper models
+/octo:model-config cost-mode premium        # Use best models
+/octo:model-config trace                    # Debug model resolution
+/octo:model-config reset                    # Reset to defaults
+```
+
+**Cost modes:**
+
+| Mode | Codex | Gemini | Best for |
+|------|-------|--------|----------|
+| `budget` | gpt-5.3-codex-spark | gemini-3-flash | High-volume, quick feedback |
+| `standard` | gpt-5.4 | gemini-3-pro-preview | Default — balanced cost/quality |
+| `premium` | gpt-5.4-pro | gemini-3-ultra | Critical decisions, maximum quality |
+
+**Per-phase routing:** Different models can be configured for Discover, Define, Develop, and Deliver phases. Use `show phases` to view the current routing table.
+
+---
+
 ### `/octo:km`
 
 Toggle between Dev Work mode and Knowledge Work mode.
@@ -211,10 +250,13 @@ Toggle between Dev Work mode and Knowledge Work mode.
 ```
 
 **Modes:**
+
 | Mode | Focus | Best For |
 |------|-------|----------|
 | Dev Work (default) | Code, tests, debugging | Software development |
 | Knowledge Work | Research, strategy, UX | Consulting, research, product work |
+
+---
 
 ### `/octo:dev`
 
@@ -229,20 +271,46 @@ Equivalent to `/octo:km off`.
 
 ---
 
-## Workflow Commands
+## Double Diamond Workflow
+
+### `/octo:embrace`
+
+Full Double Diamond workflow — all 4 phases in sequence.
+
+**Usage:**
+```
+/octo:embrace complete authentication system
+/octo:embrace e-commerce platform with payments and inventory
+```
+
+**What it does:**
+1. **Discover** 🔍 — Multi-AI research: patterns, trade-offs, prior art
+2. **Define** 🎯 — Requirements clarification: scope, constraints, acceptance criteria
+3. **Develop** 🛠️ — Multi-AI implementation with quality gates (75% threshold)
+4. **Deliver** ✅ — Validation, go/no-go recommendation, PR comment posting
+
+**Multi-LLM debate gates** at each phase transition — optional Claude + Codex + Gemini deliberation before moving forward.
+
+Shows visual indicator: 🐙 (all phases)
+
+**Note:** Mandatory compliance means Claude cannot skip this workflow for tasks it judges "too simple." The user controls when to use `/octo:embrace`.
+
+---
 
 ### `/octo:discover`
 
-Discovery phase - Multi-AI research and exploration.
+Discovery phase — Multi-AI research and exploration.
 
 **Usage:**
 ```
 /octo:discover OAuth authentication patterns
+/octo:discover microservices vs monolith trade-offs
 ```
 
 **What it does:**
-- Launches parallel research using Codex CLI + Gemini CLI
-- Synthesizes findings from multiple AI perspectives
+- Parallel research using Codex CLI + Gemini CLI
+- Relevance-aware synthesis with quality ranking (v8.49.0+)
+- Minority opinion preservation — surfaces dissenting views
 - Shows visual indicator: 🐙 🔍
 
 **Natural language triggers:**
@@ -250,18 +318,22 @@ Discovery phase - Multi-AI research and exploration.
 - `octo explore Y`
 - `octo investigate Z`
 
+---
+
 ### `/octo:define`
 
-Definition phase - Clarify requirements and scope.
+Definition phase — Clarify requirements and scope with multi-AI consensus.
 
 **Usage:**
 ```
 /octo:define requirements for user authentication
+/octo:define scope of the payment system refactor
 ```
 
 **What it does:**
 - Multi-AI consensus on problem definition
-- Identifies success criteria and constraints
+- Identifies success criteria, constraints, and non-goals
+- Optional multi-LLM debate gate before finalizing
 - Shows visual indicator: 🐙 🎯
 
 **Natural language triggers:**
@@ -269,17 +341,25 @@ Definition phase - Clarify requirements and scope.
 - `octo clarify scope of Y`
 - `octo scope out Z feature`
 
+---
+
 ### `/octo:develop`
 
-Development phase - Multi-AI implementation.
+Development phase — Multi-AI implementation with quality gates.
 
 **Usage:**
 ```
 /octo:develop user authentication system
+/octo:develop REST API for order management
 ```
 
 **What it does:**
-- Generates implementation approaches from multiple AIs
+- Generates implementation from multiple AI perspectives
+- Context-aware quality injection based on detected subtype:
+  - **frontend-ui**: accessibility, self-containment, BM25 design intelligence
+  - **cli-tool**: exit codes, help text, argument validation
+  - **api-service**: input validation, auth requirements
+  - **infra**, **data**, **general**: domain-appropriate criteria
 - Applies 75% quality gate threshold
 - Shows visual indicator: 🐙 🛠️
 
@@ -288,49 +368,94 @@ Development phase - Multi-AI implementation.
 - `octo implement Y`
 - `octo create Z`
 
+---
+
 ### `/octo:deliver`
 
-Delivery phase - Validation and quality assurance.
+Delivery phase — Validation, quality assurance, and PR comment posting.
 
 **Usage:**
 ```
 /octo:deliver authentication implementation
+/octo:deliver src/api/
 ```
 
 **What it does:**
 - Multi-AI validation and review
-- Quality scores and go/no-go recommendation
+- Reference integrity gate (checks for broken file references)
+- Quality scores with go/no-go recommendation
+- **Auto-posts review findings as PR comments** when an open PR is detected (v8.44.0+)
 - Shows visual indicator: 🐙 ✅
 
 **Natural language triggers:**
-- `octo review X`
-- `octo validate Y`
+- `octo validate X`
 - `octo audit Z`
-
-### `/octo:embrace`
-
-Full Double Diamond workflow - all 4 phases.
-
-**Usage:**
-```
-/octo:embrace complete authentication system
-```
-
-**What it does:**
-1. **Discover**: Research patterns and approaches
-2. **Define**: Clarify requirements
-3. **Develop**: Implement with quality gates
-4. **Deliver**: Validate and finalize
-
-Shows visual indicator: 🐙 (all phases)
 
 ---
 
-## Skill Commands
+### `/octo:plan`
+
+Intelligent plan builder — creates strategic execution plans without executing them.
+
+**Usage:**
+```
+/octo:plan build a real-time chat system
+/octo:plan migrate our monolith to microservices
+```
+
+**What it does:**
+- Captures comprehensive intent via 5 structured questions (goal, knowledge level, constraints, timeline, success criteria)
+- Analyzes requirements and generates a weighted execution strategy
+- Saves plan to `.claude/session-plan.md` and intent contract to `.claude/session-intent.md`
+- Offers to execute immediately with `/octo:embrace` or save for later
+
+**Aliases:** `build-plan`, `intent`
+
+**When to use:** When you want to think through a complex task before committing to execution. Use `/octo:embrace` to execute a plan.
+
+---
+
+## Research & Knowledge
+
+### `/octo:research`
+
+Deep research with multi-source synthesis and comprehensive analysis.
+
+**Usage:**
+```
+/octo:research microservices patterns
+/octo:research OAuth 2.0 vs API key authentication
+```
+
+**What it does:**
+- Multi-AI research using Codex, Gemini, and Claude
+- Documentation lookup and ecosystem analysis
+- Synthesizes findings into actionable, structured insights
+
+---
+
+### `/octo:brainstorm`
+
+Creative thought partner brainstorming session.
+
+**Usage:**
+```
+/octo:brainstorm
+/octo:brainstorm my approach to customer onboarding
+```
+
+**What it does:**
+- Structured exploration using four breakthrough techniques: Pattern Spotting, Paradox Hunting, Naming the Unnamed, Contrast Creation
+- Guided questioning — one question at a time
+- Challenges generic claims until insights become specific
+- Collaboratively names discovered concepts
+- Exports session with breakthroughs summary
+
+---
 
 ### `/octo:debate`
 
-AI Debate Hub - Structured 3-way debates.
+AI Debate Hub — structured 3-way debates between Claude, Gemini, and Codex.
 
 **Usage:**
 ```
@@ -340,54 +465,133 @@ AI Debate Hub - Structured 3-way debates.
 ```
 
 **Options:**
+
 | Flag | Description |
 |------|-------------|
 | `-r N`, `--rounds N` | Number of debate rounds (default: 2) |
-| `-d STYLE`, `--debate-style STYLE` | quick, thorough, adversarial, collaborative |
+| `-d STYLE`, `--debate-style STYLE` | `quick`, `thorough`, `adversarial`, `collaborative` |
 
 **What it does:**
 - Claude, Gemini CLI, and Codex CLI debate the topic
-- Claude participates as both debater and moderator
-- Produces synthesis with recommendations
+- Claude acts as both participant and moderator
+- Anti-sycophancy gate prevents consensus from forming too easily
+- Produces synthesis with concrete recommendation
 
 **Natural language triggers:**
 - `octo debate X vs Y`
 - `run a debate about Z`
 - `I want gemini and codex to review X`
 
+---
+
+### `/octo:prd`
+
+Write an AI-optimized PRD using multi-AI orchestration and 100-point scoring framework.
+
+**Usage:**
+```
+/octo:prd user authentication system
+/octo:prd real-time notifications feature
+```
+
+**What it does:**
+1. Clarification phase — target users, core problem, success criteria, constraints
+2. Quick research (2 web searches max)
+3. Generates structured PRD with sequential phases, explicit non-goals, FR codes, P0/P1/P2 priorities
+4. Scores against 100-point AI-optimization framework
+5. Saves to file
+
+---
+
+### `/octo:prd-score`
+
+Score an existing PRD against the 100-point AI-optimization framework.
+
+**Usage:**
+```
+/octo:prd-score path/to/PRD.md
+```
+
+**Scoring categories:**
+
+| Category | Points | What it measures |
+|----------|--------|-----------------|
+| AI-Specific Optimization | 25 | Sequential phases, explicit non-goals, structured format |
+| Traditional PRD Core | 25 | Problem statement, goals, personas, technical specs |
+| Implementation Clarity | 30 | Functional requirements, NFRs, architecture |
+| Completeness | 20 | Edge cases, error handling, success metrics |
+
+---
+
+### `/octo:spec`
+
+NLSpec authoring — structured specification from multi-AI research.
+
+**Aliases:** `nlspec`, `specification`
+
+**Usage:**
+```
+/octo:spec user authentication system
+/octo:spec real-time chat with presence indicators
+```
+
+**What it does:**
+- Question-first approach to understand scope
+- Multi-AI research (Claude + Gemini + Codex) on the domain
+- Generates structured NLSpec: behaviors, actors, constraints, acceptance criteria
+- Completeness validation with scoring
+- Saves specification file for downstream workflows (e.g., `/octo:factory`)
+
+**When to use:** Starting a new project from scratch, defining requirements before implementation, creating a specification for handoff.
+
+---
+
+## Code Quality & Review
+
 ### `/octo:review`
 
-Expert code review with quality assessment.
+Expert code review with comprehensive quality assessment and PR comment posting.
 
 **Usage:**
 ```
 /octo:review auth.ts
 /octo:review src/components/
+/octo:review                    # Review recent changes
 ```
 
 **What it does:**
 - Comprehensive code quality analysis
 - Security vulnerability detection
-- Architecture review
-- Best practices enforcement
+- Architecture review and best practices enforcement
+- **Auto-posts findings as PR comment** when an open PR exists on the current branch (v8.44.0+) — asks first in standalone mode, auto-posts during automated workflows
 
-### `/octo:research`
+---
 
-Deep research with multi-source synthesis.
+### `/octo:staged-review`
+
+Two-stage review pipeline: spec compliance then code quality.
+
+**Aliases:** `two-stage-review`, `full-review`
 
 **Usage:**
 ```
-/octo:research microservices patterns
+/octo:staged-review
+/octo:staged-review src/auth/
 ```
 
-**What it does:**
-- Multi-source research using AI providers
-- Documentation lookup via librarian
-- Synthesizes findings into actionable insights
+**Stages:**
+1. **Stage 1 — Spec Compliance**: Validates against intent contract (`.claude/session-intent.md`)
+2. **Gate check**: Stage 1 must pass before Stage 2 runs
+3. **Stage 2 — Code Quality**: Stub detection and quality review
+4. **Combined report**: Unified verdict with PR comment posting when applicable
+
+**When to use:** After completing a feature with a defined spec, before merging. More thorough than `/octo:review`.
+
+---
 
 ### `/octo:security`
 
-Security audit with OWASP compliance.
+Security audit with OWASP compliance and vulnerability detection.
 
 **Usage:**
 ```
@@ -398,52 +602,383 @@ Security audit with OWASP compliance.
 **What it does:**
 - OWASP Top 10 vulnerability scanning
 - Authentication and authorization review
-- Input validation checks
+- Input validation and injection checks
 - Red team analysis (adversarial testing)
+
+---
 
 ### `/octo:debug`
 
-Systematic debugging with investigation.
+Systematic debugging with methodical root cause investigation.
 
 **Usage:**
 ```
 /octo:debug failing test in auth.spec.ts
+/octo:debug TypeError in payment processor
 ```
 
 **What it does:**
-1. Investigate: Gather evidence
-2. Analyze: Root cause identification
-3. Hypothesize: Form theories
-4. Implement: Fix with verification
+1. **Investigate** — Gather evidence, reproduce the issue
+2. **Analyze** — Root cause identification
+3. **Hypothesize** — Form and rank theories
+4. **Implement** — Fix with verification
+
+---
 
 ### `/octo:tdd`
 
-Test-driven development workflows.
+Test-driven development with red-green-refactor discipline.
 
 **Usage:**
 ```
 /octo:tdd implement user registration
+/octo:tdd add password validation
 ```
 
 **What it does:**
-- Red: Write failing test first
-- Green: Minimal code to pass
-- Refactor: Improve while keeping tests green
+- **Red**: Write failing test first
+- **Green**: Minimal code to make it pass
+- **Refactor**: Improve while keeping tests green
+
+---
+
+## Parallel & Orchestration
+
+### `/octo:parallel`
+
+Team of Teams — decompose compound tasks across independent Claude instances.
+
+**Aliases:** `team`, `teams`
+
+**Usage:**
+```
+/octo:parallel build a full authentication system with OAuth, RBAC, and audit logging
+/octo:parallel create CI/CD pipeline with testing, linting, and deployment stages
+```
+
+**What it does:**
+- Generates a Work Breakdown Structure (WBS) decomposing the task into independent work packages
+- Each work package runs as a separate `claude -p` process with its own git worktree (v8.44.0+)
+- Each worker gets the full Octopus plugin (Double Diamond, agents, quality gates)
+- Parallel execution with staggered launch
+- Agents tracked in registry with PR lifecycle management (v8.44.0+)
+- Reaction engine auto-handles CI failures and review comments (v8.45.0+)
+- Aggregates results into unified output
+
+**When to use:** Compound tasks with 3+ independent components where parallel execution and full plugin capabilities per component are needed.
+
+---
+
+### `/octo:factory`
+
+Dark Factory Mode — spec-in, software-out autonomous pipeline.
+
+**Aliases:** `dark-factory`, `build-from-spec`
+
+**Usage:**
+```
+/octo:factory --spec path/to/spec.nlspec
+```
+
+**What it does:**
+1. Asks 3 clarifying questions: spec path, satisfaction target, cost confirmation
+2. Parses the NLSpec file
+3. Generates test scenarios (Codex)
+4. Runs the full embrace workflow
+5. Evaluates against holdout test suite (Codex + Gemini blind review)
+6. Scores against satisfaction target
+7. Repeats if target not met (up to configured limit)
+8. Produces final delivery report
+
+**Cost:** ~20–30 agent calls (~$0.50–2.00). Requires confirmation before starting.
+
+**Requires:** A spec file (create one with `/octo:spec`). Works in Claude-only mode if external providers unavailable.
+
+---
+
+### `/octo:multi`
+
+Force multi-provider parallel execution for any task — manual override mode.
+
+**Usage:**
+```
+/octo:multi analyze the security of this authentication flow
+/octo:multi review these architectural trade-offs
+```
+
+**What it does:**
+- Asks for intent and cost confirmation before proceeding
+- Runs the task in parallel across Codex, Gemini, and Claude
+- Synthesizes perspectives into a unified response
+
+**Cost:** Uses external API credits (Codex + Gemini). Confirms before running.
+
+**When to use:** High-stakes decisions, cross-checking important work, comparing model perspectives. For most tasks, the router (`/octo`) or specific workflow commands are better.
+
+---
+
+### `/octo:loop`
+
+Iterative execution with conditions until goals are met.
+
+**Usage:**
+```
+/octo:loop "run tests and fix issues" --max 5
+/octo:loop "optimize performance until < 100ms"
+/octo:loop "keep improving until all lint errors are resolved"
+```
+
+**What it does:**
+- Executes a task iteratively
+- Checks exit condition after each iteration
+- Stops when condition is met or max iterations reached
+- Reports progress and final outcome
+
+---
+
+### `/octo:quick`
+
+Quick execution mode — ad-hoc tasks without full workflow overhead.
+
+**Usage:**
+```
+/octo:quick fix typo in README
+/octo:quick update Next.js to v15
+/octo:quick remove console.log statements
+/octo:quick add error handling to login function
+```
+
+**What it does:**
+1. Directly implements the change
+2. Creates atomic commit
+3. Generates summary
+
+**Skips:** Research, planning, multi-AI validation.
+
+**Cost:** Claude only — no external provider costs.
+
+**When to escalate:** If the task becomes complex, use `/octo:discover` for research or `/octo:embrace` for full workflow.
+
+---
+
+## Content & Docs
 
 ### `/octo:docs`
 
-Document delivery with export options.
+Document delivery with export to PPTX, DOCX, and PDF formats.
 
 **Usage:**
 ```
 /octo:docs create API documentation
 /octo:docs export report.md to PPTX
+/octo:docs write architecture guide as DOCX
 ```
 
 **Supported formats:**
 - DOCX (Word)
 - PPTX (PowerPoint)
 - PDF
+
+---
+
+### `/octo:deck`
+
+Slide deck generator from briefs, research, or topic descriptions.
+
+**Usage:**
+```
+/octo:deck investor pitch for AI-powered logistics startup
+/octo:deck quarterly business review for engineering leadership
+/octo:deck technical deep-dive on our microservices migration
+```
+
+**Pipeline:**
+1. **Brief** — Clarify audience, slide count, and tone
+2. **Research** — Optional context gathering (or bring your own content)
+3. **Outline** — Slide-by-slide structure for your approval
+4. **PPTX** — Rendered PowerPoint file
+
+**Tip:** Run `/octo:discover [topic]` first for research-heavy presentations, then pipe the output to `/octo:deck`.
+
+---
+
+### `/octo:pipeline`
+
+Content analysis pipeline — extract patterns and anatomy guides from URLs.
+
+**Usage:**
+```
+/octo:pipeline https://example.com/great-article
+/octo:pipeline https://url1.com https://url2.com https://url3.com
+```
+
+**What it does:**
+1. Fetches and validates content from URLs
+2. Deconstructs patterns: structure, psychology, mechanics
+3. Synthesizes findings into a reusable anatomy guide
+4. Generates interview questions for content recreation
+
+---
+
+### `/octo:meta-prompt`
+
+Generate optimized prompts using proven meta-prompting techniques.
+
+**Usage:**
+```
+/octo:meta-prompt
+/octo:meta-prompt create a code review checklist
+/octo:meta-prompt design a user onboarding flow
+```
+
+**What it does:**
+- Applies Task Decomposition for complex tasks
+- Assigns Specialized Experts for each subtask
+- Builds in Iterative Verification steps
+- Enforces No Guessing (explicit uncertainty disclaimers)
+- Generates a structured prompt with role definition, phases, expert assignments, verification checkpoints, and output format
+
+---
+
+### `/octo:extract`
+
+Design system & product reverse-engineering — extract tokens, components, architecture, and PRDs from codebases or live products.
+
+**Aliases:** `reverse-engineer`, `analyze-codebase`
+
+**Usage:**
+```
+/octo:extract src/components/
+/octo:extract https://example.com
+/octo:extract design-system.pdf
+```
+
+**What it extracts:**
+- Design tokens (colors, typography, spacing, shadows)
+- Component inventory and API patterns
+- Architecture patterns and data flows
+- PRD-style feature documentation
+
+**Supports:** Codebase directories, live URLs (via browser), PDF files (with page selection for large PDFs).
+
+---
+
+### `/octo:design-ui-ux`
+
+Full UI/UX design workflow with BM25 design intelligence and optional Figma integration.
+
+**Aliases:** `design`, `ui-design`, `ux-design`
+
+**Usage:**
+```
+/octo:design-ui-ux design a dashboard for analytics
+/octo:design-ui-ux pick colors for a fintech app
+/octo:design-ui-ux create component specs for the checkout flow
+/octo:design-ui-ux review this Figma and create dev specs
+```
+
+**Modes:**
+
+| Intent | Mode |
+|--------|------|
+| "design a [product/screen]" | Full 4-phase Double Diamond design workflow |
+| "pick colors for X" | Quick BM25 palette search |
+| "review this Figma" | Figma context pull + spec generation |
+| "create component specs" | Focused component spec generation |
+
+**Tools used:**
+- 🔍 BM25 Design Intelligence — Style, palette, typography, and UX pattern databases
+- 🔵 Claude (ui-ux-designer persona) — Design synthesis and specification
+- 🎨 Figma MCP — Design context when a Figma URL is provided
+- 🧩 shadcn MCP — Component suggestions when available
+
+**Three-way adversarial design critique** (v8.43.0+): Between Define and Develop phases, Codex, Gemini, and Claude each review the proposed design direction independently, issues are triaged, and fixes are applied before tokens/components are generated.
+
+---
+
+## Monitoring & Scheduling
+
+### `/octo:sentinel`
+
+GitHub-aware work monitor — triages issues, PRs, and CI failures.
+
+**Usage:**
+```
+/octo:sentinel              # One-time triage scan
+/octo:sentinel --watch      # Continuous monitoring
+```
+
+**What it monitors:**
+
+| Source | Filter | Action |
+|--------|--------|--------|
+| Issues | `octopus` label | Classifies by task type → workflow recommendation |
+| PRs | Review requested | Recommends `/octo:review` |
+| CI runs | Failed status | Recommends `/octo:debug` |
+
+**What it does:**
+- Reads GitHub state (issues, PRs, CI runs)
+- Classifies and recommends workflows
+- Writes findings to `.octo/sentinel/triage-log.md`
+- Fires the reaction engine after triage (v8.45.0+) — auto-forwards CI failures and review comments to agents
+- **Never** auto-executes any workflow
+
+**Requirements:**
+- `OCTOPUS_SENTINEL_ENABLED=true` must be set
+- `gh` CLI installed and authenticated
+
+---
+
+### `/octo:schedule`
+
+Manage scheduled workflow jobs — add, list, enable, disable, remove, view logs.
+
+**Aliases:** `jobs`, `cron`
+
+**Usage:**
+```
+/octo:schedule                          # Dashboard — show all jobs
+/octo:schedule add a daily security scan at 9am
+/octo:schedule enable <job-id>
+/octo:schedule disable <job-id>
+/octo:schedule remove <job-id>
+/octo:schedule logs [job-id]
+```
+
+**Natural language:** Describe what you want scheduled in plain English. The guided wizard collects schedule, workflow, and budget.
+
+**What you get:**
+- Job dashboard with status, last run, next run, daily spend
+- Budget gates — jobs stop when daily spend limit is reached
+- Kill switches — emergency stop per-job or all-jobs
+
+---
+
+### `/octo:scheduler`
+
+Manage the Claude Octopus scheduled workflow runner daemon.
+
+**Aliases:** `sched`
+
+**Usage:**
+```
+/octo:scheduler             # Show status (default)
+/octo:scheduler start       # Start the daemon
+/octo:scheduler stop        # Stop the daemon
+/octo:scheduler emergency-stop  # Kill all jobs immediately
+```
+
+**What it shows on status:**
+- Whether the daemon is running and for how long
+- Number of active jobs
+- Current daily spend
+- Kill switch status
+
+**Note:** Add jobs with `/octo:schedule`, not this command. This command manages the daemon process only.
+
+---
+
+## Admin
 
 ### `/octo:claw`
 
@@ -481,6 +1016,86 @@ OpenClaw instance administration across five platforms.
 
 ---
 
+## Project Lifecycle (Skill-Based)
+
+These features are triggered by natural language — they are not slash commands. Claude auto-activates them based on context.
+
+### Status
+
+Show where you are in the workflow and what to do next.
+
+**Trigger:** "show status", "where am I", "what's next", "progress", "what have I been working on"
+
+**Output:**
+- Current phase and position
+- Roadmap progress with checkmarks
+- Active blockers
+- Suggested next action
+
+---
+
+### Resume
+
+Pick up where you left off from a previous session.
+
+**Trigger:** "resume", "continue", "pick up where I left off", "what was I doing", "restore session"
+
+**Behavior:**
+1. Reads `.octo/STATE.md` for current position
+2. Loads context using adaptive tier
+3. Shows restoration summary
+4. Suggests next action
+
+---
+
+### Ship
+
+Package and finalize completed work for delivery.
+
+**Trigger:** "ship", "deliver", "finalize", "I'm done", "complete the project"
+
+**Behavior:**
+1. Verifies project is ready (all phases complete)
+2. Runs Multi-AI security audit (Codex + Gemini + Claude)
+3. Captures lessons learned
+4. Archives project state
+5. Creates shipped checkpoint
+
+---
+
+### Issues
+
+Track blockers, bugs, and gaps across sessions.
+
+**Trigger:** "add issue", "show issues", "track this problem", "what issues do we have"
+
+**Subcommands (via natural language):**
+- List all open issues
+- Add new issue: `add <description>`
+- Resolve: `resolve <id>`
+- Show details: `show <id>`
+
+**Issue ID format:** `ISS-YYYYMMDD-NNN`
+
+**Severity levels:** critical, high, medium, low
+
+---
+
+### Rollback
+
+Roll back to a previous checkpoint via git.
+
+**Trigger:** "rollback", "revert", "undo", "go back to", "restore checkpoint"
+
+**Usage:** "rollback to checkpoint X", "list checkpoints", "revert last change"
+
+**Safety:**
+- Creates a pre-rollback checkpoint automatically
+- Preserves LESSONS.md (never rolled back)
+- Requires explicit confirmation before destructive action
+
+---
+
 ## Visual Indicators
 
 When Claude Octopus activates external CLIs, you'll see visual indicators:
@@ -490,6 +1105,7 @@ When Claude Octopus activates external CLIs, you'll see visual indicators:
 | 🐙 | Multi-AI mode active | Multiple providers |
 | 🔴 | Codex CLI executing | OpenAI (your OPENAI_API_KEY) |
 | 🟡 | Gemini CLI executing | Google (your GEMINI_API_KEY) |
+| 🟣 | Perplexity Sonar search | Your PERPLEXITY_API_KEY |
 | 🔵 | Claude subagent | Included with Claude Code |
 
 **Example:**
@@ -515,10 +1131,12 @@ Instead of slash commands, you can use natural language with the "octo" prefix:
 |---------|--------------------|
 | `octo research OAuth patterns` | `/octo:discover OAuth patterns` |
 | `octo build user auth` | `/octo:develop user auth` |
-| `octo review my code` | `/octo:deliver my code` |
+| `octo review my code` | `/octo:review` |
 | `octo debate X vs Y` | `/octo:debate X vs Y` |
+| `octo plan a new feature` | `/octo:plan new feature` |
+| `octo spec out the chat system` | `/octo:spec chat system` |
 
-**Why "octo"?** Common words like "research" may conflict with Claude's base behaviors. The "octo" prefix ensures reliable activation.
+**Why "octo"?** Common words like "research" or "review" may conflict with Claude's built-in behaviors. The "octo" prefix ensures reliable activation.
 
 📖 See [Triggers Guide](./TRIGGERS.md) for the complete list.
 
@@ -526,7 +1144,7 @@ Instead of slash commands, you can use natural language with the "octo" prefix:
 
 ## See Also
 
-- **[Visual Indicators Guide](./VISUAL-INDICATORS.md)** - Understanding what's running
-- **[Triggers Guide](./TRIGGERS.md)** - What activates each workflow
-- **[CLI Reference](./CLI-REFERENCE.md)** - Direct CLI usage (advanced)
-- **[README](../README.md)** - Main documentation
+- **[Visual Indicators Guide](./VISUAL-INDICATORS.md)** — Understanding what's running and what it costs
+- **[Triggers Guide](./TRIGGERS.md)** — What activates each workflow
+- **[CLI Reference](./CLI-REFERENCE.md)** — Direct CLI usage (advanced)
+- **[README](../README.md)** — Main documentation
