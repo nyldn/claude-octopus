@@ -14,7 +14,7 @@ Configure which AI models are used by Claude Octopus workflows. This allows you 
 - Use premium models (GPT-5.4, Claude Opus 4.6) for complex tasks
 - Use fast models (GPT-5.3-Codex-Spark, Gemini Flash) for quick feedback
 - Use large-context models (GPT-4.1, 1M tokens) for big codebases
-- Use reasoning models (o3, o4-mini) for complex analysis
+- Use reasoning models (o3, o3) for complex analysis
 - Configure per-phase model routing (different models for different workflow phases)
 - Control cost/performance tradeoffs with cost modes (budget/standard/premium)
 - Debug model selection with resolution tracing
@@ -32,16 +32,16 @@ Configure which AI models are used by Claude Octopus workflows. This allows you 
 /octo:model-config codex gpt-5.4
 
 # Set to Spark for fast mode
-/octo:model-config codex gpt-5.3-codex-spark
+/octo:model-config codex gpt-5.4
 
 # Set gemini model (persistent)
-/octo:model-config gemini gemini-3-pro-preview
+/octo:model-config gemini gemini-3.1-pro-preview
 
 # Set session-only override (doesn't modify config file)
 /octo:model-config codex gpt-5.2-codex --session
 
 # Configure phase routing (which model to use in which phase)
-/octo:model-config phase deliver gpt-5.3-codex-spark
+/octo:model-config phase deliver gpt-5.4
 /octo:model-config phase develop gpt-5.4
 
 # Reset to defaults
@@ -81,7 +81,7 @@ Models are resolved using a 7-tier precedence system (use `OCTOPUS_TRACE_MODELS=
 
 8. **Hard-coded fallbacks** (lowest priority)
    - Codex: `gpt-5.4`
-   - Gemini: `gemini-3-pro-preview` (standard), `gemini-3-flash-preview` (fast)
+   - Gemini: `gemini-3.1-pro-preview` (standard), `gemini-3-flash-preview` (fast)
    - Claude: `claude-sonnet-4.6` (standard), `claude-opus-4.6` (opus)
    - Perplexity: `sonar-pro` (standard), `sonar` (fast)
 
@@ -96,8 +96,8 @@ export OCTOPUS_TRACE_MODELS=1
 # [model-trace] Resolving: provider=codex type=codex phase=discover role=<none>
 # [model-trace] Tier 1 (env OCTOPUS_CODEX_MODEL): —
 # [model-trace] Tier 2 (session override): —
-# [model-trace] Tier 3 (phase/role routing): gpt-5.3-codex-spark ← SELECTED (route: codex:spark)
-# [model-trace] ► Result: gpt-5.3-codex-spark
+# [model-trace] Tier 3 (phase/role routing): gpt-5.4 ← SELECTED (route: codex:spark)
+# [model-trace] ► Result: gpt-5.4
 ```
 
 ## Cost Modes
@@ -130,7 +130,7 @@ export OCTOPUS_COST_MODE=standard
 | Model | Context | Speed | Best For | Cost |
 |-------|---------|-------|----------|------|
 | `gpt-5.4` | 400K | ~65 tok/s | Complex implementation, architecture | $2.50/$15.00 per MTok |
-| `gpt-5.3-codex-spark` | 128K | **1000+ tok/s** | Fast reviews, iteration, prototyping | Pro-only |
+| `gpt-5.4` | 128K | **1000+ tok/s** | Fast reviews, iteration, prototyping | Pro-only |
 | `gpt-5.2-codex` | 400K | ~65 tok/s | Legacy support | $1.75/$14.00 per MTok |
 
 ### Codex Budget & Specialized
@@ -145,14 +145,14 @@ export OCTOPUS_COST_MODE=standard
 | Model | Context | Best For | Cost |
 |-------|---------|----------|------|
 | `o3` | 200K | Deep reasoning, trade-off analysis | $2.00/$8.00 per MTok |
-| `o4-mini` | 200K | Cost-effective reasoning | $1.10/$4.40 per MTok |
+| `o3` | 200K | Cost-effective reasoning | $1.10/$4.40 per MTok |
 
 ### Large Context Models (via Codex CLI)
 
 | Model | Context | Best For | Cost |
 |-------|---------|----------|------|
-| `gpt-4.1` | **1M** | Large codebase analysis, dependency mapping | $2.00/$8.00 per MTok |
-| `gpt-4.1-mini` | **1M** | Budget large-context tasks | $0.40/$1.60 per MTok |
+| `gpt-5.4` | **1M** | Large codebase analysis, dependency mapping | $2.00/$8.00 per MTok |
+| `gpt-5.4` | **1M** | Budget large-context tasks | $0.40/$1.60 per MTok |
 
 ### OpenRouter Models (v8.11.0)
 
@@ -168,7 +168,7 @@ Requires `OPENROUTER_API_KEY` to be set.
 
 | Model | Best For | Cost |
 |-------|----------|------|
-| `gemini-3-pro-preview` | Premium quality research | $2.50/$10.00 per MTok |
+| `gemini-3.1-pro-preview` | Premium quality research | $2.50/$10.00 per MTok |
 | `gemini-3-flash-preview` | Fast, low-cost tasks | $0.25/$1.00 per MTok |
 
 ## Phase Routing
@@ -216,13 +216,13 @@ Location: `~/.claude-octopus/config/providers.json`
     "codex": {
       "default": "gpt-5.4",
       "fallback": "gpt-5.2-codex",
-      "spark": "gpt-5.3-codex-spark",
+      "spark": "gpt-5.4",
       "mini": "gpt-5-codex-mini",
       "reasoning": "o3",
       "large_context": "gpt-4.1"
     },
     "gemini": {
-      "default": "gemini-3-pro-preview",
+      "default": "gemini-3.1-pro-preview",
       "fallback": "gemini-3-flash-preview",
       "flash": "gemini-3-flash-preview",
       "image": "gemini-3-pro-image-preview"
@@ -257,7 +257,7 @@ If your config file uses an older format (v1.0 or v2.0), it will be automaticall
 | Variable | Purpose | Example |
 |----------|---------|---------|
 | `OCTOPUS_CODEX_MODEL` | Override all Codex model selection | `gpt-5.4` |
-| `OCTOPUS_GEMINI_MODEL` | Override all Gemini model selection | `gemini-3-pro-preview` |
+| `OCTOPUS_GEMINI_MODEL` | Override all Gemini model selection | `gemini-3.1-pro-preview` |
 | `OCTOPUS_PERPLEXITY_MODEL` | Override Perplexity model | `sonar-pro` |
 | `OCTOPUS_COST_MODE` | Set cost tier: `budget`, `standard`, `premium` | `budget` |
 | `OCTOPUS_TRACE_MODELS` | Enable model resolution tracing | `1` |

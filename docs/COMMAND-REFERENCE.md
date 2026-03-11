@@ -222,8 +222,8 @@ Configure which AI models are used across Claude Octopus workflows.
 /octo:model-config                          # View current config
 /octo:model-config show phases              # Show per-phase routing table
 /octo:model-config codex gpt-5.4            # Set Codex model
-/octo:model-config codex gpt-5.3-codex-spark  # Fast Spark model
-/octo:model-config gemini gemini-3-pro-preview  # Set Gemini model
+/octo:model-config codex gpt-5.4  # Fast Spark model
+/octo:model-config gemini gemini-3.1-pro-preview  # Set Gemini model
 /octo:model-config cost-mode budget         # Use cheaper models
 /octo:model-config cost-mode premium        # Use best models
 /octo:model-config trace                    # Debug model resolution
@@ -234,9 +234,9 @@ Configure which AI models are used across Claude Octopus workflows.
 
 | Mode | Codex | Gemini | Best for |
 |------|-------|--------|----------|
-| `budget` | gpt-5.3-codex-spark | gemini-3-flash | High-volume, quick feedback |
-| `standard` | gpt-5.4 | gemini-3-pro-preview | Default — balanced cost/quality |
-| `premium` | gpt-5.4-pro | gemini-3-ultra | Critical decisions, maximum quality |
+| `budget` | gpt-5.4 | gemini-3-flash | High-volume, quick feedback |
+| `standard` | gpt-5.4 | gemini-3.1-pro-preview | Default — balanced cost/quality |
+| `premium` | gpt-5.4-pro | gemini-3.1-pro-preview | Critical decisions, maximum quality |
 
 **Per-phase routing:** Different models can be configured for Discover, Define, Develop, and Deliver phases. Use `show phases` to view the current routing table.
 

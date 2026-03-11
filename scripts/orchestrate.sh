@@ -1039,9 +1039,9 @@ select_opus_mode() {
 # Models (Mar 2026) - Premium defaults for Design Thinking workflows:
 # - OpenAI GPT-5.x: gpt-5.4 (premium, OAuth+API), gpt-5.4-pro (API-key only), gpt-5.3-codex, gpt-5.3-codex-spark (fast),
 #                    gpt-5.2-codex, gpt-5-codex-mini (budget), gpt-5 (standard), gpt-5.2, gpt-5.1
-# - OpenAI Reasoning: o3, o3-pro (API-key only), o4-mini (API-key only), o3-mini (API-key only)
-# - OpenAI Large Context: gpt-4.1 (1M ctx, API-key only), gpt-4.1-mini (1M ctx, API-key only)
-# - Google Gemini 3.0: gemini-3-pro-preview, gemini-3-flash-preview, gemini-3-pro-image-preview
+# - OpenAI Reasoning: o3, o3-pro (API-key only), o3 (API-key only), o3-mini (API-key only)
+# - OpenAI Large Context: gpt-4.1 (1M ctx, API-key only), gpt-5.4 (1M ctx, API-key only)
+# - Google Gemini 3.0: gemini-3.1-pro-preview, gemini-3-flash-preview, gemini-3-pro-image-preview
 # Note: "API-key only" models require OPENAI_API_KEY; they are NOT available via ChatGPT subscription/OAuth.
 get_agent_command() {
     local agent_type="$1"
@@ -1076,7 +1076,7 @@ get_agent_command() {
             model=$(get_agent_model "$agent_type" "$phase" "$role")
             echo "codex exec --model ${model} ${sandbox_flag}"
             ;;
-        codex-reasoning)  # v8.9.0: Reasoning models (o3, o4-mini)
+        codex-reasoning)  # v8.9.0: Reasoning models (o3, o3)
             model=$(get_agent_model "$agent_type" "$phase" "$role")
             echo "codex exec --model ${model} ${sandbox_flag}"
             ;;
@@ -1145,7 +1145,7 @@ get_agent_command_array() {
             model=$(get_agent_model "$agent_type" "$phase" "$role")
             _cmd_array=(codex exec --model "$model" --sandbox "$codex_sandbox")
             ;;
-        codex-reasoning)  # v8.9.0: Reasoning models (o3, o4-mini)
+        codex-reasoning)  # v8.9.0: Reasoning models (o3, o3)
             model=$(get_agent_model "$agent_type" "$phase" "$role")
             _cmd_array=(codex exec --model "$model" --sandbox "$codex_sandbox")
             ;;
@@ -1242,13 +1242,11 @@ get_model_pricing() {
         # OpenAI Reasoning models (v8.9.0; v8.39.0: added o3-pro, o3-mini — all API-key only)
         o3)                     echo "2.00:8.00" ;;
         o3-pro)                 echo "20.00:80.00" ;;  # v8.39.0: API-key only
-        o4-mini)                echo "1.10:4.40" ;;
+        o3)                echo "1.10:4.40" ;;
         o3-mini)                echo "1.10:4.40" ;;    # v8.39.0: API-key only
-        # OpenAI Large Context models (1M context window, API-key only)
-        gpt-4.1)                echo "2.00:8.00" ;;    # API-key only
-        gpt-4.1-mini)           echo "0.40:1.60" ;;    # API-key only
+        gpt-5.4)           echo "2.50:15.00" ;;
         # Google Gemini 3.0 models
-        gemini-3-pro-preview)   echo "2.50:10.00" ;;
+        gemini-3.1-pro-preview)   echo "2.50:10.00" ;;
         gemini-3-flash-preview) echo "0.25:1.00" ;;
         gemini-3-pro-image-preview) echo "5.00:20.00" ;;
         # Claude models
@@ -1292,13 +1290,9 @@ get_model_catalog() {
         # Reasoning models
         o3)                     echo "200|yes|no|yes|codex|premium|active" ;;
         o3-pro)                 echo "200|yes|no|yes|codex|premium|active" ;;
-        o4-mini)                echo "200|yes|no|yes|codex|budget|active" ;;
         o3-mini)                echo "200|yes|no|yes|codex|budget|active" ;;
-        # Large context
-        gpt-4.1)                echo "1000|yes|yes|no|codex|standard|active" ;;
-        gpt-4.1-mini)           echo "1000|yes|no|no|codex|budget|active" ;;
         # Gemini
-        gemini-3-pro-preview)   echo "1000|yes|yes|no|gemini|premium|active" ;;
+        gemini-3.1-pro-preview)   echo "1000|yes|yes|no|gemini|premium|active" ;;
         gemini-3-flash-preview) echo "1000|yes|no|no|gemini|budget|active" ;;
         gemini-3-pro-image-preview) echo "1000|yes|yes|no|gemini|premium|active" ;;
         # Claude
@@ -1362,11 +1356,10 @@ list_models() {
     done
 
     local -a all_models=(
-        gpt-5.4 gpt-5.4-pro gpt-5.3-codex gpt-5.3-codex-spark gpt-5.2-codex
+        gpt-5.4 gpt-5.4-pro gpt-5.3-codex gpt-5.2-codex
         gpt-5-codex-mini gpt-5.1-codex-max
-        o3 o3-pro o4-mini o3-mini
-        gpt-4.1 gpt-4.1-mini
-        gemini-3-pro-preview gemini-3-flash-preview gemini-3-pro-image-preview
+        o3 o3-pro o3-mini
+        gemini-3.1-pro-preview gemini-3-flash-preview gemini-3-pro-image-preview
         claude-sonnet-4.6 claude-opus-4.6 claude-opus-4.6-fast
         z-ai/glm-5 moonshotai/kimi-k2.5 deepseek/deepseek-r1
         sonar-pro sonar
@@ -1500,9 +1493,9 @@ find_capable_fallback() {
     local -a candidates=()
     case "$provider" in
         codex)
-            candidates=(gpt-5-codex-mini gpt-5.2-codex gpt-5.3-codex gpt-5.4 o4-mini o3 gpt-4.1-mini gpt-4.1) ;;
+            candidates=(gpt-5-codex-mini gpt-5.2-codex gpt-5.3-codex gpt-5.4 gpt-5.4-pro o3) ;;
         gemini)
-            candidates=(gemini-3-flash-preview gemini-3-pro-preview) ;;
+            candidates=(gemini-3-flash-preview gemini-3.1-pro-preview) ;;
         claude)
             candidates=(claude-sonnet-4.6 claude-opus-4.6) ;;
         openrouter)
@@ -1694,7 +1687,7 @@ resolve_octopus_model() {
         case "$agent_type" in
             codex*)          resolved_model="gpt-5.4" ;;
             gemini-fast|gemini-flash) resolved_model="gemini-3-flash-preview" ;;
-            gemini*)         resolved_model="gemini-3-pro-preview" ;;
+            gemini*)         resolved_model="gemini-3.1-pro-preview" ;;
             claude-opus*)    resolved_model="claude-opus-4.6" ;;
             claude*)         resolved_model="claude-sonnet-4.6" ;;
             perplexity-fast)  resolved_model="sonar" ;;
@@ -2028,7 +2021,7 @@ migrate_provider_config() {
         # Extract existing model preferences to seed v3.0
         local codex_model gemini_model
         codex_model=$(jq -r '.providers.codex.model // .providers.codex.default // "gpt-5.4"' "$config_file")
-        gemini_model=$(jq -r '.providers.gemini.model // .providers.gemini.default // "gemini-3-pro-preview"' "$config_file")
+        gemini_model=$(jq -r '.providers.gemini.model // .providers.gemini.default // "gemini-3.1-pro-preview"' "$config_file")
         
         cat > "$tmp_file" << EOF
 {
@@ -2036,11 +2029,11 @@ migrate_provider_config() {
   "providers": {
     "codex": {
       "default": "$codex_model",
-      "fallback": "gpt-5.2-codex",
-      "spark": "gpt-5.3-codex-spark",
+      "fallback": "gpt-5.4",
+      "spark": "gpt-5.4",
       "mini": "gpt-5-codex-mini",
       "reasoning": "o3",
-      "large_context": "gpt-4.1"
+      "large_context": "gpt-5.4"
     },
     "gemini": {
       "default": "$gemini_model",
@@ -2051,8 +2044,8 @@ migrate_provider_config() {
   },
   "routing": {
     "phases": {
-      "deliver": "codex:spark",
-      "review": "codex:spark",
+      "deliver": "codex:default",
+      "review": "codex:default",
       "security": "codex:reasoning",
       "research": "gemini:default"
     },
@@ -2106,7 +2099,7 @@ EOF
             gemini-2.0-flash-thinking*|gemini-2.0-flash-exp*|gemini-exp-*)
                 replacement="gemini-3-flash-preview" ;;
             gemini-2.0-pro*|gemini-1.5-pro*|gemini-pro)
-                replacement="gemini-3-pro-preview" ;;
+                replacement="gemini-3.1-pro-preview" ;;
             gpt-4o*|gpt-4-turbo*|gpt-4-*|o1-*|chatgpt-*)
                 replacement="gpt-5.4" ;;
         esac
@@ -2283,7 +2276,7 @@ set_provider_model() {
     if ! validate_model_name "$model"; then
         echo "ERROR: Invalid model name: '$model'" >&2
         echo "  Model names must not contain shell metacharacters (spaces, ;, |, &, \$, \`, quotes)" >&2
-        echo "  Examples: gpt-5.4, gemini-3-pro-preview, claude-opus-4.6" >&2
+        echo "  Examples: gpt-5.4, gemini-3.1-pro-preview, claude-opus-4.6" >&2
         return 1
     fi
 
@@ -2296,14 +2289,14 @@ set_provider_model() {
   "providers": {
     "codex": {
       "default": "gpt-5.4",
-      "fallback": "gpt-5.2-codex",
-      "spark": "gpt-5.3-codex-spark",
+      "fallback": "gpt-5.4",
+      "spark": "gpt-5.4",
       "mini": "gpt-5-codex-mini",
       "reasoning": "o3",
-      "large_context": "gpt-4.1"
+      "large_context": "gpt-5.4"
     },
     "gemini": {
-      "default": "gemini-3-pro-preview",
+      "default": "gemini-3.1-pro-preview",
       "fallback": "gemini-3-flash-preview",
       "flash": "gemini-3-flash-preview",
       "image": "gemini-3-pro-image-preview"
@@ -2311,8 +2304,8 @@ set_provider_model() {
   },
   "routing": {
     "phases": {
-      "deliver": "codex:spark",
-      "review": "codex:spark",
+      "deliver": "codex:default",
+      "review": "codex:default",
       "security": "codex:reasoning",
       "research": "gemini:default"
     }
@@ -10283,7 +10276,7 @@ get_role_mapping() {
     local role="$1"
     case "$role" in
         architect)    echo "codex:gpt-5.4" ;;                  # System design, planning (v8.48: GPT-5.4)
-        researcher)   echo "gemini:gemini-3-pro-preview" ;;   # Deep investigation
+        researcher)   echo "gemini:gemini-3.1-pro-preview" ;;   # Deep investigation
         reviewer)     echo "codex-review:gpt-5.4" ;;          # Code review, validation (v8.48: GPT-5.4)
         implementer)  echo "codex:gpt-5.4" ;;                 # Code generation (v8.48: GPT-5.4)
         synthesizer)  echo "claude:claude-sonnet-4.6" ;;      # Result aggregation (v8.17: Sonnet 4.6)
@@ -14191,7 +14184,7 @@ _display_smoke_test_error() {
             if [[ "$provider" == "codex" ]]; then
                 echo -e "    ${DIM}Fix: export OCTOPUS_CODEX_MODEL=gpt-5.4${NC}"
             else
-                echo -e "    ${DIM}Fix: export OCTOPUS_GEMINI_MODEL=gemini-3-pro-preview${NC}"
+                echo -e "    ${DIM}Fix: export OCTOPUS_GEMINI_MODEL=gemini-3.1-pro-preview${NC}"
             fi
             ;;
         AUTH_FAILURE)

@@ -300,7 +300,7 @@ else
 fi
 
 # Verify catalog covers key models
-for model in gpt-5.4 gpt-5.3-codex-spark gemini-3-pro-preview claude-sonnet-4.6 sonar-pro o3; do
+for model in gpt-5.4 gpt-5.4 gemini-3.1-pro-preview claude-sonnet-4.6 sonar-pro o3; do
     if grep -A 60 'get_model_catalog()' "$ORCHESTRATE" | grep -q "$model"; then
         pass "Catalog includes $model"
     else

@@ -55,14 +55,14 @@ ensure_config() {
   "providers": {
     "codex": {
       "default": "gpt-5.4",
-      "fallback": "gpt-5.2-codex",
-      "spark": "gpt-5.3-codex-spark",
+      "fallback": "gpt-5.4",
+      "spark": "gpt-5.4",
       "mini": "gpt-5-codex-mini",
       "reasoning": "o3",
-      "large_context": "gpt-4.1"
+      "large_context": "gpt-5.4"
     },
     "gemini": {
-      "default": "gemini-3-pro-preview",
+      "default": "gemini-3.1-pro-preview",
       "fallback": "gemini-3-flash-preview",
       "flash": "gemini-3-flash-preview",
       "image": "gemini-3-pro-image-preview"
@@ -78,8 +78,8 @@ ensure_config() {
   },
   "routing": {
     "phases": {
-      "deliver": "codex:spark",
-      "review": "codex:spark",
+      "deliver": "codex:default",
+      "review": "codex:default",
       "security": "codex:reasoning",
       "research": "gemini:default"
     },
@@ -290,17 +290,15 @@ cmd_models() {
 
     # Inline catalog (matches orchestrate.sh get_model_catalog)
     local -a models=(
-        "gpt-5.4|400|yes|yes|no|codex|premium|active"
-        "gpt-5.3-codex-spark|128|yes|no|no|codex|standard|active"
+        "gpt-5.4|400|yes|yes|no|codex|standard|active"
+        "gpt-5.4-pro|400|yes|yes|no|codex|premium|active"
         "gpt-5.3-codex|400|yes|yes|no|codex|standard|active"
         "gpt-5.2-codex|400|yes|yes|no|codex|standard|active"
         "gpt-5-codex-mini|400|yes|no|no|codex|budget|active"
         "gpt-5.1-codex-max|400|yes|yes|no|codex|premium|active"
         "o3|200|yes|no|yes|codex|premium|active"
-        "o4-mini|200|yes|no|yes|codex|standard|active"
-        "gpt-4.1|1000|yes|yes|no|codex|standard|active"
-        "gpt-4.1-mini|1000|yes|no|no|codex|budget|active"
-        "gemini-3-pro-preview|1000|yes|yes|no|gemini|premium|active"
+        "o3-mini|200|yes|no|yes|codex|budget|active"
+        "gemini-3.1-pro-preview|1000|yes|yes|no|gemini|premium|active"
         "gemini-3-flash-preview|1000|yes|yes|no|gemini|budget|active"
         "gemini-3-pro-image-preview|1000|yes|yes|no|gemini|premium|active"
         "claude-sonnet-4.6|200|yes|yes|no|claude|standard|active"

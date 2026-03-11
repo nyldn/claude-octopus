@@ -67,7 +67,7 @@ clear_model_cache() {
 clear_model_cache
 assert_eq "$(resolve_octopus_model "codex" "codex")" "gpt-5.4" "Default codex"
 clear_model_cache
-assert_eq "$(resolve_octopus_model "gemini" "gemini")" "gemini-3-pro-preview" "Default gemini"
+assert_eq "$(resolve_octopus_model "gemini" "gemini")" "gemini-3.1-pro-preview" "Default gemini"
 
 # Test 2: Env var overrides
 clear_model_cache

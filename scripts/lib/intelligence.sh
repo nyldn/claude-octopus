@@ -346,7 +346,7 @@ select_cost_aware_agent() {
         aggressive)
             case "$complexity" in
                 0) echo "skip"; return 0 ;;
-                1) echo "codex-spark" ;;
+                1) echo "codex" ;;
                 2) echo "$agent_type" ;;
                 3) echo "$agent_type" ;;
                 *) echo "$agent_type" ;;
@@ -358,7 +358,7 @@ select_cost_aware_agent() {
             ;;
         balanced|*)
             case "$complexity" in
-                0) echo "codex-spark" ;;
+                0) echo "codex" ;;
                 *) echo "$agent_type" ;;
             esac
             ;;
