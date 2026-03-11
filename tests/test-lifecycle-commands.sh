@@ -181,12 +181,17 @@ echo ""
 echo "Test 12: Checking COMMAND-REFERENCE.md updated..."
 CMD_REF="$PROJECT_ROOT/docs/COMMAND-REFERENCE.md"
 if [[ -f "$CMD_REF" ]]; then
-    lifecycle_commands=("status" "issues" "rollback" "resume" "ship")
-    for cmd in "${lifecycle_commands[@]}"; do
-        if grep -qi "/octo:$cmd" "$CMD_REF"; then
-            pass "COMMAND-REFERENCE.md documents /octo:$cmd"
+    lifecycle_features=("Status" "Issues" "Rollback" "Resume" "Ship")
+    if grep -q "These features are triggered by natural language — they are not slash commands." "$CMD_REF"; then
+        pass "COMMAND-REFERENCE.md marks lifecycle features as non-slash commands"
+    else
+        fail "COMMAND-REFERENCE.md missing lifecycle note" "Should explain these are natural-language skill triggers"
+    fi
+    for feature in "${lifecycle_features[@]}"; do
+        if grep -q "### \`$feature\`" "$CMD_REF"; then
+            pass "COMMAND-REFERENCE.md documents $feature lifecycle feature"
         else
-            fail "COMMAND-REFERENCE.md missing /octo:$cmd" "Should document the command"
+            fail "COMMAND-REFERENCE.md missing $feature section" "Should document the lifecycle feature"
         fi
     done
 fi
