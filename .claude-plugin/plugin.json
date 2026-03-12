@@ -92,7 +92,8 @@
     "./.claude/skills/skill-claw.md",
     "./.claude/skills/skill-factory.md",
     "./.claude/skills/skill-staged-review.md",
-    "./.claude/skills/skill-ui-ux-design.md"
+    "./.claude/skills/skill-ui-ux-design.md",
+    "./.claude/skills/skill-blind-debate.md"
   ],
   "commands": [
     "./.claude/commands/octo.md",
@@ -133,6 +134,7 @@
     "./.claude/commands/design-ui-ux.md",
     "./.claude/commands/debate.md",
     "./.claude/commands/research.md",
-    "./.claude/commands/resume.md"
+    "./.claude/commands/resume.md",
+    "./.claude/commands/blind-debate.md"
   ]
 }
