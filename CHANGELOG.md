@@ -2,7 +2,28 @@
 
 ### Changed
 
-- Smart router v2.0 — priority-ordered routing to 17 workflows, decision tree confidence, debug test flake fix
+- **Smart router v2.0** (`/octo:octo`) — Complete rewrite of the natural language workflow router. Routing coverage expanded from 8 → 17 workflows with 9 new intents: debug, security, tdd, docs, quick, design-ui-ux, prd, brainstorm, deck.
+- **Decision tree confidence** — Replaced ambiguous percentage-based scoring (`matching/total * 100 + adjustments`) with explicit HIGH/MEDIUM/LOW decision tree. Single matched intent + specific target = auto-route. Same-priority conflicts = ask user.
+- **3-tier priority ordering** — Specialized workflows (P1) > Core workflows (P2) > Build workflows (P3). "Analyze the security of our API" now correctly routes to `/octo:security` (P1) over `/octo:discover` (P2).
+- **Context efficiency** — 382 → 204 lines (47% reduction). Deduplicated 3x-repeated routing table (docs, execution contract, examples) to single authoritative source in execution contract.
+
+### Added
+
+- **Meta command handler** — `/octo:octo help` displays all 17 workflows in 4 categories (Core, Engineering, Creative & Documentation, Quick).
+- **Input length guard** — Queries >500 chars truncated for intent analysis; full query passed to target workflow.
+- **Routing analytics** — Decisions appended to `~/.claude-octopus/routing.log` with timestamp, intent, confidence, and target.
+- **Routing memory** — Auto-memory corrections on rejected suggestions enable preference learning across sessions.
+- `test-smart-router.sh` — 65 static analysis tests: routing table integrity, backing file existence for all 17 targets, P0 fix validation, decision tree verification, priority ordering, meta commands, category groupings, removed features, file size.
+
+### Fixed
+
+- **P0: Broken validation routing** — `Skill: "validate"` invoked non-existent skill. Changed to `Skill: "review"`. Any query with validation intent was silently failing.
+- **Flaky `test-debug-mode-simple.sh`** — Tests 4 & 5 checked for "Command:" and "spawn_agent:" in `--debug --dry-run` output, but probe caching short-circuited before `spawn_agent()` runs. Replaced with static analysis of orchestrate.sh source.
+
+### Removed
+
+- Unimplemented "chain workflows" documentation (set false user expectations).
+- Model override example from command docs (`OCTOPUS_CODEX_MODEL` in examples — minor prompt injection surface).
 
 ---
 
