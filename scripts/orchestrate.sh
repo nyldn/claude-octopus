@@ -510,6 +510,14 @@ SUPPORTS_SUBAGENT_MODEL_FIX=false      # v8.52: Claude Code v2.1.73+ (model: opu
 SUPPORTS_SESSION_RESUME_HOOK_FIX=false # v8.52: Claude Code v2.1.73+ (SessionStart hooks fire once on --resume, not twice)
 SUPPORTS_BG_PROCESS_CLEANUP=false      # v8.52: Claude Code v2.1.73+ (background bash from subagents cleaned up on agent exit)
 SUPPORTS_SKILL_DEADLOCK_FIX=false      # v8.52: Claude Code v2.1.73+ (no deadlock with large .claude/skills/ during git pull)
+SUPPORTS_PARALLEL_TOOL_RESILIENCE=false # v8.56: Claude Code v2.1.72+ (failed Read/WebFetch/Glob no longer cancels sibling parallel tool calls)
+SUPPORTS_PLAN_WITH_ARGS=false          # v8.56: Claude Code v2.1.72+ (/plan accepts description argument e.g. /plan fix the auth bug)
+SUPPORTS_AUTO_MEMORY_DIR=false         # v8.56: Claude Code v2.1.74+ (autoMemoryDirectory setting for custom auto-memory storage path)
+SUPPORTS_FULL_MODEL_IDS=false          # v8.56: Claude Code v2.1.74+ (full model IDs e.g. claude-opus-4-6 work in agent model: frontmatter)
+SUPPORTS_SESSION_END_TIMEOUT=false     # v8.56: Claude Code v2.1.74+ (CLAUDE_CODE_SESSIONEND_HOOKS_TIMEOUT_MS configurable SessionEnd hook timeout)
+SUPPORTS_CONTEXT_SUGGESTIONS=false     # v8.56: Claude Code v2.1.74+ (/context command shows actionable optimization tips)
+SUPPORTS_PLUGIN_DIR_OVERRIDE=false     # v8.56: Claude Code v2.1.74+ (--plugin-dir local dev copies override installed marketplace plugins)
+SUPPORTS_MANAGED_POLICY_FIX=false      # v8.56: Claude Code v2.1.74+ (managed policy ask rules no longer bypassed by user allow/skill allowed-tools)
 SUPPORTS_CONTINUATION=false           # v8.30: Agent resume/continuation for iterative retries
 OCTOPUS_BACKEND="api"              # v8.16: Detected backend (api|bedrock|vertex|foundry)
 AGENT_TEAMS_ENABLED="${CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS:-0}"
@@ -750,7 +758,7 @@ detect_claude_code_version() {
         SUPPORTS_FAST_BRIDGE_RECONNECT=true
     fi
 
-    # Check for v2.1.72+ features (ExitWorktree, Agent model override, effort redesign, cron disable env)
+    # Check for v2.1.72+ features (ExitWorktree, Agent model override, effort redesign, cron disable env, parallel tool resilience, plan args)
     if version_compare "$CLAUDE_CODE_VERSION" "2.1.72" ">="; then
         SUPPORTS_EXIT_WORKTREE=true
         SUPPORTS_AGENT_MODEL_OVERRIDE=true
@@ -760,6 +768,8 @@ detect_claude_code_version() {
         SUPPORTS_BASH_ALLOWLIST_V2=true
         SUPPORTS_CLEAR_PRESERVES_BG=true
         SUPPORTS_TEAM_MODEL_INHERIT_FIX=true
+        SUPPORTS_PARALLEL_TOOL_RESILIENCE=true
+        SUPPORTS_PLAN_WITH_ARGS=true
     fi
 
     # Check for v2.1.73+ features (modelOverrides, loop enterprise, subagent model fix, session resume hook fix, bg cleanup, skill deadlock fix)
@@ -770,6 +780,16 @@ detect_claude_code_version() {
         SUPPORTS_SESSION_RESUME_HOOK_FIX=true
         SUPPORTS_BG_PROCESS_CLEANUP=true
         SUPPORTS_SKILL_DEADLOCK_FIX=true
+    fi
+
+    # Check for v2.1.74+ features (autoMemoryDirectory, full model IDs in agents, SessionEnd timeout, /context, plugin-dir override, managed policy fix)
+    if version_compare "$CLAUDE_CODE_VERSION" "2.1.74" ">="; then
+        SUPPORTS_AUTO_MEMORY_DIR=true
+        SUPPORTS_FULL_MODEL_IDS=true
+        SUPPORTS_SESSION_END_TIMEOUT=true
+        SUPPORTS_CONTEXT_SUGGESTIONS=true
+        SUPPORTS_PLUGIN_DIR_OVERRIDE=true
+        SUPPORTS_MANAGED_POLICY_FIX=true
     fi
 
     log "INFO" "Claude Code v$CLAUDE_CODE_VERSION detected"
@@ -797,6 +817,9 @@ detect_claude_code_version() {
     log "INFO" "Clear Preserves BG: $SUPPORTS_CLEAR_PRESERVES_BG | Team Model Inherit Fix: $SUPPORTS_TEAM_MODEL_INHERIT_FIX"
     log "INFO" "Model Overrides: $SUPPORTS_MODEL_OVERRIDES | Loop Enterprise Fix: $SUPPORTS_LOOP_ENTERPRISE_FIX | Subagent Model Fix: $SUPPORTS_SUBAGENT_MODEL_FIX"
     log "INFO" "Session Resume Hook Fix: $SUPPORTS_SESSION_RESUME_HOOK_FIX | BG Process Cleanup: $SUPPORTS_BG_PROCESS_CLEANUP | Skill Deadlock Fix: $SUPPORTS_SKILL_DEADLOCK_FIX"
+    log "INFO" "Parallel Tool Resilience: $SUPPORTS_PARALLEL_TOOL_RESILIENCE | Plan With Args: $SUPPORTS_PLAN_WITH_ARGS"
+    log "INFO" "Auto Memory Dir: $SUPPORTS_AUTO_MEMORY_DIR | Full Model IDs: $SUPPORTS_FULL_MODEL_IDS | Session End Timeout: $SUPPORTS_SESSION_END_TIMEOUT"
+    log "INFO" "Context Suggestions: $SUPPORTS_CONTEXT_SUGGESTIONS | Plugin Dir Override: $SUPPORTS_PLUGIN_DIR_OVERRIDE | Managed Policy Fix: $SUPPORTS_MANAGED_POLICY_FIX"
 
     # v8.29.0: Context window control
     OCTOPUS_CONTEXT_WINDOW="${OCTOPUS_CONTEXT_WINDOW:-auto}"
@@ -12079,8 +12102,11 @@ ${skill_context}"
 
     # v8.52: Warn if spawning Claude agent on enterprise without subagent model fix (CC < v2.1.73)
     # Prior to v2.1.73, model: opus/sonnet/haiku in agent frontmatter was silently downgraded on Bedrock/Vertex/Foundry
+    # v8.56: CC v2.1.74+ also accepts full model IDs (claude-opus-4-6) in agent model: field
     if [[ "$agent_type" == "claude"* ]] && [[ "$OCTOPUS_BACKEND" != "api" ]] && [[ "$SUPPORTS_SUBAGENT_MODEL_FIX" != "true" ]]; then
         log "WARN" "Enterprise backend ($OCTOPUS_BACKEND) + CC < v2.1.73: agent model frontmatter may be silently downgraded. Upgrade to CC v2.1.73+ to fix."
+    elif [[ "$SUPPORTS_FULL_MODEL_IDS" == "true" ]]; then
+        log "DEBUG" "CC v2.1.74+: full model IDs (e.g. claude-opus-4-6) supported in agent frontmatter"
     fi
 
     log INFO "Spawning $agent_type agent (task: $task_id, role: ${role:-none})"
@@ -15612,6 +15638,26 @@ doctor_check_skills() {
             doctor_add "model-overrides-tip" "skills" "info" \
                 "CC v2.1.73 modelOverrides available for ${OCTOPUS_BACKEND} inference profiles" \
                 "Set modelOverrides in ~/.claude/settings.json to map model names to Bedrock ARNs/Vertex endpoints"
+        fi
+    fi
+
+    # v8.56: Surface /context command for context optimization tips
+    if [[ "$SUPPORTS_CONTEXT_SUGGESTIONS" == "true" ]]; then
+        doctor_add "context-suggestions" "skills" "info" \
+            "CC v2.1.74 /context command available for context window diagnostics" \
+            "Run /context in Claude Code to get actionable optimization tips for context-heavy sessions"
+    fi
+
+    # v8.56: Surface autoMemoryDirectory setting if CC v2.1.74+
+    if [[ "$SUPPORTS_AUTO_MEMORY_DIR" == "true" ]]; then
+        local settings_file="${HOME}/.claude/settings.json"
+        local has_memory_dir="false"
+        if [[ -f "$settings_file" ]] && command -v jq &>/dev/null; then
+            has_memory_dir=$(jq 'has("autoMemoryDirectory")' "$settings_file" 2>/dev/null || echo "false")
+        fi
+        if [[ "$has_memory_dir" == "true" ]]; then
+            doctor_add "auto-memory-dir" "skills" "pass" \
+                "CC autoMemoryDirectory configured (custom auto-memory path)" ""
         fi
     fi
 }

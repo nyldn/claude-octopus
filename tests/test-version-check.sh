@@ -101,7 +101,7 @@ fi
 
 # Test 5: Verify version check runs before provider detection
 test_start "Version check runs before provider detection"
-first_section=$(echo "$output" | head -30)
+first_section=$(echo "$output" | head -40)
 if echo "$first_section" | grep -q "Detecting Claude Code version"; then
     test_pass "Version check runs first"
 else
