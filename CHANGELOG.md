@@ -1,3 +1,11 @@
+## [8.56.0] - 2026-03-13
+
+### Changed
+
+- CC v2.1.72-v2.1.74 feature sync — 8 new flags (94 total, 30 version_compare blocks), smart router v2.0 already released in v8.55.0
+
+---
+
 ## [8.55.0] - 2026-03-12
 
 ### Changed
