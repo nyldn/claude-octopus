@@ -11,8 +11,8 @@
     {
       "name": "claude-octopus",
       "source": "./",
-      "description": "v8.54.0 - Multi-agentic /octo:research \u2014 parallel Agent dispatch replaces single Bash subprocess, user-configurable intensity, Claude in-conversation synthesis. 32 personas, 39 commands, 50 skills. Run /octo:setup.",
-      "version": "8.54.0",
+      "description": "v8.55.0 - Smart router v2.0 \u2014 priority-ordered routing to 17 workflows, decision tree confidence, debug test flake fix. 32 personas, 39 commands, 50 skills. Run /octo:setup.",
+      "version": "8.55.0",
       "author": {
         "name": "nyldn"
       },

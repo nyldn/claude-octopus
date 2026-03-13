@@ -1,3 +1,11 @@
+## [8.55.0] - 2026-03-12
+
+### Changed
+
+- Smart router v2.0 — priority-ordered routing to 17 workflows, decision tree confidence, debug test flake fix
+
+---
+
 ## [8.54.0] - 2026-03-12
 
 ### Changed
