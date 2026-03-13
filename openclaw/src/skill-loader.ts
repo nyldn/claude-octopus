@@ -133,6 +133,10 @@ export async function loadCommands(
     if (!file.endsWith(".md")) continue;
 
     const filePath = resolve(commandsDir, file);
+    const relativePath = path.relative(commandsDir, filePath);
+    if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
+      continue;
+    }
     const content = await readFile(filePath, "utf-8");
     const frontmatter = parseFrontmatter(content);
 
