@@ -1,8 +1,21 @@
 ## [8.56.0] - 2026-03-13
 
-### Changed
+### Added
 
-- CC v2.1.72-v2.1.74 feature sync — 8 new flags (94 total, 30 version_compare blocks), smart router v2.0 already released in v8.55.0
+- **8 new `SUPPORTS_*` detection flags** (94 total, 30 `version_compare` blocks) from CC v2.1.72 (2 untracked) and v2.1.74 (6 new).
+- **v2.1.72**: `SUPPORTS_PARALLEL_TOOL_RESILIENCE` (failed Read/WebFetch/Glob no longer cancels sibling tool calls), `SUPPORTS_PLAN_WITH_ARGS` (`/plan` accepts description argument).
+- **v2.1.74**: `SUPPORTS_AUTO_MEMORY_DIR` (`autoMemoryDirectory` setting), `SUPPORTS_FULL_MODEL_IDS` (full model IDs e.g. `claude-opus-4-6` in agent frontmatter), `SUPPORTS_SESSION_END_TIMEOUT` (`CLAUDE_CODE_SESSIONEND_HOOKS_TIMEOUT_MS` env var), `SUPPORTS_CONTEXT_SUGGESTIONS` (`/context` with actionable optimization tips), `SUPPORTS_PLUGIN_DIR_OVERRIDE` (`--plugin-dir` overrides marketplace), `SUPPORTS_MANAGED_POLICY_FIX` (managed policy `ask` rules fix).
+- `test-cc-v2174-sync.sh` — 36 tests covering declarations, detection blocks, logging, wiring, and version comments.
+
+### Wired
+
+- `spawn_agent()`: Positive debug log when `SUPPORTS_FULL_MODEL_IDS` confirms full model ID support in agent frontmatter (CC v2.1.74+).
+- `/octo:doctor`: Surfaces `/context` command as diagnostic tool for context-heavy sessions (CC v2.1.74+).
+- `/octo:doctor`: Checks `autoMemoryDirectory` setting in `~/.claude/settings.json` (CC v2.1.74+).
+
+### Fixed
+
+- `test-version-check.sh` Test 5: `head -30` → `head -40` — fragile against growing log line count from new flags.
 
 ---
 
