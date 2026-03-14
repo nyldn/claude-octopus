@@ -21,11 +21,11 @@ When the user invokes this command (e.g., `/octo:review <arguments>`):
 
 **Determine mode based on session autonomy:**
 
-If `AUTONOMY_MODE` env var is `autonomous` or session is running headlessly, skip Q&A and auto-infer:
+If `AUTONOMY_MODE` env var is `autonomous`, or session is running headlessly, or `OCTOPUS_WORKFLOW_PHASE` is set (indicating a pipeline context like `/octo:develop` or `/octo:embrace`), skip Q&A and auto-infer with ALL focus areas:
 1. Run `git diff --cached` — if non-empty, `target=staged`
 2. Run `gh pr view --json number` — if open PR exists, set `target=<pr_number>`
 3. Otherwise `target=working-tree`
-4. Set `provenance=unknown`, `autonomy=autonomous`, `publish=ask`, `debate=auto`
+4. Set `provenance=unknown`, `autonomy=autonomous`, `publish=ask`, `debate=auto`, `focus=["correctness","security","architecture","tdd"]`
 
 **Otherwise (supervised mode), use AskUserQuestion:**
 

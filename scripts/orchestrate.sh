@@ -8066,11 +8066,19 @@ review_run() {
     # Parse profile fields (with defaults)
     local target focus provenance autonomy publish debate
     target=$(echo "$profile_json"     | jq -r '.target     // "staged"')
-    focus=$(echo "$profile_json"      | jq -r '.focus      // ["correctness"]  | join(",")')
+    focus=$(echo "$profile_json"      | jq -r '.focus      // ["correctness","security","architecture","tdd"]  | join(",")')
     provenance=$(echo "$profile_json" | jq -r '.provenance // "unknown"')
     autonomy=$(echo "$profile_json"   | jq -r '.autonomy   // "supervised"')
     publish=$(echo "$profile_json"    | jq -r '.publish    // "ask"')
     debate=$(echo "$profile_json"     | jq -r '.debate     // "auto"')
+
+    # v9.0: Preflight — check Codex auth before review pipeline
+    if command -v codex >/dev/null 2>&1; then
+        if ! check_codex_auth_freshness 2>/dev/null; then
+            log "WARN" "review_run: Codex auth may be stale — review fleet may fall back to claude-sonnet"
+            log "USER" "⚠ Codex auth check failed. Run 'codex auth' or /octo:doctor to fix. Falling back to claude-sonnet for Codex roles."
+        fi
+    fi
 
     local timestamp
     timestamp=$(date +%s)
@@ -8197,6 +8205,7 @@ Return ONLY valid JSON with 'findings' array including verdict field."
     local verified_findings
     verified_findings=$(run_agent_sync "codex" "$verifier_prompt" 180 "code-reviewer" "review") || {
         log WARN "review_run: codex verifier failed, falling back to claude-sonnet"
+        log "USER" "⚠ Round 2: Codex unavailable → claude-sonnet (fallback). Codex API usage will NOT change."
         verified_findings=$(run_agent_sync "claude-sonnet" "$verifier_prompt" 180 "code-reviewer" "review") || {
             log WARN "review_run: verification failed entirely, using all findings as confirmed"
             verified_findings="{\"findings\":$(echo "$all_findings" | \
@@ -8225,6 +8234,7 @@ Return JSON: {\"include\": [...finding titles...], \"exclude\": [...finding titl
             local debate_result
             debate_result=$(run_agent_sync "codex" "$debate_prompt" 120 "code-reviewer" "review") || {
                 log WARN "review_run: debate agent failed, including all contested findings"
+                log "USER" "⚠ Round 3: Codex debate gate unavailable — including all contested findings without debate."
                 debate_result="{\"include\":[],\"exclude\":[]}"
             }
             local exclude_titles

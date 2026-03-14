@@ -20,6 +20,16 @@
 - 6 skill/command files with claude-mem MCP tool hints: `flow-discover.md`, `flow-define.md`, `flow-develop.md`, `flow-deliver.md`, `skill-debate.md`, `skill-deep-research.md`.
 - `/octo:octo` smart router: Added claude-mem search hint for routing correction learning.
 
+### Changed
+
+- `/octo:review` default focus: `["correctness"]` → `["correctness","security","architecture","tdd"]` — all areas reviewed by default.
+- `/octo:review` auto-skips interactive prompts when `OCTOPUS_WORKFLOW_PHASE` is set (pipeline context from `/octo:develop`, `/octo:embrace`, etc.).
+
+### Fixed
+
+- `/octo:review`: Codex auth preflight via `check_codex_auth_freshness()` — warns user before silent fallback to claude-sonnet.
+- `/octo:review`: Visible `⚠` warnings when Codex falls back to claude-sonnet in Round 2 (verification) and Round 3 (debate gate). Users now see why Codex API usage doesn't change.
+
 ---
 
 ## [8.56.0] - 2026-03-13
