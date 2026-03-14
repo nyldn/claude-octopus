@@ -11,8 +11,8 @@
     {
       "name": "claude-octopus",
       "source": "./",
-      "description": "v8.57.0 - CC v2.1.76 feature sync \u2014 6 new flags (100 total, 31 version_compare blocks). MCP elicitation, PostCompact hook, worktree sparse paths, /effort command, BG partial results. 32 personas, 39 commands, 50 skills. Run /octo:setup.",
-      "version": "8.57.0",
+      "description": "v9.0.0 - CC v2.1.76 sync + claude-mem companion integration. 100 detection flags, claude-mem bridge (phase observations, session context, skill hints). 32 personas, 39 commands, 50 skills. Run /octo:setup.",
+      "version": "9.0.0",
       "author": {
         "name": "nyldn"
       },
