@@ -1,5 +1,5 @@
 {
-  "name": "octo",
+  "name": "claude-octopus",
   "version": "8.56.0",
   "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v8.56.0) Agent ergonomics \u2014 readonly frontmatter, user-scope agents (~/.claude/agents/), /octo:resume. 32 expert personas, 39 commands, 50 skills. Commands use '/octo:*', including the '/octo:octo' smart router. Run /octo:setup for guided setup.",
   "author": {
