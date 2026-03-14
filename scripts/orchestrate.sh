@@ -8055,6 +8055,96 @@ build_review_fleet() {
 
 # review_run: canonical 3-round multi-LLM code review pipeline
 # WHY: replaces the single-model "codex exec review" dispatch with a
+# v9.0: Provider report card — prints post-run summary of provider status
+# Args: provider_status_file (one line per event: "provider|status|detail")
+# WHY: Mid-stream warnings vanish in terminal scroll. This prints AFTER all output,
+# making provider failures impossible to miss.
+print_provider_report() {
+    local status_file="$1"
+    local fallback_log="${HOME}/.claude-octopus/provider-fallbacks.log"
+
+    if [[ ! -f "$status_file" ]]; then
+        return 0
+    fi
+
+    # Determine status per provider
+    local codex_status="not used" gemini_status="not used" claude_status="✓ OK" perplexity_status="not used"
+    local codex_detail="" gemini_detail="" perplexity_detail=""
+    local had_fallback=false
+
+    while IFS='|' read -r provider status detail; do
+        case "$provider" in
+            codex)
+                if [[ "$status" == "ok" ]]; then
+                    codex_status="✓ OK"
+                elif [[ "$status" == "fallback" ]]; then
+                    codex_status="✗ FALLBACK"
+                    codex_detail="$detail"
+                    had_fallback=true
+                elif [[ "$status" == "auth-failed" ]]; then
+                    codex_status="✗ AUTH FAILED"
+                    codex_detail="$detail"
+                    had_fallback=true
+                fi
+                ;;
+            gemini)
+                if [[ "$status" == "ok" ]]; then
+                    gemini_status="✓ OK"
+                elif [[ "$status" == "fallback" ]]; then
+                    gemini_status="✗ FALLBACK"
+                    gemini_detail="$detail"
+                    had_fallback=true
+                fi
+                ;;
+            perplexity)
+                if [[ "$status" == "ok" ]]; then
+                    perplexity_status="✓ OK"
+                elif [[ "$status" == "fallback" ]]; then
+                    perplexity_status="✗ FALLBACK"
+                    perplexity_detail="$detail"
+                    had_fallback=true
+                fi
+                ;;
+        esac
+    done < "$status_file"
+
+    # Always print the report card
+    echo ""
+    echo "┌─────────────────────────────────────────────┐"
+    echo "│ 🐙 Provider Status                          │"
+    echo "│                                             │"
+    printf "│ 🔴 Codex:      %-28s│\n" "$codex_status"
+    [[ -n "$codex_detail" ]] && printf "│    → %-38s│\n" "$codex_detail"
+    printf "│ 🟡 Gemini:     %-28s│\n" "$gemini_status"
+    [[ -n "$gemini_detail" ]] && printf "│    → %-38s│\n" "$gemini_detail"
+    printf "│ 🔵 Claude:     %-28s│\n" "$claude_status"
+    printf "│ 🟣 Perplexity: %-28s│\n" "$perplexity_status"
+    [[ -n "$perplexity_detail" ]] && printf "│    → %-38s│\n" "$perplexity_detail"
+    if [[ "$had_fallback" == "true" ]]; then
+        echo "│                                             │"
+        echo "│ ⚠ Some providers failed — run /octo:doctor  │"
+    fi
+    echo "└─────────────────────────────────────────────┘"
+
+    # Persist failures for /octo:doctor
+    if [[ "$had_fallback" == "true" ]]; then
+        mkdir -p "$(dirname "$fallback_log")"
+        local ts
+        ts=$(date -Iseconds 2>/dev/null || date +%Y-%m-%dT%H:%M:%S)
+        while IFS='|' read -r provider status detail; do
+            if [[ "$status" == "fallback" || "$status" == "auth-failed" ]]; then
+                echo "[$ts] provider=$provider status=$status detail=$detail" >> "$fallback_log"
+            fi
+        done < "$status_file"
+        # Keep only last 50 entries
+        if [[ -f "$fallback_log" ]] && [[ $(wc -l < "$fallback_log") -gt 50 ]]; then
+            tail -50 "$fallback_log" > "${fallback_log}.tmp" && mv "${fallback_log}.tmp" "$fallback_log"
+        fi
+    fi
+
+    rm -f "$status_file"
+}
+
 # parallel fleet (Round 1) + verification (Round 2) + synthesis (Round 3)
 # that competes with CC Code Review's managed service.
 #
@@ -8072,12 +8162,19 @@ review_run() {
     publish=$(echo "$profile_json"    | jq -r '.publish    // "ask"')
     debate=$(echo "$profile_json"     | jq -r '.debate     // "auto"')
 
+    # v9.0: Provider status tracking for post-run report card
+    local provider_status_file
+    provider_status_file=$(mktemp "${TMPDIR:-/tmp}/octopus-provider-status.XXXXXX")
+
     # v9.0: Preflight — check Codex auth before review pipeline
     if command -v codex >/dev/null 2>&1; then
         if ! check_codex_auth_freshness 2>/dev/null; then
             log "WARN" "review_run: Codex auth may be stale — review fleet may fall back to claude-sonnet"
             log "USER" "⚠ Codex auth check failed. Run 'codex auth' or /octo:doctor to fix. Falling back to claude-sonnet for Codex roles."
+            echo "codex|auth-failed|Run: codex auth" >> "$provider_status_file"
         fi
+    else
+        echo "codex|not-installed|Install: npm i -g @openai/codex" >> "$provider_status_file"
     fi
 
     local timestamp
@@ -8203,9 +8300,12 @@ $(echo "$all_findings" | jq -c '.')
 Return ONLY valid JSON with 'findings' array including verdict field."
 
     local verified_findings
-    verified_findings=$(run_agent_sync "codex" "$verifier_prompt" 180 "code-reviewer" "review") || {
+    verified_findings=$(run_agent_sync "codex" "$verifier_prompt" 180 "code-reviewer" "review") && {
+        echo "codex|ok|Round 2 verification" >> "$provider_status_file"
+    } || {
         log WARN "review_run: codex verifier failed, falling back to claude-sonnet"
         log "USER" "⚠ Round 2: Codex unavailable → claude-sonnet (fallback). Codex API usage will NOT change."
+        echo "codex|fallback|Round 2 → claude-sonnet" >> "$provider_status_file"
         verified_findings=$(run_agent_sync "claude-sonnet" "$verifier_prompt" 180 "code-reviewer" "review") || {
             log WARN "review_run: verification failed entirely, using all findings as confirmed"
             verified_findings="{\"findings\":$(echo "$all_findings" | \
@@ -8232,9 +8332,12 @@ Return ONLY valid JSON with 'findings' array including verdict field."
 Findings: $(echo "$debate_candidates" | jq -c '.')
 Return JSON: {\"include\": [...finding titles...], \"exclude\": [...finding titles...]}"
             local debate_result
-            debate_result=$(run_agent_sync "codex" "$debate_prompt" 120 "code-reviewer" "review") || {
+            debate_result=$(run_agent_sync "codex" "$debate_prompt" 120 "code-reviewer" "review") && {
+                echo "codex|ok|Round 3 debate" >> "$provider_status_file"
+            } || {
                 log WARN "review_run: debate agent failed, including all contested findings"
                 log "USER" "⚠ Round 3: Codex debate gate unavailable — including all contested findings without debate."
+                echo "codex|fallback|Round 3 debate → skipped" >> "$provider_status_file"
                 debate_result="{\"include\":[],\"exclude\":[]}"
             }
             local exclude_titles
@@ -8289,6 +8392,9 @@ Return ONLY JSON: {\"findings\": [...ranked, deduplicated findings...]}"
     else
         render_terminal_report "$findings_file"
     fi
+
+    # v9.0: Print provider report card — always last, impossible to miss
+    print_provider_report "$provider_status_file"
 }
 
 # post_inline_comments: posts findings as inline PR comments via gh API
@@ -15313,6 +15419,37 @@ doctor_check_providers() {
     else
         doctor_add "perplexity-api" "providers" "info" \
             "Perplexity not configured (optional)" "export PERPLEXITY_API_KEY=\"pplx-...\" for live web search"
+    fi
+
+    # v9.0: Check recent provider fallback history
+    local fallback_log="${HOME}/.claude-octopus/provider-fallbacks.log"
+    if [[ -f "$fallback_log" ]]; then
+        local recent_failures=0 codex_failures=0 gemini_failures=0
+        local cutoff
+        cutoff=$(date -v-24H +%Y-%m-%d 2>/dev/null || date -d '24 hours ago' +%Y-%m-%d 2>/dev/null || echo "")
+        if [[ -n "$cutoff" ]]; then
+            while IFS= read -r line; do
+                local log_date="${line:1:10}"  # Extract date from [YYYY-MM-DDTHH:MM:SS]
+                if [[ "$log_date" > "$cutoff" || "$log_date" == "$cutoff" ]]; then
+                    ((recent_failures++)) || true
+                    [[ "$line" == *"provider=codex"* ]] && ((codex_failures++)) || true
+                    [[ "$line" == *"provider=gemini"* ]] && ((gemini_failures++)) || true
+                fi
+            done < "$fallback_log"
+        else
+            recent_failures=$(wc -l < "$fallback_log" | tr -d ' ')
+        fi
+        if [[ $recent_failures -gt 0 ]]; then
+            local detail="Last 24h:"
+            [[ $codex_failures -gt 0 ]] && detail="$detail Codex failed ${codex_failures}x"
+            [[ $gemini_failures -gt 0 ]] && detail="$detail Gemini failed ${gemini_failures}x"
+            doctor_add "provider-fallbacks" "providers" "warn" \
+                "${recent_failures} provider fallback(s) in last 24h" \
+                "${detail}. Check auth: codex auth / gemini auth. Log: ${fallback_log}"
+        else
+            doctor_add "provider-fallbacks" "providers" "pass" \
+                "No recent provider fallbacks" ""
+        fi
     fi
 }
 
