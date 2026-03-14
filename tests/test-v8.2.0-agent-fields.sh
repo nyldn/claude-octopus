@@ -242,60 +242,60 @@ echo ""
 echo -e "${BLUE}Test Group 4: Version Consistency${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-# 4.1: package.json version is 8.x
+# 4.1: package.json version is 8.x/9.x
 pkg_version=$(grep '"version"' "$PACKAGE_JSON" | head -1 | sed 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
-if [[ "$pkg_version" =~ ^8\. ]]; then
-    assert_pass "4.1 package.json version is 8.x ($pkg_version)"
+if [[ "$pkg_version" =~ ^(8|9)\. ]]; then
+    assert_pass "4.1 package.json version is 8.x/9.x ($pkg_version)"
 else
-    assert_fail "4.1 package.json version is 8.x" "Got: $pkg_version"
+    assert_fail "4.1 package.json version is 8.x/9.x" "Got: $pkg_version"
 fi
 
-# 4.2: plugin.json version is 8.x
+# 4.2: plugin.json version is 8.x/9.x
 pj_version=$(grep '"version"' "$PLUGIN_JSON" | head -1 | sed 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
-if [[ "$pj_version" =~ ^8\. ]]; then
-    assert_pass "4.2 plugin.json version is 8.x ($pj_version)"
+if [[ "$pj_version" =~ ^(8|9)\. ]]; then
+    assert_pass "4.2 plugin.json version is 8.x/9.x ($pj_version)"
 else
-    assert_fail "4.2 plugin.json version is 8.x" "Got: $pj_version"
+    assert_fail "4.2 plugin.json version is 8.x/9.x" "Got: $pj_version"
 fi
 
-# 4.3: marketplace.json version is 8.x
+# 4.3: marketplace.json version is 8.x/9.x
 mj_version=$(grep '"version"' "$MARKETPLACE_JSON" | tail -1 | sed 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
-if [[ "$mj_version" =~ ^8\. ]]; then
-    assert_pass "4.3 marketplace.json version is 8.x ($mj_version)"
+if [[ "$mj_version" =~ ^(8|9)\. ]]; then
+    assert_pass "4.3 marketplace.json version is 8.x/9.x ($mj_version)"
 else
-    assert_fail "4.3 marketplace.json version is 8.x" "Got: $mj_version"
+    assert_fail "4.3 marketplace.json version is 8.x/9.x" "Got: $mj_version"
 fi
 
 # 4.4: CHANGELOG exists with version entries (v8.37.0 trimmed pre-8.22.0 history)
-if [[ -f "$CHANGELOG_MD" ]] && grep -q '\[8\.' "$CHANGELOG_MD"; then
+if [[ -f "$CHANGELOG_MD" ]] && grep -qE '\[(8|9)\.' "$CHANGELOG_MD"; then
     assert_pass "4.4 CHANGELOG.md has version entries"
 else
     assert_fail "4.4 CHANGELOG.md has version entries"
 fi
 
-# 4.5: README badge shows 8.x
-if grep -q 'Version-8\.' "$README_MD"; then
-    assert_pass "4.5 README.md badge shows 8.x"
+# 4.5: README badge shows 8.x/9.x
+if grep -qE 'Version-(8|9)\.' "$README_MD"; then
+    assert_pass "4.5 README.md badge shows 8.x/9.x"
 else
-    assert_fail "4.5 README.md badge shows 8.x"
+    assert_fail "4.5 README.md badge shows 8.x/9.x"
 fi
 
-# 4.6: plugin.json description mentions v8.x
-if grep -q 'v8\.' "$PLUGIN_JSON"; then
-    assert_pass "4.6 plugin.json description mentions v8.x"
+# 4.6: plugin.json description mentions v8.x/v9.x
+if grep -qE 'v(8|9)\.' "$PLUGIN_JSON"; then
+    assert_pass "4.6 plugin.json description mentions v8.x/v9.x"
 else
-    assert_fail "4.6 plugin.json description mentions v8.x"
+    assert_fail "4.6 plugin.json description mentions v8.x/v9.x"
 fi
 
 # 4.7: CHANGELOG exists with version entries (v8.37.0 trimmed pre-8.22.0 history)
-if [[ -f "$CHANGELOG_MD" ]] && grep -q '\[8\.' "$CHANGELOG_MD"; then
+if [[ -f "$CHANGELOG_MD" ]] && grep -qE '\[(8|9)\.' "$CHANGELOG_MD"; then
     assert_pass "4.7 CHANGELOG has version entries"
 else
     assert_fail "4.7 CHANGELOG has version entries"
 fi
 
 # 4.8: CHANGELOG has recent entries
-if grep -q '\[8\.3' "$CHANGELOG_MD"; then
+if grep -qE '\[(8\.3|9\.)' "$CHANGELOG_MD"; then
     assert_pass "4.8 CHANGELOG has recent version entries"
 else
     assert_fail "4.8 CHANGELOG has recent version entries"

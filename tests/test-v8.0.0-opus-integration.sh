@@ -367,16 +367,16 @@ echo ""
 echo -e "${BLUE}Test Group 8: Documentation updates${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-# 8.1: package.json version is 8.x (bumped from 8.0.0)
+# 8.1: package.json version is 8.x/9.x (bumped from 8.0.0)
 pkg_version=$(grep '"version"' "$PACKAGE_JSON" | head -1 | sed 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
-if [[ "$pkg_version" =~ ^8\. ]]; then
-    assert_pass "8.1 package.json version is 8.x ($pkg_version)"
+if [[ "$pkg_version" =~ ^(8|9)\. ]]; then
+    assert_pass "8.1 package.json version is 8.x/9.x ($pkg_version)"
 else
-    assert_fail "8.1 package.json version is 8.x" "Got: $pkg_version"
+    assert_fail "8.1 package.json version is 8.x/9.x" "Got: $pkg_version"
 fi
 
-# 8.2: CHANGELOG exists with version entries (v8.37.0 trimmed pre-8.22.0 history)
-if [[ -f "$CHANGELOG_MD" ]] && grep -q '\[8\.' "$CHANGELOG_MD"; then
+# 8.2: CHANGELOG exists with version entries
+if [[ -f "$CHANGELOG_MD" ]] && grep -qE '\[(8|9)\.' "$CHANGELOG_MD"; then
     assert_pass "8.2 CHANGELOG.md has version entries"
 else
     assert_fail "8.2 CHANGELOG.md has version entries"

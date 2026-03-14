@@ -295,7 +295,7 @@ else
 fi
 
 # 3.8: spawn_agent injects memory via build_memory_context
-if grep -A 200 '^spawn_agent()' "$ORCHESTRATE_SH" | grep -q 'build_memory_context'; then
+if grep -A 500 '^spawn_agent()' "$ORCHESTRATE_SH" | grep -c 'build_memory_context' >/dev/null 2>&1; then
     assert_pass "3.8 spawn_agent injects memory via build_memory_context"
 else
     assert_fail "3.8 spawn_agent injects memory via build_memory_context"

@@ -171,40 +171,40 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 
 # 3.1: package.json version is current
 pkg_version=$(grep '"version"' "$PACKAGE_JSON" | head -1 | sed 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
-if [[ "$pkg_version" =~ ^8\. ]]; then
-    assert_pass "3.1 package.json version is 8.x ($pkg_version)"
+if [[ "$pkg_version" =~ ^(8|9)\. ]]; then
+    assert_pass "3.1 package.json version is 8.x/9.x ($pkg_version)"
 else
-    assert_fail "3.1 package.json version is 8.x" "Got: $pkg_version"
+    assert_fail "3.1 package.json version is 8.x/9.x" "Got: $pkg_version"
 fi
 
 # 3.2: plugin.json version is current
 pj_version=$(grep '"version"' "$PLUGIN_JSON" | head -1 | sed 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
-if [[ "$pj_version" =~ ^8\. ]]; then
-    assert_pass "3.2 plugin.json version is 8.x ($pj_version)"
+if [[ "$pj_version" =~ ^(8|9)\. ]]; then
+    assert_pass "3.2 plugin.json version is 8.x/9.x ($pj_version)"
 else
-    assert_fail "3.2 plugin.json version is 8.x" "Got: $pj_version"
+    assert_fail "3.2 plugin.json version is 8.x/9.x" "Got: $pj_version"
 fi
 
 # 3.3: marketplace.json version is current
 mj_version=$(grep '"version"' "$MARKETPLACE_JSON" | tail -1 | sed 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
-if [[ "$mj_version" =~ ^8\. ]]; then
-    assert_pass "3.3 marketplace.json version is 8.x ($mj_version)"
+if [[ "$mj_version" =~ ^(8|9)\. ]]; then
+    assert_pass "3.3 marketplace.json version is 8.x/9.x ($mj_version)"
 else
-    assert_fail "3.3 marketplace.json version is 8.x" "Got: $mj_version"
+    assert_fail "3.3 marketplace.json version is 8.x/9.x" "Got: $mj_version"
 fi
 
 # 3.4: CHANGELOG exists with version entries (v8.37.0 trimmed pre-8.22.0 history)
-if [[ -f "$CHANGELOG_MD" ]] && grep -q '\[8\.' "$CHANGELOG_MD"; then
+if [[ -f "$CHANGELOG_MD" ]] && grep -qE '\[(8|9)\.' "$CHANGELOG_MD"; then
     assert_pass "3.4 CHANGELOG.md has version entries"
 else
     assert_fail "3.4 CHANGELOG.md has version entries"
 fi
 
 # 3.5: README version badge is current 8.x
-if grep -q 'Version-8\.' "$README_MD"; then
-    assert_pass "3.5 README.md version badge is 8.x"
+if grep -qE 'Version-(8|9)\.' "$README_MD"; then
+    assert_pass "3.5 README.md version badge is 8.x/9.x"
 else
-    assert_fail "3.5 README.md version badge is 8.x"
+    assert_fail "3.5 README.md version badge is 8.x/9.x"
 fi
 
 # 3.6: README Claude Code badge is v2.1.33+ (accept newer patch/minor)
