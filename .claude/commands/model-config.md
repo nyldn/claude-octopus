@@ -12,7 +12,7 @@ updated: 2026-03-09
 
 Configure which AI models are used by Claude Octopus workflows. This allows you to:
 - Use premium models (GPT-5.4, Claude Opus 4.6) for complex tasks
-- Use fast models (GPT-5.3-Codex-Spark, Gemini Flash) for quick feedback
+- Use fast models (GPT-5.4, Gemini Flash) for quick feedback
 - Use large-context models (GPT-4.1, 1M tokens) for big codebases
 - Use reasoning models (o3, o3) for complex analysis
 - Configure per-phase model routing (different models for different workflow phases)
@@ -267,15 +267,15 @@ If your config file uses an older format (v1.0 or v2.0), it will be automaticall
 
 ## Spark vs Full Codex: When to Use Which
 
-| Factor | GPT-5.4 | GPT-5.3-Codex-Spark |
-|--------|---------|---------------------|
+| Factor | GPT-5.4 (Full) | GPT-5.4 (Fast/Spark) |
+|--------|----------------|----------------------|
 | **Speed** | ~65 tok/s | **1000+ tok/s** (15x) |
 | **Context** | 400K tokens | 128K tokens |
 | **Image input** | Yes | No (text only) |
 | **Availability** | All plans | Pro ($200/mo) only |
 | **Best for** | Complex tasks, security, architecture | Reviews, iteration, quick tasks |
 
-**Rule of thumb:** Use Spark when speed matters more than depth. Use full Codex when accuracy and context window matter.
+**Rule of thumb:** Use fast mode when speed matters more than depth. Use full Codex when accuracy and context window matter.
 
 ## Valid Providers
 

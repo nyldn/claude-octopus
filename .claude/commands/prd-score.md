@@ -72,7 +72,44 @@ Grade Scale: A+ (90-100), A (80-89), B (70-79), C (60-69), D (<60)
 [1-2 sentence summary of PRD quality and AI-readiness]
 ```
 
-### Step 4: Offer Improvements
+### Step 4: Offer Scoring Mode
+
+After initial scoring, offer the user a choice:
+
+```javascript
+AskUserQuestion({
+  questions: [
+    {
+      question: "Would you like a rigorous multi-AI scoring pass?",
+      header: "Scoring Rigor",
+      multiSelect: false,
+      options: [
+        {label: "Standard (done)", description: "Single-model score — already complete above"},
+        {label: "Rigorous", description: "Multi-AI scoring — 2-3 providers score independently, then consensus synthesis"}
+      ]
+    }
+  ]
+})
+```
+
+**If Rigorous mode selected:**
+
+🐙 **CLAUDE OCTOPUS ACTIVATED** — Multi-AI PRD Scoring
+
+Providers:
+🔴 Codex CLI — Implementation feasibility bias (catches vague technical specs)
+🟡 Gemini CLI — Completeness and industry standards bias (catches missing sections)
+🔵 Claude — AI-optimization and structure bias (catches poor phasing)
+
+**Rigorous workflow:**
+1. Dispatch the PRD to 2-3 available providers, each scoring independently using the same 100-point framework
+2. Collect individual scores and category breakdowns
+3. Synthesize consensus: highlight where providers agree (high confidence) and where they diverge (areas to investigate)
+4. Present combined score with per-provider variance
+
+**Why this works:** Different models flag different weaknesses. Codex catches implementation gaps that Claude misses; Gemini catches industry-standard omissions that Codex overlooks. Consensus scoring reduces single-model bias.
+
+### Step 5: Offer Improvements
 
 After scoring, offer:
 1. Revise the PRD - Apply top recommendations

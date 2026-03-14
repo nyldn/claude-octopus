@@ -51,7 +51,8 @@ AskUserQuestion({
         {label: "Correctness", description: "Logic bugs, edge cases, regressions"},
         {label: "Security & Edge Cases", description: "OWASP, race conditions, partial failures"},
         {label: "Architecture", description: "API contracts, integration, breaking changes"},
-        {label: "TDD discipline", description: "Verify failing-test-first evidence and minimal implementation"}
+        {label: "TDD discipline", description: "Verify failing-test-first evidence and minimal implementation"},
+        {label: "All areas (Recommended)", description: "Correctness + Security + Architecture + TDD"}
       ]
     },
     {

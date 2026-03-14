@@ -5,6 +5,9 @@
 - **6 new `SUPPORTS_*` detection flags** (100 total, 31 `version_compare` blocks) from CC v2.1.76.
 - **v2.1.76**: `SUPPORTS_MCP_ELICITATION` (MCP servers can request structured user input mid-task), `SUPPORTS_ELICITATION_HOOKS` (Elicitation and ElicitationResult hook events), `SUPPORTS_WORKTREE_SPARSE_PATHS` (`worktree.sparsePaths` setting for sparse checkout), `SUPPORTS_POST_COMPACT_HOOK` (PostCompact hook event fires after compaction), `SUPPORTS_EFFORT_COMMAND` (`/effort` slash command for mid-session effort adjustment), `SUPPORTS_BG_PARTIAL_RESULTS` (killing background agent preserves partial results).
 - `test-cc-v2176-sync.sh` — tests covering declarations, detection block, logging, wiring, doctor checks, and version comments.
+- `test-command-meta-prompt.sh` — 8 tests: file integrity, frontmatter, skill reference, core techniques, registration.
+- `test-command-prd-score.sh` — 11 tests: file integrity, frontmatter with arguments, scoring categories A-D, 100-point framework, grade scale, registration.
+- `test-command-staged-review.sh` — 9 tests: file integrity, frontmatter, no broken references, compliance block, skill reference, cross-reference validation, registration.
 
 ### Wired
 
@@ -24,9 +27,16 @@
 
 - `/octo:review` default focus: `["correctness"]` → `["correctness","security","architecture","tdd"]` — all areas reviewed by default.
 - `/octo:review` auto-skips interactive prompts when `OCTOPUS_WORKFLOW_PHASE` is set (pipeline context from `/octo:develop`, `/octo:embrace`, etc.).
+- `/octo:review`: Added "All areas (Recommended)" focus option — users no longer need to select 4 options individually.
+- `/octo:brainstorm`: Added Solo/Team mode selection — Team mode dispatches parallel brainstorm queries to available providers for diverse AI perspectives.
+- `/octo:prd`: Phase 1 research now dispatches parallel queries to available providers (Codex for technical patterns, Gemini for market landscape) when multi-provider is available.
+- `/octo:prd-score`: Added optional "Rigorous" multi-AI scoring mode — 2-3 providers score independently, then consensus synthesis reduces single-model bias.
+- `/octo:staged-review`: Rewritten with mandatory compliance block, AskUserQuestion for scope selection, interactive next steps, and correct related command references.
+- `/octo:model-config`: Updated stale `GPT-5.3-Codex-Spark` references to `GPT-5.4` to match current orchestrate.sh model mappings.
 
 ### Fixed
 
+- `/octo:staged-review`: Removed broken references to non-existent `/octo:verify` and `/octo:ship` commands — replaced with `/octo:deliver` and `/octo:review`.
 - `/octo:review`: Codex auth preflight via `check_codex_auth_freshness()` — warns user before silent fallback to claude-sonnet.
 - `/octo:review`: Visible `⚠` warnings when Codex falls back to claude-sonnet in Round 2 (verification) and Round 3 (debate gate). Users now see why Codex API usage doesn't change.
 

@@ -37,7 +37,29 @@ To make this PRD highly targeted, please answer briefly:
 
 ## PHASE 1: QUICK RESEARCH (Max 60 seconds)
 
-If topic is unfamiliar, do MAX 2 web searches:
+**Check provider availability first:**
+
+```bash
+# Check if multi-provider research is available
+CODEX_AVAILABLE=$(command -v codex &>/dev/null && echo "true" || echo "false")
+GEMINI_AVAILABLE=$(command -v gemini &>/dev/null && echo "true" || echo "false")
+```
+
+**If multiple providers are available**, dispatch parallel research for richer context:
+
+🐙 **Multi-provider research mode:**
+- 🔴 Codex CLI — Technical implementation patterns and architecture precedents
+- 🟡 Gemini CLI — Market landscape, competitive products, industry trends
+- 🔵 Claude — Domain analysis and strategic synthesis
+
+```bash
+# Parallel research dispatch (if providers available)
+orchestrate.sh prd-research "<feature>" codex &
+orchestrate.sh prd-research "<feature>" gemini &
+wait
+```
+
+**If single-provider only**, do MAX 2 web searches:
 - One for domain/market context
 - One for technical patterns (only if needed)
 
