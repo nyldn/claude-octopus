@@ -11,8 +11,8 @@
     {
       "name": "claude-octopus",
       "source": "./",
-      "description": "v8.56.0 - CC v2.1.72-v2.1.74 feature sync \u2014 8 new flags (94 total, 30 version_compare blocks), smart router v2.0 already released in v8.55.0. 32 personas, 39 commands, 50 skills. Run /octo:setup.",
-      "version": "8.56.0",
+      "description": "v8.57.0 - CC v2.1.76 feature sync \u2014 6 new flags (100 total, 31 version_compare blocks). MCP elicitation, PostCompact hook, worktree sparse paths, /effort command, BG partial results. 32 personas, 39 commands, 50 skills. Run /octo:setup.",
+      "version": "8.57.0",
       "author": {
         "name": "nyldn"
       },

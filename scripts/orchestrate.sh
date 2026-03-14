@@ -518,6 +518,12 @@ SUPPORTS_SESSION_END_TIMEOUT=false     # v8.56: Claude Code v2.1.74+ (CLAUDE_COD
 SUPPORTS_CONTEXT_SUGGESTIONS=false     # v8.56: Claude Code v2.1.74+ (/context command shows actionable optimization tips)
 SUPPORTS_PLUGIN_DIR_OVERRIDE=false     # v8.56: Claude Code v2.1.74+ (--plugin-dir local dev copies override installed marketplace plugins)
 SUPPORTS_MANAGED_POLICY_FIX=false      # v8.56: Claude Code v2.1.74+ (managed policy ask rules no longer bypassed by user allow/skill allowed-tools)
+SUPPORTS_MCP_ELICITATION=false        # v8.57: Claude Code v2.1.76+ (MCP servers can request structured user input mid-task via interactive dialog)
+SUPPORTS_ELICITATION_HOOKS=false      # v8.57: Claude Code v2.1.76+ (Elicitation and ElicitationResult hook events for intercepting MCP elicitation)
+SUPPORTS_WORKTREE_SPARSE_PATHS=false  # v8.57: Claude Code v2.1.76+ (worktree.sparsePaths setting for sparse checkout in --worktree mode)
+SUPPORTS_POST_COMPACT_HOOK=false      # v8.57: Claude Code v2.1.76+ (PostCompact hook event fires after context compaction completes)
+SUPPORTS_EFFORT_COMMAND=false         # v8.57: Claude Code v2.1.76+ (/effort slash command to set model effort level during session)
+SUPPORTS_BG_PARTIAL_RESULTS=false     # v8.57: Claude Code v2.1.76+ (killing background agent preserves partial results in conversation context)
 SUPPORTS_CONTINUATION=false           # v8.30: Agent resume/continuation for iterative retries
 OCTOPUS_BACKEND="api"              # v8.16: Detected backend (api|bedrock|vertex|foundry)
 AGENT_TEAMS_ENABLED="${CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS:-0}"
@@ -792,6 +798,15 @@ detect_claude_code_version() {
         SUPPORTS_MANAGED_POLICY_FIX=true
     fi
 
+    if version_compare "$CLAUDE_CODE_VERSION" "2.1.76" ">="; then
+        SUPPORTS_MCP_ELICITATION=true
+        SUPPORTS_ELICITATION_HOOKS=true
+        SUPPORTS_WORKTREE_SPARSE_PATHS=true
+        SUPPORTS_POST_COMPACT_HOOK=true
+        SUPPORTS_EFFORT_COMMAND=true
+        SUPPORTS_BG_PARTIAL_RESULTS=true
+    fi
+
     log "INFO" "Claude Code v$CLAUDE_CODE_VERSION detected"
     log "INFO" "Task Management: $SUPPORTS_TASK_MANAGEMENT | Fork Context: $SUPPORTS_FORK_CONTEXT | Agent Teams: $SUPPORTS_AGENT_TEAMS"
     log "INFO" "Persistent Memory: $SUPPORTS_PERSISTENT_MEMORY | Hook Events: $SUPPORTS_HOOK_EVENTS | Agent Type Routing: $SUPPORTS_AGENT_TYPE_ROUTING"
@@ -820,6 +835,8 @@ detect_claude_code_version() {
     log "INFO" "Parallel Tool Resilience: $SUPPORTS_PARALLEL_TOOL_RESILIENCE | Plan With Args: $SUPPORTS_PLAN_WITH_ARGS"
     log "INFO" "Auto Memory Dir: $SUPPORTS_AUTO_MEMORY_DIR | Full Model IDs: $SUPPORTS_FULL_MODEL_IDS | Session End Timeout: $SUPPORTS_SESSION_END_TIMEOUT"
     log "INFO" "Context Suggestions: $SUPPORTS_CONTEXT_SUGGESTIONS | Plugin Dir Override: $SUPPORTS_PLUGIN_DIR_OVERRIDE | Managed Policy Fix: $SUPPORTS_MANAGED_POLICY_FIX"
+    log "INFO" "MCP Elicitation: $SUPPORTS_MCP_ELICITATION | Elicitation Hooks: $SUPPORTS_ELICITATION_HOOKS | Worktree Sparse Paths: $SUPPORTS_WORKTREE_SPARSE_PATHS"
+    log "INFO" "Post Compact Hook: $SUPPORTS_POST_COMPACT_HOOK | Effort Command: $SUPPORTS_EFFORT_COMMAND | BG Partial Results: $SUPPORTS_BG_PARTIAL_RESULTS"
 
     # v8.29.0: Context window control
     OCTOPUS_CONTEXT_WINDOW="${OCTOPUS_CONTEXT_WINDOW:-auto}"
@@ -12109,6 +12126,12 @@ ${skill_context}"
         log "DEBUG" "CC v2.1.74+: full model IDs (e.g. claude-opus-4-6) supported in agent frontmatter"
     fi
 
+    # v8.57: CC v2.1.76+ preserves partial results when background agents are killed
+    # Multi-agentic workflows (/octo:research, /octo:parallel) can safely time out agents
+    if [[ "$SUPPORTS_BG_PARTIAL_RESULTS" == "true" ]]; then
+        log "DEBUG" "CC v2.1.76+: background agent partial results preserved on kill"
+    fi
+
     log INFO "Spawning $agent_type agent (task: $task_id, role: ${role:-none})"
     log DEBUG "Command: $cmd"
     log DEBUG "Phase: ${phase:-none}, Role: ${role:-none}"
@@ -15659,6 +15682,44 @@ doctor_check_skills() {
             doctor_add "auto-memory-dir" "skills" "pass" \
                 "CC autoMemoryDirectory configured (custom auto-memory path)" ""
         fi
+    fi
+
+    # v8.57: Surface /effort command availability
+    if [[ "$SUPPORTS_EFFORT_COMMAND" == "true" ]]; then
+        doctor_add "effort-command" "skills" "info" \
+            "CC v2.1.76 /effort command available for mid-session effort adjustment" \
+            "Use /effort in Claude Code to change model effort level (low/medium/high) during a session"
+    fi
+
+    # v8.57: Surface worktree.sparsePaths for large monorepo optimization
+    if [[ "$SUPPORTS_WORKTREE_SPARSE_PATHS" == "true" ]]; then
+        local settings_file="${HOME}/.claude/settings.json"
+        local has_sparse="false"
+        if [[ -f "$settings_file" ]] && command -v jq &>/dev/null; then
+            has_sparse=$(jq 'has("worktree") and (.worktree | has("sparsePaths"))' "$settings_file" 2>/dev/null || echo "false")
+        fi
+        if [[ "$has_sparse" == "true" ]]; then
+            doctor_add "worktree-sparse-paths" "skills" "pass" \
+                "CC worktree.sparsePaths configured (sparse checkout for --worktree)" ""
+        else
+            doctor_add "worktree-sparse-paths-tip" "skills" "info" \
+                "CC v2.1.76 worktree.sparsePaths available for large monorepo optimization" \
+                "Set worktree.sparsePaths in settings to check out only specific directories in --worktree mode"
+        fi
+    fi
+
+    # v8.57: Surface MCP elicitation + PostCompact hook availability
+    if [[ "$SUPPORTS_MCP_ELICITATION" == "true" ]]; then
+        doctor_add "mcp-elicitation" "skills" "info" \
+            "CC v2.1.76 MCP elicitation available (MCP servers can request structured user input)" \
+            "MCP servers can now prompt for structured input mid-task via interactive dialogs"
+    fi
+
+    # v8.57: Warn about --plugin-dir behavioral change (one path per flag in v2.1.76+)
+    if [[ "$SUPPORTS_PLUGIN_DIR_OVERRIDE" == "true" ]] && version_compare "$CLAUDE_CODE_VERSION" "2.1.76" ">="; then
+        doctor_add "plugin-dir-one-path" "skills" "info" \
+            "CC v2.1.76 --plugin-dir accepts one path per flag (use repeated flags for multiple)" \
+            "If using multiple plugin dirs, change --plugin-dir 'a b' to --plugin-dir a --plugin-dir b"
     fi
 }
 

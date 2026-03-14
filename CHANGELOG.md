@@ -1,3 +1,21 @@
+## [8.57.0] - 2026-03-14
+
+### Added
+
+- **6 new `SUPPORTS_*` detection flags** (100 total, 31 `version_compare` blocks) from CC v2.1.76.
+- **v2.1.76**: `SUPPORTS_MCP_ELICITATION` (MCP servers can request structured user input mid-task), `SUPPORTS_ELICITATION_HOOKS` (Elicitation and ElicitationResult hook events), `SUPPORTS_WORKTREE_SPARSE_PATHS` (`worktree.sparsePaths` setting for sparse checkout), `SUPPORTS_POST_COMPACT_HOOK` (PostCompact hook event fires after compaction), `SUPPORTS_EFFORT_COMMAND` (`/effort` slash command for mid-session effort adjustment), `SUPPORTS_BG_PARTIAL_RESULTS` (killing background agent preserves partial results).
+- `test-cc-v2176-sync.sh` — tests covering declarations, detection block, logging, wiring, doctor checks, and version comments.
+
+### Wired
+
+- `spawn_agent()`: Debug log when `SUPPORTS_BG_PARTIAL_RESULTS` confirms background agent partial result preservation (CC v2.1.76+).
+- `/octo:doctor`: Surfaces `/effort` command availability for mid-session effort adjustment (CC v2.1.76+).
+- `/octo:doctor`: Checks `worktree.sparsePaths` setting in `~/.claude/settings.json` for large monorepo optimization (CC v2.1.76+).
+- `/octo:doctor`: Surfaces MCP elicitation capability (CC v2.1.76+).
+- `/octo:doctor`: Warns about `--plugin-dir` behavioral change — one path per flag in v2.1.76+ (use repeated flags for multiple dirs).
+
+---
+
 ## [8.56.0] - 2026-03-13
 
 ### Added
