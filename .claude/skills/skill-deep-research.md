@@ -87,6 +87,8 @@ AskUserQuestion({
 
 **DO NOT PROCEED TO STEP 2 until all questions are answered.**
 
+**Optional**: If **claude-mem** is installed, use its MCP tools (`search`) to check for relevant past research on this topic before launching new research agents.
+
 ---
 
 ### STEP 2: Provider Detection & Visual Indicators (MANDATORY)

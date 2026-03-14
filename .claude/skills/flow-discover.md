@@ -208,6 +208,7 @@ fi
 - Prior workflow phases (if resuming a session)
 - Architectural decisions already made
 - User vision captured in earlier phases
+- If **claude-mem** is installed, its MCP tools (`search`, `timeline`, `get_observations`) are available — use them to check for relevant past session context before launching research agents
 
 **DO NOT PROCEED TO STEP 4 until state read.**
 

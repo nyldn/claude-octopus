@@ -226,6 +226,7 @@ fi
 - Technology stack and patterns decided
 - Scope and requirements defined
 - Research findings to inform implementation
+- If **claude-mem** is installed, its MCP tools (`search`, `timeline`, `get_observations`) are available — use them to check for related past implementation patterns
 
 **DO NOT PROCEED TO STEP 4 until state read.**
 

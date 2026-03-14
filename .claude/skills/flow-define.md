@@ -137,6 +137,7 @@ fi
 - Discovery phase research (if completed)
 - Prior architectural decisions
 - User vision captured earlier
+- If **claude-mem** is installed, its MCP tools (`search`, `timeline`, `get_observations`) are available — use them to find past decisions on similar topics
 
 **DO NOT PROCEED TO STEP 3 until state read.**
 

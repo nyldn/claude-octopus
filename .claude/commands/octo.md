@@ -180,6 +180,7 @@ If the user **rejects** a routing suggestion or says "no, I meant X":
 1. Route to what the user actually wants
 2. Save the correction to auto-memory: "Routing correction: '<query summary>' should route to <correct workflow>, not <wrong workflow>"
 3. In future sessions, check auto-memory for routing corrections before keyword matching
+4. If **claude-mem** MCP tools are available, also search past routing decisions with `search("routing correction")` to inform future routing
 
 This allows the router to learn user preferences over time.
 

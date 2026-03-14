@@ -73,4 +73,14 @@ EOFJSON
     echo "[Octopus] Restored preferences from auto-memory: autonomy=${AUTONOMY}"
 fi
 
+# --- 4. Query claude-mem for recent project context (v8.57.0) ---
+BRIDGE_SCRIPT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}/scripts/claude-mem-bridge.sh"
+if [[ -x "$BRIDGE_SCRIPT" ]]; then
+    MEM_CONTEXT=$("$BRIDGE_SCRIPT" context "" 3 2>/dev/null || echo "")
+    if [[ -n "$MEM_CONTEXT" ]]; then
+        echo "[Octopus] claude-mem context available:"
+        echo "$MEM_CONTEXT"
+    fi
+fi
+
 exit 0

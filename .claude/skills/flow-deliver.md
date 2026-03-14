@@ -198,6 +198,7 @@ fi
 - Implementation decisions (from develop phase)
 - Research findings (from discover phase)
 - All architectural decisions to validate against
+- If **claude-mem** is installed, its MCP tools (`search`, `timeline`, `get_observations`) are available — use them to check for past delivery issues or quality patterns
 
 **DO NOT PROCEED TO STEP 4 until state read.**
 

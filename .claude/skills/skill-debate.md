@@ -378,6 +378,7 @@ ${QUESTION}
 
 ## Additional Context
 [Any relevant context from user's message or files]
+[If claude-mem is installed, search for past debates or decisions on this topic using its MCP tools]
 EOF
 
 # Initialize state.json

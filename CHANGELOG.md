@@ -13,6 +13,12 @@
 - `/octo:doctor`: Checks `worktree.sparsePaths` setting in `~/.claude/settings.json` for large monorepo optimization (CC v2.1.76+).
 - `/octo:doctor`: Surfaces MCP elicitation capability (CC v2.1.76+).
 - `/octo:doctor`: Warns about `--plugin-dir` behavioral change — one path per flag in v2.1.76+ (use repeated flags for multiple dirs).
+- `/octo:doctor`: Detects **claude-mem** companion plugin (version, "pass" status) — surfaces MCP tool availability for cross-session memory.
+- `scripts/claude-mem-bridge.sh`: Integration bridge for claude-mem HTTP API — `available`, `search`, `observe`, `context` commands. All operations non-blocking and fault-tolerant.
+- `save_session_checkpoint()`: Writes phase completion observations to claude-mem when available (non-blocking background POST).
+- `session-start-memory.sh`: Queries claude-mem for recent project context at session start and surfaces it.
+- 6 skill/command files with claude-mem MCP tool hints: `flow-discover.md`, `flow-define.md`, `flow-develop.md`, `flow-deliver.md`, `skill-debate.md`, `skill-deep-research.md`.
+- `/octo:octo` smart router: Added claude-mem search hint for routing correction learning.
 
 ---
 

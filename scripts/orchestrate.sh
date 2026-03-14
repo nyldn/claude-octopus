@@ -10707,6 +10707,17 @@ save_session_checkpoint() {
     update_metrics "phases_completed" "1" 2>/dev/null || true
     write_state_md 2>/dev/null || true
 
+    # v8.57: Notify claude-mem of phase completion (non-blocking, fault-tolerant)
+    local bridge_script="${SCRIPT_DIR}/claude-mem-bridge.sh"
+    if [[ -x "$bridge_script" ]] && "$bridge_script" available >/dev/null 2>&1; then
+        local workflow_name
+        workflow_name=$(jq -r '.workflow // "unknown"' "$SESSION_FILE" 2>/dev/null || echo "unknown")
+        "$bridge_script" observe "decision" \
+            "Octopus ${phase} phase ${status}" \
+            "Workflow: ${workflow_name}, Phase: ${phase}, Status: ${status}, Output: ${output_file}" \
+            2>/dev/null &
+    fi
+
     log DEBUG "Checkpoint saved: $phase ($status)"
 }
 
@@ -15749,6 +15760,19 @@ doctor_check_conflicts() {
     if [[ $conflicts -eq 0 ]]; then
         doctor_add "no-conflicts" "conflicts" "pass" \
             "No conflicting plugins detected" ""
+    fi
+
+    # v8.57: Detect companion plugins (complementary, not conflicting)
+    local claude_mem_dir=""
+    for dir in "$HOME"/.claude/plugins/cache/thedotmack/claude-mem/*/; do
+        [[ -d "$dir" ]] && claude_mem_dir="$dir" && break
+    done
+    if [[ -n "$claude_mem_dir" ]]; then
+        local mem_version
+        mem_version=$(basename "${claude_mem_dir%/}" 2>/dev/null || echo "unknown")
+        doctor_add "companion-claude-mem" "conflicts" "pass" \
+            "claude-mem v${mem_version} detected (companion — persistent cross-session memory)" \
+            "Octopus workflows can use claude-mem MCP tools (search, timeline, get_observations) for past session context"
     fi
 }
 
