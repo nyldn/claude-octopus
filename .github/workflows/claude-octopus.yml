@@ -159,9 +159,7 @@ jobs:
           # SECURITY: Sanitize file list - remove special characters except safe ones
           SAFE_FILES=$(echo "$CHANGED_FILES" | tr -cd 'a-zA-Z0-9_./ \n-' | head -c 10000)
 
-          REVIEW_PROMPT="Review the following code changes for quality, security, and best practices: $SAFE_FILES"
-
-          ./scripts/orchestrate.sh --ci deliver "$REVIEW_PROMPT" 2>&1 | tee review-output.txt
+          ./scripts/orchestrate.sh --ci code-review '{"target":"staged","publish":"never"}' 2>&1 | tee review-output.txt
 
       - name: Post Review Comment
         uses: actions/github-script@v8
