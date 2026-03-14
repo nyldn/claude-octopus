@@ -76,7 +76,7 @@ while IFS= read -r ref; do
         fail "related command exists: /octo:$cmd_name" "referenced command file not found"
         broken_refs=$((broken_refs + 1))
     fi
-done < <(grep -oP '/octo:\w+' "$CMD_FILE" 2>/dev/null | sort -u || true)
+done < <(grep -oE '/octo:[a-zA-Z0-9_-]+' "$CMD_FILE" 2>/dev/null | sort -u || true)
 if [[ $broken_refs -eq 0 ]]; then
     pass "all /octo: references point to existing commands"
 fi
