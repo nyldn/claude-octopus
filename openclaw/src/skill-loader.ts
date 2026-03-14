@@ -9,7 +9,7 @@
  */
 
 import { readFile, readdir } from "node:fs/promises";
-import { resolve } from "node:path";
+import { resolve, relative } from "node:path";
 
 export interface SkillMetadata {
   name: string;
@@ -87,6 +87,17 @@ function parseAliases(content: string): string[] {
 }
 
 /**
+ * Validate that a resolved file path stays within the expected directory.
+ * Prevents path traversal attacks via filenames containing ".." segments.
+ */
+function assertWithinDirectory(filePath: string, directory: string): void {
+  const rel = relative(directory, filePath);
+  if (rel.startsWith("..") || resolve(filePath) !== filePath) {
+    throw new Error(`Path traversal detected: ${filePath} escapes ${directory}`);
+  }
+}
+
+/**
  * Load all skill metadata from the Claude Octopus skills directory.
  */
 export async function loadSkills(pluginRoot: string): Promise<SkillMetadata[]> {
@@ -98,6 +109,7 @@ export async function loadSkills(pluginRoot: string): Promise<SkillMetadata[]> {
     if (!file.endsWith(".md")) continue;
 
     const filePath = resolve(skillsDir, file);
+    assertWithinDirectory(filePath, skillsDir);
     const content = await readFile(filePath, "utf-8");
     const frontmatter = parseFrontmatter(content);
 
@@ -133,6 +145,7 @@ export async function loadCommands(
     if (!file.endsWith(".md")) continue;
 
     const filePath = resolve(commandsDir, file);
+    assertWithinDirectory(filePath, commandsDir);
     const content = await readFile(filePath, "utf-8");
     const frontmatter = parseFrontmatter(content);
 
