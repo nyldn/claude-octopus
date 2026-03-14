@@ -31,20 +31,19 @@ A Claude Code plugin that turns one model into three. Orchestrates Codex, Gemini
 
 | Version | What shipped |
 |---------|-------------|
+| **9.0.0** | **CC v2.1.76 sync + claude-mem + command audit** — 100 feature flags, claude-mem companion integration, command audit remediation (staged-review rewrite, multi-LLM brainstorm/prd/prd-score, review "All areas" option), 81 tests |
+| **8.57** | **CC v2.1.76 feature sync** — 6 new detection flags (MCP elicitation, effort command, BG partial results), 5 doctor checks wired |
+| **8.56** | **CC v2.1.72-v2.1.74 sync** — 8 new flags (auto memory dir, full model IDs, plugin dir override), smart router v2.0 |
+| **8.55** | **Smart router v2.0** — `/octo:octo` rewritten, 17 workflows, 3-tier priority routing, decision tree confidence, routing analytics |
+| **8.54** | **Multi-agentic research** — parallel Agent dispatch per perspective, user-configurable intensity, Claude in-conversation synthesis |
 | **8.53** | **Agent ergonomics** — `readonly: true` frontmatter for read-only agents, user-scope agents from `~/.claude/agents/`, `/octo:resume` for agent continuation |
-| **8.45** | **Reaction engine** — configurable auto-response to CI failures, review comments, stuck agents; 13-state PR lifecycle tracking; escalation with timeout; transparent integration into health/sentinel/parallel |
-| **8.44** | **Agent lifecycle & PR integration** — agent registry with persistent tracking, worktree-per-agent parallelism, PR comment posting from reviews |
-| **8.43** | **Output quality & design critique** — context-aware quality injection (6 dev subtypes), reference integrity gate, three-way adversarial design critique, synthesis over concatenation |
-| **8.42** | **Workflow compliance & security** — mandatory execution enforcement, interactive next-steps, anti-injection nonces, Multi-LLM debate gates |
-| **8.41** | **Feature adoption** — 3 new hooks, 10 native agents, auto-memory persistence, Factory droid generation, command consolidation |
-| **8.40** | **CC v2.1.70-71 sync** — 6 new detection flags, 3 dead flags wired, 72 total feature flags across 24 thresholds |
-| **8.39** | **GPT-5.4 models** — new OpenAI model support, Bash 3.2 macOS compatibility fix |
-| **8.38** | **Factory AI discovery fix** — root symlinks for Droid auto-discovery of commands/skills |
-| **8.37** | **Perplexity Sonar** — web search provider integration with API-based citation support |
-| **8.36** | **Factory AI support** — dual-platform compatibility, auto-detection of Claude Code vs Factory Droid runtime |
-| **8.35** | **Feature flag activation** — effort callout, worktree branch in statusline, InstructionsLoaded hook |
-| **8.34** | **Recurrence detection** — issue categorization, JSONL decision logging, CodeRabbit integration |
-| **8.33** | **UI/UX design workflow** — BM25 design intelligence with 320+ searchable styles, palettes, fonts, and UX rules |
+| **8.52** | **CC v2.1.73 sync** — 6 new flags (model overrides, subagent model fix, skill deadlock fix), enterprise compatibility warnings |
+| **8.50** | **Multi-LLM review** — 3-round parallel fleet (Codex + Gemini + Claude + Perplexity), inline PR comments, REVIEW.md support |
+| **8.45** | **Reaction engine** — configurable auto-response to CI failures, review comments, stuck agents; 13-state PR lifecycle tracking |
+| **8.44** | **Agent lifecycle & PR integration** — agent registry with persistent tracking, worktree-per-agent parallelism, PR comment posting |
+| **8.43** | **Output quality & design critique** — context-aware quality injection (6 dev subtypes), three-way adversarial design critique |
+| **8.42** | **Workflow compliance & security** — mandatory execution enforcement, anti-injection nonces, Multi-LLM debate gates |
+| **8.41** | **Feature adoption** — 3 new hooks, 10 native agents, auto-memory persistence, command consolidation |
 
 [Full changelog](CHANGELOG.md)
 
@@ -335,6 +334,10 @@ The workflow continues with available providers. You'll see the status in the vi
 
 ---
 
+## Community
+
+Join [r/ClaudeOctopus](https://www.reddit.com/r/ClaudeOctopus/) for help, workflow tips, showcases, and updates.
+
 ## Contributing
 
 1. [Report issues](https://github.com/nyldn/claude-octopus/issues)
@@ -350,5 +353,5 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 MIT — see [LICENSE](LICENSE)
 
 <p align="center">
-  <a href="https://github.com/nyldn">nyldn</a> | MIT License | <a href="https://github.com/nyldn/claude-octopus/issues">Report Issues</a>
+  <a href="https://github.com/nyldn">nyldn</a> | MIT License | <a href="https://www.reddit.com/r/ClaudeOctopus/">r/ClaudeOctopus</a> | <a href="https://github.com/nyldn/claude-octopus/issues">Report Issues</a>
 </p>
