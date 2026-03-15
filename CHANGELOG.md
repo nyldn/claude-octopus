@@ -1,3 +1,11 @@
+## [9.2.0] - 2026-03-15
+
+### Changed
+
+- smart dispatch, blind spot library, skill name fix
+
+---
+
 ## [9.1.0] - 2026-03-14
 
 ### Changed
