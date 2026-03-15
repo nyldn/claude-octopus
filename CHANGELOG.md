@@ -1,3 +1,11 @@
+## [9.0.1] - 2026-03-14
+
+### Fixed
+
+- **Plugin install/uninstall mismatch**: Aligned `marketplace.json` plugin name from `"claude-octopus"` to `"octo"` to match `plugin.json`. Install command is now `octo@nyldn-plugins`. Fixes `/plugin uninstall` and `/plugin update` failures.
+
+---
+
 ## [9.0.0] - 2026-03-14
 
 ### Added
@@ -36,7 +44,6 @@
 
 ### Fixed
 
-- **Plugin install/uninstall mismatch**: Aligned `marketplace.json` plugin name from `"claude-octopus"` to `"octo"` to match `plugin.json`. Install command is now `octo@nyldn-plugins`. Fixes `/plugin uninstall` and `/plugin update` failures caused by name mismatch between plugin identity and marketplace registration.
 - `/octo:staged-review`: Removed broken references to non-existent `/octo:verify` and `/octo:ship` commands — replaced with `/octo:deliver` and `/octo:review`.
 - `/octo:review`: Codex auth preflight via `check_codex_auth_freshness()` — warns user before silent fallback to claude-sonnet.
 - `/octo:review`: Visible `⚠` warnings when Codex falls back to claude-sonnet in Round 2 (verification) and Round 3 (debate gate). Users now see why Codex API usage doesn't change.
