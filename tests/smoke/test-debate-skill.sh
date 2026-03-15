@@ -153,7 +153,7 @@ test_version_consistency() {
     local plugin_version=$(grep '"version"' "$plugin_json" | head -1 | sed 's/.*"version": *"\([^"]*\)".*/\1/')
     local package_version=$(grep '"version"' "$package_json" | head -1 | sed 's/.*"version": *"\([^"]*\)".*/\1/')
     # Extract version from marketplace.json plugins array
-    local marketplace_version=$(grep -A 3 '"claude-octopus"' "$marketplace_json" | grep '"version"' | sed 's/.*"version": *"\([^"]*\)".*/\1/')
+    local marketplace_version=$(grep -A 3 '"octo"' "$marketplace_json" | grep '"version"' | sed 's/.*"version": *"\([^"]*\)".*/\1/')
 
     if [[ "$plugin_version" == "$package_version" ]] && \
        [[ "$package_version" == "$marketplace_version" ]]; then

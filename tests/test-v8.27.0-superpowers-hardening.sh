@@ -228,7 +228,7 @@ else
 fi
 
 # 7.3 marketplace.json has valid semver >= 8.27.0
-MKT_VER=$(python3 -c "import json; [print(p['version']) for p in json.load(open('$PLUGIN_DIR/.claude-plugin/marketplace.json')).get('plugins',[]) if p.get('name')=='claude-octopus']" 2>/dev/null | head -1 || echo "")
+MKT_VER=$(python3 -c "import json; [print(p['version']) for p in json.load(open('$PLUGIN_DIR/.claude-plugin/marketplace.json')).get('plugins',[]) if p.get('name')=='octo']" 2>/dev/null | head -1 || echo "")
 if [[ -n "$MKT_VER" ]] && python3 -c "exit(0 if tuple(int(x) for x in '$MKT_VER'.split('.')) >= (8,27,0) else 1)" 2>/dev/null; then
   pass "marketplace.json version >= 8.27.0 (is $MKT_VER)"
 else
