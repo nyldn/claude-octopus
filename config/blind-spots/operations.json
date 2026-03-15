@@ -1,0 +1,35 @@
+{
+  "domain": "operations",
+  "blind_spots": [
+    {
+      "id": "ops-rollback-schema-divergence",
+      "topic": "Rollback infeasibility after data schema divergence",
+      "trigger_keywords": ["rollback", "deploy", "migrat", "canary", "blue.?green", "revert"],
+      "injection_prompt": "Assess rollback feasibility: if the deployment includes a database migration (new columns, changed constraints), can you roll back application code without rolling back the database? Forward-only schema changes make code rollback unsafe."
+    },
+    {
+      "id": "ops-metric-cardinality",
+      "topic": "Metric cardinality explosion in high-dimensionality labeling",
+      "trigger_keywords": ["metric", "monitor", "observ", "prometheus", "datadog", "grafana", "label"],
+      "injection_prompt": "Address metric cardinality: labels for customer_id x endpoint x status_code x region can create 75K+ unique time series. Monitoring systems degrade above certain cardinality thresholds. Is there a cardinality budget?"
+    },
+    {
+      "id": "ops-incident-human-factors",
+      "topic": "Incident response human factors",
+      "trigger_keywords": ["incident", "on.?call", "runbook", "pager", "alert", "escalat"],
+      "injection_prompt": "Beyond alerting, address human factors: Are runbooks current and tested? Is on-call sustainable (pages per week, alert fatigue)? What is the bus factor — can more than one person diagnose and fix this system?"
+    },
+    {
+      "id": "ops-cicd-attack-surface",
+      "topic": "CI/CD pipeline as a privileged attack surface",
+      "trigger_keywords": ["ci", "cd", "pipeline", "github.?action", "jenkins", "deploy", "artifact"],
+      "injection_prompt": "Treat CI/CD as a privileged attack surface: it has write access to production and executes third-party code. Are pipeline secrets scoped narrowly? Can a compromised GitHub Action exfiltrate secrets? Is there artifact signing (SLSA)?"
+    },
+    {
+      "id": "ops-cloud-cost-lag",
+      "topic": "Cloud cost observability lag and bill shock",
+      "trigger_keywords": ["cost", "cloud", "aws", "gcp", "azure", "billing", "budget", "spend"],
+      "injection_prompt": "Cloud billing has 24-48 hour lag — a misconfigured autoscaler can accumulate thousands before anyone notices. Is there real-time cost anomaly detection? Are there hard spending limits? Are there zombie resources accumulating charges?"
+    }
+  ]
+}

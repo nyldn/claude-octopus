@@ -11019,6 +11019,16 @@ You are a technical researcher specializing in deep investigation, pattern analy
 - Cite sources and provide evidence for claims
 - Balance breadth of exploration with depth of analysis
 
+**Balance requirement (MANDATORY):**
+- For every architectural or strategic recommendation, argue BOTH sides — state the advantages AND the disadvantages, tradeoffs, or risks. One-sided advocacy without acknowledging downsides is incomplete research.
+- When comparing options, present each option's strengths AND weaknesses. Never dismiss an option without explaining what it does well.
+- Use phrases like "on the other hand", "however", "conversely", "the tradeoff is" to signal balanced analysis.
+
+**Compliance and regulatory awareness:**
+- For enterprise/B2B contexts, always consider compliance implications (SOC2, HIPAA, PCI-DSS, GDPR) even if not explicitly asked
+- For security-adjacent topics, consider audit trails, evidence gathering, and regulatory reporting requirements
+- For infrastructure decisions, consider data residency, encryption at rest/in transit, and access control compliance
+
 **Output quality bar (MANDATORY):**
 - Back claims with specific evidence — tool names, version numbers, benchmark data, RFC/spec references, not just assertions
 - Distinguish established best practices from emerging/experimental approaches
@@ -17123,6 +17133,118 @@ ${enhanced_prompt}"
     echo "$result_file"
 }
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# v9.2.0: Smart Dispatch — choose provider count based on task analysis
+# ═══════════════════════════════════════════════════════════════════════════════
+get_dispatch_strategy() {
+    local prompt="$1"
+    local workflow="${2:-auto}"
+    local strategy="${OCTOPUS_DISPATCH_STRATEGY:-smart}"
+
+    case "$strategy" in
+        full)
+            local all_p="claude-sonnet"
+            command -v codex >/dev/null 2>&1 && all_p="codex,${all_p}"
+            command -v gemini >/dev/null 2>&1 && all_p="gemini,${all_p}"
+            echo "3:${all_p}:high"
+            return 0 ;;
+        minimal)
+            if command -v gemini >/dev/null 2>&1; then echo "2:gemini,claude-sonnet:high"
+            elif command -v codex >/dev/null 2>&1; then echo "2:codex,claude-sonnet:high"
+            else echo "1:claude-sonnet:high"; fi
+            return 0 ;;
+    esac
+
+    # Auto-detect workflow from prompt if not specified
+    if [[ "$workflow" == "auto" ]]; then
+        local p_lower
+        p_lower=$(echo "$prompt" | tr '[:upper:]' '[:lower:]')
+        if echo "$p_lower" | grep -cE 'security|vulnerabilit|cve|owasp|injection|xss|csrf' >/dev/null 2>&1; then
+            workflow="security"
+        elif echo "$p_lower" | grep -cE 'review|code.review|pull.request|bug.*find|audit|quality' >/dev/null 2>&1; then
+            workflow="review"
+        elif echo "$p_lower" | grep -cE 'architect|system.design|trade.?off|debate|compare|vs\b|versus' >/dev/null 2>&1; then
+            workflow="architecture"
+        else
+            workflow="research"
+        fi
+    fi
+
+    local has_codex=false has_gemini=false
+    command -v codex >/dev/null 2>&1 && has_codex=true
+    command -v gemini >/dev/null 2>&1 && has_gemini=true
+
+    case "$workflow" in
+        review|security)
+            # Each provider misses different bugs — all 3 essential
+            if [[ "$has_codex" == true && "$has_gemini" == true ]]; then
+                echo "3:codex,gemini,claude-sonnet:high"
+            elif [[ "$has_codex" == true ]]; then echo "2:codex,claude-sonnet:high"
+            elif [[ "$has_gemini" == true ]]; then echo "2:gemini,claude-sonnet:high"
+            else echo "1:claude-sonnet:medium"; fi ;;
+        architecture)
+            # Codex + Gemini maximize training bias diversity
+            if [[ "$has_codex" == true && "$has_gemini" == true ]]; then
+                echo "2:codex,gemini:high"
+            elif [[ "$has_codex" == true ]]; then echo "2:codex,claude-sonnet:medium"
+            elif [[ "$has_gemini" == true ]]; then echo "2:gemini,claude-sonnet:medium"
+            else echo "1:claude-sonnet:low"; fi ;;
+        research|*)
+            # Gemini solo 64% vs multi-LLM 65% — 2 providers sufficient
+            if [[ "$has_gemini" == true ]]; then echo "2:gemini,claude-sonnet:high"
+            elif [[ "$has_codex" == true ]]; then echo "2:codex,claude-sonnet:medium"
+            else echo "1:claude-sonnet:medium"; fi ;;
+    esac
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# v9.2.0: Blind Spot Library — inject commonly-missed perspectives
+# ═══════════════════════════════════════════════════════════════════════════════
+load_blind_spot_checklist() {
+    local prompt="$1"
+    local blind_spots_dir="${SCRIPT_DIR}/../config/blind-spots"
+    local manifest="${blind_spots_dir}/manifest.json"
+
+    [[ ! -f "$manifest" ]] && return
+
+    local prompt_lower
+    prompt_lower=$(echo "$prompt" | tr '[:upper:]' '[:lower:]')
+
+    # Find matching domain files via manifest trigger keywords
+    local matched_files
+    matched_files=$(jq -r --arg p "$prompt_lower" '
+        .domains[] |
+        select([.trigger_keywords[] as $kw | $p | test($kw; "i")] | any) |
+        .file
+    ' "$manifest" 2>/dev/null | sort -u)
+
+    [[ -z "$matched_files" ]] && return
+
+    # Collect relevant blind spot prompts from matched domains
+    local checklist=""
+    while IFS= read -r domain_file; do
+        [[ -z "$domain_file" ]] && continue
+        local file="${blind_spots_dir}/${domain_file}"
+        [[ ! -f "$file" ]] && continue
+
+        local spots
+        spots=$(jq -r --arg p "$prompt_lower" '
+            .blind_spots[] |
+            select([.trigger_keywords[] as $kw | $p | test($kw; "i")] | any) |
+            .injection_prompt
+        ' "$file" 2>/dev/null)
+
+        while IFS= read -r spot; do
+            [[ -z "$spot" ]] && continue
+            checklist="${checklist}
+- ${spot}"
+        done <<< "$spots"
+    done <<< "$matched_files"
+
+    [[ -z "$checklist" ]] && return
+    echo "$checklist"
+}
+
 # Phase 1: PROBE (Discover) - Parallel research with synthesis
 # Like an octopus probing with multiple tentacles simultaneously
 probe_discover() {
@@ -17202,7 +17324,39 @@ probe_discover() {
         "🔧 Feasibility"
         "🔵 Cross-Synthesis"
     )
-    local probe_agents=("codex" "gemini" "claude-sonnet" "codex" "gemini")
+    # v9.2.0: Smart dispatch — choose providers based on task analysis
+    local dispatch_result
+    dispatch_result=$(get_dispatch_strategy "$prompt" "research")
+    local dispatch_providers
+    dispatch_providers=$(echo "$dispatch_result" | cut -d: -f2)
+    log INFO "probe_discover: smart dispatch=$dispatch_result"
+
+    # Build agent rotation from dispatch strategy
+    local IFS_OLD="$IFS"
+    IFS=',' read -ra _strategy_providers <<< "$dispatch_providers"
+    IFS="$IFS_OLD"
+    local probe_agents=()
+    local _sp_count=${#_strategy_providers[@]}
+    for _pi in "${!perspectives[@]}"; do
+        probe_agents+=("${_strategy_providers[$((_pi % _sp_count))]}")
+    done
+
+    # v9.2.0: Blind spot injection — augment edge-case + synthesis perspectives
+    local _blind_spot_checklist
+    _blind_spot_checklist=$(load_blind_spot_checklist "$prompt")
+    if [[ -n "$_blind_spot_checklist" ]]; then
+        log INFO "probe_discover: injecting blind spot checklist ($(echo "$_blind_spot_checklist" | wc -l | tr -d ' ') items)"
+        # Augment edge-case perspective (index 2)
+        perspectives[2]="${perspectives[2]}
+
+IMPORTANT — The following perspectives are systematically missed by LLMs. You MUST address each one:
+${_blind_spot_checklist}"
+        # Augment cross-synthesis perspective (index 4)
+        perspectives[4]="${perspectives[4]}
+
+When synthesizing, verify that these commonly-missed perspectives have been addressed. If any were missed by other agents, include them:
+${_blind_spot_checklist}"
+    fi
 
     # v8.14.0: Codebase-aware discovery — add 6th agent when inside a git repo
     if git rev-parse --is-inside-work-tree &>/dev/null 2>&1; then

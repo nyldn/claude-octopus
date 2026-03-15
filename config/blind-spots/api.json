@@ -1,0 +1,35 @@
+{
+  "domain": "api",
+  "blind_spots": [
+    {
+      "id": "api-auth-as-versioning",
+      "topic": "Auth mechanism changes as API versioning boundary",
+      "trigger_keywords": ["version", "auth", "breaking.?change", "v2", "api.?version"],
+      "injection_prompt": "Should an auth mechanism change be tied to an API version boundary? If moving from API keys to OAuth2, is that a v1-to-v2 transition or are auth and API versions independent during a transition period?"
+    },
+    {
+      "id": "api-vendor-pricing-cliff",
+      "topic": "Third-party vendor pricing cliffs at scale",
+      "trigger_keywords": ["auth0", "okta", "cognito", "clerk", "pricing", "vendor", "saas", "build.?vs.?buy"],
+      "injection_prompt": "If recommending a third-party vendor, model pricing at actual scale. Many vendors have steep tier cliffs (e.g., Auth0 free to $23K/yr at 10K MAU, $100K+ at enterprise scale). Get concrete numbers for your expected volume."
+    },
+    {
+      "id": "api-zombie-integrations",
+      "topic": "Long-tail client migration burden and zombie integrations",
+      "trigger_keywords": ["migrat", "client", "integration", "deprecat", "sunset", "enterprise"],
+      "injection_prompt": "Account for zombie integrations: some enterprise clients have integration code maintained by teams that no longer exist. These integrations will never voluntarily migrate. What is the strategy for the long tail?"
+    },
+    {
+      "id": "api-webhook-auth",
+      "topic": "Outbound webhook authentication (HMAC signing)",
+      "trigger_keywords": ["webhook", "callback", "event", "notification", "outbound"],
+      "injection_prompt": "If the API sends outbound webhooks, address webhook authentication separately from inbound API auth. Outbound webhooks use HMAC request signing (not OAuth/JWT) — a fundamentally different auth pattern. Cover: signature algorithm, replay protection, secret rotation."
+    },
+    {
+      "id": "api-shadow-traffic",
+      "topic": "Shadow traffic replay for migration validation",
+      "trigger_keywords": ["migrat", "test", "validat", "parity", "parallel.?run"],
+      "injection_prompt": "For API migrations, consider shadow traffic validation: replay production traffic against both old and new APIs and diff responses. This catches discrepancies that unit tests miss. Define what 'parity' means — exact match or acceptable divergence threshold."
+    }
+  ]
+}

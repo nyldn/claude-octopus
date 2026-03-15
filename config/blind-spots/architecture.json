@@ -1,0 +1,35 @@
+{
+  "domain": "architecture",
+  "blind_spots": [
+    {
+      "id": "arch-internal-trust-boundaries",
+      "topic": "Service-to-service auth inside the platform",
+      "trigger_keywords": ["microservice", "service.?to.?service", "internal", "m2m", "machine"],
+      "injection_prompt": "Address internal trust boundaries: how do microservices authenticate to each other? Is there workload identity (SPIFFE/SPIRE)? Is internal traffic encrypted (mTLS)? What prevents a compromised internal service from impersonating another?"
+    },
+    {
+      "id": "arch-decision-reversibility",
+      "topic": "Decision reversibility and exit strategy for architectural migrations",
+      "trigger_keywords": ["migrat", "transition", "rewrite", "refactor", "adopt", "move.?to"],
+      "injection_prompt": "Assess decision reversibility: if this migration fails midway, can you revert? What is the cost of reversal at each phase? Define explicit abort criteria. Is there a parallel-run period where both old and new coexist?"
+    },
+    {
+      "id": "arch-improve-before-replace",
+      "topic": "Incremental improvements before committing to replacement",
+      "trigger_keywords": ["graphql", "over.?fetch", "under.?fetch", "n\\+1", "rest.?api", "replace"],
+      "injection_prompt": "Before recommending wholesale replacement, evaluate whether targeted improvements to the existing system could solve 80% of the problem at 10% of the cost. Quantify the gap between 'improved current' and 'full replacement'."
+    },
+    {
+      "id": "arch-schema-evolution-ongoing",
+      "topic": "Ongoing schema/interface evolution after initial migration",
+      "trigger_keywords": ["schema", "migrat", "graphql", "api.?version", "breaking.?change"],
+      "injection_prompt": "Look beyond the initial migration: how do you handle ongoing evolution? Field deprecation, additive-only changes, contract testing. The migration is a one-time cost; evolution is perpetual."
+    },
+    {
+      "id": "arch-contractual-api-stability",
+      "topic": "Enterprise contractual obligations constraining changes",
+      "trigger_keywords": ["enterprise", "client", "b2b", "sla", "contract", "customer"],
+      "injection_prompt": "Do any clients have contractual API stability guarantees? A forced migration may violate existing agreements. Identify contractual constraints and the legal/commercial cost of breaking them."
+    }
+  ]
+}

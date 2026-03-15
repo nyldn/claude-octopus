@@ -210,25 +210,25 @@ echo ""
 echo -e "\033[0;34mTest Group 5: Probe agent slot configuration\033[0m"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-# 5.1: probe_agents array includes codex
-if grep 'probe_agents=(' "$ORCHESTRATE" | grep -q 'codex'; then
-    pass "5.1 probe_agents includes codex"
+# 5.1: smart dispatch includes codex for review/security workflows
+if grep -c 'codex.*gemini.*claude-sonnet\|codex,claude-sonnet' "$ORCHESTRATE" >/dev/null 2>&1; then
+    pass "5.1 smart dispatch includes codex for review/security"
 else
-    fail "5.1 probe_agents missing codex"
+    fail "5.1 smart dispatch missing codex for review/security"
 fi
 
-# 5.2: probe_agents array includes gemini
-if grep 'probe_agents=(' "$ORCHESTRATE" | grep -q 'gemini'; then
-    pass "5.2 probe_agents includes gemini"
+# 5.2: smart dispatch includes gemini for research workflows
+if grep -c 'gemini,claude-sonnet' "$ORCHESTRATE" >/dev/null 2>&1; then
+    pass "5.2 smart dispatch includes gemini for research"
 else
-    fail "5.2 probe_agents missing gemini"
+    fail "5.2 smart dispatch missing gemini for research"
 fi
 
-# 5.3: probe_agents array includes claude-sonnet
-if grep 'probe_agents=(' "$ORCHESTRATE" | grep -q 'claude-sonnet'; then
-    pass "5.3 probe_agents includes claude-sonnet"
+# 5.3: get_dispatch_strategy function exists
+if grep -c 'get_dispatch_strategy()' "$ORCHESTRATE" >/dev/null 2>&1; then
+    pass "5.3 get_dispatch_strategy function defined"
 else
-    fail "5.3 probe_agents missing claude-sonnet"
+    fail "5.3 get_dispatch_strategy function missing"
 fi
 
 # 5.4: synthesis uses >500 byte threshold to filter probe results
