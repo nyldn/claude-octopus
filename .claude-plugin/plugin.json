@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "9.0.1",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v9.0.1) CC v2.1.76 sync (100 flags, 31 version_compare blocks) + claude-mem companion integration (detection, bridge, phase observations, skill hints). 32 expert personas, 39 commands, 50 skills. Commands use '/octo:*', including the '/octo:octo' smart router. Run /octo:setup for guided setup.",
+  "version": "9.1.0",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v9.1.0) CC v2.1.76 sync (100 flags, 31 version_compare blocks) + claude-mem companion integration (detection, bridge, phase observations, skill hints). 32 expert personas, 39 commands, 50 skills. Commands use '/octo:*', including the '/octo:octo' smart router. Run /octo:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },

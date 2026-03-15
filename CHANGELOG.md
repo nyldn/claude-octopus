@@ -1,3 +1,11 @@
+## [9.1.0] - 2026-03-14
+
+### Changed
+
+- brainstorm Team mode multi-LLM, COMMAND-REFERENCE.md update
+
+---
+
 ## [9.0.1] - 2026-03-14
 
 ### Fixed

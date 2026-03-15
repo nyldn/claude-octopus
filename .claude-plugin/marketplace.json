@@ -11,8 +11,8 @@
     {
       "name": "octo",
       "source": "./",
-      "description": "v9.0.1 - Plugin name alignment fix. Install as octo@nyldn-plugins. 100 detection flags, claude-mem bridge. 32 personas, 39 commands, 50 skills. Run /octo:setup.",
-      "version": "9.0.1",
+      "description": "v9.1.0 - brainstorm Team mode multi-LLM, COMMAND-REFERENCE.md update. Install as octo@nyldn-plugins. 100 detection flags, claude-mem bridge. 32 personas, 39 commands, 50 skills. Run /octo:setup.",
+      "version": "9.1.0",
       "author": {
         "name": "nyldn"
       },
