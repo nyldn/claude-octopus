@@ -48,7 +48,7 @@ The script performs 10 validation checks:
 
 | Check | What It Validates | Severity |
 |-------|------------------|----------|
-| 1. Plugin Names | `plugin.json` name = "octo", `marketplace.json` name = "claude-octopus" | 🔴 Critical |
+| 1. Plugin Names | `plugin.json` name = "octo", `marketplace.json` name = "octo" (must match) | 🔴 Critical |
 | 2. Version Sync | All manifests have same version | 🔴 Critical |
 | 3. Command Registration | All commands registered in plugin.json | 🔴 Critical |
 | 4. Command Frontmatter | No namespace prefix in command frontmatter | 🔴 Critical |

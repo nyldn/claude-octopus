@@ -24,7 +24,7 @@ claude_mem_search() {
     local limit="${2:-5}"
     local project="${3:-}"
 
-    local url="${CLAUDE_MEM_URL}/api/search?query=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$query'))" 2>/dev/null || echo "$query")&limit=${limit}"
+    local url="${CLAUDE_MEM_URL}/api/search?query=$(python3 -c "import sys,urllib.parse; print(urllib.parse.quote(sys.argv[1]))" "$query" 2>/dev/null || printf '%s' "$query")&limit=${limit}"
     if [[ -n "$project" ]]; then
         url="${url}&project=${project}"
     fi
@@ -55,15 +55,8 @@ claude_mem_observe() {
     curl -sf --max-time "$CLAUDE_MEM_TIMEOUT" \
         -X POST "${CLAUDE_MEM_URL}/api/sessions/${session_id}/observations" \
         -H "Content-Type: application/json" \
-        -d "$(python3 -c "
-import json, sys
-print(json.dumps({
-    'type': '$obs_type',
-    'title': '$title',
-    'text': '$text',
-    'source': 'claude-octopus',
-    'concept': 'how-it-works'
-}))" 2>/dev/null)" >/dev/null 2>&1 &
+        -d "$(jq -n --arg type "$obs_type" --arg title "$title" --arg text "$text" \
+            '{type: $type, title: $title, text: $text, source: "claude-octopus", concept: "how-it-works"}')" >/dev/null 2>&1 &
 
     return 0
 }
@@ -84,21 +77,22 @@ claude_mem_context() {
     fi
 
     # Format results as brief context
-    python3 -c "
+    printf '%s' "$results" | python3 -c "
 import json, sys
 try:
-    data = json.loads('''$results''')
+    data = json.loads(sys.stdin.read())
     if not data or not isinstance(data, list):
         sys.exit(0)
+    limit = int(sys.argv[1]) if len(sys.argv) > 1 else 3
     print('## Recent claude-mem observations')
-    for item in data[:$limit]:
+    for item in data[:limit]:
         title = item.get('title', 'untitled')
         obs_type = item.get('type', '')
         created = item.get('created_at', '')[:10]
         print(f'- [{obs_type}] {title} ({created})')
 except:
     pass
-" 2>/dev/null || echo ""
+" "$limit" 2>/dev/null || echo ""
 }
 
 # Main dispatch
