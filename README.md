@@ -47,6 +47,17 @@ A Claude Code plugin that turns one model into three. Orchestrates Codex, Gemini
 
 [Full changelog](CHANGELOG.md)
 
+**To update:**
+```
+/plugin update octo
+```
+
+If that fails (older installs used a different name), do a clean reinstall:
+```
+/plugin uninstall claude-octopus
+/plugin install octo@nyldn-plugins
+```
+
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/image?repos=nyldn/claude-octopus&type=date&legend=top-left)](https://www.star-history.com/?repos=nyldn%2Fclaude-octopus&type=date&legend=top-left)
