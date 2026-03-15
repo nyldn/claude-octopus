@@ -44,6 +44,8 @@ AskUserQuestion({
 })
 ```
 
+**WAIT for the user's answers before proceeding.**
+
 **After receiving answers:**
 
 - **If user selected "Tell me more about costs"**: Explain the cost breakdown, then ask question 2 again

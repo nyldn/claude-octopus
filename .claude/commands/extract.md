@@ -151,6 +151,8 @@ AskUserQuestion({
 })
 ```
 
+**WAIT for the user's answers before proceeding.**
+
 **Store answers:**
 ```json
 {

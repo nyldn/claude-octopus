@@ -55,6 +55,8 @@ AskUserQuestion({
 })
 ```
 
+**WAIT for the user's answers before proceeding.**
+
 **After receiving answers, incorporate them into the TDD approach and test depth.**
 
 ### Step 2: Execute TDD with Skill Tool
