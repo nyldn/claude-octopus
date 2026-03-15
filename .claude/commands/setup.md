@@ -260,7 +260,7 @@ rm -rf ~/.claude/installed-plugins/octo@nyldn-plugins
 **Step 3:** Reinstall:
 ```
 /plugin marketplace add https://github.com/nyldn/claude-octopus.git
-/plugin install claude-octopus@nyldn-plugins
+/plugin install octo@nyldn-plugins
 ```
 
 ## Getting Help

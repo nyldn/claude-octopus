@@ -1,67 +1,68 @@
-# ⚠️ PLUGIN NAME LOCK
+# Plugin Name Lock
 
 ## CRITICAL: DO NOT CHANGE THE PLUGIN NAME
 
 The plugin name in `plugin.json` **MUST remain "octo"**.
+The plugin name in `marketplace.json` **MUST also be "octo"**.
 
 ### Why?
 
+The `name` field in `plugin.json` controls **two things**:
+1. **Command namespace** — `/octo:discover`, `/octo:embrace`, etc.
+2. **Plugin identity in `/plugin` UI** — install, uninstall, update, enable/disable
+
+These names **MUST match** so that `/plugin uninstall octo` works correctly when the plugin was installed as `octo@nyldn-plugins`.
+
 ```json
-// ✅ CORRECT - plugin.json
+// plugin.json
 {
-  "name": "octo"  // This produces /octo:discover, /octo:debate, etc.
+  "name": "octo"  // → /octo:* commands + /plugin identity
 }
 ```
 
 ```json
-// ❌ WRONG - DO NOT DO THIS
+// marketplace.json plugins[].name
 {
-  "name": "claude-octopus"  // This produces /claude-octopus:discover (too long!)
+  "name": "octo"  // → install as octo@nyldn-plugins (matches plugin.json)
 }
+```
+
+### What NOT to do
+
+```json
+// ❌ WRONG — breaks /plugin UI (name mismatch)
+// plugin.json: "octo", marketplace.json: "claude-octopus"
+// → /plugin uninstall tries "octo" but installed as "claude-octopus"
+
+// ❌ WRONG — breaks command namespace
+// plugin.json: "claude-octopus"
+// → Commands become /claude-octopus:discover (too long!)
 ```
 
 ### Package vs Plugin Name
 
-These are **different** and serve **different purposes**:
-
 | File | Name | Purpose |
 |------|------|---------|
-| `package.json` | `"claude-octopus"` | Marketplace/repository identity |
-| `.claude-plugin/plugin.json` | `"octo"` | Command prefix (`/octo:*`) |
-
-### Command Path Formation
-
-Command paths are formed as: `/[plugin-name]:[command-name]`
-
-- Plugin name: `"octo"` + Command: `discover` = `/octo:discover` ✅
-- Plugin name: `"claude-octopus"` + Command: `discover` = `/claude-octopus:discover` ❌
+| `package.json` | `"claude-octopus"` | npm/repository identity |
+| `.claude-plugin/plugin.json` | `"octo"` | Command prefix + plugin identity |
+| `.claude-plugin/marketplace.json` | `"octo"` | Install name (must match plugin.json) |
 
 ### Historical Context
 
 **Commits that fixed this:**
 - `d9e8354` - Reverted plugin name to 'octo' for correct command prefixes
 - `57ce38c` - Removed namespace prefix from command frontmatter
+- v9.0.0 - Aligned marketplace.json name to "octo" to fix /plugin uninstall
 
-**Why it broke:**
-Someone changed the plugin name thinking it should match the package name. It shouldn't.
+**Why it broke twice:**
+1. Someone changed plugin.json thinking it should match the package name
+2. marketplace.json was set to "claude-octopus" causing /plugin UI mismatch
 
 ### Tests
 
-Run `make test-plugin-name` to verify the plugin name is correct.
-
-### If You Need to Change It
-
-**Don't.** But if you absolutely must:
-1. Update all documentation showing `/octo:*` commands
-2. Update README.md examples
-3. Update all skill files with command references
-4. Notify all users about the breaking change
-5. Consider providing migration script
-6. Update this documentation
-
-**Estimated impact:** 100+ command references across docs, skills, and user workflows.
+The `validate-release.sh` script checks that both names are "octo".
 
 ---
 
-**Last verified:** 2026-01-21
-**Status:** ✅ Plugin name is "octo" and LOCKED
+**Last verified:** 2026-03-14
+**Status:** Plugin name is "octo" in BOTH plugin.json and marketplace.json — LOCKED

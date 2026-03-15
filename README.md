@@ -59,21 +59,21 @@ A Claude Code plugin that turns one model into three. Orchestrates Codex, Gemini
 
 ```
 /plugin marketplace add https://github.com/nyldn/claude-octopus.git
-/plugin install claude-octopus@nyldn-plugins
+/plugin install octo@nyldn-plugins
 ```
 
 **Or from your terminal:**
 
 ```bash
 claude -p "/plugin marketplace add https://github.com/nyldn/claude-octopus.git"
-claude -p "/plugin install claude-octopus@nyldn-plugins"
+claude -p "/plugin install octo@nyldn-plugins"
 ```
 
 **Factory AI (Droid):**
 
 ```bash
 droid plugin marketplace add https://github.com/nyldn/claude-octopus
-droid plugin install claude-octopus@claude-octopus
+droid plugin install octo@claude-octopus
 ```
 
 > See [docs/FACTORY-AI.md](docs/FACTORY-AI.md) for full Factory AI setup instructions.
@@ -234,7 +234,7 @@ Everything except multi-AI features. You get all 32 personas, structured workflo
 
 **Provider transparency** — Visual indicators (colored dots) show exactly which providers are running and when external APIs are called. You always know what's happening.
 
-**Clean uninstall** — `/plugin uninstall claude-octopus@nyldn-plugins` removes everything. If you see a scope error, add `--scope project`. No residual config changes.
+**Clean uninstall** — `/plugin uninstall octo@nyldn-plugins` removes everything. If you see a scope error, add `--scope project`. No residual config changes.
 
 ---
 

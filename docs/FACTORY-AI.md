@@ -11,11 +11,11 @@ Claude Octopus is fully compatible with [Factory AI](https://factory.ai)'s Droid
 droid plugin marketplace add https://github.com/nyldn/claude-octopus
 
 # Install (marketplace name matches the GitHub repo name)
-droid plugin install claude-octopus@claude-octopus
+droid plugin install octo@claude-octopus
 ```
 
 > **Note:** Factory registers marketplaces by GitHub repo name, not the internal
-> `marketplace.json` name. If `claude-octopus@claude-octopus` doesn't work, run
+> `marketplace.json` name. If `octo@claude-octopus` doesn't work, run
 > `droid plugin marketplace list` to check the registered name, then use
 > `droid plugin install claude-octopus@<registered-name>`.
 
@@ -40,7 +40,7 @@ Add to your `.factory/settings.json` for team-wide deployment:
     }
   },
   "enabledPlugins": {
-    "claude-octopus@claude-octopus": true
+    "octo@claude-octopus": true
   }
 }
 ```

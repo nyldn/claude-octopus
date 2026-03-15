@@ -9,7 +9,7 @@
   },
   "plugins": [
     {
-      "name": "claude-octopus",
+      "name": "octo",
       "source": "./",
       "description": "v9.0.0 - CC v2.1.76 sync + claude-mem companion integration. 100 detection flags, claude-mem bridge (phase observations, session context, skill hints). 32 personas, 39 commands, 50 skills. Run /octo:setup.",
       "version": "9.0.0",

@@ -247,13 +247,13 @@ Add the export statement to your shell profile (~/.zshrc or ~/.bashrc) so it loa
 If you see "not installed in user scope", the plugin was installed at project scope. Try:
 
 ```
-/plugin uninstall claude-octopus@nyldn-plugins --scope project
+/plugin uninstall octo@nyldn-plugins --scope project
 ```
 
 Then reinstall:
 ```
 /plugin marketplace add https://github.com/nyldn/claude-octopus.git
-/plugin install claude-octopus@nyldn-plugins
+/plugin install octo@nyldn-plugins
 ```
 
 To check your install scope, run `/octo:status` or ask Claude to run `orchestrate.sh doctor`.
