@@ -74,7 +74,7 @@ Grade Scale: A+ (90-100), A (80-89), B (70-79), C (60-69), D (<60)
 
 ### Step 4: Offer Scoring Mode
 
-After initial scoring, offer the user a choice:
+After initial scoring, you MUST use AskUserQuestion to offer the user a choice:
 
 ```javascript
 AskUserQuestion({
@@ -91,6 +91,8 @@ AskUserQuestion({
   ]
 })
 ```
+
+**WAIT for the user's answer before proceeding.**
 
 **If Rigorous mode selected:**
 

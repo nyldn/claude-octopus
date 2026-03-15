@@ -70,7 +70,7 @@ Providers:
 🔵 Claude — Job configuration
 ```
 
-**Ask these questions via AskUserQuestion:**
+**You MUST ask these questions via AskUserQuestion:**
 
 ```yaml
 Question 1:
@@ -111,6 +111,8 @@ Question 3:
     - label: "Specify a path"
       description: "I'll enter the full path"
 ```
+
+**WAIT for the user's answers before proceeding.**
 
 **After answers, generate the JSON job definition:**
 

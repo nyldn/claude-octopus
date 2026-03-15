@@ -5,27 +5,17 @@ description: "Start a creative thought partner brainstorming session"
 
 # /octo:brainstorm
 
-Start a structured brainstorming session using four breakthrough techniques.
+## INSTRUCTIONS FOR CLAUDE
 
-**Usage:**
-```
-/octo:brainstorm
-/octo:brainstorm [topic]
-```
+### MANDATORY COMPLIANCE — DO NOT SKIP
 
-**What it does:**
-- Acts as a creative thought partner
-- Uses Pattern Spotting, Paradox Hunting, Naming the Unnamed, Contrast Creation
-- Helps discover hidden insights and unique strategies
-- Documents breakthroughs and named concepts
-
-**See:** skill-thought-partner for full documentation.
+**When the user invokes `/octo:brainstorm`, you MUST ask the mode selection question below BEFORE starting the session.** Do NOT default to Solo mode. Do NOT skip the question. The user must choose.
 
 ---
 
-## Mode Selection
+## Step 1: Ask Mode (MANDATORY)
 
-Before starting, determine the brainstorming intensity:
+You MUST use AskUserQuestion to ask this BEFORE doing anything else:
 
 ```javascript
 AskUserQuestion({
@@ -43,16 +33,27 @@ AskUserQuestion({
 })
 ```
 
-### Solo Mode (default)
+**WAIT for the user's answer before proceeding.**
 
-Standard thought partner session:
+---
+
+## Step 2: Run the Selected Mode
+
+### If Solo Mode selected:
+
+Standard thought partner session using four breakthrough techniques:
+- Pattern Spotting, Paradox Hunting, Naming the Unnamed, Contrast Creation
+
+**Session flow:**
 1. Frame the exploration topic
-2. Guided questioning (one at a time)
+2. Guided questioning (one question at a time — do NOT dump multiple questions)
 3. Challenge generic claims until specific
 4. Collaboratively name discovered concepts
 5. Export session with breakthroughs summary
 
-### Team Mode (multi-LLM)
+**See:** skill-thought-partner for full documentation.
+
+### If Team Mode selected:
 
 🐙 **CLAUDE OCTOPUS ACTIVATED** — Multi-AI Brainstorm
 
@@ -62,31 +63,32 @@ Providers:
 🔵 Claude — Synthesis, pattern naming, and moderation
 
 **Team workflow:**
-1. Frame the topic with the user
-2. Dispatch parallel brainstorm queries to available providers:
-   ```bash
-   # Each provider gets a tailored brainstorm prompt
-   orchestrate.sh brainstorm-probe "<topic>" "<provider>"
-   ```
-3. Collect diverse perspectives (each provider applies different techniques)
+1. Frame the topic with the user (brief clarifying question if needed)
+2. Dispatch parallel brainstorm queries to available providers using the Agent tool:
+   - Launch 2-3 agents (one per available provider) with `run_in_background: true`
+   - Each agent gets a tailored brainstorm prompt emphasizing its perspective
+   - Codex: "Think about technical implementation, feasibility, architecture tradeoffs"
+   - Gemini: "Think about ecosystem, adjacent innovations, unconventional approaches"
+   - Claude: "Think about patterns, paradoxes, and naming opportunities"
+3. Collect diverse perspectives from all agents
 4. Synthesize across perspectives — find convergence and surprising divergence
-5. Challenge and build on combined ideas with the user
-6. Export session with multi-perspective breakthroughs
+5. Present the synthesis to the user
+6. Challenge and build on combined ideas interactively
+7. Export session with multi-perspective breakthroughs
 
 **Why Team mode works:** Different AI models have different training biases, knowledge distributions, and reasoning patterns. Combined perspectives surface ideas that no single model would generate alone.
 
 ---
 
-**Example:**
-```
-/octo:brainstorm my approach to customer onboarding
+## Validation Gates
 
-→ Solo or Team mode?
-→ [Solo] Starting thought partner session...
-→ "What topic or idea would you like to explore today?"
+- Mode question was asked via AskUserQuestion (not assumed)
+- User's choice was respected
+- If Team mode: at least 2 providers were queried
+- Session ends with a breakthroughs summary
 
-→ [Team] 🐙 Multi-AI brainstorm activated...
-→ 🔴 Codex: Technical onboarding patterns...
-→ 🟡 Gemini: Industry best practices and emerging trends...
-→ 🔵 Claude: Synthesizing perspectives and naming patterns...
-```
+### Prohibited Actions
+
+- Defaulting to Solo mode without asking
+- Skipping the mode selection question
+- In Team mode: only using Claude (must dispatch to external providers)

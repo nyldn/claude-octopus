@@ -27,7 +27,7 @@ If `AUTONOMY_MODE` env var is `autonomous`, or session is running headlessly, or
 3. Otherwise `target=working-tree`
 4. Set `provenance=unknown`, `autonomy=autonomous`, `publish=ask`, `debate=auto`, `focus=["correctness","security","architecture","tdd"]`
 
-**Otherwise (supervised mode), use AskUserQuestion:**
+**Otherwise (supervised mode), you MUST use AskUserQuestion to ask these questions:**
 
 ```javascript
 AskUserQuestion({
@@ -79,6 +79,8 @@ AskUserQuestion({
   ]
 })
 ```
+
+**WAIT for the user's answers before proceeding.**
 
 ## Step 2: Build Review Profile
 
