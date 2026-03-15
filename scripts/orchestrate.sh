@@ -4705,12 +4705,25 @@ check_agent_heartbeat() {
 compute_dynamic_timeout() {
     local task_type="${1:-standard}"
     local prompt="${2:-}"
+    local agent_type="${3:-}"  # v9.2.0: optional provider for per-provider caps
 
     # Env override takes precedence
     if [[ -n "${OCTOPUS_AGENT_TIMEOUT:-}" ]]; then
         echo "$OCTOPUS_AGENT_TIMEOUT"
         return
     fi
+
+    # v9.2.0: Provider-specific timeout caps (OctoBench data)
+    # Codex: consistently 120-183s, cap at 150s for probe tasks
+    # Gemini: consistently 34-113s, cap at 90s for probe tasks
+    # Claude-sonnet: consistently 35-46s, cap at 60s for probe tasks
+    local provider_cap=""
+    case "$agent_type" in
+        codex*)     provider_cap=150 ;;
+        gemini*)    provider_cap=90 ;;
+        claude-sonnet*|sonnet*) provider_cap=60 ;;
+        perplexity*) provider_cap=45 ;;
+    esac
 
     # Response mode mapping
     local response_mode="${OCTOPUS_RESPONSE_MODE:-auto}"
@@ -4743,7 +4756,13 @@ compute_dynamic_timeout() {
             echo "$((240 + leak_safe_boost))"
             ;;
         *)
-            echo "$((120 + leak_safe_boost))"
+            local base_timeout=$((120 + leak_safe_boost))
+            # Apply provider cap if set and lower than task-based timeout
+            if [[ -n "$provider_cap" && "$provider_cap" -lt "$base_timeout" ]]; then
+                echo "$provider_cap"
+            else
+                echo "$base_timeout"
+            fi
             ;;
     esac
 }
@@ -6637,8 +6656,19 @@ display_rich_progress() {
         fi
 
         echo -e "${MAGENTA}─────────────────────────────────────────────────────────────${NC}"
-        printf " Progress: ${CYAN}%d/%d${NC} complete | Elapsed: ${CYAN}%s${NC}\n" \
-            "$completed" "$total_agents" "$elapsed_display"
+        # v9.2.0: ETA based on provider-specific benchmarks (OctoBench data)
+        # Codex ~150s, Gemini ~90s, Sonnet ~45s — parallel = max(providers)
+        local eta_secs=120  # default estimate
+        if [[ $completed -gt 0 && $completed -lt $total_agents ]]; then
+            local avg_per_agent=$(( elapsed / completed ))
+            local remaining=$(( total_agents - completed ))
+            eta_secs=$(( avg_per_agent * remaining ))
+        fi
+        local eta_display="${eta_secs}s"
+        [[ $eta_secs -gt 60 ]] && eta_display="$(( eta_secs / 60 ))m $(( eta_secs % 60 ))s"
+
+        printf " Progress: ${CYAN}%d/%d${NC} complete | Elapsed: ${CYAN}%s${NC} | ETA: ${CYAN}~%s${NC}\n" \
+            "$completed" "$total_agents" "$elapsed_display" "$eta_display"
 
         # Exit if all done
         $all_done && break
