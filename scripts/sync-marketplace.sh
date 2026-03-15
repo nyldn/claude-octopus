@@ -27,15 +27,15 @@ CURRENT_DESC=$(python3 -c "
 import json, sys
 m = json.load(open('$ROOT_DIR/.claude-plugin/marketplace.json'))
 for p in m.get('plugins', []):
-    if p.get('name') == 'claude-octopus':
+    if p.get('name') == 'octo':
         desc = p.get('description', '')
         if not desc:
-            print('ERROR: claude-octopus description is empty', file=sys.stderr)
+            print('ERROR: octo plugin description is empty', file=sys.stderr)
             sys.exit(1)
         print(desc)
         break
 else:
-    print('ERROR: claude-octopus plugin entry not found', file=sys.stderr)
+    print('ERROR: octo plugin entry not found', file=sys.stderr)
     sys.exit(1)
 ")
 
@@ -67,7 +67,7 @@ with open('$ROOT_DIR/.claude-plugin/marketplace.json') as f:
     m = json.load(f)
 
 for p in m.get('plugins', []):
-    if p.get('name') == 'claude-octopus':
+    if p.get('name') == 'octo':
         p['description'] = '''$EXPECTED_DESC'''
         p['version'] = '$VERSION'
         break

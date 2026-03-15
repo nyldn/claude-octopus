@@ -87,7 +87,7 @@ python3 -c "
 import json
 m = json.load(open('.claude-plugin/marketplace.json'))
 for plugin in m.get('plugins', []):
-    if plugin.get('name') == 'claude-octopus':
+    if plugin.get('name') == 'octo':
         plugin['version'] = '${VERSION}'
         plugin['description'] = 'v${VERSION} - ${SUMMARY}. ' + plugin['description'].split('. ', 1)[-1] if '. ' in plugin['description'] else 'v${VERSION} - ${SUMMARY}.'
 json.dump(m, open('.claude-plugin/marketplace.json', 'w'), indent=2)
