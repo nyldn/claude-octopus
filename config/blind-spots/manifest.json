@@ -1,0 +1,36 @@
+{
+  "schema_version": "1.0",
+  "description": "Blind spot library — perspectives systematically missed by LLMs, sourced from OctoBench v1.0 benchmark data",
+  "domains": [
+    {
+      "id": "security",
+      "name": "Security & Threat Modeling",
+      "file": "security.json",
+      "trigger_keywords": ["auth", "authentication", "authorization", "security", "credential", "token", "api.?key", "oauth", "jwt", "password", "encrypt", "vulnerability", "threat", "attack", "permission", "access.?control"]
+    },
+    {
+      "id": "architecture",
+      "name": "Architecture & System Design",
+      "file": "architecture.json",
+      "trigger_keywords": ["architect", "microservice", "monolith", "service.?mesh", "gateway", "system.?design", "infrastructure", "scaling", "distributed", "migration", "refactor", "modular", "decouple", "event.?driven"]
+    },
+    {
+      "id": "data",
+      "name": "Data Engineering & Storage",
+      "file": "data.json",
+      "trigger_keywords": ["database", "data.?model", "schema", "storage", "cache", "redis", "postgres", "mongo", "elasticsearch", "data.?pipeline", "etl", "data.?warehouse", "backup", "replication"]
+    },
+    {
+      "id": "api",
+      "name": "API Design & Integration",
+      "file": "api.json",
+      "trigger_keywords": ["api", "rest", "graphql", "grpc", "endpoint", "webhook", "integration", "sdk", "versioning", "rate.?limit", "pagination", "openapi", "swagger", "contract"]
+    },
+    {
+      "id": "operations",
+      "name": "Operations, SRE & Deployment",
+      "file": "operations.json",
+      "trigger_keywords": ["deploy", "ci.?cd", "pipeline", "kubernetes", "k8s", "docker", "monitor", "observ", "incident", "sre", "reliability", "rollback", "canary", "blue.?green", "terraform", "infra"]
+    }
+  ]
+}

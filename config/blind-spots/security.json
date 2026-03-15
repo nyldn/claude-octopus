@@ -1,0 +1,35 @@
+{
+  "domain": "security",
+  "blind_spots": [
+    {
+      "id": "sec-supply-chain",
+      "topic": "Supply-chain attacks via compromised third-party integrations",
+      "trigger_keywords": ["integration", "third.?party", "vendor", "partner", "webhook", "plugin"],
+      "injection_prompt": "Consider supply-chain attack vectors: what happens if a legitimate integration partner is compromised and abuses valid API credentials? How do you detect and contain lateral movement through valid tokens?"
+    },
+    {
+      "id": "sec-credential-compromise-detection",
+      "topic": "Automated credential compromise detection and revocation",
+      "trigger_keywords": ["credential", "key", "token", "rotation", "leak", "secret"],
+      "injection_prompt": "Address credential compromise detection: how are leaked credentials discovered (GitHub secret scanning, dark web monitoring)? Is revocation automated or manual? What is the mean-time-to-revoke after a credential appears in a public repo?"
+    },
+    {
+      "id": "sec-auth-error-taxonomy",
+      "topic": "Authentication error taxonomy and debugging observability",
+      "trigger_keywords": ["auth", "error", "debug", "401", "403", "troubleshoot"],
+      "injection_prompt": "Define the auth error taxonomy: how do consumers distinguish 401 (invalid credential) from 403 (insufficient permission) from 429 (rate-limited)? Is there a token introspection endpoint for debugging?"
+    },
+    {
+      "id": "sec-customer-security-audits",
+      "topic": "Customer-initiated security audits and evidence gathering",
+      "trigger_keywords": ["enterprise", "b2b", "compliance", "audit", "soc", "questionnaire"],
+      "injection_prompt": "For B2B/enterprise: how do you handle customer-initiated security audits? Enterprise customers send 200+ question security questionnaires and demand pen-test reports, SOC2 Type II evidence. Is the architecture designed to produce this evidence efficiently?"
+    },
+    {
+      "id": "sec-waf-single-endpoint",
+      "topic": "Security infrastructure incompatibility with single-endpoint architectures",
+      "trigger_keywords": ["graphql", "gateway", "waf", "firewall", "rate.?limit", "single.?endpoint"],
+      "injection_prompt": "If using a single endpoint (e.g., GraphQL POST /graphql), assess how this breaks traditional security infrastructure: path-based WAF rules, per-endpoint rate limiting, URL-based access logging, and CDN caching all assume distinct URL paths."
+    }
+  ]
+}

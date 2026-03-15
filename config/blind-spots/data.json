@@ -1,0 +1,35 @@
+{
+  "domain": "data",
+  "blind_spots": [
+    {
+      "id": "data-cache-thundering-herd",
+      "topic": "Cache invalidation blast radius and cascading failures",
+      "trigger_keywords": ["cache", "redis", "memcache", "invalidat", "ttl", "evict"],
+      "injection_prompt": "Assess cache invalidation blast radius: can a single cache flush trigger a thundering herd against the database? Is there staggered invalidation or a circuit breaker between cache misses and database queries?"
+    },
+    {
+      "id": "data-backup-restore-testing",
+      "topic": "Backup restoration testing and recovery time verification",
+      "trigger_keywords": ["backup", "restore", "disaster", "recovery", "rpo", "rto", "replicate"],
+      "injection_prompt": "Are backups actually tested? When was the last full restore performed, and how long did it take? What is the measured (not theoretical) RTO? Does the restore process require manual steps only one person knows?"
+    },
+    {
+      "id": "data-migration-long-tail",
+      "topic": "Long-tail data migration and orphaned records",
+      "trigger_keywords": ["migrat", "schema.?change", "data.?model", "transform", "etl"],
+      "injection_prompt": "Address the long tail: what percentage of records won't cleanly transform to the new schema? How are orphaned records, null foreign keys, and historically inconsistent data handled? Is there a quarantine table for failures?"
+    },
+    {
+      "id": "data-tenant-isolation-leaks",
+      "topic": "Cross-tenant data leakage in shared databases",
+      "trigger_keywords": ["multi.?tenant", "tenant", "shared.?database", "isolation", "row.?level"],
+      "injection_prompt": "For multi-tenant architectures: what happens if a query forgets the tenant_id WHERE clause? Is tenant isolation enforced at the database level (RLS) or only application level? Is there automated testing that verifies no query can return cross-tenant data?"
+    },
+    {
+      "id": "data-gdpr-deletion-cascades",
+      "topic": "GDPR/CCPA deletion cascades across denormalized data",
+      "trigger_keywords": ["gdpr", "ccpa", "deletion", "right.?to.?erasure", "pii", "personal.?data"],
+      "injection_prompt": "For right-to-erasure: map ALL locations where PII exists — primary DB, read replicas, search indices, caches, analytics pipelines, event streams, backups, and third-party services. How long until deletion propagates to all locations?"
+    }
+  ]
+}
