@@ -20,7 +20,7 @@ When the user invokes this command (e.g., `/octo:develop <arguments>`):
 
 **✓ CORRECT - Use the Skill tool:**
 ```
-Skill(skill: "octo:develop", args: "<user's arguments>")
+Skill(skill: "flow-develop", args: "<user's arguments>")
 ```
 
 **✗ INCORRECT - Do NOT use Task tool:**

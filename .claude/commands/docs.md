@@ -11,7 +11,7 @@ When the user invokes this command (e.g., `/octo:docs <arguments>`):
 
 **✓ CORRECT - Use the Skill tool:**
 ```
-Skill(skill: "octo:docs", args: "<user's arguments>")
+Skill(skill: "skill-doc-delivery", args: "<user's arguments>")
 ```
 
 **✗ INCORRECT - Do NOT use Task tool:**

@@ -48,7 +48,7 @@ If invoked with arguments (e.g., `/octo:staged-review src/auth/`), use that path
 
 **✓ CORRECT — Use the Skill tool:**
 ```
-Skill(skill: "octo:staged-review", args: "<scope>")
+Skill(skill: "skill-staged-review", args: "<scope>")
 ```
 
 **✗ INCORRECT — Do NOT use Task tool:**

@@ -20,7 +20,7 @@ When the user invokes this command (e.g., `/octo:deliver <arguments>`):
 
 **✓ CORRECT - Use the Skill tool:**
 ```
-Skill(skill: "octo:deliver", args: "<user's arguments>")
+Skill(skill: "flow-deliver", args: "<user's arguments>")
 ```
 
 **✗ INCORRECT - Do NOT use Task tool:**

@@ -43,19 +43,21 @@ Map the answer to an intensity value:
 
 ### Step 2: Invoke Skill with Intensity
 
-**✓ CORRECT - Use the Skill tool with intensity prefix:**
+**✓ CORRECT - Use the Skill tool with the skill's registered name:**
 ```
-Skill(skill: "octo:discover", args: "[intensity=quick|standard|deep] <user's arguments>")
+Skill(skill: "flow-discover", args: "[intensity=quick|standard|deep] <user's arguments>")
 ```
 
-Example: `Skill(skill: "octo:discover", args: "[intensity=standard] OAuth 2.0 authentication patterns")`
+Example: `Skill(skill: "flow-discover", args: "[intensity=standard] OAuth 2.0 authentication patterns")`
 
-**✗ INCORRECT - Do NOT use Task tool:**
+**✗ INCORRECT - Do NOT use these names:**
 ```
+Skill(skill: "octo:discover", ...)   ❌ Wrong! "octo:discover" is the command name, not the skill name
+Skill(skill: "discover", ...)        ❌ Wrong! Use the full skill name "flow-discover"
 Task(subagent_type: "octo:discover", ...)  ❌ Wrong! This is a skill, not an agent type
 ```
 
-**Why:** This command loads the `flow-discover` skill for multi-AI research. Skills use the `Skill` tool, not `Task`.
+**Why:** The command is `/octo:discover` but the skill file is named `flow-discover`. Always use the skill's registered name with the Skill tool.
 
 ---
 

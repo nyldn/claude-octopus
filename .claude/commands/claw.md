@@ -11,7 +11,7 @@ When the user invokes this command (e.g., `/octo:claw <arguments>`):
 
 **✓ CORRECT - Use the Skill tool:**
 ```
-Skill(skill: "octo:claw", args: "<user's arguments>")
+Skill(skill: "skill-claw", args: "<user's arguments>")
 ```
 
 **✗ INCORRECT - Do NOT use Task tool:**

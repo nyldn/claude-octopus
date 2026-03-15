@@ -20,7 +20,7 @@ When the user invokes this command (e.g., `/octo:discover <arguments>`):
 
 **✓ CORRECT - Use the Skill tool:**
 ```
-Skill(skill: "octo:discover", args: "<user's arguments>")
+Skill(skill: "flow-discover", args: "<user's arguments>")
 ```
 
 **✗ INCORRECT - Do NOT use Task tool:**
@@ -85,10 +85,10 @@ After receiving answers, incorporate them into the Skill invocation.
 ### Step 2: Invoke Skill with Intensity
 
 ```
-Skill(skill: "octo:discover", args: "[intensity=quick|standard|deep] <user's arguments>")
+Skill(skill: "flow-discover", args: "[intensity=quick|standard|deep] <user's arguments>")
 ```
 
-Example: `Skill(skill: "octo:discover", args: "[intensity=standard] OAuth authentication patterns")`
+Example: `Skill(skill: "flow-discover", args: "[intensity=standard] OAuth authentication patterns")`
 
 ### Step 3: Post-Completion — Interactive Next Steps
 

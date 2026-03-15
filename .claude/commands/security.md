@@ -78,7 +78,7 @@ AskUserQuestion({
 
 **✓ CORRECT - Use the Skill tool:**
 ```
-Skill(skill: "octo:security", args: "<user's arguments + context>")
+Skill(skill: "skill-security-framing", args: "<user's arguments + context>")
 ```
 
 **✗ INCORRECT - Do NOT use Task tool:**

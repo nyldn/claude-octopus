@@ -11,7 +11,7 @@ When the user invokes this command (e.g., `/octo:doctor <arguments>`):
 
 **✓ CORRECT - Use the Skill tool:**
 ```
-Skill(skill: "octo:doctor", args: "<user's arguments>")
+Skill(skill: "skill-doctor", args: "<user's arguments>")
 ```
 
 **✗ INCORRECT - Do NOT use Task tool:**

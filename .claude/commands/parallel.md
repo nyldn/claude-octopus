@@ -14,7 +14,7 @@ When the user invokes this command (e.g., `/octo:parallel <arguments>`):
 
 **CORRECT - Use the Skill tool:**
 ```
-Skill(skill: "octo:parallel", args: "<user's arguments>")
+Skill(skill: "flow-parallel", args: "<user's arguments>")
 ```
 
 **INCORRECT - Do NOT use Task tool:**

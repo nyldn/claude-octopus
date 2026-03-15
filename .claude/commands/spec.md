@@ -14,7 +14,7 @@ When the user invokes this command (e.g., `/octo:spec <arguments>`):
 
 **CORRECT - Use the Skill tool:**
 ```
-Skill(skill: "octo:spec", args: "<user's arguments>")
+Skill(skill: "flow-spec", args: "<user's arguments>")
 ```
 
 **INCORRECT - Do NOT use Task tool:**

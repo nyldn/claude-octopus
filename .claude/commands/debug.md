@@ -11,7 +11,7 @@ When the user invokes this command (e.g., `/octo:debug <arguments>`):
 
 **✓ CORRECT - Use the Skill tool:**
 ```
-Skill(skill: "octo:debug", args: "<user's arguments>")
+Skill(skill: "skill-debug", args: "<user's arguments>")
 ```
 
 **✗ INCORRECT - Do NOT use Task tool:**

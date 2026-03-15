@@ -11,7 +11,7 @@ When the user invokes this command (e.g., `/octo:loop <arguments>`):
 
 **✓ CORRECT - Use the Skill tool:**
 ```
-Skill(skill: "octo:loop", args: "<user's arguments>")
+Skill(skill: "skill-iterative-loop", args: "<user's arguments>")
 ```
 
 **✗ INCORRECT - Do NOT use Task tool:**

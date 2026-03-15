@@ -63,7 +63,7 @@ AskUserQuestion({
 
 **✓ CORRECT - Use the Skill tool:**
 ```
-Skill(skill: "octo:tdd", args: "<user's arguments + context>")
+Skill(skill: "skill-tdd", args: "<user's arguments + context>")
 ```
 
 **✗ INCORRECT - Do NOT use Task tool:**
