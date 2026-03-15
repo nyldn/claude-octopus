@@ -47,15 +47,18 @@ A Claude Code plugin that turns one model into three. Orchestrates Codex, Gemini
 
 [Full changelog](CHANGELOG.md)
 
-**To update:**
-```
-/plugin update octo
+**To update** (run in your terminal, not inside a Claude Code session):
+```bash
+claude plugin update octo
 ```
 
 If that fails (older installs used a different name), do a clean reinstall:
-```
-/plugin uninstall claude-octopus
-/plugin install octo@nyldn-plugins
+```bash
+claude plugin uninstall claude-octopus 2>/dev/null
+claude plugin uninstall octo 2>/dev/null
+rm -rf ~/.claude/plugins/cache/nyldn-plugins/claude-octopus
+claude plugin marketplace add https://github.com/nyldn/claude-octopus.git
+claude plugin install octo@nyldn-plugins
 ```
 
 ## Star History
@@ -66,19 +69,18 @@ If that fails (older installs used a different name), do a clean reinstall:
 
 ## Quickstart
 
-**Install from Claude Code:**
-
-```
-/plugin marketplace add https://github.com/nyldn/claude-octopus.git
-/plugin install octo@nyldn-plugins
-```
-
-**Or from your terminal:**
+**Install from your terminal:**
 
 ```bash
-claude -p "/plugin marketplace add https://github.com/nyldn/claude-octopus.git"
-claude -p "/plugin install octo@nyldn-plugins"
+claude plugin marketplace add https://github.com/nyldn/claude-octopus.git
+claude plugin install octo@nyldn-plugins
 ```
+
+**Or from the Claude Code UI:**
+
+Type `/plugin` in a Claude Code session, go to the **Marketplace** tab, and install **octo**.
+
+> **Note:** `/plugin` inside a session opens an interactive UI — it does not accept subcommands. Use the terminal CLI (`claude plugin ...`) for scripted installs.
 
 **Factory AI (Droid):**
 
@@ -245,7 +247,7 @@ Everything except multi-AI features. You get all 32 personas, structured workflo
 
 **Provider transparency** — Visual indicators (colored dots) show exactly which providers are running and when external APIs are called. You always know what's happening.
 
-**Clean uninstall** — `/plugin uninstall octo@nyldn-plugins` removes everything. If you see a scope error, add `--scope project`. No residual config changes.
+**Clean uninstall** — Run `claude plugin uninstall octo` from your terminal. If you see a scope error, add `--scope project`. No residual config changes.
 
 ---
 
