@@ -1,6 +1,6 @@
 # Command and Usage Reference
 
-Complete reference for all 38 Claude Octopus slash commands, plus activation rules, provider indicators, and the project-lifecycle features that are triggered by natural language rather than slash commands.
+Complete reference for all 39 Claude Octopus slash commands, plus activation rules, provider indicators, and the project-lifecycle features that are triggered by natural language rather than slash commands.
 
 ---
 
@@ -440,7 +440,7 @@ Deep research with multi-source synthesis and comprehensive analysis.
 
 ### `/octo:brainstorm`
 
-Creative thought partner brainstorming session.
+Creative thought partner brainstorming session — Solo or Multi-AI Team mode.
 
 **Usage:**
 ```
@@ -448,12 +448,39 @@ Creative thought partner brainstorming session.
 /octo:brainstorm my approach to customer onboarding
 ```
 
-**What it does:**
+**Modes:** When invoked, you'll be asked to choose a mode:
+
+| Mode | What happens | Cost |
+|------|-------------|------|
+| **Solo** | Claude-only thought partner — fast, focused, interactive | Claude Code subscription only |
+| **Team** | Multi-AI brainstorm — Codex + Gemini + Claude provide diverse perspectives | Uses external API credits |
+
+**How to toggle multi:** When you run `/octo:brainstorm`, a mode selector appears before the session starts. Select **Team** to activate multi-LLM brainstorming.
+
+**Solo mode:**
 - Structured exploration using four breakthrough techniques: Pattern Spotting, Paradox Hunting, Naming the Unnamed, Contrast Creation
 - Guided questioning — one question at a time
 - Challenges generic claims until insights become specific
 - Collaboratively names discovered concepts
 - Exports session with breakthroughs summary
+
+**Team mode:**
+- Dispatches parallel queries to available providers:
+  - 🔴 Codex CLI — Technical feasibility and implementation angles
+  - 🟡 Gemini CLI — Lateral thinking and ecosystem connections
+  - 🔵 Claude — Synthesis, pattern naming, and moderation
+- Provider-attributed results (🔴 🟡 🔵)
+- Cross-perspective synthesis: convergence, divergence, and strongest ideas
+- Interactive challenge and building on the best ideas
+- Multi-perspective breakthroughs export
+
+**Visual indicator (Team mode):**
+```
+🐙 CLAUDE OCTOPUS ACTIVATED — Multi-AI Brainstorm
+🔴 Codex CLI — Technical feasibility and implementation angles
+🟡 Gemini CLI — Lateral thinking and ecosystem connections
+🔵 Claude — Synthesis, pattern naming, and moderation
+```
 
 ---
 
