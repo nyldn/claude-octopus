@@ -579,9 +579,24 @@ detect_claude_code_version() {
             log "INFO" "Factory AI host: assuming feature parity with Claude Code v2.1.69"
         fi
     elif ! command -v claude &>/dev/null; then
-        log "WARN" "Claude Code CLI not found, using fallback mode"
-        return 1
-    else
+        # Check common install locations not on PATH in non-interactive shells
+        local _claude_path=""
+        for _try_path in "$HOME/.local/bin/claude" "/usr/local/bin/claude" "$HOME/.claude/bin/claude"; do
+            if [[ -x "$_try_path" ]]; then
+                _claude_path="$_try_path"
+                break
+            fi
+        done
+        if [[ -n "$_claude_path" ]]; then
+            # Add directory to PATH for this session
+            export PATH="$(dirname "$_claude_path"):$PATH"
+            log "INFO" "Claude Code CLI found at $_claude_path (added to PATH)"
+        else
+            log "WARN" "Claude Code CLI not found, using fallback mode"
+            return 1
+        fi
+    fi
+    if command -v claude &>/dev/null; then
         # Get version from Claude CLI
         CLAUDE_CODE_VERSION=$(claude --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
     fi
@@ -1008,6 +1023,7 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 MAGENTA='\033[0;35m'
+PURPLE='\033[0;35m'  # Alias for MAGENTA — used by setup_wizard banner
 DIM='\033[2m'
 BOLD='\033[1m'
 NC='\033[0m' # No Color
@@ -1165,9 +1181,9 @@ get_agent_command() {
             ;;
         codex-review) echo "codex exec review" ;; # Code review mode (no sandbox support)
         claude) echo "claude --print" ;;                         # Claude Sonnet 4.6
-        claude-sonnet) echo "claude --print -m sonnet" ;;        # Claude Sonnet explicit
-        claude-opus) echo "claude --print -m opus" ;;            # Claude Opus 4.6 (v8.0)
-        claude-opus-fast) echo "claude --print -m opus --fast" ;; # Claude Opus 4.6 Fast (v8.4: v2.1.36+)
+        claude-sonnet) echo "claude --print --model sonnet" ;;        # Claude Sonnet explicit
+        claude-opus) echo "claude --print --model opus" ;;            # Claude Opus 4.6 (v8.0)
+        claude-opus-fast) echo "claude --print --model opus --fast" ;; # Claude Opus 4.6 Fast (v8.4: v2.1.36+)
         openrouter) echo "openrouter_execute" ;;                 # OpenRouter API (v4.8)
         openrouter-glm5) echo "openrouter_execute_model z-ai/glm-5" ;;           # v8.11.0: GLM-5 via OpenRouter
         openrouter-kimi) echo "openrouter_execute_model moonshotai/kimi-k2.5" ;; # v8.11.0: Kimi K2.5 via OpenRouter
@@ -1522,9 +1538,9 @@ check_provider_health() {
                 resolve_provider_env "OPENAI_API_KEY" 2>/dev/null
             fi
             if [[ -z "${OPENAI_API_KEY:-}" ]]; then
-                # Check if OAuth is configured (codex auth status)
-                if ! codex auth status &>/dev/null 2>&1; then
-                    echo "codex: no OPENAI_API_KEY and OAuth not configured" >&2
+                # Check if OAuth is configured via auth.json (codex auth status was removed in v0.114)
+                if [[ ! -f "${HOME}/.codex/auth.json" ]]; then
+                    echo "codex: no OPENAI_API_KEY and no ~/.codex/auth.json (run: codex auth)" >&2
                     return 1
                 fi
             fi
@@ -6516,8 +6532,8 @@ log() {
     timestamp=$(date '+%Y-%m-%d %H:%M:%S')
 
     case "$level" in
-        INFO)  echo -e "${BLUE}[$timestamp]${NC} ${GREEN}INFO${NC}: $msg" ;;
-        WARN)  echo -e "${BLUE}[$timestamp]${NC} ${YELLOW}WARN${NC}: $msg" ;;
+        INFO)  echo -e "${BLUE}[$timestamp]${NC} ${GREEN}INFO${NC}: $msg" >&2 ;;
+        WARN)  echo -e "${BLUE}[$timestamp]${NC} ${YELLOW}WARN${NC}: $msg" >&2 ;;
         ERROR) echo -e "${BLUE}[$timestamp]${NC} ${RED}ERROR${NC}: $msg" >&2 ;;
         DEBUG) echo -e "${BLUE}[$timestamp]${NC} ${CYAN}DEBUG${NC}: $msg" >&2 ;;
     esac
@@ -8391,20 +8407,49 @@ ${agent_prompt_base}"
     done <<< "$fleet"
 
     # Wait for all Round 1 agents
-    wait
+    # v9.3.1: wait only catches direct children; spawn_agent's actual CLI runs as
+    # grandchild processes. Poll result files for ## Status markers instead (#190).
+    wait  # Wait for spawn_agent setup to finish
+    local _poll_start
+    _poll_start=$(date +%s)
+    while true; do
+        local _all_done=true
+        for _rf in "${round1_files[@]}"; do
+            if [[ ! -f "$_rf" ]] || ! grep -qE '^## Status:' "$_rf" 2>/dev/null; then
+                _all_done=false
+                break
+            fi
+        done
+        [[ "$_all_done" == "true" ]] && break
+        if [[ $(( $(date +%s) - _poll_start )) -ge 300 ]]; then
+            log WARN "review_run: Round 1 timed out after 300s — collecting partial results"
+            break
+        fi
+        sleep 2
+    done
     log INFO "review_run: Round 1 complete"
 
-    # Collect Round 1 findings — strip possible markdown fences from agent output
+    # Collect Round 1 findings — extract ## Output section, strip markdown fences, parse JSON
     local all_findings="[]"
+    local idx=0
     for f in "${round1_files[@]}"; do
         [[ ! -f "$f" ]] && continue
         local agent_findings
-        # Agent outputs ONLY JSON but strip any accidental markdown fences
-        agent_findings=$(sed 's/^```json[[:space:]]*//' "$f" 2>/dev/null | \
-            sed 's/^```[[:space:]]*//' | sed 's/```[[:space:]]*$//' | \
+        # v9.3.1: Extract content from ## Output section (not the full markdown file)
+        agent_findings=$(sed -n '/^## Output$/,/^## /{/^## Output$/d;/^## /d;/^```$/d;/^```json$/d;/^```JSON$/d;p}' "$f" | \
             jq -r '.findings // []' 2>/dev/null || echo "[]")
         all_findings=$(printf '%s\n%s' "$all_findings" "$agent_findings" | \
             jq -s 'add' 2>/dev/null || echo "$all_findings")
+
+        # v9.3.1: Write provider status for Round 1 agents (#187)
+        local atype="${round1_agent_types[$idx]}"
+        local provider_key="${atype%%[-_]*}"
+        if grep -q "Status: FAILED" "$f" 2>/dev/null; then
+            echo "${provider_key}|fallback|Round 1 agent failed" >> "$provider_status_file"
+        elif [[ "$agent_findings" != "[]" ]]; then
+            echo "${provider_key}|ok|Round 1 findings" >> "$provider_status_file"
+        fi
+        ((idx++)) || true
     done
 
     # ── ROUND 2: Verification ─────────────────────────────────────────────────
@@ -8438,6 +8483,8 @@ Return ONLY valid JSON with 'findings' array including verdict field."
                 jq 'map(. + {"verdict":"confirmed"})' 2>/dev/null || echo "[]")}"
         }
     }
+    # v9.3.1: Strip markdown fences that LLMs wrap around JSON responses (#188)
+    verified_findings=$(echo "$verified_findings" | sed '/^```json$/d; /^```JSON$/d; /^```$/d')
 
     # Filter false positives
     local confirmed_findings
@@ -8466,6 +8513,8 @@ Return JSON: {\"include\": [...finding titles...], \"exclude\": [...finding titl
                 echo "codex|fallback|Round 3 debate → skipped" >> "$provider_status_file"
                 debate_result="{\"include\":[],\"exclude\":[]}"
             }
+            # v9.3.1: Strip markdown fences from debate result (#188)
+            debate_result=$(echo "$debate_result" | sed '/^```json$/d; /^```JSON$/d; /^```$/d')
             local exclude_titles
             exclude_titles=$(echo "$debate_result" | jq -r '.exclude // [] | .[]' 2>/dev/null || true)
             if [[ -n "$exclude_titles" ]]; then
@@ -8492,6 +8541,9 @@ Return ONLY JSON: {\"findings\": [...ranked, deduplicated findings...]}"
         log WARN "review_run: synthesis failed, using confirmed findings sorted as-is"
         final_json="{\"findings\":$(echo "$confirmed_findings" | jq -c 'sort_by(.severity)' 2>/dev/null || echo "[]")}"
     }
+
+    # v9.3.1: Strip markdown fences from synthesis result (#188)
+    final_json=$(echo "$final_json" | sed '/^```json$/d; /^```JSON$/d; /^```$/d')
 
     # Write findings file
     echo "$final_json" > "$findings_file"
@@ -12754,22 +12806,24 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
             :
         elif [[ $exit_code -eq 0 ]]; then
             # Filter out CLI header noise and extract actual response
-            # Handles Codex/Gemini CLI format where response follows "codex"/"gemini" marker
-            awk '
-                BEGIN { in_response = 0; header_done = 0; }
-                # Skip CLI startup banner (everything until separator line)
-                /^--------$/ { header_done = 1; next; }
-                !header_done { next; }
-                # Response starts after agent name marker
-                /^(codex|gemini|assistant)$/ { in_response = 1; next; }
-                # Skip thinking blocks
-                /^thinking$/ { next; }
-                # Skip token usage markers
-                /^tokens used$/ { next; }
-                /^[0-9,]+$/ && in_response { next; }
-                # Output actual response content
-                in_response { print; }
-            ' "$temp_output" >> "$result_file"
+            # v9.3.1: Check for CLI header separator before filtering — codex exec
+            # sends clean response on stdout (no header), banner on stderr.
+            if grep -q '^--------$' "$temp_output" 2>/dev/null; then
+                # CLI-wrapped output: strip banner and extract response
+                awk '
+                    BEGIN { in_response = 0; header_done = 0; }
+                    /^--------$/ { header_done = 1; next; }
+                    !header_done { next; }
+                    /^(codex|gemini|assistant)$/ { in_response = 1; next; }
+                    /^thinking$/ { next; }
+                    /^tokens used$/ { next; }
+                    /^[0-9,]+$/ && in_response { next; }
+                    in_response { print; }
+                ' "$temp_output" >> "$result_file"
+            else
+                # Clean stdout (e.g. codex exec) — pass through directly
+                cat "$temp_output" >> "$result_file"
+            fi
 
             # v8.7.0: Add trust marker for external CLI output
             case "$agent_type" in codex*|gemini*|perplexity*)
@@ -12825,16 +12879,20 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
             # v7.19.0 P0.2: TIMEOUT - Preserve partial output
             # Process whatever output exists (may be significant partial work)
             if [[ -s "$temp_output" ]]; then
-                awk '
-                    BEGIN { in_response = 0; header_done = 0; }
-                    /^--------$/ { header_done = 1; next; }
-                    !header_done { next; }
-                    /^(codex|gemini|assistant)$/ { in_response = 1; next; }
-                    /^thinking$/ { next; }
-                    /^tokens used$/ { next; }
-                    /^[0-9,]+$/ && in_response { next; }
-                    in_response { print; }
-                ' "$temp_output" >> "$result_file"
+                if grep -q '^--------$' "$temp_output" 2>/dev/null; then
+                    awk '
+                        BEGIN { in_response = 0; header_done = 0; }
+                        /^--------$/ { header_done = 1; next; }
+                        !header_done { next; }
+                        /^(codex|gemini|assistant)$/ { in_response = 1; next; }
+                        /^thinking$/ { next; }
+                        /^tokens used$/ { next; }
+                        /^[0-9,]+$/ && in_response { next; }
+                        in_response { print; }
+                    ' "$temp_output" >> "$result_file"
+                else
+                    cat "$temp_output" >> "$result_file"
+                fi
             elif [[ -s "$raw_output" ]]; then
                 # Fallback: use raw output if filtered output is empty
                 cat "$raw_output" >> "$result_file"
