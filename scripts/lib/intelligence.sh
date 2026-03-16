@@ -863,3 +863,90 @@ run_file_validation() {
         log "DEBUG" "Agent $agent_type file references validated" 2>/dev/null || true
     fi
 }
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# HEURISTIC LEARNING (v9.3.0)
+# Records file co-occurrence patterns from successful agent runs and injects
+# heuristics into future prompts. Builds knowledge over time with zero config.
+# Kill switch: OCTOPUS_HEURISTIC_LEARNING=off
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Record files mentioned in a successful agent run for co-occurrence learning
+# Usage: record_run_pattern <agent_type> <prompt> <result_file>
+record_run_pattern() {
+    [[ "${OCTOPUS_HEURISTIC_LEARNING:-on}" == "off" ]] && return 0
+
+    local agent_type="$1"
+    local prompt="$2"
+    local result_file="$3"
+
+    [[ -f "$result_file" ]] || return 0
+
+    local patterns_file="${HOME}/.claude-octopus/.octo/patterns.jsonl"
+
+    # Extract file paths mentioned in the result (look for common path patterns)
+    local result_content
+    result_content=$(head -c 4000 "$result_file" 2>/dev/null) || return 0
+
+    # Match file paths like src/foo.ts, ./bar/baz.js, lib/thing.sh etc.
+    local files_found
+    files_found=$(echo "$result_content" | grep -oE '[a-zA-Z0-9_./-]+\.[a-zA-Z]{1,5}' | \
+        grep -vE '^\.' | grep '/' | sort -u | head -20 | tr '\n' ',' | sed 's/,$//')
+
+    [[ -z "$files_found" ]] && return 0
+
+    # Extract a compact prompt signature (first 100 chars, no newlines)
+    local prompt_sig
+    prompt_sig=$(echo "${prompt:0:100}" | tr '\n' ' ' | tr -d '"')
+
+    local timestamp
+    timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date +"%Y-%m-%dT%H:%M:%SZ")
+
+    local entry="{\"ts\":\"$timestamp\",\"agent\":\"$agent_type\",\"prompt_sig\":\"$prompt_sig\",\"files\":\"$files_found\"}"
+
+    octo_db_append "$patterns_file" "$entry" 200
+    log "DEBUG" "Recorded run pattern: ${files_found:0:80}..." 2>/dev/null || true
+}
+
+# Build heuristic context from past successful runs
+# Returns a short hint string (≤500 chars) or empty if no relevant patterns
+# Usage: build_heuristic_context <prompt>
+build_heuristic_context() {
+    [[ "${OCTOPUS_HEURISTIC_LEARNING:-on}" == "off" ]] && return 0
+
+    local prompt="$1"
+    local patterns_file="${HOME}/.claude-octopus/.octo/patterns.jsonl"
+
+    [[ -f "$patterns_file" ]] || return 0
+
+    # Extract candidate file names from the current prompt
+    local target_files
+    target_files=$(echo "$prompt" | grep -oE '[a-zA-Z0-9_./-]+\.[a-zA-Z]{1,5}' | \
+        grep -vE '^\.' | grep '/' | sort -u | head -5)
+
+    [[ -z "$target_files" ]] && return 0
+
+    # For each target file, find co-occurring files from past patterns
+    local hints=""
+    local file
+    while IFS= read -r file; do
+        [[ -z "$file" ]] && continue
+        # Find patterns that mention this file and extract their co-occurring files
+        local cooccurring
+        cooccurring=$(grep -F "$file" "$patterns_file" 2>/dev/null | \
+            grep -oE '[a-zA-Z0-9_./-]+\.[a-zA-Z]{1,5}' | \
+            grep -vE "^${file//\//\\/}$" | \
+            grep '/' | sort | uniq -c | sort -rn | \
+            awk '$1 >= 2 { print $2 }' | head -3 | tr '\n' ', ' | sed 's/,$//')
+        if [[ -n "$cooccurring" ]]; then
+            hints="${hints}When modifying ${file}, successful runs usually first read: ${cooccurring}. "
+        fi
+    done <<< "$target_files"
+
+    # Cap at 500 chars
+    if [[ ${#hints} -gt 500 ]]; then
+        hints="${hints:0:497}..."
+    fi
+
+    echo "$hints"
+}

@@ -2109,9 +2109,29 @@ deduplicate_results() {
     done
 }
 
+# v9.3.0: Per-role context budget proportions
+# WHY: Prevents chatty agents from consuming all context while verifiers get starved
+get_role_budget_proportion() {
+    local role="$1"
+    case "$role" in
+        implementer|researcher|developer) echo "60" ;;
+        planner|reviewer|architect)       echo "40" ;;
+        verifier|synthesizer|release)     echo "25" ;;
+        *)                                echo "100" ;; # no reduction for unknown roles
+    esac
+}
+
 enforce_context_budget() {
     local prompt="$1"
+    local role="${2:-}"
     local budget="${OCTOPUS_CONTEXT_BUDGET:-12000}"
+
+    # v9.3.0: Scale budget by role proportion
+    if [[ -n "$role" ]]; then
+        local proportion
+        proportion=$(get_role_budget_proportion "$role")
+        budget=$((budget * proportion / 100))
+    fi
 
     # Rough token estimate: ~4 chars per token
     local char_budget=$((budget * 4))
@@ -12433,6 +12453,22 @@ ${provider_ctx}"
         log "DEBUG" "Injected provider history context (${#provider_ctx} chars) for $agent_type"
     fi
 
+    # v9.3.0: Inject heuristic context from past successful runs
+    if [[ "${OCTOPUS_HEURISTIC_LEARNING:-on}" != "off" ]] && type build_heuristic_context &>/dev/null 2>&1; then
+        local heuristic_ctx
+        heuristic_ctx=$(build_heuristic_context "$enhanced_prompt" 2>/dev/null) || true
+        if [[ -n "$heuristic_ctx" ]]; then
+            heuristic_ctx=$(sanitize_external_content "$heuristic_ctx" "heuristics")
+            enhanced_prompt="${enhanced_prompt}
+
+---
+
+## File Heuristics
+${heuristic_ctx}"
+            log "DEBUG" "Injected heuristic context (${#heuristic_ctx} chars)"
+        fi
+    fi
+
     # v8.18.0: Inject earned skills context
     local earned_skills_ctx
     earned_skills_ctx=$(load_earned_skills 2>/dev/null)
@@ -12452,9 +12488,16 @@ ${earned_skills_ctx}"
         log "DEBUG" "Injected earned skills context (${#earned_skills_ctx} chars)"
     fi
 
+    # v9.3.0: Search spiral guard for researcher role
+    if [[ "$role" == "researcher" ]]; then
+        enhanced_prompt="${enhanced_prompt}
+
+IMPORTANT: If you find yourself searching or grepping more than 3 times in a row without reading files or writing analysis, STOP searching. Consolidate what you've found so far and write your analysis. More searching rarely improves the output — synthesis does."
+    fi
+
     # v8.10.0: Enforce context budget AFTER all injections (skill + memory)
     # Previously called before injections, causing final prompt to exceed budget (Issue #25)
-    enhanced_prompt=$(enforce_context_budget "$enhanced_prompt")
+    enhanced_prompt=$(enforce_context_budget "$enhanced_prompt" "${role:-}")
 
     # Record usage (get model from agent type, with phase/role context)
     local model
@@ -12770,6 +12813,8 @@ ${earned_skills_ctx}"
             append_provider_history "$agent_type" "${phase:-unknown}" "${enhanced_prompt:0:100}" "$result_summary" 2>/dev/null || true
             # v8.20.0: Record outcome for provider intelligence
             record_outcome "$agent_type" "$agent_type" "${task_type:-unknown}" "${phase:-unknown}" "success" "$elapsed_ms" 2>/dev/null || true
+            # v9.3.0: Record file co-occurrence pattern for heuristic learning
+            record_run_pattern "$agent_type" "${enhanced_prompt:-$prompt}" "$result_file" 2>/dev/null || true
             # v8.20.1: Record task duration metric
             record_task_metric "task_duration_ms" "$elapsed_ms" 2>/dev/null || true
             # v8.21.0: Anti-drift checkpoint (non-blocking)
@@ -17056,8 +17101,13 @@ ${enhanced_prompt}"
         fi
     fi
 
+    # v9.3.0: Search spiral guard — prevent research agents from token waste
+    enhanced_prompt="${enhanced_prompt}
+
+IMPORTANT: If you find yourself searching or grepping more than 3 times in a row without reading files or writing analysis, STOP searching. Consolidate what you've found so far and write your analysis. More searching rarely improves the output — synthesis does."
+
     # v8.10.0: Enforce context budget AFTER all injections
-    enhanced_prompt=$(enforce_context_budget "$enhanced_prompt")
+    enhanced_prompt=$(enforce_context_budget "$enhanced_prompt" "$role")
 
     # Resolve model and command
     local model
@@ -17195,6 +17245,8 @@ ${enhanced_prompt}"
         elapsed_ms=$((end_time_ms - start_time_ms))
         update_agent_status "$agent_type" "completed" "$elapsed_ms" 0.0
         record_outcome "$agent_type" "$agent_type" "research" "$phase" "success" "$elapsed_ms" 2>/dev/null || true
+        # v9.3.0: Record file co-occurrence pattern for heuristic learning
+        record_run_pattern "$agent_type" "${enhanced_prompt:-$original_prompt}" "$result_file" 2>/dev/null || true
     elif [[ $exit_code -eq 124 ]] || [[ $exit_code -eq 143 ]]; then
         # Timeout — preserve partial output
         if [[ -s "$temp_output" ]]; then

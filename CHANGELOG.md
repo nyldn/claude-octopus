@@ -1,5 +1,19 @@
 # Changelog
 
+## [9.3.0] - 2026-03-16
+
+### Added
+
+- **Search spiral guard**: Research agents get a prompt-level instruction preventing search loops without synthesis. Unconditional in `probe_single_agent()`, role-gated (`researcher`) in `spawn_agent()`.
+- **Per-role token budget proportions**: `get_role_budget_proportion()` scales `enforce_context_budget()` by role — implementers/researchers get 60%, planners/reviewers 40%, verifiers/synthesizers 25%. Prevents one chatty agent from starving others.
+- **Heuristic learning**: `record_run_pattern()` records file co-occurrence from successful agent runs to `~/.claude-octopus/.octo/patterns.jsonl` (capped 200 entries). `build_heuristic_context()` injects "when modifying X, successful runs usually first read Y" hints (≤500 chars) into future prompts. Kill switch: `OCTOPUS_HEURISTIC_LEARNING=off`.
+
+### Changed
+
+- `enforce_context_budget()` now accepts an optional second parameter (`role`) for budget scaling.
+
+---
+
 ## [9.2.2] - 2026-03-16
 
 ### Fixed

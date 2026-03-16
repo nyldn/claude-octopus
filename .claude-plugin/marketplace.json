@@ -11,8 +11,8 @@
     {
       "name": "octo",
       "source": "./",
-      "description": "v9.2.2 - fix Codex subagent skill interception and Gemini env resolution. Install as octo@nyldn-plugins. 100 detection flags, claude-mem bridge. 32 personas, 39 commands, 50 skills. Run /octo:setup.",
-      "version": "9.2.2",
+      "description": "v9.3.0 - agent efficiency (search spiral guard, role-based budgets, heuristic learning). Install as octo@nyldn-plugins. 100 detection flags, claude-mem bridge. 32 personas, 39 commands, 50 skills. Run /octo:setup.",
+      "version": "9.3.0",
       "author": {
         "name": "nyldn"
       },
