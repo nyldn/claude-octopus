@@ -1466,9 +1466,10 @@ resolve_provider_env() {
     [[ -n "${!var_name:-}" ]] && return 0
 
     # Try sourcing from ~/.profile (login shell config, no interactive guard)
+    # Use a sentinel to isolate the var value from any stdout the profile may emit
     if [[ -f "$HOME/.profile" ]]; then
         local val
-        val=$(bash -lc "source \"\$HOME/.profile\" 2>/dev/null; echo \"\${${var_name}:-}\"" 2>/dev/null)
+        val=$(bash -c "source \"\$HOME/.profile\" >/dev/null 2>&1; echo \"__OCTOPUS_ENV__\${${var_name}:-}\"" 2>/dev/null | grep '^__OCTOPUS_ENV__' | sed 's/^__OCTOPUS_ENV__//')
         if [[ -n "$val" ]]; then
             export "$var_name=$val"
             log DEBUG "Resolved $var_name from ~/.profile (non-interactive shell fallback)"
@@ -7780,7 +7781,7 @@ OLD_init_interactive_impl() {
 # Error code registry (bash 3.2 compatible - uses regular array)
 ERROR_CODES=(
     "E001:OPENAI_API_KEY not set:export OPENAI_API_KEY=\"sk-...\" && orchestrate.sh preflight:help api-setup"
-    "E002:GEMINI_API_KEY not set (if in ~/.bashrc, move to ~/.profile — bashrc is skipped in non-interactive shells):export GEMINI_API_KEY=\"AIza...\" && orchestrate.sh preflight:help api-setup"
+    "E002:Gemini API key not set — set GEMINI_API_KEY or GOOGLE_API_KEY (if in ~/.bashrc, move to ~/.profile — bashrc is skipped in non-interactive shells):export GEMINI_API_KEY=\"AIza...\" && orchestrate.sh preflight:help api-setup"
     "E003:Codex CLI not found:npm install -g @openai/codex:help setup"
     "E004:Gemini CLI not found:npm install -g @google/gemini-cli:help setup"
     "E005:Workspace not initialized:orchestrate.sh init:help init"
@@ -7847,10 +7848,14 @@ preflight_with_recovery() {
     fi
 
     # Check Gemini API Key (v9.2.1: try resolving from profile/.env first, check OAuth)
+    # Accept GEMINI_API_KEY, GOOGLE_API_KEY, or OAuth creds
     if [[ -z "${GEMINI_API_KEY:-}" ]]; then
         resolve_provider_env "GEMINI_API_KEY" 2>/dev/null
     fi
-    if [[ -z "${GEMINI_API_KEY:-}" ]] && [[ ! -f "$HOME/.gemini/oauth_creds.json" ]]; then
+    if [[ -z "${GOOGLE_API_KEY:-}" ]]; then
+        resolve_provider_env "GOOGLE_API_KEY" 2>/dev/null
+    fi
+    if [[ -z "${GEMINI_API_KEY:-}" ]] && [[ -z "${GOOGLE_API_KEY:-}" ]] && [[ ! -f "$HOME/.gemini/oauth_creds.json" ]]; then
         show_error "E002"
         has_errors=true
     fi
