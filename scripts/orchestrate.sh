@@ -8181,7 +8181,7 @@ print_provider_report() {
 # Args: JSON profile string with fields:
 #   target, focus, provenance, autonomy, publish, debate
 review_run() {
-    local profile_json="${1:-{}}"
+    local profile_json="${1:-"{}"}"
 
     # Parse profile fields (with defaults)
     local target focus provenance autonomy publish debate
@@ -21930,7 +21930,7 @@ case "$COMMAND" in
             echo "Example: $(basename "$0") code-review '{\"target\":\"staged\",\"publish\":\"ask\"}'"
             exit 0
         fi
-        review_run "${1:-{}}"
+        review_run "${1:-"{}"}"
         ;;
     embrace)
         # Full 4-phase Double Diamond workflow
