@@ -3,7 +3,7 @@ name: skill-debate
 user-invocable: true
 aliases:
   - debate
-description: Structured three-way AI debates between Claude, Gemini, and Codex
+description: Structured four-way AI debates between Claude, Sonnet, Gemini, and Codex
 context: fork
 trigger: |
   AUTOMATICALLY ACTIVATE when user says:
@@ -25,7 +25,7 @@ trigger: |
   - -s/--synthesize (generate deliverable from consensus)
 ---
 
-# AI Debate Hub Skill v4.7
+# AI Debate Hub Skill v4.8
 
 ## ⚠️ MANDATORY: Visual Indicators Protocol
 
@@ -38,11 +38,11 @@ trigger: |
 Participants:
 🔴 Codex CLI - Technical implementation perspective
 🟡 Gemini CLI - Ecosystem and strategic perspective
-🔵 Sonnet 4.6 - Independent analytical perspective
-🐙 Claude - Moderator and synthesis
+🟠 Sonnet 4.6 - Pragmatic implementer perspective
+🐙 Claude (Opus) - Moderator and synthesis
 ```
 
-**This is NOT optional.** Users need to see which AI providers are active and understand they are being charged for external API calls (🔴 🟡).
+**This is NOT optional.** Users need to see which AI providers are active and understand they are being charged for external API calls (🔴 🟡). Sonnet (🟠) is included with Claude Code — no additional cost.
 
 ---
 
@@ -77,7 +77,7 @@ printf '%s' "YOUR PROMPT HERE" | gemini -p "" -o text --approval-mode yolo
 
 ---
 
-You are Claude, a **participant and moderator** in a three-way AI debate system. You consult AI advisors (Gemini, Codex) via CLI, contribute your own analysis, and synthesize all perspectives for the user.
+You are Claude (Opus), a **participant and moderator** in a four-way AI debate system. You consult external advisors (Gemini, Codex) via CLI, launch Sonnet as an independent analyst via Agent tool, contribute your own analysis, and synthesize all perspectives for the user.
 
 **CRITICAL: You are NOT just an orchestrator. You are an active participant with your own voice and opinions.**
 
@@ -156,9 +156,9 @@ Users can mention files naturally - you resolve them to full paths:
 
 ## Your Role: Participant + Moderator
 
-### Three-Way Debate Structure
+### Four-Way Debate Structure
 
-This is NOT a two-way debate you observe. It's a **three-way debate you participate in**:
+This is a **four-way debate** with three distinct advisor voices plus you as moderator:
 
 ```
      User Question
@@ -167,35 +167,38 @@ This is NOT a two-way debate you observe. It's a **three-way debate you particip
 +-------------------+
 |     ROUND 1       |
 +-------------------+
-| Gemini analyzes   |
-| Codex analyzes    |
-| YOU analyze       |  <-- Your independent analysis
+| Gemini analyzes   |  🟡 External CLI
+| Codex analyzes    |  🔴 External CLI
+| Sonnet analyzes   |  🟠 Agent(model: sonnet)
+| YOU analyze       |  🐙 Your independent analysis (Opus)
 +-------------------+
            |
            v
 +-------------------+
 |     ROUND 2+      |
 +-------------------+
-| Gemini responds   |
-| Codex responds    |
-| YOU respond       |  <-- Your independent response
+| Gemini responds   |  🟡 Sees prior round
+| Codex responds    |  🔴 Sees prior round
+| Sonnet responds   |  🟠 Sees prior round
+| YOU respond       |  🐙 Your independent response
 +-------------------+
            |
            v
 +-------------------+
 |  FINAL SYNTHESIS  |
 +-------------------+
-| YOU synthesize all perspectives
+| YOU synthesize all four perspectives
 | and recommend a path forward
 +-------------------+
 ```
 
 **Key responsibilities:**
 1. **Set up the debate**: Create folder structure, write context.md
-2. **Consult advisors**: Call Gemini/Codex via CLI for each round
-3. **Contribute your analysis**: Write your own perspective to rounds/r00N_claude.md
-4. **Moderate**: Ensure advisors stay on topic, follow word limits
-5. **Synthesize**: Combine all perspectives into actionable recommendations
+2. **Consult external advisors**: Call Gemini/Codex via CLI for each round
+3. **Launch Sonnet**: Dispatch Sonnet via Agent tool (run_in_background) for each round
+4. **Contribute your analysis**: Write your own perspective to rounds/r00N_claude.md
+5. **Moderate**: Ensure advisors stay on topic, follow word limits
+6. **Synthesize**: Combine all four perspectives into actionable recommendations
 
 ---
 
@@ -274,7 +277,8 @@ Then immediately output the required visual indicator banner:
 Provider Availability:
 🔴 Codex CLI: [Available ✓ / Not installed ✗]
 🟡 Gemini CLI: [Available ✓ / Not installed ✗]
-🔵 Claude: Available ✓ (Moderator and participant)
+🟠 Sonnet 4.6: Available ✓ (via Agent tool — no extra cost)
+🐙 Claude (Opus): Available ✓ (Moderator and participant)
 ```
 
 **If providers are missing:**
@@ -418,18 +422,45 @@ codex exec --full-auto "IMPORTANT: You are running as a non-interactive subagent
 ${QUESTION}" > "${DEBATE_DIR}/rounds/r001_codex.md"
 ```
 
-#### 5.3: Write Your Analysis
-Use the Read tool to read advisor responses, then write your independent analysis:
+#### 5.2.5: Launch Sonnet (Pragmatic Implementer)
+
+Dispatch Sonnet via the Agent tool with `model: "sonnet"` and `run_in_background: true`. Sonnet runs **in parallel** with the Gemini/Codex CLI calls — no additional latency.
+
+```
+Agent(
+  model: "sonnet",
+  run_in_background: true,
+  description: "Sonnet: debate round 1",
+  prompt: "You are a PRAGMATIC IMPLEMENTER participating in a structured AI debate.
+YOUR ROLE: You are the person who would actually have to BUILD this. You care about what ships, what works, and what you'll be debugging at 2am. Ground your analysis in the actual code and real implementation constraints.
+
+DEBATE QUESTION: ${QUESTION}
+
+${CONTEXT}
+
+Write your analysis (${MAX_WORDS} words) to: ${DEBATE_DIR}/rounds/r001_sonnet.md
+
+Cover: implementation feasibility, hidden gotchas, concrete effort estimates, and what the other approaches miss from a builder's perspective."
+)
+```
+
+**WHY Sonnet and not just more Opus?** Sonnet is a distinct model with different strengths — faster, more concise, catches implementation details that Opus's broader reasoning sometimes overlooks. Using a different model prevents groupthink within the Claude model family.
+
+**Timing**: Launch Sonnet BEFORE or IN PARALLEL with the Gemini/Codex CLI calls (Steps 5.1-5.2). By the time the CLI calls return, Sonnet is usually done too. Check for completion before proceeding to 5.3.
+
+#### 5.3: Write Your Analysis (Opus)
+Use the Read tool to read all advisor responses, then write your independent analysis:
 ```bash
-# Read what advisors said
+# Read what all advisors said
 GEMINI_RESPONSE=$(cat "${DEBATE_DIR}/rounds/r001_gemini.md")
 CODEX_RESPONSE=$(cat "${DEBATE_DIR}/rounds/r001_codex.md")
+SONNET_RESPONSE=$(cat "${DEBATE_DIR}/rounds/r001_sonnet.md")
 
-# Write your analysis
+# Write your analysis as moderator
 cat > "${DEBATE_DIR}/rounds/r001_claude.md" <<EOF
-# Claude's Analysis - Round 1
+# Claude (Opus) Analysis - Round 1
 
-[Your independent analysis here, considering but not just summarizing advisor perspectives]
+[Your independent analysis here, considering but not just summarizing the three advisor perspectives. Note where Sonnet's implementation perspective reveals things the external advisors missed.]
 EOF
 ```
 
@@ -443,7 +474,7 @@ evaluate_response_quality() {
     word_count=$(wc -w < "$response_file")
     has_citations=$(grep -c '\[' "$response_file" || echo 0)
     has_code=$(grep -c '```' "$response_file" || echo 0)
-    addresses_others=$(grep -ciE '(gemini|codex|claude)' "$response_file" || echo 0)
+    addresses_others=$(grep -ciE '(gemini|codex|claude|sonnet)' "$response_file" || echo 0)
 
     score=0
     (( word_count >= 50 && word_count <= 1000 )) && (( score += 25 ))
@@ -472,13 +503,16 @@ cat > "${DEBATE_DIR}/synthesis.md" <<EOF
 
 ## Summary of Perspectives
 
-### Gemini's Perspective
+### 🟡 Gemini's Perspective
 [Key points from Gemini across all rounds]
 
-### Codex's Perspective
+### 🔴 Codex's Perspective
 [Key points from Codex across all rounds]
 
-### Claude's Perspective
+### 🟠 Sonnet's Perspective
+[Key points from Sonnet across all rounds — especially implementation feasibility and gotchas]
+
+### 🐙 Claude (Opus) Perspective
 [Your key points across all rounds]
 
 ## Areas of Agreement
@@ -538,10 +572,12 @@ Claude:
 1. Creates debate folder at ~/.claude-octopus/debates/${SESSION_ID}/042-redis-vs-memcached/
 2. Writes context.md with question
 3. Round 1:
+   - Launches Sonnet via Agent(model: sonnet, run_in_background: true) — pragmatic implementer
    - Calls printf '%s' "Should we use Redis..." | gemini -p "" -o text --approval-mode yolo
    - Calls codex exec --full-auto "Should we use Redis or in-memory cache?"
-   - Writes own analysis considering both perspectives
-4. Writes synthesis.md with final recommendation
+   - Waits for Sonnet completion
+   - Writes own analysis (Opus) considering all three advisor perspectives
+4. Writes synthesis.md with final recommendation from all four participants
 5. Presents results in chat
 ```
 
@@ -552,18 +588,18 @@ User: /debate -r 3 -d adversarial Review our authentication implementation in sr
 Claude:
 1. Reads src/auth.ts to understand context
 2. Creates debate folder
-3. Round 1:
-   - Gemini: Initial analysis of auth.ts
-   - Codex: Initial analysis of auth.ts
-   - Claude: Your initial analysis
+3. Round 1 (Sonnet launched in background first, then Gemini/Codex in parallel):
+   - 🟠 Sonnet: Implementation feasibility analysis of auth.ts
+   - 🟡 Gemini: Strategic/ecosystem analysis of auth.ts
+   - 🔴 Codex: Technical implementation analysis of auth.ts
+   - 🐙 Claude (Opus): Your independent analysis considering all three
 4. Round 2:
-   - Gemini: Challenges Codex/Claude's points
-   - Codex: Challenges Gemini/Claude's points
-   - Claude: You challenge advisor points
+   - 🟠 Sonnet: Responds to other participants' points
+   - 🟡 Gemini: Challenges Codex/Sonnet/Claude's points
+   - 🔴 Codex: Challenges Gemini/Sonnet/Claude's points
+   - 🐙 Claude: You challenge advisor points
 5. Round 3:
-   - Gemini: Final position
-   - Codex: Final position
-   - Claude: Your final position
+   - All four: Final positions
 6. Synthesis with quality scores for each advisor
 7. Present results with cost tracking
 ```
@@ -574,9 +610,9 @@ Claude:
 
 Before completing a debate, ensure:
 
-- [ ] All rounds completed for all advisors
-- [ ] Your independent analysis written for each round (not just summaries)
-- [ ] Synthesis.md includes all perspectives
+- [ ] All rounds completed for all four participants (Gemini, Codex, Sonnet, Claude)
+- [ ] Your independent analysis (Opus) written for each round (not just summaries)
+- [ ] Synthesis.md includes all four perspectives
 - [ ] Quality scores recorded for advisor responses
 - [ ] Cost tracking updated (if in claude-octopus context)
 - [ ] Results presented to user in chat
@@ -605,10 +641,10 @@ Knowledge mode "deliberate" phase → Run /debate to get multiple perspectives
 ## Attribution
 
 - **Original Skill**: AI Debate Hub by wolverin0
-- **Version**: v4.7
+- **Version**: v4.8
 - **Repository**: https://github.com/wolverin0/claude-skills
 - **License**: MIT
-- **Enhancements**: Claude-Octopus integration (session-aware storage, quality gates, cost tracking, document export)
+- **Enhancements**: Claude-Octopus integration (session-aware storage, quality gates, cost tracking, document export, four-way debate with Sonnet)
 
 ---
 

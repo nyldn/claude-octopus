@@ -22510,7 +22510,7 @@ case "$COMMAND" in
     # AI DEBATE HUB COMMANDS (v7.4 - Integration with wolverin0/claude-skills)
     # ═══════════════════════════════════════════════════════════════════════════
     debate|deliberate|consensus)
-        # AI Debate Hub - Structured three-way debates
+        # AI Debate Hub - Structured four-way debates
         # Check if submodule exists
         if [[ ! -f ".dependencies/claude-skills/skills/debate.md" ]]; then
             log ERROR "AI Debate Hub not found. Please initialize the submodule:"

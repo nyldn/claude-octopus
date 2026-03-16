@@ -1,10 +1,10 @@
 ---
 name: skill-debate
 version: 1.0.0
-description: Structured three-way AI debates between Claude, Gemini, and Codex. Use when: AUTOMATICALLY ACTIVATE when user says:. "/debate <question>". "run a debate about X"
+description: Structured four-way AI debates between Claude, Sonnet, Gemini, and Codex. Use when: AUTOMATICALLY ACTIVATE when user says:. "/debate <question>". "run a debate about X"
 ---
 
-# AI Debate Hub Skill v4.7
+# AI Debate Hub Skill v4.8
 
 ## ⚠️ MANDATORY: Visual Indicators Protocol
 
@@ -54,7 +54,7 @@ printf '%s' "YOUR PROMPT HERE" | gemini -p "" -o text --approval-mode yolo
 
 ---
 
-You are Claude, a **participant and moderator** in a three-way AI debate system. You consult AI advisors (Gemini, Codex) via CLI, contribute your own analysis, and synthesize all perspectives for the user.
+You are Claude, a **participant and moderator** in a four-way AI debate system. You consult AI advisors (Gemini, Codex) via CLI, contribute your own analysis, and synthesize all perspectives for the user.
 
 **CRITICAL: You are NOT just an orchestrator. You are an active participant with your own voice and opinions.**
 
@@ -135,7 +135,7 @@ Users can mention files naturally - you resolve them to full paths:
 
 ### Three-Way Debate Structure
 
-This is NOT a two-way debate you observe. It's a **three-way debate you participate in**:
+This is NOT a two-way debate you observe. It's a **four-way debate you participate in**:
 
 ```
      User Question

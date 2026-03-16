@@ -109,7 +109,7 @@ claude plugin install octo@nyldn-plugins
 ```bash
 /octo:embrace build stripe integration     # Full lifecycle: research → define → develop → deliver
 /octo:factory "build a CLI that converts CSV to JSON"  # Autonomous pipeline — spec in, software out
-/octo:debate monorepo vs microservices     # Structured three-way AI debate with consensus
+/octo:debate monorepo vs microservices     # Structured four-way AI debate with consensus
 /octo:research htmx vs react in 2026       # Multi-source synthesis from three AI providers
 /octo:design mobile checkout redesign       # UI/UX design with BM25 style intelligence
 /octo:tdd create user auth                 # Red-green-refactor with test discipline

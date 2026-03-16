@@ -180,7 +180,7 @@ Then you'll see results from each provider marked with their indicator (ðŸ”´ ðŸŸ
 
 ## See Also
 
-- `/octo:debate` - Structured three-way debates (better for adversarial analysis)
+- `/octo:debate` - Structured four-way debates (better for adversarial analysis)
 - `/octo:research` - Research workflow (auto-triggers multi-provider for research)
 - `/octo:review` - Review workflow (auto-triggers multi-provider for validation)
 - [COMMAND-REFERENCE.md](../../docs/COMMAND-REFERENCE.md#natural-language-triggers) - Activation rules and forced multi-provider guidance

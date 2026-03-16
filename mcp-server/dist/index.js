@@ -133,7 +133,7 @@ server.tool("octopus_embrace", "Run the full Double Diamond workflow (Discover â
     return { content: [{ type: "text", text }], isError };
 });
 // --- Utility Tools ---
-server.tool("octopus_debate", "Run a structured three-way AI debate between Claude, Gemini, and Codex on a topic.", {
+server.tool("octopus_debate", "Run a structured four-way AI debate between Claude, Sonnet, Gemini, and Codex on a topic.", {
     question: z.string().describe("The question or topic to debate"),
     rounds: z
         .number()

@@ -143,11 +143,50 @@ const WORKFLOW_DEFS = [
     {
         name: "octopus_review",
         label: "Octopus Review",
-        description: "Expert code review with multi-provider security and architecture analysis.",
+        description: "Multi-LLM code review pipeline (Codex + Gemini + Claude + Perplexity fleet). Loads REVIEW.md customization, supports inline PR comment publishing.",
         parameters: Type.Object({
-            target: Type.String({ description: "File or directory to review" }),
+            target: Type.Optional(Type.String({ description: "What to review: 'staged' (default), 'working-tree', PR number, or file path" })),
+            focus: Type.Optional(Type.Array(Type.Union([
+                Type.Literal("correctness"),
+                Type.Literal("security"),
+                Type.Literal("performance"),
+                Type.Literal("architecture"),
+                Type.Literal("style"),
+                Type.Literal("tests"),
+            ]), { description: "Review focus areas (default: correctness)" })),
+            provenance: Type.Optional(Type.Union([
+                Type.Literal("human-authored"),
+                Type.Literal("ai-assisted"),
+                Type.Literal("autonomous"),
+                Type.Literal("unknown"),
+            ], { description: "Code provenance — triggers elevated rigor for AI/autonomous output" })),
+            autonomy: Type.Optional(Type.Union([
+                Type.Literal("supervised"),
+                Type.Literal("semi-autonomous"),
+                Type.Literal("autonomous"),
+            ], { description: "Review autonomy level (default: supervised)" })),
+            publish: Type.Optional(Type.Union([
+                Type.Literal("ask"),
+                Type.Literal("auto"),
+                Type.Literal("never"),
+            ], { description: "Whether to post findings as inline PR comments (default: ask)" })),
+            debate: Type.Optional(Type.Union([
+                Type.Literal("auto"),
+                Type.Literal("on"),
+                Type.Literal("off"),
+            ], { description: "Whether to debate contested findings via multi-LLM gate (default: auto)" })),
         }),
-        run: async (params) => executeOrchestrate("codex-review", params.target),
+        run: async (params) => {
+            const profile = JSON.stringify({
+                target: params.target ?? "staged",
+                focus: params.focus ?? ["correctness"],
+                provenance: params.provenance ?? "unknown",
+                autonomy: params.autonomy ?? "supervised",
+                publish: params.publish ?? "ask",
+                debate: params.debate ?? "auto",
+            });
+            return executeOrchestrate("code-review", profile);
+        },
     },
     {
         name: "octopus_security",

@@ -1,16 +1,16 @@
 ---
-description: "AI Debate Hub - Structured three-way debates between Claude, Gemini, and Codex"
+description: "AI Debate Hub - Structured four-way debates between Claude, Sonnet, Gemini, and Codex"
 ---
 
 # Debate
 
-Structured three-way AI debates between Claude, Gemini, and Codex.
+Structured four-way AI debates between Claude, Sonnet, Gemini, and Codex.
 
 ## 🤖 INSTRUCTIONS FOR CLAUDE
 
 ### MANDATORY COMPLIANCE — DO NOT SKIP
 
-**When the user explicitly invokes `/octo:debate`, you MUST execute the structured debate workflow below.** You are PROHIBITED from answering the question directly, skipping the multi-provider debate, or deciding the topic is "too simple" for a three-way debate. The user chose this command deliberately — respect that choice.
+**When the user explicitly invokes `/octo:debate`, you MUST execute the structured debate workflow below.** You are PROHIBITED from answering the question directly, skipping the multi-provider debate, or deciding the topic is "too simple" for a four-way debate. The user chose this command deliberately — respect that choice.
 
 ---
 
