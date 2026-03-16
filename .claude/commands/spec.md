@@ -14,19 +14,18 @@ When the user invokes this command (e.g., `/octo:spec <arguments>`):
 
 **CORRECT - Use the Skill tool:**
 ```
-Skill(skill: "flow-spec", args: "<user's arguments>")
+Skill(skill: "octo:spec", args: "<user's arguments>")
 ```
 
-**INCORRECT - Do NOT use Task tool:**
+**INCORRECT:**
 ```
-Task(subagent_type: "octo:spec", ...)  -- Wrong! This is a skill, not an agent type
+Skill(skill: "flow-spec", ...)  ❌ Wrong! Internal skill name, not resolvable by Skill tool
+Task(subagent_type: "octo:spec", ...)  ❌ Wrong! This is a skill, not an agent type
 ```
-
-**Why:** This command loads the `flow-spec` skill. Skills use the `Skill` tool, not `Task`.
 
 ---
 
-**Auto-loads the `flow-spec` skill for NLSpec authoring.**
+**Auto-loads the spec skill for NLSpec authoring.**
 
 ## Quick Usage
 

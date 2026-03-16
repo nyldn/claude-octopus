@@ -20,15 +20,14 @@ When the user invokes this command (e.g., `/octo:deliver <arguments>`):
 
 **✓ CORRECT - Use the Skill tool:**
 ```
-Skill(skill: "flow-deliver", args: "<user's arguments>")
+Skill(skill: "octo:deliver", args: "<user's arguments>")
 ```
 
-**✗ INCORRECT - Do NOT use Task tool:**
+**✗ INCORRECT:**
 ```
+Skill(skill: "flow-deliver", ...)  ❌ Wrong! Internal skill name, not resolvable by Skill tool
 Task(subagent_type: "octo:deliver", ...)  ❌ Wrong! This is a skill, not an agent type
 ```
-
-**Why:** This command loads the `flow-deliver` skill. Skills use the `Skill` tool, not `Task`.
 
 ### Post-Completion — Interactive Next Steps
 
@@ -55,7 +54,7 @@ AskUserQuestion({
 
 ---
 
-**Auto-loads the `flow-deliver` skill for the validation/review phase.**
+**Auto-loads the deliver skill for the validation/review phase.**
 
 ## Quick Usage
 

@@ -14,19 +14,18 @@ When the user invokes this command (e.g., `/octo:parallel <arguments>`):
 
 **CORRECT - Use the Skill tool:**
 ```
-Skill(skill: "flow-parallel", args: "<user's arguments>")
+Skill(skill: "octo:parallel", args: "<user's arguments>")
 ```
 
-**INCORRECT - Do NOT use Task tool:**
+**INCORRECT:**
 ```
-Task(subagent_type: "octo:parallel", ...)  -- Wrong! This is a skill, not an agent type
+Skill(skill: "flow-parallel", ...)  ❌ Wrong! Internal skill name, not resolvable by Skill tool
+Task(subagent_type: "octo:parallel", ...)  ❌ Wrong! This is a skill, not an agent type
 ```
-
-**Why:** This command loads the `flow-parallel` skill. Skills use the `Skill` tool, not `Task`.
 
 ---
 
-**Auto-loads the `flow-parallel` skill for Team of Teams orchestration.**
+**Auto-loads the parallel skill for Team of Teams orchestration.**
 
 ## Quick Usage
 

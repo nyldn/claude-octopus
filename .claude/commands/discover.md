@@ -20,15 +20,14 @@ When the user invokes this command (e.g., `/octo:discover <arguments>`):
 
 **✓ CORRECT - Use the Skill tool:**
 ```
-Skill(skill: "flow-discover", args: "<user's arguments>")
+Skill(skill: "octo:discover", args: "<user's arguments>")
 ```
 
-**✗ INCORRECT - Do NOT use Task tool:**
+**✗ INCORRECT:**
 ```
+Skill(skill: "flow-discover", ...)  ❌ Wrong! Internal skill name, not resolvable by Skill tool
 Task(subagent_type: "octo:discover", ...)  ❌ Wrong! This is a skill, not an agent type
 ```
-
-**Why:** This command loads the `flow-discover` skill. Skills use the `Skill` tool, not `Task`.
 
 ### Step 1: Ask Clarifying Questions
 
@@ -85,10 +84,10 @@ After receiving answers, incorporate them into the Skill invocation.
 ### Step 2: Invoke Skill with Intensity
 
 ```
-Skill(skill: "flow-discover", args: "[intensity=quick|standard|deep] <user's arguments>")
+Skill(skill: "octo:discover", args: "[intensity=quick|standard|deep] <user's arguments>")
 ```
 
-Example: `Skill(skill: "flow-discover", args: "[intensity=standard] OAuth authentication patterns")`
+Example: `Skill(skill: "octo:discover", args: "[intensity=standard] OAuth authentication patterns")`
 
 ### Step 3: Post-Completion — Interactive Next Steps
 
@@ -115,7 +114,7 @@ AskUserQuestion({
 
 ---
 
-**Auto-loads the `flow-discover` skill for the research/discovery phase.**
+**Auto-loads the discover skill for the research/discovery phase.**
 
 ## Quick Usage
 

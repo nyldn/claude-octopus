@@ -20,15 +20,14 @@ When the user invokes this command (e.g., `/octo:define <arguments>`):
 
 **✓ CORRECT - Use the Skill tool:**
 ```
-Skill(skill: "flow-define", args: "<user's arguments>")
+Skill(skill: "octo:define", args: "<user's arguments>")
 ```
 
-**✗ INCORRECT - Do NOT use Task tool:**
+**✗ INCORRECT:**
 ```
+Skill(skill: "flow-define", ...)  ❌ Wrong! Internal skill name, not resolvable by Skill tool
 Task(subagent_type: "octo:define", ...)  ❌ Wrong! This is a skill, not an agent type
 ```
-
-**Why:** This command loads the `flow-define` skill. Skills use the `Skill` tool, not `Task`.
 
 ### Post-Completion — Interactive Next Steps
 
@@ -55,7 +54,7 @@ AskUserQuestion({
 
 ---
 
-**Auto-loads the `flow-define` skill for the definition/scoping phase.**
+**Auto-loads the define skill for the definition/scoping phase.**
 
 ## Quick Usage
 
