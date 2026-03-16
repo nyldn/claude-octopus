@@ -15,6 +15,8 @@ A Claude Code plugin that turns one model into three. Orchestrates Codex, Gemini
 
 🐙 **Three brains, one workflow.** Other multi-AI tools run providers in parallel and hand you three answers. Octopus assigns each model a distinct role — Codex for implementation depth, Gemini for ecosystem breadth, Claude for synthesis — then enforces a 75% consensus gate before anything ships. Disagreements get caught, not ignored.
 
+🧠 **Persistent cross-session memory.** Deeply integrates with [claude-mem](https://github.com/thedotmack/claude-mem) for searchable, persistent memory across conversations — past decisions, research, and context survive session boundaries so your next workflow picks up where the last one left off.
+
 ⚡ **Spec in, software out.** Dark Factory mode takes a spec and autonomously runs the full pipeline — research, define, develop, deliver — with holdout testing and satisfaction scoring. You review the output, not every step.
 
 🔄 **Methodology, not just machinery.** Built on the Double Diamond framework, every task moves through four structured phases: discover, define, develop, deliver. Quality gates between phases mean sloppy work can't advance. Other orchestrators give you infrastructure to build workflows on — Octopus gives you the workflows.
@@ -47,6 +49,49 @@ A Claude Code plugin that turns one model into three. Orchestrates Codex, Gemini
 
 [Full changelog](CHANGELOG.md)
 
+## Star History
+
+[![Star History Chart](https://api.star-history.com/image?repos=nyldn/claude-octopus&type=date&legend=top-left)](https://www.star-history.com/?repos=nyldn%2Fclaude-octopus&type=date&legend=top-left)
+
+---
+
+## Quickstart
+
+**Step 1 — Add the marketplace** (run in your terminal, not inside a Claude Code session):
+
+```bash
+claude plugin marketplace add https://github.com/nyldn/claude-octopus.git
+```
+
+**Step 2 — Install the plugin:**
+
+```bash
+claude plugin install octo@nyldn-plugins
+```
+
+**Step 3 — Run setup** (inside a Claude Code session):
+
+```
+/octo:setup
+```
+
+Setup detects installed providers, shows what's missing, and walks you through configuration. You need **zero** external providers to start — Claude is built in. Add Codex or Gemini for multi-AI features.
+
+**Or from the Claude Code UI:** Type `/plugin` in a Claude Code session, go to the **Marketplace** tab, and install **octo**.
+
+> **Note:** `/plugin` inside a session opens an interactive UI — it does not accept subcommands. Use the terminal CLI (`claude plugin ...`) for scripted installs.
+
+<details>
+<summary>Factory AI (Droid)</summary>
+
+```bash
+droid plugin marketplace add https://github.com/nyldn/claude-octopus
+droid plugin install octo@claude-octopus
+```
+
+See [docs/FACTORY-AI.md](docs/FACTORY-AI.md) for full Factory AI setup instructions.
+</details>
+
 **To update** (run in your terminal, not inside a Claude Code session):
 ```bash
 claude plugin update octo
@@ -60,44 +105,6 @@ rm -rf ~/.claude/plugins/cache/nyldn-plugins/claude-octopus
 claude plugin marketplace add https://github.com/nyldn/claude-octopus.git
 claude plugin install octo@nyldn-plugins
 ```
-
-## Star History
-
-[![Star History Chart](https://api.star-history.com/image?repos=nyldn/claude-octopus&type=date&legend=top-left)](https://www.star-history.com/?repos=nyldn%2Fclaude-octopus&type=date&legend=top-left)
-
----
-
-## Quickstart
-
-**Install from your terminal:**
-
-```bash
-claude plugin marketplace add https://github.com/nyldn/claude-octopus.git
-claude plugin install octo@nyldn-plugins
-```
-
-**Or from the Claude Code UI:**
-
-Type `/plugin` in a Claude Code session, go to the **Marketplace** tab, and install **octo**.
-
-> **Note:** `/plugin` inside a session opens an interactive UI — it does not accept subcommands. Use the terminal CLI (`claude plugin ...`) for scripted installs.
-
-**Factory AI (Droid):**
-
-```bash
-droid plugin marketplace add https://github.com/nyldn/claude-octopus
-droid plugin install octo@claude-octopus
-```
-
-> See [docs/FACTORY-AI.md](docs/FACTORY-AI.md) for full Factory AI setup instructions.
-
-Then run setup:
-
-```
-/octo:setup
-```
-
-Setup detects installed providers, shows what's missing, and walks you through configuration. You need **zero** external providers to start — Claude is built in. Add Codex or Gemini for multi-AI features.
 
 ---
 
