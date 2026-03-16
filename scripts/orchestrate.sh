@@ -12592,7 +12592,7 @@ ${earned_skills_ctx}"
         local exit_code=0
         while true; do
             exit_code=0
-            # v9.2.1: All agents use stdin-based prompt delivery to avoid ARG_MAX limits (Issue #173)
+            # v9.2.2: All agents use stdin-based prompt delivery to avoid ARG_MAX limits (Issue #173)
             # Previously only gemini used stdin; codex/claude passed prompt as CLI arg which fails on large diffs
             if printf '%s' "$enhanced_prompt" | run_with_timeout "$TIMEOUT" "${cmd_array[@]}" 2> "$temp_errors" | tee "$raw_output" > "$temp_output"; then
                 exit_code=0
@@ -16407,7 +16407,7 @@ ${earned_skills_ctx}"
         enhanced_prompt="${codex_preamble}${enhanced_prompt}"
     fi
 
-    # v9.2.1: All agents use stdin to avoid ARG_MAX "Argument list too long" on large diffs (Issue #173)
+    # v9.2.2: All agents use stdin to avoid ARG_MAX "Argument list too long" on large diffs (Issue #173)
     output=$(printf '%s' "$enhanced_prompt" | run_with_timeout "$timeout_secs" "${cmd_array[@]}" 2>"$temp_err")
     exit_code=$?
 
@@ -17073,7 +17073,7 @@ ${enhanced_prompt}"
 
     while true; do
         exit_code=0
-        # v9.2.1: All agents use stdin to avoid ARG_MAX "Argument list too long" on large diffs (Issue #173)
+        # v9.2.2: All agents use stdin to avoid ARG_MAX "Argument list too long" on large diffs (Issue #173)
         if printf '%s' "$enhanced_prompt" | run_with_timeout "$TIMEOUT" "${cmd_array[@]}" 2> "$temp_errors" | tee "$raw_output" > "$temp_output"; then
             exit_code=0
         else
