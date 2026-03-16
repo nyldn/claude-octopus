@@ -1,5 +1,22 @@
 # Changelog
 
+## [9.3.1] - 2026-03-16
+
+### Fixed
+
+- **awk filter drops codex exec clean stdout**: The output filter expected a `--------` header separator that `codex exec` doesn't emit on stdout. Now detects clean stdout and passes through directly. (#182)
+- **claude-sonnet agent `-m` flag rejected**: Claude CLI v2.1.76 requires `--model` (long form). Updated `claude-sonnet`, `claude-opus`, and `claude-opus-fast` agent commands. (#183)
+- **log() INFO/WARN pollutes captured output**: `log()` INFO and WARN levels wrote to stdout, corrupting function return values captured via `$()`. Now all log levels write to stderr. (#183)
+- **check_provider_health uses removed `codex auth status`**: Codex CLI v0.114 removed `auth status`. Now checks `~/.codex/auth.json` directly. (#184)
+- **Claude CLI not found in non-interactive shells**: When `~/.local/bin` isn't on PATH, the script now probes common install locations before falling back. (#185)
+- **Round 1 findings parser feeds full markdown to jq**: The parser now extracts the `## Output` section from result files before JSON parsing, instead of feeding the entire markdown document to jq. (#186)
+- **Gemini provider status never written**: Round 1 findings collection now writes provider status events for all agent types, not just codex. (#187)
+- **LLM JSON wrapped in markdown fences breaks jq**: Added fence stripping after `run_agent_sync` in Rounds 2, 3 (debate), and 3 (synthesis). (#188)
+- **PURPLE unbound variable crashes setup_wizard**: Added `PURPLE` color variable as alias for `MAGENTA`. (#189)
+- **Round 1 `wait` returns immediately**: Replaced bare `wait` (which only catches direct children) with polling for `## Status:` markers in result files, with 5-minute timeout. (#190)
+
+---
+
 ## [9.3.0] - 2026-03-16
 
 ### Added
