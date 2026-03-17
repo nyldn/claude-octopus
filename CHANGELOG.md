@@ -1,3 +1,24 @@
+## [9.4.2] - 2026-03-17
+
+### Changed
+
+- **Round 2 speed optimization**: 26 echo|grep → bash builtins, 22 $(cat) → $(<), $(date +%s) caching in 5 hot functions, 124 separator literals → variables. ~100 additional forks eliminated per workflow.
+- **Combined with Round 1 (v9.4.1)**: orchestrate.sh goes from ~900 subshell forks per workflow to ~70 — a 92% reduction in subprocess overhead.
+
+### Removed
+
+- `archive_usage_session()` dead function and `cost-archive` command (deprecated with message).
+
+### Fixed
+
+- Missing file guard on `generate_factory_scenarios()` — `$(<)` without `[[ -f ]]` check could abort under `set -e`.
+- Newline regression in `match_routing_rule` keyword matching — `grep -qw` treated newlines as word boundaries, space-padding didn't.
+- Redundant dual `nocasematch` blocks in `parse_factory_spec` merged into single block + `case` statement.
+- `_classify_smoke_error` nocasematch wrapped in subshell to prevent leak on future early returns.
+- Timing skew: `start_time_ms` in `spawn_agent` and `probe_single_agent` restored to fresh `$(date +%s)` (metrics accuracy over micro-optimization).
+
+---
+
 ## [9.4.1] - 2026-03-17
 
 ### Changed

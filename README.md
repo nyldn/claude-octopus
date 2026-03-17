@@ -33,7 +33,7 @@ A Claude Code plugin that turns one model into three. Orchestrates Codex, Gemini
 
 | Version | What shipped |
 |---------|-------------|
-| **9.0** | **claude-mem integration + multi-LLM brainstorm/PRD** — persistent cross-session memory, `/octo:brainstorm` and `/octo:prd` now use all three providers, `/octo:review` "All areas" option |
+| **9.x** | **92% fewer subshell forks** (9.4) — two rounds cut orchestrate.sh from ~900 forks/workflow to ~70. **Four-way debates** — Sonnet joins as permanent 4th participant. **Auto code review** after dev workflows. **claude-mem integration** — persistent cross-session memory. **Monolith decomposition** — 7 modules extracted to lib/. |
 | **8.55** | **Smart router v2.0** — just say what you need and `/octo:octo` routes to the right workflow. 17 supported workflows, learns your preferences over time |
 | **8.54** | **Multi-agentic research** — `/octo:research` now runs perspectives in parallel with configurable intensity (Quick / Standard / Deep) |
 | **8.53** | **Agent resume + custom agents** — `/octo:resume` continues previous agents, drop your own agents in `~/.claude/agents/` |

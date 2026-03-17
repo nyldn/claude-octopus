@@ -1011,6 +1011,14 @@ DIM='\033[2m'
 BOLD='\033[1m'
 NC='\033[0m' # No Color
 
+# Box-drawing separator variables (v9.4.2 — avoids repeating long literals in echo lines)
+# Only the 59-char-wide variants; wider boxes (63/38-char) remain inline.
+_BOX_TOP='╔═══════════════════════════════════════════════════════════╗'
+_BOX_BOT='╚═══════════════════════════════════════════════════════════╝'
+_BOX_MID='╠═══════════════════════════════════════════════════════════╣'
+_DASH='─────────────────────────────────────────────────────────────'
+_HEAVY='━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+
 # Source async task management and tmux visualization features
 source "${SCRIPT_DIR}/async-tmux-features.sh"
 
@@ -1609,7 +1617,7 @@ resolve_octopus_model() {
     if [[ -z "$resolved_model" && -f "$config_file" ]] && command -v jq &> /dev/null; then
         # Load config once for this resolution tree
         local config_data
-        config_data=$(cat "$config_file")
+        config_data=$(<"$config_file")
 
         # Priority 1b: Session-only config overrides
         resolved_model=$(echo "$config_data" | jq -r ".overrides.${provider} // empty" 2>/dev/null)
@@ -2013,7 +2021,7 @@ EOF
     local changed=false
     local tmp_file="${config_file}.tmp.$$"
     local content
-    content=$(cat "$config_file")
+    content=$(<"$config_file")
 
     # Map of paths to check for stale models
     local -a stale_paths=(
@@ -2617,9 +2625,9 @@ display_workflow_cost_estimate() {
 
     # Display cost estimate
     echo ""
-    echo -e "${MAGENTA}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${MAGENTA}${_BOX_TOP}${NC}"
     echo -e "${MAGENTA}║  ${YELLOW}💰 MULTI-AI WORKFLOW COST ESTIMATE${MAGENTA}                    ║${NC}"
-    echo -e "${MAGENTA}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo -e "${MAGENTA}${_BOX_BOT}${NC}"
     echo ""
     echo -e "${BOLD}Workflow:${NC} $workflow_name"
     echo ""
@@ -2795,7 +2803,7 @@ generate_usage_table() {
     echo -e "${CYAN}║${NC}                                                                ${CYAN}║${NC}"
     echo -e "${CYAN}╠════════════════════════════════════════════════════════════════╣${NC}"
     echo -e "${CYAN}║${NC}  ${YELLOW}By Model${NC}                           Tokens      Cost    Calls ${CYAN}║${NC}"
-    echo -e "${CYAN}╟────────────────────────────────────────────────────────────────╢${NC}"
+    echo -e "${CYAN}╟${_DASH}───╢${NC}"
 
     # Aggregate by model using awk
     awk -F'|' '
@@ -2811,7 +2819,7 @@ generate_usage_table() {
 
     echo -e "${CYAN}╠════════════════════════════════════════════════════════════════╣${NC}"
     echo -e "${CYAN}║${NC}  ${YELLOW}By Agent${NC}                           Tokens      Cost    Calls ${CYAN}║${NC}"
-    echo -e "${CYAN}╟────────────────────────────────────────────────────────────────╢${NC}"
+    echo -e "${CYAN}╟${_DASH}───╢${NC}"
 
     # Aggregate by agent using awk
     awk -F'|' '
@@ -2827,7 +2835,7 @@ generate_usage_table() {
 
     echo -e "${CYAN}╠════════════════════════════════════════════════════════════════╣${NC}"
     echo -e "${CYAN}║${NC}  ${YELLOW}By Phase${NC}                           Tokens      Cost    Calls ${CYAN}║${NC}"
-    echo -e "${CYAN}╟────────────────────────────────────────────────────────────────╢${NC}"
+    echo -e "${CYAN}╟${_DASH}───╢${NC}"
 
     # Aggregate by phase using awk
     awk -F'|' '
@@ -2893,7 +2901,7 @@ display_per_phase_cost_table() {
 
     echo -e "${CYAN}Per-Phase Cost Breakdown:${NC}"
     printf "  %-12s  %-25s  %8s  %s\n" "Phase" "Model" "Tokens" "Est. Cost"
-    echo "  ──────────────────────────────────────────────────────────────"
+    echo "  ${_DASH}─"
     awk -F'|' '
         {
             phase = $4
@@ -3324,20 +3332,6 @@ EOF
     echo "}"
 }
 
-# Archive current session usage to history
-archive_usage_session() {
-    if [[ -f "${USAGE_FILE}.log" ]]; then
-        local session_id
-        session_id=$(grep -o '"session_id": "[^"]*"' "$USAGE_FILE" 2>/dev/null | cut -d'"' -f4)
-        [[ -z "$session_id" ]] && session_id="session-$(date +%Y%m%d-%H%M%S)"
-
-        mkdir -p "$USAGE_HISTORY_DIR"
-        mv "${USAGE_FILE}.log" "${USAGE_HISTORY_DIR}/${session_id}.log"
-        rm -f "$USAGE_FILE"
-
-        log INFO "Usage session archived: ${session_id}"
-    fi
-}
 
 # Clear current session usage
 clear_usage_session() {
@@ -3397,7 +3391,7 @@ show_agent_recommendations() {
     [[ $count -lt 2 ]] && return
 
     echo ""
-    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${CYAN}${_HEAVY}${NC}"
     echo -e "${CYAN}🐙 Multiple tentacles could handle this task:${NC}"
     echo ""
 
@@ -3413,7 +3407,7 @@ show_agent_recommendations() {
 
     local primary="${rec_array[0]}"
     echo -e "${CYAN}Recommended: ${GREEN}$primary${NC} (best match based on keywords)"
-    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${CYAN}${_HEAVY}${NC}"
     echo ""
 }
 
@@ -3762,9 +3756,9 @@ execute_quality_branch() {
     local retry_count="${3:-0}"
 
     echo ""
-    echo -e "${MAGENTA}┌─────────────────────────────────────────────────────────────┐${NC}"
+    echo -e "${MAGENTA}┌${_DASH}┐${NC}"
     echo -e "${MAGENTA}│  Quality Gate Decision: ${YELLOW}${branch}${MAGENTA}                              │${NC}"
-    echo -e "${MAGENTA}└─────────────────────────────────────────────────────────────┘${NC}"
+    echo -e "${MAGENTA}└${_DASH}┘${NC}"
     echo ""
 
     case "$branch" in
@@ -4102,10 +4096,10 @@ design_review_ceremony() {
     fi
 
     echo ""
-    echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}${_BOX_TOP}${NC}"
     echo -e "${CYAN}║  📋 DESIGN REVIEW CEREMONY                               ║${NC}"
     echo -e "${CYAN}║  Each provider states their approach before implementation ║${NC}"
-    echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo -e "${CYAN}${_BOX_BOT}${NC}"
     echo ""
 
     local ceremony_prompt="You are participating in a design review ceremony before implementation begins.
@@ -4187,10 +4181,10 @@ retrospective_ceremony() {
     fi
 
     echo ""
-    echo -e "${YELLOW}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${YELLOW}${_BOX_TOP}${NC}"
     echo -e "${YELLOW}║  🔍 RETROSPECTIVE CEREMONY                               ║${NC}"
     echo -e "${YELLOW}║  Analyzing what went wrong and how to improve             ║${NC}"
-    echo -e "${YELLOW}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo -e "${YELLOW}${_BOX_BOT}${NC}"
     echo ""
 
     local retro_prompt="Analyze this failure and provide root-cause analysis.
@@ -4827,7 +4821,7 @@ match_routing_rule() {
         if [[ -n "$match_keywords" && "$matched" == "false" ]]; then
             local keyword
             for keyword in $match_keywords; do
-                if echo "$prompt_lower" | grep -qw "$keyword"; then
+                if [[ " ${prompt_lower//$'\n'/ } " == *" $keyword "* ]]; then
                     matched=true
                     break
                 fi
@@ -5241,7 +5235,7 @@ _claude_octopus_completions() {
     prev="${COMP_WORDS[COMP_CWORD-1]}"
 
     # Main commands
-    commands="auto embrace research probe define grasp develop tangle deliver ink spawn fan-out map-reduce ralph iterate optimize setup init status kill clean aggregate preflight cost cost-json cost-csv cost-clear cost-archive auth login logout completion help"
+    commands="auto embrace research probe define grasp develop tangle deliver ink spawn fan-out map-reduce ralph iterate optimize setup init status kill clean aggregate preflight cost cost-json cost-csv cost-clear auth login logout completion help"
 
     # Agents for spawn command
     agents="codex codex-standard codex-max codex-mini codex-general gemini gemini-fast gemini-image codex-review"
@@ -5505,9 +5499,9 @@ handle_auth_command() {
 
     case "$action" in
         login)
-            echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${CYAN}${_BOX_TOP}${NC}"
             echo -e "${CYAN}║  🔐 Claude Octopus - OpenAI Authentication                ║${NC}"
-            echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
+            echo -e "${CYAN}${_BOX_BOT}${NC}"
             echo ""
 
             # Check if already authenticated
@@ -5547,9 +5541,9 @@ handle_auth_command() {
             ;;
 
         logout)
-            echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${CYAN}${_BOX_TOP}${NC}"
             echo -e "${CYAN}║  🔐 Claude Octopus - Logout                               ║${NC}"
-            echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
+            echo -e "${CYAN}${_BOX_BOT}${NC}"
             echo ""
 
             local auth_file="${HOME}/.codex/auth.json"
@@ -5568,9 +5562,9 @@ handle_auth_command() {
             ;;
 
         status)
-            echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${CYAN}${_BOX_TOP}${NC}"
             echo -e "${CYAN}║  🔐 Claude Octopus - Authentication Status                ║${NC}"
-            echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
+            echo -e "${CYAN}${_BOX_BOT}${NC}"
             echo ""
 
             local auth_status
@@ -6180,7 +6174,6 @@ ${BLUE}════════════════════════�
   cost-json               Export usage as JSON
   cost-csv                Export usage as CSV
   cost-clear              Clear current session usage
-  cost-archive            Archive session to history
 
 ${RED}═══════════════════════════════════════════════════════════════════════════${NC}
 ${RED}REVIEW & AUDIT${NC} (v4.4 - Human-in-the-loop)
@@ -6469,9 +6462,9 @@ display_rich_progress() {
         [[ $completed -gt 0 ]] && printf "\033[%dA" $((total_agents + 4))
 
         # Header
-        echo -e "${MAGENTA}╔═══════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${MAGENTA}${_BOX_TOP}${NC}"
         echo -e "${MAGENTA}║  ${CYAN}Multi-AI Research Progress${MAGENTA}                             ║${NC}"
-        echo -e "${MAGENTA}╚═══════════════════════════════════════════════════════════╝${NC}"
+        echo -e "${MAGENTA}${_BOX_BOT}${NC}"
 
         # Agent status rows
         for i in $(seq 0 $((total_agents - 1))); do
@@ -6561,7 +6554,7 @@ display_rich_progress() {
             elapsed_display="$(( elapsed / 60 ))m $(( elapsed % 60 ))s"
         fi
 
-        echo -e "${MAGENTA}─────────────────────────────────────────────────────────────${NC}"
+        echo -e "${MAGENTA}${_DASH}${NC}"
         # v9.2.0: ETA based on provider-specific benchmarks (OctoBench data)
         # Codex ~150s, Gemini ~90s, Sonnet ~45s — parallel = max(providers)
         local eta_secs=120  # default estimate
@@ -6722,7 +6715,7 @@ detect_project_quality_commands() {
         local scripts
         scripts=$(jq -r '.scripts // {} | keys[]' "$project_dir/package.json" 2>/dev/null)
         for script in lint typecheck type-check tsc check; do
-            if echo "$scripts" | grep -qw "$script"; then
+            if [[ $'\n'"$scripts"$'\n' == *$'\n'"$script"$'\n'* ]]; then
                 commands+=("npm run $script")
             fi
         done
@@ -6833,7 +6826,7 @@ score_result_file() {
     [[ ! -f "$file" ]] && echo "0" && return
 
     local content
-    content=$(cat "$file")
+    content=$(<"$file")
     local score=0
 
     # Factor 1: Word count (log scale, 0-40 pts)
@@ -6971,7 +6964,7 @@ synthesize_probe_results_partial() {
         local file_size
         file_size=$(wc -c < "$result" 2>/dev/null || echo "0")
         if [[ $file_size -gt 500 ]]; then
-            results+="$(cat "$result")\n\n---\n\n"
+            results+="$(<"$result")\n\n---\n\n"
             ((result_count++)) || true
         fi
     done
@@ -7948,6 +7941,7 @@ print_provider_report() {
 # Args: JSON profile string with fields:
 #   target, focus, provenance, autonomy, publish, debate
 review_run() {
+    local _ts; _ts=$(date +%s)
     local profile_json="${1:-"{}"}"
 
     # Parse profile fields (with defaults)
@@ -7974,8 +7968,7 @@ review_run() {
         echo "codex|not-installed|Install: npm i -g @openai/codex" >> "$provider_status_file"
     fi
 
-    local timestamp
-    timestamp=$(date +%s)
+    local timestamp="$_ts"
     local results_dir="${RESULTS_DIR:-$HOME/.claude-octopus/results}"
     # Sync RESULTS_DIR global so spawn_agent writes to the same directory
     RESULTS_DIR="$results_dir"
@@ -10509,9 +10502,9 @@ handle_autonomy_checkpoint() {
     case "$AUTONOMY_MODE" in
         "supervised")
             echo ""
-            echo -e "${YELLOW}╔═══════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${YELLOW}${_BOX_TOP}${NC}"
             echo -e "${YELLOW}║  Supervised Mode - Human Approval Required                ║${NC}"
-            echo -e "${YELLOW}╚═══════════════════════════════════════════════════════════╝${NC}"
+            echo -e "${YELLOW}${_BOX_BOT}${NC}"
             echo -e "Phase ${CYAN}$phase${NC} completed with status: ${GREEN}$status${NC}"
             echo ""
             read -p "Continue to next phase? (y/n) " -n 1 -r
@@ -10524,9 +10517,9 @@ handle_autonomy_checkpoint() {
         "semi-autonomous")
             if [[ "$status" == "failed" || "$status" == "warning" ]]; then
                 echo ""
-                echo -e "${YELLOW}╔═══════════════════════════════════════════════════════════╗${NC}"
+                echo -e "${YELLOW}${_BOX_TOP}${NC}"
                 echo -e "${YELLOW}║  Quality Gate Issue - Review Required                     ║${NC}"
-                echo -e "${YELLOW}╚═══════════════════════════════════════════════════════════╝${NC}"
+                echo -e "${YELLOW}${_BOX_BOT}${NC}"
                 echo -e "Phase ${CYAN}$phase${NC} has status: ${RED}$status${NC}"
                 echo ""
                 read -p "Continue anyway? (y/n) " -n 1 -r
@@ -10690,9 +10683,9 @@ check_resume_session() {
         fi
 
         echo ""
-        echo -e "${YELLOW}╔═══════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${YELLOW}${_BOX_TOP}${NC}"
         echo -e "${YELLOW}║  Interrupted Session Found                                ║${NC}"
-        echo -e "${YELLOW}╚═══════════════════════════════════════════════════════════╝${NC}"
+        echo -e "${YELLOW}${_BOX_BOT}${NC}"
         echo -e "Workflow: ${CYAN}$workflow${NC}"
         echo -e "Last phase: ${CYAN}$phase${NC}"
         echo ""
@@ -11350,10 +11343,10 @@ run_with_ralph_loop() {
     local completed=false
 
     echo ""
-    echo -e "${MAGENTA}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${MAGENTA}${_BOX_TOP}${NC}"
     echo -e "${MAGENTA}║  RALPH-WIGGUM ITERATION MODE                              ║${NC}"
     echo -e "${MAGENTA}║  Iterating until: $promise           ${NC}"
-    echo -e "${MAGENTA}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo -e "${MAGENTA}${_BOX_BOT}${NC}"
     echo ""
 
     if [[ "$DRY_RUN" == "true" ]]; then
@@ -11925,9 +11918,10 @@ resume_agent() {
 }
 
 spawn_agent() {
+    local _ts; _ts=$(date +%s)
     local agent_type="$1"
     local prompt="$2"
-    local task_id="${3:-$(date +%s)}"
+    local task_id="${3:-$_ts}"
     local role="${4:-}"         # Optional role override
     local phase="${5:-}"        # Optional phase context
     local use_fork="${6:-false}" # Optional fork context (v2.1.12+)
@@ -12809,36 +12803,36 @@ $prompt" 60 "code-reviewer" "auto-route" 2>/dev/null) || true
     # ═══════════════════════════════════════════════════════════════════════════
     case "$task_type" in
         diamond-discover)
-            echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${CYAN}${_BOX_TOP}${NC}"
             echo -e "${CYAN}║  🔍 ${context_display} DISCOVER - Parallel Research                ║${NC}"
-            echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
+            echo -e "${CYAN}${_BOX_BOT}${NC}"
             echo "  Routing to discover workflow for multi-perspective research."
             echo ""
             probe_discover "$prompt"
             return
             ;;
         diamond-define)
-            echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${CYAN}${_BOX_TOP}${NC}"
             echo -e "${CYAN}║  🤝 ${context_display} DEFINE - Consensus Building                 ║${NC}"
-            echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
+            echo -e "${CYAN}${_BOX_BOT}${NC}"
             echo "  Routing to define workflow for problem definition."
             echo ""
             grasp_define "$prompt"
             return
             ;;
         diamond-develop)
-            echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${CYAN}${_BOX_TOP}${NC}"
             echo -e "${CYAN}║  🦑 ${context_display} DEVELOP → DELIVER                           ║${NC}"
-            echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
+            echo -e "${CYAN}${_BOX_BOT}${NC}"
             echo "  Routing to develop then deliver workflow."
             echo ""
             tangle_develop "$prompt" && ink_deliver "$prompt"
             return
             ;;
         diamond-deliver)
-            echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${CYAN}${_BOX_TOP}${NC}"
             echo -e "${CYAN}║  ✅ ${context_display} DELIVER - Quality & Validation              ║${NC}"
-            echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
+            echo -e "${CYAN}${_BOX_BOT}${NC}"
             echo "  Routing to deliver workflow for quality gates and validation."
             echo ""
             ink_deliver "$prompt"
@@ -12852,18 +12846,18 @@ $prompt" 60 "code-reviewer" "auto-route" 2>/dev/null) || true
     # ═══════════════════════════════════════════════════════════════════════════
     case "$task_type" in
         crossfire-grapple)
-            echo -e "${RED}╔═══════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${RED}${_BOX_TOP}${NC}"
             echo -e "${RED}║  🤼 GRAPPLE - Adversarial Cross-Model Debate              ║${NC}"
-            echo -e "${RED}╚═══════════════════════════════════════════════════════════╝${NC}"
+            echo -e "${RED}${_BOX_BOT}${NC}"
             echo "  Routing to grapple workflow: Codex vs Gemini debate."
             echo ""
             grapple_debate "$prompt" "general" "${DEBATE_ROUNDS:-3}"
             return
             ;;
         crossfire-squeeze)
-            echo -e "${RED}╔═══════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${RED}${_BOX_TOP}${NC}"
             echo -e "${RED}║  🦑 SQUEEZE - Red Team Security Review                    ║${NC}"
-            echo -e "${RED}╚═══════════════════════════════════════════════════════════╝${NC}"
+            echo -e "${RED}${_BOX_BOT}${NC}"
             echo "  Routing to squeeze workflow: Blue Team vs Red Team."
             echo ""
             squeeze_test "$prompt"
@@ -12877,27 +12871,27 @@ $prompt" 60 "code-reviewer" "auto-route" 2>/dev/null) || true
     # ═══════════════════════════════════════════════════════════════════════════
     case "$task_type" in
         knowledge-empathize)
-            echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${CYAN}${_BOX_TOP}${NC}"
             echo -e "${CYAN}║  🎯 EMPATHIZE - UX Research Synthesis                     ║${NC}"
-            echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
+            echo -e "${CYAN}${_BOX_BOT}${NC}"
             echo "  🐙 Extending empathy tentacles into user understanding..."
             echo ""
             empathize_research "$prompt"
             return
             ;;
         knowledge-advise)
-            echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${CYAN}${_BOX_TOP}${NC}"
             echo -e "${CYAN}║  📊 ADVISE - Strategic Consulting                         ║${NC}"
-            echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
+            echo -e "${CYAN}${_BOX_BOT}${NC}"
             echo "  🐙 Wrapping strategic tentacles around the problem..."
             echo ""
             advise_strategy "$prompt"
             return
             ;;
         knowledge-synthesize)
-            echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${CYAN}${_BOX_TOP}${NC}"
             echo -e "${CYAN}║  📚 SYNTHESIZE - Research Literature Review               ║${NC}"
-            echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
+            echo -e "${CYAN}${_BOX_BOT}${NC}"
             echo "  🐙 Weaving knowledge tentacles through the literature..."
             echo ""
             synthesize_research "$prompt"
@@ -12911,9 +12905,9 @@ $prompt" 60 "code-reviewer" "auto-route" 2>/dev/null) || true
     # ═══════════════════════════════════════════════════════════════════════════
     case "$task_type" in
         optimize-performance)
-            echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${CYAN}${_BOX_TOP}${NC}"
             echo -e "${CYAN}║  ⚡ OPTIMIZE - Performance (Speed, Latency, Memory)       ║${NC}"
-            echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
+            echo -e "${CYAN}${_BOX_BOT}${NC}"
             echo "  Routing to performance optimization workflow."
             echo ""
             local perf_prompt="You are a performance engineer. Analyze and optimize: $prompt
@@ -12927,9 +12921,9 @@ Focus on:
             return
             ;;
         optimize-cost)
-            echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${CYAN}${_BOX_TOP}${NC}"
             echo -e "${CYAN}║  💰 OPTIMIZE - Cost (Cloud Spend, Budget, Rightsizing)    ║${NC}"
-            echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
+            echo -e "${CYAN}${_BOX_BOT}${NC}"
             echo "  Routing to cost optimization workflow."
             echo ""
             local cost_prompt="You are a cloud cost optimization specialist. Analyze and optimize: $prompt
@@ -12943,9 +12937,9 @@ Focus on:
             return
             ;;
         optimize-database)
-            echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${CYAN}${_BOX_TOP}${NC}"
             echo -e "${CYAN}║  🗃️  OPTIMIZE - Database (Queries, Indexes, Schema)        ║${NC}"
-            echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
+            echo -e "${CYAN}${_BOX_BOT}${NC}"
             echo "  Routing to database optimization workflow."
             echo ""
             local db_prompt="You are a database optimization expert. Analyze and optimize: $prompt
@@ -12959,9 +12953,9 @@ Focus on:
             return
             ;;
         optimize-bundle)
-            echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${CYAN}${_BOX_TOP}${NC}"
             echo -e "${CYAN}║  📦 OPTIMIZE - Bundle (Build, Webpack, Code-splitting)    ║${NC}"
-            echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
+            echo -e "${CYAN}${_BOX_BOT}${NC}"
             echo "  Routing to bundle optimization workflow."
             echo ""
             local bundle_prompt="You are a frontend build optimization specialist. Analyze and optimize: $prompt
@@ -12975,9 +12969,9 @@ Focus on:
             return
             ;;
         optimize-accessibility)
-            echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${CYAN}${_BOX_TOP}${NC}"
             echo -e "${CYAN}║  ♿ OPTIMIZE - Accessibility (WCAG, A11y, Screen Readers) ║${NC}"
-            echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
+            echo -e "${CYAN}${_BOX_BOT}${NC}"
             echo "  Routing to accessibility optimization workflow."
             echo ""
             local a11y_prompt="You are an accessibility specialist. Audit and optimize: $prompt
@@ -12992,9 +12986,9 @@ Focus on:
             return
             ;;
         optimize-seo)
-            echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${CYAN}${_BOX_TOP}${NC}"
             echo -e "${CYAN}║  🔍 OPTIMIZE - SEO (Search Engine, Meta Tags, Schema)     ║${NC}"
-            echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
+            echo -e "${CYAN}${_BOX_BOT}${NC}"
             echo "  Routing to SEO optimization workflow."
             echo ""
             local seo_prompt="You are an SEO specialist. Audit and optimize: $prompt
@@ -13010,9 +13004,9 @@ Focus on:
             return
             ;;
         optimize-image)
-            echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${CYAN}${_BOX_TOP}${NC}"
             echo -e "${CYAN}║  🖼️  OPTIMIZE - Images (Compression, Format, Lazy Load)    ║${NC}"
-            echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
+            echo -e "${CYAN}${_BOX_BOT}${NC}"
             echo "  Routing to image optimization workflow."
             echo ""
             local img_prompt="You are an image optimization specialist. Analyze and optimize: $prompt
@@ -13027,9 +13021,9 @@ Focus on:
             return
             ;;
         optimize-audit)
-            echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${CYAN}${_BOX_TOP}${NC}"
             echo -e "${CYAN}║  🔬 OPTIMIZE - Full Site Audit (Multi-Domain)             ║${NC}"
-            echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
+            echo -e "${CYAN}${_BOX_BOT}${NC}"
             echo ""
             echo -e "  ${YELLOW}Running comprehensive audit across all optimization domains...${NC}"
             echo -e "  Domains: ⚡ Performance │ ♿ Accessibility │ 🔍 SEO │ 🖼️ Images │ 📦 Bundle │ 🗃️ Database"
@@ -13127,7 +13121,7 @@ Output a structured report with findings and recommendations." ;;
                 if [[ -f "$domain_file" ]]; then
                     synthesis_input+="
 ## $(echo "$domain" | tr '[:lower:]' '[:upper:]') AUDIT RESULTS
-$(cat "$domain_file")
+$(<"$domain_file")
 
 ---
 "
@@ -13200,9 +13194,9 @@ Format as markdown. Be specific and actionable."
             return
             ;;
         optimize-general)
-            echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${CYAN}${_BOX_TOP}${NC}"
             echo -e "${CYAN}║  🔧 OPTIMIZE - General Analysis                           ║${NC}"
-            echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
+            echo -e "${CYAN}${_BOX_BOT}${NC}"
             echo "  Auto-detecting optimization domain..."
             echo ""
             # Run analysis to determine best optimization approach
@@ -13223,9 +13217,9 @@ Then provide specific optimization recommendations."
     # ═══════════════════════════════════════════════════════════════════════════
     load_user_config 2>/dev/null || true
     if [[ "$KNOWLEDGE_WORK_MODE" == "true" && "$task_type" =~ ^(research|general|coding)$ ]]; then
-        echo -e "${MAGENTA}╔═══════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${MAGENTA}${_BOX_TOP}${NC}"
         echo -e "${MAGENTA}║  🐙 Knowledge Work Mode Active                            ║${NC}"
-        echo -e "${MAGENTA}╚═══════════════════════════════════════════════════════════╝${NC}"
+        echo -e "${MAGENTA}${_BOX_BOT}${NC}"
         echo ""
         echo -e "  Your task could benefit from a knowledge workflow:"
         echo ""
@@ -13407,7 +13401,7 @@ extract_json_field() {
 # Validate agent type against allowlist
 validate_agent_type() {
     local agent="$1"
-    if ! echo "$AVAILABLE_AGENTS" | grep -qw "$agent"; then
+    if [[ " $AVAILABLE_AGENTS " != *" $agent "* ]]; then
         log ERROR "Invalid agent type: $agent (allowed: $AVAILABLE_AGENTS)"
         return 1
     fi
@@ -13566,9 +13560,10 @@ Output as a simple numbered list. Task: $main_prompt"
 }
 
 aggregate_results() {
+    local _ts; _ts=$(date +%s)
     local filter="${1:-}"
     local user_query="${2:-}"  # v8.49.0: Optional user query for relevance-aware synthesis
-    local aggregate_file="${RESULTS_DIR}/aggregate-$(date +%s).md"
+    local aggregate_file="${RESULTS_DIR}/aggregate-${_ts}.md"
     local raw_concat="${RESULTS_DIR}/.raw-concat-$$.md"
 
     log INFO "Aggregating results..."
@@ -13632,7 +13627,7 @@ Structure the output as:
 4. **Recommendations** — Prioritized next steps
 
 Subtask results:
-$(cat "$raw_concat")"
+$(<"$raw_concat")"
 
         local synthesis_result
         if synthesis_result=$(printf '%s' "$synthesis_prompt" | run_with_timeout "$TIMEOUT" gemini 2>/dev/null) && [[ -n "$synthesis_result" ]]; then
@@ -14718,18 +14713,25 @@ smoke_test_cache_write() {
 # Classify provider error from stderr output
 _classify_smoke_error() {
     local stderr_output="$1"
-
-    if echo "$stderr_output" | grep -qiE "model.*not found|does not exist|unknown model|invalid model|no such model"; then
-        echo "MODEL_NOT_FOUND"
-    elif echo "$stderr_output" | grep -qiE "auth|unauthorized|forbidden|401|403|invalid.*key|expired.*token|login required"; then
-        echo "AUTH_FAILURE"
-    elif echo "$stderr_output" | grep -qiE "rate.?limit|429|too many requests|quota"; then
-        echo "RATE_LIMITED"
-    elif echo "$stderr_output" | grep -qiE "policy|blocked|safety|filtered|content.?filter|recitation"; then
-        echo "POLICY_BLOCKED"
-    else
-        echo "UNKNOWN"
-    fi
+    # Subshell isolates nocasematch — no leak risk on early exit
+    (
+        shopt -s nocasematch
+        local _re_model='model.*not found|does not exist|unknown model|invalid model|no such model'
+        local _re_auth='auth|unauthorized|forbidden|401|403|invalid.*key|expired.*token|login required'
+        local _re_rate='rate.?limit|429|too many requests|quota'
+        local _re_policy='policy|blocked|safety|filtered|content.?filter|recitation'
+        if [[ "$stderr_output" =~ $_re_model ]]; then
+            echo "MODEL_NOT_FOUND"
+        elif [[ "$stderr_output" =~ $_re_auth ]]; then
+            echo "AUTH_FAILURE"
+        elif [[ "$stderr_output" =~ $_re_rate ]]; then
+            echo "RATE_LIMITED"
+        elif [[ "$stderr_output" =~ $_re_policy ]]; then
+            echo "POLICY_BLOCKED"
+        else
+            echo "UNKNOWN"
+        fi
+    )
 }
 
 # Display actionable error message for a smoke test failure
@@ -16532,11 +16534,11 @@ execute_workflow_phase() {
     alias_name=$(yaml_get_phase_config "$yaml_file" "$phase_name" "alias") || alias_name="$phase_name"
 
     echo ""
-    echo -e "${MAGENTA}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${MAGENTA}${_BOX_TOP}${NC}"
     local alias_upper
     alias_upper=$(echo "$alias_name" | tr '[:lower:]' '[:upper:]')
     echo -e "${MAGENTA}║  ${GREEN}${alias_upper}${MAGENTA} - ${description}${MAGENTA}${NC}"
-    echo -e "${MAGENTA}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo -e "${MAGENTA}${_BOX_BOT}${NC}"
     echo ""
 
     log "INFO" "YAML Runtime: Executing phase '$phase_name' ($description)"
@@ -16837,6 +16839,7 @@ run_yaml_workflow() {
 # standalone command, the skill layer can launch them via Agent(run_in_background=true)
 # with no timeout constraint, and Claude synthesizes in-conversation.
 probe_single_agent() {
+    local _ts; _ts=$(date +%s)
     local agent_type="$1"
     local perspective="$2"
     local task_id="$3"
@@ -17101,11 +17104,14 @@ get_dispatch_strategy() {
     if [[ "$workflow" == "auto" ]]; then
         local p_lower
         p_lower=$(echo "$prompt" | tr '[:upper:]' '[:lower:]')
-        if echo "$p_lower" | grep -cE 'security|vulnerabilit|cve|owasp|injection|xss|csrf' >/dev/null 2>&1; then
+        local _re_sec='security|vulnerabilit|cve|owasp|injection|xss|csrf'
+        local _re_rev='review|code.review|pull.request|bug.*find|audit|quality'
+        local _re_arch='architect|system.design|trade.?off|debate|compare|vs([[:space:]]|$)|versus'
+        if [[ "$p_lower" =~ $_re_sec ]]; then
             workflow="security"
-        elif echo "$p_lower" | grep -cE 'review|code.review|pull.request|bug.*find|audit|quality' >/dev/null 2>&1; then
+        elif [[ "$p_lower" =~ $_re_rev ]]; then
             workflow="review"
-        elif echo "$p_lower" | grep -cE 'architect|system.design|trade.?off|debate|compare|vs\b|versus' >/dev/null 2>&1; then
+        elif [[ "$p_lower" =~ $_re_arch ]]; then
             workflow="architecture"
         else
             workflow="research"
@@ -17190,15 +17196,15 @@ load_blind_spot_checklist() {
 # Phase 1: PROBE (Discover) - Parallel research with synthesis
 # Like an octopus probing with multiple tentacles simultaneously
 probe_discover() {
+    local _ts; _ts=$(date +%s)
     local prompt="$1"
-    local task_group
-    task_group=$(date +%s)
+    local task_group="$_ts"
 
     echo ""
-    echo -e "${MAGENTA}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${MAGENTA}${_BOX_TOP}${NC}"
     echo -e "${MAGENTA}║  ${GREEN}RESEARCH${MAGENTA} (Phase 1/4) - Parallel Exploration              ║${NC}"
     echo -e "${MAGENTA}║  Exploring from multiple perspectives...                  ║${NC}"
-    echo -e "${MAGENTA}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo -e "${MAGENTA}${_BOX_BOT}${NC}"
     echo ""
 
     log INFO "Phase 1: Parallel exploration with multiple perspectives"
@@ -17513,7 +17519,7 @@ synthesize_probe_results() {
         file_size=$(wc -c < "$result" 2>/dev/null || echo "0")
 
         if [[ $file_size -gt 500 ]]; then
-            results+="$(cat "$result")\n\n---\n\n"
+            results+="$(<"$result")\n\n---\n\n"
             ((result_count++)) || true
             total_content_size=$((total_content_size + file_size))
         else
@@ -17552,7 +17558,7 @@ synthesize_probe_results() {
         [[ $file_size -le 500 ]] && continue
         local score
         score=$(score_result_file "$ranked_file")
-        ranked_results+="--- [Quality: ${score}/100] ---\n$(cat "$ranked_file")\n\n"
+        ranked_results+="--- [Quality: ${score}/100] ---\n$(<"$ranked_file")\n\n"
     done < <(rank_results_by_signals "$RESULTS_DIR" "probe-${task_group}")
     # Use ranked results if available, fall back to original collection
     [[ -n "$ranked_results" ]] && results="$ranked_results"
@@ -17619,10 +17625,10 @@ grasp_define() {
     task_group=$(date +%s)
 
     echo ""
-    echo -e "${MAGENTA}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${MAGENTA}${_BOX_TOP}${NC}"
     echo -e "${MAGENTA}║  ${GREEN}DEFINE${MAGENTA} (Phase 2/4) - Consensus Building                  ║${NC}"
     echo -e "${MAGENTA}║  Building agreement on the approach...                    ║${NC}"
-    echo -e "${MAGENTA}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo -e "${MAGENTA}${_BOX_BOT}${NC}"
     echo ""
 
     log INFO "Phase 2: Building consensus on problem definition"
@@ -17644,7 +17650,7 @@ grasp_define() {
     # Include probe context if available
     local context=""
     if [[ -n "$probe_results" && -f "$probe_results" ]]; then
-        context="Previous research findings:\n$(cat "$probe_results")\n\n"
+        context="Previous research findings:\n$(<"$probe_results")\n\n"
         log INFO "Using probe context from: $probe_results"
     fi
 
@@ -17718,10 +17724,10 @@ tangle_develop() {
     task_group=$(date +%s)
 
     echo ""
-    echo -e "${MAGENTA}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${MAGENTA}${_BOX_TOP}${NC}"
     echo -e "${MAGENTA}║  ${GREEN}DEVELOP${MAGENTA} (Phase 3/4) - Implementation                     ║${NC}"
     echo -e "${MAGENTA}║  Building with quality validation...                      ║${NC}"
-    echo -e "${MAGENTA}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo -e "${MAGENTA}${_BOX_BOT}${NC}"
     echo ""
 
     log INFO "Phase 3: Parallel development with validation gates"
@@ -17756,7 +17762,7 @@ tangle_develop() {
     # Load problem definition if available
     local context=""
     if [[ -n "$grasp_file" && -f "$grasp_file" ]]; then
-        context="Problem Definition:\n$(cat "$grasp_file")\n\n"
+        context="Problem Definition:\n$(<"$grasp_file")\n\n"
         log INFO "Using grasp context from: $grasp_file"
     fi
 
@@ -17901,7 +17907,7 @@ validate_tangle_results() {
                     fi
                 fi
             fi
-            results+="$(cat "$result")\n\n---\n\n"
+            results+="$(<"$result")\n\n---\n\n"
         done
 
         # Quality gate check (using configurable per-phase threshold - v8.19.0)
@@ -17993,9 +17999,9 @@ $challenge_result
                 if [[ $quality_retry_count -lt $MAX_QUALITY_RETRIES ]]; then
                     ((quality_retry_count++)) || true
                     echo ""
-                    echo -e "${YELLOW}╔═══════════════════════════════════════════════════════════╗${NC}"
+                    echo -e "${YELLOW}${_BOX_TOP}${NC}"
                     echo -e "${YELLOW}║  🐙 Branching: Retry Path (attempt $quality_retry_count/$MAX_QUALITY_RETRIES)                    ║${NC}"
-                    echo -e "${YELLOW}╚═══════════════════════════════════════════════════════════╝${NC}"
+                    echo -e "${YELLOW}${_BOX_BOT}${NC}"
                     log WARN "Quality gate at ${success_rate}%, below ${tangle_threshold}%. Retrying..."
                     # v8.18.0: Lock providers that failed quality gate
                     while IFS= read -r failed_task; do
@@ -18013,9 +18019,9 @@ $challenge_result
             escalate)
                 # Human decision required
                 echo ""
-                echo -e "${YELLOW}╔═══════════════════════════════════════════════════════════╗${NC}"
+                echo -e "${YELLOW}${_BOX_TOP}${NC}"
                 echo -e "${YELLOW}║  🐙 Branching: Escalate Path (human review)               ║${NC}"
-                echo -e "${YELLOW}╚═══════════════════════════════════════════════════════════╝${NC}"
+                echo -e "${YELLOW}${_BOX_BOT}${NC}"
                 echo -e "${YELLOW}Quality gate FAILED. Manual review required.${NC}"
                 echo -e "${YELLOW}Results at: ${RESULTS_DIR}/tangle-validation-${task_group}.md${NC}"
                 # Claude Code v2.1.9: CI mode auto-fails on escalation
@@ -18034,9 +18040,9 @@ $challenge_result
             abort)
                 # Abort workflow
                 echo ""
-                echo -e "${RED}╔═══════════════════════════════════════════════════════════╗${NC}"
+                echo -e "${RED}${_BOX_TOP}${NC}"
                 echo -e "${RED}║  🐙 Branching: Abort Path (quality gate failed)           ║${NC}"
-                echo -e "${RED}╚═══════════════════════════════════════════════════════════╝${NC}"
+                echo -e "${RED}${_BOX_BOT}${NC}"
                 log ERROR "Quality gate FAILED with ${success_rate}%. Aborting workflow."
                 return 1
                 ;;
@@ -18059,9 +18065,9 @@ $results
 EOF
 
         echo ""
-        echo -e "${gate_color}╔═══════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${gate_color}${_BOX_TOP}${NC}"
         echo -e "${gate_color}║  Quality Gate: ${gate_status} (${success_rate}% of tentacles succeeded)${NC}"
-        echo -e "${gate_color}╚═══════════════════════════════════════════════════════════╝${NC}"
+        echo -e "${gate_color}${_BOX_BOT}${NC}"
 
         if [[ "$gate_status" == "FAILED" ]]; then
             log WARN "Quality gate failed. Review failures before proceeding to delivery."
@@ -18088,10 +18094,10 @@ ink_deliver() {
     task_group=$(date +%s)
 
     echo ""
-    echo -e "${MAGENTA}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${MAGENTA}${_BOX_TOP}${NC}"
     echo -e "${MAGENTA}║  ${GREEN}DELIVER${MAGENTA} (Phase 4/4) - Final Quality Gates                ║${NC}"
     echo -e "${MAGENTA}║  Validating and shipping...                               ║${NC}"
-    echo -e "${MAGENTA}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo -e "${MAGENTA}${_BOX_BOT}${NC}"
     echo ""
 
     log INFO "Phase 4: Finalizing delivery with quality checks"
@@ -18140,7 +18146,7 @@ ink_deliver() {
     for result in "$RESULTS_DIR"/*.md; do
         [[ -f "$result" ]] || continue
         [[ "$result" == *aggregate* || "$result" == *delivery* ]] && continue
-        all_results+="$(cat "$result")\n\n"
+        all_results+="$(<"$result")\n\n"
         ((result_count++)) || true
         [[ $result_count -ge 10 ]] && break  # Limit context size
     done
@@ -18264,9 +18270,9 @@ EOF
 
     log INFO "Delivery document: $delivery_file"
     echo ""
-    echo -e "${GREEN}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${GREEN}${_BOX_TOP}${NC}"
     echo -e "${GREEN}║  Delivery complete!                                       ║${NC}"
-    echo -e "${GREEN}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo -e "${GREEN}${_BOX_BOT}${NC}"
     echo -e "Final document: ${CYAN}$delivery_file${NC}"
     echo ""
 }
@@ -18282,10 +18288,10 @@ embrace_full_workflow() {
     local resume_from=""
 
     echo ""
-    echo -e "${MAGENTA}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${MAGENTA}${_BOX_TOP}${NC}"
     echo -e "${MAGENTA}║  ${GREEN}EMBRACE${MAGENTA} - Full 4-Phase Workflow                         ║${NC}"
     echo -e "${MAGENTA}║  Research → Define → Develop → Deliver                    ║${NC}"
-    echo -e "${MAGENTA}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo -e "${MAGENTA}${_BOX_BOT}${NC}"
     echo ""
 
     log INFO "Starting complete Double Diamond workflow"
@@ -18450,9 +18456,9 @@ ${obs_ctx}"
         local duration=$((SECONDS - start_time))
 
         echo ""
-        echo -e "${MAGENTA}╔═══════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${MAGENTA}${_BOX_TOP}${NC}"
         echo -e "${MAGENTA}║  EMBRACE workflow complete! (YAML Runtime)                ║${NC}"
-        echo -e "${MAGENTA}╚═══════════════════════════════════════════════════════════╝${NC}"
+        echo -e "${MAGENTA}${_BOX_BOT}${NC}"
         echo ""
         echo -e "Duration: ${duration}s"
         echo -e "Autonomy: ${AUTONOMY_MODE}"
@@ -18626,9 +18632,9 @@ ${obs_ctx}"
     local duration=$((SECONDS - start_time))
 
     echo ""
-    echo -e "${MAGENTA}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${MAGENTA}${_BOX_TOP}${NC}"
     echo -e "${MAGENTA}║  EMBRACE workflow complete!                               ║${NC}"
-    echo -e "${MAGENTA}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo -e "${MAGENTA}${_BOX_BOT}${NC}"
     echo ""
     echo -e "Duration: ${duration}s"
     echo -e "Autonomy: ${AUTONOMY_MODE}"
@@ -18675,26 +18681,29 @@ assess_spec_maturity() {
     fi
 
     local spec_content
-    spec_content=$(cat "$spec_path")
+    spec_content=$(<"$spec_path")
 
     # Count NLSpec template sections
     local has_purpose=0 has_actors=0 has_behaviors=0
     local has_constraints=0 has_dependencies=0 has_acceptance=0
 
-    echo "$spec_content" | grep -qi '## Purpose' && has_purpose=1
-    echo "$spec_content" | grep -qi '## Actors' && has_actors=1
-    echo "$spec_content" | grep -qi '## Behaviors' && has_behaviors=1
-    echo "$spec_content" | grep -qi '## Constraints' && has_constraints=1
-    echo "$spec_content" | grep -qi '## Dependencies' && has_dependencies=1
-    echo "$spec_content" | grep -qi '## Acceptance' && has_acceptance=1
+    shopt -s nocasematch
+    [[ "$spec_content" == *"## Purpose"* ]] && has_purpose=1
+    [[ "$spec_content" == *"## Actors"* ]] && has_actors=1
+    [[ "$spec_content" == *"## Behaviors"* ]] && has_behaviors=1
+    [[ "$spec_content" == *"## Constraints"* ]] && has_constraints=1
+    [[ "$spec_content" == *"## Dependencies"* ]] && has_dependencies=1
+    [[ "$spec_content" == *"## Acceptance"* ]] && has_acceptance=1
 
     local sections=$((has_purpose + has_actors + has_behaviors + has_constraints + has_dependencies + has_acceptance))
 
     # Quality markers (edge cases, preconditions, postconditions)
     local has_edge_cases=0 has_preconditions=0 has_postconditions=0
-    echo "$spec_content" | grep -qi 'edge.case\|exception\|error.handling' && has_edge_cases=1
-    echo "$spec_content" | grep -qi 'precondition' && has_preconditions=1
-    echo "$spec_content" | grep -qi 'postcondition' && has_postconditions=1
+    local _re_edge='edge.case|exception|error.handling'
+    [[ "$spec_content" =~ $_re_edge ]] && has_edge_cases=1
+    [[ "$spec_content" == *"precondition"* ]] && has_preconditions=1
+    [[ "$spec_content" == *"postcondition"* ]] && has_postconditions=1
+    shopt -u nocasematch
 
     local quality_markers=$((has_edge_cases + has_preconditions + has_postconditions))
 
@@ -18735,20 +18744,28 @@ parse_factory_spec() {
     cp "$spec_path" "$run_dir/spec.md"
 
     local spec_content
-    spec_content=$(cat "$spec_path")
+    spec_content=$(<"$spec_path")
 
     # Extract satisfaction target from spec (format: "Satisfaction Target: 0.90" or similar)
     local satisfaction_target
     satisfaction_target=$(echo "$spec_content" | grep -oi 'satisfaction.*target[: ]*[0-9]*\.[0-9]*' | head -1 | grep -o '[0-9]*\.[0-9]*' || echo "")
+    # Extract complexity class (single nocasematch block for both satisfaction + complexity)
+    local complexity="complex"
+    shopt -s nocasematch
+    if [[ "$spec_content" == *complexity*clear* ]]; then
+        complexity="clear"
+    elif [[ "$spec_content" == *complexity*complicated* ]]; then
+        complexity="complicated"
+    fi
+    shopt -u nocasematch
+
     if [[ -z "$satisfaction_target" ]]; then
         # Infer from complexity class
-        if echo "$spec_content" | grep -qi 'complexity.*clear'; then
-            satisfaction_target="0.95"
-        elif echo "$spec_content" | grep -qi 'complexity.*complicated'; then
-            satisfaction_target="0.90"
-        else
-            satisfaction_target="0.85"
-        fi
+        case "$complexity" in
+            clear)       satisfaction_target="0.95" ;;
+            complicated) satisfaction_target="0.90" ;;
+            *)           satisfaction_target="0.85" ;;
+        esac
         log INFO "No explicit satisfaction target in spec, inferred: $satisfaction_target"
     fi
 
@@ -18756,14 +18773,6 @@ parse_factory_spec() {
     if [[ -n "$OCTOPUS_FACTORY_SATISFACTION_TARGET" ]]; then
         satisfaction_target="$OCTOPUS_FACTORY_SATISFACTION_TARGET"
         log INFO "Satisfaction target overridden by env: $satisfaction_target"
-    fi
-
-    # Extract complexity class
-    local complexity="complex"
-    if echo "$spec_content" | grep -qi 'complexity.*clear'; then
-        complexity="clear"
-    elif echo "$spec_content" | grep -qi 'complexity.*complicated'; then
-        complexity="complicated"
     fi
 
     # Extract behaviors (lines starting with "### " under Behaviors section, or numbered items)
@@ -18798,8 +18807,9 @@ generate_factory_scenarios() {
     local spec_path="$1"
     local run_dir="$2"
 
+    [[ -f "$spec_path" ]] || { log ERROR "Spec not found: $spec_path"; return 1; }
     local spec_content
-    spec_content=$(cat "$spec_path")
+    spec_content=$(<"$spec_path")
 
     log INFO "Generating test scenarios from spec..."
 
@@ -18881,7 +18891,7 @@ split_holdout_scenarios() {
     fi
 
     local all_scenarios
-    all_scenarios=$(cat "$scenarios_file")
+    all_scenarios=$(<"$scenarios_file")
 
     # Extract individual scenarios (split on "### Scenario")
     local scenario_blocks=()
@@ -18982,10 +18992,10 @@ run_holdout_tests() {
     fi
 
     local holdout_content
-    holdout_content=$(cat "$holdout_file")
+    holdout_content=$(<"$holdout_file")
 
     # If no real holdout scenarios, score perfect
-    if echo "$holdout_content" | grep -q "No structured scenarios to holdout"; then
+    if [[ "$holdout_content" == *"No structured scenarios to holdout"* ]]; then
         log INFO "No holdout scenarios to evaluate"
         echo "1.00"
         return 0
@@ -19164,7 +19174,7 @@ score_satisfaction() {
     log INFO "Scoring satisfaction against target: $satisfaction_target"
 
     local spec_content=""
-    [[ -f "$run_dir/spec.md" ]] && spec_content=$(cat "$run_dir/spec.md")
+    [[ -f "$run_dir/spec.md" ]] && spec_content=$(<"$run_dir/spec.md")
 
     local holdout_score="0.50"
     [[ -f "$run_dir/holdout-results.md" ]] && holdout_score=$(grep -oi 'score[: ]*[0-9]*\.[0-9]*' "$run_dir/holdout-results.md" | tail -1 | grep -o '[0-9]*\.[0-9]*' || echo "0.50")
@@ -19373,10 +19383,10 @@ factory_run() {
     mkdir -p "$run_dir"
 
     echo ""
-    echo -e "${MAGENTA}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${MAGENTA}${_BOX_TOP}${NC}"
     echo -e "${MAGENTA}║  ${GREEN}DARK FACTORY${MAGENTA} — Spec-In, Software-Out Pipeline            ║${NC}"
     echo -e "${MAGENTA}║  Parse → Scenarios → Embrace → Holdout → Score → Report  ║${NC}"
-    echo -e "${MAGENTA}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo -e "${MAGENTA}${_BOX_BOT}${NC}"
     echo ""
     echo -e "${CYAN}  Run ID:    ${NC}$run_id"
     echo -e "${CYAN}  Spec:      ${NC}$spec_path"
@@ -19446,10 +19456,11 @@ factory_run() {
 
     # Build augmented prompt with visible scenarios
     local visible_scenarios=""
-    [[ -f "$run_dir/scenarios-visible.md" ]] && visible_scenarios=$(cat "$run_dir/scenarios-visible.md")
+    [[ -f "$run_dir/scenarios-visible.md" ]] && visible_scenarios=$(<"$run_dir/scenarios-visible.md")
 
     local spec_content
-    spec_content=$(cat "$spec_path")
+    [[ -f "$spec_path" ]] || { log ERROR "Spec not found: $spec_path"; return 1; }
+    spec_content=$(<"$spec_path")
 
     local embrace_prompt="## Factory Mode: Implement from NLSpec
 
@@ -19494,7 +19505,7 @@ Implement the specification above. Ensure all visible test scenarios pass."
 
         # Build remediation prompt from failing holdout scenarios
         local holdout_results=""
-        [[ -f "$run_dir/holdout-results.md" ]] && holdout_results=$(cat "$run_dir/holdout-results.md")
+        [[ -f "$run_dir/holdout-results.md" ]] && holdout_results=$(<"$run_dir/holdout-results.md")
 
         local remediation_prompt="## Factory Mode: Remediation Pass ($retry_count/$max_retries)
 
@@ -19539,14 +19550,14 @@ Focus on fixing the failing scenarios. Do NOT restart from scratch — improve t
     if [[ "$verdict" == "PASS" ]]; then verdict_color="$GREEN"
     elif [[ "$verdict" == "WARN" ]]; then verdict_color="$YELLOW"; fi
 
-    echo -e "${MAGENTA}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${MAGENTA}${_BOX_TOP}${NC}"
     echo -e "${MAGENTA}║  FACTORY COMPLETE                                         ║${NC}"
-    echo -e "${MAGENTA}╠═══════════════════════════════════════════════════════════╣${NC}"
+    echo -e "${MAGENTA}${_BOX_MID}${NC}"
     echo -e "${MAGENTA}║${NC}  Verdict:    ${verdict_color}${verdict}${NC} ($composite / $satisfaction_target target)"
     echo -e "${MAGENTA}║${NC}  Scenarios:  $scenario_count generated, $holdout_count holdout"
     echo -e "${MAGENTA}║${NC}  Retries:    $retry_count / $max_retries"
     echo -e "${MAGENTA}║${NC}  Report:     $run_dir/factory-report.md"
-    echo -e "${MAGENTA}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo -e "${MAGENTA}${_BOX_BOT}${NC}"
     echo ""
 }
 
@@ -19579,13 +19590,13 @@ grapple_debate() {
     fi
 
     echo ""
-    echo -e "${RED}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${RED}${_BOX_TOP}${NC}"
     echo -e "${RED}║  🤼 GRAPPLE - Adversarial Cross-Model Review              ║${NC}"
     echo -e "${RED}║  Codex vs Gemini vs Sonnet 4.6 debate (${rounds} rounds)  ║${NC}"
     if [[ "$debate_mode" == "blinded" ]]; then
     echo -e "${RED}║  Mode: Blinded (independent evaluation, no anchoring)     ║${NC}"
     fi
-    echo -e "${RED}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo -e "${RED}${_BOX_BOT}${NC}"
     echo ""
 
     log INFO "Starting adversarial cross-model debate ($rounds rounds, mode: $debate_mode)"
@@ -20217,9 +20228,9 @@ EOF
     # Conclusion Ceremony (v7.13.2 - Issue #10)
     # ═══════════════════════════════════════════════════════════════════════
     echo ""
-    echo -e "${GREEN}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${GREEN}${_BOX_TOP}${NC}"
     echo -e "${GREEN}║  ✅ DEBATE CONCLUDED                                      ║${NC}"
-    echo -e "${GREEN}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo -e "${GREEN}${_BOX_BOT}${NC}"
     echo ""
     echo -e "  ${GREEN}✓${NC} $rounds rounds completed"
     echo -e "  ${GREEN}✓${NC} All three perspectives analyzed"
@@ -20275,10 +20286,10 @@ squeeze_test() {
     task_group=$(date +%s)
 
     echo ""
-    echo -e "${RED}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${RED}${_BOX_TOP}${NC}"
     echo -e "${RED}║  🦑 SQUEEZE - Adversarial Security Review                 ║${NC}"
     echo -e "${RED}║  Blue Team defends, Red Team attacks                      ║${NC}"
-    echo -e "${RED}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo -e "${RED}${_BOX_BOT}${NC}"
     echo ""
 
     log INFO "Starting red team security review"
@@ -20505,9 +20516,9 @@ $validation
 EOF
 
     echo ""
-    echo -e "${GREEN}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${GREEN}${_BOX_TOP}${NC}"
     echo -e "${GREEN}║  ✓ Red Team exercise complete                            ║${NC}"
-    echo -e "${GREEN}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo -e "${GREEN}${_BOX_BOT}${NC}"
     echo ""
     echo -e "  Result: ${CYAN}$result_file${NC}"
     echo ""
@@ -20555,9 +20566,9 @@ sentinel_tick() {
     fi
 
     echo ""
-    echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}${_BOX_TOP}${NC}"
     echo -e "${CYAN}║  🔭 SENTINEL - GitHub Work Monitor                       ║${NC}"
-    echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo -e "${CYAN}${_BOX_BOT}${NC}"
     echo ""
 
     local timestamp
@@ -20691,10 +20702,10 @@ empathize_research() {
     task_group=$(date +%s)
 
     echo ""
-    echo -e "${MAGENTA}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${MAGENTA}${_BOX_TOP}${NC}"
     echo -e "${MAGENTA}║  ${CYAN}🎯 EMPATHIZE${MAGENTA} - UX Research Synthesis Workflow            ║${NC}"
     echo -e "${MAGENTA}║  Understanding users through multiple tentacles...        ║${NC}"
-    echo -e "${MAGENTA}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo -e "${MAGENTA}${_BOX_BOT}${NC}"
     echo ""
 
     log INFO "🐙 Extending empathy tentacles for user research..."
@@ -20816,9 +20827,9 @@ $validation
 EOF
 
     echo ""
-    echo -e "${GREEN}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${GREEN}${_BOX_TOP}${NC}"
     echo -e "${GREEN}║  ✓ Empathize workflow complete - users understood!        ║${NC}"
-    echo -e "${GREEN}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo -e "${GREEN}${_BOX_BOT}${NC}"
     echo ""
     echo -e "  Result: ${CYAN}$result_file${NC}"
     echo ""
@@ -20832,10 +20843,10 @@ advise_strategy() {
     task_group=$(date +%s)
 
     echo ""
-    echo -e "${MAGENTA}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${MAGENTA}${_BOX_TOP}${NC}"
     echo -e "${MAGENTA}║  ${CYAN}📊 ADVISE${MAGENTA} - Strategic Consulting Workflow                ║${NC}"
     echo -e "${MAGENTA}║  Wrapping strategic tentacles around the problem...       ║${NC}"
-    echo -e "${MAGENTA}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo -e "${MAGENTA}${_BOX_BOT}${NC}"
     echo ""
 
     log INFO "🐙 Extending strategic tentacles for consulting analysis..."
@@ -20958,9 +20969,9 @@ $recommendations
 EOF
 
     echo ""
-    echo -e "${GREEN}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${GREEN}${_BOX_TOP}${NC}"
     echo -e "${GREEN}║  ✓ Advise workflow complete - strategy crystallized!      ║${NC}"
-    echo -e "${GREEN}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo -e "${GREEN}${_BOX_BOT}${NC}"
     echo ""
     echo -e "  Result: ${CYAN}$result_file${NC}"
     echo ""
@@ -20974,10 +20985,10 @@ synthesize_research() {
     task_group=$(date +%s)
 
     echo ""
-    echo -e "${MAGENTA}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${MAGENTA}${_BOX_TOP}${NC}"
     echo -e "${MAGENTA}║  ${CYAN}📚 SYNTHESIZE${MAGENTA} - Research Synthesis Workflow              ║${NC}"
     echo -e "${MAGENTA}║  Weaving knowledge tentacles through the literature...    ║${NC}"
-    echo -e "${MAGENTA}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo -e "${MAGENTA}${_BOX_BOT}${NC}"
     echo ""
 
     log INFO "🐙 Extending research tentacles for literature synthesis..."
@@ -21099,9 +21110,9 @@ $gaps
 EOF
 
     echo ""
-    echo -e "${GREEN}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${GREEN}${_BOX_TOP}${NC}"
     echo -e "${GREEN}║  ✓ Synthesize workflow complete - knowledge crystallized! ║${NC}"
-    echo -e "${GREEN}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo -e "${GREEN}${_BOX_BOT}${NC}"
     echo ""
     echo -e "  Result: ${CYAN}$result_file${NC}"
     echo ""
@@ -21577,7 +21588,7 @@ update_task_status() {
         return 0
     fi
 
-    local task_id=$(cat "$task_id_file")
+    local task_id=$(<"$task_id_file")
     log "INFO" "Task $phase ($task_id) status: $status"
 
     # Write status marker
@@ -21601,7 +21612,7 @@ get_task_status_summary() {
 
     for status_file in "$tasks_dir"/*.status; do
         if [[ -f "$status_file" ]]; then
-            local status=$(cat "$status_file")
+            local status=$(<"$status_file")
             case "$status" in
                 in_progress) ((in_progress++)) ;;
                 completed) ((completed++)) ;;
@@ -21738,7 +21749,7 @@ fi
 
 # Initialize usage tracking for cost reporting (v4.1)
 # Skip for cost/usage commands that just read existing data
-if [[ "$COMMAND" != "cost" && "$COMMAND" != "usage" && "$COMMAND" != "cost-json" && "$COMMAND" != "cost-csv" && "$COMMAND" != "cost-clear" && "$COMMAND" != "cost-archive" && "$COMMAND" != "help" ]]; then
+if [[ "$COMMAND" != "cost" && "$COMMAND" != "usage" && "$COMMAND" != "cost-json" && "$COMMAND" != "cost-csv" && "$COMMAND" != "cost-clear" && "$COMMAND" != "help" ]]; then
     init_usage_tracking 2>/dev/null || true
     init_metrics_tracking 2>/dev/null || true  # v7.25.0: Enhanced metrics
 fi
@@ -21962,10 +21973,10 @@ case "$COMMAND" in
         fi
 
         echo ""
-        echo -e "${MAGENTA}╔═══════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${MAGENTA}${_BOX_TOP}${NC}"
         echo -e "${MAGENTA}║  ${GREEN}PROBE SYNTHESIS${MAGENTA} - Standalone synthesis recovery         ║${NC}"
         echo -e "${MAGENTA}║  Synthesizing $synth_result_count probe results (task: ${synth_task_group})       ${MAGENTA}║${NC}"
-        echo -e "${MAGENTA}╚═══════════════════════════════════════════════════════════╝${NC}"
+        echo -e "${MAGENTA}${_BOX_BOT}${NC}"
         echo ""
 
         if [[ -z "$synth_prompt" ]]; then
@@ -22392,9 +22403,7 @@ case "$COMMAND" in
         echo "Usage session cleared."
         ;;
     cost-archive)
-        # Archive current session to history
-        archive_usage_session
-        echo "Usage session archived to history."
+        echo "cost-archive has been removed. Usage data is managed automatically."
         ;;
     # ═══════════════════════════════════════════════════════════════════════════
     # REVIEW & AUDIT COMMANDS (v4.4 - Human-in-the-loop)

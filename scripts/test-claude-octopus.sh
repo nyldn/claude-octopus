@@ -175,7 +175,7 @@ echo -e "${YELLOW}7. Cost Tracking${NC}"
 test_cmd "Cost report (table)" "'$SCRIPT' cost"
 test_cmd "Cost report (JSON)" "'$SCRIPT' cost-json"
 test_cmd "Cost report (CSV)" "'$SCRIPT' cost-csv"
-# Note: cost-clear and cost-archive modify state, skipping in automated tests
+# Note: cost-clear modifies state, skipping in automated tests
 
 echo ""
 
