@@ -112,10 +112,10 @@ fi
 
 # 1.5: get_agent_command maps claude-opus to opus model
 # Refactored: get_agent_command returns command string (not model ID)
-if grep -q 'claude-opus).*echo "claude --print -m opus"' "$ORCHESTRATE_SH"; then
-    assert_pass "1.5 get_agent_command maps claude-opus to 'claude --print -m opus'"
+if grep -q 'claude-opus).*echo "claude --print --model opus"' "$ORCHESTRATE_SH"; then
+    assert_pass "1.5 get_agent_command maps claude-opus to 'claude --print --model opus'"
 else
-    assert_fail "1.5 get_agent_command maps claude-opus to 'claude --print -m opus'"
+    assert_fail "1.5 get_agent_command maps claude-opus to 'claude --print --model opus'"
 fi
 
 # 1.6: claude-opus maps to claude provider for config precedence
