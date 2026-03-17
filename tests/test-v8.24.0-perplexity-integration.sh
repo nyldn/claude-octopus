@@ -7,6 +7,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 ORCHESTRATE_SH="$PROJECT_ROOT/scripts/orchestrate.sh"
+# v9.4.0: Support grepping across orchestrate.sh + lib/ for extracted functions
+_ORCH_ALL_TMP=$(mktemp)
+cat "$ORCHESTRATE_SH" "$PROJECT_ROOT/scripts/lib/"*.sh 2>/dev/null > "$_ORCH_ALL_TMP"
+trap 'rm -f "$_ORCH_ALL_TMP"' EXIT
 MCP_DETECT="$PROJECT_ROOT/scripts/mcp-provider-detection.sh"
 STATE_MANAGER="$PROJECT_ROOT/scripts/state-manager.sh"
 
@@ -141,7 +145,7 @@ echo "Test Suite 3: Security & Cost Integration"
 echo "────────────────────────────────────────"
 
 # Test 3.1: Command whitelist
-if grep -q '"perplexity_execute"' "$ORCHESTRATE_SH"; then
+if grep -q '"perplexity_execute"' "$_ORCH_ALL_TMP"; then
     pass "perplexity_execute in command whitelist"
 else
     fail "perplexity_execute NOT in command whitelist"

@@ -83,7 +83,7 @@ echo -e "${BLUE}Test Group 1: orchestrate.sh - claude-opus agent type${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # 1.1: get_agent_command has claude-opus case
-if grep -q 'claude-opus) echo "claude --print -m opus"' "$ORCHESTRATE_SH"; then
+if grep -q 'claude-opus) echo "claude --print --model opus"' "$ORCHESTRATE_SH"; then
     assert_pass "1.1 get_agent_command has claude-opus → 'claude --print -m opus'"
 else
     assert_fail "1.1 get_agent_command has claude-opus → 'claude --print -m opus'"
