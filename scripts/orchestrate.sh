@@ -8415,7 +8415,7 @@ ${agent_prompt_base}"
     while true; do
         local _all_done=true
         for _rf in "${round1_files[@]}"; do
-            if [[ ! -f "$_rf" ]] || ! grep -qE '^## Status:' "$_rf" 2>/dev/null; then
+            if [[ ! -f "$_rf" ]] || [[ $(grep -cE '^## Status:' "$_rf" 2>/dev/null || true) -eq 0 ]]; then
                 _all_done=false
                 break
             fi
@@ -8444,7 +8444,7 @@ ${agent_prompt_base}"
         # v9.3.1: Write provider status for Round 1 agents (#187)
         local atype="${round1_agent_types[$idx]}"
         local provider_key="${atype%%[-_]*}"
-        if grep -q "Status: FAILED" "$f" 2>/dev/null; then
+        if [[ $(grep -c "Status: FAILED" "$f" 2>/dev/null || true) -gt 0 ]]; then
             echo "${provider_key}|fallback|Round 1 agent failed" >> "$provider_status_file"
         elif [[ "$agent_findings" != "[]" ]]; then
             echo "${provider_key}|ok|Round 1 findings" >> "$provider_status_file"
@@ -12808,7 +12808,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
             # Filter out CLI header noise and extract actual response
             # v9.3.1: Check for CLI header separator before filtering — codex exec
             # sends clean response on stdout (no header), banner on stderr.
-            if grep -q '^--------$' "$temp_output" 2>/dev/null; then
+            if [[ $(grep -c '^--------$' "$temp_output" 2>/dev/null || true) -gt 0 ]]; then
                 # CLI-wrapped output: strip banner and extract response
                 awk '
                     BEGIN { in_response = 0; header_done = 0; }
@@ -12879,7 +12879,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
             # v7.19.0 P0.2: TIMEOUT - Preserve partial output
             # Process whatever output exists (may be significant partial work)
             if [[ -s "$temp_output" ]]; then
-                if grep -q '^--------$' "$temp_output" 2>/dev/null; then
+                if [[ $(grep -c '^--------$' "$temp_output" 2>/dev/null || true) -gt 0 ]]; then
                     awk '
                         BEGIN { in_response = 0; header_done = 0; }
                         /^--------$/ { header_done = 1; next; }
