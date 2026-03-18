@@ -78,10 +78,10 @@ done
 
 # ── 6. Smart router claude-mem hint ──────────────────────────────────
 
-if grep -c 'claude-mem' "$PROJECT_ROOT/.claude/commands/octo.md" >/dev/null 2>&1; then
-    pass "Smart router: octo.md mentions claude-mem"
+if grep -c 'claude-mem' "$PROJECT_ROOT/.claude/commands/auto.md" >/dev/null 2>&1; then
+    pass "Smart router: auto.md mentions claude-mem"
 else
-    fail "Smart router: octo.md mentions claude-mem" "no claude-mem reference in router"
+    fail "Smart router: auto.md mentions claude-mem" "no claude-mem reference in router"
 fi
 
 # ── 7. Observation wiring in save_session_checkpoint ─────────────────

@@ -651,7 +651,7 @@ else
 fi
 
 # 9.5: statusline.sh reads stdin once before delegation decision
-if head -25 "$STATUSLINE_SH" | grep -q 'input=$(cat)'; then
+if head -25 "$STATUSLINE_SH" | grep -qE 'input=\$\(.*cat'; then
     assert_pass "9.5 statusline.sh reads stdin once before delegation"
 else
     assert_fail "9.5 statusline.sh reads stdin once before delegation"

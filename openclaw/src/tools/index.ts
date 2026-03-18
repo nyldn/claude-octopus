@@ -65,6 +65,7 @@ export const SKILL_REGISTRY: SkillRegistryEntry[] = [
   { name: "skill-visual-feedback", description: "Process screenshot-based UI/UX feedback to fix visual issues", type: "skill", file: "skill-visual-feedback.md" },
   { name: "skill-writing-plans", description: "Zero-context implementation plans with bite-sized tasks", type: "skill", file: "skill-writing-plans.md" },
   { name: "sys-configure", description: "Configure Claude Octopus providers and preferences", type: "skill", file: "sys-configure.md" },
+  { name: "auto", description: "Smart router - Single entry point with natural language intent detection", type: "command", file: "auto.md" },
   { name: "brainstorm", description: "Start a creative thought partner brainstorming session", type: "command", file: "brainstorm.md" },
   { name: "claw", description: "OpenClaw instance administration — manage hosts across macOS, Ubuntu/Debian, Docker, OCI, and Proxmox", type: "command", file: "claw.md" },
   { name: "debate", description: "AI Debate Hub - Structured four-way debates between Claude, Sonnet, Gemini, and Codex", type: "command", file: "debate.md" },
@@ -86,7 +87,7 @@ export const SKILL_REGISTRY: SkillRegistryEntry[] = [
   { name: "meta-prompt", description: "Generate an optimized prompt for any task using meta-prompting techniques", type: "command", file: "meta-prompt.md" },
   { name: "model-config", description: "Configure AI provider models for Claude Octopus workflows", type: "command", file: "model-config.md" },
   { name: "multi", description: "Force multi-provider parallel execution for any task - manual override mode", type: "command", file: "multi.md" },
-  { name: "octo", description: "Smart router - Single entry point with natural language intent detection", type: "command", file: "octo.md" },
+  { name: "octo", description: "[Legacy] Redirects to /octo:auto — the smart router", type: "command", file: "octo.md" },
   { name: "parallel", description: "Team of Teams - Decompose compound tasks across independent claude instances", type: "command", file: "parallel.md" },
   { name: "pipeline", description: "Run content analysis pipeline on URL(s) to extract patterns and create anatomy guides", type: "command", file: "pipeline.md" },
   { name: "plan", description: "Intelligent plan builder - creates strategic execution plans (doesn't execute). Use /octo:embrace to execute plans.", type: "command", file: "plan.md" },
@@ -106,4 +107,4 @@ export const SKILL_REGISTRY: SkillRegistryEntry[] = [
   { name: "tdd", description: "Test-driven development with red-green-refactor discipline", type: "command", file: "tdd.md" },
 ];
 
-export const REGISTRY_COUNT = 89;
+export const REGISTRY_COUNT = 90;
