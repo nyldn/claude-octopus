@@ -11,8 +11,8 @@
     {
       "name": "octo",
       "source": "./",
-      "description": "v9.5.0 - Defensive hardening + agent infrastructure. Stdin timeout guards, 50KB output guard, agent permission audit (readonly agents), context bridge + awareness hook, structured return contracts, compound init. 32 personas, 40 commands, 50 skills. Run /octo:setup.",
-      "version": "9.5.0",
+      "description": "v9.6.0 - Polished presence + session intelligence. Gradient statusline with active agent names, workflow-aware context warnings (3 levels), session handoff files, enhanced intent detection with persona injection. 32 personas, 40 commands, 50 skills. Run /octo:setup.",
+      "version": "9.6.0",
       "author": {
         "name": "nyldn"
       },

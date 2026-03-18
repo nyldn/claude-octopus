@@ -108,7 +108,12 @@ if [[ -n "${TARGET_MEM_DIR:-}" ]] && [[ -f "$SESSION_FILE" ]] && command -v jq &
     fi
 fi
 
-# --- 4. Clean up session artifacts ---
+# --- 4. Write session handoff file for cross-session resumption (v9.6.0) ---
+if [[ -x "${CLAUDE_PLUGIN_ROOT:-}/scripts/write-handoff.sh" ]]; then
+    "${CLAUDE_PLUGIN_ROOT}/scripts/write-handoff.sh" 2>/dev/null || true
+fi
+
+# --- 5. Clean up session artifacts ---
 # Remove transient files but keep session.json for resume capability
 rm -f "${HOME}/.claude-octopus/.octo/pre-compact-snapshot.json" 2>/dev/null || true
 rm -f "${HOME}/.claude-octopus/.reload-signal" 2>/dev/null || true

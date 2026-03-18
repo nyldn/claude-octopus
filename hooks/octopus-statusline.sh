@@ -72,13 +72,21 @@ else
     BAR_COLOR="$GREEN"
 fi
 
-# Build context bar
+# Build context bar (v9.6.0: gradient chars ▰▱)
 BAR_WIDTH=10
 FILLED=$((PCT * BAR_WIDTH / 100))
 EMPTY=$((BAR_WIDTH - FILLED))
 BAR=""
-[ "$FILLED" -gt 0 ] && BAR=$(printf "%${FILLED}s" | tr ' ' '█')
-[ "$EMPTY" -gt 0 ] && BAR="${BAR}$(printf "%${EMPTY}s" | tr ' ' '░')"
+[ "$FILLED" -gt 0 ] && BAR=$(printf "%${FILLED}s" | tr ' ' '▰')
+[ "$EMPTY" -gt 0 ] && BAR="${BAR}$(printf "%${EMPTY}s" | tr ' ' '▱')"
+
+# v9.6.0: Auto-compact warning prefix
+WARN_PREFIX=""
+if [ "$PCT" -ge 90 ]; then
+    WARN_PREFIX="💀 "
+elif [ "$PCT" -ge 80 ]; then
+    WARN_PREFIX="⚠️ "
+fi
 
 # Format cost
 COST_FMT=$(printf '$%.2f' "$COST")
@@ -107,7 +115,7 @@ if [[ -n "$PHASE" && "$PHASE" != "null" ]]; then
         wt_suffix=" | 🌿 ${WORKTREE_BRANCH}"
     fi
 
-    echo -e "${CYAN}[🐙 Octopus]${RESET} ${PHASE_EMOJI} ${PHASE} | ${BAR_COLOR}${BAR}${RESET} ${PCT}% | ${YELLOW}${COST_FMT}${RESET}${wt_suffix}"
+    echo -e "${CYAN}[🐙 Octopus]${RESET} ${PHASE_EMOJI} ${PHASE} | ${WARN_PREFIX}${BAR_COLOR}${BAR}${RESET} ${PCT}% | ${YELLOW}${COST_FMT}${RESET}${wt_suffix}"
 else
     # No active workflow - compact display
     local wt_suffix=""
@@ -115,5 +123,5 @@ else
         wt_suffix=" | 🌿 ${WORKTREE_BRANCH}"
     fi
 
-    echo -e "${CYAN}[🐙]${RESET} ${BAR_COLOR}${BAR}${RESET} ${PCT}% | ${YELLOW}${COST_FMT}${RESET}${wt_suffix}"
+    echo -e "${CYAN}[🐙]${RESET} ${WARN_PREFIX}${BAR_COLOR}${BAR}${RESET} ${PCT}% | ${YELLOW}${COST_FMT}${RESET}${wt_suffix}"
 fi

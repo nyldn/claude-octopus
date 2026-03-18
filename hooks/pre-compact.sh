@@ -35,6 +35,11 @@ if command -v jq &>/dev/null; then
     }' "$SESSION_FILE" > "$SNAPSHOT" 2>/dev/null || true
 fi
 
+# v9.6.0: Write session handoff file for cross-session resumption
+if [[ -x "${CLAUDE_PLUGIN_ROOT:-}/scripts/write-handoff.sh" ]]; then
+    "${CLAUDE_PLUGIN_ROOT}/scripts/write-handoff.sh" 2>/dev/null || true
+fi
+
 # Output context for post-compaction prompt injection
 if [[ -f "$SNAPSHOT" ]]; then
     phase=$(jq -r '.phase // empty' "$SNAPSHOT" 2>/dev/null)

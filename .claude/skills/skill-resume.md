@@ -36,6 +36,23 @@ Restore context from a previous session and seamlessly continue the workflow whe
 
 ## The Process
 
+### Phase 0: Check Session Handoff File (v9.6.0)
+
+#### Step 0: Check for .octopus-continue.md
+
+Before checking `.octo/`, look for a session handoff file. This is written automatically
+by PreCompact and SessionEnd hooks and contains a human-readable summary of the last session.
+
+```bash
+if [[ -f ".octopus-continue.md" ]]; then
+    cat ".octopus-continue.md"
+fi
+```
+
+**If `.octopus-continue.md` exists**, read it and display its contents to the user as
+context. Then continue to Phase 1 to load the full state. The handoff file provides a
+quick overview; `.octo/STATE.md` provides the authoritative state.
+
 ### Phase 1: Check Project Initialization
 
 #### Step 1: Verify .octo/ Directory Exists
@@ -47,7 +64,10 @@ if [[ ! -d ".octo" ]]; then
 fi
 ```
 
-**If .octo/ does not exist, display:**
+**If .octo/ does not exist but `.octopus-continue.md` exists**, display the handoff file
+contents and offer to start a new session based on that context.
+
+**If neither exists, display:**
 
 ```markdown
 ## Session Restoration Failed
