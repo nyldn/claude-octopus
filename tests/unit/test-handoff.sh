@@ -43,12 +43,12 @@ else
     fail "write-handoff.sh reads STATE.md" "missing STATE.md reference"
 fi
 
-# ── Writes .octopus-continue.md ─────────────────────────────────────
+# ── Writes .octo-continue.md ─────────────────────────────────────
 
-if grep -q 'octopus-continue.md' "$HANDOFF" 2>/dev/null; then
-    pass "write-handoff.sh writes .octopus-continue.md"
+if grep -q 'octo-continue.md' "$HANDOFF" 2>/dev/null; then
+    pass "write-handoff.sh writes .octo-continue.md"
 else
-    fail "write-handoff.sh writes .octopus-continue.md" "missing output filename"
+    fail "write-handoff.sh writes .octo-continue.md" "missing output filename"
 fi
 
 # ── Has octopus branding ────────────────────────────────────────────
@@ -83,12 +83,12 @@ else
     fail "session-end.sh calls write-handoff.sh" "not wired in session-end"
 fi
 
-# ── Resume skill reads .octopus-continue.md ─────────────────────────
+# ── Resume skill reads .octo-continue.md ─────────────────────────
 
-if grep -q 'octopus-continue.md' "$RESUME_SKILL" 2>/dev/null; then
-    pass "skill-resume.md reads .octopus-continue.md"
+if grep -q 'octo-continue.md' "$RESUME_SKILL" 2>/dev/null; then
+    pass "skill-resume.md reads .octo-continue.md"
 else
-    fail "skill-resume.md reads .octopus-continue.md" "not wired in resume skill"
+    fail "skill-resume.md reads .octo-continue.md" "not wired in resume skill"
 fi
 
 # ── Extracts decisions and blockers ─────────────────────────────────

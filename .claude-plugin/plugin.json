@@ -1,7 +1,7 @@
 {
   "name": "octo",
   "version": "9.6.0",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v9.6.0) Polished presence: gradient statusline with agent names and project state, workflow-aware context warnings (3 severity levels), session handoff (.octopus-continue.md), enhanced intent detection with persona injection. 32 expert personas, 40 commands, 50 skills. Commands use '/octo:*', including the '/octo:auto' smart router. Run /octo:setup for guided setup.",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v9.6.0) Polished presence: gradient statusline with agent names and project state, workflow-aware context warnings (3 severity levels), session handoff (.octo-continue.md), enhanced intent detection with persona injection. 32 expert personas, 40 commands, 50 skills. Commands use '/octo:*', including the '/octo:auto' smart router. Run /octo:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },

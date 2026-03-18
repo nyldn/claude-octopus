@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# write-handoff.sh — Writes .octopus-continue.md session handoff file
+# write-handoff.sh — Writes .octo-continue.md session handoff file
 # Called by pre-compact.sh and session-end.sh for cross-session resumption.
 # Reads: session.json, .octo/STATE.md, progress file
-# Writes: .octopus-continue.md in CWD
+# Writes: .octo-continue.md in CWD
 
 set -euo pipefail
 
 SESSION_FILE="${HOME}/.claude-octopus/session.json"
 STATE_FILE=".octo/STATE.md"
-HANDOFF_FILE=".octopus-continue.md"
+HANDOFF_FILE=".octo-continue.md"
 SESSION_ID="${CLAUDE_SESSION_ID:-unknown}"
 PROGRESS_FILE="${HOME}/.claude-octopus/progress-${SESSION_ID}.json"
 
