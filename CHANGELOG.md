@@ -1,3 +1,28 @@
+## [9.5.0] - 2026-03-18
+
+### Added
+
+- **Stdin timeout guards**: All 6 hook files now use `timeout 3 cat` instead of bare `cat` reads, preventing hook hangs on stdin stalls.
+- **50KB output guard**: `guard_output()` in `lib/utils.sh` redirects oversized output to temp files with `@file:` pointers. Wired into `aggregate_results()` and `synthesize_probe_results()`.
+- **Agent permission audit**: Removed `Agent` tool from 7 read-only agents (backend-architect, code-reviewer, security-auditor, performance-engineer, docs-architect, cloud-architect, database-architect). Added `readonly: true` to 6 agents. Removed `Bash` from security-auditor.
+- **Context bridge**: Both statusline hooks (bash + Node.js HUD) now write `/tmp/octopus-ctx-$SESSION.json` with context usage data for cross-hook awareness.
+- **Context awareness hook**: New `hooks/context-awareness.sh` (PostToolUse, blanket) warns at 65% (WARNING) and 75% (CRITICAL) context usage. Debounced every 5 tool calls with severity escalation bypass.
+- **Structured return contracts**: All 10 agent files now have `## Output Contract` with COMPLETE/BLOCKED/PARTIAL status markers and per-agent customized sections.
+- **Contract compliance scoring**: `score_result_file()` Factor 5 adds up to 20 pts for structured status markers in agent output.
+- **Compound init command**: `init-workflow)` dispatch case returns full environment bundle (providers, models, capabilities, files, paths) as JSON in a single call.
+- **Smart router renamed**: `/octo:octo` → `/octo:auto`. The old `/octo:octo` command remains as a legacy redirect. 40 commands total.
+- 6 new test suites: stdin-timeout-guards (12), output-guard (6), agent-permissions-audit (12), context-bridge (12), agent-return-contracts (32), compound-init (17) — 91 new assertions.
+
+---
+
+## [9.4.3] - 2026-03-17
+
+### Fixed
+
+- Legacy `claude-octopus` install detection in doctor and preflight — users who installed before the v9.0 rename to `octo` now see a clear diagnostic with the uninstall/reinstall command. (#196)
+
+---
+
 ## [9.4.2] - 2026-03-17
 
 ### Changed

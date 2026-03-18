@@ -89,6 +89,16 @@
   ],
   "PostToolUse": [
     {
+      "matcher": {},
+      "hooks": [
+        {
+          "type": "command",
+          "command": "${CLAUDE_PLUGIN_ROOT}/hooks/context-awareness.sh",
+          "timeout": 5
+        }
+      ]
+    },
+    {
       "matcher": {
         "tool": "Bash",
         "pattern": "orchestrate\\.sh.*tangle"

@@ -20,7 +20,7 @@ fi
 
 # Read hook input from stdin
 if [ -t 0 ]; then exit 0; fi
-INPUT=$(cat)
+INPUT=$(timeout 3 cat 2>/dev/null || true); [[ -z "$INPUT" ]] && exit 0
 
 # Extract last_assistant_message and agent_id — bail if message empty
 LAST_MSG=$(printf '%s' "$INPUT" | python3 -c "

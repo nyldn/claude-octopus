@@ -9,7 +9,7 @@
 set -euo pipefail
 
 # Read JSON payload from stdin (required by hook protocol)
-INPUT=$(cat)
+INPUT=$(timeout 3 cat 2>/dev/null || true); [[ -z "$INPUT" ]] && INPUT='{}'
 
 # Build the enforcement context string with Iron Laws extracted from skills
 read -r -d '' CONTEXT <<'RULES' || true

@@ -6,13 +6,13 @@ Complete reference for all 39 Claude Octopus slash commands, plus activation rul
 
 ## Quick Reference
 
-All slash commands use the `/octo:` namespace. The smart router command is `/octo:octo`, and the plain-language trigger remains `octo ...`.
+All slash commands use the `/octo:` namespace. The smart router command is `/octo:auto`, and the plain-language trigger remains `octo ...`.
 
 ### Smart Router
 
 | Command | Description |
 |---------|-------------|
-| `/octo:octo` | Smart router — detects intent and routes to the right workflow |
+| `/octo:auto` | Smart router — detects intent and routes to the right workflow |
 
 ### System Commands
 
@@ -107,21 +107,21 @@ These are invoked via natural language or skill triggers — not slash commands.
 
 ## Smart Router
 
-### `/octo:octo`
+### `/octo:auto`
 
 Single entry point with natural language intent detection. Analyzes your request and routes to the optimal workflow automatically.
 
 **You can invoke the router in two ways:**
-- Slash command: `/octo:octo <request>`
+- Slash command: `/octo:auto <request>`
 - Plain language: `octo <request>`
 
 **Usage:**
 ```
-/octo:octo research OAuth authentication patterns
-/octo:octo build user authentication system
-/octo:octo validate src/auth.ts
-/octo:octo should we use Redis or Memcached?
-/octo:octo create a complete e-commerce platform
+/octo:auto research OAuth authentication patterns
+/octo:auto build user authentication system
+/octo:auto validate src/auth.ts
+/octo:auto should we use Redis or Memcached?
+/octo:auto create a complete e-commerce platform
 ```
 
 **Routing table:**
@@ -171,7 +171,7 @@ Providers:
   Codex CLI: ready
   Gemini CLI: ready
 
-You're all set! Try: /octo:octo research OAuth patterns
+You're all set! Try: /octo:auto research OAuth patterns
 ```
 
 **Troubleshooting:** If you see "Failed to update: Plugin 'octo' not found", run `/octo:setup` for reinstall instructions, or see [issue #17](https://github.com/nyldn/claude-octopus/issues/17).
@@ -744,7 +744,7 @@ Force multi-provider parallel execution for any task — manual override mode.
 
 **Cost:** Uses external API credits (Codex + Gemini). Confirms before running.
 
-**When to use:** High-stakes decisions, cross-checking important work, comparing model perspectives. For most tasks, the router (`/octo:octo` or `octo ...`) or specific workflow commands are better.
+**When to use:** High-stakes decisions, cross-checking important work, comparing model perspectives. For most tasks, the router (`/octo:auto` or `octo ...`) or specific workflow commands are better.
 
 ---
 

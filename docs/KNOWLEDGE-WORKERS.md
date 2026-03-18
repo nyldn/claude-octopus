@@ -21,7 +21,7 @@ For most Claude Code users, knowledge work should start from the plugin commands
 
 ```bash
 /octo:km on
-/octo:octo synthesize recent customer interviews
+/octo:auto synthesize recent customer interviews
 /octo:research competitive landscape for AI testing tools
 /octo:prd write a product brief for enterprise SSO onboarding
 /octo:spec turn this research into a delivery-ready specification
@@ -157,7 +157,7 @@ The `academic-writer` drafts the formal review.
 
 ## Specialized Knowledge Agents
 
-These agents power knowledge-oriented workflows. For most users, reach them through `/octo:km`, `/octo:octo`, `/octo:research`, `/octo:prd`, or `/octo:spec`. Advanced users can also call them directly with `./scripts/orchestrate.sh spawn <agent> "<prompt>"`.
+These agents power knowledge-oriented workflows. For most users, reach them through `/octo:km`, `/octo:auto`, `/octo:research`, `/octo:prd`, or `/octo:spec`. Advanced users can also call them directly with `./scripts/orchestrate.sh spawn <agent> "<prompt>"`.
 
 ### 🧠 ux-researcher
 - **Model**: `opus` (Maximum empathy and reasoning)

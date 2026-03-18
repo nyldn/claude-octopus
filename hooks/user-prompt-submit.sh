@@ -11,7 +11,7 @@ set -euo pipefail
 
 # Read hook input from stdin
 if [ -t 0 ]; then exit 0; fi
-INPUT=$(cat)
+INPUT=$(timeout 3 cat 2>/dev/null || true); [[ -z "$INPUT" ]] && exit 0
 
 # Extract the user's prompt text
 if ! command -v python3 &>/dev/null; then

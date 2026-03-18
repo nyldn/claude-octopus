@@ -181,3 +181,18 @@ secure_tempfile() {
     local prefix="${1:-tmp}"
     mktemp "${OCTOPUS_TMP_DIR:-/tmp}/${prefix}.XXXXXX"
 }
+
+# Guard against oversized output that could flood Claude's context window
+# If content exceeds 49KB, writes to a temp file and returns a pointer instead
+# Usage: guard_output "$content" "label"
+guard_output() {
+    local content="$1" label="${2:-output}" max_bytes=49000
+    if [[ ${#content} -gt $max_bytes ]]; then
+        local f; f=$(secure_tempfile "guard-${label}")
+        printf '%s\n' "$content" > "$f"
+        echo "[Output exceeded ${max_bytes} bytes. Full content at:]"
+        echo "@file:${f}"
+    else
+        printf '%s\n' "$content"
+    fi
+}

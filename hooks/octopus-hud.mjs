@@ -154,6 +154,15 @@ function buildStatusline(input, session) {
   // Context window
   const pct = Math.round(input?.context_window?.used_percentage || 0);
 
+  // Context bridge for agent awareness
+  try {
+    const bf = `/tmp/octopus-ctx-${process.env.CLAUDE_SESSION_ID||'unknown'}.json`;
+    writeFileSync(bf, JSON.stringify({
+      session_id: process.env.CLAUDE_SESSION_ID||'unknown',
+      used_pct: pct, remaining_pct: 100-pct, ts: Math.floor(Date.now()/1000)
+    })+'\n');
+  } catch {}
+
   // Cost
   const cost = input?.cost?.total_cost_usd ?? null;
 

@@ -6870,6 +6870,19 @@ score_result_file() {
     [[ $structure -gt 20 ]] && structure=20
     score=$((score + structure))
 
+    # Factor 5: Contract compliance (0-20 pts) — structured status markers from Output Contract
+    local contract=0
+    if grep -qE '\*\*Return status:\*\*|COMPLETE|BLOCKED|PARTIAL' <<< "$content" 2>/dev/null; then
+        contract=$((contract + 10))
+    fi
+    if grep -qE 'Key Findings|Findings|Root Cause|Threat Model|Architecture|Components Implemented|Tests Written|Documentation Content|Data Model|Performance Baselines|Architecture Design' <<< "$content" 2>/dev/null; then
+        contract=$((contract + 5))
+    fi
+    if grep -qE 'Confidence: \[?[0-9]' <<< "$content" 2>/dev/null; then
+        contract=$((contract + 5))
+    fi
+    score=$((score + contract))
+
     echo "$score"
 }
 
@@ -13642,6 +13655,7 @@ $(<"$raw_concat")"
             log INFO "Synthesized $result_count results to: $aggregate_file"
             echo ""
             echo -e "${GREEN}✓${NC} Results synthesized to: $aggregate_file"
+            guard_output "$(<"$aggregate_file")" "aggregate-synthesis"
             return
         fi
         log WARN "Synthesis failed, falling back to concatenation"
@@ -13660,6 +13674,7 @@ $(<"$raw_concat")"
     log INFO "Aggregated $result_count results to: $aggregate_file"
     echo ""
     echo -e "${GREEN}✓${NC} Results aggregated to: $aggregate_file"
+    guard_output "$(<"$aggregate_file")" "aggregate-concat"
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -17641,6 +17656,7 @@ EOF
     echo -e "${GREEN}✓${NC} Probe synthesis saved to: $synthesis_file"
     echo -e "${CYAN}♻️${NC}  Cached for 1 hour (reuse if prompt unchanged)"
     echo ""
+    guard_output "$(<"$synthesis_file")" "probe-synthesis"
 }
 
 # Phase 2: GRASP (Define) - Consensus building on approach
@@ -22472,6 +22488,82 @@ case "$COMMAND" in
     # ═══════════════════════════════════════════════════════════════════════════
     # HELP COMMANDS (v4.0 - Progressive disclosure)
     # ═══════════════════════════════════════════════════════════════════════════
+    init-workflow)
+        # v9.5.0: Compound initialization — returns full environment bundle as JSON
+        # Avoids N sequential Bash calls for providers, models, config, capabilities.
+        if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+            echo "Init Workflow — Return full environment bundle as JSON"
+            echo ""
+            echo "Usage: $(basename "$0") init-workflow [workflow]"
+            echo ""
+            echo "Returns JSON with providers, models, config, capabilities, and paths."
+            echo "Designed to be called once at workflow start to reduce sequential Bash calls."
+            exit 0
+        fi
+
+        _init_workflow="${1:-embrace}"
+        _init_ts=$(date +%s)
+
+        # Detect providers
+        _codex_ok="false"; command -v codex &>/dev/null && [[ -n "${OPENAI_API_KEY:-}" || -f "${HOME}/.codex/auth.json" ]] && _codex_ok="true"
+        _gemini_ok="false"; command -v gemini &>/dev/null && [[ -n "${GEMINI_API_KEY:-}" || -f "${HOME}/.gemini/oauth_creds.json" ]] && _gemini_ok="true"
+        _claude_ok="true"  # Always available
+        _perplexity_ok="false"; [[ -n "${PERPLEXITY_API_KEY:-}" ]] && _perplexity_ok="true"
+
+        # Model resolution for key roles
+        _model_researcher=$(get_agent_model "researcher" 2>/dev/null || echo "unknown")
+        _model_implementer=$(get_agent_model "implementer" 2>/dev/null || echo "unknown")
+        _model_reviewer=$(get_agent_model "reviewer" 2>/dev/null || echo "unknown")
+        _model_synthesizer=$(get_agent_model "synthesizer" 2>/dev/null || echo "unknown")
+
+        # Capabilities
+        _agent_teams="${SUPPORTS_AGENT_TEAMS:-false}"
+        _continuation="${SUPPORTS_CONTINUATION:-false}"
+        _worktree="${SUPPORTS_WORKTREE:-false}"
+
+        # Config files
+        _has_review_md="false"; [[ -f "REVIEW.md" ]] && _has_review_md="true"
+        _has_claude_md="false"; [[ -f "CLAUDE.md" ]] && _has_claude_md="true"
+        _has_octo_config="false"; [[ -f ".octo/config.json" ]] && _has_octo_config="true"
+
+        # Session
+        _session_file="${HOME}/.claude-octopus/session.json"
+        _has_session="false"; [[ -f "$_session_file" ]] && _has_session="true"
+
+        cat <<INIT_JSON
+{
+  "workflow": "$_init_workflow",
+  "providers": {
+    "codex": $_codex_ok,
+    "gemini": $_gemini_ok,
+    "claude": $_claude_ok,
+    "perplexity": $_perplexity_ok
+  },
+  "models": {
+    "researcher": "$_model_researcher",
+    "implementer": "$_model_implementer",
+    "reviewer": "$_model_reviewer",
+    "synthesizer": "$_model_synthesizer"
+  },
+  "capabilities": {
+    "agent_teams": $_agent_teams,
+    "continuation": $_continuation,
+    "worktree": $_worktree
+  },
+  "files": {
+    "review_md": $_has_review_md,
+    "claude_md": $_has_claude_md,
+    "octo_config": $_has_octo_config,
+    "session": $_has_session
+  },
+  "paths": {
+    "workspace": "${OCTOPUS_WORKSPACE:-${HOME}/.claude-octopus}",
+    "results": "${RESULTS_DIR:-${HOME}/.claude-octopus/results}"
+  },
+  "ts": $_init_ts
+}
+INIT_JSON
+        ;;
     help)
         usage "$@"
         ;;

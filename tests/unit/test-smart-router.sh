@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
-# Tests for /octo:octo smart router v2.0 — routing table integrity, priority ordering, and completeness
+# Tests for /octo:auto smart router v3.0 — routing table integrity, priority ordering, and completeness
+# (renamed from /octo:octo in v9.5.0; legacy octo.md is a redirect)
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-OCTO_MD="$PROJECT_ROOT/.claude/commands/octo.md"
+OCTO_MD="$PROJECT_ROOT/.claude/commands/auto.md"
+LEGACY_MD="$PROJECT_ROOT/.claude/commands/octo.md"
 COMMANDS_DIR="$PROJECT_ROOT/.claude/commands"
 SKILLS_DIR="$PROJECT_ROOT/.claude/skills"
 
@@ -16,11 +18,17 @@ assert_contains() {
   [[ $(grep -cE "$pattern" "$file") -gt 0 ]] && pass "$label" || fail "$label" "missing: $pattern"
 }
 
-# ── octo.md exists and has v2.0 metadata ──────────────────────────────────────
+# ── auto.md exists and has v3.0 metadata ──────────────────────────────────────
 
-[[ -f "$OCTO_MD" ]] && pass "octo.md exists" || fail "octo.md exists" "file not found"
-assert_contains "$OCTO_MD" "version: 2\\.0\\.0" "version is 2.0.0"
+[[ -f "$OCTO_MD" ]] && pass "auto.md exists" || fail "auto.md exists" "file not found"
+assert_contains "$OCTO_MD" "version: 3\\.0\\.0" "version is 3.0.0"
 assert_contains "$OCTO_MD" "updated: 2026" "updated date is current year"
+
+# ── legacy octo.md exists and redirects to auto ──────────────────────────────
+
+[[ -f "$LEGACY_MD" ]] && pass "legacy octo.md exists" || fail "legacy octo.md exists" "file not found"
+assert_contains "$LEGACY_MD" "Legacy.*Redirect" "legacy octo.md is a redirect"
+assert_contains "$LEGACY_MD" "octo:auto" "legacy octo.md references /octo:auto"
 
 # ── EXECUTION CONTRACT structure ──────────────────────────────────────────────
 

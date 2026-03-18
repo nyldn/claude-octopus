@@ -16,7 +16,7 @@
 set -euo pipefail
 
 # Read stdin once and store it
-input=$(cat)
+input=$(timeout 3 cat 2>/dev/null || true); [[ -z "$input" ]] && input='{}'
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HUD_MJS="${SCRIPT_DIR}/octopus-hud.mjs"
@@ -40,6 +40,12 @@ SESSION_FILE="${HOME}/.claude-octopus/session.json"
 # Extract statusline data
 MODEL=$(echo "$input" | jq -r '.model.display_name // "Claude"')
 PCT=$(echo "$input" | jq -r '.context_window.used_percentage // 0' | cut -d. -f1)
+
+# Context bridge for agent awareness
+_BRIDGE="/tmp/octopus-ctx-${CLAUDE_SESSION_ID:-unknown}.json"
+printf '{"session_id":"%s","used_pct":%s,"remaining_pct":%s,"ts":%s}\n' \
+    "${CLAUDE_SESSION_ID:-unknown}" "$PCT" "$((100-PCT))" "$(date +%s)" \
+    > "$_BRIDGE" 2>/dev/null || true
 COST=$(echo "$input" | jq -r '.cost.total_cost_usd // 0')
 
 # v8.35.0: Extract worktree info (Claude Code v2.1.69+ provides worktree field)
