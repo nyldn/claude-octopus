@@ -17,7 +17,9 @@ fail() { TEST_COUNT=$((TEST_COUNT+1)); FAIL_COUNT=$((FAIL_COUNT+1)); echo "FAIL:
 echo "── Group 1: Timeout fallback ──"
 
 # All 6 hooks must have the timeout fallback guard
-for hook in octopus-statusline.sh user-prompt-submit.sh subagent-result-capture.sh \
+# Hooks (not statusline) must have timeout guard — statusline doesn't need it
+# because Claude Code cancels in-flight statusline scripts on new updates
+for hook in user-prompt-submit.sh subagent-result-capture.sh \
             context-reinforcement.sh task-completion-checkpoint.sh; do
     if grep -q 'command -v timeout' "$HOOKS_DIR/$hook" 2>/dev/null; then
         pass "$hook has timeout availability check"
@@ -36,7 +38,7 @@ for hook in context-awareness.sh budget-gate.sh; do
 done
 
 # No hook should have bare 'timeout 3 cat' without the guard
-for hook in octopus-statusline.sh user-prompt-submit.sh subagent-result-capture.sh \
+for hook in user-prompt-submit.sh subagent-result-capture.sh \
             context-reinforcement.sh task-completion-checkpoint.sh; do
     # Count lines with 'timeout 3 cat' NOT preceded by 'if command -v timeout'
     unguarded=$(grep -n 'timeout 3 cat' "$HOOKS_DIR/$hook" 2>/dev/null | while read -r line; do
@@ -53,12 +55,27 @@ for hook in octopus-statusline.sh user-prompt-submit.sh subagent-result-capture.
     fi
 done
 
-# Statusline must have cat fallback (the else branch)
-if grep -A1 'command -v timeout' "$HOOKS_DIR/octopus-statusline.sh" | grep -q 'timeout 3 cat' && \
-   grep -q 'input=\$(cat 2>/dev/null' "$HOOKS_DIR/octopus-statusline.sh"; then
-    pass "octopus-statusline.sh has both timeout and cat fallback branches"
+# Statusline uses plain cat (Claude Code cancels in-flight scripts per official docs)
+if grep -q 'input=\$(cat 2>/dev/null' "$HOOKS_DIR/octopus-statusline.sh"; then
+    pass "octopus-statusline.sh uses plain cat (no timeout needed for statusline)"
 else
-    fail "octopus-statusline.sh has both timeout and cat fallback branches" "missing fallback"
+    fail "octopus-statusline.sh uses plain cat" "unexpected stdin pattern"
+fi
+
+# Statusline has Node version check before ESM delegation
+if grep -q 'NODE_MAJOR.*16' "$HOOKS_DIR/octopus-statusline.sh"; then
+    pass "octopus-statusline.sh checks Node >= 16 before HUD delegation"
+else
+    fail "octopus-statusline.sh checks Node >= 16 before HUD delegation" "missing version check"
+fi
+
+# Statusline has 3-tier fallback (Node → jq → pure bash)
+if grep -q 'TIER 1' "$HOOKS_DIR/octopus-statusline.sh" && \
+   grep -q 'TIER 2' "$HOOKS_DIR/octopus-statusline.sh" && \
+   grep -q 'TIER 3' "$HOOKS_DIR/octopus-statusline.sh"; then
+    pass "octopus-statusline.sh has 3-tier fallback (Node → jq → pure bash)"
+else
+    fail "octopus-statusline.sh has 3-tier fallback" "missing tier markers"
 fi
 
 # ═══════════════════════════════════════════════════════════════════════════════

@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "9.7.3",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v9.7.3) Security hardening: atomic credential writes, 10 timeout-guarded hooks, python injection fix, umask 0177 bridge files. Smart HUD with context-aware columns. 32 expert personas, 40 commands, 50 skills. Commands use '/octo:*', including the '/octo:auto' smart router. Run /octo:setup for guided setup.",
+  "version": "9.7.5",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v9.7.5) Auto-repair statusline version — SessionStart hook installs resolver so plugin updates never show stale version. 3-tier adaptive statusline, smart HUD. 32 expert personas, 40 commands, 50 skills. Commands use '/octo:*', including the '/octo:auto' smart router. Run /octo:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },

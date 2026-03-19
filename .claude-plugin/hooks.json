@@ -163,6 +163,11 @@
           "type": "command",
           "command": "${CLAUDE_PLUGIN_ROOT}/hooks/session-start-memory.sh",
           "additionalContext": "Restore persisted user preferences from auto-memory"
+        },
+        {
+          "type": "command",
+          "command": "${CLAUDE_PLUGIN_ROOT}/hooks/statusline-auto-repair.sh",
+          "timeout": 5
         }
       ]
     }

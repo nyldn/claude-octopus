@@ -1,134 +1,125 @@
 #!/usr/bin/env bash
-# Claude Octopus Statusline - Context & Cost Monitoring
-# Requires Claude Code v2.1.33+ (statusline API with context_window data)
+# Claude Octopus Statusline — 3-tier adaptive display
 # ═══════════════════════════════════════════════════════════════════════════════
 #
-# v8.5: Delegates to Node.js HUD (octopus-hud.mjs) when available for richer
-# display including agent tracking, quality gates, and provider indicators.
-# Falls back to bash implementation when Node.js is not available.
+# Tier 1: Node.js 16+ HUD (octopus-hud.mjs) — smart columns, OAuth API,
+#          agent tracking, Tailwind colors, configurable layout
+# Tier 2: Bash + jq — formatted statusline with context bar, cost, phase
+# Tier 3: Pure bash (grep/cut) — zero external deps, minimal display
 #
-# Displays: [Octopus] Phase: <phase> | Context: <pct>% | Cost: $<cost>
-# Changes color based on context window usage:
-#   Green  (<70%) - Safe
-#   Yellow (70-89%) - Warning
-#   Red    (>=90%) - Critical (auto-compaction imminent)
+# Claude Code cancels in-flight statusline scripts on new updates, so
+# timeout guards are unnecessary here (unlike hooks which need them).
+# See: https://code.claude.com/docs/en/statusline
 
 set -euo pipefail
 
-# Read stdin once and store it (use timeout if available, plain cat otherwise)
-if command -v timeout &>/dev/null; then
-    input=$(timeout 3 cat 2>/dev/null || true)
-else
-    input=$(cat 2>/dev/null || true)
-fi
+# Read stdin — Claude Code always closes the pipe, no timeout needed
+input=$(cat 2>/dev/null || true)
 [[ -z "$input" ]] && input='{}'
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HUD_MJS="${SCRIPT_DIR}/octopus-hud.mjs"
 
-# v8.5: Delegate to Node.js HUD if available
+# ═══════════════════════════════════════════════════════════════════════════════
+# TIER 1: Node.js HUD — requires Node 16+ (for node: protocol imports)
+# ═══════════════════════════════════════════════════════════════════════════════
+
 if command -v node &>/dev/null && [[ -f "$HUD_MJS" ]]; then
-    output=$(echo "$input" | node "$HUD_MJS" 2>/dev/null) || output=""
-    if [[ -n "$output" ]]; then
-        echo "$output"
-        exit 0
+    # Check Node version >= 16 (node: protocol imports require it)
+    NODE_MAJOR=$(node -e 'console.log(process.versions.node.split(".")[0])' 2>/dev/null) || NODE_MAJOR=0
+    if [[ "$NODE_MAJOR" -ge 16 ]]; then
+        output=$(echo "$input" | node "$HUD_MJS" 2>/dev/null) || output=""
+        if [[ -n "$output" ]]; then
+            echo "$output"
+            exit 0
+        fi
     fi
-    # Fall through to bash implementation if Node.js HUD returned empty
+    # Fall through to Tier 2/3 if Node too old or HUD returned empty
 fi
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# BASH FALLBACK - Original statusline implementation
+# TIER 2: Bash + jq — formatted statusline with colors and context bar
 # ═══════════════════════════════════════════════════════════════════════════════
 
-SESSION_FILE="${HOME}/.claude-octopus/session.json"
+if command -v jq &>/dev/null; then
+    SESSION_FILE="${HOME}/.claude-octopus/session.json"
 
-# Extract statusline data
-MODEL=$(echo "$input" | jq -r '.model.display_name // "Claude"')
-PCT=$(echo "$input" | jq -r '.context_window.used_percentage // 0' | cut -d. -f1)
+    MODEL=$(echo "$input" | jq -r '.model.display_name // "Claude"')
+    PCT=$(echo "$input" | jq -r '.context_window.used_percentage // 0' | cut -d. -f1)
 
-# Context bridge for agent awareness — extract session_id from stdin JSON
-_SESSION_ID=$(echo "$input" | jq -r '.session_id // empty' 2>/dev/null)
-_SESSION_ID="${_SESSION_ID:-${CLAUDE_SESSION_ID:-unknown}}"
-_BRIDGE="/tmp/octopus-ctx-${_SESSION_ID}.json"
-(umask 0177; printf '{"session_id":"%s","used_pct":%s,"remaining_pct":%s,"ts":%s}\n' \
-    "$_SESSION_ID" "$PCT" "$((100-PCT))" "$(date +%s)" \
-    > "$_BRIDGE") 2>/dev/null || true
-COST=$(echo "$input" | jq -r '.cost.total_cost_usd // 0')
+    # Context bridge for cross-hook awareness
+    _SESSION_ID=$(echo "$input" | jq -r '.session_id // empty' 2>/dev/null)
+    _SESSION_ID="${_SESSION_ID:-${CLAUDE_SESSION_ID:-unknown}}"
+    _BRIDGE="/tmp/octopus-ctx-${_SESSION_ID}.json"
+    (umask 0177; printf '{"session_id":"%s","used_pct":%s,"remaining_pct":%s,"ts":%s}\n' \
+        "$_SESSION_ID" "$PCT" "$((100-PCT))" "$(date +%s)" \
+        > "$_BRIDGE") 2>/dev/null || true
 
-# v8.35.0: Extract worktree info (Claude Code v2.1.69+ provides worktree field)
-WORKTREE=$(echo "$input" | jq -r '.worktree // empty' 2>/dev/null)
-WORKTREE_BRANCH=""
-if [[ -n "$WORKTREE" && "$WORKTREE" != "null" ]]; then
-    # Extract branch name from worktree path (last component)
-    WORKTREE_BRANCH=$(basename "$WORKTREE" 2>/dev/null)
-fi
+    COST=$(echo "$input" | jq -r '.cost.total_cost_usd // 0')
 
-# Colors
-GREEN='\033[32m'
-YELLOW='\033[33m'
-RED='\033[31m'
-CYAN='\033[36m'
-RESET='\033[0m'
+    # Worktree branch
+    WORKTREE=$(echo "$input" | jq -r '.worktree.branch // empty' 2>/dev/null)
 
-# Pick color based on context usage
-if [ "$PCT" -ge 90 ]; then
-    BAR_COLOR="$RED"
-elif [ "$PCT" -ge 70 ]; then
-    BAR_COLOR="$YELLOW"
-else
-    BAR_COLOR="$GREEN"
-fi
+    # Colors
+    GREEN='\033[32m'; YELLOW='\033[33m'; RED='\033[31m'
+    CYAN='\033[36m'; RESET='\033[0m'
 
-# Build context bar (v9.6.0: gradient chars ▰▱)
-BAR_WIDTH=10
-FILLED=$((PCT * BAR_WIDTH / 100))
-EMPTY=$((BAR_WIDTH - FILLED))
-BAR=""
-[ "$FILLED" -gt 0 ] && BAR=$(printf "%${FILLED}s" | tr ' ' '▰')
-[ "$EMPTY" -gt 0 ] && BAR="${BAR}$(printf "%${EMPTY}s" | tr ' ' '▱')"
+    if [ "$PCT" -ge 90 ]; then BAR_COLOR="$RED"
+    elif [ "$PCT" -ge 70 ]; then BAR_COLOR="$YELLOW"
+    else BAR_COLOR="$GREEN"; fi
 
-# v9.6.0: Auto-compact warning prefix
-WARN_PREFIX=""
-if [ "$PCT" -ge 90 ]; then
-    WARN_PREFIX="💀 "
-elif [ "$PCT" -ge 80 ]; then
-    WARN_PREFIX="⚠️ "
-fi
+    # Context bar
+    BAR_WIDTH=10
+    FILLED=$((PCT * BAR_WIDTH / 100))
+    EMPTY=$((BAR_WIDTH - FILLED))
+    BAR=""
+    [ "$FILLED" -gt 0 ] && BAR=$(printf "%${FILLED}s" | tr ' ' '▰')
+    [ "$EMPTY" -gt 0 ] && BAR="${BAR}$(printf "%${EMPTY}s" | tr ' ' '▱')"
 
-# Format cost
-COST_FMT=$(printf '$%.2f' "$COST")
+    WARN_PREFIX=""
+    [ "$PCT" -ge 90 ] && WARN_PREFIX="💀 "
+    [ "$PCT" -ge 80 ] && [ "$PCT" -lt 90 ] && WARN_PREFIX="⚠️ "
 
-# Get active phase from session file (if workflow is running)
-PHASE=""
-if [[ -f "$SESSION_FILE" ]] && command -v jq &>/dev/null; then
-    PHASE=$(jq -r '.current_phase // .phase // empty' "$SESSION_FILE" 2>/dev/null)
-fi
-
-if [[ -n "$PHASE" && "$PHASE" != "null" ]]; then
-    # Active workflow - show phase info
-    PHASE_EMOJI=""
-    case "$PHASE" in
-        probe)    PHASE_EMOJI="🔍" ;;
-        grasp)    PHASE_EMOJI="🎯" ;;
-        tangle)   PHASE_EMOJI="🛠️" ;;
-        ink)      PHASE_EMOJI="✅" ;;
-        complete) PHASE_EMOJI="🐙" ;;
-        *)        PHASE_EMOJI="🐙" ;;
-    esac
-
-    # v8.35.0: Append worktree branch when running in isolation
+    COST_FMT=$(printf '$%.2f' "$COST")
     wt_suffix=""
-    if [[ -n "$WORKTREE_BRANCH" ]]; then
-        wt_suffix=" | 🌿 ${WORKTREE_BRANCH}"
+    [[ -n "$WORKTREE" && "$WORKTREE" != "null" ]] && wt_suffix=" | 🌿 ${WORKTREE}"
+
+    # Check for active workflow phase
+    PHASE=""
+    if [[ -f "$SESSION_FILE" ]]; then
+        PHASE=$(jq -r '.current_phase // .phase // empty' "$SESSION_FILE" 2>/dev/null) || PHASE=""
     fi
 
-    echo -e "${CYAN}[🐙 Octopus]${RESET} ${PHASE_EMOJI} ${PHASE} | ${WARN_PREFIX}${BAR_COLOR}${BAR}${RESET} ${PCT}% | ${YELLOW}${COST_FMT}${RESET}${wt_suffix}"
-else
-    # No active workflow - compact display
-    wt_suffix=""
-    if [[ -n "$WORKTREE_BRANCH" ]]; then
-        wt_suffix=" | 🌿 ${WORKTREE_BRANCH}"
+    if [[ -n "$PHASE" && "$PHASE" != "null" ]]; then
+        PHASE_EMOJI="🐙"
+        case "$PHASE" in
+            probe) PHASE_EMOJI="🔍" ;; grasp) PHASE_EMOJI="🎯" ;;
+            tangle) PHASE_EMOJI="🛠️" ;; ink) PHASE_EMOJI="✅" ;;
+        esac
+        echo -e "${CYAN}[🐙 Octopus]${RESET} ${PHASE_EMOJI} ${PHASE} | ${WARN_PREFIX}${BAR_COLOR}${BAR}${RESET} ${PCT}% | ${YELLOW}${COST_FMT}${RESET}${wt_suffix}"
+    else
+        echo -e "${CYAN}[🐙]${RESET} ${WARN_PREFIX}${BAR_COLOR}${BAR}${RESET} ${PCT}% | ${YELLOW}${COST_FMT}${RESET}${wt_suffix}"
     fi
-
-    echo -e "${CYAN}[🐙]${RESET} ${WARN_PREFIX}${BAR_COLOR}${BAR}${RESET} ${PCT}% | ${YELLOW}${COST_FMT}${RESET}${wt_suffix}"
+    exit 0
 fi
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TIER 3: Pure bash — zero external deps (no jq, no node, no python)
+# Uses grep/cut to extract JSON fields. Fragile but works everywhere.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Extract fields with grep/cut (handles simple JSON, not nested arrays)
+_json_val() {
+    echo "$input" | grep -o "\"$1\"[[:space:]]*:[[:space:]]*\"[^\"]*\"" | head -1 | cut -d'"' -f4
+}
+_json_num() {
+    echo "$input" | grep -o "\"$1\"[[:space:]]*:[[:space:]]*[0-9.]*" | head -1 | grep -o '[0-9.]*$'
+}
+
+MODEL=$(_json_val "display_name")
+[[ -z "$MODEL" ]] && MODEL="Claude"
+PCT=$(_json_num "used_percentage")
+[[ -z "$PCT" ]] && PCT=0
+PCT=${PCT%%.*}  # truncate decimal
+
+echo "[🐙 $MODEL] ${PCT}% context"

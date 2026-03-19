@@ -11,8 +11,8 @@
     {
       "name": "octo",
       "source": "./",
-      "description": "v9.7.3 - Security hardening: atomic credential writes, python injection fix, /tmp glob removal, 10 hooks with timeout guards, umask 0177 bridge files. Smart HUD, Octo brand column. 32 personas, 40 commands, 50 skills. Run /octo:setup.",
-      "version": "9.7.3",
+      "description": "v9.7.5 - Auto-repair statusline version on plugin updates. Resolver wrapper + SessionStart hook. 3-tier adaptive HUD, 32 personas, 40 commands, 50 skills. Run /octo:setup.",
+      "version": "9.7.5",
       "author": {
         "name": "nyldn"
       },

@@ -9,9 +9,25 @@ aliases:
 
 This command checks your current setup and provides instructions for any missing dependencies.
 
-## Auto-Detection
+## Dependency Check
 
-Running setup detection...
+First, check all software dependencies (CLIs, statusline, recommended plugins):
+
+```bash
+bash ${CLAUDE_PLUGIN_ROOT}/scripts/install-deps.sh check
+```
+
+If dependencies are missing, install them:
+
+```bash
+bash ${CLAUDE_PLUGIN_ROOT}/scripts/install-deps.sh install
+```
+
+**Note:** Plugin installs (claude-mem, document-skills) can't be auto-installed via script. The install command above will print `/plugin install` commands — copy and paste them to install.
+
+## Provider Detection
+
+Running provider detection...
 
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh detect-providers

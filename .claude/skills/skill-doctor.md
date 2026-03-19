@@ -69,7 +69,23 @@ cd "${CLAUDE_PLUGIN_ROOT}" && bash scripts/orchestrate.sh doctor agents
 cd "${CLAUDE_PLUGIN_ROOT}" && bash scripts/orchestrate.sh doctor recurrence
 ```
 
-### Step 3: Verbose or JSON Output
+### Step 3: Check & Install Dependencies
+
+Run the dependency checker to find missing CLIs, statusline config, and recommended plugins:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/install-deps.sh" check
+```
+
+If the check reports missing deps, offer to install them:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/install-deps.sh" install
+```
+
+This auto-installs: Codex CLI, Gemini CLI, jq, and the statusline resolver. For plugins (claude-mem, document-skills), it prints `/plugin install` commands the user must run manually.
+
+### Step 4: Verbose or JSON Output
 
 ```bash
 # Detailed output for troubleshooting
@@ -99,6 +115,7 @@ cd "${CLAUDE_PLUGIN_ROOT}" && bash scripts/orchestrate.sh doctor auth --verbose
 | `conflicts` | Conflicting plugins detection |
 | `agents` | Agent definitions, worktree isolation, CLI registration, version compatibility |
 | `recurrence` | Failure pattern detection — flags repeated quality gate failures, source hotspots, 48h trends |
+| `deps` | Software dependencies — Node.js, jq, Codex/Gemini CLIs, statusline resolver, recommended plugins |
 
 ---
 
