@@ -38,6 +38,12 @@ opencli_desktop(app: "system", action: "active-window")
 - Combine with `skill-opencli-research` for live URL exploration
 - Use in `flow-deliver` for visual regression checking
 
+## Safety
+
+- **NEVER close tabs, clear data, or terminate apps without asking user confirmation first**
+- Always verify target app exists before interacting
+- Verify Browser Bridge is connected before any desktop action
+
 ## Error Recovery
 
 | Error | Fix |

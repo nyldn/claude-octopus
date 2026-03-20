@@ -23,12 +23,44 @@ Never assume OpenCLI is available. Always verify connectivity before executing. 
 - Trending topic aggregation across platforms
 - Live URL content extraction and analysis
 - Multi-platform research combining several sources
-- Desktop application interaction via Browser Bridge
 
 **Do NOT use for:**
 - Static documentation lookup (use web search or context7)
 - Codebase-specific research (use `flow-discover`)
 - Historical data analysis (OpenCLI provides live/recent data only)
+- Desktop app interaction (use `skill-opencli-desktop`)
+
+---
+
+## ⚠️ EXECUTION CONTRACT (MANDATORY)
+
+Before executing ANY OpenCLI action, you MUST complete these blocking steps:
+
+### STEP 1: Verify OpenCLI Installation (BLOCKING)
+
+```bash
+command -v opencli &>/dev/null && echo "✅ OpenCLI installed" || { echo "❌ OpenCLI not found — install with: npm install -g @jackwener/opencli"; exit 1; }
+```
+
+**If not installed → STOP.** Tell user to install first.
+
+### STEP 2: Check OpenCLI Status (BLOCKING)
+
+```bash
+# Via MCP tool
+opencli_status()
+
+# Or via bridge
+${CLAUDE_PLUGIN_ROOT}/scripts/opencli-bridge.sh status
+```
+
+**If daemon not running → STOP.** Tell user to run `opencli daemon start`.
+
+### STEP 3: Execute Action
+
+Only proceed to actions below after Steps 1-2 pass.
+
+**DO NOT skip Steps 1-2. DO NOT substitute with direct web search if OpenCLI unavailable.**
 
 ---
 
@@ -36,21 +68,8 @@ Never assume OpenCLI is available. Always verify connectivity before executing. 
 
 1. **OpenCLI installed**: `npm install -g @jackwener/opencli`
 2. **OpenCLI setup complete**: `opencli setup` (creates config, tests connectivity)
-3. **Browser Bridge extension** installed in Chrome (for `desktop` and `explore` actions)
+3. **Browser Bridge extension** installed in Chrome (for `explore` action)
 4. **Chrome running** (required for Browser Bridge features)
-
-### Quick Verification
-
-```bash
-# Check OpenCLI is installed
-command -v opencli &>/dev/null && echo "✅ OpenCLI installed" || echo "❌ OpenCLI not found"
-
-# Check version
-opencli --version
-
-# Check daemon status
-opencli status
-```
 
 ---
 
@@ -212,6 +231,8 @@ opencli_search(platform: "reddit", query: "React vs Vue 2026 experience reports"
 
 ### Example 1: Research a Technology Trend
 
+> **Note:** Example output below uses placeholder data — actual results come from live OpenCLI queries.
+
 ```
 User: What are people saying about Claude MCP on Twitter and HN?
 
@@ -224,15 +245,15 @@ Claude:
 # Real-Time Findings: Claude MCP
 
 ## Twitter Buzz (last 24h)
-- 142 mentions, mostly positive
-- Key themes: tool integration, custom servers, plugin ecosystem
+- [N] mentions, sentiment: [positive/mixed/negative]
+- Key themes: [extracted from live data]
 
 ## Hacker News Discussion
-- 3 active threads on front page
-- Top comment highlights security concerns with arbitrary tool execution
+- [N] active threads
+- Top discussion point: [extracted from live data]
 
 ## Synthesis
-The community reception is enthusiastic but security-conscious...
+[Synthesis based on actual retrieved data, not fabricated]
 ```
 
 ### Example 2: URL Deep Dive

@@ -16,6 +16,32 @@ Never assume Browser Bridge is connected. Always verify the target application e
 
 ---
 
+## ⚠️ EXECUTION CONTRACT (MANDATORY)
+
+Before executing ANY desktop action, you MUST complete these blocking steps:
+
+### STEP 1: Verify Browser Bridge (BLOCKING)
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/scripts/opencli-bridge.sh status
+# Verify "browser_bridge": "connected" in output
+```
+
+**If Browser Bridge not connected → STOP.** Tell user to install Chrome extension and launch Chrome.
+
+### STEP 2: Confirm Destructive Actions (BLOCKING)
+
+For any action that closes, clears, or terminates:
+- **ALWAYS ask user for explicit confirmation before executing**
+- Show what will be affected
+- Never auto-execute destructive operations
+
+### STEP 3: Execute Action
+
+Only proceed after Steps 1-2 pass.
+
+---
+
 ## When to Use
 
 **Use this skill for:**
