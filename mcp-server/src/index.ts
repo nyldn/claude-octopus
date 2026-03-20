@@ -415,7 +415,9 @@ async function runOpencliBridge(
     return { text: stdout || stderr || "Command completed with no output.", isError: false };
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
-    return { text: `Error executing opencli-bridge ${action}: ${msg}`, isError: true };
+    // Sanitize potential API key leaks from error messages
+    const sanitized = msg.replace(/[A-Za-z_]+KEY=[^\s]+/g, "[REDACTED]");
+    return { text: `Error executing opencli-bridge ${action}: ${sanitized}`, isError: true };
   }
 }
 
@@ -469,7 +471,7 @@ server.tool(
   "opencli_explore",
   "Discover APIs and capabilities of any website using OpenCLI's AI-powered exploration.",
   {
-    url: z.string().describe("URL to explore (e.g., https://example.com)"),
+    url: z.string().url().describe("URL to explore (e.g., https://example.com)"),
   },
   async ({ url }) => {
     const { text, isError } = await runOpencliBridge("explore", [url]);

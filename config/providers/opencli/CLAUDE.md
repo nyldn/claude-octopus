@@ -96,4 +96,4 @@ OpenCLI is used in:
 
 - Node.js >= 20.0.0
 - Chrome running with Browser Bridge extension installed
-- `npm install -g opencli` (auto-installed by bridge script if missing)
+- `npm install -g opencli`

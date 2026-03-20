@@ -117,16 +117,19 @@ action_list() {
 action_status() {
     log_info "Checking opencli status"
     if check_opencli; then
-        local version
+        local version daemon_status bridge_status
         version=$(opencli --version 2>/dev/null || echo "unknown")
-        echo "{\"status\": \"available\", \"version\": \"$version\"}"
         
         # Check daemon status
         if curl -s --max-time 2 localhost:19825/status &>/dev/null; then
-            echo "{\"daemon\": \"running\", \"browser_bridge\": \"connected\"}"
+            daemon_status="running"
+            bridge_status="connected"
         else
-            echo "{\"daemon\": \"not running\", \"browser_bridge\": \"disconnected\"}"
+            daemon_status="not running"
+            bridge_status="disconnected"
         fi
+        
+        echo "{\"status\": \"available\", \"version\": \"$version\", \"daemon\": \"$daemon_status\", \"browser_bridge\": \"$bridge_status\"}"
     else
         echo "{\"status\": \"not installed\"}"
         return 1
@@ -161,14 +164,21 @@ action_multi_search() {
     fi
 
     log_info "Multi-platform search for: $query"
-    echo "{"
-    local first=true
+    
+    # Build valid JSON using jq to handle escaping properly
+    local result="{}"
     for platform in "${platforms[@]}"; do
-        if [[ "$first" != "true" ]]; then echo ","; fi
-        first=false
-        echo "  \"$platform\": $(action_search "$platform" "$query" 2>/dev/null || echo '{"error": "failed"}')"
+        local platform_result
+        platform_result=$(action_search "$platform" "$query" 2>/dev/null) || platform_result='{"error": "failed"}'
+        if command -v jq &>/dev/null; then
+            result=$(echo "$result" | jq --arg k "$platform" --argjson v "$platform_result" '. + {($k): $v}' 2>/dev/null) || \
+            result=$(echo "$result" | jq --arg k "$platform" --arg v "$platform_result" '. + {($k): $v}')
+        else
+            # Fallback: best-effort inline (no jq)
+            result="$platform_result"
+        fi
     done
-    echo "}"
+    echo "$result"
 }
 
 action_multi_trending() {
@@ -179,14 +189,19 @@ action_multi_trending() {
     fi
 
     log_info "Multi-platform trending"
-    echo "{"
-    local first=true
+    
+    local result="{}"
     for platform in "${platforms[@]}"; do
-        if [[ "$first" != "true" ]]; then echo ","; fi
-        first=false
-        echo "  \"$platform\": $(action_trending "$platform" 2>/dev/null || echo '{"error": "failed"}')"
+        local platform_result
+        platform_result=$(action_trending "$platform" 2>/dev/null) || platform_result='{"error": "failed"}'
+        if command -v jq &>/dev/null; then
+            result=$(echo "$result" | jq --arg k "$platform" --argjson v "$platform_result" '. + {($k): $v}' 2>/dev/null) || \
+            result=$(echo "$result" | jq --arg k "$platform" --arg v "$platform_result" '. + {($k): $v}')
+        else
+            result="$platform_result"
+        fi
     done
-    echo "}"
+    echo "$result"
 }
 
 # ── Main Dispatch ────────────────────────────────────────────────────
