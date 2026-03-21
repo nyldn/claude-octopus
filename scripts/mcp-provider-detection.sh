@@ -48,6 +48,13 @@ detect_provider_mcp() {
                 return 0
             fi
             ;;
+        copilot)
+            # v9.8.0: GitHub Copilot uses gh CLI auth, not MCP
+            if mcp list 2>/dev/null | grep -q "copilot"; then
+                echo "available"
+                return 0
+            fi
+            ;;
     esac
 
     echo "unavailable"
@@ -78,6 +85,22 @@ detect_provider_cli() {
                 return 0
             fi
             ;;
+        copilot)
+            # v9.8.0: GitHub Copilot uses gh CLI + Copilot subscription (Issue #198)
+            # Check gh CLI is installed and authenticated
+            if command -v gh &>/dev/null && gh auth status &>/dev/null 2>&1; then
+                # Check if gh copilot extension is installed
+                if gh extension list 2>/dev/null | grep -q "github/gh-copilot\|copilot"; then
+                    echo "available"
+                    return 0
+                fi
+                # Fallback: check if GITHUB_TOKEN or GH_TOKEN set (API key mode)
+                if [[ -n "${GITHUB_TOKEN:-}" || -n "${GH_TOKEN:-}" ]]; then
+                    echo "available"
+                    return 0
+                fi
+            fi
+            ;;
         claude)
             # Claude is always available in Claude Code
             echo "available"
@@ -93,7 +116,7 @@ detect_provider_cli() {
 detect_all_providers() {
     local use_mcp="${1:-auto}"
 
-    local codex_status gemini_status perplexity_status claude_status
+    local codex_status gemini_status perplexity_status copilot_status claude_status
 
     # Determine detection method
     local use_mcp_method="false"
@@ -110,10 +133,12 @@ detect_all_providers() {
         codex_status=$(detect_provider_mcp "codex") || true
         gemini_status=$(detect_provider_mcp "gemini") || true
         perplexity_status=$(detect_provider_mcp "perplexity") || true
+        copilot_status=$(detect_provider_mcp "copilot") || true
     else
         codex_status=$(detect_provider_cli "codex") || true
         gemini_status=$(detect_provider_cli "gemini") || true
         perplexity_status=$(detect_provider_cli "perplexity") || true
+        copilot_status=$(detect_provider_cli "copilot") || true
     fi
     claude_status="available"  # Always available
 
@@ -134,6 +159,10 @@ detect_all_providers() {
       "status": "$perplexity_status",
       "emoji": "🟣"
     },
+    "copilot": {
+      "status": "$copilot_status",
+      "emoji": "🟢"
+    },
     "claude": {
       "status": "$claude_status",
       "emoji": "🔵"
@@ -150,11 +179,13 @@ get_provider_banner() {
     local codex_status=$(echo "$json_output" | jq -r '.providers.codex.status')
     local gemini_status=$(echo "$json_output" | jq -r '.providers.gemini.status')
     local perplexity_status=$(echo "$json_output" | jq -r '.providers.perplexity.status')
+    local copilot_status=$(echo "$json_output" | jq -r '.providers.copilot.status')
     local claude_status=$(echo "$json_output" | jq -r '.providers.claude.status')
 
     local codex_display="🔴 Codex CLI: "
     local gemini_display="🟡 Gemini CLI: "
     local perplexity_display="🟣 Perplexity: "
+    local copilot_display="🟢 GitHub Copilot: "
     local claude_display="🔵 Claude: "
 
     if [[ "$codex_status" == "available" ]]; then
@@ -175,11 +206,18 @@ get_provider_banner() {
         perplexity_display="${perplexity_display}Not configured ✗"
     fi
 
+    if [[ "$copilot_status" == "available" ]]; then
+        copilot_display="${copilot_display}Available ✓"
+    else
+        copilot_display="${copilot_display}Not configured ✗"
+    fi
+
     claude_display="${claude_display}Available ✓"
 
     echo "$codex_display"
     echo "$gemini_display"
     echo "$perplexity_display"
+    echo "$copilot_display"
     echo "$claude_display"
 }
 
@@ -245,7 +283,7 @@ Commands:
   check PROVIDER [METHOD]  Check if provider is available (exit code)
   has-mcp                  Check if MCP support is available
 
-Providers: codex, gemini, perplexity, claude
+Providers: codex, gemini, perplexity, copilot, claude
 
 EOF
         exit 1

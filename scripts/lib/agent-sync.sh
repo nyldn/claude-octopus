@@ -139,6 +139,7 @@ ${earned_skills_ctx}"
         claude*)     _provider_for_health="claude" ;;
         openrouter*) _provider_for_health="openrouter" ;;
         perplexity*) _provider_for_health="perplexity" ;;
+        copilot*)    _provider_for_health="copilot" ;;
     esac
     if [[ -n "$_provider_for_health" ]]; then
         local _health_diag
@@ -196,7 +197,7 @@ ${earned_skills_ctx}"
     fi
 
     # v8.7.0: Wrap external CLI output with trust markers
-    case "$agent_type" in codex*|gemini*|perplexity*)
+    case "$agent_type" in codex*|gemini*|perplexity*|copilot*)
         output=$(wrap_cli_output "$agent_type" "$output") ;; esac
 
     # Check if output is suspiciously empty or placeholder

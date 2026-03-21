@@ -192,7 +192,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
         ' "$temp_output" >> "$result_file"
 
         # Trust marker for external CLI output
-        case "$agent_type" in codex*|gemini*|perplexity*)
+        case "$agent_type" in codex*|gemini*|perplexity*|copilot*)
             if [[ "${OCTOPUS_SECURITY_V870:-true}" == "true" ]]; then
                 sed -i.bak '1s/^/<!-- trust=untrusted provider='"$agent_type"' -->\n/' "$result_file" 2>/dev/null || true
                 rm -f "${result_file}.bak"
@@ -382,6 +382,17 @@ ${_blind_spot_checklist}"
         pane_titles+=("🟣 Web Research")
         probe_agents+=("perplexity")
         log INFO "Perplexity API key detected - adding web-grounded research agent"
+    fi
+
+    # v9.8.0: GitHub Copilot implementation perspective (Issue #198)
+    # Adds a code-focused implementation perspective when gh CLI + Copilot is available
+    if command -v gh &>/dev/null && gh auth status &>/dev/null 2>&1; then
+        if gh extension list 2>/dev/null | grep -q copilot || [[ -n "${GH_TOKEN:-}" || -n "${GITHUB_TOKEN:-}" ]]; then
+            perspectives+=("Analyze implementation patterns for: $prompt. Focus on concrete code patterns, API design, library recommendations, and practical implementation steps. Provide code examples where helpful.")
+            pane_titles+=("🟢 Implementation")
+            probe_agents+=("copilot-code")
+            log INFO "GitHub Copilot detected - adding implementation perspective agent"
+        fi
     fi
 
     # Initialize progress tracking with actual agent count (dynamic, may be 5, 6, or 7)

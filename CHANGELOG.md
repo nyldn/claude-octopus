@@ -1,3 +1,29 @@
+## [9.8.0] - 2026-03-21
+
+### Added
+
+- **GitHub Copilot as 6th AI provider** (🟢, Issue #198): Full first-class integration of GitHub Copilot alongside Codex, Gemini, Perplexity, Claude, and OpenRouter.
+  - New agent types: `copilot`, `copilot-code`, `copilot-research`, `copilot-fast`
+  - **Role-based dynamic model selection**: GPT for code/implementation, Claude for research/planning, Gemini for refactor/review — with automatic org-policy fallback. No hardcoded models; selection adapts to what the organization allows.
+  - **Org policy fallback**: HTTP 400/403/404 (model restricted by org admin) automatically tries next preference; exhausts all options before failing.
+  - **Token exchange**: `gh auth token` → `https://api.github.com/copilot_internal/v2/token` with 90-minute caching (token file pre-created with `umask 177` to eliminate TOCTOU race condition).
+  - **probe_discover() integration**: Copilot auto-injected as implementation-focused perspective when `gh CLI` + auth + extension/token is detected.
+  - **Detection**: `detect_providers()`, `check_provider_health()`, `auto_detect_provider_config()`, `mcp-provider-detection.sh` all updated with copilot support.
+  - **Cost tier**: `bundled` — no per-token charges (included in GitHub Copilot subscription).
+  - **Security**: trust markers (`codex*|gemini*|perplexity*|copilot*`) applied at all dispatch sites; env isolation passes only `GH_TOKEN`/`GITHUB_TOKEN`; command whitelist in `lib/utils.sh`.
+  - `config/providers/copilot/CLAUDE.md` — provider documentation with role-model table, auth setup, cost info, org policy handling.
+  - `tests/test-v9.8.0-copilot-integration.sh` — 81 tests across 15 suites.
+
+### Fixed
+
+- **Trust markers** now include `copilot*` at all dispatch sites.
+- **Token cache race condition**: `_copilot_get_token()` pre-creates cache file with `umask 177` before writing.
+- **429 rate limit**: Now tries next model in preference list instead of failing immediately.
+- **`find_capable_fallback()`**: Added `copilot` provider case.
+- **Role-based routing in dispatch chain**: `resolve_octopus_model()` Tier 7 now has explicit cases for `copilot-code` and `copilot-research` before the `copilot*` wildcard — previously all non-fast copilot types resolved to `copilot-premium`, silently breaking role-based model selection. Regression test in Suite 10b.
+
+---
+
 ## [9.7.8] - 2026-03-21
 
 ### Fixed

@@ -16,6 +16,7 @@ When executing Claude Octopus workflows, you MUST display visual indicators so u
 | 🔴 | Codex CLI executing | User's OPENAI_API_KEY |
 | 🟡 | Gemini CLI executing | User's GEMINI_API_KEY |
 | 🟣 | Perplexity Sonar web search | User's PERPLEXITY_API_KEY |
+| 🟢 | GitHub Copilot executing | GitHub Copilot subscription (bundled) |
 | 🔵 | Claude subagent processing | Included with Claude Code |
 
 ### When to Display Indicators
@@ -198,6 +199,7 @@ Before running workflows, check provider availability:
 - Codex CLI: `command -v codex` or check for OPENAI_API_KEY
 - Gemini CLI: `command -v gemini` or check for GEMINI_API_KEY
 - Perplexity: check for PERPLEXITY_API_KEY (API-only, no CLI needed)
+- GitHub Copilot: `gh auth status` + `gh extension list | grep copilot` or check for GH_TOKEN/GITHUB_TOKEN
 
 If a provider is unavailable, note it in the banner:
 ```
@@ -215,6 +217,7 @@ Always be mindful that external CLIs cost money:
 - 🔴 Codex: ~$0.01-0.15 per query depending on model (GPT-5.4 $2.50/$15 MTok, GPT-5.3-Codex $1.75/$14, Mini $0.25/$2.00 MTok)
 - 🟡 Gemini: ~$0.01-0.03 per query (Gemini Pro)
 - 🟣 Perplexity: ~$0.01-0.05 per query (Sonar Pro $3/$15 MTok, Sonar $1/$1 MTok)
+- 🟢 GitHub Copilot: Bundled with subscription (Individual $10/mo, Business $19/user/mo, Enterprise $39/user/mo) — no per-token billing; premium models (Claude, o1) use quota
 - 🔵 Claude (Sonnet 4.6): Included with Claude Code subscription
 - 🔵 Claude (Opus 4.6): $5/$25 per MTok input/output when using `claude-opus` agent type
 - 🔵 Claude (Opus 4.6 Fast): **$30/$150 per MTok** (6x standard) - lower latency, extra-usage billing (v2.1.36+)

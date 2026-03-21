@@ -45,6 +45,10 @@ get_model_catalog() {
         # Perplexity
         sonar-pro)              echo "128|no|no|no|perplexity|standard|active" ;;
         sonar)                  echo "128|no|no|no|perplexity|budget|active" ;;
+        # GitHub Copilot (v9.8.0 - Issue #198)
+        # Models accessed via GitHub Copilot API (bundled with subscription)
+        copilot-premium)        echo "128|yes|yes|no|copilot|premium|active" ;;  # gpt-4.1 via Copilot
+        copilot-fast)           echo "128|yes|no|yes|copilot|budget|active" ;;   # o3-mini via Copilot
         # Unknown
         *)                      echo "128|yes|no|no|unknown|standard|unknown" ;;
     esac
@@ -104,6 +108,7 @@ list_models() {
         claude-sonnet-4.6 claude-opus-4.6 claude-opus-4.6-fast
         z-ai/glm-5 moonshotai/kimi-k2.5 deepseek/deepseek-r1
         sonar-pro sonar
+        copilot-premium copilot-fast
     )
 
     for model in "${all_models[@]}"; do

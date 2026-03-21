@@ -160,6 +160,10 @@ resolve_octopus_model() {
             claude*)         resolved_model="claude-sonnet-4.6" ;;
             perplexity-fast)  resolved_model="sonar" ;;
             perplexity*)       resolved_model="sonar-pro" ;;
+            copilot-fast)      resolved_model="copilot-fast" ;;
+            copilot-code)      resolved_model="copilot-code" ;;      # preserve role → GPT for code
+            copilot-research)  resolved_model="copilot-research" ;;  # preserve role → Claude for research
+            copilot*)          resolved_model="copilot-premium" ;;
             openrouter-glm*)  resolved_model="z-ai/glm-5" ;;
             openrouter-kimi*) resolved_model="moonshotai/kimi-k2.5" ;;
             openrouter-deepseek*) resolved_model="deepseek/deepseek-r1" ;;

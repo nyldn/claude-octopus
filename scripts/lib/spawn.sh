@@ -560,7 +560,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
             fi
 
             # v8.7.0: Add trust marker for external CLI output
-            case "$agent_type" in codex*|gemini*|perplexity*)
+            case "$agent_type" in codex*|gemini*|perplexity*|copilot*)
                 if [[ "${OCTOPUS_SECURITY_V870:-true}" == "true" ]]; then
                     sed -i.bak '1s/^/<!-- trust=untrusted provider='"$agent_type"' -->\n/' "$result_file" 2>/dev/null || true
                     rm -f "${result_file}.bak"

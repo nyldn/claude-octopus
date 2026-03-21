@@ -88,6 +88,10 @@ get_agent_command() {
             model=$(get_agent_model "$agent_type" "$phase" "$role")
             echo "perplexity_execute $model"
             ;;
+        copilot|copilot-code|copilot-research|copilot-fast)  # v9.8.0: GitHub Copilot (Issue #198)
+            model=$(get_agent_model "$agent_type" "$phase" "$role")
+            echo "copilot_execute $model"
+            ;;
         *) return 1 ;;
     esac
 }
@@ -146,6 +150,7 @@ get_agent_model() {
         claude*)     provider="claude" ;;
         openrouter*) provider="openrouter" ;;
         perplexity*) provider="perplexity" ;;
+        copilot*)    provider="copilot" ;;
     esac
 
     local resolved_model
@@ -177,6 +182,7 @@ validate_model_allowed() {
         claude)     allowlist_var="OCTOPUS_CLAUDE_ALLOWED_MODELS" ;;
         openrouter) allowlist_var="OCTOPUS_OPENROUTER_ALLOWED_MODELS" ;;
         perplexity) allowlist_var="OCTOPUS_PERPLEXITY_ALLOWED_MODELS" ;;
+        copilot)    allowlist_var="OCTOPUS_COPILOT_ALLOWED_MODELS" ;;
         *)          return 0 ;;  # Unknown provider — allow
     esac
 

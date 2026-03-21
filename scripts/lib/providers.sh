@@ -494,6 +494,23 @@ check_provider_health() {
                 return 1
             fi
             ;;
+        copilot)
+            # v9.8.0: GitHub Copilot requires gh CLI + auth + Copilot subscription (Issue #198)
+            if ! command -v gh &>/dev/null; then
+                echo "copilot: gh CLI not found (install from https://cli.github.com)" >&2
+                return 1
+            fi
+            if ! gh auth status &>/dev/null 2>&1; then
+                echo "copilot: gh not authenticated — run: gh auth login" >&2
+                return 1
+            fi
+            if ! gh extension list 2>/dev/null | grep -q "github/gh-copilot\|copilot"; then
+                if [[ -z "${GH_TOKEN:-}" && -z "${GITHUB_TOKEN:-}" ]]; then
+                    echo "copilot: gh copilot extension not installed — run: gh extension install github/gh-copilot" >&2
+                    return 1
+                fi
+            fi
+            ;;
     esac
     return 0
 }
@@ -504,7 +521,7 @@ check_all_providers() {
     local healthy=0 unhealthy=0
     local -a results=()
 
-    for provider in codex gemini claude perplexity openrouter; do
+    for provider in codex gemini claude perplexity openrouter copilot; do
         local diag
         if diag=$(check_provider_health "$provider" 2>&1); then
             results+=("  ✓ $provider")

@@ -102,6 +102,9 @@ source "${SCRIPT_DIR}/lib/context.sh" 2>/dev/null || true
 # Perplexity & OpenRouter API execution (v9.7.5 extraction)
 source "${SCRIPT_DIR}/lib/perplexity.sh" 2>/dev/null || true
 
+# GitHub Copilot API execution (v9.8.0 - Issue #198)
+source "${SCRIPT_DIR}/lib/copilot.sh" 2>/dev/null || true
+
 # Cost tracking & usage reporting (v9.7.5 extraction)
 source "${SCRIPT_DIR}/lib/cost.sh" 2>/dev/null || true
 
@@ -407,7 +410,7 @@ CODEX_SUBAGENT_PREAMBLE="IMPORTANT: You are running as a non-interactive subagen
 
 "
 
-AVAILABLE_AGENTS="codex codex-standard codex-max codex-mini codex-general codex-spark codex-reasoning codex-large-context gemini gemini-fast gemini-image codex-review claude claude-sonnet claude-opus claude-opus-fast openrouter openrouter-glm5 openrouter-kimi openrouter-deepseek perplexity perplexity-fast"
+AVAILABLE_AGENTS="codex codex-standard codex-max codex-mini codex-general codex-spark codex-reasoning codex-large-context gemini gemini-fast gemini-image codex-review claude claude-sonnet claude-opus claude-opus-fast openrouter openrouter-glm5 openrouter-kimi openrouter-deepseek perplexity perplexity-fast copilot copilot-code copilot-research copilot-fast"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # USAGE TRACKING & COST REPORTING (v4.1)
@@ -455,6 +458,9 @@ get_model_pricing() {
         # Perplexity Sonar models (v8.24.0 - Issue #22)
         sonar-pro)              echo "3.00:15.00" ;;   # Sonar Pro: deep web research
         sonar)                  echo "1.00:1.00" ;;    # Sonar: fast web search
+        # GitHub Copilot models (v9.8.0 - Issue #198) — bundled with subscription
+        copilot-premium|copilot-fast|copilot-code|copilot-research)
+                                echo "0.00:0.00" ;;    # Bundled with GitHub Copilot subscription
         # Default fallback
         *)                      echo "1.00:5.00" ;;
     esac
@@ -506,6 +512,8 @@ find_capable_fallback() {
             candidates=(z-ai/glm-5 moonshotai/kimi-k2.5 deepseek/deepseek-r1) ;;
         perplexity)
             candidates=(sonar sonar-pro) ;;
+        copilot)
+            candidates=(copilot-fast copilot-code copilot-premium) ;;
     esac
 
     for candidate in "${candidates[@]}"; do
@@ -2100,6 +2108,16 @@ detect_providers() {
     # Detect OpenRouter (API key only)
     if [[ -n "${OPENROUTER_API_KEY:-}" ]]; then
         result="${result}openrouter:api-key "
+    fi
+
+    # Detect GitHub Copilot (v9.8.0 - Issue #198)
+    if command -v gh &>/dev/null && gh auth status &>/dev/null 2>&1; then
+        local copilot_auth="gh-cli"
+        # Check if copilot extension is available or token exchange works
+        if gh extension list 2>/dev/null | grep -q copilot || [[ -n "${GH_TOKEN:-}" || -n "${GITHUB_TOKEN:-}" ]]; then
+            copilot_auth="verified"
+        fi
+        result="${result}copilot:${copilot_auth} "
     fi
 
     # Fail gracefully with helpful message if no providers found

@@ -47,6 +47,12 @@ build_provider_env() {
             [[ -z "${PERPLEXITY_API_KEY:-}" ]] && resolve_provider_env "PERPLEXITY_API_KEY" 2>/dev/null
             echo "env -i PATH=$PATH HOME=$HOME PERPLEXITY_API_KEY=${PERPLEXITY_API_KEY:-} TMPDIR=${TMPDIR:-/tmp}"
             ;;
+        copilot*)
+            # v9.8.0: GitHub Copilot uses gh CLI auth; pass GH_TOKEN/GITHUB_TOKEN if set
+            [[ -z "${GH_TOKEN:-}" ]] && resolve_provider_env "GH_TOKEN" 2>/dev/null
+            [[ -z "${GITHUB_TOKEN:-}" ]] && resolve_provider_env "GITHUB_TOKEN" 2>/dev/null
+            echo "env -i PATH=$PATH HOME=$HOME GH_TOKEN=${GH_TOKEN:-} GITHUB_TOKEN=${GITHUB_TOKEN:-} TMPDIR=${TMPDIR:-/tmp}"
+            ;;
         *)
             # Claude and other providers: no isolation needed
             return 0
@@ -507,6 +513,10 @@ is_api_based_provider() {
         perplexity)
             # v8.24.0: Perplexity Sonar API (Issue #22)
             [[ -n "${PERPLEXITY_API_KEY:-}" ]] && return 0
+            return 1
+            ;;
+        copilot)
+            # v9.8.0: GitHub Copilot — bundled with subscription, not per-call
             return 1
             ;;
         *)
