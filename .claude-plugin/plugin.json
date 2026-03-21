@@ -1,7 +1,7 @@
 {
   "name": "octo",
   "version": "9.7.8",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v9.7.8) Windows USER fix, Codex smoke test git repo fix. 3-tier adaptive statusline, smart HUD. 32 expert personas, 46 commands, 45 skills. Commands use '/octo:*', including the '/octo:auto' smart router. Run /octo:setup for guided setup.",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v9.7.8) Windows USER fix, Codex smoke test git repo fix. 3-tier adaptive statusline, smart HUD. 32 expert personas, 47 commands, 45 skills. Commands use '/octo:*', including the '/octo:auto' smart router. Run /octo:setup for guided setup.",
   "author": {
     "name": "nyldn"
   },
@@ -140,6 +140,7 @@
     "./.claude/commands/guard.md",
     "./.claude/commands/unfreeze.md",
     "./.claude/commands/costs.md",
-    "./.claude/commands/retro.md"
+    "./.claude/commands/retro.md",
+    "./.claude/commands/history.md"
   ]
 }
