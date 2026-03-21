@@ -822,7 +822,10 @@ _classify_smoke_error() {
         local _re_auth='auth|unauthorized|forbidden|401|403|invalid.*key|expired.*token|login required'
         local _re_rate='rate.?limit|429|too many requests|quota'
         local _re_policy='policy|blocked|safety|filtered|content.?filter|recitation'
-        if [[ "$stderr_output" =~ $_re_model ]]; then
+        local _re_gitrepo='not inside a trusted directory|skip-git-repo-check|not a git repository'
+        if [[ "$stderr_output" =~ $_re_gitrepo ]]; then
+            echo "GIT_REPO_REQUIRED"
+        elif [[ "$stderr_output" =~ $_re_model ]]; then
             echo "MODEL_NOT_FOUND"
         elif [[ "$stderr_output" =~ $_re_auth ]]; then
             echo "AUTH_FAILURE"
@@ -873,6 +876,10 @@ _display_smoke_test_error() {
         TIMEOUT)
             echo -e "  ${YELLOW}⚠${NC} ${provider}: Smoke test timed out. Provider may be slow or down."
             ;;
+        GIT_REPO_REQUIRED)
+            echo -e "  ${YELLOW}⚠${NC} ${provider}: Requires a git repository (configuration issue, not a provider failure)"
+            echo -e "    ${DIM}Fix: Run from a git repo or use 'codex exec --skip-git-repo-check'${NC}"
+            ;;
         UNKNOWN)
             echo -e "  ${RED}✗${NC} ${provider}: Smoke test failed (unknown error)"
             echo -e "    ${DIM}Run with VERBOSE=true for details${NC}"
@@ -911,9 +918,16 @@ _smoke_test_provider() {
     # Send trivial prompt with timeout
     local smoke_exit=0
     if [[ "$provider" == "codex" ]]; then
+        # Codex requires a git repo — use a temp one to avoid false negatives (#202)
+        local smoke_dir
+        smoke_dir=$(mktemp -d 2>/dev/null || mktemp -d -t 'octo-smoke')
+        git -C "$smoke_dir" init -q 2>/dev/null || true
+        pushd "$smoke_dir" >/dev/null 2>&1
         run_with_timeout "$smoke_timeout" \
             $cmd_str "Reply with exactly: ok" \
             >/dev/null 2>"$stderr_file" || smoke_exit=$?
+        popd >/dev/null 2>&1
+        rm -rf "$smoke_dir" 2>/dev/null
     else
         # Gemini: prompt via stdin with -p "" for headless trigger
         echo "Reply with exactly: ok" | run_with_timeout "$smoke_timeout" \
