@@ -40,9 +40,7 @@ trigger: |
   - Built-in commands (/plugin, /help, etc.)
 ---
 
-> This file is generated from a template. Edit the `.tmpl` file, not this file directly.
-> Run `scripts/gen-skill-docs.sh` to regenerate after changes.
-
+{{PREAMBLE}}
 
 ## Pre-Definition: State Check
 
@@ -77,18 +75,7 @@ This skill uses **ENFORCED execution mode**. You MUST follow this exact sequence
 
 ### STEP 1: Display Visual Indicators (MANDATORY - BLOCKING)
 
-**Check provider availability:**
-
-```bash
-command -v codex &> /dev/null && codex_status="Available ✓" || codex_status="Not installed ✗"
-command -v gemini &> /dev/null && gemini_status="Available ✓" || gemini_status="Not installed ✗"
-```
-
-**Validation:**
-- If BOTH Codex and Gemini unavailable -> STOP, suggest: `/octo:setup`
-- If ONE unavailable -> Continue with available provider(s)
-- If BOTH available -> Proceed normally
-
+{{PROVIDER_SETUP}}
 
 **Display this banner BEFORE orchestrate.sh execution:**
 
@@ -377,15 +364,7 @@ Providers:
 🔵 Claude - Consensus building and synthesis
 ```
 
-| Indicator | Provider | Cost Source |
-|-----------|----------|-------------|
-| 🔴 | Codex CLI | User's OPENAI_API_KEY |
-| 🟡 | Gemini CLI | User's GEMINI_API_KEY |
-| 🟣 | Perplexity Sonar | User's PERPLEXITY_API_KEY |
-| 🔵 | Claude | Included with Claude Code |
-
-**This is NOT optional.** Users need to see which AI providers are active and understand they are being charged for external API calls (🔴 🟡).
-
+{{VISUAL_INDICATORS}}
 
 ---
 

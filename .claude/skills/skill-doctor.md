@@ -150,6 +150,21 @@ All checks pass — no action needed.
 
 ---
 
+## Hook Profile
+
+Claude Octopus hooks can run in different profiles to balance cost and coverage.
+
+Current profile: `$OCTO_HOOK_PROFILE` (default: standard)
+
+Available profiles:
+- **minimal** — Only session lifecycle and cost tracking hooks (lowest overhead)
+- **standard** — All hooks except expensive review/security gates (default)
+- **strict** — All hooks enabled including quality and security gates
+
+Override: Set `OCTO_HOOK_PROFILE=<profile>` or `OCTO_DISABLED_HOOKS=hook1,hook2` to fine-tune which hooks run.
+
+---
+
 ## Quick Reference
 
 | User Input | Action |

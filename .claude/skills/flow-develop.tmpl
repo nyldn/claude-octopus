@@ -38,9 +38,7 @@ trigger: |
   - Trivial single-file changes
 ---
 
-> This file is generated from a template. Edit the `.tmpl` file, not this file directly.
-> Run `scripts/gen-skill-docs.sh` to regenerate after changes.
-
+{{PREAMBLE}}
 
 ## Pre-Development: State Check
 
@@ -145,18 +143,7 @@ orchestrate.sh develop "<user prompt>\n\nQuality requirements for this deliverab
 
 ### STEP 2: Display Visual Indicators (MANDATORY - BLOCKING)
 
-**Check provider availability:**
-
-```bash
-command -v codex &> /dev/null && codex_status="Available ✓" || codex_status="Not installed ✗"
-command -v gemini &> /dev/null && gemini_status="Available ✓" || gemini_status="Not installed ✗"
-```
-
-**Validation:**
-- If BOTH Codex and Gemini unavailable -> STOP, suggest: `/octo:setup`
-- If ONE unavailable -> Continue with available provider(s)
-- If BOTH available -> Proceed normally
-
+{{PROVIDER_SETUP}}
 
 **Display this banner BEFORE orchestrate.sh execution:**
 
@@ -399,15 +386,7 @@ Providers:
 🔵 Claude - Integration and quality review
 ```
 
-| Indicator | Provider | Cost Source |
-|-----------|----------|-------------|
-| 🔴 | Codex CLI | User's OPENAI_API_KEY |
-| 🟡 | Gemini CLI | User's GEMINI_API_KEY |
-| 🟣 | Perplexity Sonar | User's PERPLEXITY_API_KEY |
-| 🔵 | Claude | Included with Claude Code |
-
-**This is NOT optional.** Users need to see which AI providers are active and understand they are being charged for external API calls (🔴 🟡).
-
+{{VISUAL_INDICATORS}}
 
 ---
 
@@ -704,21 +683,7 @@ The tangle phase automatically runs quality checks via `.claude/hooks/quality-ga
 ./hooks/quality-gate.sh
 ```
 
-**Quality Dimensions**:
-
-| Dimension | Weight | Criteria |
-|-----------|--------|----------|
-| **Code Quality** | 25% | Complexity, maintainability, documentation |
-| **Security** | 35% | OWASP compliance, auth, input validation |
-| **Best Practices** | 20% | Error handling, logging, testing |
-| **Completeness** | 20% | Feature completeness, edge cases |
-
-**Scoring Thresholds**:
-- **90-100**: Excellent - Ready for production
-- **75-89**: Good - Minor improvements recommended
-- **60-74**: Acceptable - Address warnings before deploy
-- **< 60**: Poor - Critical issues must be fixed
-
+{{QUALITY_GATES}}
 
 ---
 

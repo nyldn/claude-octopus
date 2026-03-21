@@ -21,7 +21,7 @@ Structured four-way AI debates between Claude, Sonnet, Gemini, and Codex.
 3. Step 2: ask clarifying questions via AskUserQuestion before proceeding.
 4. Steps 3-5: parse arguments, set up debate folder, conduct rounds with all three participants.
 5. Steps 6-7: write final synthesis and present results to the user.
-6. Apply quality gates and cost tracking from `skill-debate-integration` throughout.
+6. Apply quality gates and cost tracking from `skill-debate` throughout.
 
 ### Post-Completion — Interactive Next Steps
 

@@ -85,6 +85,26 @@
           "command": "${CLAUDE_PLUGIN_ROOT}/hooks/plan-mode-interceptor.sh"
         }
       ]
+    },
+    {
+      "matcher": {"tool": "Bash"},
+      "hooks": [
+        {
+          "type": "command",
+          "command": "${CLAUDE_PLUGIN_ROOT}/hooks/careful-check.sh",
+          "timeout": 5
+        }
+      ]
+    },
+    {
+      "matcher": {"tool": "Edit|Write"},
+      "hooks": [
+        {
+          "type": "command",
+          "command": "${CLAUDE_PLUGIN_ROOT}/hooks/freeze-check.sh",
+          "timeout": 5
+        }
+      ]
     }
   ],
   "PostToolUse": [
@@ -96,6 +116,18 @@
         {
           "type": "command",
           "command": "${CLAUDE_PLUGIN_ROOT}/hooks/context-awareness.sh",
+          "timeout": 5
+        }
+      ]
+    },
+    {
+      "matcher": {
+        "tool": "Bash|Edit|Write"
+      },
+      "hooks": [
+        {
+          "type": "command",
+          "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/strategy-rotation.sh\"",
           "timeout": 5
         }
       ]

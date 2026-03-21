@@ -172,6 +172,12 @@ Confirm:
 | "Need to explore first" | Fine. Throw away exploration, start with TDD. |
 | "TDD will slow me down" | TDD is faster than debugging. |
 
+## Strategy Rotation
+
+If the same test continues to fail after 2 fix attempts, examine the test itself — it may be incorrect. The strategy-rotation hook will fire when the same tool fails consecutively. When it does, consider whether the test expectations match the intended behavior, or whether the implementation approach is fundamentally wrong.
+
+---
+
 ## Red Flags - STOP and Start Over
 
 If you catch yourself:

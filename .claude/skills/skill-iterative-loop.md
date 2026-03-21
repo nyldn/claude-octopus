@@ -425,6 +425,12 @@ Iteration 6: 10/15 tests passing
 
 ---
 
+## Strategy Rotation
+
+If the strategy-rotation hook fires, immediately change approach. Do not retry the same approach. Explain what you'll do differently before the next attempt. The hook fires after consecutive failures of the same tool — this is a strong signal that the current approach is fundamentally wrong, not just slightly off.
+
+---
+
 ## Safety Mechanisms
 
 ### 1. Iteration Limit
@@ -467,6 +473,149 @@ Every N iterations:
 | Retry with backoff | 3-5 | Operation succeeds | Yes |
 | Incremental refinement | 3-7 | Quality threshold met | Maybe |
 | Comprehensive audit | 3-5 | All areas covered | No |
+
+---
+
+## Metric Verification Mode
+
+When the user specifies a **Metric** command, switch to mechanical metric verification mode. This replaces subjective evaluation with automated measurement, git-backed experiments, and automatic rollback on regression.
+
+**Falls back to standard loop behavior (above) when no metric is specified.**
+
+### Key Principles
+
+- **One change per iteration (atomic)** — never combine multiple unrelated changes
+- **Mechanical verification only** — no subjective "looks good"; the metric command decides
+- **Automatic rollback on regression** — `git revert HEAD --no-edit` if metric worsens
+- **Simplicity wins** — equal metric results + less code = KEEP the simpler version
+- **Git is memory** — every experiment is committed with `experiment:` prefix before verification
+- **Guard commands must also pass** — even if metric improves, a failing guard reverts the change
+
+### Parameters
+
+| Parameter | Format | Required | Description |
+|-----------|--------|----------|-------------|
+| Metric | `Metric: <shell command>` | Yes (for this mode) | Command whose stdout is a number (the metric value) |
+| Direction | `Direction: higher\|lower` | Yes | Whether higher or lower metric values are better |
+| Guard | `Guard: <shell command>` | No | Must exit 0 for a change to be kept; run after metric |
+| Iterations | `Iterations: N` | No | Max iterations (default: unbounded, runs until interrupted) |
+
+### Experiment Log
+
+All results are logged as JSONL to `.claude-octopus/experiments/<YYYY-MM-DD>.jsonl`.
+
+Each line is a JSON object:
+```json
+{"iteration": 1, "timestamp": "2026-03-21T14:30:00Z", "metric": 72.5, "best": 72.5, "status": "kept", "description": "Add index to users table", "commit": "abc1234"}
+```
+
+Fields:
+- `iteration` — iteration number (starting from 1; iteration 0 is baseline)
+- `timestamp` — ISO 8601 timestamp
+- `metric` — measured value from the metric command
+- `best` — best metric value seen so far
+- `status` — `"kept"` (improvement), `"reverted"` (regression), or `"error"` (metric/guard crashed)
+- `description` — one-line summary of what was changed
+- `commit` — short git SHA of the experiment commit (before potential revert)
+
+### Execution Contract
+
+You MUST follow this exact sequence for each iteration. No steps may be skipped or reordered.
+
+#### Iteration 0: Establish Baseline
+
+1. Create the experiment log directory if it does not exist:
+   ```bash
+   mkdir -p .claude-octopus/experiments
+   ```
+2. **Check for existing experiment log** — if `.claude-octopus/experiments/<today>.jsonl` exists, read it to determine the current best metric value and iteration count. Resume from the next iteration number.
+3. Run the metric command and capture the output number. This is the **baseline**.
+4. Log the baseline:
+   ```json
+   {"iteration": 0, "timestamp": "...", "metric": <baseline>, "best": <baseline>, "status": "baseline", "description": "Baseline measurement", "commit": "<current HEAD short SHA>"}
+   ```
+5. Report the baseline value to the user.
+
+#### Each Subsequent Iteration (1..N)
+
+**Step 1: Review state.** Read the experiment log (`.claude-octopus/experiments/<today>.jsonl`), review git history (`git log --oneline -10`), and identify what has been tried, what worked, and what failed.
+
+**Step 2: Pick the next change.** Based on what worked/failed/is untried, decide on ONE focused change. Do NOT combine multiple unrelated changes.
+
+**Step 3: Make the change.** Implement exactly one atomic change.
+
+**Step 4: Git commit BEFORE verification.** Commit with the `experiment:` prefix:
+```bash
+git add -A && git commit -m "experiment: <one-line description of the change>"
+```
+This ensures every experiment is recorded in git history regardless of outcome.
+
+**Step 5: Run mechanical verification.** Execute the metric command and capture the numeric result.
+
+**Step 6: Evaluate and act.**
+
+- **If metric improved** (higher when Direction=higher, lower when Direction=lower):
+  - If a Guard command is specified, run it now.
+    - If guard passes (exit 0) → **KEEP** the commit. Update best metric.
+    - If guard fails (exit non-zero) → **REVERT**: `git revert HEAD --no-edit`. Log status as `"reverted"`.
+  - If no guard → **KEEP** the commit. Update best metric.
+
+- **If metric stayed the same:**
+  - Check if the change reduces code complexity or size. If simpler → **KEEP** (simplicity wins).
+  - Otherwise → **REVERT**: `git revert HEAD --no-edit`. Log status as `"reverted"`.
+
+- **If metric worsened:**
+  - **REVERT**: `git revert HEAD --no-edit`. Log status as `"reverted"`.
+
+- **If metric command crashed (non-zero exit, no numeric output):**
+  - Attempt a quick fix (one try only). If fix works, re-measure.
+  - If still broken → **REVERT**: `git revert HEAD --no-edit`. Log status as `"error"`.
+
+**Step 7: Log the result.** Append a JSONL entry to `.claude-octopus/experiments/<today>.jsonl`.
+
+**Step 8: Report iteration summary.** Display:
+```
+Iteration N: <description>
+  Metric: <value> (best: <best>) — <kept|reverted|error>
+```
+
+**Step 9: Repeat** — go to Step 1 of the next iteration, unless:
+- Iterations limit reached → stop and report final summary
+- User interrupts → stop and report final summary
+
+### Resume Behavior
+
+If an experiment log already exists for today:
+1. Read the log to determine the last iteration number and current best metric value
+2. Resume from the next iteration number
+3. Use the recorded best value as the comparison baseline
+4. This allows stopping and resuming experiments across sessions
+
+### Final Summary
+
+When the loop completes (iterations exhausted or user stops), report:
+
+```
+Experiment Complete
+  Iterations: N
+  Baseline: <initial metric>
+  Final best: <best metric>
+  Improvement: <delta> (<percentage>%)
+  Kept: K changes, Reverted: R changes, Errors: E
+```
+
+### Example
+
+```
+/octo:loop Metric: npm test -- --coverage | grep 'All files' | awk '{print $10}' Direction: higher Guard: npm test Iterations: 20
+```
+
+This will:
+1. Measure baseline code coverage percentage
+2. Each iteration: make one change, commit as `experiment: ...`, measure coverage
+3. If coverage improves AND `npm test` passes → keep
+4. If coverage drops OR tests fail → `git revert HEAD --no-edit`
+5. After 20 iterations, report total improvement
 
 ---
 

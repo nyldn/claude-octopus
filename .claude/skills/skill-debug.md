@@ -229,6 +229,12 @@ When error is deep in call stack:
 
 ---
 
+## Strategy Rotation
+
+After 2 failed fix attempts, stop and reconsider the root cause before trying another fix. If the strategy-rotation hook fires, it means you have been repeating a failing approach. Do not continue down the same path — return to Phase 1 and investigate from a different angle.
+
+---
+
 ## Red Flags - STOP and Follow Process
 
 If you catch yourself thinking:
@@ -261,6 +267,36 @@ If you suspect the issue is with the Claude Code environment itself (e.g., netwo
 
 - **Run `/debug`**: This native command generates a debug bundle to help troubleshoot platform issues.
 - **Check `/debug` output**: Look for "Context limit", "API error", or "Tool execution failed".
+
+## Auto-Freeze on Debug
+
+When debugging a specific module, automatically activate freeze mode to prevent accidental edits outside the investigated area. This is a safety measure that keeps your debugging focused.
+
+### How It Works
+
+At the start of Phase 1 (Root Cause Investigation), identify the primary module directory being debugged and activate freeze mode:
+
+```bash
+# Determine the module directory from the error location or user-specified target
+# Example: if debugging src/auth/login.ts, freeze to src/auth/
+freeze_dir="$(cd "<module-directory>" 2>/dev/null && pwd)"
+echo "${freeze_dir}" > "/tmp/octopus-freeze-${CLAUDE_SESSION_ID:-$$}.txt"
+```
+
+This ensures that during investigation (Phases 1-3), you cannot accidentally modify files outside the module under investigation. When you reach Phase 4 (Implementation), the freeze boundary keeps your fix scoped to the right module.
+
+**Auto-freeze activates when:**
+- The bug is localized to a specific directory (e.g., `src/auth/`, `lib/database/`)
+- The user specifies a file or module to debug
+
+**Auto-freeze does NOT activate when:**
+- The bug spans multiple modules
+- The root cause location is unknown at investigation start
+- The user explicitly opts out
+
+After debugging completes, remind the user to run `/octo:unfreeze` if needed, or remove the state file automatically.
+
+---
 
 ## Integration with Claude Octopus
 

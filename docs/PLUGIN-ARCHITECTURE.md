@@ -342,7 +342,7 @@ fi
 
 ### 6. AI Debate Hub
 
-**Location:** `.claude/skills/skill-debate.md` + `.claude/skills/skill-debate-integration.md`
+**Location:** `.claude/skills/skill-debate.md` (consolidated — includes quality gates and cost tracking)
 
 **Origin:** Based on [wolverin0/claude-skills](https://github.com/wolverin0/claude-skills) (MIT License), now fully integrated.
 
@@ -350,8 +350,7 @@ fi
 
 ```
 .claude/skills/
-├── skill-debate.md                  # Debate skill with YAML frontmatter
-└── skill-debate-integration.md      # Enhancement layer (quality gates, cost tracking)
+└── skill-debate.md                  # Unified debate skill with quality gates, cost tracking, export
 ```
 
 ---
