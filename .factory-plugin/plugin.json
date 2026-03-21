@@ -1,6 +1,6 @@
 {
   "name": "octo",
-  "version": "9.7.6",
+  "version": "9.7.7",
   "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v9.7.6) 3-tier adaptive statusline, dependency installer, smart HUD. 32 expert personas, 40 commands, 50 skills. Commands '/octo:*'. Run /octo:setup for guided setup. Compatible with Claude Code and Factory AI Droid.",
   "author": {
     "name": "nyldn"

@@ -1,3 +1,20 @@
+## [9.7.7] - 2026-03-20
+
+### Fixed
+
+- **Broken Skill() dispatch in 9 commands**: `doctor`, `claw`, `loop`, `debug`, `deck`, `docs`, `security`, `staged-review`, `tdd` all used `Skill(skill: "skill-name")` which failed with "Unknown skill" because the Skill tool requires plugin-qualified names. Replaced with direct file read instructions. Net -93 lines.
+- **Factory AI manifest stale at v8.41.0**: Bumped `.factory-plugin/plugin.json` to 9.7.7 with correct command/skill counts.
+- **HTTP webhook hook no-op**: Removed the `type: http` hook entry that fired with an empty `OCTOPUS_WEBHOOK_URL`. The shell script fallback (`telemetry-webhook.sh`) already has the guard.
+- **MCP server Node version guard**: Added `check-node-version.js` that fails fast with a clear error on Node < 18 instead of silently crashing.
+
+### Changed
+
+- **PostToolUse context-awareness scoped**: Changed from blanket `{}` matcher to `Bash|Agent|Write|Edit` only. Eliminates a bash process spawn on every Read/Grep/Glob call.
+- **SessionStart hooks consolidated (5 → 4)**: Merged `session-sync.sh` into `session-start-memory.sh`, reducing process spawns per session start/resume/compact.
+- **context-awareness.sh timeout guard**: Added `timeout 3 cat` pattern for stdin drain consistency with other hooks.
+
+---
+
 ## [9.7.6] - 2026-03-19
 
 ### Added

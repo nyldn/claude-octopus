@@ -11,8 +11,8 @@
     {
       "name": "octo",
       "source": "./",
-      "description": "v9.7.6 - Dependency installer for setup and doctor. Auto-detect + install missing CLIs, statusline, plugins. 3-tier adaptive HUD. 32 personas, 40 commands, 50 skills. Run /octo:setup.",
-      "version": "9.7.6",
+      "description": "v9.7.7 - Fixed Skill() dispatch, scoped hooks for speed, MCP Node guard. 3-tier adaptive HUD. 32 personas, 40 commands, 50 skills. Run /octo:setup.",
+      "version": "9.7.7",
       "author": {
         "name": "nyldn"
       },
