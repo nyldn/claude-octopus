@@ -33,7 +33,7 @@ resolve_octopus_model() {
     fi
 
     # Persistent File Cache (optional, for parallel execution speed)
-    local persistent_cache="/tmp/octo-model-cache-${USER}-${CLAUDE_CODE_SESSION:-global}.json"
+    local persistent_cache="/tmp/octo-model-cache-${USER:-${USERNAME:-unknown}}-${CLAUDE_CODE_SESSION:-global}.json"
     # v8.49.0: Invalidate cache if config file changed since cache was written
     if [[ -f "$persistent_cache" && -f "$config_file" && "$config_file" -nt "$persistent_cache" ]]; then
         rm -f "$persistent_cache"

@@ -174,7 +174,7 @@ EOF
         log "INFO" "Migration to v3.0 complete"
 
         # v8.49.0: Clear stale model cache after migration
-        rm -f "/tmp/octo-model-cache-${USER}-${CLAUDE_CODE_SESSION:-global}.json"
+        rm -f "/tmp/octo-model-cache-${USER:-${USERNAME:-unknown}}-${CLAUDE_CODE_SESSION:-global}.json"
     fi
 
     local changed=false
@@ -221,7 +221,7 @@ EOF
         echo "$content" > "$tmp_file" && mv "$tmp_file" "$config_file"
         log "INFO" "Updated ${config_file} with current model names"
         # v8.49.0: Clear model cache after stale name migration
-        rm -f "/tmp/octo-model-cache-${USER}-${CLAUDE_CODE_SESSION:-global}.json"
+        rm -f "/tmp/octo-model-cache-${USER:-${USERNAME:-unknown}}-${CLAUDE_CODE_SESSION:-global}.json"
     fi
 }
 
@@ -316,7 +316,7 @@ EOF
     fi
 
     # v8.49.0: Clear model resolution cache after config change
-    local persistent_cache="/tmp/octo-model-cache-${USER}-${CLAUDE_CODE_SESSION:-global}.json"
+    local persistent_cache="/tmp/octo-model-cache-${USER:-${USERNAME:-unknown}}-${CLAUDE_CODE_SESSION:-global}.json"
     rm -f "$persistent_cache"
 }
 
@@ -350,7 +350,7 @@ reset_provider_model() {
     fi
 
     # v8.49.0: Clear model resolution cache after config change
-    local persistent_cache="/tmp/octo-model-cache-${USER}-${CLAUDE_CODE_SESSION:-global}.json"
+    local persistent_cache="/tmp/octo-model-cache-${USER:-${USERNAME:-unknown}}-${CLAUDE_CODE_SESSION:-global}.json"
     rm -f "$persistent_cache"
 }
 
