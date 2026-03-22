@@ -11,7 +11,7 @@
     {
       "name": "octo",
       "source": "./",
-      "description": "v9.10.0 - 8 tentacles: Codex, Gemini, Claude, Perplexity, OpenRouter, Ollama, Copilot, Qwen. 47 commands, 50 skills. Run /octo:setup.. 32 personas, 47 commands, 50 skills. Run /octo:setup.",
+      "description": "v9.10.2 - 8 tentacles: Codex, Gemini, Claude, Perplexity, OpenRouter, Ollama, Copilot, Qwen. 47 commands, 50 skills. Run /octo:setup.. 32 personas, 47 commands, 50 skills. Run /octo:setup.",
       "version": "9.10.2",
       "author": {
         "name": "nyldn"
