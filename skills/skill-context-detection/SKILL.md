@@ -1,274 +1,95 @@
 ---
 name: skill-context-detection
 version: 1.0.0
-description: "Auto-detect work context (Dev vs Knowledge) for workflow tailoring"
+description: "Auto-detect whether the user is in a Development (code) or Knowledge (research/strategy) context to tailor workflow behavior, agent selection, and output format. Use when: any workflow skill activates and needs to determine context, user asks about current mode, or context-aware routing is needed."
 ---
 
 # Context Detection - Internal Skill
 
-## Purpose
-
-This skill provides **automatic context detection** to determine whether the user is working in a **Development context** (code-focused) or **Knowledge context** (research/strategy-focused). This replaces the manual `/octo:km` toggle with intelligent auto-detection.
+Auto-detects Dev vs Knowledge context to replace manual `/octo:km` toggling. Used internally by workflow skills.
 
 ## Detection Algorithm
 
-When a workflow skill activates, detect context using these signals:
-
 ### Step 1: Check for Explicit Override
 
-If user has explicitly set mode via `/octo:km on` or `/octo:km off`, respect that setting.
-
 ```bash
-# Check if knowledge mode is explicitly set
 if [[ -f ~/.claude-octopus/config/knowledge-mode ]]; then
   EXPLICIT_MODE=$(cat ~/.claude-octopus/config/knowledge-mode)
-  if [[ "$EXPLICIT_MODE" == "on" ]]; then
-    echo "knowledge"
-    exit 0
-  elif [[ "$EXPLICIT_MODE" == "off" ]]; then
-    echo "dev"
-    exit 0
-  fi
+  # "on" = knowledge, "off" = dev, "auto" = proceed to auto-detection
 fi
-# If "auto" or not set, proceed with auto-detection
 ```
 
 ### Step 2: Analyze Prompt Content (Strongest Signal)
 
-**Knowledge Context Indicators** (check prompt for these terms):
-- Business/strategy: "market", "ROI", "stakeholders", "strategy", "business case", "competitive"
-- Research: "literature", "synthesis", "academic", "papers", "research question"
-- UX: "personas", "user research", "journey map", "pain points", "interviews"
-- Deliverables: "presentation", "report", "PRD", "proposal", "executive summary"
+**Knowledge indicators**: "market", "ROI", "stakeholders", "strategy", "personas", "presentation", "report", "PRD", "literature", "synthesis"
 
-**Dev Context Indicators** (check prompt for these terms):
-- Technical: "API", "endpoint", "database", "function", "class", "module"
-- Actions: "implement", "debug", "refactor", "test", "deploy", "build"
-- Artifacts: "code", "tests", "migration", "schema", "controller"
+**Dev indicators**: "API", "endpoint", "database", "function", "implement", "debug", "refactor", "test", "deploy", "code", "migration"
 
-**Scoring:**
-- Count knowledge indicators in prompt
-- Count dev indicators in prompt
-- Higher count wins
-- If tied, check project context (Step 3)
+Score by counting matches. Higher count wins. If tied, check project context.
 
 ### Step 3: Analyze Project Context (Secondary Signal)
 
-**Dev Project Indicators:**
-- Has `package.json`, `Cargo.toml`, `go.mod`, `pyproject.toml`, `pom.xml`
-- Has `src/`, `lib/`, `app/` directories with code files
-- Recent files are `.ts`, `.js`, `.py`, `.go`, `.rs`, `.java`
-
-**Knowledge Project Indicators:**
-- Has `docs/`, `research/`, `strategy/`, `reports/` directories
-- Majority of files are `.md`, `.docx`, `.pdf`, `.pptx`
-- No code package managers detected
+- **Dev**: Has `package.json`, `Cargo.toml`, `go.mod`; has `src/`, `lib/`, `app/` with code files
+- **Knowledge**: Has `docs/`, `research/`, `strategy/`; mostly `.md`, `.docx`, `.pdf` files
 
 ### Step 4: Default Fallback
 
-If signals are ambiguous or equal:
-- In a git repo with code files → Default to **Dev Context**
-- No code files detected → Default to **Knowledge Context**
+- Git repo with code files: **Dev Context**
+- No code files: **Knowledge Context**
 
----
-
-## Context Output Format
-
-Return detected context as a structured object for use by workflow skills:
+## Output Format
 
 ```json
 {
   "context": "dev" | "knowledge",
   "confidence": "high" | "medium" | "low",
-  "signals": {
-    "prompt_indicators": ["API", "endpoint", "database"],
-    "project_type": "node_typescript",
-    "explicit_override": false
-  }
+  "signals": { "prompt_indicators": [...], "project_type": "...", "explicit_override": false }
 }
 ```
 
----
+## Context Behavior by Workflow
 
-## How Workflow Skills Use Context
+| Workflow | Dev Context | Knowledge Context |
+|----------|-------------|-------------------|
+| **Discover** | Technical implementation, library comparison | Market analysis, academic synthesis |
+| **Develop** | Code generation, tests, architecture | PRDs, strategy docs, presentations |
+| **Deliver** | Code quality, security, OWASP | Document quality, argument strength |
+| **Agents** | codex, backend-architect, code-reviewer | strategy-analyst, ux-researcher, exec-communicator |
 
-### flow-discover (Research)
+## Override Commands
 
-| Aspect | Dev Context | Knowledge Context |
-|--------|-------------|-------------------|
-| **Research Focus** | Technical implementation, library comparison, code patterns | Market analysis, academic synthesis, competitive research |
-| **Primary Agents** | Codex (implementation), Gemini (ecosystem) | Gemini (analysis), research-synthesizer |
-| **Output Format** | Code examples, API comparisons, tech recommendations | Reports, frameworks, strategic recommendations |
-| **Visual Banner** | `🔍 [Dev] Discover Phase: Technical research` | `🔍 [Knowledge] Discover Phase: Strategic research` |
-
-### flow-develop (Build)
-
-| Aspect | Dev Context | Knowledge Context |
-|--------|-------------|-------------------|
-| **Build Focus** | Code generation, implementation, architecture | PRDs, strategy docs, presentations |
-| **Primary Agents** | Codex (code), backend-architect, tdd-orchestrator | product-writer, strategy-analyst, exec-communicator |
-| **Output Format** | Source files, tests, migrations | Documents, frameworks, action plans |
-| **Visual Banner** | `🛠️ [Dev] Develop Phase: Building code` | `🛠️ [Knowledge] Develop Phase: Building deliverables` |
-
-### flow-deliver (Review)
-
-| Aspect | Dev Context | Knowledge Context |
-|--------|-------------|-------------------|
-| **Review Focus** | Code quality, security, performance | Document quality, argument strength, completeness |
-| **Primary Agents** | code-reviewer, security-auditor | exec-communicator, strategy-analyst |
-| **Quality Gates** | OWASP, test coverage, maintainability | Evidence quality, clarity, actionability |
-| **Visual Banner** | `✅ [Dev] Deliver Phase: Code review` | `✅ [Knowledge] Deliver Phase: Document review` |
-
----
-
-## Visual Indicator Update
-
-When context is detected, update the visual banner to show context:
-
-**Dev Context:**
-```
-🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider research mode
-🔍 [Dev] Discover Phase: Researching OAuth implementation patterns
-
-Providers:
-🔴 Codex CLI - Technical implementation analysis
-🟡 Gemini CLI - Ecosystem and library comparison
-🔵 Claude - Strategic synthesis
-```
-
-**Knowledge Context:**
-```
-🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider research mode
-🔍 [Knowledge] Discover Phase: Researching market entry strategies
-
-Providers:
-🔴 Codex CLI - Data analysis and modeling
-🟡 Gemini CLI - Market and competitive research
-🔵 Claude - Strategic synthesis
-```
-
----
-
-## Implementation in Workflow Skills
-
-Each flow skill should:
-
-1. **Before executing workflow**, run context detection
-2. **Show detected context** in visual banner
-3. **Adjust behavior** based on context:
-   - Agent selection
-   - Prompt framing for external CLIs
-   - Output format expectations
-   - Quality gate criteria
-
-### Example Integration (Pseudocode)
-
-```markdown
-When this skill activates:
-
-1. **Detect context**
-   - Analyze user's prompt for knowledge vs dev indicators
-   - Check project type (code repo vs doc-heavy)
-   - Check for explicit override (~/.claude-octopus/config/knowledge-mode)
-   - Determine: "dev" or "knowledge" with confidence level
-
-2. **Show context-aware banner**
-   ```
-   🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider [research|implementation|validation] mode
-   [Phase Emoji] [Context] [Phase Name]: [Description]
-   
-   Detected Context: [Dev|Knowledge] (confidence: [high|medium|low])
-   ```
-
-3. **Execute workflow with context-appropriate behavior**
-   - Frame prompts for Codex/Gemini based on context
-   - Select appropriate synthesis approach
-   - Apply context-specific quality gates
-```
-
----
-
-## Override Mechanism
-
-Users can still explicitly set context when auto-detection is wrong:
-
-```bash
-# Force knowledge mode
-/octo:km on
-
-# Force dev mode  
-/octo:km off
-
-# Return to auto-detection
-/octo:km auto
-```
-
-When explicit override is set, context detection respects it until user resets to "auto".
-
----
+| Command | Effect |
+|---------|--------|
+| `/octo:km on` | Force Knowledge Context |
+| `/octo:km off` | Force Dev Context |
+| `/octo:km auto` | Return to auto-detection |
+| `/octo:km` | Show current status |
 
 ## Confidence Levels
 
-- **High**: Strong signals in prompt AND project context agree
-- **Medium**: Signals in prompt OR project context (not both)
-- **Low**: Ambiguous signals, using fallback default
-
-When confidence is "low", consider briefly mentioning the detected context to user:
-> "I detected this as a [dev/knowledge] task. If that's wrong, you can use `/octo:km` to override."
-
----
-
-## Testing Context Detection
-
-To verify context detection is working:
-
-1. In a code repository, ask "octo research caching patterns" → Should detect **Dev Context**
-2. In same repo, ask "octo research market opportunities" → Should detect **Knowledge Context**
-3. With `/octo:km on` set, ask "octo research API patterns" → Should use **Knowledge Context** (explicit override)
-
----
+- **High**: Prompt AND project context signals agree
+- **Medium**: Only one signal source detected
+- **Low**: Ambiguous; mention detected context to user for confirmation
 
 ## Proactive Skill Suggestions
 
-When detecting the user's work stage, surface relevant command suggestions:
+Surface relevant commands based on detected work stage:
 
 | Detected Context | Suggestion |
 |-----------------|------------|
-| Brainstorming / exploring ideas | Consider `/octo:brainstorm` for structured ideation |
-| Reviewing a plan or strategy | Consider `/octo:plan` for strategic planning |
-| Debugging errors or failures | Consider `/octo:debug` for systematic investigation |
-| Writing or running tests | Consider `/octo:tdd` for test-driven development |
-| Code review before merge | Consider `/octo:review` for multi-AI code review |
-| Ready to deploy or ship | Consider `/octo:deliver` for quality-gated delivery |
-| Researching a topic | Consider `/octo:research` for multi-source synthesis |
-| Working on security | Consider `/octo:security` for OWASP compliance audit |
+| Brainstorming | `/octo:brainstorm` |
+| Debugging | `/octo:debug` |
+| Testing | `/octo:tdd` |
+| Code review | `/octo:review` |
+| Ready to ship | `/octo:deliver` |
+| Researching | `/octo:research` |
+| Security work | `/octo:security` |
 
-### Suggestion Format
-
-Suggestions should be non-intrusive, appended as a brief note:
-
-```
-💡 Tip: You appear to be debugging — `/octo:debug` provides systematic investigation with multi-AI support.
-```
-
-### Persistent Opt-Out
-
-- If user says "stop suggesting" or "no more tips": set `OCTO_PROACTIVE_SUGGESTIONS=off` in `.claude-octopus/preferences.json`
-- If user says "be proactive" or "turn on tips": set `OCTO_PROACTIVE_SUGGESTIONS=on`
-- Check preference at suggestion time — never suggest when opted out
-- Respect current mode: dev mode suggestions differ from knowledge work suggestions
-
-### Re-Enable Suggestions
-
-Users who previously opted out can re-enable suggestions at any time:
-- Say "be proactive", "turn on tips", or "enable suggestions"
-- Manually edit `~/.claude-octopus/preferences.json` and set `OCTO_PROACTIVE_SUGGESTIONS` to `on`
-- Default state (no preference set) is suggestions enabled
+Opt-out via "stop suggesting" (sets `OCTO_PROACTIVE_SUGGESTIONS=off` in preferences). Re-enable via "be proactive" or "turn on tips".
 
 ### Detection Signals
 
-Detect work stage from:
-- Recent tool usage (many Bash calls = likely implementing/debugging)
+- Recent tool usage patterns (many Bash calls = implementing/debugging)
 - File types being edited (.test.ts = testing, .md = documentation)
-- Error patterns in recent output (stack traces = debugging)
-- Git state (uncommitted changes = implementing, clean tree = ready to review/ship)
+- Error patterns in output (stack traces = debugging)
+- Git state (uncommitted changes = implementing, clean tree = review/ship)

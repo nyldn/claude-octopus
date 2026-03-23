@@ -1,7 +1,7 @@
 ---
 name: skill-writing-plans
 version: 1.0.0
-description: "Zero-context implementation plans with bite-sized tasks. Use when: Use when you have a spec or requirements for a multi-step task.. Auto-invoke when user says \"plan how to implement X\", \"create implementation plan\", . \"break down this feature into tasks\"."
+description: "Write zero-context implementation plans with bite-sized TDD tasks — each task includes exact file paths, complete code, expected test output, and commit instructions so any engineer can execute without codebase knowledge. Use when: user says 'plan how to implement X', 'create implementation plan', 'break down this feature into tasks', or when delegating multi-step work to a subagent that needs fully self-contained instructions."
 ---
 
 # Writing Plans

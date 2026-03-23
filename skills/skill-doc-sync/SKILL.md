@@ -1,7 +1,7 @@
 ---
 name: skill-doc-sync
 version: 1.0.0
-description: "Post-ship doc sync across project markdown. Use when: \"sync docs\", \"update docs\", \"document changes\", \"release notes\"."
+description: "Post-ship documentation synchronization that scans up to 30 markdown files, cross-references the git diff, auto-updates stale paths/versions/counts, flags risky narrative sections for approval, polishes CHANGELOG entries for user benefit, and verifies cross-doc consistency. Use when: the user says 'sync docs', 'update docs', 'document changes', 'release notes', or after shipping code that may have outdated documentation references."
 ---
 
 # Post-Ship Documentation Synchronization

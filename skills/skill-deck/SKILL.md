@@ -1,7 +1,7 @@
 ---
 name: skill-deck
 version: 1.0.0
-description: "Generate slide decks from briefs with optional multi-AI research. Use when: AUTOMATICALLY ACTIVATE when user requests:. \"create a deck\", \"build slides\", \"make a presentation\". \"generate a pitch deck\", \"create board presentation\""
+description: "Generate professional slide decks through a 4-step pipeline: gather brief, optional research, outline with user approval gate, and PPTX export via document-skills plugin. Supports audience-tailored templates for executives, engineers, and investors. Use when: the user says 'create a deck', 'build slides', 'make a presentation', 'generate a pitch deck', or 'create board presentation'."
 ---
 
 # Slide Deck Generator

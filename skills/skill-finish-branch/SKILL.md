@@ -1,7 +1,7 @@
 ---
 name: skill-finish-branch
 version: 1.0.0
-description: "Wrap up a branch — run tests, create PR, merge or discard — use when implementation is done. Use when: AUTOMATICALLY ACTIVATE when user requests task completion with git operations:. \"commit and push\" or \"git commit and push\". \"complete all tasks and commit and push\""
+description: "Complete a development branch by verifying tests pass, then presenting four options: merge locally, create PR, keep as-is, or discard — includes worktree cleanup. Use when: user says 'commit and push', 'create a PR', 'merge this branch', 'I am done with this branch', 'discard this work', or after finishing implementation and wanting to wrap up a feature branch safely."
 ---
 
 # Finishing a Development Branch

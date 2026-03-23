@@ -1,7 +1,7 @@
 ---
 name: sys-configure
 version: 1.0.0
-description: "Configure Claude Octopus providers and preferences. Use when: Use this skill when the user wants to \"configure Claude Octopus\", \"setup octopus\",. \"configure providers\", \"set up API keys for octopus\", or mentions octopus configuration."
+description: "Auto-detect and configure Claude Octopus providers (Codex, Gemini CLIs), API keys, and preferences via interactive wizard. Use when: user says 'configure Claude Octopus', 'setup octopus', 'configure providers', 'set up API keys', or needs to check or fix provider authentication status."
 ---
 
 # 🐙 Claude Octopus Configuration

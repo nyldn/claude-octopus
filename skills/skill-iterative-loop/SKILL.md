@@ -1,7 +1,7 @@
 ---
 name: skill-iterative-loop
 version: 1.0.0
-description: "Run tasks in a loop until goals are met — use for iterative refinement, polling, or convergence. Use when: AUTOMATICALLY ACTIVATE when user requests iterative execution:. \"loop X times\" or \"loop around N times\". \"loop around 5 times auditing, enhancing, testing\""
+description: "Execute tasks in a bounded loop with progress tracking, exit conditions, self-regulation scoring, and optional metric-driven verification with automatic git-backed rollback on regression. Use when: user says 'loop N times', 'keep trying until', 'iterate until tests pass', 'retry up to 3 times', 'optimize until below 100ms', or needs iterative refinement, convergence testing, or automated experiment cycles with measurable goals."
 ---
 
 # Iterative Loop Execution

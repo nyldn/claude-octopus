@@ -1,7 +1,7 @@
 ---
 name: skill-tdd
 version: 1.0.0
-description: "Build features with tests-before-code rigor — use for new features needing test coverage. Use when: Use when implementing any feature, bugfix, or behavior change.. Auto-invoke when user says \"implement X\", \"add feature Y\", \"fix bug Z\"."
+description: "Enforce strict red-green-refactor TDD — write a failing test first, verify it fails, write minimal code to pass, verify it passes, then refactor. Includes adversarial test design review via multi-LLM and strategy rotation on repeated failures. Use when: implementing any feature, bugfix, or behavior change; auto-invoke when user says 'implement X', 'add feature Y', 'fix bug Z', or when production code needs to be written with test-first discipline."
 ---
 
 # Test-Driven Development (TDD)

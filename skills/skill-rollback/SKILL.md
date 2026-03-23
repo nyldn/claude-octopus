@@ -1,7 +1,7 @@
 ---
 name: skill-rollback
 version: 1.0.0
-description: "Roll back to a previous checkpoint via git — use when a change went wrong and you need to revert. Use when: AUTOMATICALLY ACTIVATE when user mentions:. \"rollback\" or \"revert\" or \"undo\". \"go back to\" or \"restore checkpoint\""
+description: "Safely roll back to a previous octo-checkpoint git tag — lists available checkpoints, previews affected files, requires explicit confirmation, creates a safety backup tag, and preserves LESSONS.md. Use when: user says 'rollback', 'revert', 'undo', 'go back to checkpoint', 'restore checkpoint', 'list checkpoints', or needs to undo a phase that went wrong without losing commit history."
 ---
 
 # Checkpoint Rollback

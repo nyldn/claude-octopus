@@ -1,34 +1,19 @@
 ---
 name: skill-prd
 version: 1.0.0
-description: "AI-optimized PRD creation with 100-point scoring framework"
----
-
-# STOP - SKILL ALREADY LOADED
-
-**DO NOT call Skill() again. DO NOT load any more skills. Execute directly.**
-
+description: "Create Product Requirements Documents with clarification phase, 100-point scoring framework, and optional adversarial review. Use when: user says 'create a PRD', 'write requirements for', 'product spec for', or needs structured requirements with personas, acceptance criteria, and implementation phases."
 ---
 
 ## PHASE 0: CLARIFICATION (MANDATORY)
 
-Before writing ANY PRD content, you MUST ask the user these questions:
+Before writing ANY PRD content, ask the user:
+1. **Target Users**: Who will use this?
+2. **Core Problem**: What pain point does this solve? Metrics?
+3. **Success Criteria**: How will success be measured?
+4. **Constraints**: Technical, budget, or timeline constraints?
+5. **Existing Context**: Greenfield or integrating with existing systems?
 
-```
-I need to understand your requirements before creating the PRD.
-
-1. **Target Users**: Who will use this? (developers, end-users, admins, etc.)
-2. **Core Problem**: What specific pain point does this solve? Any metrics?
-3. **Success Criteria**: How will you measure if this succeeds?
-4. **Constraints**: Any technical, budget, or timeline constraints?
-5. **Existing Context**: Is this greenfield or integrating with existing systems?
-
-Please answer these (even briefly) so I can create a more targeted PRD.
-```
-
-**WAIT for user response before proceeding to Phase 1.**
-
-If user says "skip" or provides the feature description inline, extract what you can and note assumptions.
+**WAIT for response.** If user says "skip", extract what you can and note assumptions.
 
 ---
 
