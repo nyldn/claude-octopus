@@ -1,7 +1,7 @@
 ---
 name: skill-doctor
 version: 1.0.0
-description: "Environment diagnostics — check providers, auth, config, hooks, scheduler, and more. Use when: AUTOMATICALLY ACTIVATE when user asks about:. \"doctor\" or \"run doctor\" or \"diagnostics\". \"check my setup\" or \"is everything working\""
+description: "Run environment diagnostics across 11 categories — providers, auth, config, state, hooks, scheduler, skills, agents, conflicts, recurrence patterns, and dependencies. Use when: user says 'doctor', 'run doctor', 'diagnostics', 'check my setup', 'is everything working', 'why is this broken', or after installing/updating the plugin, before a demo, or when verifying provider authentication and hook configuration."
 ---
 
 # Environment Doctor

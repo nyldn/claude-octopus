@@ -1,49 +1,27 @@
 ---
 name: flow-spec
 version: 1.0.0
-description: "NLSpec authoring — structured specification from multi-AI research"
----
-
-# STOP - SKILL ALREADY LOADED
-
-**DO NOT call Skill() again. DO NOT load any more skills. Execute directly.**
-
+description: "Generate structured NLSpec specifications from multi-AI research using the Double Diamond methodology. Use when: user says 'write a spec', 'create specification', 'define requirements', runs /octo:spec, or needs a structured NLSpec document for a project or feature."
 ---
 
 ## EXECUTION CONTRACT (MANDATORY - CANNOT SKIP)
 
 This skill uses **ENFORCED execution mode**. You MUST follow this exact 8-step sequence.
 
----
-
 ### STEP 1: Clarifying Questions (MANDATORY)
 
-**Ask via AskUserQuestion BEFORE any other action.**
+**Ask BEFORE any other action.**
 
-You MUST gather these inputs from the user — spec quality depends on knowing actors, constraints, and complexity upfront; without these the research query is too broad and the spec will have gaps:
-
-```
-AskUserQuestion with these questions:
+Gather these inputs (spec quality depends on knowing actors, constraints, and complexity upfront):
 
 1. **What to specify**: Project or feature name + brief description
-   - "What system/feature should I specify?"
+2. **Actors**: Who interacts? (End Users, Developers, Admins, External Services, Other)
+3. **Key constraints**: What matters most? (Performance, Security, Compatibility, Scale)
+4. **Complexity class**: Clear / Complicated / Complex
 
-2. **Actors**: Who interacts with this system?
-   - Options: End Users, Developers, Admins, External Services, Other
+If user provided a description inline (e.g., `/octo:spec user authentication system`), use that but STILL ask remaining questions.
 
-3. **Key constraints**: What matters most?
-   - Options: Performance, Security, Compatibility, Scale
-   - (multiSelect: true)
-
-4. **Complexity class**: How complex is this?
-   - Clear (well-understood, straightforward)
-   - Complicated (multiple parts, but knowable)
-   - Complex (emergent behavior, unknowns)
-```
-
-If user provided a description inline with the command (e.g., `/octo:spec user authentication system`), use that as the project description but STILL ask remaining questions (actors, constraints, complexity).
-
-If user says "skip" for any question, note assumptions and proceed.
+If user says "skip", note assumptions and proceed.
 
 **DO NOT PROCEED TO STEP 2 until questions answered.**
 

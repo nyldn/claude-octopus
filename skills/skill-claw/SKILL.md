@@ -1,7 +1,7 @@
 ---
 name: skill-claw
 version: 1.0.0
-description: "OpenClaw instance administration — manage hosts across macOS, Ubuntu/Debian, Docker, OCI, and Proxmox. Use when: AUTOMATICALLY ACTIVATE when user asks about:. \"manage openclaw\" or \"openclaw status\" or \"openclaw health\". \"update openclaw\" or \"upgrade openclaw\" or \"openclaw doctor\""
+description: "Administer OpenClaw instances across macOS, Ubuntu/Debian, Docker, OCI, and Proxmox — install, update, health-check, secure, and manage gateway lifecycle, channels, and Tailscale networking. Use when: user says 'manage openclaw', 'openclaw status', 'openclaw health', 'update openclaw', 'upgrade openclaw', 'openclaw doctor', 'configure channels', 'tailscale setup', or asks about OpenClaw installation, security hardening, backup, firewall, or service management on any supported platform."
 ---
 
 # OpenClaw Instance Administration

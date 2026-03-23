@@ -1,7 +1,7 @@
 ---
 name: skill-issues
 version: 1.0.0
-description: "Track project blockers, bugs, and gaps across sessions — use when issues pile up or need triage. Use when: AUTOMATICALLY ACTIVATE when user mentions:. \"issue\" or \"issues\" or \"problem\". \"track this\" or \"remember this blocker\""
+description: "Cross-session issue tracking stored in .octo/ISSUES.md with severity levels, category tagging, auto-generated IDs, pattern detection for systemic problems, and resolution tracking with audit trail. Supports list, add, resolve, and show subcommands. Use when: the user says 'track this issue', 'list issues', 'resolve issue', 'remember this blocker', or needs to record bugs, blockers, or gaps for later."
 ---
 
 # Issue Tracking

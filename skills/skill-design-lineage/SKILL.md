@@ -1,7 +1,7 @@
 ---
 name: skill-design-lineage
 version: 1.0.0
-description: "Persist design documents with branch tracking, revision chains, and cross-session discovery. Use when: AUTOMATICALLY ACTIVATE when user says:. \"save design\" or \"save this design\". \"design document\" or \"create a design doc\""
+description: "Save immutable design documents to ~/.claude-octopus/designs/ with git branch tracking, revision chains via supersedes references, keyword-based cross-session discovery, and downstream auto-loading for develop/deliver workflows. Use when: the user says 'save design', 'save this design', 'create a design doc', 'design document', or after brainstorming sessions that produce architectural decisions."
 ---
 
 # Design Document Lineage

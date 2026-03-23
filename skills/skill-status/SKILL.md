@@ -1,7 +1,7 @@
 ---
 name: skill-status
 version: 1.0.0
-description: "Show where you are in the workflow and what to do next — use for progress checks and orientation. Use when: AUTOMATICALLY ACTIVATE when user asks about:. \"status\" or \"progress\" or \"where am I\". \"what's next\" or \"next step\""
+description: "Display a project status dashboard showing current Double Diamond phase, roadmap progress with completion markers, blockers, and intelligent next-action routing. Also generates cross-session activity summaries from git history and suggests CLAUDE.md updates. Use when: the user says 'status', 'progress', 'where am I', 'what's next', 'next step', 'what have I been working on', or 'update project memory'."
 ---
 
 # Project Status Dashboard

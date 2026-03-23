@@ -1,7 +1,7 @@
 ---
 name: skill-content-pipeline
 version: 1.0.0
-description: "Extract patterns and anatomy from URLs — use to reverse-engineer content strategies from live pages. Use when: Use PROACTIVELY when user wants to:. \"analyze this article\", \"analyze this content\". \"deconstruct this content\", \"break down this post\""
+description: "Multi-stage pipeline that fetches URLs, deconstructs content structure, psychology, and mechanics, then synthesizes an anatomy guide with hook libraries and fill-in-the-blank templates for content recreation. Use when: the user says 'analyze this article', 'deconstruct this content', 'break down this post', 'reverse-engineer this content strategy', or provides URLs for content pattern extraction."
 ---
 
 # Content Pipeline Skill

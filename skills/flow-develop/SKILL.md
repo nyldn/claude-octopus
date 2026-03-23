@@ -1,7 +1,7 @@
 ---
 name: flow-develop
 version: 1.0.0
-description: "Multi-AI implementation using Codex and Gemini CLIs (Double Diamond Develop phase). Use when: AUTOMATICALLY ACTIVATE when user requests building or implementation:. \"build X\" or \"implement Y\" or \"create Z\". \"develop a feature for X\""
+description: "Multi-AI implementation orchestrating Codex, Gemini, and Claude for the Double Diamond Develop phase. Use when: user says 'build X', 'implement Y', 'create Z', 'develop a feature', or requests feature implementation, code generation, or architecture builds. Detects Dev vs Knowledge context to tailor provider prompts."
 ---
 
 > This file is generated from a template. Edit the `.tmpl` file, not this file directly.
@@ -317,470 +317,68 @@ Read the synthesis file and present:
 
 ---
 
-# Develop Workflow - Develop Phase 🛠️
-
-## ⚠️ MANDATORY: Context Detection & Visual Indicators
-
-**BEFORE executing ANY workflow actions, you MUST:**
-
-### Step 1: Detect Work Context
-
-Analyze the user's prompt and project to determine context:
-
-**Knowledge Context Indicators** (in prompt):
-- Deliverable terms: "PRD", "proposal", "presentation", "report", "strategy document", "business case"
-- Business terms: "market entry", "competitive analysis", "stakeholder", "executive summary"
-
-**Dev Context Indicators** (in prompt):
-- Technical terms: "API", "endpoint", "function", "module", "service", "component"
-- Action terms: "implement", "code", "build", "create", "develop" + technical noun
-
-**Also check**: Does the project have `package.json`, `Cargo.toml`, etc.? (suggests Dev Context)
-
-**Step 1b: Detect Dev Subtype** — see EXECUTION CONTRACT Step 1b above for subtype table and quality supplements. Append the matching supplement to the prompt before calling orchestrate.sh.
-
-### Step 2: Output Context-Aware Banner
-
-**For Dev Context:**
-```
-🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider implementation mode
-🛠️ [Dev] Develop Phase: [Brief description of what you're building]
-📋 Session: ${CLAUDE_SESSION_ID}
-
-Providers:
-🔴 Codex CLI - Code generation and patterns
-🟡 Gemini CLI - Alternative approaches
-🔵 Claude - Integration and quality gates
-```
-
-**For Knowledge Context:**
-```
-🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider implementation mode
-🛠️ [Knowledge] Develop Phase: [Brief description of deliverable]
-📋 Session: ${CLAUDE_SESSION_ID}
-
-Providers:
-🔴 Codex CLI - Structure and framework application
-🟡 Gemini CLI - Content and narrative development
-🔵 Claude - Integration and quality review
-```
-
-| Indicator | Provider | Cost Source |
-|-----------|----------|-------------|
-| 🔴 | Codex CLI | User's OPENAI_API_KEY |
-| 🟡 | Gemini CLI | User's GEMINI_API_KEY |
-| 🟣 | Perplexity Sonar | User's PERPLEXITY_API_KEY |
-| 🔵 | Claude | Included with Claude Code |
-
-**This is NOT optional.** Users need to see which AI providers are active and understand they are being charged for external API calls (🔴 🟡).
-
-
 ---
 
-**Part of Double Diamond: DEVELOP** (divergent thinking)
+**Part of Double Diamond: DEVELOP** (divergent phase for solutions)
 
-```
-       DEVELOP (tangle)
+Providers: 🔴 Codex CLI (code generation), 🟡 Gemini CLI (alternative approaches), 🔵 Claude (integration and quality gates).
 
-        \         /
-         \   *   /
-          \ * * /
-           \   /
-            \ /
+## When to Use
 
-       Diverge with
-        solutions
-```
+**Dev Context:** feature implementation, code generation, complex builds, architecture, integration work.
+**Knowledge Context:** PRDs, strategy documents, business cases, presentations, research reports.
 
-## What This Workflow Does
+**Do NOT use for:** simple one-line edits, bug fixes (use debugging skills), code review (use deliver-workflow), reading/exploring code.
 
-The **develop** phase generates multiple implementation approaches using external CLI providers:
+## Agent Continuation (v9.5 / CC v2.1.77+)
 
-1. **🔴 Codex CLI** - Implementation-focused, code generation, technical patterns
-2. **🟡 Gemini CLI** - Alternative approaches, edge cases, best practices
-3. **🔵 Claude (You)** - Integration, refinement, and final implementation
-
-This is the **divergent** phase for solutions - we explore different implementation paths before converging on the best approach.
-
----
-
-## When to Use Develop
-
-Use develop when you need:
-
-### Dev Context Examples
-- **Feature Implementation**: "Build a user authentication system"
-- **Code Generation**: "Create an API endpoint for user registration"
-- **Complex Builds**: "Implement a caching layer with Redis"
-- **Architecture Implementation**: "Create a microservice for payment processing"
-- **Integration Work**: "Integrate Stripe payment processing"
-
-### Knowledge Context Examples
-- **PRD Creation**: "Build a PRD for the mobile onboarding feature"
-- **Strategy Documents**: "Create a market entry strategy for APAC"
-- **Business Cases**: "Build a business case for migrating to cloud"
-- **Presentations**: "Create an executive presentation on Q2 results"
-- **Research Reports**: "Build a competitive analysis report"
-
-**Don't use develop for:**
-- Simple one-line code changes (use Edit tool)
-- Bug fixes (use debugging skills)
-- Code review tasks (use deliver-workflow or review skills)
-- Reading or exploring code (use Read tool)
-- Simple document edits (use Write tool)
-
----
-
-## Visual Indicators
-
-Before execution, you'll see:
-
-```
-🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider implementation
-🛠️ Develop Phase: Building and developing solutions
-
-Providers:
-🔴 Codex CLI - Code generation and patterns
-🟡 Gemini CLI - Alternative approaches
-🔵 Claude - Integration and refinement
-```
-
----
-
-## How It Works
-
-### Step 1: Invoke Tangle Phase
-
-```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh develop "<user's implementation request>"
-```
-
-### Step 2: Multi-Provider Implementation
-
-The orchestrate.sh script will:
-1. Call **Codex CLI** with the implementation task
-2. Call **Gemini CLI** with the implementation task
-3. You (Claude) contribute implementation analysis
-4. Synthesize approaches and recommend best path
-
-### Step 3: Review Quality Gates
-
-The tangle phase includes automatic quality validation:
-- Code quality checks
-- Security scanning
-- Best practice validation
-- Implementation completeness
-
-### Step 3b: Handle Agent Continuation (v9.5 / CC v2.1.77+)
-
-When orchestrate.sh output contains `AGENT_TEAMS_RESUME:${agent_id}:${task_id}:${role}:${phase}`:
-
-1. Send a message to the existing agent using `SendMessage({to: "${agent_id}", message: "<iteration prompt>"})` — this auto-resumes a stopped agent automatically (CC v2.1.77+)
-2. Read the iteration prompt from the resume instruction JSON at `~/.claude-octopus/agent-teams/${task_id}.json`
-3. If SendMessage returns an error (agent GC'd or not found), fall back to creating a new agent with the full prompt from the instruction file
-4. After the agent responds, store its agentId via: `bridge_store_agent_id(task_id, agent_id)` in the bridge ledger
-
-Note: The `Agent(resume: ...)` parameter was removed in CC v2.1.77. Always use `SendMessage` for agent continuation.
-
-### Step 4: Read Results
-
-Results are saved to:
-```
-~/.claude-octopus/results/${SESSION_ID}/tangle-synthesis-<timestamp>.md
-```
-
-### Step 5: Implement Solution
-
-After reviewing all perspectives, implement the final solution using Write/Edit tools.
+When orchestrate.sh output contains `AGENT_TEAMS_RESUME:${agent_id}:${task_id}:${role}:${phase}`, use `SendMessage` to resume the agent. Fall back to creating a new agent if SendMessage fails.
 
 ---
 
 ## Implementation Instructions
 
-When this skill is invoked, follow the EXECUTION CONTRACT above exactly. The contract includes:
-
-1. **Blocking Step 1**: Detect work context (Dev vs Knowledge)
-2. **Blocking Step 2**: Check providers, display visual indicators
-3. **Blocking Step 3**: Execute orchestrate.sh develop via Bash tool
-4. **Blocking Step 4**: Verify synthesis file exists
-5. **Step 5**: Present implementation plan, get user confirmation
-6. **Step 6**: Implement the solution using Write/Edit tools
-
-Each step is **mandatory and blocking** - you cannot proceed to the next step until the current one completes successfully.
-
-### Task Management Integration
-
-Create tasks to track execution progress:
-
-```javascript
-// At start of skill execution
-TaskCreate({
-  subject: "Execute develop workflow with multi-AI providers",
-  description: "Run orchestrate.sh develop for implementation",
-  activeForm: "Running multi-AI develop workflow"
-})
-
-// Mark in_progress when calling orchestrate.sh
-TaskUpdate({taskId: "...", status: "in_progress"})
-
-// Mark completed ONLY after implementation finished
-TaskUpdate({taskId: "...", status: "completed"})
-```
+Follow the EXECUTION CONTRACT above exactly. Each step is **mandatory and blocking**.
 
 ### Error Handling
 
-If any step fails:
-- **Step 1 (Context)**: Default to Dev Context if ambiguous
-- **Step 2 (Providers)**: If both unavailable, suggest `/octo:setup` and STOP
-- **Step 3 (orchestrate.sh)**: Show bash error, check logs, report to user
-- **Step 4 (Validation)**: If synthesis missing, show orchestrate.sh logs, DO NOT substitute with direct implementation
-
-Never fall back to direct implementation if orchestrate.sh execution fails. Report the failure and let the user decide how to proceed.
+- **Context detection**: Default to Dev Context if ambiguous
+- **Providers unavailable**: If both unavailable, suggest `/octo:setup` and STOP
+- **orchestrate.sh fails**: Show error, check logs, report to user. Never fall back to direct implementation.
+- **Synthesis missing**: Show logs, DO NOT substitute with direct implementation
 
 ### Implementation Plan Format
 
-After successful execution, present implementation plan with:
-   ```
-   # Implementation Plan: <task>
-
-   ## Recommended Approach
-   [Your strategic recommendation based on all perspectives]
-
-   ## Implementation Steps
-   1. [Step-by-step implementation plan]
-   2. ...
-
-   ## Code Overview
-
-   ### Codex Approach
-   [Key implementation details from Codex]
-
-   ### Gemini Approach
-   [Alternative considerations from Gemini]
-
-   ### Final Implementation
-   [Your integrated solution]
-
-   ## Quality Gates
-   - [ ] Security validation: PASSED/FAILED
-   - [ ] Best practices: PASSED/FAILED
-   - [ ] Code quality: PASSED/FAILED
-
-   Would you like me to proceed with implementation?
-   ```
-
-6. **Implement the solution**
-   After user confirms, use Write/Edit tools to create the implementation:
-   - Create necessary files
-   - Write code based on synthesized approach
-   - Add tests if applicable
-   - Document the implementation
+After successful execution, present: Recommended Approach, Implementation Steps, Code Overview (Codex/Gemini/Final), Quality Gates (security/best practices/code quality), then ask for user confirmation before implementing.
 
 ---
-
-## Example Usage
-
-### Example 1: Build Authentication System
-
-```
-User: Build a user authentication system with JWT
-
-Claude:
-🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider implementation mode
-🛠️ Develop Phase: Building authentication system
-
-[Executes: ${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh develop "Build a user authentication system with JWT"]
-
-[After completion, reads synthesis and presents:]
-
-# Implementation Plan: User Authentication System
-
-## Recommended Approach
-
-Based on multi-provider analysis, I recommend a layered approach:
-1. Auth middleware for JWT validation
-2. Login/register endpoints
-3. Token refresh mechanism
-4. Secure password hashing (bcrypt)
-
-## Implementation Steps
-
-1. Create `src/auth/middleware.ts` - JWT validation middleware
-2. Create `src/auth/controller.ts` - Login/register endpoints
-3. Create `src/auth/service.ts` - Business logic
-4. Create `src/auth/utils.ts` - Token generation/validation
-5. Update `src/routes.ts` - Register auth routes
-
-## Code Overview
-
-### Codex Approach
-- Modern TypeScript with strict types
-- Express middleware pattern
-- Redis for token blacklisting
-- Comprehensive error handling
-
-### Gemini Approach
-- Passport.js integration suggestion
-- Rate limiting on auth endpoints
-- Multi-factor auth consideration
-- Session management alternatives
-
-### Final Implementation
-- Hybrid: Modern TypeScript + Express patterns
-- JWT with refresh tokens
-- bcrypt password hashing
-- Rate limiting included
-- Optional MFA hooks for future
 
 ## Quality Gates
-- ✅ Security validation: PASSED (bcrypt, secure tokens)
-- ✅ Best practices: PASSED (TypeScript, error handling)
-- ⚠️  Code quality: WARNING (consider adding request validation)
 
-Would you like me to proceed with implementation?
+Automatically runs via `.claude/hooks/quality-gate.sh` with dimensions: Code Quality (25%), Security (35%), Best Practices (20%), Completeness (20%). Scores: 90-100 production-ready, 75-89 minor improvements, 60-74 address warnings, <60 critical fixes needed.
 
-[User: Yes, proceed]
+## Workflow Position
 
-[Claude creates files and implements the solution]
-```
-
-### Example 2: Create API Endpoint
-
-```
-User: Create an API endpoint for fetching user notifications
-
-Claude:
-🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider implementation mode
-🛠️ Develop Phase: Creating API endpoint
-
-[Executes tangle workflow]
-
-[Presents implementation plan with multi-provider perspectives]
-[Implements the endpoint after user confirmation]
-```
-
----
-
-## Quality Gates Integration
-
-The tangle phase automatically runs quality checks via `.claude/hooks/quality-gate.sh`:
-
-```bash
-# Triggered after tangle execution (PostToolUse hook)
-./hooks/quality-gate.sh
-```
-
-**Quality Dimensions**:
-
-| Dimension | Weight | Criteria |
-|-----------|--------|----------|
-| **Code Quality** | 25% | Complexity, maintainability, documentation |
-| **Security** | 35% | OWASP compliance, auth, input validation |
-| **Best Practices** | 20% | Error handling, logging, testing |
-| **Completeness** | 20% | Feature completeness, edge cases |
-
-**Scoring Thresholds**:
-- **90-100**: Excellent - Ready for production
-- **75-89**: Good - Minor improvements recommended
-- **60-74**: Acceptable - Address warnings before deploy
-- **< 60**: Poor - Critical issues must be fixed
-
-
----
-
-## Integration with Other Workflows
-
-Tangle is the **third phase** of the Double Diamond:
-
-```
-PROBE (Discover) → GRASP (Define) → TANGLE (Develop) → INK (Deliver)
-```
-
-After tangle completes, you may continue to:
-- **Ink**: Validate and deliver the implementation
-
-Or use standalone for implementation tasks.
-
----
-
-## Before Implementation Checklist
-
-Before writing code, ensure:
-
-- [ ] All providers responded with implementation approaches
-- [ ] Quality gates evaluated (security, best practices, code quality)
-- [ ] User confirmed the implementation plan
-- [ ] File structure and architecture are clear
-- [ ] Dependencies identified and available
-- [ ] Tests planned (if applicable)
+Third phase of Double Diamond: `PROBE (Discover) → GRASP (Define) → TANGLE (Develop) → INK (Deliver)`. After completion, continue to Ink phase or use standalone.
 
 ---
 
 ## After Implementation: Auto Code Review & E2E Verification (MANDATORY)
 
-**After implementation completes and before presenting results to the user, you MUST launch two verification agents in parallel.** Do NOT skip this step or ask the user whether to run it — it is automatic.
+**Launch two Sonnet agents in parallel immediately after implementation — do NOT skip or ask.**
 
-### Launch both agents simultaneously:
+1. **Code Review Agent**: Review git diff for bugs, security vulnerabilities, coupling issues, convention adherence. Report high-confidence issues only.
+2. **E2E Verification Agent**: Run test suite, verify no regressions, check new files are integrated, confirm implementation matches requirements.
 
-**Agent 1 — Code Review (Sonnet):**
-```
-Agent(
-  model: "sonnet",
-  subagent_type: "feature-dev:code-reviewer",
-  run_in_background: true,
-  description: "Code review: post-develop",
-  prompt: "Review the code changes from this development session. Focus on:
-1. Bugs, logic errors, security vulnerabilities
-2. Hidden dependencies or coupling issues
-3. Whether error handling covers failure modes
-4. Adherence to project conventions (check CLAUDE.md)
-
-Check git diff for the changed files. Report only high-confidence issues."
-)
-```
-
-**Agent 2 — E2E Verification (Sonnet):**
-```
-Agent(
-  model: "sonnet",
-  run_in_background: true,
-  description: "E2E test: post-develop",
-  prompt: "Run end-to-end verification of the development changes:
-1. Run the project's test suite (detect from package.json scripts, Makefile, or pyproject.toml)
-2. Verify no regressions in existing tests
-3. Check that new files are properly integrated (imported, registered, sourced)
-4. Verify the implementation matches the original task requirements
-
-Report: tests passed/failed, any integration issues found."
-)
-```
-
-**After both agents complete:**
-- Present their findings to the user as part of the results
-- If the code reviewer found HIGH-confidence issues, flag them prominently
-- If tests failed, flag before the "what next?" prompt
-- Do NOT block on the review — present findings alongside results
-
-WHY: The user should never have to manually request a code review after development work. Fresh-eyes review from a different model (Sonnet vs Opus) catches issues the implementer is blind to. Running tests automatically catches regressions before the user discovers them.
-
----
+Present findings alongside results. Flag high-confidence issues prominently. If tests failed, flag before "what next?" prompt.
 
 ## After Implementation Checklist
 
-After writing code, ensure:
-
-- [ ] All files created/updated
-- [ ] Code follows recommended patterns from synthesis
-- [ ] Code follows the project's existing commenting conventions (do not add comments unless asked or required by project style)
-- [ ] Security concerns addressed
-- [ ] Error handling implemented
-- [ ] Tests written (if applicable)
-- [ ] Lint/typecheck commands run (detect from package.json, pyproject.toml, Cargo.toml, Makefile; if not found, ask the user)
-- [ ] If lint/test commands were discovered and not documented in CLAUDE.md, suggest adding them
-- [ ] **Auto code review completed** (Sonnet agent)
-- [ ] **E2E verification completed** (Sonnet agent)
-- [ ] User notified of completion with review findings
-- [ ] Suggest running ink-workflow for validation
+- All files created/updated following synthesis patterns and project commenting conventions
+- Security concerns addressed, error handling implemented
+- Lint/typecheck commands run (detect from package.json, pyproject.toml, Cargo.toml, Makefile)
+- Auto code review and E2E verification completed
+- Suggest running ink-workflow for validation
 
 ---
 

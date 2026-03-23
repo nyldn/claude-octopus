@@ -1,7 +1,7 @@
 ---
 name: skill-resume
 version: 1.0.0
-description: "Pick up where you left off from a previous session — use after context resets, compaction, or new conversations. Use when: AUTOMATICALLY ACTIVATE when user mentions:. \"resume\" or \"continue\" or \"pick up where I left off\". \"what was I doing\" or \"restore session\""
+description: "Restore context from a previous session by reading .octo/ state, loading adaptive context tiers, displaying history and blockers, and routing to the appropriate next action. Use when: user says 'resume', 'continue', 'pick up where I left off', 'what was I doing', 'restore session', or after a context reset, compaction event, or starting a new conversation on an existing project."
 ---
 
 # Session Restoration

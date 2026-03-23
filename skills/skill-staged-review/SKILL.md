@@ -1,7 +1,7 @@
 ---
 name: skill-staged-review
 version: 1.0.0
-description: "Review code in two passes: spec compliance then quality — use for thorough PR or feature reviews. Use when: Use when completing a major feature, preparing a PR, or when user says. \"staged review\", \"full review\", \"review against spec\", or \"two-stage review\"."
+description: "Two-stage code review — Stage 1 validates implementation against the intent contract (spec compliance, boundary checks), Stage 2 runs stub detection and multi-LLM quality review (architecture, security, performance, test coverage). Use when: user says 'staged review', 'full review', 'review against spec', 'two-stage review', or when completing a major feature, preparing a PR, or needing both spec compliance and code quality validation before merge."
 ---
 
 # Two-Stage Review Pipeline

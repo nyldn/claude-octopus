@@ -1,7 +1,7 @@
 ---
 name: skill-debug
 version: 1.0.0
-description: "Debug issues methodically — use when stuck on errors, test failures, or unexpected behavior. Use when: AUTOMATICALLY ACTIVATE when encountering bugs or failures:. \"fix this bug\" or \"debug Y\" or \"troubleshoot X\". \"why is X failing\" or \"why isn't X working\" or \"why doesn't X work\""
+description: "Four-phase systematic debugging process: root cause investigation, pattern analysis, hypothesis testing, and verified implementation with a 3-strike escalation rule. Use when: the user says 'fix this bug', 'debug this', 'troubleshoot X', 'why is X failing', 'why isn't X working', or encounters test failures, build errors, or unexpected behavior."
 ---
 
 # Systematic Debugging

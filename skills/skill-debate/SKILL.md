@@ -1,7 +1,7 @@
 ---
 name: skill-debate
 version: 1.0.0
-description: "Structured four-way AI debates between Claude, Sonnet, Gemini, and Codex. Use when: AUTOMATICALLY ACTIVATE when user says:. \"/debate <question>\". \"run a debate about X\""
+description: "Run structured four-way AI debates between Claude Opus, Sonnet, Gemini CLI, and Codex CLI with configurable rounds, styles, and quality gates. Use when: user says '/debate', 'run a debate about', 'I want gemini and codex to review', or requests multi-AI deliberation on technical decisions, architecture trade-offs, or code reviews."
 ---
 
 # AI Debate Hub Skill v4.8
