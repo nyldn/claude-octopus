@@ -27,53 +27,20 @@ else
     fail "gen-skill-docs.sh is executable" "missing execute permission"
 fi
 
-# ── Shared blocks directory and expected files ───────────────────────────────
+# ── Shared blocks directory (removed in v9.10.2 — blocks inlined into templates)
 
 if [[ -d "$BLOCKS_DIR" ]]; then
-    pass "skills/blocks/ directory exists"
+    pass "skills/blocks/ directory exists (legacy)"
+    expected_blocks="preamble.md provider-setup.md visual-indicators.md quality-gates.md command-reference.md"
+    for block_file in $expected_blocks; do
+        if [[ -f "$BLOCKS_DIR/$block_file" ]]; then
+            pass "block file $block_file exists"
+        else
+            fail "block file $block_file exists" "not found in $BLOCKS_DIR"
+        fi
+    done
 else
-    fail "skills/blocks/ directory exists" "not found at $BLOCKS_DIR"
-fi
-
-expected_blocks="preamble.md provider-setup.md visual-indicators.md quality-gates.md command-reference.md"
-for block_file in $expected_blocks; do
-    if [[ -f "$BLOCKS_DIR/$block_file" ]]; then
-        pass "block file $block_file exists"
-    else
-        fail "block file $block_file exists" "not found in $BLOCKS_DIR"
-    fi
-done
-
-# ── Block content validation ─────────────────────────────────────────────────
-
-if grep -q 'generated from a template' "$BLOCKS_DIR/preamble.md" 2>/dev/null; then
-    pass "preamble.md contains template notice"
-else
-    fail "preamble.md contains template notice" "missing expected content"
-fi
-
-if grep -q 'command -v codex' "$BLOCKS_DIR/provider-setup.md" 2>/dev/null; then
-    pass "provider-setup.md contains provider check"
-else
-    fail "provider-setup.md contains provider check" "missing expected content"
-fi
-
-if grep -q 'OPENAI_API_KEY' "$BLOCKS_DIR/visual-indicators.md" 2>/dev/null; then
-    pass "visual-indicators.md references API keys"
-else
-    fail "visual-indicators.md references API keys" "missing expected content"
-fi
-
-if grep -q 'Quality Dimensions' "$BLOCKS_DIR/quality-gates.md" 2>/dev/null; then
-    pass "quality-gates.md contains quality dimensions"
-else
-    fail "quality-gates.md contains quality dimensions" "missing expected content"
-fi
-
-if grep -q 'COMMAND_LIST' "$BLOCKS_DIR/command-reference.md" 2>/dev/null; then
-    pass "command-reference.md contains COMMAND_LIST placeholder"
-else
-    fail "command-reference.md contains COMMAND_LIST placeholder" "missing expected content"
+    pass "skills/blocks/ removed (blocks inlined into templates since v9.10.2)"
 fi
 
 # ── Template files exist (at least 4) ───────────────────────────────────────
@@ -156,70 +123,23 @@ else
     fail "--dry-run reports OK for fresh files" "no OK in output"
 fi
 
-# ── Generated .md files have NO unresolved {{...}} placeholders ──────────────
+# ── Flow skill files exist and have valid structure ──────────────────────────
+# Note: since v9.10.2, flow-*.md are directly authored (not generated from blocks)
 
 for md_name in flow-discover.md flow-define.md flow-develop.md flow-deliver.md; do
     md_file="$SKILLS_DIR/$md_name"
-    [[ -f "$md_file" ]] || continue
-
-    unresolved=$(grep -c '{{[A-Z_]*}}' "$md_file" 2>/dev/null || true)
-    if [[ "$unresolved" -eq 0 ]]; then
-        pass "$md_name has no unresolved placeholders"
+    if [[ -f "$md_file" ]]; then
+        pass "$md_name exists"
     else
-        fail "$md_name has no unresolved placeholders" "found $unresolved unresolved {{...}} patterns"
-    fi
-done
-
-# ── Generated files contain expected shared block content ────────────────────
-
-for md_name in flow-discover.md flow-define.md flow-develop.md flow-deliver.md; do
-    md_file="$SKILLS_DIR/$md_name"
-    [[ -f "$md_file" ]] || continue
-
-    # Preamble block
-    if grep -q 'generated from a template' "$md_file" 2>/dev/null; then
-        pass "$md_name contains preamble block"
-    else
-        fail "$md_name contains preamble block" "missing template notice"
+        fail "$md_name exists" "not found in $SKILLS_DIR"
+        continue
     fi
 
-    # Provider setup block
-    if grep -q 'command -v codex' "$md_file" 2>/dev/null; then
-        pass "$md_name contains provider setup block"
-    else
-        fail "$md_name contains provider setup block" "missing provider check"
-    fi
-
-    # Visual indicators block
-    if grep -q 'This is NOT optional' "$md_file" 2>/dev/null; then
-        pass "$md_name contains visual indicators block"
-    else
-        fail "$md_name contains visual indicators block" "missing visual indicators"
-    fi
-done
-
-# Quality gates block in develop and deliver only
-for md_name in flow-develop.md flow-deliver.md; do
-    md_file="$SKILLS_DIR/$md_name"
-    [[ -f "$md_file" ]] || continue
-
-    if grep -q 'Quality Dimensions' "$md_file" 2>/dev/null; then
-        pass "$md_name contains quality gates block"
-    else
-        fail "$md_name contains quality gates block" "missing quality gates"
-    fi
-done
-
-# ── Generated files preserve skill frontmatter ──────────────────────────────
-
-for md_name in flow-discover.md flow-define.md flow-develop.md flow-deliver.md; do
-    md_file="$SKILLS_DIR/$md_name"
-    [[ -f "$md_file" ]] || continue
-
+    # Must have YAML frontmatter with execution_mode: enforced
     if head -5 "$md_file" | grep -q '^---$'; then
-        pass "$md_name starts with YAML frontmatter"
+        pass "$md_name has YAML frontmatter"
     else
-        fail "$md_name starts with YAML frontmatter" "missing --- delimiter"
+        fail "$md_name has YAML frontmatter" "missing --- delimiter"
     fi
 
     if grep -q 'execution_mode: enforced' "$md_file" 2>/dev/null; then
@@ -227,30 +147,35 @@ for md_name in flow-discover.md flow-define.md flow-develop.md flow-deliver.md; 
     else
         fail "$md_name has enforced execution mode" "missing execution_mode: enforced"
     fi
+
+    # Must reference orchestrate.sh (the actual execution contract)
+    if grep -q 'orchestrate.sh' "$md_file" 2>/dev/null; then
+        pass "$md_name references orchestrate.sh"
+    else
+        fail "$md_name references orchestrate.sh" "missing orchestrate.sh reference"
+    fi
 done
 
-# ── --dry-run detects stale files ────────────────────────────────────────────
+# ── Template system dry-run (only if gen-skill-docs.sh and blocks exist) ─────
 
-# Intentionally make a file stale
-echo "# stale marker" >> "$SKILLS_DIR/flow-discover.md"
+if [[ -x "$GEN_SCRIPT" && -d "$BLOCKS_DIR" ]]; then
+    # Intentionally make a file stale
+    echo "# stale marker" >> "$SKILLS_DIR/flow-discover.md"
 
-stale_exit=0
-stale_output=$("$GEN_SCRIPT" --dry-run 2>&1) || stale_exit=$?
+    stale_exit=0
+    stale_output=$("$GEN_SCRIPT" --dry-run 2>&1) || stale_exit=$?
 
-if [[ $stale_exit -ne 0 ]]; then
-    pass "--dry-run exits non-zero when files are stale"
+    if [[ $stale_exit -ne 0 ]]; then
+        pass "--dry-run exits non-zero when files are stale"
+    else
+        fail "--dry-run exits non-zero when files are stale" "exit code was 0"
+    fi
+
+    # Restore fresh state
+    "$GEN_SCRIPT" > /dev/null 2>&1
 else
-    fail "--dry-run exits non-zero when files are stale" "exit code was 0"
+    pass "template generation skipped (blocks removed, skills directly authored)"
 fi
-
-if echo "$stale_output" | grep -q 'STALE'; then
-    pass "--dry-run reports STALE for modified files"
-else
-    fail "--dry-run reports STALE for modified files" "no STALE in output"
-fi
-
-# Restore fresh state
-"$GEN_SCRIPT" > /dev/null 2>&1
 
 # ── Summary ──────────────────────────────────────────────────────────────────
 

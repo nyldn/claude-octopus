@@ -27,7 +27,6 @@ export const SKILL_REGISTRY: SkillRegistryEntry[] = [
   { name: "octopus-security-audit", description: "OWASP compliance, vulnerability scanning, and adversarial red team testing", type: "skill", file: "skill-security-audit.md" },
   { name: "octopus-ui-ux-design", description: "Design UI/UX with style guides, palettes, and component specs", type: "skill", file: "skill-ui-ux-design.md" },
   { name: "skill-audit", description: "Audit codebases for quality, consistency, and broken patterns — use for pre-release or tech debt review", type: "skill", file: "skill-audit.md" },
-  { name: "skill-claude-code-plugin", description: "Build, migrate, validate, and publish Anthropic Claude Code plugins. Use when working on `.claude-plugin/plugin.json`, plugin-root `skills/`, `agents/`, `hooks/`, `.mcp.json`, `.lsp.json`, `settings.json`, or local `claude --plugin-dir` plugin testing.", type: "skill", file: "skill-claude-code-plugin.md" },
   { name: "skill-claw", description: "OpenClaw instance administration — manage hosts across macOS, Ubuntu/Debian, Docker, OCI, and Proxmox", type: "skill", file: "skill-claw.md" },
   { name: "skill-code-review", description: "Expert multi-AI code review with quality and security analysis", type: "skill", file: "skill-code-review.md" },
   { name: "skill-content-pipeline", description: "Extract patterns and anatomy from URLs — use to reverse-engineer content strategies from live pages", type: "skill", file: "skill-content-pipeline.md" },
@@ -115,4 +114,4 @@ export const SKILL_REGISTRY: SkillRegistryEntry[] = [
   { name: "unfreeze", description: "Remove freeze mode edit restriction", type: "command", file: "unfreeze.md" },
 ];
 
-export const REGISTRY_COUNT = 98;
+export const REGISTRY_COUNT = 97;
