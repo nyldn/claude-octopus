@@ -46,7 +46,8 @@ Match the query against keywords below. Check categories **in priority order** �
 | Intent | Trigger Keywords | Routes To |
 |--------|-----------------|-----------|
 | Lifecycle | end-to-end, complete lifecycle, full workflow, entire project, whole system | `octo:embrace` |
-| Parallel | parallel, team of teams, decompose, work packages, split into, multi-instance | `octo:parallel` |
+| Multi-LLM | multi, multi-llm, multi-provider, all providers, force multi, cross-model | `octo:multi` |
+| Parallel | parallel, team of teams, decompose, work packages, split into | `octo:parallel` |
 | Specification | spec, nlspec, specification, requirements doc, define scope, write spec | `octo:spec` |
 | Security | security audit, OWASP, vulnerability, pentest, threat model, CVE, attack surface | `octo:security` |
 | TDD | TDD, test-driven, write tests, test first, unit test, test coverage | `octo:tdd` |
@@ -142,7 +143,8 @@ Engineering:
  8. Security    (/octo:security)       — Security audit with OWASP coverage
  9. TDD         (/octo:tdd)            — Test-driven development workflow
 10. Spec        (/octo:spec)           — NLSpec structured authoring
-11. Parallel    (/octo:parallel)       — Team of Teams decomposition
+11. Multi-LLM   (/octo:multi)          — Force all providers on any task
+12. Parallel    (/octo:parallel)       — Team of Teams decomposition
 
 Creative & Documentation:
 12. Design      (/octo:design-ui-ux)   — UI/UX design workflow
