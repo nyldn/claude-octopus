@@ -4,15 +4,15 @@
     "name": "nyldn"
   },
   "metadata": {
-    "description": "v9.12.0 — Multi-tentacled orchestration plugin for Claude Code",
-    "version": "9.12.0"
+    "description": "v9.13.0 — Multi-tentacled orchestration plugin for Claude Code",
+    "version": "9.13.0"
   },
   "plugins": [
     {
       "name": "octo",
       "source": "./",
-      "description": "v9.12.0 - Optimization sweep \u2014 orchestrate.sh decomposition, dead code removal, fork reduction. 32 personas, 47 commands, 44 skills. Run /octo:setup.",
-      "version": "9.12.0",
+      "description": "v9.13.0 - CC v2.1.83 feature sync \u2014 PLUGIN_DATA, agent effort/initialPrompt, CwdChanged/StopFailure hooks, bridge polish. 32 personas, 47 commands, 44 skills. Run /octo:setup.",
+      "version": "9.13.0",
       "author": {
         "name": "nyldn"
       },

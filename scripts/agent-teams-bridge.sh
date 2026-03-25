@@ -21,8 +21,12 @@ bridge_is_enabled() {
         enabled) return 0 ;;
         disabled) return 1 ;;
         auto)
-            [[ "${SUPPORTS_AGENT_TEAMS_BRIDGE:-false}" == "true" ]] && return 0
-            return 1
+            [[ "${SUPPORTS_AGENT_TEAMS_BRIDGE:-false}" == "true" ]] || return 1
+            # Log if CC native agent teams feature is not enabled
+            if [[ "${CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS:-0}" != "1" ]]; then
+                log "DEBUG" "BRIDGE: CC native agent teams not enabled (set CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 in settings.json env)" 2>/dev/null || true
+            fi
+            return 0
             ;;
         *) return 1 ;;
     esac
@@ -85,6 +89,16 @@ bridge_init_ledger() {
     bridge_is_enabled || return 0
     command -v jq &>/dev/null || return 1
 
+    # Nested team guard: refuse to init if a running workflow already exists
+    if [[ -f "$_BRIDGE_LEDGER" ]]; then
+        local existing_status
+        existing_status=$(jq -r '.status // "unknown"' "$_BRIDGE_LEDGER" 2>/dev/null)
+        if [[ "$existing_status" == "running" ]]; then
+            log "WARN" "BRIDGE: Cannot create nested team — active workflow already running (status=$existing_status)" 2>/dev/null || true
+            return 1
+        fi
+    fi
+
     mkdir -p "$_BRIDGE_DIR"
 
     jq -n \
@@ -118,6 +132,7 @@ bridge_register_task() {
     local agent_type="$2"
     local phase="$3"
     local role="${4:-none}"
+    local depends_on="${5:-}"  # comma-separated task IDs (empty = no dependencies)
 
     bridge_is_enabled || return 0
 
@@ -126,15 +141,39 @@ bridge_register_task() {
         --arg agent "$agent_type" \
         --arg phase "$phase" \
         --arg role "$role" \
+        --arg deps "$depends_on" \
         --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
         '.tasks[$id] = {
             agent_type: $agent,
             phase: $phase,
             role: $role,
             status: "running",
+            depends_on: ($deps | split(",") | map(select(. != ""))),
             registered_at: $ts,
             completed_at: null
         } | .phases[$phase].total_tasks = ((.phases[$phase].total_tasks // 0) + 1)'
+}
+
+# Check if all dependencies for a task are completed
+# Returns 0 if unblocked, 1 if blocked
+bridge_is_task_unblocked() {
+    local task_id="$1"
+
+    bridge_is_enabled || return 0
+    [[ ! -f "$_BRIDGE_LEDGER" ]] && return 0
+    command -v jq &>/dev/null || return 0
+
+    local blocked
+    blocked=$(jq -r --arg id "$task_id" '
+        (.tasks[$id].depends_on // []) as $deps |
+        if ($deps | length) == 0 then "no"
+        else
+            [.tasks | to_entries[] | select(.key as $k | $deps | index($k)) | select(.value.status != "completed")] |
+            if length > 0 then "yes" else "no" end
+        end
+    ' "$_BRIDGE_LEDGER" 2>/dev/null)
+
+    [[ "$blocked" != "yes" ]]
 }
 
 bridge_mark_task_complete() {
@@ -419,10 +458,55 @@ bridge_get_agent_id() {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# BRIDGE: Teammate shutdown protocol
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Mark a task as shutting down (state transition before actual CC shutdown)
+# The actual shutdown is handled by CC's native SendMessage/Agent tooling
+bridge_shutdown_teammate() {
+    local task_id="$1"
+
+    bridge_is_enabled || return 0
+
+    bridge_atomic_ledger_update \
+        --arg id "$task_id" \
+        --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        '.tasks[$id].status = "shutting_down" | .tasks[$id].shutdown_requested_at = $ts'
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# BRIDGE: Native team discovery
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Read CC's official team config from ~/.claude/teams/ (CC v2.1.83+)
+# Returns tab-separated: name\tagent_id\tagent_type per line
+bridge_discover_native_team() {
+    local teams_dir="$HOME/.claude/teams"
+    [[ -d "$teams_dir" ]] || return 1
+    command -v jq &>/dev/null || return 1
+
+    # Find most recent team config
+    local latest
+    latest=$(ls -t "$teams_dir"/*/config.json 2>/dev/null | head -1)
+    [[ -n "$latest" ]] || return 1
+
+    jq -r '.members[]? | "\(.name)\t\(.agent_id)\t\(.agent_type)"' "$latest" 2>/dev/null
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # BRIDGE: Cleanup
 # ═══════════════════════════════════════════════════════════════════════════════
 bridge_cleanup() {
     bridge_is_enabled || return 0
+
+    # Warn about running tasks before cleanup
+    if [[ -f "$_BRIDGE_LEDGER" ]] && command -v jq &>/dev/null; then
+        local running
+        running=$(jq '[.tasks | to_entries[] | select(.value.status == "running")] | length' "$_BRIDGE_LEDGER" 2>/dev/null || echo 0)
+        if [[ "${running:-0}" -gt 0 ]]; then
+            log "WARN" "BRIDGE: $running task(s) still running during cleanup" 2>/dev/null || true
+        fi
+    fi
 
     # Archive current ledger
     if [[ -f "$_BRIDGE_LEDGER" ]]; then

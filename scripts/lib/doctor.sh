@@ -356,6 +356,13 @@ doctor_check_config() {
         fi
     fi
 
+    # Agent Teams enable check
+    if [[ "${SUPPORTS_AGENT_TEAMS:-false}" == "true" && "${CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS:-0}" != "1" ]]; then
+        doctor_add "agent-teams-disabled" "config" "info" \
+            "Agent Teams supported but not enabled" \
+            "Set CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 in settings.json env to enable CC native agent teams for /octo:parallel"
+    fi
+
     # Legacy plugin name detection (Issue #196)
     # Users who installed as "claude-octopus@nyldn-plugins" (pre-v9.0 name) get
     # "Plugin claude-octopus not found in marketplace" because the marketplace

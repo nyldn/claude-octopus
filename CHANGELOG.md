@@ -1,11 +1,26 @@
-## [9.12.0] - 2026-03-25
+## [9.13.0] - 2026-03-25
+
+### Added
+
+- **CC v2.1.78-83 feature detection** — 8 new `SUPPORTS_*` flags: StopFailure hook, PLUGIN_DATA dir, agent effort/maxTurns/disallowedTools, CwdChanged/FileChanged hooks, managed-settings.d, env scrub, initialPrompt.
+- **CLAUDE_PLUGIN_DATA workspace** — `WORKSPACE_DIR` now prefers `${CLAUDE_PLUGIN_DATA}` when available (CC v2.1.78+), with backward-compatible fallback to `~/.claude-octopus/`.
+- **Agent `effort` + `maxTurns` frontmatter** — All 32 agents configured: research agents `effort: high` / `maxTurns: 25`, balanced agents `effort: medium` / `maxTurns: 20`, lightweight agents `maxTurns: 15`.
+- **Agent `initialPrompt`** — 4 key agents auto-submit first turn: code-reviewer, security-auditor, debugger, performance-engineer.
+- **CwdChanged hook** — `hooks/cwd-changed.sh` re-detects project context (language, framework) on directory change.
+- **StopFailure hook** — `hooks/stop-failure-log.sh` logs API errors to `error-log.jsonl` for diagnostics.
+- **Agent Teams bridge: task dependencies** — `bridge_register_task()` accepts `depends_on` parameter; `bridge_is_task_unblocked()` blocks claiming until dependencies complete.
+- **Agent Teams bridge: shutdown protocol** — `bridge_shutdown_teammate()` marks tasks as `shutting_down`; `bridge_cleanup()` warns about running tasks before archiving.
+- **Agent Teams bridge: nested guard** — `bridge_init_ledger()` refuses to create a new team when an active workflow is running.
+- **Agent Teams bridge: native discovery** — `bridge_discover_native_team()` reads CC's official `~/.claude/teams/` config.
+- **Agent Teams enable check** — `bridge_is_enabled()` logs when `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` is not set; doctor tip suggests enabling it.
+- 3 new test suites: `test-cc-v2183-sync.sh` (39 tests), `test-shell-safe-hooks-v2183.sh` (8 tests), `test-agent-teams-bridge.sh` (27 tests).
 
 ### Changed
 
-- **orchestrate.sh decomposition wave 2** — Moved 27 functions to lib/ modules (agents.sh, cost.sh, dispatch.sh, providers.sh, routing.sh, quality.sh, session.sh, secure.sh, utils.sh, workflows.sh, model-resolver.sh). New lib/completions.sh for shell completion generation. orchestrate.sh: 4,944 → 3,707 lines (-25%), 70 → 41 functions (-41%).
-- **Dead code removal** — Removed `OLD_init_interactive_impl()`, `get_fallback_agent_v2()` from orchestrate.sh and interactive.sh (272 lines removed from interactive.sh).
-- **Fork reduction** — Converted 28 `echo|tr/cut/wc` patterns to bash builtins in intelligence.sh, factory.sh, cost.sh, context.sh. Fixed `cat|head` → `head` in factory-spec.sh.
-- **Provider check template block** — Extracted 10-line provider detection snippet to `skills/blocks/provider-check.md`. Flow templates now use `{{PROVIDER_CHECK}}` placeholder, resolved by gen-skill-docs.sh.
+- **orchestrate.sh decomposition wave 2** — Moved 27 functions to lib/ modules. New lib/completions.sh. orchestrate.sh: 4,944 → 3,707 lines (-25%), 70 → 41 functions (-41%).
+- **Dead code removal** — Removed `OLD_init_interactive_impl()`, `get_fallback_agent_v2()` (272 lines from interactive.sh).
+- **Fork reduction** — Converted 28 `echo|tr/cut/wc` patterns to bash builtins. Fixed `cat|head` → `head` in factory-spec.sh.
+- **Provider check template block** — Extracted snippet to `skills/blocks/provider-check.md`. Flow templates use `{{PROVIDER_CHECK}}` placeholder.
 
 ---
 
