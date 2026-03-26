@@ -190,6 +190,48 @@ else
     pass "No attribution references"
 fi
 
+# ── v9.13: Persistent state + spawn integration ──────────────────────────────
+
+ALL_SRC=$(mktemp)
+cat "$PROJECT_ROOT/scripts/orchestrate.sh" "$PROJECT_ROOT/scripts/lib/"*.sh > "$ALL_SRC" 2>/dev/null
+
+# Persistent state dir (not /tmp/)
+if grep -q 'CLAUDE_PLUGIN_DATA\|WORKSPACE_DIR\|\.claude-octopus' "$PROJECT_ROOT/scripts/lib/resilience.sh" 2>/dev/null; then
+    pass "Circuit breaker state persists across sessions"
+else
+    fail "Circuit breaker state persists" "still using /tmp/"
+fi
+
+# Spawn integration: circuit check before dispatch
+if grep -q 'is_provider_available' "$PROJECT_ROOT/scripts/lib/spawn.sh" 2>/dev/null; then
+    pass "spawn_agent checks circuit breaker before dispatch"
+else
+    fail "spawn integration" "is_provider_available not in spawn.sh"
+fi
+
+# Spawn integration: records failure with classification
+if grep -q 'classify_error' "$PROJECT_ROOT/scripts/lib/spawn.sh" 2>/dev/null; then
+    pass "spawn_agent classifies errors for circuit breaker"
+else
+    fail "spawn error classification" "classify_error not in spawn.sh"
+fi
+
+# Bash 3.2 compat: no ${var,,}
+if grep -q '${.*,,}' "$PROJECT_ROOT/scripts/lib/resilience.sh" 2>/dev/null; then
+    fail "Bash 3.2 compat in resilience.sh" "found \${var,,}"
+else
+    pass "Bash 3.2 compat in resilience.sh"
+fi
+
+# Doctor shows open circuits
+if grep -q 'circuit-breaker' "$PROJECT_ROOT/scripts/lib/doctor.sh" 2>/dev/null; then
+    pass "Doctor checks circuit breaker state"
+else
+    fail "Doctor circuit check" "not found in doctor.sh"
+fi
+
+rm -f "$ALL_SRC"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 
 echo ""

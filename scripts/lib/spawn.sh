@@ -150,6 +150,14 @@ ${skill_context}"
         fi
     fi
 
+    # v9.13: Circuit breaker check — skip provider if circuit is open
+    local provider_prefix="${agent_type%%-*}"  # codex-standard → codex
+    if type is_provider_available &>/dev/null && ! is_provider_available "$provider_prefix"; then
+        log "WARN" "Circuit open for $provider_prefix — skipping $agent_type (use fallback)"
+        record_outcome "$provider_prefix" "$agent_type" "skipped" "${phase:-unknown}" "circuit_open" "0" 2>/dev/null || true
+        return 1
+    fi
+
     local cmd
     if ! cmd=$(get_agent_command "$agent_type" "${phase:-}" "${role:-}"); then
         log ERROR "Unknown agent type: $agent_type"
@@ -601,6 +609,8 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
             append_provider_history "$agent_type" "${phase:-unknown}" "${enhanced_prompt:0:100}" "$result_summary" 2>/dev/null || true
             # v8.20.0: Record outcome for provider intelligence
             record_outcome "$agent_type" "$agent_type" "${task_type:-unknown}" "${phase:-unknown}" "success" "$elapsed_ms" 2>/dev/null || true
+            # v9.13: Reset circuit breaker on success
+            type record_success &>/dev/null && record_success "$provider_prefix" 2>/dev/null || true
             # v9.3.0: Record file co-occurrence pattern for heuristic learning
             record_run_pattern "$agent_type" "${enhanced_prompt:-$prompt}" "$result_file" 2>/dev/null || true
             # v8.20.1: Record task duration metric
@@ -667,6 +677,8 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
             update_agent_status "$agent_type" "timeout" "$elapsed_ms" 0.0
             # v8.20.0: Record timeout for provider intelligence
             record_outcome "$agent_type" "$agent_type" "${task_type:-unknown}" "${phase:-unknown}" "timeout" "$elapsed_ms" 2>/dev/null || true
+            # v9.13: Record timeout as transient failure for circuit breaker
+            type record_failure &>/dev/null && record_failure "$provider_prefix" "transient" 2>/dev/null || true
         else
             # v7.19.0 P0.2: Other failures - still try to preserve output
             if [[ -s "$temp_output" ]]; then
@@ -707,6 +719,14 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
             update_agent_status "$agent_type" "failed" "$elapsed_ms" 0.0
             # v8.20.0: Record failure for provider intelligence
             record_outcome "$agent_type" "$agent_type" "${task_type:-unknown}" "${phase:-unknown}" "fail" "$elapsed_ms" 2>/dev/null || true
+            # v9.13: Record failure for circuit breaker (classify from error output if available)
+            if type record_failure &>/dev/null; then
+                local _err_class="transient"
+                if [[ -s "$temp_errors" ]]; then
+                    _err_class=$(classify_error "$(head -c 200 "$temp_errors" 2>/dev/null)" 2>/dev/null) || _err_class="transient"
+                fi
+                record_failure "$provider_prefix" "$_err_class" 2>/dev/null || true
+            fi
         fi
 
         # v7.19.0 P0.1: Verify result file has meaningful content

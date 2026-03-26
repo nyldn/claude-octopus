@@ -1,3 +1,13 @@
+## [9.14.0] - 2026-03-26
+
+### Added
+
+- **Provider Reliability Layer (CONSOLIDATED-01)** — Circuit breaker state persists across sessions in `provider-state/` (via `CLAUDE_PLUGIN_DATA` or `~/.claude-octopus/`). `spawn_agent()` checks `is_provider_available()` before dispatch, records success/failure to circuit, classifies errors as transient/permanent via `classify_error()`. Transient errors (429, 500, timeouts) trigger graduated backoff; permanent errors (401, billing) open circuit immediately. Half-open probe after cooldown enables automatic recovery.
+- **Doctor circuit breaker status** — `/octo:doctor` now shows open circuit breakers and provider health.
+- **Bash 3.2 compatibility fix** — `classify_error()` no longer uses `${var,,}` (bash 4+ only).
+
+---
+
 ## [9.13.0] - 2026-03-25
 
 ### Added

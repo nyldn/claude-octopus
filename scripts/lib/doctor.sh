@@ -363,6 +363,29 @@ doctor_check_config() {
             "Set CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 in settings.json env to enable CC native agent teams for /octo:parallel"
     fi
 
+    # v9.13: Circuit breaker state check
+    local _cb_dir="${CLAUDE_PLUGIN_DATA:-${WORKSPACE_DIR:-${HOME}/.claude-octopus}}/provider-state"
+    if [[ -d "$_cb_dir" ]]; then
+        local _open_circuits=""
+        for _sf in "$_cb_dir"/*.state; do
+            [[ -f "$_sf" ]] || continue
+            local _prov _state
+            _prov=$(basename "$_sf" .state)
+            _state=$(<"$_sf" 2>/dev/null)
+            if [[ "$_state" == "open" ]]; then
+                _open_circuits="${_open_circuits:+$_open_circuits, }$_prov"
+            fi
+        done
+        if [[ -n "$_open_circuits" ]]; then
+            doctor_add "circuit-breaker-open" "providers" "warn" \
+                "Circuit breaker OPEN for: $_open_circuits" \
+                "These providers hit failure thresholds and are temporarily skipped. They auto-recover after cooldown."
+        else
+            doctor_add "circuit-breaker-state" "providers" "pass" \
+                "All provider circuits closed (healthy)" ""
+        fi
+    fi
+
     # Legacy plugin name detection (Issue #196)
     # Users who installed as "claude-octopus@nyldn-plugins" (pre-v9.0 name) get
     # "Plugin claude-octopus not found in marketplace" because the marketplace

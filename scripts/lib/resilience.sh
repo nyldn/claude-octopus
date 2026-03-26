@@ -10,7 +10,8 @@
 [[ -n "${_OCTOPUS_RESILIENCE_LOADED:-}" ]] && return 0
 _OCTOPUS_RESILIENCE_LOADED=true
 
-RESILIENCE_STATE_DIR="/tmp/octopus-resilience-${CLAUDE_SESSION_ID:-$$}"
+# Persist circuit breaker state across sessions (survives restarts)
+RESILIENCE_STATE_DIR="${CLAUDE_PLUGIN_DATA:-${WORKSPACE_DIR:-${HOME}/.claude-octopus}}/provider-state"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # ERROR CLASSIFICATION
@@ -20,8 +21,9 @@ RESILIENCE_STATE_DIR="/tmp/octopus-resilience-${CLAUDE_SESSION_ID:-$$}"
 # Returns: "transient", "permanent", or "unknown"
 classify_error() {
     local code_or_msg="$1"
-    # Lowercase for case-insensitive text matching
-    local lower="${code_or_msg,,}"
+    # Lowercase for case-insensitive text matching (bash 3.2 compat)
+    local lower
+    lower=$(echo "$code_or_msg" | tr '[:upper:]' '[:lower:]')
 
     # Numeric HTTP status codes first
     case "$code_or_msg" in
