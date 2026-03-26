@@ -8,7 +8,7 @@
       "hooks": [
         {
           "type": "prompt",
-          "prompt": "🐙 **CLAUDE OCTOPUS ACTIVATED** - Using external CLI providers (Codex/Gemini) for this task. This is NOT a Claude subagent - external APIs will be invoked."
+          "prompt": "\ud83d\udc19 **CLAUDE OCTOPUS ACTIVATED** - Using external CLI providers (Codex/Gemini) for this task. This is NOT a Claude subagent - external APIs will be invoked."
         },
         {
           "type": "command",
@@ -61,7 +61,7 @@
       "hooks": [
         {
           "type": "prompt",
-          "prompt": "🔴 **Codex CLI Executing** - Using your OpenAI API credentials directly."
+          "prompt": "\ud83d\udd34 **Codex CLI Executing** - Using your OpenAI API credentials directly."
         }
       ]
     },
@@ -73,7 +73,7 @@
       "hooks": [
         {
           "type": "prompt",
-          "prompt": "🟡 **Gemini CLI Executing** - Using your Google API credentials directly."
+          "prompt": "\ud83d\udfe1 **Gemini CLI Executing** - Using your Google API credentials directly."
         }
       ]
     },
@@ -91,7 +91,9 @@
       ]
     },
     {
-      "matcher": {"tool": "EnterPlanMode"},
+      "matcher": {
+        "tool": "EnterPlanMode"
+      },
       "hooks": [
         {
           "type": "command",
@@ -100,7 +102,9 @@
       ]
     },
     {
-      "matcher": {"tool": "Bash"},
+      "matcher": {
+        "tool": "Bash"
+      },
       "hooks": [
         {
           "type": "command",
@@ -110,7 +114,9 @@
       ]
     },
     {
-      "matcher": {"tool": "Edit|Write"},
+      "matcher": {
+        "tool": "Edit|Write"
+      },
       "hooks": [
         {
           "type": "command",
@@ -205,6 +211,15 @@
           "type": "command",
           "command": "${CLAUDE_PLUGIN_ROOT}/hooks/statusline-auto-repair.sh",
           "timeout": 5
+        }
+      ]
+    },
+    {
+      "hooks": [
+        {
+          "type": "command",
+          "command": "CLAUDE_HOOK_EVENT=SessionStart ${CLAUDE_PLUGIN_ROOT}/hooks/telemetry-posthog.sh",
+          "timeout": 3
         }
       ]
     }
@@ -315,6 +330,15 @@
           "timeout": 15
         }
       ]
+    },
+    {
+      "hooks": [
+        {
+          "type": "command",
+          "command": "CLAUDE_HOOK_EVENT=SessionEnd ${CLAUDE_PLUGIN_ROOT}/hooks/telemetry-posthog.sh",
+          "timeout": 5
+        }
+      ]
     }
   ],
   "UserPromptSubmit": [
@@ -356,6 +380,17 @@
         {
           "type": "command",
           "command": "${CLAUDE_PLUGIN_ROOT}/hooks/cwd-changed.sh",
+          "timeout": 3
+        }
+      ]
+    }
+  ],
+  "Stop": [
+    {
+      "hooks": [
+        {
+          "type": "command",
+          "command": "CLAUDE_HOOK_EVENT=Stop ${CLAUDE_PLUGIN_ROOT}/hooks/telemetry-posthog.sh",
           "timeout": 3
         }
       ]
