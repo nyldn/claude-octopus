@@ -504,9 +504,19 @@ doctor_check_hooks() {
         resolved_path="${resolved_path//\$\{CLAUDE_PLUGIN_ROOT\}/$PLUGIN_DIR}"
         resolved_path="${resolved_path//\$CLAUDE_PLUGIN_ROOT/$PLUGIN_DIR}"
 
-        # Handle paths with arguments (take only first word)
+        # Handle paths with arguments, env-var prefixes, and bash wrappers
         local script_path
-        script_path=$(echo "$resolved_path" | awk '{print $1}')
+        # Strip leading env-var assignments (KEY=value ...)
+        local cleaned="$resolved_path"
+        while [[ "$cleaned" =~ ^[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+(.*) ]]; do
+            cleaned="${BASH_REMATCH[1]}"
+        done
+        # Strip leading 'bash ' wrapper
+        cleaned="${cleaned#bash }"
+        # Remove surrounding quotes
+        cleaned="${cleaned#\"}"
+        cleaned="${cleaned%\"}"
+        script_path=$(echo "$cleaned" | awk '{print $1}')
 
         if [[ ! -f "$script_path" ]]; then
             doctor_add "hook-script-$(basename "$script_path")" "hooks" "fail" \
