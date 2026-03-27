@@ -703,6 +703,16 @@ The tangle phase automatically runs quality checks via `.claude/hooks/quality-ga
 
 ---
 
+## Self-Regulation in Iterative Develop
+
+During iterative implementation, the system employs sliding-window detection to prevent getting stuck in loops.
+
+- **WTF score**: A cumulative metric tracks weirdness, applying penalties for reverts (+15%) and touching unrelated files (+20%). If the WTF score exceeds 20%, execution stops.
+- **Configuration**: Weights and thresholds are customizable via `loop-config.conf`. Defaults are used if the file is absent.
+- **Hard cap**: Execution is strictly limited to 50 iterations to prevent runaway loops.
+
+---
+
 ## Integration with Other Workflows
 
 Tangle is the **third phase** of the Double Diamond:
