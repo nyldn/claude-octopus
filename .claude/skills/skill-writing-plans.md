@@ -16,6 +16,18 @@ validation_gates:
 
 # Writing Plans
 
+## MANDATORY COMPLIANCE — DO NOT SKIP
+
+**When this skill is invoked, you MUST produce a full implementation plan following the structure below. You are PROHIBITED from:**
+- Skipping the plan and jumping straight to implementation
+- Producing a vague outline instead of the zero-context plan format
+- Deciding the task is "simple enough" to not need a plan
+- Omitting file paths, complete code, test instructions, or verification steps
+
+**The user asked for a plan, not an implementation. Write the plan first.**
+
+---
+
 **Your first output line MUST be:** `🐙 **CLAUDE OCTOPUS ACTIVATED** - Implementation Planning`
 
 ## Overview

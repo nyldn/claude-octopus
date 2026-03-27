@@ -731,6 +731,20 @@ Before writing code, ensure:
 
 ---
 
+## Self-Regulation in Iterative Development
+
+When the develop phase runs iteratively (user requests multiple rounds of implementation, or the implementation requires fix-and-retry cycles), apply the self-regulation rules from `skill-iterative-loop`:
+
+1. **Track a WTF score** starting at 0%. Add penalties for reverts (+15%), touching unrelated files (+20%), fixes spanning >3 files (+5%), and fixes after the 15th attempt (+1% each). If configurable weights exist in `~/.claude-octopus/loop-config.conf`, use those instead.
+2. **Watch for stuck patterns** in a sliding window of the last 10 iterations. If the same error or file-change pattern repeats 3+ times, or an A→B→A→B cycle appears — announce the pattern on first detection, HALT on second.
+3. **Report the score** in each iteration: `Iteration N | Self-regulation: X% (reasons)`
+4. **If WTF score exceeds 20% or a pattern is detected twice** — STOP and ask the user whether to continue with a different approach or stop.
+5. **Hard cap: 50 iterations** regardless of score or progress.
+
+This prevents develop workflows from spinning without progress when orchestrate.sh results require iterative refinement.
+
+---
+
 ## After Implementation: Auto Code Review & E2E Verification (MANDATORY)
 
 **After implementation completes and before presenting results to the user, you MUST launch two verification agents in parallel.** Do NOT skip this step or ask the user whether to run it — it is automatic.

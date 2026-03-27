@@ -4,6 +4,18 @@ description: "\"Dark Factory Mode - Spec-in, software-out autonomous pipeline\""
 
 # Factory - Dark Factory Mode (v8.25.0)
 
+## MANDATORY COMPLIANCE — DO NOT SKIP
+
+**When the user invokes `/octo:factory`, you MUST execute the full autonomous pipeline below. You are PROHIBITED from:**
+- Building the software directly without running the spec-driven pipeline
+- Skipping the embrace workflow or quality gates
+- Deciding the spec is "simple enough" to implement without multi-provider synthesis
+- Substituting a single-model implementation for the multi-LLM factory pipeline
+
+**The user chose Dark Factory deliberately.** They want spec-in, software-out with full multi-AI orchestration, adversarial review, and quality gates. If you catch yourself thinking "I can just implement this directly" — STOP. That is the exact rationalization this instruction prohibits.
+
+---
+
 ## INSTRUCTIONS FOR CLAUDE
 
 When the user invokes this command (e.g., `/octo:factory --spec <path>`):

@@ -6,6 +6,18 @@ description: "Multi-tentacled orchestration using Double Diamond methodology. Us
 
 # Claude Octopus - Multi-Tentacled Orchestrator
 
+## MANDATORY COMPLIANCE — DO NOT SKIP
+
+**When this skill is invoked, you MUST dispatch work to multiple providers in parallel. You are PROHIBITED from:**
+- Running tasks sequentially with a single model instead of parallel multi-provider dispatch
+- Skipping orchestrate.sh and doing the work directly
+- Deciding the task is "simple enough" for a single provider
+- Substituting serial Claude-only execution for multi-LLM parallel execution
+
+**This skill exists specifically for multi-provider parallel work. If you catch yourself thinking "I'll just do this myself" — STOP.**
+
+---
+
 **Multi-tentacled orchestrator for Claude Code** - using Double Diamond methodology for comprehensive problem exploration, consensus building, and validated delivery.
 
 ```

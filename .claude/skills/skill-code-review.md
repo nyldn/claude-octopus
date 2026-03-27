@@ -16,6 +16,17 @@ validation_gates:
 
 # Code Review Skill
 
+## MANDATORY COMPLIANCE — DO NOT SKIP
+
+**When this skill is invoked, you MUST execute the multi-LLM review pipeline. You are PROHIBITED from:**
+- Doing a direct single-model code review without multi-provider synthesis
+- Deciding the scope is "too broad" and narrowing it without asking the user
+- Skipping the provider check or structured review phases
+- Substituting two background Sonnet agents for the full multi-provider pipeline
+- Rationalizing "a focused audit would be more effective" — the user wants multi-LLM perspectives
+
+---
+
 **Your first output line MUST be:** `🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-LLM Code Review`
 
 Invokes the code-reviewer persona for thorough code analysis during the `ink` (deliver) phase.

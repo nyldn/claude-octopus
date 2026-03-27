@@ -4,6 +4,17 @@ description: "Resume a previous agent by ID — continue an interrupted task whe
 
 # /octo:resume — Agent Resume
 
+## MANDATORY COMPLIANCE — DO NOT SKIP
+
+**When the user invokes `/octo:resume`, you MUST follow the resume workflow below. You are PROHIBITED from:**
+- Starting fresh instead of resuming the previous agent's work
+- Skipping the agent ID lookup and just doing the task from scratch
+- Deciding it's "easier to start over" than to resume
+
+**The user chose `/octo:resume` because they want to continue interrupted work, not restart it.**
+
+---
+
 **Your first output line MUST be:** `🐙 Octopus Agent Resume`
 
 Resume a previously-running Claude agent by ID. Picks up the agent's transcript and continues where it left off.

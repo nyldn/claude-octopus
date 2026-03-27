@@ -4,6 +4,17 @@ description: "\"Manage scheduled workflow jobs (add via wizard, dashboard, list,
 
 # Schedule
 
+## MANDATORY COMPLIANCE — DO NOT SKIP
+
+**When the user invokes `/octo:schedule`, you MUST use the scheduler CLI below. You are PROHIBITED from:**
+- Managing cron jobs or schedules manually without the scheduler
+- Skipping the scheduler subcommands and just editing files directly
+- Substituting `crontab -e` or manual file edits for the scheduler interface
+
+**The user chose `/octo:schedule` for the managed scheduler workflow.**
+
+---
+
 Manage scheduled workflow jobs for the Claude Octopus scheduler.
 
 ## Usage

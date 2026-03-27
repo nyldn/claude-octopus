@@ -2,6 +2,18 @@
 description: "Write an AI-optimized PRD using multi-AI orchestration and 100-point scoring framework"
 ---
 
+## MANDATORY COMPLIANCE — DO NOT SKIP
+
+**When the user invokes `/octo:prd`, you MUST execute the multi-AI PRD generation workflow below. You are PROHIBITED from:**
+- Writing the PRD directly without multi-provider orchestration
+- Skipping the scoring framework or quality gates
+- Deciding the feature is "straightforward enough" to document without multi-LLM perspectives
+- Producing a single-model PRD instead of a synthesized multi-perspective document
+
+**The user chose `/octo:prd` over writing a PRD manually.** They want Codex + Gemini + Claude perspectives synthesized through the 100-point scoring framework.
+
+---
+
 ## STOP - DO NOT INVOKE /skill OR Skill() AGAIN
 
 This command is already executing. The feature to document is: **$ARGUMENTS.feature**

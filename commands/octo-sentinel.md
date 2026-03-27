@@ -4,6 +4,18 @@ description: "GitHub-aware work monitor - triages issues, PRs, and CI failures"
 
 # Sentinel (/octo:sentinel)
 
+## MANDATORY COMPLIANCE — DO NOT SKIP
+
+**When the user invokes `/octo:sentinel`, you MUST execute the structured triage workflow below. You are PROHIBITED from:**
+- Manually checking GitHub status without running the sentinel pipeline
+- Skipping the triage scan and just reading `gh` output directly
+- Deciding there's "nothing to triage" without actually running the checks
+- Substituting a quick `gh pr list` for the full sentinel workflow
+
+**The user chose `/octo:sentinel` for structured, prioritized triage — not a raw `gh` dump.**
+
+---
+
 **Your first output line MUST be:** `🐙 Octopus Sentinel`
 
 GitHub-aware work monitor that triages issues, PRs, and CI failures. Sentinel observes and recommends workflows but never auto-executes them.

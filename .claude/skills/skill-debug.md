@@ -30,6 +30,18 @@ validation_gates:
 
 # Systematic Debugging
 
+## MANDATORY COMPLIANCE — DO NOT SKIP
+
+**When this skill is invoked, you MUST follow the 4-phase debugging process below. You are PROHIBITED from:**
+- Jumping straight to a fix without completing Phase 1 (Root Cause Investigation)
+- Skipping the hypothesis step and guessing at solutions
+- Deciding the bug is "obvious" and bypassing the systematic process
+- Attempting more than 3 fixes without stopping to ask the user
+
+**Systematic debugging finds root causes in 15-30 minutes. Random fixes waste 2-3 hours. Follow the process.**
+
+---
+
 **Your first output line MUST be:** `🐙 **CLAUDE OCTOPUS ACTIVATED** - Systematic Debugging`
 
 ## The Iron Law
