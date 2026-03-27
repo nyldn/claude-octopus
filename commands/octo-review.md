@@ -4,6 +4,19 @@ description: "Expert multi-LLM code review with inline PR comments — competes 
 
 # /octo:review
 
+## MANDATORY COMPLIANCE — DO NOT SKIP
+
+**When the user invokes `/octo:review`, you MUST execute the multi-LLM review workflow below. You are PROHIBITED from:**
+- Doing a direct code review without running the structured workflow
+- Deciding the scope is "too broad" and narrowing it yourself — the user chose the scope
+- Skipping the provider check or AskUserQuestion steps
+- Substituting a simpler review approach because it seems "more effective"
+- Running two background Sonnet agents instead of the full multi-provider pipeline
+
+**The user chose `/octo:review` over a regular code review deliberately.** They want multi-provider perspectives (Codex + Gemini + Claude), not a single-model review. If you catch yourself thinking "a focused audit would be more effective" — STOP. That is the exact rationalization this instruction prohibits.
+
+---
+
 🐙 **CLAUDE OCTOPUS ACTIVATED** — Multi-LLM Code Review
 
 Providers:
