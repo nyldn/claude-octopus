@@ -37,6 +37,16 @@ version_compare() {
 }
 
 detect_claude_code_version() {
+    # v9.16.0: Non-Claude hosts skip CC version detection entirely
+    # Codex and Gemini have their own feature sets; CC version flags don't apply
+    if [[ "$OCTOPUS_HOST" == "codex" || "$OCTOPUS_HOST" == "gemini" ]]; then
+        CLAUDE_CODE_VERSION=""
+        log "INFO" "${OCTOPUS_HOST} host detected — skipping Claude Code version detection"
+        # Enable basic capabilities that work on any host with bash
+        SUPPORTS_BASH_TOOL=true
+        SUPPORTS_MCP=false  # MCP integration is host-specific
+        return 0
+    fi
     # v8.36.0: Support Factory AI Droid runtime alongside Claude Code
     if [[ "$OCTOPUS_HOST" == "factory" ]]; then
         if command -v droid &>/dev/null; then

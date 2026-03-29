@@ -61,6 +61,9 @@ logs/
 *.seed
 *.pid.lock
 
+# Generated Codex skills (build artifact from scripts/build-codex-skills.sh)
+.codex/skills/
+
 # Workspace data (generated at runtime)
 # Note: The actual workspace is at ~/.claude-octopus/
 # These are just in case someone runs from the repo directory

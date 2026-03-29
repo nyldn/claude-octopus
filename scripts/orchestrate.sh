@@ -10,13 +10,18 @@ PLUGIN_DIR="$(dirname "$SCRIPT_DIR")"
 # Cache platform detection — avoids repeated subprocess spawns (v8.33.0)
 OCTOPUS_PLATFORM="$(uname)"
 
-# v8.36.0: Host runtime detection — Claude Code vs Factory AI Droid
+# v8.36.0: Host runtime detection — Claude Code vs Factory AI Droid vs Codex vs Gemini
 # Factory's plugin interop resolves ${CLAUDE_PLUGIN_ROOT} automatically,
 # but we detect the host for version checking and env var fallbacks.
+# v9.16.0: Extended for Codex CLI and Gemini CLI host detection (Direction A)
 if [[ -n "${DROID_PLUGIN_ROOT:-}" ]]; then
     OCTOPUS_HOST="factory"
     # Factory provides DROID_PLUGIN_ROOT; ensure CLAUDE_PLUGIN_ROOT is also set
     export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$DROID_PLUGIN_ROOT}"
+elif [[ -n "${CODEX_HOME:-}" || -n "${CODEX_SANDBOX:-}" || -n "${CODEX_PLUGIN_ROOT:-}" ]]; then
+    OCTOPUS_HOST="codex"  # HOST:codex — Codex CLI is the host runtime
+elif [[ -n "${GEMINI_HOME:-}" || -n "${GEMINI_PLUGIN_ROOT:-}" ]]; then
+    OCTOPUS_HOST="gemini"  # HOST:gemini — Gemini CLI is the host runtime
 elif [[ -n "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
     OCTOPUS_HOST="claude"
 else
@@ -143,11 +148,17 @@ fi
 # ═══════════════════════════════════════════════════════════════════════════════
 # CLAUDE CODE INTEGRATION: Task Management (v7.16.0)
 # Capture Claude Code v2.1.16+ environment variables for enhanced progress tracking
+# v9.16.0: Gracefully skipped on non-Claude hosts (Codex, Gemini, standalone)
 # ═══════════════════════════════════════════════════════════════════════════════
-# Get Claude Code task ID if available (for spinner verb updates)
-CLAUDE_TASK_ID="${CLAUDE_CODE_TASK_ID:-}"
-# Get Claude Code control pipe if available (for real-time progress updates)
-CLAUDE_CODE_CONTROL="${CLAUDE_CODE_CONTROL_PIPE:-}"
+if [[ "$OCTOPUS_HOST" == "claude" || "$OCTOPUS_HOST" == "factory" ]]; then
+    # HOST:claude — CC-specific task management integration
+    CLAUDE_TASK_ID="${CLAUDE_CODE_TASK_ID:-}"
+    CLAUDE_CODE_CONTROL="${CLAUDE_CODE_CONTROL_PIPE:-}"
+else
+    # Non-Claude host: skip CC task management (control pipe, task IDs)
+    CLAUDE_TASK_ID=""
+    CLAUDE_CODE_CONTROL=""
+fi
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # SECURITY: External URL validation (v7.9.0)
@@ -311,7 +322,14 @@ _lowercase() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
 
 # Claude Code v2.1.10 Integration
 # Session-aware workflows: results organized by session ID
-CLAUDE_CODE_SESSION="${CLAUDE_SESSION_ID:-}"
+# v9.16.0: On non-Claude hosts, session ID falls back to CODEX/GEMINI equivalents or empty
+if [[ "$OCTOPUS_HOST" == "codex" ]]; then
+    CLAUDE_CODE_SESSION="${CODEX_SESSION_ID:-${CODEX_TASK_ID:-}}"  # HOST:codex
+elif [[ "$OCTOPUS_HOST" == "gemini" ]]; then
+    CLAUDE_CODE_SESSION="${GEMINI_SESSION_ID:-}"  # HOST:gemini
+else
+    CLAUDE_CODE_SESSION="${CLAUDE_SESSION_ID:-}"  # HOST:claude
+fi
 
 # Session-aware directory structure (v7.1)
 # When CLAUDE_SESSION_ID is available, organize results per-session
