@@ -326,6 +326,9 @@ The workflow continues with available providers. You'll see the status in the vi
 **Why "octopus"?**
 🐙 *Fun fact: a real octopus has three hearts, blue blood, and 500 million neurons — two-thirds of which live in its eight arms.* Each arm can taste, touch, and act independently. Claude Octopus works the same way: each tentacle (command) operates autonomously with its own squeeze of logic, then ink flows back as the final deliverable. The crossfire review? That's the squeeze — adversarial pressure that untangles everything before it ships.
 
+**How do I debug when something goes wrong?**
+Run commands with the `--verbose` flag to get detailed debugging output. Logs are stored in `~/.claude-octopus/logs/` for inspection. You can also use `/octo:doctor` to run diagnostics and identify potential issues.
+
 ---
 
 ## Community
