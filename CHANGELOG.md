@@ -1,3 +1,13 @@
+## [9.17.1] - 2026-03-31
+
+### Fixed
+
+- **Windows/Git Bash compatibility** — add `--skip-git-repo-check` to all Codex CLI dispatch commands; fix pipe chain stdout loss with MINGW-aware file-based capture fallback; add `WORKSPACE_DIR` fallback to smoke test and tier cache paths (#235)
+- **Model resolver cross-provider routing** — routing phases targeting a different provider (e.g. `gemini:default` for a codex resolution) are now skipped instead of contaminating the model selection (#235)
+- **Scope drift skill enforcement** — add MANDATORY COMPLIANCE block to `skill-scope-drift` (#236)
+- **README counts** — update command count 47→48, skill count 50→51 (#236)
+- **OpenClaw registry sync** — `skill-verify` → `skill-verification-gate`, add `discipline` command, bump count to 99 (#236)
+
 ## [9.17.0] - 2026-03-31
 
 ### Added
