@@ -90,6 +90,32 @@ wc -l ~/.claude-octopus/results/*-synthesis-*.md | tail -1
 - After `tangle` (develop) — verify tests pass, not just that code was written
 - After `ink` (deliver) — verify review actually ran, not just that it was dispatched
 
+## Examples
+
+### Correct: Evidence-Based Claim
+```
+$ npm test
+  ✓ user.create() saves to database (45ms)
+  ✓ user.create() validates email (12ms)
+  Tests: 2 passed, 2 total
+
+All 2 tests pass. ← Claim backed by output.
+```
+
+### Incorrect: Claim Without Evidence
+```
+I've implemented the feature. It should work now. The tests should pass.
+← No test was run. "Should" is not evidence.
+```
+
+### Correct: Regression Test Red-Green
+```
+1. Write test → run → FAIL (expected, proves test detects the bug)
+2. Implement fix → run → PASS (proves fix works)
+3. Revert fix → run → FAIL (proves test isn't false-positive)
+4. Restore fix → run → PASS (final confirmation)
+```
+
 ## Integration with Other Skills
 
 This skill is referenced by:

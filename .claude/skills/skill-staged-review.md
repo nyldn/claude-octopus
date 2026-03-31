@@ -276,7 +276,7 @@ After both stages complete, present the unified report:
 |-------------|------|----------------|
 | **skill-code-review** | Quick PR review | Code quality only |
 | **skill-staged-review** | Major feature completion | Spec compliance + code quality |
-| **skill-verify** | Before any completion claim | Evidence of passing |
+| **skill-verification-gate** | Before any completion claim | Evidence of passing |
 
 ---
 

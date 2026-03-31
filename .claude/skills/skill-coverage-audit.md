@@ -231,9 +231,9 @@ Coverage audit runs as a complement to code review. When invoked during deliver 
 
 If coverage audit finds gaps in new code, recommend the user adopt TDD for the next iteration. Coverage audit fixes existing gaps; TDD prevents future ones.
 
-### With skill-verify
+### With skill-verification-gate
 
-After generating tests, use skill-verify to run the test suite and confirm the new tests pass.
+After generating tests, use skill-verification-gate to run the test suite and confirm the new tests pass.
 
 ---
 
