@@ -19,33 +19,31 @@ Toggle automatic skill invocation for development discipline.
 
 When **on**, you MUST follow these rules automatically — no user prompt needed:
 
-### Before Implementation (brainstorm gate)
-**Before writing ANY code or making changes**, check:
+### Development Gates
+
+**1. Brainstorm gate** — Before writing ANY code or making changes, check:
 - Has the approach been discussed/planned? If not, invoke `skill-thought-partner` or `skill-writing-plans`
-- Is the scope clear? If not, ask clarifying questions first
-- This applies even for "simple" changes — simple is where unexamined assumptions cause the most waste
+- This applies even for "simple" changes
 
-### Before Completion Claims (verification gate)
-**Before saying "done", "fixed", "passing", or committing**, invoke `skill-verification-gate`:
-- Run the actual verification command
-- Read the full output
-- Only claim success with evidence in hand
+**2. Verification gate** — Before saying "done", "fixed", "passing", or committing, invoke `skill-verification-gate`:
+- Run the actual verification command, read output, only claim success with evidence
 
-### After Implementation (review gate)
-**After completing any non-trivial code change**, automatically:
-- Run spec compliance check: does the change match what was asked?
-- Run code quality review via subagent
-- Flag issues before presenting results
+**3. Review gate** — After completing any non-trivial code change, automatically:
+- Spec compliance check + code quality review via subagent
 
-### When Receiving Feedback (response gate)
-**When receiving code review feedback or error reports**, invoke `skill-review-response`:
-- Verify the feedback against actual code before implementing
-- Never blindly agree — evaluate technically first
+**4. Response gate** — When receiving code review feedback, invoke `skill-review-response`:
+- Verify feedback against actual code before implementing
 
-### When Debugging (investigation gate)
-**When encountering ANY bug, error, or test failure**, invoke `skill-debug`:
+**5. Investigation gate** — When encountering ANY bug, error, or test failure, invoke `skill-debug`:
 - Root cause investigation before proposing fixes
-- No guessing, no "try this and see"
+
+### Knowledge Work Gates
+
+**6. Context gate** — At the start of any task, detect dev vs knowledge work. If research, writing, design, or strategy — switch to KM mode. Use `skill-context-detection`.
+
+**7. Decision gate** — When comparing options or evaluating trade-offs, present a structured comparison with criteria and scores — not just prose pros/cons. Use `skill-decision-support`.
+
+**8. Intent gate** — Before any creative or writing task (README, docs, copy, design), lock in the goal and audience first. Validate output against locked goals. Use `skill-intent-contract`.
 
 ## How It Works
 
@@ -88,11 +86,16 @@ case "${1:-status}" in
     on)
         echo "OCTOPUS_DISCIPLINE=on" > "$DISCIPLINE_CONF"
         echo "🐙 Discipline mode: ON"
-        echo "  ✓ Brainstorm gate — plan before coding"
-        echo "  ✓ Verification gate — evidence before claims"
-        echo "  ✓ Review gate — check after implementing"
-        echo "  ✓ Response gate — verify before agreeing"
-        echo "  ✓ Investigation gate — root cause before fixing"
+        echo "  Development gates:"
+        echo "  ✓ 1. Brainstorm — plan before coding"
+        echo "  ✓ 2. Verification — evidence before claims"
+        echo "  ✓ 3. Review — check after implementing"
+        echo "  ✓ 4. Response — verify before agreeing"
+        echo "  ✓ 5. Investigation — root cause before fixing"
+        echo "  Knowledge work gates:"
+        echo "  ✓ 6. Context — detect dev vs knowledge work"
+        echo "  ✓ 7. Decision — structured comparisons, not prose"
+        echo "  ✓ 8. Intent — lock goals before creative work"
         ;;
     off)
         echo "OCTOPUS_DISCIPLINE=off" > "$DISCIPLINE_CONF"
