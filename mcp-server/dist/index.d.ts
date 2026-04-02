@@ -17,5 +17,8 @@
  *   octopus_debate   → grapple
  *   octopus_review   → codex-review
  *   octopus_security → squeeze
+ *
+ * IDE integration tools:
+ *   octopus_set_editor_context → Inject IDE state (file, selection, cursor) into orchestration
  */
 export {};
