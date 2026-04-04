@@ -1,7 +1,9 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Claude Octopus WorktreeRemove Hook Handler
 # Triggered when Claude Code removes a worktree after agent completes (v2.1.50+)
 # Cleans up Octopus artifacts from the worktree path
+
+set -euo pipefail
 
 # Read worktree info from stdin (JSON payload from Claude Code)
 WORKTREE_DATA=""

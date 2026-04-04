@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Claude Octopus WorktreeCreate Hook Handler
 # Triggered when Claude Code creates a worktree for an isolated agent (v2.1.50+)
 #
@@ -6,6 +6,8 @@
 # - v2.1.63+: Project configs natively shared — skip .octo/state.json copy
 # - v2.1.50-2.1.62: Copy .octo/state.json for workflow state continuity
 # - All versions: Inject .octopus-env with provider API keys (always needed)
+
+set -euo pipefail
 
 # Read worktree info from stdin (JSON payload from Claude Code)
 WORKTREE_DATA=""

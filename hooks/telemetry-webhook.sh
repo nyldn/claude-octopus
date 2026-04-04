@@ -7,6 +7,8 @@
 #   This shell fallback remains for CC versions without HTTP hook support.
 # Only fires if OCTOPUS_WEBHOOK_URL is set — zero noise when unconfigured
 
+set -euo pipefail
+
 WEBHOOK_URL="${OCTOPUS_WEBHOOK_URL:-}"
 
 # Skip silently if no webhook configured
