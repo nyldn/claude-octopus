@@ -137,8 +137,8 @@ All checks pass — no action needed.
 | Circuit breaker OPEN | Provider had 3+ consecutive transient failures — wait for cooldown or check provider status |
 | Stale state | Delete `.octo/state.json` and re-initialize |
 | Invalid hooks.json | Check `hooks.json` syntax — must be valid JSON |
-| RTK not installed | `brew install rtk && rtk init -g` (optional — saves 60-90% tokens on bash output). Run `/octo:optimize` for setup guide. |
-| RTK installed but hook not configured | Run `rtk init -g` to install the Claude Code bash hook for automatic output compression |
+| RTK not installed | Run `/octo:optimize` to install interactively (saves 60-90% tokens on bash output) |
+| RTK installed but hook not configured | Run `/octo:optimize` to configure the Claude Code bash hook |
 | RTK gain stats unavailable | Run some bash commands first, then check `rtk gain` to see token savings |
 | Conflicting plugins | Uninstall conflicting plugins or adjust scope |
 

@@ -1,164 +1,134 @@
 ---
 command: optimize
-description: Analyze token usage patterns and optimize with RTK integration
-allowed-tools: Bash, Read, Glob, Grep
+description: Token optimization — detect, install RTK, configure hooks, show savings
+allowed-tools: Bash, Read, Glob, Grep, AskUserQuestion
 ---
 
 # Token Optimization (/octo:optimize)
 
 **Your first output line MUST be:** `🐙 Octopus Token Optimizer`
 
-Analyze the current session's token usage patterns, detect optimization opportunities, and guide RTK setup for 60-90% bash output savings.
+Interactive token optimization: detect RTK, offer to install it, configure hooks, show compression savings.
 
 ## EXECUTION CONTRACT (Mandatory)
 
-When the user invokes `/octo:optimize`, you MUST follow these steps in order.
+### STEP 1: Detect Current State
 
-### STEP 1: Check RTK Status
-
-Use the Bash tool:
+Use a SINGLE Bash call to check everything:
 
 ```bash
-echo "=== RTK Status ==="
-if command -v rtk &>/dev/null; then
-    echo "INSTALLED: $(rtk --version 2>&1 | head -1)"
-    echo ""
-    echo "=== RTK Gain Stats ==="
-    rtk gain --json 2>/dev/null || rtk gain 2>/dev/null || echo "No gain data yet"
-    echo ""
-    echo "=== RTK Hook Status ==="
-    # Check Claude Code hook
-    SETTINGS="${HOME}/.claude/settings.json"
-    if [[ -f "$SETTINGS" ]] && grep -q 'rtk' "$SETTINGS" 2>/dev/null; then
-        echo "Claude Code hook: ACTIVE"
-    else
-        echo "Claude Code hook: NOT CONFIGURED"
-    fi
-else
-    echo "NOT INSTALLED"
-fi
-```
-
-### STEP 2: Analyze Context Usage
-
-Use the Bash tool:
-
-```bash
-echo "=== Context Bridge ==="
+echo "RTK_INSTALLED=$(command -v rtk >/dev/null 2>&1 && echo true || echo false)"
+echo "RTK_VERSION=$(rtk --version 2>&1 | head -1 || echo none)"
+echo "RTK_HOOK=$(grep -q 'rtk' "${HOME}/.claude/settings.json" 2>/dev/null && echo true || echo false)"
+echo "RTK_GAIN=$(rtk gain --json 2>/dev/null | head -1 || echo none)"
+echo "COMPRESS_ANALYTICS=$(wc -l < "${HOME}/.claude-octopus/analytics/compression.jsonl" 2>/dev/null || echo 0)"
+echo "OCTO_COMPRESS=$(command -v octo-compress >/dev/null 2>&1 && echo true || echo false)"
 SESSION="${CLAUDE_SESSION_ID:-unknown}"
 BRIDGE="/tmp/octopus-ctx-${SESSION}.json"
-if [[ -f "$BRIDGE" ]]; then
-    cat "$BRIDGE"
-else
-    echo "No context bridge found (statusline may not have run yet)"
-fi
-
-echo ""
-echo "=== Session File ==="
-SESSION_FILE="${HOME}/.claude-octopus/session.json"
-if [[ -f "$SESSION_FILE" ]]; then
-    cat "$SESSION_FILE" 2>/dev/null | python3 -m json.tool 2>/dev/null || cat "$SESSION_FILE"
-else
-    echo "No session file"
-fi
+echo "CTX_BRIDGE=$(cat "$BRIDGE" 2>/dev/null | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d.get("used_pct","unknown"))' 2>/dev/null || echo unknown)"
 ```
 
-### STEP 3: Display Optimization Report
-
-Format the results as a clear report:
+### STEP 2: Display Compact Report
 
 ```
-🐙 Octopus Token Optimizer
-============================================================
-
-RTK Status
-------------------------------------------------------------
-Installed:        [Yes v0.33.1 / No]
-Hook Active:      [Yes / No — run: rtk init -g]
-Commands Filtered: [N]
-Tokens Saved:     [N] (~XX% avg compression)
-
-Context Window
-------------------------------------------------------------
-Current Usage:    [XX%]
-Remaining:        [XX%]
-
-Recommendations
-------------------------------------------------------------
-[1-3 specific, actionable recommendations based on findings]
+🐙 Token Optimizer
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+RTK:           [Installed vX.Y.Z ✓ / Not installed ✗]
+RTK Hook:      [Active ✓ / Not configured ✗]
+RTK Savings:   [N tokens (~XX%) / No data yet]
+Compressor:    [Active (N events) / Not available]
+Context:       [XX% used / Unknown]
 ```
 
-### STEP 4: Offer Guided Setup (if RTK not installed)
+### STEP 3: Interactive Actions (AskUserQuestion)
 
-If RTK is NOT installed, display:
+Based on the detection results, ask the RIGHT question:
 
-```
-RTK Installation Guide
-============================================================
-RTK (Rust Token Killer) saves 60-90% of tokens on bash output
-by filtering and compressing CLI command results.
+**If RTK is NOT installed:**
 
-Token savings per command type:
-  ls/tree:         ~80% savings
-  cat/read:        ~70% savings
-  grep/rg:         ~80% savings
-  git status/diff: ~75-80% savings
-  test runners:    ~90% savings
-
-Install:
-  brew install rtk          # macOS (recommended)
-  cargo install --git https://github.com/rtk-ai/rtk  # any platform
-
-Configure for Claude Code:
-  rtk init -g               # auto-installs Claude Code bash hook
-
-Verify:
-  rtk --version             # check install
-  rtk gain                  # check savings after use
+```javascript
+AskUserQuestion({
+  questions: [{
+    question: "RTK saves 60-90% on bash output tokens. Install it now?",
+    header: "Install RTK",
+    multiSelect: false,
+    options: [
+      {label: "Install via brew", description: "brew install rtk (macOS, recommended)"},
+      {label: "Install via cargo", description: "cargo install --git https://github.com/rtk-ai/rtk"},
+      {label: "Skip for now", description: "Continue without RTK"}
+    ]
+  }]
+})
 ```
 
-### STEP 5: Offer Guided Setup (if RTK installed but hook not configured)
+If user chooses an install option, run the install command, then proceed to hook setup.
 
-If RTK is installed but the Claude Code hook is not active:
+**If RTK is installed but hook NOT configured:**
+
+```javascript
+AskUserQuestion({
+  questions: [{
+    question: "RTK is installed but the Claude Code hook isn't active. Configure it?",
+    header: "RTK Hook",
+    multiSelect: false,
+    options: [
+      {label: "Run rtk init -g", description: "Auto-installs Claude Code bash hook for automatic compression"},
+      {label: "Skip", description: "I'll configure it manually later"}
+    ]
+  }]
+})
+```
+
+If user chooses to configure, run `rtk init -g`.
+
+**If RTK is fully configured (installed + hook active):**
+
+```javascript
+AskUserQuestion({
+  questions: [{
+    question: "RTK is fully configured. What would you like to do?",
+    header: "Optimize",
+    multiSelect: false,
+    options: [
+      {label: "Show detailed gain stats", description: "Full breakdown by command type"},
+      {label: "Show compression analytics", description: "Octopus output-compressor savings"},
+      {label: "Token tips", description: "General token optimization tips"},
+      {label: "Done", description: "Everything looks good"}
+    ]
+  }]
+})
+```
+
+### STEP 4: Execute User's Choice
+
+- **Install via brew**: `brew install rtk` then check version, then offer hook setup
+- **Install via cargo**: `cargo install --git https://github.com/rtk-ai/rtk` then check version, then offer hook setup
+- **Run rtk init -g**: Execute it, verify hook is in settings.json
+- **Show gain stats**: Run `rtk gain` and format output
+- **Show compression analytics**: Read `~/.claude-octopus/analytics/compression.jsonl`, summarize per-type
+- **Token tips**: Show the tips block below
+
+### Token Tips (when requested or always after install)
 
 ```
-RTK is installed but the Claude Code hook is not active.
-Run this to enable automatic bash output compression:
-
-  rtk init -g
-
-This installs a Claude Code bash hook that transparently
-rewrites commands (e.g., git status → rtk git status)
-for compressed output. No workflow changes needed.
-```
-
-### STEP 6: Show General Token Tips
-
-Always show these tips at the end:
-
-```
-General Token Optimization Tips
-============================================================
-• Use Read/Grep/Glob tools instead of cat/grep/find in bash
-  (built-in tools are not affected by RTK but are already concise)
-• Prefer --oneline, --short, --quiet flags on git commands
-• For test output, pipe through | tail -50 or use --reporter=dot
-• Avoid reading entire large files — use offset/limit parameters
-• When context is above 70%, start a fresh session for new tasks
+Token Optimization Tips
+━━━━━━━━━━━━━━━━━━━━━━━
+- Use Read/Grep/Glob tools instead of cat/grep/find in bash
+- Pipe verbose commands: npm install 2>&1 | octo-compress
+- Prefer --oneline, --short, --quiet flags on git commands
+- For test output: --reporter=dot or | tail -50
+- Use offset/limit when reading large files
+- Above 70% context: consider /clear or /octo:resume in new session
 ```
 
 ## Validation Gates
 
-- RTK detection attempted (version check and gain stats)
-- Context window usage displayed
-- Actionable recommendations provided
-- Install guide shown when RTK is missing
-- Hook configuration guide shown when hook is inactive
-- General tips always displayed
+- RTK detection attempted
+- Interactive choice offered (not just a wall of text)
+- Install executed if user consents
+- Hook configured if user consents
+- Compression analytics shown if available
 
-## Prohibited Actions
+## Note
 
-- Automatically installing RTK without user consent
-- Modifying the user's shell profile or Claude Code settings
-- Fabricating RTK gain statistics
-- Claiming specific token savings without RTK gain data to back it up
+This command overlaps with `/octo:doctor` (which reports RTK status) and `/octo:setup` (which configures providers). The difference: `/octo:optimize` is ACTION-oriented — it installs and configures, not just reports. `/octo:doctor` and `/octo:setup` should link here when RTK issues are found.
