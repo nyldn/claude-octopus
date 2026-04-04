@@ -5,14 +5,14 @@
   },
   "metadata": {
     "description": "Multi-tentacled orchestration plugin for Claude Code",
-    "version": "9.18.1"
+    "version": "9.19.0"
   },
   "plugins": [
     {
       "name": "octo",
       "source": "./",
-      "description": "v9.18.1 - Discipline mode (8 auto-invoke gates), Cursor + OpenCode support, two-stage review, verification gate, Codex CLI compatibility. 32 personas, 48 commands, 51 skills. Run /octo:setup.",
-      "version": "9.18.1",
+      "description": "v9.19.0 - Discipline mode (8 auto-invoke gates), Cursor + OpenCode support, two-stage review, verification gate, Codex CLI compatibility. 32 personas, 48 commands, 51 skills. Run /octo:setup.",
+      "version": "9.19.0",
       "author": {
         "name": "nyldn"
       },
