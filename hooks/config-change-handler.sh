@@ -1,8 +1,10 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Claude Octopus ConfigChange Hook Handler
 # Triggered when Claude Code configuration changes (v2.1.49+)
 # Detects Octopus setting changes and writes reload signal for orchestrate.sh
 # v8.29.0: Expanded from fast-mode-only to full Octopus settings hot-reload
+
+set -euo pipefail
 
 CONFIG_CHANGE_DATA=""
 if [[ ! -t 0 ]]; then

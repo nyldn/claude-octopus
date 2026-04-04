@@ -82,12 +82,14 @@ if [[ "${SUPPORTS_MANAGED_SETTINGS_D:-false}" == "true" ]]; then
     SETTINGS_DEST="${SETTINGS_D}/octopus-defaults.json"
     if [[ ! -f "$SETTINGS_DEST" ]] || ! grep -q "$HOME" "$SETTINGS_DEST" 2>/dev/null; then
         mkdir -p "$SETTINGS_D"
-        cat > "$SETTINGS_DEST" <<EOFSET
+        local _tmp="${SETTINGS_DEST}.tmp.$$"
+        cat > "$_tmp" <<EOFSET
 {
   "includeGitInstructions": false,
   "autoMemoryDirectory": "${HOME}/.claude-octopus/memory/"
 }
 EOFSET
+        mv "$_tmp" "$SETTINGS_DEST" 2>/dev/null || rm -f "$_tmp"
     fi
 fi
 

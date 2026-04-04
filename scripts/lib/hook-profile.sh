@@ -46,7 +46,7 @@ is_hook_enabled() {
         budget)
             # Only essential hooks: session lifecycle, cost tracking, statusline
             case "$hook_name" in
-                session-start-memory|session-end|session-sync|octopus-statusline|octopus-hud|telemetry-webhook|cost-tracker|context-bridge|done-criteria|codex-exec-guard) return 0 ;;
+                session-start-memory|session-end|octopus-statusline|octopus-hud|telemetry-webhook|cost-tracker|context-bridge|done-criteria|codex-exec-guard) return 0 ;;
                 *) return 1 ;;
             esac
             ;;

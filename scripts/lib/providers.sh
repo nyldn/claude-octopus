@@ -100,22 +100,23 @@ detect_claude_code_version() {
         SUPPORTS_AGENT_FIELD=true
     fi
 
+    # Check for v2.1.30+ features (native token counts in Task tool results)
+    if version_compare "$CLAUDE_CODE_VERSION" "2.1.30" ">="; then
+        SUPPORTS_NATIVE_TASK_METRICS=true
+    fi
+
     # Check for v2.1.32+ features (agent teams, auto memory)
     if version_compare "$CLAUDE_CODE_VERSION" "2.1.32" ">="; then
         SUPPORTS_AGENT_TEAMS=true
         SUPPORTS_AUTO_MEMORY=true
     fi
 
-    # Check for v2.1.33+ features (persistent memory, hook events, agent type routing, agent memory)
+    # Check for v2.1.33+ features (persistent memory, hook events, agent type routing, agent memory, statusline API)
     if version_compare "$CLAUDE_CODE_VERSION" "2.1.33" ">="; then
         SUPPORTS_PERSISTENT_MEMORY=true
         SUPPORTS_HOOK_EVENTS=true
         SUPPORTS_AGENT_TYPE_ROUTING=true
         SUPPORTS_AGENT_MEMORY=true
-    fi
-
-    # Check for v2.1.33+ statusline API (context_window.used_percentage, cost tracking)
-    if version_compare "$CLAUDE_CODE_VERSION" "2.1.33" ">="; then
         SUPPORTS_STATUSLINE_API=true
     fi
 
@@ -128,11 +129,6 @@ detect_claude_code_version() {
     # Check for v2.1.36+ features (fast mode for Opus 4.6)
     if version_compare "$CLAUDE_CODE_VERSION" "2.1.36" ">="; then
         SUPPORTS_FAST_OPUS=true
-    fi
-
-    # Check for v2.1.30+ features (native token counts in Task tool results)
-    if version_compare "$CLAUDE_CODE_VERSION" "2.1.30" ">="; then
-        SUPPORTS_NATIVE_TASK_METRICS=true
     fi
 
     # Check for v2.1.38+ features (Agent Teams Bridge - unified task ledger)
@@ -303,6 +299,12 @@ detect_claude_code_version() {
         SUPPORTS_AGENT_EFFORT=true
     fi
 
+    # Check for v2.1.80+ features (effort frontmatter, rate_limits statusline field)
+    if version_compare "$CLAUDE_CODE_VERSION" "2.1.80" ">="; then
+        SUPPORTS_SKILL_EFFORT=true
+        SUPPORTS_RATE_LIMIT_STATUSLINE=true
+    fi
+
     # Check for v2.1.83+ features (CwdChanged/FileChanged hooks, managed-settings.d/, env scrub, initialPrompt)
     if version_compare "$CLAUDE_CODE_VERSION" "2.1.83" ">="; then
         SUPPORTS_CWD_CHANGED_HOOK=true
@@ -311,13 +313,6 @@ detect_claude_code_version() {
         SUPPORTS_ENV_SCRUB=true
         SUPPORTS_AGENT_INITIAL_PROMPT=true
         SUPPORTS_TASKOUTPUT_DEPRECATED=true
-    fi
-
-    # Check for v2.1.80+ features (effort frontmatter, rate_limits statusline field)
-    # Note: v2.1.80 predates v2.1.83 but was not tracked until v9.18.0 sync
-    if version_compare "$CLAUDE_CODE_VERSION" "2.1.80" ">="; then
-        SUPPORTS_SKILL_EFFORT=true
-        SUPPORTS_RATE_LIMIT_STATUSLINE=true
     fi
 
     # Check for v2.1.84+ features (TaskCreated hook, paths: frontmatter, userConfig)
