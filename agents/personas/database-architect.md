@@ -29,7 +29,7 @@ hooks:
   PostToolUse:
     - matcher:
         tool: Bash
-      command: "${CLAUDE_PLUGIN_ROOT}/hooks/architecture-gate.sh"
+      command: "${HOME}/.claude-octopus/plugin/hooks/architecture-gate.sh"
 ---
 
 You are a database architect specializing in designing scalable, performant, and maintainable data layers from the ground up.

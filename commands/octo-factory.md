@@ -88,7 +88,7 @@ Before committing to the expensive embrace phase, verify scenario coverage by di
 ### Step 4: Execute Factory Pipeline
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh factory --spec "<spec-path>"
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh factory --spec "<spec-path>"
 ```
 
 With optional flags:

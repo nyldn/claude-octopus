@@ -67,7 +67,7 @@ If user says "skip" for any question, use defaults: 3 work packages, fully indep
 **MANDATORY: You MUST use the Bash tool to run this provider check BEFORE displaying the banner. Do NOT skip it. Do NOT assume availability.**
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT:-$(dirname "$(dirname "$(dirname "$0")")")}/scripts/helpers/check-providers.sh"
+bash "${HOME}/.claude-octopus/plugin/scripts/helpers/check-providers.sh"
 ```
 
 **Use the ACTUAL results below. PROHIBITED: Showing only "🔵 Claude: Available ✓" without listing all providers.**
@@ -373,7 +373,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="<absolute-project-root-path>"
 WP_ID="WP-N"
 WORKTREE_DIR="${PROJECT_ROOT}/../.octo-worktree-${WP_ID}"
-REGISTRY="${CLAUDE_PLUGIN_ROOT:-}/scripts/agent-registry.sh"
+REGISTRY="${HOME}/.claude-octopus/plugin/scripts/agent-registry.sh"
 
 # v8.44.0: Create isolated worktree for this work package
 cd "$PROJECT_ROOT"
@@ -556,7 +556,7 @@ print(' '.join(wp.get('dependencies',[])))
 
     if [[ "$COMPLETED" -lt "$WAVE_TOTAL" ]]; then
       # v8.45.0: Fire reaction engine between poll cycles
-      REACTIONS="${CLAUDE_PLUGIN_ROOT:-}/scripts/reactions.sh"
+      REACTIONS="${HOME}/.claude-octopus/plugin/scripts/reactions.sh"
       if [[ -x "$REACTIONS" ]]; then
         "$REACTIONS" check-all 2>/dev/null || true
       fi
@@ -669,7 +669,7 @@ Coordination Files: .octo/parallel/
 
 ```bash
 # Show agent registry status for this parallel run
-REGISTRY="${CLAUDE_PLUGIN_ROOT}/scripts/agent-registry.sh"
+REGISTRY="${HOME}/.claude-octopus/plugin/scripts/agent-registry.sh"
 if [[ -x "$REGISTRY" ]]; then
   echo ""
   echo "=== AGENT REGISTRY ==="

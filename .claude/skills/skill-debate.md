@@ -269,7 +269,7 @@ When the user invokes `/debate`:
 **MANDATORY: You MUST use the Bash tool to run this provider check BEFORE displaying the banner. Do NOT skip it. Do NOT assume availability.**
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT:-$(dirname "$(dirname "$(dirname "$0")")")}/scripts/helpers/check-providers.sh"
+bash "${HOME}/.claude-octopus/plugin/scripts/helpers/check-providers.sh"
 ```
 
 **Use the ACTUAL results below. PROHIBITED: Showing only "🔵 Claude: Available ✓" without listing all providers.**
@@ -358,7 +358,7 @@ ROUNDS=3
 STYLE="thorough"
 
 # Dynamic advisor selection — use build-fleet.sh for model family diversity
-DEBATE_FLEET=$("${CLAUDE_PLUGIN_ROOT}/scripts/helpers/build-fleet.sh" debate standard "${QUESTION}" 2>/dev/null)
+DEBATE_FLEET=$("${HOME}/.claude-octopus/plugin/scripts/helpers/build-fleet.sh" debate standard "${QUESTION}" 2>/dev/null)
 # Extract debater agent types (exclude claude-sonnet Moderator)
 ADVISORS=$(echo "$DEBATE_FLEET" | grep '|Debater|' | cut -d'|' -f1 | paste -sd',' -)
 # Fallback if build-fleet.sh unavailable

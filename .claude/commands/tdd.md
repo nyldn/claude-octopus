@@ -64,7 +64,7 @@ AskUserQuestion({
 ### Step 2: Execute TDD
 
 Read and follow the full skill instructions from:
-`${CLAUDE_PLUGIN_ROOT}/.claude/skills/skill-tdd.md`
+`${HOME}/.claude-octopus/plugin/.claude/skills/skill-tdd.md`
 
 Apply the user's answers from Step 1 as the TDD scope and test depth.
 

@@ -248,7 +248,7 @@ When the user invokes `/debate`:
 
 **MANDATORY: Run the centralized provider check:**
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/helpers/check-providers.sh"
+bash "${HOME}/.claude-octopus/plugin/scripts/helpers/check-providers.sh"
 ```
 
 Then output the banner with ALL providers from check results:
@@ -338,7 +338,7 @@ ROUNDS=3
 STYLE="thorough"
 
 # Dynamic advisor selection — use build-fleet.sh for model family diversity
-DEBATE_FLEET=$("${CLAUDE_PLUGIN_ROOT}/scripts/helpers/build-fleet.sh" debate standard "${QUESTION}" 2>/dev/null)
+DEBATE_FLEET=$("${HOME}/.claude-octopus/plugin/scripts/helpers/build-fleet.sh" debate standard "${QUESTION}" 2>/dev/null)
 # Extract debater agent types (exclude claude-sonnet Moderator)
 ADVISORS=$(echo "$DEBATE_FLEET" | grep '|Debater|' | cut -d'|' -f1 | paste -sd',' -)
 # Fallback if build-fleet.sh unavailable

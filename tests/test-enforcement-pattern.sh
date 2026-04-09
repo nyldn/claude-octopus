@@ -198,11 +198,11 @@ echo ""
 echo "Test 9: Checking for Bash tool invocation of orchestrate.sh..."
 skills_with_bash_call=0
 for skill_file in "${ENFORCE_SKILLS[@]}"; do
-    if grep -q "\${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh" "$skill_file" && \
+    if grep -q '\.claude-octopus/plugin/scripts/orchestrate\.sh' "$skill_file" && \
        grep -q "You MUST execute this command via the Bash tool" "$skill_file"; then
         ((skills_with_bash_call++))
     elif [[ "$(basename "$skill_file")" == "flow-discover.md" ]] && \
-         grep -q "\${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh" "$skill_file" && \
+         grep -q '\.claude-octopus/plugin/scripts/orchestrate\.sh' "$skill_file" && \
          grep -q "You MUST use the Agent tool" "$skill_file"; then
         # v8.54.0: flow-discover uses Agent tool for parallel probe-single dispatch
         # instead of a single Bash(orchestrate.sh probe) call

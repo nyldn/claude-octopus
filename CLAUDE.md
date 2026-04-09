@@ -267,4 +267,13 @@ This enables faster workflow startup by skipping provider detection and preferen
 
 ---
 
+## Enforcement Best Practices
+
+Skills use the **Validation Gate Pattern** to ensure multi-LLM dispatch actually executes:
+
+1. **Pre-check**: Run `check-providers.sh` to detect available providers before dispatch
+2. **Dispatch**: Call `orchestrate.sh probe-single` per provider via background Agent subagents
+3. **Validate**: After dispatch, verify synthesis files exist (`find ~/.claude-octopus/results/ -name "probe-synthesis-*" -mmin -10`)
+4. **Fail loud**: If no synthesis files found, report "VALIDATION FAILED — multi-LLM dispatch did not execute" instead of silently falling back to Claude-only
+
 > Developer reference (modular config, E2E testing, enforcement patterns): see `docs/DEVELOPER.md`

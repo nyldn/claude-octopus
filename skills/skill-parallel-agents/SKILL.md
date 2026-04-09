@@ -45,23 +45,23 @@ description: "Multi-tentacled orchestration using Double Diamond methodology. Us
 
 ```bash
 # Full Double Diamond workflow (all 4 phases)
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh embrace "Build a user authentication system"
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh embrace "Build a user authentication system"
 
 # Individual phases
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh probe "Research authentication best practices"
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh grasp "Define auth requirements"
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh tangle "Implement auth feature"
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh ink "Validate and deliver auth implementation"
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh probe "Research authentication best practices"
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh grasp "Define auth requirements"
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh tangle "Implement auth feature"
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh ink "Validate and deliver auth implementation"
 
 # Crossfire: Adversarial cross-model review
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh grapple "implement password reset API"
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh grapple --principles security "implement JWT auth"
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh squeeze "review auth.ts for vulnerabilities"
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh grapple "implement password reset API"
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh grapple --principles security "implement JWT auth"
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh squeeze "review auth.ts for vulnerabilities"
 
 # Smart auto-routing (detects intent automatically)
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh auto "research OAuth patterns"           # -> probe
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh auto "build user login"                  # -> tangle + ink
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh auto "review the auth code"              # -> ink
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh auto "research OAuth patterns"           # -> probe
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh auto "build user login"                  # -> tangle + ink
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh auto "review the auth code"              # -> ink
 ```
 
 ## IMPORTANT: When NOT to Use This Skill
@@ -206,7 +206,7 @@ Followed by results from each provider marked with their indicators (🔴 🟡 �
 Silently run this fast detection script (completes in <1 second):
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh detect-providers
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh detect-providers
 ```
 
 **IMPORTANT - First Time Setup Detection:**
@@ -381,7 +381,7 @@ Parallel research from 4 perspectives:
 - Technical feasibility (prerequisites, dependencies)
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh probe "What are the best approaches for real-time notifications?"
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh probe "What are the best approaches for real-time notifications?"
 ```
 
 ### Phase 2: GRASP (Define)
@@ -393,7 +393,7 @@ Multi-tentacled problem definition:
 - Constraints and boundaries
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh grasp "Define requirements for notification system" --context probe-synthesis-*.md
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh grasp "Define requirements for notification system" --context probe-synthesis-*.md
 ```
 
 ### Phase 3: TANGLE (Develop)
@@ -405,7 +405,7 @@ Enhanced map-reduce with validation:
 - Quality gate (75% success threshold)
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh tangle "Implement notification service" --context grasp-consensus-*.md
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh tangle "Implement notification service" --context grasp-consensus-*.md
 ```
 
 ### Phase 4: INK (Deliver)
@@ -417,14 +417,14 @@ Pre-delivery validation:
 - Final deliverable generation
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh ink "Deliver notification system" --context tangle-validation-*.md
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh ink "Deliver notification system" --context tangle-validation-*.md
 ```
 
 ### Full Workflow: EMBRACE
 Run all 4 phases sequentially with automatic context passing:
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh embrace "Create a complete user dashboard feature"
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh embrace "Create a complete user dashboard feature"
 ```
 
 ## Crossfire: Adversarial Cross-Model Review
@@ -464,13 +464,13 @@ Codex and Gemini each propose solutions, then critique each other's work. A synt
 
 ```bash
 # Basic grapple
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh grapple "implement password reset API"
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh grapple "implement password reset API"
 
 # Grapple with security principles
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh grapple --principles security "implement JWT authentication"
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh grapple --principles security "implement JWT authentication"
 
 # Grapple with performance principles
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh grapple --principles performance "optimize database queries"
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh grapple --principles performance "optimize database queries"
 ```
 
 ### SQUEEZE - Red Team Security Review
@@ -487,8 +487,8 @@ Phase 4: Validation verifies all fixed
 ```
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh squeeze "implement user login form"
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh squeeze "review auth.ts for vulnerabilities"
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh squeeze "implement user login form"
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh squeeze "review auth.ts for vulnerabilities"
 ```
 
 ### Constitutional Principles
@@ -503,9 +503,9 @@ Grapple supports domain-specific critique principles:
 | `maintainability` | Clean code, testability | Refactoring, code reviews |
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh grapple --principles security "implement password reset"
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh grapple --principles performance "optimize search API"
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh grapple --principles maintainability "refactor user service"
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh grapple --principles security "implement password reset"
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh grapple --principles performance "optimize search API"
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh grapple --principles maintainability "refactor user service"
 ```
 
 ## Smart Auto-Routing
@@ -524,12 +524,12 @@ The `auto` command detects intent keywords and routes to the appropriate workflo
 
 **Examples:**
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh auto "research best practices for caching"     # -> probe
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh auto "build the caching layer"                 # -> tangle + ink
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh auto "review the cache implementation"         # -> ink
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh auto "security audit the auth module"          # -> squeeze
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh auto "have both models debate the API design"  # -> grapple
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh auto "fix the cache invalidation bug"          # -> codex
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh auto "research best practices for caching"     # -> probe
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh auto "build the caching layer"                 # -> tangle + ink
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh auto "review the cache implementation"         # -> ink
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh auto "security audit the auth module"          # -> squeeze
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh auto "have both models debate the API design"  # -> grapple
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh auto "fix the cache invalidation bug"          # -> codex
 ```
 
 ## Quality Gates
@@ -628,17 +628,17 @@ Claude Octopus now intelligently routes tasks based on your subscription tiers a
 
 ```bash
 # Force a specific provider
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh --provider gemini auto "analyze code structure"
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh --provider gemini auto "analyze code structure"
 
 # Prefer cheapest option
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh --cost-first auto "research best practices"
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh --cost-first auto "research best practices"
 
 # Prefer highest quality
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh --quality-first auto "complex refactoring task"
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh --quality-first auto "complex refactoring task"
 
 # OpenRouter routing variants
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh --openrouter-nitro auto "quick task"  # Fastest
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh --openrouter-floor auto "bulk task"   # Cheapest
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh --openrouter-nitro auto "quick task"  # Fastest
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh --openrouter-floor auto "bulk task"   # Cheapest
 ```
 
 ### Configuration
@@ -647,10 +647,10 @@ Provider tiers are configured during `setup` or via the providers config file:
 
 ```bash
 # Run setup wizard (includes provider tier steps)
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh setup
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh setup
 
 # View current provider status
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh status
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh status
 ```
 
 Configuration file: `~/.claude-octopus/.providers-config`
@@ -687,7 +687,7 @@ OpenRouter provides 400+ models as a universal fallback when Codex/Gemini are un
 export OPENROUTER_API_KEY="sk-or-..."
 
 # Re-run setup to configure
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh setup
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh setup
 ```
 
 ## Workspace Structure
@@ -709,29 +709,29 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh setup
 ### Research-First Development
 ```bash
 # 1. Explore the problem space
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh probe "Authentication patterns for microservices"
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh probe "Authentication patterns for microservices"
 
 # 2. Define the approach (with probe context)
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh grasp "OAuth2 with JWT for our API" \
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh grasp "OAuth2 with JWT for our API" \
   --context ~/.claude-octopus/results/probe-synthesis-*.md
 
 # 3. Implement with validation
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh tangle "Implement OAuth2 authentication"
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh tangle "Implement OAuth2 authentication"
 
 # 4. Deliver with quality checks
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh ink "Finalize auth implementation"
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh ink "Finalize auth implementation"
 ```
 
 ### Quick Build (Auto-Routed)
 ```bash
 # Auto-detects "build" intent -> runs tangle + ink
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh auto "build a rate limiting middleware"
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh auto "build a rate limiting middleware"
 ```
 
 ### Full Feature Development
 ```bash
 # All 4 phases in one command
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh embrace "Create a user notification system with email and push support"
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh embrace "Create a user notification system with email and push support"
 ```
 
 ## Best Practices
@@ -747,7 +747,7 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh embrace "Create a user notification
 
 ### Pre-flight check fails
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh preflight
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh preflight
 # Verify: codex CLI, gemini CLI, OPENAI_API_KEY, GOOGLE_API_KEY
 ```
 
@@ -759,6 +759,6 @@ Tangle phase requires 75% success rate. If failing:
 
 ### Reset workspace
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh clean
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh init
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh clean
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh init
 ```

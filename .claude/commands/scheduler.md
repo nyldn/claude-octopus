@@ -12,10 +12,10 @@ Manage the Claude Octopus scheduled workflow runner daemon.
 ## Usage
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/scheduler/octopus-scheduler.sh start
-${CLAUDE_PLUGIN_ROOT}/scripts/scheduler/octopus-scheduler.sh stop
-${CLAUDE_PLUGIN_ROOT}/scripts/scheduler/octopus-scheduler.sh status
-${CLAUDE_PLUGIN_ROOT}/scripts/scheduler/octopus-scheduler.sh emergency-stop
+${HOME}/.claude-octopus/plugin/scripts/scheduler/octopus-scheduler.sh start
+${HOME}/.claude-octopus/plugin/scripts/scheduler/octopus-scheduler.sh stop
+${HOME}/.claude-octopus/plugin/scripts/scheduler/octopus-scheduler.sh status
+${HOME}/.claude-octopus/plugin/scripts/scheduler/octopus-scheduler.sh emergency-stop
 ```
 
 ## Instructions for Claude

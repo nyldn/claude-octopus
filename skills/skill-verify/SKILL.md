@@ -191,7 +191,7 @@ Octopus workflows have built-in quality gates:
 
 ```bash
 # Before moving from tangle → ink
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh preflight
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh preflight
 
 # Verifies:
 # - All agents completed

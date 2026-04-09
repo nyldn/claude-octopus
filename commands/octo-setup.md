@@ -85,13 +85,13 @@ Then route to the appropriate section below.
 First, check all software dependencies (CLIs, statusline, recommended plugins):
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/scripts/install-deps.sh check
+bash ${HOME}/.claude-octopus/plugin/scripts/install-deps.sh check
 ```
 
 If dependencies are missing, install them:
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/scripts/install-deps.sh install
+bash ${HOME}/.claude-octopus/plugin/scripts/install-deps.sh install
 ```
 
 **Note:** Plugin installs (claude-mem, document-skills) can't be auto-installed via script. The install command above will print `/plugin install` commands — copy and paste them to install.
@@ -101,7 +101,7 @@ bash ${CLAUDE_PLUGIN_ROOT}/scripts/install-deps.sh install
 Running provider detection...
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh detect-providers
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh detect-providers
 ```
 
 Based on the results above, here's what you need:
@@ -270,7 +270,7 @@ export GEMINI_API_KEY="AIza..."
 
 After installing and configuring, verify with:
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh detect-providers
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh detect-providers
 ```
 
 You should see at least one provider with status:
@@ -486,6 +486,6 @@ rm -rf ~/.claude/installed-plugins/octo@nyldn-plugins
 ## Getting Help
 
 If you encounter issues:
-1. Run `${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh preflight` for a detailed system check
+1. Run `${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh preflight` for a detailed system check
 2. Check the logs in `~/.claude-octopus/logs/`
 3. Report issues at: https://github.com/nyldn/claude-octopus/issues

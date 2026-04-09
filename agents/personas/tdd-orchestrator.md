@@ -28,7 +28,7 @@ hooks:
   PostToolUse:
     - matcher:
         tool: Bash
-      command: "${CLAUDE_PLUGIN_ROOT}/hooks/code-quality-gate.sh"
+      command: "${HOME}/.claude-octopus/plugin/hooks/code-quality-gate.sh"
 ---
 
 You are an expert TDD orchestrator specializing in comprehensive test-driven development coordination, modern TDD practices, and multi-agent workflow management.

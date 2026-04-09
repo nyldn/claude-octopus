@@ -51,7 +51,7 @@ Provider Availability:
 **You MUST execute this command via the Bash tool:**
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh spawn backend-architect "<user's architecture request>"
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh spawn backend-architect "<user's architecture request>"
 ```
 
 **CRITICAL: You are PROHIBITED from:**
@@ -108,10 +108,10 @@ Invokes the backend-architect persona for system design during the `grasp` (defi
 
 ```bash
 # Via orchestrate.sh
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh spawn backend-architect "Design a scalable notification system"
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh spawn backend-architect "Design a scalable notification system"
 
 # Via auto-routing (detects architecture intent)
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh auto "architect the event-driven messaging system"
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh auto "architect the event-driven messaging system"
 ```
 
 ## Capabilities

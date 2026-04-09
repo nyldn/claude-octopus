@@ -9,7 +9,7 @@ description: "Systematic debugging with methodical problem investigation"
 ## Instructions
 
 Read and follow the full skill instructions from:
-`${CLAUDE_PLUGIN_ROOT}/.claude/skills/skill-debug.md`
+`${HOME}/.claude-octopus/plugin/.claude/skills/skill-debug.md`
 
 ## Quick Usage
 

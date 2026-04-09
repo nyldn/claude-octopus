@@ -88,7 +88,7 @@ AskUserQuestion({
 })
 ```
 
-Store context (scope, focus, autonomy, debate preference) for all phases.
+After receiving answers, incorporate them into all subsequent phase invocations — use the scope to calibrate research depth, focus areas to weight provider perspectives, autonomy level to control phase transitions, and debate preference to gate Define→Develop handoffs.
 
 ## Step 2: Check Provider Availability & Display Banner
 

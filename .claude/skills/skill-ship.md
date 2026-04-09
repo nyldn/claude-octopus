@@ -136,7 +136,7 @@ command -v gemini &> /dev/null && gemini_status="Available" || gemini_status="No
 
 ```bash
 # Run Multi-AI security audit for delivery
-"${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh" ink "Security audit for delivery - comprehensive review of all code changes for production readiness"
+"${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" ink "Security audit for delivery - comprehensive review of all code changes for production readiness"
 ```
 
 **CRITICAL: You are PROHIBITED from:**

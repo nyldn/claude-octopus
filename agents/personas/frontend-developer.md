@@ -28,7 +28,7 @@ hooks:
   PostToolUse:
     - matcher:
         tool: Bash
-      command: "${CLAUDE_PLUGIN_ROOT}/hooks/frontend-gate.sh"
+      command: "${HOME}/.claude-octopus/plugin/hooks/frontend-gate.sh"
 ---
 
 You are a frontend development expert specializing in modern React applications, Next.js, and cutting-edge frontend architecture.

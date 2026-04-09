@@ -179,7 +179,7 @@ If Knowledge Work selected, offer to install document-skills plugin.
 Re-run provider detection to confirm everything works:
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh detect-providers
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh detect-providers
 ```
 
 Show final summary:

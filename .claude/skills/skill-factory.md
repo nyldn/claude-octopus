@@ -69,8 +69,8 @@ DO NOT proceed past this gate if file does not exist.
 
 ### STEP 4: Read Prior State (OPTIONAL)
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" init_state 2>/dev/null || true
-"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" set_current_workflow "factory" "factory" 2>/dev/null || true
+"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" init_state 2>/dev/null || true
+"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" set_current_workflow "factory" "factory" 2>/dev/null || true
 ```
 Failure → continue without state, warn user.
 
@@ -126,7 +126,7 @@ List: 1) Untested behaviors 2) Untested edge cases 3) Missing failure modes 4) C
 
 ### STEP 5: Execute orchestrate.sh factory (MANDATORY — Bash Tool)
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh factory --spec "<spec_path>"
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh factory --spec "<spec_path>"
 ```
 
 With optional flags based on Step 1 answers:
@@ -171,7 +171,7 @@ Present to user:
 
 ### STEP 8: Update State & Next Steps (MANDATORY)
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" record_decision "factory" "Factory run completed: <verdict> (<score>/<target>)" 2>/dev/null || true
+"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" record_decision "factory" "Factory run completed: <verdict> (<score>/<target>)" 2>/dev/null || true
 ```
 
 Present next-step suggestions based on verdict:

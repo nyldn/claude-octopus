@@ -242,13 +242,13 @@ Execute tasks one by one with verification between each.
 **2. Parallel (octopus tangle)**
 Use Claude Octopus to parallelize independent tasks:
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh tangle "Execute implementation plan for [feature]"
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh tangle "Execute implementation plan for [feature]"
 ```
 
 **3. Full workflow (octopus embrace)**
 Research → Define → Implement → Deliver:
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh embrace "Implement [feature] per plan"
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh embrace "Implement [feature] per plan"
 ```
 ```
 

@@ -313,7 +313,7 @@ If you have existing `.claude/todos.md` or similar files:
 
 ```bash
 # Run migration script
-"${CLAUDE_PLUGIN_ROOT}/scripts/migrate-todos.sh"
+"${HOME}/.claude-octopus/plugin/scripts/migrate-todos.sh"
 ```
 
 This will:

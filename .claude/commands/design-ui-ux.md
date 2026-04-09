@@ -29,13 +29,13 @@ Parse the user's intent to determine which mode to run:
 **For quick searches**, run the search directly:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/vendors/ui-ux-pro-max-skill/src/ui-ux-pro-max/scripts/search.py" "<query>" --domain <domain>
+python3 "${HOME}/.claude-octopus/plugin/vendors/ui-ux-pro-max-skill/src/ui-ux-pro-max/scripts/search.py" "<query>" --domain <domain>
 ```
 
 ### Step 2: Check Design Intelligence Availability
 
 ```bash
-if [ -f "${CLAUDE_PLUGIN_ROOT}/vendors/ui-ux-pro-max-skill/src/ui-ux-pro-max/scripts/search.py" ]; then
+if [ -f "${HOME}/.claude-octopus/plugin/vendors/ui-ux-pro-max-skill/src/ui-ux-pro-max/scripts/search.py" ]; then
     python3 -c "import csv, re, math" 2>/dev/null && echo "Design intelligence: ready" || echo "Design intelligence: python3 required"
 else
     echo "Design intelligence: not installed (run: git submodule update --init)"

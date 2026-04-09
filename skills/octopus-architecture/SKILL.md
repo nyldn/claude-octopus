@@ -13,7 +13,7 @@ This skill uses **ENFORCED execution mode**. You MUST follow this exact sequence
 **MANDATORY: Run the centralized provider check BEFORE displaying the banner:**
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/helpers/check-providers.sh"
+bash "${HOME}/.claude-octopus/plugin/scripts/helpers/check-providers.sh"
 ```
 
 **Use the ACTUAL results. PROHIBITED: Showing only "🔵 Claude: Available ✓" without listing all providers.**
@@ -50,7 +50,7 @@ Provider Availability:
 **You MUST execute this command via the Bash tool:**
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh spawn backend-architect "<user's architecture request>"
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh spawn backend-architect "<user's architecture request>"
 ```
 
 **CRITICAL: You are PROHIBITED from:**
@@ -107,10 +107,10 @@ Invokes the backend-architect persona for system design during the `grasp` (defi
 
 ```bash
 # Via orchestrate.sh
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh spawn backend-architect "Design a scalable notification system"
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh spawn backend-architect "Design a scalable notification system"
 
 # Via auto-routing (detects architecture intent)
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh auto "architect the event-driven messaging system"
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh auto "architect the event-driven messaging system"
 ```
 
 ## Capabilities

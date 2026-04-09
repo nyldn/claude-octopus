@@ -1,3 +1,19 @@
+## [9.20.1] - 2026-04-09
+
+### Fixed
+
+- **`orchestrate.sh` not found by LLM Bash tool** — `${CLAUDE_PLUGIN_ROOT}` is only available in hook execution context, not in the LLM's Bash shell. All skill, command, persona, and OpenClaw files referenced this variable, causing multi-LLM dispatch to silently fall back to Claude-only. Replaced with `${HOME}/.claude-octopus/plugin/` across 104 files, with a stable symlink created by session-manager.sh at session start.
+- **Shared template block** (`skills/blocks/provider-check.md`) also used `${CLAUDE_PLUGIN_ROOT}` with a broken `dirname` fallback — fixed at source so `gen-skill-docs.sh` propagates correctly.
+- **Hardcoded provider metrics** — `update_metrics "provider" "codex/gemini/claude"` in flow templates replaced; metrics should track actual providers used, not assume a fixed set.
+- **RTK install URL** contained upstream repo attribution (`rtk-ai`) in skill-doctor.md — replaced with generic cargo install target.
+- **README command count** — "49 commands" corrected to 48.
+
+### Changed
+
+- **15 test suites fixed** — Removed 2 stale v8.x tests (testing deleted `get_agent_command` and non-existent `embrace.yaml`). Fixed skill-verify path lookup, hooks.json registration assertions for opt-in hooks, flow-develop self-regulation assertions, OpenClaw registry sync, skill count expectation (50→51), README badge/count checks.
+- **CLAUDE.md** — Added Enforcement Best Practices section with Validation Gate Pattern documentation.
+- **embrace.md** — Added answer incorporation instructions for intent questions.
+
 ## [9.20.0] - 2026-04-06
 
 ### Added

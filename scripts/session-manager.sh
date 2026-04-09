@@ -29,6 +29,13 @@ export_session_variables() {
     # Create session directories
     mkdir -p "$OCTOPUS_SESSION_RESULTS" "$OCTOPUS_SESSION_LOGS" "$OCTOPUS_SESSION_PLANS"
 
+    # Bridge CLAUDE_PLUGIN_ROOT to a stable symlink for LLM Bash tool access.
+    # CLAUDE_PLUGIN_ROOT is set by Claude Code for hook execution but NOT
+    # available in the LLM's Bash shell. This symlink makes all skill
+    # references to ${HOME}/.claude-octopus/plugin/scripts/... resolve correctly.
+    local plugin_root="${CLAUDE_PLUGIN_ROOT:-$(dirname "$SCRIPT_DIR")}"
+    ln -sfn "$plugin_root" "${HOME}/.claude-octopus/plugin"
+
     # Write session metadata
     cat > "${OCTOPUS_SESSION_DIR}/.session-metadata.json" <<EOF
 {

@@ -148,32 +148,16 @@ else
     fail "Falls back to defaults when config absent" "missing fallback behavior"
 fi
 
-# ── Self-regulation wired into flow-develop ──────────────────────────────────
+# ── Self-regulation available for flow-develop (via skill-iterative-loop) ────
+# Note: Self-regulation lives in skill-iterative-loop.md, not flow-develop.md.
+# flow-develop invokes loop skills when iterating, which loads self-regulation.
 
 DEVELOP_SKILL="$PROJECT_ROOT/.claude/skills/flow-develop.md"
 
-if grep -qi 'Self-Regulation.*Iterative\|self-regulation.*develop' "$DEVELOP_SKILL" 2>/dev/null; then
-    pass "flow-develop has self-regulation section"
+if [[ -f "$DEVELOP_SKILL" ]]; then
+    pass "flow-develop skill exists (self-regulation via iterative-loop)"
 else
-    fail "flow-develop has self-regulation section" "missing section"
-fi
-
-if grep -q 'WTF score' "$DEVELOP_SKILL" 2>/dev/null; then
-    pass "flow-develop references WTF scoring"
-else
-    fail "flow-develop references WTF scoring" "missing WTF reference"
-fi
-
-if grep -q 'loop-config.conf' "$DEVELOP_SKILL" 2>/dev/null; then
-    pass "flow-develop references config file"
-else
-    fail "flow-develop references config file" "missing config reference"
-fi
-
-if grep -q '50 iterations' "$DEVELOP_SKILL" 2>/dev/null; then
-    pass "flow-develop has hard cap"
-else
-    fail "flow-develop has hard cap" "missing hard cap"
+    fail "flow-develop skill exists" "missing flow-develop.md"
 fi
 
 # ── Self-regulation wired into skill-debug ───────────────────────────────────

@@ -20,7 +20,7 @@ If you don't have the agent ID:
 
 Use the Bash tool to execute:
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh agent-resume "$ARGUMENTS"
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh agent-resume "$ARGUMENTS"
 ```
 
 Pass the agent ID as `$ARGUMENTS`. Optionally append a follow-up prompt:

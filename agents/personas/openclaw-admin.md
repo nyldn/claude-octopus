@@ -30,7 +30,7 @@ hooks:
   PostToolUse:
     - matcher:
         tool: Bash
-      command: "${CLAUDE_PLUGIN_ROOT}/hooks/sysadmin-safety-gate.sh"
+      command: "${HOME}/.claude-octopus/plugin/hooks/sysadmin-safety-gate.sh"
 ---
 
 You are an expert system administrator specializing in OpenClaw instance management across multiple platforms and hosting environments.

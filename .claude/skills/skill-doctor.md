@@ -47,7 +47,7 @@ Run environment diagnostics across 11 check categories. Identifies misconfigured
 ### Step 1: Run Full Diagnostics
 
 ```bash
-cd "${CLAUDE_PLUGIN_ROOT}" && bash scripts/orchestrate.sh doctor
+cd "${HOME}/.claude-octopus/plugin" && bash scripts/orchestrate.sh doctor
 ```
 
 This runs all 11 check categories and displays a formatted report.
@@ -57,17 +57,17 @@ This runs all 11 check categories and displays a formatted report.
 If the user asks about a specific area, filter:
 
 ```bash
-cd "${CLAUDE_PLUGIN_ROOT}" && bash scripts/orchestrate.sh doctor providers
-cd "${CLAUDE_PLUGIN_ROOT}" && bash scripts/orchestrate.sh doctor auth
-cd "${CLAUDE_PLUGIN_ROOT}" && bash scripts/orchestrate.sh doctor config
-cd "${CLAUDE_PLUGIN_ROOT}" && bash scripts/orchestrate.sh doctor state
-cd "${CLAUDE_PLUGIN_ROOT}" && bash scripts/orchestrate.sh doctor smoke
-cd "${CLAUDE_PLUGIN_ROOT}" && bash scripts/orchestrate.sh doctor hooks
-cd "${CLAUDE_PLUGIN_ROOT}" && bash scripts/orchestrate.sh doctor scheduler
-cd "${CLAUDE_PLUGIN_ROOT}" && bash scripts/orchestrate.sh doctor skills
-cd "${CLAUDE_PLUGIN_ROOT}" && bash scripts/orchestrate.sh doctor conflicts
-cd "${CLAUDE_PLUGIN_ROOT}" && bash scripts/orchestrate.sh doctor agents
-cd "${CLAUDE_PLUGIN_ROOT}" && bash scripts/orchestrate.sh doctor recurrence
+cd "${HOME}/.claude-octopus/plugin" && bash scripts/orchestrate.sh doctor providers
+cd "${HOME}/.claude-octopus/plugin" && bash scripts/orchestrate.sh doctor auth
+cd "${HOME}/.claude-octopus/plugin" && bash scripts/orchestrate.sh doctor config
+cd "${HOME}/.claude-octopus/plugin" && bash scripts/orchestrate.sh doctor state
+cd "${HOME}/.claude-octopus/plugin" && bash scripts/orchestrate.sh doctor smoke
+cd "${HOME}/.claude-octopus/plugin" && bash scripts/orchestrate.sh doctor hooks
+cd "${HOME}/.claude-octopus/plugin" && bash scripts/orchestrate.sh doctor scheduler
+cd "${HOME}/.claude-octopus/plugin" && bash scripts/orchestrate.sh doctor skills
+cd "${HOME}/.claude-octopus/plugin" && bash scripts/orchestrate.sh doctor conflicts
+cd "${HOME}/.claude-octopus/plugin" && bash scripts/orchestrate.sh doctor agents
+cd "${HOME}/.claude-octopus/plugin" && bash scripts/orchestrate.sh doctor recurrence
 ```
 
 ### Step 3: Check & Install Dependencies
@@ -75,13 +75,13 @@ cd "${CLAUDE_PLUGIN_ROOT}" && bash scripts/orchestrate.sh doctor recurrence
 Run the dependency checker to find missing CLIs, statusline config, and recommended plugins:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/install-deps.sh" check
+bash "${HOME}/.claude-octopus/plugin/scripts/install-deps.sh" check
 ```
 
 If the check reports missing deps, offer to install them:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/install-deps.sh" install
+bash "${HOME}/.claude-octopus/plugin/scripts/install-deps.sh" install
 ```
 
 This auto-installs: Codex CLI, Gemini CLI, jq, and the statusline resolver. For plugins (claude-mem, document-skills), it prints `/plugin install` commands the user must run manually.
@@ -90,13 +90,13 @@ This auto-installs: Codex CLI, Gemini CLI, jq, and the statusline resolver. For 
 
 ```bash
 # Detailed output for troubleshooting
-cd "${CLAUDE_PLUGIN_ROOT}" && bash scripts/orchestrate.sh doctor --verbose
+cd "${HOME}/.claude-octopus/plugin" && bash scripts/orchestrate.sh doctor --verbose
 
 # Machine-readable output
-cd "${CLAUDE_PLUGIN_ROOT}" && bash scripts/orchestrate.sh doctor --json
+cd "${HOME}/.claude-octopus/plugin" && bash scripts/orchestrate.sh doctor --json
 
 # Combine: specific category + verbose
-cd "${CLAUDE_PLUGIN_ROOT}" && bash scripts/orchestrate.sh doctor auth --verbose
+cd "${HOME}/.claude-octopus/plugin" && bash scripts/orchestrate.sh doctor auth --verbose
 ```
 
 ### Step 5: Interactive Remediation (MANDATORY for fixable issues)
@@ -112,7 +112,7 @@ AskUserQuestion({
     multiSelect: false,
     options: [
       {label: "Install via brew (Recommended)", description: "brew install rtk — fast, macOS"},
-      {label: "Install via cargo", description: "cargo install --git https://github.com/rtk-ai/rtk"},
+      {label: "Install via cargo", description: "cargo install rtk-token-killer"},
       {label: "Skip", description: "Continue without RTK"}
     ]
   }]
@@ -257,7 +257,7 @@ The doctor checks for project-level `RUNTIME.md` — a file that provides projec
 ### What the Doctor Checks
 
 - **RUNTIME.md exists** in the project root (also checks `.octopus/RUNTIME.md` and `.claude-octopus/RUNTIME.md`)
-- If missing, suggest creating one from the template: `cp "${CLAUDE_PLUGIN_ROOT}/config/templates/RUNTIME.md" ./RUNTIME.md`
+- If missing, suggest creating one from the template: `cp "${HOME}/.claude-octopus/plugin/config/templates/RUNTIME.md" ./RUNTIME.md`
 - If present, confirm it contains at least one populated section (not just the template defaults)
 
 ### Why It Matters

@@ -9,7 +9,7 @@ description: "OpenClaw instance administration — manage hosts across macOS, Ub
 ## Instructions
 
 Read and follow the full skill instructions from:
-`${CLAUDE_PLUGIN_ROOT}/.claude/skills/skill-claw.md`
+`${HOME}/.claude-octopus/plugin/.claude/skills/skill-claw.md`
 
 ## Quick Usage
 

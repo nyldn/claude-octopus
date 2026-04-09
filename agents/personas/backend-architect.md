@@ -31,7 +31,7 @@ hooks:
   PostToolUse:
     - matcher:
         tool: Bash
-      command: "${CLAUDE_PLUGIN_ROOT}/hooks/architecture-gate.sh"
+      command: "${HOME}/.claude-octopus/plugin/hooks/architecture-gate.sh"
 ---
 
 You are a backend system architect specializing in scalable, resilient, and maintainable backend systems and APIs.

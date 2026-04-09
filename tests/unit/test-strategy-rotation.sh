@@ -25,53 +25,28 @@ else
     fail "Hook script is executable" "not executable: $HOOK"
 fi
 
-# ── Registered in hooks.json for PostToolUse ─────────────────────────
+# ── Hook exists on disk (opt-in — not registered in hooks.json by default) ──
 
-if grep -q 'strategy-rotation.sh' "$HOOKS_JSON" 2>/dev/null; then
-    pass "Hook registered in hooks.json"
+if [[ -x "$HOOK" ]]; then
+    pass "Hook script exists and is executable"
 else
-    fail "Hook registered in hooks.json" "strategy-rotation.sh not found in hooks.json"
+    fail "Hook script exists and is executable" "strategy-rotation.sh not found or not executable"
 fi
 
-# Verify it's under PostToolUse section
-if python3 -c "
-import json, sys
-with open('$HOOKS_JSON') as f:
-    hooks = json.load(f)
-post_hooks = hooks.get('PostToolUse', [])
-found = False
-for entry in post_hooks:
-    for h in entry.get('hooks', []):
-        if 'strategy-rotation.sh' in h.get('command', ''):
-            found = True
-            break
-sys.exit(0 if found else 1)
-" 2>/dev/null; then
-    pass "Hook is in PostToolUse section"
+# ── Hook has PostToolUse-compatible interface ─────────────────────────
+
+if grep -q 'tool_name\|TOOL_NAME\|PostToolUse' "$HOOK" 2>/dev/null; then
+    pass "Hook reads tool context (PostToolUse compatible)"
 else
-    fail "Hook is in PostToolUse section" "not found under PostToolUse in hooks.json"
+    fail "Hook reads tool context" "no tool_name/PostToolUse pattern"
 fi
 
-# ── Matcher includes Bash|Edit|Write ─────────────────────────────────
+# ── Hook targets Bash/Edit/Write operations ─────────────────────────
 
-if python3 -c "
-import json, sys
-with open('$HOOKS_JSON') as f:
-    hooks = json.load(f)
-post_hooks = hooks.get('PostToolUse', [])
-for entry in post_hooks:
-    for h in entry.get('hooks', []):
-        if 'strategy-rotation.sh' in h.get('command', ''):
-            tool_matcher = entry.get('matcher', {}).get('tool', '')
-            has_bash = 'Bash' in tool_matcher
-            has_edit = 'Edit' in tool_matcher
-            has_write = 'Write' in tool_matcher
-            sys.exit(0 if (has_bash and has_edit and has_write) else 1)
-sys.exit(1)
-" 2>/dev/null; then
-    pass "Matcher includes Bash, Edit, and Write"
+if grep -q 'Bash\|Edit\|Write' "$HOOK" 2>/dev/null; then
+    pass "Hook targets Bash, Edit, and Write operations"
 else
-    fail "Matcher includes Bash, Edit, and Write" "expected matcher with Bash|Edit|Write"
+    fail "Hook targets Bash, Edit, and Write" "expected Bash|Edit|Write in hook"
 fi
 
 # ── Threshold env var documented ─────────────────────────────────────

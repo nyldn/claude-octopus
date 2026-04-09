@@ -93,7 +93,7 @@ AskUserQuestion({
 **MANDATORY: You MUST use the Bash tool to run this provider check BEFORE displaying the banner. Do NOT skip it. Do NOT assume availability.**
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT:-$(dirname "$(dirname "$(dirname "$0")")")}/scripts/helpers/check-providers.sh"
+bash "${HOME}/.claude-octopus/plugin/scripts/helpers/check-providers.sh"
 ```
 
 **Use the ACTUAL results below. PROHIBITED: Showing only "🔵 Claude: Available ✓" without listing all providers.**
@@ -123,7 +123,7 @@ Tools:
 ### STEP 3: Check Design Intelligence
 
 ```bash
-SEARCH_PY="${CLAUDE_PLUGIN_ROOT}/vendors/ui-ux-pro-max-skill/src/ui-ux-pro-max/scripts/search.py"
+SEARCH_PY="${HOME}/.claude-octopus/plugin/vendors/ui-ux-pro-max-skill/src/ui-ux-pro-max/scripts/search.py"
 if [ -f "$SEARCH_PY" ]; then
     python3 -c "import csv, re, math" 2>/dev/null && echo "READY" || echo "MISSING_PYTHON"
 else
@@ -131,7 +131,7 @@ else
 fi
 ```
 
-**If MISSING_SEARCH_PY**: Tell user to run `cd "${CLAUDE_PLUGIN_ROOT}" && git submodule update --init vendors/ui-ux-pro-max-skill`
+**If MISSING_SEARCH_PY**: Tell user to run `cd "${HOME}/.claude-octopus/plugin" && git submodule update --init vendors/ui-ux-pro-max-skill`
 **If MISSING_PYTHON**: Tell user python3 is required for design intelligence.
 
 ### STEP 4: Phase 1 — Discover (Design Research)
@@ -139,7 +139,7 @@ fi
 **You MUST execute at least 3 of these searches. This is NOT optional.**
 
 ```bash
-SEARCH_PY="${CLAUDE_PLUGIN_ROOT}/vendors/ui-ux-pro-max-skill/src/ui-ux-pro-max/scripts/search.py"
+SEARCH_PY="${HOME}/.claude-octopus/plugin/vendors/ui-ux-pro-max-skill/src/ui-ux-pro-max/scripts/search.py"
 
 # 1. Product type search — what design patterns fit this product?
 python3 "$SEARCH_PY" "<user's product description>" --domain product

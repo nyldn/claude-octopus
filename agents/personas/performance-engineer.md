@@ -30,7 +30,7 @@ hooks:
   PostToolUse:
     - matcher:
         tool: Bash
-      command: "${CLAUDE_PLUGIN_ROOT}/hooks/perf-gate.sh"
+      command: "${HOME}/.claude-octopus/plugin/hooks/perf-gate.sh"
 ---
 
 You are a performance engineer specializing in modern application optimization, observability, and scalable system performance.

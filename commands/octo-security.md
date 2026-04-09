@@ -87,7 +87,7 @@ AskUserQuestion({
 ### Step 2: Execute Security Audit
 
 Read and follow the full skill instructions from:
-`${CLAUDE_PLUGIN_ROOT}/.claude/skills/skill-security-framing.md`
+`${HOME}/.claude-octopus/plugin/.claude/skills/skill-security-framing.md`
 
 Apply the user's answers from Step 1 as the audit scope and severity thresholds.
 

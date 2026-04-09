@@ -30,7 +30,7 @@ hooks:
   PostToolUse:
     - matcher:
         tool: Bash
-      command: "${CLAUDE_PLUGIN_ROOT}/hooks/security-gate.sh"
+      command: "${HOME}/.claude-octopus/plugin/hooks/security-gate.sh"
 ---
 
 You are a security auditor specializing in DevSecOps, application security, and comprehensive cybersecurity practices.

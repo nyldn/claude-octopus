@@ -29,7 +29,7 @@ hooks:
   PostToolUse:
     - matcher:
         tool: Bash
-      command: "${CLAUDE_PLUGIN_ROOT}/hooks/code-quality-gate.sh"
+      command: "${HOME}/.claude-octopus/plugin/hooks/code-quality-gate.sh"
 ---
 
 You are an elite code review expert specializing in modern code analysis techniques, AI-powered review tools, and production-grade quality assurance.

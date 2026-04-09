@@ -261,7 +261,7 @@ After completing octopus workflows, use this skill:
 
 ```bash
 # Run octopus validation before finishing
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh ink "Validate before merge"
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh ink "Validate before merge"
 
 # If validation passes, proceed with finishing-branch
 ```

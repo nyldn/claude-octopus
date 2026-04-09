@@ -39,31 +39,31 @@ You have access to a BM25 search engine over curated design databases. Use it to
 
 ```bash
 # Search for UI styles matching a product type
-python3 "${CLAUDE_PLUGIN_ROOT}/vendors/ui-ux-pro-max-skill/src/ui-ux-pro-max/scripts/search.py" "<query>" --domain style
+python3 "${HOME}/.claude-octopus/plugin/vendors/ui-ux-pro-max-skill/src/ui-ux-pro-max/scripts/search.py" "<query>" --domain style
 
 # Search for color palettes
-python3 "${CLAUDE_PLUGIN_ROOT}/vendors/ui-ux-pro-max-skill/src/ui-ux-pro-max/scripts/search.py" "<query>" --domain color
+python3 "${HOME}/.claude-octopus/plugin/vendors/ui-ux-pro-max-skill/src/ui-ux-pro-max/scripts/search.py" "<query>" --domain color
 
 # Search for font pairings
-python3 "${CLAUDE_PLUGIN_ROOT}/vendors/ui-ux-pro-max-skill/src/ui-ux-pro-max/scripts/search.py" "<query>" --domain typography
+python3 "${HOME}/.claude-octopus/plugin/vendors/ui-ux-pro-max-skill/src/ui-ux-pro-max/scripts/search.py" "<query>" --domain typography
 
 # Search for UX guidelines
-python3 "${CLAUDE_PLUGIN_ROOT}/vendors/ui-ux-pro-max-skill/src/ui-ux-pro-max/scripts/search.py" "<query>" --domain ux
+python3 "${HOME}/.claude-octopus/plugin/vendors/ui-ux-pro-max-skill/src/ui-ux-pro-max/scripts/search.py" "<query>" --domain ux
 
 # Search for landing page patterns
-python3 "${CLAUDE_PLUGIN_ROOT}/vendors/ui-ux-pro-max-skill/src/ui-ux-pro-max/scripts/search.py" "<query>" --domain landing
+python3 "${HOME}/.claude-octopus/plugin/vendors/ui-ux-pro-max-skill/src/ui-ux-pro-max/scripts/search.py" "<query>" --domain landing
 
 # Search for chart/data visualization
-python3 "${CLAUDE_PLUGIN_ROOT}/vendors/ui-ux-pro-max-skill/src/ui-ux-pro-max/scripts/search.py" "<query>" --domain chart
+python3 "${HOME}/.claude-octopus/plugin/vendors/ui-ux-pro-max-skill/src/ui-ux-pro-max/scripts/search.py" "<query>" --domain chart
 
 # Search for product type recommendations
-python3 "${CLAUDE_PLUGIN_ROOT}/vendors/ui-ux-pro-max-skill/src/ui-ux-pro-max/scripts/search.py" "<query>" --domain product
+python3 "${HOME}/.claude-octopus/plugin/vendors/ui-ux-pro-max-skill/src/ui-ux-pro-max/scripts/search.py" "<query>" --domain product
 
 # Generate full design system
-python3 "${CLAUDE_PLUGIN_ROOT}/vendors/ui-ux-pro-max-skill/src/ui-ux-pro-max/scripts/search.py" "<query>" --design-system -p "Project Name"
+python3 "${HOME}/.claude-octopus/plugin/vendors/ui-ux-pro-max-skill/src/ui-ux-pro-max/scripts/search.py" "<query>" --design-system -p "Project Name"
 
 # Stack-specific guidelines (react, nextjs, html-tailwind, shadcn, vue, svelte, etc.)
-python3 "${CLAUDE_PLUGIN_ROOT}/vendors/ui-ux-pro-max-skill/src/ui-ux-pro-max/scripts/search.py" "<query>" --stack react
+python3 "${HOME}/.claude-octopus/plugin/vendors/ui-ux-pro-max-skill/src/ui-ux-pro-max/scripts/search.py" "<query>" --stack react
 ```
 
 **Always search before designing.** Ground every style, palette, and typography choice in search results. Cite which database entries informed your decisions.

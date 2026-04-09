@@ -9,7 +9,7 @@ aliases:
   - state
   - session-state
 dependencies:
-  - "${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh"
+  - "${HOME}/.claude-octopus/plugin/scripts/state-manager.sh"
 ---
 
 # State Manager - Session Persistence for Claude Octopus
@@ -93,7 +93,7 @@ State is stored in `.claude-octopus/state.json`:
 Before running any workflow:
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" init_state
+"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" init_state
 ```
 
 This creates:
@@ -110,7 +110,7 @@ Before executing a workflow phase, read prior state to understand context:
 
 ```bash
 # Get full state
-state=$("${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" read_state)
+state=$("${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" read_state)
 
 # Extract specific information
 current_phase=$(echo "$state" | jq -r '.current_phase')
@@ -128,7 +128,7 @@ echo "Discovery findings: $discover_context"
 When making architectural or implementation decisions:
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" write_decision \
+"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" write_decision \
   "define" \
   "Use React 19 with Next.js 15 and TypeScript" \
   "Modern stack with best developer experience, Server Components support"
@@ -151,7 +151,7 @@ When making architectural or implementation decisions:
 After completing a workflow phase, summarize findings:
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" update_context \
+"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" update_context \
   "discover" \
   "Researched authentication patterns: JWT vs session-based. Community prefers JWT for API-first apps. Found 3 battle-tested libraries: jose, jsonwebtoken, auth0. Chose jose for ESM support."
 ```
@@ -168,13 +168,13 @@ When encountering impediments:
 
 ```bash
 # Record new blocker
-"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" write_blocker \
+"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" write_blocker \
   "Waiting for API endpoint /auth/login to be deployed" \
   "develop" \
   "active"
 
 # Update blocker when resolved
-"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" update_blocker_status \
+"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" update_blocker_status \
   "Waiting for API endpoint /auth/login to be deployed" \
   "resolved"
 ```
@@ -185,17 +185,17 @@ After executing workflow phases:
 
 ```bash
 # Increment phase completion counter
-"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" update_metrics \
+"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" update_metrics \
   "phases_completed" \
   "1"
 
 # Track execution time (in minutes)
-"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" update_metrics \
+"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" update_metrics \
   "execution_time" \
   "15"
 
 # Track provider usage
-"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" update_metrics \
+"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" update_metrics \
   "provider" \
   "gemini"
 ```
@@ -205,7 +205,7 @@ After executing workflow phases:
 At the beginning of each workflow:
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" set_current_workflow \
+"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" set_current_workflow \
   "flow-develop" \
   "develop"
 ```
@@ -215,7 +215,7 @@ At the beginning of each workflow:
 To see current state at a glance:
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" show_summary
+"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" show_summary
 ```
 
 Output:
@@ -247,15 +247,15 @@ All Double Diamond flows should integrate state management:
 
 ```bash
 # Initialize if needed
-"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" init_state
+"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" init_state
 
 # Set current workflow
-"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" set_current_workflow \
+"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" set_current_workflow \
   "flow-define" \
   "define"
 
 # Read prior context
-discover_findings=$("${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" get_context "discover")
+discover_findings=$("${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" get_context "discover")
 
 if [ "$discover_findings" != "null" ]; then
   echo "Building on discovery phase findings:"
@@ -263,7 +263,7 @@ if [ "$discover_findings" != "null" ]; then
 fi
 
 # Get prior decisions
-decisions=$("${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" get_decisions "all")
+decisions=$("${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" get_decisions "all")
 if [ "$decisions" != "[]" ]; then
   echo "Respecting prior decisions:"
   echo "$decisions" | jq -r '.[] | "- \(.decision) (\(.phase))"'
@@ -274,24 +274,24 @@ fi
 
 ```bash
 # Record key decision made during this phase
-"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" write_decision \
+"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" write_decision \
   "$phase_name" \
   "$decision_summary" \
   "$rationale"
 
 # Update context for next phase
-"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" update_context \
+"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" update_context \
   "$phase_name" \
   "$key_findings_summary"
 
 # Update metrics
-"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" update_metrics \
+"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" update_metrics \
   "phases_completed" \
   "1"
 
 # Track execution time
 execution_time=$((end_time - start_time))
-"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" update_metrics \
+"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" update_metrics \
   "execution_time" \
   "$execution_time"
 ```
@@ -360,7 +360,7 @@ cat .claude-octopus/state.json | jq .
 ### Reset state:
 ```bash
 rm -rf .claude-octopus
-"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" init_state
+"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" init_state
 ```
 
 ## Examples
@@ -369,13 +369,13 @@ rm -rf .claude-octopus
 
 ```bash
 # Initialize state
-"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" init_state
+"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" init_state
 
 # Run discovery
 # ... discovery workflow executes ...
 
 # Record findings
-"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" update_context \
+"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" update_context \
   "discover" \
   "Found 3 auth patterns. JWT preferred for API-first architecture."
 
@@ -383,13 +383,13 @@ rm -rf .claude-octopus
 # ... definition workflow executes ...
 
 # Record decision
-"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" write_decision \
+"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" write_decision \
   "define" \
   "JWT authentication with jose library" \
   "ESM support, actively maintained, follows standards"
 
 # Update context
-"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" update_context \
+"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" update_context \
   "define" \
   "Spec: Passwordless magic links, 15min token expiry, refresh tokens"
 ```
@@ -398,7 +398,7 @@ rm -rf .claude-octopus
 
 ```bash
 # Read prior state
-state=$("${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" read_state)
+state=$("${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" read_state)
 
 # Extract context
 echo "$state" | jq -r '.context'
@@ -423,18 +423,18 @@ echo "Resuming from phase: $current_phase"
 
 ```bash
 # Hit a blocker during development
-"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" write_blocker \
+"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" write_blocker \
   "Need production API keys for auth provider" \
   "develop" \
   "active"
 
 # Later, when unblocked
-"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" update_blocker_status \
+"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" update_blocker_status \
   "Need production API keys for auth provider" \
   "resolved"
 
 # Check active blockers
-"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" get_active_blockers
+"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" get_active_blockers
 ```
 
 ## File Structure
@@ -482,7 +482,7 @@ cp .claude-octopus/state.json.backup .claude-octopus/state.json
 ### State file missing
 ```bash
 # Reinitialize (safe operation):
-"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" init_state
+"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" init_state
 ```
 
 ### Invalid JSON in state

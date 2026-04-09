@@ -10,7 +10,7 @@ description: Execute tasks in loops with conditions, iterative improvements unti
 ## Instructions
 
 Read and follow the full skill instructions from:
-`${CLAUDE_PLUGIN_ROOT}/.claude/skills/skill-iterative-loop.md`
+`${HOME}/.claude-octopus/plugin/.claude/skills/skill-iterative-loop.md`
 
 ## Quick Usage
 

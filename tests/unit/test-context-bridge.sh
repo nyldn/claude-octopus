@@ -91,13 +91,12 @@ else
     fail "context-awareness.sh has severity escalation bypass" "no escalation pattern"
 fi
 
-# ── Registered in hooks.json ────────────────────────────────────────────────
+# ── Hook exists on disk (not registered in hooks.json — opt-in only) ────────
 
-HOOKS_JSON="$PROJECT_ROOT/.claude-plugin/hooks.json"
-if grep -q 'context-awareness.sh' "$HOOKS_JSON" 2>/dev/null; then
-    pass "context-awareness.sh registered in hooks.json"
+if [[ -x "$PROJECT_ROOT/hooks/context-awareness.sh" ]]; then
+    pass "context-awareness.sh exists and is executable"
 else
-    fail "context-awareness.sh registered in hooks.json" "not found in hooks.json"
+    fail "context-awareness.sh exists and is executable" "not found or not executable"
 fi
 
 echo ""

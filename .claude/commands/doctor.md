@@ -13,13 +13,13 @@ Run environment diagnostics across 12 check categories. Identifies issues AND of
 ## Step 1: Run Full Diagnostics
 
 ```bash
-cd "${CLAUDE_PLUGIN_ROOT}" && bash scripts/orchestrate.sh doctor --verbose
+cd "${HOME}/.claude-octopus/plugin" && bash scripts/orchestrate.sh doctor --verbose
 ```
 
 ## Step 2: Run Dependency Check
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/install-deps.sh" check
+bash "${HOME}/.claude-octopus/plugin/scripts/install-deps.sh" check
 ```
 
 ## Step 3: Interactive Remediation (MANDATORY)
@@ -60,13 +60,13 @@ Execute each selected fix, verify it worked, report results.
 If the user asks about a specific area:
 
 ```bash
-cd "${CLAUDE_PLUGIN_ROOT}" && bash scripts/orchestrate.sh doctor providers
-cd "${CLAUDE_PLUGIN_ROOT}" && bash scripts/orchestrate.sh doctor auth
-cd "${CLAUDE_PLUGIN_ROOT}" && bash scripts/orchestrate.sh doctor config
-cd "${CLAUDE_PLUGIN_ROOT}" && bash scripts/orchestrate.sh doctor hooks
-cd "${CLAUDE_PLUGIN_ROOT}" && bash scripts/orchestrate.sh doctor scheduler
-cd "${CLAUDE_PLUGIN_ROOT}" && bash scripts/orchestrate.sh doctor skills
-cd "${CLAUDE_PLUGIN_ROOT}" && bash scripts/orchestrate.sh doctor agents
+cd "${HOME}/.claude-octopus/plugin" && bash scripts/orchestrate.sh doctor providers
+cd "${HOME}/.claude-octopus/plugin" && bash scripts/orchestrate.sh doctor auth
+cd "${HOME}/.claude-octopus/plugin" && bash scripts/orchestrate.sh doctor config
+cd "${HOME}/.claude-octopus/plugin" && bash scripts/orchestrate.sh doctor hooks
+cd "${HOME}/.claude-octopus/plugin" && bash scripts/orchestrate.sh doctor scheduler
+cd "${HOME}/.claude-octopus/plugin" && bash scripts/orchestrate.sh doctor skills
+cd "${HOME}/.claude-octopus/plugin" && bash scripts/orchestrate.sh doctor agents
 ```
 
 ## Step 5: Token Optimization Report

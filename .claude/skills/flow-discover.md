@@ -63,11 +63,11 @@ Before starting discovery:
 # Check and initialize .octo/ state
 if [[ ! -d ".octo" ]]; then
   echo "📁 Initializing .octo/ project state..."
-  "${CLAUDE_PLUGIN_ROOT}/scripts/octo-state.sh" init_project
+  "${HOME}/.claude-octopus/plugin/scripts/octo-state.sh" init_project
 fi
 
 # Update state for Discovery phase
-"${CLAUDE_PLUGIN_ROOT}/scripts/octo-state.sh" update_state \
+"${HOME}/.claude-octopus/plugin/scripts/octo-state.sh" update_state \
   --phase 1 \
   --position "Discovery" \
   --status "in_progress"
@@ -137,7 +137,7 @@ Analyze the user's prompt and project to determine context:
 **MANDATORY: You MUST use the Bash tool to run this provider check BEFORE displaying the banner. Do NOT skip it. Do NOT assume availability.**
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT:-$(dirname "$(dirname "$(dirname "$0")")")}/scripts/helpers/check-providers.sh"
+bash "${HOME}/.claude-octopus/plugin/scripts/helpers/check-providers.sh"
 ```
 
 **Use the ACTUAL results below. PROHIBITED: Showing only "🔵 Claude: Available ✓" without listing all providers.**
@@ -185,16 +185,16 @@ Provider Availability:
 
 ```bash
 # Initialize state if needed
-"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" init_state
+"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" init_state
 
 # Set current workflow
-"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" set_current_workflow "flow-discover" "discover"
+"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" set_current_workflow "flow-discover" "discover"
 
 # Get prior decisions (if any)
-prior_decisions=$("${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" get_decisions "all")
+prior_decisions=$("${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" get_decisions "all")
 
 # Get context from previous phases
-prior_context=$("${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" read_state | jq -r '.context')
+prior_context=$("${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" read_state | jq -r '.context')
 
 # Display what you found (if any)
 if [[ "$prior_decisions" != "[]" && "$prior_decisions" != "null" ]]; then
@@ -220,7 +220,7 @@ fi
 **Build the fleet dynamically using `build-fleet.sh`** — this is the single source of truth for provider-to-perspective assignment. It detects ALL available providers (codex, gemini, copilot, qwen, opencode, ollama, perplexity, openrouter) and assigns perspectives with model family diversity enforcement.
 
 ```bash
-FLEET_OUTPUT=$("${CLAUDE_PLUGIN_ROOT}/scripts/helpers/build-fleet.sh" research "${INTENSITY}" "${PROMPT}" 2>/dev/null)
+FLEET_OUTPUT=$("${HOME}/.claude-octopus/plugin/scripts/helpers/build-fleet.sh" research "${INTENSITY}" "${PROMPT}" 2>/dev/null)
 ```
 
 The output is one line per agent: `agent_type|label|perspective_prompt`
@@ -261,7 +261,7 @@ Agent(
   description: "<label> (<agent_type>)",
   prompt: "Run this command and return its COMPLETE stdout output, including the result file path on the last line:
 
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh probe-single <agent_type> '<perspective_prompt>' <task_id> '<original_prompt>'
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh probe-single <agent_type> '<perspective_prompt>' <task_id> '<original_prompt>'
 
 After the command completes, read the result file path that was printed and return the full file contents."
 )
@@ -343,11 +343,11 @@ echo "✅ VALIDATION PASSED: $SYNTHESIS_FILE"
 ```bash
 key_findings=$(head -50 "$SYNTHESIS_FILE" | grep -A 3 "## Key Findings\|## Summary" | tail -3 | tr '\n' ' ')
 
-"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" update_context "discover" "$key_findings"
-"${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" update_metrics "phases_completed" "1"
+"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" update_context "discover" "$key_findings"
+"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" update_metrics "phases_completed" "1"
 # Track actual providers used (dynamic — from fleet output, not hardcoded)
 for _provider in $(echo "$FLEET_OUTPUT" | cut -d'|' -f1 | sort -u); do
-  "${CLAUDE_PLUGIN_ROOT}/scripts/state-manager.sh" update_metrics "provider" "$_provider"
+  "${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" update_metrics "provider" "$_provider"
 done
 ```
 
@@ -403,7 +403,7 @@ Analyze the user's prompt and project to determine context:
 **First, check task status (if available):**
 ```bash
 # Get task status summary from orchestrate.sh (v2.1.12+)
-task_status=$("${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh" get-task-status 2>/dev/null || echo "")
+task_status=$("${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" get-task-status 2>/dev/null || echo "")
 ```
 
 **For Dev Context:**
@@ -508,7 +508,7 @@ Providers:
 ### Step 1: Invoke Discover Phase
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh discover "<user's research question>"
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh discover "<user's research question>"
 ```
 
 ### Step 2: Multi-Provider Research
@@ -668,7 +668,7 @@ Claude:
 🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider research mode
 🔍 Discover Phase: Researching OAuth 2.0 patterns
 
-[Executes: ${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh probe "OAuth 2.0 authentication patterns for React apps"]
+[Executes: ${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh probe "OAuth 2.0 authentication patterns for React apps"]
 
 [After completion, reads synthesis and presents:]
 
@@ -831,14 +831,14 @@ After discovery completes:
 
 ```bash
 # Update state after Discovery completion
-"${CLAUDE_PLUGIN_ROOT}/scripts/octo-state.sh" update_state \
+"${HOME}/.claude-octopus/plugin/scripts/octo-state.sh" update_state \
   --status "complete" \
   --history "Discover phase completed"
 
 # Populate PROJECT.md with research findings
 if [[ -f "$SYNTHESIS_FILE" ]]; then
   echo "📝 Updating .octo/PROJECT.md with discovery findings..."
-  "${CLAUDE_PLUGIN_ROOT}/scripts/octo-state.sh" update_project \
+  "${HOME}/.claude-octopus/plugin/scripts/octo-state.sh" update_project \
     --section "vision" \
     --content "$(head -100 "$SYNTHESIS_FILE" | grep -A 10 'Key.*Findings\|Summary' || echo 'See synthesis file')"
 fi

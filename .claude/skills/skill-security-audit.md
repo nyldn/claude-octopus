@@ -32,13 +32,13 @@ Invokes the security-auditor persona for thorough security analysis during the `
 
 ```bash
 # Quick scan via security-auditor persona
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh spawn security-auditor "Scan for SQL injection vulnerabilities"
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh spawn security-auditor "Scan for SQL injection vulnerabilities"
 
 # Adversarial red team via squeeze workflow
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh squeeze "Security audit the authentication module"
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh squeeze "Security audit the authentication module"
 
 # Via auto-routing (detects security intent)
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh auto "security audit the payment processing module"
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh auto "security audit the payment processing module"
 ```
 
 ## Modes (Auto-Detected)
@@ -153,7 +153,7 @@ For comprehensive security testing, use the squeeze workflow which runs a 4-phas
 4. **Validation** (Verify): Gemini re-tests, confirms fixes or fails
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh squeeze "[user's security request]"
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh squeeze "[user's security request]"
 ```
 
 ### OWASP Top 10 Coverage
@@ -179,10 +179,10 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh squeeze "[user's security request]"
 
 ```bash
 # Focus on specific vulnerabilities
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh squeeze --principles security "Audit for auth bypass only"
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh squeeze --principles security "Audit for auth bypass only"
 
 # Loop until all vulnerabilities fixed
-${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh squeeze --loop --quality 100 "Zero tolerance audit"
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh squeeze --loop --quality 100 "Zero tolerance audit"
 ```
 
 ### When to Use Adversarial Mode

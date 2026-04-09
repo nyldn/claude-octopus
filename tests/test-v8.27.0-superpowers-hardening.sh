@@ -116,7 +116,9 @@ suite "3. HARD-GATE XML Enforcement Tags"
 # 3.1-3.5 Check each skill for HARD-GATE tag
 for skill in skill-debug skill-tdd skill-factory skill-verify skill-deep-research; do
   SKILL_FILE="$PLUGIN_DIR/.claude/skills/${skill}.md"
-  if grep -q '<HARD-GATE>' "$SKILL_FILE" && grep -q '</HARD-GATE>' "$SKILL_FILE"; then
+  # skill-verify lives in OpenClaw format only (skills/skill-verify/SKILL.md)
+  [[ ! -f "$SKILL_FILE" ]] && SKILL_FILE="$PLUGIN_DIR/skills/${skill}/SKILL.md"
+  if grep -q '<HARD-GATE>' "$SKILL_FILE" 2>/dev/null && grep -q '</HARD-GATE>' "$SKILL_FILE" 2>/dev/null; then
     pass "${skill} contains HARD-GATE tags"
   else
     fail "${skill} missing HARD-GATE tags"

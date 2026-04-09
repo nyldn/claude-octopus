@@ -9,7 +9,7 @@ description: "Document delivery with export to PPTX, DOCX, PDF formats"
 ## Instructions
 
 Read and follow the full skill instructions from:
-`${CLAUDE_PLUGIN_ROOT}/.claude/skills/skill-doc-delivery.md`
+`${HOME}/.claude-octopus/plugin/.claude/skills/skill-doc-delivery.md`
 
 ## Quick Usage
 

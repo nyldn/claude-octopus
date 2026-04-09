@@ -52,7 +52,7 @@ If invoked with arguments (e.g., `/octo:staged-review src/auth/`), use that path
 ## Step 2: Execute Staged Review
 
 Read and follow the full skill instructions from:
-`${CLAUDE_PLUGIN_ROOT}/.claude/skills/skill-staged-review.md`
+`${HOME}/.claude-octopus/plugin/.claude/skills/skill-staged-review.md`
 
 The skill runs two stages:
 1. **Stage 1** (Spec Compliance) — Validate against intent contract
