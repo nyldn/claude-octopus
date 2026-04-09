@@ -336,8 +336,8 @@ ${agent_prompt_base}"
     for f in "${round1_files[@]}"; do
         [[ ! -f "$f" ]] && continue
         local agent_findings
-        # v9.3.1: Extract content from ## Output section (not the full markdown file)
-        agent_findings=$(sed -n '/^## Output$/,/^## /{/^## Output$/d;/^## /d;/^```$/d;/^```json$/d;/^```JSON$/d;p}' "$f" | \
+        # v9.20.1: Extract content from ## Output section (portable awk, fixes BSD sed #255)
+        agent_findings=$(awk '/^## Output$/{found=1;next} /^## /{if(found)exit} found && !/^```(json|JSON)?$/{print}' "$f" | \
             jq -r '.findings // []' 2>/dev/null || echo "[]")
         all_findings=$(printf '%s\n%s' "$all_findings" "$agent_findings" | \
             jq -s 'add' 2>/dev/null || echo "$all_findings")
@@ -352,6 +352,24 @@ ${agent_prompt_base}"
         fi
         ((idx++)) || true
     done
+
+    # v9.20.1: Detect total fleet failure — all providers crashed/timed out (#255)
+    local _r1_total=${#round1_files[@]}
+    local _r1_failed=0
+    for _rf in "${round1_files[@]}"; do
+        if [[ ! -f "$_rf" ]] || \
+           grep -qE '^## Status: (FAILED|TIMEOUT)' "$_rf" 2>/dev/null || \
+           [[ $(grep -c '^## Status:' "$_rf" 2>/dev/null || true) -eq 0 ]]; then
+            ((_r1_failed++)) || true
+        fi
+    done
+    if [[ $_r1_failed -ge $_r1_total ]] && [[ $_r1_total -gt 0 ]]; then
+        log ERROR "review_run: ALL Round 1 providers failed ($_r1_failed/$_r1_total). Review output is unreliable."
+        echo "{\"findings\":[],\"warning\":\"All $_r1_total review providers failed. No code was actually reviewed. Run /octo:doctor to diagnose provider issues.\"}" > "$findings_file"
+        render_terminal_report "$findings_file"
+        print_provider_report "$provider_status_file"
+        return 1
+    fi
 
     # ── ROUND 2: Verification ─────────────────────────────────────────────────
     log INFO "review_run: Round 2 — verification"
@@ -556,7 +574,17 @@ render_terminal_report() {
     echo ""
 
     if [[ "$finding_count" -eq 0 ]]; then
-        echo "No issues found."
+        # v9.20.1: Distinguish "clean review" from "all providers failed" (#255)
+        local warning_msg
+        warning_msg=$(jq -r '.warning // empty' "$findings_file" 2>/dev/null)
+        if [[ -n "$warning_msg" ]]; then
+            echo "⚠️  WARNING: $warning_msg"
+            echo ""
+            echo "This is NOT a clean review — zero providers returned results."
+            echo "Do not merge based on this output."
+        else
+            echo "No issues found."
+        fi
         return 0
     fi
 

@@ -134,15 +134,23 @@ run_with_timeout() {
 
     local exit_code
 
-    # Use gtimeout (GNU) or timeout if available
-    if command -v gtimeout &>/dev/null; then
+    # v9.20.1: Detect if command is a shell function (e.g. perplexity_execute,
+    # openrouter_execute). External timeout/gtimeout can only exec binaries —
+    # shell functions require the in-process fallback path. (#255)
+    local _cmd_is_function=false
+    if [[ "$(type -t "$1" 2>/dev/null)" == "function" ]]; then
+        _cmd_is_function=true
+    fi
+
+    # Use gtimeout (GNU) or timeout if available AND command is an external binary
+    if [[ "$_cmd_is_function" == "false" ]] && command -v gtimeout &>/dev/null; then
         gtimeout "$timeout_secs" "$@"
         exit_code=$?
-    elif command -v timeout &>/dev/null; then
+    elif [[ "$_cmd_is_function" == "false" ]] && command -v timeout &>/dev/null; then
         timeout "$timeout_secs" "$@"
         exit_code=$?
     else
-        # Fallback with proper cleanup
+        # Fallback with proper cleanup (also used for shell functions)
         local cmd_pid monitor_pid
 
         "$@" &
