@@ -63,18 +63,27 @@ If using background Bash tasks: wait for ALL task completion notifications befor
 **Before ANY provider dispatch** (whether via orchestrate.sh or manual fallback), resolve the correct model:
 
 ```bash
-# Resolve the configured model for a provider:
-PLUGIN_DIR="$(find ~/.claude/plugins -name 'octo-dispatch.sh' -path '*/scripts/*' 2>/dev/null | head -1 | xargs dirname)"
-CODEX_MODEL=$("$PLUGIN_DIR/octo-dispatch.sh" --resolve codex)
-GEMINI_MODEL=$("$PLUGIN_DIR/octo-dispatch.sh" --resolve gemini)
-QWEN_MODEL=$("$PLUGIN_DIR/octo-dispatch.sh" --resolve qwen)
+# Find octo-dispatch.sh (prefer CLAUDE_PLUGIN_ROOT if available)
+if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
+    OCTO_DISPATCH="${CLAUDE_PLUGIN_ROOT}/scripts/octo-dispatch.sh"
+else
+    OCTO_DISPATCH="$(find ~/.claude/plugins -name 'octo-dispatch.sh' -path '*/scripts/*' -print 2>/dev/null | head -1)"
+fi
+if [[ ! -x "$OCTO_DISPATCH" ]]; then
+    echo "ERROR: octo-dispatch.sh not found. Is claude-octopus plugin installed?" >&2
+    exit 1
+fi
+CODEX_MODEL=$("$OCTO_DISPATCH" --resolve codex)
+GEMINI_MODEL=$("$OCTO_DISPATCH" --resolve gemini)
+QWEN_MODEL=$("$OCTO_DISPATCH" --resolve qwen)
 ```
 
 **If you must dispatch manually** (e.g., the review target is not a code diff), use `octo-dispatch.sh`:
+
 ```bash
-echo "your prompt" | "$PLUGIN_DIR/octo-dispatch.sh" codex
-echo "your prompt" | "$PLUGIN_DIR/octo-dispatch.sh" gemini
-echo "your prompt" | "$PLUGIN_DIR/octo-dispatch.sh" qwen
+echo "your prompt" | "$OCTO_DISPATCH" codex
+echo "your prompt" | "$OCTO_DISPATCH" gemini
+echo "your prompt" | "$OCTO_DISPATCH" qwen
 ```
 
 **PROHIBITED: typing ANY model name directly.** Always resolve via `octo-dispatch.sh --resolve <provider>`.

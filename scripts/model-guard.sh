@@ -81,9 +81,9 @@ check_model() {
         fi
     fi
 
-    # Fallback to config default if resolver unavailable
+    # Fallback to config default if resolver unavailable (mirrors model-resolver.sh tier 6)
     if [[ -z "$expected_model" || "$expected_model" == "null" ]]; then
-        expected_model=$(jq -r ".providers.${provider}.default // empty" "$CONFIG_FILE" 2>/dev/null) || true
+        expected_model=$(jq -r ".providers.${provider}.default // .providers.${provider}.model // empty" "$CONFIG_FILE" 2>/dev/null) || true
     fi
 
     [[ -z "$expected_model" || "$expected_model" == "null" ]] && return 0
@@ -136,24 +136,26 @@ if echo "$COMMAND" | grep -qE 'codex[[:space:]]+exec' 2>/dev/null; then
     fi
 fi
 
-# Gemini: gemini ... -m <MODEL> ... or ... --model <MODEL> ...
-if echo "$COMMAND" | grep -q 'gemini' 2>/dev/null; then
+# Gemini: gemini <flags> ... (require gemini as CLI invocation, not substring)
+# Pattern requires gemini followed by a space and a flag, avoiding false positives
+# on commands like: grep gemini logfile.txt, cat ~/.gemini/config
+if echo "$COMMAND" | grep -qE '(^|[;&|])([[:space:]]*)gemini[[:space:]]' 2>/dev/null; then
     MODEL=$(extract_model_flag "$COMMAND")
     if [[ -n "$MODEL" ]]; then
         check_model "gemini" "$MODEL"
     fi
 fi
 
-# Qwen: qwen ... -m <MODEL> ... or ... --model <MODEL> ...
-if echo "$COMMAND" | grep -q 'qwen' 2>/dev/null; then
+# Qwen: qwen <flags> ... (same CLI invocation pattern as gemini)
+if echo "$COMMAND" | grep -qE '(^|[;&|])([[:space:]]*)qwen[[:space:]]' 2>/dev/null; then
     MODEL=$(extract_model_flag "$COMMAND")
     if [[ -n "$MODEL" ]]; then
         check_model "qwen" "$MODEL"
     fi
 fi
 
-# Claude: claude ... --model <MODEL> ...
-if echo "$COMMAND" | grep -q 'claude.*--model' 2>/dev/null; then
+# Claude: claude <flags> --model <MODEL> (require CLI invocation + --model flag)
+if echo "$COMMAND" | grep -qE '(^|[;&|])([[:space:]]*)claude[[:space:]].*--model' 2>/dev/null; then
     MODEL=$(extract_model_flag "$COMMAND")
     if [[ -n "$MODEL" ]]; then
         check_model "claude" "$MODEL"

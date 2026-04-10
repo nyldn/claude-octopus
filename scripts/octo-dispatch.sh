@@ -52,11 +52,19 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --phase)
-            PHASE="${2:-}"
+            if [[ $# -lt 2 || "${2:-}" == -* ]]; then
+                log ERROR "--phase requires a value"
+                exit 1
+            fi
+            PHASE="$2"
             shift 2
             ;;
         --role)
-            ROLE="${2:-}"
+            if [[ $# -lt 2 || "${2:-}" == -* ]]; then
+                log ERROR "--role requires a value"
+                exit 1
+            fi
+            ROLE="$2"
             shift 2
             ;;
         --help|-h)
@@ -142,8 +150,13 @@ case "$PROVIDER" in
         fi
         ;;
     qwen)
-        printf '%s\n' "$PROMPT" | env NODE_NO_WARNINGS=1 \
-            qwen -o text --approval-mode yolo -m "$MODEL"
+        if [[ "$OCTOPUS_PLATFORM" == "Darwin" && -z "${QWEN_API_KEY:-}" ]]; then
+            printf '%s\n' "$PROMPT" | env NODE_NO_WARNINGS=1 QWEN_FORCE_FILE_STORAGE=true \
+                qwen -o text --approval-mode yolo -m "$MODEL"
+        else
+            printf '%s\n' "$PROMPT" | env NODE_NO_WARNINGS=1 \
+                qwen -o text --approval-mode yolo -m "$MODEL"
+        fi
         ;;
     claude|claude-sonnet)
         # Resolve model via providers.json — never hardcode "sonnet"/"opus"
