@@ -45,6 +45,17 @@ Providers:
 
 **Multi-LLM orchestration is the purpose of this command.** If you execute using only Claude, you've violated the command's contract.
 
+### WAIT FOR ALL PROVIDERS — NON-NEGOTIABLE
+
+**You MUST wait for EVERY dispatched provider to complete before reading ANY results.**
+- ❌ Do NOT start synthesizing with 2/3 providers done while the third is still running
+- ❌ Do NOT read one provider's output "while waiting" for others
+- ❌ Do NOT produce partial analysis and then append the late provider's findings
+
+**Wait for all → Read all → Synthesize all.** The purpose of multi-provider review is triangulation. Partial results defeat the purpose.
+
+If using background Bash tasks: wait for ALL task completion notifications before reading any output files. If one provider is slow, wait — do not proceed without it.
+
 ### MODEL RESOLUTION — NON-NEGOTIABLE
 
 **You MUST NEVER hardcode model names when dispatching providers.** Models change frequently and your training data is stale.
