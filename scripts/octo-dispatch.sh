@@ -125,7 +125,7 @@ log INFO "Provider: $PROVIDER | Model: $MODEL"
 case "$PROVIDER" in
     codex)
         local_sandbox="${OCTOPUS_CODEX_SANDBOX:-workspace-write}"
-        echo "$PROMPT" | codex exec \
+        printf '%s\n' "$PROMPT" | codex exec \
             --skip-git-repo-check \
             --full-auto \
             --model "$MODEL" \
@@ -134,22 +134,23 @@ case "$PROVIDER" in
         ;;
     gemini)
         if [[ "$OCTOPUS_PLATFORM" == "Darwin" && -z "${GEMINI_API_KEY:-}" ]]; then
-            echo "$PROMPT" | env NODE_NO_WARNINGS=1 GEMINI_FORCE_FILE_STORAGE=true \
+            printf '%s\n' "$PROMPT" | env NODE_NO_WARNINGS=1 GEMINI_FORCE_FILE_STORAGE=true \
                 gemini -o text --approval-mode yolo -m "$MODEL"
         else
-            echo "$PROMPT" | env NODE_NO_WARNINGS=1 \
+            printf '%s\n' "$PROMPT" | env NODE_NO_WARNINGS=1 \
                 gemini -o text --approval-mode yolo -m "$MODEL"
         fi
         ;;
     qwen)
-        echo "$PROMPT" | env NODE_NO_WARNINGS=1 \
+        printf '%s\n' "$PROMPT" | env NODE_NO_WARNINGS=1 \
             qwen -o text --approval-mode yolo -m "$MODEL"
         ;;
     claude|claude-sonnet)
-        echo "$PROMPT" | claude --print --model sonnet
+        # Resolve model via providers.json — never hardcode "sonnet"/"opus"
+        printf '%s\n' "$PROMPT" | claude --print --model "$MODEL"
         ;;
     claude-opus)
-        echo "$PROMPT" | claude --print --model opus
+        printf '%s\n' "$PROMPT" | claude --print --model "$MODEL"
         ;;
     perplexity)
         # Perplexity uses API, not CLI — delegate to orchestrate.sh function
@@ -161,7 +162,7 @@ case "$PROVIDER" in
         exit 1
         ;;
     ollama)
-        echo "$PROMPT" | ollama run "$MODEL"
+        printf '%s\n' "$PROMPT" | ollama run "$MODEL"
         ;;
     *)
         log ERROR "Unknown provider: $PROVIDER"

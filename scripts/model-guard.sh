@@ -82,27 +82,58 @@ check_model() {
     fi
 }
 
+# ── Extract model from flag patterns ─────────────────────────────────────────
+# Handles: --model <MODEL>, --model=<MODEL>, -m <MODEL>, -m=<MODEL>
+# Strips surrounding quotes from extracted model names
+extract_model_flag() {
+    local cmd="$1"
+    local model=""
+    # Try --model=VALUE or -m=VALUE first (equals form)
+    model=$(echo "$cmd" | grep -oE '(-m|--model)=[^ ]+' | head -1 | sed 's/^.*=//' | tr -d '"'"'")
+    if [[ -z "$model" ]]; then
+        # Try --model VALUE or -m VALUE (space form)
+        model=$(echo "$cmd" | grep -oE '(-m|--model)\s+[^ ]+' | head -1 | awk '{print $2}' | tr -d '"'"'")
+    fi
+    echo "$model"
+}
+
 # Codex: codex exec ... --model <MODEL> ... or codex exec ... -m <MODEL> ...
 if echo "$COMMAND" | grep -qE 'codex\s+exec\b'; then
-    MODEL=$(echo "$COMMAND" | grep -oE '(-m|--model)\s+\S+' | head -1 | awk '{print $2}')
+    MODEL=$(extract_model_flag "$COMMAND")
     if [[ -n "$MODEL" ]]; then
         check_model "codex" "$MODEL"
     fi
 fi
 
-# Gemini: gemini ... -m <MODEL> ...
+# Gemini: gemini ... -m <MODEL> ... or gemini ... --model <MODEL> ...
 if echo "$COMMAND" | grep -qE '\bgemini\b'; then
-    MODEL=$(echo "$COMMAND" | grep -oE '-m\s+\S+' | head -1 | awk '{print $2}')
+    MODEL=$(extract_model_flag "$COMMAND")
     if [[ -n "$MODEL" ]]; then
         check_model "gemini" "$MODEL"
     fi
 fi
 
-# Qwen: qwen ... -m <MODEL> ...
+# Qwen: qwen ... -m <MODEL> ... or qwen ... --model <MODEL> ...
 if echo "$COMMAND" | grep -qE '\bqwen\b'; then
-    MODEL=$(echo "$COMMAND" | grep -oE '-m\s+\S+' | head -1 | awk '{print $2}')
+    MODEL=$(extract_model_flag "$COMMAND")
     if [[ -n "$MODEL" ]]; then
         check_model "qwen" "$MODEL"
+    fi
+fi
+
+# Claude: claude ... --model <MODEL> ...
+if echo "$COMMAND" | grep -qE '\bclaude\b.*--model'; then
+    MODEL=$(extract_model_flag "$COMMAND")
+    if [[ -n "$MODEL" ]]; then
+        check_model "claude" "$MODEL"
+    fi
+fi
+
+# Ollama: ollama run <MODEL> ...
+if echo "$COMMAND" | grep -qE '\bollama\s+run\b'; then
+    MODEL=$(echo "$COMMAND" | grep -oE 'ollama\s+run\s+\S+' | head -1 | awk '{print $3}' | tr -d '"'"'")
+    if [[ -n "$MODEL" ]]; then
+        check_model "ollama" "$MODEL"
     fi
 fi
 
