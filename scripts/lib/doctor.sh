@@ -522,7 +522,7 @@ doctor_check_hooks() {
 
     # Extract all command paths from hooks.json and verify each exists
     local commands
-    commands=$(jq -r '.. | objects | select(.command?) | .command' "$hooks_json" 2>/dev/null || true)
+    commands=$(jq -r '.. | objects | select(.command?) | .command' "$hooks_json" 2>/dev/null | tr -d '\r' || true)
     if [[ -z "$commands" ]]; then
         return
     fi
