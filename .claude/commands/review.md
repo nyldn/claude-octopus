@@ -45,6 +45,34 @@ Providers:
 
 **Multi-LLM orchestration is the purpose of this command.** If you execute using only Claude, you've violated the command's contract.
 
+### MODEL RESOLUTION — NON-NEGOTIABLE
+
+**You MUST NEVER hardcode model names when dispatching providers.** Models change frequently and your training data is stale.
+
+**Before ANY provider dispatch** (whether via orchestrate.sh or manual fallback), resolve the correct model:
+
+```bash
+# Resolve the configured model for a provider:
+PLUGIN_DIR="$(find ~/.claude/plugins -name 'octo-dispatch.sh' -path '*/scripts/*' 2>/dev/null | head -1 | xargs dirname)"
+CODEX_MODEL=$("$PLUGIN_DIR/octo-dispatch.sh" --resolve codex)
+GEMINI_MODEL=$("$PLUGIN_DIR/octo-dispatch.sh" --resolve gemini)
+QWEN_MODEL=$("$PLUGIN_DIR/octo-dispatch.sh" --resolve qwen)
+```
+
+**If you must dispatch manually** (e.g., the review target is not a code diff), use `octo-dispatch.sh`:
+```bash
+echo "your prompt" | "$PLUGIN_DIR/octo-dispatch.sh" codex
+echo "your prompt" | "$PLUGIN_DIR/octo-dispatch.sh" gemini
+echo "your prompt" | "$PLUGIN_DIR/octo-dispatch.sh" qwen
+```
+
+**PROHIBITED model names** (these are ALWAYS wrong — never type them manually):
+- `o3`, `o3-mini`, `o4-mini`, `gpt-4o`, `gpt-4o-mini` — stale OpenAI names
+- `gemini-2.5-pro`, `gemini-2.0-flash` — stale Google names
+- Any model name from your training data that you "just know"
+
+The config at `~/.claude-octopus/config/providers.json` is the ONLY source of truth.
+
 ---
 
 ## Step 1: Ask Clarifying Questions / Context Acquisition
