@@ -78,10 +78,18 @@ get_agent_command() {
             esac
             ;;
         codex-review) echo "codex exec review" ;; # Code review mode (no sandbox support)
-        claude) echo "claude${_BARE_OPT} --print" ;;                         # Claude Sonnet 4.6
-        claude-sonnet) echo "claude${_BARE_OPT} --print --model sonnet" ;;        # Claude Sonnet explicit
-        claude-opus) echo "claude${_BARE_OPT} --print --model opus" ;;            # Claude Opus 4.6 (v8.0)
-        claude-opus-fast) echo "claude${_BARE_OPT} --print --model opus --fast" ;; # Claude Opus 4.6 Fast (v8.4: v2.1.36+)
+        claude|claude-sonnet)  # Claude Sonnet — resolve model from config
+            model=$(get_agent_model "$agent_type" "$phase" "$role")
+            echo "claude${_BARE_OPT} --print --model ${model}"
+            ;;
+        claude-opus)  # Claude Opus 4.6 (v8.0)
+            model=$(get_agent_model "$agent_type" "$phase" "$role")
+            echo "claude${_BARE_OPT} --print --model ${model}"
+            ;;
+        claude-opus-fast)  # Claude Opus 4.6 Fast (v8.4: v2.1.36+)
+            model=$(get_agent_model "$agent_type" "$phase" "$role")
+            echo "claude${_BARE_OPT} --print --model ${model} --fast"
+            ;;
         openrouter) echo "openrouter_execute" ;;                 # OpenRouter API (v4.8)
         openrouter-glm5) echo "openrouter_execute_model z-ai/glm-5" ;;           # v8.11.0: GLM-5 via OpenRouter
         openrouter-kimi) echo "openrouter_execute_model moonshotai/kimi-k2.5" ;; # v8.11.0: Kimi K2.5 via OpenRouter
@@ -98,7 +106,13 @@ get_agent_command() {
             echo "ollama run $model"
             ;;
         qwen|qwen-research)  # v9.10.0: Qwen CLI — fork of Gemini CLI (free tier)
-            echo "env NODE_NO_WARNINGS=1 qwen -o text --approval-mode yolo"
+            model=$(get_agent_model "$agent_type" "$phase" "$role")
+            # v9.20.3: QWEN_FORCE_FILE_STORAGE on macOS (same as Gemini — Qwen is a Gemini CLI fork)
+            local qwen_env="env NODE_NO_WARNINGS=1"
+            if [[ "$OCTOPUS_PLATFORM" == "Darwin" && -z "${QWEN_API_KEY:-}" ]]; then
+                qwen_env="env NODE_NO_WARNINGS=1 QWEN_FORCE_FILE_STORAGE=true"
+            fi
+            echo "${qwen_env} qwen -o text --approval-mode yolo -m ${model}"
             ;;
         opencode|opencode-fast|opencode-research)  # v9.11.0: OpenCode CLI — multi-provider router
             model=$(get_agent_model "$agent_type" "$phase" "$role")

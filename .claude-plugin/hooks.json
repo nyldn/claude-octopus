@@ -116,6 +116,19 @@
     },
     {
       "matcher": {
+        "tool": "Bash",
+        "pattern": "(codex|gemini|qwen|claude|ollama)\\s"
+      },
+      "hooks": [
+        {
+          "type": "command",
+          "command": "${CLAUDE_PLUGIN_ROOT}/scripts/model-guard.sh",
+          "timeout": 5
+        }
+      ]
+    },
+    {
+      "matcher": {
         "tool": "Edit|Write"
       },
       "if": "env.OCTO_FREEZE_MODE == 'on'",

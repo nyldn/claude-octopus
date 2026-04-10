@@ -45,6 +45,51 @@ Providers:
 
 **Multi-LLM orchestration is the purpose of this command.** If you execute using only Claude, you've violated the command's contract.
 
+### WAIT FOR ALL PROVIDERS — NON-NEGOTIABLE
+
+**You MUST wait for EVERY dispatched provider to complete before reading ANY results.**
+- ❌ Do NOT start synthesizing with 2/3 providers done while the third is still running
+- ❌ Do NOT read one provider's output "while waiting" for others
+- ❌ Do NOT produce partial analysis and then append the late provider's findings
+
+**Wait for all → Read all → Synthesize all.** The purpose of multi-provider review is triangulation. Partial results defeat the purpose.
+
+If using background Bash tasks: wait for ALL task completion notifications before reading any output files. If one provider is slow, wait — do not proceed without it.
+
+### MODEL RESOLUTION — NON-NEGOTIABLE
+
+**You MUST NEVER hardcode model names when dispatching providers.** Models change frequently and your training data is stale.
+
+**Before ANY provider dispatch** (whether via orchestrate.sh or manual fallback), resolve the correct model:
+
+```bash
+# Find octo-dispatch.sh (prefer CLAUDE_PLUGIN_ROOT if available)
+if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
+    OCTO_DISPATCH="${CLAUDE_PLUGIN_ROOT}/scripts/octo-dispatch.sh"
+else
+    OCTO_DISPATCH="$(find ~/.claude/plugins -name 'octo-dispatch.sh' -path '*/scripts/*' -print 2>/dev/null | head -1)"
+fi
+if [[ ! -x "$OCTO_DISPATCH" ]]; then
+    echo "ERROR: octo-dispatch.sh not found. Is claude-octopus plugin installed?" >&2
+    exit 1
+fi
+CODEX_MODEL=$("$OCTO_DISPATCH" --resolve codex)
+GEMINI_MODEL=$("$OCTO_DISPATCH" --resolve gemini)
+QWEN_MODEL=$("$OCTO_DISPATCH" --resolve qwen)
+```
+
+**If you must dispatch manually** (e.g., the review target is not a code diff), use `octo-dispatch.sh`:
+
+```bash
+echo "your prompt" | "$OCTO_DISPATCH" codex
+echo "your prompt" | "$OCTO_DISPATCH" gemini
+echo "your prompt" | "$OCTO_DISPATCH" qwen
+```
+
+**PROHIBITED: typing ANY model name directly.** Always resolve via `octo-dispatch.sh --resolve <provider>`.
+The resolver uses a 7-tier precedence (env vars > session overrides > phase routing > config defaults > hardcoded fallbacks). `providers.json` is the primary config, but overrides may apply.
+Never guess a model name from your training data — the resolver handles all precedence logic.
+
 ---
 
 ## Step 1: Ask Clarifying Questions / Context Acquisition
