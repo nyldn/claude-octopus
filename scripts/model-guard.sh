@@ -34,46 +34,66 @@
 # 1. Receives the Bash tool input as JSON on stdin
 # 2. Extracts the command string
 # 3. Checks if it matches known provider CLI patterns with model flags
-# 4. If a model is hardcoded, resolves the correct one from providers.json
+# 4. If a model is hardcoded, resolves the correct one via resolve_octopus_model
+#    (same 7-tier precedence as orchestrate.sh)
 # 5. If they differ, blocks with an error message showing the correct model
 #
 # BYPASS: Set OCTOPUS_MODEL_GUARD=off to disable (e.g., for debugging)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-set -euo pipefail
+# NOTE: Do NOT use set -e here — grep returns 1 on no-match, which would
+# abort the hook and block unrelated Bash commands.
+set -uo pipefail
 
 # Skip if guard is disabled
 [[ "${OCTOPUS_MODEL_GUARD:-on}" == "off" ]] && exit 0
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_FILE="${HOME}/.claude-octopus/config/providers.json"
+RESOLVER="${SCRIPT_DIR}/lib/model-resolver.sh"
 
 # Bail early if no config file (plugin not configured)
 [[ ! -f "$CONFIG_FILE" ]] && exit 0
+
+# Require jq for JSON parsing
+command -v jq &>/dev/null || exit 0
 
 # Read tool input from stdin
 INPUT=$(cat)
 
 # Extract the command field from the JSON tool input
-COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null)
+COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null) || true
 [[ -z "$COMMAND" ]] && exit 0
 
-# ── Pattern matching ─────────────────────────────────────────────────────────
+# ── Model comparison ────────────────────────────────────────────────────────
 
 check_model() {
     local provider="$1"
     local detected_model="$2"
-    local config_model
+    local expected_model=""
 
-    config_model=$(jq -r ".providers.${provider}.default // empty" "$CONFIG_FILE" 2>/dev/null)
-    [[ -z "$config_model" || "$config_model" == "null" ]] && return 0
+    # Use the full resolver if available (same 7-tier precedence as dispatch)
+    if [[ -f "$RESOLVER" ]]; then
+        # shellcheck source=lib/model-resolver.sh
+        source "$RESOLVER" 2>/dev/null || true
+        if declare -f resolve_octopus_model &>/dev/null; then
+            expected_model=$(resolve_octopus_model "$provider" "$provider" "" "" 2>/dev/null) || true
+        fi
+    fi
 
-    if [[ "$detected_model" != "$config_model" ]]; then
+    # Fallback to config default if resolver unavailable
+    if [[ -z "$expected_model" || "$expected_model" == "null" ]]; then
+        expected_model=$(jq -r ".providers.${provider}.default // empty" "$CONFIG_FILE" 2>/dev/null) || true
+    fi
+
+    [[ -z "$expected_model" || "$expected_model" == "null" ]] && return 0
+
+    if [[ "$detected_model" != "$expected_model" ]]; then
         # Output JSON to block the tool call
         jq -n \
             --arg provider "$provider" \
             --arg wrong "$detected_model" \
-            --arg correct "$config_model" \
+            --arg correct "$expected_model" \
             '{
                 "decision": "block",
                 "reason": ("MODEL GUARD: Wrong model for " + $provider + ". Got \"" + $wrong + "\", expected \"" + $correct + "\" (from providers.json). Use: octo-dispatch " + $provider + " OR fix the --model flag.")
@@ -82,39 +102,50 @@ check_model() {
     fi
 }
 
-# ── Extract model from flag patterns ─────────────────────────────────────────
-# Handles: --model <MODEL>, --model=<MODEL>, -m <MODEL>, -m=<MODEL>
-# Strips surrounding quotes from extracted model names
+# ── Extract model from flag patterns ────────────────────────────────────────
+# Uses POSIX ERE only (no \s, \S, \b — those are PCRE and break on BSD grep).
+# Uses grep -e to prevent patterns starting with - from being parsed as flags.
 extract_model_flag() {
     local cmd="$1"
     local model=""
+
     # Try --model=VALUE or -m=VALUE first (equals form)
-    model=$(echo "$cmd" | grep -oE '(-m|--model)=[^ ]+' | head -1 | sed 's/^.*=//' | tr -d '"'"'")
+    model=$(echo "$cmd" | grep -oE -e '(--model|-m)=[^ ]+' 2>/dev/null | head -1 | sed 's/^.*=//' | tr -d "\"'") || true
     if [[ -z "$model" ]]; then
-        # Try --model VALUE or -m VALUE (space form)
-        model=$(echo "$cmd" | grep -oE '(-m|--model)\s+[^ ]+' | head -1 | awk '{print $2}' | tr -d '"'"'")
+        # Try --model VALUE (long flag, space-separated)
+        model=$(echo "$cmd" | grep -oE -e '--model[[:space:]]+[^ ]+' 2>/dev/null | head -1 | awk '{print $2}' | tr -d "\"'") || true
     fi
+    if [[ -z "$model" ]]; then
+        # Try -m VALUE (short flag, space-separated)
+        # Use sed to avoid grep interpreting -m as its own --max-count flag
+        model=$(echo "$cmd" | sed -n 's/.*[[:space:]]-m[[:space:]]\{1,\}\([^ ]*\).*/\1/p' | head -1 | tr -d "\"'") || true
+    fi
+
     echo "$model"
 }
 
-# Codex: codex exec ... --model <MODEL> ... or codex exec ... -m <MODEL> ...
-if echo "$COMMAND" | grep -qE 'codex\s+exec\b'; then
+# ── Provider detection ──────────────────────────────────────────────────────
+# Uses POSIX character classes and grep -e to avoid flag/pattern collisions.
+# All grep calls use || true to prevent exit-on-no-match under pipefail.
+
+# Codex: codex exec ... --model <MODEL> ... or ... -m <MODEL> ...
+if echo "$COMMAND" | grep -qE 'codex[[:space:]]+exec' 2>/dev/null; then
     MODEL=$(extract_model_flag "$COMMAND")
     if [[ -n "$MODEL" ]]; then
         check_model "codex" "$MODEL"
     fi
 fi
 
-# Gemini: gemini ... -m <MODEL> ... or gemini ... --model <MODEL> ...
-if echo "$COMMAND" | grep -qE '\bgemini\b'; then
+# Gemini: gemini ... -m <MODEL> ... or ... --model <MODEL> ...
+if echo "$COMMAND" | grep -q 'gemini' 2>/dev/null; then
     MODEL=$(extract_model_flag "$COMMAND")
     if [[ -n "$MODEL" ]]; then
         check_model "gemini" "$MODEL"
     fi
 fi
 
-# Qwen: qwen ... -m <MODEL> ... or qwen ... --model <MODEL> ...
-if echo "$COMMAND" | grep -qE '\bqwen\b'; then
+# Qwen: qwen ... -m <MODEL> ... or ... --model <MODEL> ...
+if echo "$COMMAND" | grep -q 'qwen' 2>/dev/null; then
     MODEL=$(extract_model_flag "$COMMAND")
     if [[ -n "$MODEL" ]]; then
         check_model "qwen" "$MODEL"
@@ -122,7 +153,7 @@ if echo "$COMMAND" | grep -qE '\bqwen\b'; then
 fi
 
 # Claude: claude ... --model <MODEL> ...
-if echo "$COMMAND" | grep -qE '\bclaude\b.*--model'; then
+if echo "$COMMAND" | grep -q 'claude.*--model' 2>/dev/null; then
     MODEL=$(extract_model_flag "$COMMAND")
     if [[ -n "$MODEL" ]]; then
         check_model "claude" "$MODEL"
@@ -130,8 +161,8 @@ if echo "$COMMAND" | grep -qE '\bclaude\b.*--model'; then
 fi
 
 # Ollama: ollama run <MODEL> ...
-if echo "$COMMAND" | grep -qE '\bollama\s+run\b'; then
-    MODEL=$(echo "$COMMAND" | grep -oE 'ollama\s+run\s+\S+' | head -1 | awk '{print $3}' | tr -d '"'"'")
+if echo "$COMMAND" | grep -qE 'ollama[[:space:]]+run' 2>/dev/null; then
+    MODEL=$(echo "$COMMAND" | sed -n 's/.*ollama[[:space:]]\{1,\}run[[:space:]]\{1,\}\([^ ]*\).*/\1/p' | head -1 | tr -d "\"'") || true
     if [[ -n "$MODEL" ]]; then
         check_model "ollama" "$MODEL"
     fi

@@ -66,12 +66,9 @@ echo "your prompt" | "$PLUGIN_DIR/octo-dispatch.sh" gemini
 echo "your prompt" | "$PLUGIN_DIR/octo-dispatch.sh" qwen
 ```
 
-**PROHIBITED model names** (these are ALWAYS wrong — never type them manually):
-- `o3`, `o3-mini`, `o4-mini`, `gpt-4o`, `gpt-4o-mini` — stale OpenAI names
-- `gemini-2.5-pro`, `gemini-2.0-flash` — stale Google names
-- Any model name from your training data that you "just know"
-
-The config at `~/.claude-octopus/config/providers.json` is the ONLY source of truth.
+**PROHIBITED: typing ANY model name directly.** Always resolve via `octo-dispatch.sh --resolve <provider>`.
+The resolver uses a 7-tier precedence (env vars > session overrides > phase routing > config defaults > hardcoded fallbacks). `providers.json` is the primary config, but overrides may apply.
+Never guess a model name from your training data — the resolver handles all precedence logic.
 
 ---
 
