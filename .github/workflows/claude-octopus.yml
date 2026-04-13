@@ -162,7 +162,7 @@ jobs:
           ./scripts/orchestrate.sh --ci code-review '{"target":"staged","publish":"never"}' 2>&1 | tee review-output.txt
 
       - name: Post Review Comment
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             const fs = require('fs');
@@ -242,7 +242,7 @@ jobs:
           ./scripts/orchestrate.sh --ci auto "$OCTOPUS_PROMPT" 2>&1 | tee octopus-output.txt
 
       - name: Reply to Comment
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             const fs = require('fs');
