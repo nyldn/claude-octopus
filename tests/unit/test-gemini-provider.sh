@@ -564,4 +564,50 @@ test_pricing_gemini_flash
 # 13. Config
 test_gemini_config_exists
 
+# 14. Model fallback wrapper (v9.22.0)
+test_gemini_exec_wrapper_exists() {
+    test_case "fallback: helpers/gemini-exec.sh exists and is executable"
+    local wrapper="$PROJECT_ROOT/scripts/helpers/gemini-exec.sh"
+    if [[ -x "$wrapper" ]]; then
+        test_pass
+    else
+        test_fail "scripts/helpers/gemini-exec.sh missing or not executable"
+    fi
+}
+
+test_gemini_exec_wrapper_invoked() {
+    test_case "fallback: dispatch routes gemini through gemini-exec.sh wrapper"
+    if sed -n '/gemini|gemini-fast/,/;;/p' "$DISPATCH" | grep -q 'gemini-exec\.sh'; then
+        test_pass
+    else
+        test_fail "dispatch.sh gemini branch should invoke helpers/gemini-exec.sh"
+    fi
+}
+
+test_gemini_fallback_default_model() {
+    test_case "fallback: default OCTOPUS_GEMINI_FALLBACK_MODELS includes a GA model"
+    local wrapper="$PROJECT_ROOT/scripts/helpers/gemini-exec.sh"
+    # Default fallback must be a non-preview, generally-available model so that
+    # accounts lacking preview access still recover automatically.
+    if grep -qE 'OCTOPUS_GEMINI_FALLBACK_MODELS:-gemini-[0-9]+\.[0-9]+-flash' "$wrapper"; then
+        test_pass
+    else
+        test_fail "wrapper default should fall back to a GA flash model"
+    fi
+}
+
+test_gemini_fallback_classifies_modelnotfound() {
+    test_case "fallback: smoke classifier recognizes ModelNotFoundError literal"
+    if grep -q 'ModelNotFoundError' "$SMOKE"; then
+        test_pass
+    else
+        test_fail "lib/smoke.sh _classify_smoke_error should match ModelNotFoundError"
+    fi
+}
+
+test_gemini_exec_wrapper_exists
+test_gemini_exec_wrapper_invoked
+test_gemini_fallback_default_model
+test_gemini_fallback_classifies_modelnotfound
+
 test_summary

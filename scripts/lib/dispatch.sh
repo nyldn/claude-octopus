@@ -64,17 +64,23 @@ get_agent_command() {
             # when calling Gemini CLI from bash subprocesses (OAuth still works)
             # NOTE: .toml custom commands exist in .gemini/commands/octo/ for human use,
             # but stdin+slash-command don't compose in headless mode (Codex source analysis)
+            # v9.22.0: Invocation goes through helpers/gemini-exec.sh — a thin
+            # wrapper that retries on 404/ModelNotFoundError with fallback models
+            # (OCTOPUS_GEMINI_FALLBACK_MODELS). Preview models occasionally lose
+            # addressability mid-workflow; the wrapper keeps the multi-AI path
+            # alive instead of forcing the whole dispatch to single-provider.
             local gemini_env="env NODE_NO_WARNINGS=1"
             if [[ "$OCTOPUS_PLATFORM" == "Darwin" && -z "${GEMINI_API_KEY:-}" ]]; then
                 gemini_env="env NODE_NO_WARNINGS=1 GEMINI_FORCE_FILE_STORAGE=true"
             fi
+            local gemini_exec="${PLUGIN_DIR}/scripts/helpers/gemini-exec.sh"
             case "${OCTOPUS_GEMINI_SANDBOX:-headless}" in
                 headless|auto-accept)
-                    echo "${gemini_env} gemini -o text --approval-mode yolo -m ${model}" ;;
+                    echo "${gemini_env} ${gemini_exec} ${model} -o text --approval-mode yolo" ;;
                 interactive|prompt-mode)
-                    echo "${gemini_env} gemini -m ${model}" ;;
+                    echo "${gemini_env} ${gemini_exec} ${model}" ;;
                 *)
-                    echo "${gemini_env} gemini -o text --approval-mode yolo -m ${model}" ;;
+                    echo "${gemini_env} ${gemini_exec} ${model} -o text --approval-mode yolo" ;;
             esac
             ;;
         codex-review) echo "codex exec review" ;; # Code review mode (no sandbox support)

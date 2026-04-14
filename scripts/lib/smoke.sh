@@ -897,7 +897,7 @@ _classify_smoke_error() {
     # Subshell isolates nocasematch — no leak risk on early exit
     (
         shopt -s nocasematch
-        local _re_model='model.*not found|does not exist|unknown model|invalid model|no such model'
+        local _re_model='model.*not found|does not exist|unknown model|invalid model|no such model|ModelNotFoundError|404.*model'
         local _re_auth='auth|unauthorized|forbidden|401|403|invalid.*key|expired.*token|login required'
         local _re_rate='rate.?limit|429|too many requests|quota'
         local _re_policy='policy|blocked|safety|filtered|content.?filter|recitation'
