@@ -115,13 +115,23 @@ test_partial_writes_bsd_skip() {
     fi
 }
 
-test_partial_writes_no_word_splitting() {
-    test_case "filename display uses sed (no word-splitting on whitespace)"
-    if grep -q "head -5 | sed 's/\^/   /'" "$AGENT_SYNC" \
-       && ! grep -q "printf '   %s.n' \$(printf" "$AGENT_SYNC"; then
+test_partial_writes_single_pass_scan() {
+    test_case "probe uses while-read loop (no find|head SIGPIPE under pipefail)"
+    if grep -q 'while IFS= read -r _line' "$AGENT_SYNC" \
+       && ! grep -qE 'find .* -newermt .* \| head' "$AGENT_SYNC"; then
         test_pass
     else
-        test_fail "word-splitting printf pattern still present"
+        test_fail "find|head pipeline still present or while-read loop missing"
+    fi
+}
+
+test_partial_writes_uses_log_helper() {
+    test_case "probe routes diagnostics through log helper (no raw echo to stderr)"
+    if grep -q 'log INFO "Partial writes detected' "$AGENT_SYNC" \
+       && ! grep -q 'echo "ℹ️  Partial writes detected' "$AGENT_SYNC"; then
+        test_pass
+    else
+        test_fail "raw echo still used for partial-writes diagnostic"
     fi
 }
 
@@ -145,7 +155,8 @@ test_partial_writes_scope
 test_partial_writes_depth_bounded
 test_partial_writes_noise_exclusions
 test_partial_writes_bsd_skip
-test_partial_writes_no_word_splitting
+test_partial_writes_single_pass_scan
+test_partial_writes_uses_log_helper
 test_partial_writes_date_bsd_fallback
 
 test_summary

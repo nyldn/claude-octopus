@@ -233,24 +233,29 @@ ${provider_ctx}"
         if [[ $exit_code -eq 124 || $exit_code -eq 143 ]]; then
             # -newermt is GNU findutils only; skip silently on BSD find (macOS).
             if find /dev/null -newermt "@0" >/dev/null 2>&1; then
-                # -maxdepth bounds traversal on large monorepos.
-                local _changed
-                _changed=$(find "$_dispatch_cwd" -maxdepth "${OCTOPUS_PARTIAL_WRITES_DEPTH:-4}" \
+                # Single-pass while-read avoids `find | head` SIGPIPE under
+                # inherited pipefail and counts every match instead of capping
+                # at the head budget. -maxdepth bounds traversal on monorepos.
+                local _n_changed=0
+                local _samples=()
+                local _line
+                while IFS= read -r _line; do
+                    _n_changed=$((_n_changed + 1))
+                    [[ ${#_samples[@]} -lt 5 ]] && _samples+=("$_line")
+                done < <(find "$_dispatch_cwd" -maxdepth "${OCTOPUS_PARTIAL_WRITES_DEPTH:-4}" \
                             -type f -newermt "@${_dispatch_start}" \
                             -not -path '*/.git/*' -not -path '*/node_modules/*' \
-                            2>/dev/null | head -20)
-                if [[ -n "$_changed" ]]; then
-                    local _n_changed _ts
-                    _n_changed=$(printf '%s\n' "$_changed" | wc -l | tr -d ' ')
+                            2>/dev/null)
+                if [[ $_n_changed -gt 0 ]]; then
+                    local _ts
                     _ts=$(date -d "@${_dispatch_start}" '+%H:%M:%S' 2>/dev/null \
                           || date -r "${_dispatch_start}" '+%H:%M:%S' 2>/dev/null \
                           || echo "dispatch")
                     log WARN "Timeout with ${_n_changed} file(s) modified in $_dispatch_cwd since dispatch — provider may have written deliverables. Inspect before retrying."
-                    echo "" >&2
-                    echo "ℹ️  Partial writes detected (${_n_changed} files changed since ${_ts})" >&2
-                    # sed prepends indent without word-splitting on spaces in filenames.
-                    printf '%s\n' "$_changed" | head -5 | sed 's/^/   /' >&2
-                    [[ $_n_changed -gt 5 ]] && echo "   ... (+$((_n_changed - 5)) more)" >&2
+                    log INFO "Partial writes detected (${_n_changed} files changed since ${_ts})"
+                    local _s
+                    for _s in "${_samples[@]}"; do log INFO "   $_s"; done
+                    [[ $_n_changed -gt 5 ]] && log INFO "   ... (+$((_n_changed - 5)) more)"
                 fi
             fi
         fi
