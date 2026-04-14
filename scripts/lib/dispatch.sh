@@ -64,11 +64,7 @@ get_agent_command() {
             # when calling Gemini CLI from bash subprocesses (OAuth still works)
             # NOTE: .toml custom commands exist in .gemini/commands/octo/ for human use,
             # but stdin+slash-command don't compose in headless mode (Codex source analysis)
-            # v9.22.0: Invocation goes through helpers/gemini-exec.sh — a thin
-            # wrapper that retries on 404/ModelNotFoundError with fallback models
-            # (OCTOPUS_GEMINI_FALLBACK_MODELS). Preview models occasionally lose
-            # addressability mid-workflow; the wrapper keeps the multi-AI path
-            # alive instead of forcing the whole dispatch to single-provider.
+            # Routed through helpers/gemini-exec.sh for 404/ModelNotFound fallback.
             local gemini_env="env NODE_NO_WARNINGS=1"
             if [[ "$OCTOPUS_PLATFORM" == "Darwin" && -z "${GEMINI_API_KEY:-}" ]]; then
                 gemini_env="env NODE_NO_WARNINGS=1 GEMINI_FORCE_FILE_STORAGE=true"

@@ -1,27 +1,11 @@
 #!/usr/bin/env bash
-# Claude Octopus — Gemini CLI wrapper with model fallback
-# ═══════════════════════════════════════════════════════════════════════════════
-# WHY: Gemini preview models (e.g. gemini-3.1-pro-preview) can return 404
-#   ModelNotFoundError mid-workflow when account quota or regional availability
-#   changes. Without an in-band fallback, the whole workflow aborts and callers
-#   revert to single-provider mode, silently losing the multi-AI signal.
+# Gemini CLI wrapper: in-band model fallback on 404 / ModelNotFoundError.
+# Transient errors (429/5xx/timeout) are left to lib/provider-router.sh.
 #
-# WHY NOT retry transient errors (429, 5xx, timeout): that is the circuit
-#   breaker's job (lib/provider-router.sh). Retrying the SAME model on a
-#   transient fault is the breaker's call; retrying a DIFFERENT model on a
-#   permanent "not found" is ours.
-#
-# USAGE:
-#   echo "prompt" | gemini-exec.sh <primary_model> [additional gemini flags...]
-#
-# ENV:
-#   OCTOPUS_GEMINI_FALLBACK_MODELS  Colon-separated fallbacks. Default:
-#                                   "gemini-2.5-flash" (GA, always available).
-#   OCTOPUS_GEMINI_ALLOWED_MODELS   Comma-separated policy allowlist; when set,
-#                                   fallback candidates outside it are dropped
-#                                   so cost/compliance gates are not bypassed.
-#   OCTOPUS_GEMINI_FALLBACK_QUIET   If "true", suppress fallback INFO log.
-# ═══════════════════════════════════════════════════════════════════════════════
+# usage: echo "prompt" | gemini-exec.sh <primary_model> [gemini flags...]
+# env:   OCTOPUS_GEMINI_FALLBACK_MODELS  (colon-separated, default gemini-2.5-flash)
+#        OCTOPUS_GEMINI_ALLOWED_MODELS   (comma-separated policy allowlist)
+#        OCTOPUS_GEMINI_FALLBACK_QUIET   (suppress fallback log when true)
 
 set -euo pipefail
 
@@ -34,8 +18,7 @@ fi
 primary_model="$1"
 shift
 
-# WHY allowlist filter: a cost/compliance gate declared at dispatch time must
-# not be silently bypassed by an implicit fallback.
+# Honour the policy allowlist so an implicit fallback can't bypass it.
 allowed_models="${OCTOPUS_GEMINI_ALLOWED_MODELS:-}"
 IFS=':' read -r -a fallback_arr <<<"${OCTOPUS_GEMINI_FALLBACK_MODELS:-gemini-2.5-flash}"
 declare -a model_list=("$primary_model")
@@ -51,8 +34,7 @@ for m in "${fallback_arr[@]}"; do
     [[ $skip -eq 0 ]] && model_list+=("$m")
 done
 
-# WHY cache stdin: the Gemini CLI consumes it once, so retry attempts need a
-# replayable copy.
+# Gemini CLI consumes stdin once; cache the prompt so retries can replay it.
 prompt_file=""
 stdout_file=$(mktemp -t "octo-gemini-stdout.XXXXXX")
 trap 'rm -f "${prompt_file:-}" "${stdout_file:-}" "${err_file:-}"' EXIT
@@ -62,9 +44,7 @@ if [[ ! -t 0 ]]; then
     cat > "$prompt_file"
 fi
 
-# WHY bash pattern matching instead of `grep -q`: under `set -o pipefail`,
-# `printf | grep -q` can return non-zero because printf sees EPIPE when grep
-# exits early on a match, intermittently misclassifying real model errors.
+# `printf | grep -q` under pipefail can return SIGPIPE on match; use [[ =~ ]].
 is_model_error() {
     (
         shopt -s nocasematch
@@ -82,9 +62,7 @@ for model in "${model_list[@]}"; do
     err_file=$(mktemp -t "octo-gemini-stderr.XXXXXX")
     : > "$stdout_file"
 
-    # WHY buffer stdout: a failed attempt's partial stdout would otherwise leak
-    # into the caller's stream before the fallback runs, corrupting downstream
-    # parsing. Only the winning attempt's stdout is forwarded.
+    # Buffer per attempt so a failed attempt's partial stdout never leaks.
     set +e
     if [[ -n "$prompt_file" ]]; then
         gemini -m "$model" "$@" <"$prompt_file" >"$stdout_file" 2>"$err_file"
