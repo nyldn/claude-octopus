@@ -190,15 +190,7 @@ resolve_octopus_model() {
     eval "_OCTO_MODEL_CACHE_${cache_key}=\"$resolved_model\""
     if command -v jq &>/dev/null; then
         local cache_json="{}"
-        # Validate existing cache before reusing — a prior interrupted write
-        # (or concurrent resolver racing on `.tmp.$$` / `mv`) can leave the
-        # file holding two concatenated JSON documents, which makes every
-        # subsequent jq invocation emit "parse error: Invalid numeric
-        # literal" and surface as a UNKNOWN smoke failure downstream.
-        # TOCTOU-tolerant: the file may be removed by a concurrent resolver
-        # between the existence check and the read, which under `set -e` would
-        # otherwise abort the caller. Swallow the read failure and fall through
-        # to the jq-validation gate, which treats empty/invalid as `{}`.
+        # Self-heal against concurrent-writer corruption and TOCTOU unlinks.
         if [[ -f "$persistent_cache" ]]; then
             cache_json=$(<"$persistent_cache") 2>/dev/null || cache_json="{}"
             [[ -n "$cache_json" ]] || cache_json="{}"

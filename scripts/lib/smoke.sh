@@ -1002,9 +1002,7 @@ _smoke_test_provider() {
         smoke_dir=$(mktemp -d 2>/dev/null || mktemp -d -t 'octo-smoke')
         git -C "$smoke_dir" init -q 2>/dev/null || true
         pushd "$smoke_dir" >/dev/null 2>&1
-        # codex command ends with `-` (stdin prompt mode, see get_agent_command).
-        # Passing the prompt as a positional arg makes codex 0.120.0+ reject it
-        # with "unexpected argument". Pipe via stdin to match the CLI contract.
+        # codex cmd_str ends with `-` (stdin prompt); arg form is rejected.
         echo "Reply with exactly: ok" | run_with_timeout "$smoke_timeout" \
             $cmd_str \
             >/dev/null 2>"$stderr_file" || smoke_exit=$?
