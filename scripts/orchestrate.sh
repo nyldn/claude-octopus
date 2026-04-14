@@ -3403,7 +3403,6 @@ case "$COMMAND" in
         do_release
         ;;
     doctor)
-        shift
         do_doctor "$@"
         ;;
     octopus-configure)
