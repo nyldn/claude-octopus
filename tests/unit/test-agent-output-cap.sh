@@ -1,8 +1,5 @@
 #!/usr/bin/env bash
-# tests/unit/test-agent-output-cap.sh
-# Static assertions over the run_agent_sync output cap + partial-writes
-# diagnostics. Hermetic: no real CLI dispatch. Behavioural verification lives
-# in tests/integration/.
+# Static assertions for the run_agent_sync output cap + partial-writes probe.
 
 set -euo pipefail
 
