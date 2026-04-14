@@ -190,11 +190,14 @@ resolve_octopus_model() {
     eval "_OCTO_MODEL_CACHE_${cache_key}=\"$resolved_model\""
     if command -v jq &>/dev/null; then
         local cache_json="{}"
-        # Self-heal against concurrent-writer corruption and TOCTOU unlinks.
-        if [[ -f "$persistent_cache" ]]; then
-            cache_json=$(<"$persistent_cache") 2>/dev/null || cache_json="{}"
-            [[ -n "$cache_json" ]] || cache_json="{}"
-            jq -e . >/dev/null 2>&1 <<<"$cache_json" || cache_json="{}"
+        # Self-heal: reject unreadable, concatenated-JSON, or non-object payloads.
+        # Plain `jq -e .` accepts `{}\n{}` as a valid stream — the exact
+        # concurrent-writer artifact this gate exists to heal. Slurp to count.
+        if cache_json=$(<"$persistent_cache") 2>/dev/null && [[ -n "$cache_json" ]]; then
+            cache_json=$(jq -cse 'if length == 1 and (.[0] | type) == "object" then .[0] else error("invalid") end' \
+                         <<<"$cache_json" 2>/dev/null) || cache_json="{}"
+        else
+            cache_json="{}"
         fi
         echo "$cache_json" | jq --arg key "$cache_key" --arg val "$resolved_model" '.[$key] = $val' > "${persistent_cache}.tmp.$$" 2>/dev/null && mv "${persistent_cache}.tmp.$$" "$persistent_cache"
     fi
