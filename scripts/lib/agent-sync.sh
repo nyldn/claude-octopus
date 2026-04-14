@@ -191,14 +191,63 @@ ${provider_ctx}"
     fi
 
     # v9.2.2: All agents use stdin to avoid ARG_MAX "Argument list too long" on large diffs (Issue #173)
+    # v9.23.0: Capture wall-clock span so we can distinguish "timeout with files
+    # on disk" from "timeout with nothing written" in the error path below.
+    local _dispatch_start _dispatch_cwd
+    _dispatch_start=$(date +%s)
+    _dispatch_cwd=$(pwd)
     output=$(printf '%s' "$enhanced_prompt" | run_with_timeout "$timeout_secs" "${cmd_array[@]}" 2>"$temp_err")
     exit_code=$?
+
+    # v9.23.0: Bound captured output. External CLIs (particularly Codex with
+    # verbose diff output in long develop phases) can emit >1 MB of stdout,
+    # which blows up the caller's terminal, log files, and downstream prompt
+    # context. We tail-bias the truncation: the summary/deliverable list is at
+    # the END of codex output, so we keep a small head (protocol preamble) plus
+    # the full tail up to the byte budget.
+    local _max_bytes="${OCTOPUS_AGENT_MAX_OUTPUT_BYTES:-262144}"  # 256 KiB default; 0 disables
+    if [[ -n "$output" && $_max_bytes -gt 0 && ${#output} -gt $_max_bytes ]]; then
+        local _orig_bytes=${#output}
+        local _head_bytes=4096
+        local _tail_bytes=$((_max_bytes - _head_bytes - 256))  # 256B for banner
+        local _head="${output:0:$_head_bytes}"
+        local _tail="${output: -$_tail_bytes}"
+        output="${_head}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️  OUTPUT TRUNCATED — ${_orig_bytes} bytes captured, showing first ${_head_bytes}B + last ${_tail_bytes}B
+   (override with OCTOPUS_AGENT_MAX_OUTPUT_BYTES=<bytes>; 0 disables cap)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+${_tail}"
+        log WARN "Agent $agent_type output truncated: ${_orig_bytes}B → ${#output}B (cap=${_max_bytes}B)"
+    fi
 
     # Check exit code and handle errors
     if [[ $exit_code -ne 0 ]]; then
         log ERROR "Agent $agent_type failed with exit code $exit_code (role=$role, phase=$phase)"
         if [[ -s "$temp_err" ]]; then
             log ERROR "Error details: $(cat "$temp_err")"
+        fi
+        # v9.23.0: When a timeout (124/143) coincides with workspace-write file
+        # activity, the provider probably wrote deliverables to disk before
+        # SIGTERM. The bare "TIMEOUT" message in heartbeat.sh is misleading in
+        # that case — users throw away completed work. Surface the partial-
+        # write signal so the caller can decide.
+        if [[ $exit_code -eq 124 || $exit_code -eq 143 ]]; then
+            local _changed
+            _changed=$(find "$_dispatch_cwd" -type f -newermt "@${_dispatch_start}" \
+                        -not -path '*/.git/*' -not -path '*/node_modules/*' \
+                        2>/dev/null | head -20)
+            if [[ -n "$_changed" ]]; then
+                local _n_changed
+                _n_changed=$(printf '%s\n' "$_changed" | wc -l | tr -d ' ')
+                log WARN "Timeout with ${_n_changed} file(s) modified in $_dispatch_cwd since dispatch — provider may have written deliverables. Inspect before retrying."
+                echo "" >&2
+                echo "ℹ️  Partial writes detected (${_n_changed} files changed since $(date -d "@${_dispatch_start}" '+%H:%M:%S' 2>/dev/null || echo "dispatch"))" >&2
+                printf '   %s\n' $(printf '%s\n' "$_changed" | head -5) >&2
+                [[ $_n_changed -gt 5 ]] && echo "   ... (+$((_n_changed - 5)) more)" >&2
+            fi
         fi
         rm -f "$temp_err"
         return $exit_code
