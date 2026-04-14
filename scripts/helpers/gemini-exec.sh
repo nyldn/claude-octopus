@@ -37,18 +37,19 @@ done
 # Gemini CLI consumes stdin once; cache the prompt so retries can replay it.
 prompt_file=""
 stdout_file=$(mktemp -t "octo-gemini-stdout.XXXXXX")
-trap 'rm -f "${prompt_file:-}" "${stdout_file:-}" "${err_file:-}"' EXIT
+trap 'rm -f "${prompt_file:-}" "${stdout_file:-}" "${err_file:-}"' EXIT INT TERM
 
 if [[ ! -t 0 ]]; then
     prompt_file=$(mktemp -t "octo-gemini-prompt.XXXXXX")
     cat > "$prompt_file"
 fi
 
-# `printf | grep -q` under pipefail can return SIGPIPE on match; use [[ =~ ]].
+# Pattern must mirror lib/smoke.sh::_classify_smoke_error or fallback drifts.
 is_model_error() {
     (
         shopt -s nocasematch
-        [[ "$1" =~ 404|ModelNotFoundError|model.*not.*(found|available|exist)|unknown[[:space:]]model|invalid[[:space:]]model ]]
+        local _re='model.*not (found|available|exist)|does not exist|unknown model|invalid model|no such model|ModelNotFoundError|404'
+        [[ "$1" =~ $_re ]]
     )
 }
 

@@ -610,7 +610,11 @@ test_gemini_fallback_classifies_modelnotfound() {
         "ModelNotFoundError: the model does not exist" \
         "HTTP 404 - model gemini-foo not found" \
         "Error: model gemini-xyz is not available in your region" \
-        "unknown model specified"
+        "unknown model specified" \
+        "Request failed: 404 Not Found" \
+        "model not available" \
+        "no such model: gemini-x" \
+        "invalid model id"
     do
         result=$(_classify_smoke_error "$payload")
         [[ "$result" == "MODEL_NOT_FOUND" ]] || failed+="  input=[${payload}] got=[${result}]\n"
@@ -622,9 +626,31 @@ test_gemini_fallback_classifies_modelnotfound() {
     fi
 }
 
+test_gemini_wrapper_is_model_error_in_sync() {
+    test_case "fallback: gemini-exec is_model_error agrees with smoke classifier on every variant"
+    local helper="${PROJECT_ROOT}/scripts/helpers/gemini-exec.sh"
+    [[ -r "$helper" ]] || { test_fail "missing $helper"; return; }
+    local failed=""
+    for payload in \
+        "ModelNotFoundError: x" \
+        "HTTP 404 - model gemini-foo not found" \
+        "model gemini-xyz is not available" \
+        "404 Not Found" \
+        "no such model: gemini-x" \
+        "invalid model id"
+    do
+        local fn_src
+        fn_src=$(sed -n '/^is_model_error()/,/^}/p' "$helper")
+        bash -c "$fn_src; is_model_error \"\$1\"" _ "$payload" \
+            || failed+="  payload=[$payload]\n"
+    done
+    [[ -z "$failed" ]] && test_pass || test_fail "wrapper is_model_error missed:\n${failed}"
+}
+
 test_gemini_exec_wrapper_exists
 test_gemini_exec_wrapper_invoked
 test_gemini_fallback_default_model
 test_gemini_fallback_classifies_modelnotfound
+test_gemini_wrapper_is_model_error_in_sync
 
 test_summary
