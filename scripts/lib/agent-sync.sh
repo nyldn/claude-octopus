@@ -207,8 +207,12 @@ ${provider_ctx}"
         local _orig_bytes=${#output}
         local _head_bytes=4096
         local _tail_bytes=$((_max_bytes - _head_bytes - 256))
+        # WHY positive offset form: `${output: -$n}` (space-prefixed negative
+        # offset) is bash 4.2+; repo supports bash 3.x.
+        local _tail_start=$((_orig_bytes - _tail_bytes))
+        [[ $_tail_start -lt 0 ]] && _tail_start=0
         local _head="${output:0:$_head_bytes}"
-        local _tail="${output: -$_tail_bytes}"
+        local _tail="${output:$_tail_start:$_tail_bytes}"
         output="${_head}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -231,18 +235,30 @@ ${_tail}"
         # deliverables before SIGTERM. Surface that signal so the caller can
         # decide whether to keep them.
         if [[ $exit_code -eq 124 || $exit_code -eq 143 ]]; then
-            local _changed
-            _changed=$(find "$_dispatch_cwd" -type f -newermt "@${_dispatch_start}" \
-                        -not -path '*/.git/*' -not -path '*/node_modules/*' \
-                        2>/dev/null | head -20)
-            if [[ -n "$_changed" ]]; then
-                local _n_changed
-                _n_changed=$(printf '%s\n' "$_changed" | wc -l | tr -d ' ')
-                log WARN "Timeout with ${_n_changed} file(s) modified in $_dispatch_cwd since dispatch — provider may have written deliverables. Inspect before retrying."
-                echo "" >&2
-                echo "ℹ️  Partial writes detected (${_n_changed} files changed since $(date -d "@${_dispatch_start}" '+%H:%M:%S' 2>/dev/null || echo "dispatch"))" >&2
-                printf '   %s\n' $(printf '%s\n' "$_changed" | head -5) >&2
-                [[ $_n_changed -gt 5 ]] && echo "   ... (+$((_n_changed - 5)) more)" >&2
+            # WHY feature-detect -newermt: GNU findutils only. BSD find (stock
+            # macOS) would silently error; we skip the diagnostic there rather
+            # than mis-report. Callers on macOS still see the underlying
+            # timeout log — they just don't get the partial-writes hint.
+            if find /dev/null -newermt "@0" >/dev/null 2>&1; then
+                local _changed
+                _changed=$(find "$_dispatch_cwd" -type f -newermt "@${_dispatch_start}" \
+                            -not -path '*/.git/*' -not -path '*/node_modules/*' \
+                            2>/dev/null | head -20)
+                if [[ -n "$_changed" ]]; then
+                    local _n_changed _ts
+                    _n_changed=$(printf '%s\n' "$_changed" | wc -l | tr -d ' ')
+                    _ts=$(date -d "@${_dispatch_start}" '+%H:%M:%S' 2>/dev/null \
+                          || date -r "${_dispatch_start}" '+%H:%M:%S' 2>/dev/null \
+                          || echo "dispatch")
+                    log WARN "Timeout with ${_n_changed} file(s) modified in $_dispatch_cwd since dispatch — provider may have written deliverables. Inspect before retrying."
+                    echo "" >&2
+                    echo "ℹ️  Partial writes detected (${_n_changed} files changed since ${_ts})" >&2
+                    # WHY piped sed instead of `printf %s $(...)`: unquoted
+                    # command substitution word-splits on whitespace in
+                    # filenames. sed prepends indentation without splitting.
+                    printf '%s\n' "$_changed" | head -5 | sed 's/^/   /' >&2
+                    [[ $_n_changed -gt 5 ]] && echo "   ... (+$((_n_changed - 5)) more)" >&2
+                fi
             fi
         fi
         rm -f "$temp_err"
