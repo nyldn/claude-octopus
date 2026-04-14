@@ -1095,9 +1095,9 @@ provider_smoke_test() {
 
     for result in "$codex_result" "$gemini_result"; do
         case "${result%%:*}" in
-            PASS) ((pass_count++)) ;;
-            SKIP) ((skip_count++)) ;;
-            *) ((fail_count++)) ;;
+            PASS) ((++pass_count)) ;;
+            SKIP) ((++skip_count)) ;;
+            *) ((++fail_count)) ;;
         esac
     done
 

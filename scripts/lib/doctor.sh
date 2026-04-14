@@ -1182,9 +1182,9 @@ doctor_output_human() {
     for ((i=0; i<total; i++)); do
         local status="${DOCTOR_RESULTS_STATUS[$i]}"
         case "$status" in
-            pass) ((pass_count++)) ;;
-            warn) ((warn_count++)) ;;
-            fail) ((fail_count++)) ;;
+            pass) ((++pass_count)) ;;
+            warn) ((++warn_count)) ;;
+            fail) ((++fail_count)) ;;
         esac
     done
 
