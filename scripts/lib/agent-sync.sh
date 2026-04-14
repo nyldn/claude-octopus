@@ -191,25 +191,22 @@ ${provider_ctx}"
     fi
 
     # v9.2.2: All agents use stdin to avoid ARG_MAX "Argument list too long" on large diffs (Issue #173)
-    # v9.23.0: Capture wall-clock span so we can distinguish "timeout with files
-    # on disk" from "timeout with nothing written" in the error path below.
+    # WHY capture start+cwd: on timeout we use these to detect whether the
+    # provider wrote deliverables to disk before SIGTERM.
     local _dispatch_start _dispatch_cwd
     _dispatch_start=$(date +%s)
     _dispatch_cwd=$(pwd)
     output=$(printf '%s' "$enhanced_prompt" | run_with_timeout "$timeout_secs" "${cmd_array[@]}" 2>"$temp_err")
     exit_code=$?
 
-    # v9.23.0: Bound captured output. External CLIs (particularly Codex with
-    # verbose diff output in long develop phases) can emit >1 MB of stdout,
-    # which blows up the caller's terminal, log files, and downstream prompt
-    # context. We tail-bias the truncation: the summary/deliverable list is at
-    # the END of codex output, so we keep a small head (protocol preamble) plus
-    # the full tail up to the byte budget.
-    local _max_bytes="${OCTOPUS_AGENT_MAX_OUTPUT_BYTES:-262144}"  # 256 KiB default; 0 disables
+    # WHY tail-bias: codex-style output puts the deliverable summary at the
+    # END, so head-bias would drop exactly the section the user relies on.
+    # Unbounded capture also blows up downstream prompt context.
+    local _max_bytes="${OCTOPUS_AGENT_MAX_OUTPUT_BYTES:-262144}"
     if [[ -n "$output" && $_max_bytes -gt 0 && ${#output} -gt $_max_bytes ]]; then
         local _orig_bytes=${#output}
         local _head_bytes=4096
-        local _tail_bytes=$((_max_bytes - _head_bytes - 256))  # 256B for banner
+        local _tail_bytes=$((_max_bytes - _head_bytes - 256))
         local _head="${output:0:$_head_bytes}"
         local _tail="${output: -$_tail_bytes}"
         output="${_head}
@@ -229,11 +226,10 @@ ${_tail}"
         if [[ -s "$temp_err" ]]; then
             log ERROR "Error details: $(cat "$temp_err")"
         fi
-        # v9.23.0: When a timeout (124/143) coincides with workspace-write file
-        # activity, the provider probably wrote deliverables to disk before
-        # SIGTERM. The bare "TIMEOUT" message in heartbeat.sh is misleading in
-        # that case — users throw away completed work. Surface the partial-
-        # write signal so the caller can decide.
+        # WHY: a bare "TIMEOUT" banner at heartbeat.sh leads users to discard
+        # completed work when codex under workspace-write had already written
+        # deliverables before SIGTERM. Surface that signal so the caller can
+        # decide whether to keep them.
         if [[ $exit_code -eq 124 || $exit_code -eq 143 ]]; then
             local _changed
             _changed=$(find "$_dispatch_cwd" -type f -newermt "@${_dispatch_start}" \
