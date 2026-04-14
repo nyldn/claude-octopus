@@ -1077,7 +1077,7 @@ provider_smoke_test() {
     fi
 
     if [[ "$has_gemini" == "true" ]]; then
-        _smoke_test_provider "gemini" 10 "$gemini_result_file" &
+        _smoke_test_provider "gemini" "${OCTOPUS_GEMINI_SMOKE_TIMEOUT:-30}" "$gemini_result_file" &
         pids+=($!)
     else
         echo "SKIP" > "$gemini_result_file"
