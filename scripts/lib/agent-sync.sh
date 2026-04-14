@@ -202,21 +202,23 @@ ${provider_ctx}"
     local _max_bytes="${OCTOPUS_AGENT_MAX_OUTPUT_BYTES:-262144}"
     if [[ -n "$output" && $_max_bytes -gt 0 && ${#output} -gt $_max_bytes ]]; then
         local _orig_bytes=${#output}
-        local _head_bytes=4096
-        local _tail_bytes=$((_max_bytes - _head_bytes - 256))
-        # Positive offset (`${v:s:n}`) keeps bash 3.x compat; `${v: -n}` is 4.2+.
-        local _tail_start=$((_orig_bytes - _tail_bytes))
-        [[ $_tail_start -lt 0 ]] && _tail_start=0
-        local _head="${output:0:$_head_bytes}"
-        local _tail="${output:$_tail_start:$_tail_bytes}"
-        output="${_head}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-⚠️  OUTPUT TRUNCATED — ${_orig_bytes} bytes captured, showing first ${_head_bytes}B + last ${_tail_bytes}B
-   (override with OCTOPUS_AGENT_MAX_OUTPUT_BYTES=<bytes>; 0 disables cap)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-${_tail}"
+        # Build the banner first so we can measure it exactly and budget the
+        # head+tail slices against a real number instead of a guess. This keeps
+        # the final `${#output}` <= _max_bytes for any cap, including tiny ones.
+        local _banner=$'\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n⚠️  OUTPUT TRUNCATED — '"${_orig_bytes}"$' bytes captured\n   (override with OCTOPUS_AGENT_MAX_OUTPUT_BYTES=<bytes>; 0 disables cap)\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n'
+        local _banner_bytes=${#_banner}
+        local _budget=$((_max_bytes - _banner_bytes))
+        if [[ $_budget -le 0 ]]; then
+            output="$_banner"
+        else
+            local _head_bytes=$(( _budget / 8 ))     # ~12% head, 88% tail
+            [[ $_head_bytes -gt 4096 ]] && _head_bytes=4096
+            local _tail_bytes=$(( _budget - _head_bytes ))
+            # Positive offset (`${v:s:n}`) keeps bash 3.x compat; `${v: -n}` is 4.2+.
+            local _tail_start=$(( _orig_bytes - _tail_bytes ))
+            [[ $_tail_start -lt 0 ]] && _tail_start=0
+            output="${output:0:$_head_bytes}${_banner}${output:$_tail_start:$_tail_bytes}"
+        fi
         log WARN "Agent $agent_type output truncated: ${_orig_bytes}B → ${#output}B (cap=${_max_bytes}B)"
     fi
 
