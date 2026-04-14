@@ -190,8 +190,16 @@ resolve_octopus_model() {
     eval "_OCTO_MODEL_CACHE_${cache_key}=\"$resolved_model\""
     if command -v jq &>/dev/null; then
         local cache_json="{}"
-        [[ -f "$persistent_cache" ]] && cache_json=$(<"$persistent_cache")
-        echo "$cache_json" | jq --arg key "$cache_key" --arg val "$resolved_model" '.[$key] = $val' > "${persistent_cache}.tmp.$$" && mv "${persistent_cache}.tmp.$$" "$persistent_cache"
+        # Validate existing cache before reusing — a prior interrupted write
+        # (or concurrent resolver racing on `.tmp.$$` / `mv`) can leave the
+        # file holding two concatenated JSON documents, which makes every
+        # subsequent jq invocation emit "parse error: Invalid numeric
+        # literal" and surface as a UNKNOWN smoke failure downstream.
+        if [[ -f "$persistent_cache" ]]; then
+            cache_json=$(<"$persistent_cache")
+            jq -e . >/dev/null 2>&1 <<<"$cache_json" || cache_json="{}"
+        fi
+        echo "$cache_json" | jq --arg key "$cache_key" --arg val "$resolved_model" '.[$key] = $val' > "${persistent_cache}.tmp.$$" 2>/dev/null && mv "${persistent_cache}.tmp.$$" "$persistent_cache"
     fi
 
     echo "$resolved_model"
