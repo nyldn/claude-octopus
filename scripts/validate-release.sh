@@ -84,8 +84,8 @@ fi
 # Marketplace installers resolve by git ref; an un-tagged release silently
 # pins every consumer to main@HEAD.
 if git -C "$ROOT_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    if git -C "$ROOT_DIR" rev-parse --verify --quiet "v$PLUGIN_VERSION" >/dev/null \
-       || git -C "$ROOT_DIR" rev-parse --verify --quiet "$PLUGIN_VERSION" >/dev/null; then
+    if git -C "$ROOT_DIR" show-ref --verify --quiet "refs/tags/v$PLUGIN_VERSION" \
+       || git -C "$ROOT_DIR" show-ref --verify --quiet "refs/tags/$PLUGIN_VERSION"; then
         echo -e "  ${GREEN}✓ git tag v$PLUGIN_VERSION exists${NC}"
     else
         echo -e "  ${YELLOW}WARNING: no git tag v$PLUGIN_VERSION — fresh installs pin to main@HEAD${NC}"
