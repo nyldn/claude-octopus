@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Claude Octopus Scheduler - CLI Entry Point (v8.16.0)
+# Claude Octopus Scheduler - CLI Entry Point
 # Subcommands: dashboard, start, stop, status, add, list, remove, enable, disable, logs, emergency-stop
 #
 # Backend selection (set OCTOPUS_SCHEDULER_BACKEND=auto|daemon|coworkd):
@@ -10,10 +10,12 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
 source "${SCRIPT_DIR}/store.sh"
 source "${SCRIPT_DIR}/cron.sh"
 source "${SCRIPT_DIR}/daemon.sh"
+source "${PLUGIN_DIR}/scripts/lib/common.sh"
 
 # --- Colors ---
 RED='\033[0;31m'
@@ -23,7 +25,7 @@ CYAN='\033[0;36m'
 BOLD='\033[1m'
 NC='\033[0m'
 
-VERSION="8.16.0"
+VERSION="$(octopus_plugin_version "$PLUGIN_DIR")"
 
 usage() {
     cat <<EOF

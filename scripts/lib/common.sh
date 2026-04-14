@@ -56,3 +56,18 @@ octopus_complete() {
     echo -e "${green}✓ ${workflow} complete${nc}"
 }
 
+octopus_plugin_version() {
+    local root="${1:-${PLUGIN_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}}"
+    local manifest="$root/.claude-plugin/plugin.json"
+    if [[ ! -r "$manifest" ]]; then
+        echo "0.0.0-dev"
+        return
+    fi
+    if command -v jq >/dev/null 2>&1; then
+        jq -r '.version // "0.0.0-dev"' "$manifest" 2>/dev/null || echo "0.0.0-dev"
+    else
+        sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$manifest" \
+            | head -1 | grep . || echo "0.0.0-dev"
+    fi
+}
+

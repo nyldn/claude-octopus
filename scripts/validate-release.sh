@@ -81,6 +81,18 @@ if [[ $errors -eq 0 ]] && [[ "$PLUGIN_VERSION" == "$MARKETPLACE_VERSION" ]] && [
     echo -e "  ${GREEN}✓ All versions synchronized: v$PLUGIN_VERSION${NC}"
 fi
 
+# Marketplace installers resolve by git ref; an un-tagged release silently
+# pins every consumer to main@HEAD.
+if git -C "$ROOT_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    if git -C "$ROOT_DIR" rev-parse --verify --quiet "v$PLUGIN_VERSION" >/dev/null \
+       || git -C "$ROOT_DIR" rev-parse --verify --quiet "$PLUGIN_VERSION" >/dev/null; then
+        echo -e "  ${GREEN}✓ git tag v$PLUGIN_VERSION exists${NC}"
+    else
+        echo -e "  ${YELLOW}WARNING: no git tag v$PLUGIN_VERSION — fresh installs pin to main@HEAD${NC}"
+        ((warnings++))
+    fi
+fi
+
 echo ""
 
 # ============================================================================
