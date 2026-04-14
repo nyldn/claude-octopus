@@ -408,12 +408,11 @@ save_session_checkpoint() {
     update_metrics "phases_completed" "1" 2>/dev/null || true
     write_state_md 2>/dev/null || true
 
-    # v8.57: Notify claude-mem of phase completion (non-blocking, fault-tolerant)
-    local bridge_script="${SCRIPT_DIR}/claude-mem-bridge.sh"
-    if [[ -x "$bridge_script" ]] && "$bridge_script" available >/dev/null 2>&1; then
+    # Route through memory contract so any enabled backend picks it up (#220).
+    if [[ "$(memory_available 2>/dev/null)" == "true" ]]; then
         local workflow_name
         workflow_name=$(jq -r '.workflow // "unknown"' "$SESSION_FILE" 2>/dev/null || echo "unknown")
-        "$bridge_script" observe "decision" \
+        memory_observe "decision" \
             "Octopus ${phase} phase ${status}" \
             "Workflow: ${workflow_name}, Phase: ${phase}, Status: ${status}, Output: ${output_file}" \
             2>/dev/null &

@@ -120,6 +120,7 @@ source "${SCRIPT_DIR}/lib/config-display.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/yaml-workflow.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/quality.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/agent-utils.sh" 2>/dev/null || true
+source "${SCRIPT_DIR}/lib/memory.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/session.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/semantic-cache.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/audit.sh" 2>/dev/null || true
