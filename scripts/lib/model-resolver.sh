@@ -195,8 +195,13 @@ resolve_octopus_model() {
         # file holding two concatenated JSON documents, which makes every
         # subsequent jq invocation emit "parse error: Invalid numeric
         # literal" and surface as a UNKNOWN smoke failure downstream.
+        # TOCTOU-tolerant: the file may be removed by a concurrent resolver
+        # between the existence check and the read, which under `set -e` would
+        # otherwise abort the caller. Swallow the read failure and fall through
+        # to the jq-validation gate, which treats empty/invalid as `{}`.
         if [[ -f "$persistent_cache" ]]; then
-            cache_json=$(<"$persistent_cache")
+            cache_json=$(<"$persistent_cache") 2>/dev/null || cache_json="{}"
+            [[ -n "$cache_json" ]] || cache_json="{}"
             jq -e . >/dev/null 2>&1 <<<"$cache_json" || cache_json="{}"
         fi
         echo "$cache_json" | jq --arg key "$cache_key" --arg val "$resolved_model" '.[$key] = $val' > "${persistent_cache}.tmp.$$" 2>/dev/null && mv "${persistent_cache}.tmp.$$" "$persistent_cache"
