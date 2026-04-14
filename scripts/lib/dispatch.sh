@@ -74,14 +74,11 @@ get_agent_command() {
                 gemini_env="env NODE_NO_WARNINGS=1 GEMINI_FORCE_FILE_STORAGE=true"
             fi
             local gemini_exec="${PLUGIN_DIR}/scripts/helpers/gemini-exec.sh"
+            local gemini_flags="-o text --approval-mode yolo"
             case "${OCTOPUS_GEMINI_SANDBOX:-headless}" in
-                headless|auto-accept)
-                    echo "${gemini_env} ${gemini_exec} ${model} -o text --approval-mode yolo" ;;
-                interactive|prompt-mode)
-                    echo "${gemini_env} ${gemini_exec} ${model}" ;;
-                *)
-                    echo "${gemini_env} ${gemini_exec} ${model} -o text --approval-mode yolo" ;;
+                interactive|prompt-mode) gemini_flags="" ;;
             esac
+            echo "${gemini_env} ${gemini_exec} ${model} ${gemini_flags}"
             ;;
         codex-review) echo "codex exec review" ;; # Code review mode (no sandbox support)
         claude) echo "claude${_BARE_OPT} --print" ;;                         # Claude Sonnet 4.6
