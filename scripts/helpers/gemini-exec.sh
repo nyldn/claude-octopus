@@ -6,15 +6,10 @@
 #   changes. Without an in-band fallback, the whole workflow aborts and callers
 #   revert to single-provider mode, silently losing the multi-AI signal.
 #
-# WHAT: This wrapper runs the Gemini CLI with a primary model, then on any
-#   hard "model" failure (404 / ModelNotFoundError / "model ... not available")
-#   retries the same invocation with each fallback in OCTOPUS_GEMINI_FALLBACK_MODELS
-#   until one succeeds or the list is exhausted.
-#
-# NOT WHAT: This does NOT retry on transient errors (429, 5xx, timeout) — those
-#   are the circuit breaker's job (lib/provider-router.sh). We only handle the
-#   specific class of "this model name is not addressable" errors, which no
-#   amount of retrying the SAME model will fix.
+# WHY NOT retry transient errors (429, 5xx, timeout): that is the circuit
+#   breaker's job (lib/provider-router.sh). Retrying the SAME model on a
+#   transient fault is the breaker's call; retrying a DIFFERENT model on a
+#   permanent "not found" is ours.
 #
 # USAGE:
 #   echo "prompt" | gemini-exec.sh <primary_model> [additional gemini flags...]
@@ -22,14 +17,13 @@
 # ENV:
 #   OCTOPUS_GEMINI_FALLBACK_MODELS  Colon-separated fallbacks. Default:
 #                                   "gemini-2.5-flash" (GA, always available).
+#   OCTOPUS_GEMINI_ALLOWED_MODELS   Comma-separated policy allowlist; when set,
+#                                   fallback candidates outside it are dropped
+#                                   so cost/compliance gates are not bypassed.
 #   OCTOPUS_GEMINI_FALLBACK_QUIET   If "true", suppress fallback INFO log.
-#
-# EXIT:
-#   0    Primary or a fallback succeeded.
-#   N    Exit code of the last attempted model if all attempts failed.
 # ═══════════════════════════════════════════════════════════════════════════════
 
-set -o pipefail
+set -euo pipefail
 
 if [[ $# -lt 1 ]]; then
     echo "gemini-exec.sh: missing primary model argument" >&2
@@ -40,12 +34,16 @@ fi
 primary_model="$1"
 shift
 
-# Build the ordered model list: primary, then fallbacks, dedup in order.
+# WHY allowlist filter: a cost/compliance gate declared at dispatch time must
+# not be silently bypassed by an implicit fallback.
+allowed_models="${OCTOPUS_GEMINI_ALLOWED_MODELS:-}"
 IFS=':' read -r -a fallback_arr <<<"${OCTOPUS_GEMINI_FALLBACK_MODELS:-gemini-2.5-flash}"
 declare -a model_list=("$primary_model")
 for m in "${fallback_arr[@]}"; do
     [[ -z "$m" || "$m" == "$primary_model" ]] && continue
-    # Dedup
+    if [[ -n "$allowed_models" && ",$allowed_models," != *",$m,"* ]]; then
+        continue
+    fi
     skip=0
     for existing in "${model_list[@]}"; do
         [[ "$existing" == "$m" ]] && { skip=1; break; }
@@ -53,22 +51,25 @@ for m in "${fallback_arr[@]}"; do
     [[ $skip -eq 0 ]] && model_list+=("$m")
 done
 
-# The Gemini CLI consumes stdin once. To retry with a different model we must
-# cache the prompt to a temp file the first time we read stdin.
+# WHY cache stdin: the Gemini CLI consumes it once, so retry attempts need a
+# replayable copy.
 prompt_file=""
+stdout_file=$(mktemp -t "octo-gemini-stdout.XXXXXX")
+trap 'rm -f "${prompt_file:-}" "${stdout_file:-}" "${err_file:-}"' EXIT
+
 if [[ ! -t 0 ]]; then
     prompt_file=$(mktemp -t "octo-gemini-prompt.XXXXXX")
-    trap 'rm -f "$prompt_file"' EXIT
     cat > "$prompt_file"
 fi
 
-# Classify a gemini invocation's stderr to decide whether to fall back.
-# Returns 0 when the error class is "model addressability" (fallback-eligible).
+# WHY bash pattern matching instead of `grep -q`: under `set -o pipefail`,
+# `printf | grep -q` can return non-zero because printf sees EPIPE when grep
+# exits early on a match, intermittently misclassifying real model errors.
 is_model_error() {
-    local err="$1"
-    # Preview CLI emits "ModelNotFoundError" plus HTTP 404 in the status line.
-    # Also match the human-phrased variants surfaced by different CLI versions.
-    printf '%s' "$err" | grep -qiE '404|ModelNotFoundError|model.*not.*(found|available|exist)|unknown model|invalid model'
+    (
+        shopt -s nocasematch
+        [[ "$1" =~ 404|ModelNotFoundError|model.*not.*(found|available|exist)|unknown[[:space:]]model|invalid[[:space:]]model ]]
+    )
 }
 
 last_exit=0
@@ -79,16 +80,22 @@ total=${#model_list[@]}
 for model in "${model_list[@]}"; do
     attempt=$((attempt + 1))
     err_file=$(mktemp -t "octo-gemini-stderr.XXXXXX")
+    : > "$stdout_file"
 
+    # WHY buffer stdout: a failed attempt's partial stdout would otherwise leak
+    # into the caller's stream before the fallback runs, corrupting downstream
+    # parsing. Only the winning attempt's stdout is forwarded.
+    set +e
     if [[ -n "$prompt_file" ]]; then
-        gemini -m "$model" "$@" <"$prompt_file" 2>"$err_file"
+        gemini -m "$model" "$@" <"$prompt_file" >"$stdout_file" 2>"$err_file"
     else
-        gemini -m "$model" "$@" 2>"$err_file"
+        gemini -m "$model" "$@" >"$stdout_file" 2>"$err_file"
     fi
     last_exit=$?
+    set -e
 
     if [[ $last_exit -eq 0 ]]; then
-        # Success — forward stderr (may contain non-fatal warnings) and exit.
+        cat "$stdout_file"
         cat "$err_file" >&2
         rm -f "$err_file"
         exit 0
@@ -106,11 +113,9 @@ for model in "${model_list[@]}"; do
         continue
     fi
 
-    # Non-fallback-eligible error, or out of fallbacks — surface the last stderr.
     printf '%s' "$last_err" >&2
     exit "$last_exit"
 done
 
-# Exhausted list (defensive — loop above should have exited).
 printf '%s' "$last_err" >&2
 exit "$last_exit"

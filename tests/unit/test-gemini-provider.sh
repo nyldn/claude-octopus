@@ -597,11 +597,28 @@ test_gemini_fallback_default_model() {
 }
 
 test_gemini_fallback_classifies_modelnotfound() {
-    test_case "fallback: smoke classifier recognizes ModelNotFoundError literal"
-    if grep -q 'ModelNotFoundError' "$SMOKE"; then
+    test_case "fallback: smoke classifier returns MODEL_NOT_FOUND for all known variants"
+    local result
+    # shellcheck disable=SC1090
+    source "$SMOKE" 2>/dev/null || { test_fail "cannot source lib/smoke.sh"; return; }
+    if ! declare -f _classify_smoke_error >/dev/null; then
+        test_fail "_classify_smoke_error not defined after sourcing smoke.sh"
+        return
+    fi
+    local failed=""
+    for payload in \
+        "ModelNotFoundError: the model does not exist" \
+        "HTTP 404 - model gemini-foo not found" \
+        "Error: model gemini-xyz is not available in your region" \
+        "unknown model specified"
+    do
+        result=$(_classify_smoke_error "$payload")
+        [[ "$result" == "MODEL_NOT_FOUND" ]] || failed+="  input=[${payload}] got=[${result}]\n"
+    done
+    if [[ -z "$failed" ]]; then
         test_pass
     else
-        test_fail "lib/smoke.sh _classify_smoke_error should match ModelNotFoundError"
+        test_fail "classifier missed variants:\n${failed}"
     fi
 }
 
