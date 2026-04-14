@@ -647,10 +647,95 @@ test_gemini_wrapper_is_model_error_in_sync() {
     [[ -z "$failed" ]] && test_pass || test_fail "wrapper is_model_error missed:\n${failed}"
 }
 
+_make_stub_gemini_dir() {
+    local mode="$1" dir
+    dir=$(mktemp -d -t "octo-gemini-stub.XXXXXX")
+    cat >"$dir/gemini" <<'STUB'
+#!/usr/bin/env bash
+model=""
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -m) model="$2"; shift 2 ;;
+        *) shift ;;
+    esac
+done
+prompt=$(cat || true)
+case "$STUB_MODE" in
+    fallback)
+        if [[ "$model" == "gemini-3.0-pro-preview" ]]; then
+            echo "PARTIAL_LEAK_SHOULD_NOT_APPEAR"
+            echo "HTTP 404 - model $model not found" >&2
+            exit 1
+        fi
+        echo "OK from $model: $prompt"
+        exit 0
+        ;;
+    rate_limit)
+        echo "429 Too Many Requests" >&2
+        exit 1
+        ;;
+esac
+STUB
+    chmod +x "$dir/gemini"
+    printf '%s' "$dir"
+}
+
+test_gemini_exec_wrapper_retries_on_404() {
+    test_case "fallback: wrapper retries next model on 404, replays stdin, hides leaked stdout"
+    local helper="$PROJECT_ROOT/scripts/helpers/gemini-exec.sh"
+    local stub_dir out rc
+    stub_dir=$(_make_stub_gemini_dir fallback)
+    out=$(PATH="$stub_dir:$PATH" STUB_MODE=fallback \
+          OCTOPUS_GEMINI_FALLBACK_MODELS=gemini-2.5-flash \
+          OCTOPUS_GEMINI_FALLBACK_QUIET=true \
+          bash "$helper" gemini-3.0-pro-preview <<<"hello world" 2>/dev/null)
+    rc=$?
+    rm -rf "$stub_dir"
+    if [[ $rc -eq 0 \
+          && "$out" == *"OK from gemini-2.5-flash"* \
+          && "$out" == *"hello world"* \
+          && "$out" != *"PARTIAL_LEAK_SHOULD_NOT_APPEAR"* ]]; then
+        test_pass
+    else
+        test_fail "wrapper retry/replay/leak-suppression broken (rc=$rc out=$out)"
+    fi
+}
+
+test_gemini_exec_wrapper_no_retry_on_429() {
+    test_case "fallback: wrapper does NOT retry on transient 429 (left to provider-router)"
+    local helper="$PROJECT_ROOT/scripts/helpers/gemini-exec.sh"
+    local stub_dir rc
+    stub_dir=$(_make_stub_gemini_dir rate_limit)
+    set +e
+    PATH="$stub_dir:$PATH" STUB_MODE=rate_limit \
+        OCTOPUS_GEMINI_FALLBACK_MODELS=gemini-2.5-flash \
+        OCTOPUS_GEMINI_FALLBACK_QUIET=true \
+        bash "$helper" gemini-3.0-pro-preview <<<"hi" >/dev/null 2>&1
+    rc=$?
+    set -e
+    rm -rf "$stub_dir"
+    [[ $rc -ne 0 ]] && test_pass || test_fail "wrapper retried on 429 (should bail out)"
+}
+
+test_gemini_exec_wrapper_blocks_disallowed_primary() {
+    test_case "fallback: wrapper rejects primary model not in OCTOPUS_GEMINI_ALLOWED_MODELS"
+    local helper="$PROJECT_ROOT/scripts/helpers/gemini-exec.sh"
+    local rc
+    set +e
+    OCTOPUS_GEMINI_ALLOWED_MODELS="gemini-2.5-flash" \
+        bash "$helper" gemini-3.0-pro-preview </dev/null >/dev/null 2>&1
+    rc=$?
+    set -e
+    [[ $rc -eq 2 ]] && test_pass || test_fail "expected exit 2 for disallowed primary, got $rc"
+}
+
 test_gemini_exec_wrapper_exists
 test_gemini_exec_wrapper_invoked
 test_gemini_fallback_default_model
 test_gemini_fallback_classifies_modelnotfound
 test_gemini_wrapper_is_model_error_in_sync
+test_gemini_exec_wrapper_retries_on_404
+test_gemini_exec_wrapper_no_retry_on_429
+test_gemini_exec_wrapper_blocks_disallowed_primary
 
 test_summary

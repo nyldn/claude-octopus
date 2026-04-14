@@ -1,11 +1,5 @@
 #!/usr/bin/env bash
-# Gemini CLI wrapper: in-band model fallback on 404 / ModelNotFoundError.
-# Transient errors (429/5xx/timeout) are left to lib/provider-router.sh.
-#
-# usage: echo "prompt" | gemini-exec.sh <primary_model> [gemini flags...]
-# env:   OCTOPUS_GEMINI_FALLBACK_MODELS  (colon-separated, default gemini-2.5-flash)
-#        OCTOPUS_GEMINI_ALLOWED_MODELS   (comma-separated policy allowlist)
-#        OCTOPUS_GEMINI_FALLBACK_QUIET   (suppress fallback log when true)
+# In-band fallback only on model-not-found; transient errors stay with provider-router.
 
 set -euo pipefail
 
@@ -18,8 +12,13 @@ fi
 primary_model="$1"
 shift
 
-# Honour the policy allowlist so an implicit fallback can't bypass it.
+# Allowlist gates the primary too — a direct call must not bypass policy.
 allowed_models="${OCTOPUS_GEMINI_ALLOWED_MODELS:-}"
+if [[ -n "$allowed_models" && ",$allowed_models," != *",$primary_model,"* ]]; then
+    printf 'gemini-exec: model %s is not in OCTOPUS_GEMINI_ALLOWED_MODELS\n' \
+        "$primary_model" >&2
+    exit 2
+fi
 IFS=':' read -r -a fallback_arr <<<"${OCTOPUS_GEMINI_FALLBACK_MODELS:-gemini-2.5-flash}"
 declare -a model_list=("$primary_model")
 for m in "${fallback_arr[@]}"; do
