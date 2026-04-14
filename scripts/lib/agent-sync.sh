@@ -240,8 +240,12 @@ ${_tail}"
             # than mis-report. Callers on macOS still see the underlying
             # timeout log — they just don't get the partial-writes hint.
             if find /dev/null -newermt "@0" >/dev/null 2>&1; then
+                # WHY -maxdepth: bounds traversal on large monorepos (otherwise
+                # find stats every file in the tree on every timeout).
+                # OCTOPUS_PARTIAL_WRITES_DEPTH overrides for niche layouts.
                 local _changed
-                _changed=$(find "$_dispatch_cwd" -type f -newermt "@${_dispatch_start}" \
+                _changed=$(find "$_dispatch_cwd" -maxdepth "${OCTOPUS_PARTIAL_WRITES_DEPTH:-4}" \
+                            -type f -newermt "@${_dispatch_start}" \
                             -not -path '*/.git/*' -not -path '*/node_modules/*' \
                             2>/dev/null | head -20)
                 if [[ -n "$_changed" ]]; then

@@ -72,10 +72,20 @@ test_partial_writes_exit_gate() {
 
 test_partial_writes_scope() {
     test_case "partial-writes probe scoped to dispatch CWD + start time"
-    if grep -q 'find "\$_dispatch_cwd" -type f -newermt "@\${_dispatch_start}"' "$AGENT_SYNC"; then
+    if grep -q 'find "\$_dispatch_cwd" -maxdepth' "$AGENT_SYNC" \
+       && grep -q '\-newermt "@\${_dispatch_start}"' "$AGENT_SYNC"; then
         test_pass
     else
-        test_fail "find with -newermt@dispatch_start not found"
+        test_fail "find with -maxdepth + -newermt@dispatch_start not found"
+    fi
+}
+
+test_partial_writes_depth_bounded() {
+    test_case "partial-writes probe bounds traversal (OCTOPUS_PARTIAL_WRITES_DEPTH)"
+    if grep -q 'OCTOPUS_PARTIAL_WRITES_DEPTH:-4' "$AGENT_SYNC"; then
+        test_pass
+    else
+        test_fail "maxdepth default not configurable via OCTOPUS_PARTIAL_WRITES_DEPTH"
     fi
 }
 
@@ -124,6 +134,7 @@ test_output_cap_tail_bias
 test_output_cap_banner
 test_partial_writes_exit_gate
 test_partial_writes_scope
+test_partial_writes_depth_bounded
 test_partial_writes_noise_exclusions
 test_partial_writes_bsd_skip
 test_partial_writes_no_word_splitting
