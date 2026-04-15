@@ -75,7 +75,11 @@ for src in "$SKILLS_SRC"/*.md; do
   # Extract trigger content to enrich description
   trigger=""
   if echo "$frontmatter" | grep -q "^trigger:"; then
-    trigger="$(echo "$frontmatter" | sed -n '/^trigger:/,/^[a-z_]*:/{ /^trigger:/d; /^[a-z_]*:/d; p; }' | sed 's/^  //' | head -5)"
+    trigger="$(echo "$frontmatter" | awk '
+      /^trigger:/  { in_block=1; next }
+      /^[a-z_]+:/  { in_block=0 }
+      in_block     { sub(/^  /, ""); print }
+    ' | head -5)"
   fi
 
   # Build Factory-compatible description

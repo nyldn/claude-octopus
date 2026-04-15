@@ -112,8 +112,9 @@ jobs:
           if-no-files-found: ignore
 
   # Job for PR code review
+  # Fork PRs receive no secrets and a read-only GITHUB_TOKEN — the review can't run and the comment can't post.
   pr-review:
-    if: github.event_name == 'pull_request'
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
 
     permissions:
@@ -162,6 +163,7 @@ jobs:
           ./scripts/orchestrate.sh --ci code-review '{"target":"staged","publish":"never"}' 2>&1 | tee review-output.txt
 
       - name: Post Review Comment
+        continue-on-error: true
         uses: actions/github-script@v9
         with:
           script: |
