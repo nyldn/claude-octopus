@@ -2,56 +2,22 @@
 # Test Suite: Security Functions (v7.9.0)
 # Tests URL validation, content wrapping, and security framing functions
 
-# Note: no set -e — test has its own pass/fail tracking,
-# and set -e + grep pipes cause SIGPIPE exits
-
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
-
-# Counters
-TOTAL_TESTS=0
-PASSED_TESTS=0
-FAILED_TESTS=0
-
-# Test result tracking
-declare -a FAILURES
-
-# Script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+source "$PROJECT_ROOT/tests/helpers/test-framework.sh"
 
-# NOTE: orchestrate.sh has a main execution block that runs on source,
-# so we use grep-based static analysis for function existence checks
-# and extract individual functions for runtime tests.
-# Functions decomposed to lib/ in v9.7.7+
+YELLOW='\033[1;33m'
+
+# orchestrate.sh has a main block; static analysis grep over a concatenated copy avoids sourcing it.
 ALL_SRC=$(mktemp)
+trap 'rm -f "$ALL_SRC"' EXIT
 cat "$PROJECT_ROOT/scripts/orchestrate.sh" "$PROJECT_ROOT/scripts/lib/"*.sh > "$ALL_SRC" 2>/dev/null
 ORCHESTRATE_SH="$ALL_SRC"
 
-# Helper functions
-pass() {
-    echo -e "${GREEN}✓${NC} $1"
-    ((++PASSED_TESTS))
-    ((++TOTAL_TESTS))
-}
-
-fail() {
-    echo -e "${RED}✗${NC} $1"
-    FAILURES+=("$1")
-    ((++FAILED_TESTS))
-    ((++TOTAL_TESTS))
-}
-
-warn() {
-    echo -e "${YELLOW}⚠${NC} $1"
-}
-
-info() {
-    echo "$1"
-}
+pass() { test_case "$1"; test_pass; }
+fail() { test_case "$1"; test_fail "${2:-$1}"; }
+warn() { echo -e "${YELLOW}⚠${NC} $1"; }
+info() { echo "$1"; }
 
 #==============================================================================
 # Test: validate_external_url function exists
@@ -309,17 +275,17 @@ main() {
     echo "  Test Results Summary"
     echo "================================================================"
     echo
-    echo "Total Tests: $TOTAL_TESTS"
-    echo -e "Passed: ${GREEN}$PASSED_TESTS${NC}"
-    echo -e "Failed: ${RED}$FAILED_TESTS${NC}"
+    echo "Total Tests: $TESTS_TOTAL"
+    echo -e "Passed: ${GREEN}$TESTS_PASSED${NC}"
+    echo -e "Failed: ${RED}$TESTS_FAILED${NC}"
     echo
-    
+
     rm -f "$ALL_SRC"
-    if [ $FAILED_TESTS -gt 0 ]; then
+    if [ "$TESTS_FAILED" -gt 0 ]; then
         echo "================================================================"
         echo "  Failures:"
         echo "================================================================"
-        for failure in "${FAILURES[@]}"; do
+        for failure in "${FAILED_TESTS[@]}"; do
             echo -e "${RED}✗${NC} $failure"
         done
         echo

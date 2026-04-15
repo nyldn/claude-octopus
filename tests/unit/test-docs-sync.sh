@@ -1,36 +1,13 @@
 #!/bin/bash
-set -e
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+source "$PROJECT_ROOT/tests/helpers/test-framework.sh"
 cd "$PROJECT_ROOT"
 
-RED='\033[0;31m'
-GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-NC='\033[0m'
 
-# Counters
-TOTAL_TESTS=0
-PASSED_TESTS=0
-FAILED_TESTS=0
-
-# Test result tracking
-declare -a FAILURES
-
-# Helper functions
-pass() {
-  echo -e "${GREEN}✓${NC} $1"
-  ((++PASSED_TESTS)) || true
-  ((++TOTAL_TESTS)) || true
-}
-
-fail() {
-  echo -e "${RED}✗${NC} $1"
-  FAILURES+=("$1")
-  ((++FAILED_TESTS)) || true
-  ((++TOTAL_TESTS)) || true
-}
+pass() { test_case "$1"; test_pass; }
+fail() { test_case "$1"; test_fail "${2:-$1}"; }
 
 warn() {
   echo -e "${YELLOW}⚠${NC} $1"
@@ -58,7 +35,7 @@ check_readme_version() {
 
   if [ ! -f "README.md" ]; then
     fail "README.md not found"
-    return 1
+    return 0
   fi
 
   if grep -q "Version-${version}" README.md; then
@@ -100,7 +77,7 @@ check_changelog_version() {
 
   if [ ! -f "CHANGELOG.md" ]; then
     fail "CHANGELOG.md not found"
-    return 1
+    return 0
   fi
 
   if grep -q "## \[${version}\]" CHANGELOG.md || grep -q "## ${version}" CHANGELOG.md; then
@@ -189,12 +166,12 @@ check_skills_registered() {
 
   if [ ! -f "$plugin_json" ]; then
     fail "plugin.json not found"
-    return 1
+    return 0
   fi
 
   if [ ! -d "$skills_dir" ]; then
     fail "Skills directory not found: $skills_dir"
-    return 1
+    return 0
   fi
 
   # v7.5+: Primary skills follow naming pattern: sys-*, flow-*, skill-*
@@ -244,7 +221,7 @@ check_hooks_config() {
 
   if [ ! -f "$hooks_json" ]; then
     fail "hooks.json not found"
-    return 1
+    return 0
   fi
 
   # Check for visual indicator hooks (v7.4)
@@ -278,7 +255,7 @@ check_debate_skill() {
   # Check primary skill exists
   if [ ! -f "$debate_skill" ]; then
     fail "skill-debate.md not found"
-    return 1
+    return 0
   fi
 
   # Check if skill-debate.md has YAML frontmatter
@@ -312,12 +289,12 @@ check_marketplace_version() {
 
   if [ ! -f "$marketplace_json" ]; then
     fail "marketplace.json not found"
-    return 1
+    return 0
   fi
 
   if [ ! -f "$plugin_json" ]; then
     fail "plugin.json not found"
-    return 1
+    return 0
   fi
 
   # Extract version from plugin.json
@@ -349,7 +326,7 @@ check_command_frontmatter() {
 
   if [ ! -d "$commands_dir" ]; then
     fail "Commands directory not found: $commands_dir"
-    return 1
+    return 0
   fi
 
   # Check each command file
@@ -411,16 +388,16 @@ main() {
   echo "  Test Results Summary"
   echo "================================================================"
   echo
-  echo "Total Tests: $TOTAL_TESTS"
-  echo -e "Passed: ${GREEN}$PASSED_TESTS${NC}"
-  echo -e "Failed: ${RED}$FAILED_TESTS${NC}"
+  echo "Total Tests: $TESTS_TOTAL"
+  echo -e "Passed: ${GREEN}$TESTS_PASSED${NC}"
+  echo -e "Failed: ${RED}$TESTS_FAILED${NC}"
   echo
 
-  if [ $FAILED_TESTS -gt 0 ]; then
+  if [ "$TESTS_FAILED" -gt 0 ]; then
     echo "================================================================"
     echo "  Failures:"
     echo "================================================================"
-    for failure in "${FAILURES[@]}"; do
+    for failure in "${FAILED_TESTS[@]}"; do
       echo -e "${RED}✗${NC} $failure"
     done
     echo
