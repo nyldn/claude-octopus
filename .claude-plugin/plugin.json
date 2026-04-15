@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "9.21.0",
-  "description": "v9.21.0 \u2014 Multi-LLM orchestration for Claude Code with Double Diamond workflows, provider routing, safety gates, and automation. Use '/octo:auto' or just describe what you need. Run /octo:setup.",
+  "version": "9.22.0",
+  "description": "v9.22.0 \u2014 Multi-LLM orchestration for Claude Code with Double Diamond workflows, provider routing, safety gates, and automation. Use '/octo:auto' or just describe what you need. Run /octo:setup.",
   "author": {
     "name": "nyldn"
   },

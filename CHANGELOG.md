@@ -1,3 +1,11 @@
+## [9.22.0] - 2026-04-15
+
+### Changed
+
+- Memory provider contract (mcp-memory-service), Gemini model fallback, 256KB output cap, doctor smoke unblock (5 defects), version manifest read
+
+---
+
 ## [9.21.0] - 2026-04-10
 
 ### Changed
