@@ -152,12 +152,14 @@ droid plugin install octo@claude-octopus
 
 ```bash
 # Update
+claude plugin marketplace update https://github.com/nyldn/claude-octopus.git
 claude plugin update octo
 
 # Clean reinstall (if update fails)
 claude plugin uninstall claude-octopus 2>/dev/null
 claude plugin uninstall octo 2>/dev/null
 rm -rf ~/.claude/plugins/cache/nyldn-plugins/claude-octopus
+claude plugin marketplace remove https://github.com/nyldn/claude-octopus.git
 claude plugin marketplace add https://github.com/nyldn/claude-octopus.git
 claude plugin install octo@nyldn-plugins
 ```
