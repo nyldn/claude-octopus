@@ -100,7 +100,7 @@ get_agent_command() {
             echo "env NODE_NO_WARNINGS=1 qwen -o text --approval-mode yolo"
             ;;
         cursor-agent)  # v9.23.0: Cursor Agent CLI — Grok 4.20 via Cursor subscription
-            echo "agent --trust --output-format text --max-turns 1"
+            echo "agent --trust --output-format text"
             ;;
         opencode|opencode-fast|opencode-research)  # v9.11.0: OpenCode CLI — multi-provider router
             model=$(get_agent_model "$agent_type" "$phase" "$role")
