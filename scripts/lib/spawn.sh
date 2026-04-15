@@ -505,7 +505,7 @@ ${heuristic_ctx}"
             max_auth_retries=$((max_auth_retries > 1 ? 1 : max_auth_retries))
         fi
 
-        # Append gemini headless flag once before retry loop
+        # Append headless flag (-p "") for CLI providers that read prompt from stdin
         if [[ "$agent_type" == gemini* ]] || [[ "$agent_type" == cursor-agent* ]]; then
             cmd_array+=(-p "")
         fi

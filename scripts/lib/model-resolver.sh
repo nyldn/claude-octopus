@@ -176,6 +176,7 @@ resolve_octopus_model() {
             ollama*)         resolved_model="llama3.3" ;;
             copilot*)        resolved_model="claude-sonnet-4.5" ;; # Copilot default; actual model selected by copilot CLI
             qwen*)           resolved_model="qwen3-coder" ;;
+            cursor-agent*)   resolved_model="grok-4-20" ;;
             opencode-research*) resolved_model="z-ai/glm-5.1" ;;
             opencode-fast*)  resolved_model="google/gemini-2.5-flash" ;;
             opencode*)       resolved_model="google/gemini-2.5-flash" ;;

@@ -145,9 +145,8 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
     echo "## Output" >> "$result_file"
     echo '```' >> "$result_file"
 
-    # Append gemini/copilot/qwen headless flag (-p "" triggers stdin reading)
-    # NOTE: .toml commands exist for human use but don't compose with stdin in headless mode
-    # Qwen is a fork of Gemini CLI — same flags
+    # Append headless flag (-p "" triggers stdin reading) for CLI providers
+    # Qwen and Cursor Agent are forks of Gemini CLI — same flags
     if [[ "$agent_type" == gemini* ]] || [[ "$agent_type" == copilot* ]] || [[ "$agent_type" == qwen* ]] || [[ "$agent_type" == cursor-agent* ]]; then
         cmd_array+=(-p "")
     fi

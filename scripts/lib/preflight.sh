@@ -165,6 +165,22 @@ cmd_detect_providers() {
     fi
     echo ""
 
+    # Check Cursor Agent CLI (optional — Grok 4.20 via Cursor subscription, v9.23.0)
+    if command -v agent &>/dev/null && agent --version 2>&1 | grep -qE '^20[0-9]{2}\.'; then
+        local cursor_auth="none"
+        if [[ -n "${CURSOR_API_KEY:-}" ]]; then
+            cursor_auth="api-key"
+        elif [[ -f "${HOME}/.cursor/agent-cli-state.json" ]]; then
+            cursor_auth="cursor-session"
+        fi
+        echo "CURSOR_AGENT_STATUS=ok"
+        echo "CURSOR_AGENT_AUTH=$cursor_auth"
+    else
+        echo "CURSOR_AGENT_STATUS=not-installed"
+        echo "CURSOR_AGENT_AUTH=none"
+    fi
+    echo ""
+
     # Write to cache
     mkdir -p "$WORKSPACE_DIR"
     local codex_status=$(command -v codex &>/dev/null && echo "ok" || echo "missing")

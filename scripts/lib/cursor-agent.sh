@@ -62,12 +62,12 @@ cursor_agent_execute() {
     fi
 
     local timeout="${OCTOPUS_CURSOR_TIMEOUT:-120}"
-    local model="${OCTOPUS_CURSOR_MODEL:-grok-4-20}"
 
-    [[ "${VERBOSE:-}" == "true" ]] && log DEBUG "cursor_agent_execute: type=$agent_type, model=$model, timeout=${timeout}s, auth=$(cursor_agent_auth_method)" || true
+    [[ "${VERBOSE:-}" == "true" ]] && log DEBUG "cursor_agent_execute: type=$agent_type, timeout=${timeout}s, auth=$(cursor_agent_auth_method)" || true
 
+    # Note: --model is set by dispatch.sh via get_agent_command(), not here
     local response exit_code
-    response=$(timeout "$timeout" agent -p "$prompt" --trust --model "$model" --output-format text 2>&1) && exit_code=0 || exit_code=$?
+    response=$(timeout "$timeout" agent -p "$prompt" --trust --output-format text 2>&1) && exit_code=0 || exit_code=$?
 
     # Handle errors
     if [[ $exit_code -ne 0 ]]; then
