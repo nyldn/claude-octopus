@@ -92,7 +92,7 @@ check_deps() {
     fi
 
     # Cursor Agent CLI (optional — Grok 4.20 via Cursor subscription)
-    if has_cmd agent; then
+    if has_cmd agent && agent --version 2>&1 | grep -qE '^20[0-9]{2}\.'; then
         ok+=("cursor-agent:Cursor Agent CLI installed")
     else
         warnings+=("cursor-agent:Cursor Agent CLI not installed (optional) — curl -fsSL https://cursor.com/install | bash")

@@ -506,7 +506,7 @@ ${heuristic_ctx}"
         fi
 
         # Append gemini headless flag once before retry loop
-        if [[ "$agent_type" == gemini* ]]; then
+        if [[ "$agent_type" == gemini* ]] || [[ "$agent_type" == cursor-agent* ]]; then
             cmd_array+=(-p "")
         fi
 

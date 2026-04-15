@@ -183,7 +183,7 @@ doctor_check_providers() {
     fi
 
     # Cursor Agent CLI (optional — Grok 4.20 via Cursor subscription)
-    if command -v agent &>/dev/null; then
+    if command -v agent &>/dev/null && agent --version 2>&1 | grep -qE '^20[0-9]{2}\.'; then
         local cursor_auth="none"
         if [[ -n "${CURSOR_API_KEY:-}" ]]; then
             cursor_auth="env:CURSOR_API_KEY"

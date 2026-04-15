@@ -109,6 +109,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
         copilot*) provider_name="copilot" ;;
         ollama*) provider_name="ollama" ;;
         qwen*) provider_name="qwen" ;;
+        cursor-agent*) provider_name="cursor-agent" ;;
         opencode*) provider_name="opencode" ;;
         *) provider_name="$agent_type" ;;
     esac
@@ -147,7 +148,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
     # Append gemini/copilot/qwen headless flag (-p "" triggers stdin reading)
     # NOTE: .toml commands exist for human use but don't compose with stdin in headless mode
     # Qwen is a fork of Gemini CLI — same flags
-    if [[ "$agent_type" == gemini* ]] || [[ "$agent_type" == copilot* ]] || [[ "$agent_type" == qwen* ]]; then
+    if [[ "$agent_type" == gemini* ]] || [[ "$agent_type" == copilot* ]] || [[ "$agent_type" == qwen* ]] || [[ "$agent_type" == cursor-agent* ]]; then
         cmd_array+=(-p "")
     fi
 

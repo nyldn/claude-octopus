@@ -684,6 +684,11 @@ check_provider_health() {
                 echo "cursor-agent: CLI not found in PATH" >&2
                 return 1
             fi
+            # Verify binary identity — `agent` is a generic name
+            if ! agent --version 2>&1 | grep -qE '^20[0-9]{2}\.'; then
+                echo "cursor-agent: 'agent' binary is not Cursor Agent CLI" >&2
+                return 1
+            fi
             # Check auth: env var or Cursor session
             if [[ -z "${CURSOR_API_KEY:-}" ]] && \
                [[ ! -f "${HOME}/.cursor/agent-cli-state.json" ]]; then
