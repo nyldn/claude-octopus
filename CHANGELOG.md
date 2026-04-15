@@ -1,3 +1,13 @@
+## [Unreleased]
+
+### Added
+
+- **Cursor Agent CLI provider** (`scripts/lib/cursor-agent.sh`) — adds Cursor Agent CLI (`agent -p`) as a first-class provider, giving access to Grok 4.20 (xAI) and Cursor-native Composer models via Cursor subscription. Binary identity check (`_is_cursor_agent_binary()`) prevents collision with other tools named `agent`. Auth detection uses `~/.cursor/agent-cli-state.json` (shared with Cursor IDE). Wired into dispatch, providers, doctor, install-deps, check-providers, model-config, and AVAILABLE_AGENTS.
+
+### Fixed
+
+- **Qwen CLI `--no-ask-user` flag** — removed unsupported `--no-ask-user` flag from `qwen_execute()` in `scripts/lib/qwen.sh`. Flag does not exist in Qwen CLI v0.14.4 (current latest), causing exit code 1 and false auth failure detection.
+
 ## [9.22.0] - 2026-04-15
 
 ### Added
