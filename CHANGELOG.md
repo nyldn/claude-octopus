@@ -1,8 +1,22 @@
 ## [9.22.0] - 2026-04-15
 
+### Added
+
+- **Memory provider contract** (`scripts/lib/memory.sh`) — unified façade over backends; callers use `memory_search`, `memory_observe`, `memory_context`, `memory_available` instead of touching bridges directly. Auto-detects `mcp-memory-service` via `mcpServers` config signature; falls back to `claude-mem`. Env overrides: `OCTOPUS_MEMORY_BACKEND`, `OCTOPUS_MEMORY_SCOPE`, `OCTOPUS_MEMORY_SEARCH_MERGE`. Detection never spawns `uvx` speculatively — avoids accidental Torch/CUDA pull. Closes discussion in #220.
+- **Gemini in-band model fallback** (`scripts/helpers/gemini-exec.sh`) — on `404 / ModelNotFoundError`, retries with next entry in `OCTOPUS_GEMINI_FALLBACK_MODELS` (default: `gemini-2.5-flash`). Transient errors (429, 5xx) are not retried — stays in the circuit-breaker's lane. Stdin cached to tempfile so replay works across attempts.
+- **Agent output cap** — `run_agent_sync` now truncates at `OCTOPUS_AGENT_MAX_OUTPUT_BYTES` (default 256 KiB, 0 disables). Tail-biased: preserves first 4 KiB + last ~252 KiB so Codex-style deliverable summaries (always at the end) survive. Banner reports original size.
+- **Partial-writes diagnostic on timeout** — when `run_agent_sync` exits 124/143, `find -newermt` surfaces files written before SIGTERM so users know completed deliverables exist. GNU-only check skips silently on macOS BSD find.
+
+### Fixed
+
+- **`doctor smoke` silently aborting** — five converging defects: (1) `((var++))` under `set -eo pipefail` exits 1 when var=0 — changed to `((++var))`; (2) double `shift` in `orchestrate.sh` discarded the `smoke` category arg before it reached `do_doctor`; (3) Codex smoke test passed prompt as positional arg — codex 0.120.0 rejects it, now piped via stdin; (4) Gemini cold-start (~12–18s) exceeded hardcoded 10s smoke timeout — now `OCTOPUS_GEMINI_SMOKE_TIMEOUT` (default 30s); (5) `/tmp/octo-model-cache-*.json` could hold two concatenated JSON documents from a concurrent-write race — validated with `jq -cse`, discarded and rebuilt on corrupt payload.
+- **Scheduler version hardcoded to `v8.16.0`** — 7 major versions stale. New `octopus_plugin_version()` in `lib/common.sh` reads from `.claude-plugin/plugin.json` at runtime (sed fallback if jq absent). `validate-release.sh` now warns when no git tag matches current version.
+
 ### Changed
 
-- Memory provider contract (mcp-memory-service), Gemini model fallback, 256KB output cap, doctor smoke unblock (5 defects), version manifest read
+- **session.sh** routes phase-completion observations through `memory_observe` instead of calling `claude-mem-bridge.sh` directly — existing claude-mem deployments unaffected; mcp-memory-service users get observations routed to their backend.
+- **README** — update and clean-reinstall steps now include `marketplace update` / `marketplace remove` commands to prevent stale cached plugin versions.
+- **CI**: bump `actions/github-script` v8 → v9.
 
 ---
 
