@@ -90,7 +90,8 @@ get_agent_command() {
             echo "perplexity_execute $model"
             ;;
         copilot|copilot-research)  # v9.9.0: GitHub Copilot CLI — copilot -p (Issue #198)
-            echo "copilot --no-ask-user"
+            # -s: silent (no footer noise), --disable-builtin-mcps: skip MCP startup latency
+            echo "copilot --no-ask-user -s --disable-builtin-mcps"
             ;;
         ollama|ollama-*)  # v9.9.0: Ollama local LLM — ollama run
             model=$(get_agent_model "$agent_type" "$phase" "$role")

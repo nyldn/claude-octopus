@@ -76,9 +76,9 @@ copilot_execute() {
 
     local response exit_code
     if [[ ${#auth_env[@]} -gt 0 ]]; then
-        response=$("${auth_env[@]}" timeout "$timeout" copilot -p "$prompt" --no-ask-user 2>&1) && exit_code=0 || exit_code=$?
+        response=$("${auth_env[@]}" timeout "$timeout" copilot -p "$prompt" --no-ask-user -s --disable-builtin-mcps 2>&1) && exit_code=0 || exit_code=$?
     else
-        response=$(timeout "$timeout" copilot -p "$prompt" --no-ask-user 2>&1) && exit_code=0 || exit_code=$?
+        response=$(timeout "$timeout" copilot -p "$prompt" --no-ask-user -s --disable-builtin-mcps 2>&1) && exit_code=0 || exit_code=$?
     fi
 
     # Handle errors
