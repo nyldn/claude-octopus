@@ -43,15 +43,15 @@ assert_true() {
     local condition="$1"
     local description="$2"
 
-    ((TESTS_RUN++))
+    ((++TESTS_RUN))
 
     if eval "$condition"; then
         echo -e "${GREEN}✓${NC} $description"
-        ((TESTS_PASSED++))
+        ((++TESTS_PASSED))
         return 0
     else
         echo -e "${RED}✗${NC} $description"
-        ((TESTS_FAILED++))
+        ((++TESTS_FAILED))
         return 1
     fi
 }
@@ -60,15 +60,15 @@ assert_file_exists() {
     local file="$1"
     local description="$2"
 
-    ((TESTS_RUN++))
+    ((++TESTS_RUN))
 
     if [[ -f "$file" ]]; then
         echo -e "${GREEN}✓${NC} $description"
-        ((TESTS_PASSED++))
+        ((++TESTS_PASSED))
         return 0
     else
         echo -e "${RED}✗${NC} $description (file not found: $file)"
-        ((TESTS_FAILED++))
+        ((++TESTS_FAILED))
         return 1
     fi
 }
@@ -78,15 +78,15 @@ assert_contains() {
     local pattern="$2"
     local description="$3"
 
-    ((TESTS_RUN++))
+    ((++TESTS_RUN))
 
     if grep -q "$pattern" "$file" 2>/dev/null; then
         echo -e "${GREEN}✓${NC} $description"
-        ((TESTS_PASSED++))
+        ((++TESTS_PASSED))
         return 0
     else
         echo -e "${RED}✗${NC} $description (pattern not found: $pattern)"
-        ((TESTS_FAILED++))
+        ((++TESTS_FAILED))
         return 1
     fi
 }
@@ -107,22 +107,22 @@ test_multi_agent_parallel_execution() {
         probe_code=$(grep -A 80 "probe_discover()" "$ALL_SRC" 2>/dev/null) || probe_code=""
     fi
 
-    ((TESTS_RUN++))
+    ((++TESTS_RUN))
     if echo "$probe_code" | grep -q "perspectives="; then
         echo -e "${GREEN}✓${NC} Probe phase spawns agents with different perspectives"
-        ((TESTS_PASSED++))
+        ((++TESTS_PASSED))
     else
         echo -e "${RED}✗${NC} Probe phase spawns agents with different perspectives"
-        ((TESTS_FAILED++))
+        ((++TESTS_FAILED))
     fi
 
-    ((TESTS_RUN++))
+    ((++TESTS_RUN))
     if echo "$probe_code" | grep -qE "parallel|pids"; then
         echo -e "${GREEN}✓${NC} Execution uses parallel spawning"
-        ((TESTS_PASSED++))
+        ((++TESTS_PASSED))
     else
         echo -e "${RED}✗${NC} Execution uses parallel spawning"
-        ((TESTS_FAILED++))
+        ((++TESTS_FAILED))
     fi
 }
 
@@ -138,22 +138,22 @@ test_quality_gates_validation() {
         tangle_code=$(grep -A 80 "tangle_develop()" "$ALL_SRC" 2>/dev/null) || tangle_code=""
     fi
 
-    ((TESTS_RUN++))
+    ((++TESTS_RUN))
     if echo "$tangle_code" | grep -qE "validation|validate"; then
         echo -e "${GREEN}✓${NC} Tangle includes validation step"
-        ((TESTS_PASSED++))
+        ((++TESTS_PASSED))
     else
         echo -e "${RED}✗${NC} Tangle includes validation step"
-        ((TESTS_FAILED++))
+        ((++TESTS_FAILED))
     fi
 
-    ((TESTS_RUN++))
+    ((++TESTS_RUN))
     if echo "$tangle_code" | grep -qE "decompose|subtask"; then
         echo -e "${GREEN}✓${NC} Tangle decomposes tasks for parallel execution"
-        ((TESTS_PASSED++))
+        ((++TESTS_PASSED))
     else
         echo -e "${RED}✗${NC} Tangle decomposes tasks for parallel execution"
-        ((TESTS_FAILED++))
+        ((++TESTS_FAILED))
     fi
 }
 
@@ -169,23 +169,23 @@ test_multi_perspective_research() {
         probe_code=$(grep -A 100 "probe_discover()" "$ALL_SRC" 2>/dev/null) || probe_code=""
     fi
 
-    ((TESTS_RUN++))
+    ((++TESTS_RUN))
     if echo "$probe_code" | grep -q "perspective"; then
         echo -e "${GREEN}✓${NC} Probe uses multiple perspectives"
-        ((TESTS_PASSED++))
+        ((++TESTS_PASSED))
     else
         echo -e "${RED}✗${NC} Probe uses multiple perspectives"
-        ((TESTS_FAILED++))
+        ((++TESTS_FAILED))
     fi
 
-    ((TESTS_RUN++))
+    ((++TESTS_RUN))
     # synthesize_probe_results is defined later in the file; search full file
     if grep -qE "synthesize_probe_results" "$ALL_SRC"; then
         echo -e "${GREEN}✓${NC} Probe synthesizes findings from multiple agents"
-        ((TESTS_PASSED++))
+        ((++TESTS_PASSED))
     else
         echo -e "${RED}✗${NC} Probe synthesizes findings from multiple agents"
-        ((TESTS_FAILED++))
+        ((++TESTS_FAILED))
     fi
 }
 
@@ -201,22 +201,22 @@ test_consensus_building() {
         grasp_code=$(grep -A 80 "grasp_define()" "$ALL_SRC" 2>/dev/null) || grasp_code=""
     fi
 
-    ((TESTS_RUN++))
+    ((++TESTS_RUN))
     if echo "$grasp_code" | grep -qE "consensus|agreement"; then
         echo -e "${GREEN}✓${NC} Grasp phase builds consensus"
-        ((TESTS_PASSED++))
+        ((++TESTS_PASSED))
     else
         echo -e "${RED}✗${NC} Grasp phase builds consensus"
-        ((TESTS_FAILED++))
+        ((++TESTS_FAILED))
     fi
 
-    ((TESTS_RUN++))
+    ((++TESTS_RUN))
     if echo "$grasp_code" | grep -q "perspective"; then
         echo -e "${GREEN}✓${NC} Grasp gathers multiple perspectives"
-        ((TESTS_PASSED++))
+        ((++TESTS_PASSED))
     else
         echo -e "${RED}✗${NC} Grasp gathers multiple perspectives"
-        ((TESTS_FAILED++))
+        ((++TESTS_FAILED))
     fi
 }
 
@@ -248,40 +248,40 @@ test_workflow_automation() {
         embrace_code=$(grep -A 100 "embrace_full_workflow()" "$ALL_SRC" 2>/dev/null) || embrace_code=""
     fi
 
-    ((TESTS_RUN++))
+    ((++TESTS_RUN))
     if echo "$embrace_code" | grep -qE "probe|research"; then
         echo -e "${GREEN}✓${NC} Embrace includes research phase"
-        ((TESTS_PASSED++))
+        ((++TESTS_PASSED))
     else
         echo -e "${RED}✗${NC} Embrace includes research phase"
-        ((TESTS_FAILED++))
+        ((++TESTS_FAILED))
     fi
 
-    ((TESTS_RUN++))
+    ((++TESTS_RUN))
     if echo "$embrace_code" | grep -qE "grasp|define"; then
         echo -e "${GREEN}✓${NC} Embrace includes define phase"
-        ((TESTS_PASSED++))
+        ((++TESTS_PASSED))
     else
         echo -e "${RED}✗${NC} Embrace includes define phase"
-        ((TESTS_FAILED++))
+        ((++TESTS_FAILED))
     fi
 
-    ((TESTS_RUN++))
+    ((++TESTS_RUN))
     if echo "$embrace_code" | grep -qE "tangle|develop"; then
         echo -e "${GREEN}✓${NC} Embrace includes develop phase"
-        ((TESTS_PASSED++))
+        ((++TESTS_PASSED))
     else
         echo -e "${RED}✗${NC} Embrace includes develop phase"
-        ((TESTS_FAILED++))
+        ((++TESTS_FAILED))
     fi
 
-    ((TESTS_RUN++))
+    ((++TESTS_RUN))
     if echo "$embrace_code" | grep -qE "ink|deliver"; then
         echo -e "${GREEN}✓${NC} Embrace includes deliver phase"
-        ((TESTS_PASSED++))
+        ((++TESTS_PASSED))
     else
         echo -e "${RED}✗${NC} Embrace includes deliver phase"
-        ((TESTS_FAILED++))
+        ((++TESTS_FAILED))
     fi
 }
 

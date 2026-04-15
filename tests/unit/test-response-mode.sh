@@ -64,7 +64,7 @@ detect_response_mode() {
 
     for keyword in $tech_keywords; do
         if echo "$prompt_lower" | grep -qw "$keyword"; then
-            ((tech_score++)) || true
+            ((++tech_score)) || true
         fi
     done
 

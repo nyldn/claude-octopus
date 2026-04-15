@@ -90,7 +90,7 @@ while IFS= read -r line; do
   ver=$(echo "$line" | grep -o '"2\.[0-9]\.[0-9]*"' | tr -d '"')
   if [[ -n "$prev" && -n "$ver" ]]; then
     if [[ "$(printf '%s\n%s' "$prev" "$ver" | sort -V | head -1)" != "$prev" ]]; then
-      ((out_of_order++)) || true
+      ((++out_of_order)) || true
     fi
   fi
   [[ -n "$ver" ]] && prev="$ver"
@@ -263,7 +263,7 @@ for hook in "$HOOKS_DIR"/*.sh; do
   [[ "$name" == "statusline-resolver.sh" ]] && continue
   if ! grep -q 'set -euo pipefail' "$hook"; then
     fail "$name" "missing set -euo pipefail"
-    ((missing_pipefail++)) || true
+    ((++missing_pipefail)) || true
   fi
 done
 if [[ $missing_pipefail -eq 0 ]]; then

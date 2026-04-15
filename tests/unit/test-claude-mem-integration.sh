@@ -90,10 +90,11 @@ fi
 
 # ── 7. Observation wiring in save_session_checkpoint ─────────────────
 
-if grep -c 'bridge_script.*observe\|claude-mem-bridge.*observe' "$ORCH" >/dev/null 2>&1; then
+checkpoint_body=$(awk '/^save_session_checkpoint\(\)/{f=1} f{print} f && /^}/{exit}' "$ORCH")
+if grep -Eq -- 'bridge_script.*observe|claude-mem-bridge.*observe|memory_observe' <<<"$checkpoint_body"; then
     pass "Wired: save_session_checkpoint calls bridge observe"
 else
-    fail "Wired: save_session_checkpoint calls bridge observe" "no bridge observe call"
+    fail "Wired: save_session_checkpoint calls bridge observe" "no observe call inside save_session_checkpoint body"
 fi
 
 # ── 8. SessionStart memory hook queries claude-mem ───────────────────

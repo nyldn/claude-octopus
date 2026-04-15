@@ -129,7 +129,7 @@ done
 # Use grep -c with || true to avoid pipefail issues
 max_in_effort=0
 while IFS= read -r line; do
-  ((max_in_effort++)) || true
+  ((++max_in_effort)) || true
 done < <(grep -n 'effort.*"max"\|effort_level.*max' "$ALL_SRC" 2>/dev/null | grep -v '#.*max\|comment\|OCTOPUS_MAX' 2>/dev/null || true)
 if [[ "$max_in_effort" -eq 0 ]]; then
   pass "No 'max' effort level in effort mapping (v2.1.72 compat)"

@@ -34,15 +34,15 @@ ORCHESTRATE_SH="$ALL_SRC"
 # Helper functions
 pass() {
     echo -e "${GREEN}✓${NC} $1"
-    ((PASSED_TESTS++))
-    ((TOTAL_TESTS++))
+    ((++PASSED_TESTS))
+    ((++TOTAL_TESTS))
 }
 
 fail() {
     echo -e "${RED}✗${NC} $1"
     FAILURES+=("$1")
-    ((FAILED_TESTS++))
-    ((TOTAL_TESTS++))
+    ((++FAILED_TESTS))
+    ((++TOTAL_TESTS))
 }
 
 warn() {

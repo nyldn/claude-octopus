@@ -23,14 +23,14 @@ FAIL=0
 TOTAL=0
 
 pass() {
-    ((PASS++)) || true
-    ((TOTAL++)) || true
+    ((++PASS)) || true
+    ((++TOTAL)) || true
     echo -e "  \033[0;32m✓\033[0m $1"
 }
 
 fail() {
-    ((FAIL++)) || true
-    ((TOTAL++)) || true
+    ((++FAIL)) || true
+    ((++TOTAL)) || true
     echo -e "  \033[0;31m✗\033[0m $1"
     if [[ -n "${2:-}" ]]; then
         echo -e "    \033[0;33m→ $2\033[0m"
@@ -88,7 +88,7 @@ echo -e "\033[0;34mTest Group 2: Claude-sonnet probe dispatch fix (P0-B)\033[0m"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # 2.1: OCTOPUS_FORCE_LEGACY_DISPATCH guard exists in should_use_agent_teams
-if grep -rA 15 'should_use_agent_teams()' $SCRIPTS_ALL | grep -q 'OCTOPUS_FORCE_LEGACY_DISPATCH\|FORCE_LEGACY'; then
+if grep -rA 15 'should_use_agent_teams()' $SCRIPTS_ALL | grep 'OCTOPUS_FORCE_LEGACY_DISPATCH\|FORCE_LEGACY' >/dev/null; then
     pass "2.1 should_use_agent_teams checks OCTOPUS_FORCE_LEGACY_DISPATCH"
 else
     fail "2.1 should_use_agent_teams missing FORCE_LEGACY_DISPATCH guard" \
@@ -96,7 +96,7 @@ else
 fi
 
 # 2.2: probe_discover sets OCTOPUS_FORCE_LEGACY_DISPATCH before spawn loop
-if grep -rB 5 -A 30 'for i in.*perspectives' $SCRIPTS_ALL | grep -q 'FORCE_LEGACY_DISPATCH=true\|FORCE_LEGACY.*true'; then
+if grep -rB 5 -A 30 'for i in.*perspectives' $SCRIPTS_ALL | grep 'FORCE_LEGACY_DISPATCH=true\|FORCE_LEGACY.*true' >/dev/null; then
     pass "2.2 probe_discover sets FORCE_LEGACY_DISPATCH before spawn loop"
 else
     fail "2.2 probe_discover doesn't set FORCE_LEGACY_DISPATCH" \
@@ -112,7 +112,7 @@ else
 fi
 
 # 2.4: Agent Teams dispatch path checks FORCE_LEGACY
-if grep -rB 2 -A 8 'OCTOPUS_FORCE_LEGACY_DISPATCH\|FORCE_LEGACY' $SCRIPTS_ALL | grep -q 'return 1'; then
+if grep -rB 2 -A 8 'OCTOPUS_FORCE_LEGACY_DISPATCH\|FORCE_LEGACY' $SCRIPTS_ALL | grep 'return 1' >/dev/null; then
     pass "2.4 FORCE_LEGACY_DISPATCH returns 1 (legacy path) when set"
 else
     fail "2.4 FORCE_LEGACY_DISPATCH doesn't force legacy path"
@@ -134,7 +134,7 @@ else
 fi
 
 # 3.2: Function checks auth.json expiry
-if grep -rA 20 'check_codex_auth_freshness()' $SCRIPTS_ALL | grep -q 'expires_at\|expiry\|auth\.json'; then
+if grep -rA 20 'check_codex_auth_freshness()' $SCRIPTS_ALL | grep 'expires_at\|expiry\|auth\.json' >/dev/null; then
     pass "3.2 check_codex_auth_freshness checks token expiry field"
 else
     fail "3.2 check_codex_auth_freshness doesn't check token expiry"
@@ -150,7 +150,7 @@ else
 fi
 
 # 3.4: Function provides actionable error message
-if grep -rA 30 'check_codex_auth_freshness()' $SCRIPTS_ALL | grep -q 'codex auth\|codex login'; then
+if grep -rA 30 'check_codex_auth_freshness()' $SCRIPTS_ALL | grep 'codex auth\|codex login' >/dev/null; then
     pass "3.4 Function provides actionable fix suggestion (codex auth)"
 else
     fail "3.4 Function doesn't suggest 'codex auth' fix"
@@ -164,7 +164,7 @@ echo -e "\033[0;34mTest Group 4: Model name consistency — no stale defaults (P
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # 4.1: resolve_octopus_model uses gpt-5.4 for codex default
-if grep -rA 10 "case \"\$agent_type\" in" $SCRIPTS_ALL | grep -A 1 "codex\*)" | grep -q 'gpt-5\.4'; then
+if grep -rA 10 "case \"\$agent_type\" in" $SCRIPTS_ALL | grep -A 1 "codex\*)" | grep 'gpt-5\.4' >/dev/null; then
     pass "4.1 resolve_octopus_model returns gpt-5.4 for codex default"
 else
     fail "4.1 resolve_octopus_model uses stale model for codex default"
@@ -181,7 +181,7 @@ fi
 # Exclude: pricing tables, dead code, config templates, comments, help text, sparks
 stale_in_routing=0
 while IFS= read -r line; do
-    ((stale_in_routing++)) || true
+    ((++stale_in_routing)) || true
 done < <(grep -nE '\b"gpt-5\.3-codex"\b' "$ORCHESTRATE" 2>/dev/null | grep -v 'pricing\|cost_per\|config_template\|default_config\|select_codex_model_for_context\|#.*gpt-5\.3' 2>/dev/null || true)
 if [[ $stale_in_routing -eq 0 ]]; then
     pass "4.3 No stale gpt-5.3-codex in active model routing"
@@ -199,7 +199,7 @@ else
 fi
 
 # 4.5: codex fallbacks use gpt-5.4
-if grep -rA 20 "Fallback to hard-coded defaults" $SCRIPTS_ALL | grep -A 1 "codex\*)" | grep -q 'gpt-5\.4'; then
+if grep -rA 20 "Fallback to hard-coded defaults" $SCRIPTS_ALL | grep -A 1 "codex\*)" | grep 'gpt-5\.4' >/dev/null; then
     pass "4.5 codex fallback uses gpt-5.4"
 else
     fail "4.5 codex fallback uses stale model"
@@ -234,11 +234,11 @@ else
 fi
 
 # 5.4: synthesis uses >500 byte threshold to filter probe results
-if grep -rA 5 'synthesize_probe_results' $SCRIPTS_ALL | grep -q '500\|file_size.*gt'; then
+if grep -rA 5 'synthesize_probe_results' $SCRIPTS_ALL | grep '500\|file_size.*gt' >/dev/null; then
     pass "5.4 Synthesis filters probe results by minimum size (>500 bytes)"
 else
     # Check in the function body
-    if grep -rA 30 'synthesize_probe_results()' $SCRIPTS_ALL | grep -q '500'; then
+    if grep -rA 30 'synthesize_probe_results()' $SCRIPTS_ALL | grep '500' >/dev/null; then
         pass "5.4 Synthesis filters probe results by minimum size (>500 bytes)"
     else
         fail "5.4 Synthesis doesn't filter small/empty probe results"
@@ -246,7 +246,7 @@ else
 fi
 
 # 5.5: Graceful degradation with partial results
-if grep -rA 40 'synthesize_probe_results()' $SCRIPTS_ALL | grep -q 'result_count.*-eq 1\|Proceeding with.*usable'; then
+if grep -rA 40 'synthesize_probe_results()' $SCRIPTS_ALL | grep 'result_count.*-eq 1\|Proceeding with.*usable' >/dev/null; then
     pass "5.5 Synthesis handles partial results gracefully"
 else
     fail "5.5 No graceful degradation for partial probe results"
@@ -260,14 +260,14 @@ echo -e "\033[0;34mTest Group 6: Agent Teams dispatch safety\033[0m"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # 6.1: should_use_agent_teams only returns 0 for Claude agents
-if grep -rA 20 'should_use_agent_teams()' $SCRIPTS_ALL | grep -q 'claude|claude-sonnet|claude-opus'; then
+if grep -rA 20 'should_use_agent_teams()' $SCRIPTS_ALL | grep 'claude|claude-sonnet|claude-opus' >/dev/null; then
     pass "6.1 Agent Teams only routes Claude agent types"
 else
     fail "6.1 Agent Teams may route non-Claude agents incorrectly"
 fi
 
 # 6.2: Agent Teams dispatch writes result file header
-if grep -rA 50 'should_use_agent_teams.*agent_type' $SCRIPTS_ALL | grep -q 'Agent.*via.*Agent Teams\|result_file'; then
+if grep -rA 50 'should_use_agent_teams.*agent_type' $SCRIPTS_ALL | grep 'Agent.*via.*Agent Teams\|result_file' >/dev/null; then
     pass "6.2 Agent Teams dispatch writes result file header"
 else
     fail "6.2 Agent Teams dispatch may not write result file header"

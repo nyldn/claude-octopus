@@ -21,15 +21,15 @@ declare -a FAILURES
 # Helper functions
 pass() {
   echo -e "${GREEN}✓${NC} $1"
-  ((PASSED_TESTS++)) || true
-  ((TOTAL_TESTS++)) || true
+  ((++PASSED_TESTS)) || true
+  ((++TOTAL_TESTS)) || true
 }
 
 fail() {
   echo -e "${RED}✗${NC} $1"
   FAILURES+=("$1")
-  ((FAILED_TESTS++)) || true
-  ((TOTAL_TESTS++)) || true
+  ((++FAILED_TESTS)) || true
+  ((++TOTAL_TESTS)) || true
 }
 
 warn() {

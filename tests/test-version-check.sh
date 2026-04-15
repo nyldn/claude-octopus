@@ -224,46 +224,46 @@ tests_failed=0
 # 2.1.10 == 2.1.10 (should pass)
 if version_compare "2.1.10" "2.1.10"; then
     echo "PASS: 2.1.10 >= 2.1.10"
-    ((tests_passed++))
+    ((++tests_passed))
 else
     echo "FAIL: 2.1.10 >= 2.1.10"
-    ((tests_failed++))
+    ((++tests_failed))
 fi
 
 # 2.1.11 > 2.1.10 (should pass)
 if version_compare "2.1.11" "2.1.10"; then
     echo "PASS: 2.1.11 >= 2.1.10"
-    ((tests_passed++))
+    ((++tests_passed))
 else
     echo "FAIL: 2.1.11 >= 2.1.10"
-    ((tests_failed++))
+    ((++tests_failed))
 fi
 
 # 2.1.9 < 2.1.10 (should fail)
 if version_compare "2.1.9" "2.1.10"; then
     echo "FAIL: 2.1.9 should be < 2.1.10"
-    ((tests_failed++))
+    ((++tests_failed))
 else
     echo "PASS: 2.1.9 < 2.1.10 (correctly identified)"
-    ((tests_passed++))
+    ((++tests_passed))
 fi
 
 # 3.0.0 > 2.1.10 (should pass)
 if version_compare "3.0.0" "2.1.10"; then
     echo "PASS: 3.0.0 >= 2.1.10"
-    ((tests_passed++))
+    ((++tests_passed))
 else
     echo "FAIL: 3.0.0 >= 2.1.10"
-    ((tests_failed++))
+    ((++tests_failed))
 fi
 
 # 1.9.9 < 2.1.10 (should fail)
 if version_compare "1.9.9" "2.1.10"; then
     echo "FAIL: 1.9.9 should be < 2.1.10"
-    ((tests_failed++))
+    ((++tests_failed))
 else
     echo "PASS: 1.9.9 < 2.1.10 (correctly identified)"
-    ((tests_passed++))
+    ((++tests_passed))
 fi
 
 echo ""
