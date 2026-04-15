@@ -38,28 +38,23 @@ score_result_file() {
         score=$((score + 40))
     fi
 
-    # Factor 2: Code blocks (0-20 pts, 5 pts each up to 4)
-    local code_blocks
-    code_blocks=$(grep -c '```' <<< "$content" 2>/dev/null || echo "0")
-    # Each pair of ``` = 1 code block, so divide by 2
-    local block_count=$(( code_blocks / 2 ))
+    # `grep -c` already prints 0 on no-match — the earlier `|| echo 0` fallback concatenated a 2nd zero and broke arithmetic.
+    local code_blocks block_count
+    code_blocks=$(grep -c '```' <<< "$content" 2>/dev/null) || code_blocks=0
+    block_count=$(( code_blocks / 2 ))
     [[ $block_count -gt 4 ]] && block_count=4
     score=$((score + block_count * 5))
 
-    # Factor 3: Specificity (0-20 pts) — file paths, function names, URLs
-    local specifics=0
-    grep -cE '\.(ts|js|py|sh|rs|go|md|json)[ :\)]|/[a-z]+/' <<< "$content" &>/dev/null && specifics=$((specifics + $(grep -cE '\.(ts|js|py|sh|rs|go|md|json)[ :\)]|/[a-z]+/' <<< "$content" 2>/dev/null || echo "0")))
+    local specifics
+    specifics=$(grep -cE '\.(ts|js|py|sh|rs|go|md|json)[ :\)]|/[a-z]+/' <<< "$content" 2>/dev/null) || specifics=0
     [[ $specifics -gt 20 ]] && specifics=20
     score=$((score + specifics))
 
-    # Factor 4: Structure (0-20 pts) — markdown headers, bullet lists, tables
-    local structure=0
-    local headers
-    headers=$(grep -c '^#' <<< "$content" 2>/dev/null || echo "0")
+    local structure=0 headers bullets
+    headers=$(grep -c '^#' <<< "$content" 2>/dev/null) || headers=0
     [[ $headers -gt 5 ]] && headers=5
     structure=$((structure + headers * 2))
-    local bullets
-    bullets=$(grep -c '^[[:space:]]*[-*]' <<< "$content" 2>/dev/null || echo "0")
+    bullets=$(grep -c '^[[:space:]]*[-*]' <<< "$content" 2>/dev/null) || bullets=0
     [[ $bullets -gt 5 ]] && bullets=5
     structure=$((structure + bullets * 2))
     [[ $structure -gt 20 ]] && structure=20
