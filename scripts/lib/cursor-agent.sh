@@ -1,6 +1,16 @@
 #!/usr/bin/env bash
 set -eo pipefail
 # Cursor Agent CLI provider execution (v9.23.0)
+
+# Internal log helper — proxies to orchestrate.sh's log() if available, otherwise
+# prints level-prefixed messages to stderr so this file is safe to source standalone.
+_cursor_log() {
+    if declare -f log >/dev/null 2>&1; then
+        log "$@"
+    else
+        echo "[${1}] ${*:2}" >&2
+    fi
+}
 # Uses `agent -p` headless mode with --trust to skip workspace prompts.
 # Auth: Cursor OAuth session (via `agent login`), stored in ~/.cursor/
 # Unique models: grok-4-20, grok-4-20-thinking, composer-2-fast, composer-2
@@ -58,35 +68,43 @@ cursor_agent_execute() {
     local output_file="${3:-}"
 
     if ! command -v agent &>/dev/null; then
-        log ERROR "cursor-agent: CLI not found — install: curl -fsSL https://cursor.com/install | bash"
+        _cursor_log ERROR "cursor-agent: CLI not found — install: curl -fsSL https://cursor.com/install | bash"
         return 1
     fi
 
     local timeout="${OCTOPUS_CURSOR_TIMEOUT:-120}"
 
-    [[ "${VERBOSE:-}" == "true" ]] && log DEBUG "cursor_agent_execute: type=$agent_type, timeout=${timeout}s, auth=$(cursor_agent_auth_method)" || true
+    [[ "${VERBOSE:-}" == "true" ]] && _cursor_log DEBUG "cursor_agent_execute: type=$agent_type, timeout=${timeout}s, auth=$(cursor_agent_auth_method)" || true
 
     # Note: --model is set by dispatch.sh via get_agent_command(), not here
+    # Guard for timeout availability (GNU coreutils; not on stock macOS)
     local response exit_code
-    response=$(timeout "$timeout" agent -p "$prompt" --trust --output-format text 2>&1) && exit_code=0 || exit_code=$?
+    if command -v timeout &>/dev/null; then
+        response=$(timeout "$timeout" agent -p "$prompt" --trust --output-format text 2>&1) && exit_code=0 || exit_code=$?
+    elif command -v gtimeout &>/dev/null; then
+        response=$(gtimeout "$timeout" agent -p "$prompt" --trust --output-format text 2>&1) && exit_code=0 || exit_code=$?
+    else
+        # No timeout binary — run without timeout protection
+        response=$(agent -p "$prompt" --trust --output-format text 2>&1) && exit_code=0 || exit_code=$?
+    fi
 
     # Handle errors
     if [[ $exit_code -ne 0 ]]; then
         if [[ $exit_code -eq 124 ]]; then
-            log WARN "cursor-agent: Timed out after ${timeout}s"
+            _cursor_log WARN "cursor-agent: Timed out after ${timeout}s"
             return 1
         fi
         # Check for auth errors
         if printf '%s' "$response" | grep -ciE 'unauthorized|auth|login|token|forbidden' >/dev/null; then
-            log ERROR "cursor-agent: Auth failure — run: agent login (or set CURSOR_API_KEY)"
+            _cursor_log ERROR "cursor-agent: Auth failure — run: agent login (or set CURSOR_API_KEY)"
             return 1
         fi
-        log WARN "cursor-agent: Exit code $exit_code"
+        _cursor_log WARN "cursor-agent: Exit code $exit_code"
         # Still return output if we got some (non-zero exit can include useful output)
     fi
 
     if [[ -z "$response" ]]; then
-        log WARN "cursor-agent: Empty response"
+        _cursor_log WARN "cursor-agent: Empty response"
         return 1
     fi
 

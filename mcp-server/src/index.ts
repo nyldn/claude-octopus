@@ -413,7 +413,8 @@ async function runOpencliBridge(
           SHELL: process.env.SHELL,
           USER: process.env.USER,
           OPENCLI_FORMAT: "json",
-          OPENCLI_TIMEOUT: process.env.OPENCLI_TIMEOUT ?? "30",
+          // Keep bridge self-timeout in sync with execFileAsync timeout budget
+          OPENCLI_TIMEOUT: process.env.OPENCLI_TIMEOUT ?? String(Math.floor(60_000 / 1000)),
         },
       }
     );

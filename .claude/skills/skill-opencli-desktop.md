@@ -1,7 +1,14 @@
 ---
 name: skill-opencli-desktop
 version: 1.0.0
-description: Desktop application control via OpenCLI Browser Bridge — screenshots, tab management, and app interaction. Use when: AUTOMATICALLY ACTIVATE when user needs desktop interaction:. "take a screenshot" or "open Chrome tab" or "switch to app". "control desktop" or "browser automation" or "screen capture"
+description: Desktop control via OpenCLI Browser Bridge: screenshots, tab and app management
+trigger:
+  - "take a screenshot"
+  - "open Chrome tab"
+  - "switch to app"
+  - "control desktop"
+  - "browser automation"
+  - "screen capture"
 ---
 
 # OpenCLI Desktop Control
@@ -18,11 +25,11 @@ Desktop application interaction via Browser Bridge for screenshots, tab manageme
 ## MCP Tool
 
 ```
-opencli_desktop(app: "chrome", action: "screenshot")
-opencli_desktop(app: "chrome", action: "list-tabs")
-opencli_desktop(app: "chrome", action: "open-tab", args: "https://example.com")
-opencli_desktop(app: "chrome", action: "switch-tab", args: "3")
-opencli_desktop(app: "system", action: "active-window")
+opencli_desktop(app: "chrome", command: "screenshot")
+opencli_desktop(app: "chrome", command: "list-tabs")
+opencli_desktop(app: "chrome", command: "open-tab", args: ["https://example.com"])
+opencli_desktop(app: "chrome", command: "switch-tab", args: ["3"])
+opencli_desktop(app: "system", command: "active-window")
 ```
 
 ## Use Cases

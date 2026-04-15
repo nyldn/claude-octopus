@@ -107,7 +107,7 @@ Fetch and extract readable content from any URL.
 
 ```bash
 # Via MCP tool
-opencli_fetch(url: "https://example.com/article")
+opencli_fetch(platform: "bridge", command: "fetch", args: ["https://example.com/article"])
 
 # Via bridge script
 ${CLAUDE_PLUGIN_ROOT}/scripts/opencli-bridge.sh fetch "https://example.com/article"
@@ -119,7 +119,7 @@ Explore a URL using the Browser Bridge for JavaScript-rendered content.
 
 ```bash
 # Via MCP tool (requires Chrome + Browser Bridge)
-opencli_explore(url: "https://example.com/spa-app")
+opencli_explore(url: "https://example.com/spa-app")  # url parameter only
 
 # Via bridge script
 ${CLAUDE_PLUGIN_ROOT}/scripts/opencli-bridge.sh explore "https://example.com/spa-app"
@@ -131,7 +131,7 @@ Interact with desktop applications through Browser Bridge.
 
 ```bash
 # Via MCP tool
-opencli_desktop(app: "chrome", action: "screenshot")
+opencli_desktop(app: "chrome", command: "screenshot")
 
 # Via bridge script
 ${CLAUDE_PLUGIN_ROOT}/scripts/opencli-bridge.sh desktop chrome screenshot

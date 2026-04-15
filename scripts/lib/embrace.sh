@@ -47,7 +47,11 @@ get_dispatch_strategy() {
     command -v copilot >/dev/null 2>&1 && has_copilot=true
     command -v qwen >/dev/null 2>&1 && has_qwen=true
     command -v ollama >/dev/null 2>&1 && curl -sf http://localhost:11434/api/tags &>/dev/null && has_ollama=true
-    command -v agent >/dev/null 2>&1 && agent --version 2>&1 | grep -qE '^20[0-9]{2}\.' && has_cursor_agent=true
+    if command -v agent >/dev/null 2>&1; then
+        local _agent_ver
+        _agent_ver=$(agent --version 2>&1 || true)
+        printf '%s\n' "$_agent_ver" | grep -cE '^20[0-9]{2}\.' >/dev/null 2>&1 && has_cursor_agent=true || true
+    fi
 
     # Build available CLI providers list (excluding Claude which is always available)
     local -a cli_providers=()

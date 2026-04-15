@@ -86,7 +86,7 @@ Capture a screenshot of the current screen or a specific application.
 
 ```bash
 # Via MCP tool
-opencli_desktop(app: "chrome", action: "screenshot")
+opencli_desktop(app: "chrome", command: "screenshot")
 
 # Via bridge script
 ${CLAUDE_PLUGIN_ROOT}/scripts/opencli-bridge.sh desktop chrome screenshot
@@ -96,23 +96,23 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/opencli-bridge.sh desktop chrome screenshot
 
 ```bash
 # List open tabs
-opencli_desktop(app: "chrome", action: "list-tabs")
+opencli_desktop(app: "chrome", command: "list-tabs")
 
 # Open a new tab
-opencli_desktop(app: "chrome", action: "open-tab", args: "https://example.com")
+opencli_desktop(app: "chrome", command: "open-tab", args: ["https://example.com"])
 
 # Switch to a specific tab
-opencli_desktop(app: "chrome", action: "switch-tab", args: "3")
+opencli_desktop(app: "chrome", command: "switch-tab", args: ["3"])
 ```
 
 ### Application Interaction
 
 ```bash
 # Get active window info
-opencli_desktop(app: "system", action: "active-window")
+opencli_desktop(app: "system", command: "active-window")
 
 # Focus an application
-opencli_desktop(app: "vscode", action: "focus")
+opencli_desktop(app: "vscode", command: "focus")
 ```
 
 ---

@@ -94,9 +94,12 @@ action_trending() {
             run_opencli producthunt hot "$@"
             ;;
         *)
-            run_opencli "$platform" hot "$@" 2>/dev/null || \
-            run_opencli "$platform" trending "$@" 2>/dev/null || \
-            log_error "Unknown platform: $platform"
+            if ! run_opencli "$platform" hot "$@" 2>/dev/null; then
+                if ! run_opencli "$platform" trending "$@" 2>/dev/null; then
+                    log_error "Unknown platform: $platform"
+                    return 1
+                fi
+            fi
             ;;
     esac
 }
@@ -117,18 +120,31 @@ action_list() {
 action_status() {
     log_info "Checking opencli status"
     if check_opencli; then
-        local version daemon_status bridge_status
+        local version daemon_status bridge_status status_resp
         version=$(opencli --version 2>/dev/null || echo "unknown")
-        
-        # Check daemon status
-        if curl -s --max-time 2 localhost:19825/status &>/dev/null; then
+
+        # Check daemon status — capture JSON to parse bridge connectivity
+        status_resp=$(curl -s --max-time 2 localhost:19825/status 2>/dev/null || true)
+        if [[ -n "$status_resp" ]]; then
             daemon_status="running"
-            bridge_status="connected"
+            # Parse bridge_status from JSON payload; fall back to "disconnected" if absent
+            if command -v jq &>/dev/null; then
+                bridge_status=$(printf '%s' "$status_resp" | jq -r '.bridge_connected // "disconnected"' 2>/dev/null || echo "disconnected")
+                [[ "$bridge_status" == "true" ]] && bridge_status="connected" || true
+                [[ "$bridge_status" == "false" ]] && bridge_status="disconnected" || true
+            else
+                # No jq — check for known truthy fields inline
+                if printf '%s' "$status_resp" | grep -ciE '"bridge[_-]connected"\s*:\s*true' >/dev/null 2>&1; then
+                    bridge_status="connected"
+                else
+                    bridge_status="disconnected"
+                fi
+            fi
         else
             daemon_status="not running"
             bridge_status="disconnected"
         fi
-        
+
         echo "{\"status\": \"available\", \"version\": \"$version\", \"daemon\": \"$daemon_status\", \"browser_bridge\": \"$bridge_status\"}"
     else
         echo "{\"status\": \"not installed\"}"
@@ -139,6 +155,11 @@ action_status() {
 action_explore() {
     local url="${1:?URL required}"
     shift
+    # Only allow HTTPS targets to prevent forwarding plaintext/internal URLs
+    if [[ "$url" != https://* ]]; then
+        log_error "explore: only HTTPS URLs are supported (got: $url)"
+        return 1
+    fi
     log_info "Exploring: $url"
     run_opencli explore "$url" "$@"
 }
@@ -153,52 +174,75 @@ action_desktop() {
 
 # ── Multi-platform aggregation (for Octopus research phase) ──────────
 
+# Parse platform list: accepts either multiple args or a single comma-separated string
+# Usage: _parse_platforms [platform,platform,...] or platform1 platform2 ...
+# Outputs platform names space-separated into array variable $platforms
+_parse_platform_args() {
+    local -n _out_arr="$1"
+    shift
+    if [[ $# -eq 1 && "$1" == *","* ]]; then
+        # Single comma-separated arg: "twitter,reddit,hackernews"
+        local IFS=','
+        read -ra _out_arr <<< "$1"
+    elif [[ $# -gt 0 ]]; then
+        _out_arr=("$@")
+    fi
+}
+
+# Merge a key/value into a JSON object string without requiring jq
+_json_merge_no_jq() {
+    local base="$1" key="$2" value="$3"
+    # Strip trailing } from base and prepend new key/value
+    local trimmed="${base%\}}"
+    # Detect if we need a comma (base is not empty "{}")
+    if [[ "$trimmed" == "{" ]]; then
+        printf '%s"%s":%s}' "$trimmed" "$key" "$value"
+    else
+        printf '%s,"%s":%s}' "$trimmed" "$key" "$value"
+    fi
+}
+
 action_multi_search() {
     local query="${1:?Search query required}"
     shift
-    local platforms=("twitter" "reddit" "hackernews")
-    
-    # Allow custom platform list
-    if [[ $# -gt 0 ]]; then
-        platforms=("$@")
-    fi
+    local -a platforms=("twitter" "reddit" "hackernews")
+    _parse_platform_args platforms "$@"
 
     log_info "Multi-platform search for: $query"
-    
-    # Build valid JSON using jq to handle escaping properly
+
     local result="{}"
     for platform in "${platforms[@]}"; do
+        platform="${platform// /}"  # trim any whitespace from comma-split
+        [[ -z "$platform" ]] && continue
         local platform_result
         platform_result=$(action_search "$platform" "$query" 2>/dev/null) || platform_result='{"error": "failed"}'
         if command -v jq &>/dev/null; then
             result=$(echo "$result" | jq --arg k "$platform" --argjson v "$platform_result" '. + {($k): $v}' 2>/dev/null) || \
             result=$(echo "$result" | jq --arg k "$platform" --arg v "$platform_result" '. + {($k): $v}')
         else
-            # Fallback: best-effort inline (no jq)
-            result="$platform_result"
+            result=$(_json_merge_no_jq "$result" "$platform" "$platform_result")
         fi
     done
     echo "$result"
 }
 
 action_multi_trending() {
-    local platforms=("twitter" "reddit" "hackernews")
-    
-    if [[ $# -gt 0 ]]; then
-        platforms=("$@")
-    fi
+    local -a platforms=("twitter" "reddit" "hackernews")
+    _parse_platform_args platforms "$@"
 
     log_info "Multi-platform trending"
-    
+
     local result="{}"
     for platform in "${platforms[@]}"; do
+        platform="${platform// /}"
+        [[ -z "$platform" ]] && continue
         local platform_result
         platform_result=$(action_trending "$platform" 2>/dev/null) || platform_result='{"error": "failed"}'
         if command -v jq &>/dev/null; then
             result=$(echo "$result" | jq --arg k "$platform" --argjson v "$platform_result" '. + {($k): $v}' 2>/dev/null) || \
             result=$(echo "$result" | jq --arg k "$platform" --arg v "$platform_result" '. + {($k): $v}')
         else
-            result="$platform_result"
+            result=$(_json_merge_no_jq "$result" "$platform" "$platform_result")
         fi
     done
     echo "$result"
