@@ -506,7 +506,7 @@ ${heuristic_ctx}"
         fi
 
         # Append headless flag (-p "") for CLI providers that read prompt from stdin
-        if [[ "$agent_type" == gemini* ]] || [[ "$agent_type" == cursor-agent* ]]; then
+        if [[ "$agent_type" == gemini* ]] || [[ "$agent_type" == cursor-agent* ]] || [[ "$agent_type" == copilot* ]] || [[ "$agent_type" == qwen* ]]; then
             cmd_array+=(-p "")
         fi
 

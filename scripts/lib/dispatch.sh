@@ -102,7 +102,7 @@ get_agent_command() {
             ;;
         cursor-agent)  # v9.23.0: Cursor Agent CLI — Grok 4.20 via Cursor subscription
             model=$(get_agent_model "$agent_type" "$phase" "$role")
-            echo "agent --trust --output-format text --model ${model}"
+            echo "agent --trust --output-format text --model \"${model}\""
             ;;
         opencode|opencode-fast|opencode-research)  # v9.11.0: OpenCode CLI — multi-provider router
             model=$(get_agent_model "$agent_type" "$phase" "$role")
