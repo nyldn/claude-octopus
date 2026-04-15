@@ -150,6 +150,7 @@ fi
 # Re-derive SESSION_FILE now that WORKSPACE_DIR is known
 # (quality.sh sets it at source-time before WORKSPACE_DIR is defined)
 SESSION_FILE="${WORKSPACE_DIR}/session.json"
+PROGRESS_FILE="${WORKSPACE_DIR}/progress.json"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # CLAUDE CODE INTEGRATION: Task Management (v7.16.0)
