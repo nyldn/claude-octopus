@@ -64,18 +64,17 @@ get_agent_command() {
             # when calling Gemini CLI from bash subprocesses (OAuth still works)
             # NOTE: .toml custom commands exist in .gemini/commands/octo/ for human use,
             # but stdin+slash-command don't compose in headless mode (Codex source analysis)
+            # Routed through helpers/gemini-exec.sh for 404/ModelNotFound fallback.
             local gemini_env="env NODE_NO_WARNINGS=1"
             if [[ "$OCTOPUS_PLATFORM" == "Darwin" && -z "${GEMINI_API_KEY:-}" ]]; then
                 gemini_env="env NODE_NO_WARNINGS=1 GEMINI_FORCE_FILE_STORAGE=true"
             fi
+            local gemini_exec="${PLUGIN_DIR}/scripts/helpers/gemini-exec.sh"
+            local gemini_flags="-o text --approval-mode yolo"
             case "${OCTOPUS_GEMINI_SANDBOX:-headless}" in
-                headless|auto-accept)
-                    echo "${gemini_env} gemini -o text --approval-mode yolo -m ${model}" ;;
-                interactive|prompt-mode)
-                    echo "${gemini_env} gemini -m ${model}" ;;
-                *)
-                    echo "${gemini_env} gemini -o text --approval-mode yolo -m ${model}" ;;
+                interactive|prompt-mode) gemini_flags="" ;;
             esac
+            echo "${gemini_env} ${gemini_exec} ${model} ${gemini_flags}"
             ;;
         codex-review) echo "codex exec review" ;; # Code review mode (no sandbox support)
         claude) echo "claude${_BARE_OPT} --print" ;;                         # Claude Sonnet 4.6
