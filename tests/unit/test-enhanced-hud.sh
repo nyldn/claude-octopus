@@ -9,8 +9,8 @@ HUD_MJS="$PLUGIN_ROOT/hooks/octopus-hud.mjs"
 
 PASS=0 FAIL=0
 
-assert_pass() { ((PASS++)); echo "  ✓ $1"; }
-assert_fail() { ((FAIL++)); echo "  ✗ $1"; }
+assert_pass() { ((++PASS)); echo "  ✓ $1"; }
+assert_fail() { ((++FAIL)); echo "  ✗ $1"; }
 
 echo "============================================================"
 echo "Enhanced HUD Tests"

@@ -14,8 +14,8 @@ PASS=0
 FAIL=0
 ERRORS=""
 
-pass() { ((PASS++)); echo "  ✓ $1"; }
-fail() { ((FAIL++)); ERRORS="${ERRORS}\n  ✗ $1"; echo "  ✗ $1"; }
+pass() { ((++PASS)); echo "  ✓ $1"; }
+fail() { ((++FAIL)); ERRORS="${ERRORS}\n  ✗ $1"; echo "  ✗ $1"; }
 
 echo "═══════════════════════════════════════════════════════════════"
 echo "Test Suite: v8.41.0 Feature Adoption"

@@ -16,8 +16,8 @@ PASSED=0
 FAILED=0
 TOTAL=0
 
-pass() { ((PASSED++)); ((TOTAL++)); echo -e "\033[0;32m✓\033[0m $1"; }
-fail() { ((FAILED++)); ((TOTAL++)); echo -e "\033[0;31m✗\033[0m $1"; }
+pass() { ((++PASSED)); ((++TOTAL)); echo -e "\033[0;32m✓\033[0m $1"; }
+fail() { ((++FAILED)); ((++TOTAL)); echo -e "\033[0;31m✗\033[0m $1"; }
 
 echo "Testing Model Config v8.49.0 Improvements"
 echo "==========================================="

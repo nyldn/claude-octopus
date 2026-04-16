@@ -23,14 +23,14 @@ FAIL=0
 TOTAL=0
 
 pass() {
-    ((PASS++)) || true
-    ((TOTAL++)) || true
+    ((++PASS)) || true
+    ((++TOTAL)) || true
     echo -e "  \033[0;32m✓\033[0m $1"
 }
 
 fail() {
-    ((FAIL++)) || true
-    ((TOTAL++)) || true
+    ((++FAIL)) || true
+    ((++TOTAL)) || true
     echo -e "  \033[0;31m✗\033[0m $1"
     if [[ -n "${2:-}" ]]; then
         echo -e "    \033[0;33m→ $2\033[0m"
@@ -181,7 +181,7 @@ fi
 # Exclude: pricing tables, dead code, config templates, comments, help text, sparks
 stale_in_routing=0
 while IFS= read -r line; do
-    ((stale_in_routing++)) || true
+    ((++stale_in_routing)) || true
 done < <(grep -nE '\b"gpt-5\.3-codex"\b' "$ORCHESTRATE" 2>/dev/null | grep -v 'pricing\|cost_per\|config_template\|default_config\|select_codex_model_for_context\|#.*gpt-5\.3' 2>/dev/null || true)
 if [[ $stale_in_routing -eq 0 ]]; then
     pass "4.3 No stale gpt-5.3-codex in active model routing"

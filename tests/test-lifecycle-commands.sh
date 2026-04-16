@@ -22,14 +22,14 @@ echo -e "${BLUE}🧪 Testing v7.22.0 Lifecycle Commands${NC}"
 echo ""
 
 pass() {
-    ((TEST_COUNT++))
-    ((PASS_COUNT++))
+    ((++TEST_COUNT))
+    ((++PASS_COUNT))
     echo -e "${GREEN}✅ PASS${NC}: $1"
 }
 
 fail() {
-    ((TEST_COUNT++))
-    ((FAIL_COUNT++))
+    ((++TEST_COUNT))
+    ((++FAIL_COUNT))
     echo -e "${RED}❌ FAIL${NC}: $1"
     echo -e "   ${YELLOW}$2${NC}"
 }
