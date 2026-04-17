@@ -72,10 +72,20 @@ for src in "$SKILLS_SRC"/*.md; do
   description="$(echo "$frontmatter" | grep "^description:" | head -1 | sed 's/^description: *//' | sed 's/^"//' | sed 's/"$//')"
   description="$(normalize_single_line "$description")"
 
-  # Extract trigger content to enrich description
+  # Extract trigger content to enrich description.
+  # Uses <<< "$frontmatter" (no pipelines) and awk's internal `exit` after 5 lines
+  # so neither grep -q nor head -n can SIGPIPE the pipeline under `set -euo pipefail`.
   trigger=""
-  if echo "$frontmatter" | grep -q "^trigger:"; then
-    trigger="$(echo "$frontmatter" | awk '/^trigger:/{found=1;next} /^[a-z_]*:/{found=0} found{sub(/^  /,"");print}' | head -5)"
+  if grep -qF "trigger:" <<< "$frontmatter" 2>/dev/null; then
+    trigger="$(awk '
+      /^trigger:/ { found=1; next }
+      found && /^[a-z_][a-z_]*:/ { exit }
+      found {
+        sub(/^  /, "")
+        print
+        if (++count == 5) exit
+      }
+    ' <<< "$frontmatter")"
   fi
 
   # Build Factory-compatible description
