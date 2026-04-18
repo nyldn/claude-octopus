@@ -56,7 +56,7 @@ qwen_execute() {
     [[ "${VERBOSE:-}" == "true" ]] && log DEBUG "qwen_execute: type=$agent_type, timeout=${timeout}s, auth=$(qwen_auth_method)" || true
 
     local response exit_code
-    response=$(timeout "$timeout" qwen -p "$prompt" --approval-mode yolo -o text --no-ask-user 2>&1) && exit_code=0 || exit_code=$?
+    response=$(timeout "$timeout" qwen -p "$prompt" --approval-mode yolo -o text 2>&1) && exit_code=0 || exit_code=$?
 
     # Handle errors
     if [[ $exit_code -ne 0 ]]; then
