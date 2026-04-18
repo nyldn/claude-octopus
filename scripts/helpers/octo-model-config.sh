@@ -8,7 +8,7 @@ CONFIG_FILE="${HOME}/.claude-octopus/config/providers.json"
 CACHE_FILE="/tmp/octo-model-cache-${USER:-${USERNAME:-unknown}}-${CLAUDE_CODE_SESSION:-global}.json"
 
 # Known providers and phases for validation
-KNOWN_PROVIDERS="codex gemini claude perplexity openrouter opencode copilot ollama qwen"
+KNOWN_PROVIDERS="codex gemini claude perplexity openrouter opencode copilot ollama qwen cursor-agent"
 KNOWN_PHASES="discover define develop deliver quick debate review security research"
 
 # Colors
@@ -321,6 +321,10 @@ cmd_models() {
         "gemini-3-pro-image-preview|1000|yes|yes|no|gemini|premium|active"
         "claude-sonnet-4.6|200|yes|yes|no|claude|standard|active"
         "claude-opus-4.6|200|yes|yes|no|claude|premium|active"
+        "grok-4-20|200|yes|no|no|cursor-agent|standard|active"
+        "grok-4-20-thinking|200|yes|no|yes|cursor-agent|premium|active"
+        "composer-2-fast|200|yes|no|no|cursor-agent|standard|active"
+        "composer-2|200|yes|no|no|cursor-agent|premium|active"
         "sonar-pro|128|no|no|no|perplexity|standard|active"
         "sonar|128|no|no|no|perplexity|budget|active"
         "z-ai/glm-5|203|yes|no|no|openrouter|standard|active"

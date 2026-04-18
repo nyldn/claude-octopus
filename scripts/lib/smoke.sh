@@ -853,12 +853,20 @@ SMOKE_TEST_CACHE_FILE="${WORKSPACE_DIR:-$HOME/.claude-octopus}/.smoke-test-cache
 
 # Compute cache key from current model config (auto-invalidates on config change)
 smoke_test_cache_key() {
-    local codex_model gemini_model codex_sandbox gemini_sandbox
+    local codex_model gemini_model cursor_agent_model cursor_agent_state codex_sandbox gemini_sandbox
     codex_model=$(get_agent_model "codex" 2>/dev/null || echo "default")
     gemini_model=$(get_agent_model "gemini" 2>/dev/null || echo "default")
+    cursor_agent_model=$(get_agent_model "cursor-agent" 2>/dev/null || echo "${OCTOPUS_CURSOR_AGENT_MODEL:-grok-4-20}")
+    if [[ -n "${CURSOR_API_KEY:-}" ]]; then
+        cursor_agent_state="env:CURSOR_API_KEY"
+    elif [[ -f "${HOME}/.cursor/agent-cli-state.json" ]]; then
+        cursor_agent_state="${HOME}/.cursor/agent-cli-state.json"
+    else
+        cursor_agent_state="none"
+    fi
     codex_sandbox="${OCTOPUS_CODEX_SANDBOX:-workspace-write}"
     gemini_sandbox="${OCTOPUS_GEMINI_SANDBOX:-headless}"
-    echo "${codex_model}:${gemini_model}:${codex_sandbox}:${gemini_sandbox}"
+    echo "${codex_model}:${gemini_model}:${cursor_agent_model}:${cursor_agent_state}:${codex_sandbox}:${gemini_sandbox}"
 }
 
 # Check if smoke test cache is still valid (same config, within TTL)
@@ -977,6 +985,7 @@ _smoke_test_provider() {
     case "$provider" in
         codex) agent_type="codex" ;;
         gemini) agent_type="gemini" ;;
+        cursor-agent) agent_type="cursor-agent" ;;
         *) echo "SKIP" > "$result_file"; return 0 ;;
     esac
 
@@ -1008,10 +1017,15 @@ _smoke_test_provider() {
             >/dev/null 2>"$stderr_file" || smoke_exit=$?
         popd >/dev/null 2>&1
         rm -rf "$smoke_dir" 2>/dev/null
-    else
+    elif [[ "$provider" == "gemini" ]]; then
         # Gemini: prompt via stdin with -p "" for headless trigger
         echo "Reply with exactly: ok" | run_with_timeout "$smoke_timeout" \
             $cmd_str -p "" \
+            >/dev/null 2>"$stderr_file" || smoke_exit=$?
+    else
+        # Cursor Agent: prompt via -p argument in headless mode
+        run_with_timeout "$smoke_timeout" \
+            $cmd_str -p "Reply with exactly: ok" \
             >/dev/null 2>"$stderr_file" || smoke_exit=$?
     fi
 
@@ -1052,19 +1066,24 @@ provider_smoke_test() {
     log INFO "Running provider smoke test... 🐙"
 
     # Determine which providers are available (from preflight state)
-    local has_codex=false has_gemini=false
+    local has_codex=false has_gemini=false has_cursor_agent=false
     command -v codex &>/dev/null && has_codex=true
     command -v gemini &>/dev/null && has_gemini=true
+    if command -v agent &>/dev/null && _is_cursor_agent_binary && \
+       ([[ -n "${CURSOR_API_KEY:-}" ]] || [[ -f "${HOME}/.cursor/agent-cli-state.json" ]]); then
+        has_cursor_agent=true
+    fi
 
-    if [[ "$has_codex" == "false" && "$has_gemini" == "false" ]]; then
+    if [[ "$has_codex" == "false" && "$has_gemini" == "false" && "$has_cursor_agent" == "false" ]]; then
         log WARN "Smoke test: no providers to test"
         return 0
     fi
 
     # Launch parallel smoke tests
-    local codex_result_file gemini_result_file
+    local codex_result_file gemini_result_file cursor_agent_result_file
     codex_result_file=$(secure_tempfile "smoke-codex")
     gemini_result_file=$(secure_tempfile "smoke-gemini")
+    cursor_agent_result_file=$(secure_tempfile "smoke-cursor-agent")
     local pids=()
 
     if [[ "$has_codex" == "true" ]]; then
@@ -1081,20 +1100,28 @@ provider_smoke_test() {
         echo "SKIP" > "$gemini_result_file"
     fi
 
+    if [[ "$has_cursor_agent" == "true" ]]; then
+        _smoke_test_provider "cursor-agent" "${OCTOPUS_CURSOR_AGENT_TIMEOUT:-120}" "$cursor_agent_result_file" &
+        pids+=($!)
+    else
+        echo "SKIP" > "$cursor_agent_result_file"
+    fi
+
     # Wait for all background tests
     for pid in "${pids[@]}"; do
         wait "$pid" 2>/dev/null || true
     done
 
     # Collect results
-    local codex_result gemini_result
+    local codex_result gemini_result cursor_agent_result
     codex_result=$(cat "$codex_result_file" 2>/dev/null || echo "SKIP")
     gemini_result=$(cat "$gemini_result_file" 2>/dev/null || echo "SKIP")
-    rm -f "$codex_result_file" "$gemini_result_file" 2>/dev/null
+    cursor_agent_result=$(cat "$cursor_agent_result_file" 2>/dev/null || echo "SKIP")
+    rm -f "$codex_result_file" "$gemini_result_file" "$cursor_agent_result_file" 2>/dev/null
 
     local pass_count=0 fail_count=0 skip_count=0
 
-    for result in "$codex_result" "$gemini_result"; do
+    for result in "$codex_result" "$gemini_result" "$cursor_agent_result"; do
         case "${result%%:*}" in
             PASS) ((++pass_count)) ;;
             SKIP) ((++skip_count)) ;;
@@ -1114,6 +1141,11 @@ provider_smoke_test() {
             local gemini_error="${gemini_result%%:*}"
             local gemini_model="${gemini_result#*:}"
             _display_smoke_test_error "Gemini" "$gemini_error" "$gemini_model"
+        fi
+        if [[ "$cursor_agent_result" != "PASS" && "$cursor_agent_result" != "SKIP" ]]; then
+            local cursor_agent_error="${cursor_agent_result%%:*}"
+            local cursor_agent_model="${cursor_agent_result#*:}"
+            _display_smoke_test_error "Cursor Agent" "$cursor_agent_error" "$cursor_agent_model"
         fi
         echo ""
     fi

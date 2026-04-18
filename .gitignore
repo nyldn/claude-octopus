@@ -118,3 +118,4 @@ coverage-report.html
 *.key
 *.pem
 .tmp.*
+.claude/settings.local.json

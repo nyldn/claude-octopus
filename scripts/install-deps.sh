@@ -91,6 +91,13 @@ check_deps() {
         warnings+=("qwen:Qwen CLI not installed (optional) — npm install -g @qwen-code/qwen-code for free-tier research")
     fi
 
+    # Cursor Agent CLI (optional — Grok 4.20 via Cursor subscription)
+    if has_cmd agent && agent --version 2>&1 | grep -cE '^20[0-9]{2}\.' >/dev/null; then
+        ok+=("cursor-agent:Cursor Agent CLI installed")
+    else
+        warnings+=("cursor-agent:Cursor Agent CLI not installed (optional) — curl -fsSL https://cursor.com/install | bash")
+    fi
+
     # RTK (optional — bash output compression)
     if has_cmd rtk; then
         local rtk_ver

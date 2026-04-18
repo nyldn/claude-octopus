@@ -27,7 +27,7 @@ init_interactive() {
     echo -e "     This provides full setup instructions within Claude Code."
     echo ""
     echo -e "${CYAN}Why the change?${NC}"
-    echo -e "  • Faster onboarding - you only need ONE provider (Codex OR Gemini)"
+    echo -e "  • Faster onboarding - you only need ONE provider (Codex OR Gemini OR Cursor Agent)"
     echo -e "  • Clearer instructions - no confusing interactive prompts"
     echo -e "  • Works in Claude Code - no need to leave and run terminal commands"
     echo -e "  • Environment variables for API keys (more secure)"
@@ -57,7 +57,7 @@ ERROR_CODES=(
     "E006:Agent spawn failed:Check API keys and network connection:help troubleshoot"
     "E007:Quality gate failed:Review output and retry with lower threshold (-q 60):help quality"
     "E008:Timeout exceeded:Increase timeout with -t 600 or break into smaller tasks:help timeout"
-    "E009:Invalid agent type:Use: codex, codex-mini, gemini, gemini-fast:help agents"
+    "E009:Invalid agent type:Use: codex, codex-standard, codex-max, codex-mini, codex-general, codex-spark, codex-reasoning, codex-large-context, codex-review, gemini, gemini-fast, gemini-image, claude, claude-sonnet, claude-opus, claude-opus-fast, openrouter, openrouter-glm5, openrouter-kimi, openrouter-deepseek, perplexity, perplexity-fast, ollama, copilot, copilot-research, qwen, qwen-research, opencode, opencode-fast, opencode-research, cursor-agent:help agents"
     "E010:Task file parse error:Check JSON syntax with: jq . tasks.json:help tasks"
 )
 

@@ -722,6 +722,23 @@ check_provider_health() {
                 return 1
             fi
             ;;
+        cursor-agent)
+            if ! command -v agent &>/dev/null; then
+                echo "cursor-agent: CLI not found in PATH" >&2
+                return 1
+            fi
+            # Verify binary identity — `agent` is a generic name
+            if ! agent --version 2>&1 | grep -cE '^20[0-9]{2}\.' >/dev/null; then
+                echo "cursor-agent: 'agent' binary is not Cursor Agent CLI" >&2
+                return 1
+            fi
+            # Check auth: env var or Cursor session
+            if [[ -z "${CURSOR_API_KEY:-}" ]] && \
+               [[ ! -f "${HOME}/.cursor/agent-cli-state.json" ]]; then
+                echo "cursor-agent: not authenticated (run: agent login or set CURSOR_API_KEY)" >&2
+                return 1
+            fi
+            ;;
     esac
     return 0
 }
@@ -732,7 +749,7 @@ check_all_providers() {
     local healthy=0 unhealthy=0
     local -a results=()
 
-    for provider in codex gemini claude perplexity openrouter ollama copilot qwen; do
+    for provider in codex gemini claude perplexity openrouter ollama copilot qwen cursor-agent; do
         local diag
         if diag=$(check_provider_health "$provider" 2>&1); then
             results+=("  ✓ $provider")
@@ -934,6 +951,17 @@ detect_providers() {
             qwen_auth="api-key"
         fi
         result="${result}qwen:${qwen_auth} "
+    fi
+
+    # Detect Cursor Agent CLI (Grok via Cursor subscription)
+    if command -v agent &>/dev/null && agent --version 2>&1 | grep -cE '^20[0-9]{2}\.' >/dev/null; then
+        local cursor_auth="none"
+        if [[ -n "${CURSOR_API_KEY:-}" ]]; then
+            cursor_auth="env:CURSOR_API_KEY"
+        elif [[ -f "${HOME}/.cursor/agent-cli-state.json" ]]; then
+            cursor_auth="cursor-session"
+        fi
+        result="${result}cursor-agent:${cursor_auth} "
     fi
 
     # Detect OpenCode CLI (v9.11.0 — multi-provider router)

@@ -194,6 +194,7 @@ resolve_octopus_model() {
             ollama*)         resolved_model="llama3.3" ;;
             copilot*)        resolved_model="claude-sonnet-4.5" ;; # Copilot default; actual model selected by copilot CLI
             qwen*)           resolved_model="qwen3-coder" ;;
+            cursor-agent*)   resolved_model="grok-4-20" ;;
             opencode-research*) resolved_model="z-ai/glm-5.1" ;;
             opencode-fast*)  resolved_model="google/gemini-2.5-flash" ;;
             opencode*)       resolved_model="google/gemini-2.5-flash" ;;
@@ -288,6 +289,16 @@ is_agent_available_v2() {
             ;;
         opencode|opencode-fast|opencode-research)
             [[ "$PROVIDER_OPENCODE_INSTALLED" == "true" && "$PROVIDER_OPENCODE_AUTH_METHOD" != "none" ]]
+            ;;
+        cursor-agent|cursor-agent-*)
+            command -v agent &>/dev/null && {
+                local _ca_ver
+                _ca_ver=$(agent --version 2>&1 || true)
+                printf '%s\n' "$_ca_ver" | grep -cE '^20[0-9]{2}\.' >/dev/null 2>&1
+            } && {
+                [[ -n "${CURSOR_API_KEY:-}" ]] || \
+                [[ -f "${HOME}/.cursor/agent-cli-state.json" ]]
+            }
             ;;
         *)
             return 0  # Unknown agents assumed available

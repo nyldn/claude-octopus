@@ -41,12 +41,24 @@ get_dispatch_strategy() {
     fi
 
     # v9.10.0: Detect all available providers for dispatch strategy
-    local has_codex=false has_gemini=false has_copilot=false has_qwen=false has_ollama=false
+    local has_codex=false has_gemini=false has_copilot=false has_qwen=false has_ollama=false has_cursor_agent=false
     command -v codex >/dev/null 2>&1 && has_codex=true
     command -v gemini >/dev/null 2>&1 && has_gemini=true
     command -v copilot >/dev/null 2>&1 && has_copilot=true
     command -v qwen >/dev/null 2>&1 && has_qwen=true
     command -v ollama >/dev/null 2>&1 && curl -sf http://localhost:11434/api/tags &>/dev/null && has_ollama=true
+    if declare -f cursor_agent_is_available >/dev/null 2>&1; then
+        cursor_agent_is_available && has_cursor_agent=true
+    elif command -v agent >/dev/null 2>&1; then
+        local _agent_ver
+        _agent_ver=$(agent --version 2>&1 || true)
+        if printf '%s\n' "$_agent_ver" | grep -cE '^20[0-9]{2}\.' >/dev/null 2>&1; then
+            # Auth check fallback when helper not loaded
+            if [[ -n "${CURSOR_API_KEY:-}" ]] || [[ -f "${HOME}/.cursor/agent-cli-state.json" ]]; then
+                has_cursor_agent=true
+            fi
+        fi
+    fi
 
     # Build available CLI providers list (excluding Claude which is always available)
     local -a cli_providers=()
@@ -54,6 +66,7 @@ get_dispatch_strategy() {
     [[ "$has_gemini" == true ]] && cli_providers+=(gemini)
     [[ "$has_copilot" == true ]] && cli_providers+=(copilot)
     [[ "$has_qwen" == true ]] && cli_providers+=(qwen)
+    [[ "$has_cursor_agent" == true ]] && cli_providers+=(cursor-agent)
     local cli_count=${#cli_providers[@]}
 
     case "$workflow" in

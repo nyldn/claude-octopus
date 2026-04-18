@@ -109,6 +109,7 @@ source "${SCRIPT_DIR}/lib/context.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/perplexity.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/copilot.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/qwen.sh" 2>/dev/null || true
+source "${SCRIPT_DIR}/lib/cursor-agent.sh"
 
 # Cost tracking & usage reporting (v9.7.5 extraction)
 source "${SCRIPT_DIR}/lib/cost.sh" 2>/dev/null || true
@@ -489,7 +490,7 @@ CODEX_SUBAGENT_PREAMBLE="IMPORTANT: You are running as a non-interactive subagen
 
 "
 
-AVAILABLE_AGENTS="codex codex-standard codex-max codex-mini codex-general codex-spark codex-reasoning codex-large-context gemini gemini-fast gemini-image codex-review claude claude-sonnet claude-opus claude-opus-fast openrouter openrouter-glm5 openrouter-kimi openrouter-deepseek perplexity perplexity-fast ollama copilot copilot-research qwen qwen-research"
+AVAILABLE_AGENTS="codex codex-standard codex-max codex-mini codex-general codex-spark codex-reasoning codex-large-context gemini gemini-fast gemini-image codex-review claude claude-sonnet claude-opus claude-opus-fast openrouter openrouter-glm5 openrouter-kimi openrouter-deepseek perplexity perplexity-fast ollama copilot copilot-research qwen qwen-research cursor-agent"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # USAGE TRACKING & COST REPORTING (v4.1)

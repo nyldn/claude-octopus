@@ -109,6 +109,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
         copilot*) provider_name="copilot" ;;
         ollama*) provider_name="ollama" ;;
         qwen*) provider_name="qwen" ;;
+        cursor-agent*) provider_name="cursor-agent" ;;
         opencode*) provider_name="opencode" ;;
         *) provider_name="$agent_type" ;;
     esac
@@ -144,10 +145,9 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
     echo "## Output" >> "$result_file"
     echo '```' >> "$result_file"
 
-    # Append gemini/copilot/qwen headless flag (-p "" triggers stdin reading)
-    # NOTE: .toml commands exist for human use but don't compose with stdin in headless mode
-    # Qwen is a fork of Gemini CLI — same flags
-    if [[ "$agent_type" == gemini* ]] || [[ "$agent_type" == copilot* ]] || [[ "$agent_type" == qwen* ]]; then
+    # Append headless flag (-p "" triggers stdin reading) for CLI providers
+    # Qwen and Cursor Agent are forks of Gemini CLI — same flags
+    if [[ "$agent_type" == gemini* ]] || [[ "$agent_type" == copilot* ]] || [[ "$agent_type" == qwen* ]] || [[ "$agent_type" == cursor-agent* ]]; then
         cmd_array+=(-p "")
     fi
 
@@ -203,9 +203,26 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
 
     # Process output
     if [[ $exit_code -eq 0 ]]; then
-        # v9.27.0: Port #191 awk-header-guard fix from spawn_agent — codex exec
-        # sends clean response on stdout (no header), banner on stderr.
-        if [[ $(grep -c '^--------$' "$temp_output" 2>/dev/null || true) -gt 0 ]]; then
+        local separator_count
+        separator_count=$(grep -cE '^--------$' "$temp_output" 2>/dev/null || echo 0)
+        separator_count=${separator_count%%$'\n'*}
+        if [[ "$agent_type" == cursor-agent* ]]; then
+            # cursor-agent stdout is clean — strip surrounding blanks only
+            awk '
+                !started && /^[[:space:]]*$/ { next }
+                { started = 1; lines[++count] = $0 }
+                END {
+                    while (count > 0 && lines[count] ~ /^[[:space:]]*$/) {
+                        count--
+                    }
+                    for (i = 1; i <= count; i++) {
+                        print lines[i]
+                    }
+                }
+            ' "$temp_output" >> "$result_file"
+        elif [[ "${separator_count:-0}" -gt 0 ]]; then
+            # v9.27.0: Port #191 awk-header-guard fix from spawn_agent — codex exec
+            # sends clean response on stdout (no header), banner on stderr.
             awk '
                 BEGIN { in_response = 0; header_done = 0; }
                 /^--------$/ { header_done = 1; next; }
@@ -217,6 +234,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
                 in_response { print; }
             ' "$temp_output" >> "$result_file"
         else
+            # No separator + not cursor-agent: strip noise banners (v9.27.0)
             grep -v \
                 -e '^MCP issues detected' \
                 -e '^Loading extension:' \
@@ -229,7 +247,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
         fi
 
         # Trust marker for external CLI output
-        case "$agent_type" in codex*|gemini*|perplexity*)
+        case "$agent_type" in codex*|gemini*|perplexity*|cursor-agent*)
             if [[ "${OCTOPUS_SECURITY_V870:-true}" == "true" ]]; then
                 sed -i.bak '1s/^/<!-- trust=untrusted provider='"$agent_type"' -->\n/' "$result_file" 2>/dev/null || true
                 rm -f "${result_file}.bak"

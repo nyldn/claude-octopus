@@ -13,6 +13,7 @@ printf "perplexity:%s\n" "$([ -n "${PERPLEXITY_API_KEY:-}" ] && echo available |
 printf "opencode:%s\n" "$(command -v opencode >/dev/null 2>&1 && echo available || echo missing)"
 printf "copilot:%s\n" "$(command -v copilot >/dev/null 2>&1 && echo available || echo missing)"
 printf "qwen:%s\n" "$(command -v qwen >/dev/null 2>&1 && echo available || echo missing)"
+printf "cursor-agent:%s\n" "$(command -v agent >/dev/null 2>&1 && agent --version 2>&1 | grep -cE '^20[0-9]{2}\.' >/dev/null && { [ -n "${CURSOR_API_KEY:-}" ] || [ -f "${HOME}/.cursor/agent-cli-state.json" ]; } && echo available || echo missing)"
 printf "ollama:%s\n" "$(command -v ollama >/dev/null 2>&1 && curl -sf http://localhost:11434/api/tags >/dev/null 2>&1 && echo available || echo missing)"
 printf "openrouter:%s\n" "$([ -n "${OPENROUTER_API_KEY:-}" ] && echo available || echo missing)"
 echo "PROVIDER_CHECK_END"

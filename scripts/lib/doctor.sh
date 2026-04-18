@@ -182,6 +182,26 @@ doctor_check_providers() {
             "Qwen CLI not installed (optional)" "npm install -g @qwen-code/qwen-code — free-tier research via Qwen OAuth"
     fi
 
+    # Cursor Agent CLI (optional — Grok 4.20 via Cursor subscription)
+    if command -v agent &>/dev/null && agent --version 2>&1 | grep -cE '^20[0-9]{2}\.' >/dev/null; then
+        local cursor_auth="none"
+        if [[ -n "${CURSOR_API_KEY:-}" ]]; then
+            cursor_auth="env:CURSOR_API_KEY"
+        elif [[ -f "${HOME}/.cursor/agent-cli-state.json" ]]; then
+            cursor_auth="cursor-session"
+        fi
+        if [[ "$cursor_auth" != "none" ]]; then
+            doctor_add "cursor-agent" "providers" "pass" \
+                "Cursor Agent CLI installed (auth: ${cursor_auth})" "$(command -v agent) — Grok 4.20 via Cursor subscription"
+        else
+            doctor_add "cursor-agent" "providers" "warn" \
+                "Cursor Agent CLI installed but not authenticated" "Run: agent login (or set CURSOR_API_KEY)"
+        fi
+    else
+        doctor_add "cursor-agent" "providers" "info" \
+            "Cursor Agent CLI not installed (optional)" "curl -fsSL https://cursor.com/install | bash — Grok 4.20 via Cursor subscription"
+    fi
+
     # OpenCode CLI (optional — multi-provider router, v9.11.0)
     if command -v opencode &>/dev/null; then
         local opencode_auth="none"
@@ -277,6 +297,19 @@ doctor_check_auth() {
         fi
     fi
 
+    # Cursor Agent auth
+    if command -v agent &>/dev/null && agent --version 2>&1 | grep -cE '^20[0-9]{2}\.' >/dev/null; then
+        if [[ -n "${CURSOR_API_KEY:-}" ]] || [[ -f "$HOME/.cursor/agent-cli-state.json" ]]; then
+            local method="cursor-session"
+            [[ -n "${CURSOR_API_KEY:-}" ]] && method="CURSOR_API_KEY"
+            doctor_add "cursor-agent-auth" "auth" "pass" \
+                "Cursor Agent authenticated" "via $method"
+        else
+            doctor_add "cursor-agent-auth" "auth" "fail" \
+                "Cursor Agent not authenticated" "Run: agent login  OR  export CURSOR_API_KEY=\"...\""
+        fi
+    fi
+
     # Perplexity auth (v8.24.0 - optional, info-only)
     if [[ -n "${PERPLEXITY_API_KEY:-}" ]]; then
         doctor_add "perplexity-auth" "auth" "pass" \
@@ -286,12 +319,13 @@ doctor_check_auth() {
     # At least one provider must be authenticated
     local any_auth=false
     if [[ -f "$HOME/.codex/auth.json" ]] || [[ -n "${OPENAI_API_KEY:-}" ]] || \
-       [[ -f "$HOME/.gemini/oauth_creds.json" ]] || [[ -n "${GEMINI_API_KEY:-}" ]] || [[ -n "${GOOGLE_API_KEY:-}" ]]; then
+       [[ -f "$HOME/.gemini/oauth_creds.json" ]] || [[ -n "${GEMINI_API_KEY:-}" ]] || [[ -n "${GOOGLE_API_KEY:-}" ]] || \
+       [[ -n "${CURSOR_API_KEY:-}" ]] || [[ -f "$HOME/.cursor/agent-cli-state.json" ]]; then
         any_auth=true
     fi
     if [[ "$any_auth" == "false" ]]; then
         doctor_add "any-provider-auth" "auth" "fail" \
-            "No provider authenticated" "At least one of Codex or Gemini must be authenticated"
+            "No provider authenticated" "At least one of Codex, Gemini, or Cursor Agent must be authenticated"
     else
         doctor_add "any-provider-auth" "auth" "pass" \
             "At least one provider authenticated" ""
