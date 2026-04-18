@@ -395,39 +395,6 @@ detect_claude_code_version() {
         SUPPORTS_AUTO_CLOUD_ENV=true
     fi
 
-    # v9.23: Claude Code v2.1.105+ (blockable PreCompact, plugin monitors, worktree path reuse, MCP truncate recipes)
-    if version_compare "$CLAUDE_CODE_VERSION" "2.1.105" ">="; then
-        SUPPORTS_PRECOMPACT_BLOCKING=true
-        SUPPORTS_PLUGIN_MONITORS=true
-        SUPPORTS_ENTER_WORKTREE_PATH=true
-        SUPPORTS_MCP_TRUNCATE_RECIPES=true
-    fi
-
-    # v9.23: Claude Code v2.1.108+ (1-hour prompt cache, session recap, built-in slash via Skill)
-    if version_compare "$CLAUDE_CODE_VERSION" "2.1.108" ">="; then
-        SUPPORTS_PROMPT_CACHE_1H=true
-        SUPPORTS_SESSION_RECAP=true
-        SUPPORTS_BUILTIN_SLASH_VIA_SKILL=true
-    fi
-
-    # v9.23: Claude Code v2.1.110+ (TaskCreated hook, PermissionRequest re-check, PreToolUse ctx on fail, TUI, OTel raw bodies, PowerShell)
-    if version_compare "$CLAUDE_CODE_VERSION" "2.1.110" ">="; then
-        SUPPORTS_TASKCREATED_HOOK=true
-        SUPPORTS_PERMISSIONREQ_RECHECK=true
-        SUPPORTS_PRETOOL_CTX_ON_FAIL=true
-        SUPPORTS_TUI_FULLSCREEN=true
-        SUPPORTS_OTEL_RAW_BODIES=true
-        SUPPORTS_POWERSHELL_TOOL=true
-    fi
-
-    # v9.23: Claude Code v2.1.111+ (Opus 4.7 + xhigh effort, auto mode GA, /ultrareview)
-    if version_compare "$CLAUDE_CODE_VERSION" "2.1.111" ">="; then
-        SUPPORTS_XHIGH_EFFORT=true
-        SUPPORTS_OPUS_4_7=true
-        SUPPORTS_AUTO_MODE_GA=true
-        SUPPORTS_ULTRAREVIEW=true
-    fi
-
     log "INFO" "Claude Code v$CLAUDE_CODE_VERSION detected"
     log "INFO" "Task Management: $SUPPORTS_TASK_MANAGEMENT | Fork Context: $SUPPORTS_FORK_CONTEXT | Agent Teams: $SUPPORTS_AGENT_TEAMS"
     log "INFO" "Persistent Memory: $SUPPORTS_PERSISTENT_MEMORY | Hook Events: $SUPPORTS_HOOK_EVENTS | Agent Type Routing: $SUPPORTS_AGENT_TYPE_ROUTING"
@@ -712,6 +679,23 @@ check_provider_health() {
                 return 1
             fi
             ;;
+        cursor-agent)
+            if ! command -v agent &>/dev/null; then
+                echo "cursor-agent: CLI not found in PATH" >&2
+                return 1
+            fi
+            # Verify binary identity — `agent` is a generic name
+            if ! agent --version 2>&1 | grep -cE '^20[0-9]{2}\.' >/dev/null; then
+                echo "cursor-agent: 'agent' binary is not Cursor Agent CLI" >&2
+                return 1
+            fi
+            # Check auth: env var or Cursor session
+            if [[ -z "${CURSOR_API_KEY:-}" ]] && \
+               [[ ! -f "${HOME}/.cursor/agent-cli-state.json" ]]; then
+                echo "cursor-agent: not authenticated (run: agent login or set CURSOR_API_KEY)" >&2
+                return 1
+            fi
+            ;;
     esac
     return 0
 }
@@ -722,7 +706,7 @@ check_all_providers() {
     local healthy=0 unhealthy=0
     local -a results=()
 
-    for provider in codex gemini claude perplexity openrouter ollama copilot qwen; do
+    for provider in codex gemini claude perplexity openrouter ollama copilot qwen cursor-agent; do
         local diag
         if diag=$(check_provider_health "$provider" 2>&1); then
             results+=("  ✓ $provider")
@@ -836,124 +820,4 @@ EOF
         # Unescape the content
         echo "$content" | sed 's/\\n/\n/g; s/\\t/\t/g; s/\\"/"/g'
     fi
-}
-
-# ── detect_providers: multi-CLI + auth detection (moved from orchestrate.sh v9.22.1) ──
-detect_providers() {
-    local result=""
-
-    # Detect Codex CLI
-    if command -v codex &>/dev/null; then
-        local codex_auth="none"
-        if [[ -f "$HOME/.codex/auth.json" ]]; then
-            codex_auth="oauth"
-        elif [[ -n "${OPENAI_API_KEY:-}" ]]; then
-            codex_auth="api-key"
-        fi
-        result="${result}codex:${codex_auth} "
-    fi
-
-    # Detect Gemini CLI
-    if command -v gemini &>/dev/null; then
-        local gemini_auth="none"
-        if [[ -f "$HOME/.gemini/oauth_creds.json" ]]; then
-            gemini_auth="oauth"
-        elif [[ -n "${GEMINI_API_KEY:-}" ]]; then
-            gemini_auth="api-key"
-        fi
-        result="${result}gemini:${gemini_auth} "
-    fi
-
-    # Detect Claude CLI (always available in Claude Code context)
-    if command -v claude &>/dev/null; then
-        local claude_auth="oauth"
-        # v8.8: Use claude auth status for reliable auth verification
-        if [[ "$SUPPORTS_AUTH_CLI" == "true" ]]; then
-            if claude auth status &>/dev/null; then
-                claude_auth="verified"
-            else
-                claude_auth="oauth"  # Fallback: assume oauth in Claude Code context
-                log "DEBUG" "claude auth status returned non-zero, assuming oauth context"
-            fi
-        fi
-        result="${result}claude:${claude_auth} "
-    fi
-
-    # Detect OpenRouter (API key only)
-    if [[ -n "${OPENROUTER_API_KEY:-}" ]]; then
-        result="${result}openrouter:api-key "
-    fi
-
-    # Detect Perplexity (API key only)
-    if [[ -n "${PERPLEXITY_API_KEY:-}" ]]; then
-        result="${result}perplexity:api-key "
-    fi
-
-    # Detect Ollama (CLI + server)
-    if command -v ollama &>/dev/null; then
-        if curl -sf http://localhost:11434/api/tags &>/dev/null; then
-            result="${result}ollama:running "
-        else
-            result="${result}ollama:installed "
-        fi
-    fi
-
-    # Detect Copilot CLI (v9.9.0)
-    if command -v copilot &>/dev/null; then
-        local copilot_auth="none"
-        if [[ -n "${COPILOT_GITHUB_TOKEN:-}" ]]; then
-            copilot_auth="pat"
-        elif [[ -n "${GH_TOKEN:-}" ]] || [[ -n "${GITHUB_TOKEN:-}" ]]; then
-            copilot_auth="env-token"
-        elif [[ -f "${HOME}/.copilot/config.json" ]]; then
-            copilot_auth="keychain"
-        elif command -v gh &>/dev/null && gh auth status &>/dev/null 2>&1; then
-            copilot_auth="gh-cli"
-        fi
-        result="${result}copilot:${copilot_auth} "
-    fi
-
-    # Detect Qwen CLI (v9.10.0 — free tier)
-    if command -v qwen &>/dev/null; then
-        local qwen_auth="none"
-        if [[ -f "${HOME}/.qwen/oauth_creds.json" ]]; then
-            qwen_auth="oauth"
-        elif [[ -f "${HOME}/.qwen/config.json" ]]; then
-            qwen_auth="config"
-        elif [[ -n "${QWEN_API_KEY:-}" ]]; then
-            qwen_auth="api-key"
-        fi
-        result="${result}qwen:${qwen_auth} "
-    fi
-
-    # Detect OpenCode CLI (v9.11.0 — multi-provider router)
-    if command -v opencode &>/dev/null; then
-        local opencode_auth="none"
-        if [[ -f "${HOME}/.local/share/opencode/auth.json" ]]; then
-            # Verify auth is actually valid via auth list (with timeout to prevent hang)
-            if timeout 3 opencode auth list &>/dev/null 2>&1; then
-                opencode_auth="multi"
-            else
-                opencode_auth="expired"
-            fi
-        fi
-        result="${result}opencode:${opencode_auth} "
-    fi
-
-    # Fail gracefully with helpful message if no providers found
-    if [[ -z "$result" ]]; then
-        log WARN "No AI providers detected. Install at least one:"
-        log WARN "  - Codex: npm i -g @openai/codex"
-        log WARN "  - Gemini: npm i -g @google/gemini-cli"
-        log WARN "  - Claude: Available in Claude Code context"
-        log WARN "  - OpenRouter: Set OPENROUTER_API_KEY environment variable"
-        log WARN "  - Copilot: brew install copilot-cli (zero additional cost)"
-        log WARN "  - Ollama: brew install ollama (free local LLM)"
-        log WARN "  - Qwen: npm i -g @qwen-code/qwen-code (free tier)"
-        log WARN "  - OpenCode: npm i -g opencode (multi-provider router)"
-        echo "none:unavailable"
-        return 1
-    fi
-
-    echo "$result" | xargs  # Trim whitespace
 }

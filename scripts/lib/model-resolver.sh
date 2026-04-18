@@ -6,21 +6,6 @@
 # Extracted from orchestrate.sh — v9.7.5
 # ═══════════════════════════════════════════════════════════════════════════════
 
-# v9.23.0: Opus default picker — prefers 4.7 when host supports it, falls back to 4.6.
-# Respects OCTOPUS_OPUS_MODEL override (user-pinned version).
-opus_default_model() {
-    if [[ -n "${OCTOPUS_OPUS_MODEL:-}" ]]; then
-        echo "$OCTOPUS_OPUS_MODEL"
-        return 0
-    fi
-    # SUPPORTS_OPUS_4_7 is detected from Claude Code v2.1.111+ — see lib/providers.sh
-    if [[ "${SUPPORTS_OPUS_4_7:-false}" == "true" ]]; then
-        echo "claude-opus-4.7"
-    else
-        echo "claude-opus-4.6"
-    fi
-}
-
 # resolve_octopus_model <provider> <agent_type> <phase> <role>
 resolve_octopus_model() {
     local provider="$1"
@@ -181,8 +166,7 @@ resolve_octopus_model() {
             codex*)          resolved_model="gpt-5.4" ;;
             gemini-fast|gemini-flash) resolved_model="gemini-3-flash-preview" ;;
             gemini*)         resolved_model="gemini-3.1-pro-preview" ;;
-            claude-opus-legacy*) resolved_model="claude-opus-4.6" ;;
-            claude-opus*)    resolved_model="$(opus_default_model)" ;;
+            claude-opus*)    resolved_model="claude-opus-4.6" ;;
             claude*)         resolved_model="claude-sonnet-4.6" ;;
             perplexity-fast)  resolved_model="sonar" ;;
             perplexity*)       resolved_model="sonar-pro" ;;
@@ -192,6 +176,7 @@ resolve_octopus_model() {
             ollama*)         resolved_model="llama3.3" ;;
             copilot*)        resolved_model="claude-sonnet-4.5" ;; # Copilot default; actual model selected by copilot CLI
             qwen*)           resolved_model="qwen3-coder" ;;
+            cursor-agent*)   resolved_model="grok-4-20" ;;
             opencode-research*) resolved_model="z-ai/glm-5.1" ;;
             opencode-fast*)  resolved_model="google/gemini-2.5-flash" ;;
             opencode*)       resolved_model="google/gemini-2.5-flash" ;;
@@ -242,226 +227,3 @@ validate_model_name() {
     return 0
 }
 
-
-# ── v2 agent helpers (moved from orchestrate.sh v9.22.1) ──
-is_agent_available_v2() {
-    local agent="$1"
-
-    # Load config if needed
-    [[ -z "$PROVIDER_CODEX_INSTALLED" ]] && load_providers_config
-
-    case "$agent" in
-        codex|codex-standard|codex-mini|codex-max|codex-general|codex-review|codex-spark|codex-reasoning|codex-large-context)
-            [[ "$PROVIDER_CODEX_INSTALLED" == "true" && "$PROVIDER_CODEX_AUTH_METHOD" != "none" ]]
-            ;;
-        gemini|gemini-fast|gemini-image)
-            [[ "$PROVIDER_GEMINI_INSTALLED" == "true" && "$PROVIDER_GEMINI_AUTH_METHOD" != "none" ]]
-            ;;
-        claude|claude-sonnet|claude-opus)
-            [[ "$PROVIDER_CLAUDE_INSTALLED" == "true" ]]
-            ;;
-        openrouter|openrouter-*)
-            [[ "$PROVIDER_OPENROUTER_ENABLED" == "true" && "$PROVIDER_OPENROUTER_API_KEY_SET" == "true" ]]
-            ;;
-        perplexity|perplexity-fast)
-            [[ -n "${PERPLEXITY_API_KEY:-}" ]]
-            ;;
-        ollama*)
-            command -v ollama &>/dev/null && curl -sf http://localhost:11434/api/tags &>/dev/null
-            ;;
-        copilot|copilot-research)
-            command -v copilot &>/dev/null && {
-                [[ -n "${COPILOT_GITHUB_TOKEN:-}" ]] || [[ -n "${GH_TOKEN:-}" ]] || \
-                [[ -n "${GITHUB_TOKEN:-}" ]] || [[ -f "${HOME}/.copilot/config.json" ]] || \
-                { command -v gh &>/dev/null && gh auth status &>/dev/null 2>&1; }
-            }
-            ;;
-        qwen|qwen-research)
-            command -v qwen &>/dev/null && {
-                [[ -f "${HOME}/.qwen/oauth_creds.json" ]] || \
-                [[ -f "${HOME}/.qwen/config.json" ]] || \
-                [[ -n "${QWEN_API_KEY:-}" ]]
-            }
-            ;;
-        opencode|opencode-fast|opencode-research)
-            [[ "$PROVIDER_OPENCODE_INSTALLED" == "true" && "$PROVIDER_OPENCODE_AUTH_METHOD" != "none" ]]
-            ;;
-        *)
-            return 0  # Unknown agents assumed available
-            ;;
-    esac
-}
-
-# Enhanced tiered agent selection with provider scoring
-get_tiered_agent_v2() {
-    local task_type="$1"
-    local complexity="${2:-2}"
-
-    # Select best provider
-    local provider
-    provider=$(select_provider "$task_type" "$complexity")
-
-    # Map provider + task_type to specific agent
-    case "$provider" in
-        codex)
-            case "$task_type" in
-                review) echo "codex-review" ;;
-                image)
-                    # Codex can't do images, fallback
-                    if is_agent_available_v2 "gemini-image"; then
-                        echo "gemini-image"
-                    else
-                        echo "openrouter"  # OpenRouter can do images
-                    fi
-                    ;;
-                *)
-                    case "$complexity" in
-                        1) echo "codex-mini" ;;
-                        3) echo "codex-max" ;;
-                        *) echo "codex-standard" ;;
-                    esac
-                    ;;
-            esac
-            ;;
-        gemini)
-            case "$task_type" in
-                image) echo "gemini-image" ;;
-                *)
-                    case "$complexity" in
-                        1) echo "gemini-fast" ;;
-                        *) echo "gemini" ;;
-                    esac
-                    ;;
-            esac
-            ;;
-        claude)
-            if [[ "$SUPPORTS_AGENT_TYPE_ROUTING" == "true" ]]; then
-                case "$complexity" in
-                    1) echo "claude" ;;          # Haiku tier
-                    3) echo "claude-opus" ;;     # Opus 4.6 for premium
-                    *) echo "claude" ;;          # Sonnet (default)
-                esac
-            else
-                echo "claude"
-            fi
-            ;;
-        openrouter)
-            # v8.11.0: Route to model-specific agents based on task type
-            case "$task_type" in
-                review)
-                    if is_agent_available_v2 "openrouter-glm5"; then
-                        echo "openrouter-glm5"   # GLM-5: best for code review (77.8% SWE-bench)
-                    else
-                        echo "openrouter"
-                    fi
-                    ;;
-                research|design)
-                    if is_agent_available_v2 "openrouter-kimi"; then
-                        echo "openrouter-kimi"    # Kimi K2.5: 262K context, cheapest
-                    else
-                        echo "openrouter"
-                    fi
-                    ;;
-                security|reasoning)
-                    if is_agent_available_v2 "openrouter-deepseek"; then
-                        echo "openrouter-deepseek" # DeepSeek R1: visible reasoning traces
-                    else
-                        echo "openrouter"
-                    fi
-                    ;;
-                *)
-                    echo "openrouter"
-                    ;;
-            esac
-            ;;
-        *)
-            echo "codex-standard"
-            ;;
-    esac
-}
-
-get_fallback_agent() {
-    local preferred="$1"
-    local task_type="$2"
-
-    if is_agent_available "$preferred"; then
-        echo "$preferred"
-        return 0
-    fi
-
-    # Fallback logic (v8.9.0: extended with spark, reasoning, large-context fallbacks)
-    case "$preferred" in
-        gemini|gemini-fast)
-            # Gemini unavailable, try codex
-            if is_agent_available "codex"; then
-                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: $preferred -> codex (no Gemini)" || true
-                echo "codex"
-            else
-                echo "$preferred"  # Return anyway, will error
-            fi
-            ;;
-        codex|codex-standard|codex-mini)
-            # Codex unavailable, try gemini
-            if is_agent_available "gemini"; then
-                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: $preferred -> gemini (no OpenAI)" || true
-                echo "gemini"
-            else
-                echo "$preferred"
-            fi
-            ;;
-        codex-spark)
-            # Spark unavailable or unsupported → fall back to standard codex → gemini
-            if is_agent_available "codex"; then
-                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: codex-spark -> codex (spark unavailable)" || true
-                echo "codex"
-            elif is_agent_available "gemini"; then
-                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: codex-spark -> gemini (no OpenAI)" || true
-                echo "gemini"
-            else
-                echo "$preferred"
-            fi
-            ;;
-        codex-reasoning)
-            # Reasoning model unavailable → fall back to codex (deep reasoning) → gemini
-            if is_agent_available "codex"; then
-                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: codex-reasoning -> codex (reasoning unavailable)" || true
-                echo "codex"
-            elif is_agent_available "gemini"; then
-                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: codex-reasoning -> gemini (no OpenAI)" || true
-                echo "gemini"
-            else
-                echo "$preferred"
-            fi
-            ;;
-        codex-large-context)
-            # Large context unavailable → fall back to codex (400K ctx) → gemini
-            if is_agent_available "codex"; then
-                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: codex-large-context -> codex (large-ctx unavailable)" || true
-                echo "codex"
-            elif is_agent_available "gemini"; then
-                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: codex-large-context -> gemini (no OpenAI)" || true
-                echo "gemini"
-            else
-                echo "$preferred"
-            fi
-            ;;
-        openrouter-glm5|openrouter-kimi|openrouter-deepseek)
-            # v8.11.0: Model-specific OpenRouter → generic openrouter → codex → gemini
-            if is_agent_available "openrouter"; then
-                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: $preferred -> openrouter (model-specific unavailable)" || true
-                echo "openrouter"
-            elif is_agent_available "codex"; then
-                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: $preferred -> codex (no OpenRouter)" || true
-                echo "codex"
-            elif is_agent_available "gemini"; then
-                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: $preferred -> gemini (no OpenRouter/OpenAI)" || true
-                echo "gemini"
-            else
-                echo "$preferred"
-            fi
-            ;;
-        *)
-            echo "$preferred"
-            ;;
-    esac
-}

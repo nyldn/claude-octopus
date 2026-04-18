@@ -165,6 +165,22 @@ cmd_detect_providers() {
     fi
     echo ""
 
+    # Check Cursor Agent CLI (optional — Grok 4.20 via Cursor subscription, v9.23.0)
+    if command -v agent &>/dev/null && agent --version 2>&1 | grep -cE '^20[0-9]{2}\.' >/dev/null; then
+        local cursor_auth="none"
+        if [[ -n "${CURSOR_API_KEY:-}" ]]; then
+            cursor_auth="api-key"
+        elif [[ -f "${HOME}/.cursor/agent-cli-state.json" ]]; then
+            cursor_auth="cursor-session"
+        fi
+        echo "CURSOR_AGENT_STATUS=ok"
+        echo "CURSOR_AGENT_AUTH=$cursor_auth"
+    else
+        echo "CURSOR_AGENT_STATUS=not-installed"
+        echo "CURSOR_AGENT_AUTH=none"
+    fi
+    echo ""
+
     # Write to cache
     mkdir -p "$WORKSPACE_DIR"
     local codex_status=$(command -v codex &>/dev/null && echo "ok" || echo "missing")
@@ -177,6 +193,8 @@ cmd_detect_providers() {
     local copilot_status=$(command -v copilot &>/dev/null && echo "ok" || echo "not-installed")
     local qwen_status=$(command -v qwen &>/dev/null && echo "ok" || echo "not-installed")
     local opencode_status=$(command -v opencode &>/dev/null && echo "ok" || echo "not-installed")
+    local cursor_agent_status=$(command -v agent &>/dev/null && agent --version 2>&1 | grep -cE '^20[0-9]{2}\.' >/dev/null && echo "ok" || echo "not-installed")
+    local cursor_agent_auth=$([[ -n "${CURSOR_API_KEY:-}" ]] && echo "api-key" || [[ -f "${HOME}/.cursor/agent-cli-state.json" ]] && echo "cursor-session" || echo "none")
 
     cat > "$WORKSPACE_DIR/.provider-cache" <<EOF
 # Auto-generated on $(date)
@@ -205,6 +223,10 @@ QWEN_STATUS=$qwen_status
 
 # OpenCode Status (v9.11.0)
 OPENCODE_STATUS=$opencode_status
+
+# Cursor Agent Status (v9.23.0)
+CURSOR_AGENT_STATUS=$cursor_agent_status
+CURSOR_AGENT_AUTH=$cursor_agent_auth
 
 # Timestamp
 CACHE_TIME=$(date +%s)
@@ -264,6 +286,14 @@ EOF
         echo "  ✓ OpenCode: Installed — multi-provider router (google, openai, openrouter)"
     else
         echo "  ○ OpenCode: Not installed (optional — npm install -g opencode)"
+    fi
+    # Cursor Agent (optional, v9.23.0)
+    if [[ "$cursor_agent_status" == "ok" && "$cursor_agent_auth" != "none" ]]; then
+        echo "  ✓ Cursor Agent: Installed and authenticated ($cursor_agent_auth) — Grok 4.20 via Cursor subscription"
+    elif [[ "$cursor_agent_status" == "ok" ]]; then
+        echo "  ⚠ Cursor Agent: Installed but not authenticated"
+    else
+        echo "  ○ Cursor Agent: Not installed (optional — requires Cursor IDE v9.23.0+)"
     fi
     echo ""
 

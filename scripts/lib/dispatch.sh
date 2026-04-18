@@ -79,18 +79,8 @@ get_agent_command() {
         codex-review) echo "codex exec review" ;; # Code review mode (no sandbox support)
         claude) echo "claude${_BARE_OPT} --print" ;;                         # Claude Sonnet 4.6
         claude-sonnet) echo "claude${_BARE_OPT} --print --model sonnet" ;;        # Claude Sonnet explicit
-        claude-opus)
-            # v9.23: Opus alias — resolves to 4.7 on Anthropic API (v2.1.111+), 4.6 on Bedrock/Vertex.
-            # Prepend CLAUDE_CODE_EFFORT_LEVEL=xhigh when supported so the subshell gets xhigh
-            # without mutating the user's persistent effort setting.
-            if [[ "${SUPPORTS_XHIGH_EFFORT:-false}" == "true" ]]; then
-                echo "CLAUDE_CODE_EFFORT_LEVEL=xhigh claude${_BARE_OPT} --print --model opus"
-            else
-                echo "claude${_BARE_OPT} --print --model opus"
-            fi
-            ;;
-        claude-opus-fast) echo "claude${_BARE_OPT} --print --model claude-opus-4-6 --fast" ;; # Claude Opus 4.6 Fast (v8.4: v2.1.36+) — pinned to 4.6 (no 4.7 fast variant)
-        claude-opus-legacy) echo "claude${_BARE_OPT} --print --model claude-opus-4-6" ;; # v9.23: explicit 4.6 opt-in
+        claude-opus) echo "claude${_BARE_OPT} --print --model opus" ;;            # Claude Opus 4.6 (v8.0)
+        claude-opus-fast) echo "claude${_BARE_OPT} --print --model opus --fast" ;; # Claude Opus 4.6 Fast (v8.4: v2.1.36+)
         openrouter) echo "openrouter_execute" ;;                 # OpenRouter API (v4.8)
         openrouter-glm5) echo "openrouter_execute_model z-ai/glm-5" ;;           # v8.11.0: GLM-5 via OpenRouter
         openrouter-kimi) echo "openrouter_execute_model moonshotai/kimi-k2.5" ;; # v8.11.0: Kimi K2.5 via OpenRouter
@@ -100,7 +90,8 @@ get_agent_command() {
             echo "perplexity_execute $model"
             ;;
         copilot|copilot-research)  # v9.9.0: GitHub Copilot CLI — copilot -p (Issue #198)
-            echo "copilot --no-ask-user"
+            # -s: silent (no footer noise), --disable-builtin-mcps: skip MCP startup latency
+            echo "copilot --no-ask-user -s --disable-builtin-mcps"
             ;;
         ollama|ollama-*)  # v9.9.0: Ollama local LLM — ollama run
             model=$(get_agent_model "$agent_type" "$phase" "$role")
@@ -108,6 +99,10 @@ get_agent_command() {
             ;;
         qwen|qwen-research)  # v9.10.0: Qwen CLI — fork of Gemini CLI (free tier)
             echo "env NODE_NO_WARNINGS=1 qwen -o text --approval-mode yolo"
+            ;;
+        cursor-agent)  # v9.23.0: Cursor Agent CLI — Grok 4.20 via Cursor subscription
+            model=$(get_agent_model "$agent_type" "$phase" "$role")
+            echo "agent --trust --output-format text --model \"${model}\""
             ;;
         opencode|opencode-fast|opencode-research)  # v9.11.0: OpenCode CLI — multi-provider router
             model=$(get_agent_model "$agent_type" "$phase" "$role")
@@ -178,6 +173,7 @@ get_agent_model() {
         openrouter*) provider="openrouter" ;;
         perplexity*) provider="perplexity" ;;
         qwen*)       provider="qwen" ;;
+        cursor-agent*) provider="cursor-agent" ;;
         opencode*)   provider="opencode" ;;
     esac
 
@@ -211,6 +207,7 @@ validate_model_allowed() {
         openrouter) allowlist_var="OCTOPUS_OPENROUTER_ALLOWED_MODELS" ;;
         perplexity) allowlist_var="OCTOPUS_PERPLEXITY_ALLOWED_MODELS" ;;
         qwen)       allowlist_var="OCTOPUS_QWEN_ALLOWED_MODELS" ;;
+        cursor-agent) allowlist_var="OCTOPUS_CURSOR_ALLOWED_MODELS" ;;
         opencode)   allowlist_var="OCTOPUS_OPENCODE_ALLOWED_MODELS" ;;
         *)          return 0 ;;  # Unknown provider — allow
     esac

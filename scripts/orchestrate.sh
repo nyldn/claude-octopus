@@ -65,14 +65,13 @@ source "${SCRIPT_DIR}/lib/routing.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/secure.sh" 2>/dev/null || true
 
 # Provider detection & version checking (v9.7.7 extraction)
-# Strict source (no silencing) for libs critical to core workflows — surfaces syntax errors
-source "${SCRIPT_DIR}/lib/providers.sh"
+source "${SCRIPT_DIR}/lib/providers.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/preflight.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/dispatch.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/debate.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/progressive.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/review.sh" 2>/dev/null || true
-source "${SCRIPT_DIR}/lib/workflows.sh"
+source "${SCRIPT_DIR}/lib/workflows.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/doctor.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/agent-sync.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/persona-loader.sh" 2>/dev/null || true
@@ -89,7 +88,7 @@ source "${SCRIPT_DIR}/lib/research.sh" 2>/dev/null || true
 
 # Authentication helpers (v9.7.x extraction)
 source "${SCRIPT_DIR}/lib/auth.sh" 2>/dev/null || true
-source "${SCRIPT_DIR}/lib/model-resolver.sh"
+source "${SCRIPT_DIR}/lib/model-resolver.sh" 2>/dev/null || true
 
 # Agent lifecycle & management (v9.7.5 extraction)
 source "${SCRIPT_DIR}/lib/agents.sh" 2>/dev/null || true
@@ -110,6 +109,7 @@ source "${SCRIPT_DIR}/lib/context.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/perplexity.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/copilot.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/qwen.sh" 2>/dev/null || true
+source "${SCRIPT_DIR}/lib/cursor-agent.sh" 2>/dev/null || true
 
 # Cost tracking & usage reporting (v9.7.5 extraction)
 source "${SCRIPT_DIR}/lib/cost.sh" 2>/dev/null || true
@@ -151,7 +151,6 @@ fi
 # Re-derive SESSION_FILE now that WORKSPACE_DIR is known
 # (quality.sh sets it at source-time before WORKSPACE_DIR is defined)
 SESSION_FILE="${WORKSPACE_DIR}/session.json"
-PROGRESS_FILE="${WORKSPACE_DIR}/progress.json"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # CLAUDE CODE INTEGRATION: Task Management (v7.16.0)
@@ -355,23 +354,6 @@ SUPPORTS_TRACEPARENT=false              # v9.21: Claude Code v2.1.98+ (W3C TRACE
 SUPPORTS_SETTINGS_RESILIENCE=false      # v9.21: Claude Code v2.1.101+ (unrecognized hook event names no longer crash settings.json parsing)
 SUPPORTS_OS_CA_CERTS=false              # v9.21: Claude Code v2.1.101+ (OS CA certificate store trust for enterprise TLS proxies)
 SUPPORTS_AUTO_CLOUD_ENV=false           # v9.21: Claude Code v2.1.101+ (auto cloud environment creation for remote sessions)
-SUPPORTS_PRECOMPACT_BLOCKING=false      # v9.23: Claude Code v2.1.105+ (PreCompact hook can block compaction via exit 2 / {"decision":"block"})
-SUPPORTS_PLUGIN_MONITORS=false          # v9.23: Claude Code v2.1.105+ (monitors manifest key for background processes)
-SUPPORTS_ENTER_WORKTREE_PATH=false      # v9.23: Claude Code v2.1.105+ (EnterWorktree `path` parameter for reuse)
-SUPPORTS_MCP_TRUNCATE_RECIPES=false     # v9.23: Claude Code v2.1.105+ (format-specific MCP output truncation)
-SUPPORTS_PROMPT_CACHE_1H=false          # v9.23: Claude Code v2.1.108+ (ENABLE_PROMPT_CACHING_1H — 1-hour cache TTL)
-SUPPORTS_SESSION_RECAP=false            # v9.23: Claude Code v2.1.108+ (/recap command + auto-context on session return)
-SUPPORTS_BUILTIN_SLASH_VIA_SKILL=false  # v9.23: Claude Code v2.1.108+ (model invokes built-in /review, /security-review via Skill tool)
-SUPPORTS_TASKCREATED_HOOK=false         # v9.23: Claude Code v2.1.110+ (TaskCreated hook event fires after TaskCreate)
-SUPPORTS_PERMISSIONREQ_RECHECK=false    # v9.23: Claude Code v2.1.110+ (PermissionRequest updatedInput re-validated vs permissions.deny)
-SUPPORTS_PRETOOL_CTX_ON_FAIL=false      # v9.23: Claude Code v2.1.110+ (PreToolUse additionalContext survives downstream tool-call failure)
-SUPPORTS_TUI_FULLSCREEN=false           # v9.23: Claude Code v2.1.110+ (/tui fullscreen flicker-free rendering)
-SUPPORTS_OTEL_RAW_BODIES=false          # v9.23: Claude Code v2.1.110+ (OTEL_LOG_RAW_API_BODIES — full API bodies in OTel events)
-SUPPORTS_POWERSHELL_TOOL=false          # v9.23: Claude Code v2.1.110+ (PowerShell tool — Windows GA, progressive rollout)
-SUPPORTS_XHIGH_EFFORT=false             # v9.23: Claude Code v2.1.111+ (xhigh effort level — Opus 4.7 only; falls back to high on older models)
-SUPPORTS_OPUS_4_7=false                 # v9.23: Claude Code v2.1.111+ (claude-opus-4-7 model available via Anthropic API)
-SUPPORTS_AUTO_MODE_GA=false             # v9.23: Claude Code v2.1.111+ (auto mode no longer requires --enable-auto-mode flag)
-SUPPORTS_ULTRAREVIEW=false              # v9.23: Claude Code v2.1.111+ (/ultrareview — cloud parallel multi-agent PR review, complements /octo:review)
 OCTOPUS_BACKEND="api"              # v8.16: Detected backend (api|bedrock|vertex|foundry)
 AGENT_TEAMS_ENABLED="${CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS:-0}"
 OCTOPUS_SECURITY_V870="${OCTOPUS_SECURITY_V870:-true}"
@@ -501,7 +483,7 @@ CODEX_SUBAGENT_PREAMBLE="IMPORTANT: You are running as a non-interactive subagen
 
 "
 
-AVAILABLE_AGENTS="codex codex-standard codex-max codex-mini codex-general codex-spark codex-reasoning codex-large-context gemini gemini-fast gemini-image codex-review claude claude-sonnet claude-opus claude-opus-fast openrouter openrouter-glm5 openrouter-kimi openrouter-deepseek perplexity perplexity-fast ollama copilot copilot-research qwen qwen-research"
+AVAILABLE_AGENTS="codex codex-standard codex-max codex-mini codex-general codex-spark codex-reasoning codex-large-context gemini gemini-fast gemini-image codex-review claude claude-sonnet claude-opus claude-opus-fast openrouter openrouter-glm5 openrouter-kimi openrouter-deepseek perplexity perplexity-fast ollama copilot copilot-research qwen qwen-research cursor-agent"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # USAGE TRACKING & COST REPORTING (v4.1)
@@ -1200,6 +1182,124 @@ KNOWLEDGE_WORK_MODE="false"
 
 # Detect installed providers and their authentication methods
 # Returns: "provider:auth_method provider:auth_method ..."
+detect_providers() {
+    local result=""
+
+    # Detect Codex CLI
+    if command -v codex &>/dev/null; then
+        local codex_auth="none"
+        if [[ -f "$HOME/.codex/auth.json" ]]; then
+            codex_auth="oauth"
+        elif [[ -n "${OPENAI_API_KEY:-}" ]]; then
+            codex_auth="api-key"
+        fi
+        result="${result}codex:${codex_auth} "
+    fi
+
+    # Detect Gemini CLI
+    if command -v gemini &>/dev/null; then
+        local gemini_auth="none"
+        if [[ -f "$HOME/.gemini/oauth_creds.json" ]]; then
+            gemini_auth="oauth"
+        elif [[ -n "${GEMINI_API_KEY:-}" ]]; then
+            gemini_auth="api-key"
+        fi
+        result="${result}gemini:${gemini_auth} "
+    fi
+
+    # Detect Claude CLI (always available in Claude Code context)
+    if command -v claude &>/dev/null; then
+        local claude_auth="oauth"
+        # v8.8: Use claude auth status for reliable auth verification
+        if [[ "$SUPPORTS_AUTH_CLI" == "true" ]]; then
+            if claude auth status &>/dev/null; then
+                claude_auth="verified"
+            else
+                claude_auth="oauth"  # Fallback: assume oauth in Claude Code context
+                log "DEBUG" "claude auth status returned non-zero, assuming oauth context"
+            fi
+        fi
+        result="${result}claude:${claude_auth} "
+    fi
+
+    # Detect OpenRouter (API key only)
+    if [[ -n "${OPENROUTER_API_KEY:-}" ]]; then
+        result="${result}openrouter:api-key "
+    fi
+
+    # Detect Perplexity (API key only)
+    if [[ -n "${PERPLEXITY_API_KEY:-}" ]]; then
+        result="${result}perplexity:api-key "
+    fi
+
+    # Detect Ollama (CLI + server)
+    if command -v ollama &>/dev/null; then
+        if curl -sf http://localhost:11434/api/tags &>/dev/null; then
+            result="${result}ollama:running "
+        else
+            result="${result}ollama:installed "
+        fi
+    fi
+
+    # Detect Copilot CLI (v9.9.0)
+    if command -v copilot &>/dev/null; then
+        local copilot_auth="none"
+        if [[ -n "${COPILOT_GITHUB_TOKEN:-}" ]]; then
+            copilot_auth="pat"
+        elif [[ -n "${GH_TOKEN:-}" ]] || [[ -n "${GITHUB_TOKEN:-}" ]]; then
+            copilot_auth="env-token"
+        elif [[ -f "${HOME}/.copilot/config.json" ]]; then
+            copilot_auth="keychain"
+        elif command -v gh &>/dev/null && gh auth status &>/dev/null 2>&1; then
+            copilot_auth="gh-cli"
+        fi
+        result="${result}copilot:${copilot_auth} "
+    fi
+
+    # Detect Qwen CLI (v9.10.0 — free tier)
+    if command -v qwen &>/dev/null; then
+        local qwen_auth="none"
+        if [[ -f "${HOME}/.qwen/oauth_creds.json" ]]; then
+            qwen_auth="oauth"
+        elif [[ -f "${HOME}/.qwen/config.json" ]]; then
+            qwen_auth="config"
+        elif [[ -n "${QWEN_API_KEY:-}" ]]; then
+            qwen_auth="api-key"
+        fi
+        result="${result}qwen:${qwen_auth} "
+    fi
+
+    # Detect OpenCode CLI (v9.11.0 — multi-provider router)
+    if command -v opencode &>/dev/null; then
+        local opencode_auth="none"
+        if [[ -f "${HOME}/.local/share/opencode/auth.json" ]]; then
+            # Verify auth is actually valid via auth list (with timeout to prevent hang)
+            if timeout 3 opencode auth list &>/dev/null 2>&1; then
+                opencode_auth="multi"
+            else
+                opencode_auth="expired"
+            fi
+        fi
+        result="${result}opencode:${opencode_auth} "
+    fi
+
+    # Fail gracefully with helpful message if no providers found
+    if [[ -z "$result" ]]; then
+        log WARN "No AI providers detected. Install at least one:"
+        log WARN "  - Codex: npm i -g @openai/codex"
+        log WARN "  - Gemini: npm i -g @google/gemini-cli"
+        log WARN "  - Claude: Available in Claude Code context"
+        log WARN "  - OpenRouter: Set OPENROUTER_API_KEY environment variable"
+        log WARN "  - Copilot: brew install copilot-cli (zero additional cost)"
+        log WARN "  - Ollama: brew install ollama (free local LLM)"
+        log WARN "  - Qwen: npm i -g @qwen-code/qwen-code (free tier)"
+        log WARN "  - OpenCode: npm i -g opencode (multi-provider router)"
+        echo "none:unavailable"
+        return 1
+    fi
+
+    echo "$result" | xargs  # Trim whitespace
+}
 
 # Compare two semantic versions (e.g., "2.1.9" and "2.1.8")
 # Returns: 0 if v1 >= v2, 1 if v1 < v2
@@ -1263,6 +1363,151 @@ check_claude_version() {
 
 
 # Enhanced agent availability check including OpenRouter
+is_agent_available_v2() {
+    local agent="$1"
+
+    # Load config if needed
+    [[ -z "$PROVIDER_CODEX_INSTALLED" ]] && load_providers_config
+
+    case "$agent" in
+        codex|codex-standard|codex-mini|codex-max|codex-general|codex-review|codex-spark|codex-reasoning|codex-large-context)
+            [[ "$PROVIDER_CODEX_INSTALLED" == "true" && "$PROVIDER_CODEX_AUTH_METHOD" != "none" ]]
+            ;;
+        gemini|gemini-fast|gemini-image)
+            [[ "$PROVIDER_GEMINI_INSTALLED" == "true" && "$PROVIDER_GEMINI_AUTH_METHOD" != "none" ]]
+            ;;
+        claude|claude-sonnet|claude-opus)
+            [[ "$PROVIDER_CLAUDE_INSTALLED" == "true" ]]
+            ;;
+        openrouter|openrouter-*)
+            [[ "$PROVIDER_OPENROUTER_ENABLED" == "true" && "$PROVIDER_OPENROUTER_API_KEY_SET" == "true" ]]
+            ;;
+        perplexity|perplexity-fast)
+            [[ -n "${PERPLEXITY_API_KEY:-}" ]]
+            ;;
+        ollama*)
+            command -v ollama &>/dev/null && curl -sf http://localhost:11434/api/tags &>/dev/null
+            ;;
+        copilot|copilot-research)
+            command -v copilot &>/dev/null && {
+                [[ -n "${COPILOT_GITHUB_TOKEN:-}" ]] || [[ -n "${GH_TOKEN:-}" ]] || \
+                [[ -n "${GITHUB_TOKEN:-}" ]] || [[ -f "${HOME}/.copilot/config.json" ]] || \
+                { command -v gh &>/dev/null && gh auth status &>/dev/null 2>&1; }
+            }
+            ;;
+        qwen|qwen-research)
+            command -v qwen &>/dev/null && {
+                [[ -f "${HOME}/.qwen/oauth_creds.json" ]] || \
+                [[ -f "${HOME}/.qwen/config.json" ]] || \
+                [[ -n "${QWEN_API_KEY:-}" ]]
+            }
+            ;;
+        opencode|opencode-fast|opencode-research)
+            [[ "$PROVIDER_OPENCODE_INSTALLED" == "true" && "$PROVIDER_OPENCODE_AUTH_METHOD" != "none" ]]
+            ;;
+        cursor-agent)
+            command -v agent &>/dev/null && {
+                local _ca_ver
+                _ca_ver=$(agent --version 2>&1 || true)
+                printf '%s\n' "$_ca_ver" | grep -cE '^20[0-9]{2}\.' >/dev/null 2>&1
+            } && {
+                [[ -n "${CURSOR_API_KEY:-}" ]] || \
+                [[ -f "${HOME}/.cursor/agent-cli-state.json" ]]
+            }
+            ;;
+        *)
+            return 0  # Unknown agents assumed available
+            ;;
+    esac
+}
+
+# Enhanced tiered agent selection with provider scoring
+get_tiered_agent_v2() {
+    local task_type="$1"
+    local complexity="${2:-2}"
+
+    # Select best provider
+    local provider
+    provider=$(select_provider "$task_type" "$complexity")
+
+    # Map provider + task_type to specific agent
+    case "$provider" in
+        codex)
+            case "$task_type" in
+                review) echo "codex-review" ;;
+                image)
+                    # Codex can't do images, fallback
+                    if is_agent_available_v2 "gemini-image"; then
+                        echo "gemini-image"
+                    else
+                        echo "openrouter"  # OpenRouter can do images
+                    fi
+                    ;;
+                *)
+                    case "$complexity" in
+                        1) echo "codex-mini" ;;
+                        3) echo "codex-max" ;;
+                        *) echo "codex-standard" ;;
+                    esac
+                    ;;
+            esac
+            ;;
+        gemini)
+            case "$task_type" in
+                image) echo "gemini-image" ;;
+                *)
+                    case "$complexity" in
+                        1) echo "gemini-fast" ;;
+                        *) echo "gemini" ;;
+                    esac
+                    ;;
+            esac
+            ;;
+        claude)
+            if [[ "$SUPPORTS_AGENT_TYPE_ROUTING" == "true" ]]; then
+                case "$complexity" in
+                    1) echo "claude" ;;          # Haiku tier
+                    3) echo "claude-opus" ;;     # Opus 4.6 for premium
+                    *) echo "claude" ;;          # Sonnet (default)
+                esac
+            else
+                echo "claude"
+            fi
+            ;;
+        openrouter)
+            # v8.11.0: Route to model-specific agents based on task type
+            case "$task_type" in
+                review)
+                    if is_agent_available_v2 "openrouter-glm5"; then
+                        echo "openrouter-glm5"   # GLM-5: best for code review (77.8% SWE-bench)
+                    else
+                        echo "openrouter"
+                    fi
+                    ;;
+                research|design)
+                    if is_agent_available_v2 "openrouter-kimi"; then
+                        echo "openrouter-kimi"    # Kimi K2.5: 262K context, cheapest
+                    else
+                        echo "openrouter"
+                    fi
+                    ;;
+                security|reasoning)
+                    if is_agent_available_v2 "openrouter-deepseek"; then
+                        echo "openrouter-deepseek" # DeepSeek R1: visible reasoning traces
+                    else
+                        echo "openrouter"
+                    fi
+                    ;;
+                *)
+                    echo "openrouter"
+                    ;;
+            esac
+            ;;
+        *)
+            echo "codex-standard"
+            ;;
+    esac
+}
 # [EXTRACTED to lib/providers.sh]
 # Functions: get_openrouter_model, execute_openrouter
 # [EXTRACTED to lib/perplexity.sh] openrouter_execute(), openrouter_execute_model(), perplexity_execute()
@@ -1461,6 +1706,91 @@ is_agent_available() {
 }
 
 # Get fallback agent when preferred is unavailable
+get_fallback_agent() {
+    local preferred="$1"
+    local task_type="$2"
+
+    if is_agent_available "$preferred"; then
+        echo "$preferred"
+        return 0
+    fi
+
+    # Fallback logic (v8.9.0: extended with spark, reasoning, large-context fallbacks)
+    case "$preferred" in
+        gemini|gemini-fast)
+            # Gemini unavailable, try codex
+            if is_agent_available "codex"; then
+                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: $preferred -> codex (no Gemini)" || true
+                echo "codex"
+            else
+                echo "$preferred"  # Return anyway, will error
+            fi
+            ;;
+        codex|codex-standard|codex-mini)
+            # Codex unavailable, try gemini
+            if is_agent_available "gemini"; then
+                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: $preferred -> gemini (no OpenAI)" || true
+                echo "gemini"
+            else
+                echo "$preferred"
+            fi
+            ;;
+        codex-spark)
+            # Spark unavailable or unsupported → fall back to standard codex → gemini
+            if is_agent_available "codex"; then
+                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: codex-spark -> codex (spark unavailable)" || true
+                echo "codex"
+            elif is_agent_available "gemini"; then
+                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: codex-spark -> gemini (no OpenAI)" || true
+                echo "gemini"
+            else
+                echo "$preferred"
+            fi
+            ;;
+        codex-reasoning)
+            # Reasoning model unavailable → fall back to codex (deep reasoning) → gemini
+            if is_agent_available "codex"; then
+                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: codex-reasoning -> codex (reasoning unavailable)" || true
+                echo "codex"
+            elif is_agent_available "gemini"; then
+                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: codex-reasoning -> gemini (no OpenAI)" || true
+                echo "gemini"
+            else
+                echo "$preferred"
+            fi
+            ;;
+        codex-large-context)
+            # Large context unavailable → fall back to codex (400K ctx) → gemini
+            if is_agent_available "codex"; then
+                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: codex-large-context -> codex (large-ctx unavailable)" || true
+                echo "codex"
+            elif is_agent_available "gemini"; then
+                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: codex-large-context -> gemini (no OpenAI)" || true
+                echo "gemini"
+            else
+                echo "$preferred"
+            fi
+            ;;
+        openrouter-glm5|openrouter-kimi|openrouter-deepseek)
+            # v8.11.0: Model-specific OpenRouter → generic openrouter → codex → gemini
+            if is_agent_available "openrouter"; then
+                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: $preferred -> openrouter (model-specific unavailable)" || true
+                echo "openrouter"
+            elif is_agent_available "codex"; then
+                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: $preferred -> codex (no OpenRouter)" || true
+                echo "codex"
+            elif is_agent_available "gemini"; then
+                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: $preferred -> gemini (no OpenRouter/OpenAI)" || true
+                echo "gemini"
+            else
+                echo "$preferred"
+            fi
+            ;;
+        *)
+            echo "$preferred"
+            ;;
+    esac
+}
 
 # Step 6: Mode selection (Dev Work vs Knowledge Work)
 init_step_mode_selection() {
@@ -1853,6 +2183,393 @@ do_release() {
 # The octopus embraces the entire problem with all tentacles
 # v3.0: Supports session recovery, autonomy checkpoints
 # v8.3: Event-driven phase transitions via TeammateIdle/TaskCompleted hooks
+embrace_full_workflow() {
+    local prompt="$1"
+    local task_group
+    task_group=$(date +%s)
+    local resume_from=""
+
+    echo ""
+    echo -e "${MAGENTA}${_BOX_TOP}${NC}"
+    echo -e "${MAGENTA}║  ${GREEN}EMBRACE${MAGENTA} - Full 4-Phase Workflow                         ║${NC}"
+    echo -e "${MAGENTA}║  Research → Define → Develop → Deliver                    ║${NC}"
+    echo -e "${MAGENTA}${_BOX_BOT}${NC}"
+    echo ""
+
+    log INFO "Starting complete Double Diamond workflow"
+
+    # v8.49.0: Clean up expired results from prior runs
+    cleanup_old_results
+
+    # v8.5: Show compact cost estimate in banner
+    show_cost_estimate "embrace" "${#prompt}"
+
+    # v8.48.0: Disable cron during long multi-phase workflows to prevent interference
+    if [[ "$SUPPORTS_DISABLE_CRON_ENV" == "true" ]]; then
+        export CLAUDE_CODE_DISABLE_CRON=1
+        log DEBUG "Cron jobs disabled for embrace workflow duration"
+    fi
+
+    # v8.19.0: Cleanup expired checkpoints
+    cleanup_expired_checkpoints 2>/dev/null || true
+
+    # v8.18.0: Reset lockouts for new workflow
+    reset_provider_lockouts
+
+    # v8.19.0: Inject high-importance observations into workflow context
+    # NOTE: Observations are VARIABLE content — appended after task prompt so that
+    # the stable persona/skill prefix (injected later by spawn_agent) stays cacheable
+    local high_obs
+    high_obs=$(search_observations "" 7 2>/dev/null) || true
+    if [[ -n "$high_obs" ]]; then
+        local obs_ctx="${high_obs:0:1500}"
+        prompt="${prompt}
+
+---
+
+## High-Importance Observations from Previous Sessions
+${obs_ctx}"
+        log DEBUG "Injected ${#obs_ctx} chars of high-importance observations"
+    fi
+
+    log INFO "Task: $prompt"
+    log INFO "Autonomy mode: $AUTONOMY_MODE"
+    [[ "$LOOP_UNTIL_APPROVED" == "true" ]] && log INFO "Loop-until-approved: enabled"
+
+    # v8.3: Export workflow phase for event-driven hooks (TeammateIdle, TaskCompleted)
+    export OCTOPUS_WORKFLOW_PHASE="init"
+    export OCTOPUS_WORKFLOW_TYPE="embrace"
+    export OCTOPUS_TASK_GROUP="$task_group"
+    export OCTOPUS_TOTAL_PHASES=4
+    export OCTOPUS_COMPLETED_PHASES=0
+
+    # v8.3: Write session state for hook handlers to read
+    # v8.5: Enhanced with phase_tasks and agent_queue for hook integration
+    _write_embrace_session_state() {
+        local phase="$1"
+        local status="$2"
+        local session_dir="${HOME}/.claude-octopus"
+        mkdir -p "$session_dir"
+        if command -v jq &> /dev/null; then
+            jq -n \
+                --arg phase "$phase" \
+                --arg status "$status" \
+                --arg workflow "embrace" \
+                --arg group "$task_group" \
+                --arg autonomy "$AUTONOMY_MODE" \
+                --argjson completed "$OCTOPUS_COMPLETED_PHASES" \
+                --argjson total "$OCTOPUS_TOTAL_PHASES" \
+                '{workflow: $workflow, current_phase: $phase, phase_status: $status,
+                  task_group: $group, autonomy_mode: $autonomy,
+                  completed_phases: $completed, total_phases: $total,
+                  phase_map: {probe: "grasp", grasp: "tangle", tangle: "ink", ink: "complete"},
+                  phase_tasks: {total: 0, completed: 0},
+                  agent_queue: [],
+                  quality_gates: {passed: false, failed: false},
+                  updated_at: now | todate}' \
+                > "$session_dir/session.json" 2>/dev/null || true
+        fi
+    }
+
+    _write_embrace_session_state "init" "starting"
+    echo ""
+
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log INFO "[DRY-RUN] Would embrace: $prompt"
+        log INFO "[DRY-RUN] Would run all 4 phases: probe → grasp → tangle → ink"
+        return 0
+    fi
+
+    # Session recovery check
+    if [[ "$RESUME_SESSION" == "true" ]] && check_resume_session; then
+        resume_from=$(get_resume_phase)
+        log INFO "Resuming from phase: $resume_from"
+    else
+        init_session "embrace" "$prompt"
+    fi
+
+    # Cost transparency (v7.18.0 - P0.0)
+    # Display estimated costs and require user approval BEFORE execution
+    if ! display_workflow_cost_estimate "Embrace (Full Double Diamond)" 4 4 2000; then
+        log "WARN" "Workflow cancelled by user after cost review"
+        return 1
+    fi
+
+    # Set flag to skip individual phase cost prompts (already shown above)
+    export OCTOPUS_SKIP_PHASE_COST_PROMPT="true"
+
+    # Pre-flight validation
+    if ! preflight_check; then
+        log ERROR "Pre-flight check failed. Aborting workflow."
+        return 1
+    fi
+
+    local workflow_dir="${RESULTS_DIR}/embrace-${task_group}"
+    mkdir -p "$workflow_dir"
+
+    # Track timing
+    local start_time=$SECONDS
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # v8.5: YAML RUNTIME DELEGATION
+    # If YAML workflow file exists and runtime is enabled, delegate to YAML runner
+    # Otherwise fall through to hardcoded logic (backward compatibility)
+    # ═══════════════════════════════════════════════════════════════════════════
+    local yaml_file="${PLUGIN_DIR}/config/workflows/embrace.yaml"
+    local use_yaml_runtime=false
+
+    case "$OCTOPUS_YAML_RUNTIME" in
+        enabled)
+            if [[ -f "$yaml_file" ]]; then
+                use_yaml_runtime=true
+            else
+                log "ERROR" "YAML runtime enabled but embrace.yaml not found: $yaml_file"
+                return 1
+            fi
+            ;;
+        auto)
+            if [[ -f "$yaml_file" ]] && [[ -z "$resume_from" || "$resume_from" == "null" ]]; then
+                # Auto mode: try YAML if file exists and not resuming
+                if parse_yaml_workflow "$yaml_file" 2>/dev/null; then
+                    use_yaml_runtime=true
+                    log "INFO" "YAML runtime auto-enabled: embrace.yaml found and valid"
+                else
+                    log "WARN" "YAML runtime auto-disabled: embrace.yaml parsing failed"
+                fi
+            fi
+            ;;
+        disabled)
+            log "DEBUG" "YAML runtime disabled by user"
+            ;;
+    esac
+
+    if [[ "$use_yaml_runtime" == "true" ]]; then
+        log "INFO" "Delegating to YAML workflow runtime for embrace workflow"
+        echo -e "${CYAN}Using YAML-driven workflow runtime (embrace.yaml)${NC}"
+        echo ""
+
+        local yaml_result
+        yaml_result=$(run_yaml_workflow "embrace" "$prompt" "$task_group")
+
+        # Mark workflow complete
+        export OCTOPUS_WORKFLOW_PHASE="complete"
+        export OCTOPUS_COMPLETED_PHASES=4
+        _write_embrace_session_state "complete" "finished"
+        complete_session
+
+        local duration=$((SECONDS - start_time))
+
+        echo ""
+        echo -e "${MAGENTA}${_BOX_TOP}${NC}"
+        echo -e "${MAGENTA}║  EMBRACE workflow complete! (YAML Runtime)                ║${NC}"
+        echo -e "${MAGENTA}${_BOX_BOT}${NC}"
+        echo ""
+        echo -e "Duration: ${duration}s"
+        echo -e "Autonomy: ${AUTONOMY_MODE}"
+        echo -e "Runtime: YAML (embrace.yaml)"
+        echo -e "Results: ${RESULTS_DIR}/"
+        echo ""
+
+        # v7.25.0: Display session metrics
+        if command -v display_session_metrics &>/dev/null; then
+            display_session_metrics 2>/dev/null || true
+            display_provider_breakdown 2>/dev/null || true
+            # v8.6.0: Per-phase cost breakdown
+            if command -v display_per_phase_cost_table &>/dev/null; then
+                display_per_phase_cost_table 2>/dev/null || true
+            fi
+        fi
+
+        # Clean up exported flags
+        unset OCTOPUS_SKIP_PHASE_COST_PROMPT
+        unset OCTOPUS_WORKFLOW_PHASE
+        unset OCTOPUS_WORKFLOW_TYPE
+        unset OCTOPUS_TASK_GROUP
+        unset OCTOPUS_TOTAL_PHASES
+        unset OCTOPUS_COMPLETED_PHASES
+        unset CLAUDE_CODE_DISABLE_CRON 2>/dev/null || true
+        return 0
+    fi
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # HARDCODED PHASE LOGIC (fallback when YAML runtime not available)
+    # ═══════════════════════════════════════════════════════════════════════════
+    local probe_synthesis grasp_consensus tangle_validation
+
+    # Phase 1: PROBE (Discover)
+    if [[ -z "$resume_from" || "$resume_from" == "null" ]]; then
+        export OCTOPUS_WORKFLOW_PHASE="probe"
+        _write_embrace_session_state "probe" "running"
+        echo ""
+        echo -e "${CYAN}[1/4] Starting PROBE phase (Discover)...${NC}"
+        echo ""
+        probe_discover "$prompt"
+        probe_synthesis=$(ls -t "$RESULTS_DIR"/probe-synthesis-*.md 2>/dev/null | head -1)
+
+        # v7.25.0: Display phase metrics
+        if command -v display_phase_metrics &> /dev/null; then
+            display_phase_metrics "probe" 2>/dev/null || true
+        fi
+
+        # v8.14.0: Capture phase context in persistent state
+        update_context "discover" "$(head -20 "$probe_synthesis" 2>/dev/null | tr '\n' ' ')" 2>/dev/null || true
+
+        OCTOPUS_COMPLETED_PHASES=1
+        _write_embrace_session_state "probe" "completed"
+        save_session_checkpoint "probe" "completed" "$probe_synthesis"
+        handle_autonomy_checkpoint "probe" "completed"
+        sleep 1
+    else
+        probe_synthesis=$(get_phase_output "probe")
+        [[ -z "$probe_synthesis" ]] && probe_synthesis=$(ls -t "$RESULTS_DIR"/probe-synthesis-*.md 2>/dev/null | head -1)
+        log INFO "Skipping probe phase (resuming)"
+    fi
+
+    # Phase 2: GRASP (Define)
+    if [[ -z "$resume_from" || "$resume_from" == "null" || "$resume_from" == "probe" ]]; then
+        export OCTOPUS_WORKFLOW_PHASE="grasp"
+        _write_embrace_session_state "grasp" "running"
+        echo ""
+        echo -e "${CYAN}[2/4] Starting GRASP phase (Define)...${NC}"
+        echo ""
+        grasp_define "$prompt" "$probe_synthesis"
+        grasp_consensus=$(ls -t "$RESULTS_DIR"/grasp-consensus-*.md 2>/dev/null | head -1)
+
+        # v7.25.0: Display phase metrics
+        if command -v display_phase_metrics &> /dev/null; then
+            display_phase_metrics "grasp" 2>/dev/null || true
+        fi
+
+        # v8.14.0: Capture phase context in persistent state
+        update_context "define" "$(head -20 "$grasp_consensus" 2>/dev/null | tr '\n' ' ')" 2>/dev/null || true
+
+        OCTOPUS_COMPLETED_PHASES=2
+        _write_embrace_session_state "grasp" "completed"
+        save_session_checkpoint "grasp" "completed" "$grasp_consensus"
+        handle_autonomy_checkpoint "grasp" "completed"
+        sleep 1
+    else
+        grasp_consensus=$(get_phase_output "grasp")
+        [[ -z "$grasp_consensus" ]] && grasp_consensus=$(ls -t "$RESULTS_DIR"/grasp-consensus-*.md 2>/dev/null | head -1)
+        log INFO "Skipping grasp phase (resuming)"
+    fi
+
+    # Phase 3: TANGLE (Develop)
+    if [[ -z "$resume_from" || "$resume_from" == "null" || "$resume_from" == "probe" || "$resume_from" == "grasp" ]]; then
+        export OCTOPUS_WORKFLOW_PHASE="tangle"
+        _write_embrace_session_state "tangle" "running"
+        echo ""
+        echo -e "${CYAN}[3/4] Starting TANGLE phase (Develop)...${NC}"
+        echo ""
+        tangle_develop "$prompt" "$grasp_consensus"
+        tangle_validation=$(ls -t "$RESULTS_DIR"/tangle-validation-*.md 2>/dev/null | head -1)
+
+        # v7.25.0: Display phase metrics
+        if command -v display_phase_metrics &> /dev/null; then
+            display_phase_metrics "tangle" 2>/dev/null || true
+        fi
+
+        # Check quality gate status for autonomy
+        local tangle_status="completed"
+        if grep -q "Quality Gate: FAILED" "$tangle_validation" 2>/dev/null; then
+            tangle_status="warning"
+        fi
+        # v8.14.0: Capture phase context in persistent state
+        update_context "develop" "$(head -20 "$tangle_validation" 2>/dev/null | tr '\n' ' ')" 2>/dev/null || true
+
+        OCTOPUS_COMPLETED_PHASES=3
+        _write_embrace_session_state "tangle" "$tangle_status"
+        save_session_checkpoint "tangle" "$tangle_status" "$tangle_validation"
+        handle_autonomy_checkpoint "tangle" "$tangle_status"
+        sleep 1
+    else
+        tangle_validation=$(get_phase_output "tangle")
+        [[ -z "$tangle_validation" ]] && tangle_validation=$(ls -t "$RESULTS_DIR"/tangle-validation-*.md 2>/dev/null | head -1)
+        log INFO "Skipping tangle phase (resuming)"
+    fi
+
+    # Phase 4: INK (Deliver)
+    export OCTOPUS_WORKFLOW_PHASE="ink"
+    _write_embrace_session_state "ink" "running"
+    echo ""
+    echo -e "${CYAN}[4/4] Starting INK phase (Deliver)...${NC}"
+    echo ""
+    ink_deliver "$prompt" "$tangle_validation"
+
+    # v7.25.0: Display phase metrics
+    if command -v display_phase_metrics &> /dev/null; then
+        display_phase_metrics "ink" 2>/dev/null || true
+    fi
+
+    # v8.14.0: Capture phase context in persistent state
+    local ink_output
+    ink_output=$(ls -t "$RESULTS_DIR"/delivery-*.md 2>/dev/null | head -1)
+    update_context "deliver" "$(head -20 "$ink_output" 2>/dev/null | tr '\n' ' ')" 2>/dev/null || true
+
+    OCTOPUS_COMPLETED_PHASES=4
+    export OCTOPUS_WORKFLOW_PHASE="complete"
+    _write_embrace_session_state "ink" "completed"
+    save_session_checkpoint "ink" "completed" "$ink_output"
+
+    # v8.18.0: Record phase completion decision
+    write_structured_decision \
+        "phase-completion" \
+        "embrace_full_workflow" \
+        "Full embrace workflow completed: ${prompt:0:80}" \
+        "" \
+        "high" \
+        "All 4 phases completed: probe → grasp → tangle → ink" \
+        "" 2>/dev/null || true
+
+    # v8.18.0: Earn skill from embrace completion
+    earn_skill \
+        "workflow-${prompt:0:30}" \
+        "embrace_full_workflow" \
+        "Full Double Diamond execution pattern" \
+        "For comprehensive end-to-end tasks" \
+        "probe→grasp→tangle→ink completed for: ${prompt:0:60}" 2>/dev/null || true
+
+    # Mark session complete
+    complete_session
+
+    # Summary
+    local duration=$((SECONDS - start_time))
+
+    echo ""
+    echo -e "${MAGENTA}${_BOX_TOP}${NC}"
+    echo -e "${MAGENTA}║  EMBRACE workflow complete!                               ║${NC}"
+    echo -e "${MAGENTA}${_BOX_BOT}${NC}"
+    echo ""
+    echo -e "Duration: ${duration}s"
+    echo -e "Autonomy: ${AUTONOMY_MODE}"
+    echo -e "Results: ${RESULTS_DIR}/"
+    echo ""
+    echo -e "${CYAN}Phase outputs:${NC}"
+    [[ -n "$probe_synthesis" ]] && echo -e "  Probe:  $probe_synthesis"
+    [[ -n "$grasp_consensus" ]] && echo -e "  Grasp:  $grasp_consensus"
+    [[ -n "$tangle_validation" ]] && echo -e "  Tangle: $tangle_validation"
+    echo -e "  Ink:    $(ls -t "$RESULTS_DIR"/delivery-*.md 2>/dev/null | head -1)"
+    echo ""
+
+    # v7.25.0: Display session metrics
+    if command -v display_session_metrics &> /dev/null; then
+        display_session_metrics 2>/dev/null || true
+        display_provider_breakdown 2>/dev/null || true
+        # v8.6.0: Per-phase cost breakdown
+        if command -v display_per_phase_cost_table &>/dev/null; then
+            display_per_phase_cost_table 2>/dev/null || true
+        fi
+    fi
+
+    # Clean up exported flags so they don't affect subsequent standalone calls
+    unset OCTOPUS_SKIP_PHASE_COST_PROMPT
+    unset OCTOPUS_WORKFLOW_PHASE
+    unset OCTOPUS_WORKFLOW_TYPE
+    unset OCTOPUS_TASK_GROUP
+    unset OCTOPUS_TOTAL_PHASES
+    unset OCTOPUS_COMPLETED_PHASES
+    unset CLAUDE_CODE_DISABLE_CRON 2>/dev/null || true
+}
 
 # ═══════════════════════════════════════════════════════════════════════════
 # DARK FACTORY MODE — Spec-in, software-out autonomous pipeline (v8.25.0)

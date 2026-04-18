@@ -505,8 +505,8 @@ ${heuristic_ctx}"
             max_auth_retries=$((max_auth_retries > 1 ? 1 : max_auth_retries))
         fi
 
-        # Append gemini headless flag once before retry loop
-        if [[ "$agent_type" == gemini* ]]; then
+        # Append headless flag (-p "") for CLI providers that read prompt from stdin
+        if [[ "$agent_type" == gemini* ]] || [[ "$agent_type" == cursor-agent* ]] || [[ "$agent_type" == copilot* ]] || [[ "$agent_type" == qwen* ]]; then
             cmd_array+=(-p "")
         fi
 
@@ -598,30 +598,13 @@ ${heuristic_ctx}"
             fi
 
             # v8.7.0: Add trust marker for external CLI output
-            # v9.22.1: Also wrap the Output block in nonce boundaries so downstream
-            # synthesis prompts can identify provider-authored text as untrusted.
             case "$agent_type" in codex*|gemini*|perplexity*)
                 if [[ "${OCTOPUS_SECURITY_V870:-true}" == "true" ]]; then
                     sed -i.bak '1s/^/<!-- trust=untrusted provider='"$agent_type"' -->\n/' "$result_file" 2>/dev/null || true
                     rm -f "${result_file}.bak"
-                fi
-                # Close the fenced block, then append an END marker (BEGIN goes below)
-                echo '```' >> "$result_file"
-                local _untrusted_nonce
-                _untrusted_nonce=$(head -c 8 /dev/urandom 2>/dev/null | od -An -tx1 | tr -d ' \n' 2>/dev/null) \
-                    || _untrusted_nonce="${RANDOM}${RANDOM}${RANDOM}$(date +%s)"
-                echo "<!-- END-UNTRUSTED:provider=${agent_type}:nonce=${_untrusted_nonce} -->" >> "$result_file"
-                # Insert the BEGIN marker just above the "## Output" header
-                awk -v marker="<!-- BEGIN-UNTRUSTED:provider=${agent_type}:nonce=${_untrusted_nonce} -->" '
-                    /^## Output$/ && !done { print marker; done=1 }
-                    { print }
-                ' "$result_file" > "${result_file}.nonce" && mv "${result_file}.nonce" "$result_file"
-                ;;
-            *)
-                echo '```' >> "$result_file"
-                ;;
-            esac
+                fi ;; esac
 
+            echo '```' >> "$result_file"
             echo "" >> "$result_file"
             echo "## Status: SUCCESS" >> "$result_file"
 

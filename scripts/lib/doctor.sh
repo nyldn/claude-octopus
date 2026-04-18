@@ -182,6 +182,26 @@ doctor_check_providers() {
             "Qwen CLI not installed (optional)" "npm install -g @qwen-code/qwen-code — free-tier research via Qwen OAuth"
     fi
 
+    # Cursor Agent CLI (optional — Grok 4.20 via Cursor subscription)
+    if command -v agent &>/dev/null && agent --version 2>&1 | grep -cE '^20[0-9]{2}\.' >/dev/null; then
+        local cursor_auth="none"
+        if [[ -n "${CURSOR_API_KEY:-}" ]]; then
+            cursor_auth="env:CURSOR_API_KEY"
+        elif [[ -f "${HOME}/.cursor/agent-cli-state.json" ]]; then
+            cursor_auth="cursor-session"
+        fi
+        if [[ "$cursor_auth" != "none" ]]; then
+            doctor_add "cursor-agent" "providers" "pass" \
+                "Cursor Agent CLI installed (auth: ${cursor_auth})" "$(command -v agent) — Grok 4.20 via Cursor subscription"
+        else
+            doctor_add "cursor-agent" "providers" "warn" \
+                "Cursor Agent CLI installed but not authenticated" "Run: agent login (or set CURSOR_API_KEY)"
+        fi
+    else
+        doctor_add "cursor-agent" "providers" "info" \
+            "Cursor Agent CLI not installed (optional)" "curl -fsSL https://cursor.com/install | bash — Grok 4.20 via Cursor subscription"
+    fi
+
     # OpenCode CLI (optional — multi-provider router, v9.11.0)
     if command -v opencode &>/dev/null; then
         local opencode_auth="none"
