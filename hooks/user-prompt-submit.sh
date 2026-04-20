@@ -25,15 +25,18 @@ else
 fi
 [[ -z "$INPUT" ]] && exit 0
 
-# Extract the user's prompt text
-if ! command -v python3 &>/dev/null; then
-    exit 0
-fi
-
-PROMPT=$(printf '%s' "$INPUT" | python3 -c "
+# Extract the user's prompt text — prefer python3, fall back to jq
+PROMPT=""
+if command -v python3 &>/dev/null; then
+    PROMPT=$(printf '%s' "$INPUT" | python3 -c "
 import sys, json
 d = json.load(sys.stdin)
 print(d.get('prompt', d.get('message', '')))" 2>/dev/null) || true
+elif command -v jq &>/dev/null; then
+    PROMPT=$(printf '%s' "$INPUT" | jq -r '(.prompt // .message // "")' 2>/dev/null) || true
+else
+    exit 0
+fi
 
 [[ -z "$PROMPT" ]] && exit 0
 
