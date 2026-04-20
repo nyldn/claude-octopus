@@ -97,11 +97,11 @@ grep -qi "context.*constraint\|constraint.*context" "$SKILL_FILE" && has_context
 grep -qi "validation checklist\|validation.*check" "$SKILL_FILE" && has_validation=true
 
 passed_components=0
-$has_job_statement && ((passed_components++))
-$has_success_criteria && ((passed_components++))
-$has_boundaries && ((passed_components++))
-$has_context && ((passed_components++))
-$has_validation && ((passed_components++))
+$has_job_statement && ((passed_components++)) || true
+$has_success_criteria && ((passed_components++)) || true
+$has_boundaries && ((passed_components++)) || true
+$has_context && ((passed_components++)) || true
+$has_validation && ((passed_components++)) || true
 
 if [[ $passed_components -ge 4 ]]; then
     pass "Has $passed_components/5 key contract components"
@@ -174,9 +174,9 @@ fi
 echo ""
 echo "Test 12: Checking for workflow integration documentation..."
 workflows_mentioned=0
-grep -qi "embrace" "$SKILL_FILE" && ((workflows_mentioned++))
-grep -qi "discover\|probe" "$SKILL_FILE" && ((workflows_mentioned++))
-grep -qi "plan\|/plan" "$SKILL_FILE" && ((workflows_mentioned++))
+grep -qi "embrace" "$SKILL_FILE" && ((workflows_mentioned++)) || true
+grep -qi "discover\|probe" "$SKILL_FILE" && ((workflows_mentioned++)) || true
+grep -qi "plan\|/plan" "$SKILL_FILE" && ((workflows_mentioned++)) || true
 
 if [[ $workflows_mentioned -ge 2 ]]; then
     pass "Documents integration with $workflows_mentioned workflow(s)"

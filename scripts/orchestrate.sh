@@ -69,7 +69,6 @@ source "${SCRIPT_DIR}/lib/secure.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/providers.sh"
 source "${SCRIPT_DIR}/lib/preflight.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/dispatch.sh" 2>/dev/null || true
-source "${SCRIPT_DIR}/lib/debate.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/progressive.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/review.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/workflows.sh"
@@ -124,13 +123,11 @@ source "${SCRIPT_DIR}/lib/agent-utils.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/memory.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/session.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/semantic-cache.sh" 2>/dev/null || true
-source "${SCRIPT_DIR}/lib/audit.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/interactive.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/parallel.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/factory-spec.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/validation.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/embrace.sh" 2>/dev/null || true
-source "${SCRIPT_DIR}/lib/auto-route.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/heuristics.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/provider-routing.sh" 2>/dev/null || true
 
@@ -2601,6 +2598,7 @@ case "$COMMAND" in
     # ═══════════════════════════════════════════════════════════════════════════
     grapple)
         # Adversarial debate: Codex vs Gemini until consensus
+        source "${SCRIPT_DIR}/lib/debate.sh" 2>/dev/null || true
         # Handle help flag
         if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
             usage grapple
@@ -2751,6 +2749,7 @@ case "$COMMAND" in
         spawn_agent "$1" "$2"
         ;;
     auto)
+        source "${SCRIPT_DIR}/lib/auto-route.sh" 2>/dev/null || true
         [[ $# -lt 1 ]] && { log ERROR "Usage: auto <prompt>"; exit 1; }
         auto_route "$*"
         ;;
@@ -2896,6 +2895,7 @@ case "$COMMAND" in
     # OPTIMIZATION COMMANDS (v4.2)
     # ═══════════════════════════════════════════════════════════════════════════
     optimize|optimise)
+        source "${SCRIPT_DIR}/lib/auto-route.sh" 2>/dev/null || true
         [[ $# -lt 1 ]] && { log ERROR "Usage: optimize <prompt>"; exit 1; }
         auto_route "$*"
         ;;
@@ -2944,6 +2944,7 @@ case "$COMMAND" in
     # REVIEW & AUDIT COMMANDS (v4.4 - Human-in-the-loop)
     # ═══════════════════════════════════════════════════════════════════════════
     review)
+        source "${SCRIPT_DIR}/lib/audit.sh" 2>/dev/null || true
         subcommand="${1:-list}"
         shift || true
         case "$subcommand" in
@@ -2972,7 +2973,7 @@ case "$COMMAND" in
         esac
         ;;
     audit)
-        # View audit trail
+        source "${SCRIPT_DIR}/lib/audit.sh" 2>/dev/null || true
         count="${1:-20}"
         filter="${2:-}"
         get_audit_trail "$count" "$filter"

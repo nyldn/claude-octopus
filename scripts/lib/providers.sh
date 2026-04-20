@@ -485,11 +485,21 @@ detect_claude_code_version() {
     fi
 
     # v9.19.0: --bare flag for subprocess synthesis (CC v2.1.87+)
-    # Skips hooks/LSP/plugin sync when running claude -p subprocesses, reducing latency
+    # Skips hooks/LSP/plugin sync when running claude -p subprocesses, reducing latency.
+    # CC v2.1.114 regression (#288): --bare breaks subprocess auth on some installs,
+    # causing "Not logged in" exits with exit code 0. Runtime-probe before enabling,
+    # and honour OCTOPUS_DISABLE_BARE=1 opt-out.
     _BARE_OPT=""
-    if [[ "$SUPPORTS_BARE_FLAG" == "true" ]]; then
-        _BARE_OPT=" --bare"
-        log "INFO" "Subprocess synthesis uses --bare flag for faster claude -p calls"
+    if [[ "$SUPPORTS_BARE_FLAG" == "true" && "${OCTOPUS_DISABLE_BARE:-0}" != "1" ]]; then
+        # Quick auth probe: pipe a trivial prompt and check for login nag
+        local _bare_probe
+        _bare_probe=$(echo "x" | claude --bare --print --model claude-haiku-4-5-20251001 2>/dev/null | head -1 || true)
+        if [[ "$_bare_probe" == *"Not logged in"* || "$_bare_probe" == *"Please run /login"* ]]; then
+            log "WARN" "--bare flag breaks subprocess auth on this install (issue #288) — disabled. Set OCTOPUS_DISABLE_BARE=1 to suppress this probe."
+        else
+            _BARE_OPT=" --bare"
+            log "INFO" "Subprocess synthesis uses --bare flag for faster claude -p calls"
+        fi
     fi
     export _BARE_OPT
 

@@ -4,6 +4,22 @@
 # Extracted from orchestrate.sh (v9.7.4)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+# ── Fleet dispatch guards ─────────────────────────────────────────────────────
+# orchestrate.sh runs as a Bash tool subprocess. Agent Teams dispatch writes
+# AGENT_TEAMS_DISPATCH: signals to stdout that CC's host never sees in that
+# context, leaving all result files empty (issue #289, #288).
+#
+# Every parallel spawn loop MUST call fleet_dispatch_begin before the first
+# spawn_agent call and fleet_dispatch_end after the last one. The smoke test
+# tests/smoke/test-fleet-dispatch-guard.sh enforces this statically.
+fleet_dispatch_begin() {
+    export OCTOPUS_FORCE_LEGACY_DISPATCH=true
+}
+
+fleet_dispatch_end() {
+    unset OCTOPUS_FORCE_LEGACY_DISPATCH
+}
+
 # Check if an agent should use Agent Teams dispatch
 # Returns 0 (true) if agent should use native teams, 1 (false) for legacy bash
 should_use_agent_teams() {

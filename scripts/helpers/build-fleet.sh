@@ -273,7 +273,7 @@ build_architecture_fleet() {
     local used_families=""
     local arch_count=0
 
-    for p in codex gemini copilot qwen opencode; do
+    for p in codex gemini copilot qwen cursor-agent opencode; do
         is_available "$p" || continue
         local fam
         fam=$(get_family "$p")

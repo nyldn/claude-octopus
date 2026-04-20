@@ -292,6 +292,8 @@ CRITICAL OUTPUT FORMAT: Return ONLY a valid JSON object. No markdown, no prose, 
 
     local round1_files=()
     local round1_agent_types=()
+
+    fleet_dispatch_begin
     while IFS=: read -r agent_type role specialty; do
         [[ -z "$agent_type" ]] && continue
         local task_id="review-r1-${role}-${timestamp}"
@@ -306,6 +308,8 @@ ${agent_prompt_base}"
 
         spawn_agent "$agent_type" "$agent_prompt" "$task_id" "$role" "review" &
     done <<< "$fleet"
+
+    fleet_dispatch_end
 
     # Wait for all Round 1 agents
     # v9.3.1: wait only catches direct children; spawn_agent's actual CLI runs as

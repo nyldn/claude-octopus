@@ -216,6 +216,7 @@
       ]
     },
     {
+      "matcher": {},
       "hooks": [
         {
           "type": "command",
@@ -372,6 +373,7 @@
   ],
   "StopFailure": [
     {
+      "matcher": {},
       "hooks": [
         {
           "type": "command",
@@ -383,6 +385,7 @@
   ],
   "CwdChanged": [
     {
+      "matcher": {},
       "hooks": [
         {
           "type": "command",
@@ -394,6 +397,7 @@
   ],
   "TaskCreated": [
     {
+      "matcher": {},
       "hooks": [
         {
           "type": "command",
@@ -446,6 +450,7 @@
   ],
   "PermissionDenied": [
     {
+      "matcher": {},
       "hooks": [
         {
           "type": "command",

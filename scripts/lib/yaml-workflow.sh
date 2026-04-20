@@ -229,6 +229,7 @@ execute_workflow_phase() {
     fi
 
     # Spawn agents
+    fleet_dispatch_begin
     while IFS=':' read -r provider role is_parallel; do
         [[ -z "$provider" ]] && continue
 
@@ -292,6 +293,7 @@ $previous_output"
         ((agent_idx++)) || true
         sleep 0.1
     done <<< "$agents_raw"
+    fleet_dispatch_end
 
     # Wait for remaining parallel agents (v8.7.0: convergence-aware polling)
     if [[ ${#pids[@]} -gt 0 ]]; then
