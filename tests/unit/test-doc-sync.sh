@@ -148,7 +148,7 @@ else
 fi
 
 # Never clobber CHANGELOG
-if echo "$CONTENT" | grep -qi "never.*clobber\|never.*delete.*existing.*entries"; then
+if echo "$CONTENT" | grep -Eqi "never.*clobber|never.*delete.*existing.*entries"; then
   pass "never clobber CHANGELOG rule documented"
 else
   fail "never clobber CHANGELOG rule documented" "not found"
