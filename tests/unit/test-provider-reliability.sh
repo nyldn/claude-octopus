@@ -196,7 +196,7 @@ ALL_SRC=$(mktemp)
 cat "$PROJECT_ROOT/scripts/orchestrate.sh" "$PROJECT_ROOT/scripts/lib/"*.sh > "$ALL_SRC" 2>/dev/null
 
 # Persistent state dir (not /tmp/)
-if grep -q 'CLAUDE_PLUGIN_DATA\|WORKSPACE_DIR\|\.claude-octopus' "$PROJECT_ROOT/scripts/lib/resilience.sh" 2>/dev/null; then
+if grep -q 'CLAUDE_PLUGIN_DATA\|WORKSPACE_DIR\|\.claude-octopus' "$PROJECT_ROOT/scripts/provider-router.sh" 2>/dev/null; then
     pass "Circuit breaker state persists across sessions"
 else
     fail "Circuit breaker state persists" "still using /tmp/"
@@ -216,11 +216,11 @@ else
     fail "spawn error classification" "classify_error not in spawn.sh"
 fi
 
-# Bash 3.2 compat: no ${var,,}
-if grep -q '${.*,,}' "$PROJECT_ROOT/scripts/lib/resilience.sh" 2>/dev/null; then
-    fail "Bash 3.2 compat in resilience.sh" "found \${var,,}"
+# Bash 3.2 compat: no ${var,,} in provider-router.sh
+if grep -q '${.*,,}' "$PROJECT_ROOT/scripts/provider-router.sh" 2>/dev/null; then
+    fail "Bash 3.2 compat in provider-router.sh" "found \${var,,}"
 else
-    pass "Bash 3.2 compat in resilience.sh"
+    pass "Bash 3.2 compat in provider-router.sh"
 fi
 
 # Doctor shows open circuits
