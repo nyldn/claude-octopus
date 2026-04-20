@@ -5,6 +5,10 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+source "$SCRIPT_DIR/../helpers/test-framework.sh"
+test_suite "claude-mem companion integration (v9.0.0)"
+
 ORCH_MAIN="$PROJECT_ROOT/scripts/orchestrate.sh"
 # Combined search target (functions decomposed to lib/ in v9.7.7+)
 ORCH=$(mktemp)
@@ -12,9 +16,8 @@ trap 'rm -f "$ORCH"' EXIT
 cat "$ORCH_MAIN" "$PROJECT_ROOT/scripts/lib/"*.sh > "$ORCH" 2>/dev/null
 BRIDGE="$PROJECT_ROOT/scripts/claude-mem-bridge.sh"
 
-TEST_COUNT=0; PASS_COUNT=0; FAIL_COUNT=0
-pass() { TEST_COUNT=$((TEST_COUNT+1)); PASS_COUNT=$((PASS_COUNT+1)); echo "PASS: $1"; }
-fail() { TEST_COUNT=$((TEST_COUNT+1)); FAIL_COUNT=$((FAIL_COUNT+1)); echo "FAIL: $1 — $2"; }
+pass() { test_case "$1"; test_pass; }
+fail() { test_case "$1"; test_fail "${2:-$1}"; }
 
 # ── 1. Bridge script exists and is executable ────────────────────────
 
@@ -183,14 +186,4 @@ if grep -c 'provider_status_file' "$ORCH" >/dev/null 2>&1; then
 else
     fail "Review: provider status tracking file used" "no provider_status_file in review_run"
 fi
-
-# ── Summary ──────────────────────────────────────────────────────────
-
-echo ""
-echo "==============================================="
-echo "claude-mem integration tests: $PASS_COUNT/$TEST_COUNT passed"
-if [[ $FAIL_COUNT -gt 0 ]]; then
-    echo "$FAIL_COUNT FAILED"
-    exit 1
-fi
-echo "All tests passed."
+test_summary

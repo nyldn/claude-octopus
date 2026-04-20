@@ -6,6 +6,10 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+source "$SCRIPT_DIR/../helpers/test-framework.sh"
+test_suite "for CC v2.1.78-83 feature detection sync"
+
 PLUGIN_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 ORCH="$PLUGIN_DIR/scripts/orchestrate.sh"
 PROVIDERS="$PLUGIN_DIR/scripts/lib/providers.sh"
@@ -23,17 +27,9 @@ PASS=0
 FAIL=0
 TOTAL=0
 
-pass() {
-  PASS=$((PASS + 1))
-  TOTAL=$((TOTAL + 1))
-  echo "  ✅ PASS: $1"
-}
+pass() { test_case "$1"; test_pass; }
 
-fail() {
-  FAIL=$((FAIL + 1))
-  TOTAL=$((TOTAL + 1))
-  echo "  ❌ FAIL: $1 — $2"
-}
+fail() { test_case "$1"; test_fail "${2:-$1}"; }
 
 suite() {
   echo ""
@@ -214,11 +210,4 @@ if grep -q 'CwdChanged Hook.*SUPPORTS_CWD_CHANGED_HOOK' "$PROVIDERS"; then
 else
   fail "Log line includes CwdChanged Hook" "not in providers.sh log output"
 fi
-
-# ── Summary ───────────────────────────────────────────────────────────────────
-echo ""
-echo "═══════════════════════════════════════════"
-echo "Total: $TOTAL | Passed: $PASS | Failed: $FAIL"
-echo "═══════════════════════════════════════════"
-
-[[ "$FAIL" -eq 0 ]] && exit 0 || exit 1
+test_summary

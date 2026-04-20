@@ -12,6 +12,10 @@
 set -eo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+source "$SCRIPT_DIR/helpers/test-framework.sh"
+test_suite "v8.2.0 Sonnet 4.6 Agent in Multi-Agent Workflows"
+
 PLUGIN_DIR="$(dirname "$SCRIPT_DIR")"
 ORCHESTRATE_SH="${PLUGIN_DIR}/scripts/orchestrate.sh"
 # v9.12: Search orchestrate.sh + lib/*.sh for functions that may have been decomposed
@@ -20,12 +24,6 @@ cat "$ORCHESTRATE_SH" "$(dirname "$ORCHESTRATE_SH")/lib/"*.sh > "$ALL_SRC" 2>/de
 trap 'rm -f "$ALL_SRC"' EXIT
 SKILL_DEBATE="${PLUGIN_DIR}/.claude/skills/skill-debate.md"
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
 
 TESTS_RUN=0
 TESTS_PASSED=0
@@ -259,16 +257,4 @@ echo ""
 # ═══════════════════════════════════════════════════════════════════════════════
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo -e "${BLUE}Test Summary - v8.2.0 Sonnet 4.6 in Multi-Agent Workflows${NC}"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo -e "Total tests:  ${BLUE}$TESTS_RUN${NC}"
-echo -e "Passed:       ${GREEN}$TESTS_PASSED${NC}"
-echo -e "Failed:       ${RED}$TESTS_FAILED${NC}"
-echo ""
-
-if [[ $TESTS_FAILED -eq 0 ]]; then
-    echo -e "${GREEN}✅ All Sonnet 4.6 multi-agent workflow tests passed!${NC}"
-    exit 0
-else
-    echo -e "${RED}❌ $TESTS_FAILED test(s) failed${NC}"
-    exit 1
-fi
+test_summary

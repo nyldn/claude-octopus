@@ -4,6 +4,10 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+source "$SCRIPT_DIR/../helpers/test-framework.sh"
+test_suite "probe-single command: single-agent probe for multi-agentic skill dispatch (v8.54.0)"
+
 ORCHESTRATE="$PROJECT_ROOT/scripts/orchestrate.sh"
 
 # Combined search target (functions decomposed to lib/ in v9.7.7+)
@@ -11,9 +15,8 @@ ALL_SRC=$(mktemp)
 trap 'rm -f "$ALL_SRC"' EXIT
 cat "$ORCHESTRATE" "$PROJECT_ROOT/scripts/lib/"*.sh > "$ALL_SRC" 2>/dev/null
 
-TEST_COUNT=0; PASS_COUNT=0; FAIL_COUNT=0
-pass() { TEST_COUNT=$((TEST_COUNT+1)); PASS_COUNT=$((PASS_COUNT+1)); echo "PASS: $1"; }
-fail() { TEST_COUNT=$((TEST_COUNT+1)); FAIL_COUNT=$((FAIL_COUNT+1)); echo "FAIL: $1 — $2"; }
+pass() { test_case "$1"; test_pass; }
+fail() { test_case "$1"; test_fail "${2:-$1}"; }
 assert_contains() {
   local output="$1" pattern="$2" label="$3"
   echo "$output" | grep -qE "$pattern" && pass "$label" || fail "$label" "missing: $pattern"
@@ -162,14 +165,4 @@ assert_contains "$(grep -c 'probe_discover()' "$ALL_SRC" 2>/dev/null || echo 0)"
 
 assert_contains "$(grep -c 'discover|research|probe)' "$ALL_SRC" 2>/dev/null || echo 0)" \
   "[1-9]" "discover|research|probe: original dispatch still exists (backward compat)"
-
-# ── Summary ──────────────────────────────────────────────────────────────────
-
-echo ""
-echo "═══════════════════════════════════════════"
-echo "probe-single tests: $PASS_COUNT/$TEST_COUNT passed"
-if [[ $FAIL_COUNT -gt 0 ]]; then
-  echo "$FAIL_COUNT FAILED"
-  exit 1
-fi
-echo "All tests passed."
+test_summary

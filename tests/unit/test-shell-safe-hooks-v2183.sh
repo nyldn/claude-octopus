@@ -5,23 +5,19 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+source "$SCRIPT_DIR/../helpers/test-framework.sh"
+test_suite "for CC v2.1.78-83 hook script robustness"
+
 PLUGIN_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 PASS=0
 FAIL=0
 TOTAL=0
 
-pass() {
-  PASS=$((PASS + 1))
-  TOTAL=$((TOTAL + 1))
-  echo "  ✅ PASS: $1"
-}
+pass() { test_case "$1"; test_pass; }
 
-fail() {
-  FAIL=$((FAIL + 1))
-  TOTAL=$((TOTAL + 1))
-  echo "  ❌ FAIL: $1 — $2"
-}
+fail() { test_case "$1"; test_fail "${2:-$1}"; }
 
 suite() {
   echo ""
@@ -96,15 +92,4 @@ if echo '{"error_type":"auth_failure"}' | bash "$PLUGIN_DIR/hooks/stop-failure-l
 else
   fail "stop-failure-log.sh works without CLAUDE_PLUGIN_DATA" "non-zero exit"
 fi
-
-# ── Summary ───────────────────────────────────────────────────────────────────
-echo ""
-echo "═══════════════════════════════════════════"
-echo "Total: $TOTAL | Passed: $PASS | Failed: $FAIL"
-echo "═══════════════════════════════════════════"
-
-# Cleanup
-rm -rf "${_HOOK_TEST_DIR:-}" 2>/dev/null
-unset CLAUDE_PLUGIN_DATA 2>/dev/null
-
-[[ "$FAIL" -eq 0 ]] && exit 0 || exit 1
+test_summary

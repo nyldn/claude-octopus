@@ -7,6 +7,10 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+source "$SCRIPT_DIR/helpers/test-framework.sh"
+test_suite "-fleet-diversity.sh — Tests for dynamic fleet building and provider diversity"
+
 PLUGIN_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 FLEET_SCRIPT="$PLUGIN_DIR/scripts/helpers/build-fleet.sh"
 CHECK_SCRIPT="$PLUGIN_DIR/scripts/helpers/check-providers.sh"
@@ -14,8 +18,8 @@ CHECK_SCRIPT="$PLUGIN_DIR/scripts/helpers/check-providers.sh"
 # Source test helpers
 PASS=0
 FAIL=0
-pass() { PASS=$((PASS + 1)); echo "  ✅ $1"; }
-fail() { FAIL=$((FAIL + 1)); echo "  ❌ $1${2:+ — $2}"; }
+pass() { test_case "$1"; test_pass; }
+fail() { test_case "$1"; test_fail "${2:-$1}"; }
 
 echo "═══════════════════════════════════════════════════════════════"
 echo "Test: Fleet Diversity & Dynamic Dispatch"
@@ -261,10 +265,4 @@ fi
 # ═══════════════════════════════════════════════════════════════
 # Summary
 # ═══════════════════════════════════════════════════════════════
-echo ""
-echo "═══════════════════════════════════════════════════════════════"
-TOTAL=$((PASS + FAIL))
-echo "Results: $PASS passed, $FAIL failed out of $TOTAL tests"
-echo "═══════════════════════════════════════════════════════════════"
-
-[[ $FAIL -eq 0 ]] && exit 0 || exit 1
+test_summary

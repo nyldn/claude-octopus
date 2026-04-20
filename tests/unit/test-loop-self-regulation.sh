@@ -6,13 +6,16 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
+source "$SCRIPT_DIR/../helpers/test-framework.sh"
+test_suite "Loop Self-Regulation (CONSOLIDATED-02)"
+
+
 LOOP_SKILL="$PROJECT_ROOT/.claude/skills/skill-iterative-loop.md"
 DEBUG_SKILL="$PROJECT_ROOT/.claude/skills/skill-debug.md"
 DELIVER_SKILL="$PROJECT_ROOT/.claude/skills/flow-deliver.md"
 
-TEST_COUNT=0; PASS_COUNT=0; FAIL_COUNT=0
-pass() { TEST_COUNT=$((TEST_COUNT+1)); PASS_COUNT=$((PASS_COUNT+1)); echo "PASS: $1"; }
-fail() { TEST_COUNT=$((TEST_COUNT+1)); FAIL_COUNT=$((FAIL_COUNT+1)); echo "FAIL: $1 — $2"; }
+pass() { test_case "$1"; test_pass; }
+fail() { test_case "$1"; test_fail "${2:-$1}"; }
 
 # ── Self-Regulation section exists ────────────────────────────────────────────
 
@@ -202,11 +205,4 @@ for f in "$LOOP_SKILL" "$DEBUG_SKILL" "$DELIVER_SKILL" "$DEVELOP_SKILL"; do
         pass "$fname has no attribution"
     fi
 done
-
-# ── Summary ───────────────────────────────────────────────────────────────────
-
-echo ""
-echo "═══════════════════════════════════════════════════"
-echo "loop-self-regulation: $PASS_COUNT/$TEST_COUNT passed"
-[[ $FAIL_COUNT -gt 0 ]] && echo "FAILURES: $FAIL_COUNT" && exit 1
-echo "All tests passed."
+test_summary

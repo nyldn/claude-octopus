@@ -3,12 +3,14 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+source "$SCRIPT_DIR/../helpers/test-framework.sh"
+test_suite "Docs Sync"
+
+set +o pipefail  # restore: original did not use pipefail
+
 cd "$PROJECT_ROOT"
 
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
 
 # Counters
 TOTAL_TESTS=0
@@ -19,26 +21,13 @@ FAILED_TESTS=0
 declare -a FAILURES
 
 # Helper functions
-pass() {
-  echo -e "${GREEN}✓${NC} $1"
-  ((PASSED_TESTS++)) || true
-  ((TOTAL_TESTS++)) || true
-}
+pass() { test_case "$1"; test_pass; }
 
-fail() {
-  echo -e "${RED}✗${NC} $1"
-  FAILURES+=("$1")
-  ((FAILED_TESTS++)) || true
-  ((TOTAL_TESTS++)) || true
-}
+fail() { test_case "$1"; test_fail "${2:-$1}"; }
 
-warn() {
-  echo -e "${YELLOW}⚠${NC} $1"
-}
+warn() { echo "$1"; }
 
-info() {
-  echo "$1"
-}
+info() { echo "$1"; }
 
 # Extract version from plugin.json
 get_plugin_version() {
@@ -381,57 +370,33 @@ check_command_frontmatter() {
 }
 
 # Main test execution
-main() {
-  echo "================================================================"
-  echo "  Documentation Sync Validation Test Suite"
-  echo "================================================================"
-  echo
+echo "================================================================"
+echo "  Documentation Sync Validation Test Suite"
+echo "================================================================"
+echo
 
-  # Get version from plugin.json
-  VERSION=$(get_plugin_version)
-  info "Current version from plugin.json: $VERSION"
-  echo
+# Get version from plugin.json
+VERSION=$(get_plugin_version)
+info "Current version from plugin.json: $VERSION"
+echo
 
-  # Run test suites
-  check_readme_version "$VERSION"
-  check_readme_counts
-  check_changelog_version "$VERSION"
-  check_readme_structure
-  check_docs_files
-  check_skills_registered
-  check_workflow_skills
-  check_hooks_config
-  check_debate_skill
-  check_marketplace_version
-  check_command_frontmatter
+# Run test suites
+check_readme_version "$VERSION"
+check_readme_counts
+check_changelog_version "$VERSION"
+check_readme_structure
+check_docs_files
+check_skills_registered
+check_workflow_skills
+check_hooks_config
+check_debate_skill
+check_marketplace_version
+check_command_frontmatter
 
-  # Summary
-  echo
-  echo "================================================================"
-  echo "  Test Results Summary"
-  echo "================================================================"
-  echo
-  echo "Total Tests: $TOTAL_TESTS"
-  echo -e "Passed: ${GREEN}$PASSED_TESTS${NC}"
-  echo -e "Failed: ${RED}$FAILED_TESTS${NC}"
-  echo
-
-  if [ $FAILED_TESTS -gt 0 ]; then
-    echo "================================================================"
-    echo "  Failures:"
-    echo "================================================================"
-    for failure in "${FAILURES[@]}"; do
-      echo -e "${RED}✗${NC} $failure"
-    done
-    echo
-    exit 1
-  else
-    echo -e "${GREEN}All tests passed!${NC}"
-    exit 0
-  fi
-}
-
-# Run main if executed directly
-if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
-  main "$@"
-fi
+# Summary
+echo
+echo "================================================================"
+echo "  Test Results Summary"
+echo "================================================================"
+echo
+test_summary

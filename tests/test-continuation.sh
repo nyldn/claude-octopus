@@ -11,6 +11,10 @@
 set -eo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+source "$SCRIPT_DIR/helpers/test-framework.sh"
+test_suite "v8.30 Agent Continuation/Resume Support"
+
 PLUGIN_DIR="$(dirname "$SCRIPT_DIR")"
 ORCHESTRATE_SH="${PLUGIN_DIR}/scripts/orchestrate.sh"
 # v9.12: Search orchestrate.sh + lib/*.sh for functions that may have been decomposed
@@ -20,12 +24,6 @@ trap 'rm -f "$ALL_SRC"' EXIT
 BRIDGE_SH="${PLUGIN_DIR}/scripts/agent-teams-bridge.sh"
 FLOW_DEVELOP_MD="${PLUGIN_DIR}/.claude/skills/flow-develop.md"
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
 
 TESTS_RUN=0
 TESTS_PASSED=0
@@ -343,16 +341,4 @@ fi
 # ═══════════════════════════════════════════════════════════════════════════════
 # Summary
 # ═══════════════════════════════════════════════════════════════════════════════
-
-echo ""
-echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
-echo -e "Tests run: $TESTS_RUN | ${GREEN}Passed: $TESTS_PASSED${NC} | ${RED}Failed: $TESTS_FAILED${NC}"
-echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
-
-if [[ $TESTS_FAILED -gt 0 ]]; then
-    echo -e "\n${RED}SOME TESTS FAILED${NC}"
-    exit 1
-else
-    echo -e "\n${GREEN}ALL TESTS PASSED${NC}"
-    exit 0
-fi
+test_summary

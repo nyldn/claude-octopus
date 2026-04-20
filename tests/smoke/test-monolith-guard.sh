@@ -4,11 +4,14 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+source "$SCRIPT_DIR/../helpers/test-framework.sh"
+test_suite "Monolith guard — prevents orchestrate.sh from growing past its extraction target"
+
 ORCH="$SCRIPT_DIR/../../scripts/orchestrate.sh"
 
-TEST_COUNT=0; PASS_COUNT=0; FAIL_COUNT=0
-pass() { TEST_COUNT=$((TEST_COUNT+1)); PASS_COUNT=$((PASS_COUNT+1)); echo "PASS: $1"; }
-fail() { TEST_COUNT=$((TEST_COUNT+1)); FAIL_COUNT=$((FAIL_COUNT+1)); echo "FAIL: $1 — $2"; }
+pass() { test_case "$1"; test_pass; }
+fail() { test_case "$1"; test_fail "${2:-$1}"; }
 
 # ── 1. Line count threshold ────────────────────────────────────────
 MAX_LINES=22600
@@ -55,12 +58,4 @@ for lib in utils.sh similarity.sh models.sh; do
         fail "lib/$lib has source guard" "no _LOADED guard found"
     fi
 done
-
-# ── Summary ─────────────────────────────────────────────────────────
-echo ""
-echo "═══════════════════════════════════════"
-echo "  Results: $PASS_COUNT/$TEST_COUNT passed, $FAIL_COUNT failed"
-echo "  orchestrate.sh: $line_count lines (limit: $MAX_LINES)"
-echo "═══════════════════════════════════════"
-
-[[ $FAIL_COUNT -eq 0 ]] && exit 0 || exit 1
+test_summary

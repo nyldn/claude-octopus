@@ -6,6 +6,10 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+source "$SCRIPT_DIR/helpers/test-framework.sh"
+test_suite "for credential isolation (v8.32.0)"
+
 PLUGIN_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 ORCH="$PLUGIN_DIR/scripts/orchestrate.sh"
 # v9.12: Search orchestrate.sh + lib/*.sh for decomposed functions
@@ -17,17 +21,9 @@ PASS=0
 FAIL=0
 TOTAL=0
 
-pass() {
-  PASS=$((PASS + 1))
-  TOTAL=$((TOTAL + 1))
-  echo "  ✅ PASS: $1"
-}
+pass() { test_case "$1"; test_pass; }
 
-fail() {
-  FAIL=$((FAIL + 1))
-  TOTAL=$((TOTAL + 1))
-  echo "  ❌ FAIL: $1"
-}
+fail() { test_case "$1"; test_fail "${2:-$1}"; }
 
 suite() {
   echo ""
@@ -204,9 +200,4 @@ fi
 # ─────────────────────────────────────────────────────────────────────
 # Summary
 # ─────────────────────────────────────────────────────────────────────
-echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  Results: $PASS/$TOTAL passed, $FAIL failed"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-
-[[ "$FAIL" -eq 0 ]] && exit 0 || exit 1
+test_summary

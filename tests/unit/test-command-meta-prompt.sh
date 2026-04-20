@@ -5,13 +5,16 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+source "$SCRIPT_DIR/../helpers/test-framework.sh"
+test_suite "/octo:meta-prompt command file integrity"
+
 CMD_FILE="$PROJECT_ROOT/.claude/commands/meta-prompt.md"
 SKILL_FILE="$PROJECT_ROOT/.claude/skills/skill-meta-prompt.md"
 PLUGIN_JSON="$PROJECT_ROOT/.claude-plugin/plugin.json"
 
-TEST_COUNT=0; PASS_COUNT=0; FAIL_COUNT=0
-pass() { TEST_COUNT=$((TEST_COUNT+1)); PASS_COUNT=$((PASS_COUNT+1)); echo "PASS: $1"; }
-fail() { TEST_COUNT=$((TEST_COUNT+1)); FAIL_COUNT=$((FAIL_COUNT+1)); echo "FAIL: $1 — $2"; }
+pass() { test_case "$1"; test_pass; }
+fail() { test_case "$1"; test_fail "${2:-$1}"; }
 
 # ── 1. File exists ──────────────────────────────────────────────────
 if [[ -f "$CMD_FILE" ]]; then
@@ -71,10 +74,4 @@ if grep -c "meta-prompt.md" "$PLUGIN_JSON" >/dev/null 2>&1; then
 else
     fail "registered in plugin.json" "meta-prompt.md not found in plugin.json"
 fi
-
-# ── Summary ──────────────────────────────────────────────────────────
-echo ""
-echo "═══════════════════════════════════════════"
-echo "  meta-prompt command tests: $PASS_COUNT/$TEST_COUNT passed"
-echo "═══════════════════════════════════════════"
-[[ $FAIL_COUNT -eq 0 ]] && exit 0 || exit 1
+test_summary

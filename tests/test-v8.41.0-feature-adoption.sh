@@ -6,6 +6,10 @@ set -eo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+source "$SCRIPT_DIR/helpers/test-framework.sh"
+test_suite "v8.41.0 Feature Adoption"
+
 ALL_SRC=$(mktemp)
 cat "$PLUGIN_ROOT/scripts/orchestrate.sh" "$PLUGIN_ROOT/scripts/lib/"*.sh > "$ALL_SRC" 2>/dev/null
 trap 'rm -f "$ALL_SRC"' EXIT
@@ -14,8 +18,8 @@ PASS=0
 FAIL=0
 ERRORS=""
 
-pass() { ((PASS++)); echo "  ✓ $1"; }
-fail() { ((FAIL++)); ERRORS="${ERRORS}\n  ✗ $1"; echo "  ✗ $1"; }
+pass() { test_case "$1"; test_pass; }
+fail() { test_case "$1"; test_fail "${2:-$1}"; }
 
 echo "═══════════════════════════════════════════════════════════════"
 echo "Test Suite: v8.41.0 Feature Adoption"
@@ -497,20 +501,4 @@ if [[ -d "$DROIDS_DIR" ]]; then
         fail "7.6 $NON_PREFIXED droids missing octo- prefix"
     fi
 fi
-
-# ─── Summary ────────────────────────────────────────────────────
-echo ""
-echo "═══════════════════════════════════════════════════════════════"
-TOTAL=$((PASS + FAIL))
-echo "Results: $PASS passed, $FAIL failed out of $TOTAL tests"
-
-if [[ $FAIL -gt 0 ]]; then
-    echo ""
-    echo "Failures:"
-    echo -e "$ERRORS"
-    echo ""
-    exit 1
-fi
-
-echo "All tests passed!"
-exit 0
+test_summary

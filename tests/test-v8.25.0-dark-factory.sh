@@ -6,6 +6,10 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+source "$SCRIPT_DIR/helpers/test-framework.sh"
+test_suite "v8.25.0 Dark Factory Mode (Issue #37)"
+
 ORCHESTRATE_SH="$PROJECT_ROOT/scripts/orchestrate.sh"
 # v9.12: Search orchestrate.sh + lib/*.sh for functions that may have been decomposed
 ALL_SRC=$(mktemp)
@@ -14,12 +18,6 @@ trap 'rm -f "$ALL_SRC"' EXIT
 COMMAND_FILE="$PROJECT_ROOT/.claude/commands/factory.md"
 SKILL_FILE="$PROJECT_ROOT/.claude/skills/skill-factory.md"
 
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
 
 TEST_COUNT=0
 PASS_COUNT=0
@@ -28,18 +26,9 @@ FAIL_COUNT=0
 echo -e "${BLUE}Testing v8.25.0 Dark Factory Mode (Issue #37)${NC}"
 echo ""
 
-pass() {
-    PASS_COUNT=$((PASS_COUNT + 1))
-    TEST_COUNT=$((TEST_COUNT + 1))
-    echo -e "${GREEN}  PASS${NC}: $1"
-}
+pass() { test_case "$1"; test_pass; }
 
-fail() {
-    FAIL_COUNT=$((FAIL_COUNT + 1))
-    TEST_COUNT=$((TEST_COUNT + 1))
-    echo -e "${RED}  FAIL${NC}: $1"
-    if [[ -n "${2:-}" ]]; then echo -e "   ${YELLOW}$2${NC}"; fi
-}
+fail() { test_case "$1"; test_fail "${2:-$1}"; }
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Test Suite 1: Function Registration
@@ -534,25 +523,4 @@ echo ""
 # ═══════════════════════════════════════════════════════════════════════════════
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo -e "${BLUE}Test Summary${NC}"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo -e "Total tests:  ${BLUE}${TEST_COUNT}${NC}"
-echo -e "Passed:       ${GREEN}${PASS_COUNT}${NC}"
-echo -e "Failed:       ${RED}${FAIL_COUNT}${NC}"
-echo ""
-
-if [[ $FAIL_COUNT -eq 0 ]]; then
-    echo -e "${GREEN}All v8.25.0 Dark Factory Mode tests passed!${NC}"
-    echo ""
-    echo -e "${BLUE}Summary:${NC}"
-    echo "  E19: Scenario Holdout Testing — split_holdout_scenarios()"
-    echo "  E21: Satisfaction Scoring — score_satisfaction() with 4-dimension weights"
-    echo "  E22: Dark Factory Pipeline — factory_run() wrapping embrace_full_workflow()"
-    echo "  7 new functions, CLI dispatch, command file, skill file"
-    echo "  Artifacts: .octo/factory/<run-id>/ (spec, scenarios, scores, report)"
-    echo ""
-    exit 0
-else
-    echo -e "${RED}Some tests failed${NC}"
-    exit 1
-fi
+test_summary

@@ -5,6 +5,10 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+source "$SCRIPT_DIR/../helpers/test-framework.sh"
+test_suite "-enhanced-hud.sh - Static analysis tests for enhanced octopus-hud.mjs"
+
 HUD_MJS="$PLUGIN_ROOT/hooks/octopus-hud.mjs"
 
 PASS=0 FAIL=0
@@ -225,13 +229,4 @@ grep -q 'OCTO_BUDGET_CEILING' "$HUD_MJS" && \
 grep -q 'costProjection(session' "$HUD_MJS" && \
     assert_pass "8.4 costProjection wired into workflow row render" || \
     assert_fail "8.4 costProjection wired into workflow row render"
-
-echo ""
-
-# ── Summary ──────────────────────────────────────────────────────────────────
-echo "============================================================"
-TOTAL=$((PASS + FAIL))
-echo "Results: $PASS/$TOTAL passed, $FAIL failed"
-echo "============================================================"
-
-[[ $FAIL -eq 0 ]] && exit 0 || exit 1
+test_summary

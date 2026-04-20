@@ -7,11 +7,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
+source "$SCRIPT_DIR/../helpers/test-framework.sh"
+test_suite "Scheduler Lifecycle Integration"
+
 
 # Use a temporary scheduler directory to avoid polluting real state
 export HOME="$(mktemp -d)"
@@ -32,15 +30,9 @@ echo ""
 FAILED=0
 PASSED=0
 
-pass() {
-    echo -e "${GREEN}✓${NC} $1"
-    PASSED=$((PASSED + 1))
-}
+pass() { test_case "$1"; test_pass; }
 
-fail() {
-    echo -e "${RED}✗${NC} $1"
-    FAILED=$((FAILED + 1))
-}
+fail() { test_case "$1"; test_fail "${2:-$1}"; }
 
 # --- Test: Store initialization ---
 echo "--- Store Initialization ---"
@@ -291,15 +283,4 @@ fi
 echo ""
 echo "Cleaning up temp HOME: $HOME"
 rm -rf "$HOME"
-
-# --- Summary ---
-echo ""
-echo "================================================================"
-echo "  Test Results Summary"
-echo "================================================================"
-echo ""
-echo "Total Tests: $((PASSED + FAILED))"
-echo -e "Passed: ${GREEN}${PASSED}${NC}"
-echo -e "Failed: ${RED}${FAILED}${NC}"
-
-exit $([[ $FAILED -eq 0 ]] && echo 0 || echo 1)
+test_summary

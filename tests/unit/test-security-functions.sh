@@ -5,11 +5,6 @@
 # Note: no set -e — test has its own pass/fail tracking,
 # and set -e + grep pipes cause SIGPIPE exits
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
 
 # Counters
 TOTAL_TESTS=0
@@ -23,6 +18,12 @@ declare -a FAILURES
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
+source "$SCRIPT_DIR/../helpers/test-framework.sh"
+test_suite "Security Functions (v7.9.0)"
+
+set +o pipefail  # restore: original did not use pipefail
+
+
 # NOTE: orchestrate.sh has a main execution block that runs on source,
 # so we use grep-based static analysis for function existence checks
 # and extract individual functions for runtime tests.
@@ -32,26 +33,13 @@ cat "$PROJECT_ROOT/scripts/orchestrate.sh" "$PROJECT_ROOT/scripts/lib/"*.sh > "$
 ORCHESTRATE_SH="$ALL_SRC"
 
 # Helper functions
-pass() {
-    echo -e "${GREEN}✓${NC} $1"
-    ((PASSED_TESTS++)) || true
-    ((TOTAL_TESTS++)) || true
-}
+pass() { test_case "$1"; test_pass; }
 
-fail() {
-    echo -e "${RED}✗${NC} $1"
-    FAILURES+=("$1")
-    ((FAILED_TESTS++)) || true
-    ((TOTAL_TESTS++)) || true
-}
+fail() { test_case "$1"; test_fail "${2:-$1}"; }
 
-warn() {
-    echo -e "${YELLOW}⚠${NC} $1"
-}
+warn() { echo "$1"; }
 
-info() {
-    echo "$1"
-}
+info() { echo "$1"; }
 
 #==============================================================================
 # Test: validate_external_url function exists
@@ -275,62 +263,37 @@ test_security_skill_wrapping_docs() {
 #==============================================================================
 # Main test execution
 #==============================================================================
-main() {
-    echo "================================================================"
-    echo "  Security Functions Test Suite (v7.9.0)"
-    echo "================================================================"
-    echo
-    
-    cd "$PROJECT_ROOT"
-    
-    # Function existence tests
-    test_validate_url_function_exists
-    test_transform_twitter_function_exists
-    test_wrap_content_function_exists
-    
-    # URL validation tests
-    test_url_rejects_http
-    test_url_rejects_localhost
-    test_url_rejects_loopback
-    test_url_rejects_private_10
-    test_url_rejects_private_192
-    test_url_rejects_metadata
-    test_url_rejects_long_urls
-    
-    # Security skill tests
-    test_security_skill_exists
-    test_security_skill_frontmatter
-    test_security_skill_url_docs
-    test_security_skill_wrapping_docs
-    
-    # Summary
-    echo
-    echo "================================================================"
-    echo "  Test Results Summary"
-    echo "================================================================"
-    echo
-    echo "Total Tests: $TOTAL_TESTS"
-    echo -e "Passed: ${GREEN}$PASSED_TESTS${NC}"
-    echo -e "Failed: ${RED}$FAILED_TESTS${NC}"
-    echo
-    
-    rm -f "$ALL_SRC"
-    if [ $FAILED_TESTS -gt 0 ]; then
-        echo "================================================================"
-        echo "  Failures:"
-        echo "================================================================"
-        for failure in "${FAILURES[@]}"; do
-            echo -e "${RED}✗${NC} $failure"
-        done
-        echo
-        exit 1
-    else
-        echo -e "${GREEN}All tests passed!${NC}"
-        exit 0
-    fi
-}
+echo "================================================================"
+echo "  Security Functions Test Suite (v7.9.0)"
+echo "================================================================"
+echo
 
-# Run main if executed directly
-if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
-    main "$@"
-fi
+cd "$PROJECT_ROOT"
+
+# Function existence tests
+test_validate_url_function_exists
+test_transform_twitter_function_exists
+test_wrap_content_function_exists
+
+# URL validation tests
+test_url_rejects_http
+test_url_rejects_localhost
+test_url_rejects_loopback
+test_url_rejects_private_10
+test_url_rejects_private_192
+test_url_rejects_metadata
+test_url_rejects_long_urls
+
+# Security skill tests
+test_security_skill_exists
+test_security_skill_frontmatter
+test_security_skill_url_docs
+test_security_skill_wrapping_docs
+
+# Summary
+echo
+echo "================================================================"
+echo "  Test Results Summary"
+echo "================================================================"
+echo
+test_summary

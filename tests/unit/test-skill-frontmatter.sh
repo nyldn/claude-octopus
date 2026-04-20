@@ -2,13 +2,15 @@
 # Test Suite: YAML Frontmatter Validation
 # Ensures all skills have proper YAML frontmatter for Claude Code recognition
 
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../helpers/test-framework.sh"
+test_suite "YAML Frontmatter Validation"
+
+set +o pipefail  # restore: original did not use pipefail
+
 set -e
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
 
 # Counters
 TOTAL_TESTS=0
@@ -19,26 +21,13 @@ FAILED_TESTS=0
 declare -a FAILURES
 
 # Helper functions
-pass() {
-  echo -e "${GREEN}✓${NC} $1"
-  PASSED_TESTS=$((PASSED_TESTS + 1))
-  TOTAL_TESTS=$((TOTAL_TESTS + 1))
-}
+pass() { test_case "$1"; test_pass; }
 
-fail() {
-  echo -e "${RED}✗${NC} $1"
-  FAILURES+=("$1")
-  FAILED_TESTS=$((FAILED_TESTS + 1))
-  TOTAL_TESTS=$((TOTAL_TESTS + 1))
-}
+fail() { test_case "$1"; test_fail "${2:-$1}"; }
 
-warn() {
-  echo -e "${YELLOW}⚠${NC} $1"
-}
+warn() { echo "$1"; }
 
-info() {
-  echo "$1"
-}
+info() { echo "$1"; }
 
 # Check if yq is installed (for YAML parsing)
 check_dependencies() {
@@ -155,60 +144,36 @@ validate_frontmatter() {
 }
 
 # Main test execution
-main() {
-  echo "================================================================"
-  echo "  YAML Frontmatter Validation Test Suite"
-  echo "================================================================"
-  echo
+echo "================================================================"
+echo "  YAML Frontmatter Validation Test Suite"
+echo "================================================================"
+echo
 
-  check_dependencies
+check_dependencies
 
-  # Find all skill files
-  local skills_dir=".claude/skills"
-  if [ ! -d "$skills_dir" ]; then
-    echo -e "${RED}ERROR:${NC} Skills directory not found: $skills_dir"
-    echo "Run this script from the repository root"
-    exit 1
-  fi
-
-  local skill_files=$(find "$skills_dir" -name "*.md" -type f)
-  local skill_count=$(echo "$skill_files" | wc -l | tr -d ' ')
-
-  info "Found $skill_count skill files to validate"
-  echo
-
-  # Validate each skill
-  while IFS= read -r skill_file; do
-    validate_frontmatter "$skill_file"
-  done <<< "$skill_files"
-
-  # Summary
-  echo
-  echo "================================================================"
-  echo "  Test Results Summary"
-  echo "================================================================"
-  echo
-  echo "Total Tests: $TOTAL_TESTS"
-  echo -e "Passed: ${GREEN}$PASSED_TESTS${NC}"
-  echo -e "Failed: ${RED}$FAILED_TESTS${NC}"
-  echo
-
-  if [ $FAILED_TESTS -gt 0 ]; then
-    echo "================================================================"
-    echo "  Failures:"
-    echo "================================================================"
-    for failure in "${FAILURES[@]}"; do
-      echo -e "${RED}✗${NC} $failure"
-    done
-    echo
-    exit 1
-  else
-    echo -e "${GREEN}All tests passed!${NC}"
-    exit 0
-  fi
-}
-
-# Run main if executed directly
-if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
-  main "$@"
+# Find all skill files
+skills_dir=".claude/skills"
+if [ ! -d "$skills_dir" ]; then
+echo -e "${RED}ERROR:${NC} Skills directory not found: $skills_dir"
+echo "Run this script from the repository root"
+exit 1
 fi
+
+skill_files=$(find "$skills_dir" -name "*.md" -type f)
+skill_count=$(echo "$skill_files" | wc -l | tr -d ' ')
+
+info "Found $skill_count skill files to validate"
+echo
+
+# Validate each skill
+while IFS= read -r skill_file; do
+validate_frontmatter "$skill_file"
+done <<< "$skill_files"
+
+# Summary
+echo
+echo "================================================================"
+echo "  Test Results Summary"
+echo "================================================================"
+echo
+test_summary

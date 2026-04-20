@@ -5,6 +5,10 @@
 set -eo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+source "$SCRIPT_DIR/helpers/test-framework.sh"
+test_suite "Model Configuration (Issue #16)"
+
 PLUGIN_DIR="$(dirname "$SCRIPT_DIR")"
 ALL_SRC=$(mktemp)
 cat "$PLUGIN_DIR/scripts/orchestrate.sh" "$PLUGIN_DIR/scripts/lib/"*.sh > "$ALL_SRC" 2>/dev/null
@@ -12,10 +16,6 @@ trap 'rm -f "$ALL_SRC"' EXIT
 CONFIG_FILE="${HOME}/.claude-octopus/config/providers.json"
 BACKUP_FILE="${CONFIG_FILE}.backup"
 
-# Colors
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-NC='\033[0m'
 
 # Test counters
 TESTS_RUN=0
@@ -145,23 +145,4 @@ fi
 echo ""
 echo "======================================"
 echo "Test Summary"
-echo "======================================"
-echo "Total tests: $TESTS_RUN"
-echo -e "${GREEN}Passed: $TESTS_PASSED${NC}"
-if [[ $TESTS_FAILED -gt 0 ]]; then
-    echo -e "${RED}Failed: $TESTS_FAILED${NC}"
-    exit 1
-else
-    echo "Failed: 0"
-    echo ""
-    echo -e "${GREEN}✓ All Phase 1 tests passed!${NC}"
-    echo ""
-    echo "Phase 1 (Model Configuration) is complete:"
-    echo "  ✓ Config file structure"
-    echo "  ✓ Default models configured"
-    echo "  ✓ Command file created"
-    echo "  ✓ Plugin registration"
-    echo "  ✓ orchestrate.sh functions"
-    echo "  ✓ Environment variable support"
-    exit 0
-fi
+test_summary

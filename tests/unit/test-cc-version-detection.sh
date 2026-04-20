@@ -9,6 +9,10 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+source "$SCRIPT_DIR/../helpers/test-framework.sh"
+test_suite "Claude Code version detection and SUPPORTS_* feature flags"
+
 ORCH_MAIN="$PROJECT_ROOT/scripts/orchestrate.sh"
 
 # Combined search target (functions decomposed to lib/ in v9.7.7+)
@@ -16,9 +20,8 @@ ORCH=$(mktemp)
 trap 'rm -f "$ORCH"' EXIT
 cat "$ORCH_MAIN" "$PROJECT_ROOT/scripts/lib/"*.sh > "$ORCH" 2>/dev/null
 
-TEST_COUNT=0; PASS_COUNT=0; FAIL_COUNT=0
-pass() { TEST_COUNT=$((TEST_COUNT+1)); PASS_COUNT=$((PASS_COUNT+1)); echo "PASS: $1"; }
-fail() { TEST_COUNT=$((TEST_COUNT+1)); FAIL_COUNT=$((FAIL_COUNT+1)); echo "FAIL: $1 — $2"; }
+pass() { test_case "$1"; test_pass; }
+fail() { test_case "$1"; test_fail "${2:-$1}"; }
 
 # ╔══════════════════════════════════════════════════════════════════════╗
 # ║  1. Minimum version requirement                                     ║
@@ -467,9 +470,4 @@ fi
 # ╔══════════════════════════════════════════════════════════════════════╗
 # ║  Summary                                                            ║
 # ╚══════════════════════════════════════════════════════════════════════╝
-echo ""
-echo "═══════════════════════════════════════"
-echo "  CC version detection: $PASS_COUNT/$TEST_COUNT passed, $FAIL_COUNT failed"
-echo "═══════════════════════════════════════"
-
-[[ $FAIL_COUNT -eq 0 ]] && exit 0 || exit 1
+test_summary

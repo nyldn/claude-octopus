@@ -5,18 +5,18 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+source "$SCRIPT_DIR/helpers/test-framework.sh"
+test_suite "/test-v7.19.0-performance-fixes.sh"
+
+set +o pipefail  # restore: original did not use pipefail
+
 ORCHESTRATE="$PLUGIN_ROOT/scripts/orchestrate.sh"
 # v9.12: Search orchestrate.sh + lib/*.sh for functions that may have been decomposed
 ALL_SRC=$(mktemp)
 cat "$ORCHESTRATE" "$(dirname "$ORCHESTRATE")/lib/"*.sh > "$ALL_SRC" 2>/dev/null
 trap 'rm -f "$ALL_SRC"' EXIT
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
 
 # Test counters
 TESTS_RUN=0
@@ -545,52 +545,35 @@ test_integration_documentation() {
 # Test Execution
 # ═══════════════════════════════════════════════════════════════════════════════
 
-main() {
-    echo ""
-    echo -e "${BLUE}╔═══════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${BLUE}║  Claude Octopus v7.19.0 Performance Test Suite          ║${NC}"
-    echo -e "${BLUE}║  Testing all 10 performance fixes                        ║${NC}"
-    echo -e "${BLUE}╚═══════════════════════════════════════════════════════════╝${NC}"
-    echo ""
+echo ""
+echo -e "${BLUE}╔═══════════════════════════════════════════════════════════╗${NC}"
+echo -e "${BLUE}║  Claude Octopus v7.19.0 Performance Test Suite          ║${NC}"
+echo -e "${BLUE}║  Testing all 10 performance fixes                        ║${NC}"
+echo -e "${BLUE}╚═══════════════════════════════════════════════════════════╝${NC}"
+echo ""
 
-    # P0 Critical Tests
-    test_p01_result_file_pipeline
-    test_p02_timeout_preservation
-    test_p03_agent_status_tracking
+# P0 Critical Tests
+test_p01_result_file_pipeline
+test_p02_timeout_preservation
+test_p03_agent_status_tracking
 
-    # P1 High Priority Tests
-    test_p11_graceful_degradation
-    test_p12_rich_progress_display
-    test_p13_enhanced_error_messages
+# P1 High Priority Tests
+test_p11_graceful_degradation
+test_p12_rich_progress_display
+test_p13_enhanced_error_messages
 
-    # P2 Quality of Life Tests
-    test_p21_log_management
-    test_p22_gemini_warnings
-    test_p23_result_caching
-    test_p24_progressive_synthesis
+# P2 Quality of Life Tests
+test_p21_log_management
+test_p22_gemini_warnings
+test_p23_result_caching
+test_p24_progressive_synthesis
 
-    # Integration Tests
-    test_integration_version_consistency
-    test_integration_documentation
+# Integration Tests
+test_integration_version_consistency
+test_integration_documentation
 
-    # Summary
-    echo ""
-    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${BLUE}Test Summary${NC}"
-    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "Total:   $TESTS_RUN"
-    echo -e "${GREEN}Passed:  $TESTS_PASSED${NC}"
-    echo -e "${RED}Failed:  $TESTS_FAILED${NC}"
-    echo -e "${YELLOW}Skipped: $TESTS_SKIPPED${NC}"
-    echo ""
-
-    if [[ $TESTS_FAILED -eq 0 ]]; then
-        echo -e "${GREEN}✓ All tests passed!${NC}"
-        exit 0
-    else
-        echo -e "${RED}✗ Some tests failed${NC}"
-        exit 1
-    fi
-}
-
-main "$@"
+# Summary
+echo ""
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${BLUE}Test Summary${NC}"
+test_summary

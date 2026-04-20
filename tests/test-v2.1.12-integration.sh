@@ -6,6 +6,10 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+
+source "$SCRIPT_DIR/helpers/test-framework.sh"
+test_suite "for v2.1.12+ feature integration"
+
 ORCHESTRATE="${PROJECT_ROOT}/scripts/orchestrate.sh"
 # v9.12: Search orchestrate.sh + lib/*.sh for functions that may have been decomposed
 ALL_SRC=$(mktemp)
@@ -17,11 +21,6 @@ TESTS_RUN=0
 TESTS_PASSED=0
 TESTS_FAILED=0
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
 
 # Logging functions
 log_test() {
@@ -325,68 +324,51 @@ test_existing_functionality() {
 # Main Test Execution
 # ═══════════════════════════════════════════════════════════════════════════════
 
-main() {
-    echo "=================================================="
-    echo "Claude Octopus v2.1.12+ Integration Test Suite"
-    echo "=================================================="
-    echo ""
+echo "=================================================="
+echo "Claude Octopus v2.1.12+ Integration Test Suite"
+echo "=================================================="
+echo ""
 
-    log_info "Starting test suite..."
-    echo ""
+log_info "Starting test suite..."
+echo ""
 
-    # Unit Tests
-    echo "--- Unit Tests: Version Detection ---"
-    test_version_detection
-    test_feature_flags
-    echo ""
+# Unit Tests
+echo "--- Unit Tests: Version Detection ---"
+test_version_detection
+test_feature_flags
+echo ""
 
-    echo "--- Unit Tests: Task Management ---"
-    test_task_management_functions
-    test_task_directory_creation
-    echo ""
+echo "--- Unit Tests: Task Management ---"
+test_task_management_functions
+test_task_directory_creation
+echo ""
 
-    echo "--- Unit Tests: Fork Context ---"
-    test_fork_context_support
-    test_fork_markers
-    echo ""
+echo "--- Unit Tests: Fork Context ---"
+test_fork_context_support
+test_fork_markers
+echo ""
 
-    echo "--- Unit Tests: Hook System ---"
-    test_hook_scripts_exist
-    test_hooks_json_updated
-    echo ""
+echo "--- Unit Tests: Hook System ---"
+test_hook_scripts_exist
+test_hooks_json_updated
+echo ""
 
-    echo "--- Unit Tests: Bash Wildcards ---"
-    test_wildcard_validation
-    echo ""
+echo "--- Unit Tests: Bash Wildcards ---"
+test_wildcard_validation
+echo ""
 
-    # Integration Tests
-    echo "--- Integration Tests: Flow Skills ---"
-    test_flow_skill_frontmatter
-    echo ""
+# Integration Tests
+echo "--- Integration Tests: Flow Skills ---"
+test_flow_skill_frontmatter
+echo ""
 
-    # Backward Compatibility Tests
-    echo "--- Backward Compatibility Tests ---"
-    test_backward_compatibility
-    test_existing_functionality
-    echo ""
+# Backward Compatibility Tests
+echo "--- Backward Compatibility Tests ---"
+test_backward_compatibility
+test_existing_functionality
+echo ""
 
-    # Summary
-    echo "=================================================="
-    echo "Test Results"
-    echo "=================================================="
-    echo "Total tests run: $TESTS_RUN"
-    echo -e "${GREEN}Passed: $TESTS_PASSED${NC}"
-    echo -e "${RED}Failed: $TESTS_FAILED${NC}"
-    echo ""
-
-    if [[ $TESTS_FAILED -eq 0 ]]; then
-        echo -e "${GREEN}✓ All tests passed!${NC}"
-        exit 0
-    else
-        echo -e "${RED}✗ Some tests failed${NC}"
-        exit 1
-    fi
-}
-
-# Run tests
-main "$@"
+# Summary
+echo "=================================================="
+echo "Test Results"
+test_summary

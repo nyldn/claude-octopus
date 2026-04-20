@@ -5,16 +5,18 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+source "$SCRIPT_DIR/../helpers/test-framework.sh"
+test_suite "review_run() pipeline, REVIEW.md parsing, fleet fallback, severity output"
+
 ORCHESTRATE="$PROJECT_ROOT/scripts/orchestrate.sh"
 # Combined search target (functions decomposed to lib/ in v9.7.7+)
 ALL_SRC=$(mktemp)
 trap 'rm -f "$ALL_SRC"' EXIT
 cat "$ORCHESTRATE" "$PROJECT_ROOT/scripts/lib/"*.sh > "$ALL_SRC" 2>/dev/null
 
-TEST_COUNT=0; PASS_COUNT=0; FAIL_COUNT=0
-
-pass() { TEST_COUNT=$((TEST_COUNT+1)); PASS_COUNT=$((PASS_COUNT+1)); echo "PASS: $1"; }
-fail() { TEST_COUNT=$((TEST_COUNT+1)); FAIL_COUNT=$((FAIL_COUNT+1)); echo "FAIL: $1 — $2"; }
+pass() { test_case "$1"; test_pass; }
+fail() { test_case "$1"; test_fail "${2:-$1}"; }
 
 assert_contains() {
   local output="$1" pattern="$2" label="$3"
@@ -113,9 +115,4 @@ assert_contains "$(cat "$MCP_INDEX" 2>/dev/null)" \
 OPENCLAW_INDEX="$PROJECT_ROOT/openclaw/src/index.ts"
 assert_contains "$(cat "$OPENCLAW_INDEX" 2>/dev/null)" \
   "focus|provenance|autonomy|publish|debate" "openclaw: review tool has typed profile fields"
-
-# ── summary ──────────────────────────────────────────────────────────────────
-
-echo ""
-echo "Total: $TEST_COUNT | Passed: $PASS_COUNT | Failed: $FAIL_COUNT"
-[[ $FAIL_COUNT -gt 0 ]] && exit 1 || exit 0
+test_summary

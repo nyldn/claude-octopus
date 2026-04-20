@@ -6,13 +6,12 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+source "$SCRIPT_DIR/helpers/test-framework.sh"
+test_suite "Validate that plugin name remains "octo" in plugin.json"
+
 PLUGIN_JSON="$PROJECT_ROOT/.claude-plugin/plugin.json"
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
 
 echo "🔍 Validating plugin name..."
 
@@ -56,5 +55,4 @@ fi
 
 echo -e "${GREEN}✅ Plugin name is correct: \"$PLUGIN_NAME\"${NC}"
 echo "   Commands will work as: /octo:discover, /octo:debate, etc."
-
-exit 0
+test_summary

@@ -4,11 +4,14 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+source "$SCRIPT_DIR/../helpers/test-framework.sh"
+test_suite "stdin timeout guards — verify all hook files use timeout-guarded cat reads"
+
 HOOKS_DIR="$PROJECT_ROOT/hooks"
 
-TEST_COUNT=0; PASS_COUNT=0; FAIL_COUNT=0
-pass() { TEST_COUNT=$((TEST_COUNT+1)); PASS_COUNT=$((PASS_COUNT+1)); echo "PASS: $1"; }
-fail() { TEST_COUNT=$((TEST_COUNT+1)); FAIL_COUNT=$((FAIL_COUNT+1)); echo "FAIL: $1 — $2"; }
+pass() { test_case "$1"; test_pass; }
+fail() { test_case "$1"; test_fail "${2:-$1}"; }
 
 # ── Verify timeout-guarded cat in each hook file ────────────────────────────
 
@@ -51,9 +54,4 @@ if grep -v '^#' "$HOOKS_DIR/budget-gate.sh" | grep -q 'timeout.*cat.*dev.null' 2
 else
     fail "budget-gate.sh drains stdin with timeout" "expected timeout cat > /dev/null pattern"
 fi
-
-echo ""
-echo "═══════════════════════════════════════════════════"
-echo "stdin-timeout-guards: $PASS_COUNT/$TEST_COUNT passed"
-[[ $FAIL_COUNT -gt 0 ]] && echo "FAILURES: $FAIL_COUNT" && exit 1
-echo "All tests passed."
+test_summary

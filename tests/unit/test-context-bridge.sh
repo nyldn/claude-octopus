@@ -5,11 +5,14 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+source "$SCRIPT_DIR/../helpers/test-framework.sh"
+test_suite "context bridge — verify bridge write in statusline hooks"
+
 HOOKS_DIR="$PROJECT_ROOT/hooks"
 
-TEST_COUNT=0; PASS_COUNT=0; FAIL_COUNT=0
-pass() { TEST_COUNT=$((TEST_COUNT+1)); PASS_COUNT=$((PASS_COUNT+1)); echo "PASS: $1"; }
-fail() { TEST_COUNT=$((TEST_COUNT+1)); FAIL_COUNT=$((FAIL_COUNT+1)); echo "FAIL: $1 — $2"; }
+pass() { test_case "$1"; test_pass; }
+fail() { test_case "$1"; test_fail "${2:-$1}"; }
 
 # ── Bridge write in bash statusline ─────────────────────────────────────────
 
@@ -98,9 +101,4 @@ if [[ -x "$PROJECT_ROOT/hooks/context-awareness.sh" ]]; then
 else
     fail "context-awareness.sh exists and is executable" "not found or not executable"
 fi
-
-echo ""
-echo "═══════════════════════════════════════════════════"
-echo "context-bridge: $PASS_COUNT/$TEST_COUNT passed"
-[[ $FAIL_COUNT -gt 0 ]] && echo "FAILURES: $FAIL_COUNT" && exit 1
-echo "All tests passed."
+test_summary

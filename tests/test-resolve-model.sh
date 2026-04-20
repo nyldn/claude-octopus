@@ -4,13 +4,13 @@
 set -eo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+source "$SCRIPT_DIR/helpers/test-framework.sh"
+test_suite "resolve_octopus_model (v3.0 refactor)"
+
 PLUGIN_DIR="$(dirname "$SCRIPT_DIR")"
 ORCHESTRATE_SH="${PLUGIN_DIR}/scripts/orchestrate.sh"
 
-# Colors
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-NC='\033[0m'
 
 echo "Testing resolve_octopus_model (v3.0)"
 echo "======================================"
@@ -162,7 +162,4 @@ assert_eq "$(resolve_octopus_model "codex" "codex")" "session-override" "Session
 # Cleanup
 export HOME="$HOME_ORIG"
 rm -rf "$CLAUDE_OCTOPUS_WORKSPACE"
-
-echo ""
-echo "Summary: $TESTS_PASSED/$TESTS_RUN tests passed"
-echo "All tests passed!"
+test_summary

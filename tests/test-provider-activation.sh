@@ -14,6 +14,10 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+source "$SCRIPT_DIR/helpers/test-framework.sh"
+test_suite "============================================================================="
+
 ORCHESTRATE="$PROJECT_ROOT/scripts/orchestrate.sh"
 # v9.7.8: Also search lib/ modules for extracted functions
 SCRIPTS_ALL="$PROJECT_ROOT/scripts/orchestrate.sh $PROJECT_ROOT/scripts/lib/*.sh"
@@ -22,20 +26,9 @@ PASS=0
 FAIL=0
 TOTAL=0
 
-pass() {
-    ((PASS++)) || true
-    ((TOTAL++)) || true
-    echo -e "  \033[0;32m✓\033[0m $1"
-}
+pass() { test_case "$1"; test_pass; }
 
-fail() {
-    ((FAIL++)) || true
-    ((TOTAL++)) || true
-    echo -e "  \033[0;31m✗\033[0m $1"
-    if [[ -n "${2:-}" ]]; then
-        echo -e "    \033[0;33m→ $2\033[0m"
-    fi
-}
+fail() { test_case "$1"; test_fail "${2:-$1}"; }
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -288,13 +281,4 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo -e "\033[0;34mTest Summary — Provider Activation & Reliability\033[0m"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo -e "Total tests:  \033[0;34m$TOTAL\033[0m"
-echo -e "Passed:       \033[0;32m$PASS\033[0m"
-echo -e "Failed:       \033[0;31m$FAIL\033[0m"
-echo ""
-if [[ $FAIL -eq 0 ]]; then
-    echo -e "\033[0;32m✅ All provider activation tests passed!\033[0m"
-    exit 0
-else
-    echo -e "\033[0;31m❌ $FAIL test(s) failed!\033[0m"
-    exit 1
-fi
+test_summary

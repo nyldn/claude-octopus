@@ -8,6 +8,10 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+source "$SCRIPT_DIR/../helpers/test-framework.sh"
+test_suite "Integration Test: Value Proposition Validation"
+
 ORCHESTRATE="${PROJECT_ROOT}/scripts/orchestrate.sh"
 
 # Verify orchestrate.sh exists before running tests
@@ -28,12 +32,7 @@ TESTS_RUN=0
 TESTS_PASSED=0
 TESTS_FAILED=0
 
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
-NC='\033[0m'
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # TEST FRAMEWORK
@@ -330,58 +329,26 @@ test_tmux_visualization() {
 # MAIN TEST RUNNER
 # ═══════════════════════════════════════════════════════════════════════════════
 
-main() {
-    echo ""
-    echo -e "${YELLOW}╔═══════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${YELLOW}║  Value Proposition Validation Tests                      ║${NC}"
-    echo -e "${YELLOW}╚═══════════════════════════════════════════════════════════╝${NC}"
-    echo ""
-    echo "Verifying Claude Octopus provides quality, speed, or cost benefits"
-    echo ""
+echo ""
+echo -e "${YELLOW}╔═══════════════════════════════════════════════════════════╗${NC}"
+echo -e "${YELLOW}║  Value Proposition Validation Tests                      ║${NC}"
+echo -e "${YELLOW}╚═══════════════════════════════════════════════════════════╝${NC}"
+echo ""
+echo "Verifying Claude Octopus provides quality, speed, or cost benefits"
+echo ""
 
-    # Run all tests
-    test_multi_agent_parallel_execution
-    test_quality_gates_validation
-    test_multi_perspective_research
-    test_consensus_building
-    test_cost_tracking
-    test_workflow_automation
-    test_async_performance
-    test_tmux_visualization
+# Run all tests
+test_multi_agent_parallel_execution
+test_quality_gates_validation
+test_multi_perspective_research
+test_consensus_building
+test_cost_tracking
+test_workflow_automation
+test_async_performance
+test_tmux_visualization
 
-    # Summary
-    echo ""
-    echo -e "${YELLOW}═══════════════════════════════════════════════════════════${NC}"
-    echo -e "${YELLOW}Test Summary${NC}"
-    echo -e "${YELLOW}═══════════════════════════════════════════════════════════${NC}"
-    echo ""
-    echo "Total Tests: $TESTS_RUN"
-    echo -e "${GREEN}Passed: $TESTS_PASSED${NC}"
-    echo -e "${RED}Failed: $TESTS_FAILED${NC}"
-    echo ""
-
-    if [[ $TESTS_FAILED -eq 0 ]]; then
-        echo -e "${GREEN}✓ All value proposition tests passed!${NC}"
-        echo ""
-        echo "Claude Octopus provides:"
-        echo "  • Multi-agent parallel execution (faster)"
-        echo "  • Quality gates and validation (better quality)"
-        echo "  • Multi-perspective research (comprehensive)"
-        echo "  • Consensus building (reduced bias)"
-        echo "  • Cost tracking (transparency)"
-        echo "  • Workflow automation (convenience)"
-        echo "  • Async performance features (efficiency)"
-        echo "  • Tmux visualization (transparency)"
-        echo ""
-        exit 0
-    else
-        echo -e "${RED}✗ Some value proposition tests failed${NC}"
-        echo ""
-        echo "This indicates Claude Octopus may not be providing"
-        echo "sufficient value over single-agent execution."
-        echo ""
-        exit 1
-    fi
-}
-
-main "$@"
+# Summary
+echo ""
+echo -e "${YELLOW}═══════════════════════════════════════════════════════════${NC}"
+echo -e "${YELLOW}Test Summary${NC}"
+test_summary

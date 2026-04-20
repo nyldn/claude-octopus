@@ -7,6 +7,10 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+source "$SCRIPT_DIR/helpers/test-framework.sh"
+test_suite "v8.26.0 Changelog Integration"
+
 ORCHESTRATE_SH="$PROJECT_ROOT/scripts/orchestrate.sh"
 # v9.12: Search orchestrate.sh + lib/*.sh for functions that may have been decomposed
 ALL_SRC=$(mktemp)
@@ -17,12 +21,6 @@ SETTINGS_JSON="$PROJECT_ROOT/.claude-plugin/settings.json"
 SKILL_DOCTOR="$PROJECT_ROOT/.claude/skills/skill-doctor.md"
 CONFIG_YAML="$PROJECT_ROOT/agents/config.yaml"
 
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
 
 TEST_COUNT=0
 PASS_COUNT=0
@@ -31,18 +29,9 @@ FAIL_COUNT=0
 echo -e "${BLUE}Testing v8.26.0 Changelog Integration${NC}"
 echo ""
 
-pass() {
-    PASS_COUNT=$((PASS_COUNT + 1))
-    TEST_COUNT=$((TEST_COUNT + 1))
-    echo -e "${GREEN}  PASS${NC}: $1"
-}
+pass() { test_case "$1"; test_pass; }
 
-fail() {
-    FAIL_COUNT=$((FAIL_COUNT + 1))
-    TEST_COUNT=$((TEST_COUNT + 1))
-    echo -e "${RED}  FAIL${NC}: $1"
-    if [[ -n "${2:-}" ]]; then echo -e "   ${YELLOW}$2${NC}"; fi
-}
+fail() { test_case "$1"; test_fail "${2:-$1}"; }
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Test Suite 1: Feature Flags (9 tests)
@@ -277,12 +266,4 @@ echo ""
 # ═══════════════════════════════════════════════════════════════════════════════
 # Summary
 # ═══════════════════════════════════════════════════════════════════════════════
-
-echo "════════════════════════════════════════"
-echo -e "Total: $TEST_COUNT | ${GREEN}Pass: $PASS_COUNT${NC} | ${RED}Fail: $FAIL_COUNT${NC}"
-echo "════════════════════════════════════════"
-
-if [[ $FAIL_COUNT -gt 0 ]]; then
-    exit 1
-fi
-exit 0
+test_summary

@@ -6,6 +6,10 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+source "$SCRIPT_DIR/../helpers/test-framework.sh"
+test_suite "for agent-teams-bridge.sh"
+
 PLUGIN_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 BRIDGE="$PLUGIN_DIR/scripts/agent-teams-bridge.sh"
 DOCTOR="$PLUGIN_DIR/scripts/lib/doctor.sh"
@@ -17,8 +21,8 @@ PASS=0
 FAIL=0
 TOTAL=0
 
-pass() { PASS=$((PASS + 1)); TOTAL=$((TOTAL + 1)); echo "  ✅ PASS: $1"; }
-fail() { FAIL=$((FAIL + 1)); TOTAL=$((TOTAL + 1)); echo "  ❌ FAIL: $1 — $2"; }
+pass() { test_case "$1"; test_pass; }
+fail() { test_case "$1"; test_fail "${2:-$1}"; }
 suite() { echo ""; echo "━━━ $1 ━━━"; }
 
 # ── 1. Enable Gate (static analysis) ─────────────────────────────────────────
@@ -252,11 +256,4 @@ else
 
   rm -rf "$BRIDGE_TEST_DIR"
 fi
-
-# ── Summary ───────────────────────────────────────────────────────────────────
-echo ""
-echo "═══════════════════════════════════════════"
-echo "Total: $TOTAL | Passed: $PASS | Failed: $FAIL"
-echo "═══════════════════════════════════════════"
-
-[[ "$FAIL" -eq 0 ]] && exit 0 || exit 1
+test_summary

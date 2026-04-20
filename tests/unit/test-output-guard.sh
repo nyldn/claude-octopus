@@ -4,6 +4,10 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+source "$SCRIPT_DIR/../helpers/test-framework.sh"
+test_suite "guard_output() function"
+
 SECURE="$PROJECT_ROOT/scripts/lib/secure.sh"
 
 # Combined search target (functions decomposed to lib/ in v9.7.7+)
@@ -11,9 +15,8 @@ ALL_SRC=$(mktemp)
 cat "$PROJECT_ROOT/scripts/orchestrate.sh" "$PROJECT_ROOT/scripts/lib/"*.sh > "$ALL_SRC" 2>/dev/null
 trap 'rm -f "$ALL_SRC"' EXIT
 
-TEST_COUNT=0; PASS_COUNT=0; FAIL_COUNT=0
-pass() { TEST_COUNT=$((TEST_COUNT+1)); PASS_COUNT=$((PASS_COUNT+1)); echo "PASS: $1"; }
-fail() { TEST_COUNT=$((TEST_COUNT+1)); FAIL_COUNT=$((FAIL_COUNT+1)); echo "FAIL: $1 — $2"; }
+pass() { test_case "$1"; test_pass; }
+fail() { test_case "$1"; test_fail "${2:-$1}"; }
 
 # ── guard_output function exists ────────────────────────────────────
 
@@ -62,9 +65,4 @@ if grep -c 'guard_output' <(grep -A150 'synthesize_probe_results()' "$ALL_SRC" |
 else
     fail "guard_output wired into synthesize_probe_results()" "not found in function body"
 fi
-
-echo ""
-echo "═══════════════════════════════════════════════════"
-echo "output-guard: $PASS_COUNT/$TEST_COUNT passed"
-[[ $FAIL_COUNT -gt 0 ]] && echo "FAILURES: $FAIL_COUNT" && exit 1
-echo "All tests passed."
+test_summary

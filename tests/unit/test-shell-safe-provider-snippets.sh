@@ -8,6 +8,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
+source "$SCRIPT_DIR/../helpers/test-framework.sh"
+test_suite "Guard against command-substitution provider checks in user-facing docs."
+
+
 FAILED=0
 
 check_tree() {
@@ -29,7 +33,4 @@ check_tree "source command docs" "$PROJECT_ROOT/.claude/commands"
 check_tree "source skill docs" "$PROJECT_ROOT/.claude/skills"
 check_tree "packaged command docs" "$PROJECT_ROOT/commands"
 check_tree "packaged skill docs" "$PROJECT_ROOT/skills"
-
-if [[ $FAILED -ne 0 ]]; then
-    exit 1
-fi
+test_summary

@@ -6,6 +6,10 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+source "$SCRIPT_DIR/../helpers/test-framework.sh"
+test_suite "for CC v2.1.84-91 feature detection sync (v9.18-v9.19)"
+
 PLUGIN_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 ORCH="$PLUGIN_DIR/scripts/orchestrate.sh"
 PROVIDERS="$PLUGIN_DIR/scripts/lib/providers.sh"
@@ -24,17 +28,9 @@ PASS=0
 FAIL=0
 TOTAL=0
 
-pass() {
-  PASS=$((PASS + 1))
-  TOTAL=$((TOTAL + 1))
-  echo "  ✅ PASS: $1"
-}
+pass() { test_case "$1"; test_pass; }
 
-fail() {
-  FAIL=$((FAIL + 1))
-  TOTAL=$((TOTAL + 1))
-  echo "  ❌ FAIL: $1 — $2"
-}
+fail() { test_case "$1"; test_fail "${2:-$1}"; }
 
 suite() {
   echo ""
@@ -269,11 +265,4 @@ done
 if [[ $missing_pipefail -eq 0 ]]; then
   pass "All hook scripts have set -euo pipefail"
 fi
-
-# ── Summary ──────────────────────────────────────────────────────────────────
-echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  Results: $PASS passed, $FAIL failed (of $TOTAL)"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-
-[[ $FAIL -eq 0 ]] && exit 0 || exit 1
+test_summary

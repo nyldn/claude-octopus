@@ -6,9 +6,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-TEST_COUNT=0; PASS_COUNT=0; FAIL_COUNT=0
-pass() { TEST_COUNT=$((TEST_COUNT+1)); PASS_COUNT=$((PASS_COUNT+1)); echo "PASS: $1"; }
-fail() { TEST_COUNT=$((TEST_COUNT+1)); FAIL_COUNT=$((FAIL_COUNT+1)); echo "FAIL: $1 — $2"; }
+source "$SCRIPT_DIR/../helpers/test-framework.sh"
+test_suite "RTK companion detection"
+
+
+pass() { test_case "$1"; test_pass; }
+fail() { test_case "$1"; test_fail "${2:-$1}"; }
 
 # ── install-deps.sh contains RTK check ──────────────────────────────────────
 
@@ -121,11 +124,4 @@ for f in "$INSTALL_DEPS" "$CTX_HOOK" "$DOCTOR_CLAUDE" "$DOCTOR_SKILL"; do
         pass "No prohibited attribution in $fname"
     fi
 done
-
-# ── Summary ─────────────────────────────────────────────────────────────────
-
-echo ""
-echo "═══════════════════════════════════════════════════"
-echo "rtk-detection: $PASS_COUNT/$TEST_COUNT passed"
-[[ $FAIL_COUNT -gt 0 ]] && echo "FAILURES: $FAIL_COUNT" && exit 1
-echo "All tests passed."
+test_summary

@@ -5,6 +5,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
+source "$SCRIPT_DIR/../helpers/test-framework.sh"
+test_suite "Scope Drift Detection Skill"
+
+
 SCOPE_SKILL="$PLUGIN_ROOT/skills/skill-scope-drift/SKILL.md"
 DELIVER_SKILL="$PLUGIN_ROOT/skills/flow-deliver/SKILL.md"
 REVIEW_SKILL="$PLUGIN_ROOT/skills/skill-code-review/SKILL.md"
@@ -13,8 +17,8 @@ REVIEW_CMD="$PLUGIN_ROOT/commands/octo-review.md"
 passed=0
 failed=0
 
-pass() { echo "  ✅ $1"; passed=$((passed + 1)); }
-fail() { echo "  ❌ $1 — $2"; failed=$((failed + 1)); }
+pass() { test_case "$1"; test_pass; }
+fail() { test_case "$1"; test_fail "${2:-$1}"; }
 
 echo "=== Scope Drift Detection Skill Tests ==="
 echo ""
@@ -94,8 +98,4 @@ if grep -qi 'scope drift\|scope-drift' "$REVIEW_CMD" 2>/dev/null; then
 else
     fail "Referenced in octo-review command" "not integrated"
 fi
-
-# ── Summary ──────────────────────────────────────────────────────────────────
-echo ""
-echo "Results: $passed passed, $failed failed"
-[[ $failed -eq 0 ]] && exit 0 || exit 1
+test_summary

@@ -6,18 +6,16 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+source "$SCRIPT_DIR/helpers/test-framework.sh"
+test_suite "v7.16.0 UX Features"
+
 ORCHESTRATE_SH="$PROJECT_ROOT/scripts/orchestrate.sh"
 # v9.12: Search orchestrate.sh + lib/*.sh for functions that may have been decomposed
 ALL_SRC=$(mktemp)
 cat "$ORCHESTRATE_SH" "$(dirname "$ORCHESTRATE_SH")/lib/"*.sh > "$ALL_SRC" 2>/dev/null
 trap 'rm -f "$ALL_SRC"' EXIT
 
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
 
 TEST_COUNT=0
 PASS_COUNT=0
@@ -26,18 +24,9 @@ FAIL_COUNT=0
 echo -e "${BLUE}🧪 Testing v7.16.0 UX Features${NC}"
 echo ""
 
-pass() {
-    PASS_COUNT=$((PASS_COUNT + 1))
-    TEST_COUNT=$((TEST_COUNT + 1))
-    echo -e "${GREEN}✅ PASS${NC}: $1"
-}
+pass() { test_case "$1"; test_pass; }
 
-fail() {
-    FAIL_COUNT=$((FAIL_COUNT + 1))
-    TEST_COUNT=$((TEST_COUNT + 1))
-    echo -e "${RED}❌ FAIL${NC}: $1"
-    [[ -n "${2:-}" ]] && echo -e "   ${YELLOW}$2${NC}"
-}
+fail() { test_case "$1"; test_fail "${2:-$1}"; }
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Test Suite 1: Critical Fixes
@@ -360,24 +349,4 @@ echo ""
 # ═══════════════════════════════════════════════════════════════════════════════
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo -e "${BLUE}Test Summary${NC}"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo -e "Total tests:  ${BLUE}${TEST_COUNT}${NC}"
-echo -e "Passed:       ${GREEN}${PASS_COUNT}${NC}"
-echo -e "Failed:       ${RED}${FAIL_COUNT}${NC}"
-echo ""
-
-if [[ $FAIL_COUNT -eq 0 ]]; then
-    echo -e "${GREEN}✅ All v7.16.0 UX feature tests passed!${NC}"
-    echo ""
-    echo -e "${BLUE}ℹ${NC}  All 3 UX features successfully implemented:"
-    echo "  ✅ Critical Fixes (file locking, env validation, dependencies)"
-    echo "  ✅ Feature 1: Enhanced Spinner Verbs"
-    echo "  ✅ Feature 2: Enhanced Progress Indicators"
-    echo "  ✅ Feature 3: Timeout Visibility"
-    echo ""
-    exit 0
-else
-    echo -e "${RED}❌ Some tests failed${NC}"
-    exit 1
-fi
+test_summary

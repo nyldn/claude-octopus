@@ -9,9 +9,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-TEST_COUNT=0; PASS_COUNT=0; FAIL_COUNT=0
-pass() { TEST_COUNT=$((TEST_COUNT+1)); PASS_COUNT=$((PASS_COUNT+1)); echo "PASS: $1"; }
-fail() { TEST_COUNT=$((TEST_COUNT+1)); FAIL_COUNT=$((FAIL_COUNT+1)); echo "FAIL: $1 — $2"; }
+source "$SCRIPT_DIR/../helpers/test-framework.sh"
+test_suite "that all multi-LLM workflow commands have the EXECUTION MECHANISM enforcement block."
+
+
+pass() { test_case "$1"; test_pass; }
+fail() { test_case "$1"; test_fail "${2:-$1}"; }
 
 # ── Commands that MUST have EXECUTION MECHANISM ────────────────────────────
 # These are multi-LLM commands where the agent must use orchestrate.sh or skill dispatch.
@@ -101,11 +104,4 @@ if [[ -f "$EMBRACE" ]]; then
         fail "embrace.md only has $skill_invocations skill invocations" "Must chain at least 4 (discover+define+develop+deliver)"
     fi
 fi
-
-# ── Summary ──────────────────────────────────────────────────────────────────
-
-echo ""
-echo "═══════════════════════════════════════════════════"
-echo "execution-mechanism: $PASS_COUNT/$TEST_COUNT passed"
-[[ $FAIL_COUNT -gt 0 ]] && echo "FAILURES: $FAIL_COUNT" && exit 1
-echo "All tests passed."
+test_summary

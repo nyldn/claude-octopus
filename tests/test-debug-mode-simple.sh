@@ -2,6 +2,12 @@
 # Simple test suite for debug mode (v7.25.0)
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+source "$SCRIPT_DIR/helpers/test-framework.sh"
+test_suite "Simple test suite for debug mode (v7.25.0)"
+
+set +o pipefail  # restore: original did not use pipefail
+
 PLUGIN_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 ORCHESTRATE="${PLUGIN_DIR}/scripts/orchestrate.sh"
 # v9.12: Search orchestrate.sh + lib/*.sh for functions that may have been decomposed
@@ -100,17 +106,4 @@ echo ""
 echo "Test 6: Help text includes --debug"
 output=$("$ORCHESTRATE" --help 2>&1)
 assert_contains "$output" "--debug" "Help text mentions --debug flag"
-
-# Summary
-echo ""
-echo "============================================"
-echo "Results: $TESTS_PASSED/$TESTS_RUN tests passed"
-echo "============================================"
-
-if [[ $TESTS_PASSED -eq $TESTS_RUN ]]; then
-    echo "✅ All tests passed!"
-    exit 0
-else
-    echo "❌ Some tests failed"
-    exit 1
-fi
+test_summary

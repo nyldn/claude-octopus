@@ -6,15 +6,13 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+source "$SCRIPT_DIR/helpers/test-framework.sh"
+test_suite "command registration and file integrity"
+
 PLUGIN_JSON="$PROJECT_ROOT/.claude-plugin/plugin.json"
 COMMANDS_DIR="$PROJECT_ROOT/.claude/commands"
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
 
 TEST_COUNT=0
 PASS_COUNT=0
@@ -24,22 +22,11 @@ echo -e "${BLUE}🧪 Testing command registration${NC}"
 echo ""
 
 # Helper functions
-pass() {
-    TEST_COUNT=$((TEST_COUNT + 1))
-    PASS_COUNT=$((PASS_COUNT + 1))
-    echo -e "${GREEN}✅ PASS${NC}: $1"
-}
+pass() { test_case "$1"; test_pass; }
 
-fail() {
-    TEST_COUNT=$((TEST_COUNT + 1))
-    FAIL_COUNT=$((FAIL_COUNT + 1))
-    echo -e "${RED}❌ FAIL${NC}: $1"
-    echo -e "   ${YELLOW}$2${NC}"
-}
+fail() { test_case "$1"; test_fail "${2:-$1}"; }
 
-info() {
-    echo -e "${BLUE}ℹ${NC}  $1"
-}
+info() { echo "$1"; }
 
 # Test 1: plugin.json exists
 echo "Test 1: Checking plugin.json exists..."
@@ -207,16 +194,4 @@ fi
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo -e "${BLUE}Test Summary${NC}"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo -e "Total tests:  ${BLUE}$TEST_COUNT${NC}"
-echo -e "Passed:       ${GREEN}$PASS_COUNT${NC}"
-echo -e "Failed:       ${RED}$FAIL_COUNT${NC}"
-echo ""
-
-if [[ $FAIL_COUNT -eq 0 ]]; then
-    echo -e "${GREEN}✅ All tests passed!${NC}"
-    exit 0
-else
-    echo -e "${RED}❌ Some tests failed${NC}"
-    exit 1
-fi
+test_summary

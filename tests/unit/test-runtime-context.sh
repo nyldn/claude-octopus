@@ -5,12 +5,15 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+source "$SCRIPT_DIR/../helpers/test-framework.sh"
+test_suite "RUNTIME.md convention"
+
 TEMPLATE="$PROJECT_ROOT/config/templates/RUNTIME.md"
 DOCTOR="$PROJECT_ROOT/.claude/skills/skill-doctor.md"
 
-TEST_COUNT=0; PASS_COUNT=0; FAIL_COUNT=0
-pass() { TEST_COUNT=$((TEST_COUNT+1)); PASS_COUNT=$((PASS_COUNT+1)); echo "PASS: $1"; }
-fail() { TEST_COUNT=$((TEST_COUNT+1)); FAIL_COUNT=$((FAIL_COUNT+1)); echo "FAIL: $1 — $2"; }
+pass() { test_case "$1"; test_pass; }
+fail() { test_case "$1"; test_fail "${2:-$1}"; }
 
 # ── Template existence ───────────────────────────────────────────────────────
 
@@ -91,10 +94,4 @@ if [[ "$gsd_found" -eq 0 ]]; then
 else
     fail "no attribution references (gsd, .gsd/RUNTIME) in template or doctor" "found gsd reference"
 fi
-
-# ── Summary ──────────────────────────────────────────────────────────────────
-
-echo ""
-echo "=== Results: $PASS_COUNT/$TEST_COUNT passed, $FAIL_COUNT failed ==="
-
-[[ $FAIL_COUNT -eq 0 ]] && exit 0 || exit 1
+test_summary

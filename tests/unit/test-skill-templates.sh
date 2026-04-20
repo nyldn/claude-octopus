@@ -5,13 +5,16 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+source "$SCRIPT_DIR/../helpers/test-framework.sh"
+test_suite "skill template generation system"
+
 SKILLS_DIR="$PROJECT_ROOT/.claude/skills"
 BLOCKS_DIR="$PROJECT_ROOT/skills/blocks"
 GEN_SCRIPT="$PROJECT_ROOT/scripts/gen-skill-docs.sh"
 
-TEST_COUNT=0; PASS_COUNT=0; FAIL_COUNT=0
-pass() { TEST_COUNT=$((TEST_COUNT+1)); PASS_COUNT=$((PASS_COUNT+1)); echo "PASS: $1"; }
-fail() { TEST_COUNT=$((TEST_COUNT+1)); FAIL_COUNT=$((FAIL_COUNT+1)); echo "FAIL: $1 — $2"; }
+pass() { test_case "$1"; test_pass; }
+fail() { test_case "$1"; test_fail "${2:-$1}"; }
 
 # ── Generator script exists and is executable ────────────────────────────────
 
@@ -176,10 +179,4 @@ if [[ -x "$GEN_SCRIPT" && -d "$BLOCKS_DIR" ]]; then
 else
     pass "template generation skipped (blocks removed, skills directly authored)"
 fi
-
-# ── Summary ──────────────────────────────────────────────────────────────────
-
-echo ""
-echo "=== Results: $PASS_COUNT/$TEST_COUNT passed, $FAIL_COUNT failed ==="
-
-[[ $FAIL_COUNT -eq 0 ]] && exit 0 || exit 1
+test_summary

@@ -15,11 +15,15 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+source "$SCRIPT_DIR/helpers/test-framework.sh"
+test_suite "validate-openclaw.sh — Verify OpenClaw compatibility layer integrity"
+
 PASS=0
 FAIL=0
 
-pass() { echo "  PASS: $1"; PASS=$((PASS + 1)); }
-fail() { echo "  FAIL: $1" >&2; FAIL=$((FAIL + 1)); }
+pass() { test_case "$1"; test_pass; }
+fail() { test_case "$1"; test_fail "${2:-$1}"; }
 
 echo "=== OpenClaw Compatibility Validation ==="
 echo ""
@@ -195,19 +199,4 @@ exit(0 if 'name' in required and 'description' in required else 1)
 else
     fail "skill-schema.json not found"
 fi
-
-echo ""
-
-# --- Summary ---
-echo "=== Results ==="
-echo "  Passed: $PASS"
-echo "  Failed: $FAIL"
-echo ""
-
-if [[ $FAIL -gt 0 ]]; then
-    echo "VALIDATION FAILED"
-    exit 1
-else
-    echo "ALL CHECKS PASSED"
-    exit 0
-fi
+test_summary

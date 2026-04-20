@@ -6,6 +6,10 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+source "$SCRIPT_DIR/helpers/test-framework.sh"
+test_suite "v8.24.0 Perplexity Provider Integration (Issue #22)"
+
 ORCHESTRATE_SH="$PROJECT_ROOT/scripts/orchestrate.sh"
 # v9.4.0: Support grepping across orchestrate.sh + lib/ for extracted functions
 _ORCH_ALL_TMP=$(mktemp)
@@ -14,12 +18,6 @@ trap 'rm -f "$_ORCH_ALL_TMP"' EXIT
 MCP_DETECT="$PROJECT_ROOT/scripts/mcp-provider-detection.sh"
 STATE_MANAGER="$PROJECT_ROOT/scripts/state-manager.sh"
 
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
 
 TEST_COUNT=0
 PASS_COUNT=0
@@ -28,18 +26,9 @@ FAIL_COUNT=0
 echo -e "${BLUE}Testing v8.24.0 Perplexity Provider Integration (Issue #22)${NC}"
 echo ""
 
-pass() {
-    PASS_COUNT=$((PASS_COUNT + 1))
-    TEST_COUNT=$((TEST_COUNT + 1))
-    echo -e "${GREEN}  PASS${NC}: $1"
-}
+pass() { test_case "$1"; test_pass; }
 
-fail() {
-    FAIL_COUNT=$((FAIL_COUNT + 1))
-    TEST_COUNT=$((TEST_COUNT + 1))
-    echo -e "${RED}  FAIL${NC}: $1"
-    [[ -n "${2:-}" ]] && echo -e "   ${YELLOW}$2${NC}"
-}
+fail() { test_case "$1"; test_fail "${2:-$1}"; }
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Test Suite 1: orchestrate.sh - Agent Registration
@@ -369,25 +358,4 @@ echo ""
 # ═══════════════════════════════════════════════════════════════════════════════
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo -e "${BLUE}Test Summary${NC}"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo -e "Total tests:  ${BLUE}${TEST_COUNT}${NC}"
-echo -e "Passed:       ${GREEN}${PASS_COUNT}${NC}"
-echo -e "Failed:       ${RED}${FAIL_COUNT}${NC}"
-echo ""
-
-if [[ $FAIL_COUNT -eq 0 ]]; then
-    echo -e "${GREEN}All v8.24.0 Perplexity integration tests passed!${NC}"
-    echo ""
-    echo -e "${BLUE}Summary:${NC}"
-    echo "  Perplexity Sonar added as 5th AI provider (🟣)"
-    echo "  Models: sonar-pro (deep research), sonar (fast search)"
-    echo "  Integrations: orchestrate.sh, mcp-provider-detection.sh, state-manager.sh"
-    echo "  Security: trust markers, env isolation, command whitelist"
-    echo "  Discover phase: auto-adds web search agent when PERPLEXITY_API_KEY set"
-    echo ""
-    exit 0
-else
-    echo -e "${RED}Some tests failed${NC}"
-    exit 1
-fi
+test_summary

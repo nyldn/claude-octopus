@@ -6,13 +6,16 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
+source "$SCRIPT_DIR/../helpers/test-framework.sh"
+test_suite "cache-aligned prompt structure in spawn.sh, agent-sync.sh, workflows.sh"
+
+
 SPAWN_SH="$PROJECT_ROOT/scripts/lib/spawn.sh"
 AGENT_SYNC_SH="$PROJECT_ROOT/scripts/lib/agent-sync.sh"
 WORKFLOWS_SH="$PROJECT_ROOT/scripts/lib/workflows.sh"
 
-TEST_COUNT=0; PASS_COUNT=0; FAIL_COUNT=0
-pass() { TEST_COUNT=$((TEST_COUNT+1)); PASS_COUNT=$((PASS_COUNT+1)); echo "PASS: $1"; }
-fail() { TEST_COUNT=$((TEST_COUNT+1)); FAIL_COUNT=$((FAIL_COUNT+1)); echo "FAIL: $1 — $2"; }
+pass() { test_case "$1"; test_pass; }
+fail() { test_case "$1"; test_fail "${2:-$1}"; }
 
 # ── File existence ────────────────────────────────────────────────────────────
 
@@ -200,11 +203,4 @@ for f in "$SPAWN_SH" "$AGENT_SYNC_SH" "$WORKFLOWS_SH"; do
     pass "no attribution references in $fname"
   fi
 done
-
-# ── Summary ──────────────────────────────────────────────────────────────────
-
-echo ""
-echo "═══════════════════════════════════════════════════"
-echo "Results: $PASS_COUNT/$TEST_COUNT passed, $FAIL_COUNT failed"
-echo "═══════════════════════════════════════════════════"
-[[ $FAIL_COUNT -eq 0 ]] && exit 0 || exit 1
+test_summary

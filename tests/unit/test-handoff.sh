@@ -4,14 +4,17 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+source "$SCRIPT_DIR/../helpers/test-framework.sh"
+test_suite "session handoff — write-handoff.sh and integration with hooks"
+
 HANDOFF="$PROJECT_ROOT/scripts/write-handoff.sh"
 PRE_COMPACT="$PROJECT_ROOT/hooks/pre-compact.sh"
 SESSION_END="$PROJECT_ROOT/hooks/session-end.sh"
 RESUME_SKILL="$PROJECT_ROOT/.claude/skills/skill-resume.md"
 
-TEST_COUNT=0; PASS_COUNT=0; FAIL_COUNT=0
-pass() { TEST_COUNT=$((TEST_COUNT+1)); PASS_COUNT=$((PASS_COUNT+1)); echo "PASS: $1"; }
-fail() { TEST_COUNT=$((TEST_COUNT+1)); FAIL_COUNT=$((FAIL_COUNT+1)); echo "FAIL: $1 — $2"; }
+pass() { test_case "$1"; test_pass; }
+fail() { test_case "$1"; test_fail "${2:-$1}"; }
 
 # ── write-handoff.sh exists and is executable ────────────────────────
 
@@ -104,9 +107,4 @@ if grep -q 'blockers' "$HANDOFF" 2>/dev/null; then
 else
     fail "write-handoff.sh extracts blockers" "missing blockers extraction"
 fi
-
-echo ""
-echo "═══════════════════════════════════════════════════"
-echo "handoff: $PASS_COUNT/$TEST_COUNT passed"
-[[ $FAIL_COUNT -gt 0 ]] && echo "FAILURES: $FAIL_COUNT" && exit 1
-echo "All tests passed."
+test_summary

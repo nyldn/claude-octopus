@@ -4,11 +4,14 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+source "$SCRIPT_DIR/../helpers/test-framework.sh"
+test_suite "skill-doc-sync: post-ship documentation synchronization"
+
 SKILL_FILE="$PROJECT_ROOT/.claude/skills/skill-doc-sync.md"
 
-TEST_COUNT=0; PASS_COUNT=0; FAIL_COUNT=0
-pass() { TEST_COUNT=$((TEST_COUNT+1)); PASS_COUNT=$((PASS_COUNT+1)); echo "PASS: $1"; }
-fail() { TEST_COUNT=$((TEST_COUNT+1)); FAIL_COUNT=$((FAIL_COUNT+1)); echo "FAIL: $1 — $2"; }
+pass() { test_case "$1"; test_pass; }
+fail() { test_case "$1"; test_fail "${2:-$1}"; }
 
 # ── File existence ───────────────────────────────────────────────────────────
 
@@ -211,14 +214,4 @@ if [[ -f "$DELIVER_SKILL" ]]; then
 else
   fail "flow-deliver references doc-sync step" "flow-deliver SKILL.md not found"
 fi
-
-# ── Summary ──────────────────────────────────────────────────────────────────
-
-echo ""
-echo "========================================="
-echo "doc-sync tests: $PASS_COUNT/$TEST_COUNT passed"
-if [[ $FAIL_COUNT -gt 0 ]]; then
-  echo "$FAIL_COUNT FAILED"
-  exit 1
-fi
-echo "All tests passed."
+test_summary

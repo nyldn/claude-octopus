@@ -2,14 +2,13 @@
 # Comprehensive test suite for Phases 1-3
 # Tests state management, validation gates, and context capture
 
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/helpers/test-framework.sh"
+test_suite "Comprehensive test suite for Phases 1-3"
+
 set -euo pipefail
 
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
 
 # Test counters
 TESTS_RUN=0
@@ -420,17 +419,4 @@ fi
 
 echo -e "${BLUE}═══════════════════════════════════════════════════════${NC}"
 echo -e "${BLUE}  Test Summary${NC}"
-echo -e "${BLUE}═══════════════════════════════════════════════════════${NC}"
-echo ""
-echo -e "Total tests:  ${BLUE}$TESTS_RUN${NC}"
-echo -e "Passed:       ${GREEN}$TESTS_PASSED${NC}"
-echo -e "Failed:       ${RED}$TESTS_FAILED${NC}"
-echo ""
-
-if [ "$TESTS_FAILED" -eq 0 ]; then
-    echo -e "${GREEN}✓ All tests passed!${NC}"
-    exit 0
-else
-    echo -e "${RED}✗ Some tests failed${NC}"
-    exit 1
-fi
+test_summary

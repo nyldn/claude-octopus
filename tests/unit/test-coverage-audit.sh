@@ -4,11 +4,14 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+source "$SCRIPT_DIR/../helpers/test-framework.sh"
+test_suite "skill-coverage-audit: codepath tracing, test mapping, auto-generation (CONSOLIDATED-10)"
+
 SKILL_FILE="$PROJECT_ROOT/.claude/skills/skill-coverage-audit.md"
 
-TEST_COUNT=0; PASS_COUNT=0; FAIL_COUNT=0
-pass() { TEST_COUNT=$((TEST_COUNT+1)); PASS_COUNT=$((PASS_COUNT+1)); echo "PASS: $1"; }
-fail() { TEST_COUNT=$((TEST_COUNT+1)); FAIL_COUNT=$((FAIL_COUNT+1)); echo "FAIL: $1 — $2"; }
+pass() { test_case "$1"; test_pass; }
+fail() { test_case "$1"; test_fail "${2:-$1}"; }
 
 assert_contains() {
   local output="$1" pattern="$2" label="$3"
@@ -159,14 +162,4 @@ fi
 # ── No banned words in description ───────────────────────────────────────────
 
 assert_not_contains "$DESC_VALUE" "independent|compound|team of teams|claude instances" "description: no banned words"
-
-# ── Summary ──────────────────────────────────────────────────────────────────
-
-echo ""
-echo "═══════════════════════════════════════════"
-echo "test-coverage-audit: $PASS_COUNT/$TEST_COUNT passed"
-if [[ $FAIL_COUNT -gt 0 ]]; then
-  echo "FAILURES: $FAIL_COUNT"
-  exit 1
-fi
-echo "All tests passed."
+test_summary

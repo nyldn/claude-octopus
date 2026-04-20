@@ -4,11 +4,14 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+source "$SCRIPT_DIR/../helpers/test-framework.sh"
+test_suite "Design Lineage"
+
 SKILL_FILE="$PROJECT_ROOT/.claude/skills/skill-design-lineage.md"
 
-TEST_COUNT=0; PASS_COUNT=0; FAIL_COUNT=0
-pass() { TEST_COUNT=$((TEST_COUNT+1)); PASS_COUNT=$((PASS_COUNT+1)); echo "PASS: $1"; }
-fail() { TEST_COUNT=$((TEST_COUNT+1)); FAIL_COUNT=$((FAIL_COUNT+1)); echo "FAIL: $1 — $2"; }
+pass() { test_case "$1"; test_pass; }
+fail() { test_case "$1"; test_fail "${2:-$1}"; }
 
 assert_contains() {
   local output="$1" pattern="$2" label="$3"
@@ -173,13 +176,4 @@ assert_not_contains "$SKILL_CONTENT" "gstack" "no attribution: does not referenc
 assert_not_contains "$SKILL_CONTENT" "office-hours" "no attribution: does not reference office-hours"
 
 assert_not_contains "$SKILL_CONTENT" "github\.com/[a-z].*source" "no attribution: no source repo references"
-
-# ── Summary ──────────────────────────────────────────────────────────────────
-
-echo ""
-echo "=== test-design-lineage: $PASS_COUNT/$TEST_COUNT passed, $FAIL_COUNT failed ==="
-if [[ $FAIL_COUNT -gt 0 ]]; then
-  echo "FAILURES: $FAIL_COUNT"
-  exit 1
-fi
-echo "All tests passed."
+test_summary
