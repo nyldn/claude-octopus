@@ -99,6 +99,26 @@ fi
     fi
 } >> "$RESULT_FILE"
 
+# Increment progress counter — Agent Teams path never calls update_agent_status,
+# so completed_agents drifts low. Fix by writing directly to progress.json here.
+PROGRESS_FILE="${WORKSPACE_DIR}/progress.json"
+if [[ -f "$PROGRESS_FILE" ]] && command -v python3 &>/dev/null; then
+    python3 - "$PROGRESS_FILE" <<'PYEOF' 2>/dev/null || true
+import json, sys, os, tempfile
+path = sys.argv[1]
+try:
+    with open(path) as f:
+        d = json.load(f)
+    d['completed_agents'] = d.get('completed_agents', 0) + 1
+    tmp = path + '.tmp'
+    with open(tmp, 'w') as f:
+        json.dump(d, f, indent=2)
+    os.replace(tmp, path)
+except Exception:
+    pass
+PYEOF
+fi
+
 # Back-fill agent_id into the instruction JSON for correlation/continuation
 if [[ -n "$AGENT_ID" && -d "$TEAMS_DIR" ]]; then
     _OCTOPUS_TEAMS_DIR="$TEAMS_DIR" _OCTOPUS_AGENT_ID="$AGENT_ID" \

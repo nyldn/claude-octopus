@@ -112,8 +112,13 @@ jobs:
           if-no-files-found: ignore
 
   # Job for PR code review
+  # Fork PRs: secrets are unavailable and GITHUB_TOKEN is read-only, so the
+  # review step produces nothing and the comment step 403s. Guard to first-party
+  # PRs only; fork contributors see CodeRabbit review instead.
   pr-review:
-    if: github.event_name == 'pull_request'
+    if: >
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
 
     permissions:
