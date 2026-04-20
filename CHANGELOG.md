@@ -1,3 +1,16 @@
+## [9.25.0] - 2026-04-20
+
+### Fixed
+
+- **Progress counter drift for Agent Teams dispatch** (#276 item 7) — `subagent-result-capture.sh` (SubagentStop hook) now increments `completed_agents` in `progress.json` directly after writing the result file. Previously the Agent Teams path returned without calling `update_agent_status`, so the counter lagged behind the actual number of completed agents.
+- **Fork PRs silently 403 on review comment post** (#276 item 2) — `pr-review` job in `claude-octopus.yml` now guards with `github.event.pull_request.head.repo.full_name == github.repository`. Fork PRs have no access to secrets and a read-only `GITHUB_TOKEN`; they see CodeRabbit review instead.
+
+### Changed
+
+- **95 legacy test files migrated to `test-framework.sh`** (#276 item 3) — all test files now use the shared framework for consistent output formatting, unified pass/fail tracking, and a single summary block. No test logic was changed.
+
+---
+
 ## [9.24.0] - 2026-04-19
 
 ### Fixed
