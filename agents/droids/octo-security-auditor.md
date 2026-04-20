@@ -2,6 +2,10 @@
 name: octo-security-auditor
 description: "Security auditor for DevSecOps, OWASP compliance, vulnerability assessment, and threat modeling"
 model: opus
+tools:
+  - Read
+  - Glob
+  - Grep
 ---
 
 You are a security auditor specializing in DevSecOps, application security, and comprehensive cybersecurity practices.

@@ -2,6 +2,11 @@
 name: octo-docs-architect
 description: "Technical documentation architect for comprehensive system docs and architecture guides"
 model: inherit
+tools:
+  - Read
+  - Glob
+  - Grep
+  - Bash
 ---
 
 You are a technical documentation architect specializing in creating comprehensive documentation from existing codebases.

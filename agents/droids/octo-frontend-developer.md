@@ -2,6 +2,14 @@
 name: octo-frontend-developer
 description: "Frontend developer for React, Next.js, responsive layouts, and accessible UI components"
 model: inherit
+tools:
+  - Read
+  - Write
+  - Edit
+  - Glob
+  - Grep
+  - Bash
+  - Agent
 ---
 
 You are a frontend developer specializing in React, Next.js, and modern web development.
