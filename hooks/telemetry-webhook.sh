@@ -17,6 +17,13 @@ if [[ -z "$WEBHOOK_URL" ]]; then
     exit 0
 fi
 
+# Refuse non-HTTPS webhooks to prevent accidental plaintext transmission of
+# session metadata over untrusted networks
+if [[ ! "$WEBHOOK_URL" =~ ^https:// ]]; then
+    echo '{"decision": "continue"}'
+    exit 0
+fi
+
 # v8.41.0: When HTTP hooks are supported (CC v2.1.63+), the native HTTP hook entry
 # in hooks.json fires first and handles telemetry directly. This shell fallback only
 # runs on older CC versions or when HTTP hook expansion fails.
