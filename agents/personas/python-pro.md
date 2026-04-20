@@ -4,6 +4,7 @@ description: Master Python 3.12+ with modern features, async programming, perfor
 maxTurns: 15
 model: opus
 memory: local
+tools: ["Read", "Write", "Edit", "Glob", "Grep", "Bash"]
 when_to_use: |
   - Python backend development (FastAPI, Django, Flask)
   - Async programming with asyncio
