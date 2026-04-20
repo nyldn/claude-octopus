@@ -840,9 +840,24 @@ doctor_check_skills() {
     fi
 
     if [[ "$SUPPORTS_BARE_FLAG" == "true" ]]; then
-        doctor_add "bare-flag" "skills" "pass" \
-            "CC v2.1.87 --bare flag active — subprocess synthesis runs faster" \
-            "Octopus uses --bare for claude -p subprocess calls to skip hooks/LSP loading"
+        if [[ "${OCTOPUS_DISABLE_BARE:-0}" == "1" ]]; then
+            doctor_add "bare-flag" "skills" "warn" \
+                "--bare flag disabled via OCTOPUS_DISABLE_BARE=1" \
+                "Subprocess synthesis falls back to standard claude -p (slower but avoids auth issues)"
+        else
+            # Probe whether --bare can authenticate (CC v2.1.114 regression, issue #288)
+            local _bare_test
+            _bare_test=$(echo "x" | claude --bare --print --model claude-haiku-4-5-20251001 2>/dev/null | head -1 || true)
+            if [[ "$_bare_test" == *"Not logged in"* || "$_bare_test" == *"Please run /login"* ]]; then
+                doctor_add "bare-flag" "skills" "fail" \
+                    "--bare flag breaks subprocess auth on this install (issue #288)" \
+                    "Set OCTOPUS_DISABLE_BARE=1 in your shell profile or ~/.claude/settings.json env block to fix"
+            else
+                doctor_add "bare-flag" "skills" "pass" \
+                    "CC v2.1.87 --bare flag active — subprocess synthesis runs faster" \
+                    "Octopus uses --bare for claude -p subprocess calls to skip hooks/LSP loading"
+            fi
+        fi
     fi
 
     if [[ "$SUPPORTS_MODEL_CAP_ENV_VARS" == "true" ]]; then

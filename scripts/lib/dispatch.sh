@@ -388,6 +388,8 @@ find_capable_fallback() {
             candidates=(z-ai/glm-5 moonshotai/kimi-k2.5 deepseek/deepseek-r1-0528) ;;
         perplexity)
             candidates=(sonar sonar-pro) ;;
+        cursor-agent)
+            candidates=(composer-2-fast composer-2 grok-4-20 grok-4-20-thinking) ;;
     esac
 
     for candidate in "${candidates[@]}"; do

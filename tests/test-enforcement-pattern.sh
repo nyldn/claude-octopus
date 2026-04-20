@@ -98,7 +98,7 @@ echo "Test 3: Checking frontmatter has 'execution_mode: enforced'..."
 skills_with_mode=0
 for skill_file in "${ENFORCE_SKILLS[@]}"; do
     if grep -q "^execution_mode: enforced" "$skill_file"; then
-        ((skills_with_mode++))
+        ((skills_with_mode++)) || true
     else
         fail "$(basename "$skill_file") missing 'execution_mode: enforced'" \
              "Should be in frontmatter YAML"
@@ -114,7 +114,7 @@ echo "Test 4: Checking frontmatter has 'pre_execution_contract'..."
 skills_with_contract=0
 for skill_file in "${ENFORCE_SKILLS[@]}"; do
     if grep -q "pre_execution_contract:" "$skill_file"; then
-        ((skills_with_contract++))
+        ((skills_with_contract++)) || true
     else
         fail "$(basename "$skill_file") missing 'pre_execution_contract'" \
              "Should list blocking prerequisites in frontmatter"
@@ -130,7 +130,7 @@ echo "Test 5: Checking frontmatter has 'validation_gates'..."
 skills_with_gates=0
 for skill_file in "${ENFORCE_SKILLS[@]}"; do
     if grep -q "validation_gates:" "$skill_file"; then
-        ((skills_with_gates++))
+        ((skills_with_gates++)) || true
     else
         fail "$(basename "$skill_file") missing 'validation_gates'" \
              "Should list post-execution verifications in frontmatter"
@@ -146,7 +146,7 @@ echo "Test 6: Checking for 'EXECUTION CONTRACT' section..."
 skills_with_contract_section=0
 for skill_file in "${ENFORCE_SKILLS[@]}"; do
     if grep -q "EXECUTION CONTRACT (MANDATORY - CANNOT SKIP)" "$skill_file"; then
-        ((skills_with_contract_section++))
+        ((skills_with_contract_section++)) || true
     else
         fail "$(basename "$skill_file") missing EXECUTION CONTRACT section" \
              "Should have '## ⚠️ EXECUTION CONTRACT (MANDATORY - CANNOT SKIP)'"
@@ -163,7 +163,7 @@ skills_with_steps=0
 for skill_file in "${ENFORCE_SKILLS[@]}"; do
     if grep -q "### STEP 1:" "$skill_file" && \
        grep -q "### STEP 2:" "$skill_file"; then
-        ((skills_with_steps++))
+        ((skills_with_steps++)) || true
     else
         fail "$(basename "$skill_file") missing numbered blocking steps" \
              "Should have '### STEP 1:', '### STEP 2:', etc."
@@ -183,7 +183,7 @@ for skill_file in "${ENFORCE_SKILLS[@]}"; do
     cannot_skip_count=$(grep -c "CANNOT SKIP\|DO NOT PROCEED" "$skill_file" || echo 0)
 
     if [[ $must_count -ge 1 && $prohibited_count -ge 1 && $cannot_skip_count -ge 1 ]]; then
-        ((skills_with_imperatives++))
+        ((skills_with_imperatives++)) || true
     else
         fail "$(basename "$skill_file") weak imperative language" \
              "Should use 'You MUST', 'PROHIBITED from', 'CANNOT SKIP/DO NOT PROCEED'"
@@ -200,13 +200,13 @@ skills_with_bash_call=0
 for skill_file in "${ENFORCE_SKILLS[@]}"; do
     if grep -q '\.claude-octopus/plugin/scripts/orchestrate\.sh' "$skill_file" && \
        grep -q "You MUST execute this command via the Bash tool" "$skill_file"; then
-        ((skills_with_bash_call++))
+        ((skills_with_bash_call++)) || true
     elif [[ "$(basename "$skill_file")" == "flow-discover.md" ]] && \
          grep -q '\.claude-octopus/plugin/scripts/orchestrate\.sh' "$skill_file" && \
          grep -q "You MUST use the Agent tool" "$skill_file"; then
         # v8.54.0: flow-discover uses Agent tool for parallel probe-single dispatch
         # instead of a single Bash(orchestrate.sh probe) call
-        ((skills_with_bash_call++))
+        ((skills_with_bash_call++)) || true
     else
         fail "$(basename "$skill_file") missing explicit tool requirement" \
              "Should require Bash tool (or Agent tool for flow-discover) for orchestrate.sh"
@@ -223,7 +223,7 @@ skills_with_validation=0
 for skill_file in "${ENFORCE_SKILLS[@]}"; do
     if grep -qi "validation gate" "$skill_file" && \
        grep -q "VALIDATION FAILED\|VALIDATION PASSED" "$skill_file"; then
-        ((skills_with_validation++))
+        ((skills_with_validation++)) || true
     else
         fail "$(basename "$skill_file") missing validation gate" \
              "Should have 'Validation Gate' with VALIDATION FAILED/PASSED checks"
@@ -240,14 +240,14 @@ skills_with_file_check=0
 for skill_file in "${ENFORCE_SKILLS[@]}"; do
     if grep -q "find.*results.*-name.*synthesis.*-mmin" "$skill_file" || \
        grep -q "find.*results.*-name.*validation.*-mmin" "$skill_file"; then
-        ((skills_with_file_check++))
+        ((skills_with_file_check++)) || true
     elif [[ "$(basename "$skill_file")" == "flow-discover.md" ]] && \
          grep -q 'probe-synthesis-' "$skill_file" && \
          grep -q 'VALIDATION FAILED\|VALIDATION PASSED' "$skill_file"; then
         # v8.54.0: flow-discover uses Agent-based execution where Claude writes
         # the synthesis file directly and holds the path — no find -mmin needed.
         # Still requires VALIDATION FAILED/PASSED gate check.
-        ((skills_with_file_check++))
+        ((skills_with_file_check++)) || true
     else
         fail "$(basename "$skill_file") missing synthesis file check" \
              "Should verify synthesis files exist (find -mmin or direct file check)"
@@ -265,7 +265,7 @@ for skill_file in "${ENFORCE_SKILLS[@]}"; do
     prohibition_count=$(grep -c "❌" "$skill_file" || echo 0)
 
     if [[ $prohibition_count -ge 3 ]]; then
-        ((skills_with_prohibitions++))
+        ((skills_with_prohibitions++)) || true
     else
         fail "$(basename "$skill_file") missing prohibition statements" \
              "Should have at least 3 ❌ prohibition statements"
@@ -282,7 +282,7 @@ skills_with_tasks=0
 for skill_file in "${ENFORCE_SKILLS[@]}"; do
     if grep -q "TaskCreate" "$skill_file" && \
        grep -q "TaskUpdate" "$skill_file"; then
-        ((skills_with_tasks++))
+        ((skills_with_tasks++)) || true
     else
         fail "$(basename "$skill_file") missing task management" \
              "Should reference TaskCreate and TaskUpdate"
@@ -299,7 +299,7 @@ skills_with_no_fallback=0
 for skill_file in "${ENFORCE_SKILLS[@]}"; do
     if grep -q "DO NOT substitute" "$skill_file" && \
        grep -q "Report the failure" "$skill_file"; then
-        ((skills_with_no_fallback++))
+        ((skills_with_no_fallback++)) || true
     else
         fail "$(basename "$skill_file") missing no-fallback error handling" \
              "Should say 'DO NOT substitute' and 'Report the failure'"
@@ -316,7 +316,7 @@ skills_with_provider_check=0
 for skill_file in "${ENFORCE_SKILLS[@]}"; do
     if (grep -q "command -v codex" "$skill_file" && grep -q "command -v gemini" "$skill_file") || \
        grep -q "check-providers\|build-fleet" "$skill_file"; then
-        ((skills_with_provider_check++))
+        ((skills_with_provider_check++)) || true
     else
         fail "$(basename "$skill_file") missing provider availability check" \
              "Should check 'command -v codex/gemini' or reference check-providers.sh/build-fleet.sh"
@@ -332,7 +332,7 @@ echo "Test 16: Checking for visual indicators requirement..."
 skills_with_indicators=0
 for skill_file in "${ENFORCE_SKILLS[@]}"; do
     if grep -q "🐙.*CLAUDE OCTOPUS ACTIVATED" "$skill_file"; then
-        ((skills_with_indicators++))
+        ((skills_with_indicators++)) || true
     else
         fail "$(basename "$skill_file") missing visual indicators" \
              "Should require '🐙 **CLAUDE OCTOPUS ACTIVATED**' banner"
@@ -349,7 +349,7 @@ skills_with_estimates=0
 for skill_file in "${ENFORCE_SKILLS[@]}"; do
     if grep -q "💰 Estimated Cost" "$skill_file" && \
        grep -q "⏱️.*Estimated Time" "$skill_file"; then
-        ((skills_with_estimates++))
+        ((skills_with_estimates++)) || true
     else
         fail "$(basename "$skill_file") missing cost/time estimates" \
              "Should show '💰 Estimated Cost' and '⏱️ Estimated Time'"
@@ -366,7 +366,7 @@ skills_with_attribution=0
 for skill_file in "${ENFORCE_SKILLS[@]}"; do
     if grep -q "Multi-AI.*powered by Claude Octopus" "$skill_file" && \
        grep -q "Providers: 🔴 Codex | 🟡 Gemini | 🔵 Claude" "$skill_file"; then
-        ((skills_with_attribution++))
+        ((skills_with_attribution++)) || true
     else
         fail "$(basename "$skill_file") missing attribution footer" \
              "Should include 'Multi-AI powered by Claude Octopus' and provider list"
@@ -393,7 +393,7 @@ for skill_file in "${ENFORCE_SKILLS[@]}"; do
     fi
 
     if [[ $suggestive_count -eq 0 ]]; then
-        ((skills_without_suggestive++))
+        ((skills_without_suggestive++)) || true
     else
         fail "$(basename "$skill_file") has suggestive language in EXECUTION CONTRACT" \
              "Should use imperative for Claude's actions: 'Claude should', 'you should execute', 'recommended to execute', 'consider calling'"
@@ -411,22 +411,22 @@ specific_checks=0
 # skill-deep-research & flow-discover use probe-synthesis
 if grep -q "probe-synthesis-\*.md" "$PROJECT_ROOT/.claude/skills/skill-deep-research.md" && \
    grep -q "probe-synthesis-\*.md" "$PROJECT_ROOT/.claude/skills/flow-discover.md"; then
-    ((specific_checks++))
+    ((specific_checks++)) || true
 fi
 
 # flow-define uses grasp-synthesis
 if grep -q "grasp-synthesis-\*.md" "$PROJECT_ROOT/.claude/skills/flow-define.md"; then
-    ((specific_checks++))
+    ((specific_checks++)) || true
 fi
 
 # flow-develop uses tangle-synthesis
 if grep -q "tangle-synthesis-\*.md" "$PROJECT_ROOT/.claude/skills/flow-develop.md"; then
-    ((specific_checks++))
+    ((specific_checks++)) || true
 fi
 
 # flow-deliver uses ink-validation
 if grep -q "ink-validation-\*.md" "$PROJECT_ROOT/.claude/skills/flow-deliver.md"; then
-    ((specific_checks++))
+    ((specific_checks++)) || true
 fi
 
 if [[ $specific_checks -eq 4 ]]; then

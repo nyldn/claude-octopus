@@ -27,14 +27,14 @@ echo ""
 
 # Helper functions
 pass() {
-    ((TEST_COUNT++))
-    ((PASS_COUNT++))
+    ((TEST_COUNT++)) || true
+    ((PASS_COUNT++)) || true
     echo -e "${GREEN}✅ PASS${NC}: $1"
 }
 
 fail() {
-    ((TEST_COUNT++))
-    ((FAIL_COUNT++))
+    ((TEST_COUNT++)) || true
+    ((FAIL_COUNT++)) || true
     echo -e "${RED}❌ FAIL${NC}: $1"
     echo -e "   ${YELLOW}$2${NC}"
 }

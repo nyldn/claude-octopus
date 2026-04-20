@@ -407,11 +407,7 @@ ${_blind_spot_checklist}"
     # Initialize progress tracking with actual agent count (dynamic, may be 5, 6, or 7)
     init_progress_tracking "discover" "${#perspectives[@]}"
 
-    # P0-B fix: Force legacy (bash CLI) dispatch for probe-phase agents.
-    # orchestrate.sh runs as a Bash tool subprocess, so Agent Teams JSON
-    # instruction files are never picked up by Claude Code's native dispatcher
-    # and SubagentStop hooks never fire, leaving result files empty.
-    export OCTOPUS_FORCE_LEGACY_DISPATCH=true
+    fleet_dispatch_begin
 
     local pids=()
     for i in "${!perspectives[@]}"; do
@@ -432,7 +428,7 @@ ${_blind_spot_checklist}"
         sleep 0.1
     done
 
-    unset OCTOPUS_FORCE_LEGACY_DISPATCH
+    fleet_dispatch_end
 
     log INFO "Spawned ${#pids[@]} parallel research threads"
 
@@ -749,6 +745,7 @@ Output as numbered list with [CODING] or [REASONING] prefix for each subtask."
     local subtask_num=0
     local pids=()
 
+    fleet_dispatch_begin
     while IFS= read -r line; do
         [[ -z "$line" ]] && continue
         [[ ! "$line" =~ ^[0-9]+[\.\)] ]] && continue
@@ -779,6 +776,7 @@ Output as numbered list with [CODING] or [REASONING] prefix for each subtask."
         fi
         ((subtask_num++)) || true
     done <<< "$subtasks"
+    fleet_dispatch_end
 
     log INFO "Spawned $subtask_num development threads"
 
