@@ -144,8 +144,8 @@ ln -s ~/.opencode/claude-octopus/skills ~/.agents/skills/claude-octopus
 
 **Factory AI (Droid):**
 ```bash
-droid plugin marketplace add https://github.com/nyldn/claude-octopus
-droid plugin install octo@claude-octopus
+droid plugin marketplace add https://github.com/nyldn/claude-octopus.git
+droid plugin install octo@nyldn-plugins
 ```
 </details>
 

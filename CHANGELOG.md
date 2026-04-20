@@ -1,3 +1,30 @@
+## [9.24.0] - 2026-04-19
+
+### Fixed
+
+- **`/octo:review` Round 1 silent timeout** (#289) — `review_run()` was missing the `OCTOPUS_FORCE_LEGACY_DISPATCH` guard that the probe phase already had. When `orchestrate.sh` runs as a Bash tool subprocess, Agent Teams `AGENT_TEAMS_DISPATCH:` signals are never consumed by the host, leaving all result files empty and causing a 300s "ALL Round 1 providers failed" timeout. All parallel fleet spawn sites (`review_run`, `tangle_execute`, `yaml_workflow_execute`) now use `fleet_dispatch_begin/end` helpers instead of raw `export`/`unset`.
+- **`--bare` flag breaks subprocess auth** (#288) — CC v2.1.114 regression where `claude --bare --print` exits 0 but emits "Not logged in", silently poisoning every Claude agent dispatch. `providers.sh` now probes `--bare` auth at detection time and disables it when broken. `doctor.sh` reports the failure with a clear remediation (`OCTOPUS_DISABLE_BARE=1`).
+- **`discipline-inject.sh` never fires** (#288) — the second `SessionStart` hook block in `.claude-plugin/hooks.json` was missing `"matcher": {}`. CC's hook dispatcher silently dropped it. Also fixed the same omission in `StopFailure`, `CwdChanged`, `TaskCreated`, and `PermissionDenied` hook blocks.
+- **`cursor-agent` fallback/config gaps** (#282–#287) — cursor-agent was missing from three dispatch locations added in the v9.23.0 provider expansion: `find_capable_fallback()` in `dispatch.sh` (models: composer-2-fast, composer-2, grok-4-20, grok-4-20-thinking), `set_provider_model`/`reset_provider_model` whitelists in `provider-routing.sh`, and `build_architecture_fleet()` in `build-fleet.sh`.
+- **Factory Droid install command** (#277) — README had `octo@claude-octopus` (wrong namespace) and a bare URL without `.git`. Corrected to `octo@nyldn-plugins` with `.git` suffix, matching the Claude Code install path.
+- **`((VAR++))` silent test abort under `set -e`** (#276) — postfix increment evaluates to `0` when `VAR=0`, causing bash `set -e` to abort 15 test files before any assertions run. Applied `|| true` guard across all affected files.
+- **BSD `sed` range with command grouping** (#276) — `build-factory-skills.sh` used GNU-only `sed -n '/pat/,/pat/{...}'` syntax that fails on macOS/BSD `sed`. Replaced with portable `awk` state machine.
+
+### Added
+
+- **Fleet dispatch guard helpers** — `fleet_dispatch_begin()` / `fleet_dispatch_end()` in `agent-sync.sh` wrap all parallel fleet spawn loops. Replaces the copy-paste `export OCTOPUS_FORCE_LEGACY_DISPATCH=true` pattern. A new smoke test (`tests/smoke/test-fleet-dispatch-guard.sh`) statically enforces that all fleet call sites use the helpers and that all `hooks.json` blocks have a `"matcher"` key — prevents regression of #288/#289.
+
+### Removed
+
+- **`scripts/lib/resilience.sh`** (176 LOC) and **`scripts/lib/run-store.sh`** (154 LOC) — never sourced by any production code path; only referenced by their own unit tests. Removed from shipped bundle.
+- **`scripts/test-claude-octopus.sh`** (1,889 LOC) — orphaned legacy test runner superseded by `tests/` structure; was shipping to users via `"scripts/"` in `package.json`.
+
+### Changed
+
+- `debate.sh`, `auto-route.sh`, and `audit.sh` are now lazy-loaded in `orchestrate.sh` — sourced only inside the dispatch branches that need them (`grapple`, `auto`/`optimize`, `review`/`audit`) rather than unconditionally on every hook invocation.
+
+---
+
 ## [9.23.0] - 2026-04-17
 
 ### Added
