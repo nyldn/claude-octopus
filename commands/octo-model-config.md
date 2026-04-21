@@ -4,7 +4,15 @@ description: "Configure AI provider models for Claude Octopus workflows"
 
 # Model Configuration
 
-**Your first output line MUST be:** `🐙 Octopus Model Config`
+## STEP 0: Emit Banner (MANDATORY — run before AskUserQuestion or any other step)
+
+```bash
+echo "🐙 Octopus Model Config"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "provider | model | config | routing | cost"
+```
+
+Run this unconditionally — even when arguments are provided or when going to interactive wizard.
 
 Interactive model configuration wizard. Detects installed providers, shows current settings, and guides users through configuration with AskUserQuestion.
 
