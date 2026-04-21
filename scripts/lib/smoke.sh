@@ -859,7 +859,7 @@ smoke_test_cache_key() {
     cursor_agent_model=$(get_agent_model "cursor-agent" 2>/dev/null || echo "${OCTOPUS_CURSOR_AGENT_MODEL:-grok-4-20}")
     if [[ -n "${CURSOR_API_KEY:-}" ]]; then
         cursor_agent_state="env:CURSOR_API_KEY"
-    elif grep -q '"authInfo"' "${HOME}/.cursor/cli-config.json" 2>/dev/null; then
+    elif grep -Eq '"authInfo"[[:space:]]*:[[:space:]]*\{' "${HOME}/.cursor/cli-config.json" 2>/dev/null; then
         cursor_agent_state="${HOME}/.cursor/cli-config.json"
     else
         cursor_agent_state="none"
@@ -1070,7 +1070,7 @@ provider_smoke_test() {
     command -v codex &>/dev/null && has_codex=true
     command -v gemini &>/dev/null && has_gemini=true
     if command -v agent &>/dev/null && _is_cursor_agent_binary && \
-       { [[ -n "${CURSOR_API_KEY:-}" ]] || grep -q '"authInfo"' "${HOME}/.cursor/cli-config.json" 2>/dev/null; }; then
+       { [[ -n "${CURSOR_API_KEY:-}" ]] || grep -Eq '"authInfo"[[:space:]]*:[[:space:]]*\{' "${HOME}/.cursor/cli-config.json" 2>/dev/null; }; then
         has_cursor_agent=true
     fi
 

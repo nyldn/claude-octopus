@@ -65,7 +65,7 @@ cursor_agent_is_available() {
     # NOTE: ~/.cursor/agent-cli-state.json is a statsig migration flag
     # ({"hasClearedLegacyStatsigFields":true}), NOT auth state — verified
     # on Cursor Agent CLI build 2026.04.17-787b533.
-    if grep -q '"authInfo"' "${HOME}/.cursor/cli-config.json" 2>/dev/null; then
+    if grep -Eq '"authInfo"[[:space:]]*:[[:space:]]*\{' "${HOME}/.cursor/cli-config.json" 2>/dev/null; then
         return 0
     fi
     return 1
@@ -76,7 +76,7 @@ cursor_agent_is_available() {
 cursor_agent_auth_method() {
     if [[ -n "${CURSOR_API_KEY:-}" ]]; then
         echo "env:CURSOR_API_KEY"
-    elif grep -q '"authInfo"' "${HOME}/.cursor/cli-config.json" 2>/dev/null; then
+    elif grep -Eq '"authInfo"[[:space:]]*:[[:space:]]*\{' "${HOME}/.cursor/cli-config.json" 2>/dev/null; then
         echo "cursor-session"
     else
         echo "none"

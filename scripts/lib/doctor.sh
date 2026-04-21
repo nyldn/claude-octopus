@@ -187,7 +187,7 @@ doctor_check_providers() {
         local cursor_auth="none"
         if [[ -n "${CURSOR_API_KEY:-}" ]]; then
             cursor_auth="env:CURSOR_API_KEY"
-        elif grep -q '"authInfo"' "${HOME}/.cursor/cli-config.json" 2>/dev/null; then
+        elif grep -Eq '"authInfo"[[:space:]]*:[[:space:]]*\{' "${HOME}/.cursor/cli-config.json" 2>/dev/null; then
             cursor_auth="cursor-session"
         fi
         if [[ "$cursor_auth" != "none" ]]; then
@@ -299,7 +299,7 @@ doctor_check_auth() {
 
     # Cursor Agent auth
     if command -v agent &>/dev/null && agent --version 2>&1 | grep -cE '^20[0-9]{2}\.' >/dev/null; then
-        if [[ -n "${CURSOR_API_KEY:-}" ]] || grep -q '"authInfo"' "$HOME/.cursor/cli-config.json" 2>/dev/null; then
+        if [[ -n "${CURSOR_API_KEY:-}" ]] || grep -Eq '"authInfo"[[:space:]]*:[[:space:]]*\{' "$HOME/.cursor/cli-config.json" 2>/dev/null; then
             local method="cursor-session"
             [[ -n "${CURSOR_API_KEY:-}" ]] && method="CURSOR_API_KEY"
             doctor_add "cursor-agent-auth" "auth" "pass" \
@@ -320,7 +320,7 @@ doctor_check_auth() {
     local any_auth=false
     if [[ -f "$HOME/.codex/auth.json" ]] || [[ -n "${OPENAI_API_KEY:-}" ]] || \
        [[ -f "$HOME/.gemini/oauth_creds.json" ]] || [[ -n "${GEMINI_API_KEY:-}" ]] || [[ -n "${GOOGLE_API_KEY:-}" ]] || \
-       [[ -n "${CURSOR_API_KEY:-}" ]] || grep -q '"authInfo"' "$HOME/.cursor/cli-config.json" 2>/dev/null; then
+       [[ -n "${CURSOR_API_KEY:-}" ]] || grep -Eq '"authInfo"[[:space:]]*:[[:space:]]*\{' "$HOME/.cursor/cli-config.json" 2>/dev/null; then
         any_auth=true
     fi
     if [[ "$any_auth" == "false" ]]; then

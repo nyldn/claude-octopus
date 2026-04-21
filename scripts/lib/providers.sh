@@ -734,7 +734,7 @@ check_provider_health() {
             fi
             # Check auth: env var or Cursor session (authInfo in cli-config.json)
             if [[ -z "${CURSOR_API_KEY:-}" ]] && \
-               ! grep -q '"authInfo"' "${HOME}/.cursor/cli-config.json" 2>/dev/null; then
+               ! grep -Eq '"authInfo"[[:space:]]*:[[:space:]]*\{' "${HOME}/.cursor/cli-config.json" 2>/dev/null; then
                 echo "cursor-agent: not authenticated (run: agent login or set CURSOR_API_KEY)" >&2
                 return 1
             fi
@@ -958,7 +958,7 @@ detect_providers() {
         local cursor_auth="none"
         if [[ -n "${CURSOR_API_KEY:-}" ]]; then
             cursor_auth="env:CURSOR_API_KEY"
-        elif grep -q '"authInfo"' "${HOME}/.cursor/cli-config.json" 2>/dev/null; then
+        elif grep -Eq '"authInfo"[[:space:]]*:[[:space:]]*\{' "${HOME}/.cursor/cli-config.json" 2>/dev/null; then
             cursor_auth="cursor-session"
         fi
         result="${result}cursor-agent:${cursor_auth} "

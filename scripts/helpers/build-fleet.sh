@@ -49,7 +49,7 @@ command -v qwen >/dev/null 2>&1 && AVAILABLE_CLI+=(qwen)
 command -v opencode >/dev/null 2>&1 && AVAILABLE_CLI+=(opencode)
 command -v ollama >/dev/null 2>&1 && curl -sf http://localhost:11434/api/tags >/dev/null 2>&1 && AVAILABLE_CLI+=(ollama)
 if command -v agent >/dev/null 2>&1 && agent --version 2>&1 | grep -cE '^20[0-9]{2}\.' >/dev/null; then
-    if [[ -n "${CURSOR_API_KEY:-}" ]] || grep -q '"authInfo"' "${HOME}/.cursor/cli-config.json" 2>/dev/null; then
+    if [[ -n "${CURSOR_API_KEY:-}" ]] || grep -Eq '"authInfo"[[:space:]]*:[[:space:]]*\{' "${HOME}/.cursor/cli-config.json" 2>/dev/null; then
         AVAILABLE_CLI+=(cursor-agent)
     fi
 fi

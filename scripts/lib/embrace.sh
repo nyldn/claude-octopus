@@ -54,7 +54,7 @@ get_dispatch_strategy() {
         _agent_ver=$(agent --version 2>&1 || true)
         if printf '%s\n' "$_agent_ver" | grep -cE '^20[0-9]{2}\.' >/dev/null 2>&1; then
             # Auth check fallback when helper not loaded
-            if [[ -n "${CURSOR_API_KEY:-}" ]] || grep -q '"authInfo"' "${HOME}/.cursor/cli-config.json" 2>/dev/null; then
+            if [[ -n "${CURSOR_API_KEY:-}" ]] || grep -Eq '"authInfo"[[:space:]]*:[[:space:]]*\{' "${HOME}/.cursor/cli-config.json" 2>/dev/null; then
                 has_cursor_agent=true
             fi
         fi
