@@ -43,12 +43,15 @@ else
     done
 fi
 
+SKIP_PREFS=0
 if [[ -z "$PREFS_FILE" || ! -f "$PREFS_FILE" ]]; then
-    # No persisted preferences — first session or memory cleared
-    exit 0
+    # No persisted preferences — first session or memory cleared.
+    # Skip prefs/managed-settings/claude-mem blocks but still run cache hygiene.
+    SKIP_PREFS=1
 fi
 
 # --- 2. Parse preferences and inject into session ---
+if [[ "$SKIP_PREFS" == "0" ]]; then
 AUTONOMY=""
 PROVIDERS=""
 
@@ -111,6 +114,30 @@ if [[ -x "$BRIDGE_SCRIPT" ]]; then
     if [[ -n "$MEM_CONTEXT" ]]; then
         echo "[Octopus] claude-mem context available:"
         echo "$MEM_CONTEXT"
+    fi
+fi
+fi  # end SKIP_PREFS guard
+
+# --- 6. Cache hygiene advisory (v9.29.0) ---
+# Notify when 3+ stale octo cache versions exist. Auto-clean only when explicitly
+# opted in via OCTOPUS_AUTO_CLEAN_CACHE=1 — never delete without consent.
+HYGIENE_LIB="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}/scripts/lib/cache-hygiene.sh"
+if [[ -r "$HYGIENE_LIB" ]]; then
+    # shellcheck disable=SC1090
+    source "$HYGIENE_LIB"
+    STALE_COUNT=$(octo_cache_stale 2>/dev/null | grep -c . || true)
+    STALE_COUNT="${STALE_COUNT:-0}"
+    if [[ "$STALE_COUNT" -ge 3 ]]; then
+        STALE_BYTES=$(octo_cache_stale_bytes 2>/dev/null || echo 0)
+        STALE_HUMAN=$(octo_cache_format_bytes "$STALE_BYTES" 2>/dev/null || echo "")
+        if [[ "${OCTOPUS_AUTO_CLEAN_CACHE:-0}" == "1" ]]; then
+            CLEANED=$(octo_cache_clean 2>/dev/null | grep -c '^removed:' || true)
+            CLEANED="${CLEANED:-0}"
+            [[ "$CLEANED" -gt 0 ]] && \
+                echo "[🐙] Cleaned ${CLEANED} stale octo cache version(s) — ${STALE_HUMAN} reclaimed"
+        else
+            echo "[🐙] ${STALE_COUNT} stale octo cache version(s) (${STALE_HUMAN}). Run /octo:doctor to clean, or set OCTOPUS_AUTO_CLEAN_CACHE=1."
+        fi
     fi
 fi
 

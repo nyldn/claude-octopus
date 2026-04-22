@@ -1187,6 +1187,50 @@ doctor_check_recurrence() {
     fi
 }
 
+# --- Category 12: Plugin cache hygiene (v9.29.0) ---
+# Reports stale octo cache versions so users can reclaim disk space.
+# Cleanup is interactive — never deletes from this check.
+doctor_check_cache() {
+    local hygiene_lib="${OCTOPUS_LIB_DIR:-$(dirname "${BASH_SOURCE[0]}")}/cache-hygiene.sh"
+    if [[ ! -r "$hygiene_lib" ]]; then
+        doctor_add "cache-hygiene-lib" "cache" "info" \
+            "cache-hygiene.sh not found — skipping" "$hygiene_lib"
+        return
+    fi
+    # shellcheck disable=SC1090
+    source "$hygiene_lib"
+
+    local total stale_count
+    total=$(octo_cache_versions | wc -l | tr -d ' ')
+    stale_count=$(octo_cache_stale | grep -c . || true)
+    stale_count="${stale_count:-0}"
+
+    if [[ "$total" -eq 0 ]]; then
+        doctor_add "cache-versions" "cache" "info" \
+            "No octo cache directory yet" "$OCTO_CACHE_DIR"
+        return
+    fi
+
+    local active="${CLAUDE_PLUGIN_ROOT:+$(octo_cache_active_version)}"
+    local active_msg=""
+    [[ -n "$active" ]] && active_msg=" (active: ${active})"
+
+    if [[ "$stale_count" -eq 0 ]]; then
+        doctor_add "cache-versions" "cache" "pass" \
+            "${total} octo version(s) cached${active_msg}" "Within keep window (${OCTOPUS_CACHE_KEEP:-2})"
+        return
+    fi
+
+    local bytes human stale_list
+    bytes=$(octo_cache_stale_bytes)
+    human=$(octo_cache_format_bytes "$bytes")
+    stale_list=$(octo_cache_stale | tr '\n' ',' | sed 's/,$//;s/,/, /g')
+
+    doctor_add "cache-stale-versions" "cache" "warn" \
+        "${stale_count} stale octo version(s) — ${human}${active_msg}" \
+        "Stale: ${stale_list}. Run: bash \$CLAUDE_PLUGIN_ROOT/scripts/lib/cache-hygiene.sh clean (or set OCTOPUS_AUTO_CLEAN_CACHE=1)"
+}
+
 # --- Output: Human-readable ---
 doctor_output_human() {
     local verbose="${1:-false}"
@@ -1296,7 +1340,7 @@ do_doctor() {
     DOCTOR_RESULTS_DETAIL=()
 
     # Run checks (filtered if category specified)
-    local categories=(providers auth config state smoke hooks scheduler skills conflicts agents recurrence)
+    local categories=(providers auth config state smoke hooks scheduler skills conflicts agents recurrence cache)
     for cat in "${categories[@]}"; do
         if [[ -z "$category_filter" || "$category_filter" == "$cat" ]]; then
             "doctor_check_${cat}"
