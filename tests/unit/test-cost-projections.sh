@@ -15,12 +15,15 @@ fail() { test_case "$1"; test_fail "${2:-$1}"; }
 
 assert_contains() {
   local output="$1" pattern="$2" label="$3"
-  echo "$output" | grep -qE "$pattern" && pass "$label" || fail "$label" "missing: $pattern"
+  # Herestring avoids macOS BSD-grep SIGPIPE on `echo | grep -q` under set -o pipefail:
+  # grep exits on first match before echo finishes writing → pipeline reports failure
+  # → pass branch never runs → false negative. No pipe, no SIGPIPE.
+  grep -qE "$pattern" <<< "$output" && pass "$label" || fail "$label" "missing: $pattern"
 }
 
 assert_not_contains() {
   local output="$1" pattern="$2" label="$3"
-  echo "$output" | grep -qE "$pattern" && fail "$label" "should not contain: $pattern" || pass "$label"
+  grep -qE "$pattern" <<< "$output" && fail "$label" "should not contain: $pattern" || pass "$label"
 }
 
 # ── File exists ──────────────────────────────────────────────────────────────
