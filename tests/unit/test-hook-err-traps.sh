@@ -156,12 +156,15 @@ test_freeze_check_no_silent_fail_on_non_tool_input() {
 
 test_quality_gate_no_silent_fail_on_missing_validation() {
     test_case "quality-gate.sh exits 0 when no tangle-validation-*.md exists (was silent fail before #313 fix)"
-    local err_out code err
+    # Explicitly simulate a fresh environment (no ~/.claude-octopus/results/)
+    # — this was the exact failure path that CI hit but local repro missed.
+    local err_out code err tmphome
+    tmphome=$(mktemp -d)
     err_out=$(mktemp)
     code=0
-    echo "$VALID_STDIN" | bash "$PROJECT_ROOT/hooks/quality-gate.sh" 2>"$err_out" >/dev/null || code=$?
+    echo "$VALID_STDIN" | HOME="$tmphome" bash "$PROJECT_ROOT/hooks/quality-gate.sh" 2>"$err_out" >/dev/null || code=$?
     err=$(<"$err_out")
-    rm -f "$err_out"
+    rm -rf "$tmphome" "$err_out"
     if [[ $code -eq 0 ]]; then test_pass; else test_fail "exit=$code stderr='${err:0:120}'"; fi
 }
 

@@ -12,7 +12,7 @@ _octo_hook_exit() { local c=$?; [[ $c -ne 0 ]] && echo "[hook:$(basename "$0")] 
 trap _octo_hook_exit EXIT
 
 
-VALIDATION_FILE=$(ls -t ~/.claude-octopus/results/tangle-validation-*.md 2>/dev/null | head -1)
+VALIDATION_FILE=$(ls -t ~/.claude-octopus/results/tangle-validation-*.md 2>/dev/null | head -1 || true)
 
 if [[ -f "$VALIDATION_FILE" ]]; then
     # Check if quality gate passed. `|| true` — grep-no-match must not cascade
