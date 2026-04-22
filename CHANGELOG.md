@@ -1,3 +1,11 @@
+## [9.28.0] - 2026-04-22
+
+### Changed
+
+- QA hardening, perplexity stdin fix (#305), review timeout scaling (#303), macOS compat, dead code removal
+
+---
+
 ## [9.27.0] - 2026-04-21
 
 ### Fixed
