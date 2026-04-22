@@ -150,10 +150,14 @@ run_with_timeout() {
         timeout "$timeout_secs" "$@"
         exit_code=$?
     else
-        # Fallback with proper cleanup (also used for shell functions)
+        # Fallback with proper cleanup (also used for shell functions).
+        # `<&0` explicitly inherits stdin from the caller: non-interactive bash
+        # otherwise redirects background-job stdin to /dev/null, which starves
+        # shell-function providers (perplexity_execute, openrouter_execute)
+        # that read their prompt from stdin. See issue #307.
         local cmd_pid monitor_pid
 
-        "$@" &
+        "$@" <&0 &
         cmd_pid=$!
 
         ( sleep "$timeout_secs" && kill -TERM "$cmd_pid" 2>/dev/null ) &
