@@ -264,14 +264,12 @@ review_run() {
     # ── Scale timeout by diff size (#303) ───────────────────────────────────
     local diff_lines
     diff_lines=$(echo "$diff_content" | wc -l | tr -d ' ')
-    local review_timeout="${OCTOPUS_REVIEW_TIMEOUT:-300}"
-    if [[ "$review_timeout" -eq 300 ]]; then
+    local review_timeout="${OCTOPUS_REVIEW_TIMEOUT:-480}"
+    if [[ "$review_timeout" -eq 480 ]]; then
         if [[ "$diff_lines" -gt 5000 ]]; then
             review_timeout=900
         elif [[ "$diff_lines" -gt 2000 ]]; then
             review_timeout=600
-        elif [[ "$diff_lines" -gt 500 ]]; then
-            review_timeout=450
         fi
     fi
     export TIMEOUT="$review_timeout"
