@@ -118,10 +118,12 @@ EOF
 
     rm -f "$header_file"
 
-    # Extract content from response
+    # Extract content from OpenAI-compatible nested path .choices[0].message.content.
+    # `json_extract` only reads top-level keys, so it silently returned empty and the
+    # caller got the raw JSON dumped to its result file. Fixed in v9.29 (issue #307).
     local content=""
-    if json_extract "$response" "content"; then
-        content="$REPLY"
+    if command -v jq &>/dev/null; then
+        content=$(printf '%s' "$response" | jq -re '.choices[0].message.content // empty' 2>/dev/null) || content=""
     fi
 
     if [[ -z "$content" ]]; then
@@ -208,10 +210,11 @@ EOF
         -H "Connection: keep-alive" \
         -d "$payload")
 
-    # Extract content from response (same format as OpenAI-compatible API)
+    # Extract content from OpenAI-compatible nested path .choices[0].message.content.
+    # See openrouter_execute_model above — same bug, same fix (issue #307).
     local content=""
-    if json_extract "$response" "content"; then
-        content="$REPLY"
+    if command -v jq &>/dev/null; then
+        content=$(printf '%s' "$response" | jq -re '.choices[0].message.content // empty' 2>/dev/null) || content=""
     fi
 
     # Extract citations if available (Perplexity-specific field)
