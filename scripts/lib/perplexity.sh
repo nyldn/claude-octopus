@@ -15,6 +15,11 @@ openrouter_execute_model() {
     local complexity="${4:-2}"
     local output_file="${5:-}"
 
+    # stdin fallback: probe_single_agent pipes prompt via stdin (#305)
+    if [[ -z "$prompt" && ! -t 0 ]]; then
+        prompt=$(cat)
+    fi
+
     if [[ -z "${OPENROUTER_API_KEY:-}" ]]; then
         log ERROR "OPENROUTER_API_KEY not set"
         return 1
@@ -142,6 +147,11 @@ EOF
 openrouter_execute() {
     local prompt="$1"
     local task_type="${2:-general}"
+
+    # stdin fallback: probe_single_agent pipes prompt via stdin (#305)
+    if [[ -z "$prompt" && ! -t 0 ]]; then
+        prompt=$(cat)
+    fi
     local complexity="${3:-2}"
     local output_file="${4:-}"
 
@@ -162,6 +172,11 @@ perplexity_execute() {
     local model="$1"
     local prompt="$2"
     local output_file="${3:-}"
+
+    # stdin fallback: probe_single_agent pipes prompt via stdin (#305)
+    if [[ -z "$prompt" && ! -t 0 ]]; then
+        prompt=$(cat)
+    fi
 
     if [[ -z "${PERPLEXITY_API_KEY:-}" ]]; then
         log ERROR "PERPLEXITY_API_KEY not set — get one at https://www.perplexity.ai/settings/api"

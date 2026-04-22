@@ -261,8 +261,23 @@ review_run() {
         done <<< "$REVIEW_SKIP_PATTERNS"
     fi
 
+    # ── Scale timeout by diff size (#303) ───────────────────────────────────
+    local diff_lines
+    diff_lines=$(echo "$diff_content" | wc -l | tr -d ' ')
+    local review_timeout="${OCTOPUS_REVIEW_TIMEOUT:-300}"
+    if [[ "$review_timeout" -eq 300 ]]; then
+        if [[ "$diff_lines" -gt 5000 ]]; then
+            review_timeout=900
+        elif [[ "$diff_lines" -gt 2000 ]]; then
+            review_timeout=600
+        elif [[ "$diff_lines" -gt 500 ]]; then
+            review_timeout=450
+        fi
+    fi
+    export TIMEOUT="$review_timeout"
+
     # ── ROUND 1: Parallel agent fleet ────────────────────────────────────────
-    log INFO "review_run: Round 1 — parallel specialist fleet"
+    log INFO "review_run: Round 1 — parallel specialist fleet (timeout=${review_timeout}s, diff=${diff_lines} lines)"
     local fleet
     fleet=$(build_review_fleet)
 
@@ -326,8 +341,8 @@ ${agent_prompt_base}"
             fi
         done
         [[ "$_all_done" == "true" ]] && break
-        if [[ $(( $(date +%s) - _poll_start )) -ge 300 ]]; then
-            log WARN "review_run: Round 1 timed out after 300s — collecting partial results"
+        if [[ $(( $(date +%s) - _poll_start )) -ge $review_timeout ]]; then
+            log WARN "review_run: Round 1 timed out after ${review_timeout}s — collecting partial results"
             break
         fi
         sleep 2
