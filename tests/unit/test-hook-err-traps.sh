@@ -57,15 +57,23 @@ test_all_hooks_exit_clean_on_valid_input() {
     for hook_name in $registered; do
         local hook="$PROJECT_ROOT/hooks/$hook_name"
         [[ ! -f "$hook" ]] && continue
-        local err_out code
+        local err_out code err
         err_out=$(mktemp)
+        # `|| code=$?` both suppresses the framework's set -e and captures the
+        # real exit code. Without it, a non-zero hook aborts the test before
+        # test_fail runs — CI shows "FAIL" with no detail.
+        code=0
         echo "$VALID_STDIN" | \
             CLAUDE_PLUGIN_ROOT="$PROJECT_ROOT" \
             CLAUDE_SESSION_ID="test-session" \
-            bash "$hook" 2>"$err_out" >/dev/null
-        code=$?
+            bash "$hook" 2>"$err_out" >/dev/null || code=$?
+        err=$(<"$err_out")
         rm -f "$err_out"
-        [[ $code -ne 0 ]] && failing+=("$hook_name:exit=$code")
+        if [[ $code -ne 0 ]]; then
+            # Truncate stderr to avoid log overflow; embed for diagnosis
+            local short_err="${err:0:120}"
+            failing+=("$hook_name:exit=$code:stderr='$short_err'")
+        fi
     done
     if [[ ${#failing[@]} -eq 0 ]]; then
         test_pass
@@ -128,30 +136,33 @@ test_careful_check_no_silent_fail_on_non_tool_input() {
     test_case "careful-check.sh exits 0 on UserPromptSubmit stdin (was silent fail before #313 fix)"
     local err_out code
     err_out=$(mktemp)
-    echo "$VALID_STDIN" | bash "$PROJECT_ROOT/hooks/careful-check.sh" 2>"$err_out" >/dev/null
-    code=$?
+    local code=0
+    echo "$VALID_STDIN" | bash "$PROJECT_ROOT/hooks/careful-check.sh" 2>"$err_out" >/dev/null || code=$?
+    local err=$(<"$err_out")
     rm -f "$err_out"
-    if [[ $code -eq 0 ]]; then test_pass; else test_fail "exit=$code"; fi
+    if [[ $code -eq 0 ]]; then test_pass; else test_fail "exit=$code stderr='${err:0:120}'"; fi
 }
 
 test_freeze_check_no_silent_fail_on_non_tool_input() {
     test_case "freeze-check.sh exits 0 on UserPromptSubmit stdin (was silent fail before #313 fix)"
-    local err_out code
+    local err_out code err
     err_out=$(mktemp)
-    echo "$VALID_STDIN" | bash "$PROJECT_ROOT/hooks/freeze-check.sh" 2>"$err_out" >/dev/null
-    code=$?
+    code=0
+    echo "$VALID_STDIN" | bash "$PROJECT_ROOT/hooks/freeze-check.sh" 2>"$err_out" >/dev/null || code=$?
+    err=$(<"$err_out")
     rm -f "$err_out"
-    if [[ $code -eq 0 ]]; then test_pass; else test_fail "exit=$code"; fi
+    if [[ $code -eq 0 ]]; then test_pass; else test_fail "exit=$code stderr='${err:0:120}'"; fi
 }
 
 test_quality_gate_no_silent_fail_on_missing_validation() {
     test_case "quality-gate.sh exits 0 when no tangle-validation-*.md exists (was silent fail before #313 fix)"
-    local err_out code
+    local err_out code err
     err_out=$(mktemp)
-    echo "$VALID_STDIN" | bash "$PROJECT_ROOT/hooks/quality-gate.sh" 2>"$err_out" >/dev/null
-    code=$?
+    code=0
+    echo "$VALID_STDIN" | bash "$PROJECT_ROOT/hooks/quality-gate.sh" 2>"$err_out" >/dev/null || code=$?
+    err=$(<"$err_out")
     rm -f "$err_out"
-    if [[ $code -eq 0 ]]; then test_pass; else test_fail "exit=$code"; fi
+    if [[ $code -eq 0 ]]; then test_pass; else test_fail "exit=$code stderr='${err:0:120}'"; fi
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
