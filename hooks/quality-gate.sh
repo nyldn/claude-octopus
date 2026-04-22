@@ -3,7 +3,7 @@
 # Validates tangle output before continuing workflow
 # Returns JSON decision: {"decision": "continue|block", "reason": "..."}
 # v8.43: Added reference integrity check for cross-file dependencies
-set -euo pipefail
+set -eo pipefail  # -u dropped: bash 3.2 on macOS CI aborts (exit 134) on `local arr=()` + `${#arr[@]}` in check_reference_integrity. -e + pipefail still catch real failures.
 # EXIT trap — emits diagnostic stderr ONLY when the hook exits non-zero, so
 # the Claude Code harness error "No stderr output" can never recur. EXIT (not
 # ERR) avoids over-firing on intermediate `grep -o`/`cmd | ...` inside $() that
