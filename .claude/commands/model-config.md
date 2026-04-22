@@ -10,6 +10,8 @@ updated: 2026-04-21
 
 # Model Configuration
 
+**Your first output line MUST be:** `🐙 Octopus Model Config`
+
 ## STEP 0: Emit Banner (MANDATORY — run before AskUserQuestion or any other step)
 
 ```bash
@@ -18,7 +20,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "provider | model | config | routing | cost"
 ```
 
-Run this unconditionally — even when arguments are provided or when going to interactive wizard.
+Run this unconditionally — even when arguments are provided or when going to interactive wizard. The explicit bash block ensures the banner emits even when the command routes straight to `AskUserQuestion` (which historically skipped the inline-prose instruction and broke E2E pattern matching — see #301).
 
 Interactive model configuration wizard. Detects installed providers, shows current settings, and guides users through configuration with AskUserQuestion.
 
