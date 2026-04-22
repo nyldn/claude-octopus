@@ -3,7 +3,7 @@
 # Validates tangle output before continuing workflow
 # Returns JSON decision: {"decision": "continue|block", "reason": "..."}
 # v8.43: Added reference integrity check for cross-file dependencies
-set -eo pipefail  # -u dropped: bash 3.2 on macOS CI aborts (exit 134) on `local arr=()` + `${#arr[@]}` in check_reference_integrity. -e + pipefail still catch real failures.
+set -euo pipefail
 # EXIT trap — emits diagnostic stderr ONLY when the hook exits non-zero, so
 # the Claude Code harness error "No stderr output" can never recur. EXIT (not
 # ERR) avoids over-firing on intermediate `grep -o`/`cmd | ...` inside $() that
@@ -33,6 +33,11 @@ fi
 # Reference integrity check: scan recently created/modified files for broken references
 # Catches: HTML linking missing JS/CSS, scripts sourcing missing files, configs referencing missing paths
 check_reference_integrity() {
+    # Scope-local: disable -u because bash 3.2 (macOS CI) aborts (exit 134)
+    # on `local arr=()` + `${#arr[@]}` when the array stays empty. We re-enable
+    # -u on exit. See issue #313 PR #314 CI failure trail.
+    set +u
+    trap 'set -u' RETURN
     local issues=()
 
     # Find files modified in the last 10 minutes (likely tangle output)
