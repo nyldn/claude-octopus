@@ -13,20 +13,22 @@ Switch to **Dev Work Mode**, optimized for software development.
 
 When this command is executed:
 
-1. **Check current mode:**
-   - Config file: `.claude/claude-octopus.local.md`
-   - If file doesn't exist, user is already in Dev Work Mode (default)
-   - Use bash `test -f` to check existence before reading
+1. **Check current mode** via `.claude/claude-octopus.local.md`:
+   - If file does NOT exist → user is already in Dev Work Mode (default). **Do not create the file.** Show confirmation only, then exit.
+   - If file exists and `knowledge_mode: false` → user is already in Dev Work Mode. **Do not rewrite the file.** Show confirmation only, then exit.
+   - If file exists and `knowledge_mode: true` → proceed to step 2.
 
-2. **Switch to Dev Work mode:**
-   - Create/update `.claude/claude-octopus.local.md` with YAML frontmatter
-   - Set `knowledge_mode: false`
-   - Confirm the switch with current mode details
+2. **Switch to Dev Work mode** (only if a real transition is needed):
+   - Before writing, state one sentence: "Switching Knowledge Work → Dev Work — updating `.claude/claude-octopus.local.md` (`knowledge_mode: true` → `false`)."
+   - Update the existing file's `knowledge_mode` field to `false` (preserve any other keys in frontmatter).
+   - Confirm the switch.
 
 3. **Show confirmation:**
    - Display Dev Work Mode emoji (🔧)
    - List active personas
-   - Suggest available commands (octo build, octo review, etc.)
+   - Suggest available commands (`/octo:develop`, `/octo:review`, `/octo:tdd`, etc.)
+
+**Rule (v9.30+):** Never create or rewrite `.claude/claude-octopus.local.md` when the user is already in the target mode. The v9.29 behavior over-executed — it wrote config for a state the user was already in, without explanation. Skip the Write tool entirely when there's nothing to change. See `agents/principles/write-intent.md` for the general principle.
 
 ## Usage
 

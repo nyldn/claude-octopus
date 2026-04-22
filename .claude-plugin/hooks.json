@@ -212,6 +212,12 @@
           "type": "command",
           "command": "${CLAUDE_PLUGIN_ROOT}/hooks/statusline-auto-repair.sh",
           "timeout": 5
+        },
+        {
+          "type": "command",
+          "command": "${CLAUDE_PLUGIN_ROOT}/hooks/version-advisory.sh",
+          "additionalContext": "One-line advisory when plugin version changes between sessions",
+          "timeout": 5
         }
       ]
     },
