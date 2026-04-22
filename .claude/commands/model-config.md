@@ -1,16 +1,26 @@
 ---
 command: model-config
 description: Configure AI provider models for Claude Octopus workflows
-version: 4.0.0
+version: 4.0.1
 category: configuration
 tags: [config, models, providers, codex, gemini, spark, routing, trace, interactive]
 created: 2025-01-21
-updated: 2026-04-06
+updated: 2026-04-21
 ---
 
 # Model Configuration
 
 **Your first output line MUST be:** `🐙 Octopus Model Config`
+
+## STEP 0: Emit Banner (MANDATORY — run before AskUserQuestion or any other step)
+
+```bash
+echo "🐙 Octopus Model Config"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "provider | model | config | routing | cost"
+```
+
+Run this unconditionally — even when arguments are provided or when going to interactive wizard. The explicit bash block ensures the banner emits even when the command routes straight to `AskUserQuestion` (which historically skipped the inline-prose instruction and broke E2E pattern matching — see #301).
 
 Interactive model configuration wizard. Detects installed providers, shows current settings, and guides users through configuration with AskUserQuestion.
 
