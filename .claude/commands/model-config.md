@@ -5,7 +5,7 @@ version: 4.0.1
 category: configuration
 tags: [config, models, providers, codex, gemini, spark, routing, trace, interactive]
 created: 2025-01-21
-updated: 2026-04-22
+updated: 2026-04-21
 ---
 
 # Model Configuration
@@ -418,6 +418,14 @@ When invoked WITH arguments (e.g., `/octo:model-config codex gpt-5.4`), skip the
 - Model names checked for injection safety (alphanumeric, hyphens, dots, slashes only)
 - Config file operations use atomic write (tmp + mv)
 - Always use `jq --arg` (never string interpolation)
+
+### Prohibited Actions
+
+- Assuming configuration without reading the file
+- Skipping validation of provider/phase names
+- Using string interpolation in jq expressions
+- Showing providers that aren't installed (in interactive mode)
+ use `jq --arg` (never string interpolation)
 
 ### Prohibited Actions
 

@@ -7,9 +7,13 @@ description: "Configure AI provider models for Claude Octopus workflows"
 ## STEP 0: Emit Banner (MANDATORY — run before AskUserQuestion or any other step)
 
 ```bash
-echo "🐙 Octopus Model Config"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "provider | model | config | routing | cost"
+if [ -n "${OCTO_COMPACT_BANNER:-}" ] || [ -n "${COMPACT_BANNERS:-}" ]; then
+  echo "🐙 Octopus Model Config (provider | model | config | routing | cost | codex | gemini | phase)"
+else
+  echo "🐙 Octopus Model Config"
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo "provider | model | config | routing | cost | codex | gemini | phase"
+fi
 ```
 
 Run this unconditionally — even when arguments are provided or when going to interactive wizard.
