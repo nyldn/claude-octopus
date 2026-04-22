@@ -60,11 +60,11 @@ octo_cache_stale_bytes() {
 octo_cache_format_bytes() {
     local b="${1:-0}"
     if [[ "$b" -ge 1073741824 ]]; then
-        printf '%.1fGB' "$(echo "scale=1; $b/1073741824" | bc 2>/dev/null || echo "$b")"
+        awk -v b="$b" 'BEGIN { printf "%.1fGB", b/1073741824 }'
     elif [[ "$b" -ge 1048576 ]]; then
-        printf '%.1fMB' "$(echo "scale=1; $b/1048576" | bc 2>/dev/null || echo "$b")"
+        awk -v b="$b" 'BEGIN { printf "%.1fMB", b/1048576 }'
     elif [[ "$b" -ge 1024 ]]; then
-        printf '%.1fKB' "$(echo "scale=1; $b/1024" | bc 2>/dev/null || echo "$b")"
+        awk -v b="$b" 'BEGIN { printf "%.1fKB", b/1024 }'
     else
         printf '%dB' "$b"
     fi
