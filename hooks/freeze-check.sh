@@ -7,6 +7,13 @@
 #
 # Kill switch: OCTO_FREEZE_MODE=off — disables freeze boundary enforcement
 set -euo pipefail
+# EXIT trap — emits diagnostic stderr ONLY when the hook exits non-zero, so
+# the Claude Code harness error "No stderr output" can never recur. EXIT (not
+# ERR) avoids over-firing on intermediate `grep -o`/`cmd | ...` inside $() that
+# the hook's logic already handles. See issue #313.
+_octo_hook_exit() { local c=$?; [[ $c -ne 0 ]] && echo "[hook:$(basename "$0")] exit $c at line ${BASH_LINENO[0]:-?}" >&2 || true; }
+trap _octo_hook_exit EXIT
+
 
 # Kill switch — freeze mode is opt-in via /octo:freeze; OCTO_FREEZE_MODE=off is the dedicated off-switch
 [[ "${OCTO_FREEZE_MODE:-on}" == "off" ]] && { echo '{"decision":"allow"}'; exit 0; }
@@ -20,7 +27,7 @@ fi
 [[ -z "$INPUT" ]] && INPUT='{}'
 
 # Only gate Edit and Write tools
-TOOL_NAME=$(echo "$INPUT" | grep -o '"tool_name":"[^"]*"' | head -1 | cut -d'"' -f4)
+TOOL_NAME=$(echo "$INPUT" | grep -o '"tool_name":"[^"]*"' 2>/dev/null | head -1 | cut -d'"' -f4 || true)
 if [[ "$TOOL_NAME" != "Edit" && "$TOOL_NAME" != "Write" ]]; then
     echo '{"decision":"allow"}'
     exit 0
@@ -41,7 +48,7 @@ if [[ -z "$FREEZE_DIR" ]]; then
 fi
 
 # Extract file_path from input
-FILE_PATH=$(echo "$INPUT" | grep -o '"file_path":"[^"]*"' | head -1 | cut -d'"' -f4)
+FILE_PATH=$(echo "$INPUT" | grep -o '"file_path":"[^"]*"' 2>/dev/null | head -1 | cut -d'"' -f4 || true)
 if [[ -z "$FILE_PATH" ]]; then
     echo '{"decision":"allow"}'
     exit 0

@@ -4,12 +4,20 @@
 # Returns JSON decision: {"decision": "continue|block", "reason": "..."}
 # v8.43: Added reference integrity check for cross-file dependencies
 set -euo pipefail
+# EXIT trap — emits diagnostic stderr ONLY when the hook exits non-zero, so
+# the Claude Code harness error "No stderr output" can never recur. EXIT (not
+# ERR) avoids over-firing on intermediate `grep -o`/`cmd | ...` inside $() that
+# the hook's logic already handles. See issue #313.
+_octo_hook_exit() { local c=$?; [[ $c -ne 0 ]] && echo "[hook:$(basename "$0")] exit $c at line ${BASH_LINENO[0]:-?}" >&2 || true; }
+trap _octo_hook_exit EXIT
+
 
 VALIDATION_FILE=$(ls -t ~/.claude-octopus/results/tangle-validation-*.md 2>/dev/null | head -1)
 
 if [[ -f "$VALIDATION_FILE" ]]; then
-    # Check if quality gate passed
-    STATUS=$(grep -E "^## (Quality Gate|Status):" "$VALIDATION_FILE" | head -1)
+    # Check if quality gate passed. `|| true` — grep-no-match must not cascade
+    # under `set -o pipefail` and trigger the silent-fail path (issue #313).
+    STATUS=$(grep -E "^## (Quality Gate|Status):" "$VALIDATION_FILE" 2>/dev/null | head -1 || true)
 
     if echo "$STATUS" | grep -qi "failed"; then
         echo '{"decision": "block", "reason": "Quality gate validation failed. Review tangle output before proceeding."}'

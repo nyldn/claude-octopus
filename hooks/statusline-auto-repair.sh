@@ -5,6 +5,13 @@
 # settings.json points to it instead of a versioned cache path that goes stale.
 
 set -euo pipefail
+# EXIT trap — emits diagnostic stderr ONLY when the hook exits non-zero, so
+# the Claude Code harness error "No stderr output" can never recur. EXIT (not
+# ERR) avoids over-firing on intermediate `grep -o`/`cmd | ...` inside $() that
+# the hook's logic already handles. See issue #313.
+_octo_hook_exit() { local c=$?; [[ $c -ne 0 ]] && echo "[hook:$(basename "$0")] exit $c at line ${BASH_LINENO[0]:-?}" >&2 || true; }
+trap _octo_hook_exit EXIT
+
 
 RESOLVER_SRC="${CLAUDE_PLUGIN_ROOT}/hooks/statusline-resolver.sh"
 RESOLVER_DST="$HOME/.claude-octopus/statusline.sh"

@@ -6,6 +6,13 @@
 #
 # Kill switch: OCTO_CAREFUL_MODE=off — disables all destructive command checks
 set -euo pipefail
+# EXIT trap — emits diagnostic stderr ONLY when the hook exits non-zero, so
+# the Claude Code harness error "No stderr output" can never recur. EXIT (not
+# ERR) avoids over-firing on intermediate `grep -o`/`cmd | ...` inside $() that
+# the hook's logic already handles. See issue #313.
+_octo_hook_exit() { local c=$?; [[ $c -ne 0 ]] && echo "[hook:$(basename "$0")] exit $c at line ${BASH_LINENO[0]:-?}" >&2 || true; }
+trap _octo_hook_exit EXIT
+
 
 # Kill switch — respect user's choice to disable careful mode entirely
 # (careful mode is opt-in via /octo:careful; OCTO_CAREFUL_MODE=off is the dedicated off-switch)
@@ -20,7 +27,7 @@ fi
 [[ -z "$INPUT" ]] && INPUT='{}'
 
 # Only gate Bash commands
-TOOL_NAME=$(echo "$INPUT" | grep -o '"tool_name":"[^"]*"' | head -1 | cut -d'"' -f4)
+TOOL_NAME=$(echo "$INPUT" | grep -o '"tool_name":"[^"]*"' 2>/dev/null | head -1 | cut -d'"' -f4 || true)
 if [[ "$TOOL_NAME" != "Bash" ]]; then
     echo '{"decision":"allow"}'
     exit 0
@@ -38,7 +45,7 @@ fi
 if command -v jq &>/dev/null; then
     COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // .command // ""' 2>/dev/null || echo "")
 else
-    COMMAND=$(echo "$INPUT" | grep -o '"command":"[^"]*"' | head -1 | cut -d'"' -f4)
+    COMMAND=$(echo "$INPUT" | grep -o '"command":"[^"]*"' 2>/dev/null | head -1 | cut -d'"' -f4 || true)
 fi
 # Also check raw input as fallback for escaped-quote edge cases
 CHECK_TEXT="${COMMAND}
