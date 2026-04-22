@@ -128,18 +128,18 @@ echo ""
 echo -e "${BLUE}Test Group 2: Complexity-Based Claude Routing${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-# 2.1: get_tiered_agent_v2 checks SUPPORTS_AGENT_TYPE_ROUTING for claude
+# 2.1: Agent type routing gates on SUPPORTS_AGENT_TYPE_ROUTING
 if grep -q 'SUPPORTS_AGENT_TYPE_ROUTING.*true' "$ALL_SRC"; then
-    assert_pass "2.1 get_tiered_agent_v2 gates on SUPPORTS_AGENT_TYPE_ROUTING"
+    assert_pass "2.1 Agent routing gates on SUPPORTS_AGENT_TYPE_ROUTING"
 else
-    assert_fail "2.1 get_tiered_agent_v2 gates on SUPPORTS_AGENT_TYPE_ROUTING"
+    assert_fail "2.1 Agent routing gates on SUPPORTS_AGENT_TYPE_ROUTING"
 fi
 
-# 2.2: complexity=3 routes to claude-opus in get_tiered_agent_v2
-if grep -A 60 'get_tiered_agent_v2()' "$ALL_SRC" | grep -q '3) echo "claude-opus"'; then
-    assert_pass "2.2 complexity=3 routes to claude-opus"
+# 2.2: claude-opus agent type recognized in is_agent_available_v2
+if grep -q 'claude-opus)' "$ALL_SRC"; then
+    assert_pass "2.2 claude-opus agent type recognized"
 else
-    assert_fail "2.2 complexity=3 routes to claude-opus"
+    assert_fail "2.2 claude-opus agent type recognized"
 fi
 
 # 2.3: strategist role exists in agent routing

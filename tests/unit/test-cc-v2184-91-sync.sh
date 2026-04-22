@@ -243,11 +243,7 @@ else
   fail "session-sync.sh" "orphaned file still exists"
 fi
 
-if ! grep -q 'session-sync' "$PLUGIN_DIR/scripts/lib/hook-profile.sh"; then
-  pass "session-sync removed from hook-profile.sh allowlist"
-else
-  fail "session-sync in hook-profile" "stale reference remains"
-fi
+# hook-profile.sh removed (dead code cleanup) — session-sync check no longer needed
 
 # ── 11. Hook Script Consistency ──────────────────────────────────────────────
 suite "11. Hook Script Consistency (set -euo pipefail)"

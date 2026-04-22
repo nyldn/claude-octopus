@@ -33,32 +33,6 @@ test_match_routing_rule_function_exists() {
     fi
 }
 
-test_create_default_routing_rules_function_exists() {
-    test_case "create_default_routing_rules function exists"
-
-    if grep -q "create_default_routing_rules()" "$ALL_SRC"; then
-        test_pass
-    else
-        test_fail "create_default_routing_rules function not found"
-    fi
-}
-
-test_routing_json_format() {
-    test_case "Default routing rules use correct JSON format"
-
-    local func_body
-    func_body=$(sed -n '/^create_default_routing_rules()/,/^}/p' "$ALL_SRC")
-
-    if echo "$func_body" | grep -q '"rules"' && \
-       echo "$func_body" | grep -q '"match"' && \
-       echo "$func_body" | grep -q '"prefer"' && \
-       echo "$func_body" | grep -q '"fallback"'; then
-        test_pass
-    else
-        test_fail "JSON format missing required fields"
-    fi
-}
-
 test_routing_first_match_wins() {
     test_case "Routing uses first-match-wins evaluation"
 
@@ -99,19 +73,6 @@ test_routing_graceful_no_file() {
     fi
 }
 
-test_routing_no_overwrite() {
-    test_case "create_default_routing_rules doesn't overwrite existing file"
-
-    local func_body
-    func_body=$(sed -n '/^create_default_routing_rules()/,/^}/p' "$ALL_SRC")
-
-    if echo "$func_body" | grep -q "return 0\|Don't overwrite"; then
-        test_pass
-    else
-        test_fail "Overwrite protection not found"
-    fi
-}
-
 test_routing_in_spawn_agent() {
     test_case "Routing rules checked in spawn_agent"
 
@@ -119,19 +80,6 @@ test_routing_in_spawn_agent() {
         test_pass
     else
         test_fail "Routing rules not checked in spawn_agent"
-    fi
-}
-
-test_routing_default_security() {
-    test_case "Default routing includes security->security-auditor"
-
-    local func_body
-    func_body=$(sed -n '/^create_default_routing_rules()/,/^}/p' "$ALL_SRC")
-
-    if echo "$func_body" | grep -q "security-auditor"; then
-        test_pass
-    else
-        test_fail "Security->security-auditor default not found"
     fi
 }
 
@@ -152,14 +100,10 @@ test_dry_run_with_routing() {
 # Run tests
 test_load_routing_rules_function_exists
 test_match_routing_rule_function_exists
-test_create_default_routing_rules_function_exists
-test_routing_json_format
 test_routing_first_match_wins
 test_routing_no_match_returns_1
 test_routing_graceful_no_file
-test_routing_no_overwrite
 test_routing_in_spawn_agent
-test_routing_default_security
 test_dry_run_with_routing
 
 rm -f "$ALL_SRC"

@@ -89,7 +89,8 @@ else
 fi
 
 # 2.2: probe_discover sets OCTOPUS_FORCE_LEGACY_DISPATCH before spawn loop
-if grep -rB 5 -A 30 'for i in.*perspectives' $SCRIPTS_ALL | grep -q 'FORCE_LEGACY_DISPATCH=true\|FORCE_LEGACY.*true'; then
+# v9.24.0: fleet_dispatch_begin/end helpers wrap the spawn loop (agent-sync.sh)
+if grep -rB 5 -A 30 'for i in.*perspectives' $SCRIPTS_ALL | grep -q 'FORCE_LEGACY_DISPATCH=true\|FORCE_LEGACY.*true\|fleet_dispatch_begin'; then
     pass "2.2 probe_discover sets FORCE_LEGACY_DISPATCH before spawn loop"
 else
     fail "2.2 probe_discover doesn't set FORCE_LEGACY_DISPATCH" \

@@ -86,12 +86,13 @@ JSON
 
 test_scope_uses_repo_basename() {
     test_case "memory_scope falls back to git repo basename"
-    local out
+    local out expected
+    expected=$(basename "$PROJECT_ROOT")
     # shellcheck disable=SC1090
     out=$(cd "$PROJECT_ROOT" && bash -c "source '$MEM'; memory_scope")
-    [[ "$out" == "claude-octopus" ]] \
+    [[ "$out" == "$expected" ]] \
         && test_pass \
-        || test_fail "expected 'claude-octopus', got: $out"
+        || test_fail "expected '$expected', got: $out"
 }
 
 test_scope_env_override_wins() {

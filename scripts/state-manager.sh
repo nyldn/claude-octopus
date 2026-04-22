@@ -52,7 +52,13 @@ init_state() {
     fi
 
     # Generate project ID from git remote or directory name
-    project_id=$(git config --get remote.origin.url 2>/dev/null | md5sum | cut -d' ' -f1 || echo "$(basename "$PWD")" | md5sum | cut -d' ' -f1)
+    local remote_url
+    remote_url=$(git config --get remote.origin.url 2>/dev/null || true)
+    if [[ -n "$remote_url" ]]; then
+        project_id=$(printf '%s' "$remote_url" | md5sum | cut -d' ' -f1)
+    else
+        project_id=$(printf '%s' "$(basename "$PWD")" | md5sum | cut -d' ' -f1)
+    fi
 
     # Create initial state
     cat > "$STATE_FILE" <<EOF

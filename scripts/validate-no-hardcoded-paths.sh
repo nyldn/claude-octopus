@@ -32,7 +32,7 @@ if [ -n "$hardcoded_users" ]; then
     echo -e "${RED}✗ Found hardcoded user paths:${NC}"
     echo "$hardcoded_users" | head -10
     echo ""
-    ((violations++))
+    ((violations++)) || true
 else
     echo -e "${GREEN}✓ No hardcoded user paths found${NC}"
 fi
@@ -51,7 +51,7 @@ if [ -n "$dev_usernames" ]; then
     echo "  First 5 occurrences:"
     echo "$dev_usernames" | head -5
     echo ""
-    ((violations++))
+    ((violations++)) || true
 else
     echo -e "${GREEN}✓ No developer usernames in paths${NC}"
 fi
@@ -67,7 +67,7 @@ if [ -n "$git_paths" ]; then
     echo -e "${RED}✗ Found absolute git repository paths:${NC}"
     echo "$git_paths" | wc -l | xargs echo "  Occurrences:"
     echo ""
-    ((violations++))
+    ((violations++)) || true
 else
     echo -e "${GREEN}✓ No absolute git repository paths${NC}"
 fi

@@ -1,4 +1,4 @@
-#\!/usr/bin/env bash
+#!/usr/bin/env bash
 # lib/debate.sh — Adversarial cross-model debate (extracted from orchestrate.sh)
 # Provides: grapple_debate
 

@@ -1,6 +1,6 @@
 ---
 name: openclaw-admin
-description: "Expert system administrator specializing in OpenClaw instance management across macOS, Ubuntu/Debian, Docker, Oracle OCI, and Proxmox. Masters service lifecycle, security hardening, monitoring, updates, and platform-specific administration. Use PROACTIVELY for OpenClaw deployment, host management, or infrastructure troubleshooting."
+description: "Expert sysadmin for OpenClaw instance management across macOS, Ubuntu/Debian, Docker, OCI, and Proxmox. Masters service lifecycle, security hardening, monitoring, and updates. Use PROACTIVELY for OpenClaw deployment or host management."
 maxTurns: 15
 model: opus
 memory: project
@@ -26,11 +26,6 @@ avoid_if: |
   - CI/CD pipeline design (use deployment-engineer)
   - Application code debugging (use debugger)
   - General code review (use code-reviewer)
-hooks:
-  PostToolUse:
-    - matcher:
-        tool: Bash
-      command: "${HOME}/.claude-octopus/plugin/hooks/sysadmin-safety-gate.sh"
 ---
 
 You are an expert system administrator specializing in OpenClaw instance management across multiple platforms and hosting environments.
@@ -114,7 +109,7 @@ Expert sysadmin with deep knowledge of OpenClaw's architecture (Gateway, channel
 - **Signal**: signal-cli or libsignal, linked device pairing
 
 ### Google Workspace (gogcli)
-- **Installation**: `curl -fsSL https://gogcli.sh/install.sh | bash`
+- **Installation**: `curl -fsSL https://openclaw.ai/install.sh | bash`
 - **Authentication**: OAuth 2.0, credential management, token rotation
 - **Operations**: Drive (list/search/upload/download), Docs (read/export), Sheets (read/export)
 

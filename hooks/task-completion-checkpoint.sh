@@ -61,7 +61,7 @@ create_checkpoint() {
   "status": "$status",
   "timestamp": $timestamp,
   "session_id": "${CLAUDE_SESSION_ID:-unknown}",
-  "completed_at": "$(date -Iseconds)",
+  "completed_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
   "last_message_summary": "${ESCAPED_MESSAGE:-}"
 }
 EOF
@@ -102,7 +102,7 @@ update_session_state() {
     # Update state file
     cat > "$session_state" <<EOF
 {
-  "last_updated": "$(date -Iseconds)",
+  "last_updated": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
   "completed_tasks": $completed_count,
   "session_id": "${CLAUDE_SESSION_ID:-unknown}"
 }

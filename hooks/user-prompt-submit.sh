@@ -85,12 +85,12 @@ if [[ -f "$SETTINGS_FILE" ]] && command -v python3 &>/dev/null; then
     _setting=$(python3 -c "
 import json, sys
 try:
-    with open('$SETTINGS_FILE') as f:
+    with open(sys.argv[1]) as f:
         s = json.load(f)
     v = s.get('OCTOPUS_AUTO_INVOKE', None)
     if v is not None:
         print(str(v).lower())
-except: pass" 2>/dev/null) || true
+except: pass" "$SETTINGS_FILE" 2>/dev/null) || true
     [[ "$_setting" == "false" || "$_setting" == "off" ]] && AUTO_INVOKE="false"
     [[ "$_setting" == "true" || "$_setting" == "on" ]] && AUTO_INVOKE="true"
 fi
@@ -101,12 +101,12 @@ if [[ -f "$PREFS_FILE" ]] && command -v python3 &>/dev/null; then
     _pref=$(python3 -c "
 import json, sys
 try:
-    with open('$PREFS_FILE') as f:
+    with open(sys.argv[1]) as f:
         p = json.load(f)
     v = p.get('auto_invoke', None)
     if v is not None:
         print(str(v).lower())
-except: pass" 2>/dev/null) || true
+except: pass" "$PREFS_FILE" 2>/dev/null) || true
     [[ "$_pref" == "false" || "$_pref" == "off" ]] && AUTO_INVOKE="false"
     [[ "$_pref" == "true" || "$_pref" == "on" ]] && AUTO_INVOKE="true"
 fi

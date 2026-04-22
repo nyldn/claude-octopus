@@ -1,6 +1,6 @@
 ---
 name: frontend-developer
-description: Build React components, implement responsive layouts, and handle client-side state management. Masters React 19, Next.js 15, and modern frontend architecture. Optimizes performance and ensures accessibility. Use PROACTIVELY when creating UI components or fixing frontend issues.
+description: Build React components, responsive layouts, and client-side state. Masters React 19, Next.js 15, and modern frontend architecture. Optimizes performance and accessibility. Use PROACTIVELY for UI components or frontend issues.
 effort: medium
 maxTurns: 20
 model: inherit
@@ -24,11 +24,6 @@ examples:
     outcome: "Type-safe form, validation, error handling, loading states"
   - prompt: "Optimize this page for Core Web Vitals"
     outcome: "LCP fixes, CLS elimination, bundle size reduction"
-hooks:
-  PostToolUse:
-    - matcher:
-        tool: Bash
-      command: "${HOME}/.claude-octopus/plugin/hooks/frontend-gate.sh"
 ---
 
 You are a frontend development expert specializing in modern React applications, Next.js, and cutting-edge frontend architecture.

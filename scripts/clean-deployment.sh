@@ -22,35 +22,35 @@ files_removed=0
 if [ -d ".claude-octopus" ]; then
     rm -rf .claude-octopus/
     echo -e "${GREEN}✓${NC} Removed .claude-octopus/ (runtime workspace)"
-    ((files_removed++))
+    ((files_removed++)) || true
 fi
 
 # Remove development tools
 if [ -d "component-analyzer" ]; then
     rm -rf component-analyzer/
     echo -e "${GREEN}✓${NC} Removed component-analyzer/ (dev tool)"
-    ((files_removed++))
+    ((files_removed++)) || true
 fi
 
 # Remove generated reports
 if [ -d "reports" ]; then
     rm -rf reports/
     echo -e "${GREEN}✓${NC} Removed reports/ (generated reports)"
-    ((files_removed++))
+    ((files_removed++)) || true
 fi
 
 # Remove source experiments (if it exists and is dev-only)
 if [ -d "src" ]; then
     rm -rf src/
     echo -e "${GREEN}✓${NC} Removed src/ (dev experiments)"
-    ((files_removed++))
+    ((files_removed++)) || true
 fi
 
 # Remove test artifacts
 if ls test-results*.xml 1> /dev/null 2>&1; then
     rm -f test-results*.xml
     echo -e "${GREEN}✓${NC} Removed test-results*.xml (test artifacts)"
-    ((files_removed++))
+    ((files_removed++)) || true
 fi
 
 # Remove backup files
@@ -58,14 +58,14 @@ backup_count=$(find . -name "*.bak" -type f | wc -l | tr -d ' ')
 if [ "$backup_count" -gt 0 ]; then
     find . -name "*.bak" -type f -delete
     echo -e "${GREEN}✓${NC} Removed $backup_count *.bak files"
-    ((files_removed++))
+    ((files_removed++)) || true
 fi
 
 # Remove macOS artifacts
 if find . -name ".DS_Store" -type f | grep -q .; then
     find . -name ".DS_Store" -type f -delete
     echo -e "${GREEN}✓${NC} Removed .DS_Store files"
-    ((files_removed++))
+    ((files_removed++)) || true
 fi
 
 # Remove editor temp files
@@ -73,7 +73,7 @@ temp_count=$(find . -name "*~" -type f | wc -l | tr -d ' ')
 if [ "$temp_count" -gt 0 ]; then
     find . -name "*~" -type f -delete
     echo -e "${GREEN}✓${NC} Removed $temp_count editor temp files"
-    ((files_removed++))
+    ((files_removed++)) || true
 fi
 
 echo ""

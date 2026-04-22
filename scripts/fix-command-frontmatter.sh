@@ -63,10 +63,10 @@ for cmd_file in "$COMMANDS_DIR"/*.md; do
         rm "$cmd_file.bak"
 
         echo -e "${GREEN}✓${NC} Fixed: $filename"
-        ((FIXED++))
+        ((FIXED++)) || true
     else
         echo -e "${GREEN}✓${NC} OK: $filename (already uses 'command:')"
-        ((SKIPPED++))
+        ((SKIPPED++)) || true
     fi
 done
 

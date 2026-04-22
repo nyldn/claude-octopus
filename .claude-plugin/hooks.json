@@ -365,7 +365,7 @@
       "hooks": [
         {
           "type": "command",
-          "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/done-criteria.sh\"",
+          "command": "${CLAUDE_PLUGIN_ROOT}/hooks/done-criteria.sh",
           "timeout": 5
         }
       ]

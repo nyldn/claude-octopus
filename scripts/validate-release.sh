@@ -30,7 +30,7 @@ MARKETPLACE_PLUGIN_NAME=$(sed -n '/"plugins"/,/]/p' "$ROOT_DIR/.claude-plugin/ma
 if [[ "$PLUGIN_NAME" != "octo" ]]; then
     echo -e "  ${RED}CRITICAL ERROR: plugin.json name is '$PLUGIN_NAME' - MUST be 'octo'${NC}"
     echo -e "  ${RED}This controls command namespace (/octo:* commands)${NC}"
-    ((errors++))
+    ((errors++)) || true
 else
     echo -e "  ${GREEN}✓ plugin.json name: octo (command namespace)${NC}"
 fi
@@ -38,7 +38,7 @@ fi
 if [[ "$MARKETPLACE_PLUGIN_NAME" != "octo" ]]; then
     echo -e "  ${RED}CRITICAL ERROR: marketplace.json plugin name is '$MARKETPLACE_PLUGIN_NAME' - MUST be 'octo'${NC}"
     echo -e "  ${RED}This controls install command (octo@nyldn-plugins) and must match plugin.json name${NC}"
-    ((errors++))
+    ((errors++)) || true
 else
     echo -e "  ${GREEN}✓ marketplace.json plugin name: octo (matches plugin.json for /plugin UI)${NC}"
 fi
@@ -64,17 +64,17 @@ echo "  README badge:     $README_BADGE_VERSION"
 
 if [[ "$PLUGIN_VERSION" != "$MARKETPLACE_VERSION" ]]; then
     echo -e "  ${RED}ERROR: plugin.json ($PLUGIN_VERSION) != marketplace.json ($MARKETPLACE_VERSION)${NC}"
-    ((errors++))
+    ((errors++)) || true
 fi
 
 if [[ "$PLUGIN_VERSION" != "$PACKAGE_VERSION" ]]; then
     echo -e "  ${RED}ERROR: plugin.json ($PLUGIN_VERSION) != package.json ($PACKAGE_VERSION)${NC}"
-    ((errors++))
+    ((errors++)) || true
 fi
 
 if [[ "$PLUGIN_VERSION" != "$README_BADGE_VERSION" ]]; then
     echo -e "  ${YELLOW}WARNING: plugin.json ($PLUGIN_VERSION) != README badge ($README_BADGE_VERSION)${NC}"
-    ((warnings++))
+    ((warnings++)) || true
 fi
 
 if [[ $errors -eq 0 ]] && [[ "$PLUGIN_VERSION" == "$MARKETPLACE_VERSION" ]] && [[ "$PLUGIN_VERSION" == "$PACKAGE_VERSION" ]]; then
@@ -89,7 +89,7 @@ if git -C "$ROOT_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
         echo -e "  ${GREEN}✓ git tag v$PLUGIN_VERSION exists${NC}"
     else
         echo -e "  ${YELLOW}WARNING: no git tag v$PLUGIN_VERSION — fresh installs pin to main@HEAD${NC}"
-        ((warnings++))
+        ((warnings++)) || true
     fi
 fi
 
@@ -105,18 +105,18 @@ if command -v claude >/dev/null 2>&1; then
         echo -e "  ${GREEN}✓ Claude plugin validator passed${NC}"
     else
         echo -e "  ${RED}ERROR: claude plugin validate failed for plugin.json${NC}"
-        ((errors++))
+        ((errors++)) || true
     fi
 
     if claude plugin validate "$ROOT_DIR/.claude-plugin/marketplace.json"; then
         echo -e "  ${GREEN}✓ Marketplace manifest validator passed${NC}"
     else
         echo -e "  ${RED}ERROR: claude plugin validate failed for marketplace.json${NC}"
-        ((errors++))
+        ((errors++)) || true
     fi
 else
     echo -e "  ${YELLOW}WARNING: claude CLI not installed; skipping runtime plugin validation${NC}"
-    ((warnings++))
+    ((warnings++)) || true
 fi
 
 echo ""
@@ -136,7 +136,7 @@ REGISTERED_COMMANDS=$(grep -o '\.claude/commands/[^"]*\.md' "$ROOT_DIR/.claude-p
 for cmd_file in $COMMAND_FILES; do
     if ! echo "$REGISTERED_COMMANDS" | grep -q "^${cmd_file}$"; then
         echo -e "  ${RED}ERROR: Command file '$cmd_file' not registered in plugin.json${NC}"
-        ((errors++))
+        ((errors++)) || true
     fi
 done
 
@@ -144,7 +144,7 @@ done
 for reg_cmd in $REGISTERED_COMMANDS; do
     if ! echo "$COMMAND_FILES" | grep -q "^${reg_cmd}$"; then
         echo -e "  ${RED}ERROR: Registered command '$reg_cmd' does not exist${NC}"
-        ((errors++))
+        ((errors++)) || true
     fi
 done
 
@@ -169,8 +169,8 @@ for cmd_file in "$ROOT_DIR/.claude/commands/"*.md; do
     if [[ -n "$cmd_name" ]] && [[ "$cmd_name" == *":"* ]]; then
         echo -e "  ${RED}ERROR: $(basename "$cmd_file") has 'command: $cmd_name' - must NOT include namespace prefix${NC}"
         echo -e "  ${RED}  Claude Code will automatically add '/octo:' prefix based on plugin name${NC}"
-        ((errors++))
-        ((invalid_frontmatter++))
+        ((errors++)) || true
+        ((invalid_frontmatter++)) || true
     fi
 done
 
@@ -191,14 +191,14 @@ REGISTERED_SKILLS=$(grep -o '\.claude/skills/[^"]*\.md' "$ROOT_DIR/.claude-plugi
 for skill_file in $SKILL_FILES; do
     if ! echo "$REGISTERED_SKILLS" | grep -q "^${skill_file}$"; then
         echo -e "  ${RED}ERROR: Skill file '$skill_file' not registered in plugin.json${NC}"
-        ((errors++))
+        ((errors++)) || true
     fi
 done
 
 for reg_skill in $REGISTERED_SKILLS; do
     if ! echo "$SKILL_FILES" | grep -q "^${reg_skill}$"; then
         echo -e "  ${RED}ERROR: Registered skill '$reg_skill' does not exist${NC}"
-        ((errors++))
+        ((errors++)) || true
     fi
 done
 
@@ -227,8 +227,8 @@ for skill_file in "$ROOT_DIR/.claude/skills/"*.md; do
     if [[ "$skill_name" != "skill-"* ]] && [[ "$skill_name" != "flow-"* ]] && [[ "$skill_name" != "octopus-"* ]] && [[ "$skill_name" != "sys-"* ]]; then
         echo -e "  ${RED}ERROR: $(basename "$skill_file") has 'name: $skill_name' - must use descriptive prefix${NC}"
         echo -e "  ${RED}  Use: skill-, flow-, sys-, or octopus- prefix (NOT octo:)${NC}"
-        ((errors++))
-        ((invalid_skill_names++))
+        ((errors++)) || true
+        ((invalid_skill_names++)) || true
     fi
 done
 
@@ -249,7 +249,7 @@ if echo "$MARKETPLACE_DESC" | grep -q "v$PLUGIN_VERSION"; then
     echo -e "  ${GREEN}✓ Marketplace description mentions v$PLUGIN_VERSION${NC}"
 else
     echo -e "  ${YELLOW}WARNING: Marketplace description may not mention current version v$PLUGIN_VERSION${NC}"
-    ((warnings++))
+    ((warnings++)) || true
 fi
 
 echo ""
@@ -284,7 +284,7 @@ if git tag -l "$EXPECTED_TAG" | grep -q "$EXPECTED_TAG"; then
             git tag -a "$EXPECTED_TAG" -m "Release $EXPECTED_TAG"
         fi
         echo -e "  ${GREEN}✓ Tag $EXPECTED_TAG updated to point to HEAD${NC}"
-        ((warnings++))
+        ((warnings++)) || true
     fi
 else
     echo -e "  ${YELLOW}NOTE: Tag $EXPECTED_TAG not yet created${NC}"
@@ -318,11 +318,11 @@ if [[ -f "$CHANGELOG_FILE" ]]; then
     else
         echo -e "  ${RED}ERROR: CHANGELOG.md missing entry for v$PLUGIN_VERSION${NC}"
         echo -e "  ${RED}  Add a changelog entry before releasing${NC}"
-        ((errors++))
+        ((errors++)) || true
     fi
 else
     echo -e "  ${YELLOW}WARNING: CHANGELOG.md not found${NC}"
-    ((warnings++))
+    ((warnings++)) || true
 fi
 
 echo ""
@@ -365,12 +365,12 @@ else
                         echo -e "  ${GREEN}✓ GitHub release $EXPECTED_TAG created${NC}"
                     else
                         echo -e "  ${YELLOW}WARNING: Failed to create GitHub release${NC}"
-                        ((warnings++))
+                        ((warnings++)) || true
                     fi
                 else
                     echo -e "  ${YELLOW}WARNING: No CHANGELOG entry found for v$PLUGIN_VERSION${NC}"
                     echo -e "  ${YELLOW}  Cannot auto-create release without release notes${NC}"
-                    ((warnings++))
+                    ((warnings++)) || true
                 fi
             else
                 echo -e "  ${YELLOW}  Tag not yet pushed to remote - will create release after push${NC}"

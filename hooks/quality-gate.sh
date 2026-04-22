@@ -41,7 +41,7 @@ check_reference_integrity() {
             if [[ ! -f "$dir/$ref" && ! -f "$ref" ]]; then
                 issues+=("$file references missing script: $ref")
             fi
-        done < <(grep -oP '<script[^>]+src=["'\'']\K[^"'\'']+' "$file" 2>/dev/null | grep -v '^https\?://' || true)
+        done < <(grep -oE '<script[^>]+src=["'"'"'][^"'"'"']+' "$file" 2>/dev/null | sed 's/.*src=["'"'"']//' | grep -v '^https\?://' || true)
 
         # Check <link href="..."> stylesheet references (skip http/https/CDN URLs)
         while IFS= read -r ref; do
@@ -49,7 +49,7 @@ check_reference_integrity() {
             if [[ ! -f "$dir/$ref" && ! -f "$ref" ]]; then
                 issues+=("$file references missing stylesheet: $ref")
             fi
-        done < <(grep -oP '<link[^>]+href=["'\'']\K[^"'\'']+' "$file" 2>/dev/null | grep -v '^https\?://' | grep -v '^#' || true)
+        done < <(grep -oE '<link[^>]+href=["'"'"'][^"'"'"']+' "$file" 2>/dev/null | sed 's/.*href=["'"'"']//' | grep -v '^https\?://' | grep -v '^#' || true)
     done
 
     # Check shell scripts sourcing missing files
@@ -67,7 +67,7 @@ check_reference_integrity() {
             if [[ ! -f "$dir/$ref" && ! -f "$ref" ]]; then
                 issues+=("$file sources missing file: $ref")
             fi
-        done < <(grep -oP '^\s*(\.|source)\s+["'\''"]?\K[^"'\''"\s]+' "$file" 2>/dev/null || true)
+        done < <(grep -oE '^\s*(\.|source)\s+["'"'"'"]?[^"'"'"'"[:space:]]+' "$file" 2>/dev/null | sed -E 's/^[[:space:]]*(\.| source)[[:space:]]*//' | sed 's/^["'"'"'"]//' || true)
     done
 
     # Check docker-compose referencing missing Dockerfiles/configs
@@ -83,7 +83,7 @@ check_reference_integrity() {
             if [[ ! -f "$dir/$ref" && ! -f "$ref" ]]; then
                 issues+=("$file references missing file: $ref")
             fi
-        done < <(grep -oP '^\s*(dockerfile|env_file|config):\s*\K\S+' "$file" 2>/dev/null || true)
+        done < <(grep -oE '^\s*(dockerfile|env_file|config):\s*\S+' "$file" 2>/dev/null | sed -E 's/^[[:space:]]*(dockerfile|env_file|config):[[:space:]]*//' || true)
     done
 
     if [[ ${#issues[@]} -gt 0 ]]; then

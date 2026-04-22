@@ -560,7 +560,7 @@ get_context_tier() {
                     echo "### $(basename "$plan") (first 50 lines)"
                     head -n 50 "$plan"
                     echo ""
-                    ((plan_count++))
+                    ((plan_count++)) || true
                 fi
             done
             # Recent summaries (first 30 lines each, max 3)
@@ -570,7 +570,7 @@ get_context_tier() {
                     echo "### $(basename "$summary") (first 30 lines)"
                     head -n 30 "$summary"
                     echo ""
-                    ((summary_count++))
+                    ((summary_count++)) || true
                 fi
             done
             ;;

@@ -377,7 +377,6 @@ OCTOPUS_MAX_COST_USD="${OCTOPUS_MAX_COST_USD:-}"
 
 # POSIX-compatible string case helpers (macOS ships bash 3.2 which lacks ${var^} and ${var,,})
 _ucfirst() { local _c; _c=$(printf '%s' "${1:0:1}" | tr '[:lower:]' '[:upper:]'); printf '%s' "${_c}${1:1}"; }
-_lowercase() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
 
 # [EXTRACTED to lib/providers.sh in v9.7.7]
 
@@ -418,14 +417,6 @@ RESULTS_DIR="$SESSION_RESULTS_DIR"
 LOGS_DIR="$SESSION_LOGS_DIR"
 PID_FILE="${WORKSPACE_DIR}/pids"
 ANALYTICS_DIR="${WORKSPACE_DIR}/analytics"
-
-init_session_workspace() {
-    mkdir -p "$SESSION_RESULTS_DIR" "$SESSION_LOGS_DIR" "$SESSION_PLANS_DIR"
-    if [[ -n "$CLAUDE_CODE_SESSION" ]]; then
-        echo "$CLAUDE_CODE_SESSION" > "${SESSION_RESULTS_DIR}/.session-id"
-        echo "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "${SESSION_RESULTS_DIR}/.created-at"
-    fi
-}
 
 # Secure temporary directory (cleaned up on exit)
 OCTOPUS_TMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/claude-octopus.XXXXXX")
@@ -2038,176 +2029,6 @@ clean_workspace() {
         mkdir -p "$RESULTS_DIR" "$LOGS_DIR"
         log INFO "Workspace cleaned"
     fi
-}
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# TASK MANAGEMENT INTEGRATION (v7.12.0 - Claude Code v2.1.12+)
-# Native Claude Code task dependency tracking
-# ═══════════════════════════════════════════════════════════════════════════════
-
-create_workflow_tasks() {
-    local workflow_type="$1"  # discover, define, develop, deliver, embrace
-    local description="$2"
-
-    # Only create tasks if v2.1.12+ detected
-    if [[ "$SUPPORTS_TASK_MANAGEMENT" != "true" ]]; then
-        log "DEBUG" "Task management not available, skipping task creation"
-        return 0
-    fi
-
-    # Ensure tasks directory exists
-    mkdir -p "${WORKSPACE_DIR}/tasks"
-
-    log "INFO" "Creating tasks for workflow: $workflow_type"
-
-    case "$workflow_type" in
-        embrace)
-            # Create all 4 phase tasks with dependencies
-            create_task "discover" "$description" "Discovering and researching"
-            create_task "define" "$description" "Defining and scoping" "discover"
-            create_task "develop" "$description" "Developing implementation" "define"
-            create_task "deliver" "$description" "Delivering and validating" "develop"
-            ;;
-        discover|probe)
-            create_task "discover" "$description" "Discovering and researching"
-            ;;
-        define|grasp)
-            create_task "define" "$description" "Defining and scoping"
-            ;;
-        develop|tangle)
-            create_task "develop" "$description" "Developing implementation"
-            ;;
-        deliver|ink)
-            create_task "deliver" "$description" "Delivering and validating"
-            ;;
-    esac
-}
-
-create_task() {
-    local phase="$1"
-    local description="$2"
-    local active_form="$3"
-    local blocked_by="${4:-}"
-
-    # Task ID based on phase and timestamp
-    local task_id="${phase}-$(date +%s)"
-    local task_file="${WORKSPACE_DIR}/tasks/${phase}.id"
-
-    # Write task ID to file for tracking
-    echo "$task_id" > "$task_file"
-
-    # If has dependencies, track them
-    if [[ -n "$blocked_by" ]]; then
-        echo "$blocked_by" > "${WORKSPACE_DIR}/tasks/${phase}.blockedby"
-    fi
-
-    log "INFO" "Created task: $phase (ID: $task_id)"
-
-    # Note: Actual TaskCreate tool call happens in Claude context
-    # This function just tracks task metadata for orchestrate.sh
-}
-
-update_task_status() {
-    local phase="$1"
-    local status="$2"  # in_progress, completed
-
-    if [[ "$SUPPORTS_TASK_MANAGEMENT" != "true" ]]; then
-        return 0
-    fi
-
-    local task_id_file="${WORKSPACE_DIR}/tasks/${phase}.id"
-    if [[ ! -f "$task_id_file" ]]; then
-        log "DEBUG" "No task ID found for phase: $phase"
-        return 0
-    fi
-
-    local task_id=$(<"$task_id_file")
-    log "INFO" "Task $phase ($task_id) status: $status"
-
-    # Write status marker
-    echo "$status" > "${WORKSPACE_DIR}/tasks/${phase}.status"
-    echo "$(date -Iseconds)" > "${WORKSPACE_DIR}/tasks/${phase}.${status}_at"
-
-    # Note: Actual TaskUpdate tool call happens in Claude context
-}
-
-get_task_status_summary() {
-    local tasks_dir="${WORKSPACE_DIR}/tasks"
-
-    if [[ ! -d "$tasks_dir" ]]; then
-        echo "No tasks"
-        return
-    fi
-
-    local in_progress=0
-    local completed=0
-    local pending=0
-
-    for status_file in "$tasks_dir"/*.status; do
-        if [[ -f "$status_file" ]]; then
-            local status=$(<"$status_file")
-            case "$status" in
-                in_progress) ((in_progress++)) ;;
-                completed) ((completed++)) ;;
-                *) ((pending++)) ;;
-            esac
-        fi
-    done
-
-    echo "${in_progress} in progress, ${completed} completed, ${pending} pending"
-}
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# BASH WILDCARD PERMISSION VALIDATION (v7.12.0 - Claude Code v2.1.12+)
-# Flexible CLI pattern matching for external providers
-# ═══════════════════════════════════════════════════════════════════════════════
-
-validate_cli_pattern() {
-    local command="$1"
-    local pattern="$2"
-
-    # Wildcard patterns for external CLIs
-    case "$pattern" in
-        "codex "*|"codex exec "*|"codex standard "*|"codex *")
-            [[ "$command" =~ ^codex[[:space:]] ]] && return 0
-            ;;
-        "gemini "*|"gemini -"*|"gemini *")
-            [[ "$command" =~ ^gemini[[:space:]] ]] && return 0
-            ;;
-        "*/orchestrate.sh "*|*"orchestrate.sh "*)
-            [[ "$command" =~ orchestrate\.sh[[:space:]] ]] && return 0
-            ;;
-        *)
-            [[ "$command" =~ $pattern ]] && return 0
-            ;;
-    esac
-
-    return 1
-}
-
-check_cli_permissions() {
-    local command="$1"
-
-    # Allowed patterns for external CLI execution
-    local allowed_patterns=(
-        "codex exec *"
-        "codex standard *"
-        "codex *"
-        "gemini -r *"
-        "gemini -y *"
-        "gemini *"
-        "*/orchestrate.sh *"
-    )
-
-    for pattern in "${allowed_patterns[@]}"; do
-        if validate_cli_pattern "$command" "$pattern"; then
-            log "DEBUG" "CLI command matched pattern: $pattern"
-            return 0
-        fi
-    done
-
-    log "WARN" "CLI command not in allowed patterns: ${command:0:50}..."
-    return 1
 }
 
 # Parse options

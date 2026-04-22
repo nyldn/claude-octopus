@@ -98,9 +98,27 @@ check_smoke_test_status() {
 main() {
     log "INFO" "Provider routing validation hook triggered"
 
-    # Get the bash command being executed
-    # In a real hook, this would be passed via stdin or environment
-    local bash_command="${BASH_COMMAND:-${1:-}}"
+    # Read hook input from stdin (CC hook protocol: JSON with tool_input.command)
+    local stdin_data=""
+    if [[ ! -t 0 ]]; then
+        stdin_data=$(cat 2>/dev/null || true)
+    fi
+
+    # Extract the bash command from hook JSON input
+    local bash_command=""
+    if [[ -n "$stdin_data" ]]; then
+        if command -v jq &>/dev/null; then
+            bash_command=$(printf '%s' "$stdin_data" | jq -r '.tool_input.command // empty' 2>/dev/null) || true
+        elif command -v python3 &>/dev/null; then
+            bash_command=$(printf '%s' "$stdin_data" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+print(d.get('tool_input', {}).get('command', ''))" 2>/dev/null) || true
+        fi
+    fi
+
+    # Fallback to positional arg (for manual testing)
+    [[ -z "$bash_command" ]] && bash_command="${1:-}"
 
     if [[ -z "$bash_command" ]]; then
         log "DEBUG" "No command to validate, proceeding"

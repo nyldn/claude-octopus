@@ -218,14 +218,14 @@ test_gitignore_best_practices() {
 test_root_directory_cleanliness() {
     print_test_header "Root Directory Organization"
 
-    # Check for files that shouldn't be committed
+    # Check that .DS_Store is not tracked by git (the file itself is a macOS artifact)
     TOTAL_TESTS=$((TOTAL_TESTS + 1))
-    if [[ ! -f "$PROJECT_ROOT/.DS_Store" ]]; then
-        echo "  ✓ No .DS_Store in root"
-        PASSED_TESTS=$((PASSED_TESTS + 1))
-    else
-        echo "  ⚠ .DS_Store found in root (should be removed)"
+    if git -C "$PROJECT_ROOT" ls-files --error-unmatch .DS_Store &>/dev/null; then
+        echo "  ✗ .DS_Store is tracked by git (should be gitignored and removed from index)"
         FAILED_TESTS=$((FAILED_TESTS + 1))
+    else
+        echo "  ✓ .DS_Store not tracked by git"
+        PASSED_TESTS=$((PASSED_TESTS + 1))
     fi
 
     # Check that coverage reports are not committed (they're generated)

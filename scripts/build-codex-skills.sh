@@ -111,7 +111,7 @@ extract_body() {
 
     while IFS= read -r line; do
         if [[ "$line" == "---" ]]; then
-            ((frontmatter_count++))
+            ((frontmatter_count++)) || true
             if [[ $frontmatter_count -ge 2 ]]; then
                 past_frontmatter=true
                 continue
@@ -144,7 +144,7 @@ main() {
     if $CHECK_MODE; then
         local tmp_dir
         tmp_dir=$(mktemp -d)
-        trap "rm -rf $tmp_dir" EXIT
+        trap 'rm -rf "'"$tmp_dir"'"' EXIT
         local check_output="$tmp_dir/codex-skills"
         mkdir -p "$check_output"
     fi
@@ -168,7 +168,7 @@ main() {
         for pattern in $SKIP_PATTERNS; do
             if [[ "$basename" == $pattern ]]; then
                 $VERBOSE && echo "  SKIP: $basename (template)"
-                ((skipped++))
+                ((skipped++)) || true
                 continue 2
             fi
         done
@@ -208,7 +208,7 @@ main() {
             extract_body "$file"
         } > "$skill_dir/SKILL.md"
 
-        ((count++))
+        ((count++)) || true
         $VERBOSE && echo "  OK: $basename → .codex/skills/$codex_name/SKILL.md"
     done
 

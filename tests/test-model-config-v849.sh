@@ -619,14 +619,14 @@ else
 fi
 
 # Verify enhanced synthesis prompt has structured output
-if grep -A 100 'aggregate_results()' "$_ORCH_ALL_TMP" | grep -q 'Key Findings'; then
+if grep -A 120 'aggregate_results()' "$_ORCH_ALL_TMP" | grep -q 'Key Findings'; then
     pass "aggregate_results() synthesis prompt includes structured output format"
 else
     fail "aggregate_results() synthesis prompt missing structured output"
 fi
 
 # Verify minority opinion preservation in synthesis prompt
-if grep -A 60 'aggregate_results()' "$_ORCH_ALL_TMP" | grep -q 'minority'; then
+if grep -A 120 'aggregate_results()' "$_ORCH_ALL_TMP" | grep -q 'minority'; then
     pass "aggregate_results() synthesis prompt preserves minority opinions"
 else
     fail "aggregate_results() synthesis prompt missing minority opinion rule"
@@ -647,7 +647,7 @@ else
 fi
 
 # Verify quality score annotation in concatenated results
-if grep -A 50 'aggregate_results()' "$_ORCH_ALL_TMP" | grep -q 'Quality:'; then
+if grep -A 120 'aggregate_results()' "$_ORCH_ALL_TMP" | grep -q 'Quality:'; then
     pass "aggregate_results() annotates results with quality scores"
 else
     fail "aggregate_results() missing quality score annotations"

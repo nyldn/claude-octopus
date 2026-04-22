@@ -253,7 +253,7 @@ collect_async_results() {
     for result in "$RESULTS_DIR"/${pattern}-${task_group}-*.md; do
         [[ -f "$result" ]] || continue
         results+="$(cat "$result")\n\n---\n\n"
-        ((result_count++))
+        ((result_count++)) || true
     done
 
     if [[ $result_count -eq 0 ]]; then

@@ -512,7 +512,7 @@ ${_blind_spot_checklist}"
             elif grep -q "Status: FAILED" "$result_file"; then
                 if [[ $file_size -gt 1024 ]]; then
                     echo -e " ${YELLOW}⚠${NC}  $agent_display probe $i: failed but has output ($(numfmt --to=iec-i --suffix=B $file_size 2>/dev/null || echo "${file_size}B"))"
-                    ((timeout_count++))  # Count as partial success
+                    ((timeout_count++)) || true  # Count as partial success
                 else
                     echo -e " ${RED}✗${NC} $agent_display probe $i: failed ($(numfmt --to=iec-i --suffix=B $file_size 2>/dev/null || echo "${file_size}B"))"
                     ((failure_count++)) || true
@@ -521,7 +521,7 @@ ${_blind_spot_checklist}"
                 # No clear status marker - check file size
                 if [[ $file_size -gt 1024 ]]; then
                     echo -e " ${YELLOW}?${NC} $agent_display probe $i: unknown status but has content ($(numfmt --to=iec-i --suffix=B $file_size 2>/dev/null || echo "${file_size}B"))"
-                    ((timeout_count++))  # Count as partial success
+                    ((timeout_count++)) || true  # Count as partial success
                 else
                     echo -e " ${RED}✗${NC} $agent_display probe $i: empty or missing ($(numfmt --to=iec-i --suffix=B $file_size 2>/dev/null || echo "${file_size}B"))"
                     ((failure_count++)) || true

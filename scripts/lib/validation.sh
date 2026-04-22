@@ -282,7 +282,7 @@ atomic_json_update() {
 
     # Acquire lock
     touch "$lockfile"
-    trap "rm -f $lockfile" EXIT
+    trap 'rm -f "'"$lockfile"'"' EXIT
 
     # Update atomically
     local tmp_file="${json_file}.tmp.$$"

@@ -56,7 +56,9 @@ resolve_octopus_model() {
     if [[ -f "$persistent_cache" ]] && command -v jq &>/dev/null; then
         cached_val=$(jq -r ".\"$cache_key\" // empty" "$persistent_cache" 2>/dev/null)
         if [[ -n "$cached_val" && "$cached_val" != "null" ]]; then
-            eval "_OCTO_MODEL_CACHE_${cache_key}=\"$cached_val\""
+            # Sanitize before eval: strip shell metacharacters (model names are alphanumeric + .:/-_)
+            cached_val="${cached_val//[^a-zA-Z0-9._:\/\-]/}"
+            eval "_OCTO_MODEL_CACHE_${cache_key}=\"\$cached_val\""
             echo "$cached_val"
             return 0
         fi
@@ -203,7 +205,8 @@ resolve_octopus_model() {
     [[ -n "$_trace" ]] && echo "[model-trace] ► Result: $resolved_model" >&2
 
     # Update memory and persistent cache
-    eval "_OCTO_MODEL_CACHE_${cache_key}=\"$resolved_model\""
+    # Use \$var to prevent double-expansion; resolved_model is internally computed but defensive quoting is cheap
+    eval "_OCTO_MODEL_CACHE_${cache_key}=\"\$resolved_model\""
     if command -v jq &>/dev/null; then
         local cache_json="{}"
         # Self-heal: reject unreadable, concatenated-JSON, or non-object payloads.
@@ -288,94 +291,6 @@ is_agent_available_v2() {
             ;;
         *)
             return 0  # Unknown agents assumed available
-            ;;
-    esac
-}
-
-# Enhanced tiered agent selection with provider scoring
-get_tiered_agent_v2() {
-    local task_type="$1"
-    local complexity="${2:-2}"
-
-    # Select best provider
-    local provider
-    provider=$(select_provider "$task_type" "$complexity")
-
-    # Map provider + task_type to specific agent
-    case "$provider" in
-        codex)
-            case "$task_type" in
-                review) echo "codex-review" ;;
-                image)
-                    # Codex can't do images, fallback
-                    if is_agent_available_v2 "gemini-image"; then
-                        echo "gemini-image"
-                    else
-                        echo "openrouter"  # OpenRouter can do images
-                    fi
-                    ;;
-                *)
-                    case "$complexity" in
-                        1) echo "codex-mini" ;;
-                        3) echo "codex-max" ;;
-                        *) echo "codex-standard" ;;
-                    esac
-                    ;;
-            esac
-            ;;
-        gemini)
-            case "$task_type" in
-                image) echo "gemini-image" ;;
-                *)
-                    case "$complexity" in
-                        1) echo "gemini-fast" ;;
-                        *) echo "gemini" ;;
-                    esac
-                    ;;
-            esac
-            ;;
-        claude)
-            if [[ "$SUPPORTS_AGENT_TYPE_ROUTING" == "true" ]]; then
-                case "$complexity" in
-                    1) echo "claude" ;;          # Haiku tier
-                    3) echo "claude-opus" ;;     # Opus 4.6 for premium
-                    *) echo "claude" ;;          # Sonnet (default)
-                esac
-            else
-                echo "claude"
-            fi
-            ;;
-        openrouter)
-            # v8.11.0: Route to model-specific agents based on task type
-            case "$task_type" in
-                review)
-                    if is_agent_available_v2 "openrouter-glm5"; then
-                        echo "openrouter-glm5"   # GLM-5: best for code review (77.8% SWE-bench)
-                    else
-                        echo "openrouter"
-                    fi
-                    ;;
-                research|design)
-                    if is_agent_available_v2 "openrouter-kimi"; then
-                        echo "openrouter-kimi"    # Kimi K2.5: 262K context, cheapest
-                    else
-                        echo "openrouter"
-                    fi
-                    ;;
-                security|reasoning)
-                    if is_agent_available_v2 "openrouter-deepseek"; then
-                        echo "openrouter-deepseek" # DeepSeek R1: visible reasoning traces
-                    else
-                        echo "openrouter"
-                    fi
-                    ;;
-                *)
-                    echo "openrouter"
-                    ;;
-            esac
-            ;;
-        *)
-            echo "codex-standard"
             ;;
     esac
 }

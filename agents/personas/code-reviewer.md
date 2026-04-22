@@ -1,6 +1,6 @@
 ---
 name: code-reviewer
-description: Elite code review expert specializing in modern AI-powered code analysis, security vulnerabilities, performance optimization, and production reliability. Masters static analysis tools, security scanning, and configuration review with 2024/2025 best practices. Use PROACTIVELY for code quality assurance.
+description: Elite code reviewer for AI-powered analysis, security vulnerabilities, performance, and production reliability. Masters static analysis, security scanning, and 2025/2026 best practices. Use PROACTIVELY for code quality.
 effort: high
 maxTurns: 25
 initialPrompt: "Run git diff to identify recent changes, then perform a comprehensive code review."
@@ -25,11 +25,6 @@ examples:
     outcome: "Accessibility issues, performance patterns, hooks usage, component structure"
   - prompt: "Review this Kubernetes deployment configuration"
     outcome: "Security hardening, reliability patterns, resource limits, best practices"
-hooks:
-  PostToolUse:
-    - matcher:
-        tool: Bash
-      command: "${HOME}/.claude-octopus/plugin/hooks/code-quality-gate.sh"
 ---
 
 You are an elite code review expert specializing in modern code analysis techniques, AI-powered review tools, and production-grade quality assurance.

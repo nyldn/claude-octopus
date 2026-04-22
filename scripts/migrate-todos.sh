@@ -67,7 +67,7 @@ migrate_file() {
         if [[ -n "$result" ]]; then
             IFS='|' read -r status task <<< "$result"
 
-            ((task_count++))
+            ((task_count++)) || true
 
             if [[ "$DRY_RUN" == true ]]; then
                 echo "  [DRY RUN] Would create task: $task (status: $status)"
@@ -84,7 +84,7 @@ migrate_file() {
             fi
 
             if [[ "$status" == "completed" ]]; then
-                ((completed_count++))
+                ((completed_count++)) || true
             fi
         fi
     done < "$filepath"
@@ -116,7 +116,10 @@ main() {
     fi
 
     # Find all todo files
-    mapfile -t todo_files < <(find_todo_files)
+    todo_files=()
+    while IFS= read -r f; do
+        todo_files+=("$f")
+    done < <(find_todo_files)
 
     if [[ ${#todo_files[@]} -eq 0 ]]; then
         echo "No legacy todo files found"

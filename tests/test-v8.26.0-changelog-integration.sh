@@ -17,7 +17,7 @@ ALL_SRC=$(mktemp)
 cat "$ORCHESTRATE_SH" "$(dirname "$ORCHESTRATE_SH")/lib/"*.sh > "$ALL_SRC" 2>/dev/null
 trap 'rm -f "$ALL_SRC"' EXIT
 HOOKS_JSON="$PROJECT_ROOT/.claude-plugin/hooks.json"
-SETTINGS_JSON="$PROJECT_ROOT/.claude-plugin/settings.json"
+CONFIG_CHANGE_HANDLER="$PROJECT_ROOT/hooks/config-change-handler.sh"
 SKILL_DOCTOR="$PROJECT_ROOT/.claude/skills/skill-doctor.md"
 CONFIG_YAML="$PROJECT_ROOT/agents/config.yaml"
 
@@ -139,6 +139,8 @@ echo ""
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Test Suite 4: Settings (8 tests)
+# settings.json was removed in v9.22.2; settings now live as env-var defaults
+# in lib/*.sh and are registered for hot-reload in config-change-handler.sh
 # ═══════════════════════════════════════════════════════════════════════════════
 
 echo "Test Suite 4: Settings"
@@ -147,10 +149,10 @@ echo "────────────────────────�
 for field in OCTOPUS_CODEX_SANDBOX OCTOPUS_MEMORY_INJECTION OCTOPUS_PERSONA_PACKS \
              OCTOPUS_WORKTREE_ISOLATION OCTOPUS_MAX_PARALLEL_AGENTS \
              OCTOPUS_QUALITY_GATE_THRESHOLD OCTOPUS_COST_WARNINGS OCTOPUS_TOOL_POLICIES; do
-    if grep -q "\"${field}\"" "$SETTINGS_JSON"; then
-        pass "settings.json contains $field"
+    if grep -q "${field}" "$CONFIG_CHANGE_HANDLER"; then
+        pass "config-change-handler registers $field"
     else
-        fail "settings.json does NOT contain $field"
+        fail "config-change-handler does NOT register $field"
     fi
 done
 echo ""

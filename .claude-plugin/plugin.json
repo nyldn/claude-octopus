@@ -8,6 +8,7 @@
   },
   "license": "MIT",
   "repository": "https://github.com/nyldn/claude-octopus",
+  "homepage": "https://github.com/nyldn/claude-octopus",
   "keywords": [
     "multi-llm",
     "multi-agent",

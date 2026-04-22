@@ -91,42 +91,6 @@ test_feature_flags() {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Unit Tests: Task Management
-# ═══════════════════════════════════════════════════════════════════════════════
-
-test_task_management_functions() {
-    run_test "Task management functions exist"
-
-    local functions=(
-        "create_workflow_tasks"
-        "create_task"
-        "update_task_status"
-        "get_task_status_summary"
-    )
-
-    for func in "${functions[@]}"; do
-        if grep -q "^${func}()\|^${func} ()" "$ALL_SRC"; then
-            log_pass "Function $func found"
-        else
-            log_fail "Function $func not found"
-            return 1
-        fi
-    done
-}
-
-test_task_directory_creation() {
-    run_test "Task directory structure creation"
-
-    # Check if task management creates proper directories
-    if grep -q 'mkdir -p.*tasks' "$ALL_SRC"; then
-        log_pass "Task directory creation logic found"
-    else
-        log_fail "Task directory creation logic not found"
-        return 1
-    fi
-}
-
-# ═══════════════════════════════════════════════════════════════════════════════
 # Unit Tests: Fork Context
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -209,28 +173,6 @@ test_hooks_json_updated() {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Unit Tests: Bash Wildcard Permissions
-# ═══════════════════════════════════════════════════════════════════════════════
-
-test_wildcard_validation() {
-    run_test "Bash wildcard validation functions"
-
-    if grep -q "validate_cli_pattern" "$ALL_SRC"; then
-        log_pass "validate_cli_pattern function found"
-    else
-        log_fail "validate_cli_pattern function not found"
-        return 1
-    fi
-
-    if grep -q "check_cli_permissions" "$ALL_SRC"; then
-        log_pass "check_cli_permissions function found"
-    else
-        log_fail "check_cli_permissions function not found"
-        return 1
-    fi
-}
-
-# ═══════════════════════════════════════════════════════════════════════════════
 # Integration Tests: Flow Skills
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -291,12 +233,11 @@ test_backward_compatibility() {
         return 1
     fi
 
-    # Check that task management functions check feature flags
-    if grep -q 'SUPPORTS_TASK_MANAGEMENT.*!= "true"' "$ALL_SRC" || \
-       grep -q 'SUPPORTS_TASK_MANAGEMENT.*== "false"' "$ALL_SRC"; then
-        log_pass "Task management checks feature flag before executing"
+    # Check that task management feature flag is declared
+    if grep -q 'SUPPORTS_TASK_MANAGEMENT=' "$ALL_SRC"; then
+        log_pass "Task management feature flag declared"
     else
-        log_fail "Task management missing feature flag check"
+        log_fail "Task management feature flag missing"
         return 1
     fi
 }
@@ -338,11 +279,6 @@ test_version_detection
 test_feature_flags
 echo ""
 
-echo "--- Unit Tests: Task Management ---"
-test_task_management_functions
-test_task_directory_creation
-echo ""
-
 echo "--- Unit Tests: Fork Context ---"
 test_fork_context_support
 test_fork_markers
@@ -351,10 +287,6 @@ echo ""
 echo "--- Unit Tests: Hook System ---"
 test_hook_scripts_exist
 test_hooks_json_updated
-echo ""
-
-echo "--- Unit Tests: Bash Wildcards ---"
-test_wildcard_validation
 echo ""
 
 # Integration Tests

@@ -82,7 +82,7 @@ cleanup_old_sessions() {
     # Keep 10 most recent sessions, delete the rest
     local count=0
     for session_dir in $(ls -dt "$sessions_dir"/*/ 2>/dev/null); do
-        ((count++))
+        ((count++)) || true
         if [[ $count -gt 10 ]]; then
             echo "Removing old session: $(basename "$session_dir")"
             rm -rf "$session_dir"

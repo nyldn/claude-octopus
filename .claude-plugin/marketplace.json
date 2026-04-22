@@ -18,6 +18,7 @@
         "url": "https://github.com/nyldn"
       },
       "repository": "https://github.com/nyldn/claude-octopus",
+      "homepage": "https://github.com/nyldn/claude-octopus",
       "license": "MIT",
       "keywords": [
         "multi-llm",
