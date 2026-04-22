@@ -1,3 +1,11 @@
+## [9.29.1] - 2026-04-22
+
+### Changed
+
+- Patch bundle: perplexity stdin + nested-JSON fix (#307/#310), v9.29 migration advisory + write-intent guardrail (#312), hook hardening eliminating silent failures (#313/#314), model-config banner fix (#301/#302), cache byte-format env compat.
+
+---
+
 ## [9.29.0] - 2026-04-22
 
 ### Changed
