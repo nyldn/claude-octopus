@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "9.28.0",
-  "description": "v9.28.0 \u2014 Multi-LLM orchestration for Claude Code with Double Diamond workflows, provider routing, safety gates, and automation. Use '/octo:auto' or just describe what you need. Run /octo:setup.",
+  "version": "9.29.0",
+  "description": "v9.29.0 — Model defaults refreshed: Opus 4.7 for planning/strategy/security-review, GPT-5.4 for code-review/implementation. New GPT-5.4 prompting guide. Set OCTOPUS_LEGACY_ROLES=1 to opt out. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"

@@ -34,22 +34,43 @@ Claude Octopus coordinates **eight AI providers** — one per tentacle to give y
 |----------|----------|------------------|-------------|
 | **Codex CLI** | `codex exec --model gpt-5.4` | GPT-5.4 | Your `OPENAI_API_KEY` |
 | **Gemini CLI** | `gemini -y -m gemini-3.1-pro-preview` | Gemini 3.1 Pro Preview | Your `GEMINI_API_KEY` |
-| **Claude** | Built-in | Claude Sonnet 4.6 / Opus 4.6 | Your Claude Code subscription |
+| **Claude** | Built-in | Claude Sonnet 4.6 / Opus 4.7 | Your Claude Code subscription |
 | **Perplexity** | API-only | Sonar Pro / Sonar | Your `PERPLEXITY_API_KEY` |
 | **OpenRouter** | API-only | 100+ models (GLM-5, Kimi K2.5, DeepSeek R1, etc.) | Your `OPENROUTER_API_KEY` |
 | **Ollama** *(optional)* | `ollama run <model>` | Local models (llama3.3, mistral, etc.) | Free (local) |
 | **Copilot** *(optional)* | `copilot -p` | GitHub models (Claude/GPT/Gemini) | GitHub Copilot subscription |
 | **Qwen** *(optional)* | `qwen -p` | Qwen3-Coder | Qwen OAuth (free tier) |
 
-> **Note:** Models are as of March 2026. The orchestrate.sh script uses the latest available models. Only Claude is required — all others are optional and auto-detected.
+> **Note:** Models are as of April 2026. The orchestrate.sh script uses the latest available models. Only Claude is required — all others are optional and auto-detected.
+
+### Role → Model Mapping (v9.29+)
+
+Role defaults refreshed based on April 2026 benchmark consensus. See [GPT-5.4 prompting guide](./GPT-5.4-PROMPTING.md) for dispatcher patterns.
+
+| Role                 | Default Model         | Why                                                                 |
+|----------------------|-----------------------|---------------------------------------------------------------------|
+| `architect`          | Claude Opus 4.7       | SWE-bench Pro 64.3, MCP-Atlas +9.2, LMArena #1; UI/UX taste         |
+| `strategist`         | Claude Opus 4.7       | Premium arbitration, architecture tradeoffs                         |
+| `security-reviewer`  | Claude Opus 4.7       | Adversarial reasoning                                               |
+| `code-reviewer`      | GPT-5.4               | Edge-case hunting; Terminal-Bench 75.1                              |
+| `reviewer` (alias)   | → `code-reviewer`     | Back-compat for v9.28 callers                                       |
+| `implementer`        | GPT-5.4               | Terminal-heavy execution, iterative patch/test loops                |
+| `implementer-heavy`  | Claude Opus 4.7       | Opt-in only; greenfield / large refactors / UI-heavy builds         |
+| `synthesizer`        | Claude Sonnet 4.6     | Best aggregator price/quality                                       |
+| `researcher`         | Gemini 3.1 Pro Preview| Broad research + synthesis                                          |
+
+**Opt-out:** `OCTOPUS_LEGACY_ROLES=1` restores the v9.28 mapping (GPT-5.4 everywhere for architect/reviewer/implementer, Opus 4.6 for strategist).
+
+**Graceful fallback:** when the preferred CLI is unavailable (e.g. no Anthropic auth for architect), `lib/agents.sh` silently downshifts and logs a single notice instead of failing.
 
 ### What Each Provider Excels At
 
 | Provider | Strengths | Best For |
 |----------|-----------|----------|
-| **Codex (OpenAI)** | Code generation, structured output, technical analysis | Implementation approaches, code patterns, API design |
+| **Codex (OpenAI, GPT-5.4)** | Edge-case hunting, terminal execution, patch/test loops | Code review (`code-reviewer`), default implementation (`implementer`) |
 | **Gemini (Google)** | Research synthesis, documentation, broad knowledge | Ecosystem research, best practices, alternative perspectives |
-| **Claude** | Strategic synthesis, nuanced analysis, code review | Final synthesis, quality assessment, moderation |
+| **Claude (Opus 4.7)** | Planning, architecture, adversarial reasoning, UI/UX taste | `architect`, `strategist`, `security-reviewer`, `implementer-heavy` |
+| **Claude (Sonnet 4.6)** | Aggregation, final synthesis, workhorse summarization | `synthesizer`; included with Claude Code subscription |
 | **Perplexity** | Live web search, CVE lookups, current docs | Discover phase research, dependency analysis |
 | **OpenRouter** | Access to 100+ models, cost routing | Alternative perspectives, budget-conscious workflows |
 | **Ollama** *(optional)* | Zero-cost, offline, privacy | Brainstorming, fallback, air-gapped environments |

@@ -1,3 +1,18 @@
+## [9.29.0] - 2026-04-22
+
+### Changed
+
+- **Role default refresh based on April 2026 benchmarks**: `architect`, `strategist`, and new `security-reviewer` role now default to Claude Opus 4.7 (SWE-bench Pro 64.3 vs 57.7, MCP-Atlas tool use +9.2, LMArena #1). `code-reviewer` and `implementer` stay on GPT-5.4 (Terminal-Bench 75.1, edge-case review). `reviewer` is preserved as an alias for `code-reviewer`.
+- **New opt-in `implementer-heavy` role** for greenfield / large refactors / UI-heavy builds — routes to Claude Opus 4.7. Not auto-selected; callers must request it explicitly.
+- **New `plugin/docs/GPT-5.4-PROMPTING.md`** — condensed OpenAI prompt guidance (reasoning effort tiers, output contracts, tool persistence, `phase` field, `gpt-5.4-mini` patterns). Referenced from Codex dispatchers and code-reviewer persona.
+- **Migration prompt** in `/octo:setup` fires once for users upgrading from ≤9.28: explains the routing change, surfaces the Opus 4.7 cost impact (~2x GPT-5.4), offers `OCTOPUS_LEGACY_ROLES=1` opt-out to restore v9.28 mapping.
+
+### Opt-out
+
+Set `OCTOPUS_LEGACY_ROLES=1` to restore the v9.28 role mapping verbatim.
+
+---
+
 ## [9.28.0] - 2026-04-22
 
 ### Changed

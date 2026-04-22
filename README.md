@@ -12,7 +12,7 @@ Every AI model has blind spots. Claude Octopus puts up to eight of them on every
   <a href="https://claude.ai"><img src="https://img.shields.io/badge/Claude-Built_with_AI-c96442?logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0iI2ZmZiIgZD0iTTEyIDJhMTAgMTAgMCAxIDAgMCAyMCAxMCAxMCAwIDAgMCAwLTIwbTAgMS44YTEuMiAxLjIgMCAwIDEgLjg1LjM1bDEuNSA0LjVhLjYuNiAwIDAgMCAuMzUuMzVsNC41IDEuNWExLjIgMS4yIDAgMCAxIDAgMi4yN2wtNC41IDEuNWEuNi42IDAgMCAwLS4zNS4zNWwtMS41IDQuNWExLjIgMS4yIDAgMCAxLTIuMjcgMGwtMS41LTQuNWEuNi42IDAgMCAwLS4zNS0uMzVsLTQuNS0xLjVhMS4yIDEuMiAwIDAgMSAwLTIuMjdsNC41LTEuNWEuNi42IDAgMCAwIC4zNS0uMzVsMS41LTQuNUExLjIgMS4yIDAgMCAxIDEyIDMuOCIvPjwvc3ZnPg==&labelColor=333" alt="Built with Claude"></a>
   <a href="https://github.com/nyldn/claude-octopus/actions/workflows/test.yml"><img src="https://github.com/nyldn/claude-octopus/actions/workflows/test.yml/badge.svg" alt="Tests"></a>
   <img src="https://img.shields.io/badge/Tests-146_passing-brightgreen" alt="146 tests passing">
-  <img src="https://img.shields.io/badge/Version-9.28.0-blue" alt="Version 9.28.0">
+  <img src="https://img.shields.io/badge/Version-9.29.0-blue" alt="Version 9.29.0">
   <img src="https://img.shields.io/badge/Claude_Code-v2.1.83+-blueviolet" alt="Requires Claude Code v2.1.83+">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
 </p>
@@ -246,16 +246,18 @@ Claude Octopus coordinates up to eight AI providers — one per tentacle:
 
 | Provider | Role |
 |----------|------|
-| 🔴 Codex (OpenAI) | Implementation depth — code patterns, technical analysis, architecture |
-| 🟡 Gemini (Google) | Ecosystem breadth — alternatives, security review, research synthesis |
+| 🔴 Codex (OpenAI, GPT-5.4) | Code review + implementation — edge-case hunting, terminal-heavy execution, patch/test loops |
+| 🟡 Gemini (Google) | Ecosystem breadth — alternatives, research synthesis |
 | 🟣 Perplexity | Live web search — CVE lookups, dependency research, current docs |
 | 🌐 OpenRouter | Alternative model routing — access 100+ models via single API |
 | 🟢 Copilot (GitHub) | Zero-cost research — uses existing GitHub Copilot subscription |
 | 🟤 Qwen (Alibaba) | Free-tier research — 1,000-2,000 requests/day via Qwen OAuth |
 | ⚫ Ollama (Local) | Zero-cost local LLM — offline, privacy-sensitive, fallback |
-| 🔵 Claude (Anthropic) | Orchestration — quality gates, consensus building, final synthesis |
+| 🔵 Claude (Anthropic, Opus 4.7 + Sonnet 4.6) | Architecture, strategy, security review, orchestration, consensus, final synthesis |
 
 Providers run in parallel for research, sequentially for problem scoping, and adversarially for review. A 75% consensus quality gate prevents questionable work from shipping. Only Claude is required — all others are optional and auto-detected.
+
+**v9.29.0 role defaults** (April 2026 benchmark refresh): `architect`, `strategist`, and `security-reviewer` default to Claude Opus 4.7 (leads SWE-bench Pro 64.3, MCP-Atlas tool use +9.2, LMArena #1). `code-reviewer` and `implementer` default to GPT-5.4 (leads Terminal-Bench 75.1, edge-case review). Opt out with `OCTOPUS_LEGACY_ROLES=1` to restore the v9.28 mapping. See [CHANGELOG](CHANGELOG.md#9290---2026-04-22) and [GPT-5.4 prompting guide](docs/GPT-5.4-PROMPTING.md).
 
 ### Four Phases: Discover, Define, Develop, Deliver
 

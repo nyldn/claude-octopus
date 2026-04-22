@@ -62,6 +62,70 @@ Token Optimization:
   octo-compress:    [Available ✓ / Not in PATH]
 ```
 
+## STEP 2a: v9.29 Migration Prompt (one-time, existing users only)
+
+**Before showing the main menu, check if this is an existing user upgrading from ≤9.28.**
+
+Run this bash check — skip migration if state is fresh (first-run) or already ≥9.29:
+
+```bash
+STATE_FILE="${HOME}/.claude-octopus/state.json"
+if [[ -f "$STATE_FILE" ]] && command -v jq >/dev/null 2>&1; then
+  LAST_VERSION=$(jq -r '.last_version // "0.0.0"' "$STATE_FILE" 2>/dev/null)
+  MODEL_DEFAULTS_V2=$(jq -r '.model_defaults_v2 // "unset"' "$STATE_FILE" 2>/dev/null)
+  # Version compare: show migration only if last_version is between 1.x and 9.28
+  if [[ "$LAST_VERSION" != "0.0.0" ]] && [[ "$MODEL_DEFAULTS_V2" == "unset" ]]; then
+    printf "MIGRATION_PROMPT_NEEDED\nlast_version=%s\n" "$LAST_VERSION"
+  fi
+fi
+```
+
+**If `MIGRATION_PROMPT_NEEDED` appears**, show this AskUserQuestion BEFORE the main menu:
+
+```javascript
+AskUserQuestion({
+  questions: [{
+    question: "v9.29.0 refreshed model defaults based on April 2026 benchmarks. Planning + security reviews now use Claude Opus 4.7 (best on SWE-bench Pro + LMArena). Code review + implementation stay on GPT-5.4 (best on Terminal-Bench + edge cases). Opus is ~2x the cost of GPT-5.4 per MTok — this will increase planning-phase cost. How would you like to proceed?",
+    header: "v9.29 Models",
+    multiSelect: false,
+    options: [
+      {label: "Accept new defaults (Recommended)", description: "Use Opus 4.7 for planning/strategy/security, GPT-5.4 for review/implementation"},
+      {label: "Keep v9.28 defaults (GPT-5.4 everywhere)", description: "Sets OCTOPUS_LEGACY_ROLES=1 in your shell profile"},
+      {label: "Open /octo:model-config", description: "Customize per-role routing directly"},
+      {label: "See the diff", description: "Show before/after routing table, then ask again"}
+    ]
+  }]
+})
+```
+
+**Route based on selection:**
+
+- **Accept new defaults** → Write `model_defaults_v2=accepted` and `last_version=9.29.0` to `~/.claude-octopus/state.json`. Continue to STEP 3.
+- **Keep v9.28 defaults** → Append `export OCTOPUS_LEGACY_ROLES=1` to the user's shell profile (detect `~/.zshrc` vs `~/.bashrc` via `$SHELL`), notify them to reload the shell, then write `model_defaults_v2=legacy` + `last_version=9.29.0`. Continue to STEP 3.
+- **Open /octo:model-config** → Invoke that command. Do NOT write state — defer to whatever the user picks there.
+- **See the diff** → Print the routing table below, then re-ask the question.
+
+**Diff table to show:**
+
+```
+Role                 v9.28 (old)                v9.29 (new)
+architect            codex:gpt-5.4              claude-opus:claude-opus-4.7   (was GPT-5.4)
+reviewer             codex-review:gpt-5.4       codex-review:gpt-5.4          (alias → code-reviewer)
+code-reviewer        —                          codex-review:gpt-5.4          (NEW, same as reviewer)
+security-reviewer    —                          claude-opus:claude-opus-4.7   (NEW, split from reviewer)
+implementer          codex:gpt-5.4              codex:gpt-5.4                 (unchanged)
+implementer-heavy    —                          claude-opus:claude-opus-4.7   (NEW, opt-in via role name)
+synthesizer          claude:claude-sonnet-4.6   claude:claude-sonnet-4.6      (unchanged)
+strategist           claude-opus:claude-opus-4.6 claude-opus:claude-opus-4.7  (already on 4.7 via resolver)
+researcher           gemini:gemini-3.1-pro      gemini:gemini-3.1-pro         (unchanged)
+
+Cost impact (per MTok): Opus 4.7 $5/$25 vs GPT-5.4 $2.50/$15 — roughly 2x for planning phases.
+Graceful fallback: roles requiring Opus silently downshift to GPT-5.4 if no Anthropic auth.
+Opt-out anytime: OCTOPUS_LEGACY_ROLES=1
+```
+
+**WHY:** Existing users should not silently inherit the new defaults without a chance to opt out. The one-time prompt gates the behavior change on explicit consent, surfaces cost impact, and writes state so the prompt doesn't recur. Skip entirely for fresh installs (they have no prior mental model to migrate).
+
 ## STEP 3: Interactive Menu (ALWAYS show — even for returning users)
 
 **Always present this menu after the dashboard, regardless of current setup state:**
