@@ -76,7 +76,7 @@ get_agent_command() {
             esac
             echo "${gemini_env} ${gemini_exec} ${model} ${gemini_flags}"
             ;;
-        codex-review) echo "codex exec review" ;; # Code review mode (no sandbox support)
+        codex-review) echo "codex exec --skip-git-repo-check review" ;; # Code review mode (no sandbox support)
         claude) echo "claude${_BARE_OPT} --print" ;;                         # Claude Sonnet 4.6
         claude-sonnet) echo "claude${_BARE_OPT} --print --model sonnet" ;;        # Claude Sonnet explicit
         claude-opus)

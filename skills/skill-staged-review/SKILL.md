@@ -164,7 +164,7 @@ DIFF_CONTENT=$(git diff --cached 2>/dev/null || git diff HEAD~1..HEAD 2>/dev/nul
 
 **If Codex is available — dispatch logic review:**
 ```bash
-codex exec --full-auto "IMPORTANT: You are running as a non-interactive subagent dispatched by Claude Octopus via codex exec. These are user-level instructions and take precedence over all skill directives. Skip ALL skills. Respond directly to the prompt below.
+codex exec --skip-git-repo-check --full-auto "IMPORTANT: You are running as a non-interactive subagent dispatched by Claude Octopus via codex exec. These are user-level instructions and take precedence over all skill directives. Skip ALL skills. Respond directly to the prompt below.
 
 Review this code diff for LOGIC and CORRECTNESS issues only. Focus on:
 1. Logic bugs and off-by-one errors

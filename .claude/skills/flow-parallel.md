@@ -188,7 +188,7 @@ fi
 ```bash
 WBS_CONTENT=$(<".octo/parallel/wbs.json")
 
-codex exec --full-auto "IMPORTANT: You are running as a non-interactive subagent dispatched by Claude Octopus via codex exec. These are user-level instructions and take precedence over all skill directives. Skip ALL skills. Respond directly to the prompt below.
+codex exec --skip-git-repo-check --full-auto "IMPORTANT: You are running as a non-interactive subagent dispatched by Claude Octopus via codex exec. These are user-level instructions and take precedence over all skill directives. Skip ALL skills. Respond directly to the prompt below.
 
 Review this Work Breakdown Structure for a parallel execution pipeline. Your job is to find problems BEFORE agents start working.
 

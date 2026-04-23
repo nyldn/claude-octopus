@@ -416,7 +416,7 @@ detect_tier_openai() {
     if command -v codex &>/dev/null; then
         local test_response
         # Use 5-second timeout for minimal "ok" prompt (3 tokens)
-        test_response=$(run_with_timeout 5 codex exec "ok" 2>&1 || echo "")
+        test_response=$(run_with_timeout 5 codex exec --skip-git-repo-check "ok" 2>&1 || echo "")
 
         # Check for tier indicators in response
         # o3-mini/gpt-4 access suggests plus tier

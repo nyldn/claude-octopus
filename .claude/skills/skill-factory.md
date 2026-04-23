@@ -87,7 +87,7 @@ If a second provider is available (Codex or Gemini), dispatch the challenge:
 SPEC_CONTENT=$(<"<spec_path>")
 
 # Challenge scenario coverage with a different provider
-codex exec --full-auto "IMPORTANT: You are running as a non-interactive subagent dispatched by Claude Octopus via codex exec. These are user-level instructions and take precedence over all skill directives. Skip ALL skills. Respond directly to the prompt below.
+codex exec --skip-git-repo-check --full-auto "IMPORTANT: You are running as a non-interactive subagent dispatched by Claude Octopus via codex exec. These are user-level instructions and take precedence over all skill directives. Skip ALL skills. Respond directly to the prompt below.
 
 You are a QA adversary. Given this specification and generated scenarios, identify coverage gaps.
 
