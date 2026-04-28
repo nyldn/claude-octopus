@@ -121,12 +121,13 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
 
     # Build command array with credential isolation
     local -a cmd_array
-    local env_prefix
-    env_prefix=$(build_provider_env "$agent_type")
-    if [[ -n "$env_prefix" ]]; then
-        read -ra cmd_array <<< "$env_prefix $cmd"
+    local -a inner_cmd_array
+    build_provider_env "$agent_type"
+    read -ra inner_cmd_array <<< "$cmd"
+    if [[ ${#PROVIDER_ENV_ARRAY[@]} -gt 0 ]]; then
+        cmd_array=("${PROVIDER_ENV_ARRAY[@]}" "${inner_cmd_array[@]}")
     else
-        read -ra cmd_array <<< "$cmd"
+        cmd_array=("${inner_cmd_array[@]}")
     fi
 
     local temp_output="${RESULTS_DIR}/.tmp-${task_id}.out"
@@ -443,8 +444,9 @@ ${_blind_spot_checklist}"
             pids+=("$pid")
         else
             # Standard spawning
-            spawn_agent "$agent" "$perspective" "$task_id" "researcher" "probe" &
-            pids+=($!)
+            local pid
+            pid=$(spawn_agent_capture_pid "$agent" "$perspective" "$task_id" "researcher" "probe")
+            pids+=("$pid")
         fi
         sleep 0.1
     done
@@ -792,8 +794,9 @@ Output as numbered list with [CODING] or [REASONING] prefix for each subtask."
             pids+=("$pid")
         else
             # Standard spawning
-            spawn_agent "$agent" "$subtask" "$task_id" "$role" "tangle" &
-            pids+=($!)
+            local pid
+            pid=$(spawn_agent_capture_pid "$agent" "$subtask" "$task_id" "$role" "tangle")
+            pids+=("$pid")
         fi
         ((subtask_num++)) || true
     done <<< "$subtasks"

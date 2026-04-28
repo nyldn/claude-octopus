@@ -188,7 +188,15 @@ ${provider_ctx}"
 
     # SECURITY: Use array-based execution to prevent word-splitting vulnerabilities
     local -a cmd_array
-    read -ra cmd_array <<< "$cmd"
+    local -a inner_cmd_array
+    build_provider_env "$agent_type"
+    read -ra inner_cmd_array <<< "$cmd"
+    if [[ ${#PROVIDER_ENV_ARRAY[@]} -gt 0 ]]; then
+        cmd_array=("${PROVIDER_ENV_ARRAY[@]}" "${inner_cmd_array[@]}")
+        log "DEBUG" "Credential isolation active for $agent_type"
+    else
+        cmd_array=("${inner_cmd_array[@]}")
+    fi
 
     # Capture output and exit code separately
     local output

@@ -463,13 +463,14 @@ ${heuristic_ctx}"
         # SECURITY: Use array-based execution to prevent word-splitting vulnerabilities
         # v8.32.0: Per-provider credential isolation — each agent only sees its own API key
         local -a cmd_array
-        local env_prefix
-        env_prefix=$(build_provider_env "$agent_type")
-        if [[ -n "$env_prefix" ]]; then
-            read -ra cmd_array <<< "$env_prefix $cmd"
+        local -a inner_cmd_array
+        build_provider_env "$agent_type"
+        read -ra inner_cmd_array <<< "$cmd"
+        if [[ ${#PROVIDER_ENV_ARRAY[@]} -gt 0 ]]; then
+            cmd_array=("${PROVIDER_ENV_ARRAY[@]}" "${inner_cmd_array[@]}")
             log "DEBUG" "Credential isolation active for $agent_type"
         else
-            read -ra cmd_array <<< "$cmd"
+            cmd_array=("${inner_cmd_array[@]}")
         fi
 
         # IMPROVED: Use temp files for reliable output capture (v7.13.2 - Issue #10)
@@ -824,5 +825,42 @@ ${heuristic_ctx}"
     fi
 
     log INFO "Agent spawned with PID: $pid"
+    echo "$pid"
+}
+
+# Launch spawn_agent in the background and return the inner provider PID that
+# spawn_agent prints, not the short-lived wrapper PID from `$!`.
+spawn_agent_capture_pid() {
+    local agent_type="$1"
+    local prompt="$2"
+    local task_id="${3:-$(date +%s)}"
+    local role="${4:-}"
+    local phase="${5:-}"
+    local use_fork="${6:-false}"
+
+    local pid_file
+    pid_file=$(mktemp "${TMPDIR:-/tmp}/octo-spawn-pid.XXXXXX") || return 1
+
+    spawn_agent "$agent_type" "$prompt" "$task_id" "$role" "$phase" "$use_fork" >"$pid_file" 2>&1 &
+    local wrapper_pid=$!
+
+    local pid=""
+    local attempts=0
+    while [[ $attempts -lt 100 ]]; do
+        pid=$(awk '/^[0-9]+$/ { value=$1 } END { print value }' "$pid_file" 2>/dev/null)
+        [[ -n "$pid" ]] && break
+        if ! kill -0 "$wrapper_pid" 2>/dev/null && [[ -s "$pid_file" ]]; then
+            break
+        fi
+        sleep 0.1
+        ((attempts++)) || true
+    done
+
+    if [[ -z "$pid" ]]; then
+        log "WARN" "spawn_agent produced no provider PID for $task_id within 10s; tracking wrapper PID $wrapper_pid" >&2
+        pid="$wrapper_pid"
+    fi
+
+    rm -f "$pid_file"
     echo "$pid"
 }
