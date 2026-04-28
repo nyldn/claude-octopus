@@ -341,10 +341,7 @@ $previous_output"
                 fi
                 sleep 2
             done
-            # Wait for remaining pids to avoid zombies
-            for pid in "${pids[@]}"; do
-                wait "$pid" 2>/dev/null || true
-            done
+            _yaml_wait_for_pids "$max_wait" "${pids[@]}"
         else
             _yaml_wait_for_pids "${TIMEOUT:-600}" "${pids[@]}"
         fi

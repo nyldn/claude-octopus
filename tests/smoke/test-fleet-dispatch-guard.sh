@@ -100,7 +100,21 @@ test_provider_pid_capture() {
     done
 
     local wrapper_tracking
-    wrapper_tracking=$(grep -Rn 'pids.*\$!' "$PROJECT_ROOT/scripts/lib/workflows.sh" "$PROJECT_ROOT/scripts/lib/yaml-workflow.sh" "$PROJECT_ROOT/scripts/lib/agent-utils.sh" 2>/dev/null || true)
+    wrapper_tracking=$(
+        {
+            grep -RnE 'pids[^=]*[+]?=.*\$!' \
+                "$PROJECT_ROOT/scripts/lib/workflows.sh" \
+                "$PROJECT_ROOT/scripts/lib/yaml-workflow.sh" \
+                "$PROJECT_ROOT/scripts/lib/agent-utils.sh" 2>/dev/null || true
+            awk '
+                /pid=\$!/ { pending=NR; line=$0; next }
+                pending && NR <= pending + 5 && /pids/ { print FILENAME ":" pending ":" line " ... " $0; pending=0 }
+                pending && NR > pending + 5 { pending=0 }
+            ' "$PROJECT_ROOT/scripts/lib/workflows.sh" \
+              "$PROJECT_ROOT/scripts/lib/yaml-workflow.sh" \
+              "$PROJECT_ROOT/scripts/lib/agent-utils.sh" 2>/dev/null || true
+        } | sed '/^$/d'
+    )
     if [[ -n "$wrapper_tracking" ]]; then
         echo "  Found wrapper PID tracking:"
         echo "$wrapper_tracking"
