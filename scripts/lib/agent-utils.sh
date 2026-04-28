@@ -537,8 +537,8 @@ $prompt"
             ((subtask_num++)) || true
         else
             # Legacy bash subprocess
-            spawn_agent "$agent" "$prompt" "$retry_task_id" "$role" "tangle" &
-            local pid=$!
+            local pid
+            pid=$(spawn_agent_capture_pid "$agent" "$prompt" "$retry_task_id" "$role" "tangle")
             pids="$pids $pid"
             ((subtask_num++)) || true
             ((pid_count++)) || true
@@ -700,4 +700,3 @@ resume_agent() {
 }
 
 # [EXTRACTED to lib/spawn.sh]
-
