@@ -12,6 +12,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+source "${PLUGIN_ROOT}/scripts/lib/cursor-agent.sh" 2>/dev/null || true
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -89,6 +90,13 @@ check_deps() {
         ok+=("qwen:Qwen CLI installed")
     else
         warnings+=("qwen:Qwen CLI not installed (optional) — npm install -g @qwen-code/qwen-code for free-tier research")
+    fi
+
+    # Cursor Agent CLI (optional — Grok 4.20 via Cursor subscription)
+    if declare -f _is_cursor_agent_binary >/dev/null 2>&1 && _is_cursor_agent_binary; then
+        ok+=("cursor-agent:Cursor Agent CLI installed")
+    else
+        warnings+=("cursor-agent:Cursor Agent CLI not installed (optional) — curl -fsSL https://cursor.com/install | bash")
     fi
 
     # RTK (optional — bash output compression)

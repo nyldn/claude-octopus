@@ -3,6 +3,11 @@
 # Extracted from orchestrate.sh
 # Functions: get_dispatch_strategy, load_blind_spot_checklist
 
+if ! declare -f _is_cursor_agent_binary >/dev/null 2>&1; then
+    _embrace_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    source "${_embrace_lib_dir}/cursor-agent.sh" 2>/dev/null || true
+fi
+
 get_dispatch_strategy() {
     local prompt="$1"
     local workflow="${2:-auto}"
@@ -41,12 +46,19 @@ get_dispatch_strategy() {
     fi
 
     # v9.10.0: Detect all available providers for dispatch strategy
-    local has_codex=false has_gemini=false has_copilot=false has_qwen=false has_ollama=false
+    local has_codex=false has_gemini=false has_copilot=false has_qwen=false has_ollama=false has_cursor_agent=false
     command -v codex >/dev/null 2>&1 && has_codex=true
     command -v gemini >/dev/null 2>&1 && has_gemini=true
     command -v copilot >/dev/null 2>&1 && has_copilot=true
     command -v qwen >/dev/null 2>&1 && has_qwen=true
     command -v ollama >/dev/null 2>&1 && curl -sf http://localhost:11434/api/tags &>/dev/null && has_ollama=true
+    if declare -f cursor_agent_is_available >/dev/null 2>&1; then
+        cursor_agent_is_available && has_cursor_agent=true
+    elif declare -f _is_cursor_agent_binary >/dev/null 2>&1 && _is_cursor_agent_binary; then
+        if [[ -n "${CURSOR_API_KEY:-}" ]] || grep -Eq '"authInfo"[[:space:]]*:[[:space:]]*\{' "${HOME}/.cursor/cli-config.json" 2>/dev/null; then
+            has_cursor_agent=true
+        fi
+    fi
 
     # Build available CLI providers list (excluding Claude which is always available)
     local -a cli_providers=()
@@ -54,6 +66,7 @@ get_dispatch_strategy() {
     [[ "$has_gemini" == true ]] && cli_providers+=(gemini)
     [[ "$has_copilot" == true ]] && cli_providers+=(copilot)
     [[ "$has_qwen" == true ]] && cli_providers+=(qwen)
+    [[ "$has_cursor_agent" == true ]] && cli_providers+=(cursor-agent)
     local cli_count=${#cli_providers[@]}
 
     case "$workflow" in
@@ -71,11 +84,12 @@ get_dispatch_strategy() {
             else echo "1:claude-sonnet:medium"; fi ;;
         architecture)
             # Maximize training bias diversity
-            if [[ "$has_codex" == true && "$has_gemini" == true ]]; then
-                echo "2:codex,gemini:high"
-            elif [[ "$has_codex" == true ]]; then echo "2:codex,claude-sonnet:medium"
-            elif [[ "$has_gemini" == true ]]; then echo "2:gemini,claude-sonnet:medium"
-            elif [[ "$has_qwen" == true ]]; then echo "2:qwen,claude-sonnet:medium"
+            if [[ $cli_count -ge 2 ]]; then
+                local providers_str
+                providers_str=$(IFS=,; echo "${cli_providers[*]}")
+                echo "${cli_count}:${providers_str}:high"
+            elif [[ $cli_count -eq 1 ]]; then
+                echo "2:${cli_providers[0]},claude-sonnet:medium"
             else echo "1:claude-sonnet:low"; fi ;;
         research|*)
             # Research benefits from diverse perspectives

@@ -18,6 +18,9 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/../lib/cursor-agent.sh" 2>/dev/null || true
+
 WORKFLOW="${1:-research}"
 INTENSITY="${2:-standard}"
 PROMPT="${3:-}"
@@ -33,6 +36,7 @@ get_family() {
         qwen|qwen-*)         echo "alibaba" ;;
         opencode|opencode-*) echo "multi" ;;
         ollama|ollama-*)     echo "local" ;;
+        cursor-agent|cursor-agent-*) echo "xai" ;;
         openrouter|openrouter-*) echo "multi" ;;
         *)                   echo "unknown" ;;
     esac
@@ -47,6 +51,11 @@ command -v copilot >/dev/null 2>&1 && AVAILABLE_CLI+=(copilot)
 command -v qwen >/dev/null 2>&1 && AVAILABLE_CLI+=(qwen)
 command -v opencode >/dev/null 2>&1 && AVAILABLE_CLI+=(opencode)
 command -v ollama >/dev/null 2>&1 && curl -sf http://localhost:11434/api/tags >/dev/null 2>&1 && AVAILABLE_CLI+=(ollama)
+if declare -f _is_cursor_agent_binary >/dev/null 2>&1 && _is_cursor_agent_binary; then
+    if [[ -n "${CURSOR_API_KEY:-}" ]] || grep -Eq '"authInfo"[[:space:]]*:[[:space:]]*\{' "${HOME}/.cursor/cli-config.json" 2>/dev/null; then
+        AVAILABLE_CLI+=(cursor-agent)
+    fi
+fi
 [[ -n "${PERPLEXITY_API_KEY:-}" ]] && AVAILABLE_CLI+=(perplexity)
 [[ -n "${OPENROUTER_API_KEY:-}" ]] && AVAILABLE_CLI+=(openrouter)
 
@@ -83,8 +92,8 @@ build_diverse_order() {
     local diverse_first=""
     local diverse_rest=""
 
-    # Preferred order for primary diversity: codex, gemini, copilot, qwen, opencode
-    for p in codex gemini copilot qwen opencode ollama; do
+    # Preferred order for primary diversity: codex, gemini, copilot, qwen, cursor-agent, opencode, ollama
+    for p in codex gemini copilot qwen cursor-agent opencode ollama; do
         is_available "$p" || continue
         local fam
         fam=$(get_family "$p")
@@ -200,6 +209,8 @@ build_research_fleet() {
                         emit "copilot" "Alternative Perspective" "Provide an independent analysis of: $PROMPT. Focus on practical trade-offs, real-world adoption patterns, and what experienced developers actually choose. Challenge assumptions from other analyses." ;;
                     qwen)
                         emit "qwen" "Contrarian Analysis" "Play devil's advocate on: $PROMPT. What are the strongest arguments AGAINST the obvious approach? What risks are being systematically underestimated?" ;;
+                    cursor-agent)
+                        emit "cursor-agent" "XAI Perspective" "Provide an independent analysis of: $PROMPT. Focus on alternative implementation choices, practical trade-offs, and assumptions that deserve re-examination." ;;
                     opencode)
                         emit "opencode" "Implementation Patterns" "Research concrete implementation patterns for: $PROMPT. Focus on production-grade examples, common pitfalls, and battle-tested approaches. Cite specific repos or documentation." ;;
                     ollama)

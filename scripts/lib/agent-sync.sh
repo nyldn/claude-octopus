@@ -164,6 +164,7 @@ ${provider_ctx}"
         claude*)     _provider_for_health="claude" ;;
         openrouter*) _provider_for_health="openrouter" ;;
         perplexity*) _provider_for_health="perplexity" ;;
+        cursor-agent*) _provider_for_health="cursor-agent" ;;
     esac
     if [[ -n "$_provider_for_health" ]]; then
         local _health_diag
@@ -205,7 +206,9 @@ ${provider_ctx}"
 
     # v8.10.0: Gemini uses stdin-based prompt delivery (Issue #25)
     # -p "" triggers headless mode; prompt content comes via stdin to avoid OS arg limits
-    if [[ "$agent_type" == gemini* ]]; then
+    # Qwen and Cursor Agent follow the same headless contract; Copilot parity is
+    # maintained with spawn/workflows dispatch paths.
+    if [[ "$agent_type" == gemini* || "$agent_type" == copilot* || "$agent_type" == qwen* || "$agent_type" == cursor-agent* ]]; then
         cmd_array+=(-p "")
     fi
 
@@ -288,7 +291,7 @@ ${provider_ctx}"
     fi
 
     # v8.7.0: Wrap external CLI output with trust markers
-    case "$agent_type" in codex*|gemini*|perplexity*)
+    case "$agent_type" in codex*|gemini*|perplexity*|cursor-agent*)
         output=$(wrap_cli_output "$agent_type" "$output") ;; esac
 
     # Check if output is suspiciously empty or placeholder

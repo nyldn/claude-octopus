@@ -6,6 +6,11 @@
 # Extracted from orchestrate.sh — v9.7.5
 # ═══════════════════════════════════════════════════════════════════════════════
 
+if ! declare -f _is_cursor_agent_binary >/dev/null 2>&1; then
+    _model_resolver_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    source "${_model_resolver_lib_dir}/cursor-agent.sh" 2>/dev/null || true
+fi
+
 # v9.23.0: Opus default picker — prefers 4.7 when host supports it, falls back to 4.6.
 # Respects OCTOPUS_OPUS_MODEL override (user-pinned version).
 opus_default_model() {
@@ -194,6 +199,7 @@ resolve_octopus_model() {
             ollama*)         resolved_model="llama3.3" ;;
             copilot*)        resolved_model="claude-sonnet-4.5" ;; # Copilot default; actual model selected by copilot CLI
             qwen*)           resolved_model="qwen3-coder" ;;
+            cursor-agent*)   resolved_model="grok-4-20" ;;
             opencode-research*) resolved_model="z-ai/glm-5.1" ;;
             opencode-fast*)  resolved_model="google/gemini-2.5-flash" ;;
             opencode*)       resolved_model="google/gemini-2.5-flash" ;;
@@ -288,6 +294,12 @@ is_agent_available_v2() {
             ;;
         opencode|opencode-fast|opencode-research)
             [[ "$PROVIDER_OPENCODE_INSTALLED" == "true" && "$PROVIDER_OPENCODE_AUTH_METHOD" != "none" ]]
+            ;;
+        cursor-agent|cursor-agent-*)
+            declare -f _is_cursor_agent_binary >/dev/null 2>&1 && _is_cursor_agent_binary && {
+                [[ -n "${CURSOR_API_KEY:-}" ]] || \
+                grep -Eq '"authInfo"[[:space:]]*:[[:space:]]*\{' "${HOME}/.cursor/cli-config.json" 2>/dev/null
+            }
             ;;
         *)
             return 0  # Unknown agents assumed available
