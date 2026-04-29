@@ -1,3 +1,21 @@
+# Changelog
+
+## [9.30.0] - 2026-04-29
+
+### Changed
+
+- Harden remaining async PID and audit result handling
+
+---
+
+## [9.29.3] - 2026-04-28
+
+### Changed
+
+- Fix Windows provider env paths and async PID tracking
+
+---
+
 ## [9.29.2] - 2026-04-23
 
 ### Changed

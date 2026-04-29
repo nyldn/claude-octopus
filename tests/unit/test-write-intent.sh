@@ -15,6 +15,29 @@ source "$SCRIPT_DIR/../helpers/test-framework.sh"
 
 test_suite "Write-intent principle enforcement (v9.30+)"
 
+version_ge() {
+    local lhs="${1#v}"
+    local rhs="${2#v}"
+    local IFS=.
+    local -a lhs_parts rhs_parts
+    read -r -a lhs_parts <<< "$lhs"
+    read -r -a rhs_parts <<< "$rhs"
+
+    local i lhs_part rhs_part
+    for i in 0 1 2; do
+        lhs_part="${lhs_parts[$i]:-0}"
+        rhs_part="${rhs_parts[$i]:-0}"
+        if ((10#$lhs_part > 10#$rhs_part)); then
+            return 0
+        fi
+        if ((10#$lhs_part < 10#$rhs_part)); then
+            return 1
+        fi
+    done
+
+    return 0
+}
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # Principle file exists and is well-formed
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -167,16 +190,21 @@ test_version_advisory_seeds_on_unknown_last_seen() {
 test_version_advisory_emits_on_version_change() {
     test_case "version-advisory.sh emits advisory when version jumps"
     local hook="$PROJECT_ROOT/hooks/version-advisory.sh"
+    local current_version
+    current_version=$(jq -r '.version' "$PROJECT_ROOT/.claude-plugin/plugin.json")
+    local min_version="9.28.0"
     local tmpdir
     tmpdir=$(mktemp -d)
     mkdir -p "$tmpdir/.claude-octopus"
     touch "$tmpdir/.claude-octopus/.setup-complete"
     # Seed state with a stale old version
-    echo '{"last_seen_version":"9.28.0"}' > "$tmpdir/.claude-octopus/state.json"
+    printf '{"last_seen_version":"%s"}\n' "$min_version" > "$tmpdir/.claude-octopus/state.json"
     local output
     output=$(HOME="$tmpdir" CLAUDE_PLUGIN_ROOT="$PROJECT_ROOT" bash "$hook" 2>&1 || true)
     rm -rf "$tmpdir"
-    if grep -qi 'updated.*9\.28\.0.*9\.29' <<< "$output" && grep -q '/octo:setup\|OCTOPUS_LEGACY_ROLES' <<< "$output"; then
+    if version_ge "$current_version" "$min_version" &&
+       [[ "$output" == *"$min_version"* && "$output" == *"$current_version"* ]] &&
+       grep -q '/octo:setup\|OCTOPUS_LEGACY_ROLES' <<< "$output"; then
         test_pass
     else
         test_fail "advisory missing or malformed. Got: $output"

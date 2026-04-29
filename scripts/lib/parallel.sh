@@ -24,8 +24,11 @@ fan_out() {
 
     for agent in "${agents[@]}"; do
         local pid
-        pid=$(spawn_agent "$agent" "$prompt" "${task_group}-${agent}")
-        pids+=("$pid")
+        if pid=$(spawn_agent_capture_pid "$agent" "$prompt" "${task_group}-${agent}"); then
+            pids+=("$pid")
+        else
+            log WARN "Fan-out: failed to spawn $agent"
+        fi
         sleep 0.5
     done
 
@@ -157,15 +160,31 @@ parallel_execute() {
         done
 
         local pid
-        pid=$(spawn_agent "$agent" "$prompt" "$task_id")
-        pids+=("$pid")
-        ((running++)) || true
+        if pid=$(spawn_agent_capture_pid "$agent" "$prompt" "$task_id"); then
+            pids+=("$pid")
+            ((running++)) || true
+        else
+            log WARN "Skipping task $task_id: failed to spawn agent '$agent'"
+            ((skipped++)) || true
+            continue
+        fi
 
         log INFO "Progress: $completed/$task_count completed, $running running"
     done < <(jq -c '.tasks[]' "$tasks_file")
 
     log INFO "Waiting for remaining $running tasks to complete..."
-    wait
+    while [[ $running -gt 0 ]]; do
+        local saw_completion=false
+        for i in "${!pids[@]}"; do
+            if ! kill -0 "${pids[$i]}" 2>/dev/null; then
+                unset 'pids[i]'
+                ((running--)) || true
+                ((completed++)) || true
+                saw_completion=true
+            fi
+        done
+        [[ "$saw_completion" == "false" ]] && sleep 1
+    done
 
     if [[ $skipped -gt 0 ]]; then
         log WARN "Completed with $skipped skipped tasks (invalid/malformed)"
@@ -206,6 +225,7 @@ Output as a simple numbered list. Task: $main_prompt"
     log INFO "Phase 2: Mapping subtasks to agents"
     local subtask_num=0
     local agents=("codex" "gemini")
+    local pids=()
 
     while IFS= read -r line; do
         [[ -z "$line" ]] && continue
@@ -215,14 +235,30 @@ Output as a simple numbered list. Task: $main_prompt"
         subtask=$(echo "$line" | sed 's/^[0-9]*[\.\)]\s*//')
         local agent="${agents[$((subtask_num % ${#agents[@]}))]}"
 
-        spawn_agent "$agent" "$subtask" "${task_group}-subtask-${subtask_num}"
+        local pid
+        if pid=$(spawn_agent_capture_pid "$agent" "$subtask" "${task_group}-subtask-${subtask_num}"); then
+            pids+=("$pid")
+        else
+            log WARN "Map-Reduce: failed to spawn subtask $subtask_num with $agent"
+        fi
         ((subtask_num++)) || true
     done < "$decompose_result"
 
     log INFO "Spawned $subtask_num subtask agents"
 
     log INFO "Phase 3: Waiting for subtasks to complete..."
-    wait
+    local remaining=${#pids[@]}
+    while [[ $remaining -gt 0 ]]; do
+        remaining=0
+        for i in "${!pids[@]}"; do
+            if kill -0 "${pids[$i]}" 2>/dev/null; then
+                ((remaining++)) || true
+            else
+                unset 'pids[i]'
+            fi
+        done
+        [[ $remaining -gt 0 ]] && sleep 1
+    done
 
     aggregate_results "$task_group"
 }

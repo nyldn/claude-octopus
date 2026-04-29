@@ -83,8 +83,62 @@ EOF
     fi
 }
 
+test_provider_pid_capture() {
+    test_case "Parallel workflow waits track provider PIDs, not wrapper PIDs"
+
+    local failed=0
+    local pid_capture_files=(
+        "scripts/lib/workflows.sh"
+        "scripts/lib/yaml-workflow.sh"
+        "scripts/lib/agent-utils.sh"
+        "scripts/lib/parallel.sh"
+        "scripts/lib/auto-route.sh"
+        "scripts/async-tmux-features.sh"
+    )
+    local pid_capture_paths=()
+    local rel
+    for rel in "${pid_capture_files[@]}"; do
+        pid_capture_paths+=("$PROJECT_ROOT/$rel")
+    done
+
+    if ! grep -q '^spawn_agent_capture_pid()' "$PROJECT_ROOT/scripts/lib/spawn.sh"; then
+        echo "  MISSING spawn_agent_capture_pid helper in scripts/lib/spawn.sh"
+        failed=1
+    fi
+
+    for rel in "${pid_capture_files[@]}"; do
+        if ! grep -q 'spawn_agent_capture_pid' "$PROJECT_ROOT/$rel"; then
+            echo "  MISSING provider PID capture in: $rel"
+            failed=1
+        fi
+    done
+
+    local wrapper_tracking
+    wrapper_tracking=$(
+        {
+            grep -RnE 'pids[^=]*[+]?=.*\$!' \
+                "${pid_capture_paths[@]}" 2>/dev/null || true
+            awk '
+                /pid=\$!/ { pending=NR; line=$0; next }
+                pending && NR <= pending + 5 && /pids/ { print FILENAME ":" pending ":" line " ... " $0; pending=0 }
+                pending && NR > pending + 5 { pending=0 }
+            ' "${pid_capture_paths[@]}" 2>/dev/null || true
+            grep -RnE 'pid=\$\(spawn_agent[[:space:]]' \
+                "${pid_capture_paths[@]}" 2>/dev/null || true
+        } | sed '/^$/d'
+    )
+    if [[ -n "$wrapper_tracking" ]]; then
+        echo "  Found wrapper PID tracking:"
+        echo "$wrapper_tracking"
+        failed=1
+    fi
+
+    [[ $failed -eq 0 ]] && test_pass || test_fail "Parallel workflow code still risks tracking short-lived spawn_agent wrapper PIDs"
+}
+
 test_fleet_guard_present
 test_no_bare_force_legacy_export
 test_hooks_json_matchers
+test_provider_pid_capture
 
 test_summary

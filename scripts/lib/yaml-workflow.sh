@@ -168,6 +168,29 @@ resolve_prompt_template() {
     echo "$resolved"
 }
 
+_yaml_wait_for_pids() {
+    local max_wait="${1:-${TIMEOUT:-600}}"
+    shift || true
+    local pids=("$@")
+    local wait_start=$SECONDS
+
+    while [[ ${#pids[@]} -gt 0 && $(( SECONDS - wait_start )) -lt $max_wait ]]; do
+        local all_done=true
+        local pid
+        for pid in "${pids[@]}"; do
+            [[ -z "$pid" ]] && continue
+            if kill -0 "$pid" 2>/dev/null; then
+                all_done=false
+                break
+            fi
+        done
+        [[ "$all_done" == "true" ]] && return 0
+        sleep 2
+    done
+
+    return 0
+}
+
 # Execute a single workflow phase from YAML definition
 # Spawns agents as defined, respects parallel/sequential flags, evaluates quality gates
 execute_workflow_phase() {
@@ -276,15 +299,14 @@ $previous_output"
         esac
 
         if [[ "$is_parallel" == "true" ]]; then
-            spawn_agent "$agent_type" "$agent_prompt" "$task_id" "$role" "$phase_name" &
-            pids+=($!)
+            local pid
+            pid=$(spawn_agent_capture_pid "$agent_type" "$agent_prompt" "$task_id" "$role" "$phase_name")
+            pids+=("$pid")
         else
             # Sequential agent - wait for parallel agents first
             if [[ ${#pids[@]} -gt 0 ]]; then
                 log "DEBUG" "Waiting for ${#pids[@]} parallel agents before sequential agent"
-                for pid in "${pids[@]}"; do
-                    wait "$pid" 2>/dev/null || true
-                done
+                _yaml_wait_for_pids "${TIMEOUT:-600}" "${pids[@]}"
                 pids=()
             fi
             spawn_agent "$agent_type" "$agent_prompt" "$task_id" "$role" "$phase_name"
@@ -319,14 +341,9 @@ $previous_output"
                 fi
                 sleep 2
             done
-            # Wait for remaining pids to avoid zombies
-            for pid in "${pids[@]}"; do
-                wait "$pid" 2>/dev/null || true
-            done
+            _yaml_wait_for_pids "$max_wait" "${pids[@]}"
         else
-            for pid in "${pids[@]}"; do
-                wait "$pid" 2>/dev/null || true
-            done
+            _yaml_wait_for_pids "${TIMEOUT:-600}" "${pids[@]}"
         fi
     fi
 

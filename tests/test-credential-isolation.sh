@@ -43,7 +43,7 @@ else
 fi
 
 # 1.2 Codex scoping — only OPENAI_API_KEY
-CODEX_ENV=$(grep -A5 'codex\*)' "$ALL_SRC" | grep 'env -i' | head -1)
+CODEX_ENV=$(grep -A5 'codex\*)' "$ALL_SRC" | grep 'PROVIDER_ENV_ARRAY=.*env -i' | head -1)
 if echo "$CODEX_ENV" | grep -q 'OPENAI_API_KEY'; then
   pass "Codex env includes OPENAI_API_KEY"
 else
@@ -57,7 +57,7 @@ else
 fi
 
 # 1.3 Gemini scoping — only GEMINI_API_KEY + GOOGLE_API_KEY
-GEMINI_ENV=$(grep -A5 'gemini\*)' "$ALL_SRC" | grep 'env -i' | head -1)
+GEMINI_ENV=$(grep -A5 'gemini\*)' "$ALL_SRC" | grep 'PROVIDER_ENV_ARRAY=.*env -i' | head -1)
 if echo "$GEMINI_ENV" | grep -q 'GEMINI_API_KEY'; then
   pass "Gemini env includes GEMINI_API_KEY"
 else
@@ -74,6 +74,7 @@ fi
 # perplexity_execute is a bash function dispatched by get_agent_command();
 # env -i cannot exec shell functions, so build_provider_env returns empty.
 PERP_CASE=$(grep -A50 'build_provider_env()' "$ALL_SRC" | grep -A5 'perplexity\*)' | head -6)
+PERP_ENV=$(echo "$PERP_CASE" | grep 'env -i' | head -1 || true)
 if echo "$PERP_CASE" | grep -q 'resolve_provider_env.*PERPLEXITY_API_KEY'; then
   pass "Perplexity resolves PERPLEXITY_API_KEY before dispatch"
 else
@@ -84,6 +85,18 @@ if echo "$PERP_CASE" | grep -q 'return 0'; then
   pass "Perplexity correctly returns empty env prefix (shell function)"
 else
   fail "Perplexity should return 0 (no env -i for shell function provider)"
+fi
+
+if grep -q 'PROVIDER_ENV_ARRAY=()' "$ALL_SRC" && grep -q 'PROVIDER_ENV_ARRAY\[@\]' "$ALL_SRC"; then
+  pass "Provider env uses argv array tokens"
+else
+  fail "Provider env array token handling missing"
+fi
+
+if grep -A20 'build_provider_env()' "$ALL_SRC" | grep -q 'MINGW.*return 0\|MSYS.*return 0\|Windows.*return 0'; then
+  fail "Windows still disables env isolation instead of preserving PATH spaces with arrays"
+else
+  pass "Windows PATH spaces do not disable env isolation"
 fi
 
 # ─────────────────────────────────────────────────────────────────────

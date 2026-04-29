@@ -55,6 +55,29 @@ match_routing_rule() {
     return 1
 }
 
+_auto_route_wait_for_pids() {
+    local max_wait="${1:-${TIMEOUT:-600}}"
+    shift || true
+    local pids=("$@")
+    local wait_start=$SECONDS
+
+    while [[ $((SECONDS - wait_start)) -lt $max_wait ]]; do
+        local all_done=true
+        local pid
+        for pid in "${pids[@]}"; do
+            [[ -z "$pid" ]] && continue
+            if kill -0 "$pid" 2>/dev/null; then
+                all_done=false
+                break
+            fi
+        done
+        [[ "$all_done" == "true" ]] && return 0
+        sleep 1
+    done
+
+    return 1
+}
+
 auto_route() {
     local prompt="$1"
     local prompt_lower
@@ -431,15 +454,22 @@ Focus on:
             local audit_dir
             audit_dir="${WORKSPACE:-$HOME/.claude-octopus}/results/audit-$(date +%Y%m%d-%H%M%S)"
             mkdir -p "$audit_dir"
+            local audit_group
+            audit_group=$(date +%s)
             local pids=()
             local domain_files=()
+            local agent_result_files=()
 
             # Phase 1: Parallel domain analysis
             echo -e "  ${CYAN}Phase 1/3: Parallel Domain Analysis${NC}"
             for domain in "${domains[@]}"; do
                 local domain_prompt
                 local domain_file="$audit_dir/$domain.md"
+                local agent_type="gemini-fast"
+                local task_id="audit-${domain}-${audit_group}"
+                local agent_result_file="${RESULTS_DIR}/${agent_type}-${task_id}.md"
                 domain_files+=("$domain_file")
+                agent_result_files+=("$agent_result_file")
 
                 case "$domain" in
                     performance)
@@ -475,19 +505,40 @@ Output a structured report with findings and recommendations." ;;
                 esac
 
                 echo -e "    ├─ Starting ${domain} audit..."
-                (spawn_agent "gemini-fast" "$domain_prompt" > "$domain_file" 2>&1) &
-                pids+=($!)
+                local pid=""
+                if pid=$(spawn_agent_capture_pid "$agent_type" "$domain_prompt" "$task_id" "auditor" "optimize-audit"); then
+                    pids+=("$pid")
+                else
+                    pids+=("")
+                    echo -e "      ${RED}✗${NC} ${domain} audit failed to spawn"
+                fi
             done
 
             # Wait for all audits to complete
             echo -e "    └─ Waiting for ${#pids[@]} audits to complete..."
             local failed=0
+            if ! _auto_route_wait_for_pids "${TIMEOUT:-600}" "${pids[@]}"; then
+                echo -e "      ${YELLOW}!${NC} One or more domain audits reached the timeout; collecting available results"
+            fi
             for i in "${!pids[@]}"; do
-                if ! wait "${pids[$i]}" 2>/dev/null; then
+                local domain="${domains[$i]}"
+                local domain_file="${domain_files[$i]}"
+                local agent_result_file="${agent_result_files[$i]}"
+                local pid="${pids[$i]:-}"
+                if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
                     ((failed++)) || true
-                    echo -e "      ${RED}✗${NC} ${domains[$i]} audit failed"
+                    echo -e "      ${RED}✗${NC} ${domain} audit timed out"
+                elif [[ -f "$agent_result_file" ]]; then
+                    cp "$agent_result_file" "$domain_file"
+                    if grep -q '^## Status: FAILED' "$agent_result_file" 2>/dev/null; then
+                        ((failed++)) || true
+                        echo -e "      ${RED}✗${NC} ${domain} audit failed"
+                    else
+                        echo -e "      ${GREEN}✓${NC} ${domain} audit complete"
+                    fi
                 else
-                    echo -e "      ${GREEN}✓${NC} ${domains[$i]} audit complete"
+                    ((failed++)) || true
+                    echo -e "      ${RED}✗${NC} ${domain} audit produced no result"
                 fi
             done
             echo ""
@@ -522,7 +573,20 @@ Create a unified report with:
 Format as markdown. Be specific and actionable."
 
             local synthesis_file="$audit_dir/synthesis.md"
-            spawn_agent "gemini" "$synthesis_prompt" > "$synthesis_file" 2>&1
+            local synthesis_task_id="audit-synthesis-${audit_group}"
+            local synthesis_result_file="${RESULTS_DIR}/gemini-${synthesis_task_id}.md"
+            local synthesis_pid=""
+            if synthesis_pid=$(spawn_agent_capture_pid "gemini" "$synthesis_prompt" "$synthesis_task_id" "synthesizer" "optimize-audit"); then
+                if ! _auto_route_wait_for_pids "${TIMEOUT:-600}" "$synthesis_pid"; then
+                    echo "Synthesis timed out; detailed domain reports are still included below." > "$synthesis_file"
+                elif [[ -f "$synthesis_result_file" ]]; then
+                    cp "$synthesis_result_file" "$synthesis_file"
+                else
+                    echo "Synthesis produced no result; detailed domain reports are still included below." > "$synthesis_file"
+                fi
+            else
+                echo "Synthesis failed to spawn; detailed domain reports are still included below." > "$synthesis_file"
+            fi
             echo ""
 
             # Phase 3: Generate final report

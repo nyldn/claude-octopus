@@ -190,9 +190,10 @@ spawn_agent_async() {
         tmux_spawn_pane "$agent_type" "$task_id" "$pane_title"
     fi
 
-    # Spawn agent normally (already runs in background)
+    # Spawn agent and return the worker PID, not a short-lived wrapper from
+    # command substitution around spawn_agent.
     local pid
-    pid=$(spawn_agent "$agent_type" "$prompt" "$task_id" "$role" "$phase")
+    pid=$(spawn_agent_capture_pid "$agent_type" "$prompt" "$task_id" "$role" "$phase")
 
     echo "$pid"
 }
