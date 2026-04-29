@@ -6,6 +6,11 @@
 # Extracted from orchestrate.sh — v9.7.5
 # ═══════════════════════════════════════════════════════════════════════════════
 
+if ! declare -f _is_cursor_agent_binary >/dev/null 2>&1; then
+    _model_resolver_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    source "${_model_resolver_lib_dir}/cursor-agent.sh" 2>/dev/null || true
+fi
+
 # v9.23.0: Opus default picker — prefers 4.7 when host supports it, falls back to 4.6.
 # Respects OCTOPUS_OPUS_MODEL override (user-pinned version).
 opus_default_model() {
@@ -291,11 +296,7 @@ is_agent_available_v2() {
             [[ "$PROVIDER_OPENCODE_INSTALLED" == "true" && "$PROVIDER_OPENCODE_AUTH_METHOD" != "none" ]]
             ;;
         cursor-agent|cursor-agent-*)
-            command -v agent &>/dev/null && {
-                local _ca_ver
-                _ca_ver=$(agent --version 2>&1 || true)
-                printf '%s\n' "$_ca_ver" | grep -cE '^20[0-9]{2}\.' >/dev/null 2>&1
-            } && {
+            declare -f _is_cursor_agent_binary >/dev/null 2>&1 && _is_cursor_agent_binary && {
                 [[ -n "${CURSOR_API_KEY:-}" ]] || \
                 grep -Eq '"authInfo"[[:space:]]*:[[:space:]]*\{' "${HOME}/.cursor/cli-config.json" 2>/dev/null
             }

@@ -937,6 +937,8 @@ _display_smoke_test_error() {
             echo -e "  ${RED}✗${NC} ${provider}: Model '${model}' not available"
             if [[ "$provider" == "codex" ]]; then
                 echo -e "    ${DIM}Fix: export OCTOPUS_CODEX_MODEL=gpt-5.4${NC}"
+            elif [[ "$provider" == "cursor" || "$provider" == "cursor-agent" || "$provider" == "Cursor Agent" ]]; then
+                echo -e "    ${DIM}Fix: export OCTOPUS_CURSOR_AGENT_MODEL=grok-4-20${NC}"
             else
                 echo -e "    ${DIM}Fix: export OCTOPUS_GEMINI_MODEL=gemini-3.1-pro-preview${NC}"
             fi
@@ -945,6 +947,8 @@ _display_smoke_test_error() {
             echo -e "  ${RED}✗${NC} ${provider}: Authentication failed"
             if [[ "$provider" == "codex" ]]; then
                 echo -e "    ${DIM}Fix: codex login  OR  export OPENAI_API_KEY=\"sk-...\"${NC}"
+            elif [[ "$provider" == "cursor" || "$provider" == "cursor-agent" || "$provider" == "Cursor Agent" ]]; then
+                echo -e "    ${DIM}Fix: agent login  OR  export CURSOR_API_KEY=\"...\"${NC}"
             else
                 echo -e "    ${DIM}Fix: gemini  (OAuth)  OR  export GEMINI_API_KEY=\"...\"${NC}"
             fi
@@ -1022,8 +1026,12 @@ _smoke_test_provider() {
         echo "Reply with exactly: ok" | run_with_timeout "$smoke_timeout" \
             $cmd_str -p "" \
             >/dev/null 2>"$stderr_file" || smoke_exit=$?
+    elif [[ "$provider" == "cursor-agent" ]]; then
+        # Cursor Agent: prompt via stdin with -p "" for headless trigger
+        echo "Reply with exactly: ok" | run_with_timeout "$smoke_timeout" \
+            $cmd_str -p "" \
+            >/dev/null 2>"$stderr_file" || smoke_exit=$?
     else
-        # Cursor Agent: prompt via -p argument in headless mode
         run_with_timeout "$smoke_timeout" \
             $cmd_str -p "Reply with exactly: ok" \
             >/dev/null 2>"$stderr_file" || smoke_exit=$?

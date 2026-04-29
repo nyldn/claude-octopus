@@ -37,6 +37,7 @@ usage() {
     echo "Environment Variables:"
     echo "  OCTOPUS_CODEX_MODEL         Override codex model (highest priority)"
     echo "  OCTOPUS_GEMINI_MODEL        Override gemini model"
+    echo "  OCTOPUS_CURSOR_AGENT_MODEL  Override cursor-agent model"
     echo "  OCTOPUS_COST_MODE           Set cost tier: budget, standard, premium"
     echo "  OCTOPUS_TRACE_MODELS=1      Debug model resolution precedence"
 }
@@ -133,7 +134,7 @@ cmd_list() {
     # Environment overrides
     echo -e "\n${YELLOW}Environment Overrides:${NC}"
     local has_env=false
-    for var in OCTOPUS_CODEX_MODEL OCTOPUS_GEMINI_MODEL OCTOPUS_PERPLEXITY_MODEL OCTOPUS_OPENCODE_MODEL OCTOPUS_COST_MODE OCTOPUS_TRACE_MODELS; do
+    for var in OCTOPUS_CODEX_MODEL OCTOPUS_GEMINI_MODEL OCTOPUS_CURSOR_AGENT_MODEL OCTOPUS_PERPLEXITY_MODEL OCTOPUS_OPENCODE_MODEL OCTOPUS_COST_MODE OCTOPUS_TRACE_MODELS; do
         if [[ -n "${!var:-}" ]]; then
             echo "  $var=${!var}"
             has_env=true

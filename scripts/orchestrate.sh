@@ -1119,7 +1119,7 @@ ERROR_CODES=(
     "E006:Agent spawn failed:Check API keys and network connection:help troubleshoot"
     "E007:Quality gate failed:Review output and retry with lower threshold (-q 60):help quality"
     "E008:Timeout exceeded:Increase timeout with -t 600 or break into smaller tasks:help timeout"
-    "E009:Invalid agent type:Use: codex, codex-mini, gemini, gemini-fast:help agents"
+    "E009:Invalid agent type:Use codex, codex-mini, gemini, gemini-fast:help agents"
     "E010:Task file parse error:Check JSON syntax with: jq . tasks.json:help tasks"
 )
 

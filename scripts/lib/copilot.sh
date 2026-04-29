@@ -88,7 +88,7 @@ copilot_execute() {
             return 1
         fi
         # Check for auth errors
-        if printf '%s' "$response" | grep -ciE 'unauthorized|auth|login|token' >/dev/null; then
+        if printf '%s' "$response" | grep -ciE 'unauthorized|forbidden|(^|[^0-9])(401|403)([^0-9]|$)|authentication[[:space:]]+(failed|required)|not[[:space:]]+authorized|invalid[[:space:]]+token|expired[[:space:]]+token|token[[:space:]]+expired|please[[:space:]]+(re)?login|login[[:space:]]+required' >/dev/null; then
             log ERROR "copilot: Auth failure — run: copilot login (or set COPILOT_GITHUB_TOKEN)"
             return 1
         fi

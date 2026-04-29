@@ -18,6 +18,9 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/../lib/cursor-agent.sh" 2>/dev/null || true
+
 WORKFLOW="${1:-research}"
 INTENSITY="${2:-standard}"
 PROMPT="${3:-}"
@@ -48,7 +51,7 @@ command -v copilot >/dev/null 2>&1 && AVAILABLE_CLI+=(copilot)
 command -v qwen >/dev/null 2>&1 && AVAILABLE_CLI+=(qwen)
 command -v opencode >/dev/null 2>&1 && AVAILABLE_CLI+=(opencode)
 command -v ollama >/dev/null 2>&1 && curl -sf http://localhost:11434/api/tags >/dev/null 2>&1 && AVAILABLE_CLI+=(ollama)
-if command -v agent >/dev/null 2>&1 && agent --version 2>&1 | grep -cE '^20[0-9]{2}\.' >/dev/null; then
+if declare -f _is_cursor_agent_binary >/dev/null 2>&1 && _is_cursor_agent_binary; then
     if [[ -n "${CURSOR_API_KEY:-}" ]] || grep -Eq '"authInfo"[[:space:]]*:[[:space:]]*\{' "${HOME}/.cursor/cli-config.json" 2>/dev/null; then
         AVAILABLE_CLI+=(cursor-agent)
     fi

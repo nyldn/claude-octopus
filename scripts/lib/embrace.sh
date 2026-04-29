@@ -3,6 +3,11 @@
 # Extracted from orchestrate.sh
 # Functions: get_dispatch_strategy, load_blind_spot_checklist
 
+if ! declare -f _is_cursor_agent_binary >/dev/null 2>&1; then
+    _embrace_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    source "${_embrace_lib_dir}/cursor-agent.sh" 2>/dev/null || true
+fi
+
 get_dispatch_strategy() {
     local prompt="$1"
     local workflow="${2:-auto}"
@@ -49,14 +54,9 @@ get_dispatch_strategy() {
     command -v ollama >/dev/null 2>&1 && curl -sf http://localhost:11434/api/tags &>/dev/null && has_ollama=true
     if declare -f cursor_agent_is_available >/dev/null 2>&1; then
         cursor_agent_is_available && has_cursor_agent=true
-    elif command -v agent >/dev/null 2>&1; then
-        local _agent_ver
-        _agent_ver=$(agent --version 2>&1 || true)
-        if printf '%s\n' "$_agent_ver" | grep -cE '^20[0-9]{2}\.' >/dev/null 2>&1; then
-            # Auth check fallback when helper not loaded
-            if [[ -n "${CURSOR_API_KEY:-}" ]] || grep -Eq '"authInfo"[[:space:]]*:[[:space:]]*\{' "${HOME}/.cursor/cli-config.json" 2>/dev/null; then
-                has_cursor_agent=true
-            fi
+    elif declare -f _is_cursor_agent_binary >/dev/null 2>&1 && _is_cursor_agent_binary; then
+        if [[ -n "${CURSOR_API_KEY:-}" ]] || grep -Eq '"authInfo"[[:space:]]*:[[:space:]]*\{' "${HOME}/.cursor/cli-config.json" 2>/dev/null; then
+            has_cursor_agent=true
         fi
     fi
 
@@ -84,11 +84,12 @@ get_dispatch_strategy() {
             else echo "1:claude-sonnet:medium"; fi ;;
         architecture)
             # Maximize training bias diversity
-            if [[ "$has_codex" == true && "$has_gemini" == true ]]; then
-                echo "2:codex,gemini:high"
-            elif [[ "$has_codex" == true ]]; then echo "2:codex,claude-sonnet:medium"
-            elif [[ "$has_gemini" == true ]]; then echo "2:gemini,claude-sonnet:medium"
-            elif [[ "$has_qwen" == true ]]; then echo "2:qwen,claude-sonnet:medium"
+            if [[ $cli_count -ge 2 ]]; then
+                local providers_str
+                providers_str=$(IFS=,; echo "${cli_providers[*]}")
+                echo "${cli_count}:${providers_str}:high"
+            elif [[ $cli_count -eq 1 ]]; then
+                echo "2:${cli_providers[0]},claude-sonnet:medium"
             else echo "1:claude-sonnet:low"; fi ;;
         research|*)
             # Research benefits from diverse perspectives

@@ -204,8 +204,9 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
     # Process output
     if [[ $exit_code -eq 0 ]]; then
         local separator_count
-        separator_count=$(grep -cE '^--------$' "$temp_output" 2>/dev/null || echo 0)
+        separator_count=$(grep -cE '^--------$' "$temp_output" 2>/dev/null || true)
         separator_count=${separator_count%%$'\n'*}
+        separator_count=${separator_count:-0}
         if [[ "$agent_type" == cursor-agent* ]]; then
             # cursor-agent stdout is clean — strip surrounding blanks only
             awk '

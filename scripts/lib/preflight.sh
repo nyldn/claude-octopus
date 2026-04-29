@@ -3,6 +3,11 @@
 # Extracted from orchestrate.sh (v9.7.x decomposition)
 # shellcheck source=/dev/null
 
+if ! declare -f _is_cursor_agent_binary >/dev/null 2>&1; then
+    _preflight_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    source "${_preflight_lib_dir}/cursor-agent.sh" 2>/dev/null || true
+fi
+
 # Command: detect-providers
 # Output parseable provider status for Claude Code skill
 cmd_detect_providers() {
@@ -166,7 +171,7 @@ cmd_detect_providers() {
     echo ""
 
     # Check Cursor Agent CLI (optional — Grok 4.20 via Cursor subscription, v9.23.0)
-    if command -v agent &>/dev/null && agent --version 2>&1 | grep -cE '^20[0-9]{2}\.' >/dev/null; then
+    if declare -f _is_cursor_agent_binary >/dev/null 2>&1 && _is_cursor_agent_binary; then
         local cursor_auth="none"
         if [[ -n "${CURSOR_API_KEY:-}" ]]; then
             cursor_auth="env:CURSOR_API_KEY"
@@ -193,7 +198,10 @@ cmd_detect_providers() {
     local copilot_status=$(command -v copilot &>/dev/null && echo "ok" || echo "not-installed")
     local qwen_status=$(command -v qwen &>/dev/null && echo "ok" || echo "not-installed")
     local opencode_status=$(command -v opencode &>/dev/null && echo "ok" || echo "not-installed")
-    local cursor_agent_status=$(command -v agent &>/dev/null && agent --version 2>&1 | grep -cE '^20[0-9]{2}\.' >/dev/null && echo "ok" || echo "not-installed")
+    local cursor_agent_status="not-installed"
+    if declare -f _is_cursor_agent_binary >/dev/null 2>&1 && _is_cursor_agent_binary; then
+        cursor_agent_status="ok"
+    fi
     local cursor_agent_auth=$([[ -n "${CURSOR_API_KEY:-}" ]] && echo "env:CURSOR_API_KEY" || { grep -Eq '"authInfo"[[:space:]]*:[[:space:]]*\{' "${HOME}/.cursor/cli-config.json" 2>/dev/null && echo "cursor-session"; } || echo "none")
 
     cat > "$WORKSPACE_DIR/.provider-cache" <<EOF
@@ -309,7 +317,7 @@ EOF
         echo "  3. Install Cursor Agent CLI: https://cursor.com/install"
         echo ""
         echo "Then configure authentication - see: /claude-octopus:setup"
-    elif [[ ("$codex_status" == "ok" && "$codex_auth" == "none") || ("$gemini_status" == "ok" && "$gemini_auth" == "none") || ("$cursor_agent_status" == "ok" && "$cursor_agent_auth" == "none") ]]; then
+    elif ! { [[ "$codex_status" == "ok" && "$codex_auth" != "none" ]] || [[ "$gemini_status" == "ok" && "$gemini_auth" != "none" ]] || [[ "$cursor_agent_status" == "ok" && "$cursor_agent_auth" != "none" ]]; }; then
         echo "⚠ Provider(s) installed but not authenticated."
         echo ""
         echo "Next steps:"
@@ -395,7 +403,7 @@ preflight_check() {
     fi
 
     # Check Cursor Agent CLI
-    if command -v agent &>/dev/null && agent --version 2>&1 | grep -cE '^20[0-9]{2}\.' >/dev/null; then
+    if declare -f _is_cursor_agent_binary >/dev/null 2>&1 && _is_cursor_agent_binary; then
         has_cursor_agent=true
         log DEBUG "Cursor Agent CLI: $(command -v agent)"
         if [[ -n "${CURSOR_API_KEY:-}" ]] || grep -Eq '"authInfo"[[:space:]]*:[[:space:]]*\{' "${HOME}/.cursor/cli-config.json" 2>/dev/null; then

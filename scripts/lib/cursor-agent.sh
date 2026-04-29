@@ -30,18 +30,53 @@ _cursor_log() {
 # If Cursor changes versioning scheme, update both this regex and the
 # corresponding checks in: preflight.sh, embrace.sh, build-fleet.sh,
 # model-resolver.sh (is_agent_available_v2 cursor-agent case).
+_cursor_agent_run_with_timeout() {
+    local timeout_secs="$1"
+    shift
+
+    if command -v gtimeout &>/dev/null; then
+        gtimeout "$timeout_secs" "$@"
+        return $?
+    fi
+    if command -v timeout &>/dev/null; then
+        timeout "$timeout_secs" "$@"
+        return $?
+    fi
+
+    local output_file="${TMPDIR:-/tmp}/cursor-agent-timeout.$$.$RANDOM.out"
+    local cmd_pid monitor_pid exit_code
+    : > "$output_file" || return 1
+
+    "$@" >"$output_file" 2>&1 <&0 &
+    cmd_pid=$!
+    ( /bin/sleep "$timeout_secs"; kill -TERM "$cmd_pid" 2>/dev/null; /bin/sleep 1; kill -KILL "$cmd_pid" 2>/dev/null ) &
+    monitor_pid=$!
+
+    wait "$cmd_pid" 2>/dev/null
+    exit_code=$?
+
+    kill "$monitor_pid" 2>/dev/null || true
+    wait "$monitor_pid" 2>/dev/null || true
+
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        printf '%s\n' "$line"
+    done < "$output_file"
+    /bin/rm -f "$output_file" 2>/dev/null || true
+
+    if [[ $exit_code -eq 137 || $exit_code -eq 143 ]]; then
+        return 124
+    fi
+    return "$exit_code"
+}
+
 _is_cursor_agent_binary() {
-    local version_output
+    local version_output probe_timeout
+    command -v agent &>/dev/null || return 1
     # Wrap with timeout: an unrelated `agent` binary on PATH could hang on stdin
     # or spawn an interactive session, blocking every caller (cursor_agent_is_available,
     # preflight, doctor, smoke, build-fleet). Redirect stdin to /dev/null too.
-    if command -v timeout &>/dev/null; then
-        version_output=$(timeout 3 agent --version </dev/null 2>&1) || return 1
-    elif command -v gtimeout &>/dev/null; then
-        version_output=$(gtimeout 3 agent --version </dev/null 2>&1) || return 1
-    else
-        version_output=$(agent --version </dev/null 2>&1) || return 1
-    fi
+    probe_timeout="${OCTOPUS_CURSOR_AGENT_PROBE_TIMEOUT:-3}"
+    version_output=$(_cursor_agent_run_with_timeout "$probe_timeout" agent --version </dev/null) || return 1
     # Cursor Agent versions look like: 2026.04.14-ee4b43a
     [[ "$version_output" =~ ^20[0-9]{2}\. ]] && return 0
     return 1
@@ -104,16 +139,8 @@ cursor_agent_execute() {
     [[ "${VERBOSE:-}" == "true" ]] && _cursor_log DEBUG "cursor_agent_execute: type=$agent_type, timeout=${timeout}s, auth=$(cursor_agent_auth_method)" || true
 
     # Note: --model is set by dispatch.sh via get_agent_command(), not here
-    # Guard for timeout availability (GNU coreutils; not on stock macOS)
     local response exit_code
-    if command -v timeout &>/dev/null; then
-        response=$(timeout "$timeout" agent -p "$prompt" --trust --output-format text 2>&1) && exit_code=0 || exit_code=$?
-    elif command -v gtimeout &>/dev/null; then
-        response=$(gtimeout "$timeout" agent -p "$prompt" --trust --output-format text 2>&1) && exit_code=0 || exit_code=$?
-    else
-        # No timeout binary — run without timeout protection
-        response=$(agent -p "$prompt" --trust --output-format text 2>&1) && exit_code=0 || exit_code=$?
-    fi
+    response=$(printf '%s' "$prompt" | _cursor_agent_run_with_timeout "$timeout" agent -p "" --trust --output-format text 2>&1) && exit_code=0 || exit_code=$?
 
     # Handle errors
     if [[ $exit_code -ne 0 ]]; then
@@ -122,7 +149,7 @@ cursor_agent_execute() {
             return 1
         fi
         # Check for auth errors
-        if printf '%s' "$response" | grep -ciE 'unauthorized|auth|login|token|forbidden' >/dev/null; then
+        if printf '%s' "$response" | grep -ciE 'unauthorized|forbidden|(^|[^0-9])(401|403)([^0-9]|$)|authentication[[:space:]]+(failed|required)|not[[:space:]]+authorized|invalid[[:space:]]+token|expired[[:space:]]+token|token[[:space:]]+expired|please[[:space:]]+(re)?login|login[[:space:]]+required' >/dev/null; then
             _cursor_log ERROR "cursor-agent: Auth failure — run: agent login (or set CURSOR_API_KEY)"
             return 1
         fi

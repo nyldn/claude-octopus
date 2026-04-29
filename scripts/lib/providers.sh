@@ -7,6 +7,11 @@
 # Source-safe: no main execution block.
 # ═══════════════════════════════════════════════════════════════════════════════
 
+if ! declare -f _is_cursor_agent_binary >/dev/null 2>&1; then
+    _providers_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    source "${_providers_lib_dir}/cursor-agent.sh" 2>/dev/null || true
+fi
+
 # Version comparison utility
 version_compare() {
     local version1="$1"
@@ -728,7 +733,7 @@ check_provider_health() {
                 return 1
             fi
             # Verify binary identity — `agent` is a generic name
-            if ! agent --version 2>&1 | grep -cE '^20[0-9]{2}\.' >/dev/null; then
+            if ! declare -f _is_cursor_agent_binary >/dev/null 2>&1 || ! _is_cursor_agent_binary; then
                 echo "cursor-agent: 'agent' binary is not Cursor Agent CLI" >&2
                 return 1
             fi
@@ -954,7 +959,7 @@ detect_providers() {
     fi
 
     # Detect Cursor Agent CLI (Grok via Cursor subscription)
-    if command -v agent &>/dev/null && agent --version 2>&1 | grep -cE '^20[0-9]{2}\.' >/dev/null; then
+    if declare -f _is_cursor_agent_binary >/dev/null 2>&1 && _is_cursor_agent_binary; then
         local cursor_auth="none"
         if [[ -n "${CURSOR_API_KEY:-}" ]]; then
             cursor_auth="env:CURSOR_API_KEY"
