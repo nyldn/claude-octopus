@@ -105,7 +105,9 @@ CHANGELOG_ENTRY="## [${VERSION}] - ${DATE}"
 if ! grep -q "\\[${VERSION}\\]" CHANGELOG.md 2>/dev/null; then
     # Prepend new entry
     TEMP=$(mktemp)
-    echo "${CHANGELOG_ENTRY}" > "$TEMP"
+    echo "# Changelog" > "$TEMP"
+    echo "" >> "$TEMP"
+    echo "${CHANGELOG_ENTRY}" >> "$TEMP"
     echo "" >> "$TEMP"
     echo "### Changed" >> "$TEMP"
     echo "" >> "$TEMP"
@@ -113,7 +115,11 @@ if ! grep -q "\\[${VERSION}\\]" CHANGELOG.md 2>/dev/null; then
     echo "" >> "$TEMP"
     echo "---" >> "$TEMP"
     echo "" >> "$TEMP"
-    cat CHANGELOG.md >> "$TEMP"
+    if [[ -f CHANGELOG.md ]] && [[ "$(head -n 1 CHANGELOG.md)" == "# Changelog" ]]; then
+        tail -n +3 CHANGELOG.md >> "$TEMP"
+    else
+        cat CHANGELOG.md >> "$TEMP"
+    fi
     mv "$TEMP" CHANGELOG.md
     echo "   CHANGELOG.md (new entry)"
 else
