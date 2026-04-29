@@ -7,6 +7,15 @@ set -eo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_DIR="$(dirname "$SCRIPT_DIR")"
+
+# Self-heal: ensure the stable symlink exists for LLM Bash tool access.
+# The SessionStart hook normally creates this, but if doctor (or any command)
+# is invoked before the hook fires, the symlink may be missing. (fixes #318)
+if [[ ! -e "${HOME}/.claude-octopus/plugin" ]]; then
+    mkdir -p "${HOME}/.claude-octopus"
+    ln -sfn "$PLUGIN_DIR" "${HOME}/.claude-octopus/plugin"
+fi
+
 # Cache platform detection — avoids repeated subprocess spawns (v8.33.0)
 OCTOPUS_PLATFORM="$(uname)"
 
