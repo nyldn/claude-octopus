@@ -68,7 +68,7 @@ Fast-track execution for small tasks that don't need full Double Diamond workflo
 Quick mode follows a streamlined process:
 
 ```
-User Request → Direct Implementation → Atomic Commit → Summary
+User Request → Codex-first Implementation → Claude Fallback/Synthesis → Atomic Commit → Summary
 ```
 
 **What Quick Mode SKIPS:**
@@ -82,6 +82,7 @@ User Request → Direct Implementation → Atomic Commit → Summary
 - ✅ Atomic commits (git commit with description)
 - ✅ Summary generation (stored in .claude-octopus/quick/)
 - ✅ Change documentation
+- ✅ Codex-first execution for small implementation tasks
 
 ---
 
@@ -122,7 +123,11 @@ Quickly assess:
 
 ### Step 2: Make the Change
 
-Implement directly using appropriate tools:
+Delegate implementation to Codex CLI by default. For any non-meta implementation task, the first tool action after the banner MUST be a Bash call to `codex exec --skip-git-repo-check --full-auto --model gpt-5.4 -c model_reasoning_effort="medium" --sandbox workspace-write -` with the user request and relevant repo instructions on stdin. Claude remains the host/supervisor and fallback; do not implement directly in Claude while Codex is available.
+
+If Codex is unavailable, authenticated incorrectly, or fails, fall back to Claude Sonnet. Do not use Opus for quick mode unless the user explicitly requests it.
+
+When falling back or making final small edits, use appropriate tools:
 - **Edit** - For modifying existing files
 - **Write** - For creating new files (rare in quick mode)
 - **Bash** - For file operations, dependency updates
@@ -140,7 +145,7 @@ git commit -m "quick: [brief description]
 
 [Detailed explanation if needed]
 
-Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
+Co-Authored-By: Codex <noreply@openai.com>"
 ```
 
 **Commit message format:**
@@ -223,7 +228,7 @@ echo "📝 Summary saved to: $summary_file"
    git add README.md
    git commit -m "quick: fix typo in README (recieve → receive)
 
-   Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
+   Co-Authored-By: Codex <noreply@openai.com>"
    ```
 
 4. **Record in state**
@@ -255,9 +260,9 @@ echo "📝 Summary saved to: $summary_file"
 - Faster for simple tasks
 
 ### Cost Savings 💰
-- No external provider API calls
-- Only uses Claude (included with Claude Code)
-- Efficient for ad-hoc work
+- Uses Codex CLI for quick work instead of spending the main Claude quota on implementation
+- Keeps Claude as host/supervisor and fallback only
+- Avoids Gemini, Opus, research, and multi-AI validation for ad-hoc work
 
 ### Still Tracked 📊
 - Commits recorded
@@ -326,8 +331,8 @@ Each summary includes:
 | Aspect | Quick Mode ⚡ | Full Workflow 🐙 |
 |--------|-------------|------------------|
 | **Time** | 1-3 minutes | 5-15 minutes |
-| **Cost** | Claude only | Codex + Gemini + Claude |
-| **Providers** | 1 (Claude) | 3 (multi-AI) |
+| **Cost** | Codex quick model + Claude host/fallback | Codex + Gemini + Claude |
+| **Providers** | 1 active provider (Codex) + Claude host | 3 (multi-AI) |
 | **Research** | None | Comprehensive |
 | **Planning** | None | Detailed |
 | **Validation** | Basic | Multi-AI review |
