@@ -115,16 +115,24 @@ for develop_file in "$PROJECT_ROOT/.claude/commands/develop.md" "$PROJECT_ROOT/c
         banner_line=$(grep -n 'CLAUDE OCTOPUS ACTIVATED' "$develop_file" | head -1 | cut -d: -f1 || true)
         dispatch_line=$(grep -n 'orchestrate.sh" develop' "$develop_file" | head -1 | cut -d: -f1 || true)
 
-        if [[ -n "$preflight_line" && -n "$dispatch_line" && "$preflight_line" -lt "$dispatch_line" ]]; then
-            pass "$develop_name checks provider availability before dispatch"
+        if [[ -n "$dispatch_line" ]]; then
+            pass "$develop_name dispatches via orchestrate.sh develop"
         else
-            fail "$develop_name missing provider preflight" "Direct develop dispatch must run helpers/check-providers.sh before orchestrate.sh"
+            fail "$develop_name missing direct dispatch" "Develop docs must call orchestrate.sh develop"
         fi
 
-        if [[ -n "$banner_line" && -n "$dispatch_line" && "$banner_line" -lt "$dispatch_line" ]]; then
-            pass "$develop_name displays workflow indicator before dispatch"
-        else
-            fail "$develop_name missing workflow indicator" "Direct develop dispatch must show the Octopus activation banner before orchestrate.sh"
+        if [[ -n "$dispatch_line" ]]; then
+            if [[ -n "$preflight_line" && "$preflight_line" -lt "$dispatch_line" ]]; then
+                pass "$develop_name checks provider availability before dispatch"
+            else
+                fail "$develop_name missing provider preflight" "Direct develop dispatch must run helpers/check-providers.sh before orchestrate.sh"
+            fi
+
+            if [[ -n "$banner_line" && "$banner_line" -lt "$dispatch_line" ]]; then
+                pass "$develop_name displays workflow indicator before dispatch"
+            else
+                fail "$develop_name missing workflow indicator" "Direct develop dispatch must show the Octopus activation banner before orchestrate.sh"
+            fi
         fi
 
         if grep -q 'OCTOPUS_EFFORT_OVERRIDE' "$develop_file" \

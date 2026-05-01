@@ -37,7 +37,13 @@ Use the actual preflight output to display the workflow indicator before dispatc
 🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider implementation mode
 ```
 
-List available providers, mark missing providers as `(unavailable - skipping)`, and use the compact single-line banner when `OCTOPUS_COMPACT_BANNERS=true`. If no external provider is available, stop and tell the user to run `/octo:setup`; do not fall back to Claude-native implementation.
+List available providers and mark missing providers as `(unavailable - skipping)`. If `OCTOPUS_COMPACT_BANNERS=true`, use this compact single-line format:
+
+```text
+🐙 develop — Multi-provider implementation mode | codex ✓ | gemini (unavailable - skipping)
+```
+
+If no external provider is available, stop and tell the user to run `/octo:setup`; do not fall back to Claude-native implementation.
 
 **Step 2 — Run orchestrate.sh via Bash tool:**
 
