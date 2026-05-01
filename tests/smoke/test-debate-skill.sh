@@ -150,7 +150,17 @@ test_version_consistency() {
 
     local plugin_version=$(grep '"version"' "$plugin_json" | head -1 | sed 's/.*"version": *"\([^"]*\)".*/\1/')
     local package_version=$(grep '"version"' "$package_json" | head -1 | sed 's/.*"version": *"\([^"]*\)".*/\1/')
-    local marketplace_version=$(grep -A 3 '"octo"' "$marketplace_json" | grep '"version"' | sed 's/.*"version": *"\([^"]*\)".*/\1/')
+
+    if ! command -v jq >/dev/null 2>&1; then
+        test_fail "jq is required to parse marketplace.json"
+        return 1
+    fi
+
+    local marketplace_version
+    if ! marketplace_version=$(jq -r '.plugins[] | select(.name == "octo") | .version // empty' "$marketplace_json"); then
+        test_fail "Unable to parse octo version from marketplace.json"
+        return 1
+    fi
 
     if [[ "$plugin_version" == "$package_version" ]] && \
        [[ "$package_version" == "$marketplace_version" ]]; then

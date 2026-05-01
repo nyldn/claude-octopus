@@ -51,8 +51,16 @@ echo ""
 echo "📦 Checking version synchronization..."
 
 PLUGIN_VERSION=$(grep '"version"' "$ROOT_DIR/.claude-plugin/plugin.json" | head -1 | sed 's/.*: *"\([^"]*\)".*/\1/')
-MARKETPLACE_VERSION=$(grep '"version"' "$ROOT_DIR/.claude-plugin/marketplace.json" | grep -v "1.0.0" | head -1 | sed 's/.*: *"\([^"]*\)".*/\1/')
 PACKAGE_VERSION=$(grep '"version"' "$ROOT_DIR/package.json" | head -1 | sed 's/.*: *"\([^"]*\)".*/\1/')
+
+MARKETPLACE_VERSION=""
+if ! command -v jq >/dev/null 2>&1; then
+    echo -e "  ${RED}ERROR: jq is required to parse marketplace.json${NC}"
+    ((errors++)) || true
+elif ! MARKETPLACE_VERSION=$(jq -r '.plugins[] | select(.name == "octo") | .version // empty' "$ROOT_DIR/.claude-plugin/marketplace.json"); then
+    echo -e "  ${RED}ERROR: unable to parse octo version from marketplace.json${NC}"
+    ((errors++)) || true
+fi
 
 # Check README badge
 README_BADGE_VERSION=$(grep -o 'Version-[0-9.]*' "$ROOT_DIR/README.md" | head -1 | sed 's/Version-//')

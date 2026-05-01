@@ -49,15 +49,10 @@ Every AI model has blind spots. Claude Octopus puts up to eight of them on every
 # Terminal (not inside a Claude Code session):
 claude plugin marketplace add https://github.com/nyldn/plugins.git
 claude plugin install octo@nyldn-plugins
-claude plugin install img@nyldn-plugins # optional, same shared marketplace
 
 # Then inside Claude Code:
 /octo:setup
 ```
-
-`nyldn-plugins` is a shared marketplace catalog at
-`https://github.com/nyldn/plugins.git`, and it also makes
-`img@nyldn-plugins` available.
 
 That's it. Setup detects installed providers, shows what's missing, and walks you through configuration. You need **zero** external providers to start — Claude is built in.
 
@@ -169,7 +164,6 @@ rm -rf ~/.claude/plugins/cache/nyldn-plugins/octo
 claude plugin marketplace remove nyldn-plugins
 claude plugin marketplace add https://github.com/nyldn/plugins.git
 claude plugin install octo@nyldn-plugins
-claude plugin install img@nyldn-plugins # optional, same shared marketplace
 ```
 </details>
 

@@ -312,8 +312,17 @@ check_marketplace_version() {
   # Extract version from plugin.json
   local plugin_version=$(grep '"version"' "$plugin_json" | head -n 1 | sed 's/.*"version": *"\([^"]*\)".*/\1/')
 
-  # Extract version field from marketplace.json
-  local marketplace_version=$(grep '"version"' "$marketplace_json" | tail -n 1 | sed 's/.*"version": *"\([^"]*\)".*/\1/')
+  if ! command -v jq >/dev/null 2>&1; then
+    fail "jq is required to parse marketplace.json"
+    return 1
+  fi
+
+  # Extract the octo plugin version, not marketplace metadata or sibling plugins.
+  local marketplace_version
+  if ! marketplace_version=$(jq -r '.plugins[] | select(.name == "octo") | .version // empty' "$marketplace_json"); then
+    fail "Unable to parse octo version from marketplace.json"
+    return 1
+  fi
 
   # Check if versions match
   if [ "$plugin_version" = "$marketplace_version" ]; then
@@ -327,6 +336,30 @@ check_marketplace_version() {
     pass "marketplace.json description starts with version (v${plugin_version})"
   else
     fail "marketplace.json description should start with 'v${plugin_version} - ...'"
+  fi
+}
+
+# Check release validation parses the octo marketplace entry explicitly
+check_release_validator_marketplace_parser() {
+  info "\nValidating release marketplace parser..."
+
+  local release_validator="scripts/validate-release.sh"
+
+  if [ ! -f "$release_validator" ]; then
+    fail "validate-release.sh not found"
+    return 1
+  fi
+
+  if grep -Fq '.plugins[] | select(.name == "octo") | .version' "$release_validator"; then
+    pass "validate-release.sh selects octo marketplace version explicitly"
+  else
+    fail "validate-release.sh should select octo marketplace version explicitly"
+  fi
+
+  if grep -Fq 'grep -v "1.0.0"' "$release_validator"; then
+    fail "validate-release.sh should not filter marketplace versions with grep -v 1.0.0"
+  else
+    pass "validate-release.sh does not use marketplace version heuristic filter"
   fi
 }
 
@@ -391,6 +424,7 @@ check_workflow_skills
 check_hooks_config
 check_debate_skill
 check_marketplace_version
+check_release_validator_marketplace_parser
 check_command_frontmatter
 
 # Summary
