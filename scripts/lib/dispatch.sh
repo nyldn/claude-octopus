@@ -40,19 +40,19 @@ get_agent_command() {
     case "$agent_type" in
         codex|codex-standard|codex-max|codex-mini|codex-general)
             model=$(get_agent_model "$agent_type" "$phase" "$role")
-            echo "codex exec --skip-git-repo-check --full-auto --model ${model} ${sandbox_flag} -"
+            echo "codex exec --skip-git-repo-check --model ${model} ${sandbox_flag} -"
             ;;
         codex-spark)  # v8.9.0: Ultra-fast Spark model (1000+ tok/s)
             model=$(get_agent_model "$agent_type" "$phase" "$role")
-            echo "codex exec --skip-git-repo-check --full-auto --model ${model} ${sandbox_flag} -"
+            echo "codex exec --skip-git-repo-check --model ${model} ${sandbox_flag} -"
             ;;
         codex-reasoning)  # v8.9.0: Reasoning models (o3, o3)
             model=$(get_agent_model "$agent_type" "$phase" "$role")
-            echo "codex exec --skip-git-repo-check --full-auto --model ${model} ${sandbox_flag} -"
+            echo "codex exec --skip-git-repo-check --model ${model} ${sandbox_flag} -"
             ;;
         codex-large-context)  # v8.9.0: 1M context models (gpt-4.1)
             model=$(get_agent_model "$agent_type" "$phase" "$role")
-            echo "codex exec --skip-git-repo-check --full-auto --model ${model} ${sandbox_flag} -"
+            echo "codex exec --skip-git-repo-check --model ${model} ${sandbox_flag} -"
             ;;
         gemini|gemini-fast|gemini-image)
             model=$(get_agent_model "$agent_type" "$phase" "$role")

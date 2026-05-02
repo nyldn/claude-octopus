@@ -771,8 +771,9 @@ ${context}Task: $prompt
 Output as numbered list with [CODING] or [REASONING] prefix for each subtask."
 
     local subtasks
-    subtasks=$(run_agent_sync "gemini" "$decompose_prompt" 120 "researcher" "tangle") || {
-        log WARN "Decomposition failed, falling back to direct execution"
+    subtasks=$(run_agent_sync "gemini" "$decompose_prompt" 120 "researcher" "tangle") || \
+    subtasks=$(run_agent_sync "codex" "$decompose_prompt" 120 "researcher" "tangle") || {
+        log WARN "Decomposition failed with all providers, falling back to direct execution"
         spawn_agent "codex" "$prompt" "tangle-${task_group}-direct" "implementer" "tangle"
         wait
         return
