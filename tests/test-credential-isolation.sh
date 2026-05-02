@@ -43,7 +43,7 @@ else
 fi
 
 # 1.2 Codex scoping — only OPENAI_API_KEY
-CODEX_ENV=$(grep -A5 'codex\*)' "$ALL_SRC" | grep 'PROVIDER_ENV_ARRAY=.*env -i' | head -1)
+CODEX_ENV=$(grep -A12 'codex\*)' "$ALL_SRC" | grep 'PROVIDER_ENV_ARRAY=.*env -i' | head -1 || true)
 if echo "$CODEX_ENV" | grep -q 'OPENAI_API_KEY'; then
   pass "Codex env includes OPENAI_API_KEY"
 else
@@ -57,7 +57,7 @@ else
 fi
 
 # 1.3 Gemini scoping — only GEMINI_API_KEY + GOOGLE_API_KEY
-GEMINI_ENV=$(grep -A5 'gemini\*)' "$ALL_SRC" | grep 'PROVIDER_ENV_ARRAY=.*env -i' | head -1)
+GEMINI_ENV=$(grep -A16 'gemini\*)' "$ALL_SRC" | grep 'PROVIDER_ENV_ARRAY=.*env -i' | head -1 || true)
 if echo "$GEMINI_ENV" | grep -q 'GEMINI_API_KEY'; then
   pass "Gemini env includes GEMINI_API_KEY"
 else
@@ -73,7 +73,7 @@ fi
 # 1.4 Perplexity — shell function provider, env -i skipped (#300)
 # perplexity_execute is a bash function dispatched by get_agent_command();
 # env -i cannot exec shell functions, so build_provider_env returns empty.
-PERP_CASE=$(grep -A50 'build_provider_env()' "$ALL_SRC" | grep -A5 'perplexity\*)' | head -6)
+PERP_CASE=$(grep -A70 'build_provider_env()' "$ALL_SRC" | grep -A10 'perplexity\*)' | head -11 || true)
 PERP_ENV=$(echo "$PERP_CASE" | grep 'env -i' | head -1 || true)
 if echo "$PERP_CASE" | grep -q 'resolve_provider_env.*PERPLEXITY_API_KEY'; then
   pass "Perplexity resolves PERPLEXITY_API_KEY before dispatch"
@@ -98,6 +98,31 @@ if grep -A20 'build_provider_env()' "$ALL_SRC" | grep -q 'MINGW.*return 0\|MSYS.
 else
   pass "Windows PATH spaces do not disable env isolation"
 fi
+
+# 1.6 Missing API keys are tolerated under set -e (#336)
+for provider in codex gemini perplexity openrouter; do
+  test_case "build_provider_env $provider tolerates absent API keys under set -e"
+  tmp_home=$(mktemp -d)
+  tmp_pwd=$(mktemp -d)
+  case_output=""
+  if case_output=$(HOME="$tmp_home" bash -c '
+      set -eo pipefail
+      cd "$1"
+      unset OPENAI_API_KEY GEMINI_API_KEY GOOGLE_API_KEY PERPLEXITY_API_KEY OPENROUTER_API_KEY
+      source "$2/scripts/lib/provider-routing.sh"
+      build_provider_env "$3"
+      echo ok
+    ' _ "$tmp_pwd" "$PLUGIN_DIR" "$provider" 2>&1); then
+    if [[ "$case_output" == *"ok"* ]]; then
+      test_pass
+    else
+      test_fail "build_provider_env $provider returned without confirmation"
+    fi
+  else
+    test_fail "build_provider_env $provider exited under set -e: $case_output"
+  fi
+  rm -rf "$tmp_home" "$tmp_pwd"
+done
 
 # ─────────────────────────────────────────────────────────────────────
 # Suite 2: build_provider_env() is wired into spawn_agent()

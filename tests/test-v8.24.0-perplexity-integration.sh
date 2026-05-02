@@ -111,7 +111,7 @@ else
 fi
 
 # Test 2.4: JSON payload with model
-if grep -A20 "^perplexity_execute()" "$_ORCH_ALL_TMP" | grep -q '"model"'; then
+if grep -A35 "^perplexity_execute()" "$_ORCH_ALL_TMP" | grep -q '"model"'; then
     pass "perplexity_execute sends model in payload"
 else
     fail "perplexity_execute missing model in payload"
