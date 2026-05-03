@@ -758,6 +758,22 @@ tangle_develop() {
 
     # Step 1: Decompose into validated subtasks
     log INFO "Step 1: Task decomposition..."
+
+    # Résoudre les références de fichiers .md dans le prompt
+    local resolved_prompt="$prompt"
+    local file_ref
+    file_ref=$(echo "$prompt" | grep -oE '[^[:space:]]+\.md' | head -1)
+    if [[ -n "$file_ref" && -f "$file_ref" ]]; then
+        local file_content
+        file_content=$(<"$file_ref")
+        resolved_prompt="Implement the code changes described in the following plan. Do NOT modify the plan file itself (${file_ref}).
+
+--- PLAN: ${file_ref} ---
+${file_content}
+--- END PLAN ---"
+        log INFO "Resolved file reference: ${file_ref} — injecting content into decompose prompt"
+    fi
+
     local decompose_prompt="Decompose this task into subtasks that can be executed in parallel.
 Each subtask should be:
 - Self-contained and independently verifiable
@@ -766,14 +782,15 @@ Each subtask should be:
 
 **Cohesion rule:** If the task produces a single deliverable (one file, one script, one page, one config), keep it as ONE subtask — do not split it. Only decompose when subtasks are truly independent with no cross-file references between them. Aim for 2-6 subtasks; fewer is better when the work is tightly coupled.
 
-${context}Task: $prompt
+${context}Task: $resolved_prompt
 
 Output as numbered list with [CODING] or [REASONING] prefix for each subtask."
 
     local subtasks
-    subtasks=$(run_agent_sync "gemini" "$decompose_prompt" 120 "researcher" "tangle") || {
-        log WARN "Decomposition failed, falling back to direct execution"
-        spawn_agent "codex" "$prompt" "tangle-${task_group}-direct" "implementer" "tangle"
+    subtasks=$(run_agent_sync "gemini" "$decompose_prompt" 120 "researcher" "tangle") || \
+    subtasks=$(run_agent_sync "codex" "$decompose_prompt" 120 "researcher" "tangle") || {
+        log WARN "Decomposition failed with all providers, falling back to direct execution"
+        spawn_agent "codex" "$resolved_prompt" "tangle-${task_group}-direct" "implementer" "tangle"
         wait
         return
     }
