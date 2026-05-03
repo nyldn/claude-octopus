@@ -527,6 +527,31 @@ ${heuristic_ctx}"
         local exit_code=0
         while true; do
             exit_code=0
+
+            # Quota fast-fail watcher: detects QUOTA_EXHAUSTED / TerminalQuotaError in stderr
+            # and kills the provider process early instead of waiting the full TIMEOUT (300s).
+            # Applies to Gemini (free tier exhausts quota and retries for ~18h internally).
+            local _quota_watcher_pid=""
+            if [[ "$agent_type" == gemini* ]]; then
+                local _spawn_pid=$BASHPID
+                > "$temp_errors"   # ensure file exists before watcher starts
+                > "$temp_output"   # ensure stdout file exists before watcher starts
+                (
+                    local _n=0
+                    while [[ $((_n++)) -lt 150 ]]; do
+                        sleep 2
+                        if grep -qE "QUOTA_EXHAUSTED|TerminalQuotaError|exhausted your capacity|RetryableQuotaError|Attempt [0-9]+ failed.*exhausted" "$temp_errors" "$temp_output" 2>/dev/null; then
+                            log "WARN" "[$agent_type] Quota exhaustion detected — fast-failing (saves ~${TIMEOUT}s wait)"
+                            pkill -TERM -P "$_spawn_pid" 2>/dev/null || true
+                            sleep 1
+                            pkill -KILL -P "$_spawn_pid" 2>/dev/null || true
+                            break
+                        fi
+                    done
+                ) &
+                _quota_watcher_pid=$!
+            fi
+
             # v9.2.2: All agents use stdin-based prompt delivery to avoid ARG_MAX limits (Issue #173)
             # Previously only gemini used stdin; codex/claude passed prompt as CLI arg which fails on large diffs
             if printf '%s' "$enhanced_prompt" | run_with_timeout "$TIMEOUT" "${cmd_array[@]}" 2> "$temp_errors" | tee "$raw_output" > "$temp_output"; then
@@ -534,6 +559,8 @@ ${heuristic_ctx}"
             else
                 exit_code=$?
             fi
+
+            [[ -n "$_quota_watcher_pid" ]] && { kill "$_quota_watcher_pid" 2>/dev/null; wait "$_quota_watcher_pid" 2>/dev/null || true; }
 
             # v8.16: Check if failure is auth-related and retryable
             if [[ $exit_code -ne 0 ]] && [[ $auth_attempt -lt $max_auth_retries ]]; then
