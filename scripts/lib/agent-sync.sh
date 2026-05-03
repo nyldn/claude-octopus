@@ -254,8 +254,7 @@ ${provider_ctx}"
         ) &
         _quota_watcher_pid=$!
 
-        wait "$_dispatch_pid" 2>/dev/null || true
-        exit_code=$?
+        wait "$_dispatch_pid" 2>/dev/null && exit_code=0 || exit_code=$?
         [[ $exit_code -eq 137 ]] && exit_code=1
         output=$(cat "$temp_out")
     else
