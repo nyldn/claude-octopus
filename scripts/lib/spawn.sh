@@ -540,7 +540,8 @@ ${heuristic_ctx}"
                     local _n=0
                     while [[ $((_n++)) -lt 150 ]]; do
                         sleep 2
-                        if [[ $(grep -cE "QUOTA_EXHAUSTED|TerminalQuotaError|exhausted your capacity|RetryableQuotaError|Attempt [0-9]+ failed.*exhausted" "$temp_errors" "$temp_output" 2>/dev/null) -gt 0 ]]; then
+                        if [[ $(grep -cE "QUOTA_EXHAUSTED|TerminalQuotaError|exhausted your capacity|RetryableQuotaError|Attempt [0-9]+ failed.*exhausted" "$temp_errors" 2>/dev/null) -gt 0 ]] || \
+                           [[ $(grep -cE "QUOTA_EXHAUSTED|TerminalQuotaError|exhausted your capacity|RetryableQuotaError|Attempt [0-9]+ failed.*exhausted" "$temp_output" 2>/dev/null) -gt 0 ]]; then
                             log "WARN" "[$agent_type] Quota exhaustion detected — fast-failing (saves ~${TIMEOUT}s wait)"
                             pkill -TERM -P "$_spawn_pid" 2>/dev/null || true
                             sleep 1

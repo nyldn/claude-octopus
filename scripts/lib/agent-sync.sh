@@ -242,7 +242,8 @@ ${provider_ctx}"
         (
             while kill -0 "$_dispatch_pid" 2>/dev/null; do
                 sleep 2
-                if [[ $(grep -cE "QUOTA_EXHAUSTED|TerminalQuotaError|exhausted your capacity|RetryableQuotaError|Attempt [0-9]+ failed.*exhausted" "$temp_err" "$temp_out" 2>/dev/null) -gt 0 ]]; then
+                if [[ $(grep -cE "QUOTA_EXHAUSTED|TerminalQuotaError|exhausted your capacity|RetryableQuotaError|Attempt [0-9]+ failed.*exhausted" "$temp_err" 2>/dev/null) -gt 0 ]] || \
+                   [[ $(grep -cE "QUOTA_EXHAUSTED|TerminalQuotaError|exhausted your capacity|RetryableQuotaError|Attempt [0-9]+ failed.*exhausted" "$temp_out" 2>/dev/null) -gt 0 ]]; then
                     log WARN "[$agent_type] Quota exhaustion detected in sync agent — fast-failing"
                     # Kill the dispatcher's direct children then the dispatcher itself
                     pkill -KILL -P "$_dispatch_pid" 2>/dev/null || true
