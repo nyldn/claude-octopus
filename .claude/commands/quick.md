@@ -55,7 +55,7 @@ Execute ad-hoc tasks without multi-AI orchestration overhead.
 
 Quick mode is Codex-first by default. For any non-meta implementation task, your first tool action after the banner MUST be a Bash call to Codex CLI. Do not implement directly in Claude unless Codex is unavailable, unauthenticated, or fails. Before editing directly, check that Codex is available (`command -v codex`) and authenticated (`~/.codex/auth.json` or `OPENAI_API_KEY`).
 
-If Codex is available, delegate the task with `codex exec --skip-git-repo-check --full-auto --model gpt-5.4 -c model_reasoning_effort="medium" --sandbox workspace-write -`, passing the user request and relevant local repo instructions on stdin. Claude should only supervise, summarize the result, and perform small fallback edits if Codex fails.
+If Codex is available, delegate the task with `codex exec --skip-git-repo-check --model gpt-5.4 -c model_reasoning_effort="medium" --sandbox workspace-write -`, passing the user request and relevant local repo instructions on stdin. Claude should only supervise, summarize the result, and perform small fallback edits if Codex fails.
 
 If Codex is unavailable or unauthenticated, fall back to Claude Sonnet. Do not use Opus for quick mode unless the user explicitly requests it.
 

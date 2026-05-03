@@ -51,13 +51,13 @@ If no external provider is available, stop and tell the user to run `/octo:setup
 bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" develop "<user's arguments here>"
 ```
 
-**CRITICAL — Do NOT implement in parallel:**
+**CRITICAL — Do NOT implement in parallel yourself (Claude-side):**
 While `orchestrate.sh` runs, you MUST NOT:
 - Read, edit, or write any project files
 - Implement any part of the task yourself using Claude-native tools
 - "Help" by doing the work while waiting
 
-The entire point of `/octo:develop` is multi-LLM implementation. If you implement in parallel, you defeat the purpose of the command. Wait for `orchestrate.sh` to complete, then present its output to the user.
+`orchestrate.sh` may run provider subtasks in parallel internally; that is expected. Wait for it to complete, then present its output to the user.
 
 **✗ INCORRECT:**
 

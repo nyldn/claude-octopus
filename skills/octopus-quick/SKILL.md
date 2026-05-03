@@ -1,7 +1,7 @@
 ---
 name: octopus-quick
 version: 1.0.0
-description: "Quick execution for ad-hoc tasks without workflow overhead. Use when: Use this skill when user says \"quick fix\", \"ad-hoc task\", or explicitly. requests fast execution without full workflow overhead."
+description: "Quick execution for ad-hoc tasks without workflow overhead"
 ---
 
 # Quick Mode - Lightweight Task Execution ⚡
@@ -116,7 +116,7 @@ Quickly assess:
 
 ### Step 2: Make the Change
 
-Delegate implementation to Codex CLI by default. For any non-meta implementation task, the first tool action after the banner MUST be a Bash call to `codex exec --skip-git-repo-check --full-auto --model gpt-5.4 -c model_reasoning_effort="medium" --sandbox workspace-write -` with the user request and relevant repo instructions on stdin. Claude remains the host/supervisor and fallback; do not implement directly in Claude while Codex is available.
+Delegate implementation to Codex CLI by default. For any non-meta implementation task, the first tool action after the banner MUST be a Bash call to `codex exec --skip-git-repo-check --model gpt-5.4 -c model_reasoning_effort="medium" --sandbox workspace-write -` with the user request and relevant repo instructions on stdin. Claude remains the host/supervisor and fallback; do not implement directly in Claude while Codex is available.
 
 If Codex is unavailable, authenticated incorrectly, or fails, fall back to Claude Sonnet. Do not use Opus for quick mode unless the user explicitly requests it.
 
