@@ -763,6 +763,7 @@ tangle_develop() {
     local resolved_prompt="$prompt"
     local file_ref
     file_ref=$(echo "$prompt" | grep -oE '[^[:space:]]+\.md' | head -1)
+    file_ref="${file_ref/#\~/$HOME}"   # expand ~ que [[ -f ]] ne résout pas entre guillemets
     if [[ -n "$file_ref" && -f "$file_ref" ]]; then
         local file_content
         file_content=$(<"$file_ref")
