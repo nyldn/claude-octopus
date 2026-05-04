@@ -2158,8 +2158,29 @@ case "$COMMAND" in
     probe-single)
         # v8.54.0: Single-agent probe for multi-agentic skill dispatch
         # Called by Claude's Agent tool (one per perspective) instead of monolithic probe
+        # v9.29.3: Parse --output-dir flag from any position (fixes #340)
+        local _ps_args=()
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                --output-dir)
+                    if [[ -n "${2:-}" ]]; then
+                        RESULTS_DIR="$2"
+                        mkdir -p "$RESULTS_DIR" 2>/dev/null || true
+                        shift 2
+                    else
+                        echo "Error: --output-dir requires a directory argument" >&2
+                        exit 1
+                    fi
+                    ;;
+                *)
+                    _ps_args+=("$1")
+                    shift
+                    ;;
+            esac
+        done
+        set -- "${_ps_args[@]}"
         if [[ $# -lt 3 ]]; then
-            echo "Usage: $(basename "$0") probe-single <agent_type> <perspective> <task_id> [original_prompt]"
+            echo "Usage: $(basename "$0") probe-single <agent_type> <perspective> <task_id> [original_prompt] [--output-dir <dir>]"
             exit 1
         fi
         probe_single_agent "$1" "$2" "$3" "${4:-}"
