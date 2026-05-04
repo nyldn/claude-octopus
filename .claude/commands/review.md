@@ -144,7 +144,7 @@ const profile = {
 Run via Bash tool:
 
 ```bash
-/path/to/orchestrate.sh code-review '<profile-json>'
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh code-review '<profile-json>'
 ```
 
 Where `<profile-json>` is the JSON profile built in Step 2.
