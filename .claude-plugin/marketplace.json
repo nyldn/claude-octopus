@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "nyldn plugins for Claude Code workflows.",
-    "version": "9.34.0"
+    "version": "9.35.0"
   },
   "plugins": [
     {
@@ -15,8 +15,8 @@
         "source": "url",
         "url": "https://github.com/nyldn/claude-octopus.git"
       },
-      "description": "v9.34.0 - Multi-LLM orchestration for Claude Code with remote/web session defaults, lightweight statusline, and setup/doctor tier hints. 32 personas, 48 commands, 52 skills. Run /octo:setup.",
-      "version": "9.34.0",
+      "description": "v9.35.0 - Multi-LLM orchestration for Claude Code with remote/web session defaults, lightweight statusline, and setup/doctor tier hints. 32 personas, 48 commands, 52 skills. Run /octo:setup.",
+      "version": "9.35.0",
       "author": {
         "name": "nyldn",
         "url": "https://github.com/nyldn"

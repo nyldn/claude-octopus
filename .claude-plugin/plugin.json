@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "9.34.0",
-  "description": "v9.34.0 — Remote/web session defaults: autonomous routing, skipped provider probes, lightweight statusline, and setup/doctor tier hints. Run /octo:setup.",
+  "version": "9.35.0",
+  "description": "v9.35.0 \u2014 Remote/web session defaults: autonomous routing, skipped provider probes, lightweight statusline, and setup/doctor tier hints. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"

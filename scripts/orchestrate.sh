@@ -92,6 +92,8 @@ source "${SCRIPT_DIR}/lib/preflight.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/dispatch.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/progressive.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/pr-review-state.sh" 2>/dev/null || true
+source "${SCRIPT_DIR}/lib/proof-packet.sh" 2>/dev/null || true
+source "${SCRIPT_DIR}/lib/graphify.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/review.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/workflows.sh"
 source "${SCRIPT_DIR}/lib/doctor.sh" 2>/dev/null || true

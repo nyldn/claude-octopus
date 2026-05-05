@@ -1,6 +1,6 @@
 {
   "name": "claude-octopus",
-  "version": "9.34.0",
+  "version": "9.35.0",
   "description": "Multi-LLM orchestration with Double Diamond workflows, provider routing, safety gates, and automation. Dispatches to Codex, Gemini, Copilot, Qwen, Perplexity, OpenRouter, Ollama, and OpenCode from a single plugin.",
   "author": {
     "name": "nyldn"
@@ -32,7 +32,7 @@
   "hooks": "./.claude-plugin/hooks.json",
   "interface": {
     "displayName": "Claude Octopus",
-    "shortDescription": "Multi-LLM orchestration — dispatch to 8 providers from one plugin.",
+    "shortDescription": "Multi-LLM orchestration \u2014 dispatch to 8 providers from one plugin.",
     "longDescription": "Claude Octopus orchestrates multiple AI providers (Codex, Gemini, Copilot, Qwen, Perplexity, OpenRouter, Ollama, OpenCode) through structured Double Diamond workflows. 32 personas, 48 commands, 52 skills covering research, implementation, review, TDD, security audits, and more. Provider dispatch with circuit breakers, cost tracking, and model routing.",
     "developerName": "nyldn",
     "category": "Orchestration",

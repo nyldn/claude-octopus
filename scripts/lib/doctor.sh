@@ -8,6 +8,11 @@ if ! declare -f _is_cursor_agent_binary >/dev/null 2>&1; then
     source "${_doctor_lib_dir}/cursor-agent.sh" 2>/dev/null || true
 fi
 
+if ! declare -f octo_graphify_status_json >/dev/null 2>&1; then
+    _doctor_lib_dir="${_doctor_lib_dir:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
+    source "${_doctor_lib_dir}/graphify.sh" 2>/dev/null || true
+fi
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # MODULAR DOCTOR SYSTEM (v8.16.0)
 # 8 check categories, structured results, category filtering, JSON output
@@ -270,6 +275,68 @@ doctor_check_providers() {
             doctor_add "provider-fallbacks" "providers" "pass" \
                 "No recent provider fallbacks" ""
         fi
+    fi
+}
+
+# --- Category 1b: Optional companions ---
+doctor_check_companions() {
+    if ! declare -f octo_graphify_status_json >/dev/null 2>&1; then
+        doctor_add "graphify-companion" "companions" "info" \
+            "Graphify companion unavailable" "scripts/lib/graphify.sh not loaded"
+        return 0
+    fi
+
+    local project_root status installed version bin graph_exists report_exists needs_update out_dir hook_status
+    project_root=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+    status=$(octo_graphify_status_json "$project_root" 2>/dev/null || true)
+    if [[ -z "$status" ]]; then
+        doctor_add "graphify-companion" "companions" "info" \
+            "Graphify companion disabled" "Set OCTOPUS_GRAPHIFY=1 to re-enable"
+        return 0
+    fi
+
+    installed=$(printf '%s' "$status" | jq -r '.installed')
+    version=$(printf '%s' "$status" | jq -r '.version')
+    bin=$(printf '%s' "$status" | jq -r '.bin')
+    graph_exists=$(printf '%s' "$status" | jq -r '.graph_exists')
+    report_exists=$(printf '%s' "$status" | jq -r '.report_exists')
+    needs_update=$(printf '%s' "$status" | jq -r '.needs_update')
+    out_dir=$(printf '%s' "$status" | jq -r '.out_dir')
+    hook_status=$(printf '%s' "$status" | jq -r '.hook_status // ""')
+
+    if [[ "$installed" == "true" ]]; then
+        doctor_add "graphify-cli" "companions" "pass" \
+            "Graphify CLI installed (v${version})" "$bin"
+    else
+        doctor_add "graphify-cli" "companions" "info" \
+            "Graphify CLI not installed (optional)" "uv tool install graphifyy"
+    fi
+
+    if [[ "$graph_exists" == "true" && "$report_exists" == "true" ]]; then
+        doctor_add "graphify-graph" "companions" "pass" \
+            "Graphify graph available" "$out_dir"
+    elif [[ "$graph_exists" == "true" || "$report_exists" == "true" ]]; then
+        doctor_add "graphify-graph" "companions" "warn" \
+            "Graphify output incomplete" "Expected both graph.json and GRAPH_REPORT.md under $out_dir"
+    else
+        doctor_add "graphify-graph" "companions" "info" \
+            "No Graphify graph for this project" "Run graphify extract . when a graph map would help"
+    fi
+
+    if [[ "$needs_update" == "true" ]]; then
+        doctor_add "graphify-freshness" "companions" "warn" \
+            "Graphify graph may be stale" "needs_update flag present under $out_dir"
+    elif [[ "$graph_exists" == "true" ]]; then
+        doctor_add "graphify-freshness" "companions" "pass" \
+            "No Graphify stale flag found" "$out_dir"
+    else
+        doctor_add "graphify-freshness" "companions" "info" \
+            "Graphify freshness not applicable" "No graphify-out graph found"
+    fi
+
+    if [[ "$installed" == "true" && -n "$hook_status" ]]; then
+        doctor_add "graphify-hooks" "companions" "info" \
+            "Graphify hook status checked" "$hook_status"
     fi
 }
 
@@ -1379,7 +1446,7 @@ do_doctor() {
     DOCTOR_RESULTS_DETAIL=()
 
     # Run checks (filtered if category specified)
-    local categories=(providers auth config state smoke hooks scheduler skills conflicts agents recurrence cache)
+    local categories=(providers companions auth config state smoke hooks scheduler skills conflicts agents recurrence cache)
     for cat in "${categories[@]}"; do
         if [[ -z "$category_filter" || "$category_filter" == "$cat" ]]; then
             "doctor_check_${cat}"
