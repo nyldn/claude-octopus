@@ -4,7 +4,10 @@
 
 ### Changed
 
-- Strengthen auto-router hooks for plain-language workflow routing
+- Strengthen auto-router hooks for plain-language workflow routing.
+- Add explicit `off`, `suggest`, and `invoke` auto-router modes so users can choose whether natural-language prompts only suggest Octopus workflows or invoke them directly.
+- Add a compact SessionStart routing contract through `auto-router-inject.sh` so plain-language `debate`, `research`, and review prompts route more consistently through `/octo:*` workflows.
+- Harden hook trap tests with isolated `HOME` directories and per-hook deadlines to prevent flaky hook validation from leaking user state.
 
 ---
 
@@ -12,15 +15,20 @@
 
 ### Changed
 
-- Patch public plugin root packaging and release tag safety
+- Patch public plugin root packaging so Claude, Codex, Cursor, and Factory manifests stay version-aligned for public distribution.
+- Harden release tag safety and quiet-push handling in the release script so release automation does not fail on benign remote output.
+- Add macOS routing and root-metadata test hardening around the public plugin package.
 
 ---
 
 ## [9.32.0] - 2026-05-05
 
-### Changed
+### Added
 
-- Add round-aware PR review history (#322)
+- Add round-aware PR review history for `/octo:review` and PR review flows (#322).
+- Persist per-PR review state in `scripts/lib/pr-review-state.sh` so follow-up rounds can distinguish newly introduced findings from already-reported ones.
+- Thread review history into `scripts/lib/review.sh` and command docs so repeat reviews can focus on deltas instead of restating the same findings.
+- Add unit coverage for PR review state storage and review-history integration.
 
 ---
 
@@ -42,9 +50,20 @@
 
 ## [9.30.0] - 2026-04-29
 
+### Added
+
+- Add Cursor Agent CLI provider support from PR #281, including provider detection, auth checks, model resolution, fleet construction, dispatch integration, and smoke tests.
+- Add `scripts/lib/cursor-agent.sh` and focused unit coverage for cursor-agent provider behavior.
+
+### Fixed
+
+- Harden remaining async PID call sites and audit result handling so async workflows do not report stale or missing process state.
+- Ensure the plugin symlink exists before the first command runs, closing #318.
+- Tighten cursor-agent auth parsing around `cli-config.json` and `authInfo` detection.
+
 ### Changed
 
-- Harden remaining async PID and audit result handling
+- Make version-advisory tests release-agnostic and address release-review feedback.
 
 ---
 
