@@ -107,7 +107,7 @@ test_sanitize_private_keys() {
     local func_body
     func_body=$(sed -n '/^sanitize_secrets()/,/^}/p' "$ALL_SRC")
 
-    if grep -q 'PRIVATE KEY.*REDACTED\|BEGIN.*REDACTED' <<< "$func_body"; then
+    if grep -qE 'PRIVATE KEY.*REDACTED|BEGIN.*REDACTED' <<< "$func_body"; then
         test_pass
     else
         test_fail "Private key sanitization not found"
@@ -163,7 +163,7 @@ test_checkpoint_debounce() {
     local func_body
     func_body=$(sed -n '/^save_agent_checkpoint()/,/^}/p' "$ALL_SRC")
 
-    if grep -q "300\|5 min" <<< "$func_body"; then
+    if grep -qE "300|5 min" <<< "$func_body"; then
         test_pass
     else
         test_fail "5-minute debounce not found"
@@ -199,7 +199,9 @@ test_checkpoint_truncation() {
 test_checkpoint_in_spawn_agent_failure() {
     test_case "Checkpoint saved in spawn_agent failure path"
 
-    if grep -B 5 -A 5 "save_agent_checkpoint" "$ALL_SRC" | grep -q "FAILED\|failed\|spawn_agent"; then
+    local failure_context
+    failure_context=$(grep -B 5 -A 5 "save_agent_checkpoint" "$ALL_SRC" || true)
+    if grep -qE "FAILED|failed|spawn_agent" <<< "$failure_context"; then
         test_pass
     else
         test_fail "Checkpoint not saved on failure"
