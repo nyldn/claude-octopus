@@ -193,10 +193,12 @@ echo ""
 
 echo "3/7 Pushing..."
 # --no-verify: skip pre-push hook (CI validates on PR; pre-push re-runs tests already run at commit)
-if ! git push --quiet --no-verify -u origin "$BRANCH" 2>&1 | grep -v "^remote:"; then
+PUSH_OUTPUT=$(git push --quiet --no-verify -u origin "$BRANCH" 2>&1) || {
+    printf '%s\n' "$PUSH_OUTPUT" | grep -v "^remote:" || true
     echo "   ERROR: Push failed. Aborting release."
     exit 1
-fi
+}
+printf '%s\n' "$PUSH_OUTPUT" | grep -v "^remote:" || true
 echo "   Pushed"
 echo ""
 
