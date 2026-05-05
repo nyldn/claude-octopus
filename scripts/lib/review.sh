@@ -338,6 +338,11 @@ review_run() {
     local findings_file="$results_dir/review-findings-${timestamp}.json"
     mkdir -p "$results_dir"
 
+    local proof_dir=""
+    if declare -F octo_proof_init >/dev/null 2>&1 && octo_proof_enabled; then
+        proof_dir=$(octo_proof_init "review" "target=${target} focus=${focus}" "$profile_json" 2>/dev/null || true)
+    fi
+
     log INFO "review_run: target=$target focus=$focus provenance=$provenance autonomy=$autonomy history=$history"
 
     # ── REVIEW.md ────────────────────────────────────────────────────────────
@@ -345,6 +350,15 @@ review_run() {
     local review_context=""
     if [[ -n "$REVIEW_ALWAYS_CHECK" || -n "$REVIEW_STYLE_RULES" ]]; then
         review_context="Repository review rules (from REVIEW.md):\nAlways check:\n${REVIEW_ALWAYS_CHECK}\nStyle:\n${REVIEW_STYLE_RULES}"
+    fi
+
+    # Graphify companion context is passive: use an existing graph report when
+    # present, but never build or refresh a graph from /octo:review itself.
+    local graphify_context=""
+    if declare -F octo_graphify_context_for_prompt >/dev/null 2>&1; then
+        local graphify_root
+        graphify_root=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+        graphify_context=$(octo_graphify_context_for_prompt "$graphify_root" 12000 2>/dev/null || true)
     fi
 
     # ── Collect diff ─────────────────────────────────────────────────────────
@@ -359,6 +373,14 @@ review_run() {
     if [[ -z "$diff_content" ]]; then
         log WARN "review_run: no diff found for target=$target"
         echo '{"findings":[],"message":"No changes found to review"}' > "$findings_file"
+        if [[ -n "$proof_dir" ]]; then
+            octo_proof_artifact "$proof_dir" "review-findings" "$findings_file" "no changes found"
+            octo_proof_claim "$proof_dir" "No changes found to review" "verified" "$findings_file"
+            octo_proof_capture_provider_status "$proof_dir" "$provider_status_file"
+            octo_proof_finalize "$proof_dir" "no_changes" "No changes found to review."
+            echo "Proof packet: $proof_dir"
+        fi
+        rm -f "$provider_status_file"
         render_terminal_report "$findings_file"
         return 0
     fi
@@ -421,10 +443,27 @@ review_run() {
     fi
     export TIMEOUT="$review_timeout"
 
+    if [[ -n "$proof_dir" ]]; then
+        octo_proof_event "$proof_dir" "review_scope" "$(jq -n \
+            --arg target "$target" \
+            --arg focus "$focus" \
+            --arg provenance "$provenance" \
+            --arg autonomy "$autonomy" \
+            --arg publish "$publish" \
+            --arg debate "$debate" \
+            --arg history "$history" \
+            --argjson diff_lines "$diff_lines" \
+            '{target:$target, focus:$focus, provenance:$provenance, autonomy:$autonomy, publish:$publish, debate:$debate, history:$history, diff_lines:$diff_lines}')"
+    fi
+
     # ── ROUND 1: Parallel agent fleet ────────────────────────────────────────
     log INFO "review_run: Round 1 — parallel specialist fleet (timeout=${review_timeout}s, diff=${diff_lines} lines)"
     local fleet
     fleet=$(build_review_fleet)
+
+    if [[ -n "$proof_dir" ]]; then
+        octo_proof_event "$proof_dir" "provider_fleet" "$(printf '%s\n' "$fleet" | jq -R -s 'split("\n")[:-1]')"
+    fi
 
     local agent_prompt_base
     agent_prompt_base="You are a code reviewer. Review the following diff and return ONLY a JSON object with a 'findings' array.
@@ -438,6 +477,7 @@ Severity guide:
 
 ${review_context}
 ${review_history_context}
+${graphify_context}
 
 Focus areas for this review: ${focus}
 Provenance: ${provenance}
@@ -531,6 +571,13 @@ ${agent_prompt_base}"
     if [[ $_r1_failed -ge $_r1_total ]] && [[ $_r1_total -gt 0 ]]; then
         log ERROR "review_run: ALL Round 1 providers failed ($_r1_failed/$_r1_total). Review output is unreliable."
         echo "{\"findings\":[],\"warning\":\"All $_r1_total review providers failed. No code was actually reviewed. Run /octo:doctor to diagnose provider issues.\"}" > "$findings_file"
+        if [[ -n "$proof_dir" ]]; then
+            octo_proof_artifact "$proof_dir" "review-findings" "$findings_file" "all providers failed"
+            octo_proof_claim "$proof_dir" "Code was reviewed by at least one provider" "contradicted" "$findings_file"
+            octo_proof_capture_provider_status "$proof_dir" "$provider_status_file"
+            octo_proof_finalize "$proof_dir" "fail" "All ${_r1_total} Round 1 review providers failed."
+            echo "Proof packet: $proof_dir"
+        fi
         render_terminal_report "$findings_file"
         print_provider_report "$provider_status_file"
         return 1
@@ -633,6 +680,10 @@ Return ONLY JSON: {\"findings\": [...ranked, deduplicated findings...]}"
     echo "$final_json" > "$findings_file"
     log INFO "review_run: findings saved to $findings_file"
 
+    if [[ -n "$proof_dir" ]]; then
+        octo_proof_artifact "$proof_dir" "review-findings" "$findings_file" "final review findings"
+    fi
+
     if [[ -n "$review_state_file" ]] && declare -F pr_review_state_append_round >/dev/null 2>&1; then
         local final_findings classification providers_json
         final_findings=$(echo "$final_json" | jq -c '.findings // []' 2>/dev/null || echo "[]")
@@ -643,6 +694,9 @@ Return ONLY JSON: {\"findings\": [...ranked, deduplicated findings...]}"
         review_timeline=$(pr_review_state_render_timeline "$review_state_file" "$review_head_sha" "$classification" "$current_round" 2>/dev/null || true)
         if pr_review_state_append_round "$review_state_file" "$review_host" "$review_repo" "$review_pr_number" "$review_head_sha" "$providers_json" "$final_findings" "$classification" 2>/dev/null; then
             log INFO "review_run: round-aware state saved to $review_state_file"
+            if [[ -n "$proof_dir" ]]; then
+                octo_proof_artifact "$proof_dir" "review-history-state" "$review_state_file" "round-aware PR review state"
+            fi
         fi
     fi
 
@@ -671,6 +725,25 @@ Return ONLY JSON: {\"findings\": [...ranked, deduplicated findings...]}"
     if [[ -n "$review_timeline" ]]; then
         echo ""
         echo "$review_timeline"
+    fi
+
+    if [[ -n "$proof_dir" ]]; then
+        local proof_finding_count proof_warning proof_verdict proof_summary
+        proof_finding_count=$(jq '.findings | length' "$findings_file" 2>/dev/null || echo "0")
+        proof_warning=$(jq -r '.warning // empty' "$findings_file" 2>/dev/null || true)
+        if [[ -n "$proof_warning" ]]; then
+            proof_verdict="fail"
+        elif [[ "$proof_finding_count" -gt 0 ]]; then
+            proof_verdict="findings"
+        else
+            proof_verdict="pass"
+        fi
+        proof_summary="/octo:review completed with ${proof_finding_count} finding(s)."
+        octo_proof_claim "$proof_dir" "Review findings were written to disk" "verified" "$findings_file"
+        octo_proof_capture_provider_status "$proof_dir" "$provider_status_file"
+        octo_proof_finalize "$proof_dir" "$proof_verdict" "$proof_summary"
+        echo ""
+        echo "Proof packet: $proof_dir"
     fi
 
     # v9.0: Print provider report card — always last, impossible to miss

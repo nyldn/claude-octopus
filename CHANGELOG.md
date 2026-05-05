@@ -1,5 +1,14 @@
 # Changelog
 
+## [9.35.0] - 2026-05-05
+
+### Added
+
+- Add local proof packets for `/octo:review`, including JSONL evidence, findings artifacts, provider substitution records, and a markdown summary under `~/.claude-octopus/runs/`.
+- Add optional Graphify companion detection and passive `/octo:review` context injection from existing `graphify-out/GRAPH_REPORT.md` files.
+
+---
+
 ## [9.34.0] - 2026-05-05
 
 ### Added

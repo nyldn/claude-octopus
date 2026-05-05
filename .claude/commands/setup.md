@@ -32,6 +32,10 @@ printf "ollama:%s\n" "$(command -v ollama >/dev/null 2>&1 && curl -sf http://loc
 printf "opencode:%s\n" "$(command -v opencode >/dev/null 2>&1 && echo installed || echo missing)"
 printf "remote_session:%s\n" "$([[ "${CLAUDE_CODE_REMOTE:-}" == "true" || "${OCTOPUS_REMOTE_SESSION:-}" == "true" ]] && echo true || echo false)"
 printf "octo_tier:%s\n" "${OCTO_TIER:-unset}"
+echo "=== Companions ==="
+printf "graphify:%s\n" "$(command -v graphify >/dev/null 2>&1 && echo installed || echo missing)"
+GRAPHIFY_OUT_DIR="${GRAPHIFY_OUT:-graphify-out}"
+printf "graphify_graph:%s\n" "$([ -f "${GRAPHIFY_OUT_DIR}/graph.json" ] && [ -f "${GRAPHIFY_OUT_DIR}/GRAPH_REPORT.md" ] && echo available || echo missing)"
 echo "=== Token Optimization ==="
 printf "rtk:%s\n" "$(command -v rtk >/dev/null 2>&1 && echo "installed $(rtk --version 2>&1 | head -1)" || echo missing)"
 printf "rtk_hook:%s\n" "$(grep -q 'rtk' "${HOME}/.claude/settings.json" 2>/dev/null && echo active || echo missing)"
@@ -62,6 +66,9 @@ Providers:
 Token Optimization:
   RTK:              [Installed + Hook active ✓ / Installed ✓ / Missing ✗]
   octo-compress:    [Available ✓ / Not in PATH]
+
+Companions:
+  Graphify:         [CLI installed ✓ / Missing] [Graph available ✓ / Missing]
 
 Session:
   Remote/Web:       [Yes / No]
@@ -146,6 +153,7 @@ AskUserQuestion({
       {label: "Add or configure a provider", description: "Install Codex, Gemini, Perplexity, Copilot, Qwen, or OpenCode"},
       {label: "Configure models", description: "Set which models are used for each workflow phase → launches /octo:model-config"},
       {label: "Set up token optimization (RTK)", description: "Install RTK for 60-90% token savings on bash output"},
+      {label: "Set up Graphify companion", description: "Detect or install Graphify for optional knowledge-graph context"},
       {label: "Change work mode", description: "Switch between Dev mode and Knowledge Work mode"},
       {label: "Set project tier", description: "Set OCTO_TIER=prototype|mvp|production as a routing hint"},
       {label: "Fine-tune preferences", description: "Auto-routing, banner verbosity, telemetry, cost mode"},
@@ -160,6 +168,7 @@ Route based on selection:
 - **Add or configure a provider** → Continue to the provider install flow below
 - **Configure models** → Invoke `/octo:model-config` (the interactive model config wizard)
 - **Set up RTK** → Jump to the RTK section below
+- **Set up Graphify companion** → Jump to the Graphify Companion section below
 - **Change work mode** → Jump to the Work Mode section (STEP 4)
 - **Set project tier** → Jump to Project Tier Hint (STEP 4c)
 - **Fine-tune preferences** → Jump to the Fine-tune section (STEP 5)
@@ -287,6 +296,22 @@ AskUserQuestion({
 ```
 
 If a tier is selected, append `export OCTO_TIER=<prototype|mvp|production>` to the user's shell profile or project-local environment, only if not already present.
+
+## Graphify Companion
+
+Graphify is optional and is not a provider. If `graphify-out/GRAPH_REPORT.md` already exists, Octopus uses it as a compact architecture map for escalated workflows such as `/octo:review`; it does not build or refresh graphs automatically.
+
+To install and initialize Graphify when the user opts in:
+
+```bash
+uv tool install graphifyy
+graphify extract .
+graphify claude install
+graphify codex install
+graphify hook install
+```
+
+Use `OCTOPUS_GRAPHIFY=0` to disable passive Graphify context injection.
 
 ## Remote/Web Session Defaults
 

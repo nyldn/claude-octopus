@@ -156,6 +156,10 @@ The pipeline runs 3 rounds (parallel fleet → verification → synthesis) and o
 
 Round-aware PR history is enabled automatically for open PR reviews. Local state is stored at `~/.claude-octopus/pr-state/<host>/<owner>/<repo>/<pr>.json` and is used to show addressed, persistent, new, and regressed finding counts across repeated `/octo:review` runs. Set `OCTOPUS_PR_HISTORY=0` before invoking the command to disable all history reads and writes.
 
+Each review also writes a local proof packet under `~/.claude-octopus/runs/<run-id>/`. The packet includes `state.json`, `proof.jsonl`, `summary.md`, findings artifacts, and provider substitution records so review claims can be checked after the chat scroll is gone. Set `OCTOPUS_PROOF_PACKET=0` to disable proof packet writes.
+
+If a project already has `graphify-out/GRAPH_REPORT.md`, `/octo:review` also passes a compact Graphify companion context into the reviewer prompt as an orientation map. This is passive: Octopus does not build or refresh the graph during review, and `OCTOPUS_GRAPHIFY=0` disables the injection.
+
 ## What `/octo:review` checks
 
 - Correctness: logic bugs, edge cases, regressions, unreachable code
