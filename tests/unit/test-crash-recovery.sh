@@ -11,6 +11,7 @@ test_suite "Crash-Recovery with Secret Sanitization"
 
 # Combined search target (functions decomposed to lib/ in v9.7.7+)
 ALL_SRC=$(mktemp)
+trap 'rm -f "$ALL_SRC"' EXIT
 cat "$PROJECT_ROOT/scripts/orchestrate.sh" "$PROJECT_ROOT/scripts/lib/"*.sh > "$ALL_SRC" 2>/dev/null
 
 test_sanitize_secrets_function_exists() {
@@ -41,7 +42,7 @@ test_sanitize_api_keys() {
     local func_body
     func_body=$(sed -n '/^sanitize_secrets()/,/^}/p' "$ALL_SRC")
 
-    if echo "$func_body" | grep -q 'sk-.*REDACTED'; then
+    if grep -q 'sk-.*REDACTED' <<< "$func_body"; then
         test_pass
     else
         test_fail "sk-* API key sanitization not found"
@@ -54,7 +55,7 @@ test_sanitize_aws_keys() {
     local func_body
     func_body=$(sed -n '/^sanitize_secrets()/,/^}/p' "$ALL_SRC")
 
-    if echo "$func_body" | grep -q 'AKIA.*REDACTED'; then
+    if grep -q 'AKIA.*REDACTED' <<< "$func_body"; then
         test_pass
     else
         test_fail "AKIA* AWS key sanitization not found"
@@ -67,7 +68,7 @@ test_sanitize_github_tokens() {
     local func_body
     func_body=$(sed -n '/^sanitize_secrets()/,/^}/p' "$ALL_SRC")
 
-    if echo "$func_body" | grep -q 'ghp_.*REDACTED' && echo "$func_body" | grep -q 'gho_.*REDACTED'; then
+    if grep -q 'ghp_.*REDACTED' <<< "$func_body" && grep -q 'gho_.*REDACTED' <<< "$func_body"; then
         test_pass
     else
         test_fail "GitHub token sanitization not found"
@@ -80,7 +81,7 @@ test_sanitize_bearer_tokens() {
     local func_body
     func_body=$(sed -n '/^sanitize_secrets()/,/^}/p' "$ALL_SRC")
 
-    if echo "$func_body" | grep -q 'Bearer.*REDACTED'; then
+    if grep -q 'Bearer.*REDACTED' <<< "$func_body"; then
         test_pass
     else
         test_fail "Bearer token sanitization not found"
@@ -93,7 +94,7 @@ test_sanitize_jwt_tokens() {
     local func_body
     func_body=$(sed -n '/^sanitize_secrets()/,/^}/p' "$ALL_SRC")
 
-    if echo "$func_body" | grep -q 'eyJ.*REDACTED'; then
+    if grep -q 'eyJ.*REDACTED' <<< "$func_body"; then
         test_pass
     else
         test_fail "JWT token sanitization not found"
@@ -106,7 +107,7 @@ test_sanitize_private_keys() {
     local func_body
     func_body=$(sed -n '/^sanitize_secrets()/,/^}/p' "$ALL_SRC")
 
-    if echo "$func_body" | grep -q 'PRIVATE KEY.*REDACTED\|BEGIN.*REDACTED'; then
+    if grep -qE 'PRIVATE KEY.*REDACTED|BEGIN.*REDACTED' <<< "$func_body"; then
         test_pass
     else
         test_fail "Private key sanitization not found"
@@ -119,10 +120,10 @@ test_sanitize_connection_strings() {
     local func_body
     func_body=$(sed -n '/^sanitize_secrets()/,/^}/p' "$ALL_SRC")
 
-    if echo "$func_body" | grep -q 'postgres://.*REDACTED' && \
-       echo "$func_body" | grep -q 'mysql://.*REDACTED' && \
-       echo "$func_body" | grep -q 'mongodb://.*REDACTED' && \
-       echo "$func_body" | grep -q 'redis://.*REDACTED'; then
+    if grep -q 'postgres://.*REDACTED' <<< "$func_body" && \
+       grep -q 'mysql://.*REDACTED' <<< "$func_body" && \
+       grep -q 'mongodb://.*REDACTED' <<< "$func_body" && \
+       grep -q 'redis://.*REDACTED' <<< "$func_body"; then
         test_pass
     else
         test_fail "Connection string sanitization not found"
@@ -135,7 +136,7 @@ test_sanitize_password_patterns() {
     local func_body
     func_body=$(sed -n '/^sanitize_secrets()/,/^}/p' "$ALL_SRC")
 
-    if echo "$func_body" | grep -q 'password=.*REDACTED'; then
+    if grep -q 'password=.*REDACTED' <<< "$func_body"; then
         test_pass
     else
         test_fail "Password pattern sanitization not found"
@@ -148,8 +149,8 @@ test_sanitize_gitlab_slack() {
     local func_body
     func_body=$(sed -n '/^sanitize_secrets()/,/^}/p' "$ALL_SRC")
 
-    if echo "$func_body" | grep -q 'glpat-.*REDACTED' && \
-       echo "$func_body" | grep -q 'xox.*REDACTED'; then
+    if grep -q 'glpat-.*REDACTED' <<< "$func_body" && \
+       grep -q 'xox.*REDACTED' <<< "$func_body"; then
         test_pass
     else
         test_fail "GitLab/Slack sanitization not found"
@@ -162,7 +163,7 @@ test_checkpoint_debounce() {
     local func_body
     func_body=$(sed -n '/^save_agent_checkpoint()/,/^}/p' "$ALL_SRC")
 
-    if echo "$func_body" | grep -q "300\|5 min"; then
+    if grep -qE "300|5 min" <<< "$func_body"; then
         test_pass
     else
         test_fail "5-minute debounce not found"
@@ -175,7 +176,7 @@ test_checkpoint_expiry() {
     local func_body
     func_body=$(sed -n '/^load_agent_checkpoint()/,/^}/p' "$ALL_SRC")
 
-    if echo "$func_body" | grep -q "86400"; then
+    if grep -q "86400" <<< "$func_body"; then
         test_pass
     else
         test_fail "24h expiry (86400) not found"
@@ -188,7 +189,7 @@ test_checkpoint_truncation() {
     local func_body
     func_body=$(sed -n '/^save_agent_checkpoint()/,/^}/p' "$ALL_SRC")
 
-    if echo "$func_body" | grep -q "4096"; then
+    if grep -q "4096" <<< "$func_body"; then
         test_pass
     else
         test_fail "4096 char truncation not found"
@@ -198,7 +199,9 @@ test_checkpoint_truncation() {
 test_checkpoint_in_spawn_agent_failure() {
     test_case "Checkpoint saved in spawn_agent failure path"
 
-    if grep -B 5 -A 5 "save_agent_checkpoint" "$ALL_SRC" | grep -q "FAILED\|failed\|spawn_agent"; then
+    local failure_context
+    failure_context=$(grep -B 5 -A 5 "save_agent_checkpoint" "$ALL_SRC" || true)
+    if grep -qE "FAILED|failed|spawn_agent" <<< "$failure_context"; then
         test_pass
     else
         test_fail "Checkpoint not saved on failure"
@@ -259,5 +262,4 @@ test_checkpoint_in_spawn_agent_start
 test_cleanup_in_embrace
 test_dry_run_with_crash_recovery
 
-rm -f "$ALL_SRC"
 test_summary

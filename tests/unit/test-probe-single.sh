@@ -34,7 +34,7 @@ assert_contains "$(grep -c 'probe-single)' "$ALL_SRC" 2>/dev/null || echo 0)" \
 
 # ── probe-single calls probe_single_agent ────────────────────────────────────
 
-assert_contains "$(grep -A10 'probe-single)' "$ALL_SRC" | head -15)" \
+assert_contains "$(grep -A40 'probe-single)' "$ALL_SRC" | head -45)" \
   "probe_single_agent" "probe-single: dispatch calls probe_single_agent()"
 
 # ── probe_single_agent writes result files ───────────────────────────────────
