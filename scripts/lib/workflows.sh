@@ -759,20 +759,41 @@ tangle_develop() {
     # Step 1: Decompose into validated subtasks
     log INFO "Step 1: Task decomposition..."
 
-    # Résoudre les références de fichiers .md dans le prompt
+    # Resolve a referenced Markdown plan file without letting grep/head trip
+    # pipefail when the prompt has no file token.
     local resolved_prompt="$prompt"
-    local file_ref
-    file_ref=$(echo "$prompt" | grep -oE '[^[:space:]]+\.md' | head -1)
-    file_ref="${file_ref/#\~/$HOME}"   # expand ~ que [[ -f ]] ne résout pas entre guillemets
+    local file_ref=""
+    local raw_file_ref=""
+    local token
+    for token in $prompt; do
+        if [[ "$token" == *.md ]]; then
+            raw_file_ref="$token"
+            file_ref="${token/#\~/$HOME}"
+            break
+        fi
+    done
     if [[ -n "$file_ref" && -f "$file_ref" ]]; then
         local file_content
         file_content=$(<"$file_ref")
-        resolved_prompt="Implement the code changes described in the following plan. Do NOT modify the plan file itself (${file_ref}).
-
---- PLAN: ${file_ref} ---
+        local plan_block="--- PLAN: ${file_ref} ---
 ${file_content}
 --- END PLAN ---"
-        log INFO "Resolved file reference: ${file_ref} — injecting content into decompose prompt"
+        local trimmed_prompt="$prompt"
+        trimmed_prompt="${trimmed_prompt#"${trimmed_prompt%%[![:space:]]*}"}"
+        trimmed_prompt="${trimmed_prompt%"${trimmed_prompt##*[![:space:]]}"}"
+
+        if [[ "$trimmed_prompt" == "$raw_file_ref" || "$trimmed_prompt" == "$file_ref" ]]; then
+            resolved_prompt="Implement the code changes described in the following plan. Do NOT modify the plan file itself (${file_ref}).
+
+${plan_block}"
+        else
+            resolved_prompt="${prompt}
+
+The following referenced plan file has been resolved. Use it as implementation context and do NOT modify the plan file itself (${file_ref}).
+
+${plan_block}"
+        fi
+        log INFO "Resolved file reference: ${file_ref} - injecting content into decompose prompt"
     fi
 
     local decompose_prompt="Decompose this task into subtasks that can be executed in parallel.
