@@ -24,7 +24,7 @@ _fan_out_agents_from_config() {
     jq -r '
         (.routing.features.parallel // [])
         | if type == "array" then .[] else empty end
-    ' "$config_file" 2>/dev/null
+    ' "$config_file" 2>/dev/null || true
 }
 
 fan_out() {

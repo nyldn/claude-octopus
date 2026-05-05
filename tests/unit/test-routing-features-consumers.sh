@@ -59,6 +59,15 @@ assert_file_has "$DEBATE" 'resolve_provider_to_agent "\$_provider"' \
 assert_file_has "$DEBATE" 'grep -cv .*\|\| true' \
     "debate participant count is pipefail-safe"
 
+assert_file_has "$DEBATE" '2>/dev/null \|\| true' \
+    "debate config jq read is failure-tolerant"
+
+assert_file_has "$PARALLEL" '2>/dev/null \|\| true' \
+    "parallel config jq read is failure-tolerant"
+
+assert_file_has "$DEBATE" '_resolved_count' \
+    "debate config logging is gated on resolved participants"
+
 assert_file_lacks "$DEBATE" 'codex, gemini, sonnet, or hybrid' \
     "debate synthesis choices are not hardcoded"
 

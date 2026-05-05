@@ -45,7 +45,7 @@ grapple_debate() {
         _participants=$(jq -r '
             (.routing.features.debate // [])
             | if type == "array" then .[] else empty end
-        ' "$_debate_config_file" 2>/dev/null)
+        ' "$_debate_config_file" 2>/dev/null || true)
         if [[ -n "$_participants" ]]; then
             _participant_count=$(printf '%s\n' "$_participants" | grep -cv '^$' || true)
             _participant_count="${_participant_count:-0}"
@@ -53,6 +53,7 @@ grapple_debate() {
                 log WARN "Debate supports 3 participants; using first 3 of $_participant_count from .routing.features.debate"
             fi
             local _slot_idx=0
+            local _resolved_count=0
             local _provider _agent _label _label_upper
             while IFS= read -r _provider; do
                 [[ -z "$_provider" ]] && continue
@@ -67,9 +68,14 @@ grapple_debate() {
                     1) agent_b="$_agent"; label_b="$_label"; label_b_upper="$_label_upper" ;;
                     2) agent_c="$_agent"; label_c="$_label"; label_c_upper="$_label_upper"; break ;;
                 esac
+                _resolved_count=$((_resolved_count + 1))
                 _slot_idx=$((_slot_idx + 1))
             done <<< "$_participants"
-            log INFO "Debate participants (from config): $label_a ($agent_a) vs $label_b ($agent_b) vs $label_c ($agent_c)"
+            if [[ "$_resolved_count" -gt 0 ]]; then
+                log INFO "Debate participants (from config): $label_a ($agent_a) vs $label_b ($agent_b) vs $label_c ($agent_c)"
+            else
+                log INFO "Debate config had no valid participants; using defaults: $label_a ($agent_a) vs $label_b ($agent_b) vs $label_c ($agent_c)"
+            fi
         fi
     fi
 
