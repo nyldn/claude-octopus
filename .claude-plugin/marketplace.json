@@ -15,8 +15,8 @@
         "source": "url",
         "url": "https://github.com/nyldn/claude-octopus.git"
       },
-      "description": "v9.30.0 - Multi-LLM orchestration for Claude Code. Route tasks to Codex, Gemini, Perplexity, Copilot, Qwen, Ollama, and OpenCode. 32 personas, 48 commands, 52 skills. Run /octo:setup.",
-      "version": "9.30.0",
+      "description": "v9.31.0 - Multi-LLM orchestration for Claude Code. Route tasks to Codex, Gemini, Perplexity, Copilot, Qwen, Ollama, and OpenCode. 32 personas, 48 commands, 52 skills. Run /octo:setup.",
+      "version": "9.31.0",
       "author": {
         "name": "nyldn",
         "url": "https://github.com/nyldn"

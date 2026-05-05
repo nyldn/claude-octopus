@@ -1,5 +1,21 @@
 # Changelog
 
+## [9.31.0] - 2026-05-05
+
+### Fixed
+
+- Stream Gemini stderr in real time so failed subprocess output is visible immediately (#341).
+- Preserve provider env lookup and quota watcher cleanup under `set -e`, including shared quota watcher helpers and targeted PID cleanup (#337, #342).
+- Keep `/octo:develop` on the orchestrator path without recursive Skill calls or Claude-side parallel implementation, while preserving resolved `.md` plan prompts through fallback validation (#334, #339, #343).
+- Parse `probe-single --output-dir` correctly and replace placeholder `/path/to/orchestrate.sh` docs with real plugin path resolution (#345, closes #340, closes #344).
+
+### Changed
+
+- Wire `routing.features.review`, `routing.features.parallel`, and `routing.features.debate` into their runtime consumers with shared provider-to-agent routing and unique debate labels (#346).
+- Keep Claude and Codex install docs aligned with the shared `nyldn-plugins` marketplace flow (#335).
+
+---
+
 ## [9.30.0] - 2026-04-29
 
 ### Changed
