@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.33.0] - 2026-05-05
+
+### Changed
+
+- Strengthen auto-router hooks for plain-language workflow routing
+
+---
+
 ## [9.32.1] - 2026-05-05
 
 ### Changed
