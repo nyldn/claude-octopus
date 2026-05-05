@@ -110,7 +110,10 @@ EOF
 .factory-plugin/
 .gemini/
 .opencode/
+.mcp.json
+bin/
 commands/
+managed-settings.d/
 skills/
 docs/
 EOF
@@ -418,7 +421,7 @@ fi
 echo ""
 
 # ============================================================================
-# HELPER: Push tag if needed (v8.13.0 - deduplicated, always --force)
+# HELPER: Push tag if needed
 # ============================================================================
 push_tag_if_needed() {
     local tag="$1"
@@ -435,6 +438,11 @@ push_tag_if_needed() {
             return 0
         fi
 
+        if [[ -n "$REMOTE_TAG_SHA" ]] && [[ "$REMOTE_TAG_SHA" != "$LOCAL_TAG_SHA" ]]; then
+            echo -e "${RED}ERROR: Remote tag $tag already exists at ${REMOTE_TAG_SHA:0:7}; refusing to rewrite it${NC}"
+            return 1
+        fi
+
         if [[ "$REMOTE_TAG_SHA" == "$LOCAL_TAG_SHA" ]] && [[ -n "$REMOTE_TAG_SHA" ]]; then
             echo -e "${GREEN}✓ Tag $tag already up to date on remote${NC}"
             return 0
@@ -442,7 +450,7 @@ push_tag_if_needed() {
 
         echo ""
         echo -e "${GREEN}📤 Pushing tag $tag to remote...${NC}"
-        git push --no-verify origin "$tag" --force 2>/dev/null
+        git push --no-verify origin "$tag" 2>/dev/null
         echo -e "${GREEN}✓ Tag pushed to remote${NC}"
 
         # Auto-create GitHub release if gh is available and authenticated

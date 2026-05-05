@@ -97,7 +97,7 @@ print('   .claude-plugin/marketplace.json')
 
 # Public adapter manifests — keep every public root surface on the release version
 python3 -c "
-import json, re
+import json, pathlib, re, sys
 
 version = '${VERSION}'
 
@@ -106,11 +106,14 @@ with open('.claude-plugin/plugin.json') as f:
 command_count = len(plugin.get('commands', []))
 skill_count = len(plugin.get('skills', []))
 
-try:
-    import pathlib
-    persona_count = len(list(pathlib.Path('agents/personas').glob('*.md')))
-except Exception:
-    persona_count = 32
+persona_dir = pathlib.Path('agents/personas')
+if not persona_dir.is_dir():
+    print('ERROR: agents/personas is missing; cannot calculate adapter manifest counts', file=sys.stderr)
+    raise SystemExit(1)
+persona_count = len(list(persona_dir.glob('*.md')))
+if persona_count == 0:
+    print('ERROR: agents/personas contains no persona markdown files', file=sys.stderr)
+    raise SystemExit(1)
 
 for path in ('.codex-plugin/plugin.json', '.cursor-plugin/plugin.json', '.factory-plugin/plugin.json'):
     with open(path) as f:
