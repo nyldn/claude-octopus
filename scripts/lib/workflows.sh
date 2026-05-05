@@ -765,6 +765,8 @@ tangle_develop() {
     local file_ref=""
     local raw_file_ref=""
     local token
+    local noglob_was_set=false
+    [[ "$-" == *f* ]] && noglob_was_set=true || set -f
     for token in $prompt; do
         if [[ "$token" == *.md ]]; then
             raw_file_ref="$token"
@@ -772,6 +774,7 @@ tangle_develop() {
             break
         fi
     done
+    [[ "$noglob_was_set" == "false" ]] && set +f
     if [[ -n "$file_ref" && -f "$file_ref" ]]; then
         local file_content
         file_content=$(<"$file_ref")
@@ -888,7 +891,7 @@ Output as numbered list with [CODING] or [REASONING] prefix for each subtask."
 
     # Step 3: Validation gate
     log INFO "Step 3: Validation gate..."
-    validate_tangle_results "$task_group" "$prompt"
+    validate_tangle_results "$task_group" "$resolved_prompt"
 }
 
 # Phase 4: INK (Deliver) - Quality gates + final output
