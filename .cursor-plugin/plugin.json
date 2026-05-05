@@ -2,7 +2,7 @@
   "name": "claude-octopus",
   "displayName": "Claude Octopus",
   "description": "Multi-LLM orchestration \u2014 up to 8 providers check each other's work. Research, build, review, and ship with consensus gates.",
-  "version": "9.32.1",
+  "version": "9.33.0",
   "author": {
     "name": "nyldn"
   },
