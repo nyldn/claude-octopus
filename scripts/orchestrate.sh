@@ -2159,7 +2159,7 @@ case "$COMMAND" in
         # v8.54.0: Single-agent probe for multi-agentic skill dispatch
         # Called by Claude's Agent tool (one per perspective) instead of monolithic probe
         # v9.29.3: Parse --output-dir flag from any position (fixes #340)
-        local _ps_args=()
+        _ps_args=()
         while [[ $# -gt 0 ]]; do
             case "$1" in
                 --output-dir)
@@ -2586,9 +2586,9 @@ case "$COMMAND" in
             echo "Usage: $(basename "$0") agent-resume <agent-id> [prompt] [task-id]"
             exit 1
         fi
-        local _agent_id="$1"
-        local _resume_prompt="${2:-Continue where you left off.}"
-        local _resume_task="${3:-$(date +%s)}"
+        _agent_id="$1"
+        _resume_prompt="${2:-Continue where you left off.}"
+        _resume_task="${3:-$(date +%s)}"
         resume_agent "$_agent_id" "$_resume_prompt" "$_resume_task" || {
             log ERROR "resume_agent failed for agent_id=$_agent_id"
             log INFO "Requirements: SUPPORTS_CONTINUATION=true (CC v2.1.55+) AND SUPPORTS_STABLE_AGENT_TEAMS=true"
