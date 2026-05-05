@@ -2,6 +2,18 @@
 # spawn_agent — extracted from orchestrate.sh (v9.7.x)
 # Agent spawning and lifecycle management
 
+if ! type start_quota_watcher >/dev/null 2>&1; then
+    _octopus_spawn_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    source "${_octopus_spawn_lib_dir}/quota-watcher.sh" 2>/dev/null || true
+fi
+
+quota_watcher_kill_spawn_children() {
+    local spawn_pid="$1"
+    pkill -TERM -P "$spawn_pid" 2>/dev/null || true
+    sleep 1
+    pkill -KILL -P "$spawn_pid" 2>/dev/null || true
+}
+
 spawn_agent() {
     local _ts; _ts=$(date +%s)
     local agent_type="$1"
@@ -528,29 +540,18 @@ ${heuristic_ctx}"
         while true; do
             exit_code=0
 
-            # Quota fast-fail watcher: detects QUOTA_EXHAUSTED / TerminalQuotaError in stderr
-            # and kills the provider process early instead of waiting the full TIMEOUT (300s).
+            # Quota fast-fail watcher: detects quota exhaustion in stderr/stdout
+            # and kills the provider process early instead of waiting the full TIMEOUT.
             # Applies to Gemini (free tier exhausts quota and retries for ~18h internally).
             local _quota_watcher_pid=""
             if [[ "$agent_type" == gemini* ]]; then
                 local _spawn_pid=$BASHPID
-                > "$temp_errors"   # ensure file exists before watcher starts
-                > "$temp_output"   # ensure stdout file exists before watcher starts
-                (
-                    local _n=0
-                    while [[ $((_n++)) -lt 150 ]]; do
-                        sleep 2
-                        if [[ $(grep -cE "QUOTA_EXHAUSTED|TerminalQuotaError|exhausted your capacity|RetryableQuotaError|Attempt [0-9]+ failed.*exhausted" "$temp_errors" 2>/dev/null) -gt 0 ]] || \
-                           [[ $(grep -cE "QUOTA_EXHAUSTED|TerminalQuotaError|exhausted your capacity|RetryableQuotaError|Attempt [0-9]+ failed.*exhausted" "$temp_output" 2>/dev/null) -gt 0 ]]; then
-                            log "WARN" "[$agent_type] Quota exhaustion detected — fast-failing (saves ~${TIMEOUT}s wait)"
-                            pkill -TERM -P "$_spawn_pid" 2>/dev/null || true
-                            sleep 1
-                            pkill -KILL -P "$_spawn_pid" 2>/dev/null || true
-                            break
-                        fi
-                    done
-                ) &
-                _quota_watcher_pid=$!
+                _quota_watcher_pid=$(start_quota_watcher \
+                    "$_spawn_pid" \
+                    "$temp_errors" \
+                    "$temp_output" \
+                    quota_watcher_kill_spawn_children \
+                    "[$agent_type] Quota exhaustion detected - fast-failing (saves ~${TIMEOUT}s wait)")
             fi
 
             # v9.2.2: All agents use stdin-based prompt delivery to avoid ARG_MAX limits (Issue #173)
@@ -561,7 +562,7 @@ ${heuristic_ctx}"
                 exit_code=$?
             fi
 
-            [[ -n "$_quota_watcher_pid" ]] && { kill "$_quota_watcher_pid" 2>/dev/null; wait "$_quota_watcher_pid" 2>/dev/null || true; }
+            stop_quota_watcher "$_quota_watcher_pid"
 
             # v8.16: Check if failure is auth-related and retryable
             if [[ $exit_code -ne 0 ]] && [[ $auth_attempt -lt $max_auth_retries ]]; then

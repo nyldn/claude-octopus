@@ -12,8 +12,19 @@
 # Every parallel spawn loop MUST call fleet_dispatch_begin before the first
 # spawn_agent call and fleet_dispatch_end after the last one. The smoke test
 # tests/smoke/test-fleet-dispatch-guard.sh enforces this statically.
+if ! type start_quota_watcher >/dev/null 2>&1; then
+    _octopus_agent_sync_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    source "${_octopus_agent_sync_lib_dir}/quota-watcher.sh" 2>/dev/null || true
+fi
+
 fleet_dispatch_begin() {
     export OCTOPUS_FORCE_LEGACY_DISPATCH=true
+}
+
+quota_watcher_kill_sync_dispatch() {
+    local dispatch_pid="$1"
+    pkill -KILL -P "$dispatch_pid" 2>/dev/null || true
+    kill -KILL "$dispatch_pid" 2>/dev/null || true
 }
 
 fleet_dispatch_end() {
@@ -224,12 +235,12 @@ ${provider_ctx}"
     _dispatch_start=$(date +%s)
     _dispatch_cwd=$(pwd)
 
-    # Quota fast-fail watcher for Gemini (mirrors spawn.sh) — Gemini CLI retries
-    # internally for hours on QUOTA_EXHAUSTED instead of exiting; kill early.
+    # Quota fast-fail watcher for Gemini. Gemini CLI retries internally for
+    # hours on QUOTA_EXHAUSTED instead of exiting; kill early.
     local _quota_watcher_pid=""
     local _dispatch_pid=""
 
-    # Always init temp files so grep in watcher never fails on missing file
+    # Always init temp files so readers never fail on missing file.
     > "$temp_err"
     > "$temp_out"
 
@@ -239,20 +250,12 @@ ${provider_ctx}"
             | run_with_timeout "$timeout_secs" "${cmd_array[@]}" 2>"$temp_err" >"$temp_out" &
         _dispatch_pid=$!
 
-        (
-            while kill -0 "$_dispatch_pid" 2>/dev/null; do
-                sleep 2
-                if [[ $(grep -cE "QUOTA_EXHAUSTED|TerminalQuotaError|exhausted your capacity|RetryableQuotaError|Attempt [0-9]+ failed.*exhausted" "$temp_err" 2>/dev/null) -gt 0 ]] || \
-                   [[ $(grep -cE "QUOTA_EXHAUSTED|TerminalQuotaError|exhausted your capacity|RetryableQuotaError|Attempt [0-9]+ failed.*exhausted" "$temp_out" 2>/dev/null) -gt 0 ]]; then
-                    log WARN "[$agent_type] Quota exhaustion detected in sync agent — fast-failing"
-                    # Kill the dispatcher's direct children then the dispatcher itself
-                    pkill -KILL -P "$_dispatch_pid" 2>/dev/null || true
-                    kill -KILL "$_dispatch_pid" 2>/dev/null || true
-                    break
-                fi
-            done
-        ) &
-        _quota_watcher_pid=$!
+        _quota_watcher_pid=$(start_quota_watcher \
+            "$_dispatch_pid" \
+            "$temp_err" \
+            "$temp_out" \
+            quota_watcher_kill_sync_dispatch \
+            "[$agent_type] Quota exhaustion detected in sync agent - fast-failing")
 
         wait "$_dispatch_pid" 2>/dev/null && exit_code=0 || exit_code=$?
         [[ $exit_code -eq 137 ]] && exit_code=1
@@ -265,7 +268,7 @@ ${provider_ctx}"
         output=$(cat "$temp_out")
     fi
 
-    [[ -n "$_quota_watcher_pid" ]] && { kill "$_quota_watcher_pid" 2>/dev/null; wait "$_quota_watcher_pid" 2>/dev/null || true; }
+    stop_quota_watcher "$_quota_watcher_pid"
 
     # Tail-bias: the deliverable summary lives at the end of codex-style output.
     local _max_bytes="${OCTOPUS_AGENT_MAX_OUTPUT_BYTES:-262144}"
