@@ -250,6 +250,34 @@ The doctor reports the active intensity profile — a single knob controlling ho
 
 ---
 
+## Project Tier Hint
+
+Also report `OCTO_TIER` when set. This is a recommendation hint, not a hard policy.
+
+| Tier | Doctor guidance |
+|------|-----------------|
+| `prototype` | Prefer faster checks and warn before high-cost provider fanout |
+| `mvp` | Use balanced defaults and consensus on risky changes |
+| `production` | Recommend full verification, security review, and stricter release gates |
+
+If unset, show `OCTO_TIER=unset` and suggest setting it only when the project has a stable risk profile.
+
+---
+
+## Remote Session Checks
+
+If `CLAUDE_CODE_REMOTE=true` or `OCTOPUS_REMOTE_SESSION=true`, report:
+
+- remote session detected
+- autonomous mode default active when no explicit autonomy is set
+- provider probes skipped to conserve time/quota
+- full HUD disabled unless `OCTOPUS_REMOTE_STATUSLINE=full`
+- provider CLIs may need to be installed in the cloud setup script
+
+Suggest `/octo:setup` only for configuration guidance; do not recommend interactive provider logins inside the remote session.
+
+---
+
 ## Runtime Context
 
 The doctor checks for project-level `RUNTIME.md` — a file that provides project-specific context (API endpoints, env vars, test commands, build steps) to orchestration prompts.

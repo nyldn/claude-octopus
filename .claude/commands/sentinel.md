@@ -19,7 +19,16 @@ GitHub-aware work monitor that triages issues, PRs, and CI failures. Sentinel ob
 ```bash
 /octo:sentinel              # One-time triage scan
 /octo:sentinel --watch       # Continuous monitoring
+/octo:sentinel --canary      # Post-deploy canary monitoring
 ```
+
+## Scheduled Claude Code Web Usage
+
+For recurring triage, schedule Sentinel as a read-only Claude Code web or hosted task. Use `/octo:sentinel` for the normal scan and `/octo:sentinel --canary https://example.com` for post-deploy monitoring.
+
+Scheduled Sentinel should stay triage-only. It may recommend `/octo:debug`,
+`/octo:review`, or `/octo:embrace`, but it must not start remediation unless
+the user explicitly asks for it.
 
 ## What Sentinel Monitors
 

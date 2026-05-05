@@ -37,6 +37,18 @@ else
     OCTOPUS_HOST="standalone"
 fi
 
+# Claude Code web/remote sessions should bias toward unattended execution and
+# avoid expensive local terminal affordances unless explicitly re-enabled.
+OCTOPUS_REMOTE_SESSION="${OCTOPUS_REMOTE_SESSION:-false}"
+if [[ "${CLAUDE_CODE_REMOTE:-}" == "true" || "${CLAUDE_CODE_WEB:-}" == "true" || "${OCTOPUS_REMOTE_SESSION}" == "true" ]]; then
+    OCTOPUS_REMOTE_SESSION="true"
+    export OCTOPUS_REMOTE_SESSION
+    export CLAUDE_OCTOPUS_AUTONOMY="${CLAUDE_OCTOPUS_AUTONOMY:-${OCTOPUS_AUTONOMY:-autonomous}}"
+    export OCTOPUS_AUTONOMY="${OCTOPUS_AUTONOMY:-$CLAUDE_OCTOPUS_AUTONOMY}"
+    export OCTOPUS_REMOTE_STATUSLINE="${OCTOPUS_REMOTE_STATUSLINE:-minimal}"
+    export OCTOPUS_SKIP_PROVIDER_PROBES="${OCTOPUS_SKIP_PROVIDER_PROBES:-true}"
+fi
+
 # Keep debug flag defined even when nounset is enabled by sourced scripts.
 OCTOPUS_DEBUG="${OCTOPUS_DEBUG:-false}"
 

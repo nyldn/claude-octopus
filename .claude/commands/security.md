@@ -13,6 +13,12 @@ Use `/octo:security` when the user explicitly wants enhanced multi-LLM or advers
 
 **Your first output line MUST be:** `🐙 Octopus Security Audit`
 
+## Scheduled Claude Code Web Usage
+
+For recurring audits, schedule `/octo:security run a read-only security audit of this repository` as a Claude Code web or hosted task.
+
+Scheduled security runs must be read-only unless the user explicitly asks for remediation. Findings should be grouped as confirmed, disputed, or needs-human-review before any fix workflow starts.
+
 ## 🤖 INSTRUCTIONS FOR CLAUDE
 
 ### MANDATORY COMPLIANCE — DO NOT SKIP

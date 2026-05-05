@@ -27,6 +27,15 @@ import { createInterface } from "node:readline";
 import https from "node:https";
 import { execFileSync } from "node:child_process";
 
+// Remote web sessions default to the lightweight bash statusline path to avoid
+// local keychain/OAuth probes and slow terminal-only HUD work.
+if (
+  (process.env.CLAUDE_CODE_REMOTE === "true" || process.env.OCTOPUS_REMOTE_SESSION === "true") &&
+  process.env.OCTOPUS_REMOTE_STATUSLINE !== "full"
+) {
+  process.exit(0);
+}
+
 // ── Section A: Constants + Colors ────────────────────────────────────────────
 
 const HOME = homedir();

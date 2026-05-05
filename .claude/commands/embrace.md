@@ -90,6 +90,17 @@ AskUserQuestion({
 
 After receiving answers, incorporate them into all subsequent phase invocations — use the scope to calibrate research depth, focus areas to weight provider perspectives, autonomy level to control phase transitions, and debate preference to gate Define→Develop handoffs.
 
+### Remote/Cloud Defaults
+
+If `CLAUDE_CODE_REMOTE=true` or `OCTOPUS_REMOTE_SESSION=true`, do not block on clarifying questions. Use these defaults unless the user's prompt says otherwise:
+
+- scope: infer from the prompt
+- focus: all relevant areas
+- autonomy: autonomous
+- debate gates: only if provider disagreement is detected
+
+Plan locally first, then run the approved `/octo:embrace` prompt in the hosted or remote-control session with `OCTOPUS_REMOTE_SESSION=true` set in that environment.
+
 ## Step 2: Check Provider Availability & Display Banner
 
 **MANDATORY: Run this bash command BEFORE the banner.**

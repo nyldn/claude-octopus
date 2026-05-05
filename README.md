@@ -12,7 +12,7 @@ Every AI model has blind spots. Claude Octopus puts up to eight of them on every
   <a href="https://claude.ai"><img src="https://img.shields.io/badge/Claude-Built_with_AI-c96442?logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0iI2ZmZiIgZD0iTTEyIDJhMTAgMTAgMCAxIDAgMCAyMCAxMCAxMCAwIDAgMCAwLTIwbTAgMS44YTEuMiAxLjIgMCAwIDEgLjg1LjM1bDEuNSA0LjVhLjYuNiAwIDAgMCAuMzUuMzVsNC41IDEuNWExLjIgMS4yIDAgMCAxIDAgMi4yN2wtNC41IDEuNWEuNi42IDAgMCAwLS4zNS4zNWwtMS41IDQuNWExLjIgMS4yIDAgMCAxLTIuMjcgMGwtMS41LTQuNWEuNi42IDAgMCAwLS4zNS0uMzVsLTQuNS0xLjVhMS4yIDEuMiAwIDAgMSAwLTIuMjdsNC41LTEuNWEuNi42IDAgMCAwIC4zNS0uMzVsMS41LTQuNUExLjIgMS4yIDAgMCAxIDEyIDMuOCIvPjwvc3ZnPg==&labelColor=333" alt="Built with Claude"></a>
   <a href="https://github.com/nyldn/claude-octopus/actions/workflows/test.yml"><img src="https://github.com/nyldn/claude-octopus/actions/workflows/test.yml/badge.svg" alt="Tests"></a>
   <img src="https://img.shields.io/badge/Tests-146_passing-brightgreen" alt="146 tests passing">
-  <img src="https://img.shields.io/badge/Version-9.33.0-blue" alt="Version 9.33.0">
+  <img src="https://img.shields.io/badge/Version-9.34.0-blue" alt="Version 9.34.0">
   <img src="https://img.shields.io/badge/Claude_Code-v2.1.83+-blueviolet" alt="Requires Claude Code v2.1.83+">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
 </p>
@@ -166,6 +166,48 @@ claude plugin marketplace add https://github.com/nyldn/plugins.git
 claude plugin install octo@nyldn-plugins
 ```
 </details>
+
+---
+
+## Claude Code Web and Remote Sessions
+
+When Claude Code is running in a hosted, web, or remote-control environment, set `OCTOPUS_REMOTE_SESSION=true` in that environment. If Claude Code itself exports `CLAUDE_CODE_REMOTE=true` or `CLAUDE_CODE_WEB=true`, Octopus detects that automatically. Remote sessions are treated as unattended by default:
+
+- `CLAUDE_OCTOPUS_AUTONOMY=autonomous` / `OCTOPUS_AUTONOMY=autonomous` unless already set
+- provider smoke tests and Codex tier probes are skipped
+- the statusline uses a lightweight remote-safe display
+
+Set `OCTOPUS_REMOTE_STATUSLINE=full` to opt back into the full local HUD, or `OCTOPUS_REMOTE_STATUSLINE=off` to suppress statusline output entirely.
+
+Cloud environment setup should install provider CLIs and expose only the credentials required for the workflow. Paste this into the cloud environment setup script:
+
+```bash
+#!/usr/bin/env bash
+set -e
+
+npm install -g @openai/codex @google/gemini-cli @qwen-code/qwen-code 2>/dev/null || true
+
+echo "Octopus cloud setup:"
+command -v codex >/dev/null 2>&1 && echo "  Codex CLI: installed" || echo "  Codex CLI: missing"
+command -v gemini >/dev/null 2>&1 && echo "  Gemini CLI: installed" || echo "  Gemini CLI: missing"
+command -v qwen >/dev/null 2>&1 && echo "  Qwen CLI: installed" || echo "  Qwen CLI: missing"
+command -v gh >/dev/null 2>&1 && echo "  GitHub CLI: installed" || echo "  GitHub CLI: optional, install if Sentinel needs GitHub"
+```
+
+Set environment variables in the cloud environment, not in the script:
+
+```bash
+OPENAI_API_KEY=...
+GEMINI_API_KEY=...
+PERPLEXITY_API_KEY=...   # optional
+OPENROUTER_API_KEY=...   # optional
+```
+
+Provider API calls require internet access from the hosted environment.
+
+For scheduled Claude Code tasks, run `/octo:sentinel` for triage and `/octo:security` for recurring audits. Keep jobs read-only by default and route fixes through `/octo:debug`, `/octo:review`, or `/octo:embrace` after triage.
+
+Set `OCTO_TIER=prototype|mvp|production` as a project hint. It does not hard-block behavior; it helps setup, doctor, and workflow prompts recommend the right amount of verification and provider spend.
 
 ---
 

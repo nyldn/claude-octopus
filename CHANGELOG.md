@@ -1,5 +1,14 @@
 # Changelog
 
+## [9.34.0] - 2026-05-05
+
+### Added
+
+- Claude Code web/remote session ergonomics: remote sessions default to autonomous mode, skip provider probe calls, use a lightweight statusline, and document hosted-session setup.
+- `OCTO_TIER` project-tier hint docs for setup and doctor so Octopus can recommend verification depth and provider spend by project risk profile.
+
+---
+
 ## [9.33.0] - 2026-05-05
 
 ### Changed

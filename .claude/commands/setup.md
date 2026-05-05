@@ -30,6 +30,8 @@ printf "copilot:%s\n" "$(command -v copilot >/dev/null 2>&1 && echo installed ||
 printf "qwen:%s\n" "$(command -v qwen >/dev/null 2>&1 && echo installed || echo missing)"
 printf "ollama:%s\n" "$(command -v ollama >/dev/null 2>&1 && curl -sf http://localhost:11434/api/tags >/dev/null 2>&1 && echo running || command -v ollama >/dev/null 2>&1 && echo installed || echo missing)"
 printf "opencode:%s\n" "$(command -v opencode >/dev/null 2>&1 && echo installed || echo missing)"
+printf "remote_session:%s\n" "$([[ "${CLAUDE_CODE_REMOTE:-}" == "true" || "${OCTOPUS_REMOTE_SESSION:-}" == "true" ]] && echo true || echo false)"
+printf "octo_tier:%s\n" "${OCTO_TIER:-unset}"
 echo "=== Token Optimization ==="
 printf "rtk:%s\n" "$(command -v rtk >/dev/null 2>&1 && echo "installed $(rtk --version 2>&1 | head -1)" || echo missing)"
 printf "rtk_hook:%s\n" "$(grep -q 'rtk' "${HOME}/.claude/settings.json" 2>/dev/null && echo active || echo missing)"
@@ -60,6 +62,10 @@ Providers:
 Token Optimization:
   RTK:              [Installed + Hook active ✓ / Installed ✓ / Missing ✗]
   octo-compress:    [Available ✓ / Not in PATH]
+
+Session:
+  Remote/Web:       [Yes / No]
+  Project tier:     [unset / prototype / mvp / production]
 ```
 
 ## STEP 2a: v9.29 Migration Prompt (one-time, existing users only)
@@ -141,6 +147,7 @@ AskUserQuestion({
       {label: "Configure models", description: "Set which models are used for each workflow phase → launches /octo:model-config"},
       {label: "Set up token optimization (RTK)", description: "Install RTK for 60-90% token savings on bash output"},
       {label: "Change work mode", description: "Switch between Dev mode and Knowledge Work mode"},
+      {label: "Set project tier", description: "Set OCTO_TIER=prototype|mvp|production as a routing hint"},
       {label: "Fine-tune preferences", description: "Auto-routing, banner verbosity, telemetry, cost mode"},
       {label: "Troubleshoot an issue", description: "Diagnose a problem → launches /octo:doctor"},
       {label: "Done — everything looks good", description: "Exit setup"}
@@ -154,6 +161,7 @@ Route based on selection:
 - **Configure models** → Invoke `/octo:model-config` (the interactive model config wizard)
 - **Set up RTK** → Jump to the RTK section below
 - **Change work mode** → Jump to the Work Mode section (STEP 4)
+- **Set project tier** → Jump to Project Tier Hint (STEP 4c)
 - **Fine-tune preferences** → Jump to the Fine-tune section (STEP 5)
 - **Troubleshoot** → Suggest `/octo:doctor`
 - **Done** → Show "Run /octo:setup anytime to change these settings" and exit
@@ -257,6 +265,37 @@ AskUserQuestion({
 ```
 
 If "Yes", append `export ENABLE_PROMPT_CACHING_1H=1` to `~/.bashrc` (or `~/.zshrc` per `$SHELL`), only if not already present. Note to the user: this only affects Claude-to-Claude round-trips inside Claude Code. External CLI subshells (Codex, Gemini, Perplexity) are unaffected — their providers manage caching independently.
+
+## STEP 4c: Project Tier Hint
+
+`OCTO_TIER` is a routing and verification hint, not a hard policy.
+
+```javascript
+AskUserQuestion({
+  questions: [{
+    question: "What project tier should Octopus optimize for?",
+    header: "Tier",
+    multiSelect: false,
+    options: [
+      {label: "MVP (Recommended)", description: "Balanced checks, normal review, consensus on risky changes"},
+      {label: "Prototype", description: "Prefer speed, light review, lower provider spend"},
+      {label: "Production", description: "Full verification, security review, stronger consensus before merge/release"},
+      {label: "Leave unset", description: "Use default balanced behavior without a project hint"}
+    ]
+  }]
+})
+```
+
+If a tier is selected, append `export OCTO_TIER=<prototype|mvp|production>` to the user's shell profile or project-local environment, only if not already present.
+
+## Remote/Web Session Defaults
+
+If `remote_session:true` appears in the detection output, assume the user is in a Claude Code web/remote session. Do not launch interactive provider logins from this command. Explain that Octopus defaults to autonomous mode, skips provider probe calls, and uses the lightweight statusline unless overridden with:
+
+```bash
+export OCTOPUS_REMOTE_STATUSLINE=full
+export OCTOPUS_REMOTE_STATUSLINE=off
+```
 
 ## STEP 5: Verify & Summarize
 
