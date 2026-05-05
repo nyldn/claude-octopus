@@ -106,7 +106,7 @@ STEP_LABELS=(
 for i in "${!STEP_LABELS[@]}"; do
   step_num=$((i + 1))
   pattern="${STEP_LABELS[$i]}"
-  if echo "$CONTENT" | grep -qE "$pattern"; then
+  if grep -qE "$pattern" <<< "$CONTENT"; then
     pass "step $step_num present (${pattern})"
   else
     fail "step $step_num present" "missing pattern: $pattern"
@@ -116,42 +116,42 @@ done
 # ── Key patterns ─────────────────────────────────────────────────────────────
 
 # git diff reference
-if echo "$CONTENT" | grep -q "git diff"; then
+if grep -q "git diff" <<< "$CONTENT"; then
   pass "references git diff"
 else
   fail "references git diff" "no git diff found in content"
 fi
 
 # sell test
-if echo "$CONTENT" | grep -qi "sell test"; then
+if grep -qi "sell test" <<< "$CONTENT"; then
   pass "references sell test"
 else
   fail "references sell test" "no sell test reference found"
 fi
 
 # cross-doc consistency
-if echo "$CONTENT" | grep -qi "cross-doc consistency"; then
+if grep -qi "cross-doc consistency" <<< "$CONTENT"; then
   pass "references cross-doc consistency"
 else
   fail "references cross-doc consistency" "not found"
 fi
 
 # discoverability check
-if echo "$CONTENT" | grep -qi "discoverability"; then
+if grep -qi "discoverability" <<< "$CONTENT"; then
   pass "references discoverability"
 else
   fail "references discoverability" "not found"
 fi
 
 # CHANGELOG append-only
-if echo "$CONTENT" | grep -qi "append only"; then
+if grep -qi "append only" <<< "$CONTENT"; then
   pass "CHANGELOG append-only rule documented"
 else
   fail "CHANGELOG append-only rule documented" "not found"
 fi
 
 # Never clobber CHANGELOG
-if echo "$CONTENT" | grep -Eqi "never.*clobber|never.*delete.*existing.*entries"; then
+if grep -Eqi "never.*clobber|never.*delete.*existing.*entries" <<< "$CONTENT"; then
   pass "never clobber CHANGELOG rule documented"
 else
   fail "never clobber CHANGELOG rule documented" "not found"
@@ -160,14 +160,14 @@ fi
 # ── Caps documented ──────────────────────────────────────────────────────────
 
 # 30 file cap
-if echo "$CONTENT" | grep -q "30"; then
+if grep -q "30" <<< "$CONTENT"; then
   pass "30-file cap documented"
 else
   fail "30-file cap documented" "no mention of 30-file limit"
 fi
 
 # User confirmation for risky changes
-if echo "$CONTENT" | grep -qi "user.*confirm\|ask.*user\|require.*confirmation\|user.*approval"; then
+if grep -qi "user.*confirm\|ask.*user\|require.*confirmation\|user.*approval" <<< "$CONTENT"; then
   pass "user confirmation for risky changes documented"
 else
   fail "user confirmation for risky changes documented" "not found"
@@ -175,20 +175,20 @@ fi
 
 # ── No attribution / no source repo references ──────────────────────────────
 
-if echo "$CONTENT" | grep -qi "gstack"; then
+if grep -qi "gstack" <<< "$CONTENT"; then
   fail "no gstack reference" "found 'gstack' in content"
 else
   pass "no gstack reference"
 fi
 
-if echo "$CONTENT" | grep -qi "source repo"; then
+if grep -qi "source repo" <<< "$CONTENT"; then
   fail "no source repo reference" "found 'source repo' in content"
 else
   pass "no source repo reference"
 fi
 
 # Check no Attribution section
-if echo "$CONTENT" | grep -qi "^## Attribution"; then
+if grep -qi "^## Attribution" <<< "$CONTENT"; then
   fail "no Attribution section" "found Attribution heading"
 else
   pass "no Attribution section"
@@ -196,7 +196,7 @@ fi
 
 # ── Integration notes ────────────────────────────────────────────────────────
 
-if echo "$CONTENT" | grep -qi "flow-deliver"; then
+if grep -qi "flow-deliver" <<< "$CONTENT"; then
   pass "references flow-deliver integration"
 else
   fail "references flow-deliver integration" "not found"
