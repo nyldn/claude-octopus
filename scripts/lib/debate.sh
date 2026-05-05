@@ -2,6 +2,19 @@
 # lib/debate.sh — Adversarial cross-model debate (extracted from orchestrate.sh)
 # Provides: grapple_debate
 
+debate_label_upper() {
+    printf '%s\n' "$1" | tr '[:lower:]' '[:upper:]'
+}
+
+debate_labels_match() {
+    local label="$1"
+    local label_upper="$2"
+    local existing_label="$3"
+    local existing_upper="$4"
+
+    [[ "$label" == "$existing_label" || "$label_upper" == "$existing_upper" ]]
+}
+
 # ═══════════════════════════════════════════════════════════════════════════
 # CROSSFIRE - Adversarial Cross-Model Review
 # Two tentacles wrestling—adversarial debate until consensus 🤼
@@ -76,6 +89,27 @@ grapple_debate() {
             else
                 log INFO "Debate config had no valid participants; using defaults: $label_a ($agent_a) vs $label_b ($agent_b) vs $label_c ($agent_c)"
             fi
+        fi
+    fi
+
+    # Keep debate attribution labels unique even when multiple configured
+    # providers resolve to the same display family, e.g. claude and claude-sonnet.
+    if debate_labels_match "$label_b" "$label_b_upper" "$label_a" "$label_a_upper"; then
+        label_b="$agent_b"
+        label_b_upper=$(debate_label_upper "$label_b")
+        if debate_labels_match "$label_b" "$label_b_upper" "$label_a" "$label_a_upper"; then
+            label_b="${agent_b}-b"
+            label_b_upper=$(debate_label_upper "$label_b")
+        fi
+    fi
+    if debate_labels_match "$label_c" "$label_c_upper" "$label_a" "$label_a_upper" || \
+       debate_labels_match "$label_c" "$label_c_upper" "$label_b" "$label_b_upper"; then
+        label_c="$agent_c"
+        label_c_upper=$(debate_label_upper "$label_c")
+        if debate_labels_match "$label_c" "$label_c_upper" "$label_a" "$label_a_upper" || \
+           debate_labels_match "$label_c" "$label_c_upper" "$label_b" "$label_b_upper"; then
+            label_c="${agent_c}-c"
+            label_c_upper=$(debate_label_upper "$label_c")
         fi
     fi
 

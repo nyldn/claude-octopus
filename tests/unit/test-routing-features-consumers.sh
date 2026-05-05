@@ -85,4 +85,61 @@ else
     test_fail "provider resolver did not map/validate expected tokens"
 fi
 
+test_case "fan_out consumes configured parallel providers at runtime"
+if (
+    tmp_home=$(mktemp -d)
+    trap 'rm -rf "$tmp_home"' EXIT
+    export HOME="$tmp_home"
+    mkdir -p "$HOME/.claude-octopus/config"
+    cat > "$HOME/.claude-octopus/config/providers.json" <<'JSON'
+{"routing":{"features":{"parallel":["claude","gemini","missing-provider"]}}}
+JSON
+    AVAILABLE_AGENTS="claude-sonnet gemini"
+    RESULTS_DIR="$tmp_home/results"
+    CYAN=""
+    NC=""
+    log() { :; }
+    sleep() { :; }
+    spawn_agent_capture_pid() {
+        printf '%s\n' "$1" >> "$tmp_home/spawned"
+        echo "$$"
+    }
+    source "$PARALLEL"
+    fan_out "runtime provider config" >/dev/null
+    grep -qx "claude-sonnet" "$tmp_home/spawned" && \
+        grep -qx "gemini" "$tmp_home/spawned" && \
+        ! grep -qx "missing-provider" "$tmp_home/spawned"
+); then
+    test_pass
+else
+    test_fail "fan_out did not consume configured providers correctly"
+fi
+
+test_case "grapple_debate keeps duplicate display labels unique at runtime"
+if (
+    tmp_home=$(mktemp -d)
+    trap 'rm -rf "$tmp_home"' EXIT
+    export HOME="$tmp_home"
+    mkdir -p "$HOME/.claude-octopus/config"
+    cat > "$HOME/.claude-octopus/config/providers.json" <<'JSON'
+{"routing":{"features":{"debate":["claude","claude-sonnet"]}}}
+JSON
+    AVAILABLE_AGENTS="claude-sonnet"
+    DRY_RUN=true
+    RED=""
+    CYAN=""
+    NC=""
+    _BOX_TOP=""
+    _BOX_BOT=""
+    PLUGIN_DIR="$PROJECT_ROOT"
+    log() { :; }
+    source "$DEBATE"
+    output=$(grapple_debate "runtime debate config" "default" 3 "standard")
+    grep -q "Sonnet vs claude-sonnet vs claude-sonnet-c" <<< "$output"
+); then
+    test_pass
+else
+    test_fail "grapple_debate did not make duplicate labels unique"
+fi
+
 test_summary
