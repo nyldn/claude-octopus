@@ -63,6 +63,13 @@ for model in "${model_list[@]}"; do
     : > "$stdout_file"
 
     # Buffer per attempt so a failed attempt's partial stdout never leaks.
+    # Stream stderr in real-time via tail -f so the quota fast-fail watcher in
+    # agent-sync.sh / spawn.sh sees Gemini retry messages immediately instead of
+    # waiting for all 10 internal retries (~4 min) before gemini-exec exits.
+    : > "$err_file"
+    tail -f "$err_file" >&2 &
+    _tail_pid=$!
+
     set +e
     if [[ -n "$prompt_file" ]]; then
         gemini -m "$model" "$@" <"$prompt_file" >"$stdout_file" 2>"$err_file"
@@ -72,9 +79,11 @@ for model in "${model_list[@]}"; do
     last_exit=$?
     set -e
 
+    kill "$_tail_pid" 2>/dev/null; wait "$_tail_pid" 2>/dev/null || true
+
     if [[ $last_exit -eq 0 ]]; then
         cat "$stdout_file"
-        cat "$err_file" >&2
+        # stderr already streamed in real-time above — no reprint
         rm -f "$err_file"
         exit 0
     fi
@@ -91,9 +100,9 @@ for model in "${model_list[@]}"; do
         continue
     fi
 
-    printf '%s' "$last_err" >&2
+    # stderr already streamed in real-time — exit without reprinting
     exit "$last_exit"
 done
 
-printf '%s' "$last_err" >&2
+# stderr already streamed in real-time — exit without reprinting
 exit "$last_exit"
