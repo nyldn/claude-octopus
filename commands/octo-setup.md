@@ -67,7 +67,7 @@ AskUserQuestion({
       {label: "Configure models", description: "Set which models are used for each workflow phase → launches /octo:model-config"},
       {label: "Set up token optimization (RTK)", description: "Install RTK for 60-90% token savings on bash output"},
       {label: "Change work mode", description: "Switch between Dev mode and Knowledge Work mode"},
-      {label: "Fine-tune preferences", description: "Banner verbosity, telemetry, cost mode"},
+      {label: "Fine-tune preferences", description: "Auto-routing, banner verbosity, telemetry, cost mode"},
       {label: "Troubleshoot an issue", description: "Diagnose a problem → launches /octo:doctor"}
     ]
   }]
@@ -301,7 +301,7 @@ AskUserQuestion({
     header: "Fine-tune",
     multiSelect: false,
     options: [
-      {label: "Yes, let's configure it", description: "Set work mode, verbosity, and telemetry preferences"},
+      {label: "Yes, let's configure it", description: "Set work mode, auto-routing, verbosity, and telemetry preferences"},
       {label: "Skip for now", description: "Use defaults — you can run /octo:setup anytime to change these"}
     ]
   }]
@@ -320,6 +320,16 @@ AskUserQuestion({
       options: [
         {label: "Software development", description: "Dev mode — optimized for building features, debugging, code review"},
         {label: "Research & analysis", description: "Knowledge Work mode — optimized for research, reports, strategy work"}
+      ]
+    },
+    {
+      question: "How should Octopus handle strong plain-language intents like 'review this PR' or 'should we use X or Y'?",
+      header: "Auto-route",
+      multiSelect: false,
+      options: [
+        {label: "Auto-invoke strong matches (default)", description: "High-confidence prompts route directly to the matching /octo workflow"},
+        {label: "Suggest only", description: "Show the detected workflow but let Claude continue unless you choose it"},
+        {label: "Off", description: "Disable plain-language routing; explicit /octo:* commands still work"}
       ]
     },
     {
@@ -348,6 +358,9 @@ AskUserQuestion({
 
 - Work mode "Software development" → run `/octo:dev` or note that Dev mode is the default
 - Work mode "Research & analysis" → run `/octo:km on`
+- Auto-route "Auto-invoke strong matches" → write `{"auto_router_mode":"invoke"}` to `~/.claude-octopus/preferences.json`
+- Auto-route "Suggest only" → write `{"auto_router_mode":"suggest"}` to `~/.claude-octopus/preferences.json`
+- Auto-route "Off" → write `{"auto_router_mode":"off"}` to `~/.claude-octopus/preferences.json`
 - Compact banners selected → write `OCTOPUS_COMPACT_BANNERS=true` to shell profile and inform user to restart terminal (or add to `~/.zshrc`)
 - Telemetry opt-out selected → write `OCTOPUS_TELEMETRY_OPT_OUT=1` to shell profile and inform user
 

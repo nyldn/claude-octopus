@@ -17,6 +17,58 @@ source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "Hook ERR/EXIT trap hygiene (issue #313)"
 
 VALID_STDIN='{"hook_event_name":"UserPromptSubmit","session_id":"test","cwd":"/tmp","prompt":"test","transcript_path":"/dev/null"}'
+HOOK_TIMEOUT_SECONDS="${HOOK_TIMEOUT_SECONDS:-5}"
+
+run_hook_with_deadline() {
+    local hook="$1"
+    local err_out="$2"
+    local out_out="${3:-/dev/null}"
+    local home_dir code
+
+    home_dir=$(mktemp -d "$TEST_TMP_DIR/hook-home-$(basename "$hook" .sh).XXXXXX")
+    code=0
+    VALID_STDIN_ENV="$VALID_STDIN" \
+    HOOK_PATH="$hook" \
+    ERR_OUT="$err_out" \
+    OUT_OUT="$out_out" \
+    HOME_DIR="$home_dir" \
+    PROJECT_ROOT_ENV="$PROJECT_ROOT" \
+    CLAUDE_SESSION_ID_ENV="test-session" \
+    HOOK_TIMEOUT_SECONDS_ENV="$HOOK_TIMEOUT_SECONDS" \
+    python3 <<'PY' || code=$?
+import os
+import subprocess
+import sys
+
+hook = os.environ["HOOK_PATH"]
+payload = os.environ["VALID_STDIN_ENV"] + "\n"
+timeout = float(os.environ["HOOK_TIMEOUT_SECONDS_ENV"])
+
+env = os.environ.copy()
+env["HOME"] = os.environ["HOME_DIR"]
+env["CLAUDE_PLUGIN_ROOT"] = os.environ["PROJECT_ROOT_ENV"]
+env["CLAUDE_SESSION_ID"] = os.environ["CLAUDE_SESSION_ID_ENV"]
+
+with open(os.environ["OUT_OUT"], "wb") as stdout, open(os.environ["ERR_OUT"], "wb") as stderr:
+    try:
+        result = subprocess.run(
+            ["bash", hook],
+            input=payload.encode(),
+            stdout=stdout,
+            stderr=stderr,
+            env=env,
+            timeout=timeout,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        stderr.write(f"hook timed out after {timeout:g}s\n".encode())
+        sys.exit(124)
+
+sys.exit(result.returncode)
+PY
+    rm -rf "$home_dir"
+    return "$code"
+}
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Every hook using `set -e` has the trap
@@ -63,10 +115,7 @@ test_all_hooks_exit_clean_on_valid_input() {
         # real exit code. Without it, a non-zero hook aborts the test before
         # test_fail runs — CI shows "FAIL" with no detail.
         code=0
-        echo "$VALID_STDIN" | \
-            CLAUDE_PLUGIN_ROOT="$PROJECT_ROOT" \
-            CLAUDE_SESSION_ID="test-session" \
-            bash "$hook" 2>"$err_out" >/dev/null || code=$?
+        run_hook_with_deadline "$hook" "$err_out" >/dev/null || code=$?
         err=$(<"$err_out")
         rm -f "$err_out"
         if [[ $code -ne 0 ]]; then
@@ -98,7 +147,7 @@ test_trap_emits_stderr_on_forced_failure() {
     err_out=$(mktemp)
     # `|| code=$?` both suppresses set -e and captures the real exit code.
     code=0
-    echo "$VALID_STDIN" | CLAUDE_PLUGIN_ROOT="$PROJECT_ROOT" bash "$tmp" 2>"$err_out" >/dev/null || code=$?
+    run_hook_with_deadline "$tmp" "$err_out" >/dev/null || code=$?
     err=$(<"$err_out")
     rm -f "$tmp" "$err_out"
     # Match on the stable "[hook:...] exit" pattern; the copied file has a random basename
@@ -118,7 +167,7 @@ test_trap_silent_on_clean_exit() {
     local hook="$PROJECT_ROOT/hooks/user-prompt-submit.sh"
     local err_out err
     err_out=$(mktemp)
-    echo "$VALID_STDIN" | CLAUDE_PLUGIN_ROOT="$PROJECT_ROOT" bash "$hook" 2>"$err_out" >/dev/null
+    run_hook_with_deadline "$hook" "$err_out" >/dev/null
     err=$(<"$err_out")
     rm -f "$err_out"
     if [[ "$err" != *"[hook:"* ]]; then
@@ -137,7 +186,7 @@ test_careful_check_no_silent_fail_on_non_tool_input() {
     local err_out code
     err_out=$(mktemp)
     local code=0
-    echo "$VALID_STDIN" | bash "$PROJECT_ROOT/hooks/careful-check.sh" 2>"$err_out" >/dev/null || code=$?
+    run_hook_with_deadline "$PROJECT_ROOT/hooks/careful-check.sh" "$err_out" >/dev/null || code=$?
     local err=$(<"$err_out")
     rm -f "$err_out"
     if [[ $code -eq 0 ]]; then test_pass; else test_fail "exit=$code stderr='${err:0:120}'"; fi
@@ -148,7 +197,7 @@ test_freeze_check_no_silent_fail_on_non_tool_input() {
     local err_out code err
     err_out=$(mktemp)
     code=0
-    echo "$VALID_STDIN" | bash "$PROJECT_ROOT/hooks/freeze-check.sh" 2>"$err_out" >/dev/null || code=$?
+    run_hook_with_deadline "$PROJECT_ROOT/hooks/freeze-check.sh" "$err_out" >/dev/null || code=$?
     err=$(<"$err_out")
     rm -f "$err_out"
     if [[ $code -eq 0 ]]; then test_pass; else test_fail "exit=$code stderr='${err:0:120}'"; fi
@@ -158,13 +207,12 @@ test_quality_gate_no_silent_fail_on_missing_validation() {
     test_case "quality-gate.sh exits 0 when no tangle-validation-*.md exists (was silent fail before #313 fix)"
     # Explicitly simulate a fresh environment (no ~/.claude-octopus/results/)
     # — this was the exact failure path that CI hit but local repro missed.
-    local err_out code err tmphome
-    tmphome=$(mktemp -d)
+    local err_out code err
     err_out=$(mktemp)
     code=0
-    echo "$VALID_STDIN" | HOME="$tmphome" bash "$PROJECT_ROOT/hooks/quality-gate.sh" 2>"$err_out" >/dev/null || code=$?
+    run_hook_with_deadline "$PROJECT_ROOT/hooks/quality-gate.sh" "$err_out" >/dev/null || code=$?
     err=$(<"$err_out")
-    rm -rf "$tmphome" "$err_out"
+    rm -f "$err_out"
     if [[ $code -eq 0 ]]; then test_pass; else test_fail "exit=$code stderr='${err:0:120}'"; fi
 }
 

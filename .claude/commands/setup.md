@@ -141,7 +141,7 @@ AskUserQuestion({
       {label: "Configure models", description: "Set which models are used for each workflow phase → launches /octo:model-config"},
       {label: "Set up token optimization (RTK)", description: "Install RTK for 60-90% token savings on bash output"},
       {label: "Change work mode", description: "Switch between Dev mode and Knowledge Work mode"},
-      {label: "Fine-tune preferences", description: "Banner verbosity, telemetry, cost mode"},
+      {label: "Fine-tune preferences", description: "Auto-routing, banner verbosity, telemetry, cost mode"},
       {label: "Troubleshoot an issue", description: "Diagnose a problem → launches /octo:doctor"},
       {label: "Done — everything looks good", description: "Exit setup"}
     ]

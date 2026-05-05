@@ -204,6 +204,11 @@
         },
         {
           "type": "command",
+          "command": "${CLAUDE_PLUGIN_ROOT}/hooks/auto-router-inject.sh",
+          "timeout": 3
+        },
+        {
+          "type": "command",
           "command": "${CLAUDE_PLUGIN_ROOT}/hooks/session-start-memory.sh",
           "additionalContext": "Restore persisted user preferences and session sync from auto-memory",
           "timeout": 30
