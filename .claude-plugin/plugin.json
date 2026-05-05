@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "9.31.0",
-  "description": "v9.31.0 \u2014 Routing config now feeds review/parallel/debate; develop dispatch, quota watcher cleanup, probe output-dir, and docs paths fixed. Run /octo:setup.",
+  "version": "9.32.0",
+  "description": "v9.32.0 \u2014 Routing config now feeds review/parallel/debate; develop dispatch, quota watcher cleanup, probe output-dir, and docs paths fixed. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"

@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.32.0] - 2026-05-05
+
+### Changed
+
+- Add round-aware PR review history (#322)
+
+---
+
 ## [9.31.0] - 2026-05-05
 
 ### Fixed
