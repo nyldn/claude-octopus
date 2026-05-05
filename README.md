@@ -278,7 +278,7 @@ Specialized agents that activate automatically based on your request. When you s
 
 Categories: Software Engineering (11), Specialized Development (6), Documentation & Communication (5), Research & Strategy (3), Business & Compliance (3), Creative & Design (4).
 
-[Full persona reference](docs/AGENTS.md) | [All 51 skills](docs/COMMAND-REFERENCE.md)
+[Full persona reference](docs/AGENTS.md) | [All 52 skills](docs/COMMAND-REFERENCE.md)
 
 ### Built-in Reaction Engine
 

@@ -87,7 +87,7 @@ test_cmd "build script syntax check" \
 test_cmd "build script runs successfully" \
     "cd '$PLUGIN_ROOT' && bash scripts/build-codex-skills.sh"
 
-test_output "build script generates 50 skills" \
+test_output "build script generates 50+ skills" \
     "cd '$PLUGIN_ROOT' && bash scripts/build-codex-skills.sh" \
     "5[0-9] skills generated"
 
