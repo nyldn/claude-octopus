@@ -93,15 +93,27 @@ else
 fi
 
 echo ""
-echo "=== Embrace Chains Skills (Not One Big Bash Call) ==="
+echo "=== Embrace Chains Direct Workflow Dispatches ==="
 
 EMBRACE="$PROJECT_ROOT/.claude/commands/embrace.md"
 if [[ -f "$EMBRACE" ]]; then
-    skill_invocations=$(grep -c 'Skill(skill: "octo:' "$EMBRACE" 2>/dev/null || echo 0)
-    if [[ $skill_invocations -ge 4 ]]; then
-        pass "embrace.md chains $skill_invocations skill invocations"
+    missing_dispatches=()
+    for workflow in probe grasp tangle ink; do
+        if ! grep -q "orchestrate.sh ${workflow}" "$EMBRACE" 2>/dev/null; then
+            missing_dispatches+=("$workflow")
+        fi
+    done
+
+    if [[ ${#missing_dispatches[@]} -eq 0 ]]; then
+        pass "embrace.md chains direct orchestrate.sh workflow dispatches"
     else
-        fail "embrace.md only has $skill_invocations skill invocations" "Must chain at least 4 (discover+define+develop+deliver)"
+        fail "embrace.md missing direct workflow dispatches" "Missing: ${missing_dispatches[*]}"
+    fi
+
+    if grep -qE 'Skill\(skill: "octo:(discover|define|develop|deliver)"' "$EMBRACE" 2>/dev/null; then
+        fail "embrace.md contains recursive workflow Skill invocation" "Must call orchestrate.sh directly for discover/define/develop/deliver phases"
+    else
+        pass "embrace.md avoids recursive workflow Skill invocations"
     fi
 fi
 

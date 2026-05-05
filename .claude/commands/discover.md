@@ -91,13 +91,13 @@ Map the intensity answer:
 
 After receiving answers, incorporate them into the Skill invocation.
 
-### Step 2: Invoke Skill with Intensity
+### Step 2: Run Discovery via orchestrate.sh
 
-```
-Skill(skill: "octo:discover", args: "[intensity=quick|standard|deep] <user's arguments>")
+```bash
+cd "${HOME}/.claude-octopus/plugin" && bash scripts/orchestrate.sh probe [intensity=quick|standard|deep] <user's arguments>
 ```
 
-Example: `Skill(skill: "octo:discover", args: "[intensity=standard] OAuth authentication patterns")`
+Example: `cd "${HOME}/.claude-octopus/plugin" && bash scripts/orchestrate.sh probe [intensity=standard] OAuth authentication patterns`
 
 ### Step 3: Post-Completion — Interactive Next Steps
 

@@ -140,24 +140,24 @@ Scope: [answer]  Focus: [answer]  Autonomy: [answer]
 
 ### Phase 1 — Discover
 
-Invoke the discover skill:
-```
-Skill(skill: "octo:discover", args: "<user's prompt>")
+Run the discover phase via orchestrate.sh:
+```bash
+cd "${HOME}/.claude-octopus/plugin" && bash scripts/orchestrate.sh probe <user's prompt>
 ```
 
-This will dispatch to Codex, Gemini, and other available providers via `orchestrate.sh probe-single`. Results saved to `~/.claude-octopus/results/probe-synthesis-*.md`.
+This will dispatch to Codex, Gemini, and other available providers. Results saved to `~/.claude-octopus/results/probe-synthesis-*.md`.
 
 **Supervised mode:** After Discover completes, present key findings and ask to proceed.
 **Semi-autonomous/Autonomous:** Proceed automatically.
 
 ### Phase 2 — Define
 
-Invoke the define skill:
-```
-Skill(skill: "octo:define", args: "<user's prompt>")
+Run the define phase via orchestrate.sh:
+```bash
+cd "${HOME}/.claude-octopus/plugin" && bash scripts/orchestrate.sh grasp <user's prompt>
 ```
 
-This builds consensus across providers via `orchestrate.sh`. Results saved to `~/.claude-octopus/results/grasp-consensus-*.md`.
+This builds consensus across providers. Results saved to `~/.claude-octopus/results/grasp-consensus-*.md`.
 
 **Supervised mode:** Present consensus and ask to proceed.
 
@@ -190,12 +190,12 @@ AskUserQuestion({
 
 ### Phase 3 — Develop
 
-Invoke the develop skill:
-```
-Skill(skill: "octo:develop", args: "<user's prompt>")
+Run the develop phase via orchestrate.sh:
+```bash
+cd "${HOME}/.claude-octopus/plugin" && bash scripts/orchestrate.sh tangle <user's prompt>
 ```
 
-This dispatches implementation via `orchestrate.sh tangle` with quality gates. Results saved to `~/.claude-octopus/results/tangle-validation-*.md`.
+This dispatches implementation with quality gates. Results saved to `~/.claude-octopus/results/tangle-validation-*.md`.
 
 ### Second Debate Gate (if "both gates" selected)
 
@@ -203,12 +203,12 @@ Same pattern as above but collaborative style, reviewing implementation quality.
 
 ### Phase 4 — Deliver
 
-Invoke the deliver skill:
-```
-Skill(skill: "octo:deliver", args: "<user's prompt>")
+Run the deliver phase via orchestrate.sh:
+```bash
+cd "${HOME}/.claude-octopus/plugin" && bash scripts/orchestrate.sh ink <user's prompt>
 ```
 
-This runs multi-provider validation via `orchestrate.sh ink`. Results saved to `~/.claude-octopus/results/delivery-*.md`.
+This runs multi-provider validation. Results saved to `~/.claude-octopus/results/delivery-*.md`.
 
 ### Auto Code Review (MANDATORY)
 
