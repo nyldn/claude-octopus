@@ -258,8 +258,10 @@ ${provider_ctx}"
         [[ $exit_code -eq 137 ]] && exit_code=1
         output=$(cat "$temp_out")
     else
+        set +e
         printf '%s' "$enhanced_prompt" | run_with_timeout "$timeout_secs" "${cmd_array[@]}" 2>"$temp_err" >"$temp_out"
         exit_code=$?
+        set -e
         output=$(cat "$temp_out")
     fi
 
