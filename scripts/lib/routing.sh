@@ -9,6 +9,65 @@
 _ROUTING_LOADED=1
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# PROVIDER CONFIG ROUTING HELPERS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Resolve a provider/config token from providers.json into a concrete agent type.
+# Returns non-zero for unknown or unavailable agents so callers can skip safely.
+resolve_provider_to_agent() {
+    local provider="$1"
+    local agent=""
+
+    case "$provider" in
+        claude)                 agent="claude-sonnet" ;;
+        claude-sonnet|claude-opus|claude-opus-fast)
+                                agent="$provider" ;;
+        codex|codex-standard|codex-max|codex-mini|codex-general|codex-spark|codex-reasoning|codex-large-context|codex-review)
+                                agent="$provider" ;;
+        gemini|gemini-fast|gemini-image)
+                                agent="$provider" ;;
+        openrouter|openrouter-glm5|openrouter-kimi|openrouter-deepseek)
+                                agent="$provider" ;;
+        perplexity|perplexity-fast)
+                                agent="$provider" ;;
+        qwen|qwen-research)     agent="$provider" ;;
+        copilot|copilot-research)
+                                agent="$provider" ;;
+        cursor-agent|ollama)    agent="$provider" ;;
+        *)                      return 1 ;;
+    esac
+
+    if [[ -n "${AVAILABLE_AGENTS:-}" && " $AVAILABLE_AGENTS " != *" $agent "* ]]; then
+        return 1
+    fi
+
+    echo "$agent"
+}
+
+agent_display_label() {
+    local agent="$1"
+    case "$agent" in
+        claude-opus*) echo "Opus" ;;
+        claude*) echo "Sonnet" ;;
+        codex*) echo "Codex" ;;
+        gemini*) echo "Gemini" ;;
+        openrouter*) echo "OpenRouter" ;;
+        qwen*) echo "Qwen" ;;
+        perplexity*) echo "Perplexity" ;;
+        copilot*) echo "Copilot" ;;
+        cursor-agent) echo "Cursor Agent" ;;
+        ollama) echo "Ollama" ;;
+        *) return 1 ;;
+    esac
+}
+
+agent_display_label_upper() {
+    local label
+    label=$(agent_display_label "$1") || return 1
+    printf '%s\n' "$label" | tr '[:lower:]' '[:upper:]'
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # TASK CLASSIFICATION
 # ═══════════════════════════════════════════════════════════════════════════════
 

@@ -42,13 +42,118 @@ parse_review_md() {
     log DEBUG "parse_review_md: always=$(echo "$REVIEW_ALWAYS_CHECK" | wc -l) style=$(echo "$REVIEW_STYLE_RULES" | wc -l) skip=$(echo "$REVIEW_SKIP_PATTERNS" | wc -l)"
 }
 
-# build_review_fleet: builds active agent list based on available providers
-# WHY: fleet is dynamic — if Perplexity is not configured, fall back to
-# Gemini search; if Codex is unavailable, fall back to claude-sonnet.
+# _review_fleet_from_config (v9.31.0): build fleet from routing.features.review
+# in providers.json. /octo:model-config wizard already writes a "Review providers"
+# array to this path; before this change there was no consumer, so the wizard's
+# selection had no effect. Returns empty when config absent/empty so callers fall
+# back to the cascade.
+# Output: agent_type:role:specialty triples, newline-separated.
+_review_fleet_from_config() {
+    local config_file="${HOME}/.claude-octopus/config/providers.json"
+    [[ ! -f "$config_file" ]] && return 0
+    command -v jq >/dev/null 2>&1 || return 0
+
+    local participants
+    participants=$(jq -r '
+        (.routing.features.review // [])
+        | if type == "array" then .[] else empty end
+    ' "$config_file" 2>/dev/null)
+    [[ -z "$participants" ]] && return 0
+
+    local fleet=""
+    local has_logic=false has_security=false has_arch=false has_cve=false has_diversity=false
+
+    while IFS= read -r provider; do
+        [[ -z "$provider" ]] && continue
+        case "$provider" in
+            codex|codex-*)
+                if [[ "$has_logic" == "false" ]]; then
+                    fleet+="${provider}:logic-reviewer:correctness and logic bugs, edge cases, regressions"$'\n'
+                    has_logic=true
+                fi
+                ;;
+            opencode|opencode-*)
+                if [[ "$has_logic" == "false" ]]; then
+                    fleet+="${provider}:logic-reviewer:correctness and logic bugs, edge cases, regressions"$'\n'
+                    has_logic=true
+                fi
+                ;;
+            gemini|gemini-*)
+                if [[ "$has_security" == "false" ]]; then
+                    fleet+="${provider}:security-reviewer:OWASP vulnerabilities, injection, auth flaws, data exposure"$'\n'
+                    has_security=true
+                fi
+                ;;
+            claude|claude-sonnet|claude-opus)
+                if [[ "$has_arch" == "false" ]]; then
+                    local agent="${provider}"
+                    [[ "$provider" == "claude" ]] && agent="claude-sonnet"
+                    fleet+="${agent}:arch-reviewer:architecture, integration, API contracts, breaking changes"$'\n'
+                    has_arch=true
+                fi
+                ;;
+            perplexity|perplexity-*)
+                if [[ "$has_cve" == "false" ]]; then
+                    fleet+="${provider}:cve-reviewer:known CVEs, library advisories, live web search"$'\n'
+                    has_cve=true
+                fi
+                ;;
+            openrouter|openrouter-*)
+                if [[ "$has_diversity" == "false" ]]; then
+                    fleet+="${provider}:diversity-reviewer:cross-family perspective on logic, missed assumptions, training-data divergence from primary providers"$'\n'
+                    has_diversity=true
+                fi
+                ;;
+            qwen|qwen-*)
+                if [[ "$has_security" == "false" ]]; then
+                    fleet+="${provider}:security-reviewer:OWASP vulnerabilities, injection, auth flaws, data exposure"$'\n'
+                    has_security=true
+                elif [[ "$has_diversity" == "false" ]]; then
+                    fleet+="${provider}:diversity-reviewer:cross-family perspective on logic and assumptions"$'\n'
+                    has_diversity=true
+                fi
+                ;;
+            copilot|copilot-*)
+                if [[ "$has_cve" == "false" ]]; then
+                    fleet+="${provider}:cve-reviewer:known CVEs via web search, library advisories"$'\n'
+                    has_cve=true
+                elif [[ "$has_diversity" == "false" ]]; then
+                    fleet+="${provider}:diversity-reviewer:cross-perspective review"$'\n'
+                    has_diversity=true
+                fi
+                ;;
+        esac
+    done <<< "$participants"
+
+    [[ -z "$fleet" ]] && return 0
+
+    # Anchor: always include arch-reviewer (claude-sonnet) if config didn't supply one.
+    # Architecture context bridges per-finding noise from the specialist agents.
+    if [[ "$has_arch" == "false" ]]; then
+        fleet+="claude-sonnet:arch-reviewer:architecture, integration, API contracts, breaking changes"$'\n'
+    fi
+
+    log INFO "review fleet: config-driven (.routing.features.review)"
+    echo "$fleet"
+}
+
+# build_review_fleet: builds active agent list. Config-driven if
+# .routing.features.review is set in ~/.claude-octopus/config/providers.json
+# (the path /octo:model-config writes to); otherwise falls back to the original
+# command -v cascade so existing installations are unchanged.
 # Returns a newline-separated list of "agent_type:role:specialty" triples.
 # NOTE: Uses command -v for provider detection — safe with set -euo pipefail.
 build_review_fleet() {
     local fleet=""
+
+    # v9.31.0: honor wizard-configured participants if present
+    fleet=$(_review_fleet_from_config)
+    if [[ -n "$fleet" ]]; then
+        echo "$fleet"
+        return 0
+    fi
+
+    # ── Cascade fallback (original behavior — no config or empty config) ──
 
     # logic-reviewer: Codex (OpenAI) → OpenCode → Copilot → claude-sonnet fallback
     if command -v codex >/dev/null 2>&1; then

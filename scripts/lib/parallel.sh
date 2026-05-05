@@ -12,14 +12,47 @@
 # Extracted from orchestrate.sh (v9.7.8)
 # Source-safe: no main execution block.
 
+# _fan_out_agents_from_config (v9.31.0): read .routing.features.parallel from
+# providers.json. /octo:model-config wizard writes this array under "Parallel
+# execution providers"; before this change there was no consumer.
+# Output: one agent_type per line. Empty when config absent/empty/missing.
+_fan_out_agents_from_config() {
+    local config_file="${HOME}/.claude-octopus/config/providers.json"
+    [[ ! -f "$config_file" ]] && return 0
+    command -v jq >/dev/null 2>&1 || return 0
+
+    jq -r '
+        (.routing.features.parallel // [])
+        | if type == "array" then .[] else empty end
+    ' "$config_file" 2>/dev/null || true
+}
+
 fan_out() {
     local prompt="$1"
-    local agents=("codex" "gemini")
+    local agents=()
     local pids=()
     local task_group
     task_group=$(date +%s)
 
-    log INFO "Fan-out: Sending prompt to ${#agents[@]} agents"
+    # v9.31.0: honor wizard-configured participants if present
+    local _configured
+    _configured=$(_fan_out_agents_from_config)
+    if [[ -n "$_configured" ]]; then
+        while IFS= read -r _a; do
+            [[ -z "$_a" ]] && continue
+            local _resolved
+            if _resolved=$(resolve_provider_to_agent "$_a"); then
+                agents+=("$_resolved")
+            else
+                log WARN "Fan-out: skipping unknown agent '$_a' (not in AVAILABLE_AGENTS)"
+            fi
+        done <<< "$_configured"
+    fi
+
+    # Fallback to original default pair when config absent or all entries invalid
+    [[ ${#agents[@]} -eq 0 ]] && agents=("codex" "gemini")
+
+    log INFO "Fan-out: Sending prompt to ${#agents[@]} agents (${agents[*]})"
     echo ""
 
     for agent in "${agents[@]}"; do
