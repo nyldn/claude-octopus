@@ -15,6 +15,31 @@ set -euo pipefail
 _octo_hook_exit() { local c=$?; if [[ $c -ne 0 ]]; then echo "[hook:$(basename "$0")] exit $c" >&2 2>/dev/null || true; fi; return 0; }
 trap _octo_hook_exit EXIT
 
+REMOTE_SESSION=false
+if [[ "${CLAUDE_CODE_REMOTE:-}" == "true" || "${CLAUDE_CODE_WEB:-}" == "true" || "${OCTOPUS_REMOTE_SESSION:-false}" == "true" ]]; then
+    REMOTE_SESSION=true
+    export OCTOPUS_REMOTE_SESSION=true
+    export CLAUDE_OCTOPUS_AUTONOMY="${CLAUDE_OCTOPUS_AUTONOMY:-${OCTOPUS_AUTONOMY:-autonomous}}"
+    export OCTOPUS_AUTONOMY="${OCTOPUS_AUTONOMY:-$CLAUDE_OCTOPUS_AUTONOMY}"
+
+    if mkdir -p "${HOME}/.claude-octopus" 2>/dev/null; then
+        SESSION_FILE="${HOME}/.claude-octopus/session.json"
+        if command -v jq >/dev/null 2>&1; then
+            if [[ -f "$SESSION_FILE" ]]; then
+                TMP="${SESSION_FILE}.tmp"
+                jq --arg autonomy "$OCTOPUS_AUTONOMY" \
+                    '.remote_session = true | .autonomy = (.autonomy // $autonomy)' \
+                    "$SESSION_FILE" > "$TMP" 2>/dev/null && mv "$TMP" "$SESSION_FILE" 2>/dev/null || rm -f "$TMP"
+            else
+                jq -n --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg autonomy "$OCTOPUS_AUTONOMY" \
+                    '{"remote_session": true, "autonomy": $autonomy, "session_start": $ts}' \
+                    > "$SESSION_FILE" 2>/dev/null || true
+            fi
+        elif [[ ! -f "$SESSION_FILE" ]]; then
+            printf '{"remote_session":true,"autonomy":"%s"}\n' "$OCTOPUS_AUTONOMY" > "$SESSION_FILE" 2>/dev/null || true
+        fi
+    fi
+fi
 
 # --- 0. First-run detection (v9.19.2) ---
 # On very first install, auto-prompt the user to run /octo:setup
@@ -22,6 +47,7 @@ SETUP_MARKER="${HOME}/.claude-octopus/.setup-complete"
 if [[ ! -f "$SETUP_MARKER" ]]; then
     mkdir -p "${HOME}/.claude-octopus"
     touch "$SETUP_MARKER"
+    [[ "$REMOTE_SESSION" == "true" ]] && exit 0
     echo "[🐙] Welcome to Claude Octopus! Running /octo:setup for first-time configuration..."
     # This additionalContext triggers Claude to invoke the setup skill
     exit 0

@@ -412,6 +412,15 @@ detect_tier_openai() {
         fallback_tier="plus"
     fi
 
+    # Cloud/remote sessions should not spend time or quota on provider probes.
+    # The fallback is still cached so routing has a stable tier hint.
+    if [[ "${OCTOPUS_SKIP_PROVIDER_PROBES:-false}" == "true" || "${CLAUDE_CODE_REMOTE:-}" == "true" || "${OCTOPUS_REMOTE_SESSION:-false}" == "true" ]]; then
+        [[ "$VERBOSE" == "true" ]] && log DEBUG "Codex tier probe skipped for remote session, using fallback: $fallback_tier" || true
+        tier_cache_write "codex" "$fallback_tier"
+        echo "$fallback_tier"
+        return 0
+    fi
+
     # Attempt API detection with minimal test call
     if command -v codex &>/dev/null; then
         local test_response
@@ -1062,6 +1071,11 @@ provider_smoke_test() {
     # Skip if user opted out
     if [[ "$SKIP_SMOKE_TEST" == "true" ]]; then
         log DEBUG "Smoke test: skipped (--skip-smoke-test)"
+        return 0
+    fi
+
+    if [[ "${OCTOPUS_SKIP_PROVIDER_PROBES:-false}" == "true" || "${CLAUDE_CODE_REMOTE:-}" == "true" || "${OCTOPUS_REMOTE_SESSION:-false}" == "true" ]]; then
+        log DEBUG "Smoke test: skipped for remote session"
         return 0
     fi
 

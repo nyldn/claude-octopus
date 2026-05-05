@@ -22,6 +22,8 @@ printf "copilot:%s\n" "$(command -v copilot >/dev/null 2>&1 && echo installed ||
 printf "qwen:%s\n" "$(command -v qwen >/dev/null 2>&1 && echo installed || echo missing)"
 printf "ollama:%s\n" "$(command -v ollama >/dev/null 2>&1 && curl -sf http://localhost:11434/api/tags >/dev/null 2>&1 && echo running || command -v ollama >/dev/null 2>&1 && echo installed || echo missing)"
 printf "opencode:%s\n" "$(command -v opencode >/dev/null 2>&1 && echo installed || echo missing)"
+printf "remote_session:%s\n" "$([[ "${CLAUDE_CODE_REMOTE:-}" == "true" || "${OCTOPUS_REMOTE_SESSION:-}" == "true" ]] && echo true || echo false)"
+printf "octo_tier:%s\n" "${OCTO_TIER:-unset}"
 echo "=== Token Optimization ==="
 printf "rtk:%s\n" "$(command -v rtk >/dev/null 2>&1 && echo "installed $(rtk --version 2>&1 | head -1)" || echo missing)"
 printf "rtk_hook:%s\n" "$(grep -q 'rtk' "${HOME}/.claude/settings.json" 2>/dev/null && echo active || echo missing)"
@@ -50,6 +52,10 @@ Providers:
 
 Token Optimization:
   RTK:              [Installed + Hook active ✓ / Installed ✓ / Missing ✗]
+
+Session:
+  Remote/Web:       [Yes / No]
+  Project tier:     [unset / prototype / mvp / production]
 ```
 
 ## STEP 3: Interactive Menu (ALWAYS show this)
@@ -67,6 +73,7 @@ AskUserQuestion({
       {label: "Configure models", description: "Set which models are used for each workflow phase → launches /octo:model-config"},
       {label: "Set up token optimization (RTK)", description: "Install RTK for 60-90% token savings on bash output"},
       {label: "Change work mode", description: "Switch between Dev mode and Knowledge Work mode"},
+      {label: "Set project tier", description: "Set OCTO_TIER=prototype|mvp|production as a routing hint"},
       {label: "Fine-tune preferences", description: "Auto-routing, banner verbosity, telemetry, cost mode"},
       {label: "Troubleshoot an issue", description: "Diagnose a problem → launches /octo:doctor"}
     ]
@@ -77,6 +84,27 @@ AskUserQuestion({
 Then route to the appropriate section below.
 
 **If providers are NOT yet configured or this is a first run**, also proceed with the full setup flow below after showing the menu.
+
+## Remote/Web Session Defaults
+
+If `remote_session:true` appears in the detection output, assume the user is in a Claude Code web/remote session. Do not launch interactive provider logins from this command. Explain that Octopus will default to autonomous mode, skip provider probe calls, and use the lightweight statusline unless overridden with:
+
+```bash
+export OCTOPUS_REMOTE_STATUSLINE=full   # enable full local HUD behavior
+export OCTOPUS_REMOTE_STATUSLINE=off    # suppress statusline output
+```
+
+## Project Tier Hint
+
+`OCTO_TIER` is a recommendation hint, not a hard policy:
+
+| Tier | Recommended behavior |
+|------|----------------------|
+| `prototype` | Prefer speed, light review, lower provider spend |
+| `mvp` | Balanced checks, normal review, consensus on risky changes |
+| `production` | Full verification, security review, stronger consensus before merge/release |
+
+If unset, offer to add `export OCTO_TIER=<tier>` to the user's shell profile or project-local environment.
 
 ---
 

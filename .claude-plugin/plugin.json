@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "9.33.0",
-  "description": "v9.33.0 \u2014 Routing config now feeds review/parallel/debate; develop dispatch, quota watcher cleanup, probe output-dir, and docs paths fixed. Run /octo:setup.",
+  "version": "9.34.0",
+  "description": "v9.34.0 — Remote/web session defaults: autonomous routing, skipped provider probes, lightweight statusline, and setup/doctor tier hints. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"
