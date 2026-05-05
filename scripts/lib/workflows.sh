@@ -758,6 +758,47 @@ tangle_develop() {
 
     # Step 1: Decompose into validated subtasks
     log INFO "Step 1: Task decomposition..."
+
+    # Resolve a referenced Markdown plan file without letting grep/head trip
+    # pipefail when the prompt has no file token.
+    local resolved_prompt="$prompt"
+    local file_ref=""
+    local raw_file_ref=""
+    local token
+    local noglob_was_set=false
+    [[ "$-" == *f* ]] && noglob_was_set=true || set -f
+    for token in $prompt; do
+        if [[ "$token" == *.md ]]; then
+            raw_file_ref="$token"
+            file_ref="${token/#\~/$HOME}"
+            break
+        fi
+    done
+    [[ "$noglob_was_set" == "false" ]] && set +f
+    if [[ -n "$file_ref" && -f "$file_ref" ]]; then
+        local file_content
+        file_content=$(<"$file_ref")
+        local plan_block="--- PLAN: ${file_ref} ---
+${file_content}
+--- END PLAN ---"
+        local trimmed_prompt="$prompt"
+        trimmed_prompt="${trimmed_prompt#"${trimmed_prompt%%[![:space:]]*}"}"
+        trimmed_prompt="${trimmed_prompt%"${trimmed_prompt##*[![:space:]]}"}"
+
+        if [[ "$trimmed_prompt" == "$raw_file_ref" || "$trimmed_prompt" == "$file_ref" ]]; then
+            resolved_prompt="Implement the code changes described in the following plan. Do NOT modify the plan file itself (${file_ref}).
+
+${plan_block}"
+        else
+            resolved_prompt="${prompt}
+
+The following referenced plan file has been resolved. Use it as implementation context and do NOT modify the plan file itself (${file_ref}).
+
+${plan_block}"
+        fi
+        log INFO "Resolved file reference: ${file_ref} - injecting content into decompose prompt"
+    fi
+
     local decompose_prompt="Decompose this task into subtasks that can be executed in parallel.
 Each subtask should be:
 - Self-contained and independently verifiable
@@ -766,7 +807,7 @@ Each subtask should be:
 
 **Cohesion rule:** If the task produces a single deliverable (one file, one script, one page, one config), keep it as ONE subtask — do not split it. Only decompose when subtasks are truly independent with no cross-file references between them. Aim for 2-6 subtasks; fewer is better when the work is tightly coupled.
 
-${context}Task: $prompt
+${context}Task: $resolved_prompt
 
 Output as numbered list with [CODING] or [REASONING] prefix for each subtask."
 
@@ -774,7 +815,7 @@ Output as numbered list with [CODING] or [REASONING] prefix for each subtask."
     subtasks=$(run_agent_sync "gemini" "$decompose_prompt" 120 "researcher" "tangle") || \
     subtasks=$(run_agent_sync "codex" "$decompose_prompt" 120 "researcher" "tangle") || {
         log WARN "Decomposition failed with all providers, falling back to direct execution"
-        spawn_agent "codex" "$prompt" "tangle-${task_group}-direct" "implementer" "tangle"
+        spawn_agent "codex" "$resolved_prompt" "tangle-${task_group}-direct" "implementer" "tangle"
         wait
         return
     }
@@ -850,7 +891,7 @@ Output as numbered list with [CODING] or [REASONING] prefix for each subtask."
 
     # Step 3: Validation gate
     log INFO "Step 3: Validation gate..."
-    validate_tangle_results "$task_group" "$prompt"
+    validate_tangle_results "$task_group" "$resolved_prompt"
 }
 
 # Phase 4: INK (Deliver) - Quality gates + final output
