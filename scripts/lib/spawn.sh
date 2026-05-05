@@ -2,6 +2,18 @@
 # spawn_agent — extracted from orchestrate.sh (v9.7.x)
 # Agent spawning and lifecycle management
 
+if ! type start_quota_watcher >/dev/null 2>&1; then
+    _octopus_spawn_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    source "${_octopus_spawn_lib_dir}/quota-watcher.sh" 2>/dev/null || true
+fi
+
+quota_watcher_kill_spawn_children() {
+    local spawn_pid="$1"
+    pkill -TERM -P "$spawn_pid" 2>/dev/null || true
+    sleep 1
+    pkill -KILL -P "$spawn_pid" 2>/dev/null || true
+}
+
 spawn_agent() {
     local _ts; _ts=$(date +%s)
     local agent_type="$1"
@@ -527,6 +539,21 @@ ${heuristic_ctx}"
         local exit_code=0
         while true; do
             exit_code=0
+
+            # Quota fast-fail watcher: detects quota exhaustion in stderr/stdout
+            # and kills the provider process early instead of waiting the full TIMEOUT.
+            # Applies to Gemini (free tier exhausts quota and retries for ~18h internally).
+            local _quota_watcher_pid=""
+            if [[ "$agent_type" == gemini* ]]; then
+                local _spawn_pid=$BASHPID
+                _quota_watcher_pid=$(start_quota_watcher \
+                    "$_spawn_pid" \
+                    "$temp_errors" \
+                    "$temp_output" \
+                    quota_watcher_kill_spawn_children \
+                    "[$agent_type] Quota exhaustion detected - fast-failing (saves ~${TIMEOUT}s wait)")
+            fi
+
             # v9.2.2: All agents use stdin-based prompt delivery to avoid ARG_MAX limits (Issue #173)
             # Previously only gemini used stdin; codex/claude passed prompt as CLI arg which fails on large diffs
             if printf '%s' "$enhanced_prompt" | run_with_timeout "$TIMEOUT" "${cmd_array[@]}" 2> "$temp_errors" | tee "$raw_output" > "$temp_output"; then
@@ -534,6 +561,8 @@ ${heuristic_ctx}"
             else
                 exit_code=$?
             fi
+
+            stop_quota_watcher "$_quota_watcher_pid"
 
             # v8.16: Check if failure is auth-related and retryable
             if [[ $exit_code -ne 0 ]] && [[ $auth_attempt -lt $max_auth_retries ]]; then
