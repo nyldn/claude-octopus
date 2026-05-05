@@ -12,8 +12,19 @@
 # Every parallel spawn loop MUST call fleet_dispatch_begin before the first
 # spawn_agent call and fleet_dispatch_end after the last one. The smoke test
 # tests/smoke/test-fleet-dispatch-guard.sh enforces this statically.
+if ! type start_quota_watcher >/dev/null 2>&1; then
+    _octopus_agent_sync_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    source "${_octopus_agent_sync_lib_dir}/quota-watcher.sh" 2>/dev/null || true
+fi
+
 fleet_dispatch_begin() {
     export OCTOPUS_FORCE_LEGACY_DISPATCH=true
+}
+
+quota_watcher_kill_sync_dispatch() {
+    local dispatch_pid="$1"
+    pkill -KILL -P "$dispatch_pid" 2>/dev/null || true
+    kill -KILL "$dispatch_pid" 2>/dev/null || true
 }
 
 fleet_dispatch_end() {
@@ -203,6 +214,7 @@ ${provider_ctx}"
     local output
     local exit_code
     local temp_err="${RESULTS_DIR}/.tmp-agent-error-$$.err"
+    local temp_out="${RESULTS_DIR}/.tmp-agent-out-$$.out"
 
     # v8.10.0: Gemini uses stdin-based prompt delivery (Issue #25)
     # -p "" triggers headless mode; prompt content comes via stdin to avoid OS arg limits
@@ -222,8 +234,41 @@ ${provider_ctx}"
     local _dispatch_start _dispatch_cwd
     _dispatch_start=$(date +%s)
     _dispatch_cwd=$(pwd)
-    output=$(printf '%s' "$enhanced_prompt" | run_with_timeout "$timeout_secs" "${cmd_array[@]}" 2>"$temp_err")
-    exit_code=$?
+
+    # Quota fast-fail watcher for Gemini. Gemini CLI retries internally for
+    # hours on QUOTA_EXHAUSTED instead of exiting; kill early.
+    local _quota_watcher_pid=""
+    local _dispatch_pid=""
+
+    # Always init temp files so readers never fail on missing file.
+    > "$temp_err"
+    > "$temp_out"
+
+    if [[ "$agent_type" == gemini* ]]; then
+        # Option B (4/4 debate verdict): background dispatch + targeted PID kill
+        printf '%s' "$enhanced_prompt" \
+            | run_with_timeout "$timeout_secs" "${cmd_array[@]}" 2>"$temp_err" >"$temp_out" &
+        _dispatch_pid=$!
+
+        _quota_watcher_pid=$(start_quota_watcher \
+            "$_dispatch_pid" \
+            "$temp_err" \
+            "$temp_out" \
+            quota_watcher_kill_sync_dispatch \
+            "[$agent_type] Quota exhaustion detected in sync agent - fast-failing")
+
+        wait "$_dispatch_pid" 2>/dev/null && exit_code=0 || exit_code=$?
+        [[ $exit_code -eq 137 ]] && exit_code=1
+        output=$(cat "$temp_out")
+    else
+        set +e
+        printf '%s' "$enhanced_prompt" | run_with_timeout "$timeout_secs" "${cmd_array[@]}" 2>"$temp_err" >"$temp_out"
+        exit_code=$?
+        set -e
+        output=$(cat "$temp_out")
+    fi
+
+    stop_quota_watcher "$_quota_watcher_pid"
 
     # Tail-bias: the deliverable summary lives at the end of codex-style output.
     local _max_bytes="${OCTOPUS_AGENT_MAX_OUTPUT_BYTES:-262144}"
@@ -286,7 +331,7 @@ ${provider_ctx}"
                 fi
             fi
         fi
-        rm -f "$temp_err"
+        rm -f "$temp_err" "$temp_out"
         return $exit_code
     fi
 
@@ -302,7 +347,7 @@ ${provider_ctx}"
         fi
     fi
 
-    rm -f "$temp_err"
+    rm -f "$temp_err" "$temp_out"
 
     # v7.25.0: Record metrics completion
     if [[ -n "$metrics_id" ]] && command -v record_agent_complete &> /dev/null; then
