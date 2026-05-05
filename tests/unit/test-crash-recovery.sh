@@ -11,6 +11,7 @@ test_suite "Crash-Recovery with Secret Sanitization"
 
 # Combined search target (functions decomposed to lib/ in v9.7.7+)
 ALL_SRC=$(mktemp)
+trap 'rm -f "$ALL_SRC"' EXIT
 cat "$PROJECT_ROOT/scripts/orchestrate.sh" "$PROJECT_ROOT/scripts/lib/"*.sh > "$ALL_SRC" 2>/dev/null
 
 test_sanitize_secrets_function_exists() {
@@ -259,5 +260,4 @@ test_checkpoint_in_spawn_agent_start
 test_cleanup_in_embrace
 test_dry_run_with_crash_recovery
 
-rm -f "$ALL_SRC"
 test_summary
