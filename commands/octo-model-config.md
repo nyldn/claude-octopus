@@ -177,7 +177,7 @@ AskUserQuestion({
 
 After selection, apply the change:
 ```bash
-/path/to/orchestrate.sh set-model <provider> <model>
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh set-model <provider> <model>
 ```
 
 Then confirm: `✓ Set <provider> default → <model>`
