@@ -303,13 +303,18 @@ review_run() {
     local profile_json="${1:-"{}"}"
 
     # Parse profile fields (with defaults)
-    local target focus provenance autonomy publish debate
+    local target focus provenance autonomy publish debate history
     target=$(echo "$profile_json"     | jq -r '.target     // "staged"')
     focus=$(echo "$profile_json"      | jq -r '.focus      // ["correctness","security","architecture","tdd"]  | join(",")')
     provenance=$(echo "$profile_json" | jq -r '.provenance // "unknown"')
     autonomy=$(echo "$profile_json"   | jq -r '.autonomy   // "supervised"')
     publish=$(echo "$profile_json"    | jq -r '.publish    // "ask"')
     debate=$(echo "$profile_json"     | jq -r '.debate     // "auto"')
+    history=$(echo "$profile_json"    | jq -r '.history    // "auto"')
+    if [[ "$target" == "fresh" ]]; then
+        target="working-tree"
+        history="fresh"
+    fi
 
     # v9.0: Provider status tracking for post-run report card
     local provider_status_file
@@ -333,7 +338,7 @@ review_run() {
     local findings_file="$results_dir/review-findings-${timestamp}.json"
     mkdir -p "$results_dir"
 
-    log INFO "review_run: target=$target focus=$focus provenance=$provenance autonomy=$autonomy"
+    log INFO "review_run: target=$target focus=$focus provenance=$provenance autonomy=$autonomy history=$history"
 
     # ── REVIEW.md ────────────────────────────────────────────────────────────
     parse_review_md
@@ -366,6 +371,43 @@ review_run() {
         done <<< "$REVIEW_SKIP_PATTERNS"
     fi
 
+    # ── Round-aware PR review state (#322) ───────────────────────────────────
+    # OCTOPUS_PR_HISTORY=0 disables all local history read/write.
+    local review_pr_number="" review_repo="" review_host="github.com" review_head_sha=""
+    local review_state_file="" review_previous_findings="[]" review_history_context="" review_timeline=""
+    if declare -F pr_review_state_enabled >/dev/null 2>&1 && pr_review_state_enabled; then
+        if [[ "$target" =~ ^[0-9]+$ ]]; then
+            review_pr_number="$target"
+            review_head_sha=$(gh pr view "$target" --json headRefOid -q .headRefOid 2>/dev/null || true)
+        else
+            review_pr_number=$(gh pr view --json number -q .number 2>/dev/null || true)
+            review_head_sha=$(gh pr view --json headRefOid -q .headRefOid 2>/dev/null || true)
+        fi
+        [[ -z "$review_head_sha" ]] && review_head_sha=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
+
+        if [[ -n "$review_pr_number" ]]; then
+            local repo_json
+            repo_json=$(gh repo view --json nameWithOwner,url 2>/dev/null || echo '{}')
+            review_repo=$(echo "$repo_json" | jq -r '.nameWithOwner // empty')
+            review_host=$(echo "$repo_json" | jq -r '(.url // "") | sub("^https?://";"") | split("/")[0] // "github.com"')
+            [[ -z "$review_host" || "$review_host" == "null" ]] && review_host="github.com"
+
+            if [[ -n "$review_repo" ]]; then
+                review_state_file=$(pr_review_state_path "$review_host" "$review_repo" "$review_pr_number")
+                if [[ "$history" != "fresh" ]] && pr_review_state_validate "$review_state_file"; then
+                    local previous_round previous_head since_last_round_diff
+                    previous_round=$(pr_review_state_previous_round "$review_state_file" 2>/dev/null || true)
+                    previous_head=$(echo "$previous_round" | jq -r '.head_sha // empty' 2>/dev/null || true)
+                    review_previous_findings=$(echo "$previous_round" | jq -c '.findings // []' 2>/dev/null || echo "[]")
+                    if [[ -n "$previous_head" && "$previous_head" != "unknown" ]]; then
+                        since_last_round_diff=$(pr_review_state_diff_since "$previous_head" "$review_head_sha" 2>/dev/null || true)
+                    fi
+                    review_history_context=$(pr_review_state_context_for_prompt "$review_state_file" "$since_last_round_diff" 12000)
+                fi
+            fi
+        fi
+    fi
+
     # ── Scale timeout by diff size (#303) ───────────────────────────────────
     local diff_lines
     diff_lines=$(echo "$diff_content" | wc -l | tr -d ' ')
@@ -395,6 +437,7 @@ Severity guide:
 - pre-existing: bug not introduced by this PR (purple)
 
 ${review_context}
+${review_history_context}
 
 Focus areas for this review: ${focus}
 Provenance: ${provenance}
@@ -590,6 +633,19 @@ Return ONLY JSON: {\"findings\": [...ranked, deduplicated findings...]}"
     echo "$final_json" > "$findings_file"
     log INFO "review_run: findings saved to $findings_file"
 
+    if [[ -n "$review_state_file" ]] && declare -F pr_review_state_append_round >/dev/null 2>&1; then
+        local final_findings classification providers_json
+        final_findings=$(echo "$final_json" | jq -c '.findings // []' 2>/dev/null || echo "[]")
+        classification=$(pr_review_state_classify_findings "$review_previous_findings" "$final_findings" 2>/dev/null || echo '{"addressed":0,"persistent":0,"new":0,"regressed":0}')
+        providers_json=$(printf '%s\n' "${round1_agent_types[@]}" | jq -R -s 'split("\n")[:-1]' 2>/dev/null || echo "[]")
+        local current_round
+        current_round=$(pr_review_state_next_round "$review_state_file")
+        review_timeline=$(pr_review_state_render_timeline "$review_state_file" "$review_head_sha" "$classification" "$current_round" 2>/dev/null || true)
+        if pr_review_state_append_round "$review_state_file" "$review_host" "$review_repo" "$review_pr_number" "$review_head_sha" "$providers_json" "$final_findings" "$classification" 2>/dev/null; then
+            log INFO "review_run: round-aware state saved to $review_state_file"
+        fi
+    fi
+
     # ── Output ────────────────────────────────────────────────────────────────
     local pr_number=""
     pr_number=$(gh pr view --json number -q .number 2>/dev/null || true)
@@ -610,6 +666,11 @@ Return ONLY JSON: {\"findings\": [...ranked, deduplicated findings...]}"
         fi
     else
         render_terminal_report "$findings_file"
+    fi
+
+    if [[ -n "$review_timeline" ]]; then
+        echo ""
+        echo "$review_timeline"
     fi
 
     # v9.0: Print provider report card — always last, impossible to miss
