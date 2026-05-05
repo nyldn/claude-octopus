@@ -47,7 +47,8 @@ grapple_debate() {
             | if type == "array" then .[] else empty end
         ' "$_debate_config_file" 2>/dev/null)
         if [[ -n "$_participants" ]]; then
-            _participant_count=$(printf '%s\n' "$_participants" | grep -cv '^$')
+            _participant_count=$(printf '%s\n' "$_participants" | grep -cv '^$' || true)
+            _participant_count="${_participant_count:-0}"
             if [[ "$_participant_count" -gt 3 ]]; then
                 log WARN "Debate supports 3 participants; using first 3 of $_participant_count from .routing.features.debate"
             fi
@@ -55,17 +56,12 @@ grapple_debate() {
             local _provider _agent _label _label_upper
             while IFS= read -r _provider; do
                 [[ -z "$_provider" ]] && continue
-                _agent=""; _label=""; _label_upper=""
-                case "$_provider" in
-                    claude|claude-sonnet)    _agent="claude-sonnet"; _label="Sonnet"; _label_upper="SONNET" ;;
-                    claude-opus)             _agent="claude-opus";   _label="Opus";   _label_upper="OPUS" ;;
-                    codex|codex-*)           _agent="$_provider";    _label="Codex";  _label_upper="CODEX" ;;
-                    gemini|gemini-*)         _agent="$_provider";    _label="Gemini"; _label_upper="GEMINI" ;;
-                    openrouter|openrouter-*) _agent="$_provider";    _label="OpenRouter"; _label_upper="OPENROUTER" ;;
-                    qwen|qwen-*)             _agent="$_provider";    _label="Qwen";   _label_upper="QWEN" ;;
-                    perplexity|perplexity-*) _agent="$_provider";    _label="Perplexity"; _label_upper="PERPLEXITY" ;;
-                    *) continue ;;
-                esac
+                if ! _agent=$(resolve_provider_to_agent "$_provider"); then
+                    log WARN "Debate: skipping unknown agent '$_provider' (not in AVAILABLE_AGENTS)"
+                    continue
+                fi
+                _label=$(agent_display_label "$_agent") || continue
+                _label_upper=$(agent_display_label_upper "$_agent") || continue
                 case "$_slot_idx" in
                     0) agent_a="$_agent"; label_a="$_label"; label_a_upper="$_label_upper" ;;
                     1) agent_b="$_agent"; label_b="$_label"; label_b_upper="$_label_upper" ;;
@@ -637,7 +633,7 @@ TASK: Evaluate based on falsification survival. Provide:
 [For each hypothesis: which assumptions were falsified vs survived. Rate robustness.]
 
 ## Most Robust Approach
-[Which hypothesis has the most unfalsified assumptions — codex, gemini, sonnet, or hybrid]
+[Which hypothesis has the most unfalsified assumptions — ${label_a_upper}, ${label_b_upper}, ${label_c_upper}, or hybrid]
 
 ## Falsified Elements to Avoid
 [Concrete things that were disproven — do NOT include these in the final approach]

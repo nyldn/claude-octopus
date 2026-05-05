@@ -40,11 +40,9 @@ fan_out() {
     if [[ -n "$_configured" ]]; then
         while IFS= read -r _a; do
             [[ -z "$_a" ]] && continue
-            # Resolve generic 'claude' to a concrete agent_type
-            [[ "$_a" == "claude" ]] && _a="claude-sonnet"
-            # Skip unknown agent_types so a typo cannot break /octo:multi
-            if [[ " $AVAILABLE_AGENTS " == *" $_a "* ]]; then
-                agents+=("$_a")
+            local _resolved
+            if _resolved=$(resolve_provider_to_agent "$_a"); then
+                agents+=("$_resolved")
             else
                 log WARN "Fan-out: skipping unknown agent '$_a' (not in AVAILABLE_AGENTS)"
             fi
