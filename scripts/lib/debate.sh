@@ -30,10 +30,57 @@ grapple_debate() {
         rounds=3
     fi
 
+    # v9.31.0: Resolve participants from .routing.features.debate (providers.json).
+    # The /octo:model-config wizard writes a "Debate participants" array to that
+    # path; before this change there was no consumer. Slots A/B/C drive every
+    # run_agent_sync call, prompt label, and synthesis attribution below.
+    # Default trio: codex, gemini, claude-sonnet (preserves prior behavior).
+    local agent_a="codex" label_a="Codex" label_a_upper="CODEX"
+    local agent_b="gemini" label_b="Gemini" label_b_upper="GEMINI"
+    local agent_c="claude-sonnet" label_c="Sonnet" label_c_upper="SONNET"
+
+    local _debate_config_file="${HOME}/.claude-octopus/config/providers.json"
+    if [[ -f "$_debate_config_file" ]] && command -v jq >/dev/null 2>&1; then
+        local _participants _participant_count
+        _participants=$(jq -r '
+            (.routing.features.debate // [])
+            | if type == "array" then .[] else empty end
+        ' "$_debate_config_file" 2>/dev/null)
+        if [[ -n "$_participants" ]]; then
+            _participant_count=$(printf '%s\n' "$_participants" | grep -cv '^$')
+            if [[ "$_participant_count" -gt 3 ]]; then
+                log WARN "Debate supports 3 participants; using first 3 of $_participant_count from .routing.features.debate"
+            fi
+            local _slot_idx=0
+            local _provider _agent _label _label_upper
+            while IFS= read -r _provider; do
+                [[ -z "$_provider" ]] && continue
+                _agent=""; _label=""; _label_upper=""
+                case "$_provider" in
+                    claude|claude-sonnet)    _agent="claude-sonnet"; _label="Sonnet"; _label_upper="SONNET" ;;
+                    claude-opus)             _agent="claude-opus";   _label="Opus";   _label_upper="OPUS" ;;
+                    codex|codex-*)           _agent="$_provider";    _label="Codex";  _label_upper="CODEX" ;;
+                    gemini|gemini-*)         _agent="$_provider";    _label="Gemini"; _label_upper="GEMINI" ;;
+                    openrouter|openrouter-*) _agent="$_provider";    _label="OpenRouter"; _label_upper="OPENROUTER" ;;
+                    qwen|qwen-*)             _agent="$_provider";    _label="Qwen";   _label_upper="QWEN" ;;
+                    perplexity|perplexity-*) _agent="$_provider";    _label="Perplexity"; _label_upper="PERPLEXITY" ;;
+                    *) continue ;;
+                esac
+                case "$_slot_idx" in
+                    0) agent_a="$_agent"; label_a="$_label"; label_a_upper="$_label_upper" ;;
+                    1) agent_b="$_agent"; label_b="$_label"; label_b_upper="$_label_upper" ;;
+                    2) agent_c="$_agent"; label_c="$_label"; label_c_upper="$_label_upper"; break ;;
+                esac
+                _slot_idx=$((_slot_idx + 1))
+            done <<< "$_participants"
+            log INFO "Debate participants (from config): $label_a ($agent_a) vs $label_b ($agent_b) vs $label_c ($agent_c)"
+        fi
+    fi
+
     echo ""
     echo -e "${RED}${_BOX_TOP}${NC}"
     echo -e "${RED}║  🤼 GRAPPLE - Adversarial Cross-Model Review              ║${NC}"
-    echo -e "${RED}║  Codex vs Gemini vs Sonnet 4.6 debate (${rounds} rounds)  ║${NC}"
+    echo -e "${RED}║  ${label_a} vs ${label_b} vs ${label_c} debate (${rounds} rounds)  ║${NC}"
     if [[ "$debate_mode" == "blinded" ]]; then
     echo -e "${RED}║  Mode: Blinded (independent evaluation, no anchoring)     ║${NC}"
     fi
@@ -45,7 +92,7 @@ grapple_debate() {
     if [[ "$DRY_RUN" == "true" ]]; then
         log INFO "[DRY-RUN] Would grapple on: $prompt"
         log INFO "[DRY-RUN] Principles: $principles"
-        log INFO "[DRY-RUN] Round 1: Generate competing proposals (Codex + Gemini + Sonnet 4.6)"
+        log INFO "[DRY-RUN] Round 1: Generate competing proposals (${label_a} + ${label_b} + ${label_c})"
         log INFO "[DRY-RUN] Round 2: Cross-critique (each critiques the other two)"
         log INFO "[DRY-RUN] Round 3: Synthesis and winner determination"
         return 0
@@ -86,7 +133,7 @@ DEBATE INTEGRITY RULES (MANDATORY — follow these in every response):
 - PROPORTIONAL: A minor style issue is NOT a critical flaw. A fundamental architecture mistake is NOT a 'minor concern'. Calibrate severity honestly."
 
     local codex_proposal gemini_proposal sonnet_proposal
-    codex_proposal=$(run_agent_sync "codex" "
+    codex_proposal=$(run_agent_sync "$agent_a" "
 $no_explore_constraint
 
 You are formulating a HYPOTHESIS. Propose your best approach to this task:
@@ -106,13 +153,13 @@ Be thorough and practical." 120 "implementer" "grapple")
 
     if [[ $? -ne 0 || -z "$codex_proposal" ]]; then
         echo ""
-        echo -e "${RED}❌ Codex proposal generation failed${NC}"
+        echo -e "${RED}❌ ${label_a} proposal generation failed${NC}"
         echo -e "   Check logs: ${LOGS_DIR}/"
-        log ERROR "Grapple debate failed: Codex proposal empty or error"
+        log ERROR "Grapple debate failed: ${label_a} proposal empty or error"
         return 1
     fi
 
-    gemini_proposal=$(run_agent_sync "gemini" "
+    gemini_proposal=$(run_agent_sync "$agent_b" "
 $no_explore_constraint
 
 You are formulating a HYPOTHESIS. Propose your best approach to this task:
@@ -132,13 +179,13 @@ Be thorough and practical." 120 "researcher" "grapple")
 
     if [[ $? -ne 0 || -z "$gemini_proposal" ]]; then
         echo ""
-        echo -e "${RED}❌ Gemini proposal generation failed${NC}"
+        echo -e "${RED}❌ ${label_b} proposal generation failed${NC}"
         echo -e "   Check logs: ${LOGS_DIR}/"
-        log ERROR "Grapple debate failed: Gemini proposal empty or error"
+        log ERROR "Grapple debate failed: ${label_b} proposal empty or error"
         return 1
     fi
 
-    sonnet_proposal=$(run_agent_sync "claude-sonnet" "
+    sonnet_proposal=$(run_agent_sync "$agent_c" "
 $no_explore_constraint
 
 You are formulating a HYPOTHESIS. Propose your best approach to this task:
@@ -158,9 +205,9 @@ Be thorough and practical." 120 "researcher" "grapple")
 
     if [[ $? -ne 0 || -z "$sonnet_proposal" ]]; then
         echo ""
-        echo -e "${RED}❌ Sonnet proposal generation failed${NC}"
+        echo -e "${RED}❌ ${label_c} proposal generation failed${NC}"
         echo -e "   Check logs: ${LOGS_DIR}/"
-        log ERROR "Grapple debate failed: Sonnet proposal empty or error"
+        log ERROR "Grapple debate failed: ${label_c} proposal empty or error"
         return 1
     fi
 
@@ -183,7 +230,7 @@ Be thorough and practical." 120 "researcher" "grapple")
         # ── BLINDED MODE: Each model evaluates independently against criteria ──
         # No model sees another's proposals — prevents anchoring bias
 
-        codex_critique=$(run_agent_sync "codex-review" "
+        codex_critique=$(run_agent_sync "$agent_a" "
 $no_explore_constraint
 
 You are an INDEPENDENT EVALUATOR. You have NOT seen any other model's proposals.
@@ -203,12 +250,12 @@ Provide your INDEPENDENT assessment:
 $debate_integrity_rules" 90 "code-reviewer" "grapple")
 
         if [[ $? -ne 0 || -z "$codex_critique" ]]; then
-            echo -e "${RED}❌ Codex evaluation failed${NC}"
-            log ERROR "Grapple debate failed: Codex blinded evaluation empty or error"
+            echo -e "${RED}❌ ${label_a} evaluation failed${NC}"
+            log ERROR "Grapple debate failed: ${label_a} blinded evaluation empty or error"
             return 1
         fi
 
-        gemini_critique=$(run_agent_sync "gemini" "
+        gemini_critique=$(run_agent_sync "$agent_b" "
 $no_explore_constraint
 
 You are an INDEPENDENT EVALUATOR. You have NOT seen any other model's proposals.
@@ -228,12 +275,12 @@ Provide your INDEPENDENT assessment:
 $debate_integrity_rules" 90 "security-auditor" "grapple")
 
         if [[ $? -ne 0 || -z "$gemini_critique" ]]; then
-            echo -e "${RED}❌ Gemini evaluation failed${NC}"
-            log ERROR "Grapple debate failed: Gemini blinded evaluation empty or error"
+            echo -e "${RED}❌ ${label_b} evaluation failed${NC}"
+            log ERROR "Grapple debate failed: ${label_b} blinded evaluation empty or error"
             return 1
         fi
 
-        sonnet_critique=$(run_agent_sync "claude-sonnet" "
+        sonnet_critique=$(run_agent_sync "$agent_c" "
 $no_explore_constraint
 
 You are an INDEPENDENT EVALUATOR. You have NOT seen any other model's proposals.
@@ -253,24 +300,24 @@ Provide your INDEPENDENT assessment:
 $debate_integrity_rules" 90 "code-reviewer" "grapple")
 
         if [[ $? -ne 0 || -z "$sonnet_critique" ]]; then
-            echo -e "${RED}❌ Sonnet evaluation failed${NC}"
-            log ERROR "Grapple debate failed: Sonnet blinded evaluation empty or error"
+            echo -e "${RED}❌ ${label_c} evaluation failed${NC}"
+            log ERROR "Grapple debate failed: ${label_c} blinded evaluation empty or error"
             return 1
         fi
 
     else
         # ── CROSS-CRITIQUE MODE (default): ACH falsification ──
 
-        # Codex falsifies Gemini + Sonnet hypotheses
-        codex_critique=$(run_agent_sync "codex-review" "
+        # ${label_a} falsifies ${label_b} + ${label_c} hypotheses
+        codex_critique=$(run_agent_sync "$agent_a" "
 $no_explore_constraint
 
 You are a FALSIFIER using Analysis of Competing Hypotheses (ACH). Your job is to DISPROVE these proposals by testing their stated assumptions.
 
-HYPOTHESIS 1 (from Gemini):
+HYPOTHESIS 1 (from ${label_b}):
 $gemini_proposal
 
-HYPOTHESIS 2 (from Sonnet 4.6):
+HYPOTHESIS 2 (from ${label_c}):
 $sonnet_proposal
 
 For each hypothesis, attempt to falsify it:
@@ -286,21 +333,21 @@ Focus on falsification, not preference. An approach with unfalsified assumptions
 $debate_integrity_rules" 90 "code-reviewer" "grapple")
 
         if [[ $? -ne 0 || -z "$codex_critique" ]]; then
-            echo -e "${RED}❌ Codex critique generation failed${NC}"
-            log ERROR "Grapple debate failed: Codex critique empty or error"
+            echo -e "${RED}❌ ${label_a} critique generation failed${NC}"
+            log ERROR "Grapple debate failed: ${label_a} critique empty or error"
             return 1
         fi
 
-        # Gemini falsifies Codex + Sonnet hypotheses
-        gemini_critique=$(run_agent_sync "gemini" "
+        # ${label_b} falsifies ${label_a} + ${label_c} hypotheses
+        gemini_critique=$(run_agent_sync "$agent_b" "
 $no_explore_constraint
 
 You are a FALSIFIER using Analysis of Competing Hypotheses (ACH). Your job is to DISPROVE these proposals by testing their stated assumptions.
 
-HYPOTHESIS 1 (from Codex):
+HYPOTHESIS 1 (from ${label_a}):
 $codex_proposal
 
-HYPOTHESIS 2 (from Sonnet 4.6):
+HYPOTHESIS 2 (from ${label_c}):
 $sonnet_proposal
 
 For each hypothesis, attempt to falsify it:
@@ -316,21 +363,21 @@ Focus on falsification, not preference. An approach with unfalsified assumptions
 $debate_integrity_rules" 90 "security-auditor" "grapple")
 
         if [[ $? -ne 0 || -z "$gemini_critique" ]]; then
-            echo -e "${RED}❌ Gemini critique generation failed${NC}"
-            log ERROR "Grapple debate failed: Gemini critique empty or error"
+            echo -e "${RED}❌ ${label_b} critique generation failed${NC}"
+            log ERROR "Grapple debate failed: ${label_b} critique empty or error"
             return 1
         fi
 
-        # Sonnet falsifies Codex + Gemini hypotheses
-        sonnet_critique=$(run_agent_sync "claude-sonnet" "
+        # ${label_c} falsifies ${label_a} + ${label_b} hypotheses
+        sonnet_critique=$(run_agent_sync "$agent_c" "
 $no_explore_constraint
 
 You are a FALSIFIER using Analysis of Competing Hypotheses (ACH). Your job is to DISPROVE these proposals by testing their stated assumptions.
 
-HYPOTHESIS 1 (from Codex):
+HYPOTHESIS 1 (from ${label_a}):
 $codex_proposal
 
-HYPOTHESIS 2 (from Gemini):
+HYPOTHESIS 2 (from ${label_b}):
 $gemini_proposal
 
 For each hypothesis, attempt to falsify it:
@@ -345,8 +392,8 @@ $principle_text}
 $debate_integrity_rules" 90 "code-reviewer" "grapple")
 
         if [[ $? -ne 0 || -z "$sonnet_critique" ]]; then
-            echo -e "${RED}❌ Sonnet critique generation failed${NC}"
-            log ERROR "Grapple debate failed: Sonnet critique empty or error"
+            echo -e "${RED}❌ ${label_c} critique generation failed${NC}"
+            log ERROR "Grapple debate failed: ${label_c} critique empty or error"
             return 1
         fi
     fi
@@ -360,20 +407,20 @@ $debate_integrity_rules" 90 "code-reviewer" "grapple")
             echo -e "${CYAN}[Round $i/$rounds] Rebuttal and refinement...${NC}"
             echo ""
 
-            # Codex defends and refines
+            # ${label_a} defends and refines
             local codex_rebuttal
-            codex_rebuttal=$(run_agent_sync "codex" "
+            codex_rebuttal=$(run_agent_sync "$agent_a" "
 $no_explore_constraint
 
-You are DEFENDING your implementation against critiques from Gemini and Sonnet.
+You are DEFENDING your implementation against critiques from ${label_b} and ${label_c}.
 
 YOUR ORIGINAL PROPOSAL:
 $codex_proposal
 
-CRITIQUE FROM GEMINI:
+CRITIQUE FROM ${label_b_upper}:
 $gemini_critique
 
-CRITIQUE FROM SONNET:
+CRITIQUE FROM ${label_c_upper}:
 $sonnet_critique
 
 Respond to both critiques by:
@@ -386,26 +433,26 @@ Be specific, technical, and constructive. Focus on improving the solution." 120 
 
             if [[ $? -ne 0 || -z "$codex_rebuttal" ]]; then
                 echo ""
-                echo -e "${RED}❌ Codex rebuttal generation failed${NC}"
+                echo -e "${RED}❌ ${label_a} rebuttal generation failed${NC}"
                 echo -e "   Check logs: ${LOGS_DIR}/"
-                log ERROR "Grapple debate failed: Codex rebuttal empty or error (round $i)"
+                log ERROR "Grapple debate failed: ${label_a} rebuttal empty or error (round $i)"
                 return 1
             fi
 
-            # Gemini defends and refines
+            # ${label_b} defends and refines
             local gemini_rebuttal
-            gemini_rebuttal=$(run_agent_sync "gemini" "
+            gemini_rebuttal=$(run_agent_sync "$agent_b" "
 $no_explore_constraint
 
-You are DEFENDING your implementation against critiques from Codex and Sonnet.
+You are DEFENDING your implementation against critiques from ${label_a} and ${label_c}.
 
 YOUR ORIGINAL PROPOSAL:
 $gemini_proposal
 
-CRITIQUE FROM CODEX:
+CRITIQUE FROM ${label_a_upper}:
 $codex_critique
 
-CRITIQUE FROM SONNET:
+CRITIQUE FROM ${label_c_upper}:
 $sonnet_critique
 
 Respond to both critiques by:
@@ -418,26 +465,26 @@ Be specific, technical, and constructive. Focus on improving the solution." 120 
 
             if [[ $? -ne 0 || -z "$gemini_rebuttal" ]]; then
                 echo ""
-                echo -e "${RED}❌ Gemini rebuttal generation failed${NC}"
+                echo -e "${RED}❌ ${label_b} rebuttal generation failed${NC}"
                 echo -e "   Check logs: ${LOGS_DIR}/"
-                log ERROR "Grapple debate failed: Gemini rebuttal empty or error (round $i)"
+                log ERROR "Grapple debate failed: ${label_b} rebuttal empty or error (round $i)"
                 return 1
             fi
 
-            # Sonnet defends and refines
+            # ${label_c} defends and refines
             local sonnet_rebuttal
-            sonnet_rebuttal=$(run_agent_sync "claude-sonnet" "
+            sonnet_rebuttal=$(run_agent_sync "$agent_c" "
 $no_explore_constraint
 
-You are DEFENDING your implementation against critiques from Codex and Gemini.
+You are DEFENDING your implementation against critiques from ${label_a} and ${label_b}.
 
 YOUR ORIGINAL PROPOSAL:
 $sonnet_proposal
 
-CRITIQUE FROM CODEX:
+CRITIQUE FROM ${label_a_upper}:
 $codex_critique
 
-CRITIQUE FROM GEMINI:
+CRITIQUE FROM ${label_b_upper}:
 $gemini_critique
 
 Respond to both critiques by:
@@ -450,9 +497,9 @@ Be specific, technical, and constructive. Focus on improving the solution." 120 
 
             if [[ $? -ne 0 || -z "$sonnet_rebuttal" ]]; then
                 echo ""
-                echo -e "${RED}❌ Sonnet rebuttal generation failed${NC}"
+                echo -e "${RED}❌ ${label_c} rebuttal generation failed${NC}"
                 echo -e "   Check logs: ${LOGS_DIR}/"
-                log ERROR "Grapple debate failed: Sonnet rebuttal empty or error (round $i)"
+                log ERROR "Grapple debate failed: ${label_c} rebuttal empty or error (round $i)"
                 return 1
             fi
 
@@ -507,22 +554,22 @@ $quorum_result"
 You are the JUDGE synthesizing a $rounds-round BLINDED debate between three AI models.
 Each model proposed independently (Round 1) and evaluated independently (Round 2) — no model saw another's work. This prevents anchoring bias but means models may have identified different concerns.
 
-CODEX PROPOSAL:
+${label_a_upper} PROPOSAL:
 $codex_proposal
 
-GEMINI PROPOSAL:
+${label_b_upper} PROPOSAL:
 $gemini_proposal
 
-SONNET 4.6 PROPOSAL:
+${label_c_upper} PROPOSAL:
 $sonnet_proposal
 
-CODEX'S INDEPENDENT EVALUATION:
+${label_a_upper}'S INDEPENDENT EVALUATION:
 $codex_critique
 
-GEMINI'S INDEPENDENT EVALUATION:
+${label_b_upper}'S INDEPENDENT EVALUATION:
 $gemini_critique
 
-SONNET'S INDEPENDENT EVALUATION:
+${label_c_upper}'S INDEPENDENT EVALUATION:
 $sonnet_critique
 
 $debate_integrity_rules
@@ -560,22 +607,22 @@ Be specific and actionable. Format as markdown."
 
 You are the JUDGE evaluating a $rounds-round ACH (Analysis of Competing Hypotheses) debate between three AI models. Your role is to determine which hypotheses SURVIVED falsification, not which 'feels best'.
 
-CODEX HYPOTHESIS:
+${label_a_upper} HYPOTHESIS:
 $codex_proposal
 
-GEMINI HYPOTHESIS:
+${label_b_upper} HYPOTHESIS:
 $gemini_proposal
 
-SONNET 4.6 HYPOTHESIS:
+${label_c_upper} HYPOTHESIS:
 $sonnet_proposal
 
-CODEX'S FALSIFICATION ATTEMPTS (against Gemini + Sonnet):
+${label_a_upper}'S FALSIFICATION ATTEMPTS (against ${label_b} + ${label_c}):
 $codex_critique
 
-GEMINI'S FALSIFICATION ATTEMPTS (against Codex + Sonnet):
+${label_b_upper}'S FALSIFICATION ATTEMPTS (against ${label_a} + ${label_c}):
 $gemini_critique
 
-SONNET'S FALSIFICATION ATTEMPTS (against Codex + Gemini):
+${label_c_upper}'S FALSIFICATION ATTEMPTS (against ${label_a} + ${label_b}):
 $sonnet_critique
 
 $debate_integrity_rules
@@ -631,32 +678,32 @@ Be specific and actionable. Format as markdown."
 **Rounds:** $rounds
 **Mode:** $debate_mode
 **Principles:** $principles
-**Participants:** Codex, Gemini, Sonnet 4.6
+**Participants:** ${label_a}, ${label_b}, ${label_c}
 
 ---
 
 ## Round 1: Proposals
 
-### Codex Proposal
+### ${label_a} Proposal
 $codex_proposal
 
-### Gemini Proposal
+### ${label_b} Proposal
 $gemini_proposal
 
-### Sonnet 4.6 Proposal
+### ${label_c} Proposal
 $sonnet_proposal
 
 ---
 
 ## Round 2: $(if [[ "$debate_mode" == "blinded" ]]; then echo "Independent Evaluations (Blinded)"; else echo "Cross-Critique"; fi)
 
-### Codex's $(if [[ "$debate_mode" == "blinded" ]]; then echo "Evaluation"; else echo "Critique (of Gemini + Sonnet)"; fi)
+### ${label_a}'s $(if [[ "$debate_mode" == "blinded" ]]; then echo "Evaluation"; else echo "Critique (of ${label_b} + ${label_c})"; fi)
 $codex_critique
 
-### Gemini's $(if [[ "$debate_mode" == "blinded" ]]; then echo "Evaluation"; else echo "Critique (of Codex + Sonnet)"; fi)
+### ${label_b}'s $(if [[ "$debate_mode" == "blinded" ]]; then echo "Evaluation"; else echo "Critique (of ${label_a} + ${label_c})"; fi)
 $gemini_critique
 
-### Sonnet's $(if [[ "$debate_mode" == "blinded" ]]; then echo "Evaluation"; else echo "Critique (of Codex + Gemini)"; fi)
+### ${label_c}'s $(if [[ "$debate_mode" == "blinded" ]]; then echo "Evaluation"; else echo "Critique (of ${label_a} + ${label_b})"; fi)
 $sonnet_critique
 
 ---
@@ -677,7 +724,7 @@ EOF
     echo ""
     echo -e "${CYAN}📊 Debate Summary:${NC}"
     echo -e "  Topic: ${prompt:0:70}..."
-    echo -e "  Participants: ${RED}Codex${NC} vs ${YELLOW}Gemini${NC} vs ${BLUE}Sonnet 4.6${NC}"
+    echo -e "  Participants: ${RED}${label_a}${NC} vs ${YELLOW}${label_b}${NC} vs ${BLUE}${label_c}${NC}"
     echo -e "  Principles: $principles"
     echo ""
     echo -e "${YELLOW}💡 Next Steps:${NC}"
@@ -699,7 +746,7 @@ EOF
         "Debate concluded on: ${prompt:0:80}" \
         "" \
         "high" \
-        "3-way debate (Codex vs Gemini vs Sonnet) with $rounds rounds" \
+        "3-way debate (${label_a} vs ${label_b} vs ${label_c}) with $rounds rounds" \
         "" 2>/dev/null || true
 
     # v8.18.0: Earn skill from debate synthesis
