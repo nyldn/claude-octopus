@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.32.1] - 2026-05-05
+
+### Changed
+
+- Patch public plugin root packaging and release tag safety
+
+---
+
 ## [9.32.0] - 2026-05-05
 
 ### Changed

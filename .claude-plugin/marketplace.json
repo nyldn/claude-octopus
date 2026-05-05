@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "nyldn plugins for Claude Code workflows.",
-    "version": "9.32.0"
+    "version": "9.32.1"
   },
   "plugins": [
     {
@@ -15,8 +15,8 @@
         "source": "url",
         "url": "https://github.com/nyldn/claude-octopus.git"
       },
-      "description": "v9.32.0 - Multi-LLM orchestration for Claude Code. Route tasks to Codex, Gemini, Perplexity, Copilot, Qwen, Ollama, and OpenCode. 32 personas, 48 commands, 52 skills. Run /octo:setup.",
-      "version": "9.32.0",
+      "description": "v9.32.1 - Multi-LLM orchestration for Claude Code. Route tasks to Codex, Gemini, Perplexity, Copilot, Qwen, Ollama, and OpenCode. 32 personas, 48 commands, 52 skills. Run /octo:setup.",
+      "version": "9.32.1",
       "author": {
         "name": "nyldn",
         "url": "https://github.com/nyldn"
