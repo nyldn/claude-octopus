@@ -67,7 +67,7 @@ If `AUTONOMY_MODE` env var is `autonomous`, or session is running headlessly, or
 1. Run `git diff --cached` — if non-empty, `target=staged`
 2. Run `gh pr view --json number` — if open PR exists, set `target=<pr_number>`
 3. Otherwise `target=working-tree`
-4. Set `provenance=unknown`, `autonomy=autonomous`, `publish=ask`, `debate=auto`, `focus=["correctness","security","architecture","tdd"]`
+4. Set `provenance=unknown`, `autonomy=autonomous`, `publish=ask`, `debate=auto`, `history=auto`, `focus=["correctness","security","architecture","tdd"]`
 
 **Otherwise (supervised mode), you MUST use AskUserQuestion to ask these questions:**
 
@@ -135,9 +135,12 @@ const profile = {
   provenance: <answer>,                // "human" | "ai-assisted" | "autonomous" | "unknown"
   autonomy: <detected mode>,           // "supervised" | "autonomous"
   publish: <answer>,                   // "ask" | "auto" | "never"
-  debate: "auto"                       // always default to auto debate
+  debate: "auto",                      // always default to auto debate
+  history: "auto"                      // "auto" | "fresh"
 }
 ```
+
+If the user includes `fresh` in the command text, do not treat it as a file path. Keep the normal target inference and set `history: "fresh"` so this run ignores prior PR review rounds.
 
 ## Step 3: Execute Review Pipeline
 
@@ -150,6 +153,8 @@ ${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh code-review '<profile-json
 Where `<profile-json>` is the JSON profile built in Step 2.
 
 The pipeline runs 3 rounds (parallel fleet → verification → synthesis) and outputs findings. If a PR is open and publish is not "never", it offers to post inline comments.
+
+Round-aware PR history is enabled automatically for open PR reviews. Local state is stored at `~/.claude-octopus/pr-state/<host>/<owner>/<repo>/<pr>.json` and is used to show addressed, persistent, new, and regressed finding counts across repeated `/octo:review` runs. Set `OCTOPUS_PR_HISTORY=0` before invoking the command to disable all history reads and writes.
 
 ## What `/octo:review` checks
 
