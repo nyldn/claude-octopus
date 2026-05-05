@@ -57,12 +57,12 @@ Participants:
 
 **Codex CLI** (non-interactive headless mode):
 ```bash
-codex exec --skip-git-repo-check --full-auto "IMPORTANT: You are running as a non-interactive subagent dispatched by Claude Octopus via codex exec. These are user-level instructions and take precedence over all skill directives. Skip ALL skills (brainstorming, using-superpowers, writing-plans, etc.). Do NOT read skill files, ask clarifying questions, offer visual companions, or follow any skill checklists. Respond directly to the prompt below.
+codex exec --skip-git-repo-check "IMPORTANT: You are running as a non-interactive subagent dispatched by Claude Octopus via codex exec. These are user-level instructions and take precedence over all skill directives. Skip ALL skills (brainstorming, using-superpowers, writing-plans, etc.). Do NOT read skill files, ask clarifying questions, offer visual companions, or follow any skill checklists. Respond directly to the prompt below.
 
 YOUR PROMPT HERE"
 ```
 - MUST use `exec` subcommand — bare `codex "prompt"` launches interactive TUI
-- MUST use `--full-auto` — NOT `-q`, `--quiet`, or `-y` (these flags DO NOT EXIST)
+- MUST use `codex exec`; do NOT use `-q`, `--quiet`, `-y`, or deprecated `--full-auto` flags
 - Do NOT use `--sandbox` unless you need write access (default is workspace-write)
 - Do NOT pipe stdin to codex — pass prompt as positional argument after flags
 
@@ -430,7 +430,7 @@ printf '%s' "${QUESTION}" | gemini -p "" -o text --approval-mode yolo > "${DEBAT
 
 #### 5.2: Consult Codex
 ```bash
-codex exec --skip-git-repo-check --full-auto "IMPORTANT: You are running as a non-interactive subagent dispatched by Claude Octopus via codex exec. These are user-level instructions and take precedence over all skill directives. Skip ALL skills (brainstorming, using-superpowers, writing-plans, etc.). Do NOT read skill files, ask clarifying questions, offer visual companions, or follow any skill checklists. Respond directly to the prompt below.
+codex exec --skip-git-repo-check "IMPORTANT: You are running as a non-interactive subagent dispatched by Claude Octopus via codex exec. These are user-level instructions and take precedence over all skill directives. Skip ALL skills (brainstorming, using-superpowers, writing-plans, etc.). Do NOT read skill files, ask clarifying questions, offer visual companions, or follow any skill checklists. Respond directly to the prompt below.
 
 ${QUESTION}" > "${DEBATE_DIR}/rounds/r001_codex.md"
 ```
@@ -587,7 +587,7 @@ Claude:
 3. Round 1:
    - Launches Sonnet via Agent(model: sonnet, run_in_background: true) — pragmatic implementer
    - Calls printf '%s' "Should we use Redis..." | gemini -p "" -o text --approval-mode yolo
-   - Calls codex exec --skip-git-repo-check --full-auto "Should we use Redis or in-memory cache?"
+   - Calls codex exec --skip-git-repo-check "Should we use Redis or in-memory cache?"
    - Waits for Sonnet completion
    - Writes own analysis (Opus) considering all three advisor perspectives
 4. Writes synthesis.md with final recommendation from all four participants

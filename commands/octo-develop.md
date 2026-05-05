@@ -45,11 +45,19 @@ List available providers and mark missing providers as `(unavailable - skipping)
 
 If no external provider is available, stop and tell the user to run `/octo:setup`; do not fall back to Claude-native implementation.
 
-**Step 2 — Run orchestrate.sh via Bash tool:**
+**Step 2 — Run orchestrate.sh via Bash tool (synchronous — do NOT use run_in_background):**
 
 ```bash
 bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" develop "<user's arguments here>"
 ```
+
+**CRITICAL — Do NOT implement in parallel yourself (Claude-side):**
+While `orchestrate.sh` runs, you MUST NOT:
+- Read, edit, or write any project files
+- Implement any part of the task yourself using Claude-native tools
+- "Help" by doing the work while waiting
+
+`orchestrate.sh` may run provider subtasks in parallel internally; that is expected. Wait for it to complete, then present its output to the user.
 
 **✗ INCORRECT:**
 
@@ -57,6 +65,7 @@ bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" develop "<user's ar
 Skill(skill: "octo:develop", ...)  ❌ Resolves to this command file — infinite loop
 Skill(skill: "flow-develop", ...)  ❌ Internal name, not resolvable by Skill tool
 Task(subagent_type: "octo:develop", ...)  ❌ This is a skill, not an agent type
+run_in_background: true            ❌ Claude will implement in parallel — defeats multi-LLM purpose
 ```
 
 ### Post-Completion — Interactive Next Steps
