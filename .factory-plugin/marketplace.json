@@ -5,14 +5,14 @@
   },
   "metadata": {
     "description": "Multi-tentacled orchestration plugin for Factory AI Droid",
-    "version": "1.0.0"
+    "version": "9.32.0"
   },
   "plugins": [
     {
       "name": "claude-octopus",
       "source": "./",
-      "description": "v8.38.3 - Multi-AI orchestration with Double Diamond workflow. 32 personas, 49 commands, 44 skills. Run /setup after install.",
-      "version": "8.38.3",
+      "description": "v9.32.0 - Multi-AI orchestration with Double Diamond workflow. 32 personas, 48 commands, 52 skills. Run /octo:setup after install.",
+      "version": "9.32.0",
       "author": {
         "name": "nyldn"
       },

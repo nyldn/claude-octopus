@@ -21,7 +21,7 @@ You get:    A structured comparison with three independent viewpoints,
             scored for agreement. Disagreements are flagged, not hidden.
 ```
 
-This works for research, escalated code review, debugging, TDD, escalated security audits, UI design, PRDs, and full build-to-ship workflows — 47 commands, 51 skills, 32 specialized personas.
+This works for research, escalated code review, debugging, TDD, escalated security audits, UI design, PRDs, and full build-to-ship workflows — 48 commands, 52 skills, 32 specialized personas.
 
 ## Install
 
@@ -65,7 +65,7 @@ Octopus orchestrates — it doesn't replace domain knowledge. If three models co
 ## Learn More
 
 - [**Full README**](../README.md) — feature deep-dive, provider grid, architecture, star history
-- [**Command Reference**](../docs/COMMAND-REFERENCE.md) — all 47 commands with triggers
+- [**Command Reference**](../docs/COMMAND-REFERENCE.md) — all 48 commands with triggers
 - [**Persona Guide**](../docs/AGENTS.md) — 32 specialized agents
 - [**Changelog**](../CHANGELOG.md) — release history
 - [**Issues**](https://github.com/nyldn/claude-octopus/issues) — bugs and feature requests

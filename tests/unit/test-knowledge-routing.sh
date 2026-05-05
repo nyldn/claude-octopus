@@ -1,6 +1,7 @@
 #!/bin/bash
 # tests/unit/test-knowledge-routing.sh
 # Tests knowledge worker routing and intent detection (v6.0)
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -10,6 +11,12 @@ source "$SCRIPT_DIR/../helpers/mock-helpers.sh"
 
 test_suite "Knowledge Worker Routing (v6.0)"
 
+output_matches() {
+    local output="$1"
+    local pattern="$2"
+    grep -qi -- "$pattern" <<< "$output"
+}
+
 test_empathize_command() {
     test_case "empathize command executes in dry-run mode"
 
@@ -17,7 +24,7 @@ test_empathize_command() {
     local exit_code=$?
 
     assert_success "$exit_code" "empathize should succeed in dry-run"
-    if echo "$output" | grep -qi "empathize\|ux.*research"; then
+    if output_matches "$output" "empathize\|ux.*research"; then
         test_pass
     else
         test_fail "Should show empathize workflow indicator: $output"
@@ -31,7 +38,7 @@ test_advise_command() {
     local exit_code=$?
 
     assert_success "$exit_code" "advise should succeed in dry-run"
-    if echo "$output" | grep -qi "advise\|strategy\|consult"; then
+    if output_matches "$output" "advise\|strategy\|consult"; then
         test_pass
     else
         test_fail "Should show advise workflow indicator: $output"
@@ -45,7 +52,7 @@ test_synthesize_command() {
     local exit_code=$?
 
     assert_success "$exit_code" "synthesize should succeed in dry-run"
-    if echo "$output" | grep -qi "synthesize\|literature\|research"; then
+    if output_matches "$output" "synthesize\|literature\|research"; then
         test_pass
     else
         test_fail "Should show synthesize workflow indicator: $output"
@@ -59,7 +66,7 @@ test_knowledge_toggle() {
     local exit_code=$?
 
     assert_success "$exit_code" "knowledge-toggle should succeed"
-    if echo "$output" | grep -qi "knowledge.*mode\|on\|off"; then
+    if output_matches "$output" "knowledge.*mode\|on\|off"; then
         test_pass
     else
         test_fail "Should show mode toggle: $output"
@@ -78,7 +85,7 @@ test_intent_detection_ux_research() {
 
     for prompt in "${prompts[@]}"; do
         local output=$("$PROJECT_ROOT/scripts/orchestrate.sh" -n auto "$prompt" 2>&1)
-        if echo "$output" | grep -qi "empathize\|ux.*research\|knowledge.*empathize"; then
+        if output_matches "$output" "empathize\|ux.*research\|knowledge.*empathize"; then
             continue
         else
             test_fail "Should detect UX research intent for: $prompt"
@@ -101,7 +108,7 @@ test_intent_detection_strategy() {
 
     for prompt in "${prompts[@]}"; do
         local output=$("$PROJECT_ROOT/scripts/orchestrate.sh" -n auto "$prompt" 2>&1)
-        if echo "$output" | grep -qi "advise\|strategy\|knowledge.*advise"; then
+        if output_matches "$output" "advise\|strategy\|knowledge.*advise"; then
             continue
         else
             test_fail "Should detect strategy intent for: $prompt"
@@ -124,7 +131,7 @@ test_intent_detection_literature() {
 
     for prompt in "${prompts[@]}"; do
         local output=$("$PROJECT_ROOT/scripts/orchestrate.sh" -n auto "$prompt" 2>&1)
-        if echo "$output" | grep -qi "synthesize\|literature\|knowledge.*synthesize"; then
+        if output_matches "$output" "synthesize\|literature\|knowledge.*synthesize"; then
             continue
         else
             test_fail "Should detect literature review intent for: $prompt"
@@ -140,8 +147,8 @@ test_new_intent_choices() {
 
     local output=$("$PROJECT_ROOT/scripts/orchestrate.sh" help --full 2>&1)
 
-    if echo "$output" | grep -qi "strategy.*consulting\|11"; then
-        if echo "$output" | grep -qi "empathize\|advise\|synthesize"; then
+    if output_matches "$output" "strategy.*consulting\|11"; then
+        if output_matches "$output" "empathize\|advise\|synthesize"; then
             test_pass
         else
             test_fail "Should show knowledge worker commands in help"
@@ -185,8 +192,7 @@ test_status_shows_mode() {
     local output=$("$PROJECT_ROOT/scripts/orchestrate.sh" status 2>&1)
 
     # Status output shows "Mode:" line with one of: Development, Knowledge, Auto-Detect
-    # Use grep -c instead of grep -q to avoid SIGPIPE with set -eo pipefail
-    if echo "$output" | grep -ci "Mode:.*Development\|Mode:.*Knowledge\|Mode:.*Auto-Detect" >/dev/null; then
+    if output_matches "$output" "Mode:.*Development\|Mode:.*Knowledge\|Mode:.*Auto-Detect"; then
         test_pass
     else
         test_fail "Status should show current mode"
@@ -200,7 +206,7 @@ test_dev_command() {
     local exit_code=$?
 
     assert_success "$exit_code" "dev command should succeed"
-    if echo "$output" | grep -qi "Dev Mode"; then
+    if output_matches "$output" "Dev Mode"; then
         test_pass
     else
         test_fail "Should show Dev Mode activation"
@@ -223,8 +229,8 @@ test_mode_symmetry() {
     local km_off_output=$("$PROJECT_ROOT/scripts/orchestrate.sh" knowledge-mode off 2>&1)
 
     # Both should indicate Dev mode
-    if echo "$dev_output" | grep -qi "Dev Mode"; then
-        if echo "$km_off_output" | grep -qi "Dev Mode"; then
+    if output_matches "$dev_output" "Dev Mode"; then
+        if output_matches "$km_off_output" "Dev Mode"; then
             test_pass
         else
             test_fail "/octo:km off should show Dev Mode: $km_off_output"

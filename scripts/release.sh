@@ -8,7 +8,7 @@
 #   ./scripts/release.sh 8.22.6 "Fix OpenClaw register crash"
 #
 # What it does:
-#   1. Updates version in all 5 files (package.json, plugin.json, marketplace.json, README, CHANGELOG)
+#   1. Updates core version files plus public adapter manifests
 #   2. Commits on a new branch
 #   3. Pushes and creates a PR
 #   4. Waits for required CI checks
@@ -95,6 +95,56 @@ json.dump(m, open('.claude-plugin/marketplace.json', 'w'), indent=2)
 print('   .claude-plugin/marketplace.json')
 "
 
+# Public adapter manifests — keep every public root surface on the release version
+python3 -c "
+import json, pathlib, re, sys
+
+version = '${VERSION}'
+
+with open('.claude-plugin/plugin.json') as f:
+    plugin = json.load(f)
+command_count = len(plugin.get('commands', []))
+skill_count = len(plugin.get('skills', []))
+
+persona_dir = pathlib.Path('agents/personas')
+if not persona_dir.is_dir():
+    print('ERROR: agents/personas is missing; cannot calculate adapter manifest counts', file=sys.stderr)
+    raise SystemExit(1)
+persona_count = len(list(persona_dir.glob('*.md')))
+if persona_count == 0:
+    print('ERROR: agents/personas contains no persona markdown files', file=sys.stderr)
+    raise SystemExit(1)
+
+for path in ('.codex-plugin/plugin.json', '.cursor-plugin/plugin.json', '.factory-plugin/plugin.json'):
+    with open(path) as f:
+        data = json.load(f)
+    data['version'] = version
+    if path == '.codex-plugin/plugin.json':
+        interface = data.setdefault('interface', {})
+        desc = interface.get('longDescription', '')
+        desc = re.sub(r'\\d+ personas, \\d+ commands, \\d+ skills', f'{persona_count} personas, {command_count} commands, {skill_count} skills', desc)
+        interface['longDescription'] = desc
+    if path == '.factory-plugin/plugin.json':
+        data['description'] = f\"Multi-tentacled orchestrator using Double Diamond methodology. v{version}. {persona_count} expert personas, {command_count} commands, {skill_count} skills. Commands '/octo:*'. Run /octo:setup for guided setup. Compatible with Claude Code and Factory AI Droid.\"
+    with open(path, 'w') as f:
+        json.dump(data, f, indent=2)
+        f.write('\\n')
+    print(f'   {path}')
+
+path = '.factory-plugin/marketplace.json'
+with open(path) as f:
+    data = json.load(f)
+data.setdefault('metadata', {})['version'] = version
+for item in data.get('plugins', []):
+    if item.get('name') == 'claude-octopus':
+        item['version'] = version
+        item['description'] = f'v{version} - Multi-AI orchestration with Double Diamond workflow. {persona_count} personas, {command_count} commands, {skill_count} skills. Run /octo:setup after install.'
+with open(path, 'w') as f:
+    json.dump(data, f, indent=2)
+    f.write('\\n')
+print(f'   {path}')
+"
+
 # README badge
 sed -i '' "s/Version-[0-9]*\.[0-9]*\.[0-9]*-blue/Version-${VERSION}-blue/g" README.md
 sed -i '' "s/Version [0-9]*\.[0-9]*\.[0-9]*/Version ${VERSION}/g" README.md
@@ -132,7 +182,7 @@ echo ""
 
 echo "2/7 Committing..."
 git checkout -b "$BRANCH" --quiet
-git add package.json .claude-plugin/plugin.json .claude-plugin/marketplace.json README.md CHANGELOG.md
+git add package.json .claude-plugin/plugin.json .claude-plugin/marketplace.json .codex-plugin/plugin.json .cursor-plugin/plugin.json .factory-plugin/plugin.json .factory-plugin/marketplace.json README.md CHANGELOG.md
 git commit --quiet -m "chore: release v${VERSION} — ${SUMMARY}
 
 Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"

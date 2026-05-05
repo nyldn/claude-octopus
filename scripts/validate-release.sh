@@ -80,6 +80,46 @@ if [[ "$PLUGIN_VERSION" != "$PACKAGE_VERSION" ]]; then
     ((errors++)) || true
 fi
 
+if command -v jq >/dev/null 2>&1; then
+    while IFS='|' read -r label path expression; do
+        [[ -z "$label" ]] && continue
+        value=$(jq -r "$expression" "$ROOT_DIR/$path" 2>/dev/null || true)
+        echo "  $label: $value"
+        if [[ "$value" != "$PLUGIN_VERSION" ]]; then
+            echo -e "  ${RED}ERROR: $label ($value) != plugin.json ($PLUGIN_VERSION)${NC}"
+            ((errors++)) || true
+        fi
+    done < <(cat <<'EOF'
+codex-plugin|.codex-plugin/plugin.json|.version
+cursor-plugin|.cursor-plugin/plugin.json|.version
+factory-plugin|.factory-plugin/plugin.json|.version
+factory-marketplace|.factory-plugin/marketplace.json|.plugins[] | select(.name == "claude-octopus") | .version // empty
+EOF
+)
+
+    while IFS= read -r entry; do
+        [[ -z "$entry" ]] && continue
+        if ! jq -e --arg entry "$entry" '.files | index($entry)' "$ROOT_DIR/package.json" >/dev/null 2>&1; then
+            echo -e "  ${RED}ERROR: package.json files[] is missing public root '$entry'${NC}"
+            ((errors++)) || true
+        fi
+    done < <(cat <<'EOF'
+.claude-plugin/
+.codex-plugin/
+.cursor-plugin/
+.factory-plugin/
+.gemini/
+.opencode/
+.mcp.json
+bin/
+commands/
+managed-settings.d/
+skills/
+docs/
+EOF
+)
+fi
+
 if [[ "$PLUGIN_VERSION" != "$README_BADGE_VERSION" ]]; then
     echo -e "  ${YELLOW}WARNING: plugin.json ($PLUGIN_VERSION) != README badge ($README_BADGE_VERSION)${NC}"
     ((warnings++)) || true
@@ -251,7 +291,11 @@ echo ""
 # ============================================================================
 echo "🏪 Checking marketplace description..."
 
-MARKETPLACE_DESC=$(grep '"description"' "$ROOT_DIR/.claude-plugin/marketplace.json" | grep -v "Multi-tentacled orchestration" | head -1)
+if command -v jq >/dev/null 2>&1; then
+    MARKETPLACE_DESC=$(jq -r '.plugins[] | select(.name == "octo") | .description // empty' "$ROOT_DIR/.claude-plugin/marketplace.json")
+else
+    MARKETPLACE_DESC=$(grep '"description"' "$ROOT_DIR/.claude-plugin/marketplace.json" | grep -v "Multi-tentacled orchestration" | head -1)
+fi
 
 if echo "$MARKETPLACE_DESC" | grep -q "v$PLUGIN_VERSION"; then
     echo -e "  ${GREEN}✓ Marketplace description mentions v$PLUGIN_VERSION${NC}"
@@ -275,24 +319,11 @@ if git tag -l "$EXPECTED_TAG" | grep -q "$EXPECTED_TAG"; then
     if [[ "$TAG_COMMIT" == "$HEAD_COMMIT" ]]; then
         echo -e "  ${GREEN}✓ Tag $EXPECTED_TAG exists and points to HEAD${NC}"
     else
-        echo -e "  ${YELLOW}WARNING: Tag $EXPECTED_TAG exists but doesn't point to HEAD${NC}"
-        echo -e "  ${YELLOW}  Tag points to: ${TAG_COMMIT:0:7}${NC}"
-        echo -e "  ${YELLOW}  HEAD is:       ${HEAD_COMMIT:0:7}${NC}"
-        echo -e "  ${YELLOW}  Updating tag to point to current HEAD...${NC}"
-
-        # Delete old tag locally and remotely, create new one
-        git tag -d "$EXPECTED_TAG" >/dev/null 2>&1 || true
-        git push origin ":refs/tags/$EXPECTED_TAG" >/dev/null 2>&1 || true
-
-        # Extract CHANGELOG entry for tag message
-        TAG_MESSAGE=$(awk "/## \[$PLUGIN_VERSION\]/,/^## \[/" "$ROOT_DIR/CHANGELOG.md" | head -20 | tail -n +2)
-        if [[ -n "$TAG_MESSAGE" ]]; then
-            git tag -a "$EXPECTED_TAG" -m "$TAG_MESSAGE"
-        else
-            git tag -a "$EXPECTED_TAG" -m "Release $EXPECTED_TAG"
-        fi
-        echo -e "  ${GREEN}✓ Tag $EXPECTED_TAG updated to point to HEAD${NC}"
-        ((warnings++)) || true
+        echo -e "  ${RED}ERROR: Tag $EXPECTED_TAG exists but doesn't point to HEAD${NC}"
+        echo -e "  ${RED}  Tag points to: ${TAG_COMMIT:0:7}${NC}"
+        echo -e "  ${RED}  HEAD is:       ${HEAD_COMMIT:0:7}${NC}"
+        echo -e "  ${RED}  Refusing to move an existing release tag automatically${NC}"
+        ((errors++)) || true
     fi
 else
     echo -e "  ${YELLOW}NOTE: Tag $EXPECTED_TAG not yet created${NC}"
@@ -390,13 +421,27 @@ fi
 echo ""
 
 # ============================================================================
-# HELPER: Push tag if needed (v8.13.0 - deduplicated, always --force)
+# HELPER: Push tag if needed
 # ============================================================================
 push_tag_if_needed() {
     local tag="$1"
     if git tag -l "$tag" | grep -q "$tag"; then
-        REMOTE_TAG_SHA=$(git ls-remote origin "refs/tags/$tag" 2>/dev/null | cut -f1)
+        REMOTE_TAG_SHA=$(git ls-remote origin "refs/tags/$tag^{}" 2>/dev/null | cut -f1)
+        if [[ -z "$REMOTE_TAG_SHA" ]]; then
+            REMOTE_TAG_SHA=$(git ls-remote origin "refs/tags/$tag" 2>/dev/null | cut -f1)
+        fi
         LOCAL_TAG_SHA=$(git rev-list -n 1 "$tag" 2>/dev/null)
+        HEAD_COMMIT=$(git rev-parse HEAD)
+
+        if [[ "$LOCAL_TAG_SHA" != "$HEAD_COMMIT" ]]; then
+            echo -e "${YELLOW}WARNING: Not pushing $tag because it does not point to HEAD${NC}"
+            return 0
+        fi
+
+        if [[ -n "$REMOTE_TAG_SHA" ]] && [[ "$REMOTE_TAG_SHA" != "$LOCAL_TAG_SHA" ]]; then
+            echo -e "${RED}ERROR: Remote tag $tag already exists at ${REMOTE_TAG_SHA:0:7}; refusing to rewrite it${NC}"
+            return 1
+        fi
 
         if [[ "$REMOTE_TAG_SHA" == "$LOCAL_TAG_SHA" ]] && [[ -n "$REMOTE_TAG_SHA" ]]; then
             echo -e "${GREEN}✓ Tag $tag already up to date on remote${NC}"
@@ -405,7 +450,7 @@ push_tag_if_needed() {
 
         echo ""
         echo -e "${GREEN}📤 Pushing tag $tag to remote...${NC}"
-        git push --no-verify origin "$tag" --force 2>/dev/null
+        git push --no-verify origin "$tag" 2>/dev/null
         echo -e "${GREEN}✓ Tag pushed to remote${NC}"
 
         # Auto-create GitHub release if gh is available and authenticated
