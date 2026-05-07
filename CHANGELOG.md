@@ -1,5 +1,18 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- Sync Claude Code v2.1.132 Bash session ID support with `SUPPORTS_BASH_SESSION_ID_ENV`, `/octo:doctor` guidance, and a shared session resolver that prefers `CLAUDE_CODE_SESSION_ID` for Claude Code subprocess state.
+- Add a plugin assembly standard and dependency-free validator for skills, agents, commands, connector metadata, and manifest structure, informed by Anthropic's newer multi-plugin packaging patterns.
+
+### Changed
+
+- Use Claude Code's official Bash `CLAUDE_CODE_SESSION_ID` for careful/freeze/guard state files, proof packets, cost tracking, statusline/HUD context, and compression analytics while preserving Codex/Gemini host-specific session fallbacks.
+
+---
+
 ## [9.36.0] - 2026-05-06
 
 ### Added

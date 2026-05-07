@@ -13,14 +13,16 @@ When the user invokes `/octo:guard <directory>`, activate both careful mode and 
 1. Activate careful mode (destructive command warnings):
 
 ```bash
-echo "active" > "/tmp/octopus-careful-${CLAUDE_SESSION_ID:-$$}.txt"
+_OCTO_SESSION_ID="${CLAUDE_CODE_SESSION_ID:-${CLAUDE_SESSION_ID:-$$}}"
+echo "active" > "/tmp/octopus-careful-${_OCTO_SESSION_ID}.txt"
 ```
 
 2. Activate freeze mode (edit boundary enforcement):
 
 ```bash
 freeze_dir="$(cd "$1" 2>/dev/null && pwd)" || freeze_dir="$1"
-echo "${freeze_dir}" > "/tmp/octopus-freeze-${CLAUDE_SESSION_ID:-$$}.txt"
+_OCTO_SESSION_ID="${CLAUDE_CODE_SESSION_ID:-${CLAUDE_SESSION_ID:-$$}}"
+echo "${freeze_dir}" > "/tmp/octopus-freeze-${_OCTO_SESSION_ID}.txt"
 ```
 
 ### What It Does

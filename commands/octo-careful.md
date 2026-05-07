@@ -13,7 +13,8 @@ When the user invokes `/octo:careful`, activate careful mode for the current ses
 Write the activation state file:
 
 ```bash
-echo "active" > "/tmp/octopus-careful-${CLAUDE_SESSION_ID:-$$}.txt"
+_OCTO_SESSION_ID="${CLAUDE_CODE_SESSION_ID:-${CLAUDE_SESSION_ID:-$$}}"
+echo "active" > "/tmp/octopus-careful-${_OCTO_SESSION_ID}.txt"
 ```
 
 ### What It Does
@@ -34,7 +35,8 @@ Careful mode adds a PreToolUse safety net on Bash commands. Before any destructi
 Remove the state file to deactivate:
 
 ```bash
-rm -f "/tmp/octopus-careful-${CLAUDE_SESSION_ID:-$$}.txt"
+_OCTO_SESSION_ID="${CLAUDE_CODE_SESSION_ID:-${CLAUDE_SESSION_ID:-$$}}"
+rm -f "/tmp/octopus-careful-${_OCTO_SESSION_ID}.txt"
 ```
 
 ### Usage

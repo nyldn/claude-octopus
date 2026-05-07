@@ -13,6 +13,8 @@ set -euo pipefail
 _octo_hook_exit() { local c=$?; if [[ $c -ne 0 ]]; then echo "[hook:$(basename "$0")] exit $c" >&2 2>/dev/null || true; fi; return 0; }
 trap _octo_hook_exit EXIT
 
+_HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$_HOOK_DIR/../scripts/lib/session-id.sh" 2>/dev/null || true
 
 # Kill switch — respect user's choice to disable careful mode entirely
 # (careful mode is opt-in via /octo:careful; OCTO_CAREFUL_MODE=off is the dedicated off-switch)
@@ -34,7 +36,11 @@ if [[ "$TOOL_NAME" != "Bash" ]]; then
 fi
 
 # Check if careful mode is active
-STATE_FILE="/tmp/octopus-careful-${CLAUDE_SESSION_ID:-$$}.txt"
+if declare -f octo_session_state_file >/dev/null 2>&1; then
+    STATE_FILE=$(octo_session_state_file "careful" "txt" "$INPUT")
+else
+    STATE_FILE="/tmp/octopus-careful-${CLAUDE_CODE_SESSION_ID:-${CLAUDE_SESSION_ID:-$$}}.txt"
+fi
 if [[ ! -f "$STATE_FILE" ]]; then
     echo '{"decision":"allow"}'
     exit 0

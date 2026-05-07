@@ -14,6 +14,8 @@ set -euo pipefail
 _octo_hook_exit() { local c=$?; if [[ $c -ne 0 ]]; then echo "[hook:$(basename "$0")] exit $c" >&2 2>/dev/null || true; fi; return 0; }
 trap _octo_hook_exit EXIT
 
+_HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$_HOOK_DIR/../scripts/lib/session-id.sh" 2>/dev/null || true
 
 # Kill switch — freeze mode is opt-in via /octo:freeze; OCTO_FREEZE_MODE=off is the dedicated off-switch
 [[ "${OCTO_FREEZE_MODE:-on}" == "off" ]] && { echo '{"decision":"allow"}'; exit 0; }
@@ -34,7 +36,11 @@ if [[ "$TOOL_NAME" != "Edit" && "$TOOL_NAME" != "Write" ]]; then
 fi
 
 # Check if freeze mode is active
-STATE_FILE="/tmp/octopus-freeze-${CLAUDE_SESSION_ID:-$$}.txt"
+if declare -f octo_session_state_file >/dev/null 2>&1; then
+    STATE_FILE=$(octo_session_state_file "freeze" "txt" "$INPUT")
+else
+    STATE_FILE="/tmp/octopus-freeze-${CLAUDE_CODE_SESSION_ID:-${CLAUDE_SESSION_ID:-$$}}.txt"
+fi
 if [[ ! -f "$STATE_FILE" ]]; then
     echo '{"decision":"allow"}'
     exit 0

@@ -28,10 +28,12 @@ init_usage_tracking() {
 EOF
 
     # Set session ID and start time
-    # Claude Code v2.1.9: Use CLAUDE_SESSION_ID when available for cross-session tracking
+    # Claude Code v2.1.132+: use CLAUDE_CODE_SESSION_ID in Bash subprocesses.
+    # Fall back to older CLAUDE_CODE_SESSION / CLAUDE_SESSION_ID wiring.
     local session_id
-    if [[ -n "$CLAUDE_CODE_SESSION" ]]; then
-        session_id="claude-${CLAUDE_CODE_SESSION}"
+    local claude_session="${CLAUDE_CODE_SESSION_ID:-${CLAUDE_CODE_SESSION:-${CLAUDE_SESSION_ID:-}}}"
+    if [[ -n "$claude_session" ]]; then
+        session_id="claude-${claude_session}"
     else
         session_id="session-$(date +%Y%m%d-%H%M%S)"
     fi

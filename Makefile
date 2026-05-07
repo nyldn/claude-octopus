@@ -1,4 +1,4 @@
-.PHONY: test test-smoke test-unit test-integration test-e2e test-live test-coverage test-all test-plugin-name clean-tests help
+.PHONY: test test-smoke test-unit test-integration test-e2e test-live test-coverage test-all test-plugin-name validate-plugin-assembly clean-tests help
 
 # Default: smoke + unit (fast feedback)
 test: test-smoke test-unit
@@ -6,6 +6,10 @@ test: test-smoke test-unit
 # Validate plugin name (critical - prevents command prefix breakage)
 test-plugin-name:
 	@./tests/validate-plugin-name.sh
+
+# Validate skills, commands, agents, connector metadata, and plugin manifests
+validate-plugin-assembly:
+	@./scripts/validate-plugin-assembly.py --root .
 
 # Run all tests
 test-all: test-smoke test-unit test-integration test-e2e
@@ -79,6 +83,7 @@ help:
 	@echo "  make test-performance  - Run performance tests"
 	@echo "  make test-regression   - Run regression tests"
 	@echo "  make test-coverage     - Generate coverage report"
+	@echo "  make validate-plugin-assembly - Validate plugin assembly structure"
 	@echo "  make test-verbose      - Run all tests with verbose output"
 	@echo "  make clean-tests       - Clean test artifacts"
 	@echo "  make help              - Show this help message"

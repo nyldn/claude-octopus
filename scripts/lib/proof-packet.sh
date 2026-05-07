@@ -43,7 +43,7 @@ octo_proof_init() {
     octo_proof_enabled || return 1
 
     local run_id root run_dir started_at profile_value
-    run_id=$(octo_proof_sanitize_id "${OCTOPUS_PROOF_RUN_ID:-${CLAUDE_CODE_SESSION:-${workflow}-$(date -u +%Y%m%dT%H%M%SZ)-$$}}")
+    run_id=$(octo_proof_sanitize_id "${OCTOPUS_PROOF_RUN_ID:-${CLAUDE_CODE_SESSION_ID:-${CLAUDE_CODE_SESSION:-${CLAUDE_SESSION_ID:-${workflow}-$(date -u +%Y%m%dT%H%M%SZ)-$$}}}}")
     root="${OCTOPUS_PROOF_ROOT:-${HOME}/.claude-octopus/runs}"
     run_dir="${root}/${run_id}"
     started_at=$(_octo_proof_now)

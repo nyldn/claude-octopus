@@ -463,6 +463,11 @@ detect_claude_code_version() {
         SUPPORTS_PR_COUNT_MCP_OTEL=true
     fi
 
+    # v9.37: Claude Code v2.1.132+ (session ID exposed to Bash tool subprocess env)
+    if version_compare "$CLAUDE_CODE_VERSION" "2.1.132" ">="; then
+        SUPPORTS_BASH_SESSION_ID_ENV=true
+    fi
+
     log "INFO" "Claude Code v$CLAUDE_CODE_VERSION detected"
     log "INFO" "Task Management: $SUPPORTS_TASK_MANAGEMENT | Fork Context: $SUPPORTS_FORK_CONTEXT | Agent Teams: $SUPPORTS_AGENT_TEAMS"
     log "INFO" "Persistent Memory: $SUPPORTS_PERSISTENT_MEMORY | Hook Events: $SUPPORTS_HOOK_EVENTS | Agent Type Routing: $SUPPORTS_AGENT_TYPE_ROUTING"
@@ -507,6 +512,7 @@ detect_claude_code_version() {
     log "INFO" "Local Settings Suggestions: $SUPPORTS_LOCAL_SETTINGS_SUGGESTIONS | Subprocess OTEL Scrub: $SUPPORTS_SUBPROCESS_OTEL_SCRUB | Init Plugin Errors: $SUPPORTS_INIT_PLUGIN_ERRORS"
     log "INFO" "Plugin URL: $SUPPORTS_PLUGIN_URL | Force Sync Output: $SUPPORTS_FORCE_SYNC_OUTPUT | Package Manager Auto Update: $SUPPORTS_PACKAGE_MANAGER_AUTO_UPDATE"
     log "INFO" "Experimental Manifest Keys: $SUPPORTS_EXPERIMENTAL_MANIFEST_KEYS | Gateway Discovery Opt-in: $SUPPORTS_GATEWAY_MODEL_DISCOVERY_OPT_IN | Skill Overrides: $SUPPORTS_SKILL_OVERRIDES"
+    log "INFO" "Bash Session ID Env: $SUPPORTS_BASH_SESSION_ID_ENV"
 
     # v8.29.0: Context window control
     OCTOPUS_CONTEXT_WINDOW="${OCTOPUS_CONTEXT_WINDOW:-auto}"

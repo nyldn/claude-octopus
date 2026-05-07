@@ -1175,6 +1175,12 @@ doctor_check_skills() {
             "claude_code.pull_request.count now covers GitHub/GitLab MCP creation as well as shell-created PRs"
     fi
 
+    if [[ "${SUPPORTS_BASH_SESSION_ID_ENV:-false}" == "true" ]]; then
+        doctor_add "bash-session-id-env" "skills" "pass" \
+            "CC v2.1.132 CLAUDE_CODE_SESSION_ID is available in Bash tool subprocesses" \
+            "Octopus uses it for Claude-specific careful/freeze state, proof packets, usage files, and session-scoped caches"
+    fi
+
     # v9.20.0: Output compression
     if [[ -x "${CLAUDE_PLUGIN_ROOT:-}/hooks/output-compressor.sh" ]]; then
         if [[ "${OCTOPUS_COMPRESS_ENABLED:-true}" == "true" ]]; then

@@ -28,7 +28,7 @@ case "$MODE" in
             echo "No compression data yet."
             exit 0
         fi
-        session="${CLAUDE_SESSION_ID:-}"
+        session="${CLAUDE_CODE_SESSION_ID:-${CLAUDE_SESSION_ID:-}}"
         if [[ -n "$session" ]]; then
             filter=". | select(.session == \"$session\")"
         else
@@ -210,5 +210,5 @@ ratio=0
 [[ $before_tokens -gt 0 ]] && ratio=$(( (saved * 100) / before_tokens ))
 
 mkdir -p "$ANALYTICS_DIR"
-echo "{\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"session\":\"${CLAUDE_SESSION_ID:-cli}\",\"type\":\"${content_type}\",\"before\":${before_tokens},\"after\":${after_tokens},\"saved\":${saved},\"ratio\":${ratio}}" \
+echo "{\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"session\":\"${CLAUDE_CODE_SESSION_ID:-${CLAUDE_SESSION_ID:-cli}}\",\"type\":\"${content_type}\",\"before\":${before_tokens},\"after\":${after_tokens},\"saved\":${saved},\"ratio\":${ratio}}" \
     >> "$ANALYTICS_FILE" 2>/dev/null || true

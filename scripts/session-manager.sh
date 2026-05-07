@@ -5,12 +5,16 @@
 set -eo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/lib/session-id.sh" 2>/dev/null || true
 
 # Export session variables for Claude Code v2.1.9+
 export_session_variables() {
-    # Use CLAUDE_SESSION_ID if available, otherwise generate
-    if [[ -n "${CLAUDE_SESSION_ID:-}" ]]; then
-        export OCTOPUS_SESSION_ID="$CLAUDE_SESSION_ID"
+    # Use Claude Code's official Bash session ID if available, otherwise generate.
+    if declare -f octo_resolve_session_id >/dev/null 2>&1; then
+        export OCTOPUS_SESSION_ID
+        OCTOPUS_SESSION_ID=$(octo_resolve_session_id "octopus-$(date +%s)")
+    elif [[ -n "${CLAUDE_CODE_SESSION_ID:-${CLAUDE_SESSION_ID:-}}" ]]; then
+        export OCTOPUS_SESSION_ID="${CLAUDE_CODE_SESSION_ID:-${CLAUDE_SESSION_ID:-}}"
     else
         export OCTOPUS_SESSION_ID="octopus-$(date +%s)"
     fi

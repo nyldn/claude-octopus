@@ -71,7 +71,7 @@ if command -v jq &>/dev/null; then
 
     # Context bridge for cross-hook awareness
     _SESSION_ID=$(echo "$input" | jq -r '.session_id // empty' 2>/dev/null)
-    _SESSION_ID="${_SESSION_ID:-${CLAUDE_SESSION_ID:-unknown}}"
+    _SESSION_ID="${_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-${CLAUDE_SESSION_ID:-unknown}}}"
     _BRIDGE="/tmp/octopus-ctx-${_SESSION_ID}.json"
     (umask 0177; printf '{"session_id":"%s","used_pct":%s,"remaining_pct":%s,"ts":%s}\n' \
         "$_SESSION_ID" "$PCT" "$((100-PCT))" "$(date +%s)" \

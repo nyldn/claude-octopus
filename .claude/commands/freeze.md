@@ -19,7 +19,8 @@ When the user invokes `/octo:freeze <directory>`, activate freeze mode to restri
 # Resolve to absolute path
 freeze_dir="$(cd "$1" 2>/dev/null && pwd)" || freeze_dir="$1"
 # Write state
-echo "${freeze_dir}" > "/tmp/octopus-freeze-${CLAUDE_SESSION_ID:-$$}.txt"
+_OCTO_SESSION_ID="${CLAUDE_CODE_SESSION_ID:-${CLAUDE_SESSION_ID:-$$}}"
+echo "${freeze_dir}" > "/tmp/octopus-freeze-${_OCTO_SESSION_ID}.txt"
 ```
 
 ### What It Does
