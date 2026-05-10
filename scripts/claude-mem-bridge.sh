@@ -5,7 +5,27 @@
 
 set -euo pipefail
 
-CLAUDE_MEM_PORT="${CLAUDE_MEM_PORT:-37777}"
+# Port discovery: settings.json > UID-based formula > Windows fallback
+if [[ -z "${CLAUDE_MEM_PORT:-}" ]]; then
+    # Try settings.json first
+    CLAUDE_MEM_PORT=$(python3 -c "
+import json, os, pathlib
+settings = pathlib.Path.home() / '.claude-mem' / 'settings.json'
+if settings.exists():
+    data = json.loads(settings.read_text())
+    print(data.get('port', ''))
+" 2>/dev/null || true)
+
+    if [[ -z "$CLAUDE_MEM_PORT" ]]; then
+        # UID-based formula: 37700 + (uid % 100)
+        # On Windows Git Bash, fall back to 37777
+        if [[ "$(uname -s)" == MINGW* || "$(uname -s)" == MSYS* ]]; then
+            CLAUDE_MEM_PORT=37777
+        else
+            CLAUDE_MEM_PORT=$(( 37700 + ($(id -u) % 100) ))
+        fi
+    fi
+fi
 CLAUDE_MEM_HOST="${CLAUDE_MEM_HOST:-localhost}"
 CLAUDE_MEM_URL="http://${CLAUDE_MEM_HOST}:${CLAUDE_MEM_PORT}"
 CLAUDE_MEM_TIMEOUT=3  # seconds — fast fail

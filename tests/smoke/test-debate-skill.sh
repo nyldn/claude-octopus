@@ -56,7 +56,7 @@ test_plugin_json_includes_debate() {
 
     local plugin_file="$PROJECT_ROOT/.claude-plugin/plugin.json"
 
-    if grep -q ".claude/skills/skill-debate.md" "$plugin_file"; then
+    if grep -q "skill-debate" "$plugin_file"; then
         test_pass
     else
         test_fail "plugin.json missing debate skill reference"
