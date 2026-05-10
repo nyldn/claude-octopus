@@ -169,12 +169,13 @@ check_docs_files() {
   done
 }
 
-# Check all primary skills are registered in plugin.json (v7.5+)
+# Check all skill directories are registered in plugin.json (v9.38+)
+# Skills migrated from .claude/skills/*.md to skills/*/ directories
 check_skills_registered() {
   info "\nValidating skill registration..."
 
   local plugin_json=".claude-plugin/plugin.json"
-  local skills_dir=".claude/skills"
+  local skills_dir="skills"
 
   if [ ! -f "$plugin_json" ]; then
     fail "plugin.json not found"
@@ -186,22 +187,22 @@ check_skills_registered() {
     return 1
   fi
 
-  # v7.5+: Primary skills follow naming pattern: sys-*, flow-*, skill-*
-  # Shortcut aliases (probe.md, review.md, etc.) are NOT registered in plugin.json
-  # They're defined as aliases in the primary skill's frontmatter
+  # v9.38+: Skills are directories under skills/ containing SKILL.md
+  # plugin.json references them as ./skills/<name>
+  for skill_subdir in "$skills_dir"/*/; do
+    local skill_name=$(basename "$skill_subdir")
+    local skill_path="./skills/${skill_name}"
 
-  # Find all primary skill files (sys-*, flow-*, skill-*)
-  local skill_files=$(find "$skills_dir" -name "*.md" -type f | grep -E '(sys-|flow-|skill-).*\.md$')
-
-  while IFS= read -r skill_file; do
-    local skill_path="./.claude/skills/$(basename "$skill_file")"
-
-    if grep -q "$skill_path" "$plugin_json"; then
-      pass "Skill registered: $(basename "$skill_file")"
-    else
-      fail "Skill NOT registered in plugin.json: $(basename "$skill_file")"
+    if [ ! -f "${skill_subdir}SKILL.md" ]; then
+      continue  # Skip dirs without SKILL.md (e.g. blocks/)
     fi
-  done <<< "$skill_files"
+
+    if grep -q "\"${skill_path}\"" "$plugin_json"; then
+      pass "Skill registered: ${skill_name}"
+    else
+      fail "Skill NOT registered in plugin.json: ${skill_name}"
+    fi
+  done
 }
 
 # Check workflow skills exist (v7.5+: renamed to flow-*)
@@ -277,11 +278,11 @@ check_debate_skill() {
     fail "skill-debate.md missing YAML frontmatter (required for Claude Code)"
   fi
 
-  # Check if skill-debate.md is registered in plugin.json
-  if grep -q "./.claude/skills/skill-debate.md" ".claude-plugin/plugin.json"; then
-    pass "skill-debate.md registered in plugin.json"
+  # Check if skill-debate is registered in plugin.json (directory format)
+  if grep -q "skill-debate" ".claude-plugin/plugin.json"; then
+    pass "skill-debate registered in plugin.json"
   else
-    fail "skill-debate.md NOT registered in plugin.json"
+    fail "skill-debate NOT registered in plugin.json"
   fi
 
   # Check that shortcut alias exists
