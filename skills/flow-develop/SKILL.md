@@ -104,10 +104,56 @@ This gives providers concrete design guidance (style direction, UX patterns) wit
 
 **How to apply:** When calling orchestrate.sh in Step 4, append the quality supplement (and design intelligence if available) to the prompt:
 ```
-orchestrate.sh develop "<user prompt>\n\nQuality requirements for this deliverable:\n<supplement text>\n<design intelligence if found>"
+orchestrate.sh develop "<user prompt>\n\nQuality requirements for this deliverable:\n<supplement text>\n<design intelligence if found>\n\nSURGICAL_CONSTRAINT:\n- Touch only required files for the task.\n- Match existing code style and conventions.\n- Note dead code but do NOT delete it; flag it for a separate task.\n- Justify every file touched in a 'Technical Debt Observed' section within the synthesis report."
 ```
 
 **DO NOT PROCEED TO STEP 2 until context determined.** Context type (Dev vs Knowledge) and dev subtype determine which quality supplements and design intelligence to inject — wrong context wastes provider credits on irrelevant analysis.
+
+
+### STEP 1c: Define Done Criteria (MANDATORY)
+
+Before calling orchestrate.sh, you MUST define clear, *runnable*, and *task-specific* verification commands or checks that, when executed, will definitively confirm the successful completion of the user's request.
+
+**Instructions:**
+1.  **State Verification Commands:** Explicitly list the shell commands (e.g., `npm test`, `curl -X GET /api/status`, `grep -q "new_feature_code" src/file.js`) or specific manual checks (e.g., "Verify UI element X is visible and clickable") that will prove the task is "done."
+2.  **User Confirmation:** Present these criteria to the user and ask for explicit confirmation that they look right.
+3.  **Blocking Dispatch:** If you cannot formulate clear, runnable verification commands, or if the user does not confirm them, you MUST block the `orchestrate.sh` dispatch and ask for clarification.
+
+**Edge Cases:**
+*   **Trivial Tasks:** For extremely trivial tasks (e.g., "change 'foo' to 'bar' in one file"), the verification command might be a simple `grep` or `cat` command to confirm the change.
+*   **Ambiguous Tasks:** If the user's request is ambiguous and prevents defining clear done criteria, ask for clarification.
+
+**DO NOT PROCEED TO STEP 2 until done criteria are defined and confirmed by the user, or clarification is received.** Proceeding without clear done criteria risks misinterpreting the task and delivering an unverified solution.
+
+#### Examples of Runnable Done Criteria:
+
+**Good Criteria (Runnable / Verifiable):**
+- `grep -q "public static void main" src/Main.java` (Confirms method exists)
+- `curl -s http://localhost:8080/api/status | grep "UP"` (Checks service health endpoint)
+- `npm test -- --grep "authentication flow"` (Runs specific tests)
+- `find . -name "*.js" | xargs grep -l "newFeatureFlag"` (Verifies code presence across files)
+- "UI element 'Login' button is visible and enabled" *(fallback only — not programmatically runnable; prefer a command when possible)*
+
+**Bad Criteria (Ambiguous / Not Verifiable):**
+- "Implement user authentication" (Too broad, not a verification command)
+- "Code is high quality" (Subjective, not directly runnable)
+- "Fix the bug" (What bug? How to verify its fix?)
+- "User likes the feature" (Subjective, not verifiable by agent)
+- "Ensure the database schema is updated" (How? What command? What table/column?)
+
+Good criteria are actionable commands or specific, observable states that the agent can execute or confirm programmatically or through explicit UI checks.
+
+**Capture User-Confirmed Done Criteria:**
+
+After the user confirms the criteria, hold them as a named list in your working context — label it `DONE_CRITERIA`. Do not rely on shell variables or `export`; shell state does not persist across tool calls. The criteria must live in your conversation context so you can substitute them verbatim into the E2E verification agent prompt in the post-implementation step.
+
+Example format to keep in context:
+```
+DONE_CRITERIA:
+- npm test passes with no new failures (baseline: 47 passing)
+- curl -X POST /api/auth/login with valid credentials returns 200 with a JWT
+- src/auth/middleware.ts exists and is imported in src/routes.ts
+```
 
 
 ### STEP 2: Display Visual Indicators (MANDATORY - BLOCKING)
@@ -203,7 +249,7 @@ fi
 **You MUST execute this command via the native shell command tool:**
 
 ```bash
-${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh develop "<user's implementation request>"
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh develop "<user's implementation request>\n\nSURGICAL_CONSTRAINT:\n- Touch only required files for the task.\n- Match existing code style and conventions.\n- Note dead code but do NOT delete it; flag it for a separate task.\n- Justify every file touched in a 'Technical Debt Observed' section within the synthesis report."
 ```
 
 **CRITICAL: You are PROHIBITED from:**
@@ -701,12 +747,13 @@ Agent(
   background execution: true,
   description: "E2E test: post-develop",
   prompt: "Run end-to-end verification of the development changes:
-1. Run the project's test suite (detect from package.json scripts, Makefile, or pyproject.toml)
-2. Verify no regressions in existing tests
-3. Check that new files are properly integrated (imported, registered, sourced)
-4. Verify the implementation matches the original task requirements
+1. Validate against the user-confirmed Done Criteria established in STEP 1c. Substitute the actual criteria list (from your working context, labelled DONE_CRITERIA) here — do not pass a placeholder. For each criterion: run the verification command or check for the artifact. Report PASS or FAIL with exact output.
+2. Run the project's test suite (detect from package.json scripts, Makefile, or pyproject.toml)
+3. Verify no regressions in existing tests
+4. Check that new files are properly integrated (imported, registered, sourced)
+5. Verify the implementation matches the original task requirements
 
-Report: tests passed/failed, any integration issues found."
+Report: tests passed/failed, any integration issues found, and whether the STEP 1c criteria were met."
 )
 ```
 
