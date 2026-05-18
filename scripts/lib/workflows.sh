@@ -887,6 +887,19 @@ Output as numbered list with [CODING] or [REASONING] prefix for each subtask."
     echo "$subtasks"
     echo ""
 
+    local parseable_subtask_count=0
+    while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+        [[ "$line" =~ ^[0-9]+[\.\)] ]] && ((parseable_subtask_count++)) || true
+    done <<< "$subtasks"
+
+    if [[ $parseable_subtask_count -eq 0 ]]; then
+        log WARN "Decomposition produced no parseable subtasks, falling back to direct execution"
+        spawn_agent "codex" "$resolved_prompt" "tangle-${task_group}-direct" "implementer" "tangle"
+        wait
+        return
+    fi
+
     # Step 2: Parallel execution with progress tracking
     log INFO "Step 2: Parallel execution..."
     local subtask_num=0

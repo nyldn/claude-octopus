@@ -79,10 +79,15 @@ fleet_dispatch_begin() { :; }
 fleet_dispatch_end() { :; }
 run_agent_sync() {
     printf '%s' "$2" > "$DECOMPOSE_CAPTURE_FILE"
-    printf '%s\n' "No numbered subtasks required"
+    printf '%s\n' "1. [CODING] Validate resolved plan context"
 }
 validate_tangle_results() {
     CAPTURED_VALIDATE_PROMPT="$2"
+}
+spawn_agent_capture_pid() {
+    local task_id="$3"
+    printf '0\n' > "$WORKSPACE_DIR/.octo/agents/${task_id}.done"
+    printf '12345\n'
 }
 
 run_tangle_case() {
