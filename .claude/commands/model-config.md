@@ -107,6 +107,7 @@ AskUserQuestion({
       {label: "Provider defaults", description: "Set default models for Codex, Gemini, OpenRouter, etc."},
       {label: "Phase routing", description: "Choose which model handles each workflow phase (discover, develop, review, etc.)"},
       {label: "Debate & multi-LLM", description: "Configure which providers participate in debates, parallel execution, and reviews"},
+      {label: "Session provider availability", description: "Temporarily enable or disable providers for this Claude Code session"},
       {label: "Cost mode", description: "Switch between budget, standard, and premium model tiers"},
       {label: "Reset to defaults", description: "Reset all or specific provider configuration"}
     ]
@@ -354,6 +355,54 @@ To make permanent: add to ~/.zshrc or ~/.bashrc
 
 Or offer to set it in the config file.
 
+### Route: Session Provider Availability
+
+Use this when the user wants to turn a provider off for the current session, for example when Codex quota is exhausted and they want Claude + Gemini only.
+
+First show the current allowlist:
+
+```bash
+${HOME}/.claude-octopus/plugin/scripts/helpers/octo-model-config.sh providers
+```
+
+Then ask which providers should be available:
+
+```
+AskUserQuestion({
+  questions: [{
+    question: "Which providers should Octopus use for this session?",
+    header: "Providers",
+    multiSelect: true,
+    options: [
+      {label: "Claude", description: "Built-in Claude providers"},
+      {label: "Codex", description: "OpenAI Codex CLI"},
+      {label: "Gemini", description: "Google Gemini CLI"},
+      {label: "Copilot", description: "GitHub Copilot CLI"},
+      {label: "Qwen", description: "Qwen Code CLI"},
+      {label: "OpenCode", description: "OpenCode multi-provider router"},
+      {label: "Perplexity", description: "Live web research via API key"},
+      {label: "OpenRouter", description: "OpenRouter API models"}
+    ]
+  }]
+})
+```
+
+Apply the selection as a session allowlist:
+
+```bash
+${HOME}/.claude-octopus/plugin/scripts/helpers/octo-model-config.sh allow <providers...> --session
+```
+
+Useful direct commands:
+
+```bash
+${HOME}/.claude-octopus/plugin/scripts/helpers/octo-model-config.sh disable codex --session
+${HOME}/.claude-octopus/plugin/scripts/helpers/octo-model-config.sh allow claude gemini --session
+${HOME}/.claude-octopus/plugin/scripts/helpers/octo-model-config.sh clear-allowlist --session
+```
+
+Explain that `OCTO_ALLOWED_PROVIDERS` still wins when it is set in the shell environment.
+
 ### Route: Reset
 
 ```
@@ -404,6 +453,11 @@ When invoked WITH arguments (e.g., `/octo:model-config codex gpt-5.4`), skip the
    - `<provider>.<capability> <model>` → Set capability-specific model
    - `<provider> <model> --session` → Set model (session only)
    - `phase <phase> <model>` → Set phase-specific model routing
+   - `providers` → Show current provider allowlist source and value
+   - `allow <providers...> --session` → Use only these providers for the current session
+   - `disable <providers...> --session` → Remove providers from the current session
+   - `enable <providers...> --session` → Add providers to the current session allowlist
+   - `clear-allowlist --session` → Restore default provider availability for the current session
    - `reset <provider|all>` → Reset to defaults
 
 2. **Set Model** (`<provider> <model>` or with `--session`):
@@ -427,6 +481,8 @@ When invoked WITH arguments (e.g., `/octo:model-config codex gpt-5.4`), skip the
    ```
 
 4. **Reset**: Use default values from the ensure_config block in `scripts/helpers/octo-model-config.sh`.
+
+5. **Provider Availability**: Use `scripts/helpers/octo-model-config.sh providers|allow|enable|disable|clear-allowlist`. These commands write to `~/.claude-octopus/config/provider-allowlist.<session>` by default. Global files are supported with `--global`, but prefer session scope unless the user explicitly asks for a persistent change.
 
 5. Always show confirmation and the updated value after any change.
 

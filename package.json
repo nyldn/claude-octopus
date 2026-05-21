@@ -1,6 +1,6 @@
 {
   "name": "@anthropic-plugins/claude-octopus",
-  "version": "9.38.1",
+  "version": "9.39.0",
   "description": "Claude Octopus - Multi-AI orchestration plugin for Claude Code. Three brains, one workflow.",
   "main": "scripts/orchestrate.sh",
   "scripts": {
@@ -25,6 +25,7 @@
     ".mcp.json",
     "scripts/",
     "agents/",
+    "assets/",
     "bin/",
     "hooks/",
     "skills/",

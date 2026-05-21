@@ -6,9 +6,11 @@ set -eo pipefail
 
 CONFIG_FILE="${HOME}/.claude-octopus/config/providers.json"
 CACHE_FILE="/tmp/octo-model-cache-${USER:-${USERNAME:-unknown}}-${CLAUDE_CODE_SESSION:-global}.json"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+source "${SCRIPT_DIR}/../lib/provider-allowlist.sh" 2>/dev/null || true
 
 # Known providers and phases for validation
-KNOWN_PROVIDERS="codex gemini claude perplexity openrouter opencode copilot ollama qwen cursor-agent"
+KNOWN_PROVIDERS="codex gemini claude perplexity openrouter opencode copilot ollama qwen cursor-agent vibe"
 KNOWN_PHASES="discover define develop deliver quick debate review security research"
 
 # Colors
@@ -28,6 +30,11 @@ usage() {
     echo "  route <phase> <target>      Route a phase to a specific model/capability"
     echo "  reset [provider|all]        Reset configuration to defaults"
     echo "  models [filter]             List all known models with capabilities"
+    echo "  providers                   Show active provider allowlist"
+    echo "  allow <providers...>        Allow only these providers (session by default)"
+    echo "  enable <providers...>       Add providers to the active allowlist"
+    echo "  disable <providers...>      Remove providers from the active allowlist"
+    echo "  clear-allowlist             Clear the provider allowlist"
     echo "  verify                      Verify model accessibility"
     echo ""
     echo "Options:"
@@ -39,6 +46,7 @@ usage() {
     echo "  OCTOPUS_GEMINI_MODEL        Override gemini model"
     echo "  OCTOPUS_CURSOR_AGENT_MODEL  Override cursor-agent model"
     echo "  OCTOPUS_COST_MODE           Set cost tier: budget, standard, premium"
+    echo "  OCTO_ALLOWED_PROVIDERS      Override provider availability for this process"
     echo "  OCTOPUS_TRACE_MODELS=1      Debug model resolution precedence"
 }
 
@@ -121,6 +129,184 @@ validate_model() {
     return 0
 }
 
+canonical_provider() {
+    local provider
+    provider="$(octo_normalize_provider_name "${1:-}")"
+    case "$provider" in
+        anthropic|sonnet) echo "claude" ;;
+        openai) echo "codex" ;;
+        google) echo "gemini" ;;
+        cursor|xai) echo "cursor-agent" ;;
+        local) echo "ollama" ;;
+        *) echo "$provider" ;;
+    esac
+}
+
+provider_known() {
+    local provider="$1"
+    echo "$KNOWN_PROVIDERS" | grep -qw "$provider"
+}
+
+unique_provider_list() {
+    local seen="" out="" provider
+    for provider in "$@"; do
+        [[ -n "$provider" ]] || continue
+        if [[ " $seen " == *" $provider "* ]]; then
+            continue
+        fi
+        seen="${seen:+$seen }$provider"
+        out="${out:+$out }$provider"
+    done
+    printf '%s\n' "$out"
+}
+
+parse_provider_args() {
+    local providers=()
+    local arg provider
+    for arg in "$@"; do
+        case "$arg" in
+            --session|--global|--force) continue ;;
+        esac
+        provider="$(canonical_provider "$arg")"
+        if ! provider_known "$provider"; then
+            log_error "Unknown provider '$arg'. Valid: $KNOWN_PROVIDERS"
+            exit 1
+        fi
+        providers+=("$provider")
+    done
+
+    if [[ ${#providers[@]} -eq 0 ]]; then
+        log_error "At least one provider is required"
+        exit 1
+    fi
+
+    unique_provider_list "${providers[@]}"
+}
+
+current_provider_allowlist_or_all() {
+    local current
+    if declare -f octo_provider_allowlist_value >/dev/null 2>&1; then
+        current="$(octo_provider_allowlist_value)"
+    else
+        current="${OCTO_ALLOWED_PROVIDERS:-}"
+    fi
+    if [[ -z "$current" ]]; then
+        printf '%s\n' "$KNOWN_PROVIDERS"
+    else
+        local providers=() token
+        # shellcheck disable=SC2086 # Intentional word splitting: provider allowlist syntax.
+        for token in ${current//,/ }; do
+            providers+=("$(canonical_provider "$token")")
+        done
+        unique_provider_list "${providers[@]}"
+    fi
+}
+
+allowlist_target_file() {
+    local scope="$1"
+    case "$scope" in
+        global) octo_provider_allowlist_global_file ;;
+        *) octo_provider_allowlist_session_file ;;
+    esac
+}
+
+write_provider_allowlist() {
+    local scope="$1"
+    local providers="$2"
+    local file
+    file="$(allowlist_target_file "$scope")"
+    mkdir -p "$(dirname "$file")"
+    printf '%s\n' "$providers" > "$file"
+    clear_cache
+    log_info "Provider allowlist ($scope): ${providers:-none}"
+    echo "  File: $file"
+}
+
+cmd_provider_allowlist() {
+    local source="unset" value=""
+    if declare -f octo_provider_allowlist_source >/dev/null 2>&1; then
+        source="$(octo_provider_allowlist_source)"
+        value="$(octo_provider_allowlist_value)"
+    else
+        value="${OCTO_ALLOWED_PROVIDERS:-}"
+        [[ -n "$value" ]] && source="env:OCTO_ALLOWED_PROVIDERS"
+    fi
+
+    echo -e "${CYAN}Provider Allowlist${NC}"
+    echo "----------------------------------------"
+    echo "  Source: $source"
+    if [[ -z "$value" ]]; then
+        echo "  Allowed: all providers"
+    else
+        echo "  Allowed: $(unique_provider_list ${value//,/ })"
+    fi
+    echo ""
+    echo "  Session command examples:"
+    echo "    octo-model-config allow claude gemini --session"
+    echo "    octo-model-config disable codex --session"
+    echo "    octo-model-config clear-allowlist --session"
+}
+
+cmd_allow() {
+    local scope="session" arg
+    for arg in "$@"; do
+        [[ "$arg" == "--global" ]] && scope="global"
+    done
+    local providers
+    providers="$(parse_provider_args "$@")"
+    write_provider_allowlist "$scope" "$providers"
+}
+
+cmd_enable() {
+    local scope="session" arg
+    for arg in "$@"; do
+        [[ "$arg" == "--global" ]] && scope="global"
+    done
+    local existing add merged
+    existing="$(current_provider_allowlist_or_all)"
+    add="$(parse_provider_args "$@")"
+    merged="$(unique_provider_list $existing $add)"
+    write_provider_allowlist "$scope" "$merged"
+}
+
+cmd_disable() {
+    local scope="session" arg
+    for arg in "$@"; do
+        [[ "$arg" == "--global" ]] && scope="global"
+    done
+
+    local existing remove keep="" token blocked should_remove
+    existing="$(current_provider_allowlist_or_all)"
+    remove="$(parse_provider_args "$@")"
+
+    for token in $existing; do
+        should_remove=false
+        for blocked in $remove; do
+            if [[ "$token" == "$blocked" ]]; then
+                should_remove=true
+                break
+            fi
+        done
+        [[ "$should_remove" == "true" ]] && continue
+        keep="${keep:+$keep }$token"
+    done
+
+    write_provider_allowlist "$scope" "$keep"
+}
+
+cmd_clear_allowlist() {
+    local scope="session" arg
+    for arg in "$@"; do
+        [[ "$arg" == "--global" ]] && scope="global"
+    done
+    local file
+    file="$(allowlist_target_file "$scope")"
+    rm -f "$file"
+    clear_cache
+    log_info "Cleared provider allowlist ($scope)"
+    echo "  File: $file"
+}
+
 # v8.49.0: Invalidate model resolution cache after config changes
 clear_cache() {
     rm -f "$CACHE_FILE"
@@ -134,7 +320,7 @@ cmd_list() {
     # Environment overrides
     echo -e "\n${YELLOW}Environment Overrides:${NC}"
     local has_env=false
-    for var in OCTOPUS_CODEX_MODEL OCTOPUS_GEMINI_MODEL OCTOPUS_CURSOR_AGENT_MODEL OCTOPUS_PERPLEXITY_MODEL OCTOPUS_OPENCODE_MODEL OCTOPUS_COST_MODE OCTOPUS_TRACE_MODELS; do
+    for var in OCTOPUS_CODEX_MODEL OCTOPUS_GEMINI_MODEL OCTOPUS_CURSOR_AGENT_MODEL OCTOPUS_PERPLEXITY_MODEL OCTOPUS_OPENCODE_MODEL OCTOPUS_COST_MODE OCTO_ALLOWED_PROVIDERS OCTOPUS_TRACE_MODELS; do
         if [[ -n "${!var:-}" ]]; then
             echo "  $var=${!var}"
             has_env=true
@@ -161,6 +347,23 @@ cmd_list() {
     # Cost mode
     echo -e "\n${YELLOW}Cost Mode:${NC}"
     echo "  ${OCTOPUS_COST_MODE:-standard} (set via OCTOPUS_COST_MODE env var)"
+
+    # Provider allowlist
+    echo -e "\n${YELLOW}Provider Allowlist:${NC}"
+    local allowlist_source allowlist_value
+    if declare -f octo_provider_allowlist_source >/dev/null 2>&1; then
+        allowlist_source="$(octo_provider_allowlist_source)"
+        allowlist_value="$(octo_provider_allowlist_value)"
+    else
+        allowlist_source="env"
+        allowlist_value="${OCTO_ALLOWED_PROVIDERS:-}"
+    fi
+    echo "  Source: $allowlist_source"
+    if [[ -z "$allowlist_value" ]]; then
+        echo "  Allowed: all providers"
+    else
+        echo "  Allowed: $(unique_provider_list ${allowlist_value//,/ })"
+    fi
 
     # Session overrides
     echo -e "\n${YELLOW}Session Overrides:${NC}"
@@ -331,10 +534,10 @@ cmd_models() {
         "z-ai/glm-5|203|yes|no|no|openrouter|standard|active"
         "moonshotai/kimi-k2.5|262|yes|yes|no|openrouter|standard|active"
         "deepseek/deepseek-r1-0528|164|yes|no|yes|openrouter|standard|active"
-        "google/gemini-2.5-flash|1000|yes|no|no|opencode|budget|active"
-        "openai/gpt-5.4|400|yes|yes|no|opencode|premium|active"
-        "openai/gpt-5.4-mini|400|yes|no|no|opencode|budget|active"
-        "z-ai/glm-5.1|203|yes|no|no|opencode|standard|active"
+        "opencode/deepseek-v4-flash-free|128|yes|no|no|opencode|budget|active"
+        "opencode/gpt-5.4|400|yes|yes|no|opencode|premium|active"
+        "opencode/gpt-5.4-mini|400|yes|no|no|opencode|budget|active"
+        "opencode/glm-5.1|203|yes|no|no|opencode|standard|active"
     )
 
     for entry in "${models[@]}"; do
@@ -390,6 +593,11 @@ case "$COMMAND" in
     route) cmd_route "$@" ;;
     reset) cmd_reset "$@" ;;
     models) cmd_models "$@" ;;
+    providers|allowlist) cmd_provider_allowlist ;;
+    allow|set-allowlist) cmd_allow "$@" ;;
+    enable) cmd_enable "$@" ;;
+    disable|block) cmd_disable "$@" ;;
+    clear-allowlist|reset-allowlist) cmd_clear_allowlist "$@" ;;
     verify) cmd_verify ;;
     help|--help|-h) usage ;;
     *) usage; exit 1 ;;

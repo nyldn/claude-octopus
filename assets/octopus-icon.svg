@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Claude Octopus icon</title>
+  <desc id="desc">A stylized octopus mark for the Claude Octopus plugin.</desc>
+  <rect width="512" height="512" rx="108" fill="#111827"/>
+  <circle cx="256" cy="212" r="120" fill="#6366f1"/>
+  <circle cx="214" cy="200" r="18" fill="#ffffff"/>
+  <circle cx="298" cy="200" r="18" fill="#ffffff"/>
+  <circle cx="214" cy="200" r="8" fill="#111827"/>
+  <circle cx="298" cy="200" r="8" fill="#111827"/>
+  <path d="M176 274c18 22 45 35 80 35s62-13 80-35" fill="none" stroke="#ffffff" stroke-width="18" stroke-linecap="round"/>
+  <path d="M158 296c-41 8-71 32-78 68-4 24 8 44 31 52 25 9 53-2 70-28" fill="none" stroke="#6366f1" stroke-width="34" stroke-linecap="round"/>
+  <path d="M354 296c41 8 71 32 78 68 4 24-8 44-31 52-25 9-53-2-70-28" fill="none" stroke="#6366f1" stroke-width="34" stroke-linecap="round"/>
+  <path d="M210 318c-18 34-22 69-9 98 10 24 33 35 55 25 21-9 32-32 26-58" fill="none" stroke="#6366f1" stroke-width="34" stroke-linecap="round"/>
+  <path d="M302 318c18 34 22 69 9 98-10 24-33 35-55 25-21-9-32-32-26-58" fill="none" stroke="#6366f1" stroke-width="34" stroke-linecap="round"/>
+  <path d="M196 316c-31 20-50 48-50 80 0 25 17 43 41 43 23 0 43-17 50-43" fill="none" stroke="#818cf8" stroke-width="26" stroke-linecap="round"/>
+  <path d="M316 316c31 20 50 48 50 80 0 25-17 43-41 43-23 0-43-17-50-43" fill="none" stroke="#818cf8" stroke-width="26" stroke-linecap="round"/>
+  <path d="M132 130l34-34 34 34m112 0 34-34 34 34" fill="none" stroke="#22d3ee" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

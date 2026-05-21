@@ -758,7 +758,7 @@ SKILLEOF
 
     # Max 20 skills: archive lowest-confidence when exceeded
     local skill_count
-    skill_count=$(ls -1 "$skills_dir"/*.md 2>/dev/null | wc -l | tr -d ' ')
+    skill_count=$(find "$skills_dir" -maxdepth 1 -type f -name '*.md' 2>/dev/null | wc -l | tr -d ' ')
     if [[ "$skill_count" -gt 20 ]]; then
         # Find skill with lowest confidence (fewest occurrences)
         local lowest_file="" lowest_count=999
@@ -1521,7 +1521,7 @@ init_step_mode_selection() {
     echo -e "  ${DIM}Note: Both modes use Codex + Gemini - only personas differ${NC}"
     echo -e "  ${DIM}Switch anytime with /octo:dev or /octo:km${NC}"
     echo ""
-    read -p "  Choose mode [1-2] (default: 1): " mode_choice
+    read -r -p "  Choose mode [1-2] (default: 1): " mode_choice
 
     case "$mode_choice" in
         2)
@@ -1566,7 +1566,7 @@ init_step_intent() {
     echo ""
     echo -e "  ${GREEN}[0]${NC} General/All of above"
     echo ""
-    read -p "  Enter choices (e.g., '1,2,7' or '0' for all): " intent_choices
+    read -r -p "  Enter choices (e.g., '1,2,7' or '0' for all): " intent_choices
 
     # Parse choices
     intent_choices="${intent_choices:-0}"
@@ -1622,7 +1622,7 @@ init_step_resources() {
     echo ""
     echo -e "  ${GREEN}[5]${NC} Not sure / Skip        → Standard defaults"
     echo ""
-    read -p "  Select [1-5]: " tier_choice
+    read -r -p "  Select [1-5]: " tier_choice
 
     case "${tier_choice:-5}" in
         1) USER_RESOURCE_TIER="pro" ;;

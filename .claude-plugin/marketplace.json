@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "nyldn plugins for Claude Code workflows.",
-    "version": "9.38.1"
+    "version": "9.39.0"
   },
   "plugins": [
     {
@@ -15,8 +15,8 @@
         "source": "url",
         "url": "https://github.com/nyldn/claude-octopus.git"
       },
-      "description": "v9.38.1 - Multi-LLM orchestration for Claude Code with agent summaries, prompt-size preflight, research fanout, and Codex-compatible skills. 32 personas, 48 commands, 52 skills. Run /octo:setup.",
-      "version": "9.38.1",
+      "description": "v9.39.0 - Multi-LLM orchestration for Claude Code with session provider controls, Codex marketplace icon, and OpenCode catalog maintenance. 32 personas, 48 commands, 52 skills. Run /octo:setup.",
+      "version": "9.39.0",
       "author": {
         "name": "nyldn",
         "url": "https://github.com/nyldn"

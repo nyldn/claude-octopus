@@ -48,10 +48,11 @@ get_model_catalog() {
         z-ai/glm-5)             echo "203|yes|no|no|openrouter|standard|active" ;;
         moonshotai/kimi-k2.5)   echo "262|yes|yes|no|openrouter|standard|active" ;;
         deepseek/deepseek-r1-0528) echo "164|yes|no|yes|openrouter|standard|active" ;;
-        # OpenCode (multi-provider router — models use provider/model format)
-        google/gemini-2.5-flash) echo "1000|yes|no|no|opencode|budget|active" ;;
-        openai/gpt-5.4)         echo "400|yes|yes|no|opencode|premium|active" ;;
-        openai/gpt-5.4-mini)    echo "400|yes|no|no|opencode|budget|active" ;;
+        # OpenCode (multi-provider router — models use opencode/<model> namespace)
+        opencode/deepseek-v4-flash-free) echo "128|yes|no|no|opencode|budget|active" ;;
+        opencode/gpt-5.4)       echo "400|yes|yes|no|opencode|premium|active" ;;
+        opencode/gpt-5.4-mini)  echo "400|yes|no|no|opencode|budget|active" ;;
+        opencode/glm-5.1)       echo "203|yes|no|no|opencode|standard|active" ;;
         # Perplexity
         sonar-pro)              echo "128|no|no|no|perplexity|standard|active" ;;
         sonar)                  echo "128|no|no|no|perplexity|budget|active" ;;
@@ -114,6 +115,7 @@ list_models() {
         claude-sonnet-4.6 claude-opus-4.7 claude-opus-4.6 claude-opus-4.6-fast
         grok-4-20 grok-4-20-thinking composer-2-fast composer-2
         z-ai/glm-5 moonshotai/kimi-k2.5 deepseek/deepseek-r1-0528
+        opencode/deepseek-v4-flash-free opencode/gpt-5.4 opencode/gpt-5.4-mini opencode/glm-5.1
         sonar-pro sonar
     )
 

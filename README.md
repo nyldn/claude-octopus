@@ -12,7 +12,7 @@ Every AI model has blind spots. Claude Octopus puts up to eight of them on every
   <a href="https://claude.ai"><img src="https://img.shields.io/badge/Claude-Built_with_AI-c96442?logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0iI2ZmZiIgZD0iTTEyIDJhMTAgMTAgMCAxIDAgMCAyMCAxMCAxMCAwIDAgMCAwLTIwbTAgMS44YTEuMiAxLjIgMCAwIDEgLjg1LjM1bDEuNSA0LjVhLjYuNiAwIDAgMCAuMzUuMzVsNC41IDEuNWExLjIgMS4yIDAgMCAxIDAgMi4yN2wtNC41IDEuNWEuNi42IDAgMCAwLS4zNS4zNWwtMS41IDQuNWExLjIgMS4yIDAgMCAxLTIuMjcgMGwtMS41LTQuNWEuNi42IDAgMCAwLS4zNS0uMzVsLTQuNS0xLjVhMS4yIDEuMiAwIDAgMSAwLTIuMjdsNC41LTEuNWEuNi42IDAgMCAwIC4zNS0uMzVsMS41LTQuNUExLjIgMS4yIDAgMCAxIDEyIDMuOCIvPjwvc3ZnPg==&labelColor=333" alt="Built with Claude"></a>
   <a href="https://github.com/nyldn/claude-octopus/actions/workflows/test.yml"><img src="https://github.com/nyldn/claude-octopus/actions/workflows/test.yml/badge.svg" alt="Tests"></a>
   <img src="https://img.shields.io/badge/Tests-117_suites_passing-brightgreen" alt="117 suites passing">
-  <img src="https://img.shields.io/badge/Version-9.38.1-blue" alt="Version 9.38.1">
+  <img src="https://img.shields.io/badge/Version-9.39.0-blue" alt="Version 9.39.0">
   <img src="https://img.shields.io/badge/Claude_Code-v2.1.14+_required-blueviolet" alt="Requires Claude Code v2.1.14+">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
 </p>
@@ -399,6 +399,8 @@ Everything except multi-AI features. You get all 32 personas, structured workflo
 **Data locations** — Results in `~/.claude-octopus/results/`, logs in `~/.claude-octopus/logs/`, project state in `.octo/`. Nothing hidden.
 
 **Provider transparency** — Every command shows a 🐙 activation indicator on launch. Colored dots (🔴 🟡 🟣 🔵) show exactly which providers are running and when external APIs are called. You always know what's happening.
+
+**Session provider controls** — Temporarily disable exhausted providers without uninstalling them. For example, `/octo:model-config disable codex --session` keeps Codex out of provider detection and multi-LLM fanout for the current session; `/octo:model-config clear-allowlist --session` restores the default.
 
 **Clean uninstall** — Run `claude plugin uninstall octo` from your terminal. If you see a scope error, add `--scope project`. No residual config changes.
 

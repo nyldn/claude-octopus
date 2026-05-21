@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "9.38.1",
-  "description": "v9.38.1 \u2014 Agent summaries, prompt-size preflight, research fanout, and Codex-compatible portable skills. Run /octo:setup.",
+  "version": "9.39.0",
+  "description": "v9.39.0 — Codex marketplace icon, session provider controls, and OpenCode catalog/logging maintenance. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"

@@ -600,6 +600,14 @@ ${heuristic_ctx}"
             break
         done
 
+        if [[ $exit_code -ne 0 && -s "$temp_errors" ]]; then
+            local stderr_first_line=""
+            stderr_first_line=$(grep -m1 '[^[:space:]]' "$temp_errors" 2>/dev/null | head -c 240 || true)
+            if [[ -n "$stderr_first_line" ]]; then
+                log "ERROR" "[$agent_type] provider stderr: $stderr_first_line"
+            fi
+        fi
+
         # v8.16: Log auth retry metrics if retries occurred
         if [[ $auth_attempt -gt 0 ]]; then
             log "INFO" "Auth retries used: $auth_attempt/$max_auth_retries (backend=$OCTOPUS_BACKEND, exit=$exit_code)"

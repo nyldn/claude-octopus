@@ -1,5 +1,18 @@
 # Changelog
 
+## [9.39.0] - 2026-05-21
+
+### Added
+
+- Add Codex marketplace icon metadata and package the SVG asset for marketplace browsers (#385).
+- Add session-scoped provider availability controls to `/octo:model-config` so users can disable exhausted providers such as Codex without uninstalling them (#386).
+
+### Fixed
+
+- Surface the first provider stderr line in orchestrator logs when a provider command fails, while still preserving the full transcript in the result file (#404).
+- Align OpenCode model catalog metadata with the current `opencode/...` namespace (#404).
+- Replace low-risk `ls`/`read` shellcheck findings in `orchestrate.sh` with safer equivalents (#404).
+
 ## [9.38.1] - 2026-05-21
 
 Patch release covering the issue/PR triage queue after v9.38.0.
@@ -43,10 +56,6 @@ Patch release covering the issue/PR triage queue after v9.38.0.
 
 - Prevent the stable `~/.claude-octopus/plugin` self-heal path from recreating the plugin symlink as a self-referential loop (#371).
 - Update release validation to understand directory-based plugin skill registrations.
-
----
-
-## [Unreleased]
 
 ---
 

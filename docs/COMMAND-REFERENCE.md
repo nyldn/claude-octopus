@@ -276,6 +276,10 @@ Configure which AI models are used across Claude Octopus workflows.
 /octo:model-config codex gpt-5.4            # Set Codex model
 /octo:model-config codex gpt-5.4  # Fast Spark model
 /octo:model-config gemini gemini-3.1-pro-preview  # Set Gemini model
+/octo:model-config providers                 # Show provider allowlist
+/octo:model-config disable codex --session   # Stop using Codex in this session
+/octo:model-config allow claude gemini --session  # Use only Claude + Gemini in this session
+/octo:model-config clear-allowlist --session # Restore default provider availability
 /octo:model-config cost-mode budget         # Use cheaper models
 /octo:model-config cost-mode premium        # Use best models
 /octo:model-config trace                    # Debug model resolution
