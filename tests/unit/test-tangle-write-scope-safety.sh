@@ -29,12 +29,13 @@ NC=""
 TMUX_MODE=false
 DRY_RUN=false
 SUPPORTS_PARALLEL_FILE_SAFETY=false
+TEST_TMP_DIR="${TEST_TMP_DIR:-/tmp/octopus-tests-$$}"
 RESULTS_DIR="$TEST_TMP_DIR/tangle-write-scope-safety"
 LOGS_DIR="$RESULTS_DIR/logs"
 WORKSPACE_DIR="$RESULTS_DIR/workspace"
 rm -rf "$RESULTS_DIR"
 mkdir -p "$WORKSPACE_DIR/.octo/agents"
-trap 'rm -rf "$RESULTS_DIR"' EXIT
+trap 'rm -rf "$TEST_TMP_DIR"' EXIT INT TERM
 
 DIRECT_PROMPT=""
 DIRECT_TASK_ID=""
@@ -82,6 +83,24 @@ if [[ "$scopes" == *"README.md"* ]] && \
     test_pass
 else
     test_fail "write scope extraction did not isolate Files clause; got: $scopes"
+fi
+
+test_case "write scope extraction requires explicit Files clause"
+scopes=$(tangle_extract_write_scopes "[CODING] Update src/context.ts after reading README.md")
+if [[ -z "$scopes" ]]; then
+    test_pass
+else
+    test_fail "write scope extraction parsed arbitrary prose without Files clause: $scopes"
+fi
+
+test_case "write scope extraction accepts root-level filenames"
+scopes=$(tangle_extract_write_scopes "[CODING] Update build files. Files: Makefile, Dockerfile, package.json")
+if [[ "$scopes" == *"Makefile"* ]] && \
+   [[ "$scopes" == *"Dockerfile"* ]] && \
+   [[ "$scopes" == *"package.json"* ]]; then
+    test_pass
+else
+    test_fail "write scope extraction rejected root-level filenames; got: $scopes"
 fi
 
 original_prompt="Update src/lib/templates/NA02_REQUEST_REPORT.ts and src/lib/legal/legalReferenceCatalog.ts without producing duplicate subject prefixes."
