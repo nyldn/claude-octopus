@@ -77,9 +77,9 @@ ensure_config() {
       "fast": "sonar"
     },
     "opencode": {
-      "default": "google/gemini-2.5-flash",
-      "fast": "google/gemini-2.5-flash",
-      "research": "z-ai/glm-5.1"
+      "default": "opencode/deepseek-v4-flash-free",
+      "fast": "opencode/deepseek-v4-flash-free",
+      "research": "opencode/glm-5.1"
     }
   },
   "routing": {

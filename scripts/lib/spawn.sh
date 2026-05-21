@@ -542,6 +542,10 @@ ${heuristic_ctx}"
         if [[ "$agent_type" == gemini* ]] || [[ "$agent_type" == cursor-agent* ]] || [[ "$agent_type" == copilot* ]] || [[ "$agent_type" == qwen* ]]; then
             cmd_array+=(-p "")
         fi
+        # Belt-and-suspenders: bypass Gemini's interactive trust check in headless mode (#405)
+        if [[ "$agent_type" == gemini* ]]; then
+            cmd_array+=(--skip-trust)
+        fi
 
         local auth_attempt=0
         local exit_code=0

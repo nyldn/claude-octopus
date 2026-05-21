@@ -27,6 +27,8 @@ printf "copilot:%s\n" "$(command -v copilot >/dev/null 2>&1 && echo installed ||
 printf "qwen:%s\n" "$(command -v qwen >/dev/null 2>&1 && echo installed || echo missing)"
 printf "ollama:%s\n" "$(command -v ollama >/dev/null 2>&1 && curl -sf http://localhost:11434/api/tags >/dev/null 2>&1 && echo running || command -v ollama >/dev/null 2>&1 && echo installed || echo missing)"
 printf "opencode:%s\n" "$(command -v opencode >/dev/null 2>&1 && echo installed || echo missing)"
+printf "vibe:%s\n" "$(command -v vibe >/dev/null 2>&1 && echo installed || echo missing)"
+printf "vibe_auth:%s\n" "$(if ! command -v vibe >/dev/null 2>&1; then echo n/a; elif [ -f "${HOME}/.vibe/.env" ] && grep -Eq '^[[:space:]]*MISTRAL_API_KEY=' "${HOME}/.vibe/.env" 2>/dev/null; then echo env-file; elif [ -n "${MISTRAL_API_KEY:-}" ]; then echo api-key; elif [ -f "${HOME}/.vibe/config.toml" ] && grep -Eq '^[[:space:]]*api_key[[:space:]]*=' "${HOME}/.vibe/config.toml" 2>/dev/null; then echo config; else echo none; fi)"
 printf "remote_session:%s\n" "$([[ "${CLAUDE_CODE_REMOTE:-}" == "true" || "${OCTOPUS_REMOTE_SESSION:-}" == "true" ]] && echo true || echo false)"
 printf "octo_tier:%s\n" "${OCTO_TIER:-unset}"
 echo "=== Companions ==="
@@ -57,6 +59,7 @@ Providers:
   🟢 Copilot CLI:   [Installed ✓ / Not installed]
   🟠 Qwen CLI:      [Installed ✓ / Not installed]
   🟤 OpenCode:      [Installed ✓ / Not installed]
+  🔶 Vibe (Mistral): [Installed ✓ (auth: env-file/api-key/config) / Not installed]
   ��� Ollama:        [Running ✓ / Installed / Not installed]
   🔵 Claude:        Available ✓
 
@@ -147,7 +150,7 @@ AskUserQuestion({
     header: "Setup",
     multiSelect: false,
     options: [
-      {label: "Add or configure a provider", description: "Install Codex, Gemini, Perplexity, Copilot, Qwen, or OpenCode"},
+      {label: "Add or configure a provider", description: "Install Codex, Gemini, Perplexity, Copilot, Qwen, OpenCode, or Vibe (Mistral)"},
       {label: "Configure models", description: "Set which models are used for each workflow phase → launches /octo:model-config"},
       {label: "Set up token optimization (RTK)", description: "Install RTK for 60-90% token savings on bash output"},
       {label: "Set up Graphify companion", description: "Detect or install Graphify for optional knowledge-graph context"},

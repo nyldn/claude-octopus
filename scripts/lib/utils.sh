@@ -183,6 +183,8 @@ validate_agent_command() {
             return 0 ;;
         "opencode "*|"opencode")  # v9.11.0: OpenCode CLI multi-provider router
             return 0 ;;
+        "vibe "*|"vibe")          # Mistral Vibe interactive CLI
+            return 0 ;;
         "ollama "*|"ollama")      # Ollama local LLM
             return 0 ;;
         "agent "*|"agent")        # Cursor Agent CLI (v9.23.0)

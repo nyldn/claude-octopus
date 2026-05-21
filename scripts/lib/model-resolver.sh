@@ -211,9 +211,9 @@ resolve_octopus_model() {
             copilot*)        resolved_model="claude-sonnet-4.5" ;; # Copilot default; actual model selected by copilot CLI
             qwen*)           resolved_model="qwen3-coder" ;;
             cursor-agent*)   resolved_model="grok-4-20" ;;
-            opencode-research*) resolved_model="z-ai/glm-5.1" ;;
-            opencode-fast*)  resolved_model="google/gemini-2.5-flash" ;;
-            opencode*)       resolved_model="google/gemini-2.5-flash" ;;
+            opencode-research*) resolved_model="opencode/glm-5.1" ;;
+            opencode-fast*)  resolved_model="opencode/deepseek-v4-flash-free" ;;
+            opencode*)       resolved_model="opencode/deepseek-v4-flash-free" ;;
             *)              resolved_model="gpt-5.4" ;; # Safest universal fallback
         esac
         [[ -n "$_trace" ]] && echo "[model-trace] Tier 7 (hardcoded fallback): $resolved_model ← SELECTED" >&2

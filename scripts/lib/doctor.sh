@@ -212,6 +212,28 @@ doctor_check_providers() {
             "Cursor Agent CLI not installed (optional)" "curl -fsSL https://cursor.com/install | bash — Grok 4.20 via Cursor subscription"
     fi
 
+    # Vibe CLI (optional — Mistral Vibe interactive CLI)
+    if command -v vibe &>/dev/null; then
+        local vibe_auth="none"
+        if [[ -f "${HOME}/.vibe/.env" ]] && grep -Eq '^[[:space:]]*MISTRAL_API_KEY=' "${HOME}/.vibe/.env" 2>/dev/null; then
+            vibe_auth="env-file"
+        elif [[ -n "${MISTRAL_API_KEY:-}" ]]; then
+            vibe_auth="env:MISTRAL_API_KEY"
+        elif [[ -f "${HOME}/.vibe/config.toml" ]] && grep -Eq '^[[:space:]]*api_key[[:space:]]*=' "${HOME}/.vibe/config.toml" 2>/dev/null; then
+            vibe_auth="config"
+        fi
+        if [[ "$vibe_auth" != "none" ]]; then
+            doctor_add "vibe-cli" "providers" "pass" \
+                "Vibe CLI installed (auth: ${vibe_auth})" "$(command -v vibe) — Mistral Vibe interactive CLI"
+        else
+            doctor_add "vibe-cli" "providers" "warn" \
+                "Vibe CLI installed but not authenticated" "Run: vibe --setup (or set MISTRAL_API_KEY)"
+        fi
+    else
+        doctor_add "vibe-cli" "providers" "info" \
+            "Vibe CLI not installed (optional)" "pip install mistral-vibe (or pipx) — Mistral Vibe interactive CLI"
+    fi
+
     # OpenCode CLI (optional — multi-provider router, v9.11.0)
     if command -v opencode &>/dev/null; then
         local opencode_auth="none"

@@ -104,6 +104,12 @@ assert_contains "$(grep -c 'codex verifier failed' "$ALL_SRC" 2>/dev/null || ech
 assert_contains "$(grep 'post_inline_comments.*findings_file.*||' "$ALL_SRC" 2>/dev/null | head -5)" \
   "render_terminal_report" "review_run: post_inline_comments guarded with terminal fallback"
 
+assert_contains "$(grep 'local pr_number=.*review_pr_number' "$ALL_SRC" 2>/dev/null | head -3)" \
+  'review_pr_number' "review_run: publish uses explicit PR target before branch fallback"
+
+assert_contains "$(grep -A4 'avg_confidence=$(jq' "$ALL_SRC" 2>/dev/null | head -8)" \
+  'head -n 1' "review_run: confidence fallback cannot append a second line"
+
 assert_contains "$(grep -A2 'commit_id.*headRefOid' "$ALL_SRC" 2>/dev/null | head -10)" \
   'commit_id' "post_inline_comments: empty commit_id guarded"
 

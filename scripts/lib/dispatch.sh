@@ -116,6 +116,13 @@ get_agent_command() {
             # does NOT interpret quotes; literal " would be passed to --model.
             echo "agent --trust --output-format text --model ${model}"
             ;;
+        vibe|vibe-research)  # Mistral Vibe — interactive CLI (model in ~/.vibe/config.toml)
+            # Routed through helpers/vibe-exec.sh: vibe's -p only accepts the
+            # prompt as argv (stdin yields "No prompt provided"), so the shim
+            # reads stdin and re-passes it as `-p "<prompt>"`. Keeps spawn.sh's
+            # uniform stdin contract intact (Issue #173).
+            echo "${PLUGIN_DIR}/scripts/helpers/vibe-exec.sh --output text"
+            ;;
         opencode|opencode-fast|opencode-research)  # v9.11.0: OpenCode CLI — multi-provider router
             model=$(get_agent_model "$agent_type" "$phase" "$role")
             # Uses default text output (ANSI stripped by caller) — consistent with other providers

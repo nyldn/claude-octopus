@@ -785,6 +785,24 @@ check_provider_health() {
                 return 1
             fi
             ;;
+        vibe)
+            if ! command -v vibe &>/dev/null; then
+                echo "vibe CLI not found in PATH" >&2
+                return 1
+            fi
+            # Try resolving env var from profile/.env for non-interactive shells
+            # (mirrors codex/gemini — keeps shell-profile-only keys from being misreported)
+            if [[ -z "${MISTRAL_API_KEY:-}" ]]; then
+                resolve_provider_env "MISTRAL_API_KEY" 2>/dev/null
+            fi
+            # Check auth: env-file with MISTRAL_API_KEY, env var, or config.toml api_key
+            if [[ -z "${MISTRAL_API_KEY:-}" ]] && \
+               ! { [[ -f "${HOME}/.vibe/.env" ]] && grep -Eq '^[[:space:]]*MISTRAL_API_KEY=' "${HOME}/.vibe/.env" 2>/dev/null; } && \
+               ! { [[ -f "${HOME}/.vibe/config.toml" ]] && grep -Eq '^[[:space:]]*api_key[[:space:]]*=' "${HOME}/.vibe/config.toml" 2>/dev/null; }; then
+                echo "vibe: not authenticated (run: vibe --setup or set MISTRAL_API_KEY)" >&2
+                return 1
+            fi
+            ;;
     esac
     return 0
 }
@@ -795,7 +813,7 @@ check_all_providers() {
     local healthy=0 unhealthy=0
     local -a results=()
 
-    for provider in codex gemini claude perplexity openrouter ollama copilot qwen cursor-agent; do
+    for provider in codex gemini claude perplexity openrouter ollama copilot qwen cursor-agent vibe; do
         local diag
         if diag=$(check_provider_health "$provider" 2>&1); then
             results+=("  ✓ $provider")
@@ -1008,6 +1026,19 @@ detect_providers() {
             cursor_auth="cursor-session"
         fi
         result="${result}cursor-agent:${cursor_auth} "
+    fi
+
+    # Detect Vibe CLI (Mistral Vibe interactive CLI)
+    if command -v vibe &>/dev/null; then
+        local vibe_auth="none"
+        if [[ -f "${HOME}/.vibe/.env" ]] && grep -Eq '^[[:space:]]*MISTRAL_API_KEY=' "${HOME}/.vibe/.env" 2>/dev/null; then
+            vibe_auth="env-file"
+        elif [[ -n "${MISTRAL_API_KEY:-}" ]]; then
+            vibe_auth="api-key"
+        elif [[ -f "${HOME}/.vibe/config.toml" ]] && grep -Eq '^[[:space:]]*api_key[[:space:]]*=' "${HOME}/.vibe/config.toml" 2>/dev/null; then
+            vibe_auth="config"
+        fi
+        result="${result}vibe:${vibe_auth} "
     fi
 
     # Detect OpenCode CLI (v9.11.0 — multi-provider router)

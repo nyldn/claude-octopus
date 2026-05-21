@@ -719,16 +719,22 @@ Return ONLY JSON: {\"findings\": [...ranked, deduplicated findings...]}"
     fi
 
     # ── Output ────────────────────────────────────────────────────────────────
-    local pr_number=""
-    pr_number=$(gh pr view --json number -q .number 2>/dev/null || true)
+    local pr_number="${review_pr_number:-}"
+    if [[ -z "$pr_number" ]]; then
+        pr_number=$(gh pr view --json number -q .number 2>/dev/null || true)
+    fi
 
     if [[ -n "$pr_number" && "$publish" != "never" ]]; then
         local avg_confidence
         avg_confidence=$(jq '[.findings[].confidence] | if length > 0 then add/length else 0 end' \
-            "$findings_file" 2>/dev/null || echo "0")
+            "$findings_file" 2>/dev/null | head -n 1)
+        [[ -z "$avg_confidence" ]] && avg_confidence="0"
         if [[ "$publish" == "auto" ]] && awk "BEGIN{exit !($avg_confidence >= 0.85)}"; then
             log INFO "review_run: auto-publishing to PR #$pr_number (confidence=$avg_confidence)"
             post_inline_comments "$pr_number" "$findings_file" || render_terminal_report "$findings_file"
+        elif [[ "$publish" == "auto" ]]; then
+            log INFO "review_run: avg_confidence=$avg_confidence below 0.85 auto-publish gate; rendering terminal report instead."
+            render_terminal_report "$findings_file"
         elif [[ "$publish" == "ask" ]]; then
             render_terminal_report "$findings_file"
             echo ""
