@@ -255,6 +255,21 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
                 -e '^Run /mcp' \
                 "$temp_output" >> "$result_file" 2>/dev/null || cat "$temp_output" >> "$result_file"
         fi
+        local codex_stderr_transcript_appended=false
+        if [[ "$agent_type" == codex* ]] \
+            && ! grep -q '[[:alnum:]]' "$temp_output" 2>/dev/null \
+            && type octo_file_has_codex_recoverable_stderr >/dev/null 2>&1 \
+            && octo_file_has_codex_recoverable_stderr "$temp_errors"; then
+            echo "(Codex response was emitted on stderr; see Errors transcript below.)" >> "$result_file"
+            echo '```' >> "$result_file"
+            echo "" >> "$result_file"
+            echo "## Errors" >> "$result_file"
+            echo '```' >> "$result_file"
+            cat "$temp_errors" >> "$result_file"
+            echo '```' >> "$result_file"
+            echo "" >> "$result_file"
+            codex_stderr_transcript_appended=true
+        fi
 
         # Trust marker for external CLI output
         case "$agent_type" in codex*|gemini*|perplexity*|cursor-agent*)
@@ -273,8 +288,10 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
         reason="${classification#*:}"
         tokens_out=$(octo_estimate_tokens_for_file "$temp_output" 2>/dev/null || echo 0)
 
-        echo '```' >> "$result_file"
-        echo "" >> "$result_file"
+        if [[ "$codex_stderr_transcript_appended" != "true" ]]; then
+            echo '```' >> "$result_file"
+            echo "" >> "$result_file"
+        fi
         # Legacy result consumers look for literal "Status: FAILED" and "Status: TIMEOUT" markers.
         case "$status" in
             failed)

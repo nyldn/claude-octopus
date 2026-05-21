@@ -239,6 +239,7 @@ adapt_body_for_codex() {
         -e 's/Task tool/host subagent tool/g' \
         -e 's/TodoWrite/task plan tool/g' \
         -e 's/run_in_background/background execution/g' \
+        -e 's/codex exec --skip-git-repo-check --full-auto/codex exec --skip-git-repo-check/g' \
         -e 's/codex exec --full-auto/codex exec --skip-git-repo-check/g' \
         -e 's/, or deprecated `--full-auto`//g' \
         -e 's/ or deprecated `--full-auto`//g' \

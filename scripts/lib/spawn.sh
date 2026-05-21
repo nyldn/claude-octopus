@@ -649,6 +649,12 @@ ${heuristic_ctx}"
                     -e '^Run /mcp' \
                     "$temp_output" >> "$result_file" 2>/dev/null || cat "$temp_output" >> "$result_file"
             fi
+            if [[ "$agent_type" == codex* ]] \
+                && ! grep -q '[[:alnum:]]' "$temp_output" 2>/dev/null \
+                && type octo_file_has_codex_recoverable_stderr >/dev/null 2>&1 \
+                && octo_file_has_codex_recoverable_stderr "$temp_errors"; then
+                echo "(Codex response was emitted on stderr; see Warnings/Errors transcript below.)" >> "$result_file"
+            fi
 
             # v8.7.0: Add trust marker for external CLI output
             # v9.22.1: Also wrap the Output block in nonce boundaries so downstream

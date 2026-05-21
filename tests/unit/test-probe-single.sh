@@ -77,6 +77,14 @@ assert_contains "$(grep -A300 'probe_single_agent()' "$ALL_SRC" | head -310)" \
 assert_contains "$(grep -A300 'probe_single_agent()' "$ALL_SRC" | head -310)" \
   "Status: FAILED" "probe_single_agent: handles FAILED status"
 
+# ── probe_single_agent preserves recovered Codex stderr transcript ───────────
+
+assert_contains "$(grep -A300 'probe_single_agent()' "$ALL_SRC" | head -310)" \
+  "Errors transcript below" "probe_single_agent: announces recovered Codex stderr transcript"
+
+assert_contains "$(grep -A300 'probe_single_agent()' "$ALL_SRC" | head -310)" \
+  'cat "\$temp_errors" >> "\$result_file"' "probe_single_agent: appends recovered Codex stderr transcript"
+
 # ── flow-discover.md references probe-single ─────────────────────────────────
 
 FLOW_DISCOVER="$(resolve_claude_skill_path "flow-discover")"

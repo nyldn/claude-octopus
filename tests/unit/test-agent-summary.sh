@@ -42,6 +42,49 @@ else
     test_fail "expected provider status table, got: ${summary:-<empty>}"
 fi
 
+test_case "classify_agent_output detects Codex closed stdin tool error"
+codex_empty_output="$WORKSPACE_DIR/results/codex-empty.out"
+codex_stderr="$WORKSPACE_DIR/results/codex-stderr.err"
+> "$codex_empty_output"
+printf '%s\n' '2026-05-15T10:03:10Z ERROR codex_core::tools::router: error=write_stdin failed: stdin is closed for this session; rerun exec_command with tty=true to keep stdin open' > "$codex_stderr"
+classification="$(classify_agent_output "$codex_empty_output" 0 "codex" "$codex_stderr")"
+if [[ "$classification" == "failed:Codex tool stdin closed"* ]]; then
+    test_pass
+else
+    test_fail "expected Codex stdin-closed classification, got: ${classification:-<empty>}"
+fi
+
+test_case "classify_agent_output treats Codex stderr transcript as degraded"
+codex_stderr_transcript="$WORKSPACE_DIR/results/codex-stderr-transcript.err"
+> "$codex_empty_output"
+cat > "$codex_stderr_transcript" <<'EOF'
+OpenAI Codex v0.130.0
+--------
+assistant
+## Worktree Changes
+- src/app/page.tsx
+
+## Verification
+- npm test
+# Completed: Tue May 19 15:06:36 CEST 2026
+tokens used
+12345
+EOF
+classification="$(classify_agent_output "$codex_empty_output" 0 "codex" "$codex_stderr_transcript")"
+if [[ "$classification" == "degraded:Codex response captured on stderr" ]]; then
+    test_pass
+else
+    test_fail "expected Codex stderr transcript to be degraded, got: ${classification:-<empty>}"
+fi
+
+test_case "classify_agent_output keeps empty non-Codex output failed"
+classification="$(classify_agent_output "$codex_empty_output" 0 "gemini" "$codex_stderr_transcript")"
+if [[ "$classification" == "failed:Empty output" ]]; then
+    test_pass
+else
+    test_fail "expected non-Codex empty output to fail, got: ${classification:-<empty>}"
+fi
+
 test_case "OCTOPUS_REQUIRE_ALL fails when any provider failed"
 set +e
 OCTOPUS_REQUIRE_ALL=true render_agent_summary >/tmp/octopus-agent-summary-test.out 2>/dev/null

@@ -14,6 +14,9 @@ PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 PASS=0
 FAIL=0
 SKIP=0
+CODEX_INSTRUCTION_TARGETS="skills .claude/skills"
+[[ -d "$PLUGIN_ROOT/commands" ]] && CODEX_INSTRUCTION_TARGETS="$CODEX_INSTRUCTION_TARGETS commands"
+[[ -d "$PLUGIN_ROOT/.claude/commands" ]] && CODEX_INSTRUCTION_TARGETS="$CODEX_INSTRUCTION_TARGETS .claude/commands"
 
 test_cmd() {
     local name="$1"
@@ -159,11 +162,11 @@ test_cmd "all skill names use valid charset" \
 test_cmd "all descriptions are 1024 chars or less" \
     "cd '$PLUGIN_ROOT' && for f in skills/*/SKILL.md; do desc=\$(head -5 \"\$f\" | grep '^description:' | sed 's/^description: *\"\\{0,1\\}//;s/\"\\{0,1\\}$//'); [[ \${#desc} -le 1024 ]] || exit 1; done"
 
-test_cmd "generated skills use current Codex exec syntax" \
-    "cd '$PLUGIN_ROOT' && ! grep -R -- '--full-auto' skills/*/SKILL.md"
+test_cmd "Codex instructions use current exec syntax" \
+    "cd '$PLUGIN_ROOT' && ! grep -R -E 'codex exec[^[:cntrl:]]*--full-auto|MUST use .*--full-auto|delegate.*--full-auto' $CODEX_INSTRUCTION_TARGETS"
 
-test_cmd "generated skills allow stdin prompt delivery for Codex" \
-    "cd '$PLUGIN_ROOT' && ! grep -R -E 'Do NOT pipe stdin|pass prompt as positional' skills/*/SKILL.md"
+test_cmd "Codex instructions allow stdin prompt delivery" \
+    "cd '$PLUGIN_ROOT' && ! grep -R -E 'Do NOT pipe stdin|pass prompt as positional' $CODEX_INSTRUCTION_TARGETS"
 
 test_cmd "generated debate skill does not promise unavailable host subagents" \
     "cd '$PLUGIN_ROOT' && ! grep -q 'Core four always participate' skills/skill-debate/SKILL.md"

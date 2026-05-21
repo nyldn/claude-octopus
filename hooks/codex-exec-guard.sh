@@ -31,7 +31,7 @@ fi
 if echo "$COMMAND" | grep -qE '^\s*codex\s' && \
    ! echo "$COMMAND" | grep -qE '^\s*codex\s+(exec|--version|--help|-h|login|auth|completion)\b'; then
     cat <<'BLOCK'
-{"permissionDecision":"block","message":"BLOCKED: bare `codex \"prompt\"` launches interactive TUI and fails without a TTY.\n\nUse `codex exec` instead:\n```bash\ncodex exec --full-auto \"YOUR PROMPT\"\n```\n\nWith model: `codex exec --full-auto --model gpt-5.4 \"YOUR PROMPT\"`\n\nSee skill-debate.md lines 53-62 for correct syntax."}
+{"permissionDecision":"block","message":"BLOCKED: bare `codex \"prompt\"` launches interactive TUI and fails without a TTY. Flags such as `--approval-mode`, `--full-auto`, `-q`, and `--quiet` are not valid for current non-interactive Codex dispatch.\n\nUse `codex exec` instead:\n```bash\ncodex exec --skip-git-repo-check \"YOUR PROMPT\"\n```\n\nWith model: `codex exec --skip-git-repo-check --model gpt-5.4 \"YOUR PROMPT\"`\n\nFor long prompts, pipe stdin to `codex exec --skip-git-repo-check -`."}
 BLOCK
     exit 0
 fi
