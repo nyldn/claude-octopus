@@ -339,6 +339,10 @@ load_agent_skill_content() {
     local skill_name="$1"
     local skill_file="${PLUGIN_DIR}/.claude/skills/${skill_name}.md"
 
+    if [[ ! -f "$skill_file" ]]; then
+        skill_file="${PLUGIN_DIR}/.claude/skills/${skill_name}/SKILL.md"
+    fi
+
     if [[ -f "$skill_file" ]]; then
         # Extract content after YAML frontmatter
         awk '

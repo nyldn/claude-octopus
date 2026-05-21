@@ -677,8 +677,6 @@ Before writing code, ensure:
 
 **After implementation completes and before presenting results to the user, you MUST launch two verification agents in parallel.** Do NOT skip this step or ask the user whether to run it — it is automatic.
 
-**Before constructing the Agent calls below:** identify the user's original task description as they stated it before implementation began. You will embed it verbatim into the E2E agent prompt where `[ORIGINAL_TASK]` appears. Do not summarize or paraphrase. The verification subagent runs in a separate context with no access to this conversation — embedding the criteria inline is the only way it can check against the actual accepted requirements rather than running generic tests.
-
 ### Launch both agents simultaneously:
 
 **Agent 1 — Code Review (Sonnet):**
@@ -708,7 +706,7 @@ Agent(
 1. Run the project's test suite (detect from package.json scripts, Makefile, or pyproject.toml)
 2. Verify no regressions in existing tests
 3. Check that new files are properly integrated (imported, registered, sourced)
-4. Verify the implementation satisfies this specific task: [ORIGINAL_TASK]
+4. Verify the implementation matches the original task requirements
 
 Report: tests passed/failed, any integration issues found."
 )

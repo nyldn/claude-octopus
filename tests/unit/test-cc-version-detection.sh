@@ -294,7 +294,7 @@ else
 fi
 
 # flow-develop.md: no Agent(resume=), uses SendMessage
-develop_skill="$PROJECT_ROOT/.claude/skills/flow-develop.md"
+develop_skill="$(resolve_claude_skill_path "flow-develop")"
 if [[ -f "$develop_skill" ]]; then
     old_resume_count="$(grep -c 'Agent.*resume=' "$develop_skill" 2>/dev/null)" || old_resume_count=0
     if [[ "$old_resume_count" -eq 0 ]]; then
@@ -369,50 +369,50 @@ echo ""
 echo "=== 7. Skill Frontmatter ==="
 
 # context: fork on heavy skills
-for skill in skill-prd.md skill-code-review.md skill-debate.md skill-deep-research.md; do
-    skill_path="$PROJECT_ROOT/.claude/skills/$skill"
+for skill in skill-prd skill-code-review skill-debate skill-deep-research; do
+    skill_path="$(resolve_claude_skill_path "$skill")"
     if [[ -f "$skill_path" ]] && grep -q '^context: fork' "$skill_path"; then
-        pass "$skill has context: fork"
+        pass "$skill.md has context: fork"
     else
-        fail "$skill has context: fork" "missing or file not found"
+        fail "$skill.md has context: fork" "missing or file not found"
     fi
 done
 
 # agent field on specialized skills
-if grep -q '^agent: Plan' "$PROJECT_ROOT/.claude/skills/skill-prd.md"; then
+if grep -q '^agent: Plan' "$(resolve_claude_skill_path "skill-prd")"; then
     pass "skill-prd.md has agent: Plan"
 else
     fail "skill-prd.md agent" "missing agent: Plan"
 fi
 
-for skill in skill-code-review.md skill-deep-research.md; do
-    skill_path="$PROJECT_ROOT/.claude/skills/$skill"
+for skill in skill-code-review skill-deep-research; do
+    skill_path="$(resolve_claude_skill_path "$skill")"
     if [[ -f "$skill_path" ]] && grep -q '^agent: Explore' "$skill_path"; then
-        pass "$skill has agent: Explore"
+        pass "$skill.md has agent: Explore"
     else
-        fail "$skill agent" "missing agent: Explore"
+        fail "$skill.md agent" "missing agent: Explore"
     fi
 done
 
 # Session ID in flow banners
-for skill in flow-discover.md flow-define.md flow-develop.md flow-deliver.md; do
-    skill_path="$PROJECT_ROOT/.claude/skills/$skill"
+for skill in flow-discover flow-define flow-develop flow-deliver; do
+    skill_path="$(resolve_claude_skill_path "$skill")"
     if [[ -f "$skill_path" ]] && grep -q 'Session: \${CLAUDE_SESSION_ID}' "$skill_path"; then
-        pass "$skill has session ID in banner"
+        pass "$skill.md has session ID in banner"
     else
-        fail "$skill session ID" "missing Session: \${CLAUDE_SESSION_ID}"
+        fail "$skill.md session ID" "missing Session: \${CLAUDE_SESSION_ID}"
     fi
 done
 
 # Native background tasks docs
-if grep -q 'Native Background Tasks' "$PROJECT_ROOT/.claude/skills/flow-discover.md"; then
+if grep -q 'Native Background Tasks' "$(resolve_claude_skill_path "flow-discover")"; then
     pass "flow-discover.md has native background tasks documentation"
 else
     fail "flow-discover.md background tasks" "missing Native Background Tasks section"
 fi
 
 # LSP integration guidance
-if grep -q 'LSP Integration' "$PROJECT_ROOT/.claude/skills/skill-architecture.md"; then
+if grep -q 'LSP Integration' "$(resolve_claude_skill_path "skill-architecture")"; then
     pass "skill-architecture.md has LSP integration guidance"
 else
     fail "skill-architecture.md LSP" "missing LSP Integration section"
@@ -420,23 +420,23 @@ fi
 
 # YAML frontmatter validity
 valid=true
-for skill in skill-prd.md skill-code-review.md skill-debate.md skill-deep-research.md; do
-    skill_path="$PROJECT_ROOT/.claude/skills/$skill"
+for skill in skill-prd skill-code-review skill-debate skill-deep-research; do
+    skill_path="$(resolve_claude_skill_path "$skill")"
     if [[ -f "$skill_path" ]]; then
         if ! head -n 1 "$skill_path" | grep -q "^---$"; then
-            echo "  $skill: Missing opening YAML delimiter"
+            echo "  $skill.md: Missing opening YAML delimiter"
             valid=false
         fi
         if ! awk '/^---$/{count++; if(count==2) found=1} END{exit !found}' "$skill_path"; then
-            echo "  $skill: Missing closing YAML delimiter"
+            echo "  $skill.md: Missing closing YAML delimiter"
             valid=false
         fi
         if ! grep -q "^name:" "$skill_path"; then
-            echo "  $skill: Missing name field"
+            echo "  $skill.md: Missing name field"
             valid=false
         fi
     else
-        echo "  $skill: File not found"
+        echo "  $skill.md: File not found"
         valid=false
     fi
 done

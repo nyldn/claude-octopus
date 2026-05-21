@@ -149,9 +149,9 @@ fi
 
 # ── Skill files mention strategy rotation ────────────────────────────
 
-SKILL_LOOP="$PROJECT_ROOT/.claude/skills/skill-iterative-loop.md"
-SKILL_DEBUG="$PROJECT_ROOT/.claude/skills/skill-debug.md"
-SKILL_TDD="$PROJECT_ROOT/.claude/skills/skill-tdd.md"
+SKILL_LOOP="$(resolve_claude_skill_path "skill-iterative-loop")"
+SKILL_DEBUG="$(resolve_claude_skill_path "skill-debug")"
+SKILL_TDD="$(resolve_claude_skill_path "skill-tdd")"
 
 if grep -qi 'strategy rotation' "$SKILL_LOOP" 2>/dev/null; then
     pass "skill-iterative-loop.md mentions strategy rotation"

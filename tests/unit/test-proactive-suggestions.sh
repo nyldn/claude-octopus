@@ -8,7 +8,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "proactive skill suggestions in skill-context-detection.md"
 
-SKILL="$PROJECT_ROOT/.claude/skills/skill-context-detection.md"
+SKILL="$(resolve_claude_skill_path "skill-context-detection")"
 
 pass() { test_case "$1"; test_pass; }
 fail() { test_case "$1"; test_fail "${2:-$1}"; }

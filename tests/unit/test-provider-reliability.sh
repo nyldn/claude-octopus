@@ -162,7 +162,7 @@ else
     fail "get_circuit_breaker_status() for doctor integration" "function not found"
 fi
 
-DOCTOR="$PROJECT_ROOT/.claude/skills/skill-doctor.md"
+DOCTOR="$(resolve_claude_skill_path "skill-doctor")"
 if grep -q 'circuit breaker' "$DOCTOR" 2>/dev/null; then
     pass "Doctor skill mentions circuit breaker"
 else

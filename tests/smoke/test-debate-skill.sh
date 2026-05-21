@@ -9,38 +9,49 @@ source "$SCRIPT_DIR/../helpers/test-framework.sh"
 
 test_suite "AI Debate Hub Integration"
 
-test_debate_skill_exists() {
-    test_case "Debate skill exists (skill-debate.md)"
+debate_skill_file() {
+    if [[ -f "$PROJECT_ROOT/.claude/skills/skill-debate.md" ]]; then
+        printf '%s\n' "$PROJECT_ROOT/.claude/skills/skill-debate.md"
+    else
+        printf '%s\n' "$PROJECT_ROOT/.claude/skills/skill-debate/SKILL.md"
+    fi
+}
 
-    local skill_file="$PROJECT_ROOT/.claude/skills/skill-debate.md"
+test_debate_skill_exists() {
+    test_case "Debate skill exists"
+
+    local skill_file
+    skill_file=$(debate_skill_file)
 
     if [[ -f "$skill_file" ]]; then
         test_pass
     else
-        test_fail "skill-debate.md not found at $skill_file"
+        test_fail "skill-debate skill not found at $skill_file"
         return 1
     fi
 }
 
 test_skill_has_frontmatter() {
-    test_case "skill-debate.md has YAML frontmatter"
+    test_case "skill-debate has YAML frontmatter"
 
-    local skill_file="$PROJECT_ROOT/.claude/skills/skill-debate.md"
+    local skill_file
+    skill_file=$(debate_skill_file)
 
     if grep -q "^---$" "$skill_file" && \
        grep -q "^name: skill-debate$" "$skill_file" && \
        grep -q "^description:" "$skill_file"; then
         test_pass
     else
-        test_fail "skill-debate.md missing required YAML frontmatter"
+        test_fail "skill-debate missing required YAML frontmatter"
         return 1
     fi
 }
 
 test_skill_has_attribution() {
-    test_case "skill-debate.md includes wolverin0 attribution"
+    test_case "skill-debate includes wolverin0 attribution"
 
-    local skill_file="$PROJECT_ROOT/.claude/skills/skill-debate.md"
+    local skill_file
+    skill_file=$(debate_skill_file)
 
     if grep -q "wolverin0" "$skill_file" && \
        grep -q "https://github.com/wolverin0/claude-skills" "$skill_file"; then
@@ -65,12 +76,13 @@ test_plugin_json_includes_debate() {
 }
 
 test_debate_skill_content() {
-    test_case "skill-debate.md contains expected content"
+    test_case "skill-debate contains expected content"
 
-    local skill_file="$PROJECT_ROOT/.claude/skills/skill-debate.md"
+    local skill_file
+    skill_file=$(debate_skill_file)
 
     if [[ ! -f "$skill_file" ]]; then
-        test_fail "skill-debate.md not found"
+        test_fail "skill-debate skill not found"
         return 1
     fi
 
@@ -79,21 +91,22 @@ test_debate_skill_content() {
        grep -q "Codex" "$skill_file"; then
         test_pass
     else
-        test_fail "skill-debate.md missing expected content"
+        test_fail "skill-debate missing expected content"
         return 1
     fi
 }
 
 test_debate_has_quality_gates() {
-    test_case "skill-debate.md includes quality gates (merged from integration)"
+    test_case "skill-debate includes quality gates (merged from integration)"
 
-    local skill_file="$PROJECT_ROOT/.claude/skills/skill-debate.md"
+    local skill_file
+    skill_file=$(debate_skill_file)
 
     if grep -q "Quality Gates" "$skill_file" && \
        grep -q "Cost Tracking" "$skill_file"; then
         test_pass
     else
-        test_fail "skill-debate.md missing quality gates or cost tracking sections"
+        test_fail "skill-debate missing quality gates or cost tracking sections"
         return 1
     fi
 }

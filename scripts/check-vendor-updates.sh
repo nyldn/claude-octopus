@@ -235,7 +235,7 @@ else
 fi
 
 # Check that skill references the correct path
-SKILL_FILE="$PLUGIN_ROOT/.claude/skills/skill-ui-ux-design.md"
+SKILL_FILE="$PLUGIN_ROOT/.claude/skills/skill-ui-ux-design/SKILL.md"
 if [ -f "$SKILL_FILE" ]; then
     if grep -q 'vendors/ui-ux-pro-max-skill/src/ui-ux-pro-max/scripts/search.py' "$SKILL_FILE"; then
         pass "ui-ux-design skill: search.py path correct"

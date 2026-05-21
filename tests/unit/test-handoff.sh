@@ -11,7 +11,7 @@ test_suite "session handoff — write-handoff.sh and integration with hooks"
 HANDOFF="$PROJECT_ROOT/scripts/write-handoff.sh"
 PRE_COMPACT="$PROJECT_ROOT/hooks/pre-compact.sh"
 SESSION_END="$PROJECT_ROOT/hooks/session-end.sh"
-RESUME_SKILL="$PROJECT_ROOT/.claude/skills/skill-resume.md"
+RESUME_SKILL="$(resolve_claude_skill_path "skill-resume")"
 
 pass() { test_case "$1"; test_pass; }
 fail() { test_case "$1"; test_fail "${2:-$1}"; }

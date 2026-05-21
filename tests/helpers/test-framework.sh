@@ -40,6 +40,36 @@ AFTER_ALL_HOOK=""
 # Test Suite Management
 #==============================================================================
 
+resolve_claude_skill_path() {
+    local name="$1"
+    local root="${PROJECT_ROOT:-$(pwd)}"
+
+    name="${name%.md}"
+
+    if [[ -f "$root/.claude/skills/${name}/SKILL.md" ]]; then
+        printf '%s\n' "$root/.claude/skills/${name}/SKILL.md"
+    elif [[ -f "$root/.claude/skills/${name}.md" ]]; then
+        printf '%s\n' "$root/.claude/skills/${name}.md"
+    else
+        printf '%s\n' "$root/.claude/skills/${name}/SKILL.md"
+    fi
+}
+
+resolve_claude_skill_template_path() {
+    local name="$1"
+    local root="${PROJECT_ROOT:-$(pwd)}"
+
+    name="${name%.tmpl}"
+
+    if [[ -f "$root/.claude/skills/${name}/${name}.tmpl" ]]; then
+        printf '%s\n' "$root/.claude/skills/${name}/${name}.tmpl"
+    elif [[ -f "$root/.claude/skills/${name}.tmpl" ]]; then
+        printf '%s\n' "$root/.claude/skills/${name}.tmpl"
+    else
+        printf '%s\n' "$root/.claude/skills/${name}/${name}.tmpl"
+    fi
+}
+
 test_suite() {
     local name="$1"
     TEST_SUITE_NAME="$name"

@@ -178,7 +178,7 @@ test_wrap_content_function_exists() {
 test_security_skill_exists() {
     info "\n=== Testing: skill-security-framing.md exists ==="
     
-    if [[ -f "$PROJECT_ROOT/.claude/skills/skill-security-framing.md" ]]; then
+    if [[ -f "$(resolve_claude_skill_path "skill-security-framing")" ]]; then
         pass "skill-security-framing.md exists"
     else
         fail "skill-security-framing.md NOT found"
@@ -191,7 +191,7 @@ test_security_skill_exists() {
 test_security_skill_frontmatter() {
     info "\n=== Testing: skill-security-framing.md has valid frontmatter ==="
     
-    local skill_file="$PROJECT_ROOT/.claude/skills/skill-security-framing.md"
+    local skill_file="$(resolve_claude_skill_path "skill-security-framing")"
     
     if [[ ! -f "$skill_file" ]]; then
         fail "skill-security-framing.md not found - skipping frontmatter test"
@@ -226,7 +226,7 @@ test_security_skill_frontmatter() {
 test_security_skill_url_docs() {
     info "\n=== Testing: Security skill documents URL validation ==="
     
-    local skill_file="$PROJECT_ROOT/.claude/skills/skill-security-framing.md"
+    local skill_file="$(resolve_claude_skill_path "skill-security-framing")"
     
     if [[ ! -f "$skill_file" ]]; then
         fail "skill-security-framing.md not found"
@@ -246,7 +246,7 @@ test_security_skill_url_docs() {
 test_security_skill_wrapping_docs() {
     info "\n=== Testing: Security skill documents content wrapping ==="
     
-    local skill_file="$PROJECT_ROOT/.claude/skills/skill-security-framing.md"
+    local skill_file="$(resolve_claude_skill_path "skill-security-framing")"
     
     if [[ ! -f "$skill_file" ]]; then
         fail "skill-security-framing.md not found"

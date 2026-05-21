@@ -9,7 +9,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "skill-copilot-provider — validates skill file structure, content,"
 
-SKILL_FILE="$PROJECT_ROOT/.claude/skills/skill-copilot-provider.md"
+SKILL_FILE="$(resolve_claude_skill_path "skill-copilot-provider")"
 
 pass() { test_case "$1"; test_pass; }
 fail() { test_case "$1"; test_fail "${2:-$1}"; }

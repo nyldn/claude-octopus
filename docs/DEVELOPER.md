@@ -36,7 +36,7 @@ Skills that invoke orchestrate.sh MUST use the **Validation Gate Pattern** to en
    - Verify via filesystem checks, not assumptions
    - Fail explicitly if validation doesn't pass
 
-See `.claude/skills/skill-deep-research.md` for reference implementation.
+See `.claude/skills/skill-deep-research/SKILL.md` for reference implementation.
 
 ---
 

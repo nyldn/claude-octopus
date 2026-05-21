@@ -68,7 +68,7 @@ fi
 # ── 5. Skill hints for claude-mem MCP tools ──────────────────────────
 
 for skill in flow-discover flow-define flow-develop flow-deliver; do
-    if grep -c 'claude-mem' "$PROJECT_ROOT/.claude/skills/${skill}.md" >/dev/null 2>&1; then
+    if grep -c 'claude-mem' "$(resolve_claude_skill_path "$skill")" >/dev/null 2>&1; then
         pass "Skill hint: ${skill}.md mentions claude-mem"
     else
         fail "Skill hint: ${skill}.md mentions claude-mem" "no claude-mem reference"
@@ -76,7 +76,7 @@ for skill in flow-discover flow-define flow-develop flow-deliver; do
 done
 
 for skill in skill-debate skill-deep-research; do
-    if grep -c 'claude-mem' "$PROJECT_ROOT/.claude/skills/${skill}.md" >/dev/null 2>&1; then
+    if grep -c 'claude-mem' "$(resolve_claude_skill_path "$skill")" >/dev/null 2>&1; then
         pass "Skill hint: ${skill}.md mentions claude-mem"
     else
         fail "Skill hint: ${skill}.md mentions claude-mem" "no claude-mem reference"

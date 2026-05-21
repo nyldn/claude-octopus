@@ -240,9 +240,9 @@ test_wave_assignment_written_to_file() {
 test_skill_file_updated() {
     test_case "flow-parallel.md contains wave-based execution"
 
-    if grep -q "wave" "$PROJECT_ROOT/.claude/skills/flow-parallel.md" && \
-       grep -q "Wave" "$PROJECT_ROOT/.claude/skills/flow-parallel.md" && \
-       grep -q "STEP 4.5" "$PROJECT_ROOT/.claude/skills/flow-parallel.md"; then
+    if grep -q "wave" "$(resolve_claude_skill_path "flow-parallel")" && \
+       grep -q "Wave" "$(resolve_claude_skill_path "flow-parallel")" && \
+       grep -q "STEP 4.5" "$(resolve_claude_skill_path "flow-parallel")"; then
         test_pass
     else
         test_fail "flow-parallel.md missing wave/dependency content"

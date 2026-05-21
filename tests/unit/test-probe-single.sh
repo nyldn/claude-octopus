@@ -79,7 +79,7 @@ assert_contains "$(grep -A300 'probe_single_agent()' "$ALL_SRC" | head -310)" \
 
 # ── flow-discover.md references probe-single ─────────────────────────────────
 
-FLOW_DISCOVER="$PROJECT_ROOT/.claude/skills/flow-discover.md"
+FLOW_DISCOVER="$(resolve_claude_skill_path "flow-discover")"
 assert_contains "$(grep -c 'probe-single' "$FLOW_DISCOVER" 2>/dev/null || echo 0)" \
   "[1-9]" "flow-discover.md: references probe-single command"
 

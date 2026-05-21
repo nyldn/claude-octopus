@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # build-codex-skills.sh — Generate portable root skills/ from .claude/skills/
 #
-# Transforms Claude Code skill files (.claude/skills/*.md) into Codex CLI
+# Transforms Claude Code skill files (.claude/skills/*.md or
+# .claude/skills/*/SKILL.md) into Codex CLI
 # compatible directory structure (skills/<name>/SKILL.md) with adapted
 # frontmatter, host preamble, and Codex interface metadata.
 #
@@ -159,6 +160,23 @@ extract_body() {
     done < "$file"
 }
 
+list_skill_sources() {
+    local dir="$1"
+
+    find "$dir" -maxdepth 1 -type f -name '*.md' -print 2>/dev/null
+    find "$dir" -mindepth 2 -maxdepth 2 -type f -name 'SKILL.md' -print 2>/dev/null
+}
+
+source_skill_basename() {
+    local file="$1"
+
+    if [[ "$(basename "$file")" == "SKILL.md" ]]; then
+        basename "$(dirname "$file")"
+    else
+        basename "$file"
+    fi
+}
+
 source_has_enforced_execution() {
     local file="$1"
     awk '
@@ -265,7 +283,7 @@ When a generated skill references a host tool, use the active Codex equivalent:
 | task plan tool | use Codex task planning/status tools when present |
 | `/octo:*` command examples | use the installed skill name or run `scripts/orchestrate.sh` directly |
 
-Provider and model availability must be checked at runtime. If a skill names a provider that is missing in the current Codex session, mark it unavailable and continue only with available providers.
+Provider and model availability must be checked at runtime. If `OCTO_ALLOWED_PROVIDERS` is set, treat providers outside that list as unavailable even when installed. If a skill names a provider that is missing or disallowed in the current Codex session, mark it unavailable and continue only with available providers.
 EOF
 }
 
@@ -332,11 +350,11 @@ main() {
 
     prepare_target_dir "$target_dir"
 
-    for file in "$SKILLS_DIR"/*.md; do
+    while IFS= read -r file; do
         [[ -f "$file" ]] || continue
 
         local basename
-        basename=$(basename "$file")
+        basename=$(source_skill_basename "$file")
 
         # Skip templates
         for pattern in $SKIP_PATTERNS; do
@@ -380,7 +398,7 @@ main() {
             ((count++)) || true
             $VERBOSE && echo "  OK: $basename → skills/$alias_name/SKILL.md (compat alias)"
         fi
-    done
+    done < <(list_skill_sources "$SKILLS_DIR" | LC_ALL=C sort)
 
     echo "build-codex-skills: $count skills generated, $skipped skipped, $errors errors"
 

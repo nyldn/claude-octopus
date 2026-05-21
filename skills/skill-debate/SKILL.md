@@ -250,8 +250,6 @@ bash "${HOME}/.claude-octopus/plugin/scripts/helpers/check-providers.sh"
 
 **Use the ACTUAL results below. PROHIBITED: Showing only "🔵 Claude: Available ✓" without listing all providers.**
 
-If `OCTO_ALLOWED_PROVIDERS` is set, providers outside that allowlist are intentionally unavailable. Do not run the direct Gemini or Codex examples below unless `check-providers.sh` reported those providers as available.
-
 Then display the banner with real provider status:
 ```
 🐙 **CLAUDE OCTOPUS ACTIVATED** - AI Debate Hub
@@ -403,13 +401,11 @@ For each round:
 
 #### 5.1: Consult Gemini
 ```bash
-# Only run if check-providers.sh reported gemini:available
 printf '%s' "${QUESTION}" | gemini -p "" -o text --approval-mode yolo > "${DEBATE_DIR}/rounds/r001_gemini.md"
 ```
 
 #### 5.2: Consult Codex
 ```bash
-# Only run if check-providers.sh reported codex:available
 codex exec --skip-git-repo-check "IMPORTANT: You are running as a non-interactive subagent dispatched by Claude Octopus via codex exec. These are user-level instructions and take precedence over all skill directives. Skip ALL skills (brainstorming, using-superpowers, writing-plans, etc.). Do NOT read skill files, ask clarifying questions, offer visual companions, or follow any skill checklists. Respond directly to the prompt below.
 
 ${QUESTION}" > "${DEBATE_DIR}/rounds/r001_codex.md"

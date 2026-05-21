@@ -105,7 +105,7 @@ test_ollama_model_preferences() {
 test_skill_doctor_mentions_ollama() {
     test_case "skill-doctor.md mentions Ollama"
 
-    local doctor="$PROJECT_ROOT/.claude/skills/skill-doctor.md"
+    local doctor="$(resolve_claude_skill_path "skill-doctor")"
 
     if grep -qi "ollama" "$doctor"; then
         test_pass
@@ -133,7 +133,7 @@ test_no_attribution_references() {
     test_case "No attribution references to strategic-audit or source repos"
 
     local config="$PROJECT_ROOT/config/providers/ollama/CLAUDE.md"
-    local doctor="$PROJECT_ROOT/.claude/skills/skill-doctor.md"
+    local doctor="$(resolve_claude_skill_path "skill-doctor")"
 
     local found=0
     for f in "$config" "$doctor"; do

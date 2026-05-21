@@ -10,7 +10,7 @@ source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "review workflow guidance for autonomous codegen and TDD verification"
 
 REVIEW_COMMAND="$PROJECT_ROOT/.claude/commands/review.md"
-REVIEW_SKILL="$PROJECT_ROOT/.claude/skills/skill-code-review.md"
+REVIEW_SKILL="$(resolve_claude_skill_path "skill-code-review")"
 
 TEST_COUNT=0
 PASS_COUNT=0

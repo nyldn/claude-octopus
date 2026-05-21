@@ -8,7 +8,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "skill-cost-projections: HUD cost projection from per-phase averages"
 
-SKILL_FILE="$PROJECT_ROOT/.claude/skills/skill-cost-projections.md"
+SKILL_FILE="$(resolve_claude_skill_path "skill-cost-projections")"
 
 pass() { test_case "$1"; test_pass; }
 fail() { test_case "$1"; test_fail "${2:-$1}"; }

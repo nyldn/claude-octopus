@@ -8,7 +8,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "metric verification mode in skill-iterative-loop.md and commands/loop.md (v9.8.0)"
 
-SKILL_FILE="$PROJECT_ROOT/.claude/skills/skill-iterative-loop.md"
+SKILL_FILE="$(resolve_claude_skill_path "skill-iterative-loop")"
 COMMAND_FILE="$PROJECT_ROOT/.claude/commands/loop.md"
 
 pass() { test_case "$1"; test_pass; }

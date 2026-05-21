@@ -8,7 +8,7 @@ test_suite "Review Security Native First"
 
 REVIEW_CMD="$PROJECT_ROOT/.claude/commands/review.md"
 SECURITY_CMD="$PROJECT_ROOT/.claude/commands/security.md"
-CONTEXT_SKILL="$PROJECT_ROOT/.claude/skills/skill-context-detection.md"
+CONTEXT_SKILL="$(resolve_claude_skill_path "skill-context-detection")"
 
 grep -q 'enhanced multi-LLM review' "$REVIEW_CMD"
 grep -q 'Claude-native `/review`' "$REVIEW_CMD"

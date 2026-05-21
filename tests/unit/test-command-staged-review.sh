@@ -10,7 +10,7 @@ source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "/octo:staged-review command file integrity"
 
 CMD_FILE="$PROJECT_ROOT/.claude/commands/staged-review.md"
-SKILL_FILE="$PROJECT_ROOT/.claude/skills/skill-staged-review.md"
+SKILL_FILE="$(resolve_claude_skill_path "skill-staged-review")"
 PLUGIN_JSON="$PROJECT_ROOT/.claude-plugin/plugin.json"
 COMMANDS_DIR="$PROJECT_ROOT/.claude/commands"
 

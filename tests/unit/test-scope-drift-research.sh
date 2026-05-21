@@ -9,7 +9,7 @@ source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "Scope Drift Detection (CONSOLIDATED-05) and Research Report Template (CONSOLIDATED-08)"
 
 
-DELIVER="$PROJECT_ROOT/.claude/skills/flow-deliver.md"
+DELIVER="$(resolve_claude_skill_path "flow-deliver")"
 RESEARCH="$PROJECT_ROOT/.claude/commands/research.md"
 
 pass() { test_case "$1"; test_pass; }

@@ -10,7 +10,7 @@ source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "RUNTIME.md convention"
 
 TEMPLATE="$PROJECT_ROOT/config/templates/RUNTIME.md"
-DOCTOR="$PROJECT_ROOT/.claude/skills/skill-doctor.md"
+DOCTOR="$(resolve_claude_skill_path "skill-doctor")"
 
 pass() { test_case "$1"; test_pass; }
 fail() { test_case "$1"; test_fail "${2:-$1}"; }

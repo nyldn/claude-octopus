@@ -10,7 +10,7 @@ description: "[advanced] Execute tasks in loops with conditions, iterative impro
 ## Instructions
 
 Read and follow the full skill instructions from:
-`${HOME}/.claude-octopus/plugin/.claude/skills/skill-iterative-loop.md`
+`${HOME}/.claude-octopus/plugin/.claude/skills/skill-iterative-loop/SKILL.md`
 
 ## Quick Usage
 

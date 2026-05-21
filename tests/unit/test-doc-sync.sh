@@ -8,7 +8,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "skill-doc-sync: post-ship documentation synchronization"
 
-SKILL_FILE="$PROJECT_ROOT/.claude/skills/skill-doc-sync.md"
+SKILL_FILE="$(resolve_claude_skill_path "skill-doc-sync")"
 
 pass() { test_case "$1"; test_pass; }
 fail() { test_case "$1"; test_fail "${2:-$1}"; }

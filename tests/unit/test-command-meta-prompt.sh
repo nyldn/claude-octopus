@@ -10,7 +10,7 @@ source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "/octo:meta-prompt command file integrity"
 
 CMD_FILE="$PROJECT_ROOT/.claude/commands/meta-prompt.md"
-SKILL_FILE="$PROJECT_ROOT/.claude/skills/skill-meta-prompt.md"
+SKILL_FILE="$(resolve_claude_skill_path "skill-meta-prompt")"
 PLUGIN_JSON="$PROJECT_ROOT/.claude-plugin/plugin.json"
 
 pass() { test_case "$1"; test_pass; }

@@ -43,7 +43,7 @@ fi
 
 # ── skill-doctor.md mentions RTK ────────────────────────────────────────────
 
-DOCTOR_CLAUDE="$PROJECT_ROOT/.claude/skills/skill-doctor.md"
+DOCTOR_CLAUDE="$(resolve_claude_skill_path "skill-doctor")"
 DOCTOR_SKILL="$PROJECT_ROOT/skills/skill-doctor/SKILL.md"
 
 if grep -qi 'RTK' "$DOCTOR_CLAUDE" 2>/dev/null; then

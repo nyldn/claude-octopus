@@ -79,10 +79,9 @@ AskUserQuestion({
 **Check provider availability:**
 
 ```bash
-bash "${HOME}/.claude-octopus/plugin/scripts/helpers/check-providers.sh"
+command -v codex &> /dev/null && codex_status="Available ✓" || codex_status="Not installed ✗"
+command -v gemini &> /dev/null && gemini_status="Available ✓" || gemini_status="Not installed ✗"
 ```
-
-If `OCTO_ALLOWED_PROVIDERS` is set, providers outside that allowlist are intentionally reported as unavailable. Do not invoke or recommend disallowed providers.
 
 **Display this banner BEFORE orchestrate.sh execution:**
 
@@ -108,7 +107,6 @@ Research Parameters:
 - If BOTH Codex and Gemini unavailable → STOP, suggest: `/octo:setup`
 - If ONE unavailable → Continue with available provider(s)
 - If BOTH available → Proceed normally
-- If a provider is disallowed by `OCTO_ALLOWED_PROVIDERS` → Treat it as unavailable even if installed
 
 **DO NOT PROCEED TO STEP 3 until banner displayed.**
 

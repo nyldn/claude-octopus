@@ -17,7 +17,7 @@ else
 fi
 
 test_case "discover skill requires dynamic multi-provider fleet"
-discover_skill="$(<"$PROJECT_ROOT/.claude/skills/flow-discover.md")"
+discover_skill="$(<"$(resolve_claude_skill_path "flow-discover")")"
 if [[ "$discover_skill" == *"build-fleet.sh"* && "$discover_skill" == *"Codex, Gemini, Copilot, Qwen, OpenCode"* ]]; then
     test_pass
 else

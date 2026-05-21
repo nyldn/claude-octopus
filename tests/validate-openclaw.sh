@@ -160,8 +160,10 @@ echo ""
 # --- 4. Skill Registry Sync ---
 echo "4. Skill Registry Sync"
 
-SKILL_COUNT=$(ls -1 "$PLUGIN_ROOT/.claude/skills/"*.md 2>/dev/null | wc -l | tr -d ' ')
-COMMAND_COUNT=$(ls -1 "$PLUGIN_ROOT/.claude/commands/"*.md 2>/dev/null | wc -l | tr -d ' ')
+FLAT_SKILL_COUNT=$(find "$PLUGIN_ROOT/.claude/skills" -maxdepth 1 -type f -name '*.md' -print 2>/dev/null | wc -l | tr -d ' ')
+DIR_SKILL_COUNT=$(find "$PLUGIN_ROOT/.claude/skills" -mindepth 2 -maxdepth 2 -type f -name 'SKILL.md' -print 2>/dev/null | wc -l | tr -d ' ')
+SKILL_COUNT=$((FLAT_SKILL_COUNT + DIR_SKILL_COUNT))
+COMMAND_COUNT=$(find "$PLUGIN_ROOT/.claude/commands" -maxdepth 1 -type f -name '*.md' -print 2>/dev/null | wc -l | tr -d ' ')
 TOTAL=$((SKILL_COUNT + COMMAND_COUNT))
 
 pass "Found ${SKILL_COUNT} skills and ${COMMAND_COUNT} commands (${TOTAL} total)"

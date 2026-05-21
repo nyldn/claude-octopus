@@ -10,9 +10,9 @@ source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "Loop Self-Regulation (CONSOLIDATED-02)"
 
 
-LOOP_SKILL="$PROJECT_ROOT/.claude/skills/skill-iterative-loop.md"
-DEBUG_SKILL="$PROJECT_ROOT/.claude/skills/skill-debug.md"
-DELIVER_SKILL="$PROJECT_ROOT/.claude/skills/flow-deliver.md"
+LOOP_SKILL="$(resolve_claude_skill_path "skill-iterative-loop")"
+DEBUG_SKILL="$(resolve_claude_skill_path "skill-debug")"
+DELIVER_SKILL="$(resolve_claude_skill_path "flow-deliver")"
 
 pass() { test_case "$1"; test_pass; }
 fail() { test_case "$1"; test_fail "${2:-$1}"; }
@@ -155,7 +155,7 @@ fi
 # Note: Self-regulation lives in skill-iterative-loop.md, not flow-develop.md.
 # flow-develop invokes loop skills when iterating, which loads self-regulation.
 
-DEVELOP_SKILL="$PROJECT_ROOT/.claude/skills/flow-develop.md"
+DEVELOP_SKILL="$(resolve_claude_skill_path "flow-develop")"
 
 if [[ -f "$DEVELOP_SKILL" ]]; then
     pass "flow-develop skill exists (self-regulation via iterative-loop)"

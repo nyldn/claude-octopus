@@ -19,7 +19,9 @@ DRY_RUN=false
 # ── Collect metadata from source ─────────────────────────────────────────────
 
 COMMAND_COUNT=$(find "$PLUGIN_ROOT/.claude/commands" -maxdepth 1 -name '*.md' 2>/dev/null | wc -l | tr -d ' ')
-SKILL_COUNT=$(find "$SKILLS_DIR" -maxdepth 1 -name '*.md' 2>/dev/null | wc -l | tr -d ' ')
+FLAT_SKILL_COUNT=$(find "$SKILLS_DIR" -maxdepth 1 -type f -name '*.md' 2>/dev/null | wc -l | tr -d ' ')
+DIR_SKILL_COUNT=$(find "$SKILLS_DIR" -mindepth 2 -maxdepth 2 -type f -name 'SKILL.md' 2>/dev/null | wc -l | tr -d ' ')
+SKILL_COUNT=$((FLAT_SKILL_COUNT + DIR_SKILL_COUNT))
 PERSONA_COUNT=$(find "$PLUGIN_ROOT/agents/personas" -maxdepth 1 -name '*.md' 2>/dev/null | wc -l | tr -d ' ')
 
 hook_count=0
@@ -81,9 +83,15 @@ processed=0
 WORK_DIR=$(mktemp -d)
 trap 'rm -rf "$WORK_DIR"' EXIT
 
-for tmpl in "$SKILLS_DIR/"*.tmpl; do
+while IFS= read -r tmpl; do
     [[ -f "$tmpl" ]] || continue
-    target="${tmpl%.tmpl}.md"
+
+    tmpl_name="$(basename "$tmpl" .tmpl)"
+    if [[ "$(dirname "$tmpl")" == "$SKILLS_DIR" ]]; then
+        target="${tmpl%.tmpl}.md"
+    else
+        target="$(dirname "$tmpl")/SKILL.md"
+    fi
 
     # Start with the template
     cp "$tmpl" "$WORK_DIR/current.md"
@@ -124,16 +132,19 @@ for tmpl in "$SKILLS_DIR/"*.tmpl; do
 
     if $DRY_RUN; then
         if [[ -f "$target" ]] && diff "$WORK_DIR/current.md" "$target" > /dev/null 2>&1; then
-            echo "  OK: $(basename "$target")"
+            echo "  OK: $tmpl_name"
         else
-            echo "  STALE: $(basename "$target")"
+            echo "  STALE: $tmpl_name"
             changed=$((changed + 1))
         fi
     else
         cp "$WORK_DIR/current.md" "$target"
-        echo "  Generated: $(basename "$target")"
+        echo "  Generated: $tmpl_name"
     fi
-done
+done < <({
+    find "$SKILLS_DIR" -maxdepth 1 -type f -name '*.tmpl' -print 2>/dev/null
+    find "$SKILLS_DIR" -mindepth 2 -maxdepth 2 -type f -name '*.tmpl' -print 2>/dev/null
+} | LC_ALL=C sort)
 
 # ── Summary ──────────────────────────────────────────────────────────────────
 

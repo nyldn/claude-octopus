@@ -48,7 +48,10 @@ fi
 
 # ── Template files exist (at least 4) ───────────────────────────────────────
 
-tmpl_count=$(find "$SKILLS_DIR" -maxdepth 1 -name '*.tmpl' 2>/dev/null | wc -l | tr -d ' ')
+tmpl_count=$({
+    find "$SKILLS_DIR" -maxdepth 1 -type f -name '*.tmpl' -print 2>/dev/null
+    find "$SKILLS_DIR" -mindepth 2 -maxdepth 2 -type f -name '*.tmpl' -print 2>/dev/null
+} | wc -l | tr -d ' ')
 if [[ "$tmpl_count" -ge 4 ]]; then
     pass "at least 4 .tmpl files exist ($tmpl_count found)"
 else
@@ -58,7 +61,7 @@ fi
 # ── Verify the 4 DD flow templates exist ─────────────────────────────────────
 
 for tmpl_name in flow-discover.tmpl flow-define.tmpl flow-develop.tmpl flow-deliver.tmpl; do
-    if [[ -f "$SKILLS_DIR/$tmpl_name" ]]; then
+    if [[ -f "$(resolve_claude_skill_template_path "$tmpl_name")" ]]; then
         pass "$tmpl_name exists"
     else
         fail "$tmpl_name exists" "not found in $SKILLS_DIR"
@@ -68,7 +71,7 @@ done
 # ── Templates contain placeholders ──────────────────────────────────────────
 
 for tmpl_name in flow-discover.tmpl flow-define.tmpl flow-develop.tmpl flow-deliver.tmpl; do
-    tmpl_file="$SKILLS_DIR/$tmpl_name"
+    tmpl_file="$(resolve_claude_skill_template_path "$tmpl_name")"
     [[ -f "$tmpl_file" ]] || continue
 
     if grep -q '{{PREAMBLE}}' "$tmpl_file" 2>/dev/null; then
@@ -92,7 +95,7 @@ done
 
 # Quality gates placeholder only in develop and deliver templates
 for tmpl_name in flow-develop.tmpl flow-deliver.tmpl; do
-    tmpl_file="$SKILLS_DIR/$tmpl_name"
+    tmpl_file="$(resolve_claude_skill_template_path "$tmpl_name")"
     [[ -f "$tmpl_file" ]] || continue
 
     if grep -q '{{QUALITY_GATES}}' "$tmpl_file" 2>/dev/null; then
@@ -130,7 +133,7 @@ fi
 # Note: since v9.10.2, flow-*.md are directly authored (not generated from blocks)
 
 for md_name in flow-discover.md flow-define.md flow-develop.md flow-deliver.md; do
-    md_file="$SKILLS_DIR/$md_name"
+    md_file="$(resolve_claude_skill_path "$md_name")"
     if [[ -f "$md_file" ]]; then
         pass "$md_name exists"
     else
@@ -163,7 +166,7 @@ done
 
 if [[ -x "$GEN_SCRIPT" && -d "$BLOCKS_DIR" ]]; then
     # Intentionally make a file stale
-    echo "# stale marker" >> "$SKILLS_DIR/flow-discover.md"
+    echo "# stale marker" >> "$(resolve_claude_skill_path "flow-discover")"
 
     stale_exit=0
     stale_output=$("$GEN_SCRIPT" --dry-run 2>&1) || stale_exit=$?
