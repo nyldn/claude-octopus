@@ -1,6 +1,6 @@
 # Command and Usage Reference
 
-Complete reference for all 48 Claude Octopus slash commands, CLI tools (`octopus` + `octo-compress`), plus activation rules, provider indicators, and the project-lifecycle features that are triggered by natural language rather than slash commands.
+Complete reference for all 49 Claude Octopus slash commands, CLI tools (`octopus` + `octo-compress`), plus activation rules, provider indicators, and the project-lifecycle features that are triggered by natural language rather than slash commands.
 
 ---
 
@@ -41,6 +41,7 @@ All slash commands use the `/octo:` namespace. The smart router command is `/oct
 |---------|-------------|
 | `/octo:research` | Deep research with multi-source synthesis |
 | `/octo:brainstorm` | Creative thought partner brainstorming session |
+| `/octo:council` | Persona-based multi-LLM council with budget, quorum, veto, and implementation gates |
 | `/octo:debate` | AI Debate Hub — four-way debates (Claude + Gemini + Codex) |
 | `/octo:prd` | Write an AI-optimized PRD with 100-point scoring |
 | `/octo:prd-score` | Score an existing PRD against the framework |
@@ -171,6 +172,7 @@ Single entry point with natural language intent detection. Analyzes your request
 | Build (specific) | build X, create Y, implement Z | `/octo:develop` |
 | Build (vague) | build, create, make (no clear target) | `/octo:plan` |
 | Validate | validate, review, check, audit, verify | `/octo:review` |
+| Council | council, panel, advise, priority, implementation plan | `/octo:council` |
 | Debate | should, vs, or, compare, versus, which | `/octo:debate` |
 | Specify | spec, specify, requirements, nlspec | `/octo:spec` |
 | Parallel | parallel, decompose, work packages, multi-instance | `/octo:parallel` |
@@ -584,6 +586,52 @@ AI Debate Hub — structured four-way debates between Claude, Gemini, and Codex.
 - `octo debate X vs Y`
 - `run a debate about Z`
 - `I want gemini and codex to review X`
+
+---
+
+### `/octo:council`
+
+Persona-based multi-LLM council for advice, decision support, planning, and gated implementation.
+
+**Usage:**
+```
+/octo:council --depth quick --goal advice "Should we use Redis here?"
+/octo:council --goal decision --domain architecture "Should this service stay monolithic?"
+/octo:council --goal implement --implement plan-only "Refactor the auth flow"
+/octo:council --dry-run --members 7 --persona finance-analyst "Review this pricing strategy"
+```
+
+**Options:**
+
+| Flag | Description |
+|------|-------------|
+| `--goal advice\|decision\|plan\|implement\|review` | Council outcome |
+| `--domain auto\|architecture\|product\|security\|business\|research\|docs` | Persona recommendation domain |
+| `--style balanced\|adversarial\|implementation\|executive\|red-team` | Council discussion style |
+| `--depth quick\|standard\|deep` | Member count, rounds, and default budget |
+| `--members auto\|3\|5\|7` | Explicit council size; overrides depth member preset |
+| `--persona <name>[,<name>]` | Pin specific personas into the roster |
+| `--implement never\|after-approval\|plan-only` | Implementation gate behavior |
+| `--worktree auto\|on\|off` | Worktree preference for later implementation handoff |
+| `--benchmark auto\|on\|off` | BullshitBench snapshot routing signal |
+| `--providers auto\|claude,codex,gemini,opencode,openrouter` | Provider allowlist |
+| `--max-cost <usd>` | Hard USD cost cap |
+| `--dry-run` | Preview roster, providers, quorum, and cost without provider fanout |
+| `--json` | Print `summary.json` to stdout |
+| `--output-dir <path>` | Relocate council artifacts |
+
+**What it does:**
+- Selects a persona roster from the existing Octopus persona library
+- Estimates cost before dispatch and aborts if `--max-cost` would be exceeded
+- Runs independent advice, cross-critique, and deep-mode revision artifacts
+- Writes `config.json`, `responses/`, `critiques/`, `revisions/`, `synthesis.md`, and `summary.json`
+- Detects structured `VETO: critical` artifact declarations before implementation
+- Requires explicit Gate A/B approval before any implementation handoff
+
+**Natural language triggers:**
+- `octo council this architecture decision`
+- `ask a council whether we should build or buy`
+- `get a panel recommendation and implementation plan`
 
 ---
 

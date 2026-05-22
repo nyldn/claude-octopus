@@ -32,7 +32,7 @@
   "interface": {
     "displayName": "Claude Octopus",
     "shortDescription": "Multi-LLM orchestration — dispatch to 8 providers from one plugin.",
-    "longDescription": "Claude Octopus orchestrates multiple AI providers (Codex, Gemini, Copilot, Qwen, Perplexity, OpenRouter, Ollama, OpenCode) through structured Double Diamond workflows. 32 personas, 48 commands, 53 skills covering research, implementation, review, TDD, security audits, and more. Provider dispatch includes prompt-size preflight, agent summary tables, circuit breakers, cost tracking, and model routing.",
+    "longDescription": "Claude Octopus orchestrates multiple AI providers (Codex, Gemini, Copilot, Qwen, Perplexity, OpenRouter, Ollama, OpenCode) through structured Double Diamond workflows. 32 personas, 49 commands, 54 skills covering research, implementation, review, TDD, security audits, and more. Provider dispatch includes prompt-size preflight, agent summary tables, circuit breakers, cost tracking, and model routing.",
     "composerIcon": "./assets/octopus-icon.svg",
     "developerName": "nyldn",
     "category": "Orchestration",

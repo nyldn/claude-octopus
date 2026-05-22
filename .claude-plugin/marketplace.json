@@ -15,7 +15,7 @@
         "source": "url",
         "url": "https://github.com/nyldn/claude-octopus.git"
       },
-      "description": "v9.39.1 - Dispatch timeout and oversize-provider handling fixes for multi-LLM orchestration. 32 personas, 48 commands, 52 skills. Run /octo:setup.",
+      "description": "v9.39.1 - Dispatch timeout and oversize-provider handling fixes for multi-LLM orchestration. 32 personas, 49 commands, 54 skills. Run /octo:setup.",
       "version": "9.39.1",
       "author": {
         "name": "nyldn",

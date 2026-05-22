@@ -25,7 +25,7 @@ Every AI model has blind spots. Claude Octopus puts up to eight of them on every
 
 🔄 **Four-phase methodology, not just tools.** Every task moves through Discover → Define → Develop → Deliver, with quality gates between phases. Other orchestrators give you infrastructure. Octopus gives you the workflows.
 
-🐙 **32 specialized personas** (role-specific AI agents like security-auditor, backend-architect), **48 commands** (slash commands you type), **52 skills** (reusable workflow modules). Say "audit my API" and the right expert activates. Don't know the command? The smart router figures it out.
+🐙 **32 specialized personas** (role-specific AI agents like security-auditor, backend-architect), **49 commands** (slash commands you type), **54 skills** (reusable workflow modules). Say "audit my API" and the right expert activates. Don't know the command? The smart router figures it out.
 
 🐙 **Works with just Claude. Scales to eight.** Zero providers needed to start. Add them one at a time — each activates automatically when detected.
 
@@ -37,7 +37,7 @@ Every AI model has blind spots. Claude Octopus puts up to eight of them on every
 
 | Version | Best Features |
 |---------|--------------|
-| **v9** (current) | Up to 8 providers (Codex, Gemini, Copilot, Qwen, Ollama, Perplexity, OpenRouter, OpenCode). Four-way AI debates. Smart router — just say what you need. Agent summary tables show which providers actually contributed. Provider-aware prompt preflight prevents silent oversize failures. Research breadth modes fan out light, standard, or exhaustive investigations. Setup aliases and fuzzy `/octo:*` corrections reduce command friction. Discipline mode with 8 auto-invoke gates. Two-stage review. Circuit breakers with automatic provider recovery. Cursor + OpenCode + Codex cross-compatibility. Token compression: `bin/octo-compress` pipe + auto PostToolUse hook save ~7,300 tokens/session. PostCompact context recovery. `bin/octopus` CLI. 170+ CC feature flags through v2.1.132. |
+| **v9** (current) | Up to 8 providers (Codex, Gemini, Copilot, Qwen, Ollama, Perplexity, OpenRouter, OpenCode). Four-way AI debates and configurable multi-LLM councils. Smart router — just say what you need. Agent summary tables show which providers actually contributed. Provider-aware prompt preflight prevents silent oversize failures. Research breadth modes fan out light, standard, or exhaustive investigations. Setup aliases and fuzzy `/octo:*` corrections reduce command friction. Discipline mode with 8 auto-invoke gates. Two-stage review. Circuit breakers with automatic provider recovery. Cursor + OpenCode + Codex cross-compatibility. Token compression: `bin/octo-compress` pipe + auto PostToolUse hook save ~7,300 tokens/session. PostCompact context recovery. `bin/octopus` CLI. 170+ CC feature flags through v2.1.132. |
 | **v8** | Multi-LLM code review with inline PR comments. Parallel workstreams in isolated git worktrees. Reaction engine — auto-responds to CI failures. 32 specialized personas. Dark Factory autonomous pipeline. |
 | **v7** | Double Diamond workflow. Multi-provider dispatch. Quality gates and consensus scoring. Configurable sandbox modes. |
 
@@ -229,13 +229,14 @@ Set `OCTO_TIER=prototype|mvp|production` as a project hint. It does not hard-blo
 
 ---
 
-## 8 Commands That Matter Most
+## 9 Commands That Matter Most
 
-🐙 Eight commands — one per arm. *A real octopus has eight arms, each with its own neurons that can act independently.* These eight tentacles work the same way: each orchestrates up to three AI providers, applies quality gates, and produces a deliverable.
+Nine high-traffic commands cover the common Octopus workflows: lifecycle execution, councils, debate, research, design, quality, and specs.
 
 ```bash
 /octo:embrace build stripe integration     # Full lifecycle: research → define → develop → deliver
 /octo:factory "build a CLI that converts CSV to JSON"  # Autonomous pipeline — spec in, software out
+/octo:council --goal decision "Should we keep this service monolithic?"  # Persona council with budget/veto gates
 /octo:debate monorepo vs microservices     # Structured four-way AI debate with consensus
 /octo:research --breadth=standard htmx vs react in 2026  # Attributed multi-provider research
 /octo:design mobile checkout redesign       # UI/UX design with BM25 style intelligence
@@ -244,7 +245,7 @@ Set `OCTO_TIER=prototype|mvp|production` as a project hint. It does not hard-blo
 /octo:prd mobile checkout redesign          # AI-optimized PRD with 100-point scoring
 ```
 
-Plus 30+ more: review, debug, extract, deck, docs, schedule, parallel, sentinel, optimize, brainstorm, claw, doctor, and [the full set](docs/COMMAND-REFERENCE.md).
+Plus 40+ more: review, debug, extract, deck, docs, schedule, parallel, sentinel, optimize, brainstorm, claw, doctor, and [the full set](docs/COMMAND-REFERENCE.md).
 
 Don't remember the command name? Just describe what you need:
 
@@ -267,6 +268,7 @@ Not sure which command to use? Pick by goal:
 | I want to... | Use |
 |--------------|-----|
 | Research a topic thoroughly | `/octo:research` or `/octo:discover` |
+| Get a panel recommendation or gated implementation plan | `/octo:council` |
 | Debate two approaches | `/octo:debate` |
 | Build a feature end-to-end | `/octo:embrace` |
 | Design a UI or style system | `/octo:design` |
@@ -340,7 +342,7 @@ Specialized agents that activate automatically based on your request. When you s
 
 Categories: Software Engineering (11), Specialized Development (6), Documentation & Communication (5), Research & Strategy (3), Business & Compliance (3), Creative & Design (4).
 
-[Full persona reference](docs/AGENTS.md) | [All 52 skills](docs/COMMAND-REFERENCE.md)
+[Full persona reference](docs/AGENTS.md) | [All 54 skills](docs/COMMAND-REFERENCE.md)
 
 ### Built-in Reaction Engine
 
@@ -452,7 +454,7 @@ Once enabled, it exposes:
 
 - `octopus_discover`, `octopus_define`, `octopus_develop`, `octopus_deliver` — Individual phases
 - `octopus_embrace` — Full Double Diamond workflow
-- `octopus_debate`, `octopus_review`, `octopus_security` — Specialized workflows
+- `octopus_debate`, `octopus_council`, `octopus_review`, `octopus_security` — Specialized workflows
 - `octopus_list_skills`, `octopus_status` — Introspection
 
 Any MCP-compatible client can connect to the server.
