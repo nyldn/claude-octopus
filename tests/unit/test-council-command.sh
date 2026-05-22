@@ -468,6 +468,38 @@ test_council_after_approval_does_not_handoff_without_gate() {
     fi
 }
 
+test_council_approved_gates_start_worktree_handoff() {
+    test_case "Council approved gates start implementation handoff with worktree"
+    load_council_lib || return 1
+
+    local tmp_dir worktree_root
+    tmp_dir="$(mktemp -d "$TEST_TMP_DIR/council-approved.XXXXXX")"
+    worktree_root="$tmp_dir/worktrees"
+
+    OCTOPUS_COUNCIL_FIXTURE=full-success \
+    OCTOPUS_COUNCIL_APPROVED_GATES='gate-a,gate-b' \
+    OCTOPUS_COUNCIL_WORKTREE_ROOT="$worktree_root" \
+    OCTOPUS_COUNCIL_PROVIDER_FIXTURE='claude:available,codex:available,gemini:available' \
+        council_run --goal implement --implement after-approval --worktree on --depth quick --output-dir "$tmp_dir" "Refactor auth flow"
+
+    local summary worktree_path
+    summary="$(find "$tmp_dir" -name summary.json -type f | head -1)"
+    [[ -n "$summary" ]] || { test_fail "summary.json not written"; return 1; }
+
+    worktree_path="$(jq -r '.implementation.handoff.worktree // empty' "$summary")"
+
+    if [[ -n "$worktree_path" ]] &&
+       [[ -d "$worktree_path" ]] &&
+       jq -e '.implementation.gate_a_approved == true and .implementation.gate_b_approved == true and .implementation.handoff.workflow == "tangle" and .implementation.handoff.status == "started"' "$summary" >/dev/null; then
+        git -C "$PROJECT_ROOT" worktree remove --force "$worktree_path" >/dev/null 2>&1 || rm -rf "$worktree_path"
+        test_pass
+    else
+        [[ -n "$worktree_path" ]] && git -C "$PROJECT_ROOT" worktree remove --force "$worktree_path" >/dev/null 2>&1 || true
+        test_fail "approved implementation handoff did not create expected worktree"
+        return 1
+    fi
+}
+
 test_council_critical_veto_aborts_implementation_run() {
     test_case "Council critical veto aborts implementation run"
     load_council_lib || return 1
@@ -487,6 +519,30 @@ test_council_critical_veto_aborts_implementation_run() {
         test_pass
     else
         test_fail "critical veto should abort without handoff"
+        return 1
+    fi
+}
+
+test_council_chair_fallback_preserves_quorum() {
+    test_case "Council retries failed chair with synthesis-capable fallback"
+    load_council_lib || return 1
+
+    local tmp_dir
+    tmp_dir="$(mktemp -d "$TEST_TMP_DIR/council-chair-fallback.XXXXXX")"
+
+    OCTOPUS_COUNCIL_FIXTURE=full-success \
+    OCTOPUS_COUNCIL_FAIL_PERSONAS='strategy-analyst' \
+    OCTOPUS_COUNCIL_PROVIDER_FIXTURE='claude:available,codex:available,gemini:available' \
+        council_run --depth quick --output-dir "$tmp_dir" "Review auth"
+
+    local summary
+    summary="$(find "$tmp_dir" -name summary.json -type f | head -1)"
+    [[ -n "$summary" ]] || { test_fail "summary.json not written"; return 1; }
+
+    if jq -e '.status == "completed" and .quorum.met == true and .warnings.chair_fallback == true and (.quorum.chair_received == true)' "$summary" >/dev/null; then
+        test_pass
+    else
+        test_fail "chair fallback did not preserve quorum"
         return 1
     fi
 }
@@ -631,6 +687,80 @@ EOF
     fi
 }
 
+test_council_structured_veto_requires_veto_role() {
+    test_case "Structured critical veto only triggers from veto-capable roles"
+    load_council_lib || return 1
+
+    local tmp_dir
+    tmp_dir="$(mktemp -d "$TEST_TMP_DIR/council-structured-veto.XXXXXX")"
+    mkdir -p "$tmp_dir/responses" "$tmp_dir/critiques" "$tmp_dir/revisions"
+
+    council_reset_defaults
+    COUNCIL_RUN_DIR="$tmp_dir"
+    COUNCIL_FIXTURE=""
+
+    cat > "$tmp_dir/responses/01-backend-architect.md" << 'EOF'
+```json
+{"severity":"critical","confidence":0.9,"reason":"Architectural disagreement only"}
+```
+EOF
+
+    council_scan_veto_artifacts
+    if [[ "$COUNCIL_VETO_TRIGGERED" == "true" ]]; then
+        test_fail "non-veto role should not trigger structured veto"
+        return 1
+    fi
+
+    cat > "$tmp_dir/responses/02-security-auditor.md" << 'EOF'
+```json
+{"severity":"critical","confidence":0.92,"reason":"Credential exposure risk"}
+```
+EOF
+
+    council_scan_veto_artifacts
+    if [[ "$COUNCIL_VETO_TRIGGERED" == "true" ]] &&
+       [[ "$COUNCIL_VETO_SEVERITY" == "critical" ]] &&
+       grep -q "Credential exposure" <<< "$COUNCIL_VETO_REASON"; then
+        test_pass
+    else
+        test_fail "veto-capable structured critical risk was not detected"
+        return 1
+    fi
+}
+
+test_council_dispatch_strips_blocked_env_but_sets_readonly() {
+    test_case "Council dispatch strips blocked caller env while setting read-only sandbox"
+    load_council_lib || return 1
+
+    local tmp_dir env_capture
+    tmp_dir="$(mktemp -d "$TEST_TMP_DIR/council-env.XXXXXX")"
+    env_capture="$tmp_dir/env.out"
+
+    run_agent_sync() {
+        env > "$env_capture"
+        echo "ok"
+    }
+
+    OCTOPUS_SECURITY_V870=false \
+    OCTOPUS_GEMINI_SANDBOX=unsafe \
+    OCTOPUS_CODEX_SANDBOX=caller-danger \
+    CLAUDE_OCTOPUS_AUTONOMY=autonomous \
+    OCTOPUS_COUNCIL_PROVIDER_FIXTURE='codex:available' \
+        council_run --providers codex --depth quick --members 3 --output-dir "$tmp_dir" "Review auth"
+
+    if grep -q '^OCTOPUS_CODEX_SANDBOX=read-only$' "$env_capture" &&
+       ! grep -q '^OCTOPUS_SECURITY_V870=' "$env_capture" &&
+       ! grep -q '^OCTOPUS_GEMINI_SANDBOX=' "$env_capture" &&
+       ! grep -q '^CLAUDE_OCTOPUS_AUTONOMY=' "$env_capture"; then
+        unset -f run_agent_sync
+        test_pass
+    else
+        unset -f run_agent_sync
+        test_fail "blocked env forwarding or read-only sandbox mismatch"
+        return 1
+    fi
+}
+
 test_council_command_files_are_registered
 test_council_orchestrate_route_exists
 test_council_defaults_are_depth_aware
@@ -654,10 +784,14 @@ test_council_pass_parser_accepts_variants
 test_council_fixture_run_writes_phase_artifacts
 test_council_plan_only_writes_implementation_plan_without_handoff
 test_council_after_approval_does_not_handoff_without_gate
+test_council_approved_gates_start_worktree_handoff
 test_council_critical_veto_aborts_implementation_run
+test_council_chair_fallback_preserves_quorum
 test_council_cost_cap_aborts_before_fanout
 test_council_deep_fixture_writes_revision_artifacts
 test_council_cross_critique_prompt_includes_peer_responses
 test_council_revision_prompt_includes_prior_critiques
 test_council_scans_artifact_critical_veto
+test_council_structured_veto_requires_veto_role
+test_council_dispatch_strips_blocked_env_but_sets_readonly
 test_summary

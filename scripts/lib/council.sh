@@ -30,7 +30,13 @@ COUNCIL_PROVIDER_STATUS_JSON=""
 COUNCIL_ROSTER_JSON=""
 COUNCIL_RESPONSES_RECEIVED=""
 COUNCIL_QUORUM_MET=""
+COUNCIL_CHAIR_RESPONSE_RECEIVED=""
+COUNCIL_CHAIR_FALLBACK_USED=""
+COUNCIL_CHAIR_FALLBACK_PERSONA=""
 COUNCIL_IMPLEMENTATION_PLAN_WRITTEN=""
+COUNCIL_GATE_A_APPROVED=""
+COUNCIL_GATE_B_APPROVED=""
+COUNCIL_IMPLEMENTATION_HANDOFF_JSON=""
 COUNCIL_ABORTED_FOR_COST=""
 COUNCIL_DIVERSITY_REPLACED=""
 COUNCIL_DIVERSITY_WARNING=""
@@ -94,7 +100,13 @@ council_reset_defaults() {
     COUNCIL_ROSTER_JSON='[]'
     COUNCIL_RESPONSES_RECEIVED="0"
     COUNCIL_QUORUM_MET="false"
+    COUNCIL_CHAIR_RESPONSE_RECEIVED="false"
+    COUNCIL_CHAIR_FALLBACK_USED="false"
+    COUNCIL_CHAIR_FALLBACK_PERSONA=""
     COUNCIL_IMPLEMENTATION_PLAN_WRITTEN="false"
+    COUNCIL_GATE_A_APPROVED="false"
+    COUNCIL_GATE_B_APPROVED="false"
+    COUNCIL_IMPLEMENTATION_HANDOFF_JSON="null"
     COUNCIL_ABORTED_FOR_COST="false"
     COUNCIL_DIVERSITY_REPLACED="false"
     COUNCIL_DIVERSITY_WARNING=""
@@ -878,6 +890,49 @@ council_is_pass() {
     return 1
 }
 
+council_list_contains() {
+    local list="$1"
+    local needle="$2"
+    local item
+    local -a council_items=()
+    [[ -n "$list" ]] || return 1
+    IFS=',' read -r -a council_items <<< "$list"
+    for item in "${council_items[@]}"; do
+        item="${item// /}"
+        [[ "$item" == "$needle" || "$item" == "all" || "$item" == "true" ]] && return 0
+    done
+    return 1
+}
+
+council_persona_should_fail() {
+    local persona="$1"
+    council_list_contains "${OCTOPUS_COUNCIL_FAIL_PERSONAS:-}" "$persona"
+}
+
+council_veto_capable_persona() {
+    local persona="$1"
+    case "$persona" in
+        security-auditor|legal-compliance-advisor|finance-analyst|code-reviewer|test-automator|incident-responder)
+            return 0
+            ;;
+    esac
+
+    case "$(council_persona_seat "$persona")" in
+        skeptic|verifier) return 0 ;;
+    esac
+
+    return 1
+}
+
+council_slug_to_persona() {
+    local slug="$1"
+    local candidate
+    while IFS= read -r candidate; do
+        [[ "$(council_slug "$candidate")" == "$slug" ]] && { echo "$candidate"; return 0; }
+    done < <(council_candidate_personas)
+    echo "$slug"
+}
+
 council_slug() {
     printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-//; s/-$//'
 }
@@ -1010,17 +1065,34 @@ council_live_response() {
 
     if declare -f run_agent_sync >/dev/null 2>&1; then
         local agent_type="$provider"
+        local old_security_set="${OCTOPUS_SECURITY_V870+x}"
+        local old_security="${OCTOPUS_SECURITY_V870:-}"
+        local old_gemini_sandbox_set="${OCTOPUS_GEMINI_SANDBOX+x}"
+        local old_gemini_sandbox="${OCTOPUS_GEMINI_SANDBOX:-}"
         local old_codex_sandbox="${OCTOPUS_CODEX_SANDBOX:-}"
+        local old_codex_sandbox_set="${OCTOPUS_CODEX_SANDBOX+x}"
+        local old_autonomy_set="${CLAUDE_OCTOPUS_AUTONOMY+x}"
+        local old_autonomy="${CLAUDE_OCTOPUS_AUTONOMY:-}"
+
+        unset OCTOPUS_SECURITY_V870
+        unset OCTOPUS_GEMINI_SANDBOX
+        unset CLAUDE_OCTOPUS_AUTONOMY
         export OCTOPUS_CODEX_SANDBOX="read-only"
         run_agent_sync "$agent_type" "$prompt" "${OCTOPUS_COUNCIL_AGENT_TIMEOUT:-120}" "$persona" "council" || {
-            if [[ -n "$old_codex_sandbox" ]]; then
+            if [[ -n "$old_security_set" ]]; then export OCTOPUS_SECURITY_V870="$old_security"; else unset OCTOPUS_SECURITY_V870; fi
+            if [[ -n "$old_gemini_sandbox_set" ]]; then export OCTOPUS_GEMINI_SANDBOX="$old_gemini_sandbox"; else unset OCTOPUS_GEMINI_SANDBOX; fi
+            if [[ -n "$old_autonomy_set" ]]; then export CLAUDE_OCTOPUS_AUTONOMY="$old_autonomy"; else unset CLAUDE_OCTOPUS_AUTONOMY; fi
+            if [[ -n "$old_codex_sandbox_set" ]]; then
                 export OCTOPUS_CODEX_SANDBOX="$old_codex_sandbox"
             else
                 unset OCTOPUS_CODEX_SANDBOX
             fi
             return 1
         }
-        if [[ -n "$old_codex_sandbox" ]]; then
+        if [[ -n "$old_security_set" ]]; then export OCTOPUS_SECURITY_V870="$old_security"; else unset OCTOPUS_SECURITY_V870; fi
+        if [[ -n "$old_gemini_sandbox_set" ]]; then export OCTOPUS_GEMINI_SANDBOX="$old_gemini_sandbox"; else unset OCTOPUS_GEMINI_SANDBOX; fi
+        if [[ -n "$old_autonomy_set" ]]; then export CLAUDE_OCTOPUS_AUTONOMY="$old_autonomy"; else unset CLAUDE_OCTOPUS_AUTONOMY; fi
+        if [[ -n "$old_codex_sandbox_set" ]]; then
             export OCTOPUS_CODEX_SANDBOX="$old_codex_sandbox"
         else
             unset OCTOPUS_CODEX_SANDBOX
@@ -1039,6 +1111,10 @@ council_dispatch_member() {
     persona="$(jq -r '.persona' <<< "$member_json")"
     provider="$(jq -r '.provider' <<< "$member_json")"
     prompt="$(council_prompt_for_member "$persona" "$phase")"
+
+    if council_persona_should_fail "$persona"; then
+        return 1
+    fi
 
     if [[ -n "$COUNCIL_FIXTURE" ]]; then
         council_fixture_response "$persona" "$phase"
@@ -1077,28 +1153,88 @@ council_write_config_json() {
 
 council_run_advice_phase() {
     COUNCIL_RESPONSES_RECEIVED="0"
+    COUNCIL_CHAIR_RESPONSE_RECEIVED="false"
 
-    local index=0 member persona slug output_path
+    local index=0 member persona slug output_path seat
     while IFS= read -r member; do
         persona="$(jq -r '.persona' <<< "$member")"
+        seat="$(jq -r '.seat' <<< "$member")"
         slug="$(council_slug "$persona")"
         output_path="${COUNCIL_RUN_DIR}/responses/$(printf '%02d' "$index")-${slug}.md"
         if council_dispatch_member "$member" "independent-advice" > "$output_path"; then
             COUNCIL_RESPONSES_RECEIVED=$((COUNCIL_RESPONSES_RECEIVED + 1))
+            if [[ "$seat" == "chair" ]]; then
+                COUNCIL_CHAIR_RESPONSE_RECEIVED="true"
+            fi
         else
             rm -f "$output_path"
         fi
         index=$((index + 1))
     done < <(jq -c '.[]' <<< "$COUNCIL_ROSTER_JSON")
 
+    if [[ "$COUNCIL_CHAIR_RESPONSE_RECEIVED" != "true" ]]; then
+        council_run_chair_fallback
+    fi
+
     local required received_non_chair
     required="$(council_required_non_chair)"
     received_non_chair="$(( COUNCIL_RESPONSES_RECEIVED > 0 ? COUNCIL_RESPONSES_RECEIVED - 1 : 0 ))"
-    if (( received_non_chair >= required )); then
+    if [[ "$COUNCIL_CHAIR_RESPONSE_RECEIVED" == "true" ]] && (( received_non_chair >= required )); then
         COUNCIL_QUORUM_MET="true"
     else
         COUNCIL_QUORUM_MET="false"
     fi
+}
+
+council_synthesis_capable_persona() {
+    local persona="$1"
+    case "$persona" in
+        strategy-analyst|research-synthesizer|code-reviewer|exec-communicator|business-analyst)
+            return 0
+            ;;
+    esac
+
+    local capabilities
+    capabilities="$(council_agent_config_value "$persona" "capabilities")"
+    case "$capabilities" in
+        *synthesis*|*workshop-synthesis*|*executive-communication*|*stakeholder-analysis*|*architecture-review*|*requirements*)
+            return 0
+            ;;
+    esac
+    return 1
+}
+
+council_run_chair_fallback() {
+    local persona provider member_json slug output_path index
+
+    while IFS= read -r persona; do
+        [[ -n "$persona" ]] || continue
+        council_synthesis_capable_persona "$persona" || continue
+        council_persona_should_fail "$persona" && continue
+        slug="$(council_slug "$persona")"
+        if find "${COUNCIL_RUN_DIR}/responses" -type f -name "*-${slug}.md" | grep -q .; then
+            COUNCIL_CHAIR_RESPONSE_RECEIVED="true"
+            COUNCIL_CHAIR_FALLBACK_USED="true"
+            COUNCIL_CHAIR_FALLBACK_PERSONA="$persona"
+            return 0
+        fi
+        provider="$(council_pick_provider "$(council_persona_default_provider "$persona")")"
+        council_provider_is_available "$provider" || continue
+
+        member_json="$(council_roster_entry_json "$persona" "$provider" | jq -c '.seat = "chair"')"
+        index="$(find "${COUNCIL_RUN_DIR}/responses" -type f -name '*.md' | wc -l | tr -d ' ')"
+        output_path="${COUNCIL_RUN_DIR}/responses/$(printf '%02d' "$index")-chair-fallback-${slug}.md"
+        if council_dispatch_member "$member_json" "independent-advice" > "$output_path"; then
+            COUNCIL_RESPONSES_RECEIVED=$((COUNCIL_RESPONSES_RECEIVED + 1))
+            COUNCIL_CHAIR_RESPONSE_RECEIVED="true"
+            COUNCIL_CHAIR_FALLBACK_USED="true"
+            COUNCIL_CHAIR_FALLBACK_PERSONA="$persona"
+            return 0
+        fi
+        rm -f "$output_path"
+    done < <(printf '%s\n' strategy-analyst research-synthesizer code-reviewer exec-communicator business-analyst)
+
+    return 1
 }
 
 council_run_critique_phase() {
@@ -1206,13 +1342,25 @@ council_scan_veto_artifacts() {
         return 0
     fi
 
-    local dir file confidence reason
+    local dir file confidence reason basename slug persona
     for dir in responses critiques revisions; do
         for file in "${COUNCIL_RUN_DIR:-}/${dir}"/*.md; do
             [[ -f "$file" ]] || continue
-            if grep -Eiq '(^|[[:space:][:punct:]])veto[[:space:]]*:[[:space:]]*critical|critical[[:space:]-]+veto' "$file"; then
+            basename="$(basename "$file" .md)"
+            slug="${basename#[0-9][0-9]-}"
+            slug="${slug#chair-fallback-}"
+            persona="$(council_slug_to_persona "$slug")"
+            council_veto_capable_persona "$persona" || continue
+
+            if grep -Eiq '(^|[[:space:][:punct:]])veto[[:space:]]*:[[:space:]]*critical|critical[[:space:]-]+veto|["'\'']severity["'\''][[:space:]]*:[[:space:]]*["'\'']critical["'\'']' "$file"; then
                 confidence="$(awk -F: 'tolower($1) ~ /^[[:space:]]*confidence[[:space:]]*$/ { gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2); if ($2 ~ /^[0-9.]+$/) { print $2; exit } }' "$file")"
                 reason="$(awk -F: 'tolower($1) ~ /^[[:space:]]*reason[[:space:]]*$/ { sub(/^[^:]*:[[:space:]]*/, ""); print; exit }' "$file")"
+                if [[ -z "$confidence" ]]; then
+                    confidence="$(grep -Eo '["'\'']confidence["'\''][[:space:]]*:[[:space:]]*[0-9.]+' "$file" | head -1 | sed -E 's/.*:[[:space:]]*//')"
+                fi
+                if [[ -z "$reason" ]]; then
+                    reason="$(grep -Eo '["'\'']reason["'\''][[:space:]]*:[[:space:]]*["'\''][^"'\'']+["'\'']' "$file" | head -1 | sed -E 's/^[^:]*:[[:space:]]*["'\'']?//; s/["'\'']$//')"
+                fi
 
                 COUNCIL_VETO_TRIGGERED="true"
                 COUNCIL_VETO_SEVERITY="critical"
@@ -1257,6 +1405,103 @@ Use the council synthesis as Gate A input. Convert the accepted synthesis into i
 - Gate C: hand off to \`tangle\` / \`flow-develop\` with existing safety hooks.
 EOF
     COUNCIL_IMPLEMENTATION_PLAN_WRITTEN="true"
+}
+
+council_gate_approved() {
+    local gate="$1"
+    council_list_contains "${OCTOPUS_COUNCIL_APPROVED_GATES:-}" "$gate"
+}
+
+council_prompt_gate_approval() {
+    local gate="$1"
+    local prompt="$2"
+
+    if council_gate_approved "$gate"; then
+        return 0
+    fi
+
+    if [[ -t 0 && -t 1 ]]; then
+        local answer
+        printf '%s [y/N] ' "$prompt" >&2
+        read -r answer
+        case "$answer" in
+            y|Y|yes|YES) return 0 ;;
+        esac
+    fi
+
+    return 1
+}
+
+council_process_implementation_gates() {
+    COUNCIL_GATE_A_APPROVED="false"
+    COUNCIL_GATE_B_APPROVED="false"
+    COUNCIL_IMPLEMENTATION_HANDOFF_JSON="null"
+
+    [[ "$COUNCIL_IMPLEMENT" == "after-approval" ]] || return 0
+    council_needs_implementation_plan || return 0
+
+    if council_prompt_gate_approval "gate-a" "Gate A: accept council synthesis?"; then
+        COUNCIL_GATE_A_APPROVED="true"
+    else
+        return 0
+    fi
+
+    if council_prompt_gate_approval "gate-b" "Gate B: accept implementation plan?"; then
+        COUNCIL_GATE_B_APPROVED="true"
+    else
+        return 0
+    fi
+
+    council_start_implementation_handoff
+}
+
+council_worktree_required() {
+    [[ "$COUNCIL_WORKTREE" == "on" ]] && return 0
+    if [[ "$COUNCIL_WORKTREE" == "auto" && "$COUNCIL_GOAL" == "implement" ]]; then
+        return 0
+    fi
+    return 1
+}
+
+council_start_implementation_handoff() {
+    local workflow="tangle"
+    local started_at worktree_path worktree_root status plan_artifact
+    started_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+    plan_artifact="implementation-plan.md"
+    status="started"
+    worktree_path=""
+
+    if council_worktree_required; then
+        worktree_root="${OCTOPUS_COUNCIL_WORKTREE_ROOT:-$(council_plugin_root)/.worktrees}"
+        mkdir -p "$worktree_root" || return 1
+        worktree_path="${worktree_root}/council-${COUNCIL_RUN_ID}"
+        if [[ ! -d "$worktree_path" ]]; then
+            if git -C "$(council_plugin_root)" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+                git -C "$(council_plugin_root)" worktree add --detach "$worktree_path" HEAD >/dev/null 2>&1 || {
+                    status="failed"
+                    mkdir -p "$worktree_path"
+                }
+            else
+                mkdir -p "$worktree_path"
+            fi
+        fi
+    fi
+
+    COUNCIL_IMPLEMENTATION_HANDOFF_JSON="$(jq -nc \
+        --arg workflow "$workflow" \
+        --arg worktree "$worktree_path" \
+        --arg started_at "$started_at" \
+        --arg status "$status" \
+        --arg plan_artifact "$plan_artifact" \
+        '{
+            workflow: $workflow,
+            worktree: (if $worktree == "" then null else $worktree end),
+            started_at: $started_at,
+            status: $status,
+            plan_artifact: $plan_artifact
+        }')"
+
+    jq -n --argjson handoff "$COUNCIL_IMPLEMENTATION_HANDOFF_JSON" '$handoff' > "${COUNCIL_RUN_DIR}/handoff.json"
 }
 
 council_detect_providers() {
@@ -1459,7 +1704,13 @@ council_write_summary_json() {
         --argjson council_roster "$COUNCIL_ROSTER_JSON" \
         --arg responses_received "$COUNCIL_RESPONSES_RECEIVED" \
         --arg quorum_met "$COUNCIL_QUORUM_MET" \
+        --arg chair_received "$COUNCIL_CHAIR_RESPONSE_RECEIVED" \
+        --arg chair_fallback_used "$COUNCIL_CHAIR_FALLBACK_USED" \
+        --arg chair_fallback_persona "$COUNCIL_CHAIR_FALLBACK_PERSONA" \
         --arg implementation_plan_written "$COUNCIL_IMPLEMENTATION_PLAN_WRITTEN" \
+        --arg gate_a_approved "$COUNCIL_GATE_A_APPROVED" \
+        --arg gate_b_approved "$COUNCIL_GATE_B_APPROVED" \
+        --argjson handoff "$COUNCIL_IMPLEMENTATION_HANDOFF_JSON" \
         --arg aborted_for_cost "$COUNCIL_ABORTED_FOR_COST" \
         --arg veto_triggered "$COUNCIL_VETO_TRIGGERED" \
         --arg veto_severity "$COUNCIL_VETO_SEVERITY" \
@@ -1491,6 +1742,7 @@ council_write_summary_json() {
           quorum: {
             required_non_chair: (if $depth == "quick" then 1 else 2 end),
             received_non_chair: (if ($responses_received | tonumber) > 0 then (($responses_received | tonumber) - 1) else 0 end),
+            chair_received: ($chair_received == "true"),
             met: ($quorum_met == "true")
           },
           providers: $providers,
@@ -1498,7 +1750,9 @@ council_write_summary_json() {
           warnings: {
             member_override: ($member_override_warning == "true"),
             provider_diversity_replaced: ($diversity_replaced == "true"),
-            provider_diversity: (if $diversity_warning == "" then null else $diversity_warning end)
+            provider_diversity: (if $diversity_warning == "" then null else $diversity_warning end),
+            chair_fallback: ($chair_fallback_used == "true"),
+            chair_fallback_persona: (if $chair_fallback_persona == "" then null else $chair_fallback_persona end)
           },
           council: $council_roster,
           veto: {
@@ -1519,9 +1773,9 @@ council_write_summary_json() {
           implementation: {
             permission: $implement,
             worktree: $worktree,
-            gate_a_approved: false,
-            gate_b_approved: false,
-            handoff: null
+            gate_a_approved: ($gate_a_approved == "true"),
+            gate_b_approved: ($gate_b_approved == "true"),
+            handoff: $handoff
           },
           fixture: (if $fixture == "" then null else $fixture end)
         }' > "$summary_path"
@@ -1582,6 +1836,7 @@ council_run() {
         return 0
     fi
 
+    council_process_implementation_gates || return 1
     council_write_summary_json "completed" || return 1
     echo "Council complete: ${COUNCIL_RUN_DIR}/summary.json"
 }
