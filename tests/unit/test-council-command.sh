@@ -461,6 +461,65 @@ test_council_deep_fixture_writes_revision_artifacts() {
     fi
 }
 
+test_council_cross_critique_prompt_includes_peer_responses() {
+    test_case "Council cross-critique prompt includes semi-anonymized peer responses"
+    load_council_lib || return 1
+
+    local tmp_dir prompt
+    tmp_dir="$(mktemp -d "$TEST_TMP_DIR/council-prompt.XXXXXX")"
+    mkdir -p "$tmp_dir/responses" "$tmp_dir/critiques"
+
+    COUNCIL_RUN_DIR="$tmp_dir"
+    COUNCIL_TASK="Review auth"
+    COUNCIL_GOAL="advice"
+    COUNCIL_DOMAIN="architecture"
+    COUNCIL_STYLE="balanced"
+    COUNCIL_DEPTH="standard"
+
+    printf 'Strategy recommendation\n' > "$tmp_dir/responses/00-strategy-analyst.md"
+    printf 'Security recommendation\n' > "$tmp_dir/responses/01-security-auditor.md"
+
+    prompt="$(council_prompt_for_member "backend-architect" "cross-critique")"
+
+    if grep -q "COUNCIL_PEER_RESPONSES" <<< "$prompt" &&
+       grep -q "Role: strategy analyst" <<< "$prompt" &&
+       grep -q "Strategy recommendation" <<< "$prompt" &&
+       ! grep -q "provider:" <<< "$prompt"; then
+        test_pass
+    else
+        test_fail "cross-critique prompt missing semi-anonymized peer context"
+        return 1
+    fi
+}
+
+test_council_revision_prompt_includes_prior_critiques() {
+    test_case "Council revision prompt includes prior critiques"
+    load_council_lib || return 1
+
+    local tmp_dir prompt
+    tmp_dir="$(mktemp -d "$TEST_TMP_DIR/council-revision-prompt.XXXXXX")"
+    mkdir -p "$tmp_dir/responses" "$tmp_dir/critiques"
+
+    COUNCIL_RUN_DIR="$tmp_dir"
+    COUNCIL_TASK="Review auth"
+    COUNCIL_GOAL="advice"
+    COUNCIL_DOMAIN="architecture"
+    COUNCIL_STYLE="balanced"
+    COUNCIL_DEPTH="deep"
+
+    printf 'Risk: missing migration plan\n' > "$tmp_dir/critiques/01-security-auditor.md"
+
+    prompt="$(council_prompt_for_member "backend-architect" "revision-after-critique")"
+
+    if grep -q "COUNCIL_PRIOR_CRITIQUES" <<< "$prompt" &&
+       grep -q "Risk: missing migration plan" <<< "$prompt"; then
+        test_pass
+    else
+        test_fail "revision prompt missing prior critique context"
+        return 1
+    fi
+}
+
 test_council_command_files_are_registered
 test_council_orchestrate_route_exists
 test_council_defaults_are_depth_aware
@@ -483,4 +542,6 @@ test_council_after_approval_does_not_handoff_without_gate
 test_council_critical_veto_aborts_implementation_run
 test_council_cost_cap_aborts_before_fanout
 test_council_deep_fixture_writes_revision_artifacts
+test_council_cross_critique_prompt_includes_peer_responses
+test_council_revision_prompt_includes_prior_critiques
 test_summary
