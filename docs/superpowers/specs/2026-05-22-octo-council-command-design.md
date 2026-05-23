@@ -69,11 +69,11 @@ BullshitBench measures whether models challenge nonsensical prompts instead of a
 
 It is less decisive for implementation roles, where code ability, local tool compatibility, and repo-context handling matter more.
 
-Current source snapshot checked on 2026-05-22:
+Current source snapshot checked on 2026-05-23:
 
 - BullshitBench v2 has 100 prompts across software, finance, legal, medical, and physics.
 - It uses 13 nonsense techniques and a 3-judge aggregation panel.
-- The published v2 leaderboard includes 156 model/reasoning rows.
+- The published v2 leaderboard includes 158 model/reasoning rows in the normalized checked-in snapshot.
 - The data manifest was generated at `2026-05-19T23:13:46Z`.
 - The current top rows in `leaderboard_with_launch.csv` include:
   - `anthropic/claude-sonnet-4.6@reasoning=high`: 91% clear pushback, 3% accepted nonsense.
@@ -634,8 +634,8 @@ Release validation:
 
 - BullshitBench viewer: https://petergpt.github.io/bullshit-benchmark/viewer/index.v2.html
 - BullshitBench repository and v2 scope: https://github.com/petergpt/bullshit-benchmark
-- BullshitBench v2 leaderboard data snapshot source, checked 2026-05-22: https://raw.githubusercontent.com/petergpt/bullshit-benchmark/main/data/v2/latest/leaderboard_with_launch.csv
-- BullshitBench v2 manifest snapshot source, checked 2026-05-22: https://raw.githubusercontent.com/petergpt/bullshit-benchmark/main/data/v2/latest/manifest.json
+- BullshitBench v2 leaderboard data snapshot source, checked 2026-05-23: https://raw.githubusercontent.com/petergpt/bullshit-benchmark/main/data/v2/latest/leaderboard_with_launch.csv
+- BullshitBench v2 manifest snapshot source, checked 2026-05-23: https://raw.githubusercontent.com/petergpt/bullshit-benchmark/main/data/v2/latest/manifest.json
 - LLM Council Core: https://llm-council.dev/
 - amiable-dev/llm-council: https://github.com/amiable-dev/llm-council
 - sherifkozman/the-llm-council: https://github.com/sherifkozman/the-llm-council

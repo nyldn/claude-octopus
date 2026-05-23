@@ -35,15 +35,25 @@ import csv
 import sys
 
 raw_path, out_path = sys.argv[1:3]
-required = {"provider", "model", "reasoning", "clear_pushback_rate", "accepted_nonsense_rate"}
 with open(raw_path, newline="") as fh:
     reader = csv.DictReader(fh)
     if not reader.fieldnames:
         raise SystemExit("upstream leaderboard has no header")
-    missing = required - set(reader.fieldnames)
-    if missing:
-        raise SystemExit(f"upstream leaderboard missing columns: {', '.join(sorted(missing))}")
+    fields = set(reader.fieldnames)
+    old_schema = {"provider", "model", "reasoning", "clear_pushback_rate", "accepted_nonsense_rate"}
+    new_schema = {"org", "model", "reasoning", "green_rate", "red_rate"}
+    if not old_schema.issubset(fields) and not new_schema.issubset(fields):
+        required = sorted(old_schema | new_schema)
+        missing = [field for field in required if field not in fields]
+        raise SystemExit(f"upstream leaderboard missing compatible columns: {', '.join(missing)}")
     rows = list(reader)
+
+def normalize_model(value):
+    value = (value or "").strip()
+    if not value:
+        return ""
+    value = value.split("@", 1)[0]
+    return value.rsplit("/", 1)[-1]
 
 with open(out_path, "w", newline="") as fh:
     writer = csv.DictWriter(
@@ -56,16 +66,24 @@ with open(out_path, "w", newline="") as fh:
             "accepted_nonsense_rate",
             "source",
         ],
+        lineterminator="\n",
     )
     writer.writeheader()
     for row in rows:
+        provider = (row.get("provider") or row.get("org") or "").strip()
+        model = normalize_model(row.get("model_base") or row.get("model"))
+        reasoning = (row.get("reasoning") or "").strip()
+        clear_pushback_rate = (row.get("clear_pushback_rate") or row.get("green_rate") or "").strip()
+        accepted_nonsense_rate = (row.get("accepted_nonsense_rate") or row.get("red_rate") or "").strip()
+        if not (provider and model and reasoning and clear_pushback_rate and accepted_nonsense_rate):
+            continue
         writer.writerow(
             {
-                "provider": row["provider"],
-                "model": row["model"],
-                "reasoning": row["reasoning"],
-                "clear_pushback_rate": row["clear_pushback_rate"],
-                "accepted_nonsense_rate": row["accepted_nonsense_rate"],
+                "provider": provider,
+                "model": model,
+                "reasoning": reasoning,
+                "clear_pushback_rate": clear_pushback_rate,
+                "accepted_nonsense_rate": accepted_nonsense_rate,
                 "source": "bullshitbench-v2",
             }
         )

@@ -1,7 +1,7 @@
 {
   "name": "BullshitBench v2 Leaderboard",
-  "source_url": "https://petergpt.github.io/bullshit-benchmark/viewer/index.v2.html",
-  "snapshot_generated_at": "2026-05-22T00:00:00Z",
+  "source_url": "https://raw.githubusercontent.com/petergpt/bullshit-benchmark/main/data/v2/latest/leaderboard_with_launch.csv",
+  "snapshot_generated_at": "2026-05-23T22:42:48Z",
   "csv": "bullshitbench-v2-leaderboard.csv",
   "columns": [
     "provider",
@@ -10,5 +10,6 @@
     "clear_pushback_rate",
     "accepted_nonsense_rate",
     "source"
-  ]
+  ],
+  "manifest_url": "https://raw.githubusercontent.com/petergpt/bullshit-benchmark/main/data/v2/latest/manifest.json"
 }

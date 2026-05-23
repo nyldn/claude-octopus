@@ -624,7 +624,7 @@ Persona-based multi-LLM council for advice, decision support, planning, and gate
 - Selects a persona roster from the existing Octopus persona library
 - Scores seats with role fit, availability, provider diversity, cost, preference, and BullshitBench signal
 - Enforces provider diversity for standard/deep runs when another provider organization is available
-- Estimates cost before dispatch and aborts if `--max-cost` would be exceeded
+- Estimates cost before dispatch and before each additional phase, aborting before the next phase would exceed `--max-cost`
 - Runs independent advice, cross-critique, and deep-mode revision artifacts
 - Writes `config.json`, `responses/`, `critiques/`, `revisions/`, `synthesis.md`, and `summary.json`
 - Detects role-gated `VETO: critical` and structured critical-risk artifact declarations before implementation

@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [9.40.2] - 2026-05-23
+
+### Fixed
+
+- Generate `/octo:council` synthesis through chair dispatch using response, critique, and revision artifacts instead of writing a static placeholder synthesis.
+- Re-check `/octo:council` budget caps before critique, revision, synthesis, and implementation planning so a run stops before the next phase would exceed `--max-cost`.
+- Normalize the current BullshitBench v2 upstream CSV schema in `scripts/refresh-benchmarks.sh` and refresh the checked-in snapshot to 158 model/reasoning rows.
+- Tighten council veto scanning so incidental `critical-veto` text does not trigger a critical veto.
+- Add regression coverage for directory-based skill entries in `/octo:doctor`.
+
 ## [9.40.1] - 2026-05-23
 
 ### Fixed

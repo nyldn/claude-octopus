@@ -21,7 +21,7 @@ Collect or infer:
 - pinned personas
 - implementation permission and worktree isolation
 
-Show the selected council, provider availability, benchmark freshness, quorum requirement, and cost estimate before provider fanout. If the run is a dry run, stop after this preflight and write `summary.json`.
+Show the selected council, provider availability, benchmark freshness, quorum requirement, and cost estimate before provider fanout. Re-check the budget before critique, revision, synthesis, and implementation planning so the run stops before the next phase would exceed `--max-cost`. If the run is a dry run, stop after this preflight and write `summary.json`.
 
 ## Quorum
 

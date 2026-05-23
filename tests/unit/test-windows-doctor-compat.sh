@@ -30,6 +30,50 @@ if assert_contains "$doctor_source" 'find "${HOME}/.claude/plugins"' "source com
     test_pass
 fi
 
+test_case "doctor accepts directory skill entries with SKILL.md"
+if (
+    tmp_plugin="$TEST_TMP_DIR/doctor-dir-skill"
+    mkdir -p "$tmp_plugin/.claude-plugin" "$tmp_plugin/skills/skill-example" "$tmp_plugin/scripts"
+    cat > "$tmp_plugin/.claude-plugin/plugin.json" << 'EOF'
+{
+  "name": "doctor-test-plugin",
+  "version": "0.0.0",
+  "skills": ["./skills/skill-example"],
+  "commands": []
+}
+EOF
+    cat > "$tmp_plugin/skills/skill-example/SKILL.md" << 'EOF'
+---
+name: skill-example
+description: Test skill.
+---
+EOF
+
+    SCRIPT_DIR="$tmp_plugin/scripts"
+    PLUGIN_DIR="$tmp_plugin"
+    source "$PROJECT_ROOT/scripts/lib/doctor.sh"
+    set +u
+    doctor_check_skills
+    set -u
+
+    found_pass="false"
+    found_missing="false"
+    for i in "${!DOCTOR_RESULTS_NAME[@]}"; do
+        if [[ "${DOCTOR_RESULTS_NAME[$i]}" == "skills-all" && "${DOCTOR_RESULTS_STATUS[$i]}" == "pass" ]]; then
+            found_pass="true"
+        fi
+        if [[ "${DOCTOR_RESULTS_NAME[$i]}" == skill-missing-* ]]; then
+            found_missing="true"
+        fi
+    done
+
+    [[ "$found_pass" == "true" && "$found_missing" == "false" ]]
+); then
+    test_pass
+else
+    test_fail "doctor reported a directory skill as missing"
+fi
+
 test_case "install-deps skips RTK hook warning on Windows Git Bash"
 tmp_home="$TEST_TMP_DIR/win-home"
 mock_bin="$TEST_TMP_DIR/mock-win-bin"
