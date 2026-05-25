@@ -77,9 +77,15 @@ cmd_update_clis() {
 }
 
 doctor_check_providers() {
-    # Load version floor constants and octo_version_ok() comparator
+    # Load version floor constants and octo_version_ok() comparator.
+    # If sourcing fails, define a fail-open stub so version-floor checks degrade to no-op
+    # rather than blowing up with "octo_version_ok: command not found".
     local _octo_root="${OCTO_ROOT:-$(git -C "$(pwd)" rev-parse --show-toplevel 2>/dev/null)}"
     source "${_octo_root}/scripts/lib/provider-versions.sh" 2>/dev/null || true
+    if ! type -t octo_version_ok >/dev/null 2>&1; then
+        # shellcheck disable=SC2317  # fallback stub
+        octo_version_ok() { return 0; }
+    fi
     # Claude Code version + compatibility
     local cc_ver="${CLAUDE_CODE_VERSION:-}"
     if [[ -n "$cc_ver" ]]; then
@@ -202,7 +208,7 @@ doctor_check_providers() {
                "Qwen CLI v${qwen_ver} (outdated, min: v${OCTO_QWEN_MIN_VERSION:-9.10.0})" \
                "$(command -v qwen) — npm install -g @qwen-code/qwen-code"
         elif [[ "$qwen_auth" != "none" ]]; then
-            doctor_add "qwen-cli" "providers" "pass" \r
+            doctor_add "qwen-cli" "providers" "pass" \
                 "Qwen CLI v${qwen_ver} (auth: ${qwen_auth})" "$(command -v qwen) — free-tier research via Qwen OAuth"
         else
             doctor_add "qwen-cli" "providers" "warn" \

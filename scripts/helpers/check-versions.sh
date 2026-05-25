@@ -15,11 +15,20 @@ source "${OCTO_ROOT}/scripts/lib/provider-versions.sh" 2>/dev/null || {
   exit 1
 }
 
+# Portable timeout: prefer gtimeout (macOS via coreutils), fallback to timeout,
+# finally run without a timeout if neither exists.
+_octo_timeout_cmd=""
+if command -v gtimeout >/dev/null 2>&1; then
+  _octo_timeout_cmd="gtimeout 3"
+elif command -v timeout >/dev/null 2>&1; then
+  _octo_timeout_cmd="timeout 3"
+fi
+
 # get_version CMD FLAG
 # Extracts semver string from --version output; returns "unknown" on timeout/error.
 get_version() {
   local cmd="$1" flag="${2:---version}"
-  timeout 3 "${cmd}" "${flag}" 2>/dev/null \
+  ${_octo_timeout_cmd} "${cmd}" "${flag}" 2>/dev/null \
     | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown"
 }
 

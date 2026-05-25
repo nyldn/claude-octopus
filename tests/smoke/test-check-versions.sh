@@ -60,11 +60,18 @@ test_default_mode_runs() {
     local out
     out=$(bash "$CHECK_VERSIONS" 2>/dev/null)
     local rc=$?
-    # Script exits ANY_BELOW_FLOOR which is 0 when all installed CLIs meet floor
-    if [[ $rc -eq 0 || $rc -eq 1 ]] && [[ -n "$out" || "$out" == "" ]]; then
+    if [[ $rc -ne 0 && $rc -ne 1 ]]; then
+        test_fail "Unexpected exit code $rc"
+        return 1
+    fi
+    # If any provider CLI is installed, output must contain at least one v<semver> line.
+    # Otherwise, the no-providers marker must appear.
+    if echo "$out" | grep -qE 'v[0-9]+\.[0-9]+\.[0-9]+'; then
+        test_pass
+    elif echo "$out" | grep -q "no provider CLIs detected"; then
         test_pass
     else
-        test_fail "Unexpected exit code $rc or empty output"
+        test_fail "Output asserts nothing meaningful: ${out:0:200}"
     fi
 }
 
