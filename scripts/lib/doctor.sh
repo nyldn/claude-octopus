@@ -114,9 +114,12 @@ doctor_check_providers() {
         gemini_ver=$(gemini --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")
         gemini_path=$(command -v gemini)
         if ! octo_version_ok "${gemini_ver}" "${OCTO_GEMINI_MIN_VERSION:-1.0.0}"; then
-            doctor_add "gemini-cli" "providers" "warn" \n                "Gemini CLI v${gemini_ver} (outdated, min: v${OCTO_GEMINI_MIN_VERSION:-1.0.0})" \n                "${gemini_path} — npm install -g @google/gemini-cli"
+            doctor_add "gemini-cli" "providers" "warn" \
+               "Gemini CLI v${gemini_ver} (outdated, min: v${OCTO_GEMINI_MIN_VERSION:-1.0.0})" \
+               "${gemini_path} — npm install -g @google/gemini-cli"
         else
-            doctor_add "gemini-cli" "providers" "pass" \n                "Gemini CLI v${gemini_ver}" "$gemini_path"
+            doctor_add "gemini-cli" "providers" "pass" \
+               "Gemini CLI v${gemini_ver}" "$gemini_path"
         fi
     else
         doctor_add "gemini-cli" "providers" "warn" \
@@ -167,7 +170,9 @@ doctor_check_providers() {
         local gh_ver
         gh_ver=$(timeout 3 gh --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")
         if ! octo_version_ok "${gh_ver}" "${OCTO_GH_MIN_VERSION:-2.0.0}"; then
-            doctor_add "copilot-cli" "providers" "warn" \n                "gh CLI v${gh_ver} (outdated, min: v${OCTO_GH_MIN_VERSION:-2.0.0})" \n                "$(command -v gh) — gh extension upgrade --all"
+            doctor_add "copilot-cli" "providers" "warn" \
+               "gh CLI v${gh_ver} (outdated, min: v${OCTO_GH_MIN_VERSION:-2.0.0})" \
+               "$(command -v gh) — gh extension upgrade --all"
         elif [[ "$copilot_auth" != "none" ]]; then
             doctor_add "copilot-cli" "providers" "pass" \
                 "Copilot CLI installed (auth: ${copilot_auth})" "$(command -v copilot) — research/exploration via copilot -p"
@@ -193,10 +198,12 @@ doctor_check_providers() {
         local qwen_ver
         qwen_ver=$(timeout 3 qwen --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")
         if ! octo_version_ok "${qwen_ver}" "${OCTO_QWEN_MIN_VERSION:-9.10.0}"; then
-            doctor_add "qwen-cli" "providers" "warn" \n                "Qwen CLI v${qwen_ver} (outdated, min: v${OCTO_QWEN_MIN_VERSION:-9.10.0})" \n                "$(command -v qwen) — npm install -g @qwen-code/qwen-code"
+            doctor_add "qwen-cli" "providers" "warn" \
+               "Qwen CLI v${qwen_ver} (outdated, min: v${OCTO_QWEN_MIN_VERSION:-9.10.0})" \
+               "$(command -v qwen) — npm install -g @qwen-code/qwen-code"
         elif [[ "$qwen_auth" != "none" ]]; then
-            doctor_add "qwen-cli" "providers" "warn" \n                "Qwen CLI v${qwen_ver} (outdated, min: v${OCTO_QWEN_MIN_VERSION:-9.10.0})" \n                "$(command -v qwen) — npm install -g @qwen-code/qwen-code"
-                "Qwen CLI installed (auth: ${qwen_auth})" "$(command -v qwen) — free-tier research via Qwen OAuth"
+            doctor_add "qwen-cli" "providers" "pass" \r
+                "Qwen CLI v${qwen_ver} (auth: ${qwen_auth})" "$(command -v qwen) — free-tier research via Qwen OAuth"
         else
             doctor_add "qwen-cli" "providers" "warn" \
                 "Qwen CLI installed but not authenticated" "Run: qwen (to trigger OAuth) or set QWEN_API_KEY"
