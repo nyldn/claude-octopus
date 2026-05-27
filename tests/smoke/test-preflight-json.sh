@@ -77,10 +77,7 @@ test_json_results_entries_well_formed() {
     test_case "--json results entries have name+status fields"
     local out
     out=$(bash "$PREFLIGHT" --json 2>/dev/null)
-    # Every entry in the results array should contain both name and status
-    local entry_count name_count status_count
-    entry_count=$(echo "$out" | grep -cE '^\s*\{"name": ".*", "status": ".*"\}')
-    if [[ $entry_count -gt 0 ]]; then
+    if echo "$out" | python3 -c 'import json,sys; data=json.load(sys.stdin); results=data.get("results", []); assert results and all("name" in r and "status" in r for r in results)' 2>/dev/null; then
         test_pass
     else
         test_fail "No well-formed name+status entries found"
