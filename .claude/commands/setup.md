@@ -153,6 +153,7 @@ AskUserQuestion({
     header: "Setup",
     multiSelect: false,
     options: [
+      {label: "Use Claude alone (recommended)", description: "Start immediately — Claude is built in. No extra setup needed. Add providers anytime via this menu."},
       {label: "Add or configure a provider", description: "Install Codex, Gemini, Perplexity, Copilot, Qwen, OpenCode, or Vibe (Mistral)"},
       {label: "Configure models", description: "Set which models are used for each workflow phase → launches /octo:model-config"},
       {label: "Set up token optimization (RTK)", description: "Install RTK for 60-90% token savings on bash output"},
@@ -197,7 +198,15 @@ AskUserQuestion({
 })
 ```
 
-Execute installs for each selected option. After install, offer auth:
+Execute installs for each selected option. After each npm install completes, refresh PATH:
+
+```bash
+hash -r 2>/dev/null || rehash 2>/dev/null || true
+```
+
+This ensures the installed CLI (codex, gemini) is immediately available in the current shell without a restart.
+
+After install, offer auth:
 
 ```javascript
 AskUserQuestion({
@@ -257,6 +266,18 @@ AskUserQuestion({
 ```
 
 If Knowledge Work selected, offer to install document-skills plugin.
+
+After work mode is confirmed, persist the choice:
+
+```bash
+OCTO_ROOT="${OCTO_ROOT:-$(git -C "$(pwd)" rev-parse --show-toplevel 2>/dev/null || echo "${HOME}/.claude-octopus/plugin")}"
+source "${OCTO_ROOT}/scripts/lib/user-config.sh" 2>/dev/null || true
+WORK_MODE_VALUE="dev"  # dev, knowledge, or both based on user selection
+octo_config_write "work_mode" "\"${WORK_MODE_VALUE}\"" 2>/dev/null || true
+octo_config_write "setup_complete" 'true' 2>/dev/null || true
+```
+
+(Replace `"dev"` with `"knowledge"` or `"both"` based on the user selection.)
 
 ## STEP 4b: Prompt Cache Optimization (Claude Code v2.1.108+)
 
