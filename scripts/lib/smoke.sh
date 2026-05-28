@@ -1036,9 +1036,9 @@ _smoke_test_provider() {
             $cmd_str -p "" \
             >/dev/null 2>"$stderr_file" || smoke_exit=$?
     elif [[ "$provider" == "cursor-agent" ]]; then
-        # Cursor Agent: prompt via stdin with -p "" for headless trigger
+        # --trust required for untrusted workspaces; matches cursor-agent.sh:143 dispatch path
         echo "Reply with exactly: ok" | run_with_timeout "$smoke_timeout" \
-            $cmd_str -p "" \
+            $cmd_str -p "" --trust --output-format text \
             >/dev/null 2>"$stderr_file" || smoke_exit=$?
     else
         run_with_timeout "$smoke_timeout" \
