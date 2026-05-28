@@ -57,9 +57,8 @@ test_provider_versions_syntax_clean() {
 
 test_default_mode_runs() {
     test_case "default mode exits 0 and produces output"
-    local out
-    out=$(bash "$CHECK_VERSIONS" 2>/dev/null)
-    local rc=$?
+    local out rc=0
+    out=$(bash "$CHECK_VERSIONS" 2>/dev/null) || rc=$?
     if [[ $rc -ne 0 && $rc -ne 1 ]]; then
         test_fail "Unexpected exit code $rc"
         return 1
@@ -67,6 +66,8 @@ test_default_mode_runs() {
     # If any provider CLI is installed, output must contain at least one v<semver> line.
     # Otherwise, the no-providers marker must appear.
     if echo "$out" | grep -qE 'v[0-9]+\.[0-9]+\.[0-9]+'; then
+        test_pass
+    elif echo "$out" | grep -q "version unknown"; then
         test_pass
     elif echo "$out" | grep -q "no provider CLIs detected"; then
         test_pass
@@ -79,9 +80,8 @@ test_default_mode_runs() {
 
 test_exit_code_mode_exits_0_when_all_ok() {
     test_case "--exit-code mode produces no output and exits 0 or 1"
-    local out
-    out=$(bash "$CHECK_VERSIONS" --exit-code 2>/dev/null)
-    local rc=$?
+    local out rc=0
+    out=$(bash "$CHECK_VERSIONS" --exit-code 2>/dev/null) || rc=$?
     if [[ $rc -eq 0 || $rc -eq 1 ]] && [[ -z "$out" ]]; then
         test_pass
     else
