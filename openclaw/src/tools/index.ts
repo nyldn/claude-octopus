@@ -102,6 +102,7 @@ export const SKILL_REGISTRY: SkillRegistryEntry[] = [
   { name: "plan", description: "Intelligent plan builder - creates strategic execution plans (doesn't execute). Use /octo:embrace to execute plans.", type: "command", file: "plan.md" },
   { name: "prd-score", description: "Score an existing PRD against the 100-point AI-optimization framework", type: "command", file: "prd-score.md" },
   { name: "prd", description: "Write an AI-optimized PRD using multi-AI orchestration and 100-point scoring framework", type: "command", file: "prd.md" },
+  { name: "preflight", description: "Check provider health before running multi-LLM workflows", type: "command", file: "preflight.md" },
   { name: "quick", description: "Quick execution mode for ad-hoc tasks without full workflow overhead", type: "command", file: "quick.md" },
   { name: "research", description: "Deep research with multi-source synthesis and comprehensive analysis", type: "command", file: "research.md" },
   { name: "resume", description: "[advanced] Resume a previous agent by ID — continue an interrupted task where it left off", type: "command", file: "resume.md" },
@@ -118,4 +119,4 @@ export const SKILL_REGISTRY: SkillRegistryEntry[] = [
   { name: "unfreeze", description: "[advanced] Remove freeze mode edit restriction", type: "command", file: "unfreeze.md" },
 ];
 
-export const REGISTRY_COUNT = 101;
+export const REGISTRY_COUNT = 102;
