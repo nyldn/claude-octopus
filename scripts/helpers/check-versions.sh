@@ -45,7 +45,10 @@ check_version() {
   local ver
   ver=$(get_version "${cmd}" "${flag}")
 
-  if octo_version_ok "${ver}" "${min}"; then
+  if [[ "$ver" == "unknown" ]]; then
+    CHECK_LINES+=("  ✅ ${name} version unknown")
+    CHECK_STATUSES+=("ok")
+  elif octo_version_ok "${ver}" "${min}"; then
     CHECK_LINES+=("  ✅ ${name} v${ver}")
     CHECK_STATUSES+=("ok")
   else

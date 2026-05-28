@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "9.41.1",
-  "description": "v9.41.1 \u2014 Patch release for debate Gemini CLI model selection and provider version-floor/onboarding hardening. Run /octo:setup.",
+  "version": "9.41.2",
+  "description": "v9.41.2 \u2014 Patch release for cursor-agent smoke checks in untrusted workspaces. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"

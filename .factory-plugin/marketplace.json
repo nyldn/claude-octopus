@@ -5,14 +5,14 @@
   },
   "metadata": {
     "description": "Multi-tentacled orchestration plugin for Factory AI Droid",
-    "version": "9.41.1"
+    "version": "9.41.2"
   },
   "plugins": [
     {
       "name": "claude-octopus",
       "source": "./",
-      "description": "v9.41.1 - Patch release for debate Gemini CLI model selection and provider version-floor/onboarding hardening. 32 personas, 48 commands, 54 skills. Run /octo:setup after install.",
-      "version": "9.41.1",
+      "description": "v9.41.2 - Fix cursor-agent smoke test in untrusted workspaces. 32 personas, 48 commands, 54 skills. Run /octo:setup after install.",
+      "version": "9.41.2",
       "author": {
         "name": "nyldn"
       },

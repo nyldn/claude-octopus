@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [9.41.2] - 2026-05-28
+
+### Fixed
+
+- Add `--trust --output-format text` to cursor-agent smoke test so provider health checks pass in untrusted workspaces, aligning the smoke path with the dispatch path in `cursor-agent.sh` (#427, closes #426).
+
 ## [9.41.1] - 2026-05-27
 
 ### Fixed
