@@ -14,7 +14,8 @@
 #   4. Waits for required CI checks
 #   5. Merges the PR
 #   6. Creates a GitHub release with tag
-#   7. Updates the submodule in the dev repo (if detected)
+#   7. Syncs the shared nyldn/plugins marketplace entry
+#   8. Updates the submodule in the dev repo (if detected)
 
 set -euo pipefail
 
@@ -57,7 +58,7 @@ echo ""
 
 # --- 1. Update version files ---
 
-echo "1/7 Updating version files..."
+echo "1/8 Updating version files..."
 
 # package.json
 python3 -c "
@@ -180,7 +181,7 @@ echo ""
 
 # --- 2. Commit ---
 
-echo "2/7 Committing..."
+echo "2/8 Committing..."
 git checkout -b "$BRANCH" --quiet
 git add package.json .claude-plugin/plugin.json .claude-plugin/marketplace.json .codex-plugin/plugin.json .cursor-plugin/plugin.json .factory-plugin/plugin.json .factory-plugin/marketplace.json README.md CHANGELOG.md
 git commit --quiet -m "chore: release v${VERSION} — ${SUMMARY}
@@ -191,7 +192,7 @@ echo ""
 
 # --- 3. Push ---
 
-echo "3/7 Pushing..."
+echo "3/8 Pushing..."
 # --no-verify: skip pre-push hook (CI validates on PR; pre-push re-runs tests already run at commit)
 PUSH_OUTPUT=$(git push --quiet --no-verify -u origin "$BRANCH" 2>&1) || {
     printf '%s\n' "$PUSH_OUTPUT" | grep -v "^remote:" || true
@@ -204,7 +205,7 @@ echo ""
 
 # --- 4. Create PR ---
 
-echo "4/7 Creating PR..."
+echo "4/8 Creating PR..."
 PR_URL=$(gh pr create \
     --title "chore: release v${VERSION}" \
     --body "## Release v${VERSION}
@@ -220,7 +221,7 @@ echo ""
 
 # --- 5. Wait for CI ---
 
-echo "5/7 Waiting for CI..."
+echo "5/8 Waiting for CI..."
 # Poll until required checks finish (max 5 minutes)
 DEADLINE=$((SECONDS + 300))
 while [[ $SECONDS -lt $DEADLINE ]]; do
@@ -253,7 +254,7 @@ echo ""
 
 # --- 6. Merge + Release ---
 
-echo "6/7 Merging and creating release..."
+echo "6/8 Merging and creating release..."
 gh pr merge "$PR_NUM" --merge --quiet 2>/dev/null || gh pr merge "$PR_NUM" --merge
 git checkout main --quiet
 git pull --quiet origin main
@@ -277,9 +278,15 @@ echo "   Merged PR #${PR_NUM}"
 echo "   Release: https://github.com/nyldn/claude-octopus/releases/tag/v${VERSION}"
 echo ""
 
-# --- 7. Update submodule (if in dev repo) ---
+# --- 7. Sync shared marketplace ---
 
-echo "7/7 Updating submodule..."
+echo "7/8 Syncing shared marketplace..."
+"$SCRIPT_DIR/sync-shared-marketplace.sh"
+echo ""
+
+# --- 8. Update submodule (if in dev repo) ---
+
+echo "8/8 Updating submodule..."
 DEV_ROOT="$(cd "$PLUGIN_ROOT/.." && pwd)"
 if [[ -f "$DEV_ROOT/.gitmodules" ]] && grep -q "plugin" "$DEV_ROOT/.gitmodules" 2>/dev/null; then
     cd "$DEV_ROOT"
