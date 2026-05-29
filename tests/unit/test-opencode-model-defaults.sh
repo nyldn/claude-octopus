@@ -64,6 +64,30 @@ else
     test_fail "expected opencode namespaced models in catalog"
 fi
 
+test_case "claude-opus default prefers Opus 4.8 when supported"
+if [[ "$(HOME="$TEST_HOME" USER="octo-test-$$" CLAUDE_CODE_SESSION="opus48" SUPPORTS_OPUS_4_8=true SUPPORTS_OPUS_4_7=true resolve_octopus_model claude claude-opus 2>/dev/null)" == "claude-opus-4.8" ]]; then
+    test_pass
+else
+    test_fail "expected claude-opus-4.8"
+fi
+
+test_case "claude-opus default falls back to Opus 4.7 before 4.8"
+if [[ "$(HOME="$TEST_HOME" USER="octo-test-$$" CLAUDE_CODE_SESSION="opus47" SUPPORTS_OPUS_4_8=false SUPPORTS_OPUS_4_7=true resolve_octopus_model claude claude-opus 2>/dev/null)" == "claude-opus-4.7" ]]; then
+    test_pass
+else
+    test_fail "expected claude-opus-4.7 fallback"
+fi
+
+test_case "model catalog includes Opus 4.8 and marks 4.7 legacy"
+if is_known_model "claude-opus-4.8" &&
+   [[ "$(get_model_capability "claude-opus-4.8" context_k)" == "1000" ]] &&
+   [[ "$(get_model_capability "claude-opus-4.8" status)" == "active" ]] &&
+   [[ "$(get_model_capability "claude-opus-4.7" status)" == "legacy" ]]; then
+    test_pass
+else
+    test_fail "expected Opus 4.8 active catalog entry and Opus 4.7 legacy status"
+fi
+
 test_case "model config catalog does not expose stale opencode metadata"
 catalog_output=$(HOME="$TEST_HOME" USER="octo-test-$$" CLAUDE_CODE_SESSION="opencode-catalog" "$MODEL_CONFIG" models opencode 2>/dev/null)
 if assert_contains "$catalog_output" "opencode/deepseek-v4-flash-free" "opencode default should be listed" &&

@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+### Added
+
+- Claude Code v2.1.154-2.1.157 feature flags: `SUPPORTS_OPUS_4_8`, `SUPPORTS_DYNAMIC_WORKFLOWS`, `SUPPORTS_LEAN_SYSTEM_PROMPT_DEFAULT`, `SUPPORTS_AGENT_SETTINGS_AGENT_FIELD`, `SUPPORTS_SKILLS_AUTO_PLUGIN_LOAD`, `SUPPORTS_ENTER_WORKTREE_SWITCH`, and `SUPPORTS_TOOL_DECISION_PARAMS_OTEL`.
+- Model catalog and pricing entries for `claude-opus-4.8` and `claude-opus-4.8-fast`.
+
+### Changed
+
+- Default `claude-opus` routing now prefers Opus 4.8 on Claude Code v2.1.154+, then falls back to Opus 4.7 and 4.6.
+- Opus effort policy now follows the 4.8 default: `high` for ordinary work, `xhigh` for complex implementation, deep review, and long-running asynchronous workflows.
+- Fast Opus guidance and pricing now distinguish Opus 4.8 fast mode (2x standard, $10/$50 MTok) from legacy Opus 4.6 fast mode (6x standard, $30/$150 MTok).
+- `/octo:doctor` now surfaces Opus 4.8, dynamic workflows, `.claude/skills` plugin auto-load, and EnterWorktree switching when the installed Claude Code version supports them.
+- Documentation now routes huge single-Claude migrations toward native Claude Code dynamic workflows and keeps Octopus positioned for multi-provider disagreement, councils, adversarial review, and validation.
+
 ## [9.41.2] - 2026-05-28
 
 ### Fixed

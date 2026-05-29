@@ -88,11 +88,12 @@ AskUserQuestion({
 
 ### Model and Effort Policy
 
-- For develop/tangle work on Opus 4.7, use `xhigh` for complex implementation and `medium` for trivial work.
-- Fast Opus 4.6 mode is 6x more expensive ($30/$150 per MTok vs $5/$25 standard), uses extra-usage billing, applies only to Opus 4.6, and trades cost for lower latency with equivalent quality.
-- Default to Opus 4.7 standard mode for multi-phase workflows; use fast mode only for interactive single-shot requests when explicitly selected.
+- For develop/tangle work on Opus 4.8, use `xhigh` for complex implementation and `high` for ordinary work.
+- Fast Opus 4.8 mode is 2x standard cost ($10/$50 per MTok vs $5/$25 standard) and trades cost for lower latency. Legacy Opus 4.6 fast remains 6x standard cost.
+- Default to Opus 4.8 standard mode for multi-phase workflows; use fast mode only for interactive single-shot requests when explicitly selected.
 - Respect user overrides: `OCTOPUS_OPUS_MODE`, `OCTOPUS_OPUS_MODEL`, and `OCTOPUS_EFFORT_OVERRIDE`.
 - Record durable project memory for autonomy mode, provider availability, frequently used commands, prior project context, and model preferences.
+- If Claude Code dynamic workflows are available and the task is a huge single-Claude migration, prefer the native workflow path. Use Octopus develop when multi-provider implementation or validation is the value.
 
 ## Quick Usage
 

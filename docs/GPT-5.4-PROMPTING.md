@@ -91,7 +91,7 @@ Mini is ~10x cheaper ($0.25/$2 MTok) but brittle to implicit instructions:
 ## 8. Octopus-Specific Notes
 
 - **`/octo:review`** — dispatches to GPT-5.4 by default (edge-case strength). Use `effort=medium` + output contract requiring `severity`, `file:line`, `rationale`.
-- **`/octo:security`** — routes to Claude Opus 4.7 by default (adversarial reasoning). Skip this guide for that path.
+- **`/octo:security`** — routes to the current Claude Opus default by default (Opus 4.8 on Claude Code v2.1.154+, then 4.7/4.6 fallback). Skip this guide for that path.
 - **`/octo:develop`** — Codex dispatchers auto-inject the output contract block for patch generation. Don't add a second "no preamble" instruction — it's already there.
 - **Cost ceiling** — `xhigh` effort ~2x `high` latency and cost. Only set `xhigh` when the user invoked `/octo:deep` or the task type is `security` / `architecture-heavy`.
 

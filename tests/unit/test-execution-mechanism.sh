@@ -151,11 +151,11 @@ for develop_file in "$PROJECT_ROOT/.claude/commands/develop.md" "$PROJECT_ROOT/.
 
         if grep -q 'OCTOPUS_EFFORT_OVERRIDE' "$develop_file" \
            && grep -q 'OCTOPUS_OPUS_MODE' "$develop_file" \
-           && grep -q 'Fast Opus 4.6 mode is 6x more expensive' "$develop_file" \
+           && grep -q 'Fast Opus 4.8 mode is 2x standard cost' "$develop_file" \
            && grep -q 'project memory' "$develop_file"; then
             pass "$develop_name documents model effort and memory policy"
         else
-            fail "$develop_name missing model effort policy" "Develop command must document effort overrides, Fast Opus cost, and memory recording policy"
+            fail "$develop_name missing model effort policy" "Develop command must document effort overrides, current Fast Opus cost, and memory recording policy"
         fi
     else
         fail "$develop_name not found" "$develop_file missing"

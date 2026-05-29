@@ -82,6 +82,18 @@ for flag in SUPPORTS_ALLOW_READ_SANDBOX SUPPORTS_COPY_INDEX \
     fi
 done
 
+# v2.1.154-157 flags
+for flag in SUPPORTS_OPUS_4_8 SUPPORTS_DYNAMIC_WORKFLOWS \
+            SUPPORTS_LEAN_SYSTEM_PROMPT_DEFAULT SUPPORTS_AGENT_SETTINGS_AGENT_FIELD \
+            SUPPORTS_SKILLS_AUTO_PLUGIN_LOAD SUPPORTS_ENTER_WORKTREE_SWITCH \
+            SUPPORTS_TOOL_DECISION_PARAMS_OTEL; do
+    if grep -c "${flag}=false" "$ORCH" >/dev/null 2>&1; then
+        pass "Declaration: $flag"
+    else
+        fail "Declaration: $flag" "missing ${flag}=false"
+    fi
+done
+
 # ╔══════════════════════════════════════════════════════════════════════╗
 # ║  3. Detection blocks                                                ║
 # ╚══════════════════════════════════════════════════════════════════════╝
@@ -164,6 +176,39 @@ for flag in SUPPORTS_ALLOW_READ_SANDBOX SUPPORTS_COPY_INDEX \
     fi
 done
 
+# --- v2.1.154 block ---
+if grep -c 'version_compare.*2\.1\.154' "$PROJECT_ROOT/scripts/lib/providers.sh" >/dev/null 2>&1; then
+    pass "v2.1.154 detection block exists"
+else
+    fail "v2.1.154 detection block exists" "no version_compare for 2.1.154"
+fi
+
+v21154_block=$(grep -A10 'version_compare.*2\.1\.154' "$PROJECT_ROOT/scripts/lib/providers.sh" | head -10)
+for flag in SUPPORTS_OPUS_4_8 SUPPORTS_DYNAMIC_WORKFLOWS SUPPORTS_LEAN_SYSTEM_PROMPT_DEFAULT; do
+    if echo "$v21154_block" | grep -c "$flag=true" >/dev/null 2>&1; then
+        pass "v2.1.154 block sets: $flag"
+    else
+        fail "v2.1.154 block sets: $flag" "not found in v2.1.154 detection block"
+    fi
+done
+
+# --- v2.1.157 block ---
+if grep -c 'version_compare.*2\.1\.157' "$PROJECT_ROOT/scripts/lib/providers.sh" >/dev/null 2>&1; then
+    pass "v2.1.157 detection block exists"
+else
+    fail "v2.1.157 detection block exists" "no version_compare for 2.1.157"
+fi
+
+v21157_block=$(grep -A10 'version_compare.*2\.1\.157' "$PROJECT_ROOT/scripts/lib/providers.sh" | head -10)
+for flag in SUPPORTS_AGENT_SETTINGS_AGENT_FIELD SUPPORTS_SKILLS_AUTO_PLUGIN_LOAD \
+            SUPPORTS_ENTER_WORKTREE_SWITCH SUPPORTS_TOOL_DECISION_PARAMS_OTEL; do
+    if echo "$v21157_block" | grep -c "$flag=true" >/dev/null 2>&1; then
+        pass "v2.1.157 block sets: $flag"
+    else
+        fail "v2.1.157 block sets: $flag" "not found in v2.1.157 detection block"
+    fi
+done
+
 # ╔══════════════════════════════════════════════════════════════════════╗
 # ║  4. Logging lines                                                   ║
 # ╚══════════════════════════════════════════════════════════════════════╝
@@ -193,6 +238,17 @@ done
 # v2.1.77 labels
 for label in "Allow Read Sandbox" "SendMessage Auto Resume" "Agent No Resume Param" \
              "Plugin Validate Frontmatter" "Branch Command" "BG Bash 5GB Kill"; do
+    if grep -c "$label" "$ORCH" >/dev/null 2>&1; then
+        pass "Logged: $label"
+    else
+        fail "Logged: $label" "not found in detection logging"
+    fi
+done
+
+# v2.1.154-157 labels
+for label in "Opus 4.8" "Dynamic Workflows" "Lean Prompt Default" \
+             "Agent Settings Agent Field" "Skills Auto Plugin Load" \
+             "EnterWorktree Switch" "Tool Decision Params OTel"; do
     if grep -c "$label" "$ORCH" >/dev/null 2>&1; then
         pass "Logged: $label"
     else

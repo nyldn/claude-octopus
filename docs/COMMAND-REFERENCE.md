@@ -298,7 +298,7 @@ Configure which AI models are used across Claude Octopus workflows.
 
 **Per-phase routing:** Different models can be configured for Discover, Define, Develop, and Deliver phases. Use `show phases` to view the current routing table.
 
-**Role-based defaults (v9.29+):** `architect`, `strategist`, and `security-reviewer` use Claude Opus 4.7; `code-reviewer` and `implementer` use GPT-5.4; `synthesizer` uses Claude Sonnet 4.6. See [ARCHITECTURE.md — Role → Model Mapping](../docs/ARCHITECTURE.md#role--model-mapping-v929) for rationale. Opt out with `OCTOPUS_LEGACY_ROLES=1`.
+**Role-based defaults (v9.29+):** `architect`, `strategist`, and `security-reviewer` use the current Claude Opus default (Opus 4.8 on Claude Code v2.1.154+, then 4.7/4.6 fallback); `code-reviewer` and `implementer` use GPT-5.4; `synthesizer` uses Claude Sonnet 4.6. See [ARCHITECTURE.md — Role → Model Mapping](../docs/ARCHITECTURE.md#role--model-mapping-v929) for rationale. Opt out with `OCTOPUS_LEGACY_ROLES=1`.
 
 ---
 
