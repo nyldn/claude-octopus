@@ -119,3 +119,7 @@ coverage-report.html
 *.pem
 .tmp.*
 .claude/settings.local.json
+.claude/launch.json
+.claude/session-intent.md
+.claude/session-plan.md
+.claude/worktrees/
