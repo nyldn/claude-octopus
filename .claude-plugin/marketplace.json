@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "nyldn plugins for Claude Code workflows.",
-    "version": "9.41.2"
+    "version": "9.42.0"
   },
   "plugins": [
     {
@@ -15,8 +15,8 @@
         "source": "url",
         "url": "https://github.com/nyldn/claude-octopus.git"
       },
-      "description": "v9.41.2 - Fix cursor-agent smoke test in untrusted workspaces. 32 personas, 48 commands, 54 skills. Run /octo:setup.",
-      "version": "9.41.2",
+      "description": "v9.42.0 - Fix cursor-agent smoke test in untrusted workspaces. 32 personas, 48 commands, 54 skills. Run /octo:setup.",
+      "version": "9.42.0",
       "author": {
         "name": "nyldn",
         "url": "https://github.com/nyldn"

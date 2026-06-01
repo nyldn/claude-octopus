@@ -14,6 +14,7 @@ test_suite "Shared Marketplace Sync"
 SYNC_SCRIPT="$PROJECT_ROOT/scripts/sync-shared-marketplace.sh"
 RELEASE_SCRIPT="$PROJECT_ROOT/scripts/release.sh"
 CHANGELOG_LIB="$PROJECT_ROOT/scripts/lib/release-changelog.sh"
+CI_LIB="$PROJECT_ROOT/scripts/lib/release-ci.sh"
 LOCAL_MARKETPLACE="$PROJECT_ROOT/.claude-plugin/marketplace.json"
 TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/octo-shared-marketplace-test.XXXXXX")"
 
@@ -166,6 +167,39 @@ MD
     fi
 }
 
+test_release_ci_parser_matches_exact_aggregate_checks() {
+    test_case "release CI parser matches exact aggregate check names"
+
+    local checks_json smoke unit integ smoke_matrix missing
+    checks_json='[
+        {"name":"Smoke Tests (${{ matrix.os }})","state":"SKIPPED"},
+        {"name":"Smoke Tests","state":"SUCCESS"},
+        {"name":"Unit Tests (${{ matrix.os }})","state":"SKIPPED"},
+        {"name":"Unit Tests","state":"SUCCESS"},
+        {"name":"Integration Tests (full)","state":"SKIPPED"},
+        {"name":"Integration Tests","state":"SUCCESS"},
+        {"name":"CodeRabbit","state":"PENDING"}
+    ]'
+
+    # shellcheck disable=SC1090
+    source "$CI_LIB"
+    smoke="$(octo_pr_check_state "$checks_json" "Smoke Tests")"
+    unit="$(octo_pr_check_state "$checks_json" "Unit Tests")"
+    integ="$(octo_pr_check_state "$checks_json" "Integration Tests")"
+    smoke_matrix="$(octo_pr_check_state "$checks_json" 'Smoke Tests (${{ matrix.os }})')"
+    missing="$(octo_pr_check_state "$checks_json" "Required Future Check")"
+
+    if [[ "$smoke" == "pass" &&
+          "$unit" == "pass" &&
+          "$integ" == "pass" &&
+          "$smoke_matrix" == "skip" &&
+          "$missing" == "pending" ]]; then
+        test_pass
+    else
+        test_fail "expected exact aggregate checks to pass without matching matrix checks"
+    fi
+}
+
 test_shared_marketplace_sync_updates_only_octo() {
     local remote="$TMP_DIR/plugins.git"
     local seed="$TMP_DIR/seed"
@@ -208,6 +242,7 @@ test_shared_marketplace_sync_updates_only_octo() {
 test_sync_script_exists
 test_release_script_invokes_shared_marketplace_sync
 test_release_promotes_unreleased_changelog_notes
+test_release_ci_parser_matches_exact_aggregate_checks
 test_shared_marketplace_sync_updates_only_octo
 
 test_summary

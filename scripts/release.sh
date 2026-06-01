@@ -24,6 +24,8 @@ PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # shellcheck source=scripts/lib/release-changelog.sh
 source "$SCRIPT_DIR/lib/release-changelog.sh"
+# shellcheck source=scripts/lib/release-ci.sh
+source "$SCRIPT_DIR/lib/release-ci.sh"
 
 # --- Args ---
 
@@ -204,10 +206,10 @@ echo "5/8 Waiting for CI..."
 # Poll until required checks finish (max 5 minutes)
 DEADLINE=$((SECONDS + 300))
 while [[ $SECONDS -lt $DEADLINE ]]; do
-    CHECKS=$(gh pr checks "$PR_NUM" 2>&1 || true)
-    SMOKE=$(echo "$CHECKS" | grep "Smoke Tests" | awk '{print $2}' || echo "pending")
-    UNIT=$(echo "$CHECKS" | grep "Unit Tests" | awk '{print $2}' || echo "pending")
-    INTEG=$(echo "$CHECKS" | grep "Integration Tests" | awk '{print $2}' || echo "pending")
+    CHECKS=$(gh pr checks "$PR_NUM" --json name,state 2>&1 || true)
+    SMOKE=$(octo_pr_check_state "$CHECKS" "Smoke Tests")
+    UNIT=$(octo_pr_check_state "$CHECKS" "Unit Tests")
+    INTEG=$(octo_pr_check_state "$CHECKS" "Integration Tests")
 
     if [[ "$SMOKE" == "pass" && "$UNIT" == "pass" && "$INTEG" == "pass" ]]; then
         echo "   Smoke: pass | Unit: pass | Integration: pass"
