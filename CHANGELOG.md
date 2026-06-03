@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [9.42.3] - 2026-06-03
+
+### Changed
+
+- Close Beads release sync issue
+
 ## [9.42.2] - 2026-06-03
 
 ### Changed
