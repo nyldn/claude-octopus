@@ -1200,8 +1200,12 @@ test_council_live_response_host_native_fails_for_synthesis() {
     load_council_lib || return 1
 
     COUNCIL_PROVIDER_STATUS_JSON='{"codex":"host-native"}'
-    council_live_response "codex" "strategy-analyst" "dummy prompt" "chair-synthesis"
-    local rc=$?
+    local rc=0
+    if council_live_response "codex" "strategy-analyst" "dummy prompt" "chair-synthesis" >/dev/null; then
+        rc=0
+    else
+        rc=$?
+    fi
 
     if [[ $rc -ne 0 ]]; then
         test_pass
