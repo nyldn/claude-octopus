@@ -47,7 +47,7 @@ fi
 is_model_error() {
     (
         shopt -s nocasematch
-        local _re='model.*not (found|available|exist)|does not exist|unknown model|invalid model|no such model|ModelNotFoundError|404'
+        local _re='model.*not (found|available|exist)|does not exist|unknown model|invalid model|no such model|ModelNotFoundError|404|TerminalQuotaError|exhausted your (daily quota|capacity)|quota.*exceeded'
         [[ "$1" =~ $_re ]]
     )
 }
