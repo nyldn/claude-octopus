@@ -245,9 +245,9 @@ const WORKFLOW_DEFS: WorkflowDef[] = [
     name: "octopus_council",
     label: "Octopus Council",
     description:
-      "Configurable multi-LLM council with personas, budget caps, synthesis, veto gates, and optional implementation handoff.",
+      "Use Octopus to turn a project brief, roadmap, implementation plan, or decision into a structured council output. For planning-only handoffs from main, set goal=plan and implement=never.",
     parameters: Type.Object({
-      prompt: Type.String({ description: "Task, question, or decision for the council" }),
+      prompt: Type.String({ description: "Project brief, roadmap path, implementation plan, or decision to pass to Octopus. Include explicit no-edit/no-implementation constraints for planning-only handoffs." }),
       goal: Type.Optional(
         Type.Union([
           Type.Literal("advice"),
