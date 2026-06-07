@@ -455,18 +455,25 @@ State your HIGH-LEVEL approach in 3-5 bullet points:
 
 Be concise and specific. This is a planning exercise, not implementation."
 
-    # Gather approaches from available providers
+    # Gather approaches from available providers. Keep these configurable so
+    # operators can pick cheaper/faster review models without patching code.
     local codex_approach="" gemini_approach="" sonnet_approach=""
+    local design_codex_agent="${OCTOPUS_DESIGN_REVIEW_CODEX_AGENT:-codex-mini}"
+    local design_gemini_agent="${OCTOPUS_DESIGN_REVIEW_GEMINI_AGENT:-gemini}"
+    local design_claude_agent="${OCTOPUS_DESIGN_REVIEW_CLAUDE_AGENT:-claude-sonnet}"
+    local design_synthesis_agent="${OCTOPUS_DESIGN_REVIEW_SYNTH_AGENT:-claude-opus}"
+    local design_timeout="${OCTOPUS_DESIGN_REVIEW_TIMEOUT:-120}"
 
     log INFO "Design review: gathering provider approaches..."
+    log INFO "Design review agents: codex=${design_codex_agent}, gemini=${design_gemini_agent}, claude=${design_claude_agent}, synthesis=${design_synthesis_agent}, timeout=${design_timeout}s"
 
-    codex_approach=$(run_agent_sync "codex" "$ceremony_prompt" 60 "implementer" "ceremony" 2>/dev/null) || true
-    gemini_approach=$(run_agent_sync "gemini" "$ceremony_prompt" 60 "researcher" "ceremony" 2>/dev/null) || true
-    sonnet_approach=$(run_agent_sync "claude-sonnet" "$ceremony_prompt" 60 "code-reviewer" "ceremony" 2>/dev/null) || true
+    codex_approach=$(run_agent_sync "$design_codex_agent" "$ceremony_prompt" "$design_timeout" "implementer" "ceremony" 2>/dev/null) || true
+    gemini_approach=$(run_agent_sync "$design_gemini_agent" "$ceremony_prompt" "$design_timeout" "researcher" "ceremony" 2>/dev/null) || true
+    sonnet_approach=$(run_agent_sync "$design_claude_agent" "$ceremony_prompt" "$design_timeout" "code-reviewer" "ceremony" 2>/dev/null) || true
 
     # Synthesize conflicts and resolution
     local synthesis
-    synthesis=$(run_agent_sync "claude" "You are synthesizing a design review ceremony.
+    synthesis=$(run_agent_sync "$design_synthesis_agent" "You are synthesizing a design review ceremony.
 
 Three providers stated their approach to this task:
 
@@ -484,7 +491,7 @@ Identify:
 2. GAPS: What did everyone miss?
 3. RESOLUTION: The recommended unified approach (2-3 sentences)
 
-Be brief and actionable." 60 "synthesizer" "ceremony" 2>/dev/null) || true
+Be brief and actionable." "$design_timeout" "synthesizer" "ceremony" 2>/dev/null) || true
 
     if [[ -n "$synthesis" ]]; then
         echo -e "${GREEN}Design Review Summary:${NC}"

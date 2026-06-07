@@ -960,14 +960,9 @@ tangle_develop() {
         log INFO "Using grasp context from: $grasp_file"
     fi
 
-    # v8.18.0: Pre-work design review ceremony
-    design_review_ceremony "$prompt" "$context"
-
-    # Step 1: Decompose into validated subtasks
-    log INFO "Step 1: Task decomposition..."
-
-    # Resolve a referenced Markdown plan file without letting grep/head trip
-    # pipefail when the prompt has no file token.
+    # Resolve a referenced Markdown plan file before both design review and
+    # decomposition. Claude-based reviewers cannot read files outside the active
+    # worktree unless the content is injected into the prompt.
     local resolved_prompt="$prompt"
     local file_ref=""
     local raw_file_ref=""
@@ -1003,8 +998,15 @@ The following referenced plan file has been resolved. Use it as implementation c
 
 ${plan_block}"
         fi
-        log INFO "Resolved file reference: ${file_ref} - injecting content into decompose prompt"
+        log INFO "Resolved file reference: ${file_ref} - injecting content into workflow prompt"
     fi
+
+    # v8.18.0: Pre-work design review ceremony. Use resolved_prompt so reviewers
+    # receive plan content instead of an unreadable cross-workspace file path.
+    design_review_ceremony "$resolved_prompt" "$context"
+
+    # Step 1: Decompose into validated subtasks
+    log INFO "Step 1: Task decomposition..."
 
     local decompose_prompt="Decompose this task into subtasks that can be executed in parallel.
 Each subtask should be:
