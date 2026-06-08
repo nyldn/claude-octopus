@@ -13,7 +13,14 @@ command -v agy
 Prompts are delivered through stdin and executed with Antigravity print mode:
 
 ```bash
-agy --print --sandbox --print-timeout "${OCTOPUS_AGY_PRINT_TIMEOUT:-5m0s}" --model "${OCTOPUS_AGY_MODEL:-Claude Sonnet 4.6 (Thinking)}"
+agy --print --sandbox --print-timeout "${OCTOPUS_AGY_PRINT_TIMEOUT:-5m0s}"
+```
+
+When `OCTOPUS_AGY_MODEL` is set to a non-empty value other than `default`,
+Octopus adds the model override:
+
+```bash
+agy --print --sandbox --print-timeout "${OCTOPUS_AGY_PRINT_TIMEOUT:-5m0s}" --model "$OCTOPUS_AGY_MODEL"
 ```
 
 Octopus dispatches through `scripts/helpers/agy-exec.sh`, which is the command
@@ -44,8 +51,8 @@ By default, Antigravity (`agy`) runs under a minimal `env -i` environment:
 `AGY_AUTH_TOKEN`, `AGY_CONFIG`, or `ANTIGRAVITY_API_KEY`.
 
 Set `OCTOPUS_ALLOW_FULL_AGY_ENV=true` only if your local Antigravity auth flow
-requires inherited desktop/session environment. In that mode, `agy` can see all
-exported environment variables in the shell that starts Octopus.
+requires the desktop/session environment to be inherited. In that mode, `agy`
+can see all exported environment variables in the shell that starts Octopus.
 
 Avoid exporting secrets that are not needed by local CLI tools before running
 `agy` workflows. If you are unsure what is currently exported, check with a

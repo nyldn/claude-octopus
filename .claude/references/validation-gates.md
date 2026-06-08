@@ -51,6 +51,7 @@ This skill uses **ENFORCED execution mode**. You MUST follow this exact sequence
 ```bash
 command -v codex &> /dev/null && codex_status="Available ✓" || codex_status="Not installed ✗"
 command -v gemini &> /dev/null && gemini_status="Available ✓" || gemini_status="Not installed ✗"
+command -v agy &> /dev/null && agy_status="Available ✓" || agy_status="Not installed ✗"
 ```
 
 **Display this banner BEFORE orchestrate.sh execution:**
