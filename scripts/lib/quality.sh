@@ -463,6 +463,10 @@ Be concise and specific. This is a planning exercise, not implementation."
     local design_claude_agent="${OCTOPUS_DESIGN_REVIEW_CLAUDE_AGENT:-claude-sonnet}"
     local design_synthesis_agent="${OCTOPUS_DESIGN_REVIEW_SYNTH_AGENT:-claude-opus}"
     local design_timeout="${OCTOPUS_DESIGN_REVIEW_TIMEOUT:-120}"
+    if [[ ! "$design_timeout" =~ ^[0-9]+$ ]] || [[ "$design_timeout" -le 0 ]]; then
+        log WARN "Invalid OCTOPUS_DESIGN_REVIEW_TIMEOUT='${design_timeout}', defaulting to 120s"
+        design_timeout=120
+    fi
 
     log INFO "Design review: gathering provider approaches..."
     log INFO "Design review agents: codex=${design_codex_agent}, gemini=${design_gemini_agent}, claude=${design_claude_agent}, synthesis=${design_synthesis_agent}, timeout=${design_timeout}s"

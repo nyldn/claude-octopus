@@ -978,8 +978,19 @@ tangle_develop() {
     done
     [[ "$noglob_was_set" == "false" ]] && set +f
     if [[ -n "$file_ref" && -f "$file_ref" ]]; then
+        local max_plan_bytes="${OCTOPUS_PLAN_INJECT_MAX_BYTES:-40000}"
+        [[ "$max_plan_bytes" =~ ^[0-9]+$ ]] || max_plan_bytes=40000
+        local file_size
+        file_size=$(wc -c < "$file_ref" 2>/dev/null || echo 0)
         local file_content
-        file_content=$(<"$file_ref")
+        if [[ "$file_size" -gt "$max_plan_bytes" ]]; then
+            file_content="$(head -c "$max_plan_bytes" "$file_ref" 2>/dev/null)"
+            file_content="${file_content}
+
+[... truncated from ${file_size} bytes to ${max_plan_bytes} bytes ...]"
+        else
+            file_content=$(<"$file_ref")
+        fi
         local plan_block="--- PLAN: ${file_ref} ---
 ${file_content}
 --- END PLAN ---"
