@@ -30,7 +30,7 @@ if [[ ! -x "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" ]]; then
   OCTO_PLUGIN_ROOT="$(
     find "${HOME}/.claude/plugins" -type f -path "*/scripts/orchestrate.sh" -print 2>/dev/null \
       | sed 's#/scripts/orchestrate.sh$##' \
-      | grep -E '(nyldn-plugins|claude-octopus|/octo(/[0-9]|$))' \
+      | { grep -E '(nyldn-plugins|claude-octopus|/octo(/[0-9]|$))' || true; } \
       | sort \
       | tail -1
   )"

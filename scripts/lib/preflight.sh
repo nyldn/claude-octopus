@@ -224,37 +224,37 @@ cmd_detect_providers() {
 # Valid for 1 hour - re-run detect-providers to refresh
 
 # Codex Status
-CODEX_STATUS=$codex_status
-CODEX_AUTH=$codex_auth
+CODEX_STATUS=$(printf '%q' "$codex_status")
+CODEX_AUTH=$(printf '%q' "$codex_auth")
 
 # Gemini Status
-GEMINI_STATUS=$gemini_status
-GEMINI_AUTH=$gemini_auth
+GEMINI_STATUS=$(printf '%q' "$gemini_status")
+GEMINI_AUTH=$(printf '%q' "$gemini_auth")
 
 # Antigravity Status
-AGY_STATUS=$agy_status
-AGY_AUTH=$agy_auth
-AGY_MODEL=$agy_model
+AGY_STATUS=$(printf '%q' "$agy_status")
+AGY_AUTH=$(printf '%q' "$agy_auth")
+AGY_MODEL=$(printf '%q' "$agy_model")
 
 # Perplexity Status (v8.24.0)
-PERPLEXITY_STATUS=$perplexity_status
-PERPLEXITY_AUTH=$perplexity_auth
+PERPLEXITY_STATUS=$(printf '%q' "$perplexity_status")
+PERPLEXITY_AUTH=$(printf '%q' "$perplexity_auth")
 
 # Ollama Status (v9.9.0)
-OLLAMA_STATUS=$ollama_status
+OLLAMA_STATUS=$(printf '%q' "$ollama_status")
 
 # Copilot Status (v9.9.0)
-COPILOT_STATUS=$copilot_status
+COPILOT_STATUS=$(printf '%q' "$copilot_status")
 
 # Qwen Status (v9.10.0)
-QWEN_STATUS=$qwen_status
+QWEN_STATUS=$(printf '%q' "$qwen_status")
 
 # OpenCode Status (v9.11.0)
-OPENCODE_STATUS=$opencode_status
+OPENCODE_STATUS=$(printf '%q' "$opencode_status")
 
 # Cursor Agent Status (v9.23.0)
-CURSOR_AGENT_STATUS=$cursor_agent_status
-CURSOR_AGENT_AUTH=$cursor_agent_auth
+CURSOR_AGENT_STATUS=$(printf '%q' "$cursor_agent_status")
+CURSOR_AGENT_AUTH=$(printf '%q' "$cursor_agent_auth")
 
 # Timestamp
 CACHE_TIME=$(date +%s)

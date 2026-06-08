@@ -298,7 +298,7 @@ Read the synthesis file and present:
 - Quality gates results
 - Request user confirmation before implementing
 
-**After user confirms, STEP 6: Implement the solution using Write/Edit tools**
+**After user confirms: Implement the solution using Write/Edit tools**
 
 **Include attribution:**
 ```
@@ -482,7 +482,7 @@ When this skill is invoked, follow the EXECUTION CONTRACT above exactly. The con
 3. **Blocking Step 3**: Execute orchestrate.sh develop via native shell command tool
 4. **Blocking Step 4**: Verify synthesis file exists
 5. **Step 5**: Present implementation plan, get user confirmation
-6. **Step 6**: Implement the solution using Write/Edit tools
+6. **After confirmation**: Implement the solution using Write/Edit tools
 
 Each step is **mandatory and blocking** - you cannot proceed to the next step until the current one completes successfully.
 

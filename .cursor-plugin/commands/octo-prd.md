@@ -77,9 +77,15 @@ fi
 
 ```bash
 # Parallel research dispatch (if providers available)
-orchestrate.sh prd-research "<feature>" codex &
-orchestrate.sh prd-research "<feature>" gemini &
-orchestrate.sh prd-research "<feature>" agy &
+if [[ "$CODEX_AVAILABLE" == "true" ]]; then
+  orchestrate.sh prd-research "<feature>" codex &
+fi
+if [[ "$GEMINI_AVAILABLE" == "true" ]]; then
+  orchestrate.sh prd-research "<feature>" gemini &
+fi
+if [[ "$AGY_AVAILABLE" == "true" ]]; then
+  orchestrate.sh prd-research "<feature>" agy &
+fi
 wait
 ```
 

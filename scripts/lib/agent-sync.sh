@@ -259,7 +259,7 @@ ${provider_ctx}"
 
     if [[ "$agent_type" == agy* || "$agent_type" == "antigravity" ]]; then
         set +e
-        printf '%s' "$enhanced_prompt" | "${cmd_array[@]}" 2>"$temp_err" >"$temp_out"
+        printf '%s' "$enhanced_prompt" | run_with_timeout "$timeout_secs" "${cmd_array[@]}" 2>"$temp_err" >"$temp_out"
         exit_code=$?
         set -e
         output=$(cat "$temp_out")
@@ -395,7 +395,7 @@ ${provider_ctx}"
     fi
 
     # v8.7.0: Wrap external CLI output with trust markers
-    case "$agent_type" in codex*|gemini*|perplexity*|cursor-agent*)
+    case "$agent_type" in codex*|gemini*|agy*|antigravity|perplexity*|cursor-agent*)
         output=$(wrap_cli_output "$agent_type" "$output") ;; esac
 
     # Check if output is suspiciously empty or placeholder

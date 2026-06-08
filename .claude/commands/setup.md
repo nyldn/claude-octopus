@@ -292,10 +292,15 @@ After work mode is confirmed, persist the choice:
 
 ```bash
 OCTO_ROOT="${OCTO_ROOT:-$(git -C "$(pwd)" rev-parse --show-toplevel 2>/dev/null || echo "${HOME}/.claude-octopus/plugin")}"
-source "${OCTO_ROOT}/scripts/lib/user-config.sh" 2>/dev/null || true
+PLUGIN_FALLBACK_ROOT="${HOME}/.claude-octopus/plugin"
+if ! source "${OCTO_ROOT}/scripts/lib/user-config.sh" 2>/dev/null; then
+  source "${PLUGIN_FALLBACK_ROOT}/scripts/lib/user-config.sh" 2>/dev/null || echo "Warning: could not load Octopus user-config helpers; setup preferences were not persisted."
+fi
 WORK_MODE_VALUE="dev"  # dev, knowledge, or both based on user selection
-octo_config_write "work_mode" "\"${WORK_MODE_VALUE}\"" 2>/dev/null || true
-octo_config_write "setup_complete" 'true' 2>/dev/null || true
+if declare -f octo_config_write >/dev/null 2>&1; then
+  octo_config_write "work_mode" "\"${WORK_MODE_VALUE}\""
+  octo_config_write "setup_complete" 'true'
+fi
 ```
 
 (Replace `"dev"` with `"knowledge"` or `"both"` based on the user selection.)

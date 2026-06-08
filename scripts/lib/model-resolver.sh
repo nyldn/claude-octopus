@@ -51,7 +51,11 @@ resolve_octopus_model() {
     # Env overrides must bypass caches. A prior default resolution can be cached
     # for the same provider/agent/phase tuple, but explicit user overrides are
     # session state and take precedence over any cached value.
-    local env_var="OCTOPUS_$(echo "$provider" | tr '[:lower:]' '[:upper:]' | tr '-' '_')_MODEL"
+    local canonical_provider="$provider"
+    case "$canonical_provider" in
+        antigravity) canonical_provider="agy" ;;
+    esac
+    local env_var="OCTOPUS_$(echo "$canonical_provider" | tr '[:lower:]' '[:upper:]' | tr '-' '_')_MODEL"
     if [[ -n "${!env_var:-}" ]]; then
         echo "${!env_var}"
         return 0

@@ -69,9 +69,22 @@ Check which AI providers are available:
 const codexAvailable = await checkCommandAvailable('codex');
 const geminiAvailable = await checkCommandAvailable('gemini');
 const agyAvailable = await checkCommandAvailable('agy');
+const copilotAvailable = await checkCommandAvailable('copilot');
+const qwenAvailable = await checkCommandAvailable('qwen');
+const opencodeAvailable = await checkCommandAvailable('opencode');
+const ollamaAvailable = await checkCommandAvailable('ollama');
+const anyProviderAvailable = [
+  codexAvailable,
+  geminiAvailable,
+  agyAvailable,
+  copilotAvailable,
+  qwenAvailable,
+  opencodeAvailable,
+  ollamaAvailable
+].some(Boolean);
 
-if (!codexAvailable && !geminiAvailable && !agyAvailable) {
-  console.log("⚠️ No external providers available. Multi-provider mode requires at least one provider such as Codex, Gemini, or Antigravity.");
+if (!anyProviderAvailable) {
+  console.log("⚠️ No external providers available. Multi-provider mode requires at least one supported provider.");
   console.log("Run `/octo:setup` to configure external providers, or use Claude directly.");
   return;
 }

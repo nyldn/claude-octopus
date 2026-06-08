@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-set -euo pipefail
+# Sourced by orchestrator scripts; keep nounset off so this file does not leak
+# stricter unset-variable handling into callers after returning.
+set -eo pipefail
 # provider-allowlist.sh - Shared provider allowlist helpers.
 #
 # OCTO_ALLOWED_PROVIDERS is a space/comma separated list of provider names.

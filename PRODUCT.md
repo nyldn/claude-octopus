@@ -6,7 +6,7 @@ last_reviewed: 2026-05-25
 
 ## Mission
 
-Put up to eight AI models on every task so blind spots surface before you ship — not after.
+Put up to 9 AI models on every task so blind spots surface before you ship — not after.
 
 ## Vision
 

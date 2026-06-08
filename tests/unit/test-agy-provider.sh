@@ -1,6 +1,7 @@
 #!/bin/bash
 # tests/unit/test-agy-provider.sh
 # Tests Antigravity CLI (agy) provider configuration and integration.
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -80,41 +81,42 @@ test_agy_provider_detection() {
 }
 
 test_agy_inherits_environment() {
-    test_case "provider routing inherits agy environment by default with isolated opt-in"
+    test_case "provider routing isolates agy by default with full-env opt-in"
 
     local agy_block
     agy_block="$(sed -n '/agy\*|antigravity)/,/;;/p' "$PROJECT_ROOT/scripts/lib/provider-routing.sh")"
 
-    if [[ "$agy_block" == *"OCTOPUS_AGY_ISOLATED"* ]] && \
-       [[ "$agy_block" == *"PROVIDER_ENV_ARRAY=()"* ]] && \
+    if [[ "$agy_block" == *"OCTOPUS_ALLOW_FULL_AGY_ENV"* ]] && \
        [[ "$agy_block" == *"PROVIDER_ENV_ARRAY=(env -i"* ]] && \
        [[ "$agy_block" == *"AGY_AUTH_TOKEN"* ]] && \
-       [[ "$agy_block" == *"AGY_CONFIG"* ]]; then
+       [[ "$agy_block" == *"AGY_CONFIG"* ]] && \
+       [[ "$agy_block" == *"ANTIGRAVITY_API_KEY"* ]] && \
+       [[ "$agy_block" == *"PROVIDER_ENV_ARRAY=()"* ]]; then
         test_pass
     else
-        test_fail "agy should inherit by default and support OCTOPUS_AGY_ISOLATED=true"
+        test_fail "agy should isolate by default and support OCTOPUS_ALLOW_FULL_AGY_ENV=true"
     fi
 }
 
 test_agy_spawn_bypasses_timeout_wrapper() {
-    test_case "spawn executes agy without timeout wrapper"
+    test_case "spawn enforces timeout wrapper for agy"
 
     if grep -q 'agent_type.*agy' "$PROJECT_ROOT/scripts/lib/spawn.sh" && \
-       grep -q "agy's own print timeout" "$PROJECT_ROOT/scripts/lib/spawn.sh"; then
+       sed -n '/agent_type.*agy/,/elif printf/p' "$PROJECT_ROOT/scripts/lib/spawn.sh" | grep -q 'run_with_timeout'; then
         test_pass
     else
-        test_fail "spawn.sh should not wrap agy in run_with_timeout"
+        test_fail "spawn.sh should wrap agy in run_with_timeout"
     fi
 }
 
 test_agy_sync_bypasses_timeout_wrapper() {
-    test_case "sync dispatch executes agy without timeout wrapper"
+    test_case "sync dispatch enforces timeout wrapper for agy"
 
     if grep -q 'agent_type.*agy' "$PROJECT_ROOT/scripts/lib/agent-sync.sh" && \
-       grep -q '_provider_for_health="agy"' "$PROJECT_ROOT/scripts/lib/agent-sync.sh"; then
+       sed -n '/agent_type.*agy/,/elif.*gemini/p' "$PROJECT_ROOT/scripts/lib/agent-sync.sh" | grep -q 'run_with_timeout'; then
         test_pass
     else
-        test_fail "agent-sync.sh should run agy in foreground and health-check agy"
+        test_fail "agent-sync.sh should wrap agy in run_with_timeout"
     fi
 }
 

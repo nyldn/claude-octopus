@@ -84,7 +84,7 @@ When enabled, the extract feature uses multiple AI providers for higher accuracy
 - **Gemini**: Pattern recognition, alternative interpretations, UX insights
 
 **Consensus Mechanism**:
-- Threshold: quorum resolver selects the strongest matching proposal from up to 3 provider perspectives; no numeric approval threshold is enforced
+- Threshold: extraction quality gates require the configured consensus threshold (default 67%); when no numeric vote data exists, the quorum resolver selects the strongest matching proposal from up to 3 provider perspectives and logs disagreements.
 - Disagreements logged in `90_evidence/disagreements.md`
 - Confidence scores attached to all outputs
 
@@ -138,7 +138,7 @@ Automated validation ensures extraction quality:
 1. **Token Coverage**: Fail if 0 tokens in design mode
 2. **Component Coverage**: Warn if < 50% of component files detected
 3. **Architecture Completeness**: Warn if no services detected in product mode
-4. **Multi-AI Consensus**: Fail if < 50% agreement on key outputs
+4. **Multi-AI Consensus**: Fail if agreement is below the configured consensus threshold (default 67%) on key outputs
 
 ## Usage Patterns
 

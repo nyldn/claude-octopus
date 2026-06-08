@@ -70,10 +70,14 @@ build_provider_env() {
             fi
             ;;
         agy*|antigravity)
-            # Antigravity CLI relies on its inherited desktop/session environment
-            # for prompt-mode behavior and auth context. Users can opt into a
-            # minimal environment when their local agy auth supports it.
-            if [[ "${OCTOPUS_AGY_ISOLATED:-false}" == "true" ]]; then
+            # Antigravity defaults to a minimal environment. Users who need
+            # desktop/session inheritance can explicitly allow the full env.
+            if [[ "${OCTOPUS_ALLOW_FULL_AGY_ENV:-false}" == "true" ]]; then
+                if [[ "${OCTOPUS_SECURITY_V870:-true}" == "true" ]] && declare -f log_warn >/dev/null 2>&1; then
+                    log_warn "Antigravity CLI inherits the parent shell environment because OCTOPUS_ALLOW_FULL_AGY_ENV=true."
+                fi
+                PROVIDER_ENV_ARRAY=()
+            else
                 PROVIDER_ENV_ARRAY=(env -i "PATH=$PATH" "HOME=$HOME" "TERM=${TERM:-dumb}" "TMPDIR=${TMPDIR:-/tmp}")
                 if [[ -n "${AGY_AUTH_TOKEN:-}" ]]; then
                     PROVIDER_ENV_ARRAY+=("AGY_AUTH_TOKEN=${AGY_AUTH_TOKEN}")
@@ -81,14 +85,12 @@ build_provider_env() {
                 if [[ -n "${AGY_CONFIG:-}" ]]; then
                     PROVIDER_ENV_ARRAY+=("AGY_CONFIG=${AGY_CONFIG}")
                 fi
+                if [[ -n "${ANTIGRAVITY_API_KEY:-}" ]]; then
+                    PROVIDER_ENV_ARRAY+=("ANTIGRAVITY_API_KEY=${ANTIGRAVITY_API_KEY}")
+                fi
                 if [[ ${#_trace_env[@]} -gt 0 ]]; then
                     PROVIDER_ENV_ARRAY+=("${_trace_env[@]}")
                 fi
-            else
-                if [[ "${OCTOPUS_SECURITY_V870:-true}" == "true" ]] && declare -f log_warn >/dev/null 2>&1; then
-                    log_warn "Antigravity CLI inherits the parent shell environment; set OCTOPUS_AGY_ISOLATED=true to use a minimal env."
-                fi
-                PROVIDER_ENV_ARRAY=()
             fi
             ;;
         perplexity*)

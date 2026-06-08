@@ -27,6 +27,8 @@ Use the Bash tool to execute:
 **Preflight check — Ensure plugin root is resolvable (run via Bash tool FIRST):**
 
 ```bash
+set -eo pipefail
+
 OCTO_ROOT="${HOME}/.claude-octopus/plugin"
 if [[ ! -x "$OCTO_ROOT/scripts/orchestrate.sh" ]]; then
   helper="$OCTO_ROOT/scripts/helpers/ensure-plugin-root.sh"
