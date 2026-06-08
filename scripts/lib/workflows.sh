@@ -1137,6 +1137,7 @@ tangle_validate_parallel_write_scopes() {
             [[ -z "$scope" ]] && continue
             local i
             for i in "${!existing_scopes[@]}"; do
+                [[ "${existing_tasks[$i]}" == "$task_index" ]] && continue
                 if tangle_scopes_overlap "$scope" "${existing_scopes[$i]}"; then
                     echo "coding subtask ${task_index} effective write scope '${scope}' overlaps subtask ${existing_tasks[$i]} scope '${existing_scopes[$i]}'"
                     return 1
