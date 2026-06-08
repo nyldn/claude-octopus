@@ -549,7 +549,7 @@ ${heuristic_ctx}"
         fi
         # Belt-and-suspenders: bypass Gemini's interactive trust check in headless mode (#405).
         # Newer Gemini CLI versions removed --skip-trust; add it only when supported.
-        if [[ "$agent_type" == gemini* ]] && gemini --help 2>&1 | grep -q -- '--skip-trust'; then
+        if [[ "$agent_type" == gemini* ]] && [[ $(gemini --help 2>&1 | grep -c -- --skip-trust || true) -gt 0 ]]; then
             cmd_array+=(--skip-trust)
         fi
 
