@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+## [9.43.0] - 2026-06-09
+
+
 ### Fixed
 
 - **Providers dispatched from the plugin directory instead of the user's project** (bug report 260609). Command docs instructed `cd "${HOME}/.claude-octopus/plugin"` before `orchestrate.sh`, so `PROJECT_ROOT=$PWD` pointed at the plugin checkout and every provider sandbox (codex workdir, gemini workspace, copilot, claude subagents) could not read project files. Docs now invoke `orchestrate.sh` by absolute path from the project directory; `orchestrate.sh` falls back to `CLAUDE_PROJECT_DIR` (or warns) when invoked from inside the plugin install; `OCTOPUS_PROJECT_DIR` added as an explicit override; `probe-single` now cds to `PROJECT_ROOT` before dispatch.
