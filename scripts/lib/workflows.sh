@@ -1022,7 +1022,8 @@ tangle_scope_is_known_or_explicit_new_file() {
 
 tangle_line_is_numbered_subtask() {
     local line="$1"
-    printf '%s\n' "$line" | grep -Eq '^[[:space:]]*(\*\*)?[0-9]+[.)]'
+    local numbered_subtask_pattern='^[[:space:]]*(\*\*)?[0-9]+[.)]'
+    [[ "$line" =~ $numbered_subtask_pattern ]]
 }
 
 tangle_parseable_subtask_count() {
@@ -1341,6 +1342,11 @@ Every [CODING] line must include a same-line Files: clause."
         log ERROR "Decomposition still produced no parseable subtasks after retry; refusing monolithic direct fallback"
         return 1
     fi
+    if [[ $parseable_coding_subtask_count -eq 0 ]]; then
+        log ERROR "Decomposition still produced no parseable [CODING] subtasks after retry; refusing monolithic direct fallback"
+        return 1
+    fi
+
     if [[ $parseable_coding_subtask_count -eq 0 ]]; then
         log ERROR "Decomposition still produced no parseable [CODING] subtasks after retry; refusing monolithic direct fallback"
         return 1

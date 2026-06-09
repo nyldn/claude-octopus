@@ -38,6 +38,7 @@ trap 'rm -rf "$RESULTS_DIR"' EXIT
 DIRECT_PROMPT=""
 DIRECT_TASK_ID=""
 VALIDATION_CALLED=false
+TANGLE_STATUS=0
 
 log() { :; }
 octopus_phase_banner() { :; }
@@ -59,24 +60,23 @@ validate_tangle_results() {
 
 original_prompt="Update src/lib/templates/NA10_HANDLE_SILENCE.ts and do not modify src/lib/render/renderEmailTemplate.ts."
 
-TANGLE_RC=0
-tangle_develop "$original_prompt" >/dev/null || TANGLE_RC=$?
+tangle_develop "$original_prompt" >/dev/null && TANGLE_STATUS=0 || TANGLE_STATUS=$?
 
 test_case "unparseable decomposition fails closed"
-if [[ "$TANGLE_RC" -ne 0 ]]; then
+if [[ "$TANGLE_STATUS" -eq 1 ]]; then
     test_pass
 else
-    test_fail "tangle_develop succeeded when decomposition produced no numbered subtasks"
+    test_fail "unparseable decomposition returned $TANGLE_STATUS instead of failing closed"
 fi
 
-test_case "unparseable decomposition does not use direct fallback"
+test_case "unparseable decomposition does not spawn direct fallback"
 if [[ -z "$DIRECT_TASK_ID" && -z "$DIRECT_PROMPT" ]]; then
     test_pass
 else
-    test_fail "direct fallback was used despite unusable decomposition"
+    test_fail "direct fallback was spawned despite fail-closed decomposition"
 fi
 
-test_case "failed decomposition returns before tangle validation"
+test_case "fail-closed path returns before tangle validation"
 if [[ "$VALIDATION_CALLED" == "false" ]]; then
     test_pass
 else

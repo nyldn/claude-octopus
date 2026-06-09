@@ -41,6 +41,7 @@ DIRECT_PROMPT=""
 DIRECT_TASK_ID=""
 PARALLEL_SPAWNED=false
 VALIDATION_CALLED=false
+TANGLE_STATUS=0
 
 log() { :; }
 octopus_phase_banner() { :; }
@@ -155,24 +156,23 @@ fi
 
 original_prompt="Update src/lib/templates/NA02_REQUEST_REPORT.ts and src/lib/legal/legalReferenceCatalog.ts without producing duplicate subject prefixes."
 
-TANGLE_RC=0
-tangle_develop "$original_prompt" >/dev/null || TANGLE_RC=$?
+tangle_develop "$original_prompt" >/dev/null && TANGLE_STATUS=0 || TANGLE_STATUS=$?
 
 test_case "overlapping coding scopes fail closed"
-if [[ "$TANGLE_RC" -ne 0 ]] && [[ "$PARALLEL_SPAWNED" == "false" ]]; then
+if [[ "$TANGLE_STATUS" -eq 1 ]] && [[ "$PARALLEL_SPAWNED" == "false" ]]; then
     test_pass
 else
-    test_fail "overlapping write scopes did not fail closed"
+    test_fail "overlapping write scopes did not fail closed before parallel spawn"
 fi
 
-test_case "overlapping coding scopes do not use direct fallback"
+test_case "unsafe decomposition does not spawn direct fallback"
 if [[ -z "$DIRECT_TASK_ID" && -z "$DIRECT_PROMPT" ]]; then
     test_pass
 else
-    test_fail "direct fallback was used despite unsafe parallel decomposition"
+    test_fail "direct fallback was spawned despite unsafe decomposition"
 fi
 
-test_case "unsafe decomposition returns before tangle validation"
+test_case "unsafe fail-closed path returns before tangle validation"
 if [[ "$VALIDATION_CALLED" == "false" ]]; then
     test_pass
 else
