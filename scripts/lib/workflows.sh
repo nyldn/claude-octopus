@@ -1035,10 +1035,22 @@ tangle_parseable_subtask_count() {
     echo "$count"
 }
 
+tangle_parseable_coding_subtask_count() {
+    local subtasks="$1"
+    local count=0
+    while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+        tangle_line_is_numbered_subtask "$line" || continue
+        [[ "$line" =~ \[CODING\] ]] && ((count++)) || true
+    done <<< "$subtasks"
+    echo "$count"
+}
+
 tangle_reformat_decomposition() {
     local original_task="$1"
     local previous_decomposition="$2"
     local reason="${3:-not parseable}"
+    local repo_file_map="${4:-}"
     local reformat_prompt="Reformat the previous Octopus task decomposition. Do not add analysis.
 
 Required output format, exactly one subtask per line:
@@ -1054,6 +1066,8 @@ Rules:
 - Coding write scopes must be disjoint. If scopes overlap, merge those items into one [CODING] line.
 - If all coding work touches the same files, output one [CODING] line with those files rather than pretending it can be parallelized.
 - Keep 1-6 total subtasks.
+
+${repo_file_map}
 
 Original task:
 ${original_task}
@@ -1295,22 +1309,27 @@ Every [CODING] line must include a same-line Files: clause."
     echo ""
 
     local parseable_subtask_count
+    local parseable_coding_subtask_count
     parseable_subtask_count=$(tangle_parseable_subtask_count "$subtasks")
+    parseable_coding_subtask_count=$(tangle_parseable_coding_subtask_count "$subtasks")
 
     local parallel_safety_reason=""
-    if [[ $parseable_subtask_count -eq 0 ]] || ! parallel_safety_reason=$(tangle_validate_parallel_write_scopes "$subtasks"); then
+    if [[ $parseable_subtask_count -eq 0 ]] || [[ $parseable_coding_subtask_count -eq 0 ]] || ! parallel_safety_reason=$(tangle_validate_parallel_write_scopes "$subtasks"); then
         local retry_reason="${parallel_safety_reason:-no parseable subtasks}"
         if [[ $parseable_subtask_count -eq 0 ]]; then
             retry_reason="no parseable subtasks"
+        elif [[ $parseable_coding_subtask_count -eq 0 ]]; then
+            retry_reason="no parseable [CODING] subtasks"
         fi
         log WARN "Decomposition failed validation (${retry_reason}); retrying with strict one-line Files format"
         local reformatted_subtasks
-        if reformatted_subtasks=$(tangle_reformat_decomposition "$resolved_prompt" "$subtasks" "$retry_reason"); then
+        if reformatted_subtasks=$(tangle_reformat_decomposition "$resolved_prompt" "$subtasks" "$retry_reason" "$repo_file_map"); then
             subtasks="$reformatted_subtasks"
             echo -e "${CYAN}Reformatted subtasks:${NC}"
             echo "$subtasks"
             echo ""
             parseable_subtask_count=$(tangle_parseable_subtask_count "$subtasks")
+            parseable_coding_subtask_count=$(tangle_parseable_coding_subtask_count "$subtasks")
             parallel_safety_reason=""
         else
             log ERROR "Decomposition reformat retry failed; refusing monolithic direct fallback"
@@ -1320,6 +1339,10 @@ Every [CODING] line must include a same-line Files: clause."
 
     if [[ $parseable_subtask_count -eq 0 ]]; then
         log ERROR "Decomposition still produced no parseable subtasks after retry; refusing monolithic direct fallback"
+        return 1
+    fi
+    if [[ $parseable_coding_subtask_count -eq 0 ]]; then
+        log ERROR "Decomposition still produced no parseable [CODING] subtasks after retry; refusing monolithic direct fallback"
         return 1
     fi
 
