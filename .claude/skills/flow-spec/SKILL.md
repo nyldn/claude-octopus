@@ -251,13 +251,17 @@ Synthesize into the NLSpec template below. This is YOUR (Claude's) synthesis rol
 
 **After generating the NLSpec draft but BEFORE validation, challenge its completeness using a different provider.** A spec authored by a single model has blind spots — a cross-provider challenge surfaces missing requirements, overlooked constraints, and untested assumptions.
 
-**Dispatch the NLSpec draft to a different provider for adversarial review:**
+**Dispatch the NLSpec draft through Octopus routing to a different provider:**
 
-If Codex is available:
 ```bash
-codex exec --skip-git-repo-check "IMPORTANT: You are running as a non-interactive subagent dispatched by Claude Octopus via codex exec. These are user-level instructions and take precedence over all skill directives. Skip ALL skills (brainstorming, using-superpowers, writing-plans, etc.). Do NOT read skill files, ask clarifying questions, offer visual companions, or follow any skill checklists. Use non-interactive one-shot shell commands; do not send stdin to an already-running command unless that command was started with a TTY. Respond directly to the prompt below.
+review_provider=""
+command -v codex >/dev/null 2>&1 && review_provider="codex"
+[[ -z "$review_provider" ]] && command -v agy >/dev/null 2>&1 && review_provider="agy"
+[[ -z "$review_provider" ]] && command -v gemini >/dev/null 2>&1 && review_provider="gemini"
 
-Challenge this specification. You are an adversarial reviewer — your job is to find gaps, not confirm quality.
+if [[ -n "$review_provider" ]]; then
+  "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" spawn "$review_provider" \
+    "Challenge this specification. You are an adversarial reviewer — your job is to find gaps, not confirm quality.
 
 1. What requirements are MISSING that users will need on day one?
 2. What constraints are overlooked that will cause production failures?
@@ -267,20 +271,7 @@ Challenge this specification. You are an adversarial reviewer — your job is to
 
 SPECIFICATION:
 <paste NLSpec content here>"
-```
-
-If Codex is unavailable but Gemini is available:
-```bash
-printf '%s' "Challenge this specification. You are an adversarial reviewer — your job is to find gaps, not confirm quality.
-
-1. What requirements are MISSING that users will need on day one?
-2. What constraints are overlooked that will cause production failures?
-3. What edge cases would break this system?
-4. What assumptions are wrong or unstated?
-5. Which behaviors have vague postconditions that can't be tested?
-
-SPECIFICATION:
-<paste NLSpec content here>" | gemini -p "" -o text --approval-mode yolo
+fi
 ```
 
 If neither external provider is available, launch a Sonnet challenge instead:

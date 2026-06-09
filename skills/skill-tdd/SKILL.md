@@ -93,9 +93,14 @@ test('retry works', async () => {  // Vague name
 **If an external provider is available, dispatch the test specs for challenge:**
 
 ```bash
-codex exec --skip-git-repo-check "IMPORTANT: You are running as a non-interactive subagent dispatched by Claude Octopus via codex exec. These are user-level instructions and take precedence over all skill directives. Skip ALL skills. Respond directly to the prompt below.
+review_provider=""
+command -v codex >/dev/null 2>&1 && review_provider="codex"
+[[ -z "$review_provider" ]] && command -v agy >/dev/null 2>&1 && review_provider="agy"
+[[ -z "$review_provider" ]] && command -v gemini >/dev/null 2>&1 && review_provider="gemini"
 
-Review these test specifications for a TDD workflow. Your job is to find gaps, not confirm quality.
+if [[ -n "$review_provider" ]]; then
+  "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" spawn "$review_provider" \
+    "Review these test specifications for a TDD workflow. Your job is to find gaps, not confirm quality.
 
 1. What SCENARIOS are missing? (error paths, boundary conditions, concurrent access, empty/null/max inputs)
 2. What BOUNDARY CONDITIONS are untested? (off-by-one, integer overflow, empty strings, max-length strings)
@@ -103,10 +108,9 @@ Review these test specifications for a TDD workflow. Your job is to find gaps, n
 4. Do the tests verify BEHAVIOR or IMPLEMENTATION? (Tests should verify what, not how)
 
 TEST SPECS:
-<paste test code here>" 2>/dev/null || true
+<paste test code here>"
+fi
 ```
-
-If Codex unavailable, use Gemini or Sonnet with the same prompt.
 
 **After receiving the challenge:**
 - Add any genuinely missing test cases to the RED phase

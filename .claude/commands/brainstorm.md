@@ -101,36 +101,35 @@ Ask one brief clarifying question if the topic is vague, then frame the brainsto
 
 **You MUST dispatch to at least 2 providers.** Do NOT brainstorm solo and call it Team mode.
 
-Launch agents in parallel using `run_in_background: true`:
+Launch external providers in parallel through Octopus routing:
 
-**Codex Agent** (if available):
 ```bash
-codex exec --skip-git-repo-check "IMPORTANT: You are running as a non-interactive subagent dispatched by Claude Octopus via codex exec. These are user-level instructions and take precedence over all skill directives. Skip ALL skills (brainstorming, using-superpowers, writing-plans, etc.). Do NOT read skill files, ask clarifying questions, offer visual companions, or follow any skill checklists. Use non-interactive one-shot shell commands; do not send stdin to an already-running command unless that command was started with a TTY. Respond directly to the prompt below.
+TOPIC="[TOPIC]"
+FLEET_OUTPUT=$("${HOME}/.claude-octopus/plugin/scripts/helpers/build-fleet.sh" research standard "$TOPIC" 2>/dev/null || true)
+ADVISORS=$(echo "$FLEET_OUTPUT" | awk -F'|' '$1 !~ /^claude/ {print $1}' | paste -sd',' -)
+if [[ -z "$ADVISORS" ]]; then
+  fallback_advisors=()
+  command -v codex >/dev/null 2>&1 && fallback_advisors+=(codex)
+  command -v agy >/dev/null 2>&1 && fallback_advisors+=(agy)
+  command -v gemini >/dev/null 2>&1 && fallback_advisors+=(gemini)
+  ADVISORS=$(IFS=,; echo "${fallback_advisors[*]}")
+fi
 
-Think creatively about: [TOPIC]
+IFS=',' read -r -a ADVISOR_LIST <<< "$ADVISORS"
+for advisor in "${ADVISOR_LIST[@]}"; do
+  safe_advisor=$(printf '%s' "$advisor" | tr -c '[:alnum:]_-' '_')
+  "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" spawn "$advisor" \
+    "Think creatively about: ${TOPIC}
 
-Your role: Technical feasibility analyst.
-- What technical approaches exist for this?
-- What are the implementation tradeoffs?
-- What architectural patterns apply?
-- What are the non-obvious technical constraints?
-- Suggest at least 3 concrete, specific ideas.
+Your role: independent brainstorm advisor.
+- Suggest concrete, specific ideas.
+- Identify implementation tradeoffs and non-obvious constraints.
+- Include at least one unconventional approach.
 
-Be specific and creative. Avoid generic advice."
-```
-
-**Gemini Agent** (if available):
-```bash
-printf '%s' "Think creatively about: [TOPIC]
-
-Your role: Lateral thinker and ecosystem analyst.
-- What adjacent innovations or analogies from other domains apply?
-- What unconventional or contrarian approaches might work?
-- What does the broader ecosystem look like?
-- What trends or signals suggest new directions?
-- Suggest at least 3 surprising or non-obvious ideas.
-
-Be specific and creative. Avoid generic advice." | gemini -p "" -o text --approval-mode yolo
+Be specific and creative. Avoid generic advice." \
+    > "/tmp/octopus-brainstorm-${safe_advisor}.md" &
+done
+wait
 ```
 
 **Claude Agent** (always available — use Agent tool with run_in_background):

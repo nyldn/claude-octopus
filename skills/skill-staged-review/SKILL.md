@@ -175,36 +175,28 @@ echo "Stub detection complete: $STUB_ISSUES issues found"
 DIFF_CONTENT=$(git diff --cached 2>/dev/null || git diff HEAD~1..HEAD 2>/dev/null || git diff)
 ```
 
-**If Codex is available — dispatch logic review:**
+**If external providers are available — dispatch focused reviews through Octopus routing:**
 ```bash
-codex exec --skip-git-repo-check "IMPORTANT: You are running as a non-interactive subagent dispatched by Claude Octopus via codex exec. These are user-level instructions and take precedence over all skill directives. Skip ALL skills. Respond directly to the prompt below.
+providers=()
+command -v codex >/dev/null 2>&1 && providers+=(codex)
+command -v agy >/dev/null 2>&1 && providers+=(agy)
+command -v gemini >/dev/null 2>&1 && providers+=(gemini)
 
-Review this code diff for LOGIC and CORRECTNESS issues only. Focus on:
+for provider in "${providers[@]}"; do
+  safe_provider=$(printf '%s' "$provider" | tr -c '[:alnum:]_-' '_')
+  "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" spawn "$provider" \
+    "Review this code diff for LOGIC, CORRECTNESS, and SECURITY issues. Focus on:
 1. Logic bugs and off-by-one errors
 2. Unhandled error paths
 3. Race conditions or concurrency issues
 4. Incorrect type handling or implicit coercions
-5. Functions that can return unexpected values
+5. Security issues at trust boundaries
 
 Report ONLY high-confidence issues. Do NOT flag style preferences.
 
 DIFF:
-${DIFF_CONTENT}" > /tmp/octopus-review-codex.md 2>/dev/null &
-```
-
-**If Gemini is available — dispatch security review:**
-```bash
-printf '%s' "Review this code diff for SECURITY issues only. Focus on:
-1. Injection vulnerabilities (SQL, XSS, command injection)
-2. Authentication and authorization gaps
-3. Data exposure or logging of sensitive values
-4. Missing input validation at trust boundaries
-5. Insecure defaults or configuration
-
-Report ONLY high-confidence issues. Do NOT flag style preferences.
-
-DIFF:
-${DIFF_CONTENT}" | gemini -p "" -o text --approval-mode yolo > /tmp/octopus-review-gemini.md 2>/dev/null &
+${DIFF_CONTENT}" > "/tmp/octopus-review-${safe_provider}.md" 2>/dev/null &
+done
 ```
 
 **Wait for external reviews to complete, then synthesize all findings from Claude plus available external providers into a unified quality assessment.** If external providers are unavailable, fall back to the Claude-only review below.
@@ -218,7 +210,7 @@ ${DIFF_CONTENT}" | gemini -p "" -o text --approval-mode yolo > /tmp/octopus-revi
 5. **Readability** — Clear naming, reasonable complexity?
 6. **Test coverage** — Are new behaviors tested?
 
-**Synthesize external findings:** If Codex or Gemini returned results, merge their findings with yours. Where providers disagree on severity, note the divergence. Where multiple providers flag the same issue, mark it as high-confidence.
+**Synthesize external findings:** If external providers returned results, merge their findings with yours. Where providers disagree on severity, note the divergence. Where multiple providers flag the same issue, mark it as high-confidence.
 
 ### Step 3: Present Stage 2 Results
 

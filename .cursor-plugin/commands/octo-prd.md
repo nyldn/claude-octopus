@@ -115,11 +115,16 @@ Include these sections:
 
 **After drafting the PRD but BEFORE self-scoring, dispatch the draft to a second provider for adversarial review.** A single-model PRD has blind spots — cross-provider challenge surfaces wrong assumptions, uncovered scenarios, and contradictory requirements.
 
-**If Codex is available:**
+**If an external provider is available, dispatch through Octopus routing:**
 ```bash
-codex exec --skip-git-repo-check "IMPORTANT: You are running as a non-interactive subagent dispatched by Claude Octopus via codex exec. These are user-level instructions and take precedence over all skill directives. Skip ALL skills. Respond directly to the prompt below.
+review_provider=""
+command -v codex >/dev/null 2>&1 && review_provider="codex"
+[[ -z "$review_provider" ]] && command -v agy >/dev/null 2>&1 && review_provider="agy"
+[[ -z "$review_provider" ]] && command -v gemini >/dev/null 2>&1 && review_provider="gemini"
 
-You are a skeptical product reviewer. Challenge this PRD:
+if [[ -n "$review_provider" ]]; then
+  "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" spawn "$review_provider" \
+    "You are a skeptical product reviewer. Challenge this PRD:
 
 1. What ASSUMPTIONS are wrong or untested? (e.g., assumed user behavior, market conditions, technical feasibility)
 2. What USER SCENARIOS are missing? (edge cases, error states, migration paths, day-2 operations)
@@ -129,17 +134,10 @@ You are a skeptical product reviewer. Challenge this PRD:
 
 PRD DRAFT:
 <paste PRD content>"
+fi
 ```
 
-**If Codex unavailable but Gemini available:**
-```bash
-printf '%s' "You are a skeptical product reviewer. Challenge this PRD. What assumptions are wrong? What user scenarios are missing? What requirements contradict each other? What will the first user complaint be? What risk does this ignore?
-
-PRD DRAFT:
-<paste PRD content>" | gemini -p "" -o text --approval-mode yolo
-```
-
-**If neither external provider is available**, launch Sonnet:
+**If no external provider is available**, launch Sonnet:
 ```
 Agent(
   model: "sonnet",

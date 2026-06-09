@@ -351,6 +351,27 @@ test_agy_debate_skill_uses_runtime_advisors() {
     fi
 }
 
+test_user_facing_docs_route_external_provider_dispatch() {
+    test_case "user-facing commands and skills route external provider dispatch through Octopus"
+
+    local stale
+    stale=$(grep -R -nE 'codex exec --skip-git-repo-check|gemini -p "" -o text|ADVISORS="gemini,codex"|GEMINI_RESPONSE|r001_gemini|Gemini/Codex CLI|Codex/Gemini' \
+        "$PROJECT_ROOT/.claude/commands" \
+        "$PROJECT_ROOT/.claude/skills" \
+        "$PROJECT_ROOT/.cursor-plugin/commands" \
+        "$PROJECT_ROOT/skills" \
+        | grep -v 'codex --full-auto' \
+        | grep -v 'codex -q' \
+        | grep -v 'codex -y' \
+        | grep -v 'gemini -y' || true)
+
+    if [[ -z "$stale" ]]; then
+        test_pass
+    else
+        test_fail "direct provider dispatch remains in user-facing docs: $stale"
+    fi
+}
+
 test_agy_config_exists
 test_agy_available_agent
 test_agy_dispatch_native_flags
@@ -377,5 +398,6 @@ test_agy_docs_cost_and_marker
 test_agy_slash_command_visibility
 test_agy_slash_command_no_stale_three_provider_copy
 test_agy_debate_skill_uses_runtime_advisors
+test_user_facing_docs_route_external_provider_dispatch
 
 test_summary
