@@ -103,6 +103,56 @@ else
     test_fail "write scope extraction rejected root-level filenames; got: $scopes"
 fi
 
+test_case "known scope lookup falls back to pwd when PROJECT_ROOT is invalid"
+real_project_root="$PROJECT_ROOT"
+if (
+    cd "$real_project_root"
+    PROJECT_ROOT="$TEST_TMP_DIR/missing-project-root"
+    tangle_scope_is_known_or_explicit_new_file "scripts/lib/workflows.sh"
+); then
+    test_pass
+else
+    test_fail "known scope lookup did not fall back when PROJECT_ROOT was invalid"
+fi
+
+test_case "repo context resolution falls back to pwd when PROJECT_ROOT is invalid"
+resolved_scopes=$(
+    cd "$real_project_root"
+    PROJECT_ROOT="$TEST_TMP_DIR/missing-project-root" \
+        tangle_resolve_repo_context_files "Update workflow safety. Files: scripts/lib/workflows.sh"
+)
+if [[ "$resolved_scopes" == *"scripts/lib/workflows.sh"* ]]; then
+    test_pass
+else
+    test_fail "repo context resolution did not fall back when PROJECT_ROOT was invalid: $resolved_scopes"
+fi
+
+test_case "existing non-git PROJECT_ROOT does not resolve scopes from unrelated pwd repo"
+resolved_scopes=$(
+    cd "$real_project_root"
+    mkdir -p "$TEST_TMP_DIR/not-a-repo"
+    PROJECT_ROOT="$TEST_TMP_DIR/not-a-repo" \
+        tangle_resolve_repo_context_files "Update workflow safety. Files: scripts/lib/workflows.sh"
+)
+if [[ -z "$resolved_scopes" ]]; then
+    test_pass
+else
+    test_fail "repo context resolution used cwd repo despite explicit non-git PROJECT_ROOT: $resolved_scopes"
+fi
+
+test_case "known scope lookup honors existing non-git PROJECT_ROOT files"
+if (
+    cd "$real_project_root"
+    mkdir -p "$TEST_TMP_DIR/not-a-repo/scripts/lib"
+    touch "$TEST_TMP_DIR/not-a-repo/scripts/lib/workflows.sh"
+    PROJECT_ROOT="$TEST_TMP_DIR/not-a-repo"
+    tangle_scope_is_known_or_explicit_new_file "scripts/lib/workflows.sh"
+); then
+    test_pass
+else
+    test_fail "known scope lookup ignored files under explicit non-git PROJECT_ROOT"
+fi
+
 original_prompt="Update src/lib/templates/NA02_REQUEST_REPORT.ts and src/lib/legal/legalReferenceCatalog.ts without producing duplicate subject prefixes."
 
 tangle_develop "$original_prompt" >/dev/null

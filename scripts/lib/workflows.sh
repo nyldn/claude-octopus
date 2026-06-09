@@ -815,7 +815,7 @@ Execution instructions:
 - Treat the original task as authoritative for requirements, explicit file targets, acceptance criteria, and forbidden changes.
 - Complete the assigned subtask without dropping original constraints that apply to it.
 - For [CODING] work, edit the repository files directly in the current worktree. Do not only describe a plan or paste code snippets.
-- For [CODING] work, treat file paths/directories named in the assigned subtask as approximate scope intent. Use the resolved repository context files above as the concrete targets. Do not edit files clearly owned by another subtask; report a blocker if the required change crosses scopes.
+- For [CODING] work, treat file paths/directories named in the assigned subtask as approximate exclusive write scope intent. Use the resolved repository context files above as the concrete targets. Do not edit files clearly owned by another subtask; report a blocker if the required change crosses scopes.
 - If the subtask creates a new exported component, command, event type, route, hook, or helper, wire it into at least one production call site unless the original task explicitly asks for an isolated artifact.
 - Tests alone are not integration evidence. User-facing features must be reachable from the relevant user flow or the subtask must report a blocker.
 - In the final output, include "## Worktree Changes", "## Integration Evidence", and "## Verification" sections.
@@ -865,14 +865,34 @@ tangle_scopes_overlap() {
     return 1
 }
 
+tangle_resolve_repo_root() {
+    local repo_root
+    local resolved_root
+
+    if [[ -n "${PROJECT_ROOT:-}" ]]; then
+        if [[ -d "$PROJECT_ROOT" ]]; then
+            resolved_root=$(git -C "$PROJECT_ROOT" rev-parse --show-toplevel 2>/dev/null || true)
+            [[ -n "$resolved_root" ]] || return 1
+            printf '%s\n' "$resolved_root"
+            return 0
+        fi
+        repo_root="$(pwd)"
+    else
+        repo_root="$(pwd)"
+    fi
+
+    resolved_root=$(git -C "$repo_root" rev-parse --show-toplevel 2>/dev/null || true)
+    [[ -n "$resolved_root" ]] || return 1
+    printf '%s\n' "$resolved_root"
+}
+
 tangle_resolve_repo_context_files() {
     local text="$1"
     local max_files="${OCTOPUS_TANGLE_CONTEXT_MAX_FILES:-16}"
     [[ "$max_files" =~ ^[0-9]+$ ]] || max_files=16
 
-    local repo_root="${PROJECT_ROOT:-$(pwd)}"
-    [[ -d "$repo_root" ]] || repo_root="$(pwd)"
-    git -C "$repo_root" rev-parse --show-toplevel >/dev/null 2>&1 || return 0
+    local repo_root
+    repo_root=$(tangle_resolve_repo_root) || return 0
 
     local files=()
     local token full basename
@@ -923,14 +943,14 @@ tangle_resolve_repo_context_files() {
         done
     fi
 
+    [[ ${#files[@]} -gt 0 ]] || return 0
     printf '%s\n' "${files[@]}" | sed '/^$/d' | awk '!seen[$0]++' | sed -n "1,${max_files}p"
 }
 
 tangle_build_repo_context_block() {
     local assigned_subtask="$1"
-    local repo_root="${PROJECT_ROOT:-$(pwd)}"
-    [[ -d "$repo_root" ]] || repo_root="$(pwd)"
-    git -C "$repo_root" rev-parse --show-toplevel >/dev/null 2>&1 || return 0
+    local repo_root
+    repo_root=$(tangle_resolve_repo_root) || return 0
     local resolved
     resolved=$(tangle_resolve_repo_context_files "$assigned_subtask")
     cat <<EOF
@@ -952,8 +972,14 @@ tangle_scope_is_known_or_explicit_new_file() {
     local normalized="${scope%/}"
     [[ -z "$normalized" ]] && return 1
 
-    local repo_root="${PROJECT_ROOT:-$(pwd)}"
-    [[ -d "$repo_root" ]] || repo_root="$(pwd)"
+    local repo_root
+    if ! repo_root=$(tangle_resolve_repo_root 2>/dev/null); then
+        if [[ -n "${PROJECT_ROOT:-}" && -d "$PROJECT_ROOT" ]]; then
+            repo_root="$PROJECT_ROOT"
+        else
+            repo_root=$(git -C "$(pwd)" rev-parse --show-toplevel 2>/dev/null || pwd)
+        fi
+    fi
     if git -C "$repo_root" rev-parse --show-toplevel >/dev/null 2>&1; then
         if git -C "$repo_root" ls-files --error-unmatch "$normalized" >/dev/null 2>&1; then
             return 0
@@ -1114,7 +1140,12 @@ tangle_develop() {
     local noglob_was_set=false
     [[ "$-" == *f* ]] && noglob_was_set=true || set -f
     for token in $prompt; do
-        if [[ "$token" == plan:* || "$token" == plan=* || "$token" == *plan.md ]]; then
+        local candidate_ref="$token"
+        local candidate_basename
+        candidate_ref="${candidate_ref#plan:}"
+        candidate_ref="${candidate_ref#plan=}"
+        candidate_basename="${candidate_ref##*/}"
+        if [[ "$token" == plan:* || "$token" == plan=* || "$candidate_basename" == "plan.md" || "$candidate_basename" == *.plan.md || "$candidate_basename" == *-plan.md ]]; then
             raw_file_ref="$token"
             raw_file_ref="${raw_file_ref#plan:}"
             raw_file_ref="${raw_file_ref#plan=}"
@@ -1166,9 +1197,8 @@ ${plan_block}"
     log INFO "Step 1: Task decomposition..."
 
     local repo_file_map=""
-    local repo_root="${PROJECT_ROOT:-$(pwd)}"
-    [[ -d "$repo_root" ]] || repo_root="$(pwd)"
-    if git -C "$repo_root" rev-parse --show-toplevel >/dev/null 2>&1; then
+    local repo_root
+    if repo_root=$(tangle_resolve_repo_root 2>/dev/null); then
         repo_file_map="Repository files available for write scopes (from git ls-files, first 200):
 $(git -C "$repo_root" ls-files 2>/dev/null | sed -n 1,200p)
 "

@@ -74,6 +74,50 @@ printf 'base\n' > "$REPO_DIR/README.md"
 git -C "$REPO_DIR" add README.md
 git -C "$REPO_DIR" commit -q -m init
 
+test_case "snapshot worktree detection falls back to pwd when PROJECT_ROOT is invalid"
+if (
+    cd "$REPO_DIR"
+    touch fallback.txt
+    snapshot_output=$(PROJECT_ROOT="$TEST_TMP_DIR/missing-project-root" snapshot_tangle_worktree_paths)
+    rm -f fallback.txt
+    [[ "$snapshot_output" == *"fallback.txt"* ]]
+); then
+    test_pass
+else
+    test_fail "snapshot_tangle_worktree_paths ignored pwd fallback when PROJECT_ROOT was invalid"
+fi
+
+test_case "snapshot fallback resolves to git top-level from a subdirectory"
+if (
+    cd "$REPO_DIR"
+    mkdir -p src/app
+    touch root-only.txt
+    snapshot_output=$(
+        cd src/app
+        PROJECT_ROOT="$TEST_TMP_DIR/missing-project-root" snapshot_tangle_worktree_paths
+    )
+    rm -f root-only.txt
+    [[ "$snapshot_output" == *"root-only.txt"* ]]
+); then
+    test_pass
+else
+    test_fail "snapshot_tangle_worktree_paths did not resolve fallback to the git top-level"
+fi
+
+test_case "snapshot honors existing non-git PROJECT_ROOT instead of unrelated pwd repo"
+if (
+    cd "$REPO_DIR"
+    mkdir -p "$TEST_TMP_DIR/not-a-repo"
+    touch unrelated-repo-change.txt
+    snapshot_output=$(PROJECT_ROOT="$TEST_TMP_DIR/not-a-repo" snapshot_tangle_worktree_paths)
+    rm -f unrelated-repo-change.txt
+    [[ -z "$snapshot_output" ]]
+); then
+    test_pass
+else
+    test_fail "snapshot_tangle_worktree_paths used cwd repo despite explicit non-git PROJECT_ROOT"
+fi
+
 test_case "implementation prompt with no worktree change fails validation"
 if (
     cd "$REPO_DIR"
