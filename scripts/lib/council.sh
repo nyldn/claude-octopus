@@ -871,7 +871,7 @@ council_provider_is_available() {
     local provider="$1"
     local status
     status="$(jq -r --arg provider "$provider" '.[$provider] // "missing"' <<< "$COUNCIL_PROVIDER_STATUS_JSON")"
-    [[ "$status" == "available" ]]
+    [[ "$status" == "available" || "$status" == "host-native" ]]
 }
 
 council_pick_provider() {
@@ -1421,6 +1421,37 @@ council_live_response() {
     local provider="$1"
     local persona="$2"
     local prompt="$3"
+    local dispatch_phase="${4:-}"
+
+    # v9.43: Host-native path — provider IS the active host runtime (e.g. Codex CLI
+    # running council from within Codex). Spawning an external subprocess of the same
+    # CLI fails on all platforms and hangs or produces no output on Windows/Git Bash.
+    # For advice phases: emit a structured in-context note so the response file is
+    # non-empty and quorum is met.
+    # For synthesis phases (chair-synthesis): return 1 so council_write_synthesis()
+    # falls through to its built-in fallback — a placeholder note is not shaped like
+    # a valid synthesis and would break downstream gates.
+    local _provider_status
+    _provider_status="$(jq -r --arg p "$provider" '.[$p] // "missing"' <<< "$COUNCIL_PROVIDER_STATUS_JSON")"
+    if [[ "$_provider_status" == "host-native" ]]; then
+        if [[ "$dispatch_phase" == "chair-synthesis" ]]; then
+            return 1
+        fi
+        cat <<EOF
+## ${persona} (${provider} — host agent)
+
+*This council member is the active host runtime (${provider} CLI). Subprocess
+dispatch is unavailable when the host and council member are the same CLI — a
+recursive invocation that fails on Windows/Git Bash and produces no output on
+other platforms.*
+
+*The ${provider} perspective is contributed natively: the host agent orchestrates
+this council session and its reasoning is reflected in the overall synthesis. To
+obtain an independent ${provider} response, run the council from a different host
+(e.g. Claude Code) so ${provider} can be dispatched as a separate subprocess.*
+EOF
+        return 0
+    fi
 
     if ! council_provider_is_available "$provider"; then
         return 1
@@ -1489,7 +1520,7 @@ council_dispatch_member() {
         return 0
     fi
 
-    council_live_response "$provider" "$persona" "$prompt"
+    council_live_response "$provider" "$persona" "$prompt" "$phase"
 }
 
 council_write_config_json() {
@@ -1940,11 +1971,19 @@ council_detect_providers() {
     local provider cmd status
     IFS=',' read -r -a provider_list <<< "$providers"
     for provider in "${provider_list[@]}"; do
-        cmd="$(council_provider_command "$provider")"
-        if command -v "$cmd" >/dev/null 2>&1; then
-            status="available"
+        # v9.43: When this provider IS the host runtime, spawning it as a subprocess
+        # fails (recursive invocation — e.g. codex-within-codex on Windows/Git Bash).
+        # Mark as host-native so council_live_response emits an in-context response
+        # instead of a broken subprocess call.
+        if [[ "${OCTOPUS_HOST:-}" == "$provider" ]]; then
+            status="host-native"
         else
-            status="missing"
+            cmd="$(council_provider_command "$provider")"
+            if command -v "$cmd" >/dev/null 2>&1; then
+                status="available"
+            else
+                status="missing"
+            fi
         fi
         json="$(jq -c --arg name "$provider" --arg status "$status" '. + {($name): $status}' <<< "$json")"
     done

@@ -1151,4 +1151,71 @@ test_council_scans_artifact_critical_veto
 test_council_structured_veto_requires_veto_role
 test_council_veto_scan_ignores_discussed_token
 test_council_dispatch_strips_blocked_env_but_sets_readonly
+
+test_council_host_native_detection() {
+    test_case "council_detect_providers marks host provider as host-native (issue #444)"
+    load_council_lib || return 1
+
+    OCTOPUS_HOST="codex" \
+    COUNCIL_PROVIDERS="claude,codex,gemini" \
+        council_detect_providers
+
+    local codex_status claude_status
+    codex_status="$(jq -r '.codex // "missing"' <<< "$COUNCIL_PROVIDER_STATUS_JSON")"
+    claude_status="$(jq -r '.claude // "missing"' <<< "$COUNCIL_PROVIDER_STATUS_JSON")"
+
+    if [[ "$codex_status" == "host-native" ]]; then
+        # codex must still be considered available for roster formation
+        if council_provider_is_available "codex"; then
+            test_pass
+        else
+            test_fail "host-native provider should still be considered available for roster"
+            return 1
+        fi
+    else
+        test_fail "expected codex status 'host-native', got '$codex_status'"
+        return 1
+    fi
+}
+
+test_council_live_response_host_native_skips_subprocess() {
+    test_case "council_live_response emits in-context note for host-native provider (issue #444)"
+    load_council_lib || return 1
+
+    COUNCIL_PROVIDER_STATUS_JSON='{"codex":"host-native"}'
+    local out
+    out="$(council_live_response "codex" "code-reviewer" "dummy prompt" "independent-advice")"
+    local rc=$?
+
+    if [[ $rc -eq 0 && "$out" == *"host agent"* ]]; then
+        test_pass
+    else
+        test_fail "expected rc=0 and host-agent note in output; rc=$rc output=$out"
+        return 1
+    fi
+}
+
+test_council_live_response_host_native_fails_for_synthesis() {
+    test_case "council_live_response returns 1 for host-native chair-synthesis (issue #444 follow-up)"
+    load_council_lib || return 1
+
+    COUNCIL_PROVIDER_STATUS_JSON='{"codex":"host-native"}'
+    local rc=0
+    if council_live_response "codex" "strategy-analyst" "dummy prompt" "chair-synthesis" >/dev/null; then
+        rc=0
+    else
+        rc=$?
+    fi
+
+    if [[ $rc -ne 0 ]]; then
+        test_pass
+    else
+        test_fail "expected rc!=0 for host-native chair-synthesis, got rc=0"
+        return 1
+    fi
+}
+
+test_council_host_native_detection
+test_council_live_response_host_native_skips_subprocess
+test_council_live_response_host_native_fails_for_synthesis
 test_summary

@@ -28,7 +28,7 @@ for m in "${fallback_arr[@]}"; do
     fi
     skip=0
     for existing in "${model_list[@]}"; do
-        [[ "$existing" == "$m" ]] && { skip=1; break; }
+        [[  "$existing" == "$m" ]] && { skip=1; break; }
     done
     [[ $skip -eq 0 ]] && model_list+=("$m")
 done
@@ -47,7 +47,7 @@ fi
 is_model_error() {
     (
         shopt -s nocasematch
-        local _re='model.*not (found|available|exist)|does not exist|unknown model|invalid model|no such model|ModelNotFoundError|404'
+        local _re='model.*not (found|available|exist)|does not exist|unknown model|invalid model|no such model|ModelNotFoundError|404|TerminalQuotaError|exhausted your (daily quota|capacity)|quota.*exceeded'
         [[ "$1" =~ $_re ]]
     )
 }

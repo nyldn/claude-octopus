@@ -60,7 +60,7 @@ if [[ ! -x "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" ]]; then
   )"
 fi
 if [[ -z "$OCTO_PLUGIN_ROOT" || ! -x "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" ]]; then
-  echo "Claude Octopus plugin root not found. Reinstall the octo plugin, then retry /octo:doctor."
+  echo "Claude Octopus plugin root not found. Reinstall the octo plugin, then retry doctor diagnostics."
   exit 1
 fi
 mkdir -p "${HOME}/.claude-octopus"
@@ -310,9 +310,12 @@ Without a `RUNTIME.md`, orchestration prompts lack project-specific details — 
 
 ## Quick Reference
 
-| User Input | Action |
-|------------|--------|
-| `/octo:doctor` | Run all 11 categories |
-| `/octo:doctor providers` | Check provider installation only |
-| `/octo:doctor auth --verbose` | Detailed auth status |
-| `/octo:doctor --json` | Machine-readable output |
+`/octo:doctor` was removed in v9.41.0 to preserve Claude Code's native `/doctor` command.
+Invoke this skill by asking Claude naturally, or run the orchestrator directly:
+
+| What to say / run | Action |
+|-------------------|--------|
+| "run Octopus doctor diagnostics" | Run all 11 categories |
+| "check Octopus providers" | Check provider installation only |
+| `bash scripts/orchestrate.sh doctor auth --verbose` | Detailed auth status |
+| `bash scripts/orchestrate.sh doctor --json` | Machine-readable output |
