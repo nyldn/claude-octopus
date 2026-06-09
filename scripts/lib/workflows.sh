@@ -1023,7 +1023,10 @@ tangle_scope_is_known_or_explicit_new_file() {
 tangle_line_is_numbered_subtask() {
     local line="$1"
     local numbered_subtask_pattern='^[[:space:]]*(\*\*)?[0-9]+[.)]'
-    [[ "$line" =~ $numbered_subtask_pattern ]]
+    if [[ "$line" =~ $numbered_subtask_pattern ]]; then
+        return 0
+    fi
+    return 1
 }
 
 tangle_parseable_subtask_count() {
