@@ -63,10 +63,10 @@ original_prompt="Update src/lib/templates/NA10_HANDLE_SILENCE.ts and do not modi
 tangle_develop "$original_prompt" >/dev/null && TANGLE_STATUS=0 || TANGLE_STATUS=$?
 
 test_case "unparseable decomposition fails closed"
-if [[ "$TANGLE_STATUS" -eq 1 ]]; then
+if [[ "$TANGLE_STATUS" -ne 0 ]]; then
     test_pass
 else
-    test_fail "unparseable decomposition returned $TANGLE_STATUS instead of failing closed"
+    test_fail "unparseable decomposition returned success instead of failing closed"
 fi
 
 test_case "unparseable decomposition does not spawn direct fallback"

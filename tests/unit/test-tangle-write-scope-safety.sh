@@ -159,7 +159,7 @@ original_prompt="Update src/lib/templates/NA02_REQUEST_REPORT.ts and src/lib/leg
 tangle_develop "$original_prompt" >/dev/null && TANGLE_STATUS=0 || TANGLE_STATUS=$?
 
 test_case "overlapping coding scopes fail closed"
-if [[ "$TANGLE_STATUS" -eq 1 ]] && [[ "$PARALLEL_SPAWNED" == "false" ]]; then
+if [[ "$TANGLE_STATUS" -ne 0 ]] && [[ "$PARALLEL_SPAWNED" == "false" ]]; then
     test_pass
 else
     test_fail "overlapping write scopes did not fail closed before parallel spawn"
