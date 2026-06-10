@@ -21,7 +21,7 @@ You get:    A structured comparison with three independent viewpoints,
             scored for agreement. Disagreements are flagged, not hidden.
 ```
 
-This works for research, escalated code review, debugging, TDD, escalated security audits, UI design, PRDs, and full build-to-ship workflows — 50 commands, 54 skills, 32 specialized personas.
+This works for research, escalated code review, debugging, TDD, escalated security audits, UI design, PRDs, and full build-to-ship workflows — 49 commands, 54 skills, 32 specialized personas.
 
 Multi-provider runs show an agent summary before synthesis, so failed, timed out, or oversize-rejected Codex/Gemini/OpenRouter/etc. perspectives are visible instead of being hidden behind a polished final answer.
 
@@ -68,7 +68,7 @@ Octopus orchestrates — it doesn't replace domain knowledge. If three models co
 ## Learn More
 
 - [**Full README**](../README.md) — feature deep-dive, provider grid, architecture, star history
-- [**Command Reference**](../docs/COMMAND-REFERENCE.md) — all 50 commands with triggers
+- [**Command Reference**](../docs/COMMAND-REFERENCE.md) — all 49 commands with triggers
 - [**Persona Guide**](../docs/AGENTS.md) — 32 specialized agents
 - [**Changelog**](../CHANGELOG.md) — release history
 - [**Issues**](https://github.com/nyldn/claude-octopus/issues) — bugs and feature requests
