@@ -134,10 +134,15 @@ Display banner with ACTUAL results:
 Phases: 🔍 Discover → 🎯 Define → 🛠️ Develop → ✅ Deliver
 
 Provider Availability:
-🔴 Codex CLI: [status]    🟡 Gemini CLI: [status]
-🧭 Antigravity CLI: [status]
-🟣 Perplexity: [status]   🟤 OpenCode: [status]
+🔴 Codex CLI: [Available ✓ / Not installed ✗]
+🟡 Gemini CLI: [Available ✓ / Not installed ✗]
+🧭 Antigravity CLI: [Available ✓ / Not installed ✗]
+🟤 OpenCode: [Available ✓ / Not installed ✗]
+🟢 Copilot CLI: [Available ✓ / Not installed ✗]
+🟠 Qwen CLI: [Available ✓ / Not installed ✗]
+⚫ Ollama: [Available ✓ / Not installed ✗]
 🔵 Claude: Available ✓
+🟣 Perplexity: [Configured ✓ / Not configured ✗]
 
 Scope: [answer]  Focus: [answer]  Autonomy: [answer]
 ```
@@ -146,12 +151,14 @@ Scope: [answer]  Focus: [answer]  Autonomy: [answer]
 
 **CRITICAL: Each phase MUST run through `orchestrate.sh`. Do not invoke `/octo:discover`, `/octo:define`, `/octo:develop`, or `/octo:deliver` via Skill calls inside this command; direct phase dispatch prevents recursive command loading.**
 
+**CRITICAL: Run every orchestrate.sh command from the user's project directory. Do NOT `cd` into the plugin first — dispatched providers (codex workdir, gemini workspace) sandbox themselves to the invoking directory, and a plugin cwd makes every provider unable to read the user's project files. If the prompt references files outside the project (e.g. /tmp), pass `-d <dir>` or set `OCTOPUS_GEMINI_INCLUDE_DIRS`.**
+
 ### Phase 1 — Discover
 
 Run the Discover phase via orchestrate.sh:
 
 ```bash
-cd "${HOME}/.claude-octopus/plugin" && bash scripts/orchestrate.sh probe <user's prompt>
+bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" probe <user's prompt>
 ```
 
 This will dispatch to Codex, Gemini, and other available providers. Results saved to `~/.claude-octopus/results/probe-synthesis-*.md`.
@@ -164,7 +171,7 @@ This will dispatch to Codex, Gemini, and other available providers. Results save
 Run the define phase via orchestrate.sh:
 
 ```bash
-cd "${HOME}/.claude-octopus/plugin" && bash scripts/orchestrate.sh grasp <user's prompt>
+bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" grasp <user's prompt>
 ```
 
 This builds consensus across providers. Results saved to `~/.claude-octopus/results/grasp-consensus-*.md`.
@@ -179,7 +186,7 @@ If user selected debate gates at Define→Develop transition:
 
 ```bash
 latest_consensus="$(ls -t ~/.claude-octopus/results/grasp-consensus-*.md | head -1)"
-cd "${HOME}/.claude-octopus/plugin" && bash scripts/orchestrate.sh embrace-gate define-develop "<user's prompt>" "$latest_consensus"
+bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" embrace-gate define-develop "<user's prompt>" "$latest_consensus"
 ```
 
 3. Verify `~/.claude-octopus/results/embrace-gate-define-develop-*.md` exists for this run before Phase 3. If the command fails or no artifact exists, STOP.
@@ -206,7 +213,7 @@ AskUserQuestion({
 Run the develop phase via orchestrate.sh:
 
 ```bash
-cd "${HOME}/.claude-octopus/plugin" && bash scripts/orchestrate.sh tangle <user's prompt>
+bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" tangle <user's prompt>
 ```
 
 This dispatches implementation with quality gates. Results saved to `~/.claude-octopus/results/tangle-validation-*.md`.
@@ -217,7 +224,7 @@ If `DEBATE_GATES=both`, run this before Phase 4:
 
 ```bash
 latest_tangle="$(ls -t ~/.claude-octopus/results/tangle-validation-*.md | head -1)"
-cd "${HOME}/.claude-octopus/plugin" && bash scripts/orchestrate.sh embrace-gate develop-deliver "<user's prompt>" "$latest_tangle"
+bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" embrace-gate develop-deliver "<user's prompt>" "$latest_tangle"
 ```
 
 Verify `~/.claude-octopus/results/embrace-gate-develop-deliver-*.md` exists for this run before Phase 4. If the command fails or no artifact exists, STOP. In autonomous mode, continue only after the gate artifact exists; do not silently skip this gate.
@@ -227,7 +234,7 @@ Verify `~/.claude-octopus/results/embrace-gate-develop-deliver-*.md` exists for 
 Run the deliver phase via orchestrate.sh:
 
 ```bash
-cd "${HOME}/.claude-octopus/plugin" && bash scripts/orchestrate.sh ink <user's prompt>
+bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" ink <user's prompt>
 ```
 
 This runs multi-provider validation. Results saved to `~/.claude-octopus/results/delivery-*.md`.

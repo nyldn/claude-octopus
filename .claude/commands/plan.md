@@ -281,12 +281,15 @@ Validate quality — Review and refine
 → /octo:deliver
 
 Provider Availability:
-🔴 Codex CLI: [Available ✓ / Not installed ✗] — based on bash check
-🟡 Gemini CLI: [Available ✓ / Not installed ✗] — based on bash check
-🧭 Antigravity CLI: [Available ✓ / Not installed ✗] — based on bash check
-🟣 Perplexity: [Available ✓ / Not configured ✗] — based on bash check
-🟤 OpenCode: [Available ✓ / Not installed ✗] — based on bash check
+🔴 Codex CLI: [Available ✓ / Not installed ✗]
+🟡 Gemini CLI: [Available ✓ / Not installed ✗]
+🧭 Antigravity CLI: [Available ✓ / Not installed ✗]
+🟤 OpenCode: [Available ✓ / Not installed ✗]
+🟢 Copilot CLI: [Available ✓ / Not installed ✗]
+🟠 Qwen CLI: [Available ✓ / Not installed ✗]
+⚫ Ollama: [Available ✓ / Not installed ✗]
 🔵 Claude: Available ✓
+🟣 Perplexity: [Configured ✓ / Not configured ✗]
 
 YOUR INVOLVEMENT: [Checkpoints / Semi-autonomous / Hands-off]
 
@@ -334,6 +337,7 @@ Or execute phases individually:
 🔴 Codex CLI: [Available ✓ / Not installed ✗]
 🟡 Gemini CLI: [Available ✓ / Not installed ✗]
 🧭 Antigravity CLI: [Available ✓ / Not installed ✗]
+🟣 Perplexity: [Configured ✓ / Not configured ✗]
 🔵 Claude: Available ✓
 
 ## Success Criteria

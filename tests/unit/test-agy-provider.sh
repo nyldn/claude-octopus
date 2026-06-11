@@ -372,6 +372,47 @@ test_user_facing_docs_route_external_provider_dispatch() {
     fi
 }
 
+test_provider_aware_commands_show_core_provider_status() {
+    test_case "provider-aware slash commands show Codex, Gemini, Antigravity, and Perplexity status"
+
+    local missing=""
+    local commands=(
+        auto
+        brainstorm
+        embrace
+        factory
+        plan
+        review
+    )
+
+    local command
+    for command in "${commands[@]}"; do
+        local claude_file="$PROJECT_ROOT/.claude/commands/${command}.md"
+        local cursor_file="$PROJECT_ROOT/.cursor-plugin/commands/octo-${command}.md"
+        if [[ ! -f "$cursor_file" && "$command" == "auto" ]]; then
+            cursor_file="$PROJECT_ROOT/.cursor-plugin/commands/octo.md"
+        fi
+
+        for file in "$claude_file" "$cursor_file"; do
+            if [[ ! -f "$file" ]]; then
+                missing+="${file}: file missing"$'\n'
+                continue
+            fi
+
+            grep -q 'Codex CLI: \[Available ✓ / Not installed ✗\]' "$file" || missing+="${file}: missing Codex status"$'\n'
+            grep -q 'Gemini CLI: \[Available ✓ / Not installed ✗\]' "$file" || missing+="${file}: missing Gemini status"$'\n'
+            grep -q 'Antigravity CLI: \[Available ✓ / Not installed ✗\]' "$file" || missing+="${file}: missing Antigravity status"$'\n'
+            grep -q 'Perplexity: \[Configured ✓ / Not configured ✗\]' "$file" || missing+="${file}: missing Perplexity status"$'\n'
+        done
+    done
+
+    if [[ -z "$missing" ]]; then
+        test_pass
+    else
+        test_fail "provider-aware slash command banners must show core provider statuses: $missing"
+    fi
+}
+
 test_agy_config_exists
 test_agy_available_agent
 test_agy_dispatch_native_flags
@@ -399,5 +440,6 @@ test_agy_slash_command_visibility
 test_agy_slash_command_no_stale_three_provider_copy
 test_agy_debate_skill_uses_runtime_advisors
 test_user_facing_docs_route_external_provider_dispatch
+test_provider_aware_commands_show_core_provider_status
 
 test_summary

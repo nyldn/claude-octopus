@@ -77,10 +77,15 @@ CLAUDE OCTOPUS ACTIVATED - Dark Factory Mode
 Pipeline: Parse → Scenarios → Embrace → Holdout → Score → Report
 
 Providers:
-  🔴 Codex CLI: [Available ✓ / Not installed ✗] - Scenario generation + holdout evaluation
-  🟡 Gemini CLI: [Available ✓ / Not installed ✗] - Cross-provider diversity + blind review
-  🧭 Antigravity CLI: [Available ✓ / Not installed ✗] - Additional external-model challenge
+  🔴 Codex CLI: [Available ✓ / Not installed ✗]
+  🟡 Gemini CLI: [Available ✓ / Not installed ✗]
+  🧭 Antigravity CLI: [Available ✓ / Not installed ✗]
+  🟤 OpenCode: [Available ✓ / Not installed ✗]
+  🟢 Copilot CLI: [Available ✓ / Not installed ✗]
+  🟠 Qwen CLI: [Available ✓ / Not installed ✗]
+  ⚫ Ollama: [Available ✓ / Not installed ✗]
   🔵 Claude: Available ✓ - Orchestration, synthesis, satisfaction scoring
+  🟣 Perplexity: [Configured ✓ / Not configured ✗]
 
 Spec: <spec-path>
 Estimated cost: $0.50-2.00 (~20-30 agent calls)

@@ -45,11 +45,15 @@ Then display the banner with ACTUAL results:
 🐙 **CLAUDE OCTOPUS ACTIVATED** — Multi-LLM Code Review
 
 Providers:
-🔴 Codex CLI: [Available ✓ / Not installed ✗] — logic and correctness
-🟡 Gemini CLI: [Available ✓ / Not installed ✗] — security and edge cases
-🧭 Antigravity CLI: [Available ✓ / Not installed ✗] — alternate model perspective
+🔴 Codex CLI: [Available ✓ / Not installed ✗]
+🟡 Gemini CLI: [Available ✓ / Not installed ✗]
+🧭 Antigravity CLI: [Available ✓ / Not installed ✗]
+🟤 OpenCode: [Available ✓ / Not installed ✗]
+🟢 Copilot CLI: [Available ✓ / Not installed ✗]
+🟠 Qwen CLI: [Available ✓ / Not installed ✗]
+⚫ Ollama: [Available ✓ / Not installed ✗]
 🔵 Claude: Available ✓ — architecture and synthesis
-🟣 Perplexity: [Available ✓ / Not configured ✗] — CVE lookup
+🟣 Perplexity: [Configured ✓ / Not configured ✗]
 ```
 
 **PROHIBITED: Displaying only "🔵 Claude: Available ✓" without checking and listing other providers.**

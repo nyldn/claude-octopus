@@ -138,10 +138,15 @@ Display banner with ACTUAL results:
 Phases: 🔍 Discover → 🎯 Define → 🛠️ Develop → ✅ Deliver
 
 Provider Availability:
-🔴 Codex CLI: [status]    🟡 Gemini CLI: [status]
-🧭 Antigravity CLI: [status]
-🟣 Perplexity: [status]   🟤 OpenCode: [status]
+🔴 Codex CLI: [Available ✓ / Not installed ✗]
+🟡 Gemini CLI: [Available ✓ / Not installed ✗]
+🧭 Antigravity CLI: [Available ✓ / Not installed ✗]
+🟤 OpenCode: [Available ✓ / Not installed ✗]
+🟢 Copilot CLI: [Available ✓ / Not installed ✗]
+🟠 Qwen CLI: [Available ✓ / Not installed ✗]
+⚫ Ollama: [Available ✓ / Not installed ✗]
 🔵 Claude: Available ✓
+🟣 Perplexity: [Configured ✓ / Not configured ✗]
 
 Scope: [answer]  Focus: [answer]  Autonomy: [answer]
 ```

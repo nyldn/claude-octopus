@@ -188,11 +188,15 @@ Then display the banner with ACTUAL results — list ALL providers with their re
 [Phase Emoji] [Phase Name]: [Brief description]
 
 Providers:
-🔴 Codex CLI: [Available ✓ / Not installed ✗] - [role in this workflow]
-🟡 Gemini CLI: [Available ✓ / Not installed ✗] - [role in this workflow]
-🧭 Antigravity CLI: [Available ✓ / Not installed ✗] - [role in this workflow]
-🟤 OpenCode: [Available ✓ / Not installed ✗] - [role in this workflow]
-🔵 Claude: Available ✓ - [your role]
+🔴 Codex CLI: [Available ✓ / Not installed ✗]
+🟡 Gemini CLI: [Available ✓ / Not installed ✗]
+🧭 Antigravity CLI: [Available ✓ / Not installed ✗]
+🟤 OpenCode: [Available ✓ / Not installed ✗]
+🟢 Copilot CLI: [Available ✓ / Not installed ✗]
+🟠 Qwen CLI: [Available ✓ / Not installed ✗]
+⚫ Ollama: [Available ✓ / Not installed ✗]
+🔵 Claude: Available ✓
+🟣 Perplexity: [Configured ✓ / Not configured ✗]
 ```
 
 **PROHIBITED: Displaying only "🔵 Claude: Available ✓" without checking and listing other providers.**
