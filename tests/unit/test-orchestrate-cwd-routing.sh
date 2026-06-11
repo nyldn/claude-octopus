@@ -156,6 +156,17 @@ test_claude_implementer_accepts_edits() {
     fi
 }
 
+
+test_claude_developer_accepts_edits() {
+    test_case "get_agent_command claude (developer) → acceptEdits + write tools"
+    local got; got="$(get_agent_command claude develop developer)"
+    if [[ "$got" == *"--permission-mode acceptEdits"* && "$got" == *"--allowed-tools Read,Glob,Grep,Edit,Write"* ]]; then
+        test_pass
+    else
+        test_fail "developer role missing write grants, got: $got"
+    fi
+}
+
 test_claude_researcher_no_write_grant() {
     test_case "get_agent_command claude (researcher) → no acceptEdits/write grant"
     local got; got="$(get_agent_command claude probe researcher)"
@@ -247,6 +258,7 @@ test_colon_route_still_resolves
 test_claude_grants_read_tools
 test_claude_sonnet_grants_read_tools
 test_claude_implementer_accepts_edits
+test_claude_developer_accepts_edits
 test_claude_researcher_no_write_grant
 
 test_gemini_include_dirs_flag
