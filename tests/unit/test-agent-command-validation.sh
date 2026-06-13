@@ -33,6 +33,21 @@ else
     test_pass
 fi
 
+
+test_case "validate_agent_command allows openai-compatible helper path"
+if validate_agent_command "$PROJECT_ROOT/scripts/helpers/openai-compatible-agent.py --provider generic --model minimax/minimax-m3 --cwd /tmp/test"; then
+    test_pass
+else
+    test_fail "expected openai-compatible helper path to be accepted"
+fi
+
+test_case "validate_agent_command rejects embedded openai-compatible helper path"
+if validate_agent_command "echo $PROJECT_ROOT/scripts/helpers/openai-compatible-agent.py --provider generic" >/dev/null 2>&1; then
+    test_fail "expected embedded openai-compatible helper path to be rejected"
+else
+    test_pass
+fi
+
 test_case "validate_agent_command rejects unsafe command"
 if validate_agent_command "rm -rf /" >/dev/null 2>&1; then
     test_fail "expected unsafe command to be rejected"
