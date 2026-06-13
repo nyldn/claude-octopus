@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "9.44.0",
-  "description": "v9.44.0 \u2014 Patch release for cursor-agent smoke checks in untrusted workspaces. Run /octo:setup.",
+  "version": "9.44.1",
+  "description": "v9.44.1 \u2014 Fix Gemini version floor (1.0.0\u21920.45.0) and GOOGLE_CLOUD_PROJECT env isolation for Workspace OAuth. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"

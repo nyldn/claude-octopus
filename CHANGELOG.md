@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [9.44.1] - 2026-06-13
+
+### Fixed
+
+- **Gemini version floor was `1.0.0`, a version that has never shipped.** `OCTO_GEMINI_MIN_VERSION` was hardcoded to `1.0.0`; npm `latest` is `0.46.0` and no 1.x release exists. Every Gemini user saw a false "outdated" warning from `doctor` on a fully current install. Floor lowered to `0.45.0`. (#473, #475)
+- **`OCTO_*_MIN_VERSION` env overrides were silently clobbered.** Unconditional assignments in `provider-versions.sh` wiped any pre-exported values, making the documented override knob a no-op. All five version-floor constants now use `${VAR:-default}` so exported values take precedence. (#473, #475)
+- **Gemini agents failed with `ProjectIdRequiredError` for Workspace/GCA OAuth users.** `build_provider_env` in `provider-routing.sh` passed Gemini an `env -i`-isolated environment that omitted `GOOGLE_CLOUD_PROJECT` and `GOOGLE_CLOUD_PROJECT_ID`, which Workspace OAuth requires. Both vars added to the Gemini isolation allowlist (they identify a project, not a credential). (#471, #472)
+
 ## [9.44.0] - 2026-06-10
 
 
