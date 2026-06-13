@@ -1055,6 +1055,7 @@ detect_providers() {
                 env:QWEN_API_KEY) qwen_auth="api-key" ;;
                 env:OPENAI_COMPAT) qwen_auth="openai-compatible" ;;
                 oauth)            qwen_auth="oauth" ;;
+                oauth-unvalidated) qwen_auth="oauth-unvalidated" ;;
                 oauth-expired)    qwen_auth="oauth-expired" ;;
                 config)           qwen_auth="config" ;;
                 *)                qwen_auth="none" ;;

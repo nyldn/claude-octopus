@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+set -eo pipefail
+
 # Claude Octopus event stream helpers.
 #
 # The event stream is opt-in. Set OCTO_EVENT_LOG to a JSONL file path, or to
@@ -33,12 +35,30 @@ PY
         jq -Rn --arg value "$value" '$value' 2>/dev/null && return 0
     fi
 
+    local out="" ch ord esc
+    local i
     value=${value//\\/\\\\}
     value=${value//\"/\\\"}
-    value=${value//$'\n'/\\n}
-    value=${value//$'\r'/\\r}
-    value=${value//$'\t'/\\t}
-    printf '"%s"\n' "$value"
+    for ((i = 0; i < ${#value}; i++)); do
+        ch="${value:i:1}"
+        case "$ch" in
+            $'\b') out="${out}\\b" ;;
+            $'\f') out="${out}\\f" ;;
+            $'\n') out="${out}\\n" ;;
+            $'\r') out="${out}\\r" ;;
+            $'\t') out="${out}\\t" ;;
+            *)
+                LC_ALL=C printf -v ord '%d' "'$ch"
+                if (( ord < 32 )); then
+                    printf -v esc '\\u%04x' "$ord"
+                    out="${out}${esc}"
+                else
+                    out="${out}${ch}"
+                fi
+                ;;
+        esac
+    done
+    printf '"%s"\n' "$out"
 }
 
 _octo_event_trim() {
@@ -55,7 +75,10 @@ _octo_event_trim() {
     [[ "$count" -le "$max_lines" ]] && return 0
 
     local tmp="${file}.tmp.$$"
-    tail -n "$max_lines" "$file" > "$tmp" && mv "$tmp" "$file"
+    tail -n "$max_lines" "$file" > "$tmp" && mv "$tmp" "$file" || {
+        rm -f "$tmp"
+        return 1
+    }
 }
 
 # octo_event_emit EVENT [key=value ...]

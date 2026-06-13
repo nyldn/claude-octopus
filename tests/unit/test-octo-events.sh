@@ -17,8 +17,8 @@ test_no_log_when_disabled() {
     test_case "octo_event_emit is a no-op when OCTO_EVENT_LOG is unset"
     unset OCTO_EVENT_LOG
     octo_event_emit "provider.status" provider=qwen status=degraded
-    if [[ ! -e "$FIXTURE/events.jsonl" ]]; then test_pass
-    else test_fail "event log was created while disabled"; fi
+    if [[ -z "$(find "$FIXTURE" -mindepth 1 -print -quit)" ]]; then test_pass
+    else test_fail "event log created files while disabled"; fi
 }
 
 test_emit_jsonl_event() {

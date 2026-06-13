@@ -68,7 +68,14 @@ else
     fail "event stream helper exists and has valid syntax"
 fi
 
-if bash -n "${ROOT}/scripts/helpers/check-providers.sh" "${ROOT}/scripts/helpers/audit-provider-contracts.sh"; then
+syntax_ok=1
+for script in \
+    "${ROOT}/scripts/helpers/check-providers.sh" \
+    "${ROOT}/scripts/helpers/audit-provider-contracts.sh"; do
+    bash -n "$script" || syntax_ok=0
+done
+
+if [[ "$syntax_ok" -eq 1 ]]; then
     pass "provider helper scripts have valid shell syntax"
 else
     fail "provider helper scripts have valid shell syntax"
