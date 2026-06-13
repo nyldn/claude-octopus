@@ -39,7 +39,7 @@ Claude Octopus coordinates **eight AI providers** — one per tentacle to give y
 | **OpenRouter** | API-only | 100+ models (GLM-5, Kimi K2.5, DeepSeek R1, etc.) | Your `OPENROUTER_API_KEY` |
 | **Ollama** *(optional)* | `ollama run <model>` | Local models (llama3.3, mistral, etc.) | Free (local) |
 | **Copilot** *(optional)* | `copilot -p` | GitHub models (Claude/GPT/Gemini) | GitHub Copilot subscription |
-| **Qwen** *(optional)* | `qwen -p` | Qwen3-Coder | Qwen OAuth (free tier) |
+| **Qwen** *(optional)* | `qwen -p` | Qwen3-Coder | `QWEN_API_KEY` or Coding-Plan auth |
 
 > **Note:** Models are as of April 2026. The orchestrate.sh script uses the latest available models. Only Claude is required — all others are optional and auto-detected.
 

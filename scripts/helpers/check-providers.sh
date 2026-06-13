@@ -15,6 +15,8 @@ bash "${SCRIPT_DIR}/ensure-plugin-root.sh" 2>/dev/null || true
 
 source "${SCRIPT_DIR}/../lib/cursor-agent.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/../lib/provider-allowlist.sh" 2>/dev/null || true
+source "${SCRIPT_DIR}/../lib/auth.sh" 2>/dev/null || true   # octo_oauth_token_valid (oco-dar)
+source "${SCRIPT_DIR}/../lib/qwen.sh" 2>/dev/null || true   # qwen_is_usable (oco-dar)
 
 provider_status() {
     local provider="$1"
@@ -38,7 +40,19 @@ provider_status "gemini" "$(command -v gemini >/dev/null 2>&1 && echo available 
 provider_status "perplexity" "$([ -n "${PERPLEXITY_API_KEY:-}" ] && echo available || echo missing)"
 provider_status "opencode" "$(command -v opencode >/dev/null 2>&1 && echo available || echo missing)"
 provider_status "copilot" "$(command -v copilot >/dev/null 2>&1 && echo available || echo missing)"
-provider_status "qwen" "$(command -v qwen >/dev/null 2>&1 && echo available || echo missing)"
+# qwen: binary-only is not enough — an expired OAuth token (free tier EOL
+# 2026-04-15) would dispatch and hang on interactive device-auth (oco-dar).
+# Report "degraded" when the binary is present but auth is expired/missing so
+# consumers (which match ":available") skip it and the banner can say why.
+qwen_state="missing"
+if command -v qwen >/dev/null 2>&1; then
+    if declare -f qwen_is_usable >/dev/null 2>&1; then
+        qwen_is_usable && qwen_state="available" || qwen_state="degraded"
+    else
+        qwen_state="available"   # validator unavailable: legacy behavior
+    fi
+fi
+provider_status "qwen" "$qwen_state"
 provider_status "cursor-agent" "$cursor_agent_status"
 provider_status "ollama" "$({ ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed "ollama"; } && command -v ollama >/dev/null 2>&1 && curl -sf http://localhost:11434/api/tags >/dev/null 2>&1 && echo available || echo missing)"
 provider_status "openrouter" "$([ -n "${OPENROUTER_API_KEY:-}" ] && echo available || echo missing)"

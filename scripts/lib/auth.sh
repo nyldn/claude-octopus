@@ -41,6 +41,44 @@ check_codex_auth() {
     return 0  # Always return 0; caller checks the output string
 }
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Generic OAuth token expiry validator (oco-dar)
+# Gemini-CLI-family creds (qwen, gemini) store `expiry_date` as epoch MILLISECONDS.
+# Codex stores `expires_at` as epoch seconds (handled by check_codex_auth above).
+#
+# Usage: octo_oauth_token_valid <creds_file> [skew_seconds]
+# Returns 0 if the file exists AND the token is unexpired (with skew margin).
+# Returns 1 if the file is missing, OR expiry_date is absent/unparseable
+# (fail-closed: a malformed token must never be dispatched into an interactive
+# device-auth flow that can hang a workflow — bug oco-dar).
+#
+# NOTE: this is a strict check. Use it only for providers whose refresh is NOT
+# reliable (qwen free-tier OAuth was EOL'd 2026-04-15, so an expired access
+# token never recovers). Do NOT gate gemini on this — gemini access tokens
+# expire ~hourly but auto-refresh seamlessly; the universal hang protection for
+# refresh-capable providers is the process-group timeout kill in heartbeat.sh.
+octo_oauth_token_valid() {
+    local creds_file="$1"
+    local skew="${2:-60}"
+    [[ -f "$creds_file" ]] || return 1
+
+    local expiry_ms=""
+    if command -v jq &>/dev/null; then
+        expiry_ms=$(jq -r '.expiry_date // empty' "$creds_file" 2>/dev/null)
+    fi
+    # jq-less (or jq-miss) fallback: pull the numeric expiry_date out of the JSON.
+    if [[ -z "$expiry_ms" ]]; then
+        expiry_ms=$(grep -oE '"expiry_date"[[:space:]]*:[[:space:]]*[0-9]+' "$creds_file" 2>/dev/null \
+                    | grep -oE '[0-9]+$' | head -1)
+    fi
+
+    [[ "$expiry_ms" =~ ^[0-9]+$ ]] || return 1   # fail-closed on missing/garbage
+    local expiry_s=$(( expiry_ms / 1000 ))
+    local now
+    now=$(date +%s)
+    (( expiry_s - skew > now ))
+}
+
 # Handle auth commands
 handle_auth_command() {
     local action="${1:-status}"
