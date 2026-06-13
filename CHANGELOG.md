@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### Added
+
+- `scripts/helpers/audit-provider-contracts.sh` release-gate audit for provider drift: provider states must stay `available|missing|degraded`, qwen auth must fail closed when OAuth cannot be validated, stale free-tier setup guidance must not reappear, and provider version floors must remain env-overridable.
+- `scripts/lib/events.sh` opt-in JSONL event emitter plus `check-providers.sh` `provider.status` events when `OCTO_EVENT_LOG` is set. Normal provider-check stdout is unchanged.
+- `docs/roadmaps/2026-06-13-next-minor-major.md` captures the June 2026 Claude Code plugin research and maps it into the next minor and major Octopus direction.
+
+### Fixed
+
+- `detect_providers` no longer treats a bare qwen OAuth file as dispatchable when the qwen auth validator is unavailable; it reports `oauth-unvalidated` instead. Setup guidance now points users at `QWEN_API_KEY` or Coding-Plan auth rather than the retired free tier.
+
 ## [9.44.0] - 2026-06-10
 
 

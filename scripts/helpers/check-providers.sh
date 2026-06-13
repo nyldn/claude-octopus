@@ -23,6 +23,7 @@ source "${SCRIPT_DIR}/../lib/cursor-agent.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/../lib/provider-allowlist.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/../lib/auth.sh" 2>/dev/null || true   # octo_oauth_token_valid (oco-dar)
 source "${SCRIPT_DIR}/../lib/qwen.sh" 2>/dev/null || true   # qwen_is_usable (oco-dar)
+source "${SCRIPT_DIR}/../lib/events.sh" 2>/dev/null || true  # opt-in JSONL lifecycle stream
 
 provider_status() {
     local provider="$1"
@@ -31,6 +32,9 @@ provider_status() {
         status="missing"
     fi
     printf "%s:%s\n" "$provider" "$status"
+    if declare -f octo_event_emit >/dev/null 2>&1; then
+        octo_event_emit "provider.status" provider="$provider" status="$status" source="check-providers" || true
+    fi
 }
 
 cursor_agent_status="missing"
