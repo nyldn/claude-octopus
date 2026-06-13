@@ -25,6 +25,8 @@
 
 ### Fixed
 
+- **Expired-token providers were dispatched and could hang the workflow** (oco-dar). The pre-flight check only verified a provider binary existed, not that its auth was valid, so qwen — whose free OAuth tier was discontinued 2026-04-15 and whose token had expired — was dispatched and launched an interactive browser device-auth flow that wedged a probe for ~10 minutes. Now: (1) a shared expiry-aware validator (`octo_oauth_token_valid`) parses `expiry_date` and fails closed; (2) `qwen_auth_method` reports `oauth-expired` for a stale token and recognizes API-key / OpenAI-compatible Coding-Plan env auth; (3) `qwen_is_usable` gates pre-flight, fleet selection, embrace dispatch, and direct qwen execution; (4) `check-providers.sh` reports `qwen:degraded` (skipped, with a reason) instead of `available`; (5) `run_with_timeout` escalates SIGTERM to SIGKILL (`-k 10`) and sweeps child processes so a TERM-ignoring tree dies at the cap; (6) qwen dispatch sets `NO_BROWSER=1` as defense-in-depth. Gemini is intentionally not expiry-gated; its token refresh is reliable and the timeout-kill hardening covers it. Doctor and setup guidance now point at API-key / Coding-Plan auth, not the dead browser OAuth flow.
+- **Qwen doctor version floor matched the old Octopus feature version instead of the qwen CLI version scheme** (oco-7ri). `OCTO_QWEN_MIN_VERSION` now defaults to `0.14.0`, so doctor can reach auth-state guidance for current qwen-code installs instead of always reporting `0.x` as outdated.
 - **Providers dispatched from the plugin directory instead of the user's project** (bug report 260609). Command docs instructed `cd "${HOME}/.claude-octopus/plugin"` before `orchestrate.sh`, so `PROJECT_ROOT=$PWD` pointed at the plugin checkout and every provider sandbox (codex workdir, gemini workspace, copilot, claude subagents) could not read project files. Docs now invoke `orchestrate.sh` by absolute path from the project directory; `orchestrate.sh` falls back to `CLAUDE_PROJECT_DIR` (or warns) when invoked from inside the plugin install; `OCTOPUS_PROJECT_DIR` added as an explicit override; `probe-single` now cds to `PROJECT_ROOT` before dispatch.
 - **Bare provider names in `routing.roles`/`routing.phases` leaked as model names.** `"researcher": "perplexity"` produced `codex exec --model perplexity` (400 on ChatGPT accounts) and a gemini model 404 plus fallback retry. The model resolver now treats bare provider names as provider routes and falls through to the provider's own default model.
 - **Spawned `claude --print` subagents could not Read files** ("Read is blocked in the current permission mode"). Claude dispatch commands now pre-approve `Read,Glob,Grep`; implementer/developer roles additionally run with `--permission-mode acceptEdits` and `Edit,Write`.
@@ -35,6 +37,11 @@
 
 - `OCTOPUS_GEMINI_INCLUDE_DIRS` — comma-separated directories appended to gemini dispatch as `--include-directories`, for prompts referencing files outside `PROJECT_ROOT` (e.g. `/tmp` staging dirs).
 - `tests/unit/test-orchestrate-cwd-routing.sh` — behavioral coverage for cwd resolution, role-routing model leaks, claude permission flags, gemini include dirs, and the docs cd-pattern regression.
+- `tests/unit/test-provider-auth-validity.sh` — coverage for the expiry validator, qwen `oauth-expired` detection, `check-providers.sh` degraded state, API-key precedence, and the `run_with_timeout` SIGKILL-escalation regression (oco-dar).
+
+### Changed
+
+- Setup/usage help now documents auth env vars for all providers (`PERPLEXITY_API_KEY`, `OPENROUTER_API_KEY`, `QWEN_API_KEY`), not just `OPENAI_API_KEY`/`GEMINI_API_KEY`. qwen entry notes the Coding-Plan path and the OAuth free-tier EOL.
 
 ## [9.42.3] - 2026-06-03
 

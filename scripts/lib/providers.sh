@@ -783,11 +783,27 @@ check_provider_health() {
                 echo "qwen CLI not found in PATH" >&2
                 return 1
             fi
-            # Check auth: OAuth creds or config in ~/.qwen/, or API key env var
-            if [[ ! -f "${HOME}/.qwen/oauth_creds.json" ]] && \
-               [[ ! -f "${HOME}/.qwen/config.json" ]] && \
-               [[ -z "${QWEN_API_KEY:-}" ]]; then
-                echo "qwen: not authenticated (run: qwen to trigger OAuth, or set QWEN_API_KEY)" >&2
+            # Check auth — must be a VALID source, not just a present file.
+            # oco-dar: an expired oauth_creds.json (free OAuth tier EOL 2026-04-15,
+            # refresh broken) must fail here, otherwise dispatch hangs on the
+            # interactive browser device-auth flow.
+            if declare -f qwen_auth_method >/dev/null 2>&1; then
+                case "$(qwen_auth_method)" in
+                    env:QWEN_API_KEY|env:OPENAI_COMPAT|oauth|config) : ;;  # usable
+                    oauth-expired)
+                        echo "qwen: OAuth token expired and not refreshable (free tier discontinued 2026-04-15). Set QWEN_API_KEY or configure Coding-Plan (OPENAI_API_KEY + OPENAI_BASE_URL)." >&2
+                        return 1
+                        ;;
+                    *)
+                        echo "qwen: not authenticated. Set QWEN_API_KEY or configure Coding-Plan (OPENAI_API_KEY + OPENAI_BASE_URL)." >&2
+                        return 1
+                        ;;
+                esac
+            elif [[ ! -f "${HOME}/.qwen/oauth_creds.json" ]] && \
+                 [[ ! -f "${HOME}/.qwen/config.json" ]] && \
+                 [[ -z "${QWEN_API_KEY:-}" ]] && \
+                 ! [[ -n "${OPENAI_API_KEY:-}" && -n "${OPENAI_BASE_URL:-}" ]]; then
+                echo "qwen: not authenticated (set QWEN_API_KEY or configure Coding-Plan)" >&2
                 return 1
             fi
             ;;
@@ -1027,15 +1043,27 @@ detect_providers() {
         result="${result}copilot:${copilot_auth} "
     fi
 
-    # Detect Qwen CLI (v9.10.0 — free tier)
+    # Detect Qwen CLI (v9.10.0). oco-dar: report expiry-aware auth state so an
+    # expired OAuth token surfaces as "oauth-expired" rather than a usable "oauth".
     if { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed qwen; } && command -v qwen &>/dev/null; then
         local qwen_auth="none"
-        if [[ -f "${HOME}/.qwen/oauth_creds.json" ]]; then
+        if declare -f qwen_auth_method >/dev/null 2>&1; then
+            case "$(qwen_auth_method)" in
+                env:QWEN_API_KEY) qwen_auth="api-key" ;;
+                env:OPENAI_COMPAT) qwen_auth="openai-compatible" ;;
+                oauth)            qwen_auth="oauth" ;;
+                oauth-expired)    qwen_auth="oauth-expired" ;;
+                config)           qwen_auth="config" ;;
+                *)                qwen_auth="none" ;;
+            esac
+        elif [[ -f "${HOME}/.qwen/oauth_creds.json" ]]; then
             qwen_auth="oauth"
         elif [[ -f "${HOME}/.qwen/config.json" ]]; then
             qwen_auth="config"
         elif [[ -n "${QWEN_API_KEY:-}" ]]; then
             qwen_auth="api-key"
+        elif [[ -n "${OPENAI_API_KEY:-}" && -n "${OPENAI_BASE_URL:-}" ]]; then
+            qwen_auth="openai-compatible"
         fi
         result="${result}qwen:${qwen_auth} "
     fi

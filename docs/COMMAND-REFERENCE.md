@@ -1514,7 +1514,7 @@ When Claude Octopus activates external CLIs, you'll see visual indicators:
 | 🔴 | Codex CLI executing | OpenAI (your OPENAI_API_KEY) |
 | 🟡 | Gemini CLI executing | Google (your GEMINI_API_KEY) |
 | 🟣 | Perplexity Sonar search | Your PERPLEXITY_API_KEY |
-| 🟢 | Qwen or Copilot executing | Qwen free tier or GitHub Copilot subscription |
+| 🟢 | Qwen or Copilot executing | Qwen API-key/Coding-Plan auth or GitHub Copilot subscription |
 | 🟠 | OpenCode/OpenRouter provider executing | Local/OpenRouter configuration |
 | 🌐 | Web research source | WebFetch/WebSearch or configured web provider |
 | 🔵 | Claude subagent | Included with Claude Code |
