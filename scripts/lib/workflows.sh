@@ -8,6 +8,38 @@ if ! type probe_result_file_status >/dev/null 2>&1; then
     [[ -f "$_octo_probe_results_lib" ]] && source "$_octo_probe_results_lib"
 fi
 
+if ! type octopus_agent_override >/dev/null 2>&1; then
+    octopus_agent_override() {
+        local phase="$1"
+        local role="$2"
+        local default_agent="$3"
+        local phase_key role_key env_name value
+
+        phase_key=$(printf '%s' "$phase" | tr '[:lower:]-' '[:upper:]_' | sed -E 's/[^A-Z0-9_]+/_/g; s/^_+//; s/_+$//')
+        role_key=$(printf '%s' "$role" | tr '[:lower:]-' '[:upper:]_' | sed -E 's/[^A-Z0-9_]+/_/g; s/^_+//; s/_+$//')
+
+        if [[ -n "$phase_key" && -n "$role_key" ]]; then
+            env_name="OCTOPUS_${phase_key}_${role_key}_AGENT"
+            value="${!env_name:-}"
+            [[ -n "$value" ]] && { echo "$value"; return 0; }
+        fi
+
+        if [[ -n "$phase_key" ]]; then
+            env_name="OCTOPUS_${phase_key}_AGENT"
+            value="${!env_name:-}"
+            [[ -n "$value" ]] && { echo "$value"; return 0; }
+        fi
+
+        if [[ -n "$role_key" ]]; then
+            env_name="OCTOPUS_${role_key}_AGENT"
+            value="${!env_name:-}"
+            [[ -n "$value" ]] && { echo "$value"; return 0; }
+        fi
+
+        echo "$default_agent"
+    }
+fi
+
 # v8.54.0: Single-agent probe for multi-agentic skill dispatch
 # Runs one probe perspective synchronously and writes result to RESULTS_DIR.
 # Called by Claude's Agent tool (one per perspective) instead of probe_discover().
@@ -1231,12 +1263,17 @@ Task: $resolved_prompt
 Output as numbered list with [CODING] or [REASONING] prefix for each subtask."
 
     local subtasks
-    subtasks=$(run_agent_sync "gemini" "$decompose_prompt" 120 "researcher" "tangle") || \
-    subtasks=$(run_agent_sync "codex" "$decompose_prompt" 120 "researcher" "tangle") || {
+    local tangle_decompose_agent tangle_decompose_fallback_agent tangle_direct_agent
+    tangle_decompose_agent=$(octopus_agent_override "tangle" "decompose" "gemini")
+    tangle_decompose_fallback_agent=$(octopus_agent_override "tangle" "decompose_fallback" "codex")
+    tangle_direct_agent=$(octopus_agent_override "tangle" "direct" "codex")
+
+    subtasks=$(run_agent_sync "$tangle_decompose_agent" "$decompose_prompt" 120 "researcher" "tangle") || \
+    subtasks=$(run_agent_sync "$tangle_decompose_fallback_agent" "$decompose_prompt" 120 "researcher" "tangle") || {
         log WARN "Decomposition failed with all providers, falling back to direct execution"
         local direct_prompt
         direct_prompt=$(build_tangle_subtask_prompt "$resolved_prompt" "Implement the full task directly because decomposition failed with all providers.")
-        spawn_agent "codex" "$direct_prompt" "tangle-${task_group}-direct" "implementer" "tangle"
+        spawn_agent "$tangle_direct_agent" "$direct_prompt" "tangle-${task_group}-direct" "implementer" "tangle"
         wait
         return
     }
@@ -1255,7 +1292,7 @@ Output as numbered list with [CODING] or [REASONING] prefix for each subtask."
         log WARN "Decomposition produced no parseable subtasks, falling back to direct execution"
         local direct_prompt
         direct_prompt=$(build_tangle_subtask_prompt "$resolved_prompt" "Implement the full task directly because decomposition produced no parseable subtasks.")
-        spawn_agent "codex" "$direct_prompt" "tangle-${task_group}-direct" "implementer" "tangle"
+        spawn_agent "$tangle_direct_agent" "$direct_prompt" "tangle-${task_group}-direct" "implementer" "tangle"
         wait
         return
     fi
@@ -1265,7 +1302,7 @@ Output as numbered list with [CODING] or [REASONING] prefix for each subtask."
         log WARN "Unsafe parallel decomposition: ${parallel_safety_reason}"
         local direct_prompt
         direct_prompt=$(build_tangle_subtask_prompt "$resolved_prompt" "Implement the full task directly because parallel decomposition is unsafe: ${parallel_safety_reason}")
-        spawn_agent "codex" "$direct_prompt" "tangle-${task_group}-direct" "implementer" "tangle"
+        spawn_agent "$tangle_direct_agent" "$direct_prompt" "tangle-${task_group}-direct" "implementer" "tangle"
         wait
         return
     fi
@@ -1283,11 +1320,15 @@ Output as numbered list with [CODING] or [REASONING] prefix for each subtask."
 
         local subtask
         subtask=$(echo "$line" | sed 's/^[0-9]*[\.\)]\s*//')
-        local agent="codex"
+        local agent
         local role="implementer"
         local pane_icon="⚙️"
+        # Selects the tangle coding agent/provider only. The concrete model for
+        # that provider is still resolved by resolve_octopus_model(), including
+        # its persistent /tmp/octo-model-cache-*.json behavior.
+        agent=$(octopus_agent_override "tangle" "coding" "codex")
         if [[ "$subtask" =~ \[REASONING\] ]]; then
-            agent="gemini"
+            agent=$(octopus_agent_override "tangle" "reasoning" "gemini")
             role="researcher"
             pane_icon="🧠"
         fi

@@ -43,6 +43,12 @@ opus_default_model() {
 }
 
 # resolve_octopus_model <provider> <agent_type> <phase> <role>
+#
+# Agent/provider overrides such as OCTOPUS_TANGLE_CODING_AGENT are resolved before
+# this function runs. This function resolves the model for the selected provider
+# and may use the persistent /tmp/octo-model-cache-*.json cache before evaluating
+# model env overrides. Remove the matching cache file, or set a fresh session id,
+# when changing model env vars and expecting an immediate force-refresh.
 resolve_octopus_model() {
     local provider="$1"
     local agent_type="$2"
