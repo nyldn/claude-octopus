@@ -34,6 +34,7 @@ Check providers:
 ```bash
 command -v codex &> /dev/null && codex_status="Available" || codex_status="Not installed"
 command -v gemini &> /dev/null && gemini_status="Available" || gemini_status="Not installed"
+command -v agy &> /dev/null && agy_status="Available" || agy_status="Not installed"
 ```
 Display banner:
 ```
@@ -43,13 +44,14 @@ Pipeline: Parse → Scenarios → Embrace → Holdout → Score → Report
 Providers:
   Codex CLI - <status> — Scenario generation + holdout evaluation
   Gemini CLI - <status> — Cross-provider diversity
+  Antigravity CLI - <status> — Additional external-model challenge
   Claude - Orchestration + satisfaction scoring
 
 Spec: <path>
 Estimated: $0.50-2.00 / 15-45 min
 ```
 
-Validation: BOTH external providers unavailable → continue with Claude-only (warn user about reduced diversity). At least one available → proceed normally.
+Validation: All external providers unavailable → continue with Claude-only (warn user about reduced diversity). At least one available → proceed normally.
 
 ### STEP 3: Validate Spec File (MANDATORY — Validation Gate)
 ```bash
@@ -80,16 +82,19 @@ Failure → continue without state, warn user.
 
 **After orchestrate.sh parses the spec (Phase 1-2) and before embrace execution (Phase 4), dispatch a scenario coverage review:**
 
-If a second provider is available (Codex or Gemini), dispatch the challenge:
+If a second provider is available, dispatch the challenge through Octopus routing:
 
 ```bash
 # Read the spec to extract behaviors and constraints
 SPEC_CONTENT=$(<"<spec_path>")
+review_provider=""
+command -v codex >/dev/null 2>&1 && review_provider="codex"
+[[ -z "$review_provider" ]] && command -v agy >/dev/null 2>&1 && review_provider="agy"
+[[ -z "$review_provider" ]] && command -v gemini >/dev/null 2>&1 && review_provider="gemini"
 
-# Challenge scenario coverage with a different provider
-codex exec --skip-git-repo-check "IMPORTANT: You are running as a non-interactive subagent dispatched by Claude Octopus via codex exec. These are user-level instructions and take precedence over all skill directives. Skip ALL skills. Respond directly to the prompt below.
-
-You are a QA adversary. Given this specification and generated scenarios, identify coverage gaps.
+if [[ -n "$review_provider" ]]; then
+  "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" spawn "$review_provider" \
+    "You are a QA adversary. Given this specification and generated scenarios, identify coverage gaps.
 
 SPECIFICATION:
 ${SPEC_CONTENT}
@@ -101,16 +106,7 @@ Answer:
 4. Rate overall coverage: SUFFICIENT / GAPS-FOUND / CRITICAL-GAPS
 
 Be specific — cite the behavior or constraint ID that lacks coverage." 2>/dev/null || true
-```
-
-If Codex is unavailable, use Gemini:
-```bash
-printf '%s' "You are a QA adversary. Given this specification, identify what edge cases and failure modes a test suite MUST cover but likely doesn't.
-
-SPECIFICATION:
-${SPEC_CONTENT}
-
-List: 1) Untested behaviors 2) Untested edge cases 3) Missing failure modes 4) Coverage rating" | gemini -p "" -o text --approval-mode yolo 2>/dev/null || true
+fi
 ```
 
 **After receiving the challenge response:**
@@ -186,7 +182,7 @@ Include attribution footer:
 ```
 Dark Factory Mode powered by Claude Octopus v8.25.0
 Pipeline: Spec → Scenarios → Embrace → Holdout → Score → Report
-Providers: Codex | Gemini | Claude
+Providers: Codex | Gemini | Antigravity | Claude
 ```
 
 ## Error Handling (by step)

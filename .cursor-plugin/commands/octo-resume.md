@@ -22,6 +22,26 @@ If you don't have the agent ID:
 ## Step 2: Resume
 
 Use the Bash tool to execute:
+
+**Preflight check — Ensure plugin root is resolvable (run via Bash tool FIRST):**
+
+```bash
+set -euo pipefail
+
+OCTO_ROOT="${HOME}/.claude-octopus/plugin"
+if [[ ! -x "$OCTO_ROOT/scripts/orchestrate.sh" ]]; then
+  helper="$OCTO_ROOT/scripts/helpers/ensure-plugin-root.sh"
+  if [[ ! -x "$helper" ]]; then
+    helper="$(find "${HOME}/.claude/plugins/cache" "${HOME}/Library/Application Support/Claude" "${LOCALAPPDATA:-/dev/null}/Claude" "${XDG_DATA_HOME:-${HOME}/.local/share}/Claude" -maxdepth 8 -path "*/nyldn-plugins/octo/*/scripts/helpers/ensure-plugin-root.sh" -print -quit 2>/dev/null)"
+  fi
+  [[ -x "$helper" ]] && bash "$helper" >/dev/null 2>&1 || true
+fi
+test -x "$OCTO_ROOT/scripts/orchestrate.sh" && echo "plugin-root:ok" || echo "plugin-root:missing"
+```
+
+If the output is `plugin-root:missing`, stop and ask the user to run `/octo:setup`.
+
+
 ```bash
 ${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh agent-resume "$ARGUMENTS"
 ```
@@ -40,7 +60,7 @@ orchestrate.sh agent-resume abc123 "fix the failing test in auth.ts"
 
 - Claude Code v2.1.34+ (`SUPPORTS_CONTINUATION=true`, `SUPPORTS_STABLE_AGENT_TEAMS=true`)
 - Agent Teams enabled (required for agent transcript access)
-- Agent must have been a Claude agent (not Codex/Gemini — those don't support transcripts)
+- Agent must have been a Claude agent (not an external CLI agent — those don't support transcripts)
 - CC v2.1.77+: Resume uses `SendMessage` (auto-resumes stopped agents). The `Agent(resume:)` parameter was removed in v2.1.77.
 
 Run `/octo:doctor` to verify flags are active.

@@ -1,6 +1,6 @@
 ---
 name: flow-develop
-description: "Multi-AI implementation using Codex and Gemini CLIs (Double Diamond Develop phase)"
+description: "Multi-AI implementation using available external providers (Double Diamond Develop phase)"
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
@@ -133,6 +133,7 @@ If `OCTO_ALLOWED_PROVIDERS` is set, treat it as the source of truth for which pr
 Provider Availability:
 🔴 Codex CLI: ${codex_status} - Code generation and patterns
 🟡 Gemini CLI: ${gemini_status} - Alternative approaches
+🧭 Antigravity CLI: ${agy_status} - Additional external-model challenge
 🔵 Claude: Available ✓ - Integration and quality gates
 
 💰 Estimated Cost: $0.02-0.10
@@ -147,6 +148,7 @@ Provider Availability:
 Provider Availability:
 🔴 Codex CLI: ${codex_status} - Structure and framework application
 🟡 Gemini CLI: ${gemini_status} - Content and narrative development
+🧭 Antigravity CLI: ${agy_status} - Additional external-model challenge
 🔵 Claude: Available ✓ - Integration and quality review
 
 💰 Estimated Cost: $0.02-0.10
@@ -209,7 +211,7 @@ ${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh develop "<user's implement
 ```
 
 **CRITICAL: You are PROHIBITED from:**
-- ❌ Implementing directly without calling orchestrate.sh — single-model implementation misses alternative approaches and edge cases that Codex and Gemini surface through independent analysis
+- ❌ Implementing directly without calling orchestrate.sh — single-model implementation misses alternative approaches and edge cases that external providers surface through independent analysis
 - ❌ Writing code without multi-provider perspectives
 - ❌ Claiming you're "simulating" the workflow
 - ❌ Proceeding to Step 4 without running this command
@@ -292,16 +294,16 @@ fi
 Read the synthesis file and present:
 - Recommended approach
 - Implementation steps
-- Code overview from all perspectives (Codex, Gemini, Claude)
+- Code overview from all available perspectives
 - Quality gates results
 - Request user confirmation before implementing
 
-**After user confirms, STEP 6: Implement the solution using Write/Edit tools**
+**After user confirms: Implement the solution using Write/Edit tools**
 
 **Include attribution:**
 ```
 *Multi-AI Implementation powered by Claude Octopus*
-*Providers: 🔴 Codex | 🟡 Gemini | 🔵 Claude*
+*Providers: available external providers + 🔵 Claude*
 *Full implementation plan: $SYNTHESIS_FILE*
 ```
 
@@ -480,7 +482,7 @@ When this skill is invoked, follow the EXECUTION CONTRACT above exactly. The con
 3. **Blocking Step 3**: Execute orchestrate.sh develop via native shell command tool
 4. **Blocking Step 4**: Verify synthesis file exists
 5. **Step 5**: Present implementation plan, get user confirmation
-6. **Step 6**: Implement the solution using Write/Edit tools
+6. **After confirmation**: Implement the solution using Write/Edit tools
 
 Each step is **mandatory and blocking** - you cannot proceed to the next step until the current one completes successfully.
 
@@ -507,7 +509,7 @@ TaskUpdate({taskId: "...", status: "completed"})
 
 If any step fails:
 - **Step 1 (Context)**: Default to Dev Context if ambiguous
-- **Step 2 (Providers)**: If both unavailable, suggest `/octo:setup` and STOP
+- **Step 2 (Providers)**: If all external providers are unavailable, suggest `/octo:setup` and STOP
 - **Step 3 (orchestrate.sh)**: Show bash error, check logs, report to user
 - **Step 4 (Validation)**: If synthesis missing, show orchestrate.sh logs, DO NOT substitute with direct implementation
 

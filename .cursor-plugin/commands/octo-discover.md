@@ -12,8 +12,8 @@ description: "\"Discovery phase - Multi-AI research and exploration\""
 
 ### EXECUTION MECHANISM — NON-NEGOTIABLE
 
-**You MUST execute this command by invoking the corresponding skill via the Skill tool. You are PROHIBITED from:**
-- ❌ Using the Agent tool to research/implement yourself instead of invoking the skill
+**You MUST execute this command by running the discovery workflow through `orchestrate.sh`. You are PROHIBITED from:**
+- ❌ Using the Agent tool to research/implement yourself instead of invoking the workflow
 - ❌ Using WebFetch/Read/Grep as a substitute for multi-provider dispatch
 - ❌ Skipping `orchestrate.sh` calls because "I can do this faster directly"
 - ❌ Implementing the task using only Claude-native tools (Agent, Write, Edit)
@@ -24,15 +24,18 @@ description: "\"Discovery phase - Multi-AI research and exploration\""
 
 When the user invokes this command (e.g., `/octo:discover <arguments>`):
 
-**✓ CORRECT - Use the Skill tool:**
-```
-Skill(skill: "octo:discover", args: "<user's arguments>")
+**✓ CORRECT - Run the orchestrated probe workflow:**
+```bash
+bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" probe <user's arguments>
 ```
 
+Run this from the user's project directory — never `cd` into the plugin first. Dispatched providers sandbox file access to the invoking directory, so a plugin cwd makes the user's project files unreadable to every provider.
+
 **✗ INCORRECT:**
-```
-Skill(skill: "flow-discover", ...)  ❌ Wrong! Internal skill name, not resolvable by Skill tool
-Task(subagent_type: "octo:discover", ...)  ❌ Wrong! This is a skill, not an agent type
+
+```text
+Skill(skill: "octo:discover", ...)  ❌ Wrong here; recursive Skill dispatch can reload this command
+Task(subagent_type: "octo:discover", ...)  ❌ Wrong! This is a command workflow, not an agent type
 ```
 
 ### Step 1: Ask Clarifying Questions
@@ -85,19 +88,19 @@ Map the intensity answer:
 - "Standard" → `standard`
 - "Deep" → `deep`
 
-After receiving answers, incorporate them into the Skill invocation.
+After receiving answers, incorporate them into the `orchestrate.sh probe` invocation.
 
-### Step 2: Invoke Skill with Intensity
+### Step 2: Run Discovery via orchestrate.sh
 
+```bash
+bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" probe [intensity=quick|standard|deep] <user's arguments>
 ```
-Skill(skill: "octo:discover", args: "[intensity=quick|standard|deep] <user's arguments>")
-```
 
-Example: `Skill(skill: "octo:discover", args: "[intensity=standard] OAuth authentication patterns")`
+Example: `bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" probe [intensity=standard] OAuth authentication patterns`
 
 ### Step 3: Post-Completion — Interactive Next Steps
 
-**CRITICAL: After the skill completes, you MUST ask the user what to do next. Do NOT end the session silently.**
+**CRITICAL: After discovery completes, you MUST ask the user what to do next. Do NOT end the session silently.**
 
 ```javascript
 AskUserQuestion({
@@ -120,7 +123,7 @@ AskUserQuestion({
 
 ---
 
-**Auto-loads the discover skill for the research/discovery phase.**
+**Runs the `probe` workflow for the research/discovery phase.**
 
 ## Quick Usage
 

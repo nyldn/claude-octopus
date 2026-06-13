@@ -356,7 +356,7 @@ echo "Test 18: Checking for multi-AI attribution..."
 skills_with_attribution=0
 for skill_file in "${ENFORCE_SKILLS[@]}"; do
     if grep -q "Multi-AI.*powered by Claude Octopus" "$skill_file" && \
-       grep -q "Providers: 🔴 Codex | 🟡 Gemini | 🔵 Claude" "$skill_file"; then
+       grep -q "Providers: 🔴 Codex | 🟡 Gemini | 🧭 Antigravity | 🔵 Claude" "$skill_file"; then
         ((skills_with_attribution++)) || true
     else
         fail "$(claude_skill_slug "$skill_file") missing attribution footer" \

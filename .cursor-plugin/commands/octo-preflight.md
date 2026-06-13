@@ -1,6 +1,5 @@
 ---
-command: preflight
-description: Check provider health before running multi-LLM workflows
+description: "Check provider health before running multi-LLM workflows"
 allowed-tools: Bash
 ---
 

@@ -42,7 +42,7 @@ All slash commands use the `/octo:` namespace. The smart router command is `/oct
 | `/octo:research` | Deep research with multi-source synthesis |
 | `/octo:brainstorm` | Creative thought partner brainstorming session |
 | `/octo:council` | Persona-based multi-LLM council with budget, quorum, veto, and implementation gates |
-| `/octo:debate` | AI Debate Hub — four-way debates (Claude + Gemini + Codex) |
+| `/octo:debate` | AI Debate Hub — structured debates across Claude and available external providers |
 | `/octo:prd` | Write an AI-optimized PRD with 100-point scoring |
 | `/octo:prd-score` | Score an existing PRD against the framework |
 | `/octo:spec` | NLSpec authoring from multi-AI research |
@@ -206,7 +206,7 @@ Check setup status and configure AI providers.
 ```
 
 **What it does:**
-- Auto-detects installed providers (Codex CLI, Gemini CLI)
+- Auto-detects installed providers (Codex CLI, Gemini CLI, Antigravity CLI, and other configured providers)
 - Shows which providers are available and their auth status
 - Provides installation instructions for missing providers
 - Verifies API keys and authentication
@@ -244,7 +244,7 @@ Run environment diagnostics across 9 check categories.
 
 | Category | What it checks |
 |----------|---------------|
-| `providers` | Claude Code version, Codex CLI, Gemini CLI |
+| `providers` | Claude Code version, Codex CLI, Gemini CLI, Antigravity CLI, and other configured providers |
 | `auth` | Authentication status for each provider |
 | `config` | Plugin version, install scope, feature flags |
 | `state` | Project state.json, stale results, workspace writable |
@@ -353,7 +353,7 @@ Full Double Diamond workflow — all 4 phases in sequence.
 3. **Develop** 🛠️ — Multi-AI implementation with quality gates (75% threshold)
 4. **Deliver** ✅ — Validation, go/no-go recommendation, PR comment posting
 
-**Multi-LLM debate gates** at each phase transition — optional Claude + Codex + Gemini deliberation before moving forward.
+**Multi-LLM debate gates** at each phase transition — optional Claude plus available-provider deliberation before moving forward.
 
 Shows visual indicator: 🐙 (all phases)
 
@@ -495,7 +495,7 @@ Deep research with multi-provider fanout, visible provider status, and attribute
 
 **What it does:**
 - Parses `--breadth=light|standard|exhaustive` and maps it to a dynamic research fleet
-- Runs multi-AI research across available providers such as Claude, Codex, Gemini, Copilot, Qwen, OpenCode, Ollama, Perplexity, OpenRouter, and WebFetch/WebSearch where configured
+- Runs multi-AI research across available providers such as Claude, Codex, Gemini, Antigravity, Copilot, Qwen, OpenCode, Ollama, Perplexity, OpenRouter, and WebFetch/WebSearch where configured
 - Applies provider-aware prompt-size preflight before dispatch, using `OCTOPUS_OVERSIZE_STRATEGY=summarize|truncate|fail`
 - Renders an agent summary table before synthesis so failed, degraded, or timed-out providers are visible
 - Synthesizes findings into actionable, structured insights with provider attribution and disagreement notes
@@ -505,8 +505,8 @@ Deep research with multi-provider fanout, visible provider status, and attribute
 | Breadth | Typical Fleet | Time Budget | Best For |
 |---------|---------------|-------------|----------|
 | `light` | Claude + Codex | ~60s | Quick technical checks |
-| `standard` | Claude + Codex + Gemini | ~180s | Default research and trade-offs |
-| `exhaustive` | Claude + Codex + Gemini + Perplexity/OpenRouter/Web | ~360s | High-stakes or broad ecosystem research |
+| `standard` | Claude + available providers such as Codex, Gemini, and Antigravity | ~180s | Default research and trade-offs |
+| `exhaustive` | Claude + available providers + Perplexity/OpenRouter/Web where configured | ~360s | High-stakes or broad ecosystem research |
 
 If no breadth is provided, Octopus uses `OCTOPUS_RESEARCH_BREADTH` when set, otherwise it defaults to standard or asks when the query is underspecified.
 
@@ -527,7 +527,7 @@ Creative thought partner brainstorming session — Solo or Multi-AI Team mode.
 | Mode | What happens | Cost |
 |------|-------------|------|
 | **Solo** | Claude-only thought partner — fast, focused, interactive | Claude Code subscription only |
-| **Team** | Multi-AI brainstorm — Codex + Gemini + Claude provide diverse perspectives | Uses external API credits |
+| **Team** | Multi-AI brainstorm — Claude plus available external providers provide diverse perspectives | Uses external provider credits/subscriptions where applicable |
 
 **How to toggle multi:** When you run `/octo:brainstorm`, a mode selector appears before the session starts. Select **Team** to activate multi-LLM brainstorming.
 
@@ -543,7 +543,7 @@ Creative thought partner brainstorming session — Solo or Multi-AI Team mode.
   - 🔴 Codex CLI — Technical feasibility and implementation angles
   - 🟡 Gemini CLI — Lateral thinking and ecosystem connections
   - 🔵 Claude — Synthesis, pattern naming, and moderation
-- Provider-attributed results (🔴 🟡 🔵)
+- Provider-attributed results (for example 🔴 🟡 🧭 🔵)
 - Cross-perspective synthesis: convergence, divergence, and strongest ideas
 - Interactive challenge and building on the best ideas
 - Multi-perspective breakthroughs export
@@ -560,7 +560,7 @@ Creative thought partner brainstorming session — Solo or Multi-AI Team mode.
 
 ### `/octo:debate`
 
-AI Debate Hub — structured four-way debates between Claude, Gemini, and Codex.
+AI Debate Hub — structured debates between Claude and available external providers such as Codex, Gemini, Antigravity, OpenCode, and OpenRouter.
 
 **Usage:**
 ```
@@ -849,7 +849,7 @@ Dark Factory Mode — spec-in, software-out autonomous pipeline.
 2. Parses the NLSpec file
 3. Generates test scenarios (Codex)
 4. Runs the full embrace workflow
-5. Evaluates against holdout test suite (Codex + Gemini blind review)
+5. Evaluates against holdout test suite with available-provider blind review
 6. Scores against satisfaction target
 7. Repeats if target not met (up to configured limit)
 8. Produces final delivery report
@@ -872,10 +872,10 @@ Force multi-provider parallel execution for any task — manual override mode.
 
 **What it does:**
 - Asks for intent and cost confirmation before proceeding
-- Runs the task in parallel across Codex, Gemini, and Claude
+- Runs the task in parallel across Claude plus available external providers
 - Synthesizes perspectives into a unified response
 
-**Cost:** Uses external API credits (Codex + Gemini). Confirms before running.
+**Cost:** May use external API credits or provider subscriptions. Confirms before running.
 
 **When to use:** High-stakes decisions, cross-checking important work, comparing model perspectives. For most tasks, the router (`/octo:auto` or `octo ...`) or specific workflow commands are better.
 
@@ -1056,7 +1056,7 @@ Full UI/UX design workflow with BM25 design intelligence and optional Figma inte
 - 🎨 Figma MCP — Design context when a Figma URL is provided
 - 🧩 shadcn MCP — Component suggestions when available
 
-**Multi-LLM adversarial design critique** (v8.43.0+): Between Define and Develop phases, Codex, Gemini, and Claude each review the proposed design direction independently, issues are triaged, and fixes are applied before tokens/components are generated.
+**Multi-LLM adversarial design critique** (v8.43.0+): Between Define and Develop phases, Claude plus available external providers review the proposed design direction independently, issues are triaged, and fixes are applied before tokens/components are generated.
 
 ---
 
@@ -1390,7 +1390,7 @@ Resume a previously-running Claude agent by ID.
 **Requirements:**
 - Claude Code v2.1.34+ (`SUPPORTS_CONTINUATION=true`)
 - Agent Teams enabled
-- Agent must be a Claude agent (Codex/Gemini agents don't support transcripts)
+- Agent must be a Claude agent (external CLI agents don't support transcripts)
 
 **Find agent IDs:** Check `/octo:sentinel` output or `~/.claude-octopus/results/` for recent result files.
 
@@ -1464,7 +1464,7 @@ Package and finalize completed work for delivery.
 
 **Behavior:**
 1. Verifies project is ready (all phases complete)
-2. Runs Multi-AI security audit (Codex + Gemini + Claude)
+2. Runs Multi-AI security audit with Claude plus available external providers
 3. Captures lessons learned
 4. Archives project state
 5. Creates shipped checkpoint

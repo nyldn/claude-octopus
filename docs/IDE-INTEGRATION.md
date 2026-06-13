@@ -53,7 +53,7 @@ After setup, these tools appear in your IDE's AI chat:
 
 | Tool | Description |
 |------|-------------|
-| `octopus_discover` | Multi-provider research (Codex + Gemini) |
+| `octopus_discover` | Multi-provider research across available providers |
 | `octopus_define` | Consensus building on requirements |
 | `octopus_develop` | Implementation with quality gates |
 | `octopus_deliver` | Final validation and review |
@@ -111,7 +111,7 @@ Create `.vscode/mcp.json` in your project:
 
 **What works in Cursor:**
 - All MCP tools (research, review, debate, security audit, etc.)
-- Multi-provider dispatch (Codex + Gemini + Claude via the MCP server)
+- Multi-provider dispatch (Claude plus available providers such as Codex, Gemini, and Antigravity via the MCP server)
 - Editor context injection via `octopus_set_editor_context`
 
 **What doesn't work in Cursor:**

@@ -6,7 +6,7 @@ trigger: |
   PRIORITY TRIGGERS (always invoke immediately):
   - "/octo:multi" (explicit command)
   - "run this with all providers", "run with all providers"
-  - "I want all three AI models to look at", "use all providers for"
+  - "I want multiple AI models to look at", "use all providers for"
   - "get multiple perspectives on", "force multi-provider analysis"
 
   AUTOMATICALLY ACTIVATE (without asking user) when the user requests:
@@ -146,7 +146,7 @@ Claude Octopus uses **visual indicators** so you always know which AI is respond
 
 **Why this matters:** External CLIs use your OpenAI/Google API quotas and incur costs. Claude subagents are included with Claude Code at no additional charge.
 
-When you see 🐙 **CLAUDE OCTOPUS ACTIVATED**, external CLI providers (Codex/Gemini) will be invoked for multi-perspective analysis.
+When you see 🐙 **CLAUDE OCTOPUS ACTIVATED**, external CLI providers such as Codex, Gemini, Antigravity, and others will be invoked for multi-perspective analysis.
 
 ---
 
@@ -171,7 +171,7 @@ You can also force multi-provider mode with natural language:
 
 ```
 "Run this with all providers: What is JWT?"
-"I want all three AI models to look at our architecture"
+"I want multiple AI models to look at our architecture"
 "Get multiple perspectives on this design decision"
 "Use all providers for explaining caching strategies"
 "Force multi-provider analysis of our API design"
@@ -220,7 +220,7 @@ Providers:
 🔵 Claude - [Role in this task]
 ```
 
-Followed by results from each provider marked with their indicators (🔴 🟡 🔵).
+Followed by results from each provider marked with their indicators (for example 🔴 🟡 🧭 🔵).
 
 ---
 
@@ -462,7 +462,7 @@ Different models have different blind spots. Crossfire commands force models to 
 
 *Two tentacles wrestling until consensus*
 
-Codex and Gemini each propose solutions, then critique each other's work. A synthesis determines the winner.
+Available providers each propose solutions, then critique each other's work. A synthesis determines the winner.
 
 ```
 ┌─────────────┐     ┌─────────────┐
@@ -707,7 +707,7 @@ cost_optimization:
 
 ### OpenRouter Fallback
 
-OpenRouter provides 400+ models as a universal fallback when Codex/Gemini are unavailable:
+OpenRouter provides 400+ models as a universal fallback when direct external CLIs are unavailable:
 
 ```bash
 # Set up OpenRouter API key

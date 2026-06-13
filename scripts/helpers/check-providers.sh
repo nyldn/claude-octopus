@@ -35,6 +35,7 @@ fi
 echo "PROVIDER_CHECK_START"
 provider_status "codex" "$(command -v codex >/dev/null 2>&1 && echo available || echo missing)"
 provider_status "gemini" "$(command -v gemini >/dev/null 2>&1 && echo available || echo missing)"
+provider_status "agy" "$(command -v agy >/dev/null 2>&1 && echo available || echo missing)"
 provider_status "perplexity" "$([ -n "${PERPLEXITY_API_KEY:-}" ] && echo available || echo missing)"
 provider_status "opencode" "$(command -v opencode >/dev/null 2>&1 && echo available || echo missing)"
 provider_status "copilot" "$(command -v copilot >/dev/null 2>&1 && echo available || echo missing)"

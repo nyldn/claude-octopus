@@ -2,7 +2,7 @@
 
 ## Threat Model
 
-Claude Octopus orchestrates external AI CLI tools (Codex CLI, Gemini CLI) with user-provided prompts. This creates the following threat surfaces:
+Claude Octopus orchestrates external AI CLI tools (Codex CLI, Gemini CLI, Antigravity CLI, and others) with user-provided prompts. This creates the following threat surfaces:
 
 ### Trust Boundaries
 
@@ -12,7 +12,7 @@ Claude Octopus orchestrates external AI CLI tools (Codex CLI, Gemini CLI) with u
 | Environment Variables | API keys, workspace paths | Medium |
 | Task Files | JSON files defining parallel execution | Medium |
 | CI/CD Environment | GitHub Actions workflow inputs | High |
-| External CLIs | Codex, Gemini, Copilot, Ollama responses | Low |
+| External CLIs | Codex, Gemini, Antigravity, Copilot, Ollama responses | Low |
 
 ### Attack Vectors and Mitigations
 

@@ -64,6 +64,7 @@ fi
 echo "PROVIDER_CHECK_START"
 printf "codex:%s\n" "$(command -v codex >/dev/null 2>&1 && echo available || echo missing)"
 printf "gemini:%s\n" "$(command -v gemini >/dev/null 2>&1 && echo available || echo missing)"
+printf "agy:%s\n" "$(command -v agy >/dev/null 2>&1 && echo available || echo missing)"
 printf "perplexity:%s\n" "$([ -n "${PERPLEXITY_API_KEY:-}" ] && echo available || echo missing)"
 printf "opencode:%s\n" "$(command -v opencode >/dev/null 2>&1 && echo available || echo missing)"
 printf "copilot:%s\n" "$(command -v copilot >/dev/null 2>&1 && echo available || echo missing)"
@@ -73,23 +74,59 @@ printf "openrouter:%s\n" "$([ -n "${OPENROUTER_API_KEY:-}" ] && echo available |
 echo "PROVIDER_CHECK_END"
 ```
 
-Display the factory banner with ACTUAL results:
+Render the factory banner from actual provider checks. Do not hand-write or summarize this banner; run this block and display its output exactly. The output MUST include the Antigravity line even when `agy` is missing.
+
+```bash
+status_cli() { command -v "$1" >/dev/null 2>&1 && echo "Available ✓" || echo "Not installed ✗"; }
+status_env() { [[ -n "${1:-}" ]] && echo "Configured ✓" || echo "Not configured ✗"; }
+codex_status="$(status_cli codex)"
+gemini_status="$(status_cli gemini)"
+agy_status="$(status_cli agy)"
+opencode_status="$(status_cli opencode)"
+copilot_status="$(status_cli copilot)"
+qwen_status="$(status_cli qwen)"
+if command -v ollama >/dev/null 2>&1 && curl -sf http://localhost:11434/api/tags >/dev/null 2>&1; then ollama_status="Available ✓"; else ollama_status="Not installed ✗"; fi
+perplexity_status="$(status_env "${PERPLEXITY_API_KEY:-}")"
+cat <<BANNER
+CLAUDE OCTOPUS ACTIVATED - Dark Factory Mode
+Pipeline: Parse → Scenarios → Embrace → Holdout → Score → Report
+
+Providers:
+  🔴 Codex CLI: ${codex_status}
+  🟡 Gemini CLI: ${gemini_status}
+  🧭 Antigravity CLI: ${agy_status}
+  🟤 OpenCode: ${opencode_status}
+  🟢 Copilot CLI: ${copilot_status}
+  🟠 Qwen CLI: ${qwen_status}
+  ⚫ Ollama: ${ollama_status}
+  🔵 Claude: Available ✓ - Orchestration, synthesis, satisfaction scoring
+  🟣 Perplexity: ${perplexity_status}
+BANNER
+```
+
+The rendered factory banner must look like this shape, with ACTUAL statuses:
 
 ```
 CLAUDE OCTOPUS ACTIVATED - Dark Factory Mode
 Pipeline: Parse → Scenarios → Embrace → Holdout → Score → Report
 
 Providers:
-  🔴 Codex CLI: [Available ✓ / Not installed ✗] - Scenario generation + holdout evaluation
-  🟡 Gemini CLI: [Available ✓ / Not installed ✗] - Cross-provider diversity + blind review
+  🔴 Codex CLI: [Available ✓ / Not installed ✗]
+  🟡 Gemini CLI: [Available ✓ / Not installed ✗]
+  🧭 Antigravity CLI: [Available ✓ / Not installed ✗]
+  🟤 OpenCode: [Available ✓ / Not installed ✗]
+  🟢 Copilot CLI: [Available ✓ / Not installed ✗]
+  🟠 Qwen CLI: [Available ✓ / Not installed ✗]
+  ⚫ Ollama: [Available ✓ / Not installed ✗]
   🔵 Claude: Available ✓ - Orchestration, synthesis, satisfaction scoring
+  🟣 Perplexity: [Configured ✓ / Not configured ✗]
 
 Spec: <spec-path>
 Estimated cost: $0.50-2.00 (~20-30 agent calls)
 ```
 
 **PROHIBITED: Displaying only Claude without listing all providers.**
-If both external providers are missing, warn but proceed (Claude-only mode is supported).
+If no external providers are available, warn but proceed (Claude-only mode is supported).
 
 ### EXECUTION MECHANISM — NON-NEGOTIABLE
 

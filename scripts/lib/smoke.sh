@@ -23,6 +23,12 @@ PROVIDER_GEMINI_TIER="free"
 PROVIDER_GEMINI_COST_TIER="free"
 PROVIDER_GEMINI_PRIORITY=3
 
+PROVIDER_AGY_INSTALLED="false"
+PROVIDER_AGY_AUTH_METHOD="none"
+PROVIDER_AGY_TIER="subscription"
+PROVIDER_AGY_COST_TIER="bundled"
+PROVIDER_AGY_PRIORITY=4
+
 PROVIDER_CLAUDE_INSTALLED="false"
 PROVIDER_CLAUDE_AUTH_METHOD="none"
 PROVIDER_CLAUDE_TIER="pro"
@@ -33,7 +39,7 @@ PROVIDER_OPENCODE_INSTALLED="false"
 PROVIDER_OPENCODE_AUTH_METHOD="none"
 PROVIDER_OPENCODE_TIER="free"
 PROVIDER_OPENCODE_COST_TIER="variable"
-PROVIDER_OPENCODE_PRIORITY=4
+PROVIDER_OPENCODE_PRIORITY=5
 
 PROVIDER_OPENROUTER_ENABLED="false"
 PROVIDER_OPENROUTER_API_KEY_SET="false"
@@ -63,6 +69,9 @@ get_provider_capabilities() {
         gemini)
             echo "code,chat,vision,long-context,analysis"
             ;;
+        agy)
+            echo "code,chat,analysis"
+            ;;
         claude)
             echo "code,chat,analysis,long-context"
             ;;
@@ -89,6 +98,9 @@ get_provider_context_limit() {
             ;;
         gemini:*)
             echo "1000000"  # 1M for free/google-one
+            ;;
+        agy:*)
+            echo "200000"  # Varies by selected Antigravity backend model
             ;;
         claude:max-20x|claude:max-5x)
             echo "200000"
@@ -182,6 +194,15 @@ load_providers_config() {
                         priority) PROVIDER_GEMINI_PRIORITY="$value" ;;
                     esac
                     ;;
+                agy)
+                    case "$key" in
+                        installed) PROVIDER_AGY_INSTALLED="$value" ;;
+                        auth_method) PROVIDER_AGY_AUTH_METHOD="$value" ;;
+                        subscription_tier) PROVIDER_AGY_TIER="$value" ;;
+                        cost_tier) PROVIDER_AGY_COST_TIER="$value" ;;
+                        priority) PROVIDER_AGY_PRIORITY="$value" ;;
+                    esac
+                    ;;
                 claude)
                     case "$key" in
                         installed) PROVIDER_CLAUDE_INSTALLED="$value" ;;
@@ -230,6 +251,18 @@ load_providers_config() {
     PROVIDER_GEMINI_COST_TIER="${PROVIDER_GEMINI_COST_TIER:-free}"
     PROVIDER_GEMINI_PRIORITY="${PROVIDER_GEMINI_PRIORITY:-3}"
 
+    PROVIDER_AGY_INSTALLED="${PROVIDER_AGY_INSTALLED:-false}"
+    PROVIDER_AGY_AUTH_METHOD="${PROVIDER_AGY_AUTH_METHOD:-none}"
+    PROVIDER_AGY_TIER="${PROVIDER_AGY_TIER:-subscription}"
+    PROVIDER_AGY_COST_TIER="${PROVIDER_AGY_COST_TIER:-bundled}"
+    PROVIDER_AGY_PRIORITY="${PROVIDER_AGY_PRIORITY:-4}"
+    if [[ "$PROVIDER_AGY_INSTALLED" != "true" ]] && command -v agy >/dev/null 2>&1; then
+        PROVIDER_AGY_INSTALLED="true"
+        PROVIDER_AGY_AUTH_METHOD="cli"
+        PROVIDER_AGY_TIER="subscription"
+        PROVIDER_AGY_COST_TIER="bundled"
+    fi
+
     PROVIDER_CLAUDE_INSTALLED="${PROVIDER_CLAUDE_INSTALLED:-false}"
     PROVIDER_CLAUDE_AUTH_METHOD="${PROVIDER_CLAUDE_AUTH_METHOD:-oauth}"
     PROVIDER_CLAUDE_TIER="${PROVIDER_CLAUDE_TIER:-pro}"
@@ -240,7 +273,7 @@ load_providers_config() {
     PROVIDER_OPENCODE_AUTH_METHOD="${PROVIDER_OPENCODE_AUTH_METHOD:-none}"
     PROVIDER_OPENCODE_TIER="${PROVIDER_OPENCODE_TIER:-free}"
     PROVIDER_OPENCODE_COST_TIER="${PROVIDER_OPENCODE_COST_TIER:-variable}"
-    PROVIDER_OPENCODE_PRIORITY="${PROVIDER_OPENCODE_PRIORITY:-4}"
+    PROVIDER_OPENCODE_PRIORITY="${PROVIDER_OPENCODE_PRIORITY:-5}"
 
     PROVIDER_OPENROUTER_ENABLED="${PROVIDER_OPENROUTER_ENABLED:-false}"
     PROVIDER_OPENROUTER_API_KEY_SET="${PROVIDER_OPENROUTER_API_KEY_SET:-false}"
@@ -276,6 +309,12 @@ auto_detect_provider_config() {
                 # Detect tier via workspace check or fallback to auth-based default
                 PROVIDER_GEMINI_TIER=$(detect_tier_gemini "$auth")
                 PROVIDER_GEMINI_COST_TIER=$(get_cost_tier_for_subscription "gemini" "$PROVIDER_GEMINI_TIER")
+                ;;
+            agy)
+                PROVIDER_AGY_INSTALLED="true"
+                PROVIDER_AGY_AUTH_METHOD="$auth"
+                PROVIDER_AGY_TIER="subscription"
+                PROVIDER_AGY_COST_TIER="bundled"
                 ;;
             claude)
                 PROVIDER_CLAUDE_INSTALLED="true"
@@ -565,6 +604,13 @@ providers:
     cost_tier: "$PROVIDER_GEMINI_COST_TIER"
     priority: $PROVIDER_GEMINI_PRIORITY
 
+  agy:
+    installed: $PROVIDER_AGY_INSTALLED
+    auth_method: "$PROVIDER_AGY_AUTH_METHOD"
+    subscription_tier: "$PROVIDER_AGY_TIER"
+    cost_tier: "$PROVIDER_AGY_COST_TIER"
+    priority: $PROVIDER_AGY_PRIORITY
+
   claude:
     installed: $PROVIDER_CLAUDE_INSTALLED
     auth_method: "$PROVIDER_CLAUDE_AUTH_METHOD"
@@ -619,6 +665,12 @@ score_provider() {
             cost_tier="$PROVIDER_GEMINI_COST_TIER"
             sub_tier="$PROVIDER_GEMINI_TIER"
             priority="$PROVIDER_GEMINI_PRIORITY"
+            ;;
+        agy)
+            [[ "$PROVIDER_AGY_INSTALLED" == "true" && "$PROVIDER_AGY_AUTH_METHOD" != "none" ]] && is_available="true"
+            cost_tier="$PROVIDER_AGY_COST_TIER"
+            sub_tier="$PROVIDER_AGY_TIER"
+            priority="$PROVIDER_AGY_PRIORITY"
             ;;
         claude)
             [[ "$PROVIDER_CLAUDE_INSTALLED" == "true" ]] && is_available="true"
@@ -757,7 +809,7 @@ select_provider() {
     local best_provider=""
     local best_score=-1
 
-    for provider in codex gemini claude opencode openrouter; do
+    for provider in codex gemini agy claude opencode openrouter; do
         local score
         score=$(score_provider "$provider" "$task_type" "$complexity")
 
@@ -775,6 +827,8 @@ select_provider() {
             echo "codex"
         elif [[ "$PROVIDER_GEMINI_INSTALLED" == "true" && "$PROVIDER_GEMINI_AUTH_METHOD" != "none" ]]; then
             echo "gemini"
+        elif [[ "$PROVIDER_AGY_INSTALLED" == "true" && "$PROVIDER_AGY_AUTH_METHOD" != "none" ]]; then
+            echo "agy"
         elif [[ "$PROVIDER_OPENROUTER_ENABLED" == "true" ]]; then
             echo "openrouter"
         else
@@ -804,6 +858,11 @@ show_provider_status() {
     local gemini_status="${RED}✗${NC}"
     [[ "$PROVIDER_GEMINI_INSTALLED" == "true" && "$PROVIDER_GEMINI_AUTH_METHOD" != "none" ]] && gemini_status="${GREEN}✓${NC}"
     echo -e "${CYAN}║${NC}  Gemini:         $gemini_status  [$PROVIDER_GEMINI_AUTH_METHOD]  $PROVIDER_GEMINI_TIER ($PROVIDER_GEMINI_COST_TIER)  ${CYAN}║${NC}"
+
+    # Antigravity
+    local agy_status="${RED}✗${NC}"
+    [[ "$PROVIDER_AGY_INSTALLED" == "true" && "$PROVIDER_AGY_AUTH_METHOD" != "none" ]] && agy_status="${GREEN}✓${NC}"
+    echo -e "${CYAN}║${NC}  Antigravity:    $agy_status  [$PROVIDER_AGY_AUTH_METHOD]  $PROVIDER_AGY_TIER ($PROVIDER_AGY_COST_TIER)  ${CYAN}║${NC}"
 
     # Claude
     local claude_status="${RED}✗${NC}"

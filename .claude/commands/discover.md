@@ -36,7 +36,8 @@ bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" probe <user's argum
 Run this from the user's project directory — never `cd` into the plugin first. Dispatched providers sandbox file access to the invoking directory, so a plugin cwd makes the user's project files unreadable to every provider.
 
 **✗ INCORRECT:**
-```
+
+```text
 Skill(skill: "octo:discover", ...)  ❌ Wrong here; recursive Skill dispatch can reload this command
 Task(subagent_type: "octo:discover", ...)  ❌ Wrong! This is a command workflow, not an agent type
 ```

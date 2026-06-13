@@ -74,6 +74,7 @@ Providers                          Status
   🔵 Claude (Sonnet/Opus)          Built-in ✓
   🔴 Codex (GPT-5.4)              [Installed ✓ / Missing ✗]  → current: <model>
   🟡 Gemini                        [Installed ✓ / Missing ✗]  → current: <model>
+  🧭 Antigravity (`agy`)           [Installed ✓ / Missing ✗]  → current: <model>
   🟣 Perplexity                    [Configured ✓ / Not set]
   🟠 OpenRouter                    [Configured ✓ / Not set]
   ...other installed providers...
@@ -104,7 +105,7 @@ AskUserQuestion({
     header: "Model Config",
     multiSelect: false,
     options: [
-      {label: "Provider defaults", description: "Set default models for Codex, Gemini, OpenRouter, etc."},
+      {label: "Provider defaults", description: "Set default models for Codex, Gemini, Antigravity, OpenRouter, etc."},
       {label: "Phase routing", description: "Choose which model handles each workflow phase (discover, develop, review, etc.)"},
       {label: "Debate & multi-LLM", description: "Configure which providers participate in debates, parallel execution, and reviews"},
       {label: "Session provider availability", description: "Temporarily enable or disable providers for this Claude Code session"},
@@ -132,6 +133,8 @@ AskUserQuestion({
       {label: "🔴 Codex (OpenAI)", description: "Current: <current_model> — handles implementation, reasoning"},
       // Only if gemini installed:
       {label: "🟡 Gemini (Google)", description: "Current: <current_model> — handles research, creative tasks"},
+      // Only if agy installed:
+      {label: "🧭 Antigravity (agy)", description: "Current: <current_model> — additional external-model perspective"},
       // Only if perplexity configured:
       {label: "🟣 Perplexity", description: "Current: <current_model> — handles web search, real-time data"},
       // Only if openrouter configured:
@@ -295,6 +298,7 @@ AskUserQuestion({
       {label: "🔵 Claude (Sonnet 4.6 / Opus 4.7)", description: "Moderator — instruction-following, synthesis"},
       {label: "🔴 Codex (GPT-5.4)", description: "Technical depth — architecture, implementation"},
       {label: "🟡 Gemini", description: "Ecosystem perspective — alternatives, trends"},
+      {label: "🧭 Antigravity (agy)", description: "Alternate model perspective via Antigravity CLI"},
       {label: "🟠 OpenRouter: GLM-5", description: "Code review specialist — quality focus"},
       {label: "🟠 OpenRouter: Kimi K2.5", description: "Research perspective — broad knowledge"},
       {label: "🟤 OpenCode", description: "Multi-model router — varied perspectives"}
@@ -488,7 +492,7 @@ When invoked WITH arguments (e.g., `/octo:model-config codex gpt-5.4`), skip the
 
 ### Validation Gates
 
-- Provider names validated against whitelist: `codex gemini claude perplexity openrouter opencode copilot ollama qwen`
+- Provider names validated against whitelist: `codex gemini agy antigravity claude perplexity openrouter opencode copilot ollama qwen`
 - Phase names validated against known list
 - Model names checked for injection safety (alphanumeric, hyphens, dots, slashes only)
 - Config file operations use atomic write (tmp + mv)

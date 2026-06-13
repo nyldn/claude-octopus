@@ -51,6 +51,7 @@ This skill uses **ENFORCED execution mode**. You MUST follow this exact sequence
 ```bash
 command -v codex &> /dev/null && codex_status="Available ✓" || codex_status="Not installed ✗"
 command -v gemini &> /dev/null && gemini_status="Available ✓" || gemini_status="Not installed ✗"
+command -v agy &> /dev/null && agy_status="Available ✓" || agy_status="Not installed ✗"
 ```
 
 **Display this banner BEFORE orchestrate.sh execution:**
@@ -62,6 +63,7 @@ command -v gemini &> /dev/null && gemini_status="Available ✓" || gemini_status
 Provider Availability:
 🔴 Codex CLI: ${codex_status} - [Role in this workflow]
 🟡 Gemini CLI: ${gemini_status} - [Role in this workflow]
+🧭 Antigravity CLI: ${agy_status} - [Role in this workflow]
 🔵 Claude: Available ✓ - [Role in this workflow]
 
 💰 Estimated Cost: $[range]
@@ -69,9 +71,8 @@ Provider Availability:
 ```
 
 **Validation:**
-- If BOTH Codex and Gemini unavailable → STOP, suggest: `/octo:setup`
-- If ONE unavailable → Continue with available provider(s)
-- If BOTH available → Proceed normally
+- If zero external providers (Codex, Gemini, Antigravity) are available → STOP, suggest: `/octo:setup`
+- If one or more external providers are available → Proceed normally with available provider(s)
 
 **DO NOT PROCEED TO STEP 2 until banner displayed.**
 

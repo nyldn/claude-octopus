@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### Added
+
+- Add native Antigravity CLI (`agy`) provider detection, fleet selection, stdin print-mode dispatch, model/env configuration, trust markers, docs, and tests (#423).
+
+### Fixed
+
+- Normalize provider-aware slash command banners so Codex, Gemini, Antigravity, and Perplexity status are always visible when provider checks run.
+- Fix provider workflow snippets that used project roots, stale status placeholders, shared temp paths, or hardcoded provider attribution.
+
 ## [9.44.0] - 2026-06-10
 
 

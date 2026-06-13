@@ -15,6 +15,7 @@ When executing Claude Octopus workflows, you MUST display visual indicators so u
 | 🐙 | Claude Octopus multi-AI mode active | Multiple APIs |
 | 🔴 | Codex CLI executing | User's OPENAI_API_KEY |
 | 🟡 | Gemini CLI executing | User's GEMINI_API_KEY |
+| 🧭 | Antigravity CLI executing | User's Antigravity access/subscription |
 | 🟣 | Perplexity Sonar web search | User's PERPLEXITY_API_KEY |
 | 🔵 | Claude subagent processing | Included with Claude Code |
 
@@ -25,6 +26,10 @@ Display indicators when:
 - Running `orchestrate.sh` with any workflow (probe, grasp, tangle, ink, embrace, etc.)
 - User triggers workflow with "octo" prefix ("octo research X", "octo build Y")
 - Executing multi-provider operations
+
+Provider emoji are required in status banners, provider rows, compact banners,
+and result attribution labels. Narrative prose may use provider names without
+emoji.
 
 ### Required Output Format
 
@@ -206,6 +211,7 @@ echo "Progress: 50%" > ~/.claude/scratchpad/$(cat ~/.claude/session-id)/phase1-p
 Before running workflows, check provider availability:
 - Codex CLI: `command -v codex` or check for OPENAI_API_KEY
 - Gemini CLI: `command -v gemini` or check for GEMINI_API_KEY
+- Antigravity CLI: `command -v agy`
 - Perplexity: check for PERPLEXITY_API_KEY (API-only, no CLI needed)
 - OpenRouter: check for OPENROUTER_API_KEY
 - Ollama: `command -v ollama` + server health at http://localhost:11434
@@ -228,6 +234,7 @@ Providers:
 Always be mindful that external CLIs cost money:
 - 🔴 Codex: ~$0.01-0.30 per query depending on model (GPT-5.5 $5/$30 MTok — premium default as of v9.44, GPT-5.4 $2.50/$15, GPT-5.3-Codex $1.75/$14, Mini $0.25/$2.00 MTok)
 - 🟡 Gemini: ~$0.01-0.03 per query (Gemini 3.1 Pro Preview $2.50/$10 MTok, 3 Flash Preview $0.25/$1)
+- 🧭 Antigravity CLI (`agy`): Included with the user's Antigravity access/subscription; backend cost depends on selected `OCTOPUS_AGY_MODEL`
 - 🟣 Perplexity: ~$0.01-0.05 per query (Sonar Pro $3/$15 MTok, Sonar $1/$1 MTok)
 - 🔵 Claude (Sonnet 4.6): Included with Claude Code subscription
 - 🔵 Claude (Fable 5, Mythos-class, opt-in via `OCTOPUS_OPUS_MODEL=claude-fable-5`): **$10/$50 per MTok** — 2x Opus 4.8 cost. 1M context, 128K output. Never auto-selected. Note: Anthropic retains prompts/outputs up to 30 days for safety classifiers.

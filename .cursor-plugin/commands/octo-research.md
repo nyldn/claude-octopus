@@ -65,15 +65,16 @@ Map the answer to an intensity value:
 
 **✓ CORRECT - Use the Skill tool:**
 ```
-Skill(skill: "octo:discover", args: "[breadth=light|standard|exhaustive] [intensity=quick|standard|deep] <user's arguments without routing flags>")
+Skill(skill: "octopus-research", args: "[breadth=light|standard|exhaustive] [intensity=quick|standard|deep] <user's arguments without routing flags>")
 ```
 
 Examples:
-- `Skill(skill: "octo:discover", args: "[breadth=standard] [intensity=standard] OAuth 2.0 authentication patterns")`
-- `/octo:research --breadth=exhaustive current agent orchestration patterns` -> `Skill(skill: "octo:discover", args: "[breadth=exhaustive] [intensity=deep] current agent orchestration patterns")`
+- `Skill(skill: "octopus-research", args: "[breadth=standard] [intensity=standard] OAuth 2.0 authentication patterns")`
+- `/octo:research --breadth=exhaustive current agent orchestration patterns` -> `Skill(skill: "octopus-research", args: "[breadth=exhaustive] [intensity=deep] current agent orchestration patterns")`
 
 **✗ INCORRECT - Do NOT use these:**
 ```
+Using the octo:discover skill       ❌ Wrong here! Research has a dedicated skill contract
 Skill(skill: "flow-discover", ...)   ❌ Wrong! Internal skill name, not resolvable by Skill tool
 Skill(skill: "discover", ...)        ❌ Wrong! Must use full namespaced name
 Task(subagent_type: "octo:discover", ...)  ❌ Wrong! This is a skill, not an agent type
@@ -81,7 +82,7 @@ Task(subagent_type: "octo:discover", ...)  ❌ Wrong! This is a skill, not an ag
 
 ---
 
-**Auto-loads the discover skill for comprehensive research tasks.**
+**Auto-loads the dedicated research skill for comprehensive multi-provider research tasks.**
 
 ## Quick Usage
 
@@ -94,7 +95,7 @@ Just use natural language:
 
 ## What Is Research?
 
-An alias for the **Discover** phase of the Double Diamond methodology:
+A dedicated research workflow aligned with the **Discover** phase of the Double Diamond methodology:
 - Multi-AI research (Claude + Gemini + Codex)
 - Comprehensive analysis of options
 - Trade-off evaluation

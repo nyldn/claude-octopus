@@ -182,7 +182,7 @@ When this skill activates:
    ```
 
 3. **Execute workflow with context-appropriate behavior**
-   - Frame prompts for Codex/Gemini based on context
+   - Frame prompts for external providers based on context
    - Select appropriate synthesis approach
    - Apply context-specific quality gates
 ```

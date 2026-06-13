@@ -1,6 +1,6 @@
 # 🐙 Claude Octopus
 
-Every AI model has blind spots. Claude Octopus puts up to eight of them on every task, so blind spots surface before you ship — not after. It orchestrates Codex, Gemini, Copilot, Qwen, Ollama, Perplexity, and OpenRouter alongside Claude Code, with consensus gates that flag any disagreements.
+Every AI model has blind spots. Claude Octopus puts up to nine of them on every task, so blind spots surface before you ship — not after. It orchestrates Codex, Gemini, Antigravity CLI, Copilot, Qwen, Ollama, Perplexity, OpenRouter, and OpenCode alongside Claude Code, with consensus gates that flag any disagreements.
 
 **Claude-native first, Octopus for escalation.** Use Claude-native `/init`, `/review`, and `/security-review` when Claude is enough. Use Octopus when you want multiple model opinions, adversarial review, or stricter multi-LLM workflows.
 
@@ -17,7 +17,7 @@ Every AI model has blind spots. Claude Octopus puts up to eight of them on every
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
 </p>
 
-🐙 **Research, build, review, and ship — with eight AI providers checking each other's work.** Say what you need, and the right workflow runs. Claude-native handles the ordinary path; Octopus handles the escalated path. A 75% consensus gate catches disagreements before they reach production. No single model's blind spots slip through.
+🐙 **Research, build, review, and ship — with nine AI providers checking each other's work.** Say what you need, and the right workflow runs. Claude-native handles the ordinary path; Octopus handles the escalated path. A 75% consensus gate catches disagreements before they reach production. No single model's blind spots slip through.
 
 🧠 **Remembers across sessions.** Integrates with [claude-mem](https://github.com/thedotmack/claude-mem) for persistent memory — past decisions, research, and context survive session boundaries.
 
@@ -27,9 +27,9 @@ Every AI model has blind spots. Claude Octopus puts up to eight of them on every
 
 🐙 **32 specialized personas** (role-specific AI agents like security-auditor, backend-architect), **49 commands** (slash commands you type), **54 skills** (reusable workflow modules). Say "audit my API" and the right expert activates. Don't know the command? The smart router figures it out.
 
-🐙 **Works with just Claude. Scales to eight.** Zero providers needed to start. Add them one at a time — each activates automatically when detected.
+🐙 **Works with just Claude. Scales to nine.** Zero providers needed to start. Add them one at a time — each activates automatically when detected.
 
-💰 **Five providers cost nothing extra.** Codex and Gemini use OAuth (included with subscriptions). Qwen has 1,000-2,000 free requests/day. Copilot uses your GitHub subscription. Ollama runs locally for free.
+💰 **Six providers can cost nothing extra when you already have access.** Codex, Gemini, Antigravity CLI, and Copilot use existing subscriptions or local auth. Qwen has 1,000-2,000 free requests/day. Ollama runs locally for free.
 
 ---
 
@@ -45,7 +45,7 @@ Every AI model has blind spots. Claude Octopus puts up to eight of them on every
 | Version | Best Features |
 |---------|--------------|
 | **v9.41** (new) | **`/octo:council`** promoted to first-class workflow — structured multi-LLM deliberation with goal modes, adversarial/red-team styles, benchmark-aware persona routing, quorum and critical-veto gates, budget preflight, and gated worktree handoff for approved implementation plans. |
-| **v9** (current) | Up to 8 providers (Codex, Gemini, Copilot, Qwen, Ollama, Perplexity, OpenRouter, OpenCode). Four-way AI debates and configurable multi-LLM councils. Smart router — just say what you need. Agent summary tables show which providers actually contributed. Provider-aware prompt preflight prevents silent oversize failures. Research breadth modes fan out light, standard, or exhaustive investigations. Setup aliases and fuzzy `/octo:*` corrections reduce command friction. Discipline mode with 8 auto-invoke gates. Two-stage review. Circuit breakers with automatic provider recovery. Cursor + OpenCode + Codex cross-compatibility. Token compression: `bin/octo-compress` pipe + auto PostToolUse hook save ~7,300 tokens/session. PostCompact context recovery. `bin/octopus` CLI. 175+ CC feature flags through v2.1.157, including Opus 4.8 and dynamic workflow awareness. |
+| **v9** (current) | Up to 9 providers (Codex, Gemini, Antigravity CLI, Copilot, Qwen, Ollama, Perplexity, OpenRouter, OpenCode). Structured provider debates and configurable multi-LLM councils. Smart router — just say what you need. Agent summary tables show which providers actually contributed. Provider-aware prompt preflight prevents silent oversize failures. Research breadth modes fan out light, standard, or exhaustive investigations. Setup aliases and fuzzy `/octo:*` corrections reduce command friction. Discipline mode with 8 auto-invoke gates. Two-stage review. Circuit breakers with automatic provider recovery. Cursor + OpenCode + Codex cross-compatibility. Token compression: `bin/octo-compress` pipe + auto PostToolUse hook save ~7,300 tokens/session. PostCompact context recovery. `bin/octopus` CLI. 175+ CC feature flags through v2.1.157, including Opus 4.8 and dynamic workflow awareness. |
 | **v8** | Multi-LLM code review with inline PR comments. Parallel workstreams in isolated git worktrees. Reaction engine — auto-responds to CI failures. 32 specialized personas. Dark Factory autonomous pipeline. |
 | **v7** | Double Diamond workflow. Multi-provider dispatch. Quality gates and consensus scoring. Configurable sandbox modes. |
 
@@ -216,6 +216,7 @@ npm install -g @openai/codex @google/gemini-cli @qwen-code/qwen-code 2>/dev/null
 echo "Octopus cloud setup:"
 command -v codex >/dev/null 2>&1 && echo "  Codex CLI: installed" || echo "  Codex CLI: missing"
 command -v gemini >/dev/null 2>&1 && echo "  Gemini CLI: installed" || echo "  Gemini CLI: missing"
+command -v agy >/dev/null 2>&1 && echo "  Antigravity CLI: installed" || echo "  Antigravity CLI: missing"
 command -v qwen >/dev/null 2>&1 && echo "  Qwen CLI: installed" || echo "  Qwen CLI: missing"
 command -v gh >/dev/null 2>&1 && echo "  GitHub CLI: installed" || echo "  GitHub CLI: optional, install if Sentinel needs GitHub"
 ```
@@ -245,7 +246,7 @@ Nine high-traffic commands cover the common Octopus workflows: lifecycle executi
 /octo:embrace build stripe integration     # Full lifecycle: research → define → develop → deliver
 /octo:factory "build a CLI that converts CSV to JSON"  # Autonomous pipeline — spec in, software out
 /octo:council --goal decision "Should we keep this service monolithic?"  # Persona council with budget/veto gates
-/octo:debate monorepo vs microservices     # Structured four-way AI debate with consensus
+/octo:debate monorepo vs microservices     # Structured provider debate with consensus
 /octo:research --breadth=standard htmx vs react in 2026  # Attributed multi-provider research
 /octo:design mobile checkout redesign       # UI/UX design with BM25 style intelligence
 /octo:tdd create user auth                 # Red-green-refactor with test discipline
@@ -298,8 +299,8 @@ Or skip the table — type `/octo:auto <what you want>` or just say `octo <what 
 
 | | Claude Code alone | [Superpowers](https://github.com/obra/superpowers) | Claude Octopus |
 |---|---|---|---|
-| **Core idea** | One model, your prompts | Structured methodology for one agent | Up to 8 providers cross-checking each other |
-| **Providers** | Claude only | Claude only | Codex, Gemini, Copilot, Qwen, Ollama, Perplexity, OpenRouter, OpenCode |
+| **Core idea** | One model, your prompts | Structured methodology for one agent | Up to 9 providers cross-checking each other |
+| **Providers** | Claude only | Claude only | Codex, Gemini, Antigravity CLI, Copilot, Qwen, Ollama, Perplexity, OpenRouter, OpenCode |
 | **Workflow** | Ad-hoc | Spec → plan → subagent-driven dev | Discover → Define → Develop → Deliver (Double Diamond) |
 | **Strength** | Simple, no setup | Long autonomous runs with discipline | Multiple perspectives catching blind spots |
 | **Consensus gates** | No | No | Yes — 75% agreement threshold |
@@ -314,14 +315,15 @@ Or skip the table — type `/octo:auto <what you want>` or just say `octo <what 
 
 ## How It Works
 
-### How 8 Providers Work Together
+### How 9 Providers Work Together
 
-Claude Octopus coordinates up to eight AI providers — one per tentacle:
+Claude Octopus coordinates up to nine AI providers:
 
 | Provider | Role |
 |----------|------|
 | 🔴 Codex (OpenAI, GPT-5.4) | Code review + implementation — edge-case hunting, terminal-heavy execution, patch/test loops |
 | 🟡 Gemini (Google) | Ecosystem breadth — alternatives, research synthesis |
+| 🧭 Antigravity CLI (`agy`) | Google Antigravity perspective via native stdin print-mode dispatch |
 | 🟣 Perplexity | Live web search — CVE lookups, dependency research, current docs |
 | 🌐 OpenRouter | Alternative model routing — access 100+ models via single API |
 | 🟢 Copilot (GitHub) | Zero-cost research — uses existing GitHub Copilot subscription |
@@ -393,10 +395,10 @@ Reactions track 13 agent lifecycle states: `running` → `pr_open` → `ci_pendi
 
 ### Authentication
 
-| Method | Codex | Gemini | Claude |
-|--------|-------|--------|--------|
-| OAuth (recommended) | `codex login` — included in ChatGPT subscription | Google account — included in AI subscription | Built into Claude Code |
-| API key | `OPENAI_API_KEY` — per-token billing | `GEMINI_API_KEY` — per-token billing | Built into Claude Code |
+| Method | Codex | Gemini | Antigravity | Claude |
+|--------|-------|--------|-------------|--------|
+| OAuth/subscription (recommended) | `codex login` — included in ChatGPT subscription | Google account — included in AI subscription | `agy` auth — included with Antigravity access | Built into Claude Code |
+| API key | `OPENAI_API_KEY` — per-token billing | `GEMINI_API_KEY` — per-token billing | n/a | Built into Claude Code |
 
 OAuth users pay nothing beyond their existing subscriptions.
 
@@ -412,7 +414,7 @@ Everything except multi-AI features. You get all 32 personas, structured workflo
 
 **Data locations** — Results in `~/.claude-octopus/results/`, logs in `~/.claude-octopus/logs/`, project state in `.octo/`. Nothing hidden.
 
-**Provider transparency** — Every command shows a 🐙 activation indicator on launch. Colored dots (🔴 🟡 🟣 🔵) show exactly which providers are running and when external APIs are called. You always know what's happening.
+**Provider transparency** — Every command shows a 🐙 activation indicator on launch. Provider markers such as 🔴 🟡 🧭 🟣 🔵 show exactly which providers are running and when external APIs are called. You always know what's happening.
 
 **Session provider controls** — Temporarily disable exhausted providers without uninstalling them. For example, `/octo:model-config disable codex --session` keeps Codex out of provider detection and multi-LLM fanout for the current session; `/octo:model-config clear-allowlist --session` restores the default.
 
@@ -499,7 +501,7 @@ The extension registers as an OpenClaw plugin with configurable workflows, auton
 
 ## FAQ
 
-**Do I need all three AI providers?**
+**Do I need every AI provider?**
 No. One external provider plus Claude gives you multi-AI features. No external providers still gives you personas, workflows, and skills.
 
 **Will this break my existing Claude Code setup?**

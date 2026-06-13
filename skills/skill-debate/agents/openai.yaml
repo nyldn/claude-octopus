@@ -1,3 +1,3 @@
 interface:
   display_name: "Debate"
-  short_description: "Structured four-way AI debates between Claude, Sonnet, Gemini, and Codex — use for critical decisions"
+  short_description: "Structured multi-provider AI debates between Claude and available advisors — use for critical decisions"

@@ -1,20 +1,20 @@
 ---
-description: "\"AI Debate Hub - Structured four-way debates between Claude, Sonnet, Gemini, and Codex\""
+description: "\"AI Debate Hub - Structured debates across Claude and available external providers\""
 ---
 
 # Debate
 
-Structured four-way AI debates between Claude, Sonnet, Gemini, and Codex.
+Structured AI debates between Claude and available external providers such as Codex, Gemini, Antigravity, OpenCode, and OpenRouter.
 
 ## 🤖 INSTRUCTIONS FOR CLAUDE
 
 ### MANDATORY COMPLIANCE — DO NOT SKIP
 
-**When the user explicitly invokes `/octo:debate`, you MUST execute the structured debate workflow below.** You are PROHIBITED from answering the question directly, skipping the multi-provider debate, or deciding the topic is "too simple" for a four-way debate. The user chose this command deliberately — respect that choice.
+**When the user explicitly invokes `/octo:debate`, you MUST execute the structured debate workflow below.** You are PROHIBITED from answering the question directly, skipping the multi-provider debate, or deciding the topic is "too simple" for a provider debate. The user chose this command deliberately — respect that choice.
 
 ### EXECUTION MECHANISM — NON-NEGOTIABLE
 
-**You MUST dispatch work to external providers (Codex, Gemini, etc.) for this command. You are PROHIBITED from:**
+**You MUST dispatch work to external providers (Codex, Gemini, Antigravity, etc.) for this command. You are PROHIBITED from:**
 - ❌ Executing the entire task using only Claude-native tools
 - ❌ Using a single Agent subagent instead of multi-provider dispatch
 - ❌ Skipping provider dispatch because "I can handle this alone"
@@ -28,7 +28,7 @@ Structured four-way AI debates between Claude, Sonnet, Gemini, and Codex.
 1. Follow the `skill-debate` instructions (Steps 1-7) exactly.
 2. Start with Step 1: check provider availability and display the visual indicator banner.
 3. Step 2: ask clarifying questions via AskUserQuestion before proceeding.
-4. Steps 3-5: parse arguments, set up debate folder, conduct rounds with all four participants (Gemini CLI, Codex CLI, Sonnet Agent, Claude/Opus).
+4. Steps 3-5: parse arguments, set up debate folder, conduct rounds with the selected participants (for example Gemini CLI, Codex CLI, Antigravity CLI, Sonnet Agent, Claude/Opus).
 5. Steps 6-7: write final synthesis and present results to the user.
 6. Apply quality gates and cost tracking from `skill-debate` throughout.
 

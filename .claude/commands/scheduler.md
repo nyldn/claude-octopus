@@ -9,6 +9,13 @@ aliases:
 
 Manage the Claude Octopus scheduled workflow runner daemon.
 
+## MANDATORY COMPLIANCE — DO NOT SKIP
+
+You MUST manage the scheduler only through the installed Octopus scheduler scripts after resolving the plugin root. You are PROHIBITED from:
+- Reimplementing scheduler state changes manually
+- Editing scheduler state files directly
+- Skipping the plugin-root preflight because "I can do this faster directly"
+
 ## Usage
 
 

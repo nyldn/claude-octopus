@@ -11,7 +11,7 @@ description: "[advanced] Force multi-provider parallel execution for any task - 
 
 ### EXECUTION MECHANISM — NON-NEGOTIABLE
 
-**You MUST dispatch work to external providers (Codex, Gemini, etc.) for this command. You are PROHIBITED from:**
+**You MUST dispatch work to external providers (Codex, Gemini, Antigravity, etc.) for this command. You are PROHIBITED from:**
 - ❌ Executing the entire task using only Claude-native tools
 - ❌ Using a single Agent subagent instead of multi-provider dispatch
 - ❌ Skipping provider dispatch because "I can handle this alone"
@@ -44,9 +44,9 @@ AskUserQuestion({
       header: "Cost",
       multiSelect: false,
       options: [
-        {label: "Yes, proceed (~$0.02-0.08/query)", description: "I understand this costs money via Codex + Gemini APIs"},
+        {label: "Yes, proceed", description: "I understand this may use external provider credits or subscriptions"},
         {label: "Tell me more about costs", description: "Explain what I'll be charged"},
-        {label: "Use free providers only", description: "Skip Codex/Gemini, use Claude only"}
+        {label: "Use included/local providers only", description: "Use Claude plus providers that do not add per-query API charges"}
       ]
     }
   ]
@@ -58,9 +58,9 @@ AskUserQuestion({
 **After receiving answers:**
 
 - **If user selected "Tell me more about costs"**: Explain the cost breakdown, then ask question 2 again
-- **If user selected "Use free providers only"**: Explain that multi requires external providers, suggest using Claude directly instead
+- **If user selected "Use included/local providers only"**: Use Claude plus available included/local providers such as Antigravity, Copilot, Qwen, Ollama, or already-authenticated CLIs; explain any unavailable providers
 - **If user selected "Yes, proceed"**: Continue with multi-provider execution
-- **Store intent** in context for provider selection (high-stakes → use all 3, exploring → maybe skip one if unavailable)
+- **Store intent** in context for provider selection (high-stakes → use all available providers, exploring → maybe skip one if unavailable)
 
 ### Step 2: Check Provider Availability & Execute
 
@@ -69,9 +69,23 @@ Check which AI providers are available:
 ```javascript
 const codexAvailable = await checkCommandAvailable('codex');
 const geminiAvailable = await checkCommandAvailable('gemini');
+const agyAvailable = await checkCommandAvailable('agy');
+const copilotAvailable = await checkCommandAvailable('copilot');
+const qwenAvailable = await checkCommandAvailable('qwen');
+const opencodeAvailable = await checkCommandAvailable('opencode');
+const ollamaAvailable = await checkCommandAvailable('ollama');
+const anyProviderAvailable = [
+  codexAvailable,
+  geminiAvailable,
+  agyAvailable,
+  copilotAvailable,
+  qwenAvailable,
+  opencodeAvailable,
+  ollamaAvailable
+].some(Boolean);
 
-if (!codexAvailable && !geminiAvailable) {
-  console.log("⚠️ No external providers available. Multi-provider mode requires Codex and/or Gemini.");
+if (!anyProviderAvailable) {
+  console.log("⚠️ No external providers available. Multi-provider mode requires at least one supported provider.");
   console.log("Run `/octo:setup` to configure external providers, or use Claude directly.");
   return;
 }
@@ -121,7 +135,7 @@ The whole point of multi-provider execution is diversity of opinion. Presenting 
 Just use natural language:
 ```
 "Run this with all providers: What is Redis?"
-"I want all three AI models to look at this architecture"
+"I want multiple AI models to look at this architecture"
 "Get multiple perspectives on whether to use TypeScript"
 "Force multi-provider analysis of this design decision"
 ```
@@ -137,7 +151,7 @@ Or use explicit commands:
 
 This command activates the multi-provider skill in **forced mode**, which:
 - Executes multi-provider analysis even for simple tasks
-- Uses Codex CLI + Gemini CLI + Claude simultaneously
+- Uses Claude plus all available external providers, including Codex, Gemini, and Antigravity when installed
 - Provides multiple perspectives when you need comprehensive analysis
 - Bypasses automatic routing that might use only Claude
 
@@ -148,7 +162,7 @@ Normal Claude Octopus workflows automatically decide when to use multiple provid
 - "What is OAuth?" → uses Claude only (simple question)
 
 **The multi command forces multi-provider mode even for simple tasks:**
-- `/octo:multi "What is OAuth?"` → forces Codex + Gemini + Claude
+- `/octo:multi "What is OAuth?"` → forces Claude plus available external providers
 - "Run this with all providers: Explain Redis" → forces multi-provider execution
 
 ## When to Use
@@ -172,6 +186,7 @@ Forcing parallel mode uses external CLIs for every task:
 |----------|----------------|--------------|
 | 🔴 Codex CLI | ~$0.01-0.05 | Your OPENAI_API_KEY |
 | 🟡 Gemini CLI | ~$0.01-0.03 | Your GEMINI_API_KEY |
+| 🧭 Antigravity CLI (`agy`) | Included with access/subscription | Antigravity CLI auth |
 | 🔵 Claude | Included | Claude Code subscription |
 
 **Total cost per forced query: ~$0.02-0.08**
@@ -182,7 +197,7 @@ Use judiciously for tasks where multiple perspectives add value. For routine wor
 
 You can also force parallel mode with natural language:
 - "run this with all providers: [task]"
-- "I want all three AI models to look at [topic]"
+- "I want multiple AI models to look at [topic]"
 - "get multiple perspectives on [question]"
 - "use all providers for [analysis]"
 - "force multi-provider analysis of [topic]"
@@ -193,7 +208,7 @@ You can also force parallel mode with natural language:
 ```
 /octo:multi "What is the difference between OAuth and JWT?"
 ```
-→ Gets perspectives from Codex, Gemini, and Claude even though Claude could answer alone
+→ Gets perspectives from Claude plus available external providers even though Claude could answer alone
 
 **Force parallel for architecture decision:**
 ```
@@ -218,14 +233,15 @@ Force parallel execution
 Providers:
 🔴 Codex CLI - [Role in this task]
 🟡 Gemini CLI - [Role in this task]
+🧭 Antigravity CLI - [Role in this task]
 🔵 Claude - [Role in this task]
 ```
 
-Then you'll see results from each provider marked with their indicator (🔴 🟡 🔵).
+Then you'll see results from each provider marked with its indicator (for example 🔴 🟡 🧭 🔵).
 
 ## See Also
 
-- `/octo:debate` - Structured four-way debates (better for adversarial analysis)
+- `/octo:debate` - Structured provider debates (better for adversarial analysis)
 - `/octo:research` - Research workflow (auto-triggers multi-provider for research)
 - `/octo:review` - Review workflow (auto-triggers multi-provider for validation)
 - [TRIGGERS.md](../../docs/TRIGGERS.md) - Full guide to what triggers multi-provider mode

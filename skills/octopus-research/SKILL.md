@@ -79,8 +79,10 @@ AskUserQuestion({
 **Check provider availability:**
 
 ```bash
-command -v codex &> /dev/null && codex_status="Available ✓" || codex_status="Not installed ✗"
-command -v gemini &> /dev/null && gemini_status="Available ✓" || gemini_status="Not installed ✗"
+provider_status="$(bash "${HOME}/.claude-octopus/plugin/scripts/helpers/check-providers.sh")"
+[[ $'\n'"$provider_status"$'\n' == *$'\ncodex:available\n'* ]] && codex_status="Available ✓" || codex_status="Not installed ✗"
+[[ $'\n'"$provider_status"$'\n' == *$'\ngemini:available\n'* ]] && gemini_status="Available ✓" || gemini_status="Not installed ✗"
+[[ $'\n'"$provider_status"$'\n' == *$'\nagy:available\n'* ]] && agy_status="Available ✓" || agy_status="Not installed ✗"
 ```
 
 **Display this banner BEFORE orchestrate.sh execution:**
@@ -92,6 +94,7 @@ command -v gemini &> /dev/null && gemini_status="Available ✓" || gemini_status
 Provider Availability:
 🔴 Codex CLI: ${codex_status}
 🟡 Gemini CLI: ${gemini_status}
+🧭 Antigravity CLI: ${agy_status}
 🔵 Claude: Available ✓ (Strategic synthesis)
 
 Research Parameters:
@@ -104,9 +107,8 @@ Research Parameters:
 ```
 
 **Validation:**
-- If BOTH Codex and Gemini unavailable → STOP, suggest: `/octo:setup`
-- If ONE unavailable → Continue with available provider(s)
-- If BOTH available → Proceed normally
+- If no external providers are available → STOP, suggest: `/octo:setup`
+- If one or more external providers are available → Continue with available provider(s)
 
 **DO NOT PROCEED TO STEP 3 until banner displayed.**
 
@@ -167,7 +169,7 @@ Read the synthesis file and format according to `format_choice`:
 **Include attribution:**
 ```
 *Multi-AI Research powered by Claude Octopus*
-*Providers: 🔴 Codex | 🟡 Gemini | 🔵 Claude*
+*Providers: available external providers + 🔵 Claude*
 *Full synthesis: $SYNTHESIS_FILE*
 ```
 
@@ -180,7 +182,7 @@ Create tasks to track execution progress:
 // At start of skill execution
 TaskCreate({
   subject: "Execute deep research with multi-AI providers",
-  description: "Run orchestrate.sh probe with Codex and Gemini for deep research",
+  description: "Run orchestrate.sh probe with available providers for deep research",
   activeForm: "Running multi-AI deep research"
 })
 
@@ -195,7 +197,7 @@ TaskUpdate({taskId: "...", status: "completed"})
 
 If any step fails:
 - **Step 1 (Questions)**: Cannot proceed without user input
-- **Step 2 (Providers)**: If both unavailable, suggest `/octo:setup` and STOP
+- **Step 2 (Providers)**: If all external providers are unavailable, suggest `/octo:setup` and STOP
 - **Step 3 (orchestrate.sh)**: Show bash error, check logs at `~/.claude-octopus/logs/`, report to user
 - **Step 4 (Validation)**: If synthesis missing, show orchestrate.sh logs, DO NOT substitute with direct research
 

@@ -16,6 +16,8 @@ Use this resolver before running any Octopus script. It avoids relying on the
 Bash installs. Run this as a single Bash call.
 
 ```bash
+set -euo pipefail
+
 OCTO_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
 if [[ -z "$OCTO_PLUGIN_ROOT" || ! -x "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" ]]; then
   OCTO_PLUGIN_ROOT="${HOME}/.claude-octopus/plugin"
@@ -28,7 +30,7 @@ if [[ ! -x "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" ]]; then
   OCTO_PLUGIN_ROOT="$(
     find "${HOME}/.claude/plugins" -type f -path "*/scripts/orchestrate.sh" -print 2>/dev/null \
       | sed 's#/scripts/orchestrate.sh$##' \
-      | grep -E '(nyldn-plugins|claude-octopus|/octo(/[0-9]|$))' \
+      | { grep -E '(nyldn-plugins|claude-octopus|/octo(/[0-9]|$))' || true; } \
       | sort \
       | tail -1
   )"
@@ -46,7 +48,7 @@ bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor --verbose
 ## Step 2: Run Dependency Check
 
 ```bash
-bash "${HOME}/.claude-octopus/plugin/scripts/install-deps.sh" check
+bash "${OCTO_PLUGIN_ROOT}/scripts/install-deps.sh" check
 ```
 
 ## Step 3: Interactive Remediation (MANDATORY)
@@ -55,7 +57,7 @@ After diagnostics complete, analyze the output for fixable issues. For EACH fixa
 
 **Priority order for fixes:**
 
-1. **Missing providers** — offer to install Codex/Gemini CLI
+1. **Missing providers** — offer to install available external provider CLIs such as Codex, Gemini, or Antigravity
 2. **Expired auth** — offer to run login commands
 3. **RTK not installed** — offer brew/cargo install (saves 60-90% tokens)
 4. **RTK hook not configured on macOS/Linux** — offer `rtk init -g`
@@ -90,13 +92,13 @@ Execute each selected fix, verify it worked, report results.
 If the user asks about a specific area:
 
 ```bash
-bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor providers
-bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor auth
-bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor config
-bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor hooks
-bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor scheduler
-bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor skills
-bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor agents
+cd "${OCTO_PLUGIN_ROOT}" && bash scripts/orchestrate.sh doctor providers
+cd "${OCTO_PLUGIN_ROOT}" && bash scripts/orchestrate.sh doctor auth
+cd "${OCTO_PLUGIN_ROOT}" && bash scripts/orchestrate.sh doctor config
+cd "${OCTO_PLUGIN_ROOT}" && bash scripts/orchestrate.sh doctor hooks
+cd "${OCTO_PLUGIN_ROOT}" && bash scripts/orchestrate.sh doctor scheduler
+cd "${OCTO_PLUGIN_ROOT}" && bash scripts/orchestrate.sh doctor skills
+cd "${OCTO_PLUGIN_ROOT}" && bash scripts/orchestrate.sh doctor agents
 ```
 
 ## Step 5: Token Optimization Report

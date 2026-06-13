@@ -5,7 +5,7 @@ aliases:
   - deliver-workflow
   - ink
   - ink-workflow
-description: Multi-AI validation, scoring, and review using Codex and Gemini CLIs (Double Diamond Deliver phase)
+description: Multi-AI validation, scoring, and review using available external providers (Double Diamond Deliver phase)
 
 # Claude Code v2.1.12+ Integration
 agent: general-purpose
@@ -129,8 +129,9 @@ If `OCTO_ALLOWED_PROVIDERS` is set, treat it as the source of truth for which pr
 ✅ [Dev] Deliver Phase: [Brief description of code review]
 
 Provider Availability:
-🔴 Codex CLI: ${codex_status} - Code quality analysis
-🟡 Gemini CLI: ${gemini_status} - Security and edge cases
+🔴 Codex CLI: [Available ✓ / Not installed ✗] - Code quality analysis
+🟡 Gemini CLI: [Available ✓ / Not installed ✗] - Security and edge cases
+🧭 Antigravity CLI: [Available ✓ / Not installed ✗] - Additional external-model challenge
 🔵 Claude: Available ✓ - Synthesis and recommendations
 
 💰 Estimated Cost: $0.02-0.08
@@ -143,8 +144,9 @@ Provider Availability:
 ✅ [Knowledge] Deliver Phase: [Brief description of document review]
 
 Provider Availability:
-🔴 Codex CLI: ${codex_status} - Structure and logic analysis
-🟡 Gemini CLI: ${gemini_status} - Content quality and completeness
+🔴 Codex CLI: [Available ✓ / Not installed ✗] - Structure and logic analysis
+🟡 Gemini CLI: [Available ✓ / Not installed ✗] - Content quality and completeness
+🧭 Antigravity CLI: [Available ✓ / Not installed ✗] - Additional external-model challenge
 🔵 Claude: Available ✓ - Synthesis and recommendations
 
 💰 Estimated Cost: $0.02-0.08
@@ -307,7 +309,7 @@ Read the validation file and present:
 ```
 ---
 *Multi-AI Validation powered by Claude Octopus*
-*Providers: 🔴 Codex | 🟡 Gemini | 🔵 Claude*
+*Providers: available external providers + 🔵 Claude*
 *Full validation report: $VALIDATION_FILE*
 ```
 
@@ -335,7 +337,7 @@ ${REVIEW_SUMMARY}
 
 ---
 *Multi-AI validation by Claude Octopus (/octo:deliver)*
-*Providers: 🔴 Codex | 🟡 Gemini | 🔵 Claude*"
+*Providers: available external providers + 🔵 Claude*"
 
     echo "Validation report posted to PR #${PR_NUM}"
 
@@ -552,7 +554,7 @@ TaskUpdate({taskId: "...", status: "completed"})
 
 If any step fails:
 - **Step 1 (Context)**: Default to Dev Context if ambiguous
-- **Step 2 (Providers)**: If both unavailable, suggest `/octo:setup` and STOP
+- **Step 2 (Providers)**: If all external providers are unavailable, suggest `/octo:setup` and STOP
 - **Step 3 (orchestrate.sh)**: Show bash error, check logs, report to user
 - **Step 4 (Validation)**: If validation file missing, show orchestrate.sh logs, DO NOT substitute with direct review
 

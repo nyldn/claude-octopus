@@ -5,7 +5,7 @@
 ## Core References
 
 - [COMMAND-REFERENCE.md](./COMMAND-REFERENCE.md) — All 47 slash commands with natural-language triggers
-- [ARCHITECTURE.md](./ARCHITECTURE.md) — Provider model mapping, 7-provider architecture, execution flow
+- [ARCHITECTURE.md](./ARCHITECTURE.md) — Provider model mapping, 9-provider architecture, execution flow
 - [AGENTS.md](./AGENTS.md) — 32 persona agents and 10 native agents
 - [PLUGIN-ASSEMBLY-STANDARD.md](./PLUGIN-ASSEMBLY-STANDARD.md) — Structural contract for skills, agents, commands, connectors, and validation
 
@@ -20,6 +20,7 @@
 Provider-specific configuration is in `config/providers/`:
 - `config/providers/codex/CLAUDE.md` — Codex CLI (OpenAI)
 - `config/providers/gemini/CLAUDE.md` — Gemini CLI (Google)
+- `config/providers/agy/CLAUDE.md` — Antigravity CLI
 - `config/providers/claude/CLAUDE.md` — Claude (Anthropic)
 - `config/providers/ollama/CLAUDE.md` — Ollama (local LLM)
 - `config/providers/copilot/CLAUDE.md` — GitHub Copilot CLI

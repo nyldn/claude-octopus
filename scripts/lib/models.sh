@@ -35,6 +35,8 @@ get_model_catalog() {
         gemini-3.1-pro-preview)   echo "1000|yes|yes|no|gemini|premium|active" ;;
         gemini-3-flash-preview) echo "1000|yes|no|no|gemini|budget|active" ;;
         gemini-3-pro-image-preview) echo "1000|yes|yes|no|gemini|premium|active" ;;
+        # Antigravity CLI (agy routes to the user's configured Antigravity default)
+        agy/default|default)       echo "1000|yes|yes|no|agy|standard|active" ;;
         # Claude
         claude-sonnet-4.6)      echo "200|yes|yes|no|claude|standard|active" ;;
         claude-fable-5)         echo "1000|yes|yes|yes|claude|premium|active" ;;  # v9.44: Mythos-class, opt-in via OCTOPUS_OPUS_MODEL
@@ -116,6 +118,7 @@ list_models() {
         gpt-5.4-mini gpt-5.1-codex-max
         o3 o3-pro o3-mini
         gemini-3.1-pro-preview gemini-3-flash-preview gemini-3-pro-image-preview
+        agy/default
         claude-sonnet-4.6 claude-fable-5 claude-opus-4.8 claude-opus-4.8-fast claude-opus-4.7 claude-opus-4.6 claude-opus-4.6-fast
         grok-4-20 grok-4-20-thinking composer-2-fast composer-2
         z-ai/glm-5 moonshotai/kimi-k2.5 deepseek/deepseek-r1-0528

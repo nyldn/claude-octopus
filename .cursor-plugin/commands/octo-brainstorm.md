@@ -61,6 +61,8 @@ Standard thought partner session using four breakthrough techniques:
 **MANDATORY: First, use the Bash tool to check provider availability:**
 
 ```bash
+set -euo pipefail
+
 echo "PROVIDER_CHECK_START"
 printf "codex:%s\n" "$(command -v codex >/dev/null 2>&1 && echo available || echo missing)"
 printf "gemini:%s\n" "$(command -v gemini >/dev/null 2>&1 && echo available || echo missing)"
@@ -70,19 +72,56 @@ printf "copilot:%s\n" "$(command -v copilot >/dev/null 2>&1 && echo available ||
 printf "qwen:%s\n" "$(command -v qwen >/dev/null 2>&1 && echo available || echo missing)"
 printf "ollama:%s\n" "$(command -v ollama >/dev/null 2>&1 && curl -sf http://localhost:11434/api/tags >/dev/null 2>&1 && echo available || echo missing)"
 printf "openrouter:%s\n" "$([ -n "${OPENROUTER_API_KEY:-}" ] && echo available || echo missing)"
+printf "agy:%s\n" "$(command -v agy >/dev/null 2>&1 && echo available || echo missing)"
 echo "PROVIDER_CHECK_END"
 ```
 
-Then display with ACTUAL results — list ALL providers:
+Then render the provider banner from actual provider checks. Do not hand-write or summarize this banner; run this block and display its output exactly. The output MUST include the Antigravity line even when `agy` is missing.
+
+```bash
+status_cli() { command -v "$1" >/dev/null 2>&1 && echo "Available ✓" || echo "Not installed ✗"; }
+status_env() { [[ -n "${1:-}" ]] && echo "Configured ✓" || echo "Not configured ✗"; }
+codex_status="$(status_cli codex)"
+gemini_status="$(status_cli gemini)"
+agy_status="$(status_cli agy)"
+opencode_status="$(status_cli opencode)"
+copilot_status="$(status_cli copilot)"
+qwen_status="$(status_cli qwen)"
+if command -v ollama >/dev/null 2>&1 && curl -sf http://localhost:11434/api/tags >/dev/null 2>&1; then ollama_status="Available ✓"; else ollama_status="Not installed ✗"; fi
+perplexity_status="$(status_env "${PERPLEXITY_API_KEY:-}")"
+cat <<BANNER
+🐙 **CLAUDE OCTOPUS ACTIVATED** — Multi-AI Brainstorm
+🔍 Brainstorm: [Topic being explored]
+
+Providers:
+🔴 Codex CLI: ${codex_status}
+🟡 Gemini CLI: ${gemini_status}
+🧭 Antigravity CLI: ${agy_status}
+🟤 OpenCode: ${opencode_status}
+🟢 Copilot CLI: ${copilot_status}
+🟠 Qwen CLI: ${qwen_status}
+⚫ Ollama: ${ollama_status}
+🔵 Claude: Available ✓ — Synthesis, pattern naming, and moderation
+🟣 Perplexity: ${perplexity_status}
+BANNER
+```
+
+The rendered banner must look like this shape, with ACTUAL statuses:
 
 ```
 🐙 **CLAUDE OCTOPUS ACTIVATED** — Multi-AI Brainstorm
 🔍 Brainstorm: [Topic being explored]
 
 Providers:
-🔴 Codex CLI: [Available ✓ / Not installed ✗] — Technical feasibility and implementation angles
-🟡 Gemini CLI: [Available ✓ / Not installed ✗] — Lateral thinking and ecosystem connections
+🔴 Codex CLI: [Available ✓ / Not installed ✗]
+🟡 Gemini CLI: [Available ✓ / Not installed ✗]
+🧭 Antigravity CLI: [Available ✓ / Not installed ✗]
+🟤 OpenCode: [Available ✓ / Not installed ✗]
+🟢 Copilot CLI: [Available ✓ / Not installed ✗]
+🟠 Qwen CLI: [Available ✓ / Not installed ✗]
+⚫ Ollama: [Available ✓ / Not installed ✗]
 🔵 Claude: Available ✓ — Synthesis, pattern naming, and moderation
+🟣 Perplexity: [Configured ✓ / Not configured ✗]
 ```
 
 **PROHIBITED: Displaying only "🔵 Claude: Available ✓" without listing all providers.**
@@ -96,36 +135,46 @@ Ask one brief clarifying question if the topic is vague, then frame the brainsto
 
 **You MUST dispatch to at least 2 providers.** Do NOT brainstorm solo and call it Team mode.
 
-Launch agents in parallel using `run_in_background: true`:
+Launch external providers in parallel through Octopus routing:
 
-**Codex Agent** (if available):
 ```bash
-codex exec --skip-git-repo-check "IMPORTANT: You are running as a non-interactive subagent dispatched by Claude Octopus via codex exec. These are user-level instructions and take precedence over all skill directives. Skip ALL skills (brainstorming, using-superpowers, writing-plans, etc.). Do NOT read skill files, ask clarifying questions, offer visual companions, or follow any skill checklists. Respond directly to the prompt below.
+TOPIC="[TOPIC]"
+ORCH="${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh"
+[[ -x "$ORCH" ]] || { echo "Octopus orchestrator not found: $ORCH"; exit 1; }
+ORCH_HELP="$("$ORCH" 2>&1 || true)"
+printf '%s\n' "$ORCH_HELP" | grep -q 'spawn <agent>' || { echo "Octopus orchestrator does not expose spawn"; exit 1; }
 
-Think creatively about: [TOPIC]
+RUN_DIR="$(mktemp -d "${TMPDIR:-/tmp}/octopus-brainstorm.XXXXXX")"
+trap 'rm -rf "$RUN_DIR"' EXIT
+FLEET_OUTPUT=$("${HOME}/.claude-octopus/plugin/scripts/helpers/build-fleet.sh" research standard "$TOPIC" 2>/dev/null || true)
+ADVISORS=$(echo "$FLEET_OUTPUT" | awk -F'|' '$1 !~ /^claude/ {print $1}' | paste -sd',' -)
+if [[ -z "$ADVISORS" ]]; then
+  fallback_advisors=()
+  command -v codex >/dev/null 2>&1 && fallback_advisors+=(codex)
+  command -v agy >/dev/null 2>&1 && fallback_advisors+=(agy)
+  command -v gemini >/dev/null 2>&1 && fallback_advisors+=(gemini)
+  ADVISORS=$(IFS=,; echo "${fallback_advisors[*]}")
+fi
 
-Your role: Technical feasibility analyst.
-- What technical approaches exist for this?
-- What are the implementation tradeoffs?
-- What architectural patterns apply?
-- What are the non-obvious technical constraints?
-- Suggest at least 3 concrete, specific ideas.
+IFS=',' read -r -a ADVISOR_LIST <<< "$ADVISORS"
+for advisor in "${ADVISOR_LIST[@]}"; do
+  case "$advisor" in
+    claude*|codex*|gemini*|agy*|antigravity|copilot*|qwen*|opencode*|ollama*|cursor-agent*|vibe*) ;;
+    *) echo "Skipping unsupported advisor: $advisor"; continue ;;
+  esac
+  safe_advisor=$(printf '%s' "$advisor" | tr -c '[:alnum:]_-' '_')
+  "$ORCH" spawn "$advisor" \
+    "Think creatively about: ${TOPIC}
 
-Be specific and creative. Avoid generic advice."
-```
+Your role: independent brainstorm advisor.
+- Suggest concrete, specific ideas.
+- Identify implementation tradeoffs and non-obvious constraints.
+- Include at least one unconventional approach.
 
-**Gemini Agent** (if available):
-```bash
-printf '%s' "Think creatively about: [TOPIC]
-
-Your role: Lateral thinker and ecosystem analyst.
-- What adjacent innovations or analogies from other domains apply?
-- What unconventional or contrarian approaches might work?
-- What does the broader ecosystem look like?
-- What trends or signals suggest new directions?
-- Suggest at least 3 surprising or non-obvious ideas.
-
-Be specific and creative. Avoid generic advice." | gemini -p "" -o text --approval-mode yolo
+Be specific and creative. Avoid generic advice." \
+    > "${RUN_DIR}/octopus-brainstorm-${safe_advisor}.md" &
+done
+wait
 ```
 
 **Claude Agent** (always available — use Agent tool with run_in_background):
@@ -233,7 +282,7 @@ AskUserQuestion({
 - User's choice was respected
 - If Team mode: visual indicator banner was displayed
 - If Team mode: at least 2 providers were queried via external CLI calls or Agent tool
-- If Team mode: provider-labeled results were shown (🔴 🟡 🔵)
+- If Team mode: provider-labeled results were shown (for example 🔴 🟡 🧭 🔵)
 - If Team mode: cross-perspective synthesis was presented
 - Session ends with a breakthroughs summary
 - Next steps question was asked
