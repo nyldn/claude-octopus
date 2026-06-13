@@ -46,6 +46,7 @@ echo '{"expiry_date": 1776902104264}'            > "$FIXTURE/past.json"      # 2
 echo "{\"expiry_date\": $(( (now + 7200) * 1000 ))}" > "$FIXTURE/future.json" # +2h
 echo '{"access_token":"x"}'                       > "$FIXTURE/noexpiry.json"
 echo 'not json at all'                            > "$FIXTURE/garbage.json"
+echo "{\"expiry_date\": $(( (now + 7200) * 1000 ))" > "$FIXTURE/malformed-with-expiry.json"
 
 # ── 1. octo_oauth_token_valid ────────────────────────────────────────────────
 test_validator_past_invalid() {
@@ -67,6 +68,11 @@ test_validator_garbage_failclosed() {
     test_case "octo_oauth_token_valid: unparseable file fails closed"
     if ! octo_oauth_token_valid "$FIXTURE/garbage.json"; then test_pass
     else test_fail "garbage file accepted"; fi
+}
+test_validator_malformed_json_failclosed() {
+    test_case "octo_oauth_token_valid: malformed JSON with expiry_date fails closed"
+    if ! octo_oauth_token_valid "$FIXTURE/malformed-with-expiry.json"; then test_pass
+    else test_fail "malformed JSON accepted"; fi
 }
 test_validator_missing_failclosed() {
     test_case "octo_oauth_token_valid: missing file fails closed"
@@ -270,6 +276,7 @@ test_validator_past_invalid
 test_validator_future_valid
 test_validator_noexpiry_failclosed
 test_validator_garbage_failclosed
+test_validator_malformed_json_failclosed
 test_validator_missing_failclosed
 test_qwen_expired_is_oauth_expired
 test_qwen_valid_is_oauth

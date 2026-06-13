@@ -64,12 +64,22 @@ octo_oauth_token_valid() {
 
     local expiry_ms=""
     if command -v jq &>/dev/null; then
-        expiry_ms=$(jq -r '.expiry_date // empty' "$creds_file" 2>/dev/null)
-    fi
-    # jq-less (or jq-miss) fallback: pull the numeric expiry_date out of the JSON.
-    if [[ -z "$expiry_ms" ]]; then
-        expiry_ms=$(grep -oE '"expiry_date"[[:space:]]*:[[:space:]]*[0-9]+' "$creds_file" 2>/dev/null \
-                    | grep -oE '[0-9]+$' | head -1 || true)
+        expiry_ms=$(jq -r 'if (.expiry_date | type) == "number" and (.expiry_date == (.expiry_date | floor)) then (.expiry_date | tostring) else empty end' "$creds_file" 2>/dev/null || true)
+    elif command -v python3 &>/dev/null; then
+        expiry_ms=$(python3 - "$creds_file" <<'PY' 2>/dev/null || true
+import json
+import sys
+
+with open(sys.argv[1], "r", encoding="utf-8") as fh:
+    data = json.load(fh)
+
+value = data.get("expiry_date")
+if isinstance(value, int) and not isinstance(value, bool):
+    print(value)
+PY
+)
+    else
+        return 1
     fi
 
     [[ "$expiry_ms" =~ ^[0-9]+$ ]] || return 1   # fail-closed on missing/garbage
