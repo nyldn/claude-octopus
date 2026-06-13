@@ -38,6 +38,7 @@ trap 'rm -rf "$RESULTS_DIR"' EXIT
 DIRECT_PROMPT=""
 DIRECT_TASK_ID=""
 VALIDATION_CALLED=false
+TANGLE_STATUS=0
 
 log() { :; }
 octopus_phase_banner() { :; }
@@ -59,24 +60,23 @@ validate_tangle_results() {
 
 original_prompt="Update src/lib/templates/NA10_HANDLE_SILENCE.ts and do not modify src/lib/render/renderEmailTemplate.ts."
 
-tangle_develop "$original_prompt" >/dev/null
+tangle_develop "$original_prompt" >/dev/null && TANGLE_STATUS=0 || TANGLE_STATUS=$?
 
-test_case "unparseable decomposition falls back to direct execution"
-if [[ "$DIRECT_TASK_ID" == tangle-*-direct ]]; then
+test_case "unparseable decomposition fails closed"
+if [[ "$TANGLE_STATUS" -ne 0 ]]; then
     test_pass
 else
-    test_fail "direct fallback was not used when decomposition produced no numbered subtasks"
+    test_fail "unparseable decomposition returned success instead of failing closed"
 fi
 
-test_case "direct fallback receives the resolved original prompt"
-if [[ "$DIRECT_PROMPT" == *"src/lib/templates/NA10_HANDLE_SILENCE.ts"* ]] && \
-   [[ "$DIRECT_PROMPT" == *"do not modify src/lib/render/renderEmailTemplate.ts"* ]]; then
+test_case "unparseable decomposition does not spawn direct fallback"
+if [[ -z "$DIRECT_TASK_ID" && -z "$DIRECT_PROMPT" ]]; then
     test_pass
 else
-    test_fail "direct fallback did not receive the original task constraints"
+    test_fail "direct fallback was spawned despite fail-closed decomposition"
 fi
 
-test_case "fallback returns before tangle validation"
+test_case "fail-closed path returns before tangle validation"
 if [[ "$VALIDATION_CALLED" == "false" ]]; then
     test_pass
 else
