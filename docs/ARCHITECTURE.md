@@ -74,7 +74,7 @@ Role defaults refreshed based on April 2026 benchmark consensus. See [GPT-5.4 pr
 | **Perplexity** | Live web search, CVE lookups, current docs | Discover phase research, dependency analysis |
 | **OpenRouter** | Access to 100+ models, cost routing | Alternative perspectives, budget-conscious workflows |
 | **Ollama** *(optional)* | Zero-cost, offline, privacy | Brainstorming, fallback, air-gapped environments |
-| **Qwen** *(optional)* | Free-tier coding, Chinese language support | Research, code review, zero-cost workflows |
+| **Qwen** *(optional)* | Qwen3-Coder via API-key or Coding-Plan auth, Chinese language support | Research and code review when Qwen credentials are configured |
 
 ---
 

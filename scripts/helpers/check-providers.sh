@@ -1,9 +1,15 @@
 #!/usr/bin/env bash
+set -euo pipefail
+
 # Claude Octopus — Provider Availability Check
 # Single-source script for checking which AI providers are available.
 # Used by skills (via Bash tool) to populate the activation banner.
 #
-# Output format: one line per provider, "name:available" or "name:missing"
+# Output format: one line per provider:
+#   name:available — provider can be dispatched
+#   name:missing   — provider is absent, disallowed, or lacks required config
+#   name:degraded  — provider binary exists but fails a health/auth gate
+# Consumers that dispatch providers should match only ":available".
 # Exit code: always 0 (availability is informational, not an error)
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
@@ -49,7 +55,7 @@ if command -v qwen >/dev/null 2>&1; then
     if declare -f qwen_is_usable >/dev/null 2>&1; then
         qwen_is_usable && qwen_state="available" || qwen_state="degraded"
     else
-        qwen_state="available"   # validator unavailable: legacy behavior
+        qwen_state="degraded"   # validator unavailable: fail closed
     fi
 fi
 provider_status "qwen" "$qwen_state"

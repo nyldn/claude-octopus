@@ -69,7 +69,7 @@ octo_oauth_token_valid() {
     # jq-less (or jq-miss) fallback: pull the numeric expiry_date out of the JSON.
     if [[ -z "$expiry_ms" ]]; then
         expiry_ms=$(grep -oE '"expiry_date"[[:space:]]*:[[:space:]]*[0-9]+' "$creds_file" 2>/dev/null \
-                    | grep -oE '[0-9]+$' | head -1)
+                    | grep -oE '[0-9]+$' | head -1 || true)
     fi
 
     [[ "$expiry_ms" =~ ^[0-9]+$ ]] || return 1   # fail-closed on missing/garbage

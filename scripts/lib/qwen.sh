@@ -9,7 +9,7 @@
 
 # Get the auth method currently in use (for doctor/setup reporting)
 # Returns: "env:QWEN_API_KEY", "env:OPENAI_COMPAT", "oauth",
-# "oauth-expired", "config", or "none"
+# "oauth-expired", "oauth-unvalidated", "config", or "none"
 #
 # oco-dar: an EXPIRED oauth_creds.json must report "oauth-expired" (treated as
 # unauthenticated by callers), not "oauth" — otherwise dispatch launches an
@@ -31,9 +31,9 @@ qwen_auth_method() {
                 echo "oauth-expired"
             fi
         else
-            # Validator unavailable (auth.sh not sourced) — fall back to legacy
-            # existence behavior rather than block.
-            echo "oauth"
+            # Validator unavailable (auth.sh not sourced) — fail closed so an
+            # unvalidated OAuth file never re-enables the stale-token hang path.
+            echo "oauth-unvalidated"
         fi
         return
     fi
@@ -50,7 +50,7 @@ qwen_is_usable() {
     command -v qwen >/dev/null 2>&1 || return 1
     case "$(qwen_auth_method)" in
         env:QWEN_API_KEY|env:OPENAI_COMPAT|oauth|config) return 0 ;;
-        *) return 1 ;;   # oauth-expired, none
+        *) return 1 ;;   # oauth-expired, oauth-unvalidated, none
     esac
 }
 

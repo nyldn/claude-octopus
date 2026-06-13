@@ -137,6 +137,19 @@ test_qwen_valid_is_oauth() {
     if [[ "$got" == "oauth" ]]; then test_pass
     else test_fail "expected oauth, got: $got"; fi
 }
+test_qwen_without_validator_fails_closed() {
+    test_case "qwen_auth_method: OAuth without validator is not usable"
+    local home; home="$(mktemp -d)"; mkdir -p "$home/.qwen"
+    cp "$FIXTURE/future.json" "$home/.qwen/oauth_creds.json"
+    local got
+    got="$(HOME="$home" QWEN_API_KEY="" bash -c '
+        log() { :; }
+        source "'"$PROJECT_ROOT"'/scripts/lib/qwen.sh"
+        qwen_auth_method')"
+    rm -rf "$home"
+    if [[ "$got" == "oauth-unvalidated" ]]; then test_pass
+    else test_fail "expected oauth-unvalidated, got: $got"; fi
+}
 test_qwen_apikey_precedence() {
     test_case "qwen_auth_method: QWEN_API_KEY wins over expired OAuth"
     local home; home="$(mktemp -d)"; mkdir -p "$home/.qwen"
@@ -219,7 +232,7 @@ test_fleet_includes_openai_compat_qwen() {
     test_case "build-fleet.sh: Coding-Plan qwen is included in fleets"
     local lines
     lines="$(fleet_qwen_lines "$FIXTURE/past.json" 'export QWEN_API_KEY=""; export OPENAI_API_KEY="sk-test"; export OPENAI_BASE_URL="https://dashscope-intl.aliyuncs.com/compatible-mode/v1"')"
-    if printf '%s\n' "$lines" | grep -q '^qwen|'; then test_pass
+    if printf '%s\n' "$lines" | grep -c '^qwen|' >/dev/null; then test_pass
     else test_fail "expected qwen fleet entry, got: $lines"; fi
 }
 
@@ -260,6 +273,7 @@ test_validator_garbage_failclosed
 test_validator_missing_failclosed
 test_qwen_expired_is_oauth_expired
 test_qwen_valid_is_oauth
+test_qwen_without_validator_fails_closed
 test_qwen_apikey_precedence
 test_qwen_openai_compat_precedence
 test_qwen_usable_rejects_expired

@@ -245,6 +245,8 @@ doctor_check_providers() {
             qwen_auth="config"
         elif [[ -n "${QWEN_API_KEY:-}" ]]; then
             qwen_auth="env:QWEN_API_KEY"
+        elif [[ -n "${OPENAI_API_KEY:-}" && -n "${OPENAI_BASE_URL:-}" ]]; then
+            qwen_auth="env:OPENAI_COMPAT"
         fi
         local qwen_ver
         if [[ -n "$_timeout_cmd" ]]; then
@@ -259,6 +261,10 @@ doctor_check_providers() {
         elif [[ "$qwen_auth" == "oauth-expired" ]]; then
             doctor_add "qwen-cli" "providers" "warn" \
                 "Qwen CLI v${qwen_ver} — OAuth token expired (free tier discontinued 2026-04-15, not refreshable)" \
+                "$_qwen_setup"
+        elif [[ "$qwen_auth" == "oauth-unvalidated" ]]; then
+            doctor_add "qwen-cli" "providers" "warn" \
+                "Qwen CLI v${qwen_ver} — OAuth token could not be validated" \
                 "$_qwen_setup"
         elif [[ "$qwen_auth" != "none" ]]; then
             doctor_add "qwen-cli" "providers" "pass" \
