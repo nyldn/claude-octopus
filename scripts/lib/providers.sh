@@ -12,6 +12,8 @@ if ! declare -f _is_cursor_agent_binary >/dev/null 2>&1; then
     source "${_providers_lib_dir}/cursor-agent.sh" 2>/dev/null || true
 fi
 source "${_providers_lib_dir}/provider-allowlist.sh" 2>/dev/null || true
+source "${_providers_lib_dir}/auth.sh" 2>/dev/null || true
+source "${_providers_lib_dir}/qwen.sh" 2>/dev/null || true
 
 # Version comparison utility
 version_compare() {
@@ -799,10 +801,11 @@ check_provider_health() {
                         return 1
                         ;;
                 esac
-            elif [[ ! -f "${HOME}/.qwen/oauth_creds.json" ]] && \
-                 [[ ! -f "${HOME}/.qwen/config.json" ]] && \
-                 [[ -z "${QWEN_API_KEY:-}" ]] && \
-                 ! [[ -n "${OPENAI_API_KEY:-}" && -n "${OPENAI_BASE_URL:-}" ]]; then
+            elif [[ -n "${QWEN_API_KEY:-}" ]] || \
+                 [[ -n "${OPENAI_API_KEY:-}" && -n "${OPENAI_BASE_URL:-}" ]] || \
+                 [[ -f "${HOME}/.qwen/config.json" ]]; then
+                :
+            else
                 echo "qwen: not authenticated (set QWEN_API_KEY or configure Coding-Plan)" >&2
                 return 1
             fi
@@ -1057,7 +1060,7 @@ detect_providers() {
                 *)                qwen_auth="none" ;;
             esac
         elif [[ -f "${HOME}/.qwen/oauth_creds.json" ]]; then
-            qwen_auth="oauth"
+            qwen_auth="oauth-unvalidated"
         elif [[ -f "${HOME}/.qwen/config.json" ]]; then
             qwen_auth="config"
         elif [[ -n "${QWEN_API_KEY:-}" ]]; then
@@ -1115,7 +1118,7 @@ detect_providers() {
         log WARN "  - OpenRouter: Set OPENROUTER_API_KEY environment variable"
         log WARN "  - Copilot: brew install copilot-cli (zero additional cost)"
         log WARN "  - Ollama: brew install ollama (free local LLM)"
-        log WARN "  - Qwen: npm i -g @qwen-code/qwen-code (free tier)"
+        log WARN "  - Qwen: npm i -g @qwen-code/qwen-code; set QWEN_API_KEY or configure Coding-Plan"
         log WARN "  - OpenCode: npm i -g opencode (multi-provider router)"
         echo "none:unavailable"
         return 1
