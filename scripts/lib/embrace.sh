@@ -8,6 +8,12 @@ if ! declare -f _is_cursor_agent_binary >/dev/null 2>&1; then
     source "${_embrace_lib_dir}/cursor-agent.sh" 2>/dev/null || true
 fi
 
+if ! declare -f qwen_is_usable >/dev/null 2>&1; then
+    _embrace_lib_dir="${_embrace_lib_dir:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
+    source "${_embrace_lib_dir}/auth.sh" 2>/dev/null || true
+    source "${_embrace_lib_dir}/qwen.sh" 2>/dev/null || true
+fi
+
 get_dispatch_strategy() {
     local prompt="$1"
     local workflow="${2:-auto}"
@@ -50,7 +56,11 @@ get_dispatch_strategy() {
     command -v codex >/dev/null 2>&1 && has_codex=true
     command -v gemini >/dev/null 2>&1 && has_gemini=true
     command -v copilot >/dev/null 2>&1 && has_copilot=true
-    command -v qwen >/dev/null 2>&1 && has_qwen=true
+    if declare -f qwen_is_usable >/dev/null 2>&1; then
+        qwen_is_usable && has_qwen=true
+    elif command -v qwen >/dev/null 2>&1; then
+        has_qwen=true
+    fi
     command -v ollama >/dev/null 2>&1 && curl -sf http://localhost:11434/api/tags &>/dev/null && has_ollama=true
     if declare -f cursor_agent_is_available >/dev/null 2>&1; then
         cursor_agent_is_available && has_cursor_agent=true

@@ -258,6 +258,23 @@ Run environment diagnostics across 9 check categories.
 
 These are advisory unless they identify a concrete misconfiguration. For example, `gateway-model-discovery` warns only when `ANTHROPIC_BASE_URL` is set without `CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1`, and `mcp-workspace-reserved` warns only when a settings file defines `mcpServers.workspace`.
 
+**Provider contract audit:**
+
+```bash
+bash scripts/helpers/audit-provider-contracts.sh
+```
+
+Use this release gate when provider auth, setup guidance, version floors, or provider docs change. It checks that provider states remain `available|missing|degraded`, qwen OAuth validation fails closed, stale free-tier guidance does not reappear, and provider checks can emit opt-in lifecycle events.
+
+**Opt-in event stream:**
+
+```bash
+OCTO_EVENT_LOG=auto bash scripts/helpers/check-providers.sh
+OCTO_EVENT_LOG=/tmp/octo-events.jsonl bash scripts/helpers/check-providers.sh
+```
+
+When enabled, provider checks append JSONL `provider.status` records without changing stdout. Leave `OCTO_EVENT_LOG` unset for normal behavior.
+
 **Flags:**
 
 | Flag | Description |
@@ -1514,7 +1531,7 @@ When Claude Octopus activates external CLIs, you'll see visual indicators:
 | 🔴 | Codex CLI executing | OpenAI (your OPENAI_API_KEY) |
 | 🟡 | Gemini CLI executing | Google (your GEMINI_API_KEY) |
 | 🟣 | Perplexity Sonar search | Your PERPLEXITY_API_KEY |
-| 🟢 | Qwen or Copilot executing | Qwen free tier or GitHub Copilot subscription |
+| 🟢 | Qwen or Copilot executing | Qwen API-key/Coding-Plan auth or GitHub Copilot subscription |
 | 🟠 | OpenCode/OpenRouter provider executing | Local/OpenRouter configuration |
 | 🌐 | Web research source | WebFetch/WebSearch or configured web provider |
 | 🔵 | Claude subagent | Included with Claude Code |

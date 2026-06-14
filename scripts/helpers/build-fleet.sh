@@ -21,6 +21,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 source "${SCRIPT_DIR}/../lib/cursor-agent.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/../lib/provider-allowlist.sh" 2>/dev/null || true
+source "${SCRIPT_DIR}/../lib/auth.sh" 2>/dev/null || true
+source "${SCRIPT_DIR}/../lib/qwen.sh" 2>/dev/null || true
 
 WORKFLOW="${1:-research}"
 INTENSITY="${2:-standard}"
@@ -49,7 +51,13 @@ AVAILABLE_CLI=()
 if octo_provider_allowed codex && command -v codex >/dev/null 2>&1; then AVAILABLE_CLI+=(codex); fi
 if octo_provider_allowed gemini && command -v gemini >/dev/null 2>&1; then AVAILABLE_CLI+=(gemini); fi
 if octo_provider_allowed copilot && command -v copilot >/dev/null 2>&1; then AVAILABLE_CLI+=(copilot); fi
-if octo_provider_allowed qwen && command -v qwen >/dev/null 2>&1; then AVAILABLE_CLI+=(qwen); fi
+if octo_provider_allowed qwen; then
+    if declare -f qwen_is_usable >/dev/null 2>&1; then
+        qwen_is_usable && AVAILABLE_CLI+=(qwen)
+    elif command -v qwen >/dev/null 2>&1; then
+        AVAILABLE_CLI+=(qwen)
+    fi
+fi
 if octo_provider_allowed opencode && command -v opencode >/dev/null 2>&1; then AVAILABLE_CLI+=(opencode); fi
 if octo_provider_allowed ollama && command -v ollama >/dev/null 2>&1 && curl -sf http://localhost:11434/api/tags >/dev/null 2>&1; then AVAILABLE_CLI+=(ollama); fi
 if octo_provider_allowed cursor-agent && declare -f _is_cursor_agent_binary >/dev/null 2>&1 && _is_cursor_agent_binary; then
