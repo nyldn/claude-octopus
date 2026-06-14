@@ -62,7 +62,7 @@ echo ""
 echo "Provider CLIs:"
 command -v codex  &>/dev/null && log INFO "Codex CLI already installed"  || install_npm_pkg "@openai/codex"          "Codex CLI"
 command -v gemini &>/dev/null && log INFO "Gemini CLI already installed" || install_npm_pkg "@google/gemini-cli"    "Gemini CLI"
-command -v qwen   &>/dev/null && log INFO "Qwen CLI already installed"   || install_npm_pkg "@qwen-code/qwen-code"  "Qwen CLI (free-tier)"
+command -v qwen   &>/dev/null && log INFO "Qwen CLI already installed"   || install_npm_pkg "@qwen-code/qwen-code"  "Qwen CLI (API-key/Coding-Plan)"
 
 echo ""
 echo "─────────────────────────────────────────────"

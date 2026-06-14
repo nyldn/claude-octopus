@@ -616,10 +616,10 @@ ${heuristic_ctx}"
         done
 
         if [[ $exit_code -ne 0 && -s "$temp_errors" ]]; then
-            local stderr_first_line=""
-            stderr_first_line=$(grep -m1 '[^[:space:]]' "$temp_errors" 2>/dev/null | head -c 240 || true)
-            if [[ -n "$stderr_first_line" ]]; then
-                log "ERROR" "[$agent_type] provider stderr: $stderr_first_line"
+            local stderr_excerpt=""
+            stderr_excerpt=$(grep -m5 '[^[:space:]]' "$temp_errors" 2>/dev/null | tr '\n' ' ' | head -c 600 || true)
+            if [[ -n "$stderr_excerpt" ]]; then
+                log "ERROR" "[$agent_type] provider stderr: $stderr_excerpt"
             fi
         fi
 
