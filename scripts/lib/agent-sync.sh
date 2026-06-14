@@ -253,6 +253,7 @@ ${provider_ctx}"
     local _dispatch_pid=""
 
     # Always init temp files so readers never fail on missing file.
+    mkdir -p "${RESULTS_DIR}" 2>/dev/null || true
     > "$temp_err"
     > "$temp_out"
 

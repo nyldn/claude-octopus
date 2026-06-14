@@ -73,7 +73,12 @@ if [[ -z "$OCTO_PLUGIN_ROOT" || ! -x "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" 
   exit 1
 fi
 mkdir -p "${HOME}/.claude-octopus"
-ln -sfn "$OCTO_PLUGIN_ROOT" "${HOME}/.claude-octopus/plugin" 2>/dev/null || true
+_octo_stable="${HOME}/.claude-octopus/plugin"
+if [[ ! -L "$_octo_stable" ]] || [[ "$(cd "$OCTO_PLUGIN_ROOT" 2>/dev/null && pwd -P)" != "$(cd "$_octo_stable" 2>/dev/null && pwd -P)" ]]; then
+  [[ -L "$_octo_stable" || -f "$_octo_stable" ]] && rm -f "$_octo_stable" 2>/dev/null || true
+  ln -s "$OCTO_PLUGIN_ROOT" "$_octo_stable" 2>/dev/null || true
+fi
+unset _octo_stable
 export OCTO_PLUGIN_ROOT
 bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor
 ```

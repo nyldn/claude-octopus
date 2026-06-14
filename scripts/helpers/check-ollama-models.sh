@@ -13,7 +13,7 @@ set -euo pipefail
 #   OCTO_OLLAMA_API_URL   override Ollama endpoint (default: http://localhost:11434)
 #   OCTO_OLLAMA_STALE_DAYS override staleness threshold (default: 30)
 
-OCTO_ROOT="${OCTO_ROOT:-$(git -C "$(pwd)" rev-parse --show-toplevel 2>/dev/null || echo "${HOME}/.claude-octopus/plugin")}"
+OCTO_ROOT="${OCTO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 OCTO_OLLAMA_API_URL="${OCTO_OLLAMA_API_URL:-http://localhost:11434}"
 
 # shellcheck source=scripts/lib/provider-versions.sh

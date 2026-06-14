@@ -174,7 +174,7 @@ doctor_check_providers() {
             stale_count=0
             local _check="${_octo_root}/scripts/helpers/check-ollama-models.sh"
             if [[ -r "$_check" ]]; then
-                stale_count=$(bash "$_check" --count-stale 2>/dev/null)
+                stale_count=$(bash "$_check" --count-stale 2>/dev/null || echo "0")
                 stale_count=$(printf '%s' "$stale_count" | grep -oE '^[0-9]+$' || echo "0")
                 stale_count="${stale_count:-0}"
             fi
