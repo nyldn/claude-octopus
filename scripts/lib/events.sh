@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-set -eo pipefail
+# Source-safe: no shell options set at top. Setting `set -e`/`pipefail` here would
+# leak errexit into every sourcer (this lib is sourced, not executed). Helpers
+# guard their own return codes instead.
 
 # Claude Octopus event stream helpers.
 #
