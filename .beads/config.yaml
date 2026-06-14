@@ -54,4 +54,4 @@
 # - linear.api_key  → use LINEAR_API_KEY env var instead
 # - github.token    → use GITHUB_TOKEN env var instead
 
-sync.remote: "git+https://github.com/nyldn/claude-octopus.git"
+sync.remote: "git+https://github.com/nyldn/claude-octopus-dev.git"
