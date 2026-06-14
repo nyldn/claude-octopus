@@ -132,6 +132,26 @@ PY
     test_pass
 }
 
+test_dispatch_lifecycle_events() {
+    test_case "run_with_timeout emits dispatch.start/end/timeout lifecycle events"
+    export OCTO_EVENT_LOG="$FIXTURE/lifecycle.jsonl"
+    : > "$OCTO_EVENT_LOG"
+    (
+        log() { :; }  # heartbeat.sh logs on timeout; stub it for the unit test
+        # shellcheck disable=SC1091
+        source "$PROJECT_ROOT/scripts/lib/heartbeat.sh"
+        run_with_timeout 5 true >/dev/null 2>&1 || true
+        run_with_timeout 1 sleep 5 >/dev/null 2>&1 || true
+    )
+    if grep -q '"event":"dispatch.start"' "$OCTO_EVENT_LOG" && \
+       grep -q '"event":"dispatch.end"' "$OCTO_EVENT_LOG" && \
+       grep -q '"event":"dispatch.timeout"' "$OCTO_EVENT_LOG"; then
+        test_pass
+    else
+        test_fail "missing one of dispatch.start/end/timeout in $(grep -oE '"event":"[^"]*"' "$OCTO_EVENT_LOG" | tr '\n' ' ')"
+    fi
+}
+
 test_no_log_when_disabled
 test_emit_jsonl_event
 test_auto_log_path
@@ -139,5 +159,6 @@ test_trim_event_log
 test_invalid_event_rejected
 test_check_providers_event_hook
 test_concurrent_emit_no_clobber
+test_dispatch_lifecycle_events
 
 test_summary
