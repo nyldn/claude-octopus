@@ -1527,6 +1527,17 @@ is_agent_available() {
         gemini|gemini-fast|gemini-image)
             [[ "$USER_HAS_GEMINI" == "true" || -f "$HOME/.gemini/oauth_creds.json" || -n "${GEMINI_API_KEY:-}" ]]
             ;;
+        qwen|qwen-research)
+            # oco-dar: gate on VALID auth (binary + non-expired token). An expired
+            # OAuth token (free tier EOL 2026-04-15) must not dispatch — it hangs
+            # on interactive device-auth. If qwen_is_usable is unavailable, fail
+            # closed instead of falling back to a binary-only check.
+            if declare -f qwen_is_usable >/dev/null 2>&1; then
+                qwen_is_usable
+            else
+                false
+            fi
+            ;;
         *)
             return 0  # Unknown agents assumed available
             ;;

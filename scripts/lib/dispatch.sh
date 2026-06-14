@@ -147,8 +147,11 @@ get_agent_command() {
             model=$(get_agent_model "$agent_type" "$phase" "$role")
             echo "ollama run $model"
             ;;
-        qwen|qwen-research)  # v9.10.0: Qwen CLI — fork of Gemini CLI (free tier)
-            echo "env NODE_NO_WARNINGS=1 qwen -o text --approval-mode yolo"
+        qwen|qwen-research)  # v9.10.0: Qwen CLI — fork of Gemini CLI
+            # oco-dar: NO_BROWSER=1 stops a stale token from hijacking the user's
+            # browser into the OAuth device-flow. Pre-flight (qwen_is_usable) should
+            # already gate this out; this is defense-in-depth if dispatch is reached.
+            echo "env NODE_NO_WARNINGS=1 NO_BROWSER=1 qwen -o text --approval-mode yolo"
             ;;
         cursor-agent)  # v9.23.0: Cursor Agent CLI — Grok 4.20 via Cursor subscription
             model=$(get_agent_model "$agent_type" "$phase" "$role")

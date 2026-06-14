@@ -86,11 +86,11 @@ check_deps() {
         warnings+=("copilot:Copilot CLI not installed (optional) — brew install copilot-cli for zero-cost research")
     fi
 
-    # Qwen CLI (optional — free tier)
+    # Qwen CLI (optional — API-key / Coding-Plan auth)
     if has_cmd qwen; then
         ok+=("qwen:Qwen CLI installed")
     else
-        warnings+=("qwen:Qwen CLI not installed (optional) — npm install -g @qwen-code/qwen-code for free-tier research")
+        warnings+=("qwen:Qwen CLI not installed (optional) — npm install -g @qwen-code/qwen-code; auth via QWEN_API_KEY or Coding-Plan")
     fi
 
     # Cursor Agent CLI (optional — Grok 4.20 via Cursor subscription)
