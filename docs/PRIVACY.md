@@ -23,7 +23,7 @@ The plugin dispatches prompts to AI providers **you configure**. These calls go 
 | Codex (OpenAI) | OpenAI | Your API key or OAuth |
 | Gemini (Google) | Google | Your API key or OAuth |
 | Copilot (GitHub) | GitHub | Your Copilot subscription |
-| Qwen (Alibaba) | Alibaba Cloud | Your Qwen OAuth |
+| Qwen (Alibaba) | Alibaba Cloud | Your Qwen API key or Coding-Plan credentials |
 | Ollama | Your local machine | No external calls |
 | Perplexity | Perplexity AI | Your API key |
 | OpenRouter | OpenRouter | Your API key |

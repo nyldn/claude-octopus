@@ -143,6 +143,27 @@ fi
 echo ""
 
 # ============================================================================
+# 2b. PROVIDER CONTRACT AUDIT (release gate for provider drift)
+# ============================================================================
+echo "🔌 Running provider contract audit..."
+
+AUDIT_SCRIPT="$SCRIPT_DIR/helpers/audit-provider-contracts.sh"
+if [[ -x "$AUDIT_SCRIPT" ]]; then
+    if AUDIT_OUTPUT=$("$AUDIT_SCRIPT" 2>&1); then
+        echo -e "  ${GREEN}✓ $(echo "$AUDIT_OUTPUT" | grep '^SUMMARY' || echo 'provider contract audit passed')${NC}"
+    else
+        echo -e "  ${RED}ERROR: provider contract audit failed (provider auth/version/setup drift)${NC}"
+        echo "$AUDIT_OUTPUT" | grep '^FAIL' | sed 's/^/    /'
+        ((errors++)) || true
+    fi
+else
+    echo -e "  ${RED}ERROR: audit-provider-contracts.sh missing or not executable — provider contract is ungated${NC}"
+    ((errors++)) || true
+fi
+
+echo ""
+
+# ============================================================================
 # 3. CLAUDE PLUGIN VALIDATION
 # ============================================================================
 echo "🧪 Checking Claude plugin validation..."

@@ -85,7 +85,7 @@ build_provider_env() {
             if [[ -z "${GOOGLE_API_KEY:-}" ]]; then
                 resolve_provider_env "GOOGLE_API_KEY" 2>/dev/null || true
             fi
-            PROVIDER_ENV_ARRAY=(env -i "PATH=$PATH" "HOME=$HOME" "GEMINI_API_KEY=${GEMINI_API_KEY:-}" "GOOGLE_API_KEY=${GOOGLE_API_KEY:-}" "NODE_NO_WARNINGS=1" "TMPDIR=${TMPDIR:-/tmp}" "GEMINI_CLI_TRUST_WORKSPACE=${GEMINI_CLI_TRUST_WORKSPACE:-true}")
+            PROVIDER_ENV_ARRAY=(env -i "PATH=$PATH" "HOME=$HOME" "GEMINI_API_KEY=${GEMINI_API_KEY:-}" "GOOGLE_API_KEY=${GOOGLE_API_KEY:-}" "GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT:-}" "GOOGLE_CLOUD_PROJECT_ID=${GOOGLE_CLOUD_PROJECT_ID:-}" "NODE_NO_WARNINGS=1" "TMPDIR=${TMPDIR:-/tmp}" "GEMINI_CLI_TRUST_WORKSPACE=${GEMINI_CLI_TRUST_WORKSPACE:-true}")
             if [[ ${#_trace_env[@]} -gt 0 ]]; then
                 PROVIDER_ENV_ARRAY+=("${_trace_env[@]}")
             fi
