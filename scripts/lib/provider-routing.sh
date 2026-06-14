@@ -104,8 +104,18 @@ build_provider_env() {
             fi
             return 0
             ;;
+        claude*)
+            # A headless claude (or clarp wrapping it) must NOT inherit the parent
+            # Claude Code session markers, or the inner `claude` hangs thinking it
+            # is a nested child (council/agent-sync seat stalls at 0 bytes until
+            # timeout). Strip them; keep the rest of the env (PATH/HOME/auth).
+            PROVIDER_ENV_ARRAY=(env -u CLAUDECODE -u CLAUDE_CODE_CHILD_SESSION -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u CLAUDE_CODE_EXECPATH)
+            if [[ ${#_trace_env[@]} -gt 0 ]]; then
+                PROVIDER_ENV_ARRAY+=("${_trace_env[@]}")
+            fi
+            ;;
         *)
-            # Claude and other providers: no isolation needed
+            # Other providers: no isolation needed
             return 0
             ;;
     esac

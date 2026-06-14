@@ -18,6 +18,10 @@ get_agent_command() {
     local phase="${2:-}"
     local role="${3:-}"
     local model=""
+    # Allow swapping the claude binary (e.g. clarp = subscription-billed drop-in
+    # for `claude -p`, instead of metered API). Default unchanged. May include
+    # args (word-split downstream by read -ra), e.g. "clarp --strict-mcp-config".
+    local _claude_bin="${OCTOPUS_CLAUDE_BIN:-claude}"
 
     # Configurable sandbox mode (v7.13.1 - Issue #9)
     # Priority: OCTOPUS_CODEX_SANDBOX env var > default (workspace-write)
@@ -105,8 +109,8 @@ get_agent_command() {
             echo "${gemini_env} ${gemini_exec} ${model} ${gemini_flags}"
             ;;
         codex-review) echo "${codex_bin} exec --skip-git-repo-check review" ;; # Code review mode (no sandbox support)
-        claude) echo "claude${_BARE_OPT} --print ${claude_perm}" ;;                         # Claude Sonnet 4.6
-        claude-sonnet) echo "claude${_BARE_OPT} --print --model sonnet ${claude_perm}" ;;        # Claude Sonnet explicit
+        claude) echo "${_claude_bin}${_BARE_OPT} --print ${claude_perm}" ;;                         # Claude Sonnet 4.6
+        claude-sonnet) echo "${_claude_bin}${_BARE_OPT} --print --model sonnet ${claude_perm}" ;;        # Claude Sonnet explicit
         claude-opus)
             # v9.42: Opus alias — resolves to 4.8 on Claude Code v2.1.154+,
             # then 4.7/4.6 on older hosts or enterprise backends.
@@ -124,19 +128,19 @@ get_agent_command() {
                 opus_effort="$OCTOPUS_EFFORT_OVERRIDE"
             fi
             if [[ "${SUPPORTS_EFFORT_COMMAND:-false}" == "true" || "${SUPPORTS_XHIGH_EFFORT:-false}" == "true" ]]; then
-                echo "env CLAUDE_CODE_EFFORT_LEVEL=${opus_effort} claude${_BARE_OPT} --print --model opus ${claude_perm}"
+                echo "env CLAUDE_CODE_EFFORT_LEVEL=${opus_effort} ${_claude_bin}${_BARE_OPT} --print --model opus ${claude_perm}"
             else
-                echo "claude${_BARE_OPT} --print --model opus ${claude_perm}"
+                echo "${_claude_bin}${_BARE_OPT} --print --model opus ${claude_perm}"
             fi
             ;;
         claude-opus-fast)
             if [[ "${SUPPORTS_OPUS_4_8:-false}" == "true" && "${OCTOPUS_OPUS_MODEL:-}" != "claude-opus-4.6" ]]; then
-                echo "claude${_BARE_OPT} --print --model claude-opus-4-8 --fast ${claude_perm}"
+                echo "${_claude_bin}${_BARE_OPT} --print --model claude-opus-4-8 --fast ${claude_perm}"
             else
-                echo "claude${_BARE_OPT} --print --model claude-opus-4-6 --fast ${claude_perm}"
+                echo "${_claude_bin}${_BARE_OPT} --print --model claude-opus-4-6 --fast ${claude_perm}"
             fi
             ;;
-        claude-opus-legacy) echo "claude${_BARE_OPT} --print --model claude-opus-4-6 ${claude_perm}" ;; # v9.23: explicit 4.6 opt-in
+        claude-opus-legacy) echo "${_claude_bin}${_BARE_OPT} --print --model claude-opus-4-6 ${claude_perm}" ;; # v9.23: explicit 4.6 opt-in
         openrouter) echo "openrouter_execute" ;;                 # OpenRouter API (v4.8)
         openrouter-glm5) echo "openrouter_execute_model z-ai/glm-5" ;;           # v8.11.0: GLM-5 via OpenRouter
         openrouter-kimi) echo "openrouter_execute_model moonshotai/kimi-k2.5" ;; # v8.11.0: Kimi K2.5 via OpenRouter
