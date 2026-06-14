@@ -14,6 +14,12 @@ if ! declare -f octo_graphify_status_json >/dev/null 2>&1; then
     source "${_doctor_lib_dir}/graphify.sh" 2>/dev/null || true
 fi
 
+if ! declare -f qwen_auth_method >/dev/null 2>&1; then
+    _doctor_lib_dir="${_doctor_lib_dir:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
+    source "${_doctor_lib_dir}/auth.sh" 2>/dev/null || true
+    source "${_doctor_lib_dir}/qwen.sh" 2>/dev/null || true
+fi
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # MODULAR DOCTOR SYSTEM (v8.16.0)
 # 8 check categories, structured results, category filtering, JSON output
@@ -225,15 +231,22 @@ doctor_check_providers() {
             "Copilot CLI not installed (optional)" "brew install copilot-cli — zero-cost research via GitHub subscription"
     fi
 
-    # Qwen CLI (optional — free tier)
+    # Qwen CLI (optional). oco-dar: free OAuth tier was discontinued 2026-04-15
+    # and token refresh is broken — expired OAuth never recovers. Durable auth is
+    # API key / Coding-Plan. Use expiry-aware qwen_auth_method when available.
+    local _qwen_setup="Set QWEN_API_KEY, or configure Coding-Plan (OPENAI_API_KEY + OPENAI_BASE_URL), or run: qwen auth coding-plan"
     if command -v qwen &>/dev/null; then
         local qwen_auth="none"
-        if [[ -f "${HOME}/.qwen/oauth_creds.json" ]]; then
+        if declare -f qwen_auth_method &>/dev/null; then
+            qwen_auth="$(qwen_auth_method)"
+        elif [[ -f "${HOME}/.qwen/oauth_creds.json" ]]; then
             qwen_auth="oauth"
         elif [[ -f "${HOME}/.qwen/config.json" ]]; then
             qwen_auth="config"
         elif [[ -n "${QWEN_API_KEY:-}" ]]; then
             qwen_auth="env:QWEN_API_KEY"
+        elif [[ -n "${OPENAI_API_KEY:-}" && -n "${OPENAI_BASE_URL:-}" ]]; then
+            qwen_auth="env:OPENAI_COMPAT"
         fi
         local qwen_ver
         if [[ -n "$_timeout_cmd" ]]; then
@@ -241,20 +254,28 @@ doctor_check_providers() {
         else
             qwen_ver=$(qwen --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")
         fi
-        if ! octo_version_ok "${qwen_ver}" "${OCTO_QWEN_MIN_VERSION:-9.10.0}"; then
+        if ! octo_version_ok "${qwen_ver}" "${OCTO_QWEN_MIN_VERSION:-0.14.0}"; then
             doctor_add "qwen-cli" "providers" "warn" \
-               "Qwen CLI v${qwen_ver} (outdated, min: v${OCTO_QWEN_MIN_VERSION:-9.10.0})" \
+               "Qwen CLI v${qwen_ver} (outdated, min: v${OCTO_QWEN_MIN_VERSION:-0.14.0})" \
                "$(command -v qwen) — npm install -g @qwen-code/qwen-code"
+        elif [[ "$qwen_auth" == "oauth-expired" ]]; then
+            doctor_add "qwen-cli" "providers" "warn" \
+                "Qwen CLI v${qwen_ver} — OAuth token expired (free tier discontinued 2026-04-15, not refreshable)" \
+                "$_qwen_setup"
+        elif [[ "$qwen_auth" == "oauth-unvalidated" ]]; then
+            doctor_add "qwen-cli" "providers" "warn" \
+                "Qwen CLI v${qwen_ver} — OAuth token could not be validated" \
+                "$_qwen_setup"
         elif [[ "$qwen_auth" != "none" ]]; then
             doctor_add "qwen-cli" "providers" "pass" \
-                "Qwen CLI v${qwen_ver} (auth: ${qwen_auth})" "$(command -v qwen) — free-tier research via Qwen OAuth"
+                "Qwen CLI v${qwen_ver} (auth: ${qwen_auth})" "$(command -v qwen)"
         else
             doctor_add "qwen-cli" "providers" "warn" \
-                "Qwen CLI installed but not authenticated" "Run: qwen (to trigger OAuth) or set QWEN_API_KEY"
+                "Qwen CLI installed but not authenticated" "$_qwen_setup"
         fi
     else
         doctor_add "qwen-cli" "providers" "info" \
-            "Qwen CLI not installed (optional)" "npm install -g @qwen-code/qwen-code — free-tier research via Qwen OAuth"
+            "Qwen CLI not installed (optional)" "npm install -g @qwen-code/qwen-code — auth via QWEN_API_KEY / Coding-Plan"
     fi
 
     # Cursor Agent CLI (optional — Grok 4.20 via Cursor subscription)
