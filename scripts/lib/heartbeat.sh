@@ -75,6 +75,7 @@ compute_dynamic_timeout() {
     case "$agent_type" in
         codex*)     provider_cap=150 ;;
         gemini*)    provider_cap=90 ;;
+        qwen*)      provider_cap=90 ;;   # oco-dar: Gemini-CLI fork — same profile; cap auth-hang risk
         claude-sonnet*|sonnet*) provider_cap=60 ;;
         perplexity*) provider_cap=45 ;;
     esac
@@ -142,12 +143,16 @@ run_with_timeout() {
         _cmd_is_function=true
     fi
 
-    # Use gtimeout (GNU) or timeout if available AND command is an external binary
+    # Use gtimeout (GNU) or timeout if available AND command is an external binary.
+    # oco-dar: `-k 10` escalates to SIGKILL 10s after the initial SIGTERM. A
+    # provider that catches SIGTERM and stalls (e.g. node mid-OAuth device-flow)
+    # would otherwise outlive the timeout — that is exactly how an expired-token
+    # qwen probe hung ~10min instead of dying at the per-agent cap.
     if [[ "$_cmd_is_function" == "false" ]] && command -v gtimeout &>/dev/null; then
-        gtimeout "$timeout_secs" "$@"
+        gtimeout -k 10 "$timeout_secs" "$@"
         exit_code=$?
     elif [[ "$_cmd_is_function" == "false" ]] && command -v timeout &>/dev/null; then
-        timeout "$timeout_secs" "$@"
+        timeout -k 10 "$timeout_secs" "$@"
         exit_code=$?
     else
         # Fallback with proper cleanup (also used for shell functions).
@@ -160,7 +165,16 @@ run_with_timeout() {
         "$@" <&0 &
         cmd_pid=$!
 
-        ( sleep "$timeout_secs" && kill -TERM "$cmd_pid" 2>/dev/null ) &
+        # oco-dar: SIGTERM at the cap, then SIGKILL the process AND its children
+        # 10s later so a TERM-ignoring tree cannot wedge the workflow.
+        (
+            sleep "$timeout_secs"
+            kill -TERM "$cmd_pid" 2>/dev/null
+            pkill -TERM -P "$cmd_pid" 2>/dev/null || true
+            sleep 10
+            kill -KILL "$cmd_pid" 2>/dev/null
+            pkill -KILL -P "$cmd_pid" 2>/dev/null || true
+        ) &
         monitor_pid=$!
 
         if wait "$cmd_pid" 2>/dev/null; then
@@ -169,9 +183,10 @@ run_with_timeout() {
             exit_code=$?
         fi
 
-        # Clean up monitor process
+        # Stop the monitor and sweep any stragglers parented to the command.
         kill "$monitor_pid" 2>/dev/null
         wait "$monitor_pid" 2>/dev/null
+        pkill -KILL -P "$cmd_pid" 2>/dev/null || true
     fi
 
     # Enhanced timeout error messaging (v7.16.0 Feature 3)

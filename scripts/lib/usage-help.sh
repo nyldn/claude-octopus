@@ -696,8 +696,12 @@ ${YELLOW}Examples:${NC}
 
 ${YELLOW}Environment:${NC}
   CLAUDE_OCTOPUS_WORKSPACE  Override workspace (default: ~/.claude-octopus)
-  OPENAI_API_KEY            Required for Codex CLI
-  GEMINI_API_KEY            Required for Gemini CLI
+  OPENAI_API_KEY            Codex CLI (or 'codex login' OAuth)
+  GEMINI_API_KEY            Gemini CLI (or 'gemini' OAuth; GOOGLE_API_KEY also accepted)
+  PERPLEXITY_API_KEY        Perplexity Sonar web search
+  OPENROUTER_API_KEY        OpenRouter models
+  QWEN_API_KEY              Qwen CLI (Coding-Plan: OPENAI_API_KEY + OPENAI_BASE_URL also works;
+                            free OAuth tier was discontinued 2026-04-15)
 
 ${CYAN}https://github.com/nyldn/claude-octopus${NC}
 EOF

@@ -2,11 +2,11 @@
 # Provider CLI version floors — minimum versions for stable orchestration.
 # Source this file to access floor constants and octo_version_ok().
 
-OCTO_CODEX_MIN_VERSION="0.100.0"
-OCTO_GEMINI_MIN_VERSION="1.0.0"
-OCTO_QWEN_MIN_VERSION="9.10.0"
-OCTO_GH_MIN_VERSION="2.0.0"
-OCTO_OPENCODE_MIN_VERSION="0.1.0"
+OCTO_CODEX_MIN_VERSION="${OCTO_CODEX_MIN_VERSION:-0.100.0}"
+OCTO_GEMINI_MIN_VERSION="${OCTO_GEMINI_MIN_VERSION:-0.45.0}"
+OCTO_QWEN_MIN_VERSION="${OCTO_QWEN_MIN_VERSION:-0.14.0}"
+OCTO_GH_MIN_VERSION="${OCTO_GH_MIN_VERSION:-2.0.0}"
+OCTO_OPENCODE_MIN_VERSION="${OCTO_OPENCODE_MIN_VERSION:-0.1.0}"
 
 # Ollama model staleness threshold (days). Models older than this raise WARN.
 OCTO_OLLAMA_STALE_DAYS="${OCTO_OLLAMA_STALE_DAYS:-30}"
