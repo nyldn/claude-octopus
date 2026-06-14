@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 # Audit provider contracts that tend to drift as provider CLIs/plugins change.
+# NOTE: this is a source-text drift tripwire, not a behavioral test. It greps for
+# literal lines, so reformatting an audited line fails it even when behavior is
+# unchanged, and a behavior change that keeps the text passes. Treat green as
+# "the watched lines are intact", not "behavior verified".
 
 set -euo pipefail
 
