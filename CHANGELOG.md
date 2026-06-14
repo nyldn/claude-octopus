@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [9.44.1] - 2026-06-14
+
 ### Added
 
 - `scripts/helpers/audit-provider-contracts.sh` release-gate audit for provider drift: provider states must stay `available|missing|degraded`, qwen auth must fail closed when OAuth cannot be validated, stale free-tier setup guidance must not reappear, and provider version floors must remain env-overridable.
@@ -10,7 +12,10 @@
 
 ### Fixed
 
+- Pass `GOOGLE_CLOUD_PROJECT`, `GCLOUD_PROJECT`, and `CLOUDSDK_CORE_PROJECT` through Gemini environment isolation so Vertex-backed Gemini auth keeps its project context (#472).
+- Lower the Gemini CLI version floor to `0.45.0` and honor `OCTO_*_MIN_VERSION` overrides for provider checks (#475).
 - `detect_providers` no longer treats a bare qwen OAuth file as dispatchable when the qwen auth validator is unavailable; it reports `oauth-unvalidated` instead. Setup guidance now points users at `QWEN_API_KEY` or Coding-Plan auth rather than the retired free tier.
+- `scripts/lib/events.sh` no longer sets shell options at the top, so sourcing it no longer leaks `set -e`/`pipefail` into the calling shell (#479).
 
 ## [9.44.0] - 2026-06-10
 
