@@ -55,6 +55,28 @@ Plans that contradict the intent contract are invalid.
 Do NOT plan to auto-invoke these skills — they require explicit user invocation:
 - skill-factory, skill-deep-research, skill-adversarial-security
 - flow-parallel, skill-ship
+
+### 5. Octo Plan Artifact Conflict — MANDATORY WARNING
+If the user invoked `/octo:plan` (or any octo planning workflow such as
+`/octo:embrace`) while plan mode is active, plan mode's write restriction
+BLOCKS octo from saving its planning artifacts:
+  - .claude/session-intent.md  (intent contract)
+  - .claude/session-plan.md    (weighted-phase plan)
+  - provider block and phase visualization files
+
+DO NOT silently fall through to generic native planning. You MUST:
+
+1. Emit this exact warning before any plan output:
+
+   ⚠️  OCTO PLAN DEGRADED — plan mode write conflict
+   Plan mode is active and blocking octo artifact writes.
+   The intent contract and session plan cannot be saved right now.
+   This is display-only output — NOT a full octo multi-provider plan.
+   To get the full octo plan: exit plan mode first, then re-run /octo:plan.
+
+2. Display the plan visualization so the user is not left with nothing.
+3. Skip Steps 2 and 5 of the /octo:plan workflow (artifact saves only).
+4. Remind the user at the end to re-run /octo:plan once plan mode exits.
 </PLAN-MODE-RULES>
 RULES
 
