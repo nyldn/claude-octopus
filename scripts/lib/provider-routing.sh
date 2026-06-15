@@ -233,9 +233,11 @@ migrate_provider_config() {
     },
     "gemini": {
       "default": "$gemini_model",
-      "fallback": "gemini-3-flash-preview",
-      "flash": "gemini-3-flash-preview",
-      "image": "gemini-3-pro-image-preview"
+      "fallback": "gemini-3.5-flash",
+      "flash": "gemini-3.5-flash",
+      "flash-lite": "gemini-3.1-flash-lite",
+      "image": "gemini-nano-banana-pro",
+      "image-standard": "gemini-nano-banana-2"
     }
   },
   "routing": {
@@ -250,7 +252,7 @@ migrate_provider_config() {
     }
   },
   "tiers": {
-    "budget": { "codex": "mini", "gemini": "flash" },
+    "budget": { "codex": "mini", "gemini": "flash-lite" },
     "standard": { "codex": "default", "gemini": "default" },
     "premium": { "codex": "default", "gemini": "default" }
   },
@@ -279,6 +281,10 @@ EOF
         '.providers.codex.fallback'
         '.providers.gemini.default'
         '.providers.gemini.fallback'
+        '.providers.gemini.flash'
+        '.providers.gemini.flash-lite'
+        '.providers.gemini.image'
+        '.providers.gemini.image-standard'
         '.overrides.codex'
         '.overrides.gemini'
     )
@@ -292,10 +298,12 @@ EOF
         case "$current_val" in
             claude-sonnet-4-5|claude-sonnet-4-5-20250514|claude-3-5-sonnet*|claude-sonnet-4*)
                 if [[ "$path" == *codex* ]]; then replacement="gpt-5.5"; fi ;;
-            gemini-2.0-flash-thinking*|gemini-2.0-flash-exp*|gemini-exp-*)
-                replacement="gemini-3-flash-preview" ;;
+            gemini-2.0-flash-thinking*|gemini-2.0-flash-exp*|gemini-exp-*|gemini-3-flash-preview)
+                replacement="gemini-3.5-flash" ;;
             gemini-2.0-pro*|gemini-1.5-pro*|gemini-pro)
                 replacement="gemini-3.1-pro-preview" ;;
+            gemini-3-pro-image-preview)
+                replacement="gemini-nano-banana-pro" ;;
             gpt-4o*|gpt-4-turbo*|gpt-4-*|o1-*|chatgpt-*)
                 replacement="gpt-5.5" ;;
         esac
@@ -366,9 +374,11 @@ set_provider_model() {
     },
     "gemini": {
       "default": "gemini-3.1-pro-preview",
-      "fallback": "gemini-3-flash-preview",
-      "flash": "gemini-3-flash-preview",
-      "image": "gemini-3-pro-image-preview"
+      "fallback": "gemini-3.5-flash",
+      "flash": "gemini-3.5-flash",
+      "flash-lite": "gemini-3.1-flash-lite",
+      "image": "gemini-nano-banana-pro",
+      "image-standard": "gemini-nano-banana-2"
     }
   },
   "routing": {
@@ -380,7 +390,7 @@ set_provider_model() {
     }
   },
   "tiers": {
-    "budget": { "codex": "mini", "gemini": "flash" },
+    "budget": { "codex": "mini", "gemini": "flash-lite" },
     "standard": { "codex": "default", "gemini": "default" },
     "premium": { "codex": "default", "gemini": "default" }
   },

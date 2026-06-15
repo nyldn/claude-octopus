@@ -33,7 +33,7 @@ Claude Octopus coordinates **nine AI providers** to give you multi-perspective a
 | Provider | CLI Tool | Underlying Model | Cost Source |
 |----------|----------|------------------|-------------|
 | **Codex CLI** | `codex exec --model gpt-5.4` | GPT-5.4 | Your `OPENAI_API_KEY` |
-| **Gemini CLI** | `gemini -y -m gemini-3.1-pro-preview` | Gemini 3.1 Pro Preview | Your `GEMINI_API_KEY` |
+| **Gemini CLI** | `gemini -y -m gemini-3.1-pro-preview` | Gemini 3.1 Pro Preview / 3.5 Flash / Nano Banana Pro (image) | Your `GEMINI_API_KEY` |
 | **Antigravity CLI** | `agy --print --sandbox` | Antigravity default model | Your Antigravity CLI auth |
 | **Claude** | Built-in | Claude Sonnet 4.6 / Opus 4.7 | Your Claude Code subscription |
 | **Perplexity** | API-only | Sonar Pro / Sonar | Your `PERPLEXITY_API_KEY` |
@@ -59,7 +59,7 @@ Role defaults refreshed based on April 2026 benchmark consensus. See [GPT-5.4 pr
 | `implementer`        | GPT-5.4               | Terminal-heavy execution, iterative patch/test loops                |
 | `implementer-heavy`  | Claude Opus 4.7       | Opt-in only; greenfield / large refactors / UI-heavy builds         |
 | `synthesizer`        | Claude Sonnet 4.6     | Best aggregator price/quality                                       |
-| `researcher`         | Gemini 3.1 Pro Preview| Broad research + synthesis                                          |
+| `researcher`         | Gemini 3.1 Pro Preview / 3.5 Flash | Broad research + synthesis                                |
 
 **Opt-out:** `OCTOPUS_LEGACY_ROLES=1` restores the v9.28 mapping (GPT-5.4 everywhere for architect/reviewer/implementer, Opus 4.6 for strategist).
 

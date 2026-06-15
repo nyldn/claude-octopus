@@ -73,9 +73,11 @@ ensure_config() {
     },
     "gemini": {
       "default": "gemini-3.1-pro-preview",
-      "fallback": "gemini-3-flash-preview",
-      "flash": "gemini-3-flash-preview",
-      "image": "gemini-3-pro-image-preview"
+      "fallback": "gemini-3.5-flash",
+      "flash": "gemini-3.5-flash",
+      "flash-lite": "gemini-3.1-flash-lite",
+      "image": "gemini-nano-banana-pro",
+      "image-standard": "gemini-nano-banana-2"
     },
     "claude": {
       "default": "claude-sonnet-4.6",
@@ -522,8 +524,10 @@ cmd_models() {
         "o3|200|yes|no|yes|codex|premium|active"
         "o3-mini|200|yes|no|yes|codex|budget|active"
         "gemini-3.1-pro-preview|1000|yes|yes|no|gemini|premium|active"
-        "gemini-3-flash-preview|1000|yes|yes|no|gemini|budget|active"
-        "gemini-3-pro-image-preview|1000|yes|yes|no|gemini|premium|active"
+        "gemini-3.5-flash|1000|yes|no|no|gemini|standard|active"
+        "gemini-3.1-flash-lite|1000|yes|no|no|gemini|budget|active"
+        "gemini-nano-banana-pro|1000|yes|yes|no|gemini|premium|active"
+        "gemini-nano-banana-2|1000|yes|yes|no|gemini|standard|active"
         "claude-sonnet-4.6|200|yes|yes|no|claude|standard|active"
         "claude-opus-4.8|1000|yes|yes|yes|claude|premium|active"
         "claude-opus-4.7|1000|yes|yes|yes|claude|premium|legacy"
