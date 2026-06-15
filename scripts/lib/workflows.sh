@@ -1023,7 +1023,10 @@ tangle_scope_is_known_or_explicit_new_file() {
 tangle_line_is_numbered_subtask() {
     local line="$1"
     local numbered_subtask_pattern='^[[:space:]]*(\*\*)?[0-9]+[.)]'
-    [[ "$line" =~ $numbered_subtask_pattern ]]
+    if [[ "$line" =~ $numbered_subtask_pattern ]]; then
+        return 0
+    fi
+    return 1
 }
 
 tangle_parseable_subtask_count() {
@@ -1137,6 +1140,7 @@ tangle_validate_parallel_write_scopes() {
             [[ -z "$scope" ]] && continue
             local i
             for i in "${!existing_scopes[@]}"; do
+                [[ "${existing_tasks[$i]}" == "$task_index" ]] && continue
                 if tangle_scopes_overlap "$scope" "${existing_scopes[$i]}"; then
                     echo "coding subtask ${task_index} effective write scope '${scope}' overlaps subtask ${existing_tasks[$i]} scope '${existing_scopes[$i]}'"
                     return 1
