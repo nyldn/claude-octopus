@@ -661,7 +661,7 @@ ${YELLOW}Available Agents:${NC}
   codex-standard  GPT-5.2-Codex       Standard tier
   codex-mini      GPT-5.1-Codex-Mini  Quick/cheap tasks
   gemini          Gemini-3-Pro        Deep analysis
-  gemini-fast     Gemini-3-Flash      Speed-critical
+  gemini-fast     Gemini-3.5-Flash (GA)  Speed-critical
 
 ${YELLOW}Common Options:${NC}
   -v, --verbose           Detailed output

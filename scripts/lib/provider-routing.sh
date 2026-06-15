@@ -251,7 +251,7 @@ migrate_provider_config() {
     }
   },
   "tiers": {
-    "budget": { "codex": "mini", "gemini": "flash" },
+    "budget": { "codex": "mini", "gemini": "flash-lite" },
     "standard": { "codex": "default", "gemini": "default" },
     "premium": { "codex": "default", "gemini": "default" }
   },
@@ -280,6 +280,7 @@ EOF
         '.providers.codex.fallback'
         '.providers.gemini.default'
         '.providers.gemini.fallback'
+        '.providers.gemini.flash'
         '.overrides.codex'
         '.overrides.gemini'
     )
@@ -384,7 +385,7 @@ set_provider_model() {
     }
   },
   "tiers": {
-    "budget": { "codex": "mini", "gemini": "flash" },
+    "budget": { "codex": "mini", "gemini": "flash-lite" },
     "standard": { "codex": "default", "gemini": "default" },
     "premium": { "codex": "default", "gemini": "default" }
   },
