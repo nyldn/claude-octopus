@@ -52,8 +52,8 @@ _claude_octopus() {
         'codex-mini:GPT-5.1-Codex-Mini (fast)'
         'codex-general:GPT-5.2'
         'gemini:Gemini-3-Pro'
-        'gemini-fast:Gemini-3-Flash'
-        'gemini-image:Gemini-3-Pro-Image'
+        'gemini-fast:Gemini-3.5-Flash (GA)'
+        'gemini-image:Gemini image generation (model TBD — see issue #493)'
         'codex-review:Code review mode'
     )
 

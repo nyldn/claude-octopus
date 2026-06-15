@@ -849,10 +849,12 @@ get_model_pricing() {
         o3)                     echo "2.00:8.00" ;;
         o3-pro)                 echo "20.00:80.00" ;;  # v8.39.0: API-key only
         o3-mini)                echo "1.10:4.40" ;;    # v8.39.0: API-key only
-        # Google Gemini 3.0 models
+        # Google Gemini 3.x models
         gemini-3.1-pro-preview)   echo "2.50:10.00" ;;
-        gemini-3-flash-preview) echo "0.25:1.00" ;;
-        gemini-3-pro-image-preview) echo "5.00:20.00" ;;
+        gemini-3.5-flash)         echo "0.25:1.00" ;;   # GA fast default (replaces gemini-3-flash-preview)
+        gemini-3.1-flash-lite)    echo "0.10:0.40" ;;   # cheapest/fastest tier
+        gemini-3-flash-preview)   echo "0.25:1.00" ;;   # deprecated — migrate to gemini-3.5-flash
+        gemini-3-pro-image-preview) echo "5.00:20.00" ;; # deprecated — shut down 2026-06-25
         # Claude models
         claude-sonnet-4.5)      echo "3.00:15.00" ;;
         claude-sonnet-4.6)      echo "3.00:15.00" ;;   # v8.17: Sonnet 4.6 (same pricing as 4.5)
