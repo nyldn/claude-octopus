@@ -306,6 +306,9 @@ ${heuristic_ctx}"
         return 1
     fi
 
+    # oco-aek: provider selected for dispatch (circuit closed). Opt-in event.
+    declare -f octo_event_emit >/dev/null 2>&1 && octo_event_emit "provider.selected" provider="$provider_prefix" agent_type="$agent_type" phase="${phase:-unknown}" || true
+
     local cmd
     if ! cmd=$(get_agent_command "$agent_type" "${phase:-}" "${role:-}"); then
         log ERROR "Unknown agent type: $agent_type"
