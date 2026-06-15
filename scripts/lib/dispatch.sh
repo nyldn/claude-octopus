@@ -21,15 +21,15 @@ get_agent_command() {
 
     # Configurable sandbox mode (v7.13.1 - Issue #9)
     # Priority: OCTOPUS_CODEX_SANDBOX env var > default (workspace-write)
-    # Valid values: workspace-write (default), write, read-only
+    # Valid values: workspace-write (default), danger-full-access, read-only
     local codex_sandbox="${OCTOPUS_CODEX_SANDBOX:-workspace-write}"
 
     # Security: reject values not in allowlist
     case "$codex_sandbox" in
-        workspace-write|write|read-only)
+        workspace-write|danger-full-access|read-only)
             ;;
         *)
-            log "ERROR" "Invalid OCTOPUS_CODEX_SANDBOX value: '${codex_sandbox}'. Allowed: workspace-write, write, read-only"
+            log "ERROR" "Invalid OCTOPUS_CODEX_SANDBOX value: '${codex_sandbox}'. Allowed: workspace-write, danger-full-access, read-only"
             log "ERROR" "Falling back to workspace-write for safety."
             codex_sandbox="workspace-write"
             ;;
