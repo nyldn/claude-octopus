@@ -38,8 +38,9 @@ get_model_catalog() {
         gemini-nano-banana-pro)   echo "1000|yes|yes|no|gemini|premium|active" ;;
         gemini-nano-banana-2)     echo "1000|yes|yes|no|gemini|standard|active" ;;
         # deprecated 2026-06-25 — kept for migration warnings only
-        gemini-3-flash-preview)   echo "1000|yes|no|no|gemini|budget|deprecated" ;;
-        gemini-3-pro-image-preview) echo "1000|yes|yes|no|gemini|premium|deprecated" ;;
+        gemini-3-flash-preview)        echo "1000|yes|no|no|gemini|budget|deprecated" ;;
+        gemini-3-pro-image-preview)    echo "1000|yes|yes|no|gemini|premium|deprecated" ;;
+        gemini-3.1-flash-image-preview) echo "1000|yes|yes|no|gemini|standard|deprecated" ;;
         # Antigravity CLI (agy routes to the user's configured Antigravity default)
         agy/default|default)       echo "1000|yes|yes|no|agy|standard|active" ;;
         # Claude

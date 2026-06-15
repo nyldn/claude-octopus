@@ -856,8 +856,9 @@ get_model_pricing() {
         gemini-nano-banana-pro)   echo "5.00:20.00" ;;  # image gen premium (replaces gemini-3-pro-image-preview)
         gemini-nano-banana-2)     echo "2.50:10.00" ;;  # image gen standard
         # deprecated 2026-06-25 — kept for cost-reporting continuity
-        gemini-3-flash-preview)   echo "0.25:1.00" ;;
-        gemini-3-pro-image-preview) echo "5.00:20.00" ;;
+        gemini-3-flash-preview)         echo "0.25:1.00" ;;
+        gemini-3-pro-image-preview)     echo "5.00:20.00" ;;
+        gemini-3.1-flash-image-preview) echo "2.50:10.00" ;;
         # Claude models
         claude-sonnet-4.5)      echo "3.00:15.00" ;;
         claude-sonnet-4.6)      echo "3.00:15.00" ;;   # v8.17: Sonnet 4.6 (same pricing as 4.5)
