@@ -237,7 +237,17 @@ EOF
 
     if [[ -z "$content" ]]; then
         if [[ "$response" =~ \"error\":\{([^\}]*)\} ]]; then
-            log ERROR "Perplexity error: ${BASH_REMATCH[1]}"
+            local _ppx_err="${BASH_REMATCH[1]}"
+            # Terminal quota/auth (HTTP 401 insufficient_quota) returns faster than
+            # the 2s quota-watcher poll, so mark the provider dead directly here
+            # (oco-cbb) and emit a quota-watcher-matchable keyword (oco-48z) so
+            # preflight + is_agent_available skip perplexity for the rest of the run.
+            if [[ "$_ppx_err" == *insufficient_quota* || "$_ppx_err" == *'"code":401'* || "$_ppx_err" == *quota* ]]; then
+                log ERROR "Perplexity TerminalQuotaError (insufficient_quota / HTTP 401): ${_ppx_err}"
+                declare -f octo_quota_mark_dead >/dev/null 2>&1 && octo_quota_mark_dead "perplexity" || true
+                return 1
+            fi
+            log ERROR "Perplexity error: ${_ppx_err}"
             return 1
         fi
         # Content missing but no parseable error — surface the raw body and fail

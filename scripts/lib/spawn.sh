@@ -567,26 +567,36 @@ ${heuristic_ctx}"
         while true; do
             exit_code=0
 
-            # Quota fast-fail watcher: detects quota exhaustion in stderr/stdout
-            # and kills the provider process early instead of waiting the full TIMEOUT.
-            # Applies to Gemini (free tier exhausts quota and retries for ~18h internally).
-            local _quota_watcher_pid=""
+            # oco-2kw: per-provider timeout. Gemini has no request timeout and its
+            # non-interactive maxSessionTurns default is unlimited, so a quota-loop
+            # or stall could burn the global TIMEOUT (~600s). Cap gemini separately;
+            # all others keep the global TIMEOUT. Plain scalar — bash 3.2 safe.
+            local _eff_timeout="$TIMEOUT"
             if [[ "$agent_type" == gemini* ]]; then
-                local _spawn_pid=$BASHPID
-                _quota_watcher_pid=$(start_quota_watcher \
-                    "$_spawn_pid" \
-                    "$temp_errors" \
-                    "$temp_output" \
-                    quota_watcher_kill_spawn_children \
-                    "[$agent_type] Quota exhaustion detected - fast-failing (saves ~${TIMEOUT}s wait)")
+                _eff_timeout="${OCTOPUS_GEMINI_TIMEOUT:-180}"
             fi
+
+            # oco-48z: quota/terminal-error fast-fail watcher for ALL providers (was
+            # gemini-only). Greps temp files every 2s; on match it kills the provider
+            # early and marks it quota-dead for the session (oco-cbb), so preflight and
+            # is_agent_available skip it instead of re-dispatching into the same failure.
+            local _quota_watcher_pid=""
+            local _spawn_pid=$BASHPID
+            local _provider_prefix="${agent_type%%-*}"
+            _quota_watcher_pid=$(start_quota_watcher \
+                "$_spawn_pid" \
+                "$temp_errors" \
+                "$temp_output" \
+                quota_watcher_kill_spawn_children \
+                "[$agent_type] Quota/terminal error detected - fast-failing (saves ~${_eff_timeout}s wait)" \
+                "$_provider_prefix")
 
             # v9.2.2: All agents use stdin-based prompt delivery to avoid ARG_MAX limits (Issue #173)
             # Previously only gemini used stdin; codex/claude passed prompt as CLI arg which fails on large diffs.
             if [[ "$agent_type" == agy* || "$agent_type" == "antigravity" ]]; then
-                printf '%s' "$enhanced_prompt" | run_with_timeout "$TIMEOUT" "${cmd_array[@]}" 2> "$temp_errors" | tee "$raw_output" > "$temp_output"
+                printf '%s' "$enhanced_prompt" | run_with_timeout "$_eff_timeout" "${cmd_array[@]}" 2> "$temp_errors" | tee "$raw_output" > "$temp_output"
                 exit_code=${PIPESTATUS[1]:-0}
-            elif printf '%s' "$enhanced_prompt" | run_with_timeout "$TIMEOUT" "${cmd_array[@]}" 2> "$temp_errors" | tee "$raw_output" > "$temp_output"; then
+            elif printf '%s' "$enhanced_prompt" | run_with_timeout "$_eff_timeout" "${cmd_array[@]}" 2> "$temp_errors" | tee "$raw_output" > "$temp_output"; then
                 exit_code=0
             else
                 exit_code=$?

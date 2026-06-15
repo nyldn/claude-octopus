@@ -1530,6 +1530,13 @@ is_agent_available() {
     # Load config if needed
     [[ -z "$USER_HAS_OPENAI" ]] && load_user_config
 
+    # oco-cbb: skip a provider marked quota/auth-dead earlier this session
+    # (perplexity 401, gemini exhausted) so it is not re-dispatched into the same
+    # terminal failure + timeout. Guarded; no-op if the helper is unavailable.
+    if declare -f octo_quota_is_dead >/dev/null 2>&1 && octo_quota_is_dead "${agent%%-*}"; then
+        return 1
+    fi
+
     case "$agent" in
         codex|codex-standard|codex-mini|codex-max)
             [[ "$USER_HAS_OPENAI" == "true" || -n "${OPENAI_API_KEY:-}" ]]
