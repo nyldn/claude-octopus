@@ -302,7 +302,7 @@ EOF
                 replacement="gemini-3.5-flash" ;;
             gemini-2.0-pro*|gemini-1.5-pro*|gemini-pro)
                 replacement="gemini-3.1-pro-preview" ;;
-            gemini-3-pro-image-preview)
+            gemini-3-pro-image-preview|gemini-3.1-flash-image-preview)
                 replacement="gemini-nano-banana-pro" ;;
             gpt-4o*|gpt-4-turbo*|gpt-4-*|o1-*|chatgpt-*)
                 replacement="gpt-5.5" ;;

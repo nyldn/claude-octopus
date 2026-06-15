@@ -617,7 +617,7 @@ find_capable_fallback() {
         codex)
             candidates=(gpt-5.4-mini gpt-5.2-codex gpt-5.3-codex gpt-5.4 gpt-5.4-pro o3) ;;
         gemini)
-            candidates=(gemini-3-flash-preview gemini-3.1-pro-preview) ;;
+            candidates=(gemini-3.1-flash-lite gemini-3.5-flash gemini-nano-banana-pro gemini-3.1-pro-preview) ;;
         agy)
             candidates=(default) ;;
         claude)
