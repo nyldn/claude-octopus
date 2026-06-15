@@ -21,21 +21,31 @@ get_agent_command() {
 
     # Configurable sandbox mode (v7.13.1 - Issue #9)
     # Priority: OCTOPUS_CODEX_SANDBOX env var > default (workspace-write)
-    # Valid values: workspace-write (default), write, read-only
+    # Valid values: workspace-write (default), danger-full-access, read-only
     local codex_sandbox="${OCTOPUS_CODEX_SANDBOX:-workspace-write}"
 
     # Security: reject values not in allowlist
     case "$codex_sandbox" in
-        workspace-write|write|read-only)
+        workspace-write|danger-full-access|read-only)
             ;;
         *)
-            log "ERROR" "Invalid OCTOPUS_CODEX_SANDBOX value: '${codex_sandbox}'. Allowed: workspace-write, write, read-only"
+            log "ERROR" "Invalid OCTOPUS_CODEX_SANDBOX value: '${codex_sandbox}'. Allowed: workspace-write, danger-full-access, read-only"
             log "ERROR" "Falling back to workspace-write for safety."
             codex_sandbox="workspace-write"
             ;;
     esac
 
     local sandbox_flag="--sandbox ${codex_sandbox}"
+    local codex_bin="${OCTOPUS_CODEX_BIN:-codex}"
+
+    # Allow advanced users to point Octopus at a codex-compatible wrapper
+    # without replacing codex on PATH. Keep this restricted because the value
+    # is interpolated into the shell command string returned below.
+    if [[ ! "$codex_bin" =~ ^[A-Za-z0-9_./-]+$ ]]; then
+        log "ERROR" "Invalid OCTOPUS_CODEX_BIN value: '${codex_bin}'. Allowed characters: A-Z a-z 0-9 _ . / -"
+        log "ERROR" "Falling back to codex for safety."
+        codex_bin="codex"
+    fi
 
     # Spawned `claude --print` subprocesses have no interactive approver, so any
     # tool that would prompt is silently denied ("Read is blocked in the current
@@ -52,19 +62,19 @@ get_agent_command() {
     case "$agent_type" in
         codex|codex-standard|codex-max|codex-mini|codex-general)
             model=$(get_agent_model "$agent_type" "$phase" "$role")
-            echo "codex exec --skip-git-repo-check --model ${model} ${sandbox_flag} -"
+            echo "${codex_bin} exec --skip-git-repo-check --model ${model} ${sandbox_flag} -"
             ;;
         codex-spark)  # v8.9.0: Ultra-fast Spark model (1000+ tok/s)
             model=$(get_agent_model "$agent_type" "$phase" "$role")
-            echo "codex exec --skip-git-repo-check --model ${model} ${sandbox_flag} -"
+            echo "${codex_bin} exec --skip-git-repo-check --model ${model} ${sandbox_flag} -"
             ;;
         codex-reasoning)  # v8.9.0: Reasoning models (o3, o3)
             model=$(get_agent_model "$agent_type" "$phase" "$role")
-            echo "codex exec --skip-git-repo-check --model ${model} ${sandbox_flag} -"
+            echo "${codex_bin} exec --skip-git-repo-check --model ${model} ${sandbox_flag} -"
             ;;
         codex-large-context)  # v8.9.0: 1M context models (gpt-4.1)
             model=$(get_agent_model "$agent_type" "$phase" "$role")
-            echo "codex exec --skip-git-repo-check --model ${model} ${sandbox_flag} -"
+            echo "${codex_bin} exec --skip-git-repo-check --model ${model} ${sandbox_flag} -"
             ;;
         gemini|gemini-fast|gemini-image)
             model=$(get_agent_model "$agent_type" "$phase" "$role")
@@ -94,7 +104,7 @@ get_agent_command() {
             fi
             echo "${gemini_env} ${gemini_exec} ${model} ${gemini_flags}"
             ;;
-        codex-review) echo "codex exec --skip-git-repo-check review" ;; # Code review mode (no sandbox support)
+        codex-review) echo "${codex_bin} exec --skip-git-repo-check review" ;; # Code review mode (no sandbox support)
         claude) echo "claude${_BARE_OPT} --print ${claude_perm}" ;;                         # Claude Sonnet 4.6
         claude-sonnet) echo "claude${_BARE_OPT} --print --model sonnet ${claude_perm}" ;;        # Claude Sonnet explicit
         claude-opus)
@@ -131,6 +141,10 @@ get_agent_command() {
         openrouter-glm5) echo "openrouter_execute_model z-ai/glm-5" ;;           # v8.11.0: GLM-5 via OpenRouter
         openrouter-kimi) echo "openrouter_execute_model moonshotai/kimi-k2.5" ;; # v8.11.0: Kimi K2.5 via OpenRouter
         openrouter-deepseek) echo "openrouter_execute_model deepseek/deepseek-r1-0528" ;; # v8.11.0: DeepSeek R1 via OpenRouter
+        openai-compatible-agent)  # Generic OpenAI-compatible tool-loop agent
+            model=$(get_agent_model "$agent_type" "$phase" "$role")
+            echo "${PLUGIN_DIR}/scripts/helpers/openai-compatible-agent.py --provider generic --model ${model} --cwd ${PWD}"
+            ;;
         perplexity|perplexity-fast)  # v8.24.0: Perplexity Sonar — web-grounded research (Issue #22)
             model=$(get_agent_model "$agent_type" "$phase" "$role")
             echo "perplexity_execute $model"
@@ -383,6 +397,7 @@ get_agent_model() {
         gemini*)     provider="gemini" ;;
         claude*)     provider="claude" ;;
         openrouter*) provider="openrouter" ;;
+        openai-compatible-agent*) provider="openai-compatible-agent" ;;
         perplexity*) provider="perplexity" ;;
         qwen*)       provider="qwen" ;;
         cursor-agent*) provider="cursor-agent" ;;
@@ -417,6 +432,7 @@ validate_model_allowed() {
         gemini)     allowlist_var="OCTOPUS_GEMINI_ALLOWED_MODELS" ;;
         claude)     allowlist_var="OCTOPUS_CLAUDE_ALLOWED_MODELS" ;;
         openrouter) allowlist_var="OCTOPUS_OPENROUTER_ALLOWED_MODELS" ;;
+        openai-compatible-agent) allowlist_var="OPENAI_COMPAT_ALLOWED_MODELS" ;;
         perplexity) allowlist_var="OCTOPUS_PERPLEXITY_ALLOWED_MODELS" ;;
         qwen)       allowlist_var="OCTOPUS_QWEN_ALLOWED_MODELS" ;;
         cursor-agent) allowlist_var="OCTOPUS_CURSOR_AGENT_ALLOWED_MODELS" ;;

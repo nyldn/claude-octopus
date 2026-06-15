@@ -547,9 +547,19 @@ ${heuristic_ctx}"
         if [[ "$agent_type" == gemini* ]] || [[ "$agent_type" == cursor-agent* ]] || [[ "$agent_type" == copilot* ]] || [[ "$agent_type" == qwen* ]]; then
             cmd_array+=(-p "")
         fi
-        # Belt-and-suspenders: bypass Gemini's interactive trust check in headless mode (#405)
+        # Belt-and-suspenders: bypass Gemini's interactive trust check in headless mode (#405).
+        # Newer Gemini CLI versions removed --skip-trust; detect support once per spawn process.
         if [[ "$agent_type" == gemini* ]]; then
-            cmd_array+=(--skip-trust)
+            if [[ -z "${_GEMINI_SUPPORTS_SKIP_TRUST+x}" ]]; then
+                if [[ $(gemini --help 2>&1 | grep -c -- --skip-trust || true) -gt 0 ]]; then
+                    _GEMINI_SUPPORTS_SKIP_TRUST=true
+                else
+                    _GEMINI_SUPPORTS_SKIP_TRUST=false
+                fi
+            fi
+            if [[ "$_GEMINI_SUPPORTS_SKIP_TRUST" == "true" ]]; then
+                cmd_array+=(--skip-trust)
+            fi
         fi
 
         local auth_attempt=0
