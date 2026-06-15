@@ -17,8 +17,10 @@ source "$PROJECT_ROOT/scripts/lib/spawn.sh"
 
 test_suite "agent lifecycle events"
 
-TMP_DIR="$(mktemp -d)"
-trap 'rm -rf "$TMP_DIR"' EXIT
+TEST_TMP_DIR="/tmp/octopus-tests-$$"
+mkdir -p "$TEST_TMP_DIR"
+trap 'rm -rf "$TEST_TMP_DIR"' EXIT INT TERM
+TMP_DIR="$TEST_TMP_DIR"
 
 RESULTS_DIR="$TMP_DIR/results"
 WORKSPACE_DIR="$TMP_DIR/workspace"
@@ -80,6 +82,36 @@ if [[ -z "$stdout" ]] && \
 else
   test_fail "event log or hook metadata/output redirection did not match expectations"
 fi
+
+
+test_case "empty phase is normalized consistently for event stream and hook"
+: > "$OCTO_EVENT_LOG"
+: > "$HOOK_CAPTURE"
+_octopus_agent_lifecycle_event "spawned" "codex" "task-empty-phase" "developer" "" "444" "$RESULTS_DIR/codex-empty-phase.md" "" "running"
+if grep -q '"phase":"unknown"' "$OCTO_EVENT_LOG" && grep -q '^phase=unknown$' "$HOOK_CAPTURE"; then
+  test_pass
+else
+  test_fail "expected empty phase to normalize to unknown across event stream and hook"
+fi
+
+cat > "$TMP_DIR/slow-hook.sh" <<'HOOK'
+#!/usr/bin/env bash
+sleep 5
+HOOK
+chmod +x "$TMP_DIR/slow-hook.sh"
+
+test_case "lifecycle hook timeout prevents observer hangs"
+export OCTOPUS_AGENT_LIFECYCLE_HOOK="$TMP_DIR/slow-hook.sh"
+export OCTOPUS_AGENT_LIFECYCLE_HOOK_TIMEOUT=1
+start=$(date +%s)
+_octopus_agent_lifecycle_event "spawned" "codex" "task-slow-hook" "developer" "tangle" "555" "$RESULTS_DIR/codex-slow-hook.md" "" "running"
+elapsed=$(( $(date +%s) - start ))
+if [[ "$elapsed" -lt 4 ]]; then
+  test_pass
+else
+  test_fail "hook timeout did not return promptly"
+fi
+unset OCTOPUS_AGENT_LIFECYCLE_HOOK_TIMEOUT
 
 test_case "completed lifecycle event carries exit status"
 _octopus_agent_lifecycle_event "completed" "gemini-fast" "task-2" "reviewer" "review" "222" "$RESULTS_DIR/gemini-task-2.md" "124" "timeout"

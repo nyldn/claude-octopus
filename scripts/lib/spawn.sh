@@ -25,6 +25,7 @@ _octopus_agent_lifecycle_event() {
     local task_id="$3"
     local role="${4:-}"
     local phase="${5:-}"
+    local normalized_phase="${phase:-unknown}"
     local pid="${6:-}"
     local result_file="${7:-}"
     local exit_code="${8:-}"
@@ -39,7 +40,7 @@ _octopus_agent_lifecycle_event() {
             agent_type="$agent_type" \
             task_id="$task_id" \
             role="$role" \
-            phase="${phase:-unknown}" \
+            phase="$normalized_phase" \
             pid="$pid" \
             result_file="$result_file" \
             results_dir="${RESULTS_DIR:-}" \
@@ -61,7 +62,7 @@ _octopus_agent_lifecycle_event() {
         export OCTOPUS_AGENT_TYPE="$agent_type"
         export OCTOPUS_AGENT_TASK_ID="$task_id"
         export OCTOPUS_AGENT_ROLE="$role"
-        export OCTOPUS_AGENT_PHASE="$phase"
+        export OCTOPUS_AGENT_PHASE="$normalized_phase"
         export OCTOPUS_AGENT_PID="$pid"
         export OCTOPUS_AGENT_RESULT_FILE="$result_file"
         export OCTOPUS_AGENT_RESULTS_DIR="${RESULTS_DIR:-}"
@@ -70,7 +71,14 @@ _octopus_agent_lifecycle_event() {
         export OCTOPUS_AGENT_STATUS="$status"
         export OCTOPUS_AGENT_ROOT_SESSION_ID="${CRABFLEET_ROOT_SESSION_ID:-${OCTOPUS_ROOT_SESSION_ID:-}}"
         export OCTOPUS_AGENT_PARENT_SESSION_ID="${CRABFLEET_PARENT_SESSION_ID:-${OCTOPUS_PARENT_SESSION_ID:-}}"
-        "$hook" "$event"
+        local hook_timeout="${OCTOPUS_AGENT_LIFECYCLE_HOOK_TIMEOUT:-3}"
+        if declare -f run_with_timeout >/dev/null 2>&1; then
+            run_with_timeout "$hook_timeout" "$hook" "$event"
+        elif command -v timeout >/dev/null 2>&1; then
+            timeout "$hook_timeout" "$hook" "$event"
+        else
+            "$hook" "$event"
+        fi
     ) >>"$hook_log" 2>&1 || true
 }
 
@@ -536,6 +544,7 @@ ${heuristic_ctx}"
         if [[ "$SUPPORTS_HOOK_LAST_MESSAGE" == "true" ]]; then
             log "DEBUG" "Result capture via SubagentStop hook (last_assistant_message)"
         fi
+        _octopus_agent_lifecycle_event "spawned" "$agent_type" "$task_id" "$role" "$phase" "" "$result_file" "" "running"
         return 0
     fi
 
