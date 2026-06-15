@@ -11,6 +11,49 @@
 
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
+# Resolve phase/role-specific agent/provider overrides while preserving existing defaults.
+#
+# This selects only the agent/provider name used for dispatch. Model selection is
+# still handled later by resolve_octopus_model() in scripts/lib/model-resolver.sh.
+# That resolver may return values from /tmp/octo-model-cache-*.json before reading
+# model environment overrides; clear that cache to force-refresh model selection.
+#
+# Lookup order for phase="tangle", role="coding":
+#   OCTOPUS_TANGLE_CODING_AGENT
+#   OCTOPUS_TANGLE_AGENT
+#   OCTOPUS_CODING_AGENT
+#   <default passed by caller>
+octopus_agent_override() {
+    local phase="$1"
+    local role="$2"
+    local default_agent="$3"
+    local phase_key role_key env_name value
+
+    phase_key=$(printf '%s' "$phase" | tr '[:lower:]-' '[:upper:]_' | sed -E 's/[^A-Z0-9_]+/_/g; s/^_+//; s/_+$//')
+    role_key=$(printf '%s' "$role" | tr '[:lower:]-' '[:upper:]_' | sed -E 's/[^A-Z0-9_]+/_/g; s/^_+//; s/_+$//')
+
+    if [[ -n "$phase_key" && -n "$role_key" ]]; then
+        env_name="OCTOPUS_${phase_key}_${role_key}_AGENT"
+        value="${!env_name:-}"
+        [[ -n "$value" ]] && { echo "$value"; return 0; }
+    fi
+
+    if [[ -n "$phase_key" ]]; then
+        env_name="OCTOPUS_${phase_key}_AGENT"
+        value="${!env_name:-}"
+        [[ -n "$value" ]] && { echo "$value"; return 0; }
+    fi
+
+    if [[ -n "$role_key" ]]; then
+        env_name="OCTOPUS_${role_key}_AGENT"
+        value="${!env_name:-}"
+        [[ -n "$value" ]] && { echo "$value"; return 0; }
+    fi
+
+    echo "$default_agent"
+}
+
 # v9.19.0: Safe default for --bare flag (set by providers.sh, but guard for standalone sourcing)
 _BARE_OPT="${_BARE_OPT:-}"
 

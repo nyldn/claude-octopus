@@ -1302,9 +1302,18 @@ Required format:
 2. [REASONING] Short title — Task: specific reasoning work
 Every [CODING] line must include a same-line Files: clause."
 
+    # Tangle decomposition agents are overridable (OCTOPUS_TANGLE_DECOMPOSE_AGENT,
+    # OCTOPUS_TANGLE_DECOMPOSE_FALLBACK_AGENT, OCTOPUS_TANGLE_AGENT). Override only
+    # selects the dispatch agent; the fail-closed contract below is unchanged.
+    local tangle_decompose_agent="gemini" tangle_decompose_fallback_agent="codex"
+    if declare -f octopus_agent_override >/dev/null 2>&1; then
+        tangle_decompose_agent=$(octopus_agent_override "tangle" "decompose" "gemini")
+        tangle_decompose_fallback_agent=$(octopus_agent_override "tangle" "decompose_fallback" "codex")
+    fi
+
     local subtasks
-    subtasks=$(run_agent_sync "gemini" "$decompose_prompt" 120 "researcher" "tangle") || \
-    subtasks=$(run_agent_sync "codex" "$decompose_prompt" 120 "researcher" "tangle") || {
+    subtasks=$(run_agent_sync "$tangle_decompose_agent" "$decompose_prompt" 120 "researcher" "tangle") || \
+    subtasks=$(run_agent_sync "$tangle_decompose_fallback_agent" "$decompose_prompt" 120 "researcher" "tangle") || {
         log ERROR "Decomposition failed with all providers; refusing monolithic direct fallback"
         return 1
     }
