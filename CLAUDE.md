@@ -233,7 +233,7 @@ Providers:
 
 Always be mindful that external CLIs cost money:
 - 🔴 Codex: ~$0.01-0.30 per query depending on model (GPT-5.5 $5/$30 MTok — premium default as of v9.44, GPT-5.4 $2.50/$15, GPT-5.3-Codex $1.75/$14, Mini $0.25/$2.00 MTok)
-- 🟡 Gemini: ~$0.01-0.03 per query (Gemini 3.1 Pro Preview $2.50/$10 MTok, 3 Flash Preview $0.25/$1)
+- 🟡 Gemini: ~$0.01-0.03 per query (Gemini 3.1 Pro Preview $2.50/$10 MTok, 3.5 Flash GA $0.25/$1, 3.1 Flash Lite $0.10/$0.40, Nano Banana Pro image $5/$20 MTok)
 - 🧭 Antigravity CLI (`agy`): Included with the user's Antigravity access/subscription; backend cost depends on selected `OCTOPUS_AGY_MODEL`
 - 🟣 Perplexity: ~$0.01-0.05 per query (Sonar Pro $3/$15 MTok, Sonar $1/$1 MTok)
 - 🔵 Claude (Sonnet 4.6): Included with Claude Code subscription

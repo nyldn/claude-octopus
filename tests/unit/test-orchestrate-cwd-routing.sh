@@ -186,7 +186,7 @@ test_gemini_include_dirs_flag() {
     # gemini branch calls get_agent_model → stub to avoid full resolver deps
     local got
     got="$(
-        get_agent_model() { echo "gemini-3-flash-preview"; }
+        get_agent_model() { echo "gemini-3.5-flash"; }
         OCTOPUS_GEMINI_INCLUDE_DIRS="/tmp/staging" get_agent_command gemini probe researcher
     )"
     [[ "$got" == *"--include-directories /tmp/staging"* ]] && test_pass || test_fail "flag missing, got: $got"
@@ -196,7 +196,7 @@ test_gemini_no_include_dirs_by_default() {
     test_case "gemini dispatch has no --include-directories when env unset"
     local got
     got="$(
-        get_agent_model() { echo "gemini-3-flash-preview"; }
+        get_agent_model() { echo "gemini-3.5-flash"; }
         unset OCTOPUS_GEMINI_INCLUDE_DIRS
         get_agent_command gemini probe researcher
     )"

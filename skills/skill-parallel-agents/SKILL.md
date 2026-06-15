@@ -598,8 +598,8 @@ The `tangle` phase enforces quality gates:
 | `codex-standard` | gpt-5.2-codex | Standard tier implementation |
 | `codex-mini` | gpt-5.4-mini | Quick fixes, simple tasks |
 | `gemini` | gemini-3-pro-preview | Deep analysis, 1M context |
-| `gemini-fast` | gemini-3-flash-preview | Speed-critical tasks |
-| `gemini-image` | gemini-3-pro-image-preview | Image generation |
+| `gemini-fast` | gemini-3.5-flash | Speed-critical tasks |
+| `gemini-image` | gemini-nano-banana-pro | Image generation |
 | `codex-review` | gpt-5.2-codex | Code review mode |
 | `openrouter` | Various | Universal fallback (400+ models) |
 

@@ -175,7 +175,7 @@ AskUserQuestion({
     multiSelect: false,
     options: [
       {label: "gemini-3.1-pro-preview", description: "Premium — $2.50/$10 MTok, best research quality"},
-      {label: "gemini-3-flash-preview", description: "Fast — $0.25/$1 MTok, good for quick tasks"},
+      {label: "gemini-3.5-flash", description: "Fast (GA) — $0.25/$1 MTok, good for quick tasks"},
       {label: "Custom", description: "Enter a custom model name"}
     ]
   }]

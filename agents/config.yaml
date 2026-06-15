@@ -397,7 +397,7 @@ agents:
   context-manager:
     file: personas/context-manager.md
     cli: gemini-fast
-    model: gemini-3-flash-preview
+    model: gemini-3.5-flash
     phases: [probe, grasp, tangle, ink]
     background: true
     tier: standard
@@ -445,7 +445,7 @@ agents:
   mermaid-expert:
     file: personas/mermaid-expert.md
     cli: gemini-fast
-    model: gemini-3-flash-preview
+    model: gemini-3.5-flash
     phases: [grasp, ink]
     tier: trivial
     expertise: [diagrams, flowcharts, sequence-diagrams]

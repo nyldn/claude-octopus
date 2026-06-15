@@ -722,7 +722,7 @@ Then provide specific optimization recommendations."
     case "$task_type" in
         image)
             echo -e "${YELLOW}Image Generation Task${NC}"
-            echo "  Using gemini-3-pro-image-preview for text-to-image generation."
+            echo "  Using gemini-nano-banana-pro for text-to-image generation."
             echo "  Supports: text-to-image, image editing, multi-turn editing"
             echo "  Output: Up to 4K resolution images"
             echo ""
