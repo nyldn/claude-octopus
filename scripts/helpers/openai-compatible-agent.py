@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import argparse, json, os, subprocess, sys, time, urllib.request, urllib.error
+import argparse, json, os, subprocess, sys, time, urllib.parse, urllib.request, urllib.error
 from pathlib import Path
 
 PROVIDERS = {
@@ -54,11 +54,11 @@ def tool_exec(cwd: Path, name: str, args: dict) -> str:
             cmd = str(args.get("command", ""))
             if len(cmd) > 600: return "ERROR: command too long"
             timeout = env_float("OPENAI_COMPAT_COMMAND_TIMEOUT", 20.0)
-            r = subprocess.run(cmd, cwd=str(cwd), shell=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=timeout)
+            r = subprocess.run(cmd, cwd=str(cwd), shell=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=timeout, check=False)  # noqa: S602 - intentional shell-command tool
             return (f"exit={r.returncode}\n" + r.stdout)[-20000:]
         if name == "git_diff":
             timeout = env_float("OPENAI_COMPAT_COMMAND_TIMEOUT", 20.0)
-            r = subprocess.run("git diff -- .", cwd=str(cwd), shell=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=timeout)
+            r = subprocess.run(["git", "diff", "--", "."], cwd=str(cwd), text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=timeout, check=False)
             return (f"exit={r.returncode}\n" + r.stdout)[-30000:]
         return f"ERROR: unknown tool {name}"
     except Exception as e:
@@ -70,11 +70,15 @@ def api_call(base_url, key, model, headers_extra, messages, max_tokens=1400, req
         payload["max_tokens"] = max_tokens
     headers = {"Authorization": "Bearer " + key, "Content-Type": "application/json", **headers_extra}
     body = json.dumps(payload).encode()
+    endpoint = base_url.rstrip("/") + "/chat/completions"
+    scheme = urllib.parse.urlparse(endpoint).scheme
+    if scheme not in {"http", "https"}:
+        raise ValueError(f"unsupported OPENAI-compatible base URL scheme: {scheme or '<missing>'}")
     retry_statuses = {429, 502, 503, 504}
     last_error = None
     for attempt in range(1, max(1, max_retries) + 1):
         print(f"chat_start attempt={attempt}/{max(1, max_retries)} messages={len(messages)} bytes={len(body)} timeout={request_timeout} max_tokens={max_tokens if max_tokens > 0 else 'provider_default'}", file=sys.stderr)
-        req = urllib.request.Request(base_url.rstrip("/") + "/chat/completions", data=body, headers=headers, method="POST")
+        req = urllib.request.Request(endpoint, data=body, headers=headers, method="POST")
         started = time.time()
         try:
             with urllib.request.urlopen(req, timeout=request_timeout) as r:
