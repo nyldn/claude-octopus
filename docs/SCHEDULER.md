@@ -331,7 +331,7 @@ While a job is running:
 | **Timeout enforcement** | Kills the process group if `timeout_seconds` is exceeded. |
 | **Security gate hook** | A PreToolUse hook (active when `OCTOPUS_JOB_ID` is set) that blocks `--dangerously-skip-permissions` in Bash commands, blocks destructive `rm -rf` on sensitive paths, and restricts Read/Write/Edit tools to within the job's workspace directory. |
 | **Non-reentrant lock** | `flock` on `orchestrate.lock` ensures only one workflow runs at a time. |
-| **Process group isolation** | `setsid` puts orchestrate.sh and all its children (Codex CLI, Gemini CLI) in a separate process group. `kill -- -$PGID` terminates the entire tree. |
+| **Process group isolation** | `setsid` puts orchestrate.sh and all its children (Codex CLI, Gemini CLI, Antigravity CLI, etc.) in a separate process group. `kill -- -$PGID` terminates the entire tree. |
 
 ### Emergency Layer
 
@@ -438,10 +438,11 @@ Creating `~/.claude-octopus/scheduler/switches/KILL_ALL` immediately terminates 
 |----------|---------------|-------|
 | Codex CLI | ~$0.01-0.15 | Depends on model (GPT-5.3-Codex, Spark, Mini) |
 | Gemini CLI | ~$0.01-0.03 | Gemini Pro |
+| Antigravity CLI (`agy`) | Included with access/subscription | Depends on selected Antigravity backend model |
 | Claude (Sonnet 4.6) | Included | Part of Claude Code subscription |
 | Claude (Opus 4.6) | $5/$25 per MTok | Input/output pricing |
 
-A typical `squeeze` (security review) job using all three providers costs roughly $0.10-0.50 per run.
+A typical `squeeze` (security review) job using multiple external providers costs roughly $0.10-0.50 per run, depending on the selected fleet.
 
 ---
 

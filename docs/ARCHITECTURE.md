@@ -6,7 +6,7 @@ This document explains how Claude Octopus orchestrates multiple AI providers and
 
 ## Overview
 
-Claude Octopus coordinates **eight AI providers** — one per tentacle to give you multi-perspective analysis:
+Claude Octopus coordinates **nine AI providers** to give you multi-perspective analysis:
 
 ```
     +------------------+
@@ -23,7 +23,7 @@ Claude Octopus coordinates **eight AI providers** — one per tentacle to give y
 |Cdx | |Gem| |Cl| |Pp| |OR|  |Ollma|  |Coplt |
 |CLI | |CLI| |AI| |API |API|  |local|  |aspir.|
 +----+ +---+ +--+ +--+ +--+  +-----+  +------+
-  Core (5 providers)          Optional (2, fully wired)
+  Core and optional providers are auto-detected at runtime.
 ```
 
 ---
@@ -34,12 +34,14 @@ Claude Octopus coordinates **eight AI providers** — one per tentacle to give y
 |----------|----------|------------------|-------------|
 | **Codex CLI** | `codex exec --model gpt-5.4` | GPT-5.4 | Your `OPENAI_API_KEY` |
 | **Gemini CLI** | `gemini -y -m gemini-3.1-pro-preview` | Gemini 3.1 Pro Preview | Your `GEMINI_API_KEY` |
+| **Antigravity CLI** | `agy --print --sandbox` | Antigravity default model | Your Antigravity CLI auth |
 | **Claude** | Built-in | Claude Sonnet 4.6 / Opus 4.7 | Your Claude Code subscription |
 | **Perplexity** | API-only | Sonar Pro / Sonar | Your `PERPLEXITY_API_KEY` |
 | **OpenRouter** | API-only | 100+ models (GLM-5, Kimi K2.5, DeepSeek R1, etc.) | Your `OPENROUTER_API_KEY` |
 | **Ollama** *(optional)* | `ollama run <model>` | Local models (llama3.3, mistral, etc.) | Free (local) |
 | **Copilot** *(optional)* | `copilot -p` | GitHub models (Claude/GPT/Gemini) | GitHub Copilot subscription |
 | **Qwen** *(optional)* | `qwen -p` | Qwen3-Coder | `QWEN_API_KEY` or Coding-Plan auth |
+| **OpenCode** *(optional)* | `opencode run` | Multi-provider router | Your OpenCode auth |
 
 > **Note:** Models are as of April 2026. The orchestrate.sh script uses the latest available models. Only Claude is required — all others are optional and auto-detected.
 
@@ -217,8 +219,8 @@ User Request
 ```
 
 **Execution:**
-1. Codex and Gemini each propose implementation approaches
-2. Claude merges the best elements from both
+1. Available external providers such as Codex, Gemini, and Antigravity each propose implementation approaches
+2. Claude merges the best elements from the provider responses
 3. **Quality Gate** checks if merged approach meets 75% consensus threshold
 4. If failed: Loop back for revision
 5. If passed: Proceed to implementation
@@ -419,15 +421,18 @@ Claude Octopus auto-detects which providers are available:
 # Providers:
 #   Codex CLI: ready (OPENAI_API_KEY found)
 #   Gemini CLI: ready (OAuth authenticated)
+#   Antigravity CLI: ready (agy authenticated)
 ```
 
 ### Graceful Degradation
 
 | Available Providers | Behavior |
 |--------------------|----------|
-| Codex + Gemini | Full multi-AI orchestration |
+| Three or more external providers | Full multi-AI orchestration with broad external perspective coverage |
+| Any one or two external providers | Multi-AI orchestration with available perspectives |
 | Codex only | Dual perspective (Codex + Claude) |
 | Gemini only | Dual perspective (Gemini + Claude) |
+| Antigravity only | Dual perspective (Antigravity + Claude) |
 | Neither | Claude-only mode (basic functionality) |
 
 ---

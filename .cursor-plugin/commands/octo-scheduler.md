@@ -6,7 +6,32 @@ description: "\"[advanced] Manage the scheduled workflow runner daemon (start/st
 
 Manage the Claude Octopus scheduled workflow runner daemon.
 
+## MANDATORY COMPLIANCE — DO NOT SKIP
+
+You MUST manage the scheduler only through the installed Octopus scheduler scripts after resolving the plugin root. You are PROHIBITED from:
+- Reimplementing scheduler state changes manually
+- Editing scheduler state files directly
+- Skipping the plugin-root preflight because "I can do this faster directly"
+
 ## Usage
+
+
+**Preflight — Ensure plugin root is resolvable (run via Bash tool FIRST):**
+
+```bash
+OCTO_ROOT="${HOME}/.claude-octopus/plugin"
+if [[ ! -x "$OCTO_ROOT/scripts/orchestrate.sh" ]]; then
+  helper="$OCTO_ROOT/scripts/helpers/ensure-plugin-root.sh"
+  if [[ ! -x "$helper" ]]; then
+    helper="$(find "${HOME}/.claude/plugins/cache" "${HOME}/Library/Application Support/Claude" "${LOCALAPPDATA:-/dev/null}/Claude" "${XDG_DATA_HOME:-${HOME}/.local/share}/Claude" -maxdepth 8 -path "*/nyldn-plugins/octo/*/scripts/helpers/ensure-plugin-root.sh" -print -quit 2>/dev/null)"
+  fi
+  [[ -x "$helper" ]] && bash "$helper" >/dev/null 2>&1 || true
+fi
+test -x "$OCTO_ROOT/scripts/orchestrate.sh" && echo "plugin-root:ok" || echo "plugin-root:missing"
+```
+
+If the output is `plugin-root:missing`, stop and ask the user to run `/octo:setup`.
+
 
 ```bash
 ${HOME}/.claude-octopus/plugin/scripts/scheduler/octopus-scheduler.sh start

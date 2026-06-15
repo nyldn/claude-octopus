@@ -169,10 +169,12 @@ fi
 
 # ── File size reduction ───────────────────────────────────────────────────────
 
+# Budget raised from 250 to 280 to fit the Antigravity (agy) provider banner
+# lines added with the agy provider (still well below the original 382).
 LINE_COUNT=$(wc -l < "$OCTO_MD" | tr -d ' ')
-if [[ $LINE_COUNT -le 250 ]]; then
+if [[ $LINE_COUNT -le 280 ]]; then
   pass "file is $LINE_COUNT lines (reduced from 382)"
 else
-  fail "file size reduction" "file is $LINE_COUNT lines, expected <= 250 (was 382)"
+  fail "file size reduction" "file is $LINE_COUNT lines, expected <= 280 (was 382)"
 fi
 test_summary

@@ -54,7 +54,7 @@ Claude Octopus has two work modes:
    - For: User research, strategy analysis, literature reviews
    - Switch: `/octo:km on`
 
-Both modes use the same AI providers (Codex + Gemini), just optimized with different personas.
+Both modes use the same configured AI providers, just optimized with different personas.
 
 ## Learn More
 

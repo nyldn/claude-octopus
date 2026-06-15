@@ -123,6 +123,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
     case "$agent_type" in
         codex*) provider_name="codex" ;;
         gemini*) provider_name="gemini" ;;
+        agy*|antigravity) provider_name="agy" ;;
         claude*) provider_name="claude" ;;
         perplexity*) provider_name="perplexity" ;;
         copilot*) provider_name="copilot" ;;

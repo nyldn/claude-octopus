@@ -16,7 +16,7 @@ aliases:
 
 ### EXECUTION MECHANISM — NON-NEGOTIABLE
 
-**You MUST dispatch work to external providers (Codex, Gemini, etc.) for this command. You are PROHIBITED from:**
+**You MUST dispatch work to external providers (Codex, Gemini, Antigravity, etc.) for this command. You are PROHIBITED from:**
 - ❌ Executing the entire task using only Claude-native tools
 - ❌ Using a single Agent subagent instead of multi-provider dispatch
 - ❌ Skipping provider dispatch because "I can handle this alone"
@@ -31,7 +31,22 @@ aliases:
 
 When the user invokes this command (e.g., `/octo:staged-review` or `/octo:staged-review src/auth/`):
 
+## Step 0: Detect governed-workflow mode (skip interactive prompts)
+
+**Before Step 1, check for governed mode.** If a `.todo/claude-octopus/` directory exists in the working tree (set up by the Cruisey `octo` pipeline), this review is running INSIDE the autonomous governed workflow — the human gate is CP3, not here. In that case:
+
+- **Skip the Step 1 "Review Scope" prompt** — the scope is always the full working tree (nothing is committed before CP3). Proceed directly with `git diff` of the working tree.
+- **Skip the "Post-Completion — Interactive Next Steps" prompt** — proceed straight to the next phase (CP2 council, or the gatekeeper) without asking.
+
+```bash
+test -d .todo/claude-octopus && echo "GOVERNED_MODE" || echo "STANDALONE_MODE"
+```
+
+If `STANDALONE_MODE`, run the interactive prompts below as normal. If `GOVERNED_MODE`, do NOT call `AskUserQuestion` at any point in this command.
+
 ## Step 1: Determine Review Scope
+
+**(GOVERNED_MODE: skip this prompt — scope = working tree.)** Standalone only:
 
 ```javascript
 AskUserQuestion({
@@ -66,7 +81,9 @@ The skill runs two stages:
 
 ### Post-Completion — Interactive Next Steps
 
-**CRITICAL: After the skill completes, you MUST ask the user what to do next.**
+**GOVERNED_MODE: do NOT ask — proceed straight to the next phase (CP2 council, then gatekeeper) per the governed pipeline. The next-steps prompt below is STANDALONE-only.**
+
+**CRITICAL (standalone only): After the skill completes, you MUST ask the user what to do next.**
 
 ```javascript
 AskUserQuestion({
@@ -103,4 +120,4 @@ AskUserQuestion({
 
 - Simulating the review without running the skill
 - Skipping Stage 1 when an intent contract exists
-- Ending without presenting next steps
+- Ending without presenting next steps **(standalone mode only — in GOVERNED_MODE the next-steps prompt is intentionally skipped; proceed to the next pipeline phase instead)**

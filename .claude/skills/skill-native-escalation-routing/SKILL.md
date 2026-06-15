@@ -51,7 +51,7 @@ Escalate when the user asks for or clearly benefits from:
 Examples:
 
 - "get multiple model opinions on this PR"
-- "have Codex and Gemini review this architecture"
+- "have Codex, Gemini, and Antigravity review this architecture"
 - "do an adversarial security review"
 - "verify this AI-generated implementation before merge"
 

@@ -17,7 +17,7 @@ Three review entry points coexist in Claude Code v2.1.111+ — pick the right on
 |---|---|---|---|
 | Claude-native `/review` | Single-turn, current diff | Claude only | Ordinary review, one perspective suffices |
 | `/ultrareview` (CC v2.1.111+) | Cloud, parallel multi-agent | Claude parallelism | Pre-merge PR review without leaving CC |
-| `/octo:review` (this) | Multi-LLM, inline PR comments | Codex + Gemini + Claude | Provider diversity, adversarial cross-check, stricter escalation |
+| `/octo:review` (this) | Multi-LLM, inline PR comments | Claude + available providers | Provider diversity, adversarial cross-check, stricter escalation |
 
 Use `/octo:review` when the user explicitly wants enhanced multi-LLM review, multiple model opinions, provider diversity, or stricter escalation workflows. If CC v2.1.111+ and the user just says "review this", prefer `/ultrareview` unless provider diversity is specifically requested.
 
@@ -29,6 +29,7 @@ When the user invokes this command (e.g., `/octo:review <arguments>`):
 echo "PROVIDER_CHECK_START"
 printf "codex:%s\n" "$(command -v codex >/dev/null 2>&1 && echo available || echo missing)"
 printf "gemini:%s\n" "$(command -v gemini >/dev/null 2>&1 && echo available || echo missing)"
+printf "agy:%s\n" "$(command -v agy >/dev/null 2>&1 && echo available || echo missing)"
 printf "perplexity:%s\n" "$([ -n "${PERPLEXITY_API_KEY:-}" ] && echo available || echo missing)"
 printf "opencode:%s\n" "$(command -v opencode >/dev/null 2>&1 && echo available || echo missing)"
 printf "copilot:%s\n" "$(command -v copilot >/dev/null 2>&1 && echo available || echo missing)"
@@ -38,16 +39,61 @@ printf "openrouter:%s\n" "$([ -n "${OPENROUTER_API_KEY:-}" ] && echo available |
 echo "PROVIDER_CHECK_END"
 ```
 
-Then display the banner with ACTUAL results:
+Then render the banner from actual provider checks. Do not hand-write or summarize this banner; run this block and display its output exactly. The output MUST include the Antigravity line even when `agy` is missing.
+
+```bash
+status_cli() {
+  command -v "$1" >/dev/null 2>&1 && echo "Available ✓" || echo "Not installed ✗"
+}
+
+status_env() {
+  [[ -n "${1:-}" ]] && echo "Configured ✓" || echo "Not configured ✗"
+}
+
+codex_status="$(status_cli codex)"
+gemini_status="$(status_cli gemini)"
+agy_status="$(status_cli agy)"
+opencode_status="$(status_cli opencode)"
+copilot_status="$(status_cli copilot)"
+qwen_status="$(status_cli qwen)"
+if command -v ollama >/dev/null 2>&1 && curl -sf http://localhost:11434/api/tags >/dev/null 2>&1; then
+  ollama_status="Available ✓"
+else
+  ollama_status="Not installed ✗"
+fi
+perplexity_status="$(status_env "${PERPLEXITY_API_KEY:-}")"
+
+cat <<BANNER
+🐙 **CLAUDE OCTOPUS ACTIVATED** — Multi-LLM Code Review
+
+Providers:
+🔴 Codex CLI: ${codex_status}
+🟡 Gemini CLI: ${gemini_status}
+🧭 Antigravity CLI: ${agy_status}
+🟤 OpenCode: ${opencode_status}
+🟢 Copilot CLI: ${copilot_status}
+🟠 Qwen CLI: ${qwen_status}
+⚫ Ollama: ${ollama_status}
+🔵 Claude: Available ✓ — architecture and synthesis
+🟣 Perplexity: ${perplexity_status}
+BANNER
+```
+
+The rendered banner must look like this shape, with ACTUAL statuses:
 
 ```
 🐙 **CLAUDE OCTOPUS ACTIVATED** — Multi-LLM Code Review
 
 Providers:
-🔴 Codex CLI: [Available ✓ / Not installed ✗] — logic and correctness
-🟡 Gemini CLI: [Available ✓ / Not installed ✗] — security and edge cases
+🔴 Codex CLI: [Available ✓ / Not installed ✗]
+🟡 Gemini CLI: [Available ✓ / Not installed ✗]
+🧭 Antigravity CLI: [Available ✓ / Not installed ✗]
+🟤 OpenCode: [Available ✓ / Not installed ✗]
+🟢 Copilot CLI: [Available ✓ / Not installed ✗]
+🟠 Qwen CLI: [Available ✓ / Not installed ✗]
+⚫ Ollama: [Available ✓ / Not installed ✗]
 🔵 Claude: Available ✓ — architecture and synthesis
-🟣 Perplexity: [Available ✓ / Not configured ✗] — CVE lookup
+🟣 Perplexity: [Configured ✓ / Not configured ✗]
 ```
 
 **PROHIBITED: Displaying only "🔵 Claude: Available ✓" without checking and listing other providers.**

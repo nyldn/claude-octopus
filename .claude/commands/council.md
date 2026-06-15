@@ -89,7 +89,7 @@ If the user already provided clear flags and a clear task, skip clarification an
 - `--implement never|after-approval|plan-only`
 - `--worktree auto|on|off`
 - `--benchmark auto|on|off`
-- `--providers auto|claude,codex,gemini,opencode,openrouter`
+- `--providers auto|claude,codex,gemini,agy,opencode,openrouter`
 - `--max-cost <usd>`
 - `--simulate`
 - `--single-model`

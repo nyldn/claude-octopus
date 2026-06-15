@@ -83,8 +83,9 @@ agents:
   # ═══════════════════════════════════════════════════════════════════════════
   backend-architect:
     file: personas/backend-architect.md
-    cli: codex
-    model: gpt-5.3-codex
+    cli: agy                      # cross-lab seat (Antigravity); model via OCTOPUS_AGY_MODEL
+    model: default
+    fallback_cli: codex
     phases: [grasp, tangle]
     tier: premium
     expertise: [api-design, microservices, distributed-systems]
@@ -210,9 +211,9 @@ agents:
   # ═══════════════════════════════════════════════════════════════════════════
   code-reviewer:
     file: personas/code-reviewer.md
-    cli: codex-spark              # v8.9.0: Fast review via Spark (was codex-review)
+    cli: codex-spark              # reliable OpenAI seat; agy (backend-architect) already supplies the cross-lab vote. Flip to `gemini` (model: gemini-2.5-flash) for a 3rd lab while gemini CLI lasts (deprecating 2026-06-18).
     model: gpt-5.3-codex-spark
-    fallback_cli: codex-review    # v8.9.0: Falls back to codex-review if spark unavailable
+    fallback_cli: codex-review
     phases: [ink]
     tier: premium
     expertise: [code-quality, best-practices, architecture-review]

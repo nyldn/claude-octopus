@@ -326,8 +326,8 @@ Each summary includes:
 | Aspect | Quick Mode ⚡ | Full Workflow 🐙 |
 |--------|-------------|------------------|
 | **Time** | 1-3 minutes | 5-15 minutes |
-| **Cost** | Claude only | Codex + Gemini + Claude |
-| **Providers** | 1 (Claude) | 3 (multi-AI) |
+| **Cost** | Claude only | Claude plus available external providers |
+| **Providers** | 1 (Claude) | Available provider fleet |
 | **Research** | None | Comprehensive |
 | **Planning** | None | Detailed |
 | **Validation** | Basic | Multi-AI review |

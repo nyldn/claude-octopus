@@ -114,6 +114,8 @@ Plan locally first, then run the approved `/octo:embrace` prompt in the hosted o
 **MANDATORY: Run this bash command BEFORE the banner.**
 
 ```bash
+set -euo pipefail
+
 echo "PROVIDER_CHECK_START"
 printf "codex:%s\n" "$(command -v codex >/dev/null 2>&1 && echo available || echo missing)"
 printf "gemini:%s\n" "$(command -v gemini >/dev/null 2>&1 && echo available || echo missing)"
@@ -123,10 +125,43 @@ printf "copilot:%s\n" "$(command -v copilot >/dev/null 2>&1 && echo available ||
 printf "qwen:%s\n" "$(command -v qwen >/dev/null 2>&1 && echo available || echo missing)"
 printf "ollama:%s\n" "$(command -v ollama >/dev/null 2>&1 && curl -sf http://localhost:11434/api/tags >/dev/null 2>&1 && echo available || echo missing)"
 printf "openrouter:%s\n" "$([ -n "${OPENROUTER_API_KEY:-}" ] && echo available || echo missing)"
+printf "agy:%s\n" "$(command -v agy >/dev/null 2>&1 && echo available || echo missing)"
 echo "PROVIDER_CHECK_END"
 ```
 
-Display banner with ACTUAL results:
+Render the provider banner from actual provider checks. Do not hand-write or summarize this banner; run this block and display its output exactly. The output MUST include the Antigravity line even when `agy` is missing.
+
+```bash
+status_cli() { command -v "$1" >/dev/null 2>&1 && echo "Available ✓" || echo "Not installed ✗"; }
+status_env() { [[ -n "${1:-}" ]] && echo "Configured ✓" || echo "Not configured ✗"; }
+codex_status="$(status_cli codex)"
+gemini_status="$(status_cli gemini)"
+agy_status="$(status_cli agy)"
+opencode_status="$(status_cli opencode)"
+copilot_status="$(status_cli copilot)"
+qwen_status="$(status_cli qwen)"
+if command -v ollama >/dev/null 2>&1 && curl -sf http://localhost:11434/api/tags >/dev/null 2>&1; then ollama_status="Available ✓"; else ollama_status="Not installed ✗"; fi
+perplexity_status="$(status_env "${PERPLEXITY_API_KEY:-}")"
+cat <<BANNER
+🐙 **CLAUDE OCTOPUS ACTIVATED** - Full Double Diamond Workflow
+🐙 Embrace: [Brief description]
+
+Phases: 🔍 Discover → 🎯 Define → 🛠️ Develop → ✅ Deliver
+
+Provider Availability:
+🔴 Codex CLI: ${codex_status}
+🟡 Gemini CLI: ${gemini_status}
+🧭 Antigravity CLI: ${agy_status}
+🟤 OpenCode: ${opencode_status}
+🟢 Copilot CLI: ${copilot_status}
+🟠 Qwen CLI: ${qwen_status}
+⚫ Ollama: ${ollama_status}
+🔵 Claude: Available ✓
+🟣 Perplexity: ${perplexity_status}
+BANNER
+```
+
+The rendered banner must look like this shape, with ACTUAL statuses:
 
 ```
 🐙 **CLAUDE OCTOPUS ACTIVATED** - Full Double Diamond Workflow
@@ -135,9 +170,15 @@ Display banner with ACTUAL results:
 Phases: 🔍 Discover → 🎯 Define → 🛠️ Develop → ✅ Deliver
 
 Provider Availability:
-🔴 Codex CLI: [status]    🟡 Gemini CLI: [status]
-🟣 Perplexity: [status]   🟤 OpenCode: [status]
+🔴 Codex CLI: [Available ✓ / Not installed ✗]
+🟡 Gemini CLI: [Available ✓ / Not installed ✗]
+🧭 Antigravity CLI: [Available ✓ / Not installed ✗]
+🟤 OpenCode: [Available ✓ / Not installed ✗]
+🟢 Copilot CLI: [Available ✓ / Not installed ✗]
+🟠 Qwen CLI: [Available ✓ / Not installed ✗]
+⚫ Ollama: [Available ✓ / Not installed ✗]
 🔵 Claude: Available ✓
+🟣 Perplexity: [Configured ✓ / Not configured ✗]
 
 Scope: [answer]  Focus: [answer]  Autonomy: [answer]
 ```

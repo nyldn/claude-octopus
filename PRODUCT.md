@@ -6,7 +6,7 @@ last_reviewed: 2026-05-25
 
 ## Mission
 
-Put up to eight AI models on every task so blind spots surface before you ship — not after.
+Put up to 9 AI models on every task so blind spots surface before you ship — not after.
 
 ## Vision
 
@@ -35,7 +35,7 @@ Claude Octopus is a **multi-runtime orchestration plugin** with three architectu
 
 | Layer | What it does | Gap it closes |
 |-------|-------------|---------------|
-| **Provider adapters** (`scripts/orchestrate.sh`, `bin/check-providers.sh`) | Detects, authenticates, and dispatches to up to 8 AI CLIs | Eliminates manual per-provider boilerplate |
+| **Provider adapters** (`scripts/orchestrate.sh`, `bin/check-providers.sh`) | Detects, authenticates, and dispatches to up to 9 AI CLIs | Eliminates manual per-provider boilerplate |
 | **Workflow engine** (`skills/`) | Structures every task into Discover → Define → Develop → Deliver with quality gates | Stops ad-hoc "just ask Claude" from shipping low-confidence output |
 | **Consensus layer** | 75% gate: flags disagreements across providers before code is finalized | The actual blind-spot catcher — surfaces the 1-in-5 case where Claude was wrong |
 
@@ -43,9 +43,9 @@ Claude Octopus is a **multi-runtime orchestration plugin** with three architectu
 
 ## Core Value Propositions
 
-- **Blind spot elimination:** Any model can be wrong; 8 models rarely agree on the same wrong answer
+- **Blind spot elimination:** Any model can be wrong; 9 providers rarely agree on the same wrong answer
 - **Zero-friction escalation:** Claude-native for ordinary tasks, Octopus for anything that deserves a second opinion
-- **Five providers at no added cost:** Codex (OAuth), Gemini (OAuth), Qwen (1K-2K free/day), Copilot (GitHub subscription), Ollama (local) — pay only when you add Perplexity or OpenRouter
+- **Six providers can cost nothing extra when you already have access:** Codex (OAuth), Gemini (OAuth), Antigravity CLI, Qwen (1K-2K free/day), Copilot (GitHub subscription), Ollama (local) — pay only when you add metered providers such as Perplexity or OpenRouter
 - **Dark Factory autonomy:** Spec in, software out — full Discover→Define→Develop→Deliver pipeline without step-by-step prompting
 - **Opinionated four-phase methodology:** Infrastructure plus the workflow that uses it correctly
 
@@ -91,7 +91,7 @@ Frontier AI models will remain individually overconfident for the foreseeable fu
 | Gap | Impact | Status |
 |-----|--------|--------|
 | Onboarding requires multiple manual steps (clone → install → `/octo:setup`) | New users abandon before first workflow | Open |
-| Provider CLI version drift causes silent failures | Orchestration breaks when Codex/Gemini CLI updates; no version-lock | Open |
+| Provider CLI version drift causes silent failures | Orchestration breaks when external provider CLIs update; no version-lock | Open |
 | Council consensus score not surfaced in GitHub PRs | Teams can't enforce multi-LLM gate in CI without manual extraction | Open |
 | Windows native support untested | Windows users get degraded experience; shell scripts assume POSIX | Open |
 | No persistent provider-auth across sessions | Re-auth friction on every new Claude Code session for some providers | Open |

@@ -219,7 +219,7 @@ wrap_cli_output() {
     fi
 
     case "$provider" in
-        codex*|gemini*|perplexity*|cursor-agent*)
+        codex*|gemini*|agy*|antigravity|perplexity*|cursor-agent*)
             cat << EOF
 <external-cli-output provider="$provider" trust="untrusted">
 $output

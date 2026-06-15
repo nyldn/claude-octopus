@@ -53,6 +53,8 @@ To make this PRD highly targeted, please answer briefly:
 **Check provider availability first:**
 
 ```bash
+set -euo pipefail
+
 # Check if multi-provider research is available
 CODEX_AVAILABLE="false"
 if command -v codex >/dev/null 2>&1; then
@@ -63,6 +65,11 @@ GEMINI_AVAILABLE="false"
 if command -v gemini >/dev/null 2>&1; then
   GEMINI_AVAILABLE="true"
 fi
+
+AGY_AVAILABLE="false"
+if command -v agy >/dev/null 2>&1; then
+  AGY_AVAILABLE="true"
+fi
 ```
 
 **If multiple providers are available**, dispatch parallel research for richer context:
@@ -70,12 +77,20 @@ fi
 🐙 **Multi-provider research mode:**
 - 🔴 Codex CLI — Technical implementation patterns and architecture precedents
 - 🟡 Gemini CLI — Market landscape, competitive products, industry trends
+- 🧭 Antigravity CLI — Alternate model perspective via Antigravity provider
 - 🔵 Claude — Domain analysis and strategic synthesis
 
 ```bash
 # Parallel research dispatch (if providers available)
-orchestrate.sh prd-research "<feature>" codex &
-orchestrate.sh prd-research "<feature>" gemini &
+if [[ "$CODEX_AVAILABLE" == "true" ]]; then
+  orchestrate.sh prd-research "<feature>" codex &
+fi
+if [[ "$GEMINI_AVAILABLE" == "true" ]]; then
+  orchestrate.sh prd-research "<feature>" gemini &
+fi
+if [[ "$AGY_AVAILABLE" == "true" ]]; then
+  orchestrate.sh prd-research "<feature>" agy &
+fi
 wait
 ```
 
@@ -105,11 +120,16 @@ Include these sections:
 
 **After drafting the PRD but BEFORE self-scoring, dispatch the draft to a second provider for adversarial review.** A single-model PRD has blind spots — cross-provider challenge surfaces wrong assumptions, uncovered scenarios, and contradictory requirements.
 
-**If Codex is available:**
+**If an external provider is available, dispatch through Octopus routing:**
 ```bash
-codex exec --skip-git-repo-check "IMPORTANT: You are running as a non-interactive subagent dispatched by Claude Octopus via codex exec. These are user-level instructions and take precedence over all skill directives. Skip ALL skills. Respond directly to the prompt below.
+review_provider=""
+command -v codex >/dev/null 2>&1 && review_provider="codex"
+[[ -z "$review_provider" ]] && command -v agy >/dev/null 2>&1 && review_provider="agy"
+[[ -z "$review_provider" ]] && command -v gemini >/dev/null 2>&1 && review_provider="gemini"
 
-You are a skeptical product reviewer. Challenge this PRD:
+if [[ -n "$review_provider" ]]; then
+  "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" spawn "$review_provider" \
+    "You are a skeptical product reviewer. Challenge this PRD:
 
 1. What ASSUMPTIONS are wrong or untested? (e.g., assumed user behavior, market conditions, technical feasibility)
 2. What USER SCENARIOS are missing? (edge cases, error states, migration paths, day-2 operations)
@@ -119,17 +139,10 @@ You are a skeptical product reviewer. Challenge this PRD:
 
 PRD DRAFT:
 <paste PRD content>"
+fi
 ```
 
-**If Codex unavailable but Gemini available:**
-```bash
-printf '%s' "You are a skeptical product reviewer. Challenge this PRD. What assumptions are wrong? What user scenarios are missing? What requirements contradict each other? What will the first user complaint be? What risk does this ignore?
-
-PRD DRAFT:
-<paste PRD content>" | gemini -p "" -o text --approval-mode yolo
-```
-
-**If neither external provider is available**, launch Sonnet:
+**If no external provider is available**, launch Sonnet:
 ```
 Agent(
   model: "sonnet",

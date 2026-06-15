@@ -101,6 +101,7 @@ AskUserQuestion({
 Providers:
 🔴 Codex CLI — Implementation feasibility bias (catches vague technical specs)
 🟡 Gemini CLI — Completeness and industry standards bias (catches missing sections)
+🧭 Antigravity CLI — Alternate model perspective when installed
 🔵 Claude — AI-optimization and structure bias (catches poor phasing)
 
 **Rigorous workflow:**
@@ -109,7 +110,7 @@ Providers:
 3. Synthesize consensus: highlight where providers agree (high confidence) and where they diverge (areas to investigate)
 4. Present combined score with per-provider variance
 
-**Why this works:** Different models flag different weaknesses. Codex catches implementation gaps that Claude misses; Gemini catches industry-standard omissions that Codex overlooks. Consensus scoring reduces single-model bias.
+**Why this works:** Different models flag different weaknesses. Codex catches implementation gaps, Gemini catches industry-standard omissions, Antigravity adds another external-model challenge when installed, and consensus scoring reduces single-model bias.
 
 ### Step 5: Offer Improvements
 

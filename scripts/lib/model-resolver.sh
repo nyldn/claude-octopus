@@ -51,6 +51,19 @@ resolve_octopus_model() {
     local config_file="${HOME}/.claude-octopus/config/providers.json"
     local resolved_model=""
 
+    # Env overrides must bypass caches. A prior default resolution can be cached
+    # for the same provider/agent/phase tuple, but explicit user overrides are
+    # session state and take precedence over any cached value.
+    local canonical_provider="$provider"
+    case "$canonical_provider" in
+        antigravity) canonical_provider="agy" ;;
+    esac
+    local env_var="OCTOPUS_$(echo "$canonical_provider" | tr '[:lower:]' '[:upper:]' | tr '-' '_')_MODEL"
+    if [[ -n "${!env_var:-}" ]]; then
+        echo "${!env_var}"
+        return 0
+    fi
+
     # 0. Session Cache (v8.53.0)
     # Uses a process-local memory cache + optional file-based cache for cross-process speed
     local cache_key
@@ -60,7 +73,12 @@ resolve_octopus_model() {
     local safe_a="${agent_type//[^a-zA-Z0-9]/_}"
     local safe_ph="${phase//[^a-zA-Z0-9]/_}"
     local safe_r="${role//[^a-zA-Z0-9]/_}"
-    cache_key="MC_${safe_p}_A_${safe_a}_P_${safe_ph}_R_${safe_r}"
+    local safe_cfg="no_config"
+    if [[ -f "$config_file" ]]; then
+        safe_cfg="$(cksum < "$config_file" 2>/dev/null | awk '{print $1 "_" $2}')"
+        safe_cfg="${safe_cfg//[^a-zA-Z0-9_]/_}"
+    fi
+    cache_key="MC_${safe_p}_A_${safe_a}_P_${safe_ph}_R_${safe_r}_C_${safe_cfg}"
     local cached_val
     eval "cached_val=\"\${_OCTO_MODEL_CACHE_${cache_key}:-}\""
     if [[ -n "$cached_val" ]]; then
@@ -69,12 +87,18 @@ resolve_octopus_model() {
     fi
 
     # Persistent File Cache (optional, for parallel execution speed)
-    local persistent_cache="/tmp/octo-model-cache-${USER:-${USERNAME:-unknown}}-${CLAUDE_CODE_SESSION:-global}.json"
+    local cache_dir="${TMPDIR:-/tmp}"
+    local persistent_cache=""
+    if mkdir -p "$cache_dir" 2>/dev/null && [[ -d "$cache_dir" && -w "$cache_dir" ]]; then
+        persistent_cache="${cache_dir%/}/octo-model-cache-${USER:-${USERNAME:-unknown}}-${CLAUDE_CODE_SESSION:-global}.json"
+    elif mkdir -p /tmp 2>/dev/null && [[ -d /tmp && -w /tmp ]]; then
+        persistent_cache="/tmp/octo-model-cache-${USER:-${USERNAME:-unknown}}-${CLAUDE_CODE_SESSION:-global}.json"
+    fi
     # v8.49.0: Invalidate cache if config file changed since cache was written
-    if [[ -f "$persistent_cache" && -f "$config_file" && "$config_file" -nt "$persistent_cache" ]]; then
+    if [[ -n "$persistent_cache" && -f "$persistent_cache" && -f "$config_file" && "$config_file" -nt "$persistent_cache" ]]; then
         rm -f "$persistent_cache"
     fi
-    if [[ -f "$persistent_cache" ]] && command -v jq &>/dev/null; then
+    if [[ -n "$persistent_cache" && -f "$persistent_cache" ]] && command -v jq &>/dev/null; then
         cached_val=$(jq -r ".\"$cache_key\" // empty" "$persistent_cache" 2>/dev/null)
         if [[ -n "$cached_val" && "$cached_val" != "null" ]]; then
             # Sanitize before eval: strip shell metacharacters (model names are alphanumeric + .:/-_)
@@ -90,7 +114,6 @@ resolve_octopus_model() {
     [[ -n "$_trace" ]] && echo "[model-trace] Resolving: provider=$provider type=$agent_type phase=${phase:-<none>} role=${role:-<none>}" >&2
 
     # 1. Force/Session Overrides (Env vars)
-    local env_var="OCTOPUS_$(echo "$provider" | tr '[:lower:]' '[:upper:]' | tr '-' '_')_MODEL"
     if [[ -n "${!env_var:-}" ]]; then
         resolved_model="${!env_var}"
         [[ -n "$_trace" ]] && echo "[model-trace] Tier 1 (env $env_var): ${!env_var} ← SELECTED" >&2
@@ -218,6 +241,7 @@ resolve_octopus_model() {
             codex*)          resolved_model="gpt-5.5" ;;
             gemini-fast|gemini-flash) resolved_model="gemini-3-flash-preview" ;;
             gemini*)         resolved_model="gemini-3.1-pro-preview" ;;
+            agy*|antigravity) resolved_model="default" ;;
             claude-opus-legacy*) resolved_model="claude-opus-4.6" ;;
             claude-opus*)    resolved_model="$(opus_default_model)" ;;
             claude*)         resolved_model="claude-sonnet-4.6" ;;
@@ -244,12 +268,12 @@ resolve_octopus_model() {
     # Update memory and persistent cache
     # Use \$var to prevent double-expansion; resolved_model is internally computed but defensive quoting is cheap
     eval "_OCTO_MODEL_CACHE_${cache_key}=\"\$resolved_model\""
-    if command -v jq &>/dev/null; then
+    if [[ -n "$persistent_cache" ]] && command -v jq &>/dev/null; then
         local cache_json="{}"
         # Self-heal: reject unreadable, concatenated-JSON, or non-object payloads.
         # Plain `jq -e .` accepts `{}\n{}` as a valid stream — the exact
         # concurrent-writer artifact this gate exists to heal. Slurp to count.
-        if cache_json=$(<"$persistent_cache") 2>/dev/null && [[ -n "$cache_json" ]]; then
+        if [[ -r "$persistent_cache" ]] && cache_json=$(<"$persistent_cache") && [[ -n "$cache_json" ]]; then
             cache_json=$(jq -cse 'if length == 1 and (.[0] | type) == "object" then .[0] else error("invalid") end' \
                          <<<"$cache_json" 2>/dev/null) || cache_json="{}"
         else
@@ -301,6 +325,9 @@ is_agent_available_v2() {
             ;;
         gemini|gemini-fast|gemini-image)
             [[ "$PROVIDER_GEMINI_INSTALLED" == "true" && "$PROVIDER_GEMINI_AUTH_METHOD" != "none" ]]
+            ;;
+        agy|agy-research|antigravity)
+            command -v agy &>/dev/null
             ;;
         openrouter|openrouter-*)
             [[ "$PROVIDER_OPENROUTER_ENABLED" == "true" && "$PROVIDER_OPENROUTER_API_KEY_SET" == "true" ]]

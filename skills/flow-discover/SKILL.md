@@ -1,6 +1,6 @@
 ---
 name: flow-discover
-description: "Multi-AI research using Codex and Gemini CLIs (Double Diamond Discover phase)"
+description: "Multi-AI research using available external providers (Double Diamond Discover phase)"
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
@@ -14,7 +14,7 @@ description: "Multi-AI research using Codex and Gemini CLIs (Double Diamond Disc
 ## Compaction-Resistant Contract
 
 - Dispatch MUST go through background agents that call `${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh probe-single`; direct single-model research is not a valid substitute.
-- Use the dynamic fleet from `build-fleet.sh`; the plugin can route across Codex, Gemini, Copilot, Qwen, OpenCode, Ollama, Perplexity, OpenRouter, Cursor Agent, and Claude depending on local availability.
+- Use the dynamic fleet from `build-fleet.sh`; the plugin can route across Codex, Gemini, Antigravity, Copilot, Qwen, OpenCode, Ollama, Perplexity, OpenRouter, Cursor Agent, and Claude depending on local availability.
 - Before synthesis, run `${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh agent-summary` and use only providers reported as `ok`, `degraded`, or `timeout` with usable output.
 - For `standard` and `deep` research, require at least 2 usable provider outputs unless fewer providers are installed; failed/rejected providers are reported as gaps, not cited as evidence.
 
@@ -121,6 +121,7 @@ If `OCTO_ALLOWED_PROVIDERS` is set, treat it as the source of truth for which pr
 Provider Availability:
 🔴 Codex CLI: ${codex_status}
 🟡 Gemini CLI: ${gemini_status}
+🧭 Antigravity CLI: ${agy_status}
 🟣 Perplexity: ${perplexity_status}
 🔵 Claude: Available ✓ (Strategic synthesis)
 
@@ -136,6 +137,7 @@ Provider Availability:
 Provider Availability:
 🔴 Codex CLI: ${codex_status}
 🟡 Gemini CLI: ${gemini_status}
+🧭 Antigravity CLI: ${agy_status}
 🟣 Perplexity: ${perplexity_status}
 🔵 Claude: Available ✓ (Strategic synthesis)
 
@@ -183,7 +185,7 @@ fi
 
 **Parse the `breadth` and `intensity` parameters from the skill args.** The args string may start with `[breadth=light|standard|exhaustive]` and/or `[intensity=quick|standard|deep]`. If only breadth is specified, map `light -> quick`, `standard -> standard`, and `exhaustive -> deep`. If neither is specified, default to `"standard"` (backward compatible with `/octo:embrace` which doesn't pass intensity).
 
-**Build the fleet dynamically using `build-fleet.sh`** — this is the single source of truth for provider-to-perspective assignment. It detects ALL available providers (codex, gemini, copilot, qwen, opencode, ollama, perplexity, openrouter) and assigns perspectives with model family diversity enforcement.
+**Build the fleet dynamically using `build-fleet.sh`** — this is the single source of truth for provider-to-perspective assignment. It detects ALL available providers (codex, gemini, agy, copilot, qwen, opencode, ollama, perplexity, openrouter) and assigns perspectives with model family diversity enforcement.
 
 ```bash
 FLEET_OUTPUT=$("${HOME}/.claude-octopus/plugin/scripts/helpers/build-fleet.sh" research "${INTENSITY}" "${PROMPT}" 2>/dev/null)
@@ -192,7 +194,7 @@ FLEET_OUTPUT=$("${HOME}/.claude-octopus/plugin/scripts/helpers/build-fleet.sh" r
 The output is one line per agent: `agent_type|label|perspective_prompt`
 
 **Parse each line into the fleet array:**
-- `agent_type`: the provider to dispatch (codex, gemini, copilot, qwen, opencode, claude-sonnet, perplexity, etc.)
+- `agent_type`: the provider to dispatch (codex, gemini, agy, copilot, qwen, opencode, claude-sonnet, perplexity, etc.)
 - `label`: human-readable name (e.g., "Problem Analysis", "Ecosystem Overview", "Contrarian Analysis")
 - `perspective_prompt`: the angle-specific prompt to send to that provider
 - `task_id`: generate as `probe-<timestamp>-<index>` for each entry
@@ -207,7 +209,7 @@ The output is one line per agent: `agent_type|label|perspective_prompt`
 
 **Model family diversity is enforced automatically** — the script prioritizes spreading agents across different model families (OpenAI, Google, Microsoft, Alibaba, Anthropic) to avoid agreement bias from same-family models.
 
-**DO NOT hardcode provider assignments.** Always use build-fleet.sh output. If the script is unavailable, fall back to the previous behavior (codex + gemini + claude-sonnet).
+**DO NOT hardcode provider assignments.** Always use build-fleet.sh output. If the script is unavailable, fall back to the available-provider path (for example codex + gemini + agy + claude-sonnet when installed).
 
 **DO NOT PROCEED TO STEP 4 until the fleet is built.**
 
@@ -216,7 +218,7 @@ The output is one line per agent: `agent_type|label|perspective_prompt`
 
 **Launch each perspective as a background Agent subagent.** Each agent calls `orchestrate.sh probe-single` which handles persona application, credential isolation, and result file writing.
 
-**CRITICAL: You MUST use the host subagent tool with `background execution: true` for each perspective.** Launch external CLI agents first (higher latency — gemini, codex, copilot, qwen, opencode), then Claude Sonnet agents, then API-only agents (perplexity).
+**CRITICAL: You MUST use the host subagent tool with `background execution: true` for each perspective.** Launch providers strictly in the runtime FLEET_OUTPUT sequence.
 
 For each perspective in the fleet, launch:
 
@@ -232,7 +234,7 @@ After the command completes, read the result file path that was printed and retu
 )
 ```
 
-**Launch order:** All Gemini agents first, then all Codex agents, then Claude Sonnet, then Perplexity. Within each provider group, launch simultaneously (multiple Agent calls in a single message).
+**Launch order:** Iterate the parsed `FLEET_OUTPUT` order from `build-fleet.sh`. Launch all entries from that runtime fleet in parallel when possible; do not reorder by hardcoded provider names.
 
 **CRITICAL: You are PROHIBITED from:**
 - ❌ Researching directly without calling orchestrate.sh probe-single — single-model research misses perspectives that Codex (implementation depth) and Gemini (ecosystem breadth) bring
@@ -340,7 +342,7 @@ done
 **Include attribution:**
 ```
 *Multi-AI Research powered by Claude Octopus*
-*Providers: 🔴 Codex | 🟡 Gemini | 🔵 Claude*
+*Providers: available external providers + 🔵 Claude*
 *Full synthesis: $SYNTHESIS_FILE*
 ```
 
@@ -497,7 +499,7 @@ background_task(agent="librarian", prompt="Research external documentation for [
 ```
 
 **Benefits of hybrid approach:**
-- External CLIs (Codex/Gemini) provide broad ecosystem research
+- External CLIs such as Codex, Gemini, and Antigravity provide broad ecosystem research
 - Native background tasks provide codebase-specific context
 - Parallel execution reduces total research time
 - 2.1.14 memory fixes make native parallelism reliable
@@ -537,7 +539,7 @@ Create tasks to track execution progress:
 // At start of skill execution
 TaskCreate({
   subject: "Execute discover workflow with multi-AI providers",
-  description: "Run orchestrate.sh probe with Codex and Gemini",
+  description: "Run orchestrate.sh probe with available providers",
   activeForm: "Running multi-AI discover workflow"
 })
 
@@ -552,7 +554,7 @@ TaskUpdate({taskId: "...", status: "completed"})
 
 If any step fails:
 - **Step 1 (Context)**: Default to Dev Context if ambiguous
-- **Step 2 (Providers)**: If both unavailable, suggest `/octo:setup` and STOP
+- **Step 2 (Providers)**: If all external providers are unavailable, suggest `/octo:setup` and STOP
 - **Step 4 (Agent launch)**: If an agent fails, continue with remaining agents (graceful degradation)
 - **Step 5 (Collection)**: If fewer than 2 results, report error and let user decide
 - **Step 6 (Synthesis)**: If synthesis fails, present raw agent results without synthesis
@@ -705,7 +707,7 @@ Or use standalone for pure research tasks.
 
 Before completing probe workflow, ensure:
 
-- [ ] All providers (Codex, Gemini, Claude) responded
+- [ ] Available providers responded
 - [ ] Synthesis file created and readable
 - [ ] Key findings presented clearly in chat
 - [ ] Strategic recommendation provided

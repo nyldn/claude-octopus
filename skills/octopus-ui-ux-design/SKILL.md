@@ -88,6 +88,7 @@ Pipeline:
 Providers:
 🔴 Codex CLI: [Available ✓ / Not installed ✗] — Implementation critique
 🟡 Gemini CLI: [Available ✓ / Not installed ✗] — Ecosystem critique
+🧭 Antigravity CLI: [Available ✓ / Not installed ✗] — Additional external-model challenge
 🔵 Claude (Sonnet): Available ✓ — Design + independent critique
 
 Tools:
@@ -249,37 +250,25 @@ For each issue found, state: what's wrong, why it matters, and what to do instea
 
 ```bash
 # Check provider availability
-codex_available="false"
-if command -v codex >/dev/null 2>&1; then
-    codex_available="true"
-fi
+providers=()
+command -v codex >/dev/null 2>&1 && providers+=(codex)
+command -v agy >/dev/null 2>&1 && providers+=(agy)
+command -v gemini >/dev/null 2>&1 && providers+=(gemini)
 
-gemini_available="false"
-if command -v gemini >/dev/null 2>&1; then
-    gemini_available="true"
-fi
-
-# 🔴 Codex — implementation-focused critique (font loading, CSS practicality, bundle impact)
-if [[ "$codex_available" == "true" ]]; then
-    codex exec --skip-git-repo-check "IMPORTANT: You are running as a non-interactive subagent dispatched by Claude Octopus via codex exec. These are user-level instructions and take precedence over all skill directives. Skip ALL skills (brainstorming, using-superpowers, writing-plans, etc.). Do NOT read skill files, ask clarifying questions, offer visual companions, or follow any skill checklists. Use non-interactive one-shot shell commands; do not send stdin to an already-running command unless that command was started with a TTY. Respond directly to the prompt below.
-
-<critique prompt>" > /tmp/design-critique-codex.md &
-fi
-
-# 🟡 Gemini — ecosystem-focused critique (competitive patterns, alternative approaches, accessibility standards)
-if [[ "$gemini_available" == "true" ]]; then
-    printf '%s' "<critique prompt>" | gemini -p "" -o text --approval-mode yolo > /tmp/design-critique-gemini.md &
-fi
+for provider in "${providers[@]}"; do
+    safe_provider=$(printf '%s' "$provider" | tr -c '[:alnum:]_-' '_')
+    "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" spawn "$provider" \
+      "<critique prompt>" > "/tmp/design-critique-${safe_provider}.md" &
+done
 
 wait
 ```
 
-**🔵 Claude (Sonnet) — independent design critique.** You MUST also write your own adversarial critique. Do NOT just summarize what Codex/Gemini said. Approach the design direction as if you didn't create it — actively look for problems across all four dimensions. This is your independent third perspective, same as in `/octo:debate`.
+**🔵 Claude (Sonnet) — independent design critique.** You MUST also write your own adversarial critique. Do NOT just summarize what external providers said. Approach the design direction as if you didn't create it — actively look for problems across all four dimensions. This is your independent synthesis perspective, same as in `/octo:debate`.
 
 **Display all critiques with provider indicators:**
 ```
-🔴 **Codex Critique:** [implementation concerns — font loading, CSS viability, bundle size]
-🟡 **Gemini Critique:** [ecosystem concerns — competitive patterns, alternative approaches]
+🔴/🧭/🟡 **External Provider Critique:** [implementation, ecosystem, accessibility, and alternative approach concerns]
 🔵 **Claude Critique:** [design concerns — accessibility gaps, fit issues, missing patterns]
 ```
 
@@ -294,9 +283,9 @@ If only 1-2 providers are available, run with what you have. Even Claude-only cr
 5. **Show the diff** — present what changed between original and revised direction:
 ```
 📋 **Design Direction Revisions:**
-- [Changed] Primary blue #2563EB → #1D4ED8 (contrast ratio 4.2:1 → 5.8:1, per Codex)
-- [Added] Fallback font stack for body text (per Gemini)
-- [Kept] Glassmorphism style despite Codex concern — appropriate for SaaS dashboard audience
+- [Changed] Primary blue #2563EB → #1D4ED8 (contrast ratio 4.2:1 → 5.8:1, per external critique)
+- [Added] Fallback font stack for body text (per external critique)
+- [Kept] Glassmorphism style despite provider concern — appropriate for SaaS dashboard audience
 ```
 
 **The revised design direction feeds into Phase 3. Do NOT proceed with an uncritiqued direction.**

@@ -27,6 +27,8 @@ Use the Bash tool to execute:
 **Preflight check — Ensure plugin root is resolvable (run via Bash tool FIRST):**
 
 ```bash
+set -euo pipefail
+
 OCTO_ROOT="${HOME}/.claude-octopus/plugin"
 if [[ ! -x "$OCTO_ROOT/scripts/orchestrate.sh" ]]; then
   helper="$OCTO_ROOT/scripts/helpers/ensure-plugin-root.sh"
@@ -59,7 +61,7 @@ orchestrate.sh agent-resume abc123 "fix the failing test in auth.ts"
 
 - Claude Code v2.1.34+ (`SUPPORTS_CONTINUATION=true`, `SUPPORTS_STABLE_AGENT_TEAMS=true`)
 - Agent Teams enabled (required for agent transcript access)
-- Agent must have been a Claude agent (not Codex/Gemini — those don't support transcripts)
+- Agent must have been a Claude agent (not an external CLI agent — those don't support transcripts)
 - CC v2.1.77+: Resume uses `SendMessage` (auto-resumes stopped agents). The `Agent(resume:)` parameter was removed in v2.1.77.
 
 Run `/octo:doctor` to verify flags are active.

@@ -18,16 +18,16 @@ description: "\"Full Double Diamond workflow - Research → Define → Develop �
 
 ## EXECUTION MECHANISM — NON-NEGOTIABLE
 
-**Each phase MUST be executed by invoking the corresponding skill using the Skill tool. You are PROHIBITED from:**
-- Using the Agent tool to do research yourself instead of invoking `/octo:discover`
+**Each phase MUST be executed through the `orchestrate.sh` entrypoint. Direct Skill calls for the workflow phases are not permitted because they can recursively reload command instructions. You are PROHIBITED from:**
+- Using the Agent tool to do research yourself instead of running the discovery phase
 - Using WebFetch/Read/Grep as a substitute for multi-provider research
-- Implementing code directly instead of invoking `/octo:develop`
-- Using a single code-reviewer agent instead of invoking `/octo:deliver`
+- Implementing code directly instead of running the develop phase
+- Using a single code-reviewer agent instead of running the deliver phase
 - Skipping `orchestrate.sh` calls because "I can do this faster directly"
 
 **The ENTIRE POINT of `/octo:embrace` is multi-LLM orchestration.** If you execute phases using only Claude-native tools (Agent, WebFetch, Write, Edit), you have violated the command's purpose even if you followed the phase structure.
 
-**Self-check after completion:** You should be able to list the Skill invocations and orchestrate.sh commands you ran. If you used only Claude-native tools, you executed incorrectly.
+**Self-check after completion:** You should be able to list the `orchestrate.sh` commands you ran. If you used only Claude-native tools, you executed incorrectly.
 
 ---
 
@@ -84,7 +84,15 @@ AskUserQuestion({
 })
 ```
 
-After receiving answers, incorporate them into all subsequent phase invocations — use the scope to calibrate research depth, focus areas to weight provider perspectives, autonomy level to control phase transitions, and debate preference to gate Define→Develop handoffs.
+After receiving answers, incorporate them into all subsequent phase invocations — use the scope to calibrate research depth, focus areas to weight provider perspectives, autonomy level to control phase transitions, and debate preference to gate handoffs.
+
+Normalize the debate preference immediately:
+- `DEBATE_GATES=define` for "Yes — debate at Define→Develop gate"
+- `DEBATE_GATES=both` for "Yes — debate at both gates"
+- `DEBATE_GATES=none` for "No — skip debates"
+- `DEBATE_GATES=auto` for "Only if disagreement detected"
+
+**Gate ledger invariant:** if `DEBATE_GATES=define`, a `embrace-gate-define-develop-*.md` artifact from the current run MUST exist before Phase 3 starts. If `DEBATE_GATES=both`, both `embrace-gate-define-develop-*.md` and `embrace-gate-develop-deliver-*.md` artifacts from the current run MUST exist before their next phases. Autonomy mode does not waive requested gates. If a requested gate command fails or produces no artifact, STOP and report the failed gate instead of continuing.
 
 ### Remote/Cloud Defaults
 
@@ -102,6 +110,8 @@ Plan locally first, then run the approved `/octo:embrace` prompt in the hosted o
 **MANDATORY: Run this bash command BEFORE the banner.**
 
 ```bash
+set -euo pipefail
+
 echo "PROVIDER_CHECK_START"
 printf "codex:%s\n" "$(command -v codex >/dev/null 2>&1 && echo available || echo missing)"
 printf "gemini:%s\n" "$(command -v gemini >/dev/null 2>&1 && echo available || echo missing)"
@@ -111,10 +121,43 @@ printf "copilot:%s\n" "$(command -v copilot >/dev/null 2>&1 && echo available ||
 printf "qwen:%s\n" "$(command -v qwen >/dev/null 2>&1 && echo available || echo missing)"
 printf "ollama:%s\n" "$(command -v ollama >/dev/null 2>&1 && curl -sf http://localhost:11434/api/tags >/dev/null 2>&1 && echo available || echo missing)"
 printf "openrouter:%s\n" "$([ -n "${OPENROUTER_API_KEY:-}" ] && echo available || echo missing)"
+printf "agy:%s\n" "$(command -v agy >/dev/null 2>&1 && echo available || echo missing)"
 echo "PROVIDER_CHECK_END"
 ```
 
-Display banner with ACTUAL results:
+Render the provider banner from actual provider checks. Do not hand-write or summarize this banner; run this block and display its output exactly. The output MUST include the Antigravity line even when `agy` is missing.
+
+```bash
+status_cli() { command -v "$1" >/dev/null 2>&1 && echo "Available ✓" || echo "Not installed ✗"; }
+status_env() { [[ -n "${1:-}" ]] && echo "Configured ✓" || echo "Not configured ✗"; }
+codex_status="$(status_cli codex)"
+gemini_status="$(status_cli gemini)"
+agy_status="$(status_cli agy)"
+opencode_status="$(status_cli opencode)"
+copilot_status="$(status_cli copilot)"
+qwen_status="$(status_cli qwen)"
+if command -v ollama >/dev/null 2>&1 && curl -sf http://localhost:11434/api/tags >/dev/null 2>&1; then ollama_status="Available ✓"; else ollama_status="Not installed ✗"; fi
+perplexity_status="$(status_env "${PERPLEXITY_API_KEY:-}")"
+cat <<BANNER
+🐙 **CLAUDE OCTOPUS ACTIVATED** - Full Double Diamond Workflow
+🐙 Embrace: [Brief description]
+
+Phases: 🔍 Discover → 🎯 Define → 🛠️ Develop → ✅ Deliver
+
+Provider Availability:
+🔴 Codex CLI: ${codex_status}
+🟡 Gemini CLI: ${gemini_status}
+🧭 Antigravity CLI: ${agy_status}
+🟤 OpenCode: ${opencode_status}
+🟢 Copilot CLI: ${copilot_status}
+🟠 Qwen CLI: ${qwen_status}
+⚫ Ollama: ${ollama_status}
+🔵 Claude: Available ✓
+🟣 Perplexity: ${perplexity_status}
+BANNER
+```
+
+The rendered banner must look like this shape, with ACTUAL statuses:
 
 ```
 🐙 **CLAUDE OCTOPUS ACTIVATED** - Full Double Diamond Workflow
@@ -123,37 +166,47 @@ Display banner with ACTUAL results:
 Phases: 🔍 Discover → 🎯 Define → 🛠️ Develop → ✅ Deliver
 
 Provider Availability:
-🔴 Codex CLI: [status]    🟡 Gemini CLI: [status]
-🟣 Perplexity: [status]   🟤 OpenCode: [status]
+🔴 Codex CLI: [Available ✓ / Not installed ✗]
+🟡 Gemini CLI: [Available ✓ / Not installed ✗]
+🧭 Antigravity CLI: [Available ✓ / Not installed ✗]
+🟤 OpenCode: [Available ✓ / Not installed ✗]
+🟢 Copilot CLI: [Available ✓ / Not installed ✗]
+🟠 Qwen CLI: [Available ✓ / Not installed ✗]
+⚫ Ollama: [Available ✓ / Not installed ✗]
 🔵 Claude: Available ✓
+🟣 Perplexity: [Configured ✓ / Not configured ✗]
 
 Scope: [answer]  Focus: [answer]  Autonomy: [answer]
 ```
 
-## Step 3: Execute Phases via Skill Invocations
+## Step 3: Execute Phases via orchestrate.sh
 
-**CRITICAL: Each phase MUST be invoked as a separate skill. This ensures each phase's full enforcement instructions (including orchestrate.sh dispatch) load fresh into context.**
+**CRITICAL: Each phase MUST run through `orchestrate.sh`. Do not invoke `/octo:discover`, `/octo:define`, `/octo:develop`, or `/octo:deliver` via Skill calls inside this command; direct phase dispatch prevents recursive command loading.**
+
+**CRITICAL: Run every orchestrate.sh command from the user's project directory. Do NOT `cd` into the plugin first — dispatched providers (codex workdir, gemini workspace) sandbox themselves to the invoking directory, and a plugin cwd makes every provider unable to read the user's project files. If the prompt references files outside the project (e.g. /tmp), pass `-d <dir>` or set `OCTOPUS_GEMINI_INCLUDE_DIRS`.**
 
 ### Phase 1 — Discover
 
-Invoke the discover skill:
-```
-Skill(skill: "octo:discover", args: "<user's prompt>")
+Run the Discover phase via orchestrate.sh:
+
+```bash
+bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" probe <user's prompt>
 ```
 
-This will dispatch to Codex, Gemini, and other available providers via `orchestrate.sh probe-single`. Results saved to `~/.claude-octopus/results/probe-synthesis-*.md`.
+This will dispatch to Codex, Gemini, and other available providers. Results saved to `~/.claude-octopus/results/probe-synthesis-*.md`.
 
 **Supervised mode:** After Discover completes, present key findings and ask to proceed.
 **Semi-autonomous/Autonomous:** Proceed automatically.
 
 ### Phase 2 — Define
 
-Invoke the define skill:
-```
-Skill(skill: "octo:define", args: "<user's prompt>")
+Run the define phase via orchestrate.sh:
+
+```bash
+bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" grasp <user's prompt>
 ```
 
-This builds consensus across providers via `orchestrate.sh`. Results saved to `~/.claude-octopus/results/grasp-consensus-*.md`.
+This builds consensus across providers. Results saved to `~/.claude-octopus/results/grasp-consensus-*.md`.
 
 **Supervised mode:** Present consensus and ask to proceed.
 
@@ -161,13 +214,16 @@ This builds consensus across providers via `orchestrate.sh`. Results saved to `~
 
 If user selected debate gates at Define→Develop transition:
 1. Read consensus from `~/.claude-octopus/results/grasp-consensus-*.md`
-2. Run a quick adversarial debate challenging the approach:
+2. Run the explicit Embrace gate via orchestrate.sh:
 
-```
-Skill(skill: "octo:debate", args: "Given this consensus, what are the biggest risks? What alternatives were dismissed too quickly? --rounds 1 --debate-style adversarial --max-words 200")
+```bash
+latest_consensus="$(ls -t ~/.claude-octopus/results/grasp-consensus-*.md | head -1)"
+bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" embrace-gate define-develop "<user's prompt>" "$latest_consensus"
 ```
 
-3. If risks surface, present via AskUserQuestion:
+3. Verify `~/.claude-octopus/results/embrace-gate-define-develop-*.md` exists for this run before Phase 3. If the command fails or no artifact exists, STOP.
+
+4. If risks surface and autonomy is supervised/manual, present via AskUserQuestion:
 ```javascript
 AskUserQuestion({
   questions: [{
@@ -186,25 +242,34 @@ AskUserQuestion({
 
 ### Phase 3 — Develop
 
-Invoke the develop skill:
-```
-Skill(skill: "octo:develop", args: "<user's prompt>")
+Run the develop phase via orchestrate.sh:
+
+```bash
+bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" tangle <user's prompt>
 ```
 
-This dispatches implementation via `orchestrate.sh tangle` with quality gates. Results saved to `~/.claude-octopus/results/tangle-validation-*.md`.
+This dispatches implementation with quality gates. Results saved to `~/.claude-octopus/results/tangle-validation-*.md`.
 
 ### Second Debate Gate (if "both gates" selected)
 
-Same pattern as above but collaborative style, reviewing implementation quality.
+If `DEBATE_GATES=both`, run this before Phase 4:
+
+```bash
+latest_tangle="$(ls -t ~/.claude-octopus/results/tangle-validation-*.md | head -1)"
+bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" embrace-gate develop-deliver "<user's prompt>" "$latest_tangle"
+```
+
+Verify `~/.claude-octopus/results/embrace-gate-develop-deliver-*.md` exists for this run before Phase 4. If the command fails or no artifact exists, STOP. In autonomous mode, continue only after the gate artifact exists; do not silently skip this gate.
 
 ### Phase 4 — Deliver
 
-Invoke the deliver skill:
-```
-Skill(skill: "octo:deliver", args: "<user's prompt>")
+Run the deliver phase via orchestrate.sh:
+
+```bash
+bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" ink <user's prompt>
 ```
 
-This runs multi-provider validation via `orchestrate.sh ink`. Results saved to `~/.claude-octopus/results/delivery-*.md`.
+This runs multi-provider validation. Results saved to `~/.claude-octopus/results/delivery-*.md`.
 
 ### Auto Code Review (MANDATORY)
 
@@ -251,8 +316,8 @@ AskUserQuestion({
 
 ## Quick Reference
 
-| Phase | Skill | orchestrate.sh | Output |
-|-------|-------|----------------|--------|
+| Phase | Command | orchestrate.sh | Output |
+|-------|---------|----------------|--------|
 | Discover | `/octo:discover` | `probe-single` per provider | `probe-synthesis-*.md` |
 | Define | `/octo:define` | `grasp` | `grasp-consensus-*.md` |
 | Develop | `/octo:develop` | `tangle` | `tangle-validation-*.md` |

@@ -188,6 +188,7 @@ ${provider_ctx}"
     case "$agent_type" in
         codex*)      _provider_for_health="codex" ;;
         gemini*)     _provider_for_health="gemini" ;;
+        agy*|antigravity) _provider_for_health="agy" ;;
         claude*)     _provider_for_health="claude" ;;
         openrouter*) _provider_for_health="openrouter" ;;
         perplexity*) _provider_for_health="perplexity" ;;
@@ -257,7 +258,13 @@ ${provider_ctx}"
     > "$temp_err"
     > "$temp_out"
 
-    if [[ "$agent_type" == gemini* ]]; then
+    if [[ "$agent_type" == agy* || "$agent_type" == "antigravity" ]]; then
+        set +e
+        printf '%s' "$enhanced_prompt" | run_with_timeout "$timeout_secs" "${cmd_array[@]}" 2>"$temp_err" >"$temp_out"
+        exit_code=$?
+        set -e
+        output=$(cat "$temp_out")
+    elif [[ "$agent_type" == gemini* ]]; then
         # Option B (4/4 debate verdict): background dispatch + targeted PID kill
         printf '%s' "$enhanced_prompt" \
             | run_with_timeout "$timeout_secs" "${cmd_array[@]}" 2>"$temp_err" >"$temp_out" &
@@ -389,7 +396,7 @@ ${provider_ctx}"
     fi
 
     # v8.7.0: Wrap external CLI output with trust markers
-    case "$agent_type" in codex*|gemini*|perplexity*|cursor-agent*)
+    case "$agent_type" in codex*|gemini*|agy*|antigravity|perplexity*|cursor-agent*)
         output=$(wrap_cli_output "$agent_type" "$output") ;; esac
 
     # Check if output is suspiciously empty or placeholder

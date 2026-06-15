@@ -108,7 +108,7 @@ If the check reports missing deps, offer to install them:
 bash "${HOME}/.claude-octopus/plugin/scripts/install-deps.sh" install
 ```
 
-This auto-installs: Codex CLI, Gemini CLI, jq, and the statusline resolver. For plugins (claude-mem, document-skills), it prints `/plugin install` commands the user must run manually.
+This auto-installs: Codex CLI, Gemini CLI, jq, and the statusline resolver. Antigravity CLI (`agy`) setup is detected and reported with install guidance. For plugins (claude-mem, document-skills), it prints `/plugin install` commands the user must run manually.
 
 ### Step 4: Verbose or JSON Output
 
@@ -163,7 +163,7 @@ AskUserQuestion({
 })
 ```
 
-**Missing providers (Codex/Gemini not installed):**
+**Missing optional providers:**
 ```javascript
 AskUserQuestion({
   questions: [{
@@ -173,6 +173,7 @@ AskUserQuestion({
     options: [
       {label: "Codex CLI", description: "npm install -g @openai/codex"},
       {label: "Gemini CLI", description: "brew install gemini-cli (macOS)"},
+      {label: "Antigravity CLI", description: "Install agy, then verify with agy --version && agy models"},
       {label: "Skip all", description: "Continue with available providers"}
     ]
   }]
@@ -189,7 +190,7 @@ Offer to run the login command for the expired provider.
 
 | Category | What it checks |
 |----------|---------------|
-| `providers` | Claude Code version, Codex CLI installed, Gemini CLI installed, Perplexity API key, Ollama local LLM (server + models), circuit breaker status, provider fallback history |
+| `providers` | Claude Code version, Codex CLI installed, Gemini CLI installed, Antigravity CLI installed, Perplexity API key, Ollama local LLM (server + models), circuit breaker status, provider fallback history |
 | `auth` | Authentication status for each provider |
 | `config` | Plugin version, install scope, feature flags |
 | `state` | Project state.json, stale results, workspace writable |
@@ -200,7 +201,7 @@ Offer to run the login command for the expired provider.
 | `conflicts` | Conflicting plugins detection |
 | `agents` | Agent definitions, worktree isolation, CLI registration, version compatibility |
 | `recurrence` | Failure pattern detection — flags repeated quality gate failures, source hotspots, 48h trends |
-| `deps` | Software dependencies — Node.js, jq, Codex/Gemini CLIs, RTK token compression (gain stats + hook status), statusline resolver, recommended plugins |
+| `deps` | Software dependencies — Node.js, jq, Codex, Gemini, Antigravity CLIs, RTK token compression (gain stats + hook status), statusline resolver, recommended plugins |
 
 
 ## Interpreting Results
@@ -215,6 +216,7 @@ All checks pass — no action needed.
 |-------|-----|
 | Codex CLI not found | `npm install -g @openai/codex` or install via `codex login` |
 | Gemini CLI not found | Install Gemini CLI from Google |
+| Antigravity CLI not found | Install `agy`, then verify with `agy --version` and `agy models` |
 | Perplexity not configured | `export PERPLEXITY_API_KEY="pplx-..."` (optional) |
 | Auth expired | Re-run `codex login` or `gemini login` |
 | Circuit breaker OPEN | Provider had 3+ consecutive transient failures — wait for cooldown or check provider status |

@@ -26,7 +26,7 @@ Scheduled security runs must be read-only unless the user explicitly asks for re
 
 ### EXECUTION MECHANISM — NON-NEGOTIABLE
 
-**You MUST dispatch work to external providers (Codex, Gemini, etc.) for this command. You are PROHIBITED from:**
+**You MUST dispatch work to external providers (Codex, Gemini, Antigravity, etc.) for this command. You are PROHIBITED from:**
 - ❌ Executing the entire task using only Claude-native tools
 - ❌ Using a single Agent subagent instead of multi-provider dispatch
 - ❌ Skipping provider dispatch because "I can handle this alone"
@@ -80,14 +80,14 @@ AskUserQuestion({
       ]
     },
     {
-      question: "How should findings be validated? Multi-LLM options use Claude + Codex + Gemini together.",
+      question: "How should findings be validated? Multi-LLM options use Claude plus available external providers, including Codex, Gemini, and Antigravity when installed.",
       header: "Multi-LLM Validation",
       multiSelect: false,
       options: [
         {label: "Standard audit", description: "Claude-only security analysis (no external API costs)"},
-        {label: "Multi-LLM red team debate", description: "Codex plays blue team, Gemini plays red team, Claude synthesizes (recommended for high-value targets)"},
-        {label: "Full Multi-LLM adversarial cycle", description: "4-phase blue→red→remediate→validate with three-model debate at each transition"},
-        {label: "Multi-LLM debate on critical findings only", description: "Standard audit, then Claude + Codex + Gemini debate any critical/high severity findings"}
+        {label: "Multi-LLM red team debate", description: "Available external providers take blue/red-team roles; Claude synthesizes (recommended for high-value targets)"},
+        {label: "Full Multi-LLM adversarial cycle", description: "4-phase blue→red→remediate→validate with available-provider debate at each transition"},
+        {label: "Multi-LLM debate on critical findings only", description: "Standard audit, then Claude plus available providers debate any critical/high severity findings"}
       ]
     }
   ]
@@ -99,7 +99,7 @@ AskUserQuestion({
 ### Step 2: Execute Security Audit
 
 Read and follow the full skill instructions from:
-`${HOME}/.claude-octopus/plugin/.claude/skills/skill-security-framing.md`
+`${HOME}/.claude-octopus/plugin/.claude/skills/skill-security-framing/SKILL.md`
 
 Apply the user's answers from Step 1 as the audit scope and severity thresholds.
 

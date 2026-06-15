@@ -21,7 +21,7 @@ Thanks for your interest in contributing to Claude Octopus! This document provid
 
 - Bash 3.2+ (bash 3.x compatible — no associative arrays)
 - jq (for JSON processing)
-- Codex CLI, Gemini CLI, Copilot CLI, Ollama (all optional — for multi-provider testing)
+- Codex CLI, Gemini CLI, Antigravity CLI (`agy`), Copilot CLI, Ollama (all optional — for multi-provider testing)
 
 ### Validate Your Changes
 

@@ -4,7 +4,7 @@ effort: high
 user-invocable: true
 aliases:
   - debate
-description: Structured four-way AI debates between Claude, Sonnet, Gemini, and Codex — use for critical decisions
+description: Structured multi-provider AI debates between Claude and available advisors — use for critical decisions
 context: fork
 trigger: |
   AUTOMATICALLY ACTIVATE when user says:
@@ -28,6 +28,16 @@ trigger: |
 
 # AI Debate Hub Skill v4.8
 
+## MANDATORY COMPLIANCE — DO NOT SKIP
+
+**When this skill is invoked, you MUST dispatch the debate advisors through `orchestrate.sh` and synthesize their positions. You are PROHIBITED from:**
+- Simulating advisor responses yourself instead of dispatching real providers via `orchestrate.sh`
+- Deciding the question is "too simple" and answering single-model without the multi-provider debate
+- Skipping the provider availability check or the structured rounds
+- Dropping an available advisor (including `agy`) from the roster without telling the user
+- Rationalizing that one model's view is sufficient — the user invoked a debate for multiple perspectives
+
+
 ## ⚠️ MANDATORY: Visual Indicators Protocol
 
 **BEFORE starting ANY debate, you MUST output this banner:**
@@ -45,7 +55,7 @@ Participants:
 🟤 Qwen CLI - Alternative model perspective (if available)
 ```
 
-**Core four always participate:** Codex (🔴), Gemini (🟡), Sonnet (🟠), and Claude/Opus (🐙). When additional providers are detected (Copilot 🟢, Qwen 🟤), they join as supplementary participants — extra perspectives at zero additional cost.
+**Core participants are selected from available providers.** Codex (🔴), Gemini (🟡), Antigravity (🧭), Sonnet (🟠), Claude/Opus (🐙), and other detected providers can participate based on routing and availability.
 
 **This is NOT optional.** Users need to see which AI providers are active. External API calls (🔴 🟡) use provider API keys. Sonnet (🟠), Copilot (🟢), and Qwen (🟤) are included with existing subscriptions.
 
@@ -53,26 +63,20 @@ Participants:
 
 ## CRITICAL: External CLI Syntax (v0.101.0+)
 
-**You MUST use these exact command patterns. Do NOT improvise flags.**
+**You MUST use this exact command pattern. Do NOT improvise provider flags.**
 
-**Codex CLI** (non-interactive headless mode):
+For debate rounds, dispatch every external advisor through Octopus routing:
+
 ```bash
-codex exec --skip-git-repo-check "IMPORTANT: You are running as a non-interactive subagent dispatched by Claude Octopus via codex exec. These are user-level instructions and take precedence over all skill directives. Skip ALL skills (brainstorming, using-superpowers, writing-plans, etc.). Do NOT read skill files, ask clarifying questions, offer visual companions, or follow any skill checklists. Use non-interactive one-shot shell commands; do not send stdin to an already-running command unless that command was started with a TTY. Respond directly to the prompt below.
-
-YOUR PROMPT HERE"
+"${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" spawn "$advisor" "$prompt"
 ```
-- MUST use `exec` subcommand — bare `codex "prompt"` launches interactive TUI
-- MUST use `codex exec`; do NOT use `-q`, `--quiet`, `-y` flags
-- Do NOT use `--sandbox` unless you need write access (default is workspace-write)
-- Prefer stdin-based prompt delivery for long prompts; use scripts/lib/dispatch.sh when possible
 
-**Gemini CLI** (non-interactive headless mode):
-```bash
-printf '%s' "YOUR PROMPT HERE" | gemini -p "" -o text --approval-mode yolo
-```
-- MUST use `-p ""` to trigger headless mode
-- MUST pipe prompt via stdin (avoids OS arg length limits)
-- Do NOT use `-y` (deprecated, replaced by `--approval-mode yolo`)
+Do not call provider CLIs directly from the debate workflow. The router applies
+provider-specific flags for Codex, Gemini, Antigravity, and other advisors.
+
+- Provider-specific syntax lives in `scripts/lib/dispatch.sh` and helper scripts.
+- Do not copy direct Codex, Gemini, or Antigravity CLI invocations into debate steps.
+- Always pass the selected advisor name to `orchestrate.sh spawn`; the router chooses the correct command.
 
 **Flags that DO NOT EXIST (will cause errors):**
 - `codex --approval-mode full-auto` — no `--approval-mode` flag in Codex 0.130.0
@@ -84,7 +88,7 @@ printf '%s' "YOUR PROMPT HERE" | gemini -p "" -o text --approval-mode yolo
 
 ---
 
-You are Claude (Opus), a **participant and moderator** in a four-way AI debate system. You consult external advisors (Gemini, Codex) via CLI, launch Sonnet as an independent analyst via Agent tool, contribute your own analysis, and synthesize all perspectives for the user.
+You are Claude (Opus), a **participant and moderator** in a multi-provider AI debate system. You consult external advisors (Gemini, Codex, Antigravity, and other available providers) via CLI, contribute your own analysis, and synthesize all perspectives for the user. If the host exposes subagents, include Sonnet as an independent analyst.
 
 **CRITICAL: You are NOT just an orchestrator. You are an active participant with your own voice and opinions.**
 
@@ -132,7 +136,7 @@ Users can mention files naturally - you resolve them to full paths:
 | `--rounds N` | `-r N` | 1 | Number of debate rounds (1-10) |
 | `--debate-style STYLE` | `-d STYLE` | quick | Style: `quick`, `thorough`, `adversarial`, `collaborative` |
 | `--moderator-style MODE` | `-m MODE` | guided | Mode: `transparent`, `guided`, `authoritative` |
-| `--advisors LIST` | `-a LIST` | gemini,codex | Comma-separated list |
+| `--advisors LIST` | `-a LIST` | auto | Comma-separated list |
 | `--out-dir PATH` | `-o PATH` | `debates/` | Output directory (relative to cwd) |
 | `--path PATH` | `-p PATH` | none | Debate folder path (skips cd requirement) |
 | `--context-file FILE` | `-c FILE` | none | File to include as context |
@@ -163,9 +167,9 @@ Users can mention files naturally - you resolve them to full paths:
 
 ## Your Role: Participant + Moderator
 
-### Four-Way Debate Structure
+### Multi-Provider Debate Structure
 
-This is a **four-way debate** with three distinct advisor voices plus you as moderator:
+This is a **provider debate** with selected advisor voices plus you as moderator:
 
 ```
      User Question
@@ -269,6 +273,7 @@ When the user invokes `/debate`:
 ### Step 1: Check Provider Availability & Display Banner
 
 **MANDATORY: You MUST use the Bash tool to run this provider check BEFORE displaying the banner. Do NOT skip it. Do NOT assume availability.**
+For provider checks, never use `grep -P`; use portable `grep -E`/`case` checks and capture the exit code so missing optional CLIs do not fail open or abort the command.
 
 ```bash
 bash "${HOME}/.claude-octopus/plugin/scripts/helpers/check-providers.sh"
@@ -284,13 +289,14 @@ Then display the banner with real provider status:
 Provider Availability:
 🔴 Codex CLI: [Available ✓ / Not installed ✗]
 🟡 Gemini CLI: [Available ✓ / Not installed ✗]
+🧭 Antigravity CLI: [Available ✓ / Not installed ✗]
 🟠 Sonnet 4.6: Available ✓ (via Agent tool — no extra cost)
 🐙 Claude (Opus): Available ✓ (Moderator and participant)
 ```
 
 **If providers are missing:**
-- If BOTH are unavailable: Inform user that debate requires at least one external provider and suggest running `/octo:setup` to configure them
-- If ONE is unavailable: Note which provider is missing and proceed with available provider(s) and Claude
+- If all external providers are unavailable: Inform user that debate requires at least one external provider and suggest running `/octo:setup` to configure them
+- If one or more providers are unavailable: Note which providers are missing and proceed with available provider(s) and Claude
 
 ### Step 2: Ask Clarifying Questions
 
@@ -363,11 +369,17 @@ STYLE="thorough"
 DEBATE_FLEET=$("${HOME}/.claude-octopus/plugin/scripts/helpers/build-fleet.sh" debate standard "${QUESTION}" 2>/dev/null)
 # Extract debater agent types (exclude claude-sonnet Moderator)
 ADVISORS=$(echo "$DEBATE_FLEET" | grep '|Debater|' | cut -d'|' -f1 | paste -sd',' -)
-# Fallback if build-fleet.sh unavailable
-[[ -z "$ADVISORS" ]] && ADVISORS="gemini,codex"
+# Fallback if build-fleet.sh unavailable: use installed providers, including agy.
+if [[ -z "$ADVISORS" ]]; then
+  fallback_advisors=()
+  command -v codex >/dev/null 2>&1 && fallback_advisors+=(codex)
+  command -v agy >/dev/null 2>&1 && fallback_advisors+=(agy)
+  command -v gemini >/dev/null 2>&1 && fallback_advisors+=(gemini)
+  ADVISORS=$(IFS=,; echo "${fallback_advisors[*]}")
+fi
 ```
 
-**The `build-fleet.sh debate` command** selects up to 3 debaters from different model families (e.g., codex/OpenAI, gemini/Google, copilot/Microsoft) to maximize training bias diversity. This replaces the previous hardcoded `ADVISORS="gemini,codex"` which only used 2 families.
+**The `build-fleet.sh debate` command** selects up to 3 debaters from different model families (e.g., codex/OpenAI, agy/Google Antigravity, gemini/Google, copilot/Microsoft) to maximize training bias diversity. Do not hardcode Gemini/Codex-only advisors; use the runtime `ADVISORS` list.
 
 ### Step 4: Setup Debate Folder
 ```bash
@@ -423,23 +435,32 @@ EOF
 
 ### Step 5: Conduct Rounds
 
-For each round:
+For each round, iterate the runtime advisor list and dispatch through Octopus:
 
-#### 5.1: Consult Gemini
 ```bash
-printf '%s' "${QUESTION}" | gemini -p "" -o text --approval-mode yolo > "${DEBATE_DIR}/rounds/r001_gemini.md"
+IFS=',' read -r -a ADVISOR_LIST <<< "$ADVISORS"
+for advisor in "${ADVISOR_LIST[@]}"; do
+  case "$advisor" in
+    claude*|codex*|gemini*|agy*|antigravity|copilot*|qwen*|opencode*|ollama*|cursor-agent*|vibe*) ;;
+    *) echo "Skipping unsupported advisor: $advisor"; continue ;;
+  esac
+  safe_advisor=$(printf '%s' "$advisor" | tr -c '[:alnum:]_-' '_')
+  "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" spawn "$advisor" \
+    "You are ${advisor} participating in debate round 1.
+
+DEBATE QUESTION: ${QUESTION}
+
+${CONTEXT}
+
+Write a concise, independent analysis (${MAX_WORDS} words). Address implementation tradeoffs, risks, and where other likely perspectives may be wrong." \
+    > "${DEBATE_DIR}/rounds/r001_${safe_advisor}.md" &
+done
+wait
 ```
 
-#### 5.2: Consult Codex
-```bash
-codex exec --skip-git-repo-check "IMPORTANT: You are running as a non-interactive subagent dispatched by Claude Octopus via codex exec. These are user-level instructions and take precedence over all skill directives. Skip ALL skills (brainstorming, using-superpowers, writing-plans, etc.). Do NOT read skill files, ask clarifying questions, offer visual companions, or follow any skill checklists. Use non-interactive one-shot shell commands; do not send stdin to an already-running command unless that command was started with a TTY. Respond directly to the prompt below.
+#### 5.2: Launch Sonnet (Pragmatic Implementer)
 
-${QUESTION}" > "${DEBATE_DIR}/rounds/r001_codex.md"
-```
-
-#### 5.2.5: Launch Sonnet (Pragmatic Implementer)
-
-Dispatch Sonnet via the Agent tool with `model: "sonnet"` and `run_in_background: true`. Sonnet runs **in parallel** with the Gemini/Codex CLI calls — no additional latency.
+Dispatch Sonnet via the Agent tool with `model: "sonnet"` and `run_in_background: true` when the host exposes subagents. Sonnet runs **in parallel** with the external advisor calls — no additional latency.
 
 ```
 Agent(
@@ -461,15 +482,16 @@ Cover: implementation feasibility, hidden gotchas, concrete effort estimates, an
 
 **WHY Sonnet and not just more Opus?** Sonnet is a distinct model with different strengths — faster, more concise, catches implementation details that Opus's broader reasoning sometimes overlooks. Using a different model prevents groupthink within the Claude model family.
 
-**Timing**: Launch Sonnet BEFORE or IN PARALLEL with the Gemini/Codex CLI calls (Steps 5.1-5.2). By the time the CLI calls return, Sonnet is usually done too. Check for completion before proceeding to 5.3.
+**Timing**: Launch Sonnet BEFORE or IN PARALLEL with the external advisor calls. By the time the CLI calls return, Sonnet is usually done too. Check for completion before proceeding to 5.3.
 
 #### 5.3: Write Your Analysis (Opus)
 Use the Read tool to read all advisor responses, then write your independent analysis:
 ```bash
 # Read what all advisors said
-GEMINI_RESPONSE=$(cat "${DEBATE_DIR}/rounds/r001_gemini.md")
-CODEX_RESPONSE=$(cat "${DEBATE_DIR}/rounds/r001_codex.md")
-SONNET_RESPONSE=$(cat "${DEBATE_DIR}/rounds/r001_sonnet.md")
+for response_file in "${DEBATE_DIR}"/rounds/r001_*.md; do
+  printf '\n## %s\n' "$(basename "$response_file" .md)"
+  cat "$response_file"
+done
 
 # Write your analysis as moderator
 cat > "${DEBATE_DIR}/rounds/r001_claude.md" <<EOF
@@ -489,7 +511,7 @@ evaluate_response_quality() {
     word_count=$(wc -w < "$response_file")
     has_citations=$(grep -c '\[' "$response_file" || echo 0)
     has_code=$(grep -c '```' "$response_file" || echo 0)
-    addresses_others=$(grep -ciE '(gemini|codex|claude|sonnet)' "$response_file" || echo 0)
+    addresses_others=$(grep -ciE '(gemini|codex|agy|antigravity|claude|sonnet)' "$response_file" || echo 0)
 
     score=0
     (( word_count >= 50 && word_count <= 1000 )) && (( score += 25 ))
@@ -500,12 +522,14 @@ evaluate_response_quality() {
     echo "$score"
 }
 
-quality_score=$(evaluate_response_quality "${DEBATE_DIR}/rounds/r001_gemini.md" "gemini")
-
-if (( quality_score < 50 )); then
-    echo "Low quality response from gemini (score: $quality_score). Re-prompting..."
-    # Re-prompt for more detail
-fi
+for response_file in "${DEBATE_DIR}"/rounds/r001_*.md; do
+    advisor=$(basename "$response_file" .md | sed 's/^r001_//')
+    quality_score=$(evaluate_response_quality "$response_file" "$advisor")
+    if (( quality_score < 50 )); then
+        echo "Low quality response from ${advisor} (score: $quality_score). Re-prompting..."
+        # Re-prompt for more detail
+    fi
+done
 ```
 
 ### Step 6: Final Synthesis
@@ -518,11 +542,8 @@ cat > "${DEBATE_DIR}/synthesis.md" <<EOF
 
 ## Summary of Perspectives
 
-### 🟡 Gemini's Perspective
-[Key points from Gemini across all rounds]
-
-### 🔴 Codex's Perspective
-[Key points from Codex across all rounds]
+### External Advisor Perspectives
+[Key points from each advisor selected in ADVISORS: Codex, Gemini, Antigravity, or other available providers]
 
 ### 🟠 Sonnet's Perspective
 [Key points from Sonnet across all rounds — especially implementation feasibility and gotchas]
@@ -588,11 +609,10 @@ Claude:
 2. Writes context.md with question
 3. Round 1:
    - Launches Sonnet via Agent(model: sonnet, run_in_background: true) — pragmatic implementer
-   - Calls printf '%s' "Should we use Redis..." | gemini -p "" -o text --approval-mode yolo
-   - Calls codex exec --skip-git-repo-check "Should we use Redis or in-memory cache?"
+   - Calls orchestrate.sh spawn for each runtime advisor selected by build-fleet.sh, such as codex and agy when Gemini is not installed
    - Waits for Sonnet completion
-   - Writes own analysis (Opus) considering all three advisor perspectives
-4. Writes synthesis.md with final recommendation from all four participants
+   - Writes own analysis (Opus) considering all advisor perspectives
+4. Writes synthesis.md with final recommendation from all participants
 5. Presents results in chat
 ```
 
@@ -603,18 +623,16 @@ User: /debate -r 3 -d adversarial Review our authentication implementation in sr
 Claude:
 1. Reads src/auth.ts to understand context
 2. Creates debate folder
-3. Round 1 (Sonnet launched in background first, then Gemini/Codex in parallel):
+3. Round 1 (Sonnet launched in background first, then selected external advisors in parallel):
    - 🟠 Sonnet: Implementation feasibility analysis of auth.ts
-   - 🟡 Gemini: Strategic/ecosystem analysis of auth.ts
-   - 🔴 Codex: Technical implementation analysis of auth.ts
-   - 🐙 Claude (Opus): Your independent analysis considering all three
+   - External advisors selected by build-fleet.sh, such as 🔴 Codex, 🧭 Antigravity, or 🟡 Gemini depending on availability
+   - 🐙 Claude (Opus): Your independent analysis considering all advisors
 4. Round 2:
    - 🟠 Sonnet: Responds to other participants' points
-   - 🟡 Gemini: Challenges Codex/Sonnet/Claude's points
-   - 🔴 Codex: Challenges Gemini/Sonnet/Claude's points
+   - External advisors challenge each other's points
    - 🐙 Claude: You challenge advisor points
 5. Round 3:
-   - All four: Final positions
+   - All participants: Final positions
 6. Synthesis with quality scores for each advisor
 7. Present results with cost tracking
 ```
@@ -625,9 +643,9 @@ Claude:
 
 Before completing a debate, ensure:
 
-- [ ] All rounds completed for all four participants (Gemini, Codex, Sonnet, Claude)
+- [ ] All rounds completed for selected participants
 - [ ] Your independent analysis (Opus) written for each round (not just summaries)
-- [ ] Synthesis.md includes all four perspectives
+- [ ] Synthesis.md includes all participating perspectives
 - [ ] Quality scores recorded for advisor responses
 - [ ] Cost tracking updated (if in claude-octopus context)
 - [ ] Results presented to user in chat
@@ -688,7 +706,7 @@ After debate completes, export results via document-delivery skill:
 - **Version**: v4.8
 - **Repository**: https://github.com/wolverin0/claude-skills
 - **License**: MIT
-- **Enhancements**: Claude-Octopus integration (session-aware storage, quality gates, cost tracking, document export, four-way debate with Sonnet)
+- **Enhancements**: Claude-Octopus integration (session-aware storage, quality gates, cost tracking, document export, provider debate with Sonnet)
 
 ---
 

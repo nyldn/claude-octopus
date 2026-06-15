@@ -2,7 +2,7 @@
 
 # Claude Octopus
 
-**One prompt. Up to eight AI providers checking each other's work.** Claude Octopus turns Claude Code into a multi-LLM orchestration engine — Codex, Gemini, Copilot, Qwen, Ollama, Perplexity, and OpenRouter all contribute perspectives, then a 75% consensus gate catches disagreements before they ship.
+**One prompt. Up to nine AI providers checking each other's work.** Claude Octopus turns Claude Code into a multi-LLM orchestration engine — Codex, Gemini, Antigravity CLI, Copilot, Qwen, Ollama, Perplexity, OpenRouter, and OpenCode all contribute perspectives, then a 75% consensus gate catches disagreements before they ship.
 
 **Claude-native first, Octopus for escalation.** Use Claude-native `/init`, `/review`, and `/security-review` when Claude is enough. Use Octopus when you want multiple model opinions, adversarial review, or stricter multi-LLM workflows.
 
@@ -23,7 +23,7 @@ You get:    A structured comparison with three independent viewpoints,
 
 This works for research, escalated code review, debugging, TDD, escalated security audits, UI design, PRDs, and full build-to-ship workflows — 49 commands, 54 skills, 32 specialized personas.
 
-Multi-provider runs show an agent summary before synthesis, so failed, timed out, or oversize-rejected Codex/Gemini/OpenRouter/etc. perspectives are visible instead of being hidden behind a polished final answer.
+Multi-provider runs show an agent summary before synthesis, so failed, timed out, or oversize-rejected Codex, Gemini, Antigravity, OpenRouter, and other perspectives are visible instead of being hidden behind a polished final answer.
 
 ## Install
 
@@ -58,8 +58,8 @@ Don't know the command? Describe what you need — `/octo:auto <anything>` route
 
 - Claude Code v2.1.14+
 - Zero external providers needed (Claude is built in)
-- Optional: Codex CLI, Gemini CLI, Copilot, Qwen, Ollama, Perplexity API key, OpenRouter API key
-- Five of eight providers cost nothing extra (OAuth, free tiers, or local)
+- Optional: Codex CLI, Gemini CLI, Antigravity CLI (`agy`), Copilot, Qwen, Ollama, Perplexity API key, OpenRouter API key
+- Six of nine providers cost nothing extra when you already have the relevant subscriptions or local runtime (OAuth, free tiers, or local)
 
 ## One Limitation
 

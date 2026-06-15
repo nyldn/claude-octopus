@@ -89,10 +89,11 @@ Reading all pages may use 33,750 tokens (~34 API calls).
 // Check if multi-AI providers are available
 const codexAvailable = await checkCommandAvailable('codex');
 const geminiAvailable = await checkCommandAvailable('gemini');
+const agyAvailable = await checkCommandAvailable('agy');
 
-if (!codexAvailable && !geminiAvailable) {
+if (!codexAvailable && !geminiAvailable && !agyAvailable) {
   console.log("⚠️ Multi-AI providers not detected. Running in single-provider mode.");
-  console.log("For best results, run `/octo:setup` to configure Codex and Gemini.");
+  console.log("For best results, run `/octo:setup` to configure Codex, Gemini, Antigravity, or another provider.");
 }
 ```
 
@@ -457,7 +458,7 @@ Based on detection, we recommend:
 const executionPlan = buildExecutionPlan({
   userIntent: intentAnswers,
   detectionResults: { stackDetection, designSignals, architectureSignals },
-  multiAIAvailable: codexAvailable && geminiAvailable
+  multiAIAvailable: [codexAvailable, geminiAvailable, agyAvailable].filter(Boolean).length >= 2
 });
 
 /*
@@ -1101,7 +1102,8 @@ async function runQualityGates(results, config) {
   // Gate 3: Multi-AI consensus
   if (config.multiAI && results.disagreements) {
     const consensusRate = 1 - (results.disagreements.length / results.totalDecisions);
-    if (consensusRate < 0.5) {
+    const consensusThreshold = config.consensusThreshold || 0.67;
+    if (consensusRate < consensusThreshold) {
       throw new Error(
         `VALIDATION FAILED: Low multi-AI consensus (${(consensusRate * 100).toFixed(0)}%). Review disagreements.md.`
       );
@@ -1140,7 +1142,7 @@ await writeFile(`${config.outputDir}/README.md`, `
 **Target:** ${config.target}
 **Mode:** ${config.mode}
 **Depth:** ${config.depth}
-**Providers Used:** ${config.multiAI ? 'Claude, Codex, Gemini' : 'Claude only'}
+**Providers Used:** ${config.multiAI ? ['Claude', codexAvailable && 'Codex', geminiAvailable && 'Gemini', agyAvailable && 'Antigravity'].filter(Boolean).join(', ') : 'Claude only'}
 
 ## Summary
 
@@ -1475,8 +1477,9 @@ This command leverages Claude Octopus multi-AI orchestration when available:
 - **Claude**: Synthesis, conflict resolution, final documentation
 - **Codex**: Code-level analysis, type extraction, architecture inference
 - **Gemini**: Pattern recognition, alternative interpretations, UX insights
+- **Antigravity**: Additional external-model perspective when installed
 
-Consensus threshold: 67% (2/3 providers must agree for high confidence)
+Consensus method: extraction quality gates use the configured consensus threshold (default 67%); when no numeric vote data exists, the quorum resolver selects the strongest matching proposal from up to 3 provider perspectives and logs disagreements.
 
 If providers are not available, the command gracefully degrades to single-provider mode.
 

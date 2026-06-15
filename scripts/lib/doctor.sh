@@ -153,6 +153,23 @@ doctor_check_providers() {
             "Gemini CLI not installed" "npm install -g @google/gemini-cli"
     fi
 
+    # Antigravity CLI (agy)
+    if command -v agy &>/dev/null; then
+        local agy_ver agy_path
+        agy_ver=$(agy --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")
+        agy_path=$(command -v agy)
+        if ! octo_version_ok "${agy_ver}" "${OCTO_AGY_MIN_VERSION:-1.0.6}"; then
+            doctor_add "agy-cli" "providers" "warn" \
+               "Antigravity CLI v${agy_ver} (below floor v${OCTO_AGY_MIN_VERSION:-1.0.6})" "${agy_path} — run: agy update"
+        else
+            doctor_add "agy-cli" "providers" "pass" \
+               "Antigravity CLI v${agy_ver}" "$agy_path"
+        fi
+    else
+        doctor_add "agy-cli" "providers" "info" \
+            "Antigravity CLI not installed (optional)" "Install agy to enable Antigravity provider routing"
+    fi
+
     # Perplexity API (v8.24.0 - optional)
     if [[ -n "${PERPLEXITY_API_KEY:-}" ]]; then
         doctor_add "perplexity-api" "providers" "pass" \

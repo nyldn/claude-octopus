@@ -18,8 +18,18 @@ This skill uses **ENFORCED execution mode**. You MUST follow this exact sequence
 **Check provider availability:**
 
 ```bash
-command -v codex &> /dev/null && codex_status="Available ✓" || codex_status="Not installed ✗"
-command -v gemini &> /dev/null && gemini_status="Available ✓" || gemini_status="Not installed ✗"
+providers_output="$("${HOME}/.claude-octopus/plugin/scripts/helpers/check-providers.sh" 2>/dev/null || true)"
+provider_status() {
+  provider="$1"
+  if printf '%s\n' "$providers_output" | grep -q "^${provider}:available"; then
+    echo "Available ✓"
+  else
+    echo "Not installed ✗"
+  fi
+}
+codex_status="$(provider_status codex)"
+gemini_status="$(provider_status gemini)"
+agy_status="$(provider_status agy)"
 ```
 
 **Display this banner BEFORE orchestrate.sh execution:**
@@ -31,6 +41,7 @@ command -v gemini &> /dev/null && gemini_status="Available ✓" || gemini_status
 Provider Availability:
 🔴 Codex CLI: ${codex_status} - Backend architecture patterns
 🟡 Gemini CLI: ${gemini_status} - Alternative approaches
+🧭 Antigravity CLI: ${agy_status} - Additional external-model challenge
 🔵 Claude: Available ✓ - Synthesis and recommendations
 
 💰 Estimated Cost: $0.02-0.08
@@ -38,9 +49,8 @@ Provider Availability:
 ```
 
 **Validation:**
-- If BOTH Codex and Gemini unavailable → STOP, suggest: `/octo:setup`
-- If ONE unavailable → Continue with available provider(s)
-- If BOTH available → Proceed normally
+- If no external providers are available → STOP, suggest: `/octo:setup`
+- If one or more external providers are available → Continue with available provider(s)
 
 **DO NOT PROCEED TO STEP 2 until banner displayed.**
 
@@ -95,7 +105,7 @@ Present the architecture design from the persona execution.
 ```
 ---
 *Multi-AI Architecture Design powered by Claude Octopus*
-*Providers: 🔴 Codex | 🟡 Gemini | 🔵 Claude*
+*Providers: available external providers + 🔵 Claude*
 ```
 
 ---

@@ -12,7 +12,7 @@ description: "\"[advanced] Two-stage review: spec compliance then code quality\"
 
 ### EXECUTION MECHANISM — NON-NEGOTIABLE
 
-**You MUST dispatch work to external providers (Codex, Gemini, etc.) for this command. You are PROHIBITED from:**
+**You MUST dispatch work to external providers (Codex, Gemini, Antigravity, etc.) for this command. You are PROHIBITED from:**
 - ❌ Executing the entire task using only Claude-native tools
 - ❌ Using a single Agent subagent instead of multi-provider dispatch
 - ❌ Skipping provider dispatch because "I can handle this alone"
@@ -52,7 +52,7 @@ If invoked with arguments (e.g., `/octo:staged-review src/auth/`), use that path
 ## Step 2: Execute Staged Review
 
 Read and follow the full skill instructions from:
-`${HOME}/.claude-octopus/plugin/.claude/skills/skill-staged-review.md`
+`${HOME}/.claude-octopus/plugin/.claude/skills/skill-staged-review/SKILL.md`
 
 The skill runs two stages:
 1. **Stage 1** (Spec Compliance) — Validate against intent contract

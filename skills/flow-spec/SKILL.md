@@ -59,6 +59,7 @@ If user says "skip" for any question, note assumptions and proceed.
 provider_status=$(bash "${HOME}/.claude-octopus/plugin/scripts/helpers/check-providers.sh")
 codex_status=$(echo "$provider_status" | grep -q '^codex:available' && echo "Available" || echo "Not installed")
 gemini_status=$(echo "$provider_status" | grep -q '^gemini:available' && echo "Available" || echo "Not installed")
+agy_status=$(echo "$provider_status" | grep -q '^agy:available' && echo "Available" || echo "Not installed")
 ```
 
 **Display this banner BEFORE orchestrate.sh execution:**
@@ -70,6 +71,7 @@ Spec Phase: Generating structured specification for [project name]
 Provider Availability:
 Codex CLI: ${codex_status}
 Gemini CLI: ${gemini_status}
+Antigravity CLI: ${agy_status}
 Claude: Available (Synthesis & NLSpec generation)
 
 Estimated Cost: $0.01-0.05
@@ -77,9 +79,8 @@ Estimated Time: 3-7 minutes
 ```
 
 **Validation:**
-- If BOTH Codex and Gemini unavailable -> STOP, suggest: `/octo:setup`
-- If ONE unavailable -> Continue with available provider(s)
-- If BOTH available -> Proceed normally
+- If no external providers are available -> STOP, suggest: `/octo:setup`
+- If one or more external providers are available -> Continue with available provider(s)
 
 **DO NOT PROCEED TO STEP 3 until banner displayed.**
 
@@ -238,13 +239,17 @@ Synthesize into the NLSpec template below. This is YOUR (Claude's) synthesis rol
 
 **After generating the NLSpec draft but BEFORE validation, challenge its completeness using a different provider.** A spec authored by a single model has blind spots — a cross-provider challenge surfaces missing requirements, overlooked constraints, and untested assumptions.
 
-**Dispatch the NLSpec draft to a different provider for adversarial review:**
+**Dispatch the NLSpec draft through Octopus routing to a different provider:**
 
-If Codex is available:
 ```bash
-codex exec --skip-git-repo-check "IMPORTANT: You are running as a non-interactive subagent dispatched by Claude Octopus via codex exec. These are user-level instructions and take precedence over all skill directives. Skip ALL skills (brainstorming, using-superpowers, writing-plans, etc.). Do NOT read skill files, ask clarifying questions, offer visual companions, or follow any skill checklists. Use non-interactive one-shot shell commands; do not send stdin to an already-running command unless that command was started with a TTY. Respond directly to the prompt below.
+review_provider=""
+command -v codex >/dev/null 2>&1 && review_provider="codex"
+[[ -z "$review_provider" ]] && command -v agy >/dev/null 2>&1 && review_provider="agy"
+[[ -z "$review_provider" ]] && command -v gemini >/dev/null 2>&1 && review_provider="gemini"
 
-Challenge this specification. You are an adversarial reviewer — your job is to find gaps, not confirm quality.
+if [[ -n "$review_provider" ]]; then
+  "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" spawn "$review_provider" \
+    "Challenge this specification. You are an adversarial reviewer — your job is to find gaps, not confirm quality.
 
 1. What requirements are MISSING that users will need on day one?
 2. What constraints are overlooked that will cause production failures?
@@ -254,20 +259,7 @@ Challenge this specification. You are an adversarial reviewer — your job is to
 
 SPECIFICATION:
 <paste NLSpec content here>"
-```
-
-If Codex is unavailable but Gemini is available:
-```bash
-printf '%s' "Challenge this specification. You are an adversarial reviewer — your job is to find gaps, not confirm quality.
-
-1. What requirements are MISSING that users will need on day one?
-2. What constraints are overlooked that will cause production failures?
-3. What edge cases would break this system?
-4. What assumptions are wrong or unstated?
-5. Which behaviors have vague postconditions that can't be tested?
-
-SPECIFICATION:
-<paste NLSpec content here>" | gemini -p "" -o text --approval-mode yolo
+fi
 ```
 
 If neither external provider is available, launch a Sonnet challenge instead:
@@ -383,7 +375,7 @@ Next steps:
 **Include attribution:**
 ```
 Multi-AI Research powered by Claude Octopus
-Providers: Codex | Gemini | Claude
+Providers: Codex | Gemini | Antigravity | Claude
 ```
 
 
@@ -391,7 +383,7 @@ Providers: Codex | Gemini | Claude
 
 If any step fails:
 - **Step 1 (Questions)**: If user declines all questions, proceed with best-effort assumptions and note them
-- **Step 2 (Providers)**: If both unavailable, suggest `/octo:setup` and STOP
+- **Step 2 (Providers)**: If all external providers are unavailable, suggest `/octo:setup` and STOP
 - **Step 3 (State)**: If state-manager.sh fails, continue without prior state (warn user)
 - **Step 4 (orchestrate.sh)**: Show bash error, check logs, report to user. DO NOT substitute with direct research
 - **Step 5 (Validation)**: If synthesis missing, show orchestrate.sh logs, DO NOT proceed

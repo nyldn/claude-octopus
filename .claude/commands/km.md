@@ -51,7 +51,7 @@ When this command is executed:
 - Best for: User research, strategy analysis, literature reviews
 - Personas: ux-researcher, strategy-analyst, research-synthesizer
 
-Both modes use the same AI providers (Codex + Gemini), just optimized with different personas.
+Both modes use the same configured AI providers, just optimized with different personas.
 
 ## Quick Switch
 

@@ -1,3 +1,3 @@
 interface:
   display_name: "Discover"
-  short_description: "Multi-AI research using Codex and Gemini CLIs (Double Diamond Discover phase)"
+  short_description: "Multi-AI research using available external providers (Double Diamond Discover phase)"

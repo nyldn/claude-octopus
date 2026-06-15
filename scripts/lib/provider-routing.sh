@@ -90,6 +90,30 @@ build_provider_env() {
                 PROVIDER_ENV_ARRAY+=("${_trace_env[@]}")
             fi
             ;;
+        agy*|antigravity)
+            # Antigravity defaults to a minimal environment. Users who need
+            # desktop/session inheritance can explicitly allow the full env.
+            if [[ "${OCTOPUS_ALLOW_FULL_AGY_ENV:-false}" == "true" ]]; then
+                if [[ "${OCTOPUS_SECURITY_V870:-true}" == "true" ]] && declare -f log_warn >/dev/null 2>&1; then
+                    log_warn "Antigravity CLI inherits the parent shell environment because OCTOPUS_ALLOW_FULL_AGY_ENV=true."
+                fi
+                PROVIDER_ENV_ARRAY=()
+            else
+                PROVIDER_ENV_ARRAY=(env -i "PATH=$PATH" "HOME=$HOME" "TERM=${TERM:-dumb}" "TMPDIR=${TMPDIR:-/tmp}")
+                if [[ -n "${AGY_AUTH_TOKEN:-}" ]]; then
+                    PROVIDER_ENV_ARRAY+=("AGY_AUTH_TOKEN=${AGY_AUTH_TOKEN}")
+                fi
+                if [[ -n "${AGY_CONFIG:-}" ]]; then
+                    PROVIDER_ENV_ARRAY+=("AGY_CONFIG=${AGY_CONFIG}")
+                fi
+                if [[ -n "${ANTIGRAVITY_API_KEY:-}" ]]; then
+                    PROVIDER_ENV_ARRAY+=("ANTIGRAVITY_API_KEY=${ANTIGRAVITY_API_KEY}")
+                fi
+                if [[ ${#_trace_env[@]} -gt 0 ]]; then
+                    PROVIDER_ENV_ARRAY+=("${_trace_env[@]}")
+                fi
+            fi
+            ;;
         perplexity*)
             # perplexity_execute is a shell function — env -i cannot exec it (#300)
             if [[ -z "${PERPLEXITY_API_KEY:-}" ]]; then

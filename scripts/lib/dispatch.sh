@@ -12,6 +12,7 @@
 # - OpenAI Reasoning: o3, o3-pro (API-key only), o3 (API-key only), o3-mini (API-key only)
 # - OpenAI Large Context: gpt-4.1 (1M ctx, API-key only), gpt-5.4 (1M ctx, API-key only)
 # - Google Gemini 3.0: gemini-3.1-pro-preview, gemini-3-flash-preview, gemini-3-pro-image-preview
+# - Google Antigravity CLI: agy --print stdin dispatch, optional OCTOPUS_AGY_MODEL
 # Note: "API-key only" models require OPENAI_API_KEY; they are NOT available via ChatGPT subscription/OAuth.
 get_agent_command() {
     local agent_type="$1"
@@ -107,6 +108,9 @@ get_agent_command() {
                 gemini_flags="${gemini_flags} --include-directories ${OCTOPUS_GEMINI_INCLUDE_DIRS}"
             fi
             echo "${gemini_env} ${gemini_exec} ${model} ${gemini_flags}"
+            ;;
+        agy|agy-research|antigravity)
+            echo "${PLUGIN_DIR}/scripts/helpers/agy-exec.sh"
             ;;
         codex-review) echo "${codex_bin} exec --skip-git-repo-check review" ;; # Code review mode (no sandbox support)
         claude) echo "${_claude_bin}${_BARE_OPT} --print ${claude_perm}" ;;                         # Claude Sonnet 4.6
@@ -222,6 +226,7 @@ get_provider_context_limit() {
     case "$provider" in
         codex)      echo "${OCTOPUS_CODEX_CONTEXT_BUDGET:-${default_budget}}" ;;
         gemini)     echo "${OCTOPUS_GEMINI_CONTEXT_BUDGET:-${default_budget}}" ;;
+        agy|antigravity) echo "${OCTOPUS_AGY_CONTEXT_BUDGET:-${default_budget}}" ;;
         claude)     echo "${OCTOPUS_CLAUDE_CONTEXT_BUDGET:-${default_budget}}" ;;
         perplexity) echo "${OCTOPUS_PERPLEXITY_CONTEXT_BUDGET:-${default_budget}}" ;;
         openrouter) echo "${OCTOPUS_OPENROUTER_CONTEXT_BUDGET:-${default_budget}}" ;;
@@ -399,6 +404,7 @@ get_agent_model() {
     case "$agent_type" in
         codex*)      provider="codex" ;;
         gemini*)     provider="gemini" ;;
+        agy*|antigravity) provider="agy" ;;
         claude*)     provider="claude" ;;
         openrouter*) provider="openrouter" ;;
         openai-compatible-agent*) provider="openai-compatible-agent" ;;
@@ -434,6 +440,7 @@ validate_model_allowed() {
     case "$provider" in
         codex)      allowlist_var="OCTOPUS_CODEX_ALLOWED_MODELS" ;;
         gemini)     allowlist_var="OCTOPUS_GEMINI_ALLOWED_MODELS" ;;
+        agy)        allowlist_var="OCTOPUS_AGY_ALLOWED_MODELS" ;;
         claude)     allowlist_var="OCTOPUS_CLAUDE_ALLOWED_MODELS" ;;
         openrouter) allowlist_var="OCTOPUS_OPENROUTER_ALLOWED_MODELS" ;;
         openai-compatible-agent) allowlist_var="OPENAI_COMPAT_ALLOWED_MODELS" ;;
@@ -611,6 +618,8 @@ find_capable_fallback() {
             candidates=(gpt-5.4-mini gpt-5.2-codex gpt-5.3-codex gpt-5.4 gpt-5.4-pro o3) ;;
         gemini)
             candidates=(gemini-3-flash-preview gemini-3.1-pro-preview) ;;
+        agy)
+            candidates=(default) ;;
         claude)
             candidates=(claude-sonnet-4.6 claude-opus-4.6) ;;
         openrouter)

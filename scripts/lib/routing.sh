@@ -39,6 +39,8 @@ resolve_provider_to_agent() {
                                 agent="$provider" ;;
         gemini|gemini-fast|gemini-image)
                                 agent="$provider" ;;
+        agy|agy-research|antigravity)
+                                agent="$provider" ;;
         openrouter|openrouter-glm5|openrouter-kimi|openrouter-deepseek)
                                 agent="$provider" ;;
         perplexity|perplexity-fast)
@@ -64,6 +66,7 @@ agent_display_label() {
         claude*) echo "Sonnet" ;;
         codex*) echo "Codex" ;;
         gemini*) echo "Gemini" ;;
+        agy*|antigravity) echo "Antigravity" ;;
         openrouter*) echo "OpenRouter" ;;
         qwen*) echo "Qwen" ;;
         perplexity*) echo "Perplexity" ;;

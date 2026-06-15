@@ -405,6 +405,7 @@ display_per_phase_cost_table() {
         case "$agent" in
             codex*) provider_label="🔴 codex" ;;
             gemini*) provider_label="🟡 gemini" ;;
+            agy*|antigravity) provider_label="🧭 agy" ;;
             claude*) provider_label="🔵 claude" ;;
             *) provider_label="   $agent" ;;
         esac
