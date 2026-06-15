@@ -4,6 +4,12 @@
 # Extracted from orchestrate.sh (v8.19.0 heartbeat + v7.16.0 timeout)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+# Opt-in lifecycle event stream — no-op unless OCTO_EVENT_LOG is set. Sourced
+# guarded so heartbeat stays usable even if events.sh is absent.
+_octo_heartbeat_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+# shellcheck source=/dev/null
+source "${_octo_heartbeat_lib_dir}/events.sh" 2>/dev/null || true
+
 start_heartbeat_monitor() {
     local pid="$1"
     local task_id="$2"
@@ -134,6 +140,11 @@ run_with_timeout() {
     shift
 
     local exit_code
+    local _octo_cmd_label="${1:-unknown}"
+
+    if declare -f octo_event_emit >/dev/null 2>&1; then
+        octo_event_emit "dispatch.start" command="$_octo_cmd_label" timeout="$timeout_secs" || true
+    fi
 
     # v9.20.1: Detect if command is a shell function (e.g. perplexity_execute,
     # openrouter_execute). External timeout/gtimeout can only exec binaries —
@@ -209,7 +220,16 @@ run_with_timeout() {
         echo "   3. Check provider API status for slowness" >&2
         echo "" >&2
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2
+        if declare -f octo_event_emit >/dev/null 2>&1; then
+            octo_event_emit "dispatch.timeout" command="$_octo_cmd_label" timeout="$timeout_secs" exit_code="$exit_code" || true
+        fi
         return 124
+    fi
+
+    if declare -f octo_event_emit >/dev/null 2>&1; then
+        local _octo_outcome="ok"
+        [[ $exit_code -eq 0 ]] || _octo_outcome="error"
+        octo_event_emit "dispatch.end" command="$_octo_cmd_label" exit_code="$exit_code" outcome="$_octo_outcome" || true
     fi
 
     return $exit_code

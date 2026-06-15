@@ -82,6 +82,14 @@ Ship the provider contract audit as part of the release gate:
 - include the audit output in proof packets for PRs that touch provider auth,
   versions, docs, or setup help.
 
+### Major Groundwork: Dispatch Lifecycle Events
+
+`run_with_timeout` (the universal provider-execution chokepoint) now emits
+opt-in `dispatch.start`, `dispatch.end` (with exit code and outcome), and
+`dispatch.timeout` events when `OCTO_EVENT_LOG` is set. Every provider funnels
+through this path, so the event stream now carries real dispatch lifecycle
+signal, not just `provider.status`. No behavior change when the stream is off.
+
 ## Next Major
 
 Build an Octopus control plane around the event stream:
