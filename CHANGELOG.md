@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Contributor docs pointed at a nonexistent `tests/run-pre-push.sh`; repointed `CONTRIBUTING.md`, the PR template, and `copilot-instructions.md` to the real `tests/run-all-tests.sh` entry point (#505).
+
 ## [9.45.0] - 2026-06-14
 
 ### Added
