@@ -233,8 +233,8 @@ migrate_provider_config() {
     },
     "gemini": {
       "default": "$gemini_model",
-      "fallback": "gemini-3-flash-preview",
-      "flash": "gemini-3-flash-preview",
+      "fallback": "gemini-3.5-flash",
+      "flash": "gemini-3.5-flash",
       "image": "gemini-3-pro-image-preview"
     }
   },
@@ -292,8 +292,8 @@ EOF
         case "$current_val" in
             claude-sonnet-4-5|claude-sonnet-4-5-20250514|claude-3-5-sonnet*|claude-sonnet-4*)
                 if [[ "$path" == *codex* ]]; then replacement="gpt-5.5"; fi ;;
-            gemini-2.0-flash-thinking*|gemini-2.0-flash-exp*|gemini-exp-*)
-                replacement="gemini-3-flash-preview" ;;
+            gemini-2.0-flash-thinking*|gemini-2.0-flash-exp*|gemini-exp-*|gemini-3-flash-preview)
+                replacement="gemini-3.5-flash" ;;
             gemini-2.0-pro*|gemini-1.5-pro*|gemini-pro)
                 replacement="gemini-3.1-pro-preview" ;;
             gpt-4o*|gpt-4-turbo*|gpt-4-*|o1-*|chatgpt-*)
@@ -366,8 +366,8 @@ set_provider_model() {
     },
     "gemini": {
       "default": "gemini-3.1-pro-preview",
-      "fallback": "gemini-3-flash-preview",
-      "flash": "gemini-3-flash-preview",
+      "fallback": "gemini-3.5-flash",
+      "flash": "gemini-3.5-flash",
       "image": "gemini-3-pro-image-preview"
     }
   },

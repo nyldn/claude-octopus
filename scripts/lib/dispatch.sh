@@ -11,7 +11,7 @@
 #                    gpt-5.2-codex, gpt-5.4-mini (budget), gpt-5 (standard), gpt-5.2, gpt-5.1
 # - OpenAI Reasoning: o3, o3-pro (API-key only), o3 (API-key only), o3-mini (API-key only)
 # - OpenAI Large Context: gpt-4.1 (1M ctx, API-key only), gpt-5.4 (1M ctx, API-key only)
-# - Google Gemini 3.0: gemini-3.1-pro-preview, gemini-3-flash-preview, gemini-3-pro-image-preview
+# - Google Gemini: gemini-3.1-pro-preview (premium), gemini-3.5-flash (GA default), gemini-3.1-flash-lite (budget)
 # - Google Antigravity CLI: agy --print stdin dispatch, optional OCTOPUS_AGY_MODEL
 # Note: "API-key only" models require OPENAI_API_KEY; they are NOT available via ChatGPT subscription/OAuth.
 get_agent_command() {
@@ -617,7 +617,7 @@ find_capable_fallback() {
         codex)
             candidates=(gpt-5.4-mini gpt-5.2-codex gpt-5.3-codex gpt-5.4 gpt-5.4-pro o3) ;;
         gemini)
-            candidates=(gemini-3-flash-preview gemini-3.1-pro-preview) ;;
+            candidates=(gemini-3.1-flash-lite gemini-3.5-flash gemini-3.1-pro-preview) ;;
         agy)
             candidates=(default) ;;
         claude)

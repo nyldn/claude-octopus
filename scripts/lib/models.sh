@@ -32,11 +32,11 @@ get_model_catalog() {
         o3-pro)                 echo "200|yes|no|yes|codex|premium|active" ;;
         o3-mini)                echo "200|yes|no|yes|codex|budget|active" ;;
         # Gemini
-        gemini-3.1-pro-preview)   echo "1000|yes|yes|no|gemini|premium|active" ;;
-        gemini-3.5-flash)       echo "1000|yes|no|no|gemini|budget|active" ;;   # GA fast (supersedes gemini-3-flash-preview)
-        gemini-3.1-flash-lite)  echo "1000|yes|no|no|gemini|budget|active" ;;   # fastest/cheapest tier
-        gemini-3-flash-preview) echo "1000|yes|no|no|gemini|budget|active" ;;
-        gemini-3-pro-image-preview) echo "1000|yes|yes|no|gemini|premium|active" ;;  # image: shutdown 2026-06-25 (oco-803), migrate to Nano Banana Pro
+        gemini-3.1-pro-preview)     echo "1000|yes|yes|no|gemini|premium|active" ;;
+        gemini-3.5-flash)           echo "1000|yes|no|no|gemini|budget|active" ;;   # GA fast (supersedes gemini-3-flash-preview)
+        gemini-3.1-flash-lite)      echo "1000|yes|no|no|gemini|budget|active" ;;   # fastest/cheapest tier
+        gemini-3-flash-preview)     echo "1000|yes|no|no|gemini|budget|legacy" ;;   # superseded by gemini-3.5-flash
+        gemini-3-pro-image-preview) echo "1000|yes|yes|no|gemini|premium|legacy" ;; # shutdown 2026-06-25; migrate image agent
         # Antigravity CLI (agy routes to the user's configured Antigravity default)
         agy/default|default)       echo "1000|yes|yes|no|agy|standard|active" ;;
         # Claude
