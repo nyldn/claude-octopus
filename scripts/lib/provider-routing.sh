@@ -52,7 +52,28 @@ build_provider_env() {
             if [[ -z "${OPENAI_API_KEY:-}" ]]; then
                 resolve_provider_env "OPENAI_API_KEY" 2>/dev/null || true
             fi
+
+            # Preserve Codex CLI provider configuration while keeping env
+            # isolation. Codex supports OpenAI-compatible providers via
+            # config.toml, where env_key may name a provider-specific key
+            # (for example a router/proxy key) rather than OPENAI_API_KEY.
+            local _codex_config_home="${CODEX_HOME:-$HOME/.codex}"
+            local _codex_config="${_codex_config_home}/config.toml"
+            local _codex_env_key=""
+            if [[ -f "$_codex_config" ]]; then
+                _codex_env_key=$(sed -nE 's/^[[:space:]]*env_key[[:space:]]*=[[:space:]]*"([A-Za-z_][A-Za-z0-9_]*)".*/\1/p' "$_codex_config" | head -1)
+                if [[ -n "$_codex_env_key" && "$_codex_env_key" != "OPENAI_API_KEY" ]]; then
+                    resolve_provider_env "$_codex_env_key" 2>/dev/null || true
+                fi
+            fi
+
             PROVIDER_ENV_ARRAY=(env -i "PATH=$PATH" "HOME=$HOME" "OPENAI_API_KEY=${OPENAI_API_KEY:-}" "TMPDIR=${TMPDIR:-/tmp}")
+            if [[ -n "${CODEX_HOME:-}" ]]; then
+                PROVIDER_ENV_ARRAY+=("CODEX_HOME=${CODEX_HOME}")
+            fi
+            if [[ -n "$_codex_env_key" && "$_codex_env_key" != "OPENAI_API_KEY" && -n "${!_codex_env_key:-}" ]]; then
+                PROVIDER_ENV_ARRAY+=("${_codex_env_key}=${!_codex_env_key}")
+            fi
             if [[ ${#_trace_env[@]} -gt 0 ]]; then
                 PROVIDER_ENV_ARRAY+=("${_trace_env[@]}")
             fi
