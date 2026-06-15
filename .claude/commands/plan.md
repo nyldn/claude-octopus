@@ -33,7 +33,7 @@ plan instead of a full octo multi-provider plan.
 
 1. Emit this exact warning as the very first output:
 
-   ```
+   ```text
    ⚠️  OCTO PLAN DEGRADED — Plan Mode Write Conflict
 
    Native plan mode is active. Octo cannot save its planning artifacts

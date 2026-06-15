@@ -66,17 +66,25 @@ BLOCKS octo from saving its planning artifacts:
 
 DO NOT silently fall through to generic native planning. You MUST:
 
-1. Emit this exact warning before any plan output:
+1. Emit this exact warning as the very first output:
 
-   ⚠️  OCTO PLAN DEGRADED — plan mode write conflict
-   Plan mode is active and blocking octo artifact writes.
-   The intent contract and session plan cannot be saved right now.
-   This is display-only output — NOT a full octo multi-provider plan.
-   To get the full octo plan: exit plan mode first, then re-run /octo:plan.
+   ⚠️  OCTO PLAN DEGRADED — Plan Mode Write Conflict
 
-2. Display the plan visualization so the user is not left with nothing.
-3. Skip Steps 2 and 5 of the /octo:plan workflow (artifact saves only).
-4. Remind the user at the end to re-run /octo:plan once plan mode exits.
+   Native plan mode is active. Octo cannot save its planning artifacts
+   (.claude/session-intent.md, .claude/session-plan.md) while plan mode
+   restricts writes. You are getting display-only output — this is NOT
+   a full octo multi-provider plan.
+
+   To get the full octo plan:
+     1. Exit or cancel native plan mode
+     2. Re-run /octo:plan
+
+   Continuing with plan visualization only (no artifacts saved)…
+
+2. Skip Step 2 (Create Intent Contract) and Step 5 (Save the Plan) entirely.
+   Do not attempt these writes — they will silently fail.
+3. Complete Steps 1, 3, 4, and 6 so the user sees the visualization.
+4. Repeat the re-run reminder at the end of Step 6.
 </PLAN-MODE-RULES>
 RULES
 
