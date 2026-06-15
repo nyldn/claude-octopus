@@ -77,7 +77,27 @@ _octopus_agent_lifecycle_event() {
         elif command -v timeout >/dev/null 2>&1; then
             timeout "$hook_timeout" "$hook" "$event"
         else
-            "$hook" "$event"
+            # Built-in timeout fallback: run hook in background, wait with
+            # configured timeout, and kill if still running. Uses only bash
+            # built-ins so it works on systems without run_with_timeout or
+            # GNU timeout. See issue #511.
+            "$hook" "$event" &
+            local _hook_pid=$!
+            local _hook_waited=0
+            while [[ $_hook_waited -lt $hook_timeout ]]; do
+                if ! kill -0 "$_hook_pid" 2>/dev/null; then
+                    wait "$_hook_pid" 2>/dev/null || true
+                    break
+                fi
+                sleep 1
+                ((_hook_waited++)) || true
+            done
+            if kill -0 "$_hook_pid" 2>/dev/null; then
+                kill -TERM "$_hook_pid" 2>/dev/null || true
+                sleep 0.5 2>/dev/null || true
+                kill -KILL "$_hook_pid" 2>/dev/null || true
+                wait "$_hook_pid" 2>/dev/null || true
+            fi
         fi
     ) >>"$hook_log" 2>&1 || true
 }
