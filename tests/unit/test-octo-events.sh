@@ -152,6 +152,17 @@ test_dispatch_lifecycle_events() {
     fi
 }
 
+test_orchestrate_enables_telemetry_by_default() {
+    test_case "orchestrate.sh enables OCTO_EVENT_LOG by default with an opt-out (oco-7db)"
+    local orch="$PROJECT_ROOT/scripts/orchestrate.sh"
+    if grep -q 'export OCTO_EVENT_LOG=.*RESULTS_DIR.*events.jsonl' "$orch" && \
+       grep -q 'OCTO_EVENT_LOG.* == .off.' "$orch"; then
+        test_pass
+    else
+        test_fail "orchestrate.sh must default OCTO_EVENT_LOG to RESULTS_DIR/events.jsonl and honor OCTO_EVENT_LOG=off"
+    fi
+}
+
 test_no_log_when_disabled
 test_emit_jsonl_event
 test_auto_log_path
@@ -160,5 +171,6 @@ test_invalid_event_rejected
 test_check_providers_event_hook
 test_concurrent_emit_no_clobber
 test_dispatch_lifecycle_events
+test_orchestrate_enables_telemetry_by_default
 
 test_summary

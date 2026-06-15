@@ -501,6 +501,16 @@ TASKS_FILE="${WORKSPACE_DIR}/tasks.json"
 RESULTS_DIR="$SESSION_RESULTS_DIR"
 LOGS_DIR="$SESSION_LOGS_DIR"
 PID_FILE="${WORKSPACE_DIR}/pids"
+
+# Telemetry: enable the opt-in JSONL event stream by default for every run so
+# provider.status + dispatch lifecycle events are captured (usage data + the
+# basis for a control-plane HUD). Stdout is unchanged (events.sh appends to the
+# log only). Opt out with OCTO_EVENT_LOG=off; override the path by setting it.
+if [[ -z "${OCTO_EVENT_LOG:-}" ]]; then
+    export OCTO_EVENT_LOG="${RESULTS_DIR}/events.jsonl"
+elif [[ "${OCTO_EVENT_LOG}" == "off" ]]; then
+    unset OCTO_EVENT_LOG
+fi
 ANALYTICS_DIR="${WORKSPACE_DIR}/analytics"
 
 # Secure temporary directory (cleaned up on exit)
