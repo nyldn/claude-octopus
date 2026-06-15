@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+## [9.45.0] - 2026-06-14
+
+### Added
+
+- **Antigravity CLI (`agy`) as a first-class provider.** Stdin dispatch via `scripts/helpers/agy-exec.sh` (`agy --print --sandbox --print-timeout`), detection, routing, doctor checks, env-overridable version floor (`OCTO_AGY_MIN_VERSION`), the 🧭 indicator, and `OCTOPUS_AGY_MODEL`/`OCTOPUS_AGY_PRINT_TIMEOUT` controls. Minimal `env -i` isolation with opt-in `OCTOPUS_ALLOW_FULL_AGY_ENV` (#489, closes #423).
+- **Generic OpenAI-compatible tool-loop agent** (`openai-compatible-agent`) for any OpenAI-API-compatible endpoint (#465).
+- **Tangle agent routing overrides** via `octopus_agent_override` and `OCTOPUS_TANGLE_DECOMPOSE_AGENT`/`OCTOPUS_TANGLE_DECOMPOSE_FALLBACK_AGENT`/`OCTOPUS_TANGLE_AGENT` (#488, was #462).
+- **`OCTOPUS_CODEX_BIN` and `OCTOPUS_CLAUDE_BIN` overrides** to point Octopus at codex-/claude-compatible wrappers without replacing the binary on PATH (#453, #487).
+
+### Changed
+
+- **Codex `danger-full-access` sandbox mode** is now permitted when explicitly selected (#470).
+- **Gemini skip-trust** flag is applied only on CLI versions that support it (#461).
+
+### Fixed
+
+- Preserve Codex provider config (`CODEX_HOME` and the configured `env_key`) through credential-isolated dispatch for `codex*` agents (#452).
+- Tangle decomposition now reformats unsafe decompositions and fails closed (no monolithic direct fallback) instead of silently degrading (#459); same-subtask write-scope overlaps are ignored rather than rejected (#486, was #460).
+- Four Linux fresh-install bugs: CWD-relative `OCTO_ROOT`, doctor abort on stale check, missing council `RESULTS_DIR`, and a self-symlink loop (#482, closes #481).
+
 ## [9.44.1] - 2026-06-14
 
 ### Added
