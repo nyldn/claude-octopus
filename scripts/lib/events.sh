@@ -63,6 +63,24 @@ PY
     printf '"%s"\n' "$out"
 }
 
+# Portable best-effort exclusive lock. flock is Linux-only; mkdir is atomic on
+# every POSIX filesystem. Bounded spin (~1s) so a dead lock holder degrades to a
+# lockless write rather than hanging the caller. Returns 0 if acquired, 1 if not.
+_octo_event_lock() {
+    local lockdir="$1.lock"
+    local tries=0
+    while ! mkdir "$lockdir" 2>/dev/null; do
+        tries=$((tries + 1))
+        [[ "$tries" -ge 50 ]] && return 1
+        sleep 0.02 2>/dev/null || return 1
+    done
+    return 0
+}
+
+_octo_event_unlock() {
+    rmdir "$1.lock" 2>/dev/null || true
+}
+
 _octo_event_trim() {
     local file="$1"
     local max_lines="${OCTO_EVENT_MAX_LINES:-1000}"
@@ -113,13 +131,27 @@ octo_event_emit() {
     dir="$(dirname "$log_file")"
     mkdir -p "$dir" 2>/dev/null || return 1
 
-    printf '{"timestamp":%s,"event":%s,"source":%s,"pid":%s,"session_id":%s,"attributes":{%s}}\n' \
+    local record
+    printf -v record '{"timestamp":%s,"event":%s,"source":%s,"pid":%s,"session_id":%s,"attributes":{%s}}\n' \
         "$(_octo_json_string "$timestamp")" \
         "$(_octo_json_string "$event")" \
         "$(_octo_json_string "${OCTO_EVENT_SOURCE:-octopus}")" \
         "$$" \
         "$(_octo_json_string "${OCTOPUS_SESSION_ID:-}")" \
-        "$attrs" >> "$log_file" || return 1
+        "$attrs"
 
-    _octo_event_trim "$log_file"
+    # Serialize append+trim under one lock so a concurrent emit can never have
+    # its just-appended line clobbered by another emit's trim (mv). If the lock
+    # can't be acquired (~1s spin), fall back to a lockless write — same
+    # best-effort behavior as before, and it never blocks the caller.
+    if _octo_event_lock "$log_file"; then
+        { printf '%s' "$record" >> "$log_file" && _octo_event_trim "$log_file"; } || {
+            _octo_event_unlock "$log_file"
+            return 1
+        }
+        _octo_event_unlock "$log_file"
+    else
+        printf '%s' "$record" >> "$log_file" || return 1
+        _octo_event_trim "$log_file"
+    fi
 }
