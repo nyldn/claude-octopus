@@ -43,8 +43,8 @@ else
   fail "build_provider_env() function missing"
 fi
 
-# 1.2 Codex scoping — only OPENAI_API_KEY
-CODEX_ENV=$(grep -A12 'codex\*)' "$ALL_SRC" | grep 'PROVIDER_ENV_ARRAY=.*env -i' | head -1 || true)
+# 1.2 Codex scoping — OPENAI_API_KEY plus explicit Codex config env only
+CODEX_ENV=$(grep -A40 'codex\*)' "$ALL_SRC" | grep 'PROVIDER_ENV_ARRAY=.*env -i' | head -1 || true)
 if echo "$CODEX_ENV" | grep -q 'OPENAI_API_KEY'; then
   pass "Codex env includes OPENAI_API_KEY"
 else
@@ -56,6 +56,53 @@ if echo "$CODEX_ENV" | grep -q 'GEMINI_API_KEY'; then
 else
   pass "Codex env does NOT contain GEMINI_API_KEY"
 fi
+
+# 1.2b Codex CLI config preservation — CODEX_HOME + configured env_key
+CODEX_RUNTIME_HOME=$(mktemp -d)
+cat > "$CODEX_RUNTIME_HOME/config.toml" <<'EOF'
+model_provider = "router"
+model = "example/model"
+
+[model_providers.router]
+name = "Router"
+base_url = "https://router.example/v1"
+env_key = "ROUTER_API_KEY"
+wire_api = "chat"
+EOF
+OLD_HOME="${HOME:-}"
+OLD_CODEX_HOME="${CODEX_HOME:-}"
+OLD_OPENAI_API_KEY="${OPENAI_API_KEY:-}"
+OLD_ROUTER_API_KEY="${ROUTER_API_KEY:-}"
+OLD_GEMINI_API_KEY="${GEMINI_API_KEY:-}"
+export HOME="$CODEX_RUNTIME_HOME-home"
+export CODEX_HOME="$CODEX_RUNTIME_HOME"
+export OPENAI_API_KEY="openai-test-key"
+export ROUTER_API_KEY="router-test-key"
+export GEMINI_API_KEY="gemini-should-not-leak"
+source "$PLUGIN_DIR/scripts/lib/provider-routing.sh"
+build_provider_env codex
+CODEX_RUNTIME_ENV=" ${PROVIDER_ENV_ARRAY[*]} "
+if echo "$CODEX_RUNTIME_ENV" | grep -q " CODEX_HOME=$CODEX_RUNTIME_HOME "; then
+  pass "Codex env preserves CODEX_HOME"
+else
+  fail "Codex env missing CODEX_HOME"
+fi
+if echo "$CODEX_RUNTIME_ENV" | grep -q " ROUTER_API_KEY=router-test-key "; then
+  pass "Codex env includes config.toml env_key"
+else
+  fail "Codex env missing config.toml env_key"
+fi
+if echo "$CODEX_RUNTIME_ENV" | grep -q " GEMINI_API_KEY="; then
+  fail "Codex env leaks unrelated provider key"
+else
+  pass "Codex env does NOT leak unrelated provider key"
+fi
+export HOME="$OLD_HOME"
+if [[ -n "$OLD_CODEX_HOME" ]]; then export CODEX_HOME="$OLD_CODEX_HOME"; else unset CODEX_HOME; fi
+if [[ -n "$OLD_OPENAI_API_KEY" ]]; then export OPENAI_API_KEY="$OLD_OPENAI_API_KEY"; else unset OPENAI_API_KEY; fi
+if [[ -n "$OLD_ROUTER_API_KEY" ]]; then export ROUTER_API_KEY="$OLD_ROUTER_API_KEY"; else unset ROUTER_API_KEY; fi
+if [[ -n "$OLD_GEMINI_API_KEY" ]]; then export GEMINI_API_KEY="$OLD_GEMINI_API_KEY"; else unset GEMINI_API_KEY; fi
+rm -rf "$CODEX_RUNTIME_HOME" "$CODEX_RUNTIME_HOME-home"
 
 # 1.3 Gemini scoping — only GEMINI_API_KEY + GOOGLE_API_KEY
 GEMINI_ENV=$(grep -A16 'gemini\*)' "$ALL_SRC" | grep 'PROVIDER_ENV_ARRAY=.*env -i' | head -1 || true)

@@ -95,11 +95,70 @@ test_check_providers_event_hook() {
     fi
 }
 
+test_concurrent_emit_no_clobber() {
+    test_case "concurrent emits never tear lines or get clobbered by trim (oco-7dk)"
+    export OCTO_EVENT_LOG="$FIXTURE/concurrent.jsonl"
+    export OCTO_EVENT_MAX_LINES=50
+    : > "$OCTO_EVENT_LOG"
+    local p
+    for p in $(seq 1 12); do
+        ( for i in $(seq 1 60); do octo_event_emit "stress.test" proc="$p" seq="$i"; done ) &
+    done
+    wait
+    unset OCTO_EVENT_MAX_LINES
+
+    local lines
+    lines="$(wc -l < "$OCTO_EVENT_LOG" | tr -d ' ')"
+    if [[ "$lines" -gt 50 ]]; then
+        test_fail "trim under concurrency left $lines lines (> 50 cap)"
+        return
+    fi
+
+    # Every surviving line must be a complete, valid record — a torn line proves
+    # an append was clobbered mid-write by a concurrent trim.
+    if command -v python3 >/dev/null 2>&1; then
+        python3 - "$OCTO_EVENT_LOG" <<'PY' || { test_fail "found torn/invalid JSON line under concurrency"; return; }
+import json, sys
+with open(sys.argv[1], encoding="utf-8") as fh:
+    for line in fh:
+        if line.strip():
+            json.loads(line)
+PY
+    else
+        local bad
+        bad="$(grep -cvE '^\{.*\}$' "$OCTO_EVENT_LOG" || true)"
+        [[ "$bad" == "0" ]] || { test_fail "$bad torn lines under concurrency"; return; }
+    fi
+    test_pass
+}
+
+test_dispatch_lifecycle_events() {
+    test_case "run_with_timeout emits dispatch.start/end/timeout lifecycle events"
+    export OCTO_EVENT_LOG="$FIXTURE/lifecycle.jsonl"
+    : > "$OCTO_EVENT_LOG"
+    (
+        log() { :; }  # heartbeat.sh logs on timeout; stub it for the unit test
+        # shellcheck disable=SC1091
+        source "$PROJECT_ROOT/scripts/lib/heartbeat.sh"
+        run_with_timeout 5 true >/dev/null 2>&1 || true
+        run_with_timeout 1 sleep 5 >/dev/null 2>&1 || true
+    )
+    if grep -q '"event":"dispatch.start"' "$OCTO_EVENT_LOG" && \
+       grep -q '"event":"dispatch.end"' "$OCTO_EVENT_LOG" && \
+       grep -q '"event":"dispatch.timeout"' "$OCTO_EVENT_LOG"; then
+        test_pass
+    else
+        test_fail "missing one of dispatch.start/end/timeout in $(grep -oE '"event":"[^"]*"' "$OCTO_EVENT_LOG" | tr '\n' ' ')"
+    fi
+}
+
 test_no_log_when_disabled
 test_emit_jsonl_event
 test_auto_log_path
 test_trim_event_log
 test_invalid_event_rejected
 test_check_providers_event_hook
+test_concurrent_emit_no_clobber
+test_dispatch_lifecycle_events
 
 test_summary
