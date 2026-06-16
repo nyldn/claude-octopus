@@ -81,34 +81,6 @@ get_agent_command() {
             model=$(get_agent_model "$agent_type" "$phase" "$role")
             echo "${codex_bin} exec --skip-git-repo-check --model ${model} ${sandbox_flag} -"
             ;;
-        gemini|gemini-fast|gemini-image)
-            model=$(get_agent_model "$agent_type" "$phase" "$role")
-            # v8.10.0: Fixed headless mode (Issue #25)
-            # Prompt delivered via stdin by callers (avoids OS arg limits)
-            # Callers add -p "" for headless mode trigger
-            # -o text: clean output, --approval-mode yolo: auto-accept (replaces deprecated -y)
-            # v8.32.0: GEMINI_FORCE_FILE_STORAGE=true on macOS avoids Keychain prompts
-            # when calling Gemini CLI from bash subprocesses (OAuth still works)
-            # NOTE: .toml custom commands exist in .gemini/commands/octo/ for human use,
-            # but stdin+slash-command don't compose in headless mode (Codex source analysis)
-            # Routed through helpers/gemini-exec.sh for 404/ModelNotFound fallback.
-            local gemini_env="env NODE_NO_WARNINGS=1"
-            if [[ "$OCTOPUS_PLATFORM" == "Darwin" && -z "${GEMINI_API_KEY:-}" ]]; then
-                gemini_env="env NODE_NO_WARNINGS=1 GEMINI_FORCE_FILE_STORAGE=true"
-            fi
-            local gemini_exec="${PLUGIN_DIR}/scripts/helpers/gemini-exec.sh"
-            local gemini_flags="-o text --approval-mode yolo"
-            case "${OCTOPUS_GEMINI_SANDBOX:-headless}" in
-                interactive|prompt-mode) gemini_flags="" ;;
-            esac
-            # Gemini confines reads to its cwd workspace; prompts that reference
-            # files outside PROJECT_ROOT (e.g. /tmp staging dirs) need those dirs
-            # whitelisted. Comma-separated, no spaces (read -ra word-splitting).
-            if [[ -n "${OCTOPUS_GEMINI_INCLUDE_DIRS:-}" ]]; then
-                gemini_flags="${gemini_flags} --include-directories ${OCTOPUS_GEMINI_INCLUDE_DIRS}"
-            fi
-            echo "${gemini_env} ${gemini_exec} ${model} ${gemini_flags}"
-            ;;
         agy|agy-research|antigravity)
             echo "${PLUGIN_DIR}/scripts/helpers/agy-exec.sh"
             ;;

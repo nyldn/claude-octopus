@@ -210,8 +210,7 @@ echo "Progress: 50%" > ~/.claude/scratchpad/$(cat ~/.claude/session-id)/phase1-p
 
 Before running workflows, check provider availability:
 - Codex CLI: `command -v codex` or check for OPENAI_API_KEY
-- Gemini CLI: `command -v gemini` or check for GEMINI_API_KEY
-- Antigravity CLI: `command -v agy`
+- Antigravity CLI (`agy`): `command -v agy` — the Google-family seat (replaces the retired Gemini CLI)
 - Perplexity: check for PERPLEXITY_API_KEY (API-only, no CLI needed)
 - OpenRouter: check for OPENROUTER_API_KEY
 - Ollama: `command -v ollama` + server health at http://localhost:11434

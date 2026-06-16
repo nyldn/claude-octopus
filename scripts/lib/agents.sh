@@ -592,12 +592,12 @@ get_codex_agent_for_phase() {
 get_agent_for_task() {
     local task_type="$1"
     case "$task_type" in
-        image) echo "gemini-image" ;;
+        image) echo "agy" ;;
         review) echo "codex-review" ;;
         coding) echo "codex" ;;
-        design) echo "gemini" ;;       # Gemini excels at reasoning about design
-        copywriting) echo "gemini" ;;  # Gemini strong at creative writing
-        research) echo "gemini" ;;     # Gemini good at analysis/synthesis
+        design) echo "agy" ;;       # Gemini excels at reasoning about design
+        copywriting) echo "agy" ;;  # Gemini strong at creative writing
+        research) echo "agy" ;;     # Gemini good at analysis/synthesis
         general) echo "codex" ;;       # Default to codex for general tasks
         *) echo "codex" ;;
     esac
@@ -671,7 +671,7 @@ get_tiered_agent() {
     case "$task_type" in
         image)
             # Image generation always uses gemini-image
-            agent="gemini-image"
+            agent="agy"
             ;;
         review)
             # Reviews use standard tier (already cost-effective)
@@ -689,8 +689,8 @@ get_tiered_agent() {
         design|copywriting|research)
             # Gemini tasks: tier based on complexity
             case "$adjusted_complexity" in
-                1) agent="gemini-fast" ;;     # Trivial → flash (cheaper)
-                *) agent="gemini" ;;          # Standard+ → pro
+                1) agent="agy" ;;     # Trivial → flash (cheaper)
+                *) agent="agy" ;;          # Standard+ → pro
             esac
             ;;
         diamond-*)

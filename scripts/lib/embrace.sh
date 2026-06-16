@@ -23,11 +23,11 @@ get_dispatch_strategy() {
         full)
             local all_p="claude-sonnet"
             command -v codex >/dev/null 2>&1 && all_p="codex,${all_p}"
-            command -v gemini >/dev/null 2>&1 && all_p="gemini,${all_p}"
+            command -v agy >/dev/null 2>&1 && { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed agy; } && all_p="agy,${all_p}"
             echo "3:${all_p}:high"
             return 0 ;;
         minimal)
-            if command -v gemini >/dev/null 2>&1; then echo "2:gemini,claude-sonnet:high"
+            if command -v agy >/dev/null 2>&1 && { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed agy; }; then echo "2:agy,claude-sonnet:high"
             elif command -v codex >/dev/null 2>&1; then echo "2:codex,claude-sonnet:high"
             else echo "1:claude-sonnet:high"; fi
             return 0 ;;
@@ -52,9 +52,10 @@ get_dispatch_strategy() {
     fi
 
     # v9.10.0: Detect all available providers for dispatch strategy
-    local has_codex=false has_gemini=false has_copilot=false has_qwen=false has_ollama=false has_cursor_agent=false
+    local has_codex=false has_agy=false has_copilot=false has_qwen=false has_ollama=false has_cursor_agent=false
     command -v codex >/dev/null 2>&1 && has_codex=true
-    command -v gemini >/dev/null 2>&1 && has_gemini=true
+    # Antigravity (agy) is the Google-family seat.
+    command -v agy >/dev/null 2>&1 && { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed agy; } && has_agy=true
     command -v copilot >/dev/null 2>&1 && has_copilot=true
     if declare -f qwen_is_usable >/dev/null 2>&1; then
         qwen_is_usable && has_qwen=true
@@ -73,7 +74,7 @@ get_dispatch_strategy() {
     # Build available CLI providers list (excluding Claude which is always available)
     local -a cli_providers=()
     [[ "$has_codex" == true ]] && cli_providers+=(codex)
-    [[ "$has_gemini" == true ]] && cli_providers+=(gemini)
+    [[ "$has_agy" == true ]] && cli_providers+=(agy)
     [[ "$has_copilot" == true ]] && cli_providers+=(copilot)
     [[ "$has_qwen" == true ]] && cli_providers+=(qwen)
     [[ "$has_cursor_agent" == true ]] && cli_providers+=(cursor-agent)
@@ -86,10 +87,10 @@ get_dispatch_strategy() {
                 local providers_str
                 providers_str=$(IFS=,; echo "${cli_providers[*]}")
                 echo "$((cli_count + 1)):${providers_str},claude-sonnet:high"
-            elif [[ "$has_codex" == true && "$has_gemini" == true ]]; then
-                echo "3:codex,gemini,claude-sonnet:high"
+            elif [[ "$has_codex" == true && "$has_agy" == true ]]; then
+                echo "3:codex,agy,claude-sonnet:high"
             elif [[ "$has_codex" == true ]]; then echo "2:codex,claude-sonnet:high"
-            elif [[ "$has_gemini" == true ]]; then echo "2:gemini,claude-sonnet:high"
+            elif [[ "$has_agy" == true ]]; then echo "2:agy,claude-sonnet:high"
             elif [[ "$has_qwen" == true ]]; then echo "2:qwen,claude-sonnet:medium"
             else echo "1:claude-sonnet:medium"; fi ;;
         architecture)
@@ -107,7 +108,7 @@ get_dispatch_strategy() {
                 local providers_str
                 providers_str=$(IFS=,; echo "${cli_providers[*]}")
                 echo "$((cli_count + 1)):${providers_str},claude-sonnet:high"
-            elif [[ "$has_gemini" == true ]]; then echo "2:gemini,claude-sonnet:high"
+            elif [[ "$has_agy" == true ]]; then echo "2:agy,claude-sonnet:high"
             elif [[ "$has_codex" == true ]]; then echo "2:codex,claude-sonnet:medium"
             elif [[ "$has_qwen" == true ]]; then echo "2:qwen,claude-sonnet:medium"
             elif [[ "$has_copilot" == true ]]; then echo "2:copilot,claude-sonnet:medium"

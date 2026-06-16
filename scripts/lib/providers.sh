@@ -46,8 +46,8 @@ version_compare() {
 
 detect_claude_code_version() {
     # v9.16.0: Non-Claude hosts skip CC version detection entirely
-    # Codex and Gemini have their own feature sets; CC version flags don't apply
-    if [[ "$OCTOPUS_HOST" == "codex" || "$OCTOPUS_HOST" == "gemini" ]]; then
+    # Codex and agy have their own feature sets; CC version flags do not apply
+    if [[ "$OCTOPUS_HOST" == "codex" ]]; then
         CLAUDE_CODE_VERSION=""
         log "INFO" "${OCTOPUS_HOST} host detected — skipping Claude Code version detection"
         # Enable basic capabilities that work on any host with bash
@@ -711,30 +711,6 @@ check_provider_health() {
                 fi
             fi
             ;;
-        gemini)
-            if ! command -v gemini &>/dev/null; then
-                echo "gemini CLI not found in PATH" >&2
-                return 1
-            fi
-            # v9.2.1: Check OAuth creds first (Issue #177)
-            if [[ -f "$HOME/.gemini/oauth_creds.json" ]]; then
-                return 0
-            fi
-            # Try resolving env vars from profile/.env for non-interactive shells
-            if [[ -z "${GEMINI_API_KEY:-}" ]]; then
-                resolve_provider_env "GEMINI_API_KEY" 2>/dev/null
-            fi
-            if [[ -z "${GOOGLE_API_KEY:-}" ]] && [[ -z "${GEMINI_API_KEY:-}" ]]; then
-                resolve_provider_env "GOOGLE_API_KEY" 2>/dev/null
-            fi
-            if [[ -z "${GEMINI_API_KEY:-}" ]] && [[ -z "${GOOGLE_API_KEY:-}" ]]; then
-                # Gemini CLI may use gcloud auth
-                if ! command -v gcloud &>/dev/null; then
-                    echo "gemini: GEMINI_API_KEY not found in non-interactive shell. If your key is in ~/.bashrc, move it to ~/.profile or ~/.env instead (bashrc is skipped in non-interactive shells)" >&2
-                    return 1
-                fi
-            fi
-            ;;
         agy|antigravity)
             if ! command -v agy &>/dev/null; then
                 echo "agy CLI not found in PATH" >&2
@@ -839,7 +815,7 @@ check_provider_health() {
                 return 1
             fi
             # Try resolving env var from profile/.env for non-interactive shells
-            # (mirrors codex/gemini — keeps shell-profile-only keys from being misreported)
+            # (mirrors codex — keeps shell-profile-only keys from being misreported)
             if [[ -z "${MISTRAL_API_KEY:-}" ]]; then
                 resolve_provider_env "MISTRAL_API_KEY" 2>/dev/null
             fi
@@ -861,7 +837,7 @@ check_all_providers() {
     local healthy=0 unhealthy=0
     local -a results=()
 
-    for provider in codex gemini agy claude perplexity openrouter ollama copilot qwen cursor-agent vibe; do
+    for provider in codex agy claude perplexity openrouter ollama copilot qwen cursor-agent vibe; do
         local diag
         if diag=$(check_provider_health "$provider" 2>&1); then
             results+=("  ✓ $provider")
@@ -992,17 +968,6 @@ detect_providers() {
         result="${result}codex:${codex_auth} "
     fi
 
-    # Detect Gemini CLI
-    if { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed gemini; } && command -v gemini &>/dev/null; then
-        local gemini_auth="none"
-        if [[ -f "$HOME/.gemini/oauth_creds.json" ]]; then
-            gemini_auth="oauth"
-        elif [[ -n "${GEMINI_API_KEY:-}" ]]; then
-            gemini_auth="api-key"
-        fi
-        result="${result}gemini:${gemini_auth} "
-    fi
-
     # Detect Antigravity CLI (agy)
     if { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed agy; } && command -v agy &>/dev/null; then
         result="${result}agy:cli "
@@ -1125,7 +1090,6 @@ detect_providers() {
     if [[ -z "$result" ]]; then
         log WARN "No AI providers detected. Install at least one:"
         log WARN "  - Codex: npm i -g @openai/codex"
-        log WARN "  - Gemini: npm i -g @google/gemini-cli"
         log WARN "  - Claude: Available in Claude Code context"
         log WARN "  - OpenRouter: Set OPENROUTER_API_KEY environment variable"
         log WARN "  - Copilot: brew install copilot-cli (zero additional cost)"
