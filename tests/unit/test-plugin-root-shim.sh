@@ -24,8 +24,7 @@ test_lib_sourceable() {
 # self-referential exec stub.
 test_refuses_self_targeting_write() {
     test_case "octo_write_stable_script_shim does not overwrite src when dst resolves to src"
-    local work
-    work=$(mktemp -d)
+    local work="$TEST_TMP_DIR/refuses-self-targeting"
     mkdir -p "$work/cache/9.45.0/scripts"
     cat > "$work/cache/9.45.0/scripts/orchestrate.sh" <<'EOF'
 #!/usr/bin/env bash
@@ -39,7 +38,6 @@ EOF
 
     local contents
     contents="$(cat "$work/cache/9.45.0/scripts/orchestrate.sh")"
-    rm -rf "$work"
 
     if [[ "$contents" == *"real orchestrate.sh"* && "$contents" != *"exec "* ]]; then
         test_pass
@@ -53,8 +51,7 @@ EOF
 # still write the wrapper as before.
 test_writes_shim_when_not_self_targeting() {
     test_case "octo_write_stable_script_shim still writes a wrapper for a genuinely separate dst"
-    local work
-    work=$(mktemp -d)
+    local work="$TEST_TMP_DIR/writes-shim"
     mkdir -p "$work/cache/9.45.0/scripts"
     cat > "$work/cache/9.45.0/scripts/orchestrate.sh" <<'EOF'
 #!/usr/bin/env bash
@@ -67,13 +64,40 @@ EOF
 
     local contents
     contents="$(cat "$work/stable/scripts/orchestrate.sh" 2>/dev/null || echo MISSING)"
-    rm -rf "$work"
 
     [[ "$contents" == *"exec "* ]] && test_pass || test_fail "expected an exec wrapper, got: $contents"
+}
+
+# dst itself (not a parent directory) is a symlink aliasing src, with no
+# symlink in dst's parent chain. A guard that only canonicalizes dst's parent
+# directory misses this; -ef catches it because it compares device+inode.
+test_refuses_self_targeting_write_via_dst_symlink() {
+    test_case "octo_write_stable_script_shim does not overwrite src when dst itself symlinks to src"
+    local work="$TEST_TMP_DIR/refuses-self-targeting-dst-symlink"
+    mkdir -p "$work/cache/9.45.0/scripts"
+    cat > "$work/cache/9.45.0/scripts/orchestrate.sh" <<'EOF'
+#!/usr/bin/env bash
+echo "real orchestrate.sh"
+EOF
+    chmod +x "$work/cache/9.45.0/scripts/orchestrate.sh"
+    mkdir -p "$work/stable/scripts"
+    ln -s "$work/cache/9.45.0/scripts/orchestrate.sh" "$work/stable/scripts/orchestrate.sh"
+
+    bash -c "source '$LIB'; octo_write_stable_script_shim '$work/cache/9.45.0' '$work/stable' 'scripts/orchestrate.sh'"
+
+    local contents
+    contents="$(cat "$work/cache/9.45.0/scripts/orchestrate.sh")"
+
+    if [[ "$contents" == *"real orchestrate.sh"* && "$contents" != *"exec "* ]]; then
+        test_pass
+    else
+        test_fail "live script was overwritten with a shim: $contents"
+    fi
 }
 
 test_lib_sourceable
 test_refuses_self_targeting_write
 test_writes_shim_when_not_self_targeting
+test_refuses_self_targeting_write_via_dst_symlink
 
 test_summary
