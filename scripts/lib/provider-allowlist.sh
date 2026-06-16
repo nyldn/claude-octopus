@@ -113,11 +113,6 @@ octo_provider_allowed() {
                     codex|codex-*) return 0 ;;
                 esac
                 ;;
-            gemini|google)
-                case "$provider" in
-                    gemini|gemini-*) return 0 ;;
-                esac
-                ;;
             agy|antigravity)
                 case "$provider" in
                     agy|agy-*|antigravity) return 0 ;;

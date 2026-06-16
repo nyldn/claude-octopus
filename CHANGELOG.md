@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Removed
+
+- **Gemini CLI provider removed; Antigravity (`agy`) is now the sole Google-family seat.** The Gemini CLI is sunset 2026-06-18, so its provider integration is removed rather than carried as dead weight. Deleted `scripts/helpers/gemini-exec.sh`, `config/providers/gemini/`, the `.gemini/commands/octo/` slash commands, and `tests/unit/test-gemini-provider.sh`. Removed the gemini dispatch arm, provider detection/health, model catalog rows, fleet/reviewer slots, `AVAILABLE_AGENTS` entries, task-routing, and model-resolver fallbacks. Antigravity takes gemini's place everywhere it was the Google seat: the named workflows (`grasp`/`tangle`/`ink`/`embrace` gate) now dispatch `agy`, `build-fleet` uses `agy` as the security/CVE reviewer, embrace strategy and the circuit breaker include `agy`, and `agents.sh` routes design/research/copywriting/image tasks to `agy`.
+
+### Changed
+
+- **Antigravity adapter (`scripts/helpers/agy-exec.sh`) hardened** with the safe parity pieces: `OCTOPUS_AGY_MODEL` passthrough (default = no `--model`, so agy keeps its own picked model and avoids exhausting a quota group), `OCTOPUS_AGY_SANDBOX=off` toggle, `OCTOPUS_AGY_INCLUDE_DIRS` → `--add-dir`, and a single provider-agnostic replay-from-stdin retry on a silent-empty response. No model-fallback chain or error classifier (agy's model catalog/error strings are not verified in-band).
+
 ## [9.45.0] - 2026-06-14
 
 ### Added

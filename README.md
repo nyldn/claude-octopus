@@ -322,8 +322,7 @@ Claude Octopus coordinates up to nine AI providers:
 | Provider | Role |
 |----------|------|
 | 🔴 Codex (OpenAI, GPT-5.4) | Code review + implementation — edge-case hunting, terminal-heavy execution, patch/test loops |
-| 🟡 Gemini (Google) | Ecosystem breadth — alternatives, research synthesis |
-| 🧭 Antigravity CLI (`agy`) | Google Antigravity perspective via native stdin print-mode dispatch |
+| 🧭 Antigravity CLI (`agy`) | **Google-family seat** — ecosystem breadth, alternatives, research synthesis via native stdin print-mode dispatch (replaces the retired Gemini CLI) |
 | 🟣 Perplexity | Live web search — CVE lookups, dependency research, current docs |
 | 🌐 OpenRouter | Alternative model routing — access 100+ models via single API |
 | 🟢 Copilot (GitHub) | Zero-cost research — uses existing GitHub Copilot subscription |
