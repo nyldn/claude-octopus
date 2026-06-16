@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+## [9.45.1] - 2026-06-16
+
+### Added
+
+- `bin/octo-hud` local event-stream monitor for `OCTO_EVENT_LOG`, rendering provider, dispatch, and circuit-breaker lifecycle state without a server dependency (#510).
+- Provider lifecycle telemetry for `provider.selected` plus circuit-breaker open, half-open, and closed events under the existing opt-in event log guard (#509).
+- GA Gemini text catalog entries for `gemini-3.5-flash` and `gemini-3.1-flash-lite` (#502).
+
+### Fixed
+
+- Provider reliability bundle: adds Gemini per-provider timeout handling, parallel-path quota and terminal fast-fail coverage, and a quota-dead session cache that degrades or skips dead providers instead of dispatching into known failures (#508).
+- `OCTO_EVENT_LOG` telemetry is enabled by default from `orchestrate.sh` so event-enabled workflows can observe dispatch state without extra setup (#491).
+
 ## [9.45.0] - 2026-06-14
 
 ### Added
