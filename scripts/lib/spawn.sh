@@ -72,32 +72,31 @@ _octopus_agent_lifecycle_event() {
         export OCTOPUS_AGENT_ROOT_SESSION_ID="${CRABFLEET_ROOT_SESSION_ID:-${OCTOPUS_ROOT_SESSION_ID:-}}"
         export OCTOPUS_AGENT_PARENT_SESSION_ID="${CRABFLEET_PARENT_SESSION_ID:-${OCTOPUS_PARENT_SESSION_ID:-}}"
         local hook_timeout="${OCTOPUS_AGENT_LIFECYCLE_HOOK_TIMEOUT:-3}"
+        if [[ ! "$hook_timeout" =~ ^[0-9]+$ || "$hook_timeout" -lt 1 ]]; then
+            hook_timeout=3
+        fi
         if declare -f run_with_timeout >/dev/null 2>&1; then
             run_with_timeout "$hook_timeout" "$hook" "$event"
         elif command -v timeout >/dev/null 2>&1; then
             timeout "$hook_timeout" "$hook" "$event"
         else
-            # Built-in timeout fallback: run hook in background, wait with
-            # configured timeout, and kill if still running. Uses only bash
-            # built-ins so it works on systems without run_with_timeout or
-            # GNU timeout. See issue #511.
+            # Built-in timeout fallback: run hook in background, wait with a
+            # SECONDS-based deadline, and kill if still running. Uses Bash plus
+            # the already-required sleep command, so systems without the Octopus
+            # run_with_timeout helper or GNU timeout do not execute hooks
+            # unbounded. See issue #511.
             "$hook" "$event" &
             local _hook_pid=$!
-            local _hook_waited=0
-            while [[ $_hook_waited -lt $hook_timeout ]]; do
-                if ! kill -0 "$_hook_pid" 2>/dev/null; then
-                    wait "$_hook_pid" 2>/dev/null || true
-                    break
-                fi
+            local _hook_deadline=$((SECONDS + hook_timeout))
+            while kill -0 "$_hook_pid" 2>/dev/null && [[ "$SECONDS" -lt "$_hook_deadline" ]]; do
                 sleep 1
-                ((_hook_waited++)) || true
             done
             if kill -0 "$_hook_pid" 2>/dev/null; then
                 kill -TERM "$_hook_pid" 2>/dev/null || true
-                sleep 0.5 2>/dev/null || true
+                sleep 1
                 kill -KILL "$_hook_pid" 2>/dev/null || true
-                wait "$_hook_pid" 2>/dev/null || true
             fi
+            wait "$_hook_pid" 2>/dev/null || true
         fi
     ) >>"$hook_log" 2>&1 || true
 }
