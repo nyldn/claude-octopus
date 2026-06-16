@@ -113,6 +113,47 @@ else
 fi
 unset OCTOPUS_AGENT_LIFECYCLE_HOOK_TIMEOUT
 
+
+
+test_case "lifecycle hook timeout accepts zero-padded decimal values"
+export OCTOPUS_AGENT_LIFECYCLE_HOOK="$TMP_DIR/slow-hook.sh"
+export OCTOPUS_AGENT_LIFECYCLE_HOOK_TIMEOUT=08
+_octopus_agent_lifecycle_event "spawned" "codex" "task-zero-padded-timeout" "developer" "tangle" "557" "$RESULTS_DIR/codex-zero-padded-timeout.md" "" "running"
+if grep -q '"task_id":"task-zero-padded-timeout"' "$OCTO_EVENT_LOG" && ! grep -q 'value too great for base' "$TMP_DIR/hook.log"; then
+  test_pass
+else
+  test_fail "zero-padded hook timeout should be normalized as decimal"
+fi
+unset OCTOPUS_AGENT_LIFECYCLE_HOOK_TIMEOUT
+
+cat > "$TMP_DIR/slow-fallback-hook.sh" <<'HOOK'
+#!/usr/bin/env bash
+sleep 5
+HOOK
+chmod +x "$TMP_DIR/slow-fallback-hook.sh"
+
+test_case "lifecycle hook uses built-in timeout fallback when timeout commands are unavailable"
+no_timeout_bin="$TMP_DIR/no-timeout-bin"
+mkdir -p "$no_timeout_bin"
+ln -sf /bin/sleep "$no_timeout_bin/sleep"
+ln -sf /bin/bash "$no_timeout_bin/bash"
+ln -sf /bin/date "$no_timeout_bin/date"
+ln -sf /usr/bin/dirname "$no_timeout_bin/dirname"
+export OCTOPUS_AGENT_LIFECYCLE_HOOK="$TMP_DIR/slow-fallback-hook.sh"
+export OCTOPUS_AGENT_LIFECYCLE_HOOK_TIMEOUT=1
+saved_path="$PATH"
+start=$(date +%s)
+PATH="$no_timeout_bin"
+_octopus_agent_lifecycle_event "spawned" "codex" "task-fallback-timeout" "developer" "tangle" "556" "$RESULTS_DIR/codex-fallback-timeout.md" "" "running"
+PATH="$saved_path"
+elapsed=$(( $(date +%s) - start ))
+if [[ "$elapsed" -lt 4 ]]; then
+  test_pass
+else
+  test_fail "built-in timeout fallback did not return promptly"
+fi
+unset OCTOPUS_AGENT_LIFECYCLE_HOOK_TIMEOUT
+
 test_case "completed lifecycle event carries exit status"
 _octopus_agent_lifecycle_event "completed" "gemini-fast" "task-2" "reviewer" "review" "222" "$RESULTS_DIR/gemini-task-2.md" "124" "timeout"
 if grep -q '"event":"agent.completed"' "$OCTO_EVENT_LOG" && \
