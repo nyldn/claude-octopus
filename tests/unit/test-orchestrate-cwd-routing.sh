@@ -178,29 +178,37 @@ test_claude_researcher_no_write_grant() {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Gemini external directory whitelisting
+# Antigravity (agy) external directory whitelisting.
+# The gemini --include-directories dispatch was removed in the agy migration;
+# OCTOPUS_AGY_INCLUDE_DIRS now drives `--add-dir` inside scripts/helpers/agy-exec.sh.
 # ═══════════════════════════════════════════════════════════════════════════════
 
-test_gemini_include_dirs_flag() {
-    test_case "OCTOPUS_GEMINI_INCLUDE_DIRS adds --include-directories to gemini dispatch"
-    # gemini branch calls get_agent_model → stub to avoid full resolver deps
-    local got
-    got="$(
-        get_agent_model() { echo "gemini-3-flash-preview"; }
-        OCTOPUS_GEMINI_INCLUDE_DIRS="/tmp/staging" get_agent_command gemini probe researcher
-    )"
-    [[ "$got" == *"--include-directories /tmp/staging"* ]] && test_pass || test_fail "flag missing, got: $got"
+# Run agy-exec.sh against a stub `agy` that echoes the flags it was invoked with,
+# so we can assert what the adapter passed through. The PATH stub shadows any real
+# agy binary so this never reaches out to an installed CLI.
+run_agy_exec_with_stub() {
+    local stub_dir="$TEST_TMP_DIR/agy-stub-$$-$RANDOM"
+    mkdir -p "$stub_dir"
+    cat > "$stub_dir/agy" << 'STUB'
+#!/usr/bin/env bash
+echo "AGY_ARGS: $*"
+STUB
+    chmod +x "$stub_dir/agy"
+    PATH="$stub_dir:$PATH" bash "$PROJECT_ROOT/scripts/helpers/agy-exec.sh" <<< "probe prompt"
 }
 
-test_gemini_no_include_dirs_by_default() {
-    test_case "gemini dispatch has no --include-directories when env unset"
+test_agy_include_dirs_flag() {
+    test_case "OCTOPUS_AGY_INCLUDE_DIRS adds --add-dir to agy dispatch"
     local got
-    got="$(
-        get_agent_model() { echo "gemini-3-flash-preview"; }
-        unset OCTOPUS_GEMINI_INCLUDE_DIRS
-        get_agent_command gemini probe researcher
-    )"
-    [[ "$got" != *"--include-directories"* ]] && test_pass || test_fail "unexpected flag: $got"
+    got="$(OCTOPUS_AGY_INCLUDE_DIRS="/tmp/staging" run_agy_exec_with_stub)"
+    [[ "$got" == *"--add-dir /tmp/staging"* ]] && test_pass || test_fail "flag missing, got: $got"
+}
+
+test_agy_no_include_dirs_by_default() {
+    test_case "agy dispatch has no --add-dir when env unset"
+    local got
+    got="$(unset OCTOPUS_AGY_INCLUDE_DIRS; run_agy_exec_with_stub)"
+    [[ "$got" != *"--add-dir"* ]] && test_pass || test_fail "unexpected flag: $got"
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -261,8 +269,8 @@ test_claude_implementer_accepts_edits
 test_claude_developer_accepts_edits
 test_claude_researcher_no_write_grant
 
-test_gemini_include_dirs_flag
-test_gemini_no_include_dirs_by_default
+test_agy_include_dirs_flag
+test_agy_no_include_dirs_by_default
 
 test_warns_when_cwd_is_plugin
 test_no_warn_with_claude_project_dir

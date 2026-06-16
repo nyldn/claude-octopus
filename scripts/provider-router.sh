@@ -188,7 +188,7 @@ get_circuit_breaker_status() {
     local now
     now=$(date +%s)
 
-    for provider in codex gemini agy claude perplexity ollama copilot qwen cursor-agent vibe; do
+    for provider in codex agy claude perplexity ollama copilot qwen cursor-agent vibe; do
         local state="closed"
         local detail=""
         local cooldown_file="${_PROVIDER_STATE_DIR}/${provider}.cooldown"

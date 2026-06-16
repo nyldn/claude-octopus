@@ -743,8 +743,8 @@ grasp_define() {
         def1=$(run_agent_sync "claude-sonnet" "Based on: $prompt\n${context}Define the core problem statement in 2-3 sentences. What is the essential challenge?" 120 "backend-architect" "grasp") || true
     }
     def2=$(run_agent_sync "agy" "Based on: $prompt\n${context}Define success criteria. How will we know when this is solved correctly? List 3-5 measurable criteria." 120 "researcher" "grasp") || {
-        log WARN "Gemini failed for success criteria, falling back to Claude"
-        echo -e " ${YELLOW}⚠${NC}  Gemini unavailable for success criteria — falling back to Claude"
+        log WARN "agy failed for success criteria, falling back to Claude"
+        echo -e " ${YELLOW}⚠${NC}  agy unavailable for success criteria — falling back to Claude"
         def2=$(run_agent_sync "claude-sonnet" "Based on: $prompt\n${context}Define success criteria. How will we know when this is solved correctly? List 3-5 measurable criteria." 120 "researcher" "grasp") || true
     }
     def3=$(run_agent_sync "claude-sonnet" "Based on: $prompt\n${context}Define constraints and boundaries. What are we NOT solving? What are hard limits?" 120 "researcher" "grasp")
@@ -1306,9 +1306,9 @@ Every [CODING] line must include a same-line Files: clause."
     # Tangle decomposition agents are overridable (OCTOPUS_TANGLE_DECOMPOSE_AGENT,
     # OCTOPUS_TANGLE_DECOMPOSE_FALLBACK_AGENT, OCTOPUS_TANGLE_AGENT). Override only
     # selects the dispatch agent; the fail-closed contract below is unchanged.
-    local tangle_decompose_agent="gemini" tangle_decompose_fallback_agent="codex"
+    local tangle_decompose_agent="agy" tangle_decompose_fallback_agent="codex"
     if declare -f octopus_agent_override >/dev/null 2>&1; then
-        tangle_decompose_agent=$(octopus_agent_override "tangle" "decompose" "gemini")
+        tangle_decompose_agent=$(octopus_agent_override "tangle" "decompose" "agy")
         tangle_decompose_fallback_agent=$(octopus_agent_override "tangle" "decompose_fallback" "codex")
     fi
 
@@ -1388,7 +1388,7 @@ Every [CODING] line must include a same-line Files: clause."
         local role="implementer"
         local pane_icon="⚙️"
         if [[ "$subtask" =~ \[REASONING\] ]]; then
-            agent="gemini"
+            agent="agy"
             role="researcher"
             pane_icon="🧠"
         fi
@@ -1832,7 +1832,7 @@ format_workflow_banner() {
         # Compact: 2 lines
         local providers=""
         command -v codex &>/dev/null && providers+="🔴"
-        command -v gemini &>/dev/null && providers+="🟡"
+        command -v agy &>/dev/null && providers+="🟡"
         [[ -n "${PERPLEXITY_API_KEY:-}" ]] && providers+="🟣"
         providers+="🔵"
         echo "🐙 ${workflow} — ${description} | ${providers}"
@@ -1954,8 +1954,8 @@ Return a concise gate review with:
 4. Concrete changes needed before the next phase
 5. Evidence from the context artifact"
 
-    local codex_view="" gemini_view="" claude_view="" synthesis=""
-    local codex_status="failed" gemini_status="failed" claude_status="failed"
+    local codex_view="" agy_view="" claude_view="" synthesis=""
+    local codex_status="failed" agy_status="failed" claude_status="failed"
     local successful=0
 
     if codex_view=$(run_agent_sync "codex" "$gate_prompt" 120 "code-reviewer" "embrace-gate" 2>/dev/null); then
@@ -1964,9 +1964,9 @@ Return a concise gate review with:
             successful=$((successful + 1))
         fi
     fi
-    if gemini_view=$(run_agent_sync "agy" "$gate_prompt" 120 "researcher" "embrace-gate" 2>/dev/null); then
-        if [[ -n "$gemini_view" ]]; then
-            gemini_status="ok"
+    if agy_view=$(run_agent_sync "agy" "$gate_prompt" 120 "researcher" "embrace-gate" 2>/dev/null); then
+        if [[ -n "$agy_view" ]]; then
+            agy_status="ok"
             successful=$((successful + 1))
         fi
     fi
@@ -1987,13 +1987,13 @@ Return a concise gate review with:
 
 Task: ${prompt}
 Gate style: ${style}
-Provider statuses: codex=${codex_status}, gemini=${gemini_status}, claude=${claude_status}
+Provider statuses: codex=${codex_status}, agy=${agy_status}, claude=${claude_status}
 
 Codex:
 ${codex_view:-[no output]}
 
-Gemini:
-${gemini_view:-[no output]}
+Antigravity (agy):
+${agy_view:-[no output]}
 
 Claude:
 ${claude_view:-[no output]}
@@ -2017,7 +2017,7 @@ Return:
 **Task:** ${prompt}
 **Style:** ${style}
 **Context Artifact:** ${context_file}
-**Provider Statuses:** codex=${codex_status}, gemini=${gemini_status}, claude=${claude_status}
+**Provider Statuses:** codex=${codex_status}, agy=${agy_status}, claude=${claude_status}
 
 ---
 
@@ -2033,9 +2033,9 @@ ${synthesis}
 
 ${codex_view:-No output.}
 
-### Gemini (${gemini_status})
+### 🟡 Antigravity / agy (${agy_status})
 
-${gemini_view:-No output.}
+${agy_view:-No output.}
 
 ### Claude (${claude_status})
 
@@ -2052,7 +2052,7 @@ EOF
             "Embrace debate gate completed: ${prompt:0:80}" \
             "" \
             "high" \
-            "Provider statuses: codex=${codex_status}, gemini=${gemini_status}, claude=${claude_status}" \
+            "Provider statuses: codex=${codex_status}, agy=${agy_status}, claude=${claude_status}" \
             "" 2>/dev/null || true
     fi
 

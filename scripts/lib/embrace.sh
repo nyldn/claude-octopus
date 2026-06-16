@@ -23,11 +23,11 @@ get_dispatch_strategy() {
         full)
             local all_p="claude-sonnet"
             command -v codex >/dev/null 2>&1 && all_p="codex,${all_p}"
-            command -v agy >/dev/null 2>&1 && all_p="agy,${all_p}"
+            command -v agy >/dev/null 2>&1 && { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed agy; } && all_p="agy,${all_p}"
             echo "3:${all_p}:high"
             return 0 ;;
         minimal)
-            if command -v agy >/dev/null 2>&1; then echo "2:agy,claude-sonnet:high"
+            if command -v agy >/dev/null 2>&1 && { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed agy; }; then echo "2:agy,claude-sonnet:high"
             elif command -v codex >/dev/null 2>&1; then echo "2:codex,claude-sonnet:high"
             else echo "1:claude-sonnet:high"; fi
             return 0 ;;

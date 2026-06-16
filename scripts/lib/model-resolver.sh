@@ -173,7 +173,7 @@ resolve_octopus_model() {
                     # provider name like "provider:" with no model: skip for other
                     # providers, fall through to lower tiers for the provider itself.
                     case "$routed" in
-                        codex|claude|perplexity|qwen|copilot|opencode|ollama|openrouter|cursor-agent|vibe)
+                        codex|claude|agy|antigravity|perplexity|qwen|copilot|opencode|ollama|openrouter|cursor-agent|vibe)
                             [[ -n "$_trace" ]] && echo "[model-trace] Tier 3 (phase/role routing): SKIP (route '$routed' is a provider name, not a model — resolving for $provider)" >&2
                             routed=""
                             ;;
@@ -436,7 +436,8 @@ get_fallback_agent() {
                 [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: $preferred -> codex (no OpenRouter)" || true
                 echo "codex"
             else
-                echo "$preferred"
+                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: $preferred -> agy (no OpenRouter/codex)" || true
+                echo "agy"
             fi
             ;;
         *)

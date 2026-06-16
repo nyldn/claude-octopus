@@ -43,7 +43,11 @@ fi
 # (stdin is consumed once). Buffer stdout to a file to preserve output fidelity.
 prompt_file=""
 stdout_file=$(mktemp -t "octo-agy-stdout.XXXXXX")
-trap 'rm -f "${prompt_file:-}" "${stdout_file:-}"' EXIT INT TERM
+trap 'rm -f "${prompt_file:-}" "${stdout_file:-}"' EXIT
+# INT/TERM must actually terminate (bash otherwise resumes after the handler);
+# the EXIT trap still runs the cleanup on the way out.
+trap 'exit 130' INT
+trap 'exit 143' TERM
 if [[ ! -t 0 ]]; then
     prompt_file=$(mktemp -t "octo-agy-prompt.XXXXXX")
     cat > "$prompt_file"
