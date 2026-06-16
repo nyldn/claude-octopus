@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# octo-hud — local HUD over the Octopus JSONL event stream (oco-8gw).
+#
+# Usage:
+#   octo-hud [events.jsonl]
+#
+# Reads $OCTO_EVENT_LOG when no path is given. Run in a second terminal beside a
+# workflow to watch provider/dispatch/circuit lifecycle events live. No-op when
+# stdout is not a TTY.
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=/dev/null
+source "${SCRIPT_DIR}/scripts/lib/event-monitor.sh"
+
+octo_hud_run "${1:-}"

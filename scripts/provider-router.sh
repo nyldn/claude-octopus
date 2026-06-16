@@ -10,6 +10,14 @@ OCTOPUS_ROUTING_MODE="${OCTOPUS_ROUTING_MODE:-round-robin}"
 _ROUTER_STATE_FILE="${WORKSPACE_DIR:-${HOME}/.claude-octopus}/.router-state"
 _ROUTER_STATS_FILE="${WORKSPACE_DIR:-${HOME}/.claude-octopus}/.provider-stats.json"
 
+# Opt-in lifecycle event stream (oco-aek) — no-op unless OCTO_EVENT_LOG is set.
+# Sourced guarded; emits below are also declare-f guarded.
+if ! declare -f octo_event_emit >/dev/null 2>&1; then
+    _octo_pr_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+    # shellcheck source=/dev/null
+    source "${_octo_pr_lib_dir}/lib/events.sh" 2>/dev/null || true
+fi
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # Provider Reliability Layer (v9.8.0)
 # Error classification, circuit breaker, graduated backoff
@@ -107,6 +115,7 @@ record_provider_failure() {
             # Open the circuit breaker
             echo "$timestamp" > "${_PROVIDER_STATE_DIR}/${provider}.cooldown"
             log "WARN" "Circuit breaker OPEN for $provider — $recent_failures consecutive failures, cooling down ${OCTO_CB_COOLDOWN_SECS}s" 2>/dev/null || true
+            declare -f octo_event_emit >/dev/null 2>&1 && octo_event_emit "circuit-breaker.open" provider="$provider" failures="$recent_failures" cooldown="$OCTO_CB_COOLDOWN_SECS" || true
         fi
     fi
 
@@ -119,8 +128,13 @@ record_provider_success() {
     local provider="$1"
 
     # Clear failure log and cooldown on success
+    local _was_open=0
+    [[ -f "${_PROVIDER_STATE_DIR}/${provider}.cooldown" ]] && _was_open=1
     rm -f "${_PROVIDER_STATE_DIR}/${provider}.failures" 2>/dev/null
     rm -f "${_PROVIDER_STATE_DIR}/${provider}.cooldown" 2>/dev/null
+    if [[ "$_was_open" == "1" ]] && declare -f octo_event_emit >/dev/null 2>&1; then
+        octo_event_emit "circuit-breaker.closed" provider="$provider" || true
+    fi
 }
 
 # Check if a provider is available (not in cooldown)
@@ -142,6 +156,7 @@ is_provider_available() {
         # Cooldown expired → half-open state (allow probe)
         rm -f "$cooldown_file"
         log "INFO" "Circuit breaker HALF-OPEN for $provider — allowing probe after ${elapsed}s cooldown" 2>/dev/null || true
+        declare -f octo_event_emit >/dev/null 2>&1 && octo_event_emit "circuit-breaker.half-open" provider="$provider" cooldown_elapsed="$elapsed" || true
         return 0
     fi
 

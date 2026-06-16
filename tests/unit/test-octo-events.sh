@@ -163,6 +163,37 @@ test_orchestrate_enables_telemetry_by_default() {
     fi
 }
 
+test_circuit_breaker_events() {
+    test_case "circuit-breaker open/closed/half-open lifecycle events emit (oco-aek)"
+    local home="$FIXTURE/cb-home"; mkdir -p "$home"
+    local log="$FIXTURE/cb.jsonl"
+    (
+        export HOME="$home" WORKSPACE_DIR="$home" OCTO_EVENT_LOG="$log"
+        # shellcheck disable=SC1091
+        source "$PROJECT_ROOT/scripts/lib/events.sh"
+        # shellcheck disable=SC1091
+        source "$PROJECT_ROOT/scripts/provider-router.sh" 2>/dev/null
+        mkdir -p "$_PROVIDER_STATE_DIR"
+        for _ in 1 2 3; do record_provider_failure cbtest "rate limit exceeded 429" >/dev/null 2>&1; done
+        record_provider_success cbtest >/dev/null 2>&1
+        echo "$(( $(date +%s) - 9999 ))" > "$_PROVIDER_STATE_DIR/cbtest.cooldown"
+        is_provider_available cbtest >/dev/null 2>&1
+    )
+    if grep -q '"event":"circuit-breaker.open"' "$log" 2>/dev/null && \
+       grep -q '"event":"circuit-breaker.closed"' "$log" 2>/dev/null && \
+       grep -q '"event":"circuit-breaker.half-open"' "$log" 2>/dev/null; then
+        test_pass
+    else
+        test_fail "missing circuit-breaker events: $(grep -oE '"event":"circuit-breaker[^"]*"' "$log" 2>/dev/null | tr '\n' ' ')"
+    fi
+}
+
+test_provider_selected_event_wired() {
+    test_case "spawn.sh emits provider.selected after the circuit check (oco-aek)"
+    grep -q 'octo_event_emit "provider.selected"' "$PROJECT_ROOT/scripts/lib/spawn.sh" \
+        && test_pass || test_fail "spawn.sh missing provider.selected emit"
+}
+
 test_no_log_when_disabled
 test_emit_jsonl_event
 test_auto_log_path
@@ -172,5 +203,8 @@ test_check_providers_event_hook
 test_concurrent_emit_no_clobber
 test_dispatch_lifecycle_events
 test_orchestrate_enables_telemetry_by_default
+
+test_circuit_breaker_events
+test_provider_selected_event_wired
 
 test_summary

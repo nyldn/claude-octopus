@@ -314,6 +314,11 @@ is_agent_available_v2() {
     # Load config if needed
     [[ -z "$PROVIDER_CODEX_INSTALLED" ]] && load_providers_config
 
+    # oco-cbb: skip a provider marked quota/auth-dead earlier this session.
+    if declare -f octo_quota_is_dead >/dev/null 2>&1 && octo_quota_is_dead "${agent%%-*}"; then
+        return 1
+    fi
+
     if is_claude_agent_type "$agent"; then
         [[ "$PROVIDER_CLAUDE_INSTALLED" == "true" ]]
         return
