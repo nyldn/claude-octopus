@@ -2,7 +2,11 @@
 # Shared quota fast-fail watcher for provider CLIs that retry for a long time
 # after quota exhaustion instead of exiting promptly.
 
-OCTOPUS_QUOTA_PATTERN='QUOTA_EXHAUSTED|TerminalQuotaError|exhausted your capacity|RetryableQuotaError|Attempt [0-9]+ failed.*exhausted|insufficient_quota|HTTP 401'
+# Terminal-only quota/auth errors — the provider CLI cannot recover from these on its own.
+# Excludes RetryableQuotaError and "Attempt N failed" retry log lines, which the Gemini CLI
+# emits during its own backoff/retry cycle. Matching those caused premature SIGTERM before the
+# CLI's retry landed, silently dropping reviewer roles (exit 143, empty output). (issue #516)
+OCTOPUS_QUOTA_PATTERN='QUOTA_EXHAUSTED|TerminalQuotaError|exhausted your capacity|insufficient_quota|HTTP 401'
 
 # Session-scoped "this provider is quota/auth-dead" cache (oco-cbb). When a
 # terminal quota/auth error is seen at dispatch, the provider is marked here so
@@ -47,13 +51,22 @@ start_quota_watcher() {
     > "$temp_out"
 
     (
+        _consecutive=0
         while kill -0 "$target_pid" 2>/dev/null; do
             sleep 2
             if quota_watcher_has_match "$temp_err" "$temp_out"; then
-                log "WARN" "$warning_message"
-                octo_quota_mark_dead "$provider"
-                "$kill_callback" "$target_pid"
-                break
+                _consecutive=$((_consecutive + 1))
+                # Require the pattern to persist across two polls (~4 s) before killing.
+                # This lets provider CLIs with their own backoff (e.g. Gemini free-tier
+                # burst 429s) complete their retry before we act on the first match.
+                if [[ $_consecutive -ge 2 ]]; then
+                    log "WARN" "$warning_message"
+                    octo_quota_mark_dead "$provider"
+                    "$kill_callback" "$target_pid"
+                    break
+                fi
+            else
+                _consecutive=0
             fi
         done
     ) >/dev/null &
