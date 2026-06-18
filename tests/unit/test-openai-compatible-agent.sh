@@ -60,4 +60,83 @@ if assert_contains "$cmd" "scripts/helpers/openai-compatible-agent.py" "helper p
     test_pass
 fi
 
+
+test_case "openai-compatible-agent omits max_tokens when configured as provider default"
+if HELPER="$HELPER" python3 - <<'PYTEST'
+import importlib.util, json, os
+helper_path = os.environ["HELPER"]
+spec = importlib.util.spec_from_file_location("openai_compatible_agent", helper_path)
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+seen = []
+class Response:
+    def __enter__(self): return self
+    def __exit__(self, *args): return False
+    def read(self): return b'{"choices":[{"message":{"content":"ok"}}]}'
+def fake_urlopen(req, timeout):
+    seen.append(json.loads(req.data.decode()))
+    return Response()
+mod.urllib.request.urlopen = fake_urlopen
+mod.api_call("https://example.invalid/v1", "key", "model", {}, [{"role":"user","content":"hi"}], max_tokens=0, request_timeout=1, max_retries=1)
+assert "max_tokens" not in seen[-1], seen[-1]
+mod.api_call("https://example.invalid/v1", "key", "model", {}, [{"role":"user","content":"hi"}], max_tokens=123, request_timeout=1, max_retries=1)
+assert seen[-1]["max_tokens"] == 123, seen[-1]
+PYTEST
+then
+    test_pass
+else
+    test_fail "expected max_tokens=0 to omit max_tokens from request payload"
+fi
+
+test_case "openai-compatible-agent retries transient HTTP errors"
+if HELPER="$HELPER" python3 - <<'PYTEST'
+import importlib.util, io, os, urllib.error
+helper_path = os.environ["HELPER"]
+spec = importlib.util.spec_from_file_location("openai_compatible_agent", helper_path)
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+mod.time.sleep = lambda _seconds: None
+calls = {"n": 0}
+class Response:
+    def __enter__(self): return self
+    def __exit__(self, *args): return False
+    def read(self): return b'{"choices":[{"message":{"content":"ok"}}]}'
+def fake_urlopen(req, timeout):
+    calls["n"] += 1
+    if calls["n"] == 1:
+        raise urllib.error.HTTPError(req.full_url, 503, "unavailable", {}, io.BytesIO(b'temporary'))
+    return Response()
+mod.urllib.request.urlopen = fake_urlopen
+result = mod.api_call("https://example.invalid/v1", "key", "model", {}, [{"role":"user","content":"hi"}], max_tokens=0, request_timeout=1, max_retries=2)
+assert calls["n"] == 2, calls
+assert result["choices"][0]["message"]["content"] == "ok"
+PYTEST
+then
+    test_pass
+else
+    test_fail "expected transient HTTP failure to be retried"
+fi
+
+
+test_case "openai-compatible-agent rejects non-http base URL schemes"
+if HELPER="$HELPER" python3 - <<'PYTEST'
+import importlib.util, os
+helper_path = os.environ["HELPER"]
+spec = importlib.util.spec_from_file_location("openai_compatible_agent", helper_path)
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+try:
+    mod.api_call("file:///tmp/octopus", "key", "model", {}, [{"role":"user","content":"hi"}], max_tokens=0, request_timeout=1, max_retries=1)
+except ValueError as exc:
+    assert "unsupported OPENAI-compatible base URL scheme" in str(exc)
+else:
+    raise AssertionError("expected ValueError for file:// base URL")
+PYTEST
+then
+    test_pass
+else
+    test_fail "expected non-http base URL schemes to be rejected"
+fi
+
+
 test_summary
