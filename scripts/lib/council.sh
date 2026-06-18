@@ -74,7 +74,7 @@ Options:
   --implement never|after-approval|plan-only
   --worktree auto|on|off
   --benchmark auto|on|off
-  --providers auto|claude,codex,gemini,opencode,openrouter
+  --providers auto|claude,codex,gemini,qwen,opencode,openrouter
   --max-cost <usd>
   --simulate
   --single-model
@@ -175,7 +175,7 @@ council_validate_choice() {
 
 council_validate_provider_list() {
     local providers="$1"
-    local allowed="claude,codex,gemini,opencode,openrouter"
+    local allowed="claude,codex,gemini,qwen,opencode,openrouter"
 
     if [[ "$providers" == "auto" ]]; then
         return 0
@@ -882,7 +882,7 @@ council_pick_provider() {
     fi
 
     local provider providers="$COUNCIL_PROVIDERS"
-    [[ "$providers" == "auto" ]] && providers="claude,codex,gemini,opencode,openrouter"
+    [[ "$providers" == "auto" ]] && providers="claude,codex,gemini,qwen,opencode,openrouter"
     IFS=',' read -r -a provider_list <<< "$providers"
     for provider in "${provider_list[@]}"; do
         provider="${provider// /}"
@@ -982,7 +982,7 @@ council_candidate_personas() {
 
 council_available_provider_orgs_json() {
     local providers="$COUNCIL_PROVIDERS"
-    [[ "$providers" == "auto" ]] && providers="claude,codex,gemini,opencode,openrouter"
+    [[ "$providers" == "auto" ]] && providers="claude,codex,gemini,qwen,opencode,openrouter"
 
     local json='[]' provider org
     IFS=',' read -r -a provider_list <<< "$providers"
@@ -998,7 +998,7 @@ council_available_provider_orgs_json() {
 council_provider_for_org() {
     local wanted_org="$1"
     local providers="$COUNCIL_PROVIDERS"
-    [[ "$providers" == "auto" ]] && providers="claude,codex,gemini,opencode,openrouter"
+    [[ "$providers" == "auto" ]] && providers="claude,codex,gemini,qwen,opencode,openrouter"
 
     local provider
     IFS=',' read -r -a provider_list <<< "$providers"
@@ -1032,43 +1032,56 @@ council_candidate_for_provider_org() {
 }
 
 council_enforce_provider_diversity() {
-    [[ "$COUNCIL_DEPTH" == "quick" ]] && return 0
-
-    local available_orgs available_count roster_count missing_org replacement provider candidate entry replace_index
+    # Represent every AVAILABLE provider org on the council (the requested provider
+    # list, or the auto list, filtered by availability), bounded by the number of
+    # non-chair seats. The previous implementation only guaranteed >=2 orgs and
+    # bailed at quick depth, so a low-scoring-but-available provider (e.g. gemini,
+    # whose personas score below codex's) could be seated 0 times even when the
+    # user explicitly passed `--providers claude,codex,gemini` — chair(claude)+codex
+    # already satisfied the 2-org floor. Only duplicate-org seats are replaced
+    # (never displace a seat that is the sole representative of a needed org, so the
+    # loop can't thrash when more orgs are available than seats), the chair seat is
+    # never touched, and the replaced seat keeps its label.
+    local available_orgs available_count
     available_orgs="$(council_available_provider_orgs_json)"
     available_count="$(jq 'length' <<< "$available_orgs")"
     (( available_count >= 2 )) || return 0
 
-    roster_count="$(jq '[.[].provider_org] | unique | length' <<< "$COUNCIL_ROSTER_JSON")"
-    (( roster_count >= 2 )) && return 0
+    local guard=0
+    while (( guard++ < 12 )); do
+        local roster_count
+        roster_count="$(jq '[.[].provider_org] | unique | length' <<< "$COUNCIL_ROSTER_JSON")"
+        (( roster_count >= available_count )) && break
 
-    missing_org="$(jq -r --argjson roster "$COUNCIL_ROSTER_JSON" '.[] as $org | select(($roster | map(.provider_org) | index($org)) | not) | $org' <<< "$available_orgs" | head -1)"
-    if [[ -z "$missing_org" ]]; then
-        return 0
-    fi
+        local missing_org
+        missing_org="$(jq -r --argjson roster "$COUNCIL_ROSTER_JSON" '.[] as $org | select(($roster | map(.provider_org) | index($org)) | not) | $org' <<< "$available_orgs" | head -1)"
+        [[ -z "$missing_org" ]] && break
 
-    replacement="$(council_candidate_for_provider_org "$missing_org" || true)"
-    if [[ -z "$replacement" ]]; then
-        COUNCIL_DIVERSITY_WARNING="available provider diversity could not be represented by configured personas"
-        return 0
-    fi
+        local replacement
+        replacement="$(council_candidate_for_provider_org "$missing_org" || true)"
+        if [[ -z "$replacement" ]]; then
+            COUNCIL_DIVERSITY_WARNING="available provider diversity could not be represented by configured personas"
+            break
+        fi
+        local candidate="${replacement%%|*}" provider="${replacement#*|}" entry
+        entry="$(council_roster_entry_json "$candidate" "$provider")"
 
-    candidate="${replacement%%|*}"
-    provider="${replacement#*|}"
-    entry="$(council_roster_entry_json "$candidate" "$provider")"
+        # Replace the lowest-scoring non-chair seat whose org is duplicated (safe to
+        # drop without losing coverage). If none exists, stop — never displace a
+        # unique-org seat.
+        local replace_index
+        replace_index="$(jq -r '
+            ([.[].provider_org] | group_by(.) | map(select(length>1)[0])) as $dups
+            | [ to_entries[] | select(.value.seat != "chair") | select(.value.provider_org as $o | $dups | index($o)) ]
+            | if length == 0 then empty else (min_by(.value.score) | .key) end
+        ' <<< "$COUNCIL_ROSTER_JSON")"
+        [[ -z "$replace_index" ]] && break
 
-    replace_index="$(jq -r '
-        [to_entries[] | select(.value.seat != "chair")] |
-        if length == 0 then empty else min_by(.value.score).key end
-    ' <<< "$COUNCIL_ROSTER_JSON")"
-
-    if [[ -z "$replace_index" ]]; then
-        COUNCIL_DIVERSITY_WARNING="provider diversity required but no replaceable non-chair seat was available"
-        return 0
-    fi
-
-    COUNCIL_ROSTER_JSON="$(jq -c --argjson entry "$entry" --argjson index "$replace_index" '.[$index] = $entry' <<< "$COUNCIL_ROSTER_JSON")"
-    COUNCIL_DIVERSITY_REPLACED="true"
+        # Preserve the replaced seat's label so a chair-type persona swapped in for
+        # diversity does not create a second "chair" seat.
+        COUNCIL_ROSTER_JSON="$(jq -c --argjson entry "$entry" --argjson index "$replace_index" '.[$index] = ($entry + {seat: .[$index].seat})' <<< "$COUNCIL_ROSTER_JSON")"
+        COUNCIL_DIVERSITY_REPLACED="true"
+    done
 }
 
 council_build_roster() {
@@ -1950,7 +1963,7 @@ council_start_implementation_handoff() {
 council_detect_providers() {
     local providers="$COUNCIL_PROVIDERS"
     if [[ "$providers" == "auto" ]]; then
-        providers="claude,codex,gemini,opencode,openrouter"
+        providers="claude,codex,gemini,qwen,opencode,openrouter"
     fi
 
     local json='{}'
