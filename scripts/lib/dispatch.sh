@@ -151,7 +151,7 @@ get_agent_command() {
         openrouter-deepseek) echo "openrouter_execute_model deepseek/deepseek-r1-0528" ;; # v8.11.0: DeepSeek R1 via OpenRouter
         openai-compatible-agent)  # Generic OpenAI-compatible tool-loop agent
             model=$(get_agent_model "$agent_type" "$phase" "$role")
-            echo "${PLUGIN_DIR}/scripts/helpers/openai-compatible-agent.py --provider generic --model ${model} --cwd ${PWD}"
+            echo "${PLUGIN_DIR}/scripts/helpers/openai-compatible-agent.py --provider generic --model ${model} --cwd $(printf '%q' "$PWD")"
             ;;
         perplexity|perplexity-fast)  # v8.24.0: Perplexity Sonar — web-grounded research (Issue #22)
             model=$(get_agent_model "$agent_type" "$phase" "$role")

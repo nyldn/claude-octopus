@@ -105,7 +105,7 @@ ensure_config() {
     }
   },
   "tiers": {
-    "budget": { "codex": "mini", "gemini": "flash", "opencode": "fast" },
+    "budget": { "codex": "mini", "gemini": "flash-lite", "opencode": "fast" },
     "standard": { "codex": "default", "gemini": "default", "opencode": "default" },
     "premium": { "codex": "default", "gemini": "default", "opencode": "default" }
   },

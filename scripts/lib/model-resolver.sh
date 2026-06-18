@@ -63,6 +63,11 @@ resolve_octopus_model() {
         echo "${!env_var}"
         return 0
     fi
+    # Short alias for openai-compatible-agent (matches Tier 7 fallback at line 254)
+    if [[ "$provider" == openai-compatible-agent* && -n "${OPENAI_COMPAT_MODEL:-}" ]]; then
+        echo "${OPENAI_COMPAT_MODEL}"
+        return 0
+    fi
 
     # 0. Session Cache (v8.53.0)
     # Uses a process-local memory cache + optional file-based cache for cross-process speed

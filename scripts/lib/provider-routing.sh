@@ -334,10 +334,10 @@ set_provider_model() {
 
     # v8.49.0: Provider whitelist validation
     case "$provider" in
-        codex|gemini|claude|perplexity|opencode|openrouter|openai-compatible-agent|cursor-agent) ;;
+        codex|gemini|claude|perplexity|opencode|openrouter|openai-compatible-agent|cursor-agent|agy|antigravity) ;;
         *)
             if [[ "${4:-}" != "--force" ]]; then
-                echo "ERROR: Unknown provider '$provider'. Valid: codex, gemini, claude, perplexity, opencode, openrouter, openai-compatible-agent, cursor-agent" >&2
+                echo "ERROR: Unknown provider '$provider'. Valid: codex, gemini, claude, perplexity, opencode, openrouter, openai-compatible-agent, cursor-agent, agy, antigravity" >&2
                 echo "  Use --force to set a custom provider (e.g., for local proxies)" >&2
                 return 1
             fi
@@ -441,12 +441,12 @@ reset_provider_model() {
         # Clear all overrides (v8.49.0: atomic)
         atomic_json_update "$config_file" '.overrides = {}'
         echo "✓ Cleared all model overrides"
-    elif [[ "$provider" =~ ^(codex|gemini|claude|perplexity|opencode|openrouter|openai-compatible-agent|cursor-agent)$ ]]; then
+    elif [[ "$provider" =~ ^(codex|gemini|claude|perplexity|opencode|openrouter|openai-compatible-agent|cursor-agent|agy|antigravity)$ ]]; then
         # Clear specific override (v8.49.0: atomic + jq --arg)
         atomic_json_update "$config_file" 'del(.overrides[$p])' --arg p "$provider"
         echo "✓ Cleared $provider override"
     else
-        echo "ERROR: Invalid provider '$provider'. Use 'codex', 'gemini', 'claude', 'perplexity', 'opencode', 'openrouter', 'cursor-agent', or 'all'" >&2
+        echo "ERROR: Invalid provider '$provider'. Use 'codex', 'gemini', 'claude', 'perplexity', 'opencode', 'openrouter', 'cursor-agent', 'agy', 'antigravity', or 'all'" >&2
         return 1
     fi
 
