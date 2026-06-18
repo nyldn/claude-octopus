@@ -28,6 +28,15 @@ octo_write_stable_script_shim() {
 
     [[ -f "$src" ]] || return 0
 
+    # Refuse to write a shim that resolves to its own source file. If
+    # stable_root's children are symlinks into the live plugin cache (rather
+    # than stable_root itself being a single symlink), or dst is itself a
+    # symlink aliasing src, writing the exec stub there corrupts the live
+    # script into a self-referential exec loop. -ef compares device+inode so
+    # it catches aliasing via either a symlinked parent dir or dst itself
+    # being a symlink to src. See #521.
+    [[ -e "$dst" && "$src" -ef "$dst" ]] && return 0
+
     local quoted_src
     printf -v quoted_src '%q' "$src"
     mkdir -p "$(dirname "$dst")"

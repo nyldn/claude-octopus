@@ -398,9 +398,9 @@ get_fallback_agent() {
             ;;
         codex|codex-standard|codex-mini)
             # Codex unavailable, try gemini
-            if is_agent_available "gemini"; then
-                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: $preferred -> gemini (no OpenAI)" || true
-                echo "gemini"
+            if is_agent_available "agy"; then
+                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: $preferred -> agy (no OpenAI)" || true
+                echo "agy"
             else
                 echo "$preferred"
             fi
@@ -410,9 +410,9 @@ get_fallback_agent() {
             if is_agent_available "codex"; then
                 [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: codex-spark -> codex (spark unavailable)" || true
                 echo "codex"
-            elif is_agent_available "gemini"; then
-                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: codex-spark -> gemini (no OpenAI)" || true
-                echo "gemini"
+            elif is_agent_available "agy"; then
+                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: codex-spark -> agy (no OpenAI)" || true
+                echo "agy"
             else
                 echo "$preferred"
             fi
@@ -422,9 +422,9 @@ get_fallback_agent() {
             if is_agent_available "codex"; then
                 [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: codex-reasoning -> codex (reasoning unavailable)" || true
                 echo "codex"
-            elif is_agent_available "gemini"; then
-                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: codex-reasoning -> gemini (no OpenAI)" || true
-                echo "gemini"
+            elif is_agent_available "agy"; then
+                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: codex-reasoning -> agy (no OpenAI)" || true
+                echo "agy"
             else
                 echo "$preferred"
             fi
@@ -434,9 +434,9 @@ get_fallback_agent() {
             if is_agent_available "codex"; then
                 [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: codex-large-context -> codex (large-ctx unavailable)" || true
                 echo "codex"
-            elif is_agent_available "gemini"; then
-                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: codex-large-context -> gemini (no OpenAI)" || true
-                echo "gemini"
+            elif is_agent_available "agy"; then
+                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: codex-large-context -> agy (no OpenAI)" || true
+                echo "agy"
             else
                 echo "$preferred"
             fi
@@ -449,9 +449,9 @@ get_fallback_agent() {
             elif is_agent_available "codex"; then
                 [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: $preferred -> codex (no OpenRouter)" || true
                 echo "codex"
-            elif is_agent_available "gemini"; then
-                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: $preferred -> gemini (no OpenRouter/OpenAI)" || true
-                echo "gemini"
+            elif is_agent_available "agy"; then
+                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: $preferred -> agy (no OpenRouter/OpenAI)" || true
+                echo "agy"
             else
                 echo "$preferred"
             fi

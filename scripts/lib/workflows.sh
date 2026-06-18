@@ -742,7 +742,7 @@ grasp_define() {
         echo -e " ${YELLOW}⚠${NC}  Codex unavailable for problem definition — falling back to Claude"
         def1=$(run_agent_sync "claude-sonnet" "Based on: $prompt\n${context}Define the core problem statement in 2-3 sentences. What is the essential challenge?" 120 "backend-architect" "grasp") || true
     }
-    def2=$(run_agent_sync "gemini" "Based on: $prompt\n${context}Define success criteria. How will we know when this is solved correctly? List 3-5 measurable criteria." 120 "researcher" "grasp") || {
+    def2=$(run_agent_sync "agy" "Based on: $prompt\n${context}Define success criteria. How will we know when this is solved correctly? List 3-5 measurable criteria." 120 "researcher" "grasp") || {
         log WARN "Gemini failed for success criteria, falling back to Claude"
         echo -e " ${YELLOW}⚠${NC}  Gemini unavailable for success criteria — falling back to Claude"
         def2=$(run_agent_sync "claude-sonnet" "Based on: $prompt\n${context}Define success criteria. How will we know when this is solved correctly? List 3-5 measurable criteria." 120 "researcher" "grasp") || true
@@ -773,7 +773,7 @@ Output a single, clear problem definition document with:
 4. Recommended Approach"
 
     local consensus
-    consensus=$(run_agent_sync "gemini" "$consensus_prompt" 180 "synthesizer" "grasp") || {
+    consensus=$(run_agent_sync "agy" "$consensus_prompt" 180 "synthesizer" "grasp") || {
         consensus="[Auto-consensus failed - manual review required]\n\nProblem: $def1\n\nSuccess Criteria: $def2\n\nConstraints: $def3"
     }
 
@@ -1083,7 +1083,7 @@ Previous decomposition:
 ${previous_decomposition}
 "
 
-    run_agent_sync "gemini" "$reformat_prompt" 120 "researcher" "tangle" || \
+    run_agent_sync "agy" "$reformat_prompt" 120 "researcher" "tangle" || \
     run_agent_sync "claude-sonnet" "$reformat_prompt" 120 "researcher" "tangle"
 }
 
@@ -1306,9 +1306,9 @@ Every [CODING] line must include a same-line Files: clause."
     # Tangle decomposition agents are overridable (OCTOPUS_TANGLE_DECOMPOSE_AGENT,
     # OCTOPUS_TANGLE_DECOMPOSE_FALLBACK_AGENT, OCTOPUS_TANGLE_AGENT). Override only
     # selects the dispatch agent; the fail-closed contract below is unchanged.
-    local tangle_decompose_agent="gemini" tangle_decompose_fallback_agent="codex"
+    local tangle_decompose_agent="agy" tangle_decompose_fallback_agent="codex"
     if declare -f octopus_agent_override >/dev/null 2>&1; then
-        tangle_decompose_agent=$(octopus_agent_override "tangle" "decompose" "gemini")
+        tangle_decompose_agent=$(octopus_agent_override "tangle" "decompose" "agy")
         tangle_decompose_fallback_agent=$(octopus_agent_override "tangle" "decompose_fallback" "codex")
     fi
 
@@ -1388,7 +1388,7 @@ Every [CODING] line must include a same-line Files: clause."
         local role="implementer"
         local pane_icon="⚙️"
         if [[ "$subtask" =~ \[REASONING\] ]]; then
-            agent="gemini"
+            agent="agy"
             role="researcher"
             pane_icon="🧠"
         fi
@@ -1788,7 +1788,7 @@ Compact source context to synthesize:
 $all_results"
 
     local delivery
-    delivery=$(run_agent_sync "gemini" "$synthesis_prompt" 180 "synthesizer" "ink") || {
+    delivery=$(run_agent_sync "agy" "$synthesis_prompt" 180 "synthesizer" "ink") || {
         delivery=$(build_ink_fallback_delivery "$prompt" "$sonnet_review" "$all_results")
     }
 
@@ -1964,7 +1964,7 @@ Return a concise gate review with:
             successful=$((successful + 1))
         fi
     fi
-    if gemini_view=$(run_agent_sync "gemini" "$gate_prompt" 120 "researcher" "embrace-gate" 2>/dev/null); then
+    if gemini_view=$(run_agent_sync "agy" "$gate_prompt" 120 "researcher" "embrace-gate" 2>/dev/null); then
         if [[ -n "$gemini_view" ]]; then
             gemini_status="ok"
             successful=$((successful + 1))

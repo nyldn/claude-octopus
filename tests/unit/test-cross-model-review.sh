@@ -97,12 +97,14 @@ test_scorecard_format() {
 }
 
 test_cross_model_assignment() {
-    test_case "Cross-model reviewer assignment (codex->gemini, gemini->codex)"
+    test_case "Cross-model reviewer assignment (codex->agy, agy->codex)"
 
     local func_body
     func_body=$(sed -n '/^get_cross_model_reviewer()/,/^}/p' "$ALL_SRC")
 
-    if echo "$func_body" | grep -q 'codex.*gemini' && echo "$func_body" | grep -q 'gemini.*codex'; then
+    # Google seat is agy (Gemini CLI sunset 2026-06-18): codex author -> agy
+    # reviewer, agy author -> codex reviewer.
+    if echo "$func_body" | grep -q 'codex.*agy' && echo "$func_body" | grep -q 'agy.*codex'; then
         test_pass
     else
         test_fail "Cross-model assignment not correct"
