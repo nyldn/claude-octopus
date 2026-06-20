@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- **Ollama provider can no longer trigger an unbounded auto-pull on fallback.** `ollama run <model>` silently downloads a missing model, so a provider-failure cascade to the local Ollama provider could kick off an unbounded multi-GB pull with no human in the loop (observed: a ~42 GB pull). All Ollama dispatch now routes through a fail-closed shim (`scripts/helpers/ollama-run.sh`) that refuses to pull an absent model unless `OCTOPUS_OLLAMA_ALLOW_PULL=true`, and caps an allowed pull at `OCTOPUS_OLLAMA_MAX_PULL_GB` (default 20).
 - **The agy council seat now records its real model instead of `"default"`.** `agy-exec` runs `agy --print` with `--model default` (agy uses whatever is picked in its own `/model` UI), so the roster artifact and preflight banner logged the opaque string `default` for the agy seat — making a Codex+agy panel's cross-lab-vs-same-lineage status unverifiable from `summary.json`. New `agy_current_model()` (`lib/providers.sh`) honors `OCTOPUS_AGY_MODEL`, else resolves the selection from `~/.gemini/antigravity-cli/settings.json`, else fails safe to `default (unresolved)`; it's wired into `council_roster_entry_json` and the preflight banner. Purely diagnostic — never gates logic, and guarded with `declare -f` so standalone runs fall back to prior behavior.
 
 ## [9.48.0] - 2026-07-06

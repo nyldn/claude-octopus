@@ -178,7 +178,11 @@ get_agent_command() {
             if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
                 return 1
             fi
-            echo "ollama run $model"
+            # Route through the guard shim instead of a bare `ollama run`: that
+            # auto-pulls a missing model, so a provider-failure cascade could
+            # silently kick off an unbounded multi-GB download. The shim refuses
+            # to pull an absent model unless OCTOPUS_OLLAMA_ALLOW_PULL=true.
+            echo "${PLUGIN_DIR}/scripts/helpers/ollama-run.sh $model"
             ;;
         qwen|qwen-research)  # v9.10.0: Qwen CLI — fork of Gemini CLI
             # oco-dar: NO_BROWSER=1 stops a stale token from hijacking the user's
