@@ -170,7 +170,7 @@ validate_agent_command() {
 
     # Allow helper shims only when they are the executable token, not when they
     # appear later in the command string.
-    if [[ "$cmd_executable" == */vibe-exec.sh || "$cmd_executable" == */openai-compatible-agent.py || "$cmd_executable" == */ollama-run.sh ]]; then
+    if [[ "$cmd_executable" == */vibe-exec.sh || "$cmd_executable" == */openai-compatible-agent.py || "$cmd_executable" == */ollama-run.sh || "$cmd_executable" == */codex-run.sh ]]; then
         return 0
     fi
 

@@ -14,6 +14,42 @@
 # - Google Gemini 3.0: gemini-3.1-pro-preview, gemini-3-flash-preview, gemini-3-pro-image-preview
 # - Google Antigravity CLI: agy --print stdin dispatch, optional OCTOPUS_AGY_MODEL
 # Note: "API-key only" models require OPENAI_API_KEY; they are NOT available via ChatGPT subscription/OAuth.
+
+# ── Does a resolved codex model name indicate an OSS/local model that codex
+#    serves through ollama (and would silently auto-pull)? codex's built-in OSS
+#    family is gpt-oss*; ollama-served models also carry a size tag like ':120b'.
+#    Cloud codex models (gpt-5.x, o3, gpt-4.1, gpt-5.2-codex) never use that tag
+#    form, so this stays conservative and leaves normal codex dispatch untouched.
+#    NOTE: keep in sync with _codex_model_is_oss() in helpers/codex-run.sh. ──
+_codex_dispatch_is_oss_model() {
+    local m="$1"
+    [[ -z "$m" ]] && return 1
+    shopt -s nocasematch
+    local rc=1
+    if [[ "$m" == gpt-oss* ]] || [[ "$m" =~ :[0-9]+(\.[0-9]+)?b$ ]]; then
+        rc=0
+    elif [[ -n "${OCTOPUS_CODEX_OSS_PATTERNS:-}" && "$m" =~ ${OCTOPUS_CODEX_OSS_PATTERNS} ]]; then
+        rc=0
+    fi
+    shopt -u nocasematch
+    return $rc
+}
+
+# ── Build the `codex exec` dispatch string. For OSS/local models, wrap it in the
+#    pull-guard shim (helpers/codex-run.sh) so codex cannot fire an unbounded
+#    `ollama pull` for an absent multi-GB model unless OCTOPUS_OLLAMA_ALLOW_PULL
+#    is set — closing the codex-side vector that ollama-run.sh does not cover.
+#    Cloud models are emitted unchanged (zero behavior change for the common path). ──
+_build_codex_exec_command() {
+    local codex_bin="$1" model="$2" sandbox_flag="$3"
+    local base="${codex_bin} exec --skip-git-repo-check --model ${model} ${sandbox_flag} -"
+    if _codex_dispatch_is_oss_model "$model"; then
+        echo "${PLUGIN_DIR}/scripts/helpers/codex-run.sh ${base}"
+    else
+        echo "$base"
+    fi
+}
+
 get_agent_command() {
     local agent_type="$1"
     local phase="${2:-}"
@@ -67,19 +103,19 @@ get_agent_command() {
     case "$agent_type" in
         codex|codex-standard|codex-max|codex-mini|codex-general)
             model=$(get_agent_model "$agent_type" "$phase" "$role")
-            echo "${codex_bin} exec --skip-git-repo-check --model ${model} ${sandbox_flag} -"
+            _build_codex_exec_command "$codex_bin" "$model" "$sandbox_flag"
             ;;
         codex-spark)  # v8.9.0: Ultra-fast Spark model (1000+ tok/s)
             model=$(get_agent_model "$agent_type" "$phase" "$role")
-            echo "${codex_bin} exec --skip-git-repo-check --model ${model} ${sandbox_flag} -"
+            _build_codex_exec_command "$codex_bin" "$model" "$sandbox_flag"
             ;;
         codex-reasoning)  # v8.9.0: Reasoning models (o3, o3)
             model=$(get_agent_model "$agent_type" "$phase" "$role")
-            echo "${codex_bin} exec --skip-git-repo-check --model ${model} ${sandbox_flag} -"
+            _build_codex_exec_command "$codex_bin" "$model" "$sandbox_flag"
             ;;
         codex-large-context)  # v8.9.0: 1M context models (gpt-4.1)
             model=$(get_agent_model "$agent_type" "$phase" "$role")
-            echo "${codex_bin} exec --skip-git-repo-check --model ${model} ${sandbox_flag} -"
+            _build_codex_exec_command "$codex_bin" "$model" "$sandbox_flag"
             ;;
         gemini|gemini-fast|gemini-image)
             model=$(get_agent_model "$agent_type" "$phase" "$role")
