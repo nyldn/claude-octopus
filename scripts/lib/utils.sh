@@ -207,7 +207,7 @@ validate_agent_command() {
         _validate_openai_compatible_agent_command "$cmd"
         return $?
     fi
-    if [[ "$cmd_executable" == */vibe-exec.sh || "$cmd_executable" == */ollama-run.sh ]]; then
+    if [[ "$cmd_executable" == */vibe-exec.sh || "$cmd_executable" == */ollama-run.sh || "$cmd_executable" == */codex-run.sh ]]; then
         return 0
     fi
 

@@ -74,6 +74,18 @@ build_provider_env() {
             if [[ -n "$_codex_env_key" && "$_codex_env_key" != "OPENAI_API_KEY" && -n "${!_codex_env_key:-}" ]]; then
                 PROVIDER_ENV_ARRAY+=("${_codex_env_key}=${!_codex_env_key}")
             fi
+            # codex has NO flag to disable its OSS/local-model auto-download
+            # (verified against `codex exec --help`). Octopus instead gates that
+            # pull externally via helpers/codex-run.sh. That shim runs inside this
+            # isolated env, so forward the pull-guard opt-in contract here —
+            # otherwise `env -i` strips it and the shim would refuse every OSS
+            # dispatch (or, worse if absent, never see the user's opt-in/cap).
+            local _oss_var
+            for _oss_var in OCTOPUS_OLLAMA_ALLOW_PULL OCTOPUS_OLLAMA_MAX_PULL_GB OCTOPUS_OLLAMA_BIN OCTOPUS_CODEX_OSS_PATTERNS; do
+                if [[ -n "${!_oss_var:-}" ]]; then
+                    PROVIDER_ENV_ARRAY+=("${_oss_var}=${!_oss_var}")
+                fi
+            done
             if [[ ${#_trace_env[@]} -gt 0 ]]; then
                 PROVIDER_ENV_ARRAY+=("${_trace_env[@]}")
             fi
