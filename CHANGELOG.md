@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **Ollama provider can no longer trigger an unbounded auto-pull on fallback.** `ollama run <model>` silently downloads a missing model, so a provider-failure cascade to the local Ollama provider could kick off an unbounded multi-GB pull with no human in the loop (observed: a ~42 GB pull). All Ollama dispatch now routes through a fail-closed shim (`scripts/helpers/ollama-run.sh`) that refuses to pull an absent model unless `OCTOPUS_OLLAMA_ALLOW_PULL=true`, and caps an allowed pull at `OCTOPUS_OLLAMA_MAX_PULL_GB` (default 20).
+
 ## [9.45.0] - 2026-06-14
 
 ### Added
