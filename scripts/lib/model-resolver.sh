@@ -173,7 +173,7 @@ resolve_octopus_model() {
                     # provider name like "provider:" with no model: skip for other
                     # providers, fall through to lower tiers for the provider itself.
                     case "$routed" in
-                        codex|gemini|claude|perplexity|qwen|copilot|opencode|ollama|openrouter|cursor-agent|vibe)
+                        codex|gemini|claude|perplexity|qwen|copilot|opencode|ollama|openrouter|cursor-agent|vibe|agy|agy-research|antigravity)
                             [[ -n "$_trace" ]] && echo "[model-trace] Tier 3 (phase/role routing): SKIP (route '$routed' is a provider name, not a model — resolving for $provider)" >&2
                             routed=""
                             ;;
