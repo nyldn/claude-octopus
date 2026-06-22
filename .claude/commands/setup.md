@@ -63,6 +63,10 @@ status_env() { [[ -n "${1:-}" ]] && echo "Configured ✓" || echo "Not set ✗";
 codex_status="$(status_installed codex)"
 gemini_status="$(status_installed gemini)"
 agy_status="$(status_installed agy)"
+agy_model_note=""
+if [[ "$agy_status" == "Installed ✓" ]]; then
+  agy_model_note=" (model: ${OCTOPUS_AGY_MODEL:-agy default})"
+fi
 perplexity_status="$(status_env "${PERPLEXITY_API_KEY:-}")"
 copilot_status="$(status_optional copilot)"
 qwen_status="$(status_optional qwen)"
@@ -75,7 +79,7 @@ cat <<BANNER
 Providers:
   🔴 Codex CLI:      ${codex_status}
   🟡 Gemini CLI:     ${gemini_status}
-  🧭 Antigravity:    ${agy_status} (model: ${OCTOPUS_AGY_MODEL:-agy default})
+  🧭 Antigravity:    ${agy_status}${agy_model_note}
   🟣 Perplexity:     ${perplexity_status}
   🟢 Copilot CLI:    ${copilot_status}
   🟠 Qwen CLI:       ${qwen_status}
