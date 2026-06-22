@@ -1377,6 +1377,22 @@ Every [CODING] line must include a same-line Files: clause."
     local pids=()
     local task_ids=()
 
+    # [REASONING] subtask routing is overridable and falls back through available
+    # providers — mirrors the tangle_decompose_agent resolution above. Without
+    # this, users without agy get an unconditional exit 127 on every REASONING
+    # subtask even though the provider health check already flagged agy as absent.
+    local tangle_reasoning_agent="agy"
+    if declare -f octopus_agent_override >/dev/null 2>&1; then
+        tangle_reasoning_agent=$(octopus_agent_override "tangle" "reasoning" "agy")
+    fi
+    if ! command -v "$tangle_reasoning_agent" >/dev/null 2>&1; then
+        local _tangle_reasoning_fb
+        for _tangle_reasoning_fb in gemini codex claude-sonnet; do
+            command -v "$_tangle_reasoning_fb" >/dev/null 2>&1 \
+                && tangle_reasoning_agent="$_tangle_reasoning_fb" && break
+        done
+    fi
+
     fleet_dispatch_begin
     while IFS= read -r line; do
         [[ -z "$line" ]] && continue
@@ -1388,7 +1404,7 @@ Every [CODING] line must include a same-line Files: clause."
         local role="implementer"
         local pane_icon="⚙️"
         if [[ "$subtask" =~ \[REASONING\] ]]; then
-            agent="agy"
+            agent="$tangle_reasoning_agent"
             role="researcher"
             pane_icon="🧠"
         fi
