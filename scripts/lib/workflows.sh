@@ -1387,10 +1387,16 @@ Every [CODING] line must include a same-line Files: clause."
     fi
     if ! command -v "$tangle_reasoning_agent" >/dev/null 2>&1; then
         local _tangle_reasoning_fb
-        for _tangle_reasoning_fb in gemini codex claude-sonnet; do
+        for _tangle_reasoning_fb in gemini codex; do
             command -v "$_tangle_reasoning_fb" >/dev/null 2>&1 \
                 && tangle_reasoning_agent="$_tangle_reasoning_fb" && break
         done
+        # claude-sonnet is a type resolved by get_agent_command, not a bare
+        # executable — command -v never finds it. Fall back unconditionally
+        # since the claude binary (the host process) is always available.
+        if ! command -v "$tangle_reasoning_agent" >/dev/null 2>&1; then
+            tangle_reasoning_agent="claude-sonnet"
+        fi
     fi
 
     fleet_dispatch_begin
