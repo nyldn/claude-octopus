@@ -90,7 +90,7 @@ cmd_detect_providers() {
     if command -v agy &>/dev/null; then
         echo "AGY_STATUS=ok"
         echo "AGY_AUTH=cli"
-        echo "AGY_MODEL=${OCTOPUS_AGY_MODEL:-Claude Sonnet 4.6 (Thinking)}"
+        echo "AGY_MODEL=${OCTOPUS_AGY_MODEL:-}"
     else
         echo "AGY_STATUS=not-installed"
         echo "AGY_AUTH=none"
@@ -206,7 +206,7 @@ cmd_detect_providers() {
     local gemini_auth=$([[ -f "$HOME/.gemini/oauth_creds.json" ]] && echo "oauth" || [[ -n "${GEMINI_API_KEY:-}" ]] && echo "api-key" || echo "none")
     local agy_status=$(command -v agy &>/dev/null && echo "ok" || echo "not-installed")
     local agy_auth=$([[ "$agy_status" == "ok" ]] && echo "cli" || echo "none")
-    local agy_model="${OCTOPUS_AGY_MODEL:-Claude Sonnet 4.6 (Thinking)}"
+    local agy_model="${OCTOPUS_AGY_MODEL:-}"
     local perplexity_status=$([[ -n "${PERPLEXITY_API_KEY:-}" ]] && echo "ok" || echo "not-configured")
     local perplexity_auth=$([[ -n "${PERPLEXITY_API_KEY:-}" ]] && echo "api-key" || echo "none")
     local ollama_status=$(command -v ollama &>/dev/null && { curl -sf http://localhost:11434/api/tags &>/dev/null && echo "running" || echo "stopped"; } || echo "not-installed")
@@ -282,7 +282,7 @@ EOF
     fi
 
     if [[ "$agy_status" == "ok" ]]; then
-        echo "  ✓ Antigravity: Installed ($agy_model) — agy provider enabled"
+        echo "  ✓ Antigravity: Installed (model: ${agy_model:-agy default}) — agy provider enabled"
     else
         echo "  ○ Antigravity: Not installed (optional — install agy from Google Antigravity)"
     fi
