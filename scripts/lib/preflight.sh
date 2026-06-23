@@ -268,17 +268,17 @@ EOF
     if [[ "$codex_status" == "ok" && "$codex_auth" != "none" ]]; then
         echo "  ✓ Codex: Installed and authenticated ($codex_auth)"
     elif [[ "$codex_status" == "ok" ]]; then
-        echo "  ⚠ Codex: Installed but not authenticated"
+        echo "  ⚠ Codex: Installed but not authenticated (run: codex login  OR  export OPENAI_API_KEY=\"sk-...\")"
     else
-        echo "  ✗ Codex: Not installed"
+        echo "  ✗ Codex: Not installed (run: npm install -g @openai/codex)"
     fi
 
     if [[ "$gemini_status" == "ok" && "$gemini_auth" != "none" ]]; then
         echo "  ✓ Gemini: Installed and authenticated ($gemini_auth)"
     elif [[ "$gemini_status" == "ok" ]]; then
-        echo "  ⚠ Gemini: Installed but not authenticated"
+        echo "  ⚠ Gemini: Installed but not authenticated (run: gemini  OR  export GEMINI_API_KEY=\"AIza...\")"
     else
-        echo "  ✗ Gemini: Not installed"
+        echo "  ✗ Gemini: Not installed (run: npm install -g @google/gemini-cli)"
     fi
 
     if [[ "$agy_status" == "ok" ]]; then
@@ -291,7 +291,7 @@ EOF
     if [[ "$perplexity_status" == "ok" ]]; then
         echo "  ✓ Perplexity: Configured ($perplexity_auth) — web search enabled in discover workflows"
     else
-        echo "  ○ Perplexity: Not configured (optional — adds live web search to research)"
+        echo "  ○ Perplexity: Not configured (optional — export PERPLEXITY_API_KEY=\"pplx-...\"  # https://www.perplexity.ai/settings/api)"
     fi
 
     # Ollama (optional, v9.9.0)
@@ -325,9 +325,9 @@ EOF
     if [[ "$cursor_agent_status" == "ok" && "$cursor_agent_auth" != "none" ]]; then
         echo "  ✓ Cursor Agent: Installed and authenticated ($cursor_agent_auth) — Grok 4.20 via Cursor subscription"
     elif [[ "$cursor_agent_status" == "ok" ]]; then
-        echo "  ⚠ Cursor Agent: Installed but not authenticated"
+        echo "  ⚠ Cursor Agent: Installed but not authenticated (run: agent login  OR  export CURSOR_API_KEY=\"...\")"
     else
-        echo "  ○ Cursor Agent: Not installed (optional — requires Cursor IDE v9.23.0+)"
+        echo "  ○ Cursor Agent: Not installed (optional — curl -fsSL https://cursor.com/install | bash)"
     fi
     echo ""
 

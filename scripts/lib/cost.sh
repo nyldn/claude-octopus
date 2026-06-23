@@ -852,7 +852,9 @@ get_model_pricing() {
         # Google Gemini 3.0 models
         gemini-3.1-pro-preview)   echo "2.50:10.00" ;;
         gemini-3-flash-preview) echo "0.25:1.00" ;;
-        gemini-3-pro-image-preview) echo "5.00:20.00" ;;
+        gemini-3-pro-image)         echo "5.35:21.40" ;;  # oco-803: Nano Banana Pro GA (~$0.134/1K-2K img, June 2026)
+        gemini-3.1-flash-image)     echo "0.25:1.00" ;;   # oco-803: Nano Banana 2 fast image tier (budget)
+        gemini-3-pro-image-preview) echo "5.00:20.00" ;;  # deprecated 2026-06-25, kept for back-compat
         # Claude models
         claude-sonnet-4.5)      echo "3.00:15.00" ;;
         claude-sonnet-4.6)      echo "3.00:15.00" ;;   # v8.17: Sonnet 4.6 (same pricing as 4.5)

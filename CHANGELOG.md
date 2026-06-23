@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **gemini-image migrated off the deprecated `gemini-3-pro-image-preview`** before Google's 2026-06-25 shutdown (#493, oco-803). Image routing now defaults to the GA `gemini-3-pro-image` (Nano Banana Pro); `gemini-3.1-flash-image` (Nano Banana 2, fast tier) added to the catalog; the preview entry is retained with `deprecated` status so pinned configs degrade gracefully. Cost table and `octo-model-config` catalog refreshed.
+- **API-key providers no longer dispatch into a quota-dead key** (#494, oco-cbb). Perplexity payloads now cap output via `OCTOPUS_PERPLEXITY_MAX_TOKENS` (default 4096). New opt-in proactive health probe (`octo_provider_probe`, gated by `OCTOPUS_PREFLIGHT_PROBE=1`) validates perplexity/openrouter keys before dispatch and marks the provider `degraded` on 401/402/429; it fails open on transient network errors so a flaky connection never hides a working provider.
+- **Parallel probe path skips quota-dead providers** (#495). `auto-route.sh` consults `octo_quota_is_dead` before adding a provider to the fan-out, so a perplexity 401 or gemini capacity-exhaustion this session no longer re-dispatches and burns time.
+
+### Changed
+
+- **Doctor surfaces the fix inline by default.** `warn`/`fail` rows now always print their actionable detail (e.g. `Run: ollama serve`) without requiring `--verbose`; `pass` rows stay quiet unless `--verbose`.
+- **Setup dashboard shows concrete next-step commands** for unconfigured providers (codex/gemini/perplexity/cursor-agent), so a fresh install tells the user exactly what to export or install.
+
 ## [9.45.0] - 2026-06-14
 
 ### Added

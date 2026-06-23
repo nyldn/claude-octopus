@@ -80,3 +80,73 @@ stop_quota_watcher() {
     kill "$watcher_pid" 2>/dev/null || true
     wait "$watcher_pid" 2>/dev/null || true
 }
+
+# octo_provider_probe <provider>
+# Opt-in proactive health check for API-key providers (perplexity, openrouter).
+# Only called when OCTOPUS_PREFLIGHT_PROBE=1. Result is session-cached via the
+# existing quota-dead marker file, so check-providers.sh octo_quota_is_dead
+# reads it without any extra wiring.
+#
+# Fail-open policy: network errors (curl exit codes other than auth failure
+# signals) return 0 and do NOT mark the provider dead. Only definitive 401/402
+# or quota signals mark the provider dead. This avoids false positives on
+# transient connectivity issues.
+octo_provider_probe() {
+    local provider="$1"
+    [[ -n "$provider" ]] || return 0
+
+    # Skip if already known dead (cached from earlier this session).
+    octo_quota_is_dead "$provider" && return 1
+
+    local http_code=""
+    local curl_exit=0
+
+    case "$provider" in
+        perplexity)
+            [[ -n "${PERPLEXITY_API_KEY:-}" ]] || return 0
+            # Minimal POST: single-token completion to validate the key cheaply.
+            http_code=$(curl -s -o /dev/null -w "%{http_code}" \
+                --max-time 10 \
+                -X POST "https://api.perplexity.ai/chat/completions" \
+                -H "Authorization: Bearer ${PERPLEXITY_API_KEY}" \
+                -H "Content-Type: application/json" \
+                -d '{"model":"sonar","messages":[{"role":"user","content":"hi"}],"max_tokens":1}' \
+                2>/dev/null) || curl_exit=$?
+            ;;
+        openrouter)
+            [[ -n "${OPENROUTER_API_KEY:-}" ]] || return 0
+            # GET /api/v1/auth/key returns 200 with key metadata or 401 on bad key.
+            http_code=$(curl -s -o /dev/null -w "%{http_code}" \
+                --max-time 10 \
+                -X GET "https://openrouter.ai/api/v1/auth/key" \
+                -H "Authorization: Bearer ${OPENROUTER_API_KEY}" \
+                2>/dev/null) || curl_exit=$?
+            ;;
+        *)
+            # Unknown provider: no probe defined, fail open.
+            return 0
+            ;;
+    esac
+
+    # Network failure (curl_exit != 0) or no response: fail open.
+    if [[ $curl_exit -ne 0 || -z "$http_code" ]]; then
+        return 0
+    fi
+
+    # Definitive auth/quota failure: mark dead and return 1.
+    case "$http_code" in
+        401|402)
+            octo_quota_mark_dead "$provider"
+            return 1
+            ;;
+        429)
+            # Rate limit: not necessarily dead, but a transient quota issue.
+            # Mark dead so this session skips the provider (same as reactive path).
+            octo_quota_mark_dead "$provider"
+            return 1
+            ;;
+    esac
+
+    # 200/other: alive (or unknown state — fail open).
+    return 0
+}

@@ -11,7 +11,7 @@
 #                    gpt-5.2-codex, gpt-5.4-mini (budget), gpt-5 (standard), gpt-5.2, gpt-5.1
 # - OpenAI Reasoning: o3, o3-pro (API-key only), o3 (API-key only), o3-mini (API-key only)
 # - OpenAI Large Context: gpt-4.1 (1M ctx, API-key only), gpt-5.4 (1M ctx, API-key only)
-# - Google Gemini 3.0: gemini-3.1-pro-preview, gemini-3-flash-preview, gemini-3-pro-image-preview
+# - Google Gemini 3.0: gemini-3.1-pro-preview, gemini-3-flash-preview, gemini-3-pro-image (GA; gemini-3-pro-image-preview deprecated 2026-06-25)
 # - Google Antigravity CLI: agy --print stdin dispatch, optional OCTOPUS_AGY_MODEL
 # Note: "API-key only" models require OPENAI_API_KEY; they are NOT available via ChatGPT subscription/OAuth.
 get_agent_command() {
