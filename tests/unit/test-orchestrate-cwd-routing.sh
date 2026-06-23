@@ -130,6 +130,24 @@ EOF
     fi
 }
 
+test_invalid_nested_route_fails_closed() {
+    test_case "invalid provider:type routing fails closed instead of falling back"
+    mkdir -p "$FIXTURE_HOME/.claude-octopus/config"
+    cat > "$FIXTURE_HOME/.claude-octopus/config/providers.json" << 'EOF'
+{
+  "version": "3.0",
+  "providers": {"codex": {"unsafe": "bad;touch"}},
+  "routing": {"phases": {}, "roles": {"researcher": "codex:codex-unsafe"}}
+}
+EOF
+    local got=""
+    if got="$(resolve_with_fixture codex codex probe researcher 2>/dev/null)"; then
+        test_fail "expected invalid nested route to fail, got fallback/model: '$got'"
+    else
+        test_pass
+    fi
+}
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # Claude subprocess permission flags (Read blocked in headless --print mode)
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -254,6 +272,7 @@ test_role_route_not_leaked_to_codex
 test_role_route_not_leaked_to_gemini
 test_role_route_not_a_model_for_perplexity_itself
 test_colon_route_still_resolves
+test_invalid_nested_route_fails_closed
 
 test_claude_grants_read_tools
 test_claude_sonnet_grants_read_tools
