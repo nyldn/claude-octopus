@@ -110,13 +110,15 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
     local result_file="${RESULTS_DIR}/${agent_type}-${task_id}.md"
 
     # Build command array with credential isolation
-    local -a cmd_array
-    local env_prefix
-    env_prefix=$(build_provider_env "$agent_type")
-    if [[ -n "$env_prefix" ]]; then
-        read -ra cmd_array <<< "$env_prefix $cmd"
+    local -a cmd_array cmd_words
+    # Array-based env prefix (see provider-routing.sh) so a PATH with spaces
+    # survives instead of word-splitting under read -ra.
+    build_provider_env "$agent_type"
+    read -ra cmd_words <<< "$cmd"
+    if [[ ${#OCTO_PROVIDER_ENV[@]} -gt 0 ]]; then
+        cmd_array=("${OCTO_PROVIDER_ENV[@]}" "${cmd_words[@]}")
     else
-        read -ra cmd_array <<< "$cmd"
+        cmd_array=("${cmd_words[@]}")
     fi
 
     local temp_output="${RESULTS_DIR}/.tmp-${task_id}.out"

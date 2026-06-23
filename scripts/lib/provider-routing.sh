@@ -28,6 +28,15 @@
 build_provider_env() {
     local provider="$1"
 
+    # Return the env prefix as a global ARRAY (OCTO_PROVIDER_ENV), not a
+    # space-joined string. The string form was consumed via `read -ra`, which
+    # word-splits on spaces — so a PATH containing spaces (e.g. Windows
+    # "C:\Program Files\NVIDIA GPU Computing Toolkit\...") shattered and `env`
+    # tried to exec a fragment like 'Files/NVIDIA' (exit 127), silently failing
+    # every external provider. Array elements preserve spaces and quotes (this
+    # also removes the class of bug behind the literal-quote regression #117).
+    OCTO_PROVIDER_ENV=()
+
     if [[ "${OCTOPUS_SECURITY_V870:-true}" != "true" ]]; then
         return 0
     fi
@@ -36,16 +45,16 @@ build_provider_env() {
     case "$provider" in
         codex*)
             [[ -z "${OPENAI_API_KEY:-}" ]] && resolve_provider_env "OPENAI_API_KEY" 2>/dev/null
-            echo "env -i PATH=$PATH HOME=$HOME OPENAI_API_KEY=${OPENAI_API_KEY:-} TMPDIR=${TMPDIR:-/tmp}"
+            OCTO_PROVIDER_ENV=(env -i "PATH=$PATH" "HOME=$HOME" "OPENAI_API_KEY=${OPENAI_API_KEY:-}" "TMPDIR=${TMPDIR:-/tmp}")
             ;;
         gemini*)
             [[ -z "${GEMINI_API_KEY:-}" ]] && resolve_provider_env "GEMINI_API_KEY" 2>/dev/null
             [[ -z "${GOOGLE_API_KEY:-}" ]] && resolve_provider_env "GOOGLE_API_KEY" 2>/dev/null
-            echo "env -i PATH=$PATH HOME=$HOME GEMINI_API_KEY=${GEMINI_API_KEY:-} GOOGLE_API_KEY=${GOOGLE_API_KEY:-} NODE_NO_WARNINGS=1 TMPDIR=${TMPDIR:-/tmp}"
+            OCTO_PROVIDER_ENV=(env -i "PATH=$PATH" "HOME=$HOME" "GEMINI_API_KEY=${GEMINI_API_KEY:-}" "GOOGLE_API_KEY=${GOOGLE_API_KEY:-}" "NODE_NO_WARNINGS=1" "TMPDIR=${TMPDIR:-/tmp}")
             ;;
         perplexity*)
             [[ -z "${PERPLEXITY_API_KEY:-}" ]] && resolve_provider_env "PERPLEXITY_API_KEY" 2>/dev/null
-            echo "env -i PATH=$PATH HOME=$HOME PERPLEXITY_API_KEY=${PERPLEXITY_API_KEY:-} TMPDIR=${TMPDIR:-/tmp}"
+            OCTO_PROVIDER_ENV=(env -i "PATH=$PATH" "HOME=$HOME" "PERPLEXITY_API_KEY=${PERPLEXITY_API_KEY:-}" "TMPDIR=${TMPDIR:-/tmp}")
             ;;
         *)
             # Claude and other providers: no isolation needed

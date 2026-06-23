@@ -433,14 +433,18 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
 
         # SECURITY: Use array-based execution to prevent word-splitting vulnerabilities
         # v8.32.0: Per-provider credential isolation — each agent only sees its own API key
-        local -a cmd_array
-        local env_prefix
-        env_prefix=$(build_provider_env "$agent_type")
-        if [[ -n "$env_prefix" ]]; then
-            read -ra cmd_array <<< "$env_prefix $cmd"
+        local -a cmd_array cmd_words
+        # Consume the env prefix as an ARRAY (global OCTO_PROVIDER_ENV set by
+        # build_provider_env) so a PATH containing spaces survives. The old
+        # `read -ra <<< "$env_prefix $cmd"` word-split the prefix and shattered
+        # a spaced PATH (env exit 127, all external providers silently failed).
+        build_provider_env "$agent_type"
+        read -ra cmd_words <<< "$cmd"
+        if [[ ${#OCTO_PROVIDER_ENV[@]} -gt 0 ]]; then
+            cmd_array=("${OCTO_PROVIDER_ENV[@]}" "${cmd_words[@]}")
             log "DEBUG" "Credential isolation active for $agent_type"
         else
-            read -ra cmd_array <<< "$cmd"
+            cmd_array=("${cmd_words[@]}")
         fi
 
         # IMPROVED: Use temp files for reliable output capture (v7.13.2 - Issue #10)
