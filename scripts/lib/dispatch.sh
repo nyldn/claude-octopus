@@ -24,6 +24,9 @@
 _codex_dispatch_is_oss_model() {
     local m="$1"
     [[ -z "$m" ]] && return 1
+    # Preserve the caller's nocasematch setting instead of forcing it off.
+    local _restore_nocasematch
+    _restore_nocasematch=$(shopt -p nocasematch || true)
     shopt -s nocasematch
     local rc=1
     if [[ "$m" == gpt-oss* ]] || [[ "$m" =~ :[0-9]+(\.[0-9]+)?b$ ]]; then
@@ -31,7 +34,7 @@ _codex_dispatch_is_oss_model() {
     elif [[ -n "${OCTOPUS_CODEX_OSS_PATTERNS:-}" && "$m" =~ ${OCTOPUS_CODEX_OSS_PATTERNS} ]]; then
         rc=0
     fi
-    shopt -u nocasematch
+    eval "${_restore_nocasematch:-shopt -u nocasematch}"
     return $rc
 }
 

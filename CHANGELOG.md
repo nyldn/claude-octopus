@@ -4,7 +4,7 @@
 
 ### Fixed
 
-- **Ollama provider can no longer trigger an unbounded auto-pull on fallback.** `ollama run <model>` silently downloads a missing model, so a provider-failure cascade to the local Ollama provider could kick off an unbounded multi-GB pull with no human in the loop (observed: a ~42 GB pull). All Ollama dispatch now routes through a fail-closed shim (`scripts/helpers/ollama-run.sh`) that refuses to pull an absent model unless `OCTOPUS_OLLAMA_ALLOW_PULL=true`, and caps an allowed pull at `OCTOPUS_OLLAMA_MAX_PULL_GB` (default 20).
+- **Ollama and Codex OSS models can no longer trigger an unbounded auto-pull on fallback.** Both `ollama run <model>` and the Codex CLI's built-in OSS/local-model handling silently download a missing model, so a provider-failure cascade could kick off an unbounded multi-GB pull with no human in the loop (observed: a ~42 GB pull). All Ollama dispatch now routes through a fail-closed shim (`scripts/helpers/ollama-run.sh`), and Codex dispatch for OSS models (e.g. `gpt-oss:*`) routes through `scripts/helpers/codex-run.sh`; both share the guard in `scripts/helpers/ollama-pull-guard.lib.sh` and refuse to pull an absent model unless `OCTOPUS_OLLAMA_ALLOW_PULL=true`, capping an allowed pull at `OCTOPUS_OLLAMA_MAX_PULL_GB` (default 20). Cloud Codex models (e.g. `gpt-5.x`, `o3`, `gpt-4.1`, `gpt-5.2-codex`) are unaffected and bypass the guard.
 
 ## [9.45.0] - 2026-06-14
 

@@ -30,7 +30,7 @@
 # Exit codes (from the shared guard): 64 usage, 69 ollama missing,
 #   70 refused (absent + no opt-in), 75 pull exceeded cap.
 
-set -uo pipefail
+set -euo pipefail
 
 _codex_run_dir="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 # Fail CLOSED: if the shared guard cannot be loaded, refuse rather than launch
@@ -48,6 +48,9 @@ fi
 _codex_model_is_oss() {
     local m="$1"
     [[ -z "$m" ]] && return 1
+    # Preserve the caller's nocasematch setting instead of forcing it off.
+    local _restore_nocasematch
+    _restore_nocasematch=$(shopt -p nocasematch || true)
     shopt -s nocasematch
     local rc=1
     if [[ "$m" == gpt-oss* ]] || [[ "$m" =~ :[0-9]+(\.[0-9]+)?b$ ]]; then
@@ -55,7 +58,7 @@ _codex_model_is_oss() {
     elif [[ -n "${OCTOPUS_CODEX_OSS_PATTERNS:-}" && "$m" =~ ${OCTOPUS_CODEX_OSS_PATTERNS} ]]; then
         rc=0
     fi
-    shopt -u nocasematch
+    eval "${_restore_nocasematch:-shopt -u nocasematch}"
     return $rc
 }
 

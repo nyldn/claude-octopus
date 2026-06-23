@@ -30,7 +30,7 @@
 #   70  model absent and auto-pull not opted in (refused — NO download)
 #   75  allowed pull exceeded the size cap or otherwise did not complete
 
-set -uo pipefail
+set -euo pipefail
 
 _ollama_run_dir="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 # Fail CLOSED: if the shared guard cannot be loaded, refuse to run rather than
