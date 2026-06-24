@@ -24,10 +24,16 @@ get_dispatch_strategy() {
             local all_p="claude-sonnet"
             command -v codex >/dev/null 2>&1 && all_p="codex,${all_p}"
             command -v gemini >/dev/null 2>&1 && all_p="gemini,${all_p}"
-            echo "3:${all_p}:high"
+            # Antigravity (agy) is the Google seat since the Gemini CLI sunset (#524)
+            { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed agy; } \
+                && command -v agy >/dev/null 2>&1 && all_p="agy,${all_p}"
+            local _full_count; _full_count=$(awk -F, '{print NF}' <<< "$all_p")
+            echo "${_full_count}:${all_p}:high"
             return 0 ;;
         minimal)
-            if command -v gemini >/dev/null 2>&1; then echo "2:gemini,claude-sonnet:high"
+            # agy (Google seat) preferred over the sunset Gemini CLI (#524)
+            if { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed agy; } && command -v agy >/dev/null 2>&1; then echo "2:agy,claude-sonnet:high"
+            elif command -v gemini >/dev/null 2>&1; then echo "2:gemini,claude-sonnet:high"
             elif command -v codex >/dev/null 2>&1; then echo "2:codex,claude-sonnet:high"
             else echo "1:claude-sonnet:high"; fi
             return 0 ;;
@@ -52,9 +58,15 @@ get_dispatch_strategy() {
     fi
 
     # v9.10.0: Detect all available providers for dispatch strategy
-    local has_codex=false has_gemini=false has_copilot=false has_qwen=false has_ollama=false has_cursor_agent=false
+    # v9.45.1: agy (Antigravity) added as the Google seat — the probe/discover
+    # fan-out never seated it before, so Antigravity-only setups fell back to
+    # Claude-only dispatch (Gemini CLI sunset 2026-06-18, #524).
+    local has_codex=false has_gemini=false has_copilot=false has_qwen=false has_ollama=false has_cursor_agent=false has_agy=false
     command -v codex >/dev/null 2>&1 && has_codex=true
     command -v gemini >/dev/null 2>&1 && has_gemini=true
+    if { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed agy; } && command -v agy >/dev/null 2>&1; then
+        has_agy=true
+    fi
     command -v copilot >/dev/null 2>&1 && has_copilot=true
     if declare -f qwen_is_usable >/dev/null 2>&1; then
         qwen_is_usable && has_qwen=true
@@ -74,6 +86,7 @@ get_dispatch_strategy() {
     local -a cli_providers=()
     [[ "$has_codex" == true ]] && cli_providers+=(codex)
     [[ "$has_gemini" == true ]] && cli_providers+=(gemini)
+    [[ "$has_agy" == true ]] && cli_providers+=(agy)
     [[ "$has_copilot" == true ]] && cli_providers+=(copilot)
     [[ "$has_qwen" == true ]] && cli_providers+=(qwen)
     [[ "$has_cursor_agent" == true ]] && cli_providers+=(cursor-agent)
@@ -82,12 +95,11 @@ get_dispatch_strategy() {
     case "$workflow" in
         review|security)
             # Each provider misses different bugs — more perspectives = better coverage
-            if [[ $cli_count -ge 3 ]]; then
+            if [[ $cli_count -ge 2 ]]; then
                 local providers_str
                 providers_str=$(IFS=,; echo "${cli_providers[*]}")
                 echo "$((cli_count + 1)):${providers_str},claude-sonnet:high"
-            elif [[ "$has_codex" == true && "$has_gemini" == true ]]; then
-                echo "3:codex,gemini,claude-sonnet:high"
+            elif [[ "$has_agy" == true ]]; then echo "2:agy,claude-sonnet:high"
             elif [[ "$has_codex" == true ]]; then echo "2:codex,claude-sonnet:high"
             elif [[ "$has_gemini" == true ]]; then echo "2:gemini,claude-sonnet:high"
             elif [[ "$has_qwen" == true ]]; then echo "2:qwen,claude-sonnet:medium"
@@ -107,6 +119,7 @@ get_dispatch_strategy() {
                 local providers_str
                 providers_str=$(IFS=,; echo "${cli_providers[*]}")
                 echo "$((cli_count + 1)):${providers_str},claude-sonnet:high"
+            elif [[ "$has_agy" == true ]]; then echo "2:agy,claude-sonnet:high"
             elif [[ "$has_gemini" == true ]]; then echo "2:gemini,claude-sonnet:high"
             elif [[ "$has_codex" == true ]]; then echo "2:codex,claude-sonnet:medium"
             elif [[ "$has_qwen" == true ]]; then echo "2:qwen,claude-sonnet:medium"

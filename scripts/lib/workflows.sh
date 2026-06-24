@@ -416,7 +416,7 @@ probe_discover() {
 
     if [[ "$DRY_RUN" == "true" ]]; then
         log INFO "[DRY-RUN] Would probe: $prompt"
-        log INFO "[DRY-RUN] Would spawn 5+ parallel research agents (Codex, Gemini, Sonnet 4.6, +codebase if in git repo, +Perplexity if API key set)"
+        log INFO "[DRY-RUN] Would spawn 5+ parallel research agents (Codex, Antigravity/agy, Sonnet 4.6, +codebase if in git repo, +Perplexity if API key set)"
         return 0
     fi
 
@@ -714,7 +714,7 @@ grasp_define() {
 
     if [[ "$DRY_RUN" == "true" ]]; then
         log INFO "[DRY-RUN] Would grasp: $prompt"
-        log INFO "[DRY-RUN] Would gather 4 perspectives (Codex, Gemini, Sonnet 4.6) and build consensus"
+        log INFO "[DRY-RUN] Would gather 4 perspectives (Codex, Antigravity/agy, Sonnet 4.6) and build consensus"
         return 0
     fi
 
@@ -743,8 +743,8 @@ grasp_define() {
         def1=$(run_agent_sync "claude-sonnet" "Based on: $prompt\n${context}Define the core problem statement in 2-3 sentences. What is the essential challenge?" 120 "backend-architect" "grasp") || true
     }
     def2=$(run_agent_sync "agy" "Based on: $prompt\n${context}Define success criteria. How will we know when this is solved correctly? List 3-5 measurable criteria." 120 "researcher" "grasp") || {
-        log WARN "Gemini failed for success criteria, falling back to Claude"
-        echo -e " ${YELLOW}⚠${NC}  Gemini unavailable for success criteria — falling back to Claude"
+        log WARN "Antigravity (agy) failed for success criteria, falling back to Claude"
+        echo -e " ${YELLOW}⚠${NC}  Antigravity (agy) unavailable for success criteria — falling back to Claude"
         def2=$(run_agent_sync "claude-sonnet" "Based on: $prompt\n${context}Define success criteria. How will we know when this is solved correctly? List 3-5 measurable criteria." 120 "researcher" "grasp") || true
     }
     def3=$(run_agent_sync "claude-sonnet" "Based on: $prompt\n${context}Define constraints and boundaries. What are we NOT solving? What are hard limits?" 120 "researcher" "grasp")
@@ -1976,8 +1976,8 @@ Return a concise gate review with:
 4. Concrete changes needed before the next phase
 5. Evidence from the context artifact"
 
-    local codex_view="" gemini_view="" claude_view="" synthesis=""
-    local codex_status="failed" gemini_status="failed" claude_status="failed"
+    local codex_view="" agy_view="" claude_view="" synthesis=""
+    local codex_status="failed" agy_status="failed" claude_status="failed"
     local successful=0
 
     if codex_view=$(run_agent_sync "codex" "$gate_prompt" 120 "code-reviewer" "embrace-gate" 2>/dev/null); then
@@ -1986,9 +1986,10 @@ Return a concise gate review with:
             successful=$((successful + 1))
         fi
     fi
-    if gemini_view=$(run_agent_sync "agy" "$gate_prompt" 120 "researcher" "embrace-gate" 2>/dev/null); then
-        if [[ -n "$gemini_view" ]]; then
-            gemini_status="ok"
+    # Antigravity (agy) is the Google seat since the Gemini CLI sunset (#524)
+    if agy_view=$(run_agent_sync "agy" "$gate_prompt" 120 "researcher" "embrace-gate" 2>/dev/null); then
+        if [[ -n "$agy_view" ]]; then
+            agy_status="ok"
             successful=$((successful + 1))
         fi
     fi
@@ -2009,13 +2010,13 @@ Return a concise gate review with:
 
 Task: ${prompt}
 Gate style: ${style}
-Provider statuses: codex=${codex_status}, gemini=${gemini_status}, claude=${claude_status}
+Provider statuses: codex=${codex_status}, agy=${agy_status}, claude=${claude_status}
 
 Codex:
 ${codex_view:-[no output]}
 
-Gemini:
-${gemini_view:-[no output]}
+Antigravity (agy):
+${agy_view:-[no output]}
 
 Claude:
 ${claude_view:-[no output]}
@@ -2039,7 +2040,7 @@ Return:
 **Task:** ${prompt}
 **Style:** ${style}
 **Context Artifact:** ${context_file}
-**Provider Statuses:** codex=${codex_status}, gemini=${gemini_status}, claude=${claude_status}
+**Provider Statuses:** codex=${codex_status}, agy=${agy_status}, claude=${claude_status}
 
 ---
 
@@ -2055,9 +2056,9 @@ ${synthesis}
 
 ${codex_view:-No output.}
 
-### Gemini (${gemini_status})
+### Antigravity / agy (${agy_status})
 
-${gemini_view:-No output.}
+${agy_view:-No output.}
 
 ### Claude (${claude_status})
 
@@ -2074,7 +2075,7 @@ EOF
             "Embrace debate gate completed: ${prompt:0:80}" \
             "" \
             "high" \
-            "Provider statuses: codex=${codex_status}, gemini=${gemini_status}, claude=${claude_status}" \
+            "Provider statuses: codex=${codex_status}, agy=${agy_status}, claude=${claude_status}" \
             "" 2>/dev/null || true
     fi
 
