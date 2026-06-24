@@ -33,6 +33,22 @@ _fan_out_agents_from_config() {
     ' "$config_file" 2>/dev/null || true
 }
 
+# Resolve the preferred non-Codex dispatch seat for fan-out / map-reduce.
+# The Gemini CLI was sunset 2026-06-18; agy (Antigravity) is the default Google
+# seat (#524). Order: agy → gemini (legacy, only when still installed, to
+# preserve behavior for existing setups) → claude-sonnet (always available in
+# Claude Code). Always echoes a usable agent.
+_parallel_google_seat() {
+    if { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed agy; } \
+        && command -v agy >/dev/null 2>&1; then
+        echo "agy"; return 0
+    fi
+    if command -v gemini >/dev/null 2>&1; then
+        echo "gemini"; return 0
+    fi
+    echo "claude-sonnet"; return 0
+}
+
 fan_out() {
     local prompt="$1"
     local agents=()
@@ -55,8 +71,9 @@ fan_out() {
         done <<< "$_configured"
     fi
 
-    # Fallback to original default pair when config absent or all entries invalid
-    [[ ${#agents[@]} -eq 0 ]] && agents=("codex" "gemini")
+    # Fallback to default pair when config absent or all entries invalid.
+    # Second seat prefers agy (Google seat) over the sunset Gemini CLI (#524).
+    [[ ${#agents[@]} -eq 0 ]] && agents=("codex" "$(_parallel_google_seat)")
 
     log INFO "Fan-out: Sending prompt to ${#agents[@]} agents (${agents[*]})"
     echo ""
@@ -255,7 +272,7 @@ map_reduce() {
 
     log INFO "Map-Reduce: Decomposing task and distributing to agents"
 
-    log INFO "Phase 1: Task decomposition with Gemini"
+    log INFO "Phase 1: Task decomposition"
     local decompose_prompt="Analyze this task and break it into subtasks that can be executed in parallel.
 If the task produces a single deliverable (one file, one script, one page, one config), keep it as ONE subtask — do not split it. Only decompose when subtasks are truly independent with no cross-file references. Aim for 2-5 subtasks; fewer is better when the work is tightly coupled.
 Output as a simple numbered list. Task: $main_prompt"
@@ -267,11 +284,32 @@ Output as a simple numbered list. Task: $main_prompt"
         return 0
     fi
 
-    gemini "$decompose_prompt" > "$decompose_result" 2>&1 || {
-        log WARN "Decomposition failed, falling back to fan-out"
+    # Route decomposition through the agy-capable run_agent_sync abstraction
+    # (Gemini CLI sunset 2026-06-18; agy is the Google seat, #524), mirroring
+    # aggregate_results' synthesis path. claude-sonnet is the fallback; a plain
+    # fan-out is the last resort when no decomposition agent succeeds.
+    if type run_agent_sync >/dev/null 2>&1; then
+        local decompose_agent decompose_output=""
+        decompose_agent=$(_parallel_google_seat)
+        log INFO "Decomposing with $decompose_agent"
+        if decompose_output=$(run_agent_sync "$decompose_agent" "$decompose_prompt" "${TIMEOUT:-120}" "decompose" "parallel" 2>/dev/null) \
+            && [[ -n "$decompose_output" ]]; then
+            printf '%s\n' "$decompose_output" > "$decompose_result"
+        elif [[ "$decompose_agent" != "claude-sonnet" ]] \
+            && decompose_output=$(run_agent_sync "claude-sonnet" "$decompose_prompt" "${TIMEOUT:-120}" "decompose" "parallel" 2>/dev/null) \
+            && [[ -n "$decompose_output" ]]; then
+            log WARN "Decomposition via '$decompose_agent' failed — used claude-sonnet fallback"
+            printf '%s\n' "$decompose_output" > "$decompose_result"
+        else
+            log WARN "Decomposition failed, falling back to fan-out"
+            fan_out "$main_prompt"
+            return
+        fi
+    else
+        log WARN "run_agent_sync unavailable, falling back to fan-out"
         fan_out "$main_prompt"
         return
-    }
+    fi
 
     log INFO "Decomposition complete. Subtasks:"
     cat "$decompose_result"
@@ -279,7 +317,8 @@ Output as a simple numbered list. Task: $main_prompt"
 
     log INFO "Phase 2: Mapping subtasks to agents"
     local subtask_num=0
-    local agents=("codex" "gemini")
+    # Second seat prefers agy (Google seat) over the sunset Gemini CLI (#524)
+    local agents=("codex" "$(_parallel_google_seat)")
     local pids=()
 
     while IFS= read -r line; do
