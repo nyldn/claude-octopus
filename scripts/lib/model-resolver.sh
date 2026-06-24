@@ -239,6 +239,7 @@ resolve_octopus_model() {
     if [[ -z "$resolved_model" || "$resolved_model" == "null" ]]; then
         case "$agent_type" in
             codex*)          resolved_model="gpt-5.5" ;;
+            gemini-image)    resolved_model="gemini-3-pro-image" ;;  # image, not text — must precede gemini* (codex review)
             gemini-fast|gemini-flash) resolved_model="gemini-3-flash-preview" ;;
             gemini*)         resolved_model="gemini-3.1-pro-preview" ;;
             agy*|antigravity) resolved_model="default" ;;

@@ -323,6 +323,7 @@ test_agy_slash_command_no_stale_three_provider_copy() {
         | grep -v 'commands/resume.md' \
         | grep -v 'commands/extract.md:.*Extract all 8 features' \
         | grep -v 'docs/superpowers/specs/' \
+        | grep -v 'docs/superpowers/plans/' \
         | grep -v 'docs/COMMAND-REFERENCE.md:.*transcripts' || true)
 
     if [[ -z "$stale" ]]; then

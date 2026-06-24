@@ -62,6 +62,13 @@ echo "PROVIDER_CHECK_START"
 provider_status "codex" "$(command -v codex >/dev/null 2>&1 && echo available || echo missing)"
 provider_status "gemini" "$(_octo_provider_state gemini "$(command -v gemini >/dev/null 2>&1 && echo available || echo missing)")"
 provider_status "agy" "$(command -v agy >/dev/null 2>&1 && echo available || echo missing)"
+# oco-cbb: opt-in proactive probe for API-key providers (perplexity, openrouter).
+# Only runs when OCTOPUS_PREFLIGHT_PROBE=1; result cached via quota-dead marker
+# so subsequent octo_quota_is_dead reads pick it up automatically.
+if [[ "${OCTOPUS_PREFLIGHT_PROBE:-0}" == "1" ]] && declare -f octo_provider_probe >/dev/null 2>&1 \
+   && { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed "perplexity"; }; then
+    [ -n "${PERPLEXITY_API_KEY:-}" ] && octo_provider_probe "perplexity" || true
+fi
 provider_status "perplexity" "$(_octo_provider_state perplexity "$([ -n "${PERPLEXITY_API_KEY:-}" ] && echo available || echo missing)")"
 provider_status "opencode" "$(command -v opencode >/dev/null 2>&1 && echo available || echo missing)"
 provider_status "copilot" "$(command -v copilot >/dev/null 2>&1 && echo available || echo missing)"
@@ -80,5 +87,9 @@ fi
 provider_status "qwen" "$qwen_state"
 provider_status "cursor-agent" "$cursor_agent_status"
 provider_status "ollama" "$({ ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed "ollama"; } && command -v ollama >/dev/null 2>&1 && curl -sf http://localhost:11434/api/tags >/dev/null 2>&1 && echo available || echo missing)"
+if [[ "${OCTOPUS_PREFLIGHT_PROBE:-0}" == "1" ]] && declare -f octo_provider_probe >/dev/null 2>&1 \
+   && { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed "openrouter"; }; then
+    [ -n "${OPENROUTER_API_KEY:-}" ] && octo_provider_probe "openrouter" || true
+fi
 provider_status "openrouter" "$(_octo_provider_state openrouter "$([ -n "${OPENROUTER_API_KEY:-}" ] && echo available || echo missing)")"
 echo "PROVIDER_CHECK_END"
