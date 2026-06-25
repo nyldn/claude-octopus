@@ -10,7 +10,7 @@ if [[ -z "${prompt//[[:space:]]/}" ]]; then
     exit 64
 fi
 model="${OCTOPUS_GROK_MODEL:-default}"
-workdir="${OCTOPUS_GROK_CWD:-${TMPDIR:-/tmp}}"
+workdir="${OCTOPUS_GROK_CWD:-$PWD}"
 cmd=(grok -p "$prompt" --output-format plain --cwd "$workdir" --disable-web-search)
 if [[ -n "$model" && "$model" != "default" ]]; then
     cmd+=(--model "$model")

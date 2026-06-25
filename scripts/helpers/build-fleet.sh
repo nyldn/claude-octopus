@@ -23,6 +23,7 @@ source "${SCRIPT_DIR}/../lib/cursor-agent.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/../lib/provider-allowlist.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/../lib/auth.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/../lib/qwen.sh" 2>/dev/null || true
+source "${SCRIPT_DIR}/../lib/grok.sh" 2>/dev/null || true
 
 WORKFLOW="${1:-research}"
 INTENSITY="${2:-standard}"
@@ -52,7 +53,7 @@ get_family() {
 AVAILABLE_CLI=()
 if octo_provider_allowed codex && command -v codex >/dev/null 2>&1; then AVAILABLE_CLI+=(codex); fi
 if octo_provider_allowed gemini && command -v gemini >/dev/null 2>&1; then AVAILABLE_CLI+=(gemini); fi
-if octo_provider_allowed grok && command -v grok >/dev/null 2>&1 && { [[ -n "${XAI_API_KEY:-}" ]] || [[ -f "${HOME}/.grok/auth.json" ]]; }; then AVAILABLE_CLI+=(grok); fi
+if octo_provider_allowed grok && declare -f grok_is_available >/dev/null 2>&1 && grok_is_available; then AVAILABLE_CLI+=(grok); fi
 if octo_provider_allowed agy && command -v agy >/dev/null 2>&1; then AVAILABLE_CLI+=(agy); fi
 if octo_provider_allowed copilot && command -v copilot >/dev/null 2>&1; then AVAILABLE_CLI+=(copilot); fi
 if octo_provider_allowed qwen; then

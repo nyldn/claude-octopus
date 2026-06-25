@@ -19,6 +19,11 @@ _is_grok_binary(){ command -v grok &>/dev/null; }
 
 grok_is_available(){
     command -v grok &>/dev/null || return 1
+    # Recover XAI_API_KEY from the shell profile in non-interactive runs (mirrors
+    # codex/vibe) so fleet, health, and discovery agree on availability.
+    if [[ -z "${XAI_API_KEY:-}" ]] && declare -f resolve_provider_env >/dev/null 2>&1; then
+        resolve_provider_env "XAI_API_KEY" 2>/dev/null || true
+    fi
     [[ -n "${XAI_API_KEY:-}" ]] && return 0
     [[ -f "${HOME}/.grok/auth.json" ]] && return 0
     return 1
@@ -36,7 +41,7 @@ grok_execute(){
     [[ -z "$prompt" && ! -t 0 ]] && prompt="$(cat)"
     command -v grok &>/dev/null || { _grok_log ERROR "grok: CLI not found"; return 1; }
     local timeout="${OCTOPUS_GROK_TIMEOUT:-150}"
-    local workdir="${OCTOPUS_GROK_CWD:-${TMPDIR:-/tmp}}"
+    local workdir="${OCTOPUS_GROK_CWD:-$PWD}"
     local model="${OCTOPUS_GROK_MODEL:-default}"
     local -a cmd=(grok -p "$prompt" --output-format plain --cwd "$workdir" --disable-web-search)
     [[ -n "$model" && "$model" != "default" ]] && cmd+=(--model "$model")
@@ -44,7 +49,7 @@ grok_execute(){
     response=$(_grok_run_with_timeout "$timeout" "${cmd[@]}" 2>/dev/null) && exit_code=0 || exit_code=$?
     if [[ $exit_code -ne 0 ]]; then
         [[ $exit_code -eq 124 ]] && { _grok_log WARN "grok: timed out after ${timeout}s"; return 1; }
-        if printf '%s' "$response" | grep -qiE 'unauthorized|forbidden|(401|403)|not authorized|invalid token|expired token|please .?login|login required'; then
+        if printf '%s' "$response" | grep -ciE 'unauthorized|forbidden|(401|403)|not authorized|invalid token|expired token|please .?login|login required' >/dev/null; then
             _grok_log ERROR "grok: auth failure — run: grok login (or set XAI_API_KEY)"; return 1
         fi
         _grok_log WARN "grok: exit $exit_code"

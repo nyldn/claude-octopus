@@ -124,10 +124,17 @@ octo_provider_allowed() {
                 esac
                 ;;
             grok|grok-*)
-                [[ "$provider" == grok* ]] && return 0
+                case "$provider" in
+                    grok|grok-*) return 0 ;;
+                esac
                 ;;
-            cursor|cursor-agent|xai)
+            cursor|cursor-agent)
                 [[ "$provider" == "cursor-agent" ]] && return 0
+                ;;
+            xai)
+                case "$provider" in
+                    cursor-agent|grok|grok-*) return 0 ;;
+                esac
                 ;;
             local)
                 [[ "$provider" == "ollama" ]] && return 0

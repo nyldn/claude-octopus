@@ -14,6 +14,9 @@ fi
 source "${_providers_lib_dir}/provider-allowlist.sh" 2>/dev/null || true
 source "${_providers_lib_dir}/auth.sh" 2>/dev/null || true
 source "${_providers_lib_dir}/qwen.sh" 2>/dev/null || true
+if ! declare -f grok_is_available >/dev/null 2>&1; then
+    source "${_providers_lib_dir}/grok.sh" 2>/dev/null || true
+fi
 
 # Version comparison utility
 version_compare() {
@@ -1106,14 +1109,8 @@ detect_providers() {
     fi
 
     # Detect xAI Grok CLI (standalone grok provider)
-    if { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed grok; } && command -v grok >/dev/null 2>&1; then
-        local grok_auth="none"
-        if [[ -n "${XAI_API_KEY:-}" ]]; then
-            grok_auth="env:XAI_API_KEY"
-        elif [[ -f "${HOME}/.grok/auth.json" ]]; then
-            grok_auth="grok-session"
-        fi
-        result="${result}grok:${grok_auth} "
+    if { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed grok; } && declare -f grok_is_available >/dev/null 2>&1 && grok_is_available; then
+        result="${result}grok:$(grok_auth_method) "
     fi
 
     # Detect Vibe CLI (Mistral Vibe interactive CLI)
