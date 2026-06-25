@@ -123,6 +123,9 @@ octo_provider_allowed() {
                     agy|agy-*|antigravity) return 0 ;;
                 esac
                 ;;
+            grok|grok-*)
+                [[ "$provider" == grok* ]] && return 0
+                ;;
             cursor|cursor-agent|xai)
                 [[ "$provider" == "cursor-agent" ]] && return 0
                 ;;

@@ -86,6 +86,7 @@ if command -v qwen >/dev/null 2>&1; then
 fi
 provider_status "qwen" "$qwen_state"
 provider_status "cursor-agent" "$cursor_agent_status"
+provider_status "grok" "$({ ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed grok; } && command -v grok >/dev/null 2>&1 && { [ -n "${XAI_API_KEY:-}" ] || [ -f "${HOME}/.grok/auth.json" ]; } && echo available || echo missing)"
 provider_status "ollama" "$({ ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed "ollama"; } && command -v ollama >/dev/null 2>&1 && curl -sf http://localhost:11434/api/tags >/dev/null 2>&1 && echo available || echo missing)"
 if [[ "${OCTOPUS_PREFLIGHT_PROBE:-0}" == "1" ]] && declare -f octo_provider_probe >/dev/null 2>&1 \
    && { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed "openrouter"; }; then

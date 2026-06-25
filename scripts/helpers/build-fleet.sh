@@ -41,6 +41,7 @@ get_family() {
         opencode|opencode-*) echo "multi" ;;
         ollama|ollama-*)     echo "local" ;;
         cursor-agent|cursor-agent-*) echo "xai" ;;
+        grok|grok-*)         echo "xai" ;;   # grok-provider (xAI Grok CLI)
         openrouter|openrouter-*) echo "multi" ;;
         *)                   echo "unknown" ;;
     esac
@@ -51,6 +52,7 @@ get_family() {
 AVAILABLE_CLI=()
 if octo_provider_allowed codex && command -v codex >/dev/null 2>&1; then AVAILABLE_CLI+=(codex); fi
 if octo_provider_allowed gemini && command -v gemini >/dev/null 2>&1; then AVAILABLE_CLI+=(gemini); fi
+if octo_provider_allowed grok && command -v grok >/dev/null 2>&1 && { [[ -n "${XAI_API_KEY:-}" ]] || [[ -f "${HOME}/.grok/auth.json" ]]; }; then AVAILABLE_CLI+=(grok); fi
 if octo_provider_allowed agy && command -v agy >/dev/null 2>&1; then AVAILABLE_CLI+=(agy); fi
 if octo_provider_allowed copilot && command -v copilot >/dev/null 2>&1; then AVAILABLE_CLI+=(copilot); fi
 if octo_provider_allowed qwen; then
@@ -112,7 +114,7 @@ build_diverse_order() {
     local diverse_rest=""
 
     # Preferred order for primary diversity: codex, gemini, agy, copilot, qwen, cursor-agent, opencode, ollama
-    for p in codex gemini agy copilot qwen cursor-agent opencode ollama; do
+    for p in codex gemini agy copilot qwen grok cursor-agent opencode ollama; do
         is_available "$p" || continue
         local fam
         fam=$(get_family "$p")
