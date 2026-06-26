@@ -6,7 +6,9 @@ set -euo pipefail
 prompt=""
 [[ ! -t 0 ]] && prompt="$(cat)"
 if [[ -z "${prompt//[[:space:]]/}" ]]; then
-    if declare -f log >/dev/null 2>&1; then log ERROR "grok-exec: no prompt provided on stdin"; else echo "grok-exec: no prompt provided on stdin" >&2; fi
+    # Standalone shim (exec'd by dispatch.sh) — matches vibe-exec.sh / gemini-exec.sh
+    # which also use raw echo>&2 for startup validation (no shared logger in scope).
+    echo "grok-exec: no prompt provided on stdin" >&2
     exit 64
 fi
 model="${OCTOPUS_GROK_MODEL:-default}"
