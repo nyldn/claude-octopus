@@ -325,7 +325,9 @@ Output as a simple numbered list. Task: $main_prompt"
 #   1. agy           — Google seat, when the agy CLI is installed/allowed
 #   2. claude-sonnet — always available inside Claude Code
 # Echoes the chosen agent type, or empty when no synthesis provider is reachable
-# (the caller then falls back to plain concatenation).
+# (the caller then falls back to plain concatenation). Always returns 0 — the
+# exit code is unused and the caller branches on the echoed value, so a non-zero
+# return would only misfire `set -e` in `synth_agent=$(...)` assignments.
 _aggregate_pick_synth_agent() {
     if { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed agy; } \
         && command -v agy >/dev/null 2>&1; then
@@ -334,7 +336,7 @@ _aggregate_pick_synth_agent() {
     if command -v claude >/dev/null 2>&1; then
         echo "claude-sonnet"; return 0
     fi
-    echo ""; return 1
+    echo ""; return 0
 }
 
 aggregate_results() {

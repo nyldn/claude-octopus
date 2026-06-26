@@ -14,6 +14,14 @@ if ! declare -f qwen_is_usable >/dev/null 2>&1; then
     source "${_embrace_lib_dir}/qwen.sh" 2>/dev/null || true
 fi
 
+# Provider allowlist gate used across get_dispatch_strategy. No-op (returns 0 /
+# allowed) when octo_provider_allowed is undefined or the allowlist is unset, so
+# default setups are unaffected; when an allowlist IS set every CLI seat — not
+# just agy — is filtered consistently so stale binaries can't bypass it (#524).
+_gds_provider_allowed() {
+    ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed "$1"
+}
+
 get_dispatch_strategy() {
     local prompt="$1"
     local workflow="${2:-auto}"
@@ -22,19 +30,18 @@ get_dispatch_strategy() {
     case "$strategy" in
         full)
             local all_p="claude-sonnet"
-            command -v codex >/dev/null 2>&1 && all_p="codex,${all_p}"
-            command -v gemini >/dev/null 2>&1 && all_p="gemini,${all_p}"
+            _gds_provider_allowed codex && command -v codex >/dev/null 2>&1 && all_p="codex,${all_p}"
+            _gds_provider_allowed gemini && command -v gemini >/dev/null 2>&1 && all_p="gemini,${all_p}"
             # Antigravity (agy) is the Google seat since the Gemini CLI sunset (#524)
-            { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed agy; } \
-                && command -v agy >/dev/null 2>&1 && all_p="agy,${all_p}"
+            _gds_provider_allowed agy && command -v agy >/dev/null 2>&1 && all_p="agy,${all_p}"
             local _full_count; _full_count=$(awk -F, '{print NF}' <<< "$all_p")
             echo "${_full_count}:${all_p}:high"
             return 0 ;;
         minimal)
             # agy (Google seat) preferred over the sunset Gemini CLI (#524)
-            if { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed agy; } && command -v agy >/dev/null 2>&1; then echo "2:agy,claude-sonnet:high"
-            elif command -v gemini >/dev/null 2>&1; then echo "2:gemini,claude-sonnet:high"
-            elif command -v codex >/dev/null 2>&1; then echo "2:codex,claude-sonnet:high"
+            if _gds_provider_allowed agy && command -v agy >/dev/null 2>&1; then echo "2:agy,claude-sonnet:high"
+            elif _gds_provider_allowed gemini && command -v gemini >/dev/null 2>&1; then echo "2:gemini,claude-sonnet:high"
+            elif _gds_provider_allowed codex && command -v codex >/dev/null 2>&1; then echo "2:codex,claude-sonnet:high"
             else echo "1:claude-sonnet:high"; fi
             return 0 ;;
     esac
@@ -62,23 +69,25 @@ get_dispatch_strategy() {
     # fan-out never seated it before, so Antigravity-only setups fell back to
     # Claude-only dispatch (Gemini CLI sunset 2026-06-18, #524).
     local has_codex=false has_gemini=false has_copilot=false has_qwen=false has_ollama=false has_cursor_agent=false has_agy=false
-    command -v codex >/dev/null 2>&1 && has_codex=true
-    command -v gemini >/dev/null 2>&1 && has_gemini=true
-    if { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed agy; } && command -v agy >/dev/null 2>&1; then
-        has_agy=true
+    _gds_provider_allowed codex  && command -v codex  >/dev/null 2>&1 && has_codex=true
+    _gds_provider_allowed gemini && command -v gemini >/dev/null 2>&1 && has_gemini=true
+    _gds_provider_allowed agy    && command -v agy    >/dev/null 2>&1 && has_agy=true
+    _gds_provider_allowed copilot && command -v copilot >/dev/null 2>&1 && has_copilot=true
+    if _gds_provider_allowed qwen; then
+        if declare -f qwen_is_usable >/dev/null 2>&1; then
+            qwen_is_usable && has_qwen=true
+        elif command -v qwen >/dev/null 2>&1; then
+            has_qwen=true
+        fi
     fi
-    command -v copilot >/dev/null 2>&1 && has_copilot=true
-    if declare -f qwen_is_usable >/dev/null 2>&1; then
-        qwen_is_usable && has_qwen=true
-    elif command -v qwen >/dev/null 2>&1; then
-        has_qwen=true
-    fi
-    command -v ollama >/dev/null 2>&1 && curl -sf http://localhost:11434/api/tags &>/dev/null && has_ollama=true
-    if declare -f cursor_agent_is_available >/dev/null 2>&1; then
-        cursor_agent_is_available && has_cursor_agent=true
-    elif declare -f _is_cursor_agent_binary >/dev/null 2>&1 && _is_cursor_agent_binary; then
-        if [[ -n "${CURSOR_API_KEY:-}" ]] || grep -Eq '"authInfo"[[:space:]]*:[[:space:]]*\{' "${HOME}/.cursor/cli-config.json" 2>/dev/null; then
-            has_cursor_agent=true
+    _gds_provider_allowed ollama && command -v ollama >/dev/null 2>&1 && curl -sf http://localhost:11434/api/tags &>/dev/null && has_ollama=true
+    if _gds_provider_allowed cursor-agent; then
+        if declare -f cursor_agent_is_available >/dev/null 2>&1; then
+            cursor_agent_is_available && has_cursor_agent=true
+        elif declare -f _is_cursor_agent_binary >/dev/null 2>&1 && _is_cursor_agent_binary; then
+            if [[ -n "${CURSOR_API_KEY:-}" ]] || grep -Eq '"authInfo"[[:space:]]*:[[:space:]]*\{' "${HOME}/.cursor/cli-config.json" 2>/dev/null; then
+                has_cursor_agent=true
+            fi
         fi
     fi
 

@@ -113,9 +113,17 @@ octo_provider_allowed() {
                     codex|codex-*) return 0 ;;
                 esac
                 ;;
-            gemini|google)
+            gemini)
                 case "$provider" in
                     gemini|gemini-*) return 0 ;;
+                esac
+                ;;
+            # "google" is the Google-seat alias. Post Gemini-CLI sunset (#524) the
+            # seat is agy (Antigravity), so a legacy `google` allowlist must keep
+            # authorizing agy during/after migration — not just the Gemini CLI.
+            google)
+                case "$provider" in
+                    gemini|gemini-*|agy|agy-*|antigravity) return 0 ;;
                 esac
                 ;;
             agy|antigravity)

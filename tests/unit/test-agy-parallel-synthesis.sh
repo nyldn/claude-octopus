@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -uo pipefail
+set -euo pipefail
 
 # Regression tests for the agy migration in the parallel fan-out aggregator.
 #
@@ -82,7 +82,7 @@ _run_aggregate_scenario() {
     # $1 = "agy" to install a fake agy CLI, "none" to install none
     local mode="$1"
     local workdir hbin
-    workdir=$(mktemp -d)
+    workdir=$(mktemp -d "${TEST_TMP_DIR}/wd.XXXXXX")
     hbin="$workdir/hbin"
     mkdir -p "$hbin" "$workdir/results"
 
@@ -99,7 +99,7 @@ _run_aggregate_scenario() {
     printf 'Result B: solution research content\n' > "$workdir/results/agy-probe-2.md"
 
     PROJECT_ROOT="$PROJECT_ROOT" WORKDIR="$workdir" HBIN="$hbin" bash -c '
-        set -uo pipefail
+        set -euo pipefail
         export PATH="$HBIN"
         RESULTS_DIR="$WORKDIR/results"
         DRY_RUN=false
