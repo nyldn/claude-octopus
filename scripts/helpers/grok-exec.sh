@@ -6,7 +6,7 @@ set -euo pipefail
 prompt=""
 [[ ! -t 0 ]] && prompt="$(cat)"
 if [[ -z "${prompt//[[:space:]]/}" ]]; then
-    echo "grok-exec: no prompt provided on stdin" >&2
+    if declare -f log >/dev/null 2>&1; then log ERROR "grok-exec: no prompt provided on stdin"; else echo "grok-exec: no prompt provided on stdin" >&2; fi
     exit 64
 fi
 model="${OCTOPUS_GROK_MODEL:-default}"

@@ -14,7 +14,7 @@ fi
 source "${_providers_lib_dir}/provider-allowlist.sh" 2>/dev/null || true
 source "${_providers_lib_dir}/auth.sh" 2>/dev/null || true
 source "${_providers_lib_dir}/qwen.sh" 2>/dev/null || true
-if ! declare -f grok_is_available >/dev/null 2>&1; then
+if ! declare -f grok_is_available >/dev/null 2>&1 || ! declare -f grok_auth_method >/dev/null 2>&1; then
     source "${_providers_lib_dir}/grok.sh" 2>/dev/null || true
 fi
 
