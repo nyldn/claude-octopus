@@ -43,7 +43,8 @@ _parallel_google_seat() {
         && command -v agy >/dev/null 2>&1; then
         echo "agy"; return 0
     fi
-    if command -v gemini >/dev/null 2>&1; then
+    if { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed gemini; } \
+        && command -v gemini >/dev/null 2>&1; then
         echo "gemini"; return 0
     fi
     echo "claude-sonnet"; return 0

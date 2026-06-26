@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -uo pipefail
+set -euo pipefail
 
 # Regression tests for the agy migration of parallel.sh map_reduce/fan_out.
 #
@@ -63,11 +63,11 @@ test_default_pairs_use_google_seat() {
 _seat_with_clis() {
     # $@ = CLI names to install as fakes on a hermetic PATH; echoes the seat
     local workdir hbin b p cli
-    workdir=$(mktemp -d); hbin="$workdir/hbin"; mkdir -p "$hbin"
+    workdir=$(mktemp -d "${TEST_TMP_DIR}/wd.XXXXXX"); hbin="$workdir/hbin"; mkdir -p "$hbin"
     for b in cat basename; do p=$(command -v "$b" 2>/dev/null) && ln -sf "$p" "$hbin/$b"; done
     for cli in "$@"; do printf '#!/bin/sh\necho ok\n' > "$hbin/$cli"; chmod +x "$hbin/$cli"; done
     PROJECT_ROOT="$PROJECT_ROOT" HBIN="$hbin" bash -c '
-        set -uo pipefail
+        set -euo pipefail
         export PATH="$HBIN"
         source "$PROJECT_ROOT/scripts/lib/parallel.sh"
         _parallel_google_seat
@@ -102,12 +102,12 @@ test_seat_claude_fallback() {
 test_mapreduce_decomposes_via_agy() {
     test_case "map_reduce decomposes via run_agent_sync(agy) and seats agy in the subtask rotation"
     local workdir hbin b p out
-    workdir=$(mktemp -d); hbin="$workdir/hbin"; mkdir -p "$hbin" "$workdir/results"
-    for b in date cat basename rm mkdir sed; do p=$(command -v "$b" 2>/dev/null) && ln -sf "$p" "$hbin/$b"; done
+    workdir=$(mktemp -d "${TEST_TMP_DIR}/wd.XXXXXX"); hbin="$workdir/hbin"; mkdir -p "$hbin" "$workdir/results"
+    for b in date cat basename rm mkdir sed sleep; do p=$(command -v "$b" 2>/dev/null) && ln -sf "$p" "$hbin/$b"; done
     printf '#!/bin/sh\necho ok\n' > "$hbin/agy"; chmod +x "$hbin/agy"   # agy present, gemini absent
 
     out="$(PROJECT_ROOT="$PROJECT_ROOT" WORKDIR="$workdir" HBIN="$hbin" bash -c '
-        set -uo pipefail
+        set -euo pipefail
         export PATH="$HBIN"
         RESULTS_DIR="$WORKDIR/results"; DRY_RUN=false; TIMEOUT=30; CYAN=""; NC=""
         # Source FIRST, then override parallel.sh-defined functions (aggregate_results)
@@ -123,9 +123,14 @@ test_mapreduce_decomposes_via_agy() {
     ')"
     rm -rf "$workdir"
 
+    # Scope the rotation assertion to the SPAWN section only — otherwise the
+    # DECOMPOSE_AGENT=agy line in the RAS section would satisfy *"agy"* even if a
+    # regression dropped agy from the spawned subtask pair (CodeRabbit, #539).
+    local spawn_section="${out##*=== SPAWN ===}"
     if [[ "$out" == *"DECOMPOSE_AGENT=agy"* ]] \
        && [[ "$out" != *"DECOMPOSE_AGENT=gemini"* ]] \
-       && [[ "$out" == *"codex"* ]] && [[ "$out" == *"agy"* ]]; then
+       && [[ "$spawn_section" == *"codex"* ]] && [[ "$spawn_section" == *"agy"* ]] \
+       && [[ "$spawn_section" != *"gemini"* ]]; then
         test_pass
     else
         test_fail "expected decomposition via agy + agy in subtask rotation, got:\n$out"
@@ -135,12 +140,12 @@ test_mapreduce_decomposes_via_agy() {
 test_fanout_default_pair_prefers_agy() {
     test_case "fan_out default pair is (codex, agy) when no wizard config and agy is available"
     local workdir hbin b p out
-    workdir=$(mktemp -d); hbin="$workdir/hbin"; mkdir -p "$hbin" "$workdir/results"
-    for b in date cat basename rm mkdir tr; do p=$(command -v "$b" 2>/dev/null) && ln -sf "$p" "$hbin/$b"; done
+    workdir=$(mktemp -d "${TEST_TMP_DIR}/wd.XXXXXX"); hbin="$workdir/hbin"; mkdir -p "$hbin" "$workdir/results"
+    for b in date cat basename rm mkdir tr sleep; do p=$(command -v "$b" 2>/dev/null) && ln -sf "$p" "$hbin/$b"; done
     printf '#!/bin/sh\necho ok\n' > "$hbin/agy"; chmod +x "$hbin/agy"   # agy present, gemini absent
 
     out="$(PROJECT_ROOT="$PROJECT_ROOT" WORKDIR="$workdir" HBIN="$hbin" bash -c '
-        set -uo pipefail
+        set -euo pipefail
         export PATH="$HBIN"
         RESULTS_DIR="$WORKDIR/results"; DRY_RUN=false; CYAN=""; NC=""
         # Source FIRST, then override _fan_out_agents_from_config (defined in
