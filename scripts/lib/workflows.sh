@@ -1377,14 +1377,21 @@ Every [CODING] line must include a same-line Files: clause."
     local pids=()
     local task_ids=()
 
-    # [REASONING] subtask routing is overridable and falls back through available
-    # providers — mirrors the tangle_decompose_agent resolution above. Without
-    # this, users without agy get an unconditional exit 127 on every REASONING
-    # subtask even though the provider health check already flagged agy as absent.
+    # [CODING] and [REASONING] subtask routing are overridable. This keeps
+    # tangle usable on hosts where the default coding provider is unavailable,
+    # misconfigured, or unsuitable for implementation work. The lookup order is
+    # handled by octopus_agent_override(), e.g. OCTOPUS_TANGLE_CODING_AGENT,
+    # OCTOPUS_TANGLE_AGENT, then OCTOPUS_CODING_AGENT.
+    local tangle_coding_agent="codex"
     local tangle_reasoning_agent="agy"
     if declare -f octopus_agent_override >/dev/null 2>&1; then
+        tangle_coding_agent=$(octopus_agent_override "tangle" "coding" "codex")
         tangle_reasoning_agent=$(octopus_agent_override "tangle" "reasoning" "agy")
     fi
+
+    # [REASONING] falls back through available providers. Without this, users
+    # without agy get an unconditional exit 127 on every REASONING subtask even
+    # though the provider health check already flagged agy as absent.
     if ! command -v "$tangle_reasoning_agent" >/dev/null 2>&1; then
         local _tangle_reasoning_fb
         for _tangle_reasoning_fb in gemini codex; do
@@ -1406,7 +1413,7 @@ Every [CODING] line must include a same-line Files: clause."
 
         local subtask
         subtask=$(echo "$line" | sed -E 's/^[[:space:]]*(\*\*)?[0-9]+[\.\)][[:space:]]*//; s/^[[:space:]]+//')
-        local agent="codex"
+        local agent="$tangle_coding_agent"
         local role="implementer"
         local pane_icon="⚙️"
         if [[ "$subtask" =~ \[REASONING\] ]]; then
@@ -1420,10 +1427,10 @@ Every [CODING] line must include a same-line Files: clause."
         local subtask_prompt
         subtask_prompt=$(build_tangle_subtask_prompt "$resolved_prompt" "$subtask")
 
-        # Tangle currently routes only CLI-backed codex/gemini workers. Its
-        # completion watcher relies on .done markers written by the legacy
-        # spawn path; add equivalent hook markers before routing Claude Agent
-        # Teams into this loop.
+        # Tangle uses the legacy spawn path in this parallel loop so .done
+        # markers are written for the completion watcher. This also allows
+        # configurable CLI-backed coding/reasoning agents without requiring
+        # Claude Agent Teams hooks in the host process.
         if [[ "$TMUX_MODE" == "true" ]]; then
             # Use async+tmux spawning
             local pid
