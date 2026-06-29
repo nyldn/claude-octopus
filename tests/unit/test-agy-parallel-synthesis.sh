@@ -79,7 +79,11 @@ test_embrace_dispatch_seats_agy() {
 # ─────────────────────────────────────────────────────────────────────────────
 
 _run_aggregate_scenario() {
-    # $1 = "agy" to install a fake agy CLI, "none" to install none
+    # $1 = scenario:
+    #   "agy"       install a fake agy CLI (agy synthesizes)
+    #   "agy-fails" install fake agy + claude CLIs; the run_agent_sync stub fails
+    #              for agy so aggregate_results must retry via claude-sonnet
+    #   "none"      install neither (forces concatenation)
     local mode="$1"
     local workdir hbin
     workdir=$(mktemp -d "${TEST_TMP_DIR}/wd.XXXXXX")
@@ -90,15 +94,24 @@ _run_aggregate_scenario() {
     for b in date cat basename rm mkdir ln; do
         p=$(command -v "$b" 2>/dev/null) && ln -sf "$p" "$hbin/$b"
     done
-    if [[ "$mode" == "agy" ]]; then
+    if [[ "$mode" == "agy" || "$mode" == "agy-fails" ]]; then
         printf '#!/bin/sh\necho agy-output\n' > "$hbin/agy"
         chmod +x "$hbin/agy"
     fi
+    # The claude-sonnet retry branch gates on `command -v claude`; provide it so
+    # the agy-failure path can fall through to claude-sonnet.
+    if [[ "$mode" == "agy-fails" ]]; then
+        printf '#!/bin/sh\necho claude-output\n' > "$hbin/claude"
+        chmod +x "$hbin/claude"
+    fi
+    # Agent whose run_agent_sync stub should fail (empty/non-zero), or empty.
+    local fail_agent=""
+    [[ "$mode" == "agy-fails" ]] && fail_agent="agy"
 
     printf 'Result A: problem analysis content\n' > "$workdir/results/codex-probe-1.md"
     printf 'Result B: solution research content\n' > "$workdir/results/agy-probe-2.md"
 
-    PROJECT_ROOT="$PROJECT_ROOT" WORKDIR="$workdir" HBIN="$hbin" bash -c '
+    PROJECT_ROOT="$PROJECT_ROOT" WORKDIR="$workdir" HBIN="$hbin" FAIL_AGENT="$fail_agent" bash -c '
         set -euo pipefail
         export PATH="$HBIN"
         RESULTS_DIR="$WORKDIR/results"
@@ -114,6 +127,7 @@ _run_aggregate_scenario() {
         score_result_file() { echo 80; }
         run_agent_sync() {
             echo "SYNTH_AGENT=$1" >> "$WORKDIR/agent.log"
+            if [ -n "${FAIL_AGENT:-}" ] && [ "$1" = "$FAIL_AGENT" ]; then return 1; fi
             echo "SYNTHESIZED BODY via $1"
         }
         source "$PROJECT_ROOT/scripts/lib/parallel.sh"
@@ -153,11 +167,28 @@ test_aggregator_concatenates_when_no_provider() {
     fi
 }
 
+test_aggregator_retries_claude_sonnet_when_agy_fails() {
+    test_case "aggregate_results retries via claude-sonnet (not concatenation) when the agy synthesizer fails"
+    local out
+    out="$(_run_aggregate_scenario agy-fails)"
+    # agy must be attempted first, then claude-sonnet must produce the synthesis
+    if [[ "$out" == *"Synthesized Results"* ]] \
+       && [[ "$out" == *"Synthesizer: claude-sonnet"* ]] \
+       && [[ "$out" == *"SYNTH_AGENT=agy"* ]] \
+       && [[ "$out" == *"SYNTH_AGENT=claude-sonnet"* ]] \
+       && [[ "$out" != *"Aggregated Results"* ]]; then
+        test_pass
+    else
+        test_fail "expected claude-sonnet retry synthesis after agy failure, got:\n$out"
+    fi
+}
+
 test_no_bare_gemini_synthesis_in_parallel
 test_parallel_routes_through_run_agent_sync
 test_picker_prefers_agy
 test_embrace_dispatch_seats_agy
 test_aggregator_selects_agy_when_available
 test_aggregator_concatenates_when_no_provider
+test_aggregator_retries_claude_sonnet_when_agy_fails
 
 test_summary
