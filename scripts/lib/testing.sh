@@ -133,14 +133,12 @@ validate_tangle_results() {
                 ((success_count++)) || true
             else
                 ((fail_count++)) || true
-                # Extract agent and prompt for retry (if loop-until-approved enabled)
+                # Store the failed result file for retry (if loop-until-approved enabled).
+                # The retry path reconstructs the original prompt plus failure feedback from
+                # the result artifact. This preserves multiline task context and avoids
+                # treating output-quality failures as provider-unavailability failures.
                 if [[ "$LOOP_UNTIL_APPROVED" == "true" ]]; then
-                    local agent prompt_line
-                    agent=$(grep "^# Agent:" "$result" 2>/dev/null | sed 's/# Agent: //')
-                    prompt_line=$(grep "^# Prompt:" "$result" 2>/dev/null | sed 's/# Prompt: //')
-                    if [[ -n "$agent" && -n "$prompt_line" ]]; then
-                        FAILED_SUBTASKS="${FAILED_SUBTASKS}${agent}:${prompt_line}"$'\n'
-                    fi
+                    FAILED_SUBTASKS="${FAILED_SUBTASKS}result:${result}"$'\n'
                 fi
             fi
             results+="$(<"$result")\n\n---\n\n"
@@ -304,8 +302,25 @@ EOF
                     # v8.18.0: Lock providers that failed quality gate
                     while IFS= read -r failed_task; do
                         [[ -z "$failed_task" ]] && continue
-                        local failed_agent="${failed_task%%:*}"
-                        lock_provider "$failed_agent"
+                        local failed_agent=""
+                        if [[ "$failed_task" == result:* ]]; then
+                            local failed_result="${failed_task#result:}"
+                            failed_agent=$(awk '/^# Agent: / { sub(/^# Agent: /, ""); print; exit }' "$failed_result" 2>/dev/null || true)
+                            failed_agent="${failed_agent%% *}"
+                            if [[ -z "$failed_agent" ]]; then
+                                local failed_base
+                                failed_base=$(basename "$failed_result" .md)
+                                if [[ "$failed_base" == *-tangle-* ]]; then
+                                    failed_agent="${failed_base%%-tangle-*}"
+                                fi
+                            fi
+                            # Result-file retries are output-quality retries, not provider
+                            # availability failures. Keep the same provider by default.
+                            [[ "${OCTOPUS_TANGLE_RETRY_SWITCH_PROVIDER:-false}" == "true" && -n "$failed_agent" ]] && lock_provider "$failed_agent"
+                        else
+                            failed_agent="${failed_task%%:*}"
+                            [[ -n "$failed_agent" ]] && lock_provider "$failed_agent"
+                        fi
                     done <<< "$FAILED_SUBTASKS"
                     retry_failed_subtasks "$task_group" "$quality_retry_count"
                     sleep 3
