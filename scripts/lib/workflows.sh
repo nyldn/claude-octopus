@@ -1450,25 +1450,51 @@ Every [CODING] line must include a same-line Files: clause."
     local _deadline=$(( $(date +%s) + _tangle_max_wait ))
     local completed=0
     local _failed_tasks=()
+    local _terminal_task_ids=""
     while [[ $completed -lt ${#task_ids[@]} ]]; do
         completed=0
         for i in "${!task_ids[@]}"; do
             local _done_file="${_done_dir}/${task_ids[$i]}.done"
             if [[ -f "$_done_file" ]]; then
                 ((completed++)) || true
-            elif (( $(date +%s) > _deadline )); then
-                log WARN "Thread ${task_ids[$i]} deadline exceeded — killing and marking timeout"
+            elif [[ " $_terminal_task_ids " == *" ${task_ids[$i]} "* ]]; then
+                ((completed++)) || true
+            else
                 local _wrapper_pid="${pids[$i]:-}"
-                if [[ -n "$_wrapper_pid" ]]; then
-                    pkill -TERM -P "$_wrapper_pid" 2>/dev/null || true
-                    kill -TERM "$_wrapper_pid" 2>/dev/null || true
-                    sleep 1
-                    pkill -KILL -P "$_wrapper_pid" 2>/dev/null || true
-                    kill -KILL "$_wrapper_pid" 2>/dev/null || true
-                fi
-                mkdir -p "$_done_dir" 2>/dev/null || true
-                if [[ ! -f "$_done_file" ]] && ! echo "timeout" > "$_done_file" 2>/dev/null; then
-                    log WARN "Failed to write timeout marker for ${task_ids[$i]} at $_done_file"
+                if (( $(date +%s) > _deadline )); then
+                    log WARN "Thread ${task_ids[$i]} deadline exceeded — killing and marking timeout"
+                    if [[ -n "$_wrapper_pid" ]]; then
+                        pkill -TERM -P "$_wrapper_pid" 2>/dev/null || true
+                        kill -TERM "$_wrapper_pid" 2>/dev/null || true
+                        sleep 1
+                        pkill -KILL -P "$_wrapper_pid" 2>/dev/null || true
+                        kill -KILL "$_wrapper_pid" 2>/dev/null || true
+                    fi
+                    mkdir -p "$_done_dir" 2>/dev/null || true
+                    if [[ ! -f "$_done_file" ]] && ! echo "timeout" > "$_done_file" 2>/dev/null; then
+                        log WARN "Failed to write timeout marker for ${task_ids[$i]} at $_done_file"
+                    fi
+                    [[ " $_terminal_task_ids " == *" ${task_ids[$i]} "* ]] || _terminal_task_ids="${_terminal_task_ids:+$_terminal_task_ids }${task_ids[$i]}"
+                elif [[ -n "$_wrapper_pid" ]] && ! kill -0 "$_wrapper_pid" 2>/dev/null; then
+                    log WARN "Thread ${task_ids[$i]} exited without writing completion marker — marking failed"
+                    mkdir -p "$_done_dir" 2>/dev/null || true
+                    if [[ ! -f "$_done_file" ]] && ! echo "missing-done-marker" > "$_done_file" 2>/dev/null; then
+                        log WARN "Failed to write missing-done marker for ${task_ids[$i]} at $_done_file"
+                    fi
+                    [[ " $_terminal_task_ids " == *" ${task_ids[$i]} "* ]] || _terminal_task_ids="${_terminal_task_ids:+$_terminal_task_ids }${task_ids[$i]}"
+                    local _result_file
+                    _result_file=$(find "${RESULTS_DIR:-${HOME}/.claude-octopus/results}" -maxdepth 1 -type f -name "*-${task_ids[$i]}.md" 2>/dev/null | head -1 || true)
+                    if [[ -n "$_result_file" ]]; then
+                        local _status_count
+                        _status_count=$(grep -c '^## Status:' "$_result_file" 2>/dev/null || true)
+                        if [[ "${_status_count:-0}" -eq 0 ]]; then
+                            {
+                                echo ""
+                                echo "## Status: FAILED (Missing completion marker)"
+                                echo "# Completed: $(date)"
+                            } >> "$_result_file" 2>/dev/null || true
+                        fi
+                    fi
                 fi
             fi
         done
