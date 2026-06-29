@@ -509,6 +509,10 @@ reset_provider_lockouts() {
 # Each provider accumulates project-specific knowledge in .octo/providers/{name}-history.md
 
 append_provider_history() {
+    case "${OCTOPUS_PROVIDER_HISTORY:-on}" in
+        off|false|0|no) return 0 ;;
+    esac
+
     local provider="$1"
     local phase="$2"
     local task_brief="$3"
@@ -546,6 +550,10 @@ HISTEOF
 }
 
 read_provider_history() {
+    case "${OCTOPUS_PROVIDER_HISTORY:-on}" in
+        off|false|0|no) return 0 ;;
+    esac
+
     local provider="$1"
     local history_file="${WORKSPACE_DIR}/.octo/providers/${provider}-history.md"
 
