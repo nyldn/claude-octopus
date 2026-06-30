@@ -261,7 +261,7 @@ $challenge_result
 - Successful: ${success_count}/${total} result files
 - Failed: ${fail_count}/${total} result files
 - Decision Branch: ${quality_branch}
-- Retry Attempts: ${quality_retry_count}/${MAX_QUALITY_RETRIES}
+- Retry Attempts: ${quality_retry_count}/$(quality_retry_limit)
 
 ### Explicit File Coverage
 $(if [[ -n "$missing_explicit_files" ]]; then
@@ -294,11 +294,13 @@ EOF
                 ;;
             retry)
                 # Retry failed tasks
-                if [[ $quality_retry_count -lt $MAX_QUALITY_RETRIES ]]; then
+                if ! quality_retry_limit_reached "$quality_retry_count"; then
                     ((quality_retry_count++)) || true
+                    local retry_limit_display
+                    retry_limit_display=$(quality_retry_limit)
                     echo ""
                     echo -e "${YELLOW}${_BOX_TOP}${NC}"
-                    echo -e "${YELLOW}║  🐙 Branching: Retry Path (attempt $quality_retry_count/$MAX_QUALITY_RETRIES)                    ║${NC}"
+                    echo -e "${YELLOW}║  🐙 Branching: Retry Path (attempt $quality_retry_count/$retry_limit_display)                    ║${NC}"
                     echo -e "${YELLOW}${_BOX_BOT}${NC}"
                     log WARN "Quality gate at ${success_rate}%, below ${tangle_threshold}%. Retrying..."
                     # v8.18.0: Lock providers that failed quality gate
@@ -311,7 +313,7 @@ EOF
                     sleep 3
                     continue  # Re-validate
                 else
-                    log ERROR "Max retries ($MAX_QUALITY_RETRIES) exceeded. Proceeding with ${success_rate}%"
+                    log ERROR "Max retries ($(quality_retry_limit)) exceeded. Proceeding with ${success_rate}%"
                 fi
                 ;;
             escalate)

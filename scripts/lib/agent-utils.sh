@@ -508,7 +508,11 @@ retry_failed_subtasks() {
     # Count tasks (newline-separated)
     local task_count
     task_count=$(echo "$FAILED_SUBTASKS" | grep -c .)
-    log INFO "Retrying $task_count failed subtasks (attempt $retry_count/${MAX_QUALITY_RETRIES})..."
+    local retry_limit_display="${MAX_QUALITY_RETRIES:-${CLAUDE_OCTOPUS_MAX_RETRIES:-3}}"
+    if declare -f quality_retry_limit >/dev/null 2>&1; then
+        retry_limit_display=$(quality_retry_limit)
+    fi
+    log INFO "Retrying $task_count failed subtasks (attempt $retry_count/${retry_limit_display})..."
 
     local pids=""
     local subtask_num=0
