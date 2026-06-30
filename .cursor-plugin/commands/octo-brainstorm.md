@@ -73,7 +73,7 @@ printf "qwen:%s\n" "$(command -v qwen >/dev/null 2>&1 && echo available || echo 
 printf "ollama:%s\n" "$(command -v ollama >/dev/null 2>&1 && curl -sf http://localhost:11434/api/tags >/dev/null 2>&1 && echo available || echo missing)"
 printf "openrouter:%s\n" "$([ -n "${OPENROUTER_API_KEY:-}" ] && echo available || echo missing)"
 printf "agy:%s\n" "$(command -v agy >/dev/null 2>&1 && echo available || echo missing)"
-printf "grok:%s\n" "$(command -v grok >/dev/null 2>&1 && echo available || echo missing)"
+printf "grok:%s\n" "$(command -v grok >/dev/null 2>&1 && { [ -n "${XAI_API_KEY:-}" ] || [ -f "${HOME}/.grok/auth.json" ]; } && echo available || echo missing)"
 echo "PROVIDER_CHECK_END"
 ```
 
@@ -85,7 +85,7 @@ status_env() { [[ -n "${1:-}" ]] && echo "Configured ✓" || echo "Not configure
 codex_status="$(status_cli codex)"
 gemini_status="$(status_cli gemini)"
 agy_status="$(status_cli agy)"
-grok_status="$(status_cli grok)"
+if command -v grok >/dev/null 2>&1 && { [ -n "${XAI_API_KEY:-}" ] || [ -f "${HOME}/.grok/auth.json" ]; }; then grok_status="Available ✓"; else grok_status="Not installed ✗"; fi
 opencode_status="$(status_cli opencode)"
 copilot_status="$(status_cli copilot)"
 qwen_status="$(status_cli qwen)"
@@ -119,6 +119,7 @@ Providers:
 🔴 Codex CLI: [Available ✓ / Not installed ✗]
 🟡 Gemini CLI: [Available ✓ / Not installed ✗]
 🧭 Antigravity CLI: [Available ✓ / Not installed ✗]
+🤖 Grok CLI (xAI): [Available ✓ / Not installed ✗]
 🟤 OpenCode: [Available ✓ / Not installed ✗]
 🟢 Copilot CLI: [Available ✓ / Not installed ✗]
 🟠 Qwen CLI: [Available ✓ / Not installed ✗]
