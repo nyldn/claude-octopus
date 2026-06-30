@@ -266,6 +266,7 @@ Provider Availability:
 🔴 Codex CLI: [Available ✓ / Not installed ✗]
 🟡 Gemini CLI: [Available ✓ / Not installed ✗]
 🧭 Antigravity CLI: [Available ✓ / Not installed ✗]
+🤖 Grok CLI (xAI): [Available ✓ / Not installed ✗]
 🟠 Sonnet 4.6: available only when this Codex session exposes a compatible host subagent tool
 🐙 current host model: Available ✓ (Moderator and participant)
 ```
@@ -417,7 +418,7 @@ For each round, iterate the runtime advisor list and dispatch through Octopus:
 IFS=',' read -r -a ADVISOR_LIST <<< "$ADVISORS"
 for advisor in "${ADVISOR_LIST[@]}"; do
   case "$advisor" in
-    claude*|codex*|gemini*|agy*|antigravity|copilot*|qwen*|opencode*|ollama*|cursor-agent*|vibe*) ;;
+    claude*|codex*|gemini*|agy*|antigravity|copilot*|qwen*|opencode*|ollama*|cursor-agent*|vibe*|grok*) ;;
     *) echo "Skipping unsupported advisor: $advisor"; continue ;;
   esac
   safe_advisor=$(printf '%s' "$advisor" | tr -c '[:alnum:]_-' '_')
