@@ -162,6 +162,37 @@ sanitize_review_id() {
     return 0
 }
 
+_octopus_is_safe_openai_compatible_value() {
+    local value="$1"
+    [[ -z "$value" ]] && return 1
+    [[ "$value" == *$'\n'* || "$value" == *$'\r'* ]] && return 1
+    [[ "$value" == *"\\"* ]] && return 1
+    case "$value" in
+        *[[:space:]]*|*\*|*";"*|*"|"*|*"&"*|*'$'*|*'`'*|*"'"*|*'"'*|*"("*|*")"*|*"<"*|*">"*|*"!"*|*"*"*|*"?"*|*"["*|*"]"*|*"{"*|*"}"*)
+            return 1
+            ;;
+    esac
+    return 0
+}
+
+_validate_openai_compatible_agent_command() {
+    local cmd="$1"
+    local -a parts
+    # Preserve backslashes while splitting the generated helper command into
+    # tokens; unsafe backslashes are rejected by the per-token validators below.
+    read -r -a parts <<< "$cmd"
+
+    [[ "${#parts[@]}" -eq 7 ]] || return 1
+    [[ "${parts[0]}" == */scripts/helpers/openai-compatible-agent.py ]] || return 1
+    [[ "${parts[1]}" == "--provider" && "${parts[2]}" == "generic" ]] || return 1
+    [[ "${parts[3]}" == "--model" ]] || return 1
+    _octopus_is_safe_openai_compatible_value "${parts[4]}" || return 1
+    [[ "${parts[4]}" != /* ]] || return 1
+    [[ "${parts[5]}" == "--cwd" ]] || return 1
+    _octopus_is_safe_openai_compatible_value "${parts[6]}" || return 1
+    return 0
+}
+
 # Validate agent command to prevent command injection
 # Only allows whitelisted command prefixes
 validate_agent_command() {
@@ -169,8 +200,14 @@ validate_agent_command() {
     local cmd_executable="${cmd%%[[:space:]]*}"
 
     # Allow helper shims only when they are the executable token, not when they
-    # appear later in the command string.
-    if [[ "$cmd_executable" == */vibe-exec.sh || "$cmd_executable" == */openai-compatible-agent.py ]]; then
+    # appear later in the command string. OpenAI-compatible helper arguments are
+    # validated strictly because model and cwd values are interpolated into the
+    # command returned by dispatch.
+    if [[ "$cmd_executable" == */scripts/helpers/openai-compatible-agent.py ]]; then
+        _validate_openai_compatible_agent_command "$cmd"
+        return $?
+    fi
+    if [[ "$cmd_executable" == */vibe-exec.sh ]]; then
         return 0
     fi
 

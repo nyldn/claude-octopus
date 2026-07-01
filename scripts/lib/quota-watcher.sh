@@ -6,7 +6,8 @@
 # Excludes RetryableQuotaError and "Attempt N failed" retry log lines, which the Gemini CLI
 # emits during its own backoff/retry cycle. Matching those caused premature SIGTERM before the
 # CLI's retry landed, silently dropping reviewer roles (exit 143, empty output). (issue #516)
-OCTOPUS_QUOTA_PATTERN='QUOTA_EXHAUSTED|TerminalQuotaError|exhausted your capacity|insufficient_quota|HTTP 401'
+# Overridable via env var so operators can narrow the pattern without patching. (issue #536)
+OCTOPUS_QUOTA_PATTERN=${OCTOPUS_QUOTA_PATTERN:-'QUOTA_EXHAUSTED|TerminalQuotaError|exhausted your capacity|insufficient_quota|HTTP 401'}
 
 # Session-scoped "this provider is quota/auth-dead" cache (oco-cbb). When a
 # terminal quota/auth error is seen at dispatch, the provider is marked here so
@@ -34,9 +35,18 @@ octo_quota_is_dead() {
 quota_watcher_has_match() {
     local temp_err="$1"
     local temp_out="$2"
+    local _matches
 
-    grep -qE "$OCTOPUS_QUOTA_PATTERN" "$temp_err" 2>/dev/null || \
-        grep -qE "$OCTOPUS_QUOTA_PATTERN" "$temp_out" 2>/dev/null
+    # Exclude lines that contain "Retrying after" — those are provider-internal
+    # retry progress messages (e.g. Gemini burst-throttle 429s) that contain
+    # "exhausted your capacity" but recover on their own. Matching them as
+    # terminal errors caused SIGTERM mid-retry, dropping reviewer roles with
+    # exit 143 and empty output. (issue #536)
+    for f in "$temp_err" "$temp_out"; do
+        _matches=$(grep -E "$OCTOPUS_QUOTA_PATTERN" "$f" 2>/dev/null | grep -vE "Retrying after") || true
+        [[ -n "$_matches" ]] && return 0
+    done
+    return 1
 }
 
 start_quota_watcher() {

@@ -33,6 +33,23 @@ _fan_out_agents_from_config() {
     ' "$config_file" 2>/dev/null || true
 }
 
+# Resolve the preferred non-Codex dispatch seat for fan-out / map-reduce.
+# The Gemini CLI was sunset 2026-06-18; agy (Antigravity) is the default Google
+# seat (#524). Order: agy → gemini (legacy, only when still installed, to
+# preserve behavior for existing setups) → claude-sonnet (always available in
+# Claude Code). Always echoes a usable agent.
+_parallel_google_seat() {
+    if { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed agy; } \
+        && command -v agy >/dev/null 2>&1; then
+        echo "agy"; return 0
+    fi
+    if { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed gemini; } \
+        && command -v gemini >/dev/null 2>&1; then
+        echo "gemini"; return 0
+    fi
+    echo "claude-sonnet"; return 0
+}
+
 fan_out() {
     local prompt="$1"
     local agents=()
@@ -55,8 +72,9 @@ fan_out() {
         done <<< "$_configured"
     fi
 
-    # Fallback to original default pair when config absent or all entries invalid
-    [[ ${#agents[@]} -eq 0 ]] && agents=("codex" "gemini")
+    # Fallback to default pair when config absent or all entries invalid.
+    # Second seat prefers agy (Google seat) over the sunset Gemini CLI (#524).
+    [[ ${#agents[@]} -eq 0 ]] && agents=("codex" "$(_parallel_google_seat)")
 
     log INFO "Fan-out: Sending prompt to ${#agents[@]} agents (${agents[*]})"
     echo ""
@@ -255,7 +273,7 @@ map_reduce() {
 
     log INFO "Map-Reduce: Decomposing task and distributing to agents"
 
-    log INFO "Phase 1: Task decomposition with Gemini"
+    log INFO "Phase 1: Task decomposition"
     local decompose_prompt="Analyze this task and break it into subtasks that can be executed in parallel.
 If the task produces a single deliverable (one file, one script, one page, one config), keep it as ONE subtask — do not split it. Only decompose when subtasks are truly independent with no cross-file references. Aim for 2-5 subtasks; fewer is better when the work is tightly coupled.
 Output as a simple numbered list. Task: $main_prompt"
@@ -267,11 +285,32 @@ Output as a simple numbered list. Task: $main_prompt"
         return 0
     fi
 
-    gemini "$decompose_prompt" > "$decompose_result" 2>&1 || {
-        log WARN "Decomposition failed, falling back to fan-out"
+    # Route decomposition through the agy-capable run_agent_sync abstraction
+    # (Gemini CLI sunset 2026-06-18; agy is the Google seat, #524), mirroring
+    # aggregate_results' synthesis path. claude-sonnet is the fallback; a plain
+    # fan-out is the last resort when no decomposition agent succeeds.
+    if type run_agent_sync >/dev/null 2>&1; then
+        local decompose_agent decompose_output=""
+        decompose_agent=$(_parallel_google_seat)
+        log INFO "Decomposing with $decompose_agent"
+        if decompose_output=$(run_agent_sync "$decompose_agent" "$decompose_prompt" "${TIMEOUT:-120}" "decompose" "parallel" 2>/dev/null) \
+            && [[ -n "$decompose_output" ]]; then
+            printf '%s\n' "$decompose_output" > "$decompose_result"
+        elif [[ "$decompose_agent" != "claude-sonnet" ]] \
+            && decompose_output=$(run_agent_sync "claude-sonnet" "$decompose_prompt" "${TIMEOUT:-120}" "decompose" "parallel" 2>/dev/null) \
+            && [[ -n "$decompose_output" ]]; then
+            log WARN "Decomposition via '$decompose_agent' failed — used claude-sonnet fallback"
+            printf '%s\n' "$decompose_output" > "$decompose_result"
+        else
+            log WARN "Decomposition failed, falling back to fan-out"
+            fan_out "$main_prompt"
+            return
+        fi
+    else
+        log WARN "run_agent_sync unavailable, falling back to fan-out"
         fan_out "$main_prompt"
         return
-    }
+    fi
 
     log INFO "Decomposition complete. Subtasks:"
     cat "$decompose_result"
@@ -279,7 +318,8 @@ Output as a simple numbered list. Task: $main_prompt"
 
     log INFO "Phase 2: Mapping subtasks to agents"
     local subtask_num=0
-    local agents=("codex" "gemini")
+    # Second seat prefers agy (Google seat) over the sunset Gemini CLI (#524)
+    local agents=("codex" "$(_parallel_google_seat)")
     local pids=()
 
     while IFS= read -r line; do
@@ -316,6 +356,30 @@ Output as a simple numbered list. Task: $main_prompt"
     done
 
     aggregate_results "$task_group"
+}
+
+# v9.45.1: Pick the synthesis provider for aggregate_results.
+# The Gemini CLI was sunset 2026-06-18; agy (Antigravity) is now the default
+# Google seat / synthesizer, mirroring the workflows.sh phase synthesizers
+# (#524). Preference order:
+#   1. agy           — Google seat, when the agy CLI is installed/allowed
+#   2. claude-sonnet — always available inside Claude Code
+# Echoes the chosen agent type, or empty when no synthesis provider is reachable
+# (the caller then falls back to plain concatenation). Always returns 0 — the
+# exit code is unused and the caller branches on the echoed value, so a non-zero
+# return would only misfire `set -e` in `synth_agent=$(...)` assignments.
+_aggregate_pick_synth_agent() {
+    if { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed agy; } \
+        && command -v agy >/dev/null 2>&1; then
+        echo "agy"; return 0
+    fi
+    # claude-sonnet is the fallback only when the allowlist permits it — the
+    # picker is the single source of truth for synthesis authorization (#538).
+    if { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed claude-sonnet; } \
+        && command -v claude >/dev/null 2>&1; then
+        echo "claude-sonnet"; return 0
+    fi
+    echo ""; return 0
 }
 
 aggregate_results() {
@@ -357,9 +421,16 @@ aggregate_results() {
         ((result_count++)) || true
     done <<< "$ranked_files"
 
-    # Phase 2: Synthesize if we have a provider available and multiple results
-    if [[ $result_count -gt 1 ]] && command -v gemini &> /dev/null && [[ "$DRY_RUN" != "true" ]]; then
-        log INFO "Synthesizing $result_count results (ranked by quality, not just concatenating)..."
+    # Phase 2: Synthesize via the agy-capable run_agent_sync abstraction when we
+    # have a reachable synthesis provider and multiple results. (Gemini CLI sunset
+    # 2026-06-18 — agy is the default Google seat; claude-sonnet is the fallback.
+    # Plain concatenation is used only when NO synthesis provider is available.)
+    local synth_agent synth_used
+    synth_agent=$(_aggregate_pick_synth_agent)
+    synth_used="$synth_agent"
+    if [[ $result_count -gt 1 ]] && [[ -n "$synth_agent" ]] \
+        && type run_agent_sync >/dev/null 2>&1 && [[ "$DRY_RUN" != "true" ]]; then
+        log INFO "Synthesizing $result_count results via $synth_agent (ranked by quality, not just concatenating)..."
 
         # v8.49.0: Enhanced synthesis prompt with relevance awareness and structured output
         local query_context=""
@@ -388,17 +459,36 @@ Structure the output as:
 Subtask results:
 $(<"$raw_concat")"
 
-        local synthesis_result
-        if synthesis_result=$(printf '%s' "$synthesis_prompt" | run_with_timeout "$TIMEOUT" gemini 2>/dev/null) && [[ -n "$synthesis_result" ]]; then
+        local synthesis_result=""
+        if synthesis_result=$(run_agent_sync "$synth_agent" "$synthesis_prompt" "$TIMEOUT" "synthesizer" "parallel" 2>/dev/null) \
+            && [[ -n "$synthesis_result" ]]; then
+            :  # primary synthesizer produced output
+        elif [[ "$synth_agent" != "claude-sonnet" ]] \
+            && { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed claude-sonnet; } \
+            && command -v claude >/dev/null 2>&1 \
+            && synthesis_result=$(run_agent_sync "claude-sonnet" "$synthesis_prompt" "$TIMEOUT" "synthesizer" "parallel" 2>/dev/null) \
+            && [[ -n "$synthesis_result" ]]; then
+            log WARN "Synthesizer '$synth_agent' failed — used claude-sonnet fallback"
+            synth_used="claude-sonnet"
+        else
+            synthesis_result=""
+        fi
+
+        if [[ -n "$synthesis_result" ]]; then
             echo "# Claude Octopus - Synthesized Results" > "$aggregate_file"
             echo "" >> "$aggregate_file"
             echo "Generated: $(date)" >> "$aggregate_file"
             echo "Sources: $result_count subtask outputs (ranked by quality)" >> "$aggregate_file"
+            echo "Synthesizer: $synth_used" >> "$aggregate_file"
             [[ -n "$user_query" ]] && echo "Query: $user_query" >> "$aggregate_file"
             echo "" >> "$aggregate_file"
             echo "$synthesis_result" >> "$aggregate_file"
             rm -f "$raw_concat"
-            log INFO "Synthesized $result_count results to: $aggregate_file"
+            log INFO "Synthesized $result_count results via $synth_used to: $aggregate_file"
+            # #498: emit a synthesis lifecycle event on the success path, attributing
+            # the provider that actually produced the artifact ($synth_used, which
+            # reflects the claude-sonnet fallback above).
+            declare -f octo_event_emit >/dev/null 2>&1 && octo_event_emit "synthesis" phase="parallel" provider="$synth_used" count="$result_count" || true
             echo ""
             echo -e "${GREEN}✓${NC} Results synthesized to: $aggregate_file"
             guard_output "$(<"$aggregate_file")" "aggregate-synthesis"

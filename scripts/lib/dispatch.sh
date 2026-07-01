@@ -14,6 +14,20 @@
 # - Google Gemini 3.0: gemini-3.1-pro-preview, gemini-3-flash-preview, gemini-3-pro-image (GA; gemini-3-pro-image-preview deprecated 2026-06-25)
 # - Google Antigravity CLI: agy --print stdin dispatch, optional OCTOPUS_AGY_MODEL
 # Note: "API-key only" models require OPENAI_API_KEY; they are NOT available via ChatGPT subscription/OAuth.
+
+_octopus_is_safe_openai_compatible_dispatch_value() {
+    local value="$1"
+    [[ -z "$value" ]] && return 1
+    [[ "$value" == *$'\n'* || "$value" == *$'\r'* ]] && return 1
+    [[ "$value" == *"\\"* ]] && return 1
+    case "$value" in
+        *[[:space:]]*|*\*|*";"*|*"|"*|*"&"*|*'$'*|*'`'*|*"'"*|*'"'*|*"("*|*")"*|*"<"*|*">"*|*"!"*|*"*"*|*"?"*|*"["*|*"]"*|*"{"*|*"}"*)
+            return 1
+            ;;
+    esac
+    return 0
+}
+
 get_agent_command() {
     local agent_type="$1"
     local phase="${2:-}"
@@ -66,23 +80,34 @@ get_agent_command() {
 
     case "$agent_type" in
         codex|codex-standard|codex-max|codex-mini|codex-general)
-            model=$(get_agent_model "$agent_type" "$phase" "$role")
+            if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
+                return 1
+            fi
             echo "${codex_bin} exec --skip-git-repo-check --model ${model} ${sandbox_flag} -"
             ;;
         codex-spark)  # v8.9.0: Ultra-fast Spark model (1000+ tok/s)
-            model=$(get_agent_model "$agent_type" "$phase" "$role")
+            if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
+                return 1
+            fi
             echo "${codex_bin} exec --skip-git-repo-check --model ${model} ${sandbox_flag} -"
             ;;
         codex-reasoning)  # v8.9.0: Reasoning models (o3, o3)
-            model=$(get_agent_model "$agent_type" "$phase" "$role")
+            if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
+                return 1
+            fi
             echo "${codex_bin} exec --skip-git-repo-check --model ${model} ${sandbox_flag} -"
             ;;
         codex-large-context)  # v8.9.0: 1M context models (gpt-4.1)
-            model=$(get_agent_model "$agent_type" "$phase" "$role")
+            if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
+                return 1
+            fi
             echo "${codex_bin} exec --skip-git-repo-check --model ${model} ${sandbox_flag} -"
             ;;
         gemini|gemini-fast|gemini-image)
-            model=$(get_agent_model "$agent_type" "$phase" "$role")
+            local gemini_flags="-o text --approval-mode yolo"
+            if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
+                return 1
+            fi
             # v8.10.0: Fixed headless mode (Issue #25)
             # Prompt delivered via stdin by callers (avoids OS arg limits)
             # Callers add -p "" for headless mode trigger
@@ -97,7 +122,6 @@ get_agent_command() {
                 gemini_env="env NODE_NO_WARNINGS=1 GEMINI_FORCE_FILE_STORAGE=true"
             fi
             local gemini_exec="${PLUGIN_DIR}/scripts/helpers/gemini-exec.sh"
-            local gemini_flags="-o text --approval-mode yolo"
             case "${OCTOPUS_GEMINI_SANDBOX:-headless}" in
                 interactive|prompt-mode) gemini_flags="" ;;
             esac
@@ -150,11 +174,23 @@ get_agent_command() {
         openrouter-kimi) echo "openrouter_execute_model moonshotai/kimi-k2.5" ;; # v8.11.0: Kimi K2.5 via OpenRouter
         openrouter-deepseek) echo "openrouter_execute_model deepseek/deepseek-r1-0528" ;; # v8.11.0: DeepSeek R1 via OpenRouter
         openai-compatible-agent)  # Generic OpenAI-compatible tool-loop agent
-            model=$(get_agent_model "$agent_type" "$phase" "$role")
+            if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
+                return 1
+            fi
+            if ! validate_model_name "$model"; then
+                log ERROR "Invalid OpenAI-compatible model name: ${model}"
+                return 1
+            fi
+            if ! _octopus_is_safe_openai_compatible_dispatch_value "${PWD}"; then
+                log ERROR "Invalid OpenAI-compatible cwd: ${PWD}"
+                return 1
+            fi
             echo "${PLUGIN_DIR}/scripts/helpers/openai-compatible-agent.py --provider generic --model ${model} --cwd ${PWD}"
             ;;
         perplexity|perplexity-fast)  # v8.24.0: Perplexity Sonar — web-grounded research (Issue #22)
-            model=$(get_agent_model "$agent_type" "$phase" "$role")
+            if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
+                return 1
+            fi
             echo "perplexity_execute $model"
             ;;
         copilot|copilot-research)  # v9.9.0: GitHub Copilot CLI — copilot -p (Issue #198)
@@ -162,7 +198,9 @@ get_agent_command() {
             echo "copilot --no-ask-user -s --disable-builtin-mcps"
             ;;
         ollama|ollama-*)  # v9.9.0: Ollama local LLM — ollama run
-            model=$(get_agent_model "$agent_type" "$phase" "$role")
+            if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
+                return 1
+            fi
             echo "ollama run $model"
             ;;
         qwen|qwen-research)  # v9.10.0: Qwen CLI — fork of Gemini CLI
@@ -172,7 +210,9 @@ get_agent_command() {
             echo "env NODE_NO_WARNINGS=1 NO_BROWSER=1 qwen -o text --approval-mode yolo"
             ;;
         cursor-agent)  # v9.23.0: Cursor Agent CLI — Grok 4.20 via Cursor subscription
-            model=$(get_agent_model "$agent_type" "$phase" "$role")
+            if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
+                return 1
+            fi
             # NOTE: bare ${model} (no quotes) — downstream uses `read -ra` which
             # does NOT interpret quotes; literal " would be passed to --model.
             echo "agent --trust --output-format text --model ${model}"
@@ -185,7 +225,9 @@ get_agent_command() {
             echo "${PLUGIN_DIR}/scripts/helpers/vibe-exec.sh --output text"
             ;;
         opencode|opencode-fast|opencode-research)  # v9.11.0: OpenCode CLI — multi-provider router
-            model=$(get_agent_model "$agent_type" "$phase" "$role")
+            if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
+                return 1
+            fi
             # Uses default text output (ANSI stripped by caller) — consistent with other providers
             # --model flag uses provider/model format; we store bare name and map here
             local oc_model_flag=""
@@ -415,13 +457,19 @@ get_agent_model() {
     esac
 
     local resolved_model
-    resolved_model=$(resolve_octopus_model "$provider" "$agent_type" "$phase" "$role")
+    if ! resolved_model=$(resolve_octopus_model "$provider" "$agent_type" "$phase" "$role"); then
+        return 1
+    fi
 
     # v8.31.0: Apply model restriction service if configured
     if [[ -n "$provider" ]]; then
         local fallback
         fallback=$(validate_model_allowed "$provider" "$resolved_model")
         if [[ $? -ne 0 && -n "$fallback" ]]; then
+            if ! validate_model_name "$fallback"; then
+                log ERROR "Invalid fallback model name for $provider"
+                return 1
+            fi
             echo "$fallback"
             return 0
         fi

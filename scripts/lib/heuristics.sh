@@ -251,7 +251,7 @@ aggregate_results() {
     # Results are ordered best-first so the synthesis LLM sees highest-quality content first
     local result_count=0
     > "$raw_concat"
-    local ranked_files
+    local ranked_files=""
     if type agent_status_output_files >/dev/null 2>&1; then
         ranked_files=$(agent_status_output_files "$filter" 2>/dev/null || true)
     fi
@@ -290,9 +290,17 @@ aggregate_results() {
         ((result_count++)) || true
     done <<< "$ranked_files"
 
-    # Phase 2: Synthesize if we have a provider available and multiple results
-    if [[ $result_count -gt 1 ]] && command -v gemini &> /dev/null && [[ "$DRY_RUN" != "true" ]]; then
-        log INFO "Synthesizing $result_count results (ranked by quality, not just concatenating)..."
+    # Phase 2: Synthesize via the agy-capable run_agent_sync abstraction when we
+    # have a reachable provider and multiple results. (Gemini CLI sunset
+    # 2026-06-18 — agy is the default Google seat; claude-sonnet is the fallback;
+    # plain concatenation only when no provider is reachable.) The picker lives in
+    # parallel.sh, which orchestrate.sh sources before this lib.
+    local synth_agent="" synth_used=""
+    type _aggregate_pick_synth_agent >/dev/null 2>&1 && synth_agent=$(_aggregate_pick_synth_agent)
+    synth_used="$synth_agent"
+    if [[ $result_count -gt 1 ]] && [[ -n "$synth_agent" ]] \
+        && type run_agent_sync >/dev/null 2>&1 && [[ "$DRY_RUN" != "true" ]]; then
+        log INFO "Synthesizing $result_count results via $synth_agent (ranked by quality, not just concatenating)..."
 
         # v8.49.0: Enhanced synthesis prompt with relevance awareness and structured output
         local query_context=""
@@ -326,12 +334,27 @@ ${agent_summary:-No agent status ledger available}
 Subtask results:
 $(<"$raw_concat")"
 
-        local synthesis_result
-        if synthesis_result=$(printf '%s' "$synthesis_prompt" | run_with_timeout "$TIMEOUT" gemini 2>/dev/null) && [[ -n "$synthesis_result" ]]; then
+        local synthesis_result=""
+        if synthesis_result=$(run_agent_sync "$synth_agent" "$synthesis_prompt" "${TIMEOUT:-300}" "synthesizer" "aggregate" 2>/dev/null) \
+            && [[ -n "$synthesis_result" ]]; then
+            :  # primary synthesizer produced output
+        elif [[ "$synth_agent" != "claude-sonnet" ]] \
+            && { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed claude-sonnet; } \
+            && command -v claude >/dev/null 2>&1 \
+            && synthesis_result=$(run_agent_sync "claude-sonnet" "$synthesis_prompt" "${TIMEOUT:-300}" "synthesizer" "aggregate" 2>/dev/null) \
+            && [[ -n "$synthesis_result" ]]; then
+            log WARN "Synthesizer '$synth_agent' failed — used claude-sonnet fallback"
+            synth_used="claude-sonnet"
+        else
+            synthesis_result=""
+        fi
+
+        if [[ -n "$synthesis_result" ]]; then
             echo "# Claude Octopus - Synthesized Results" > "$aggregate_file"
             echo "" >> "$aggregate_file"
             echo "Generated: $(date)" >> "$aggregate_file"
             echo "Sources: $result_count subtask outputs (ranked by quality)" >> "$aggregate_file"
+            echo "Synthesizer: $synth_used" >> "$aggregate_file"
             [[ -n "$user_query" ]] && echo "Query: $user_query" >> "$aggregate_file"
             if [[ -n "$agent_summary" ]]; then
                 echo "" >> "$aggregate_file"
@@ -340,7 +363,7 @@ $(<"$raw_concat")"
             echo "" >> "$aggregate_file"
             echo "$synthesis_result" >> "$aggregate_file"
             rm -f "$raw_concat"
-            log INFO "Synthesized $result_count results to: $aggregate_file"
+            log INFO "Synthesized $result_count results via $synth_used to: $aggregate_file"
             echo ""
             echo -e "${GREEN}✓${NC} Results synthesized to: $aggregate_file"
             guard_output "$(<"$aggregate_file")" "aggregate-synthesis"
@@ -422,7 +445,7 @@ synthesize_probe_results() {
         results="# Compact Probe Synthesis Context"$'\n\n'"No bounded probe excerpts could be collected. Inspect RESULTS_DIR for raw artifacts."
     fi
 
-    # Use Gemini for intelligent synthesis
+    # Use the Google seat (agy, post Gemini-CLI sunset #524) for intelligent synthesis
     # v8.49.0: Enhanced prompt with structured output, minority opinion preservation,
     # and relevance-aware weighting (inspired by Crawl4AI content filtering patterns)
     local synthesis_prompt="Synthesize these research findings into a coherent discovery summary.
@@ -450,11 +473,27 @@ Structure your synthesis as:
 Research findings:
 $results"
 
-    local synthesis
-    synthesis=$(run_agent_sync "gemini" "$synthesis_prompt" "${TIMEOUT:-300}") || {
+    # Route probe synthesis through the Google seat (agy) with a claude-sonnet
+    # retry, then the compact static fallback. (#524 — Gemini CLI sunset.)
+    # Keep an empty picker result authoritative — do NOT override it with
+    # claude-sonnet, which would bypass OCTO_ALLOWED_PROVIDERS and send probe
+    # context to a disabled provider. _aggregate_pick_synth_agent already returns
+    # claude-sonnet when (and only when) the allowlist permits it (#538).
+    local synth_agent="" synthesis=""
+    type _aggregate_pick_synth_agent >/dev/null 2>&1 && synth_agent=$(_aggregate_pick_synth_agent)
+    if [[ -n "$synth_agent" ]]; then
+        synthesis=$(run_agent_sync "$synth_agent" "$synthesis_prompt" "${TIMEOUT:-300}" "synthesizer" "probe") || synthesis=""
+        if [[ -z "$synthesis" && "$synth_agent" != "claude-sonnet" ]] \
+            && { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed claude-sonnet; } \
+            && command -v claude >/dev/null 2>&1; then
+            log WARN "Probe synthesis via '$synth_agent' failed — retrying with claude-sonnet"
+            synthesis=$(run_agent_sync "claude-sonnet" "$synthesis_prompt" "${TIMEOUT:-300}" "synthesizer" "probe") || synthesis=""
+        fi
+    fi
+    if [[ -z "$synthesis" ]]; then
         log WARN "Synthesis failed, using compact fallback"
         synthesis=$(build_probe_fallback_synthesis "$original_prompt" "$result_count" "$usable_results" "$total_content_size" "$results")
-    }
+    fi
 
     cat > "$synthesis_file" << EOF
 # PROBE Phase Synthesis

@@ -2,16 +2,48 @@
 
 ## [Unreleased]
 
+## [9.47.0] - 2026-07-01
+
+### Added
+
+- **`review.finding` and `synthesis` lifecycle events** complete the #498 event vocabulary (the other two, `provider.selected` and `circuit-breaker.*`, shipped in 9.46.0). `review.finding` fires once per Round 1 code-review finding with `provider`, `severity`, `message`, and `round` attributes, capturing per-provider attribution before findings are merged and de-duplicated. `synthesis` fires when a synthesis artifact is produced (attributes `phase`, `provider`, `count`), wired into the review/deliver workflow (`review.sh`, success branch only) and the parallel aggregator (`parallel.sh`, attributing the provider that actually produced the artifact). `octo-hud` renders both, coloring `review.finding` by severity. The `synthesis` event also fires from the council chair-synthesis success path (`council.sh`, attributing the chair member's provider) and the debate final synthesis (`debate.sh`, attributing the moderator or quorum path), each guarded against the fallback branches so attribution is never wrong. This fully closes #498. (#498)
+
 ### Fixed
 
-- **gemini-image migrated off the deprecated `gemini-3-pro-image-preview`** before Google's 2026-06-25 shutdown (#493, oco-803). Image routing now defaults to the GA `gemini-3-pro-image` (Nano Banana Pro); `gemini-3.1-flash-image` (Nano Banana 2, fast tier) added to the catalog; the preview entry is retained with `deprecated` status so pinned configs degrade gracefully. Cost table and `octo-model-config` catalog refreshed.
-- **API-key providers no longer dispatch into a quota-dead key** (#494, oco-cbb). Perplexity payloads now cap output via `OCTOPUS_PERPLEXITY_MAX_TOKENS` (default 4096). New opt-in proactive health probe (`octo_provider_probe`, gated by `OCTOPUS_PREFLIGHT_PROBE=1`) validates perplexity/openrouter keys before dispatch and marks the provider `degraded` on 401/402/429; it fails open on transient network errors so a flaky connection never hides a working provider.
-- **Parallel probe path skips quota-dead providers** (#495). `auto-route.sh` consults `octo_quota_is_dead` before adding a provider to the fan-out, so a perplexity 401 or gemini capacity-exhaustion this session no longer re-dispatches and burns time.
+- **`/octo:plan` now signals degradation when native plan mode blocks artifact writes** (#514, #515). When plan mode restricts Write/Edit, `/octo:plan` emits a visible "OCTO PLAN DEGRADED" warning and skips the intent-contract and plan-save steps (which would silently fail) instead of falling through to generic native planning. The command's `plan.md` and the `plan-mode-interceptor.sh` hook now prescribe verbatim-matching warning text.
+
+### Changed
+
+- **CI: bump `actions/checkout` from 6 to 7** (#531).
+
+## [9.46.0] - 2026-07-01
+
+### Added
+
+- **Antigravity CLI (`agy`) is now the default Google seat** across all multi-LLM workflows, replacing the sunset Gemini CLI (#524). Probe, discover, define, develop, deliver, parallel map/reduce, and Double-Diamond synthesis paths now route Google work to `agy`.
+- **Agent lifecycle events** emitted across dispatch for observability (#511), plus `provider.selected` and circuit-breaker lifecycle events. `OCTO_EVENT_LOG` telemetry is enabled by default in `orchestrate.sh`.
+- **`octo-hud` local event-stream monitor** renders the `OCTO_EVENT_LOG` stream without scraping the terminal (#510).
+- **Council seats every available provider org** rather than just two (#513), and **qwen is now a seatable council provider org** (#520).
+- **GA `gemini-3.5-flash` and `gemini-3.1-flash-lite`** added to the model catalog.
 
 ### Changed
 
 - **Doctor surfaces the fix inline by default.** `warn`/`fail` rows now always print their actionable detail (e.g. `Run: ollama serve`) without requiring `--verbose`; `pass` rows stay quiet unless `--verbose`.
 - **Setup dashboard shows concrete next-step commands** for unconfigured providers (codex/gemini/perplexity/cursor-agent), so a fresh install tells the user exactly what to export or install.
+
+### Fixed
+
+- **gemini-image migrated off the deprecated `gemini-3-pro-image-preview`** before Google's 2026-06-25 shutdown (#493, oco-803). Image routing now defaults to the GA `gemini-3-pro-image` (Nano Banana Pro); `gemini-3.1-flash-image` (Nano Banana 2, fast tier) added to the catalog; the preview entry is retained with `deprecated` status so pinned configs degrade gracefully. Cost table and `octo-model-config` catalog refreshed.
+- **API-key providers no longer dispatch into a quota-dead key** (#494, oco-cbb). Perplexity payloads now cap output via `OCTOPUS_PERPLEXITY_MAX_TOKENS` (default 4096). New opt-in proactive health probe (`octo_provider_probe`, gated by `OCTOPUS_PREFLIGHT_PROBE=1`) validates perplexity/openrouter keys before dispatch and marks the provider `degraded` on 401/402/429; it fails open on transient network errors so a flaky connection never hides a working provider.
+- **Parallel probe path skips quota-dead providers** (#495). `auto-route.sh` consults `octo_quota_is_dead` before adding a provider to the fan-out, so a perplexity 401 or gemini capacity-exhaustion this session no longer re-dispatches and burns time.
+- **Provider reliability bundle**: Gemini research-phase timeout controls, parallel probe fast-fail on quota and terminal errors, plus related hardening (#496).
+- **Quota watcher narrowed to terminal-only errors** with a two-poll grace window (#516, #517); **Gemini retryable-throttle lines are excluded from quota fast-fail** (#536, #537).
+- **First-run provider health hardened**; setup dashboard shows the accurate `agy` model when `OCTOPUS_AGY_MODEL` is set; `agy`/`agy-research`/`antigravity` added to the bare-provider skip-list in routing.
+- **Tangle workflow hardening**: honor the coding-agent override (#543), recover tasks missing done markers (#545), honor decompose routing on reformat retry (#547), and retry output failures with feedback.
+- **Quality retry honors env configuration and supports unlimited retries** (#548); **provider history injection can now be disabled** (#544).
+- **agy migration completed** in the parallel aggregator and probe/discover dispatch (#538) and in `parallel.sh` `map_reduce`/`fan_out` (#539).
+- **Hardened OpenAI-compatible agent** dispatch args (#535) and transport (#512); `octo_write_stable_script_shim` refuses self-targeting writes; `[REASONING]` subtask routing gains an availability check and fallback.
+- **Docs**: fixed stale `tests/run-pre-push.sh` references in CONTRIBUTING and the PR template (#505, #541); corrected the README version badge.
 
 ## [9.45.0] - 2026-06-14
 

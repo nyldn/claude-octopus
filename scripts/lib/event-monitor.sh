@@ -30,7 +30,7 @@ octo_hud_format_line() {
     local line="$1"
     [[ -n "${line// /}" ]] || return 1
 
-    local event ts provider outcome status command exit_code
+    local event ts provider outcome status command exit_code severity message findings
     event="$(octo_hud_field "$line" event)"
     [[ -n "$event" ]] || return 1   # not a recognizable event record
 
@@ -40,6 +40,9 @@ octo_hud_format_line() {
     status="$(octo_hud_field "$line" status)"
     command="$(octo_hud_field "$line" command)"
     exit_code="$(octo_hud_field "$line" exit_code)"
+    severity="$(octo_hud_field "$line" severity)"   # #498: review.finding
+    message="$(octo_hud_field "$line" message)"     # #498: review.finding
+    findings="$(octo_hud_field "$line" count)"      # #498: synthesis tally
 
     # Color by event family (guard colors so non-TTY/no-tput still works).
     local c_reset c_dim c_evt
@@ -49,15 +52,22 @@ octo_hud_format_line() {
         dispatch.end)
             if [[ "$outcome" == "error" ]]; then c_evt=$'\033[31m'; else c_evt=$'\033[32m'; fi ;;
         circuit-breaker.closed|circuit-breaker.half-open|provider.selected) c_evt=$'\033[36m' ;; # cyan
+        review.finding)                                                     # #498
+            case "$severity" in normal|critical|high) c_evt=$'\033[31m' ;;  # red for real bugs
+                                *) c_evt=$'\033[33m' ;; esac ;;             # yellow for nit/other
+        synthesis) c_evt=$'\033[32m' ;;                                     # #498: green
         *) c_evt=$'\033[0m' ;;
     esac
 
     local detail=""
     [[ -n "$provider" ]]  && detail="${detail} provider=${provider}"
+    [[ -n "$severity" ]]  && detail="${detail} severity=${severity}"
     [[ -n "$status" ]]    && detail="${detail} status=${status}"
     [[ -n "$command" ]]   && detail="${detail} cmd=${command}"
     [[ -n "$outcome" ]]   && detail="${detail} outcome=${outcome}"
+    [[ -n "$findings" ]]  && detail="${detail} count=${findings}"
     [[ -n "$exit_code" ]] && detail="${detail} exit=${exit_code}"
+    [[ -n "$message" ]]   && detail="${detail} msg=${message}"
 
     printf '%s%s%s  %s%-22s%s%s\n' \
         "$c_dim" "${ts:-now}" "$c_reset" "$c_evt" "$event" "$c_reset" "$detail"

@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "nyldn plugins for Claude Code workflows.",
-    "version": "9.45.0"
+    "version": "9.47.0"
   },
   "plugins": [
     {
@@ -15,8 +15,8 @@
         "source": "url",
         "url": "https://github.com/nyldn/claude-octopus.git"
       },
-      "description": "v9.45.0 - Add Antigravity CLI (agy) provider, generic OpenAI-compatible agent, and tangle routing overrides. 32 personas, 49 commands, 54 skills. Run /octo:setup.",
-      "version": "9.45.0",
+      "description": "v9.47.0 - completes the #498 lifecycle-event vocabulary (review.finding + synthesis across review, parallel, council, and debate), all rendered by octo-hud; plus a /octo:plan plan-mode degradation signal and CI updates. 32 personas, 49 commands, 54 skills. Run /octo:setup.",
+      "version": "9.47.0",
       "author": {
         "name": "nyldn",
         "url": "https://github.com/nyldn"
