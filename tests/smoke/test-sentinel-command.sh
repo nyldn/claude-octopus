@@ -15,7 +15,7 @@ test_sentinel_accessible() {
     local output
     output=$("$PROJECT_ROOT/scripts/orchestrate.sh" sentinel --help 2>&1) || true
 
-    if echo "$output" | grep -qi "sentinel\|usage\|monitor"; then
+    if echo "$output" | grep -Eqi "sentinel|usage|monitor"; then
         test_pass
     else
         test_fail "Sentinel command not accessible"
