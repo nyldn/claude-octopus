@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- **`review.finding` and `synthesis` lifecycle events** complete the #498 event vocabulary (the other two, `provider.selected` and `circuit-breaker.*`, shipped in 9.46.0). `review.finding` fires once per Round 1 code-review finding with `provider`, `severity`, `message`, and `round` attributes, capturing per-provider attribution before findings are merged and de-duplicated. `synthesis` fires when a synthesis artifact is produced (attributes `phase`, `provider`, `count`), wired into the review/deliver workflow (`review.sh`, success branch only) and the parallel aggregator (`parallel.sh`, attributing the provider that actually produced the artifact). `octo-hud` renders both, coloring `review.finding` by severity. Council and debate synthesis sites are a documented follow-up (their multi-branch fallbacks need per-site attribution care). (#498)
+
 ## [9.46.0] - 2026-07-01
 
 ### Added

@@ -485,6 +485,10 @@ $(<"$raw_concat")"
             echo "$synthesis_result" >> "$aggregate_file"
             rm -f "$raw_concat"
             log INFO "Synthesized $result_count results via $synth_used to: $aggregate_file"
+            # #498: emit a synthesis lifecycle event on the success path, attributing
+            # the provider that actually produced the artifact ($synth_used, which
+            # reflects the claude-sonnet fallback above).
+            declare -f octo_event_emit >/dev/null 2>&1 && octo_event_emit "synthesis" phase="parallel" provider="$synth_used" count="$result_count" || true
             echo ""
             echo -e "${GREEN}✓${NC} Results synthesized to: $aggregate_file"
             guard_output "$(<"$aggregate_file")" "aggregate-synthesis"

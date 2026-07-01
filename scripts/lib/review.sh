@@ -568,6 +568,15 @@ ${agent_prompt_base}"
         # v9.3.1: Write provider status for Round 1 agents (#187)
         local atype="${round1_agent_types[$idx]}"
         local provider_key="${atype%%[-_]*}"
+        # #498: emit one review.finding lifecycle event per Round 1 finding, while
+        # per-provider attribution is still in scope (it is dropped after the merge
+        # above). round="1" lets consumers filter pre-verification noise.
+        if [[ "$agent_findings" != "[]" ]] && declare -f octo_event_emit >/dev/null 2>&1; then
+            while IFS=$'\t' read -r _rf_sev _rf_title; do
+                [[ -z "${_rf_sev}${_rf_title}" ]] && continue
+                octo_event_emit "review.finding" provider="$provider_key" severity="${_rf_sev:-unknown}" message="${_rf_title:-}" round="1" || true
+            done < <(printf '%s' "$agent_findings" | jq -r '.[]? | [(.severity // "unknown"), (.title // .message // "")] | @tsv' 2>/dev/null)
+        fi
         if [[ $(grep -c "Status: FAILED" "$f" 2>/dev/null || true) -gt 0 ]]; then
             echo "${provider_key}|fallback|Round 1 agent failed" >> "$provider_status_file"
         elif [[ "$agent_findings" != "[]" ]]; then
@@ -685,8 +694,9 @@ Findings: $(echo "$confirmed_findings" | jq -c '.')
 
 Return ONLY JSON: {\"findings\": [...ranked, deduplicated findings...]}"
 
-    local final_json
+    local final_json synth_ok="true"
     final_json=$(run_agent_sync "claude-sonnet" "$synthesis_prompt" 120 "code-reviewer" "review") || {
+        synth_ok="false"
         log WARN "review_run: synthesis failed, using confirmed findings sorted as-is"
         final_json="{\"findings\":$(echo "$confirmed_findings" | jq -c 'sort_by(.severity)' 2>/dev/null || echo "[]")}"
     }
@@ -697,6 +707,15 @@ Return ONLY JSON: {\"findings\": [...ranked, deduplicated findings...]}"
     # Write findings file
     echo "$final_json" > "$findings_file"
     log INFO "review_run: findings saved to $findings_file"
+
+    # #498: emit a synthesis lifecycle event when Round 3 synthesis succeeds.
+    # Only on the success branch — the fallback above reassigns the provider, so
+    # attribution would be wrong there (per design-review verification).
+    if [[ "$synth_ok" == "true" ]] && declare -f octo_event_emit >/dev/null 2>&1; then
+        local _synth_count
+        _synth_count=$(printf '%s' "$final_json" | jq '.findings | length' 2>/dev/null || echo 0)
+        octo_event_emit "synthesis" phase="review" provider="claude-sonnet" count="${_synth_count:-0}" || true
+    fi
 
     if [[ -n "$proof_dir" ]]; then
         octo_proof_artifact "$proof_dir" "review-findings" "$findings_file" "final review findings"
