@@ -15,7 +15,7 @@ test_detect_both_providers() {
 
     # Test detection logic (dry run) - flag must come before command
     local output exit_code=0
-    output=$("$PROJECT_ROOT/scripts/orchestrate.sh" -n probe "test" 2>&1) || exit_code=$?
+    output=$(OCTOPUS_PROJECT_DIR="$PROJECT_ROOT" "$PROJECT_ROOT/scripts/orchestrate.sh" -n probe "test" 2>&1) || exit_code=$?
 
     if [[ $exit_code -eq 0 ]]; then
         test_pass
@@ -30,7 +30,7 @@ test_detect_single_provider() {
 
     # Test detection (dry run) - flag must come before command
     local output exit_code=0
-    output=$("$PROJECT_ROOT/scripts/orchestrate.sh" -n probe "test" 2>&1) || exit_code=$?
+    output=$(OCTOPUS_PROJECT_DIR="$PROJECT_ROOT" "$PROJECT_ROOT/scripts/orchestrate.sh" -n probe "test" 2>&1) || exit_code=$?
 
     if [[ $exit_code -eq 0 ]]; then
         test_pass
