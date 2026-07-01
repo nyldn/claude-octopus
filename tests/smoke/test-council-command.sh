@@ -12,7 +12,7 @@ test_council_help_shows_budget_flag() {
     test_case "council --help shows max-cost flag"
 
     local output
-    output="$(OCTOPUS_PROJECT_DIR="$PROJECT_ROOT" "$PROJECT_ROOT/scripts/orchestrate.sh" council --help 2>&1 || true)"
+    output="$(OCTOPUS_PROJECT_DIR="$PROJECT_ROOT" bash "$PROJECT_ROOT/scripts/orchestrate.sh" council --help 2>&1 || true)"
 
     if echo "$output" | grep -q -- "--max-cost"; then
         test_pass
@@ -28,7 +28,7 @@ test_council_dry_run_via_orchestrate_writes_summary() {
     local tmp_dir
     tmp_dir="$(mktemp -d "$TEST_TMP_DIR/council-smoke.XXXXXX")"
 
-    OCTOPUS_PROJECT_DIR="$PROJECT_ROOT" "$PROJECT_ROOT/scripts/orchestrate.sh" council --dry-run --output-dir "$tmp_dir" "Should we use Redis?" >/dev/null
+    OCTOPUS_PROJECT_DIR="$PROJECT_ROOT" bash "$PROJECT_ROOT/scripts/orchestrate.sh" council --dry-run --output-dir "$tmp_dir" "Should we use Redis?" >/dev/null
 
     local summary
     summary="$(find "$tmp_dir" -name summary.json -type f | head -1)"
@@ -49,7 +49,7 @@ test_council_fixture_is_test_only_and_recorded() {
     tmp_dir="$(mktemp -d "$TEST_TMP_DIR/council-fixture.XXXXXX")"
 
     OCTOPUS_COUNCIL_FIXTURE=critical-veto \
-        OCTOPUS_PROJECT_DIR="$PROJECT_ROOT" "$PROJECT_ROOT/scripts/orchestrate.sh" council --dry-run --output-dir "$tmp_dir" "Ship this without tests" >/dev/null
+        OCTOPUS_PROJECT_DIR="$PROJECT_ROOT" bash "$PROJECT_ROOT/scripts/orchestrate.sh" council --dry-run --output-dir "$tmp_dir" "Ship this without tests" >/dev/null
 
     local summary
     summary="$(find "$tmp_dir" -name summary.json -type f | head -1)"

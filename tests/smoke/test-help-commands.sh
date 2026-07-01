@@ -12,7 +12,7 @@ test_suite "Help Commands"
 test_help_flag() {
     test_case "orchestrate.sh --help shows usage"
 
-    local output=$(OCTOPUS_PROJECT_DIR="$PROJECT_ROOT" "$PROJECT_ROOT/scripts/orchestrate.sh" --help 2>&1 || true)
+    local output=$(OCTOPUS_PROJECT_DIR="$PROJECT_ROOT" bash "$PROJECT_ROOT/scripts/orchestrate.sh" --help 2>&1 || true)
 
     if echo "$output" | grep -Eqi "Quick Start|Usage|Examples"; then
         test_pass
@@ -25,7 +25,7 @@ test_help_flag() {
 test_help_shows_commands() {
     test_case "Help shows main commands"
 
-    local output=$(OCTOPUS_PROJECT_DIR="$PROJECT_ROOT" "$PROJECT_ROOT/scripts/orchestrate.sh" --help 2>&1 || true)
+    local output=$(OCTOPUS_PROJECT_DIR="$PROJECT_ROOT" bash "$PROJECT_ROOT/scripts/orchestrate.sh" --help 2>&1 || true)
 
     # Check for the commands shown in basic help
     local commands=("auto" "embrace" "setup")
@@ -49,7 +49,7 @@ test_help_shows_commands() {
 test_version_flag() {
     test_case "orchestrate.sh --version shows version"
 
-    local output=$(OCTOPUS_PROJECT_DIR="$PROJECT_ROOT" "$PROJECT_ROOT/scripts/orchestrate.sh" --version 2>&1 || true)
+    local output=$(OCTOPUS_PROJECT_DIR="$PROJECT_ROOT" bash "$PROJECT_ROOT/scripts/orchestrate.sh" --version 2>&1 || true)
 
     if echo "$output" | grep -qE "v[0-9]+\.[0-9]+"; then
         test_pass
@@ -62,7 +62,7 @@ test_version_flag() {
 test_invalid_command() {
     test_case "Invalid command shows error"
 
-    local output=$(OCTOPUS_PROJECT_DIR="$PROJECT_ROOT" "$PROJECT_ROOT/scripts/orchestrate.sh" invalid-command 2>&1 || true)
+    local output=$(OCTOPUS_PROJECT_DIR="$PROJECT_ROOT" bash "$PROJECT_ROOT/scripts/orchestrate.sh" invalid-command 2>&1 || true)
 
     if echo "$output" | grep -Eqi "error|unknown|invalid"; then
         test_pass
@@ -75,7 +75,7 @@ test_invalid_command() {
 test_no_arguments() {
     test_case "No arguments shows help"
 
-    local output=$(OCTOPUS_PROJECT_DIR="$PROJECT_ROOT" "$PROJECT_ROOT/scripts/orchestrate.sh" 2>&1 || true)
+    local output=$(OCTOPUS_PROJECT_DIR="$PROJECT_ROOT" bash "$PROJECT_ROOT/scripts/orchestrate.sh" 2>&1 || true)
 
     if echo "$output" | grep -Eqi "Quick Start|Usage|Examples"; then
         test_pass

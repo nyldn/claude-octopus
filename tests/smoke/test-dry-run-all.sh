@@ -12,7 +12,7 @@ test_suite "Dry Run Mode"
 test_probe_dry_run() {
     test_case "probe -n executes without errors"
 
-    local output=$(OCTOPUS_PROJECT_DIR="$PROJECT_ROOT" "$PROJECT_ROOT/scripts/orchestrate.sh" -n probe "test prompt" 2>&1)
+    local output=$(OCTOPUS_PROJECT_DIR="$PROJECT_ROOT" bash "$PROJECT_ROOT/scripts/orchestrate.sh" -n probe "test prompt" 2>&1)
     local exit_code=$?
 
     if [[ $exit_code -eq 0 ]]; then
@@ -26,7 +26,7 @@ test_probe_dry_run() {
 test_grasp_dry_run() {
     test_case "grasp -n executes without errors"
 
-    local output=$(OCTOPUS_PROJECT_DIR="$PROJECT_ROOT" "$PROJECT_ROOT/scripts/orchestrate.sh" -n grasp "test prompt" 2>&1)
+    local output=$(OCTOPUS_PROJECT_DIR="$PROJECT_ROOT" bash "$PROJECT_ROOT/scripts/orchestrate.sh" -n grasp "test prompt" 2>&1)
     local exit_code=$?
 
     if [[ $exit_code -eq 0 ]]; then
@@ -40,7 +40,7 @@ test_grasp_dry_run() {
 test_tangle_dry_run() {
     test_case "tangle -n executes without errors"
 
-    local output=$(OCTOPUS_PROJECT_DIR="$PROJECT_ROOT" "$PROJECT_ROOT/scripts/orchestrate.sh" -n tangle "test prompt" 2>&1)
+    local output=$(OCTOPUS_PROJECT_DIR="$PROJECT_ROOT" bash "$PROJECT_ROOT/scripts/orchestrate.sh" -n tangle "test prompt" 2>&1)
     local exit_code=$?
 
     if [[ $exit_code -eq 0 ]]; then
@@ -54,7 +54,7 @@ test_tangle_dry_run() {
 test_ink_dry_run() {
     test_case "ink -n executes without errors"
 
-    local output=$(OCTOPUS_PROJECT_DIR="$PROJECT_ROOT" "$PROJECT_ROOT/scripts/orchestrate.sh" -n ink "test prompt" 2>&1)
+    local output=$(OCTOPUS_PROJECT_DIR="$PROJECT_ROOT" bash "$PROJECT_ROOT/scripts/orchestrate.sh" -n ink "test prompt" 2>&1)
     local exit_code=$?
 
     if [[ $exit_code -eq 0 ]]; then
@@ -68,7 +68,7 @@ test_ink_dry_run() {
 test_embrace_dry_run() {
     test_case "embrace -n executes without errors"
 
-    local output=$(OCTOPUS_PROJECT_DIR="$PROJECT_ROOT" "$PROJECT_ROOT/scripts/orchestrate.sh" -n embrace "test prompt" 2>&1)
+    local output=$(OCTOPUS_PROJECT_DIR="$PROJECT_ROOT" bash "$PROJECT_ROOT/scripts/orchestrate.sh" -n embrace "test prompt" 2>&1)
     local exit_code=$?
 
     if [[ $exit_code -eq 0 ]]; then
@@ -83,7 +83,7 @@ test_dry_run_no_api_calls() {
     test_case "Dry run doesn't make actual API calls"
 
     # Verify -n flag output contains dry-run indicators
-    local output=$(OCTOPUS_PROJECT_DIR="$PROJECT_ROOT" "$PROJECT_ROOT/scripts/orchestrate.sh" -n probe "test" 2>&1)
+    local output=$(OCTOPUS_PROJECT_DIR="$PROJECT_ROOT" bash "$PROJECT_ROOT/scripts/orchestrate.sh" -n probe "test" 2>&1)
 
     if echo "$output" | grep -Eqi "dry-run|would"; then
         test_pass
