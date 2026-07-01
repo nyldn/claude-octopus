@@ -191,6 +191,12 @@ perplexity_execute() {
     local escaped_prompt
     escaped_prompt=$(json_escape "$prompt")
 
+    # Sanitize max_tokens to a positive integer before splicing into JSON; a
+    # non-numeric OCTOPUS_PERPLEXITY_MAX_TOKENS would otherwise produce invalid
+    # JSON or inject extra fields (codex review).
+    local max_tokens="${OCTOPUS_PERPLEXITY_MAX_TOKENS:-4096}"
+    [[ "$max_tokens" =~ ^[1-9][0-9]*$ ]] || max_tokens=4096
+
     local payload
     payload=$(cat << EOF
 {
@@ -198,7 +204,8 @@ perplexity_execute() {
   "messages": [
     {"role": "system", "content": "You are a research assistant with live web access. Provide detailed, factual answers with citations. Always include source URLs when referencing specific information."},
     {"role": "user", "content": "$escaped_prompt"}
-  ]
+  ],
+  "max_tokens": ${max_tokens}
 }
 EOF
 )

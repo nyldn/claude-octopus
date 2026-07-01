@@ -416,7 +416,7 @@ probe_discover() {
 
     if [[ "$DRY_RUN" == "true" ]]; then
         log INFO "[DRY-RUN] Would probe: $prompt"
-        log INFO "[DRY-RUN] Would spawn 5+ parallel research agents (Codex, Gemini, Sonnet 4.6, +codebase if in git repo, +Perplexity if API key set)"
+        log INFO "[DRY-RUN] Would spawn 5+ parallel research agents (Codex, Antigravity/agy, Sonnet 4.6, +codebase if in git repo, +Perplexity if API key set)"
         return 0
     fi
 
@@ -714,7 +714,7 @@ grasp_define() {
 
     if [[ "$DRY_RUN" == "true" ]]; then
         log INFO "[DRY-RUN] Would grasp: $prompt"
-        log INFO "[DRY-RUN] Would gather 4 perspectives (Codex, Gemini, Sonnet 4.6) and build consensus"
+        log INFO "[DRY-RUN] Would gather 4 perspectives (Codex, Antigravity/agy, Sonnet 4.6) and build consensus"
         return 0
     fi
 
@@ -743,8 +743,8 @@ grasp_define() {
         def1=$(run_agent_sync "claude-sonnet" "Based on: $prompt\n${context}Define the core problem statement in 2-3 sentences. What is the essential challenge?" 120 "backend-architect" "grasp") || true
     }
     def2=$(run_agent_sync "agy" "Based on: $prompt\n${context}Define success criteria. How will we know when this is solved correctly? List 3-5 measurable criteria." 120 "researcher" "grasp") || {
-        log WARN "Gemini failed for success criteria, falling back to Claude"
-        echo -e " ${YELLOW}⚠${NC}  Gemini unavailable for success criteria — falling back to Claude"
+        log WARN "Antigravity (agy) failed for success criteria, falling back to Claude"
+        echo -e " ${YELLOW}⚠${NC}  Antigravity (agy) unavailable for success criteria — falling back to Claude"
         def2=$(run_agent_sync "claude-sonnet" "Based on: $prompt\n${context}Define success criteria. How will we know when this is solved correctly? List 3-5 measurable criteria." 120 "researcher" "grasp") || true
     }
     def3=$(run_agent_sync "claude-sonnet" "Based on: $prompt\n${context}Define constraints and boundaries. What are we NOT solving? What are hard limits?" 120 "researcher" "grasp")
@@ -1083,8 +1083,14 @@ Previous decomposition:
 ${previous_decomposition}
 "
 
-    run_agent_sync "agy" "$reformat_prompt" 120 "researcher" "tangle" || \
-    run_agent_sync "claude-sonnet" "$reformat_prompt" 120 "researcher" "tangle"
+    local tangle_decompose_agent="agy" tangle_decompose_fallback_agent="codex"
+    if declare -f octopus_agent_override >/dev/null 2>&1; then
+        tangle_decompose_agent=$(octopus_agent_override "tangle" "decompose" "agy")
+        tangle_decompose_fallback_agent=$(octopus_agent_override "tangle" "decompose_fallback" "codex")
+    fi
+
+    run_agent_sync "$tangle_decompose_agent" "$reformat_prompt" 120 "researcher" "tangle" || \
+    run_agent_sync "$tangle_decompose_fallback_agent" "$reformat_prompt" 120 "researcher" "tangle"
 }
 
 tangle_validate_parallel_write_scopes() {
@@ -1377,6 +1383,35 @@ Every [CODING] line must include a same-line Files: clause."
     local pids=()
     local task_ids=()
 
+    # [CODING] and [REASONING] subtask routing are overridable. This keeps
+    # tangle usable on hosts where the default coding provider is unavailable,
+    # misconfigured, or unsuitable for implementation work. The lookup order is
+    # handled by octopus_agent_override(), e.g. OCTOPUS_TANGLE_CODING_AGENT,
+    # OCTOPUS_TANGLE_AGENT, then OCTOPUS_CODING_AGENT.
+    local tangle_coding_agent="codex"
+    local tangle_reasoning_agent="agy"
+    if declare -f octopus_agent_override >/dev/null 2>&1; then
+        tangle_coding_agent=$(octopus_agent_override "tangle" "coding" "codex")
+        tangle_reasoning_agent=$(octopus_agent_override "tangle" "reasoning" "agy")
+    fi
+
+    # [REASONING] falls back through available providers. Without this, users
+    # without agy get an unconditional exit 127 on every REASONING subtask even
+    # though the provider health check already flagged agy as absent.
+    if ! command -v "$tangle_reasoning_agent" >/dev/null 2>&1; then
+        local _tangle_reasoning_fb
+        for _tangle_reasoning_fb in gemini codex; do
+            command -v "$_tangle_reasoning_fb" >/dev/null 2>&1 \
+                && tangle_reasoning_agent="$_tangle_reasoning_fb" && break
+        done
+        # claude-sonnet is a type resolved by get_agent_command, not a bare
+        # executable — command -v never finds it. Fall back unconditionally
+        # since the claude binary (the host process) is always available.
+        if ! command -v "$tangle_reasoning_agent" >/dev/null 2>&1; then
+            tangle_reasoning_agent="claude-sonnet"
+        fi
+    fi
+
     fleet_dispatch_begin
     while IFS= read -r line; do
         [[ -z "$line" ]] && continue
@@ -1384,11 +1419,11 @@ Every [CODING] line must include a same-line Files: clause."
 
         local subtask
         subtask=$(echo "$line" | sed -E 's/^[[:space:]]*(\*\*)?[0-9]+[\.\)][[:space:]]*//; s/^[[:space:]]+//')
-        local agent="codex"
+        local agent="$tangle_coding_agent"
         local role="implementer"
         local pane_icon="⚙️"
         if [[ "$subtask" =~ \[REASONING\] ]]; then
-            agent="agy"
+            agent="$tangle_reasoning_agent"
             role="researcher"
             pane_icon="🧠"
         fi
@@ -1398,10 +1433,10 @@ Every [CODING] line must include a same-line Files: clause."
         local subtask_prompt
         subtask_prompt=$(build_tangle_subtask_prompt "$resolved_prompt" "$subtask")
 
-        # Tangle currently routes only CLI-backed codex/gemini workers. Its
-        # completion watcher relies on .done markers written by the legacy
-        # spawn path; add equivalent hook markers before routing Claude Agent
-        # Teams into this loop.
+        # Tangle uses the legacy spawn path in this parallel loop so .done
+        # markers are written for the completion watcher. This also allows
+        # configurable CLI-backed coding/reasoning agents without requiring
+        # Claude Agent Teams hooks in the host process.
         if [[ "$TMUX_MODE" == "true" ]]; then
             # Use async+tmux spawning
             local pid
@@ -1428,25 +1463,51 @@ Every [CODING] line must include a same-line Files: clause."
     local _deadline=$(( $(date +%s) + _tangle_max_wait ))
     local completed=0
     local _failed_tasks=()
+    local _terminal_task_ids=""
     while [[ $completed -lt ${#task_ids[@]} ]]; do
         completed=0
         for i in "${!task_ids[@]}"; do
             local _done_file="${_done_dir}/${task_ids[$i]}.done"
             if [[ -f "$_done_file" ]]; then
                 ((completed++)) || true
-            elif (( $(date +%s) > _deadline )); then
-                log WARN "Thread ${task_ids[$i]} deadline exceeded — killing and marking timeout"
+            elif [[ " $_terminal_task_ids " == *" ${task_ids[$i]} "* ]]; then
+                ((completed++)) || true
+            else
                 local _wrapper_pid="${pids[$i]:-}"
-                if [[ -n "$_wrapper_pid" ]]; then
-                    pkill -TERM -P "$_wrapper_pid" 2>/dev/null || true
-                    kill -TERM "$_wrapper_pid" 2>/dev/null || true
-                    sleep 1
-                    pkill -KILL -P "$_wrapper_pid" 2>/dev/null || true
-                    kill -KILL "$_wrapper_pid" 2>/dev/null || true
-                fi
-                mkdir -p "$_done_dir" 2>/dev/null || true
-                if [[ ! -f "$_done_file" ]] && ! echo "timeout" > "$_done_file" 2>/dev/null; then
-                    log WARN "Failed to write timeout marker for ${task_ids[$i]} at $_done_file"
+                if (( $(date +%s) > _deadline )); then
+                    log WARN "Thread ${task_ids[$i]} deadline exceeded — killing and marking timeout"
+                    if [[ -n "$_wrapper_pid" ]]; then
+                        pkill -TERM -P "$_wrapper_pid" 2>/dev/null || true
+                        kill -TERM "$_wrapper_pid" 2>/dev/null || true
+                        sleep 1
+                        pkill -KILL -P "$_wrapper_pid" 2>/dev/null || true
+                        kill -KILL "$_wrapper_pid" 2>/dev/null || true
+                    fi
+                    mkdir -p "$_done_dir" 2>/dev/null || true
+                    if [[ ! -f "$_done_file" ]] && ! echo "timeout" > "$_done_file" 2>/dev/null; then
+                        log WARN "Failed to write timeout marker for ${task_ids[$i]} at $_done_file"
+                    fi
+                    [[ " $_terminal_task_ids " == *" ${task_ids[$i]} "* ]] || _terminal_task_ids="${_terminal_task_ids:+$_terminal_task_ids }${task_ids[$i]}"
+                elif [[ -n "$_wrapper_pid" ]] && ! kill -0 "$_wrapper_pid" 2>/dev/null; then
+                    log WARN "Thread ${task_ids[$i]} exited without writing completion marker — marking failed"
+                    mkdir -p "$_done_dir" 2>/dev/null || true
+                    if [[ ! -f "$_done_file" ]] && ! echo "missing-done-marker" > "$_done_file" 2>/dev/null; then
+                        log WARN "Failed to write missing-done marker for ${task_ids[$i]} at $_done_file"
+                    fi
+                    [[ " $_terminal_task_ids " == *" ${task_ids[$i]} "* ]] || _terminal_task_ids="${_terminal_task_ids:+$_terminal_task_ids }${task_ids[$i]}"
+                    local _result_file
+                    _result_file=$(find "${RESULTS_DIR:-${HOME}/.claude-octopus/results}" -maxdepth 1 -type f -name "*-${task_ids[$i]}.md" 2>/dev/null | head -1 || true)
+                    if [[ -n "$_result_file" ]]; then
+                        local _status_count
+                        _status_count=$(grep -c '^## Status:' "$_result_file" 2>/dev/null || true)
+                        if [[ "${_status_count:-0}" -eq 0 ]]; then
+                            {
+                                echo ""
+                                echo "## Status: FAILED (Missing completion marker)"
+                                echo "# Completed: $(date)"
+                            } >> "$_result_file" 2>/dev/null || true
+                        fi
+                    fi
                 fi
             fi
         done
@@ -1954,8 +2015,8 @@ Return a concise gate review with:
 4. Concrete changes needed before the next phase
 5. Evidence from the context artifact"
 
-    local codex_view="" gemini_view="" claude_view="" synthesis=""
-    local codex_status="failed" gemini_status="failed" claude_status="failed"
+    local codex_view="" agy_view="" claude_view="" synthesis=""
+    local codex_status="failed" agy_status="failed" claude_status="failed"
     local successful=0
 
     if codex_view=$(run_agent_sync "codex" "$gate_prompt" 120 "code-reviewer" "embrace-gate" 2>/dev/null); then
@@ -1964,9 +2025,10 @@ Return a concise gate review with:
             successful=$((successful + 1))
         fi
     fi
-    if gemini_view=$(run_agent_sync "agy" "$gate_prompt" 120 "researcher" "embrace-gate" 2>/dev/null); then
-        if [[ -n "$gemini_view" ]]; then
-            gemini_status="ok"
+    # Antigravity (agy) is the Google seat since the Gemini CLI sunset (#524)
+    if agy_view=$(run_agent_sync "agy" "$gate_prompt" 120 "researcher" "embrace-gate" 2>/dev/null); then
+        if [[ -n "$agy_view" ]]; then
+            agy_status="ok"
             successful=$((successful + 1))
         fi
     fi
@@ -1987,13 +2049,13 @@ Return a concise gate review with:
 
 Task: ${prompt}
 Gate style: ${style}
-Provider statuses: codex=${codex_status}, gemini=${gemini_status}, claude=${claude_status}
+Provider statuses: codex=${codex_status}, agy=${agy_status}, claude=${claude_status}
 
 Codex:
 ${codex_view:-[no output]}
 
-Gemini:
-${gemini_view:-[no output]}
+Antigravity (agy):
+${agy_view:-[no output]}
 
 Claude:
 ${claude_view:-[no output]}
@@ -2017,7 +2079,7 @@ Return:
 **Task:** ${prompt}
 **Style:** ${style}
 **Context Artifact:** ${context_file}
-**Provider Statuses:** codex=${codex_status}, gemini=${gemini_status}, claude=${claude_status}
+**Provider Statuses:** codex=${codex_status}, agy=${agy_status}, claude=${claude_status}
 
 ---
 
@@ -2033,9 +2095,9 @@ ${synthesis}
 
 ${codex_view:-No output.}
 
-### Gemini (${gemini_status})
+### Antigravity / agy (${agy_status})
 
-${gemini_view:-No output.}
+${agy_view:-No output.}
 
 ### Claude (${claude_status})
 
@@ -2052,7 +2114,7 @@ EOF
             "Embrace debate gate completed: ${prompt:0:80}" \
             "" \
             "high" \
-            "Provider statuses: codex=${codex_status}, gemini=${gemini_status}, claude=${claude_status}" \
+            "Provider statuses: codex=${codex_status}, agy=${agy_status}, claude=${claude_status}" \
             "" 2>/dev/null || true
     fi
 

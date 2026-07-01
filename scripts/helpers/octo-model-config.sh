@@ -75,7 +75,7 @@ ensure_config() {
       "default": "gemini-3.1-pro-preview",
       "fallback": "gemini-3-flash-preview",
       "flash": "gemini-3-flash-preview",
-      "image": "gemini-3-pro-image-preview"
+      "image": "gemini-3-pro-image"
     },
     "claude": {
       "default": "claude-sonnet-4.6",
@@ -523,7 +523,9 @@ cmd_models() {
         "o3-mini|200|yes|no|yes|codex|budget|active"
         "gemini-3.1-pro-preview|1000|yes|yes|no|gemini|premium|active"
         "gemini-3-flash-preview|1000|yes|yes|no|gemini|budget|active"
-        "gemini-3-pro-image-preview|1000|yes|yes|no|gemini|premium|active"
+        "gemini-3-pro-image|1000|yes|yes|no|gemini|premium|active"
+        "gemini-3.1-flash-image|1000|yes|yes|no|gemini|budget|active"
+        "gemini-3-pro-image-preview|1000|yes|yes|no|gemini|premium|deprecated"
         "claude-sonnet-4.6|200|yes|yes|no|claude|standard|active"
         "claude-opus-4.8|1000|yes|yes|yes|claude|premium|active"
         "claude-opus-4.7|1000|yes|yes|yes|claude|premium|legacy"

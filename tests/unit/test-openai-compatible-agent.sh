@@ -61,6 +61,70 @@ if assert_contains "$cmd" "scripts/helpers/openai-compatible-agent.py" "helper p
 fi
 
 
+test_case "openai-compatible-agent rejects unsafe model names before dispatch"
+if HOME="$TEST_HOME" USER="octo-test-$$" CLAUDE_CODE_SESSION="compat-cmd-unsafe" PWD="/tmp/octo-cwd" OPENAI_COMPAT_MODEL="bad;touch" get_agent_command openai-compatible-agent unsafe-phase >/dev/null 2>&1; then
+    test_fail "expected unsafe OPENAI_COMPAT_MODEL to be rejected"
+else
+    test_pass
+fi
+
+
+test_case "openai-compatible-agent rejects unsafe cwd before dispatch"
+if HOME="$TEST_HOME" USER="octo-test-$$" CLAUDE_CODE_SESSION="compat-cwd-unsafe" PWD="/tmp/octo cwd" OPENAI_COMPAT_MODEL="vendor/model-fast" get_agent_command openai-compatible-agent cwd-phase >/dev/null 2>&1; then
+    test_fail "expected unsafe PWD to be rejected"
+else
+    test_pass
+fi
+
+
+test_case "openai-compatible-agent rejects model env override metacharacters"
+if HOME="$TEST_HOME" USER="octo-test-$$" CLAUDE_CODE_SESSION="compat-env-unsafe" OCTOPUS_OPENAI_COMPATIBLE_AGENT_MODEL="bad;touch" get_agent_model openai-compatible-agent env-phase >/dev/null 2>&1; then
+    test_fail "expected unsafe OCTOPUS_OPENAI_COMPATIBLE_AGENT_MODEL to be rejected"
+else
+    test_pass
+fi
+
+
+test_case "openai-compatible-agent rejects invalid allowlist fallback model"
+if HOME="$TEST_HOME" USER="octo-test-$$" CLAUDE_CODE_SESSION="compat-fallback-unsafe" OPENAI_COMPAT_MODEL="vendor/model-fast" OPENAI_COMPAT_ALLOWED_MODELS="/tmp/model" get_agent_model openai-compatible-agent fallback-phase >/dev/null 2>&1; then
+    test_fail "expected invalid allowlist fallback model to be rejected"
+else
+    test_pass
+fi
+
+
+test_case "openai-compatible-agent reads valid memory cache and replaces unsafe entries"
+cache_key="MC_openai_compatible_agent_A_openai_compatible_agent_P_memcache_R__C_no_config"
+cache_var="_OCTO_MODEL_CACHE_${cache_key}"
+out_file="$TEST_TMP_DIR/openai-compatible-memory-cache-model.out"
+printf -v "$cache_var" "%s" "vendor/model-fast"
+if ! HOME="$TEST_HOME" USER="octo-test-$$" CLAUDE_CODE_SESSION="compat-memcache" resolve_octopus_model openai-compatible-agent openai-compatible-agent memcache "" >"$out_file" 2>/dev/null; then
+    test_fail "expected resolver to read valid memory cache entry"
+elif [[ "$(cat "$out_file")" != "vendor/model-fast" ]]; then
+    test_fail "expected resolver to return the seeded valid memory cache entry"
+else
+    printf -v "$cache_var" "%s" "bad;touch"
+    if ! HOME="$TEST_HOME" USER="octo-test-$$" CLAUDE_CODE_SESSION="compat-memcache" resolve_octopus_model openai-compatible-agent openai-compatible-agent memcache "" >"$out_file" 2>/dev/null; then
+        test_fail "expected resolver to self-heal unsafe memory cache entry"
+    elif [[ "$(cat "$out_file")" == "bad;touch" ]]; then
+        test_fail "expected unsafe memory cache model not to be returned"
+    elif [[ "${!cache_var:-}" == "bad;touch" ]]; then
+        test_fail "expected unsafe memory cache entry to be replaced after being read"
+    else
+        test_pass
+    fi
+fi
+unset "$cache_var" 2>/dev/null || true
+
+
+test_case "openai-compatible-agent rejects model names with backslashes"
+if HOME="$TEST_HOME" USER="octo-test-$$" CLAUDE_CODE_SESSION="compat-backslash" PWD="/tmp/octo-cwd" OPENAI_COMPAT_MODEL='vendor/model\' get_agent_command openai-compatible-agent backslash-phase >/dev/null 2>&1; then
+    test_fail "expected model ending in backslash to be rejected"
+else
+    test_pass
+fi
+
+
 test_case "openai-compatible-agent omits max_tokens when configured as provider default"
 if HELPER="$HELPER" python3 - <<'PYTEST'
 import importlib.util, json, os

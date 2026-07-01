@@ -1668,8 +1668,12 @@ doctor_output_human() {
         esac
 
         echo -e "  ${icon} ${msg}"
-        if [[ -n "$detail" && "$verbose" == "true" ]]; then
-            echo -e "    ${DIM}${detail}${NC}"
+        # Always show detail for warn/fail (it contains the actionable fix).
+        # Only gate detail behind --verbose for passing checks.
+        if [[ -n "$detail" ]]; then
+            if [[ "$status" == "warn" || "$status" == "fail" || "$verbose" == "true" ]]; then
+                echo -e "    ${DIM}${detail}${NC}"
+            fi
         fi
     done
 

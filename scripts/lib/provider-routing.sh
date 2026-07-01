@@ -235,7 +235,7 @@ migrate_provider_config() {
       "default": "$gemini_model",
       "fallback": "gemini-3-flash-preview",
       "flash": "gemini-3-flash-preview",
-      "image": "gemini-3-pro-image-preview"
+      "image": "gemini-3-pro-image"
     }
   },
   "routing": {
@@ -279,6 +279,7 @@ EOF
         '.providers.codex.fallback'
         '.providers.gemini.default'
         '.providers.gemini.fallback'
+        '.providers.gemini.image'
         '.overrides.codex'
         '.overrides.gemini'
     )
@@ -296,6 +297,8 @@ EOF
                 replacement="gemini-3-flash-preview" ;;
             gemini-2.0-pro*|gemini-1.5-pro*|gemini-pro)
                 replacement="gemini-3.1-pro-preview" ;;
+            gemini-3-pro-image-preview)
+                replacement="gemini-3-pro-image" ;;  # shutdown 2026-06-25 (codex review)
             gpt-4o*|gpt-4-turbo*|gpt-4-*|o1-*|chatgpt-*)
                 replacement="gpt-5.5" ;;
         esac
@@ -368,7 +371,7 @@ set_provider_model() {
       "default": "gemini-3.1-pro-preview",
       "fallback": "gemini-3-flash-preview",
       "flash": "gemini-3-flash-preview",
-      "image": "gemini-3-pro-image-preview"
+      "image": "gemini-3-pro-image"
     }
   },
   "routing": {
@@ -506,6 +509,10 @@ reset_provider_lockouts() {
 # Each provider accumulates project-specific knowledge in .octo/providers/{name}-history.md
 
 append_provider_history() {
+    case "${OCTOPUS_PROVIDER_HISTORY:-on}" in
+        off|false|0|no) return 0 ;;
+    esac
+
     local provider="$1"
     local phase="$2"
     local task_brief="$3"
@@ -543,6 +550,10 @@ HISTEOF
 }
 
 read_provider_history() {
+    case "${OCTOPUS_PROVIDER_HISTORY:-on}" in
+        off|false|0|no) return 0 ;;
+    esac
+
     local provider="$1"
     local history_file="${WORKSPACE_DIR}/.octo/providers/${provider}-history.md"
 

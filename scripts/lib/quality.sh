@@ -57,6 +57,37 @@ get_branch_display() {
     esac
 }
 
+quality_retries_unlimited() {
+    local retry_limit="${MAX_QUALITY_RETRIES:-3}"
+    retry_limit="$(printf '%s' "$retry_limit" | tr '[:upper:]' '[:lower:]')"
+    case "$retry_limit" in
+        unlimited|infinite|inf|forever|-1) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+quality_retry_limit() {
+    if quality_retries_unlimited; then
+        printf '∞\n'
+        return 0
+    fi
+    if [[ "${MAX_QUALITY_RETRIES:-}" =~ ^[0-9]+$ ]]; then
+        printf '%s\n' "$MAX_QUALITY_RETRIES"
+    else
+        printf '3\n'
+    fi
+}
+
+quality_retry_limit_reached() {
+    local retry_count="${1:-0}"
+    local retry_limit
+    if quality_retries_unlimited; then
+        return 1
+    fi
+    retry_limit=$(quality_retry_limit)
+    [[ "$retry_count" -ge "$retry_limit" ]]
+}
+
 # Evaluate next action based on quality gate outcome
 # Returns: proceed, proceed_warn, retry, escalate, abort
 evaluate_quality_branch() {
@@ -79,7 +110,7 @@ evaluate_quality_branch() {
         echo "proceed"  # Quality gate passed
     elif [[ $success_rate -ge $QUALITY_THRESHOLD ]]; then
         echo "proceed_warn"  # Passed with warning
-    elif [[ "$LOOP_UNTIL_APPROVED" == "true" && $retry_count -lt $MAX_QUALITY_RETRIES ]]; then
+    elif [[ "$LOOP_UNTIL_APPROVED" == "true" ]] && ! quality_retry_limit_reached "$retry_count"; then
         echo "retry"  # Auto-retry enabled
     elif [[ "$autonomy" == "supervised" ]]; then
         echo "escalate"  # Human decision required
@@ -110,7 +141,7 @@ execute_quality_branch() {
             return 0
             ;;
         retry)
-            log INFO "↻ Quality gate FAILED - retrying (attempt $((retry_count + 1))/$MAX_QUALITY_RETRIES)"
+            log INFO "↻ Quality gate FAILED - retrying (attempt $((retry_count + 1))/$(quality_retry_limit))"
             return 2  # Signal retry
             ;;
         escalate)
@@ -152,8 +183,8 @@ SKIP_SMOKE_TEST="${OCTOPUS_SKIP_SMOKE_TEST:-false}"
 # - loop-until-approved: Retry failed tasks until quality gate passes
 AUTONOMY_MODE="${CLAUDE_OCTOPUS_AUTONOMY:-semi-autonomous}"
 QUALITY_THRESHOLD="${CLAUDE_OCTOPUS_QUALITY_THRESHOLD:-75}"
-MAX_QUALITY_RETRIES="${CLAUDE_OCTOPUS_MAX_RETRIES:-3}"
-LOOP_UNTIL_APPROVED=false
+MAX_QUALITY_RETRIES="${MAX_QUALITY_RETRIES:-${CLAUDE_OCTOPUS_MAX_RETRIES:-3}}"
+LOOP_UNTIL_APPROVED="${LOOP_UNTIL_APPROVED:-false}"
 RESUME_SESSION=false
 
 # v3.1 Feature: Cost-Aware Routing
@@ -291,6 +322,10 @@ reset_provider_lockouts() {
 # Each provider accumulates project-specific knowledge in .octo/providers/{name}-history.md
 
 append_provider_history() {
+    case "${OCTOPUS_PROVIDER_HISTORY:-on}" in
+        off|false|0|no) return 0 ;;
+    esac
+
     local provider="$1"
     local phase="$2"
     local task_brief="$3"
@@ -328,6 +363,10 @@ HISTEOF
 }
 
 read_provider_history() {
+    case "${OCTOPUS_PROVIDER_HISTORY:-on}" in
+        off|false|0|no) return 0 ;;
+    esac
+
     local provider="$1"
     local history_file="${WORKSPACE_DIR}/.octo/providers/${provider}-history.md"
 

@@ -23,7 +23,7 @@ How was this tested? Which test suites were run?
 
 ```bash
 # Run pre-push suite
-bash tests/run-pre-push.sh
+bash tests/run-all-tests.sh
 
 # Run specific test
 bash tests/unit/test-<name>.sh

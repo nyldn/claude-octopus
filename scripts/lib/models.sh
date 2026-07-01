@@ -36,7 +36,9 @@ get_model_catalog() {
         gemini-3.5-flash)       echo "1000|yes|no|no|gemini|budget|active" ;;   # GA fast (supersedes gemini-3-flash-preview)
         gemini-3.1-flash-lite)  echo "1000|yes|no|no|gemini|budget|active" ;;   # fastest/cheapest tier
         gemini-3-flash-preview) echo "1000|yes|no|no|gemini|budget|active" ;;
-        gemini-3-pro-image-preview) echo "1000|yes|yes|no|gemini|premium|active" ;;  # image: shutdown 2026-06-25 (oco-803), migrate to Nano Banana Pro
+        gemini-3-pro-image)         echo "1000|yes|yes|no|gemini|premium|active" ;;   # Nano Banana Pro GA (oco-803, replaces preview 2026-06-25)
+        gemini-3.1-flash-image)     echo "1000|yes|yes|no|gemini|budget|active" ;;    # Nano Banana 2 fast image tier (oco-803)
+        gemini-3-pro-image-preview) echo "1000|yes|yes|no|gemini|premium|deprecated" ;;  # shutdown 2026-06-25, use gemini-3-pro-image
         # Antigravity CLI (agy routes to the user's configured Antigravity default)
         agy/default|default)       echo "1000|yes|yes|no|agy|standard|active" ;;
         # Claude
@@ -119,7 +121,7 @@ list_models() {
         gpt-5.5 gpt-5.5-pro gpt-5.4 gpt-5.4-pro gpt-5.3-codex gpt-5.2-codex
         gpt-5.4-mini gpt-5.1-codex-max
         o3 o3-pro o3-mini
-        gemini-3.1-pro-preview gemini-3.5-flash gemini-3.1-flash-lite gemini-3-flash-preview gemini-3-pro-image-preview
+        gemini-3.1-pro-preview gemini-3.5-flash gemini-3.1-flash-lite gemini-3-flash-preview gemini-3-pro-image gemini-3.1-flash-image gemini-3-pro-image-preview
         agy/default
         claude-sonnet-4.6 claude-fable-5 claude-opus-4.8 claude-opus-4.8-fast claude-opus-4.7 claude-opus-4.6 claude-opus-4.6-fast
         grok-4-20 grok-4-20-thinking composer-2-fast composer-2
