@@ -660,11 +660,11 @@ tangle_retry_worktree_diagnostics() {
     suspicious=$(printf '%s\n' "$changed_files" | while IFS= read -r path; do
         [[ -n "$path" ]] || continue
         case "$path" in
-            *.js|*.mjs|*.cjs|*.ts|*.mts|*.cts)
-                [[ -f "$workdir/$path" ]] || continue
-                grep -n '\\\${[A-Za-z_][A-Za-z0-9_]*}' "$workdir/$path" 2>/dev/null | sed "s#^#$path:#" | sed -n '1,12p'
-                ;;
+            *.js|*.mjs|*.cjs|*.ts|*.mts|*.cts) ;;
+            *) continue ;;
         esac
+        [[ -f "$workdir/$path" ]] || continue
+        grep -nE '\\\$\{[A-Za-z_][A-Za-z0-9_]*\}' "$workdir/$path" 2>/dev/null | sed "s#^#$path:#" | sed -n '1,12p'
     done | sed -n '1,40p')
     if [[ -n "$suspicious" ]]; then
         echo ""
