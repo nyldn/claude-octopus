@@ -42,6 +42,52 @@ opus_default_model() {
     fi
 }
 
+# Validate Antigravity CLI model labels against the live CLI catalog.
+#
+# Antigravity's model selector is service-owned and changes outside Octopus
+# releases. Real labels include spaces and parentheses (for example,
+# "Gemini 3.5 Flash (Low)"), so the generic shell-token validator is too
+# strict for explicit agy model pins. Validate agy pins by exact membership in
+# `agy models` instead, while keeping the generic validator for all other
+# providers.
+validate_agy_model_name() {
+    local model="$1"
+
+    [[ -z "$model" ]] && return 1
+    [[ "$model" == *$'\n'* || "$model" == *$'\r'* ]] && return 1
+    case "$model" in
+        *\\*) return 1 ;;
+    esac
+
+    case "$model" in
+        default|agy/default)
+            return 0
+            ;;
+    esac
+
+    if ! command -v agy >/dev/null 2>&1; then
+        log ERROR "Cannot validate OCTOPUS_AGY_MODEL because agy CLI is not installed"
+        return 1
+    fi
+
+    local available_models=""
+    if ! available_models="$(agy models 2>/dev/null)" || [[ -z "$available_models" ]]; then
+        log ERROR "Cannot validate OCTOPUS_AGY_MODEL because 'agy models' returned no models"
+        return 1
+    fi
+
+    local line=""
+    while IFS= read -r line; do
+        line="${line%$'\r'}"
+        if [[ "$line" == "$model" ]]; then
+            return 0
+        fi
+    done <<< "$available_models"
+
+    log ERROR "Invalid OCTOPUS_AGY_MODEL: '$model'"
+    printf 'Available agy models:\n%s\n' "$available_models" >&2
+    return 1
+}
 # resolve_octopus_model <provider> <agent_type> <phase> <role>
 resolve_octopus_model() {
     local provider="$1"
@@ -60,7 +106,11 @@ resolve_octopus_model() {
     esac
     local env_var="OCTOPUS_$(echo "$canonical_provider" | tr '[:lower:]' '[:upper:]' | tr '-' '_')_MODEL"
     if [[ -n "${!env_var:-}" ]]; then
-        if ! validate_model_name "${!env_var}"; then
+        if [[ "$canonical_provider" == "agy" ]]; then
+            if ! validate_agy_model_name "${!env_var}"; then
+                return 1
+            fi
+        elif ! validate_model_name "${!env_var}"; then
             log ERROR "Invalid model name in $env_var"
             return 1
         fi
@@ -316,7 +366,9 @@ validate_model_name() {
     # Reject empty names
     [[ -z "$model" ]] && return 1
     [[ "$model" == *$'\n'* || "$model" == *$'\r'* ]] && return 1
-    [[ "$model" == *"\\"* ]] && return 1
+    case "$model" in
+        *\\*) return 1 ;;
+    esac
 
     # Reject shell metacharacters and whitespace (v8.50.0 Security hardening).
     case "$model" in

@@ -43,6 +43,78 @@ test_agy_dispatch_native_flags() {
     fi
 }
 
+
+test_agy_dynamic_model_validation() {
+    test_case "explicit agy model pins validate against agy models"
+
+    local tmp_bin="$TEST_TMP_DIR/agy-dynamic-model-bin"
+    local capture="$TEST_TMP_DIR/agy-argv.txt"
+    mkdir -p "$tmp_bin"
+    cat > "$tmp_bin/agy" <<'MOCK_AGY'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "models" ]]; then
+    printf '%s\n' \
+        'Gemini 3.5 Flash (Low)' \
+        'Gemini 3.5 Flash (Medium)' \
+        'Claude Sonnet 4.6 (Thinking)'
+    exit 0
+fi
+printf '%s\n' "$@" > "${AGY_ARG_CAPTURE:?}"
+exit 0
+MOCK_AGY
+    chmod +x "$tmp_bin/agy"
+
+    local old_path="$PATH"
+    PATH="$tmp_bin:$PATH"
+    AGY_ARG_CAPTURE="$capture"
+    export AGY_ARG_CAPTURE
+
+    log() { :; }
+    source "$PROJECT_ROOT/scripts/lib/model-resolver.sh"
+
+    if ! validate_agy_model_name 'Gemini 3.5 Flash (Low)'; then
+        PATH="$old_path"
+        test_fail "real agy labels from agy models should be accepted"
+        return
+    fi
+    if validate_model_name 'Gemini 3.5 Flash (Low)'; then
+        PATH="$old_path"
+        test_fail "generic model validator should remain strict for shell-token providers"
+        return
+    fi
+    if validate_agy_model_name 'Gemini 9 Unknown (Low)' >/dev/null 2>&1; then
+        PATH="$old_path"
+        test_fail "agy labels absent from agy models should be rejected"
+        return
+    fi
+
+    local resolved=""
+    OCTOPUS_AGY_MODEL='Gemini 3.5 Flash (Low)'
+    resolved="$(resolve_octopus_model agy agy tangle decomposer)"
+    unset OCTOPUS_AGY_MODEL
+    if [[ "$resolved" != 'Gemini 3.5 Flash (Low)' ]]; then
+        PATH="$old_path"
+        test_fail "resolver should return explicit agy labels validated from agy models"
+        return
+    fi
+
+    OCTOPUS_AGY_MODEL='agy/default' bash "$PROJECT_ROOT/scripts/helpers/agy-exec.sh" </dev/null
+    if grep -q -- '--model' "$capture"; then
+        PATH="$old_path"
+        test_fail "agy/default should not be passed to agy --model"
+        return
+    fi
+
+    OCTOPUS_AGY_MODEL='Gemini 3.5 Flash (Low)' bash "$PROJECT_ROOT/scripts/helpers/agy-exec.sh" </dev/null
+    if grep -Fxq -- '--model' "$capture" && grep -Fxq -- 'Gemini 3.5 Flash (Low)' "$capture"; then
+        PATH="$old_path"
+        test_pass
+    else
+        PATH="$old_path"
+        test_fail "explicit agy model labels should be passed as one --model argument"
+    fi
+}
+
 test_agy_command_validation() {
     test_case "command validator allows agy dispatch"
 
@@ -515,6 +587,7 @@ test_provider_workflow_review_regressions() {
 test_agy_config_exists
 test_agy_available_agent
 test_agy_dispatch_native_flags
+test_agy_dynamic_model_validation
 test_agy_command_validation
 test_agy_dispatch_not_gemini_wrapper
 test_agy_provider_detection
