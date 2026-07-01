@@ -2,8 +2,13 @@
 
 ## [Unreleased]
 
+## [9.45.1] - 2026-07-01
+
 ### Fixed
 
+- **Quota watcher no longer kills Gemini on retryable burst-throttle 429s** (#537, closes #536). `quota_watcher_has_match` now filters out lines containing `"Retrying after"` before the terminal-pattern check, so Gemini's internal backoff message (`Attempt N failed: You have exhausted your capacity… Retrying after 5162ms`) no longer triggers SIGTERM mid-retry (exit 143, silent reviewer drop). `OCTOPUS_QUOTA_PATTERN` is also restored to `${VAR:-default}` form so operators can narrow the pattern via env var without patching.
+- **OpenAI-compatible agent dispatch args hardened** (#535). Malformed or missing required fields in the agent request body no longer cause silent failures in `openai-compatible-agent`.
+- **Stale `tests/run-pre-push.sh` references replaced** with `tests/run-all-tests.sh` throughout the repo (#541, closes #505). The old path was removed in a prior refactor; remaining references caused confusing "file not found" errors during local pre-push hooks.
 - **gemini-image migrated off the deprecated `gemini-3-pro-image-preview`** before Google's 2026-06-25 shutdown (#493, oco-803). Image routing now defaults to the GA `gemini-3-pro-image` (Nano Banana Pro); `gemini-3.1-flash-image` (Nano Banana 2, fast tier) added to the catalog; the preview entry is retained with `deprecated` status so pinned configs degrade gracefully. Cost table and `octo-model-config` catalog refreshed.
 - **API-key providers no longer dispatch into a quota-dead key** (#494, oco-cbb). Perplexity payloads now cap output via `OCTOPUS_PERPLEXITY_MAX_TOKENS` (default 4096). New opt-in proactive health probe (`octo_provider_probe`, gated by `OCTOPUS_PREFLIGHT_PROBE=1`) validates perplexity/openrouter keys before dispatch and marks the provider `degraded` on 401/402/429; it fails open on transient network errors so a flaky connection never hides a working provider.
 - **Parallel probe path skips quota-dead providers** (#495). `auto-route.sh` consults `octo_quota_is_dead` before adding a provider to the fan-out, so a perplexity 401 or gemini capacity-exhaustion this session no longer re-dispatches and burns time.

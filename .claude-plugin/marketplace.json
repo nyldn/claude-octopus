@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "nyldn plugins for Claude Code workflows.",
-    "version": "9.45.0"
+    "version": "9.45.1"
   },
   "plugins": [
     {
@@ -16,7 +16,7 @@
         "url": "https://github.com/nyldn/claude-octopus.git"
       },
       "description": "v9.45.0 - Add Antigravity CLI (agy) provider, generic OpenAI-compatible agent, and tangle routing overrides. 32 personas, 49 commands, 54 skills. Run /octo:setup.",
-      "version": "9.45.0",
+      "version": "9.45.1",
       "author": {
         "name": "nyldn",
         "url": "https://github.com/nyldn"
