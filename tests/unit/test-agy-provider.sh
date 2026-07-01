@@ -69,21 +69,26 @@ MOCK_AGY
     AGY_ARG_CAPTURE="$capture"
     export AGY_ARG_CAPTURE
 
+    restore_agy_dynamic_model_env() {
+        PATH="$old_path"
+        unset AGY_ARG_CAPTURE
+    }
+
     log() { :; }
     source "$PROJECT_ROOT/scripts/lib/model-resolver.sh"
 
     if ! validate_agy_model_name 'Gemini 3.5 Flash (Low)'; then
-        PATH="$old_path"
+        restore_agy_dynamic_model_env
         test_fail "real agy labels from agy models should be accepted"
         return
     fi
     if validate_model_name 'Gemini 3.5 Flash (Low)'; then
-        PATH="$old_path"
+        restore_agy_dynamic_model_env
         test_fail "generic model validator should remain strict for shell-token providers"
         return
     fi
     if validate_agy_model_name 'Gemini 9 Unknown (Low)' >/dev/null 2>&1; then
-        PATH="$old_path"
+        restore_agy_dynamic_model_env
         test_fail "agy labels absent from agy models should be rejected"
         return
     fi
@@ -93,28 +98,39 @@ MOCK_AGY
     resolved="$(resolve_octopus_model agy agy tangle decomposer)"
     unset OCTOPUS_AGY_MODEL
     if [[ "$resolved" != 'Gemini 3.5 Flash (Low)' ]]; then
-        PATH="$old_path"
+        restore_agy_dynamic_model_env
         test_fail "resolver should return explicit agy labels validated from agy models"
+        return
+    fi
+
+    local config_dir="$TEST_TMP_DIR/agy-config-home"
+    mkdir -p "$config_dir/.claude-octopus/config"
+    cat > "$config_dir/.claude-octopus/config/providers.json" <<'JSON'
+{"overrides":{"agy":"Gemini 3.5 Flash (Medium)"}}
+JSON
+    HOME="$config_dir" resolved="$(HOME="$config_dir" resolve_octopus_model agy agy tangle decomposer)"
+    if [[ "$resolved" != 'Gemini 3.5 Flash (Medium)' ]]; then
+        restore_agy_dynamic_model_env
+        test_fail "config-resolved agy labels should use agy-specific validation"
         return
     fi
 
     OCTOPUS_AGY_MODEL='agy/default' bash "$PROJECT_ROOT/scripts/helpers/agy-exec.sh" </dev/null
     if grep -q -- '--model' "$capture"; then
-        PATH="$old_path"
+        restore_agy_dynamic_model_env
         test_fail "agy/default should not be passed to agy --model"
         return
     fi
 
     OCTOPUS_AGY_MODEL='Gemini 3.5 Flash (Low)' bash "$PROJECT_ROOT/scripts/helpers/agy-exec.sh" </dev/null
     if grep -Fxq -- '--model' "$capture" && grep -Fxq -- 'Gemini 3.5 Flash (Low)' "$capture"; then
-        PATH="$old_path"
+        restore_agy_dynamic_model_env
         test_pass
     else
-        PATH="$old_path"
+        restore_agy_dynamic_model_env
         test_fail "explicit agy model labels should be passed as one --model argument"
     fi
 }
-
 test_agy_command_validation() {
     test_case "command validator allows agy dispatch"
 

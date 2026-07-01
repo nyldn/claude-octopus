@@ -88,6 +88,20 @@ validate_agy_model_name() {
     printf 'Available agy models:\n%s\n' "$available_models" >&2
     return 1
 }
+
+validate_model_name_for_provider() {
+    local provider="$1"
+    local model="$2"
+
+    case "$provider" in
+        agy|antigravity)
+            validate_agy_model_name "$model"
+            ;;
+        *)
+            validate_model_name "$model"
+            ;;
+    esac
+}
 # resolve_octopus_model <provider> <agent_type> <phase> <role>
 resolve_octopus_model() {
     local provider="$1"
@@ -106,11 +120,7 @@ resolve_octopus_model() {
     esac
     local env_var="OCTOPUS_$(echo "$canonical_provider" | tr '[:lower:]' '[:upper:]' | tr '-' '_')_MODEL"
     if [[ -n "${!env_var:-}" ]]; then
-        if [[ "$canonical_provider" == "agy" ]]; then
-            if ! validate_agy_model_name "${!env_var}"; then
-                return 1
-            fi
-        elif ! validate_model_name "${!env_var}"; then
+        if ! validate_model_name_for_provider "$canonical_provider" "${!env_var}"; then
             log ERROR "Invalid model name in $env_var"
             return 1
         fi
@@ -136,7 +146,7 @@ resolve_octopus_model() {
     local cached_val
     eval "cached_val=\"\${_OCTO_MODEL_CACHE_${cache_key}:-}\""
     if [[ -n "$cached_val" ]]; then
-        if validate_model_name "$cached_val"; then
+        if validate_model_name_for_provider "$canonical_provider" "$cached_val"; then
             echo "$cached_val"
             return 0
         fi
@@ -162,7 +172,7 @@ resolve_octopus_model() {
         if [[ -n "$cached_val" && "$cached_val" != "null" ]]; then
             # Reject invalid cached model names instead of mutating them into a
             # different model string before eval.
-            if validate_model_name "$cached_val"; then
+            if validate_model_name_for_provider "$canonical_provider" "$cached_val"; then
                 eval "_OCTO_MODEL_CACHE_${cache_key}=\"\$cached_val\""
                 echo "$cached_val"
                 return 0
@@ -333,7 +343,7 @@ resolve_octopus_model() {
 
     # Validate before eval/cache. Dispatch also validates before command
     # construction, but the resolver cache itself must not eval unsafe values.
-    if ! validate_model_name "$resolved_model"; then
+    if ! validate_model_name_for_provider "$canonical_provider" "$resolved_model"; then
         log ERROR "Invalid resolved model name for $provider/$agent_type"
         return 1
     fi
