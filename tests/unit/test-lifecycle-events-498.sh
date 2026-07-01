@@ -104,10 +104,44 @@ test_review_finding_extraction() {
     test_pass
 }
 
+# ── council.sh attribution extraction (chair provider + member count) ────────
+test_council_synthesis_extraction() {
+    test_case "council.sh derives chair provider and member count for synthesis"
+    local chair provider members count
+    chair='{"persona":"planner","provider":"codex","seat":"chair"}'
+    provider="$(printf '%s' "$chair" | jq -r '.provider // "chair"' 2>/dev/null || echo chair)"
+    assert_equals "codex" "$provider"
+    # missing provider falls back to "chair"
+    provider="$(printf '%s' '{"seat":"chair"}' | jq -r '.provider // "chair"' 2>/dev/null || echo chair)"
+    assert_equals "chair" "$provider"
+    # member count tolerates comma- and space-separated rosters
+    members="planner, skeptic builder"
+    count="$(printf '%s' "$members" | tr ', ' '\n\n' | grep -c . 2>/dev/null || echo 0)"
+    assert_equals "3" "$count"
+    test_pass
+}
+
+# ── synthesis event carries council/debate phase attribution ─────────────────
+test_synthesis_phase_variants() {
+    test_case "synthesis event + HUD handle council and debate phases"
+    export OCTO_EVENT_LOG="$FIXTURE/syn-variants.jsonl"
+    : > "$OCTO_EVENT_LOG"
+    octo_event_emit "synthesis" phase=council provider=codex count=3
+    octo_event_emit "synthesis" phase=debate provider=quorum count=3
+    assert_equals "2" "$(grep -c '"event":"synthesis"' "$OCTO_EVENT_LOG")"
+    local out
+    out="$(octo_hud_format_line "$(head -1 "$OCTO_EVENT_LOG")")"
+    assert_contains "$out" "provider=codex"
+    assert_contains "$out" "count=3"
+    test_pass
+}
+
 test_review_finding_shape
 test_synthesis_shape
 test_hud_renders_review_finding
 test_hud_renders_synthesis
 test_review_finding_extraction
+test_council_synthesis_extraction
+test_synthesis_phase_variants
 
 test_summary

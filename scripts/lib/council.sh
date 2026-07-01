@@ -1727,6 +1727,15 @@ council_write_synthesis() {
             } > "$synthesis_path"
             rm -f "$temp_path"
         fi
+        # #498: emit a synthesis lifecycle event on the chair-synthesis success
+        # path, attributing the chair member's provider (fallback path below writes
+        # a placeholder and is intentionally not emitted).
+        if declare -f octo_event_emit >/dev/null 2>&1; then
+            local _chair_provider _member_count
+            _chair_provider="$(printf '%s' "$chair_member" | jq -r '.provider // "chair"' 2>/dev/null || echo chair)"
+            _member_count="$(printf '%s' "$COUNCIL_RESOLVED_MEMBERS" | tr ', ' '\n\n' | grep -c . 2>/dev/null || echo 0)"
+            octo_event_emit "synthesis" phase="council" provider="${_chair_provider:-chair}" count="${_member_count:-0}" || true
+        fi
         return 0
     fi
 
