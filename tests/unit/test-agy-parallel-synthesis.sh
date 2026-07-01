@@ -196,7 +196,7 @@ _pick_with_allowlist() {
     for b in tr sed cat basename; do p=$(command -v "$b" 2>/dev/null) && ln -sf "$p" "$hbin/$b"; done
     printf '#!/bin/sh\necho claude\n' > "$hbin/claude"; chmod +x "$hbin/claude"  # claude present, agy absent
     PROJECT_ROOT="$PROJECT_ROOT" HBIN="$hbin" ALLOW="$allow" bash -c '
-        set -uo pipefail
+        set -euo pipefail
         export PATH="$HBIN"                       # hermetic — agy deliberately absent
         export OCTO_ALLOWED_PROVIDERS="$ALLOW"
         source "$PROJECT_ROOT/scripts/lib/provider-allowlist.sh"
