@@ -1083,8 +1083,14 @@ Previous decomposition:
 ${previous_decomposition}
 "
 
-    run_agent_sync "agy" "$reformat_prompt" 120 "researcher" "tangle" || \
-    run_agent_sync "claude-sonnet" "$reformat_prompt" 120 "researcher" "tangle"
+    local tangle_decompose_agent="agy" tangle_decompose_fallback_agent="codex"
+    if declare -f octopus_agent_override >/dev/null 2>&1; then
+        tangle_decompose_agent=$(octopus_agent_override "tangle" "decompose" "agy")
+        tangle_decompose_fallback_agent=$(octopus_agent_override "tangle" "decompose_fallback" "codex")
+    fi
+
+    run_agent_sync "$tangle_decompose_agent" "$reformat_prompt" 120 "researcher" "tangle" || \
+    run_agent_sync "$tangle_decompose_fallback_agent" "$reformat_prompt" 120 "researcher" "tangle"
 }
 
 tangle_validate_parallel_write_scopes() {
