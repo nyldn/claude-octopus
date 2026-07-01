@@ -12,12 +12,12 @@ test_council_help_shows_budget_flag() {
     test_case "council --help shows max-cost flag"
 
     local output
-    output="$("$PROJECT_ROOT/scripts/orchestrate.sh" council --help 2>&1)"
+    output="$("$PROJECT_ROOT/scripts/orchestrate.sh" council --help 2>&1 || true)"
 
     if echo "$output" | grep -q -- "--max-cost"; then
         test_pass
     else
-        test_fail "help output missing --max-cost"
+        test_fail "help output missing --max-cost: $output"
         return 1
     fi
 }

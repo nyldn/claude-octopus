@@ -85,7 +85,7 @@ test_dry_run_no_api_calls() {
     # Verify -n flag output contains dry-run indicators
     local output=$("$PROJECT_ROOT/scripts/orchestrate.sh" -n probe "test" 2>&1)
 
-    if echo "$output" | grep -qi "dry-run\|would"; then
+    if echo "$output" | grep -Eqi "dry-run|would"; then
         test_pass
     else
         test_fail "Dry-run output missing expected indicators"

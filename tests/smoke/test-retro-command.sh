@@ -109,7 +109,7 @@ test_mentions_json_snapshot() {
 test_mentions_comparison() {
     test_case "retro.md includes prior snapshot comparison"
 
-    if grep -qi "prior snapshot\|comparison\|compare" "$COMMAND_FILE"; then
+    if grep -Eqi "prior snapshot|comparison|compare" "$COMMAND_FILE"; then
         test_pass
     else
         test_fail "retro.md missing prior snapshot comparison logic"

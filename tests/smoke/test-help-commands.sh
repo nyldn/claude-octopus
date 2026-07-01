@@ -14,7 +14,7 @@ test_help_flag() {
 
     local output=$("$PROJECT_ROOT/scripts/orchestrate.sh" --help 2>&1 || true)
 
-    if echo "$output" | grep -qi "Quick Start\|Usage\|Examples"; then
+    if echo "$output" | grep -Eqi "Quick Start|Usage|Examples"; then
         test_pass
     else
         test_fail "Help output missing usage information"
@@ -64,7 +64,7 @@ test_invalid_command() {
 
     local output=$("$PROJECT_ROOT/scripts/orchestrate.sh" invalid-command 2>&1 || true)
 
-    if echo "$output" | grep -qi "error\|unknown\|invalid"; then
+    if echo "$output" | grep -Eqi "error|unknown|invalid"; then
         test_pass
     else
         test_fail "No error shown for invalid command"
@@ -77,7 +77,7 @@ test_no_arguments() {
 
     local output=$("$PROJECT_ROOT/scripts/orchestrate.sh" 2>&1 || true)
 
-    if echo "$output" | grep -qi "Quick Start\|Usage\|Examples"; then
+    if echo "$output" | grep -Eqi "Quick Start|Usage|Examples"; then
         test_pass
     else
         test_fail "No help shown when run without arguments"
