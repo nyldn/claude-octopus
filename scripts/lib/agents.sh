@@ -595,9 +595,9 @@ get_agent_for_task() {
         image) echo "gemini-image" ;;
         review) echo "codex-review" ;;
         coding) echo "codex" ;;
-        design) echo "gemini" ;;       # Gemini excels at reasoning about design
-        copywriting) echo "gemini" ;;  # Gemini strong at creative writing
-        research) echo "gemini" ;;     # Gemini good at analysis/synthesis
+        design) echo "agy" ;;          # Antigravity (Google seat) — Gemini CLI sunset 2026-06-18
+        copywriting) echo "agy" ;;     # Antigravity — creative writing
+        research) echo "agy" ;;        # Antigravity — analysis/synthesis
         general) echo "codex" ;;       # Default to codex for general tasks
         *) echo "codex" ;;
     esac
@@ -687,11 +687,9 @@ get_tiered_agent() {
             esac
             ;;
         design|copywriting|research)
-            # Gemini tasks: tier based on complexity
-            case "$adjusted_complexity" in
-                1) agent="gemini-fast" ;;     # Trivial → flash (cheaper)
-                *) agent="gemini" ;;          # Standard+ → pro
-            esac
+            # Antigravity (agy) is the Google seat (Gemini CLI sunset 2026-06-18).
+            # Model tier is selected via OCTOPUS_AGY_MODEL, not separate agents.
+            agent="agy"
             ;;
         diamond-*)
             # Double Diamond workflows: respect resource tier

@@ -182,8 +182,9 @@ agents:
 
   python-pro:
     file: personas/python-pro.md
-    cli: codex
-    model: gpt-5.3-codex
+    cli: qwen                      # qwen cross-lab council seat (mirrors backend-architect=agy); falls back to codex when the qwen CLI is unavailable
+    fallback_cli: codex
+    model: qwen3-coder-plus
     phases: [tangle]
     tier: premium
     expertise: [python, fastapi, django, async]

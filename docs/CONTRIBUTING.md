@@ -44,7 +44,7 @@ bash tests/unit/test-adapter-flags.sh
 scripts/build-openclaw.sh --check
 
 # Run full pre-push suite
-bash tests/run-pre-push.sh
+bash tests/run-all-tests.sh
 ```
 
 ## Making Changes
@@ -89,7 +89,7 @@ Types: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`
 ### PR Checklist
 
 - [ ] Shell scripts pass `bash -n` check
-- [ ] Tests pass: `bash tests/run-pre-push.sh`
+- [ ] Tests pass: `bash tests/run-all-tests.sh`
 - [ ] Generated plugin-root skills/commands refreshed and `claude plugin validate .claude-plugin/plugin.json` passes
 - [ ] Documentation updated (if applicable)
 - [ ] CHANGELOG.md updated (for features/fixes)

@@ -60,4 +60,147 @@ if assert_contains "$cmd" "scripts/helpers/openai-compatible-agent.py" "helper p
     test_pass
 fi
 
+
+test_case "openai-compatible-agent rejects unsafe model names before dispatch"
+if HOME="$TEST_HOME" USER="octo-test-$$" CLAUDE_CODE_SESSION="compat-cmd-unsafe" PWD="/tmp/octo-cwd" OPENAI_COMPAT_MODEL="bad;touch" get_agent_command openai-compatible-agent unsafe-phase >/dev/null 2>&1; then
+    test_fail "expected unsafe OPENAI_COMPAT_MODEL to be rejected"
+else
+    test_pass
+fi
+
+
+test_case "openai-compatible-agent rejects unsafe cwd before dispatch"
+if HOME="$TEST_HOME" USER="octo-test-$$" CLAUDE_CODE_SESSION="compat-cwd-unsafe" PWD="/tmp/octo cwd" OPENAI_COMPAT_MODEL="vendor/model-fast" get_agent_command openai-compatible-agent cwd-phase >/dev/null 2>&1; then
+    test_fail "expected unsafe PWD to be rejected"
+else
+    test_pass
+fi
+
+
+test_case "openai-compatible-agent rejects model env override metacharacters"
+if HOME="$TEST_HOME" USER="octo-test-$$" CLAUDE_CODE_SESSION="compat-env-unsafe" OCTOPUS_OPENAI_COMPATIBLE_AGENT_MODEL="bad;touch" get_agent_model openai-compatible-agent env-phase >/dev/null 2>&1; then
+    test_fail "expected unsafe OCTOPUS_OPENAI_COMPATIBLE_AGENT_MODEL to be rejected"
+else
+    test_pass
+fi
+
+
+test_case "openai-compatible-agent rejects invalid allowlist fallback model"
+if HOME="$TEST_HOME" USER="octo-test-$$" CLAUDE_CODE_SESSION="compat-fallback-unsafe" OPENAI_COMPAT_MODEL="vendor/model-fast" OPENAI_COMPAT_ALLOWED_MODELS="/tmp/model" get_agent_model openai-compatible-agent fallback-phase >/dev/null 2>&1; then
+    test_fail "expected invalid allowlist fallback model to be rejected"
+else
+    test_pass
+fi
+
+
+test_case "openai-compatible-agent reads valid memory cache and replaces unsafe entries"
+cache_key="MC_openai_compatible_agent_A_openai_compatible_agent_P_memcache_R__C_no_config"
+cache_var="_OCTO_MODEL_CACHE_${cache_key}"
+out_file="$TEST_TMP_DIR/openai-compatible-memory-cache-model.out"
+printf -v "$cache_var" "%s" "vendor/model-fast"
+if ! HOME="$TEST_HOME" USER="octo-test-$$" CLAUDE_CODE_SESSION="compat-memcache" resolve_octopus_model openai-compatible-agent openai-compatible-agent memcache "" >"$out_file" 2>/dev/null; then
+    test_fail "expected resolver to read valid memory cache entry"
+elif [[ "$(cat "$out_file")" != "vendor/model-fast" ]]; then
+    test_fail "expected resolver to return the seeded valid memory cache entry"
+else
+    printf -v "$cache_var" "%s" "bad;touch"
+    if ! HOME="$TEST_HOME" USER="octo-test-$$" CLAUDE_CODE_SESSION="compat-memcache" resolve_octopus_model openai-compatible-agent openai-compatible-agent memcache "" >"$out_file" 2>/dev/null; then
+        test_fail "expected resolver to self-heal unsafe memory cache entry"
+    elif [[ "$(cat "$out_file")" == "bad;touch" ]]; then
+        test_fail "expected unsafe memory cache model not to be returned"
+    elif [[ "${!cache_var:-}" == "bad;touch" ]]; then
+        test_fail "expected unsafe memory cache entry to be replaced after being read"
+    else
+        test_pass
+    fi
+fi
+unset "$cache_var" 2>/dev/null || true
+
+
+test_case "openai-compatible-agent rejects model names with backslashes"
+if HOME="$TEST_HOME" USER="octo-test-$$" CLAUDE_CODE_SESSION="compat-backslash" PWD="/tmp/octo-cwd" OPENAI_COMPAT_MODEL='vendor/model\' get_agent_command openai-compatible-agent backslash-phase >/dev/null 2>&1; then
+    test_fail "expected model ending in backslash to be rejected"
+else
+    test_pass
+fi
+
+
+test_case "openai-compatible-agent omits max_tokens when configured as provider default"
+if HELPER="$HELPER" python3 - <<'PYTEST'
+import importlib.util, json, os
+helper_path = os.environ["HELPER"]
+spec = importlib.util.spec_from_file_location("openai_compatible_agent", helper_path)
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+seen = []
+class Response:
+    def __enter__(self): return self
+    def __exit__(self, *args): return False
+    def read(self): return b'{"choices":[{"message":{"content":"ok"}}]}'
+def fake_urlopen(req, timeout):
+    seen.append(json.loads(req.data.decode()))
+    return Response()
+mod.urllib.request.urlopen = fake_urlopen
+mod.api_call("https://example.invalid/v1", "key", "model", {}, [{"role":"user","content":"hi"}], max_tokens=0, request_timeout=1, max_retries=1)
+assert "max_tokens" not in seen[-1], seen[-1]
+mod.api_call("https://example.invalid/v1", "key", "model", {}, [{"role":"user","content":"hi"}], max_tokens=123, request_timeout=1, max_retries=1)
+assert seen[-1]["max_tokens"] == 123, seen[-1]
+PYTEST
+then
+    test_pass
+else
+    test_fail "expected max_tokens=0 to omit max_tokens from request payload"
+fi
+
+test_case "openai-compatible-agent retries transient HTTP errors"
+if HELPER="$HELPER" python3 - <<'PYTEST'
+import importlib.util, io, os, urllib.error
+helper_path = os.environ["HELPER"]
+spec = importlib.util.spec_from_file_location("openai_compatible_agent", helper_path)
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+mod.time.sleep = lambda _seconds: None
+calls = {"n": 0}
+class Response:
+    def __enter__(self): return self
+    def __exit__(self, *args): return False
+    def read(self): return b'{"choices":[{"message":{"content":"ok"}}]}'
+def fake_urlopen(req, timeout):
+    calls["n"] += 1
+    if calls["n"] == 1:
+        raise urllib.error.HTTPError(req.full_url, 503, "unavailable", {}, io.BytesIO(b'temporary'))
+    return Response()
+mod.urllib.request.urlopen = fake_urlopen
+result = mod.api_call("https://example.invalid/v1", "key", "model", {}, [{"role":"user","content":"hi"}], max_tokens=0, request_timeout=1, max_retries=2)
+assert calls["n"] == 2, calls
+assert result["choices"][0]["message"]["content"] == "ok"
+PYTEST
+then
+    test_pass
+else
+    test_fail "expected transient HTTP failure to be retried"
+fi
+
+
+test_case "openai-compatible-agent rejects non-http base URL schemes"
+if HELPER="$HELPER" python3 - <<'PYTEST'
+import importlib.util, os
+helper_path = os.environ["HELPER"]
+spec = importlib.util.spec_from_file_location("openai_compatible_agent", helper_path)
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+try:
+    mod.api_call("file:///tmp/octopus", "key", "model", {}, [{"role":"user","content":"hi"}], max_tokens=0, request_timeout=1, max_retries=1)
+except ValueError as exc:
+    assert "unsupported OPENAI-compatible base URL scheme" in str(exc)
+else:
+    raise AssertionError("expected ValueError for file:// base URL")
+PYTEST
+then
+    test_pass
+else
+    test_fail "expected non-http base URL schemes to be rejected"
+fi
+
+
 test_summary

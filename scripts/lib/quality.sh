@@ -57,6 +57,37 @@ get_branch_display() {
     esac
 }
 
+quality_retries_unlimited() {
+    local retry_limit="${MAX_QUALITY_RETRIES:-3}"
+    retry_limit="$(printf '%s' "$retry_limit" | tr '[:upper:]' '[:lower:]')"
+    case "$retry_limit" in
+        unlimited|infinite|inf|forever|-1) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+quality_retry_limit() {
+    if quality_retries_unlimited; then
+        printf '∞\n'
+        return 0
+    fi
+    if [[ "${MAX_QUALITY_RETRIES:-}" =~ ^[0-9]+$ ]]; then
+        printf '%s\n' "$MAX_QUALITY_RETRIES"
+    else
+        printf '3\n'
+    fi
+}
+
+quality_retry_limit_reached() {
+    local retry_count="${1:-0}"
+    local retry_limit
+    if quality_retries_unlimited; then
+        return 1
+    fi
+    retry_limit=$(quality_retry_limit)
+    [[ "$retry_count" -ge "$retry_limit" ]]
+}
+
 # Evaluate next action based on quality gate outcome
 # Returns: proceed, proceed_warn, retry, escalate, abort
 evaluate_quality_branch() {
@@ -79,7 +110,7 @@ evaluate_quality_branch() {
         echo "proceed"  # Quality gate passed
     elif [[ $success_rate -ge $QUALITY_THRESHOLD ]]; then
         echo "proceed_warn"  # Passed with warning
-    elif [[ "$LOOP_UNTIL_APPROVED" == "true" && $retry_count -lt $MAX_QUALITY_RETRIES ]]; then
+    elif [[ "$LOOP_UNTIL_APPROVED" == "true" ]] && ! quality_retry_limit_reached "$retry_count"; then
         echo "retry"  # Auto-retry enabled
     elif [[ "$autonomy" == "supervised" ]]; then
         echo "escalate"  # Human decision required
@@ -110,7 +141,7 @@ execute_quality_branch() {
             return 0
             ;;
         retry)
-            log INFO "↻ Quality gate FAILED - retrying (attempt $((retry_count + 1))/$MAX_QUALITY_RETRIES)"
+            log INFO "↻ Quality gate FAILED - retrying (attempt $((retry_count + 1))/$(quality_retry_limit))"
             return 2  # Signal retry
             ;;
         escalate)
@@ -152,8 +183,8 @@ SKIP_SMOKE_TEST="${OCTOPUS_SKIP_SMOKE_TEST:-false}"
 # - loop-until-approved: Retry failed tasks until quality gate passes
 AUTONOMY_MODE="${CLAUDE_OCTOPUS_AUTONOMY:-semi-autonomous}"
 QUALITY_THRESHOLD="${CLAUDE_OCTOPUS_QUALITY_THRESHOLD:-75}"
-MAX_QUALITY_RETRIES="${CLAUDE_OCTOPUS_MAX_RETRIES:-3}"
-LOOP_UNTIL_APPROVED=false
+MAX_QUALITY_RETRIES="${MAX_QUALITY_RETRIES:-${CLAUDE_OCTOPUS_MAX_RETRIES:-3}}"
+LOOP_UNTIL_APPROVED="${LOOP_UNTIL_APPROVED:-false}"
 RESUME_SESSION=false
 
 # v3.1 Feature: Cost-Aware Routing
@@ -248,15 +279,15 @@ get_alternate_provider() {
     local locked_provider="$1"
     case "$locked_provider" in
         codex|codex-fast|codex-mini)
-            if ! is_provider_locked "gemini"; then
-                echo "gemini"
+            if ! is_provider_locked "agy"; then
+                echo "agy"
             elif ! is_provider_locked "claude-sonnet"; then
                 echo "claude-sonnet"
             else
                 echo "$locked_provider"  # All locked, use original
             fi
             ;;
-        gemini|gemini-fast)
+        agy|agy-research|antigravity)
             if ! is_provider_locked "codex"; then
                 echo "codex"
             elif ! is_provider_locked "claude-sonnet"; then
@@ -268,8 +299,8 @@ get_alternate_provider() {
         claude-sonnet|claude*)
             if ! is_provider_locked "codex"; then
                 echo "codex"
-            elif ! is_provider_locked "gemini"; then
-                echo "gemini"
+            elif ! is_provider_locked "agy"; then
+                echo "agy"
             else
                 echo "$locked_provider"
             fi
@@ -291,6 +322,10 @@ reset_provider_lockouts() {
 # Each provider accumulates project-specific knowledge in .octo/providers/{name}-history.md
 
 append_provider_history() {
+    case "${OCTOPUS_PROVIDER_HISTORY:-on}" in
+        off|false|0|no) return 0 ;;
+    esac
+
     local provider="$1"
     local phase="$2"
     local task_brief="$3"
@@ -328,6 +363,10 @@ HISTEOF
 }
 
 read_provider_history() {
+    case "${OCTOPUS_PROVIDER_HISTORY:-on}" in
+        off|false|0|no) return 0 ;;
+    esac
+
     local provider="$1"
     local history_file="${WORKSPACE_DIR}/.octo/providers/${provider}-history.md"
 
@@ -459,7 +498,7 @@ Be concise and specific. This is a planning exercise, not implementation."
     # operators can pick cheaper/faster review models without patching code.
     local codex_approach="" gemini_approach="" sonnet_approach=""
     local design_codex_agent="${OCTOPUS_DESIGN_REVIEW_CODEX_AGENT:-codex-mini}"
-    local design_gemini_agent="${OCTOPUS_DESIGN_REVIEW_GEMINI_AGENT:-gemini}"
+    local design_agy_agent="${OCTOPUS_DESIGN_REVIEW_AGY_AGENT:-${OCTOPUS_DESIGN_REVIEW_GEMINI_AGENT:-agy}}"
     local design_claude_agent="${OCTOPUS_DESIGN_REVIEW_CLAUDE_AGENT:-claude-sonnet}"
     local design_synthesis_agent="${OCTOPUS_DESIGN_REVIEW_SYNTH_AGENT:-claude-opus}"
     local design_timeout="${OCTOPUS_DESIGN_REVIEW_TIMEOUT:-120}"
@@ -474,10 +513,10 @@ Be concise and specific. This is a planning exercise, not implementation."
     fi
 
     log INFO "Design review: gathering provider approaches..."
-    log INFO "Design review agents: codex=${design_codex_agent}, gemini=${design_gemini_agent}, claude=${design_claude_agent}, synthesis=${design_synthesis_agent}, timeout=${design_timeout}s, synth_timeout=${design_synth_timeout}s"
+    log INFO "Design review agents: codex=${design_codex_agent}, agy=${design_agy_agent}, claude=${design_claude_agent}, synthesis=${design_synthesis_agent}, timeout=${design_timeout}s, synth_timeout=${design_synth_timeout}s"
 
     codex_approach=$(run_agent_sync "$design_codex_agent" "$ceremony_prompt" "$design_timeout" "implementer" "ceremony" 2>/dev/null) || true
-    gemini_approach=$(run_agent_sync "$design_gemini_agent" "$ceremony_prompt" "$design_timeout" "researcher" "ceremony" 2>/dev/null) || true
+    gemini_approach=$(run_agent_sync "$design_agy_agent" "$ceremony_prompt" "$design_timeout" "researcher" "ceremony" 2>/dev/null) || true
     sonnet_approach=$(run_agent_sync "$design_claude_agent" "$ceremony_prompt" "$design_timeout" "code-reviewer" "ceremony" 2>/dev/null) || true
 
     # Synthesize conflicts and resolution
@@ -941,8 +980,8 @@ get_cross_model_reviewer() {
     local author_provider="$1"
 
     case "$author_provider" in
-        codex*) echo "gemini" ;;
-        gemini*) echo "codex" ;;
+        codex*) echo "agy" ;;
+        agy*|antigravity) echo "codex" ;;
         claude*) echo "codex" ;;
         *) echo "codex" ;;
     esac

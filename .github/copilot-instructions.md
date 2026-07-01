@@ -23,5 +23,5 @@ structured Double Diamond workflows.
 
 ## Testing
 
-Run the pre-push test suite: `bash tests/run-pre-push.sh`
+Run the pre-push test suite: `bash tests/run-all-tests.sh`
 Run a single test: `bash tests/unit/test-<name>.sh`

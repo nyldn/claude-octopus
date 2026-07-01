@@ -460,6 +460,14 @@ Focus on:
             local domain_files=()
             local agent_result_files=()
 
+            # Source quota-watcher if not already loaded (provides octo_quota_is_dead)
+            if ! declare -f octo_quota_is_dead >/dev/null 2>&1; then
+                local _ar_lib_dir
+                _ar_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+                # shellcheck source=/dev/null
+                source "${_ar_lib_dir}/quota-watcher.sh" 2>/dev/null || true
+            fi
+
             # Phase 1: Parallel domain analysis
             echo -e "  ${CYAN}Phase 1/3: Parallel Domain Analysis${NC}"
             for domain in "${domains[@]}"; do
@@ -503,6 +511,17 @@ $prompt
 Focus on: bundle size, code splitting, tree shaking, unused dependencies, compression (gzip/brotli).
 Output a structured report with findings and recommendations." ;;
                 esac
+
+                # Quota fast-fail: skip this provider if marked dead this session.
+                # The quota watcher marks the BARE provider (e.g. "gemini"), so
+                # strip any agent suffix ("gemini-fast" -> "gemini") before the
+                # lookup or the skip silently misses (codex review).
+                local _bare_provider="${agent_type%%-*}"
+                if declare -f octo_quota_is_dead >/dev/null 2>&1 && octo_quota_is_dead "$_bare_provider"; then
+                    echo -e "    ├─ skipping ${domain} (${agent_type}): quota/auth dead this session"
+                    pids+=("")
+                    continue
+                fi
 
                 echo -e "    ├─ Starting ${domain} audit..."
                 local pid=""
@@ -722,7 +741,7 @@ Then provide specific optimization recommendations."
     case "$task_type" in
         image)
             echo -e "${YELLOW}Image Generation Task${NC}"
-            echo "  Using gemini-3-pro-image-preview for text-to-image generation."
+            echo "  Using gemini-3-pro-image for text-to-image generation."
             echo "  Supports: text-to-image, image editing, multi-turn editing"
             echo "  Output: Up to 4K resolution images"
             echo ""

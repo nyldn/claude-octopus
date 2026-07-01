@@ -39,6 +39,26 @@ else
     test_fail "allowlist did not honor comma/space separated provider names"
 fi
 
+# #524: agy (Antigravity) is the Google seat after the Gemini CLI sunset. A legacy
+# "google" allowlist must keep authorizing agy during/after migration.
+test_case "legacy 'google' allowlist authorizes agy (Google seat) and gemini, not codex"
+if OCTO_ALLOWED_PROVIDERS="google" octo_provider_allowed agy &&
+   OCTO_ALLOWED_PROVIDERS="google" octo_provider_allowed agy-research &&
+   OCTO_ALLOWED_PROVIDERS="google" octo_provider_allowed gemini &&
+   ! OCTO_ALLOWED_PROVIDERS="google" octo_provider_allowed codex; then
+    test_pass
+else
+    test_fail "'google' alias should authorize agy + gemini (Google seat) but not codex"
+fi
+
+test_case "bare 'gemini' allowlist authorizes only the Gemini CLI, not agy"
+if OCTO_ALLOWED_PROVIDERS="gemini" octo_provider_allowed gemini &&
+   ! OCTO_ALLOWED_PROVIDERS="gemini" octo_provider_allowed agy; then
+    test_pass
+else
+    test_fail "'gemini' token must not authorize agy"
+fi
+
 session_config="$TEST_TMP_DIR/provider-allowlist-config"
 
 test_case "session allowlist file filters providers without env var"

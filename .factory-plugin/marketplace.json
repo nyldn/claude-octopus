@@ -5,14 +5,14 @@
   },
   "metadata": {
     "description": "Multi-tentacled orchestration plugin for Factory AI Droid",
-    "version": "9.45.0"
+    "version": "9.46.0"
   },
   "plugins": [
     {
       "name": "claude-octopus",
       "source": "./",
-      "description": "v9.45.0 - Add Antigravity CLI (agy) provider, generic OpenAI-compatible agent, and tangle routing overrides. 32 personas, 49 commands, 54 skills. Run /octo:setup.",
-      "version": "9.45.0",
+      "description": "v9.46.0 - agy is now the default Google seat (Gemini CLI sunset); agent lifecycle events, octo-hud event-stream monitor, and multi-provider council seating; plus provider-reliability and tangle-workflow fixes. 32 personas, 49 commands, 54 skills. Run /octo:setup.",
+      "version": "9.46.0",
       "author": {
         "name": "nyldn"
       },

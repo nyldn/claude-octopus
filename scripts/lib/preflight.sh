@@ -90,7 +90,7 @@ cmd_detect_providers() {
     if command -v agy &>/dev/null; then
         echo "AGY_STATUS=ok"
         echo "AGY_AUTH=cli"
-        echo "AGY_MODEL=${OCTOPUS_AGY_MODEL:-Claude Sonnet 4.6 (Thinking)}"
+        echo "AGY_MODEL=${OCTOPUS_AGY_MODEL:-}"
     else
         echo "AGY_STATUS=not-installed"
         echo "AGY_AUTH=none"
@@ -206,7 +206,7 @@ cmd_detect_providers() {
     local gemini_auth=$([[ -f "$HOME/.gemini/oauth_creds.json" ]] && echo "oauth" || [[ -n "${GEMINI_API_KEY:-}" ]] && echo "api-key" || echo "none")
     local agy_status=$(command -v agy &>/dev/null && echo "ok" || echo "not-installed")
     local agy_auth=$([[ "$agy_status" == "ok" ]] && echo "cli" || echo "none")
-    local agy_model="${OCTOPUS_AGY_MODEL:-Claude Sonnet 4.6 (Thinking)}"
+    local agy_model="${OCTOPUS_AGY_MODEL:-}"
     local perplexity_status=$([[ -n "${PERPLEXITY_API_KEY:-}" ]] && echo "ok" || echo "not-configured")
     local perplexity_auth=$([[ -n "${PERPLEXITY_API_KEY:-}" ]] && echo "api-key" || echo "none")
     local ollama_status=$(command -v ollama &>/dev/null && { curl -sf http://localhost:11434/api/tags &>/dev/null && echo "running" || echo "stopped"; } || echo "not-installed")
@@ -268,21 +268,21 @@ EOF
     if [[ "$codex_status" == "ok" && "$codex_auth" != "none" ]]; then
         echo "  ✓ Codex: Installed and authenticated ($codex_auth)"
     elif [[ "$codex_status" == "ok" ]]; then
-        echo "  ⚠ Codex: Installed but not authenticated"
+        echo "  ⚠ Codex: Installed but not authenticated (run: codex login  OR  export OPENAI_API_KEY=\"sk-...\")"
     else
-        echo "  ✗ Codex: Not installed"
+        echo "  ✗ Codex: Not installed (run: npm install -g @openai/codex)"
     fi
 
     if [[ "$gemini_status" == "ok" && "$gemini_auth" != "none" ]]; then
         echo "  ✓ Gemini: Installed and authenticated ($gemini_auth)"
     elif [[ "$gemini_status" == "ok" ]]; then
-        echo "  ⚠ Gemini: Installed but not authenticated"
+        echo "  ⚠ Gemini: Installed but not authenticated (run: gemini  OR  export GEMINI_API_KEY=\"AIza...\")"
     else
-        echo "  ✗ Gemini: Not installed"
+        echo "  ✗ Gemini: Not installed (run: npm install -g @google/gemini-cli)"
     fi
 
     if [[ "$agy_status" == "ok" ]]; then
-        echo "  ✓ Antigravity: Installed ($agy_model) — agy provider enabled"
+        echo "  ✓ Antigravity: Installed (model: ${agy_model:-agy default}) — agy provider enabled"
     else
         echo "  ○ Antigravity: Not installed (optional — install agy from Google Antigravity)"
     fi
@@ -291,7 +291,7 @@ EOF
     if [[ "$perplexity_status" == "ok" ]]; then
         echo "  ✓ Perplexity: Configured ($perplexity_auth) — web search enabled in discover workflows"
     else
-        echo "  ○ Perplexity: Not configured (optional — adds live web search to research)"
+        echo "  ○ Perplexity: Not configured (optional — export PERPLEXITY_API_KEY=\"pplx-...\"  # https://www.perplexity.ai/settings/api)"
     fi
 
     # Ollama (optional, v9.9.0)
@@ -325,9 +325,9 @@ EOF
     if [[ "$cursor_agent_status" == "ok" && "$cursor_agent_auth" != "none" ]]; then
         echo "  ✓ Cursor Agent: Installed and authenticated ($cursor_agent_auth) — Grok 4.20 via Cursor subscription"
     elif [[ "$cursor_agent_status" == "ok" ]]; then
-        echo "  ⚠ Cursor Agent: Installed but not authenticated"
+        echo "  ⚠ Cursor Agent: Installed but not authenticated (run: agent login  OR  export CURSOR_API_KEY=\"...\")"
     else
-        echo "  ○ Cursor Agent: Not installed (optional — requires Cursor IDE v9.23.0+)"
+        echo "  ○ Cursor Agent: Not installed (optional — curl -fsSL https://cursor.com/install | bash)"
     fi
     echo ""
 

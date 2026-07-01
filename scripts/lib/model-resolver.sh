@@ -60,6 +60,10 @@ resolve_octopus_model() {
     esac
     local env_var="OCTOPUS_$(echo "$canonical_provider" | tr '[:lower:]' '[:upper:]' | tr '-' '_')_MODEL"
     if [[ -n "${!env_var:-}" ]]; then
+        if ! validate_model_name "${!env_var}"; then
+            log ERROR "Invalid model name in $env_var"
+            return 1
+        fi
         echo "${!env_var}"
         return 0
     fi
@@ -82,8 +86,13 @@ resolve_octopus_model() {
     local cached_val
     eval "cached_val=\"\${_OCTO_MODEL_CACHE_${cache_key}:-}\""
     if [[ -n "$cached_val" ]]; then
-        echo "$cached_val"
-        return 0
+        if validate_model_name "$cached_val"; then
+            echo "$cached_val"
+            return 0
+        fi
+        log ERROR "Invalid model name in memory cache for $provider/$agent_type"
+        eval "unset _OCTO_MODEL_CACHE_${cache_key}"
+        cached_val=""
     fi
 
     # Persistent File Cache (optional, for parallel execution speed)
@@ -101,11 +110,15 @@ resolve_octopus_model() {
     if [[ -n "$persistent_cache" && -f "$persistent_cache" ]] && command -v jq &>/dev/null; then
         cached_val=$(jq -r ".\"$cache_key\" // empty" "$persistent_cache" 2>/dev/null)
         if [[ -n "$cached_val" && "$cached_val" != "null" ]]; then
-            # Sanitize before eval: strip shell metacharacters (model names are alphanumeric + .:/-_)
-            cached_val="${cached_val//[^a-zA-Z0-9._:\/\-]/}"
-            eval "_OCTO_MODEL_CACHE_${cache_key}=\"\$cached_val\""
-            echo "$cached_val"
-            return 0
+            # Reject invalid cached model names instead of mutating them into a
+            # different model string before eval.
+            if validate_model_name "$cached_val"; then
+                eval "_OCTO_MODEL_CACHE_${cache_key}=\"\$cached_val\""
+                echo "$cached_val"
+                return 0
+            fi
+            rm -f "$persistent_cache" 2>/dev/null || true
+            cached_val=""
         fi
     fi
 
@@ -163,7 +176,9 @@ resolve_octopus_model() {
                         [[ -n "$_trace" ]] && echo "[model-trace] Tier 3 (phase/role routing): SKIP (route $routed targets $ref_provider, resolving for $provider)" >&2
                         routed=""
                     else
-                        resolved_model=$(resolve_octopus_model "$ref_provider" "$ref_type" "" "")
+                        if ! resolved_model=$(resolve_octopus_model "$ref_provider" "$ref_type" "" ""); then
+                            return 1
+                        fi
                     fi
                 else
                     # Bare provider names in routing values are provider routes, not
@@ -173,7 +188,7 @@ resolve_octopus_model() {
                     # provider name like "provider:" with no model: skip for other
                     # providers, fall through to lower tiers for the provider itself.
                     case "$routed" in
-                        codex|gemini|claude|perplexity|qwen|copilot|opencode|ollama|openrouter|cursor-agent|vibe)
+                        codex|gemini|claude|perplexity|qwen|copilot|opencode|ollama|openrouter|cursor-agent|vibe|agy|agy-research|antigravity)
                             [[ -n "$_trace" ]] && echo "[model-trace] Tier 3 (phase/role routing): SKIP (route '$routed' is a provider name, not a model — resolving for $provider)" >&2
                             routed=""
                             ;;
@@ -239,6 +254,7 @@ resolve_octopus_model() {
     if [[ -z "$resolved_model" || "$resolved_model" == "null" ]]; then
         case "$agent_type" in
             codex*)          resolved_model="gpt-5.5" ;;
+            gemini-image)    resolved_model="gemini-3-pro-image" ;;  # image, not text — must precede gemini* (codex review)
             gemini-fast|gemini-flash) resolved_model="gemini-3-flash-preview" ;;
             gemini*)         resolved_model="gemini-3.1-pro-preview" ;;
             agy*|antigravity) resolved_model="default" ;;
@@ -265,8 +281,15 @@ resolve_octopus_model() {
 
     [[ -n "$_trace" ]] && echo "[model-trace] ► Result: $resolved_model" >&2
 
+    # Validate before eval/cache. Dispatch also validates before command
+    # construction, but the resolver cache itself must not eval unsafe values.
+    if ! validate_model_name "$resolved_model"; then
+        log ERROR "Invalid resolved model name for $provider/$agent_type"
+        return 1
+    fi
+
     # Update memory and persistent cache
-    # Use \$var to prevent double-expansion; resolved_model is internally computed but defensive quoting is cheap
+    # Use \$var to prevent double-expansion; resolved_model is validated above and internally computed.
     eval "_OCTO_MODEL_CACHE_${cache_key}=\"\$resolved_model\""
     if [[ -n "$persistent_cache" ]] && command -v jq &>/dev/null; then
         local cache_json="{}"
@@ -289,20 +312,24 @@ resolve_octopus_model() {
 # Validate model name to prevent shell injection and other malformed inputs
 validate_model_name() {
     local model="$1"
-    
+
     # Reject empty names
     [[ -z "$model" ]] && return 1
-    
-    # Reject names with shell meta-characters (v8.50.0 Security hardening)
-    if [[ "$model" =~ [[:space:]\;\|\&\$\`\'\"()\<\>\!*?\[\]\{\}$'\n'$'\r'] ]]; then
-        return 1
-    fi
-    
+    [[ "$model" == *$'\n'* || "$model" == *$'\r'* ]] && return 1
+    [[ "$model" == *"\\"* ]] && return 1
+
+    # Reject shell metacharacters and whitespace (v8.50.0 Security hardening).
+    case "$model" in
+        *[[:space:]]*|*\*|*";"*|*"|"*|*"&"*|*'$'*|*'`'*|*"'"*|*'"'*|*"("*|*")"*|*"<"*|*">"*|*"!"*|*"*"*|*"?"*|*"["*|*"]"*|*"{"*|*"}"*)
+            return 1
+            ;;
+    esac
+
     # Reject names that look like absolute paths
     if [[ "$model" == /* ]]; then
         return 1
     fi
-    
+
     return 0
 }
 
@@ -398,9 +425,9 @@ get_fallback_agent() {
             ;;
         codex|codex-standard|codex-mini)
             # Codex unavailable, try gemini
-            if is_agent_available "gemini"; then
-                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: $preferred -> gemini (no OpenAI)" || true
-                echo "gemini"
+            if is_agent_available "agy"; then
+                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: $preferred -> agy (no OpenAI)" || true
+                echo "agy"
             else
                 echo "$preferred"
             fi
@@ -410,9 +437,9 @@ get_fallback_agent() {
             if is_agent_available "codex"; then
                 [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: codex-spark -> codex (spark unavailable)" || true
                 echo "codex"
-            elif is_agent_available "gemini"; then
-                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: codex-spark -> gemini (no OpenAI)" || true
-                echo "gemini"
+            elif is_agent_available "agy"; then
+                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: codex-spark -> agy (no OpenAI)" || true
+                echo "agy"
             else
                 echo "$preferred"
             fi
@@ -422,9 +449,9 @@ get_fallback_agent() {
             if is_agent_available "codex"; then
                 [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: codex-reasoning -> codex (reasoning unavailable)" || true
                 echo "codex"
-            elif is_agent_available "gemini"; then
-                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: codex-reasoning -> gemini (no OpenAI)" || true
-                echo "gemini"
+            elif is_agent_available "agy"; then
+                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: codex-reasoning -> agy (no OpenAI)" || true
+                echo "agy"
             else
                 echo "$preferred"
             fi
@@ -434,9 +461,9 @@ get_fallback_agent() {
             if is_agent_available "codex"; then
                 [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: codex-large-context -> codex (large-ctx unavailable)" || true
                 echo "codex"
-            elif is_agent_available "gemini"; then
-                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: codex-large-context -> gemini (no OpenAI)" || true
-                echo "gemini"
+            elif is_agent_available "agy"; then
+                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: codex-large-context -> agy (no OpenAI)" || true
+                echo "agy"
             else
                 echo "$preferred"
             fi
@@ -449,9 +476,9 @@ get_fallback_agent() {
             elif is_agent_available "codex"; then
                 [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: $preferred -> codex (no OpenRouter)" || true
                 echo "codex"
-            elif is_agent_available "gemini"; then
-                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: $preferred -> gemini (no OpenRouter/OpenAI)" || true
-                echo "gemini"
+            elif is_agent_available "agy"; then
+                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: $preferred -> agy (no OpenRouter/OpenAI)" || true
+                echo "agy"
             else
                 echo "$preferred"
             fi

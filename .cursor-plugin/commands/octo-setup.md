@@ -25,7 +25,7 @@ printf "codex:%s\n" "$(command -v codex >/dev/null 2>&1 && echo installed || ech
 printf "codex_auth:%s\n" "$(codex --version >/dev/null 2>&1 && echo ok || echo none)"
 printf "gemini:%s\n" "$(command -v gemini >/dev/null 2>&1 && echo installed || echo missing)"
 printf "agy:%s\n" "$(command -v agy >/dev/null 2>&1 && echo installed || echo missing)"
-printf "agy_model:%s\n" "${OCTOPUS_AGY_MODEL:-Claude Sonnet 4.6 (Thinking)}"
+printf "agy_model:%s\n" "${OCTOPUS_AGY_MODEL:-}"
 printf "perplexity:%s\n" "$([ -n "${PERPLEXITY_API_KEY:-}" ] && echo configured || echo missing)"
 printf "copilot:%s\n" "$(command -v copilot >/dev/null 2>&1 && echo installed || echo missing)"
 printf "qwen:%s\n" "$(command -v qwen >/dev/null 2>&1 && echo installed || echo missing)"
@@ -60,6 +60,10 @@ status_env() { [[ -n "${1:-}" ]] && echo "Configured ✓" || echo "Not set ✗";
 codex_status="$(status_installed codex)"
 gemini_status="$(status_installed gemini)"
 agy_status="$(status_installed agy)"
+agy_model_note=""
+if [[ "$agy_status" == "Installed ✓" ]]; then
+  agy_model_note=" (model: ${OCTOPUS_AGY_MODEL:-agy default})"
+fi
 perplexity_status="$(status_env "${PERPLEXITY_API_KEY:-}")"
 copilot_status="$(status_optional copilot)"
 qwen_status="$(status_optional qwen)"
@@ -72,7 +76,7 @@ cat <<BANNER
 Providers:
   🔴 Codex CLI:      ${codex_status}
   🟡 Gemini CLI:     ${gemini_status}
-  🧭 Antigravity:    ${agy_status} (model: ${OCTOPUS_AGY_MODEL:-default})
+  🧭 Antigravity:    ${agy_status}${agy_model_note}
   🟣 Perplexity:     ${perplexity_status}
   🟢 Copilot CLI:    ${copilot_status}
   🟠 Qwen CLI:       ${qwen_status}
@@ -91,13 +95,13 @@ The rendered setup table must look like this shape, with ACTUAL statuses:
 Providers:
   🔴 Codex CLI:     [Installed ✓ / Missing ✗]
   🟡 Gemini CLI:    [Installed ✓ / Missing ✗]
-  🧭 Antigravity:   [Installed ✓ (model: OCTOPUS_AGY_MODEL/default) / Missing ✗]
+  🧭 Antigravity:   [Installed ✓ (model: OCTOPUS_AGY_MODEL/agy default) / Missing ✗]
   🟣 Perplexity:    [Configured ✓ / Not set ✗]
   🟢 Copilot CLI:   [Installed ✓ / Not installed]
   🟠 Qwen CLI:      [Installed ✓ / Not installed]
   🟤 OpenCode:      [Installed ✓ / Not installed]
   🔶 Vibe (Mistral): [Installed ✓ (auth: env-file/api-key/config) / Not installed]
-  ��� Ollama:        [Running ✓ / Installed / Not installed]
+  ⚫ Ollama:        [Running ✓ / Installed / Not installed]
   🔵 Claude:        Available ✓
 
 Token Optimization:
@@ -254,7 +258,7 @@ else
 fi
 ```
 
-If `agy` is not available yet, direct the user to install Google Antigravity CLI, then verify with `agy --version` and `agy models`. Octopus uses `OCTOPUS_AGY_MODEL` when set; otherwise it defaults to `Claude Sonnet 4.6 (Thinking)` for reliable non-interactive output.
+If `agy` is not available yet, direct the user to install Google Antigravity CLI, then verify with `agy --version` and `agy models`. Octopus uses `OCTOPUS_AGY_MODEL` when set; when unset, `agy` uses its own built-in default model.
 
 After install, offer auth:
 
