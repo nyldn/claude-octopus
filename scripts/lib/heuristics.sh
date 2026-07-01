@@ -338,7 +338,9 @@ $(<"$raw_concat")"
         if synthesis_result=$(run_agent_sync "$synth_agent" "$synthesis_prompt" "${TIMEOUT:-300}" "synthesizer" "aggregate" 2>/dev/null) \
             && [[ -n "$synthesis_result" ]]; then
             :  # primary synthesizer produced output
-        elif [[ "$synth_agent" != "claude-sonnet" ]] && command -v claude >/dev/null 2>&1 \
+        elif [[ "$synth_agent" != "claude-sonnet" ]] \
+            && { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed claude-sonnet; } \
+            && command -v claude >/dev/null 2>&1 \
             && synthesis_result=$(run_agent_sync "claude-sonnet" "$synthesis_prompt" "${TIMEOUT:-300}" "synthesizer" "aggregate" 2>/dev/null) \
             && [[ -n "$synthesis_result" ]]; then
             log WARN "Synthesizer '$synth_agent' failed — used claude-sonnet fallback"
@@ -473,13 +475,20 @@ $results"
 
     # Route probe synthesis through the Google seat (agy) with a claude-sonnet
     # retry, then the compact static fallback. (#524 — Gemini CLI sunset.)
+    # Keep an empty picker result authoritative — do NOT override it with
+    # claude-sonnet, which would bypass OCTO_ALLOWED_PROVIDERS and send probe
+    # context to a disabled provider. _aggregate_pick_synth_agent already returns
+    # claude-sonnet when (and only when) the allowlist permits it (#538).
     local synth_agent="" synthesis=""
     type _aggregate_pick_synth_agent >/dev/null 2>&1 && synth_agent=$(_aggregate_pick_synth_agent)
-    [[ -z "$synth_agent" ]] && synth_agent="claude-sonnet"
-    synthesis=$(run_agent_sync "$synth_agent" "$synthesis_prompt" "${TIMEOUT:-300}" "synthesizer" "probe") || synthesis=""
-    if [[ -z "$synthesis" && "$synth_agent" != "claude-sonnet" ]]; then
-        log WARN "Probe synthesis via '$synth_agent' failed — retrying with claude-sonnet"
-        synthesis=$(run_agent_sync "claude-sonnet" "$synthesis_prompt" "${TIMEOUT:-300}" "synthesizer" "probe") || synthesis=""
+    if [[ -n "$synth_agent" ]]; then
+        synthesis=$(run_agent_sync "$synth_agent" "$synthesis_prompt" "${TIMEOUT:-300}" "synthesizer" "probe") || synthesis=""
+        if [[ -z "$synthesis" && "$synth_agent" != "claude-sonnet" ]] \
+            && { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed claude-sonnet; } \
+            && command -v claude >/dev/null 2>&1; then
+            log WARN "Probe synthesis via '$synth_agent' failed — retrying with claude-sonnet"
+            synthesis=$(run_agent_sync "claude-sonnet" "$synthesis_prompt" "${TIMEOUT:-300}" "synthesizer" "probe") || synthesis=""
+        fi
     fi
     if [[ -z "$synthesis" ]]; then
         log WARN "Synthesis failed, using compact fallback"

@@ -183,6 +183,41 @@ test_aggregator_retries_claude_sonnet_when_agy_fails() {
     fi
 }
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Allowlist authorization — the picker must not fall back to claude-sonnet when
+# OCTO_ALLOWED_PROVIDERS excludes it (probe context must not reach a disabled
+# provider). Hermetic PATH: fake claude present, agy absent, no real PATH.
+# ─────────────────────────────────────────────────────────────────────────────
+
+_pick_with_allowlist() {
+    # $1 = OCTO_ALLOWED_PROVIDERS value ("" = unset/allow-all)
+    local allow="$1" workdir hbin b p
+    workdir=$(mktemp -d "${TEST_TMP_DIR}/wd.XXXXXX"); hbin="$workdir/hbin"; mkdir -p "$hbin"
+    for b in tr sed cat basename; do p=$(command -v "$b" 2>/dev/null) && ln -sf "$p" "$hbin/$b"; done
+    printf '#!/bin/sh\necho claude\n' > "$hbin/claude"; chmod +x "$hbin/claude"  # claude present, agy absent
+    PROJECT_ROOT="$PROJECT_ROOT" HBIN="$hbin" ALLOW="$allow" bash -c '
+        set -uo pipefail
+        export PATH="$HBIN"                       # hermetic — agy deliberately absent
+        export OCTO_ALLOWED_PROVIDERS="$ALLOW"
+        source "$PROJECT_ROOT/scripts/lib/provider-allowlist.sh"
+        source "$PROJECT_ROOT/scripts/lib/parallel.sh"
+        _aggregate_pick_synth_agent
+    '
+    rm -rf "$workdir"
+}
+
+test_picker_withholds_claude_when_allowlist_excludes_it() {
+    test_case "_aggregate_pick_synth_agent returns empty (no claude-sonnet) when allowlist=agy and agy is unavailable"
+    local out; out="$(_pick_with_allowlist "agy")"
+    [[ -z "$out" ]] && test_pass || test_fail "expected empty pick (claude disallowed), got: '$out'"
+}
+
+test_picker_allows_claude_when_permitted() {
+    test_case "_aggregate_pick_synth_agent returns claude-sonnet when the allowlist permits claude"
+    local out; out="$(_pick_with_allowlist "claude")"
+    [[ "$out" == "claude-sonnet" ]] && test_pass || test_fail "expected claude-sonnet, got: '$out'"
+}
+
 test_no_bare_gemini_synthesis_in_parallel
 test_parallel_routes_through_run_agent_sync
 test_picker_prefers_agy
@@ -190,5 +225,7 @@ test_embrace_dispatch_seats_agy
 test_aggregator_selects_agy_when_available
 test_aggregator_concatenates_when_no_provider
 test_aggregator_retries_claude_sonnet_when_agy_fails
+test_picker_withholds_claude_when_allowlist_excludes_it
+test_picker_allows_claude_when_permitted
 
 test_summary

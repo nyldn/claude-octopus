@@ -333,7 +333,10 @@ _aggregate_pick_synth_agent() {
         && command -v agy >/dev/null 2>&1; then
         echo "agy"; return 0
     fi
-    if command -v claude >/dev/null 2>&1; then
+    # claude-sonnet is the fallback only when the allowlist permits it — the
+    # picker is the single source of truth for synthesis authorization (#538).
+    if { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed claude-sonnet; } \
+        && command -v claude >/dev/null 2>&1; then
         echo "claude-sonnet"; return 0
     fi
     echo ""; return 0
@@ -420,7 +423,9 @@ $(<"$raw_concat")"
         if synthesis_result=$(run_agent_sync "$synth_agent" "$synthesis_prompt" "$TIMEOUT" "synthesizer" "parallel" 2>/dev/null) \
             && [[ -n "$synthesis_result" ]]; then
             :  # primary synthesizer produced output
-        elif [[ "$synth_agent" != "claude-sonnet" ]] && command -v claude >/dev/null 2>&1 \
+        elif [[ "$synth_agent" != "claude-sonnet" ]] \
+            && { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed claude-sonnet; } \
+            && command -v claude >/dev/null 2>&1 \
             && synthesis_result=$(run_agent_sync "claude-sonnet" "$synthesis_prompt" "$TIMEOUT" "synthesizer" "parallel" 2>/dev/null) \
             && [[ -n "$synthesis_result" ]]; then
             log WARN "Synthesizer '$synth_agent' failed — used claude-sonnet fallback"

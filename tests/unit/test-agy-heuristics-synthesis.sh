@@ -75,7 +75,7 @@ _run_runtime_aggregate() {
     # checked first by the picker, so the choice is deterministic regardless of
     # whether the host has gemini.
     PROJECT_ROOT="$PROJECT_ROOT" WORKDIR="$workdir" HBIN="$hbin" MODE="$mode" bash -c '
-        set -uo pipefail
+        set -euo pipefail
         export PATH="$HBIN:$PATH"
         RESULTS_DIR="$WORKDIR/results"; DRY_RUN=false; TIMEOUT=30; GREEN=""; NC=""
         source "$PROJECT_ROOT/scripts/lib/parallel.sh"
