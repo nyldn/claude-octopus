@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [9.47.1] - 2026-07-02
+
+### Fixed
+
+- **`atomic_json_update()` is now actually atomic under concurrency** (#557, #558). The lock was a check-then-`touch` race (two callers could both observe it absent and proceed) and the temp file was named with `$$`, which is constant across every `( ... ) &` subshell spawned from the same parent — concurrent `/octo:review` reviewer roles could collide, drop updates, or leave `progress.json` malformed. Replaced with an `mkdir`-based mutex (same pattern as `_octo_event_lock` in `scripts/lib/events.sh`) and `BASHPID`-based temp file naming; also fixed the function clobbering a caller's own `EXIT`/`INT`/`TERM` traps (e.g. `orchestrate.sh`'s temp-dir cleanup) by saving and restoring them instead of unconditionally clearing them.
+- **Antigravity (`agy`) explicit model pins now validate against the live `agy models` catalog** instead of the generic shell-token validator, which rejected valid labels containing spaces or parentheses (e.g. `Gemini 3.5 Flash (Low)`) (#555). `OCTOPUS_AGY_MODEL` now accepts `default`, `agy/default`, or an exact label from `agy models`.
+
 ## [9.47.0] - 2026-07-01
 
 ### Added
