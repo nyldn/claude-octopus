@@ -515,6 +515,11 @@ elif [[ "${OCTO_EVENT_LOG}" == "off" ]]; then
 fi
 ANALYTICS_DIR="${WORKSPACE_DIR}/analytics"
 
+# Ensure the per-session results/logs/plans dirs exist EARLY — before any
+# subcommand (council, debate, …) dispatches provider seats. Codex/agy seats
+# write into RESULTS_DIR and crash if it's missing. Cheap, idempotent.
+mkdir -p "$RESULTS_DIR" "$LOGS_DIR" "$PLANS_DIR" 2>/dev/null || true
+
 # Secure temporary directory (cleaned up on exit)
 OCTOPUS_TMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/claude-octopus.XXXXXX")
 trap 'rm -rf "$OCTOPUS_TMP_DIR"' EXIT INT TERM
