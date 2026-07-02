@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Added
+
+- **Antigravity adapter (`agy-exec.sh`) hardened**: `OCTOPUS_AGY_SANDBOX=off` drops the `--sandbox` restriction, `OCTOPUS_AGY_INCLUDE_DIRS` (comma-separated) whitelists extra read dirs via `--add-dir`, and a single replay-from-stdin retry recovers a silent-empty success (opt out with `OCTOPUS_AGY_NO_RETRY=1`). The adapter stays a thin, env-driven wrapper — no model-fallback chain or error classifier.
+
+### Fixed
+
+- **Session `results`/`logs`/`plans` dirs are now created early** in `orchestrate.sh`, before any subcommand dispatches provider seats. Codex/agy seats write into `RESULTS_DIR` during dispatch and previously crashed when it was missing. The `mkdir -p` is cheap and idempotent.
+
 ## [9.47.0] - 2026-07-01
 
 ### Added
