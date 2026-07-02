@@ -917,6 +917,12 @@ council_roster_entry_json() {
     [[ -n "$provider" ]] || provider="$(council_pick_provider "$preferred_provider")"
     provider_org="$(council_provider_org "$provider")"
     model="$(council_persona_model "$persona")"
+    # agy ignores the per-persona model (agy-exec runs `--model default`), so record
+    # the model agy will ACTUALLY use — resolved from its own settings — instead of
+    # the placeholder, so the seat's cross-lab lineage is verifiable from the artifact.
+    if [[ "$provider" == "agy" ]] && declare -f agy_current_model >/dev/null 2>&1; then
+        model="$(agy_current_model)"
+    fi
     seat="$(council_persona_seat "$persona")"
     family="$(council_persona_family "$persona")"
     permission_mode="$(council_agent_config_value "$persona" "permissionMode" | tr -d '"')"

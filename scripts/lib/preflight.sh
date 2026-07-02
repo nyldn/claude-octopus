@@ -90,7 +90,11 @@ cmd_detect_providers() {
     if command -v agy &>/dev/null; then
         echo "AGY_STATUS=ok"
         echo "AGY_AUTH=cli"
-        echo "AGY_MODEL=${OCTOPUS_AGY_MODEL:-}"
+        if declare -f agy_current_model >/dev/null 2>&1; then
+            echo "AGY_MODEL=$(agy_current_model)"
+        else
+            echo "AGY_MODEL=${OCTOPUS_AGY_MODEL:-}"
+        fi
     else
         echo "AGY_STATUS=not-installed"
         echo "AGY_AUTH=none"
@@ -207,6 +211,9 @@ cmd_detect_providers() {
     local agy_status=$(command -v agy &>/dev/null && echo "ok" || echo "not-installed")
     local agy_auth=$([[ "$agy_status" == "ok" ]] && echo "cli" || echo "none")
     local agy_model="${OCTOPUS_AGY_MODEL:-}"
+    if [[ "$agy_status" == "ok" ]] && declare -f agy_current_model >/dev/null 2>&1; then
+        agy_model="$(agy_current_model)"
+    fi
     local perplexity_status=$([[ -n "${PERPLEXITY_API_KEY:-}" ]] && echo "ok" || echo "not-configured")
     local perplexity_auth=$([[ -n "${PERPLEXITY_API_KEY:-}" ]] && echo "api-key" || echo "none")
     local ollama_status=$(command -v ollama &>/dev/null && { curl -sf http://localhost:11434/api/tags &>/dev/null && echo "running" || echo "stopped"; } || echo "not-installed")
