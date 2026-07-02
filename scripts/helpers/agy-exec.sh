@@ -26,9 +26,13 @@ if [[ "${OCTOPUS_AGY_SANDBOX:-on}" == "off" ]]; then
     cmd=(agy --print --dangerously-skip-permissions --print-timeout "$print_timeout")
 fi
 
-if [[ -n "$model" && "$model" != "default" ]]; then
-    cmd+=(--model "$model")
-fi
+case "$model" in
+    ""|default|agy/default)
+        ;;
+    *)
+        cmd+=(--model "$model")
+        ;;
+esac
 
 # agy confines reads to its workspace; whitelist extra dirs (e.g. a /tmp staging
 # dir) the prompt references. Comma-separated, mirrors OCTOPUS_GEMINI_INCLUDE_DIRS.

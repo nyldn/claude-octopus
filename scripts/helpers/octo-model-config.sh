@@ -44,7 +44,7 @@ usage() {
     echo "Environment Variables:"
     echo "  OCTOPUS_CODEX_MODEL         Override codex model (highest priority)"
     echo "  OCTOPUS_GEMINI_MODEL        Override gemini model"
-    echo "  OCTOPUS_AGY_MODEL           Override Antigravity CLI model"
+    echo "  OCTOPUS_AGY_MODEL           Override Antigravity model (default, agy/default, or exact agy models label)"
     echo "  OCTOPUS_CURSOR_AGENT_MODEL  Override cursor-agent model"
     echo "  OCTOPUS_COST_MODE           Set cost tier: budget, standard, premium"
     echo "  OCTO_ALLOWED_PROVIDERS      Override provider availability for this process"
