@@ -283,7 +283,15 @@ atomic_json_update() {
         fi
         sleep 0.1
     done
-    trap 'rmdir "'"$lockfile"'" 2>/dev/null' EXIT
+
+    # This function can run in the same shell as a caller's own long-lived
+    # EXIT/INT/TERM traps (e.g. orchestrate.sh's temp-dir cleanup), so save
+    # and restore them instead of clobbering them with `trap - EXIT`.
+    local prev_exit_trap prev_int_trap prev_term_trap
+    prev_exit_trap=$(trap -p EXIT)
+    prev_int_trap=$(trap -p INT)
+    prev_term_trap=$(trap -p TERM)
+    trap 'rmdir "'"$lockfile"'" 2>/dev/null' EXIT INT TERM
 
     # BASHPID (not $$, which stays constant across every subshell spawned
     # from the same parent) keeps concurrent callers from colliding on one
@@ -294,7 +302,9 @@ atomic_json_update() {
     [[ $result -ne 0 ]] && rm -f "$tmp_file"
 
     rmdir "$lockfile" 2>/dev/null
-    trap - EXIT
+    eval "${prev_exit_trap:-trap - EXIT}"
+    eval "${prev_int_trap:-trap - INT}"
+    eval "${prev_term_trap:-trap - TERM}"
 
     return $result
 }
