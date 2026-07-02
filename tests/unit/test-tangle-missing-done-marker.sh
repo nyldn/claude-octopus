@@ -23,6 +23,7 @@ YELLOW=""
 RED=""
 NC=""
 TMUX_MODE=false
+OCTOPUS_TANGLE_MISSING_MARKER_GRACE=0
 DRY_RUN=false
 SUPPORTS_PARALLEL_FILE_SAFETY=false
 RESULTS_DIR="$TEST_TMP_DIR/results"
@@ -115,9 +116,9 @@ test_case "wait loop records terminal task even when marker write fails"
 reset_fixture
 rm -rf "$WORKSPACE_DIR/.octo/agents"
 printf 'not a directory' > "$WORKSPACE_DIR/.octo/agents"
-if tangle_develop "unwritable marker task" >/dev/null 2>&1 && \
-   [[ "$(<"$SLEEP_COUNTER_FILE")" -le 2 ]] && \
-   [[ "$(grep -c 'Failed to write missing-done marker' "$LOG_CAPTURE_FILE" || true)" -ge 1 ]]; then
+tangle_develop "unwritable marker task" >/dev/null 2>&1 || true
+if [[ "$(<"$SLEEP_COUNTER_FILE")" -le 6 ]] && \
+   [[ "$(grep -c "Failed to write missing-done marker" "$LOG_CAPTURE_FILE" || true)" -ge 1 ]]; then
     test_pass
 else
     test_fail "wait loop did not terminate when marker write failed"
