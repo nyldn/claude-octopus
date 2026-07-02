@@ -991,6 +991,33 @@ EOF
     fi
 }
 
+# ── agy_current_model: resolve the model the Antigravity CLI will actually use ──
+# agy-exec.sh runs `agy --print` with `--model default` (no --model flag) unless
+# OCTOPUS_AGY_MODEL is set, so agy uses whatever is selected in its own /model UI —
+# persisted to ~/.gemini/antigravity-cli/settings.json. Resolve that here so the
+# council roster artifact and the activation banner record the REAL model
+# (e.g. "Gemini 3.1 Pro (Low)") instead of the opaque "default", which is what makes
+# a Codex+agy panel's cross-lab-vs-same-lineage status verifiable from the artifact.
+# Fail-safe: purely diagnostic, never gate logic — echo "default (unresolved)" if the
+# selection can't be read, and never abort a run.
+agy_current_model() {
+    local override="${OCTOPUS_AGY_MODEL:-}"
+    if [[ -n "$override" && "$override" != "default" ]]; then
+        printf '%s\n' "$override"
+        return 0
+    fi
+    local settings="${HOME}/.gemini/antigravity-cli/settings.json"
+    if [[ -f "$settings" ]] && command -v jq >/dev/null 2>&1; then
+        local m
+        m="$(jq -r '.model // empty' "$settings" 2>/dev/null)"
+        if [[ -n "$m" ]]; then
+            printf '%s\n' "$m"
+            return 0
+        fi
+    fi
+    printf '%s\n' "default (unresolved)"
+}
+
 # ── detect_providers: multi-CLI + auth detection (moved from orchestrate.sh v9.22.1) ──
 detect_providers() {
     local result=""

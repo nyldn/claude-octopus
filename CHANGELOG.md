@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **The agy council seat now records its real model instead of `"default"`.** `agy-exec` runs `agy --print` with `--model default` (agy uses whatever is picked in its own `/model` UI), so the roster artifact and preflight banner logged the opaque string `default` for the agy seat — making a Codex+agy panel's cross-lab-vs-same-lineage status unverifiable from `summary.json`. New `agy_current_model()` (`lib/providers.sh`) honors `OCTOPUS_AGY_MODEL`, else resolves the selection from `~/.gemini/antigravity-cli/settings.json`, else fails safe to `default (unresolved)`; it's wired into `council_roster_entry_json` and the preflight banner. Purely diagnostic — never gates logic, and guarded with `declare -f` so standalone runs fall back to prior behavior.
+
 ## [9.48.0] - 2026-07-06
 
 ### Added
