@@ -660,7 +660,7 @@ tangle_retry_worktree_diagnostics() {
     suspicious=$(printf '%s\n' "$changed_files" | while IFS= read -r path; do
         [[ -n "$path" ]] || continue
         case "$path" in
-            *.js|*.mjs|*.cjs|*.ts|*.mts|*.cts) ;;
+            *.js|*.mjs|*.cjs|*.ts|*.mts|*.cts) : ;;
             *) continue ;;
         esac
         [[ -f "$workdir/$path" ]] || continue
