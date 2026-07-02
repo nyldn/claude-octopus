@@ -1460,10 +1460,13 @@ Every [CODING] line must include a same-line Files: clause."
     local _done_dir="${WORKSPACE_DIR:-${HOME}/.claude-octopus}/.octo/agents"
     local _tangle_max_wait="${OCTOPUS_TANGLE_DEADLINE:-$(( ${TIMEOUT:-600} + 60 ))}"
     [[ "$_tangle_max_wait" =~ ^[0-9]+$ ]] || _tangle_max_wait=$(( ${TIMEOUT:-600} + 60 ))
+    local _missing_marker_grace="${OCTOPUS_TANGLE_MISSING_MARKER_GRACE:-180}"
+    [[ "$_missing_marker_grace" =~ ^[0-9]+$ ]] || _missing_marker_grace=180
     local _deadline=$(( $(date +%s) + _tangle_max_wait ))
     local completed=0
     local _failed_tasks=()
     local _terminal_task_ids=""
+    local _missing_marker_since=()
     while [[ $completed -lt ${#task_ids[@]} ]]; do
         completed=0
         for i in "${!task_ids[@]}"; do
@@ -1489,23 +1492,30 @@ Every [CODING] line must include a same-line Files: clause."
                     fi
                     [[ " $_terminal_task_ids " == *" ${task_ids[$i]} "* ]] || _terminal_task_ids="${_terminal_task_ids:+$_terminal_task_ids }${task_ids[$i]}"
                 elif [[ -n "$_wrapper_pid" ]] && ! kill -0 "$_wrapper_pid" 2>/dev/null; then
-                    log WARN "Thread ${task_ids[$i]} exited without writing completion marker — marking failed"
-                    mkdir -p "$_done_dir" 2>/dev/null || true
-                    if [[ ! -f "$_done_file" ]] && ! echo "missing-done-marker" > "$_done_file" 2>/dev/null; then
-                        log WARN "Failed to write missing-done marker for ${task_ids[$i]} at $_done_file"
-                    fi
-                    [[ " $_terminal_task_ids " == *" ${task_ids[$i]} "* ]] || _terminal_task_ids="${_terminal_task_ids:+$_terminal_task_ids }${task_ids[$i]}"
-                    local _result_file
-                    _result_file=$(find "${RESULTS_DIR:-${HOME}/.claude-octopus/results}" -maxdepth 1 -type f -name "*-${task_ids[$i]}.md" 2>/dev/null | head -1 || true)
-                    if [[ -n "$_result_file" ]]; then
-                        local _status_count
-                        _status_count=$(grep -c '^## Status:' "$_result_file" 2>/dev/null || true)
-                        if [[ "${_status_count:-0}" -eq 0 ]]; then
-                            {
-                                echo ""
-                                echo "## Status: FAILED (Missing completion marker)"
-                                echo "# Completed: $(date)"
-                            } >> "$_result_file" 2>/dev/null || true
+                    local _now
+                    _now=$(date +%s)
+                    if [[ -z "${_missing_marker_since[$i]:-}" ]]; then
+                        _missing_marker_since[$i]="$_now"
+                        log WARN "Thread ${task_ids[$i]} wrapper exited without completion marker — waiting up to ${_missing_marker_grace}s for late result/marker"
+                    elif (( _now - ${_missing_marker_since[$i]} >= _missing_marker_grace )); then
+                        log WARN "Thread ${task_ids[$i]} still lacks completion marker after ${_missing_marker_grace}s — marking failed"
+                        mkdir -p "$_done_dir" 2>/dev/null || true
+                        if [[ ! -f "$_done_file" ]] && ! echo "missing-done-marker" > "$_done_file" 2>/dev/null; then
+                            log WARN "Failed to write missing-done marker for ${task_ids[$i]} at $_done_file"
+                        fi
+                        [[ " $_terminal_task_ids " == *" ${task_ids[$i]} "* ]] || _terminal_task_ids="${_terminal_task_ids:+$_terminal_task_ids }${task_ids[$i]}"
+                        local _result_file
+                        _result_file=$(find "${RESULTS_DIR:-${HOME}/.claude-octopus/results}" -maxdepth 1 -type f -name "*-${task_ids[$i]}.md" 2>/dev/null | head -1 || true)
+                        if [[ -n "$_result_file" ]]; then
+                            local _status_count
+                            _status_count=$(grep -c '^## Status:' "$_result_file" 2>/dev/null || true)
+                            if [[ "${_status_count:-0}" -eq 0 ]]; then
+                                {
+                                    echo ""
+                                    echo "## Status: FAILED (Missing completion marker)"
+                                    echo "# Completed: $(date)"
+                                } >> "$_result_file" 2>/dev/null || true
+                            fi
                         fi
                     fi
                 fi
@@ -1515,6 +1525,28 @@ Every [CODING] line must include a same-line Files: clause."
         sleep 2
     done
     echo ""
+
+    # Final artifact reconciliation: providers can write the result and .done
+    # marker after the wrapper PID disappears. Trust a latest SUCCESS status
+    # before reporting failures or entering the quality gate.
+    for i in "${!task_ids[@]}"; do
+        local _done_file="${_done_dir}/${task_ids[$i]}.done"
+        local _exit_val
+        _exit_val=$(cat "$_done_file" 2>/dev/null || echo "")
+        if [[ "$_exit_val" != "0" ]]; then
+            local _result_file=""
+            _result_file=$(find "${RESULTS_DIR:-${HOME}/.claude-octopus/results}" -maxdepth 1 -type f -name "*-${task_ids[$i]}.md" 2>/dev/null | head -1 || true)
+            if [[ -n "$_result_file" ]]; then
+                local _latest_status=""
+                _latest_status=$(grep '^## Status:' "$_result_file" 2>/dev/null | tail -1 || true)
+                if [[ "$_latest_status" == *SUCCESS* ]]; then
+                    mkdir -p "$_done_dir" 2>/dev/null || true
+                    echo "0" > "$_done_file" 2>/dev/null || true
+                    log INFO "Reconciled late successful result for ${task_ids[$i]} before quality gate"
+                fi
+            fi
+        fi
+    done
 
     # Report any failed subtasks
     for i in "${!task_ids[@]}"; do

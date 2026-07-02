@@ -103,6 +103,17 @@ check_tangle_worktree_changes() {
     rm -f "$current_file"
 }
 
+tangle_result_latest_status() {
+    local result="$1"
+    local status_line=""
+    status_line=$(grep '^## Status:' "$result" 2>/dev/null | tail -1 || true)
+    case "$status_line" in
+        *SUCCESS*) echo "success" ;;
+        *FAILED*|*TIMEOUT*|*ERROR*) echo "failed" ;;
+        *) echo "unknown" ;;
+    esac
+}
+
 validate_tangle_results() {
     local task_group="$1"
     local original_prompt="$2"
@@ -129,7 +140,9 @@ validate_tangle_results() {
                 run_file_validation "$agent_from_file" "$(cat "$result" 2>/dev/null)" 2>/dev/null || true
             fi
 
-            if grep -q "Status: SUCCESS" "$result" 2>/dev/null; then
+            local result_status
+            result_status=$(tangle_result_latest_status "$result")
+            if [[ "$result_status" == "success" ]]; then
                 ((success_count++)) || true
             else
                 ((fail_count++)) || true
