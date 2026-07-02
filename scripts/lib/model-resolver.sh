@@ -94,7 +94,7 @@ validate_model_name_for_provider() {
     local model="$2"
 
     case "$provider" in
-        agy|antigravity)
+        agy|agy-research|antigravity)
             validate_agy_model_name "$model"
             ;;
         *)
@@ -116,7 +116,7 @@ resolve_octopus_model() {
     # session state and take precedence over any cached value.
     local canonical_provider="$provider"
     case "$canonical_provider" in
-        antigravity) canonical_provider="agy" ;;
+        antigravity|agy-research) canonical_provider="agy" ;;
     esac
     local env_var="OCTOPUS_$(echo "$canonical_provider" | tr '[:lower:]' '[:upper:]' | tr '-' '_')_MODEL"
     if [[ -n "${!env_var:-}" ]]; then
@@ -133,7 +133,7 @@ resolve_octopus_model() {
     local cache_key
     # v8.49.0: Field-delimited cache key prevents collisions
     # (e.g., provider="codex" + type="spark" must differ from type="codex-spark")
-    local safe_p="${provider//[^a-zA-Z0-9]/_}"
+    local safe_p="${canonical_provider//[^a-zA-Z0-9]/_}"
     local safe_a="${agent_type//[^a-zA-Z0-9]/_}"
     local safe_ph="${phase//[^a-zA-Z0-9]/_}"
     local safe_r="${role//[^a-zA-Z0-9]/_}"
@@ -207,7 +207,7 @@ resolve_octopus_model() {
         config_data=$(<"$config_file")
 
         # Priority 1b: Session-only config overrides
-        resolved_model=$(echo "$config_data" | jq -r ".overrides.${provider} // empty" 2>/dev/null)
+        resolved_model=$(echo "$config_data" | jq -r ".overrides.${canonical_provider} // empty" 2>/dev/null)
         if [[ -n "$resolved_model" && "$resolved_model" != "null" ]]; then
             [[ -n "$_trace" ]] && echo "[model-trace] Tier 2 (session override): $resolved_model ← SELECTED" >&2
         else

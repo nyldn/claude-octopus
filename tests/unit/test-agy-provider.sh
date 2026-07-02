@@ -65,13 +65,26 @@ MOCK_AGY
     chmod +x "$tmp_bin/agy"
 
     local old_path="$PATH"
+    local old_home="$HOME"
+    local had_log=0
     PATH="$tmp_bin:$PATH"
     AGY_ARG_CAPTURE="$capture"
     export AGY_ARG_CAPTURE
 
+    if declare -F log >/dev/null 2>&1; then
+        had_log=1
+        eval "$(declare -f log | sed '1s/^log/__octo_saved_log/')"
+    fi
+
     restore_agy_dynamic_model_env() {
         PATH="$old_path"
+        HOME="$old_home"
         unset AGY_ARG_CAPTURE
+        unset -f log 2>/dev/null || true
+        if [[ "$had_log" == "1" ]] && declare -F __octo_saved_log >/dev/null 2>&1; then
+            eval "$(declare -f __octo_saved_log | sed '1s/^__octo_saved_log/log/')"
+            unset -f __octo_saved_log 2>/dev/null || true
+        fi
     }
 
     log() { :; }
@@ -103,15 +116,26 @@ MOCK_AGY
         return
     fi
 
+    OCTOPUS_AGY_MODEL='Gemini 3.5 Flash (Low)'
+    resolved="$(resolve_octopus_model agy-research agy tangle decomposer)"
+    unset OCTOPUS_AGY_MODEL
+    if [[ "$resolved" != 'Gemini 3.5 Flash (Low)' ]]; then
+        restore_agy_dynamic_model_env
+        test_fail "agy-research should use agy-specific env validation"
+        return
+    fi
+
     local config_dir="$TEST_TMP_DIR/agy-config-home"
     mkdir -p "$config_dir/.claude-octopus/config"
     cat > "$config_dir/.claude-octopus/config/providers.json" <<'JSON'
 {"overrides":{"agy":"Gemini 3.5 Flash (Medium)"}}
 JSON
-    HOME="$config_dir" resolved="$(HOME="$config_dir" resolve_octopus_model agy agy tangle decomposer)"
+    HOME="$config_dir"
+    resolved="$(resolve_octopus_model agy-research agy tangle decomposer)"
+    HOME="$old_home"
     if [[ "$resolved" != 'Gemini 3.5 Flash (Medium)' ]]; then
         restore_agy_dynamic_model_env
-        test_fail "config-resolved agy labels should use agy-specific validation"
+        test_fail "config-resolved agy-research labels should use agy-specific validation"
         return
     fi
 
