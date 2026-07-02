@@ -42,6 +42,66 @@ opus_default_model() {
     fi
 }
 
+# Validate Antigravity CLI model labels against the live CLI catalog.
+#
+# Antigravity's model selector is service-owned and changes outside Octopus
+# releases. Real labels include spaces and parentheses (for example,
+# "Gemini 3.5 Flash (Low)"), so the generic shell-token validator is too
+# strict for explicit agy model pins. Validate agy pins by exact membership in
+# `agy models` instead, while keeping the generic validator for all other
+# providers.
+validate_agy_model_name() {
+    local model="$1"
+
+    [[ -z "$model" ]] && return 1
+    [[ "$model" == *$'\n'* || "$model" == *$'\r'* ]] && return 1
+    case "$model" in
+        *\\*) return 1 ;;
+    esac
+
+    case "$model" in
+        default|agy/default)
+            return 0
+            ;;
+    esac
+
+    if ! command -v agy >/dev/null 2>&1; then
+        log ERROR "Cannot validate OCTOPUS_AGY_MODEL because agy CLI is not installed"
+        return 1
+    fi
+
+    local available_models=""
+    if ! available_models="$(agy models 2>/dev/null)" || [[ -z "$available_models" ]]; then
+        log ERROR "Cannot validate OCTOPUS_AGY_MODEL because 'agy models' returned no models"
+        return 1
+    fi
+
+    local line=""
+    while IFS= read -r line; do
+        line="${line%$'\r'}"
+        if [[ "$line" == "$model" ]]; then
+            return 0
+        fi
+    done <<< "$available_models"
+
+    log ERROR "Invalid OCTOPUS_AGY_MODEL: '$model'"
+    printf 'Available agy models:\n%s\n' "$available_models" >&2
+    return 1
+}
+
+validate_model_name_for_provider() {
+    local provider="$1"
+    local model="$2"
+
+    case "$provider" in
+        agy|agy-research|antigravity)
+            validate_agy_model_name "$model"
+            ;;
+        *)
+            validate_model_name "$model"
+            ;;
+    esac
+}
 # resolve_octopus_model <provider> <agent_type> <phase> <role>
 resolve_octopus_model() {
     local provider="$1"
@@ -56,11 +116,11 @@ resolve_octopus_model() {
     # session state and take precedence over any cached value.
     local canonical_provider="$provider"
     case "$canonical_provider" in
-        antigravity) canonical_provider="agy" ;;
+        antigravity|agy-research) canonical_provider="agy" ;;
     esac
     local env_var="OCTOPUS_$(echo "$canonical_provider" | tr '[:lower:]' '[:upper:]' | tr '-' '_')_MODEL"
     if [[ -n "${!env_var:-}" ]]; then
-        if ! validate_model_name "${!env_var}"; then
+        if ! validate_model_name_for_provider "$canonical_provider" "${!env_var}"; then
             log ERROR "Invalid model name in $env_var"
             return 1
         fi
@@ -73,7 +133,7 @@ resolve_octopus_model() {
     local cache_key
     # v8.49.0: Field-delimited cache key prevents collisions
     # (e.g., provider="codex" + type="spark" must differ from type="codex-spark")
-    local safe_p="${provider//[^a-zA-Z0-9]/_}"
+    local safe_p="${canonical_provider//[^a-zA-Z0-9]/_}"
     local safe_a="${agent_type//[^a-zA-Z0-9]/_}"
     local safe_ph="${phase//[^a-zA-Z0-9]/_}"
     local safe_r="${role//[^a-zA-Z0-9]/_}"
@@ -86,7 +146,7 @@ resolve_octopus_model() {
     local cached_val
     eval "cached_val=\"\${_OCTO_MODEL_CACHE_${cache_key}:-}\""
     if [[ -n "$cached_val" ]]; then
-        if validate_model_name "$cached_val"; then
+        if validate_model_name_for_provider "$canonical_provider" "$cached_val"; then
             echo "$cached_val"
             return 0
         fi
@@ -112,7 +172,7 @@ resolve_octopus_model() {
         if [[ -n "$cached_val" && "$cached_val" != "null" ]]; then
             # Reject invalid cached model names instead of mutating them into a
             # different model string before eval.
-            if validate_model_name "$cached_val"; then
+            if validate_model_name_for_provider "$canonical_provider" "$cached_val"; then
                 eval "_OCTO_MODEL_CACHE_${cache_key}=\"\$cached_val\""
                 echo "$cached_val"
                 return 0
@@ -147,7 +207,7 @@ resolve_octopus_model() {
         config_data=$(<"$config_file")
 
         # Priority 1b: Session-only config overrides
-        resolved_model=$(echo "$config_data" | jq -r ".overrides.${provider} // empty" 2>/dev/null)
+        resolved_model=$(echo "$config_data" | jq -r --arg p "$canonical_provider" '.overrides[$p] // empty' 2>/dev/null)
         if [[ -n "$resolved_model" && "$resolved_model" != "null" ]]; then
             [[ -n "$_trace" ]] && echo "[model-trace] Tier 2 (session override): $resolved_model ← SELECTED" >&2
         else
@@ -158,10 +218,10 @@ resolve_octopus_model() {
         if [[ -z "$resolved_model" || "$resolved_model" == "null" ]]; then
             local routed=""
             if [[ -n "$phase" ]]; then
-                routed=$(echo "$config_data" | jq -r ".routing.phases.\"${phase}\" // empty" 2>/dev/null)
+                routed=$(echo "$config_data" | jq -r --arg phase "$phase" '.routing.phases[$phase] // empty' 2>/dev/null)
             fi
             if [[ -z "$routed" || "$routed" == "null" ]] && [[ -n "$role" ]]; then
-                routed=$(echo "$config_data" | jq -r ".routing.roles.\"${role}\" // empty" 2>/dev/null)
+                routed=$(echo "$config_data" | jq -r --arg role "$role" '.routing.roles[$role] // empty' 2>/dev/null)
             fi
 
             # Handle recursive reference (e.g. "codex:spark")
@@ -214,9 +274,9 @@ resolve_octopus_model() {
                 capability="$agent_type"
             fi
 
-            if [[ -n "$capability" && "$capability" != "$provider" ]]; then
+            if [[ -n "$capability" && "$capability" != "$canonical_provider" ]]; then
                 # Support both short capability (spark) and full model aliases (spark_model)
-                resolved_model=$(echo "$config_data" | jq -r ".providers.${provider}.\"${capability}\" // .providers.${provider}.\"${capability}_model\" // empty" 2>/dev/null)
+                resolved_model=$(echo "$config_data" | jq -r --arg p "$canonical_provider" --arg cap "$capability" '.providers[$p][$cap] // .providers[$p][($cap + "_model")] // empty' 2>/dev/null)
             fi
             if [[ -n "$resolved_model" && "$resolved_model" != "null" ]]; then
                 [[ -n "$_trace" ]] && echo "[model-trace] Tier 4 (capability map): $resolved_model ← SELECTED (cap: ${capability:-none})" >&2
@@ -228,11 +288,11 @@ resolve_octopus_model() {
         # 4. Tier Mapping
         if [[ -z "$resolved_model" || "$resolved_model" == "null" ]]; then
             if [[ -n "${OCTOPUS_COST_MODE:-}" && "${OCTOPUS_COST_MODE:-}" != "standard" ]]; then
-                resolved_model=$(echo "$config_data" | jq -r ".tiers.\"${OCTOPUS_COST_MODE}\".\"${provider}\" // empty" 2>/dev/null)
+                resolved_model=$(echo "$config_data" | jq -r --arg mode "$OCTOPUS_COST_MODE" --arg p "$canonical_provider" '.tiers[$mode][$p] // empty' 2>/dev/null)
                 if [[ -n "$resolved_model" && "$resolved_model" =~ ^[a-z_]+$ ]]; then
                     # Capability ref in tier map
                     local tier_mapped_model
-                    tier_mapped_model=$(echo "$config_data" | jq -r ".providers.\"${provider}\".\"${resolved_model}\" // .providers.\"${provider}\".\"${resolved_model}_model\" // empty" 2>/dev/null)
+                    tier_mapped_model=$(echo "$config_data" | jq -r --arg p "$canonical_provider" --arg model "$resolved_model" '.providers[$p][$model] // .providers[$p][($model + "_model")] // empty' 2>/dev/null)
                     [[ -n "$tier_mapped_model" && "$tier_mapped_model" != "null" ]] && resolved_model="$tier_mapped_model"
                 fi
                 [[ -n "$_trace" ]] && echo "[model-trace] Tier 5 (cost mode ${OCTOPUS_COST_MODE}): ${resolved_model:-—}" >&2
@@ -241,7 +301,7 @@ resolve_octopus_model() {
 
         # 5. Global Defaults
         if [[ -z "$resolved_model" || "$resolved_model" == "null" ]]; then
-            resolved_model=$(echo "$config_data" | jq -r ".providers.${provider}.default // .providers.${provider}.model // empty" 2>/dev/null)
+            resolved_model=$(echo "$config_data" | jq -r --arg p "$canonical_provider" '.providers[$p].default // .providers[$p].model // empty' 2>/dev/null)
             if [[ -n "$resolved_model" && "$resolved_model" != "null" ]]; then
                 [[ -n "$_trace" ]] && echo "[model-trace] Tier 6 (config default): $resolved_model ← SELECTED" >&2
             else
@@ -283,7 +343,7 @@ resolve_octopus_model() {
 
     # Validate before eval/cache. Dispatch also validates before command
     # construction, but the resolver cache itself must not eval unsafe values.
-    if ! validate_model_name "$resolved_model"; then
+    if ! validate_model_name_for_provider "$canonical_provider" "$resolved_model"; then
         log ERROR "Invalid resolved model name for $provider/$agent_type"
         return 1
     fi
@@ -316,7 +376,9 @@ validate_model_name() {
     # Reject empty names
     [[ -z "$model" ]] && return 1
     [[ "$model" == *$'\n'* || "$model" == *$'\r'* ]] && return 1
-    [[ "$model" == *"\\"* ]] && return 1
+    case "$model" in
+        *\\*) return 1 ;;
+    esac
 
     # Reject shell metacharacters and whitespace (v8.50.0 Security hardening).
     case "$model" in

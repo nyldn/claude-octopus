@@ -103,7 +103,7 @@ test_careful_sql_patterns() {
 
 test_careful_git_force_push() {
     test_case "careful-check.sh detects git push --force"
-    if grep -c 'git.*push.*--force\|git.*push.*-f' "$CAREFUL_HOOK" >/dev/null 2>&1; then
+    if grep -Ec 'git.*push.*--force|git.*push.*-f' "$CAREFUL_HOOK" >/dev/null 2>&1; then
         test_pass
     else
         test_fail "git push --force pattern not found"
@@ -121,7 +121,7 @@ test_careful_git_reset_hard() {
 
 test_careful_git_checkout_dot() {
     test_case "careful-check.sh detects git checkout ./restore ."
-    if grep -c 'git.*checkout.*\.\|git.*restore.*\.' "$CAREFUL_HOOK" >/dev/null 2>&1; then
+    if grep -Ec 'git.*checkout.*\.|git.*restore.*\.' "$CAREFUL_HOOK" >/dev/null 2>&1; then
         test_pass
     else
         test_fail "git checkout ./restore . pattern not found"

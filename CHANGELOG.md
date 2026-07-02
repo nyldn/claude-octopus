@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [9.47.1] - 2026-07-02
+
+### Fixed
+
+- **`atomic_json_update` is now race-safe under concurrent agent status writes** (#557, #558). Concurrent writers no longer clobber each other's updates when multiple agents report status at once; the read-modify-write is serialized under a lock. (A follow-up, #559, tracks stale-lock recovery for crashed lock holders.)
+- **agy model pins validate dynamically** (#555). Model-pin validation queries the available agy model set instead of a hardcoded list, so a valid pin is no longer rejected when the catalog changes.
+- **Late tangle completions retry with feedback** (#546). Tangle output failures that arrive after the initial window are retried with the failure feedback attached, instead of being dropped.
+
 ## [9.47.0] - 2026-07-01
 
 ### Added
