@@ -13,8 +13,12 @@ print_timeout="${OCTOPUS_AGY_PRINT_TIMEOUT:-5m0s}"
 # --dangerously-skip-permissions: auto-approve agy's folder-trust + tool prompts so
 # council seats don't block on a per-worktree trust prompt (already --sandbox'd).
 cmd=(agy --print --sandbox --dangerously-skip-permissions --print-timeout "$print_timeout")
-if [[ -n "$model" && "$model" != "default" ]]; then
-    cmd+=(--model "$model")
-fi
+case "$model" in
+    ""|default|agy/default)
+        ;;
+    *)
+        cmd+=(--model "$model")
+        ;;
+esac
 
 exec "${cmd[@]}"
