@@ -108,7 +108,12 @@ MOCK_AGY
 
     local resolved=""
     OCTOPUS_AGY_MODEL='Gemini 3.5 Flash (Low)'
-    resolved="$(resolve_octopus_model agy agy tangle decomposer)"
+    if ! resolved="$(resolve_octopus_model agy agy tangle decomposer)"; then
+        unset OCTOPUS_AGY_MODEL
+        restore_agy_dynamic_model_env
+        test_fail "resolver failed for explicit agy label"
+        return
+    fi
     unset OCTOPUS_AGY_MODEL
     if [[ "$resolved" != 'Gemini 3.5 Flash (Low)' ]]; then
         restore_agy_dynamic_model_env
@@ -117,7 +122,12 @@ MOCK_AGY
     fi
 
     OCTOPUS_AGY_MODEL='Gemini 3.5 Flash (Low)'
-    resolved="$(resolve_octopus_model agy-research agy tangle decomposer)"
+    if ! resolved="$(resolve_octopus_model agy-research agy tangle decomposer)"; then
+        unset OCTOPUS_AGY_MODEL
+        restore_agy_dynamic_model_env
+        test_fail "resolver failed for explicit agy-research label"
+        return
+    fi
     unset OCTOPUS_AGY_MODEL
     if [[ "$resolved" != 'Gemini 3.5 Flash (Low)' ]]; then
         restore_agy_dynamic_model_env
@@ -128,14 +138,19 @@ MOCK_AGY
     local config_dir="$TEST_TMP_DIR/agy-config-home"
     mkdir -p "$config_dir/.claude-octopus/config"
     cat > "$config_dir/.claude-octopus/config/providers.json" <<'JSON'
-{"overrides":{"agy":"Gemini 3.5 Flash (Medium)"}}
+{"providers":{"agy":{"default":"Gemini 3.5 Flash (Medium)"}}}
 JSON
     HOME="$config_dir"
-    resolved="$(resolve_octopus_model agy-research agy tangle decomposer)"
+    if ! resolved="$(resolve_octopus_model agy-research agy tangle decomposer)"; then
+        HOME="$old_home"
+        restore_agy_dynamic_model_env
+        test_fail "resolver failed for config-resolved agy-research label"
+        return
+    fi
     HOME="$old_home"
     if [[ "$resolved" != 'Gemini 3.5 Flash (Medium)' ]]; then
         restore_agy_dynamic_model_env
-        test_fail "config-resolved agy-research labels should use agy-specific validation"
+        test_fail "config-resolved agy-research labels should use agy-specific provider lookups"
         return
     fi
 

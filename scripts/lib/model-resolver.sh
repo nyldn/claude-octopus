@@ -274,9 +274,9 @@ resolve_octopus_model() {
                 capability="$agent_type"
             fi
 
-            if [[ -n "$capability" && "$capability" != "$provider" ]]; then
+            if [[ -n "$capability" && "$capability" != "$canonical_provider" ]]; then
                 # Support both short capability (spark) and full model aliases (spark_model)
-                resolved_model=$(echo "$config_data" | jq -r ".providers.${provider}.\"${capability}\" // .providers.${provider}.\"${capability}_model\" // empty" 2>/dev/null)
+                resolved_model=$(echo "$config_data" | jq -r ".providers."${canonical_provider}"."${capability}" // .providers."${canonical_provider}"."${capability}_model" // empty" 2>/dev/null)
             fi
             if [[ -n "$resolved_model" && "$resolved_model" != "null" ]]; then
                 [[ -n "$_trace" ]] && echo "[model-trace] Tier 4 (capability map): $resolved_model ← SELECTED (cap: ${capability:-none})" >&2
@@ -288,11 +288,11 @@ resolve_octopus_model() {
         # 4. Tier Mapping
         if [[ -z "$resolved_model" || "$resolved_model" == "null" ]]; then
             if [[ -n "${OCTOPUS_COST_MODE:-}" && "${OCTOPUS_COST_MODE:-}" != "standard" ]]; then
-                resolved_model=$(echo "$config_data" | jq -r ".tiers.\"${OCTOPUS_COST_MODE}\".\"${provider}\" // empty" 2>/dev/null)
+                resolved_model=$(echo "$config_data" | jq -r ".tiers."${OCTOPUS_COST_MODE}"."${canonical_provider}" // empty" 2>/dev/null)
                 if [[ -n "$resolved_model" && "$resolved_model" =~ ^[a-z_]+$ ]]; then
                     # Capability ref in tier map
                     local tier_mapped_model
-                    tier_mapped_model=$(echo "$config_data" | jq -r ".providers.\"${provider}\".\"${resolved_model}\" // .providers.\"${provider}\".\"${resolved_model}_model\" // empty" 2>/dev/null)
+                    tier_mapped_model=$(echo "$config_data" | jq -r ".providers."${canonical_provider}"."${resolved_model}" // .providers."${canonical_provider}"."${resolved_model}_model" // empty" 2>/dev/null)
                     [[ -n "$tier_mapped_model" && "$tier_mapped_model" != "null" ]] && resolved_model="$tier_mapped_model"
                 fi
                 [[ -n "$_trace" ]] && echo "[model-trace] Tier 5 (cost mode ${OCTOPUS_COST_MODE}): ${resolved_model:-—}" >&2
@@ -301,7 +301,7 @@ resolve_octopus_model() {
 
         # 5. Global Defaults
         if [[ -z "$resolved_model" || "$resolved_model" == "null" ]]; then
-            resolved_model=$(echo "$config_data" | jq -r ".providers.${provider}.default // .providers.${provider}.model // empty" 2>/dev/null)
+            resolved_model=$(echo "$config_data" | jq -r ".providers."${canonical_provider}".default // .providers."${canonical_provider}".model // empty" 2>/dev/null)
             if [[ -n "$resolved_model" && "$resolved_model" != "null" ]]; then
                 [[ -n "$_trace" ]] && echo "[model-trace] Tier 6 (config default): $resolved_model ← SELECTED" >&2
             else
