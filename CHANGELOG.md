@@ -2,9 +2,19 @@
 
 ## [Unreleased]
 
+## [9.47.0] - 2026-07-01
+
 ### Added
 
 - **`review.finding` and `synthesis` lifecycle events** complete the #498 event vocabulary (the other two, `provider.selected` and `circuit-breaker.*`, shipped in 9.46.0). `review.finding` fires once per Round 1 code-review finding with `provider`, `severity`, `message`, and `round` attributes, capturing per-provider attribution before findings are merged and de-duplicated. `synthesis` fires when a synthesis artifact is produced (attributes `phase`, `provider`, `count`), wired into the review/deliver workflow (`review.sh`, success branch only) and the parallel aggregator (`parallel.sh`, attributing the provider that actually produced the artifact). `octo-hud` renders both, coloring `review.finding` by severity. The `synthesis` event also fires from the council chair-synthesis success path (`council.sh`, attributing the chair member's provider) and the debate final synthesis (`debate.sh`, attributing the moderator or quorum path), each guarded against the fallback branches so attribution is never wrong. This fully closes #498. (#498)
+
+### Fixed
+
+- **`/octo:plan` now signals degradation when native plan mode blocks artifact writes** (#514, #515). When plan mode restricts Write/Edit, `/octo:plan` emits a visible "OCTO PLAN DEGRADED" warning and skips the intent-contract and plan-save steps (which would silently fail) instead of falling through to generic native planning. The command's `plan.md` and the `plan-mode-interceptor.sh` hook now prescribe verbatim-matching warning text.
+
+### Changed
+
+- **CI: bump `actions/checkout` from 6 to 7** (#531).
 
 ## [9.46.0] - 2026-07-01
 
