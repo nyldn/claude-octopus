@@ -86,7 +86,9 @@ test_error_recording_in_spawn_agent() {
 test_error_context_in_retries() {
     test_case "Error context injected into retry prompts"
 
-    if grep -A 60 "retry_failed_subtasks()" "$ALL_SRC" | grep -q "search_similar_errors\|RETRY CONTEXT"; then
+    local retry_body
+    retry_body=$(sed -n '/^retry_failed_subtasks()/,/^}/p' "$ALL_SRC")
+    if echo "$retry_body" | grep -q "search_similar_errors" && echo "$retry_body" | grep -q "RETRY CONTEXT"; then
         test_pass
     else
         test_fail "Error context not injected into retries"

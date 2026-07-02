@@ -105,7 +105,7 @@ test_costs_mentions_cumulative_view() {
 
 test_costs_has_workflow_breakdown() {
     test_case "contains workflow breakdown section"
-    if grep -c 'Workflow.*Breakdown\|Per-Workflow\|workflow.*breakdown' "$COSTS_CMD" >/dev/null 2>&1; then
+    if grep -Ec 'Workflow.*Breakdown|Per-Workflow|workflow.*breakdown' "$COSTS_CMD" >/dev/null 2>&1; then
         test_pass
     else
         test_fail "no workflow breakdown section found"
