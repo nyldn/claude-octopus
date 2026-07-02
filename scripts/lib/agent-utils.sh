@@ -659,14 +659,9 @@ tangle_retry_worktree_diagnostics() {
     changed_files=$(git -C "$workdir" status --short 2>/dev/null | awk '{print $NF}' | sed -n '1,120p' || true)
     suspicious=$(printf '%s\n' "$changed_files" | while IFS= read -r path; do
         [[ -n "$path" ]] || continue
-        case "$path" in
-            *.js|*.mjs|*.cjs|*.ts|*.mts|*.cts)
-                :
-                ;;
-            *)
-                continue
-                ;;
-        esac
+        if [[ "$path" != *.js && "$path" != *.mjs && "$path" != *.cjs && "$path" != *.ts && "$path" != *.mts && "$path" != *.cts ]]; then
+            continue
+        fi
         [[ -f "$workdir/$path" ]] || continue
         grep -nE '\\\$\{[A-Za-z_][A-Za-z0-9_]*\}' "$workdir/$path" 2>/dev/null | sed "s#^#$path:#" | sed -n '1,12p'
     done | sed -n '1,40p')
