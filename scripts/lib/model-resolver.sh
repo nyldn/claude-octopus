@@ -207,7 +207,7 @@ resolve_octopus_model() {
         config_data=$(<"$config_file")
 
         # Priority 1b: Session-only config overrides
-        resolved_model=$(echo "$config_data" | jq -r ".overrides.${canonical_provider} // empty" 2>/dev/null)
+        resolved_model=$(echo "$config_data" | jq -r --arg p "$canonical_provider" '.overrides[$p] // empty' 2>/dev/null)
         if [[ -n "$resolved_model" && "$resolved_model" != "null" ]]; then
             [[ -n "$_trace" ]] && echo "[model-trace] Tier 2 (session override): $resolved_model ← SELECTED" >&2
         else
@@ -218,10 +218,10 @@ resolve_octopus_model() {
         if [[ -z "$resolved_model" || "$resolved_model" == "null" ]]; then
             local routed=""
             if [[ -n "$phase" ]]; then
-                routed=$(echo "$config_data" | jq -r ".routing.phases.\"${phase}\" // empty" 2>/dev/null)
+                routed=$(echo "$config_data" | jq -r --arg phase "$phase" '.routing.phases[$phase] // empty' 2>/dev/null)
             fi
             if [[ -z "$routed" || "$routed" == "null" ]] && [[ -n "$role" ]]; then
-                routed=$(echo "$config_data" | jq -r ".routing.roles.\"${role}\" // empty" 2>/dev/null)
+                routed=$(echo "$config_data" | jq -r --arg role "$role" '.routing.roles[$role] // empty' 2>/dev/null)
             fi
 
             # Handle recursive reference (e.g. "codex:spark")
@@ -276,7 +276,7 @@ resolve_octopus_model() {
 
             if [[ -n "$capability" && "$capability" != "$canonical_provider" ]]; then
                 # Support both short capability (spark) and full model aliases (spark_model)
-                resolved_model=$(echo "$config_data" | jq -r ".providers."${canonical_provider}"."${capability}" // .providers."${canonical_provider}"."${capability}_model" // empty" 2>/dev/null)
+                resolved_model=$(echo "$config_data" | jq -r --arg p "$canonical_provider" --arg cap "$capability" '.providers[$p][$cap] // .providers[$p][($cap + "_model")] // empty' 2>/dev/null)
             fi
             if [[ -n "$resolved_model" && "$resolved_model" != "null" ]]; then
                 [[ -n "$_trace" ]] && echo "[model-trace] Tier 4 (capability map): $resolved_model ← SELECTED (cap: ${capability:-none})" >&2
@@ -288,11 +288,11 @@ resolve_octopus_model() {
         # 4. Tier Mapping
         if [[ -z "$resolved_model" || "$resolved_model" == "null" ]]; then
             if [[ -n "${OCTOPUS_COST_MODE:-}" && "${OCTOPUS_COST_MODE:-}" != "standard" ]]; then
-                resolved_model=$(echo "$config_data" | jq -r ".tiers."${OCTOPUS_COST_MODE}"."${canonical_provider}" // empty" 2>/dev/null)
+                resolved_model=$(echo "$config_data" | jq -r --arg mode "$OCTOPUS_COST_MODE" --arg p "$canonical_provider" '.tiers[$mode][$p] // empty' 2>/dev/null)
                 if [[ -n "$resolved_model" && "$resolved_model" =~ ^[a-z_]+$ ]]; then
                     # Capability ref in tier map
                     local tier_mapped_model
-                    tier_mapped_model=$(echo "$config_data" | jq -r ".providers."${canonical_provider}"."${resolved_model}" // .providers."${canonical_provider}"."${resolved_model}_model" // empty" 2>/dev/null)
+                    tier_mapped_model=$(echo "$config_data" | jq -r --arg p "$canonical_provider" --arg model "$resolved_model" '.providers[$p][$model] // .providers[$p][($model + "_model")] // empty' 2>/dev/null)
                     [[ -n "$tier_mapped_model" && "$tier_mapped_model" != "null" ]] && resolved_model="$tier_mapped_model"
                 fi
                 [[ -n "$_trace" ]] && echo "[model-trace] Tier 5 (cost mode ${OCTOPUS_COST_MODE}): ${resolved_model:-—}" >&2
@@ -301,7 +301,7 @@ resolve_octopus_model() {
 
         # 5. Global Defaults
         if [[ -z "$resolved_model" || "$resolved_model" == "null" ]]; then
-            resolved_model=$(echo "$config_data" | jq -r ".providers."${canonical_provider}".default // .providers."${canonical_provider}".model // empty" 2>/dev/null)
+            resolved_model=$(echo "$config_data" | jq -r --arg p "$canonical_provider" '.providers[$p].default // .providers[$p].model // empty' 2>/dev/null)
             if [[ -n "$resolved_model" && "$resolved_model" != "null" ]]; then
                 [[ -n "$_trace" ]] && echo "[model-trace] Tier 6 (config default): $resolved_model ← SELECTED" >&2
             else
