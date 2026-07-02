@@ -116,6 +116,9 @@ test_case "wait loop records terminal task even when marker write fails"
 reset_fixture
 rm -rf "$WORKSPACE_DIR/.octo/agents"
 printf 'not a directory' > "$WORKSPACE_DIR/.octo/agents"
+# tangle_develop is expected to return non-zero when the marker path is unwritable.
+# Keep the safety-cap assertion aligned with the sleep() mock above, which
+# forces a fallback completion marker after count > 5 to avoid CI hangs.
 tangle_develop "unwritable marker task" >/dev/null 2>&1 || true
 if [[ "$(<"$SLEEP_COUNTER_FILE")" -le 6 ]] && \
    [[ "$(grep -c "Failed to write missing-done marker" "$LOG_CAPTURE_FILE" || true)" -ge 1 ]]; then
