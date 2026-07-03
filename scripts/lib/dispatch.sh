@@ -248,8 +248,9 @@ get_agent_command() {
             # otherwise resolves an SDK handle for a hardcoded small model
             # before the prompt is even sent — an unresolvable catalog/model
             # there hangs `opencode run` indefinitely with no timeout or error
-            # (Issue #566).
-            echo "opencode run --pure ${oc_model_flag}"
+            # (Issue #566). It's a global flag, so it must precede the `run`
+            # subcommand or risk being ignored/rejected.
+            echo "opencode --pure run ${oc_model_flag}"
             ;;
         *) return 1 ;;
     esac
