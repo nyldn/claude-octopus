@@ -1382,6 +1382,22 @@ Every [CODING] line must include a same-line Files: clause."
     local subtask_num=0
     local pids=()
     local task_ids=()
+    local subtask_lines=()
+
+    # Materialize parseable lines before dispatching providers. spawn helpers and
+    # external CLIs may read stdin; if the dispatch loop itself reads from a
+    # here-string, the first provider can consume the remaining decomposition and
+    # silently prevent later subtasks from launching.
+    while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+        tangle_line_is_numbered_subtask "$line" || continue
+        subtask_lines+=("$line")
+    done <<< "$subtasks"
+
+    if [[ ${#subtask_lines[@]} -ne $parseable_subtask_count ]]; then
+        log ERROR "Parsed $parseable_subtask_count subtasks but retained ${#subtask_lines[@]} for dispatch; refusing partial tangle execution"
+        return 1
+    fi
 
     # [CODING] and [REASONING] subtask routing are overridable. This keeps
     # tangle usable on hosts where the default coding provider is unavailable,
@@ -1413,10 +1429,7 @@ Every [CODING] line must include a same-line Files: clause."
     fi
 
     fleet_dispatch_begin
-    while IFS= read -r line; do
-        [[ -z "$line" ]] && continue
-        tangle_line_is_numbered_subtask "$line" || continue
-
+    for line in "${subtask_lines[@]}"; do
         local subtask
         subtask=$(echo "$line" | sed -E 's/^[[:space:]]*(\*\*)?[0-9]+[\.\)][[:space:]]*//; s/^[[:space:]]+//')
         local agent="$tangle_coding_agent"
@@ -1450,8 +1463,13 @@ Every [CODING] line must include a same-line Files: clause."
         fi
         task_ids+=("$task_id")
         ((subtask_num++)) || true
-    done <<< "$subtasks"
+    done
     fleet_dispatch_end
+
+    if [[ $subtask_num -ne ${#subtask_lines[@]} ]]; then
+        log ERROR "Spawned $subtask_num development threads for ${#subtask_lines[@]} parsed subtasks; refusing partial tangle execution"
+        return 1
+    fi
 
     log INFO "Spawned $subtask_num development threads"
 
