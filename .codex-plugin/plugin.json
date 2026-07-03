@@ -1,5 +1,5 @@
 {
-  "name": "claude-octopus",
+  "name": "octo",
   "version": "9.47.1",
   "description": "Multi-LLM orchestration with Double Diamond workflows, provider routing, safety gates, and automation. Dispatches to Codex, Gemini, Copilot, Qwen, Perplexity, OpenRouter, Ollama, and OpenCode from a single plugin.",
   "author": {

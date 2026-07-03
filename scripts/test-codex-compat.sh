@@ -106,6 +106,10 @@ echo "--- 2. Manifest + Output Structure (skills/) ---"
 test_cmd "Codex manifest is valid JSON" \
     "jq empty '$PLUGIN_ROOT/.codex-plugin/plugin.json'"
 
+test_output "Codex manifest name matches marketplace selector" \
+    "printf '%s:%s\n' \"\$(jq -r '.name' '$PLUGIN_ROOT/.codex-plugin/plugin.json')\" \"\$(jq -r '.plugins[] | select(.name == \"octo\") | .name' '$PLUGIN_ROOT/.claude-plugin/marketplace.json')\"" \
+    "^octo:octo$"
+
 test_output "Codex manifest points at portable root skills tree" \
     "jq -r '.skills' '$PLUGIN_ROOT/.codex-plugin/plugin.json'" \
     "^\\./skills/?$"

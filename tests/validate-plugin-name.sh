@@ -11,6 +11,7 @@ source "$SCRIPT_DIR/helpers/test-framework.sh"
 test_suite "Validate that plugin name remains "octo" in plugin.json"
 
 PLUGIN_JSON="$PROJECT_ROOT/.claude-plugin/plugin.json"
+CODEX_PLUGIN_JSON="$PROJECT_ROOT/.codex-plugin/plugin.json"
 
 
 echo "🔍 Validating plugin name..."
@@ -42,6 +43,25 @@ if [[ "$PLUGIN_NAME" != "$EXPECTED_NAME" ]]; then
     exit 1
 fi
 
+if [[ ! -f "$CODEX_PLUGIN_JSON" ]]; then
+    echo -e "${RED}❌ ERROR: Codex plugin.json not found at $CODEX_PLUGIN_JSON${NC}"
+    exit 1
+fi
+
+CODEX_PLUGIN_NAME=$(grep '"name"' "$CODEX_PLUGIN_JSON" | head -1 | sed 's/.*"name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
+
+if [[ "$CODEX_PLUGIN_NAME" != "$EXPECTED_NAME" ]]; then
+    echo -e "${RED}❌ CRITICAL ERROR: Codex plugin name is incorrect!${NC}"
+    echo ""
+    echo -e "  Current:  ${YELLOW}\"$CODEX_PLUGIN_NAME\"${NC}"
+    echo -e "  Expected: ${GREEN}\"$EXPECTED_NAME\"${NC}"
+    echo ""
+    echo "The Codex manifest name MUST match the marketplace selector."
+    echo "Otherwise, 'codex plugin add octo@nyldn-plugins' rejects the plugin."
+    echo ""
+    exit 1
+fi
+
 # Also validate that package.json has correct name
 PACKAGE_JSON="$PROJECT_ROOT/package.json"
 if [[ -f "$PACKAGE_JSON" ]]; then
@@ -54,5 +74,6 @@ if [[ -f "$PACKAGE_JSON" ]]; then
 fi
 
 echo -e "${GREEN}✅ Plugin name is correct: \"$PLUGIN_NAME\"${NC}"
+echo -e "${GREEN}✅ Codex plugin name is correct: \"$CODEX_PLUGIN_NAME\"${NC}"
 echo "   Commands will work as: /octo:discover, /octo:debate, etc."
 test_summary
