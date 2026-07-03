@@ -1466,6 +1466,9 @@ Every [CODING] line must include a same-line Files: clause."
     done
     fleet_dispatch_end
 
+    # Future-proof fail-closed guard: the current loop increments once per
+    # retained line, but this catches any later continue/break/error path before
+    # quality gates can validate a partial dispatch as a complete tangle run.
     if [[ $subtask_num -ne ${#subtask_lines[@]} ]]; then
         log ERROR "Spawned $subtask_num development threads for ${#subtask_lines[@]} parsed subtasks; refusing partial tangle execution"
         return 1

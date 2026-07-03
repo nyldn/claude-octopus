@@ -28,10 +28,10 @@ extract_tangle_result_output() {
 tangle_result_has_blocker_output() {
     local result_file="$1"
     local output
+    local blocker_pattern='(blocker report|cannot complete|unable to complete|sandbox (is )?blocking|blocked by (the )?sandbox|landlock|no write tools available|all shell commands (are )?blocked|filesystem access is blocked|cannot create or modify files|apply_patch.*not available)'
     output=$(extract_tangle_result_output "$result_file")
 
-    printf '%s\n' "$output" | grep -Eiq \
-        '(blocker report|cannot complete|unable to complete|sandbox (is )?blocking|blocked by (the )?sandbox|landlock|no write tools available|all shell commands (are )?blocked|filesystem access is blocked|cannot create or modify files|apply_patch.*not available)'
+    grep -Eiq "$blocker_pattern" <<< "$output"
 }
 
 check_explicit_file_coverage() {

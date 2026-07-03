@@ -47,6 +47,9 @@ fleet_dispatch_begin() { :; }
 fleet_dispatch_end() { :; }
 validate_tangle_results() { :; }
 
+mock_command "agy" "exit 0"
+mock_command "codex" "exit 0"
+
 run_agent_sync() {
     cat <<'EOF'
 <external-cli-output provider="agy" trust="untrusted">
