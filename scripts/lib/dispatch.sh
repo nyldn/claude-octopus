@@ -193,9 +193,12 @@ get_agent_command() {
             fi
             echo "perplexity_execute $model"
             ;;
-        copilot|copilot-research)  # v9.9.0: GitHub Copilot CLI — copilot -p (Issue #198)
-            # -s: silent (no footer noise), --disable-builtin-mcps: skip MCP startup latency
-            echo "copilot --no-ask-user -s --disable-builtin-mcps"
+        copilot|copilot-research)  # v9.9.0: GitHub Copilot CLI via helpers/copilot-exec.sh (Issue #198)
+            # copilot's only non-interactive mode is `-p <text>` (argv), but the spawn
+            # contract feeds the prompt via stdin. The shim bridges stdin -> -p so the
+            # advisor does not open an interactive session and hang (silent drop).
+            # -s: silent (no footer noise); --disable-builtin-mcps: skip MCP startup latency.
+            echo "${PLUGIN_DIR}/scripts/helpers/copilot-exec.sh"
             ;;
         ollama|ollama-*)  # v9.9.0: Ollama local LLM — ollama run
             if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
