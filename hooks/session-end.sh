@@ -207,9 +207,10 @@ rm -f "${HOME}/.claude-octopus/.reload-signal" 2>/dev/null || true
 # still runs `ls -t` with no arguments (xargs' default on empty input), which
 # lists CWD instead of "${HOME}/.claude-octopus/" and can delete unrelated
 # files ranked oldest-by-mtime there. See #563.
-SESSION_TITLE_COUNT=$(find "${HOME}/.claude-octopus/" -maxdepth 1 -name ".session-titled-*" -type f 2>/dev/null | wc -l | tr -d ' ') || true
+SESSION_TITLE_FILES=$(find "${HOME}/.claude-octopus/" -maxdepth 1 -name ".session-titled-*" -type f 2>/dev/null) || true
+SESSION_TITLE_COUNT=$(printf '%s\n' "$SESSION_TITLE_FILES" | grep -c . 2>/dev/null) || true
 if [[ "$SESSION_TITLE_COUNT" -gt 20 ]]; then
-    find "${HOME}/.claude-octopus/" -maxdepth 1 -name ".session-titled-*" -type f 2>/dev/null \
+    printf '%s\n' "$SESSION_TITLE_FILES" \
         | xargs ls -t 2>/dev/null | tail -n +21 | xargs rm -f 2>/dev/null || true
 fi
 
