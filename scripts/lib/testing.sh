@@ -25,6 +25,15 @@ extract_tangle_result_output() {
     ' "$result_file" 2>/dev/null || true
 }
 
+tangle_result_has_blocker_output() {
+    local result_file="$1"
+    local output
+    output=$(extract_tangle_result_output "$result_file")
+
+    printf '%s\n' "$output" | grep -Eiq \
+        '(blocker report|cannot complete|unable to complete|sandbox (is )?blocking|blocked by (the )?sandbox|landlock|no write tools available|all shell commands (are )?blocked|filesystem access is blocked|cannot create or modify files|apply_patch.*not available)'
+}
+
 check_explicit_file_coverage() {
     local original_prompt="$1"
     local output_corpus="$2"
@@ -64,7 +73,7 @@ snapshot_tangle_worktree_paths() {
         git -C "$repo_root" diff --name-only 2>/dev/null || true
         git -C "$repo_root" diff --cached --name-only 2>/dev/null || true
         git -C "$repo_root" ls-files --others --exclude-standard 2>/dev/null || true
-    } | sed /^$/d | sort -u
+    } | sed /^$/d | grep -Ev '^\.claude-octopus(/|$)|^\.octo(/|$)' | sort -u
 }
 
 tangle_prompt_requires_worktree_changes() {
@@ -129,7 +138,7 @@ validate_tangle_results() {
                 run_file_validation "$agent_from_file" "$(cat "$result" 2>/dev/null)" 2>/dev/null || true
             fi
 
-            if grep -q "Status: SUCCESS" "$result" 2>/dev/null; then
+            if grep -q "Status: SUCCESS" "$result" 2>/dev/null && ! tangle_result_has_blocker_output "$result"; then
                 ((success_count++)) || true
             else
                 ((fail_count++)) || true

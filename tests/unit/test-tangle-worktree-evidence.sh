@@ -134,6 +134,44 @@ else
     test_fail "validation passed despite no worktree changes"
 fi
 
+test_case "runtime-only .claude-octopus changes do not satisfy implementation evidence"
+if (
+    cd "$REPO_DIR"
+    rm -f "$RESULTS_DIR"/codex-tangle-evidence-*.md "$RESULTS_DIR"/tangle-validation-evidence-*.md
+    snapshot_tangle_worktree_paths > "$RESULTS_DIR/before-runtime-only.txt"
+    mkdir -p .claude-octopus
+    printf 'runtime\n' > .claude-octopus/state.json
+    write_success_result "$RESULTS_DIR/codex-tangle-evidence-runtime-only.md" \
+        "Implemented src/app/page.tsx conceptually; runtime metadata changed."
+    if RESULTS_DIR="$RESULTS_DIR" validate_tangle_results "evidence-runtime-only" "Implement the app change in src/app/page.tsx" "$RESULTS_DIR/before-runtime-only.txt" >/dev/null 2>&1; then
+        exit 1
+    fi
+    grep -q "Missing Worktree Changes" "$RESULTS_DIR/tangle-validation-evidence-runtime-only.md"
+); then
+    test_pass
+else
+    test_fail "runtime-only .claude-octopus change satisfied implementation worktree evidence"
+fi
+
+test_case "blocker output with SUCCESS status fails validation"
+if (
+    cd "$REPO_DIR"
+    rm -f "$RESULTS_DIR"/codex-tangle-evidence-*.md "$RESULTS_DIR"/tangle-validation-evidence-*.md
+    snapshot_tangle_worktree_paths > "$RESULTS_DIR/before-blocker.txt"
+    write_success_result "$RESULTS_DIR/codex-tangle-evidence-blocker.md" \
+        "## Blocker Report
+Cannot complete the assigned subtask because all shell commands are blocked by Landlock sandbox and no write tools are available."
+    if RESULTS_DIR="$RESULTS_DIR" validate_tangle_results "evidence-blocker" "Implement the app change in src/app/page.tsx" "$RESULTS_DIR/before-blocker.txt" >/dev/null 2>&1; then
+        exit 1
+    fi
+    grep -q "Quality Gate: FAILED" "$RESULTS_DIR/tangle-validation-evidence-blocker.md" && \
+    grep -q "Failed: 1/1 result files" "$RESULTS_DIR/tangle-validation-evidence-blocker.md"
+); then
+    test_pass
+else
+    test_fail "blocker output marked SUCCESS passed validation"
+fi
+
 test_case "implementation prompt with new worktree path passes validation"
 if (
     cd "$REPO_DIR"
