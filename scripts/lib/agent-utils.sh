@@ -85,7 +85,7 @@ get_role_mapping() {
 
     case "$role" in
         architect)         echo "claude-opus:$(opus_default_model 2>/dev/null || echo claude-opus-4.7)" ;;  # Planning, UI/UX, architecture
-        researcher)        echo "gemini:gemini-3.1-pro-preview" ;;                                          # Deep investigation
+        researcher)        echo "agy:Gemini 3.1 Pro (High)" ;;                                             # Deep investigation via Antigravity (Google seat)
         reviewer|code-reviewer) echo "codex-review:gpt-5.5" ;;                                              # Code review, edge cases; `reviewer` = alias
         security-reviewer) echo "claude-opus:$(opus_default_model 2>/dev/null || echo claude-opus-4.7)" ;;  # Adversarial reasoning
         implementer)       echo "codex:gpt-5.5" ;;                                                          # Default code generation; terminal-heavy

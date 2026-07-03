@@ -579,7 +579,7 @@ council_persona_default_provider() {
 
     case "$1" in
         strategy-analyst|exec-communicator) echo "claude" ;;
-        research-synthesizer|business-analyst|finance-analyst|academic-writer|ux-researcher) echo "gemini" ;;
+        research-synthesizer|business-analyst|finance-analyst|academic-writer|ux-researcher) echo "agy" ;;
         *) echo "codex" ;;
     esac
 }
@@ -594,7 +594,7 @@ council_persona_model() {
 
     case "$1" in
         strategy-analyst|exec-communicator) echo "anthropic/claude-sonnet-4.6" ;;
-        research-synthesizer|business-analyst|finance-analyst|academic-writer|ux-researcher) echo "gemini-3-pro-preview" ;;
+        research-synthesizer|business-analyst|finance-analyst|academic-writer|ux-researcher) echo "Gemini 3.1 Pro (High)" ;;
         code-reviewer) echo "gpt-5.3-codex-spark" ;;
         *) echo "gpt-5.3-codex" ;;
     esac
