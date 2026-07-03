@@ -207,7 +207,17 @@ get_agent_command() {
             # oco-dar: NO_BROWSER=1 stops a stale token from hijacking the user's
             # browser into the OAuth device-flow. Pre-flight (qwen_is_usable) should
             # already gate this out; this is defense-in-depth if dispatch is reached.
-            echo "env NODE_NO_WARNINGS=1 NO_BROWSER=1 qwen -o text --approval-mode yolo"
+            if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
+                return 1
+            fi
+            # OPENAI_COMPAT auth (OPENAI_API_KEY + OPENAI_BASE_URL) needs an explicit
+            # --auth-type: the qwen CLI does not auto-detect it from env vars alone
+            # in non-interactive mode (Issue #566).
+            local qwen_auth_flag=""
+            if declare -f qwen_auth_method >/dev/null 2>&1 && [[ "$(qwen_auth_method)" == "env:OPENAI_COMPAT" ]]; then
+                qwen_auth_flag="--auth-type openai"
+            fi
+            echo "env NODE_NO_WARNINGS=1 NO_BROWSER=1 qwen -o text --approval-mode yolo -m ${model} ${qwen_auth_flag}"
             ;;
         cursor-agent)  # v9.23.0: Cursor Agent CLI — Grok 4.20 via Cursor subscription
             if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
@@ -234,7 +244,12 @@ get_agent_command() {
             if [[ -n "$model" && "$model" != "default" ]]; then
                 oc_model_flag="-m ${model}"
             fi
-            echo "opencode run ${oc_model_flag}"
+            # --pure skips opencode's external-plugin auto-title path, which
+            # otherwise resolves an SDK handle for a hardcoded small model
+            # before the prompt is even sent — an unresolvable catalog/model
+            # there hangs `opencode run` indefinitely with no timeout or error
+            # (Issue #566).
+            echo "opencode run --pure ${oc_model_flag}"
             ;;
         *) return 1 ;;
     esac
