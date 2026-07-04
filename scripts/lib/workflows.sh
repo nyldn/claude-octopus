@@ -2089,7 +2089,9 @@ ink_deliver() {
 
     # Sonnet 4.6 quality review before synthesis
     log INFO "Step 2a: Sonnet 4.6 quality review..."
-    local sonnet_review
+    local sonnet_review ink_review_timeout
+    ink_review_timeout="${OCTOPUS_INK_REVIEW_TIMEOUT:-240}"
+    [[ "$ink_review_timeout" =~ ^[0-9]+$ ]] || ink_review_timeout=240
     sonnet_review=$(run_agent_sync "claude-sonnet" "Review these development results for quality, completeness, and correctness.
 Flag any issues, gaps, or improvements needed.
 Rate each dimension explicitly as 'Security: N/10', 'Reliability: N/10', 'Performance: N/10', 'Accessibility: N/10'.
@@ -2097,7 +2099,7 @@ Rate each dimension explicitly as 'Security: N/10', 'Reliability: N/10', 'Perfor
 Original task: $prompt
 
 Results:
-$all_results" 120 "code-reviewer" "ink") || {
+$all_results" "$ink_review_timeout" "code-reviewer" "ink") || {
         sonnet_review="[Quality review unavailable]"
     }
 

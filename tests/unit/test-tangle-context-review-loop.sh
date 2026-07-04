@@ -35,5 +35,6 @@ assert_contains "$WORKFLOWS" "Contextual code review warning" "review warnings a
 assert_contains "$WORKFLOWS" "Skipping ink/deliver because tangle validation gate returned non-zero" "ink is skipped when validation fails"
 assert_contains "$HELP" "Contextual code review" "develop help documents contextual review"
 assert_contains "$HELP" "OCTOPUS_TANGLE_REVIEW_CORRECTION_ROUNDS" "develop help documents correction rounds"
+assert_contains "$WORKFLOWS" "OCTOPUS_INK_REVIEW_TIMEOUT" "ink review timeout is configurable"
 
 test_summary
