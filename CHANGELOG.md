@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **agy is now a first-class council provider.** `#524` seats agy only via the `backend-architect` persona; `council.sh`'s provider allow-list and org-diversity auto-expansion still omitted it, so `--providers=…agy…` was rejected and agy could never be explicitly selected or org-diversity-seated. Add agy to all 6 provider-list sites, the `cli_to_provider` mapping, and the usage docs. agy keeps its own `provider_org` (distinct from the sunset gemini/google seat), so `codex + agy` counts as two distinct providers for quorum.
+
 ## [9.47.1] - 2026-07-02
 
 ### Fixed
