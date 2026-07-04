@@ -326,14 +326,17 @@ review_run() {
     local profile_json="${1:-"{}"}"
 
     # Parse profile fields (with defaults)
-    local target focus provenance autonomy publish debate history
-    target=$(echo "$profile_json"     | jq -r '.target     // "staged"')
-    focus=$(echo "$profile_json"      | jq -r '.focus      // ["correctness","security","architecture","tdd"]  | join(",")')
-    provenance=$(echo "$profile_json" | jq -r '.provenance // "unknown"')
-    autonomy=$(echo "$profile_json"   | jq -r '.autonomy   // "supervised"')
-    publish=$(echo "$profile_json"    | jq -r '.publish    // "ask"')
-    debate=$(echo "$profile_json"     | jq -r '.debate     // "auto"')
-    history=$(echo "$profile_json"    | jq -r '.history    // "auto"')
+    local target focus provenance autonomy publish debate history context_file context_text context_label
+    target=$(echo "$profile_json"       | jq -r '.target       // "staged"')
+    focus=$(echo "$profile_json"        | jq -r '.focus        // ["correctness","security","architecture","tdd"]  | join(",")')
+    provenance=$(echo "$profile_json"   | jq -r '.provenance   // "unknown"')
+    autonomy=$(echo "$profile_json"     | jq -r '.autonomy     // "supervised"')
+    publish=$(echo "$profile_json"      | jq -r '.publish      // "ask"')
+    debate=$(echo "$profile_json"       | jq -r '.debate       // "auto"')
+    history=$(echo "$profile_json"      | jq -r '.history      // "auto"')
+    context_file=$(echo "$profile_json" | jq -r '.contextFile  // .context_file  // empty')
+    context_text=$(echo "$profile_json" | jq -r '.contextText  // .context_text  // empty')
+    context_label=$(echo "$profile_json"| jq -r '.contextLabel // .context_label // "Review context / task contract"')
     if [[ "$target" == "fresh" ]]; then
         target="working-tree"
         history="fresh"
@@ -366,7 +369,74 @@ review_run() {
         proof_dir=$(octo_proof_init "review" "target=${target} focus=${focus}" "$profile_json" 2>/dev/null || true)
     fi
 
-    log INFO "review_run: target=$target focus=$focus provenance=$provenance autonomy=$autonomy history=$history"
+    local review_contract_context=""
+    local review_context_chars="${OCTOPUS_REVIEW_CONTEXT_CHARS:-20000}"
+    [[ "$review_context_chars" =~ ^[0-9]+$ ]] || review_context_chars=20000
+    review_context_chars=$((10#$review_context_chars))
+    [[ "$review_context_chars" -lt 1000 ]] && review_context_chars=1000
+
+    local context_truncated="false"
+    if [[ -n "$context_file" ]]; then
+        local review_root=""
+        local context_file_resolved=""
+        review_root=$(git rev-parse --show-toplevel 2>/dev/null || pwd -P)
+        review_root=$(cd "$review_root" 2>/dev/null && pwd -P || printf '%s' "$review_root")
+        context_file_resolved=$(realpath "$context_file" 2>/dev/null || true)
+        if [[ -z "$context_file_resolved" || ! -r "$context_file_resolved" ]]; then
+            log ERROR "review_run: contextFile is not readable: $context_file"
+            echo '{"findings":[],"warning":"contextFile is not readable"}' > "$findings_file"
+            if [[ -n "$proof_dir" ]]; then
+                octo_proof_artifact "$proof_dir" "review-findings" "$findings_file" "contextFile not readable"
+                octo_proof_capture_provider_status "$proof_dir" "$provider_status_file"
+                octo_proof_finalize "$proof_dir" "fail" "contextFile is not readable: $context_file"
+            fi
+            rm -f "$provider_status_file"
+            render_terminal_report "$findings_file"
+            return 1
+        fi
+        case "$context_file_resolved" in
+            "$review_root"|"$review_root"/*) ;;
+            *)
+                log ERROR "review_run: contextFile escapes workspace root: $context_file"
+                echo '{"findings":[],"warning":"contextFile escapes workspace root"}' > "$findings_file"
+                if [[ -n "$proof_dir" ]]; then
+                    octo_proof_artifact "$proof_dir" "review-findings" "$findings_file" "contextFile escapes workspace root"
+                    octo_proof_capture_provider_status "$proof_dir" "$provider_status_file"
+                    octo_proof_finalize "$proof_dir" "fail" "contextFile escapes workspace root: $context_file"
+                fi
+                rm -f "$provider_status_file"
+                render_terminal_report "$findings_file"
+                return 1
+                ;;
+        esac
+        context_file="$context_file_resolved"
+        local context_file_bytes="0"
+        context_file_bytes=$(wc -c < "$context_file" 2>/dev/null | tr -d '[:space:]' || echo 0)
+        context_text=$(head -c "$review_context_chars" "$context_file" 2>/dev/null || true)
+        if [[ "$context_file_bytes" =~ ^[0-9]+$ && "$context_file_bytes" -gt "$review_context_chars" ]]; then
+            context_truncated="true"
+        fi
+    elif [[ -n "$context_text" ]]; then
+        if [[ ${#context_text} -gt $review_context_chars ]]; then
+            context_truncated="true"
+        fi
+        context_text=$(printf '%s' "$context_text" | head -c "$review_context_chars")
+    fi
+    if [[ "$context_truncated" == "true" ]]; then
+        context_text="${context_text}
+...[truncated]"
+    fi
+
+    if [[ -n "$context_text" ]]; then
+        review_contract_context="Additional review context / task contract (${context_label}):
+\`\`\`
+${context_text}
+\`\`\`
+
+Use this context as the requested behavior and constraints. Flag severity=normal when the diff is plausible code but fails the supplied task contract, misses acceptance criteria, violates constraints, changes unrelated areas, or omits required work."
+    fi
+
+    log INFO "review_run: target=$target focus=$focus provenance=$provenance autonomy=$autonomy history=$history context=$([[ -n "$review_contract_context" ]] && echo supplied || echo none)"
 
     # ── REVIEW.md ────────────────────────────────────────────────────────────
     parse_review_md
@@ -470,8 +540,11 @@ review_run() {
             --arg publish "$publish" \
             --arg debate "$debate" \
             --arg history "$history" \
+            --arg contextFile "$context_file" \
+            --arg contextLabel "$context_label" \
+            --argjson contextSupplied "$([[ -n "$review_contract_context" ]] && echo true || echo false)" \
             --argjson diff_lines "$diff_lines" \
-            '{target:$target, focus:$focus, provenance:$provenance, autonomy:$autonomy, publish:$publish, debate:$debate, history:$history, diff_lines:$diff_lines}')"
+            '{target:$target, focus:$focus, provenance:$provenance, autonomy:$autonomy, publish:$publish, debate:$debate, history:$history, contextFile:$contextFile, contextLabel:$contextLabel, contextSupplied:$contextSupplied, diff_lines:$diff_lines}')"
     fi
 
     # ── ROUND 1: Parallel agent fleet ────────────────────────────────────────
@@ -494,6 +567,7 @@ Severity guide:
 - pre-existing: bug not introduced by this PR (purple)
 
 ${review_context}
+${review_contract_context}
 ${review_history_context}
 ${graphify_context}
 
@@ -617,6 +691,8 @@ ${agent_prompt_base}"
 
 Return ONLY JSON: same findings array with an added 'verdict' field: confirmed|false-positive|needs-debate.
 Also add 'pre_existing_newly_reachable': true if a pre-existing finding becomes reachable via this PR changes.
+
+${review_contract_context}
 
 Diff:
 \`\`\`

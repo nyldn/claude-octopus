@@ -2380,8 +2380,9 @@ case "$COMMAND" in
         # Multi-LLM code review pipeline — competitor to CC Code Review
         if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
             echo "Usage: $(basename "$0") code-review '<json-profile>'"
-            echo "Profile fields: target, focus, provenance, autonomy, publish, debate"
+            echo "Profile fields: target, focus, provenance, autonomy, publish, debate, contextFile, contextText, contextLabel"
             echo "Example: $(basename "$0") code-review '{\"target\":\"staged\",\"publish\":\"ask\"}'"
+            echo "Example with contract: $(basename "$0") code-review '{\"target\":\"working-tree\",\"contextFile\":\"./PLAN.md\",\"focus\":[\"correctness\",\"plan-conformance\"]}'"
             exit 0
         fi
         review_run "${1:-"{}"}"
