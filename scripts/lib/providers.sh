@@ -14,6 +14,7 @@ fi
 source "${_providers_lib_dir}/provider-allowlist.sh" 2>/dev/null || true
 source "${_providers_lib_dir}/auth.sh" 2>/dev/null || true
 source "${_providers_lib_dir}/qwen.sh" 2>/dev/null || true
+source "${_providers_lib_dir}/openai-compatible.sh" 2>/dev/null || true
 if ! declare -f grok_is_available >/dev/null 2>&1 || ! declare -f grok_auth_method >/dev/null 2>&1; then
     source "${_providers_lib_dir}/grok.sh" 2>/dev/null || true
 fi
@@ -1070,11 +1071,8 @@ detect_providers() {
     fi
 
     # Detect generic OpenAI-compatible tool-loop provider (API key only)
-    if { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed openai-compatible; }; then
-        local compat_key_env="${OPENAI_COMPAT_API_KEY_ENV:-OPENAI_API_KEY}"
-        if [[ -n "${OPENAI_COMPAT_BASE_URL:-}" && ( -n "${OPENAI_COMPAT_API_KEY:-}" || -n "${!compat_key_env:-}" ) ]]; then
-            result="${result}openai-compatible:api-key "
-        fi
+    if { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed openai-compatible; } && declare -f openai_compatible_is_available >/dev/null 2>&1 && openai_compatible_is_available; then
+        result="${result}openai-compatible:api-key "
     fi
 
     # Detect Perplexity (API key only)

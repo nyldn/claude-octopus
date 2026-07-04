@@ -13,6 +13,7 @@ COUNCIL_IMPLEMENT=""
 COUNCIL_WORKTREE=""
 COUNCIL_BENCHMARK=""
 COUNCIL_PROVIDERS=""
+COUNCIL_DEFAULT_PROVIDERS="claude,codex,agy,gemini,qwen,opencode,openrouter,openai-compatible,openai-tools"
 COUNCIL_MAX_COST=""
 COUNCIL_DRY_RUN=""
 COUNCIL_JSON=""
@@ -58,6 +59,7 @@ COUNCIL_VETO_SOURCE=""
 _council_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 # shellcheck source=scripts/lib/benchmark-routing.sh
 source "${_council_lib_dir}/benchmark-routing.sh" 2>/dev/null || true
+source "${_council_lib_dir}/openai-compatible.sh" 2>/dev/null || true
 unset _council_lib_dir
 
 council_usage() {
@@ -74,7 +76,7 @@ Options:
   --implement never|after-approval|plan-only
   --worktree auto|on|off
   --benchmark auto|on|off
-  --providers auto|claude,codex,agy,gemini,qwen,opencode,openrouter,openai-compatible,openai-tools
+  --providers auto|${COUNCIL_DEFAULT_PROVIDERS}
   --max-cost <usd>
   --simulate
   --single-model
@@ -175,7 +177,7 @@ council_validate_choice() {
 
 council_validate_provider_list() {
     local providers="$1"
-    local allowed="claude,codex,agy,gemini,qwen,opencode,openrouter,openai-compatible,openai-tools"
+    local allowed="$COUNCIL_DEFAULT_PROVIDERS"
 
     if [[ "$providers" == "auto" ]]; then
         return 0
@@ -886,7 +888,7 @@ council_pick_provider() {
     fi
 
     local provider providers="$COUNCIL_PROVIDERS"
-    [[ "$providers" == "auto" ]] && providers="claude,codex,agy,gemini,qwen,opencode,openrouter,openai-compatible,openai-tools"
+    [[ "$providers" == "auto" ]] && providers="$COUNCIL_DEFAULT_PROVIDERS"
     IFS=',' read -r -a provider_list <<< "$providers"
     for provider in "${provider_list[@]}"; do
         provider="${provider// /}"
@@ -992,7 +994,7 @@ council_candidate_personas() {
 
 council_available_provider_orgs_json() {
     local providers="$COUNCIL_PROVIDERS"
-    [[ "$providers" == "auto" ]] && providers="claude,codex,agy,gemini,qwen,opencode,openrouter,openai-compatible,openai-tools"
+    [[ "$providers" == "auto" ]] && providers="$COUNCIL_DEFAULT_PROVIDERS"
 
     local json='[]' provider org
     IFS=',' read -r -a provider_list <<< "$providers"
@@ -1008,7 +1010,7 @@ council_available_provider_orgs_json() {
 council_provider_for_org() {
     local wanted_org="$1"
     local providers="$COUNCIL_PROVIDERS"
-    [[ "$providers" == "auto" ]] && providers="claude,codex,agy,gemini,qwen,opencode,openrouter,openai-compatible,openai-tools"
+    [[ "$providers" == "auto" ]] && providers="$COUNCIL_DEFAULT_PROVIDERS"
 
     local provider
     IFS=',' read -r -a provider_list <<< "$providers"
@@ -2117,7 +2119,7 @@ council_start_implementation_handoff() {
 council_detect_providers() {
     local providers="$COUNCIL_PROVIDERS"
     if [[ "$providers" == "auto" ]]; then
-        providers="claude,codex,agy,gemini,qwen,opencode,openrouter,openai-compatible,openai-tools"
+        providers="$COUNCIL_DEFAULT_PROVIDERS"
     fi
 
     local json='{}'
@@ -2147,8 +2149,7 @@ council_detect_providers() {
         else
             case "$provider" in
                 openai-compatible|openai-tools|openai-compatible-agent)
-                    local compat_key_env="${OPENAI_COMPAT_API_KEY_ENV:-OPENAI_API_KEY}"
-                    if [[ -n "${OPENAI_COMPAT_BASE_URL:-}" && ( -n "${OPENAI_COMPAT_API_KEY:-}" || -n "${!compat_key_env:-}" ) ]]; then
+                    if declare -f openai_compatible_is_available >/dev/null 2>&1 && openai_compatible_is_available; then
                         status="available"
                     else
                         status="missing"

@@ -69,25 +69,9 @@ get_agent_command() {
     esac
 
     case "$agent_type" in
-        codex|codex-standard|codex-max|codex-mini|codex-general)
-            if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
-                return 1
-            fi
-            echo "codex exec --skip-git-repo-check --model ${model} ${sandbox_flag} -"
-            ;;
-        codex-spark)  # v8.9.0: Ultra-fast Spark model (1000+ tok/s)
-            if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
-                return 1
-            fi
-            echo "codex exec --skip-git-repo-check --model ${model} ${sandbox_flag} -"
-            ;;
-        codex-reasoning)  # v8.9.0: Reasoning models (o3, o3)
-            if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
-                return 1
-            fi
-            echo "codex exec --skip-git-repo-check --model ${model} ${sandbox_flag} -"
-            ;;
-        codex-large-context)  # v8.9.0: 1M context models (gpt-4.1)
+        # v8.9.0: Spark, reasoning, and large-context variants share the
+        # same command shape; only model resolution differs by agent type.
+        codex|codex-standard|codex-max|codex-mini|codex-general|codex-spark|codex-reasoning|codex-large-context)
             if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
                 return 1
             fi
