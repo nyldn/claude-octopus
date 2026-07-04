@@ -1162,6 +1162,225 @@ tangle_validate_parallel_write_scopes() {
     return 0
 }
 
+
+octo_bool_disabled() {
+    case "$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')" in
+        0|false|off|no|disabled) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+octo_bool_enabled() {
+    case "$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')" in
+        1|true|on|yes|enabled) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+tangle_review_blocking_count() {
+    local findings_file="$1"
+    [[ -f "$findings_file" ]] || { echo 0; return 0; }
+    jq '[.findings[]? | select((.severity // "") == "normal")] | length' "$findings_file" 2>/dev/null || echo 0
+}
+
+tangle_review_findings_summary() {
+    local findings_file="$1"
+    [[ -f "$findings_file" ]] || return 0
+    jq -r '.findings[]? | "- [" + (.severity // "unknown") + "] " + (.title // "untitled") + " — " + (.file // "unknown") + ":" + ((.line // 0)|tostring) + "\n  " + (.detail // "")' "$findings_file" 2>/dev/null || true
+}
+
+tangle_normal_findings_summary() {
+    local findings_file="$1"
+    [[ -f "$findings_file" ]] || return 0
+    jq -r '.findings[]? | select((.severity // "") == "normal") | "### " + (.title // "untitled") + "\n- Location: " + (.file // "unknown") + ":" + ((.line // 0)|tostring) + "\n- Confidence: " + ((.confidence // 0)|tostring) + "\n\n" + (.detail // "") + "\n"' "$findings_file" 2>/dev/null || true
+}
+
+tangle_build_develop_review_context() {
+    local task_group="$1"
+    local resolved_prompt="$2"
+    local grasp_context="$3"
+    local subtasks="$4"
+    local validation_file="$5"
+    local worktree_before_file="$6"
+    local round_label="${7:-initial}"
+    local context_file="${RESULTS_DIR:-${HOME}/.claude-octopus/results}/develop-review-context-${task_group}-${round_label}.md"
+    local repo_root
+    repo_root=$(tangle_resolve_repo_root 2>/dev/null || git rev-parse --show-toplevel 2>/dev/null || pwd)
+
+    {
+        echo "# Develop Review Context"
+        echo
+        echo "## Purpose"
+        echo "Review the current working-tree diff against the original task contract, grasp/define context, tangle decomposition, and validation evidence."
+        echo
+        echo "## Review round"
+        echo "$round_label"
+        echo
+        echo "## Repository"
+        echo '```text'
+        echo "$repo_root"
+        echo '```'
+        echo
+        echo "## Git status"
+        echo '```text'
+        git -C "$repo_root" status --short --branch 2>/dev/null || true
+        echo '```'
+        echo
+        echo "## Changed files"
+        echo '```text'
+        {
+            git -C "$repo_root" diff --name-status 2>/dev/null || true
+            git -C "$repo_root" ls-files --others --exclude-standard 2>/dev/null | sed 's/^/??\t/' || true
+        } | sort -u
+        echo '```'
+        echo
+        echo "## Worktree diff stat"
+        echo '```text'
+        git -C "$repo_root" diff --stat 2>/dev/null || true
+        echo '```'
+        echo
+        if [[ -f "$worktree_before_file" ]]; then
+            echo "## Worktree snapshot before tangle"
+            echo '```text'
+            sed -n '1,200p' "$worktree_before_file" 2>/dev/null || true
+            echo '```'
+            echo
+        fi
+        echo "## Original task / task contract"
+        echo '```markdown'
+        printf '%s\n' "$resolved_prompt"
+        echo '```'
+        echo
+        if [[ -n "$grasp_context" ]]; then
+            echo "## Grasp / define context"
+            echo '```markdown'
+            printf '%s\n' "$grasp_context"
+            echo '```'
+            echo
+        fi
+        echo "## Tangle decomposition"
+        echo '```text'
+        printf '%s\n' "$subtasks"
+        echo '```'
+        echo
+        if [[ -f "$validation_file" ]]; then
+            echo "## Tangle validation report excerpt"
+            echo '```markdown'
+            sed -n '1,260p' "$validation_file" 2>/dev/null || true
+            echo '```'
+            echo
+            echo "## Tangle validation key lines"
+            echo '```text'
+            grep -n "Quality Gate\|Success Rate\|Failed\|Decision Branch\|Worktree Change Evidence\|Missing\|Status:" "$validation_file" 2>/dev/null | head -120 || true
+            echo '```'
+        fi
+    } > "$context_file"
+
+    echo "$context_file"
+}
+
+TANGLE_REVIEW_FINDINGS_FILE=""
+
+tangle_run_context_code_review() {
+    local task_group="$1"
+    local context_file="$2"
+    local round_label="${3:-initial}"
+    local marker findings_file review_profile review_rc
+    TANGLE_REVIEW_FINDINGS_FILE=""
+
+    if ! declare -F review_run >/dev/null 2>&1; then
+        log ERROR "tangle review gate cannot run: review_run is unavailable"
+        return 1
+    fi
+
+    marker=$(mktemp "${TMPDIR:-/tmp}/octopus-tangle-review-marker.XXXXXX")
+    touch "$marker"
+
+    review_profile=$(jq -n \
+        --arg target "${OCTOPUS_TANGLE_REVIEW_TARGET:-working-tree}" \
+        --arg contextFile "$context_file" \
+        --arg contextLabel "Octopus tangle develop review context (${round_label})" \
+        --arg provenance "octopus-tangle" \
+        --arg autonomy "${OCTOPUS_TANGLE_REVIEW_AUTONOMY:-autonomous}" \
+        --arg publish "${OCTOPUS_TANGLE_REVIEW_PUBLISH:-never}" \
+        --arg history "${OCTOPUS_TANGLE_REVIEW_HISTORY:-fresh}" \
+        '{target:$target, contextFile:$contextFile, contextLabel:$contextLabel, focus:["correctness","security","architecture","tdd","plan-conformance"], provenance:$provenance, autonomy:$autonomy, publish:$publish, history:$history}')
+
+    log INFO "Step 4: Contextual code review (${round_label})..."
+    review_run "$review_profile"
+    review_rc=$?
+
+    findings_file=$(find "${RESULTS_DIR:-${HOME}/.claude-octopus/results}" -maxdepth 1 -type f -name 'review-findings-*.json' -newer "$marker" -printf '%T@ %p\n' 2>/dev/null | sort -n | tail -1 | cut -d' ' -f2- || true)
+    rm -f "$marker" 2>/dev/null || true
+
+    if [[ -z "$findings_file" || ! -f "$findings_file" ]]; then
+        log ERROR "Contextual code review did not produce a findings file"
+        return 1
+    fi
+
+    TANGLE_REVIEW_FINDINGS_FILE="$findings_file"
+    local normal_count
+    normal_count=$(tangle_review_blocking_count "$findings_file")
+    log INFO "Contextual code review findings: $findings_file (normal=${normal_count})"
+    return "$review_rc"
+}
+
+tangle_apply_review_corrections() {
+    local resolved_prompt="$1"
+    local context_file="$2"
+    local findings_file="$3"
+    local round_num="$4"
+    local correction_agent="${5:-codex}"
+    local correction_file="${RESULTS_DIR:-${HOME}/.claude-octopus/results}/tangle-review-corrections-${round_num}-$(date +%s).md"
+    local normal_findings
+    normal_findings=$(tangle_normal_findings_summary "$findings_file")
+
+    if [[ -z "$normal_findings" ]]; then
+        log INFO "No normal findings to correct in $findings_file"
+        return 0
+    fi
+
+    local correction_prompt="You are in Octopus tangle correction round ${round_num}.
+
+Do not reimplement the whole plan.
+Do not expand scope.
+Do not restart from scratch.
+Preserve existing working-tree changes unless a change is necessary to fix a blocking finding.
+Fix only the blocking severity=normal findings below.
+After editing, report files changed and tests/checks run.
+
+Original task contract:
+\`\`\`markdown
+${resolved_prompt}
+\`\`\`
+
+Review context file for reference:
+${context_file}
+
+Blocking findings to fix:
+${normal_findings}
+"
+
+    log INFO "Step 5: Applying contextual review corrections (round ${round_num}) with ${correction_agent}..."
+    if run_agent_sync "$correction_agent" "$correction_prompt" "${OCTOPUS_TANGLE_CORRECTION_TIMEOUT:-480}" "implementer" "tangle" > "$correction_file" 2>&1; then
+        {
+            echo ""
+            echo "## Status: SUCCESS"
+            echo "# Completed: $(date)"
+        } >> "$correction_file"
+        log INFO "Correction round ${round_num} result: $correction_file"
+        return 0
+    fi
+
+    {
+        echo ""
+        echo "## Status: FAILED"
+        echo "# Completed: $(date)"
+    } >> "$correction_file"
+    log WARN "Correction round ${round_num} failed: $correction_file"
+    return 1
+}
+
 # Phase 3: TANGLE (Develop) - Enhanced map-reduce with validation
 # Tentacles work together in a coordinated tangle of activity
 tangle_develop() {
@@ -1598,7 +1817,59 @@ Every [CODING] line must include a same-line Files: clause."
 
     # Step 3: Validation gate
     log INFO "Step 3: Validation gate..."
-    validate_tangle_results "$task_group" "$resolved_prompt" "$worktree_before_file"
+    local validation_file="${RESULTS_DIR:-${HOME}/.claude-octopus/results}/tangle-validation-${task_group}.md"
+    local validation_rc=0
+    validate_tangle_results "$task_group" "$resolved_prompt" "$worktree_before_file" || validation_rc=$?
+
+    if octo_bool_disabled "${OCTOPUS_TANGLE_CODE_REVIEW:-true}"; then
+        log INFO "Contextual code review disabled by OCTOPUS_TANGLE_CODE_REVIEW"
+        return "$validation_rc"
+    fi
+
+    local review_context_file
+    review_context_file=$(tangle_build_develop_review_context "$task_group" "$resolved_prompt" "$context" "$subtasks" "$validation_file" "$worktree_before_file" "initial")
+
+    local review_rc=0
+    tangle_run_context_code_review "$task_group" "$review_context_file" "initial" || review_rc=$?
+    local findings_file="$TANGLE_REVIEW_FINDINGS_FILE"
+    local normal_count
+    normal_count=$(tangle_review_blocking_count "$findings_file")
+
+    local max_correction_rounds="${OCTOPUS_TANGLE_REVIEW_CORRECTION_ROUNDS:-1}"
+    [[ "$max_correction_rounds" =~ ^[0-9]+$ ]] || max_correction_rounds=1
+    local correction_round=1
+
+    while [[ "${normal_count:-0}" -gt 0 && "$correction_round" -le "$max_correction_rounds" ]]; do
+        tangle_apply_review_corrections "$resolved_prompt" "$review_context_file" "$findings_file" "$correction_round" "$tangle_coding_agent" || return 1
+
+        log INFO "Re-running validation gate after correction round ${correction_round}..."
+        validation_rc=0
+        validate_tangle_results "$task_group" "$resolved_prompt" "$worktree_before_file" || validation_rc=$?
+
+        review_context_file=$(tangle_build_develop_review_context "$task_group" "$resolved_prompt" "$context" "$subtasks" "$validation_file" "$worktree_before_file" "correction-${correction_round}")
+        review_rc=0
+        tangle_run_context_code_review "$task_group" "$review_context_file" "correction-${correction_round}" || review_rc=$?
+        findings_file="$TANGLE_REVIEW_FINDINGS_FILE"
+        normal_count=$(tangle_review_blocking_count "$findings_file")
+        ((correction_round++)) || true
+    done
+
+    if [[ "${normal_count:-0}" -gt 0 ]]; then
+        log WARN "Contextual code review still has ${normal_count} blocking finding(s) after ${max_correction_rounds} correction round(s): ${findings_file}"
+        return 1
+    fi
+
+    if [[ "$review_rc" -ne 0 ]]; then
+        log WARN "Contextual code review returned non-zero despite zero blocking findings"
+        return "$review_rc"
+    fi
+
+    if octo_bool_enabled "${OCTOPUS_TANGLE_INK:-false}"; then
+        log INFO "OCTOPUS_TANGLE_INK enabled — running ink/deliver after contextual review passed"
+        ink_deliver "$resolved_prompt"
+    fi
+
+    return "$validation_rc"
 }
 
 ink_delivery_sanitize_context() {

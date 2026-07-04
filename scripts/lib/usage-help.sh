@@ -210,12 +210,18 @@ ${YELLOW}develop${NC} (alias: tangle) - Implementation phase
 ${YELLOW}Usage:${NC} $(basename "$0") develop <prompt> [define-file]
 
 Implements the solution with built-in quality validation.
-Uses a map-reduce pattern: decompose → parallel implement → synthesize.
+Uses a map-reduce pattern: decompose → parallel implement → validate → contextual code review.
 
 ${YELLOW}Quality Gates:${NC}
-  • ≥90%: ${GREEN}PASSED${NC} - proceed to delivery
-  • 75-89%: ${YELLOW}WARNING${NC} - proceed with caution
-  • <75%: ${RED}FAILED${NC} - needs review
+  • Tangle validation report checks subtask status and worktree evidence
+  • Contextual code review compares the diff against the task contract/decomposition
+  • severity=normal findings trigger bounded correction rounds before delivery
+
+${YELLOW}Environment:${NC}
+  OCTOPUS_TANGLE_CODE_REVIEW=false          Skip contextual code review
+  OCTOPUS_TANGLE_REVIEW_CORRECTION_ROUNDS=1 Number of internal correction rounds
+  OCTOPUS_TANGLE_REVIEW_TARGET=working-tree Review target passed to code-review
+  OCTOPUS_TANGLE_INK=true                   Run optional ink/deliver after review passes
 
 ${YELLOW}Examples:${NC}
   $(basename "$0") develop "build the user authentication API"
