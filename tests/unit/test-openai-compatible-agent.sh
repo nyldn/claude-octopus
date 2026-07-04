@@ -203,4 +203,20 @@ else
 fi
 
 
+
+test_case "OpenAI-compatible aliases are in AVAILABLE_AGENTS"
+if grep "AVAILABLE_AGENTS=" "$PROJECT_ROOT/scripts/orchestrate.sh" | grep -q " openai-compatible " && \
+   grep "AVAILABLE_AGENTS=" "$PROJECT_ROOT/scripts/orchestrate.sh" | grep -q " openai-tools "; then
+    test_pass
+else
+    test_fail "expected openai-compatible and openai-tools aliases in AVAILABLE_AGENTS"
+fi
+
+test_case "openai-tools alias dispatches through generic helper"
+cmd=$(HOME="$TEST_HOME" USER="octo-test-$$" CLAUDE_CODE_SESSION="compat-tools-alias" PWD="/tmp/octo-cwd" OPENAI_COMPAT_MODEL="vendor/model-fast" get_agent_command openai-tools 2>/dev/null)
+if assert_contains "$cmd" "scripts/helpers/openai-compatible-agent.py" "helper path" &&
+   assert_contains "$cmd" "--provider generic" "generic provider" &&
+   assert_contains "$cmd" "--model vendor/model-fast" "configured model"; then
+    test_pass
+fi
 test_summary

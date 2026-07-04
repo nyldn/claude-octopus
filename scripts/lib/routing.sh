@@ -43,6 +43,8 @@ resolve_provider_to_agent() {
                                 agent="$provider" ;;
         openrouter|openrouter-glm5|openrouter-kimi|openrouter-deepseek)
                                 agent="$provider" ;;
+        openai-compatible|openai-tools|openai-compatible-agent)
+                                agent="$provider" ;;
         perplexity|perplexity-fast)
                                 agent="$provider" ;;
         qwen|qwen-research)     agent="$provider" ;;
@@ -68,6 +70,7 @@ agent_display_label() {
         gemini*) echo "Gemini" ;;
         agy*|antigravity) echo "Antigravity" ;;
         openrouter*) echo "OpenRouter" ;;
+        openai-compatible|openai-tools|openai-compatible-agent) echo "OpenAI-compatible" ;;
         qwen*) echo "Qwen" ;;
         perplexity*) echo "Perplexity" ;;
         copilot*) echo "Copilot" ;;

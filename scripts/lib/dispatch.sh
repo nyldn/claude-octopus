@@ -163,7 +163,7 @@ get_agent_command() {
         openrouter-glm5) echo "openrouter_execute_model z-ai/glm-5" ;;           # v8.11.0: GLM-5 via OpenRouter
         openrouter-kimi) echo "openrouter_execute_model moonshotai/kimi-k2.5" ;; # v8.11.0: Kimi K2.5 via OpenRouter
         openrouter-deepseek) echo "openrouter_execute_model deepseek/deepseek-r1-0528" ;; # v8.11.0: DeepSeek R1 via OpenRouter
-        openai-compatible-agent)  # Generic OpenAI-compatible tool-loop agent
+        openai-compatible|openai-tools|openai-compatible-agent)  # Generic OpenAI-compatible tool-loop agent
             if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
                 return 1
             fi
@@ -472,7 +472,7 @@ get_agent_model() {
         agy*|antigravity) provider="agy" ;;
         claude*)     provider="claude" ;;
         openrouter*) provider="openrouter" ;;
-        openai-compatible-agent*) provider="openai-compatible-agent" ;;
+        openai-compatible|openai-tools|openai-compatible-agent*) provider="openai-compatible-agent" ;;
         perplexity*) provider="perplexity" ;;
         qwen*)       provider="qwen" ;;
         cursor-agent*) provider="cursor-agent" ;;
@@ -515,7 +515,7 @@ validate_model_allowed() {
         agy)        allowlist_var="OCTOPUS_AGY_ALLOWED_MODELS" ;;
         claude)     allowlist_var="OCTOPUS_CLAUDE_ALLOWED_MODELS" ;;
         openrouter) allowlist_var="OCTOPUS_OPENROUTER_ALLOWED_MODELS" ;;
-        openai-compatible-agent) allowlist_var="OPENAI_COMPAT_ALLOWED_MODELS" ;;
+        openai-compatible|openai-tools|openai-compatible-agent) allowlist_var="OPENAI_COMPAT_ALLOWED_MODELS" ;;
         perplexity) allowlist_var="OCTOPUS_PERPLEXITY_ALLOWED_MODELS" ;;
         qwen)       allowlist_var="OCTOPUS_QWEN_ALLOWED_MODELS" ;;
         cursor-agent) allowlist_var="OCTOPUS_CURSOR_AGENT_ALLOWED_MODELS" ;;

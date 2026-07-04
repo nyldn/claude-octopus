@@ -1069,6 +1069,14 @@ detect_providers() {
         result="${result}openrouter:api-key "
     fi
 
+    # Detect generic OpenAI-compatible tool-loop provider (API key only)
+    if { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed openai-compatible; }; then
+        local compat_key_env="${OPENAI_COMPAT_API_KEY_ENV:-OPENAI_API_KEY}"
+        if [[ -n "${OPENAI_COMPAT_BASE_URL:-}" && ( -n "${OPENAI_COMPAT_API_KEY:-}" || -n "${!compat_key_env:-}" ) ]]; then
+            result="${result}openai-compatible:api-key "
+        fi
+    fi
+
     # Detect Perplexity (API key only)
     if { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed perplexity; } && [[ -n "${PERPLEXITY_API_KEY:-}" ]]; then
         result="${result}perplexity:api-key "

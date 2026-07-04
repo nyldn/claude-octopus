@@ -74,7 +74,7 @@ Options:
   --implement never|after-approval|plan-only
   --worktree auto|on|off
   --benchmark auto|on|off
-  --providers auto|claude,codex,agy,gemini,qwen,opencode,openrouter
+  --providers auto|claude,codex,agy,gemini,qwen,opencode,openrouter,openai-compatible,openai-tools
   --max-cost <usd>
   --simulate
   --single-model
@@ -175,7 +175,7 @@ council_validate_choice() {
 
 council_validate_provider_list() {
     local providers="$1"
-    local allowed="claude,codex,agy,gemini,qwen,opencode,openrouter"
+    local allowed="claude,codex,agy,gemini,qwen,opencode,openrouter,openai-compatible,openai-tools"
 
     if [[ "$providers" == "auto" ]]; then
         return 0
@@ -521,6 +521,7 @@ council_provider_command() {
         agy) echo "agy" ;;
         opencode) echo "opencode" ;;
         openrouter) echo "openrouter" ;;
+        openai-compatible|openai-tools|openai-compatible-agent) echo "openai-compatible" ;;
         *) echo "$1" ;;
     esac
 }
@@ -532,6 +533,7 @@ council_provider_org() {
         gemini|agy) echo "google" ;;
         opencode) echo "opencode" ;;
         openrouter) echo "openrouter" ;;
+        openai-compatible|openai-tools|openai-compatible-agent) echo "openai-compatible" ;;
         *) echo "$1" ;;
     esac
 }
@@ -884,7 +886,7 @@ council_pick_provider() {
     fi
 
     local provider providers="$COUNCIL_PROVIDERS"
-    [[ "$providers" == "auto" ]] && providers="claude,codex,agy,gemini,qwen,opencode,openrouter"
+    [[ "$providers" == "auto" ]] && providers="claude,codex,agy,gemini,qwen,opencode,openrouter,openai-compatible,openai-tools"
     IFS=',' read -r -a provider_list <<< "$providers"
     for provider in "${provider_list[@]}"; do
         provider="${provider// /}"
@@ -990,7 +992,7 @@ council_candidate_personas() {
 
 council_available_provider_orgs_json() {
     local providers="$COUNCIL_PROVIDERS"
-    [[ "$providers" == "auto" ]] && providers="claude,codex,agy,gemini,qwen,opencode,openrouter"
+    [[ "$providers" == "auto" ]] && providers="claude,codex,agy,gemini,qwen,opencode,openrouter,openai-compatible,openai-tools"
 
     local json='[]' provider org
     IFS=',' read -r -a provider_list <<< "$providers"
@@ -1006,7 +1008,7 @@ council_available_provider_orgs_json() {
 council_provider_for_org() {
     local wanted_org="$1"
     local providers="$COUNCIL_PROVIDERS"
-    [[ "$providers" == "auto" ]] && providers="claude,codex,agy,gemini,qwen,opencode,openrouter"
+    [[ "$providers" == "auto" ]] && providers="claude,codex,agy,gemini,qwen,opencode,openrouter,openai-compatible,openai-tools"
 
     local provider
     IFS=',' read -r -a provider_list <<< "$providers"
@@ -2115,7 +2117,7 @@ council_start_implementation_handoff() {
 council_detect_providers() {
     local providers="$COUNCIL_PROVIDERS"
     if [[ "$providers" == "auto" ]]; then
-        providers="claude,codex,agy,gemini,qwen,opencode,openrouter"
+        providers="claude,codex,agy,gemini,qwen,opencode,openrouter,openai-compatible,openai-tools"
     fi
 
     local json='{}'
@@ -2143,12 +2145,24 @@ council_detect_providers() {
         if [[ "${OCTOPUS_HOST:-}" == "$provider" ]]; then
             status="host-native"
         else
-            cmd="$(council_provider_command "$provider")"
-            if command -v "$cmd" >/dev/null 2>&1; then
-                status="available"
-            else
-                status="missing"
-            fi
+            case "$provider" in
+                openai-compatible|openai-tools|openai-compatible-agent)
+                    local compat_key_env="${OPENAI_COMPAT_API_KEY_ENV:-OPENAI_API_KEY}"
+                    if [[ -n "${OPENAI_COMPAT_BASE_URL:-}" && ( -n "${OPENAI_COMPAT_API_KEY:-}" || -n "${!compat_key_env:-}" ) ]]; then
+                        status="available"
+                    else
+                        status="missing"
+                    fi
+                    ;;
+                *)
+                    cmd="$(council_provider_command "$provider")"
+                    if command -v "$cmd" >/dev/null 2>&1; then
+                        status="available"
+                    else
+                        status="missing"
+                    fi
+                    ;;
+            esac
         fi
         json="$(jq -c --arg name "$provider" --arg status "$status" '. + {($name): $status}' <<< "$json")"
     done
