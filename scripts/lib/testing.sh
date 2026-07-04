@@ -103,6 +103,27 @@ check_tangle_worktree_changes() {
     rm -f "$current_file"
 }
 
+tangle_quality_retry_limit_value() {
+    if declare -f quality_retry_limit >/dev/null 2>&1; then
+        quality_retry_limit
+        return $?
+    fi
+    local retry_limit="${MAX_QUALITY_RETRIES:-${CLAUDE_OCTOPUS_MAX_RETRIES:-3}}"
+    [[ "$retry_limit" =~ ^[0-9]+$ ]] || retry_limit=3
+    printf '%s\n' "$retry_limit"
+}
+
+tangle_quality_retry_limit_reached() {
+    local retry_count="${1:-0}"
+    if declare -f quality_retry_limit_reached >/dev/null 2>&1; then
+        quality_retry_limit_reached "$retry_count"
+        return $?
+    fi
+    local retry_limit
+    retry_limit=$(tangle_quality_retry_limit_value)
+    [[ "$retry_count" -ge "$retry_limit" ]]
+}
+
 validate_tangle_results() {
     local task_group="$1"
     local original_prompt="$2"
@@ -114,9 +135,13 @@ validate_tangle_results() {
         # Collect all results
         local results=""
         local result_outputs=""
+        local success_result_files=""
+        local retry_candidate_result_files=""
         local success_count=0
         local fail_count=0
+        local hard_gate_retry_feedback=""
         FAILED_SUBTASKS=""  # Reset for this validation pass (string-based)
+        TANGLE_HARD_GATE_RETRY_FEEDBACK=""
 
         for result in "$RESULTS_DIR"/*-tangle-${task_group}*.md; do
             [[ -f "$result" ]] || continue
@@ -131,6 +156,13 @@ validate_tangle_results() {
 
             if grep -q "Status: SUCCESS" "$result" 2>/dev/null; then
                 ((success_count++)) || true
+                success_result_files="${success_result_files}result:${result}"$'\n'
+                local result_role
+                result_role=$(awk '/^# Role: / { sub(/^# Role: /, ""); print; exit }' "$result" 2>/dev/null | tr '[:upper:]' '[:lower:]' || true)
+                case "$result_role" in
+                    researcher|research|analyst|reviewer|code-reviewer|security-auditor|qa-reviewer|qa-engineer|synthesizer) ;;
+                    *) retry_candidate_result_files="${retry_candidate_result_files}result:${result}"$'\n' ;;
+                esac
             else
                 ((fail_count++)) || true
                 # Store the failed result file for retry (if loop-until-approved enabled).
@@ -175,12 +207,16 @@ validate_tangle_results() {
         if [[ -n "$missing_explicit_files" ]]; then
             gate_status="FAILED"
             gate_color="${RED}"
+            hard_gate_retry_feedback="${hard_gate_retry_feedback}"$'Hard gate failure: missing explicit file coverage.\nMissing explicit files from the approved task/plan:\n'
+            hard_gate_retry_feedback="${hard_gate_retry_feedback}$(printf '%s\n' "$missing_explicit_files" | sed '/^$/d; s/^/- /')"
+            hard_gate_retry_feedback="${hard_gate_retry_feedback}"$'\n\n'
             log WARN "Tangle missing explicit file coverage: $(echo "$missing_explicit_files" | tr '\n' ' ')" 2>/dev/null || true
         fi
 
         if [[ "$requires_worktree_changes" == "true" && -z "$worktree_changes" ]]; then
             gate_status="FAILED"
             gate_color="${RED}"
+            hard_gate_retry_feedback="${hard_gate_retry_feedback}"$'Hard gate failure: missing worktree changes.\nThis prompt was classified as implementation work, but no new modified, staged, or untracked paths were produced.\n\n'
             log WARN "Tangle produced no new worktree changes for an implementation task" 2>/dev/null || true
         fi
 
@@ -247,6 +283,20 @@ $challenge_result
         local quality_branch
         quality_branch=$(evaluate_quality_branch "$success_rate" "$quality_retry_count")
 
+        if [[ -n "$hard_gate_retry_feedback" ]]; then
+            TANGLE_HARD_GATE_RETRY_FEEDBACK="${hard_gate_retry_feedback}"$'Apply a delta-only correction. Preserve correct existing work, do not restart the whole plan, and explicitly cover the missing hard-gate requirements in the final output.\n'
+            if [[ -z "$FAILED_SUBTASKS" ]]; then
+                FAILED_SUBTASKS="${retry_candidate_result_files:-$success_result_files}"
+            fi
+            if ! tangle_quality_retry_limit_reached "$quality_retry_count"; then
+                quality_branch="retry"
+            elif [[ "${AUTONOMY_MODE:-semi-autonomous}" == "supervised" ]]; then
+                quality_branch="escalate"
+            else
+                quality_branch="abort"
+            fi
+        fi
+
         # Write validation report before branching so abort/escalate/retry paths
         # still leave an actionable artifact for embrace and post-run diagnosis.
         cat > "$validation_file" << EOF
@@ -259,7 +309,7 @@ $challenge_result
 - Successful: ${success_count}/${total} result files
 - Failed: ${fail_count}/${total} result files
 - Decision Branch: ${quality_branch}
-- Retry Attempts: ${quality_retry_count}/$(quality_retry_limit)
+- Retry Attempts: ${quality_retry_count}/$(tangle_quality_retry_limit_value)
 
 ### Explicit File Coverage
 $(if [[ -n "$missing_explicit_files" ]]; then
@@ -292,10 +342,10 @@ EOF
                 ;;
             retry)
                 # Retry failed tasks
-                if ! quality_retry_limit_reached "$quality_retry_count"; then
+                if ! tangle_quality_retry_limit_reached "$quality_retry_count"; then
                     ((quality_retry_count++)) || true
                     local retry_limit_display
-                    retry_limit_display=$(quality_retry_limit)
+                    retry_limit_display=$(tangle_quality_retry_limit_value)
                     echo ""
                     echo -e "${YELLOW}${_BOX_TOP}${NC}"
                     echo -e "${YELLOW}║  🐙 Branching: Retry Path (attempt $quality_retry_count/$retry_limit_display)                    ║${NC}"

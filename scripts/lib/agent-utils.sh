@@ -734,6 +734,7 @@ Retry rules:
 - Finish with explicit sections: ## Worktree Changes, ## Integration Evidence, and ## Verification.
 - If a boundary blocks completion, report the blocker explicitly instead of returning empty or partial output.
 
+${TANGLE_HARD_GATE_RETRY_FEEDBACK:-}
 Previous output excerpt, if any:
 ${output_excerpt:-<no useful output captured>}
 
