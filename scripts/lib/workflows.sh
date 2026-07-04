@@ -1319,9 +1319,14 @@ tangle_run_context_code_review() {
     fi
 
     TANGLE_REVIEW_FINDINGS_FILE="$findings_file"
-    local normal_count
+    local normal_count review_warning
     normal_count=$(tangle_review_blocking_count "$findings_file")
+    review_warning=$(jq -r '.warning // empty' "$findings_file" 2>/dev/null || true)
     log INFO "Contextual code review findings: $findings_file (normal=${normal_count})"
+    if [[ -n "$review_warning" ]]; then
+        log WARN "Contextual code review warning: ${review_warning}"
+        return 1
+    fi
     return "$review_rc"
 }
 
@@ -1864,12 +1869,17 @@ Every [CODING] line must include a same-line Files: clause."
         return "$review_rc"
     fi
 
+    if [[ "$validation_rc" -ne 0 ]]; then
+        log WARN "Skipping ink/deliver because tangle validation gate returned non-zero (${validation_rc})"
+        return "$validation_rc"
+    fi
+
     if octo_bool_enabled "${OCTOPUS_TANGLE_INK:-false}"; then
         log INFO "OCTOPUS_TANGLE_INK enabled — running ink/deliver after contextual review passed"
         ink_deliver "$resolved_prompt"
     fi
 
-    return "$validation_rc"
+    return 0
 }
 
 ink_delivery_sanitize_context() {

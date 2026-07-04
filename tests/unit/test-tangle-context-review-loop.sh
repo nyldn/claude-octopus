@@ -31,6 +31,8 @@ assert_contains "$WORKFLOWS" "plan-conformance" "review focus includes plan conf
 assert_contains "$WORKFLOWS" "tangle_apply_review_corrections" "tangle applies review corrections"
 assert_contains "$WORKFLOWS" "OCTOPUS_TANGLE_REVIEW_CORRECTION_ROUNDS" "correction rounds are configurable"
 assert_contains "$WORKFLOWS" "OCTOPUS_TANGLE_CODE_REVIEW" "code review gate is toggleable"
+assert_contains "$WORKFLOWS" "Contextual code review warning" "review warnings are blocking"
+assert_contains "$WORKFLOWS" "Skipping ink/deliver because tangle validation gate returned non-zero" "ink is skipped when validation fails"
 assert_contains "$HELP" "Contextual code review" "develop help documents contextual review"
 assert_contains "$HELP" "OCTOPUS_TANGLE_REVIEW_CORRECTION_ROUNDS" "develop help documents correction rounds"
 
