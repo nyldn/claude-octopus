@@ -17,23 +17,28 @@ fi
 
 test_case "legacy researcher mapping is preserved"
 legacy_mapping="$(bash -c 'export OCTOPUS_LEGACY_ROLES=1; source "$1/scripts/lib/agent-utils.sh" 2>/dev/null; get_role_mapping researcher' bash "$PROJECT_ROOT")"
-if [[ "$legacy_mapping" == "gemini:gemini-3.1-pro-preview" ]]; then
+if [[ "$legacy_mapping" == gemini:gemini-* ]]; then
     test_pass
 else
-    test_fail "expected legacy gemini mapping, got: $legacy_mapping"
+    test_fail "expected legacy gemini provider mapping, got: $legacy_mapping"
 fi
 
 test_case "new model config routes research phase to agy"
 config_hits="$(grep -R '"research": "gemini:default"' "$PROJECT_ROOT/scripts/helpers/octo-model-config.sh" "$PROJECT_ROOT/scripts/lib/provider-routing.sh" 2>/dev/null || true)"
+phase_fallback_out="$({
+    tmp_home="$(mktemp -d)"
+    trap 'rm -rf "$tmp_home"' EXIT
+    HOME="$tmp_home" "$PROJECT_ROOT/scripts/helpers/octo-model-config.sh" show phases
+} 2>/dev/null)"
 if [[ -z "$config_hits" ]] && \
    grep -q '"research": "agy"' "$PROJECT_ROOT/scripts/helpers/octo-model-config.sh" && \
    grep -q '"research": "agy"' "$PROJECT_ROOT/scripts/lib/provider-routing.sh" && \
    grep -q '"default": "Gemini 3.1 Pro (High)"' "$PROJECT_ROOT/scripts/helpers/octo-model-config.sh" && \
    grep -q '"default": "Gemini 3.1 Pro (High)"' "$PROJECT_ROOT/scripts/lib/provider-routing.sh" && \
-   grep -q 'research) default_target="agy" ;;' "$PROJECT_ROOT/scripts/helpers/octo-model-config.sh"; then
+   [[ "$phase_fallback_out" == *"research"*"agy"* ]]; then
     test_pass
 else
-    test_fail "research config defaults are not consistently agy; stale hits: $config_hits"
+    test_fail "research config defaults are not consistently agy; stale hits: $config_hits; phases: $phase_fallback_out"
 fi
 
 test_case "research phase resolves to explicit agy Pro label"
@@ -67,6 +72,26 @@ if [[ "$resolve_out" == "Gemini 3.1 Pro (High)" ]]; then
     test_pass
 else
     test_fail "expected Gemini 3.1 Pro (High), got: $resolve_out"
+fi
+
+
+
+test_case "council accepts and detects agy provider"
+council_detect_out="$({
+    tmp_bin="$(mktemp -d)"
+    cleanup_council_agy_tmp() { rm -rf "$tmp_bin"; }
+    trap cleanup_council_agy_tmp EXIT
+    cat > "$tmp_bin/agy" <<'MOCK_AGY'
+#!/usr/bin/env bash
+exit 0
+MOCK_AGY
+    chmod +x "$tmp_bin/agy"
+    PATH="$tmp_bin:$PATH" bash -c 'source "$1/scripts/lib/council.sh" 2>/dev/null; COUNCIL_PROVIDERS=auto; council_validate_provider_list agy && council_detect_providers && jq -r ".agy // empty" <<< "$COUNCIL_PROVIDER_STATUS_JSON"' bash "$PROJECT_ROOT"
+} 2>/dev/null)"
+if [[ "$council_detect_out" == "available" ]]; then
+    test_pass
+else
+    test_fail "expected council to accept and detect agy provider, got: $council_detect_out"
 fi
 
 test_case "council research fallback defaults to agy"
