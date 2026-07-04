@@ -210,6 +210,69 @@ build_review_fleet() {
     echo "$fleet"
 }
 
+# review_extract_findings_array: returns a JSON array of findings from a Round 1
+# markdown result file. Providers sometimes echo the full prompt or wrap JSON in
+# prose; prefer the exact ## Output jq path, then fall back to scanning the file
+# for the last JSON object with a findings array.
+review_extract_findings_array() {
+    local review_md="$1"
+    local output_text direct_json
+    [[ -f "$review_md" ]] || { echo "[]"; return 1; }
+
+    output_text=$(awk '/^## Output$/{found=1;next} /^## /{if(found)exit} found && !/^```(json|JSON)?$/{print}' "$review_md" 2>/dev/null || true)
+    if [[ -n "$output_text" ]]; then
+        direct_json=$(printf '%s' "$output_text" | jq -c '.findings // empty' 2>/dev/null || true)
+        if [[ -n "$direct_json" && "$direct_json" != "null" ]]; then
+            printf '%s\n' "$direct_json"
+            return 0
+        fi
+    fi
+
+    if command -v python3 >/dev/null 2>&1; then
+        python3 - "$review_md" <<'PYEXTRACT'
+import json, sys
+from pathlib import Path
+path = Path(sys.argv[1])
+text = path.read_text(errors='ignore')
+decoder = json.JSONDecoder()
+best = None
+idx = 0
+while True:
+    idx = text.find('{', idx)
+    if idx < 0:
+        break
+    try:
+        obj, end = decoder.raw_decode(text[idx:])
+    except Exception:
+        idx += 1
+        continue
+    if isinstance(obj, dict) and isinstance(obj.get('findings'), list):
+        best = obj.get('findings')
+    idx += max(1, end)
+if best is None:
+    print('[]')
+    sys.exit(1)
+print(json.dumps(best, separators=(',', ':')))
+PYEXTRACT
+        return $?
+    fi
+
+    echo "[]"
+    return 1
+}
+
+review_local_synthesis_json() {
+    local findings_json="$1"
+    local warning="${2:-}"
+    if [[ -n "$warning" ]]; then
+        printf '%s' "$findings_json" | jq -c --arg warning "$warning" '{findings:(. // [] | sort_by(.severity)), warning:$warning}' 2>/dev/null             || printf '{"findings":[],"warning":%s}\n' "$(printf '%s' "$warning" | jq -R .)"
+    else
+        printf '%s' "$findings_json" | jq -c \
+            '{findings:(. // [] | sort_by(.severity))}' 2>/dev/null \
+            || echo '{"findings":[]}'
+    fi
+}
+
 # review_collect_diff: resolves a review target to unified diff content.
 # Targets can be built-in scopes (staged, working-tree), a PR number, a git
 # pathspec, or an already-generated .diff/.patch file.
@@ -636,17 +699,22 @@ ${agent_prompt_base}"
     done
     log INFO "review_run: Round 1 complete"
 
-    # Collect Round 1 findings — extract ## Output section, strip markdown fences, parse JSON
+    # Collect Round 1 findings — robustly extract the last JSON object with a
+    # findings array. Some providers echo the full prompt before the final JSON;
+    # a strict jq of the whole ## Output block silently loses those findings.
     local all_findings="[]"
     local idx=0
+    local round1_partial_count=0
+    local round1_parse_miss_count=0
     for f in "${round1_files[@]}"; do
-        [[ ! -f "$f" ]] && continue
+        [[ ! -f "$f" ]] && { ((round1_partial_count++)) || true; continue; }
         local agent_findings
-        # v9.20.1: Extract content from ## Output section (portable awk, fixes BSD sed #255)
-        agent_findings=$(awk '/^## Output$/{found=1;next} /^## /{if(found)exit} found && !/^```(json|JSON)?$/{print}' "$f" | \
-            jq -r '.findings // []' 2>/dev/null || echo "[]")
-        all_findings=$(printf '%s\n%s' "$all_findings" "$agent_findings" | \
-            jq -s 'add' 2>/dev/null || echo "$all_findings")
+        agent_findings=$(review_extract_findings_array "$f" 2>/dev/null || echo "[]")
+        if [[ "$agent_findings" == "[]" ]] && grep -q '"severity"[[:space:]]*:[[:space:]]*"' "$f" 2>/dev/null; then
+            ((round1_parse_miss_count++)) || true
+            log WARN "review_run: possible findings in $(basename "$f") but extractor returned empty array"
+        fi
+        all_findings=$(printf '%s\n%s' "$all_findings" "$agent_findings" |             jq -s 'add' 2>/dev/null || echo "$all_findings")
 
         # v9.3.1: Write provider status for Round 1 agents (#187)
         local atype="${round1_agent_types[$idx]}"
@@ -660,13 +728,22 @@ ${agent_prompt_base}"
                 octo_event_emit "review.finding" provider="$provider_key" severity="${_rf_sev:-unknown}" message="${_rf_title:-}" round="1" || true
             done < <(printf '%s' "$agent_findings" | jq -r '.[]? | [(.severity // "unknown"), (.title // .message // "")] | @tsv' 2>/dev/null)
         fi
-        if [[ $(grep -c "Status: FAILED" "$f" 2>/dev/null || true) -gt 0 ]]; then
-            echo "${provider_key}|fallback|Round 1 agent failed" >> "$provider_status_file"
+        if [[ $(grep -cE "Status: (FAILED|TIMEOUT)" "$f" 2>/dev/null || true) -gt 0 ]]; then
+            ((round1_partial_count++)) || true
+            echo "${provider_key}|fallback|Round 1 agent failed or timed out" >> "$provider_status_file"
         elif [[ "$agent_findings" != "[]" ]]; then
             echo "${provider_key}|ok|Round 1 findings" >> "$provider_status_file"
         fi
         ((idx++)) || true
     done
+
+    local round1_findings_file="${results_dir}/review-round1-findings-${timestamp}.json"
+    local round1_warning=""
+    if [[ "$round1_partial_count" -gt 0 || "$round1_parse_miss_count" -gt 0 ]]; then
+        round1_warning="Round 1 was partial: ${round1_partial_count} provider(s) missing/failed/timed out, ${round1_parse_miss_count} provider output(s) had possible unparsed findings."
+    fi
+    review_local_synthesis_json "$all_findings" "$round1_warning" > "$round1_findings_file"
+    log INFO "review_run: Round 1 findings snapshot saved to $round1_findings_file"
 
     # v9.20.1: Detect total fleet failure — all providers crashed/timed out (#255)
     local _r1_total=${#round1_files[@]}
@@ -695,6 +772,9 @@ ${agent_prompt_base}"
 
     # ── ROUND 2: Verification ─────────────────────────────────────────────────
     log INFO "review_run: Round 2 — verification"
+    local review_verifier_timeout
+    review_verifier_timeout="${OCTOPUS_REVIEW_VERIFIER_TIMEOUT:-300}"
+    [[ "$review_verifier_timeout" =~ ^[0-9]+$ ]] || review_verifier_timeout=300
     local verifier_prompt
     verifier_prompt="You are a code review verifier. For each finding below, check whether it is a real bug (confirmed), a false positive, or needs debate (uncertain/conflicting).
 
@@ -714,13 +794,13 @@ $(echo "$all_findings" | jq -c '.')
 Return ONLY valid JSON with 'findings' array including verdict field."
 
     local verified_findings
-    verified_findings=$(run_agent_sync "codex" "$verifier_prompt" "${TIMEOUT:-300}" "code-reviewer" "review") && {
+    verified_findings=$(run_agent_sync "codex" "$verifier_prompt" "$review_verifier_timeout" "code-reviewer" "review") && {
         echo "codex|ok|Round 2 verification" >> "$provider_status_file"
     } || {
         log WARN "review_run: codex verifier failed, falling back to claude-sonnet"
         log "USER" "⚠ Round 2: Codex unavailable → claude-sonnet (fallback). Codex API usage will NOT change."
         echo "codex|fallback|Round 2 → claude-sonnet" >> "$provider_status_file"
-        verified_findings=$(run_agent_sync "claude-sonnet" "$verifier_prompt" "${TIMEOUT:-300}" "code-reviewer" "review") || {
+        verified_findings=$(run_agent_sync "claude-sonnet" "$verifier_prompt" "$review_verifier_timeout" "code-reviewer" "review") || {
             log WARN "review_run: verification failed entirely, using all findings as confirmed"
             verified_findings="{\"findings\":$(echo "$all_findings" | \
                 jq 'map(. + {"verdict":"confirmed"})' 2>/dev/null || echo "[]")}"
@@ -779,8 +859,10 @@ Findings: $(echo "$confirmed_findings" | jq -c '.')
 
 Return ONLY JSON: {\"findings\": [...ranked, deduplicated findings...]}"
 
-    local final_json synth_ok="true"
-    final_json=$(run_agent_sync "claude-sonnet" "$synthesis_prompt" 120 "code-reviewer" "review") || {
+    local final_json synth_ok="true" review_synthesis_timeout
+    review_synthesis_timeout="${OCTOPUS_REVIEW_SYNTHESIS_TIMEOUT:-120}"
+    [[ "$review_synthesis_timeout" =~ ^[0-9]+$ ]] || review_synthesis_timeout=120
+    final_json=$(run_agent_sync "claude-sonnet" "$synthesis_prompt" "$review_synthesis_timeout" "code-reviewer" "review") || {
         synth_ok="false"
         log WARN "review_run: synthesis failed, using confirmed findings sorted as-is"
         final_json="{\"findings\":$(echo "$confirmed_findings" | jq -c 'sort_by(.severity)' 2>/dev/null || echo "[]")}"
@@ -788,6 +870,11 @@ Return ONLY JSON: {\"findings\": [...ranked, deduplicated findings...]}"
 
     # v9.3.1: Strip markdown fences from synthesis result (#188)
     final_json=$(echo "$final_json" | sed '/^```json$/d; /^```JSON$/d; /^```$/d')
+    if ! printf '%s' "$final_json" | jq -e '.findings | type == "array"' >/dev/null 2>&1; then
+        log WARN "review_run: synthesis returned invalid findings JSON, using local fallback"
+        final_json=$(review_local_synthesis_json "$confirmed_findings" "$round1_warning")
+        synth_ok="false"
+    fi
 
     # Write findings file
     echo "$final_json" > "$findings_file"
