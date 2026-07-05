@@ -663,13 +663,16 @@ ${heuristic_ctx}"
         while true; do
             exit_code=0
 
-            # oco-2kw: per-provider timeout. Gemini has no request timeout and its
-            # non-interactive maxSessionTurns default is unlimited, so a quota-loop
-            # or stall could burn the global TIMEOUT (~600s). Cap gemini separately;
-            # all others keep the global TIMEOUT. Plain scalar — bash 3.2 safe.
-            local _eff_timeout="$TIMEOUT"
+            # Per-provider timeout. TIMEOUT=0 means no absolute timeout; higher-level
+            # workflows supervise progress/stalls. Gemini only gets its legacy cap when
+            # TIMEOUT is non-zero and OCTOPUS_GEMINI_TIMEOUT is not explicitly set.
+            local _eff_timeout="${TIMEOUT:-0}"
             if [[ "$agent_type" == gemini* ]]; then
-                _eff_timeout="${OCTOPUS_GEMINI_TIMEOUT:-180}"
+                if [[ -n "${OCTOPUS_GEMINI_TIMEOUT:-}" ]]; then
+                    _eff_timeout="$OCTOPUS_GEMINI_TIMEOUT"
+                elif [[ "$_eff_timeout" != "0" ]]; then
+                    _eff_timeout="180"
+                fi
             fi
 
             # oco-48z: quota/terminal-error fast-fail watcher for ALL providers (was
@@ -909,7 +912,7 @@ ${heuristic_ctx}"
             echo "" >> "$result_file"
             echo "## Status: TIMEOUT - PARTIAL RESULTS (exit code: $exit_code)" >> "$result_file"
             echo "" >> "$result_file"
-            echo "⚠️  **Warning**: Agent timed out after ${TIMEOUT}s but partial output preserved above." >> "$result_file"
+            echo "⚠️  **Warning**: Agent timed out after ${_eff_timeout}s but partial output preserved above." >> "$result_file"
             echo "" >> "$result_file"
             echo "**Recommendations**:" >> "$result_file"
             echo "- Partial results may still be valuable" >> "$result_file"

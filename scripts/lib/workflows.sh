@@ -1860,11 +1860,14 @@ Every [CODING] line must include a same-line Files: clause."
     # Wait with progress monitoring — poll .done marker files written by spawn_agent
     # rather than kill -0 $pid (which tracks wrapper PID, not provider PID)
     local _done_dir="${WORKSPACE_DIR:-${HOME}/.claude-octopus}/.octo/agents"
-    local _tangle_max_wait="${OCTOPUS_TANGLE_DEADLINE:-$(( ${TIMEOUT:-600} + 60 ))}"
-    [[ "$_tangle_max_wait" =~ ^[0-9]+$ ]] || _tangle_max_wait=$(( ${TIMEOUT:-600} + 60 ))
+    local _tangle_max_wait="${OCTOPUS_TANGLE_DEADLINE:-0}"
+    [[ "$_tangle_max_wait" =~ ^[0-9]+$ ]] || _tangle_max_wait=0
     local _missing_marker_grace="${OCTOPUS_TANGLE_MISSING_MARKER_GRACE:-180}"
     [[ "$_missing_marker_grace" =~ ^[0-9]+$ ]] || _missing_marker_grace=180
-    local _deadline=$(( $(date +%s) + _tangle_max_wait ))
+    local _deadline=0
+    if [[ "$_tangle_max_wait" -gt 0 ]]; then
+        _deadline=$(( $(date +%s) + _tangle_max_wait ))
+    fi
     local completed=0
     local _failed_tasks=()
     local _terminal_task_ids=""
@@ -1879,7 +1882,7 @@ Every [CODING] line must include a same-line Files: clause."
                 ((completed++)) || true
             else
                 local _wrapper_pid="${pids[$i]:-}"
-                if (( $(date +%s) > _deadline )); then
+                if [[ "$_tangle_max_wait" -gt 0 ]] && (( $(date +%s) > _deadline )); then
                     log WARN "Thread ${task_ids[$i]} deadline exceeded — killing and marking timeout"
                     if [[ -n "$_wrapper_pid" ]]; then
                         pkill -TERM -P "$_wrapper_pid" 2>/dev/null || true

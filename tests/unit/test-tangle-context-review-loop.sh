@@ -31,6 +31,8 @@ assert_contains "$WORKFLOWS" "plan-conformance" "review focus includes plan conf
 assert_contains "$WORKFLOWS" "tangle_apply_review_corrections" "tangle applies review corrections"
 assert_contains "$WORKFLOWS" "OCTOPUS_TANGLE_REVIEW_CORRECTION_MODE" "correction loop supports explicit bounded mode"
 assert_contains "$WORKFLOWS" "OCTOPUS_TANGLE_CORRECTION_STALL_WINDOW" "correction loop uses stall watchdog"
+assert_contains "$WORKFLOWS" "OCTOPUS_TANGLE_DEADLINE:-0" "initial tangle deadline defaults to no absolute timeout"
+assert_contains "$WORKFLOWS" "_tangle_max_wait" "initial tangle deadline is optional"
 assert_contains "$WORKFLOWS" "failed but left partial writes" "partial writes continue to validation/review"
 assert_contains "$WORKFLOWS" 'run_agent_sync "$correction_agent" "$correction_prompt" 0' "corrections run without absolute timeout"
 assert_contains "$WORKFLOWS" "OCTOPUS_TANGLE_CODE_REVIEW" "code review gate is toggleable"
@@ -43,5 +45,8 @@ assert_contains "$WORKFLOWS" "OCTOPUS_INK_REVIEW_TIMEOUT" "ink review timeout is
 
 HEARTBEAT="$PROJECT_ROOT/scripts/lib/heartbeat.sh"
 assert_contains "$HEARTBEAT" "timeout_secs=0 means no absolute timeout" "timeout zero disables absolute timeout"
+SPAWN="$PROJECT_ROOT/scripts/lib/spawn.sh"
+assert_contains "$SPAWN" "TIMEOUT=0 means no absolute timeout" "spawn respects TIMEOUT=0"
+assert_contains "$SPAWN" "OCTOPUS_GEMINI_TIMEOUT" "gemini timeout can be explicitly overridden"
 
 test_summary
