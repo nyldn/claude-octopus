@@ -1594,8 +1594,9 @@ council_response_is_substantive() {
     local f="$1"
     [[ -f "$f" ]] || return 1
 
-    # 1) Host self-dispatch stub — runner-emitted, exact match.
-    if grep -qiE 'Subprocess dispatch is unavailable|active host runtime' "$f"; then
+    # 1) Host self-dispatch stub — runner-emitted, exact match. (grep -c … >/dev/null,
+    #    not -q: -q closes the pipe early and can SIGPIPE under set -eo pipefail.)
+    if grep -ciE 'Subprocess dispatch is unavailable|active host runtime' "$f" >/dev/null; then
         return 1
     fi
 
@@ -1603,7 +1604,7 @@ council_response_is_substantive() {
     #    gate (non-whitespace chars) keeps genuine, lengthy reviews safe.
     local nlen
     nlen="$(tr -d '[:space:]' < "$f" | wc -c | tr -d '[:space:]')"
-    if (( nlen < 1600 )) && grep -qiE "(cannot|could not|couldn'?t|unable to|can'?t)[[:space:]]+(access|read|open|locate|find|view|retrieve)[^.]{0,60}(file|plan|prd|diff|patch|artifact|document|spec)" "$f"; then
+    if (( nlen < 1600 )) && grep -ciE "(cannot|could not|couldn'?t|unable to|can'?t)[[:space:]]+(access|read|open|locate|find|view|retrieve)[^.]{0,60}(file|plan|prd|diff|patch|artifact|document|spec)" "$f" >/dev/null; then
         return 1
     fi
 
@@ -2268,7 +2269,7 @@ council_write_summary_json() {
         --arg responses_received "$COUNCIL_RESPONSES_RECEIVED" \
         --arg quorum_met "$COUNCIL_QUORUM_MET" \
         --arg distinct_providers "${COUNCIL_DISTINCT_PROVIDERS:-0}" \
-        --arg responding_providers "${COUNCIL_RESPONDING_PROVIDERS# }" \
+        --arg responding_providers "${COUNCIL_RESPONDING_PROVIDERS:+${COUNCIL_RESPONDING_PROVIDERS# }}" \
         --arg chair_received "$COUNCIL_CHAIR_RESPONSE_RECEIVED" \
         --arg chair_fallback_used "$COUNCIL_CHAIR_FALLBACK_USED" \
         --arg chair_fallback_persona "$COUNCIL_CHAIR_FALLBACK_PERSONA" \
