@@ -1,6 +1,6 @@
 {
   "name": "octo",
-  "version": "9.45.0",
+  "version": "9.47.1",
   "description": "v9.44.1 \u2014 Patch release for Gemini environment/version detection and qwen auth gating. Run /octo:setup.",
   "author": {
     "name": "nyldn",

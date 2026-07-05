@@ -265,33 +265,46 @@ atomic_json_update() {
     local jq_expression="$2"
     shift 2
 
+    # mkdir is atomic on every POSIX filesystem, unlike a check-then-touch
+    # lock: two concurrent callers can never both succeed at creating the
+    # same directory, so this is a real mutex (see scripts/lib/events.sh
+    # _octo_event_lock for the same pattern). The lock is still a ".lock"
+    # path — it's just a directory now instead of a plain file.
     local lockfile="${json_file}.lock"
     local timeout=5
     local waited=0
+    local max_waits=$((timeout * 10))
 
-    # Wait for lock with timeout
-    while [[ -f "$lockfile" ]] && [[ $waited -lt $((timeout * 10)) ]]; do
-        sleep 0.1
+    while ! mkdir "$lockfile" 2>/dev/null; do
         waited=$((waited + 1))
+        if [[ $waited -ge $max_waits ]]; then
+            log WARN "Timeout acquiring lock for $json_file"
+            return 1
+        fi
+        sleep 0.1
     done
 
-    if [[ -f "$lockfile" ]]; then
-        log WARN "Timeout acquiring lock for $json_file"
-        return 1
-    fi
+    # This function can run in the same shell as a caller's own long-lived
+    # EXIT/INT/TERM traps (e.g. orchestrate.sh's temp-dir cleanup), so save
+    # and restore them instead of clobbering them with `trap - EXIT`.
+    local prev_exit_trap prev_int_trap prev_term_trap
+    prev_exit_trap=$(trap -p EXIT)
+    prev_int_trap=$(trap -p INT)
+    prev_term_trap=$(trap -p TERM)
+    trap 'rmdir "'"$lockfile"'" 2>/dev/null' EXIT INT TERM
 
-    # Acquire lock
-    touch "$lockfile"
-    trap 'rm -f "'"$lockfile"'"' EXIT
-
-    # Update atomically
-    local tmp_file="${json_file}.tmp.$$"
+    # BASHPID (not $$, which stays constant across every subshell spawned
+    # from the same parent) keeps concurrent callers from colliding on one
+    # temp file name.
+    local tmp_file="${json_file}.tmp.${BASHPID:-$$}"
     jq "$jq_expression" "$@" "$json_file" > "$tmp_file" && mv "$tmp_file" "$json_file"
     local result=$?
+    [[ $result -ne 0 ]] && rm -f "$tmp_file"
 
-    # Release lock
-    rm -f "$lockfile"
-    trap - EXIT
+    rmdir "$lockfile" 2>/dev/null
+    eval "${prev_exit_trap:-trap - EXIT}"
+    eval "${prev_int_trap:-trap - INT}"
+    eval "${prev_term_trap:-trap - TERM}"
 
     return $result
 }

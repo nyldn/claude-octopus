@@ -72,15 +72,17 @@ if [[ -n "${OCTOPUS_PROJECT_DIR:-}" ]]; then
     PROJECT_ROOT="${OCTOPUS_PROJECT_DIR}"
 else
     _octo_pwd_phys="$(pwd -P)"
-    if [[ "${_octo_pwd_phys}" == "${PLUGIN_DIR}" || "${_octo_pwd_phys}" == "${PLUGIN_DIR}/"* ]]; then
-        if [[ -n "${CLAUDE_PROJECT_DIR:-}" && -d "${CLAUDE_PROJECT_DIR}" ]]; then
-            PROJECT_ROOT="${CLAUDE_PROJECT_DIR}"
-        else
-            printf 'WARN: orchestrate.sh invoked from inside the plugin install (%s).\n' "${_octo_pwd_phys}" >&2
-            printf 'WARN: dispatched providers will be sandboxed here and cannot read your project files.\n' >&2
-            printf 'WARN: run from your project directory, or pass -d <project-dir> / set OCTOPUS_PROJECT_DIR.\n' >&2
-        fi
-    fi
+    case "${_octo_pwd_phys}" in
+        "${PLUGIN_DIR}"|"${PLUGIN_DIR}"/*)
+            if [[ -n "${CLAUDE_PROJECT_DIR:-}" && -d "${CLAUDE_PROJECT_DIR}" ]]; then
+                PROJECT_ROOT="${CLAUDE_PROJECT_DIR}"
+            else
+                printf 'WARN: orchestrate.sh invoked from inside the plugin install (%s).\n' "${_octo_pwd_phys}" >&2
+                printf 'WARN: dispatched providers will be sandboxed here and cannot read your project files.\n' >&2
+                printf 'WARN: run from your project directory, or pass -d <project-dir> / set OCTOPUS_PROJECT_DIR.\n' >&2
+            fi
+            ;;
+    esac
     unset _octo_pwd_phys
 fi
 

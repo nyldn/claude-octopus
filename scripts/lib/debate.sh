@@ -559,6 +559,7 @@ ${sonnet_rebuttal}"
 
     # v8.20.0: Quorum consensus mode — check for 2/3 agreement before synthesis
     local synthesis=""
+    local synth_provider="claude"   # #498: synthesis attribution; moderator default
     if [[ "${OCTOPUS_CONSENSUS:-moderator}" == "quorum" ]]; then
         echo ""
         echo -e "${CYAN}[Quorum Mode] Checking for 2/3 agreement...${NC}"
@@ -568,6 +569,7 @@ ${sonnet_rebuttal}"
             synthesis="## Quorum Result (2/3 Agreement)
 
 $quorum_result"
+            synth_provider="quorum"   # #498: attribute the majority path, not the moderator
             echo -e "${GREEN}  ✓ Quorum reached — using majority position${NC}"
         else
             echo -e "${YELLOW}  No quorum — falling back to moderator synthesis${NC}"
@@ -747,6 +749,13 @@ $sonnet_critique
 ## Round $rounds: Final Synthesis & Winner
 $synthesis
 EOF
+
+    # #498: emit a synthesis lifecycle event once the debate result is written.
+    # $synthesis is non-empty here (the failure branch returned above); attribute
+    # the path that produced it (moderator=claude or quorum). count=3 fixed seats.
+    if declare -f octo_event_emit >/dev/null 2>&1; then
+        octo_event_emit "synthesis" phase="debate" provider="$synth_provider" count="3" || true
+    fi
 
     # ═══════════════════════════════════════════════════════════════════════
     # Conclusion Ceremony (v7.13.2 - Issue #10)

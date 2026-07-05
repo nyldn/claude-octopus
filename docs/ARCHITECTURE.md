@@ -34,7 +34,7 @@ Claude Octopus coordinates **nine AI providers** to give you multi-perspective a
 |----------|----------|------------------|-------------|
 | **Codex CLI** | `codex exec --model gpt-5.4` | GPT-5.4 | Your `OPENAI_API_KEY` |
 | **Gemini CLI** | `gemini -y -m gemini-3.1-pro-preview` | Gemini 3.1 Pro Preview | Your `GEMINI_API_KEY` |
-| **Antigravity CLI** | `agy --print --sandbox` | Antigravity default model | Your Antigravity CLI auth |
+| **Antigravity CLI** | `agy --print --sandbox` | `default`/`agy/default`, or an exact label from `agy models` | Your Antigravity CLI auth |
 | **Claude** | Built-in | Claude Sonnet 4.6 / Opus 4.7 | Your Claude Code subscription |
 | **Perplexity** | API-only | Sonar Pro / Sonar | Your `PERPLEXITY_API_KEY` |
 | **OpenRouter** | API-only | 100+ models (GLM-5, Kimi K2.5, DeepSeek R1, etc.) | Your `OPENROUTER_API_KEY` |
