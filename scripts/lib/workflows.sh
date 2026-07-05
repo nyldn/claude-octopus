@@ -1177,9 +1177,21 @@ octo_bool_enabled() {
     esac
 }
 
+tangle_review_warning_text() {
+    local findings_file="$1"
+    [[ -f "$findings_file" ]] || return 0
+    jq -r '(.warning // (if ((.message // "") | test("No changes found to review"; "i")) then .message else "" end)) // ""' "$findings_file" 2>/dev/null || true
+}
+
 tangle_review_blocking_count() {
     local findings_file="$1"
     [[ -f "$findings_file" ]] || { echo 0; return 0; }
+    local review_warning
+    review_warning=$(tangle_review_warning_text "$findings_file")
+    if [[ -n "$review_warning" ]]; then
+        echo 1
+        return 0
+    fi
     jq '[.findings[]? | select((.severity // "") == "normal")] | length' "$findings_file" 2>/dev/null || echo 0
 }
 
@@ -1382,7 +1394,7 @@ tangle_run_context_code_review() {
     TANGLE_REVIEW_FINDINGS_FILE="$findings_file"
     local normal_count review_warning
     normal_count=$(tangle_review_blocking_count "$findings_file")
-    review_warning=$(jq -r '.warning // empty' "$findings_file" 2>/dev/null || true)
+    review_warning=$(tangle_review_warning_text "$findings_file")
     log INFO "Contextual code review findings: $findings_file (normal=${normal_count})"
     if [[ -n "$review_warning" ]]; then
         log WARN "Contextual code review warning: ${review_warning}"
@@ -2039,6 +2051,11 @@ Every [CODING] line must include a same-line Files: clause."
         normal_count=$(tangle_review_blocking_count "$findings_file")
         local current_signature
         current_signature=$(tangle_findings_signature "$findings_file")
+
+        if [[ "$review_rc" -ne 0 ]]; then
+            log WARN "Contextual code review returned non-zero after correction round ${correction_round}; not treating review warning/no-diff as improvement"
+            return "$review_rc"
+        fi
 
         if [[ "${normal_count:-0}" -lt "${previous_normal_count:-0}" ]]; then
             log INFO "Correction round ${correction_round} improved blockers: ${previous_normal_count} -> ${normal_count}"

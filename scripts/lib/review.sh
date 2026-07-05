@@ -469,7 +469,7 @@ Use this context as the requested behavior and constraints. Flag severity=normal
 
     if [[ -z "$diff_content" ]]; then
         log WARN "review_run: no diff found for target=$target"
-        echo '{"findings":[],"message":"No changes found to review"}' > "$findings_file"
+        echo '{"findings":[],"warning":"No changes found to review","message":"No changes found to review"}' > "$findings_file"
         if [[ -n "$proof_dir" ]]; then
             octo_proof_artifact "$proof_dir" "review-findings" "$findings_file" "no changes found"
             octo_proof_claim "$proof_dir" "No changes found to review" "verified" "$findings_file"
@@ -479,7 +479,7 @@ Use this context as the requested behavior and constraints. Flag severity=normal
         fi
         rm -f "$provider_status_file"
         render_terminal_report "$findings_file"
-        return 0
+        return 1
     fi
 
     # Apply skip patterns from REVIEW.md (pre-filter before spending tokens)

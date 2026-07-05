@@ -39,11 +39,17 @@ assert_contains "$WORKFLOWS" "failed but left partial writes" "partial writes co
 assert_contains "$WORKFLOWS" 'run_agent_sync "$correction_agent" "$correction_prompt" 0' "corrections run without absolute timeout"
 assert_contains "$WORKFLOWS" "OCTOPUS_TANGLE_CODE_REVIEW" "code review gate is toggleable"
 assert_contains "$WORKFLOWS" "Contextual code review warning" "review warnings are blocking"
+assert_contains "$WORKFLOWS" "No changes found to review" "legacy no-diff message is detected"
+assert_contains "$WORKFLOWS" "not treating review warning/no-diff as improvement" "no-diff review is blocking"
 assert_contains "$WORKFLOWS" "Skipping ink/deliver because tangle validation gate returned non-zero" "ink is skipped when validation fails"
 assert_contains "$HELP" "Contextual code review" "develop help documents contextual review"
 assert_contains "$HELP" "OCTOPUS_TANGLE_REVIEW_CORRECTION_MODE" "develop help documents bounded mode"
 assert_contains "$HELP" "OCTOPUS_TANGLE_CORRECTION_STALL_WINDOW" "develop help documents stall window"
 assert_contains "$WORKFLOWS" "OCTOPUS_INK_REVIEW_TIMEOUT:-0" "ink review has no wall timeout by default"
+
+REVIEW="$PROJECT_ROOT/scripts/lib/review.sh"
+assert_contains "$REVIEW" "\"warning\":\"No changes found to review\"" "review no-diff writes warning"
+assert_contains "$REVIEW" "return 1" "review no-diff returns non-zero"
 
 QUALITY="$PROJECT_ROOT/scripts/lib/quality.sh"
 assert_contains "$QUALITY" "OCTOPUS_DESIGN_REVIEW_TIMEOUT:-0" "design review uses no wall timeout by default"
