@@ -501,19 +501,19 @@ Be concise and specific. This is a planning exercise, not implementation."
     local design_agy_agent="${OCTOPUS_DESIGN_REVIEW_AGY_AGENT:-${OCTOPUS_DESIGN_REVIEW_GEMINI_AGENT:-agy}}"
     local design_claude_agent="${OCTOPUS_DESIGN_REVIEW_CLAUDE_AGENT:-claude-sonnet}"
     local design_synthesis_agent="${OCTOPUS_DESIGN_REVIEW_SYNTH_AGENT:-claude-opus}"
-    local design_timeout="${OCTOPUS_DESIGN_REVIEW_TIMEOUT:-120}"
-    local design_synth_timeout="${OCTOPUS_DESIGN_REVIEW_SYNTH_TIMEOUT:-120}"
-    if [[ ! "$design_timeout" =~ ^[0-9]+$ ]] || [[ "$design_timeout" -lt 120 ]]; then
-        log WARN "Invalid OCTOPUS_DESIGN_REVIEW_TIMEOUT='${design_timeout}', defaulting to 120s"
-        design_timeout=120
+    local design_timeout="${OCTOPUS_DESIGN_REVIEW_TIMEOUT:-0}"
+    local design_synth_timeout="${OCTOPUS_DESIGN_REVIEW_SYNTH_TIMEOUT:-0}"
+    if [[ ! "$design_timeout" =~ ^[0-9]+$ ]]; then
+        log WARN "Invalid OCTOPUS_DESIGN_REVIEW_TIMEOUT='${design_timeout}', defaulting to no wall timeout"
+        design_timeout=0
     fi
-    if [[ ! "$design_synth_timeout" =~ ^[0-9]+$ ]] || [[ "$design_synth_timeout" -lt 120 ]]; then
-        log WARN "Invalid OCTOPUS_DESIGN_REVIEW_SYNTH_TIMEOUT='${design_synth_timeout}', defaulting to 120s"
-        design_synth_timeout=120
+    if [[ ! "$design_synth_timeout" =~ ^[0-9]+$ ]]; then
+        log WARN "Invalid OCTOPUS_DESIGN_REVIEW_SYNTH_TIMEOUT='${design_synth_timeout}', defaulting to no wall timeout"
+        design_synth_timeout=0
     fi
 
     log INFO "Design review: gathering provider approaches..."
-    log INFO "Design review agents: codex=${design_codex_agent}, agy=${design_agy_agent}, claude=${design_claude_agent}, synthesis=${design_synthesis_agent}, timeout=${design_timeout}s, synth_timeout=${design_synth_timeout}s"
+    log INFO "Design review agents: codex=${design_codex_agent}, agy=${design_agy_agent}, claude=${design_claude_agent}, synthesis=${design_synthesis_agent}, timeout=none, synth_timeout=none"
 
     codex_approach=$(run_agent_sync "$design_codex_agent" "$ceremony_prompt" "$design_timeout" "implementer" "ceremony" 2>/dev/null) || true
     gemini_approach=$(run_agent_sync "$design_agy_agent" "$ceremony_prompt" "$design_timeout" "researcher" "ceremony" 2>/dev/null) || true

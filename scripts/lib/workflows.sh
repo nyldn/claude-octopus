@@ -1089,8 +1089,8 @@ ${previous_decomposition}
         tangle_decompose_fallback_agent=$(octopus_agent_override "tangle" "decompose_fallback" "codex")
     fi
 
-    run_agent_sync "$tangle_decompose_agent" "$reformat_prompt" 120 "researcher" "tangle" || \
-    run_agent_sync "$tangle_decompose_fallback_agent" "$reformat_prompt" 120 "researcher" "tangle"
+    run_agent_sync "$tangle_decompose_agent" "$reformat_prompt" 0 "researcher" "tangle" || \
+    run_agent_sync "$tangle_decompose_fallback_agent" "$reformat_prompt" 0 "researcher" "tangle"
 }
 
 tangle_validate_parallel_write_scopes() {
@@ -1700,8 +1700,8 @@ Every [CODING] line must include a same-line Files: clause."
     fi
 
     local subtasks
-    subtasks=$(run_agent_sync "$tangle_decompose_agent" "$decompose_prompt" 120 "researcher" "tangle") || \
-    subtasks=$(run_agent_sync "$tangle_decompose_fallback_agent" "$decompose_prompt" 120 "researcher" "tangle") || {
+    subtasks=$(run_agent_sync "$tangle_decompose_agent" "$decompose_prompt" 0 "researcher" "tangle") || \
+    subtasks=$(run_agent_sync "$tangle_decompose_fallback_agent" "$decompose_prompt" 0 "researcher" "tangle") || {
         log ERROR "Decomposition failed with all providers; refusing monolithic direct fallback"
         return 1
     }
@@ -2296,8 +2296,8 @@ ink_deliver() {
     # Sonnet 4.6 quality review before synthesis
     log INFO "Step 2a: Sonnet 4.6 quality review..."
     local sonnet_review ink_review_timeout
-    ink_review_timeout="${OCTOPUS_INK_REVIEW_TIMEOUT:-240}"
-    [[ "$ink_review_timeout" =~ ^[0-9]+$ ]] || ink_review_timeout=240
+    ink_review_timeout="${OCTOPUS_INK_REVIEW_TIMEOUT:-0}"
+    [[ "$ink_review_timeout" =~ ^[0-9]+$ ]] || ink_review_timeout=0
     sonnet_review=$(run_agent_sync "claude-sonnet" "Review these development results for quality, completeness, and correctness.
 Flag any issues, gaps, or improvements needed.
 Rate each dimension explicitly as 'Security: N/10', 'Reliability: N/10', 'Performance: N/10', 'Accessibility: N/10'.
@@ -2359,7 +2359,7 @@ Be specific — list files and line numbers. If the code is already clean, say s
 Code to review:
 ${all_results}"
         local simplify_result
-        simplify_result=$(run_agent_sync "claude-sonnet" "$simplify_prompt" 120 "code-reviewer" "ink") || true
+        simplify_result=$(run_agent_sync "claude-sonnet" "$simplify_prompt" 0 "code-reviewer" "ink") || true
         if [[ -n "$simplify_result" ]]; then
             if [[ ${#simplify_result} -gt 12000 ]]; then
                 simplify_result="${simplify_result:0:12000}
@@ -2391,7 +2391,7 @@ Compact source context to synthesize:
 $all_results"
 
     local delivery
-    delivery=$(run_agent_sync "agy" "$synthesis_prompt" 180 "synthesizer" "ink") || {
+    delivery=$(run_agent_sync "agy" "$synthesis_prompt" 0 "synthesizer" "ink") || {
         delivery=$(build_ink_fallback_delivery "$prompt" "$sonnet_review" "$all_results")
     }
 

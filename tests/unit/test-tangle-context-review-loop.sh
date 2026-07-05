@@ -32,6 +32,8 @@ assert_contains "$WORKFLOWS" "tangle_apply_review_corrections" "tangle applies r
 assert_contains "$WORKFLOWS" "OCTOPUS_TANGLE_REVIEW_CORRECTION_MODE" "correction loop supports explicit bounded mode"
 assert_contains "$WORKFLOWS" "OCTOPUS_TANGLE_CORRECTION_STALL_WINDOW" "correction loop uses stall watchdog"
 assert_contains "$WORKFLOWS" "OCTOPUS_TANGLE_DEADLINE:-0" "initial tangle deadline defaults to no absolute timeout"
+assert_contains "$WORKFLOWS" "decompose_prompt" "decomposition prompt is present"
+assert_contains "$WORKFLOWS" '"$decompose_prompt" 0' "decomposition runs without absolute timeout"
 assert_contains "$WORKFLOWS" "_tangle_max_wait" "initial tangle deadline is optional"
 assert_contains "$WORKFLOWS" "failed but left partial writes" "partial writes continue to validation/review"
 assert_contains "$WORKFLOWS" 'run_agent_sync "$correction_agent" "$correction_prompt" 0' "corrections run without absolute timeout"
@@ -41,7 +43,11 @@ assert_contains "$WORKFLOWS" "Skipping ink/deliver because tangle validation gat
 assert_contains "$HELP" "Contextual code review" "develop help documents contextual review"
 assert_contains "$HELP" "OCTOPUS_TANGLE_REVIEW_CORRECTION_MODE" "develop help documents bounded mode"
 assert_contains "$HELP" "OCTOPUS_TANGLE_CORRECTION_STALL_WINDOW" "develop help documents stall window"
-assert_contains "$WORKFLOWS" "OCTOPUS_INK_REVIEW_TIMEOUT" "ink review timeout is configurable"
+assert_contains "$WORKFLOWS" "OCTOPUS_INK_REVIEW_TIMEOUT:-0" "ink review has no wall timeout by default"
+
+QUALITY="$PROJECT_ROOT/scripts/lib/quality.sh"
+assert_contains "$QUALITY" "OCTOPUS_DESIGN_REVIEW_TIMEOUT:-0" "design review uses no wall timeout by default"
+assert_contains "$QUALITY" "timeout=none" "design review reports no wall timeout"
 
 HEARTBEAT="$PROJECT_ROOT/scripts/lib/heartbeat.sh"
 assert_contains "$HEARTBEAT" "timeout_secs=0 means no absolute timeout" "timeout zero disables absolute timeout"
