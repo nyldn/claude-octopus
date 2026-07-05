@@ -1213,6 +1213,19 @@ tangle_findings_signature() {
     jq -r '[.findings[]? | select((.severity // "") == "normal") | (.title // .message // "untitled")] | sort | join(" | ")' "$findings_file" 2>/dev/null || echo "unparseable"
 }
 
+# Fingerprint only the actionable validation-gate decision. This lets the
+# correction loop distinguish useful validation movement from a static gate that
+# is being recomputed from immutable initial subtask result files.
+tangle_validation_signature() {
+    local validation_file="$1"
+    [[ -f "$validation_file" ]] || { echo "missing"; return 0; }
+    awk '
+        /^### Quality Gate:/ { capture=1 }
+        /^### Subtask Results/ { capture=0 }
+        capture { print }
+    ' "$validation_file" 2>/dev/null | sha256sum | awk '{print $1}'
+}
+
 tangle_worktree_fingerprint() {
     local repo_root
     repo_root=$(tangle_resolve_repo_root 2>/dev/null || git rev-parse --show-toplevel 2>/dev/null || pwd)
@@ -2019,6 +2032,11 @@ Every [CODING] line must include a same-line Files: clause."
     local previous_normal_count="$normal_count"
     local previous_signature
     previous_signature=$(tangle_findings_signature "$findings_file")
+    local previous_validation_signature
+    previous_validation_signature=$(tangle_validation_signature "$validation_file")
+    local best_normal_count="$normal_count"
+    local no_progress_rounds=0
+    local convergence_round_limit="${OCTOPUS_TANGLE_CONVERGENCE_NO_PROGRESS_ROUNDS:-3}"
     local correction_strategy="delta"
 
     while [[ "${normal_count:-0}" -gt 0 ]]; do
@@ -2072,13 +2090,37 @@ Every [CODING] line must include a same-line Files: clause."
             correction_strategy="single-finding"
         fi
 
+        local current_validation_signature
+        current_validation_signature=$(tangle_validation_signature "$validation_file")
+        local made_progress=0
+        if [[ "${normal_count:-0}" -lt "${best_normal_count:-0}" ]]; then
+            best_normal_count="$normal_count"
+            made_progress=1
+        fi
+        if [[ "$current_validation_signature" != "$previous_validation_signature" ]]; then
+            made_progress=1
+        fi
+
+        if [[ "$made_progress" -eq 1 ]]; then
+            no_progress_rounds=0
+        else
+            no_progress_rounds=$((no_progress_rounds + 1))
+            log WARN "Correction round ${correction_round} did not improve best blockers or validation signature (${no_progress_rounds}/${convergence_round_limit})"
+        fi
+
         if [[ "${TANGLE_CORRECTION_CHANGED:-0}" != "1" && "${TANGLE_CORRECTION_STATUS:-}" == *"stalled"* ]]; then
             log WARN "Correction stalled without partial writes; stopping to avoid a no-progress loop"
             return 1
         fi
 
+        if [[ "${convergence_round_limit:-0}" -gt 0 && "$no_progress_rounds" -ge "$convergence_round_limit" ]]; then
+            log ERROR "Stopping tangle correction loop after ${no_progress_rounds} rounds without new best blockers or validation progress (best_normal=${best_normal_count}, current_normal=${normal_count})"
+            return 1
+        fi
+
         previous_normal_count="$normal_count"
         previous_signature="$current_signature"
+        previous_validation_signature="$current_validation_signature"
         ((correction_round++)) || true
     done
 
