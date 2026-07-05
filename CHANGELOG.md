@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **Council advice quorum now requires ≥2 DISTINCT providers with substantive responses.** Previously `quorum.met` for `standard`/`deep` depth was true as long as `received_non_chair >= required`, counting a seat on dispatch exit code alone — so a single-vendor result (e.g. 3× codex because agy/gemini returned empty) and even seats that exit 0 while reviewing nothing (the host self-dispatch stub, empty/~1B provider returns) all counted, producing false `met:true`. Now each responding seat's provider is recorded only when its response is non-empty **and** substantive (rejecting the host stub and short "cannot access the files" degenerate reviews, brevity-gated so long real reviews pass); gate-depth councils require ≥2 distinct providers, and `summary.json` reports `distinct_providers` + `responding_providers`. `quick` depth (required 1) is unchanged.
+
 ## [9.47.1] - 2026-07-02
 
 ### Fixed

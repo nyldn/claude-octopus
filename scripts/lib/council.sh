@@ -1571,20 +1571,71 @@ council_write_config_json() {
         }' > "$config_path"
 }
 
+council_response_nonempty() {
+    # True only if the file has at least one non-whitespace character. An empty
+    # or whitespace-only response (e.g. an agy seat that hit an exhausted quota
+    # group) is NOT a real response and must not count toward the quorum.
+    local f="$1"
+    [[ -s "$f" ]] || return 1
+    [[ -n "$(tr -d '[:space:]' < "$f")" ]]
+}
+
+council_response_is_substantive() {
+    # A non-empty response can still be DEGENERATE — it produced bytes but reviewed
+    # nothing — and such a seat must not count toward the distinct-provider quorum.
+    # Two known degenerate shapes:
+    #   1. The host self-dispatch stub (a fixed string the runner itself emits when
+    #      a seat's provider == the host CLI) — matched exactly, zero false positives.
+    #   2. An external seat that signalled it could not READ the artifact ("I cannot
+    #      access the plan/files…") — gated on brevity so a LONG real review that
+    #      merely quotes such a phrase is never rejected.
+    # (RATIONALE: sail-cruisey #1839 — agy's "I cannot access the implementation
+    # plan, PRD, or security audit files" REVISE was counted as the 2nd provider.)
+    local f="$1"
+    [[ -f "$f" ]] || return 1
+
+    # 1) Host self-dispatch stub — runner-emitted, exact match.
+    if grep -qiE 'Subprocess dispatch is unavailable|active host runtime' "$f"; then
+        return 1
+    fi
+
+    # 2) Short response that reports it could not reach the artifact. The brevity
+    #    gate (non-whitespace chars) keeps genuine, lengthy reviews safe.
+    local nlen
+    nlen="$(tr -d '[:space:]' < "$f" | wc -c | tr -d '[:space:]')"
+    if (( nlen < 1600 )) && grep -qiE "(cannot|could not|couldn'?t|unable to|can'?t)[[:space:]]+(access|read|open|locate|find|view|retrieve)[^.]{0,60}(file|plan|prd|diff|patch|artifact|document|spec)" "$f"; then
+        return 1
+    fi
+
+    return 0
+}
+
 council_run_advice_phase() {
     COUNCIL_RESPONSES_RECEIVED="0"
     COUNCIL_CHAIR_RESPONSE_RECEIVED="false"
+    COUNCIL_RESPONDING_PROVIDERS=""
 
-    local index=0 member persona slug output_path seat
+    local index=0 member persona slug output_path seat mprovider
     while IFS= read -r member; do
         persona="$(jq -r '.persona' <<< "$member")"
         seat="$(jq -r '.seat' <<< "$member")"
+        mprovider="$(jq -r '.provider' <<< "$member")"
         slug="$(council_slug "$persona")"
         output_path="${COUNCIL_RUN_DIR}/responses/$(printf '%02d' "$index")-${slug}.md"
         if council_dispatch_member "$member" "independent-advice" > "$output_path"; then
             COUNCIL_RESPONSES_RECEIVED=$((COUNCIL_RESPONSES_RECEIVED + 1))
             if [[ "$seat" == "chair" ]]; then
                 COUNCIL_CHAIR_RESPONSE_RECEIVED="true"
+            fi
+            # Count a provider toward the distinct-vendor quorum ONLY if the seat
+            # returned a non-empty, SUBSTANTIVE response. Exit code alone is not
+            # enough: the host self-dispatch stub and empty/degenerate returns exit
+            # 0 but review nothing, and previously inflated distinct_providers ->
+            # false met:true (sail-cruisey #2002/#2007/#2003). A single-vendor
+            # result (e.g. 3x codex, #1993) is still caught by the distinct guard
+            # below. Dedup happens downstream via sort -u.
+            if council_response_nonempty "$output_path" && council_response_is_substantive "$output_path"; then
+                COUNCIL_RESPONDING_PROVIDERS="${COUNCIL_RESPONDING_PROVIDERS} ${mprovider}"
             fi
         else
             rm -f "$output_path"
@@ -1599,10 +1650,26 @@ council_run_advice_phase() {
     local required received_non_chair
     required="$(council_required_non_chair)"
     received_non_chair="$(( COUNCIL_RESPONSES_RECEIVED > 0 ? COUNCIL_RESPONSES_RECEIVED - 1 : 0 ))"
-    if [[ "$COUNCIL_CHAIR_RESPONSE_RECEIVED" == "true" ]] && (( received_non_chair >= required )); then
+
+    # Distinct-vendor guard: a council where every responding seat is the SAME
+    # provider (e.g. 3 codex because agy/gemini returned empty) is NOT a valid
+    # consensus — one vendor can't catch its own blind spot. Count DISTINCT
+    # providers among seats that actually responded; gate-depth councils
+    # (required >= 2, i.e. standard/deep — the CP1/CP2 votes) need >= 2 distinct.
+    COUNCIL_DISTINCT_PROVIDERS="$(printf '%s' "$COUNCIL_RESPONDING_PROVIDERS" | tr ' ' '\n' | sed '/^$/d' | sort -u | wc -l | tr -d '[:space:]')"
+    [[ -z "$COUNCIL_DISTINCT_PROVIDERS" ]] && COUNCIL_DISTINCT_PROVIDERS=0
+
+    if [[ "$COUNCIL_CHAIR_RESPONSE_RECEIVED" == "true" ]] && (( received_non_chair >= required )) \
+        && { (( required < 2 )) || (( COUNCIL_DISTINCT_PROVIDERS >= 2 )); }; then
         COUNCIL_QUORUM_MET="true"
     else
         COUNCIL_QUORUM_MET="false"
+        if (( required >= 2 )) && (( COUNCIL_DISTINCT_PROVIDERS < 2 )) && (( received_non_chair >= required )); then
+            # council.sh has no log() of its own (it lives in orchestrate.sh); emit
+            # via the same stderr convention the rest of this file uses so the guard
+            # never crashes when council is sourced standalone.
+            echo "Council warning: Quorum FAILED the distinct-vendor guard: ${received_non_chair} responses but only ${COUNCIL_DISTINCT_PROVIDERS} distinct provider(s) (${COUNCIL_RESPONDING_PROVIDERS# }). Single-vendor is not a valid consensus — restore a 2nd provider (§4) or surface the provider-shortage gate to the human." >&2
+        fi
     fi
 }
 
@@ -2200,6 +2267,8 @@ council_write_summary_json() {
         --argjson council_roster "$COUNCIL_ROSTER_JSON" \
         --arg responses_received "$COUNCIL_RESPONSES_RECEIVED" \
         --arg quorum_met "$COUNCIL_QUORUM_MET" \
+        --arg distinct_providers "${COUNCIL_DISTINCT_PROVIDERS:-0}" \
+        --arg responding_providers "${COUNCIL_RESPONDING_PROVIDERS# }" \
         --arg chair_received "$COUNCIL_CHAIR_RESPONSE_RECEIVED" \
         --arg chair_fallback_used "$COUNCIL_CHAIR_FALLBACK_USED" \
         --arg chair_fallback_persona "$COUNCIL_CHAIR_FALLBACK_PERSONA" \
@@ -2239,6 +2308,8 @@ council_write_summary_json() {
             required_non_chair: (if $depth == "quick" then 1 else 2 end),
             received_non_chair: (if ($responses_received | tonumber) > 0 then (($responses_received | tonumber) - 1) else 0 end),
             chair_received: ($chair_received == "true"),
+            distinct_providers: ($distinct_providers | tonumber),
+            responding_providers: $responding_providers,
             met: ($quorum_met == "true")
           },
           providers: $providers,
