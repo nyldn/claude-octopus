@@ -186,8 +186,14 @@ test_copilot_in_available_agents() {
 }
 
 test_copilot_in_dispatch() {
-    test_case "copilot dispatch wired in dispatch.sh"
-    if grep -q 'copilot.*no-ask-user\|copilot_execute' "$PROJECT_ROOT/scripts/lib/dispatch.sh"; then test_pass; else test_fail "missing copilot dispatch"; fi
+    test_case "copilot dispatch routes through helpers/copilot-exec.sh"
+    if grep -q 'helpers/copilot-exec.sh' "$PROJECT_ROOT/scripts/lib/dispatch.sh"; then test_pass; else test_fail "copilot dispatch does not route through the shim"; fi
+}
+
+test_copilot_shim_nonint_flags() {
+    test_case "copilot-exec.sh shim runs copilot non-interactively"
+    if grep -q 'copilot -p' "$PROJECT_ROOT/scripts/helpers/copilot-exec.sh" && \
+       grep -q 'no-ask-user' "$PROJECT_ROOT/scripts/helpers/copilot-exec.sh"; then test_pass; else test_fail "shim missing -p/--no-ask-user non-interactive invocation"; fi
 }
 
 test_copilot_lib_exists() {
@@ -244,6 +250,7 @@ test_cursor_has_council_command
 # Copilot wiring
 test_copilot_in_available_agents
 test_copilot_in_dispatch
+test_copilot_shim_nonint_flags
 test_copilot_lib_exists
 test_copilot_in_doctor
 test_copilot_in_providers_health
