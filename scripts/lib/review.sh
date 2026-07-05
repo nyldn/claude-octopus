@@ -210,6 +210,69 @@ build_review_fleet() {
     echo "$fleet"
 }
 
+review_progress_fingerprint_since() {
+    local since_epoch="$1"
+    local results_dir="${2:-${RESULTS_DIR:-${HOME}/.claude-octopus/results}}"
+    find "$results_dir" -maxdepth 1 -type f -newermt "@${since_epoch}" \
+        -printf '%p %s %T@\n' 2>/dev/null | sort | sha256sum 2>/dev/null | awk '{print $1}'
+}
+
+review_run_agent_sync_progress() {
+    local agent_type="$1"
+    local prompt="$2"
+    local role="$3"
+    local phase="$4"
+    local label="${5:-sync}"
+    local results_dir="${RESULTS_DIR:-${HOME}/.claude-octopus/results}"
+    local stall_window="${OCTOPUS_REVIEW_STALL_WINDOW:-1800}"
+    local poll_secs="${OCTOPUS_REVIEW_POLL_SECS:-30}"
+    [[ "$stall_window" =~ ^[0-9]+$ ]] || stall_window=1800
+    [[ "$poll_secs" =~ ^[0-9]+$ ]] || poll_secs=30
+    [[ "$poll_secs" -lt 1 ]] && poll_secs=1
+    mkdir -p "$results_dir" 2>/dev/null || true
+
+    local start_epoch out_file rc_file pid rc last_progress last_fp current_fp now
+    start_epoch=$(date +%s)
+    out_file="${results_dir}/.tmp-review-sync-${label}-$$-${RANDOM}.out"
+    rc_file="${out_file}.rc"
+    : > "$out_file"
+    rm -f "$rc_file" 2>/dev/null || true
+
+    (
+        run_agent_sync "$agent_type" "$prompt" 0 "$role" "$phase" > "$out_file" 2>&1
+        echo "$?" > "$rc_file"
+    ) &
+    pid=$!
+    last_progress=$(date +%s)
+    last_fp=$(review_progress_fingerprint_since "$start_epoch" "$results_dir")
+
+    while kill -0 "$pid" 2>/dev/null; do
+        sleep "$poll_secs"
+        now=$(date +%s)
+        current_fp=$(review_progress_fingerprint_since "$start_epoch" "$results_dir")
+        if [[ "$current_fp" != "$last_fp" ]]; then
+            last_fp="$current_fp"
+            last_progress="$now"
+            log INFO "review_run: ${label} progress observed"
+        elif [[ "$stall_window" -gt 0 && $((now - last_progress)) -ge "$stall_window" ]]; then
+            log WARN "review_run: ${label} stalled after ${stall_window}s with no observable progress — stopping provider and preserving partial output"
+            pkill -TERM -P "$pid" 2>/dev/null || true
+            kill -TERM "$pid" 2>/dev/null || true
+            sleep 5
+            pkill -KILL -P "$pid" 2>/dev/null || true
+            kill -KILL "$pid" 2>/dev/null || true
+            break
+        fi
+    done
+
+    wait "$pid" 2>/dev/null || true
+    rc=1
+    [[ -f "$rc_file" ]] && rc=$(cat "$rc_file" 2>/dev/null || echo 1)
+    cat "$out_file" 2>/dev/null || true
+    rm -f "$out_file" "$rc_file" 2>/dev/null || true
+    return "$rc"
+}
+
 # review_extract_findings_array: returns a JSON array of findings from a Round 1
 # markdown result file. Providers sometimes echo the full prompt or wrap JSON in
 # prose; prefer the exact ## Output jq path, then fall back to scanning the file
@@ -590,18 +653,15 @@ Use this context as the requested behavior and constraints. Flag severity=normal
         fi
     fi
 
-    # ── Scale timeout by diff size (#303) ───────────────────────────────────
+    # ── Progress-supervised review execution ────────────────────────────────
     local diff_lines
     diff_lines=$(echo "$diff_content" | wc -l | tr -d ' ')
-    local review_timeout="${OCTOPUS_REVIEW_TIMEOUT:-480}"
-    if [[ "$review_timeout" -eq 480 ]]; then
-        if [[ "$diff_lines" -gt 5000 ]]; then
-            review_timeout=900
-        elif [[ "$diff_lines" -gt 2000 ]]; then
-            review_timeout=600
-        fi
-    fi
-    export TIMEOUT="$review_timeout"
+    local review_stall_window="${OCTOPUS_REVIEW_STALL_WINDOW:-1800}"
+    local review_poll_secs="${OCTOPUS_REVIEW_POLL_SECS:-30}"
+    [[ "$review_stall_window" =~ ^[0-9]+$ ]] || review_stall_window=1800
+    [[ "$review_poll_secs" =~ ^[0-9]+$ ]] || review_poll_secs=30
+    [[ "$review_poll_secs" -lt 1 ]] && review_poll_secs=1
+    export TIMEOUT=0
 
     if [[ -n "$proof_dir" ]]; then
         octo_proof_event "$proof_dir" "review_scope" "$(jq -n \
@@ -620,7 +680,7 @@ Use this context as the requested behavior and constraints. Flag severity=normal
     fi
 
     # ── ROUND 1: Parallel agent fleet ────────────────────────────────────────
-    log INFO "review_run: Round 1 — parallel specialist fleet (timeout=${review_timeout}s, diff=${diff_lines} lines)"
+    log INFO "review_run: Round 1 — parallel specialist fleet (no wall timeout, stall_window=${review_stall_window}s, diff=${diff_lines} lines)"
     local fleet
     fleet=$(build_review_fleet)
 
@@ -657,6 +717,7 @@ CRITICAL OUTPUT FORMAT: Return ONLY a valid JSON object. No markdown, no prose, 
 
     local round1_files=()
     local round1_agent_types=()
+    local round1_pids=()
 
     fleet_dispatch_begin
     while IFS=: read -r agent_type role specialty; do
@@ -672,16 +733,18 @@ CRITICAL OUTPUT FORMAT: Return ONLY a valid JSON object. No markdown, no prose, 
 ${agent_prompt_base}"
 
         spawn_agent "$agent_type" "$agent_prompt" "$task_id" "$role" "review" &
+        round1_pids+=("$!")
     done <<< "$fleet"
 
     fleet_dispatch_end
 
-    # Wait for all Round 1 agents
-    # v9.3.1: wait only catches direct children; spawn_agent's actual CLI runs as
-    # grandchild processes. Poll result files for ## Status markers instead (#190).
-    wait  # Wait for spawn_agent setup to finish
-    local _poll_start
+    # Wait for all Round 1 agents with a progress watchdog instead of a wall timeout.
+    # timeout_secs=0 disables provider wall-clock caps; this loop only stops when
+    # every result is terminal or no result/output changes for the stall window.
+    local _poll_start _last_progress _last_fp _current_fp _round1_stalled=false
     _poll_start=$(date +%s)
+    _last_progress="$_poll_start"
+    _last_fp=$(review_progress_fingerprint_since "$_poll_start" "$RESULTS_DIR")
     while true; do
         local _all_done=true
         for _rf in "${round1_files[@]}"; do
@@ -691,12 +754,29 @@ ${agent_prompt_base}"
             fi
         done
         [[ "$_all_done" == "true" ]] && break
-        if [[ $(( $(date +%s) - _poll_start )) -ge $review_timeout ]]; then
-            log WARN "review_run: Round 1 timed out after ${review_timeout}s — collecting partial results"
+
+        _current_fp=$(review_progress_fingerprint_since "$_poll_start" "$RESULTS_DIR")
+        if [[ "$_current_fp" != "$_last_fp" ]]; then
+            _last_fp="$_current_fp"
+            _last_progress=$(date +%s)
+            log INFO "review_run: Round 1 progress observed"
+        elif [[ "$review_stall_window" -gt 0 && $(( $(date +%s) - _last_progress )) -ge "$review_stall_window" ]]; then
+            _round1_stalled=true
+            log WARN "review_run: Round 1 stalled after ${review_stall_window}s — collecting partial results"
+            for _pid in "${round1_pids[@]}"; do
+                pkill -TERM -P "$_pid" 2>/dev/null || true
+                kill -TERM "$_pid" 2>/dev/null || true
+            done
+            sleep 5
+            for _pid in "${round1_pids[@]}"; do
+                pkill -KILL -P "$_pid" 2>/dev/null || true
+                kill -KILL "$_pid" 2>/dev/null || true
+            done
             break
         fi
-        sleep 2
+        sleep "$review_poll_secs"
     done
+    for _pid in "${round1_pids[@]}"; do wait "$_pid" 2>/dev/null || true; done
     log INFO "review_run: Round 1 complete"
 
     # Collect Round 1 findings — robustly extract the last JSON object with a
@@ -772,9 +852,6 @@ ${agent_prompt_base}"
 
     # ── ROUND 2: Verification ─────────────────────────────────────────────────
     log INFO "review_run: Round 2 — verification"
-    local review_verifier_timeout
-    review_verifier_timeout="${OCTOPUS_REVIEW_VERIFIER_TIMEOUT:-300}"
-    [[ "$review_verifier_timeout" =~ ^[0-9]+$ ]] || review_verifier_timeout=300
     local verifier_prompt
     verifier_prompt="You are a code review verifier. For each finding below, check whether it is a real bug (confirmed), a false positive, or needs debate (uncertain/conflicting).
 
@@ -794,13 +871,13 @@ $(echo "$all_findings" | jq -c '.')
 Return ONLY valid JSON with 'findings' array including verdict field."
 
     local verified_findings
-    verified_findings=$(run_agent_sync "codex" "$verifier_prompt" "$review_verifier_timeout" "code-reviewer" "review") && {
+    verified_findings=$(review_run_agent_sync_progress "codex" "$verifier_prompt" "code-reviewer" "review" "verifier-codex") && {
         echo "codex|ok|Round 2 verification" >> "$provider_status_file"
     } || {
         log WARN "review_run: codex verifier failed, falling back to claude-sonnet"
         log "USER" "⚠ Round 2: Codex unavailable → claude-sonnet (fallback). Codex API usage will NOT change."
         echo "codex|fallback|Round 2 → claude-sonnet" >> "$provider_status_file"
-        verified_findings=$(run_agent_sync "claude-sonnet" "$verifier_prompt" "$review_verifier_timeout" "code-reviewer" "review") || {
+        verified_findings=$(review_run_agent_sync_progress "claude-sonnet" "$verifier_prompt" "code-reviewer" "review" "verifier-claude-sonnet") || {
             log WARN "review_run: verification failed entirely, using all findings as confirmed"
             verified_findings="{\"findings\":$(echo "$all_findings" | \
                 jq 'map(. + {"verdict":"confirmed"})' 2>/dev/null || echo "[]")}"
@@ -828,7 +905,7 @@ Return ONLY valid JSON with 'findings' array including verdict field."
 Findings: $(echo "$debate_candidates" | jq -c '.')
 Return JSON: {\"include\": [...finding titles...], \"exclude\": [...finding titles...]}"
             local debate_result
-            debate_result=$(run_agent_sync "codex" "$debate_prompt" 120 "code-reviewer" "review") && {
+            debate_result=$(review_run_agent_sync_progress "codex" "$debate_prompt" "code-reviewer" "review" "debate-codex") && {
                 echo "codex|ok|Round 3 debate" >> "$provider_status_file"
             } || {
                 log WARN "review_run: debate agent failed, including all contested findings"
@@ -859,10 +936,8 @@ Findings: $(echo "$confirmed_findings" | jq -c '.')
 
 Return ONLY JSON: {\"findings\": [...ranked, deduplicated findings...]}"
 
-    local final_json synth_ok="true" review_synthesis_timeout
-    review_synthesis_timeout="${OCTOPUS_REVIEW_SYNTHESIS_TIMEOUT:-120}"
-    [[ "$review_synthesis_timeout" =~ ^[0-9]+$ ]] || review_synthesis_timeout=120
-    final_json=$(run_agent_sync "claude-sonnet" "$synthesis_prompt" "$review_synthesis_timeout" "code-reviewer" "review") || {
+    local final_json synth_ok="true"
+    final_json=$(review_run_agent_sync_progress "claude-sonnet" "$synthesis_prompt" "code-reviewer" "review" "synthesis-claude-sonnet") || {
         synth_ok="false"
         log WARN "review_run: synthesis failed, using confirmed findings sorted as-is"
         final_json="{\"findings\":$(echo "$confirmed_findings" | jq -c 'sort_by(.severity)' 2>/dev/null || echo "[]")}"

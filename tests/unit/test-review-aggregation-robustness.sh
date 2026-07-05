@@ -42,11 +42,22 @@ else
     test_fail "unexpected extraction output: $out"
 fi
 
-test_case "verifier timeout is review-scoped"
-if grep -q "OCTOPUS_REVIEW_VERIFIER_TIMEOUT" "$REVIEW_SH"; then test_pass; else test_fail "missing verifier timeout"; fi
+test_case "review agents run without absolute timeout"
+if grep -q "export TIMEOUT=0" "$REVIEW_SH" && grep -q "review_run_agent_sync_progress" "$REVIEW_SH"; then
+    test_pass
+else
+    test_fail "review no-wall-timeout wiring missing"
+fi
 
-test_case "synthesis timeout is review-scoped"
-if grep -q "OCTOPUS_REVIEW_SYNTHESIS_TIMEOUT" "$REVIEW_SH"; then test_pass; else test_fail "missing synthesis timeout"; fi
+test_case "old review timeout envs are removed"
+if grep -q "OCTOPUS_REVIEW_VERIFIER_TIMEOUT\|OCTOPUS_REVIEW_SYNTHESIS_TIMEOUT\|OCTOPUS_REVIEW_TIMEOUT" "$REVIEW_SH"; then
+    test_fail "old review timeout env still present"
+else
+    test_pass
+fi
+
+test_case "review uses stall watchdog"
+if grep -q "OCTOPUS_REVIEW_STALL_WINDOW" "$REVIEW_SH"; then test_pass; else test_fail "missing review stall window"; fi
 
 test_case "invalid synthesis has local fallback"
 if grep -q "synthesis returned invalid findings JSON" "$REVIEW_SH"; then test_pass; else test_fail "missing local fallback"; fi
