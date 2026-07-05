@@ -1195,6 +1195,67 @@ tangle_normal_findings_summary() {
     jq -r '.findings[]? | select((.severity // "") == "normal") | "### " + (.title // "untitled") + "\n- Location: " + (.file // "unknown") + ":" + ((.line // 0)|tostring) + "\n- Confidence: " + ((.confidence // 0)|tostring) + "\n\n" + (.detail // "") + "\n"' "$findings_file" 2>/dev/null || true
 }
 
+tangle_findings_signature() {
+    local findings_file="$1"
+    [[ -f "$findings_file" ]] || { echo "missing"; return 0; }
+    jq -r '[.findings[]? | select((.severity // "") == "normal") | (.title // .message // "untitled")] | sort | join(" | ")' "$findings_file" 2>/dev/null || echo "unparseable"
+}
+
+tangle_worktree_fingerprint() {
+    local repo_root
+    repo_root=$(tangle_resolve_repo_root 2>/dev/null || git rev-parse --show-toplevel 2>/dev/null || pwd)
+    {
+        git -C "$repo_root" status --porcelain 2>/dev/null || true
+        git -C "$repo_root" diff --stat 2>/dev/null || true
+        git -C "$repo_root" ls-files --others --exclude-standard 2>/dev/null || true
+    } | sha256sum 2>/dev/null | awk '{print $1}'
+}
+
+tangle_scope_contamination_summary() {
+    local repo_root
+    repo_root=$(tangle_resolve_repo_root 2>/dev/null || git rev-parse --show-toplevel 2>/dev/null || pwd)
+    git -C "$repo_root" status --porcelain 2>/dev/null \
+        | awk '{print $2}' \
+        | grep -E '(^|/)(_wr\.py|.*\.bak$|.*_new\.[^.]+$|.*_p[0-9]+\.[^.]+$|.*\.tmp$|.*\.orig$)' \
+        || true
+}
+
+tangle_correction_strategy_prompt() {
+    local strategy="${1:-delta}"
+    case "$strategy" in
+        cleanup-and-fix)
+            cat <<'EOF'
+Strategy for this round:
+- First remove or reverse out-of-scope scratch/backup files created by earlier attempts.
+- Then fix the smallest set of blocking findings possible.
+- Do not create backup, scratch, _new, _pN, .tmp, .orig, or helper files.
+EOF
+            ;;
+        single-finding)
+            cat <<'EOF'
+Strategy for this round:
+- Do not attempt to fix all findings at once.
+- Pick the highest-impact blocking finding and fix that one cleanly.
+- If tests or OpenAPI are the selected blocker, add only the required files/scripts.
+- Do not create backup, scratch, _new, _pN, .tmp, .orig, or helper files.
+EOF
+            ;;
+        *)
+            cat <<'EOF'
+Strategy for this round:
+- Apply a minimal delta patch that reduces the current blocking findings.
+- Prefer small, path-scoped edits over rewrites.
+- Do not create backup, scratch, _new, _pN, .tmp, .orig, or helper files.
+EOF
+            ;;
+    esac
+}
+
+TANGLE_CORRECTION_FILE=""
+TANGLE_CORRECTION_STATUS=""
+TANGLE_CORRECTION_CHANGED="0"
+TANGLE_CORRECTION_CONTAMINATION=""
+
 tangle_build_develop_review_context() {
     local task_group="$1"
     local resolved_prompt="$2"
@@ -1336,23 +1397,39 @@ tangle_apply_review_corrections() {
     local findings_file="$3"
     local round_num="$4"
     local correction_agent="${5:-codex}"
+    local correction_strategy="${6:-delta}"
     local correction_file="${RESULTS_DIR:-${HOME}/.claude-octopus/results}/tangle-review-corrections-${round_num}-$(date +%s).md"
-    local normal_findings
-    normal_findings=$(tangle_normal_findings_summary "$findings_file")
+    local rc_file="${correction_file}.rc"
+    local normal_findings strategy_text before_fp after_fp last_fp last_size last_progress now
 
+    TANGLE_CORRECTION_FILE="$correction_file"
+    TANGLE_CORRECTION_STATUS="unknown"
+    TANGLE_CORRECTION_CHANGED="0"
+    TANGLE_CORRECTION_CONTAMINATION=""
+
+    normal_findings=$(tangle_normal_findings_summary "$findings_file")
     if [[ -z "$normal_findings" ]]; then
         log INFO "No normal findings to correct in $findings_file"
+        TANGLE_CORRECTION_STATUS="no-findings"
         return 0
     fi
 
+    strategy_text=$(tangle_correction_strategy_prompt "$correction_strategy")
     local correction_prompt="You are in Octopus tangle correction round ${round_num}.
 
 Do not reimplement the whole plan.
 Do not expand scope.
 Do not restart from scratch.
 Preserve existing working-tree changes unless a change is necessary to fix a blocking finding.
-Fix only the blocking severity=normal findings below.
+Fix blocking severity=normal findings using the requested strategy.
 After editing, report files changed and tests/checks run.
+
+${strategy_text}
+
+Hard rules:
+- Do not declare success unless the intended edits were actually written.
+- Do not leave backup/scratch files in the worktree.
+- Prefer exact edits and tests over prose.
 
 Original task contract:
 \`\`\`markdown
@@ -1366,8 +1443,75 @@ Blocking findings to fix:
 ${normal_findings}
 "
 
-    log INFO "Step 5: Applying contextual review corrections (round ${round_num}) with ${correction_agent}..."
-    if run_agent_sync "$correction_agent" "$correction_prompt" "${OCTOPUS_TANGLE_CORRECTION_TIMEOUT:-480}" "implementer" "tangle" > "$correction_file" 2>&1; then
+    before_fp=$(tangle_worktree_fingerprint)
+    last_fp="$before_fp"
+    last_size=0
+    last_progress=$(date +%s)
+    : > "$correction_file"
+    rm -f "$rc_file" 2>/dev/null || true
+
+    local stall_window="${OCTOPUS_TANGLE_CORRECTION_STALL_WINDOW:-1800}"
+    local poll_secs="${OCTOPUS_TANGLE_CORRECTION_POLL_SECS:-30}"
+    [[ "$stall_window" =~ ^[0-9]+$ ]] || stall_window=1800
+    [[ "$poll_secs" =~ ^[0-9]+$ ]] || poll_secs=30
+    [[ "$poll_secs" -lt 1 ]] && poll_secs=1
+
+    log INFO "Step 5: Applying contextual review corrections (round ${round_num}, strategy=${correction_strategy}, stall_window=${stall_window}s) with ${correction_agent}..."
+    (
+        run_agent_sync "$correction_agent" "$correction_prompt" 0 "implementer" "tangle" > "$correction_file" 2>&1
+        echo "$?" > "$rc_file"
+    ) &
+    local correction_pid=$!
+    local stalled="false"
+
+    while kill -0 "$correction_pid" 2>/dev/null; do
+        sleep "$poll_secs"
+        local current_fp current_size
+        current_fp=$(tangle_worktree_fingerprint)
+        current_size=$(stat -c '%s' "$correction_file" 2>/dev/null || echo 0)
+        if [[ "$current_fp" != "$last_fp" || "$current_size" != "$last_size" ]]; then
+            last_fp="$current_fp"
+            last_size="$current_size"
+            last_progress=$(date +%s)
+            log INFO "Correction round ${round_num}: progress observed (worktree/output changed)"
+        fi
+        now=$(date +%s)
+        if [[ "$stall_window" -gt 0 && $((now - last_progress)) -ge "$stall_window" ]]; then
+            stalled="true"
+            log WARN "Correction round ${round_num}: no observable progress for ${stall_window}s — stopping agent and preserving partial writes"
+            pkill -TERM -P "$correction_pid" 2>/dev/null || true
+            kill -TERM "$correction_pid" 2>/dev/null || true
+            sleep 2
+            pkill -KILL -P "$correction_pid" 2>/dev/null || true
+            kill -KILL "$correction_pid" 2>/dev/null || true
+            break
+        fi
+    done
+
+    wait "$correction_pid" 2>/dev/null || true
+    local correction_rc="1"
+    [[ -f "$rc_file" ]] && correction_rc=$(cat "$rc_file" 2>/dev/null || echo 1)
+    rm -f "$rc_file" 2>/dev/null || true
+
+    after_fp=$(tangle_worktree_fingerprint)
+    if [[ "$after_fp" != "$before_fp" ]]; then
+        TANGLE_CORRECTION_CHANGED="1"
+    fi
+    TANGLE_CORRECTION_CONTAMINATION=$(tangle_scope_contamination_summary)
+
+    if [[ "$stalled" == "true" ]]; then
+        TANGLE_CORRECTION_STATUS="stalled-partial"
+        {
+            echo ""
+            echo "## Status: STALLED - PARTIAL RESULTS"
+            echo "# Completed: $(date)"
+        } >> "$correction_file"
+        log WARN "Correction round ${round_num} stalled; partial writes changed=${TANGLE_CORRECTION_CHANGED}; result: $correction_file"
+        return 0
+    fi
+
+    if [[ "$correction_rc" == "0" ]]; then
+        TANGLE_CORRECTION_STATUS="completed"
         {
             echo ""
             echo "## Status: SUCCESS"
@@ -1377,14 +1521,27 @@ ${normal_findings}
         return 0
     fi
 
+    if [[ "$TANGLE_CORRECTION_CHANGED" == "1" ]]; then
+        TANGLE_CORRECTION_STATUS="failed-partial"
+        {
+            echo ""
+            echo "## Status: FAILED - PARTIAL WRITES PRESERVED"
+            echo "# Completed: $(date)"
+        } >> "$correction_file"
+        log WARN "Correction round ${round_num} failed but left partial writes; validation/review should continue: $correction_file"
+        return 0
+    fi
+
+    TANGLE_CORRECTION_STATUS="failed-no-progress"
     {
         echo ""
-        echo "## Status: FAILED"
+        echo "## Status: FAILED - NO PROGRESS"
         echo "# Completed: $(date)"
     } >> "$correction_file"
-    log WARN "Correction round ${round_num} failed: $correction_file"
+    log WARN "Correction round ${round_num} failed with no observable worktree change: $correction_file"
     return 1
 }
+
 
 # Phase 3: TANGLE (Develop) - Enhanced map-reduce with validation
 # Tentacles work together in a coordinated tangle of activity
@@ -1840,14 +1997,35 @@ Every [CODING] line must include a same-line Files: clause."
     local normal_count
     normal_count=$(tangle_review_blocking_count "$findings_file")
 
-    local max_correction_rounds="${OCTOPUS_TANGLE_REVIEW_CORRECTION_ROUNDS:-1}"
-    [[ "$max_correction_rounds" =~ ^[0-9]+$ ]] || max_correction_rounds=1
+    local correction_mode="${OCTOPUS_TANGLE_REVIEW_CORRECTION_MODE:-unbounded}"
+    local max_correction_rounds="${OCTOPUS_TANGLE_REVIEW_CORRECTION_ROUNDS:-0}"
+    [[ "$max_correction_rounds" =~ ^[0-9]+$ ]] || max_correction_rounds=0
     local correction_round=1
+    local previous_normal_count="$normal_count"
+    local previous_signature
+    previous_signature=$(tangle_findings_signature "$findings_file")
+    local correction_strategy="delta"
 
-    while [[ "${normal_count:-0}" -gt 0 && "$correction_round" -le "$max_correction_rounds" ]]; do
-        tangle_apply_review_corrections "$resolved_prompt" "$review_context_file" "$findings_file" "$correction_round" "$tangle_coding_agent" || return 1
+    while [[ "${normal_count:-0}" -gt 0 ]]; do
+        if [[ "$correction_mode" == "bounded" && "$max_correction_rounds" -gt 0 && "$correction_round" -gt "$max_correction_rounds" ]]; then
+            log WARN "Contextual code review still has ${normal_count} blocking finding(s) after bounded ${max_correction_rounds} correction round(s): ${findings_file}"
+            return 1
+        fi
 
-        log INFO "Re-running validation gate after correction round ${correction_round}..."
+        if ! tangle_apply_review_corrections "$resolved_prompt" "$review_context_file" "$findings_file" "$correction_round" "$tangle_coding_agent" "$correction_strategy"; then
+            log WARN "Correction round ${correction_round} made no observable progress; escalating without starting a hot loop"
+            return 1
+        fi
+
+        if [[ -n "${TANGLE_CORRECTION_CONTAMINATION:-}" ]]; then
+            log WARN "Correction round ${correction_round} created out-of-scope/scratch files:"
+            printf '%s\n' "$TANGLE_CORRECTION_CONTAMINATION" | while IFS= read -r _contam; do
+                [[ -n "$_contam" ]] && log WARN "  $_contam"
+            done
+            correction_strategy="cleanup-and-fix"
+        fi
+
+        log INFO "Re-running validation gate after correction round ${correction_round} (status=${TANGLE_CORRECTION_STATUS}, changed=${TANGLE_CORRECTION_CHANGED})..."
         validation_rc=0
         validate_tangle_results "$task_group" "$resolved_prompt" "$worktree_before_file" || validation_rc=$?
 
@@ -1856,11 +2034,36 @@ Every [CODING] line must include a same-line Files: clause."
         tangle_run_context_code_review "$task_group" "$review_context_file" "correction-${correction_round}" || review_rc=$?
         findings_file="$TANGLE_REVIEW_FINDINGS_FILE"
         normal_count=$(tangle_review_blocking_count "$findings_file")
+        local current_signature
+        current_signature=$(tangle_findings_signature "$findings_file")
+
+        if [[ "${normal_count:-0}" -lt "${previous_normal_count:-0}" ]]; then
+            log INFO "Correction round ${correction_round} improved blockers: ${previous_normal_count} -> ${normal_count}"
+            correction_strategy="delta"
+        elif [[ "${normal_count:-0}" -gt "${previous_normal_count:-0}" ]]; then
+            log WARN "Correction round ${correction_round} worsened blockers: ${previous_normal_count} -> ${normal_count}; switching strategy"
+            correction_strategy="single-finding"
+        else
+            if [[ "$current_signature" == "$previous_signature" ]]; then
+                log WARN "Correction round ${correction_round} repeated the same blocking findings; switching strategy"
+            else
+                log WARN "Correction round ${correction_round} did not reduce blocker count (${normal_count}); switching strategy"
+            fi
+            correction_strategy="single-finding"
+        fi
+
+        if [[ "${TANGLE_CORRECTION_CHANGED:-0}" != "1" && "${TANGLE_CORRECTION_STATUS:-}" == *"stalled"* ]]; then
+            log WARN "Correction stalled without partial writes; stopping to avoid a no-progress loop"
+            return 1
+        fi
+
+        previous_normal_count="$normal_count"
+        previous_signature="$current_signature"
         ((correction_round++)) || true
     done
 
     if [[ "${normal_count:-0}" -gt 0 ]]; then
-        log WARN "Contextual code review still has ${normal_count} blocking finding(s) after ${max_correction_rounds} correction round(s): ${findings_file}"
+        log WARN "Contextual code review still has ${normal_count} blocking finding(s): ${findings_file}"
         return 1
     fi
 

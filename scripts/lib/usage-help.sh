@@ -218,10 +218,12 @@ ${YELLOW}Quality Gates:${NC}
   • severity=normal findings trigger bounded correction rounds before delivery
 
 ${YELLOW}Environment:${NC}
-  OCTOPUS_TANGLE_CODE_REVIEW=false          Skip contextual code review
-  OCTOPUS_TANGLE_REVIEW_CORRECTION_ROUNDS=1 Number of internal correction rounds
-  OCTOPUS_TANGLE_REVIEW_TARGET=working-tree Review target passed to code-review
-  OCTOPUS_TANGLE_INK=true                   Run optional ink/deliver after review passes
+  OCTOPUS_TANGLE_CODE_REVIEW=false              Skip contextual code review
+  OCTOPUS_TANGLE_REVIEW_CORRECTION_MODE=bounded Bound correction rounds explicitly
+  OCTOPUS_TANGLE_REVIEW_CORRECTION_ROUNDS=3     Bound count when mode=bounded
+  OCTOPUS_TANGLE_CORRECTION_STALL_WINDOW=1800   Stop only after silence/no progress
+  OCTOPUS_TANGLE_REVIEW_TARGET=working-tree     Review target passed to code-review
+  OCTOPUS_TANGLE_INK=true                       Run optional ink/deliver after review passes
 
 ${YELLOW}Examples:${NC}
   $(basename "$0") develop "build the user authentication API"

@@ -29,12 +29,19 @@ assert_contains "$WORKFLOWS" "tangle_run_context_code_review" "tangle runs conte
 assert_contains "$WORKFLOWS" "contextFile" "review profile passes contextFile"
 assert_contains "$WORKFLOWS" "plan-conformance" "review focus includes plan conformance"
 assert_contains "$WORKFLOWS" "tangle_apply_review_corrections" "tangle applies review corrections"
-assert_contains "$WORKFLOWS" "OCTOPUS_TANGLE_REVIEW_CORRECTION_ROUNDS" "correction rounds are configurable"
+assert_contains "$WORKFLOWS" "OCTOPUS_TANGLE_REVIEW_CORRECTION_MODE" "correction loop supports explicit bounded mode"
+assert_contains "$WORKFLOWS" "OCTOPUS_TANGLE_CORRECTION_STALL_WINDOW" "correction loop uses stall watchdog"
+assert_contains "$WORKFLOWS" "failed but left partial writes" "partial writes continue to validation/review"
+assert_contains "$WORKFLOWS" 'run_agent_sync "$correction_agent" "$correction_prompt" 0' "corrections run without absolute timeout"
 assert_contains "$WORKFLOWS" "OCTOPUS_TANGLE_CODE_REVIEW" "code review gate is toggleable"
 assert_contains "$WORKFLOWS" "Contextual code review warning" "review warnings are blocking"
 assert_contains "$WORKFLOWS" "Skipping ink/deliver because tangle validation gate returned non-zero" "ink is skipped when validation fails"
 assert_contains "$HELP" "Contextual code review" "develop help documents contextual review"
-assert_contains "$HELP" "OCTOPUS_TANGLE_REVIEW_CORRECTION_ROUNDS" "develop help documents correction rounds"
+assert_contains "$HELP" "OCTOPUS_TANGLE_REVIEW_CORRECTION_MODE" "develop help documents bounded mode"
+assert_contains "$HELP" "OCTOPUS_TANGLE_CORRECTION_STALL_WINDOW" "develop help documents stall window"
 assert_contains "$WORKFLOWS" "OCTOPUS_INK_REVIEW_TIMEOUT" "ink review timeout is configurable"
+
+HEARTBEAT="$PROJECT_ROOT/scripts/lib/heartbeat.sh"
+assert_contains "$HEARTBEAT" "timeout_secs=0 means no absolute timeout" "timeout zero disables absolute timeout"
 
 test_summary

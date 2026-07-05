@@ -146,6 +146,20 @@ run_with_timeout() {
         octo_event_emit "dispatch.start" command="$_octo_cmd_label" timeout="$timeout_secs" || true
     fi
 
+    # timeout_secs=0 means no absolute timeout. Higher-level workflows can still
+    # supervise progress with silence/heartbeat watchdogs and decide whether to
+    # keep partial writes, validate, review, continue, or escalate.
+    if [[ "$timeout_secs" =~ ^[0-9]+$ ]] && [[ "$timeout_secs" -eq 0 ]]; then
+        "$@"
+        exit_code=$?
+        if declare -f octo_event_emit >/dev/null 2>&1; then
+            local _octo_outcome="ok"
+            [[ $exit_code -eq 0 ]] || _octo_outcome="error"
+            octo_event_emit "dispatch.end" command="$_octo_cmd_label" exit_code="$exit_code" outcome="$_octo_outcome" timeout="none" || true
+        fi
+        return "$exit_code"
+    fi
+
     # v9.20.1: Detect if command is a shell function (e.g. perplexity_execute,
     # openrouter_execute). External timeout/gtimeout can only exec binaries —
     # shell functions require the in-process fallback path. (#255)
