@@ -102,6 +102,15 @@ validate_model_name_for_provider() {
             ;;
     esac
 }
+
+_octo_is_known_provider_name() {
+    case "$1" in
+        codex|gemini|claude|perplexity|qwen|copilot|opencode|ollama|openrouter|cursor-agent|vibe|agy|agy-research|antigravity)
+            return 0 ;;
+        *)
+            return 1 ;;
+    esac
+}
 # resolve_octopus_model <provider> <agent_type> <phase> <role>
 resolve_octopus_model() {
     local provider="$1"
@@ -220,11 +229,28 @@ resolve_octopus_model() {
         # `review` phase route points at the default coding provider/model.
         if [[ -z "$resolved_model" || "$resolved_model" == "null" ]]; then
             local routed=""
+            local phase_routed=""
+            [[ -n "$phase" ]] && phase_routed=$(echo "$config_data" | jq -r --arg phase "$phase" '.routing.phases[$phase] // empty' 2>/dev/null)
             if [[ -n "$role" ]]; then
                 routed=$(echo "$config_data" | jq -r --arg role "$role" '.routing.roles[$role] // empty' 2>/dev/null)
+                if [[ -n "$routed" && "$routed" != "null" ]]; then
+                    local role_route_provider=""
+                    if [[ "$routed" == *:* ]]; then
+                        role_route_provider="${routed%%:*}"
+                    elif _octo_is_known_provider_name "$routed"; then
+                        role_route_provider="$routed"
+                    fi
+                    if [[ -n "$role_route_provider" && "$role_route_provider" != "$provider" ]]; then
+                        [[ -n "$_trace" ]] && echo "[model-trace] Tier 3 (role routing): SKIP (role route $routed targets $role_route_provider, resolving for $provider); checking phase route" >&2
+                        routed=""
+                    elif [[ -z "$role_route_provider" && -n "$phase_routed" && "$phase_routed" != "null" ]]; then
+                        [[ -n "$_trace" ]] && echo "[model-trace] Tier 3 (role routing): SKIP (bare role route $routed is unscoped and phase route exists); checking phase route" >&2
+                        routed=""
+                    fi
+                fi
             fi
-            if [[ -z "$routed" || "$routed" == "null" ]] && [[ -n "$phase" ]]; then
-                routed=$(echo "$config_data" | jq -r --arg phase "$phase" '.routing.phases[$phase] // empty' 2>/dev/null)
+            if [[ -z "$routed" || "$routed" == "null" ]] && [[ -n "$phase_routed" && "$phase_routed" != "null" ]]; then
+                routed="$phase_routed"
             fi
 
             # Handle recursive reference (e.g. "codex:spark")
@@ -250,15 +276,12 @@ resolve_octopus_model() {
                     # `codex exec --model perplexity` (bug 260609). Treat a bare
                     # provider name like "provider:" with no model: skip for other
                     # providers, fall through to lower tiers for the provider itself.
-                    case "$routed" in
-                        codex|gemini|claude|perplexity|qwen|copilot|opencode|ollama|openrouter|cursor-agent|vibe|agy|agy-research|antigravity)
-                            [[ -n "$_trace" ]] && echo "[model-trace] Tier 3 (phase/role routing): SKIP (route '$routed' is a provider name, not a model — resolving for $provider)" >&2
-                            routed=""
-                            ;;
-                        *)
-                            resolved_model="$routed"
-                            ;;
-                    esac
+                    if _octo_is_known_provider_name "$routed"; then
+                        [[ -n "$_trace" ]] && echo "[model-trace] Tier 3 (phase/role routing): SKIP (route '$routed' is a provider name, not a model — resolving for $provider)" >&2
+                        routed=""
+                    else
+                        resolved_model="$routed"
+                    fi
                 fi
                 if [[ -n "$routed" ]]; then
                     [[ -n "$_trace" ]] && echo "[model-trace] Tier 3 (phase/role routing): $resolved_model ← SELECTED (route: $routed)" >&2
