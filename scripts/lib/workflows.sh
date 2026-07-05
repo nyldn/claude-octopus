@@ -2060,7 +2060,11 @@ Every [CODING] line must include a same-line Files: clause."
 
         log INFO "Re-running validation gate after correction round ${correction_round} (status=${TANGLE_CORRECTION_STATUS}, changed=${TANGLE_CORRECTION_CHANGED})..."
         validation_rc=0
-        validate_tangle_results "$task_group" "$resolved_prompt" "$worktree_before_file" || validation_rc=$?
+        OCTOPUS_TANGLE_VALIDATION_CORRECTION_FILE="${TANGLE_CORRECTION_FILE:-}" \
+        OCTOPUS_TANGLE_VALIDATION_CORRECTION_ROUND="$correction_round" \
+        OCTOPUS_TANGLE_VALIDATION_CORRECTION_STATUS="${TANGLE_CORRECTION_STATUS:-}" \
+        OCTOPUS_TANGLE_VALIDATION_CORRECTION_CHANGED="${TANGLE_CORRECTION_CHANGED:-0}" \
+            validate_tangle_results "$task_group" "$resolved_prompt" "$worktree_before_file" || validation_rc=$?
 
         review_context_file=$(tangle_build_develop_review_context "$task_group" "$resolved_prompt" "$context" "$subtasks" "$validation_file" "$worktree_before_file" "correction-${correction_round}")
         review_rc=0

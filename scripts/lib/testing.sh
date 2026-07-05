@@ -25,11 +25,21 @@ extract_tangle_result_output() {
     ' "$result_file" 2>/dev/null || true
 }
 
+extract_tangle_result_body() {
+    local result_file="$1"
+    [[ -f "$result_file" ]] || return 0
+    if grep -q '^## Output[[:space:]]*$' "$result_file" 2>/dev/null; then
+        extract_tangle_result_output "$result_file"
+    else
+        cat "$result_file" 2>/dev/null || true
+    fi
+}
+
 tangle_result_has_blocker_output() {
     local result_file="$1"
     local output
     local blocker_pattern='(blocker report|cannot complete|unable to complete|sandbox (is )?blocking|blocked by (the )?sandbox|landlock|no write tools available|all shell commands (are )?blocked|filesystem access is blocked|cannot create or modify files|apply_patch.*not available)'
-    output=$(extract_tangle_result_output "$result_file")
+    output=$(extract_tangle_result_body "$result_file")
 
     grep -Eiq "$blocker_pattern" <<< "$output"
 }
@@ -150,6 +160,11 @@ validate_tangle_results() {
     local worktree_before_file="${3:-}"
     local validation_file="${RESULTS_DIR}/tangle-validation-${task_group}.md"
     local quality_retry_count=0
+    local correction_file="${OCTOPUS_TANGLE_VALIDATION_CORRECTION_FILE:-}"
+    local correction_round="${OCTOPUS_TANGLE_VALIDATION_CORRECTION_ROUND:-}"
+    local correction_status="${OCTOPUS_TANGLE_VALIDATION_CORRECTION_STATUS:-}"
+    local correction_changed="${OCTOPUS_TANGLE_VALIDATION_CORRECTION_CHANGED:-}"
+    local correction_overlay_applied=false
 
     while true; do
         # Collect all results
@@ -165,7 +180,7 @@ validate_tangle_results() {
 
         for result in "$RESULTS_DIR"/*-tangle-${task_group}*.md; do
             [[ -f "$result" ]] || continue
-            [[ "$result" == *validation* ]] && continue
+            [[ "$(basename "$result")" == *validation* ]] && continue
 
             # v8.20.0: Run file path validation (non-blocking warnings)
             if [[ "${OCTOPUS_FILE_VALIDATION:-true}" == "true" ]] && type run_file_validation &>/dev/null 2>&1; then
@@ -200,11 +215,9 @@ validate_tangle_results() {
                 fi
             fi
             results+="$(<"$result")\n\n---\n\n"
-            result_outputs+="$(extract_tangle_result_output "$result")"$'\n'
+            result_outputs+="$(extract_tangle_result_body "$result")"$'\n'
         done
 
-        local missing_explicit_files
-        missing_explicit_files=$(check_explicit_file_coverage "$original_prompt" "$result_outputs")
         local worktree_changes=""
         local requires_worktree_changes=false
         if [[ -n "$worktree_before_file" && -f "$worktree_before_file" ]] && \
@@ -213,12 +226,46 @@ validate_tangle_results() {
             worktree_changes=$(check_tangle_worktree_changes "$worktree_before_file")
         fi
 
+        local correction_result_body=""
+        if [[ -n "$correction_file" && -f "$correction_file" ]]; then
+            correction_result_body=$(extract_tangle_result_body "$correction_file")
+            results+="
+---
+
+## Correction Overlay${correction_round:+ Round $correction_round}
+$(<"$correction_file")
+"
+            result_outputs+="$correction_result_body"$'
+'
+            result_outputs+="$worktree_changes"$'
+'
+        fi
+
+        local missing_explicit_files
+        missing_explicit_files=$(check_explicit_file_coverage "$original_prompt" "$result_outputs")
+
         # Quality gate check (using configurable per-phase threshold - v8.19.0)
         local tangle_threshold
         tangle_threshold=$(get_gate_threshold "tangle")
         local total=$((success_count + fail_count))
         local success_rate=0
         [[ $total -gt 0 ]] && success_rate=$((success_count * 100 / total))
+        local static_success_count="$success_count"
+        local static_fail_count="$fail_count"
+        local static_total="$total"
+        local static_success_rate="$success_rate"
+
+        if [[ -n "$correction_file" && -f "$correction_file" ]] &&            grep -q "Status: SUCCESS" "$correction_file" 2>/dev/null &&            [[ "${correction_changed:-0}" == "1" || -n "$worktree_changes" ]]; then
+            correction_overlay_applied=true
+            # Correction rounds repair the worktree, not immutable initial subtask
+            # result files. Do not let an initial failed result pin validation
+            # forever after a successful correction overlay.
+            fail_count=0
+            success_count=$(( static_total > 0 ? static_total : 1 ))
+            total=$((success_count + fail_count))
+            success_rate=100
+            log INFO "Post-correction validation overlay applied${correction_round:+ for round ${correction_round}}: static tangle result rate ${static_success_rate}% -> effective ${success_rate}%"
+        fi
 
         local gate_status="PASSED"
         local gate_color="${GREEN}"
@@ -336,6 +383,11 @@ $challenge_result
 - Failed: ${fail_count}/${total} result files
 - Decision Branch: ${quality_branch}
 - Retry Attempts: ${quality_retry_count}/$(tangle_quality_retry_limit_value)
+$(if [[ "$correction_overlay_applied" == "true" ]]; then
+    echo "- Static Subtask Rate Before Correction Overlay: ${static_success_rate}% (${static_success_count}/${static_total} successful, ${static_fail_count}/${static_total} failed)"
+    echo "- Correction Overlay: ${correction_file}"
+    echo "- Correction Status: ${correction_status:-unknown}; changed=${correction_changed:-unknown}"
+fi)
 
 ### Explicit File Coverage
 $(if [[ -n "$missing_explicit_files" ]]; then

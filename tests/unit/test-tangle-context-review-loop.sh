@@ -61,4 +61,10 @@ SPAWN="$PROJECT_ROOT/scripts/lib/spawn.sh"
 assert_contains "$SPAWN" "TIMEOUT=0 means no absolute timeout" "spawn respects TIMEOUT=0"
 assert_contains "$SPAWN" "OCTOPUS_GEMINI_TIMEOUT" "gemini timeout can be explicitly overridden"
 
+TESTING="$PROJECT_ROOT/scripts/lib/testing.sh"
+assert_contains "$TESTING" "OCTOPUS_TANGLE_VALIDATION_CORRECTION_FILE" "post-correction validation overlay is wired"
+assert_contains "$TESTING" "Static Subtask Rate Before Correction Overlay" "post-correction validation reports static subtask rate"
+assert_contains "$WORKFLOWS" "OCTOPUS_TANGLE_VALIDATION_CORRECTION_CHANGED" "correction loop passes validation overlay context"
+assert_contains "$WORKFLOWS" "OCTOPUS_TANGLE_CONVERGENCE_NO_PROGRESS_ROUNDS" "correction loop has convergence guard"
+
 test_summary
