@@ -215,13 +215,15 @@ Uses a map-reduce pattern: decompose → parallel implement → validate → con
 ${YELLOW}Quality Gates:${NC}
   • Tangle validation report checks subtask status and worktree evidence
   • Contextual code review compares the diff against the task contract/decomposition
-  • severity=normal findings trigger bounded correction rounds before delivery
+  • severity=normal findings trigger a progress-supervised correction loop before delivery
 
 ${YELLOW}Environment:${NC}
   OCTOPUS_TANGLE_CODE_REVIEW=false              Skip contextual code review
-  OCTOPUS_TANGLE_REVIEW_CORRECTION_MODE=bounded Bound correction rounds explicitly
-  OCTOPUS_TANGLE_REVIEW_CORRECTION_ROUNDS=3     Bound count when mode=bounded
-  OCTOPUS_TANGLE_CORRECTION_STALL_WINDOW=1800   Stop only after silence/no progress
+  OCTOPUS_TANGLE_REVIEW_CORRECTION_MODE=unbounded Progress-supervised loop (default)
+  OCTOPUS_TANGLE_REVIEW_CORRECTION_MODE=bounded   Opt into explicit round cap
+  OCTOPUS_TANGLE_REVIEW_CORRECTION_ROUNDS=3       Bound count when mode=bounded
+  OCTOPUS_TANGLE_CORRECTION_STALL_WINDOW=1800     Stop only after silence/no progress
+  OCTOPUS_TANGLE_CORRECTION_POLL_SECS=30          Progress check cadence
   OCTOPUS_TANGLE_REVIEW_TARGET=working-tree     Review target passed to code-review
   OCTOPUS_TANGLE_INK=true                       Run optional ink/deliver after review passes
 
