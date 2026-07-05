@@ -148,7 +148,25 @@ export OCTOPUS_COST_MODE="budget"
 assert_eq "$(resolve_octopus_model "codex" "codex")" "config-mini" "Tier mapping (budget)"
 unset OCTOPUS_COST_MODE
 
-# Test 8: Session override
+# Test 8: Role routing wins over phase routing
+clear_model_cache
+cat > "$CONFIG_FILE" << EOF
+{
+  "version": "3.0",
+  "providers": {
+    "codex": { "default": "deepseek-ai/DeepSeek-V4-Pro" }
+  },
+  "routing": {
+    "phases": { "review": "codex:default" },
+    "roles": { "logic-reviewer": "gpt-5.5" }
+  }
+}
+EOF
+assert_eq "$(resolve_octopus_model "codex" "codex" "review" "logic-reviewer")" "gpt-5.5" "Role routing overrides review phase routing"
+clear_model_cache
+assert_eq "$(resolve_octopus_model "codex" "codex" "review" "arch-reviewer")" "deepseek-ai/DeepSeek-V4-Pro" "Review phase routing still applies without role override"
+
+# Test 9: Session override
 clear_model_cache
 cat > "$CONFIG_FILE" << EOF
 {

@@ -214,14 +214,17 @@ resolve_octopus_model() {
             [[ -n "$_trace" ]] && echo "[model-trace] Tier 2 (session override): —" >&2
         fi
 
-        # 2. Phase/Role Routing
+        # 2. Role/Phase Routing
+        # Role routes are more specific than phase routes. In review fleets this
+        # lets `logic-reviewer` use an independent model even when the broad
+        # `review` phase route points at the default coding provider/model.
         if [[ -z "$resolved_model" || "$resolved_model" == "null" ]]; then
             local routed=""
-            if [[ -n "$phase" ]]; then
-                routed=$(echo "$config_data" | jq -r --arg phase "$phase" '.routing.phases[$phase] // empty' 2>/dev/null)
-            fi
-            if [[ -z "$routed" || "$routed" == "null" ]] && [[ -n "$role" ]]; then
+            if [[ -n "$role" ]]; then
                 routed=$(echo "$config_data" | jq -r --arg role "$role" '.routing.roles[$role] // empty' 2>/dev/null)
+            fi
+            if [[ -z "$routed" || "$routed" == "null" ]] && [[ -n "$phase" ]]; then
+                routed=$(echo "$config_data" | jq -r --arg phase "$phase" '.routing.phases[$phase] // empty' 2>/dev/null)
             fi
 
             # Handle recursive reference (e.g. "codex:spark")
