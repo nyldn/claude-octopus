@@ -222,6 +222,9 @@ get_agent_command() {
             fi
             echo "env NODE_NO_WARNINGS=1 NO_BROWSER=1 qwen -o text --approval-mode yolo -m ${model} ${qwen_auth_flag}"
             ;;
+        grok|grok-research)  # xAI Grok CLI — headless single-turn via helpers/grok-exec.sh
+            echo "${PLUGIN_DIR}/scripts/helpers/grok-exec.sh"
+            ;;
         cursor-agent)  # v9.23.0: Cursor Agent CLI — Grok 4.20 via Cursor subscription
             if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
                 return 1
@@ -472,6 +475,7 @@ get_agent_model() {
         perplexity*) provider="perplexity" ;;
         qwen*)       provider="qwen" ;;
         cursor-agent*) provider="cursor-agent" ;;
+        grok*)       provider="grok" ;;
         opencode*)   provider="opencode" ;;
     esac
 

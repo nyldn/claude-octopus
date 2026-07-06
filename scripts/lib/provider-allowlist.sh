@@ -131,8 +131,18 @@ octo_provider_allowed() {
                     agy|agy-*|antigravity) return 0 ;;
                 esac
                 ;;
-            cursor|cursor-agent|xai)
+            grok|grok-*)
+                case "$provider" in
+                    grok|grok-*) return 0 ;;
+                esac
+                ;;
+            cursor|cursor-agent)
                 [[ "$provider" == "cursor-agent" ]] && return 0
+                ;;
+            xai)
+                case "$provider" in
+                    cursor-agent|grok|grok-*) return 0 ;;
+                esac
                 ;;
             local)
                 [[ "$provider" == "ollama" ]] && return 0

@@ -315,6 +315,20 @@ doctor_check_providers() {
             "Cursor Agent CLI not installed (optional)" "curl -fsSL https://cursor.com/install | bash — Grok 4.20 via Cursor subscription"
     fi
 
+    # xAI Grok CLI (optional — standalone grok provider, distinct from cursor-agent's grok-4-20)
+    if command -v grok >/dev/null 2>&1; then
+        if [[ -n "${XAI_API_KEY:-}" || -f "${HOME}/.grok/auth.json" ]]; then
+            doctor_add "grok" "providers" "pass" \
+                "xAI Grok CLI installed and authenticated" "$(command -v grok) — standalone xAI Grok provider"
+        else
+            doctor_add "grok" "providers" "warn" \
+                "xAI Grok CLI installed but not authenticated" "Run: grok login (or set XAI_API_KEY)"
+        fi
+    else
+        doctor_add "grok" "providers" "info" \
+            "xAI Grok CLI not installed (optional)" "https://grok.com — standalone xAI Grok provider"
+    fi
+
     # Vibe CLI (optional — Mistral Vibe interactive CLI)
     if command -v vibe &>/dev/null; then
         local vibe_auth="none"

@@ -49,8 +49,10 @@ else
     pass "Old CACHE_ collision-prone pattern removed"
 fi
 
-# Verify per-field sanitization variables exist
-if grep -q 'safe_p="\${provider//\[^a-zA-Z0-9\]/_}"' "$_ORCH_ALL_TMP"; then
+# Verify per-field sanitization variables exist. The provider field is sanitized
+# from its canonical form (alias-resolved), so accept both `provider` and
+# `canonical_provider` — the resolver keys the cache on the canonical name.
+if grep -qE 'safe_p="\$\{(canonical_)?provider//\[\^a-zA-Z0-9\]/_\}"' "$_ORCH_ALL_TMP"; then
     pass "Per-field sanitization for cache keys present"
 else
     fail "Missing per-field sanitization for cache keys"

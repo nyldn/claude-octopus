@@ -14,6 +14,9 @@ fi
 source "${_providers_lib_dir}/provider-allowlist.sh" 2>/dev/null || true
 source "${_providers_lib_dir}/auth.sh" 2>/dev/null || true
 source "${_providers_lib_dir}/qwen.sh" 2>/dev/null || true
+if ! declare -f grok_is_available >/dev/null 2>&1 || ! declare -f grok_auth_method >/dev/null 2>&1; then
+    source "${_providers_lib_dir}/grok.sh" 2>/dev/null || true
+fi
 
 # Version comparison utility
 version_compare() {
@@ -816,6 +819,17 @@ check_provider_health() {
                 return 1
             fi
             ;;
+        grok)
+            if ! command -v grok &>/dev/null; then
+                echo "grok: CLI not found in PATH" >&2
+                return 1
+            fi
+            # Auth: env XAI_API_KEY or ~/.grok/auth.json (grok login session)
+            if [[ -z "${XAI_API_KEY:-}" && ! -f "${HOME}/.grok/auth.json" ]]; then
+                echo "grok: not authenticated (run: grok login or set XAI_API_KEY)" >&2
+                return 1
+            fi
+            ;;
         cursor-agent)
             if ! command -v agent &>/dev/null; then
                 echo "cursor-agent: CLI not found in PATH" >&2
@@ -861,7 +875,7 @@ check_all_providers() {
     local healthy=0 unhealthy=0
     local -a results=()
 
-    for provider in codex gemini agy claude perplexity openrouter ollama copilot qwen cursor-agent vibe; do
+    for provider in codex gemini agy claude perplexity openrouter ollama copilot qwen cursor-agent grok vibe; do
         local diag
         if diag=$(check_provider_health "$provider" 2>&1); then
             results+=("  ✓ $provider")
@@ -1092,6 +1106,11 @@ detect_providers() {
             cursor_auth="cursor-session"
         fi
         result="${result}cursor-agent:${cursor_auth} "
+    fi
+
+    # Detect xAI Grok CLI (standalone grok provider)
+    if { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed grok; } && declare -f grok_is_available >/dev/null 2>&1 && grok_is_available; then
+        result="${result}grok:$(grok_auth_method) "
     fi
 
     # Detect Vibe CLI (Mistral Vibe interactive CLI)
