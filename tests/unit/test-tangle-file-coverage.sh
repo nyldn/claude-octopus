@@ -88,6 +88,51 @@ fi
 
 rm -f "$RESULTS_DIR"/*.md
 write_success_result "$RESULTS_DIR/codex-tangle-coverage-0.md" \
+    "Updated src/lib/templates/NA10_HANDLE_SILENCE.ts and validated tests."
+
+retry_called=0
+retry_failed_subtasks() {
+    retry_called=1
+    captured_failed_subtasks="$FAILED_SUBTASKS"
+    write_success_result "$RESULTS_DIR/codex-tangle-coverage-0.md" \
+        "Updated src/lib/templates/NA10_HANDLE_SILENCE.ts and src/lib/templates/NA20_REQUEST_MISSING_INFO.ts."
+}
+MAX_QUALITY_RETRIES=1
+
+test_case "hard-gate coverage failure retries even when success rate is 100 percent"
+if validate_tangle_results "coverage" "$original_prompt" >/dev/null 2>&1; then
+    if [[ "$retry_called" -eq 1 ]] && \
+       [[ "$captured_failed_subtasks" == *"result:$RESULTS_DIR/codex-tangle-coverage-0.md"* ]]; then
+        test_pass
+    else
+        test_fail "hard gate failure passed without queueing the successful implementer result for retry"
+    fi
+else
+    test_fail "hard gate retry did not recover after retry supplied missing explicit file coverage"
+fi
+
+MAX_QUALITY_RETRIES=0
+retry_failed_subtasks() { :; }
+
+rm -f "$RESULTS_DIR"/*.md
+write_success_result "$RESULTS_DIR/codex-tangle-coverage-0.md" \
+    "Updated src/lib/templates/NA10_HANDLE_SILENCE.ts and validated tests."
+
+test_case "hard-gate coverage failure aborts when retry budget is exhausted"
+if validate_tangle_results "coverage" "$original_prompt" >/dev/null 2>&1; then
+    test_fail "validation passed despite missing coverage and no retry budget"
+else
+    report="$(cat "$RESULTS_DIR/tangle-validation-coverage.md")"
+    if [[ "$report" == *"Decision Branch: abort"* ]] && \
+       [[ "$report" == *"Retry Attempts: 0/0"* ]]; then
+        test_pass
+    else
+        test_fail "hard gate failure did not abort clearly after retry budget was exhausted"
+    fi
+fi
+
+rm -f "$RESULTS_DIR"/*.md
+write_success_result "$RESULTS_DIR/codex-tangle-coverage-0.md" \
     "Updated src/lib/templates/NA10_HANDLE_SILENCE.ts and src/lib/templates/NA20_REQUEST_MISSING_INFO.ts."
 
 test_case "covered explicit files keep validation passing"

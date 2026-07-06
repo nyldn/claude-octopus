@@ -77,6 +77,11 @@ ensure_config() {
       "flash": "gemini-3-flash-preview",
       "image": "gemini-3-pro-image"
     },
+    "agy": {
+      "default": "Gemini 3.1 Pro (High)",
+      "fallback": "Gemini 3.5 Flash (High)",
+      "flash": "Gemini 3.5 Flash (Low)"
+    },
     "claude": {
       "default": "claude-sonnet-4.6",
       "opus": "claude-opus-4.8"
@@ -96,7 +101,7 @@ ensure_config() {
       "deliver": "codex:default",
       "review": "codex:default",
       "security": "codex:reasoning",
-      "research": "gemini:default"
+      "research": "agy"
     },
     "roles": {
       "researcher": "perplexity"
@@ -396,7 +401,7 @@ cmd_show_phases() {
             case "$phase" in
                 deliver|review|quick) default_target="codex:spark" ;;
                 security) default_target="codex:reasoning" ;;
-                research) default_target="gemini:default" ;;
+                research) default_target="agy" ;;
             esac
             printf "  %-12s %-25s %s\n" "$phase" "$default_target" "(default)"
         fi

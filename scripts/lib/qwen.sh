@@ -76,11 +76,19 @@ qwen_execute() {
 
     [[ "${VERBOSE:-}" == "true" ]] && log DEBUG "qwen_execute: type=$agent_type, timeout=${timeout}s, auth=$(qwen_auth_method)" || true
 
+    # OPENAI_COMPAT auth (OPENAI_API_KEY + OPENAI_BASE_URL) needs an explicit
+    # --auth-type: the qwen CLI does not auto-detect it from env vars alone
+    # in non-interactive mode (Issue #566).
+    local qwen_auth_args=()
+    if [[ "$(qwen_auth_method)" == "env:OPENAI_COMPAT" ]]; then
+        qwen_auth_args=(--auth-type openai)
+    fi
+
     local response exit_code
     if declare -f run_with_timeout >/dev/null 2>&1; then
-        response=$(NO_BROWSER=1 NODE_NO_WARNINGS=1 run_with_timeout "$timeout" qwen -p "$prompt" --approval-mode yolo -o text 2>&1) && exit_code=0 || exit_code=$?
+        response=$(NO_BROWSER=1 NODE_NO_WARNINGS=1 run_with_timeout "$timeout" qwen -p "$prompt" --approval-mode yolo -o text "${qwen_auth_args[@]}" 2>&1) && exit_code=0 || exit_code=$?
     else
-        response=$(NO_BROWSER=1 NODE_NO_WARNINGS=1 timeout -k 10 "$timeout" qwen -p "$prompt" --approval-mode yolo -o text 2>&1) && exit_code=0 || exit_code=$?
+        response=$(NO_BROWSER=1 NODE_NO_WARNINGS=1 timeout -k 10 "$timeout" qwen -p "$prompt" --approval-mode yolo -o text "${qwen_auth_args[@]}" 2>&1) && exit_code=0 || exit_code=$?
     fi
 
     # Handle errors
