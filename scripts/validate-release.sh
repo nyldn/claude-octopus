@@ -25,7 +25,12 @@ echo ""
 echo "🔒 Checking plugin names..."
 
 PLUGIN_NAME=$(grep '"name"' "$ROOT_DIR/.claude-plugin/plugin.json" | head -1 | sed 's/.*: *"\([^"]*\)".*/\1/')
-CODEX_PLUGIN_NAME=$(grep '"name"' "$ROOT_DIR/.codex-plugin/plugin.json" | head -1 | sed 's/.*: *"\([^"]*\)".*/\1/')
+CODEX_PLUGIN_JSON="$ROOT_DIR/.codex-plugin/plugin.json"
+if [[ ! -f "$CODEX_PLUGIN_JSON" ]]; then
+    echo -e "  ${RED}CRITICAL ERROR: Codex plugin manifest not found at $CODEX_PLUGIN_JSON${NC}"
+    exit 1
+fi
+CODEX_PLUGIN_NAME=$(grep '"name"' "$CODEX_PLUGIN_JSON" | head -1 | sed 's/.*: *"\([^"]*\)".*/\1/')
 MARKETPLACE_PLUGIN_NAME=$(sed -n '/"plugins"/,/]/p' "$ROOT_DIR/.claude-plugin/marketplace.json" | grep '"name"' | head -1 | sed 's/.*: *"\([^"]*\)".*/\1/')
 
 if [[ "$PLUGIN_NAME" != "octo" ]]; then

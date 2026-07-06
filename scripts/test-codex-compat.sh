@@ -110,6 +110,10 @@ test_output "Codex manifest name matches marketplace selector" \
     "printf '%s:%s\n' \"\$(jq -r '.name' '$PLUGIN_ROOT/.codex-plugin/plugin.json')\" \"\$(jq -r '.plugins[] | select(.name == \"octo\") | .name' '$PLUGIN_ROOT/.claude-plugin/marketplace.json')\"" \
     "^octo:octo$"
 
+test_output "Release validation reports a missing Codex manifest clearly" \
+    "tmpdir=\$(mktemp -d); mkdir -p \"\$tmpdir/scripts\" \"\$tmpdir/.claude-plugin\"; cp '$SCRIPT_DIR/validate-release.sh' \"\$tmpdir/scripts/validate-release.sh\"; printf '%s\n' '{\"name\":\"octo\"}' > \"\$tmpdir/.claude-plugin/plugin.json\"; bash \"\$tmpdir/scripts/validate-release.sh\" 2>&1 || true; rm -rf \"\$tmpdir\"" \
+    "CRITICAL ERROR: Codex plugin manifest not found"
+
 test_output "Codex manifest points at portable root skills tree" \
     "jq -r '.skills' '$PLUGIN_ROOT/.codex-plugin/plugin.json'" \
     "^\\./skills/?$"
