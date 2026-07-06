@@ -1351,6 +1351,12 @@ EOF
     cat << EOF
 
 Return concise Markdown with recommendation, assumptions, risks, implementation notes, and confidence.
+
+End your response with a single line, exactly one of:
+VERDICT: APPROVE
+VERDICT: REVISE
+VERDICT: BLOCK
+Use APPROVE only if you would ship the proposal as-is. Use REVISE if anything must change first, and BLOCK for a hard stop. This line is parsed mechanically — a missing or unclear verdict is treated as REVISE.
 EOF
 }
 
@@ -1405,6 +1411,15 @@ EOF
         return 0
     fi
 
+    # Fixture verdict: APPROVE by default; OCTOPUS_COUNCIL_FIXTURE_VERDICT overrides
+    # globally, and OCTOPUS_COUNCIL_FIXTURE_REVISE_PERSONAS (comma-separated) forces
+    # specific personas to REVISE — enough to simulate an all-approve pass, an
+    # all-revise fail, or a single-seat/split dissent in tests.
+    local fixture_verdict="${OCTOPUS_COUNCIL_FIXTURE_VERDICT:-APPROVE}"
+    if council_list_contains "${OCTOPUS_COUNCIL_FIXTURE_REVISE_PERSONAS:-}" "$persona"; then
+        fixture_verdict="REVISE"
+    fi
+
     cat << EOF
 ## Recommendation
 
@@ -1427,6 +1442,8 @@ $persona recommends a cautious, testable path for: $COUNCIL_TASK
 ## Confidence
 
 Medium
+
+VERDICT: ${fixture_verdict}
 EOF
 }
 
@@ -1611,12 +1628,52 @@ council_response_is_substantive() {
     return 0
 }
 
+council_response_verdict() {
+    # The seat's self-declared verdict, read from the LAST "VERDICT:" line. Fail
+    # safe: anything that is not a clean APPROVE (REVISE / BLOCK / missing /
+    # ambiguous) is reported as REVISE, so a seat that omits or hedges the line
+    # never counts as an approval toward quorum. Echoes APPROVE, REVISE, or BLOCK.
+    local f="$1" verdict
+    [[ -f "$f" ]] || { printf 'REVISE'; return 0; }
+    verdict="$(awk '
+        toupper($0) ~ /^[[:space:]]*VERDICT:/ { last = $0 }
+        END {
+            last = toupper(last)
+            sub(/^[[:space:]]*VERDICT:[[:space:]]*/, "", last)
+            sub(/[^A-Z].*$/, "", last)
+            print last
+        }' "$f")"
+    case "$verdict" in
+        APPROVE) printf 'APPROVE' ;;
+        BLOCK)   printf 'BLOCK' ;;
+        *)       printf 'REVISE' ;;
+    esac
+}
+
+council_compute_approving_providers() {
+    # Derive the APPROVING vendor set from the space-separated RESPONDING
+    # (substantive responders) and DISSENTING (any seat whose verdict != APPROVE)
+    # lists. A vendor is an approver only if it responded substantively AND none
+    # of its seats dissented — so a split double-seated vendor (one APPROVE, one
+    # REVISE) lands in DISSENTING and is NOT an approver. This is the fail-safe
+    # that stops a split vendor's yes-seat from being cherry-picked into a false
+    # quorum (sail-cruisey #1992/#1994/#1983). Echoes the deduped approver list.
+    local responding="$1" dissenting="$2"
+    local p approving=""
+    for p in $responding; do
+        case " $dissenting " in *" $p "*) continue ;; esac
+        case " $approving " in *" $p "*) ;; *) approving="${approving:+$approving }$p" ;; esac
+    done
+    printf '%s' "$approving"
+}
+
 council_run_advice_phase() {
     COUNCIL_RESPONSES_RECEIVED="0"
     COUNCIL_CHAIR_RESPONSE_RECEIVED="false"
     COUNCIL_RESPONDING_PROVIDERS=""
+    local dissenting_providers=""
 
-    local index=0 member persona slug output_path seat mprovider
+    local index=0 member persona slug output_path seat mprovider verdict
     while IFS= read -r member; do
         persona="$(jq -r '.persona' <<< "$member")"
         seat="$(jq -r '.seat' <<< "$member")"
@@ -1628,15 +1685,19 @@ council_run_advice_phase() {
             if [[ "$seat" == "chair" ]]; then
                 COUNCIL_CHAIR_RESPONSE_RECEIVED="true"
             fi
-            # Count a provider toward the distinct-vendor quorum ONLY if the seat
-            # returned a non-empty, SUBSTANTIVE response. Exit code alone is not
-            # enough: the host self-dispatch stub and empty/degenerate returns exit
-            # 0 but review nothing, and previously inflated distinct_providers ->
-            # false met:true (sail-cruisey #2002/#2007/#2003). A single-vendor
-            # result (e.g. 3x codex, #1993) is still caught by the distinct guard
-            # below. Dedup happens downstream via sort -u.
+            # A provider counts toward quorum ONLY via a non-empty, SUBSTANTIVE
+            # response (exit 0 alone is not enough — the host self-dispatch stub and
+            # empty/degenerate returns review nothing; #2002/#2007/#2003). Record
+            # the vendor as a responder, then read its APPROVE/REVISE/BLOCK verdict:
+            # a non-APPROVE marks the vendor dissenting so its seat can't count as an
+            # approval, and a split double-seated vendor (one APPROVE, one REVISE)
+            # can't cherry-pick its yes-seat into the quorum (#1992/#1994/#1983).
             if council_response_nonempty "$output_path" && council_response_is_substantive "$output_path"; then
                 COUNCIL_RESPONDING_PROVIDERS="${COUNCIL_RESPONDING_PROVIDERS} ${mprovider}"
+                verdict="$(council_response_verdict "$output_path")"
+                if [[ "$verdict" != "APPROVE" ]]; then
+                    dissenting_providers="${dissenting_providers} ${mprovider}"
+                fi
             fi
         else
             rm -f "$output_path"
@@ -1652,24 +1713,30 @@ council_run_advice_phase() {
     required="$(council_required_non_chair)"
     received_non_chair="$(( COUNCIL_RESPONSES_RECEIVED > 0 ? COUNCIL_RESPONSES_RECEIVED - 1 : 0 ))"
 
-    # Distinct-vendor guard: a council where every responding seat is the SAME
-    # provider (e.g. 3 codex because agy/gemini returned empty) is NOT a valid
-    # consensus — one vendor can't catch its own blind spot. Count DISTINCT
-    # providers among seats that actually responded; gate-depth councils
-    # (required >= 2, i.e. standard/deep — the CP1/CP2 votes) need >= 2 distinct.
+    # Distinct-vendor quorum, in two layers:
+    #   distinct_providers  — vendors that returned a SUBSTANTIVE response.
+    #   approving_providers — vendors ALL of whose substantive seats cleanly
+    #                         APPROVED (any dissent drops the whole vendor).
+    # A cross-lab consensus requires >= `required` DISTINCT APPROVING vendors
+    # (2 for standard/deep, 1 for quick). Counting responders alone let a split
+    # double-seated vendor pass on its approving seat (#1992/#1994/#1983) and a
+    # single vendor stand in for consensus (#1993); gating on approvers closes both.
     COUNCIL_DISTINCT_PROVIDERS="$(printf '%s' "$COUNCIL_RESPONDING_PROVIDERS" | tr ' ' '\n' | sed '/^$/d' | sort -u | wc -l | tr -d '[:space:]')"
     [[ -z "$COUNCIL_DISTINCT_PROVIDERS" ]] && COUNCIL_DISTINCT_PROVIDERS=0
+    COUNCIL_APPROVING_PROVIDERS="$(council_compute_approving_providers "$COUNCIL_RESPONDING_PROVIDERS" "$dissenting_providers")"
+    COUNCIL_DISTINCT_APPROVING_PROVIDERS="$(printf '%s' "$COUNCIL_APPROVING_PROVIDERS" | tr ' ' '\n' | sed '/^$/d' | sort -u | wc -l | tr -d '[:space:]')"
+    [[ -z "$COUNCIL_DISTINCT_APPROVING_PROVIDERS" ]] && COUNCIL_DISTINCT_APPROVING_PROVIDERS=0
 
     if [[ "$COUNCIL_CHAIR_RESPONSE_RECEIVED" == "true" ]] && (( received_non_chair >= required )) \
-        && { (( required < 2 )) || (( COUNCIL_DISTINCT_PROVIDERS >= 2 )); }; then
+        && { (( required < 2 )) || (( COUNCIL_DISTINCT_APPROVING_PROVIDERS >= required )); }; then
         COUNCIL_QUORUM_MET="true"
     else
         COUNCIL_QUORUM_MET="false"
-        if (( required >= 2 )) && (( COUNCIL_DISTINCT_PROVIDERS < 2 )) && (( received_non_chair >= required )); then
+        if (( required >= 2 )) && (( COUNCIL_DISTINCT_APPROVING_PROVIDERS < required )) && (( received_non_chair >= required )); then
             # council.sh has no log() of its own (it lives in orchestrate.sh); emit
             # via the same stderr convention the rest of this file uses so the guard
             # never crashes when council is sourced standalone.
-            echo "Council warning: Quorum FAILED the distinct-vendor guard: ${received_non_chair} responses but only ${COUNCIL_DISTINCT_PROVIDERS} distinct provider(s) (${COUNCIL_RESPONDING_PROVIDERS# }). Single-vendor is not a valid consensus — restore a 2nd provider (§4) or surface the provider-shortage gate to the human." >&2
+            echo "Council warning: Quorum FAILED the distinct-approving-vendor guard: ${received_non_chair} responses, ${COUNCIL_DISTINCT_PROVIDERS} distinct provider(s) (${COUNCIL_RESPONDING_PROVIDERS# }), but only ${COUNCIL_DISTINCT_APPROVING_PROVIDERS} cleanly APPROVED (${COUNCIL_APPROVING_PROVIDERS:-none}). A single approving vendor — or a split double-seated vendor — is not a valid cross-lab consensus. Restore/await a 2nd approving provider (§4) or surface the provider-shortage gate to the human." >&2
         fi
     fi
 }
@@ -2270,6 +2337,8 @@ council_write_summary_json() {
         --arg quorum_met "$COUNCIL_QUORUM_MET" \
         --arg distinct_providers "${COUNCIL_DISTINCT_PROVIDERS:-0}" \
         --arg responding_providers "${COUNCIL_RESPONDING_PROVIDERS:+${COUNCIL_RESPONDING_PROVIDERS# }}" \
+        --arg distinct_approving_providers "${COUNCIL_DISTINCT_APPROVING_PROVIDERS:-0}" \
+        --arg approving_providers "${COUNCIL_APPROVING_PROVIDERS:-}" \
         --arg chair_received "$COUNCIL_CHAIR_RESPONSE_RECEIVED" \
         --arg chair_fallback_used "$COUNCIL_CHAIR_FALLBACK_USED" \
         --arg chair_fallback_persona "$COUNCIL_CHAIR_FALLBACK_PERSONA" \
@@ -2311,6 +2380,8 @@ council_write_summary_json() {
             chair_received: ($chair_received == "true"),
             distinct_providers: ($distinct_providers | tonumber),
             responding_providers: $responding_providers,
+            distinct_approving_providers: ($distinct_approving_providers | tonumber),
+            approving_providers: $approving_providers,
             met: ($quorum_met == "true")
           },
           providers: $providers,
