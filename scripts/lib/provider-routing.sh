@@ -236,6 +236,11 @@ migrate_provider_config() {
       "fallback": "gemini-3-flash-preview",
       "flash": "gemini-3-flash-preview",
       "image": "gemini-3-pro-image"
+    },
+    "agy": {
+      "default": "Gemini 3.1 Pro (High)",
+      "fallback": "Gemini 3.5 Flash (High)",
+      "flash": "Gemini 3.5 Flash (Low)"
     }
   },
   "routing": {
@@ -243,7 +248,7 @@ migrate_provider_config() {
       "deliver": "codex:default",
       "review": "codex:default",
       "security": "codex:reasoning",
-      "research": "gemini:default"
+      "research": "agy"
     },
     "roles": {
       "researcher": "perplexity"
@@ -372,6 +377,11 @@ set_provider_model() {
       "fallback": "gemini-3-flash-preview",
       "flash": "gemini-3-flash-preview",
       "image": "gemini-3-pro-image"
+    },
+    "agy": {
+      "default": "Gemini 3.1 Pro (High)",
+      "fallback": "Gemini 3.5 Flash (High)",
+      "flash": "Gemini 3.5 Flash (Low)"
     }
   },
   "routing": {
@@ -379,7 +389,7 @@ set_provider_model() {
       "deliver": "codex:default",
       "review": "codex:default",
       "security": "codex:reasoning",
-      "research": "gemini:default"
+      "research": "agy"
     }
   },
   "tiers": {

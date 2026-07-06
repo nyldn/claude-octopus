@@ -19,6 +19,20 @@ test_suite "Hook ERR/EXIT trap hygiene (issue #313)"
 VALID_STDIN='{"hook_event_name":"UserPromptSubmit","session_id":"test","cwd":"/tmp","prompt":"test","transcript_path":"/dev/null"}'
 HOOK_TIMEOUT_SECONDS="${HOOK_TIMEOUT_SECONDS:-5}"
 
+# #563: hooks must never touch the live checkout. Previously this test pointed
+# CLAUDE_PLUGIN_ROOT at the real repo and ran hooks with the repo as CWD, so a
+# hook resolving a path/glob from CLAUDE_PLUGIN_ROOT or CWD (e.g. session-end.sh's
+# memory-dir lookup) could delete tracked root files. Point CLAUDE_PLUGIN_ROOT at
+# a disposable copy of the tree (built once, minus .git) and run each hook with a
+# throwaway CWD + CLAUDE_PROJECT_DIR (see run_hook_with_deadline).
+PLUGIN_ROOT_FIXTURE="$TEST_TMP_DIR/plugin-root-fixture"
+if [[ ! -d "$PLUGIN_ROOT_FIXTURE" ]]; then
+    mkdir -p "$PLUGIN_ROOT_FIXTURE"
+    # tar pipe honors --exclude on both GNU and BSD tar; preserves the tree a hook
+    # may read (hooks.json, hooks/, scripts/, config/) without touching the real repo.
+    ( cd "$PROJECT_ROOT" && tar --exclude='./.git' -cf - . ) | ( cd "$PLUGIN_ROOT_FIXTURE" && tar -xf - )
+fi
+
 run_hook_with_deadline() {
     local hook="$1"
     local err_out="$2"
@@ -32,7 +46,7 @@ run_hook_with_deadline() {
     ERR_OUT="$err_out" \
     OUT_OUT="$out_out" \
     HOME_DIR="$home_dir" \
-    PROJECT_ROOT_ENV="$PROJECT_ROOT" \
+    PLUGIN_ROOT_ENV="$PLUGIN_ROOT_FIXTURE" \
     CLAUDE_SESSION_ID_ENV="test-session" \
     HOOK_TIMEOUT_SECONDS_ENV="$HOOK_TIMEOUT_SECONDS" \
     python3 <<'PY' || code=$?
@@ -46,7 +60,11 @@ timeout = float(os.environ["HOOK_TIMEOUT_SECONDS_ENV"])
 
 env = os.environ.copy()
 env["HOME"] = os.environ["HOME_DIR"]
-env["CLAUDE_PLUGIN_ROOT"] = os.environ["PROJECT_ROOT_ENV"]
+# #563: CLAUDE_PLUGIN_ROOT -> disposable copy, not the live checkout.
+env["CLAUDE_PLUGIN_ROOT"] = os.environ["PLUGIN_ROOT_ENV"]
+# #563: give hooks a deterministic, disposable project dir so session-end.sh's
+# memory-dir resolution uses ${CLAUDE_PROJECT_DIR}/memory instead of scanning CWD.
+env["CLAUDE_PROJECT_DIR"] = os.environ["HOME_DIR"]
 env["CLAUDE_SESSION_ID"] = os.environ["CLAUDE_SESSION_ID_ENV"]
 
 with open(os.environ["OUT_OUT"], "wb") as stdout, open(os.environ["ERR_OUT"], "wb") as stderr:
@@ -57,6 +75,9 @@ with open(os.environ["OUT_OUT"], "wb") as stdout, open(os.environ["ERR_OUT"], "w
             stdout=stdout,
             stderr=stderr,
             env=env,
+            # #563: never run a hook with the live repo as CWD — a CWD-relative
+            # rm/glob would hit tracked files. Use the throwaway HOME.
+            cwd=os.environ["HOME_DIR"],
             timeout=timeout,
             check=False,
         )
@@ -220,6 +241,23 @@ test_quality_gate_no_silent_fail_on_missing_validation() {
 # RUN
 # ═══════════════════════════════════════════════════════════════════════════════
 
+test_hook_loop_left_repo_untouched() {
+    test_case "#563: hook invocations did not delete tracked repo files"
+    # Post-condition sentinel: the tests above invoke every hook. Before the #563
+    # fix, a hook resolving a path/glob from the live CLAUDE_PLUGIN_ROOT/CWD could
+    # delete tracked root files (Makefile, LICENSE, GOALS.md, PRODUCT.md observed).
+    # If any are missing now, an isolation regression let a hook reach the checkout.
+    local f missing=()
+    for f in Makefile LICENSE GOALS.md PRODUCT.md README.md package.json CHANGELOG.md; do
+        [[ -e "$PROJECT_ROOT/$f" ]] || missing+=("$f")
+    done
+    if ((${#missing[@]})); then
+        test_fail "hook tests deleted tracked repo files (isolation regression): ${missing[*]}"
+    else
+        test_pass
+    fi
+}
+
 test_all_set_e_hooks_have_exit_trap
 test_all_hooks_exit_clean_on_valid_input
 test_trap_emits_stderr_on_forced_failure
@@ -227,5 +265,6 @@ test_trap_silent_on_clean_exit
 test_careful_check_no_silent_fail_on_non_tool_input
 test_freeze_check_no_silent_fail_on_non_tool_input
 test_quality_gate_no_silent_fail_on_missing_validation
+test_hook_loop_left_repo_untouched
 
 test_summary

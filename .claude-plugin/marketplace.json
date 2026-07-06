@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "nyldn plugins for Claude Code workflows.",
-    "version": "9.47.1"
+    "version": "9.47.2"
   },
   "plugins": [
     {
@@ -15,8 +15,8 @@
         "source": "url",
         "url": "https://github.com/nyldn/claude-octopus.git"
       },
-      "description": "v9.47.1 - reliability fixes: atomic_json_update is now race-safe under concurrent agent status writes, agy model pins validate dynamically, and late tangle completions retry with feedback. 32 personas, 49 commands, 54 skills. Run /octo:setup.",
-      "version": "9.47.1",
+      "description": "v9.47.2 - dispatch and tangle reliability: Qwen/OpenCode dispatch gaps fixed, Copilot routed through a stdin-to-arg shim, tangle dispatch and hard-gate retries hardened, council distinct-vendor quorum, agy research defaults, and a safer session-end cleanup guard. 32 personas, 49 commands, 54 skills. Run /octo:setup.",
+      "version": "9.47.2",
       "author": {
         "name": "nyldn",
         "url": "https://github.com/nyldn"
