@@ -260,10 +260,55 @@ verify_result_integrity() {
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # Atomic JSON update with file locking (prevents race conditions)
+# #559: reclaim a mkdir-lock whose holder died before releasing it (SIGKILL,
+# crash, OOM, power loss all skip the EXIT trap, leaving the lock dir behind and
+# blocking every later caller until timeout). A lock is stale when its recorded
+# holder PID is no longer running, or it has outlived the age threshold.
+#
+# Reclaim is race-safe via grab-verify-restore: we atomically `mv` the lock
+# aside (only one contender can win that rename), then re-check the holder — if
+# it turns out to be alive (we grabbed a lock another reclaimer had just
+# re-created), we move it back untouched. Only a confirmed-dead holder is dropped.
+_atomic_reclaim_stale_lock() {
+    local lockfile="$1" stale_age="$2"
+    [[ -d "$lockfile" ]] || return 0
+
+    local pid ts now stale=0
+    pid=$(cat "$lockfile/pid" 2>/dev/null || true)
+    ts=$(cat "$lockfile/ts" 2>/dev/null || true)
+
+    if [[ "$pid" =~ ^[0-9]+$ ]]; then
+        kill -0 "$pid" 2>/dev/null || stale=1        # recorded holder is gone
+    fi
+    if [[ $stale -eq 0 && "$ts" =~ ^[0-9]+$ ]]; then
+        now=$(date +%s 2>/dev/null || echo 0)
+        [[ $((now - ts)) -ge "$stale_age" ]] && stale=1   # outlived threshold
+    fi
+    [[ $stale -eq 1 ]] || return 0
+
+    local stolen="${lockfile}.stale.${BASHPID:-$$}"
+    mv "$lockfile" "$stolen" 2>/dev/null || return 0   # lost the race to reclaim
+    # We exclusively hold the moved dir. Re-verify it was actually stale before
+    # dropping it, in case we grabbed a lock another process had just re-created.
+    local spid; spid=$(cat "$stolen/pid" 2>/dev/null || true)
+    if [[ "$spid" =~ ^[0-9]+$ ]] && kill -0 "$spid" 2>/dev/null; then
+        mv "$stolen" "$lockfile" 2>/dev/null || rm -rf "$stolen" 2>/dev/null || true
+    else
+        rm -rf "$stolen" 2>/dev/null || true
+    fi
+}
+
 atomic_json_update() {
     local json_file="$1"
     local jq_expression="$2"
     shift 2
+
+    # Guard an empty path so "${json_file}.lock" can never become a bare ".lock"
+    # that rm -rf would target in the CWD.
+    if [[ -z "$json_file" ]]; then
+        log WARN "atomic_json_update: empty json_file"
+        return 1
+    fi
 
     # mkdir is atomic on every POSIX filesystem, unlike a check-then-touch
     # lock: two concurrent callers can never both succeed at creating the
@@ -274,8 +319,12 @@ atomic_json_update() {
     local timeout=5
     local waited=0
     local max_waits=$((timeout * 10))
+    local stale_age="${OCTO_LOCK_STALE_SECS:-30}"
 
     while ! mkdir "$lockfile" 2>/dev/null; do
+        # #559: a leaked lock from a crashed holder would otherwise block forever.
+        _atomic_reclaim_stale_lock "$lockfile" "$stale_age"
+        mkdir "$lockfile" 2>/dev/null && break
         waited=$((waited + 1))
         if [[ $waited -ge $max_waits ]]; then
             log WARN "Timeout acquiring lock for $json_file"
@@ -284,6 +333,11 @@ atomic_json_update() {
         sleep 0.1
     done
 
+    # #559: record ownership so a later contender can tell a live holder from a
+    # crashed one. Best-effort — failure to write these never blocks the update.
+    printf '%s\n' "${BASHPID:-$$}" > "$lockfile/pid" 2>/dev/null || true
+    date +%s > "$lockfile/ts" 2>/dev/null || true
+
     # This function can run in the same shell as a caller's own long-lived
     # EXIT/INT/TERM traps (e.g. orchestrate.sh's temp-dir cleanup), so save
     # and restore them instead of clobbering them with `trap - EXIT`.
@@ -291,7 +345,8 @@ atomic_json_update() {
     prev_exit_trap=$(trap -p EXIT)
     prev_int_trap=$(trap -p INT)
     prev_term_trap=$(trap -p TERM)
-    trap 'rmdir "'"$lockfile"'" 2>/dev/null' EXIT INT TERM
+    # rm -rf (not rmdir): the lock dir now holds pid/ts ownership files (#559).
+    trap 'rm -rf "'"$lockfile"'" 2>/dev/null' EXIT INT TERM
 
     # BASHPID (not $$, which stays constant across every subshell spawned
     # from the same parent) keeps concurrent callers from colliding on one
@@ -301,7 +356,7 @@ atomic_json_update() {
     local result=$?
     [[ $result -ne 0 ]] && rm -f "$tmp_file"
 
-    rmdir "$lockfile" 2>/dev/null
+    rm -rf "$lockfile" 2>/dev/null
     eval "${prev_exit_trap:-trap - EXIT}"
     eval "${prev_int_trap:-trap - INT}"
     eval "${prev_term_trap:-trap - TERM}"
