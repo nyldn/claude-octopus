@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+## [9.48.0] - 2026-07-06
+
+### Added
+
+- **xAI Grok CLI as a first-class provider** (#542). New `grok` provider (`xai` family): stdin dispatch via `scripts/helpers/grok-exec.sh`, `scripts/lib/grok.sh`, detection, routing, doctor checks, fleet inclusion in `build-fleet.sh`, and model-config catalog entries. Available in debate/brainstorm alongside the other providers.
+
+### Fixed
+
+- **`atomic_json_update` recovers from a crashed lock holder** (#557, #559). The `mkdir`-based lock now records the holder PID + acquisition timestamp; a contender reclaims a lock whose holder is gone (dead PID) or that has outlived `OCTO_LOCK_STALE_SECS` (default 30s), via a race-safe grab-verify-restore that always respects a live holder. Previously a SIGKILL/crash left the lock dir behind and blocked every later caller until timeout.
+- **Running the unit suite no longer deletes tracked repo files** (#563). `test-hook-err-traps.sh` invoked every hook with `CLAUDE_PLUGIN_ROOT` and CWD pointed at the live checkout, so a hook resolving a path/glob from either (e.g. `session-end.sh`'s CWD-scan memory-dir fallback) could delete `Makefile`/`LICENSE`/`GOALS.md`/`PRODUCT.md`. Hooks now run against a disposable tree copy with a throwaway CWD and `CLAUDE_PROJECT_DIR`; a sentinel fails the suite if a tracked file ever disappears.
+- **Late tangle completions are reconciled on their final status** (#560). Success detection now reads the latest `## Status:` line (so a task that completes late and appends a newer status is judged on its final state, not an earlier SUCCESS) while keeping the blocker-output guard.
+- **Corrected a stale cache-key sanitization test assertion** (#583) that reported a false failure after the resolver moved to sanitizing the canonical provider name.
+
 ## [9.47.2] - 2026-07-06
 
 ### Fixed

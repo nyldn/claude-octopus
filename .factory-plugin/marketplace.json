@@ -5,14 +5,14 @@
   },
   "metadata": {
     "description": "Multi-tentacled orchestration plugin for Factory AI Droid",
-    "version": "9.47.2"
+    "version": "9.48.0"
   },
   "plugins": [
     {
       "name": "claude-octopus",
       "source": "./",
-      "description": "v9.47.2 - dispatch and tangle reliability: Qwen/OpenCode dispatch gaps fixed, Copilot routed through a stdin-to-arg shim, tangle dispatch and hard-gate retries hardened, council distinct-vendor quorum, agy research defaults, and a safer session-end cleanup guard. 32 personas, 49 commands, 54 skills. Run /octo:setup.",
-      "version": "9.47.2",
+      "description": "v9.48.0 - adds the xAI Grok CLI as a first-class provider; plus reliability fixes: crash-safe stale-lock recovery for atomic_json_update, hardened hook-test isolation (no more deleting tracked repo files), and late-tangle-completion reconciliation. 32 personas, 49 commands, 54 skills. Run /octo:setup.",
+      "version": "9.48.0",
       "author": {
         "name": "nyldn"
       },
