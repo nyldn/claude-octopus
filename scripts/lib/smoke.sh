@@ -1007,6 +1007,8 @@ _display_smoke_test_error() {
                 echo -e "    ${DIM}Fix: export OCTOPUS_CODEX_MODEL=gpt-5.5${NC}"
             elif [[ "$provider" == "cursor" || "$provider" == "cursor-agent" || "$provider" == "Cursor Agent" ]]; then
                 echo -e "    ${DIM}Fix: export OCTOPUS_CURSOR_AGENT_MODEL=grok-4-20${NC}"
+            elif [[ "$provider" == "agy" || "$provider" == "Antigravity" ]]; then
+                echo -e "    ${DIM}Fix: agy models  (pick a valid label)  OR  unset OCTOPUS_AGY_MODEL to use agy's default${NC}"
             else
                 echo -e "    ${DIM}Fix: export OCTOPUS_GEMINI_MODEL=gemini-3.1-pro-preview${NC}"
             fi
@@ -1017,6 +1019,8 @@ _display_smoke_test_error() {
                 echo -e "    ${DIM}Fix: codex login  OR  export OPENAI_API_KEY=\"sk-...\"${NC}"
             elif [[ "$provider" == "cursor" || "$provider" == "cursor-agent" || "$provider" == "Cursor Agent" ]]; then
                 echo -e "    ${DIM}Fix: agent login  OR  export CURSOR_API_KEY=\"...\"${NC}"
+            elif [[ "$provider" == "agy" || "$provider" == "Antigravity" ]]; then
+                echo -e "    ${DIM}Fix: agy login${NC}"
             else
                 echo -e "    ${DIM}Fix: gemini  (OAuth)  OR  export GEMINI_API_KEY=\"...\"${NC}"
             fi
@@ -1058,6 +1062,7 @@ _smoke_test_provider() {
         codex) agent_type="codex" ;;
         gemini) agent_type="gemini" ;;
         cursor-agent) agent_type="cursor-agent" ;;
+        agy) agent_type="agy" ;;
         *) echo "SKIP" > "$result_file"; return 0 ;;
     esac
 
@@ -1098,6 +1103,16 @@ _smoke_test_provider() {
         # --trust required for untrusted workspaces; matches cursor-agent.sh:143 dispatch path
         echo "Reply with exactly: ok" | run_with_timeout "$smoke_timeout" \
             $cmd_str -p "" --trust --output-format text \
+            >/dev/null 2>"$stderr_file" || smoke_exit=$?
+    elif [[ "$provider" == "agy" ]]; then
+        # agy-exec.sh is a stdin adapter that builds its own argv and execs agy
+        # directly — any argv appended here would be silently discarded, so the
+        # prompt must go via stdin (like codex/gemini above). Explicitly forbid
+        # tool use: a bare "ok" smoke prompt otherwise triggers agy's default
+        # web-search tool call, which hangs with no sandbox network permission.
+        echo "Reply with exactly: ok. Answer from your own knowledge only — do not use web search or any tools." \
+            | run_with_timeout "$smoke_timeout" \
+            $cmd_str \
             >/dev/null 2>"$stderr_file" || smoke_exit=$?
     else
         run_with_timeout "$smoke_timeout" \
@@ -1147,24 +1162,26 @@ provider_smoke_test() {
     log INFO "Running provider smoke test... 🐙"
 
     # Determine which providers are available (from preflight state)
-    local has_codex=false has_gemini=false has_cursor_agent=false
+    local has_codex=false has_gemini=false has_cursor_agent=false has_agy=false
     command -v codex &>/dev/null && has_codex=true
     command -v gemini &>/dev/null && has_gemini=true
     if command -v agent &>/dev/null && _is_cursor_agent_binary && \
        { [[ -n "${CURSOR_API_KEY:-}" ]] || grep -Eq '"authInfo"[[:space:]]*:[[:space:]]*\{' "${HOME}/.cursor/cli-config.json" 2>/dev/null; }; then
         has_cursor_agent=true
     fi
+    command -v agy &>/dev/null && has_agy=true
 
-    if [[ "$has_codex" == "false" && "$has_gemini" == "false" && "$has_cursor_agent" == "false" ]]; then
+    if [[ "$has_codex" == "false" && "$has_gemini" == "false" && "$has_cursor_agent" == "false" && "$has_agy" == "false" ]]; then
         log WARN "Smoke test: no providers to test"
         return 0
     fi
 
     # Launch parallel smoke tests
-    local codex_result_file gemini_result_file cursor_agent_result_file
+    local codex_result_file gemini_result_file cursor_agent_result_file agy_result_file
     codex_result_file=$(secure_tempfile "smoke-codex")
     gemini_result_file=$(secure_tempfile "smoke-gemini")
     cursor_agent_result_file=$(secure_tempfile "smoke-cursor-agent")
+    agy_result_file=$(secure_tempfile "smoke-agy")
     local pids=()
 
     if [[ "$has_codex" == "true" ]]; then
@@ -1188,21 +1205,29 @@ provider_smoke_test() {
         echo "SKIP" > "$cursor_agent_result_file"
     fi
 
+    if [[ "$has_agy" == "true" ]]; then
+        _smoke_test_provider "agy" "${OCTOPUS_AGY_SMOKE_TIMEOUT:-45}" "$agy_result_file" &
+        pids+=($!)
+    else
+        echo "SKIP" > "$agy_result_file"
+    fi
+
     # Wait for all background tests
     for pid in "${pids[@]}"; do
         wait "$pid" 2>/dev/null || true
     done
 
     # Collect results
-    local codex_result gemini_result cursor_agent_result
+    local codex_result gemini_result cursor_agent_result agy_result
     codex_result=$(cat "$codex_result_file" 2>/dev/null || echo "SKIP")
     gemini_result=$(cat "$gemini_result_file" 2>/dev/null || echo "SKIP")
     cursor_agent_result=$(cat "$cursor_agent_result_file" 2>/dev/null || echo "SKIP")
-    rm -f "$codex_result_file" "$gemini_result_file" "$cursor_agent_result_file" 2>/dev/null
+    agy_result=$(cat "$agy_result_file" 2>/dev/null || echo "SKIP")
+    rm -f "$codex_result_file" "$gemini_result_file" "$cursor_agent_result_file" "$agy_result_file" 2>/dev/null
 
     local pass_count=0 fail_count=0 skip_count=0
 
-    for result in "$codex_result" "$gemini_result" "$cursor_agent_result"; do
+    for result in "$codex_result" "$gemini_result" "$cursor_agent_result" "$agy_result"; do
         case "${result%%:*}" in
             PASS) ((++pass_count)) ;;
             SKIP) ((++skip_count)) ;;
@@ -1227,6 +1252,11 @@ provider_smoke_test() {
             local cursor_agent_error="${cursor_agent_result%%:*}"
             local cursor_agent_model="${cursor_agent_result#*:}"
             _display_smoke_test_error "Cursor Agent" "$cursor_agent_error" "$cursor_agent_model"
+        fi
+        if [[ "$agy_result" != "PASS" && "$agy_result" != "SKIP" ]]; then
+            local agy_error="${agy_result%%:*}"
+            local agy_model="${agy_result#*:}"
+            _display_smoke_test_error "Antigravity" "$agy_error" "$agy_model"
         fi
         echo ""
     fi

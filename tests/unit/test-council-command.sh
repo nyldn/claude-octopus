@@ -1225,7 +1225,81 @@ test_council_live_response_host_native_fails_for_synthesis() {
     fi
 }
 
+test_council_verdict_parsing() {
+    test_case "council_response_verdict reads the last VERDICT line, fail-safe REVISE"
+    load_council_lib || return 1
+    local d; d="$(mktemp -d "$TEST_TMP_DIR/verdict.XXXXXX")"
+    printf 'review\nVERDICT: APPROVE\n'                 > "$d/a.md"
+    printf 'review\nVERDICT: REVISE\n'                  > "$d/r.md"
+    printf 'review\nverdict: block now\n'               > "$d/b.md"
+    printf 'no verdict line at all here\n'              > "$d/none.md"
+    printf 'VERDICT: APPROVE\nmore\nVERDICT: REVISE\n'  > "$d/last.md"
+    if [[ "$(council_response_verdict "$d/a.md")"    == "APPROVE" ]] &&
+       [[ "$(council_response_verdict "$d/r.md")"    == "REVISE"  ]] &&
+       [[ "$(council_response_verdict "$d/b.md")"    == "BLOCK"   ]] &&
+       [[ "$(council_response_verdict "$d/none.md")" == "REVISE"  ]] &&
+       [[ "$(council_response_verdict "$d/last.md")" == "REVISE"  ]]; then
+        test_pass
+    else
+        test_fail "verdict parsing mismatch"
+        return 1
+    fi
+}
+
+test_council_approving_providers_failsafe() {
+    test_case "council_compute_approving_providers drops a split double-seated vendor"
+    load_council_lib || return 1
+    local split clean
+    split="$(council_compute_approving_providers "agy codex codex" "codex")"
+    clean="$(council_compute_approving_providers "agy codex codex" "")"
+    if [[ "$split" == "agy" ]] && [[ "$clean" == "agy codex" ]]; then
+        test_pass
+    else
+        test_fail "approver set wrong: split=[$split] clean=[$clean]"
+        return 1
+    fi
+}
+
+test_council_split_double_seat_fails_quorum() {
+    test_case "Council quorum fails when a double-seated vendor splits (sail-cruisey #1992)"
+    load_council_lib || return 1
+    local tmp_dir rd
+    tmp_dir="$(mktemp -d "$TEST_TMP_DIR/council-split.XXXXXX")"
+    OCTOPUS_COUNCIL_FIXTURE=full-success \
+    OCTOPUS_COUNCIL_PROVIDER_FIXTURE='codex:available,agy:available' \
+    OCTOPUS_COUNCIL_FIXTURE_REVISE_PERSONAS='code-reviewer' \
+        council_run --depth standard --output-dir "$tmp_dir" "Review X" >/dev/null 2>&1 || true
+    rd="$(find "$tmp_dir" -mindepth 1 -maxdepth 1 -type d | head -1)"
+    if jq -e '.quorum.met == false and .quorum.distinct_approving_providers == 1 and .quorum.approving_providers == "agy"' "$rd/summary.json" >/dev/null; then
+        test_pass
+    else
+        test_fail "split double-seat did not fail quorum: $(jq -c .quorum "$rd/summary.json" 2>/dev/null)"
+        return 1
+    fi
+}
+
+test_council_all_approve_meets_quorum() {
+    test_case "Council quorum meets when >=2 distinct vendors cleanly APPROVE"
+    load_council_lib || return 1
+    local tmp_dir rd
+    tmp_dir="$(mktemp -d "$TEST_TMP_DIR/council-approve.XXXXXX")"
+    OCTOPUS_COUNCIL_FIXTURE=full-success \
+    OCTOPUS_COUNCIL_PROVIDER_FIXTURE='codex:available,agy:available' \
+        council_run --depth standard --output-dir "$tmp_dir" "Review X" >/dev/null 2>&1 || true
+    rd="$(find "$tmp_dir" -mindepth 1 -maxdepth 1 -type d | head -1)"
+    if jq -e '.quorum.met == true and .quorum.distinct_approving_providers >= 2' "$rd/summary.json" >/dev/null; then
+        test_pass
+    else
+        test_fail "clean all-approve did not meet quorum: $(jq -c .quorum "$rd/summary.json" 2>/dev/null)"
+        return 1
+    fi
+}
+
 test_council_host_native_detection
 test_council_live_response_host_native_skips_subprocess
 test_council_live_response_host_native_fails_for_synthesis
+test_council_verdict_parsing
+test_council_approving_providers_failsafe
+test_council_split_double_seat_fails_quorum
+test_council_all_approve_meets_quorum
 test_summary

@@ -193,9 +193,12 @@ get_agent_command() {
             fi
             echo "perplexity_execute $model"
             ;;
-        copilot|copilot-research)  # v9.9.0: GitHub Copilot CLI — copilot -p (Issue #198)
-            # -s: silent (no footer noise), --disable-builtin-mcps: skip MCP startup latency
-            echo "copilot --no-ask-user -s --disable-builtin-mcps"
+        copilot|copilot-research)  # v9.9.0: GitHub Copilot CLI via helpers/copilot-exec.sh (Issue #198)
+            # copilot's only non-interactive mode is `-p <text>` (argv), but the spawn
+            # contract feeds the prompt via stdin. The shim bridges stdin -> -p so the
+            # advisor does not open an interactive session and hang (silent drop).
+            # -s: silent (no footer noise); --disable-builtin-mcps: skip MCP startup latency.
+            echo "${PLUGIN_DIR}/scripts/helpers/copilot-exec.sh"
             ;;
         ollama|ollama-*)  # v9.9.0: Ollama local LLM — ollama run
             if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
@@ -207,7 +210,17 @@ get_agent_command() {
             # oco-dar: NO_BROWSER=1 stops a stale token from hijacking the user's
             # browser into the OAuth device-flow. Pre-flight (qwen_is_usable) should
             # already gate this out; this is defense-in-depth if dispatch is reached.
-            echo "env NODE_NO_WARNINGS=1 NO_BROWSER=1 qwen -o text --approval-mode yolo"
+            if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
+                return 1
+            fi
+            # OPENAI_COMPAT auth (OPENAI_API_KEY + OPENAI_BASE_URL) needs an explicit
+            # --auth-type: the qwen CLI does not auto-detect it from env vars alone
+            # in non-interactive mode (Issue #566).
+            local qwen_auth_flag=""
+            if declare -f qwen_auth_method >/dev/null 2>&1 && [[ "$(qwen_auth_method)" == "env:OPENAI_COMPAT" ]]; then
+                qwen_auth_flag="--auth-type openai"
+            fi
+            echo "env NODE_NO_WARNINGS=1 NO_BROWSER=1 qwen -o text --approval-mode yolo -m ${model} ${qwen_auth_flag}"
             ;;
         grok|grok-research)  # xAI Grok CLI — headless single-turn via helpers/grok-exec.sh
             echo "${PLUGIN_DIR}/scripts/helpers/grok-exec.sh"
@@ -237,7 +250,13 @@ get_agent_command() {
             if [[ -n "$model" && "$model" != "default" ]]; then
                 oc_model_flag="-m ${model}"
             fi
-            echo "opencode run ${oc_model_flag}"
+            # --pure skips opencode's external-plugin auto-title path, which
+            # otherwise resolves an SDK handle for a hardcoded small model
+            # before the prompt is even sent — an unresolvable catalog/model
+            # there hangs `opencode run` indefinitely with no timeout or error
+            # (Issue #566). It's a global flag, so it must precede the `run`
+            # subcommand or risk being ignored/rejected.
+            echo "opencode --pure run ${oc_model_flag}"
             ;;
         *) return 1 ;;
     esac

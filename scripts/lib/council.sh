@@ -74,7 +74,7 @@ Options:
   --implement never|after-approval|plan-only
   --worktree auto|on|off
   --benchmark auto|on|off
-  --providers auto|claude,codex,gemini,qwen,opencode,openrouter
+  --providers auto|claude,codex,agy,gemini,qwen,opencode,openrouter
   --max-cost <usd>
   --simulate
   --single-model
@@ -175,7 +175,7 @@ council_validate_choice() {
 
 council_validate_provider_list() {
     local providers="$1"
-    local allowed="claude,codex,gemini,qwen,opencode,openrouter"
+    local allowed="claude,codex,agy,gemini,qwen,opencode,openrouter"
 
     if [[ "$providers" == "auto" ]]; then
         return 0
@@ -518,6 +518,7 @@ council_provider_command() {
         claude) echo "claude" ;;
         codex) echo "codex" ;;
         gemini) echo "gemini" ;;
+        agy) echo "agy" ;;
         opencode) echo "opencode" ;;
         openrouter) echo "openrouter" ;;
         *) echo "$1" ;;
@@ -528,7 +529,7 @@ council_provider_org() {
     case "$1" in
         claude) echo "anthropic" ;;
         codex) echo "openai" ;;
-        gemini) echo "google" ;;
+        gemini|agy) echo "google" ;;
         opencode) echo "opencode" ;;
         openrouter) echo "openrouter" ;;
         *) echo "$1" ;;
@@ -562,6 +563,7 @@ council_cli_to_provider() {
     case "$1" in
         claude*|opus*|sonnet*) echo "claude" ;;
         gemini*) echo "gemini" ;;
+        agy*) echo "agy" ;;
         opencode*) echo "opencode" ;;
         openrouter*) echo "openrouter" ;;
         codex*|gpt*) echo "codex" ;;
@@ -579,7 +581,7 @@ council_persona_default_provider() {
 
     case "$1" in
         strategy-analyst|exec-communicator) echo "claude" ;;
-        research-synthesizer|business-analyst|finance-analyst|academic-writer|ux-researcher) echo "gemini" ;;
+        research-synthesizer|business-analyst|finance-analyst|academic-writer|ux-researcher) echo "agy" ;;
         *) echo "codex" ;;
     esac
 }
@@ -594,7 +596,7 @@ council_persona_model() {
 
     case "$1" in
         strategy-analyst|exec-communicator) echo "anthropic/claude-sonnet-4.6" ;;
-        research-synthesizer|business-analyst|finance-analyst|academic-writer|ux-researcher) echo "gemini-3-pro-preview" ;;
+        research-synthesizer|business-analyst|finance-analyst|academic-writer|ux-researcher) echo "Gemini 3.1 Pro (High)" ;;
         code-reviewer) echo "gpt-5.3-codex-spark" ;;
         *) echo "gpt-5.3-codex" ;;
     esac
@@ -882,7 +884,7 @@ council_pick_provider() {
     fi
 
     local provider providers="$COUNCIL_PROVIDERS"
-    [[ "$providers" == "auto" ]] && providers="claude,codex,gemini,qwen,opencode,openrouter"
+    [[ "$providers" == "auto" ]] && providers="claude,codex,agy,gemini,qwen,opencode,openrouter"
     IFS=',' read -r -a provider_list <<< "$providers"
     for provider in "${provider_list[@]}"; do
         provider="${provider// /}"
@@ -982,7 +984,7 @@ council_candidate_personas() {
 
 council_available_provider_orgs_json() {
     local providers="$COUNCIL_PROVIDERS"
-    [[ "$providers" == "auto" ]] && providers="claude,codex,gemini,qwen,opencode,openrouter"
+    [[ "$providers" == "auto" ]] && providers="claude,codex,agy,gemini,qwen,opencode,openrouter"
 
     local json='[]' provider org
     IFS=',' read -r -a provider_list <<< "$providers"
@@ -998,7 +1000,7 @@ council_available_provider_orgs_json() {
 council_provider_for_org() {
     local wanted_org="$1"
     local providers="$COUNCIL_PROVIDERS"
-    [[ "$providers" == "auto" ]] && providers="claude,codex,gemini,qwen,opencode,openrouter"
+    [[ "$providers" == "auto" ]] && providers="claude,codex,agy,gemini,qwen,opencode,openrouter"
 
     local provider
     IFS=',' read -r -a provider_list <<< "$providers"
@@ -1351,6 +1353,12 @@ EOF
     cat << EOF
 
 Return concise Markdown with recommendation, assumptions, risks, implementation notes, and confidence.
+
+End your response with a single line, exactly one of:
+VERDICT: APPROVE
+VERDICT: REVISE
+VERDICT: BLOCK
+Use APPROVE only if you would ship the proposal as-is. Use REVISE if anything must change first, and BLOCK for a hard stop. This line is parsed mechanically — a missing or unclear verdict is treated as REVISE.
 EOF
 }
 
@@ -1405,6 +1413,15 @@ EOF
         return 0
     fi
 
+    # Fixture verdict: APPROVE by default; OCTOPUS_COUNCIL_FIXTURE_VERDICT overrides
+    # globally, and OCTOPUS_COUNCIL_FIXTURE_REVISE_PERSONAS (comma-separated) forces
+    # specific personas to REVISE — enough to simulate an all-approve pass, an
+    # all-revise fail, or a single-seat/split dissent in tests.
+    local fixture_verdict="${OCTOPUS_COUNCIL_FIXTURE_VERDICT:-APPROVE}"
+    if council_list_contains "${OCTOPUS_COUNCIL_FIXTURE_REVISE_PERSONAS:-}" "$persona"; then
+        fixture_verdict="REVISE"
+    fi
+
     cat << EOF
 ## Recommendation
 
@@ -1427,6 +1444,8 @@ $persona recommends a cautious, testable path for: $COUNCIL_TASK
 ## Confidence
 
 Medium
+
+VERDICT: ${fixture_verdict}
 EOF
 }
 
@@ -1571,20 +1590,116 @@ council_write_config_json() {
         }' > "$config_path"
 }
 
+council_response_nonempty() {
+    # True only if the file has at least one non-whitespace character. An empty
+    # or whitespace-only response (e.g. an agy seat that hit an exhausted quota
+    # group) is NOT a real response and must not count toward the quorum.
+    local f="$1"
+    [[ -s "$f" ]] || return 1
+    [[ -n "$(tr -d '[:space:]' < "$f")" ]]
+}
+
+council_response_is_substantive() {
+    # A non-empty response can still be DEGENERATE — it produced bytes but reviewed
+    # nothing — and such a seat must not count toward the distinct-provider quorum.
+    # Two known degenerate shapes:
+    #   1. The host self-dispatch stub (a fixed string the runner itself emits when
+    #      a seat's provider == the host CLI) — matched exactly, zero false positives.
+    #   2. An external seat that signalled it could not READ the artifact ("I cannot
+    #      access the plan/files…") — gated on brevity so a LONG real review that
+    #      merely quotes such a phrase is never rejected.
+    # (RATIONALE: sail-cruisey #1839 — agy's "I cannot access the implementation
+    # plan, PRD, or security audit files" REVISE was counted as the 2nd provider.)
+    local f="$1"
+    [[ -f "$f" ]] || return 1
+
+    # 1) Host self-dispatch stub — runner-emitted, exact match. (grep -c … >/dev/null,
+    #    not -q: -q closes the pipe early and can SIGPIPE under set -eo pipefail.)
+    if grep -ciE 'Subprocess dispatch is unavailable|active host runtime' "$f" >/dev/null; then
+        return 1
+    fi
+
+    # 2) Short response that reports it could not reach the artifact. The brevity
+    #    gate (non-whitespace chars) keeps genuine, lengthy reviews safe.
+    local nlen
+    nlen="$(tr -d '[:space:]' < "$f" | wc -c | tr -d '[:space:]')"
+    if (( nlen < 1600 )) && grep -ciE "(cannot|could not|couldn'?t|unable to|can'?t)[[:space:]]+(access|read|open|locate|find|view|retrieve)[^.]{0,60}(file|plan|prd|diff|patch|artifact|document|spec)" "$f" >/dev/null; then
+        return 1
+    fi
+
+    return 0
+}
+
+council_response_verdict() {
+    # The seat's self-declared verdict, read from the LAST "VERDICT:" line. Fail
+    # safe: anything that is not a clean APPROVE (REVISE / BLOCK / missing /
+    # ambiguous) is reported as REVISE, so a seat that omits or hedges the line
+    # never counts as an approval toward quorum. Echoes APPROVE, REVISE, or BLOCK.
+    local f="$1" verdict
+    [[ -f "$f" ]] || { printf 'REVISE'; return 0; }
+    verdict="$(awk '
+        toupper($0) ~ /^[[:space:]]*VERDICT:/ { last = $0 }
+        END {
+            last = toupper(last)
+            sub(/^[[:space:]]*VERDICT:[[:space:]]*/, "", last)
+            sub(/[^A-Z].*$/, "", last)
+            print last
+        }' "$f")"
+    case "$verdict" in
+        APPROVE) printf 'APPROVE' ;;
+        BLOCK)   printf 'BLOCK' ;;
+        *)       printf 'REVISE' ;;
+    esac
+}
+
+council_compute_approving_providers() {
+    # Derive the APPROVING vendor set from the space-separated RESPONDING
+    # (substantive responders) and DISSENTING (any seat whose verdict != APPROVE)
+    # lists. A vendor is an approver only if it responded substantively AND none
+    # of its seats dissented — so a split double-seated vendor (one APPROVE, one
+    # REVISE) lands in DISSENTING and is NOT an approver. This is the fail-safe
+    # that stops a split vendor's yes-seat from being cherry-picked into a false
+    # quorum (sail-cruisey #1992/#1994/#1983). Echoes the deduped approver list.
+    local responding="$1" dissenting="$2"
+    local p approving=""
+    for p in $responding; do
+        case " $dissenting " in *" $p "*) continue ;; esac
+        case " $approving " in *" $p "*) ;; *) approving="${approving:+$approving }$p" ;; esac
+    done
+    printf '%s' "$approving"
+}
+
 council_run_advice_phase() {
     COUNCIL_RESPONSES_RECEIVED="0"
     COUNCIL_CHAIR_RESPONSE_RECEIVED="false"
+    COUNCIL_RESPONDING_PROVIDERS=""
+    local dissenting_providers=""
 
-    local index=0 member persona slug output_path seat
+    local index=0 member persona slug output_path seat mprovider verdict
     while IFS= read -r member; do
         persona="$(jq -r '.persona' <<< "$member")"
         seat="$(jq -r '.seat' <<< "$member")"
+        mprovider="$(jq -r '.provider' <<< "$member")"
         slug="$(council_slug "$persona")"
         output_path="${COUNCIL_RUN_DIR}/responses/$(printf '%02d' "$index")-${slug}.md"
         if council_dispatch_member "$member" "independent-advice" > "$output_path"; then
             COUNCIL_RESPONSES_RECEIVED=$((COUNCIL_RESPONSES_RECEIVED + 1))
             if [[ "$seat" == "chair" ]]; then
                 COUNCIL_CHAIR_RESPONSE_RECEIVED="true"
+            fi
+            # A provider counts toward quorum ONLY via a non-empty, SUBSTANTIVE
+            # response (exit 0 alone is not enough — the host self-dispatch stub and
+            # empty/degenerate returns review nothing; #2002/#2007/#2003). Record
+            # the vendor as a responder, then read its APPROVE/REVISE/BLOCK verdict:
+            # a non-APPROVE marks the vendor dissenting so its seat can't count as an
+            # approval, and a split double-seated vendor (one APPROVE, one REVISE)
+            # can't cherry-pick its yes-seat into the quorum (#1992/#1994/#1983).
+            if council_response_nonempty "$output_path" && council_response_is_substantive "$output_path"; then
+                COUNCIL_RESPONDING_PROVIDERS="${COUNCIL_RESPONDING_PROVIDERS} ${mprovider}"
+                verdict="$(council_response_verdict "$output_path")"
+                if [[ "$verdict" != "APPROVE" ]]; then
+                    dissenting_providers="${dissenting_providers} ${mprovider}"
+                fi
             fi
         else
             rm -f "$output_path"
@@ -1599,10 +1714,32 @@ council_run_advice_phase() {
     local required received_non_chair
     required="$(council_required_non_chair)"
     received_non_chair="$(( COUNCIL_RESPONSES_RECEIVED > 0 ? COUNCIL_RESPONSES_RECEIVED - 1 : 0 ))"
-    if [[ "$COUNCIL_CHAIR_RESPONSE_RECEIVED" == "true" ]] && (( received_non_chair >= required )); then
+
+    # Distinct-vendor quorum, in two layers:
+    #   distinct_providers  — vendors that returned a SUBSTANTIVE response.
+    #   approving_providers — vendors ALL of whose substantive seats cleanly
+    #                         APPROVED (any dissent drops the whole vendor).
+    # A cross-lab consensus requires >= `required` DISTINCT APPROVING vendors
+    # (2 for standard/deep, 1 for quick). Counting responders alone let a split
+    # double-seated vendor pass on its approving seat (#1992/#1994/#1983) and a
+    # single vendor stand in for consensus (#1993); gating on approvers closes both.
+    COUNCIL_DISTINCT_PROVIDERS="$(printf '%s' "$COUNCIL_RESPONDING_PROVIDERS" | tr ' ' '\n' | sed '/^$/d' | sort -u | wc -l | tr -d '[:space:]')"
+    [[ -z "$COUNCIL_DISTINCT_PROVIDERS" ]] && COUNCIL_DISTINCT_PROVIDERS=0
+    COUNCIL_APPROVING_PROVIDERS="$(council_compute_approving_providers "$COUNCIL_RESPONDING_PROVIDERS" "$dissenting_providers")"
+    COUNCIL_DISTINCT_APPROVING_PROVIDERS="$(printf '%s' "$COUNCIL_APPROVING_PROVIDERS" | tr ' ' '\n' | sed '/^$/d' | sort -u | wc -l | tr -d '[:space:]')"
+    [[ -z "$COUNCIL_DISTINCT_APPROVING_PROVIDERS" ]] && COUNCIL_DISTINCT_APPROVING_PROVIDERS=0
+
+    if [[ "$COUNCIL_CHAIR_RESPONSE_RECEIVED" == "true" ]] && (( received_non_chair >= required )) \
+        && { (( required < 2 )) || (( COUNCIL_DISTINCT_APPROVING_PROVIDERS >= required )); }; then
         COUNCIL_QUORUM_MET="true"
     else
         COUNCIL_QUORUM_MET="false"
+        if (( required >= 2 )) && (( COUNCIL_DISTINCT_APPROVING_PROVIDERS < required )) && (( received_non_chair >= required )); then
+            # council.sh has no log() of its own (it lives in orchestrate.sh); emit
+            # via the same stderr convention the rest of this file uses so the guard
+            # never crashes when council is sourced standalone.
+            echo "Council warning: Quorum FAILED the distinct-approving-vendor guard: ${received_non_chair} responses, ${COUNCIL_DISTINCT_PROVIDERS} distinct provider(s) (${COUNCIL_RESPONDING_PROVIDERS# }), but only ${COUNCIL_DISTINCT_APPROVING_PROVIDERS} cleanly APPROVED (${COUNCIL_APPROVING_PROVIDERS:-none}). A single approving vendor — or a split double-seated vendor — is not a valid cross-lab consensus. Restore/await a 2nd approving provider (§4) or surface the provider-shortage gate to the human." >&2
+        fi
     fi
 }
 
@@ -1972,7 +2109,7 @@ council_start_implementation_handoff() {
 council_detect_providers() {
     local providers="$COUNCIL_PROVIDERS"
     if [[ "$providers" == "auto" ]]; then
-        providers="claude,codex,gemini,qwen,opencode,openrouter"
+        providers="claude,codex,agy,gemini,qwen,opencode,openrouter"
     fi
 
     local json='{}'
@@ -2200,6 +2337,10 @@ council_write_summary_json() {
         --argjson council_roster "$COUNCIL_ROSTER_JSON" \
         --arg responses_received "$COUNCIL_RESPONSES_RECEIVED" \
         --arg quorum_met "$COUNCIL_QUORUM_MET" \
+        --arg distinct_providers "${COUNCIL_DISTINCT_PROVIDERS:-0}" \
+        --arg responding_providers "${COUNCIL_RESPONDING_PROVIDERS:+${COUNCIL_RESPONDING_PROVIDERS# }}" \
+        --arg distinct_approving_providers "${COUNCIL_DISTINCT_APPROVING_PROVIDERS:-0}" \
+        --arg approving_providers "${COUNCIL_APPROVING_PROVIDERS:-}" \
         --arg chair_received "$COUNCIL_CHAIR_RESPONSE_RECEIVED" \
         --arg chair_fallback_used "$COUNCIL_CHAIR_FALLBACK_USED" \
         --arg chair_fallback_persona "$COUNCIL_CHAIR_FALLBACK_PERSONA" \
@@ -2239,6 +2380,10 @@ council_write_summary_json() {
             required_non_chair: (if $depth == "quick" then 1 else 2 end),
             received_non_chair: (if ($responses_received | tonumber) > 0 then (($responses_received | tonumber) - 1) else 0 end),
             chair_received: ($chair_received == "true"),
+            distinct_providers: ($distinct_providers | tonumber),
+            responding_providers: $responding_providers,
+            distinct_approving_providers: ($distinct_approving_providers | tonumber),
+            approving_providers: $approving_providers,
             met: ($quorum_met == "true")
           },
           providers: $providers,

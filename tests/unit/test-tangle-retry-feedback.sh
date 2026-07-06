@@ -168,6 +168,18 @@ else
     test_fail "retry artifact did not recover prompt context from agent-teams instruction file"
 fi
 
+test_case "retry feedback prompt includes deterministic hard-gate feedback when present"
+TANGLE_HARD_GATE_RETRY_FEEDBACK=$'Hard gate failure: missing explicit file coverage.\nMissing explicit files from the approved task/plan:\n- test/openapi-smoke.mjs\n\nApply a delta-only correction.\n'
+feedback=$(build_tangle_retry_feedback_prompt "$FAILED_RESULT" "$prompt")
+unset TANGLE_HARD_GATE_RETRY_FEEDBACK
+if [[ "$feedback" == *"Hard gate failure: missing explicit file coverage."* ]] && \
+   [[ "$feedback" == *"test/openapi-smoke.mjs"* ]] && \
+   [[ "$feedback" == *"Apply a delta-only correction."* ]]; then
+    test_pass
+else
+    test_fail "hard gate retry feedback was not injected into result-file retry prompt"
+fi
+
 test_case "retry feedback prompt names failure and instructs same-provider retry"
 feedback=$(build_tangle_retry_feedback_prompt "$FAILED_RESULT" "$prompt")
 output_excerpt_block=$(printf '%s\n' "$feedback" | awk '

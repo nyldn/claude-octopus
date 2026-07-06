@@ -66,7 +66,7 @@ else
 fi
 
 test_case "[CODING] subtasks use configured tangle_coding_agent instead of hardcoded codex"
-step2_block=$(sed -n '/Step 2: Parallel execution/,/done <<< "$subtasks"/p' "$WORKFLOWS")
+step2_block=$(sed -n '/Step 2: Parallel execution/,/fleet_dispatch_end/p' "$WORKFLOWS")
 configured_agent_count=$(printf '%s
 ' "$step2_block" | grep -c 'local agent="$tangle_coding_agent"' || true)
 hardcoded_codex_count=$(printf '%s
