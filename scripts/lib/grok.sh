@@ -52,7 +52,10 @@ grok_execute(){
         if printf '%s' "$response" | grep -ciE 'unauthorized|forbidden|(401|403)|not authorized|invalid token|expired token|please .?login|login required' >/dev/null; then
             _grok_log ERROR "grok: auth failure — run: grok login (or set XAI_API_KEY)"; return 1
         fi
-        _grok_log WARN "grok: exit $exit_code"
+        # A non-zero exit is a failure even when grok emitted partial stdout. Do not
+        # let an aborted/errored run masquerade as a successful response, or debate and
+        # council verdicts that treat any non-empty output as success get corrupted.
+        _grok_log WARN "grok: exit $exit_code"; return 1
     fi
     [[ -z "$response" ]] && { _grok_log WARN "grok: empty response"; return 1; }
     if [[ -n "$output_file" ]]; then printf '%s\n' "$response" > "$output_file"; else printf '%s\n' "$response"; fi

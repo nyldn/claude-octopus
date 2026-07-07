@@ -223,7 +223,18 @@ get_agent_command() {
             echo "env NODE_NO_WARNINGS=1 NO_BROWSER=1 qwen -o text --approval-mode yolo -m ${model} ${qwen_auth_flag}"
             ;;
         grok|grok-research)  # xAI Grok CLI — headless single-turn via helpers/grok-exec.sh
-            echo "${PLUGIN_DIR}/scripts/helpers/grok-exec.sh"
+            # Wire config/env model selection through to the shim (parity with codex/
+            # gemini/qwen). get_agent_model reads providers.json + OCTOPUS_GROK_MODEL;
+            # pass it via an env prefix so grok-exec.sh emits --model. Grok model ids are
+            # single tokens (grok-4-fast, ...) so the prefix survives argv word-splitting.
+            # Without this, providers.json model picks were silently ignored (the shim
+            # only saw a shell-exported OCTOPUS_GROK_MODEL).
+            if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then return 1; fi
+            if [[ -n "$model" && "$model" != "default" ]]; then
+                echo "env OCTOPUS_GROK_MODEL=${model} ${PLUGIN_DIR}/scripts/helpers/grok-exec.sh"
+            else
+                echo "${PLUGIN_DIR}/scripts/helpers/grok-exec.sh"
+            fi
             ;;
         cursor-agent)  # v9.23.0: Cursor Agent CLI — Grok 4.20 via Cursor subscription
             if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
