@@ -203,7 +203,7 @@
 **Requirements**:
 - ✅ Phase 1 complete and tested
 - ⏸️ MCP tools available (`mcp__claude-in-chrome__*`)
-- ⏸️ Codex + Gemini CLI available for debate (optional)
+- ⏸️ Codex + agy CLI available for debate (optional)
 
 **Recommended**: Verify MCP availability before starting Phase 2
 
@@ -228,7 +228,7 @@
 ### Phase 2 Challenges:
 - Requires browser automation via MCP (external dependency)
 - Interaction state capture may be flaky (retry logic needed)
-- Debate requires multiple AI providers (Codex/Gemini)
+- Debate requires multiple AI providers (Codex/agy)
 
 ### Phase 3 Considerations:
 - Validation certificates provide audit trail

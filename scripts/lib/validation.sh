@@ -207,7 +207,7 @@ EOF
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # SECURITY: CLI output wrapping for untrusted external provider output (v8.7.0)
-# Wraps codex/gemini output in trust markers; passes claude output unchanged
+# Wraps external CLI output (codex, agy, etc.) in trust markers; passes claude output unchanged
 # ═══════════════════════════════════════════════════════════════════════════════
 wrap_cli_output() {
     local provider="$1"
@@ -219,7 +219,7 @@ wrap_cli_output() {
     fi
 
     case "$provider" in
-        codex*|gemini*|agy*|antigravity|perplexity*|cursor-agent*)
+        codex*|agy*|antigravity|perplexity*|cursor-agent*)
             cat << EOF
 <external-cli-output provider="$provider" trust="untrusted">
 $output

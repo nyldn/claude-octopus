@@ -23,7 +23,7 @@ The Double Diamond is a design methodology with 4 phases:
 **Purpose**: Divergent research and exploration
 
 **Activities**:
-- Multi-provider research (Codex + Gemini + Claude)
+- Multi-provider research (Codex + Google (agy) + Claude)
 - Broad ecosystem analysis
 - Technology comparison
 - Best practices research

@@ -11,7 +11,7 @@
 #                    gpt-5.2-codex, gpt-5.4-mini (budget), gpt-5 (standard), gpt-5.2, gpt-5.1
 # - OpenAI Reasoning: o3, o3-pro (API-key only), o3 (API-key only), o3-mini (API-key only)
 # - OpenAI Large Context: gpt-4.1 (1M ctx, API-key only), gpt-5.4 (1M ctx, API-key only)
-# - Google Gemini 3.0: gemini-3.1-pro-preview, gemini-3-flash-preview, gemini-3-pro-image-preview
+# - Google Antigravity (agy): agy --print stdin dispatch, optional OCTOPUS_AGY_MODEL override
 # - Google Antigravity CLI: agy --print stdin dispatch, optional OCTOPUS_AGY_MODEL
 # Note: "API-key only" models require OPENAI_API_KEY; they are NOT available via ChatGPT subscription/OAuth.
 get_agent_command() {
@@ -137,7 +137,7 @@ get_agent_command() {
             model=$(get_agent_model "$agent_type" "$phase" "$role")
             echo "ollama run $model"
             ;;
-        qwen|qwen-research)  # v9.10.0: Qwen CLI — fork of Gemini CLI
+        qwen|qwen-research)  # v9.10.0: Qwen CLI — Google-forked CLI tool
             # oco-dar: NO_BROWSER=1 stops a stale token from hijacking the user's
             # browser into the OAuth device-flow. Pre-flight (qwen_is_usable) should
             # already gate this out; this is defense-in-depth if dispatch is reached.
@@ -197,7 +197,6 @@ get_provider_context_limit() {
 
     case "$provider" in
         codex)      echo "${OCTOPUS_CODEX_CONTEXT_BUDGET:-${default_budget}}" ;;
-        gemini)     echo "${OCTOPUS_GEMINI_CONTEXT_BUDGET:-${default_budget}}" ;;
         agy|antigravity) echo "${OCTOPUS_AGY_CONTEXT_BUDGET:-${default_budget}}" ;;
         claude)     echo "${OCTOPUS_CLAUDE_CONTEXT_BUDGET:-${default_budget}}" ;;
         perplexity) echo "${OCTOPUS_PERPLEXITY_CONTEXT_BUDGET:-${default_budget}}" ;;
@@ -253,7 +252,7 @@ ${summary_input}"
     if [[ -n "${OCTOPUS_OVERSIZE_SUMMARIZER:-}" ]]; then
         candidates+=("$OCTOPUS_OVERSIZE_SUMMARIZER")
     fi
-    candidates+=("gemini-fast" "codex-mini" "claude-sonnet" "codex")
+    candidates+=("agy" "codex-mini" "claude-sonnet" "codex")
 
     local candidate summary previous_strategy previous_debug
     previous_strategy="${OCTOPUS_OVERSIZE_STRATEGY-}"
@@ -375,7 +374,6 @@ get_agent_model() {
     local provider=""
     case "$agent_type" in
         codex*)      provider="codex" ;;
-        gemini*)     provider="gemini" ;;
         agy*|antigravity) provider="agy" ;;
         claude*)     provider="claude" ;;
         openrouter*) provider="openrouter" ;;
@@ -402,7 +400,7 @@ get_agent_model() {
 }
 
 # v8.31.0: Model restriction service — per-provider allowlists for cost/compliance control
-# Set OCTOPUS_CODEX_ALLOWED_MODELS, OCTOPUS_GEMINI_ALLOWED_MODELS, etc. (comma-separated)
+# Set OCTOPUS_CODEX_ALLOWED_MODELS, OCTOPUS_AGY_ALLOWED_MODELS, etc. (comma-separated)
 # Empty or unset = no restriction (all models allowed)
 validate_model_allowed() {
     local provider="$1"
@@ -411,7 +409,6 @@ validate_model_allowed() {
     local allowlist_var=""
     case "$provider" in
         codex)      allowlist_var="OCTOPUS_CODEX_ALLOWED_MODELS" ;;
-        gemini)     allowlist_var="OCTOPUS_GEMINI_ALLOWED_MODELS" ;;
         agy)        allowlist_var="OCTOPUS_AGY_ALLOWED_MODELS" ;;
         claude)     allowlist_var="OCTOPUS_CLAUDE_ALLOWED_MODELS" ;;
         openrouter) allowlist_var="OCTOPUS_OPENROUTER_ALLOWED_MODELS" ;;
@@ -588,8 +585,6 @@ find_capable_fallback() {
     case "$provider" in
         codex)
             candidates=(gpt-5.4-mini gpt-5.2-codex gpt-5.3-codex gpt-5.4 gpt-5.4-pro o3) ;;
-        gemini)
-            candidates=(gemini-3-flash-preview gemini-3.1-pro-preview) ;;
         agy)
             candidates=(default) ;;
         claude)

@@ -187,7 +187,6 @@ ${provider_ctx}"
     local _provider_for_health=""
     case "$agent_type" in
         codex*)      _provider_for_health="codex" ;;
-        gemini*)     _provider_for_health="gemini" ;;
         agy*|antigravity) _provider_for_health="agy" ;;
         claude*)     _provider_for_health="claude" ;;
         openrouter*) _provider_for_health="openrouter" ;;
@@ -234,11 +233,11 @@ ${provider_ctx}"
     local temp_err="${RESULTS_DIR}/.tmp-agent-error-$$.err"
     local temp_out="${RESULTS_DIR}/.tmp-agent-out-$$.out"
 
-    # v8.10.0: Gemini uses stdin-based prompt delivery (Issue #25)
+    # v8.10.0: Stdin-based prompt delivery for headless providers (Issue #25)
     # -p "" triggers headless mode; prompt content comes via stdin to avoid OS arg limits
     # Qwen and Cursor Agent follow the same headless contract; Copilot parity is
     # maintained with spawn/workflows dispatch paths.
-    if [[ "$agent_type" == gemini* || "$agent_type" == copilot* || "$agent_type" == qwen* || "$agent_type" == cursor-agent* ]]; then
+    if [[ "$agent_type" == copilot* || "$agent_type" == qwen* || "$agent_type" == cursor-agent* ]]; then
         cmd_array+=(-p "")
     fi
 
@@ -248,8 +247,7 @@ ${provider_ctx}"
     _dispatch_start=$(date +%s)
     _dispatch_cwd=$(pwd)
 
-    # Quota fast-fail watcher for Gemini. Gemini CLI retries internally for
-    # hours on QUOTA_EXHAUSTED instead of exiting; kill early.
+    # Quota fast-fail watcher (prevents long hangs on QUOTA_EXHAUSTED).
     local _quota_watcher_pid=""
     local _dispatch_pid=""
 
@@ -263,22 +261,6 @@ ${provider_ctx}"
         printf '%s' "$enhanced_prompt" | run_with_timeout "$timeout_secs" "${cmd_array[@]}" 2>"$temp_err" >"$temp_out"
         exit_code=$?
         set -e
-        output=$(cat "$temp_out")
-    elif [[ "$agent_type" == gemini* ]]; then
-        # Option B (4/4 debate verdict): background dispatch + targeted PID kill
-        printf '%s' "$enhanced_prompt" \
-            | run_with_timeout "$timeout_secs" "${cmd_array[@]}" 2>"$temp_err" >"$temp_out" &
-        _dispatch_pid=$!
-
-        _quota_watcher_pid=$(start_quota_watcher \
-            "$_dispatch_pid" \
-            "$temp_err" \
-            "$temp_out" \
-            quota_watcher_kill_sync_dispatch \
-            "[$agent_type] Quota exhaustion detected in sync agent - fast-failing")
-
-        wait "$_dispatch_pid" 2>/dev/null && exit_code=0 || exit_code=$?
-        [[ $exit_code -eq 137 ]] && exit_code=1
         output=$(cat "$temp_out")
     else
         set +e
@@ -396,7 +378,7 @@ ${provider_ctx}"
     fi
 
     # v8.7.0: Wrap external CLI output with trust markers
-    case "$agent_type" in codex*|gemini*|agy*|antigravity|perplexity*|cursor-agent*)
+    case "$agent_type" in codex*|agy*|antigravity|perplexity*|cursor-agent*)
         output=$(wrap_cli_output "$agent_type" "$output") ;; esac
 
     # Check if output is suspiciously empty or placeholder

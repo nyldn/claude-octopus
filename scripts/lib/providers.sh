@@ -882,7 +882,7 @@ get_openrouter_model() {
             esac
             ;;
         image)
-            echo "google/gemini-2.0-flash${routing_suffix}"
+            echo "anthropic/claude-sonnet-4${routing_suffix}"
             ;;
         research|design)
             echo "anthropic/claude-sonnet-4${routing_suffix}"

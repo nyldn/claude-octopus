@@ -21,7 +21,7 @@ export interface DebateOptions {
 const DEFAULT_DEBATE_OPTIONS: Required<DebateOptions> = {
   rounds: 2,
   consensusThreshold: 0.67,
-  providers: ['claude', 'codex', 'gemini'],
+  providers: ['claude', 'codex', 'agy'],
   autoApply: false,
   minConfidence: 0.75,
 };
@@ -116,7 +116,7 @@ async function runDebateRound(
   const criticResponse = await callAIProvider(
     'critic',
     prompts.critic(proposerResponse),
-    'gemini'
+    'agy'
   );
   const criticAnalysis = parseDebateResponse(criticResponse);
 
@@ -158,7 +158,7 @@ async function callAIProvider(
   // Real implementation would call:
   // - orchestrate.sh grapple_debate
   // - codex CLI
-  // - gemini CLI
+  // - agy CLI
 
   const mockResponses: Record<string, any> = {
     proposer: {

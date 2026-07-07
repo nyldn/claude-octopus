@@ -75,13 +75,13 @@ compute_dynamic_timeout() {
 
     # v9.2.0: Provider-specific timeout caps (OctoBench data)
     # Codex: consistently 120-183s, cap at 150s for probe tasks
-    # Gemini: consistently 34-113s, cap at 90s for probe tasks
+    # Antigravity (agy): Google seat, cap at 90s for probe tasks
     # Claude-sonnet: consistently 35-46s, cap at 60s for probe tasks
     local provider_cap=""
     case "$agent_type" in
         codex*)     provider_cap=150 ;;
-        gemini*)    provider_cap=90 ;;
-        qwen*)      provider_cap=90 ;;   # oco-dar: Gemini-CLI fork — same profile; cap auth-hang risk
+        agy*)       provider_cap=90 ;;
+        qwen*)      provider_cap=90 ;;   # oco-dar: Qwen CLI — same profile; cap auth-hang risk
         claude-sonnet*|sonnet*) provider_cap=60 ;;
         perplexity*) provider_cap=45 ;;
     esac

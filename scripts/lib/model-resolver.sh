@@ -45,8 +45,8 @@ opus_default_model() {
 # Validate Antigravity CLI model labels against the live CLI catalog.
 #
 # Antigravity's model selector is service-owned and changes outside Octopus
-# releases. Real labels include spaces and parentheses (for example,
-# "Gemini 3.5 Flash (Low)"), so the generic shell-token validator is too
+# releases. Real labels are Google-branded and include spaces and parentheses
+# (for example, "Flash 3.5 (Low)"), so the generic shell-token validator is too
 # strict for explicit agy model pins. Validate agy pins by exact membership in
 # `agy models` instead, while keeping the generic validator for all other
 # providers.

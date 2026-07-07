@@ -43,7 +43,7 @@ check_codex_auth() {
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Generic OAuth token expiry validator (oco-dar)
-# Gemini-CLI-family creds (qwen, gemini) store `expiry_date` as epoch MILLISECONDS.
+# Google-CLI-family creds (qwen, agy) store `expiry_date` as epoch MILLISECONDS.
 # Codex stores `expires_at` as epoch seconds (handled by check_codex_auth above).
 #
 # Usage: octo_oauth_token_valid <creds_file> [skew_seconds]
@@ -54,9 +54,8 @@ check_codex_auth() {
 #
 # NOTE: this is a strict check. Use it only for providers whose refresh is NOT
 # reliable (qwen free-tier OAuth was EOL'd 2026-04-15, so an expired access
-# token never recovers). Do NOT gate gemini on this — gemini access tokens
-# expire ~hourly but auto-refresh seamlessly; the universal hang protection for
-# refresh-capable providers is the process-group timeout kill in heartbeat.sh.
+# token never recovers). The universal hang protection for refresh-capable
+# providers is the process-group timeout kill in heartbeat.sh.
 octo_oauth_token_valid() {
     local creds_file="$1"
     local skew="${2:-60}"
@@ -191,21 +190,6 @@ handle_auth_command() {
                     ;;
             esac
 
-            # Check Gemini
-            echo ""
-            if [[ -f "$HOME/.gemini/oauth_creds.json" ]]; then
-                echo -e "  Gemini:  ${GREEN}✓ Authenticated (OAuth)${NC}"
-                local auth_type
-                auth_type=$(grep -o '"selectedType"[[:space:]]*:[[:space:]]*"[^"]*"' ~/.gemini/settings.json 2>/dev/null | sed 's/.*"\([^"]*\)"$/\1/' || echo "oauth")
-                echo -e "  Type:    $auth_type"
-            elif [[ -n "$GEMINI_API_KEY" ]]; then
-                local gemini_preview="${GEMINI_API_KEY:0:8}...${GEMINI_API_KEY: -4}"
-                echo -e "  Gemini:  ${GREEN}✓ Authenticated (API Key)${NC}"
-                echo -e "  Key:     $gemini_preview"
-            else
-                echo -e "  Gemini:  ${YELLOW}○ Not configured${NC}"
-                echo "           Run 'gemini' to login OR set GEMINI_API_KEY"
-            fi
             ;;
 
         *)

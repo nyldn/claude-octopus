@@ -187,7 +187,7 @@ Generate scenarios that are specific enough to evaluate against an implementatio
 
     # Fallback/supplement with second provider
     local supplemental
-    supplemental=$(run_agent_sync "gemini" "$scenario_prompt" 120 "qa-engineer" "factory" 2>/dev/null) || true
+    supplemental=$(run_agent_sync "agy" "$scenario_prompt" 120 "qa-engineer" "factory" 2>/dev/null) || true
 
     if [[ -n "$supplemental" && -n "$scenarios" ]]; then
         # Merge unique scenarios from supplemental
@@ -260,7 +260,7 @@ ${spec_content:0:6000}
     nqs_result=$(run_agent_sync "claude-sonnet" "$nqs_prompt" 120 "spec-quality-analyst" "factory" 2>/dev/null) || true
 
     if [[ -z "$nqs_result" ]]; then
-        nqs_result=$(run_agent_sync "gemini" "$nqs_prompt" 120 "spec-quality-analyst" "factory" 2>/dev/null) || true
+        nqs_result=$(run_agent_sync "agy" "$nqs_prompt" 120 "spec-quality-analyst" "factory" 2>/dev/null) || true
     fi
 
     if [[ -z "$nqs_result" ]]; then

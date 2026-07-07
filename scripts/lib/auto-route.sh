@@ -185,7 +185,7 @@ auto_route() {
             echo -e "${CYAN}  → Lightweight mode: single cross-check${NC}"
             echo ""
             local fast_provider
-            fast_provider=$(select_fastest_provider "codex" "gemini" 2>/dev/null || echo "codex")
+            fast_provider=$(select_fastest_provider "codex" "agy" 2>/dev/null || echo "codex")
             local cross_check
             cross_check=$(run_agent_sync "$fast_provider" "Quick cross-check on this task. Identify any obvious issues, missing considerations, or better approaches in 3-5 bullet points:
 
@@ -252,7 +252,7 @@ $prompt" 60 "code-reviewer" "auto-route" 2>/dev/null) || true
             echo -e "${RED}${_BOX_TOP}${NC}"
             echo -e "${RED}║  🤼 GRAPPLE - Adversarial Cross-Model Debate              ║${NC}"
             echo -e "${RED}${_BOX_BOT}${NC}"
-            echo "  Routing to grapple workflow: Codex vs Gemini debate."
+            echo "  Routing to grapple workflow: Codex vs Agy debate."
             echo ""
             grapple_debate "$prompt" "general" "${DEBATE_ROUNDS:-3}"
             return
@@ -336,7 +336,7 @@ Focus on:
 - Recommend rightsizing (instances, storage, databases)
 - Suggest reserved instances or spot instances where applicable
 - Estimate savings with specific recommendations"
-            spawn_agent "gemini" "$cost_prompt"
+            spawn_agent "agy" "$cost_prompt"
             return
             ;;
         optimize-database)
@@ -385,7 +385,7 @@ Focus on:
 - Keyboard navigation and focus management
 - Color contrast and visual accessibility
 - ARIA attributes and semantic HTML"
-            spawn_agent "gemini" "$a11y_prompt"
+            spawn_agent "agy" "$a11y_prompt"
             return
             ;;
         optimize-seo)
@@ -403,7 +403,7 @@ Focus on:
 - Internal linking structure
 - Sitemap and robots.txt configuration
 - Core Web Vitals impact"
-            spawn_agent "gemini" "$seo_prompt"
+            spawn_agent "agy" "$seo_prompt"
             return
             ;;
         optimize-image)
@@ -420,7 +420,7 @@ Focus on:
 - Responsive images with srcset
 - Lazy loading implementation
 - CDN and caching strategies"
-            spawn_agent "gemini" "$img_prompt"
+            spawn_agent "agy" "$img_prompt"
             return
             ;;
         optimize-audit)
@@ -440,9 +440,9 @@ Focus on:
                 echo -e "  ${CYAN}[DRY-RUN] Full Site Audit Plan:${NC}"
                 echo -e "    Phase 1: Parallel domain audits (${#domains[@]} agents)"
                 for domain in "${domains[@]}"; do
-                    echo -e "      ├─ $domain audit via gemini-fast"
+                    echo -e "      ├─ $domain audit via agy-fast"
                 done
-                echo -e "    Phase 2: Synthesize results via gemini"
+                echo -e "    Phase 2: Synthesize results via agy"
                 echo -e "    Phase 3: Generate unified report"
                 echo ""
                 echo -e "  ${YELLOW}Domains:${NC} ${domains[*]}"
@@ -465,7 +465,7 @@ Focus on:
             for domain in "${domains[@]}"; do
                 local domain_prompt
                 local domain_file="$audit_dir/$domain.md"
-                local agent_type="gemini-fast"
+                local agent_type="agy"
                 local task_id="audit-${domain}-${audit_group}"
                 local agent_result_file="${RESULTS_DIR}/${agent_type}-${task_id}.md"
                 domain_files+=("$domain_file")
@@ -574,9 +574,9 @@ Format as markdown. Be specific and actionable."
 
             local synthesis_file="$audit_dir/synthesis.md"
             local synthesis_task_id="audit-synthesis-${audit_group}"
-            local synthesis_result_file="${RESULTS_DIR}/gemini-${synthesis_task_id}.md"
+            local synthesis_result_file="${RESULTS_DIR}/agy-${synthesis_task_id}.md"
             local synthesis_pid=""
-            if synthesis_pid=$(spawn_agent_capture_pid "gemini" "$synthesis_prompt" "$synthesis_task_id" "synthesizer" "optimize-audit"); then
+            if synthesis_pid=$(spawn_agent_capture_pid "agy" "$synthesis_prompt" "$synthesis_task_id" "synthesizer" "optimize-audit"); then
                 if ! _auto_route_wait_for_pids "${TIMEOUT:-600}" "$synthesis_pid"; then
                     echo "Synthesis timed out; detailed domain reports are still included below." > "$synthesis_file"
                 elif [[ -f "$synthesis_result_file" ]]; then
@@ -650,7 +650,7 @@ $prompt
 
 Domains to consider: performance, cost, database, bundle/build, accessibility, SEO, images.
 Then provide specific optimization recommendations."
-            spawn_agent "gemini" "$analysis_prompt"
+            spawn_agent "agy" "$analysis_prompt"
             return
             ;;
     esac
@@ -722,7 +722,7 @@ Then provide specific optimization recommendations."
     case "$task_type" in
         image)
             echo -e "${YELLOW}Image Generation Task${NC}"
-            echo "  Using gemini-3-pro-image-preview for text-to-image generation."
+            echo "  Using the Google image generation model for text-to-image generation."
             echo "  Supports: text-to-image, image editing, multi-turn editing"
             echo "  Output: Up to 4K resolution images"
             echo ""

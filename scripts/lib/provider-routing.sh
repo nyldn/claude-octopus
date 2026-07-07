@@ -35,7 +35,7 @@ build_provider_env() {
     fi
 
     # v9.23: Propagate W3C trace headers into isolated env when present so
-    # external CLIs (codex/gemini/perplexity) participate in distributed traces.
+    # external CLIs (codex/agy/perplexity) participate in distributed traces.
     # SUPPORTS_TRACEPARENT was detected in v2.1.98+ (Bash subprocesses) and
     # v2.1.110+ added the same for SDK/headless sessions.
     local -a _trace_env=()
@@ -74,18 +74,6 @@ build_provider_env() {
             if [[ -n "$_codex_env_key" && "$_codex_env_key" != "OPENAI_API_KEY" && -n "${!_codex_env_key:-}" ]]; then
                 PROVIDER_ENV_ARRAY+=("${_codex_env_key}=${!_codex_env_key}")
             fi
-            if [[ ${#_trace_env[@]} -gt 0 ]]; then
-                PROVIDER_ENV_ARRAY+=("${_trace_env[@]}")
-            fi
-            ;;
-        gemini*)
-            if [[ -z "${GEMINI_API_KEY:-}" ]]; then
-                resolve_provider_env "GEMINI_API_KEY" 2>/dev/null || true
-            fi
-            if [[ -z "${GOOGLE_API_KEY:-}" ]]; then
-                resolve_provider_env "GOOGLE_API_KEY" 2>/dev/null || true
-            fi
-            PROVIDER_ENV_ARRAY=(env -i "PATH=$PATH" "HOME=$HOME" "GEMINI_API_KEY=${GEMINI_API_KEY:-}" "GOOGLE_API_KEY=${GOOGLE_API_KEY:-}" "GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT:-}" "GOOGLE_CLOUD_PROJECT_ID=${GOOGLE_CLOUD_PROJECT_ID:-}" "NODE_NO_WARNINGS=1" "TMPDIR=${TMPDIR:-/tmp}" "GEMINI_CLI_TRUST_WORKSPACE=${GEMINI_CLI_TRUST_WORKSPACE:-true}")
             if [[ ${#_trace_env[@]} -gt 0 ]]; then
                 PROVIDER_ENV_ARRAY+=("${_trace_env[@]}")
             fi
@@ -215,9 +203,8 @@ migrate_provider_config() {
         local tmp_file="${config_file}.tmp.$$"
         
         # Extract existing model preferences to seed v3.0
-        local codex_model gemini_model
+        local codex_model
         codex_model=$(jq -r '.providers.codex.model // .providers.codex.default // "gpt-5.5"' "$config_file")
-        gemini_model=$(jq -r '.providers.gemini.model // .providers.gemini.default // "gemini-3.1-pro-preview"' "$config_file")
         
         cat > "$tmp_file" << EOF
 {
@@ -231,11 +218,8 @@ migrate_provider_config() {
       "reasoning": "o3",
       "large_context": "gpt-5.5"
     },
-    "gemini": {
-      "default": "$gemini_model",
-      "fallback": "gemini-3-flash-preview",
-      "flash": "gemini-3-flash-preview",
-      "image": "gemini-3-pro-image-preview"
+    "agy": {
+      "default": "default"
     }
   },
   "routing": {
@@ -243,16 +227,16 @@ migrate_provider_config() {
       "deliver": "codex:default",
       "review": "codex:default",
       "security": "codex:reasoning",
-      "research": "gemini:default"
+      "research": "agy:default"
     },
     "roles": {
       "researcher": "perplexity"
     }
   },
   "tiers": {
-    "budget": { "codex": "mini", "gemini": "flash" },
-    "standard": { "codex": "default", "gemini": "default" },
-    "premium": { "codex": "default", "gemini": "default" }
+    "budget": { "codex": "mini", "agy": "default" },
+    "standard": { "codex": "default", "agy": "default" },
+    "premium": { "codex": "default", "agy": "default" }
   },
   "overrides": {}
 }
@@ -277,10 +261,7 @@ EOF
     local -a stale_paths=(
         '.providers.codex.default'
         '.providers.codex.fallback'
-        '.providers.gemini.default'
-        '.providers.gemini.fallback'
         '.overrides.codex'
-        '.overrides.gemini'
     )
 
     for path in "${stale_paths[@]}"; do
@@ -292,10 +273,6 @@ EOF
         case "$current_val" in
             claude-sonnet-4-5|claude-sonnet-4-5-20250514|claude-3-5-sonnet*|claude-sonnet-4*)
                 if [[ "$path" == *codex* ]]; then replacement="gpt-5.5"; fi ;;
-            gemini-2.0-flash-thinking*|gemini-2.0-flash-exp*|gemini-exp-*)
-                replacement="gemini-3-flash-preview" ;;
-            gemini-2.0-pro*|gemini-1.5-pro*|gemini-pro)
-                replacement="gemini-3.1-pro-preview" ;;
             gpt-4o*|gpt-4-turbo*|gpt-4-*|o1-*|chatgpt-*)
                 replacement="gpt-5.5" ;;
         esac
@@ -326,10 +303,10 @@ set_provider_model() {
 
     # v8.49.0: Provider whitelist validation
     case "$provider" in
-        codex|gemini|claude|perplexity|opencode|openrouter|openai-compatible-agent|cursor-agent) ;;
+        codex|agy|claude|perplexity|opencode|openrouter|openai-compatible-agent|cursor-agent) ;;
         *)
             if [[ "${4:-}" != "--force" ]]; then
-                echo "ERROR: Unknown provider '$provider'. Valid: codex, gemini, claude, perplexity, opencode, openrouter, openai-compatible-agent, cursor-agent" >&2
+                echo "ERROR: Unknown provider '$provider'. Valid: codex, agy, claude, perplexity, opencode, openrouter, openai-compatible-agent, cursor-agent" >&2
                 echo "  Use --force to set a custom provider (e.g., for local proxies)" >&2
                 return 1
             fi
@@ -345,7 +322,7 @@ set_provider_model() {
     if ! validate_model_name "$model"; then
         echo "ERROR: Invalid model name: '$model'" >&2
         echo "  Model names must not contain shell metacharacters (spaces, ;, |, &, \$, \`, quotes)" >&2
-        echo "  Examples: gpt-5.5, gemini-3.1-pro-preview, claude-opus-4.6" >&2
+        echo "  Examples: gpt-5.5, claude-opus-4.6" >&2
         return 1
     fi
 
@@ -364,11 +341,8 @@ set_provider_model() {
       "reasoning": "o3",
       "large_context": "gpt-5.5"
     },
-    "gemini": {
-      "default": "gemini-3.1-pro-preview",
-      "fallback": "gemini-3-flash-preview",
-      "flash": "gemini-3-flash-preview",
-      "image": "gemini-3-pro-image-preview"
+    "agy": {
+      "default": "default"
     }
   },
   "routing": {
@@ -376,13 +350,13 @@ set_provider_model() {
       "deliver": "codex:default",
       "review": "codex:default",
       "security": "codex:reasoning",
-      "research": "gemini:default"
+      "research": "agy:default"
     }
   },
   "tiers": {
-    "budget": { "codex": "mini", "gemini": "flash" },
-    "standard": { "codex": "default", "gemini": "default" },
-    "premium": { "codex": "default", "gemini": "default" }
+    "budget": { "codex": "mini", "agy": "default" },
+    "standard": { "codex": "default", "agy": "default" },
+    "premium": { "codex": "default", "agy": "default" }
   },
   "overrides": {}
 }
@@ -431,12 +405,12 @@ reset_provider_model() {
         # Clear all overrides (v8.49.0: atomic)
         atomic_json_update "$config_file" '.overrides = {}'
         echo "✓ Cleared all model overrides"
-    elif [[ "$provider" =~ ^(codex|gemini|claude|perplexity|opencode|openrouter|openai-compatible-agent|cursor-agent)$ ]]; then
+    elif [[ "$provider" =~ ^(codex|agy|claude|perplexity|opencode|openrouter|openai-compatible-agent|cursor-agent)$ ]]; then
         # Clear specific override (v8.49.0: atomic + jq --arg)
         atomic_json_update "$config_file" 'del(.overrides[$p])' --arg p "$provider"
         echo "✓ Cleared $provider override"
     else
-        echo "ERROR: Invalid provider '$provider'. Use 'codex', 'gemini', 'claude', 'perplexity', 'opencode', 'openrouter', 'cursor-agent', or 'all'" >&2
+        echo "ERROR: Invalid provider '$provider'. Use 'codex', 'agy', 'claude', 'perplexity', 'opencode', 'openrouter', 'cursor-agent', or 'all'" >&2
         return 1
     fi
 
@@ -463,15 +437,15 @@ get_alternate_provider() {
     local locked_provider="$1"
     case "$locked_provider" in
         codex|codex-fast|codex-mini)
-            if ! is_provider_locked "gemini"; then
-                echo "gemini"
+            if ! is_provider_locked "agy"; then
+                echo "agy"
             elif ! is_provider_locked "claude-sonnet"; then
                 echo "claude-sonnet"
             else
                 echo "$locked_provider"  # All locked, use original
             fi
             ;;
-        gemini|gemini-fast)
+        agy|agy-research)
             if ! is_provider_locked "codex"; then
                 echo "codex"
             elif ! is_provider_locked "claude-sonnet"; then
@@ -483,8 +457,8 @@ get_alternate_provider() {
         claude-sonnet|claude*)
             if ! is_provider_locked "codex"; then
                 echo "codex"
-            elif ! is_provider_locked "gemini"; then
-                echo "gemini"
+            elif ! is_provider_locked "agy"; then
+                echo "agy"
             else
                 echo "$locked_provider"
             fi
@@ -586,9 +560,8 @@ is_api_based_provider() {
             [[ -n "${OPENAI_API_KEY:-}" ]] && return 0
             return 1
             ;;
-        gemini)
-            # Check if using API key (GEMINI_API_KEY) vs auth
-            [[ -n "${GEMINI_API_KEY:-}" ]] && return 0
+        agy)
+            # Antigravity is subscription-based (OAuth seat), not per-call
             return 1
             ;;
         claude)

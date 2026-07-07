@@ -82,8 +82,8 @@ request_background_permission() {
     if echo "$providers" | grep -q "codex"; then
         echo -e "  🔴 ${RED}Codex CLI${NC} - Uses your OPENAI_API_KEY" >&2
     fi
-    if echo "$providers" | grep -q "gemini"; then
-        echo -e "  🟡 ${YELLOW}Gemini CLI${NC} - Uses your GEMINI_API_KEY" >&2
+    if echo "$providers" | grep -q "agy"; then
+        echo -e "  🧭 ${YELLOW}Antigravity CLI${NC} - Uses your Google seat (agy)" >&2
     fi
     echo -e "  🔵 ${CYAN}Claude${NC} - Included with Claude Code" >&2
     echo "" >&2
@@ -121,7 +121,7 @@ request_background_permission() {
 check_background_permission() {
     local workflow="$1"
     local autonomy_mode="${2:-supervised}"
-    local providers="${3:-codex gemini claude}"
+    local providers="${3:-codex agy claude}"
 
     local permission_result
     permission_result=$(request_background_permission "$workflow" "$autonomy_mode" "$providers")
@@ -160,19 +160,19 @@ log_background_end() {
 # Main command dispatcher
 case "${1:-}" in
     request)
-        request_background_permission "$2" "${3:-supervised}" "${4:-codex gemini claude}"
+        request_background_permission "$2" "${3:-supervised}" "${4:-codex agy claude}"
         ;;
     check)
-        check_background_permission "$2" "${3:-supervised}" "${4:-codex gemini claude}"
+        check_background_permission "$2" "${3:-supervised}" "${4:-codex agy claude}"
         ;;
     log-start)
-        log_background_start "$2" "${3:-codex gemini claude}"
+        log_background_start "$2" "${3:-codex agy claude}"
         ;;
     log-end)
         log_background_end "$2" "$3"
         ;;
     estimate)
-        estimate_cost "$2" "${3:-codex gemini claude}"
+        estimate_cost "$2" "${3:-codex agy claude}"
         ;;
     *)
         cat <<EOF
@@ -191,7 +191,7 @@ Commands:
 
 Workflows: discover, define, develop, deliver, embrace
 Autonomy: supervised, semi-autonomous, autonomous
-Providers: Space-separated list (e.g., "codex gemini claude")
+Providers: Space-separated list (e.g., "codex agy claude")
 
 EOF
         exit 1

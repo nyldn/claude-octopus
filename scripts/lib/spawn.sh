@@ -389,7 +389,6 @@ ${heuristic_ctx}"
     local provider_name
     case "$agent_type" in
         codex*) provider_name="codex" ;;
-        gemini*) provider_name="gemini" ;;
         claude*) provider_name="claude" ;;
         *) provider_name="$agent_type" ;;
     esac
@@ -480,14 +479,14 @@ ${heuristic_ctx}"
     fi
 
     # ═══════════════════════════════════════════════════════════════════════════
-    # LEGACY PATH: Execute agent in bash subprocess (Codex/Gemini or teams unavailable)
+    # LEGACY PATH: Execute agent in bash subprocess (Codex/agy or teams unavailable)
     # ═══════════════════════════════════════════════════════════════════════════
 
     # Execute agent in background
     (
         cd "$PROJECT_ROOT" || exit 1
         set -f  # Disable glob expansion
-        set -o pipefail  # v9.15.1: Pipeline exit code = first failure (prevents silent codex/gemini errors)
+        set -o pipefail  # v9.15.1: Pipeline exit code = first failure (prevents silent codex/agy errors)
 
         echo "# Agent: $agent_type" > "$result_file"
         echo "# Task ID: $task_id" >> "$result_file"
@@ -533,7 +532,7 @@ ${heuristic_ctx}"
         type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "running" "$tokens_in" 0 "" 0 "$result_file" "${role:-none}" || true
 
         # v7.19.0 P0.1: Use tee to stream output to both temp file and raw backup
-        # v8.10.0: Gemini uses stdin-based prompt delivery (Issue #25)
+        # v8.10.0: external CLIs use stdin-based prompt delivery (Issue #25)
         # -p "" triggers headless mode; prompt content comes via stdin to avoid OS arg limits
 
         # v8.16: Auth-aware retry for enterprise backends
@@ -547,22 +546,8 @@ ${heuristic_ctx}"
         fi
 
         # Append headless flag (-p "") for CLI providers that read prompt from stdin
-        if [[ "$agent_type" == gemini* ]] || [[ "$agent_type" == cursor-agent* ]] || [[ "$agent_type" == copilot* ]] || [[ "$agent_type" == qwen* ]]; then
+        if [[ "$agent_type" == cursor-agent* ]] || [[ "$agent_type" == copilot* ]] || [[ "$agent_type" == qwen* ]]; then
             cmd_array+=(-p "")
-        fi
-        # Belt-and-suspenders: bypass Gemini's interactive trust check in headless mode (#405).
-        # Newer Gemini CLI versions removed --skip-trust; detect support once per spawn process.
-        if [[ "$agent_type" == gemini* ]]; then
-            if [[ -z "${_GEMINI_SUPPORTS_SKIP_TRUST+x}" ]]; then
-                if [[ $(gemini --help 2>&1 | grep -c -- --skip-trust || true) -gt 0 ]]; then
-                    _GEMINI_SUPPORTS_SKIP_TRUST=true
-                else
-                    _GEMINI_SUPPORTS_SKIP_TRUST=false
-                fi
-            fi
-            if [[ "$_GEMINI_SUPPORTS_SKIP_TRUST" == "true" ]]; then
-                cmd_array+=(--skip-trust)
-            fi
         fi
 
         local auth_attempt=0
@@ -570,17 +555,14 @@ ${heuristic_ctx}"
         while true; do
             exit_code=0
 
-            # oco-2kw: per-provider timeout. Gemini has no request timeout and its
-            # non-interactive maxSessionTurns default is unlimited, so a quota-loop
-            # or stall could burn the global TIMEOUT (~600s). Cap gemini separately;
-            # all others keep the global TIMEOUT. Plain scalar — bash 3.2 safe.
+            # oco-2kw: per-provider timeout hook. External CLIs without their own
+            # request timeout could burn the global TIMEOUT (~600s) on a quota-loop
+            # or stall; the agy adapter enforces its own print-timeout, so all
+            # providers here keep the global TIMEOUT. Plain scalar — bash 3.2 safe.
             local _eff_timeout="$TIMEOUT"
-            if [[ "$agent_type" == gemini* ]]; then
-                _eff_timeout="${OCTOPUS_GEMINI_TIMEOUT:-180}"
-            fi
 
             # oco-48z: quota/terminal-error fast-fail watcher for ALL providers (was
-            # gemini-only). Greps temp files every 2s; on match it kills the provider
+            # single-provider-only). Greps temp files every 2s; on match it kills the provider
             # early and marks it quota-dead for the session (oco-cbb), so preflight and
             # is_agent_available skip it instead of re-dispatching into the same failure.
             local _quota_watcher_pid=""
@@ -595,7 +577,7 @@ ${heuristic_ctx}"
                 "$_provider_prefix")
 
             # v9.2.2: All agents use stdin-based prompt delivery to avoid ARG_MAX limits (Issue #173)
-            # Previously only gemini used stdin; codex/claude passed prompt as CLI arg which fails on large diffs.
+            # Previously only external CLIs used stdin; codex/claude passed prompt as CLI arg which fails on large diffs.
             if [[ "$agent_type" == agy* || "$agent_type" == "antigravity" ]]; then
                 printf '%s' "$enhanced_prompt" | run_with_timeout "$_eff_timeout" "${cmd_array[@]}" 2> "$temp_errors" | tee "$raw_output" > "$temp_output"
                 exit_code=${PIPESTATUS[1]:-0}
@@ -669,7 +651,7 @@ ${heuristic_ctx}"
                     BEGIN { in_response = 0; header_done = 0; }
                     /^--------$/ { header_done = 1; next; }
                     !header_done { next; }
-                    /^(codex|gemini|assistant)$/ { in_response = 1; next; }
+                    /^(codex|agy|assistant)$/ { in_response = 1; next; }
                     /^thinking$/ { next; }
                     /^tokens used$/ { next; }
                     /^[0-9,]+$/ && in_response { next; }
@@ -677,7 +659,7 @@ ${heuristic_ctx}"
                 ' "$temp_output" >> "$result_file"
             else
                 # Clean stdout (e.g. codex exec) — pass through with noise filtering
-                # v9.15.1: Filter Gemini MCP status messages and CLI preamble from stdout
+                # v9.15.1: Filter agy MCP status messages and CLI preamble from stdout
                 grep -v \
                     -e '^MCP issues detected' \
                     -e '^Loading extension:' \
@@ -698,7 +680,7 @@ ${heuristic_ctx}"
             # v8.7.0: Add trust marker for external CLI output
             # v9.22.1: Also wrap the Output block in nonce boundaries so downstream
             # synthesis prompts can identify provider-authored text as untrusted.
-            case "$agent_type" in codex*|gemini*|perplexity*|cursor-agent*)
+            case "$agent_type" in codex*|agy*|perplexity*|cursor-agent*)
                 if [[ "${OCTOPUS_SECURITY_V870:-true}" == "true" ]]; then
                     sed -i.bak '1s/^/<!-- trust=untrusted provider='"$agent_type"' -->\n/' "$result_file" 2>/dev/null || true
                     rm -f "${result_file}.bak"
@@ -797,7 +779,7 @@ ${heuristic_ctx}"
                         BEGIN { in_response = 0; header_done = 0; }
                         /^--------$/ { header_done = 1; next; }
                         !header_done { next; }
-                        /^(codex|gemini|assistant)$/ { in_response = 1; next; }
+                        /^(codex|agy|assistant)$/ { in_response = 1; next; }
                         /^thinking$/ { next; }
                         /^tokens used$/ { next; }
                         /^[0-9,]+$/ && in_response { next; }

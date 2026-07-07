@@ -91,14 +91,14 @@ When Copilot is active in a multi-provider workflow:
 ```
 Providers:
 🔴 Codex CLI - Implementation
-🟡 Gemini CLI - Security review
+🧭 Antigravity CLI (agy) - Security review
 🟢 Copilot CLI - Research perspective
 🔵 Claude - Synthesis
 ```
 
 Indicator legend:
 - 🔴 = Codex CLI
-- 🟡 = Gemini CLI
+- 🧭 = Antigravity CLI (agy)
 - 🟢 = Copilot CLI
 - 🟣 = Perplexity
 - 🔵 = Claude
@@ -124,7 +124,7 @@ When missing: `ℹ Copilot CLI not installed (optional)`
 3. **Graceful degradation** — When unavailable, silently skip with no errors or warnings
 4. **No provider cascade** — If unavailable, the role is reassigned to another provider
 5. **Model selection** — Copilot CLI selects the model internally (default: Claude Sonnet 4.5, configurable via `/model`)
-6. **Multi-model access** — Copilot subscription includes access to Claude, GPT, and Gemini models
+6. **Multi-model access** — Copilot subscription includes access to Claude, GPT, and Google-branded models
 
 
 ## Example Workflows
@@ -137,7 +137,7 @@ When missing: `ℹ Copilot CLI not installed (optional)`
 
 Providers:
 🔴 Codex CLI - Technical implementation analysis
-🟡 Gemini CLI - Ecosystem research
+🧭 Antigravity CLI (agy) - Ecosystem research
 🟢 Copilot CLI - Research perspective
 🔵 Claude - Strategic synthesis
 ```
@@ -150,7 +150,7 @@ Providers:
 
 Providers:
 🔴 Codex CLI - Technical implementation analysis
-🟡 Gemini CLI - Ecosystem research
+🧭 Antigravity CLI (agy) - Ecosystem research
 🔵 Claude - Strategic synthesis
 ```
 

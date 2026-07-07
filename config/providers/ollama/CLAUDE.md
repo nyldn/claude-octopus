@@ -82,7 +82,7 @@ Use Ollama for:
 - Exploration and brainstorming when cost matters
 - Offline or air-gapped environments
 - Privacy-sensitive code review
-- Fallback when Codex/Gemini auth is expired or unavailable
+- Fallback when Codex or other cloud provider auth is expired or unavailable
 - Local testing of prompt patterns before sending to cloud providers
 
 ## Dispatch Pattern

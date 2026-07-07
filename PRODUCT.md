@@ -78,8 +78,8 @@ Frontier AI models will remain individually overconfident for the foreseeable fu
 - GitHub stars: 3,410
 - GitHub forks: 302
 - Test suites passing: 117
-- Version: 9.40.3 (active release cadence)
-- Runtimes supported: Claude Code, Codex CLI, Cursor (MCP), Gemini CLI
+- Version: 9.45.0 (active release cadence)
+- Runtimes supported: Claude Code, Codex CLI, Cursor (MCP), Antigravity (agy)
 
 **Measured Impact:**
 - 75% consensus gate: quantifiable disagreement detection before production

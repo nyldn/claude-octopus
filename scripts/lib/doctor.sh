@@ -62,19 +62,6 @@ cmd_update_clis() {
     fi
     echo ""
 
-    # Update Gemini CLI
-    echo -e "  ${YELLOW}→${NC} Updating Gemini CLI (@google/gemini-cli)..."
-    if npm install -g @google/gemini-cli 2>&1 | sed 's/^/    /'; then
-        local gemini_ver
-        gemini_ver=$(gemini --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")
-        echo -e "  ${GREEN}✓${NC} Gemini CLI updated to v${gemini_ver}"
-        ((updated++))
-    else
-        echo -e "  ${RED}✗${NC} Gemini CLI update failed. Try manually: npm install -g @google/gemini-cli"
-        ((failed++))
-    fi
-    echo ""
-
     # Summary
     if [[ $failed -eq 0 ]]; then
         echo -e "${GREEN}✅ All CLIs updated successfully (${updated} packages)${NC}"
@@ -133,24 +120,6 @@ doctor_check_providers() {
     else
         doctor_add "codex-cli" "providers" "warn" \
             "Codex CLI not installed" "npm install -g @openai/codex"
-    fi
-
-    # Gemini CLI
-    if command -v gemini &>/dev/null; then
-        local gemini_ver gemini_path
-        gemini_ver=$(gemini --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")
-        gemini_path=$(command -v gemini)
-        if ! octo_version_ok "${gemini_ver}" "${OCTO_GEMINI_MIN_VERSION:-1.0.0}"; then
-            doctor_add "gemini-cli" "providers" "warn" \
-               "Gemini CLI v${gemini_ver} (outdated, min: v${OCTO_GEMINI_MIN_VERSION:-1.0.0})" \
-               "${gemini_path} — npm install -g @google/gemini-cli"
-        else
-            doctor_add "gemini-cli" "providers" "pass" \
-               "Gemini CLI v${gemini_ver}" "$gemini_path"
-        fi
-    else
-        doctor_add "gemini-cli" "providers" "warn" \
-            "Gemini CLI not installed" "npm install -g @google/gemini-cli"
     fi
 
     # Antigravity CLI (agy)
@@ -382,7 +351,7 @@ doctor_check_providers() {
     # v9.0: Check recent provider fallback history
     local fallback_log="${HOME}/.claude-octopus/provider-fallbacks.log"
     if [[ -f "$fallback_log" ]]; then
-        local recent_failures=0 codex_failures=0 gemini_failures=0
+        local recent_failures=0 codex_failures=0 agy_failures=0
         local cutoff
         cutoff=$(date -v-24H +%Y-%m-%d 2>/dev/null || date -d '24 hours ago' +%Y-%m-%d 2>/dev/null || echo "")
         if [[ -n "$cutoff" ]]; then
@@ -391,7 +360,7 @@ doctor_check_providers() {
                 if [[ "$log_date" > "$cutoff" || "$log_date" == "$cutoff" ]]; then
                     ((recent_failures++)) || true
                     [[ "$line" == *"provider=codex"* ]] && ((codex_failures++)) || true
-                    [[ "$line" == *"provider=gemini"* ]] && ((gemini_failures++)) || true
+                    [[ "$line" == *"provider=agy"* ]] && ((agy_failures++)) || true
                 fi
             done < "$fallback_log"
         else
@@ -400,10 +369,10 @@ doctor_check_providers() {
         if [[ $recent_failures -gt 0 ]]; then
             local detail="Last 24h:"
             [[ $codex_failures -gt 0 ]] && detail="$detail Codex failed ${codex_failures}x"
-            [[ $gemini_failures -gt 0 ]] && detail="$detail Gemini failed ${gemini_failures}x"
+            [[ $agy_failures -gt 0 ]] && detail="$detail Antigravity failed ${agy_failures}x"
             doctor_add "provider-fallbacks" "providers" "warn" \
                 "${recent_failures} provider fallback(s) in last 24h" \
-                "${detail}. Check auth: codex auth / gemini auth. Log: ${fallback_log}"
+                "${detail}. Check auth: codex auth / agy auth. Log: ${fallback_log}"
         else
             doctor_add "provider-fallbacks" "providers" "pass" \
                 "No recent provider fallbacks" ""
@@ -488,20 +457,6 @@ doctor_check_auth() {
         fi
     fi
 
-    # Gemini auth
-    if command -v gemini &>/dev/null; then
-        if [[ -f "$HOME/.gemini/oauth_creds.json" ]] || [[ -n "${GEMINI_API_KEY:-}" ]] || [[ -n "${GOOGLE_API_KEY:-}" ]]; then
-            local method="oauth_creds.json"
-            [[ -n "${GEMINI_API_KEY:-}" ]] && method="GEMINI_API_KEY"
-            [[ -n "${GOOGLE_API_KEY:-}" ]] && method="GOOGLE_API_KEY"
-            doctor_add "gemini-auth" "auth" "pass" \
-                "Gemini authenticated" "via $method"
-        else
-            doctor_add "gemini-auth" "auth" "fail" \
-                "Gemini not authenticated" "Run: gemini  OR  export GEMINI_API_KEY=\"...\""
-        fi
-    fi
-
     # Cursor Agent auth
     if declare -f _is_cursor_agent_binary >/dev/null 2>&1 && _is_cursor_agent_binary; then
         if [[ -n "${CURSOR_API_KEY:-}" ]] || grep -Eq '"authInfo"[[:space:]]*:[[:space:]]*\{' "$HOME/.cursor/cli-config.json" 2>/dev/null; then
@@ -524,13 +479,13 @@ doctor_check_auth() {
     # At least one provider must be authenticated
     local any_auth=false
     if [[ -f "$HOME/.codex/auth.json" ]] || [[ -n "${OPENAI_API_KEY:-}" ]] || \
-       [[ -f "$HOME/.gemini/oauth_creds.json" ]] || [[ -n "${GEMINI_API_KEY:-}" ]] || [[ -n "${GOOGLE_API_KEY:-}" ]] || \
+       [[ -n "${GOOGLE_API_KEY:-}" ]] || \
        [[ -n "${CURSOR_API_KEY:-}" ]] || grep -Eq '"authInfo"[[:space:]]*:[[:space:]]*\{' "$HOME/.cursor/cli-config.json" 2>/dev/null; then
         any_auth=true
     fi
     if [[ "$any_auth" == "false" ]]; then
         doctor_add "any-provider-auth" "auth" "fail" \
-            "No provider authenticated" "At least one of Codex, Gemini, or Cursor Agent must be authenticated"
+            "No provider authenticated" "At least one of Codex, Antigravity, or Cursor Agent must be authenticated"
     else
         doctor_add "any-provider-auth" "auth" "pass" \
             "At least one provider authenticated" ""
@@ -1430,14 +1385,14 @@ doctor_check_smoke() {
     fi
 
     # Current model config
-    local codex_model gemini_model
+    local codex_model agy_model
     codex_model=$(get_agent_model "codex" 2>/dev/null || echo "not configured")
-    gemini_model=$(get_agent_model "gemini" 2>/dev/null || echo "not configured")
+    agy_model=$(get_agent_model "agy" 2>/dev/null || echo "not configured")
 
     doctor_add "smoke-codex-model" "smoke" "pass" \
         "Codex model: ${codex_model}" "OCTOPUS_CODEX_MODEL=${OCTOPUS_CODEX_MODEL:-<default>}"
-    doctor_add "smoke-gemini-model" "smoke" "pass" \
-        "Gemini model: ${gemini_model}" "OCTOPUS_GEMINI_MODEL=${OCTOPUS_GEMINI_MODEL:-<default>}"
+    doctor_add "smoke-agy-model" "smoke" "pass" \
+        "Antigravity model: ${agy_model}" "OCTOPUS_AGY_MODEL=${OCTOPUS_AGY_MODEL:-<default>}"
 
     # Skip flag
     if [[ "$SKIP_SMOKE_TEST" == "true" ]]; then

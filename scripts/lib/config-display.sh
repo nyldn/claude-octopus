@@ -52,27 +52,6 @@ show_config_summary() {
     fi
     echo ""
 
-    # Gemini Status
-    echo -e "  ${CYAN}┌─ GEMINI (Google)${NC}"
-    if [[ "$PROVIDER_GEMINI_INSTALLED" == "true" && "$PROVIDER_GEMINI_AUTH_METHOD" != "none" ]]; then
-        echo -e "  ${CYAN}│${NC}  ${GREEN}✓${NC} Configured"
-        echo -e "  ${CYAN}│${NC}  Auth:      ${GREEN}$PROVIDER_GEMINI_AUTH_METHOD${NC}"
-        local tier_indicator
-        tier_indicator=$(get_tier_indicator "gemini")
-        echo -e "  ${CYAN}│${NC}  Tier:      ${GREEN}$PROVIDER_GEMINI_TIER${NC} $tier_indicator"
-        echo -e "  ${CYAN}│${NC}  Cost Tier: ${GREEN}$PROVIDER_GEMINI_COST_TIER${NC}"
-        if [[ "$PROVIDER_GEMINI_AUTH_METHOD" == "api-key" && -n "${GEMINI_API_KEY:-}" ]]; then
-            local masked_key
-            masked_key=$(mask_api_key "$GEMINI_API_KEY")
-            echo -e "  ${CYAN}│${NC}  API Key:   ${YELLOW}$masked_key${NC}"
-        fi
-    else
-        echo -e "  ${CYAN}│${NC}  ${RED}✗${NC} Not configured"
-        echo -e "  ${CYAN}│${NC}  ${YELLOW}→${NC} Install: ${CYAN}npm install -g @google/gemini-cli${NC}"
-        echo -e "  ${CYAN}│${NC}  ${YELLOW}→${NC} Configure: ${CYAN}gemini login${NC}"
-    fi
-    echo ""
-
     # Claude Status
     echo -e "  ${CYAN}┌─ CLAUDE (Anthropic)${NC}"
     if [[ "$PROVIDER_CLAUDE_INSTALLED" == "true" ]]; then
@@ -279,7 +258,7 @@ setup_wizard() {
     echo -e "  This wizard will help you install dependencies and configure API keys."
     echo ""
 
-    local total_steps=10
+    local total_steps=7
     local current_step=0
     local shell_profile=""
     local keys_to_add=""
@@ -289,10 +268,6 @@ setup_wizard() {
     PROVIDER_CODEX_AUTH_METHOD="none"
     PROVIDER_CODEX_TIER="free"
     PROVIDER_CODEX_COST_TIER="free"
-    PROVIDER_GEMINI_INSTALLED="false"
-    PROVIDER_GEMINI_AUTH_METHOD="none"
-    PROVIDER_GEMINI_TIER="free"
-    PROVIDER_GEMINI_COST_TIER="free"
     PROVIDER_CLAUDE_INSTALLED="true"
     PROVIDER_CLAUDE_AUTH_METHOD="oauth"
     PROVIDER_CLAUDE_TIER="pro"
@@ -339,35 +314,7 @@ setup_wizard() {
     echo ""
 
     # ═══════════════════════════════════════════════════════════════════════════
-    # STEP 2: Check/Install Gemini CLI
-    # ═══════════════════════════════════════════════════════════════════════════
-    ((++current_step))
-    echo -e "${CYAN}Step $current_step/$total_steps: Gemini CLI (Tentacles 5-8)${NC}"
-    echo -e "  Google's Gemini CLI powers our reasoning and image tentacles."
-    echo ""
-
-    if command -v gemini &>/dev/null; then
-        echo -e "  ${GREEN}✓${NC} Gemini CLI already installed: $(command -v gemini)"
-    else
-        echo -e "  ${YELLOW}✗${NC} Gemini CLI not found"
-        echo ""
-        read -p "  Install Gemini CLI now? (requires npm) [Y/n] " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Nn]$ ]]; then
-            echo -e "  ${CYAN}→${NC} Installing Gemini CLI..."
-            if npm install -g @anthropic/gemini-cli 2>&1 | sed 's/^/    /'; then
-                echo -e "  ${GREEN}✓${NC} Gemini CLI installed successfully"
-            else
-                echo -e "  ${RED}✗${NC} Installation failed. Try manually: npm install -g @anthropic/gemini-cli"
-            fi
-        else
-            echo -e "  ${YELLOW}⚠${NC} Skipped. Install later: npm install -g @anthropic/gemini-cli"
-        fi
-    fi
-    echo ""
-
-    # ═══════════════════════════════════════════════════════════════════════════
-    # STEP 3: OpenAI API Key
+    # STEP 2: OpenAI API Key
     # ═══════════════════════════════════════════════════════════════════════════
     ((++current_step))
     echo -e "${CYAN}Step $current_step/$total_steps: OpenAI API Key${NC}"
@@ -406,68 +353,7 @@ setup_wizard() {
     echo ""
 
     # ═══════════════════════════════════════════════════════════════════════════
-    # STEP 4: Gemini Authentication
-    # ═══════════════════════════════════════════════════════════════════════════
-    ((++current_step))
-    echo -e "${CYAN}Step $current_step/$total_steps: Gemini Authentication${NC}"
-    echo -e "  Required for Gemini CLI (reasoning and image generation)."
-    echo ""
-
-    # Check for legacy GOOGLE_API_KEY
-    if [[ -z "${GEMINI_API_KEY:-}" && -n "${GOOGLE_API_KEY:-}" ]]; then
-        export GEMINI_API_KEY="$GOOGLE_API_KEY"
-    fi
-
-    # Check OAuth first (preferred)
-    if [[ -f "$HOME/.gemini/oauth_creds.json" ]]; then
-        echo -e "  ${GREEN}✓${NC} Gemini: OAuth authenticated"
-        local auth_type
-        auth_type=$(grep -o '"selectedType"[[:space:]]*:[[:space:]]*"[^"]*"' ~/.gemini/settings.json 2>/dev/null | sed 's/.*"\([^"]*\)"$/\1/' || echo "oauth")
-        echo -e "      Type: $auth_type"
-        # macOS keychain prompt warning for OAuth users
-        if [[ "$OCTOPUS_PLATFORM" == "Darwin" ]]; then
-            echo -e "  ${GREEN}✓${NC} macOS keychain bypass active (file-based token storage)"
-        fi
-    elif [[ -n "${GEMINI_API_KEY:-}" ]]; then
-        echo -e "  ${GREEN}✓${NC} Gemini: API key set (${#GEMINI_API_KEY} chars)"
-    else
-        echo -e "  ${YELLOW}✗${NC} Gemini: Not authenticated"
-        if [[ "$NON_INTERACTIVE" == "true" ]]; then
-            echo ""
-            echo -e "  ${CYAN}Option 1 (Recommended):${NC} Run: ${GREEN}gemini${NC} and select 'Login with Google'"
-            echo -e "  ${CYAN}Option 2:${NC} export GEMINI_API_KEY=\"AIza...\" (get from https://aistudio.google.com/apikey)"
-        else
-            echo ""
-            echo -e "  ${CYAN}Option 1 (Recommended):${NC} OAuth Login"
-            echo -e "    Run: ${GREEN}gemini${NC}"
-            echo -e "    Select 'Login with Google' and follow browser prompts"
-            echo ""
-            echo -e "  ${CYAN}Option 2:${NC} API Key"
-            echo -e "    Get key from: https://aistudio.google.com/apikey"
-            echo ""
-            read -p "  Open Google AI Studio to get an API key? [Y/n] " -n 1 -r
-            echo
-            if [[ ! $REPLY =~ ^[Nn]$ ]]; then
-                echo -e "  ${CYAN}→${NC} Opening https://aistudio.google.com/apikey ..."
-                open_browser "https://aistudio.google.com/apikey"
-                sleep 1
-            fi
-            echo ""
-            echo -e "  Paste your Gemini API key (starts with 'AIza'), or press Enter if using OAuth:"
-            read -p "  → " gemini_key
-            if [[ -n "$gemini_key" ]]; then
-                export GEMINI_API_KEY="$gemini_key"
-                keys_to_add="${keys_to_add}export GEMINI_API_KEY=\"$gemini_key\"\n"
-                echo -e "  ${GREEN}✓${NC} GEMINI_API_KEY set for this session"
-            else
-                echo -e "  ${YELLOW}⚠${NC} Skipped. Authenticate later via 'gemini' OR set GEMINI_API_KEY"
-            fi
-        fi
-    fi
-    echo ""
-
-    # ═══════════════════════════════════════════════════════════════════════════
-    # STEP 5: Codex/OpenAI Subscription Tier (v4.8)
+    # STEP 3: Codex/OpenAI Subscription Tier (v4.8)
     # ═══════════════════════════════════════════════════════════════════════════
     ((++current_step))
     if command -v codex &>/dev/null && [[ -f "$HOME/.codex/auth.json" || -n "${OPENAI_API_KEY:-}" ]]; then
@@ -507,52 +393,7 @@ setup_wizard() {
     echo ""
 
     # ═══════════════════════════════════════════════════════════════════════════
-    # STEP 6: Gemini Subscription Tier (v4.8)
-    # ═══════════════════════════════════════════════════════════════════════════
-    ((++current_step))
-    if command -v gemini &>/dev/null && [[ -f "$HOME/.gemini/oauth_creds.json" || -n "${GEMINI_API_KEY:-}" ]]; then
-        PROVIDER_GEMINI_INSTALLED="true"
-        [[ -f "$HOME/.gemini/oauth_creds.json" ]] && PROVIDER_GEMINI_AUTH_METHOD="oauth" || PROVIDER_GEMINI_AUTH_METHOD="api-key"
-
-        echo -e "${CYAN}Step $current_step/$total_steps: Gemini Subscription Tier${NC}"
-
-        if [[ "$NON_INTERACTIVE" == "true" ]]; then
-            # Auto-detect based on auth method
-            if [[ -f "$HOME/.gemini/oauth_creds.json" ]]; then
-                gemini_tier_choice=1  # Free tier for OAuth users
-                echo -e "  ${GREEN}✓${NC} Auto-detected: Free tier (OAuth authenticated)"
-            else
-                gemini_tier_choice=4  # API-only for API key users
-                echo -e "  ${GREEN}✓${NC} Auto-detected: API-only (API key authentication)"
-            fi
-        else
-            echo -e "  ${YELLOW}This helps us route heavy tasks to 'free' bundled services.${NC}"
-            echo ""
-            echo -e "  ${GREEN}[1]${NC} Free              ${CYAN}(Personal Google account, limited)${NC}"
-            echo -e "  ${GREEN}[2]${NC} Google One (\$10/mo) ${CYAN}(Gemini Advanced with 2M context)${NC}"
-            echo -e "  ${GREEN}[3]${NC} Workspace         ${CYAN}(Bundled with Google Workspace - FREE!)${NC}"
-            echo -e "  ${GREEN}[4]${NC} API Only          ${CYAN}(Pay-per-use, no subscription)${NC}"
-            echo ""
-            read -p "  Enter choice [1-4, default 1]: " gemini_tier_choice
-            gemini_tier_choice="${gemini_tier_choice:-1}"
-        fi
-
-        case "$gemini_tier_choice" in
-            1) PROVIDER_GEMINI_TIER="free"; PROVIDER_GEMINI_COST_TIER="free" ;;
-            2) PROVIDER_GEMINI_TIER="google-one"; PROVIDER_GEMINI_COST_TIER="low" ;;
-            3) PROVIDER_GEMINI_TIER="workspace"; PROVIDER_GEMINI_COST_TIER="bundled" ;;
-            4) PROVIDER_GEMINI_TIER="api-only"; PROVIDER_GEMINI_COST_TIER="pay-per-use" ;;
-            *) PROVIDER_GEMINI_TIER="free"; PROVIDER_GEMINI_COST_TIER="free" ;;
-        esac
-        echo -e "  ${GREEN}✓${NC} Gemini tier set to: $PROVIDER_GEMINI_TIER ($PROVIDER_GEMINI_COST_TIER)"
-    else
-        echo -e "${CYAN}Step $current_step/$total_steps: Gemini Subscription Tier${NC}"
-        echo -e "  ${YELLOW}⚠${NC} Gemini not available, skipping tier configuration"
-    fi
-    echo ""
-
-    # ═══════════════════════════════════════════════════════════════════════════
-    # STEP 7: OpenRouter Fallback Configuration (v4.8)
+    # STEP 4: OpenRouter Fallback Configuration (v4.8)
     # ═══════════════════════════════════════════════════════════════════════════
     ((++current_step))
     echo -e "${CYAN}Step $current_step/$total_steps: OpenRouter (Universal Fallback)${NC}"
@@ -570,8 +411,8 @@ setup_wizard() {
             echo -e "  ${YELLOW}✗${NC} OPENROUTER_API_KEY not set (optional)"
             echo ""
             echo -e "  ${CYAN}OpenRouter is optional.${NC} It provides:"
-            echo -e "    - Universal fallback when Codex/Gemini unavailable"
-            echo -e "    - Access to 400+ models (Claude, GPT, Gemini, Llama, etc.)"
+            echo -e "    - Universal fallback when Codex or agy unavailable"
+            echo -e "    - Access to 400+ models (Claude, GPT, Llama, etc.)"
             echo -e "    - Pay-per-use pricing with routing optimization"
             echo ""
             read -p "  Configure OpenRouter? [y/N] " -n 1 -r
@@ -610,13 +451,13 @@ setup_wizard() {
     echo ""
 
     # ═══════════════════════════════════════════════════════════════════════════
-    # STEP 8: User Intent (moved from original step 6)
+    # STEP 5: User Intent
     # ═══════════════════════════════════════════════════════════════════════════
     ((++current_step))
     init_step_intent
 
     # ═══════════════════════════════════════════════════════════════════════════
-    # STEP 9: Claude Tier / Cost Strategy (moved from original step 7)
+    # STEP 6: Claude Tier / Cost Strategy
     # ═══════════════════════════════════════════════════════════════════════════
     ((++current_step))
     echo ""
@@ -671,7 +512,7 @@ setup_wizard() {
     echo -e "  ${GREEN}✓${NC} Provider configuration saved"
 
     # ═══════════════════════════════════════════════════════════════════════════
-    # STEP 10: Essential Developer Tools (v4.8.2)
+    # STEP 7: Essential Developer Tools (v4.8.2)
     # ═══════════════════════════════════════════════════════════════════════════
     ((++current_step))
     echo ""
@@ -768,13 +609,7 @@ setup_wizard() {
     if ! command -v codex &>/dev/null; then
         all_good=false
     fi
-    if ! command -v gemini &>/dev/null; then
-        all_good=false
-    fi
     if [[ -z "${OPENAI_API_KEY:-}" ]] && [[ ! -f "$HOME/.codex/auth.json" ]]; then
-        all_good=false
-    fi
-    if [[ ! -f "$HOME/.gemini/oauth_creds.json" ]] && [[ -z "${GEMINI_API_KEY:-}" ]]; then
         all_good=false
     fi
 
@@ -862,9 +697,7 @@ check_first_run() {
     if [[ ! -f "$SETUP_CONFIG_FILE" ]]; then
         # Check if any required component is missing
         if ! command -v codex &>/dev/null || \
-           ! command -v gemini &>/dev/null || \
-           [[ -z "${OPENAI_API_KEY:-}" ]] || \
-           [[ -z "${GEMINI_API_KEY:-}" ]]; then
+           [[ -z "${OPENAI_API_KEY:-}" ]]; then
             echo ""
             echo -e "${YELLOW}🐙 First time? Run the configuration wizard to get started:${NC}"
             echo -e "   ${CYAN}./scripts/orchestrate.sh octopus-configure${NC}"
@@ -1013,13 +846,11 @@ knowledge_work_mode: "$new_mode"
 # Available API keys (auto-detected)
 available_keys:
   openai: false
-  gemini: false
 
 # Derived settings (auto-configured based on tier + keys)
 settings:
   opus_budget: "balanced"
   default_complexity: 2
-  prefer_gemini_for_analysis: false
   max_parallel_agents: 3
 EOF
     fi

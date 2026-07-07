@@ -55,7 +55,7 @@ check_provider() {
 # Claude is always available (built-in)
 check_provider "Claude (built-in)" "true"
 check_provider "Codex CLI"    "command -v codex"
-check_provider "Gemini CLI"   "command -v gemini"
+check_provider "Antigravity (agy)" "command -v agy"
 check_provider "Copilot"      "command -v gh && gh copilot --version"
 check_provider "Qwen CLI"     "command -v qwen"
 check_provider "OpenCode"     "command -v opencode"

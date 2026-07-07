@@ -47,7 +47,7 @@ _claude_octopus_completions() {
     commands="auto embrace research probe define grasp develop tangle deliver ink spawn fan-out map-reduce ralph iterate optimize setup init status kill clean aggregate preflight cost cost-json cost-csv cost-clear auth login logout completion help"
 
     # Agents for spawn command
-    agents="codex codex-standard codex-max codex-mini codex-general gemini gemini-fast gemini-image codex-review"
+    agents="codex codex-standard codex-max codex-mini codex-general agy codex-review"
 
     # Options
     options="-v --verbose -n --dry-run -Q --quick -P --premium -q --quality -p --parallel -t --timeout -a --autonomy -R --resume --no-personas --tier --branch --on-fail -h --help"
@@ -130,7 +130,7 @@ complete -c orchestrate.sh -n "__fish_use_subcommand" -a "completion" -d "Genera
 complete -c orchestrate.sh -n "__fish_use_subcommand" -a "help" -d "Show help"
 
 # Spawn agents
-complete -c orchestrate.sh -n "__fish_seen_subcommand_from spawn" -a "codex codex-standard codex-max codex-mini gemini gemini-fast gemini-image codex-review"
+complete -c orchestrate.sh -n "__fish_seen_subcommand_from spawn" -a "codex codex-standard codex-max codex-mini agy codex-review"
 
 # Completion shells
 complete -c orchestrate.sh -n "__fish_seen_subcommand_from completion" -a "bash zsh fish"

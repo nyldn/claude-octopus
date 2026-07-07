@@ -48,7 +48,7 @@ OpenCode routes to multiple backends via a single CLI using `-m provider/model` 
 
 | Prefix | Backend | Example Models |
 |--------|---------|----------------|
-| `google/` | Google AI | `gemini-2.5-flash`, `gemini-2.5-pro` |
+| `google/` | Google AI | Google-branded model labels (e.g. flash, pro variants) |
 | `openai/` | OpenAI | `gpt-5.4`, `gpt-5.4-mini` |
 | `z-ai/` | Z.AI | `glm-5`, `glm-5.1` |
 | `openrouter/` | OpenRouter | `deepseek/deepseek-r1`, `z-ai/glm-5` |
@@ -65,10 +65,10 @@ Run `opencode models` for the full model catalog.
 
 ```bash
 # Set default model for all OpenCode agent types
-/octo:model-config opencode google/gemini-2.5-flash
+/octo:model-config opencode google/default
 
 # Set capability-specific models (dot syntax)
-/octo:model-config opencode.fast google/gemini-2.5-flash
+/octo:model-config opencode.fast google/default
 /octo:model-config opencode.research z-ai/glm-5.1
 ```
 
@@ -85,7 +85,7 @@ OpenCode serves as an independent multi-provider router:
 - **Fast iteration** (`opencode-fast`) — quick feedback via fast/budget model
 - **Research** (`opencode-research`) — deep analysis via research-grade model
 
-OpenCode is a standalone provider, not a replacement for Codex or Gemini.
+OpenCode is a standalone provider, not a replacement for Codex or Antigravity.
 
 ## Limitations
 

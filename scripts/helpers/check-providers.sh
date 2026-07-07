@@ -27,7 +27,7 @@ source "${SCRIPT_DIR}/../lib/events.sh" 2>/dev/null || true  # opt-in JSONL life
 source "${SCRIPT_DIR}/../lib/quota-watcher.sh" 2>/dev/null || true  # octo_quota_is_dead (oco-cbb)
 
 # oco-cbb: report degraded when a key/binary-present provider was marked
-# quota/auth-dead earlier this session (perplexity 401, gemini exhausted), so it
+# quota/auth-dead earlier this session (perplexity 401, agy exhausted), so it
 # is skipped instead of re-dispatched into the same failure + timeout.
 _octo_provider_state() {
     local provider="$1" present_state="$2"
@@ -60,7 +60,6 @@ fi
 
 echo "PROVIDER_CHECK_START"
 provider_status "codex" "$(command -v codex >/dev/null 2>&1 && echo available || echo missing)"
-provider_status "gemini" "$(_octo_provider_state gemini "$(command -v gemini >/dev/null 2>&1 && echo available || echo missing)")"
 provider_status "agy" "$(command -v agy >/dev/null 2>&1 && echo available || echo missing)"
 provider_status "perplexity" "$(_octo_provider_state perplexity "$([ -n "${PERPLEXITY_API_KEY:-}" ] && echo available || echo missing)")"
 provider_status "opencode" "$(command -v opencode >/dev/null 2>&1 && echo available || echo missing)"

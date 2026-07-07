@@ -14,7 +14,7 @@ This file contains Claude-specific instructions for Claude Octopus workflows.
 Claude serves as the **orchestrator and synthesizer** in Claude Octopus workflows:
 
 1. **Orchestration** - Coordinates multi-provider workflows
-2. **Synthesis** - Combines insights from Codex and Gemini
+2. **Synthesis** - Combines insights from multiple providers
 3. **Strategic Analysis** - Provides high-level recommendations
 4. **Quality Control** - Validates outputs from other providers
 5. **User Interface** - Communicates results to users
@@ -31,7 +31,7 @@ Claude excels at:
 ## When to Use Claude
 
 Claude is used in ALL workflow phases:
-- **Discover**: Synthesize research from Codex + Gemini
+- **Discover**: Synthesize research from Codex + agy (Google)
 - **Define**: Build consensus and clarify requirements
 - **Develop**: Strategic implementation guidance
 - **Deliver**: Final validation and quality certification
@@ -40,7 +40,7 @@ Claude is used in ALL workflow phases:
 
 Claude works alongside:
 - **🔴 Codex**: Technical implementation details
-- **🟡 Gemini**: Ecosystem and alternatives research
+- **🟡 agy (Google)**: Ecosystem and alternatives research
 
 Claude's role is to:
 - Coordinate provider invocations

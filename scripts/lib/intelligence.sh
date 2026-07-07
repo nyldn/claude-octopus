@@ -193,7 +193,7 @@ get_provider_score() {
 # Usage: get_provider_ranking
 get_provider_ranking() {
     local telemetry_file="${WORKSPACE_DIR:-.}/.octo/provider-telemetry.jsonl"
-    local providers="codex gemini claude"
+    local providers="codex agy claude"
 
     if [[ ! -f "$telemetry_file" ]]; then
         echo "$providers"

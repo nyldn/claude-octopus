@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Qwen CLI provider execution (v9.10.0)
-# Fork of Gemini CLI — same flags, different binary.
+# Fork of the Antigravity CLI — same flags, different binary.
 # Auth: API key / Coding-Plan (QWEN_API_KEY, or OPENAI_API_KEY+OPENAI_BASE_URL).
 #   NOTE: the Qwen free OAuth tier was discontinued 2026-04-15 and its token
 #   auto-refresh is broken; an expired ~/.qwen/oauth_creds.json never recovers.
@@ -56,7 +56,7 @@ qwen_is_usable() {
 
 # Execute a prompt via Qwen CLI headless mode
 # Args: $1=agent_type (e.g. qwen, qwen-research), $2=prompt, $3=output_file (optional)
-# Qwen CLI is a fork of Gemini CLI — same flags: -p, -o text, --approval-mode yolo
+# Qwen CLI is a fork of the Antigravity CLI — same flags: -p, -o text, --approval-mode yolo
 qwen_execute() {
     local agent_type="$1"
     local prompt="$2"

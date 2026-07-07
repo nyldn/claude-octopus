@@ -64,7 +64,7 @@ If you catch yourself thinking any of these, STOP:
 
 In Claude Octopus workflows, verification is especially critical because:
 
-- **Provider outputs can be hallucinated** — Codex, Gemini, Antigravity, Copilot, and other providers may claim success without evidence
+- **Provider outputs can be hallucinated** — Codex, Antigravity, Copilot, and other providers may claim success without evidence
 - **Consensus ≠ correctness** — three models agreeing doesn't mean they're right
 - **Synthesis files may be stale** — check timestamps, don't assume freshness
 - **orchestrate.sh exit code 0 ≠ quality** — the script ran, but did it produce good output?

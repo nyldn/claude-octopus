@@ -23,10 +23,10 @@ providers:
     cost_source: "OPENAI_API_KEY"
     detection: "command -v codex"
     optional: true
-  gemini:
+  agy:
     indicator: "🟡"
-    cost_source: "GEMINI_API_KEY"
-    detection: "command -v gemini"
+    cost_source: "AGY_API_KEY"
+    detection: "command -v agy"
     optional: true
   claude:
     indicator: "🔵"
@@ -48,7 +48,7 @@ phases:
           Research the following topic from a technical implementation perspective.
           Focus on code patterns, libraries, architecture decisions, and trade-offs.
           Topic: {{prompt}}
-      - provider: gemini
+      - provider: agy
         role: "Ecosystem and community research"
         parallel: true
         prompt_template: |
@@ -78,7 +78,7 @@ phases:
     outputs:
       - "probe-synthesis-{{task_group}}.md"
       - "probe-codex-{{task_group}}.md"
-      - "probe-gemini-{{task_group}}.md"
+      - "probe-agy-{{task_group}}.md"
 
   - name: grasp
     alias: define
@@ -131,7 +131,7 @@ phases:
           {{grasp_consensus}}
 
           Generate production-ready code following the established patterns.
-      - provider: gemini
+      - provider: agy
         role: "Alternative approaches and edge cases"
         parallel: true
         prompt_template: |
@@ -151,7 +151,7 @@ phases:
           Implement the solution based on:
           - Requirements: {{grasp_consensus}}
           - Codex patterns: {{tangle_codex}}
-          - Gemini review: {{tangle_gemini}}
+          - Agy review: {{tangle_agy}}
 
           Apply quality gates: security, performance, best practices.
     transition:
@@ -186,7 +186,7 @@ phases:
           {{tangle_implementation}}
 
           Check: code style, patterns, documentation, test coverage.
-      - provider: gemini
+      - provider: agy
         role: "Security and edge case review"
         parallel: true
         prompt_template: |
@@ -202,7 +202,7 @@ phases:
           Final delivery review combining:
           - Implementation: {{tangle_implementation}}
           - Quality review: {{ink_codex}}
-          - Security review: {{ink_gemini}}
+          - Security review: {{ink_agy}}
 
           Produce final delivery report with:
           1. Summary of what was built

@@ -291,7 +291,7 @@ aggregate_results() {
     done <<< "$ranked_files"
 
     # Phase 2: Synthesize if we have a provider available and multiple results
-    if [[ $result_count -gt 1 ]] && command -v gemini &> /dev/null && [[ "$DRY_RUN" != "true" ]]; then
+    if [[ $result_count -gt 1 ]] && [[ "$DRY_RUN" != "true" ]] && { command -v agy &> /dev/null || command -v claude &> /dev/null; }; then
         log INFO "Synthesizing $result_count results (ranked by quality, not just concatenating)..."
 
         # v8.49.0: Enhanced synthesis prompt with relevance awareness and structured output
@@ -326,8 +326,13 @@ ${agent_summary:-No agent status ledger available}
 Subtask results:
 $(<"$raw_concat")"
 
+        # v9.47: synthesize via agy (sole Google seat), claude-sonnet fallback.
         local synthesis_result
-        if synthesis_result=$(printf '%s' "$synthesis_prompt" | run_with_timeout "$TIMEOUT" gemini 2>/dev/null) && [[ -n "$synthesis_result" ]]; then
+        synthesis_result=$(run_agent_sync "agy" "$synthesis_prompt" "${TIMEOUT:-180}" "synthesizer" "ink" 2>/dev/null) || synthesis_result=""
+        if [[ -z "$synthesis_result" ]]; then
+            synthesis_result=$(run_agent_sync "claude-sonnet" "$synthesis_prompt" "${TIMEOUT:-180}" "synthesizer" "ink" 2>/dev/null) || synthesis_result=""
+        fi
+        if [[ -n "$synthesis_result" ]]; then
             echo "# Claude Octopus - Synthesized Results" > "$aggregate_file"
             echo "" >> "$aggregate_file"
             echo "Generated: $(date)" >> "$aggregate_file"
@@ -422,7 +427,7 @@ synthesize_probe_results() {
         results="# Compact Probe Synthesis Context"$'\n\n'"No bounded probe excerpts could be collected. Inspect RESULTS_DIR for raw artifacts."
     fi
 
-    # Use Gemini for intelligent synthesis
+    # Use agy for intelligent synthesis
     # v8.49.0: Enhanced prompt with structured output, minority opinion preservation,
     # and relevance-aware weighting (inspired by Crawl4AI content filtering patterns)
     local synthesis_prompt="Synthesize these research findings into a coherent discovery summary.
@@ -450,11 +455,16 @@ Structure your synthesis as:
 Research findings:
 $results"
 
+    # v9.47: synthesize via agy (sole Google seat), claude-sonnet, then compact fallback.
     local synthesis
-    synthesis=$(run_agent_sync "gemini" "$synthesis_prompt" "${TIMEOUT:-300}") || {
+    synthesis=$(run_agent_sync "agy" "$synthesis_prompt" "${TIMEOUT:-300}" "synthesizer" "probe" 2>/dev/null) || synthesis=""
+    if [[ -z "$synthesis" ]]; then
+        synthesis=$(run_agent_sync "claude-sonnet" "$synthesis_prompt" "${TIMEOUT:-300}" "synthesizer" "probe" 2>/dev/null) || synthesis=""
+    fi
+    if [[ -z "$synthesis" ]]; then
         log WARN "Synthesis failed, using compact fallback"
         synthesis=$(build_probe_fallback_synthesis "$original_prompt" "$result_count" "$usable_results" "$total_content_size" "$results")
-    }
+    fi
 
     cat > "$synthesis_file" << EOF
 # PROBE Phase Synthesis

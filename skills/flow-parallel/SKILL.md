@@ -176,7 +176,6 @@ WBS_CONTENT=$(<".octo/parallel/wbs.json")
 review_provider=""
 command -v codex >/dev/null 2>&1 && review_provider="codex"
 [[ -z "$review_provider" ]] && command -v agy >/dev/null 2>&1 && review_provider="agy"
-[[ -z "$review_provider" ]] && command -v gemini >/dev/null 2>&1 && review_provider="gemini"
 
 if [[ -n "$review_provider" ]]; then
   "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" spawn "$review_provider" \
@@ -379,7 +378,7 @@ fi
 cd "$WORKTREE_DIR"
 unset CLAUDECODE
 # v8.32.0: Credential isolation — work packages don't need provider keys
-unset OPENAI_API_KEY GEMINI_API_KEY GOOGLE_API_KEY OPENROUTER_API_KEY PERPLEXITY_API_KEY
+unset OPENAI_API_KEY GOOGLE_API_KEY OPENROUTER_API_KEY PERPLEXITY_API_KEY
 cat "$SCRIPT_DIR/instructions.md" | claude -p > "$SCRIPT_DIR/output.md" 2>"$SCRIPT_DIR/agent.log"
 EXIT_CODE=$?
 echo $EXIT_CODE > "$SCRIPT_DIR/exit-code"

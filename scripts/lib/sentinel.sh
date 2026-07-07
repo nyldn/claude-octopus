@@ -162,7 +162,7 @@ advise_strategy() {
 
     echo -e "${CYAN}🦑 Phase 1/4: Analyzing market and competitive landscape...${NC}"
     local analysis
-    analysis=$(run_agent_sync "gemini" "You are a strategy analyst. Analyze the strategic context for: $prompt
+    analysis=$(run_agent_sync "agy" "You are a strategy analyst. Analyze the strategic context for: $prompt
 
 Provide:
 1. Market sizing (TAM/SAM/SOM if applicable)
@@ -171,14 +171,14 @@ Provide:
 4. PESTLE factors affecting the decision
 
 Be specific with data where possible, noting assumptions." "${TIMEOUT:-300}" "strategy-analyst" "advise") || {
-        log WARN "Gemini failed for market analysis, falling back to Claude"
-        echo -e " ${YELLOW}⚠${NC}  Gemini unavailable — falling back to Claude"
+        log WARN "Antigravity (agy) failed for market analysis, falling back to Claude"
+        echo -e " ${YELLOW}⚠${NC}  Antigravity unavailable — falling back to Claude"
         analysis=$(run_agent_sync "claude-sonnet" "You are a strategy analyst. Analyze the strategic context for: $prompt. Provide: market sizing, competitive landscape, industry trends, PESTLE factors." "${TIMEOUT:-300}" "strategy-analyst" "advise") || true
     }
 
     echo -e "${CYAN}🦑 Phase 2/4: Applying strategic frameworks...${NC}"
     local frameworks
-    frameworks=$(run_agent_sync "gemini" "Based on this analysis:
+    frameworks=$(run_agent_sync "agy" "Based on this analysis:
 $analysis
 
 Apply relevant strategic frameworks:
@@ -187,8 +187,8 @@ Apply relevant strategic frameworks:
 3. Strategic options matrix with trade-offs
 
 Context: $prompt" "${TIMEOUT:-300}" "strategy-analyst" "advise") || {
-        log WARN "Gemini failed for strategic frameworks, falling back to Claude"
-        echo -e " ${YELLOW}⚠${NC}  Gemini unavailable — falling back to Claude"
+        log WARN "Antigravity (agy) failed for strategic frameworks, falling back to Claude"
+        echo -e " ${YELLOW}⚠${NC}  Antigravity unavailable — falling back to Claude"
         frameworks=$(run_agent_sync "claude-sonnet" "Based on this analysis: $analysis. Apply SWOT, Porter's Five Forces, and strategic options matrix. Context: $prompt" "${TIMEOUT:-300}" "strategy-analyst" "advise") || true
     }
 
@@ -217,7 +217,7 @@ Original question: $prompt" "${TIMEOUT:-300}" "strategy-analyst" "advise") || {
 
     echo -e "${CYAN}🦑 Phase 4/4: Crafting executive communication...${NC}"
     local executive_summary
-    executive_summary=$(run_agent_sync "gemini" "Create an executive summary from this strategic analysis:
+    executive_summary=$(run_agent_sync "agy" "Create an executive summary from this strategic analysis:
 
 Analysis: $analysis
 Frameworks: $frameworks
@@ -230,8 +230,8 @@ Format as:
 4. Timeline and next steps
 
 Make it board-ready and actionable." 120 "exec-communicator" "advise") || {
-        log WARN "Gemini failed for executive summary, falling back to Claude"
-        echo -e " ${YELLOW}⚠${NC}  Gemini unavailable — falling back to Claude"
+        log WARN "Antigravity (agy) failed for executive summary, falling back to Claude"
+        echo -e " ${YELLOW}⚠${NC}  Antigravity unavailable — falling back to Claude"
         executive_summary=$(run_agent_sync "claude-sonnet" "Create a board-ready executive summary from: Analysis: $analysis. Recommendations: $recommendations. Format: bullet points, key recommendation, decisions, timeline." 120 "exec-communicator" "advise") || true
     }
 

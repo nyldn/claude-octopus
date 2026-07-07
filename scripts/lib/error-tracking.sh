@@ -73,7 +73,7 @@ get_active_form_verb() {
         discover)
             case "$agent_base" in
                 codex*) verb="🔴 Researching technical patterns (Codex)" ;;
-                gemini*) verb="🟡 Exploring ecosystem and options (Gemini)" ;;
+                agy*|antigravity) verb="🟡 Exploring ecosystem and options (agy)" ;;
                 claude*) verb="🔵 Synthesizing research findings" ;;
                 *) verb="🔍 Researching and exploring" ;;
             esac
@@ -81,7 +81,7 @@ get_active_form_verb() {
         define)
             case "$agent_base" in
                 codex*) verb="🔴 Analyzing technical requirements (Codex)" ;;
-                gemini*) verb="🟡 Clarifying scope and constraints (Gemini)" ;;
+                agy*|antigravity) verb="🟡 Clarifying scope and constraints (agy)" ;;
                 claude*) verb="🔵 Building consensus on approach" ;;
                 *) verb="🎯 Defining requirements" ;;
             esac
@@ -89,7 +89,7 @@ get_active_form_verb() {
         develop)
             case "$agent_base" in
                 codex*) verb="🔴 Generating implementation code (Codex)" ;;
-                gemini*) verb="🟡 Exploring alternative approaches (Gemini)" ;;
+                agy*|antigravity) verb="🟡 Exploring alternative approaches (agy)" ;;
                 claude*) verb="🔵 Integrating and validating solution" ;;
                 *) verb="🛠️  Developing implementation" ;;
             esac
@@ -97,7 +97,7 @@ get_active_form_verb() {
         deliver)
             case "$agent_base" in
                 codex*) verb="🔴 Analyzing code quality (Codex)" ;;
-                gemini*) verb="🟡 Testing edge cases and security (Gemini)" ;;
+                agy*|antigravity) verb="🟡 Testing edge cases and security (agy)" ;;
                 claude*) verb="🔵 Final review and recommendations" ;;
                 *) verb="✅ Validating and testing" ;;
             esac

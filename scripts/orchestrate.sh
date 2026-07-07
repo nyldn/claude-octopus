@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Claude Octopus - Multi-Agent Orchestrator
-# Coordinates multiple AI agents (Codex CLI, Gemini CLI, Antigravity CLI, etc.) for parallel task execution
+# Coordinates multiple AI agents (Codex CLI, Antigravity CLI, etc.) for parallel task execution
 # https://github.com/nyldn/claude-octopus
 
 set -eo pipefail
@@ -28,18 +28,15 @@ fi
 # Cache platform detection — avoids repeated subprocess spawns (v8.33.0)
 OCTOPUS_PLATFORM="$(uname)"
 
-# v8.36.0: Host runtime detection — Claude Code vs Factory AI Droid vs Codex vs Gemini
+# v8.36.0: Host runtime detection — Claude Code vs Factory AI Droid vs Codex
 # Factory's plugin interop resolves ${CLAUDE_PLUGIN_ROOT} automatically,
 # but we detect the host for version checking and env var fallbacks.
-# v9.16.0: Extended for Codex CLI and Gemini CLI host detection (Direction A)
 if [[ -n "${DROID_PLUGIN_ROOT:-}" ]]; then
     OCTOPUS_HOST="factory"
     # Factory provides DROID_PLUGIN_ROOT; ensure CLAUDE_PLUGIN_ROOT is also set
     export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$DROID_PLUGIN_ROOT}"
 elif [[ -n "${CODEX_HOME:-}" || -n "${CODEX_SANDBOX:-}" || -n "${CODEX_PLUGIN_ROOT:-}" ]]; then
     OCTOPUS_HOST="codex"  # HOST:codex — Codex CLI is the host runtime
-elif [[ -n "${GEMINI_HOME:-}" || -n "${GEMINI_PLUGIN_ROOT:-}" ]]; then
-    OCTOPUS_HOST="gemini"  # HOST:gemini — Gemini CLI is the host runtime
 elif [[ -n "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
     OCTOPUS_HOST="claude"
 else
@@ -63,7 +60,7 @@ OCTOPUS_DEBUG="${OCTOPUS_DEBUG:-false}"
 
 # Workspace location — the directory whose files dispatched providers must read.
 # Callers historically `cd` into the plugin install before invoking orchestrate.sh,
-# which sandboxed every provider (codex workdir, gemini workspace) to the plugin
+# which sandboxed every provider (codex workdir, provider workspace) to the plugin
 # checkout instead of the user's project, so no provider could read project files.
 # Resolution order: OCTOPUS_PROJECT_DIR > CLAUDE_PROJECT_DIR (when PWD is inside
 # the plugin install) > PWD. The -d/--dir flag still overrides at arg parse.
@@ -212,7 +209,7 @@ PROGRESS_FILE="${WORKSPACE_DIR}/progress.json"
 # ═══════════════════════════════════════════════════════════════════════════════
 # CLAUDE CODE INTEGRATION: Task Management (v7.16.0)
 # Capture Claude Code v2.1.16+ environment variables for enhanced progress tracking
-# v9.16.0: Gracefully skipped on non-Claude hosts (Codex, Gemini, standalone)
+# v9.16.0: Gracefully skipped on non-Claude hosts (Codex, standalone)
 # ═══════════════════════════════════════════════════════════════════════════════
 if [[ "$OCTOPUS_HOST" == "claude" || "$OCTOPUS_HOST" == "factory" ]]; then
     # HOST:claude — CC-specific task management integration
@@ -243,7 +240,7 @@ fi
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # SECURITY: CLI output wrapping for untrusted external provider output (v8.7.0)
-# Wraps codex/gemini output in trust markers; passes claude output unchanged
+# Wraps external provider output in trust markers; passes claude output unchanged
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # [EXTRACTED to lib/agents.sh]
@@ -457,7 +454,6 @@ SUPPORTS_TOOL_DECISION_PARAMS_OTEL=false # v9.42: Claude Code v2.1.157+ (tool_de
 OCTOPUS_BACKEND="api"              # v8.16: Detected backend (api|bedrock|vertex|foundry)
 AGENT_TEAMS_ENABLED="${CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS:-0}"
 OCTOPUS_SECURITY_V870="${OCTOPUS_SECURITY_V870:-true}"
-OCTOPUS_GEMINI_SANDBOX="${OCTOPUS_GEMINI_SANDBOX:-headless}"  # v8.10.0: Changed default from prompt-mode to headless (Issue #25)
 OCTOPUS_MAX_COST_USD="${OCTOPUS_MAX_COST_USD:-}"
 
 # POSIX-compatible string case helpers (macOS ships bash 3.2 which lacks ${var^} and ${var,,})
@@ -467,11 +463,9 @@ _ucfirst() { local _c; _c=$(printf '%s' "${1:0:1}" | tr '[:lower:]' '[:upper:]')
 
 # Claude Code v2.1.10 Integration
 # Session-aware workflows: results organized by session ID
-# v9.16.0: On non-Claude hosts, session ID falls back to CODEX/GEMINI equivalents or empty
+# v9.16.0: On non-Claude hosts, session ID falls back to CODEX equivalent or empty
 if [[ "$OCTOPUS_HOST" == "codex" ]]; then
     CLAUDE_CODE_SESSION="${CODEX_SESSION_ID:-${CODEX_TASK_ID:-}}"  # HOST:codex
-elif [[ "$OCTOPUS_HOST" == "gemini" ]]; then
-    CLAUDE_CODE_SESSION="${GEMINI_SESSION_ID:-}"  # HOST:gemini
 else
     CLAUDE_CODE_SESSION="${CLAUDE_CODE_SESSION_ID:-${CLAUDE_SESSION_ID:-}}"  # HOST:claude
 fi
@@ -1022,10 +1016,9 @@ enhanced_error() {
             echo "  1. Check logs: ls -lh $LOGS_DIR/*probe-${context}*"
             echo "  2. Verify API keys:"
             echo "     echo \$OPENAI_API_KEY | cut -c1-10"
-            echo "     echo \$GEMINI_API_KEY | cut -c1-10"
             echo "  3. Test providers manually:"
             echo "     codex 'hello world'"
-            echo "     gemini 'hello world'"
+            echo "     agy 'hello world'"
             echo "  4. Increase timeout: --timeout $((TIMEOUT * 2))"
             ;;
         "agent_spawn_failed")
@@ -1168,7 +1161,7 @@ init_workspace() {
     },
     {
       "id": "example-2",
-      "agent": "gemini",
+      "agent": "agy",
       "prompt": "Analyze the project structure and suggest improvements",
       "priority": 2,
       "depends_on": []
@@ -1206,14 +1199,14 @@ GITIGNORE
 # Error code registry (bash 3.2 compatible - uses regular array)
 ERROR_CODES=(
     "E001:OPENAI_API_KEY not set:export OPENAI_API_KEY=\"sk-...\" && orchestrate.sh preflight:help api-setup"
-    "E002:Gemini API key not set — set GEMINI_API_KEY or GOOGLE_API_KEY (if in ~/.bashrc, move to ~/.profile — bashrc is skipped in non-interactive shells):export GEMINI_API_KEY=\"AIza...\" && orchestrate.sh preflight:help api-setup"
+    "E002:Google API key not set — set GOOGLE_API_KEY (if in ~/.bashrc, move to ~/.profile — bashrc is skipped in non-interactive shells):export GOOGLE_API_KEY=\"AIza...\" && orchestrate.sh preflight:help api-setup"
     "E003:Codex CLI not found:npm install -g @openai/codex:help setup"
-    "E004:Gemini CLI not found:npm install -g @google/gemini-cli:help setup"
+    "E004:agy CLI not found — install Antigravity CLI:help setup"
     "E005:Workspace not initialized:orchestrate.sh init:help init"
     "E006:Agent spawn failed:Check API keys and network connection:help troubleshoot"
     "E007:Quality gate failed:Review output and retry with lower threshold (-q 60):help quality"
     "E008:Timeout exceeded:Increase timeout with -t 600 or break into smaller tasks:help timeout"
-    "E009:Invalid agent type:Use codex, codex-mini, gemini, gemini-fast:help agents"
+    "E009:Invalid agent type:Use codex, codex-mini, agy:help agents"
     "E010:Task file parse error:Check JSON syntax with: jq . tasks.json:help tasks"
 )
 
@@ -1272,7 +1265,7 @@ USER_INTENT_PRIMARY=""
 USER_INTENT_ALL=""
 USER_RESOURCE_TIER="standard"
 USER_HAS_OPENAI="false"
-USER_HAS_GEMINI="false"
+USER_HAS_AGY="false"
 USER_OPUS_BUDGET="balanced"
 KNOWLEDGE_WORK_MODE="false"
 
@@ -1340,7 +1333,7 @@ check_claude_version() {
 
 # [EXTRACTED to lib/cost.sh] get_cost_tier_for_subscription()
 
-# [EXTRACTED to lib/smoke.sh] auto_detect_provider_config, detect_tier_openai, detect_tier_gemini, detect_tier_claude
+# [EXTRACTED to lib/smoke.sh] auto_detect_provider_config, detect_tier_openai, detect_tier_agy, detect_tier_claude
 # [EXTRACTED to lib/smoke.sh] save_providers_config, score_provider, select_provider, tier_cache_valid
 # [EXTRACTED to lib/smoke.sh] tier_cache_read, tier_cache_write, tier_cache_invalidate
 
@@ -1365,7 +1358,7 @@ load_user_config() {
     USER_INTENT_ALL=$(grep "^  all:" "$USER_CONFIG_FILE" 2>/dev/null | sed 's/.*: *//' | tr -d '[]"' || echo "")
     USER_RESOURCE_TIER=$(grep "^resource_tier:" "$USER_CONFIG_FILE" 2>/dev/null | sed 's/.*: *//' | tr -d '"' || echo "standard")
     USER_HAS_OPENAI=$(grep "^  openai:" "$USER_CONFIG_FILE" 2>/dev/null | sed 's/.*: *//' || echo "false")
-    USER_HAS_GEMINI=$(grep "^  gemini:" "$USER_CONFIG_FILE" 2>/dev/null | sed 's/.*: *//' || echo "false")
+    USER_HAS_AGY=$(grep "^  agy:" "$USER_CONFIG_FILE" 2>/dev/null | sed 's/.*: *//' || echo "false")
     USER_OPUS_BUDGET=$(grep "^  opus_budget:" "$USER_CONFIG_FILE" 2>/dev/null | sed 's/.*: *//' | tr -d '"' || echo "balanced")
     KNOWLEDGE_WORK_MODE=$(grep "^knowledge_work_mode:" "$USER_CONFIG_FILE" 2>/dev/null | sed 's/.*: *//' | tr -d '"' || echo "false")
 
@@ -1406,9 +1399,9 @@ save_user_config() {
 
     # Auto-detect available API keys (check OAuth first, then API keys)
     local has_openai="false"
-    local has_gemini="false"
+    local has_agy="false"
     [[ -f "$HOME/.codex/auth.json" || -n "${OPENAI_API_KEY:-}" ]] && has_openai="true"
-    [[ -f "$HOME/.gemini/oauth_creds.json" || -n "${GEMINI_API_KEY:-}" ]] && has_gemini="true"
+    command -v agy >/dev/null 2>&1 && has_agy="true"
 
     # Derive settings based on resource tier
     local opus_budget="balanced"
@@ -1440,13 +1433,13 @@ knowledge_work_mode: "$knowledge_mode"
 # Available API keys (auto-detected)
 available_keys:
   openai: $has_openai
-  gemini: $has_gemini
+  agy: $has_agy
 
 # Derived settings (auto-configured based on tier + keys)
 settings:
   opus_budget: "$opus_budget"
   default_complexity: $default_complexity
-  prefer_gemini_for_analysis: $has_gemini
+  prefer_agy_for_analysis: $has_agy
   max_parallel_agents: 3
 EOF
 
@@ -1531,7 +1524,7 @@ is_agent_available() {
     [[ -z "$USER_HAS_OPENAI" ]] && load_user_config
 
     # oco-cbb: skip a provider marked quota/auth-dead earlier this session
-    # (perplexity 401, gemini exhausted) so it is not re-dispatched into the same
+    # (perplexity 401, provider exhausted) so it is not re-dispatched into the same
     # terminal failure + timeout. Guarded; no-op if the helper is unavailable.
     if declare -f octo_quota_is_dead >/dev/null 2>&1 && octo_quota_is_dead "${agent%%-*}"; then
         return 1
@@ -1540,9 +1533,6 @@ is_agent_available() {
     case "$agent" in
         codex|codex-standard|codex-mini|codex-max)
             [[ "$USER_HAS_OPENAI" == "true" || -n "${OPENAI_API_KEY:-}" ]]
-            ;;
-        gemini|gemini-fast|gemini-image)
-            [[ "$USER_HAS_GEMINI" == "true" || -f "$HOME/.gemini/oauth_creds.json" || -n "${GEMINI_API_KEY:-}" ]]
             ;;
         agy|agy-research|antigravity)
             command -v agy >/dev/null 2>&1
@@ -1579,7 +1569,7 @@ init_step_mode_selection() {
     echo -e "      ${DIM}For:${NC} Research, UX analysis, strategy, writing"
     echo -e "      ${DIM}Examples:${NC} User research, literature reviews, market analysis"
     echo ""
-    echo -e "  ${DIM}Note: Both modes use Codex + Gemini - only personas differ${NC}"
+    echo -e "  ${DIM}Note: Both modes use Codex + agy (Google) - only personas differ${NC}"
     echo -e "  ${DIM}Switch anytime with /octo:dev or /octo:km${NC}"
     echo ""
     read -r -p "  Choose mode [1-2] (default: 1): " mode_choice
@@ -2422,7 +2412,7 @@ case "$COMMAND" in
         ;;
     synthesize-probe)
         # v8.48.0: Standalone probe synthesis — recovers from Bash tool timeout
-        # WHY: probe spawns 5+ agents (~60-90s) then runs Gemini synthesis (~30-60s),
+        # WHY: probe spawns 5+ agents (~60-90s) then runs provider synthesis (~30-60s),
         # frequently exceeding the Bash tool's 120s timeout. This command lets the
         # user synthesize already-collected probe results independently.
         if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
@@ -2613,7 +2603,7 @@ case "$COMMAND" in
     # CROSSFIRE COMMANDS (Adversarial Cross-Model Review)
     # ═══════════════════════════════════════════════════════════════════════════
     grapple)
-        # Adversarial debate: Codex vs Gemini until consensus
+        # Adversarial debate: Codex vs agy until consensus
         source "${SCRIPT_DIR}/lib/debate.sh" 2>/dev/null || true
         # Handle help flag
         if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
@@ -3033,7 +3023,7 @@ case "$COMMAND" in
 
         # Detect providers
         _codex_ok="false"; command -v codex &>/dev/null && [[ -n "${OPENAI_API_KEY:-}" || -f "${HOME}/.codex/auth.json" ]] && _codex_ok="true"
-        _gemini_ok="false"; command -v gemini &>/dev/null && [[ -n "${GEMINI_API_KEY:-}" || -f "${HOME}/.gemini/oauth_creds.json" ]] && _gemini_ok="true"
+        _agy_ok="false"; command -v agy &>/dev/null && _agy_ok="true"
         _claude_ok="true"  # Always available
         _perplexity_ok="false"; [[ -n "${PERPLEXITY_API_KEY:-}" ]] && _perplexity_ok="true"
 
@@ -3062,7 +3052,7 @@ case "$COMMAND" in
   "workflow": "$_init_workflow",
   "providers": {
     "codex": $_codex_ok,
-    "gemini": $_gemini_ok,
+    "agy": $_agy_ok,
     "claude": $_claude_ok,
     "perplexity": $_perplexity_ok
   },

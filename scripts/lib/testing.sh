@@ -389,7 +389,7 @@ squeeze_test() {
     if [[ "$DRY_RUN" == "true" ]]; then
         log INFO "[DRY-RUN] Would squeeze test: $prompt"
         log INFO "[DRY-RUN] Phase 1: Blue Team implements secure solution (Codex)"
-        log INFO "[DRY-RUN] Phase 2: Red Team finds vulnerabilities (Gemini)"
+        log INFO "[DRY-RUN] Phase 2: Red Team finds vulnerabilities (Antigravity)"
         log INFO "[DRY-RUN] Phase 3: Remediation of found issues (Codex)"
         log INFO "[DRY-RUN] Phase 4: Validation of fixes (Codex-Review)"
         return 0
@@ -449,7 +449,7 @@ Output production-ready secure code with security comments." 180 "backend-archit
     echo ""
 
     local red_attack
-    red_attack=$(run_agent_sync "gemini" "
+    red_attack=$(run_agent_sync "agy" "
 $no_explore_constraint
 
 You are RED TEAM (attacker/penetration tester). Find security vulnerabilities in this code:
@@ -477,8 +477,8 @@ Be thorough - check for:
 - Insecure deserialization
 - Using components with known vulnerabilities
 - Insufficient logging/monitoring" 180 "security-auditor" "squeeze") || {
-        log WARN "Gemini failed for red team attack, falling back to Claude"
-        echo -e " ${YELLOW}⚠${NC}  Gemini unavailable — falling back to Claude"
+        log WARN "Antigravity (agy) failed for red team attack, falling back to Claude"
+        echo -e " ${YELLOW}⚠${NC}  Antigravity unavailable — falling back to Claude"
         red_attack=$(run_agent_sync "claude-sonnet" "
 $no_explore_constraint
 

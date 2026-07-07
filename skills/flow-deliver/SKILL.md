@@ -100,8 +100,7 @@ If `OCTO_ALLOWED_PROVIDERS` is set, treat it as the source of truth for which pr
 
 Provider Availability:
 🔴 Codex CLI: [Available ✓ / Not installed ✗] - Code quality analysis
-🟡 Gemini CLI: [Available ✓ / Not installed ✗] - Security and edge cases
-🧭 Antigravity CLI: [Available ✓ / Not installed ✗] - Additional external-model challenge
+🧭 Antigravity CLI: [Available ✓ / Not installed ✗] - Security and edge cases
 🔵 Claude: Available ✓ - Synthesis and recommendations
 
 💰 Estimated Cost: $0.02-0.08
@@ -115,7 +114,7 @@ Provider Availability:
 
 Provider Availability:
 🔴 Codex CLI: [Available ✓ / Not installed ✗] - Structure and logic analysis
-🟡 Gemini CLI: [Available ✓ / Not installed ✗] - Content quality and completeness
+🧭 Antigravity CLI: [Available ✓ / Not installed ✗] - Content quality and completeness
 🧭 Antigravity CLI: [Available ✓ / Not installed ✗] - Additional external-model challenge
 🔵 Claude: Available ✓ - Synthesis and recommendations
 
@@ -185,7 +184,7 @@ ${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh deliver "<user's validatio
 ```
 
 **CRITICAL: You are PROHIBITED from:**
-- ❌ Reviewing directly without calling orchestrate.sh — adversarial multi-AI review catches blind spots that a single reviewer misses; Codex finds code quality issues while Gemini catches security and edge cases
+- ❌ Reviewing directly without calling orchestrate.sh — adversarial multi-AI review catches blind spots that a single reviewer misses; Codex finds code quality issues while Antigravity catches security and edge cases
 - ❌ Doing single-perspective analysis instead of multi-provider
 - ❌ Claiming you're "simulating" the workflow
 - ❌ Proceeding to Step 4 without running this command
@@ -198,7 +197,7 @@ If running in Claude Code v2.1.16+, users will see **real-time progress indicato
 
 **Phase 1 - External Provider Execution (Parallel):**
 - 🔴 Analyzing code quality and patterns (Codex)...
-- 🟡 Validating security and edge cases (Gemini)...
+- 🧭 Validating security and edge cases (Antigravity)...
 
 **Phase 2 - Synthesis (Sequential):**
 - 🔵 Synthesizing validation results...
@@ -355,7 +354,7 @@ Analyze the user's prompt and project to determine context:
 
 Providers:
 🔴 Codex CLI - Code quality analysis
-🟡 Gemini CLI - Security and edge cases
+🧭 Antigravity CLI - Security and edge cases
 🔵 Claude - Synthesis and recommendations
 ```
 
@@ -367,7 +366,7 @@ Providers:
 
 Providers:
 🔴 Codex CLI - Structure and logic analysis
-🟡 Gemini CLI - Content quality and completeness
+🧭 Antigravity CLI - Content quality and completeness
 🔵 Claude - Synthesis and recommendations
 ```
 
@@ -394,7 +393,7 @@ Providers:
 The **deliver** phase validates and reviews implementations using external CLI providers:
 
 1. **🔴 Codex CLI** - Code quality, best practices, technical correctness
-2. **🟡 Gemini CLI** - Security audit, edge cases, user experience
+2. **🧭 Antigravity CLI** - Security audit, edge cases, user experience
 3. **🔵 Claude (You)** - Synthesis and final validation report
 
 This is the **convergent** phase for delivery - we ensure quality before shipping.
@@ -435,7 +434,7 @@ Before execution, you'll see:
 
 Providers:
 🔴 Codex CLI - Code quality and best practices
-🟡 Gemini CLI - Security and edge cases
+🧭 Antigravity CLI - Security and edge cases
 🔵 Claude - Synthesis and validation report
 ```
 
@@ -452,7 +451,7 @@ ${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh deliver "<user's validatio
 
 The orchestrate.sh script will:
 1. Call **Codex CLI** for code quality analysis
-2. Call **Gemini CLI** for security and edge case review
+2. Call **Antigravity CLI** for security and edge case review
 3. You (Claude) synthesize findings into validation report
 4. Generate quality scores and recommendations
 
@@ -550,7 +549,7 @@ After successful execution, present validation report with:
    - [Best practice violations]
    - [Improvement suggestions]
 
-   ### Security Audit (Gemini Analysis)
+   ### Security Audit (Antigravity Analysis)
    **Score**: XX/100
    - [Security vulnerabilities found]
    - [Authentication/authorization issues]
@@ -645,7 +644,7 @@ try {
 const JWT_SECRET = 'my-secret-key-123'; // Should be process.env.JWT_SECRET
 \`\`\`
 
-### Security Audit (Gemini Analysis)
+### Security Audit (Antigravity Analysis)
 **Score**: 68/100
 
 **Critical Vulnerabilities**:
@@ -785,7 +784,7 @@ Before marking validation complete, ensure:
 
 **External API Usage:**
 - 🔴 Codex CLI uses your OPENAI_API_KEY (costs apply)
-- 🟡 Gemini CLI uses your GEMINI_API_KEY (costs apply)
+- 🧭 Antigravity CLI uses your agy credentials (costs apply)
 - 🔵 Claude analysis included with Claude Code
 
 Ink workflows typically cost $0.02-0.08 per validation depending on codebase size and complexity.

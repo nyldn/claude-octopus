@@ -2,7 +2,7 @@
 # Maps curated agents to CLI preferences, phases, and complexity tiers
 #
 # CLI Options: codex (gpt-5.3-codex), codex-max, codex-mini, codex-spark, codex-reasoning,
-#              codex-large-context, codex-review, gemini, gemini-fast, claude-opus
+#              codex-large-context, codex-review, agy, claude-opus
 # Models (v8.9.0): gpt-5.3-codex (flagship), gpt-5.3-codex-spark (ultra-fast),
 #                  gpt-5.2-codex, gpt-5.1-codex-mini (budget), o3 (reasoning),
 #                  gpt-4.1 (1M context), gpt-4.1-mini (1M context, budget)
@@ -56,8 +56,9 @@ agents:
   # ═══════════════════════════════════════════════════════════════════════════
   ai-engineer:
     file: personas/ai-engineer.md
-    cli: gemini
-    model: gemini-3-pro-preview
+    cli: agy
+    model: default
+    fallback_cli: codex
     phases: [probe, tangle]
     background: true
     tier: premium
@@ -68,8 +69,9 @@ agents:
 
   business-analyst:
     file: personas/business-analyst.md
-    cli: gemini
-    model: gemini-3-pro-preview
+    cli: agy
+    model: default
+    fallback_cli: codex
     phases: [probe, grasp]
     background: true
     tier: standard
@@ -211,7 +213,7 @@ agents:
   # ═══════════════════════════════════════════════════════════════════════════
   code-reviewer:
     file: personas/code-reviewer.md
-    cli: codex-spark              # reliable OpenAI seat; agy (backend-architect) already supplies the cross-lab vote. Flip to `gemini` (model: gemini-2.5-flash) for a 3rd lab while gemini CLI lasts (deprecating 2026-06-18).
+    cli: codex-spark              # reliable OpenAI seat; agy (backend-architect) already supplies the cross-lab Antigravity vote.
     model: gpt-5.3-codex-spark
     fallback_cli: codex-review
     phases: [ink]
@@ -276,8 +278,9 @@ agents:
   # ═══════════════════════════════════════════════════════════════════════════
   ux-researcher:
     file: personas/ux-researcher.md
-    cli: gemini
-    model: gemini-3-pro-preview
+    cli: agy
+    model: default
+    fallback_cli: codex
     phases: [probe, grasp]
     tier: standard
     expertise: [user-research, journey-mapping, usability, personas]
@@ -287,8 +290,9 @@ agents:
 
   exec-communicator:
     file: personas/exec-communicator.md
-    cli: gemini
-    model: gemini-3-pro-preview
+    cli: agy
+    model: default
+    fallback_cli: codex
     phases: [grasp, ink]
     tier: standard
     expertise: [executive-communication, board-presentations, stakeholder-reports]
@@ -310,8 +314,9 @@ agents:
 
   academic-writer:
     file: personas/academic-writer.md
-    cli: gemini
-    model: gemini-3-pro-preview
+    cli: agy
+    model: default
+    fallback_cli: codex
     phases: [probe, ink]
     tier: standard
     expertise: [research-papers, grant-proposals, scholarly-communication]
@@ -321,8 +326,9 @@ agents:
 
   marketing-strategist:
     file: personas/marketing-strategist.md
-    cli: gemini
-    model: gemini-3-pro-preview
+    cli: agy
+    model: default
+    fallback_cli: codex
     phases: [probe, grasp]
     tier: standard
     expertise: [campaign-planning, growth-funnels, seo, brand-positioning]
@@ -332,8 +338,9 @@ agents:
 
   finance-analyst:
     file: personas/finance-analyst.md
-    cli: gemini
-    model: gemini-3-pro-preview
+    cli: agy
+    model: default
+    fallback_cli: codex
     phases: [probe, grasp]
     tier: standard
     expertise: [financial-modeling, budgeting, forecasting, unit-economics]
@@ -343,8 +350,9 @@ agents:
 
   legal-compliance-advisor:
     file: personas/legal-compliance-advisor.md
-    cli: gemini
-    model: gemini-3-pro-preview
+    cli: agy
+    model: default
+    fallback_cli: codex
     phases: [probe, grasp]
     tier: standard
     expertise: [gdpr, ccpa, hipaa, soc2, privacy-policy, regulatory-risk]
@@ -396,8 +404,9 @@ agents:
 
   context-manager:
     file: personas/context-manager.md
-    cli: gemini-fast
-    model: gemini-3-flash-preview
+    cli: agy
+    model: default
+    fallback_cli: codex
     phases: [probe, grasp, tangle, ink]
     background: true
     tier: standard
@@ -408,8 +417,9 @@ agents:
 
   docs-architect:
     file: personas/docs-architect.md
-    cli: gemini
-    model: gemini-3-pro-preview
+    cli: agy
+    model: default
+    fallback_cli: codex
     phases: [ink]
     tier: standard
     expertise: [documentation, technical-writing]
@@ -444,8 +454,9 @@ agents:
 
   mermaid-expert:
     file: personas/mermaid-expert.md
-    cli: gemini-fast
-    model: gemini-3-flash-preview
+    cli: agy
+    model: default
+    fallback_cli: codex
     phases: [grasp, ink]
     tier: trivial
     expertise: [diagrams, flowcharts, sequence-diagrams]

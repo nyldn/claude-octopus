@@ -67,8 +67,8 @@ your selected model needs more time.
 
 ## Notes
 
-- `agy` is not treated as a Gemini CLI wrapper.
-- Gemini-specific flags such as `-o text`, `--approval-mode yolo`, and the
-  Gemini fallback helper are not used for Antigravity.
+- `agy` is not treated as a retired Google CLI wrapper.
+- Google-CLI-specific flags such as `-o text`, `--approval-mode yolo`, and the
+  retired Google fallback helper are not used for Antigravity.
 - `agy --print-timeout` is the primary timeout for Antigravity print mode.
 - This provider was added in response to #423.

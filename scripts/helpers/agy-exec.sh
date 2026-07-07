@@ -2,7 +2,7 @@
 # Antigravity CLI stdin adapter.
 #
 # This intentionally stays a thin, env-driven adapter. It does NOT implement a
-# model-fallback chain or an error classifier the way the Gemini adapter does:
+# model-fallback chain or an error classifier the way the retired Google adapter did:
 # agy's model catalog and error strings are not verified here (agy may be
 # unauthenticated on a given box), and forcing a specific --model pushes agy onto
 # an exhaustible quota group. The only added robustness is provider-agnostic — a
@@ -10,7 +10,7 @@
 set -euo pipefail
 
 # Default to "default" → don't pass --model, so agy uses the model you picked in
-# its own `/model` UI (e.g. Gemini 3.5 Flash Medium). The old default ("Claude
+# its own `/model` UI (e.g. a Google Flash model). The old default ("Claude
 # Sonnet 4.6 (Thinking)") forced agy onto the Claude/GPT quota group, which can be
 # exhausted → agy returns empty and the council seat silently fails. Override per
 # run with OCTOPUS_AGY_MODEL if you want a specific model.
@@ -19,8 +19,8 @@ print_timeout="${OCTOPUS_AGY_PRINT_TIMEOUT:-5m0s}"
 
 # --dangerously-skip-permissions: auto-approve agy's folder-trust + tool prompts so
 # council seats don't block on a per-worktree trust prompt (already --sandbox'd).
-# OCTOPUS_AGY_SANDBOX=off drops the sandbox restriction (mirror of the Gemini
-# OCTOPUS_GEMINI_SANDBOX switch); the default keeps it on.
+# OCTOPUS_AGY_SANDBOX=off drops the sandbox restriction (mirror of the sunset
+# Google-seat sandbox switch); the default keeps it on.
 cmd=(agy --print --sandbox --dangerously-skip-permissions --print-timeout "$print_timeout")
 if [[ "${OCTOPUS_AGY_SANDBOX:-on}" == "off" ]]; then
     cmd=(agy --print --dangerously-skip-permissions --print-timeout "$print_timeout")
@@ -35,7 +35,7 @@ case "$model" in
 esac
 
 # agy confines reads to its workspace; whitelist extra dirs (e.g. a /tmp staging
-# dir) the prompt references. Comma-separated, mirrors OCTOPUS_GEMINI_INCLUDE_DIRS.
+# dir) the prompt references. Comma-separated, mirrors the sunset Google-seat include-dirs var.
 if [[ -n "${OCTOPUS_AGY_INCLUDE_DIRS:-}" ]]; then
     IFS=',' read -r -a _agy_dirs <<< "$OCTOPUS_AGY_INCLUDE_DIRS"
     for _d in "${_agy_dirs[@]}"; do
