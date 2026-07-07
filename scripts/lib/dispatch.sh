@@ -161,6 +161,38 @@ get_agent_command() {
             fi
             echo "${PLUGIN_DIR}/scripts/helpers/openai-compatible-agent.py --provider generic --model ${model} --cwd ${PWD}"
             ;;
+        atlascloud-agent)  # Atlas Cloud via the OpenAI-compatible tool-loop agent
+            model="${ATLASCLOUD_MODEL:-${OCTOPUS_ATLASCLOUD_MODEL:-${OPENAI_COMPAT_MODEL:-}}}"
+            if [[ -z "$model" && -f "${HOME}/.claude-octopus/config/providers.json" ]] && command -v jq &>/dev/null; then
+                model="$(jq -r '.providers.atlascloud.default // empty' "${HOME}/.claude-octopus/config/providers.json" 2>/dev/null || true)"
+            fi
+            if [[ -z "$model" ]]; then
+                log ERROR "ATLASCLOUD_MODEL, OCTOPUS_ATLASCLOUD_MODEL, OPENAI_COMPAT_MODEL, or providers.json atlascloud.default is required"
+                return 1
+            fi
+            if ! validate_model_name "$model"; then
+                log ERROR "Invalid Atlas Cloud model name: ${model}"
+                return 1
+            fi
+            local fallback
+            fallback=$(validate_model_allowed "atlascloud" "$model")
+            if [[ $? -ne 0 ]]; then
+                if [[ -n "$fallback" ]]; then
+                    if ! validate_model_name "$fallback"; then
+                        log ERROR "Invalid Atlas Cloud fallback model name"
+                        return 1
+                    fi
+                    model="$fallback"
+                else
+                    return 1
+                fi
+            fi
+            if ! _octopus_is_safe_openai_compatible_dispatch_value "${PWD}"; then
+                log ERROR "Invalid Atlas Cloud cwd: ${PWD}"
+                return 1
+            fi
+            echo "${PLUGIN_DIR}/scripts/helpers/openai-compatible-agent.py --provider atlascloud --model ${model} --cwd ${PWD}"
+            ;;
         perplexity|perplexity-fast)  # v8.24.0: Perplexity Sonar — web-grounded research (Issue #22)
             if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
                 return 1
@@ -279,6 +311,7 @@ get_provider_context_limit() {
         claude)     echo "${OCTOPUS_CLAUDE_CONTEXT_BUDGET:-${default_budget}}" ;;
         perplexity) echo "${OCTOPUS_PERPLEXITY_CONTEXT_BUDGET:-${default_budget}}" ;;
         openrouter) echo "${OCTOPUS_OPENROUTER_CONTEXT_BUDGET:-${default_budget}}" ;;
+        atlascloud) echo "${OCTOPUS_ATLASCLOUD_CONTEXT_BUDGET:-${default_budget}}" ;;
         copilot)    echo "${OCTOPUS_COPILOT_CONTEXT_BUDGET:-${default_budget}}" ;;
         qwen)       echo "${OCTOPUS_QWEN_CONTEXT_BUDGET:-${default_budget}}" ;;
         opencode)   echo "${OCTOPUS_OPENCODE_CONTEXT_BUDGET:-${default_budget}}" ;;
@@ -456,6 +489,7 @@ get_agent_model() {
         agy*|antigravity) provider="agy" ;;
         claude*)     provider="claude" ;;
         openrouter*) provider="openrouter" ;;
+        atlascloud*) provider="atlascloud" ;;
         openai-compatible|openai-tools|openai-compatible-agent*) provider="openai-compatible-agent" ;;
         perplexity*) provider="perplexity" ;;
         qwen*)       provider="qwen" ;;
@@ -499,6 +533,7 @@ validate_model_allowed() {
         agy)        allowlist_var="OCTOPUS_AGY_ALLOWED_MODELS" ;;
         claude)     allowlist_var="OCTOPUS_CLAUDE_ALLOWED_MODELS" ;;
         openrouter) allowlist_var="OCTOPUS_OPENROUTER_ALLOWED_MODELS" ;;
+        atlascloud) allowlist_var="ATLASCLOUD_ALLOWED_MODELS" ;;
         openai-compatible|openai-tools|openai-compatible-agent) allowlist_var="OPENAI_COMPAT_ALLOWED_MODELS" ;;
         perplexity) allowlist_var="OCTOPUS_PERPLEXITY_ALLOWED_MODELS" ;;
         qwen)       allowlist_var="OCTOPUS_QWEN_ALLOWED_MODELS" ;;
