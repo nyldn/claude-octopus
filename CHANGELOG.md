@@ -2,14 +2,23 @@
 
 ## [Unreleased]
 
+## [9.48.1] - 2026-07-08
+
 ### Added
 
 - **Antigravity adapter (`agy-exec.sh`) hardened**: `OCTOPUS_AGY_SANDBOX=off` drops the `--sandbox` restriction, `OCTOPUS_AGY_INCLUDE_DIRS` (comma-separated) whitelists extra read dirs via `--add-dir`, and a single replay-from-stdin retry recovers a silent-empty success (opt out with `OCTOPUS_AGY_NO_RETRY=1`). The adapter stays a thin, env-driven wrapper — no model-fallback chain or error classifier.
+- **Atlas Cloud provider** (#579): new `atlascloud` preset on the OpenAI-compatible tool-loop agent, registered in dispatch, provider detection, health checks, and allowlist aliases. Requires an explicit model via `ATLASCLOUD_MODEL` (or `OCTOPUS_ATLASCLOUD_MODEL` / `OPENAI_COMPAT_MODEL` / `providers.json`) — no model ID is hardcoded.
+- **`model-config` role routing commands** (#587): `octo-model-config show roles`, `route-role`, and `unroute-role` expose role/persona routing overrides (e.g. `researcher -> agy:default`) without hand-editing `providers.json`.
+- **`code-review` contract context** (#573): the `code-review` JSON profile accepts optional `contextFile`/`contextText`/`contextLabel`, injected into reviewer and verifier prompts so `/octo:review` can flag diffs that miss acceptance criteria or violate the supplied task contract.
 
 ### Fixed
 
 - **Session `results`/`logs`/`plans` dirs are now created early** in `orchestrate.sh`, before any subcommand dispatches provider seats. Codex/agy seats write into `RESULTS_DIR` during dispatch and previously crashed when it was missing. The `mkdir -p` is cheap and idempotent.
 - **Ollama and Codex OSS models can no longer trigger an unbounded auto-pull on fallback.** Both `ollama run <model>` and the Codex CLI's built-in OSS/local-model handling silently download a missing model, so a provider-failure cascade could kick off an unbounded multi-GB pull with no human in the loop (observed: a ~42 GB pull). All Ollama dispatch now routes through a fail-closed shim (`scripts/helpers/ollama-run.sh`), and Codex dispatch for OSS models (e.g. `gpt-oss:*`) routes through `scripts/helpers/codex-run.sh`; both share the guard in `scripts/helpers/ollama-pull-guard.lib.sh` and refuse to pull an absent model unless `OCTOPUS_OLLAMA_ALLOW_PULL=true`, capping an allowed pull at `OCTOPUS_OLLAMA_MAX_PULL_GB` (default 20). Cloud Codex models (e.g. `gpt-5.x`, `o3`, `gpt-4.1`, `gpt-5.2-codex`) are unaffected and bypass the guard.
+- **OpenAI-compatible providers route outside the Codex wrapper** (#574): new first-class `openai-compatible`/`openai-tools` aliases wired through dispatch, model resolution, provider config, review, and council, so generic OpenAI-compatible/niche providers no longer hide behind a Codex-compatible shim. `OCTOPUS_CODEX_BIN` is removed; Codex dispatch stays native Codex only.
+- **Role model routes now override phase routes** (#578): `resolve_octopus_model` prefers `routing.roles[$role]` before `routing.phases[$phase]`, so a specialist reviewer role (e.g. `logic-reviewer -> codex:logic_review`) no longer silently inherits the broad phase default. Phase routing still applies when no role override exists.
+- **Grok provider now honors the configured model, isolates its environment, and propagates failures** (#586): the `grok` dispatch arm resolves the model via the same resolver codex/gemini/qwen use instead of running grok's vendor default silently; grok now runs under `env -i` isolation like the other CLI providers; and a non-zero grok exit is no longer masked by partial stdout.
+- **Lifecycle hook timeout test flake on macOS runners** (#589, closes #588): `tests/unit/test-agent-lifecycle-events.sh` asserted a fixed 4s wall-clock bound around a 1s configured hook timeout, which macOS scheduling jitter could occasionally exceed. Widened to the configured timeout plus a 9s grace margin, and hardened the slow-hook fixtures to sleep longer than the widened bound so a broken timeout mechanism can't false-pass.
 - **The agy council seat now records its real model instead of `"default"`.** `agy-exec` runs `agy --print` with `--model default` (agy uses whatever is picked in its own `/model` UI), so the roster artifact and preflight banner logged the opaque string `default` for the agy seat — making a Codex+agy panel's cross-lab-vs-same-lineage status unverifiable from `summary.json`. New `agy_current_model()` (`lib/providers.sh`) honors `OCTOPUS_AGY_MODEL`, else resolves the selection from `~/.gemini/antigravity-cli/settings.json`, else fails safe to `default (unresolved)`; it's wired into `council_roster_entry_json` and the preflight banner. Purely diagnostic — never gates logic, and guarded with `declare -f` so standalone runs fall back to prior behavior.
 
 ## [9.48.0] - 2026-07-06
