@@ -1,7 +1,7 @@
 {
   "name": "octo",
   "version": "9.48.1",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. v9.44.1. 32 expert personas, 49 commands, 54 skills. Commands '/octo:*'. Run /octo:setup for guided setup. Compatible with Claude Code and Factory AI Droid.",
+  "description": "Multi-tentacled orchestrator using Double Diamond methodology. v9.48.1. 32 expert personas, 49 commands, 54 skills. Commands '/octo:*'. Run /octo:setup for guided setup. Compatible with Claude Code and Factory AI Droid.",
   "author": {
     "name": "nyldn"
   },

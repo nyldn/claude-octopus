@@ -1,7 +1,7 @@
 {
   "name": "octo",
   "version": "9.48.1",
-  "description": "v9.44.1 — Patch release for Gemini environment/version detection and qwen auth gating. Run /octo:setup.",
+  "description": "v9.48.1 — adds Atlas Cloud provider and model-config role routing commands; plus provider-routing and reliability fixes. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"
