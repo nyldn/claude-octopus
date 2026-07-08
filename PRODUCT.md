@@ -86,6 +86,10 @@ Frontier AI models will remain individually overconfident for the foreseeable fu
 - Token compression (`bin/octo-compress`): ~7,300 tokens saved per session
 - 170+ Claude Code feature flags tracked through v2.1.132
 
+## Claude Code 2026 Compatibility Layer (v9.50.0)
+
+The plugin tracks Claude Code's native capability surface instead of competing with it. As of v9.50.0 that means: a routine manifest so octopus workflows run on Claude Code's saved automations (schedules and GitHub events); a SubagentStop gate that scores, attributes, and cost-logs every subagent summary before the lead sees it; `/octo:usage` reporting in Claude Code's `/usage` schema; an opt-out mirror of the `worktree.bgIsolation` session flag; a Claude Agent SDK seat (`CLAUDE_SDK_API_KEY`) that gives workflows Opus 4.8 and the 1M context window; a four-skill starter pack matching the opinionated-skills-pack trend; and a `/plugin browse` manifest that discloses projected context cost up front. Native-first remains the rule: Octopus adds multi-provider disagreement on top of Claude Code, never a replacement for it.
+
 ## Known Product Gaps
 
 | Gap | Impact | Status |

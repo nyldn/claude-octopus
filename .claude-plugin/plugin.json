@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "9.48.0",
-  "description": "v9.44.1 \u2014 Patch release for Gemini environment/version detection and qwen auth gating. Run /octo:setup.",
+  "version": "9.50.0",
+  "description": "v9.50.0 - Claude Code 2026 compatibility layer: routines manifest, SubagentStop quality/cost gate, /octo:usage report, worktree bgIsolation opt-out, Claude Agent SDK seat (Opus 4.8, 1M context), starter skills pack, /plugin browse manifest. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"
@@ -77,7 +77,11 @@
     "./skills/skill-verify",
     "./skills/skill-visual-feedback",
     "./skills/skill-writing-plans",
-    "./skills/sys-configure"
+    "./skills/sys-configure",
+    "./skills/octopus-starter-pack/debate-kickoff",
+    "./skills/octopus-starter-pack/council-verdicts",
+    "./skills/octopus-starter-pack/provider-health",
+    "./skills/octopus-starter-pack/model-cost-compare"
   ],
   "commands": [
     "./.claude/commands/auto.md",
@@ -128,6 +132,7 @@
     "./.claude/commands/council.md",
     "./.claude/commands/retro.md",
     "./.claude/commands/history.md",
-    "./.claude/commands/discipline.md"
+    "./.claude/commands/discipline.md",
+    "./.claude/commands/usage.md"
   ]
 }

@@ -345,6 +345,7 @@ resolve_octopus_model() {
             gemini-fast|gemini-flash) resolved_model="gemini-3-flash-preview" ;;
             gemini*)         resolved_model="gemini-3.1-pro-preview" ;;
             agy*|antigravity) resolved_model="default" ;;
+            claude-sdk*)     resolved_model="${OCTOPUS_CLAUDE_SDK_MODEL:-claude-opus-4-8}" ;;  # v9.50.0: must precede claude* glob
             claude-opus-legacy*) resolved_model="claude-opus-4.6" ;;
             claude-opus*)    resolved_model="$(opus_default_model)" ;;
             claude*)         resolved_model="claude-sonnet-4.6" ;;

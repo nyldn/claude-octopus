@@ -1,0 +1,62 @@
+{
+  "$comment": "Claude Octopus routine manifest (v9.50.0). Saved automation configs for Claude Code routines: schedule triggers map to cron-style saved automations, github triggers map to repository event automations. All routines ship disabled; enable per-project after reviewing provider cost implications (external CLI seats bill to the user's API keys).",
+  "schemaVersion": 1,
+  "routines": [
+    {
+      "name": "octo-nightly-security-audit",
+      "description": "Multi-provider security audit of the working tree every night",
+      "enabled": false,
+      "trigger": {
+        "type": "schedule",
+        "cron": "0 3 * * *",
+        "timezone": "UTC"
+      },
+      "command": "/octo:security",
+      "args": "--scope full",
+      "providers": ["claude", "codex", "agy"],
+      "costNote": "Dispatches codex + agy seats; expect $0.10-0.60 per run"
+    },
+    {
+      "name": "octo-weekly-provider-health",
+      "description": "Provider availability, auth, and version drift check every Monday",
+      "enabled": false,
+      "trigger": {
+        "type": "schedule",
+        "cron": "0 9 * * 1",
+        "timezone": "UTC"
+      },
+      "command": "/octo:setup",
+      "args": "--check-only",
+      "providers": ["claude"],
+      "costNote": "Detection only; no external provider dispatch"
+    },
+    {
+      "name": "octo-usage-digest",
+      "description": "Weekly per-provider cost and token digest from usage records",
+      "enabled": false,
+      "trigger": {
+        "type": "schedule",
+        "cron": "0 18 * * 5",
+        "timezone": "UTC"
+      },
+      "command": "/octo:usage",
+      "args": "--format json",
+      "providers": ["claude"],
+      "costNote": "Reads local RESULTS_DIR artifacts; no provider dispatch"
+    },
+    {
+      "name": "octo-pr-review",
+      "description": "Multi-provider adversarial review when a pull request opens or updates",
+      "enabled": false,
+      "trigger": {
+        "type": "github",
+        "event": "pull_request",
+        "actions": ["opened", "synchronize"]
+      },
+      "command": "/octo:review",
+      "args": "--staged",
+      "providers": ["claude", "codex", "agy"],
+      "costNote": "Dispatches codex + agy seats per PR update; gate on repo size"
+    }
+  ]
+}

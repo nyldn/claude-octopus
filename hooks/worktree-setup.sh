@@ -16,6 +16,15 @@ _octo_hook_exit() { local c=$?; if [[ $c -ne 0 ]]; then echo "[hook:$(basename "
 trap _octo_hook_exit EXIT
 
 
+# v9.50.0: worktree.bgIsolation opt-out — when the user disables background
+# worktree isolation (OCTOPUS_WORKTREE_BG_ISOLATION=false) agents edit the
+# checkout directly, so there is no clone to seed. Short-circuit before any
+# stdin read or file writes.
+if [[ "${OCTOPUS_WORKTREE_BG_ISOLATION:-true}" == "false" ]]; then
+    echo '{"decision": "continue"}'
+    exit 0
+fi
+
 # Read worktree info from stdin (JSON payload from Claude Code)
 WORKTREE_DATA=""
 if [[ ! -t 0 ]]; then

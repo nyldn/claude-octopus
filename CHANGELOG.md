@@ -2,9 +2,25 @@
 
 ## [Unreleased]
 
+## [9.50.0] - 2026-07-08
+
+Claude Code 2026 compatibility layer release.
+
 ### Added
 
+- **Routine manifest (`.claude-plugin/routines.json`)**: saved automation configs for Claude Code routines. Ships four routines (nightly security audit, weekly provider health, weekly usage digest, PR-open review), each mapping a schedule or GitHub event trigger to an `/octo:` command with an explicit provider roster and cost note. All routines ship disabled; enable per-project.
+- **SubagentStop gate hook (`hooks/subagent-stop-gate.sh`)**: runs after `subagent-result-capture.sh` in the SubagentStop chain. Attributes each finished subagent to its provider, computes a 0-100 quality heuristic, appends a JSONL usage record to `~/.claude-octopus/usage/subagent-usage.jsonl`, and pre-screens council verdict blocks for a recognizable verdict token. Non-blocking by default; `OCTOPUS_SUBAGENT_GATE_STRICT=true` blocks malformed verdicts and summaries below the `OCTOPUS_SUBAGENT_MIN_QUALITY` floor before they reach the lead.
+- **`/octo:usage` cost attribution**: new command backed by `scripts/helpers/usage-report.sh`. Reads usage JSONL records plus `results/**/summary.json` roster artifacts and produces a per-provider, per-skill, and per-MCP-server token and cost breakdown in Claude Code's `/usage` schema (`claude-code/usage-v1`), as a table or JSON.
+- **Worktree background isolation opt-out**: `OCTOPUS_WORKTREE_BG_ISOLATION=false` (mirror of Claude Code's `worktree.bgIsolation` session flag) disables worktree cloning for background agents; detection downgrades `SUPPORTS_WORKTREE_ISOLATION` and `hooks/worktree-setup.sh` short-circuits, so fast direct-edit runs skip the clone entirely. Default remains isolation on.
+- **Claude Agent SDK provider seat (`claude-sdk`)**: setting `CLAUDE_SDK_API_KEY` unlocks a new seat routed through `scripts/helpers/claude-sdk-exec.sh`, giving workflows Opus 4.8 and the 1M-token context window independent of the host session. Prefers the `claude-agent` SDK CLI, falls back to headless `claude --print` with session markers stripped. Model via `OCTOPUS_CLAUDE_SDK_MODEL` (default `claude-opus-4-8`); wired through dispatch, model resolution, allowlists (`OCTOPUS_CLAUDE_SDK_ALLOWED_MODELS`), routing, detection, and health checks.
+- **Skills starter pack (`skills/octopus-starter-pack/`)**: four opinionated starter skills: `debate-kickoff` (frame a decision as a seated multi-model debate), `council-verdicts` (interpret quorum, dissent, and cross-lab validity of a council run), `provider-health` (one-screen availability/auth/cost posture summary), and `model-cost-compare` (map a task to the cheapest adequate seat with a price spread).
+- **Plugin browse manifest (`.claude-plugin/plugin-manifest.json`)**: `/plugin browse` metadata (2026-06 schema) with projected context cost (about 4.2K tokens baseline), component inventory (50 commands, 42 agents, 58 skills, 20 hook events, 4 routines), and Claude Code compatibility range.
 - **Antigravity adapter (`agy-exec.sh`) hardened**: `OCTOPUS_AGY_SANDBOX=off` drops the `--sandbox` restriction, `OCTOPUS_AGY_INCLUDE_DIRS` (comma-separated) whitelists extra read dirs via `--add-dir`, and a single replay-from-stdin retry recovers a silent-empty success (opt out with `OCTOPUS_AGY_NO_RETRY=1`). The adapter stays a thin, env-driven wrapper — no model-fallback chain or error classifier.
+
+### Changed
+
+- **SubagentStop is now a two-hook chain**: `subagent-result-capture.sh` (result file bridging) then `subagent-stop-gate.sh` (quality/cost/verdict gate). Existing capture behavior is unchanged.
+- **Plugin metadata refreshed across all manifests** (`.claude-plugin`, `.codex-plugin`, `.cursor-plugin`, `.factory-plugin`): descriptions and component counts now reflect 50 commands, 42 agents, and 58 skills.
 
 ### Fixed
 

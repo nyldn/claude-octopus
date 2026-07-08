@@ -204,6 +204,13 @@ detect_claude_code_version() {
         SUPPORTS_FAST_OPUS_1M=true
     fi
 
+    # v9.50.0: worktree.bgIsolation opt-out — OCTOPUS_WORKTREE_BG_ISOLATION=false
+    # disables worktree cloning for background agents (fast direct-edit runs).
+    # Mirrors Claude Code's worktree.bgIsolation session flag.
+    if [[ "${OCTOPUS_WORKTREE_BG_ISOLATION:-true}" == "false" ]]; then
+        SUPPORTS_WORKTREE_ISOLATION=false
+    fi
+
     # Check for v2.1.51+ features (remote control, npm registries, fast bash, disk persist, account env vars, managed settings)
     if version_compare "$CLAUDE_CODE_VERSION" "2.1.51" ">="; then
         SUPPORTS_REMOTE_CONTROL=true
@@ -833,6 +840,18 @@ check_provider_health() {
                 return 1
             fi
             ;;
+        claude-sdk)
+            # v9.50.0: Agent SDK seat — key is the only hard requirement; the
+            # shim falls back from claude-agent to headless claude at exec time.
+            if [[ -z "${CLAUDE_SDK_API_KEY:-}" ]]; then
+                echo "claude-sdk: CLAUDE_SDK_API_KEY not set" >&2
+                return 1
+            fi
+            if ! command -v claude-agent &>/dev/null && ! command -v claude &>/dev/null; then
+                echo "claude-sdk: neither claude-agent (Agent SDK) nor claude CLI found in PATH" >&2
+                return 1
+            fi
+            ;;
         grok)
             if ! command -v grok &>/dev/null; then
                 echo "grok: CLI not found in PATH" >&2
@@ -889,7 +908,7 @@ check_all_providers() {
     local healthy=0 unhealthy=0
     local -a results=()
 
-    for provider in codex gemini agy claude perplexity openrouter atlascloud ollama copilot qwen cursor-agent grok vibe; do
+    for provider in codex gemini agy claude claude-sdk perplexity openrouter atlascloud ollama copilot qwen cursor-agent grok vibe; do
         local diag
         if diag=$(check_provider_health "$provider" 2>&1); then
             results+=("  ✓ $provider")
@@ -1167,6 +1186,15 @@ detect_providers() {
     # Detect xAI Grok CLI (standalone grok provider)
     if { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed grok; } && declare -f grok_is_available >/dev/null 2>&1 && grok_is_available; then
         result="${result}grok:$(grok_auth_method) "
+    fi
+
+    # Detect Claude Agent SDK seat (v9.50.0 — CLAUDE_SDK_API_KEY unlocks Opus 4.8 + 1M context)
+    if { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed claude-sdk; } && [[ -n "${CLAUDE_SDK_API_KEY:-}" ]]; then
+        if command -v claude-agent &>/dev/null; then
+            result="${result}claude-sdk:agent-sdk "
+        elif command -v claude &>/dev/null; then
+            result="${result}claude-sdk:headless-fallback "
+        fi
     fi
 
     # Detect Vibe CLI (Mistral Vibe interactive CLI)

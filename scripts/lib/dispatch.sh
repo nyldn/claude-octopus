@@ -284,6 +284,17 @@ get_agent_command() {
                 echo "${PLUGIN_DIR}/scripts/helpers/grok-exec.sh"
             fi
             ;;
+        claude-sdk|claude-sdk-agent|claude-sdk-research)  # v9.50.0: Claude Agent SDK seat
+            # Routes to helpers/claude-sdk-exec.sh when CLAUDE_SDK_API_KEY is set —
+            # unlocks Opus 4.8 + 1M context independent of the host session. Model
+            # wiring mirrors grok: env prefix so providers.json picks reach the shim.
+            if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then return 1; fi
+            if [[ -n "$model" && "$model" != "default" ]]; then
+                echo "env OCTOPUS_CLAUDE_SDK_MODEL=${model} ${PLUGIN_DIR}/scripts/helpers/claude-sdk-exec.sh"
+            else
+                echo "${PLUGIN_DIR}/scripts/helpers/claude-sdk-exec.sh"
+            fi
+            ;;
         cursor-agent)  # v9.23.0: Cursor Agent CLI — Grok 4.20 via Cursor subscription
             if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
                 return 1
@@ -343,6 +354,7 @@ get_provider_context_limit() {
 
     case "$agent_type" in
         codex-large-context) echo "${OCTOPUS_CODEX_LARGE_CONTEXT_BUDGET:-${default_budget}}" ; return 0 ;;
+        claude-sdk*) echo "${OCTOPUS_CLAUDE_SDK_CONTEXT_BUDGET:-1000000}" ; return 0 ;;  # v9.50.0: Agent SDK 1M window
         claude-opus*|claude-sonnet|claude) echo "${OCTOPUS_CLAUDE_CONTEXT_BUDGET:-${default_budget}}" ; return 0 ;;
     esac
 
@@ -529,6 +541,7 @@ get_agent_model() {
         codex*)      provider="codex" ;;
         gemini*)     provider="gemini" ;;
         agy*|antigravity) provider="agy" ;;
+        claude-sdk*) provider="claude-sdk" ;;  # v9.50.0: must precede claude* glob
         claude*)     provider="claude" ;;
         openrouter*) provider="openrouter" ;;
         atlascloud*) provider="atlascloud" ;;
@@ -573,6 +586,7 @@ validate_model_allowed() {
         codex)      allowlist_var="OCTOPUS_CODEX_ALLOWED_MODELS" ;;
         gemini)     allowlist_var="OCTOPUS_GEMINI_ALLOWED_MODELS" ;;
         agy)        allowlist_var="OCTOPUS_AGY_ALLOWED_MODELS" ;;
+        claude-sdk) allowlist_var="OCTOPUS_CLAUDE_SDK_ALLOWED_MODELS" ;;
         claude)     allowlist_var="OCTOPUS_CLAUDE_ALLOWED_MODELS" ;;
         openrouter) allowlist_var="OCTOPUS_OPENROUTER_ALLOWED_MODELS" ;;
         atlascloud) allowlist_var="ATLASCLOUD_ALLOWED_MODELS" ;;

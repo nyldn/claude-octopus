@@ -12,7 +12,7 @@ Every AI model has blind spots. Claude Octopus puts up to nine of them on every 
   <a href="https://claude.ai"><img src="https://img.shields.io/badge/Claude-Built_with_AI-c96442?logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0iI2ZmZiIgZD0iTTEyIDJhMTAgMTAgMCAxIDAgMCAyMCAxMCAxMCAwIDAgMCAwLTIwbTAgMS44YTEuMiAxLjIgMCAwIDEgLjg1LjM1bDEuNSA0LjVhLjYuNiAwIDAgMCAuMzUuMzVsNC41IDEuNWExLjIgMS4yIDAgMCAxIDAgMi4yN2wtNC41IDEuNWEuNi42IDAgMCAwLS4zNS4zNWwtMS41IDQuNWExLjIgMS4yIDAgMCAxLTIuMjcgMGwtMS41LTQuNWEuNi42IDAgMCAwLS4zNS0uMzVsLTQuNS0xLjVhMS4yIDEuMiAwIDAgMSAwLTIuMjdsNC41LTEuNWEuNi42IDAgMCAwIC4zNS0uMzVsMS41LTQuNUExLjIgMS4yIDAgMCAxIDEyIDMuOCIvPjwvc3ZnPg==&labelColor=333" alt="Built with Claude"></a>
   <a href="https://github.com/nyldn/claude-octopus/actions/workflows/test.yml"><img src="https://github.com/nyldn/claude-octopus/actions/workflows/test.yml/badge.svg" alt="Tests"></a>
   <img src="https://img.shields.io/badge/Tests-117_suites_passing-brightgreen" alt="117 suites passing">
-  <img src="https://img.shields.io/badge/Version-9.48.0-blue" alt="Version 9.48.0">
+  <img src="https://img.shields.io/badge/Version-9.50.0-blue" alt="Version 9.50.0">
   <img src="https://img.shields.io/badge/Claude_Code-v2.1.14+_required-blueviolet" alt="Requires Claude Code v2.1.14+">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
 </p>
@@ -25,7 +25,7 @@ Every AI model has blind spots. Claude Octopus puts up to nine of them on every 
 
 🔄 **Four-phase methodology, not just tools.** Every task moves through Discover → Define → Develop → Deliver, with quality gates between phases. Other orchestrators give you infrastructure. Octopus gives you the workflows.
 
-🐙 **32 specialized personas** (role-specific AI agents like security-auditor, backend-architect), **49 commands** (slash commands you type), **54 skills** (reusable workflow modules). Say "audit my API" and the right expert activates. Don't know the command? The smart router figures it out.
+🐙 **32 specialized personas** (role-specific AI agents like security-auditor, backend-architect), **50 commands** (slash commands you type), **58 skills** (reusable workflow modules). Say "audit my API" and the right expert activates. Don't know the command? The smart router figures it out.
 
 🐙 **Works with just Claude. Scales to nine.** Zero providers needed to start. Add them one at a time — each activates automatically when detected.
 
@@ -34,6 +34,13 @@ Every AI model has blind spots. Claude Octopus puts up to nine of them on every 
 ---
 
 ## What's New
+
+> 🆕 **v9.50 — Claude Code 2026 compatibility layer.** Routine manifest for scheduled and GitHub-event automations, a SubagentStop quality/cost gate, `/octo:usage` per-provider cost attribution in Claude Code's `/usage` schema, a `worktree.bgIsolation` opt-out for fast direct-edit runs, a Claude Agent SDK seat (`CLAUDE_SDK_API_KEY`, Opus 4.8, 1M context), a four-skill starter pack, and a `/plugin browse` manifest with projected context cost.
+>
+> ```bash
+> /octo:usage --format table        # who spent what, per provider/skill/MCP server
+> OCTOPUS_WORKTREE_BG_ISOLATION=false   # skip worktree cloning for fast runs
+> ```
 
 > 🆕 **v9.41 — Multi-LLM Council.** `/octo:council` runs a structured 3/5/7-persona deliberation across Claude, Codex, Gemini, and OpenCode with goal modes (`advice`, `decision`, `plan`, `implement`, `review`), styles (`balanced`, `adversarial`, `red-team`, `executive`, `implementation`), benchmark-aware role routing, quorum + critical-veto gates, budget caps, and gated worktree handoff for approved plans. Use it when one model's opinion isn't enough.
 >
@@ -44,7 +51,8 @@ Every AI model has blind spots. Claude Octopus puts up to nine of them on every 
 
 | Version | Best Features |
 |---------|--------------|
-| **v9.41** (new) | **`/octo:council`** promoted to first-class workflow — structured multi-LLM deliberation with goal modes, adversarial/red-team styles, benchmark-aware persona routing, quorum and critical-veto gates, budget preflight, and gated worktree handoff for approved implementation plans. |
+| **v9.50** (new) | **Claude Code 2026 compatibility layer** — routines manifest (schedule + GitHub-event automations), SubagentStop quality/cost gate, `/octo:usage` cost attribution, `worktree.bgIsolation` opt-out, Claude Agent SDK seat (Opus 4.8, 1M context), starter skills pack, `/plugin browse` manifest with projected context cost. |
+| **v9.41** | **`/octo:council`** promoted to first-class workflow — structured multi-LLM deliberation with goal modes, adversarial/red-team styles, benchmark-aware persona routing, quorum and critical-veto gates, budget preflight, and gated worktree handoff for approved implementation plans. |
 | **v9** (current) | Up to 9 providers (Codex, Gemini, Antigravity CLI, Copilot, Qwen, Ollama, Perplexity, OpenRouter, OpenCode). Structured provider debates and configurable multi-LLM councils. Smart router — just say what you need. Agent summary tables show which providers actually contributed. Provider-aware prompt preflight prevents silent oversize failures. Research breadth modes fan out light, standard, or exhaustive investigations. Setup aliases and fuzzy `/octo:*` corrections reduce command friction. Discipline mode with 8 auto-invoke gates. Two-stage review. Circuit breakers with automatic provider recovery. Cursor + OpenCode + Codex cross-compatibility. Token compression: `bin/octo-compress` pipe + auto PostToolUse hook save ~7,300 tokens/session. PostCompact context recovery. `bin/octopus` CLI. 175+ CC feature flags through v2.1.157, including Opus 4.8 and dynamic workflow awareness. |
 | **v8** | Multi-LLM code review with inline PR comments. Parallel workstreams in isolated git worktrees. Reaction engine — auto-responds to CI failures. 32 specialized personas. Dark Factory autonomous pipeline. |
 | **v7** | Double Diamond workflow. Multi-provider dispatch. Quality gates and consensus scoring. Configurable sandbox modes. |
@@ -356,7 +364,7 @@ Specialized agents that activate automatically based on your request. When you s
 
 Categories: Software Engineering (11), Specialized Development (6), Documentation & Communication (5), Research & Strategy (3), Business & Compliance (3), Creative & Design (4).
 
-[Full persona reference](docs/AGENTS.md) | [All 54 skills](docs/COMMAND-REFERENCE.md)
+[Full persona reference](docs/AGENTS.md) | [All 58 skills](docs/COMMAND-REFERENCE.md)
 
 ### Built-in Reaction Engine
 
@@ -405,6 +413,33 @@ OAuth users pay nothing beyond their existing subscriptions. Qwen is the excepti
 ### What You Get With Just Claude
 
 Everything except multi-AI features. You get all 32 personas, structured workflows, smart routing, context detection, and every skill. Multi-AI orchestration (parallel analysis, debate, consensus) activates when external providers are configured.
+
+---
+
+## Claude Code 2026 Compatibility Layer
+
+v9.50.0 aligns the plugin with Claude Code's 2026 native capabilities. Each piece degrades gracefully on older Claude Code versions via the existing `SUPPORTS_*` feature detection.
+
+- **Routines** (`.claude-plugin/routines.json`): saved automation configs mapping schedule and GitHub-event triggers to `/octo:` commands. All ship disabled; each entry carries a provider roster and a cost note so you know what enabling it will bill.
+- **SubagentStop gate** (`hooks/subagent-stop-gate.sh`): quality scoring, provider attribution, cost logging, and council verdict pre-screening before a subagent's summary reaches the lead.
+- **`/octo:usage`**: per-provider, per-skill, and per-MCP-server token and cost breakdown in Claude Code's `/usage` schema, built from local usage records (no provider dispatch).
+- **Worktree bgIsolation opt-out**: mirror of Claude Code's `worktree.bgIsolation` session flag; disables background worktree cloning for fast direct-edit runs.
+- **Claude Agent SDK seat** (`claude-sdk`): with `CLAUDE_SDK_API_KEY` set, workflows can seat Opus 4.8 with the 1M-token context window independent of the host session.
+- **Starter pack** (`skills/octopus-starter-pack/`): debate kickoff, council verdict interpretation, provider health summary, and model cost comparison skills.
+- **`/plugin browse` manifest** (`.claude-plugin/plugin-manifest.json`): projected context cost and component inventory for the plugin browse pane.
+
+### New environment variables (v9.50.0)
+
+| Variable | Default | Effect |
+|----------|---------|--------|
+| `CLAUDE_SDK_API_KEY` | unset | Enables the `claude-sdk` provider seat (Claude Agent SDK; Opus 4.8, 1M context) |
+| `OCTOPUS_CLAUDE_SDK_MODEL` | `claude-opus-4-8` | Model for the `claude-sdk` seat |
+| `OCTOPUS_CLAUDE_SDK_MAX_TOKENS` | `8192` | Max output tokens for the `claude-sdk` seat (SDK CLI path) |
+| `OCTOPUS_CLAUDE_SDK_ALLOWED_MODELS` | unset | Comma-separated model allowlist for the `claude-sdk` seat |
+| `OCTOPUS_CLAUDE_SDK_CONTEXT_BUDGET` | `1000000` | Prompt context budget for `claude-sdk` agent types |
+| `OCTOPUS_WORKTREE_BG_ISOLATION` | `true` | Set `false` to skip background worktree cloning (fast direct-edit runs) |
+| `OCTOPUS_SUBAGENT_GATE_STRICT` | `false` | Set `true` to let the SubagentStop gate block malformed council verdicts and low-quality summaries |
+| `OCTOPUS_SUBAGENT_MIN_QUALITY` | `0` | Quality floor (0-100) enforced by the gate in strict mode; `0` disables |
 
 ---
 
