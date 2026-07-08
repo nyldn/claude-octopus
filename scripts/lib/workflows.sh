@@ -1089,8 +1089,8 @@ ${previous_decomposition}
         tangle_decompose_fallback_agent=$(octopus_agent_override "tangle" "decompose_fallback" "codex")
     fi
 
-    run_agent_sync "$tangle_decompose_agent" "$reformat_prompt" 0 "researcher" "tangle" || \
-    run_agent_sync "$tangle_decompose_fallback_agent" "$reformat_prompt" 0 "researcher" "tangle"
+    OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="tangle-reformat-validation" run_agent_sync "$tangle_decompose_agent" "$reformat_prompt" 0 "researcher" "tangle" || \
+    OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="tangle-reformat-validation" run_agent_sync "$tangle_decompose_fallback_agent" "$reformat_prompt" 0 "researcher" "tangle"
 }
 
 tangle_validate_parallel_write_scopes() {
@@ -1192,7 +1192,13 @@ tangle_review_blocking_count() {
         echo 1
         return 0
     fi
-    jq '[.findings[]? | select((.severity // "") == "normal")] | length' "$findings_file" 2>/dev/null || echo 0
+    local count
+    if ! count=$(jq '[.findings[]? | select((.severity // "") == "normal")] | length' "$findings_file" 2>/dev/null); then
+        # fail closed: malformed/truncated findings must block delivery.
+        echo 1
+        return 0
+    fi
+    echo "$count"
 }
 
 tangle_review_findings_summary() {
@@ -1392,6 +1398,9 @@ tangle_run_context_code_review() {
 
     marker=$(mktemp "${TMPDIR:-/tmp}/octopus-tangle-review-marker.XXXXXX")
     touch "$marker"
+    local _marker_cleanup_trap
+    _marker_cleanup_trap=$(trap -p RETURN || true)
+    trap 'rm -f "${marker:-}" 2>/dev/null || true' RETURN
 
     review_profile=$(jq -n \
         --arg target "${OCTOPUS_TANGLE_REVIEW_TARGET:-working-tree}" \
@@ -1420,6 +1429,10 @@ tangle_run_context_code_review() {
         fi
     done < <(find "${RESULTS_DIR:-${HOME}/.claude-octopus/results}" -maxdepth 1 -type f -name 'review-findings-*.json' 2>/dev/null || true)
     rm -f "$marker" 2>/dev/null || true
+    trap - RETURN
+    if [[ -n "$_marker_cleanup_trap" ]]; then
+        eval "$_marker_cleanup_trap"
+    fi
 
     if [[ -z "$findings_file" || ! -f "$findings_file" ]]; then
         log ERROR "Contextual code review did not produce a findings file"
@@ -1505,17 +1518,21 @@ ${normal_findings}
 
     log INFO "Step 5: Applying contextual review corrections (round ${round_num}, strategy=${correction_strategy}, stall_window=${stall_window}s) with ${correction_agent}..."
     (
-        run_agent_sync "$correction_agent" "$correction_prompt" 0 "implementer" "tangle" > "$correction_file" 2>&1
+        OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="tangle-correction-stall-watchdog" run_agent_sync "$correction_agent" "$correction_prompt" 0 "implementer" "tangle" > "$correction_file" 2>&1
         echo "$?" > "$rc_file"
     ) &
     local correction_pid=$!
     local stalled="false"
 
-    while kill -0 "$correction_pid" 2>/dev/null; do
+    while true; do
+        [[ -f "$rc_file" ]] && break
+        if ! tangle_process_is_active_non_zombie "$correction_pid"; then
+            break
+        fi
         sleep "$poll_secs"
         local current_fp current_size
         current_fp=$(tangle_worktree_fingerprint)
-        current_size=$(stat -c '%s' "$correction_file" 2>/dev/null || echo 0)
+        current_size=$(stat -c '%s' "$correction_file" 2>/dev/null || stat -f '%z' "$correction_file" 2>/dev/null || echo 0)
         if [[ "$current_fp" != "$last_fp" || "$current_size" != "$last_size" ]]; then
             last_fp="$current_fp"
             last_size="$current_size"
@@ -1758,8 +1775,8 @@ Every [CODING] line must include a same-line Files: clause."
     fi
 
     local subtasks
-    subtasks=$(run_agent_sync "$tangle_decompose_agent" "$decompose_prompt" 0 "researcher" "tangle") || \
-    subtasks=$(run_agent_sync "$tangle_decompose_fallback_agent" "$decompose_prompt" 0 "researcher" "tangle") || {
+    subtasks=$(OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="tangle-dispatch-watcher" run_agent_sync "$tangle_decompose_agent" "$decompose_prompt" 0 "researcher" "tangle") || \
+    subtasks=$(OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="tangle-dispatch-watcher" run_agent_sync "$tangle_decompose_fallback_agent" "$decompose_prompt" 0 "researcher" "tangle") || {
         log ERROR "Decomposition failed with all providers; refusing monolithic direct fallback"
         return 1
     }
@@ -2061,6 +2078,10 @@ Every [CODING] line must include a same-line Files: clause."
     local correction_mode="${OCTOPUS_TANGLE_REVIEW_CORRECTION_MODE:-unbounded}"
     local max_correction_rounds="${OCTOPUS_TANGLE_REVIEW_CORRECTION_ROUNDS:-0}"
     [[ "$max_correction_rounds" =~ ^[0-9]+$ ]] || max_correction_rounds=0
+    if [[ "$correction_mode" == "bounded" && "$max_correction_rounds" -eq 0 ]]; then
+        log WARN "OCTOPUS_TANGLE_REVIEW_CORRECTION_MODE=bounded with no OCTOPUS_TANGLE_REVIEW_CORRECTION_ROUNDS set — defaulting to 1 round"
+        max_correction_rounds=1
+    fi
     local correction_round=1
     local previous_normal_count="$normal_count"
     local previous_signature
@@ -2463,7 +2484,7 @@ Be specific — list files and line numbers. If the code is already clean, say s
 Code to review:
 ${all_results}"
         local simplify_result
-        simplify_result=$(run_agent_sync "claude-sonnet" "$simplify_prompt" 0 "code-reviewer" "ink") || true
+        simplify_result=$(OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="ink-review-watchdog" run_agent_sync "claude-sonnet" "$simplify_prompt" 0 "code-reviewer" "ink") || true
         if [[ -n "$simplify_result" ]]; then
             if [[ ${#simplify_result} -gt 12000 ]]; then
                 simplify_result="${simplify_result:0:12000}
@@ -2495,7 +2516,7 @@ Compact source context to synthesize:
 $all_results"
 
     local delivery
-    delivery=$(run_agent_sync "agy" "$synthesis_prompt" 0 "synthesizer" "ink") || {
+    delivery=$(OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="ink-delivery-watchdog" run_agent_sync "agy" "$synthesis_prompt" 0 "synthesizer" "ink") || {
         delivery=$(build_ink_fallback_delivery "$prompt" "$sonnet_review" "$all_results")
     }
 

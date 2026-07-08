@@ -20,7 +20,6 @@ assert_contains() {
         test_pass
     else
         test_fail "missing pattern: $pattern"
-        return 1
     fi
 }
 
@@ -66,6 +65,11 @@ assert_contains "$TESTING" "OCTOPUS_TANGLE_VALIDATION_CORRECTION_FILE" "post-cor
 assert_contains "$TESTING" "Static Subtask Rate Before Correction Overlay" "post-correction validation reports static subtask rate"
 assert_contains "$WORKFLOWS" "OCTOPUS_TANGLE_VALIDATION_CORRECTION_CHANGED" "correction loop passes validation overlay context"
 assert_contains "$WORKFLOWS" "OCTOPUS_TANGLE_CONVERGENCE_NO_PROGRESS_ROUNDS" "correction loop has convergence guard"
+assert_contains "$WORKFLOWS" "tangle_review_blocking_count" "review blocking count helper exists"
+assert_contains "$WORKFLOWS" "fail closed" "malformed review findings fail closed"
+assert_contains "$WORKFLOWS" "OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED" "unbounded agent calls document external supervision"
+assert_contains "$WORKFLOWS" "stat -f '%z'" "correction progress size uses BSD stat fallback"
+assert_contains "$WORKFLOWS" "defaulting to 1 round" "bounded correction mode has implicit cap"
 assert_contains "$WORKFLOWS" "tangle_process_is_active_non_zombie" "tangle watcher treats zombies as terminal"
 assert_contains "$WORKFLOWS" "exited or became zombie without completion marker" "tangle watcher logs zombie missing-marker grace"
 assert_contains "$WORKFLOWS" "OCTOPUS_TANGLE_CONVERGENCE_VALIDATION_PROGRESS" "convergence guard does not treat validation rerenders as progress by default"

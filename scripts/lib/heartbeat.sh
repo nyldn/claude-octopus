@@ -146,9 +146,9 @@ run_with_timeout() {
         octo_event_emit "dispatch.start" command="$_octo_cmd_label" timeout="$timeout_secs" || true
     fi
 
-    # timeout_secs=0 means no absolute timeout. Higher-level workflows can still
-    # supervise progress with silence/heartbeat watchdogs and decide whether to
-    # keep partial writes, validate, review, continue, or escalate.
+    # timeout_secs=0 means no absolute timeout. Callers that choose it must set
+    # OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED to document the external heartbeat,
+    # stall, or workflow-level watchdog responsible for recovery.
     if [[ "$timeout_secs" =~ ^[0-9]+$ ]] && [[ "$timeout_secs" -eq 0 ]]; then
         "$@"
         exit_code=$?
