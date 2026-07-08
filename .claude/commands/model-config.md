@@ -107,6 +107,7 @@ AskUserQuestion({
     options: [
       {label: "Provider defaults", description: "Set default models for Codex, Gemini, Antigravity, OpenRouter, etc."},
       {label: "Phase routing", description: "Choose which model handles each workflow phase (discover, develop, review, etc.)"},
+      {label: "Role routing overrides", description: "Route specific roles/personas such as researcher, logic-reviewer, or qa-reviewer"},
       {label: "Debate & multi-LLM", description: "Configure which providers participate in debates, parallel execution, and reviews"},
       {label: "Session provider availability", description: "Temporarily enable or disable providers for this Claude Code session"},
       {label: "Cost mode", description: "Switch between budget, standard, and premium model tiers"},
@@ -359,6 +360,26 @@ To make permanent: add to ~/.zshrc or ~/.bashrc
 
 Or offer to set it in the config file.
 
+
+### Route: Role Routing Overrides
+
+Use role routing when a specific persona or workflow role should use a different provider/model than the phase or provider default. Examples: route `researcher` to `agy:default`, route `logic-reviewer` to `codex:logic_review`, or route QA roles to a review model while implementation remains on the provider default.
+
+Show current role overrides:
+
+```bash
+${HOME}/.claude-octopus/plugin/scripts/helpers/octo-model-config.sh show roles
+```
+
+Set or remove an override:
+
+```bash
+${HOME}/.claude-octopus/plugin/scripts/helpers/octo-model-config.sh route-role <role> <provider:capability-or-model>
+${HOME}/.claude-octopus/plugin/scripts/helpers/octo-model-config.sh unroute-role <role>
+```
+
+Role overrides are intentionally sparse. Do not restate defaults; add a role only when it needs deterministic routing different from the provider/persona default.
+
 ### Route: Session Provider Availability
 
 Use this when the user wants to turn a provider off for the current session, for example when Codex quota is exhausted and they want Claude + Gemini only.
@@ -453,10 +474,13 @@ When invoked WITH arguments (e.g., `/octo:model-config codex gpt-5.4`), skip the
 
 1. **Parse arguments** to determine action:
    - `show phases` → Display formatted phase routing table
+   - `show roles` → Display explicit role routing overrides
    - `<provider> <model>` → Set model (persistent)
    - `<provider>.<capability> <model>` → Set capability-specific model
    - `<provider> <model> --session` → Set model (session only)
    - `phase <phase> <model>` → Set phase-specific model routing
+   - `route-role <role> <target>` → Set role/persona routing override
+   - `unroute-role <role>` → Remove role/persona routing override
    - `providers` → Show current provider allowlist source and value
    - `allow <providers...> --session` → Use only these providers for the current session
    - `disable <providers...> --session` → Remove providers from the current session

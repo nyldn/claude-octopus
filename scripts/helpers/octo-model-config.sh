@@ -26,8 +26,11 @@ usage() {
     echo "Commands:"
     echo "  list                        List current configuration"
     echo "  show phases                 Show phase routing table"
+    echo "  show roles                  Show role routing override table"
     echo "  set <provider> <model>      Set default model for a provider"
     echo "  route <phase> <target>      Route a phase to a specific model/capability"
+    echo "  route-role <role> <target>  Route a role/persona to a model/capability"
+    echo "  unroute-role <role>         Remove an explicit role route override"
     echo "  reset [provider|all]        Reset configuration to defaults"
     echo "  models [filter]             List all known models with capabilities"
     echo "  providers                   Show active provider allowlist"
@@ -133,6 +136,14 @@ validate_model() {
         return 1
     fi
     [[ "$model" == /* ]] && return 1
+    return 0
+}
+
+validate_role_name() {
+    local role="$1"
+    [[ -z "$role" ]] && return 1
+    [[ "$role" =~ ^[A-Za-z0-9_.-]+$ ]] || return 1
+    [[ "$role" == .* || "$role" == *..* || "$role" == /* ]] && return 1
     return 0
 }
 
@@ -409,6 +420,24 @@ cmd_show_phases() {
     done
 }
 
+cmd_show_roles() {
+    ensure_config
+    echo -e "${CYAN}Role Routing Overrides${NC}"
+    echo "─────────────────────────────────────────────────"
+    printf "  %-28s %s\n" "Role" "Target"
+    echo "  ────────────────────────────────────────────────"
+
+    local roles
+    roles=$(jq -r '.routing.roles // {} | to_entries | sort_by(.key)[] | "\(.key)	\(.value)"' "$CONFIG_FILE" 2>/dev/null || true)
+    if [[ -z "$roles" ]]; then
+        echo "  (none — using provider/persona defaults)"
+    else
+        echo "$roles" | while IFS=$'	' read -r role target; do
+            printf "  %-28s %s\n" "$role" "$target"
+        done
+    fi
+}
+
 cmd_verify() {
     ensure_config
     log_info "Verifying model accessibility..."
@@ -510,6 +539,46 @@ cmd_route() {
     clear_cache
 }
 
+cmd_route_role() {
+    local role="$1"
+    local target="$2"
+
+    [[ -z "$role" || -z "$target" ]] && { usage; exit 1; }
+
+    if ! validate_role_name "$role"; then
+        log_error "Invalid role: '$role'"
+        log_warn "Role names may contain only letters, digits, dot, underscore, and hyphen."
+        exit 1
+    fi
+
+    if ! validate_model "$target"; then
+        log_error "Invalid target: '$target'"
+        exit 1
+    fi
+
+    ensure_config
+    jq --arg r "$role" --arg t "$target" '.routing.roles[$r] = $t' "$CONFIG_FILE" > "${CONFIG_FILE}.tmp.$$" && mv "${CONFIG_FILE}.tmp.$$" "$CONFIG_FILE"
+    log_info "Routed role '$role' → '$target'"
+    clear_cache
+}
+
+cmd_unroute_role() {
+    local role="$1"
+
+    [[ -z "$role" ]] && { usage; exit 1; }
+
+    if ! validate_role_name "$role"; then
+        log_error "Invalid role: '$role'"
+        log_warn "Role names may contain only letters, digits, dot, underscore, and hyphen."
+        exit 1
+    fi
+
+    ensure_config
+    jq --arg r "$role" 'del(.routing.roles[$r])' "$CONFIG_FILE" > "${CONFIG_FILE}.tmp.$$" && mv "${CONFIG_FILE}.tmp.$$" "$CONFIG_FILE"
+    log_info "Removed role route override: $role"
+    clear_cache
+}
+
 cmd_models() {
     local filter="${1:-}"
     echo -e "${CYAN}Model Catalog${NC}"
@@ -597,11 +666,14 @@ case "$COMMAND" in
     show)
         case "${1:-}" in
             phases) cmd_show_phases ;;
+            roles) cmd_show_roles ;;
             *) cmd_list ;;
         esac
         ;;
     set) cmd_set "$@" ;;
     route) cmd_route "$@" ;;
+    route-role|role-route) cmd_route_role "$@" ;;
+    unroute-role|role-unroute) cmd_unroute_role "$@" ;;
     reset) cmd_reset "$@" ;;
     models) cmd_models "$@" ;;
     providers|allowlist) cmd_provider_allowlist ;;
