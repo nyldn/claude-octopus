@@ -33,13 +33,18 @@ if grep -q "review-round1-findings" "$REVIEW_SH"; then test_pass; else test_fail
 
 test_case "extractor recovers last JSON findings object"
 source "$REVIEW_SH" >/dev/null 2>&1 || true
-out=$(review_extract_findings_array "$TMP_MD")
-count=$(printf '%s' "$out" | jq 'length')
-title=$(printf '%s' "$out" | jq -r '.[0].title')
-if [[ "$count" == "1" && "$title" == "Broken regex" ]]; then
-    test_pass
+if out=$(review_extract_findings_array "$TMP_MD" 2>/dev/null); then
+    if count=$(printf '%s' "$out" | jq 'length' 2>/dev/null) && title=$(printf '%s' "$out" | jq -r '.[0].title' 2>/dev/null); then
+        if [[ "$count" == "1" && "$title" == "Broken regex" ]]; then
+            test_pass
+        else
+            test_fail "unexpected extraction output: $out"
+        fi
+    else
+        test_fail "extractor returned invalid JSON: $out"
+    fi
 else
-    test_fail "unexpected extraction output: $out"
+    test_fail "extractor failed to recover findings"
 fi
 
 test_case "review agents run without absolute timeout"

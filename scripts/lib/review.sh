@@ -215,6 +215,16 @@ review_file_mtime_epoch() {
     stat -c '%Y' "$file" 2>/dev/null || stat -f '%m' "$file" 2>/dev/null || echo 0
 }
 
+review_hash_stdin() {
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum | awk '{print $1}'
+    elif command -v shasum >/dev/null 2>&1; then
+        shasum -a 256 | awk '{print $1}'
+    else
+        cksum | awk '{print $1}'
+    fi
+}
+
 review_progress_fingerprint_since() {
     local since_epoch="$1"
     local results_dir="${2:-${RESULTS_DIR:-${HOME}/.claude-octopus/results}}"
@@ -227,7 +237,7 @@ review_progress_fingerprint_since() {
         size=$(wc -c < "$file" 2>/dev/null || echo 0)
         size=${size//[[:space:]]/}
         printf '%s %s %s\n' "$file" "${size:-0}" "$mtime"
-    done | sort | sha256sum 2>/dev/null | awk '{print $1}'
+    done | sort | review_hash_stdin
 }
 
 review_run_agent_sync_progress() {
@@ -864,6 +874,8 @@ ${agent_prompt_base}"
     local codex_empty_retry_backoff="${OCTOPUS_REVIEW_CODEX_EMPTY_RETRY_BACKOFF_SECS:-90}"
     [[ "$codex_empty_retry_max" =~ ^[0-9]+$ ]] || codex_empty_retry_max=1
     [[ "$codex_empty_retry_backoff" =~ ^[0-9]+$ ]] || codex_empty_retry_backoff=90
+    codex_empty_retry_max=$((10#$codex_empty_retry_max))
+    codex_empty_retry_backoff=$((10#$codex_empty_retry_backoff))
     if [[ "$codex_empty_retry_max" -gt 0 ]]; then
         local retry_idx=0
         while [[ "$retry_idx" -lt "${#round1_files[@]}" ]]; do
@@ -888,7 +900,10 @@ ${round1_prompts[$retry_idx]}"
                 retry_pid="$!"
                 review_wait_for_result_status "$retry_result_file" "$retry_pid" "Round 1 ${retry_agent_type}/${retry_role} retry" "$RESULTS_DIR" "$review_stall_window" "$review_poll_secs"
                 round1_files[$retry_idx]="$retry_result_file"
-                if [[ -f "$retry_result_file" ]] && grep -qE '^## Status: SUCCESS' "$retry_result_file" 2>/dev/null; then
+                local retry_success_count
+                retry_success_count=$(grep -cE '^## Status: SUCCESS' "$retry_result_file" 2>/dev/null || true)
+                retry_success_count=${retry_success_count:-0}
+                if [[ -f "$retry_result_file" ]] && [[ "${retry_success_count%%$'\n'*}" -gt 0 ]]; then
                     log INFO "review_run: ${retry_agent_type}/${retry_role} retry recovered after Empty output"
                 else
                     log WARN "review_run: ${retry_agent_type}/${retry_role} retry did not recover; continuing with partial Round 1"
@@ -908,18 +923,28 @@ ${round1_prompts[$retry_idx]}"
     local round1_partial_count=0
     local round1_parse_miss_count=0
     for f in "${round1_files[@]}"; do
-        [[ ! -f "$f" ]] && { ((round1_partial_count++)) || true; continue; }
+        local atype="${round1_agent_types[$idx]}"
+        local provider_key="${atype%%[-_]*}"
+        if [[ ! -f "$f" ]]; then
+            ((round1_partial_count++)) || true
+            echo "${provider_key}|fallback|Round 1 agent missing result" >> "$provider_status_file"
+            ((idx++)) || true
+            continue
+        fi
         local agent_findings
-        agent_findings=$(review_extract_findings_array "$f" 2>/dev/null || echo "[]")
-        if [[ "$agent_findings" == "[]" ]] && grep -q '"severity"[[:space:]]*:[[:space:]]*"' "$f" 2>/dev/null; then
+        if ! agent_findings=$(review_extract_findings_array "$f" 2>/dev/null); then
+            agent_findings="[]"
+        fi
+        local severity_count
+        severity_count=$(grep -c '"severity"[[:space:]]*:[[:space:]]*"' "$f" 2>/dev/null || true)
+        severity_count=${severity_count:-0}
+        if [[ "$agent_findings" == "[]" ]] && [[ "${severity_count%%$'\n'*}" -gt 0 ]]; then
             ((round1_parse_miss_count++)) || true
             log WARN "review_run: possible findings in $(basename "$f") but extractor returned empty array"
         fi
         all_findings=$(printf '%s\n%s' "$all_findings" "$agent_findings" |             jq -s 'add' 2>/dev/null || echo "$all_findings")
 
         # v9.3.1: Write provider status for Round 1 agents (#187)
-        local atype="${round1_agent_types[$idx]}"
-        local provider_key="${atype%%[-_]*}"
         # #498: emit one review.finding lifecycle event per Round 1 finding, while
         # per-provider attribution is still in scope (it is dropped after the merge
         # above). round="1" lets consumers filter pre-verification noise.
@@ -950,9 +975,16 @@ ${round1_prompts[$retry_idx]}"
     local _r1_total=${#round1_files[@]}
     local _r1_failed=0
     for _rf in "${round1_files[@]}"; do
-        if [[ ! -f "$_rf" ]] || \
-           grep -qE '^## Status: (FAILED|TIMEOUT)' "$_rf" 2>/dev/null || \
-           [[ $(grep -c '^## Status:' "$_rf" 2>/dev/null || true) -eq 0 ]]; then
+        if [[ ! -f "$_rf" ]]; then
+            ((_r1_failed++)) || true
+            continue
+        fi
+        local _rf_failed_status_count _rf_status_count
+        _rf_failed_status_count=$(grep -cE '^## Status: (FAILED|TIMEOUT)' "$_rf" 2>/dev/null || true)
+        _rf_failed_status_count=${_rf_failed_status_count:-0}
+        _rf_status_count=$(grep -c '^## Status:' "$_rf" 2>/dev/null || true)
+        _rf_status_count=${_rf_status_count:-0}
+        if [[ "${_rf_failed_status_count%%$'\n'*}" -gt 0 ]] || [[ "${_rf_status_count%%$'\n'*}" -eq 0 ]]; then
             ((_r1_failed++)) || true
         fi
     done
