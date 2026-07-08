@@ -4,6 +4,12 @@ from pathlib import Path
 
 PROVIDERS = {
     "generic": {"base_url": "", "api_key_env": "OPENAI_API_KEY", "model": "", "headers": {}},
+    "atlascloud": {
+        "base_url": "https://api.atlascloud.ai/v1",
+        "api_key_env": "ATLASCLOUD_API_KEY",
+        "model": "",
+        "headers": {},
+    },
 }
 
 
@@ -111,9 +117,13 @@ def main() -> int:
     args = ap.parse_args(); cfg = PROVIDERS[args.provider]
     base_url = args.base_url or os.environ.get("OPENAI_COMPAT_BASE_URL") or cfg["base_url"]
     key_env = args.api_key_env or os.environ.get("OPENAI_COMPAT_API_KEY_ENV") or cfg["api_key_env"]
-    model = args.model or os.environ.get("OPENAI_COMPAT_MODEL") or cfg["model"]
+    if args.provider == "atlascloud":
+        model = args.model or os.environ.get("ATLASCLOUD_MODEL") or os.environ.get("OCTOPUS_ATLASCLOUD_MODEL") or os.environ.get("OPENAI_COMPAT_MODEL") or cfg["model"]
+    else:
+        model = args.model or os.environ.get("OPENAI_COMPAT_MODEL") or cfg["model"]
     if not model:
-        print("ERROR: missing OPENAI_COMPAT_MODEL or --model", file=sys.stderr); return 2
+        model_hint = "ATLASCLOUD_MODEL, OCTOPUS_ATLASCLOUD_MODEL, OPENAI_COMPAT_MODEL, or --model" if args.provider == "atlascloud" else "OPENAI_COMPAT_MODEL or --model"
+        print(f"ERROR: missing {model_hint}", file=sys.stderr); return 2
     if not base_url:
         print("ERROR: missing OPENAI_COMPAT_BASE_URL or --base-url", file=sys.stderr); return 2
     key = os.environ.get(key_env)
