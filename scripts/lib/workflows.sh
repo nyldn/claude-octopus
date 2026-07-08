@@ -1407,7 +1407,18 @@ tangle_run_context_code_review() {
     review_run "$review_profile"
     review_rc=$?
 
-    findings_file=$(find "${RESULTS_DIR:-${HOME}/.claude-octopus/results}" -maxdepth 1 -type f -name 'review-findings-*.json' -newer "$marker" -printf '%T@ %p\n' 2>/dev/null | sort -n | tail -1 | cut -d' ' -f2- || true)
+    findings_file=""
+    local _findings_candidate _findings_mtime _best_findings_mtime=0
+    while IFS= read -r _findings_candidate; do
+        [[ -f "$_findings_candidate" ]] || continue
+        [[ "$_findings_candidate" -nt "$marker" ]] || continue
+        _findings_mtime=$(stat -c '%Y' "$_findings_candidate" 2>/dev/null || stat -f '%m' "$_findings_candidate" 2>/dev/null || echo 0)
+        [[ "$_findings_mtime" =~ ^[0-9]+$ ]] || _findings_mtime=0
+        if [[ "$_findings_mtime" -ge "$_best_findings_mtime" ]]; then
+            _best_findings_mtime="$_findings_mtime"
+            findings_file="$_findings_candidate"
+        fi
+    done < <(find "${RESULTS_DIR:-${HOME}/.claude-octopus/results}" -maxdepth 1 -type f -name 'review-findings-*.json' 2>/dev/null || true)
     rm -f "$marker" 2>/dev/null || true
 
     if [[ -z "$findings_file" || ! -f "$findings_file" ]]; then
@@ -1948,7 +1959,7 @@ Every [CODING] line must include a same-line Files: clause."
                     _now=$(date +%s)
                     if [[ -z "${_missing_marker_since[$i]:-}" ]]; then
                         _missing_marker_since[$i]="$_now"
-                        log WARN "Thread ${task_ids[$i]} exited or became zombie without completion marker — waiting up to ${_missing_marker_grace}s for late result/marker"
+                        log WARN "Thread ${task_ids[$i]} wrapper exited without completion marker; exited or became zombie without completion marker — waiting up to ${_missing_marker_grace}s for late result/marker"
                     elif (( _now - ${_missing_marker_since[$i]} >= _missing_marker_grace )); then
                         log WARN "Thread ${task_ids[$i]} still lacks completion marker after ${_missing_marker_grace}s — marking failed"
                         mkdir -p "$_done_dir" 2>/dev/null || true

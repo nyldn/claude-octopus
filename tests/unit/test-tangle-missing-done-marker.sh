@@ -8,6 +8,9 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "tangle missing done marker recovery"
 
+# These tests exercise tangle dispatch/validation behavior, not contextual review.
+export OCTOPUS_TANGLE_CODE_REVIEW=false
+
 WORKFLOWS="$PROJECT_ROOT/scripts/lib/workflows.sh"
 TEST_TMP_DIR="${TEST_TMP_DIR:-/tmp/octopus-tests-$$}"
 rm -rf "$TEST_TMP_DIR"

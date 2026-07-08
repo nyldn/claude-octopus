@@ -12,6 +12,9 @@ source "$SCRIPT_DIR/../helpers/test-framework.sh"
 
 test_suite "develop Markdown plan resolution"
 
+# These tests exercise tangle dispatch/validation behavior, not contextual review.
+export OCTOPUS_TANGLE_CODE_REVIEW=false
+
 assert_has() {
     local pattern="$1"
     local label="$2"
@@ -204,7 +207,7 @@ date() {
         if [[ $count -le 2 ]]; then
             printf '%s\n' "100"
         else
-            printf '%s\n' "101"
+            printf '%s\n' "102"
         fi
         return 0
     fi
@@ -213,7 +216,7 @@ date() {
 
 CAPTURED_VALIDATE_PROMPT=""
 deadline_override_ok=false
-if OCTOPUS_TANGLE_DEADLINE=0 tangle_develop "deadline override task" >/dev/null 2>&1 && \
+if OCTOPUS_TANGLE_DEADLINE=1 tangle_develop "deadline override task" >/dev/null 2>&1 && \
    grep -q "deadline exceeded" "$LOG_CAPTURE_FILE" && \
    grep -q "finished with status: timeout" "$LOG_CAPTURE_FILE" && \
    [[ "$CAPTURED_VALIDATE_PROMPT" == "deadline override task" ]]; then

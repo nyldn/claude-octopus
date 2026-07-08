@@ -12,6 +12,9 @@ source "$SCRIPT_DIR/../helpers/test-framework.sh"
 
 test_suite "tangle write-scope safety"
 
+# These tests exercise tangle dispatch/validation behavior, not contextual review.
+export OCTOPUS_TANGLE_CODE_REVIEW=false
+
 test_case "workflows.sh has valid bash syntax"
 if bash -n "$WORKFLOWS" 2>/dev/null; then
     test_pass

@@ -165,6 +165,8 @@ validate_tangle_results() {
     local correction_status="${OCTOPUS_TANGLE_VALIDATION_CORRECTION_STATUS:-}"
     local correction_changed="${OCTOPUS_TANGLE_VALIDATION_CORRECTION_CHANGED:-}"
     local correction_overlay_applied=false
+    local tangle_threshold
+    tangle_threshold=$(get_gate_threshold "tangle")
 
     while true; do
         # Collect all results
@@ -245,8 +247,6 @@ $(<"$correction_file")
         missing_explicit_files=$(check_explicit_file_coverage "$original_prompt" "$result_outputs")
 
         # Quality gate check (using configurable per-phase threshold - v8.19.0)
-        local tangle_threshold
-        tangle_threshold=$(get_gate_threshold "tangle")
         local total=$((success_count + fail_count))
         local success_rate=0
         [[ $total -gt 0 ]] && success_rate=$((success_count * 100 / total))
@@ -255,16 +255,20 @@ $(<"$correction_file")
         local static_total="$total"
         local static_success_rate="$success_rate"
 
+        local effective_success_count="$success_count"
+        local effective_fail_count="$fail_count"
+        local effective_total="$total"
+        local effective_success_rate="$success_rate"
         if [[ -n "$correction_file" && -f "$correction_file" ]] &&            grep -q "Status: SUCCESS" "$correction_file" 2>/dev/null &&            [[ "${correction_changed:-0}" == "1" || -n "$worktree_changes" ]]; then
             correction_overlay_applied=true
-            # Correction rounds repair the worktree, not immutable initial subtask
-            # result files. Do not let an initial failed result pin validation
-            # forever after a successful correction overlay.
-            fail_count=0
-            success_count=$(( static_total > 0 ? static_total : 1 ))
-            total=$((success_count + fail_count))
-            success_rate=100
-            log INFO "Post-correction validation overlay applied${correction_round:+ for round ${correction_round}}: static tangle result rate ${static_success_rate}% -> effective ${success_rate}%"
+            # Correction rounds can prove the worktree was repaired, but keep the
+            # original subtask result rate as the quality-gate decision input.
+            # The overlay is reported separately for operator diagnosis.
+            effective_fail_count=0
+            effective_success_count=$(( static_total > 0 ? static_total : 1 ))
+            effective_total=$((effective_success_count + effective_fail_count))
+            effective_success_rate=100
+            log INFO "Post-correction validation overlay applied${correction_round:+ for round ${correction_round}}: static tangle result rate ${static_success_rate}% -> effective ${effective_success_rate}%"
         fi
 
         local gate_status="PASSED"
@@ -385,6 +389,7 @@ $challenge_result
 - Retry Attempts: ${quality_retry_count}/$(tangle_quality_retry_limit_value)
 $(if [[ "$correction_overlay_applied" == "true" ]]; then
     echo "- Static Subtask Rate Before Correction Overlay: ${static_success_rate}% (${static_success_count}/${static_total} successful, ${static_fail_count}/${static_total} failed)"
+    echo "- Effective Rate After Correction Overlay: ${effective_success_rate}% (${effective_success_count}/${effective_total} successful, ${effective_fail_count}/${effective_total} failed)"
     echo "- Correction Overlay: ${correction_file}"
     echo "- Correction Status: ${correction_status:-unknown}; changed=${correction_changed:-unknown}"
 fi)

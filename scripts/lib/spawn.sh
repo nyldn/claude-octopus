@@ -916,7 +916,11 @@ ${heuristic_ctx}"
             echo "" >> "$result_file"
             echo "**Recommendations**:" >> "$result_file"
             echo "- Partial results may still be valuable" >> "$result_file"
-            echo "- Consider increasing timeout: \`--timeout $((TIMEOUT * 2))\`" >> "$result_file"
+            if [[ "$_eff_timeout" =~ ^[0-9]+$ && "$_eff_timeout" -gt 0 ]]; then
+                echo "- Consider increasing timeout: \`--timeout $((_eff_timeout * 2))\`" >> "$result_file"
+            else
+                echo "- Consider setting an explicit timeout only if this task needs a wall-clock cap" >> "$result_file"
+            fi
             echo "- Simplify prompt to reduce complexity" >> "$result_file"
 
             # Append error details
