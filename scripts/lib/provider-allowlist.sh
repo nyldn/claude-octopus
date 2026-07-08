@@ -136,7 +136,12 @@ octo_provider_allowed() {
                     grok|grok-*) return 0 ;;
                 esac
                 ;;
-            cursor|cursor-agent)
+            atlas|atlas-cloud|atlascloud)
+                case "$provider" in
+                    atlascloud|atlascloud-agent) return 0 ;;
+                esac
+                ;;
+            cursor|cursor-agent|xai)
                 [[ "$provider" == "cursor-agent" ]] && return 0
                 ;;
             xai)

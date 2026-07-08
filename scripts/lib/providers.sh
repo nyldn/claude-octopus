@@ -763,6 +763,19 @@ check_provider_health() {
                 return 1
             fi
             ;;
+        atlascloud)
+            if [[ -z "${ATLASCLOUD_API_KEY:-}" ]]; then
+                resolve_provider_env "ATLASCLOUD_API_KEY" 2>/dev/null
+            fi
+            if [[ -z "${ATLASCLOUD_API_KEY:-}" ]]; then
+                echo "atlascloud: ATLASCLOUD_API_KEY not set" >&2
+                return 1
+            fi
+            if [[ -z "${ATLASCLOUD_MODEL:-}" && -z "${OCTOPUS_ATLASCLOUD_MODEL:-}" && -z "${OPENAI_COMPAT_MODEL:-}" ]]; then
+                echo "atlascloud: set ATLASCLOUD_MODEL or OCTOPUS_ATLASCLOUD_MODEL before dispatch" >&2
+                return 1
+            fi
+            ;;
         ollama)
             if ! command -v ollama &>/dev/null; then
                 echo "ollama CLI not found in PATH" >&2
@@ -876,7 +889,7 @@ check_all_providers() {
     local healthy=0 unhealthy=0
     local -a results=()
 
-    for provider in codex gemini agy claude perplexity openrouter ollama copilot qwen cursor-agent grok vibe; do
+    for provider in codex gemini agy claude perplexity openrouter atlascloud ollama copilot qwen cursor-agent grok vibe; do
         local diag
         if diag=$(check_provider_health "$provider" 2>&1); then
             results+=("  ✓ $provider")
@@ -1075,6 +1088,16 @@ detect_providers() {
         result="${result}openai-compatible:api-key "
     fi
 
+    # Detect Atlas Cloud (OpenAI-compatible API key + explicit model)
+    if { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed atlascloud; }; then
+        if [[ -z "${ATLASCLOUD_API_KEY:-}" ]]; then
+            resolve_provider_env "ATLASCLOUD_API_KEY" 2>/dev/null
+        fi
+        if [[ -n "${ATLASCLOUD_API_KEY:-}" ]] && { [[ -n "${ATLASCLOUD_MODEL:-}" ]] || [[ -n "${OCTOPUS_ATLASCLOUD_MODEL:-}" ]] || [[ -n "${OPENAI_COMPAT_MODEL:-}" ]]; }; then
+            result="${result}atlascloud:api-key "
+        fi
+    fi
+
     # Detect Perplexity (API key only)
     if { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed perplexity; } && [[ -n "${PERPLEXITY_API_KEY:-}" ]]; then
         result="${result}perplexity:api-key "
@@ -1180,6 +1203,7 @@ detect_providers() {
         log WARN "  - Gemini: npm i -g @google/gemini-cli"
         log WARN "  - Claude: Available in Claude Code context"
         log WARN "  - OpenRouter: Set OPENROUTER_API_KEY environment variable"
+        log WARN "  - Atlas Cloud: Set ATLASCLOUD_API_KEY and ATLASCLOUD_MODEL"
         log WARN "  - Copilot: brew install copilot-cli (zero additional cost)"
         log WARN "  - Ollama: brew install ollama (free local LLM)"
         log WARN "  - Qwen: npm i -g @qwen-code/qwen-code; set QWEN_API_KEY or configure Coding-Plan"

@@ -71,6 +71,15 @@ if [[ "${OCTOPUS_PREFLIGHT_PROBE:-0}" == "1" ]] && declare -f octo_provider_prob
     [ -n "${PERPLEXITY_API_KEY:-}" ] && octo_provider_probe "perplexity" || true
 fi
 provider_status "perplexity" "$(_octo_provider_state perplexity "$([ -n "${PERPLEXITY_API_KEY:-}" ] && echo available || echo missing)")"
+atlascloud_state="missing"
+if [ -n "${ATLASCLOUD_API_KEY:-}" ]; then
+    if [ -n "${ATLASCLOUD_MODEL:-}" ] || [ -n "${OCTOPUS_ATLASCLOUD_MODEL:-}" ] || [ -n "${OPENAI_COMPAT_MODEL:-}" ]; then
+        atlascloud_state="available"
+    else
+        atlascloud_state="degraded"
+    fi
+fi
+provider_status "atlascloud" "$(_octo_provider_state atlascloud "$atlascloud_state")"
 provider_status "opencode" "$(command -v opencode >/dev/null 2>&1 && echo available || echo missing)"
 provider_status "copilot" "$(command -v copilot >/dev/null 2>&1 && echo available || echo missing)"
 # qwen: binary-only is not enough — an expired OAuth token (free tier EOL
