@@ -28,6 +28,44 @@ _octopus_is_safe_openai_compatible_dispatch_value() {
     return 0
 }
 
+# ── Does a resolved codex model name indicate an OSS/local model that codex
+#    serves through ollama (and would silently auto-pull)? codex's built-in OSS
+#    family is gpt-oss*; ollama-served models also carry a size tag like ':120b'.
+#    Cloud codex models (gpt-5.x, o3, gpt-4.1, gpt-5.2-codex) never use that tag
+#    form, so this stays conservative and leaves normal codex dispatch untouched.
+#    NOTE: keep in sync with _codex_model_is_oss() in helpers/codex-run.sh. ──
+_codex_dispatch_is_oss_model() {
+    local m="$1"
+    [[ -z "$m" ]] && return 1
+    # Preserve the caller's nocasematch setting instead of forcing it off.
+    local _restore_nocasematch
+    _restore_nocasematch=$(shopt -p nocasematch || true)
+    shopt -s nocasematch
+    local rc=1
+    if [[ "$m" == gpt-oss* ]] || [[ "$m" =~ :[0-9]+(\.[0-9]+)?b$ ]]; then
+        rc=0
+    elif [[ -n "${OCTOPUS_CODEX_OSS_PATTERNS:-}" && "$m" =~ ${OCTOPUS_CODEX_OSS_PATTERNS} ]]; then
+        rc=0
+    fi
+    eval "${_restore_nocasematch:-shopt -u nocasematch}"
+    return $rc
+}
+
+# ── Build the `codex exec` dispatch string. For OSS/local models, wrap it in the
+#    pull-guard shim (helpers/codex-run.sh) so codex cannot fire an unbounded
+#    `ollama pull` for an absent multi-GB model unless OCTOPUS_OLLAMA_ALLOW_PULL
+#    is set — closing the codex-side vector that ollama-run.sh does not cover.
+#    Cloud models are emitted unchanged (zero behavior change for the common path). ──
+_build_codex_exec_command() {
+    local model="$1" sandbox_flag="$2"
+    local base="codex exec --skip-git-repo-check --model ${model} ${sandbox_flag} -"
+    if _codex_dispatch_is_oss_model "$model"; then
+        echo "${PLUGIN_DIR}/scripts/helpers/codex-run.sh ${base}"
+    else
+        echo "$base"
+    fi
+}
+
 get_agent_command() {
     local agent_type="$1"
     local phase="${2:-}"
@@ -75,7 +113,7 @@ get_agent_command() {
             if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
                 return 1
             fi
-            echo "codex exec --skip-git-repo-check --model ${model} ${sandbox_flag} -"
+            _build_codex_exec_command "$model" "$sandbox_flag"
             ;;
         gemini|gemini-fast|gemini-image)
             local gemini_flags="-o text --approval-mode yolo"
@@ -210,7 +248,11 @@ get_agent_command() {
             if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
                 return 1
             fi
-            echo "ollama run $model"
+            # Route through the guard shim instead of a bare `ollama run`: that
+            # auto-pulls a missing model, so a provider-failure cascade could
+            # silently kick off an unbounded multi-GB download. The shim refuses
+            # to pull an absent model unless OCTOPUS_OLLAMA_ALLOW_PULL=true.
+            echo "${PLUGIN_DIR}/scripts/helpers/ollama-run.sh $model"
             ;;
         qwen|qwen-research)  # v9.10.0: Qwen CLI — fork of Gemini CLI
             # oco-dar: NO_BROWSER=1 stops a stale token from hijacking the user's
