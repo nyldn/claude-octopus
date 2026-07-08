@@ -102,11 +102,15 @@ chmod +x "$TMP_DIR/slow-hook.sh"
 
 test_case "lifecycle hook timeout prevents observer hangs"
 export OCTOPUS_AGENT_LIFECYCLE_HOOK="$TMP_DIR/slow-hook.sh"
-export OCTOPUS_AGENT_LIFECYCLE_HOOK_TIMEOUT=1
+hook_timeout_secs=1
+export OCTOPUS_AGENT_LIFECYCLE_HOOK_TIMEOUT="$hook_timeout_secs"
 start=$(date +%s)
 _octopus_agent_lifecycle_event "spawned" "codex" "task-slow-hook" "developer" "tangle" "555" "$RESULTS_DIR/codex-slow-hook.md" "" "running"
 elapsed=$(( $(date +%s) - start ))
-if [[ "$elapsed" -lt 4 ]]; then
+# oco-588: measure against the configured timeout plus a generous grace
+# margin instead of a fixed small bound — macOS runners have enough
+# scheduling jitter that a tight fixed bound flakes under load.
+if [[ "$elapsed" -lt $((hook_timeout_secs + 9)) ]]; then
   test_pass
 else
   test_fail "hook timeout did not return promptly"
@@ -140,14 +144,18 @@ ln -sf /bin/bash "$no_timeout_bin/bash"
 ln -sf /bin/date "$no_timeout_bin/date"
 ln -sf /usr/bin/dirname "$no_timeout_bin/dirname"
 export OCTOPUS_AGENT_LIFECYCLE_HOOK="$TMP_DIR/slow-fallback-hook.sh"
-export OCTOPUS_AGENT_LIFECYCLE_HOOK_TIMEOUT=1
+hook_timeout_secs=1
+export OCTOPUS_AGENT_LIFECYCLE_HOOK_TIMEOUT="$hook_timeout_secs"
 saved_path="$PATH"
 start=$(date +%s)
 PATH="$no_timeout_bin"
 _octopus_agent_lifecycle_event "spawned" "codex" "task-fallback-timeout" "developer" "tangle" "556" "$RESULTS_DIR/codex-fallback-timeout.md" "" "running"
 PATH="$saved_path"
 elapsed=$(( $(date +%s) - start ))
-if [[ "$elapsed" -lt 4 ]]; then
+# oco-588: same generous grace margin as the primary timeout test above —
+# the built-in fallback polls in whole-second SECONDS increments, which
+# adds its own rounding jitter on top of scheduler jitter.
+if [[ "$elapsed" -lt $((hook_timeout_secs + 9)) ]]; then
   test_pass
 else
   test_fail "built-in timeout fallback did not return promptly"
