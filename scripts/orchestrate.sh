@@ -515,6 +515,11 @@ elif [[ "${OCTO_EVENT_LOG}" == "off" ]]; then
 fi
 ANALYTICS_DIR="${WORKSPACE_DIR}/analytics"
 
+# Ensure the per-session results/logs/plans dirs exist EARLY — before any
+# subcommand (council, debate, …) dispatches provider seats. Codex/agy seats
+# write into RESULTS_DIR and crash if it's missing. Cheap, idempotent.
+mkdir -p "$RESULTS_DIR" "$LOGS_DIR" "$PLANS_DIR" 2>/dev/null || true
+
 # Secure temporary directory (cleaned up on exit)
 OCTOPUS_TMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/claude-octopus.XXXXXX")
 trap 'rm -rf "$OCTOPUS_TMP_DIR"' EXIT INT TERM
@@ -586,7 +591,7 @@ CODEX_SUBAGENT_PREAMBLE="IMPORTANT: You are running as a non-interactive subagen
 
 "
 
-AVAILABLE_AGENTS="codex codex-standard codex-max codex-mini codex-general codex-spark codex-reasoning codex-large-context gemini gemini-fast gemini-image agy agy-research antigravity codex-review claude claude-sonnet claude-opus claude-opus-fast openrouter openrouter-glm5 openrouter-kimi openrouter-deepseek openai-compatible-agent perplexity perplexity-fast ollama copilot copilot-research qwen qwen-research cursor-agent vibe vibe-research"
+AVAILABLE_AGENTS="codex codex-standard codex-max codex-mini codex-general codex-spark codex-reasoning codex-large-context gemini gemini-fast gemini-image agy agy-research antigravity codex-review claude claude-sonnet claude-opus claude-opus-fast openrouter openrouter-glm5 openrouter-kimi openrouter-deepseek openai-compatible openai-tools openai-compatible-agent perplexity perplexity-fast ollama copilot copilot-research qwen qwen-research cursor-agent vibe vibe-research"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # USAGE TRACKING & COST REPORTING (v4.1)

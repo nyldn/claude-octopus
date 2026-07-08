@@ -516,7 +516,7 @@ When invoked WITH arguments (e.g., `/octo:model-config codex gpt-5.4`), skip the
 
 ### Validation Gates
 
-- Provider names validated against whitelist: `codex gemini agy antigravity claude perplexity openrouter opencode copilot ollama qwen`
+- Provider names validated against whitelist: `codex gemini agy antigravity claude perplexity openrouter openai-compatible openai-tools openai-compatible-agent opencode copilot ollama qwen`
 - Phase names validated against known list
 - Model names checked for injection safety (alphanumeric, hyphens, dots, slashes only)
 - Config file operations use atomic write (tmp + mv)

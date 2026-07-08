@@ -104,6 +104,15 @@ _review_fleet_from_config() {
                     has_diversity=true
                 fi
                 ;;
+            openai-compatible|openai-tools|openai-compatible-agent)
+                if [[ "$has_logic" == "false" ]]; then
+                    fleet+="${provider}:logic-reviewer:correctness and logic bugs, edge cases, regressions"$'\n'
+                    has_logic=true
+                elif [[ "$has_diversity" == "false" ]]; then
+                    fleet+="${provider}:diversity-reviewer:OpenAI-compatible independent review path"$'\n'
+                    has_diversity=true
+                fi
+                ;;
             qwen|qwen-*)
                 if [[ "$has_security" == "false" ]]; then
                     fleet+="${provider}:security-reviewer:OWASP vulnerabilities, injection, auth flaws, data exposure"$'\n'

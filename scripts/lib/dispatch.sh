@@ -28,6 +28,44 @@ _octopus_is_safe_openai_compatible_dispatch_value() {
     return 0
 }
 
+# ── Does a resolved codex model name indicate an OSS/local model that codex
+#    serves through ollama (and would silently auto-pull)? codex's built-in OSS
+#    family is gpt-oss*; ollama-served models also carry a size tag like ':120b'.
+#    Cloud codex models (gpt-5.x, o3, gpt-4.1, gpt-5.2-codex) never use that tag
+#    form, so this stays conservative and leaves normal codex dispatch untouched.
+#    NOTE: keep in sync with _codex_model_is_oss() in helpers/codex-run.sh. ──
+_codex_dispatch_is_oss_model() {
+    local m="$1"
+    [[ -z "$m" ]] && return 1
+    # Preserve the caller's nocasematch setting instead of forcing it off.
+    local _restore_nocasematch
+    _restore_nocasematch=$(shopt -p nocasematch || true)
+    shopt -s nocasematch
+    local rc=1
+    if [[ "$m" == gpt-oss* ]] || [[ "$m" =~ :[0-9]+(\.[0-9]+)?b$ ]]; then
+        rc=0
+    elif [[ -n "${OCTOPUS_CODEX_OSS_PATTERNS:-}" && "$m" =~ ${OCTOPUS_CODEX_OSS_PATTERNS} ]]; then
+        rc=0
+    fi
+    eval "${_restore_nocasematch:-shopt -u nocasematch}"
+    return $rc
+}
+
+# ── Build the `codex exec` dispatch string. For OSS/local models, wrap it in the
+#    pull-guard shim (helpers/codex-run.sh) so codex cannot fire an unbounded
+#    `ollama pull` for an absent multi-GB model unless OCTOPUS_OLLAMA_ALLOW_PULL
+#    is set — closing the codex-side vector that ollama-run.sh does not cover.
+#    Cloud models are emitted unchanged (zero behavior change for the common path). ──
+_build_codex_exec_command() {
+    local model="$1" sandbox_flag="$2"
+    local base="codex exec --skip-git-repo-check --model ${model} ${sandbox_flag} -"
+    if _codex_dispatch_is_oss_model "$model"; then
+        echo "${PLUGIN_DIR}/scripts/helpers/codex-run.sh ${base}"
+    else
+        echo "$base"
+    fi
+}
+
 get_agent_command() {
     local agent_type="$1"
     local phase="${2:-}"
@@ -55,16 +93,6 @@ get_agent_command() {
     esac
 
     local sandbox_flag="--sandbox ${codex_sandbox}"
-    local codex_bin="${OCTOPUS_CODEX_BIN:-codex}"
-
-    # Allow advanced users to point Octopus at a codex-compatible wrapper
-    # without replacing codex on PATH. Keep this restricted because the value
-    # is interpolated into the shell command string returned below.
-    if [[ ! "$codex_bin" =~ ^[A-Za-z0-9_./-]+$ ]]; then
-        log "ERROR" "Invalid OCTOPUS_CODEX_BIN value: '${codex_bin}'. Allowed characters: A-Z a-z 0-9 _ . / -"
-        log "ERROR" "Falling back to codex for safety."
-        codex_bin="codex"
-    fi
 
     # Spawned `claude --print` subprocesses have no interactive approver, so any
     # tool that would prompt is silently denied ("Read is blocked in the current
@@ -79,29 +107,13 @@ get_agent_command() {
     esac
 
     case "$agent_type" in
-        codex|codex-standard|codex-max|codex-mini|codex-general)
+        # v8.9.0: Spark, reasoning, and large-context variants share the
+        # same command shape; only model resolution differs by agent type.
+        codex|codex-standard|codex-max|codex-mini|codex-general|codex-spark|codex-reasoning|codex-large-context)
             if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
                 return 1
             fi
-            echo "${codex_bin} exec --skip-git-repo-check --model ${model} ${sandbox_flag} -"
-            ;;
-        codex-spark)  # v8.9.0: Ultra-fast Spark model (1000+ tok/s)
-            if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
-                return 1
-            fi
-            echo "${codex_bin} exec --skip-git-repo-check --model ${model} ${sandbox_flag} -"
-            ;;
-        codex-reasoning)  # v8.9.0: Reasoning models (o3, o3)
-            if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
-                return 1
-            fi
-            echo "${codex_bin} exec --skip-git-repo-check --model ${model} ${sandbox_flag} -"
-            ;;
-        codex-large-context)  # v8.9.0: 1M context models (gpt-4.1)
-            if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
-                return 1
-            fi
-            echo "${codex_bin} exec --skip-git-repo-check --model ${model} ${sandbox_flag} -"
+            _build_codex_exec_command "$model" "$sandbox_flag"
             ;;
         gemini|gemini-fast|gemini-image)
             local gemini_flags="-o text --approval-mode yolo"
@@ -136,7 +148,7 @@ get_agent_command() {
         agy|agy-research|antigravity)
             echo "${PLUGIN_DIR}/scripts/helpers/agy-exec.sh"
             ;;
-        codex-review) echo "${codex_bin} exec --skip-git-repo-check review" ;; # Code review mode (no sandbox support)
+        codex-review) echo "codex exec --skip-git-repo-check review" ;; # Code review mode (no sandbox support)
         claude) echo "${_claude_bin}${_BARE_OPT} --print ${claude_perm}" ;;                         # Claude Sonnet 4.6
         claude-sonnet) echo "${_claude_bin}${_BARE_OPT} --print --model sonnet ${claude_perm}" ;;        # Claude Sonnet explicit
         claude-opus)
@@ -173,7 +185,7 @@ get_agent_command() {
         openrouter-glm5) echo "openrouter_execute_model z-ai/glm-5" ;;           # v8.11.0: GLM-5 via OpenRouter
         openrouter-kimi) echo "openrouter_execute_model moonshotai/kimi-k2.5" ;; # v8.11.0: Kimi K2.5 via OpenRouter
         openrouter-deepseek) echo "openrouter_execute_model deepseek/deepseek-r1-0528" ;; # v8.11.0: DeepSeek R1 via OpenRouter
-        openai-compatible-agent)  # Generic OpenAI-compatible tool-loop agent
+        openai-compatible|openai-tools|openai-compatible-agent)  # Generic OpenAI-compatible tool-loop agent
             if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
                 return 1
             fi
@@ -186,6 +198,38 @@ get_agent_command() {
                 return 1
             fi
             echo "${PLUGIN_DIR}/scripts/helpers/openai-compatible-agent.py --provider generic --model ${model} --cwd ${PWD}"
+            ;;
+        atlascloud-agent)  # Atlas Cloud via the OpenAI-compatible tool-loop agent
+            model="${ATLASCLOUD_MODEL:-${OCTOPUS_ATLASCLOUD_MODEL:-${OPENAI_COMPAT_MODEL:-}}}"
+            if [[ -z "$model" && -f "${HOME}/.claude-octopus/config/providers.json" ]] && command -v jq &>/dev/null; then
+                model="$(jq -r '.providers.atlascloud.default // empty' "${HOME}/.claude-octopus/config/providers.json" 2>/dev/null || true)"
+            fi
+            if [[ -z "$model" ]]; then
+                log ERROR "ATLASCLOUD_MODEL, OCTOPUS_ATLASCLOUD_MODEL, OPENAI_COMPAT_MODEL, or providers.json atlascloud.default is required"
+                return 1
+            fi
+            if ! validate_model_name "$model"; then
+                log ERROR "Invalid Atlas Cloud model name: ${model}"
+                return 1
+            fi
+            local fallback
+            fallback=$(validate_model_allowed "atlascloud" "$model")
+            if [[ $? -ne 0 ]]; then
+                if [[ -n "$fallback" ]]; then
+                    if ! validate_model_name "$fallback"; then
+                        log ERROR "Invalid Atlas Cloud fallback model name"
+                        return 1
+                    fi
+                    model="$fallback"
+                else
+                    return 1
+                fi
+            fi
+            if ! _octopus_is_safe_openai_compatible_dispatch_value "${PWD}"; then
+                log ERROR "Invalid Atlas Cloud cwd: ${PWD}"
+                return 1
+            fi
+            echo "${PLUGIN_DIR}/scripts/helpers/openai-compatible-agent.py --provider atlascloud --model ${model} --cwd ${PWD}"
             ;;
         perplexity|perplexity-fast)  # v8.24.0: Perplexity Sonar — web-grounded research (Issue #22)
             if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
@@ -204,7 +248,11 @@ get_agent_command() {
             if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
                 return 1
             fi
-            echo "ollama run $model"
+            # Route through the guard shim instead of a bare `ollama run`: that
+            # auto-pulls a missing model, so a provider-failure cascade could
+            # silently kick off an unbounded multi-GB download. The shim refuses
+            # to pull an absent model unless OCTOPUS_OLLAMA_ALLOW_PULL=true.
+            echo "${PLUGIN_DIR}/scripts/helpers/ollama-run.sh $model"
             ;;
         qwen|qwen-research)  # v9.10.0: Qwen CLI — fork of Gemini CLI
             # oco-dar: NO_BROWSER=1 stops a stale token from hijacking the user's
@@ -305,6 +353,7 @@ get_provider_context_limit() {
         claude)     echo "${OCTOPUS_CLAUDE_CONTEXT_BUDGET:-${default_budget}}" ;;
         perplexity) echo "${OCTOPUS_PERPLEXITY_CONTEXT_BUDGET:-${default_budget}}" ;;
         openrouter) echo "${OCTOPUS_OPENROUTER_CONTEXT_BUDGET:-${default_budget}}" ;;
+        atlascloud) echo "${OCTOPUS_ATLASCLOUD_CONTEXT_BUDGET:-${default_budget}}" ;;
         copilot)    echo "${OCTOPUS_COPILOT_CONTEXT_BUDGET:-${default_budget}}" ;;
         qwen)       echo "${OCTOPUS_QWEN_CONTEXT_BUDGET:-${default_budget}}" ;;
         opencode)   echo "${OCTOPUS_OPENCODE_CONTEXT_BUDGET:-${default_budget}}" ;;
@@ -482,7 +531,8 @@ get_agent_model() {
         agy*|antigravity) provider="agy" ;;
         claude*)     provider="claude" ;;
         openrouter*) provider="openrouter" ;;
-        openai-compatible-agent*) provider="openai-compatible-agent" ;;
+        atlascloud*) provider="atlascloud" ;;
+        openai-compatible|openai-tools|openai-compatible-agent*) provider="openai-compatible-agent" ;;
         perplexity*) provider="perplexity" ;;
         qwen*)       provider="qwen" ;;
         cursor-agent*) provider="cursor-agent" ;;
@@ -525,7 +575,8 @@ validate_model_allowed() {
         agy)        allowlist_var="OCTOPUS_AGY_ALLOWED_MODELS" ;;
         claude)     allowlist_var="OCTOPUS_CLAUDE_ALLOWED_MODELS" ;;
         openrouter) allowlist_var="OCTOPUS_OPENROUTER_ALLOWED_MODELS" ;;
-        openai-compatible-agent) allowlist_var="OPENAI_COMPAT_ALLOWED_MODELS" ;;
+        atlascloud) allowlist_var="ATLASCLOUD_ALLOWED_MODELS" ;;
+        openai-compatible|openai-tools|openai-compatible-agent) allowlist_var="OPENAI_COMPAT_ALLOWED_MODELS" ;;
         perplexity) allowlist_var="OCTOPUS_PERPLEXITY_ALLOWED_MODELS" ;;
         qwen)       allowlist_var="OCTOPUS_QWEN_ALLOWED_MODELS" ;;
         cursor-agent) allowlist_var="OCTOPUS_CURSOR_AGENT_ALLOWED_MODELS" ;;

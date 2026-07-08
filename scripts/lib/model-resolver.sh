@@ -12,6 +12,7 @@ if ! declare -f _is_cursor_agent_binary >/dev/null 2>&1; then
 fi
 if ! declare -f is_claude_agent_type >/dev/null 2>&1; then
     source "${_model_resolver_lib_dir}/routing.sh" 2>/dev/null || true
+source "${_model_resolver_lib_dir}/openai-compatible.sh" 2>/dev/null || true
 fi
 if ! declare -f is_claude_agent_type >/dev/null 2>&1; then
     is_claude_agent_type() {
@@ -352,7 +353,7 @@ resolve_octopus_model() {
             openrouter-glm*)  resolved_model="z-ai/glm-5" ;;
             openrouter-kimi*) resolved_model="moonshotai/kimi-k2.5" ;;
             openrouter-deepseek*) resolved_model="deepseek/deepseek-r1-0528" ;;
-            openai-compatible-agent*) resolved_model="${OPENAI_COMPAT_MODEL:-gpt-5.4}" ;;
+            openai-compatible|openai-tools|openai-compatible-agent*) resolved_model="${OPENAI_COMPAT_MODEL:-gpt-5.4}" ;;
             ollama*)         resolved_model="llama3.3" ;;
             copilot*)        resolved_model="claude-sonnet-4.5" ;; # Copilot default; actual model selected by copilot CLI
             qwen*)           resolved_model="qwen3-coder" ;;
@@ -452,9 +453,8 @@ is_agent_available_v2() {
         openrouter|openrouter-*)
             [[ "$PROVIDER_OPENROUTER_ENABLED" == "true" && "$PROVIDER_OPENROUTER_API_KEY_SET" == "true" ]]
             ;;
-        openai-compatible-agent*)
-            local compat_key_env="${OPENAI_COMPAT_API_KEY_ENV:-OPENAI_API_KEY}"
-            [[ -n "${OPENAI_COMPAT_BASE_URL:-}" && ( -n "${OPENAI_COMPAT_API_KEY:-}" || -n "${!compat_key_env:-}" ) ]]
+        openai-compatible|openai-tools|openai-compatible-agent*)
+            declare -f openai_compatible_is_available >/dev/null 2>&1 && openai_compatible_is_available
             ;;
         perplexity|perplexity-fast)
             [[ -n "${PERPLEXITY_API_KEY:-}" ]]

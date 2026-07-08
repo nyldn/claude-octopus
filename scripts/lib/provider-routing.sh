@@ -74,6 +74,18 @@ build_provider_env() {
             if [[ -n "$_codex_env_key" && "$_codex_env_key" != "OPENAI_API_KEY" && -n "${!_codex_env_key:-}" ]]; then
                 PROVIDER_ENV_ARRAY+=("${_codex_env_key}=${!_codex_env_key}")
             fi
+            # codex has NO flag to disable its OSS/local-model auto-download
+            # (verified against `codex exec --help`). Octopus instead gates that
+            # pull externally via helpers/codex-run.sh. That shim runs inside this
+            # isolated env, so forward the pull-guard opt-in contract here —
+            # otherwise `env -i` strips it and the shim would refuse every OSS
+            # dispatch (or, worse if absent, never see the user's opt-in/cap).
+            local _oss_var
+            for _oss_var in OCTOPUS_OLLAMA_ALLOW_PULL OCTOPUS_OLLAMA_MAX_PULL_GB OCTOPUS_OLLAMA_BIN OCTOPUS_CODEX_OSS_PATTERNS; do
+                if [[ -n "${!_oss_var:-}" ]]; then
+                    PROVIDER_ENV_ARRAY+=("${_oss_var}=${!_oss_var}")
+                fi
+            done
             if [[ ${#_trace_env[@]} -gt 0 ]]; then
                 PROVIDER_ENV_ARRAY+=("${_trace_env[@]}")
             fi
@@ -355,10 +367,10 @@ set_provider_model() {
 
     # v8.49.0: Provider whitelist validation
     case "$provider" in
-        codex|gemini|claude|perplexity|opencode|openrouter|openai-compatible-agent|cursor-agent) ;;
+        codex|gemini|claude|perplexity|opencode|openrouter|atlascloud|openai-compatible|openai-tools|openai-compatible-agent|cursor-agent) ;;
         *)
             if [[ "${4:-}" != "--force" ]]; then
-                echo "ERROR: Unknown provider '$provider'. Valid: codex, gemini, claude, perplexity, opencode, openrouter, openai-compatible-agent, cursor-agent" >&2
+                echo "ERROR: Unknown provider '$provider'. Valid: codex, gemini, claude, perplexity, opencode, openrouter, atlascloud, openai-compatible, openai-tools, openai-compatible-agent, cursor-agent" >&2
                 echo "  Use --force to set a custom provider (e.g., for local proxies)" >&2
                 return 1
             fi
@@ -465,12 +477,12 @@ reset_provider_model() {
         # Clear all overrides (v8.49.0: atomic)
         atomic_json_update "$config_file" '.overrides = {}'
         echo "✓ Cleared all model overrides"
-    elif [[ "$provider" =~ ^(codex|gemini|claude|perplexity|opencode|openrouter|openai-compatible-agent|cursor-agent)$ ]]; then
+    elif [[ "$provider" =~ ^(codex|gemini|claude|perplexity|opencode|openrouter|atlascloud|openai-compatible|openai-tools|openai-compatible-agent|cursor-agent)$ ]]; then
         # Clear specific override (v8.49.0: atomic + jq --arg)
         atomic_json_update "$config_file" 'del(.overrides[$p])' --arg p "$provider"
         echo "✓ Cleared $provider override"
     else
-        echo "ERROR: Invalid provider '$provider'. Use 'codex', 'gemini', 'claude', 'perplexity', 'opencode', 'openrouter', 'cursor-agent', or 'all'" >&2
+        echo "ERROR: Invalid provider '$provider'. Use 'codex', 'gemini', 'claude', 'perplexity', 'opencode', 'openrouter', 'atlascloud', 'openai-compatible-agent', 'cursor-agent', or 'all'" >&2
         return 1
     fi
 
@@ -640,6 +652,10 @@ is_api_based_provider() {
         perplexity)
             # v8.24.0: Perplexity Sonar API (Issue #22)
             [[ -n "${PERPLEXITY_API_KEY:-}" ]] && return 0
+            return 1
+            ;;
+        atlascloud)
+            [[ -n "${ATLASCLOUD_API_KEY:-}" ]] && return 0
             return 1
             ;;
         *)
