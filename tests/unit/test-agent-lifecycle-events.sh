@@ -96,7 +96,10 @@ fi
 
 cat > "$TMP_DIR/slow-hook.sh" <<'HOOK'
 #!/usr/bin/env bash
-sleep 5
+# Must sleep LONGER than the widened pass bound (timeout + 9s) below, or a
+# broken timeout would let the hook finish naturally inside the bound and
+# the test would false-pass.
+sleep 15
 HOOK
 chmod +x "$TMP_DIR/slow-hook.sh"
 
@@ -132,7 +135,9 @@ unset OCTOPUS_AGENT_LIFECYCLE_HOOK_TIMEOUT
 
 cat > "$TMP_DIR/slow-fallback-hook.sh" <<'HOOK'
 #!/usr/bin/env bash
-sleep 5
+# Must sleep LONGER than the widened pass bound (timeout + 9s) below — see
+# slow-hook.sh above.
+sleep 15
 HOOK
 chmod +x "$TMP_DIR/slow-fallback-hook.sh"
 
