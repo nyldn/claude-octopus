@@ -1236,6 +1236,17 @@ tangle_worktree_fingerprint() {
     } | sha256sum 2>/dev/null | awk '{print $1}'
 }
 
+tangle_process_is_active_non_zombie() {
+    local pid="${1:-}"
+    [[ -n "$pid" ]] || return 1
+    kill -0 "$pid" 2>/dev/null || return 1
+    local stat
+    stat=$(ps -o stat= -p "$pid" 2>/dev/null | awk 'NR==1 {print $1}') || stat=""
+    [[ -n "$stat" ]] || return 1
+    [[ "$stat" == Z* ]] && return 1
+    return 0
+}
+
 tangle_scope_contamination_summary() {
     local repo_root
     repo_root=$(tangle_resolve_repo_root 2>/dev/null || git rev-parse --show-toplevel 2>/dev/null || pwd)
@@ -1544,6 +1555,17 @@ ${normal_findings}
         } >> "$correction_file"
         log INFO "Correction round ${round_num} result: $correction_file"
         return 0
+    fi
+
+    if [[ "$correction_rc" == "130" || "$correction_rc" == "137" || "$correction_rc" == "143" ]]; then
+        TANGLE_CORRECTION_STATUS="interrupted-partial"
+        {
+            echo ""
+            echo "## Status: INTERRUPTED - PARTIAL WRITES PRESERVED"
+            echo "# Completed: $(date)"
+        } >> "$correction_file"
+        log WARN "Correction round ${round_num} was interrupted (rc=${correction_rc}); preserving partial writes but stopping correction loop: $correction_file"
+        return 1
     fi
 
     if [[ "$TANGLE_CORRECTION_CHANGED" == "1" ]]; then
@@ -1921,12 +1943,12 @@ Every [CODING] line must include a same-line Files: clause."
                         log WARN "Failed to write timeout marker for ${task_ids[$i]} at $_done_file"
                     fi
                     [[ " $_terminal_task_ids " == *" ${task_ids[$i]} "* ]] || _terminal_task_ids="${_terminal_task_ids:+$_terminal_task_ids }${task_ids[$i]}"
-                elif [[ -n "$_wrapper_pid" ]] && ! kill -0 "$_wrapper_pid" 2>/dev/null; then
+                elif [[ -n "$_wrapper_pid" ]] && ! tangle_process_is_active_non_zombie "$_wrapper_pid"; then
                     local _now
                     _now=$(date +%s)
                     if [[ -z "${_missing_marker_since[$i]:-}" ]]; then
                         _missing_marker_since[$i]="$_now"
-                        log WARN "Thread ${task_ids[$i]} wrapper exited without completion marker — waiting up to ${_missing_marker_grace}s for late result/marker"
+                        log WARN "Thread ${task_ids[$i]} exited or became zombie without completion marker — waiting up to ${_missing_marker_grace}s for late result/marker"
                     elif (( _now - ${_missing_marker_since[$i]} >= _missing_marker_grace )); then
                         log WARN "Thread ${task_ids[$i]} still lacks completion marker after ${_missing_marker_grace}s — marking failed"
                         mkdir -p "$_done_dir" 2>/dev/null || true
@@ -2037,6 +2059,10 @@ Every [CODING] line must include a same-line Files: clause."
     local best_normal_count="$normal_count"
     local no_progress_rounds=0
     local convergence_round_limit="${OCTOPUS_TANGLE_CONVERGENCE_NO_PROGRESS_ROUNDS:-3}"
+    # Validation files are re-rendered each correction round and can change even
+    # when the actionable gate is static. By default, only a new best blocker
+    # count resets convergence; validation signature movement is diagnostic only.
+    local validation_progress_resets_convergence="${OCTOPUS_TANGLE_CONVERGENCE_VALIDATION_PROGRESS:-false}"
     local correction_strategy="delta"
 
     while [[ "${normal_count:-0}" -gt 0 ]]; do
@@ -2102,14 +2128,18 @@ Every [CODING] line must include a same-line Files: clause."
             made_progress=1
         fi
         if [[ "$current_validation_signature" != "$previous_validation_signature" ]]; then
-            made_progress=1
+            if octo_bool_enabled "$validation_progress_resets_convergence"; then
+                made_progress=1
+            else
+                log INFO "Correction round ${correction_round}: validation signature changed but blocker best did not improve; not resetting convergence guard"
+            fi
         fi
 
         if [[ "$made_progress" -eq 1 ]]; then
             no_progress_rounds=0
         else
             no_progress_rounds=$((no_progress_rounds + 1))
-            log WARN "Correction round ${correction_round} did not improve best blockers or validation signature (${no_progress_rounds}/${convergence_round_limit})"
+            log WARN "Correction round ${correction_round} did not improve best blockers (${no_progress_rounds}/${convergence_round_limit})"
         fi
 
         if [[ "${TANGLE_CORRECTION_CHANGED:-0}" != "1" && "${TANGLE_CORRECTION_STATUS:-}" == *"stalled"* ]]; then
@@ -2118,7 +2148,7 @@ Every [CODING] line must include a same-line Files: clause."
         fi
 
         if [[ "${convergence_round_limit:-0}" -gt 0 && "$no_progress_rounds" -ge "$convergence_round_limit" ]]; then
-            log ERROR "Stopping tangle correction loop after ${no_progress_rounds} rounds without new best blockers or validation progress (best_normal=${best_normal_count}, current_normal=${normal_count})"
+            log ERROR "Stopping tangle correction loop after ${no_progress_rounds} rounds without new best blockers (best_normal=${best_normal_count}, current_normal=${normal_count})"
             return 1
         fi
 
