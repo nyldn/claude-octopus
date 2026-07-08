@@ -296,11 +296,11 @@ review_run_agent_sync_progress() {
     return "$rc"
 }
 
-# review_codex_empty_output_retryable: returns true for transient Codex/Pioneer
+# review_openai_compat_empty_output_retryable: returns true for transient OpenAI-compatible adapter
 # review failures where the CLI exited with Empty output after reconnects. These
 # are usually provider-side transient stream/session failures rather than review
 # conclusions, so Round 1 may retry them once after backoff.
-review_codex_empty_output_retryable() {
+review_openai_compat_empty_output_retryable() {
     local result_file="$1"
     local agent_type="$2"
     [[ "$agent_type" == codex* ]] || return 1
@@ -866,22 +866,22 @@ ${agent_prompt_base}"
     done
     for _pid in "${round1_pids[@]}"; do wait "$_pid" 2>/dev/null || true; done
 
-    # Retry transient Codex/Pioneer Empty output failures once after backoff. We
+    # Retry transient OpenAI-compatible adapter Empty output failures once after backoff. We
     # only do this for Round 1 review specialists and only when the artifact shows
     # reconnects, because provider-side 180s empty responses can be recoverable
     # after a short pause.
-    local codex_empty_retry_max="${OCTOPUS_REVIEW_CODEX_EMPTY_RETRY_MAX:-1}"
-    local codex_empty_retry_backoff="${OCTOPUS_REVIEW_CODEX_EMPTY_RETRY_BACKOFF_SECS:-90}"
-    [[ "$codex_empty_retry_max" =~ ^[0-9]+$ ]] || codex_empty_retry_max=1
-    [[ "$codex_empty_retry_backoff" =~ ^[0-9]+$ ]] || codex_empty_retry_backoff=90
-    codex_empty_retry_max=$((10#$codex_empty_retry_max))
-    codex_empty_retry_backoff=$((10#$codex_empty_retry_backoff))
-    if [[ "$codex_empty_retry_max" -gt 0 ]]; then
+    local openai_compat_empty_retry_max="${OCTOPUS_REVIEW_OPENAI_COMPAT_EMPTY_RETRY_MAX:-1}"
+    local openai_compat_empty_retry_backoff="${OCTOPUS_REVIEW_OPENAI_COMPAT_EMPTY_RETRY_BACKOFF_SECS:-90}"
+    [[ "$openai_compat_empty_retry_max" =~ ^[0-9]+$ ]] || openai_compat_empty_retry_max=1
+    [[ "$openai_compat_empty_retry_backoff" =~ ^[0-9]+$ ]] || openai_compat_empty_retry_backoff=90
+    openai_compat_empty_retry_max=$((10#$openai_compat_empty_retry_max))
+    openai_compat_empty_retry_backoff=$((10#$openai_compat_empty_retry_backoff))
+    if [[ "$openai_compat_empty_retry_max" -gt 0 ]]; then
         local retry_idx=0
         while [[ "$retry_idx" -lt "${#round1_files[@]}" ]]; do
             local retry_file="${round1_files[$retry_idx]}"
             local retry_agent_type="${round1_agent_types[$retry_idx]}"
-            if review_codex_empty_output_retryable "$retry_file" "$retry_agent_type"; then
+            if review_openai_compat_empty_output_retryable "$retry_file" "$retry_agent_type"; then
                 local reconnect_count retry_role retry_task_id retry_prompt retry_result_file retry_pid archived_file
                 reconnect_count=$(grep -c 'Reconnecting' "$retry_file" 2>/dev/null || true)
                 reconnect_count=${reconnect_count:-0}
@@ -891,9 +891,9 @@ ${agent_prompt_base}"
                 retry_result_file="${RESULTS_DIR}/${retry_agent_type}-${retry_task_id}.md"
                 archived_file="${retry_file}.attempt1"
                 mv "$retry_file" "$archived_file" 2>/dev/null || true
-                log WARN "review_run: ${retry_agent_type}/${retry_role} ended Empty output after ${reconnect_count} reconnect(s); retrying once after ${codex_empty_retry_backoff}s (artifact=$(basename "$archived_file"))"
-                sleep "$codex_empty_retry_backoff"
-                retry_prompt="RETRY NOTICE: the previous ${retry_agent_type}/${retry_role} review attempt ended with Empty output after Pioneer reconnects. Review only the supplied diff/context; do not inspect the workspace unless strictly necessary. Return ONLY the required JSON object.
+                log WARN "review_run: ${retry_agent_type}/${retry_role} ended Empty output after ${reconnect_count} reconnect(s); retrying once after ${openai_compat_empty_retry_backoff}s (artifact=$(basename "$archived_file"))"
+                sleep "$openai_compat_empty_retry_backoff"
+                retry_prompt="RETRY NOTICE: the previous ${retry_agent_type}/${retry_role} review attempt ended with Empty output after adapter reconnects. Review only the supplied diff/context; do not inspect the workspace unless strictly necessary. Return ONLY the required JSON object.
 
 ${round1_prompts[$retry_idx]}"
                 spawn_agent "$retry_agent_type" "$retry_prompt" "$retry_task_id" "$retry_role" "review" &
