@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Added
+
+- **RELEASING.md**: ordered release checklist covering every version-string location, the derived-artifact generators, CI-parity validation, exec-bit checks, fork-PR run approval, the tag-on-merge-commit rule, and GitHub Release creation. Encodes the three CI rounds the v9.50.0 release burned on undocumented generators.
+- **docs/PROVIDERS.md**: provider wiring map. Seven wiring points across five files per provider, with anchors and the traps that have bitten real PRs (case-glob ordering, the two provider-routing whitelists, exec bits, the stdin shim contract, secret-scanner quoting, nested-session markers).
+- **`make sync` / `make sync-check` / `make ci-local`**: one target to regenerate all derived artifacts, one to verify them, and a CI-parity target that mirrors the required checks plus CI-only verifications so local green predicts remote green.
+- **Executable-bit lint in CI** (Portability Lint job): PRs fail if tracked files change mode vs the base branch; the `allow-mode-change` PR label bypasses intentional changes. Root cause class of PR #579's "Permission denied" failures, now caught pre-merge.
+- **"Repo Orientation for Agents" section in CLAUDE.md** (mirrored in AGENTS.md): derived-artifacts table, hard rules distilled from real CI failures, and a memory ruling for the beads blocked-writes failure mode (do not migrate; record in handoff and flag).
+
 ## [9.50.0] - 2026-07-08
 
 Claude Code 2026 compatibility layer release.

@@ -105,6 +105,33 @@ jobs:
             hooks/*.sh \
             2>&1 || true
 
+      # Exec-bit lint: shell/python entrypoints must stay 100755. Both contributor
+      # tooling and editor-based rewrites have silently dropped exec bits (root
+      # cause of PR #579's "Permission denied" failures). Intentional mode changes:
+      # add the 'allow-mode-change' label to the PR.
+      - name: Executable-bit lint
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          ALLOW_MODE_CHANGE: ${{ contains(github.event.pull_request.labels.*.name, 'allow-mode-change') }}
+        run: |
+          git fetch --no-tags origin "$BASE_REF" --depth=100 2>/dev/null || git fetch --no-tags origin "$BASE_REF"
+          changes=$(git diff --summary "origin/${BASE_REF}...HEAD" 2>/dev/null | grep "mode change" || true)
+          if [[ -z "$changes" ]]; then
+            echo "OK: no file-mode changes vs ${BASE_REF}."
+            exit 0
+          fi
+          echo "File-mode changes detected vs ${BASE_REF}:"
+          echo "$changes"
+          if [[ "$ALLOW_MODE_CHANGE" == "true" ]]; then
+            echo "Label 'allow-mode-change' present; passing."
+            exit 0
+          fi
+          echo ""
+          echo "Shell scripts and Python helpers must keep the executable bit (100755)."
+          echo "Fix: chmod +x <file> && git add <file>, or add the 'allow-mode-change' label if intentional."
+          exit 1
+
   smoke:
     name: Smoke Tests (${{ matrix.os }})
     runs-on: ${{ matrix.os }}

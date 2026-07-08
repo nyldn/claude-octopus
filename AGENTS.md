@@ -40,6 +40,17 @@ The MCP server (`mcp-server/`) exposes Claude Octopus workflows as MCP tools.
 For MCP-aware coding agents, connect to the MCP server rather than invoking
 agents directly.
 
+## Repo Orientation for Agents
+
+Mirror of the "Repo Orientation for Agents" section in `CLAUDE.md` (keep both in sync). Essentials:
+
+- **Derived artifacts, never hand-edit**: `.claude-plugin/marketplace.json` (regen: `./scripts/sync-marketplace.sh`) and `openclaw/src/tools/index.ts` (regen: `./scripts/build-openclaw.sh`). README prose counts must match `plugin.json`. Run `make sync` after component changes; `make ci-local` before push.
+- **Exec bits**: scripts stay `100755`; `git diff origin/main...HEAD --summary | grep "mode change"` must be empty (CI-enforced; `allow-mode-change` label bypasses).
+- **Provider wiring**: 7-point checklist across 5 files, documented in `docs/PROVIDERS.md`. Case globs are order-sensitive (`claude-sdk*` before `claude*`).
+- **Releases**: follow `RELEASING.md`; tag the squash-merge commit on `main`, never the branch head.
+- **Secret-scan quoting**: write `"SOME_API_KEY=${VAR}"`, not `SOME_API_KEY="${VAR}"`.
+- **beads blocked?** If bd writes are blocked by pending schema migrations, do NOT migrate; record work in the session handoff and flag the blockage.
+
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:7510c1e2 -->
 ## Beads Issue Tracker
 

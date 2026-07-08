@@ -1,7 +1,23 @@
-.PHONY: test test-smoke test-unit test-integration test-e2e test-live test-coverage test-all test-plugin-name validate-plugin-assembly clean-tests help
+.PHONY: test test-smoke test-unit test-integration test-e2e test-live test-coverage test-all test-plugin-name validate-plugin-assembly clean-tests help sync sync-check ci-local
 
 # Default: smoke + unit (fast feedback)
 test: test-smoke test-unit
+
+# Regenerate ALL derived artifacts (run after changing commands/skills/agents or plugin.json)
+# See RELEASING.md step 3 for the artifact-to-generator map.
+sync:
+	@./scripts/sync-marketplace.sh
+	@./scripts/build-openclaw.sh
+
+# Verify derived artifacts are current (what CI enforces)
+sync-check:
+	@./scripts/sync-marketplace.sh --check
+	@./scripts/build-openclaw.sh --check
+
+# CI parity: everything the required checks run, locally.
+# Local green here predicts remote green; targeted suites alone do not.
+ci-local: sync-check test-smoke test-unit test-integration
+	@echo "ci-local complete: matches required checks (Smoke/Unit/Integration) + CI-only verifications"
 
 # Validate plugin name (critical - prevents command prefix breakage)
 test-plugin-name:

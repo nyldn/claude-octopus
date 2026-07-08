@@ -305,6 +305,40 @@ Skills use the **Validation Gate Pattern** to ensure multi-LLM dispatch actually
 
 > Developer reference (modular config, E2E testing, enforcement patterns): see `docs/DEVELOPER.md`
 
+---
+
+## Repo Orientation for Agents (read before editing)
+
+The rules below encode failures that have already cost real CI rounds. Every one is enforced by a CI check; none of them is guesswork.
+
+### Derived artifacts (never hand-edit)
+
+| Generated file | Regenerate with | CI check that fails if stale |
+|----------------|-----------------|------------------------------|
+| `.claude-plugin/marketplace.json` (octo description + counts) | `./scripts/sync-marketplace.sh` | Smoke job "Verify marketplace.json is up to date" |
+| `openclaw/src/tools/index.ts` | `./scripts/build-openclaw.sh` | `tests/unit/test-openclaw-compat.sh` |
+| README prose counts ("**N commands** ... **N skills**", "[All N skills]") | Edit by hand to match `plugin.json` | `tests/unit/test-docs-sync.sh` |
+
+After changing commands, skills, agents, or `plugin.json`: run `make sync`. Before any push: run `make ci-local` (mirrors the required checks plus CI-only verifications; targeted test suites alone do NOT predict CI green).
+
+### Hard rules (each one has broken a real PR)
+
+- Never hand-write component counts into `plugin.json`'s description; the marketplace generator appends its own counts and `--check` fails on the collision.
+- Shell scripts and Python helpers stay `100755`. Verify before push: `git diff origin/main...HEAD --summary | grep "mode change"` must be empty. CI enforces this (Portability Lint job; `allow-mode-change` PR label bypasses when intentional).
+- Provider case globs are order-sensitive: `claude-sdk*` before `claude*`, `gemini-image` before `gemini*`. A shadowed arm fails silently.
+- `provider-routing.sh` has TWO provider whitelists (plus two matching error strings). Update all four sites or dispatch rejects the provider inconsistently.
+- In shell, quote env assignments as whole arguments: `"SOME_API_KEY=${VAR}"`, not `SOME_API_KEY="${VAR}"`. The expert-review secret scanner false-positives on the latter.
+- CI waiters must assert the named required checks (Smoke Tests, Unit Tests, Integration Tests) are PRESENT and terminal. `all(.bucket != "pending")` over an empty list is vacuously true and fires instantly.
+- Timeout-test fixtures must run LONGER than the pass bound, or a broken timeout false-passes. A test must be able to fail; prove it can.
+- Tag releases on the squash-merge commit on `main`, never on the branch head. Full release procedure: `RELEASING.md`.
+- Fork PRs stall at `action_required` after every push; approve with `gh api -X POST repos/nyldn/claude-octopus/actions/runs/<id>/approve`.
+- Provider wiring is a 7-point checklist across 5 files: `docs/PROVIDERS.md`. Do not wing it from one example.
+
+### Memory ruling (single source of truth)
+
+beads (`bd`) is the system of record. Known failure mode: pending Dolt schema migrations block ALL bd writes with "refusing to auto-apply ... migrations". Do NOT run the migration (single-designated-migrator rule); instead record the work in your session handoff, note the blockage explicitly, and flag it to the maintainer. Do not silently drop tracking.
+
+---
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:7510c1e2 -->
 ## Beads Issue Tracker
