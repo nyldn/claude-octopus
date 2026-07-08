@@ -113,6 +113,15 @@ assert_contains "$(grep -A4 'avg_confidence=$(jq' "$ALL_SRC" 2>/dev/null | head 
 assert_contains "$(grep -A2 'commit_id.*headRefOid' "$ALL_SRC" 2>/dev/null | head -10)" \
   'commit_id' "post_inline_comments: empty commit_id guarded"
 
+assert_contains "$(grep -c 'review_codex_empty_output_retryable' "$ALL_SRC" 2>/dev/null || echo 0)" \
+  "[1-9]" "review_run: codex Empty output retry classifier exists"
+
+assert_contains "$(grep -c 'OCTOPUS_REVIEW_CODEX_EMPTY_RETRY_BACKOFF_SECS' "$ALL_SRC" 2>/dev/null || echo 0)" \
+  "[1-9]" "review_run: codex Empty output retry has configurable backoff"
+
+assert_contains "$(grep -c 'attempt1' "$ALL_SRC" 2>/dev/null || echo 0)" \
+  "[1-9]" "review_run: codex Empty output retry preserves first artifact"
+
 # ── diff target file support ─────────────────────────────────────────────────
 
 source "$PROJECT_ROOT/scripts/lib/review.sh"
@@ -129,6 +138,37 @@ EOF
 
 assert_contains "$(review_collect_diff "$DIFF_TARGET")" \
   "diff --git a/foo.txt b/foo.txt" "review_collect_diff: reads unified diff file targets"
+
+CODEX_EMPTY_RETRYABLE="$TMPDIR_TEST/codex-empty-retryable.md"
+cat > "$CODEX_EMPTY_RETRYABLE" <<'EOF'
+# Agent: codex
+## Status: FAILED (Empty output)
+Reconnecting... 1/5
+EOF
+
+CODEX_EMPTY_NO_RECONNECT="$TMPDIR_TEST/codex-empty-no-reconnect.md"
+cat > "$CODEX_EMPTY_NO_RECONNECT" <<'EOF'
+# Agent: codex
+## Status: FAILED (Empty output)
+EOF
+
+if review_codex_empty_output_retryable "$CODEX_EMPTY_RETRYABLE" "codex"; then
+  pass "review_run: codex Empty output with reconnect is retryable"
+else
+  fail "review_run: codex Empty output with reconnect is retryable"
+fi
+
+if review_codex_empty_output_retryable "$CODEX_EMPTY_NO_RECONNECT" "codex"; then
+  fail "review_run: codex Empty output without reconnect is not retryable"
+else
+  pass "review_run: codex Empty output without reconnect is not retryable"
+fi
+
+if review_codex_empty_output_retryable "$CODEX_EMPTY_RETRYABLE" "gemini"; then
+  fail "review_run: non-codex Empty output is not retried by codex policy"
+else
+  pass "review_run: non-codex Empty output is not retried by codex policy"
+fi
 
 # ── MCP schema ───────────────────────────────────────────────────────────────
 

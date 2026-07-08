@@ -273,6 +273,55 @@ review_run_agent_sync_progress() {
     return "$rc"
 }
 
+# review_codex_empty_output_retryable: returns true for transient Codex/Pioneer
+# review failures where the CLI exited with Empty output after reconnects. These
+# are usually provider-side transient stream/session failures rather than review
+# conclusions, so Round 1 may retry them once after backoff.
+review_codex_empty_output_retryable() {
+    local result_file="$1"
+    local agent_type="$2"
+    [[ "$agent_type" == codex* ]] || return 1
+    [[ -f "$result_file" ]] || return 1
+    grep -qE '^## Status: FAILED \(Empty output\)' "$result_file" 2>/dev/null || return 1
+    [[ $(grep -c 'Reconnecting' "$result_file" 2>/dev/null || true) -gt 0 ]] || return 1
+}
+
+# review_wait_for_result_status: waits for one result file to become terminal,
+# using the same progress-stall semantics as Round 1. No wall-clock cap.
+review_wait_for_result_status() {
+    local result_file="$1"
+    local pid="$2"
+    local label="$3"
+    local results_dir="${4:-$RESULTS_DIR}"
+    local stall_window="${5:-${OCTOPUS_REVIEW_STALL_WINDOW:-1800}}"
+    local poll_secs="${6:-${OCTOPUS_REVIEW_POLL_SECS:-30}}"
+    local poll_start last_progress last_fp current_fp
+    poll_start=$(date +%s)
+    last_progress="$poll_start"
+    last_fp=$(review_progress_fingerprint_since "$poll_start" "$results_dir")
+    while true; do
+        if [[ -f "$result_file" ]] && [[ $(grep -cE '^## Status:' "$result_file" 2>/dev/null || true) -gt 0 ]]; then
+            break
+        fi
+        current_fp=$(review_progress_fingerprint_since "$poll_start" "$results_dir")
+        if [[ "$current_fp" != "$last_fp" ]]; then
+            last_fp="$current_fp"
+            last_progress=$(date +%s)
+            log INFO "review_run: ${label} progress observed"
+        elif [[ "$stall_window" -gt 0 && $(( $(date +%s) - last_progress )) -ge "$stall_window" ]]; then
+            log WARN "review_run: ${label} stalled after ${stall_window}s — stopping retry"
+            pkill -TERM -P "$pid" 2>/dev/null || true
+            kill -TERM "$pid" 2>/dev/null || true
+            sleep 5
+            pkill -KILL -P "$pid" 2>/dev/null || true
+            kill -KILL "$pid" 2>/dev/null || true
+            break
+        fi
+        sleep "$poll_secs"
+    done
+    wait "$pid" 2>/dev/null || true
+}
+
 # review_extract_findings_array: returns a JSON array of findings from a Round 1
 # markdown result file. Providers sometimes echo the full prompt or wrap JSON in
 # prose; prefer the exact ## Output jq path, then fall back to scanning the file
@@ -717,6 +766,9 @@ CRITICAL OUTPUT FORMAT: Return ONLY a valid JSON object. No markdown, no prose, 
 
     local round1_files=()
     local round1_agent_types=()
+    local round1_roles=()
+    local round1_task_ids=()
+    local round1_prompts=()
     local round1_pids=()
 
     fleet_dispatch_begin
@@ -727,10 +779,13 @@ CRITICAL OUTPUT FORMAT: Return ONLY a valid JSON object. No markdown, no prose, 
         local result_file="${RESULTS_DIR}/${agent_type}-${task_id}.md"
         round1_files+=("$result_file")
         round1_agent_types+=("$agent_type")
+        round1_roles+=("$role")
+        round1_task_ids+=("$task_id")
 
         local agent_prompt="You are the ${role} specialist. Focus on: ${specialty}.
 
 ${agent_prompt_base}"
+        round1_prompts+=("$agent_prompt")
 
         spawn_agent "$agent_type" "$agent_prompt" "$task_id" "$role" "review" &
         round1_pids+=("$!")
@@ -777,6 +832,45 @@ ${agent_prompt_base}"
         sleep "$review_poll_secs"
     done
     for _pid in "${round1_pids[@]}"; do wait "$_pid" 2>/dev/null || true; done
+
+    # Retry transient Codex/Pioneer Empty output failures once after backoff. We
+    # only do this for Round 1 review specialists and only when the artifact shows
+    # reconnects, because provider-side 180s empty responses can be recoverable
+    # after a short pause.
+    local codex_empty_retry_max="${OCTOPUS_REVIEW_CODEX_EMPTY_RETRY_MAX:-1}"
+    local codex_empty_retry_backoff="${OCTOPUS_REVIEW_CODEX_EMPTY_RETRY_BACKOFF_SECS:-90}"
+    if [[ "$codex_empty_retry_max" -gt 0 ]]; then
+        local retry_idx=0
+        while [[ "$retry_idx" -lt "${#round1_files[@]}" ]]; do
+            local retry_file="${round1_files[$retry_idx]}"
+            local retry_agent_type="${round1_agent_types[$retry_idx]}"
+            if review_codex_empty_output_retryable "$retry_file" "$retry_agent_type"; then
+                local reconnect_count retry_role retry_task_id retry_prompt retry_result_file retry_pid archived_file
+                reconnect_count=$(grep -c 'Reconnecting' "$retry_file" 2>/dev/null || echo 0)
+                retry_role="${round1_roles[$retry_idx]}"
+                retry_task_id="${round1_task_ids[$retry_idx]}-retry1"
+                retry_result_file="${RESULTS_DIR}/${retry_agent_type}-${retry_task_id}.md"
+                archived_file="${retry_file}.attempt1"
+                mv "$retry_file" "$archived_file" 2>/dev/null || true
+                log WARN "review_run: ${retry_agent_type}/${retry_role} ended Empty output after ${reconnect_count} reconnect(s); retrying once after ${codex_empty_retry_backoff}s (artifact=$(basename "$archived_file"))"
+                sleep "$codex_empty_retry_backoff"
+                retry_prompt="RETRY NOTICE: the previous ${retry_agent_type}/${retry_role} review attempt ended with Empty output after Pioneer reconnects. Review only the supplied diff/context; do not inspect the workspace unless strictly necessary. Return ONLY the required JSON object.
+
+${round1_prompts[$retry_idx]}"
+                spawn_agent "$retry_agent_type" "$retry_prompt" "$retry_task_id" "$retry_role" "review" &
+                retry_pid="$!"
+                review_wait_for_result_status "$retry_result_file" "$retry_pid" "Round 1 ${retry_agent_type}/${retry_role} retry" "$RESULTS_DIR" "$review_stall_window" "$review_poll_secs"
+                round1_files[$retry_idx]="$retry_result_file"
+                if [[ -f "$retry_result_file" ]] && grep -qE '^## Status: SUCCESS' "$retry_result_file" 2>/dev/null; then
+                    log INFO "review_run: ${retry_agent_type}/${retry_role} retry recovered after Empty output"
+                else
+                    log WARN "review_run: ${retry_agent_type}/${retry_role} retry did not recover; continuing with partial Round 1"
+                fi
+            fi
+            ((retry_idx++)) || true
+        done
+    fi
+
     log INFO "review_run: Round 1 complete"
 
     # Collect Round 1 findings — robustly extract the last JSON object with a
