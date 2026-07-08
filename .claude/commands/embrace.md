@@ -118,7 +118,6 @@ set -euo pipefail
 
 echo "PROVIDER_CHECK_START"
 printf "codex:%s\n" "$(command -v codex >/dev/null 2>&1 && echo available || echo missing)"
-printf "gemini:%s\n" "$(command -v gemini >/dev/null 2>&1 && echo available || echo missing)"
 printf "perplexity:%s\n" "$([ -n "${PERPLEXITY_API_KEY:-}" ] && echo available || echo missing)"
 printf "opencode:%s\n" "$(command -v opencode >/dev/null 2>&1 && echo available || echo missing)"
 printf "copilot:%s\n" "$(command -v copilot >/dev/null 2>&1 && echo available || echo missing)"
@@ -135,7 +134,6 @@ Render the provider banner from actual provider checks. Do not hand-write or sum
 status_cli() { command -v "$1" >/dev/null 2>&1 && echo "Available ✓" || echo "Not installed ✗"; }
 status_env() { [[ -n "${1:-}" ]] && echo "Configured ✓" || echo "Not configured ✗"; }
 codex_status="$(status_cli codex)"
-gemini_status="$(status_cli gemini)"
 agy_status="$(status_cli agy)"
 opencode_status="$(status_cli opencode)"
 copilot_status="$(status_cli copilot)"
@@ -150,7 +148,6 @@ Phases: 🔍 Discover → 🎯 Define → 🛠️ Develop → ✅ Deliver
 
 Provider Availability:
 🔴 Codex CLI: ${codex_status}
-🟡 Gemini CLI: ${gemini_status}
 🧭 Antigravity CLI: ${agy_status}
 🟤 OpenCode: ${opencode_status}
 🟢 Copilot CLI: ${copilot_status}
@@ -171,7 +168,6 @@ Phases: 🔍 Discover → 🎯 Define → 🛠️ Develop → ✅ Deliver
 
 Provider Availability:
 🔴 Codex CLI: [Available ✓ / Not installed ✗]
-🟡 Gemini CLI: [Available ✓ / Not installed ✗]
 🧭 Antigravity CLI: [Available ✓ / Not installed ✗]
 🟤 OpenCode: [Available ✓ / Not installed ✗]
 🟢 Copilot CLI: [Available ✓ / Not installed ✗]
@@ -187,7 +183,7 @@ Scope: [answer]  Focus: [answer]  Autonomy: [answer]
 
 **CRITICAL: Each phase MUST run through `orchestrate.sh`. Do not invoke `/octo:discover`, `/octo:define`, `/octo:develop`, or `/octo:deliver` via Skill calls inside this command; direct phase dispatch prevents recursive command loading.**
 
-**CRITICAL: Run every orchestrate.sh command from the user's project directory. Do NOT `cd` into the plugin first — dispatched providers (codex workdir, gemini workspace) sandbox themselves to the invoking directory, and a plugin cwd makes every provider unable to read the user's project files. If the prompt references files outside the project (e.g. /tmp), pass `-d <dir>` or set `OCTOPUS_GEMINI_INCLUDE_DIRS`.**
+**CRITICAL: Run every orchestrate.sh command from the user's project directory. Do NOT `cd` into the plugin first — dispatched providers (codex workdir, agy workspace) sandbox themselves to the invoking directory, and a plugin cwd makes every provider unable to read the user's project files. If the prompt references files outside the project (e.g. /tmp), pass `-d <dir>` or set `OCTOPUS_AGY_INCLUDE_DIRS`.**
 
 ### Phase 1 — Discover
 
@@ -197,7 +193,7 @@ Run the Discover phase via orchestrate.sh:
 bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" probe <user's prompt>
 ```
 
-This will dispatch to Codex, Gemini, and other available providers. Results saved to `~/.claude-octopus/results/probe-synthesis-*.md`.
+This will dispatch to Codex, Antigravity, and other available providers. Results saved to `~/.claude-octopus/results/probe-synthesis-*.md`.
 
 **Supervised mode:** After Discover completes, present key findings and ask to proceed.
 **Semi-autonomous/Autonomous:** Proceed automatically.

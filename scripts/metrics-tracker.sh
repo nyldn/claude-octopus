@@ -176,12 +176,6 @@ get_model_cost() {
         gpt-5*)                 echo "3.00" ;;
         gpt-4*)                 echo "3.00" ;;
 
-        # Gemini models (rough estimates)
-        gemini-2.0-pro*)        echo "2.50" ;;
-        gemini-2.0-flash*)      echo "0.30" ;;
-        gemini-3-pro*)          echo "3.00" ;;
-        gemini-3-flash*)        echo "0.25" ;;
-
         # Default
         *)                      echo "1.00" ;;
     esac
@@ -287,12 +281,12 @@ display_provider_breakdown() {
         echo "  🔴 Codex:  ${codex_tokens} tokens (\$${codex_cost})"
     fi
 
-    # Gemini
-    local gemini_data=$(jq '.phases[] | select(.agent | startswith("gemini"))' "$metrics_file")
-    if [[ -n "$gemini_data" ]]; then
-        local gemini_tokens=$(echo "$gemini_data" | jq -s 'map(.estimated_tokens) | add // 0')
-        local gemini_cost=$(echo "$gemini_data" | jq -s 'map(.estimated_cost_usd) | add // 0')
-        echo "  🟡 Gemini: ${gemini_tokens} tokens (\$${gemini_cost})"
+    # Antigravity (agy)
+    local agy_data=$(jq '.phases[] | select(.agent | startswith("agy") or . == "antigravity")' "$metrics_file")
+    if [[ -n "$agy_data" ]]; then
+        local agy_tokens=$(echo "$agy_data" | jq -s 'map(.estimated_tokens) | add // 0')
+        local agy_cost=$(echo "$agy_data" | jq -s 'map(.estimated_cost_usd) | add // 0')
+        echo "  🧭 Antigravity: ${agy_tokens} tokens (\$${agy_cost})"
     fi
 
     # Claude (if any)
@@ -404,7 +398,6 @@ display_per_phase_cost_table() {
         local provider_label
         case "$agent" in
             codex*) provider_label="🔴 codex" ;;
-            gemini*) provider_label="🟡 gemini" ;;
             agy*|antigravity) provider_label="🧭 agy" ;;
             claude*) provider_label="🔵 claude" ;;
             *) provider_label="   $agent" ;;

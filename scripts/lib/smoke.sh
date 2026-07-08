@@ -17,12 +17,6 @@ PROVIDER_CODEX_TIER="free"
 PROVIDER_CODEX_COST_TIER="free"
 PROVIDER_CODEX_PRIORITY=2
 
-PROVIDER_GEMINI_INSTALLED="false"
-PROVIDER_GEMINI_AUTH_METHOD="none"
-PROVIDER_GEMINI_TIER="free"
-PROVIDER_GEMINI_COST_TIER="free"
-PROVIDER_GEMINI_PRIORITY=3
-
 PROVIDER_AGY_INSTALLED="false"
 PROVIDER_AGY_AUTH_METHOD="none"
 PROVIDER_AGY_TIER="subscription"
@@ -66,9 +60,6 @@ get_provider_capabilities() {
         codex)
             echo "code,chat,review"
             ;;
-        gemini)
-            echo "code,chat,vision,long-context,analysis"
-            ;;
         agy)
             echo "code,chat,analysis"
             ;;
@@ -93,12 +84,6 @@ get_provider_context_limit() {
     local tier="$2"
 
     case "$provider:$tier" in
-        gemini:workspace|gemini:api-only)
-            echo "2000000"  # 2M context
-            ;;
-        gemini:*)
-            echo "1000000"  # 1M for free/google-one
-            ;;
         agy:*)
             echo "200000"  # Varies by selected Antigravity backend model
             ;;
@@ -155,7 +140,7 @@ load_providers_config() {
         [[ -z "${line// }" ]] && continue
 
         # Detect provider section headers (e.g., "  codex:")
-        if [[ "$line" =~ ^[[:space:]]*(codex|gemini|claude|opencode|openrouter): ]]; then
+        if [[ "$line" =~ ^[[:space:]]*(codex|claude|opencode|openrouter): ]]; then
             current_provider="${BASH_REMATCH[1]}"
             continue
         fi
@@ -183,15 +168,6 @@ load_providers_config() {
                         subscription_tier) PROVIDER_CODEX_TIER="$value" ;;
                         cost_tier) PROVIDER_CODEX_COST_TIER="$value" ;;
                         priority) PROVIDER_CODEX_PRIORITY="$value" ;;
-                    esac
-                    ;;
-                gemini)
-                    case "$key" in
-                        installed) PROVIDER_GEMINI_INSTALLED="$value" ;;
-                        auth_method) PROVIDER_GEMINI_AUTH_METHOD="$value" ;;
-                        subscription_tier) PROVIDER_GEMINI_TIER="$value" ;;
-                        cost_tier) PROVIDER_GEMINI_COST_TIER="$value" ;;
-                        priority) PROVIDER_GEMINI_PRIORITY="$value" ;;
                     esac
                     ;;
                 agy)
@@ -245,12 +221,6 @@ load_providers_config() {
     PROVIDER_CODEX_COST_TIER="${PROVIDER_CODEX_COST_TIER:-free}"
     PROVIDER_CODEX_PRIORITY="${PROVIDER_CODEX_PRIORITY:-2}"
 
-    PROVIDER_GEMINI_INSTALLED="${PROVIDER_GEMINI_INSTALLED:-false}"
-    PROVIDER_GEMINI_AUTH_METHOD="${PROVIDER_GEMINI_AUTH_METHOD:-none}"
-    PROVIDER_GEMINI_TIER="${PROVIDER_GEMINI_TIER:-free}"
-    PROVIDER_GEMINI_COST_TIER="${PROVIDER_GEMINI_COST_TIER:-free}"
-    PROVIDER_GEMINI_PRIORITY="${PROVIDER_GEMINI_PRIORITY:-3}"
-
     PROVIDER_AGY_INSTALLED="${PROVIDER_AGY_INSTALLED:-false}"
     PROVIDER_AGY_AUTH_METHOD="${PROVIDER_AGY_AUTH_METHOD:-none}"
     PROVIDER_AGY_TIER="${PROVIDER_AGY_TIER:-subscription}"
@@ -282,7 +252,7 @@ load_providers_config() {
 
     COST_OPTIMIZATION_STRATEGY="${COST_OPTIMIZATION_STRATEGY:-balanced}"
 
-    [[ "$VERBOSE" == "true" ]] && log DEBUG "Loaded providers config: codex=$PROVIDER_CODEX_TIER, gemini=$PROVIDER_GEMINI_TIER, strategy=$COST_OPTIMIZATION_STRATEGY" || true
+    [[ "$VERBOSE" == "true" ]] && log DEBUG "Loaded providers config: codex=$PROVIDER_CODEX_TIER, strategy=$COST_OPTIMIZATION_STRATEGY" || true
 }
 
 # Auto-detect provider configuration from installed CLIs and auth
@@ -302,13 +272,6 @@ auto_detect_provider_config() {
                 # Detect tier via API test or fallback to auth-based default
                 PROVIDER_CODEX_TIER=$(detect_tier_openai "$auth")
                 PROVIDER_CODEX_COST_TIER=$(get_cost_tier_for_subscription "codex" "$PROVIDER_CODEX_TIER")
-                ;;
-            gemini)
-                PROVIDER_GEMINI_INSTALLED="true"
-                PROVIDER_GEMINI_AUTH_METHOD="$auth"
-                # Detect tier via workspace check or fallback to auth-based default
-                PROVIDER_GEMINI_TIER=$(detect_tier_gemini "$auth")
-                PROVIDER_GEMINI_COST_TIER=$(get_cost_tier_for_subscription "gemini" "$PROVIDER_GEMINI_TIER")
                 ;;
             agy)
                 PROVIDER_AGY_INSTALLED="true"
@@ -487,49 +450,6 @@ detect_tier_openai() {
     return 0
 }
 
-# Detect Gemini subscription tier via workspace domain check
-detect_tier_gemini() {
-    local auth_method="$1"
-    local fallback_tier="api-only"
-
-    # Check cache first
-    if tier_cache_valid "gemini"; then
-        local cached_tier
-        cached_tier=$(tier_cache_read "gemini")
-        if [[ -n "$cached_tier" ]]; then
-            [[ "$VERBOSE" == "true" ]] && log DEBUG "Using cached Gemini tier: $cached_tier" || true
-            echo "$cached_tier"
-            return 0
-        fi
-    fi
-
-    # Set fallback based on auth method
-    if [[ "$auth_method" == "oauth" ]]; then
-        fallback_tier="free"
-    fi
-
-    # Attempt workspace detection from OAuth settings
-    if [[ -f "$HOME/.gemini/settings.json" ]]; then
-        local settings_content
-        settings_content=$(cat "$HOME/.gemini/settings.json" 2>/dev/null || echo "")
-
-        # Check for workspace domain (non-gmail email suggests workspace)
-        if [[ "$settings_content" =~ \"email\":\"[^\"]+@([^\"]+)\" ]]; then
-            local domain="${BASH_REMATCH[1]}"
-            if [[ "$domain" != "gmail.com" && "$domain" != "googlemail.com" ]]; then
-                tier_cache_write "gemini" "workspace"
-                echo "workspace"
-                return 0
-            fi
-        fi
-    fi
-
-    # Default fallback
-    tier_cache_write "gemini" "$fallback_tier"
-    echo "$fallback_tier"
-    return 0
-}
-
 # Detect Claude subscription tier (defaults to pro for Claude Code users)
 detect_tier_claude() {
     # Check cache first
@@ -597,13 +517,6 @@ providers:
     cost_tier: "$PROVIDER_CODEX_COST_TIER"
     priority: $PROVIDER_CODEX_PRIORITY
 
-  gemini:
-    installed: $PROVIDER_GEMINI_INSTALLED
-    auth_method: "$PROVIDER_GEMINI_AUTH_METHOD"
-    subscription_tier: "$PROVIDER_GEMINI_TIER"
-    cost_tier: "$PROVIDER_GEMINI_COST_TIER"
-    priority: $PROVIDER_GEMINI_PRIORITY
-
   agy:
     installed: $PROVIDER_AGY_INSTALLED
     auth_method: "$PROVIDER_AGY_AUTH_METHOD"
@@ -659,12 +572,6 @@ score_provider() {
             cost_tier="$PROVIDER_CODEX_COST_TIER"
             sub_tier="$PROVIDER_CODEX_TIER"
             priority="$PROVIDER_CODEX_PRIORITY"
-            ;;
-        gemini)
-            [[ "$PROVIDER_GEMINI_INSTALLED" == "true" && "$PROVIDER_GEMINI_AUTH_METHOD" != "none" ]] && is_available="true"
-            cost_tier="$PROVIDER_GEMINI_COST_TIER"
-            sub_tier="$PROVIDER_GEMINI_TIER"
-            priority="$PROVIDER_GEMINI_PRIORITY"
             ;;
         agy)
             [[ "$PROVIDER_AGY_INSTALLED" == "true" && "$PROVIDER_AGY_AUTH_METHOD" != "none" ]] && is_available="true"
@@ -792,7 +699,7 @@ score_provider() {
 }
 
 # Select best provider for a task using scoring
-# Returns: provider name (codex, gemini, claude, openrouter)
+# Returns: provider name (codex, claude, openrouter)
 select_provider() {
     local task_type="$1"
     local complexity="${2:-2}"
@@ -809,7 +716,7 @@ select_provider() {
     local best_provider=""
     local best_score=-1
 
-    for provider in codex gemini agy claude opencode openrouter; do
+    for provider in codex agy claude opencode openrouter; do
         local score
         score=$(score_provider "$provider" "$task_type" "$complexity")
 
@@ -825,8 +732,6 @@ select_provider() {
         # No suitable provider found, return first available
         if [[ "$PROVIDER_CODEX_INSTALLED" == "true" && "$PROVIDER_CODEX_AUTH_METHOD" != "none" ]]; then
             echo "codex"
-        elif [[ "$PROVIDER_GEMINI_INSTALLED" == "true" && "$PROVIDER_GEMINI_AUTH_METHOD" != "none" ]]; then
-            echo "gemini"
         elif [[ "$PROVIDER_AGY_INSTALLED" == "true" && "$PROVIDER_AGY_AUTH_METHOD" != "none" ]]; then
             echo "agy"
         elif [[ "$PROVIDER_OPENROUTER_ENABLED" == "true" ]]; then
@@ -853,11 +758,6 @@ show_provider_status() {
     local codex_status="${RED}✗${NC}"
     [[ "$PROVIDER_CODEX_INSTALLED" == "true" && "$PROVIDER_CODEX_AUTH_METHOD" != "none" ]] && codex_status="${GREEN}✓${NC}"
     echo -e "${CYAN}║${NC}  Codex/OpenAI:   $codex_status  [$PROVIDER_CODEX_AUTH_METHOD]  $PROVIDER_CODEX_TIER ($PROVIDER_CODEX_COST_TIER)  ${CYAN}║${NC}"
-
-    # Gemini
-    local gemini_status="${RED}✗${NC}"
-    [[ "$PROVIDER_GEMINI_INSTALLED" == "true" && "$PROVIDER_GEMINI_AUTH_METHOD" != "none" ]] && gemini_status="${GREEN}✓${NC}"
-    echo -e "${CYAN}║${NC}  Gemini:         $gemini_status  [$PROVIDER_GEMINI_AUTH_METHOD]  $PROVIDER_GEMINI_TIER ($PROVIDER_GEMINI_COST_TIER)  ${CYAN}║${NC}"
 
     # Antigravity
     local agy_status="${RED}✗${NC}"
@@ -921,9 +821,8 @@ SMOKE_TEST_CACHE_FILE="${WORKSPACE_DIR:-$HOME/.claude-octopus}/.smoke-test-cache
 
 # Compute cache key from current model config (auto-invalidates on config change)
 smoke_test_cache_key() {
-    local codex_model gemini_model cursor_agent_model cursor_agent_state codex_sandbox gemini_sandbox
+    local codex_model cursor_agent_model cursor_agent_state codex_sandbox
     codex_model=$(get_agent_model "codex" 2>/dev/null || echo "default")
-    gemini_model=$(get_agent_model "gemini" 2>/dev/null || echo "default")
     cursor_agent_model=$(get_agent_model "cursor-agent" 2>/dev/null || echo "${OCTOPUS_CURSOR_AGENT_MODEL:-grok-4-20}")
     if [[ -n "${CURSOR_API_KEY:-}" ]]; then
         cursor_agent_state="env:CURSOR_API_KEY"
@@ -933,8 +832,7 @@ smoke_test_cache_key() {
         cursor_agent_state="none"
     fi
     codex_sandbox="${OCTOPUS_CODEX_SANDBOX:-workspace-write}"
-    gemini_sandbox="${OCTOPUS_GEMINI_SANDBOX:-headless}"
-    echo "${codex_model}:${gemini_model}:${cursor_agent_model}:${cursor_agent_state}:${codex_sandbox}:${gemini_sandbox}"
+    echo "${codex_model}:${cursor_agent_model}:${cursor_agent_state}:${codex_sandbox}"
 }
 
 # Check if smoke test cache is still valid (same config, within TTL)
@@ -1003,22 +901,18 @@ _display_smoke_test_error() {
     case "$error_type" in
         MODEL_NOT_FOUND)
             echo -e "  ${RED}✗${NC} ${provider}: Model '${model}' not available"
-            if [[ "$provider" == "codex" ]]; then
-                echo -e "    ${DIM}Fix: export OCTOPUS_CODEX_MODEL=gpt-5.5${NC}"
-            elif [[ "$provider" == "cursor" || "$provider" == "cursor-agent" || "$provider" == "Cursor Agent" ]]; then
+            if [[ "$provider" == "cursor" || "$provider" == "cursor-agent" || "$provider" == "Cursor Agent" ]]; then
                 echo -e "    ${DIM}Fix: export OCTOPUS_CURSOR_AGENT_MODEL=grok-4-20${NC}"
             else
-                echo -e "    ${DIM}Fix: export OCTOPUS_GEMINI_MODEL=gemini-3.1-pro-preview${NC}"
+                echo -e "    ${DIM}Fix: export OCTOPUS_CODEX_MODEL=gpt-5.5${NC}"
             fi
             ;;
         AUTH_FAILURE)
             echo -e "  ${RED}✗${NC} ${provider}: Authentication failed"
-            if [[ "$provider" == "codex" ]]; then
-                echo -e "    ${DIM}Fix: codex login  OR  export OPENAI_API_KEY=\"sk-...\"${NC}"
-            elif [[ "$provider" == "cursor" || "$provider" == "cursor-agent" || "$provider" == "Cursor Agent" ]]; then
+            if [[ "$provider" == "cursor" || "$provider" == "cursor-agent" || "$provider" == "Cursor Agent" ]]; then
                 echo -e "    ${DIM}Fix: agent login  OR  export CURSOR_API_KEY=\"...\"${NC}"
             else
-                echo -e "    ${DIM}Fix: gemini  (OAuth)  OR  export GEMINI_API_KEY=\"...\"${NC}"
+                echo -e "    ${DIM}Fix: codex login  OR  export OPENAI_API_KEY=\"sk-...\"${NC}"
             fi
             ;;
         RATE_LIMITED)
@@ -1026,11 +920,7 @@ _display_smoke_test_error() {
             ;;
         POLICY_BLOCKED)
             echo -e "  ${RED}✗${NC} ${provider}: Request blocked by policy"
-            if [[ "$provider" == "gemini" ]]; then
-                echo -e "    ${DIM}Fix: Check Gemini safety settings / API restrictions${NC}"
-            else
-                echo -e "    ${DIM}Fix: Check OpenAI usage policy / content filter settings${NC}"
-            fi
+            echo -e "    ${DIM}Fix: Check OpenAI usage policy / content filter settings${NC}"
             ;;
         TIMEOUT)
             echo -e "  ${YELLOW}⚠${NC} ${provider}: Smoke test timed out. Provider may be slow or down."
@@ -1056,7 +946,6 @@ _smoke_test_provider() {
     # Determine agent type and get model
     case "$provider" in
         codex) agent_type="codex" ;;
-        gemini) agent_type="gemini" ;;
         cursor-agent) agent_type="cursor-agent" ;;
         *) echo "SKIP" > "$result_file"; return 0 ;;
     esac
@@ -1089,11 +978,6 @@ _smoke_test_provider() {
             >/dev/null 2>"$stderr_file" || smoke_exit=$?
         popd >/dev/null 2>&1
         rm -rf "$smoke_dir" 2>/dev/null
-    elif [[ "$provider" == "gemini" ]]; then
-        # Gemini: prompt via stdin with -p "" for headless trigger
-        echo "Reply with exactly: ok" | run_with_timeout "$smoke_timeout" \
-            $cmd_str -p "" \
-            >/dev/null 2>"$stderr_file" || smoke_exit=$?
     elif [[ "$provider" == "cursor-agent" ]]; then
         # --trust required for untrusted workspaces; matches cursor-agent.sh:143 dispatch path
         echo "Reply with exactly: ok" | run_with_timeout "$smoke_timeout" \
@@ -1147,23 +1031,21 @@ provider_smoke_test() {
     log INFO "Running provider smoke test... 🐙"
 
     # Determine which providers are available (from preflight state)
-    local has_codex=false has_gemini=false has_cursor_agent=false
+    local has_codex=false has_cursor_agent=false
     command -v codex &>/dev/null && has_codex=true
-    command -v gemini &>/dev/null && has_gemini=true
     if command -v agent &>/dev/null && _is_cursor_agent_binary && \
        { [[ -n "${CURSOR_API_KEY:-}" ]] || grep -Eq '"authInfo"[[:space:]]*:[[:space:]]*\{' "${HOME}/.cursor/cli-config.json" 2>/dev/null; }; then
         has_cursor_agent=true
     fi
 
-    if [[ "$has_codex" == "false" && "$has_gemini" == "false" && "$has_cursor_agent" == "false" ]]; then
+    if [[ "$has_codex" == "false" && "$has_cursor_agent" == "false" ]]; then
         log WARN "Smoke test: no providers to test"
         return 0
     fi
 
     # Launch parallel smoke tests
-    local codex_result_file gemini_result_file cursor_agent_result_file
+    local codex_result_file cursor_agent_result_file
     codex_result_file=$(secure_tempfile "smoke-codex")
-    gemini_result_file=$(secure_tempfile "smoke-gemini")
     cursor_agent_result_file=$(secure_tempfile "smoke-cursor-agent")
     local pids=()
 
@@ -1172,13 +1054,6 @@ provider_smoke_test() {
         pids+=($!)
     else
         echo "SKIP" > "$codex_result_file"
-    fi
-
-    if [[ "$has_gemini" == "true" ]]; then
-        _smoke_test_provider "gemini" "${OCTOPUS_GEMINI_SMOKE_TIMEOUT:-30}" "$gemini_result_file" &
-        pids+=($!)
-    else
-        echo "SKIP" > "$gemini_result_file"
     fi
 
     if [[ "$has_cursor_agent" == "true" ]]; then
@@ -1194,15 +1069,14 @@ provider_smoke_test() {
     done
 
     # Collect results
-    local codex_result gemini_result cursor_agent_result
+    local codex_result cursor_agent_result
     codex_result=$(cat "$codex_result_file" 2>/dev/null || echo "SKIP")
-    gemini_result=$(cat "$gemini_result_file" 2>/dev/null || echo "SKIP")
     cursor_agent_result=$(cat "$cursor_agent_result_file" 2>/dev/null || echo "SKIP")
-    rm -f "$codex_result_file" "$gemini_result_file" "$cursor_agent_result_file" 2>/dev/null
+    rm -f "$codex_result_file" "$cursor_agent_result_file" 2>/dev/null
 
     local pass_count=0 fail_count=0 skip_count=0
 
-    for result in "$codex_result" "$gemini_result" "$cursor_agent_result"; do
+    for result in "$codex_result" "$cursor_agent_result"; do
         case "${result%%:*}" in
             PASS) ((++pass_count)) ;;
             SKIP) ((++skip_count)) ;;
@@ -1217,11 +1091,6 @@ provider_smoke_test() {
             local codex_error="${codex_result%%:*}"
             local codex_model="${codex_result#*:}"
             _display_smoke_test_error "Codex" "$codex_error" "$codex_model"
-        fi
-        if [[ "$gemini_result" != "PASS" && "$gemini_result" != "SKIP" ]]; then
-            local gemini_error="${gemini_result%%:*}"
-            local gemini_model="${gemini_result#*:}"
-            _display_smoke_test_error "Gemini" "$gemini_error" "$gemini_model"
         fi
         if [[ "$cursor_agent_result" != "PASS" && "$cursor_agent_result" != "SKIP" ]]; then
             local cursor_agent_error="${cursor_agent_result%%:*}"

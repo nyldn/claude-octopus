@@ -98,14 +98,14 @@ When Copilot is active in a multi-provider workflow:
 ```
 Providers:
 🔴 Codex CLI - Implementation
-🟡 Gemini CLI - Security review
+🧭 Antigravity CLI - Security review
 🟢 Copilot CLI - Research perspective
 🔵 Claude - Synthesis
 ```
 
 Indicator legend:
 - 🔴 = Codex CLI
-- 🟡 = Gemini CLI
+- 🧭 = Antigravity CLI
 - 🟢 = Copilot CLI
 - 🟣 = Perplexity
 - 🔵 = Claude
@@ -147,7 +147,7 @@ When missing: `ℹ Copilot CLI not installed (optional)`
 
 Providers:
 🔴 Codex CLI - Technical implementation analysis
-🟡 Gemini CLI - Ecosystem research
+🧭 Antigravity CLI - Ecosystem research
 🟢 Copilot CLI - Research perspective
 🔵 Claude - Strategic synthesis
 ```
@@ -160,7 +160,7 @@ Providers:
 
 Providers:
 🔴 Codex CLI - Technical implementation analysis
-🟡 Gemini CLI - Ecosystem research
+🧭 Antigravity CLI - Ecosystem research
 🔵 Claude - Strategic synthesis
 ```
 

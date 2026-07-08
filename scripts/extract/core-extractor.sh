@@ -147,19 +147,12 @@ parse_args() {
 # Check if multi-AI providers are available
 check_multi_ai_availability() {
   local codex_available=false
-  local gemini_available=false
 
   if command -v codex &> /dev/null; then
     codex_available=true
   fi
 
-  if command -v gemini &> /dev/null; then
-    gemini_available=true
-  fi
-
-  if [[ "${codex_available}" == "true" ]] && [[ "${gemini_available}" == "true" ]]; then
-    echo "both"
-  elif [[ "${codex_available}" == "true" ]] || [[ "${gemini_available}" == "true" ]]; then
+  if [[ "${codex_available}" == "true" ]]; then
     echo "partial"
   else
     echo "none"
@@ -258,7 +251,7 @@ main() {
   if [[ "${MULTI_AI}" == "auto" ]]; then
     if [[ "${multi_ai_availability}" == "none" ]]; then
       log_warning "Multi-AI providers not detected. Running in single-provider mode."
-      log_warning "For best results, run '/octo:setup' to configure Codex and Gemini."
+      log_warning "For best results, run '/octo:setup' to configure Codex."
       MULTI_AI="false"
     else
       MULTI_AI="true"

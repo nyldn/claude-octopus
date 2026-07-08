@@ -28,7 +28,6 @@ When the user invokes this command (e.g., `/octo:review <arguments>`):
 ```bash
 echo "PROVIDER_CHECK_START"
 printf "codex:%s\n" "$(command -v codex >/dev/null 2>&1 && echo available || echo missing)"
-printf "gemini:%s\n" "$(command -v gemini >/dev/null 2>&1 && echo available || echo missing)"
 printf "agy:%s\n" "$(command -v agy >/dev/null 2>&1 && echo available || echo missing)"
 printf "perplexity:%s\n" "$([ -n "${PERPLEXITY_API_KEY:-}" ] && echo available || echo missing)"
 printf "opencode:%s\n" "$(command -v opencode >/dev/null 2>&1 && echo available || echo missing)"
@@ -51,7 +50,6 @@ status_env() {
 }
 
 codex_status="$(status_cli codex)"
-gemini_status="$(status_cli gemini)"
 agy_status="$(status_cli agy)"
 opencode_status="$(status_cli opencode)"
 copilot_status="$(status_cli copilot)"
@@ -68,7 +66,6 @@ cat <<BANNER
 
 Providers:
 🔴 Codex CLI: ${codex_status}
-🟡 Gemini CLI: ${gemini_status}
 🧭 Antigravity CLI: ${agy_status}
 🟤 OpenCode: ${opencode_status}
 🟢 Copilot CLI: ${copilot_status}
@@ -86,7 +83,6 @@ The rendered banner must look like this shape, with ACTUAL statuses:
 
 Providers:
 🔴 Codex CLI: [Available ✓ / Not installed ✗]
-🟡 Gemini CLI: [Available ✓ / Not installed ✗]
 🧭 Antigravity CLI: [Available ✓ / Not installed ✗]
 🟤 OpenCode: [Available ✓ / Not installed ✗]
 🟢 Copilot CLI: [Available ✓ / Not installed ✗]
@@ -229,9 +225,9 @@ If a project already has `graphify-out/GRAPH_REPORT.md`, `/octo:review` also pas
 ## What `/octo:review` checks
 
 - Correctness: logic bugs, edge cases, regressions, unreachable code
-- Security: OWASP Top 10, injection, auth flaws, data exposure (Gemini specialist)
+- Security: OWASP Top 10, injection, auth flaws, data exposure (Antigravity specialist)
 - Architecture: API contracts, integration issues, breaking changes (Claude specialist)
-- CVE lookup: known vulnerabilities in dependencies (Perplexity → Gemini → Claude WebSearch)
+- CVE lookup: known vulnerabilities in dependencies (Perplexity → Antigravity → Claude WebSearch)
 - TDD compliance and test-first evidence (when provenance is AI-assisted/autonomous)
 - Autonomous codegen risk: placeholder logic, unwired code, speculative abstractions
 

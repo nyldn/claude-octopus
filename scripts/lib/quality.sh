@@ -457,9 +457,9 @@ Be concise and specific. This is a planning exercise, not implementation."
 
     # Gather approaches from available providers. Keep these configurable so
     # operators can pick cheaper/faster review models without patching code.
-    local codex_approach="" gemini_approach="" sonnet_approach=""
+    local codex_approach="" agy_approach="" sonnet_approach=""
     local design_codex_agent="${OCTOPUS_DESIGN_REVIEW_CODEX_AGENT:-codex-mini}"
-    local design_agy_agent="${OCTOPUS_DESIGN_REVIEW_AGY_AGENT:-${OCTOPUS_DESIGN_REVIEW_GEMINI_AGENT:-agy}}"
+    local design_agy_agent="${OCTOPUS_DESIGN_REVIEW_AGY_AGENT:-agy}"
     local design_claude_agent="${OCTOPUS_DESIGN_REVIEW_CLAUDE_AGENT:-claude-sonnet}"
     local design_synthesis_agent="${OCTOPUS_DESIGN_REVIEW_SYNTH_AGENT:-claude-opus}"
     local design_timeout="${OCTOPUS_DESIGN_REVIEW_TIMEOUT:-120}"
@@ -477,7 +477,7 @@ Be concise and specific. This is a planning exercise, not implementation."
     log INFO "Design review agents: codex=${design_codex_agent}, agy=${design_agy_agent}, claude=${design_claude_agent}, synthesis=${design_synthesis_agent}, timeout=${design_timeout}s, synth_timeout=${design_synth_timeout}s"
 
     codex_approach=$(run_agent_sync "$design_codex_agent" "$ceremony_prompt" "$design_timeout" "implementer" "ceremony" 2>/dev/null) || true
-    gemini_approach=$(run_agent_sync "$design_agy_agent" "$ceremony_prompt" "$design_timeout" "researcher" "ceremony" 2>/dev/null) || true
+    agy_approach=$(run_agent_sync "$design_agy_agent" "$ceremony_prompt" "$design_timeout" "researcher" "ceremony" 2>/dev/null) || true
     sonnet_approach=$(run_agent_sync "$design_claude_agent" "$ceremony_prompt" "$design_timeout" "code-reviewer" "ceremony" 2>/dev/null) || true
 
     # Synthesize conflicts and resolution
@@ -489,8 +489,8 @@ Three providers stated their approach to this task:
 CODEX APPROACH:
 ${codex_approach:-[unavailable]}
 
-GEMINI APPROACH:
-${gemini_approach:-[unavailable]}
+ANTIGRAVITY APPROACH:
+${agy_approach:-[unavailable]}
 
 SONNET APPROACH:
 ${sonnet_approach:-[unavailable]}

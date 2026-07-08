@@ -41,7 +41,7 @@ done
 
 # ── Provider detection for all 4 providers ──────────────────────────────────
 
-for provider in codex gemini claude perplexity; do
+for provider in codex agy claude perplexity; do
     if grep -q "${provider}" <<< "$INIT_BLOCK"; then
         pass "init-workflow detects $provider provider"
     else

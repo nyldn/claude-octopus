@@ -205,7 +205,7 @@ Recommended Council
 
 Chair: strategy-analyst via Claude Sonnet/Opus
 Architect: backend-architect via Codex
-Skeptic: security-auditor via Claude/Gemini
+Skeptic: security-auditor via Claude/Antigravity
 Implementer: typescript-pro via Codex
 Verifier: code-reviewer via Codex Spark or Claude
 
@@ -506,7 +506,7 @@ Useful flags:
 --worktree auto|on|off
 --benchmark auto|on|off
 --providers auto
---providers claude,codex,gemini,opencode,openrouter
+--providers claude,codex,agy,opencode,openrouter
 --max-cost <usd>
 --dry-run
 --json
@@ -555,7 +555,7 @@ Requirements:
 Read-only and environment enforcement:
 
 - Codex council advice/decision dispatches use `OCTOPUS_CODEX_SANDBOX=read-only`.
-- Gemini council advice/decision dispatches use the safest configured headless mode and receive no file paths unless file context is explicitly selected.
+- Antigravity (`agy`) council advice/decision dispatches use the safest configured headless mode and receive no file paths unless file context is explicitly selected.
 - Octopus may set sandbox/security vars internally for outbound dispatch, such as `OCTOPUS_CODEX_SANDBOX=read-only`, but it strips those same vars from forwarded caller environments.
 - Council code must reuse the MCP server's `BLOCKED_ENV_VARS` list and must not forward `OCTOPUS_SECURITY_V870`, `OCTOPUS_GEMINI_SANDBOX`, `OCTOPUS_CODEX_SANDBOX`, or `CLAUDE_OCTOPUS_AUTONOMY` from untrusted caller environments.
 - Provider credentials are forwarded only through existing allowlist behavior; they are never written to council artifacts.

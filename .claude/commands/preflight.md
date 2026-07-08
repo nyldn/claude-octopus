@@ -18,7 +18,6 @@ Use this before `/octo:embrace`, `/octo:research`, or `/octo:council` to confirm
 **Common issues:**
 - `Ollama` shows unavailable → start it with `ollama serve`
 - `Codex CLI` unavailable → run `codex login` or `npm install -g @openai/codex`
-- `Gemini CLI` unavailable → run `gemini auth login` or `npm install -g @google/gemini-cli`
-- `Antigravity CLI` unavailable → verify `agy` is on PATH, then run `agy login` or reinstall Antigravity CLI
+- `Antigravity CLI` unavailable → verify `agy` is on PATH, then run `agy login`, or install with `curl -fsSL https://antigravity.google/cli/install.sh | bash`
 
 Run `/octo:setup` to install or configure any missing provider.

@@ -25,7 +25,7 @@ fi
 
 test_case "discover skill requires dynamic multi-provider fleet"
 discover_skill="$(<"$(resolve_claude_skill_path "flow-discover")")"
-if [[ "$discover_skill" == *"build-fleet.sh"* && "$discover_skill" == *"codex, gemini, agy, copilot, qwen, opencode"* ]]; then
+if [[ "$discover_skill" == *"build-fleet.sh"* && "$discover_skill" == *"codex, agy, copilot, qwen, opencode"* ]]; then
     test_pass
 else
     test_fail "expected dynamic provider fleet instructions"

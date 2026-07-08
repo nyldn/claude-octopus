@@ -174,7 +174,7 @@ ${YELLOW}Options:${NC}
   --implement never|after-approval|plan-only
   --worktree auto|on|off
   --benchmark auto|on|off
-  --providers auto|claude,codex,gemini,opencode,openrouter
+  --providers auto|claude,codex,agy,opencode,openrouter
   --max-cost <usd>
   --dry-run
   --json

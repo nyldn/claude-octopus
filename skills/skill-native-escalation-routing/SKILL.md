@@ -34,7 +34,7 @@ Prefer Claude-native behavior when all of the following are true:
 
 - the request maps directly to init, review, or security review
 - the user did not ask for multiple model opinions
-- the user did not ask for Codex, Gemini, or another provider explicitly
+- the user did not ask for Codex, Antigravity, or another provider explicitly
 - the task does not require adversarial debate, consensus scoring, or external-provider specialization
 
 Examples:
@@ -57,7 +57,7 @@ Escalate when the user asks for or clearly benefits from:
 Examples:
 
 - "get multiple model opinions on this PR"
-- "have Codex, Gemini, and Antigravity review this architecture"
+- "have Codex and Antigravity review this architecture"
 - "do an adversarial security review"
 - "verify this AI-generated implementation before merge"
 

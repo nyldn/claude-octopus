@@ -217,14 +217,14 @@ test_council_provider_fixture_records_status() {
     local tmp_dir
     tmp_dir="$(mktemp -d "$TEST_TMP_DIR/council-providers.XXXXXX")"
 
-    OCTOPUS_COUNCIL_PROVIDER_FIXTURE='claude:available,codex:available,gemini:missing' \
+    OCTOPUS_COUNCIL_PROVIDER_FIXTURE='claude:available,codex:available,agy:missing' \
         council_run --dry-run --providers auto --output-dir "$tmp_dir" "Review auth"
 
     local summary
     summary="$(find "$tmp_dir" -name summary.json -type f | head -1)"
     [[ -n "$summary" ]] || { test_fail "summary.json not written"; return 1; }
 
-    if jq -e '.provider_status.claude == "available" and .provider_status.gemini == "missing"' "$summary" >/dev/null; then
+    if jq -e '.provider_status.claude == "available" and .provider_status.agy == "missing"' "$summary" >/dev/null; then
         test_pass
     else
         test_fail "provider status fixture not recorded"
@@ -254,7 +254,7 @@ test_council_roster_matches_resolved_members() {
     local tmp_dir
     tmp_dir="$(mktemp -d "$TEST_TMP_DIR/council-roster.XXXXXX")"
 
-    OCTOPUS_COUNCIL_PROVIDER_FIXTURE='claude:available,codex:available,gemini:available' \
+    OCTOPUS_COUNCIL_PROVIDER_FIXTURE='claude:available,codex:available,agy:available' \
         council_run --dry-run --depth standard --output-dir "$tmp_dir" "Review auth"
 
     local summary
@@ -276,7 +276,7 @@ test_council_persona_pin_affects_roster() {
     local tmp_dir
     tmp_dir="$(mktemp -d "$TEST_TMP_DIR/council-persona.XXXXXX")"
 
-    OCTOPUS_COUNCIL_PROVIDER_FIXTURE='claude:available,codex:available,gemini:available' \
+    OCTOPUS_COUNCIL_PROVIDER_FIXTURE='claude:available,codex:available,agy:available' \
         council_run --dry-run --members 3 --persona finance-analyst --output-dir "$tmp_dir" "Review pricing"
 
     local summary
@@ -298,7 +298,7 @@ test_council_enforces_provider_diversity_when_available() {
     local tmp_dir
     tmp_dir="$(mktemp -d "$TEST_TMP_DIR/council-diversity.XXXXXX")"
 
-    OCTOPUS_COUNCIL_PROVIDER_FIXTURE='claude:missing,codex:available,gemini:available' \
+    OCTOPUS_COUNCIL_PROVIDER_FIXTURE='claude:missing,codex:available,agy:available' \
         council_run --dry-run --depth standard --domain security --output-dir "$tmp_dir" "Review auth"
 
     local summary
@@ -324,7 +324,7 @@ test_council_scores_roster_with_benchmark_signal() {
     local tmp_dir
     tmp_dir="$(mktemp -d "$TEST_TMP_DIR/council-score.XXXXXX")"
 
-    OCTOPUS_COUNCIL_PROVIDER_FIXTURE='claude:available,codex:available,gemini:available' \
+    OCTOPUS_COUNCIL_PROVIDER_FIXTURE='claude:available,codex:available,agy:available' \
         council_run --dry-run --depth quick --output-dir "$tmp_dir" "Review auth"
 
     local summary
@@ -520,7 +520,7 @@ test_council_research_first_writes_artifact_and_prompt_context() {
 
     OCTOPUS_COUNCIL_FIXTURE=full-success \
     OCTOPUS_COUNCIL_CORPUS_ROOT="$corpus_root" \
-    OCTOPUS_COUNCIL_PROVIDER_FIXTURE='claude:available,codex:available,gemini:available' \
+    OCTOPUS_COUNCIL_PROVIDER_FIXTURE='claude:available,codex:available,agy:available' \
         council_run --research-first --depth quick --output-dir "$tmp_dir" "Review queue options"
 
     local run_dir summary research prompt
@@ -553,7 +553,7 @@ test_council_corpus_append_writes_durable_entry() {
 
     OCTOPUS_COUNCIL_FIXTURE=full-success \
     OCTOPUS_COUNCIL_CORPUS_ROOT="$corpus_root" \
-    OCTOPUS_COUNCIL_PROVIDER_FIXTURE='claude:available,codex:available,gemini:available' \
+    OCTOPUS_COUNCIL_PROVIDER_FIXTURE='claude:available,codex:available,agy:available' \
         council_run --research-first --corpus-mode append --goal implement --implement plan-only --depth quick --output-dir "$tmp_dir" "Plan auth cleanup"
 
     local summary entry
@@ -597,7 +597,7 @@ test_council_fixture_run_writes_phase_artifacts() {
     tmp_dir="$(mktemp -d "$TEST_TMP_DIR/council-full.XXXXXX")"
 
     OCTOPUS_COUNCIL_FIXTURE=full-success \
-    OCTOPUS_COUNCIL_PROVIDER_FIXTURE='claude:available,codex:available,gemini:available' \
+    OCTOPUS_COUNCIL_PROVIDER_FIXTURE='claude:available,codex:available,agy:available' \
         council_run --goal advice --depth standard --output-dir "$tmp_dir" "Should we use Redis?"
 
     local run_dir summary
@@ -630,7 +630,7 @@ test_council_synthesis_is_chair_generated() {
     tmp_dir="$(mktemp -d "$TEST_TMP_DIR/council-synthesis.XXXXXX")"
 
     OCTOPUS_COUNCIL_FIXTURE=full-success \
-    OCTOPUS_COUNCIL_PROVIDER_FIXTURE='claude:available,codex:available,gemini:available' \
+    OCTOPUS_COUNCIL_PROVIDER_FIXTURE='claude:available,codex:available,agy:available' \
         council_run --goal advice --depth standard --output-dir "$tmp_dir" "Should we use Redis?"
 
     local synthesis
@@ -654,7 +654,7 @@ test_council_plan_only_writes_implementation_plan_without_handoff() {
     tmp_dir="$(mktemp -d "$TEST_TMP_DIR/council-plan.XXXXXX")"
 
     OCTOPUS_COUNCIL_FIXTURE=full-success \
-    OCTOPUS_COUNCIL_PROVIDER_FIXTURE='claude:available,codex:available,gemini:available' \
+    OCTOPUS_COUNCIL_PROVIDER_FIXTURE='claude:available,codex:available,agy:available' \
         council_run --goal implement --implement plan-only --depth standard --output-dir "$tmp_dir" "Refactor auth flow"
 
     local run_dir summary
@@ -679,7 +679,7 @@ test_council_after_approval_does_not_handoff_without_gate() {
     tmp_dir="$(mktemp -d "$TEST_TMP_DIR/council-gate.XXXXXX")"
 
     OCTOPUS_COUNCIL_FIXTURE=full-success \
-    OCTOPUS_COUNCIL_PROVIDER_FIXTURE='claude:available,codex:available,gemini:available' \
+    OCTOPUS_COUNCIL_PROVIDER_FIXTURE='claude:available,codex:available,agy:available' \
         council_run --goal implement --implement after-approval --depth standard --output-dir "$tmp_dir" "Refactor auth flow"
 
     local summary
@@ -705,7 +705,7 @@ test_council_approved_gates_start_worktree_handoff() {
     OCTOPUS_COUNCIL_FIXTURE=full-success \
     OCTOPUS_COUNCIL_APPROVED_GATES='gate-a,gate-b' \
     OCTOPUS_COUNCIL_WORKTREE_ROOT="$worktree_root" \
-    OCTOPUS_COUNCIL_PROVIDER_FIXTURE='claude:available,codex:available,gemini:available' \
+    OCTOPUS_COUNCIL_PROVIDER_FIXTURE='claude:available,codex:available,agy:available' \
         council_run --goal implement --implement after-approval --worktree on --depth quick --output-dir "$tmp_dir" "Refactor auth flow"
 
     local summary worktree_path
@@ -734,7 +734,7 @@ test_council_critical_veto_aborts_implementation_run() {
     tmp_dir="$(mktemp -d "$TEST_TMP_DIR/council-veto-run.XXXXXX")"
 
     OCTOPUS_COUNCIL_FIXTURE=critical-veto \
-    OCTOPUS_COUNCIL_PROVIDER_FIXTURE='claude:available,codex:available,gemini:available' \
+    OCTOPUS_COUNCIL_PROVIDER_FIXTURE='claude:available,codex:available,agy:available' \
         council_run --goal implement --implement after-approval --depth standard --output-dir "$tmp_dir" "Ship this without tests"
 
     local summary
@@ -758,7 +758,7 @@ test_council_diversity_warning_prints_to_cli() {
     out_file="$TEST_TMP_DIR/council-diversity-output.out"
 
     OCTOPUS_COUNCIL_FIXTURE=full-success \
-    OCTOPUS_COUNCIL_PROVIDER_FIXTURE='claude:missing,codex:available,gemini:available' \
+    OCTOPUS_COUNCIL_PROVIDER_FIXTURE='claude:missing,codex:available,agy:available' \
         council_run --depth standard --domain security --output-dir "$tmp_dir" "Review auth" >"$out_file" 2>&1
 
     # The CLI warning only prints when the forced-replacement path fires. With
@@ -784,7 +784,7 @@ test_council_chair_fallback_preserves_quorum() {
 
     OCTOPUS_COUNCIL_FIXTURE=full-success \
     OCTOPUS_COUNCIL_FAIL_PERSONAS='strategy-analyst' \
-    OCTOPUS_COUNCIL_PROVIDER_FIXTURE='claude:available,codex:available,gemini:available' \
+    OCTOPUS_COUNCIL_PROVIDER_FIXTURE='claude:available,codex:available,agy:available' \
         council_run --depth quick --output-dir "$tmp_dir" "Review auth"
 
     local summary
@@ -809,7 +809,7 @@ test_council_chair_fallback_warning_prints_to_cli() {
 
     OCTOPUS_COUNCIL_FIXTURE=full-success \
     OCTOPUS_COUNCIL_FAIL_PERSONAS='strategy-analyst' \
-    OCTOPUS_COUNCIL_PROVIDER_FIXTURE='claude:available,codex:available,gemini:available' \
+    OCTOPUS_COUNCIL_PROVIDER_FIXTURE='claude:available,codex:available,agy:available' \
         council_run --depth quick --output-dir "$tmp_dir" "Review auth" >"$out_file" 2>&1
 
     if grep -q "Council warning: chair fallback used" "$out_file"; then
@@ -829,7 +829,7 @@ test_council_fixture_critique_honors_failed_persona() {
 
     OCTOPUS_COUNCIL_FIXTURE=full-success \
     OCTOPUS_COUNCIL_FAIL_PERSONAS='security-auditor' \
-    OCTOPUS_COUNCIL_PROVIDER_FIXTURE='claude:available,codex:available,gemini:available' \
+    OCTOPUS_COUNCIL_PROVIDER_FIXTURE='claude:available,codex:available,agy:available' \
         council_run --depth standard --output-dir "$tmp_dir" "Review auth"
 
     local run_dir summary security_critiques
@@ -854,7 +854,7 @@ test_council_cost_cap_aborts_before_fanout() {
     tmp_dir="$(mktemp -d "$TEST_TMP_DIR/council-cost-cap.XXXXXX")"
 
     OCTOPUS_COUNCIL_FIXTURE=full-success \
-    OCTOPUS_COUNCIL_PROVIDER_FIXTURE='claude:available,codex:available,gemini:available' \
+    OCTOPUS_COUNCIL_PROVIDER_FIXTURE='claude:available,codex:available,agy:available' \
         council_run --max-cost 0.00 --output-dir "$tmp_dir" "Should we use Redis?"
 
     local run_dir summary response_count
@@ -880,7 +880,7 @@ test_council_cost_cap_aborts_before_critique() {
     task="$(printf '%0640d' 0 | tr '0' 'x')"
 
     OCTOPUS_COUNCIL_FIXTURE=full-success \
-    OCTOPUS_COUNCIL_PROVIDER_FIXTURE='claude:available,codex:available,gemini:available' \
+    OCTOPUS_COUNCIL_PROVIDER_FIXTURE='claude:available,codex:available,agy:available' \
         council_run --depth standard --max-cost 0.02 --output-dir "$tmp_dir" "$task"
 
     local run_dir summary response_count critique_count
@@ -907,7 +907,7 @@ test_council_deep_fixture_writes_revision_artifacts() {
     tmp_dir="$(mktemp -d "$TEST_TMP_DIR/council-deep.XXXXXX")"
 
     OCTOPUS_COUNCIL_FIXTURE=full-success \
-    OCTOPUS_COUNCIL_PROVIDER_FIXTURE='claude:available,codex:available,gemini:available' \
+    OCTOPUS_COUNCIL_PROVIDER_FIXTURE='claude:available,codex:available,agy:available' \
         council_run --depth deep --output-dir "$tmp_dir" "Review platform architecture"
 
     local run_dir summary revision_count
@@ -1094,7 +1094,6 @@ test_council_dispatch_strips_blocked_env_but_sets_readonly() {
     }
 
     OCTOPUS_SECURITY_V870=false \
-    OCTOPUS_GEMINI_SANDBOX=unsafe \
     OCTOPUS_CODEX_SANDBOX=caller-danger \
     CLAUDE_OCTOPUS_AUTONOMY=autonomous \
     OCTOPUS_COUNCIL_PROVIDER_FIXTURE='codex:available' \
@@ -1102,7 +1101,6 @@ test_council_dispatch_strips_blocked_env_but_sets_readonly() {
 
     if grep -q '^OCTOPUS_CODEX_SANDBOX=read-only$' "$env_capture" &&
        ! grep -q '^OCTOPUS_SECURITY_V870=' "$env_capture" &&
-       ! grep -q '^OCTOPUS_GEMINI_SANDBOX=' "$env_capture" &&
        ! grep -q '^CLAUDE_OCTOPUS_AUTONOMY=' "$env_capture"; then
         unset -f run_agent_sync
         test_pass
@@ -1167,7 +1165,7 @@ test_council_host_native_detection() {
     load_council_lib || return 1
 
     OCTOPUS_HOST="codex" \
-    COUNCIL_PROVIDERS="claude,codex,gemini" \
+    COUNCIL_PROVIDERS="claude,codex,agy" \
         council_detect_providers
 
     local codex_status claude_status

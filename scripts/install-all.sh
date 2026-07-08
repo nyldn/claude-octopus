@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Single-command dependency installer for Claude Octopus providers.
-# Installs Codex CLI, Gemini CLI, Qwen CLI, and jq.
+# Installs Codex CLI, Qwen CLI, and jq.
 #
 # Usage:
 #   bash scripts/install-all.sh           # install all missing deps
@@ -61,7 +61,6 @@ install_jq
 echo ""
 echo "Provider CLIs:"
 command -v codex  &>/dev/null && log INFO "Codex CLI already installed"  || install_npm_pkg "@openai/codex"          "Codex CLI"
-command -v gemini &>/dev/null && log INFO "Gemini CLI already installed" || install_npm_pkg "@google/gemini-cli"    "Gemini CLI"
 command -v qwen   &>/dev/null && log INFO "Qwen CLI already installed"   || install_npm_pkg "@qwen-code/qwen-code"  "Qwen CLI (API-key/Coding-Plan)"
 
 echo ""
@@ -70,7 +69,6 @@ echo "  ✓ install-all complete."
 echo ""
 echo "  Providers requiring auth after install:"
 echo "    Codex:  codex login"
-echo "    Gemini: gemini auth login"
 echo ""
 echo "  Run /octo:preflight to verify provider status."
 echo ""

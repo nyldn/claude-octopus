@@ -166,7 +166,7 @@ echo "Stub detection complete: $STUB_ISSUES issues found"
 
 ### Step 2: Multi-LLM Quality Review (RECOMMENDED)
 
-**After stub detection, dispatch code to multiple providers for parallel quality review.** A Claude-only review pipeline misses what external models catch — Codex excels at logic errors and correctness, Gemini excels at security and edge case analysis. Using both produces higher-confidence findings.
+**After stub detection, dispatch code to multiple providers for parallel quality review.** A Claude-only review pipeline misses what external models catch — Codex excels at logic errors and correctness, Antigravity excels at security and edge case analysis. Using both produces higher-confidence findings.
 
 **Check provider availability and dispatch in parallel:**
 
@@ -180,7 +180,6 @@ DIFF_CONTENT=$(git diff --cached 2>/dev/null || git diff HEAD~1..HEAD 2>/dev/nul
 providers=()
 command -v codex >/dev/null 2>&1 && providers+=(codex)
 command -v agy >/dev/null 2>&1 && providers+=(agy)
-command -v gemini >/dev/null 2>&1 && providers+=(gemini)
 
 for provider in "${providers[@]}"; do
   safe_provider=$(printf '%s' "$provider" | tr -c '[:alnum:]_-' '_')

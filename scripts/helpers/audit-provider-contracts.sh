@@ -59,8 +59,6 @@ contains "${ROOT}/scripts/lib/providers.sh" 'configure Coding-Plan' \
 not_contains "${ROOT}/scripts/lib/providers.sh" 'Qwen:.*free tier' \
     "qwen setup guidance does not advertise the retired free tier"
 
-contains "${ROOT}/scripts/lib/provider-versions.sh" 'OCTO_GEMINI_MIN_VERSION="\$\{OCTO_GEMINI_MIN_VERSION:-0\.45\.0\}"' \
-    "gemini version floor is current and env-overridable"
 contains "${ROOT}/scripts/lib/provider-versions.sh" 'OCTO_QWEN_MIN_VERSION="\$\{OCTO_QWEN_MIN_VERSION:-0\.14\.0\}"' \
     "qwen version floor is current and env-overridable"
 not_contains "${ROOT}/scripts/lib/auth.sh" 'grep -oE.*expiry_date' \

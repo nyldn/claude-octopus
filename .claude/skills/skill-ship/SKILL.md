@@ -113,7 +113,6 @@ echo "Current Phase: $CURRENT_PHASE"
 ```bash
 # Check provider availability
 command -v codex &> /dev/null && codex_status="Available" || codex_status="Not installed"
-command -v gemini &> /dev/null && gemini_status="Available" || gemini_status="Not installed"
 command -v agy &> /dev/null && agy_status="Available" || agy_status="Not installed"
 ```
 
@@ -124,8 +123,7 @@ command -v agy &> /dev/null && agy_status="Available" || agy_status="Not install
 
 **Providers:**
 - Codex CLI: ${codex_status} - Code security analysis
-- Gemini CLI: ${gemini_status} - Edge case and vulnerability detection
-- Antigravity CLI: ${agy_status} - Additional external-model challenge
+- Antigravity CLI: ${agy_status} - Edge case and vulnerability detection + external-model challenge
 - Claude: Available - Synthesis and final validation
 
 **Estimated Time:** 3-5 minutes
@@ -381,7 +379,7 @@ Restore with: `/octo:rollback {CHECKPOINT_TAG}`
 **To start a new project:** `/octo:embrace`
 
 *Multi-AI validation powered by Claude Octopus*
-*Providers: Codex | Gemini | Antigravity | Claude*
+*Providers: Codex | Antigravity | Claude*
 ```
 
 ---

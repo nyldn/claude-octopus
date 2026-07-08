@@ -89,14 +89,14 @@ test_role_route_not_leaked_to_codex() {
     fi
 }
 
-test_role_route_not_leaked_to_gemini() {
-    test_case "routing.roles researcher=perplexity is not returned as a gemini model"
+test_role_route_not_leaked_to_agy() {
+    test_case "routing.roles researcher=perplexity is not returned as an agy model"
     local got
-    got="$(resolve_with_fixture gemini gemini probe researcher)"
+    got="$(resolve_with_fixture agy agy probe researcher)"
     if [[ "$got" != "perplexity" ]]; then
         test_pass
     else
-        test_fail "gemini resolved model 'perplexity' — would 404 and burn a fallback retry"
+        test_fail "agy resolved model 'perplexity' — would burn a fallback retry"
     fi
 }
 
@@ -178,29 +178,14 @@ test_claude_researcher_no_write_grant() {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Gemini external directory whitelisting
+# Antigravity (agy) dispatch — Google seat (Gemini CLI sunset 2026-06-18)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-test_gemini_include_dirs_flag() {
-    test_case "OCTOPUS_GEMINI_INCLUDE_DIRS adds --include-directories to gemini dispatch"
-    # gemini branch calls get_agent_model → stub to avoid full resolver deps
+test_agy_dispatch_uses_exec_shim() {
+    test_case "get_agent_command agy → routes through helpers/agy-exec.sh"
     local got
-    got="$(
-        get_agent_model() { echo "gemini-3-flash-preview"; }
-        OCTOPUS_GEMINI_INCLUDE_DIRS="/tmp/staging" get_agent_command gemini probe researcher
-    )"
-    [[ "$got" == *"--include-directories /tmp/staging"* ]] && test_pass || test_fail "flag missing, got: $got"
-}
-
-test_gemini_no_include_dirs_by_default() {
-    test_case "gemini dispatch has no --include-directories when env unset"
-    local got
-    got="$(
-        get_agent_model() { echo "gemini-3-flash-preview"; }
-        unset OCTOPUS_GEMINI_INCLUDE_DIRS
-        get_agent_command gemini probe researcher
-    )"
-    [[ "$got" != *"--include-directories"* ]] && test_pass || test_fail "unexpected flag: $got"
+    got="$(get_agent_command agy probe researcher)"
+    [[ "$got" == *"helpers/agy-exec.sh"* ]] && test_pass || test_fail "agy not routed through agy-exec.sh, got: $got"
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -251,7 +236,7 @@ test_docs_do_not_cd_into_plugin() {
 # ═══════════════════════════════════════════════════════════════════════════════
 
 test_role_route_not_leaked_to_codex
-test_role_route_not_leaked_to_gemini
+test_role_route_not_leaked_to_agy
 test_role_route_not_a_model_for_perplexity_itself
 test_colon_route_still_resolves
 
@@ -261,8 +246,7 @@ test_claude_implementer_accepts_edits
 test_claude_developer_accepts_edits
 test_claude_researcher_no_write_grant
 
-test_gemini_include_dirs_flag
-test_gemini_no_include_dirs_by_default
+test_agy_dispatch_uses_exec_shim
 
 test_warns_when_cwd_is_plugin
 test_no_warn_with_claude_project_dir

@@ -206,7 +206,7 @@ Check setup status and configure AI providers.
 ```
 
 **What it does:**
-- Auto-detects installed providers (Codex CLI, Gemini CLI, Antigravity CLI, and other configured providers)
+- Auto-detects installed providers (Codex CLI, Antigravity CLI, and other configured providers)
 - Shows which providers are available and their auth status
 - Provides installation instructions for missing providers
 - Verifies API keys and authentication
@@ -217,7 +217,7 @@ Claude Octopus Setup Status
 
 Providers:
   Codex CLI: ready
-  Gemini CLI: ready
+  Antigravity CLI: ready
 
 You're all set! Try: /octo:auto research OAuth patterns
 ```
@@ -244,7 +244,7 @@ Run environment diagnostics across 9 check categories.
 
 | Category | What it checks |
 |----------|---------------|
-| `providers` | Claude Code version, Codex CLI, Gemini CLI, Antigravity CLI, and other configured providers |
+| `providers` | Claude Code version, Codex CLI, Antigravity CLI, and other configured providers |
 | `auth` | Authentication status for each provider |
 | `config` | Plugin version, install scope, feature flags |
 | `state` | Project state.json, stale results, workspace writable |
@@ -294,10 +294,10 @@ Configure which AI models are used across Claude Octopus workflows.
 /octo:model-config show phases              # Show per-phase routing table
 /octo:model-config codex gpt-5.4            # Set Codex model
 /octo:model-config codex gpt-5.4  # Fast Spark model
-/octo:model-config gemini gemini-3.1-pro-preview  # Set Gemini model
+/octo:model-config agy gemini-3.1-pro-preview  # Set Antigravity backend model
 /octo:model-config providers                 # Show provider allowlist
 /octo:model-config disable codex --session   # Stop using Codex in this session
-/octo:model-config allow claude gemini --session  # Use only Claude + Gemini in this session
+/octo:model-config allow claude agy --session  # Use only Claude + Antigravity in this session
 /octo:model-config clear-allowlist --session # Restore default provider availability
 /octo:model-config cost-mode budget         # Use cheaper models
 /octo:model-config cost-mode premium        # Use best models
@@ -307,8 +307,8 @@ Configure which AI models are used across Claude Octopus workflows.
 
 **Cost modes:**
 
-| Mode | Codex | Gemini | Best for |
-|------|-------|--------|----------|
+| Mode | Codex | Antigravity (`agy`) | Best for |
+|------|-------|---------------------|----------|
 | `budget` | gpt-5.4 | gemini-3-flash | High-volume, quick feedback |
 | `standard` | gpt-5.4 | gemini-3.1-pro-preview | Default — balanced cost/quality |
 | `premium` | gpt-5.4-pro | gemini-3.1-pro-preview | Critical decisions, maximum quality |
@@ -389,7 +389,7 @@ Discovery phase — Multi-AI research and exploration.
 ```
 
 **What it does:**
-- Parallel research using Codex CLI + Gemini CLI
+- Parallel research using Codex CLI + Antigravity CLI (`agy`)
 - Relevance-aware synthesis with quality ranking (v8.49.0+)
 - Minority opinion preservation — surfaces dissenting views
 - Shows visual indicator: 🐙 🔍
@@ -512,7 +512,7 @@ Deep research with multi-provider fanout, visible provider status, and attribute
 
 **What it does:**
 - Parses `--breadth=light|standard|exhaustive` and maps it to a dynamic research fleet
-- Runs multi-AI research across available providers such as Claude, Codex, Gemini, Antigravity, Copilot, Qwen, OpenCode, Ollama, Perplexity, OpenRouter, and WebFetch/WebSearch where configured
+- Runs multi-AI research across available providers such as Claude, Codex, Antigravity, Copilot, Qwen, OpenCode, Ollama, Perplexity, OpenRouter, and WebFetch/WebSearch where configured
 - Applies provider-aware prompt-size preflight before dispatch, using `OCTOPUS_OVERSIZE_STRATEGY=summarize|truncate|fail`
 - Renders an agent summary table before synthesis so failed, degraded, or timed-out providers are visible
 - Synthesizes findings into actionable, structured insights with provider attribution and disagreement notes
@@ -522,7 +522,7 @@ Deep research with multi-provider fanout, visible provider status, and attribute
 | Breadth | Typical Fleet | Time Budget | Best For |
 |---------|---------------|-------------|----------|
 | `light` | Claude + Codex | ~60s | Quick technical checks |
-| `standard` | Claude + available providers such as Codex, Gemini, and Antigravity | ~180s | Default research and trade-offs |
+| `standard` | Claude + available providers such as Codex and Antigravity | ~180s | Default research and trade-offs |
 | `exhaustive` | Claude + available providers + Perplexity/OpenRouter/Web where configured | ~360s | High-stakes or broad ecosystem research |
 
 If no breadth is provided, Octopus uses `OCTOPUS_RESEARCH_BREADTH` when set, otherwise it defaults to standard or asks when the query is underspecified.
@@ -558,7 +558,7 @@ Creative thought partner brainstorming session — Solo or Multi-AI Team mode.
 **Team mode:**
 - Dispatches parallel queries to available providers:
   - 🔴 Codex CLI — Technical feasibility and implementation angles
-  - 🟡 Gemini CLI — Lateral thinking and ecosystem connections
+  - 🧭 Antigravity CLI — Lateral thinking and ecosystem connections
   - 🔵 Claude — Synthesis, pattern naming, and moderation
 - Provider-attributed results (for example 🔴 🟡 🧭 🔵)
 - Cross-perspective synthesis: convergence, divergence, and strongest ideas
@@ -569,7 +569,7 @@ Creative thought partner brainstorming session — Solo or Multi-AI Team mode.
 ```
 🐙 CLAUDE OCTOPUS ACTIVATED — Multi-AI Brainstorm
 🔴 Codex CLI — Technical feasibility and implementation angles
-🟡 Gemini CLI — Lateral thinking and ecosystem connections
+🧭 Antigravity CLI — Lateral thinking and ecosystem connections
 🔵 Claude — Synthesis, pattern naming, and moderation
 ```
 
@@ -577,7 +577,7 @@ Creative thought partner brainstorming session — Solo or Multi-AI Team mode.
 
 ### `/octo:debate`
 
-AI Debate Hub — structured debates between Claude and available external providers such as Codex, Gemini, Antigravity, OpenCode, and OpenRouter.
+AI Debate Hub — structured debates between Claude and available external providers such as Codex, Antigravity, OpenCode, and OpenRouter.
 
 **Usage:**
 ```
@@ -594,7 +594,7 @@ AI Debate Hub — structured debates between Claude and available external provi
 | `-d STYLE`, `--debate-style STYLE` | `quick`, `thorough`, `adversarial`, `collaborative` |
 
 **What it does:**
-- Claude, Gemini CLI, and Codex CLI debate the topic
+- Claude, Antigravity CLI (`agy`), and Codex CLI debate the topic
 - Claude acts as both participant and moderator
 - Anti-sycophancy gate prevents consensus from forming too easily
 - Produces synthesis with concrete recommendation
@@ -602,7 +602,7 @@ AI Debate Hub — structured debates between Claude and available external provi
 **Natural language triggers:**
 - `octo debate X vs Y`
 - `run a debate about Z`
-- `I want gemini and codex to review X`
+- `I want agy and codex to review X`
 
 ---
 
@@ -631,7 +631,7 @@ Persona-based multi-LLM council for advice, decision support, planning, and gate
 | `--implement never\|after-approval\|plan-only` | Implementation gate behavior |
 | `--worktree auto\|on\|off` | Worktree preference for later implementation handoff |
 | `--benchmark auto\|on\|off` | BullshitBench snapshot routing signal |
-| `--providers auto\|claude,codex,gemini,opencode,openrouter` | Provider allowlist |
+| `--providers auto\|claude,codex,agy,opencode,openrouter` | Provider allowlist |
 | `--max-cost <usd>` | Hard USD cost cap |
 | `--simulate` | Explicit single-model simulation mode; never used implicitly |
 | `--single-model` | Alias for `--simulate` |
@@ -714,7 +714,7 @@ NLSpec authoring — structured specification from multi-AI research.
 
 **What it does:**
 - Question-first approach to understand scope
-- Multi-AI research (Claude + Gemini + Codex) on the domain
+- Multi-AI research (Claude + Antigravity + Codex) on the domain
 - Generates structured NLSpec: behaviors, actors, constraints, acceptance criteria
 - Completeness validation with scoring
 - Saves specification file for downstream workflows (e.g., `/octo:factory`)
@@ -1529,7 +1529,7 @@ When Claude Octopus activates external CLIs, you'll see visual indicators:
 |-----------|---------|----------|
 | 🐙 | Multi-AI mode active | Multiple providers |
 | 🔴 | Codex CLI executing | OpenAI (your OPENAI_API_KEY) |
-| 🟡 | Gemini CLI executing | Google (your GEMINI_API_KEY) |
+| 🧭 | Antigravity CLI executing | Google seat (agy OAuth or ANTIGRAVITY_API_KEY) |
 | 🟣 | Perplexity Sonar search | Your PERPLEXITY_API_KEY |
 | 🟢 | Qwen or Copilot executing | Qwen API-key/Coding-Plan auth or GitHub Copilot subscription |
 | 🟠 | OpenCode/OpenRouter provider executing | Local/OpenRouter configuration |
@@ -1548,13 +1548,13 @@ When Claude Octopus activates external CLIs, you'll see visual indicators:
 
 Providers:
 🔴 Codex CLI - Technical implementation analysis
-🟡 Gemini CLI - Ecosystem and community research
+🧭 Antigravity CLI - Ecosystem and community research
 🔵 Claude - Strategic synthesis
 
 Agent run summary
 Provider               | Status      | Tokens | Time | Reason
 codex                  | ok          |   4200 |  18s | -
-gemini                 | degraded    |   1800 |  61s | prompt summarized before dispatch
+agy                    | degraded    |   1800 |  61s | prompt summarized before dispatch
 ```
 
 ---

@@ -289,9 +289,9 @@ $previous_output"
                     continue
                 fi
                 ;;
-            gemini)
-                if ! command -v gemini &>/dev/null && [[ -z "${GEMINI_API_KEY:-}" ]]; then
-                    log "WARN" "Gemini not available, skipping agent in phase $phase_name"
+            agy|antigravity)
+                if ! command -v agy &>/dev/null; then
+                    log "WARN" "Antigravity not available, skipping agent in phase $phase_name"
                     ((agent_idx++)) || true
                     continue
                 fi

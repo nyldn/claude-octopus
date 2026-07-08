@@ -42,7 +42,7 @@ Octopus MCP Server (TypeScript)
 orchestrate.sh (bash core — unchanged)
     |
     v
-Codex CLI / Gemini CLI / Claude subagents
+Codex CLI / Antigravity CLI / Claude subagents
 ```
 
 The IDE communicates with the MCP server over stdio. The MCP server delegates to `orchestrate.sh` via `execFile` (safe, no shell injection). The same bash engine that runs in the terminal — no behavior changes.
@@ -98,7 +98,7 @@ Create `.vscode/mcp.json` in your project:
       "env": {
         "OCTO_CLAW_ENABLED": "true",
         "OPENAI_API_KEY": "${env:OPENAI_API_KEY}",
-        "GEMINI_API_KEY": "${env:GEMINI_API_KEY}"
+        "ANTIGRAVITY_API_KEY": "${env:ANTIGRAVITY_API_KEY}"
       }
     }
   }
@@ -111,7 +111,7 @@ Create `.vscode/mcp.json` in your project:
 
 **What works in Cursor:**
 - All MCP tools (research, review, debate, security audit, etc.)
-- Multi-provider dispatch (Claude plus available providers such as Codex, Gemini, and Antigravity via the MCP server)
+- Multi-provider dispatch (Claude plus available providers such as Codex and Antigravity via the MCP server)
 - Editor context injection via `octopus_set_editor_context`
 
 **What doesn't work in Cursor:**
@@ -139,7 +139,7 @@ Create `.cursor/mcp.json` in your project (per-project) or `~/.cursor/mcp.json` 
       "env": {
         "OCTO_CLAW_ENABLED": "true",
         "OPENAI_API_KEY": "${env:OPENAI_API_KEY}",
-        "GEMINI_API_KEY": "${env:GEMINI_API_KEY}"
+        "ANTIGRAVITY_API_KEY": "${env:ANTIGRAVITY_API_KEY}"
       }
     }
   }
@@ -165,7 +165,7 @@ Add to `.zed/settings.json` in your project:
         "args": ["tsx", "/path/to/claude-octopus/mcp-server/src/index.ts"],
         "env": {
           "OPENAI_API_KEY": "${env:OPENAI_API_KEY}",
-          "GEMINI_API_KEY": "${env:GEMINI_API_KEY}"
+          "ANTIGRAVITY_API_KEY": "${env:ANTIGRAVITY_API_KEY}"
         }
       }
     }
@@ -236,10 +236,10 @@ npx tsx /path/to/claude-octopus/mcp-server/src/index.ts
 
 ### Provider not available
 
-If Codex or Gemini workflows fail, check:
+If Codex or Antigravity workflows fail, check:
 ```bash
 command -v codex   # Codex CLI installed?
-command -v gemini  # Gemini CLI installed?
+command -v agy     # Antigravity CLI installed?
 ```
 
 Run `octopus_status` tool to see provider availability.

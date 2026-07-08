@@ -61,12 +61,12 @@ graph TD
     E --> F[UX Insights & Prioritized Backlog]
 ```
 
-#### Phase 1: Research Synthesis (Gemini)
+#### Phase 1: Research Synthesis (Antigravity)
 The `ux-researcher` agent analyzes raw transcripts, notes, and data points.
 - **Goal**: Identify key user insights and recurring patterns.
 - **Output**: Thematic clusters and ranked pain points.
 
-#### Phase 2: Personas & Journey Maps (Gemini)
+#### Phase 2: Personas & Journey Maps (Antigravity)
 The agent uses the synthesis to create evidence-based artifacts.
 - **Goal**: Humanize the data into archetypes.
 - **Output**: 2-3 distinct user personas and a current-state journey map.
@@ -76,7 +76,7 @@ The `product-writer` agent translates insights into engineering-ready language.
 - **Goal**: Bridge the gap between research and development.
 - **Output**: User stories, acceptance criteria, and success metrics.
 
-#### Phase 4: Validation & Critique (Gemini)
+#### Phase 4: Validation & Critique (Antigravity)
 An adversarial review phase where the `ux-researcher` challenges the requirements.
 - **Goal**: Spot biases, overlooked segments, or "requirement creep."
 - **Output**: Constructive critique and prioritization recommendations.
@@ -97,12 +97,12 @@ graph TD
     E --> F[Board-Ready Strategic Roadmap]
 ```
 
-#### Phase 1: Market & Competitive Analysis (Gemini)
+#### Phase 1: Market & Competitive Analysis (Antigravity)
 The `strategy-analyst` maps the environment.
 - **Goal**: Quantify the opportunity and landscape.
 - **Output**: Market sizing (TAM/SAM/SOM), competitor matrix, and industry trends.
 
-#### Phase 2: Strategic Frameworks (Gemini)
+#### Phase 2: Strategic Frameworks (Antigravity)
 The agent applies proven mental models to the data.
 - **Goal**: Structure the "chaos" of market data.
 - **Output**: SWOT Analysis, Porter’s Five Forces, and a trade-off matrix.
@@ -112,7 +112,7 @@ The agent builds the financial and logical rationale.
 - **Goal**: Prove why a specific path is the best investment.
 - **Output**: ROI models, risk assessment, and a 90-day action plan.
 
-#### Phase 4: Executive Communication (Gemini)
+#### Phase 4: Executive Communication (Antigravity)
 The `exec-communicator` distills the entire analysis.
 - **Goal**: Get approval from senior stakeholders.
 - **Output**: 1-page executive summary and board-ready talking points.
@@ -133,12 +133,12 @@ graph TD
     E --> F[Crystallized Literature Review]
 ```
 
-#### Phase 1: Gathering & Taxonomy (Gemini)
+#### Phase 1: Gathering & Taxonomy (Antigravity)
 The `research-synthesizer` organizes the field.
 - **Goal**: Define the boundaries of the research.
 - **Output**: Sub-topic taxonomy, theoretical frameworks, and seminal works list.
 
-#### Phase 2: Thematic Analysis (Gemini)
+#### Phase 2: Thematic Analysis (Antigravity)
 The agent analyzes points of consensus and friction.
 - **Goal**: Move beyond chronological summaries to conceptual understanding.
 - **Output**: Thematic matrix and evolution-of-thinking timeline.
@@ -148,7 +148,7 @@ The agent looks for what is *missing* from the body of work.
 - **Goal**: Identify the "Frontier" for new research.
 - **Output**: Methodological limitations and priority research questions.
 
-#### Phase 4: Synthesis Narrative (Gemini)
+#### Phase 4: Synthesis Narrative (Antigravity)
 The `academic-writer` drafts the formal review.
 - **Goal**: Create a publishable or citation-ready document.
 - **Output**: Structured narrative with critical synthesis and formal tone.
@@ -285,7 +285,7 @@ This forces a debate between high-level business strategy and low-level product 
 **1. "Context window exceeded"**
 Knowledge work often involves massive amounts of text. If you hit context limits:
 - Break your input into smaller chunks.
-- Use the `gemini` CLI as your primary provider (1M+ context window).
+- Use the `agy` (Antigravity) CLI as your primary provider (1M+ context window).
 - Run `synthesize` on individual themes first, then aggregate.
 
 **2. "Insights seem too generic"**
@@ -305,7 +305,7 @@ In Phase 4 of Empathize, the agent is trained to be highly critical to avoid gro
 A: Yes, if you use the `pdf`, `docx`, or `xlsx` companion skills. These skills will extract the text and feed it into the knowledge workflows.
 
 **Q: Which model is best for knowledge work?**
-A: We recommend **Gemini 3 Pro** for Phases 1 and 2 (due to the 1M+ context window) and **Claude Opus** for Phase 3 (due to reasoning depth).
+A: We recommend **Gemini 3 Pro via Antigravity (`agy`)** for Phases 1 and 2 (due to the 1M+ context window) and **Claude Opus** for Phase 3 (due to reasoning depth).
 
 **Q: How do I get my data into the Octopus?**
 A: You can paste text directly into the prompt, reference local files (for example `./scripts/orchestrate.sh empathize "Analyze transcripts in ./docs/interviews/"`), or use the plugin/browser tools to pull research from URLs.
@@ -321,7 +321,7 @@ A: Yes! Use the `--ci` flag. This is useful for automatically generating release
 |---------|------------------------------------------|--------------------------------------------|
 | **Primary Goal** | Working software & system design | Validated insights & business strategy |
 | **Deliverables** | Code, tests, diagrams, API specs | Reports, summaries, PRDs, research papers |
-| **Primary CLI** | `codex` (Elite code generation) | `gemini` (1M+ context analysis) |
+| **Primary CLI** | `codex` (Elite code generation) | `agy` (Antigravity, 1M+ context analysis) |
 | **Validation** | Unit tests, quality gates, security audits | Adversarial critique, executive review |
 | **Tone** | Technical, functional, precise | Strategic, analytical, persuasive |
 | **Diamond Phase** | Grasp (Define) & Tangle (Develop) | Probe (Discover) & Grasp (Define) |

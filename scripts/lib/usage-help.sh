@@ -51,9 +51,6 @@ _claude_octopus() {
         'codex-max:GPT-5.3-Codex'
         'codex-mini:GPT-5.1-Codex-Mini (fast)'
         'codex-general:GPT-5.2'
-        'gemini:Gemini-3-Pro'
-        'gemini-fast:Gemini-3-Flash'
-        'gemini-image:Gemini-3-Pro-Image'
         'codex-review:Code review mode'
     )
 
@@ -249,7 +246,7 @@ ${YELLOW}octopus-configure${NC} - Interactive configuration wizard
 ${YELLOW}Usage:${NC} $(basename "$0") octopus-configure
 
 Guides you through:
-  1. Checking/installing dependencies (Codex CLI, Gemini CLI)
+  1. Checking/installing dependencies (Codex CLI)
   2. Configuring API keys
   3. Setting up workspace
   4. Running a test command
@@ -352,7 +349,7 @@ ${YELLOW}Options:${NC}
 
 ${YELLOW}Interactive Wizard Features:${NC}
   • Step-by-step API key configuration with validation
-  • CLI tools verification (Codex, Gemini)
+  • CLI tools verification (Codex)
   • Workspace location customization
   • Shell completion installation
   • Issue detection with fix instructions
@@ -453,11 +450,11 @@ EOF
             ;;
         grapple)
             cat << EOF
-${YELLOW}grapple${NC} - Adversarial debate between Codex and Gemini
+${YELLOW}grapple${NC} - Adversarial debate between Codex and Antigravity (agy)
 
 ${YELLOW}Usage:${NC} $(basename "$0") grapple [--principles TYPE] <prompt>
 
-Multi-round debate where Codex proposes, Gemini critiques, and they
+Multi-round debate where Codex proposes, Antigravity (agy) critiques, and they
 iterate until reaching consensus. Uses critique principles to guide
 the review (security, performance, maintainability, etc.).
 
@@ -474,7 +471,7 @@ ${YELLOW}Examples:${NC}
 
 ${YELLOW}Workflow:${NC}
   Round 1: Codex proposes solution
-  Round 2: Gemini critiques with principles
+  Round 2: Antigravity (agy) critiques with principles
   Round 3: Codex refines based on critique
   Synthesis: Both agents converge on final solution
 
@@ -498,7 +495,7 @@ ${YELLOW}Options:${NC}
   --implement never|after-approval|plan-only
   --worktree auto|on|off
   --benchmark auto|on|off
-  --providers auto|claude,codex,gemini,qwen,opencode,openrouter
+  --providers auto|claude,codex,agy,qwen,opencode,openrouter
   --max-cost <usd>
   --dry-run
   --json
@@ -660,8 +657,7 @@ ${YELLOW}Available Agents:${NC}
   codex           GPT-5.3-Codex       ${GREEN}Premium${NC} (high-capability coding)
   codex-standard  GPT-5.2-Codex       Standard tier
   codex-mini      GPT-5.1-Codex-Mini  Quick/cheap tasks
-  gemini          Gemini-3-Pro        Deep analysis
-  gemini-fast     Gemini-3-Flash      Speed-critical
+  agy             Antigravity         Deep analysis (Google seat)
 
 ${YELLOW}Common Options:${NC}
   -v, --verbose           Detailed output
@@ -697,7 +693,6 @@ ${YELLOW}Examples:${NC}
 ${YELLOW}Environment:${NC}
   CLAUDE_OCTOPUS_WORKSPACE  Override workspace (default: ~/.claude-octopus)
   OPENAI_API_KEY            Codex CLI (or 'codex login' OAuth)
-  GEMINI_API_KEY            Gemini CLI (or 'gemini' OAuth; GOOGLE_API_KEY also accepted)
   PERPLEXITY_API_KEY        Perplexity Sonar web search
   OPENROUTER_API_KEY        OpenRouter models
   QWEN_API_KEY              Qwen CLI (Coding-Plan: OPENAI_API_KEY + OPENAI_BASE_URL also works;

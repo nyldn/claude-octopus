@@ -28,7 +28,6 @@ DO NOT proceed to Step 2 until answered.
 Check providers:
 ```bash
 command -v codex &> /dev/null && codex_status="Available" || codex_status="Not installed"
-command -v gemini &> /dev/null && gemini_status="Available" || gemini_status="Not installed"
 command -v agy &> /dev/null && agy_status="Available" || agy_status="Not installed"
 ```
 Display banner:
@@ -38,8 +37,7 @@ Pipeline: Parse → Scenarios → Embrace → Holdout → Score → Report
 
 Providers:
   Codex CLI - <status> — Scenario generation + holdout evaluation
-  Gemini CLI - <status> — Cross-provider diversity
-  Antigravity CLI - <status> — Additional external-model challenge
+  Antigravity CLI - <status> — Cross-provider diversity and external-model challenge
   Claude - Orchestration + satisfaction scoring
 
 Spec: <path>
@@ -85,7 +83,6 @@ SPEC_CONTENT=$(<"<spec_path>")
 review_provider=""
 command -v codex >/dev/null 2>&1 && review_provider="codex"
 [[ -z "$review_provider" ]] && command -v agy >/dev/null 2>&1 && review_provider="agy"
-[[ -z "$review_provider" ]] && command -v gemini >/dev/null 2>&1 && review_provider="gemini"
 
 if [[ -n "$review_provider" ]]; then
   "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" spawn "$review_provider" \
@@ -176,7 +173,7 @@ Include attribution footer:
 ```
 Dark Factory Mode powered by Claude Octopus v8.25.0
 Pipeline: Spec → Scenarios → Embrace → Holdout → Score → Report
-Providers: Codex | Gemini | Antigravity | Claude
+Providers: Codex | Antigravity | Claude
 ```
 
 ## Error Handling (by step)

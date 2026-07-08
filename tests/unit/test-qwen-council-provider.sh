@@ -19,7 +19,7 @@ USAGE="$PROJECT_ROOT/scripts/lib/usage-help.sh"
 test_qwen_in_auto_list() {
     test_case "council auto provider list includes qwen"
 
-    if grep -q 'claude,codex,gemini,qwen,opencode,openrouter' "$COUNCIL"; then
+    if grep -q 'claude,codex,agy,qwen,opencode,openrouter' "$COUNCIL"; then
         test_pass
     else
         test_fail "council.sh auto provider list should include qwen"
@@ -29,7 +29,7 @@ test_qwen_in_auto_list() {
 test_qwen_no_stale_list() {
     test_case "no stale qwen-less provider list remains in council.sh"
 
-    if grep -q 'claude,codex,gemini,opencode,openrouter' "$COUNCIL"; then
+    if grep -q 'claude,codex,agy,opencode,openrouter' "$COUNCIL"; then
         test_fail "council.sh still contains a provider list without qwen"
     else
         test_pass
@@ -62,7 +62,7 @@ test_qwen_persona_seat() {
 test_qwen_usage_doc() {
     test_case "usage help lists qwen as a --providers option"
 
-    if grep -q 'claude,codex,gemini,qwen,opencode,openrouter' "$USAGE"; then
+    if grep -q 'claude,codex,agy,qwen,opencode,openrouter' "$USAGE"; then
         test_pass
     else
         test_fail "usage-help.sh should document qwen in the --providers list"

@@ -63,10 +63,10 @@ Workflow History (last N runs)
 ═══════════════════════════════════════════════════════════════════
 Date         Workflow     Providers           Findings  Status   Duration
 ─────────────────────────────────────────────────────────────────
-2026-03-21   discover     codex,gemini,claude       12  success     45s
-2026-03-21   review       codex,gemini,claude        8  success     62s
+2026-03-21   discover     codex,agy,claude          12  success     45s
+2026-03-21   review       codex,agy,claude           8  success     62s
 2026-03-20   develop      codex,claude               3  success    120s
-2026-03-20   debate       codex,gemini,claude        —  success     95s
+2026-03-20   debate       codex,agy,claude           —  success     95s
 ═══════════════════════════════════════════════════════════════════
 ```
 

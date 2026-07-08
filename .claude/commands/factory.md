@@ -52,9 +52,9 @@ if command -v codex >/dev/null 2>&1; then
   codex_available="Available"
 fi
 
-gemini_available="Not installed"
-if command -v gemini >/dev/null 2>&1; then
-  gemini_available="Available"
+agy_available="Not installed"
+if command -v agy >/dev/null 2>&1; then
+  agy_available="Available"
 fi
 ```
 
@@ -63,7 +63,6 @@ fi
 ```bash
 echo "PROVIDER_CHECK_START"
 printf "codex:%s\n" "$(command -v codex >/dev/null 2>&1 && echo available || echo missing)"
-printf "gemini:%s\n" "$(command -v gemini >/dev/null 2>&1 && echo available || echo missing)"
 printf "agy:%s\n" "$(command -v agy >/dev/null 2>&1 && echo available || echo missing)"
 printf "perplexity:%s\n" "$([ -n "${PERPLEXITY_API_KEY:-}" ] && echo available || echo missing)"
 printf "opencode:%s\n" "$(command -v opencode >/dev/null 2>&1 && echo available || echo missing)"
@@ -80,7 +79,6 @@ Render the factory banner from actual provider checks. Do not hand-write or summ
 status_cli() { command -v "$1" >/dev/null 2>&1 && echo "Available ✓" || echo "Not installed ✗"; }
 status_env() { [[ -n "${1:-}" ]] && echo "Configured ✓" || echo "Not configured ✗"; }
 codex_status="$(status_cli codex)"
-gemini_status="$(status_cli gemini)"
 agy_status="$(status_cli agy)"
 opencode_status="$(status_cli opencode)"
 copilot_status="$(status_cli copilot)"
@@ -93,7 +91,6 @@ Pipeline: Parse → Scenarios → Embrace → Holdout → Score → Report
 
 Providers:
   🔴 Codex CLI: ${codex_status}
-  🟡 Gemini CLI: ${gemini_status}
   🧭 Antigravity CLI: ${agy_status}
   🟤 OpenCode: ${opencode_status}
   🟢 Copilot CLI: ${copilot_status}
@@ -112,7 +109,6 @@ Pipeline: Parse → Scenarios → Embrace → Holdout → Score → Report
 
 Providers:
   🔴 Codex CLI: [Available ✓ / Not installed ✗]
-  🟡 Gemini CLI: [Available ✓ / Not installed ✗]
   🧭 Antigravity CLI: [Available ✓ / Not installed ✗]
   🟤 OpenCode: [Available ✓ / Not installed ✗]
   🟢 Copilot CLI: [Available ✓ / Not installed ✗]

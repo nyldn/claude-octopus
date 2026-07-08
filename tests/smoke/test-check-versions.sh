@@ -182,7 +182,7 @@ test_floor_constants_defined() {
     test_case "All floor constants are non-empty"
     source "$PROVIDER_VERSIONS"
     local failed=0
-    for var in OCTO_CODEX_MIN_VERSION OCTO_GEMINI_MIN_VERSION OCTO_QWEN_MIN_VERSION                OCTO_GH_MIN_VERSION OCTO_OPENCODE_MIN_VERSION; do
+    for var in OCTO_CODEX_MIN_VERSION OCTO_AGY_MIN_VERSION OCTO_QWEN_MIN_VERSION                OCTO_GH_MIN_VERSION OCTO_OPENCODE_MIN_VERSION; do
         if [[ -z "${!var:-}" ]]; then
             echo "  Missing: $var"
             failed=1

@@ -183,10 +183,6 @@ test_output "Codex host detected via CODEX_HOME" \
     "grep -l 'CODEX_HOME' $ALL_SRC | head -1 | xargs grep 'OCTOPUS_HOST.*codex'" \
     "codex"
 
-test_output "Gemini host detected via GEMINI_HOME" \
-    "grep -l 'GEMINI_HOME' $ALL_SRC | head -1 | xargs grep 'OCTOPUS_HOST.*gemini'" \
-    "gemini"
-
 test_output "Claude host detection preserved" \
     "grep 'OCTOPUS_HOST=\"claude\"' '$SCRIPT_DIR/orchestrate.sh'" \
     "claude"

@@ -163,8 +163,7 @@ If `OCTO_ALLOWED_PROVIDERS` is set, treat it as the source of truth for which pr
 
 Provider Availability:
 🔴 Codex CLI: ${codex_status} - Code generation and patterns
-🟡 Gemini CLI: ${gemini_status} - Alternative approaches
-🧭 Antigravity CLI: ${agy_status} - Additional external-model challenge
+🧭 Antigravity CLI: ${agy_status} - Alternative approaches and external-model challenge
 🔵 Claude: Available ✓ - Integration and quality gates
 
 💰 Estimated Cost: $0.02-0.10
@@ -178,8 +177,7 @@ Provider Availability:
 
 Provider Availability:
 🔴 Codex CLI: ${codex_status} - Structure and framework application
-🟡 Gemini CLI: ${gemini_status} - Content and narrative development
-🧭 Antigravity CLI: ${agy_status} - Additional external-model challenge
+🧭 Antigravity CLI: ${agy_status} - Content and narrative development, external-model challenge
 🔵 Claude: Available ✓ - Integration and quality review
 
 💰 Estimated Cost: $0.02-0.10
@@ -257,7 +255,7 @@ If running in Claude Code v2.1.16+, users will see **real-time progress indicato
 
 **Phase 1 - External Provider Execution (Parallel):**
 - 🔴 Generating code and patterns (Codex)...
-- 🟡 Exploring alternative approaches (Gemini)...
+- 🧭 Exploring alternative approaches (Antigravity)...
 
 **Phase 2 - Synthesis (Sequential):**
 - 🔵 Integrating and applying quality gates...
@@ -378,7 +376,7 @@ Analyze the user's prompt and project to determine context:
 
 Providers:
 🔴 Codex CLI - Code generation and patterns
-🟡 Gemini CLI - Alternative approaches
+🧭 Antigravity CLI - Alternative approaches
 🔵 Claude - Integration and quality gates
 ```
 
@@ -390,7 +388,7 @@ Providers:
 
 Providers:
 🔴 Codex CLI - Structure and framework application
-🟡 Gemini CLI - Content and narrative development
+🧭 Antigravity CLI - Content and narrative development
 🔵 Claude - Integration and quality review
 ```
 
@@ -418,7 +416,7 @@ Providers:
 The **develop** phase generates multiple implementation approaches using external CLI providers:
 
 1. **🔴 Codex CLI** - Implementation-focused, code generation, technical patterns
-2. **🟡 Gemini CLI** - Alternative approaches, edge cases, best practices
+2. **🧭 Antigravity CLI** - Alternative approaches, edge cases, best practices
 3. **🔵 Claude (You)** - Integration, refinement, and final implementation
 
 This is the **divergent** phase for solutions - we explore different implementation paths before converging on the best approach.
@@ -462,7 +460,7 @@ Before execution, you'll see:
 
 Providers:
 🔴 Codex CLI - Code generation and patterns
-🟡 Gemini CLI - Alternative approaches
+🧭 Antigravity CLI - Alternative approaches
 🔵 Claude - Integration and refinement
 ```
 
@@ -480,7 +478,7 @@ ${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh develop "<user's implement
 
 The orchestrate.sh script will:
 1. Call **Codex CLI** with the implementation task
-2. Call **Gemini CLI** with the implementation task
+2. Call **Antigravity CLI** with the implementation task
 3. You (Claude) contribute implementation analysis
 4. Synthesize approaches and recommend best path
 
@@ -576,8 +574,8 @@ After successful execution, present implementation plan with:
    ### Codex Approach
    [Key implementation details from Codex]
 
-   ### Gemini Approach
-   [Alternative considerations from Gemini]
+   ### Antigravity Approach
+   [Alternative considerations from Antigravity]
 
    ### Final Implementation
    [Your integrated solution]
@@ -640,7 +638,7 @@ Based on multi-provider analysis, I recommend a layered approach:
 - Redis for token blacklisting
 - Comprehensive error handling
 
-### Gemini Approach
+### Antigravity Approach
 - Passport.js integration suggestion
 - Rate limiting on auth endpoints
 - Multi-factor auth consideration
@@ -795,7 +793,7 @@ After writing code, ensure:
 
 **External API Usage:**
 - 🔴 Codex CLI uses your OPENAI_API_KEY (costs apply)
-- 🟡 Gemini CLI uses your GEMINI_API_KEY (costs apply)
+- 🧭 Antigravity CLI uses your Antigravity access/subscription (backend cost varies by model)
 - 🔵 Claude analysis included with Claude Code
 
 Tangle workflows typically cost $0.02-0.10 per task depending on complexity and code length.

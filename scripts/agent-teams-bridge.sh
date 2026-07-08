@@ -282,7 +282,7 @@ bridge_get_idle_dispatch_target() {
         [.tasks | to_entries[] | select(.value.status == "running") | .value.agent_type | split("-")[0]] |
         unique |
         . as $busy |
-        ["codex", "gemini", "claude"] - $busy |
+        ["codex", "claude"] - $busy |
         .[]
     ' "$_BRIDGE_LEDGER" 2>/dev/null)
 

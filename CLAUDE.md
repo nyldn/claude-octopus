@@ -14,8 +14,7 @@ When executing Claude Octopus workflows, you MUST display visual indicators so u
 |-----------|---------|-------------|
 | 🐙 | Claude Octopus multi-AI mode active | Multiple APIs |
 | 🔴 | Codex CLI executing | User's OPENAI_API_KEY |
-| 🟡 | Gemini CLI executing | User's GEMINI_API_KEY |
-| 🧭 | Antigravity CLI executing | User's Antigravity access/subscription |
+| 🧭 | Antigravity CLI executing (Google seat; replaces sunset Gemini CLI) | User's Antigravity access/subscription |
 | 🟣 | Perplexity Sonar web search | User's PERPLEXITY_API_KEY |
 | 🔵 | Claude subagent processing | Included with Claude Code |
 
@@ -41,7 +40,7 @@ emoji.
 
 Providers:
 🔴 Codex CLI - [Provider's role in this workflow]
-🟡 Gemini CLI - [Provider's role in this workflow]
+🧭 Antigravity CLI - [Provider's role in this workflow]
 🔵 Claude - [Your role in this workflow]
 ```
 
@@ -57,7 +56,7 @@ Providers:
 
 When `OCTOPUS_COMPACT_BANNERS=true` is set, use a condensed single-line banner instead:
 ```
-🐙 Discover — Multi-provider research | 🔴🟡🔵
+🐙 Discover — Multi-provider research | 🔴🧭🔵
 ```
 
 This is preferred for repeat users who don't need the full provider block every time.
@@ -71,7 +70,7 @@ This is preferred for repeat users who don't need the full provider block every 
 
 Providers:
 🔴 Codex CLI - Technical implementation analysis
-🟡 Gemini CLI - Ecosystem and community research
+🧭 Antigravity CLI - Ecosystem and community research
 🔵 Claude - Strategic synthesis
 ```
 
@@ -82,7 +81,7 @@ Providers:
 
 Providers:
 🔴 Codex CLI - Code generation and patterns
-🟡 Gemini CLI - Alternative approaches
+🧭 Antigravity CLI - Alternative approaches
 🔵 Claude - Integration and quality gates
 ```
 
@@ -93,7 +92,7 @@ Providers:
 
 Providers:
 🔴 Codex CLI - Code quality analysis
-🟡 Gemini CLI - Security and edge cases
+🧭 Antigravity CLI - Security and edge cases
 🔵 Claude - Synthesis and recommendations
 ```
 
@@ -104,7 +103,7 @@ Providers:
 
 Participants:
 🔴 Codex CLI - Technical perspective
-🟡 Gemini CLI - Ecosystem perspective
+🧭 Antigravity CLI - Ecosystem perspective
 🔵 Claude - Moderator and synthesis
 ```
 
@@ -116,8 +115,8 @@ When showing results from each provider, prefix with their indicator:
 🔴 **Codex Analysis:**
 [Codex findings...]
 
-🟡 **Gemini Analysis:**
-[Gemini findings...]
+🧭 **Antigravity Analysis:**
+[Antigravity findings...]
 
 🔵 **Claude Synthesis:**
 [Your synthesis...]
@@ -127,7 +126,7 @@ When showing results from each provider, prefix with their indicator:
 
 Users need to understand:
 1. **What's running** - Which AI providers are being invoked
-2. **Cost implications** - External CLIs (🔴 🟡) use their API keys and cost money
+2. **Cost implications** - External CLIs (🔴 🧭) use their API keys and cost money
 3. **Progress tracking** - Which phase of the workflow is active
 
 Without indicators, users have no visibility into what's happening or what they're paying for.
@@ -197,11 +196,11 @@ echo "Progress: 50%" > ~/.claude/scratchpad/$(cat ~/.claude/session-id)/phase1-p
 
 | Command/Trigger | Workflow | Indicators |
 |-----------------|----------|------------|
-| `octo research X` | Discover | 🐙 🔍 🔴 🟡 🔵 |
-| `octo define X` | Define | 🐙 🎯 🔴 🟡 🔵 |
-| `octo build X` | Develop | 🐙 🛠️ 🔴 🟡 🔵 |
-| `octo review X` | Deliver | 🐙 ✅ 🔴 🟡 🔵 |
-| `octo debate X` | Debate | 🐙 🔴 🟡 🔵 |
+| `octo research X` | Discover | 🐙 🔍 🔴 🧭 🔵 |
+| `octo define X` | Define | 🐙 🎯 🔴 🧭 🔵 |
+| `octo build X` | Develop | 🐙 🛠️ 🔴 🧭 🔵 |
+| `octo review X` | Deliver | 🐙 ✅ 🔴 🧭 🔵 |
+| `octo debate X` | Debate | 🐙 🔴 🧭 🔵 |
 | `/octo:embrace X` | All 4 phases | 🐙 (all phase emojis) |
 
 ---
@@ -210,8 +209,7 @@ echo "Progress: 50%" > ~/.claude/scratchpad/$(cat ~/.claude/session-id)/phase1-p
 
 Before running workflows, check provider availability:
 - Codex CLI: `command -v codex` or check for OPENAI_API_KEY
-- Gemini CLI: `command -v gemini` or check for GEMINI_API_KEY
-- Antigravity CLI: `command -v agy`
+- Antigravity CLI (Google seat): `command -v agy`
 - Perplexity: check for PERPLEXITY_API_KEY (API-only, no CLI needed)
 - OpenRouter: check for OPENROUTER_API_KEY
 - Ollama: `command -v ollama` + server health at http://localhost:11434
@@ -223,7 +221,7 @@ If a provider is unavailable, note it in the banner:
 ```
 Providers:
 🔴 Codex CLI - [role] (unavailable - skipping)
-🟡 Gemini CLI - [role]
+🧭 Antigravity CLI - [role]
 🔵 Claude - [role]
 ```
 
@@ -233,8 +231,7 @@ Providers:
 
 Always be mindful that external CLIs cost money:
 - 🔴 Codex: ~$0.01-0.30 per query depending on model (GPT-5.5 $5/$30 MTok — premium default as of v9.44, GPT-5.4 $2.50/$15, GPT-5.3-Codex $1.75/$14, Mini $0.25/$2.00 MTok)
-- 🟡 Gemini: ~$0.01-0.03 per query (Gemini 3.1 Pro Preview $2.50/$10 MTok, 3 Flash Preview $0.25/$1)
-- 🧭 Antigravity CLI (`agy`): Included with the user's Antigravity access/subscription; backend cost depends on selected `OCTOPUS_AGY_MODEL`
+- 🧭 Antigravity CLI (`agy`, Google seat): Included with the user's Antigravity access/subscription; backend cost depends on selected `OCTOPUS_AGY_MODEL` (serves Gemini 3.x, Claude, and GPT-OSS models)
 - 🟣 Perplexity: ~$0.01-0.05 per query (Sonar Pro $3/$15 MTok, Sonar $1/$1 MTok)
 - 🔵 Claude (Sonnet 4.6): Included with Claude Code subscription
 - 🔵 Claude (Fable 5, Mythos-class, opt-in via `OCTOPUS_OPUS_MODEL=claude-fable-5`): **$10/$50 per MTok** — 2x Opus 4.8 cost. 1M context, 128K output. Never auto-selected. Note: Anthropic retains prompts/outputs up to 30 days for safety classifiers.

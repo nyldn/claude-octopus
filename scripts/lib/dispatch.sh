@@ -11,7 +11,6 @@
 #                    gpt-5.2-codex, gpt-5.4-mini (budget), gpt-5 (standard), gpt-5.2, gpt-5.1
 # - OpenAI Reasoning: o3, o3-pro (API-key only), o3 (API-key only), o3-mini (API-key only)
 # - OpenAI Large Context: gpt-4.1 (1M ctx, API-key only), gpt-5.4 (1M ctx, API-key only)
-# - Google Gemini 3.0: gemini-3.1-pro-preview, gemini-3-flash-preview, gemini-3-pro-image-preview
 # - Google Antigravity CLI: agy --print stdin dispatch, optional OCTOPUS_AGY_MODEL
 # Note: "API-key only" models require OPENAI_API_KEY; they are NOT available via ChatGPT subscription/OAuth.
 get_agent_command() {
@@ -80,34 +79,6 @@ get_agent_command() {
         codex-large-context)  # v8.9.0: 1M context models (gpt-4.1)
             model=$(get_agent_model "$agent_type" "$phase" "$role")
             echo "${codex_bin} exec --skip-git-repo-check --model ${model} ${sandbox_flag} -"
-            ;;
-        gemini|gemini-fast|gemini-image)
-            model=$(get_agent_model "$agent_type" "$phase" "$role")
-            # v8.10.0: Fixed headless mode (Issue #25)
-            # Prompt delivered via stdin by callers (avoids OS arg limits)
-            # Callers add -p "" for headless mode trigger
-            # -o text: clean output, --approval-mode yolo: auto-accept (replaces deprecated -y)
-            # v8.32.0: GEMINI_FORCE_FILE_STORAGE=true on macOS avoids Keychain prompts
-            # when calling Gemini CLI from bash subprocesses (OAuth still works)
-            # NOTE: .toml custom commands exist in .gemini/commands/octo/ for human use,
-            # but stdin+slash-command don't compose in headless mode (Codex source analysis)
-            # Routed through helpers/gemini-exec.sh for 404/ModelNotFound fallback.
-            local gemini_env="env NODE_NO_WARNINGS=1"
-            if [[ "$OCTOPUS_PLATFORM" == "Darwin" && -z "${GEMINI_API_KEY:-}" ]]; then
-                gemini_env="env NODE_NO_WARNINGS=1 GEMINI_FORCE_FILE_STORAGE=true"
-            fi
-            local gemini_exec="${PLUGIN_DIR}/scripts/helpers/gemini-exec.sh"
-            local gemini_flags="-o text --approval-mode yolo"
-            case "${OCTOPUS_GEMINI_SANDBOX:-headless}" in
-                interactive|prompt-mode) gemini_flags="" ;;
-            esac
-            # Gemini confines reads to its cwd workspace; prompts that reference
-            # files outside PROJECT_ROOT (e.g. /tmp staging dirs) need those dirs
-            # whitelisted. Comma-separated, no spaces (read -ra word-splitting).
-            if [[ -n "${OCTOPUS_GEMINI_INCLUDE_DIRS:-}" ]]; then
-                gemini_flags="${gemini_flags} --include-directories ${OCTOPUS_GEMINI_INCLUDE_DIRS}"
-            fi
-            echo "${gemini_env} ${gemini_exec} ${model} ${gemini_flags}"
             ;;
         agy|agy-research|antigravity)
             echo "${PLUGIN_DIR}/scripts/helpers/agy-exec.sh"
@@ -225,7 +196,6 @@ get_provider_context_limit() {
 
     case "$provider" in
         codex)      echo "${OCTOPUS_CODEX_CONTEXT_BUDGET:-${default_budget}}" ;;
-        gemini)     echo "${OCTOPUS_GEMINI_CONTEXT_BUDGET:-${default_budget}}" ;;
         agy|antigravity) echo "${OCTOPUS_AGY_CONTEXT_BUDGET:-${default_budget}}" ;;
         claude)     echo "${OCTOPUS_CLAUDE_CONTEXT_BUDGET:-${default_budget}}" ;;
         perplexity) echo "${OCTOPUS_PERPLEXITY_CONTEXT_BUDGET:-${default_budget}}" ;;
@@ -281,7 +251,7 @@ ${summary_input}"
     if [[ -n "${OCTOPUS_OVERSIZE_SUMMARIZER:-}" ]]; then
         candidates+=("$OCTOPUS_OVERSIZE_SUMMARIZER")
     fi
-    candidates+=("gemini-fast" "codex-mini" "claude-sonnet" "codex")
+    candidates+=("agy" "codex-mini" "claude-sonnet" "codex")
 
     local candidate summary previous_strategy previous_debug
     previous_strategy="${OCTOPUS_OVERSIZE_STRATEGY-}"
@@ -403,7 +373,6 @@ get_agent_model() {
     local provider=""
     case "$agent_type" in
         codex*)      provider="codex" ;;
-        gemini*)     provider="gemini" ;;
         agy*|antigravity) provider="agy" ;;
         claude*)     provider="claude" ;;
         openrouter*) provider="openrouter" ;;
@@ -430,7 +399,7 @@ get_agent_model() {
 }
 
 # v8.31.0: Model restriction service — per-provider allowlists for cost/compliance control
-# Set OCTOPUS_CODEX_ALLOWED_MODELS, OCTOPUS_GEMINI_ALLOWED_MODELS, etc. (comma-separated)
+# Set OCTOPUS_CODEX_ALLOWED_MODELS, OCTOPUS_AGY_ALLOWED_MODELS, etc. (comma-separated)
 # Empty or unset = no restriction (all models allowed)
 validate_model_allowed() {
     local provider="$1"
@@ -439,7 +408,6 @@ validate_model_allowed() {
     local allowlist_var=""
     case "$provider" in
         codex)      allowlist_var="OCTOPUS_CODEX_ALLOWED_MODELS" ;;
-        gemini)     allowlist_var="OCTOPUS_GEMINI_ALLOWED_MODELS" ;;
         agy)        allowlist_var="OCTOPUS_AGY_ALLOWED_MODELS" ;;
         claude)     allowlist_var="OCTOPUS_CLAUDE_ALLOWED_MODELS" ;;
         openrouter) allowlist_var="OCTOPUS_OPENROUTER_ALLOWED_MODELS" ;;
@@ -616,8 +584,6 @@ find_capable_fallback() {
     case "$provider" in
         codex)
             candidates=(gpt-5.4-mini gpt-5.2-codex gpt-5.3-codex gpt-5.4 gpt-5.4-pro o3) ;;
-        gemini)
-            candidates=(gemini-3-flash-preview gemini-3.1-pro-preview) ;;
         agy)
             candidates=(default) ;;
         claude)

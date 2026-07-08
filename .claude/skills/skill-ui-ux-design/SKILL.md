@@ -111,8 +111,7 @@ Pipeline:
 
 Providers:
 🔴 Codex CLI: [Available ✓ / Not installed ✗] — Implementation critique
-🟡 Gemini CLI: [Available ✓ / Not installed ✗] — Ecosystem critique
-🧭 Antigravity CLI: [Available ✓ / Not installed ✗] — Additional external-model challenge
+🧭 Antigravity CLI: [Available ✓ / Not installed ✗] — Ecosystem critique + external-model challenge
 🔵 Claude (Sonnet): Available ✓ — Design + independent critique
 
 Tools:
@@ -194,7 +193,7 @@ Be distinctive — take a clear position rather than playing it safe.
 
 **Dispatch to different providers for maximum diversity:**
 - 🔴 Codex: implementation-pragmatic direction (what builds fast and scales)
-- 🟡 Gemini: trend-aware direction (what's current in the design ecosystem)
+- 🧭 Antigravity: trend-aware direction (what's current in the design ecosystem)
 - 🔵 Claude: user-centered direction (what serves the audience best)
 - 🟤 OpenCode / 🟢 Copilot / 🟣 Qwen: additional variants if available
 
@@ -208,7 +207,7 @@ Colors: #F5F0EB, #2D2A26, #E07A5F, #81B29A, #F2CC8F
 Fonts: Inter + Source Serif 4
 Feel: Clean, approachable, content-first with warm accent touches
 
-━━━ Variant B: "Bold Industrial" (🟡 Gemini) ━━━
+━━━ Variant B: "Bold Industrial" (🧭 Antigravity) ━━━
 Colors: #0A0A0A, #FFFFFF, #FF6B35, #004E89, #1A936F
 Fonts: Space Grotesk + IBM Plex Sans
 Feel: High-contrast, technical authority, strong hierarchy
@@ -278,7 +277,6 @@ For each issue found, state: what's wrong, why it matters, and what to do instea
 providers=()
 command -v codex >/dev/null 2>&1 && providers+=(codex)
 command -v agy >/dev/null 2>&1 && providers+=(agy)
-command -v gemini >/dev/null 2>&1 && providers+=(gemini)
 
 for provider in "${providers[@]}"; do
     safe_provider=$(printf '%s' "$provider" | tr -c '[:alnum:]_-' '_')
@@ -293,7 +291,7 @@ wait
 
 **Display all critiques with provider indicators:**
 ```
-🔴/🧭/🟡 **External Provider Critique:** [implementation, ecosystem, accessibility, and alternative approach concerns]
+🔴/🧭 **External Provider Critique:** [implementation, ecosystem, accessibility, and alternative approach concerns]
 🔵 **Claude Critique:** [design concerns — accessibility gaps, fit issues, missing patterns]
 ```
 

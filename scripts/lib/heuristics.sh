@@ -291,7 +291,7 @@ aggregate_results() {
     done <<< "$ranked_files"
 
     # Phase 2: Synthesize if we have a provider available and multiple results
-    if [[ $result_count -gt 1 ]] && command -v gemini &> /dev/null && [[ "$DRY_RUN" != "true" ]]; then
+    if [[ $result_count -gt 1 ]] && command -v agy &> /dev/null && [[ "$DRY_RUN" != "true" ]]; then
         log INFO "Synthesizing $result_count results (ranked by quality, not just concatenating)..."
 
         # v8.49.0: Enhanced synthesis prompt with relevance awareness and structured output
@@ -327,7 +327,7 @@ Subtask results:
 $(<"$raw_concat")"
 
         local synthesis_result
-        if synthesis_result=$(printf '%s' "$synthesis_prompt" | run_with_timeout "$TIMEOUT" gemini 2>/dev/null) && [[ -n "$synthesis_result" ]]; then
+        if synthesis_result=$(printf '%s' "$synthesis_prompt" | run_with_timeout "$TIMEOUT" agy --print 2>/dev/null) && [[ -n "$synthesis_result" ]]; then
             echo "# Claude Octopus - Synthesized Results" > "$aggregate_file"
             echo "" >> "$aggregate_file"
             echo "Generated: $(date)" >> "$aggregate_file"
@@ -422,7 +422,7 @@ synthesize_probe_results() {
         results="# Compact Probe Synthesis Context"$'\n\n'"No bounded probe excerpts could be collected. Inspect RESULTS_DIR for raw artifacts."
     fi
 
-    # Use Gemini for intelligent synthesis
+    # Use Antigravity for intelligent synthesis
     # v8.49.0: Enhanced prompt with structured output, minority opinion preservation,
     # and relevance-aware weighting (inspired by Crawl4AI content filtering patterns)
     local synthesis_prompt="Synthesize these research findings into a coherent discovery summary.
@@ -451,7 +451,7 @@ Research findings:
 $results"
 
     local synthesis
-    synthesis=$(run_agent_sync "gemini" "$synthesis_prompt" "${TIMEOUT:-300}") || {
+    synthesis=$(run_agent_sync "agy" "$synthesis_prompt" "${TIMEOUT:-300}") || {
         log WARN "Synthesis failed, using compact fallback"
         synthesis=$(build_probe_fallback_synthesis "$original_prompt" "$result_count" "$usable_results" "$total_content_size" "$results")
     }

@@ -34,13 +34,6 @@ detect_provider_mcp() {
                 return 0
             fi
             ;;
-        gemini)
-            # Check if gemini MCP tool is available
-            if mcp list 2>/dev/null | grep -q "gemini"; then
-                echo "available"
-                return 0
-            fi
-            ;;
         perplexity)
             # Check if perplexity MCP tool is available
             if mcp list 2>/dev/null | grep -q "perplexity"; then
@@ -61,12 +54,6 @@ detect_provider_cli() {
     case "$provider" in
         codex)
             if command -v codex &>/dev/null; then
-                echo "available"
-                return 0
-            fi
-            ;;
-        gemini)
-            if command -v gemini &>/dev/null; then
                 echo "available"
                 return 0
             fi
@@ -93,7 +80,7 @@ detect_provider_cli() {
 detect_all_providers() {
     local use_mcp="${1:-auto}"
 
-    local codex_status gemini_status perplexity_status claude_status
+    local codex_status perplexity_status claude_status
 
     # Determine detection method
     local use_mcp_method="false"
@@ -108,11 +95,9 @@ detect_all_providers() {
     # Detect providers (|| true guards against set -e with unavailable providers)
     if [[ "$use_mcp_method" == "true" ]]; then
         codex_status=$(detect_provider_mcp "codex") || true
-        gemini_status=$(detect_provider_mcp "gemini") || true
         perplexity_status=$(detect_provider_mcp "perplexity") || true
     else
         codex_status=$(detect_provider_cli "codex") || true
-        gemini_status=$(detect_provider_cli "gemini") || true
         perplexity_status=$(detect_provider_cli "perplexity") || true
     fi
     claude_status="available"  # Always available
@@ -125,10 +110,6 @@ detect_all_providers() {
     "codex": {
       "status": "$codex_status",
       "emoji": "🔴"
-    },
-    "gemini": {
-      "status": "$gemini_status",
-      "emoji": "🟡"
     },
     "perplexity": {
       "status": "$perplexity_status",
@@ -148,12 +129,10 @@ get_provider_banner() {
     local json_output="$1"
 
     local codex_status=$(echo "$json_output" | jq -r '.providers.codex.status')
-    local gemini_status=$(echo "$json_output" | jq -r '.providers.gemini.status')
     local perplexity_status=$(echo "$json_output" | jq -r '.providers.perplexity.status')
     local claude_status=$(echo "$json_output" | jq -r '.providers.claude.status')
 
     local codex_display="🔴 Codex CLI: "
-    local gemini_display="🟡 Gemini CLI: "
     local perplexity_display="🟣 Perplexity: "
     local claude_display="🔵 Claude: "
 
@@ -161,12 +140,6 @@ get_provider_banner() {
         codex_display="${codex_display}Available ✓"
     else
         codex_display="${codex_display}Not installed ✗"
-    fi
-
-    if [[ "$gemini_status" == "available" ]]; then
-        gemini_display="${gemini_display}Available ✓"
-    else
-        gemini_display="${gemini_display}Not installed ✗"
     fi
 
     if [[ "$perplexity_status" == "available" ]]; then
@@ -178,7 +151,6 @@ get_provider_banner() {
     claude_display="${claude_display}Available ✓"
 
     echo "$codex_display"
-    echo "$gemini_display"
     echo "$perplexity_display"
     echo "$claude_display"
 }
@@ -245,7 +217,7 @@ Commands:
   check PROVIDER [METHOD]  Check if provider is available (exit code)
   has-mcp                  Check if MCP support is available
 
-Providers: codex, gemini, perplexity, claude
+Providers: codex, perplexity, claude
 
 EOF
         exit 1

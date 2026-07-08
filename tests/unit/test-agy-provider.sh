@@ -101,8 +101,12 @@ test_agy_inherits_environment() {
 test_agy_spawn_bypasses_timeout_wrapper() {
     test_case "spawn enforces timeout wrapper for agy"
 
+    # Capture the agy dispatch block to a var (piping sed→grep -q SIGPIPEs sed,
+    # which trips the test's `set -o pipefail`).
+    local spawn_block
+    spawn_block="$(sed -n '/agent_type.*agy/,/elif printf/p' "$PROJECT_ROOT/scripts/lib/spawn.sh")"
     if grep -q 'agent_type.*agy' "$PROJECT_ROOT/scripts/lib/spawn.sh" && \
-       sed -n '/agent_type.*agy/,/elif printf/p' "$PROJECT_ROOT/scripts/lib/spawn.sh" | grep -q 'run_with_timeout'; then
+       [[ "$spawn_block" == *run_with_timeout* ]]; then
         test_pass
     else
         test_fail "spawn.sh should wrap agy in run_with_timeout"
@@ -112,11 +116,14 @@ test_agy_spawn_bypasses_timeout_wrapper() {
 test_agy_sync_bypasses_timeout_wrapper() {
     test_case "sync dispatch enforces timeout wrapper for agy"
 
-    if grep -q 'agent_type.*agy' "$PROJECT_ROOT/scripts/lib/agent-sync.sh" && \
-       sed -n '/agent_type.*agy/,/elif.*gemini/p' "$PROJECT_ROOT/scripts/lib/agent-sync.sh" | grep -q 'run_with_timeout'; then
+    # agent-sync.sh dispatches all providers through one run_with_timeout call
+    # (the per-provider gemini branch was removed in the Gemini CLI sunset). Assert
+    # agy is recognized and the dispatch is timeout-wrapped.
+    if grep -qE 'agy\*\|antigravity' "$PROJECT_ROOT/scripts/lib/agent-sync.sh" && \
+       grep -q 'run_with_timeout' "$PROJECT_ROOT/scripts/lib/agent-sync.sh"; then
         test_pass
     else
-        test_fail "agent-sync.sh should wrap agy in run_with_timeout"
+        test_fail "agent-sync.sh should recognize agy and wrap dispatch in run_with_timeout"
     fi
 }
 
@@ -186,7 +193,7 @@ test_agy_fleet_scoring() {
 
     if [[ "$scorer_block" == *"agy)"* ]] && \
        [[ "$scorer_block" == *"PROVIDER_AGY_INSTALLED"* ]] && \
-       [[ "$select_block" == *"codex gemini agy claude opencode openrouter"* ]] && \
+       [[ "$select_block" == *"codex agy claude opencode openrouter"* ]] && \
        [[ "$select_block" == *'echo "agy"'* ]]; then
         test_pass
     else
@@ -287,7 +294,7 @@ test_agy_docs_cost_and_marker() {
 test_agy_slash_command_visibility() {
     test_case "commands and skills include agy in provider-facing prompts"
 
-    if grep -q 'Codex, Gemini, and Antigravity' "$PROJECT_ROOT/.claude/commands/security.md" && \
+    if grep -q 'Codex, Antigravity' "$PROJECT_ROOT/.claude/commands/security.md" && \
        grep -q 'command -v agy' "$PROJECT_ROOT/.claude/commands/plan.md" && \
        grep -q 'command -v agy' "$PROJECT_ROOT/.claude/commands/review.md" && \
        grep -q 'command -v agy' "$PROJECT_ROOT/.claude/commands/factory.md" && \
@@ -295,7 +302,7 @@ test_agy_slash_command_visibility() {
        grep -q 'checkCommandAvailable.*agy' "$PROJECT_ROOT/.claude/commands/multi.md" && \
        grep -q 'Antigravity CLI' "$PROJECT_ROOT/.claude/commands/brainstorm.md" && \
        grep -q 'Antigravity (agy)' "$PROJECT_ROOT/.claude/commands/model-config.md" && \
-       grep -q 'claude,codex,gemini,agy' "$PROJECT_ROOT/.claude/commands/council.md" && \
+       grep -q 'claude,codex,agy' "$PROJECT_ROOT/.claude/commands/council.md" && \
        grep -q 'Antigravity CLI' "$PROJECT_ROOT/.claude/commands/debate.md" && \
        grep -q 'Antigravity CLI' "$PROJECT_ROOT/.claude/skills/flow-discover/SKILL.md" && \
        grep -q 'Antigravity CLI' "$PROJECT_ROOT/.claude/skills/flow-develop/SKILL.md" && \
@@ -306,8 +313,8 @@ test_agy_slash_command_visibility() {
        grep -q 'Antigravity CLI' "$PROJECT_ROOT/SECURITY.md" && \
        grep -q 'up to 9 AI CLIs' "$PROJECT_ROOT/PRODUCT.md" && \
        grep -q 'Six providers can cost nothing extra' "$PROJECT_ROOT/PRODUCT.md" && \
-       grep -q 'codex gemini agy' "$PROJECT_ROOT/tests/test-fleet-diversity.sh" && \
-       grep -q 'codex, gemini, agy' "$PROJECT_ROOT/tests/unit/test-research-fanout-static.sh"; then
+       grep -q 'codex agy' "$PROJECT_ROOT/tests/test-fleet-diversity.sh" && \
+       grep -q 'codex, agy' "$PROJECT_ROOT/tests/unit/test-research-fanout-static.sh"; then
         test_pass
     else
         test_fail "provider-facing commands, skills, and docs should expose agy alongside other external providers"
@@ -345,10 +352,10 @@ test_agy_debate_skill_uses_runtime_advisors() {
     if [[ -z "$stale" ]] && \
        grep -q 'orchestrate.sh" spawn "$advisor"' "$PROJECT_ROOT/.claude/skills/skill-debate/SKILL.md" && \
        grep -q 'command -v agy' "$PROJECT_ROOT/.claude/skills/skill-debate/SKILL.md" && \
-       grep -q 'claude\*|codex\*|gemini\*|agy\*' "$PROJECT_ROOT/.claude/skills/skill-debate/SKILL.md" && \
+       grep -q 'claude\*|codex\*|agy\*' "$PROJECT_ROOT/.claude/skills/skill-debate/SKILL.md" && \
        grep -q 'orchestrate.sh" spawn "$advisor"' "$PROJECT_ROOT/skills/skill-debate/SKILL.md" && \
        grep -q 'command -v agy' "$PROJECT_ROOT/skills/skill-debate/SKILL.md" && \
-       grep -q 'claude\*|codex\*|gemini\*|agy\*' "$PROJECT_ROOT/skills/skill-debate/SKILL.md"; then
+       grep -q 'claude\*|codex\*|agy\*' "$PROJECT_ROOT/skills/skill-debate/SKILL.md"; then
         test_pass
     else
         test_fail "debate skill should dispatch runtime advisors through orchestrate.sh and include agy fallback; stale copy: $stale"
@@ -377,7 +384,7 @@ test_user_facing_docs_route_external_provider_dispatch() {
 }
 
 test_provider_aware_commands_show_core_provider_status() {
-    test_case "provider-aware slash commands show Codex, Gemini, Antigravity, and Perplexity status"
+    test_case "provider-aware slash commands show Codex, Antigravity, and Perplexity status"
 
     local missing=""
     local commands=(
@@ -404,7 +411,6 @@ test_provider_aware_commands_show_core_provider_status() {
             fi
 
             grep -q 'Codex CLI: \[Available ✓ / Not installed ✗\]' "$file" || missing+="${file}: missing Codex status"$'\n'
-            grep -q 'Gemini CLI: \[Available ✓ / Not installed ✗\]' "$file" || missing+="${file}: missing Gemini status"$'\n'
             grep -q 'Antigravity CLI: \[Available ✓ / Not installed ✗\]' "$file" || missing+="${file}: missing Antigravity status"$'\n'
             grep -q 'Perplexity: \[Configured ✓ / Not configured ✗\]' "$file" || missing+="${file}: missing Perplexity status"$'\n'
         done
@@ -490,7 +496,7 @@ test_provider_workflow_review_regressions() {
     for file in "${brainstorm_files[@]}"; do
         grep -q 'ORCH_HELP="$("$ORCH" 2>&1 || true)"' "$file" || missing+="${file}: missing pipefail-safe orchestrator probe"$'\n'
         grep -q 'trap '\''rm -rf "$RUN_DIR"'\'' EXIT' "$file" || missing+="${file}: missing tempdir cleanup trap"$'\n'
-        grep -q 'claude\*|codex\*|gemini\*|agy\*' "$file" || missing+="${file}: missing claude advisor allowlist"$'\n'
+        grep -q 'claude\*|codex\*|agy\*' "$file" || missing+="${file}: missing claude advisor allowlist"$'\n'
     done
 
     grep -q 'CLAUDE_PLUGIN_ROOT:-' "$PROJECT_ROOT/.claude/commands/setup.md" || missing+=".claude/commands/setup.md: setup root not plugin-anchored"$'\n'

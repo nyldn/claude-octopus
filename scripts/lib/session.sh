@@ -83,7 +83,7 @@ display_progress_summary() {
         else
             "⏸️  \(.name): Waiting"
         end
-    ' "$PROGRESS_FILE" 2>/dev/null | sed 's/codex/🔴 Codex CLI/; s/gemini/🟡 Gemini CLI/; s/claude/🔵 Claude/' || echo "  (No agent data available)"
+    ' "$PROGRESS_FILE" 2>/dev/null | sed 's/codex/🔴 Codex CLI/; s/agy/🧭 Antigravity CLI/; s/claude/🔵 Claude/' || echo "  (No agent data available)"
 
     echo ""
 
@@ -156,7 +156,7 @@ display_rich_progress() {
             agent="${OCTO_PROGRESS_AGENT_TYPES[$i]:-}"
         fi
         if [[ -z "$agent" ]]; then
-            agent="gemini"
+            agent="agy"
             [[ $((i % 2)) -eq 0 ]] && agent="codex"
         fi
         agent_types+=("$agent")
@@ -279,7 +279,7 @@ display_rich_progress() {
             # Display row with emoji for agent type
             local agent_emoji="🔴"
             case "$agent_type" in
-                gemini*) agent_emoji="🟡" ;;
+                agy*|antigravity) agent_emoji="🧭" ;;
                 claude*) agent_emoji="🔵" ;;
                 perplexity*) agent_emoji="🟣" ;;
                 copilot*) agent_emoji="🟢" ;;
@@ -306,7 +306,7 @@ display_rich_progress() {
 
         echo -e "${MAGENTA}${_DASH}${NC}"
         # v9.2.0: ETA based on provider-specific benchmarks (OctoBench data)
-        # Codex ~150s, Gemini ~90s, Sonnet ~45s — parallel = max(providers)
+        # Codex ~150s, Antigravity ~90s, Sonnet ~45s — parallel = max(providers)
         local eta_secs=120  # default estimate
         if [[ $completed -gt 0 && $completed -lt $total_agents ]]; then
             local avg_per_agent=$(( elapsed / completed ))

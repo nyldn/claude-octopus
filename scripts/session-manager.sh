@@ -25,7 +25,6 @@ export_session_variables() {
 
     # Provider-specific session IDs
     export OCTOPUS_CODEX_SESSION="codex-${OCTOPUS_SESSION_ID}"
-    export OCTOPUS_GEMINI_SESSION="gemini-${OCTOPUS_SESSION_ID}"
     export OCTOPUS_CLAUDE_SESSION="claude-${OCTOPUS_SESSION_ID}"
 
     # Bridge CLAUDE_PLUGIN_ROOT to a stable symlink for LLM Bash tool access.
@@ -64,7 +63,6 @@ export_session_variables() {
   "created_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
   "providers": {
     "codex": "$OCTOPUS_CODEX_SESSION",
-    "gemini": "$OCTOPUS_GEMINI_SESSION",
     "claude": "$OCTOPUS_CLAUDE_SESSION"
   },
   "directories": {
@@ -89,7 +87,6 @@ get_session_info() {
     echo ""
     echo "Provider Sessions:"
     echo "  🔴 Codex:  $OCTOPUS_CODEX_SESSION"
-    echo "  🟡 Gemini: $OCTOPUS_GEMINI_SESSION"
     echo "  🔵 Claude: $OCTOPUS_CLAUDE_SESSION"
 }
 

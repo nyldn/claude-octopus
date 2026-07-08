@@ -34,4 +34,4 @@ Orchestrate up to eight AI models on every task so blind spots surface before yo
 | scripts-executable | bash -n scripts/orchestrate.sh | 7 | Orchestration scripts are valid shell |
 | preflight-passes | timeout 10 bash scripts/helpers/preflight.sh --exit-code | 6 | Provider health check passes (Claude always available) |
 | package-valid | node -e "require('./package.json')" | 5 | package.json is parseable |
-| providers-documented | grep -q "Codex\|Gemini\|Copilot" README.md | 4 | Core providers documented in README |
+| providers-documented | grep -q "Codex\|Antigravity\|Copilot" README.md | 4 | Core providers documented in README |

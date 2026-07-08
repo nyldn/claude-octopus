@@ -16,7 +16,7 @@ aliases:
 
 ### EXECUTION MECHANISM — NON-NEGOTIABLE
 
-**You MUST dispatch work to external providers (Codex, Gemini, Antigravity, etc.) for this command. You are PROHIBITED from:**
+**You MUST dispatch work to external providers (Codex, Antigravity, etc.) for this command. You are PROHIBITED from:**
 - ❌ Executing the entire task using only Claude-native tools
 - ❌ Using a single Agent subagent instead of multi-provider dispatch
 - ❌ Skipping provider dispatch because "I can handle this alone"
@@ -76,7 +76,7 @@ Read and follow the full skill instructions from:
 The skill runs two stages:
 1. **Stage 1** (Spec Compliance) — Validate against intent contract
 2. **Gate check** — Stage 1 must pass before Stage 2
-3. **Stage 2** (Code Quality) — Stub detection + multi-LLM quality review (Codex for logic, Gemini for security, Claude for architecture — synthesized into unified findings)
+3. **Stage 2** (Code Quality) — Stub detection + multi-LLM quality review (Codex for logic, Antigravity for security, Claude for architecture — synthesized into unified findings)
 4. **Combined report** — Unified verdict
 
 ### Post-Completion — Interactive Next Steps

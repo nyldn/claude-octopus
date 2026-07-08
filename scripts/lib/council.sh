@@ -74,7 +74,7 @@ Options:
   --implement never|after-approval|plan-only
   --worktree auto|on|off
   --benchmark auto|on|off
-  --providers auto|claude,codex,gemini,qwen,opencode,openrouter
+  --providers auto|claude,codex,agy,qwen,opencode,openrouter
   --max-cost <usd>
   --simulate
   --single-model
@@ -175,7 +175,7 @@ council_validate_choice() {
 
 council_validate_provider_list() {
     local providers="$1"
-    local allowed="claude,codex,gemini,qwen,opencode,openrouter"
+    local allowed="claude,codex,agy,qwen,opencode,openrouter"
 
     if [[ "$providers" == "auto" ]]; then
         return 0
@@ -517,7 +517,7 @@ council_provider_command() {
     case "$1" in
         claude) echo "claude" ;;
         codex) echo "codex" ;;
-        gemini) echo "gemini" ;;
+        agy) echo "agy" ;;
         opencode) echo "opencode" ;;
         openrouter) echo "openrouter" ;;
         *) echo "$1" ;;
@@ -528,7 +528,7 @@ council_provider_org() {
     case "$1" in
         claude) echo "anthropic" ;;
         codex) echo "openai" ;;
-        gemini) echo "google" ;;
+        agy) echo "google" ;;
         opencode) echo "opencode" ;;
         openrouter) echo "openrouter" ;;
         *) echo "$1" ;;
@@ -561,7 +561,7 @@ council_agent_config_value() {
 council_cli_to_provider() {
     case "$1" in
         claude*|opus*|sonnet*) echo "claude" ;;
-        gemini*) echo "gemini" ;;
+        agy*|antigravity*|gemini*) echo "agy" ;;
         opencode*) echo "opencode" ;;
         openrouter*) echo "openrouter" ;;
         codex*|gpt*) echo "codex" ;;
@@ -579,7 +579,7 @@ council_persona_default_provider() {
 
     case "$1" in
         strategy-analyst|exec-communicator) echo "claude" ;;
-        research-synthesizer|business-analyst|finance-analyst|academic-writer|ux-researcher) echo "gemini" ;;
+        research-synthesizer|business-analyst|finance-analyst|academic-writer|ux-researcher) echo "agy" ;;
         *) echo "codex" ;;
     esac
 }
@@ -594,7 +594,7 @@ council_persona_model() {
 
     case "$1" in
         strategy-analyst|exec-communicator) echo "anthropic/claude-sonnet-4.6" ;;
-        research-synthesizer|business-analyst|finance-analyst|academic-writer|ux-researcher) echo "gemini-3-pro-preview" ;;
+        research-synthesizer|business-analyst|finance-analyst|academic-writer|ux-researcher) echo "agy:default" ;;
         code-reviewer) echo "gpt-5.3-codex-spark" ;;
         *) echo "gpt-5.3-codex" ;;
     esac
@@ -882,7 +882,7 @@ council_pick_provider() {
     fi
 
     local provider providers="$COUNCIL_PROVIDERS"
-    [[ "$providers" == "auto" ]] && providers="claude,codex,gemini,qwen,opencode,openrouter"
+    [[ "$providers" == "auto" ]] && providers="claude,codex,agy,qwen,opencode,openrouter"
     IFS=',' read -r -a provider_list <<< "$providers"
     for provider in "${provider_list[@]}"; do
         provider="${provider// /}"
@@ -982,7 +982,7 @@ council_candidate_personas() {
 
 council_available_provider_orgs_json() {
     local providers="$COUNCIL_PROVIDERS"
-    [[ "$providers" == "auto" ]] && providers="claude,codex,gemini,qwen,opencode,openrouter"
+    [[ "$providers" == "auto" ]] && providers="claude,codex,agy,qwen,opencode,openrouter"
 
     local json='[]' provider org
     IFS=',' read -r -a provider_list <<< "$providers"
@@ -998,7 +998,7 @@ council_available_provider_orgs_json() {
 council_provider_for_org() {
     local wanted_org="$1"
     local providers="$COUNCIL_PROVIDERS"
-    [[ "$providers" == "auto" ]] && providers="claude,codex,gemini,qwen,opencode,openrouter"
+    [[ "$providers" == "auto" ]] && providers="claude,codex,agy,qwen,opencode,openrouter"
 
     local provider
     IFS=',' read -r -a provider_list <<< "$providers"
@@ -1035,9 +1035,9 @@ council_enforce_provider_diversity() {
     # Represent every AVAILABLE provider org on the council (the requested provider
     # list, or the auto list, filtered by availability), bounded by the number of
     # non-chair seats. The previous implementation only guaranteed >=2 orgs and
-    # bailed at quick depth, so a low-scoring-but-available provider (e.g. gemini,
+    # bailed at quick depth, so a low-scoring-but-available provider (e.g. agy,
     # whose personas score below codex's) could be seated 0 times even when the
-    # user explicitly passed `--providers claude,codex,gemini` — chair(claude)+codex
+    # user explicitly passed `--providers claude,codex,agy` — chair(claude)+codex
     # already satisfied the 2-org floor. Only duplicate-org seats are replaced
     # (never displace a seat that is the sole representative of a needed org, so the
     # loop can't thrash when more orgs are available than seats), the chair seat is
@@ -1474,20 +1474,16 @@ EOF
         local agent_type="$provider"
         local old_security_set="${OCTOPUS_SECURITY_V870+x}"
         local old_security="${OCTOPUS_SECURITY_V870:-}"
-        local old_gemini_sandbox_set="${OCTOPUS_GEMINI_SANDBOX+x}"
-        local old_gemini_sandbox="${OCTOPUS_GEMINI_SANDBOX:-}"
         local old_codex_sandbox="${OCTOPUS_CODEX_SANDBOX:-}"
         local old_codex_sandbox_set="${OCTOPUS_CODEX_SANDBOX+x}"
         local old_autonomy_set="${CLAUDE_OCTOPUS_AUTONOMY+x}"
         local old_autonomy="${CLAUDE_OCTOPUS_AUTONOMY:-}"
 
         unset OCTOPUS_SECURITY_V870
-        unset OCTOPUS_GEMINI_SANDBOX
         unset CLAUDE_OCTOPUS_AUTONOMY
         export OCTOPUS_CODEX_SANDBOX="read-only"
         run_agent_sync "$agent_type" "$prompt" "${OCTOPUS_COUNCIL_AGENT_TIMEOUT:-120}" "$persona" "council" || {
             if [[ -n "$old_security_set" ]]; then export OCTOPUS_SECURITY_V870="$old_security"; else unset OCTOPUS_SECURITY_V870; fi
-            if [[ -n "$old_gemini_sandbox_set" ]]; then export OCTOPUS_GEMINI_SANDBOX="$old_gemini_sandbox"; else unset OCTOPUS_GEMINI_SANDBOX; fi
             if [[ -n "$old_autonomy_set" ]]; then export CLAUDE_OCTOPUS_AUTONOMY="$old_autonomy"; else unset CLAUDE_OCTOPUS_AUTONOMY; fi
             if [[ -n "$old_codex_sandbox_set" ]]; then
                 export OCTOPUS_CODEX_SANDBOX="$old_codex_sandbox"
@@ -1497,7 +1493,6 @@ EOF
             return 1
         }
         if [[ -n "$old_security_set" ]]; then export OCTOPUS_SECURITY_V870="$old_security"; else unset OCTOPUS_SECURITY_V870; fi
-        if [[ -n "$old_gemini_sandbox_set" ]]; then export OCTOPUS_GEMINI_SANDBOX="$old_gemini_sandbox"; else unset OCTOPUS_GEMINI_SANDBOX; fi
         if [[ -n "$old_autonomy_set" ]]; then export CLAUDE_OCTOPUS_AUTONOMY="$old_autonomy"; else unset CLAUDE_OCTOPUS_AUTONOMY; fi
         if [[ -n "$old_codex_sandbox_set" ]]; then
             export OCTOPUS_CODEX_SANDBOX="$old_codex_sandbox"
@@ -1963,7 +1958,7 @@ council_start_implementation_handoff() {
 council_detect_providers() {
     local providers="$COUNCIL_PROVIDERS"
     if [[ "$providers" == "auto" ]]; then
-        providers="claude,codex,gemini,qwen,opencode,openrouter"
+        providers="claude,codex,agy,qwen,opencode,openrouter"
     fi
 
     local json='{}'

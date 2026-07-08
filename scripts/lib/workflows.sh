@@ -30,8 +30,8 @@ probe_single_agent() {
 
     mkdir -p "$RESULTS_DIR" "$LOGS_DIR"
 
-    # Dispatch from the user's project so provider sandboxes (codex workdir,
-    # gemini workspace) can read project files (bug 260609). probe-single runs
+    # Dispatch from the user's project so provider sandboxes (codex workdir)
+    # can read project files (bug 260609). probe-single runs
     # in its own orchestrate.sh process, so cd here cannot leak to other work.
     if [[ -n "${PROJECT_ROOT:-}" && -d "$PROJECT_ROOT" ]]; then
         cd "$PROJECT_ROOT" || log "WARN" "probe_single_agent: cannot cd to PROJECT_ROOT=$PROJECT_ROOT"
@@ -122,7 +122,6 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
     local provider_name
     case "$agent_type" in
         codex*) provider_name="codex" ;;
-        gemini*) provider_name="gemini" ;;
         agy*|antigravity) provider_name="agy" ;;
         claude*) provider_name="claude" ;;
         perplexity*) provider_name="perplexity" ;;
@@ -168,7 +167,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
 
     # Append headless flag (-p "" triggers stdin reading) for CLI providers
     # Qwen and Cursor Agent are forks of Gemini CLI — same flags
-    if [[ "$agent_type" == gemini* ]] || [[ "$agent_type" == copilot* ]] || [[ "$agent_type" == qwen* ]] || [[ "$agent_type" == cursor-agent* ]]; then
+    if [[ "$agent_type" == copilot* ]] || [[ "$agent_type" == qwen* ]] || [[ "$agent_type" == cursor-agent* ]]; then
         cmd_array+=(-p "")
     fi
 
@@ -250,7 +249,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
                 BEGIN { in_response = 0; header_done = 0; }
                 /^--------$/ { header_done = 1; next; }
                 !header_done { next; }
-                /^(codex|gemini|assistant)$/ { in_response = 1; next; }
+                /^(codex|assistant)$/ { in_response = 1; next; }
                 /^thinking$/ { next; }
                 /^tokens used$/ { next; }
                 /^[0-9,]+$/ && in_response { next; }
@@ -285,7 +284,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
         fi
 
         # Trust marker for external CLI output
-        case "$agent_type" in codex*|gemini*|perplexity*|cursor-agent*)
+        case "$agent_type" in codex*|perplexity*|cursor-agent*)
             if [[ "${OCTOPUS_SECURITY_V870:-true}" == "true" ]]; then
                 sed -i.bak '1s/^/<!-- trust=untrusted provider='"$agent_type"' -->\n/' "$result_file" 2>/dev/null || true
                 rm -f "${result_file}.bak"
@@ -345,7 +344,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
                     BEGIN { in_response = 0; header_done = 0; }
                     /^--------$/ { header_done = 1; next; }
                     !header_done { next; }
-                    /^(codex|gemini|assistant)$/ { in_response = 1; next; }
+                    /^(codex|assistant)$/ { in_response = 1; next; }
                     /^thinking$/ { next; }
                     /^tokens used$/ { next; }
                     /^[0-9,]+$/ && in_response { next; }
@@ -416,7 +415,7 @@ probe_discover() {
 
     if [[ "$DRY_RUN" == "true" ]]; then
         log INFO "[DRY-RUN] Would probe: $prompt"
-        log INFO "[DRY-RUN] Would spawn 5+ parallel research agents (Codex, Gemini, Sonnet 4.6, +codebase if in git repo, +Perplexity if API key set)"
+        log INFO "[DRY-RUN] Would spawn 5+ parallel research agents (Codex, Antigravity, Sonnet 4.6, +codebase if in git repo, +Perplexity if API key set)"
         return 0
     fi
 
@@ -669,7 +668,7 @@ ${_blind_spot_checklist}"
 
     # v8.48.0: Write synthesis marker before attempting synthesis
     # WHY: The Bash tool's 120s timeout frequently kills the process during
-    # the Gemini synthesis call (~30-60s) that follows ~60-90s of agent work.
+    # the synthesis call (~30-60s) that follows ~60-90s of agent work.
     # This marker lets the user recover by running `synthesize-probe <task_group>`.
     local synthesis_marker="${RESULTS_DIR}/probe-needs-synthesis-${task_group}.marker"
     {
@@ -714,7 +713,7 @@ grasp_define() {
 
     if [[ "$DRY_RUN" == "true" ]]; then
         log INFO "[DRY-RUN] Would grasp: $prompt"
-        log INFO "[DRY-RUN] Would gather 4 perspectives (Codex, Gemini, Sonnet 4.6) and build consensus"
+        log INFO "[DRY-RUN] Would gather 4 perspectives (Codex, Antigravity, Sonnet 4.6) and build consensus"
         return 0
     fi
 
@@ -743,8 +742,8 @@ grasp_define() {
         def1=$(run_agent_sync "claude-sonnet" "Based on: $prompt\n${context}Define the core problem statement in 2-3 sentences. What is the essential challenge?" 120 "backend-architect" "grasp") || true
     }
     def2=$(run_agent_sync "agy" "Based on: $prompt\n${context}Define success criteria. How will we know when this is solved correctly? List 3-5 measurable criteria." 120 "researcher" "grasp") || {
-        log WARN "Gemini failed for success criteria, falling back to Claude"
-        echo -e " ${YELLOW}⚠${NC}  Gemini unavailable for success criteria — falling back to Claude"
+        log WARN "Antigravity failed for success criteria, falling back to Claude"
+        echo -e " ${YELLOW}⚠${NC}  Antigravity unavailable for success criteria — falling back to Claude"
         def2=$(run_agent_sync "claude-sonnet" "Based on: $prompt\n${context}Define success criteria. How will we know when this is solved correctly? List 3-5 measurable criteria." 120 "researcher" "grasp") || true
     }
     def3=$(run_agent_sync "claude-sonnet" "Based on: $prompt\n${context}Define constraints and boundaries. What are we NOT solving? What are hard limits?" 120 "researcher" "grasp")
@@ -1398,7 +1397,7 @@ Every [CODING] line must include a same-line Files: clause."
         local subtask_prompt
         subtask_prompt=$(build_tangle_subtask_prompt "$resolved_prompt" "$subtask")
 
-        # Tangle currently routes only CLI-backed codex/gemini workers. Its
+        # Tangle currently routes only CLI-backed codex/agy workers. Its
         # completion watcher relies on .done markers written by the legacy
         # spawn path; add equivalent hook markers before routing Claude Agent
         # Teams into this loop.
@@ -1832,7 +1831,7 @@ format_workflow_banner() {
         # Compact: 2 lines
         local providers=""
         command -v codex &>/dev/null && providers+="🔴"
-        command -v gemini &>/dev/null && providers+="🟡"
+        command -v agy &>/dev/null && providers+="🧭"
         [[ -n "${PERPLEXITY_API_KEY:-}" ]] && providers+="🟣"
         providers+="🔵"
         echo "🐙 ${workflow} — ${description} | ${providers}"
@@ -1954,8 +1953,8 @@ Return a concise gate review with:
 4. Concrete changes needed before the next phase
 5. Evidence from the context artifact"
 
-    local codex_view="" gemini_view="" claude_view="" synthesis=""
-    local codex_status="failed" gemini_status="failed" claude_status="failed"
+    local codex_view="" agy_view="" claude_view="" synthesis=""
+    local codex_status="failed" agy_status="failed" claude_status="failed"
     local successful=0
 
     if codex_view=$(run_agent_sync "codex" "$gate_prompt" 120 "code-reviewer" "embrace-gate" 2>/dev/null); then
@@ -1964,9 +1963,9 @@ Return a concise gate review with:
             successful=$((successful + 1))
         fi
     fi
-    if gemini_view=$(run_agent_sync "agy" "$gate_prompt" 120 "researcher" "embrace-gate" 2>/dev/null); then
-        if [[ -n "$gemini_view" ]]; then
-            gemini_status="ok"
+    if agy_view=$(run_agent_sync "agy" "$gate_prompt" 120 "researcher" "embrace-gate" 2>/dev/null); then
+        if [[ -n "$agy_view" ]]; then
+            agy_status="ok"
             successful=$((successful + 1))
         fi
     fi
@@ -1987,13 +1986,13 @@ Return a concise gate review with:
 
 Task: ${prompt}
 Gate style: ${style}
-Provider statuses: codex=${codex_status}, gemini=${gemini_status}, claude=${claude_status}
+Provider statuses: codex=${codex_status}, agy=${agy_status}, claude=${claude_status}
 
 Codex:
 ${codex_view:-[no output]}
 
-Gemini:
-${gemini_view:-[no output]}
+Antigravity:
+${agy_view:-[no output]}
 
 Claude:
 ${claude_view:-[no output]}
@@ -2017,7 +2016,7 @@ Return:
 **Task:** ${prompt}
 **Style:** ${style}
 **Context Artifact:** ${context_file}
-**Provider Statuses:** codex=${codex_status}, gemini=${gemini_status}, claude=${claude_status}
+**Provider Statuses:** codex=${codex_status}, agy=${agy_status}, claude=${claude_status}
 
 ---
 
@@ -2033,9 +2032,9 @@ ${synthesis}
 
 ${codex_view:-No output.}
 
-### Gemini (${gemini_status})
+### Antigravity (${agy_status})
 
-${gemini_view:-No output.}
+${agy_view:-No output.}
 
 ### Claude (${claude_status})
 
@@ -2052,7 +2051,7 @@ EOF
             "Embrace debate gate completed: ${prompt:0:80}" \
             "" \
             "high" \
-            "Provider statuses: codex=${codex_status}, gemini=${gemini_status}, claude=${claude_status}" \
+            "Provider statuses: codex=${codex_status}, agy=${agy_status}, claude=${claude_status}" \
             "" 2>/dev/null || true
     fi
 

@@ -88,12 +88,11 @@ Reading all pages may use 33,750 tokens (~34 API calls).
 ```javascript
 // Check if multi-AI providers are available
 const codexAvailable = await checkCommandAvailable('codex');
-const geminiAvailable = await checkCommandAvailable('gemini');
 const agyAvailable = await checkCommandAvailable('agy');
 
-if (!codexAvailable && !geminiAvailable && !agyAvailable) {
+if (!codexAvailable && !agyAvailable) {
   console.log("⚠️ Multi-AI providers not detected. Running in single-provider mode.");
-  console.log("For best results, run `/octo:setup` to configure Codex, Gemini, Antigravity, or another provider.");
+  console.log("For best results, run `/octo:setup` to configure Codex, Antigravity, or another provider.");
 }
 ```
 
@@ -458,7 +457,7 @@ Based on detection, we recommend:
 const executionPlan = buildExecutionPlan({
   userIntent: intentAnswers,
   detectionResults: { stackDetection, designSignals, architectureSignals },
-  multiAIAvailable: [codexAvailable, geminiAvailable, agyAvailable].filter(Boolean).length >= 2
+  multiAIAvailable: [codexAvailable, agyAvailable].filter(Boolean).length >= 2
 });
 
 /*
@@ -816,19 +815,19 @@ async function extractDesignTokens(target, config) {
 
   // Step 2: Multi-AI consensus (if enabled)
   if (config.multiAI) {
-    const [claudeTokens, codexTokens, geminiTokens] = await Promise.all([
+    const [claudeTokens, codexTokens, agyTokens] = await Promise.all([
       extractTokensWithClaude(target),
       extractTokensWithCodex(target),
-      extractTokensWithGemini(target)
+      extractTokensWithAgy(target)
     ]);
 
     results.tokens = buildConsensusTokens(
-      [claudeTokens, codexTokens, geminiTokens],
+      [claudeTokens, codexTokens, agyTokens],
       { threshold: 0.67 }
     );
 
     // Log disagreements
-    const disagreements = findDisagreements([claudeTokens, codexTokens, geminiTokens]);
+    const disagreements = findDisagreements([claudeTokens, codexTokens, agyTokens]);
     if (disagreements.length > 0) {
       await writeFile(
         `${config.outputDir}/90_evidence/token-disagreements.md`,
@@ -987,14 +986,14 @@ async function extractArchitecture(target, config) {
 
   // Step 5: Multi-AI consensus on architecture
   if (config.multiAI) {
-    const [claudeArch, codexArch, geminiArch] = await Promise.all([
+    const [claudeArch, codexArch, agyArch] = await Promise.all([
       analyzeArchitectureWithClaude(dependencyGraph),
       analyzeArchitectureWithCodex(dependencyGraph),
-      analyzeArchitectureWithGemini(dependencyGraph)
+      analyzeArchitectureWithAgy(dependencyGraph)
     ]);
 
     results.architecture = buildConsensusArchitecture(
-      [claudeArch, codexArch, geminiArch]
+      [claudeArch, codexArch, agyArch]
     );
   }
 
@@ -1142,7 +1141,7 @@ await writeFile(`${config.outputDir}/README.md`, `
 **Target:** ${config.target}
 **Mode:** ${config.mode}
 **Depth:** ${config.depth}
-**Providers Used:** ${config.multiAI ? ['Claude', codexAvailable && 'Codex', geminiAvailable && 'Gemini', agyAvailable && 'Antigravity'].filter(Boolean).join(', ') : 'Claude only'}
+**Providers Used:** ${config.multiAI ? ['Claude', codexAvailable && 'Codex', agyAvailable && 'Antigravity'].filter(Boolean).join(', ') : 'Claude only'}
 
 ## Summary
 
@@ -1290,7 +1289,7 @@ Debate generates:
 ### Performance
 
 - **Time**: +30-60 seconds per debate round (depends on token count)
-- **Providers**: Requires Codex and/or Gemini CLI (graceful degradation if unavailable)
+- **Providers**: Requires Codex and/or Antigravity CLI (graceful degradation if unavailable)
 - **Token count**: Works best with 50-500 tokens; very large sets may take longer
 
 ---
@@ -1476,8 +1475,7 @@ This command leverages Claude Octopus multi-AI orchestration when available:
 
 - **Claude**: Synthesis, conflict resolution, final documentation
 - **Codex**: Code-level analysis, type extraction, architecture inference
-- **Gemini**: Pattern recognition, alternative interpretations, UX insights
-- **Antigravity**: Additional external-model perspective when installed
+- **Antigravity**: Pattern recognition, alternative interpretations, UX insights (Google seat)
 
 Consensus method: extraction quality gates use the configured consensus threshold (default 67%); when no numeric vote data exists, the quorum resolver selects the strongest matching proposal from up to 3 provider perspectives and logs disagreements.
 

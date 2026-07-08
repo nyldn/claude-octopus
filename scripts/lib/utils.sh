@@ -178,8 +178,6 @@ validate_agent_command() {
     case "$cmd" in
         "codex "*|"codex")
             return 0 ;;
-        "gemini "*|"gemini")
-            return 0 ;;
         "agy "*|"agy")
             return 0 ;;
         *"/scripts/helpers/agy-exec.sh")

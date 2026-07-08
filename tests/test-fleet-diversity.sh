@@ -221,7 +221,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 check_output=$(bash "$CHECK_SCRIPT" 2>/dev/null)
 
 # 4.1: Checks all 9 providers
-for provider in codex gemini agy perplexity opencode copilot qwen ollama openrouter; do
+for provider in codex agy perplexity opencode copilot qwen ollama openrouter; do
     if echo "$check_output" | grep -q "^${provider}:"; then
         pass "4.1.$provider check-providers.sh reports $provider"
     else

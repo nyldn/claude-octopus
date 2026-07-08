@@ -2,7 +2,7 @@
 
 ## Threat Model
 
-Claude Octopus orchestrates external AI CLI tools (Codex CLI, Gemini CLI, Antigravity CLI, and others) with user-provided prompts. This creates the following threat surfaces:
+Claude Octopus orchestrates external AI CLI tools (Codex CLI, Antigravity CLI, and others) with user-provided prompts. This creates the following threat surfaces:
 
 ### Trust Boundaries
 
@@ -12,7 +12,7 @@ Claude Octopus orchestrates external AI CLI tools (Codex CLI, Gemini CLI, Antigr
 | Environment Variables | API keys, workspace paths | Medium |
 | Task Files | JSON files defining parallel execution | Medium |
 | CI/CD Environment | GitHub Actions workflow inputs | High |
-| External CLIs | Codex, Gemini, Antigravity, Copilot, Ollama responses | Low |
+| External CLIs | Codex, Antigravity, Copilot, Ollama responses | Low |
 
 ### Attack Vectors and Mitigations
 
@@ -142,7 +142,7 @@ Claude Octopus logs security-relevant events to `~/.claude-octopus/audit.log`:
 
 Claude Octopus depends on:
 - **Codex CLI** (`@openai/codex`)
-- **Gemini CLI** (`@google/gemini-cli`)
+- **Antigravity CLI** (`agy`) — optional
 - **Copilot CLI** (`@github/copilot`) — optional
 - **Ollama** (`ollama`) — optional
 - **jq** (JSON processing)

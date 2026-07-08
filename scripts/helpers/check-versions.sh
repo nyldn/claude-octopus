@@ -59,7 +59,6 @@ check_version() {
 }
 
 check_version "codex"     "codex"     "${OCTO_CODEX_MIN_VERSION}"
-check_version "gemini"    "gemini"    "${OCTO_GEMINI_MIN_VERSION}"
 check_version "qwen"      "qwen"      "${OCTO_QWEN_MIN_VERSION}"
 check_version "gh"        "gh"        "${OCTO_GH_MIN_VERSION}"    "--version"
 check_version "opencode"  "opencode"  "${OCTO_OPENCODE_MIN_VERSION}"

@@ -81,7 +81,6 @@ init_state() {
     "total_execution_time_minutes": 0,
     "provider_usage": {
       "codex": 0,
-      "gemini": 0,
       "perplexity": 0,
       "claude": 0
     }
@@ -348,7 +347,6 @@ show_summary() {
     echo "  Execution Time: $(jq -r '.metrics.total_execution_time_minutes' "$STATE_FILE") minutes"
     echo "  Provider Usage:"
     echo "    - Codex: $(jq -r '.metrics.provider_usage.codex' "$STATE_FILE")"
-    echo "    - Gemini: $(jq -r '.metrics.provider_usage.gemini' "$STATE_FILE")"
     echo "    - Perplexity: $(jq -r '.metrics.provider_usage.perplexity // 0' "$STATE_FILE")"
     echo "    - Claude: $(jq -r '.metrics.provider_usage.claude' "$STATE_FILE")"
     echo ""
@@ -495,7 +493,7 @@ Examples:
   state-manager.sh init_state
   state-manager.sh write_decision "define" "React 19" "Modern DX"
   state-manager.sh update_context "discover" "researched auth patterns"
-  state-manager.sh update_metrics "provider" "gemini"
+  state-manager.sh update_metrics "provider" "codex"
   state-manager.sh show_summary
 EOF
             ;;

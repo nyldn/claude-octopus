@@ -122,7 +122,6 @@ generate_mcp_config() {
       "env": {
         "OCTO_CLAW_ENABLED": "true",
         "OPENAI_API_KEY": "\${env:OPENAI_API_KEY}",
-        "GEMINI_API_KEY": "\${env:GEMINI_API_KEY}",
         "GOOGLE_API_KEY": "\${env:GOOGLE_API_KEY}",
         "OPENROUTER_API_KEY": "\${env:OPENROUTER_API_KEY}",
         "PERPLEXITY_API_KEY": "\${env:PERPLEXITY_API_KEY}"
@@ -146,7 +145,6 @@ generate_zed_config() {
         "env": {
           "OCTO_CLAW_ENABLED": "true",
           "OPENAI_API_KEY": "\${env:OPENAI_API_KEY}",
-          "GEMINI_API_KEY": "\${env:GEMINI_API_KEY}",
           "GOOGLE_API_KEY": "\${env:GOOGLE_API_KEY}",
           "OPENROUTER_API_KEY": "\${env:OPENROUTER_API_KEY}",
           "PERPLEXITY_API_KEY": "\${env:PERPLEXITY_API_KEY}"
@@ -350,7 +348,7 @@ main() {
     echo ""
     echo -e "${GREEN}Setup complete!${NC} Available MCP tools in your IDE:"
     echo ""
-    echo "  octopus_discover  — Multi-provider research (Codex + Gemini)"
+    echo "  octopus_discover  — Multi-provider research"
     echo "  octopus_define    — Consensus building on requirements"
     echo "  octopus_develop   — Implementation with quality gates"
     echo "  octopus_deliver   — Final validation and review"

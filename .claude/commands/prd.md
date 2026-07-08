@@ -61,11 +61,6 @@ if command -v codex >/dev/null 2>&1; then
   CODEX_AVAILABLE="true"
 fi
 
-GEMINI_AVAILABLE="false"
-if command -v gemini >/dev/null 2>&1; then
-  GEMINI_AVAILABLE="true"
-fi
-
 AGY_AVAILABLE="false"
 if command -v agy >/dev/null 2>&1; then
   AGY_AVAILABLE="true"
@@ -76,17 +71,13 @@ fi
 
 🐙 **Multi-provider research mode:**
 - 🔴 Codex CLI — Technical implementation patterns and architecture precedents
-- 🟡 Gemini CLI — Market landscape, competitive products, industry trends
-- 🧭 Antigravity CLI — Alternate model perspective via Antigravity provider
+- 🧭 Antigravity CLI — Market landscape, competitive products, industry trends (Google seat)
 - 🔵 Claude — Domain analysis and strategic synthesis
 
 ```bash
 # Parallel research dispatch (if providers available)
 if [[ "$CODEX_AVAILABLE" == "true" ]]; then
   orchestrate.sh prd-research "<feature>" codex &
-fi
-if [[ "$GEMINI_AVAILABLE" == "true" ]]; then
-  orchestrate.sh prd-research "<feature>" gemini &
 fi
 if [[ "$AGY_AVAILABLE" == "true" ]]; then
   orchestrate.sh prd-research "<feature>" agy &
@@ -125,7 +116,6 @@ Include these sections:
 review_provider=""
 command -v codex >/dev/null 2>&1 && review_provider="codex"
 [[ -z "$review_provider" ]] && command -v agy >/dev/null 2>&1 && review_provider="agy"
-[[ -z "$review_provider" ]] && command -v gemini >/dev/null 2>&1 && review_provider="gemini"
 
 if [[ -n "$review_provider" ]]; then
   "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" spawn "$review_provider" \

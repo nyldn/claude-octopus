@@ -94,8 +94,7 @@ If `OCTO_ALLOWED_PROVIDERS` is set, treat it as the source of truth for which pr
 
 Provider Availability:
 🔴 Codex CLI: [Available ✓ / Not installed ✗] - Technical requirements analysis
-🟡 Gemini CLI: [Available ✓ / Not installed ✗] - Business context and constraints
-🧭 Antigravity CLI: [Available ✓ / Not installed ✗] - Additional external-model challenge
+🧭 Antigravity CLI: [Available ✓ / Not installed ✗] - Business context and constraints, external-model challenge
 🔵 Claude: Available ✓ - Consensus building and synthesis
 
 💰 Estimated Cost: $0.01-0.05
@@ -257,7 +256,7 @@ If running in Claude Code v2.1.16+, users will see **real-time progress indicato
 
 **Phase 1 - External Provider Execution (Parallel):**
 - 🔴 Analyzing technical requirements (Codex)...
-- 🟡 Clarifying user needs and context (Gemini)...
+- 🧭 Clarifying user needs and context (Antigravity)...
 
 **Phase 2 - Synthesis (Sequential):**
 - 🔵 Building consensus on problem definition...
@@ -367,8 +366,7 @@ task_status=$("${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" get-task-s
 
 Providers:
 🔴 Codex CLI - Technical requirements analysis
-🟡 Gemini CLI - Business context and constraints
-🧭 Antigravity CLI - Additional external-model challenge
+🧭 Antigravity CLI - Business context and constraints, external-model challenge
 🔵 Claude - Consensus building and synthesis
 ```
 
@@ -396,9 +394,8 @@ Providers:
 The **define** phase clarifies and scopes problems using external CLI providers:
 
 1. **🔴 Codex CLI** - Technical requirements analysis, edge cases, constraints
-2. **🟡 Gemini CLI** - User needs, business requirements, context understanding
-3. **🧭 Antigravity CLI** - Additional external-model challenge
-4. **🔵 Claude (You)** - Problem synthesis and requirement definition
+2. **🧭 Antigravity CLI** - User needs, business requirements, context understanding, external-model challenge
+3. **🔵 Claude (You)** - Problem synthesis and requirement definition
 
 This is the **convergent** phase after discovery - we narrow down from broad research to specific problem definition.
 
@@ -432,8 +429,7 @@ Before execution, you'll see:
 
 Providers:
 🔴 Codex CLI - Technical requirements
-🟡 Gemini CLI - Business needs and context
-🧭 Antigravity CLI - Additional external-model challenge
+🧭 Antigravity CLI - Business needs and context, external-model challenge
 🔵 Claude - Problem synthesis
 ```
 
@@ -451,10 +447,9 @@ ${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh define "<user's clarificat
 
 The orchestrate.sh script will:
 1. Call **Codex CLI** for technical requirement analysis
-2. Call **Gemini CLI** for business/user need analysis
-3. Call **Antigravity CLI** for additional external-model challenge
-4. You (Claude) synthesize into clear problem definition
-5. Identify gaps and missing requirements
+2. Call **Antigravity CLI** for business/user need analysis and external-model challenge
+3. You (Claude) synthesize into clear problem definition
+4. Identify gaps and missing requirements
 
 ### Step 3: Read Results
 
@@ -534,7 +529,7 @@ After successful execution, present problem definition with:
    ### Codex Analysis (Technical)
    [Technical requirements and constraints]
 
-   ### Gemini Analysis (Business/User)
+   ### Antigravity Analysis (Business/User)
    [User needs and business context]
 
    ### Claude Synthesis
@@ -635,7 +630,7 @@ Claude:
 - Middleware for auth verification
 - Security: HTTPS only, secure cookies, CSRF protection
 
-### Gemini Analysis (Business/User)
+### Antigravity Analysis (Business/User)
 - User journey: Registration -> Email verification -> Login -> Access app
 - Error handling: Clear messages without security leaks
 - Performance: Auth checks < 50ms
@@ -727,7 +722,6 @@ Before completing grasp workflow, ensure:
 
 **External API Usage:**
 - 🔴 Codex CLI uses your OPENAI_API_KEY (costs apply)
-- 🟡 Gemini CLI uses your GEMINI_API_KEY (costs apply)
 - 🧭 Antigravity CLI uses your Antigravity account/model configuration (costs may apply)
 - 🔵 Claude analysis included with Claude Code
 

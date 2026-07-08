@@ -47,9 +47,9 @@ grapple_debate() {
     # The /octo:model-config wizard writes a "Debate participants" array to that
     # path; before this change there was no consumer. Slots A/B/C drive every
     # run_agent_sync call, prompt label, and synthesis attribution below.
-    # Default trio: codex, gemini, claude-sonnet (preserves prior behavior).
+    # Default trio: codex, agy, claude-sonnet (preserves prior behavior).
     local agent_a="codex" label_a="Codex" label_a_upper="CODEX"
-    local agent_b="gemini" label_b="Gemini" label_b_upper="GEMINI"
+    local agent_b="agy" label_b="Antigravity" label_b_upper="ANTIGRAVITY"
     local agent_c="claude-sonnet" label_c="Sonnet" label_c_upper="SONNET"
 
     local _debate_config_file="${HOME}/.claude-octopus/config/providers.json"
@@ -168,7 +168,7 @@ DEBATE INTEGRITY RULES (MANDATORY — follow these in every response):
 - EVIDENCE-BASED: Every claim (positive or negative) MUST cite a specific technical reason, not vague sentiment like 'feels cleaner' or 'seems better'.
 - PROPORTIONAL: A minor style issue is NOT a critical flaw. A fundamental architecture mistake is NOT a 'minor concern'. Calibrate severity honestly."
 
-    local codex_proposal gemini_proposal sonnet_proposal
+    local codex_proposal agent_b_proposal sonnet_proposal
     codex_proposal=$(run_agent_sync "$agent_a" "
 $no_explore_constraint
 
@@ -195,7 +195,7 @@ Be thorough and practical." 120 "implementer" "grapple")
         return 1
     fi
 
-    gemini_proposal=$(run_agent_sync "$agent_b" "
+    agent_b_proposal=$(run_agent_sync "$agent_b" "
 $no_explore_constraint
 
 You are formulating a HYPOTHESIS. Propose your best approach to this task:
@@ -213,7 +213,7 @@ Structure your response:
 $debate_integrity_rules
 Be thorough and practical." 120 "researcher" "grapple")
 
-    if [[ $? -ne 0 || -z "$gemini_proposal" ]]; then
+    if [[ $? -ne 0 || -z "$agent_b_proposal" ]]; then
         echo ""
         echo -e "${RED}❌ ${label_b} proposal generation failed${NC}"
         echo -e "   Check logs: ${LOGS_DIR}/"
@@ -260,7 +260,7 @@ Be thorough and practical." 120 "researcher" "grapple")
     fi
     echo ""
 
-    local codex_critique gemini_critique sonnet_critique
+    local codex_critique agent_b_critique sonnet_critique
 
     if [[ "$debate_mode" == "blinded" ]]; then
         # ── BLINDED MODE: Each model evaluates independently against criteria ──
@@ -291,7 +291,7 @@ $debate_integrity_rules" 90 "code-reviewer" "grapple")
             return 1
         fi
 
-        gemini_critique=$(run_agent_sync "$agent_b" "
+        agent_b_critique=$(run_agent_sync "$agent_b" "
 $no_explore_constraint
 
 You are an INDEPENDENT EVALUATOR. You have NOT seen any other model's proposals.
@@ -310,7 +310,7 @@ Provide your INDEPENDENT assessment:
 - EVALUATION CRITERIA: How should solutions be judged? Rate each criterion by importance (1-10).
 $debate_integrity_rules" 90 "security-auditor" "grapple")
 
-        if [[ $? -ne 0 || -z "$gemini_critique" ]]; then
+        if [[ $? -ne 0 || -z "$agent_b_critique" ]]; then
             echo -e "${RED}❌ ${label_b} evaluation failed${NC}"
             log ERROR "Grapple debate failed: ${label_b} blinded evaluation empty or error"
             return 1
@@ -351,7 +351,7 @@ $no_explore_constraint
 You are a FALSIFIER using Analysis of Competing Hypotheses (ACH). Your job is to DISPROVE these proposals by testing their stated assumptions.
 
 HYPOTHESIS 1 (from ${label_b}):
-$gemini_proposal
+$agent_b_proposal
 
 HYPOTHESIS 2 (from ${label_c}):
 $sonnet_proposal
@@ -375,7 +375,7 @@ $debate_integrity_rules" 90 "code-reviewer" "grapple")
         fi
 
         # ${label_b} falsifies ${label_a} + ${label_c} hypotheses
-        gemini_critique=$(run_agent_sync "$agent_b" "
+        agent_b_critique=$(run_agent_sync "$agent_b" "
 $no_explore_constraint
 
 You are a FALSIFIER using Analysis of Competing Hypotheses (ACH). Your job is to DISPROVE these proposals by testing their stated assumptions.
@@ -398,7 +398,7 @@ $principle_text}
 Focus on falsification, not preference. An approach with unfalsified assumptions is stronger than one that 'feels better'.
 $debate_integrity_rules" 90 "security-auditor" "grapple")
 
-        if [[ $? -ne 0 || -z "$gemini_critique" ]]; then
+        if [[ $? -ne 0 || -z "$agent_b_critique" ]]; then
             echo -e "${RED}❌ ${label_b} critique generation failed${NC}"
             log ERROR "Grapple debate failed: ${label_b} critique empty or error"
             return 1
@@ -414,7 +414,7 @@ HYPOTHESIS 1 (from ${label_a}):
 $codex_proposal
 
 HYPOTHESIS 2 (from ${label_b}):
-$gemini_proposal
+$agent_b_proposal
 
 For each hypothesis, attempt to falsify it:
 - ASSUMPTION TESTED: [which stated assumption you're challenging]
@@ -454,7 +454,7 @@ YOUR ORIGINAL PROPOSAL:
 $codex_proposal
 
 CRITIQUE FROM ${label_b_upper}:
-$gemini_critique
+$agent_b_critique
 
 CRITIQUE FROM ${label_c_upper}:
 $sonnet_critique
@@ -476,14 +476,14 @@ Be specific, technical, and constructive. Focus on improving the solution." 120 
             fi
 
             # ${label_b} defends and refines
-            local gemini_rebuttal
-            gemini_rebuttal=$(run_agent_sync "$agent_b" "
+            local agent_b_rebuttal
+            agent_b_rebuttal=$(run_agent_sync "$agent_b" "
 $no_explore_constraint
 
 You are DEFENDING your implementation against critiques from ${label_a} and ${label_c}.
 
 YOUR ORIGINAL PROPOSAL:
-$gemini_proposal
+$agent_b_proposal
 
 CRITIQUE FROM ${label_a_upper}:
 $codex_critique
@@ -499,7 +499,7 @@ Respond to both critiques by:
 $debate_integrity_rules
 Be specific, technical, and constructive. Focus on improving the solution." 120 "researcher" "grapple")
 
-            if [[ $? -ne 0 || -z "$gemini_rebuttal" ]]; then
+            if [[ $? -ne 0 || -z "$agent_b_rebuttal" ]]; then
                 echo ""
                 echo -e "${RED}❌ ${label_b} rebuttal generation failed${NC}"
                 echo -e "   Check logs: ${LOGS_DIR}/"
@@ -521,7 +521,7 @@ CRITIQUE FROM ${label_a_upper}:
 $codex_critique
 
 CRITIQUE FROM ${label_b_upper}:
-$gemini_critique
+$agent_b_critique
 
 Respond to both critiques by:
 1. Acknowledging valid points and proposing improvements
@@ -545,10 +545,10 @@ Be specific, technical, and constructive. Focus on improving the solution." 120 
 ### Rebuttal (Round $i)
 ${codex_rebuttal}"
 
-            gemini_proposal="${gemini_proposal}
+            agent_b_proposal="${agent_b_proposal}
 
 ### Rebuttal (Round $i)
-${gemini_rebuttal}"
+${agent_b_rebuttal}"
 
             sonnet_proposal="${sonnet_proposal}
 
@@ -563,7 +563,7 @@ ${sonnet_rebuttal}"
         echo ""
         echo -e "${CYAN}[Quorum Mode] Checking for 2/3 agreement...${NC}"
         local quorum_result
-        quorum_result=$(apply_consensus "quorum" "$codex_proposal" "$gemini_proposal" "$sonnet_proposal" "$prompt")
+        quorum_result=$(apply_consensus "quorum" "$codex_proposal" "$agent_b_proposal" "$sonnet_proposal" "$prompt")
         if [[ -n "$quorum_result" && "$quorum_result" != "MODERATOR_MODE" ]]; then
             synthesis="## Quorum Result (2/3 Agreement)
 
@@ -594,7 +594,7 @@ ${label_a_upper} PROPOSAL:
 $codex_proposal
 
 ${label_b_upper} PROPOSAL:
-$gemini_proposal
+$agent_b_proposal
 
 ${label_c_upper} PROPOSAL:
 $sonnet_proposal
@@ -603,7 +603,7 @@ ${label_a_upper}'S INDEPENDENT EVALUATION:
 $codex_critique
 
 ${label_b_upper}'S INDEPENDENT EVALUATION:
-$gemini_critique
+$agent_b_critique
 
 ${label_c_upper}'S INDEPENDENT EVALUATION:
 $sonnet_critique
@@ -647,7 +647,7 @@ ${label_a_upper} HYPOTHESIS:
 $codex_proposal
 
 ${label_b_upper} HYPOTHESIS:
-$gemini_proposal
+$agent_b_proposal
 
 ${label_c_upper} HYPOTHESIS:
 $sonnet_proposal
@@ -656,7 +656,7 @@ ${label_a_upper}'S FALSIFICATION ATTEMPTS (against ${label_b} + ${label_c}):
 $codex_critique
 
 ${label_b_upper}'S FALSIFICATION ATTEMPTS (against ${label_a} + ${label_c}):
-$gemini_critique
+$agent_b_critique
 
 ${label_c_upper}'S FALSIFICATION ATTEMPTS (against ${label_a} + ${label_b}):
 $sonnet_critique
@@ -724,7 +724,7 @@ Be specific and actionable. Format as markdown."
 $codex_proposal
 
 ### ${label_b} Proposal
-$gemini_proposal
+$agent_b_proposal
 
 ### ${label_c} Proposal
 $sonnet_proposal
@@ -737,7 +737,7 @@ $sonnet_proposal
 $codex_critique
 
 ### ${label_b}'s $(if [[ "$debate_mode" == "blinded" ]]; then echo "Evaluation"; else echo "Critique (of ${label_a} + ${label_c})"; fi)
-$gemini_critique
+$agent_b_critique
 
 ### ${label_c}'s $(if [[ "$debate_mode" == "blinded" ]]; then echo "Evaluation"; else echo "Critique (of ${label_a} + ${label_b})"; fi)
 $sonnet_critique

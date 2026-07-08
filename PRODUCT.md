@@ -25,7 +25,7 @@ A world where every significant code decision gets adversarial review from multi
 - **Gap exposure:** Missing team-configuration primitives, council consensus scoring not yet surfaced in PRs
 
 ### Persona 3: Power user / AI-native developer
-- **Goal:** Squeeze maximum quality from the full frontier model ecosystem (Claude, Codex, Gemini, Qwen, Ollama)
+- **Goal:** Squeeze maximum quality from the full frontier model ecosystem (Claude, Codex, Antigravity, Qwen, Ollama)
 - **Pain point:** Orchestrating multiple CLIs manually is brittle and repetitive
 - **Gap exposure:** Provider CLI version drift, cost surprises from multi-model dispatch
 
@@ -45,7 +45,7 @@ Claude Octopus is a **multi-runtime orchestration plugin** with three architectu
 
 - **Blind spot elimination:** Any model can be wrong; 9 providers rarely agree on the same wrong answer
 - **Zero-friction escalation:** Claude-native for ordinary tasks, Octopus for anything that deserves a second opinion
-- **Six providers can cost nothing extra when you already have access:** Codex (OAuth), Gemini (OAuth), Antigravity CLI, Qwen (1K-2K free/day), Copilot (GitHub subscription), Ollama (local) — pay only when you add metered providers such as Perplexity or OpenRouter
+- **Six providers can cost nothing extra when you already have access:** Codex (OAuth), Antigravity CLI (included with Antigravity access/subscription; backend cost depends on selected `OCTOPUS_AGY_MODEL`), Qwen (1K-2K free/day), Copilot (GitHub subscription), Ollama (local) — pay only when you add metered providers such as Perplexity or OpenRouter
 - **Dark Factory autonomy:** Spec in, software out — full Discover→Define→Develop→Deliver pipeline without step-by-step prompting
 - **Opinionated four-phase methodology:** Infrastructure plus the workflow that uses it correctly
 
@@ -55,7 +55,7 @@ Claude Octopus is a **multi-runtime orchestration plugin** with three architectu
 
 1. **Fail loud on dispatch failure** — If multi-LLM dispatch does not execute, report "VALIDATION FAILED" rather than silently falling back to Claude-only
 2. **Claude-native first** — Use `/init`, `/review`, and `/security-review` when Claude is enough; escalate to Octopus only when multiple opinions add value
-3. **Cost transparency always** — Display provider indicators (🔴🟡🔵) and per-provider cost context before every multi-model dispatch
+3. **Cost transparency always** — Display provider indicators (🔴🧭🔵) and per-provider cost context before every multi-model dispatch
 4. **Consensus gate, not consensus override** — 75% agreement flags disagreement; it does not suppress the minority view
 5. **Zero providers to start** — Claude is built in; every additional provider is opt-in, not required
 
@@ -79,7 +79,7 @@ Frontier AI models will remain individually overconfident for the foreseeable fu
 - GitHub forks: 302
 - Test suites passing: 117
 - Version: 9.40.3 (active release cadence)
-- Runtimes supported: Claude Code, Codex CLI, Cursor (MCP), Gemini CLI
+- Runtimes supported: Claude Code, Codex CLI, Cursor (MCP), Antigravity CLI
 
 **Measured Impact:**
 - 75% consensus gate: quantifiable disagreement detection before production

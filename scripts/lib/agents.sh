@@ -592,7 +592,7 @@ get_codex_agent_for_phase() {
 get_agent_for_task() {
     local task_type="$1"
     case "$task_type" in
-        image) echo "gemini-image" ;;
+        image) echo "agy" ;;          # Antigravity (Google seat) serves image models — Gemini CLI sunset 2026-06-18
         review) echo "codex-review" ;;
         coding) echo "codex" ;;
         design) echo "agy" ;;          # Antigravity (Google seat) — Gemini CLI sunset 2026-06-18
@@ -670,8 +670,8 @@ get_tiered_agent() {
 
     case "$task_type" in
         image)
-            # Image generation always uses gemini-image
-            agent="gemini-image"
+            # Image generation uses the Antigravity (Google) seat — Gemini CLI sunset 2026-06-18
+            agent="agy"
             ;;
         review)
             # Reviews use standard tier (already cost-effective)

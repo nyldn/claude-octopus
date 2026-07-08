@@ -56,7 +56,7 @@ fan_out() {
     fi
 
     # Fallback to original default pair when config absent or all entries invalid
-    [[ ${#agents[@]} -eq 0 ]] && agents=("codex" "gemini")
+    [[ ${#agents[@]} -eq 0 ]] && agents=("codex" "agy")
 
     log INFO "Fan-out: Sending prompt to ${#agents[@]} agents (${agents[*]})"
     echo ""
@@ -255,7 +255,7 @@ map_reduce() {
 
     log INFO "Map-Reduce: Decomposing task and distributing to agents"
 
-    log INFO "Phase 1: Task decomposition with Gemini"
+    log INFO "Phase 1: Task decomposition with Antigravity"
     local decompose_prompt="Analyze this task and break it into subtasks that can be executed in parallel.
 If the task produces a single deliverable (one file, one script, one page, one config), keep it as ONE subtask — do not split it. Only decompose when subtasks are truly independent with no cross-file references. Aim for 2-5 subtasks; fewer is better when the work is tightly coupled.
 Output as a simple numbered list. Task: $main_prompt"
@@ -267,7 +267,7 @@ Output as a simple numbered list. Task: $main_prompt"
         return 0
     fi
 
-    gemini "$decompose_prompt" > "$decompose_result" 2>&1 || {
+    agy "$decompose_prompt" > "$decompose_result" 2>&1 || {
         log WARN "Decomposition failed, falling back to fan-out"
         fan_out "$main_prompt"
         return
@@ -279,7 +279,7 @@ Output as a simple numbered list. Task: $main_prompt"
 
     log INFO "Phase 2: Mapping subtasks to agents"
     local subtask_num=0
-    local agents=("codex" "gemini")
+    local agents=("codex" "agy")
     local pids=()
 
     while IFS= read -r line; do
@@ -358,7 +358,7 @@ aggregate_results() {
     done <<< "$ranked_files"
 
     # Phase 2: Synthesize if we have a provider available and multiple results
-    if [[ $result_count -gt 1 ]] && command -v gemini &> /dev/null && [[ "$DRY_RUN" != "true" ]]; then
+    if [[ $result_count -gt 1 ]] && command -v agy &> /dev/null && [[ "$DRY_RUN" != "true" ]]; then
         log INFO "Synthesizing $result_count results (ranked by quality, not just concatenating)..."
 
         # v8.49.0: Enhanced synthesis prompt with relevance awareness and structured output
@@ -389,7 +389,7 @@ Subtask results:
 $(<"$raw_concat")"
 
         local synthesis_result
-        if synthesis_result=$(printf '%s' "$synthesis_prompt" | run_with_timeout "$TIMEOUT" gemini 2>/dev/null) && [[ -n "$synthesis_result" ]]; then
+        if synthesis_result=$(printf '%s' "$synthesis_prompt" | run_with_timeout "$TIMEOUT" agy 2>/dev/null) && [[ -n "$synthesis_result" ]]; then
             echo "# Claude Octopus - Synthesized Results" > "$aggregate_file"
             echo "" >> "$aggregate_file"
             echo "Generated: $(date)" >> "$aggregate_file"

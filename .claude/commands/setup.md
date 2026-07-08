@@ -26,7 +26,6 @@ set -euo pipefail
 echo "=== Provider Detection ==="
 printf "codex:%s\n" "$(command -v codex >/dev/null 2>&1 && echo installed || echo missing)"
 printf "codex_auth:%s\n" "$(codex --version >/dev/null 2>&1 && echo ok || echo none)"
-printf "gemini:%s\n" "$(command -v gemini >/dev/null 2>&1 && echo installed || echo missing)"
 printf "agy:%s\n" "$(command -v agy >/dev/null 2>&1 && echo installed || echo missing)"
 printf "agy_model:%s\n" "${OCTOPUS_AGY_MODEL:-Claude Sonnet 4.6 (Thinking)}"
 printf "perplexity:%s\n" "$([ -n "${PERPLEXITY_API_KEY:-}" ] && echo configured || echo missing)"
@@ -61,7 +60,6 @@ status_installed() { command -v "$1" >/dev/null 2>&1 && echo "Installed ✓" || 
 status_optional() { command -v "$1" >/dev/null 2>&1 && echo "Installed ✓" || echo "Not installed"; }
 status_env() { [[ -n "${1:-}" ]] && echo "Configured ✓" || echo "Not set ✗"; }
 codex_status="$(status_installed codex)"
-gemini_status="$(status_installed gemini)"
 agy_status="$(status_installed agy)"
 perplexity_status="$(status_env "${PERPLEXITY_API_KEY:-}")"
 copilot_status="$(status_optional copilot)"
@@ -74,7 +72,6 @@ cat <<BANNER
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Providers:
   🔴 Codex CLI:      ${codex_status}
-  🟡 Gemini CLI:     ${gemini_status}
   🧭 Antigravity:    ${agy_status} (model: ${OCTOPUS_AGY_MODEL:-default})
   🟣 Perplexity:     ${perplexity_status}
   🟢 Copilot CLI:    ${copilot_status}
@@ -93,7 +90,6 @@ The rendered setup table must look like this shape, with ACTUAL statuses:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Providers:
   🔴 Codex CLI:     [Installed ✓ / Missing ✗]
-  🟡 Gemini CLI:    [Installed ✓ / Missing ✗]
   🧭 Antigravity:   [Installed ✓ (model: OCTOPUS_AGY_MODEL/default) / Missing ✗]
   🟣 Perplexity:    [Configured ✓ / Not set ✗]
   🟢 Copilot CLI:   [Installed ✓ / Not installed]
@@ -170,7 +166,7 @@ implementer          codex:gpt-5.4              codex:gpt-5.4                 (u
 implementer-heavy    —                          claude-opus:claude-opus-4.7   (NEW, opt-in via role name)
 synthesizer          claude:claude-sonnet-4.6   claude:claude-sonnet-4.6      (unchanged)
 strategist           claude-opus:claude-opus-4.6 claude-opus:claude-opus-4.7  (already on 4.7 via resolver)
-researcher           gemini:gemini-3.1-pro      gemini:gemini-3.1-pro         (unchanged)
+researcher           gemini:gemini-3.1-pro      agy:gemini-3.1-pro            (Gemini 3.x now via agy/Antigravity backend)
 
 Cost impact (per MTok): Opus 4.7 $5/$25 vs GPT-5.4 $2.50/$15 — roughly 2x for planning phases.
 Graceful fallback: roles requiring Opus silently downshift to GPT-5.4 if no Anthropic auth.
@@ -191,7 +187,7 @@ AskUserQuestion({
     multiSelect: false,
     options: [
       {label: "Use Claude alone (recommended)", description: "Start immediately — Claude is built in. No extra setup needed. Add providers anytime via this menu."},
-      {label: "Add or configure a provider", description: "Install Codex, Gemini, Antigravity, Perplexity, Copilot, Qwen, OpenCode, or Vibe (Mistral)"},
+      {label: "Add or configure a provider", description: "Install Codex, Antigravity, Perplexity, Copilot, Qwen, OpenCode, or Vibe (Mistral)"},
       {label: "Configure models", description: "Set which models are used for each workflow phase → launches /octo:model-config"},
       {label: "Set up token optimization (RTK)", description: "Install RTK for 60-90% token savings on bash output"},
       {label: "Set up Graphify companion", description: "Detect or install Graphify for optional knowledge-graph context"},
@@ -229,8 +225,7 @@ AskUserQuestion({
     multiSelect: true,
     options: [
       {label: "Codex CLI (Recommended)", description: "npm install -g @openai/codex — OpenAI's coding agent"},
-      {label: "Gemini CLI", description: "brew install gemini-cli — Google's research agent"},
-      {label: "Antigravity CLI (agy)", description: "Install Google Antigravity CLI — adds the agy provider"},
+      {label: "Antigravity CLI (agy)", description: "curl -fsSL https://antigravity.google/cli/install.sh | bash — Google's research/coding seat, adds the agy provider"},
       {label: "Skip", description: "Continue with what's already installed"}
     ]
   }]
@@ -243,11 +238,15 @@ Execute installs for each selected option. After each npm install completes, ref
 hash -r 2>/dev/null || rehash 2>/dev/null || true
 ```
 
-This ensures the installed CLI (codex, gemini) is immediately available in the current shell without a restart.
+This ensures the installed CLI (codex) is immediately available in the current shell without a restart.
 
-For **Antigravity CLI (agy)**, first check whether `agy install` is available:
+For **Antigravity CLI (agy)**, install via the official script, then check whether `agy install` is available:
 
 ```bash
+if ! command -v agy >/dev/null 2>&1; then
+  curl -fsSL https://antigravity.google/cli/install.sh | bash
+  hash -r 2>/dev/null || rehash 2>/dev/null || true
+fi
 if command -v agy >/dev/null 2>&1; then
   agy install
   hash -r 2>/dev/null || rehash 2>/dev/null || true
@@ -257,7 +256,7 @@ else
 fi
 ```
 
-If `agy` is not available yet, direct the user to install Google Antigravity CLI, then verify with `agy --version` and `agy models`. Octopus uses `OCTOPUS_AGY_MODEL` when set; otherwise it defaults to `Claude Sonnet 4.6 (Thinking)` for reliable non-interactive output.
+If `agy` is not available yet, install Google Antigravity CLI with `curl -fsSL https://antigravity.google/cli/install.sh | bash`, then verify with `agy --version` and `agy models`. Octopus uses `OCTOPUS_AGY_MODEL` when set; otherwise it defaults to `Claude Sonnet 4.6 (Thinking)` for reliable non-interactive output.
 
 After install, offer auth:
 
@@ -355,7 +354,7 @@ AskUserQuestion({
 })
 ```
 
-If "Yes", append `export ENABLE_PROMPT_CACHING_1H=1` to `~/.bashrc` (or `~/.zshrc` per `$SHELL`), only if not already present. Note to the user: this only affects Claude-to-Claude round-trips inside Claude Code. External CLI subshells (Codex, Gemini, Antigravity, Perplexity) are unaffected — their providers manage caching independently.
+If "Yes", append `export ENABLE_PROMPT_CACHING_1H=1` to `~/.bashrc` (or `~/.zshrc` per `$SHELL`), only if not already present. Note to the user: this only affects Claude-to-Claude round-trips inside Claude Code. External CLI subshells (Codex, Antigravity, Perplexity) are unaffected — their providers manage caching independently.
 
 ## STEP 4c: Project Tier Hint
 
@@ -435,7 +434,7 @@ Show final summary:
 ```
 ✅ Setup Complete!
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Providers: X active (Codex, Gemini, Antigravity, ...)
+Providers: X active (Codex, Antigravity, ...)
 RTK: [Active / Not installed]
 Mode: [Dev / Knowledge / Both]
 

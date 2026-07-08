@@ -19,8 +19,7 @@
 
 Provider-specific configuration is in `config/providers/`:
 - `config/providers/codex/CLAUDE.md` — Codex CLI (OpenAI)
-- `config/providers/gemini/CLAUDE.md` — Gemini CLI (Google)
-- `config/providers/agy/CLAUDE.md` — Antigravity CLI
+- `config/providers/agy/CLAUDE.md` — Antigravity CLI (Google seat, replaces Gemini CLI)
 - `config/providers/claude/CLAUDE.md` — Claude (Anthropic)
 - `config/providers/ollama/CLAUDE.md` — Ollama (local LLM)
 - `config/providers/copilot/CLAUDE.md` — GitHub Copilot CLI

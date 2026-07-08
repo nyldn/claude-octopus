@@ -37,8 +37,6 @@ resolve_provider_to_agent() {
                                 agent="$provider" ;;
         codex|codex-standard|codex-max|codex-mini|codex-general|codex-spark|codex-reasoning|codex-large-context|codex-review)
                                 agent="$provider" ;;
-        gemini|gemini-fast|gemini-image)
-                                agent="$provider" ;;
         agy|agy-research|antigravity)
                                 agent="$provider" ;;
         openrouter|openrouter-glm5|openrouter-kimi|openrouter-deepseek)
@@ -65,7 +63,6 @@ agent_display_label() {
         claude-opus*) echo "Opus" ;;
         claude*) echo "Sonnet" ;;
         codex*) echo "Codex" ;;
-        gemini*) echo "Gemini" ;;
         agy*|antigravity) echo "Antigravity" ;;
         openrouter*) echo "OpenRouter" ;;
         qwen*) echo "Qwen" ;;
@@ -136,7 +133,7 @@ classify_task() {
        [[ "$prompt_lower" =~ debate.*(architecture|design|implementation|approach|solution) ]] || \
        [[ "$prompt_lower" =~ (debate|grapple|wrestle|compare).*(models?|approaches?|solutions?) ]] || \
        [[ "$prompt_lower" =~ (both|multiple).*(models?|ai|llm).*(review|compare|debate) ]] || \
-       [[ "$prompt_lower" =~ (codex|gemini).*(vs|versus|debate|compare) ]] || \
+       [[ "$prompt_lower" =~ (codex|agy|antigravity).*(vs|versus|debate|compare) ]] || \
        [[ "$prompt_lower" =~ grapple ]]; then
         echo "crossfire-grapple"
         return
@@ -509,12 +506,7 @@ get_role_for_context() {
             echo "reviewer"
             ;;
         coding|diamond-develop)
-            # Refine based on agent type
-            if [[ "$agent_type" == "gemini" || "$agent_type" == "gemini-fast" ]]; then
-                echo "researcher"
-            else
-                echo "implementer"
-            fi
+            echo "implementer"
             ;;
         design)
             echo "frontend-architect"
@@ -530,9 +522,6 @@ get_role_for_context() {
                     ;;
                 codex-review)
                     echo "reviewer"
-                    ;;
-                gemini|gemini-fast)
-                    echo "researcher"
                     ;;
                 *)
                     echo ""  # No persona

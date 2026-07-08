@@ -21,8 +21,7 @@ The plugin dispatches prompts to AI providers **you configure**. These calls go 
 | Provider | Who receives your prompts | Your relationship |
 |----------|--------------------------|-------------------|
 | Codex (OpenAI) | OpenAI | Your API key or OAuth |
-| Gemini (Google) | Google | Your API key or OAuth |
-| Antigravity CLI (`agy`) | Google Antigravity (agent harness) | OAuth via `agy login` + keyring session (stores credentials) — optional headless override `ANTIGRAVITY_API_KEY` for non-interactive use |
+| Antigravity CLI (`agy`) | Google Antigravity (agent harness, Google seat) | OAuth via `agy login` + keyring session (stores credentials) — optional headless override `ANTIGRAVITY_API_KEY` for non-interactive use |
 | Copilot (GitHub) | GitHub | Your Copilot subscription |
 | Qwen (Alibaba) | Alibaba Cloud | Your Qwen API key or Coding-Plan credentials |
 | Ollama | Your local machine | No external calls |

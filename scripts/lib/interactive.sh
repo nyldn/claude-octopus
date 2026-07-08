@@ -27,7 +27,7 @@ init_interactive() {
     echo -e "     This provides full setup instructions within Claude Code."
     echo ""
     echo -e "${CYAN}Why the change?${NC}"
-    echo -e "  • Faster onboarding - you only need ONE provider (Codex OR Gemini OR Cursor Agent)"
+    echo -e "  • Faster onboarding - you only need ONE provider (Codex OR Antigravity OR Cursor Agent)"
     echo -e "  • Clearer instructions - no confusing interactive prompts"
     echo -e "  • Works in Claude Code - no need to leave and run terminal commands"
     echo -e "  • Environment variables for API keys (more secure)"
@@ -35,7 +35,6 @@ init_interactive() {
     echo -e "${CYAN}Quick migration:${NC}"
     echo -e "  Instead of this wizard, just set environment variables in your shell profile:"
     echo -e "    ${GREEN}export OPENAI_API_KEY=\"sk-...\"${NC}  (for Codex)"
-    echo -e "    ${GREEN}export GEMINI_API_KEY=\"AIza...\"${NC}  (for Gemini)"
     echo ""
     echo -e "  Then run: ${GREEN}./scripts/orchestrate.sh detect-providers${NC}"
     echo ""
@@ -50,14 +49,12 @@ init_interactive() {
 # Error code registry (bash 3.2 compatible - uses regular array)
 ERROR_CODES=(
     "E001:OPENAI_API_KEY not set:export OPENAI_API_KEY=\"sk-...\" && orchestrate.sh preflight:help api-setup"
-    "E002:Gemini API key not set — set GEMINI_API_KEY or GOOGLE_API_KEY (if in ~/.bashrc, move to ~/.profile — bashrc is skipped in non-interactive shells):export GEMINI_API_KEY=\"AIza...\" && orchestrate.sh preflight:help api-setup"
     "E003:Codex CLI not found:npm install -g @openai/codex:help setup"
-    "E004:Gemini CLI not found:npm install -g @google/gemini-cli:help setup"
     "E005:Workspace not initialized:orchestrate.sh init:help init"
     "E006:Agent spawn failed:Check API keys and network connection:help troubleshoot"
     "E007:Quality gate failed:Review output and retry with lower threshold (-q 60):help quality"
     "E008:Timeout exceeded:Increase timeout with -t 600 or break into smaller tasks:help timeout"
-    "E009:Invalid agent type:Use codex, codex-standard, codex-max, codex-mini, codex-general, codex-spark, codex-reasoning, codex-large-context, codex-review, gemini, gemini-fast, gemini-image, claude, claude-sonnet, claude-opus, claude-opus-fast, openrouter, openrouter-glm5, openrouter-kimi, openrouter-deepseek, perplexity, perplexity-fast, ollama, copilot, copilot-research, qwen, qwen-research, opencode, opencode-fast, opencode-research, cursor-agent:help agents"
+    "E009:Invalid agent type:Use codex, codex-standard, codex-max, codex-mini, codex-general, codex-spark, codex-reasoning, codex-large-context, codex-review, agy, agy-research, antigravity, claude, claude-sonnet, claude-opus, claude-opus-fast, openrouter, openrouter-glm5, openrouter-kimi, openrouter-deepseek, perplexity, perplexity-fast, ollama, copilot, copilot-research, qwen, qwen-research, opencode, opencode-fast, opencode-research, cursor-agent:help agents"
     "E010:Task file parse error:Check JSON syntax with: jq . tasks.json:help tasks"
 )
 
@@ -114,28 +111,9 @@ preflight_with_recovery() {
         has_errors=true
     fi
 
-    # Check Gemini API Key (v9.2.1: try resolving from profile/.env first, check OAuth)
-    # Accept GEMINI_API_KEY, GOOGLE_API_KEY, or OAuth creds
-    if [[ -z "${GEMINI_API_KEY:-}" ]]; then
-        resolve_provider_env "GEMINI_API_KEY" 2>/dev/null
-    fi
-    if [[ -z "${GOOGLE_API_KEY:-}" ]]; then
-        resolve_provider_env "GOOGLE_API_KEY" 2>/dev/null
-    fi
-    if [[ -z "${GEMINI_API_KEY:-}" ]] && [[ -z "${GOOGLE_API_KEY:-}" ]] && [[ ! -f "$HOME/.gemini/oauth_creds.json" ]]; then
-        show_error "E002"
-        has_errors=true
-    fi
-
     # Check Codex CLI
     if ! command -v codex &> /dev/null; then
         show_error "E003"
-        has_errors=true
-    fi
-
-    # Check Gemini CLI
-    if ! command -v gemini &> /dev/null; then
-        show_error "E004"
         has_errors=true
     fi
 

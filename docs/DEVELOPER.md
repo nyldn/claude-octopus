@@ -50,7 +50,7 @@ claude-octopus/
 ├── config/
 │   ├── providers/
 │   │   ├── codex/CLAUDE.md     # Codex-specific
-│   │   ├── gemini/CLAUDE.md    # Gemini-specific
+│   │   ├── agy/CLAUDE.md       # Antigravity-specific
 │   │   ├── claude/CLAUDE.md    # Claude orchestrator
 │   │   ├── ollama/CLAUDE.md    # Ollama local LLM
 │   │   └── copilot/CLAUDE.md   # GitHub Copilot CLI
@@ -61,14 +61,14 @@ claude-octopus/
 
 ```bash
 claude --add-dir=config/providers/codex    # Codex context
-claude --add-dir=config/providers/gemini   # Gemini context
+claude --add-dir=config/providers/agy      # Antigravity context
 claude --add-dir=config/workflows          # Double Diamond
 ```
 
 | Module | When to Load |
 |--------|--------------|
 | `providers/codex` | Working with Codex CLI integration |
-| `providers/gemini` | Working with Gemini CLI integration |
+| `providers/agy` | Working with Antigravity CLI integration |
 | `providers/claude` | Understanding Claude's orchestrator role |
 | `providers/ollama` | Working with Ollama local LLM |
 | `providers/copilot` | Working with GitHub Copilot CLI |
@@ -81,7 +81,7 @@ claude --add-dir=config/workflows          # Double Diamond
 Automated smoke testing runs on a remote VPS, checking for new releases every 2 hours.
 
 - **Phase A (Docker):** Install → structure verify → unit tests → uninstall
-- **Phase B (Native):** Live command tests with authed Claude Code, Codex, Gemini
+- **Phase B (Native):** Live command tests with authed Claude Code, Codex, Antigravity
 
 E2E test scripts are in the private dev repo (`docs/e2e/`), not in this public plugin.
 

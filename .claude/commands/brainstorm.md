@@ -66,7 +66,6 @@ set -euo pipefail
 
 echo "PROVIDER_CHECK_START"
 printf "codex:%s\n" "$(command -v codex >/dev/null 2>&1 && echo available || echo missing)"
-printf "gemini:%s\n" "$(command -v gemini >/dev/null 2>&1 && echo available || echo missing)"
 printf "perplexity:%s\n" "$([ -n "${PERPLEXITY_API_KEY:-}" ] && echo available || echo missing)"
 printf "opencode:%s\n" "$(command -v opencode >/dev/null 2>&1 && echo available || echo missing)"
 printf "copilot:%s\n" "$(command -v copilot >/dev/null 2>&1 && echo available || echo missing)"
@@ -83,7 +82,6 @@ Then render the provider banner from actual provider checks. Do not hand-write o
 status_cli() { command -v "$1" >/dev/null 2>&1 && echo "Available ✓" || echo "Not installed ✗"; }
 status_env() { [[ -n "${1:-}" ]] && echo "Configured ✓" || echo "Not configured ✗"; }
 codex_status="$(status_cli codex)"
-gemini_status="$(status_cli gemini)"
 agy_status="$(status_cli agy)"
 opencode_status="$(status_cli opencode)"
 copilot_status="$(status_cli copilot)"
@@ -96,7 +94,6 @@ cat <<BANNER
 
 Providers:
 🔴 Codex CLI: ${codex_status}
-🟡 Gemini CLI: ${gemini_status}
 🧭 Antigravity CLI: ${agy_status}
 🟤 OpenCode: ${opencode_status}
 🟢 Copilot CLI: ${copilot_status}
@@ -115,7 +112,6 @@ The rendered banner must look like this shape, with ACTUAL statuses:
 
 Providers:
 🔴 Codex CLI: [Available ✓ / Not installed ✗]
-🟡 Gemini CLI: [Available ✓ / Not installed ✗]
 🧭 Antigravity CLI: [Available ✓ / Not installed ✗]
 🟤 OpenCode: [Available ✓ / Not installed ✗]
 🟢 Copilot CLI: [Available ✓ / Not installed ✗]
@@ -153,14 +149,13 @@ if [[ -z "$ADVISORS" ]]; then
   fallback_advisors=()
   command -v codex >/dev/null 2>&1 && fallback_advisors+=(codex)
   command -v agy >/dev/null 2>&1 && fallback_advisors+=(agy)
-  command -v gemini >/dev/null 2>&1 && fallback_advisors+=(gemini)
   ADVISORS=$(IFS=,; echo "${fallback_advisors[*]}")
 fi
 
 IFS=',' read -r -a ADVISOR_LIST <<< "$ADVISORS"
 for advisor in "${ADVISOR_LIST[@]}"; do
   case "$advisor" in
-    claude*|codex*|gemini*|agy*|antigravity|copilot*|qwen*|opencode*|ollama*|cursor-agent*|vibe*) ;;
+    claude*|codex*|agy*|antigravity|copilot*|qwen*|opencode*|ollama*|cursor-agent*|vibe*) ;;
     *) echo "Skipping unsupported advisor: $advisor"; continue ;;
   esac
   safe_advisor=$(printf '%s' "$advisor" | tr -c '[:alnum:]_-' '_')
@@ -200,8 +195,8 @@ Once all agents return, present results with provider indicators:
 🔴 **Codex Ideas:**
 [Codex response summary — key ideas only, not full dump]
 
-🟡 **Gemini Ideas:**
-[Gemini response summary]
+🧭 **Antigravity Ideas:**
+[Antigravity response summary]
 
 🔵 **Claude Ideas:**
 [Claude response summary]
@@ -243,7 +238,7 @@ Generate the same export format as Solo mode (see skill-thought-partner Phase 4)
 | Provider | Key Contribution | Unique Insight |
 |----------|-----------------|----------------|
 | 🔴 Codex | [Summary] | [What only Codex surfaced] |
-| 🟡 Gemini | [Summary] | [What only Gemini surfaced] |
+| 🧭 Antigravity | [Summary] | [What only Antigravity surfaced] |
 | 🔵 Claude | [Summary] | [What only Claude surfaced] |
 
 ### Cross-Provider Patterns
@@ -283,7 +278,7 @@ AskUserQuestion({
 - User's choice was respected
 - If Team mode: visual indicator banner was displayed
 - If Team mode: at least 2 providers were queried via external CLI calls or Agent tool
-- If Team mode: provider-labeled results were shown (for example 🔴 🟡 🧭 🔵)
+- If Team mode: provider-labeled results were shown (for example 🔴 🧭 🔵)
 - If Team mode: cross-perspective synthesis was presented
 - Session ends with a breakthroughs summary
 - Next steps question was asked

@@ -2,7 +2,7 @@
 
 > *32 specialized personas, infinite possibilities. But which one grabs YOUR problem?* 🐙
 
-**Note on Permissions:** Current releases prompt before background provider execution so you can approve Codex or Gemini usage explicitly.
+**Note on Permissions:** Current releases prompt before background provider execution so you can approve Codex or Antigravity usage explicitly.
 
 ---
 

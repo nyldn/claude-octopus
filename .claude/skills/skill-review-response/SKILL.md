@@ -79,7 +79,7 @@ Provide:
 In Claude Octopus workflows, review feedback comes from multiple sources:
 
 - **Codex review** — tends toward enterprise patterns, may over-engineer
-- **Gemini review** — tends toward ecosystem conformity, may suggest unnecessary deps
+- **Antigravity review** — tends toward ecosystem conformity, may suggest unnecessary deps
 - **Claude review** — tends toward elegance, may under-engineer error handling
 - **Sonnet review** — tends toward thoroughness, may flag low-priority issues
 

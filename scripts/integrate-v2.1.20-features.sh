@@ -42,7 +42,7 @@ check_providers_with_mcp() {
         local detection_result=$("$MCP_DETECTION" detect-all)
         echo "$detection_result"
     else
-        echo '{"detection_method":"cli","providers":{"codex":{"status":"unknown"},"gemini":{"status":"unknown"},"claude":{"status":"available"}}}'
+        echo '{"detection_method":"cli","providers":{"codex":{"status":"unknown"},"claude":{"status":"available"}}}'
     fi
 }
 
@@ -57,7 +57,7 @@ request_background_permission_if_needed() {
     fi
 
     if [[ -f "$PERMISSIONS_MANAGER" ]]; then
-        if ! "$PERMISSIONS_MANAGER" check "$workflow" "$autonomy" "codex gemini"; then
+        if ! "$PERMISSIONS_MANAGER" check "$workflow" "$autonomy" "codex"; then
             return 1
         fi
     fi

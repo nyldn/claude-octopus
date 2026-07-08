@@ -21,7 +21,7 @@ test_quota_dead_cache_roundtrip() {
     test_case "octo_quota_mark_dead / octo_quota_is_dead roundtrip"
     if octo_quota_is_dead perplexity; then test_fail "dead before mark"; return; fi
     octo_quota_mark_dead perplexity
-    if octo_quota_is_dead perplexity && ! octo_quota_is_dead gemini; then test_pass
+    if octo_quota_is_dead perplexity && ! octo_quota_is_dead agy; then test_pass
     else test_fail "mark/is_dead mismatch"; fi
 }
 
@@ -80,12 +80,15 @@ test_is_agent_available_skips_dead() {
     else test_fail "quota-dead skip gate wrong"; fi
 }
 
-test_gemini_timeout_override_present() {
-    test_case "spawn.sh applies OCTOPUS_GEMINI_TIMEOUT to gemini dispatch (oco-2kw)"
-    if grep -q 'OCTOPUS_GEMINI_TIMEOUT' "$PROJECT_ROOT/scripts/lib/spawn.sh" && \
+test_effective_timeout_wiring_present() {
+    test_case "spawn.sh dispatches through run_with_timeout \$_eff_timeout (oco-2kw)"
+    # The gemini-specific OCTOPUS_GEMINI_TIMEOUT cap was removed with the Gemini CLI
+    # sunset; agy manages its own request timeout via agy-exec --print-timeout. The
+    # effective-timeout dispatch wiring must still be in place for all providers.
+    if grep -q 'local _eff_timeout="\$TIMEOUT"' "$PROJECT_ROOT/scripts/lib/spawn.sh" && \
        grep -q 'run_with_timeout "\$_eff_timeout"' "$PROJECT_ROOT/scripts/lib/spawn.sh"; then
         test_pass
-    else test_fail "spawn.sh missing per-provider gemini timeout wiring"; fi
+    else test_fail "spawn.sh missing effective-timeout dispatch wiring"; fi
 }
 
 test_quota_dead_cache_roundtrip
@@ -93,6 +96,6 @@ test_quota_dead_cache_dedup
 test_pattern_matches_terminal_errors
 test_watcher_marks_dead_on_match
 test_is_agent_available_skips_dead
-test_gemini_timeout_override_present
+test_effective_timeout_wiring_present
 
 test_summary

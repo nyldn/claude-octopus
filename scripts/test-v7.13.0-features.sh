@@ -86,9 +86,6 @@ test_gate "QG6: Permissions - Cost Estimation" \
 test_gate "QG7: Modular CLAUDE.md - Codex Config" \
     "[[ -f '$PLUGIN_ROOT/config/providers/codex/CLAUDE.md' ]]"
 
-test_gate "QG7: Modular CLAUDE.md - Gemini Config" \
-    "[[ -f '$PLUGIN_ROOT/config/providers/gemini/CLAUDE.md' ]]"
-
 test_gate "QG7: Modular CLAUDE.md - Workflows Config" \
     "[[ -f '$PLUGIN_ROOT/config/workflows/CLAUDE.md' ]]"
 
