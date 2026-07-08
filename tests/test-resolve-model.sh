@@ -148,7 +148,47 @@ export OCTOPUS_COST_MODE="budget"
 assert_eq "$(resolve_octopus_model "codex" "codex")" "config-mini" "Tier mapping (budget)"
 unset OCTOPUS_COST_MODE
 
-# Test 8: Session override
+# Test 8: Provider-scoped role routing wins over phase routing
+clear_model_cache
+cat > "$CONFIG_FILE" << EOF
+{
+  "version": "3.0",
+  "providers": {
+    "codex": { "default": "deepseek-ai/DeepSeek-V4-Pro", "logic_review": "gpt-5.5" },
+    "claude": { "default": "claude-sonnet-4.6", "review": "claude-review-phase" },
+    "gemini": { "default": "gemini-3.1-pro-preview" }
+  },
+  "routing": {
+    "phases": { "review": "claude:review" },
+    "roles": { "logic-reviewer": "codex:logic_review" }
+  }
+}
+EOF
+assert_eq "$(resolve_octopus_model "codex" "codex" "review" "logic-reviewer")" "gpt-5.5" "Provider-scoped role routing overrides review phase routing for matching provider"
+clear_model_cache
+assert_eq "$(resolve_octopus_model "claude" "claude-sonnet" "review" "logic-reviewer")" "claude-review-phase" "Cross-provider role routing falls back to matching phase routing for claude"
+clear_model_cache
+assert_eq "$(resolve_octopus_model "gemini" "gemini" "review" "logic-reviewer")" "gemini-3.1-pro-preview" "Provider-scoped role routing does not leak codex or claude models to gemini"
+clear_model_cache
+assert_eq "$(resolve_octopus_model "codex" "codex" "review" "arch-reviewer")" "deepseek-ai/DeepSeek-V4-Pro" "Cross-provider phase routing does not leak claude model to codex"
+
+clear_model_cache
+cat > "$CONFIG_FILE" << EOF
+{
+  "version": "3.0",
+  "providers": {
+    "codex": { "default": "deepseek-ai/DeepSeek-V4-Pro" },
+    "claude": { "default": "claude-sonnet-4.6", "review": "claude-review-phase" }
+  },
+  "routing": {
+    "phases": { "review": "claude:review" },
+    "roles": { "logic-reviewer": "gpt-5.5" }
+  }
+}
+EOF
+assert_eq "$(resolve_octopus_model "claude" "claude-sonnet" "review" "logic-reviewer")" "claude-review-phase" "Bare role model invalid for provider falls back to matching phase routing"
+
+# Test 9: Session override
 clear_model_cache
 cat > "$CONFIG_FILE" << EOF
 {
