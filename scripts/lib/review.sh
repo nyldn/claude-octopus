@@ -210,11 +210,24 @@ build_review_fleet() {
     echo "$fleet"
 }
 
+review_file_mtime_epoch() {
+    local file="$1"
+    stat -c '%Y' "$file" 2>/dev/null || stat -f '%m' "$file" 2>/dev/null || echo 0
+}
+
 review_progress_fingerprint_since() {
     local since_epoch="$1"
     local results_dir="${2:-${RESULTS_DIR:-${HOME}/.claude-octopus/results}}"
-    find "$results_dir" -maxdepth 1 -type f -newermt "@${since_epoch}" \
-        -printf '%p %s %T@\n' 2>/dev/null | sort | sha256sum 2>/dev/null | awk '{print $1}'
+    [[ -d "$results_dir" ]] || { echo "empty"; return 0; }
+    find "$results_dir" -maxdepth 1 -type f 2>/dev/null | while IFS= read -r file; do
+        local mtime size
+        mtime=$(review_file_mtime_epoch "$file")
+        [[ "$mtime" =~ ^[0-9]+$ ]] || mtime=0
+        [[ "$mtime" -ge "$since_epoch" ]] || continue
+        size=$(wc -c < "$file" 2>/dev/null || echo 0)
+        size=${size//[[:space:]]/}
+        printf '%s %s %s\n' "$file" "${size:-0}" "$mtime"
+    done | sort | sha256sum 2>/dev/null | awk '{print $1}'
 }
 
 review_run_agent_sync_progress() {
@@ -282,8 +295,13 @@ review_codex_empty_output_retryable() {
     local agent_type="$2"
     [[ "$agent_type" == codex* ]] || return 1
     [[ -f "$result_file" ]] || return 1
-    grep -qE '^## Status: FAILED \(Empty output\)' "$result_file" 2>/dev/null || return 1
-    [[ $(grep -c 'Reconnecting' "$result_file" 2>/dev/null || true) -gt 0 ]] || return 1
+    local empty_count reconnect_count
+    empty_count=$(grep -cE '^## Status: FAILED \(Empty output\)' "$result_file" 2>/dev/null || true)
+    empty_count=${empty_count:-0}
+    reconnect_count=$(grep -c 'Reconnecting' "$result_file" 2>/dev/null || true)
+    reconnect_count=${reconnect_count:-0}
+    [[ "${empty_count%%$'\n'*}" -gt 0 ]] || return 1
+    [[ "${reconnect_count%%$'\n'*}" -gt 0 ]] || return 1
 }
 
 # review_wait_for_result_status: waits for one result file to become terminal,
@@ -292,7 +310,7 @@ review_wait_for_result_status() {
     local result_file="$1"
     local pid="$2"
     local label="$3"
-    local results_dir="${4:-$RESULTS_DIR}"
+    local results_dir="${4:-${RESULTS_DIR:-${HOME}/.claude-octopus/results}}"
     local stall_window="${5:-${OCTOPUS_REVIEW_STALL_WINDOW:-1800}}"
     local poll_secs="${6:-${OCTOPUS_REVIEW_POLL_SECS:-30}}"
     local poll_start last_progress last_fp current_fp
@@ -300,7 +318,10 @@ review_wait_for_result_status() {
     last_progress="$poll_start"
     last_fp=$(review_progress_fingerprint_since "$poll_start" "$results_dir")
     while true; do
-        if [[ -f "$result_file" ]] && [[ $(grep -cE '^## Status:' "$result_file" 2>/dev/null || true) -gt 0 ]]; then
+        local status_count
+        status_count=$(grep -cE '^## Status:' "$result_file" 2>/dev/null || true)
+        status_count=${status_count:-0}
+        if [[ -f "$result_file" ]] && [[ "${status_count%%$'\n'*}" -gt 0 ]]; then
             break
         fi
         current_fp=$(review_progress_fingerprint_since "$poll_start" "$results_dir")
@@ -376,11 +397,13 @@ PYEXTRACT
 review_local_synthesis_json() {
     local findings_json="$1"
     local warning="${2:-}"
+    local sort_filter='def severity_rank: if .severity == "normal" then 0 elif .severity == "nit" then 1 elif .severity == "pre-existing" then 2 else 3 end; sort_by(severity_rank)'
     if [[ -n "$warning" ]]; then
-        printf '%s' "$findings_json" | jq -c --arg warning "$warning" '{findings:(. // [] | sort_by(.severity)), warning:$warning}' 2>/dev/null             || printf '{"findings":[],"warning":%s}\n' "$(printf '%s' "$warning" | jq -R .)"
+        printf '%s' "$findings_json" | jq -c --arg warning "$warning" "{findings:(. // [] | ${sort_filter}), warning:\$warning}" 2>/dev/null \
+            || printf '{"findings":[],"warning":%s}\n' "$(printf '%s' "$warning" | jq -R .)"
     else
         printf '%s' "$findings_json" | jq -c \
-            '{findings:(. // [] | sort_by(.severity))}' 2>/dev/null \
+            "{findings:(. // [] | ${sort_filter})}" 2>/dev/null \
             || echo '{"findings":[]}'
     fi
 }
@@ -839,6 +862,8 @@ ${agent_prompt_base}"
     # after a short pause.
     local codex_empty_retry_max="${OCTOPUS_REVIEW_CODEX_EMPTY_RETRY_MAX:-1}"
     local codex_empty_retry_backoff="${OCTOPUS_REVIEW_CODEX_EMPTY_RETRY_BACKOFF_SECS:-90}"
+    [[ "$codex_empty_retry_max" =~ ^[0-9]+$ ]] || codex_empty_retry_max=1
+    [[ "$codex_empty_retry_backoff" =~ ^[0-9]+$ ]] || codex_empty_retry_backoff=90
     if [[ "$codex_empty_retry_max" -gt 0 ]]; then
         local retry_idx=0
         while [[ "$retry_idx" -lt "${#round1_files[@]}" ]]; do
@@ -846,7 +871,9 @@ ${agent_prompt_base}"
             local retry_agent_type="${round1_agent_types[$retry_idx]}"
             if review_codex_empty_output_retryable "$retry_file" "$retry_agent_type"; then
                 local reconnect_count retry_role retry_task_id retry_prompt retry_result_file retry_pid archived_file
-                reconnect_count=$(grep -c 'Reconnecting' "$retry_file" 2>/dev/null || echo 0)
+                reconnect_count=$(grep -c 'Reconnecting' "$retry_file" 2>/dev/null || true)
+                reconnect_count=${reconnect_count:-0}
+                reconnect_count=${reconnect_count%%$'\n'*}
                 retry_role="${round1_roles[$retry_idx]}"
                 retry_task_id="${round1_task_ids[$retry_idx]}-retry1"
                 retry_result_file="${RESULTS_DIR}/${retry_agent_type}-${retry_task_id}.md"
@@ -1034,7 +1061,7 @@ Return ONLY JSON: {\"findings\": [...ranked, deduplicated findings...]}"
     final_json=$(review_run_agent_sync_progress "claude-sonnet" "$synthesis_prompt" "code-reviewer" "review" "synthesis-claude-sonnet") || {
         synth_ok="false"
         log WARN "review_run: synthesis failed, using confirmed findings sorted as-is"
-        final_json="{\"findings\":$(echo "$confirmed_findings" | jq -c 'sort_by(.severity)' 2>/dev/null || echo "[]")}"
+        final_json="$(review_local_synthesis_json "$confirmed_findings" "$round1_warning")"
     }
 
     # v9.3.1: Strip markdown fences from synthesis result (#188)
@@ -1043,6 +1070,9 @@ Return ONLY JSON: {\"findings\": [...ranked, deduplicated findings...]}"
         log WARN "review_run: synthesis returned invalid findings JSON, using local fallback"
         final_json=$(review_local_synthesis_json "$confirmed_findings" "$round1_warning")
         synth_ok="false"
+    elif [[ -n "$round1_warning" ]]; then
+        final_json=$(printf '%s' "$final_json" | jq -c --arg warning "$round1_warning" '. + {warning:$warning}' 2>/dev/null \
+            || review_local_synthesis_json "$confirmed_findings" "$round1_warning")
     fi
 
     # Write findings file
