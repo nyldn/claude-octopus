@@ -6,6 +6,7 @@
 
 - **docs/TROUBLESHOOTING.md**: user-facing provider-auth runbook — per-provider availability checks and fix commands for all eleven seats, plus the common non-auth failures (circuit-breaker skips, quota-dead providers, fail-closed Ollama pulls, Fable 5 refusals, session provider disable).
 - **README cost expectations**: "What a Typical Run Costs" table (probe/debate/council/embrace token volumes and dollar ranges) and a collapsed "Upgrading to 9.5x" note covering the GPT-5.4→5.5 default shift and the claude-sdk/Fable 5 env var families.
+- **Tangle contextual review correction loop** (#593, community contribution by @Jhacarreiro; hardening by maintainers): after the tangle validation gate, a contextual code review runs against the develop diff and blocking findings feed a correction loop (delta → single-finding → cleanup-and-fix strategies) until blockers reach zero or a guard trips. Guards: convergence limit (`OCTOPUS_TANGLE_CONVERGENCE_NO_PROGRESS_ROUNDS`, default 3 no-progress rounds), stall watchdog (`OCTOPUS_TANGLE_CORRECTION_STALL_WINDOW`, default 1800s), opt-in bounded mode (`OCTOPUS_TANGLE_REVIEW_CORRECTION_MODE=bounded` + `OCTOPUS_TANGLE_REVIEW_CORRECTION_ROUNDS`), and a maintainer-added absolute round ceiling (`OCTOPUS_TANGLE_CORRECTION_HARD_CAP`, default 10, applies in both modes, 0 opts out) so the default unbounded mode cannot spin paid provider calls indefinitely. The loop was extracted into `tangle_contextual_review_gate()` and covered by behavioral tests (`tests/unit/test-tangle-correction-loop-behavior.sh`) driving stubbed rounds and asserting round counts and exit codes.
 
 ### Changed
 
@@ -13,32 +14,20 @@
 - **README correctness sweep**: provider count updated to ten (Grok/xAI seat from v9.48 and the claude-sdk seat from v9.50 were missing), Codex model references updated from GPT-5.4 to GPT-5.5 (matches the resolver default), Claude Code minimum corrected from v2.1.14+ to v2.1.50+ (matches plugin-manifest compatibility), three dead doc links removed (FEATURE-GAP, PLUGIN-ARCHITECTURE, CLI-REFERENCE), the hardcoded "117 suites passing" badge dropped, and the Documentation section now links TROUBLESHOOTING, PROVIDERS, DEVELOPER, SCHEDULER, PRIVACY, SECURITY, and RELEASING.
 - **RELEASING.md §2 now leads with `scripts/release.sh`** (the bump script existed but the doc described a manual table); release.sh additionally bumps the `routines.json` `$comment` version it previously missed.
 - **Repo-rules meta-audit** (CLAUDE.md/AGENTS.md): marketplace-blurb rule now states the plugin.json source of truth; exec-bit rule notes that local test runs chmod fixtures; the beads memory ruling clarifies that this repo's Session Completion push mandate is the explicit authority bd's conservative profile asks for.
+- **Timeout model for supervised long dispatches** (#593): design-review ceremony, ink delivery review, tangle decompose/reformat, and the new correction loop now dispatch with `timeout_secs=0` (no wall clock) under heartbeat/stall supervision; `run_with_timeout` gained an explicit `0 = unlimited` bypass covering both the GNU-timeout and in-process fallback paths. Per-provider caps (e.g. `OCTOPUS_GEMINI_TIMEOUT`) still apply.
+- **`code-review` on a clean tree now exits non-zero** (#593): `review_run` returns 1 when there is no diff to review ("nothing to review" is no longer a pass). Scripts that ran `octo code-review` on clean trees and relied on exit 0 must handle exit 1.
 
 ### Fixed
 
 - **tests/smoke/test-monolith-guard.sh cap tightened from 22,600 to 3,400 lines** — orchestrate.sh is 3,123 lines post-decomposition, so the old cap could never trip and the guard was vacuous.
 - **docs/README.md command count corrected** from 47 to 50.
+- **Review aggregation and progress supervision hardened** (#592, community contribution by @Jhacarreiro; maintainer takeover to land): review rounds now run without a wall-clock cap under progress-stall supervision (`OCTOPUS_REVIEW_STALL_WINDOW`, default 1800s), Round 1 codex empty-output-with-reconnect failures retry once, findings extraction tolerates prose-wrapped JSON, and severity counting is pipefail-safe. Maintainer fixes on top of the contribution: the stall fingerprint is scoped to each agent's own artifacts (previously it hashed all of RESULTS_DIR, so any concurrent activity reset every agent's stall timer); stall kills walk the full descendant tree (a single-level `pkill -P` could orphan the grandchild provider CLI mid-billing); and the findings extractor prefers the last non-empty findings array so a provider echoing the prompt's `{"findings": []}` format example cannot erase real findings. The `timeout_secs=0` contract this relies on is the `run_with_timeout` bypass that shipped with #593.
 
 ### Removed
 
 - Dead one-shot scripts with zero references: `scripts/integrate-v2.1.20-features.sh`, `scripts/test-v7.13.0-features.sh`, `scripts/apply-octopus-theme.js`.
 
 ## [9.51.0] - 2026-07-09
-
-### Added
-
-- **Tangle contextual review correction loop** (#593, community contribution by @Jhacarreiro; hardening by maintainers): after the tangle validation gate, a contextual code review runs against the develop diff and blocking findings feed a correction loop (delta → single-finding → cleanup-and-fix strategies) until blockers reach zero or a guard trips. Guards: convergence limit (`OCTOPUS_TANGLE_CONVERGENCE_NO_PROGRESS_ROUNDS`, default 3 no-progress rounds), stall watchdog (`OCTOPUS_TANGLE_CORRECTION_STALL_WINDOW`, default 1800s), opt-in bounded mode (`OCTOPUS_TANGLE_REVIEW_CORRECTION_MODE=bounded` + `OCTOPUS_TANGLE_REVIEW_CORRECTION_ROUNDS`), and a maintainer-added absolute round ceiling (`OCTOPUS_TANGLE_CORRECTION_HARD_CAP`, default 10, applies in both modes, 0 opts out) so the default unbounded mode cannot spin paid provider calls indefinitely. The loop was extracted into `tangle_contextual_review_gate()` and covered by behavioral tests (`tests/unit/test-tangle-correction-loop-behavior.sh`) driving stubbed rounds and asserting round counts and exit codes.
-
-### Changed
-
-- **Timeout model for supervised long dispatches** (#593): design-review ceremony, ink delivery review, tangle decompose/reformat, and the new correction loop now dispatch with `timeout_secs=0` (no wall clock) under heartbeat/stall supervision; `run_with_timeout` gained an explicit `0 = unlimited` bypass covering both the GNU-timeout and in-process fallback paths. Per-provider caps (e.g. `OCTOPUS_GEMINI_TIMEOUT`) still apply.
-- **`code-review` on a clean tree now exits non-zero** (#593): `review_run` returns 1 when there is no diff to review ("nothing to review" is no longer a pass). Scripts that ran `octo code-review` on clean trees and relied on exit 0 must handle exit 1.
-
-## [Unreleased]
-
-### Fixed
-
-- **Review aggregation and progress supervision hardened** (#592, community contribution by @Jhacarreiro; maintainer takeover to land): review rounds now run without a wall-clock cap under progress-stall supervision (`OCTOPUS_REVIEW_STALL_WINDOW`, default 1800s), Round 1 codex empty-output-with-reconnect failures retry once, findings extraction tolerates prose-wrapped JSON, and severity counting is pipefail-safe. Maintainer fixes on top of the contribution: the stall fingerprint is scoped to each agent's own artifacts (previously it hashed all of RESULTS_DIR, so any concurrent activity reset every agent's stall timer); stall kills walk the full descendant tree (a single-level `pkill -P` could orphan the grandchild provider CLI mid-billing); and the findings extractor prefers the last non-empty findings array so a provider echoing the prompt's `{"findings": []}` format example cannot erase real findings. The `timeout_secs=0` contract this relies on is the `run_with_timeout` bypass that shipped with #593.
 
 ### Added
 
