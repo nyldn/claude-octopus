@@ -124,6 +124,18 @@ test_release_script_invokes_shared_marketplace_sync() {
     fi
 }
 
+test_release_stages_routines_manifest() {
+    test_case "release.sh stages the routines manifest after bumping it"
+
+    local commit_block
+    commit_block="$(sed -n '/^echo "2\/8 Committing\.\.\."/,/^git commit /p' "$RELEASE_SCRIPT")"
+    if grep -q '\.claude-plugin/routines\.json' <<<"$commit_block"; then
+        test_pass
+    else
+        test_fail "release.sh updates routines.json but omits it from the release commit"
+    fi
+}
+
 test_release_promotes_unreleased_changelog_notes() {
     test_case "release changelog helper promotes Unreleased notes into version entry"
 
@@ -241,6 +253,7 @@ test_shared_marketplace_sync_updates_only_octo() {
 
 test_sync_script_exists
 test_release_script_invokes_shared_marketplace_sync
+test_release_stages_routines_manifest
 test_release_promotes_unreleased_changelog_notes
 test_release_ci_parser_matches_exact_aggregate_checks
 test_shared_marketplace_sync_updates_only_octo

@@ -193,7 +193,7 @@ echo ""
 
 echo "2/8 Committing..."
 git checkout -b "$BRANCH" --quiet
-git add package.json .claude-plugin/plugin.json .claude-plugin/marketplace.json .codex-plugin/plugin.json .cursor-plugin/plugin.json .factory-plugin/plugin.json .factory-plugin/marketplace.json README.md CHANGELOG.md
+git add package.json .claude-plugin/plugin.json .claude-plugin/marketplace.json .claude-plugin/routines.json .codex-plugin/plugin.json .cursor-plugin/plugin.json .factory-plugin/plugin.json .factory-plugin/marketplace.json README.md CHANGELOG.md
 git commit --quiet -m "chore: release v${VERSION} — ${SUMMARY}
 
 Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"
