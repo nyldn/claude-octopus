@@ -2061,6 +2061,25 @@ Every [CODING] line must include a same-line Files: clause."
     local validation_rc=0
     validate_tangle_results "$task_group" "$resolved_prompt" "$worktree_before_file" || validation_rc=$?
 
+    tangle_contextual_review_gate "$task_group" "$resolved_prompt" "$context" "$subtasks" \
+        "$validation_file" "$worktree_before_file" "$validation_rc" "$tangle_coding_agent"
+    return $?
+}
+
+# Contextual review gate + correction loop for tangle_develop. Extracted so
+# round accounting, the convergence guard, and the absolute round ceiling are
+# unit-testable with stubbed review/correction functions
+# (tests/unit/test-tangle-correction-loop-behavior.sh).
+tangle_contextual_review_gate() {
+    local task_group="$1"
+    local resolved_prompt="$2"
+    local context="$3"
+    local subtasks="$4"
+    local validation_file="$5"
+    local worktree_before_file="$6"
+    local validation_rc="${7:-0}"
+    local tangle_coding_agent="${8:-codex}"
+
     if octo_bool_disabled "${OCTOPUS_TANGLE_CODE_REVIEW:-true}"; then
         log INFO "Contextual code review disabled by OCTOPUS_TANGLE_CODE_REVIEW"
         return "$validation_rc"
@@ -2096,10 +2115,21 @@ Every [CODING] line must include a same-line Files: clause."
     # count resets convergence; validation signature movement is diagnostic only.
     local validation_progress_resets_convergence="${OCTOPUS_TANGLE_CONVERGENCE_VALIDATION_PROGRESS:-false}"
     local correction_strategy="delta"
+    # Absolute ceiling on correction rounds. Each round dispatches paid provider
+    # calls, so even the default unbounded mode stops here; the stall watchdog
+    # and convergence guard remain the primary stops. Setting the ceiling to 0
+    # is an explicit opt-in to a truly unbounded loop.
+    local hard_round_cap="${OCTOPUS_TANGLE_CORRECTION_HARD_CAP:-10}"
+    [[ "$hard_round_cap" =~ ^[0-9]+$ ]] || hard_round_cap=10
 
     while [[ "${normal_count:-0}" -gt 0 ]]; do
         if [[ "$correction_mode" == "bounded" && "$max_correction_rounds" -gt 0 && "$correction_round" -gt "$max_correction_rounds" ]]; then
             log WARN "Contextual code review still has ${normal_count} blocking finding(s) after bounded ${max_correction_rounds} correction round(s): ${findings_file}"
+            return 1
+        fi
+
+        if [[ "$hard_round_cap" -gt 0 && "$correction_round" -gt "$hard_round_cap" ]]; then
+            log ERROR "Correction loop hit the absolute round ceiling (${hard_round_cap}) with ${normal_count} blocking finding(s) remaining: ${findings_file} — raise or disable with OCTOPUS_TANGLE_CORRECTION_HARD_CAP (0 = no ceiling)"
             return 1
         fi
 

@@ -4,6 +4,17 @@
 
 ### Added
 
+- **Tangle contextual review correction loop** (#593, community contribution by @Jhacarreiro; hardening by maintainers): after the tangle validation gate, a contextual code review runs against the develop diff and blocking findings feed a correction loop (delta → single-finding → cleanup-and-fix strategies) until blockers reach zero or a guard trips. Guards: convergence limit (`OCTOPUS_TANGLE_CONVERGENCE_NO_PROGRESS_ROUNDS`, default 3 no-progress rounds), stall watchdog (`OCTOPUS_TANGLE_CORRECTION_STALL_WINDOW`, default 1800s), opt-in bounded mode (`OCTOPUS_TANGLE_REVIEW_CORRECTION_MODE=bounded` + `OCTOPUS_TANGLE_REVIEW_CORRECTION_ROUNDS`), and a maintainer-added absolute round ceiling (`OCTOPUS_TANGLE_CORRECTION_HARD_CAP`, default 10, applies in both modes, 0 opts out) so the default unbounded mode cannot spin paid provider calls indefinitely. The loop was extracted into `tangle_contextual_review_gate()` and covered by behavioral tests (`tests/unit/test-tangle-correction-loop-behavior.sh`) driving stubbed rounds and asserting round counts and exit codes.
+
+### Changed
+
+- **Timeout model for supervised long dispatches** (#593): design-review ceremony, ink delivery review, tangle decompose/reformat, and the new correction loop now dispatch with `timeout_secs=0` (no wall clock) under heartbeat/stall supervision; `run_with_timeout` gained an explicit `0 = unlimited` bypass covering both the GNU-timeout and in-process fallback paths. Per-provider caps (e.g. `OCTOPUS_GEMINI_TIMEOUT`) still apply.
+- **`code-review` on a clean tree now exits non-zero** (#593): `review_run` returns 1 when there is no diff to review ("nothing to review" is no longer a pass). Scripts that ran `octo code-review` on clean trees and relied on exit 0 must handle exit 1.
+
+## [Unreleased]
+
+### Added
+
 - **RELEASING.md**: ordered release checklist covering every version-string location, the derived-artifact generators, CI-parity validation, exec-bit checks, fork-PR run approval, the tag-on-merge-commit rule, and GitHub Release creation. Encodes the three CI rounds the v9.50.0 release burned on undocumented generators.
 - **docs/PROVIDERS.md**: provider wiring map. Seven wiring points across five files per provider, with anchors and the traps that have bitten real PRs (case-glob ordering, the two provider-routing whitelists, exec bits, the stdin shim contract, secret-scanner quoting, nested-session markers).
 - **`make sync` / `make sync-check` / `make ci-local`**: one target to regenerate all derived artifacts, one to verify them, and a CI-parity target that mirrors the required checks plus CI-only verifications so local green predicts remote green.

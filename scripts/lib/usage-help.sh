@@ -223,6 +223,7 @@ ${YELLOW}Environment:${NC}
   OCTOPUS_TANGLE_REVIEW_CORRECTION_MODE=bounded   Opt into explicit round cap
   OCTOPUS_TANGLE_REVIEW_CORRECTION_ROUNDS=3       Bound count when mode=bounded
   OCTOPUS_TANGLE_CORRECTION_STALL_WINDOW=1800     Stop only after silence/no progress
+  OCTOPUS_TANGLE_CORRECTION_HARD_CAP=10           Absolute round ceiling, both modes (0 disables)
   OCTOPUS_TANGLE_CORRECTION_POLL_SECS=30          Progress check cadence
   OCTOPUS_TANGLE_REVIEW_TARGET=working-tree     Review target passed to code-review
   OCTOPUS_TANGLE_INK=true                       Run optional ink/deliver after review passes
