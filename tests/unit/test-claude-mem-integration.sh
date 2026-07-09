@@ -102,12 +102,12 @@ else
     fail "Wired: save_session_checkpoint calls bridge observe" "no bridge observe or memory_observe call found"
 fi
 
-# ── 8. SessionStart memory hook queries claude-mem ───────────────────
+# ── 8. SessionStart memory hook queries the memory contract ──────────
 
-if grep -c 'BRIDGE_SCRIPT\|claude-mem-bridge' "$PROJECT_ROOT/hooks/session-start-memory.sh" >/dev/null 2>&1; then
-    pass "Wired: session-start-memory.sh queries claude-mem context"
+if grep -c 'memory_context\|scripts/lib/memory.sh' "$PROJECT_ROOT/hooks/session-start-memory.sh" >/dev/null 2>&1; then
+    pass "Wired: session-start-memory.sh queries memory contract context"
 else
-    fail "Wired: session-start-memory.sh queries claude-mem context" "no bridge reference in hook"
+    fail "Wired: session-start-memory.sh queries memory contract context" "no memory contract reference in hook"
 fi
 
 # ── 9. Provider report card function exists ──────────────────────────
