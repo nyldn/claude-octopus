@@ -4,7 +4,7 @@
 
 ## Core References
 
-- [COMMAND-REFERENCE.md](./COMMAND-REFERENCE.md) — All 47 slash commands with natural-language triggers
+- [COMMAND-REFERENCE.md](./COMMAND-REFERENCE.md) — All 50 slash commands with natural-language triggers
 - [ARCHITECTURE.md](./ARCHITECTURE.md) — Provider model mapping, 9-provider architecture, execution flow
 - [AGENTS.md](./AGENTS.md) — 32 persona agents and 10 native agents
 - [PLUGIN-ASSEMBLY-STANDARD.md](./PLUGIN-ASSEMBLY-STANDARD.md) — Structural contract for skills, agents, commands, connectors, and validation

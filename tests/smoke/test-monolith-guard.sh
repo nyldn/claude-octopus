@@ -14,7 +14,7 @@ pass() { test_case "$1"; test_pass; }
 fail() { test_case "$1"; test_fail "${2:-$1}"; }
 
 # ── 1. Line count threshold ────────────────────────────────────────
-MAX_LINES=22600
+MAX_LINES=3400
 line_count=$(wc -l < "$ORCH" | tr -d ' ')
 
 if [[ "$line_count" -le "$MAX_LINES" ]]; then

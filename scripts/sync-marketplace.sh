@@ -27,28 +27,32 @@ if [[ -z "$VERSION" ]]; then
     exit 1
 fi
 
-# Read current marketplace description
+# Read the current marketplace description (compared against expected below)
 CURRENT_DESC=$(python3 -c "
 import json, sys
 m = json.load(open('$ROOT_DIR/.claude-plugin/marketplace.json'))
 for p in m.get('plugins', []):
     if p.get('name') == 'octo':
-        desc = p.get('description', '')
-        if not desc:
-            print('ERROR: octo plugin description is empty', file=sys.stderr)
-            sys.exit(1)
-        print(desc)
+        print(p.get('description', ''))
         break
 else:
     print('ERROR: octo plugin entry not found', file=sys.stderr)
     sys.exit(1)
 ")
 
-# Extract the feature summary (first part before counts)
-# Format: "Feature summary. <personas> personas, <commands> commands, <skills> skills. Run /octo:setup."
-# We preserve the feature summary but regenerate the counts
-# Strip any legacy version prefix, counts suffix, and trailing "Run /octo:setup." (we re-append it)
-FEATURE_SUMMARY=$(echo "$CURRENT_DESC" | sed -E 's/^v[0-9]+\.[0-9]+\.[0-9]+ [-—] //' | sed -E 's/[.,] [0-9]+ personas,.*//' | sed -E 's/\.? *Run \/octo:setup\.?$//')
+# Derive the feature summary from plugin.json (the source of truth), NOT from
+# marketplace.json's previous description. Sourcing it from marketplace.json
+# made the summary self-referential: it could only change via a hand-edit to a
+# file documented as never-hand-edit, which is how the v9.50 summary survived
+# into v9.51 and how a hand-written "42 agents, ..." fragment stacked with the
+# generated counts. Strip: version prefix, any counts fragments (agents or
+# personas variants), and the trailing "Run /octo:setup." (re-appended below).
+PLUGIN_DESC=$(python3 -c "import json; print(json.load(open('$PLUGIN_JSON')).get('description', ''))")
+if [[ -z "$PLUGIN_DESC" ]]; then
+    echo "ERROR: description missing in $PLUGIN_JSON" >&2
+    exit 1
+fi
+FEATURE_SUMMARY=$(echo "$PLUGIN_DESC" | sed -E 's/^v[0-9]+\.[0-9]+\.[0-9]+ [-—] //' | sed -E 's/[.,] [0-9]+ (agents|personas),[^.]*\.//g' | sed -E 's/\.? *Run \/octo:setup\.?$//' | sed -E 's/\.$//')
 
 # Build expected description — version prefix derived from version field
 EXPECTED_DESC="v${VERSION} - ${FEATURE_SUMMARY}. ${PERSONA_COUNT} personas, ${COMMAND_COUNT} commands, ${SKILL_COUNT} skills. Run /octo:setup."
