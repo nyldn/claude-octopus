@@ -1089,8 +1089,8 @@ ${previous_decomposition}
         tangle_decompose_fallback_agent=$(octopus_agent_override "tangle" "decompose_fallback" "codex")
     fi
 
-    run_agent_sync "$tangle_decompose_agent" "$reformat_prompt" 120 "researcher" "tangle" || \
-    run_agent_sync "$tangle_decompose_fallback_agent" "$reformat_prompt" 120 "researcher" "tangle"
+    OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="tangle-reformat-validation" run_agent_sync "$tangle_decompose_agent" "$reformat_prompt" 0 "researcher" "tangle" || \
+    OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="tangle-reformat-validation" run_agent_sync "$tangle_decompose_fallback_agent" "$reformat_prompt" 0 "researcher" "tangle"
 }
 
 tangle_validate_parallel_write_scopes() {
@@ -1161,6 +1161,462 @@ tangle_validate_parallel_write_scopes() {
     [[ $coding_count -eq 0 ]] && return 0
     return 0
 }
+
+
+octo_bool_disabled() {
+    case "$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')" in
+        0|false|off|no|disabled) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+octo_bool_enabled() {
+    case "$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')" in
+        1|true|on|yes|enabled) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+tangle_review_warning_text() {
+    local findings_file="$1"
+    [[ -f "$findings_file" ]] || return 0
+    jq -r '(.warning // (if ((.message // "") | test("No changes found to review"; "i")) then .message else "" end)) // ""' "$findings_file" 2>/dev/null || true
+}
+
+tangle_review_blocking_count() {
+    local findings_file="$1"
+    [[ -f "$findings_file" ]] || { echo 0; return 0; }
+    local review_warning
+    review_warning=$(tangle_review_warning_text "$findings_file")
+    if [[ -n "$review_warning" ]]; then
+        echo 1
+        return 0
+    fi
+    local count
+    if ! count=$(jq '[.findings[]? | select((.severity // "") == "normal")] | length' "$findings_file" 2>/dev/null); then
+        # fail closed: malformed/truncated findings must block delivery.
+        echo 1
+        return 0
+    fi
+    echo "$count"
+}
+
+tangle_review_findings_summary() {
+    local findings_file="$1"
+    [[ -f "$findings_file" ]] || return 0
+    jq -r '.findings[]? | "- [" + (.severity // "unknown") + "] " + (.title // "untitled") + " — " + (.file // "unknown") + ":" + ((.line // 0)|tostring) + "\n  " + (.detail // "")' "$findings_file" 2>/dev/null || true
+}
+
+tangle_normal_findings_summary() {
+    local findings_file="$1"
+    [[ -f "$findings_file" ]] || return 0
+    jq -r '.findings[]? | select((.severity // "") == "normal") | "### " + (.title // "untitled") + "\n- Location: " + (.file // "unknown") + ":" + ((.line // 0)|tostring) + "\n- Confidence: " + ((.confidence // 0)|tostring) + "\n\n" + (.detail // "") + "\n"' "$findings_file" 2>/dev/null || true
+}
+
+tangle_findings_signature() {
+    local findings_file="$1"
+    [[ -f "$findings_file" ]] || { echo "missing"; return 0; }
+    jq -r '[.findings[]? | select((.severity // "") == "normal") | (.title // .message // "untitled")] | sort | join(" | ")' "$findings_file" 2>/dev/null || echo "unparseable"
+}
+
+# Fingerprint only the actionable validation-gate decision. This lets the
+# correction loop distinguish useful validation movement from a static gate that
+# is being recomputed from immutable initial subtask result files.
+tangle_validation_signature() {
+    local validation_file="$1"
+    [[ -f "$validation_file" ]] || { echo "missing"; return 0; }
+    awk '
+        /^### Quality Gate:/ { capture=1 }
+        /^### Subtask Results/ { capture=0 }
+        capture { print }
+    ' "$validation_file" 2>/dev/null | sha256sum | awk '{print $1}'
+}
+
+tangle_worktree_fingerprint() {
+    local repo_root
+    repo_root=$(tangle_resolve_repo_root 2>/dev/null || git rev-parse --show-toplevel 2>/dev/null || pwd)
+    {
+        git -C "$repo_root" status --porcelain 2>/dev/null || true
+        git -C "$repo_root" diff --stat 2>/dev/null || true
+        git -C "$repo_root" ls-files --others --exclude-standard 2>/dev/null || true
+    } | sha256sum 2>/dev/null | awk '{print $1}'
+}
+
+tangle_process_is_active_non_zombie() {
+    local pid="${1:-}"
+    [[ -n "$pid" ]] || return 1
+    kill -0 "$pid" 2>/dev/null || return 1
+    local stat
+    stat=$(ps -o stat= -p "$pid" 2>/dev/null | awk 'NR==1 {print $1}') || stat=""
+    [[ -n "$stat" ]] || return 1
+    [[ "$stat" == Z* ]] && return 1
+    return 0
+}
+
+tangle_scope_contamination_summary() {
+    local repo_root
+    repo_root=$(tangle_resolve_repo_root 2>/dev/null || git rev-parse --show-toplevel 2>/dev/null || pwd)
+    git -C "$repo_root" status --porcelain 2>/dev/null \
+        | awk '{print $2}' \
+        | grep -E '(^|/)(_wr\.py|.*\.bak$|.*_new\.[^.]+$|.*_p[0-9]+\.[^.]+$|.*\.tmp$|.*\.orig$)' \
+        || true
+}
+
+tangle_correction_strategy_prompt() {
+    local strategy="${1:-delta}"
+    case "$strategy" in
+        cleanup-and-fix)
+            cat <<'EOF'
+Strategy for this round:
+- First remove or reverse out-of-scope scratch/backup files created by earlier attempts.
+- Then fix the smallest set of blocking findings possible.
+- Do not create backup, scratch, _new, _pN, .tmp, .orig, or helper files.
+EOF
+            ;;
+        single-finding)
+            cat <<'EOF'
+Strategy for this round:
+- Do not attempt to fix all findings at once.
+- Pick the highest-impact blocking finding and fix that one cleanly.
+- If tests or OpenAPI are the selected blocker, add only the required files/scripts.
+- Do not create backup, scratch, _new, _pN, .tmp, .orig, or helper files.
+EOF
+            ;;
+        *)
+            cat <<'EOF'
+Strategy for this round:
+- Apply a minimal delta patch that reduces the current blocking findings.
+- Prefer small, path-scoped edits over rewrites.
+- Do not create backup, scratch, _new, _pN, .tmp, .orig, or helper files.
+EOF
+            ;;
+    esac
+}
+
+TANGLE_CORRECTION_FILE=""
+TANGLE_CORRECTION_STATUS=""
+TANGLE_CORRECTION_CHANGED="0"
+TANGLE_CORRECTION_CONTAMINATION=""
+
+tangle_build_develop_review_context() {
+    local task_group="$1"
+    local resolved_prompt="$2"
+    local grasp_context="$3"
+    local subtasks="$4"
+    local validation_file="$5"
+    local worktree_before_file="$6"
+    local round_label="${7:-initial}"
+    local context_file="${RESULTS_DIR:-${HOME}/.claude-octopus/results}/develop-review-context-${task_group}-${round_label}.md"
+    local repo_root
+    repo_root=$(tangle_resolve_repo_root 2>/dev/null || git rev-parse --show-toplevel 2>/dev/null || pwd)
+
+    {
+        echo "# Develop Review Context"
+        echo
+        echo "## Purpose"
+        echo "Review the current working-tree diff against the original task contract, grasp/define context, tangle decomposition, and validation evidence."
+        echo
+        echo "## Review round"
+        echo "$round_label"
+        echo
+        echo "## Repository"
+        echo '```text'
+        echo "$repo_root"
+        echo '```'
+        echo
+        echo "## Git status"
+        echo '```text'
+        git -C "$repo_root" status --short --branch 2>/dev/null || true
+        echo '```'
+        echo
+        echo "## Changed files"
+        echo '```text'
+        {
+            git -C "$repo_root" diff --name-status 2>/dev/null || true
+            git -C "$repo_root" ls-files --others --exclude-standard 2>/dev/null | sed 's/^/??\t/' || true
+        } | sort -u
+        echo '```'
+        echo
+        echo "## Worktree diff stat"
+        echo '```text'
+        git -C "$repo_root" diff --stat 2>/dev/null || true
+        echo '```'
+        echo
+        if [[ -f "$worktree_before_file" ]]; then
+            echo "## Worktree snapshot before tangle"
+            echo '```text'
+            sed -n '1,200p' "$worktree_before_file" 2>/dev/null || true
+            echo '```'
+            echo
+        fi
+        echo "## Original task / task contract"
+        echo '```markdown'
+        printf '%s\n' "$resolved_prompt"
+        echo '```'
+        echo
+        if [[ -n "$grasp_context" ]]; then
+            echo "## Grasp / define context"
+            echo '```markdown'
+            printf '%s\n' "$grasp_context"
+            echo '```'
+            echo
+        fi
+        echo "## Tangle decomposition"
+        echo '```text'
+        printf '%s\n' "$subtasks"
+        echo '```'
+        echo
+        if [[ -f "$validation_file" ]]; then
+            echo "## Tangle validation report excerpt"
+            echo '```markdown'
+            sed -n '1,260p' "$validation_file" 2>/dev/null || true
+            echo '```'
+            echo
+            echo "## Tangle validation key lines"
+            echo '```text'
+            grep -n "Quality Gate\|Success Rate\|Failed\|Decision Branch\|Worktree Change Evidence\|Missing\|Status:" "$validation_file" 2>/dev/null | head -120 || true
+            echo '```'
+        fi
+    } > "$context_file"
+
+    echo "$context_file"
+}
+
+TANGLE_REVIEW_FINDINGS_FILE=""
+
+tangle_run_context_code_review() {
+    local task_group="$1"
+    local context_file="$2"
+    local round_label="${3:-initial}"
+    local marker findings_file review_profile review_rc
+    TANGLE_REVIEW_FINDINGS_FILE=""
+
+    if ! declare -F review_run >/dev/null 2>&1; then
+        log ERROR "tangle review gate cannot run: review_run is unavailable"
+        return 1
+    fi
+
+    marker=$(mktemp "${TMPDIR:-/tmp}/octopus-tangle-review-marker.XXXXXX")
+    touch "$marker"
+    local _marker_cleanup_trap
+    _marker_cleanup_trap=$(trap -p RETURN || true)
+    trap 'rm -f "${marker:-}" 2>/dev/null || true' RETURN
+
+    review_profile=$(jq -n \
+        --arg target "${OCTOPUS_TANGLE_REVIEW_TARGET:-working-tree}" \
+        --arg contextFile "$context_file" \
+        --arg contextLabel "Octopus tangle develop review context (${round_label})" \
+        --arg provenance "octopus-tangle" \
+        --arg autonomy "${OCTOPUS_TANGLE_REVIEW_AUTONOMY:-autonomous}" \
+        --arg publish "${OCTOPUS_TANGLE_REVIEW_PUBLISH:-never}" \
+        --arg history "${OCTOPUS_TANGLE_REVIEW_HISTORY:-fresh}" \
+        '{target:$target, contextFile:$contextFile, contextLabel:$contextLabel, focus:["correctness","security","architecture","tdd","plan-conformance"], provenance:$provenance, autonomy:$autonomy, publish:$publish, history:$history}')
+
+    log INFO "Step 4: Contextual code review (${round_label})..."
+    review_run "$review_profile"
+    review_rc=$?
+
+    findings_file=""
+    local _findings_candidate _findings_mtime _best_findings_mtime=0
+    while IFS= read -r _findings_candidate; do
+        [[ -f "$_findings_candidate" ]] || continue
+        [[ "$_findings_candidate" -nt "$marker" ]] || continue
+        _findings_mtime=$(stat -c '%Y' "$_findings_candidate" 2>/dev/null || stat -f '%m' "$_findings_candidate" 2>/dev/null || echo 0)
+        [[ "$_findings_mtime" =~ ^[0-9]+$ ]] || _findings_mtime=0
+        if [[ "$_findings_mtime" -ge "$_best_findings_mtime" ]]; then
+            _best_findings_mtime="$_findings_mtime"
+            findings_file="$_findings_candidate"
+        fi
+    done < <(find "${RESULTS_DIR:-${HOME}/.claude-octopus/results}" -maxdepth 1 -type f -name 'review-findings-*.json' 2>/dev/null || true)
+    rm -f "$marker" 2>/dev/null || true
+    trap - RETURN
+    if [[ -n "$_marker_cleanup_trap" ]]; then
+        eval "$_marker_cleanup_trap"
+    fi
+
+    if [[ -z "$findings_file" || ! -f "$findings_file" ]]; then
+        log ERROR "Contextual code review did not produce a findings file"
+        return 1
+    fi
+
+    TANGLE_REVIEW_FINDINGS_FILE="$findings_file"
+    local normal_count review_warning
+    normal_count=$(tangle_review_blocking_count "$findings_file")
+    review_warning=$(tangle_review_warning_text "$findings_file")
+    log INFO "Contextual code review findings: $findings_file (normal=${normal_count})"
+    if [[ -n "$review_warning" ]]; then
+        log WARN "Contextual code review warning: ${review_warning}"
+        return 1
+    fi
+    return "$review_rc"
+}
+
+tangle_apply_review_corrections() {
+    local resolved_prompt="$1"
+    local context_file="$2"
+    local findings_file="$3"
+    local round_num="$4"
+    local correction_agent="${5:-codex}"
+    local correction_strategy="${6:-delta}"
+    local correction_file="${RESULTS_DIR:-${HOME}/.claude-octopus/results}/tangle-review-corrections-${round_num}-$(date +%s).md"
+    local rc_file="${correction_file}.rc"
+    local normal_findings strategy_text before_fp after_fp last_fp last_size last_progress now
+
+    TANGLE_CORRECTION_FILE="$correction_file"
+    TANGLE_CORRECTION_STATUS="unknown"
+    TANGLE_CORRECTION_CHANGED="0"
+    TANGLE_CORRECTION_CONTAMINATION=""
+
+    normal_findings=$(tangle_normal_findings_summary "$findings_file")
+    if [[ -z "$normal_findings" ]]; then
+        log INFO "No normal findings to correct in $findings_file"
+        TANGLE_CORRECTION_STATUS="no-findings"
+        return 0
+    fi
+
+    strategy_text=$(tangle_correction_strategy_prompt "$correction_strategy")
+    local correction_prompt="You are in Octopus tangle correction round ${round_num}.
+
+Do not reimplement the whole plan.
+Do not expand scope.
+Do not restart from scratch.
+Preserve existing working-tree changes unless a change is necessary to fix a blocking finding.
+Fix blocking severity=normal findings using the requested strategy.
+After editing, report files changed and tests/checks run.
+
+${strategy_text}
+
+Hard rules:
+- Do not declare success unless the intended edits were actually written.
+- Do not leave backup/scratch files in the worktree.
+- Prefer exact edits and tests over prose.
+
+Original task contract:
+\`\`\`markdown
+${resolved_prompt}
+\`\`\`
+
+Review context file for reference:
+${context_file}
+
+Blocking findings to fix:
+${normal_findings}
+"
+
+    before_fp=$(tangle_worktree_fingerprint)
+    last_fp="$before_fp"
+    last_size=0
+    last_progress=$(date +%s)
+    : > "$correction_file"
+    rm -f "$rc_file" 2>/dev/null || true
+
+    local stall_window="${OCTOPUS_TANGLE_CORRECTION_STALL_WINDOW:-1800}"
+    local poll_secs="${OCTOPUS_TANGLE_CORRECTION_POLL_SECS:-30}"
+    [[ "$stall_window" =~ ^[0-9]+$ ]] || stall_window=1800
+    [[ "$poll_secs" =~ ^[0-9]+$ ]] || poll_secs=30
+    [[ "$poll_secs" -lt 1 ]] && poll_secs=1
+
+    log INFO "Step 5: Applying contextual review corrections (round ${round_num}, strategy=${correction_strategy}, stall_window=${stall_window}s) with ${correction_agent}..."
+    (
+        OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="tangle-correction-stall-watchdog" run_agent_sync "$correction_agent" "$correction_prompt" 0 "implementer" "tangle" > "$correction_file" 2>&1
+        echo "$?" > "$rc_file"
+    ) &
+    local correction_pid=$!
+    local stalled="false"
+
+    while true; do
+        [[ -f "$rc_file" ]] && break
+        if ! tangle_process_is_active_non_zombie "$correction_pid"; then
+            break
+        fi
+        sleep "$poll_secs"
+        local current_fp current_size
+        current_fp=$(tangle_worktree_fingerprint)
+        current_size=$(stat -c '%s' "$correction_file" 2>/dev/null || stat -f '%z' "$correction_file" 2>/dev/null || echo 0)
+        if [[ "$current_fp" != "$last_fp" || "$current_size" != "$last_size" ]]; then
+            last_fp="$current_fp"
+            last_size="$current_size"
+            last_progress=$(date +%s)
+            log INFO "Correction round ${round_num}: progress observed (worktree/output changed)"
+        fi
+        now=$(date +%s)
+        if [[ "$stall_window" -gt 0 && $((now - last_progress)) -ge "$stall_window" ]]; then
+            stalled="true"
+            log WARN "Correction round ${round_num}: no observable progress for ${stall_window}s — stopping agent and preserving partial writes"
+            pkill -TERM -P "$correction_pid" 2>/dev/null || true
+            kill -TERM "$correction_pid" 2>/dev/null || true
+            sleep 2
+            pkill -KILL -P "$correction_pid" 2>/dev/null || true
+            kill -KILL "$correction_pid" 2>/dev/null || true
+            break
+        fi
+    done
+
+    wait "$correction_pid" 2>/dev/null || true
+    local correction_rc="1"
+    [[ -f "$rc_file" ]] && correction_rc=$(cat "$rc_file" 2>/dev/null || echo 1)
+    rm -f "$rc_file" 2>/dev/null || true
+
+    after_fp=$(tangle_worktree_fingerprint)
+    if [[ "$after_fp" != "$before_fp" ]]; then
+        TANGLE_CORRECTION_CHANGED="1"
+    fi
+    TANGLE_CORRECTION_CONTAMINATION=$(tangle_scope_contamination_summary)
+
+    if [[ "$stalled" == "true" ]]; then
+        TANGLE_CORRECTION_STATUS="stalled-partial"
+        {
+            echo ""
+            echo "## Status: STALLED - PARTIAL RESULTS"
+            echo "# Completed: $(date)"
+        } >> "$correction_file"
+        log WARN "Correction round ${round_num} stalled; partial writes changed=${TANGLE_CORRECTION_CHANGED}; result: $correction_file"
+        return 0
+    fi
+
+    if [[ "$correction_rc" == "0" ]]; then
+        TANGLE_CORRECTION_STATUS="completed"
+        {
+            echo ""
+            echo "## Status: SUCCESS"
+            echo "# Completed: $(date)"
+        } >> "$correction_file"
+        log INFO "Correction round ${round_num} result: $correction_file"
+        return 0
+    fi
+
+    if [[ "$correction_rc" == "130" || "$correction_rc" == "137" || "$correction_rc" == "143" ]]; then
+        TANGLE_CORRECTION_STATUS="interrupted-partial"
+        {
+            echo ""
+            echo "## Status: INTERRUPTED - PARTIAL WRITES PRESERVED"
+            echo "# Completed: $(date)"
+        } >> "$correction_file"
+        log WARN "Correction round ${round_num} was interrupted (rc=${correction_rc}); preserving partial writes but stopping correction loop: $correction_file"
+        return 1
+    fi
+
+    if [[ "$TANGLE_CORRECTION_CHANGED" == "1" ]]; then
+        TANGLE_CORRECTION_STATUS="failed-partial"
+        {
+            echo ""
+            echo "## Status: FAILED - PARTIAL WRITES PRESERVED"
+            echo "# Completed: $(date)"
+        } >> "$correction_file"
+        log WARN "Correction round ${round_num} failed but left partial writes; validation/review should continue: $correction_file"
+        return 0
+    fi
+
+    TANGLE_CORRECTION_STATUS="failed-no-progress"
+    {
+        echo ""
+        echo "## Status: FAILED - NO PROGRESS"
+        echo "# Completed: $(date)"
+    } >> "$correction_file"
+    log WARN "Correction round ${round_num} failed with no observable worktree change: $correction_file"
+    return 1
+}
+
 
 # Phase 3: TANGLE (Develop) - Enhanced map-reduce with validation
 # Tentacles work together in a coordinated tangle of activity
@@ -1319,8 +1775,8 @@ Every [CODING] line must include a same-line Files: clause."
     fi
 
     local subtasks
-    subtasks=$(run_agent_sync "$tangle_decompose_agent" "$decompose_prompt" 120 "researcher" "tangle") || \
-    subtasks=$(run_agent_sync "$tangle_decompose_fallback_agent" "$decompose_prompt" 120 "researcher" "tangle") || {
+    subtasks=$(OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="tangle-dispatch-watcher" run_agent_sync "$tangle_decompose_agent" "$decompose_prompt" 0 "researcher" "tangle") || \
+    subtasks=$(OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="tangle-dispatch-watcher" run_agent_sync "$tangle_decompose_fallback_agent" "$decompose_prompt" 0 "researcher" "tangle") || {
         log ERROR "Decomposition failed with all providers; refusing monolithic direct fallback"
         return 1
     }
@@ -1479,11 +1935,14 @@ Every [CODING] line must include a same-line Files: clause."
     # Wait with progress monitoring — poll .done marker files written by spawn_agent
     # rather than kill -0 $pid (which tracks wrapper PID, not provider PID)
     local _done_dir="${WORKSPACE_DIR:-${HOME}/.claude-octopus}/.octo/agents"
-    local _tangle_max_wait="${OCTOPUS_TANGLE_DEADLINE:-$(( ${TIMEOUT:-600} + 60 ))}"
-    [[ "$_tangle_max_wait" =~ ^[0-9]+$ ]] || _tangle_max_wait=$(( ${TIMEOUT:-600} + 60 ))
+    local _tangle_max_wait="${OCTOPUS_TANGLE_DEADLINE:-0}"
+    [[ "$_tangle_max_wait" =~ ^[0-9]+$ ]] || _tangle_max_wait=0
     local _missing_marker_grace="${OCTOPUS_TANGLE_MISSING_MARKER_GRACE:-180}"
     [[ "$_missing_marker_grace" =~ ^[0-9]+$ ]] || _missing_marker_grace=180
-    local _deadline=$(( $(date +%s) + _tangle_max_wait ))
+    local _deadline=0
+    if [[ "$_tangle_max_wait" -gt 0 ]]; then
+        _deadline=$(( $(date +%s) + _tangle_max_wait ))
+    fi
     local completed=0
     local _failed_tasks=()
     local _terminal_task_ids=""
@@ -1498,7 +1957,7 @@ Every [CODING] line must include a same-line Files: clause."
                 ((completed++)) || true
             else
                 local _wrapper_pid="${pids[$i]:-}"
-                if (( $(date +%s) > _deadline )); then
+                if [[ "$_tangle_max_wait" -gt 0 ]] && (( $(date +%s) > _deadline )); then
                     log WARN "Thread ${task_ids[$i]} deadline exceeded — killing and marking timeout"
                     if [[ -n "$_wrapper_pid" ]]; then
                         pkill -TERM -P "$_wrapper_pid" 2>/dev/null || true
@@ -1512,12 +1971,12 @@ Every [CODING] line must include a same-line Files: clause."
                         log WARN "Failed to write timeout marker for ${task_ids[$i]} at $_done_file"
                     fi
                     [[ " $_terminal_task_ids " == *" ${task_ids[$i]} "* ]] || _terminal_task_ids="${_terminal_task_ids:+$_terminal_task_ids }${task_ids[$i]}"
-                elif [[ -n "$_wrapper_pid" ]] && ! kill -0 "$_wrapper_pid" 2>/dev/null; then
+                elif [[ -n "$_wrapper_pid" ]] && ! tangle_process_is_active_non_zombie "$_wrapper_pid"; then
                     local _now
                     _now=$(date +%s)
                     if [[ -z "${_missing_marker_since[$i]:-}" ]]; then
                         _missing_marker_since[$i]="$_now"
-                        log WARN "Thread ${task_ids[$i]} wrapper exited without completion marker — waiting up to ${_missing_marker_grace}s for late result/marker"
+                        log WARN "Thread ${task_ids[$i]} wrapper exited without completion marker; exited or became zombie without completion marker — waiting up to ${_missing_marker_grace}s for late result/marker"
                     elif (( _now - ${_missing_marker_since[$i]} >= _missing_marker_grace )); then
                         log WARN "Thread ${task_ids[$i]} still lacks completion marker after ${_missing_marker_grace}s — marking failed"
                         mkdir -p "$_done_dir" 2>/dev/null || true
@@ -1598,7 +2057,190 @@ Every [CODING] line must include a same-line Files: clause."
 
     # Step 3: Validation gate
     log INFO "Step 3: Validation gate..."
-    validate_tangle_results "$task_group" "$resolved_prompt" "$worktree_before_file"
+    local validation_file="${RESULTS_DIR:-${HOME}/.claude-octopus/results}/tangle-validation-${task_group}.md"
+    local validation_rc=0
+    validate_tangle_results "$task_group" "$resolved_prompt" "$worktree_before_file" || validation_rc=$?
+
+    tangle_contextual_review_gate "$task_group" "$resolved_prompt" "$context" "$subtasks" \
+        "$validation_file" "$worktree_before_file" "$validation_rc" "$tangle_coding_agent"
+    return $?
+}
+
+# Contextual review gate + correction loop for tangle_develop. Extracted so
+# round accounting, the convergence guard, and the absolute round ceiling are
+# unit-testable with stubbed review/correction functions
+# (tests/unit/test-tangle-correction-loop-behavior.sh).
+tangle_contextual_review_gate() {
+    local task_group="$1"
+    local resolved_prompt="$2"
+    local context="$3"
+    local subtasks="$4"
+    local validation_file="$5"
+    local worktree_before_file="$6"
+    local validation_rc="${7:-0}"
+    local tangle_coding_agent="${8:-codex}"
+
+    if octo_bool_disabled "${OCTOPUS_TANGLE_CODE_REVIEW:-true}"; then
+        log INFO "Contextual code review disabled by OCTOPUS_TANGLE_CODE_REVIEW"
+        return "$validation_rc"
+    fi
+
+    local review_context_file
+    review_context_file=$(tangle_build_develop_review_context "$task_group" "$resolved_prompt" "$context" "$subtasks" "$validation_file" "$worktree_before_file" "initial")
+
+    local review_rc=0
+    tangle_run_context_code_review "$task_group" "$review_context_file" "initial" || review_rc=$?
+    local findings_file="$TANGLE_REVIEW_FINDINGS_FILE"
+    local normal_count
+    normal_count=$(tangle_review_blocking_count "$findings_file")
+
+    local correction_mode="${OCTOPUS_TANGLE_REVIEW_CORRECTION_MODE:-unbounded}"
+    local max_correction_rounds="${OCTOPUS_TANGLE_REVIEW_CORRECTION_ROUNDS:-0}"
+    [[ "$max_correction_rounds" =~ ^[0-9]+$ ]] || max_correction_rounds=0
+    if [[ "$correction_mode" == "bounded" && "$max_correction_rounds" -eq 0 ]]; then
+        log WARN "OCTOPUS_TANGLE_REVIEW_CORRECTION_MODE=bounded with no OCTOPUS_TANGLE_REVIEW_CORRECTION_ROUNDS set — defaulting to 1 round"
+        max_correction_rounds=1
+    fi
+    local correction_round=1
+    local previous_normal_count="$normal_count"
+    local previous_signature
+    previous_signature=$(tangle_findings_signature "$findings_file")
+    local previous_validation_signature
+    previous_validation_signature=$(tangle_validation_signature "$validation_file")
+    local best_normal_count="$normal_count"
+    local no_progress_rounds=0
+    local convergence_round_limit="${OCTOPUS_TANGLE_CONVERGENCE_NO_PROGRESS_ROUNDS:-3}"
+    # Validation files are re-rendered each correction round and can change even
+    # when the actionable gate is static. By default, only a new best blocker
+    # count resets convergence; validation signature movement is diagnostic only.
+    local validation_progress_resets_convergence="${OCTOPUS_TANGLE_CONVERGENCE_VALIDATION_PROGRESS:-false}"
+    local correction_strategy="delta"
+    # Absolute ceiling on correction rounds. Each round dispatches paid provider
+    # calls, so even the default unbounded mode stops here; the stall watchdog
+    # and convergence guard remain the primary stops. Setting the ceiling to 0
+    # is an explicit opt-in to a truly unbounded loop.
+    local hard_round_cap="${OCTOPUS_TANGLE_CORRECTION_HARD_CAP:-10}"
+    [[ "$hard_round_cap" =~ ^[0-9]+$ ]] || hard_round_cap=10
+
+    while [[ "${normal_count:-0}" -gt 0 ]]; do
+        if [[ "$correction_mode" == "bounded" && "$max_correction_rounds" -gt 0 && "$correction_round" -gt "$max_correction_rounds" ]]; then
+            log WARN "Contextual code review still has ${normal_count} blocking finding(s) after bounded ${max_correction_rounds} correction round(s): ${findings_file}"
+            return 1
+        fi
+
+        if [[ "$hard_round_cap" -gt 0 && "$correction_round" -gt "$hard_round_cap" ]]; then
+            log ERROR "Correction loop hit the absolute round ceiling (${hard_round_cap}) with ${normal_count} blocking finding(s) remaining: ${findings_file} — raise or disable with OCTOPUS_TANGLE_CORRECTION_HARD_CAP (0 = no ceiling)"
+            return 1
+        fi
+
+        if ! tangle_apply_review_corrections "$resolved_prompt" "$review_context_file" "$findings_file" "$correction_round" "$tangle_coding_agent" "$correction_strategy"; then
+            log WARN "Correction round ${correction_round} made no observable progress; escalating without starting a hot loop"
+            return 1
+        fi
+
+        if [[ -n "${TANGLE_CORRECTION_CONTAMINATION:-}" ]]; then
+            log WARN "Correction round ${correction_round} created out-of-scope/scratch files:"
+            printf '%s\n' "$TANGLE_CORRECTION_CONTAMINATION" | while IFS= read -r _contam; do
+                [[ -n "$_contam" ]] && log WARN "  $_contam"
+            done
+            correction_strategy="cleanup-and-fix"
+        fi
+
+        log INFO "Re-running validation gate after correction round ${correction_round} (status=${TANGLE_CORRECTION_STATUS}, changed=${TANGLE_CORRECTION_CHANGED})..."
+        validation_rc=0
+        OCTOPUS_TANGLE_VALIDATION_CORRECTION_FILE="${TANGLE_CORRECTION_FILE:-}" \
+        OCTOPUS_TANGLE_VALIDATION_CORRECTION_ROUND="$correction_round" \
+        OCTOPUS_TANGLE_VALIDATION_CORRECTION_STATUS="${TANGLE_CORRECTION_STATUS:-}" \
+        OCTOPUS_TANGLE_VALIDATION_CORRECTION_CHANGED="${TANGLE_CORRECTION_CHANGED:-0}" \
+            validate_tangle_results "$task_group" "$resolved_prompt" "$worktree_before_file" || validation_rc=$?
+
+        review_context_file=$(tangle_build_develop_review_context "$task_group" "$resolved_prompt" "$context" "$subtasks" "$validation_file" "$worktree_before_file" "correction-${correction_round}")
+        review_rc=0
+        tangle_run_context_code_review "$task_group" "$review_context_file" "correction-${correction_round}" || review_rc=$?
+        findings_file="$TANGLE_REVIEW_FINDINGS_FILE"
+        normal_count=$(tangle_review_blocking_count "$findings_file")
+        local current_signature
+        current_signature=$(tangle_findings_signature "$findings_file")
+
+        if [[ "$review_rc" -ne 0 ]]; then
+            log WARN "Contextual code review returned non-zero after correction round ${correction_round}; not treating review warning/no-diff as improvement"
+            return "$review_rc"
+        fi
+
+        if [[ "${normal_count:-0}" -lt "${previous_normal_count:-0}" ]]; then
+            log INFO "Correction round ${correction_round} improved blockers: ${previous_normal_count} -> ${normal_count}"
+            correction_strategy="delta"
+        elif [[ "${normal_count:-0}" -gt "${previous_normal_count:-0}" ]]; then
+            log WARN "Correction round ${correction_round} worsened blockers: ${previous_normal_count} -> ${normal_count}; switching strategy"
+            correction_strategy="single-finding"
+        else
+            if [[ "$current_signature" == "$previous_signature" ]]; then
+                log WARN "Correction round ${correction_round} repeated the same blocking findings; switching strategy"
+            else
+                log WARN "Correction round ${correction_round} did not reduce blocker count (${normal_count}); switching strategy"
+            fi
+            correction_strategy="single-finding"
+        fi
+
+        local current_validation_signature
+        current_validation_signature=$(tangle_validation_signature "$validation_file")
+        local made_progress=0
+        if [[ "${normal_count:-0}" -lt "${best_normal_count:-0}" ]]; then
+            best_normal_count="$normal_count"
+            made_progress=1
+        fi
+        if [[ "$current_validation_signature" != "$previous_validation_signature" ]]; then
+            if octo_bool_enabled "$validation_progress_resets_convergence"; then
+                made_progress=1
+            else
+                log INFO "Correction round ${correction_round}: validation signature changed but blocker best did not improve; not resetting convergence guard"
+            fi
+        fi
+
+        if [[ "$made_progress" -eq 1 ]]; then
+            no_progress_rounds=0
+        else
+            no_progress_rounds=$((no_progress_rounds + 1))
+            log WARN "Correction round ${correction_round} did not improve best blockers (${no_progress_rounds}/${convergence_round_limit})"
+        fi
+
+        if [[ "${TANGLE_CORRECTION_CHANGED:-0}" != "1" && "${TANGLE_CORRECTION_STATUS:-}" == *"stalled"* ]]; then
+            log WARN "Correction stalled without partial writes; stopping to avoid a no-progress loop"
+            return 1
+        fi
+
+        if [[ "${convergence_round_limit:-0}" -gt 0 && "$no_progress_rounds" -ge "$convergence_round_limit" ]]; then
+            log ERROR "Stopping tangle correction loop after ${no_progress_rounds} rounds without new best blockers (best_normal=${best_normal_count}, current_normal=${normal_count})"
+            return 1
+        fi
+
+        previous_normal_count="$normal_count"
+        previous_signature="$current_signature"
+        previous_validation_signature="$current_validation_signature"
+        ((correction_round++)) || true
+    done
+
+    if [[ "${normal_count:-0}" -gt 0 ]]; then
+        log WARN "Contextual code review still has ${normal_count} blocking finding(s): ${findings_file}"
+        return 1
+    fi
+
+    if [[ "$review_rc" -ne 0 ]]; then
+        log WARN "Contextual code review returned non-zero despite zero blocking findings"
+        return "$review_rc"
+    fi
+
+    if [[ "$validation_rc" -ne 0 ]]; then
+        log WARN "Skipping ink/deliver because tangle validation gate returned non-zero (${validation_rc})"
+        return "$validation_rc"
+    fi
+
+    if octo_bool_enabled "${OCTOPUS_TANGLE_INK:-false}"; then
+        log INFO "OCTOPUS_TANGLE_INK enabled — running ink/deliver after contextual review passed"
+        ink_deliver "$resolved_prompt"
+    fi
+
+    return 0
 }
 
 ink_delivery_sanitize_context() {
@@ -1808,7 +2450,9 @@ ink_deliver() {
 
     # Sonnet 4.6 quality review before synthesis
     log INFO "Step 2a: Sonnet 4.6 quality review..."
-    local sonnet_review
+    local sonnet_review ink_review_timeout
+    ink_review_timeout="${OCTOPUS_INK_REVIEW_TIMEOUT:-0}"
+    [[ "$ink_review_timeout" =~ ^[0-9]+$ ]] || ink_review_timeout=0
     sonnet_review=$(run_agent_sync "claude-sonnet" "Review these development results for quality, completeness, and correctness.
 Flag any issues, gaps, or improvements needed.
 Rate each dimension explicitly as 'Security: N/10', 'Reliability: N/10', 'Performance: N/10', 'Accessibility: N/10'.
@@ -1816,7 +2460,7 @@ Rate each dimension explicitly as 'Security: N/10', 'Reliability: N/10', 'Perfor
 Original task: $prompt
 
 Results:
-$all_results" 120 "code-reviewer" "ink") || {
+$all_results" "$ink_review_timeout" "code-reviewer" "ink") || {
         sonnet_review="[Quality review unavailable]"
     }
 
@@ -1870,7 +2514,7 @@ Be specific — list files and line numbers. If the code is already clean, say s
 Code to review:
 ${all_results}"
         local simplify_result
-        simplify_result=$(run_agent_sync "claude-sonnet" "$simplify_prompt" 120 "code-reviewer" "ink") || true
+        simplify_result=$(OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="ink-review-watchdog" run_agent_sync "claude-sonnet" "$simplify_prompt" 0 "code-reviewer" "ink") || true
         if [[ -n "$simplify_result" ]]; then
             if [[ ${#simplify_result} -gt 12000 ]]; then
                 simplify_result="${simplify_result:0:12000}
@@ -1902,7 +2546,7 @@ Compact source context to synthesize:
 $all_results"
 
     local delivery
-    delivery=$(run_agent_sync "agy" "$synthesis_prompt" 180 "synthesizer" "ink") || {
+    delivery=$(OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="ink-delivery-watchdog" run_agent_sync "agy" "$synthesis_prompt" 0 "synthesizer" "ink") || {
         delivery=$(build_ink_fallback_delivery "$prompt" "$sonnet_review" "$all_results")
     }
 
