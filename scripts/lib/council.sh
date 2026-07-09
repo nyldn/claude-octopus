@@ -882,7 +882,7 @@ council_provider_is_available() {
 
 council_pick_provider() {
     local preferred="$1"
-    if council_provider_is_available "$preferred"; then
+    if council_provider_is_available "$preferred" && ! council_roster_has_provider_org "$(council_provider_org "$preferred")"; then
         echo "$preferred"
         return 0
     fi

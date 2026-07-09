@@ -75,7 +75,7 @@ validate_agy_model_name() {
     fi
 
     local available_models=""
-    if ! available_models="$(agy models 2>/dev/null)" || [[ -z "$available_models" ]]; then
+    if ! available_models="$(agy models </dev/null 2>/dev/null)" || [[ -z "$available_models" ]]; then
         log ERROR "Cannot validate OCTOPUS_AGY_MODEL because 'agy models' returned no models"
         return 1
     fi
