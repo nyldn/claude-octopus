@@ -295,6 +295,8 @@ Provider Availability:
 🐙 Claude (Opus): Available ✓ (Moderator and participant)
 ```
 
+> **🧭 Antigravity availability:** Antigravity CLI = the `agy` binary; judge availability only via `command -v agy` (as `check-providers.sh` does), never from the `antigravity` desktop shortcut.
+
 **If providers are missing:**
 - If all external providers are unavailable: Inform user that debate requires at least one external provider and suggest running `/octo:setup` to configure them
 - If one or more providers are unavailable: Note which providers are missing and proceed with available provider(s) and Claude

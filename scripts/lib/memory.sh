@@ -29,9 +29,21 @@ _memory_mcp_service_registered() {
     settings=$(_memory_claude_settings_path) || return 1
     command -v jq >/dev/null 2>&1 || return 1
     jq -e '
-        (.mcpServers // {}) as $m
+        ((.mcpServers // {}) + (.servers // {})) as $m
         | [$m | to_entries[] | (.value.command // "") + " " + ((.value.args // []) | join(" "))]
         | any(test("mcp-memory-service"))
+    ' "$settings" >/dev/null 2>&1
+}
+
+_memory_agentmemory_registered() {
+    [[ -n "${AGENTMEMORY_URL:-}" ]] && return 0
+    local settings
+    settings=$(_memory_claude_settings_path) || return 1
+    command -v jq >/dev/null 2>&1 || return 1
+    jq -e '
+        ((.mcpServers // {}) + (.servers // {})) as $m
+        | [$m | to_entries[] | (.key // "") + " " + (.value.command // "") + " " + ((.value.args // []) | join(" "))]
+        | any(test("agentmemory|@agentmemory/mcp"))
     ' "$settings" >/dev/null 2>&1
 }
 
@@ -41,11 +53,13 @@ memory_backends() {
         printf '%s\n' "$pref" | tr ',' '\n' | awk 'NF'
         return 0
     fi
-    if _memory_mcp_service_registered; then
-        printf 'mcp-memory-service\nclaude-mem\n'
-    else
-        printf 'claude-mem\n'
+    if _memory_agentmemory_registered; then
+        printf 'agentmemory\n'
     fi
+    if _memory_mcp_service_registered; then
+        printf 'mcp-memory-service\n'
+    fi
+    printf 'claude-mem\n'
 }
 
 memory_scope() {
@@ -65,6 +79,11 @@ _memory_invoke() {
     local backend="$1"; shift
     local primitive="$1"; shift
     case "$backend" in
+        agentmemory)
+            local bridge="${_MEMORY_BRIDGE_DIR}/agentmemory-bridge.sh"
+            [[ -x "$bridge" ]] || return 1
+            "$bridge" "$primitive" "$@"
+            ;;
         claude-mem)
             local bridge="${_MEMORY_BRIDGE_DIR}/claude-mem-bridge.sh"
             [[ -x "$bridge" ]] || return 1

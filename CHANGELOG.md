@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [9.51.0] - 2026-07-09
 
 ### Added
 
@@ -20,6 +20,12 @@
 - **`make sync` / `make sync-check` / `make ci-local`**: one target to regenerate all derived artifacts, one to verify them, and a CI-parity target that mirrors the required checks plus CI-only verifications so local green predicts remote green.
 - **Executable-bit lint in CI** (Portability Lint job): PRs fail if tracked files change mode vs the base branch; the `allow-mode-change` PR label bypasses intentional changes. Root cause class of PR #579's "Permission denied" failures, now caught pre-merge.
 - **"Repo Orientation for Agents" section in CLAUDE.md** (mirrored in AGENTS.md): derived-artifacts table, hard rules distilled from real CI failures, and a memory ruling for the beads blocked-writes failure mode (do not migrate; record in handoff and flag).
+- **Fable 5 dispatch profile (`skills/blocks/fable5-prompting.md`)**: prompting rules for `claude-fable-5` pins, distilled from Anthropic's Fable 5 prompting guide and the fable5-optimizer project. Covers prompt anti-patterns (reasoning-echo asks trigger the `reasoning_extraction` refusal; token countdowns; aggressive MUST/CRITICAL emphasis; micromanaged step plans), `high`-effort discipline (the Opus 4.8 `xhigh` phase table does not carry over), refusal fallback to Opus 4.8, and judgment-vs-mechanical seat routing with a risk-surface escalation list. Wired into CLAUDE.md (cost + effort sections), `skill-meta-prompt` (model-specific prompt adjustments), `octopus-security-audit` (never dispatch security passes to Fable 5 — its safety classifiers can refuse adversarial phrasing), and `model-cost-compare` (risk-surface escalation step, Fable 5 security guardrail).
+- **Fable 5 mode auto-enforcement (`scripts/lib/fable5.sh`)**: detecting a `claude-fable-5` pin (`OCTOPUS_OPUS_MODEL` or `OCTOPUS_CLAUDE_SDK_MODEL`) now auto-enables three guards with a one-line banner. (1) Security reroute: the model resolver and `claude-opus` dispatch swap `claude-opus-4.8` in for Fable 5 on security dispatches (security-auditor role, squeeze workflow) — its safety classifiers can refuse adversarial security phrasing. (2) Effort clamp: `get_effort_level` clamps `xhigh`/`max` to `high` for opus-seat Fable pins, including explicit `OCTOPUS_EFFORT_OVERRIDE` values (Fable 5 effort applies per tool call; higher settings widen scope at 2x cost without extending runs). (3) Refusal retry: `claude-sdk-exec.sh` retries a refused/empty Fable 5 dispatch once on `claude-opus-4-8` (`OCTOPUS_FABLE5_NO_RETRY=1` opts out), mirroring the agy silent-empty replay. Master switch `OCTOPUS_FABLE5_MODE=auto|off|on`. A new SessionStart hook (`hooks/fable5-inject.sh`) injects the dispatch profile summary when a pin is detected.
+
+### Fixed
+
+- **`OCTOPUS_OPUS_MODEL=claude-fable-5` now reaches the dispatched model flag.** The `claude-opus` dispatch case always passed the bare `--model opus` alias, which the host resolves to its default Opus — so a Fable 5 pin changed cost labels and resolver output but never the model actually dispatched (the claude-sdk seat was the only real Fable 5 path). The dispatch command now emits `--model claude-fable-5` for pinned non-security dispatches and `--model claude-opus-4-8` for security dispatches.
 
 ## [9.50.0] - 2026-07-08
 

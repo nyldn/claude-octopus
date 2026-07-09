@@ -12,14 +12,14 @@ Every AI model has blind spots. Claude Octopus puts up to nine of them on every 
   <a href="https://claude.ai"><img src="https://img.shields.io/badge/Claude-Built_with_AI-c96442?logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0iI2ZmZiIgZD0iTTEyIDJhMTAgMTAgMCAxIDAgMCAyMCAxMCAxMCAwIDAgMCAwLTIwbTAgMS44YTEuMiAxLjIgMCAwIDEgLjg1LjM1bDEuNSA0LjVhLjYuNiAwIDAgMCAuMzUuMzVsNC41IDEuNWExLjIgMS4yIDAgMCAxIDAgMi4yN2wtNC41IDEuNWEuNi42IDAgMCAwLS4zNS4zNWwtMS41IDQuNWExLjIgMS4yIDAgMCAxLTIuMjcgMGwtMS41LTQuNWEuNi42IDAgMCAwLS4zNS0uMzVsLTQuNS0xLjVhMS4yIDEuMiAwIDAgMSAwLTIuMjdsNC41LTEuNWEuNi42IDAgMCAwIC4zNS0uMzVsMS41LTQuNUExLjIgMS4yIDAgMCAxIDEyIDMuOCIvPjwvc3ZnPg==&labelColor=333" alt="Built with Claude"></a>
   <a href="https://github.com/nyldn/claude-octopus/actions/workflows/test.yml"><img src="https://github.com/nyldn/claude-octopus/actions/workflows/test.yml/badge.svg" alt="Tests"></a>
   <img src="https://img.shields.io/badge/Tests-117_suites_passing-brightgreen" alt="117 suites passing">
-  <img src="https://img.shields.io/badge/Version-9.50.0-blue" alt="Version 9.50.0">
+  <img src="https://img.shields.io/badge/Version-9.51.0-blue" alt="Version 9.51.0">
   <img src="https://img.shields.io/badge/Claude_Code-v2.1.14+_required-blueviolet" alt="Requires Claude Code v2.1.14+">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
 </p>
 
 🐙 **Research, build, review, and ship — with nine AI providers checking each other's work.** Say what you need, and the right workflow runs. Claude-native handles the ordinary path; Octopus handles the escalated path. A 75% consensus gate catches disagreements before they reach production. No single model's blind spots slip through.
 
-🧠 **Remembers across sessions.** Integrates with [claude-mem](https://github.com/thedotmack/claude-mem) for persistent memory — past decisions, research, and context survive session boundaries.
+🧠 **Remembers across sessions.** Integrates with [claude-mem](https://github.com/thedotmack/claude-mem) and [agentmemory](https://github.com/rohitg00/agentmemory) for persistent memory — past decisions, research, and context survive session boundaries.
 
 ⚡ **Spec in, software out.** Dark Factory mode takes a spec and autonomously runs the full pipeline — research, define, develop, deliver. You review the output, not every step.
 
@@ -440,6 +440,25 @@ v9.50.0 aligns the plugin with Claude Code's 2026 native capabilities. Each piec
 | `OCTOPUS_WORKTREE_BG_ISOLATION` | `true` | Set `false` to skip background worktree cloning (fast direct-edit runs) |
 | `OCTOPUS_SUBAGENT_GATE_STRICT` | `false` | Set `true` to let the SubagentStop gate block malformed council verdicts and low-quality summaries |
 | `OCTOPUS_SUBAGENT_MIN_QUALITY` | `0` | Quality floor (0-100) enforced by the gate in strict mode; `0` disables |
+
+---
+
+## Fable 5 Support
+
+v9.51.0 adds first-class support for Claude Fable 5 (Anthropic's Mythos-class model, $10/$50 per MTok — 2x Opus 4.8). Fable 5 is never auto-selected; pin it with `OCTOPUS_OPUS_MODEL=claude-fable-5` (opus seats) or `OCTOPUS_CLAUDE_SDK_MODEL=claude-fable-5` (the 1M-context SDK seat). When a pin is detected, the plugin auto-enables three guards and prints a one-line banner:
+
+- **Security reroute** — security-audit dispatches (security-auditor persona, squeeze red/blue workflow) run on Opus 4.8 instead of Fable 5, whose safety classifiers can refuse adversarial security phrasing even in authorized audits.
+- **Effort clamp** — `xhigh`/`max` effort clamps to `high` for Fable dispatches. Fable 5 effort applies per tool call; higher settings widen scope at 2x cost without extending runs.
+- **Refusal retry** — a refused or empty Fable 5 dispatch on the `claude-sdk` seat retries once on Opus 4.8 instead of failing the seat.
+
+A SessionStart hook injects the dispatch profile (prompt anti-patterns, judgment routing, risk-surface escalation) whenever a pin is active. Full guidance: `skills/blocks/fable5-prompting.md`.
+
+### New environment variables (v9.51.0)
+
+| Variable | Default | Effect |
+|----------|---------|--------|
+| `OCTOPUS_FABLE5_MODE` | `auto` | `off` disables all Fable 5 guards; `on` forces them without a pin |
+| `OCTOPUS_FABLE5_NO_RETRY` | unset | Set `1` to disable the refusal retry on the `claude-sdk` seat |
 
 ---
 

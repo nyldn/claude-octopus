@@ -32,19 +32,51 @@ fi
 model="${OCTOPUS_CLAUDE_SDK_MODEL:-claude-opus-4-8}"
 max_tokens="${OCTOPUS_CLAUDE_SDK_MAX_TOKENS:-8192}"
 
-if command -v claude-agent &>/dev/null; then
-    exec env -u CLAUDECODE -u CLAUDE_CODE_CHILD_SESSION -u CLAUDE_CODE_SESSION_ID \
-        -u CLAUDE_CODE_ENTRYPOINT -u CLAUDE_CODE_EXECPATH \
-        "ANTHROPIC_API_KEY=${CLAUDE_SDK_API_KEY}" \
-        claude-agent --print --model "$model" --max-tokens "$max_tokens" <<<"$prompt"
+# Run one dispatch attempt against the given model. Prefers the Agent SDK CLI,
+# falls back to headless claude. Returns 69 when neither CLI exists.
+_sdk_run() {
+    local run_model="$1"
+    if command -v claude-agent &>/dev/null; then
+        env -u CLAUDECODE -u CLAUDE_CODE_CHILD_SESSION -u CLAUDE_CODE_SESSION_ID \
+            -u CLAUDE_CODE_ENTRYPOINT -u CLAUDE_CODE_EXECPATH \
+            "ANTHROPIC_API_KEY=${CLAUDE_SDK_API_KEY}" \
+            claude-agent --print --model "$run_model" --max-tokens "$max_tokens" <<<"$prompt"
+        return $?
+    fi
+    if command -v claude &>/dev/null; then
+        env -u CLAUDECODE -u CLAUDE_CODE_CHILD_SESSION -u CLAUDE_CODE_SESSION_ID \
+            -u CLAUDE_CODE_ENTRYPOINT -u CLAUDE_CODE_EXECPATH \
+            "ANTHROPIC_API_KEY=${CLAUDE_SDK_API_KEY}" \
+            claude --print --model "$run_model" <<<"$prompt"
+        return $?
+    fi
+    echo "claude-sdk-exec: neither claude-agent (Agent SDK) nor claude CLI found in PATH" >&2
+    return 69
+}
+
+# v9.51: Fable 5 refusal/empty retry. Fable 5's safety classifiers can return
+# a refusal (surfacing here as a non-zero exit or empty output) on prompts that
+# Opus 4.8 handles fine. Retry the identical prompt once on Opus 4.8 instead of
+# failing the seat. Opt out with OCTOPUS_FABLE5_NO_RETRY=1 or
+# OCTOPUS_FABLE5_MODE=off. Mirrors the agy-exec silent-empty replay pattern.
+if [[ "$model" == "claude-fable-5" \
+      && "${OCTOPUS_FABLE5_NO_RETRY:-}" != "1" \
+      && "${OCTOPUS_FABLE5_MODE:-auto}" != "off" ]]; then
+    set +e
+    output="$(_sdk_run "$model")"
+    rc=$?
+    set -e
+    if [[ $rc -eq 69 ]]; then
+        exit 69
+    fi
+    if [[ $rc -eq 0 && -n "${output//[[:space:]]/}" ]]; then
+        printf '%s\n' "$output"
+        exit 0
+    fi
+    echo "claude-sdk-exec: Fable 5 dispatch returned rc=${rc}, output_bytes=${#output} — retrying once on claude-opus-4-8 (OCTOPUS_FABLE5_NO_RETRY=1 to disable)" >&2
+    _sdk_run "claude-opus-4-8"
+    exit $?
 fi
 
-if command -v claude &>/dev/null; then
-    exec env -u CLAUDECODE -u CLAUDE_CODE_CHILD_SESSION -u CLAUDE_CODE_SESSION_ID \
-        -u CLAUDE_CODE_ENTRYPOINT -u CLAUDE_CODE_EXECPATH \
-        "ANTHROPIC_API_KEY=${CLAUDE_SDK_API_KEY}" \
-        claude --print --model "$model" <<<"$prompt"
-fi
-
-echo "claude-sdk-exec: neither claude-agent (Agent SDK) nor claude CLI found in PATH" >&2
-exit 69
+_sdk_run "$model"
+exit $?
