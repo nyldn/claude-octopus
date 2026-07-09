@@ -228,8 +228,12 @@ review_hash_stdin() {
 review_progress_fingerprint_since() {
     local since_epoch="$1"
     local results_dir="${2:-${RESULTS_DIR:-${HOME}/.claude-octopus/results}}"
+    # Optional filename pattern scopes the fingerprint to one agent's artifacts.
+    # Without it, any concurrent activity in the shared RESULTS_DIR resets the
+    # stall timer for every agent, so a genuinely hung provider never trips it.
+    local name_pattern="${3:-}"
     [[ -d "$results_dir" ]] || { echo "empty"; return 0; }
-    find "$results_dir" -maxdepth 1 -type f 2>/dev/null | while IFS= read -r file; do
+    find "$results_dir" -maxdepth 1 -type f ${name_pattern:+-name "$name_pattern"} 2>/dev/null | while IFS= read -r file; do
         local mtime size
         mtime=$(review_file_mtime_epoch "$file")
         [[ "$mtime" =~ ^[0-9]+$ ]] || mtime=0
@@ -238,6 +242,17 @@ review_progress_fingerprint_since() {
         size=${size//[[:space:]]/}
         printf '%s %s %s\n' "$file" "${size:-0}" "$mtime"
     done | sort | review_hash_stdin
+}
+
+# review_kill_tree <SIG> <pid>: depth-first kill of a process and all its
+# descendants. The provider CLI runs as a grandchild of the backgrounded
+# wrapper, so a single-level pkill -P can orphan it mid-billing (#190).
+review_kill_tree() {
+    local sig="$1" pid="$2" kid
+    for kid in $(pgrep -P "$pid" 2>/dev/null); do
+        review_kill_tree "$sig" "$kid"
+    done
+    kill "-${sig}" "$pid" 2>/dev/null || true
 }
 
 review_run_agent_sync_progress() {
@@ -267,23 +282,23 @@ review_run_agent_sync_progress() {
     ) &
     pid=$!
     last_progress=$(date +%s)
-    last_fp=$(review_progress_fingerprint_since "$start_epoch" "$results_dir")
+    local own_pattern
+    own_pattern="$(basename "$out_file")*"
+    last_fp=$(review_progress_fingerprint_since "$start_epoch" "$results_dir" "$own_pattern")
 
     while kill -0 "$pid" 2>/dev/null; do
         sleep "$poll_secs"
         now=$(date +%s)
-        current_fp=$(review_progress_fingerprint_since "$start_epoch" "$results_dir")
+        current_fp=$(review_progress_fingerprint_since "$start_epoch" "$results_dir" "$own_pattern")
         if [[ "$current_fp" != "$last_fp" ]]; then
             last_fp="$current_fp"
             last_progress="$now"
             log INFO "review_run: ${label} progress observed"
         elif [[ "$stall_window" -gt 0 && $((now - last_progress)) -ge "$stall_window" ]]; then
             log WARN "review_run: ${label} stalled after ${stall_window}s with no observable progress — stopping provider and preserving partial output"
-            pkill -TERM -P "$pid" 2>/dev/null || true
-            kill -TERM "$pid" 2>/dev/null || true
+            review_kill_tree TERM "$pid"
             sleep 5
-            pkill -KILL -P "$pid" 2>/dev/null || true
-            kill -KILL "$pid" 2>/dev/null || true
+            review_kill_tree KILL "$pid"
             break
         fi
     done
@@ -326,7 +341,9 @@ review_wait_for_result_status() {
     local poll_start last_progress last_fp current_fp
     poll_start=$(date +%s)
     last_progress="$poll_start"
-    last_fp=$(review_progress_fingerprint_since "$poll_start" "$results_dir")
+    local own_pattern
+    own_pattern="$(basename "$result_file")*"
+    last_fp=$(review_progress_fingerprint_since "$poll_start" "$results_dir" "$own_pattern")
     while true; do
         local status_count
         status_count=$(grep -cE '^## Status:' "$result_file" 2>/dev/null || true)
@@ -334,18 +351,16 @@ review_wait_for_result_status() {
         if [[ -f "$result_file" ]] && [[ "${status_count%%$'\n'*}" -gt 0 ]]; then
             break
         fi
-        current_fp=$(review_progress_fingerprint_since "$poll_start" "$results_dir")
+        current_fp=$(review_progress_fingerprint_since "$poll_start" "$results_dir" "$own_pattern")
         if [[ "$current_fp" != "$last_fp" ]]; then
             last_fp="$current_fp"
             last_progress=$(date +%s)
             log INFO "review_run: ${label} progress observed"
         elif [[ "$stall_window" -gt 0 && $(( $(date +%s) - last_progress )) -ge "$stall_window" ]]; then
             log WARN "review_run: ${label} stalled after ${stall_window}s — stopping retry"
-            pkill -TERM -P "$pid" 2>/dev/null || true
-            kill -TERM "$pid" 2>/dev/null || true
+            review_kill_tree TERM "$pid"
             sleep 5
-            pkill -KILL -P "$pid" 2>/dev/null || true
-            kill -KILL "$pid" 2>/dev/null || true
+            review_kill_tree KILL "$pid"
             break
         fi
         sleep "$poll_secs"
@@ -390,7 +405,14 @@ while True:
         idx += 1
         continue
     if isinstance(obj, dict) and isinstance(obj.get('findings'), list):
-        best = obj.get('findings')
+        # Prefer the last NON-EMPTY findings array. The Round 1 prompt embeds
+        # {"findings": []} as a format example; a provider that echoes the
+        # prompt after its real answer must not have its findings replaced by
+        # the echoed empty example.
+        if obj.get('findings'):
+            best = obj.get('findings')
+        elif best is None:
+            best = obj.get('findings')
     idx += max(1, end)
 if best is None:
     print('[]')
