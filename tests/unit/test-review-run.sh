@@ -113,6 +113,15 @@ assert_contains "$(grep -A4 'avg_confidence=$(jq' "$ALL_SRC" 2>/dev/null | head 
 assert_contains "$(grep -A2 'commit_id.*headRefOid' "$ALL_SRC" 2>/dev/null | head -10)" \
   'commit_id' "post_inline_comments: empty commit_id guarded"
 
+assert_contains "$(grep -c 'review_openai_compat_empty_output_retryable' "$ALL_SRC" 2>/dev/null || echo 0)" \
+  "[1-9]" "review_run: OpenAI-compatible Empty output retry classifier exists"
+
+assert_contains "$(grep -c 'OCTOPUS_REVIEW_OPENAI_COMPAT_EMPTY_RETRY_BACKOFF_SECS' "$ALL_SRC" 2>/dev/null || echo 0)" \
+  "[1-9]" "review_run: OpenAI-compatible Empty output retry has configurable backoff"
+
+assert_contains "$(grep -c 'attempt1' "$ALL_SRC" 2>/dev/null || echo 0)" \
+  "[1-9]" "review_run: OpenAI-compatible Empty output retry preserves first artifact"
+
 # ── diff target file support ─────────────────────────────────────────────────
 
 source "$PROJECT_ROOT/scripts/lib/review.sh"
@@ -129,6 +138,37 @@ EOF
 
 assert_contains "$(review_collect_diff "$DIFF_TARGET")" \
   "diff --git a/foo.txt b/foo.txt" "review_collect_diff: reads unified diff file targets"
+
+OPENAI_COMPAT_EMPTY_RETRYABLE="$TMPDIR_TEST/openai-compat-empty-retryable.md"
+cat > "$OPENAI_COMPAT_EMPTY_RETRYABLE" <<'EOF'
+# Agent: openai-compatible
+## Status: FAILED (Empty output)
+Reconnecting... 1/5
+EOF
+
+OPENAI_COMPAT_EMPTY_NO_RECONNECT="$TMPDIR_TEST/openai-compat-empty-no-reconnect.md"
+cat > "$OPENAI_COMPAT_EMPTY_NO_RECONNECT" <<'EOF'
+# Agent: openai-compatible
+## Status: FAILED (Empty output)
+EOF
+
+if review_openai_compat_empty_output_retryable "$OPENAI_COMPAT_EMPTY_RETRYABLE" "codex"; then
+  pass "review_run: OpenAI-compatible Empty output with reconnect is retryable"
+else
+  fail "review_run: OpenAI-compatible Empty output with reconnect is retryable"
+fi
+
+if review_openai_compat_empty_output_retryable "$OPENAI_COMPAT_EMPTY_NO_RECONNECT" "codex"; then
+  fail "review_run: OpenAI-compatible Empty output without reconnect is not retryable"
+else
+  pass "review_run: OpenAI-compatible Empty output without reconnect is not retryable"
+fi
+
+if review_openai_compat_empty_output_retryable "$OPENAI_COMPAT_EMPTY_RETRYABLE" "gemini"; then
+  fail "review_run: non-OpenAI-compatible Empty output is not retried by adapter policy"
+else
+  pass "review_run: non-OpenAI-compatible Empty output is not retried by adapter policy"
+fi
 
 # ── MCP schema ───────────────────────────────────────────────────────────────
 

@@ -210,6 +210,236 @@ build_review_fleet() {
     echo "$fleet"
 }
 
+review_file_mtime_epoch() {
+    local file="$1"
+    stat -c '%Y' "$file" 2>/dev/null || stat -f '%m' "$file" 2>/dev/null || echo 0
+}
+
+review_hash_stdin() {
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum | awk '{print $1}'
+    elif command -v shasum >/dev/null 2>&1; then
+        shasum -a 256 | awk '{print $1}'
+    else
+        cksum | awk '{print $1}'
+    fi
+}
+
+review_progress_fingerprint_since() {
+    local since_epoch="$1"
+    local results_dir="${2:-${RESULTS_DIR:-${HOME}/.claude-octopus/results}}"
+    # Optional filename pattern scopes the fingerprint to one agent's artifacts.
+    # Without it, any concurrent activity in the shared RESULTS_DIR resets the
+    # stall timer for every agent, so a genuinely hung provider never trips it.
+    local name_pattern="${3:-}"
+    [[ -d "$results_dir" ]] || { echo "empty"; return 0; }
+    find "$results_dir" -maxdepth 1 -type f ${name_pattern:+-name "$name_pattern"} 2>/dev/null | while IFS= read -r file; do
+        local mtime size
+        mtime=$(review_file_mtime_epoch "$file")
+        [[ "$mtime" =~ ^[0-9]+$ ]] || mtime=0
+        [[ "$mtime" -ge "$since_epoch" ]] || continue
+        size=$(wc -c < "$file" 2>/dev/null || echo 0)
+        size=${size//[[:space:]]/}
+        printf '%s %s %s\n' "$file" "${size:-0}" "$mtime"
+    done | sort | review_hash_stdin
+}
+
+# review_kill_tree <SIG> <pid>: depth-first kill of a process and all its
+# descendants. The provider CLI runs as a grandchild of the backgrounded
+# wrapper, so a single-level pkill -P can orphan it mid-billing (#190).
+review_kill_tree() {
+    local sig="$1" pid="$2" kid
+    for kid in $(pgrep -P "$pid" 2>/dev/null); do
+        review_kill_tree "$sig" "$kid"
+    done
+    kill "-${sig}" "$pid" 2>/dev/null || true
+}
+
+review_run_agent_sync_progress() {
+    local agent_type="$1"
+    local prompt="$2"
+    local role="$3"
+    local phase="$4"
+    local label="${5:-sync}"
+    local results_dir="${RESULTS_DIR:-${HOME}/.claude-octopus/results}"
+    local stall_window="${OCTOPUS_REVIEW_STALL_WINDOW:-1800}"
+    local poll_secs="${OCTOPUS_REVIEW_POLL_SECS:-30}"
+    [[ "$stall_window" =~ ^[0-9]+$ ]] || stall_window=1800
+    [[ "$poll_secs" =~ ^[0-9]+$ ]] || poll_secs=30
+    [[ "$poll_secs" -lt 1 ]] && poll_secs=1
+    mkdir -p "$results_dir" 2>/dev/null || true
+
+    local start_epoch out_file rc_file pid rc last_progress last_fp current_fp now
+    start_epoch=$(date +%s)
+    out_file="${results_dir}/.tmp-review-sync-${label}-$$-${RANDOM}.out"
+    rc_file="${out_file}.rc"
+    : > "$out_file"
+    rm -f "$rc_file" 2>/dev/null || true
+
+    (
+        run_agent_sync "$agent_type" "$prompt" 0 "$role" "$phase" > "$out_file" 2>&1
+        echo "$?" > "$rc_file"
+    ) &
+    pid=$!
+    last_progress=$(date +%s)
+    local own_pattern
+    own_pattern="$(basename "$out_file")*"
+    last_fp=$(review_progress_fingerprint_since "$start_epoch" "$results_dir" "$own_pattern")
+
+    while kill -0 "$pid" 2>/dev/null; do
+        sleep "$poll_secs"
+        now=$(date +%s)
+        current_fp=$(review_progress_fingerprint_since "$start_epoch" "$results_dir" "$own_pattern")
+        if [[ "$current_fp" != "$last_fp" ]]; then
+            last_fp="$current_fp"
+            last_progress="$now"
+            log INFO "review_run: ${label} progress observed"
+        elif [[ "$stall_window" -gt 0 && $((now - last_progress)) -ge "$stall_window" ]]; then
+            log WARN "review_run: ${label} stalled after ${stall_window}s with no observable progress — stopping provider and preserving partial output"
+            review_kill_tree TERM "$pid"
+            sleep 5
+            review_kill_tree KILL "$pid"
+            break
+        fi
+    done
+
+    wait "$pid" 2>/dev/null || true
+    rc=1
+    [[ -f "$rc_file" ]] && rc=$(cat "$rc_file" 2>/dev/null || echo 1)
+    cat "$out_file" 2>/dev/null || true
+    rm -f "$out_file" "$rc_file" 2>/dev/null || true
+    return "$rc"
+}
+
+# review_openai_compat_empty_output_retryable: returns true for transient OpenAI-compatible adapter
+# review failures where the CLI exited with Empty output after reconnects. These
+# are usually provider-side transient stream/session failures rather than review
+# conclusions, so Round 1 may retry them once after backoff.
+review_openai_compat_empty_output_retryable() {
+    local result_file="$1"
+    local agent_type="$2"
+    [[ "$agent_type" == codex* ]] || return 1
+    [[ -f "$result_file" ]] || return 1
+    local empty_count reconnect_count
+    empty_count=$(grep -cE '^## Status: FAILED \(Empty output\)' "$result_file" 2>/dev/null || true)
+    empty_count=${empty_count:-0}
+    reconnect_count=$(grep -c 'Reconnecting' "$result_file" 2>/dev/null || true)
+    reconnect_count=${reconnect_count:-0}
+    [[ "${empty_count%%$'\n'*}" -gt 0 ]] || return 1
+    [[ "${reconnect_count%%$'\n'*}" -gt 0 ]] || return 1
+}
+
+# review_wait_for_result_status: waits for one result file to become terminal,
+# using the same progress-stall semantics as Round 1. No wall-clock cap.
+review_wait_for_result_status() {
+    local result_file="$1"
+    local pid="$2"
+    local label="$3"
+    local results_dir="${4:-${RESULTS_DIR:-${HOME}/.claude-octopus/results}}"
+    local stall_window="${5:-${OCTOPUS_REVIEW_STALL_WINDOW:-1800}}"
+    local poll_secs="${6:-${OCTOPUS_REVIEW_POLL_SECS:-30}}"
+    local poll_start last_progress last_fp current_fp
+    poll_start=$(date +%s)
+    last_progress="$poll_start"
+    local own_pattern
+    own_pattern="$(basename "$result_file")*"
+    last_fp=$(review_progress_fingerprint_since "$poll_start" "$results_dir" "$own_pattern")
+    while true; do
+        local status_count
+        status_count=$(grep -cE '^## Status:' "$result_file" 2>/dev/null || true)
+        status_count=${status_count:-0}
+        if [[ -f "$result_file" ]] && [[ "${status_count%%$'\n'*}" -gt 0 ]]; then
+            break
+        fi
+        current_fp=$(review_progress_fingerprint_since "$poll_start" "$results_dir" "$own_pattern")
+        if [[ "$current_fp" != "$last_fp" ]]; then
+            last_fp="$current_fp"
+            last_progress=$(date +%s)
+            log INFO "review_run: ${label} progress observed"
+        elif [[ "$stall_window" -gt 0 && $(( $(date +%s) - last_progress )) -ge "$stall_window" ]]; then
+            log WARN "review_run: ${label} stalled after ${stall_window}s — stopping retry"
+            review_kill_tree TERM "$pid"
+            sleep 5
+            review_kill_tree KILL "$pid"
+            break
+        fi
+        sleep "$poll_secs"
+    done
+    wait "$pid" 2>/dev/null || true
+}
+
+# review_extract_findings_array: returns a JSON array of findings from a Round 1
+# markdown result file. Providers sometimes echo the full prompt or wrap JSON in
+# prose; prefer the exact ## Output jq path, then fall back to scanning the file
+# for the last JSON object with a findings array.
+review_extract_findings_array() {
+    local review_md="$1"
+    local output_text direct_json
+    [[ -f "$review_md" ]] || { echo "[]"; return 1; }
+
+    output_text=$(awk '/^## Output$/{found=1;next} /^## /{if(found)exit} found && !/^```(json|JSON)?$/{print}' "$review_md" 2>/dev/null || true)
+    if [[ -n "$output_text" ]]; then
+        direct_json=$(printf '%s' "$output_text" | jq -c '.findings // empty' 2>/dev/null || true)
+        if [[ -n "$direct_json" && "$direct_json" != "null" ]]; then
+            printf '%s\n' "$direct_json"
+            return 0
+        fi
+    fi
+
+    if command -v python3 >/dev/null 2>&1; then
+        python3 - "$review_md" <<'PYEXTRACT'
+import json, sys
+from pathlib import Path
+path = Path(sys.argv[1])
+text = path.read_text(errors='ignore')
+decoder = json.JSONDecoder()
+best = None
+idx = 0
+while True:
+    idx = text.find('{', idx)
+    if idx < 0:
+        break
+    try:
+        obj, end = decoder.raw_decode(text[idx:])
+    except Exception:
+        idx += 1
+        continue
+    if isinstance(obj, dict) and isinstance(obj.get('findings'), list):
+        # Prefer the last NON-EMPTY findings array. The Round 1 prompt embeds
+        # {"findings": []} as a format example; a provider that echoes the
+        # prompt after its real answer must not have its findings replaced by
+        # the echoed empty example.
+        if obj.get('findings'):
+            best = obj.get('findings')
+        elif best is None:
+            best = obj.get('findings')
+    idx += max(1, end)
+if best is None:
+    print('[]')
+    sys.exit(1)
+print(json.dumps(best, separators=(',', ':')))
+PYEXTRACT
+        return $?
+    fi
+
+    echo "[]"
+    return 1
+}
+
+review_local_synthesis_json() {
+    local findings_json="$1"
+    local warning="${2:-}"
+    local sort_filter='def severity_rank: if .severity == "normal" then 0 elif .severity == "nit" then 1 elif .severity == "pre-existing" then 2 else 3 end; sort_by(severity_rank)'
+    if [[ -n "$warning" ]]; then
+        printf '%s' "$findings_json" | jq -c --arg warning "$warning" "{findings:(. // [] | ${sort_filter}), warning:\$warning}" 2>/dev/null \
+            || printf '{"findings":[],"warning":%s}\n' "$(printf '%s' "$warning" | jq -R .)"
+    else
+        printf '%s' "$findings_json" | jq -c \
+            "{findings:(. // [] | ${sort_filter})}" 2>/dev/null \
+            || echo '{"findings":[]}'
+    fi
+}
+
 # review_collect_diff: resolves a review target to unified diff content.
 # Targets can be built-in scopes (staged, working-tree), a PR number, a git
 # pathspec, or an already-generated .diff/.patch file.
@@ -527,18 +757,15 @@ Use this context as the requested behavior and constraints. Flag severity=normal
         fi
     fi
 
-    # ── Scale timeout by diff size (#303) ───────────────────────────────────
+    # ── Progress-supervised review execution ────────────────────────────────
     local diff_lines
     diff_lines=$(echo "$diff_content" | wc -l | tr -d ' ')
-    local review_timeout="${OCTOPUS_REVIEW_TIMEOUT:-480}"
-    if [[ "$review_timeout" -eq 480 ]]; then
-        if [[ "$diff_lines" -gt 5000 ]]; then
-            review_timeout=900
-        elif [[ "$diff_lines" -gt 2000 ]]; then
-            review_timeout=600
-        fi
-    fi
-    export TIMEOUT="$review_timeout"
+    local review_stall_window="${OCTOPUS_REVIEW_STALL_WINDOW:-1800}"
+    local review_poll_secs="${OCTOPUS_REVIEW_POLL_SECS:-30}"
+    [[ "$review_stall_window" =~ ^[0-9]+$ ]] || review_stall_window=1800
+    [[ "$review_poll_secs" =~ ^[0-9]+$ ]] || review_poll_secs=30
+    [[ "$review_poll_secs" -lt 1 ]] && review_poll_secs=1
+    export TIMEOUT=0
 
     if [[ -n "$proof_dir" ]]; then
         octo_proof_event "$proof_dir" "review_scope" "$(jq -n \
@@ -557,7 +784,7 @@ Use this context as the requested behavior and constraints. Flag severity=normal
     fi
 
     # ── ROUND 1: Parallel agent fleet ────────────────────────────────────────
-    log INFO "review_run: Round 1 — parallel specialist fleet (timeout=${review_timeout}s, diff=${diff_lines} lines)"
+    log INFO "review_run: Round 1 — parallel specialist fleet (no wall timeout, stall_window=${review_stall_window}s, diff=${diff_lines} lines)"
     local fleet
     fleet=$(build_review_fleet)
 
@@ -594,6 +821,10 @@ CRITICAL OUTPUT FORMAT: Return ONLY a valid JSON object. No markdown, no prose, 
 
     local round1_files=()
     local round1_agent_types=()
+    local round1_roles=()
+    local round1_task_ids=()
+    local round1_prompts=()
+    local round1_pids=()
 
     fleet_dispatch_begin
     while IFS=: read -r agent_type role specialty; do
@@ -603,22 +834,27 @@ CRITICAL OUTPUT FORMAT: Return ONLY a valid JSON object. No markdown, no prose, 
         local result_file="${RESULTS_DIR}/${agent_type}-${task_id}.md"
         round1_files+=("$result_file")
         round1_agent_types+=("$agent_type")
+        round1_roles+=("$role")
+        round1_task_ids+=("$task_id")
 
         local agent_prompt="You are the ${role} specialist. Focus on: ${specialty}.
 
 ${agent_prompt_base}"
+        round1_prompts+=("$agent_prompt")
 
         spawn_agent "$agent_type" "$agent_prompt" "$task_id" "$role" "review" &
+        round1_pids+=("$!")
     done <<< "$fleet"
 
     fleet_dispatch_end
 
-    # Wait for all Round 1 agents
-    # v9.3.1: wait only catches direct children; spawn_agent's actual CLI runs as
-    # grandchild processes. Poll result files for ## Status markers instead (#190).
-    wait  # Wait for spawn_agent setup to finish
-    local _poll_start
+    # Wait for all Round 1 agents with a progress watchdog instead of a wall timeout.
+    # timeout_secs=0 disables provider wall-clock caps; this loop only stops when
+    # every result is terminal or no result/output changes for the stall window.
+    local _poll_start _last_progress _last_fp _current_fp _round1_stalled=false
     _poll_start=$(date +%s)
+    _last_progress="$_poll_start"
+    _last_fp=$(review_progress_fingerprint_since "$_poll_start" "$RESULTS_DIR")
     while true; do
         local _all_done=true
         for _rf in "${round1_files[@]}"; do
@@ -628,29 +864,109 @@ ${agent_prompt_base}"
             fi
         done
         [[ "$_all_done" == "true" ]] && break
-        if [[ $(( $(date +%s) - _poll_start )) -ge $review_timeout ]]; then
-            log WARN "review_run: Round 1 timed out after ${review_timeout}s — collecting partial results"
+
+        _current_fp=$(review_progress_fingerprint_since "$_poll_start" "$RESULTS_DIR")
+        if [[ "$_current_fp" != "$_last_fp" ]]; then
+            _last_fp="$_current_fp"
+            _last_progress=$(date +%s)
+            log INFO "review_run: Round 1 progress observed"
+        elif [[ "$review_stall_window" -gt 0 && $(( $(date +%s) - _last_progress )) -ge "$review_stall_window" ]]; then
+            _round1_stalled=true
+            log WARN "review_run: Round 1 stalled after ${review_stall_window}s — collecting partial results"
+            for _pid in "${round1_pids[@]}"; do
+                pkill -TERM -P "$_pid" 2>/dev/null || true
+                kill -TERM "$_pid" 2>/dev/null || true
+            done
+            sleep 5
+            for _pid in "${round1_pids[@]}"; do
+                pkill -KILL -P "$_pid" 2>/dev/null || true
+                kill -KILL "$_pid" 2>/dev/null || true
+            done
             break
         fi
-        sleep 2
+        sleep "$review_poll_secs"
     done
+    for _pid in "${round1_pids[@]}"; do wait "$_pid" 2>/dev/null || true; done
+
+    # Retry transient OpenAI-compatible adapter Empty output failures once after backoff. We
+    # only do this for Round 1 review specialists and only when the artifact shows
+    # reconnects, because provider-side 180s empty responses can be recoverable
+    # after a short pause.
+    local openai_compat_empty_retry_max="${OCTOPUS_REVIEW_OPENAI_COMPAT_EMPTY_RETRY_MAX:-1}"
+    local openai_compat_empty_retry_backoff="${OCTOPUS_REVIEW_OPENAI_COMPAT_EMPTY_RETRY_BACKOFF_SECS:-90}"
+    [[ "$openai_compat_empty_retry_max" =~ ^[0-9]+$ ]] || openai_compat_empty_retry_max=1
+    [[ "$openai_compat_empty_retry_backoff" =~ ^[0-9]+$ ]] || openai_compat_empty_retry_backoff=90
+    openai_compat_empty_retry_max=$((10#$openai_compat_empty_retry_max))
+    openai_compat_empty_retry_backoff=$((10#$openai_compat_empty_retry_backoff))
+    if [[ "$openai_compat_empty_retry_max" -gt 0 ]]; then
+        local retry_idx=0
+        while [[ "$retry_idx" -lt "${#round1_files[@]}" ]]; do
+            local retry_file="${round1_files[$retry_idx]}"
+            local retry_agent_type="${round1_agent_types[$retry_idx]}"
+            if review_openai_compat_empty_output_retryable "$retry_file" "$retry_agent_type"; then
+                local reconnect_count retry_role retry_task_id retry_prompt retry_result_file retry_pid archived_file
+                reconnect_count=$(grep -c 'Reconnecting' "$retry_file" 2>/dev/null || true)
+                reconnect_count=${reconnect_count:-0}
+                reconnect_count=${reconnect_count%%$'\n'*}
+                retry_role="${round1_roles[$retry_idx]}"
+                retry_task_id="${round1_task_ids[$retry_idx]}-retry1"
+                retry_result_file="${RESULTS_DIR}/${retry_agent_type}-${retry_task_id}.md"
+                archived_file="${retry_file}.attempt1"
+                mv "$retry_file" "$archived_file" 2>/dev/null || true
+                log WARN "review_run: ${retry_agent_type}/${retry_role} ended Empty output after ${reconnect_count} reconnect(s); retrying once after ${openai_compat_empty_retry_backoff}s (artifact=$(basename "$archived_file"))"
+                sleep "$openai_compat_empty_retry_backoff"
+                retry_prompt="RETRY NOTICE: the previous ${retry_agent_type}/${retry_role} review attempt ended with Empty output after adapter reconnects. Review only the supplied diff/context; do not inspect the workspace unless strictly necessary. Return ONLY the required JSON object.
+
+${round1_prompts[$retry_idx]}"
+                spawn_agent "$retry_agent_type" "$retry_prompt" "$retry_task_id" "$retry_role" "review" &
+                retry_pid="$!"
+                review_wait_for_result_status "$retry_result_file" "$retry_pid" "Round 1 ${retry_agent_type}/${retry_role} retry" "$RESULTS_DIR" "$review_stall_window" "$review_poll_secs"
+                round1_files[$retry_idx]="$retry_result_file"
+                local retry_success_count
+                retry_success_count=$(grep -cE '^## Status: SUCCESS' "$retry_result_file" 2>/dev/null || true)
+                retry_success_count=${retry_success_count:-0}
+                if [[ -f "$retry_result_file" ]] && [[ "${retry_success_count%%$'\n'*}" -gt 0 ]]; then
+                    log INFO "review_run: ${retry_agent_type}/${retry_role} retry recovered after Empty output"
+                else
+                    log WARN "review_run: ${retry_agent_type}/${retry_role} retry did not recover; continuing with partial Round 1"
+                fi
+            fi
+            ((retry_idx++)) || true
+        done
+    fi
+
     log INFO "review_run: Round 1 complete"
 
-    # Collect Round 1 findings — extract ## Output section, strip markdown fences, parse JSON
+    # Collect Round 1 findings — robustly extract the last JSON object with a
+    # findings array. Some providers echo the full prompt before the final JSON;
+    # a strict jq of the whole ## Output block silently loses those findings.
     local all_findings="[]"
     local idx=0
+    local round1_partial_count=0
+    local round1_parse_miss_count=0
     for f in "${round1_files[@]}"; do
-        [[ ! -f "$f" ]] && continue
-        local agent_findings
-        # v9.20.1: Extract content from ## Output section (portable awk, fixes BSD sed #255)
-        agent_findings=$(awk '/^## Output$/{found=1;next} /^## /{if(found)exit} found && !/^```(json|JSON)?$/{print}' "$f" | \
-            jq -r '.findings // []' 2>/dev/null || echo "[]")
-        all_findings=$(printf '%s\n%s' "$all_findings" "$agent_findings" | \
-            jq -s 'add' 2>/dev/null || echo "$all_findings")
-
-        # v9.3.1: Write provider status for Round 1 agents (#187)
         local atype="${round1_agent_types[$idx]}"
         local provider_key="${atype%%[-_]*}"
+        if [[ ! -f "$f" ]]; then
+            ((round1_partial_count++)) || true
+            echo "${provider_key}|fallback|Round 1 agent missing result" >> "$provider_status_file"
+            ((idx++)) || true
+            continue
+        fi
+        local agent_findings
+        if ! agent_findings=$(review_extract_findings_array "$f" 2>/dev/null); then
+            agent_findings="[]"
+        fi
+        local severity_count
+        severity_count=$(grep -c '"severity"[[:space:]]*:[[:space:]]*"' "$f" 2>/dev/null || true)
+        severity_count=${severity_count:-0}
+        if [[ "$agent_findings" == "[]" ]] && [[ "${severity_count%%$'\n'*}" -gt 0 ]]; then
+            ((round1_parse_miss_count++)) || true
+            log WARN "review_run: possible findings in $(basename "$f") but extractor returned empty array"
+        fi
+        all_findings=$(printf '%s\n%s' "$all_findings" "$agent_findings" |             jq -s 'add' 2>/dev/null || echo "$all_findings")
+
+        # v9.3.1: Write provider status for Round 1 agents (#187)
         # #498: emit one review.finding lifecycle event per Round 1 finding, while
         # per-provider attribution is still in scope (it is dropped after the merge
         # above). round="1" lets consumers filter pre-verification noise.
@@ -660,21 +976,37 @@ ${agent_prompt_base}"
                 octo_event_emit "review.finding" provider="$provider_key" severity="${_rf_sev:-unknown}" message="${_rf_title:-}" round="1" || true
             done < <(printf '%s' "$agent_findings" | jq -r '.[]? | [(.severity // "unknown"), (.title // .message // "")] | @tsv' 2>/dev/null)
         fi
-        if [[ $(grep -c "Status: FAILED" "$f" 2>/dev/null || true) -gt 0 ]]; then
-            echo "${provider_key}|fallback|Round 1 agent failed" >> "$provider_status_file"
+        if [[ $(grep -cE "Status: (FAILED|TIMEOUT)" "$f" 2>/dev/null || true) -gt 0 ]]; then
+            ((round1_partial_count++)) || true
+            echo "${provider_key}|fallback|Round 1 agent failed or timed out" >> "$provider_status_file"
         elif [[ "$agent_findings" != "[]" ]]; then
             echo "${provider_key}|ok|Round 1 findings" >> "$provider_status_file"
         fi
         ((idx++)) || true
     done
 
+    local round1_findings_file="${results_dir}/review-round1-findings-${timestamp}.json"
+    local round1_warning=""
+    if [[ "$round1_partial_count" -gt 0 || "$round1_parse_miss_count" -gt 0 ]]; then
+        round1_warning="Round 1 was partial: ${round1_partial_count} provider(s) missing/failed/timed out, ${round1_parse_miss_count} provider output(s) had possible unparsed findings."
+    fi
+    review_local_synthesis_json "$all_findings" "$round1_warning" > "$round1_findings_file"
+    log INFO "review_run: Round 1 findings snapshot saved to $round1_findings_file"
+
     # v9.20.1: Detect total fleet failure — all providers crashed/timed out (#255)
     local _r1_total=${#round1_files[@]}
     local _r1_failed=0
     for _rf in "${round1_files[@]}"; do
-        if [[ ! -f "$_rf" ]] || \
-           grep -qE '^## Status: (FAILED|TIMEOUT)' "$_rf" 2>/dev/null || \
-           [[ $(grep -c '^## Status:' "$_rf" 2>/dev/null || true) -eq 0 ]]; then
+        if [[ ! -f "$_rf" ]]; then
+            ((_r1_failed++)) || true
+            continue
+        fi
+        local _rf_failed_status_count _rf_status_count
+        _rf_failed_status_count=$(grep -cE '^## Status: (FAILED|TIMEOUT)' "$_rf" 2>/dev/null || true)
+        _rf_failed_status_count=${_rf_failed_status_count:-0}
+        _rf_status_count=$(grep -c '^## Status:' "$_rf" 2>/dev/null || true)
+        _rf_status_count=${_rf_status_count:-0}
+        if [[ "${_rf_failed_status_count%%$'\n'*}" -gt 0 ]] || [[ "${_rf_status_count%%$'\n'*}" -eq 0 ]]; then
             ((_r1_failed++)) || true
         fi
     done
@@ -714,13 +1046,13 @@ $(echo "$all_findings" | jq -c '.')
 Return ONLY valid JSON with 'findings' array including verdict field."
 
     local verified_findings
-    verified_findings=$(run_agent_sync "codex" "$verifier_prompt" "${TIMEOUT:-300}" "code-reviewer" "review") && {
+    verified_findings=$(review_run_agent_sync_progress "codex" "$verifier_prompt" "code-reviewer" "review" "verifier-codex") && {
         echo "codex|ok|Round 2 verification" >> "$provider_status_file"
     } || {
         log WARN "review_run: codex verifier failed, falling back to claude-sonnet"
         log "USER" "⚠ Round 2: Codex unavailable → claude-sonnet (fallback). Codex API usage will NOT change."
         echo "codex|fallback|Round 2 → claude-sonnet" >> "$provider_status_file"
-        verified_findings=$(run_agent_sync "claude-sonnet" "$verifier_prompt" "${TIMEOUT:-300}" "code-reviewer" "review") || {
+        verified_findings=$(review_run_agent_sync_progress "claude-sonnet" "$verifier_prompt" "code-reviewer" "review" "verifier-claude-sonnet") || {
             log WARN "review_run: verification failed entirely, using all findings as confirmed"
             verified_findings="{\"findings\":$(echo "$all_findings" | \
                 jq 'map(. + {"verdict":"confirmed"})' 2>/dev/null || echo "[]")}"
@@ -748,7 +1080,7 @@ Return ONLY valid JSON with 'findings' array including verdict field."
 Findings: $(echo "$debate_candidates" | jq -c '.')
 Return JSON: {\"include\": [...finding titles...], \"exclude\": [...finding titles...]}"
             local debate_result
-            debate_result=$(run_agent_sync "codex" "$debate_prompt" 120 "code-reviewer" "review") && {
+            debate_result=$(review_run_agent_sync_progress "codex" "$debate_prompt" "code-reviewer" "review" "debate-codex") && {
                 echo "codex|ok|Round 3 debate" >> "$provider_status_file"
             } || {
                 log WARN "review_run: debate agent failed, including all contested findings"
@@ -780,14 +1112,22 @@ Findings: $(echo "$confirmed_findings" | jq -c '.')
 Return ONLY JSON: {\"findings\": [...ranked, deduplicated findings...]}"
 
     local final_json synth_ok="true"
-    final_json=$(run_agent_sync "claude-sonnet" "$synthesis_prompt" 120 "code-reviewer" "review") || {
+    final_json=$(review_run_agent_sync_progress "claude-sonnet" "$synthesis_prompt" "code-reviewer" "review" "synthesis-claude-sonnet") || {
         synth_ok="false"
         log WARN "review_run: synthesis failed, using confirmed findings sorted as-is"
-        final_json="{\"findings\":$(echo "$confirmed_findings" | jq -c 'sort_by(.severity)' 2>/dev/null || echo "[]")}"
+        final_json="$(review_local_synthesis_json "$confirmed_findings" "$round1_warning")"
     }
 
     # v9.3.1: Strip markdown fences from synthesis result (#188)
     final_json=$(echo "$final_json" | sed '/^```json$/d; /^```JSON$/d; /^```$/d')
+    if ! printf '%s' "$final_json" | jq -e '.findings | type == "array"' >/dev/null 2>&1; then
+        log WARN "review_run: synthesis returned invalid findings JSON, using local fallback"
+        final_json=$(review_local_synthesis_json "$confirmed_findings" "$round1_warning")
+        synth_ok="false"
+    elif [[ -n "$round1_warning" ]]; then
+        final_json=$(printf '%s' "$final_json" | jq -c --arg warning "$round1_warning" '. + {warning:$warning}' 2>/dev/null \
+            || review_local_synthesis_json "$confirmed_findings" "$round1_warning")
+    fi
 
     # Write findings file
     echo "$final_json" > "$findings_file"
