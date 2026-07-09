@@ -26,6 +26,8 @@ Run Fable 5 at `high` effort by default. Do not default to `xhigh` or `max`: eff
 
 ## Refusal handling and routing
 
+orchestrate.sh auto-detects a Fable 5 pin (`scripts/lib/fable5.sh`) and enforces the routing rules below without user action, printing a one-line banner: security dispatches reroute to Opus 4.8 (model resolver + dispatch), effort clamps `xhigh`/`max` to `high` for opus-seat pins, and the claude-sdk shim retries a refused/empty Fable 5 dispatch once on Opus 4.8. Master switch: `OCTOPUS_FABLE5_MODE=auto|off|on` (default `auto`); retry opt-out: `OCTOPUS_FABLE5_NO_RETRY=1`. The prompt-hygiene rules above are not machine-enforced — apply them when authoring dispatch prompts.
+
 - Fable 5 runs safety classifiers targeting offensive cybersecurity (exploit construction, malware, attack tooling), biology/life-sciences methods, and reasoning extraction. Benign security work can also trip them.
 - **Security-audit dispatches must not target Fable 5.** When `OCTOPUS_OPUS_MODEL=claude-fable-5` is pinned, route adversarial security passes (`/octo:security`, security-auditor agents) to `claude-opus-4.8` and frame prompts defensively (find and report vulnerabilities; do not request working exploits).
 - On `stop_reason: "refusal"` or an in-band refusal from a Fable 5 dispatch, retry the same prompt on `claude-opus-4.8` rather than rewording toward the classifier.

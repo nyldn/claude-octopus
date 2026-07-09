@@ -105,6 +105,9 @@ source "${SCRIPT_DIR}/lib/session-id.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/similarity.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/models.sh" 2>/dev/null || true
 
+# Fable 5 mode detection and dispatch guards (v9.51)
+source "${SCRIPT_DIR}/lib/fable5.sh" 2>/dev/null || true
+
 # Source intelligence library (v8.20.0)
 source "${SCRIPT_DIR}/lib/intelligence.sh" 2>/dev/null || true
 
@@ -2284,6 +2287,11 @@ if [[ "$COMMAND" != "help" && "$COMMAND" != "setup" && "$COMMAND" != "preflight"
     # v8.21.0: Auto-load persona packs from standard paths
     if type auto_load_persona_packs &>/dev/null 2>&1; then
         auto_load_persona_packs 2>/dev/null || true
+    fi
+
+    # v9.51: One-line banner when a claude-fable-5 pin auto-enables guards
+    if type fable5_banner &>/dev/null 2>&1; then
+        fable5_banner || true
     fi
 fi
 

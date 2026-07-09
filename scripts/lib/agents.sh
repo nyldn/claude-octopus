@@ -55,7 +55,14 @@ get_effort_level() {
             return 0
         fi
         case "$OCTOPUS_EFFORT_OVERRIDE" in
-            low|medium|high|xhigh|max) echo "$OCTOPUS_EFFORT_OVERRIDE"; return ;;
+            low|medium|high|xhigh|max)
+                # v9.51: Fable 5 clamp applies to explicit overrides too.
+                if declare -f fable5_clamp_effort >/dev/null 2>&1; then
+                    fable5_clamp_effort "$OCTOPUS_EFFORT_OVERRIDE"
+                else
+                    echo "$OCTOPUS_EFFORT_OVERRIDE"
+                fi
+                return ;;
             *) log "WARN" "Invalid OCTOPUS_EFFORT_OVERRIDE='$OCTOPUS_EFFORT_OVERRIDE' — ignoring (use low|medium|high|xhigh|max)" ;;
         esac
     fi
@@ -103,6 +110,14 @@ get_effort_level() {
 
     # Defensive default
     effort="${effort:-high}"
+
+    # v9.51: Fable 5 effort clamp — xhigh/max → high when the opus seat is
+    # pinned to claude-fable-5 (applies to user overrides too; that is the
+    # point of the guard). No-op when lib/fable5.sh is not loaded.
+    if declare -f fable5_clamp_effort >/dev/null 2>&1; then
+        effort="$(fable5_clamp_effort "$effort")"
+    fi
+
     echo "$effort"
 }
 

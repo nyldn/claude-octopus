@@ -264,11 +264,13 @@ Opus 4.8 defaults to `high` effort across Claude Code and the API. Claude Code s
 
 The phase table above is Opus 4.8 guidance and does not carry over to a `claude-fable-5` pin. On Fable 5, run `high` everywhere: effort applies per tool call, so `xhigh` does not extend runs — it makes each step overthink and widen scope, at 2x the cost. Raise effort only for a single capability-sensitive step.
 
-Two additional Fable 5 rules (details in `skills/blocks/fable5-prompting.md`):
+When a `claude-fable-5` pin is detected (`OCTOPUS_OPUS_MODEL` or `OCTOPUS_CLAUDE_SDK_MODEL`), orchestrate.sh auto-enables three guards via `scripts/lib/fable5.sh` and prints a one-line banner (`OCTOPUS_FABLE5_MODE=off` disables; `=on` forces):
 
-- **Security audits never dispatch to Fable 5.** Its safety classifiers can refuse offensive-security phrasing even in authorized audits. With a Fable 5 pin active, route `/octo:security` and security-auditor passes to `claude-opus-4.8`.
-- **On a refusal from a Fable 5 dispatch, retry on `claude-opus-4.8`** instead of rewording the prompt toward the classifier.
-- **Prompt hygiene:** never ask Fable 5 to reveal or transcribe its reasoning (triggers the `reasoning_extraction` refusal), avoid token countdowns, and drop "CRITICAL"/"MUST" emphasis unless strict compliance is required.
+- **Security reroute** — security-audit dispatches (security-auditor role, squeeze workflow) never run on Fable 5; the model resolver and dispatch swap in `claude-opus-4.8`. Its safety classifiers can refuse offensive-security phrasing even in authorized audits.
+- **Effort clamp** — `xhigh`/`max` clamp to `high` for opus-seat Fable dispatches, including explicit `OCTOPUS_EFFORT_OVERRIDE` values.
+- **Refusal retry** — the claude-sdk shim retries a refused/empty Fable 5 dispatch once on `claude-opus-4-8` (`OCTOPUS_FABLE5_NO_RETRY=1` to opt out) instead of rewording the prompt toward the classifier.
+
+**Prompt hygiene (not machine-enforced):** never ask Fable 5 to reveal or transcribe its reasoning (triggers the `reasoning_extraction` refusal), avoid token countdowns, and drop "CRITICAL"/"MUST" emphasis unless strict compliance is required. Full profile: `skills/blocks/fable5-prompting.md`.
 
 ### Fast Opus Mode
 
