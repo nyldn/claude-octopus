@@ -1,6 +1,6 @@
 {
   "name": "octo",
-  "version": "9.51.0",
+  "version": "9.51.1",
   "description": "v9.51.0 - Fable 5 support: dispatch profile block, auto-enforced guards on claude-fable-5 pins (security reroute to Opus 4.8, effort clamp, refusal retry), SessionStart guidance hook; plus agent orientation layer (RELEASING.md, provider wiring map, make ci-local, exec-bit CI lint). Run /octo:setup.",
   "author": {
     "name": "nyldn",
