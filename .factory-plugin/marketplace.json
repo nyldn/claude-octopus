@@ -5,14 +5,14 @@
   },
   "metadata": {
     "description": "Multi-tentacled orchestration plugin for Factory AI Droid",
-    "version": "9.50.0"
+    "version": "9.51.0"
   },
   "plugins": [
     {
       "name": "claude-octopus",
       "source": "./",
-      "description": "v9.50.0 - Claude Code 2026 compatibility layer: routines manifest, SubagentStop quality/cost gate, /octo:usage report, worktree bgIsolation opt-out, Claude Agent SDK seat (Opus 4.8, 1M context), starter skills pack, /plugin browse manifest. 42 agents, 50 commands, 58 skills. Run /octo:setup.",
-      "version": "9.50.0",
+      "description": "v9.51.0 - Fable 5 support: dispatch profile block, auto-enforced guards on claude-fable-5 pins (security reroute to Opus 4.8, effort clamp, refusal retry), SessionStart guidance hook; plus agent orientation layer (RELEASING.md, provider wiring map, make ci-local, exec-bit CI lint). 42 agents, 50 commands, 58 skills. Run /octo:setup.",
+      "version": "9.51.0",
       "author": {
         "name": "nyldn"
       },

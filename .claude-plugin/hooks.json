@@ -223,6 +223,12 @@
           "command": "${CLAUDE_PLUGIN_ROOT}/hooks/version-advisory.sh",
           "additionalContext": "One-line advisory when plugin version changes between sessions",
           "timeout": 5
+        },
+        {
+          "type": "command",
+          "command": "${CLAUDE_PLUGIN_ROOT}/hooks/fable5-inject.sh",
+          "additionalContext": "Inject Fable 5 dispatch guards and prompt hygiene when a claude-fable-5 pin is detected",
+          "timeout": 3
         }
       ]
     },

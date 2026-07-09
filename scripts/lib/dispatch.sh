@@ -167,10 +167,23 @@ get_agent_command() {
             elif [[ -n "${OCTOPUS_EFFORT_OVERRIDE:-}" ]]; then
                 opus_effort="$OCTOPUS_EFFORT_OVERRIDE"
             fi
+            # v9.51: Honor a Fable 5 pin in the dispatched model flag. The bare
+            # `opus` alias always resolves to the host's default Opus, so
+            # without this the pin changed cost labels but never the model.
+            # Security dispatches reroute to Opus 4.8 (lib/fable5.sh).
+            local opus_model_flag="opus"
+            if [[ "${OCTOPUS_OPUS_MODEL:-}" == "claude-fable-5" ]]; then
+                opus_model_flag="claude-fable-5"
+                if declare -f fable5_maybe_reroute >/dev/null 2>&1; then
+                    if [[ "$(fable5_maybe_reroute "claude-fable-5" "$role" "$agent_type" "$phase")" != "claude-fable-5" ]]; then
+                        opus_model_flag="claude-opus-4-8"
+                    fi
+                fi
+            fi
             if [[ "${SUPPORTS_EFFORT_COMMAND:-false}" == "true" || "${SUPPORTS_XHIGH_EFFORT:-false}" == "true" ]]; then
-                echo "env CLAUDE_CODE_EFFORT_LEVEL=${opus_effort} ${_claude_bin}${_BARE_OPT} --print --model opus ${claude_perm}"
+                echo "env CLAUDE_CODE_EFFORT_LEVEL=${opus_effort} ${_claude_bin}${_BARE_OPT} --print --model ${opus_model_flag} ${claude_perm}"
             else
-                echo "${_claude_bin}${_BARE_OPT} --print --model opus ${claude_perm}"
+                echo "${_claude_bin}${_BARE_OPT} --print --model ${opus_model_flag} ${claude_perm}"
             fi
             ;;
         claude-opus-fast)

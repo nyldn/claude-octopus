@@ -1413,6 +1413,29 @@ doctor_check_conflicts() {
             "claude-mem v${mem_version} detected (companion — persistent cross-session memory)" \
             "Octopus workflows can use claude-mem MCP tools (search, timeline, get_observations) for past session context"
     fi
+
+    local agentmemory_dir=""
+    for dir in \
+        "$HOME"/.claude/plugins/cache/rohitg00/agentmemory/*/ \
+        "$HOME"/.claude/plugins/cache/agentmemory/agentmemory/*/ \
+        "$HOME"/.codex/plugins/cache/rohitg00/agentmemory/*/ \
+        "$HOME"/.codex/plugins/cache/agentmemory/agentmemory/*/; do
+        [[ -d "$dir" ]] && agentmemory_dir="$dir" && break
+    done
+    if [[ -n "$agentmemory_dir" ]]; then
+        local agentmemory_version
+        agentmemory_version=$(basename "${agentmemory_dir%/}" 2>/dev/null || echo "unknown")
+        doctor_add "companion-agentmemory" "conflicts" "pass" \
+            "agentmemory v${agentmemory_version} detected (companion — persistent cross-agent memory)" \
+            "Octopus memory hooks can use agentmemory through MCP or the local REST bridge"
+    elif command -v agentmemory >/dev/null 2>&1; then
+        doctor_add "companion-agentmemory" "conflicts" "pass" \
+            "agentmemory CLI detected (companion — persistent cross-agent memory)" \
+            "$(command -v agentmemory)"
+    elif [[ -n "${AGENTMEMORY_URL:-}" ]]; then
+        doctor_add "companion-agentmemory" "conflicts" "info" \
+            "agentmemory URL configured" "$AGENTMEMORY_URL"
+    fi
 }
 
 # --- Category 9: Smoke Test (v8.19.0 - Issue #34) ---
