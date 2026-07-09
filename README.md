@@ -443,6 +443,25 @@ v9.50.0 aligns the plugin with Claude Code's 2026 native capabilities. Each piec
 
 ---
 
+## Fable 5 Support
+
+v9.51.0 adds first-class support for Claude Fable 5 (Anthropic's Mythos-class model, $10/$50 per MTok — 2x Opus 4.8). Fable 5 is never auto-selected; pin it with `OCTOPUS_OPUS_MODEL=claude-fable-5` (opus seats) or `OCTOPUS_CLAUDE_SDK_MODEL=claude-fable-5` (the 1M-context SDK seat). When a pin is detected, the plugin auto-enables three guards and prints a one-line banner:
+
+- **Security reroute** — security-audit dispatches (security-auditor persona, squeeze red/blue workflow) run on Opus 4.8 instead of Fable 5, whose safety classifiers can refuse adversarial security phrasing even in authorized audits.
+- **Effort clamp** — `xhigh`/`max` effort clamps to `high` for Fable dispatches. Fable 5 effort applies per tool call; higher settings widen scope at 2x cost without extending runs.
+- **Refusal retry** — a refused or empty Fable 5 dispatch on the `claude-sdk` seat retries once on Opus 4.8 instead of failing the seat.
+
+A SessionStart hook injects the dispatch profile (prompt anti-patterns, judgment routing, risk-surface escalation) whenever a pin is active. Full guidance: `skills/blocks/fable5-prompting.md`.
+
+### New environment variables (v9.51.0)
+
+| Variable | Default | Effect |
+|----------|---------|--------|
+| `OCTOPUS_FABLE5_MODE` | `auto` | `off` disables all Fable 5 guards; `on` forces them without a pin |
+| `OCTOPUS_FABLE5_NO_RETRY` | unset | Set `1` to disable the refusal retry on the `claude-sdk` seat |
+
+---
+
 ## Trust, Safety, and Limits
 
 **Command namespace** — Slash commands are namespaced under `/octo:*` and the `octo` natural-language prefix routes through the plugin's intent detection. Lifecycle hooks (session start/end, prompt submit, tool use, compaction, plan mode, worktrees, task lifecycle, idle, config change, permission events) also attach to Claude Code so multi-provider routing, freeze/discipline modes, and the work-queue watcher can function. See `.claude-plugin/hooks.json` for the full list. Uninstall removes every hook.
