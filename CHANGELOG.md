@@ -13,6 +13,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **Review aggregation and progress supervision hardened** (#592, community contribution by @Jhacarreiro; maintainer takeover to land): review rounds now run without a wall-clock cap under progress-stall supervision (`OCTOPUS_REVIEW_STALL_WINDOW`, default 1800s), Round 1 codex empty-output-with-reconnect failures retry once, findings extraction tolerates prose-wrapped JSON, and severity counting is pipefail-safe. Maintainer fixes on top of the contribution: the stall fingerprint is scoped to each agent's own artifacts (previously it hashed all of RESULTS_DIR, so any concurrent activity reset every agent's stall timer); stall kills walk the full descendant tree (a single-level `pkill -P` could orphan the grandchild provider CLI mid-billing); and the findings extractor prefers the last non-empty findings array so a provider echoing the prompt's `{"findings": []}` format example cannot erase real findings. The `timeout_secs=0` contract this relies on is the `run_with_timeout` bypass that shipped with #593.
+
 ### Added
 
 - **RELEASING.md**: ordered release checklist covering every version-string location, the derived-artifact generators, CI-parity validation, exec-bit checks, fork-PR run approval, the tag-on-merge-commit rule, and GitHub Release creation. Encodes the three CI rounds the v9.50.0 release burned on undocumented generators.
