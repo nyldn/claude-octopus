@@ -113,13 +113,13 @@ assert_contains "$(grep -A4 'avg_confidence=$(jq' "$ALL_SRC" 2>/dev/null | head 
 assert_contains "$(grep -A2 'commit_id.*headRefOid' "$ALL_SRC" 2>/dev/null | head -10)" \
   'commit_id' "post_inline_comments: empty commit_id guarded"
 
-assert_contains "$(grep -c 'review_openai_compat_empty_output_retryable' "$ALL_SRC" 2>/dev/null || echo 0)" \
+assert_contains "$(grep -c 'review_openai_compat_empty_output_retryable' "$ALL_SRC" 2>/dev/null || true)" \
   "[1-9]" "review_run: OpenAI-compatible Empty output retry classifier exists"
 
-assert_contains "$(grep -c 'OCTOPUS_REVIEW_OPENAI_COMPAT_EMPTY_RETRY_BACKOFF_SECS' "$ALL_SRC" 2>/dev/null || echo 0)" \
+assert_contains "$(grep -c 'OCTOPUS_REVIEW_OPENAI_COMPAT_EMPTY_RETRY_BACKOFF_SECS' "$ALL_SRC" 2>/dev/null || true)" \
   "[1-9]" "review_run: OpenAI-compatible Empty output retry has configurable backoff"
 
-assert_contains "$(grep -c 'attempt1' "$ALL_SRC" 2>/dev/null || echo 0)" \
+assert_contains "$(grep -c 'attempt1' "$ALL_SRC" 2>/dev/null || true)" \
   "[1-9]" "review_run: OpenAI-compatible Empty output retry preserves first artifact"
 
 # ── diff target file support ─────────────────────────────────────────────────

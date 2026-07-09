@@ -231,9 +231,9 @@ review_progress_fingerprint_since() {
     # Optional filename pattern scopes the fingerprint to one agent's artifacts.
     # Without it, any concurrent activity in the shared RESULTS_DIR resets the
     # stall timer for every agent, so a genuinely hung provider never trips it.
-    local name_pattern="${3:-}"
+    local name_pattern="${3:-*}"
     [[ -d "$results_dir" ]] || { echo "empty"; return 0; }
-    find "$results_dir" -maxdepth 1 -type f ${name_pattern:+-name "$name_pattern"} 2>/dev/null | while IFS= read -r file; do
+    find "$results_dir" -maxdepth 1 -type f -name "$name_pattern" 2>/dev/null | while IFS= read -r file; do
         local mtime size
         mtime=$(review_file_mtime_epoch "$file")
         [[ "$mtime" =~ ^[0-9]+$ ]] || mtime=0
@@ -244,15 +244,37 @@ review_progress_fingerprint_since() {
     done | sort | review_hash_stdin
 }
 
-# review_kill_tree <SIG> <pid>: depth-first kill of a process and all its
-# descendants. The provider CLI runs as a grandchild of the backgrounded
-# wrapper, so a single-level pkill -P can orphan it mid-billing (#190).
-review_kill_tree() {
-    local sig="$1" pid="$2" kid
-    for kid in $(pgrep -P "$pid" 2>/dev/null); do
-        review_kill_tree "$sig" "$kid"
-    done
-    kill "-${sig}" "$pid" 2>/dev/null || true
+# Snapshot descendants depth-first before signaling. Re-walking after TERM is
+# unsafe because a TERM-ignoring child can be reparented when its wrapper exits,
+# making it invisible to the later KILL pass.
+review_process_tree_depth_first() {
+    local pid="$1" child
+    [[ "$pid" =~ ^[0-9]+$ ]] || return 0
+    while IFS= read -r child; do
+        [[ "$child" =~ ^[0-9]+$ ]] || continue
+        review_process_tree_depth_first "$child"
+    done < <(pgrep -P "$pid" 2>/dev/null || true)
+    printf '%s\n' "$pid"
+}
+
+review_terminate_process_tree() {
+    local root_pid="$1"
+    local grace_secs="${2:-5}"
+    local process_tree target_pid
+    [[ "$grace_secs" =~ ^[0-9]+$ ]] || grace_secs=5
+    grace_secs=$((10#$grace_secs))
+    process_tree="$(review_process_tree_depth_first "$root_pid")"
+    [[ -n "$process_tree" ]] || return 0
+
+    while IFS= read -r target_pid; do
+        [[ "$target_pid" =~ ^[0-9]+$ ]] || continue
+        kill -TERM "$target_pid" 2>/dev/null || true
+    done <<< "$process_tree"
+    sleep "$grace_secs"
+    while IFS= read -r target_pid; do
+        [[ "$target_pid" =~ ^[0-9]+$ ]] || continue
+        kill -KILL "$target_pid" 2>/dev/null || true
+    done <<< "$process_tree"
 }
 
 review_run_agent_sync_progress() {
@@ -266,6 +288,8 @@ review_run_agent_sync_progress() {
     local poll_secs="${OCTOPUS_REVIEW_POLL_SECS:-30}"
     [[ "$stall_window" =~ ^[0-9]+$ ]] || stall_window=1800
     [[ "$poll_secs" =~ ^[0-9]+$ ]] || poll_secs=30
+    stall_window=$((10#$stall_window))
+    poll_secs=$((10#$poll_secs))
     [[ "$poll_secs" -lt 1 ]] && poll_secs=1
     mkdir -p "$results_dir" 2>/dev/null || true
 
@@ -296,9 +320,7 @@ review_run_agent_sync_progress() {
             log INFO "review_run: ${label} progress observed"
         elif [[ "$stall_window" -gt 0 && $((now - last_progress)) -ge "$stall_window" ]]; then
             log WARN "review_run: ${label} stalled after ${stall_window}s with no observable progress — stopping provider and preserving partial output"
-            review_kill_tree TERM "$pid"
-            sleep 5
-            review_kill_tree KILL "$pid"
+            review_terminate_process_tree "$pid" 5
             break
         fi
     done
@@ -329,6 +351,18 @@ review_openai_compat_empty_output_retryable() {
     [[ "${reconnect_count%%$'\n'*}" -gt 0 ]] || return 1
 }
 
+review_result_has_terminal_status() {
+    local result_file="$1"
+    [[ -f "$result_file" ]] || return 1
+    grep -qE '^## Status: (SUCCESS|FAILED|TIMEOUT)([[:space:](]|$)' "$result_file" 2>/dev/null
+}
+
+review_result_completed_successfully() {
+    local result_file="$1"
+    [[ -f "$result_file" ]] || return 1
+    grep -qE '^## Status: SUCCESS([[:space:](]|$)' "$result_file" 2>/dev/null
+}
+
 # review_wait_for_result_status: waits for one result file to become terminal,
 # using the same progress-stall semantics as Round 1. No wall-clock cap.
 review_wait_for_result_status() {
@@ -339,16 +373,22 @@ review_wait_for_result_status() {
     local stall_window="${5:-${OCTOPUS_REVIEW_STALL_WINDOW:-1800}}"
     local poll_secs="${6:-${OCTOPUS_REVIEW_POLL_SECS:-30}}"
     local poll_start last_progress last_fp current_fp
+    [[ "$stall_window" =~ ^[0-9]+$ ]] || stall_window=1800
+    [[ "$poll_secs" =~ ^[0-9]+$ ]] || poll_secs=30
+    stall_window=$((10#$stall_window))
+    poll_secs=$((10#$poll_secs))
+    [[ "$poll_secs" -lt 1 ]] && poll_secs=1
     poll_start=$(date +%s)
     last_progress="$poll_start"
     local own_pattern
     own_pattern="$(basename "$result_file")*"
     last_fp=$(review_progress_fingerprint_since "$poll_start" "$results_dir" "$own_pattern")
     while true; do
-        local status_count
-        status_count=$(grep -cE '^## Status:' "$result_file" 2>/dev/null || true)
-        status_count=${status_count:-0}
-        if [[ -f "$result_file" ]] && [[ "${status_count%%$'\n'*}" -gt 0 ]]; then
+        if review_result_has_terminal_status "$result_file"; then
+            break
+        fi
+        if ! kill -0 "$pid" 2>/dev/null; then
+            log WARN "review_run: ${label} exited without a terminal status"
             break
         fi
         current_fp=$(review_progress_fingerprint_since "$poll_start" "$results_dir" "$own_pattern")
@@ -358,9 +398,7 @@ review_wait_for_result_status() {
             log INFO "review_run: ${label} progress observed"
         elif [[ "$stall_window" -gt 0 && $(( $(date +%s) - last_progress )) -ge "$stall_window" ]]; then
             log WARN "review_run: ${label} stalled after ${stall_window}s — stopping retry"
-            review_kill_tree TERM "$pid"
-            sleep 5
-            review_kill_tree KILL "$pid"
+            review_terminate_process_tree "$pid" 5
             break
         fi
         sleep "$poll_secs"
@@ -379,7 +417,7 @@ review_extract_findings_array() {
 
     output_text=$(awk '/^## Output$/{found=1;next} /^## /{if(found)exit} found && !/^```(json|JSON)?$/{print}' "$review_md" 2>/dev/null || true)
     if [[ -n "$output_text" ]]; then
-        direct_json=$(printf '%s' "$output_text" | jq -c '.findings // empty' 2>/dev/null || true)
+        direct_json=$(printf '%s' "$output_text" | jq -c 'select((.findings | type) == "array") | .findings' 2>/dev/null || true)
         if [[ -n "$direct_json" && "$direct_json" != "null" ]]; then
             printf '%s\n' "$direct_json"
             return 0
@@ -764,6 +802,8 @@ Use this context as the requested behavior and constraints. Flag severity=normal
     local review_poll_secs="${OCTOPUS_REVIEW_POLL_SECS:-30}"
     [[ "$review_stall_window" =~ ^[0-9]+$ ]] || review_stall_window=1800
     [[ "$review_poll_secs" =~ ^[0-9]+$ ]] || review_poll_secs=30
+    review_stall_window=$((10#$review_stall_window))
+    review_poll_secs=$((10#$review_poll_secs))
     [[ "$review_poll_secs" -lt 1 ]] && review_poll_secs=1
     export TIMEOUT=0
 
@@ -848,42 +888,64 @@ ${agent_prompt_base}"
 
     fleet_dispatch_end
 
-    # Wait for all Round 1 agents with a progress watchdog instead of a wall timeout.
-    # timeout_secs=0 disables provider wall-clock caps; this loop only stops when
-    # every result is terminal or no result/output changes for the stall window.
-    local _poll_start _last_progress _last_fp _current_fp _round1_stalled=false
+    # Supervise each Round 1 agent independently. A healthy provider or an
+    # unrelated workflow writing RESULTS_DIR must not reset a hung peer's timer.
+    local _poll_start _now _idx _rf _pid _current_fp _round1_active
+    local round1_last_progress=()
+    local round1_last_fp=()
+    local round1_settled=()
     _poll_start=$(date +%s)
-    _last_progress="$_poll_start"
-    _last_fp=$(review_progress_fingerprint_since "$_poll_start" "$RESULTS_DIR")
-    while true; do
-        local _all_done=true
-        for _rf in "${round1_files[@]}"; do
-            if [[ ! -f "$_rf" ]] || [[ $(grep -cE '^## Status:' "$_rf" 2>/dev/null || true) -eq 0 ]]; then
-                _all_done=false
-                break
-            fi
-        done
-        [[ "$_all_done" == "true" ]] && break
+    _idx=0
+    while [[ "$_idx" -lt "${#round1_files[@]}" ]]; do
+        _rf="${round1_files[$_idx]}"
+        round1_last_progress[$_idx]="$_poll_start"
+        round1_last_fp[$_idx]=$(review_progress_fingerprint_since "$_poll_start" "$RESULTS_DIR" "$(basename "$_rf")*")
+        round1_settled[$_idx]=false
+        ((_idx++)) || true
+    done
 
-        _current_fp=$(review_progress_fingerprint_since "$_poll_start" "$RESULTS_DIR")
-        if [[ "$_current_fp" != "$_last_fp" ]]; then
-            _last_fp="$_current_fp"
-            _last_progress=$(date +%s)
-            log INFO "review_run: Round 1 progress observed"
-        elif [[ "$review_stall_window" -gt 0 && $(( $(date +%s) - _last_progress )) -ge "$review_stall_window" ]]; then
-            _round1_stalled=true
-            log WARN "review_run: Round 1 stalled after ${review_stall_window}s — collecting partial results"
-            for _pid in "${round1_pids[@]}"; do
-                pkill -TERM -P "$_pid" 2>/dev/null || true
-                kill -TERM "$_pid" 2>/dev/null || true
-            done
-            sleep 5
-            for _pid in "${round1_pids[@]}"; do
-                pkill -KILL -P "$_pid" 2>/dev/null || true
-                kill -KILL "$_pid" 2>/dev/null || true
-            done
-            break
-        fi
+    while true; do
+        _round1_active=false
+        _now=$(date +%s)
+        _idx=0
+        while [[ "$_idx" -lt "${#round1_files[@]}" ]]; do
+            if [[ "${round1_settled[$_idx]:-false}" == "true" ]]; then
+                ((_idx++)) || true
+                continue
+            fi
+
+            _rf="${round1_files[$_idx]}"
+            _pid="${round1_pids[$_idx]}"
+            if review_result_has_terminal_status "$_rf"; then
+                round1_settled[$_idx]=true
+                ((_idx++)) || true
+                continue
+            fi
+            if ! kill -0 "$_pid" 2>/dev/null; then
+                log WARN "review_run: Round 1 ${round1_agent_types[$_idx]}/${round1_roles[$_idx]} exited without a terminal status"
+                round1_settled[$_idx]=true
+                ((_idx++)) || true
+                continue
+            fi
+
+            _current_fp=$(review_progress_fingerprint_since "$_poll_start" "$RESULTS_DIR" "$(basename "$_rf")*")
+            if [[ "$_current_fp" != "${round1_last_fp[$_idx]}" ]]; then
+                round1_last_fp[$_idx]="$_current_fp"
+                round1_last_progress[$_idx]="$_now"
+                log INFO "review_run: Round 1 ${round1_agent_types[$_idx]}/${round1_roles[$_idx]} progress observed"
+            elif [[ "$review_stall_window" -gt 0 && $((_now - ${round1_last_progress[$_idx]})) -ge "$review_stall_window" ]]; then
+                log WARN "review_run: Round 1 ${round1_agent_types[$_idx]}/${round1_roles[$_idx]} stalled after ${review_stall_window}s — collecting partial result"
+                review_terminate_process_tree "$_pid" 5
+                round1_settled[$_idx]=true
+                ((_idx++)) || true
+                continue
+            fi
+
+            _round1_active=true
+            ((_idx++)) || true
+        done
+
+        [[ "$_round1_active" == "false" ]] && break
         sleep "$review_poll_secs"
     done
     for _pid in "${round1_pids[@]}"; do wait "$_pid" 2>/dev/null || true; done
@@ -976,11 +1038,11 @@ ${round1_prompts[$retry_idx]}"
                 octo_event_emit "review.finding" provider="$provider_key" severity="${_rf_sev:-unknown}" message="${_rf_title:-}" round="1" || true
             done < <(printf '%s' "$agent_findings" | jq -r '.[]? | [(.severity // "unknown"), (.title // .message // "")] | @tsv' 2>/dev/null)
         fi
-        if [[ $(grep -cE "Status: (FAILED|TIMEOUT)" "$f" 2>/dev/null || true) -gt 0 ]]; then
+        if ! review_result_completed_successfully "$f"; then
             ((round1_partial_count++)) || true
-            echo "${provider_key}|fallback|Round 1 agent failed or timed out" >> "$provider_status_file"
-        elif [[ "$agent_findings" != "[]" ]]; then
-            echo "${provider_key}|ok|Round 1 findings" >> "$provider_status_file"
+            echo "${provider_key}|fallback|Round 1 agent did not complete successfully" >> "$provider_status_file"
+        else
+            echo "${provider_key}|ok|Round 1 completed" >> "$provider_status_file"
         fi
         ((idx++)) || true
     done
