@@ -136,13 +136,14 @@ droid_count = len(list(droid_dir.glob('*.md'))) if droid_dir.is_dir() else 0
 manifest_path = pathlib.Path('.claude-plugin/plugin-manifest.json')
 manifest = json.loads(manifest_path.read_text())
 manifest['version'] = version
-components = manifest.get('components', {})
-components.get('commands', {})['count'] = command_count
-components.get('skills', {})['count'] = skill_count
-agents = components.get('agents', {})
+components = manifest.setdefault('components', {})
+components.setdefault('commands', {})['count'] = command_count
+components.setdefault('skills', {})['count'] = skill_count
+agents = components.setdefault('agents', {})
 agents['count'] = persona_count + droid_count
-agents.get('breakdown', {})['personas'] = persona_count
-agents.get('breakdown', {})['droids'] = droid_count
+breakdown = agents.setdefault('breakdown', {})
+breakdown['personas'] = persona_count
+breakdown['droids'] = droid_count
 manifest_path.write_text(json.dumps(manifest, indent=2) + '\n')
 print('   .claude-plugin/plugin-manifest.json')
 

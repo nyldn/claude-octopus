@@ -1,6 +1,7 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # tests/unit/test-release-sh-worktree-flow.sh
 # Regression tests for the release.sh worktree/branch/remote flow (issue #603).
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
