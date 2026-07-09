@@ -80,8 +80,11 @@ test_release_targets_merge_sha() {
 test_fetch_head_approach_works_when_main_checked_out_elsewhere() {
     test_case "fetch+FETCH_HEAD resolves the merge SHA without touching main's checkout"
 
-    local sandbox
-    sandbox=$(mktemp -d)
+    local sandbox="/tmp/octopus-tests-$$-worktree"
+    rm -rf "$sandbox"
+    mkdir -p "$sandbox"
+    trap 'rm -rf "$sandbox"' RETURN
+
     local origin="$sandbox/origin.git"
     local main_wt="$sandbox/main-worktree"
     local release_wt="$sandbox/release-worktree"
@@ -109,7 +112,7 @@ test_fetch_head_approach_works_when_main_checked_out_elsewhere() {
         git config user.name "Test"
         git commit --quiet --allow-empty -m "chore: release v9.99.0"
         git push --quiet origin main
-    ) || { test_fail "sandbox setup failed"; rm -rf "$sandbox"; return; }
+    ) || { test_fail "sandbox setup failed"; return; }
 
     local expected_sha
     expected_sha=$(git -C "$origin" rev-parse main)
@@ -118,18 +121,14 @@ test_fetch_head_approach_works_when_main_checked_out_elsewhere() {
     # checked out in $main_wt, so a checkout in $release_wt must fail.
     if (cd "$release_wt" && git checkout main --quiet) 2>/dev/null; then
         test_fail "test invariant broken: git checkout main unexpectedly succeeded while main was checked out elsewhere"
-        rm -rf "$sandbox"
         return
     fi
 
     local resolved_sha
     if ! resolved_sha=$(cd "$release_wt" && git fetch --quiet origin main && git rev-parse FETCH_HEAD); then
         test_fail "git fetch + rev-parse FETCH_HEAD failed from the release worktree"
-        rm -rf "$sandbox"
         return
     fi
-
-    rm -rf "$sandbox"
 
     if [[ "$resolved_sha" == "$expected_sha" ]]; then
         test_pass
