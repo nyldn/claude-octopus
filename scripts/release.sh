@@ -39,6 +39,7 @@ VERSION="$1"
 SUMMARY="$2"
 DATE=$(date +%Y-%m-%d)
 BRANCH="release/v${VERSION}"
+REMOTE="${OCTO_RELEASE_REMOTE:-origin}"
 
 cd "$PLUGIN_ROOT"
 
@@ -49,12 +50,20 @@ if ! git diff --quiet 2>/dev/null; then
     exit 1
 fi
 
-if [[ "$(git branch --show-current)" != "main" ]]; then
-    echo "Error: must be on main branch."
+# RELEASING.md §0 allows two flows: run from main and let this script cut the
+# release branch, or (worktree flow) cut ${BRANCH} from origin/main yourself
+# and run this script already checked out on it.
+CURRENT_BRANCH="$(git branch --show-current)"
+if [[ "$CURRENT_BRANCH" != "main" && "$CURRENT_BRANCH" != "$BRANCH" ]]; then
+    echo "Error: must be on main, or on ${BRANCH} cut from main (see RELEASING.md §0)."
     exit 1
 fi
+ON_RELEASE_BRANCH=false
+[[ "$CURRENT_BRANCH" == "$BRANCH" ]] && ON_RELEASE_BRANCH=true
 
-git pull --quiet origin main
+if [[ "$ON_RELEASE_BRANCH" == "false" ]]; then
+    git pull --quiet "$REMOTE" main
+fi
 
 CURRENT=$(python3 -c "import json; print(json.load(open('package.json'))['version'])")
 echo "Releasing: ${CURRENT} → ${VERSION}"
@@ -120,6 +129,22 @@ persona_count = len(list(persona_dir.glob('*.md')))
 if persona_count == 0:
     print('ERROR: agents/personas contains no persona markdown files', file=sys.stderr)
     raise SystemExit(1)
+
+droid_dir = pathlib.Path('agents/droids')
+droid_count = len(list(droid_dir.glob('*.md'))) if droid_dir.is_dir() else 0
+
+manifest_path = pathlib.Path('.claude-plugin/plugin-manifest.json')
+manifest = json.loads(manifest_path.read_text())
+manifest['version'] = version
+components = manifest.get('components', {})
+components.get('commands', {})['count'] = command_count
+components.get('skills', {})['count'] = skill_count
+agents = components.get('agents', {})
+agents['count'] = persona_count + droid_count
+agents.get('breakdown', {})['personas'] = persona_count
+agents.get('breakdown', {})['droids'] = droid_count
+manifest_path.write_text(json.dumps(manifest, indent=2) + '\n')
+print('   .claude-plugin/plugin-manifest.json')
 
 count_phrase = f'{persona_count} personas, {command_count} commands, {skill_count} skills'
 expert_count_phrase = f'{persona_count} expert personas, {command_count} commands, {skill_count} skills'
@@ -192,8 +217,10 @@ echo ""
 # --- 2. Commit ---
 
 echo "2/8 Committing..."
-git checkout -b "$BRANCH" --quiet
-git add package.json .claude-plugin/plugin.json .claude-plugin/marketplace.json .claude-plugin/routines.json .codex-plugin/plugin.json .cursor-plugin/plugin.json .factory-plugin/plugin.json .factory-plugin/marketplace.json README.md CHANGELOG.md
+if [[ "$ON_RELEASE_BRANCH" == "false" ]]; then
+    git checkout -b "$BRANCH" --quiet
+fi
+git add package.json .claude-plugin/plugin.json .claude-plugin/marketplace.json .claude-plugin/plugin-manifest.json .claude-plugin/routines.json .codex-plugin/plugin.json .cursor-plugin/plugin.json .factory-plugin/plugin.json .factory-plugin/marketplace.json README.md CHANGELOG.md
 git commit --quiet -m "chore: release v${VERSION} — ${SUMMARY}
 
 Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"
@@ -204,7 +231,7 @@ echo ""
 
 echo "3/8 Pushing..."
 # --no-verify: skip pre-push hook (CI validates on PR; pre-push re-runs tests already run at commit)
-PUSH_OUTPUT=$(git push --quiet --no-verify -u origin "$BRANCH" 2>&1) || {
+PUSH_OUTPUT=$(git push --quiet --no-verify -u "$REMOTE" "$BRANCH" 2>&1) || {
     printf '%s\n' "$PUSH_OUTPUT" | grep -v "^remote:" || true
     echo "   ERROR: Push failed. Aborting release."
     exit 1
@@ -267,7 +294,7 @@ echo ""
 echo "6/8 Merging and creating release..."
 gh pr merge "$PR_NUM" --merge --quiet 2>/dev/null || gh pr merge "$PR_NUM" --merge
 git checkout main --quiet
-git pull --quiet origin main
+git pull --quiet "$REMOTE" main
 git branch -d "$BRANCH" --quiet 2>/dev/null || true
 
 gh release create "v${VERSION}" \
