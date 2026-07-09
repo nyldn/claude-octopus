@@ -152,6 +152,11 @@ check_deps() {
         else
             missing+=("claude-mem:claude-mem plugin — persistent cross-session memory")
         fi
+        if grep -q 'agentmemory' "$plugins_json" 2>/dev/null || command -v agentmemory >/dev/null 2>&1; then
+            ok+=("agentmemory:agentmemory companion detected")
+        else
+            warnings+=("agentmemory:agentmemory companion — optional persistent cross-agent memory")
+        fi
         if grep -q '"document-skills@anthropic-agent-skills": true' "$plugins_json" 2>/dev/null; then
             ok+=("document-skills:document-skills plugin installed")
         else
@@ -237,6 +242,14 @@ install_plugins() {
         echo "📦 claude-mem — Persistent cross-session memory"
         echo "   Enables /mem-search, /make-plan, /do workflows"
         echo "   Install: /plugin install claude-mem@thedotmack"
+        echo ""
+        any_missing=true
+    fi
+
+    if [[ -f "$settings" ]] && ! grep -q 'agentmemory' "$settings" 2>/dev/null && ! command -v agentmemory >/dev/null 2>&1; then
+        echo "📦 agentmemory — Persistent cross-agent memory (optional)"
+        echo "   Enables shared memory through MCP/REST across Claude Code, Codex, Cursor, and other agents"
+        echo "   Install: npm install -g @agentmemory/agentmemory && agentmemory connect claude-code"
         echo ""
         any_missing=true
     fi

@@ -42,6 +42,8 @@ echo "=== Companions ==="
 printf "graphify:%s\n" "$(command -v graphify >/dev/null 2>&1 && echo installed || echo missing)"
 GRAPHIFY_OUT_DIR="${GRAPHIFY_OUT:-graphify-out}"
 printf "graphify_graph:%s\n" "$([ -f "${GRAPHIFY_OUT_DIR}/graph.json" ] && [ -f "${GRAPHIFY_OUT_DIR}/GRAPH_REPORT.md" ] && echo available || echo missing)"
+printf "agentmemory:%s\n" "$(command -v agentmemory >/dev/null 2>&1 && echo installed || echo missing)"
+printf "agentmemory_server:%s\n" "$(curl -sf --max-time 1 "${AGENTMEMORY_URL:-http://localhost:3111}/agentmemory/livez" >/dev/null 2>&1 && echo running || echo missing)"
 echo "=== Token Optimization ==="
 printf "rtk:%s\n" "$(command -v rtk >/dev/null 2>&1 && echo "installed $(rtk --version 2>&1 | head -1)" || echo missing)"
 printf "rtk_hook:%s\n" "$(if grep -q 'rtk' "${HOME}/.claude/settings.json" 2>/dev/null; then echo active; else echo missing; fi)"
@@ -72,6 +74,11 @@ copilot_status="$(status_optional copilot)"
 qwen_status="$(status_optional qwen)"
 opencode_status="$(status_optional opencode)"
 vibe_status="$(status_optional vibe)"
+graphify_status="$(status_optional graphify)"
+GRAPHIFY_OUT_DIR="${GRAPHIFY_OUT:-graphify-out}"
+if [[ -f "${GRAPHIFY_OUT_DIR}/graph.json" && -f "${GRAPHIFY_OUT_DIR}/GRAPH_REPORT.md" ]]; then graphify_graph_status="Graph available ✓"; else graphify_graph_status="Graph missing"; fi
+agentmemory_status="$(status_optional agentmemory)"
+if curl -sf --max-time 1 "${AGENTMEMORY_URL:-http://localhost:3111}/agentmemory/livez" >/dev/null 2>&1; then agentmemory_server_status="Running ✓"; else agentmemory_server_status="Not running"; fi
 if command -v ollama >/dev/null 2>&1 && curl -sf http://localhost:11434/api/tags >/dev/null 2>&1; then ollama_status="Running ✓"; elif command -v ollama >/dev/null 2>&1; then ollama_status="Installed"; else ollama_status="Not installed"; fi
 cat <<BANNER
 🐙 Octopus Setup
@@ -87,6 +94,10 @@ Providers:
   🔶 Vibe (Mistral): ${vibe_status}
   ⚫ Ollama:         ${ollama_status}
   🔵 Claude:         Available ✓
+
+Companions:
+  Graphify:         ${graphify_status} (${graphify_graph_status})
+  agentmemory:      ${agentmemory_status} (${agentmemory_server_status})
 BANNER
 ```
 
@@ -113,6 +124,7 @@ Token Optimization:
 
 Companions:
   Graphify:         [CLI installed ✓ / Missing] [Graph available ✓ / Missing]
+  agentmemory:      [CLI installed ✓ / Missing] [Server running ✓ / Not running]
 
 Session:
   Remote/Web:       [Yes / No]
@@ -199,6 +211,7 @@ AskUserQuestion({
       {label: "Configure models", description: "Set which models are used for each workflow phase → launches /octo:model-config"},
       {label: "Set up token optimization (RTK)", description: "Install RTK for 60-90% token savings on bash output"},
       {label: "Set up Graphify companion", description: "Detect or install Graphify for optional knowledge-graph context"},
+      {label: "Set up memory companion", description: "Install or connect agentmemory for persistent cross-agent memory"},
       {label: "Change work mode", description: "Switch between Dev mode and Knowledge Work mode"},
       {label: "Set project tier", description: "Set OCTO_TIER=prototype|mvp|production as a routing hint"},
       {label: "Fine-tune preferences", description: "Auto-routing, banner verbosity, telemetry, cost mode"},
@@ -215,6 +228,7 @@ Route based on selection:
 - **Configure models** → Invoke `/octo:model-config` (the interactive model config wizard)
 - **Set up RTK** → Jump to the RTK section below
 - **Set up Graphify companion** → Jump to the Graphify Companion section below
+- **Set up memory companion** → Jump to the Memory Companion section below
 - **Change work mode** → Jump to the Work Mode section (STEP 4)
 - **Set project tier** → Jump to Project Tier Hint (STEP 4c)
 - **Fine-tune preferences** → Jump to the Fine-tune section (STEP 5)
@@ -398,6 +412,34 @@ graphify hook install
 ```
 
 Use `OCTOPUS_GRAPHIFY=0` to disable passive Graphify context injection.
+
+## Memory Companion
+
+agentmemory is optional and is not a provider. Octopus works without it. If agentmemory is installed and connected as an MCP server, Octopus can use it through the existing memory contract for cross-session context; if MCP tools are unavailable, Octopus falls back to the local REST bridge at `${AGENTMEMORY_URL:-http://localhost:3111}`.
+
+To install and connect agentmemory when the user opts in:
+
+```bash
+npm install -g @agentmemory/agentmemory
+agentmemory --version
+agentmemory connect claude-code
+```
+
+For Codex or Cursor installs, use the matching connector instead:
+
+```bash
+agentmemory connect codex
+agentmemory connect cursor
+```
+
+Start or verify the local server:
+
+```bash
+agentmemory &
+curl -fsS "${AGENTMEMORY_URL:-http://localhost:3111}/agentmemory/health"
+```
+
+If the user prefers not to install globally, use `npx -y @agentmemory/agentmemory@latest` in place of `agentmemory`. Use `OCTOPUS_MEMORY_BACKEND=agentmemory` to force Octopus to prefer agentmemory; `OCTOPUS_MEMORY_BACKEND=auto` detects an agentmemory MCP registration or `AGENTMEMORY_URL`.
 
 ## Remote/Web Session Defaults
 
