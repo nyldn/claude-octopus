@@ -293,11 +293,22 @@ echo ""
 
 echo "6/8 Merging and creating release..."
 gh pr merge "$PR_NUM" --merge --quiet 2>/dev/null || gh pr merge "$PR_NUM" --merge
-git checkout main --quiet
-git pull --quiet "$REMOTE" main
-git branch -d "$BRANCH" --quiet 2>/dev/null || true
+
+if [[ "$ON_RELEASE_BRANCH" == "true" ]]; then
+    # main is normally still checked out in the worktree this release branch
+    # was cut from; don't touch this worktree's checkout or delete the
+    # branch we're standing on. Just fetch the merge commit to tag it.
+    git fetch --quiet "$REMOTE" main
+    MERGE_SHA=$(git rev-parse FETCH_HEAD)
+else
+    git checkout main --quiet
+    git pull --quiet "$REMOTE" main
+    git branch -d "$BRANCH" --quiet 2>/dev/null || true
+    MERGE_SHA=$(git rev-parse main)
+fi
 
 gh release create "v${VERSION}" \
+    --target "$MERGE_SHA" \
     --title "v${VERSION} — ${SUMMARY}" \
     --notes "### Changed
 - ${SUMMARY}
@@ -305,6 +316,7 @@ gh release create "v${VERSION}" \
 **Full Changelog**: https://github.com/nyldn/claude-octopus/compare/v${CURRENT}...v${VERSION}" \
     --quiet 2>/dev/null || \
 gh release create "v${VERSION}" \
+    --target "$MERGE_SHA" \
     --title "v${VERSION} — ${SUMMARY}" \
     --notes "### Changed
 - ${SUMMARY}
