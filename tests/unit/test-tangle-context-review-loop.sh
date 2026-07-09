@@ -52,7 +52,7 @@ assert_contains "$REVIEW" "return 1" "review no-diff returns non-zero"
 
 QUALITY="$PROJECT_ROOT/scripts/lib/quality.sh"
 assert_contains "$QUALITY" "OCTOPUS_DESIGN_REVIEW_TIMEOUT:-0" "design review uses no wall timeout by default"
-assert_contains "$QUALITY" "timeout=none" "design review reports no wall timeout"
+assert_contains "$QUALITY" "_design_timeout_label" "design review reports effective timeout label"
 
 HEARTBEAT="$PROJECT_ROOT/scripts/lib/heartbeat.sh"
 assert_contains "$HEARTBEAT" "timeout_secs=0 means no absolute timeout" "timeout zero disables absolute timeout"

@@ -512,8 +512,13 @@ Be concise and specific. This is a planning exercise, not implementation."
         design_synth_timeout=0
     fi
 
+    local _design_timeout_label="none"
+    [[ "$design_timeout" != "0" ]] && _design_timeout_label="${design_timeout}s"
+    local _synth_timeout_label="none"
+    [[ "$design_synth_timeout" != "0" ]] && _synth_timeout_label="${design_synth_timeout}s"
+
     log INFO "Design review: gathering provider approaches..."
-    log INFO "Design review agents: codex=${design_codex_agent}, agy=${design_agy_agent}, claude=${design_claude_agent}, synthesis=${design_synthesis_agent}, timeout=none, synth_timeout=none"
+    log INFO "Design review agents: codex=${design_codex_agent}, agy=${design_agy_agent}, claude=${design_claude_agent}, synthesis=${design_synthesis_agent}, timeout=${_design_timeout_label}, synth_timeout=${_synth_timeout_label}"
 
     codex_approach=$(OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="design-review-ceremony" run_agent_sync "$design_codex_agent" "$ceremony_prompt" "$design_timeout" "implementer" "ceremony" 2>/dev/null) || true
     gemini_approach=$(OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="design-review-ceremony" run_agent_sync "$design_agy_agent" "$ceremony_prompt" "$design_timeout" "researcher" "ceremony" 2>/dev/null) || true
@@ -521,7 +526,7 @@ Be concise and specific. This is a planning exercise, not implementation."
 
     # Synthesize conflicts and resolution
     local synthesis
-    synthesis=$(run_agent_sync "$design_synthesis_agent" "You are synthesizing a design review ceremony.
+    synthesis=$(OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="design-review-ceremony" run_agent_sync "$design_synthesis_agent" "You are synthesizing a design review ceremony.
 
 Three providers stated their approach to this task:
 
