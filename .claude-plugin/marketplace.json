@@ -15,8 +15,8 @@
         "source": "url",
         "url": "https://github.com/nyldn/claude-octopus.git"
       },
-      "description": "v9.50.0 - Claude Code 2026 compatibility layer: routines manifest, SubagentStop quality/cost gate, /octo:usage report, worktree bgIsolation opt-out, Claude Agent SDK seat (Opus 4.8, 1M context), starter skills pack, /plugin browse manifest. 42 agents, 50 commands, 58 skills. 32 personas, 50 commands, 58 skills. Run /octo:setup.",
-      "version": "9.50.0",
+      "description": "v9.51.0 - Claude Code 2026 compatibility layer: routines manifest, SubagentStop quality/cost gate, /octo:usage report, worktree bgIsolation opt-out, Claude Agent SDK seat (Opus 4.8, 1M context), starter skills pack, /plugin browse manifest. 42 agents, 50 commands, 58 skills. 32 personas, 50 commands, 58 skills. Run /octo:setup.",
+      "version": "9.51.0",
       "author": {
         "name": "nyldn",
         "url": "https://github.com/nyldn"

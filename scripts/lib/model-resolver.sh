@@ -10,6 +10,9 @@ _model_resolver_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if ! declare -f _is_cursor_agent_binary >/dev/null 2>&1; then
     source "${_model_resolver_lib_dir}/cursor-agent.sh" 2>/dev/null || true
 fi
+if ! declare -f fable5_maybe_reroute >/dev/null 2>&1; then
+    source "${_model_resolver_lib_dir}/fable5.sh" 2>/dev/null || true
+fi
 if ! declare -f is_claude_agent_type >/dev/null 2>&1; then
     source "${_model_resolver_lib_dir}/routing.sh" 2>/dev/null || true
 source "${_model_resolver_lib_dir}/openai-compatible.sh" 2>/dev/null || true
@@ -134,7 +137,12 @@ resolve_octopus_model() {
             log ERROR "Invalid model name in $env_var"
             return 1
         fi
-        echo "${!env_var}"
+        # v9.51: Fable 5 security reroute applies to explicit env pins too.
+        if declare -f fable5_maybe_reroute >/dev/null 2>&1; then
+            fable5_maybe_reroute "${!env_var}" "$role" "$agent_type" "$phase"
+        else
+            echo "${!env_var}"
+        fi
         return 0
     fi
 
@@ -365,6 +373,14 @@ resolve_octopus_model() {
             *)              resolved_model="gpt-5.5" ;; # Safest universal fallback
         esac
         [[ -n "$_trace" ]] && echo "[model-trace] Tier 7 (hardcoded fallback): $resolved_model ← SELECTED" >&2
+    fi
+
+    # v9.51: Fable 5 security reroute — security dispatches never run on
+    # claude-fable-5 (safety classifiers can refuse adversarial phrasing).
+    # Applied before caching so the cache key (which includes phase/role)
+    # stores the rerouted value.
+    if declare -f fable5_maybe_reroute >/dev/null 2>&1; then
+        resolved_model="$(fable5_maybe_reroute "$resolved_model" "$role" "$agent_type" "$phase")"
     fi
 
     [[ -n "$_trace" ]] && echo "[model-trace] ► Result: $resolved_model" >&2
