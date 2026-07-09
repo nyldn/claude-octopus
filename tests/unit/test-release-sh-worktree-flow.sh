@@ -25,8 +25,10 @@ test_remote_configurable() {
 test_preflight_accepts_release_branch() {
     test_case "preflight accepts either main or the target release branch"
 
-    if grep -A 4 'CURRENT_BRANCH="\$(git branch --show-current)"' "$RELEASE_SH" \
-        | grep -q '"\$CURRENT_BRANCH" != "main" && "\$CURRENT_BRANCH" != "\$BRANCH"'; then
+    local preflight_block
+    preflight_block="$(grep -A 4 'CURRENT_BRANCH="\$(git branch --show-current)"' "$RELEASE_SH" || true)"
+
+    if grep -q '"\$CURRENT_BRANCH" != "main" && "\$CURRENT_BRANCH" != "\$BRANCH"' <<< "$preflight_block"; then
         test_pass
     else
         test_fail "preflight branch check no longer allows the worktree-flow release branch"
@@ -37,8 +39,7 @@ test_plugin_manifest_staged() {
     test_case "plugin-manifest.json is version-bumped and staged"
 
     if grep -q "plugin-manifest.json" "$RELEASE_SH" \
-        && grep -q "^git add" "$RELEASE_SH" \
-        && grep "^git add" "$RELEASE_SH" | grep -q "plugin-manifest.json"; then
+        && grep -qE '^git add.*plugin-manifest\.json' "$RELEASE_SH"; then
         test_pass
     else
         test_fail "plugin-manifest.json is not bumped/staged by the version-update step"
@@ -48,13 +49,14 @@ test_plugin_manifest_staged() {
 test_post_merge_skips_checkout_on_release_branch() {
     test_case "post-merge step fetches instead of checking out main when already on the release branch"
 
-    local merge_block
+    local merge_block checkout_context
     merge_block=$(awk '/# --- 6\. Merge \+ Release/,/^gh release create/' "$RELEASE_SH")
+    checkout_context="$(grep -B2 'git checkout main' <<< "$merge_block" || true)"
 
-    if echo "$merge_block" | grep -q 'ON_RELEASE_BRANCH" == "true"' \
-        && echo "$merge_block" | grep -q 'git fetch --quiet "\$REMOTE" main' \
-        && echo "$merge_block" | grep -q 'MERGE_SHA=\$(git rev-parse FETCH_HEAD)' \
-        && ! echo "$merge_block" | grep -B2 'git checkout main' | grep -q 'ON_RELEASE_BRANCH" == "true"'; then
+    if grep -q 'ON_RELEASE_BRANCH" == "true"' <<< "$merge_block" \
+        && grep -q 'git fetch --quiet "\$REMOTE" main' <<< "$merge_block" \
+        && grep -q 'MERGE_SHA=\$(git rev-parse FETCH_HEAD)' <<< "$merge_block" \
+        && ! grep -q 'ON_RELEASE_BRANCH" == "true"' <<< "$checkout_context"; then
         test_pass
     else
         test_fail "post-merge step still unconditionally checks out main (breaks when main is checked out in another worktree)"

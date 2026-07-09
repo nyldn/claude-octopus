@@ -43,6 +43,11 @@ REMOTE="${OCTO_RELEASE_REMOTE:-origin}"
 
 cd "$PLUGIN_ROOT"
 
+# gh infers the target repo from remotes independently of $REMOTE, so a dev
+# clone pointing $REMOTE at the canonical repo (with origin left on a fork)
+# would otherwise create the PR/release against the wrong repo. Pin it.
+REPO_SLUG="$(git remote get-url "$REMOTE" | sed -E 's#^(git@|https://)([^:/]+)[:/]##; s#\.git$##')"
+
 # --- Preflight ---
 
 if ! git diff --quiet 2>/dev/null; then
@@ -245,6 +250,8 @@ echo ""
 
 echo "4/8 Creating PR..."
 PR_URL=$(gh pr create \
+    -R "$REPO_SLUG" \
+    --head "$BRANCH" \
     --title "chore: release v${VERSION}" \
     --body "## Release v${VERSION}
 
@@ -263,7 +270,7 @@ echo "5/8 Waiting for CI..."
 # Poll until required checks finish (max 5 minutes)
 DEADLINE=$((SECONDS + 300))
 while [[ $SECONDS -lt $DEADLINE ]]; do
-    CHECKS=$(gh pr checks "$PR_NUM" --json name,state 2>&1 || true)
+    CHECKS=$(gh pr checks "$PR_NUM" -R "$REPO_SLUG" --json name,state 2>&1 || true)
     SMOKE=$(octo_pr_check_state "$CHECKS" "Smoke Tests")
     UNIT=$(octo_pr_check_state "$CHECKS" "Unit Tests")
     INTEG=$(octo_pr_check_state "$CHECKS" "Integration Tests")
@@ -275,7 +282,7 @@ while [[ $SECONDS -lt $DEADLINE ]]; do
 
     if [[ "$SMOKE" == "fail" || "$UNIT" == "fail" || "$INTEG" == "fail" ]]; then
         echo "   CI FAILED — Smoke: ${SMOKE} | Unit: ${UNIT} | Integration: ${INTEG}"
-        echo "   Fix failures, then run: gh pr merge ${PR_NUM} --merge"
+        echo "   Fix failures, then run: gh pr merge ${PR_NUM} --merge -R ${REPO_SLUG}"
         exit 1
     fi
 
@@ -284,8 +291,8 @@ done
 
 if [[ $SECONDS -ge $DEADLINE ]]; then
     echo "   CI timed out after 5 minutes."
-    echo "   Check manually: gh pr checks ${PR_NUM}"
-    echo "   Then merge: gh pr merge ${PR_NUM} --merge"
+    echo "   Check manually: gh pr checks ${PR_NUM} -R ${REPO_SLUG}"
+    echo "   Then merge: gh pr merge ${PR_NUM} --merge -R ${REPO_SLUG}"
     exit 1
 fi
 echo ""
@@ -293,7 +300,7 @@ echo ""
 # --- 6. Merge + Release ---
 
 echo "6/8 Merging and creating release..."
-gh pr merge "$PR_NUM" --merge --quiet 2>/dev/null || gh pr merge "$PR_NUM" --merge
+gh pr merge "$PR_NUM" -R "$REPO_SLUG" --merge --quiet 2>/dev/null || gh pr merge "$PR_NUM" -R "$REPO_SLUG" --merge
 
 if [[ "$ON_RELEASE_BRANCH" == "true" ]]; then
     # main is normally still checked out in the worktree this release branch
@@ -309,6 +316,7 @@ else
 fi
 
 gh release create "v${VERSION}" \
+    -R "$REPO_SLUG" \
     --target "$MERGE_SHA" \
     --title "v${VERSION} — ${SUMMARY}" \
     --notes "### Changed
@@ -317,6 +325,7 @@ gh release create "v${VERSION}" \
 **Full Changelog**: https://github.com/nyldn/claude-octopus/compare/v${CURRENT}...v${VERSION}" \
     --quiet 2>/dev/null || \
 gh release create "v${VERSION}" \
+    -R "$REPO_SLUG" \
     --target "$MERGE_SHA" \
     --title "v${VERSION} — ${SUMMARY}" \
     --notes "### Changed
