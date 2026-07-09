@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "9.51.0",
-  "description": "v9.51.0 - Fable 5 support: dispatch profile block, auto-enforced guards on claude-fable-5 pins (security reroute to Opus 4.8, effort clamp, refusal retry), SessionStart guidance hook; plus agent orientation layer (RELEASING.md, provider wiring map, make ci-local, exec-bit CI lint). Run /octo:setup.",
+  "version": "9.52.0",
+  "description": "v9.52.0 - Reliability wave: tangle contextual review correction loop with hard round ceiling, progress-supervised review rounds (per-agent stall watch, descendant-tree kills), council diversity and agy pin fixes, marketplace generator source-of-truth fix, provider troubleshooting runbook and cost-expectations docs. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"
