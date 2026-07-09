@@ -10,8 +10,8 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "council model selection fixes (#600)"
 
-TMP_DIR="$(mktemp -d)"
-trap 'rm -rf "$TMP_DIR"' EXIT
+TEST_TMP_DIR="/tmp/octopus-tests-$$"
+trap 'rm -rf "$TEST_TMP_DIR"' EXIT
 
 # ── agy stdin leak ─────────────────────────────────────────────────────────
 # The real agy CLI consumes stdin. When validate_agy_model_name ran
@@ -20,7 +20,7 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 # model list, so valid pins were rejected. The mock reproduces that behavior:
 # with data on stdin it returns garbage; with empty stdin (the </dev/null fix)
 # it returns the model list.
-STUB_BIN="$TMP_DIR/bin"
+STUB_BIN="$TEST_TMP_DIR/bin"
 mkdir -p "$STUB_BIN"
 cat > "$STUB_BIN/agy" <<'MOCK_AGY'
 #!/usr/bin/env bash
