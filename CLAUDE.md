@@ -335,8 +335,8 @@ After changing commands, skills, agents, or `plugin.json`: run `make sync`. Befo
 
 ### Hard rules (each one has broken a real PR)
 
-- Never hand-write component counts into `plugin.json`'s description; the marketplace generator appends its own counts and `--check` fails on the collision.
-- Shell scripts and Python helpers stay `100755`. Verify before push: `git diff origin/main...HEAD --summary | grep "mode change"` must be empty. CI enforces this (Portability Lint job; `allow-mode-change` PR label bypasses when intentional).
+- Never hand-write component counts into `plugin.json`'s description; the marketplace generator appends its own counts and `--check` fails on the collision. The generator derives the marketplace blurb from `plugin.json`'s description — to change it, edit `plugin.json` and run `make sync`, never `marketplace.json` itself.
+- Shell scripts and Python helpers stay `100755`. Verify before push: `git diff origin/main...HEAD --summary | grep "mode change"` must be empty. CI enforces this (Portability Lint job; `allow-mode-change` PR label bypasses when intentional). Local test runs (`make ci-local`, some unit suites) chmod test fixtures as a side effect — recheck modes after every local test run, not just after editing.
 - Provider case globs are order-sensitive: `claude-sdk*` before `claude*`, `gemini-image` before `gemini*`. A shadowed arm fails silently.
 - `provider-routing.sh` has TWO provider whitelists (plus two matching error strings). Update all four sites or dispatch rejects the provider inconsistently.
 - In shell, quote env assignments as whole arguments: `"SOME_API_KEY=${VAR}"`, not `SOME_API_KEY="${VAR}"`. The expert-review secret scanner false-positives on the latter.
@@ -348,7 +348,7 @@ After changing commands, skills, agents, or `plugin.json`: run `make sync`. Befo
 
 ### Memory ruling (single source of truth)
 
-beads (`bd`) is the system of record. Known failure mode: pending Dolt schema migrations block ALL bd writes with "refusing to auto-apply ... migrations". Do NOT run the migration (single-designated-migrator rule); instead record the work in your session handoff, note the blockage explicitly, and flag it to the maintainer. Do not silently drop tracking.
+beads (`bd`) is the system of record. The Session Completion push mandate in this file is the "explicit authority" that bd's conservative-profile guidance asks for; the two do not conflict in this repo. Known failure mode: pending Dolt schema migrations block ALL bd writes with "refusing to auto-apply ... migrations". Do NOT run the migration (single-designated-migrator rule); instead record the work in your session handoff, note the blockage explicitly, and flag it to the maintainer. Do not silently drop tracking.
 
 ---
 

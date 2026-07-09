@@ -58,6 +58,16 @@ Every AI model has blind spots. Claude Octopus puts up to ten of them on every t
 
 [Full changelog →](CHANGELOG.md)
 
+<details>
+<summary>Upgrading to 9.5x</summary>
+
+- The Codex seat's premium default moved from GPT-5.4 to **GPT-5.5** (v9.44+). Pin the old model with `OCTOPUS_CODEX_MODEL=gpt-5.4` if needed.
+- New claude-sdk seat env vars (v9.50): `CLAUDE_SDK_API_KEY`, `OCTOPUS_CLAUDE_SDK_MODEL`, `OCTOPUS_CLAUDE_SDK_MAX_TOKENS`, `OCTOPUS_CLAUDE_SDK_ALLOWED_MODELS`, `OCTOPUS_CLAUDE_SDK_CONTEXT_BUDGET`.
+- New Fable 5 guard env vars (v9.51): `OCTOPUS_FABLE5_MODE` (auto/off/on), `OCTOPUS_FABLE5_NO_RETRY`. Guards auto-enable only when you pin `claude-fable-5`.
+- Premium Claude role routing (architect, strategist, security-reviewer to Opus) landed in v9.29; restore the older mapping with `OCTOPUS_LEGACY_ROLES=1`.
+
+</details>
+
 ## Quickstart
 
 ```bash
@@ -410,6 +420,19 @@ Reactions track 13 agent lifecycle states: `running` → `pr_open` → `ci_pendi
 | API key | `OPENAI_API_KEY` — per-token billing | `GEMINI_API_KEY` — per-token billing | n/a | Built into Claude Code |
 
 OAuth users pay nothing beyond their existing subscriptions. Qwen is the exception: its free OAuth tier ended on 2026-04-15, so use `QWEN_API_KEY` or Coding-Plan (`OPENAI_API_KEY` + `OPENAI_BASE_URL`).
+
+### What a Typical Run Costs
+
+Rough per-run estimates on API-key billing at current rates (GPT-5.5 $5/$30, Gemini 3.1 Pro $2.50/$10, Sonar Pro $3/$15, Opus 4.8 $5/$25 per MTok). OAuth/subscription seats (Codex via ChatGPT, Gemini via Google account, Antigravity, Copilot) bill nothing extra; Ollama is free. Numbers scale with prompt size — treat them as order-of-magnitude.
+
+| Run | Typical volume | API-key cost range |
+|-----|----------------|--------------------|
+| Single probe / quick question (one provider) | 5-20K tokens | $0.01-0.15 |
+| Debate (2-3 providers, multi-round) | 30-80K tokens | $0.20-0.80 |
+| Council (4-6 seats + synthesis) | 60-150K tokens | $0.50-2.00 |
+| Full embrace (4 phases, multi-provider) | 150-400K tokens | $1.00-5.00 |
+
+Before an expensive run, `/octo:costs` shows a session cost projection; after runs, `/octo:usage` breaks down actual spend per provider and skill. Anything projected over $1 is called out before dispatch.
 
 ### What You Get With Just Claude
 

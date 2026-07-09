@@ -179,6 +179,8 @@ print(f'   {path}')
 "
 
 # README badge
+sed -i '' -E "s/\(v[0-9]+\.[0-9]+\.[0-9]+\)/(v${VERSION})/" .claude-plugin/routines.json
+echo "   .claude-plugin/routines.json"
 sed -i '' "s/Version-[0-9]*\.[0-9]*\.[0-9]*-blue/Version-${VERSION}-blue/g" README.md
 sed -i '' "s/Version [0-9]*\.[0-9]*\.[0-9]*/Version ${VERSION}/g" README.md
 echo "   README.md"

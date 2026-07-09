@@ -1,5 +1,28 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **docs/TROUBLESHOOTING.md**: user-facing provider-auth runbook — per-provider availability checks and fix commands for all eleven seats, plus the common non-auth failures (circuit-breaker skips, quota-dead providers, fail-closed Ollama pulls, Fable 5 refusals, session provider disable).
+- **README cost expectations**: "What a Typical Run Costs" table (probe/debate/council/embrace token volumes and dollar ranges) and a collapsed "Upgrading to 9.5x" note covering the GPT-5.4→5.5 default shift and the claude-sdk/Fable 5 env var families.
+
+### Changed
+
+- **sync-marketplace.sh now derives the marketplace blurb from `plugin.json`'s description** instead of from marketplace.json's own previous description. The old self-referential read meant the summary could only change via a hand-edit to a file documented as never-hand-edit, and its strip regex missed hand-written "N agents," fragments — which is how the v9.50/v9.51 marketplace shipped a doubled counts sentence. The strip now also removes agents/personas count fragments.
+- **README correctness sweep**: provider count updated to ten (Grok/xAI seat from v9.48 and the claude-sdk seat from v9.50 were missing), Codex model references updated from GPT-5.4 to GPT-5.5 (matches the resolver default), Claude Code minimum corrected from v2.1.14+ to v2.1.50+ (matches plugin-manifest compatibility), three dead doc links removed (FEATURE-GAP, PLUGIN-ARCHITECTURE, CLI-REFERENCE), the hardcoded "117 suites passing" badge dropped, and the Documentation section now links TROUBLESHOOTING, PROVIDERS, DEVELOPER, SCHEDULER, PRIVACY, SECURITY, and RELEASING.
+- **RELEASING.md §2 now leads with `scripts/release.sh`** (the bump script existed but the doc described a manual table); release.sh additionally bumps the `routines.json` `$comment` version it previously missed.
+- **Repo-rules meta-audit** (CLAUDE.md/AGENTS.md): marketplace-blurb rule now states the plugin.json source of truth; exec-bit rule notes that local test runs chmod fixtures; the beads memory ruling clarifies that this repo's Session Completion push mandate is the explicit authority bd's conservative profile asks for.
+
+### Fixed
+
+- **tests/smoke/test-monolith-guard.sh cap tightened from 22,600 to 3,400 lines** — orchestrate.sh is 3,123 lines post-decomposition, so the old cap could never trip and the guard was vacuous.
+- **docs/README.md command count corrected** from 47 to 50.
+
+### Removed
+
+- Dead one-shot scripts with zero references: `scripts/integrate-v2.1.20-features.sh`, `scripts/test-v7.13.0-features.sh`, `scripts/apply-octopus-theme.js`.
+
 ## [9.51.0] - 2026-07-09
 
 ### Added

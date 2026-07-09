@@ -13,7 +13,7 @@ Minor (9.x+1.0) for additive changes: new providers, new commands/skills/hooks, 
 
 ## 2. Bump every version location
 
-Find them all; do not assume this list is complete next release (`grep -rn "<old-version>" --include="*.json" --include="*.md" .`):
+Run `scripts/release.sh <version> "<summary>"` — it bumps every location below plus README count surfaces. The table is the verification list, not a manual procedure; after the script, `grep -rn "<old-version>" --include="*.json" --include="*.md" .` to catch anything it missed (e.g. the `routines.json` `$comment` version):
 
 | File | Field |
 |------|-------|
@@ -38,7 +38,7 @@ Do NOT hand-edit these; CI diffs them against their generators:
 | `openclaw/src/tools/index.ts` | `./scripts/build-openclaw.sh` | `tests/unit/test-openclaw-compat.sh` |
 
 Rules learned the hard way:
-- The marketplace generator injects its own component counts ("32 personas, N commands, N skills") into the description. Never hand-write counts into `plugin.json`'s description; the generator appends them and `--check` will fail on the collision.
+- The marketplace generator derives the feature summary from `plugin.json`'s `description` and appends its own component counts ("32 personas, N commands, N skills"). To change the marketplace blurb, edit `plugin.json`'s description and run `make sync` — never edit `marketplace.json` directly. Never hand-write counts into `plugin.json`'s description; the generator appends them and `--check` will fail on the collision (the v9.50 description did this and shipped doubled counts until v9.51).
 - README body prose counts must match `plugin.json`: the "**N commands** ... **N skills**" sentence (README ~line 28) and the "[All N skills]" link (~line 367) are asserted by `tests/unit/test-docs-sync.sh`.
 
 `make sync` runs both generators; `make sync-check` runs both `--check` modes.
