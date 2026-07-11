@@ -127,6 +127,18 @@ get_agent_command() {
             ;;
         gemini|gemini-fast|gemini-image)
             local gemini_flags="-o text --approval-mode yolo"
+            # OCTOPUS_GEMINI_VIA_AGY=1 serves gemini seats through the
+            # Antigravity CLI instead of gemini-cli. Google sunset Gemini Code
+            # Assist free-tier OAuth for gemini-cli (IneligibleTierError — every
+            # call fails in seconds), while Antigravity subscriptions still
+            # work. agy-exec.sh shares the stdin prompt contract, so callers
+            # are unaffected. Model pins follow OCTOPUS_AGY_MODEL (labels from
+            # `agy models`), not gemini model ids. Gemini reasoning policy does
+            # not apply — the agy seat has its own model/reasoning controls.
+            if [[ "${OCTOPUS_GEMINI_VIA_AGY:-0}" =~ ^(1|on|true|yes)$ ]]; then
+                echo "${PLUGIN_DIR}/scripts/helpers/agy-exec.sh"
+                return 0
+            fi
             local reasoning_level reasoning_policy
             reasoning_level="$(octopus_resolve_reasoning_level gemini "$phase" "$role")" || return 1
             reasoning_policy="$(octopus_resolve_reasoning_policy gemini "$phase" "$role")" || return 1
