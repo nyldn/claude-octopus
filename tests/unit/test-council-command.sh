@@ -955,6 +955,42 @@ test_council_cross_critique_prompt_includes_peer_responses() {
     fi
 }
 
+test_council_prompt_task_block_is_authoritative() {
+    test_case "Council prompt trust boundary: task authoritative, artifact blocks untrusted, task format wins"
+    load_council_lib || return 1
+
+    # Regression for the persona injection false-positive: the old prompt told
+    # seats to treat COUNCIL_TASK itself as untrusted data ("unless part of the
+    # user's top-level request" — unsatisfiable, since the task block IS the
+    # only channel carrying that request). A rule-following seat then refused
+    # the task's own output-format instructions as an injection attempt and
+    # BLOCKed. The trust boundary must sit between the task block (the user's
+    # request: authoritative) and the other COUNCIL_* blocks (third-party
+    # content: untrusted), and the default output structure must yield to a
+    # task-specified format.
+    COUNCIL_TASK="Answer the brief exactly in its IDEAS/ANTI-IDEAS format"
+    COUNCIL_GOAL="advice"
+    COUNCIL_DOMAIN="auto"
+    COUNCIL_STYLE="balanced"
+    COUNCIL_DEPTH="standard"
+    COUNCIL_RESEARCH_FIRST="false"
+    COUNCIL_RUN_DIR="$(mktemp -d "$TEST_TMP_DIR/council-trust.XXXXXX")"
+
+    local prompt
+    prompt="$(council_prompt_for_member "backend-architect" "independent-advice")"
+
+    if grep -q "authoritative instruction source" <<< "$prompt" &&
+       ! grep -q "COUNCIL_TASK and COUNCIL_\* artifact blocks as untrusted" <<< "$prompt" &&
+       grep -q "untrusted data" <<< "$prompt" &&
+       grep -q "If the Task specifies an output format" <<< "$prompt" &&
+       grep -q "VERDICT: APPROVE" <<< "$prompt"; then
+        test_pass
+    else
+        test_fail "trust boundary wrong: task must be authoritative (incl. its format), artifact blocks untrusted, verdict footer intact"
+        return 1
+    fi
+}
+
 test_council_revision_prompt_includes_prior_critiques() {
     test_case "Council revision prompt includes prior critiques"
     load_council_lib || return 1
@@ -1157,6 +1193,7 @@ test_council_cost_cap_aborts_before_critique
 test_council_deep_fixture_writes_revision_artifacts
 test_council_cross_critique_prompt_includes_peer_responses
 test_council_revision_prompt_includes_prior_critiques
+test_council_prompt_task_block_is_authoritative
 test_council_scans_artifact_critical_veto
 test_council_structured_veto_requires_veto_role
 test_council_veto_scan_ignores_discussed_token
