@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-# Regression tests for PR #600: agy model-validation stdin leak and the
-# council_pick_provider diversity short-circuit. Both tests fail on the
-# pre-#600 code (verified during review) — they are not string greps.
+# Regression tests for PR #600 (agy model-validation stdin leak, the
+# council_pick_provider diversity short-circuit) and issue #599 problem 3
+# (roster entries recording the persona's pinned model instead of the model
+# dispatch actually resolves for the seated provider). Every test fails on
+# the corresponding pre-fix code (verified) — they are not string greps.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -103,6 +105,59 @@ if [[ "$out" == "claude" || "$out" == "opencode" ]]; then
     test_pass
 else
     test_fail "expected an available provider from the any-available fallback, got '$out'"
+fi
+
+# ── roster model lineage (issue #599 problem 3) ────────────────────────────
+# council_roster_entry_json recorded council_persona_model (the persona's
+# configured pin) even when seating placed the persona on a different
+# provider, so summary.json/config.json could label a seat with a model it
+# never ran — and benchmark_signal/score were computed against that wrong
+# model. Post-fix the entry records the same resolution dispatch uses
+# (get_agent_model provider/council/persona), with the persona pin kept only
+# as the fallback when the resolver isn't loaded. The stubs isolate the
+# behavior from the repo's live agents/config.yaml and providers.json.
+roster_entry_model() {
+    local persona="$1" provider="$2" mode="$3"
+    bash -c '
+        log() { :; }
+        source "'"$PROJECT_ROOT"'/scripts/lib/council.sh" 2>/dev/null
+        COUNCIL_ROSTER_JSON="[]"
+        council_agent_config_value() {
+            [[ "$2" == "model" ]] && echo "persona-pinned-model"
+            return 0
+        }
+        case "$3" in
+            *resolver*) get_agent_model() { echo "dispatch-resolved-model"; } ;;
+        esac
+        case "$3" in
+            *agy*) agy_current_model() { echo "agy-actual-model"; } ;;
+        esac
+        council_roster_entry_json "$1" "$2" | jq -r .model
+    ' _ "$persona" "$provider" "$mode"
+}
+
+test_case "seat records the dispatch-resolved model, not the persona pin"
+out=$(roster_entry_model security-auditor opencode resolver)
+if [[ "$out" == "dispatch-resolved-model" ]]; then
+    test_pass
+else
+    test_fail "roster recorded '$out' — persona pin leaked into the seat artifact (lineage regressed)"
+fi
+
+test_case "persona pin remains the fallback when the dispatch resolver is not loaded"
+out=$(roster_entry_model security-auditor opencode plain)
+if [[ "$out" == "persona-pinned-model" ]]; then
+    test_pass
+else
+    test_fail "expected persona-pinned-model without a resolver, got '$out'"
+fi
+
+test_case "agy seat still records agy_current_model, not the generic resolver"
+out=$(roster_entry_model backend-architect agy "resolver agy")
+if [[ "$out" == "agy-actual-model" ]]; then
+    test_pass
+else
+    test_fail "expected agy-actual-model (agy carve-out), got '$out'"
 fi
 
 test_summary
