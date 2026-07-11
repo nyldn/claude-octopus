@@ -116,6 +116,11 @@ fi
 # (get_agent_model provider/council/persona), with the persona pin kept only
 # as the fallback when the resolver isn't loaded. The stubs isolate the
 # behavior from the repo's live agents/config.yaml and providers.json.
+# The resolver stub records its received arguments to a file (the stub runs in
+# the bash -c subshell, so a variable would not survive back to this shell) —
+# letting the call-site's argument order/values be asserted, not just the
+# return-value plumbing.
+GET_AGENT_MODEL_ARGS_FILE="$TEST_TMP_DIR/get-agent-model-args.txt"
 roster_entry_model() {
     local persona="$1" provider="$2" mode="$3"
     bash -c '
@@ -127,7 +132,11 @@ roster_entry_model() {
             return 0
         }
         case "$3" in
-            *resolver*) get_agent_model() { echo "dispatch-resolved-model"; } ;;
+            *resolver-empty*) get_agent_model() { return 1; } ;;
+            *resolver*) get_agent_model() {
+                printf "%s|%s|%s\n" "$1" "$2" "$3" > "'"$GET_AGENT_MODEL_ARGS_FILE"'"
+                echo "dispatch-resolved-model"
+            } ;;
         esac
         case "$3" in
             *agy*) agy_current_model() { echo "agy-actual-model"; } ;;
@@ -137,11 +146,22 @@ roster_entry_model() {
 }
 
 test_case "seat records the dispatch-resolved model, not the persona pin"
+rm -f "$GET_AGENT_MODEL_ARGS_FILE"
 out=$(roster_entry_model security-auditor opencode resolver)
 if [[ "$out" == "dispatch-resolved-model" ]]; then
     test_pass
 else
     test_fail "roster recorded '$out' — persona pin leaked into the seat artifact (lineage regressed)"
+fi
+
+test_case "resolver is called with the seated provider, the council phase, and the persona as role"
+# Pins the call-site contract: get_agent_model(provider, "council", persona) —
+# the same tuple run_agent_sync resolves with, which is the symmetry the fix
+# claims. An argument-order regression would silently resolve the wrong model.
+if [[ "$(cat "$GET_AGENT_MODEL_ARGS_FILE" 2>/dev/null)" == "opencode|council|security-auditor" ]]; then
+    test_pass
+else
+    test_fail "expected opencode|council|security-auditor, got '$(cat "$GET_AGENT_MODEL_ARGS_FILE" 2>/dev/null)'"
 fi
 
 test_case "persona pin remains the fallback when the dispatch resolver is not loaded"
@@ -150,6 +170,14 @@ if [[ "$out" == "persona-pinned-model" ]]; then
     test_pass
 else
     test_fail "expected persona-pinned-model without a resolver, got '$out'"
+fi
+
+test_case "persona pin is used when the loaded resolver fails or returns empty"
+out=$(roster_entry_model security-auditor opencode resolver-empty)
+if [[ "$out" == "persona-pinned-model" ]]; then
+    test_pass
+else
+    test_fail "expected persona-pinned-model when resolver returns non-zero/empty, got '$out'"
 fi
 
 test_case "agy seat still records agy_current_model, not the generic resolver"
