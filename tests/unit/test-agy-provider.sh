@@ -35,8 +35,11 @@ test_agy_available_agent() {
 test_agy_dispatch_native_flags() {
     test_case "dispatch.sh uses native agy helper"
 
+    # The adapter builds flags first (agy --sandbox ...) and appends --print
+    # LAST with the prompt as its argument — current agy ignores stdin in print
+    # mode, and a leading --print would eat the next flag as the message.
     if grep -q 'scripts/helpers/agy-exec.sh' "$PROJECT_ROOT/scripts/lib/dispatch.sh" && \
-       grep -q 'agy --print --sandbox' "$PROJECT_ROOT/scripts/helpers/agy-exec.sh"; then
+       grep -q 'agy --sandbox' "$PROJECT_ROOT/scripts/helpers/agy-exec.sh"; then
         test_pass
     else
         test_fail "agy dispatch should use scripts/helpers/agy-exec.sh"
@@ -154,20 +157,27 @@ JSON
         return
     fi
 
-    OCTOPUS_AGY_MODEL='agy/default' bash "$PROJECT_ROOT/scripts/helpers/agy-exec.sh" </dev/null
+    # The adapter refuses promptless dispatch (a promptless print-mode agy
+    # answers from its own instruction-file context — the degenerate-seat
+    # failure), so every invocation must pipe a prompt.
+    printf 'ping' | OCTOPUS_AGY_MODEL='agy/default' bash "$PROJECT_ROOT/scripts/helpers/agy-exec.sh"
     if grep -q -- '--model' "$capture"; then
         restore_agy_dynamic_model_env
         test_fail "agy/default should not be passed to agy --model"
         return
     fi
 
-    OCTOPUS_AGY_MODEL='Gemini 3.5 Flash (Low)' bash "$PROJECT_ROOT/scripts/helpers/agy-exec.sh" </dev/null
-    if grep -Fxq -- '--model' "$capture" && grep -Fxq -- 'Gemini 3.5 Flash (Low)' "$capture"; then
+    printf 'ping' | OCTOPUS_AGY_MODEL='Gemini 3.5 Flash (Low)' bash "$PROJECT_ROOT/scripts/helpers/agy-exec.sh"
+    # 'ping' appearing in argv is the discriminating check for prompt-as-argument
+    # delivery: pre-fix, the prompt went to stdin (which agy ignores) and never
+    # reached argv, so this fails on the pre-fix adapter.
+    if grep -Fxq -- '--model' "$capture" && grep -Fxq -- 'Gemini 3.5 Flash (Low)' "$capture" && \
+       grep -Fxq -- '--print' "$capture" && grep -Fxq -- 'ping' "$capture"; then
         restore_agy_dynamic_model_env
         test_pass
     else
         restore_agy_dynamic_model_env
-        test_fail "explicit agy model labels should be passed as one --model argument"
+        test_fail "explicit agy model labels should be one --model argument and the prompt must reach argv via --print"
     fi
 }
 test_agy_command_validation() {
