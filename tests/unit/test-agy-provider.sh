@@ -35,14 +35,16 @@ test_agy_available_agent() {
 test_agy_dispatch_native_flags() {
     test_case "dispatch.sh uses native agy helper"
 
-    # The adapter builds flags first (agy --sandbox ...) and appends --print
-    # LAST with the prompt as its argument — current agy ignores stdin in print
-    # mode, and a leading --print would eat the next flag as the message.
+    # The adapter builds flags incrementally from a bare `agy` and appends
+    # --print LAST with the prompt as its argument — current agy ignores stdin
+    # in print mode, and a leading --print would eat the next flag as the
+    # message.
     if grep -q 'scripts/helpers/agy-exec.sh' "$PROJECT_ROOT/scripts/lib/dispatch.sh" && \
-       grep -q 'agy --sandbox' "$PROJECT_ROOT/scripts/helpers/agy-exec.sh"; then
+       grep -q 'cmd=(agy)' "$PROJECT_ROOT/scripts/helpers/agy-exec.sh" && \
+       grep -q -- '--print "$prompt_content"' "$PROJECT_ROOT/scripts/helpers/agy-exec.sh"; then
         test_pass
     else
-        test_fail "agy dispatch should use scripts/helpers/agy-exec.sh"
+        test_fail "agy dispatch should use scripts/helpers/agy-exec.sh with the prompt as --print's argument"
     fi
 }
 
@@ -159,7 +161,18 @@ JSON
 
     # The adapter refuses promptless dispatch (a promptless print-mode agy
     # answers from its own instruction-file context — the degenerate-seat
-    # failure), so every invocation must pipe a prompt.
+    # failure), so every invocation must pipe a prompt. Whitespace-only stdin
+    # must count as promptless too: $(<file) strips trailing whitespace, so a
+    # byte-size check alone would pass '\n' through as an empty --print value.
+    : > "$capture"
+    local ws_rc=0
+    printf '\n  \n' | bash "$PROJECT_ROOT/scripts/helpers/agy-exec.sh" 2>/dev/null || ws_rc=$?
+    if [[ "$ws_rc" -ne 2 || -s "$capture" ]]; then
+        restore_agy_dynamic_model_env
+        test_fail "whitespace-only stdin should be refused as promptless (rc=$ws_rc)"
+        return
+    fi
+
     printf 'ping' | OCTOPUS_AGY_MODEL='agy/default' bash "$PROJECT_ROOT/scripts/helpers/agy-exec.sh"
     if grep -q -- '--model' "$capture"; then
         restore_agy_dynamic_model_env

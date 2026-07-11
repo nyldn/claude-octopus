@@ -28,12 +28,15 @@ print_timeout="${OCTOPUS_AGY_PRINT_TIMEOUT:-5m0s}"
 # --dangerously-skip-permissions: auto-approve agy's folder-trust + tool prompts so
 # council seats don't block on a per-worktree trust prompt (already --sandbox'd).
 # OCTOPUS_AGY_SANDBOX=off drops the sandbox restriction; the default keeps it on.
+# Built incrementally so the sandbox toggle can't drift out of lockstep with the
+# shared flags (this PR had to edit two duplicate array literals in step).
 # NOTE: --print is deliberately NOT in this array — it must come LAST with the
 # prompt as its value (see prompt-delivery note in the header).
-cmd=(agy --sandbox --dangerously-skip-permissions --print-timeout "$print_timeout")
-if [[ "${OCTOPUS_AGY_SANDBOX:-on}" == "off" ]]; then
-    cmd=(agy --dangerously-skip-permissions --print-timeout "$print_timeout")
+cmd=(agy)
+if [[ "${OCTOPUS_AGY_SANDBOX:-on}" != "off" ]]; then
+    cmd+=(--sandbox)
 fi
+cmd+=(--dangerously-skip-permissions --print-timeout "$print_timeout")
 
 # Model-pin guard adopted from #555: query-free, treats agy/default as "no pin".
 case "$model" in
@@ -71,8 +74,13 @@ fi
 # No prompt on stdin = nothing to dispatch. Fail loudly rather than invoking agy
 # promptless — a promptless print-mode agy answers from its own instruction-file
 # context, which is precisely the silent-degenerate-seat failure this adapter
-# exists to prevent.
-if [[ -z "$prompt_file" || ! -s "$prompt_file" ]]; then
+# exists to prevent. Read the content once here: $(<file) strips trailing
+# whitespace, so a whitespace-only payload would pass a byte-size (-s) check yet
+# still hand agy an empty --print value — the stripped content, not the file
+# size, is what must be non-empty.
+prompt_content=""
+[[ -n "$prompt_file" ]] && prompt_content="$(<"$prompt_file")"
+if [[ -z "${prompt_content//[[:space:]]/}" ]]; then
     echo "agy-exec.sh: no prompt received on stdin; refusing to dispatch a promptless seat" >&2
     exit 2
 fi
@@ -80,14 +88,14 @@ fi
 # Single-argument size ceiling: Linux caps one argv string at MAX_ARG_STRLEN
 # (128 KiB). A council prompt exceeding it would fail exec with a cryptic E2BIG,
 # so check first and fail with a message that names the actual problem.
-if (( $(wc -c < "$prompt_file") > 120000 )); then
+if (( ${#prompt_content} > 120000 )); then
     echo "agy-exec.sh: prompt exceeds ~120KB (single-argv ceiling for agy --print); trim the dispatch context" >&2
     exit 2
 fi
 
 run_agy() {
     : > "$stdout_file"
-    "${cmd[@]}" --print "$(<"$prompt_file")" > "$stdout_file"
+    "${cmd[@]}" --print "$prompt_content" > "$stdout_file"
 }
 
 set +e
