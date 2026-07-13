@@ -363,14 +363,18 @@ review_openai_compat_empty_output_retryable() {
 
 review_result_has_terminal_status() {
     local result_file="$1"
+    local terminal_count
     [[ -f "$result_file" ]] || return 1
-    grep -qE '^## Status: (SUCCESS|FAILED|TIMEOUT)([[:space:](]|$)' "$result_file" 2>/dev/null
+    terminal_count=$(grep -cE '^## Status: (SUCCESS|FAILED|TIMEOUT)([[:space:](]|$)' "$result_file" 2>/dev/null || true)
+    [[ "${terminal_count:-0}" -gt 0 ]]
 }
 
 review_result_completed_successfully() {
     local result_file="$1"
+    local success_count
     [[ -f "$result_file" ]] || return 1
-    grep -qE '^## Status: SUCCESS([[:space:](]|$)' "$result_file" 2>/dev/null
+    success_count=$(grep -cE '^## Status: SUCCESS([[:space:](]|$)' "$result_file" 2>/dev/null || true)
+    [[ "${success_count:-0}" -gt 0 ]]
 }
 
 # review_wait_for_result_status: waits for one result file to become terminal,
