@@ -10,7 +10,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 source "$SCRIPT_DIR/helpers/test-framework.sh"
 test_suite "/octo:plan Command Implementation"
 
-PLAN_FILE="$PROJECT_ROOT/.claude/commands/plan.md"
+PLAN_FILE="$PROJECT_ROOT/commands/plan.md"
 PLUGIN_JSON="$PROJECT_ROOT/.claude-plugin/plugin.json"
 
 
@@ -60,7 +60,7 @@ fi
 # Test 4: Check registration in plugin.json
 echo ""
 echo "Test 4: Checking if plan.md is registered in plugin.json..."
-if grep -q '"\./\.claude/commands/plan\.md"' "$PLUGIN_JSON"; then
+if grep -q '"\./commands/plan\.md"' "$PLUGIN_JSON"; then
     pass "plan.md is registered in plugin.json"
 else
     fail "plan.md not registered" "Should be listed in plugin.json commands array"

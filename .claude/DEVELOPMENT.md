@@ -7,7 +7,7 @@ This document is for **developers working on the Claude Octopus plugin itself**.
 **IMPORTANT:** Before adding files, read `../FILE-ORGANIZATION.md` for the complete file placement guide.
 
 Quick reference:
-- **Commands**: `.claude/commands/` (sys-, flow-, skill- prefixes)
+- **Commands**: `commands/` (sys-, flow-, skill- prefixes)
 - **Skills**: `.claude/skills/` (registered in plugin.json)
 - **Agents**: `agents/personas/`, `agents/principles/`, `agents/skills/`
 - **Hooks**: `hooks/` (configured in `.claude-plugin/hooks.json`)
@@ -27,7 +27,7 @@ Quick reference:
 ### Core Components
 
 #### 1. Commands (Slash Commands)
-Located in `.claude/commands/`, invoked as `/namespace:command` or `/command`.
+Located in `commands/`, invoked as `/namespace:command` or `/command`.
 
 **Naming convention:**
 - `sys-*.md` - System commands (setup, update)
@@ -178,7 +178,7 @@ echo "✓ PASS: my-feature"
 
 ### New Command
 
-1. Create `.claude/commands/category-name.md`:
+1. Create `commands/category-name.md`:
 ```markdown
 ---
 command: my-command
@@ -191,7 +191,7 @@ category: system
 Command prompt and instructions...
 ```
 
-2. No registration needed - auto-discovered from `.claude/commands/`
+2. No registration needed - auto-discovered from `commands/`
 
 3. Test: `/namespace:my-command` or `/my-command`
 
@@ -220,7 +220,7 @@ Skill instructions and examples...
 }
 ```
 
-3. Create shortcut command in `.claude/commands/skill-name.md`:
+3. Create shortcut command in `commands/skill-name.md`:
 ```markdown
 ---
 command: name
@@ -292,7 +292,7 @@ echo "Hook executed"
 ### Common Issues
 
 **Command not found:**
-- Check file exists in `.claude/commands/`
+- Check file exists in `commands/`
 - Verify YAML frontmatter has `command:` field
 - Try `/namespace:command` instead of `/command`
 

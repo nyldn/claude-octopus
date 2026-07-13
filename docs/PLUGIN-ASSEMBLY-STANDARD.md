@@ -72,13 +72,13 @@ Commands are explicit entrypoints. They should be thin, predictable, and easy to
 scan. A command can gather arguments, choose a mode, and invoke a skill or
 orchestration script. It should not silently fork into a separate product.
 
-Every command markdown file in `.cursor-plugin/commands/*.md` or `.claude/commands/*.md` must
+Every command markdown file in `.cursor-plugin/commands/*.md` or `commands/*.md` must
 include YAML frontmatter with:
 
 - `description`: what the command does.
 - `argument-hint`: recommended for user-facing commands that accept arguments.
 
-Legacy `.claude/commands/*.md` files should also keep their `command:` field
+Legacy `commands/*.md` files should also keep their `command:` field
 because the existing tests and compatibility surface rely on it.
 
 ## Connector Assembly Contract

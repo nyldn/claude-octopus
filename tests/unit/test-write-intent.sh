@@ -69,7 +69,7 @@ test_principle_has_idempotence_section() {
 test_dev_checks_existing_state_first() {
     test_case "/octo:dev instructions check current state before writing"
     local content
-    content=$(<"$PROJECT_ROOT/.claude/commands/dev.md")
+    content=$(<"$PROJECT_ROOT/commands/dev.md")
     # Must mention both: "does NOT exist → show confirmation only" AND "already in Dev Work Mode"
     if grep -qi "do not create the file\|Do not rewrite the file" <<< "$content"; then
         test_pass
@@ -81,7 +81,7 @@ test_dev_checks_existing_state_first() {
 test_dev_references_write_intent_principle() {
     test_case "/octo:dev cross-references the write-intent principle"
     local content
-    content=$(<"$PROJECT_ROOT/.claude/commands/dev.md")
+    content=$(<"$PROJECT_ROOT/commands/dev.md")
     if grep -q 'write-intent\.md\|write-intent-principle' <<< "$content"; then
         test_pass
     else
@@ -96,7 +96,7 @@ test_dev_references_write_intent_principle() {
 test_km_checks_existing_state_first() {
     test_case "/octo:km instructions check current state before writing"
     local content
-    content=$(<"$PROJECT_ROOT/.claude/commands/km.md")
+    content=$(<"$PROJECT_ROOT/commands/km.md")
     if grep -qi "do not create the file\|Do not rewrite the file" <<< "$content"; then
         test_pass
     else
@@ -107,7 +107,7 @@ test_km_checks_existing_state_first() {
 test_km_references_write_intent_principle() {
     test_case "/octo:km cross-references the write-intent principle"
     local content
-    content=$(<"$PROJECT_ROOT/.claude/commands/km.md")
+    content=$(<"$PROJECT_ROOT/commands/km.md")
     if grep -q 'write-intent\.md\|write-intent-principle' <<< "$content"; then
         test_pass
     else

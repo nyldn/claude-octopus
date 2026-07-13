@@ -80,7 +80,7 @@ echo "Test 3: Command registration"
 echo "-----------------------------"
 TESTS_RUN=$((TESTS_RUN + 1))
 
-if [[ -f "${PLUGIN_DIR}/.claude/commands/model-config.md" ]]; then
+if [[ -f "${PLUGIN_DIR}/commands/model-config.md" ]]; then
     echo -e "${GREEN}✓${NC} model-config.md command file exists"
     TESTS_PASSED=$((TESTS_PASSED + 1))
 else

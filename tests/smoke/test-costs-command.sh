@@ -10,7 +10,7 @@ source "$SCRIPT_DIR/../helpers/test-framework.sh"
 
 test_suite "Costs Command (/octo:costs)"
 
-COSTS_CMD="$PROJECT_ROOT/.claude/commands/costs.md"
+COSTS_CMD="$PROJECT_ROOT/commands/costs.md"
 PLUGIN_JSON="$PROJECT_ROOT/.claude-plugin/plugin.json"
 
 # ── File existence ───────────────────────────────────────────────────

@@ -308,8 +308,8 @@ test_agy_doctor_provider_check() {
 test_agy_setup_visibility() {
     test_case "setup command shows Antigravity provider"
 
-    if grep -q 'printf "agy:%s' "$PROJECT_ROOT/.claude/commands/setup.md" && \
-       grep -q 'Antigravity CLI (agy)' "$PROJECT_ROOT/.claude/commands/setup.md"; then
+    if grep -q 'printf "agy:%s' "$PROJECT_ROOT/commands/setup.md" && \
+       grep -q 'Antigravity CLI (agy)' "$PROJECT_ROOT/commands/setup.md"; then
         test_pass
     else
         test_fail "setup should detect and offer Antigravity CLI"
@@ -437,16 +437,16 @@ test_agy_docs_cost_and_marker() {
 test_agy_slash_command_visibility() {
     test_case "commands and skills include agy in provider-facing prompts"
 
-    if grep -q 'Codex, Gemini, and Antigravity' "$PROJECT_ROOT/.claude/commands/security.md" && \
-       grep -q 'command -v agy' "$PROJECT_ROOT/.claude/commands/plan.md" && \
-       grep -q 'command -v agy' "$PROJECT_ROOT/.claude/commands/review.md" && \
-       grep -q 'command -v agy' "$PROJECT_ROOT/.claude/commands/factory.md" && \
-       grep -q 'command -v agy' "$PROJECT_ROOT/.claude/commands/auto.md" && \
-       grep -q 'checkCommandAvailable.*agy' "$PROJECT_ROOT/.claude/commands/multi.md" && \
-       grep -q 'Antigravity CLI' "$PROJECT_ROOT/.claude/commands/brainstorm.md" && \
-       grep -q 'Antigravity (agy)' "$PROJECT_ROOT/.claude/commands/model-config.md" && \
-       grep -q 'claude,codex,gemini,agy' "$PROJECT_ROOT/.claude/commands/council.md" && \
-       grep -q 'Antigravity CLI' "$PROJECT_ROOT/.claude/commands/debate.md" && \
+    if grep -q 'Codex, Gemini, and Antigravity' "$PROJECT_ROOT/commands/security.md" && \
+       grep -q 'command -v agy' "$PROJECT_ROOT/commands/plan.md" && \
+       grep -q 'command -v agy' "$PROJECT_ROOT/commands/review.md" && \
+       grep -q 'command -v agy' "$PROJECT_ROOT/commands/factory.md" && \
+       grep -q 'command -v agy' "$PROJECT_ROOT/commands/auto.md" && \
+       grep -q 'checkCommandAvailable.*agy' "$PROJECT_ROOT/commands/multi.md" && \
+       grep -q 'Antigravity CLI' "$PROJECT_ROOT/commands/brainstorm.md" && \
+       grep -q 'Antigravity (agy)' "$PROJECT_ROOT/commands/model-config.md" && \
+       grep -q 'claude,codex,gemini,agy' "$PROJECT_ROOT/commands/council.md" && \
+       grep -q 'Antigravity CLI' "$PROJECT_ROOT/commands/debate.md" && \
        grep -q 'Antigravity CLI' "$PROJECT_ROOT/.claude/skills/flow-discover/SKILL.md" && \
        grep -q 'Antigravity CLI' "$PROJECT_ROOT/.claude/skills/flow-develop/SKILL.md" && \
        grep -q 'Antigravity CLI' "$PROJECT_ROOT/.claude/skills/flow-define/SKILL.md" && \
@@ -469,7 +469,7 @@ test_agy_slash_command_no_stale_three_provider_copy() {
 
     local stale
     stale=$(grep -R -nE 'Claude \+ Codex \+ Gemini|Codex \+ Gemini \+ Claude|Codex \+ Gemini|Codex/Gemini|Codex and Gemini|all three AI|all three providers|three-model|four-way debate|four-way debates|configure Codex and Gemini|2/3 providers|Providers: 🔴 Codex \| 🟡 Gemini \| 🔵 Claude|Providers: Codex \| Gemini \| Claude|\(🔴 🟡 🔵\)' \
-        "$PROJECT_ROOT/.claude/commands" "$PROJECT_ROOT/.claude/skills" "$PROJECT_ROOT/docs" "$PROJECT_ROOT/README.md" "$PROJECT_ROOT/.claude-plugin/README.md" "$PROJECT_ROOT/SECURITY.md" "$PROJECT_ROOT/PRODUCT.md" "$PROJECT_ROOT/tests/test-fleet-diversity.sh" "$PROJECT_ROOT/tests/unit/test-research-fanout-static.sh" \
+        "$PROJECT_ROOT/commands" "$PROJECT_ROOT/.claude/skills" "$PROJECT_ROOT/docs" "$PROJECT_ROOT/README.md" "$PROJECT_ROOT/.claude-plugin/README.md" "$PROJECT_ROOT/SECURITY.md" "$PROJECT_ROOT/PRODUCT.md" "$PROJECT_ROOT/tests/test-fleet-diversity.sh" "$PROJECT_ROOT/tests/unit/test-research-fanout-static.sh" \
         | grep -v 'commands/resume.md' \
         | grep -v 'commands/extract.md:.*Extract all 8 features' \
         | grep -v 'docs/superpowers/specs/' \
@@ -511,7 +511,7 @@ test_user_facing_docs_route_external_provider_dispatch() {
 
     local stale
     stale=$(grep -R -nE 'codex exec --skip-git-repo-check|gemini -p "" -o text|ADVISORS="gemini,codex"|GEMINI_RESPONSE|r001_gemini|Gemini/Codex CLI|Codex/Gemini' \
-        "$PROJECT_ROOT/.claude/commands" \
+        "$PROJECT_ROOT/commands" \
         "$PROJECT_ROOT/.claude/skills" \
         "$PROJECT_ROOT/.cursor-plugin/commands" \
         "$PROJECT_ROOT/skills" \
@@ -542,7 +542,7 @@ test_provider_aware_commands_show_core_provider_status() {
 
     local command
     for command in "${commands[@]}"; do
-        local claude_file="$PROJECT_ROOT/.claude/commands/${command}.md"
+        local claude_file="$PROJECT_ROOT/commands/${command}.md"
         local cursor_file="$PROJECT_ROOT/.cursor-plugin/commands/octo-${command}.md"
         if [[ ! -f "$cursor_file" && "$command" == "auto" ]]; then
             cursor_file="$PROJECT_ROOT/.cursor-plugin/commands/octo.md"
@@ -573,7 +573,7 @@ test_review_command_generates_antigravity_banner() {
 
     local missing=""
     local files=(
-        "$PROJECT_ROOT/.claude/commands/review.md"
+        "$PROJECT_ROOT/commands/review.md"
         "$PROJECT_ROOT/.cursor-plugin/commands/octo-review.md"
     )
 
@@ -606,7 +606,7 @@ test_provider_aware_commands_generate_antigravity_banners() {
 
     local command
     for command in "${commands[@]}"; do
-        local claude_file="$PROJECT_ROOT/.claude/commands/${command}.md"
+        local claude_file="$PROJECT_ROOT/commands/${command}.md"
         local cursor_file="$PROJECT_ROOT/.cursor-plugin/commands/octo-${command}.md"
         for file in "$claude_file" "$cursor_file"; do
             grep -q 'Do not hand-write or summarize this' "$file" || missing+="${file}: missing generated-banner instruction"$'\n'
@@ -615,7 +615,7 @@ test_provider_aware_commands_generate_antigravity_banners() {
         done
     done
 
-    for file in "$PROJECT_ROOT/.claude/commands/setup.md" "$PROJECT_ROOT/.cursor-plugin/commands/octo-setup.md"; do
+    for file in "$PROJECT_ROOT/commands/setup.md" "$PROJECT_ROOT/.cursor-plugin/commands/octo-setup.md"; do
         grep -q 'Do not hand-write or summarize this provider block' "$file" || missing+="${file}: missing generated setup table instruction"$'\n'
         grep -q 'agy_status="$(status_installed agy)"' "$file" || missing+="${file}: missing setup agy status assignment"$'\n'
         grep -q '🧭 Antigravity:    ${agy_status}' "$file" || missing+="${file}: missing setup Antigravity status line"$'\n'
@@ -633,7 +633,7 @@ test_provider_workflow_review_regressions() {
 
     local missing=""
     local brainstorm_files=(
-        "$PROJECT_ROOT/.claude/commands/brainstorm.md"
+        "$PROJECT_ROOT/commands/brainstorm.md"
         "$PROJECT_ROOT/.cursor-plugin/commands/octo-brainstorm.md"
     )
 
@@ -644,7 +644,7 @@ test_provider_workflow_review_regressions() {
         grep -q 'claude\*|codex\*|gemini\*|agy\*' "$file" || missing+="${file}: missing claude advisor allowlist"$'\n'
     done
 
-    grep -q 'CLAUDE_PLUGIN_ROOT:-' "$PROJECT_ROOT/.claude/commands/setup.md" || missing+=".claude/commands/setup.md: setup root not plugin-anchored"$'\n'
+    grep -q 'CLAUDE_PLUGIN_ROOT:-' "$PROJECT_ROOT/commands/setup.md" || missing+="commands/setup.md: setup root not plugin-anchored"$'\n'
     grep -q 'CLAUDE_PLUGIN_ROOT:-' "$PROJECT_ROOT/.cursor-plugin/commands/octo-setup.md" || missing+=".cursor-plugin/commands/octo-setup.md: setup root not plugin-anchored"$'\n'
 
     if grep -R -n '\${agy_status}' "$PROJECT_ROOT/.claude/skills/flow-deliver" "$PROJECT_ROOT/skills/flow-deliver" >/dev/null 2>&1; then

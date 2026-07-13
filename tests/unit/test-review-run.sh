@@ -80,7 +80,7 @@ assert_contains "$(grep -c 'post_inline_comments' "$ALL_SRC" 2>/dev/null || echo
 
 # ── command file checks ───────────────────────────────────────────────────────
 
-REVIEW_CMD="$PROJECT_ROOT/.claude/commands/review.md"
+REVIEW_CMD="$PROJECT_ROOT/commands/review.md"
 assert_contains "$(cat "$REVIEW_CMD" 2>/dev/null)" \
   "REVIEW\.md" "review command: references REVIEW.md"
 assert_contains "$(cat "$REVIEW_CMD" 2>/dev/null)" \

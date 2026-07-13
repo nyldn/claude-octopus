@@ -11,7 +11,7 @@ source "$SCRIPT_DIR/helpers/test-framework.sh"
 test_suite "command registration and file integrity"
 
 PLUGIN_JSON="$PROJECT_ROOT/.claude-plugin/plugin.json"
-COMMANDS_DIR="$PROJECT_ROOT/.claude/commands"
+COMMANDS_DIR="$PROJECT_ROOT/commands"
 
 
 TEST_COUNT=0
@@ -49,7 +49,7 @@ fi
 # Test 3: Extract all registered commands
 echo ""
 echo "Test 3: Extracting registered commands..."
-REGISTERED_COMMANDS=$(grep -o '"\./\.claude/commands/[^"]*"' "$PLUGIN_JSON" || true)
+REGISTERED_COMMANDS=$(grep -o '"\./commands/[^"]*"' "$PLUGIN_JSON" || true)
 COMMAND_COUNT=$(echo "$REGISTERED_COMMANDS" | grep -c '.md' || echo 0)
 
 if [[ $COMMAND_COUNT -gt 0 ]]; then

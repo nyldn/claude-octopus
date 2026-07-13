@@ -9,9 +9,9 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "(renamed from /octo:octo in v9.5.0; legacy octo.md is a redirect)"
 
-OCTO_MD="$PROJECT_ROOT/.claude/commands/auto.md"
-LEGACY_MD="$PROJECT_ROOT/.claude/commands/octo.md"
-COMMANDS_DIR="$PROJECT_ROOT/.claude/commands"
+OCTO_MD="$PROJECT_ROOT/commands/auto.md"
+LEGACY_MD="$PROJECT_ROOT/commands/octo.md"
+COMMANDS_DIR="$PROJECT_ROOT/commands"
 SKILLS_DIR="$PROJECT_ROOT/.claude/skills"
 
 pass() { test_case "$1"; test_pass; }

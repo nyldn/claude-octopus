@@ -112,7 +112,7 @@ fi
 PROMPT_LOWER=$(printf '%s' "$PROMPT" | tr '[:upper:]' '[:lower:]')
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd 2>/dev/null || echo ".")"
 OCTO_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$HOOK_DIR/.." && pwd 2>/dev/null || echo ".")}"
-OCTO_COMMANDS_DIR="${OCTO_PLUGIN_ROOT}/.claude/commands"
+OCTO_COMMANDS_DIR="${OCTO_PLUGIN_ROOT}/commands"
 
 octo_command_exists() {
     local cmd="$1"

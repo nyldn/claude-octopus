@@ -8,7 +8,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 ORCH="$PROJECT_ROOT/scripts/orchestrate.sh"
 REVIEW_LIB="$PROJECT_ROOT/scripts/lib/review.sh"
 STATE_LIB="$PROJECT_ROOT/scripts/lib/pr-review-state.sh"
-CLAUDE_CMD="$PROJECT_ROOT/.claude/commands/review.md"
+CLAUDE_CMD="$PROJECT_ROOT/commands/review.md"
 CODEX_CMD="$PROJECT_ROOT/.cursor-plugin/commands/octo-review.md"
 
 # shellcheck source=/dev/null

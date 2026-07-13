@@ -11,14 +11,14 @@ test_suite "Council Command"
 test_council_command_files_are_registered() {
     test_case "Council command and skill are registered"
 
-    local command_file="$PROJECT_ROOT/.claude/commands/council.md"
+    local command_file="$PROJECT_ROOT/commands/council.md"
     local skill_file="$PROJECT_ROOT/skills/skill-council/SKILL.md"
     local plugin_file="$PROJECT_ROOT/.claude-plugin/plugin.json"
 
     [[ -f "$command_file" ]] || { test_fail "Missing $command_file"; return 1; }
     [[ -f "$skill_file" ]] || { test_fail "Missing $skill_file"; return 1; }
 
-    if jq -e '.commands[] | select(. == "./.claude/commands/council.md")' "$plugin_file" >/dev/null &&
+    if jq -e '.commands[] | select(. == "./commands/council.md")' "$plugin_file" >/dev/null &&
        jq -e '.skills[] | select(. == "./skills/skill-council")' "$plugin_file" >/dev/null; then
         test_pass
     else
@@ -414,7 +414,7 @@ test_council_skill_documents_gates() {
 test_council_command_requires_real_runner_by_default() {
     test_case "Council command requires real runner by default"
 
-    local command_file="$PROJECT_ROOT/.claude/commands/council.md"
+    local command_file="$PROJECT_ROOT/commands/council.md"
     local skill_file="$PROJECT_ROOT/skills/skill-council/SKILL.md"
 
     if grep -q 'scripts/orchestrate.sh" council' "$command_file" &&
@@ -431,7 +431,7 @@ test_council_command_requires_real_runner_by_default() {
 test_council_skill_requires_interactive_choices_for_clarification() {
     test_case "Council skill requires interactive choices for clarification"
 
-    local command_file="$PROJECT_ROOT/.claude/commands/council.md"
+    local command_file="$PROJECT_ROOT/commands/council.md"
     local cursor_command_file="$PROJECT_ROOT/.cursor-plugin/commands/octo-council.md"
     local skill_file="$PROJECT_ROOT/skills/skill-council/SKILL.md"
 

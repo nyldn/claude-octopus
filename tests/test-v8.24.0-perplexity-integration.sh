@@ -322,7 +322,7 @@ else
 fi
 
 # Test 7.4: embrace.md includes perplexity
-if grep -q '🟣.*Perplexity' "$PROJECT_ROOT/.claude/commands/embrace.md"; then
+if grep -q '🟣.*Perplexity' "$PROJECT_ROOT/commands/embrace.md"; then
     pass "embrace.md has 🟣 Perplexity indicator"
 else
     fail "embrace.md missing Perplexity indicator"

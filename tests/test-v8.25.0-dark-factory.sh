@@ -15,7 +15,7 @@ ORCHESTRATE_SH="$PROJECT_ROOT/scripts/orchestrate.sh"
 ALL_SRC=$(mktemp)
 cat "$ORCHESTRATE_SH" "$(dirname "$ORCHESTRATE_SH")/lib/"*.sh > "$ALL_SRC" 2>/dev/null
 trap 'rm -f "$ALL_SRC"' EXIT
-COMMAND_FILE="$PROJECT_ROOT/.claude/commands/factory.md"
+COMMAND_FILE="$PROJECT_ROOT/commands/factory.md"
 SKILL_FILE="$(resolve_claude_skill_path "skill-factory")"
 
 

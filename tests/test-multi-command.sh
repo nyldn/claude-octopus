@@ -27,9 +27,9 @@ info() { echo "$1"; }
 
 # Test 1: Command file exists
 echo "Test 1: Checking if multi.md exists..."
-COMMAND_FILE="$PROJECT_ROOT/.claude/commands/multi.md"
+COMMAND_FILE="$PROJECT_ROOT/commands/multi.md"
 if [[ -f "$COMMAND_FILE" ]]; then
-    pass "Command file exists at .claude/commands/multi.md"
+    pass "Command file exists at commands/multi.md"
 else
     fail "Command file not found" "Expected: $COMMAND_FILE"
 fi
@@ -37,7 +37,7 @@ fi
 # Test 2: Old parallel-agents.md should NOT exist
 echo ""
 echo "Test 2: Checking old parallel-agents.md is removed..."
-OLD_FILE="$PROJECT_ROOT/.claude/commands/parallel-agents.md"
+OLD_FILE="$PROJECT_ROOT/commands/parallel-agents.md"
 if [[ ! -f "$OLD_FILE" ]]; then
     pass "Old parallel-agents.md file is removed"
 else
@@ -71,7 +71,7 @@ fi
 echo ""
 echo "Test 5: Checking plugin.json registration..."
 PLUGIN_JSON="$PROJECT_ROOT/.claude-plugin/plugin.json"
-if grep -q '"\./\.claude/commands/multi\.md"' "$PLUGIN_JSON"; then
+if grep -q '"\./commands/multi\.md"' "$PLUGIN_JSON"; then
     pass "Command registered in plugin.json"
 else
     fail "Command not registered" "plugin.json should contain multi.md"
@@ -80,7 +80,7 @@ fi
 # Test 6: Old parallel-agents.md NOT in plugin.json commands array
 echo ""
 echo "Test 6: Checking old command removed from plugin.json..."
-if grep -q '"\./\.claude/commands/parallel-agents\.md"' "$PLUGIN_JSON"; then
+if grep -q '"\./commands/parallel-agents\.md"' "$PLUGIN_JSON"; then
     fail "Old command still registered" "plugin.json commands should not contain parallel-agents.md"
 else
     pass "Old command removed from plugin.json"

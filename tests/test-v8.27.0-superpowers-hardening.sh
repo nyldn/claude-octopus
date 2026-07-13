@@ -151,7 +151,7 @@ else
 fi
 
 # 5.2 Command file exists
-if [[ -f "$PLUGIN_DIR/.claude/commands/staged-review.md" ]]; then
+if [[ -f "$PLUGIN_DIR/commands/staged-review.md" ]]; then
   pass "staged-review command exists"
 else
   fail "staged-review command missing"

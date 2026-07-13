@@ -9,7 +9,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "/octo:meta-prompt command file integrity"
 
-CMD_FILE="$PROJECT_ROOT/.claude/commands/meta-prompt.md"
+CMD_FILE="$PROJECT_ROOT/commands/meta-prompt.md"
 SKILL_FILE="$(resolve_claude_skill_path "skill-meta-prompt")"
 PLUGIN_JSON="$PROJECT_ROOT/.claude-plugin/plugin.json"
 

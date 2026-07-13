@@ -19,7 +19,7 @@ echo "  Fix Command YAML Frontmatter"
 echo "================================================================"
 echo ""
 
-COMMANDS_DIR="$PROJECT_ROOT/.claude/commands"
+COMMANDS_DIR="$PROJECT_ROOT/commands"
 FIXED=0
 SKIPPED=0
 

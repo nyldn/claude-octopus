@@ -31,7 +31,7 @@ This directory contains automated tests for the Claude Octopus plugin.
   - Checks: plugin.json, marketplace.json, package.json, README.md
 
 - **`test-command-registration.sh`** - Validates slash commands are properly registered
-  - Checks: plugin.json commands match .claude/commands/*.md files
+  - Checks: plugin.json commands match commands/*.md files
 
 ### Feature-Specific Tests
 

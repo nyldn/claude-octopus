@@ -9,7 +9,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "/octo:prd-score command file integrity"
 
-CMD_FILE="$PROJECT_ROOT/.claude/commands/prd-score.md"
+CMD_FILE="$PROJECT_ROOT/commands/prd-score.md"
 PLUGIN_JSON="$PROJECT_ROOT/.claude-plugin/plugin.json"
 
 pass() { test_case "$1"; test_pass; }

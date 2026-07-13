@@ -20,7 +20,7 @@ fail() { test_case "$1"; test_fail "${2:-$1}"; }
 # ── Interactive commands MUST have AskUserQuestion ─────────────────────────────
 # These commands are interactive by design and must ALWAYS present UI
 
-# CC-facing files (.claude/commands/) are what the agent actually reads.
+# CC-facing files (commands/) are what the agent actually reads.
 # These are the authoritative versions that must have interactive UX.
 # v9.44: doctor removed — /octo:doctor was retired in v9.41.0 to preserve
 # Claude Code's native /doctor (diagnostics live in skills/skill-doctor).
@@ -29,7 +29,7 @@ INTERACTIVE_CC_COMMANDS="setup model-config"
 echo "=== Interactive Command Requirements ==="
 
 for cmd in $INTERACTIVE_CC_COMMANDS; do
-    cc="$PROJECT_ROOT/.claude/commands/${cmd}.md"
+    cc="$PROJECT_ROOT/commands/${cmd}.md"
 
     if [[ -f "$cc" ]]; then
         if grep -q 'AskUserQuestion' "$cc" 2>/dev/null; then
@@ -55,7 +55,7 @@ GUARDRAIL_PATTERNS="MUST always run|Never silently dismiss|CRITICAL.*always.*flo
 GUARDRAIL_COMMANDS="setup model-config"
 
 for cmd in $GUARDRAIL_COMMANDS; do
-    cc="$PROJECT_ROOT/.claude/commands/${cmd}.md"
+    cc="$PROJECT_ROOT/commands/${cmd}.md"
     if [[ -f "$cc" ]]; then
         if grep -qEi "$GUARDRAIL_PATTERNS" "$cc" 2>/dev/null; then
             pass "$cmd.md has never-dismiss guardrail"
@@ -72,7 +72,7 @@ echo ""
 echo "=== Mandatory First Output Line ==="
 
 for cmd in $INTERACTIVE_CC_COMMANDS; do
-    cc="$PROJECT_ROOT/.claude/commands/${cmd}.md"
+    cc="$PROJECT_ROOT/commands/${cmd}.md"
     if [[ -f "$cc" ]]; then
         if grep -q 'Your first output line MUST be' "$cc" 2>/dev/null; then
             pass "$cmd.md has mandatory first output line"
@@ -92,7 +92,7 @@ echo "=== Anti-Bypass Phrases ==="
 # We search for them as INSTRUCTIONS (not as part of "Never say X" guardrails).
 # Pattern: lines that instruct to skip, not lines that forbid skipping.
 
-for f in "$PROJECT_ROOT/.claude/commands/setup.md"; do
+for f in "$PROJECT_ROOT/commands/setup.md"; do
     if [[ -f "$f" ]]; then
         name="$(basename "$f")"
         # Look for lines that INSTRUCT skipping (not lines that say "Never skip")
@@ -112,7 +112,7 @@ done
 echo ""
 echo "=== Dual-Mode Support ==="
 
-for f in "$PROJECT_ROOT/.claude/commands/model-config.md"; do
+for f in "$PROJECT_ROOT/commands/model-config.md"; do
     if [[ -f "$f" ]]; then
         name="$(basename "$f")"
         has_interactive=$(grep -c 'Interactive Menu\|Interactive.*AskUserQuestion\|no arguments.*interactive' "$f" 2>/dev/null || true)

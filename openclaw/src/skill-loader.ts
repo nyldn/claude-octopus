@@ -151,7 +151,7 @@ export async function loadSkills(pluginRoot: string): Promise<SkillMetadata[]> {
 export async function loadCommands(
   pluginRoot: string
 ): Promise<SkillMetadata[]> {
-  const commandsDir = resolve(pluginRoot, ".claude/commands");
+  const commandsDir = resolve(pluginRoot, "commands");
   const files = await readdir(commandsDir);
   const commands: SkillMetadata[] = [];
 

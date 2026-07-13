@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # build-factory-skills.sh — Generate shared portable skills plus
-# Cursor-compatible .cursor-plugin/commands/<name>.md from .claude/commands/*.md.
+# Cursor-compatible .cursor-plugin/commands/<name>.md from commands/*.md.
 #
 # Shared format: skills/<skill-name>/SKILL.md with frontmatter: name, description
 # Cursor command format: .cursor-plugin/commands/<name>.md with frontmatter: description
-# Our source format: .claude/skills/*.md and .claude/commands/*.md
+# Our source format: .claude/skills/*.md and commands/*.md
 #
 # Usage: bash scripts/build-factory-skills.sh [--clean]
 
@@ -14,7 +14,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 SKILLS_SRC="$PLUGIN_ROOT/.claude/skills"
 SKILLS_OUT="$PLUGIN_ROOT/skills"
-COMMANDS_SRC="$PLUGIN_ROOT/.claude/commands"
+COMMANDS_SRC="$PLUGIN_ROOT/commands"
 COMMANDS_OUT="$PLUGIN_ROOT/.cursor-plugin/commands"
 
 normalize_single_line() {

@@ -189,11 +189,11 @@ test_commands_structure() {
     print_test_header "Commands Structure"
 
     # Check that commands directory exists
-    assert_dir_exists_custom ".claude/commands" "commands directory exists"
+    assert_dir_exists_custom "commands" "commands directory exists"
 
     # Verify key commands exist
-    assert_file_exists ".claude/commands/embrace.md" "embrace command exists"
-    assert_file_exists ".claude/commands/discover.md" "discover command exists"
+    assert_file_exists "commands/embrace.md" "embrace command exists"
+    assert_file_exists "commands/discover.md" "discover command exists"
 }
 
 test_gitignore_best_practices() {

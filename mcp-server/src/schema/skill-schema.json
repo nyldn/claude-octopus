@@ -82,7 +82,7 @@
           "properties": {
             "command": {
               "type": "string",
-              "description": "Claude Code command path (e.g., ./.claude/commands/review.md)"
+              "description": "Claude Code command path (e.g., ./commands/review.md)"
             },
             "skill": {
               "type": "string",
