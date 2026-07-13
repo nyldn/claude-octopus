@@ -184,8 +184,12 @@ else
     printf '{"findings":[{"title":"partial"}]}\n' > "$TMP_TEST_DIR/partial.md"
     printf '## Status: FAILED (exit code: 1)\n' > "$TMP_TEST_DIR/failed.md"
     printf '## Status: SUCCESS\n' > "$TMP_TEST_DIR/success.md"
+    printf '## Status: SUCCESS\n## Status: FAILED (exit code: 1)\n' > "$TMP_TEST_DIR/success-then-failed.md"
+    printf '## Status: SUCCESS\n## Status: TIMEOUT\n' > "$TMP_TEST_DIR/success-then-timeout.md"
     if ! review_result_completed_successfully "$TMP_TEST_DIR/partial.md" &&
        ! review_result_completed_successfully "$TMP_TEST_DIR/failed.md" &&
+       ! review_result_completed_successfully "$TMP_TEST_DIR/success-then-failed.md" &&
+       ! review_result_completed_successfully "$TMP_TEST_DIR/success-then-timeout.md" &&
        review_result_completed_successfully "$TMP_TEST_DIR/success.md"; then
         test_pass
     else

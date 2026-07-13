@@ -371,10 +371,17 @@ review_result_has_terminal_status() {
 
 review_result_completed_successfully() {
     local result_file="$1"
-    local success_count
+    local final_status
     [[ -f "$result_file" ]] || return 1
-    success_count=$(grep -cE '^## Status: SUCCESS([[:space:](]|$)' "$result_file" 2>/dev/null || true)
-    [[ "${success_count:-0}" -gt 0 ]]
+    final_status=$(awk '
+        /^## Status: (SUCCESS|FAILED|TIMEOUT)([[:space:](]|$)/ {
+            status = $0
+            sub(/^## Status: /, "", status)
+            sub(/[[:space:](].*$/, "", status)
+        }
+        END { print status }
+    ' "$result_file" 2>/dev/null || true)
+    [[ "$final_status" == "SUCCESS" ]]
 }
 
 # review_wait_for_result_status: waits for one result file to become terminal,
