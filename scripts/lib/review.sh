@@ -438,7 +438,7 @@ review_extract_findings_array() {
 
     output_text=$(awk '/^## Output$/{found=1;next} /^## /{if(found)exit} found && !/^```(json|JSON)?$/{print}' "$review_md" 2>/dev/null || true)
     if [[ -n "$output_text" ]]; then
-        direct_json=$(printf '%s' "$output_text" | jq -c 'select((.findings | type) == "array") | .findings' 2>/dev/null || true)
+        direct_json=$(printf '%s' "$output_text" | jq -cs '[.[] | objects | .findings | select(type == "array" and length > 0)] | last // []' 2>/dev/null || true)
         if [[ -n "$direct_json" && "$direct_json" != "null" ]]; then
             printf '%s\n' "$direct_json"
             return 0

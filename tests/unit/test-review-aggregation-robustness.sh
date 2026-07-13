@@ -9,9 +9,11 @@ source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "review aggregation robustness"
 
 REVIEW_SH="$PROJECT_ROOT/scripts/lib/review.sh"
-TMP_TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/octo-review-robustness.XXXXXX")"
-TMP_MD="$TMP_TEST_DIR/review.md"
-trap 'rm -rf "$TMP_TEST_DIR"' EXIT
+TEST_TMP_DIR="/tmp/octopus-tests-$$"
+rm -rf "$TEST_TMP_DIR"
+mkdir -p "$TEST_TMP_DIR"
+TMP_MD="$TEST_TMP_DIR/review.md"
+trap 'rm -rf "$TEST_TMP_DIR"' EXIT
 
 cat > "$TMP_MD" <<'EOF'
 # Agent: claude-sonnet
@@ -50,14 +52,31 @@ else
     test_fail "extractor failed to recover findings"
 fi
 
+test_case "extractor fast path returns only the last non-empty findings array"
+cat > "$TEST_TMP_DIR/multiple-json.md" <<'EOF'
+# Agent: multiple-json-provider
+## Output
+{"findings":[{"title":"First finding"}]}
+{"findings":[]}
+{"findings":[{"title":"Last finding"}]}
+## Status: SUCCESS
+EOF
+multiple_json_out="$(review_extract_findings_array "$TEST_TMP_DIR/multiple-json.md" 2>/dev/null || true)"
+if [[ "$(printf '%s' "$multiple_json_out" | jq -r 'length' 2>/dev/null || true)" == "1" ]] &&
+   [[ "$(printf '%s' "$multiple_json_out" | jq -r '.[0].title' 2>/dev/null || true)" == "Last finding" ]]; then
+    test_pass
+else
+    test_fail "fast path returned multiple or stale findings arrays: $multiple_json_out"
+fi
+
 test_case "extractor rejects non-array findings values"
-cat > "$TMP_TEST_DIR/non-array.md" <<'EOF'
+cat > "$TEST_TMP_DIR/non-array.md" <<'EOF'
 # Agent: malformed-provider
 ## Output
 {"findings":"not-an-array"}
 ## Status: SUCCESS
 EOF
-non_array_out="$(review_extract_findings_array "$TMP_TEST_DIR/non-array.md" 2>/dev/null || true)"
+non_array_out="$(review_extract_findings_array "$TEST_TMP_DIR/non-array.md" 2>/dev/null || true)"
 if [[ "$(printf '%s' "$non_array_out" | jq -r 'type' 2>/dev/null || true)" == "array" ]] &&
    [[ "$(printf '%s' "$non_array_out" | jq -r 'length' 2>/dev/null || true)" == "0" ]]; then
     test_pass
@@ -66,7 +85,7 @@ else
 fi
 
 test_case "progress fingerprint ignores unrelated result artifacts"
-progress_dir="$TMP_TEST_DIR/progress"
+progress_dir="$TEST_TMP_DIR/progress"
 mkdir -p "$progress_dir"
 printf 'target-v1\n' > "$progress_dir/target.out"
 printf 'other-v1\n' > "$progress_dir/other.out"
@@ -86,7 +105,7 @@ test_case "process-tree termination reaches TERM-ignoring grandchildren"
 if ! declare -F review_terminate_process_tree >/dev/null 2>&1; then
     test_fail "missing recursive process-tree termination helper"
 else
-    process_dir="$TMP_TEST_DIR/process-tree"
+    process_dir="$TEST_TMP_DIR/process-tree"
     mkdir -p "$process_dir"
     cat > "$process_dir/grandchild.sh" <<'PROCESS_GRANDCHILD'
 trap '' TERM
@@ -134,7 +153,7 @@ fi
 
 test_case "timing knobs accept leading-zero decimal values"
 run_agent_sync() { printf 'ok\n'; }
-timing_err="$TMP_TEST_DIR/timing.err"
+timing_err="$TEST_TMP_DIR/timing.err"
 if OCTOPUS_REVIEW_STALL_WINDOW=08 OCTOPUS_REVIEW_POLL_SECS=08 \
    review_run_agent_sync_progress codex prompt role review timing-test \
        >/dev/null 2>"$timing_err" &&
@@ -145,14 +164,14 @@ else
 fi
 
 test_case "retry wait stops when provider exits without terminal status"
-dead_result="$TMP_TEST_DIR/dead-result.md"
+dead_result="$TEST_TMP_DIR/dead-result.md"
 sleep 1 &
 dead_provider_pid=$!
-review_wait_for_result_status "$dead_result" "$dead_provider_pid" dead-provider "$TMP_TEST_DIR" 02 01 &
+review_wait_for_result_status "$dead_result" "$dead_provider_pid" dead-provider "$TEST_TMP_DIR" 02 01 &
 waiter_pid=$!
 waiter_finished=false
 for _ in 1 2 3 4; do
-    if ! kill -0 "$waiter_pid" 2>/dev/null; then
+    if ! review_process_is_running "$waiter_pid"; then
         waiter_finished=true
         break
     fi
@@ -181,16 +200,16 @@ test_case "result success requires anchored terminal SUCCESS marker"
 if ! declare -F review_result_completed_successfully >/dev/null 2>&1; then
     test_fail "missing terminal success classifier"
 else
-    printf '{"findings":[{"title":"partial"}]}\n' > "$TMP_TEST_DIR/partial.md"
-    printf '## Status: FAILED (exit code: 1)\n' > "$TMP_TEST_DIR/failed.md"
-    printf '## Status: SUCCESS\n' > "$TMP_TEST_DIR/success.md"
-    printf '## Status: SUCCESS\n## Status: FAILED (exit code: 1)\n' > "$TMP_TEST_DIR/success-then-failed.md"
-    printf '## Status: SUCCESS\n## Status: TIMEOUT\n' > "$TMP_TEST_DIR/success-then-timeout.md"
-    if ! review_result_completed_successfully "$TMP_TEST_DIR/partial.md" &&
-       ! review_result_completed_successfully "$TMP_TEST_DIR/failed.md" &&
-       ! review_result_completed_successfully "$TMP_TEST_DIR/success-then-failed.md" &&
-       ! review_result_completed_successfully "$TMP_TEST_DIR/success-then-timeout.md" &&
-       review_result_completed_successfully "$TMP_TEST_DIR/success.md"; then
+    printf '{"findings":[{"title":"partial"}]}\n' > "$TEST_TMP_DIR/partial.md"
+    printf '## Status: FAILED (exit code: 1)\n' > "$TEST_TMP_DIR/failed.md"
+    printf '## Status: SUCCESS\n' > "$TEST_TMP_DIR/success.md"
+    printf '## Status: SUCCESS\n## Status: FAILED (exit code: 1)\n' > "$TEST_TMP_DIR/success-then-failed.md"
+    printf '## Status: SUCCESS\n## Status: TIMEOUT\n' > "$TEST_TMP_DIR/success-then-timeout.md"
+    if ! review_result_completed_successfully "$TEST_TMP_DIR/partial.md" &&
+       ! review_result_completed_successfully "$TEST_TMP_DIR/failed.md" &&
+       ! review_result_completed_successfully "$TEST_TMP_DIR/success-then-failed.md" &&
+       ! review_result_completed_successfully "$TEST_TMP_DIR/success-then-timeout.md" &&
+       review_result_completed_successfully "$TEST_TMP_DIR/success.md"; then
         test_pass
     else
         test_fail "terminal success classifier accepted a partial or failed result"
