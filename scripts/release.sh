@@ -136,21 +136,18 @@ if persona_count == 0:
     raise SystemExit(1)
 
 droid_dir = pathlib.Path('agents/droids')
-droid_count = len(list(droid_dir.glob('*.md'))) if droid_dir.is_dir() else 0
+if not droid_dir.is_dir():
+    print('ERROR: agents/droids is missing; cannot calculate browse manifest counts', file=sys.stderr)
+    raise SystemExit(1)
+droid_count = len(list(droid_dir.glob('*.md')))
 
-manifest_path = pathlib.Path('.claude-plugin/plugin-manifest.json')
-manifest = json.loads(manifest_path.read_text())
-manifest['version'] = version
-components = manifest.setdefault('components', {})
-components.setdefault('commands', {})['count'] = command_count
-components.setdefault('skills', {})['count'] = skill_count
-agents = components.setdefault('agents', {})
-agents['count'] = persona_count + droid_count
-breakdown = agents.setdefault('breakdown', {})
-breakdown['personas'] = persona_count
-breakdown['droids'] = droid_count
-manifest_path.write_text(json.dumps(manifest, indent=2) + '\n')
-print('   .claude-plugin/plugin-manifest.json')
+with open('.claude-plugin/routines.json') as f:
+    routines = json.load(f)
+routine_count = len(routines.get('routines', []))
+
+with open('.claude-plugin/hooks.json') as f:
+    hooks = json.load(f)
+hook_event_count = len(hooks)
 
 count_phrase = f'{persona_count} personas, {command_count} commands, {skill_count} skills'
 expert_count_phrase = f'{persona_count} expert personas, {command_count} commands, {skill_count} skills'
@@ -164,8 +161,36 @@ for path in ('README.md', '.claude-plugin/README.md'):
     text = re.sub(r'\*\*\d+ skills\*\*', f'**{skill_count} skills**', text)
     text = re.sub(r'\b\d+ commands, \d+ skills, \d+ specialized personas\b', specialized_count_phrase, text)
     text = re.sub(r'\ball \d+ commands\b', f'all {command_count} commands', text)
+    if path == 'README.md':
+        text = re.sub(r'Version-\d+\.\d+\.\d+-blue', f'Version-{version}-blue', text)
+        text = re.sub(r'Version \d+\.\d+\.\d+', f'Version {version}', text)
     readme_path.write_text(text)
 print('   README count surfaces')
+
+routines['$comment'] = re.sub(r'\(v\d+\.\d+\.\d+\)', f'(v{version})', routines.get('$comment', ''))
+with open('.claude-plugin/routines.json', 'w') as f:
+    json.dump(routines, f, indent=2)
+    f.write('\n')
+print('   .claude-plugin/routines.json')
+
+plugin_manifest_path = pathlib.Path('.claude-plugin/plugin-manifest.json')
+with plugin_manifest_path.open() as f:
+    plugin_manifest = json.load(f)
+plugin_manifest['version'] = version
+components = plugin_manifest.setdefault('components', {})
+components.setdefault('commands', {})['count'] = command_count
+agents = components.setdefault('agents', {})
+agents['count'] = persona_count + droid_count
+agent_breakdown = agents.setdefault('breakdown', {})
+agent_breakdown['personas'] = persona_count
+agent_breakdown['droids'] = droid_count
+components.setdefault('skills', {})['count'] = skill_count
+components.setdefault('hooks', {})['events'] = hook_event_count
+components.setdefault('routines', {})['count'] = routine_count
+with plugin_manifest_path.open('w') as f:
+    json.dump(plugin_manifest, f, indent=2)
+    f.write('\n')
+print('   .claude-plugin/plugin-manifest.json')
 
 path = pathlib.Path('.claude-plugin/marketplace.json')
 with open(path) as f:
@@ -208,13 +233,6 @@ with open(path, 'w') as f:
     f.write('\\n')
 print(f'   {path}')
 "
-
-# README badge
-sed -i '' -E "s/\(v[0-9]+\.[0-9]+\.[0-9]+\)/(v${VERSION})/" .claude-plugin/routines.json
-echo "   .claude-plugin/routines.json"
-sed -i '' "s/Version-[0-9]*\.[0-9]*\.[0-9]*-blue/Version-${VERSION}-blue/g" README.md
-sed -i '' "s/Version [0-9]*\.[0-9]*\.[0-9]*/Version ${VERSION}/g" README.md
-echo "   README.md"
 
 octo_release_update_changelog CHANGELOG.md "$VERSION" "$DATE" "$SUMMARY"
 

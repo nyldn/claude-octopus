@@ -136,6 +136,53 @@ test_release_stages_routines_manifest() {
     fi
 }
 
+test_release_updates_and_stages_browse_manifest() {
+    test_case "release.sh updates and stages the plugin browse manifest"
+
+    local commit_block
+    commit_block="$(sed -n '/^echo "2\/8 Committing\.\.\."/,/^git commit /p' "$RELEASE_SCRIPT")"
+    if grep -q "plugin_manifest_path = pathlib.Path('.claude-plugin/plugin-manifest.json')" "$RELEASE_SCRIPT" &&
+       grep -q '\.claude-plugin/plugin-manifest\.json' <<<"$commit_block"; then
+        test_pass
+    else
+        test_fail "release.sh does not version/count and stage plugin-manifest.json"
+    fi
+}
+
+test_release_file_updates_are_portable() {
+    test_case "release.sh avoids platform-specific sed -i syntax"
+    if ! grep -q "sed -i ''" "$RELEASE_SCRIPT"; then
+        test_pass
+    else
+        test_fail "release.sh still contains BSD-only sed -i syntax"
+    fi
+}
+
+test_readme_provider_and_cost_contract() {
+    test_case "README defines provider counting and auditable cost assumptions"
+
+    if grep -q 'ten external provider integrations' "$PROJECT_ROOT/README.md" &&
+       ! grep -q 'Up to 9 providers' "$PROJECT_ROOT/README.md" &&
+       grep -q 'developers.openai.com/api/docs/models/gpt-5.5' "$PROJECT_ROOT/README.md" &&
+       grep -q 'ai.google.dev/gemini-api/docs/pricing' "$PROJECT_ROOT/README.md" &&
+       grep -q 'docs.perplexity.ai/docs/getting-started/pricing' "$PROJECT_ROOT/README.md" &&
+       grep -q 'prompts over 200K' "$PROJECT_ROOT/README.md" &&
+       grep -q 'request fee' "$PROJECT_ROOT/README.md"; then
+        test_pass
+    else
+        test_fail "README provider count or pricing assumptions remain ambiguous"
+    fi
+}
+
+test_marketplace_description_error_uses_logger() {
+    test_case "sync-marketplace routes missing descriptions through the logger"
+    if grep -q 'log ERROR "description missing in \$PLUGIN_JSON"' "$PROJECT_ROOT/scripts/sync-marketplace.sh"; then
+        test_pass
+    else
+        test_fail "sync-marketplace uses raw output for the missing-description error"
+    fi
+}
+
 test_release_promotes_unreleased_changelog_notes() {
     test_case "release changelog helper promotes Unreleased notes into version entry"
 
@@ -254,6 +301,10 @@ test_shared_marketplace_sync_updates_only_octo() {
 test_sync_script_exists
 test_release_script_invokes_shared_marketplace_sync
 test_release_stages_routines_manifest
+test_release_updates_and_stages_browse_manifest
+test_release_file_updates_are_portable
+test_readme_provider_and_cost_contract
+test_marketplace_description_error_uses_logger
 test_release_promotes_unreleased_changelog_notes
 test_release_ci_parser_matches_exact_aggregate_checks
 test_shared_marketplace_sync_updates_only_octo

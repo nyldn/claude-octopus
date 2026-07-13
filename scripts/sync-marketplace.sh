@@ -11,6 +11,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 
+log() {
+    local level="$1"
+    shift
+    printf '[%s] %s\n' "$level" "$*" >&2
+}
+
 CHECK_ONLY=false
 [[ "${1:-}" == "--check" ]] && CHECK_ONLY=true
 
@@ -49,7 +55,7 @@ else:
 # personas variants), and the trailing "Run /octo:setup." (re-appended below).
 PLUGIN_DESC=$(python3 -c "import json; print(json.load(open('$PLUGIN_JSON')).get('description', ''))")
 if [[ -z "$PLUGIN_DESC" ]]; then
-    echo "ERROR: description missing in $PLUGIN_JSON" >&2
+    log ERROR "description missing in $PLUGIN_JSON"
     exit 1
 fi
 FEATURE_SUMMARY=$(echo "$PLUGIN_DESC" | sed -E 's/^v[0-9]+\.[0-9]+\.[0-9]+ [-—] //' | sed -E 's/[.,] [0-9]+ (agents|personas),[^.]*\.//g' | sed -E 's/\.? *Run \/octo:setup\.?$//' | sed -E 's/\.$//')
