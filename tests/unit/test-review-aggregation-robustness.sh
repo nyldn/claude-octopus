@@ -216,13 +216,57 @@ else
     fi
 fi
 
-test_case "Round 1 supervision tracks progress per agent"
-if grep -q 'round1_last_progress' "$REVIEW_SH" &&
-   grep -q 'round1_settled' "$REVIEW_SH" &&
-   grep -Eq 'basename.*(_rf|round1_files)' "$REVIEW_SH"; then
+test_case "Round 1 supervision isolates a stalled agent from a progressing peer"
+round1_dir="$TEST_TMP_DIR/round1-supervision"
+mkdir -p "$round1_dir"
+stalled_result="$round1_dir/codex-stalled.md"
+healthy_result="$round1_dir/gemini-healthy.md"
+stalled_terminated="$round1_dir/stalled-terminated"
+healthy_completed="$round1_dir/healthy-completed"
+
+bash -c 'trap '\''touch "$1"; exit 0'\'' TERM; while :; do sleep 1; done' _ "$stalled_terminated" \
+    >/dev/null 2>&1 &
+stalled_pid=$!
+bash -c '
+    for tick in 1 2 3 4 5; do
+        printf "%s\n" "$tick" >> "$1.progress"
+        sleep 1
+    done
+    printf "## Status: SUCCESS\n" > "$1"
+    touch "$2"
+' _ "$healthy_result" "$healthy_completed" &
+healthy_pid=$!
+
+round1_files=("$stalled_result" "$healthy_result")
+round1_pids=("$stalled_pid" "$healthy_pid")
+round1_agent_types=(codex gemini)
+round1_roles=(stalled healthy)
+review_supervise_round1 2 1 "$round1_dir" &
+supervisor_pid=$!
+
+supervisor_finished=false
+for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do
+    if ! review_process_is_running "$supervisor_pid"; then
+        supervisor_finished=true
+        break
+    fi
+    sleep 1
+done
+if [[ "$supervisor_finished" != "true" ]]; then
+    kill -KILL "$supervisor_pid" "$stalled_pid" "$healthy_pid" 2>/dev/null || true
+fi
+wait "$supervisor_pid" 2>/dev/null || true
+wait "$stalled_pid" 2>/dev/null || true
+wait "$healthy_pid" 2>/dev/null || true
+
+if [[ "$supervisor_finished" == "true" ]] &&
+   [[ -f "$stalled_terminated" && -f "$healthy_completed" ]] &&
+   ! review_result_has_terminal_status "$stalled_result" &&
+   review_result_completed_successfully "$healthy_result"; then
     test_pass
 else
-    test_fail "Round 1 still uses a fleet-wide stall fingerprint"
+    kill -KILL "$supervisor_pid" "$stalled_pid" "$healthy_pid" 2>/dev/null || true
+    test_fail "Round 1 supervision did not isolate stalled and healthy agent outcomes"
 fi
 
 test_case "Unreleased changelog has one Fixed section"

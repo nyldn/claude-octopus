@@ -427,6 +427,77 @@ review_wait_for_result_status() {
     wait "$pid" 2>/dev/null || true
 }
 
+# review_supervise_round1: monitor each Round 1 provider independently so
+# progress from one provider cannot keep a stalled peer alive. The round1_*
+# arrays are intentionally resolved through Bash's dynamic function scope;
+# review_run owns them, while unit tests can supply a minimal observable fleet.
+# shellcheck disable=SC2154
+review_supervise_round1() {
+    local review_stall_window="$1"
+    local review_poll_secs="$2"
+    local results_dir="$3"
+    local _poll_start _now _idx _rf _pid _current_fp _round1_active
+    local round1_last_progress=()
+    local round1_last_fp=()
+    local round1_settled=()
+
+    _poll_start=$(date +%s)
+    _idx=0
+    while [[ "$_idx" -lt "${#round1_files[@]}" ]]; do
+        _rf="${round1_files[$_idx]}"
+        round1_last_progress[$_idx]="$_poll_start"
+        round1_last_fp[$_idx]=$(review_progress_fingerprint_since "$_poll_start" "$results_dir" "$(basename "$_rf")*")
+        round1_settled[$_idx]=false
+        ((_idx++)) || true
+    done
+
+    while true; do
+        _round1_active=false
+        _now=$(date +%s)
+        _idx=0
+        while [[ "$_idx" -lt "${#round1_files[@]}" ]]; do
+            if [[ "${round1_settled[$_idx]:-false}" == "true" ]]; then
+                ((_idx++)) || true
+                continue
+            fi
+
+            _rf="${round1_files[$_idx]}"
+            _pid="${round1_pids[$_idx]}"
+            if review_result_has_terminal_status "$_rf"; then
+                round1_settled[$_idx]=true
+                ((_idx++)) || true
+                continue
+            fi
+            if ! review_process_is_running "$_pid"; then
+                log WARN "review_run: Round 1 ${round1_agent_types[$_idx]}/${round1_roles[$_idx]} exited without a terminal status"
+                round1_settled[$_idx]=true
+                ((_idx++)) || true
+                continue
+            fi
+
+            _current_fp=$(review_progress_fingerprint_since "$_poll_start" "$results_dir" "$(basename "$_rf")*")
+            if [[ "$_current_fp" != "${round1_last_fp[$_idx]}" ]]; then
+                round1_last_fp[$_idx]="$_current_fp"
+                round1_last_progress[$_idx]="$_now"
+                log INFO "review_run: Round 1 ${round1_agent_types[$_idx]}/${round1_roles[$_idx]} progress observed"
+            elif [[ "$review_stall_window" -gt 0 && $((_now - ${round1_last_progress[$_idx]})) -ge "$review_stall_window" ]]; then
+                log WARN "review_run: Round 1 ${round1_agent_types[$_idx]}/${round1_roles[$_idx]} stalled after ${review_stall_window}s — collecting partial result"
+                review_terminate_process_tree "$_pid" 5
+                round1_settled[$_idx]=true
+                ((_idx++)) || true
+                continue
+            fi
+
+            _round1_active=true
+            ((_idx++)) || true
+        done
+
+        [[ "$_round1_active" == "false" ]] && break
+        sleep "$review_poll_secs"
+    done
+    for _pid in "${round1_pids[@]}"; do wait "$_pid" 2>/dev/null || true; done
+}
+
 # review_extract_findings_array: returns a JSON array of findings from a Round 1
 # markdown result file. Providers sometimes echo the full prompt or wrap JSON in
 # prose; prefer the exact ## Output jq path, then fall back to scanning the file
@@ -909,67 +980,9 @@ ${agent_prompt_base}"
 
     fleet_dispatch_end
 
-    # Supervise each Round 1 agent independently. A healthy provider or an
-    # unrelated workflow writing RESULTS_DIR must not reset a hung peer's timer.
-    local _poll_start _now _idx _rf _pid _current_fp _round1_active
-    local round1_last_progress=()
-    local round1_last_fp=()
-    local round1_settled=()
-    _poll_start=$(date +%s)
-    _idx=0
-    while [[ "$_idx" -lt "${#round1_files[@]}" ]]; do
-        _rf="${round1_files[$_idx]}"
-        round1_last_progress[$_idx]="$_poll_start"
-        round1_last_fp[$_idx]=$(review_progress_fingerprint_since "$_poll_start" "$RESULTS_DIR" "$(basename "$_rf")*")
-        round1_settled[$_idx]=false
-        ((_idx++)) || true
-    done
-
-    while true; do
-        _round1_active=false
-        _now=$(date +%s)
-        _idx=0
-        while [[ "$_idx" -lt "${#round1_files[@]}" ]]; do
-            if [[ "${round1_settled[$_idx]:-false}" == "true" ]]; then
-                ((_idx++)) || true
-                continue
-            fi
-
-            _rf="${round1_files[$_idx]}"
-            _pid="${round1_pids[$_idx]}"
-            if review_result_has_terminal_status "$_rf"; then
-                round1_settled[$_idx]=true
-                ((_idx++)) || true
-                continue
-            fi
-            if ! review_process_is_running "$_pid"; then
-                log WARN "review_run: Round 1 ${round1_agent_types[$_idx]}/${round1_roles[$_idx]} exited without a terminal status"
-                round1_settled[$_idx]=true
-                ((_idx++)) || true
-                continue
-            fi
-
-            _current_fp=$(review_progress_fingerprint_since "$_poll_start" "$RESULTS_DIR" "$(basename "$_rf")*")
-            if [[ "$_current_fp" != "${round1_last_fp[$_idx]}" ]]; then
-                round1_last_fp[$_idx]="$_current_fp"
-                round1_last_progress[$_idx]="$_now"
-                log INFO "review_run: Round 1 ${round1_agent_types[$_idx]}/${round1_roles[$_idx]} progress observed"
-            elif [[ "$review_stall_window" -gt 0 && $((_now - ${round1_last_progress[$_idx]})) -ge "$review_stall_window" ]]; then
-                log WARN "review_run: Round 1 ${round1_agent_types[$_idx]}/${round1_roles[$_idx]} stalled after ${review_stall_window}s — collecting partial result"
-                review_terminate_process_tree "$_pid" 5
-                round1_settled[$_idx]=true
-                ((_idx++)) || true
-                continue
-            fi
-
-            _round1_active=true
-            ((_idx++)) || true
-        done
-
-        [[ "$_round1_active" == "false" ]] && break
-        sleep "$review_poll_secs"
-    done
-    for _pid in "${round1_pids[@]}"; do wait "$_pid" 2>/dev/null || true; done
+    # A healthy provider or unrelated RESULTS_DIR activity must not reset a
+    # hung peer's timer.
+    review_supervise_round1 "$review_stall_window" "$review_poll_secs" "$RESULTS_DIR"
 
     # Retry transient OpenAI-compatible adapter Empty output failures once after backoff. We
     # only do this for Round 1 review specialists and only when the artifact shows
