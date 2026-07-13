@@ -1,6 +1,6 @@
 # 🐙 Claude Octopus
 
-Every AI model has blind spots. Claude Octopus puts up to ten of them on every task, so blind spots surface before you ship — not after. It orchestrates Codex, Gemini, Antigravity CLI, Copilot, Qwen, Ollama, Perplexity, OpenRouter, OpenCode, and Grok alongside Claude Code, with consensus gates that flag any disagreements.
+Every AI model has blind spots. Claude Octopus supports ten external provider integrations — Codex, Gemini, Antigravity CLI, Copilot, Qwen, Ollama, Perplexity, OpenRouter, OpenCode, and Grok — alongside the built-in Claude Code host, with consensus gates that flag disagreements before you ship.
 
 **Claude-native first, Octopus for escalation.** Use Claude-native `/init`, `/review`, and `/security-review` when Claude is enough. Use Octopus when you want multiple model opinions, adversarial review, or stricter multi-LLM workflows.
 
@@ -16,7 +16,7 @@ Every AI model has blind spots. Claude Octopus puts up to ten of them on every t
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
 </p>
 
-🐙 **Research, build, review, and ship — with ten AI providers checking each other's work.** Say what you need, and the right workflow runs. Claude-native handles the ordinary path; Octopus handles the escalated path. A 75% consensus gate catches disagreements before they reach production. No single model's blind spots slip through.
+🐙 **Research, build, review, and ship — with ten external providers checking the host's work.** Say what you need, and the right workflow runs. Claude-native handles the ordinary path; Octopus handles the escalated path. A 75% consensus gate catches disagreements before they reach production. No single model's blind spots slip through.
 
 🧠 **Remembers across sessions.** Integrates with [claude-mem](https://github.com/thedotmack/claude-mem) and [agentmemory](https://github.com/rohitg00/agentmemory) for persistent memory — past decisions, research, and context survive session boundaries.
 
@@ -26,7 +26,7 @@ Every AI model has blind spots. Claude Octopus puts up to ten of them on every t
 
 🐙 **32 specialized personas** (role-specific AI agents like security-auditor, backend-architect), **50 commands** (slash commands you type), **58 skills** (reusable workflow modules). Say "audit my API" and the right expert activates. Don't know the command? The smart router figures it out.
 
-🐙 **Works with just Claude. Scales to ten.** Zero providers needed to start. Add them one at a time — each activates automatically when detected.
+🐙 **Works with just Claude. Adds up to ten external provider integrations.** Zero external providers are needed to start. Add them one at a time — each activates automatically when detected.
 
 💰 **Five providers cost nothing extra when you already have access.** Codex, Gemini, Antigravity CLI, and Copilot use existing subscriptions or local auth. Ollama runs locally for free. Qwen now requires API-key or Coding-Plan auth; its free OAuth tier ended on 2026-04-15.
 
@@ -52,7 +52,7 @@ Every AI model has blind spots. Claude Octopus puts up to ten of them on every t
 |---------|--------------|
 | **v9.50** (new) | **Claude Code 2026 compatibility layer** — routines manifest (schedule + GitHub-event automations), SubagentStop quality/cost gate, `/octo:usage` cost attribution, `worktree.bgIsolation` opt-out, Claude Agent SDK seat (Opus 4.8, 1M context), starter skills pack, `/plugin browse` manifest with projected context cost. |
 | **v9.41** | **`/octo:council`** promoted to first-class workflow — structured multi-LLM deliberation with goal modes, adversarial/red-team styles, benchmark-aware persona routing, quorum and critical-veto gates, budget preflight, and gated worktree handoff for approved implementation plans. |
-| **v9** (current) | Up to 9 providers (Codex, Gemini, Antigravity CLI, Copilot, Qwen, Ollama, Perplexity, OpenRouter, OpenCode). Structured provider debates and configurable multi-LLM councils. Smart router — just say what you need. Agent summary tables show which providers actually contributed. Provider-aware prompt preflight prevents silent oversize failures. Research breadth modes fan out light, standard, or exhaustive investigations. Setup aliases and fuzzy `/octo:*` corrections reduce command friction. Discipline mode with 8 auto-invoke gates. Two-stage review. Circuit breakers with automatic provider recovery. Cursor + OpenCode + Codex cross-compatibility. Token compression: `bin/octo-compress` pipe + auto PostToolUse hook save ~7,300 tokens/session. PostCompact context recovery. `bin/octopus` CLI. 175+ CC feature flags through v2.1.157, including Opus 4.8 and dynamic workflow awareness. |
+| **v9** (current) | Up to 10 external provider integrations (Codex, Gemini, Antigravity CLI, Copilot, Qwen, Ollama, Perplexity, OpenRouter, OpenCode, Grok) alongside the Claude Code host. Structured provider debates and configurable multi-LLM councils. Smart router — just say what you need. Agent summary tables show which providers actually contributed. Provider-aware prompt preflight prevents silent oversize failures. Research breadth modes fan out light, standard, or exhaustive investigations. Setup aliases and fuzzy `/octo:*` corrections reduce command friction. Discipline mode with 8 auto-invoke gates. Two-stage review. Circuit breakers with automatic provider recovery. Cursor + OpenCode + Codex cross-compatibility. Token compression: `bin/octo-compress` pipe + auto PostToolUse hook save ~7,300 tokens/session. PostCompact context recovery. `bin/octopus` CLI. 175+ CC feature flags through v2.1.157, including Opus 4.8 and dynamic workflow awareness. |
 | **v8** | Multi-LLM code review with inline PR comments. Parallel workstreams in isolated git worktrees. Reaction engine — auto-responds to CI failures. 32 specialized personas. Dark Factory autonomous pipeline. |
 | **v7** | Double Diamond workflow. Multi-provider dispatch. Quality gates and consensus scoring. Configurable sandbox modes. |
 
@@ -316,8 +316,8 @@ Or skip the table — type `/octo:auto <what you want>` or just say `octo <what 
 
 | | Claude Code alone | [Superpowers](https://github.com/obra/superpowers) | Claude Octopus |
 |---|---|---|---|
-| **Core idea** | One model, your prompts | Structured methodology for one agent | Up to 9 providers cross-checking each other |
-| **Providers** | Claude only | Claude only | Codex, Gemini, Antigravity CLI, Copilot, Qwen, Ollama, Perplexity, OpenRouter, OpenCode |
+| **Core idea** | One model, your prompts | Structured methodology for one agent | Built-in Claude plus up to 10 external integrations cross-checking each other |
+| **Providers** | Claude only | Claude only | Claude host; Codex, Gemini, Antigravity CLI, Copilot, Qwen, Ollama, Perplexity, OpenRouter, OpenCode, Grok |
 | **Workflow** | Ad-hoc | Spec → plan → subagent-driven dev | Discover → Define → Develop → Deliver (Double Diamond) |
 | **Strength** | Simple, no setup | Long autonomous runs with discipline | Multiple perspectives catching blind spots |
 | **Consensus gates** | No | No | Yes — 75% agreement threshold |
@@ -332,9 +332,9 @@ Or skip the table — type `/octo:auto <what you want>` or just say `octo <what 
 
 ## How It Works
 
-### How 10 Providers Work Together
+### How 10 External Providers Work Together
 
-Claude Octopus coordinates up to ten AI providers:
+Claude Octopus coordinates ten external provider integrations alongside the built-in Claude Code host. The optional `claude-sdk` route is a second Anthropic seat, so it is shown below but is not counted as a separate provider family.
 
 | Provider | Role |
 |----------|------|
@@ -346,9 +346,10 @@ Claude Octopus coordinates up to ten AI providers:
 | 🟢 Copilot (GitHub) | Zero-cost research — uses existing GitHub Copilot subscription |
 | 🟤 Qwen (Alibaba) | Qwen3-Coder research via API-key or Coding-Plan auth |
 | ⚫ Ollama (Local) | Zero-cost local LLM — offline, privacy-sensitive, fallback |
+| 🟠 OpenCode | Alternate coding-agent integration and cross-checking seat |
 | ⚡ Grok (xAI, via cursor-agent) | Frontier-model second opinion — added as a first-class seat in v9.48 |
 | 🔵 Claude (Anthropic, Opus 4.8 + Sonnet 4.6) | Architecture, strategy, security review, orchestration, consensus, final synthesis |
-| 🔵 Claude Agent SDK seat (`claude-sdk`) | Opus 4.8 with the 1M-token context window, independent of the host session (set `CLAUDE_SDK_API_KEY`) |
+| 🔵 Claude Agent SDK seat (`claude-sdk`) | Optional second Anthropic seat: Opus 4.8 with the 1M-token context window, independent of the host session (set `CLAUDE_SDK_API_KEY`) |
 
 Providers run in parallel for research, sequentially for problem scoping, and adversarially for review. A 75% consensus quality gate prevents questionable work from shipping. Only Claude is required — all others are optional and auto-detected.
 
@@ -423,14 +424,16 @@ OAuth users pay nothing beyond their existing subscriptions. Qwen is the excepti
 
 ### What a Typical Run Costs
 
-Rough per-run estimates on API-key billing at current rates (GPT-5.5 $5/$30, Gemini 3.1 Pro $2.50/$10, Sonar Pro $3/$15, Opus 4.8 $5/$25 per MTok). OAuth/subscription seats (Codex via ChatGPT, Gemini via Google account, Antigravity, Copilot) bill nothing extra; Ollama is free. Numbers scale with prompt size — treat them as order-of-magnitude.
+Illustrative token-only estimates, using standard global API rates checked **2026-07-13**: [GPT-5.5](https://developers.openai.com/api/docs/models/gpt-5.5) $5/$30, [Gemini 3.1 Pro Preview](https://ai.google.dev/gemini-api/docs/pricing) $2/$12 for prompts through 200K tokens and $4/$18 for prompts over 200K, [Sonar Pro](https://docs.perplexity.ai/docs/getting-started/pricing) $3/$15, and [Opus 4.8](https://www.anthropic.com/news/claude-opus-4-8) $5/$25 per million input/output tokens. The ranges assume roughly 90% input and 10% output tokens, standard (not batch, flex, priority, or fast) processing, no cache discounts, and a representative mix of those models. OAuth/subscription seats (Codex via ChatGPT, Gemini via Google account, Antigravity, Copilot) bill nothing extra; Ollama is free.
 
-| Run | Typical volume | API-key cost range |
-|-----|----------------|--------------------|
-| Single probe / quick question (one provider) | 5-20K tokens | $0.01-0.15 |
-| Debate (2-3 providers, multi-round) | 30-80K tokens | $0.20-0.80 |
-| Council (4-6 seats + synthesis) | 60-150K tokens | $0.50-2.00 |
-| Full embrace (4 phases, multi-provider) | 150-400K tokens | $1.00-5.00 |
+The table excludes provider tool charges. Sonar Pro adds a **request fee** of $6-$14 per 1,000 requests depending on search-context size; Gemini search grounding can add query fees after its included allowance. GPT-5.5 sessions above 272K input tokens and Gemini prompts over 200K use higher long-context rates, so large runs can exceed the upper range. Treat these as planning bounds and check the linked rate cards before material spend.
+
+| Run | Typical volume | Illustrative API token cost (tool fees excluded) |
+|-----|----------------|-----------------------------------------------|
+| Single probe / quick question (one provider) | 5-20K tokens | $0.01-0.20 |
+| Debate (2-3 providers, multi-round) | 30-80K tokens | $0.20-1.00 |
+| Council (4-6 seats + synthesis) | 60-150K tokens | $0.50-2.50 |
+| Full embrace (4 phases, multi-provider) | 150-400K tokens | $1.00-6.00+ |
 
 Before an expensive run, `/octo:costs` shows a session cost projection; after runs, `/octo:usage` breaks down actual spend per provider and skill. Anything projected over $1 is called out before dispatch.
 
