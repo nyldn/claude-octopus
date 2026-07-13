@@ -257,6 +257,16 @@ review_process_tree_depth_first() {
     printf '%s\n' "$pid"
 }
 
+# kill -0 still succeeds for unreaped zombies on macOS, so also inspect state.
+review_process_is_running() {
+    local pid="$1"
+    local process_stat
+    [[ "$pid" =~ ^[0-9]+$ ]] || return 1
+    kill -0 "$pid" 2>/dev/null || return 1
+    process_stat=$(ps -o stat= -p "$pid" 2>/dev/null) || return 1
+    [[ "$process_stat" != *Z* ]]
+}
+
 review_terminate_process_tree() {
     local root_pid="$1"
     local grace_secs="${2:-5}"
@@ -310,7 +320,7 @@ review_run_agent_sync_progress() {
     own_pattern="$(basename "$out_file")*"
     last_fp=$(review_progress_fingerprint_since "$start_epoch" "$results_dir" "$own_pattern")
 
-    while kill -0 "$pid" 2>/dev/null; do
+    while review_process_is_running "$pid"; do
         sleep "$poll_secs"
         now=$(date +%s)
         current_fp=$(review_progress_fingerprint_since "$start_epoch" "$results_dir" "$own_pattern")
@@ -387,7 +397,7 @@ review_wait_for_result_status() {
         if review_result_has_terminal_status "$result_file"; then
             break
         fi
-        if ! kill -0 "$pid" 2>/dev/null; then
+        if ! review_process_is_running "$pid"; then
             log WARN "review_run: ${label} exited without a terminal status"
             break
         fi
@@ -921,7 +931,7 @@ ${agent_prompt_base}"
                 ((_idx++)) || true
                 continue
             fi
-            if ! kill -0 "$_pid" 2>/dev/null; then
+            if ! review_process_is_running "$_pid"; then
                 log WARN "review_run: Round 1 ${round1_agent_types[$_idx]}/${round1_roles[$_idx]} exited without a terminal status"
                 round1_settled[$_idx]=true
                 ((_idx++)) || true
