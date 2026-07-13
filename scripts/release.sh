@@ -39,8 +39,14 @@ VERSION="$1"
 SUMMARY="$2"
 DATE=$(date +%Y-%m-%d)
 BRANCH="release/v${VERSION}"
+REMOTE="${OCTO_RELEASE_REMOTE:-origin}"
 
 cd "$PLUGIN_ROOT"
+
+# gh infers the target repo from remotes independently of $REMOTE, so a dev
+# clone pointing $REMOTE at the canonical repo (with origin left on a fork)
+# would otherwise create the PR/release against the wrong repo. Pin it.
+REPO_SLUG="$(git remote get-url "$REMOTE" | sed -E 's#^(git@|https://)([^:/]+)[:/]##; s#\.git$##')"
 
 # --- Preflight ---
 
@@ -49,12 +55,20 @@ if ! git diff --quiet 2>/dev/null; then
     exit 1
 fi
 
-if [[ "$(git branch --show-current)" != "main" ]]; then
-    echo "Error: must be on main branch."
+# RELEASING.md §0 allows two flows: run from main and let this script cut the
+# release branch, or (worktree flow) cut ${BRANCH} from origin/main yourself
+# and run this script already checked out on it.
+CURRENT_BRANCH="$(git branch --show-current)"
+if [[ "$CURRENT_BRANCH" != "main" && "$CURRENT_BRANCH" != "$BRANCH" ]]; then
+    echo "Error: must be on main, or on ${BRANCH} cut from main (see RELEASING.md §0)."
     exit 1
 fi
+ON_RELEASE_BRANCH=false
+[[ "$CURRENT_BRANCH" == "$BRANCH" ]] && ON_RELEASE_BRANCH=true
 
-git pull --quiet origin main
+if [[ "$ON_RELEASE_BRANCH" == "false" ]]; then
+    git pull --quiet "$REMOTE" main
+fi
 
 CURRENT=$(python3 -c "import json; print(json.load(open('package.json'))['version'])")
 echo "Releasing: ${CURRENT} → ${VERSION}"
@@ -120,6 +134,23 @@ persona_count = len(list(persona_dir.glob('*.md')))
 if persona_count == 0:
     print('ERROR: agents/personas contains no persona markdown files', file=sys.stderr)
     raise SystemExit(1)
+
+droid_dir = pathlib.Path('agents/droids')
+droid_count = len(list(droid_dir.glob('*.md'))) if droid_dir.is_dir() else 0
+
+manifest_path = pathlib.Path('.claude-plugin/plugin-manifest.json')
+manifest = json.loads(manifest_path.read_text())
+manifest['version'] = version
+components = manifest.setdefault('components', {})
+components.setdefault('commands', {})['count'] = command_count
+components.setdefault('skills', {})['count'] = skill_count
+agents = components.setdefault('agents', {})
+agents['count'] = persona_count + droid_count
+breakdown = agents.setdefault('breakdown', {})
+breakdown['personas'] = persona_count
+breakdown['droids'] = droid_count
+manifest_path.write_text(json.dumps(manifest, indent=2) + '\n')
+print('   .claude-plugin/plugin-manifest.json')
 
 count_phrase = f'{persona_count} personas, {command_count} commands, {skill_count} skills'
 expert_count_phrase = f'{persona_count} expert personas, {command_count} commands, {skill_count} skills'
@@ -192,8 +223,10 @@ echo ""
 # --- 2. Commit ---
 
 echo "2/8 Committing..."
-git checkout -b "$BRANCH" --quiet
-git add package.json .claude-plugin/plugin.json .claude-plugin/marketplace.json .claude-plugin/routines.json .codex-plugin/plugin.json .cursor-plugin/plugin.json .factory-plugin/plugin.json .factory-plugin/marketplace.json README.md CHANGELOG.md
+if [[ "$ON_RELEASE_BRANCH" == "false" ]]; then
+    git checkout -b "$BRANCH" --quiet
+fi
+git add package.json .claude-plugin/plugin.json .claude-plugin/marketplace.json .claude-plugin/plugin-manifest.json .claude-plugin/routines.json .codex-plugin/plugin.json .cursor-plugin/plugin.json .factory-plugin/plugin.json .factory-plugin/marketplace.json README.md CHANGELOG.md
 git commit --quiet -m "chore: release v${VERSION} — ${SUMMARY}
 
 Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"
@@ -204,7 +237,7 @@ echo ""
 
 echo "3/8 Pushing..."
 # --no-verify: skip pre-push hook (CI validates on PR; pre-push re-runs tests already run at commit)
-PUSH_OUTPUT=$(git push --quiet --no-verify -u origin "$BRANCH" 2>&1) || {
+PUSH_OUTPUT=$(git push --quiet --no-verify -u "$REMOTE" "$BRANCH" 2>&1) || {
     printf '%s\n' "$PUSH_OUTPUT" | grep -v "^remote:" || true
     echo "   ERROR: Push failed. Aborting release."
     exit 1
@@ -217,6 +250,8 @@ echo ""
 
 echo "4/8 Creating PR..."
 PR_URL=$(gh pr create \
+    -R "$REPO_SLUG" \
+    --head "$BRANCH" \
     --title "chore: release v${VERSION}" \
     --body "## Release v${VERSION}
 
@@ -235,7 +270,7 @@ echo "5/8 Waiting for CI..."
 # Poll until required checks finish (max 5 minutes)
 DEADLINE=$((SECONDS + 300))
 while [[ $SECONDS -lt $DEADLINE ]]; do
-    CHECKS=$(gh pr checks "$PR_NUM" --json name,state 2>&1 || true)
+    CHECKS=$(gh pr checks "$PR_NUM" -R "$REPO_SLUG" --json name,state 2>&1 || true)
     SMOKE=$(octo_pr_check_state "$CHECKS" "Smoke Tests")
     UNIT=$(octo_pr_check_state "$CHECKS" "Unit Tests")
     INTEG=$(octo_pr_check_state "$CHECKS" "Integration Tests")
@@ -247,7 +282,7 @@ while [[ $SECONDS -lt $DEADLINE ]]; do
 
     if [[ "$SMOKE" == "fail" || "$UNIT" == "fail" || "$INTEG" == "fail" ]]; then
         echo "   CI FAILED — Smoke: ${SMOKE} | Unit: ${UNIT} | Integration: ${INTEG}"
-        echo "   Fix failures, then run: gh pr merge ${PR_NUM} --merge"
+        echo "   Fix failures, then run: gh pr merge ${PR_NUM} --merge -R ${REPO_SLUG}"
         exit 1
     fi
 
@@ -256,8 +291,8 @@ done
 
 if [[ $SECONDS -ge $DEADLINE ]]; then
     echo "   CI timed out after 5 minutes."
-    echo "   Check manually: gh pr checks ${PR_NUM}"
-    echo "   Then merge: gh pr merge ${PR_NUM} --merge"
+    echo "   Check manually: gh pr checks ${PR_NUM} -R ${REPO_SLUG}"
+    echo "   Then merge: gh pr merge ${PR_NUM} --merge -R ${REPO_SLUG}"
     exit 1
 fi
 echo ""
@@ -265,12 +300,24 @@ echo ""
 # --- 6. Merge + Release ---
 
 echo "6/8 Merging and creating release..."
-gh pr merge "$PR_NUM" --merge --quiet 2>/dev/null || gh pr merge "$PR_NUM" --merge
-git checkout main --quiet
-git pull --quiet origin main
-git branch -d "$BRANCH" --quiet 2>/dev/null || true
+gh pr merge "$PR_NUM" -R "$REPO_SLUG" --merge --quiet 2>/dev/null || gh pr merge "$PR_NUM" -R "$REPO_SLUG" --merge
+
+if [[ "$ON_RELEASE_BRANCH" == "true" ]]; then
+    # main is normally still checked out in the worktree this release branch
+    # was cut from; don't touch this worktree's checkout or delete the
+    # branch we're standing on. Just fetch the merge commit to tag it.
+    git fetch --quiet "$REMOTE" main
+    MERGE_SHA=$(git rev-parse FETCH_HEAD)
+else
+    git checkout main --quiet
+    git pull --quiet "$REMOTE" main
+    git branch -d "$BRANCH" --quiet 2>/dev/null || true
+    MERGE_SHA=$(git rev-parse main)
+fi
 
 gh release create "v${VERSION}" \
+    -R "$REPO_SLUG" \
+    --target "$MERGE_SHA" \
     --title "v${VERSION} — ${SUMMARY}" \
     --notes "### Changed
 - ${SUMMARY}
@@ -278,6 +325,8 @@ gh release create "v${VERSION}" \
 **Full Changelog**: https://github.com/nyldn/claude-octopus/compare/v${CURRENT}...v${VERSION}" \
     --quiet 2>/dev/null || \
 gh release create "v${VERSION}" \
+    -R "$REPO_SLUG" \
+    --target "$MERGE_SHA" \
     --title "v${VERSION} — ${SUMMARY}" \
     --notes "### Changed
 - ${SUMMARY}
