@@ -5,6 +5,7 @@
 ### Fixed
 
 - **Repository review follow-ups**: clarified README provider counting and cost assumptions, routed marketplace-sync errors through the script logger, and made release manifest updates portable while keeping browse-manifest hook and routine counts current.
+- **Review aggregation follow-up hardening** (#592): each Round 1 agent now has an independent progress timer; completed results require anchored terminal statuses; provider exits without a terminal status are classified as partial; leading-zero timing inputs are normalized as decimal; stall cleanup snapshots and terminates the full descendant process tree; and findings extraction accepts only arrays while preferring the last non-empty result.
 
 ## [9.52.0] - 2026-07-09
 
@@ -47,6 +48,7 @@
 
 ### Fixed
 
+- **Review aggregation and progress supervision hardened** (#592, community contribution by @Jhacarreiro; maintainer takeover to land): review rounds now run without a wall-clock cap under progress-stall supervision (`OCTOPUS_REVIEW_STALL_WINDOW`, default 1800s), Round 1 codex empty-output-with-reconnect failures retry once, findings extraction tolerates prose-wrapped JSON, and severity counting is pipefail-safe. Maintainer fixes on top of the contribution: each Round 1 agent has an independent progress timer, completed results require anchored terminal statuses, timing inputs are normalized as decimal values, stall kills snapshot and terminate the full descendant tree so TERM-ignoring provider CLIs cannot be orphaned mid-billing, and the findings extractor accepts only arrays while preferring the last non-empty result. The `timeout_secs=0` contract this relies on is the `run_with_timeout` bypass that shipped with #593.
 - **`OCTOPUS_OPUS_MODEL=claude-fable-5` now reaches the dispatched model flag.** The `claude-opus` dispatch case always passed the bare `--model opus` alias, which the host resolves to its default Opus — so a Fable 5 pin changed cost labels and resolver output but never the model actually dispatched (the claude-sdk seat was the only real Fable 5 path). The dispatch command now emits `--model claude-fable-5` for pinned non-security dispatches and `--model claude-opus-4-8` for security dispatches.
 
 ## [9.50.0] - 2026-07-08
