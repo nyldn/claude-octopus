@@ -917,7 +917,7 @@ council_roster_contains() {
 council_roster_entry_json() {
     local persona="$1"
     local provider="${2:-}"
-    local preferred_provider provider_org model seat benchmark_signal score permission_mode family
+    local preferred_provider provider_org model seat benchmark_signal score permission_mode family dispatch_model
 
     preferred_provider="$(council_persona_default_provider "$persona")"
     [[ -n "$provider" ]] || provider="$(council_pick_provider "$preferred_provider")"
@@ -928,6 +928,22 @@ council_roster_entry_json() {
     # the placeholder, so the seat's cross-lab lineage is verifiable from the artifact.
     if [[ "$provider" == "agy" ]] && declare -f agy_current_model >/dev/null 2>&1; then
         model="$(agy_current_model)"
+    elif declare -f get_agent_model >/dev/null 2>&1; then
+        # The same lineage principle applies to every other provider: the council
+        # dispatch path never reads the persona's configured model
+        # (council_dispatch_member passes only provider+persona; run_agent_sync
+        # resolves the model via get_agent_model from env/providers.json). So when
+        # org-diversity or availability seats a persona on a provider other than
+        # its configured one, the persona pin names a model this seat will never
+        # run — and the wrong value also feeds benchmark_signal and score below,
+        # scoring the seat against the wrong model. Record dispatch's own
+        # resolution instead (issue #599 problem 3: a codex seat recorded as
+        # claude-opus-4.6 while its rollout log showed a GPT model ran). Fall back
+        # to the persona pin only when the resolver isn't loaded (council.sh
+        # sourced standalone in unit tests).
+        if dispatch_model="$(get_agent_model "$provider" "council" "$persona" 2>/dev/null)" && [[ -n "$dispatch_model" ]]; then
+            model="$dispatch_model"
+        fi
     fi
     seat="$(council_persona_seat "$persona")"
     family="$(council_persona_family "$persona")"
