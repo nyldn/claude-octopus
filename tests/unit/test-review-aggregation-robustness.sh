@@ -244,6 +244,15 @@ else
     test_fail "Round 1 supervisor triggered Bash octal parsing"
 fi
 
+test_case "Round 1 tracks provider processes instead of spawn wrappers"
+round1_spawn_block="$(sed -n '/^[[:space:]]*fleet_dispatch_begin$/,/^[[:space:]]*fleet_dispatch_end$/p' "$REVIEW_SH")"
+if grep -q 'spawn_agent_capture_pid' <<< "$round1_spawn_block" &&
+   ! grep -Eq 'spawn_agent .*&' <<< "$round1_spawn_block"; then
+    test_pass
+else
+    test_fail "Round 1 still supervises short-lived spawn wrappers"
+fi
+
 test_case "Round 1 supervision isolates a stalled agent from a progressing peer"
 round1_dir="$TEST_TMP_DIR/round1-supervision"
 mkdir -p "$round1_dir"

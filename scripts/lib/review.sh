@@ -980,8 +980,9 @@ CRITICAL OUTPUT FORMAT: Return ONLY a valid JSON object. No markdown, no prose, 
 ${agent_prompt_base}"
         round1_prompts+=("$agent_prompt")
 
-        spawn_agent "$agent_type" "$agent_prompt" "$task_id" "$role" "review" &
-        round1_pids+=("$!")
+        local round1_pid
+        round1_pid=$(spawn_agent_capture_pid "$agent_type" "$agent_prompt" "$task_id" "$role" "review")
+        round1_pids+=("$round1_pid")
     done <<< "$fleet"
 
     fleet_dispatch_end
