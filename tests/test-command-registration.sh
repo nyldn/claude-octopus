@@ -190,6 +190,18 @@ if [[ -d "$COMMANDS_DIR" ]]; then
     fi
 fi
 
+# Test 10: Codex compatibility scans the migrated command directory once
+echo ""
+echo "Test 10: Checking Codex compatibility command targets..."
+CODEX_COMPAT_SCRIPT="$PROJECT_ROOT/scripts/test-codex-compat.sh"
+ROOT_COMMAND_TARGET_COUNT=$(grep -Fc 'CODEX_INSTRUCTION_TARGETS="$CODEX_INSTRUCTION_TARGETS commands"' "$CODEX_COMPAT_SCRIPT" || true)
+
+if [[ "$ROOT_COMMAND_TARGET_COUNT" -eq 1 ]] && ! grep -F '.claude/commands' "$CODEX_COMPAT_SCRIPT" >/dev/null; then
+    pass "Codex compatibility scans commands/ exactly once"
+else
+    fail "Duplicate or stale Codex command target" "Expected one commands/ target and no .claude/commands target"
+fi
+
 # Summary
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
