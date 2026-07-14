@@ -50,11 +50,14 @@ test_primitives_defined() {
 
 test_backends_defaults_to_claude_mem() {
     test_case "with no MCP config registered, backends resolves to claude-mem"
-    local out
+    local out tmp_settings
+    tmp_settings=$(mktemp)
+    printf "{}\n" >"$tmp_settings"
     # shellcheck disable=SC1090
-    out=$(OCTOPUS_MEMORY_BACKEND=auto CLAUDE_SETTINGS_FILE=/dev/null \
+    out=$(env -u AGENTMEMORY_URL OCTOPUS_MEMORY_BACKEND=auto CLAUDE_SETTINGS_FILE="$tmp_settings" \
           HOME=/nonexistent-for-test \
           bash -c "source '$MEM'; memory_backends")
+    rm -f "$tmp_settings"
     if [[ "$(printf '%s' "$out" | head -1)" == "claude-mem" ]]; then
         test_pass
     else
