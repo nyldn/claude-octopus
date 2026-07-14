@@ -112,7 +112,7 @@ BANNER
 
 The rendered banner must look like this shape, with ACTUAL statuses:
 
-```
+```text
 🐙 **CLAUDE OCTOPUS ACTIVATED** — Multi-AI Brainstorm
 🔍 Brainstorm: [Topic being explored]
 
@@ -147,7 +147,7 @@ TOPIC="[TOPIC]"
 ORCH="${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh"
 [[ -x "$ORCH" ]] || { echo "Octopus orchestrator not found: $ORCH"; exit 1; }
 ORCH_HELP="$("$ORCH" 2>&1 || true)"
-printf '%s\n' "$ORCH_HELP" | grep -q 'spawn <agent>' || { echo "Octopus orchestrator does not expose spawn"; exit 1; }
+printf '%s\n' "$ORCH_HELP" | grep -c 'spawn <agent>' >/dev/null || { echo "Octopus orchestrator does not expose spawn"; exit 1; }
 
 RUN_DIR="$(mktemp -d "${TMPDIR:-/tmp}/octopus-brainstorm.XXXXXX")"
 trap 'rm -rf "$RUN_DIR"' EXIT
@@ -183,7 +183,8 @@ wait
 ```
 
 **Claude Agent** (always available — use Agent tool with run_in_background):
-```
+
+```text
 Think creatively about: [TOPIC]
 
 Your role: Pattern spotter and paradox hunter.
@@ -200,7 +201,7 @@ Be specific and creative. Avoid generic advice.
 
 Once all agents return, present results with provider indicators:
 
-```
+```text
 🔴 **Codex Ideas:**
 [Codex response summary — key ideas only, not full dump]
 
@@ -213,7 +214,7 @@ Once all agents return, present results with provider indicators:
 
 Then synthesize:
 
-```
+```text
 🐙 **Cross-Perspective Synthesis:**
 
 **Convergence** — Ideas that multiple providers surfaced:

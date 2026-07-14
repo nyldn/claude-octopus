@@ -343,6 +343,21 @@ test_skill_loader_parses_frontmatter() {
     fi
 }
 
+test_skill_loader_uses_plugin_commands_dir() {
+    test_case "OpenClaw source and distribution load plugin commands/"
+    local src="$PROJECT_ROOT/openclaw/src/skill-loader.ts"
+    local dist="$PROJECT_ROOT/openclaw/dist/skill-loader.js"
+
+    if grep -Fq 'resolve(pluginRoot, "commands")' "$src" && \
+       grep -Fq 'resolve(pluginRoot, "commands")' "$dist" && \
+       ! grep -Fq '.claude/commands' "$src" && \
+       ! grep -Fq '.claude/commands' "$dist"; then
+        test_pass
+    else
+        test_fail "OpenClaw loaders must use the plugin commands/ directory"
+    fi
+}
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # TypeScript Configuration
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -495,6 +510,7 @@ test_registry_contains_skills_and_commands
 test_registry_count_matches
 test_build_check_mode
 test_skill_loader_parses_frontmatter
+test_skill_loader_uses_plugin_commands_dir
 
 # TypeScript Config
 test_mcp_tsconfig_module_resolution

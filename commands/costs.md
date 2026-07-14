@@ -18,7 +18,7 @@ When the user invokes `/octo:costs`, you MUST follow these steps in order.
 
 Search for session usage data in these locations (check all, use whichever exist):
 
-```
+```text
 ~/.claude-octopus/usage/           # Per-session usage logs
 ~/.claude-octopus/routing.log      # Routing decisions with timestamps
 ~/.claude-octopus/sessions/        # Session state files
@@ -46,7 +46,7 @@ For each provider found in the usage data, extract:
 
 Format as a clean ASCII table:
 
-```
+```text
 Provider Cost Breakdown
 ============================================================
 Provider           Tokens In   Tokens Out   Queries   Est Cost
@@ -67,7 +67,7 @@ For providers where only query counts are available (Codex, Gemini, Antigravity,
 
 Group costs by workflow/command that triggered them:
 
-```
+```text
 Workflow Cost Breakdown
 ============================================================
 Workflow             Providers Used         Queries   Est Cost
@@ -85,7 +85,7 @@ TOTAL                                             29     $1.57
 
 Show both the current session totals and cumulative totals (if historical data exists):
 
-```
+```text
 Session Summary
 ============================================================
 Current Session:   $1.57  (29 queries, started 2h 15m ago)
@@ -100,7 +100,7 @@ If cumulative data is not available, show only the current session.
 
 If no usage data exists at all, display:
 
-```
+```text
 No usage data found.
 
 Claude Octopus tracks provider usage in:
@@ -138,7 +138,7 @@ These are the current per-provider cost estimates used for calculations:
 
 ## Examples
 
-```
+```text
 /octo:costs                    # Show current session costs
 /octo:costs                    # After running several workflows
 ```

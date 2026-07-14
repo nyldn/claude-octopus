@@ -7,10 +7,10 @@
  * DO NOT EDIT MANUALLY — regenerate with: ./scripts/build-openclaw.sh
  */
 export const SKILL_REGISTRY = [
-    { name: "flow-define", description: "Multi-AI requirements scoping using Codex and Gemini CLIs (Double Diamond Define phase)", type: "skill", file: "flow-define/SKILL.md" },
-    { name: "flow-deliver", description: "Multi-AI validation, scoring, and review using Codex and Gemini CLIs (Double Diamond Deliver phase)", type: "skill", file: "flow-deliver/SKILL.md" },
-    { name: "flow-develop", description: "Multi-AI implementation using Codex and Gemini CLIs (Double Diamond Develop phase)", type: "skill", file: "flow-develop/SKILL.md" },
-    { name: "flow-discover", description: "Multi-AI research using Codex and Gemini CLIs (Double Diamond Discover phase)", type: "skill", file: "flow-discover/SKILL.md" },
+    { name: "flow-define", description: "Multi-AI requirements scoping using available external providers (Double Diamond Define phase)", type: "skill", file: "flow-define/SKILL.md" },
+    { name: "flow-deliver", description: "Multi-AI validation, scoring, and review using available external providers (Double Diamond Deliver phase)", type: "skill", file: "flow-deliver/SKILL.md" },
+    { name: "flow-develop", description: "Multi-AI implementation using available external providers (Double Diamond Develop phase)", type: "skill", file: "flow-develop/SKILL.md" },
+    { name: "flow-discover", description: "Multi-AI research using available external providers (Double Diamond Discover phase)", type: "skill", file: "flow-discover/SKILL.md" },
     { name: "flow-parallel", description: "Decompose and execute large changes, migrations, or multi-issue fixes in parallel with quality gates", type: "skill", file: "flow-parallel/SKILL.md" },
     { name: "flow-spec", description: "NLSpec authoring — use when you need a structured specification from multi-AI research and consensus", type: "skill", file: "flow-spec/SKILL.md" },
     { name: "octopus-architecture", description: "System architecture and API design with multi-AI consensus — use for design reviews and new subsystems", type: "skill", file: "skill-architecture/SKILL.md" },
@@ -26,7 +26,7 @@ export const SKILL_REGISTRY = [
     { name: "skill-copilot-provider", description: "GitHub Copilot CLI as optional zero-cost provider via copilot -p programmatic mode", type: "skill", file: "skill-copilot-provider/SKILL.md" },
     { name: "skill-cost-projections", description: "Project remaining workflow cost from per-phase averages — warns on budget ceiling overruns", type: "skill", file: "skill-cost-projections/SKILL.md" },
     { name: "skill-coverage-audit", description: "Trace codepaths in diffs, map against tests, auto-generate missing coverage — use before shipping PRs", type: "skill", file: "skill-coverage-audit/SKILL.md" },
-    { name: "skill-debate", description: "Structured four-way AI debates between Claude, Sonnet, Gemini, and Codex — use for critical decisions", type: "skill", file: "skill-debate/SKILL.md" },
+    { name: "skill-debate", description: "Structured multi-provider AI debates between Claude and available advisors — use for critical decisions", type: "skill", file: "skill-debate/SKILL.md" },
     { name: "skill-debug", description: "Debug issues methodically — use when stuck on errors, test failures, or unexpected behavior", type: "skill", file: "skill-debug/SKILL.md" },
     { name: "skill-decision-support", description: "Present options with trade-offs for informed decision-making — use when choosing between approaches", type: "skill", file: "skill-decision-support/SKILL.md" },
     { name: "skill-deck", description: "Generate slide deck presentations from briefs — use when you need slides, pitch decks, or visual summaries", type: "skill", file: "skill-deck/SKILL.md" },
@@ -65,7 +65,7 @@ export const SKILL_REGISTRY = [
     { name: "claw", description: "[advanced] OpenClaw instance administration — manage hosts across macOS, Ubuntu/Debian, Docker, OCI, and Proxmox", type: "command", file: "claw.md" },
     { name: "costs", description: "[advanced] Show cost breakdown by provider and workflow for the current session", type: "command", file: "costs.md" },
     { name: "council", description: "Multi-LLM council for advice, decision support, implementation plans, and gated implementation", type: "command", file: "council.md" },
-    { name: "debate", description: "AI Debate Hub - Structured four-way debates between Claude, Sonnet, Gemini, and Codex", type: "command", file: "debate.md" },
+    { name: "debate", description: "AI Debate Hub - Structured debates across Claude and available external providers", type: "command", file: "debate.md" },
     { name: "debug", description: "Systematic debugging with methodical problem investigation", type: "command", file: "debug.md" },
     { name: "deck", description: "Generate slide deck presentations from briefs or research", type: "command", file: "deck.md" },
     { name: "define", description: "Definition phase - Clarify and scope problems with multi-AI consensus", type: "command", file: "define.md" },
@@ -76,7 +76,6 @@ export const SKILL_REGISTRY = [
     { name: "discipline", description: "Toggle discipline mode — auto-invoke verification, brainstorming-before-coding, and review checks", type: "command", file: "discipline.md" },
     { name: "discover", description: "Discovery phase - Multi-AI research and exploration", type: "command", file: "discover.md" },
     { name: "docs", description: "Document delivery with export to PPTX, DOCX, PDF formats", type: "command", file: "docs.md" },
-    { name: "doctor", description: "Run diagnostic checks on the Octopus plugin and environment", type: "command", file: "doctor.md" },
     { name: "embrace", description: "Full Double Diamond workflow - Research → Define → Develop → Deliver", type: "command", file: "embrace.md" },
     { name: "extract", description: "Design System & Product Reverse-Engineering - Extract tokens, components, architecture, and PRDs from codebases or live products", type: "command", file: "extract.md" },
     { name: "factory", description: "[advanced] Dark Factory Mode - Spec-in, software-out autonomous pipeline", type: "command", file: "factory.md" },
@@ -109,6 +108,7 @@ export const SKILL_REGISTRY = [
     { name: "staged-review", description: "[advanced] Two-stage review: spec compliance then code quality", type: "command", file: "staged-review.md" },
     { name: "tdd", description: "Test-driven development with red-green-refactor discipline", type: "command", file: "tdd.md" },
     { name: "unfreeze", description: "[advanced] Remove freeze mode edit restriction", type: "command", file: "unfreeze.md" },
+    { name: "usage", description: "[advanced] Per-provider, per-skill, and per-MCP-server cost and token breakdown (Claude Code /usage schema)", type: "command", file: "usage.md" },
 ];
 export const REGISTRY_COUNT = 102;
 //# sourceMappingURL=index.js.map

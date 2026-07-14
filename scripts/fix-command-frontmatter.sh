@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Script: Automatically fix YAML frontmatter in command files
 # Changes 'name:' to 'command:' in all command files
 
@@ -36,7 +36,7 @@ for cmd_file in "$COMMANDS_DIR"/*.md; do
     filename=$(basename "$cmd_file")
 
     # Check if file uses 'name:' instead of 'command:'
-    if grep -q "^name:" "$cmd_file"; then
+    if grep -c "^name:" "$cmd_file" >/dev/null; then
         echo -e "${YELLOW}Fixing:${NC} $filename"
 
         # Create backup

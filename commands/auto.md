@@ -153,14 +153,14 @@ Engineering:
 12. Parallel    (/octo:parallel)       — Team of Teams decomposition
 
 Creative & Documentation:
-12. Design      (/octo:design-ui-ux)   — UI/UX design workflow
-13. PRD         (/octo:prd)            — Product requirements document
-14. Docs        (/octo:docs)           — Documentation delivery
-15. Brainstorm  (/octo:brainstorm)     — Creative ideation
-16. Deck        (/octo:deck)           — Slide deck generation
+13. Design      (/octo:design-ui-ux)   — UI/UX design workflow
+14. PRD         (/octo:prd)            — Product requirements document
+15. Docs        (/octo:docs)           — Documentation delivery
+16. Brainstorm  (/octo:brainstorm)     — Creative ideation
+17. Deck        (/octo:deck)           — Slide deck generation
 
 Quick:
-17. Quick       (/octo:quick)          — Fast ad-hoc execution
+18. Quick       (/octo:quick)          — Fast ad-hoc execution
 ```
 
 ### STEP 6: Display Visual Indicators

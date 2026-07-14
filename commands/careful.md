@@ -42,13 +42,13 @@ rm -f "/tmp/octopus-careful-${_OCTO_SESSION_ID}.txt"
 
 ### Usage
 
-```
+```text
 /octo:careful
 ```
 
 After activation, confirm to the user:
 
-```
+```text
 ⚠️ Careful mode activated. Destructive commands will now require confirmation before executing.
 ```
 
