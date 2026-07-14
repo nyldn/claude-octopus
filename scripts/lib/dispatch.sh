@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+_profile_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if ! declare -f octopus_resolve_reasoning_level >/dev/null 2>&1; then
+    source "${_profile_lib_dir}/execution-profile.sh" 2>/dev/null || true
+fi
 # Claude Octopus — Agent Dispatch & Model Resolution
 # ═══════════════════════════════════════════════════════════════════════════════
 # Extracted from orchestrate.sh in v9.7.7 monolith decomposition.
@@ -57,8 +61,10 @@ _codex_dispatch_is_oss_model() {
 #    is set — closing the codex-side vector that ollama-run.sh does not cover.
 #    Cloud models are emitted unchanged (zero behavior change for the common path). ──
 _build_codex_exec_command() {
-    local model="$1" sandbox_flag="$2"
-    local base="codex exec --skip-git-repo-check --model ${model} ${sandbox_flag} -"
+    local model="$1" sandbox_flag="$2" reasoning_fragment="${3:-}"
+    local base="codex exec --skip-git-repo-check --model ${model}"
+    [[ -n "$reasoning_fragment" ]] && base+=" ${reasoning_fragment}"
+    base+=" ${sandbox_flag} -"
     if _codex_dispatch_is_oss_model "$model"; then
         echo "${PLUGIN_DIR}/scripts/helpers/codex-run.sh ${base}"
     else
@@ -113,10 +119,21 @@ get_agent_command() {
             if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
                 return 1
             fi
-            _build_codex_exec_command "$model" "$sandbox_flag"
+            local reasoning_level reasoning_policy reasoning_fragment
+            reasoning_level="$(octopus_resolve_reasoning_level codex "$phase" "$role")" || return 1
+            reasoning_policy="$(octopus_resolve_reasoning_policy codex "$phase" "$role")" || return 1
+            reasoning_fragment="$(octopus_reasoning_cli_fragment codex "$reasoning_level" "$reasoning_policy")" || return 1
+            _build_codex_exec_command "$model" "$sandbox_flag" "$reasoning_fragment"
             ;;
         gemini|gemini-fast|gemini-image)
             local gemini_flags="-o text --approval-mode yolo"
+            local reasoning_level reasoning_policy
+            reasoning_level="$(octopus_resolve_reasoning_level gemini "$phase" "$role")" || return 1
+            reasoning_policy="$(octopus_resolve_reasoning_policy gemini "$phase" "$role")" || return 1
+            octopus_reasoning_cli_fragment gemini "$reasoning_level" "$reasoning_policy" >/dev/null || {
+                log ERROR "Reasoning level '$reasoning_level' is unsupported for gemini under strict policy"
+                return 1
+            }
             if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
                 return 1
             fi
@@ -149,8 +166,18 @@ get_agent_command() {
             echo "${PLUGIN_DIR}/scripts/helpers/agy-exec.sh"
             ;;
         codex-review) echo "codex exec --skip-git-repo-check review" ;; # Code review mode (no sandbox support)
-        claude) echo "${_claude_bin}${_BARE_OPT} --print ${claude_perm}" ;;                         # Claude Sonnet 4.6
-        claude-sonnet) echo "${_claude_bin}${_BARE_OPT} --print --model sonnet ${claude_perm}" ;;        # Claude Sonnet explicit
+        claude)
+            local reasoning_level reasoning_policy reasoning_fragment
+            reasoning_level="$(octopus_resolve_reasoning_level claude "$phase" "$role")" || return 1
+            reasoning_policy="$(octopus_resolve_reasoning_policy claude "$phase" "$role")" || return 1
+            reasoning_fragment="$(octopus_reasoning_cli_fragment claude "$reasoning_level" "$reasoning_policy")" || return 1
+            echo "${_claude_bin}${_BARE_OPT} --print ${reasoning_fragment} ${claude_perm}" ;;                         # Claude Sonnet 4.6
+        claude-sonnet)
+            local reasoning_level reasoning_policy reasoning_fragment
+            reasoning_level="$(octopus_resolve_reasoning_level claude "$phase" "$role")" || return 1
+            reasoning_policy="$(octopus_resolve_reasoning_policy claude "$phase" "$role")" || return 1
+            reasoning_fragment="$(octopus_reasoning_cli_fragment claude "$reasoning_level" "$reasoning_policy")" || return 1
+            echo "${_claude_bin}${_BARE_OPT} --print --model sonnet ${reasoning_fragment} ${claude_perm}" ;;        # Claude Sonnet explicit
         claude-opus)
             # v9.42: Opus alias — resolves to 4.8 on Claude Code v2.1.154+,
             # then 4.7/4.6 on older hosts or enterprise backends.
@@ -210,7 +237,11 @@ get_agent_command() {
                 log ERROR "Invalid OpenAI-compatible cwd: ${PWD}"
                 return 1
             fi
-            echo "${PLUGIN_DIR}/scripts/helpers/openai-compatible-agent.py --provider generic --model ${model} --cwd ${PWD}"
+            local reasoning_level reasoning_policy reasoning_fragment
+            reasoning_level="$(octopus_resolve_reasoning_level openai-compatible-agent "$phase" "$role")" || return 1
+            reasoning_policy="$(octopus_resolve_reasoning_policy openai-compatible-agent "$phase" "$role")" || return 1
+            reasoning_fragment="$(octopus_reasoning_cli_fragment openai-compatible-agent "$reasoning_level" "$reasoning_policy")" || return 1
+            echo "${PLUGIN_DIR}/scripts/helpers/openai-compatible-agent.py --provider generic --model ${model} ${reasoning_fragment} --cwd ${PWD}"
             ;;
         atlascloud-agent)  # Atlas Cloud via the OpenAI-compatible tool-loop agent
             model="${ATLASCLOUD_MODEL:-${OCTOPUS_ATLASCLOUD_MODEL:-${OPENAI_COMPAT_MODEL:-}}}"

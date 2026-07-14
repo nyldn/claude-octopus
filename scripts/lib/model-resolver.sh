@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+_profile_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if ! declare -f octopus_resolve_reasoning_level >/dev/null 2>&1; then
+    source "${_profile_lib_dir}/execution-profile.sh" 2>/dev/null || true
+fi
 # ═══════════════════════════════════════════════════════════════════════════════
 # CONFIGURATION v3.0: Unified Model Resolver (v8.50.0)
 # Consolidated logic for provider, phase, and role-based model selection.
@@ -239,9 +243,15 @@ resolve_octopus_model() {
         if [[ -z "$resolved_model" || "$resolved_model" == "null" ]]; then
             local routed=""
             local phase_routed=""
-            [[ -n "$phase" ]] && phase_routed=$(echo "$config_data" | jq -r --arg phase "$phase" '.routing.phases[$phase] // empty' 2>/dev/null)
+            [[ -n "$phase" ]] && phase_routed=$(echo "$config_data" | jq -r --arg phase "$phase" '
+                .routing.phases[$phase] // empty |
+                if type == "object" then ((.provider // "") + (if (.model // "") != "" then ":" + .model else "" end)) else . end
+            ' 2>/dev/null)
             if [[ -n "$role" ]]; then
-                routed=$(echo "$config_data" | jq -r --arg role "$role" '.routing.roles[$role] // empty' 2>/dev/null)
+                routed=$(echo "$config_data" | jq -r --arg role "$role" '
+                    .routing.roles[$role] // empty |
+                    if type == "object" then ((.provider // "") + (if (.model // "") != "" then ":" + .model else "" end)) else . end
+                ' 2>/dev/null)
                 if [[ -n "$routed" && "$routed" != "null" ]]; then
                     local role_route_provider=""
                     if [[ "$routed" == *:* ]]; then

@@ -70,8 +70,10 @@ def tool_exec(cwd: Path, name: str, args: dict) -> str:
     except Exception as e:
         return f"ERROR: {type(e).__name__}: {e}"
 
-def api_call(base_url, key, model, headers_extra, messages, max_tokens=1400, request_timeout=60.0, max_retries=3):
+def api_call(base_url, key, model, headers_extra, messages, max_tokens=1400, request_timeout=60.0, max_retries=3, reasoning_effort=None):
     payload = {"model": model, "messages": messages, "tools": TOOLS, "tool_choice": "auto", "temperature": 0}
+    if reasoning_effort:
+        payload["reasoning_effort"] = reasoning_effort
     if max_tokens > 0:
         payload["max_tokens"] = max_tokens
     headers = {"Authorization": "Bearer " + key, "Content-Type": "application/json", **headers_extra}
@@ -139,7 +141,7 @@ def main() -> int:
     ]
     print(f"provider={args.provider} base_url={base_url} model={model} cwd={cwd}", file=sys.stderr)
     for turn in range(1, args.max_turns + 1):
-        d = api_call(base_url, key, model, cfg.get("headers", {}), messages, max_tokens=max_tokens, request_timeout=request_timeout, max_retries=max_retries)
+        d = api_call(base_url, key, model, cfg.get("headers", {}), messages, max_tokens=max_tokens, request_timeout=request_timeout, max_retries=max_retries, reasoning_effort=args.reasoning_effort)
         ch = d.get("choices", [{}])[0]; msg = ch.get("message", {})
         finish = ch.get("finish_reason")
         raw_content = msg.get("content")
