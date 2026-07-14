@@ -441,6 +441,12 @@ review_supervise_round1() {
     local round1_last_fp=()
     local round1_settled=()
 
+    [[ "$review_stall_window" =~ ^[0-9]+$ ]] || review_stall_window=1800
+    [[ "$review_poll_secs" =~ ^[0-9]+$ ]] || review_poll_secs=30
+    review_stall_window=$((10#$review_stall_window))
+    review_poll_secs=$((10#$review_poll_secs))
+    [[ "$review_poll_secs" -lt 1 ]] && review_poll_secs=1
+
     _poll_start=$(date +%s)
     _idx=0
     while [[ "$_idx" -lt "${#round1_files[@]}" ]]; do

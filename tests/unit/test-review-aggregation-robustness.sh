@@ -216,6 +216,34 @@ else
     fi
 fi
 
+test_case "Round 1 supervisor accepts leading-zero decimal timing values"
+round1_decimal_dir="$TEST_TMP_DIR/round1-decimal-timing"
+mkdir -p "$round1_decimal_dir"
+round1_decimal_err="$round1_decimal_dir/stderr"
+if (
+    sleep 0.5 &
+    decimal_provider_pid=$!
+    round1_files=("$round1_decimal_dir/provider.md")
+    round1_pids=("$decimal_provider_pid")
+    round1_agent_types=(codex)
+    round1_roles=(decimal-timing)
+    date() {
+        if [[ -e "$round1_decimal_dir/date-called" ]]; then
+            printf '110\n'
+        else
+            touch "$round1_decimal_dir/date-called"
+            printf '100\n'
+        fi
+    }
+    review_terminate_process_tree() { kill -TERM "$1" 2>/dev/null || true; }
+    review_supervise_round1 08 01 "$round1_decimal_dir"
+) 2>"$round1_decimal_err" &&
+   ! grep -q 'value too great for base' "$round1_decimal_err"; then
+    test_pass
+else
+    test_fail "Round 1 supervisor triggered Bash octal parsing"
+fi
+
 test_case "Round 1 supervision isolates a stalled agent from a progressing peer"
 round1_dir="$TEST_TMP_DIR/round1-supervision"
 mkdir -p "$round1_dir"
