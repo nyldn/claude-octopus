@@ -10,7 +10,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 source "$SCRIPT_DIR/helpers/test-framework.sh"
 test_suite "Intent Mode 3-Question Pattern"
 
-COMMANDS_DIR="$PROJECT_ROOT/.claude/commands"
+COMMANDS_DIR="$PROJECT_ROOT/commands"
 
 
 TEST_COUNT=0

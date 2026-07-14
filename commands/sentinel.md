@@ -71,15 +71,20 @@ When the user invokes `/octo:sentinel`, you MUST:
 - Verify `gh` CLI is available
 
 ### 2. Execute Sentinel
+
 ```bash
-OCTOPUS_SENTINEL_ENABLED=true bash scripts/orchestrate.sh sentinel $ARGUMENTS
+OCTO_ROOT="${OCTO_ROOT:-${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
+OCTOPUS_SENTINEL_ENABLED=true bash "${OCTO_ROOT}/scripts/orchestrate.sh" sentinel $ARGUMENTS
 ```
 
 ### 3. Fire Reaction Engine (v8.45.0)
+
 After triage, run the reaction engine to auto-respond to detected events:
+
 ```bash
 # Check all active agents and fire reactions
-REACTIONS="${HOME}/.claude-octopus/plugin/scripts/reactions.sh"
+OCTO_ROOT="${OCTO_ROOT:-${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
+REACTIONS="${OCTO_ROOT}/scripts/reactions.sh"
 if [[ -x "$REACTIONS" ]]; then
   "$REACTIONS" check-all
 fi

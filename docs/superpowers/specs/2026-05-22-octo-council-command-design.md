@@ -529,7 +529,7 @@ Flag-to-summary mapping: `summary.json.implementation.worktree` mirrors the reso
 
 ## Integration Points
 
-- Add `.claude/commands/council.md` and generated skill `skills/skill-council/SKILL.md`.
+- Add `commands/council.md` and generated skill `skills/skill-council/SKILL.md`.
 - Add `council)` command branch in `scripts/orchestrate.sh`.
 - Add `scripts/lib/council.sh` with the phase implementation.
 - Add council recommendation helpers near existing routing/persona logic.

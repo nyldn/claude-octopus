@@ -11,7 +11,7 @@ source "$SCRIPT_DIR/helpers/test-framework.sh"
 test_suite "command registration and file integrity"
 
 PLUGIN_JSON="$PROJECT_ROOT/.claude-plugin/plugin.json"
-COMMANDS_DIR="$PROJECT_ROOT/.claude/commands"
+COMMANDS_DIR="$PROJECT_ROOT/commands"
 
 
 TEST_COUNT=0
@@ -49,7 +49,7 @@ fi
 # Test 3: Extract all registered commands
 echo ""
 echo "Test 3: Extracting registered commands..."
-REGISTERED_COMMANDS=$(grep -o '"\./\.claude/commands/[^"]*"' "$PLUGIN_JSON" || true)
+REGISTERED_COMMANDS=$(grep -o '"\./commands/[^"]*"' "$PLUGIN_JSON" || true)
 COMMAND_COUNT=$(echo "$REGISTERED_COMMANDS" | grep -c '.md' || echo 0)
 
 if [[ $COMMAND_COUNT -gt 0 ]]; then
@@ -188,6 +188,18 @@ if [[ -d "$COMMANDS_DIR" ]]; then
         pass "No duplicate command names found"
         info "Unique commands: ${#COMMAND_NAMES[@]}"
     fi
+fi
+
+# Test 10: Codex compatibility scans the migrated command directory once
+echo ""
+echo "Test 10: Checking Codex compatibility command targets..."
+CODEX_COMPAT_SCRIPT="$PROJECT_ROOT/scripts/test-codex-compat.sh"
+ROOT_COMMAND_TARGET_COUNT=$(grep -Fc 'CODEX_INSTRUCTION_TARGETS="$CODEX_INSTRUCTION_TARGETS commands"' "$CODEX_COMPAT_SCRIPT" || true)
+
+if [[ "$ROOT_COMMAND_TARGET_COUNT" -eq 1 ]] && ! grep -F '.claude/commands' "$CODEX_COMPAT_SCRIPT" >/dev/null; then
+    pass "Codex compatibility scans commands/ exactly once"
+else
+    fail "Duplicate or stale Codex command target" "Expected one commands/ target and no .claude/commands target"
 fi
 
 # Summary

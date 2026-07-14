@@ -118,7 +118,7 @@ fi
 
 if ! {
     grep -q 'claude --remote\|claude --teleport' <<<"$readme_content" ||
-    grep -R -q 'claude --remote\|claude --teleport' "$PROJECT_ROOT/.cursor-plugin/commands" "$PROJECT_ROOT/.claude/commands"
+    grep -R -q 'claude --remote\|claude --teleport' "$PROJECT_ROOT/.cursor-plugin/commands" "$PROJECT_ROOT/commands"
 }; then
     pass "remote docs avoid unsupported Claude CLI flags"
 else

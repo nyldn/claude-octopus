@@ -362,7 +362,7 @@ check_release_validator_marketplace_parser() {
 check_command_frontmatter() {
   info "\nValidating command YAML frontmatter..."
 
-  local commands_dir=".claude/commands"
+  local commands_dir="commands"
 
   if [ ! -d "$commands_dir" ]; then
     fail "Commands directory not found: $commands_dir"

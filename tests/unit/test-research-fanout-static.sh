@@ -9,7 +9,7 @@ source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "Research fanout safeguards"
 
 test_case "research command supports breadth routing"
-research_cmd="$(<"$PROJECT_ROOT/.claude/commands/research.md")"
+research_cmd="$(<"$PROJECT_ROOT/commands/research.md")"
 if [[ "$research_cmd" == *"--breadth=light|standard|exhaustive"* && "$research_cmd" == *"[breadth=exhaustive]"* ]]; then
     test_pass
 else

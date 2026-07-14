@@ -10,7 +10,7 @@ test_suite "Scope Drift Detection (CONSOLIDATED-05) and Research Report Template
 
 
 DELIVER="$(resolve_claude_skill_path "flow-deliver")"
-RESEARCH="$PROJECT_ROOT/.claude/commands/research.md"
+RESEARCH="$PROJECT_ROOT/commands/research.md"
 
 pass() { test_case "$1"; test_pass; }
 fail() { test_case "$1"; test_fail "${2:-$1}"; }

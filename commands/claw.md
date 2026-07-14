@@ -15,7 +15,8 @@ Read and follow the full skill instructions from:
 ## Quick Usage
 
 Just use natural language:
-```
+
+```text
 "Check if my OpenClaw instance is healthy"
 "Update OpenClaw to the latest stable version"
 "Set up OpenClaw on my Proxmox server"
@@ -43,7 +44,7 @@ Every action follows:
 
 ## Natural Language Examples
 
-```
+```text
 "Check my server health"
 "Update openclaw to latest"
 "Set up tailscale"

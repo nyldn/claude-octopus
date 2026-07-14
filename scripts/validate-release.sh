@@ -298,10 +298,10 @@ echo ""
 echo "📝 Checking command registration..."
 
 # Get all .md files in commands directory
-COMMAND_FILES=$(ls "$ROOT_DIR/.claude/commands/"*.md 2>/dev/null | xargs -n1 basename | sort)
+COMMAND_FILES=$(ls "$ROOT_DIR/commands/"*.md 2>/dev/null | xargs -n1 basename | sort)
 
 # Get commands registered in plugin.json
-REGISTERED_COMMANDS=$(grep -o '\.claude/commands/[^"]*\.md' "$ROOT_DIR/.claude-plugin/plugin.json" | sed 's|.*\.claude/commands/||' | sort)
+REGISTERED_COMMANDS=$(grep -o 'commands/[^"]*\.md' "$ROOT_DIR/.claude-plugin/plugin.json" | sed 's|.*commands/||' | sort)
 
 # Plugin commands are namespaced by .claude-plugin/plugin.json (`octo`), so
 # command: doctor exposes /octo:doctor rather than a bare /doctor command.
@@ -337,7 +337,7 @@ echo ""
 echo "📛 Checking command frontmatter format..."
 
 invalid_frontmatter=0
-for cmd_file in "$ROOT_DIR/.claude/commands/"*.md; do
+for cmd_file in "$ROOT_DIR/commands/"*.md; do
     cmd_name=$(sed -n '2p' "$cmd_file" | grep -o 'command: .*' | sed 's/command: //' || true)
     # Commands should NOT have "octo:" prefix in frontmatter (Claude Code adds it automatically)
     if [[ -n "$cmd_name" ]] && [[ "$cmd_name" == *":"* ]]; then

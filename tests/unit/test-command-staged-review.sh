@@ -9,10 +9,10 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "/octo:staged-review command file integrity"
 
-CMD_FILE="$PROJECT_ROOT/.claude/commands/staged-review.md"
+CMD_FILE="$PROJECT_ROOT/commands/staged-review.md"
 SKILL_FILE="$(resolve_claude_skill_path "skill-staged-review")"
 PLUGIN_JSON="$PROJECT_ROOT/.claude-plugin/plugin.json"
-COMMANDS_DIR="$PROJECT_ROOT/.claude/commands"
+COMMANDS_DIR="$PROJECT_ROOT/commands"
 
 pass() { test_case "$1"; test_pass; }
 fail() { test_case "$1"; test_fail "${2:-$1}"; }

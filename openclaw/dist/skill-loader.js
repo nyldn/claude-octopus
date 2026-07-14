@@ -125,7 +125,7 @@ export async function loadSkills(pluginRoot) {
  * Load command metadata from the Claude Octopus commands directory.
  */
 export async function loadCommands(pluginRoot) {
-    const commandsDir = resolve(pluginRoot, ".claude/commands");
+    const commandsDir = resolve(pluginRoot, "commands");
     const files = await readdir(commandsDir);
     const commands = [];
     for (const file of files) {

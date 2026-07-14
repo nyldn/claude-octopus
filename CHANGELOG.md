@@ -6,6 +6,7 @@
 
 - **Repository review follow-ups**: clarified README provider counting and cost assumptions, routed marketplace-sync errors through the script logger, and made release manifest updates portable while keeping browse-manifest hook and routine counts current.
 - **Review aggregation follow-up hardening** (#592): each Round 1 agent now has an independent progress timer; completed results require anchored terminal statuses; provider exits without a terminal status are classified as partial; leading-zero timing inputs are normalized as decimal; stall cleanup snapshots and terminates the full descendant process tree; and findings extraction accepts only arrays while preferring the last non-empty result.
+- **Plugin commands moved from `.claude/commands/` to `commands/`** — `.claude/commands` is Claude Code's reserved user/project command directory, so the installed plugin cache registered all 50 commands bare (unnamespaced) in addition to the `octo:` namespace. Bare `/resume`, `/review`, `/plan`, and `/usage` shadowed Claude Code built-ins (typing `/resume` opened octo's agent-resume instead of the native session picker). Commands now live in the standard `commands/` plugin directory; only `octo:*` names register. All path references updated across plugin.json, scripts, hooks, tests, and docs; `.claude/skills` and `.claude/agents` have the same bare-registration pollution (no built-in collisions) and are tracked as a follow-up.
 
 ## [9.52.0] - 2026-07-09
 

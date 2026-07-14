@@ -16,7 +16,6 @@ FAIL=0
 SKIP=0
 CODEX_INSTRUCTION_TARGETS="skills .claude/skills"
 [[ -d "$PLUGIN_ROOT/commands" ]] && CODEX_INSTRUCTION_TARGETS="$CODEX_INSTRUCTION_TARGETS commands"
-[[ -d "$PLUGIN_ROOT/.claude/commands" ]] && CODEX_INSTRUCTION_TARGETS="$CODEX_INSTRUCTION_TARGETS .claude/commands"
 
 test_cmd() {
     local name="$1"

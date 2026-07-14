@@ -376,7 +376,7 @@ for label in "plugin-validate" "allow-read-sandbox" "branch-command" "sendmessag
 done
 
 # resume command references
-resume_cmd="$PROJECT_ROOT/.claude/commands/resume.md"
+resume_cmd="$PROJECT_ROOT/commands/resume.md"
 if [[ -f "$resume_cmd" ]]; then
     if grep -c 'v2.1.77' "$resume_cmd" >/dev/null 2>&1; then
         pass "resume.md references v2.1.77"

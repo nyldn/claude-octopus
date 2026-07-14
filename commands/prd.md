@@ -54,6 +54,7 @@ To make this PRD highly targeted, please answer briefly:
 
 ```bash
 set -euo pipefail
+OCTO_ROOT="${OCTO_ROOT:-${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
 
 # Check if multi-provider research is available
 CODEX_AVAILABLE="false"
@@ -83,13 +84,13 @@ fi
 ```bash
 # Parallel research dispatch (if providers available)
 if [[ "$CODEX_AVAILABLE" == "true" ]]; then
-  orchestrate.sh prd-research "<feature>" codex &
+  "${OCTO_ROOT}/scripts/orchestrate.sh" prd-research "<feature>" codex &
 fi
 if [[ "$GEMINI_AVAILABLE" == "true" ]]; then
-  orchestrate.sh prd-research "<feature>" gemini &
+  "${OCTO_ROOT}/scripts/orchestrate.sh" prd-research "<feature>" gemini &
 fi
 if [[ "$AGY_AVAILABLE" == "true" ]]; then
-  orchestrate.sh prd-research "<feature>" agy &
+  "${OCTO_ROOT}/scripts/orchestrate.sh" prd-research "<feature>" agy &
 fi
 wait
 ```
@@ -121,14 +122,16 @@ Include these sections:
 **After drafting the PRD but BEFORE self-scoring, dispatch the draft to a second provider for adversarial review.** A single-model PRD has blind spots — cross-provider challenge surfaces wrong assumptions, uncovered scenarios, and contradictory requirements.
 
 **If an external provider is available, dispatch through Octopus routing:**
+
 ```bash
+OCTO_ROOT="${OCTO_ROOT:-${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
 review_provider=""
 command -v codex >/dev/null 2>&1 && review_provider="codex"
 [[ -z "$review_provider" ]] && command -v agy >/dev/null 2>&1 && review_provider="agy"
 [[ -z "$review_provider" ]] && command -v gemini >/dev/null 2>&1 && review_provider="gemini"
 
 if [[ -n "$review_provider" ]]; then
-  "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" spawn "$review_provider" \
+  "${OCTO_ROOT}/scripts/orchestrate.sh" spawn "$review_provider" \
     "You are a skeptical product reviewer. Challenge this PRD:
 
 1. What ASSUMPTIONS are wrong or untested? (e.g., assumed user behavior, market conditions, technical feasibility)

@@ -29,7 +29,7 @@ check_tree() {
     fi
 }
 
-check_tree "source command docs" "$PROJECT_ROOT/.claude/commands"
+check_tree "source command docs" "$PROJECT_ROOT/commands"
 check_tree "source skill docs" "$PROJECT_ROOT/.claude/skills"
 check_tree "packaged command docs" "$PROJECT_ROOT/.cursor-plugin/commands"
 check_tree "packaged skill docs" "$PROJECT_ROOT/skills"

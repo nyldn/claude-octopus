@@ -147,7 +147,7 @@
 
 **Modified Files** (3):
 - `scripts/orchestrate.sh` - Add validate_extraction()
-- `.claude/commands/extract.md` - Document --validate flag
+- `commands/extract.md` - Document --validate flag
 - `types.ts` + `pipeline.ts` - Validation integration
 
 ---

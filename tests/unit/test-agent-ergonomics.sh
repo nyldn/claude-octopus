@@ -65,7 +65,7 @@ assert_contains "$(grep -A5 'agent-resume' "$ORCHESTRATE" | head -10)" \
   "resume_agent" "agent-resume: calls resume_agent() function"
 
 # ── /octo:resume command file ─────────────────────────────────────────────────
-RESUME_CMD="$PROJECT_ROOT/.claude/commands/resume.md"
+RESUME_CMD="$PROJECT_ROOT/commands/resume.md"
 assert_contains "$(cat "$RESUME_CMD" 2>/dev/null)" \
   "agent-resume" "resume command: references agent-resume backend"
 assert_contains "$(cat "$RESUME_CMD" 2>/dev/null)" \

@@ -63,7 +63,7 @@ test_sentinel_command_registered() {
 test_sentinel_command_file_exists() {
     test_case "Sentinel command file exists"
 
-    if [[ -f "$PROJECT_ROOT/.claude/commands/sentinel.md" ]]; then
+    if [[ -f "$PROJECT_ROOT/commands/sentinel.md" ]]; then
         test_pass
     else
         test_fail "sentinel.md command file not found"

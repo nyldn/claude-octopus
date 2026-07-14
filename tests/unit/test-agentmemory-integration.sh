@@ -15,7 +15,7 @@ fail() { test_case "$1"; test_fail "${2:-$1}"; }
 BRIDGE="$PROJECT_ROOT/scripts/agentmemory-bridge.sh"
 MEMORY_LIB="$PROJECT_ROOT/scripts/lib/memory.sh"
 DOCTOR="$PROJECT_ROOT/scripts/lib/doctor.sh"
-SETUP="$PROJECT_ROOT/.claude/commands/setup.md"
+SETUP="$PROJECT_ROOT/commands/setup.md"
 CURSOR_SETUP="$PROJECT_ROOT/.cursor-plugin/commands/octo-setup.md"
 README="$PROJECT_ROOT/README.md"
 

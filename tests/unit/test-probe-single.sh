@@ -130,7 +130,7 @@ assert_contains "$(grep -c 'run_in_background.*true' "$FLOW_DISCOVER" 2>/dev/nul
 
 # ── research.md has intensity AskUserQuestion ────────────────────────────────
 
-RESEARCH_CMD="$PROJECT_ROOT/.claude/commands/research.md"
+RESEARCH_CMD="$PROJECT_ROOT/commands/research.md"
 assert_contains "$(grep -c 'Research Intensity' "$RESEARCH_CMD" 2>/dev/null || echo 0)" \
   "[1-9]" "research.md: has Research Intensity AskUserQuestion"
 
@@ -139,7 +139,7 @@ assert_contains "$(grep -c 'intensity=' "$RESEARCH_CMD" 2>/dev/null || echo 0)" 
 
 # ── discover.md aligns intensity question ────────────────────────────────────
 
-DISCOVER_CMD="$PROJECT_ROOT/.claude/commands/discover.md"
+DISCOVER_CMD="$PROJECT_ROOT/commands/discover.md"
 assert_contains "$(grep -c 'Research Intensity' "$DISCOVER_CMD" 2>/dev/null || echo 0)" \
   "[1-9]" "discover.md: has Research Intensity header"
 

@@ -85,7 +85,7 @@ done
 
 # ── 6. Smart router claude-mem hint ──────────────────────────────────
 
-if grep -c 'claude-mem' "$PROJECT_ROOT/.claude/commands/auto.md" >/dev/null 2>&1; then
+if grep -c 'claude-mem' "$PROJECT_ROOT/commands/auto.md" >/dev/null 2>&1; then
     pass "Smart router: auto.md mentions claude-mem"
 else
     fail "Smart router: auto.md mentions claude-mem" "no claude-mem reference in router"
@@ -161,7 +161,7 @@ fi
 
 # ── 13. Review auto-skip in pipeline context ─────────────────────────
 
-if grep -c 'OCTOPUS_WORKFLOW_PHASE' "$PROJECT_ROOT/.claude/commands/review.md" >/dev/null 2>&1; then
+if grep -c 'OCTOPUS_WORKFLOW_PHASE' "$PROJECT_ROOT/commands/review.md" >/dev/null 2>&1; then
     pass "Review: auto-skips prompts in pipeline context"
 else
     fail "Review: auto-skips prompts in pipeline context" "no OCTOPUS_WORKFLOW_PHASE check in review.md"

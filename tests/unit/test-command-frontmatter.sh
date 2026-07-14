@@ -23,7 +23,7 @@ PASSED=0
 
 # Test 1: Check all command files use 'command:' field
 echo "Testing: All command files use 'command:' field (not 'name:')..."
-COMMANDS_DIR="$PROJECT_ROOT/.claude/commands"
+COMMANDS_DIR="$PROJECT_ROOT/commands"
 
 if [ ! -d "$COMMANDS_DIR" ]; then
     echo -e "${RED}✗${NC} Commands directory not found: $COMMANDS_DIR"
@@ -40,8 +40,8 @@ else
     PASSED=$((PASSED + 1))
 fi
 
-if jq -e '.commands[]? | select(. == "./.claude/commands/doctor.md")' "$PROJECT_ROOT/.claude-plugin/plugin.json" >/dev/null; then
-    echo -e "${RED}✗${NC} plugin.json must not register .claude/commands/doctor.md"
+if jq -e '.commands[]? | select(. == "./commands/doctor.md")' "$PROJECT_ROOT/.claude-plugin/plugin.json" >/dev/null; then
+    echo -e "${RED}✗${NC} plugin.json must not register commands/doctor.md"
     FAILED=$((FAILED + 1))
 else
     echo -e "${GREEN}✓${NC} plugin.json does not register doctor.md"

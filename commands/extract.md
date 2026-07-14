@@ -901,7 +901,7 @@ async function analyzeComponents(target, config) {
   }
 
   // Step 4: Generate inventory
-  results.inventory = components ToInventory(results.components);
+  results.inventory = componentsToInventory(results.components);
 
   // Step 5: Generate outputs
   await writeFile(
