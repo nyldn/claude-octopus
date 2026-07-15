@@ -98,6 +98,48 @@ else
 fi
 rm -rf "$workspace" "$outside"
 
+test_case "review context artifacts do not pollute git status"
+workspace=$(mktemp -d)
+git -C "$workspace" init -q
+if context_file=$(PROJECT_ROOT="$workspace" tangle_build_develop_review_context \
+        "test" "prompt" "context" "subtasks" "/nonexistent-validation" \
+        "/nonexistent-snapshot" "initial") &&
+   [[ -f "$context_file" ]] &&
+   [[ -z "$(git -C "$workspace" status --porcelain)" ]]; then
+    test_pass
+else
+    test_fail "workspace-local review artifacts must remain git-ignored"
+fi
+rm -rf "$workspace"
+
+test_case "pre-existing context-file symlink is rejected"
+workspace=$(mktemp -d)
+outside=$(mktemp)
+printf 'sentinel\n' > "$outside"
+mkdir -p "$workspace/.claude-octopus/results"
+ln -s "$outside" "$workspace/.claude-octopus/results/develop-review-context-test-initial.md"
+if ! PROJECT_ROOT="$workspace" tangle_build_develop_review_context \
+        "test" "prompt" "context" "subtasks" "/nonexistent-validation" \
+        "/nonexistent-snapshot" "initial" >/dev/null 2>&1 &&
+   [[ "$(cat "$outside")" == "sentinel" ]]; then
+    test_pass
+else
+    test_fail "context-file symlinks must fail without modifying their targets"
+fi
+rm -rf "$workspace" "$outside"
+
+test_case "unsafe context labels are rejected"
+workspace=$(mktemp -d)
+if ! PROJECT_ROOT="$workspace" tangle_build_develop_review_context \
+        "../escape" "prompt" "context" "subtasks" "/nonexistent-validation" \
+        "/nonexistent-snapshot" "initial" >/dev/null 2>&1 &&
+   [[ ! -e "$(dirname "$workspace")/escape-initial.md" ]]; then
+    test_pass
+else
+    test_fail "context labels must not permit path traversal"
+fi
+rm -rf "$workspace"
+
 REVIEW="$PROJECT_ROOT/scripts/lib/review.sh"
 assert_contains "$REVIEW" "\"warning\":\"No changes found to review\"" "review no-diff writes warning"
 assert_contains "$REVIEW" "return 1" "review no-diff returns non-zero"
