@@ -228,24 +228,8 @@ else
 fi
 
 # 5.4: synthesis admits short-but-usable probe findings instead of using a hard byte cutoff
-extract_function_body() {
-    local function_name="$1" file="$2"
-    awk -v fn="$function_name" '
-        $0 ~ "^" fn "\\(\\)[[:space:]]*\\{" { in_fn=1 }
-        in_fn {
-            print
-            opens = gsub(/\{/, "{")
-            closes = gsub(/\}/, "}")
-            depth += opens - closes
-        }
-        in_fn && depth == 0 { exit }
-    ' "$file"
-}
-heuristics_file="$PROJECT_ROOT/scripts/lib/heuristics.sh"
-synthesis_body="$(extract_function_body synthesize_probe_results "$heuristics_file")"
-context_body="$(extract_function_body build_probe_synthesis_context "$heuristics_file")"
-if grep -q 'probe_result_file_is_usable' <<<"$synthesis_body" && \
-   grep -q 'probe_result_file_is_usable' <<<"$context_body"; then
+if grep -A 30 'synthesize_probe_results()' "$PROJECT_ROOT/scripts/lib/heuristics.sh" | grep -q 'probe_result_file_is_usable' && \
+   grep -A 40 'build_probe_synthesis_context()' "$PROJECT_ROOT/scripts/lib/heuristics.sh" | grep -q 'probe_result_file_is_usable'; then
     pass "5.4 Synthesis classifies non-empty probe results without a hard byte cutoff"
 else
     fail "5.4 Synthesis should classify usable probe results before synthesis"
