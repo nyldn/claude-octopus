@@ -11,6 +11,10 @@ test_suite "tangle contextual review loop"
 WORKFLOWS="$PROJECT_ROOT/scripts/lib/workflows.sh"
 HELP="$PROJECT_ROOT/scripts/lib/usage-help.sh"
 
+# shellcheck disable=SC1090
+source "$WORKFLOWS"
+log() { :; }
+
 assert_contains() {
     local file="$1"
     local pattern="$2"
@@ -46,6 +50,36 @@ assert_contains "$HELP" "Contextual code review" "develop help documents context
 assert_contains "$HELP" "OCTOPUS_TANGLE_REVIEW_CORRECTION_MODE" "develop help documents bounded mode"
 assert_contains "$HELP" "OCTOPUS_TANGLE_CORRECTION_STALL_WINDOW" "develop help documents stall window"
 assert_contains "$WORKFLOWS" "OCTOPUS_INK_REVIEW_TIMEOUT:-0" "ink review has no wall timeout by default"
+
+test_case "generated review context stays inside the workspace"
+workspace=$(mktemp -d)
+if context_file=$(PROJECT_ROOT="$workspace" tangle_build_develop_review_context \
+        "test" "prompt" "context" "subtasks" "/nonexistent-validation" \
+        "/nonexistent-snapshot" "initial") &&
+   workspace_physical=$(cd "$workspace" && pwd -P) &&
+   context_dir_physical=$(cd "$(dirname "$context_file")" && pwd -P) &&
+   [[ -f "$context_file" ]] &&
+   [[ "$context_dir_physical" == "$workspace_physical/.claude-octopus/results" ]]; then
+    test_pass
+else
+    test_fail "generated context must exist under the physical workspace root"
+fi
+rm -rf "$workspace"
+
+test_case "symlinked review results directory is rejected"
+workspace=$(mktemp -d)
+outside=$(mktemp -d)
+mkdir -p "$workspace/.claude-octopus"
+ln -s "$outside" "$workspace/.claude-octopus/results"
+if ! PROJECT_ROOT="$workspace" tangle_build_develop_review_context \
+        "test" "prompt" "context" "subtasks" "/nonexistent-validation" \
+        "/nonexistent-snapshot" "initial" >/dev/null 2>&1 &&
+   [[ -z "$(find "$outside" -mindepth 1 -print -quit)" ]]; then
+    test_pass
+else
+    test_fail "symlinked results directory must fail without writing outside the workspace"
+fi
+rm -rf "$workspace" "$outside"
 
 REVIEW="$PROJECT_ROOT/scripts/lib/review.sh"
 assert_contains "$REVIEW" "\"warning\":\"No changes found to review\"" "review no-diff writes warning"

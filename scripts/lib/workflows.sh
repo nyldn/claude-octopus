@@ -1306,10 +1306,25 @@ tangle_build_develop_review_context() {
     local validation_file="$5"
     local worktree_before_file="$6"
     local round_label="${7:-initial}"
-    local repo_root context_dir context_file
+    local repo_root repo_root_physical octopus_dir context_dir context_dir_physical context_file
     repo_root=$(tangle_resolve_repo_root 2>/dev/null || git rev-parse --show-toplevel 2>/dev/null || pwd)
+    octopus_dir="${repo_root}/.claude-octopus"
     context_dir="${repo_root}/.claude-octopus/results"
-    mkdir -p "$context_dir"
+    if [[ -L "$octopus_dir" || -L "$context_dir" ]]; then
+        log "ERROR" "tangle review context directory must not be a symlink: $context_dir"
+        return 1
+    fi
+    mkdir -p "$context_dir" || return 1
+    if [[ -L "$octopus_dir" || -L "$context_dir" ]]; then
+        log "ERROR" "tangle review context directory became a symlink: $context_dir"
+        return 1
+    fi
+    repo_root_physical=$(cd "$repo_root" 2>/dev/null && pwd -P) || return 1
+    context_dir_physical=$(cd "$context_dir" 2>/dev/null && pwd -P) || return 1
+    if [[ "$context_dir_physical" != "${repo_root_physical}/.claude-octopus/results" ]]; then
+        log "ERROR" "tangle review context directory escapes repository root: $context_dir_physical"
+        return 1
+    fi
     context_file="${context_dir}/develop-review-context-${task_group}-${round_label}.md"
 
     {
