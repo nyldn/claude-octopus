@@ -11,8 +11,9 @@ source "$SCRIPT_DIR/../helpers/mock-helpers.sh"
 test_suite "Two-Mode System (Dev Work vs Knowledge Work)"
 
 # Setup: Create a temporary config for testing
-TEST_CONFIG_DIR="$TEST_TMP_DIR/mode-switching-config"
+TEST_CONFIG_DIR=$(mktemp -d)
 TEST_CONFIG_FILE="$TEST_CONFIG_DIR/user-config.yaml"
+trap 'rm -rf "$TEST_CONFIG_DIR"' EXIT
 
 setup_test_config() {
     mkdir -p "$TEST_CONFIG_DIR"

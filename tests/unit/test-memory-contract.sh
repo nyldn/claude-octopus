@@ -52,8 +52,8 @@ test_backends_defaults_to_claude_mem() {
     test_case "with no MCP config registered, backends resolves to claude-mem"
     local out
     # shellcheck disable=SC1090
-    out=$(env -i PATH="$PATH" OCTOPUS_MEMORY_BACKEND=auto CLAUDE_SETTINGS_FILE=/dev/null \
-          HOME="$TEST_TMP_DIR/empty-home" \
+    out=$(env -i "PATH=${PATH}" "OCTOPUS_MEMORY_BACKEND=auto" "CLAUDE_SETTINGS_FILE=/dev/null" \
+          "HOME=${TEST_TMP_DIR}/empty-home" \
           bash -c "source '$MEM'; memory_backends")
     if [[ "$(printf '%s' "$out" | head -1)" == "claude-mem" ]]; then
         test_pass
