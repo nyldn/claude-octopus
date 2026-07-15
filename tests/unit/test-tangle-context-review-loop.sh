@@ -26,6 +26,7 @@ assert_contains() {
 assert_contains "$WORKFLOWS" "tangle_build_develop_review_context" "tangle builds review context"
 assert_contains "$WORKFLOWS" "tangle_run_context_code_review" "tangle runs contextual code review"
 assert_contains "$WORKFLOWS" "contextFile" "review profile passes contextFile"
+assert_contains "$WORKFLOWS" ".claude-octopus/results" "review context is stored inside workspace"
 assert_contains "$WORKFLOWS" "plan-conformance" "review focus includes plan conformance"
 assert_contains "$WORKFLOWS" "tangle_apply_review_corrections" "tangle applies review corrections"
 assert_contains "$WORKFLOWS" "OCTOPUS_TANGLE_REVIEW_CORRECTION_MODE" "correction loop supports explicit bounded mode"

@@ -1306,9 +1306,11 @@ tangle_build_develop_review_context() {
     local validation_file="$5"
     local worktree_before_file="$6"
     local round_label="${7:-initial}"
-    local context_file="${RESULTS_DIR:-${HOME}/.claude-octopus/results}/develop-review-context-${task_group}-${round_label}.md"
-    local repo_root
+    local repo_root context_dir context_file
     repo_root=$(tangle_resolve_repo_root 2>/dev/null || git rev-parse --show-toplevel 2>/dev/null || pwd)
+    context_dir="${repo_root}/.claude-octopus/results"
+    mkdir -p "$context_dir"
+    context_file="${context_dir}/develop-review-context-${task_group}-${round_label}.md"
 
     {
         echo "# Develop Review Context"
