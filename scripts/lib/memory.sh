@@ -27,6 +27,7 @@ _memory_claude_settings_path() {
 _memory_mcp_service_registered() {
     local settings
     settings=$(_memory_claude_settings_path) || return 1
+    [[ -s "$settings" ]] || return 1
     command -v jq >/dev/null 2>&1 || return 1
     jq -e '
         ((.mcpServers // {}) + (.servers // {})) as $m
@@ -39,6 +40,7 @@ _memory_agentmemory_registered() {
     [[ -n "${AGENTMEMORY_URL:-}" ]] && return 0
     local settings
     settings=$(_memory_claude_settings_path) || return 1
+    [[ -s "$settings" ]] || return 1
     command -v jq >/dev/null 2>&1 || return 1
     jq -e '
         ((.mcpServers // {}) + (.servers // {})) as $m

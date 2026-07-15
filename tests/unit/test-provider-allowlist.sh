@@ -7,6 +7,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
+export OCTOPUS_CONFIG_DIR="$TEST_TMP_DIR/provider-allowlist-root"
+unset CLAUDE_CODE_SESSION_ID OCTO_ALLOWED_PROVIDERS
 test_suite "Provider allowlist"
 
 ALLOWLIST_LIB="$PROJECT_ROOT/scripts/lib/provider-allowlist.sh"

@@ -228,8 +228,11 @@ else
 fi
 
 # 5.4: synthesis admits short-but-usable probe findings instead of using a hard byte cutoff
-if grep -rA 30 'synthesize_probe_results()' $SCRIPTS_ALL | grep -q 'probe_result_file_is_usable' && \
-   grep -rA 80 'build_probe_synthesis_context()' $SCRIPTS_ALL | grep -q 'probe_result_file_is_usable'; then
+heuristics_file="$PROJECT_ROOT/scripts/lib/heuristics.sh"
+synthesis_body=$(bash -c 'source "$1"; declare -f synthesize_probe_results' _ "$heuristics_file") || synthesis_body=""
+context_body=$(bash -c 'source "$1"; declare -f build_probe_synthesis_context' _ "$heuristics_file") || context_body=""
+if grep -q 'probe_result_file_is_usable' <<<"$synthesis_body" && \
+   grep -q 'probe_result_file_is_usable' <<<"$context_body"; then
     pass "5.4 Synthesis classifies non-empty probe results without a hard byte cutoff"
 else
     fail "5.4 Synthesis should classify usable probe results before synthesis"
