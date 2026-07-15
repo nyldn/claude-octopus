@@ -81,6 +81,23 @@ else
 fi
 rm -rf "$workspace" "$outside"
 
+test_case "external results override cannot redirect review context"
+workspace=$(mktemp -d)
+outside=$(mktemp -d)
+if context_file=$(PROJECT_ROOT="$workspace" RESULTS_DIR="$outside" \
+        tangle_build_develop_review_context "test" "prompt" "context" "subtasks" \
+        "/nonexistent-validation" "/nonexistent-snapshot" "initial") &&
+   workspace_physical=$(cd "$workspace" && pwd -P) &&
+   context_dir_physical=$(cd "$(dirname "$context_file")" && pwd -P) &&
+   [[ -f "$context_file" ]] &&
+   [[ "$context_dir_physical" == "$workspace_physical/.claude-octopus/results" ]] &&
+   [[ -z "$(find "$outside" -mindepth 1 -print -quit)" ]]; then
+    test_pass
+else
+    test_fail "review context must ignore external RESULTS_DIR paths"
+fi
+rm -rf "$workspace" "$outside"
+
 REVIEW="$PROJECT_ROOT/scripts/lib/review.sh"
 assert_contains "$REVIEW" "\"warning\":\"No changes found to review\"" "review no-diff writes warning"
 assert_contains "$REVIEW" "return 1" "review no-diff returns non-zero"
