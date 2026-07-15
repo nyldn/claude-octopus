@@ -1307,7 +1307,8 @@ tangle_build_develop_review_context() {
     local worktree_before_file="$6"
     local round_label="${7:-initial}"
     local repo_root repo_root_physical octopus_dir context_dir context_dir_physical
-    local context_name context_file relative_context_path final_context_dir
+    local context_name context_file relative_context_path context_tmp relative_context_tmp
+    local final_context_dir
     if [[ -z "$task_group" || "$task_group" == "." || "$task_group" == ".." ||
           "$task_group" == *[![:alnum:]_.-]* || "$task_group" == *..* ||
           -z "$round_label" || "$round_label" == "." || "$round_label" == ".." ||
@@ -1334,8 +1335,10 @@ tangle_build_develop_review_context() {
         return 1
     fi
     context_name="develop-review-context-${task_group}-${round_label}.md"
-    context_file="${context_dir}/${context_name}"
+    context_file="${context_dir_physical}/${context_name}"
     relative_context_path=".claude-octopus/results/${context_name}"
+    context_tmp=".develop-review-context.$$.$RANDOM.$RANDOM"
+    relative_context_tmp=".claude-octopus/results/${context_tmp}"
 
     # Enter the already-validated physical directory before creating anything.
     # Relative operations then remain anchored to that directory inode even if
@@ -1344,36 +1347,33 @@ tangle_build_develop_review_context() {
         cd "$context_dir" || exit 1
         [[ "$(pwd -P)" == "$context_dir_physical" ]] || exit 1
 
-        if [[ -L "$context_name" || -L ".gitignore" ]]; then
+        if [[ -L "$context_name" || -L ".gitignore" || -e "$context_tmp" || -L "$context_tmp" ]]; then
             log "ERROR" "tangle review results contain an unsafe symlink"
             exit 1
         fi
 
         # Keep tool-owned artifacts invisible to git without modifying an
         # existing repository-managed ignore file. If one exists, it must
-        # already ignore this artifact or generation fails cleanly.
+        # already ignore both the final artifact and its scratch file or
+        # generation fails before either file is created.
         if [[ ! -e ".gitignore" ]]; then
-            ignore_tmp=$(mktemp ".gitignore.tmp.XXXXXX") || exit 1
-            printf '*\n' > "$ignore_tmp" || {
-                rm -f "$ignore_tmp"
-                exit 1
-            }
-            if [[ -e ".gitignore" || -L ".gitignore" ]]; then
-                rm -f "$ignore_tmp"
-            elif ! mv "$ignore_tmp" ".gitignore"; then
-                rm -f "$ignore_tmp"
+            if ! (set -o noclobber; printf '*\n' > ".gitignore") 2>/dev/null &&
+               [[ ! -f ".gitignore" ]]; then
                 exit 1
             fi
         fi
         if [[ -L ".gitignore" ]] ||
            { git -C "$repo_root" rev-parse --show-toplevel >/dev/null 2>&1 &&
-             ! git -C "$repo_root" check-ignore -q -- "$relative_context_path"; }; then
-            log "ERROR" "repository ignore rules do not cover tangle review context"
+             { ! git -C "$repo_root" check-ignore -q -- "$relative_context_path" ||
+               ! git -C "$repo_root" check-ignore -q -- "$relative_context_tmp"; }; }; then
+            log "ERROR" "repository ignore rules do not cover tangle review context artifacts"
             exit 1
         fi
 
-        context_tmp=$(mktemp ".develop-review-context.XXXXXX") || exit 1
-        if ! {
+        # The scratch name is checked against repository ignore rules before
+        # noclobber creates it, so interruption cannot leave an untracked file.
+        if ! (set -o noclobber
+        {
         echo "# Develop Review Context"
         echo
         echo "## Purpose"
@@ -1440,7 +1440,8 @@ tangle_build_develop_review_context() {
             grep -n "Quality Gate\|Success Rate\|Failed\|Decision Branch\|Worktree Change Evidence\|Missing\|Status:" "$validation_file" 2>/dev/null | head -120 || true
             echo '```'
         fi
-        } > "$context_tmp"; then
+        } > "$context_tmp"
+        ); then
             rm -f "$context_tmp"
             exit 1
         fi

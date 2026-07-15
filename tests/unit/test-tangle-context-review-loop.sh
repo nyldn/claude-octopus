@@ -72,6 +72,22 @@ else
     test_fail "generated context must exist under the physical workspace root"
 fi
 
+test_case "logical workspace symlink returns a physical context path"
+workspace=$(make_test_dir workspace-physical)
+workspace_link="$TEST_TMP_DIR/workspace-logical-link"
+rm -f "$workspace_link"
+ln -s "$workspace" "$workspace_link"
+if context_file=$(PROJECT_ROOT="$workspace_link" tangle_build_develop_review_context \
+        "test" "prompt" "context" "subtasks" "/nonexistent-validation" \
+        "/nonexistent-snapshot" "initial") &&
+   workspace_physical=$(cd "$workspace" && pwd -P) &&
+   [[ "$context_file" == "$workspace_physical/.claude-octopus/results/develop-review-context-test-initial.md" ]] &&
+   [[ -f "$context_file" ]]; then
+    test_pass
+else
+    test_fail "returned context path must use the validated physical workspace"
+fi
+
 test_case "symlinked review results directory is rejected"
 workspace=$(make_test_dir workspace-symlink)
 outside=$(make_test_dir outside-symlink)
@@ -119,7 +135,7 @@ test_case "existing repository-managed ignore file is preserved"
 workspace=$(make_test_dir workspace-existing-ignore)
 git -C "$workspace" init -q
 mkdir -p "$workspace/.claude-octopus/results"
-printf '*.md\n' > "$workspace/.claude-octopus/results/.gitignore"
+printf 'develop-review-context-*.md\n.develop-review-context.*\n' > "$workspace/.claude-octopus/results/.gitignore"
 git -C "$workspace" add -f .claude-octopus/results/.gitignore
 ignore_before=$(git -C "$workspace" hash-object .claude-octopus/results/.gitignore)
 if context_file=$(PROJECT_ROOT="$workspace" tangle_build_develop_review_context \
@@ -132,6 +148,20 @@ if context_file=$(PROJECT_ROOT="$workspace" tangle_build_develop_review_context 
     test_pass
 else
     test_fail "existing repository-managed ignore rules must remain unchanged"
+fi
+
+test_case "repository ignore rules must cover scratch artifacts"
+workspace=$(make_test_dir workspace-incomplete-ignore)
+git -C "$workspace" init -q
+mkdir -p "$workspace/.claude-octopus/results"
+printf 'develop-review-context-*.md\n' > "$workspace/.claude-octopus/results/.gitignore"
+if ! PROJECT_ROOT="$workspace" tangle_build_develop_review_context \
+        "test" "prompt" "context" "subtasks" "/nonexistent-validation" \
+        "/nonexistent-snapshot" "initial" >/dev/null 2>&1 &&
+   [[ -z "$(find "$workspace/.claude-octopus/results" -type f ! -name .gitignore -print -quit)" ]]; then
+    test_pass
+else
+    test_fail "generation must fail cleanly before creating an unignored scratch file"
 fi
 
 test_case "pre-existing context-file symlink is rejected"
