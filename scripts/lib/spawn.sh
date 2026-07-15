@@ -1099,10 +1099,13 @@ spawn_agent_capture_pid() {
 
     local pid=""
     local attempts=0
-    while [[ $attempts -lt 100 ]]; do
+    local max_attempts="${OCTOPUS_SPAWN_PID_WAIT_ATTEMPTS:-1200}"
+    while [[ $attempts -lt $max_attempts ]]; do
         pid=$(awk '/^[0-9]+$/ { value=$1 } END { print value }' "$pid_file" 2>/dev/null)
         [[ -n "$pid" ]] && break
-        if ! kill -0 "$wrapper_pid" 2>/dev/null && [[ -s "$pid_file" ]]; then
+        if ! kill -0 "$wrapper_pid" 2>/dev/null; then
+            wait "$wrapper_pid" 2>/dev/null || true
+            pid=$(awk '/^[0-9]+$/ { value=$1 } END { print value }' "$pid_file" 2>/dev/null)
             break
         fi
         sleep 0.1
@@ -1110,8 +1113,14 @@ spawn_agent_capture_pid() {
     done
 
     if [[ -z "$pid" ]]; then
-        log "WARN" "spawn_agent produced no provider PID for $task_id within 10s; tracking wrapper PID $wrapper_pid" >&2
-        pid="$wrapper_pid"
+        log "ERROR" "spawn_agent produced no provider PID for $task_id; refusing to track wrapper PID $wrapper_pid" >&2
+        if [[ -s "$pid_file" ]]; then
+            tail -20 "$pid_file" >&2 || true
+        fi
+        kill "$wrapper_pid" 2>/dev/null || true
+        wait "$wrapper_pid" 2>/dev/null || true
+        rm -f "$pid_file"
+        return 1
     fi
 
     rm -f "$pid_file"
