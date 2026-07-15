@@ -27,6 +27,13 @@ assert_contains() {
     fi
 }
 
+make_test_dir() {
+    local dir="$TEST_TMP_DIR/$1"
+    rm -rf "$dir"
+    mkdir -p "$dir"
+    printf '%s\n' "$dir"
+}
+
 assert_contains "$WORKFLOWS" "tangle_build_develop_review_context" "tangle builds review context"
 assert_contains "$WORKFLOWS" "tangle_run_context_code_review" "tangle runs contextual code review"
 assert_contains "$WORKFLOWS" "contextFile" "review profile passes contextFile"
@@ -52,7 +59,7 @@ assert_contains "$HELP" "OCTOPUS_TANGLE_CORRECTION_STALL_WINDOW" "develop help d
 assert_contains "$WORKFLOWS" "OCTOPUS_INK_REVIEW_TIMEOUT:-0" "ink review has no wall timeout by default"
 
 test_case "generated review context stays inside the workspace"
-workspace=$(mktemp -d)
+workspace=$(make_test_dir workspace-context)
 if context_file=$(PROJECT_ROOT="$workspace" tangle_build_develop_review_context \
         "test" "prompt" "context" "subtasks" "/nonexistent-validation" \
         "/nonexistent-snapshot" "initial") &&
@@ -64,11 +71,10 @@ if context_file=$(PROJECT_ROOT="$workspace" tangle_build_develop_review_context 
 else
     test_fail "generated context must exist under the physical workspace root"
 fi
-rm -rf "$workspace"
 
 test_case "symlinked review results directory is rejected"
-workspace=$(mktemp -d)
-outside=$(mktemp -d)
+workspace=$(make_test_dir workspace-symlink)
+outside=$(make_test_dir outside-symlink)
 mkdir -p "$workspace/.claude-octopus"
 ln -s "$outside" "$workspace/.claude-octopus/results"
 if ! PROJECT_ROOT="$workspace" tangle_build_develop_review_context \
@@ -79,11 +85,10 @@ if ! PROJECT_ROOT="$workspace" tangle_build_develop_review_context \
 else
     test_fail "symlinked results directory must fail without writing outside the workspace"
 fi
-rm -rf "$workspace" "$outside"
 
 test_case "external results override cannot redirect review context"
-workspace=$(mktemp -d)
-outside=$(mktemp -d)
+workspace=$(make_test_dir workspace-override)
+outside=$(make_test_dir outside-override)
 if context_file=$(PROJECT_ROOT="$workspace" RESULTS_DIR="$outside" \
         tangle_build_develop_review_context "test" "prompt" "context" "subtasks" \
         "/nonexistent-validation" "/nonexistent-snapshot" "initial") &&
@@ -96,10 +101,9 @@ if context_file=$(PROJECT_ROOT="$workspace" RESULTS_DIR="$outside" \
 else
     test_fail "review context must ignore external RESULTS_DIR paths"
 fi
-rm -rf "$workspace" "$outside"
 
 test_case "review context artifacts do not pollute git status"
-workspace=$(mktemp -d)
+workspace=$(make_test_dir workspace-git-clean)
 git -C "$workspace" init -q
 if context_file=$(PROJECT_ROOT="$workspace" tangle_build_develop_review_context \
         "test" "prompt" "context" "subtasks" "/nonexistent-validation" \
@@ -110,10 +114,9 @@ if context_file=$(PROJECT_ROOT="$workspace" tangle_build_develop_review_context 
 else
     test_fail "workspace-local review artifacts must remain git-ignored"
 fi
-rm -rf "$workspace"
 
 test_case "existing repository-managed ignore file is preserved"
-workspace=$(mktemp -d)
+workspace=$(make_test_dir workspace-existing-ignore)
 git -C "$workspace" init -q
 mkdir -p "$workspace/.claude-octopus/results"
 printf '*.md\n' > "$workspace/.claude-octopus/results/.gitignore"
@@ -130,11 +133,11 @@ if context_file=$(PROJECT_ROOT="$workspace" tangle_build_develop_review_context 
 else
     test_fail "existing repository-managed ignore rules must remain unchanged"
 fi
-rm -rf "$workspace"
 
 test_case "pre-existing context-file symlink is rejected"
-workspace=$(mktemp -d)
-outside=$(mktemp)
+workspace=$(make_test_dir workspace-file-symlink)
+outside="$TEST_TMP_DIR/outside-file-target"
+rm -f "$outside"
 printf 'sentinel\n' > "$outside"
 mkdir -p "$workspace/.claude-octopus/results"
 ln -s "$outside" "$workspace/.claude-octopus/results/develop-review-context-test-initial.md"
@@ -146,19 +149,17 @@ if ! PROJECT_ROOT="$workspace" tangle_build_develop_review_context \
 else
     test_fail "context-file symlinks must fail without modifying their targets"
 fi
-rm -rf "$workspace" "$outside"
 
 test_case "unsafe context labels are rejected"
-workspace=$(mktemp -d)
+workspace=$(make_test_dir workspace-unsafe-label)
 if ! PROJECT_ROOT="$workspace" tangle_build_develop_review_context \
         "../escape" "prompt" "context" "subtasks" "/nonexistent-validation" \
         "/nonexistent-snapshot" "initial" >/dev/null 2>&1 &&
-   [[ ! -e "$(dirname "$workspace")/escape-initial.md" ]]; then
+   [[ ! -e "$workspace/.claude-octopus" ]]; then
     test_pass
 else
-    test_fail "context labels must not permit path traversal"
+    test_fail "unsafe labels must fail before creating review artifacts"
 fi
-rm -rf "$workspace"
 
 REVIEW="$PROJECT_ROOT/scripts/lib/review.sh"
 assert_contains "$REVIEW" "\"warning\":\"No changes found to review\"" "review no-diff writes warning"
