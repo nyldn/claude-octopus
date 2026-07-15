@@ -42,7 +42,7 @@ assert_eq "$(octopus_resolve_reasoning_level codex council logic-reviewer)" medi
 assert_eq "$(octopus_resolve_reasoning_policy codex council logic-reviewer)" strict
 assert_eq "$(octopus_reasoning_cli_fragment codex medium strict)" "-c model_reasoning_effort=\"medium\""
 assert_eq "$(octopus_reasoning_cli_fragment claude high strict)" "--effort high"
-assert_eq "$(octopus_reasoning_cli_fragment openai-compatible-agent medium strict)" "--reasoning-effort medium"
+assert_eq "$(octopus_reasoning_cli_fragment openai-compatible-agent medium strict)" "--reasoning-effort medium --reasoning-policy strict"
 set +e
 octopus_reasoning_cli_fragment gemini high strict >/dev/null 2>&1
 rc=$?
