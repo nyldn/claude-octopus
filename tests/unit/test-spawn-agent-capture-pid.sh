@@ -9,10 +9,11 @@ test_suite "spawn agent PID capture"
 # Load only the helper under test so the fixture controls spawn_agent and log.
 eval "$(sed -n '/^spawn_agent_capture_pid() {/,/^}/p' "$PROJECT_ROOT/scripts/lib/spawn.sh")"
 
-TMP_ROOT=$(mktemp -d)
-trap 'rm -rf "$TMP_ROOT"' EXIT INT TERM
+TEST_TMP_DIR="/tmp/octopus-tests-$$"
+mkdir -p "$TEST_TMP_DIR"
+trap 'rm -rf "$TEST_TMP_DIR"' EXIT INT TERM
 
-log() { printf '%s %s\n' "${1:-}" "${2:-}" >> "$TMP_ROOT/log"; }
+log() { printf '%s %s\n' "${1:-}" "${2:-}" >> "$TEST_TMP_DIR/log"; }
 
 # The wrapper does meaningful setup before it can print the provider PID.
 # Capture must wait for that PID rather than returning the wrapper PID.
@@ -21,7 +22,7 @@ spawn_agent() {
     sleep 0.3
     printf '%s\n' 424242
 }
-export OCTOPUS_SPAWN_PID_WAIT_ATTEMPTS=20
+export "OCTOPUS_SPAWN_PID_WAIT_ATTEMPTS=20"
 pid=$(spawn_agent_capture_pid codex prompt delayed-task implementer tangle)
 if [[ "$pid" == "424242" ]]; then
     test_pass
@@ -36,7 +37,7 @@ spawn_agent() {
     printf '%s\n' "setup failed before provider launch"
     return 1
 }
-export OCTOPUS_SPAWN_PID_WAIT_ATTEMPTS=20
+export "OCTOPUS_SPAWN_PID_WAIT_ATTEMPTS=20"
 if pid=$(spawn_agent_capture_pid codex prompt failed-task implementer tangle 2>/dev/null); then
     test_fail "expected failure, got wrapper/provider PID: ${pid:-empty}"
 else
