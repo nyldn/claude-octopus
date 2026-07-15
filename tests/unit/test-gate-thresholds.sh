@@ -64,7 +64,7 @@ test_gate_alias_support() {
     test_case "Phase aliases (discover/define/develop/deliver) are supported"
 
     # Check directly in the get_gate_threshold function
-    if grep -A 30 "get_gate_threshold()" "$ALL_SRC" | grep -q "discover\|define\|develop\|deliver"; then
+    if grep -A 30 "get_gate_threshold()" "$ALL_SRC" | grep "discover\|define\|develop\|deliver" >/dev/null; then
         test_pass
     else
         test_fail "Phase aliases not found in get_gate_threshold"
@@ -74,7 +74,7 @@ test_gate_alias_support() {
 test_gate_fallback() {
     test_case "Unknown phases fall back to QUALITY_THRESHOLD"
 
-    if grep -A 65 "get_gate_threshold()" "$ALL_SRC" | grep -q "QUALITY_THRESHOLD"; then
+    if grep -A 65 "get_gate_threshold()" "$ALL_SRC" | grep "QUALITY_THRESHOLD" >/dev/null; then
         test_pass
     else
         test_fail "Fallback to QUALITY_THRESHOLD not found"
@@ -84,7 +84,7 @@ test_gate_fallback() {
 test_tangle_uses_gate_threshold() {
     test_case "validate_tangle_results uses get_gate_threshold"
 
-    if grep -A 80 "validate_tangle_results()" "$ALL_SRC" | grep -q "get_gate_threshold"; then
+    if grep -A 80 "validate_tangle_results()" "$ALL_SRC" | grep "get_gate_threshold" >/dev/null; then
         test_pass
     else
         test_fail "validate_tangle_results doesn't use get_gate_threshold"
