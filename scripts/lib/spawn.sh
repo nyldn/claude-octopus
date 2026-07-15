@@ -1100,6 +1100,10 @@ spawn_agent_capture_pid() {
     local pid=""
     local attempts=0
     local "max_attempts=${OCTOPUS_SPAWN_PID_WAIT_ATTEMPTS:-1200}"
+    if ! [[ "$max_attempts" =~ ^[1-9][0-9]*$ ]]; then
+        log "WARN" "invalid OCTOPUS_SPAWN_PID_WAIT_ATTEMPTS='$max_attempts'; using default 1200" >&2
+        max_attempts=1200
+    fi
     while [[ $attempts -lt $max_attempts ]]; do
         pid=$(awk '/^[0-9]+$/ { value=$1 } END { print value }' "$pid_file" 2>/dev/null)
         [[ -n "$pid" ]] && break
