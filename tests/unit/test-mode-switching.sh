@@ -11,7 +11,7 @@ source "$SCRIPT_DIR/../helpers/mock-helpers.sh"
 test_suite "Two-Mode System (Dev Work vs Knowledge Work)"
 
 # Setup: Create a temporary config for testing
-TEST_CONFIG_DIR="$HOME/.claude-octopus-test"
+TEST_CONFIG_DIR="$TEST_TMP_DIR/mode-switching-config"
 TEST_CONFIG_FILE="$TEST_CONFIG_DIR/user-config.yaml"
 
 setup_test_config() {
