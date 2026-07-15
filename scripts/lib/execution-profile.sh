@@ -95,6 +95,6 @@ octopus_reasoning_cli_fragment() {
   case "$provider" in
     codex) printf "%s\n" "-c model_reasoning_effort=\"${level}\"" ;;
     claude|claude-sdk) printf "%s\n" "--effort ${level}" ;;
-    openai-compatible-agent|openai-compatible|openai-tools) printf "%s\n" "--reasoning-effort ${level}" ;;
+    openai-compatible-agent|openai-compatible|openai-tools) printf "%s\n" "--reasoning-effort ${level} --reasoning-policy ${policy}" ;;
   esac
 }
