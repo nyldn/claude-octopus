@@ -62,6 +62,13 @@ else
     test_pass
 fi
 
+test_case "validate_agent_command allows reasoning flags before cwd"
+if validate_agent_command "$PROJECT_ROOT/scripts/helpers/openai-compatible-agent.py --provider generic --model minimax/minimax-m3 --reasoning-effort medium --reasoning-policy best_effort --cwd /tmp/test"; then
+    test_pass
+else
+    test_fail "expected dispatch argument order to be accepted"
+fi
+
 test_case "validate_agent_command allows openai-compatible reasoning flags"
 if validate_agent_command "$PROJECT_ROOT/scripts/helpers/openai-compatible-agent.py --provider generic --model minimax/minimax-m3 --cwd /tmp/test --reasoning-effort medium --reasoning-policy best_effort"; then
     test_pass
