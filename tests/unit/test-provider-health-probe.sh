@@ -20,11 +20,11 @@ test_suite "Provider health probe (oco-cbb)"
 
 log() { :; }
 
-FIXTURE="$(mktemp -d)"
+FIXTURE="$TEST_TMP_DIR/provider-health-probe"
+mkdir -p "$FIXTURE"
 export OCTOPUS_CONFIG_DIR="$FIXTURE/config"
 export OCTO_ALLOWED_PROVIDERS="perplexity openrouter"
 unset CLAUDE_CODE_SESSION_ID
-trap 'rm -rf "$FIXTURE"' EXIT
 
 # ── 1. Perplexity payload contains max_tokens and is valid JSON ────────────────
 
