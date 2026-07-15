@@ -219,4 +219,19 @@ if assert_contains "$cmd" "scripts/helpers/openai-compatible-agent.py" "helper p
    assert_contains "$cmd" "--model vendor/model-fast" "configured model"; then
     test_pass
 fi
+
+test_case "openai-compatible-agent forwards CLI reasoning policy"
+if grep -q 'reasoning_policy=args.reasoning_policy' "$HELPER"; then
+    test_pass
+else
+    test_fail "expected CLI reasoning policy to be forwarded to api_call"
+fi
+
+test_case "openai-compatible-agent logs requested reasoning safely"
+if grep -q 'chat_reasoning requested=' "$HELPER"; then
+    test_pass
+else
+    test_fail "expected reasoning request marker in stderr"
+fi
+
 test_summary

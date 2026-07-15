@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+_profile_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if ! declare -f octopus_resolve_reasoning_level >/dev/null 2>&1; then
+    source "${_profile_lib_dir}/execution-profile.sh" 2>/dev/null || true
+fi
 # agent-utils.sh — Agent execution utilities: roles, RALPH loops, retry, image, resume
 # Contains: get_role_mapping, get_role_agent, get_role_model, log_role_assignment,
 #           has_curated_agents, parse_yaml_value, check_completion_promise,
@@ -51,6 +55,10 @@ octopus_agent_override() {
         [[ -n "$value" ]] && { echo "$value"; return 0; }
     fi
 
+    if declare -f octopus_profile_provider >/dev/null 2>&1; then
+        value="$(octopus_profile_provider "$phase" "$role" "$default_agent" 2>/dev/null || true)"
+        [[ -n "$value" ]] && { echo "$value"; return 0; }
+    fi
     echo "$default_agent"
 }
 

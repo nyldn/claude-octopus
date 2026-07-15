@@ -178,19 +178,60 @@ _octopus_is_safe_openai_compatible_value() {
 _validate_openai_compatible_agent_command() {
     local cmd="$1"
     local -a parts
-    # Preserve backslashes while splitting the generated helper command into
-    # tokens; unsafe backslashes are rejected by the per-token validators below.
     read -r -a parts <<< "$cmd"
 
-    [[ "${#parts[@]}" -eq 7 ]] || return 1
+    [[ "${#parts[@]}" -ge 7 ]] || return 1
     [[ "${parts[0]}" == */scripts/helpers/openai-compatible-agent.py ]] || return 1
-    [[ "${parts[1]}" == "--provider" && "${parts[2]}" == "generic" ]] || return 1
-    [[ "${parts[3]}" == "--model" ]] || return 1
-    _octopus_is_safe_openai_compatible_value "${parts[4]}" || return 1
-    [[ "${parts[4]}" != /* ]] || return 1
-    [[ "${parts[5]}" == "--cwd" ]] || return 1
-    _octopus_is_safe_openai_compatible_value "${parts[6]}" || return 1
-    return 0
+
+    local provider=""
+    local model=""
+    local cwd=""
+    local reasoning_effort=""
+    local reasoning_policy=""
+    local i=1
+
+    while [[ $i -lt ${#parts[@]} ]]; do
+        [[ $((i + 1)) -lt ${#parts[@]} ]] || return 1
+        local flag="${parts[$i]}"
+        local value="${parts[$((i + 1))]}"
+        case "$flag" in
+            --provider)
+                [[ -z "$provider" && "$value" == "generic" ]] || return 1
+                provider="$value"
+                ;;
+            --model)
+                [[ -z "$model" ]] || return 1
+                _octopus_is_safe_openai_compatible_value "$value" || return 1
+                [[ "$value" != /* ]] || return 1
+                model="$value"
+                ;;
+            --cwd)
+                [[ -z "$cwd" ]] || return 1
+                _octopus_is_safe_openai_compatible_value "$value" || return 1
+                cwd="$value"
+                ;;
+            --reasoning-effort)
+                [[ -z "$reasoning_effort" ]] || return 1
+                case "$value" in
+                    low|medium|high) reasoning_effort="$value" ;;
+                    *) return 1 ;;
+                esac
+                ;;
+            --reasoning-policy)
+                [[ -z "$reasoning_policy" ]] || return 1
+                case "$value" in
+                    strict|best_effort) reasoning_policy="$value" ;;
+                    *) return 1 ;;
+                esac
+                ;;
+            *)
+                return 1
+                ;;
+        esac
+        i=$((i + 2))
+    done
+
+    [[ -n "$provider" && -n "$model" && -n "$cwd" ]]
 }
 
 # Validate agent command to prevent command injection

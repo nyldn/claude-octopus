@@ -70,8 +70,10 @@ def tool_exec(cwd: Path, name: str, args: dict) -> str:
     except Exception as e:
         return f"ERROR: {type(e).__name__}: {e}"
 
-def api_call(base_url, key, model, headers_extra, messages, max_tokens=1400, request_timeout=60.0, max_retries=3):
+def api_call(base_url, key, model, headers_extra, messages, max_tokens=1400, request_timeout=60.0, max_retries=3, reasoning_effort=None, reasoning_policy="best_effort"):
     payload = {"model": model, "messages": messages, "tools": TOOLS, "tool_choice": "auto", "temperature": 0}
+    if reasoning_effort:
+        payload["reasoning_effort"] = reasoning_effort
     if max_tokens > 0:
         payload["max_tokens"] = max_tokens
     headers = {"Authorization": "Bearer " + key, "Content-Type": "application/json", **headers_extra}
@@ -93,6 +95,21 @@ def api_call(base_url, key, model, headers_extra, messages, max_tokens=1400, req
                 return json.loads(raw)
         except urllib.error.HTTPError as e:
             body_text = e.read().decode(errors="replace")[:2000]
+            if (
+                reasoning_effort
+                and reasoning_policy == "best_effort"
+                and e.code in {400, 422}
+                and any(token in body_text.lower() for token in ("reasoning_effort", "reasoning effort", "reasoning"))
+            ):
+                print("chat_reasoning_fallback unsupported reasoning_effort; retrying without it", file=sys.stderr)
+                return api_call(
+                    base_url, key, model, headers_extra, messages,
+                    max_tokens=max_tokens,
+                    request_timeout=request_timeout,
+                    max_retries=max_retries,
+                    reasoning_effort=None,
+                    reasoning_policy="strict",
+                )
             last_error = RuntimeError(f"HTTP {e.code}: {body_text}")
             print(f"chat_error attempt={attempt}/{max(1, max_retries)} status={e.code} elapsed={time.time() - started:.2f}s", file=sys.stderr)
             if e.code not in retry_statuses or attempt >= max(1, max_retries):
@@ -114,6 +131,8 @@ def main() -> int:
     ap.add_argument("--provider", choices=sorted(PROVIDERS), default="generic")
     ap.add_argument("--base-url"); ap.add_argument("--api-key-env"); ap.add_argument("--model")
     ap.add_argument("--cwd", required=True); ap.add_argument("--max-turns", type=int, default=env_int("OPENAI_COMPAT_MAX_TURNS", 20, 1)); ap.add_argument("--prompt")
+    ap.add_argument("--reasoning-effort", choices=["low", "medium", "high", "xhigh", "max"])
+    ap.add_argument("--reasoning-policy", choices=["strict", "best_effort"], default="best_effort")
     args = ap.parse_args(); cfg = PROVIDERS[args.provider]
     base_url = args.base_url or os.environ.get("OPENAI_COMPAT_BASE_URL") or cfg["base_url"]
     key_env = args.api_key_env or os.environ.get("OPENAI_COMPAT_API_KEY_ENV") or cfg["api_key_env"]
@@ -138,8 +157,10 @@ def main() -> int:
         {"role":"user","content":prompt},
     ]
     print(f"provider={args.provider} base_url={base_url} model={model} cwd={cwd}", file=sys.stderr)
+    requested_reasoning = args.reasoning_effort or "none"
+    print(f"chat_reasoning requested={requested_reasoning} policy={args.reasoning_policy}", file=sys.stderr)
     for turn in range(1, args.max_turns + 1):
-        d = api_call(base_url, key, model, cfg.get("headers", {}), messages, max_tokens=max_tokens, request_timeout=request_timeout, max_retries=max_retries)
+        d = api_call(base_url, key, model, cfg.get("headers", {}), messages, max_tokens=max_tokens, request_timeout=request_timeout, max_retries=max_retries, reasoning_effort=args.reasoning_effort, reasoning_policy=args.reasoning_policy)
         ch = d.get("choices", [{}])[0]; msg = ch.get("message", {})
         finish = ch.get("finish_reason")
         raw_content = msg.get("content")
