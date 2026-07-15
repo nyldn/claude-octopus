@@ -116,6 +116,7 @@ def main() -> int:
     ap.add_argument("--provider", choices=sorted(PROVIDERS), default="generic")
     ap.add_argument("--base-url"); ap.add_argument("--api-key-env"); ap.add_argument("--model")
     ap.add_argument("--cwd", required=True); ap.add_argument("--max-turns", type=int, default=env_int("OPENAI_COMPAT_MAX_TURNS", 20, 1)); ap.add_argument("--prompt")
+    ap.add_argument("--reasoning-effort", choices=["low", "medium", "high", "xhigh", "max"])
     args = ap.parse_args(); cfg = PROVIDERS[args.provider]
     base_url = args.base_url or os.environ.get("OPENAI_COMPAT_BASE_URL") or cfg["base_url"]
     key_env = args.api_key_env or os.environ.get("OPENAI_COMPAT_API_KEY_ENV") or cfg["api_key_env"]
