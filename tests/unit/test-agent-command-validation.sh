@@ -62,6 +62,27 @@ else
     test_pass
 fi
 
+test_case "validate_agent_command allows openai-compatible reasoning flags"
+if validate_agent_command "$PROJECT_ROOT/scripts/helpers/openai-compatible-agent.py --provider generic --model minimax/minimax-m3 --cwd /tmp/test --reasoning-effort medium --reasoning-policy best_effort"; then
+    test_pass
+else
+    test_fail "expected allowlisted reasoning flags to be accepted"
+fi
+
+test_case "validate_agent_command rejects invalid reasoning effort"
+if validate_agent_command "$PROJECT_ROOT/scripts/helpers/openai-compatible-agent.py --provider generic --model minimax/minimax-m3 --cwd /tmp/test --reasoning-effort extreme" >/dev/null 2>&1; then
+    test_fail "expected invalid reasoning effort to be rejected"
+else
+    test_pass
+fi
+
+test_case "validate_agent_command rejects invalid reasoning policy"
+if validate_agent_command "$PROJECT_ROOT/scripts/helpers/openai-compatible-agent.py --provider generic --model minimax/minimax-m3 --cwd /tmp/test --reasoning-policy permissive" >/dev/null 2>&1; then
+    test_fail "expected invalid reasoning policy to be rejected"
+else
+    test_pass
+fi
+
 test_case "validate_agent_command rejects openai-compatible helper extra args"
 if validate_agent_command "$PROJECT_ROOT/scripts/helpers/openai-compatible-agent.py --provider generic --model minimax/minimax-m3 --cwd /tmp/test --unexpected flag" >/dev/null 2>&1; then
     test_fail "expected openai-compatible helper extra args to be rejected"

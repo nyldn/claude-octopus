@@ -182,7 +182,7 @@ _validate_openai_compatible_agent_command() {
     # tokens; unsafe backslashes are rejected by the per-token validators below.
     read -r -a parts <<< "$cmd"
 
-    [[ "${#parts[@]}" -eq 7 ]] || return 1
+    [[ "${#parts[@]}" -ge 7 ]] || return 1
     [[ "${parts[0]}" == */scripts/helpers/openai-compatible-agent.py ]] || return 1
     [[ "${parts[1]}" == "--provider" && "${parts[2]}" == "generic" ]] || return 1
     [[ "${parts[3]}" == "--model" ]] || return 1
@@ -190,6 +190,29 @@ _validate_openai_compatible_agent_command() {
     [[ "${parts[4]}" != /* ]] || return 1
     [[ "${parts[5]}" == "--cwd" ]] || return 1
     _octopus_is_safe_openai_compatible_value "${parts[6]}" || return 1
+
+    local i=7
+    while [[ $i -lt ${#parts[@]} ]]; do
+        [[ $((i + 1)) -lt ${#parts[@]} ]] || return 1
+        case "${parts[$i]}" in
+            --reasoning-effort)
+                case "${parts[$((i + 1))]}" in
+                    low|medium|high) ;;
+                    *) return 1 ;;
+                esac
+                ;;
+            --reasoning-policy)
+                case "${parts[$((i + 1))]}" in
+                    strict|best_effort) ;;
+                    *) return 1 ;;
+                esac
+                ;;
+            *)
+                return 1
+                ;;
+        esac
+        i=$((i + 2))
+    done
     return 0
 }
 
