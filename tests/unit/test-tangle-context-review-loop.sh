@@ -112,6 +112,26 @@ else
 fi
 rm -rf "$workspace"
 
+test_case "existing repository-managed ignore file is preserved"
+workspace=$(mktemp -d)
+git -C "$workspace" init -q
+mkdir -p "$workspace/.claude-octopus/results"
+printf '*.md\n' > "$workspace/.claude-octopus/results/.gitignore"
+git -C "$workspace" add -f .claude-octopus/results/.gitignore
+ignore_before=$(git -C "$workspace" hash-object .claude-octopus/results/.gitignore)
+if context_file=$(PROJECT_ROOT="$workspace" tangle_build_develop_review_context \
+        "test" "prompt" "context" "subtasks" "/nonexistent-validation" \
+        "/nonexistent-snapshot" "initial") &&
+   ignore_after=$(git -C "$workspace" hash-object .claude-octopus/results/.gitignore) &&
+   [[ "$ignore_before" == "$ignore_after" ]] &&
+   git -C "$workspace" diff --quiet -- .claude-octopus/results/.gitignore &&
+   [[ -f "$context_file" ]]; then
+    test_pass
+else
+    test_fail "existing repository-managed ignore rules must remain unchanged"
+fi
+rm -rf "$workspace"
+
 test_case "pre-existing context-file symlink is rejected"
 workspace=$(mktemp -d)
 outside=$(mktemp)

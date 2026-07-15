@@ -1307,7 +1307,7 @@ tangle_build_develop_review_context() {
     local worktree_before_file="$6"
     local round_label="${7:-initial}"
     local repo_root repo_root_physical octopus_dir context_dir context_dir_physical
-    local context_file context_tmp ignore_file ignore_tmp
+    local context_name context_file relative_context_path final_context_dir
     if [[ -z "$task_group" || "$task_group" == "." || "$task_group" == ".." ||
           "$task_group" == *[![:alnum:]_.-]* || "$task_group" == *..* ||
           -z "$round_label" || "$round_label" == "." || "$round_label" == ".." ||
@@ -1333,34 +1333,47 @@ tangle_build_develop_review_context() {
         log "ERROR" "tangle review context directory escapes repository root: $context_dir_physical"
         return 1
     fi
-    context_file="${context_dir}/develop-review-context-${task_group}-${round_label}.md"
-    if [[ -L "$context_file" ]]; then
-        log "ERROR" "tangle review context file must not be a symlink: $context_file"
-        return 1
-    fi
+    context_name="develop-review-context-${task_group}-${round_label}.md"
+    context_file="${context_dir}/${context_name}"
+    relative_context_path=".claude-octopus/results/${context_name}"
 
-    # Keep tool-owned review artifacts from appearing as changes in arbitrary
-    # target repositories. Replace through a same-directory temporary file so
-    # a pre-existing symlink cannot redirect the write.
-    ignore_file="${context_dir}/.gitignore"
-    if [[ -L "$ignore_file" ]]; then
-        log "ERROR" "tangle review results ignore file must not be a symlink: $ignore_file"
-        return 1
-    fi
-    ignore_tmp=$(mktemp "${context_dir}/.gitignore.tmp.XXXXXX") || return 1
-    if ! printf '*\n' > "$ignore_tmp"; then
-        rm -f "$ignore_tmp"
-        return 1
-    fi
-    if [[ -L "$ignore_file" ]] || ! mv -f "$ignore_tmp" "$ignore_file"; then
-        rm -f "$ignore_tmp"
-        log "ERROR" "unable to install tangle review results ignore file"
-        return 1
-    fi
+    # Enter the already-validated physical directory before creating anything.
+    # Relative operations then remain anchored to that directory inode even if
+    # another process swaps the parent pathname for a symlink.
+    if ! (
+        cd "$context_dir" || exit 1
+        [[ "$(pwd -P)" == "$context_dir_physical" ]] || exit 1
 
-    context_tmp=$(mktemp "${context_dir}/.develop-review-context.XXXXXX") || return 1
+        if [[ -L "$context_name" || -L ".gitignore" ]]; then
+            log "ERROR" "tangle review results contain an unsafe symlink"
+            exit 1
+        fi
 
-    if ! {
+        # Keep tool-owned artifacts invisible to git without modifying an
+        # existing repository-managed ignore file. If one exists, it must
+        # already ignore this artifact or generation fails cleanly.
+        if [[ ! -e ".gitignore" ]]; then
+            ignore_tmp=$(mktemp ".gitignore.tmp.XXXXXX") || exit 1
+            printf '*\n' > "$ignore_tmp" || {
+                rm -f "$ignore_tmp"
+                exit 1
+            }
+            if [[ -e ".gitignore" || -L ".gitignore" ]]; then
+                rm -f "$ignore_tmp"
+            elif ! mv "$ignore_tmp" ".gitignore"; then
+                rm -f "$ignore_tmp"
+                exit 1
+            fi
+        fi
+        if [[ -L ".gitignore" ]] ||
+           { git -C "$repo_root" rev-parse --show-toplevel >/dev/null 2>&1 &&
+             ! git -C "$repo_root" check-ignore -q -- "$relative_context_path"; }; then
+            log "ERROR" "repository ignore rules do not cover tangle review context"
+            exit 1
+        fi
+
+        context_tmp=$(mktemp ".develop-review-context.XXXXXX") || exit 1
+        if ! {
         echo "# Develop Review Context"
         echo
         echo "## Purpose"
@@ -1427,26 +1440,28 @@ tangle_build_develop_review_context() {
             grep -n "Quality Gate\|Success Rate\|Failed\|Decision Branch\|Worktree Change Evidence\|Missing\|Status:" "$validation_file" 2>/dev/null | head -120 || true
             echo '```'
         fi
-    } > "$context_tmp"; then
-        rm -f "$context_tmp"
+        } > "$context_tmp"; then
+            rm -f "$context_tmp"
+            exit 1
+        fi
+
+        if [[ -L "$context_name" || "$(pwd -P)" != "$context_dir_physical" ]] ||
+           ! mv -f "$context_tmp" "$context_name"; then
+            rm -f "$context_tmp"
+            log "ERROR" "unable to finalize workspace-local tangle review context"
+            exit 1
+        fi
+    ); then
         return 1
     fi
 
-    # Revalidate after generation, then atomically replace the destination.
-    # mv replaces a normal destination entry instead of following it.
-    if [[ -L "$octopus_dir" || -L "$context_dir" || -L "$context_file" ]]; then
-        rm -f "$context_tmp"
-        log "ERROR" "tangle review context path changed during generation"
+    if [[ -L "$context_file" || ! -f "$context_file" ]]; then
+        log "ERROR" "workspace-local tangle review context is unavailable"
         return 1
     fi
-    context_dir_physical=$(cd "$context_dir" 2>/dev/null && pwd -P) || {
-        rm -f "$context_tmp"
-        return 1
-    }
-    if [[ "$context_dir_physical" != "${repo_root_physical}/.claude-octopus/results" ]] ||
-       ! mv -f "$context_tmp" "$context_file"; then
-        rm -f "$context_tmp"
-        log "ERROR" "unable to finalize workspace-local tangle review context"
+    final_context_dir=$(cd "$(dirname "$context_file")" 2>/dev/null && pwd -P) || return 1
+    if [[ "$final_context_dir" != "$context_dir_physical" ]]; then
+        log "ERROR" "workspace-local tangle review context escaped after generation"
         return 1
     fi
 
