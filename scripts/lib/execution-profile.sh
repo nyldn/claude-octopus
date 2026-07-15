@@ -95,6 +95,10 @@ octopus_reasoning_cli_fragment() {
   case "$provider" in
     codex) printf "%s\n" "-c model_reasoning_effort=\"${level}\"" ;;
     claude|claude-sdk) printf "%s\n" "--effort ${level}" ;;
-    openai-compatible-agent|openai-compatible|openai-tools) printf "%s\n" "--reasoning-effort ${level} --reasoning-policy ${policy}" ;;
+    openai-compatible-agent|openai-compatible|openai-tools)
+      # The OpenAI reasoning_effort domain is low|medium|high; xhigh/max are
+      # Claude-side levels and would fail command validation downstream.
+      case "$level" in xhigh|max) level="high" ;; esac
+      printf "%s\n" "--reasoning-effort ${level} --reasoning-policy ${policy}" ;;
   esac
 }
