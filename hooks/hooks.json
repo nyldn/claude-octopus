@@ -5,10 +5,6 @@
         "matcher": "Bash",
         "hooks": [
           {
-            "type": "prompt",
-            "prompt": "\ud83d\udc19 **CLAUDE OCTOPUS ACTIVATED** - Using external CLI providers (Codex/Gemini) for this task. This is NOT a Claude subagent - external APIs will be invoked."
-          },
-          {
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/hooks/provider-routing-validator.sh",
             "additionalContext": "Session: ${CLAUDE_SESSION_ID}, Workflow: ${OCTOPUS_WORKFLOW_PHASE:-unknown}",
@@ -42,24 +38,6 @@
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/hooks/codex-exec-guard.sh",
             "timeout": 5
-          }
-        ]
-      },
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "prompt",
-            "prompt": "\ud83d\udd34 **Codex CLI Executing** - Using your OpenAI API credentials directly."
-          }
-        ]
-      },
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "prompt",
-            "prompt": "\ud83d\udfe1 **Gemini CLI Executing** - Using your Google API credentials directly."
           }
         ]
       },

@@ -262,12 +262,6 @@ sys.exit(0 if isinstance(d.get('hooks'), dict) and d['hooks'] else 1)
     fail "hooks.json missing Codex CLI hook"
   fi
 
-  if grep -qi "gemini" "$hooks_json"; then
-    pass "hooks.json has Gemini CLI hook"
-  else
-    fail "hooks.json missing Gemini CLI hook"
-  fi
-
   if python3 -c "
 import json,sys
 d=json.load(open('$hooks_json'))
