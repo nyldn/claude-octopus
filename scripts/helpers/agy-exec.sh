@@ -91,7 +91,7 @@ fi
 # failing the seat.
 if (( ${#prompt_content} > 100000 )); then
     cmd+=(--add-dir "$(dirname "$prompt_file")")
-    cmd+=(--print "Read the file ${prompt_file} and follow the instructions in it as your task prompt. Do not summarize the file; execute it.")
+    cmd+=(--print "Read the file '${prompt_file}' and follow the instructions in it as your task prompt. Do not summarize the file; execute it.")
 else
     cmd+=(--print "$prompt_content")
 fi
