@@ -49,8 +49,8 @@ $found"
 }
 
 test_hooks_json_matchers() {
-    test_case "Every hook block in .claude-plugin/hooks.json has a matcher"
-    local hooks_json="$PROJECT_ROOT/.claude-plugin/hooks.json"
+    test_case "Every hook block in hooks/hooks.json has a matcher"
+    local hooks_json="$PROJECT_ROOT/hooks/hooks.json"
     if [[ ! -f "$hooks_json" ]]; then
         test_fail "hooks.json not found"
         return 1

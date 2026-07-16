@@ -13,7 +13,7 @@ test_suite "Safety Hooks (careful/freeze/guard)"
 CAREFUL_HOOK="$PROJECT_ROOT/hooks/careful-check.sh"
 FREEZE_HOOK="$PROJECT_ROOT/hooks/freeze-check.sh"
 PLUGIN_JSON="$PROJECT_ROOT/.claude-plugin/plugin.json"
-HOOKS_JSON="$PROJECT_ROOT/.claude-plugin/hooks.json"
+HOOKS_JSON="$PROJECT_ROOT/hooks/hooks.json"
 COMMANDS_DIR="$PROJECT_ROOT/commands"
 SKILL_DEBUG="$PROJECT_ROOT/.claude/skills/skill-debug.md"
 if [[ ! -f "$SKILL_DEBUG" ]]; then

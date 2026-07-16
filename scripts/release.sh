@@ -145,9 +145,9 @@ with open('.claude-plugin/routines.json') as f:
     routines = json.load(f)
 routine_count = len(routines.get('routines', []))
 
-with open('.claude-plugin/hooks.json') as f:
+with open('hooks/hooks.json') as f:
     hooks = json.load(f)
-hook_event_count = len(hooks)
+hook_event_count = len(hooks.get('hooks', hooks))
 
 count_phrase = f'{persona_count} personas, {command_count} commands, {skill_count} skills'
 expert_count_phrase = f'{persona_count} expert personas, {command_count} commands, {skill_count} skills'

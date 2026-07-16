@@ -269,7 +269,7 @@ else
 fi
 
 test_case "hook is registered in SessionStart"
-if grep -q 'fable5-inject.sh' "$PROJECT_ROOT/.claude-plugin/hooks.json"; then
+if grep -q 'fable5-inject.sh' "$PROJECT_ROOT/hooks/hooks.json"; then
     test_pass
 else
     test_fail "fable5-inject.sh not registered in hooks.json"

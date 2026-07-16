@@ -10,7 +10,7 @@ Quick reference:
 - **Commands**: `commands/` (sys-, flow-, skill- prefixes)
 - **Skills**: `.claude/skills/` (registered in plugin.json)
 - **Agents**: `agents/personas/`, `agents/principles/`, `agents/skills/`
-- **Hooks**: `hooks/` (configured in `.claude-plugin/hooks.json`)
+- **Hooks**: `hooks/` (configured in `hooks/hooks.json`)
 - **Tests**: `tests/` (smoke, unit, integration, e2e)
 - **Dev files**: `../` (NEVER committed - gitignored)
 
@@ -90,7 +90,7 @@ tools:
 ```
 
 #### 4. Hooks
-Event-driven automation configured in `.claude-plugin/hooks.json`.
+Event-driven automation configured in `hooks/hooks.json`.
 
 **Hook Types:**
 - `PreToolUse` - Before tool execution
@@ -265,7 +265,7 @@ Agent's system instructions...
 echo "Hook executed"
 ```
 
-2. Configure in `.claude-plugin/hooks.json`:
+2. Configure in `hooks/hooks.json`:
 ```json
 {
   "PreToolUse": [
@@ -321,7 +321,7 @@ claude --verbose
 claude --list-plugins
 
 # Test hook patterns
-grep -r "pattern-text" .claude-plugin/hooks.json
+grep -r "pattern-text" hooks/hooks.json
 ```
 
 ## 📦 Version Management

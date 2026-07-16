@@ -491,7 +491,7 @@ A SessionStart hook injects the dispatch profile (prompt anti-patterns, judgment
 
 ## Trust, Safety, and Limits
 
-**Command namespace** — Slash commands are namespaced under `/octo:*` and the `octo` natural-language prefix routes through the plugin's intent detection. Lifecycle hooks (session start/end, prompt submit, tool use, compaction, plan mode, worktrees, task lifecycle, idle, config change, permission events) also attach to Claude Code so multi-provider routing, freeze/discipline modes, and the work-queue watcher can function. See `.claude-plugin/hooks.json` for the full list. Uninstall removes every hook.
+**Command namespace** — Slash commands are namespaced under `/octo:*` and the `octo` natural-language prefix routes through the plugin's intent detection. Lifecycle hooks (session start/end, prompt submit, tool use, compaction, plan mode, worktrees, task lifecycle, idle, config change, permission events) also attach to Claude Code so multi-provider routing, freeze/discipline modes, and the work-queue watcher can function. See `hooks/hooks.json` for the full list. Uninstall removes every hook.
 
 **Data locations** — Results in `~/.claude-octopus/results/`, logs in `~/.claude-octopus/logs/`, project state in `.octo/`. Nothing hidden.
 

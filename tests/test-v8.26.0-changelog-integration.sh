@@ -16,7 +16,7 @@ ORCHESTRATE_SH="$PROJECT_ROOT/scripts/orchestrate.sh"
 ALL_SRC=$(mktemp)
 cat "$ORCHESTRATE_SH" "$(dirname "$ORCHESTRATE_SH")/lib/"*.sh > "$ALL_SRC" 2>/dev/null
 trap 'rm -f "$ALL_SRC"' EXIT
-HOOKS_JSON="$PROJECT_ROOT/.claude-plugin/hooks.json"
+HOOKS_JSON="$PROJECT_ROOT/hooks/hooks.json"
 CONFIG_CHANGE_HANDLER="$PROJECT_ROOT/hooks/config-change-handler.sh"
 SKILL_DOCTOR="$(resolve_claude_skill_path "skill-doctor")"
 CONFIG_YAML="$PROJECT_ROOT/agents/config.yaml"

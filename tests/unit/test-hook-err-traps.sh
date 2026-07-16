@@ -125,7 +125,7 @@ test_all_hooks_exit_clean_on_valid_input() {
     # hooks, and would legitimately block on statusline-specific input.
     local registered
     registered=$(jq -r '.. | objects | .command? | select(.) | select(type=="string")' \
-        "$PROJECT_ROOT/.claude-plugin/hooks.json" 2>/dev/null \
+        "$PROJECT_ROOT/hooks/hooks.json" 2>/dev/null \
         | grep -oE '[a-z][a-z0-9-]+\.sh' | sort -u)
     for hook_name in $registered; do
         local hook="$PROJECT_ROOT/hooks/$hook_name"

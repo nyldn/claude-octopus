@@ -131,11 +131,11 @@ test_version_advisory_hook_exists() {
 
 test_version_advisory_wired_in_hooks_json() {
     test_case "version-advisory.sh registered in SessionStart hooks"
-    local hooks_json="$PROJECT_ROOT/.claude-plugin/hooks.json"
+    local hooks_json="$PROJECT_ROOT/hooks/hooks.json"
     if command -v jq >/dev/null 2>&1; then
         # Check that some SessionStart hook references version-advisory.sh
         local found
-        found=$(jq -r '.SessionStart[]?.hooks[]?.command // empty' "$hooks_json" 2>/dev/null | grep -c 'version-advisory\.sh' || true)
+        found=$(jq -r '(.hooks // .) | .SessionStart[]?.hooks[]?.command // empty' "$hooks_json" 2>/dev/null | grep -c 'version-advisory\.sh' || true)
         found=${found:-0}
         if [[ "$found" -ge 1 ]]; then
             test_pass

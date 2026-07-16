@@ -142,8 +142,8 @@ test_plugin_metadata() {
     assert_file_exists ".claude-plugin/marketplace.json" "marketplace.json exists"
     assert_valid_json ".claude-plugin/marketplace.json" "marketplace.json is valid JSON"
 
-    assert_file_exists ".claude-plugin/hooks.json" "hooks.json exists"
-    assert_valid_json ".claude-plugin/hooks.json" "hooks.json is valid JSON"
+    assert_file_exists "hooks/hooks.json" "hooks.json exists"
+    assert_valid_json "hooks/hooks.json" "hooks.json is valid JSON"
 }
 
 test_essential_documentation() {

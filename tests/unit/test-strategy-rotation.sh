@@ -9,7 +9,7 @@ source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "strategy-rotation PostToolUse hook"
 
 HOOK="$PROJECT_ROOT/hooks/strategy-rotation.sh"
-HOOKS_JSON="$PROJECT_ROOT/.claude-plugin/hooks.json"
+HOOKS_JSON="$PROJECT_ROOT/hooks/hooks.json"
 
 pass() { test_case "$1"; test_pass; }
 fail() { test_case "$1"; test_fail "${2:-$1}"; }
