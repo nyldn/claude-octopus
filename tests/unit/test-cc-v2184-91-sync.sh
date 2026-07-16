@@ -15,7 +15,7 @@ ORCH="$PLUGIN_DIR/scripts/orchestrate.sh"
 PROVIDERS="$PLUGIN_DIR/scripts/lib/providers.sh"
 DISPATCH="$PLUGIN_DIR/scripts/lib/dispatch.sh"
 AGENT_UTILS="$PLUGIN_DIR/scripts/lib/agent-utils.sh"
-HOOKS_JSON="$PLUGIN_DIR/.claude-plugin/hooks.json"
+HOOKS_JSON="$PLUGIN_DIR/hooks/hooks.json"
 HOOKS_DIR="$PLUGIN_DIR/hooks"
 DOCTOR="$PLUGIN_DIR/scripts/lib/doctor.sh"
 

@@ -824,7 +824,7 @@ doctor_check_state() {
 
 # --- Category 5: Hooks ---
 doctor_check_hooks() {
-    local hooks_json="$SCRIPT_DIR/../.claude-plugin/hooks.json"
+    local hooks_json="$SCRIPT_DIR/../hooks/hooks.json"
     if [[ ! -f "$hooks_json" ]]; then
         doctor_add "hooks-file" "hooks" "fail" \
             "hooks.json not found" "$hooks_json"

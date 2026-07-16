@@ -11,7 +11,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-HOOKS_JSON="$PLUGIN_ROOT/.claude-plugin/hooks.json"
+HOOKS_JSON="$PLUGIN_ROOT/hooks/hooks.json"
 
 WEBHOOK_URL="${1:-}"
 BEARER_TOKEN="${2:-}"
@@ -77,8 +77,8 @@ HTTP_HOOK=$(jq -n \
 # Replace the shell-based telemetry entry in PostToolUse
 TMP="${HOOKS_JSON}.tmp"
 jq --argjson http_hook "$HTTP_HOOK" '
-    .PostToolUse = [
-        (.PostToolUse[] | select(.hooks[0].command // "" | test("telemetry") | not)),
+    .hooks.PostToolUse = [
+        (.hooks.PostToolUse[] | select(.hooks[0].command // "" | test("telemetry") | not)),
         $http_hook
     ]
 ' "$HOOKS_JSON" > "$TMP" && mv "$TMP" "$HOOKS_JSON"
@@ -87,4 +87,4 @@ echo ""
 echo "Done. HTTP telemetry hook enabled in hooks.json."
 echo "The shell-based telemetry-webhook.sh is now bypassed (kept as fallback)."
 echo ""
-echo "To revert: git checkout .claude-plugin/hooks.json"
+echo "To revert: git checkout hooks/hooks.json"

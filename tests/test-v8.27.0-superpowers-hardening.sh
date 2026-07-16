@@ -46,7 +46,7 @@ else
 fi
 
 # 1.3 hooks.json has SessionStart entry for context-reinforcement
-if grep -q "context-reinforcement.sh" "$PLUGIN_DIR/.claude-plugin/hooks.json"; then
+if grep -q "context-reinforcement.sh" "$PLUGIN_DIR/hooks/hooks.json"; then
   pass "hooks.json references context-reinforcement.sh"
 else
   fail "hooks.json missing context-reinforcement.sh reference"
@@ -192,7 +192,7 @@ else
 fi
 
 # 6.3 hooks.json has EnterPlanMode matcher
-if grep -q '"EnterPlanMode"' "$PLUGIN_DIR/.claude-plugin/hooks.json"; then
+if grep -q '"EnterPlanMode"' "$PLUGIN_DIR/hooks/hooks.json"; then
   pass "hooks.json has EnterPlanMode matcher"
 else
   fail "hooks.json missing EnterPlanMode matcher"

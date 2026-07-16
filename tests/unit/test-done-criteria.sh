@@ -9,7 +9,7 @@ source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "done-criteria.sh — compound task detection and DONE criteria injection"
 
 HOOK="$PROJECT_ROOT/hooks/done-criteria.sh"
-HOOKS_JSON="$PROJECT_ROOT/.claude-plugin/hooks.json"
+HOOKS_JSON="$PROJECT_ROOT/hooks/hooks.json"
 
 pass() { test_case "$1"; test_pass; }
 fail() { test_case "$1"; test_fail "${2:-$1}"; }
@@ -52,6 +52,7 @@ else
 import json, sys
 with open('$HOOKS_JSON') as f:
     h = json.load(f)
+h = h.get('hooks', h)
 found = False
 for entry in h.get('UserPromptSubmit', []):
     for hook in entry.get('hooks', []):

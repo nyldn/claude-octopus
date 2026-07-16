@@ -2,7 +2,15 @@
 
 ## [Unreleased]
 
+### Added
+
+- **Role-based execution profiles** (#616, community contribution by @Jhacarreiro; maintainer landing): unified resolver (`scripts/lib/execution-profile.sh`) for provider, model, reasoning level, and reasoning policy by role or phase. Backward compatible with `provider:model` string routes; object routes let one provider use different models per role. Reasoning translates to native controls (Codex `-c model_reasoning_effort`, Claude `--effort`, OpenAI-compatible `reasoning_effort` with `strict`/`best_effort` policy and unsupported-field retry). Maintainer fix on landing: `xhigh`/`max` profile levels clamp to `high` for OpenAI-compatible providers, whose reasoning domain and command validator only accept `low|medium|high`.
+
 ### Fixed
+
+- **Provider PID tracking after delayed spawn** (#618, community contribution by @Jhacarreiro; maintainer landing): `spawn_agent_capture_pid` now waits for the real provider PID (configurable via `OCTOPUS_SPAWN_PID_WAIT_ATTEMPTS`, default 1200 × 0.1s) instead of falling back to the short-lived wrapper PID after 10s, and fails dispatch if no provider PID is ever produced — the wrapper fallback left providers orphaned mid-billing and triggered false missing-completion-marker correction loops. Maintainer fix on landing: the wait-attempts env var is validated as a positive integer before arithmetic use.
+
+- **Gate hooks moved from `.claude-plugin/hooks.json` to `hooks/hooks.json` and converted to the documented hook schema** (#611). Claude Code only loads plugin hooks from `hooks/hooks.json` (or a path declared in plugin.json's `hooks` field); a hooks file inside `.claude-plugin/` is never read, so all 45 gate hook commands across 20 events have been silently inert in every install — the reported "marketplace strips hooks.json" symptom was actually "hooks never loaded from any location". The file now lives at the auto-discovered path, wrapped in the standard top-level `hooks` key, with object matchers (`{"tool": ..., "pattern": ...}`) converted to documented string matchers; command-level filtering was already done inside each hook script (allow-by-default), so dropped `pattern` fields lose no behavior; all other hook fields are preserved verbatim. Note this activates the gate hooks for the first time on plugin update.
 
 - **Repository review follow-ups**: clarified README provider counting and cost assumptions, routed marketplace-sync errors through the script logger, and made release manifest updates portable while keeping browse-manifest hook and routine counts current.
 - **Review aggregation follow-up hardening** (#592): each Round 1 agent now has an independent progress timer; completed results require anchored terminal statuses; provider exits without a terminal status are classified as partial; leading-zero timing inputs are normalized as decimal; stall cleanup snapshots and terminates the full descendant process tree; and findings extraction accepts only arrays while preferring the last non-empty result.

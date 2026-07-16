@@ -150,7 +150,7 @@ test_hook_scripts_exist() {
 test_hooks_json_updated() {
     run_test "hooks.json contains new patterns"
 
-    local hooks_json="${PROJECT_ROOT}/.claude-plugin/hooks.json"
+    local hooks_json="${PROJECT_ROOT}/hooks/hooks.json"
 
     if [[ ! -f "$hooks_json" ]]; then
         log_fail "hooks.json not found"

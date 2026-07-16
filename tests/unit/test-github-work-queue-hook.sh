@@ -10,7 +10,7 @@ source "$PROJECT_ROOT/tests/helpers/test-framework.sh"
 test_suite "GitHub work queue hook"
 
 HOOK="$PROJECT_ROOT/hooks/github-work-queue-watch.sh"
-HOOKS_JSON="$PROJECT_ROOT/.claude-plugin/hooks.json"
+HOOKS_JSON="$PROJECT_ROOT/hooks/hooks.json"
 
 test_case "hook exists and is executable"
 if [[ -x "$HOOK" ]]; then
@@ -20,7 +20,7 @@ else
 fi
 
 test_case "hook is registered on UserPromptSubmit"
-if jq -e '.UserPromptSubmit[]?.hooks[]? | select(.command | contains("github-work-queue-watch.sh"))' "$HOOKS_JSON" >/dev/null; then
+if jq -e '(.hooks // .) | .UserPromptSubmit[]?.hooks[]? | select(.command | contains("github-work-queue-watch.sh"))' "$HOOKS_JSON" >/dev/null; then
     test_pass
 else
     test_fail "github-work-queue-watch.sh not registered in UserPromptSubmit hooks"

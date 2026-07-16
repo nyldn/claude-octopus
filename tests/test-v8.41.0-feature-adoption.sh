@@ -30,7 +30,7 @@ echo ""
 echo "Suite 1: New Hook Registration"
 echo "───────────────────────────────"
 
-HOOKS_JSON="$PLUGIN_ROOT/.claude-plugin/hooks.json"
+HOOKS_JSON="$PLUGIN_ROOT/hooks/hooks.json"
 
 # 1.1 PreCompact hook registered
 if grep -c '"PreCompact"' "$HOOKS_JSON" >/dev/null 2>&1; then
@@ -137,7 +137,7 @@ HOOK_EVENT_COUNT=$(python3 -c "
 import json
 with open('$HOOKS_JSON') as f:
     d = json.load(f)
-print(len(d))
+print(len(d.get('hooks', d)))
 " 2>/dev/null)
 if [[ "$HOOK_EVENT_COUNT" -ge 13 ]]; then
     pass "1.15 Hook events count >= 13 (got $HOOK_EVENT_COUNT)"
