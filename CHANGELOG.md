@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+## [9.54.0] - 2026-07-18
+
+
 ### Added
 
 - **Anti-slop design taste layer** (`skills/blocks/design-taste.md`): binary, mechanically checkable rules distilled from the highest-starred public taste rulebooks — the three banned AI-slop looks, banned default fonts (Inter, Roboto, Space Grotesk, Fraunces, Instrument Serif), palette and layout tells, content tells (placeholder personas, fake-perfect stats), and a pre-ship checklist. Wired into `/octo:design-ui-ux` as generation constraints, a new SLOP critique dimension in the three-way adversarial review, and a Deliver-phase gate. The Design Shotgun example variants themselves shipped two banned looks (AI-purple gradient, Space Grotesk default) and were replaced.
