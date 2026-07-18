@@ -28,9 +28,11 @@ HOOK_TIMEOUT_SECONDS="${HOOK_TIMEOUT_SECONDS:-5}"
 PLUGIN_ROOT_FIXTURE="$TEST_TMP_DIR/plugin-root-fixture"
 if [[ ! -d "$PLUGIN_ROOT_FIXTURE" ]]; then
     mkdir -p "$PLUGIN_ROOT_FIXTURE"
-    # tar pipe honors --exclude on both GNU and BSD tar; preserves the tree a hook
-    # may read (hooks.json, hooks/, scripts/, config/) without touching the real repo.
-    ( cd "$PROJECT_ROOT" && tar --exclude='./.git' -cf - . ) | ( cd "$PLUGIN_ROOT_FIXTURE" && tar -xf - )
+    # Copy tracked files only (git ls-files + null-delimited tar -T works on both
+    # GNU and BSD tar); preserves the tree a hook may read (hooks.json, hooks/,
+    # scripts/, config/) without touching the real repo. Copying "." here broke on
+    # gitignored local dirs whose filenames exceed tar's metadata limits.
+    ( cd "$PROJECT_ROOT" && git ls-files -z | tar --null -T - -cf - ) | ( cd "$PLUGIN_ROOT_FIXTURE" && tar -xf - )
 fi
 
 run_hook_with_deadline() {

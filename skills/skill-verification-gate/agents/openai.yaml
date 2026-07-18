@@ -1,3 +1,3 @@
 interface:
   display_name: "Verification Gate"
-  short_description: "Evidence before claims — run verification commands before declaring work complete, fixed, or passing"
+  short_description: "Use when about to declare work complete, fixed, passing, or done"

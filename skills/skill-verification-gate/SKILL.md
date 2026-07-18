@@ -1,6 +1,6 @@
 ---
 name: skill-verification-gate
-description: "Evidence before claims — run verification commands before declaring work complete, fixed, or passing"
+description: "Use when about to declare work complete, fixed, passing, or done"
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
@@ -17,10 +17,6 @@ description: "Evidence before claims — run verification commands before declar
 NO COMPLETION CLAIMS WITHOUT FRESH VERIFICATION EVIDENCE
 </HARD-GATE>
 
-```
-NO COMPLETION CLAIMS WITHOUT FRESH VERIFICATION EVIDENCE
-```
-
 If you haven't run the verification command in this turn, you cannot claim it passes.
 
 ## The Gate
@@ -34,6 +30,17 @@ Before claiming any success or expressing satisfaction:
 5. **ONLY THEN** — State the claim WITH evidence
 
 Skip any step = the claim is unverified.
+
+## Rationalization Table
+
+| Excuse | Reality |
+|--------|---------|
+| "I ran the tests earlier this session" | Earlier is not fresh. Code changed since. Run again. |
+| "The edit was trivial, it can't break anything" | Trivial edits break builds daily. The gate has no size exemption. |
+| "The subagent reported success" | Agent reports are claims, not evidence. Verify independently. |
+| "CI will catch it anyway" | CI is the safety net, not the verification. Verify before push. |
+| "I'm confident this works" | Confidence is not evidence. Run the command. |
+| "Running the full suite is slow" | Then run the targeted suite — but run something, fresh. |
 
 ## What Counts as Evidence
 
