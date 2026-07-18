@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Added
+
+- **Anti-slop design taste layer** (`skills/blocks/design-taste.md`): binary, mechanically checkable rules distilled from the highest-starred public taste rulebooks — the three banned AI-slop looks, banned default fonts (Inter, Roboto, Space Grotesk, Fraunces, Instrument Serif), palette and layout tells, content tells (placeholder personas, fake-perfect stats), and a pre-ship checklist. Wired into `/octo:design-ui-ux` as generation constraints, a new SLOP critique dimension in the three-way adversarial review, and a Deliver-phase gate. The Design Shotgun example variants themselves shipped two banned looks (AI-purple gradient, Space Grotesk default) and were replaced.
+- **WCAG contrast validator** (`scripts/helpers/contrast-check.py`, stdlib-only): computes WCAG 2.x contrast ratios for FG:BG hex pairs with normal/large thresholds, JSON output, and pairs-file input; exit 1 on any failure. The design skill's Deliver phase now runs it on every text/background token pair instead of prose-only "validate against WCAG AA".
+- **Design dials in `/octo:design-ui-ux`**: a fourth intake question maps to ui-ux-pro-max v2.11.0 `--variance/--motion/--density` flags (conservative/balanced/expressive/maximal presets), passed to searches and recorded in the design direction.
+- **Design-system persistence**: the design skill's final step now writes the design system to `~/.claude-octopus/designs/<slug>/` under the `skill-design-lineage` contract (branch-stamped, supersedes-chained), and downstream skills are directed to read the newest design document before inventing new tokens.
+
 ### Changed
 
 - **Vendored ui-ux-pro-max design intelligence refreshed from v2.0.1 to v2.11.0** (nextlevelbuilder/ui-ux-pro-max-skill, MIT). Brings 11 releases of new data and features into `/octo:design-ui-ux`: expanded databases (84 styles, 192 palettes, 74 font pairings, 161 UX reasoning rules), a Google Fonts collection, motion presets, design dials (`--variance/--motion/--density`), and `--persist` MASTER.md design-system persistence. The vendored subset is now slimmer (src/ plus license and docs; screenshots and the npm CLI are no longer copied) and carries a `VENDOR.json` manifest recording the pinned upstream tag. `scripts/check-vendor-updates.sh` was rewritten for plain-file vendoring (the old version silently exited because it still expected `.gitmodules`, dead since #253) and now compares the manifest tag against the latest upstream release; a nightly `Vendor Freshness` CI job fails when a vendored dependency goes stale.

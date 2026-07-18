@@ -59,10 +59,25 @@ AskUserQuestion({
         {label: "Page layouts", description: "Wireframe-level layout specifications"},
         {label: "Style guide", description: "Visual style direction with rationale"}
       ]
+    },
+    {
+      question: "How adventurous should the design be?",
+      header: "Dials",
+      multiSelect: false,
+      options: [
+        {label: "Conservative (v3 m2 d4)", description: "Familiar patterns, minimal motion — enterprise, gov, finance"},
+        {label: "Balanced (v5 m4 d5)", description: "Contemporary but safe — most SaaS and product work"},
+        {label: "Expressive (v7 m6 d5)", description: "Distinctive direction, noticeable motion — marketing, launch pages"},
+        {label: "Maximal (v9 m8 d6)", description: "Take real aesthetic risks — portfolios, creative brands"}
+      ]
     }
   ]
 })
 ```
+
+The dial answer maps to `--variance/--motion/--density` values (v/m/d above) passed to
+every `search.py` call and stated in the design direction. Infer instead of asking only
+when the user's brief already names a vibe ("brutalist", "playful", "corporate").
 
 ### STEP 2: Display Banner
 
@@ -135,6 +150,10 @@ python3 "$SEARCH_PY" "<key user flow>" --domain ux
 
 # 6. Stack-specific search (if user specified a stack)
 python3 "$SEARCH_PY" "<user's requirements>" --stack <stack>
+
+# 7. Full design-system draft with the dials from Step 1 (v2.11.0+)
+python3 "$SEARCH_PY" "<user's product description>" --design-system \
+  --variance <v> --motion <m> --density <d>
 ```
 
 **If user provided a Figma URL**, also pull design context:
@@ -159,13 +178,18 @@ Stack: [from Step 1]
 Search context: [key findings from Step 4 BM25 searches]
 
 Produce:
-1. A style name (2-3 words, e.g., "Warm Minimalism", "Bold Industrial", "Soft Gradient")
+1. A style name (2-3 words, e.g., "Warm Minimalism", "Bold Industrial", "Cobalt Editorial")
 2. Primary color palette (3-5 colors with hex values)
 3. Font pairing (heading + body)
 4. Layout philosophy (e.g., "generous whitespace with card-based content")
 5. One paragraph describing the overall feel
 
 Be distinctive — take a clear position rather than playing it safe.
+
+Hard constraints (see skills/blocks/design-taste.md): do NOT produce any of the three
+AI-slop looks (cream+serif+terracotta, near-black+acid accent, purple-violet gradients),
+and do not default to Inter, Roboto, Space Grotesk, Fraunces, or Instrument Serif
+without a brief-tied reason.
 ```
 
 **Dispatch to different providers for maximum diversity:**
@@ -185,14 +209,14 @@ Fonts: Inter + Source Serif 4
 Feel: Clean, approachable, content-first with warm accent touches
 
 ━━━ Variant B: "Bold Industrial" (🟡 Gemini) ━━━
-Colors: #0A0A0A, #FFFFFF, #FF6B35, #004E89, #1A936F
-Fonts: Space Grotesk + IBM Plex Sans
+Colors: #101418, #FFFFFF, #FF6B35, #004E89, #1A936F
+Fonts: Archivo + IBM Plex Sans
 Feel: High-contrast, technical authority, strong hierarchy
 
-━━━ Variant C: "Soft Gradient" (🔵 Claude) ━━━
-Colors: #667EEA, #764BA2, #F093FB, #F5F7FA, #1A202C
-Fonts: Satoshi + General Sans
-Feel: Modern, approachable, subtle depth through gradients
+━━━ Variant C: "Cobalt Editorial" (🔵 Claude) ━━━
+Colors: #1D4ED8, #F7F6F2, #14181F, #C8CFDB, #E8B04B
+Fonts: Newsreader + General Sans
+Feel: Confident print-inspired hierarchy with one saturated anchor color
 ```
 
 **Then ask the user to choose:**
@@ -224,6 +248,7 @@ Synthesize search results (and chosen variant if shotgun mode) into a design dir
 3. **Typography** — heading + body font pairing with Google Fonts import
 4. **Layout approach** — grid system, spacing scale, responsive strategy
 5. **Design principles** — 3-5 guiding principles derived from UX search results
+6. **Taste compliance** — one line confirming the direction passes `skills/blocks/design-taste.md` (not one of the three banned looks; no unjustified banned-default fonts; boldness spent in one place)
 
 **Output: Write the design direction as a structured section you can reference in the next step.**
 
@@ -242,6 +267,7 @@ Critique dimensions:
 2. PRACTICALITY — Does this typography actually render well on the stated tech stack? Are the fonts available and performant (file size, loading)? Does the spacing scale work with the layout system?
 3. FIT — Does the visual style actually match the product type and audience? Would a user of [product type] feel comfortable with this aesthetic?
 4. GAPS — What did the research miss? Are there common UX patterns for this product type that aren't addressed? Are there competitive norms being ignored?
+5. SLOP — Run the checklist in skills/blocks/design-taste.md. Is this one of the three AI-slop looks (cream+serif+terracotta, near-black+acid, purple gradients)? Banned default fonts without a stated reason? Would another model given the same brief land on the same palette and fonts? Two or more checklist misses fail the direction.
 
 For each issue found, state: what's wrong, why it matters, and what to do instead.
 ```
@@ -327,12 +353,21 @@ mcp__shadcn__search_items_in_registries({ query: "<component name>" })
 
 ### STEP 7: Phase 4 — Deliver (Validation)
 
-1. **Accessibility audit** — validate all colors against WCAG AA (4.5:1 for text, 3:1 for large text)
-2. **Completeness check** — verify all requested deliverables are present
-3. **Implementation readiness** — confirm specs are detailed enough for frontend-developer
-4. **Figma push-back** (if connected) — offer to push design tokens to Figma
+1. **Accessibility audit — run the checker, do not eyeball.** Every text/background pair in the token set goes through the contrast validator:
 
-### STEP 8: Present Results
+```bash
+python3 "${HOME}/.claude-octopus/plugin/scripts/helpers/contrast-check.py" \
+  '<text-hex>:<bg-hex>' '<heading-hex>:<bg-hex>:large' '<muted-hex>:<bg-hex>' ...
+```
+
+Exit 1 means at least one pair fails WCAG AA — fix the palette and re-run before delivering. Include the checker output in the final document as evidence.
+
+2. **Slop check** — run the pre-ship checklist in `skills/blocks/design-taste.md`; two or more misses means revise before delivering
+3. **Completeness check** — verify all requested deliverables are present
+4. **Implementation readiness** — confirm specs are detailed enough for frontend-developer
+5. **Figma push-back** (if connected) — offer to push design tokens to Figma
+
+### STEP 8: Present Results and Persist
 
 Format the final design system as a structured document with:
 - Executive summary (style direction + rationale)
@@ -341,6 +376,22 @@ Format the final design system as a structured document with:
 - Page layouts
 - Implementation notes for the development team
 - Sources (which search results informed each decision)
+
+**Persist the design system so it survives the session** (contract: `skill-design-lineage`):
+
+```bash
+SLUG=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")
+BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null | tr '/' '-' || echo "no-branch")
+DATETIME=$(date -u +"%Y%m%d-%H%M%S")
+DESIGNS_DIR="${HOME}/.claude-octopus/designs/${SLUG}"
+mkdir -p "$DESIGNS_DIR"
+# Write the full design system document (with YAML frontmatter per skill-design-lineage)
+# to: ${DESIGNS_DIR}/${USER}-${BRANCH}-design-${DATETIME}.md
+```
+
+Later sessions (and `flow-develop` / `frontend-developer` handoffs) MUST check
+`~/.claude-octopus/designs/<slug>/` for the newest design document before inventing new
+tokens; a revision supersedes rather than edits (set the `supersedes:` frontmatter field).
 
 **Offer next steps:**
 - "Want me to implement these specs?" → hand off to frontend-developer persona
