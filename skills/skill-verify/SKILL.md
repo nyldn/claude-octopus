@@ -1,6 +1,6 @@
 ---
 name: skill-verify
-description: "Evidence before claims — run verification commands before declaring work complete, fixed, or passing"
+description: "Verify a change end-to-end by exercising it — use before committing or shipping nontrivial changes"
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
