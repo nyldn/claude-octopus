@@ -3,7 +3,7 @@
   "schemaVersion": "2026-06",
   "name": "octo",
   "displayName": "Claude Octopus",
-  "version": "9.52.0",
+  "version": "9.53.0",
   "description": "Multi-AI orchestration for Claude Code: up to 8 model seats in parallel across research, design, coding, and review, with council verdicts, adversarial debate, and per-provider cost attribution.",
   "author": {
     "name": "nyldn",
@@ -24,7 +24,16 @@
   "components": {
     "commands": {
       "count": 50,
-      "highlights": ["/octo:embrace", "/octo:discover", "/octo:develop", "/octo:review", "/octo:debate", "/octo:council", "/octo:usage", "/octo:setup"]
+      "highlights": [
+        "/octo:embrace",
+        "/octo:discover",
+        "/octo:develop",
+        "/octo:review",
+        "/octo:debate",
+        "/octo:council",
+        "/octo:usage",
+        "/octo:setup"
+      ]
     },
     "agents": {
       "count": 42,
@@ -35,11 +44,26 @@
     },
     "skills": {
       "count": 58,
-      "highlights": ["flow-discover", "flow-develop", "skill-council", "skill-debate", "octopus-starter-pack/debate-kickoff", "octopus-starter-pack/council-verdicts", "octopus-starter-pack/provider-health", "octopus-starter-pack/model-cost-compare"]
+      "highlights": [
+        "flow-discover",
+        "flow-develop",
+        "skill-council",
+        "skill-debate",
+        "octopus-starter-pack/debate-kickoff",
+        "octopus-starter-pack/council-verdicts",
+        "octopus-starter-pack/provider-health",
+        "octopus-starter-pack/model-cost-compare"
+      ]
     },
     "hooks": {
       "events": 20,
-      "highlights": ["SubagentStop (result capture + quality/cost gate)", "SessionStart", "PreCompact", "WorktreeCreate", "UserPromptSubmit"]
+      "highlights": [
+        "SubagentStop (result capture + quality/cost gate)",
+        "SessionStart",
+        "PreCompact",
+        "WorktreeCreate",
+        "UserPromptSubmit"
+      ]
     },
     "mcpServers": {
       "count": 0

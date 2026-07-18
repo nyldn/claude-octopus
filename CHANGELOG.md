@@ -2,11 +2,16 @@
 
 ## [Unreleased]
 
+## [9.53.0] - 2026-07-18
+
+
 ### Added
 
 - **Role-based execution profiles** (#616, community contribution by @Jhacarreiro; maintainer landing): unified resolver (`scripts/lib/execution-profile.sh`) for provider, model, reasoning level, and reasoning policy by role or phase. Backward compatible with `provider:model` string routes; object routes let one provider use different models per role. Reasoning translates to native controls (Codex `-c model_reasoning_effort`, Claude `--effort`, OpenAI-compatible `reasoning_effort` with `strict`/`best_effort` policy and unsupported-field retry). Maintainer fix on landing: `xhigh`/`max` profile levels clamp to `high` for OpenAI-compatible providers, whose reasoning domain and command validator only accept `low|medium|high`.
 
 ### Fixed
+
+- **Removed the last `type: "prompt"` PreToolUse hook** ("Before running tangle phase, check if there are existing validation results that need review", bare `Bash` matcher). Like the three banner prompts removed in #622, its text reaches Claude Code's hook adjudicator as a policy condition; because the condition is never satisfiable for ordinary commands, the adjudicator denied unrelated Bash calls outright, blocking sessions. Tangle validation reminders belong in the orchestrate dispatch path, not a global Bash prompt hook.
 
 - **Hook scripts converted to the current hook stdout contract** (#621 Defect 2). ~60 emission sites across 25 hook scripts printed the legacy root-level `{"decision": "continue"|"allow"}` shape, which current Claude Code rejects with `Hook JSON output validation failed`, silently discarding the hooks' output. Pass-through paths now emit nothing (silence means continue); PreToolUse gate verdicts moved to `hookSpecificOutput.permissionDecision` (`deny`/`ask` with `permissionDecisionReason`), including the codex-exec-guard block and all careful-mode confirmations; SessionStart/PostToolUse/PreToolUse context injection moved to `hookSpecificOutput.additionalContext`. Still-valid shapes kept: `{"decision":"block"}` on PostToolUse (quality-gate), SubagentStop (subagent-stop-gate), and PreCompact (pre-compact agent-in-flight guard). Test assertions updated to the new contract.
 

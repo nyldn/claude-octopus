@@ -306,9 +306,11 @@ else
     test_fail "Round 1 supervision did not isolate stalled and healthy agent outcomes"
 fi
 
-test_case "Unreleased changelog has one Fixed section"
+test_case "Unreleased changelog has at most one Fixed section"
+# ==1 broke on every release cut (promoting Unreleased empties the section);
+# the guarded defect is DUPLICATE Fixed headings, so assert <=1.
 unreleased_fixed_count=$(sed -n '/^## \[Unreleased\]/,/^## \[[0-9]/p' "$PROJECT_ROOT/CHANGELOG.md" | grep -c '^### Fixed$' || true)
-if [[ "$unreleased_fixed_count" == "1" ]]; then
+if [[ "$unreleased_fixed_count" -le 1 ]]; then
     test_pass
 else
     test_fail "Unreleased contains $unreleased_fixed_count Fixed sections"
