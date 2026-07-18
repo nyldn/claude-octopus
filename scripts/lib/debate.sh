@@ -754,7 +754,7 @@ EOF
     # $synthesis is non-empty here (the failure branch returned above); attribute
     # the path that produced it (moderator=claude or quorum). count=3 fixed seats.
     if declare -f octo_event_emit >/dev/null 2>&1; then
-        octo_event_emit "synthesis" phase="debate" provider="$synth_provider" count="3" || true
+        octo_event_emit "synthesis" phase="debate" provider="$synth_provider" provider_label_kind="legacy-alias" executor_alias="$synth_provider" configured_provider="$(octo_provider_identity_from_agent_type "${synth_provider:-unknown}")" configured_model="$(get_agent_model "$synth_provider" "debate" "synthesizer" 2>/dev/null || echo unresolved)" runtime_provider="unknown" runtime_model="unknown" council_role="synthesizer" synthesis_strategy="debate" count="3" || true
     fi
 
     # ═══════════════════════════════════════════════════════════════════════

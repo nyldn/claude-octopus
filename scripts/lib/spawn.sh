@@ -37,6 +37,12 @@ _octopus_agent_lifecycle_event() {
     if declare -f octo_event_emit >/dev/null 2>&1; then
         octo_event_emit "$event_name" \
             provider="$provider" \
+            provider_label_kind="legacy-alias" \
+            executor_alias="$agent_type" \
+            configured_provider="$(octo_provider_identity_from_agent_type "${agent_type:-${provider:-unknown}}")" \
+            configured_model="$(get_agent_model "$agent_type" "$phase" "$role" 2>/dev/null || echo unresolved)" \
+            runtime_provider="unknown" \
+            runtime_model="unknown" \
             agent_type="$agent_type" \
             task_id="$task_id" \
             role="$role" \
@@ -104,6 +110,30 @@ _octopus_agent_lifecycle_event() {
             wait "$_hook_pid" 2>/dev/null || true
         fi
     ) >>"$hook_log" 2>&1 || true
+}
+
+write_agent_result_header() {
+    local result_file="$1"
+    local agent_type="$2"
+    local model="$3"
+    local task_id="$4"
+    local role="${5:-none}"
+    local phase="${6:-none}"
+    local dispatch="${7:-legacy}"
+
+    {
+        if [[ "$dispatch" == "agent-teams" ]]; then
+            echo "# Agent: $agent_type (via Agent Teams)"
+        else
+            echo "# Agent: $agent_type"
+        fi
+        echo "# Executor alias: $agent_type"
+        echo "# Configured provider: $(octo_provider_identity_from_agent_type "$agent_type")"
+        echo "# Configured model: ${model:-unresolved}"
+        echo "# Task ID: $task_id"
+        echo "# Role: ${role:-none}"
+        echo "# Phase: ${phase:-none}"
+    } > "$result_file"
 }
 
 spawn_agent() {
@@ -399,7 +429,7 @@ ${heuristic_ctx}"
     fi
 
     # oco-aek: provider selected for dispatch (circuit closed). Opt-in event.
-    declare -f octo_event_emit >/dev/null 2>&1 && octo_event_emit "provider.selected" provider="$provider_prefix" agent_type="$agent_type" phase="${phase:-unknown}" || true
+    declare -f octo_event_emit >/dev/null 2>&1 && octo_event_emit "provider.selected" provider="$provider_prefix" provider_label_kind="legacy-alias" executor_alias="$agent_type" configured_provider="$(octo_provider_identity_from_agent_type "${agent_type:-unknown}")" configured_model="$(get_agent_model "$agent_type" "${phase:-}" "${role:-}" 2>/dev/null || echo unresolved)" runtime_provider="unknown" runtime_model="unknown" agent_type="$agent_type" role="${role:-none}" phase="${phase:-unknown}" || true
 
     local cmd
     if ! cmd=$(get_agent_command "$agent_type" "${phase:-}" "${role:-}"); then
@@ -552,10 +582,7 @@ ${heuristic_ctx}"
         echo "AGENT_TEAMS_DISPATCH:${agent_type}:${task_id}:${role:-none}:${phase:-none}"
 
         # Write initial result file header
-        echo "# Agent: $agent_type (via Agent Teams)" > "$result_file"
-        echo "# Task ID: $task_id" >> "$result_file"
-        echo "# Role: ${role:-none}" >> "$result_file"
-        echo "# Phase: ${phase:-none}" >> "$result_file"
+        write_agent_result_header "$result_file" "$agent_type" "${model:-unresolved}" "$task_id" "${role:-none}" "${phase:-none}" "agent-teams"
         echo "# Dispatch: Agent Teams (native)" >> "$result_file"
         echo "# Started: $(date)" >> "$result_file"
         if [[ "$SUPPORTS_HOOK_LAST_MESSAGE" == "true" ]]; then
@@ -582,10 +609,7 @@ ${heuristic_ctx}"
         set -f  # Disable glob expansion
         set -o pipefail  # v9.15.1: Pipeline exit code = first failure (prevents silent codex/gemini errors)
 
-        echo "# Agent: $agent_type" > "$result_file"
-        echo "# Task ID: $task_id" >> "$result_file"
-        echo "# Role: ${role:-none}" >> "$result_file"
-        echo "# Phase: ${phase:-none}" >> "$result_file"
+        write_agent_result_header "$result_file" "$agent_type" "${model:-unresolved}" "$task_id" "${role:-none}" "${phase:-none}" "legacy"
         echo "# Prompt: $prompt" >> "$result_file"
         echo "# Started: $(date)" >> "$result_file"
         echo "" >> "$result_file"
@@ -854,6 +878,8 @@ ${heuristic_ctx}"
                 cat "$temp_errors" >> "$result_file"
                 echo '```' >> "$result_file"
             fi
+
+            octo_append_runtime_identity "$result_file" "$agent_type" "${model:-unresolved}" "$raw_output"
 
             # Mark agent as completed (v7.16.0 Feature 2)
             local end_time_ms elapsed_ms

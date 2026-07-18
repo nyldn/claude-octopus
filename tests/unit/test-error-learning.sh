@@ -33,6 +33,28 @@ test_search_similar_errors_function_exists() {
     fi
 }
 
+
+test_search_similar_errors_returns_single_zero() {
+    test_case "search_similar_errors returns a single zero when there are no matches"
+
+    local tmp_workspace output
+    tmp_workspace=$(mktemp -d)
+    mkdir -p "$tmp_workspace/.octo/errors"
+    printf '%s
+' "unrelated error" > "$tmp_workspace/.octo/errors/error-log.md"
+
+    output=$(WORKSPACE_DIR="$tmp_workspace" bash -c '
+        source "$1/scripts/lib/quality.sh" 2>/dev/null
+        search_similar_errors "react act test"
+    ' _ "$PROJECT_ROOT")
+
+    rm -rf "$tmp_workspace"
+    if [[ "$output" == "0" ]]; then
+        test_pass
+    else
+        test_fail "expected exactly one zero, got: $(printf %q "$output")"
+    fi
+}
 test_flag_repeat_error_function_exists() {
     test_case "flag_repeat_error function exists"
 
@@ -125,6 +147,7 @@ test_dry_run_with_error_learning() {
 # Run tests
 test_record_error_function_exists
 test_search_similar_errors_function_exists
+test_search_similar_errors_returns_single_zero
 test_flag_repeat_error_function_exists
 test_error_format
 test_error_cap_100
