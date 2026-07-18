@@ -15,7 +15,7 @@
         "source": "url",
         "url": "https://github.com/nyldn/claude-octopus.git"
       },
-      "description": "v9.53.1 - v9.53.1 \u2014 Reliability wave: tangle contextual review correction loop with hard round ceiling, progress-supervised review rounds (per-agent stall watch, descendant-tree kills), council diversity and agy pin fixes, marketplace generator source-of-truth fix, provider troubleshooting runbook and cost-expectations docs. 32 personas, 50 commands, 58 skills. Run /octo:setup.",
+      "description": "v9.53.1 - Reliability wave: tangle contextual review correction loop with hard round ceiling, progress-supervised review rounds (per-agent stall watch, descendant-tree kills), council diversity and agy pin fixes, marketplace generator source-of-truth fix, provider troubleshooting runbook and cost-expectations docs. 32 personas, 50 commands, 58 skills. Run /octo:setup.",
       "version": "9.53.1",
       "author": {
         "name": "nyldn",
