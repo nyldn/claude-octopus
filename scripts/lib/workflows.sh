@@ -1085,7 +1085,7 @@ ${previous_decomposition}
 
     local tangle_decompose_agent="agy" tangle_decompose_fallback_agent="codex"
     if declare -f octopus_agent_override >/dev/null 2>&1; then
-        tangle_decompose_agent=$(octopus_agent_override "tangle" "decompose" "agy")
+        tangle_decompose_agent=$(octopus_role_profile_agent_override "tangle" "decompose" "researcher" "agy")
         tangle_decompose_fallback_agent=$(octopus_agent_override "tangle" "decompose_fallback" "codex")
     fi
 
@@ -1950,8 +1950,8 @@ Every [CODING] line must include a same-line Files: clause."
     local tangle_coding_agent="codex"
     local tangle_reasoning_agent="agy"
     if declare -f octopus_agent_override >/dev/null 2>&1; then
-        tangle_coding_agent=$(octopus_agent_override "tangle" "coding" "codex")
-        tangle_reasoning_agent=$(octopus_agent_override "tangle" "reasoning" "agy")
+        tangle_coding_agent=$(octopus_role_profile_agent_override "tangle" "coding" "implementer" "codex")
+        tangle_reasoning_agent=$(octopus_role_profile_agent_override "tangle" "reasoning" "researcher" "agy")
     fi
 
     # [REASONING] falls back through available providers. Without this, users

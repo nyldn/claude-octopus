@@ -131,6 +131,25 @@ log_role_assignment() {
     log DEBUG "Using ${role} role (${agent}, persona: ${has_persona}) for: ${purpose}"
 }
 
+
+# Resolve a phase/operation override on top of the configured execution-profile
+# role. Explicit env overrides keep their existing precedence; routing.roles is
+# used before the historical caller default.
+octopus_role_profile_agent_override() {
+    local phase="$1"
+    local override_role="$2"
+    local execution_role="$3"
+    local historical_default="$4"
+    local profile_default="$historical_default"
+
+    if declare -f octopus_profile_provider >/dev/null 2>&1; then
+        profile_default=$(octopus_profile_provider "$phase" "$execution_role" "$historical_default" 2>/dev/null || printf '%s\n' "$historical_default")
+        profile_default="${profile_default:-$historical_default}"
+    fi
+
+    octopus_agent_override "$phase" "$override_role" "$profile_default"
+}
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # v3.3 FEATURE: AGENT PERSONAS
 # Specialized system instructions for each agent role

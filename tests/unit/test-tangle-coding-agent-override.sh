@@ -57,12 +57,56 @@ else
     test_fail "OCTOPUS_CODING_AGENT was not used as final coding fallback"
 fi
 
-test_case "tangle_develop resolves tangle_coding_agent through octopus_agent_override"
-resolver_count=$(grep -c 'tangle_coding_agent=$(octopus_agent_override "tangle" "coding" "codex")' "$WORKFLOWS" || true)
-if [[ "$resolver_count" -gt 0 ]]; then
+test_case "configured implementer role is the tangle coding default"
+mkdir -p "$TEST_TMP_DIR/config"
+cat > "$TEST_TMP_DIR/config/providers.json" <<'JSON'
+{"routing":{"roles":{"implementer":"openai-compatible-agent:deepseek-ai/DeepSeek-V4-Pro","researcher":"gemini:gemini-3.1-pro-preview"}}}
+JSON
+if (
+    export OCTOPUS_PROVIDERS_CONFIG="$TEST_TMP_DIR/config/providers.json"
+    unset OCTOPUS_TANGLE_CODING_AGENT OCTOPUS_TANGLE_AGENT OCTOPUS_CODING_AGENT || true
+    [[ "$(octopus_role_profile_agent_override tangle coding implementer codex)" == "openai-compatible-agent" ]]
+); then
     test_pass
 else
-    test_fail "tangle_develop does not resolve OCTOPUS_TANGLE_CODING_AGENT"
+    test_fail "configured implementer role was ignored"
+fi
+
+test_case "explicit tangle coding env override remains higher priority than role profile"
+if (
+    export OCTOPUS_PROVIDERS_CONFIG="$TEST_TMP_DIR/config/providers.json"
+    export OCTOPUS_TANGLE_CODING_AGENT="claude-sonnet"
+    [[ "$(octopus_role_profile_agent_override tangle coding implementer codex)" == "claude-sonnet" ]]
+); then
+    test_pass
+else
+    test_fail "explicit coding override did not beat configured implementer role"
+fi
+
+test_case "configured researcher role is used for tangle reasoning and decomposition"
+if (
+    export OCTOPUS_PROVIDERS_CONFIG="$TEST_TMP_DIR/config/providers.json"
+    unset OCTOPUS_TANGLE_REASONING_AGENT OCTOPUS_REASONING_AGENT OCTOPUS_TANGLE_DECOMPOSE_AGENT OCTOPUS_DECOMPOSE_AGENT OCTOPUS_TANGLE_AGENT || true
+    [[ "$(octopus_role_profile_agent_override tangle reasoning researcher agy)" == "gemini" ]]
+    [[ "$(octopus_role_profile_agent_override tangle decompose researcher agy)" == "gemini" ]]
+); then
+    test_pass
+else
+    test_fail "configured researcher role was ignored"
+fi
+
+test_case "historical defaults remain when no role route exists"
+cat > "$TEST_TMP_DIR/config/empty.json" <<'JSON'
+{"routing":{"roles":{}}}
+JSON
+if (
+    export OCTOPUS_PROVIDERS_CONFIG="$TEST_TMP_DIR/config/empty.json"
+    unset OCTOPUS_TANGLE_CODING_AGENT OCTOPUS_TANGLE_AGENT OCTOPUS_CODING_AGENT || true
+    [[ "$(octopus_role_profile_agent_override tangle coding implementer codex)" == "codex" ]]
+); then
+    test_pass
+else
+    test_fail "historical coding default was not preserved"
 fi
 
 test_case "[CODING] subtasks use configured tangle_coding_agent instead of hardcoded codex"
