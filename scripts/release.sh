@@ -167,7 +167,7 @@ for path in ('README.md', '.claude-plugin/README.md'):
     readme_path.write_text(text)
 print('   README count surfaces')
 
-routines['$comment'] = re.sub(r'\(v\d+\.\d+\.\d+\)', f'(v{version})', routines.get('$comment', ''))
+routines['\$comment'] = re.sub(r'\(v\d+\.\d+\.\d+\)', f'(v{version})', routines.get('\$comment', ''))
 with open('.claude-plugin/routines.json', 'w') as f:
     json.dump(routines, f, indent=2)
     f.write('\n')
