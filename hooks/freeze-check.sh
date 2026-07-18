@@ -18,7 +18,7 @@ _HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$_HOOK_DIR/../scripts/lib/session-id.sh" 2>/dev/null || true
 
 # Kill switch — freeze mode is opt-in via /octo:freeze; OCTO_FREEZE_MODE=off is the dedicated off-switch
-[[ "${OCTO_FREEZE_MODE:-on}" == "off" ]] && { echo '{"decision":"allow"}'; exit 0; }
+[[ "${OCTO_FREEZE_MODE:-on}" == "off" ]] && exit 0
 
 # Read tool input from stdin
 if command -v timeout &>/dev/null; then
@@ -31,7 +31,7 @@ fi
 # Only gate Edit and Write tools
 TOOL_NAME=$(echo "$INPUT" | grep -o '"tool_name":"[^"]*"' 2>/dev/null | head -1 | cut -d'"' -f4 || true)
 if [[ "$TOOL_NAME" != "Edit" && "$TOOL_NAME" != "Write" ]]; then
-    echo '{"decision":"allow"}'
+    : # pass-through — current hook schema treats silence as continue
     exit 0
 fi
 
@@ -42,21 +42,21 @@ else
     STATE_FILE="/tmp/octopus-freeze-${CLAUDE_CODE_SESSION_ID:-${CLAUDE_SESSION_ID:-$$}}.txt"
 fi
 if [[ ! -f "$STATE_FILE" ]]; then
-    echo '{"decision":"allow"}'
+    : # pass-through — current hook schema treats silence as continue
     exit 0
 fi
 
 # Read freeze boundary
 FREEZE_DIR=$(<"$STATE_FILE")
 if [[ -z "$FREEZE_DIR" ]]; then
-    echo '{"decision":"allow"}'
+    : # pass-through — current hook schema treats silence as continue
     exit 0
 fi
 
 # Extract file_path from input
 FILE_PATH=$(echo "$INPUT" | grep -o '"file_path":"[^"]*"' 2>/dev/null | head -1 | cut -d'"' -f4 || true)
 if [[ -z "$FILE_PATH" ]]; then
-    echo '{"decision":"allow"}'
+    : # pass-through — current hook schema treats silence as continue
     exit 0
 fi
 
@@ -70,10 +70,10 @@ fi
 
 # Check if file is within the freeze boundary
 if [[ "$FILE_PATH" == "${FREEZE_DIR}"* || "$FILE_PATH" == "${FREEZE_DIR%/}" ]]; then
-    echo '{"decision":"allow"}'
+    : # pass-through — current hook schema treats silence as continue
     exit 0
 fi
 
 # File is outside boundary — block
-echo "{\"permissionDecision\":\"deny\",\"message\":\"🔒 Edit blocked: ${FILE_PATH} is outside freeze boundary (${FREEZE_DIR%/}). Use /octo:unfreeze to remove restriction.\"}"
+echo "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"🔒 Edit blocked: ${FILE_PATH} is outside freeze boundary (${FREEZE_DIR%/}). Use /octo:unfreeze to remove restriction.\"}}"
 exit 0

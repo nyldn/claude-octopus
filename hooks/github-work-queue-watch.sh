@@ -31,7 +31,7 @@ emit_context() {
 }
 
 emit_continue() {
-    printf '{"decision":"continue"}\n'
+    : # pass-through — current hook schema treats silence as continue
 }
 
 [[ "${OCTOPUS_GITHUB_WORK_QUEUE:-on}" == "off" ]] && { emit_continue; exit 0; }

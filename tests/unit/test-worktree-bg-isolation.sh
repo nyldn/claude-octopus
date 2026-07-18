@@ -19,7 +19,7 @@ payload() {
 test_case "default (isolation on): worktree-setup injects .octopus-env"
 wt1="$TMP_DIR/wt1"; mkdir -p "$wt1"
 out=$(payload "$wt1" | env -u OCTOPUS_WORKTREE_BG_ISOLATION OPENAI_API_KEY=test-key bash "$HOOK")
-if [[ -f "$wt1/.octopus-env" && "$out" == *'"decision": "continue"'* ]]; then
+if [[ -f "$wt1/.octopus-env" && -z "$out" ]]; then
     test_pass
 else
     test_fail "expected .octopus-env with isolation on, got: $out"
@@ -28,7 +28,7 @@ fi
 test_case "OCTOPUS_WORKTREE_BG_ISOLATION=false: setup short-circuits, no env injection"
 wt2="$TMP_DIR/wt2"; mkdir -p "$wt2"
 out=$(payload "$wt2" | OCTOPUS_WORKTREE_BG_ISOLATION=false OPENAI_API_KEY=test-key bash "$HOOK")
-if [[ ! -f "$wt2/.octopus-env" && "$out" == *'"decision": "continue"'* ]]; then
+if [[ ! -f "$wt2/.octopus-env" && -z "$out" ]]; then
     test_pass
 else
     test_fail "expected no .octopus-env with isolation off, got: $out"

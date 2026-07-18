@@ -5,7 +5,7 @@
 # survival issue but tool-triggered).
 #
 # Hook type: PreToolUse (matcher: EnterPlanMode)
-# Returns: {"decision":"continue","additionalContext":"<PLAN-MODE-RULES>...</PLAN-MODE-RULES>"}
+# Returns: {"hookSpecificOutput":{"hookEventName":"PreToolUse","additionalContext":"<PLAN-MODE-RULES>...</PLAN-MODE-RULES>"}
 
 set -euo pipefail
 # EXIT trap — emits diagnostic stderr ONLY when the hook exits non-zero, so
@@ -93,5 +93,5 @@ ESCAPED_CONTEXT=$(echo "$CONTEXT" | python3 -c "import sys,json; print(json.dump
 
 # Return the hook response
 cat <<EOF
-{"decision":"continue","additionalContext":"${ESCAPED_CONTEXT}"}
+{"hookSpecificOutput":{"hookEventName":"PreToolUse","additionalContext":"${ESCAPED_CONTEXT}"}}
 EOF

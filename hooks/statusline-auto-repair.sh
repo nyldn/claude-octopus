@@ -51,5 +51,5 @@ if [[ -f "$SETTINGS" ]] && command -v grep &>/dev/null; then
     fi
 fi
 
-echo '{"decision": "continue"}'
+: # pass-through — current hook schema treats silence as continue
 exit 0

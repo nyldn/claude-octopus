@@ -7,7 +7,7 @@
 #   1. Reads tool output from stdin (hook protocol)
 #   2. If output > threshold, detects content type (JSON, logs, HTML, text)
 #   3. Generates a compressed summary
-#   4. Outputs {"decision":"continue","additionalContext":"<summary>"}
+#   4. Outputs {"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"<summary>"}
 #   5. Logs before/after sizes to analytics file
 #
 # Note: PostToolUse hooks CANNOT replace tool output — they add context.
@@ -152,7 +152,7 @@ echo "{\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"session\":\"${SESSION}\",\"ty
 summary="[🐙] compressed ${content_type}: ~${before_tokens}→~${after_tokens} tokens (${ratio}% saved)"
 
 cat <<EOFJSON
-{"decision":"continue","additionalContext":"${summary}"}
+{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"${summary}"}}
 EOFJSON
 
 exit 0

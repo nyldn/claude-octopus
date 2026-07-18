@@ -19,7 +19,7 @@ trap _octo_hook_exit EXIT
 
 # Only active during scheduled job execution
 if [[ -z "${OCTOPUS_JOB_ID:-}" ]]; then
-    echo '{"decision": "continue"}'
+    : # pass-through — current hook schema treats silence as continue
     exit 0
 fi
 
@@ -52,13 +52,13 @@ if [[ "$TOOL_NAME" == "Bash" ]]; then
 
     # Block --dangerously-skip-permissions in any form
     if echo "$COMMAND" | grep -qi 'dangerously.skip.permissions'; then
-        echo '{"decision": "block", "reason": "Scheduler security gate: --dangerously-skip-permissions is prohibited in scheduled jobs"}'
+        echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Scheduler security gate: --dangerously-skip-permissions is prohibited in scheduled jobs"}}'
         exit 0
     fi
 
     # Block rm -rf on sensitive paths
     if echo "$COMMAND" | grep -qE 'rm\s+-[a-zA-Z]*r[a-zA-Z]*f.*(/|~|\$HOME)'; then
-        echo '{"decision": "block", "reason": "Scheduler security gate: destructive rm -rf on sensitive path blocked"}'
+        echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Scheduler security gate: destructive rm -rf on sensitive path blocked"}}'
         exit 0
     fi
 fi
@@ -71,7 +71,7 @@ if [[ "$TOOL_NAME" == "Read" ]] || [[ "$TOOL_NAME" == "Write" ]] || [[ "$TOOL_NA
         if [[ -n "$FILE_PATH" ]]; then
             # Security: use realpath for symlink-safe canonicalization
             resolved_path=$(realpath "$FILE_PATH" 2>/dev/null) || {
-                echo '{"decision": "block", "reason": "Scheduler security gate: cannot resolve file path"}'
+                echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Scheduler security gate: cannot resolve file path"}}'
                 exit 0
             }
 
@@ -89,5 +89,5 @@ if [[ "$TOOL_NAME" == "Read" ]] || [[ "$TOOL_NAME" == "Write" ]] || [[ "$TOOL_NA
     fi
 fi
 
-echo '{"decision": "continue"}'
+: # pass-through — current hook schema treats silence as continue
 exit 0

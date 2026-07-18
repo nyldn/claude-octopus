@@ -25,17 +25,17 @@ fi
 
 # If bridge is not enabled or ledger doesn't exist, continue
 if [[ "${OCTOPUS_AGENT_TEAMS_BRIDGE:-auto}" == "disabled" ]]; then
-    echo '{"decision": "continue"}'
+    : # pass-through — current hook schema treats silence as continue
     exit 0
 fi
 
 if [[ ! -f "$BRIDGE_LEDGER" ]]; then
-    echo '{"decision": "continue"}'
+    : # pass-through — current hook schema treats silence as continue
     exit 0
 fi
 
 if ! command -v jq &>/dev/null; then
-    echo '{"decision": "continue", "reason": "jq not available for phase gate check"}'
+    : # pass-through — current hook schema treats silence as continue
     exit 0
 fi
 
@@ -49,7 +49,7 @@ fi
 current_phase=$(jq -r '.current_phase // empty' "$BRIDGE_LEDGER" 2>/dev/null || true)
 
 if [[ -z "$current_phase" ]]; then
-    echo '{"decision": "continue"}'
+    : # pass-through — current hook schema treats silence as continue
     exit 0
 fi
 
@@ -71,7 +71,7 @@ total_tasks=$(jq -r ".phases.\"$current_phase\".total_tasks // 0" "$BRIDGE_LEDGE
 completed_tasks=$(jq -r ".phases.\"$current_phase\".completed_tasks // 0" "$BRIDGE_LEDGER" 2>/dev/null)
 
 if [[ "$total_tasks" -eq 0 ]]; then
-    echo '{"decision": "continue"}'
+    : # pass-through — current hook schema treats silence as continue
     exit 0
 fi
 

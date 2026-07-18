@@ -148,5 +148,5 @@ esac
 
 # Return hook response with context warning
 cat <<EOF
-{"decision":"continue","additionalContext":"[🐙] ${MSG}"}
+{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"[🐙] ${MSG}"}}
 EOF

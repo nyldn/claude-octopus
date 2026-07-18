@@ -25,7 +25,7 @@ if [[ -n "$WORKTREE_DATA" ]]; then
 fi
 
 if [[ -z "$WORKTREE_PATH" ]]; then
-    echo '{"decision": "continue"}'
+    : # pass-through — current hook schema treats silence as continue
     exit 0
 fi
 
@@ -35,5 +35,5 @@ if [[ -d "$WORKTREE_PATH" ]]; then
     rm -rf "$WORKTREE_PATH/.octo" 2>/dev/null || true
 fi
 
-echo '{"decision": "continue"}'
+: # pass-through — current hook schema treats silence as continue
 exit 0

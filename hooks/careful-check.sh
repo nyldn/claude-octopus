@@ -18,7 +18,7 @@ source "$_HOOK_DIR/../scripts/lib/session-id.sh" 2>/dev/null || true
 
 # Kill switch — respect user's choice to disable careful mode entirely
 # (careful mode is opt-in via /octo:careful; OCTO_CAREFUL_MODE=off is the dedicated off-switch)
-[[ "${OCTO_CAREFUL_MODE:-on}" == "off" ]] && { echo '{"decision":"allow"}'; exit 0; }
+[[ "${OCTO_CAREFUL_MODE:-on}" == "off" ]] && exit 0
 
 # Read tool input from stdin
 if command -v timeout &>/dev/null; then
@@ -31,7 +31,7 @@ fi
 # Only gate Bash commands
 TOOL_NAME=$(echo "$INPUT" | grep -o '"tool_name":"[^"]*"' 2>/dev/null | head -1 | cut -d'"' -f4 || true)
 if [[ "$TOOL_NAME" != "Bash" ]]; then
-    echo '{"decision":"allow"}'
+    : # pass-through — current hook schema treats silence as continue
     exit 0
 fi
 
@@ -42,7 +42,7 @@ else
     STATE_FILE="/tmp/octopus-careful-${CLAUDE_CODE_SESSION_ID:-${CLAUDE_SESSION_ID:-$$}}.txt"
 fi
 if [[ ! -f "$STATE_FILE" ]]; then
-    echo '{"decision":"allow"}'
+    : # pass-through — current hook schema treats silence as continue
     exit 0
 fi
 
@@ -57,7 +57,7 @@ fi
 CHECK_TEXT="${COMMAND}
 ${INPUT}"
 if [[ -z "$COMMAND" && -z "$INPUT" ]]; then
-    echo '{"decision":"allow"}'
+    : # pass-through — current hook schema treats silence as continue
     exit 0
 fi
 
@@ -74,7 +74,7 @@ if echo "$CHECK_TEXT" | grep -qE 'rm\s+-[a-zA-Z]*r[a-zA-Z]*f|rm\s+-r\s+-f|rm\s+-
         fi
     done
     if [[ "$safe" == "false" ]]; then
-        echo '{"permissionDecision":"ask","message":"⚠️ Destructive command detected: rm -rf. This recursively force-deletes files. Confirm you want to proceed."}'
+        echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"⚠️ Destructive command detected: rm -rf. This recursively force-deletes files. Confirm you want to proceed."}}'
         exit 0
     fi
 fi
@@ -82,41 +82,41 @@ fi
 # 2. SQL destructive operations
 if echo "$CHECK_TEXT" | grep -qiE 'DROP\s+TABLE|DROP\s+DATABASE|TRUNCATE'; then
     matched=$(echo "$CHECK_TEXT" | grep -oiE 'DROP\s+TABLE|DROP\s+DATABASE|TRUNCATE' | head -1)
-    echo "{\"permissionDecision\":\"ask\",\"message\":\"⚠️ Destructive SQL detected: ${matched}. This permanently destroys data. Confirm you want to proceed.\"}"
+    echo "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"ask\",\"permissionDecisionReason\":\"⚠️ Destructive SQL detected: ${matched}. This permanently destroys data. Confirm you want to proceed.\"}}"
     exit 0
 fi
 
 # 3. git push --force / -f
 if echo "$CHECK_TEXT" | grep -qE 'git\s+push\s+.*--force|git\s+push\s+.*-f'; then
-    echo '{"permissionDecision":"ask","message":"⚠️ Destructive command detected: git push --force. This rewrites remote history and can cause data loss for collaborators. Confirm you want to proceed."}'
+    echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"⚠️ Destructive command detected: git push --force. This rewrites remote history and can cause data loss for collaborators. Confirm you want to proceed."}}'
     exit 0
 fi
 
 # 4. git reset --hard
 if echo "$CHECK_TEXT" | grep -qE 'git\s+reset\s+--hard'; then
-    echo '{"permissionDecision":"ask","message":"⚠️ Destructive command detected: git reset --hard. This discards all uncommitted changes. Confirm you want to proceed."}'
+    echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"⚠️ Destructive command detected: git reset --hard. This discards all uncommitted changes. Confirm you want to proceed."}}'
     exit 0
 fi
 
 # 5. git checkout . / git restore .
 if echo "$CHECK_TEXT" | grep -qE 'git\s+checkout\s+\.|git\s+restore\s+\.'; then
-    echo '{"permissionDecision":"ask","message":"⚠️ Destructive command detected: git checkout/restore. This discards all unstaged changes. Confirm you want to proceed."}'
+    echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"⚠️ Destructive command detected: git checkout/restore. This discards all unstaged changes. Confirm you want to proceed."}}'
     exit 0
 fi
 
 # 6. kubectl delete
 if echo "$CHECK_TEXT" | grep -qE 'kubectl\s+delete'; then
-    echo '{"permissionDecision":"ask","message":"⚠️ Destructive command detected: kubectl delete. This removes Kubernetes resources. Confirm you want to proceed."}'
+    echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"⚠️ Destructive command detected: kubectl delete. This removes Kubernetes resources. Confirm you want to proceed."}}'
     exit 0
 fi
 
 # 7. docker rm -f / docker system prune
 if echo "$CHECK_TEXT" | grep -qE 'docker\s+rm\s+-f|docker\s+system\s+prune'; then
     matched=$(echo "$CHECK_TEXT" | grep -oE 'docker\s+(rm\s+-f|system\s+prune)' | head -1)
-    echo "{\"permissionDecision\":\"ask\",\"message\":\"⚠️ Destructive command detected: ${matched}. This forcefully removes Docker resources. Confirm you want to proceed.\"}"
+    echo "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"ask\",\"permissionDecisionReason\":\"⚠️ Destructive command detected: ${matched}. This forcefully removes Docker resources. Confirm you want to proceed.\"}}"
     exit 0
 fi
 
 # All checks passed
-echo '{"decision":"allow"}'
+: # pass-through — current hook schema treats silence as continue
 exit 0

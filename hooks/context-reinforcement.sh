@@ -4,7 +4,7 @@
 # conversation compression. Inspired by obra/superpowers v4.3.1 SessionStart pattern.
 #
 # Hook type: SessionStart
-# Returns: {"decision":"continue","additionalContext":"<CONTEXT-REINFORCEMENT>...</CONTEXT-REINFORCEMENT>"}
+# Returns: {"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"<CONTEXT-REINFORCEMENT>...</CONTEXT-REINFORCEMENT>"}
 
 set -euo pipefail
 # EXIT trap — emits diagnostic stderr ONLY when the hook exits non-zero, so
@@ -36,5 +36,5 @@ ESCAPED_CONTEXT=$(echo "$CONTEXT" | python3 -c "import sys,json; print(json.dump
 
 # Return the hook response
 cat <<EOF
-{"decision":"continue","additionalContext":"${ESCAPED_CONTEXT}"}
+{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"${ESCAPED_CONTEXT}"}}
 EOF
