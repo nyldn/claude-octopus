@@ -55,7 +55,6 @@
       },
       {
         "matcher": "Bash",
-        "if": "input matches '(rm\\s|mv\\s|git\\s+(push|reset|checkout\\s+\\.)|docker\\s+rm|DROP\\s+TABLE|sudo)'",
         "hooks": [
           {
             "type": "command",
