@@ -1,9 +1,9 @@
 {
-  "platform": "continue",
-  "displayName": "Continue",
+  "platform": "codewhale",
+  "displayName": "CodeWhale",
   "installType": "full",
   "folderStructure": {
-    "root": ".continue",
+    "root": ".codewhale",
     "skillPath": "skills/ui-ux-pro-max",
     "filename": "SKILL.md"
   },

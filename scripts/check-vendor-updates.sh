@@ -1,17 +1,20 @@
 #!/usr/bin/env bash
-# check-vendor-updates.sh — Verify vendor submodules are healthy and check for updates
+# check-vendor-updates.sh — Verify vendored dependencies are healthy and check for updates
+#
+# Vendors are plain-file copies (not submodules, see #253). Each vendor directory
+# carries a VENDOR.json manifest recording the upstream repo and the vendored tag.
 #
 # Checks:
-# 1. All vendor submodules are initialized and present
+# 1. VENDOR.json manifest present and parseable for each vendor
 # 2. Required files exist in each vendor (entry points, data)
 # 3. No new external dependencies introduced (Python stdlib only for ui-ux-pro-max)
-# 4. Upstream has new commits (informational — does not auto-update)
-# 5. Feature compatibility with main codebase
+# 4. Upstream has a newer release tag (informational — does not auto-update)
+# 5. Feature compatibility with main codebase (path references still valid)
 #
 # Modes:
 #   ./scripts/check-vendor-updates.sh           # Full check with upstream query
 #   ./scripts/check-vendor-updates.sh --local   # Local-only checks (no network)
-#   ./scripts/check-vendor-updates.sh --ci      # CI mode: exit non-zero on any failure
+#   ./scripts/check-vendor-updates.sh --ci      # CI mode: exit 2 when updates are available
 #
 # Exit codes:
 #   0 = All checks pass
@@ -32,39 +35,48 @@ pass() { echo "  PASS: $1"; PASS=$((PASS + 1)); }
 fail() { echo "  FAIL: $1" >&2; FAIL=$((FAIL + 1)); }
 warn() { echo "  WARN: $1"; WARN=$((WARN + 1)); }
 
-echo "=== Vendor Submodule Health Check ==="
+echo "=== Vendor Health Check ==="
 echo "Mode: ${MODE}"
 echo ""
 
-# ── 1. Submodule initialization ──────────────────────────────────────────────
+VENDORS_DIR="$PLUGIN_ROOT/vendors"
+UPDATES_AVAILABLE=0
 
-echo "1. Submodule Initialization"
-
-if [ ! -f "$PLUGIN_ROOT/.gitmodules" ]; then
-    echo "  No .gitmodules found — no vendor submodules configured."
-    echo ""
-    echo "Summary: 0 pass, 0 fail, 0 warn"
+if [ ! -d "$VENDORS_DIR" ]; then
+    echo "No vendors/ directory — nothing to check."
     exit 0
 fi
 
-# Parse .gitmodules for submodule paths
-SUBMODULE_PATHS=()
-while IFS= read -r line; do
-    path=$(echo "$line" | sed 's/.*path = //')
-    SUBMODULE_PATHS+=("$path")
-done < <(grep 'path = ' "$PLUGIN_ROOT/.gitmodules")
+# ── 1. Manifest checks ───────────────────────────────────────────────────────
 
-if [ ${#SUBMODULE_PATHS[@]} -eq 0 ]; then
-    echo "  No submodule paths found in .gitmodules"
+echo "1. Vendor Manifests"
+
+VENDOR_DIRS=()
+while IFS= read -r -d '' d; do
+    VENDOR_DIRS+=("$d")
+done < <(find "$VENDORS_DIR" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+
+if [ ${#VENDOR_DIRS[@]} -eq 0 ]; then
+    echo "  No vendor directories found."
     exit 0
 fi
 
-for subpath in "${SUBMODULE_PATHS[@]}"; do
-    full_path="$PLUGIN_ROOT/$subpath"
-    if [ -d "$full_path" ] && [ "$(ls -A "$full_path" 2>/dev/null)" ]; then
-        pass "$subpath initialized"
+for vdir in "${VENDOR_DIRS[@]}"; do
+    vname="${vdir##*/}"
+    manifest="$vdir/VENDOR.json"
+    if [ ! -f "$manifest" ]; then
+        fail "$vname: VENDOR.json manifest missing"
+        continue
+    fi
+    if command -v python3 &>/dev/null; then
+        if python3 -c "import json,sys; d=json.load(open(sys.argv[1])); assert d['upstream'] and d['tag']" "$manifest" 2>/dev/null; then
+            tag=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['tag'])" "$manifest")
+            pass "$vname: manifest valid (vendored tag: $tag)"
+        else
+            fail "$vname: VENDOR.json unparseable or missing upstream/tag fields"
+        fi
     else
-        fail "$subpath not initialized (run: git submodule update --init $subpath)"
+        warn "$vname: python3 unavailable — skipping manifest parse"
     fi
 done
 
@@ -74,31 +86,16 @@ echo ""
 
 echo "2. Required Files"
 
-# ui-ux-pro-max-skill checks
-UX_VENDOR="$PLUGIN_ROOT/vendors/ui-ux-pro-max-skill"
-if [ -d "$UX_VENDOR" ] && [ "$(ls -A "$UX_VENDOR" 2>/dev/null)" ]; then
-    # Entry point
-    if [ -f "$UX_VENDOR/src/ui-ux-pro-max/scripts/search.py" ]; then
-        pass "ui-ux-pro-max: search.py entry point exists"
-    else
-        fail "ui-ux-pro-max: search.py missing"
-    fi
+UX_VENDOR="$VENDORS_DIR/ui-ux-pro-max-skill"
+if [ -d "$UX_VENDOR" ]; then
+    for f in scripts/search.py scripts/core.py scripts/design_system.py; do
+        if [ -f "$UX_VENDOR/src/ui-ux-pro-max/$f" ]; then
+            pass "ui-ux-pro-max: $f exists"
+        else
+            fail "ui-ux-pro-max: $f missing"
+        fi
+    done
 
-    # Core module
-    if [ -f "$UX_VENDOR/src/ui-ux-pro-max/scripts/core.py" ]; then
-        pass "ui-ux-pro-max: core.py module exists"
-    else
-        fail "ui-ux-pro-max: core.py missing"
-    fi
-
-    # Design system module
-    if [ -f "$UX_VENDOR/src/ui-ux-pro-max/scripts/design_system.py" ]; then
-        pass "ui-ux-pro-max: design_system.py module exists"
-    else
-        fail "ui-ux-pro-max: design_system.py missing"
-    fi
-
-    # Data files (at minimum styles and colors)
     for csv_file in styles.csv colors.csv typography.csv products.csv ux-guidelines.csv; do
         if [ -f "$UX_VENDOR/src/ui-ux-pro-max/data/$csv_file" ]; then
             pass "ui-ux-pro-max: data/$csv_file exists"
@@ -107,11 +104,10 @@ if [ -d "$UX_VENDOR" ] && [ "$(ls -A "$UX_VENDOR" 2>/dev/null)" ]; then
         fi
     done
 
-    # License
     if [ -f "$UX_VENDOR/LICENSE" ]; then
         pass "ui-ux-pro-max: LICENSE file present"
     else
-        warn "ui-ux-pro-max: LICENSE file missing"
+        fail "ui-ux-pro-max: LICENSE file missing (required for redistribution)"
     fi
 fi
 
@@ -121,19 +117,16 @@ echo ""
 
 echo "3. Dependency Audit"
 
-if [ -d "$UX_VENDOR" ] && [ "$(ls -A "$UX_VENDOR" 2>/dev/null)" ]; then
-    # Check Python files for non-stdlib imports
+if [ -d "$UX_VENDOR" ]; then
     BANNED_IMPORTS=""
     for pyfile in "$UX_VENDOR"/src/ui-ux-pro-max/scripts/*.py; do
         [ -f "$pyfile" ] || continue
-        # Extract import lines, filter out stdlib and relative imports
         while IFS= read -r imp; do
             module=$(echo "$imp" | sed -E 's/^(import|from) +([a-zA-Z0-9_]+).*/\2/')
-            # Python stdlib modules used by the project
             case "$module" in
-                csv|re|math|argparse|sys|io|os|pathlib|json|collections|functools|textwrap|datetime|hashlib|typing|abc|dataclasses|enum|copy|itertools|string|unicodedata|difflib)
+                csv|re|math|argparse|sys|io|os|pathlib|json|collections|functools|textwrap|datetime|hashlib|typing|abc|dataclasses|enum|copy|itertools|string|unicodedata|difflib|shutil|unittest|tempfile)
                     ;; # stdlib — OK
-                core|design_system|search)
+                core|design_system|search|persist|dials)
                     ;; # internal — OK
                 *)
                     BANNED_IMPORTS="${BANNED_IMPORTS}  ${pyfile##*/}: imports '${module}'\n"
@@ -149,7 +142,6 @@ if [ -d "$UX_VENDOR" ] && [ "$(ls -A "$UX_VENDOR" 2>/dev/null)" ]; then
         echo -e "$BANNED_IMPORTS" >&2
     fi
 
-    # Verify python3 can load the modules
     if command -v python3 &>/dev/null; then
         if python3 -c "import csv, re, math, argparse, sys, io" 2>/dev/null; then
             pass "python3 stdlib modules available"
@@ -165,51 +157,38 @@ echo ""
 
 # ── 4. Upstream update check (skip in --local mode) ──────────────────────────
 
-UPDATES_AVAILABLE=0
-
 if [ "$MODE" != "--local" ]; then
     echo "4. Upstream Update Check"
 
-    for subpath in "${SUBMODULE_PATHS[@]}"; do
-        full_path="$PLUGIN_ROOT/$subpath"
-        [ -d "$full_path" ] && [ "$(ls -A "$full_path" 2>/dev/null)" ] || continue
+    for vdir in "${VENDOR_DIRS[@]}"; do
+        vname="${vdir##*/}"
+        manifest="$vdir/VENDOR.json"
+        [ -f "$manifest" ] || continue
+        command -v python3 &>/dev/null || { warn "$vname: python3 unavailable — skipping"; continue; }
 
-        # Get current pinned commit
-        pinned_commit=$(cd "$full_path" && git rev-parse HEAD 2>/dev/null)
-        short_pinned=$(echo "$pinned_commit" | cut -c1-7)
+        upstream=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['upstream'])" "$manifest" 2>/dev/null || echo "")
+        pinned_tag=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['tag'])" "$manifest" 2>/dev/null || echo "")
+        [ -n "$upstream" ] && [ -n "$pinned_tag" ] || { warn "$vname: manifest incomplete"; continue; }
 
-        # Fetch latest from remote (timeout after 10s)
-        if timeout 10 git -C "$full_path" fetch origin 2>/dev/null; then
-            latest_commit=$(git -C "$full_path" rev-parse origin/main 2>/dev/null || git -C "$full_path" rev-parse origin/master 2>/dev/null || echo "")
+        # owner/repo from the upstream URL
+        slug=$(echo "$upstream" | sed -E 's#https?://github.com/##; s#/$##; s#\.git$##')
 
-            if [ -z "$latest_commit" ]; then
-                warn "$subpath: could not determine upstream HEAD"
-            elif [ "$pinned_commit" = "$latest_commit" ]; then
-                pass "$subpath: up to date ($short_pinned)"
-            else
-                short_latest=$(echo "$latest_commit" | cut -c1-7)
-                new_commits=$(git -C "$full_path" rev-list "$pinned_commit..origin/main" 2>/dev/null | wc -l | tr -d ' ')
-                warn "$subpath: ${new_commits} new commits upstream (pinned: $short_pinned, latest: $short_latest)"
-                UPDATES_AVAILABLE=1
+        latest_tag=""
+        if command -v gh &>/dev/null; then
+            latest_tag=$(gh api "repos/$slug/releases/latest" -q .tag_name 2>/dev/null || echo "")
+        fi
+        if [ -z "$latest_tag" ] && command -v curl &>/dev/null; then
+            latest_tag=$(curl -fsSL --max-time 10 "https://api.github.com/repos/$slug/releases/latest" 2>/dev/null |
+                python3 -c "import json,sys; print(json.load(sys.stdin).get('tag_name',''))" 2>/dev/null || echo "")
+        fi
 
-                # Show what changed
-                echo "    Recent upstream commits:"
-                git -C "$full_path" log --oneline "$pinned_commit..origin/main" 2>/dev/null | head -5 | sed 's/^/      /'
-                remaining=$((new_commits - 5))
-                [ $remaining -gt 0 ] && echo "      ... and $remaining more"
-                echo ""
-
-                # Check for breaking changes (new imports, deleted files)
-                changed_files=$(git -C "$full_path" diff --name-only "$pinned_commit..origin/main" 2>/dev/null)
-                if echo "$changed_files" | grep -q 'scripts/search.py\|scripts/core.py'; then
-                    warn "  Core search files changed — review before updating"
-                fi
-                if echo "$changed_files" | grep -q 'requirements\|setup.py\|pyproject.toml'; then
-                    warn "  Dependency files changed — audit for new external packages"
-                fi
-            fi
+        if [ -z "$latest_tag" ]; then
+            warn "$vname: could not determine latest upstream release (network/auth)"
+        elif [ "$latest_tag" = "$pinned_tag" ]; then
+            pass "$vname: up to date ($pinned_tag)"
         else
-            warn "$subpath: could not fetch upstream (network timeout)"
+            warn "$vname: update available (vendored: $pinned_tag, latest: $latest_tag) — see $upstream/releases"
+            UPDATES_AVAILABLE=1
         fi
     done
 else
@@ -222,47 +201,18 @@ echo ""
 
 echo "5. Feature Compatibility"
 
-# Check that persona references the correct search.py path
-PERSONA_FILE="$PLUGIN_ROOT/agents/personas/ui-ux-designer.md"
-if [ -f "$PERSONA_FILE" ]; then
-    if grep -q 'vendors/ui-ux-pro-max-skill/src/ui-ux-pro-max/scripts/search.py' "$PERSONA_FILE"; then
-        pass "ui-ux-designer persona: search.py path correct"
+# All first-party references to the vendored search.py must use the stable src/ path
+REF_PATTERN='vendors/ui-ux-pro-max-skill/src/ui-ux-pro-max/scripts/search.py'
+for ref_file in \
+    "$PLUGIN_ROOT/agents/personas/ui-ux-designer.md" \
+    "$PLUGIN_ROOT/skills/octopus-ui-ux-design/SKILL.md"; do
+    [ -f "$ref_file" ] || { warn "reference file missing: ${ref_file#"$PLUGIN_ROOT"/}"; continue; }
+    if grep -q "$REF_PATTERN" "$ref_file"; then
+        pass "${ref_file#"$PLUGIN_ROOT"/}: search.py path correct"
     else
-        fail "ui-ux-designer persona: search.py path mismatch"
+        fail "${ref_file#"$PLUGIN_ROOT"/}: search.py path mismatch"
     fi
-else
-    warn "ui-ux-designer persona not found"
-fi
-
-# Check that skill references the correct path
-SKILL_FILE="$PLUGIN_ROOT/.claude/skills/skill-ui-ux-design/SKILL.md"
-if [ -f "$SKILL_FILE" ]; then
-    if grep -q 'vendors/ui-ux-pro-max-skill/src/ui-ux-pro-max/scripts/search.py' "$SKILL_FILE"; then
-        pass "ui-ux-design skill: search.py path correct"
-    else
-        fail "ui-ux-design skill: search.py path mismatch"
-    fi
-else
-    warn "ui-ux-design skill not found"
-fi
-
-# Check that command file exists
-CMD_FILE="$PLUGIN_ROOT/commands/design-ui-ux.md"
-if [ -f "$CMD_FILE" ]; then
-    pass "design-ui-ux command file exists"
-else
-    fail "design-ui-ux command file not found"
-fi
-
-# Check routing.sh has ui-ux-designer pattern
-ROUTING_FILE="$PLUGIN_ROOT/scripts/lib/routing.sh"
-if [ -f "$ROUTING_FILE" ]; then
-    if grep -q 'ui-ux-designer' "$ROUTING_FILE"; then
-        pass "routing.sh: ui-ux-designer pattern present"
-    else
-        fail "routing.sh: ui-ux-designer pattern missing"
-    fi
-fi
+done
 
 # Verify search.py actually runs
 if [ -f "$UX_VENDOR/src/ui-ux-pro-max/scripts/search.py" ] && command -v python3 &>/dev/null; then
@@ -288,7 +238,7 @@ fi
 
 if [ "$MODE" = "--ci" ] && [ $UPDATES_AVAILABLE -gt 0 ]; then
     echo ""
-    echo "Vendor updates available. Review and update submodule references if appropriate."
+    echo "Vendor updates available. Refresh the vendored copy and update VENDOR.json."
     exit 2
 fi
 
