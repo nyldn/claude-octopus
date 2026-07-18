@@ -553,6 +553,8 @@ ${heuristic_ctx}"
 
         # Write initial result file header
         echo "# Agent: $agent_type (via Agent Teams)" > "$result_file"
+        echo "# Executor alias: $agent_type" >> "$result_file"
+        echo "# Configured model: ${model:-unresolved}" >> "$result_file"
         echo "# Task ID: $task_id" >> "$result_file"
         echo "# Role: ${role:-none}" >> "$result_file"
         echo "# Phase: ${phase:-none}" >> "$result_file"
@@ -583,6 +585,8 @@ ${heuristic_ctx}"
         set -o pipefail  # v9.15.1: Pipeline exit code = first failure (prevents silent codex/gemini errors)
 
         echo "# Agent: $agent_type" > "$result_file"
+        echo "# Executor alias: $agent_type" >> "$result_file"
+        echo "# Configured model: ${model:-unresolved}" >> "$result_file"
         echo "# Task ID: $task_id" >> "$result_file"
         echo "# Role: ${role:-none}" >> "$result_file"
         echo "# Phase: ${phase:-none}" >> "$result_file"

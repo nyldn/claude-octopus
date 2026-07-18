@@ -221,7 +221,7 @@ wrap_cli_output() {
     case "$provider" in
         codex*|gemini*|agy*|antigravity|perplexity*|cursor-agent*)
             cat << EOF
-<external-cli-output provider="$provider" trust="untrusted">
+<external-cli-output provider="$provider" executor-alias="$provider" provider-label-kind="legacy-alias" trust="untrusted">
 $output
 </external-cli-output>
 EOF
