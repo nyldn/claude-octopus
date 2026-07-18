@@ -1085,8 +1085,8 @@ ${previous_decomposition}
 
     local tangle_decompose_agent="agy" tangle_decompose_fallback_agent="codex"
     if declare -f octopus_agent_override >/dev/null 2>&1; then
-        tangle_decompose_agent=$(octopus_role_profile_agent_override "tangle" "decompose" "researcher" "agy")
-        tangle_decompose_fallback_agent=$(octopus_agent_override "tangle" "decompose_fallback" "codex")
+        tangle_decompose_agent=$(octopus_execution_profile_provider "tangle" "decompose" "researcher" "agy")
+        tangle_decompose_fallback_agent=$(octopus_execution_profile_provider "tangle" "decompose_fallback" "implementer" "codex")
     fi
 
     OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="tangle-reformat-validation" run_agent_sync "$tangle_decompose_agent" "$reformat_prompt" 0 "researcher" "tangle" || \
@@ -1857,8 +1857,8 @@ Every [CODING] line must include a same-line Files: clause."
     # selects the dispatch agent; the fail-closed contract below is unchanged.
     local tangle_decompose_agent="agy" tangle_decompose_fallback_agent="codex"
     if declare -f octopus_agent_override >/dev/null 2>&1; then
-        tangle_decompose_agent=$(octopus_agent_override "tangle" "decompose" "agy")
-        tangle_decompose_fallback_agent=$(octopus_agent_override "tangle" "decompose_fallback" "codex")
+        tangle_decompose_agent=$(octopus_execution_profile_provider "tangle" "decompose" "researcher" "agy")
+        tangle_decompose_fallback_agent=$(octopus_execution_profile_provider "tangle" "decompose_fallback" "implementer" "codex")
     fi
 
     local subtasks
@@ -1950,8 +1950,8 @@ Every [CODING] line must include a same-line Files: clause."
     local tangle_coding_agent="codex"
     local tangle_reasoning_agent="agy"
     if declare -f octopus_agent_override >/dev/null 2>&1; then
-        tangle_coding_agent=$(octopus_role_profile_agent_override "tangle" "coding" "implementer" "codex")
-        tangle_reasoning_agent=$(octopus_role_profile_agent_override "tangle" "reasoning" "researcher" "agy")
+        tangle_coding_agent=$(octopus_execution_profile_provider "tangle" "coding" "implementer" "codex")
+        tangle_reasoning_agent=$(octopus_execution_profile_provider "tangle" "reasoning" "researcher" "agy")
     fi
 
     # [REASONING] falls back through available providers. Without this, users

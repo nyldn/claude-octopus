@@ -34,6 +34,51 @@ _octopus_profile_field() {
   esac
 }
 
+_octopus_profile_env_key() {
+  printf '%s' "${1:-}" | tr '[:lower:]-' '[:upper:]_' | sed -E 's/[^A-Z0-9_]+/_/g; s/^_+//; s/_+$//'
+}
+
+octopus_explicit_provider_override() {
+  local phase="$1" operation="$2" phase_key operation_key env_name value
+  phase_key="$(_octopus_profile_env_key "$phase")"
+  operation_key="$(_octopus_profile_env_key "$operation")"
+
+  if [[ -n "$phase_key" && -n "$operation_key" ]]; then
+    env_name="OCTOPUS_${phase_key}_${operation_key}_AGENT"
+    value="${!env_name:-}"
+    [[ -n "$value" ]] && { printf '%s\n' "$value"; return 0; }
+  fi
+  if [[ -n "$phase_key" ]]; then
+    env_name="OCTOPUS_${phase_key}_AGENT"
+    value="${!env_name:-}"
+    [[ -n "$value" ]] && { printf '%s\n' "$value"; return 0; }
+  fi
+  if [[ -n "$operation_key" ]]; then
+    env_name="OCTOPUS_${operation_key}_AGENT"
+    value="${!env_name:-}"
+    [[ -n "$value" ]] && { printf '%s\n' "$value"; return 0; }
+  fi
+  return 1
+}
+
+# Canonical provider resolution for workflow dispatch.
+# Precedence: explicit operation/phase env override > configured role/phase
+# route > historical caller default. Workflows should not duplicate this logic.
+octopus_execution_profile_provider() {
+  local phase="$1" operation="$2" role="$3" default_provider="$4"
+  local explicit_provider configured_provider
+
+  explicit_provider="$(octopus_explicit_provider_override "$phase" "$operation" 2>/dev/null || true)"
+  if [[ -n "$explicit_provider" ]]; then
+    printf '%s\n' "$explicit_provider"
+    return 0
+  fi
+
+  configured_provider="$(octopus_profile_provider "$phase" "$role" "$default_provider" 2>/dev/null || true)"
+  printf '%s\n' "${configured_provider:-$default_provider}"
+}
+
+
 octopus_profile_provider() {
   local phase="$1" role="$2" default_provider="$3" value
   value="$(_octopus_profile_field "$phase" "$role" provider 2>/dev/null || true)"

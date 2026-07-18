@@ -29,38 +29,12 @@ fi
 #   OCTOPUS_CODING_AGENT
 #   <default passed by caller>
 octopus_agent_override() {
-    local phase="$1"
-    local role="$2"
-    local default_agent="$3"
-    local phase_key role_key env_name value
-
-    phase_key=$(printf '%s' "$phase" | tr '[:lower:]-' '[:upper:]_' | sed -E 's/[^A-Z0-9_]+/_/g; s/^_+//; s/_+$//')
-    role_key=$(printf '%s' "$role" | tr '[:lower:]-' '[:upper:]_' | sed -E 's/[^A-Z0-9_]+/_/g; s/^_+//; s/_+$//')
-
-    if [[ -n "$phase_key" && -n "$role_key" ]]; then
-        env_name="OCTOPUS_${phase_key}_${role_key}_AGENT"
-        value="${!env_name:-}"
-        [[ -n "$value" ]] && { echo "$value"; return 0; }
-    fi
-
-    if [[ -n "$phase_key" ]]; then
-        env_name="OCTOPUS_${phase_key}_AGENT"
-        value="${!env_name:-}"
-        [[ -n "$value" ]] && { echo "$value"; return 0; }
-    fi
-
-    if [[ -n "$role_key" ]]; then
-        env_name="OCTOPUS_${role_key}_AGENT"
-        value="${!env_name:-}"
-        [[ -n "$value" ]] && { echo "$value"; return 0; }
-    fi
-
-    if declare -f octopus_profile_provider >/dev/null 2>&1; then
-        value="$(octopus_profile_provider "$phase" "$role" "$default_agent" 2>/dev/null || true)"
-        [[ -n "$value" ]] && { echo "$value"; return 0; }
-    fi
-    echo "$default_agent"
+    local phase="$1" operation="$2" default_agent="$3"
+    local explicit
+    explicit="$(octopus_explicit_provider_override "$phase" "$operation" 2>/dev/null || true)"
+    printf '%s\n' "${explicit:-$default_agent}"
 }
+
 
 # v9.19.0: Safe default for --bare flag (set by providers.sh, but guard for standalone sourcing)
 _BARE_OPT="${_BARE_OPT:-}"
