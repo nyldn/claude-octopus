@@ -67,6 +67,22 @@ jobs:
             echo "fast_path=false" >> "$GITHUB_OUTPUT"
           fi
 
+  vendor-freshness:
+    name: Vendor Freshness
+    # Nightly/manual only — not a PR gate. Fails when a vendored dependency is
+    # stale (exit 2) or unhealthy (exit 1) so maintainers see it in the nightly run.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Check vendored dependencies against upstream releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./scripts/check-vendor-updates.sh --ci
+
   portability-lint:
     name: Portability Lint
     runs-on: ubuntu-latest

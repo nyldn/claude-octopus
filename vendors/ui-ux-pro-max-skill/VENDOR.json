@@ -1,0 +1,9 @@
+{
+  "name": "ui-ux-pro-max-skill",
+  "upstream": "https://github.com/nextlevelbuilder/ui-ux-pro-max-skill",
+  "tag": "v2.11.0",
+  "retrieved": "2026-07-18",
+  "license": "MIT",
+  "subset": ["src/", ".claude-plugin/", "LICENSE", "README.md", "CLAUDE.md"],
+  "notes": "Vendored as plain files (#253). Upstream's plugin.json/skill.json version fields lag its git tags (semantic-release); the tag above is the canonical vendored version. Refresh procedure: download the release tarball, replace the subset dirs listed here, update this manifest, run scripts/check-vendor-updates.sh."
+}

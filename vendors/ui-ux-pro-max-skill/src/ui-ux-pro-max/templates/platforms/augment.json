@@ -1,17 +1,14 @@
 {
-  "platform": "continue",
-  "displayName": "Continue",
+  "platform": "augment",
+  "displayName": "Augment",
   "installType": "full",
   "folderStructure": {
-    "root": ".continue",
+    "root": ".augment",
     "skillPath": "skills/ui-ux-pro-max",
     "filename": "SKILL.md"
   },
   "scriptPath": "skills/ui-ux-pro-max/scripts/search.py",
-  "frontmatter": {
-    "name": "ui-ux-pro-max",
-    "description": "UI/UX design intelligence with searchable database"
-  },
+  "frontmatter": null,
   "sections": {
     "quickReference": false
   },

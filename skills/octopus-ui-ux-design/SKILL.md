@@ -108,7 +108,7 @@ else
 fi
 ```
 
-**If MISSING_SEARCH_PY**: Tell user to run `cd "${HOME}/.claude-octopus/plugin" && git submodule update --init vendors/ui-ux-pro-max-skill`
+**If MISSING_SEARCH_PY**: The vendored design intelligence files are missing — tell the user to reinstall or update the plugin (the `vendors/ui-ux-pro-max-skill/` directory ships with it as plain files).
 **If MISSING_PYTHON**: Tell user python3 is required for design intelligence.
 
 ### STEP 4: Phase 1 — Discover (Design Research)

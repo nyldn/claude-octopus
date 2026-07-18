@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **Vendored ui-ux-pro-max design intelligence refreshed from v2.0.1 to v2.11.0** (nextlevelbuilder/ui-ux-pro-max-skill, MIT). Brings 11 releases of new data and features into `/octo:design-ui-ux`: expanded databases (84 styles, 192 palettes, 74 font pairings, 161 UX reasoning rules), a Google Fonts collection, motion presets, design dials (`--variance/--motion/--density`), and `--persist` MASTER.md design-system persistence. The vendored subset is now slimmer (src/ plus license and docs; screenshots and the npm CLI are no longer copied) and carries a `VENDOR.json` manifest recording the pinned upstream tag. `scripts/check-vendor-updates.sh` was rewritten for plain-file vendoring (the old version silently exited because it still expected `.gitmodules`, dead since #253) and now compares the manifest tag against the latest upstream release; a nightly `Vendor Freshness` CI job fails when a vendored dependency goes stale.
+
 ### Fixed
 
 - **Auto-router no longer coerces skill routing and never routes on system events** (#632). The UserPromptSubmit auto-router injected "MANDATORY: Invoke Skill(...) before responding" even when intent detection mis-scored a prompt, pressuring the agent to hijack the turn into an unrelated multi-provider workflow; it also fired on harness-generated turns (task notifications, system reminders) that are not user input. Routing context is now explicitly advisory on both sides of the contract (`user-prompt-submit.sh` message and `auto-router-inject.sh` session instruction), and prompts beginning with system-event markers (`[SYSTEM NOTIFICATION`, `<task-notification>`, `<system-reminder>`, `<local-command-stdout>`) are skipped before intent detection.

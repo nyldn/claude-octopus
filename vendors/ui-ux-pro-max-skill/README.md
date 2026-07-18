@@ -1,16 +1,21 @@
 # [UI UX Pro Max](https://uupm.cc)
- 
+
+<p align="center">
+  <a href="https://github.com/nextlevelbuilder/ui-ux-pro-max-skill/blob/main/README.zh.md">🇨🇳 简体中文</a> | 
+  <a href="https://github.com/nextlevelbuilder/ui-ux-pro-max-skill/blob/main/README.md">🇺🇸 English</a>
+</p>
+
 <p align="center">
   <a href="https://github.com/nextlevelbuilder/ui-ux-pro-max-skill/releases"><img src="https://img.shields.io/github/v/release/nextlevelbuilder/ui-ux-pro-max-skill?style=for-the-badge&color=blue" alt="GitHub Release"></a>
-  <img src="https://img.shields.io/badge/reasoning_rules-100-green?style=for-the-badge" alt="100 Reasoning Rules">
+  <img src="https://img.shields.io/badge/reasoning_rules-161-green?style=for-the-badge" alt="161 Reasoning Rules">
   <img src="https://img.shields.io/badge/UI_styles-67-purple?style=for-the-badge" alt="67 UI Styles">
   <img src="https://img.shields.io/badge/python-3.x-yellow?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.x">
   <a href="https://github.com/nextlevelbuilder/ui-ux-pro-max-skill/blob/main/LICENSE"><img src="https://img.shields.io/github/license/nextlevelbuilder/ui-ux-pro-max-skill?style=for-the-badge&color=green" alt="License"></a>
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/uipro-cli"><img src="https://img.shields.io/npm/v/uipro-cli?style=flat-square&logo=npm&label=CLI" alt="npm"></a>
-  <a href="https://www.npmjs.com/package/uipro-cli"><img src="https://img.shields.io/npm/dm/uipro-cli?style=flat-square&label=downloads" alt="npm downloads"></a>
+  <a href="https://www.npmjs.com/package/ui-ux-pro-max-cli"><img src="https://img.shields.io/npm/v/ui-ux-pro-max-cli?style=flat-square&logo=npm&label=CLI" alt="npm"></a>
+  <a href="https://www.npmjs.com/package/ui-ux-pro-max-cli"><img src="https://img.shields.io/npm/dm/ui-ux-pro-max-cli?style=flat-square&label=downloads" alt="npm downloads"></a>
   <a href="https://github.com/nextlevelbuilder/ui-ux-pro-max-skill/stargazers"><img src="https://img.shields.io/github/stars/nextlevelbuilder/ui-ux-pro-max-skill?style=flat-square&logo=github" alt="GitHub stars"></a>
   <a href="https://paypal.me/uiuxpromax"><img src="https://img.shields.io/badge/PayPal-Support%20Development-00457C?style=flat-square&logo=paypal&logoColor=white" alt="PayPal"></a>
 </p>
@@ -101,9 +106,9 @@ The flagship feature of v2.0 is the **Design System Generator** - an AI-powered 
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │  2. MULTI-DOMAIN SEARCH (5 parallel searches)                   │
-│     • Product type matching (100 categories)                    │
+│     • Product type matching (161 categories)                    │
 │     • Style recommendations (67 styles)                         │
-│     • Color palette selection (96 palettes)                     │
+│     • Color palette selection (161 palettes)                    │
 │     • Landing page patterns (24 patterns)                       │
 │     • Typography pairing (57 font combinations)                 │
 └─────────────────────────────────────────────────────────────────┘
@@ -125,19 +130,20 @@ The flagship feature of v2.0 is the **Design System Generator** - an AI-powered 
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### 100 Industry-Specific Reasoning Rules
+### 161 Industry-Specific Reasoning Rules
 
 The reasoning engine includes specialized rules for:
 
 | Category | Examples |
 |----------|----------|
-| **Tech & SaaS** | SaaS, Micro SaaS, B2B Enterprise, Developer Tools, AI/Chatbot Platform |
-| **Finance** | Fintech, Banking, Crypto, Insurance, Trading Dashboard |
-| **Healthcare** | Medical Clinic, Pharmacy, Dental, Veterinary, Mental Health |
-| **E-commerce** | General, Luxury, Marketplace, Subscription Box |
-| **Services** | Beauty/Spa, Restaurant, Hotel, Legal, Consulting |
-| **Creative** | Portfolio, Agency, Photography, Gaming, Music Streaming |
-| **Emerging Tech** | Web3/NFT, Spatial Computing, Quantum Computing, Autonomous Systems |
+| **Tech & SaaS** | SaaS, Micro SaaS, B2B Service, Developer Tool / IDE, AI/Chatbot Platform, Cybersecurity Platform |
+| **Finance** | Fintech/Crypto, Banking, Insurance, Personal Finance Tracker, Invoice & Billing Tool |
+| **Healthcare** | Medical Clinic, Pharmacy, Dental, Veterinary, Mental Health, Medication Reminder |
+| **E-commerce** | General, Luxury, Marketplace (P2P), Subscription Box, Food Delivery |
+| **Services** | Beauty/Spa, Restaurant, Hotel, Legal, Home Services, Booking & Appointment |
+| **Creative** | Portfolio, Agency, Photography, Gaming, Music Streaming, Photo/Video Editor |
+| **Lifestyle** | Habit Tracker, Recipe & Cooking, Meditation, Weather, Diary, Mood Tracker |
+| **Emerging Tech** | Web3/NFT, Spatial Computing, Quantum Computing, Autonomous Drone Fleet |
 
 Each rule includes:
 - **Recommended Pattern** - Landing page structure
@@ -150,12 +156,12 @@ Each rule includes:
 ## Features
 
 - **67 UI Styles** - Glassmorphism, Claymorphism, Minimalism, Brutalism, Neumorphism, Bento Grid, Dark Mode, AI-Native UI, and more
-- **96 Color Palettes** - Industry-specific palettes for SaaS, E-commerce, Healthcare, Fintech, Beauty, etc.
+- **161 Color Palettes** - Industry-specific palettes aligned 1:1 with the 161 product types
 - **57 Font Pairings** - Curated typography combinations with Google Fonts imports
 - **25 Chart Types** - Recommendations for dashboards and analytics
-- **13 Tech Stacks** - React, Next.js, Astro, Vue, Nuxt.js, Nuxt UI, Svelte, SwiftUI, React Native, Flutter, HTML+Tailwind, shadcn/ui, Jetpack Compose
+- **22 Tech Stacks** - React, Next.js, Astro, Vue, Nuxt.js, Nuxt UI, Svelte, SwiftUI, React Native, Flutter, HTML+Tailwind, shadcn/ui, Jetpack Compose, Angular, Laravel, Three.js, JavaFX, WPF, WinUI 3, UWP, Avalonia, Uno Platform
 - **99 UX Guidelines** - Best practices, anti-patterns, and accessibility rules
-- **100 Reasoning Rules** - Industry-specific design system generation (NEW in v2.0)
+- **161 Reasoning Rules** - Industry-specific design system generation (NEW in v2.0)
 
 ### Available Styles (67)
 
@@ -250,6 +256,25 @@ Each rule includes:
 
 </details>
 
+## 💎 Basic vs. Premium Version Comparison
+
+Many users ask about the differences between the open-source and premium versions. Here is a detailed breakdown to help you choose the right fit for your workflow.
+
+### 🟢 Basic Version (This Repository)
+* **Fully Open Source:** Perfect for individual developers, hobbyists, and standard projects.
+* **Core UI/UX Intelligence:** Full access to 67 UI styles, 161 product types, color palettes, and curated font pairings.
+* **Smart Recommendations:** Built-in BM25 search engine for highly accurate design matching.
+* **Cross-Platform Support:** Stack-specific guidelines supporting 13+ major frameworks (React, Vue, Tailwind, iOS, Android, etc.).
+* **Design System Generation:** Instantly generate tailored UI rules, patterns, and logic via CLI.
+
+### 🟡 Premium Version
+* **Extended Brand Design Skills:** Goes beyond UI/UX to include Brand Identity generation, Logo Design, Corporate Identity Programs (CIP), Banners, Presentation Slides, and custom Iconography.
+* **Advanced Asset Creation:** Deep integration with AI-powered image generation to create real visual assets, not just placeholders.
+* **Enterprise Architecture:** A more comprehensive and scalable Design Token architecture, built for large-scale team deployments.
+* **Priority Support:** Dedicated technical assistance for teams and professionals who need an uninterrupted full design workflow.
+
+👉 *For more details on upgrading to the Premium tier, visit [uupm.cc](https://uupm.cc).*
+
 ## Installation
 
 ### Using Claude Marketplace (Claude Code)
@@ -265,7 +290,7 @@ Install directly in Claude Code with two commands:
 
 ```bash
 # Install CLI globally
-npm install -g uipro-cli
+npm install -g ui-ux-pro-max-cli
 
 # Go to your project
 cd /path/to/your/project
@@ -286,40 +311,50 @@ uipro init --ai opencode    # OpenCode
 uipro init --ai continue    # Continue
 uipro init --ai codebuddy   # CodeBuddy
 uipro init --ai droid       # Droid (Factory)
+uipro init --ai kilocode    # KiloCode
+uipro init --ai warp        # Warp
+uipro init --ai augment     # Augment
+uipro init --ai codewhale   # CodeWhale
 uipro init --ai all         # All assistants
+```
+
+The npm package is `ui-ux-pro-max-cli`; it still installs the `uipro` command. Older `uipro-cli` releases are stale and should not be used for current assets.
+
+### Global Install (Available for All Projects)
+
+```bash
+uipro init --ai claude --global   # Install to ~/.claude/skills/
+uipro init --ai cursor --global   # Install to ~/.cursor/skills/
 ```
 
 ### Other CLI Commands
 
 ```bash
 uipro versions              # List available versions
-uipro update                # Update to latest version
-uipro init --offline        # Skip GitHub download, use bundled assets
+uipro update                # Refresh skill files from installed CLI package
+uipro init --offline        # Compatibility flag; installs bundled templates
+uipro uninstall             # Remove skill (auto-detect platform)
+uipro uninstall --ai claude # Remove specific platform
+uipro uninstall --global    # Remove from global install
 ```
 
 ## Prerequisites
 
-Python 3.x is required for the search script.
+Python 3.x is required for the search script (standard library only — the scripts install nothing and make no network calls).
+
+Check if Python is installed:
 
 ```bash
-# Check if Python is installed
 python3 --version
-
-# macOS
-brew install python3
-
-# Ubuntu/Debian
-sudo apt update && sudo apt install python3
-
-# Windows
-winget install Python.Python.3.12
 ```
+
+If it is missing, install it yourself from [python.org](https://www.python.org/downloads/) or with your OS package manager (Homebrew, apt, winget). These install steps are for **you, the human user** — AI agents using this skill should never install software on your machine; they are instructed to ask you instead.
 
 ## Usage
 
 ### Skill Mode (Auto-activate)
 
-**Supported:** Claude Code, Cursor, Windsurf, Antigravity, Codex CLI, Continue, Gemini CLI, OpenCode, Qoder, CodeBuddy, Droid (Factory)
+**Supported:** Claude Code, Cursor, Windsurf, Antigravity, Codex CLI, Continue, Gemini CLI, OpenCode, Qoder, CodeBuddy, Droid (Factory), KiloCode, Warp, Augment, CodeWhale
 
 The skill activates automatically when you request UI/UX work. Just chat naturally:
 
@@ -331,7 +366,7 @@ Build a landing page for my SaaS product
 
 ### Workflow Mode (Slash Command)
 
-**Supported:** Kiro, GitHub Copilot, Roo Code
+**Supported:** Kiro, GitHub Copilot, Roo Code, KiloCode
 
 Use the slash command to invoke the skill:
 
@@ -370,7 +405,10 @@ The skill provides stack-specific guidelines for:
 | **Web (HTML)** | HTML + Tailwind (default) |
 | **React Ecosystem** | React, Next.js, shadcn/ui |
 | **Vue Ecosystem** | Vue, Nuxt.js, Nuxt UI |
-| **Other Web** | Svelte, Astro |
+| **Angular** | Angular |
+| **PHP** | Laravel (Blade, Livewire, Inertia.js) |
+| **Other Web** | Svelte, Astro, Three.js |
+| **Desktop** | JavaFX |
 | **iOS** | SwiftUI |
 | **Android** | Jetpack Compose |
 | **Cross-Platform** | React Native, Flutter |
@@ -398,6 +436,9 @@ python3 .claude/skills/ui-ux-pro-max/scripts/search.py "dashboard" --domain char
 # Stack-specific guidelines
 python3 .claude/skills/ui-ux-pro-max/scripts/search.py "form validation" --stack react
 python3 .claude/skills/ui-ux-pro-max/scripts/search.py "responsive layout" --stack html-tailwind
+python3 .claude/skills/ui-ux-pro-max/scripts/search.py "tableview binding" --stack javafx
+python3 .claude/skills/ui-ux-pro-max/scripts/search.py "atlantafx primer enterprise theme" --stack javafx
+python3 .claude/skills/ui-ux-pro-max/scripts/search.py "enterprise tableview density permission" --stack javafx
 ```
 
 ### Persist Design System (Master + Overrides Pattern)
@@ -444,11 +485,11 @@ The codebase has been restructured to use a **template-based generation system**
 **Always use the CLI to install:**
 
 ```bash
-npm install -g uipro-cli
+npm install -g ui-ux-pro-max-cli
 uipro init --ai <platform>
 ```
 
-This ensures you get the latest templates and correct file structure for your AI assistant.
+This ensures you get the latest templates bundled with the installed CLI package and the correct file structure for your AI assistant. Update the npm package first when a new release is published.
 
 ### For Contributors
 
@@ -471,12 +512,17 @@ cli/                         # CLI installer (generates files from templates)
 # - templates/              → Platform-specific templates
 
 # 4. Sync to CLI and test locally
-cp -r src/ui-ux-pro-max/data/* cli/assets/data/
-cp -r src/ui-ux-pro-max/scripts/* cli/assets/scripts/
-cp -r src/ui-ux-pro-max/templates/* cli/assets/templates/
+cd cli
+npm run sync:assets
+npm run check:assets
+npm run validate:csv
+npm run smoke:domains
+npm run smoke:stacks
+npm run typecheck
 
 # 5. Build and test CLI
-cd cli && bun run build
+# `npm run build` uses Bun when available and falls back to TypeScript compiler output after `npm ci`.
+npm run build
 node dist/index.js init --ai claude --offline  # Test in a temp folder
 
 # 6. Create PR (never push directly to main)
@@ -488,6 +534,89 @@ gh pr create
 
 See [CLAUDE.md](CLAUDE.md) for detailed development guidelines.
 
+
+## Automated Releases
+
+This repository uses semantic-release with Conventional Commits to create GitHub releases automatically:
+
+- `dev` branch creates beta GitHub prereleases such as `2.6.0-beta.1`.
+- `main` branch creates official stable GitHub releases such as `2.6.0`.
+
+Release notes and `CHANGELOG.md` are generated from Conventional Commit messages. Version numbers are synchronized across `skill.json`, `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, `cli/package.json`, and `cli/package-lock.json` during release preparation.
+
+Use these commit types for correct version bumps:
+
+- `fix:` -> patch release
+- `feat:` -> minor release
+- `feat!:` or `BREAKING CHANGE:` -> major release
+
+The release workflow uses the default `GITHUB_TOKEN` for GitHub releases and the repository `NPM_TOKEN` secret to publish `ui-ux-pro-max-cli` to npm.
+
+## Troubleshooting
+
+### `uipro: unknown command 'uninstall'` or `unknown command 'update'`
+
+Your installed version of `ui-ux-pro-max-cli` is outdated. Update it and retry:
+
+```bash
+npm install -g ui-ux-pro-max-cli@latest
+uipro uninstall
+```
+
+### `uipro uninstall` says "No installed AI skill directories detected"
+
+The skill was installed in a different directory than where you're running the command. Either:
+
+```bash
+# Option A — run from the project root where you originally installed it
+cd /path/to/your/project
+uipro uninstall
+
+# Option B — remove the global install
+uipro uninstall --global
+
+# Option C — remove manually
+rm -rf .claude/skills/ui-ux-pro-max   # Claude Code
+rm -rf .cursor/skills/ui-ux-pro-max   # Cursor
+rm -rf .windsurf/skills/ui-ux-pro-max # Windsurf
+rm -rf .agents/skills/ui-ux-pro-max   # Antigravity
+```
+
+### Claude Marketplace install fails with "Zip file contains a symbolic link"
+
+This is a known issue with versions prior to v2.5.1. The repository used symlinks internally which some installation tools can't handle. **Fix:** use the CLI installer instead:
+
+```bash
+npm install -g ui-ux-pro-max-cli
+uipro init --ai claude
+```
+
+Or wait for the next release where this is resolved.
+
+### `npm install -g ui-ux-pro-max-cli` fails with permission error
+
+Use a Node version manager (recommended), or skip the global install entirely:
+
+```bash
+# npx without installing globally
+npx ui-ux-pro-max-cli init --ai claude
+```
+
+### Python not found when running design system commands
+
+The search scripts require Python 3.x. Install it manually from [python.org](https://www.python.org/downloads/) or with your OS package manager (Homebrew, apt, winget). AI agents should not install it for you — they are instructed to ask you instead.
+
+### Design system output is cut off / fields truncated
+
+Use the `--max-length` flag to increase (or remove) the truncation limit:
+
+```bash
+python3 .claude/skills/ui-ux-pro-max/scripts/search.py "SaaS" --domain style --max-length 0
+#                                                                               ^ 0 = unlimited
+```
+
+---
+
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=nextlevelbuilder/ui-ux-pro-max-skill&type=Date)](https://star-history.com/#nextlevelbuilder/ui-ux-pro-max-skill&Date)
@@ -495,3 +624,9 @@ See [CLAUDE.md](CLAUDE.md) for detailed development guidelines.
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
+
+## Compatible Agents
+
+This skill works with:
+- [Claude Code](https://claude.com/product/claude-code)
+- [AdaL](https://sylph.ai/) - Self-evolving AI coding agent ([Docs](https://docs.sylph.ai/) | [GitHub](https://github.com/SylphAI-Inc/adal-cli))
