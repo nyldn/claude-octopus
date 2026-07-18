@@ -86,16 +86,19 @@ if [[ -z "${prompt_content//[[:space:]]/}" ]]; then
 fi
 
 # Single-argument size ceiling: Linux caps one argv string at MAX_ARG_STRLEN
-# (128 KiB). A council prompt exceeding it would fail exec with a cryptic E2BIG,
-# so check first and fail with a message that names the actual problem.
-if (( ${#prompt_content} > 120000 )); then
-    echo "agy-exec.sh: prompt exceeds ~120KB (single-argv ceiling for agy --print); trim the dispatch context" >&2
-    exit 2
+# (128 KiB). Oversized prompts stay in the cached temp file and agy is pointed
+# at it via --add-dir with a read-this-file --print instruction, instead of
+# failing the seat.
+if (( ${#prompt_content} > 100000 )); then
+    cmd+=(--add-dir "$(dirname "$prompt_file")")
+    cmd+=(--print "Read the file '${prompt_file}' and follow the instructions in it as your task prompt. Do not summarize the file; execute it.")
+else
+    cmd+=(--print "$prompt_content")
 fi
 
 run_agy() {
     : > "$stdout_file"
-    "${cmd[@]}" --print "$prompt_content" > "$stdout_file"
+    "${cmd[@]}" > "$stdout_file" < /dev/null
 }
 
 set +e

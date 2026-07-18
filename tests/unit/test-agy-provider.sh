@@ -49,6 +49,59 @@ test_agy_dispatch_native_flags() {
 }
 
 
+test_agy_print_receives_prompt_argument() {
+    test_case "agy-exec passes the stdin prompt as --print's argument"
+
+    local tmp_bin="$TEST_TMP_DIR/agy-prompt-arg-bin"
+    local capture="$TEST_TMP_DIR/agy-prompt-argv.txt"
+    mkdir -p "$tmp_bin"
+    cat > "$tmp_bin/agy" <<'MOCK_AGY'
+#!/usr/bin/env bash
+printf '%s\n' "$@" > "${AGY_ARG_CAPTURE:?}"
+echo "mock-response"
+exit 0
+MOCK_AGY
+    chmod +x "$tmp_bin/agy"
+
+    local old_path="$PATH"
+    PATH="$tmp_bin:$PATH"
+    AGY_ARG_CAPTURE="$capture"
+    export AGY_ARG_CAPTURE
+
+    printf 'hello agy prompt' | bash "$PROJECT_ROOT/scripts/helpers/agy-exec.sh" >/dev/null
+
+    PATH="$old_path"
+    unset AGY_ARG_CAPTURE
+
+    # The prompt must be the argv element following --print; --sandbox must
+    # still be present as a real flag (the old invocation consumed it as the
+    # prompt, leaving the sandbox off).
+    local print_next
+    print_next="$(grep -Fx -A1 -- '--print' "$capture" | tail -1)"
+    if [[ "$print_next" == "hello agy prompt" ]] && grep -Fxq -- '--sandbox' "$capture"; then
+        test_pass
+    else
+        test_fail "expected argv '--print' followed by the stdin prompt plus a real --sandbox flag; got: $(tr '\n' '|' < "$capture")"
+    fi
+}
+
+test_gemini_via_agy_option() {
+    test_case "OCTOPUS_GEMINI_VIA_AGY serves gemini seats through agy"
+
+    local gemini_block
+    gemini_block="$(sed -n '/gemini|gemini-fast|gemini-image)/,/;;/p' "$PROJECT_ROOT/scripts/lib/dispatch.sh")"
+
+    if [[ "$gemini_block" == *"OCTOPUS_GEMINI_VIA_AGY"* ]] && \
+       [[ "$gemini_block" == *"agy-exec.sh"* ]] && \
+       grep -q 'OCTOPUS_GEMINI_VIA_AGY' "$PROJECT_ROOT/scripts/lib/spawn.sh" && \
+       grep -q 'OCTOPUS_GEMINI_VIA_AGY' "$PROJECT_ROOT/scripts/lib/agent-sync.sh"; then
+        test_pass
+    else
+        test_fail "gemini dispatch, spawn, and sync paths should honor OCTOPUS_GEMINI_VIA_AGY"
+    fi
+}
+
+
 test_agy_dynamic_model_validation() {
     test_case "explicit agy model pins validate against agy models"
 
@@ -665,6 +718,8 @@ test_provider_workflow_review_regressions() {
 test_agy_config_exists
 test_agy_available_agent
 test_agy_dispatch_native_flags
+test_agy_print_receives_prompt_argument
+test_gemini_via_agy_option
 test_agy_dynamic_model_validation
 test_agy_command_validation
 test_agy_dispatch_not_gemini_wrapper

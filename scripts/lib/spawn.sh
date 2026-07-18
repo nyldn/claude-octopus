@@ -716,7 +716,9 @@ ${heuristic_ctx}"
 
             # v9.2.2: All agents use stdin-based prompt delivery to avoid ARG_MAX limits (Issue #173)
             # Previously only gemini used stdin; codex/claude passed prompt as CLI arg which fails on large diffs.
-            if [[ "$agent_type" == agy* || "$agent_type" == "antigravity" ]]; then
+            # gemini* seats served via agy (OCTOPUS_GEMINI_VIA_AGY) take the agy path.
+            if [[ "$agent_type" == agy* || "$agent_type" == "antigravity" ]] || \
+               { [[ "$agent_type" == gemini* ]] && [[ "${OCTOPUS_GEMINI_VIA_AGY:-0}" =~ ^(1|on|true|yes)$ ]]; }; then
                 printf '%s' "$enhanced_prompt" | OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="spawn-agent-heartbeat" run_with_timeout "$_eff_timeout" "${cmd_array[@]}" 2> "$temp_errors" | tee "$raw_output" > "$temp_output"
                 exit_code=${PIPESTATUS[1]:-0}
             elif printf '%s' "$enhanced_prompt" | OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="spawn-agent-heartbeat" run_with_timeout "$_eff_timeout" "${cmd_array[@]}" 2> "$temp_errors" | tee "$raw_output" > "$temp_output"; then

@@ -16,7 +16,7 @@ A provider is used only when its CLI is installed AND its auth check passes. If 
 | Provider | Availability check | Fix |
 |----------|-------------------|-----|
 | 🔴 Codex | `codex` on PATH, auth configured | `codex login` (ChatGPT subscription) or set `OPENAI_API_KEY` |
-| 🟡 Gemini | `gemini` on PATH, auth configured | Sign in via `gemini` (Google account) or set `GEMINI_API_KEY` |
+| 🟡 Gemini | `gemini` on PATH, auth configured | Free-tier OAuth was sunset by Google (`IneligibleTierError` on every call): set `GEMINI_API_KEY`, or export `OCTOPUS_GEMINI_VIA_AGY=1` to serve gemini seats through the Antigravity CLI (subscription auth) |
 | 🧭 Antigravity | `agy` on PATH | Install the Antigravity CLI and sign in; verify with `agy models` |
 | 🟢 Copilot | `copilot` on PATH plus one of: `COPILOT_GITHUB_TOKEN`, `GH_TOKEN`, `GITHUB_TOKEN`, `~/.copilot/config.json`, or `gh auth status` passing | `gh auth login` is the simplest path |
 | 🟤 Qwen | `qwen` on PATH plus `~/.qwen/oauth_creds.json` or `QWEN_API_KEY` | Free OAuth ended 2026-04-15; set `QWEN_API_KEY` or Coding-Plan auth (`OPENAI_API_KEY` + `OPENAI_BASE_URL`) |

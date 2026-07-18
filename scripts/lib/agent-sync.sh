@@ -187,7 +187,11 @@ ${provider_ctx}"
     local _provider_for_health=""
     case "$agent_type" in
         codex*)      _provider_for_health="codex" ;;
-        gemini*)     _provider_for_health="gemini" ;;
+        gemini*)
+            _provider_for_health="gemini"
+            # gemini seats served via agy health-check agy instead.
+            [[ "${OCTOPUS_GEMINI_VIA_AGY:-0}" =~ ^(1|on|true|yes)$ ]] && _provider_for_health="agy"
+            ;;
         agy*|antigravity) _provider_for_health="agy" ;;
         claude*)     _provider_for_health="claude" ;;
         openrouter*) _provider_for_health="openrouter" ;;
@@ -258,7 +262,9 @@ ${provider_ctx}"
     > "$temp_err"
     > "$temp_out"
 
-    if [[ "$agent_type" == agy* || "$agent_type" == "antigravity" ]]; then
+    # gemini* seats served via agy (OCTOPUS_GEMINI_VIA_AGY) take the agy path.
+    if [[ "$agent_type" == agy* || "$agent_type" == "antigravity" ]] || \
+       { [[ "$agent_type" == gemini* ]] && [[ "${OCTOPUS_GEMINI_VIA_AGY:-0}" =~ ^(1|on|true|yes)$ ]]; }; then
         set +e
         printf '%s' "$enhanced_prompt" | run_with_timeout "$timeout_secs" "${cmd_array[@]}" 2>"$temp_err" >"$temp_out"
         exit_code=$?
