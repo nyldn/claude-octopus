@@ -1076,7 +1076,7 @@ ${round1_prompts[$retry_idx]}"
         if [[ "$agent_findings" != "[]" ]] && declare -f octo_event_emit >/dev/null 2>&1; then
             while IFS=$'\t' read -r _rf_sev _rf_title; do
                 [[ -z "${_rf_sev}${_rf_title}" ]] && continue
-                octo_event_emit "review.finding" provider="$provider_key" severity="${_rf_sev:-unknown}" message="${_rf_title:-}" round="1" || true
+                octo_event_emit "review.finding" provider="$provider_key" provider_label_kind="legacy-alias" executor_alias="$atype" configured_provider="$(octo_provider_identity_from_agent_type "${atype:-unknown}")" configured_model="$(get_agent_model "$atype" "review" "reviewer" 2>/dev/null || echo unresolved)" runtime_provider="unknown" runtime_model="unknown" role="reviewer" severity="${_rf_sev:-unknown}" message="${_rf_title:-}" round="1" || true
             done < <(printf '%s' "$agent_findings" | jq -r '.[]? | [(.severity // "unknown"), (.title // .message // "")] | @tsv' 2>/dev/null)
         fi
         if ! review_result_completed_successfully "$f"; then
@@ -1242,7 +1242,7 @@ Return ONLY JSON: {\"findings\": [...ranked, deduplicated findings...]}"
     if [[ "$synth_ok" == "true" ]] && declare -f octo_event_emit >/dev/null 2>&1; then
         local _synth_count
         _synth_count=$(printf '%s' "$final_json" | jq '.findings | length' 2>/dev/null || echo 0)
-        octo_event_emit "synthesis" phase="review" provider="claude-sonnet" count="${_synth_count:-0}" || true
+        octo_event_emit "synthesis" phase="review" provider="claude-sonnet" provider_label_kind="legacy-alias" executor_alias="claude-sonnet" configured_provider="$(octo_provider_identity_from_agent_type "claude-sonnet")" configured_model="$(get_agent_model "claude-sonnet" "review" "synthesizer" 2>/dev/null || echo unresolved)" runtime_provider="unknown" runtime_model="unknown" council_role="synthesizer" synthesis_strategy="review" count="${_synth_count:-0}" || true
     fi
 
     if [[ -n "$proof_dir" ]]; then

@@ -1538,6 +1538,15 @@ tangle_run_context_code_review() {
     return "$review_rc"
 }
 
+tangle_correction_identity_message() {
+    local round_num="$1"
+    local correction_strategy="$2"
+    local stall_window="$3"
+    local correction_agent="$4"
+    local correction_model="$5"
+    printf '%s\n' "Step 5: Applying contextual review corrections (round=${round_num}, role=implementer, strategy=${correction_strategy}, stall_window=${stall_window}s, executor_alias=${correction_agent}, configured_provider=$(octo_provider_identity_from_agent_type "${correction_agent}"), configured_model=${correction_model}, runtime_provider=unknown, runtime_model=unknown)..."
+}
+
 tangle_apply_review_corrections() {
     local resolved_prompt="$1"
     local context_file="$2"
@@ -1603,7 +1612,10 @@ ${normal_findings}
     [[ "$poll_secs" =~ ^[0-9]+$ ]] || poll_secs=30
     [[ "$poll_secs" -lt 1 ]] && poll_secs=1
 
-    log INFO "Step 5: Applying contextual review corrections (round ${round_num}, strategy=${correction_strategy}, stall_window=${stall_window}s) with ${correction_agent}..."
+    local correction_model
+    correction_model=$(get_agent_model "$correction_agent" "tangle" "implementer" 2>/dev/null || true)
+    [[ -n "$correction_model" ]] || correction_model="unresolved"
+    log INFO "$(tangle_correction_identity_message "$round_num" "$correction_strategy" "$stall_window" "$correction_agent" "$correction_model")"
     (
         OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="tangle-correction-stall-watchdog" run_agent_sync "$correction_agent" "$correction_prompt" 0 "implementer" "tangle" > "$correction_file" 2>&1
         echo "$?" > "$rc_file"

@@ -209,6 +209,62 @@ EOF
 # SECURITY: CLI output wrapping for untrusted external provider output (v8.7.0)
 # Wraps codex/gemini output in trust markers; passes claude output unchanged
 # ═══════════════════════════════════════════════════════════════════════════════
+octo_provider_identity_from_agent_type() {
+    local agent_type="$1"
+    case "$agent_type" in
+        openai-compatible|openai-tools|openai-compatible-agent) echo "openai-compatible" ;;
+        atlascloud-agent|atlascloud) echo "atlascloud" ;;
+        codex*) echo "codex" ;;
+        claude*) echo "anthropic" ;;
+        gemini*) echo "google" ;;
+        perplexity*) echo "perplexity" ;;
+        openrouter*) echo "openrouter" ;;
+        *) echo "unknown" ;;
+    esac
+}
+
+octo_extract_runtime_model() {
+    local output="$1"
+    local value=""
+
+    # Native OpenAI-compatible helper emits a deterministic stderr line:
+    # provider=<mode> base_url=<url> model=<model> cwd=<cwd>
+    value=$(printf '%s\n' "$output" | sed -n -E \
+        -e 's/^provider=[^[:space:]]+[[:space:]]+base_url=[^[:space:]]+[[:space:]]+model=([^[:space:]]+)[[:space:]]+cwd=.*/\1/p' \
+        -e 's/^OCTOPUS_RUNTIME_MODEL=([^[:space:]]+)$/\1/p' \
+        | head -1 || true)
+    printf '%s\n' "${value:-unknown}"
+}
+
+octo_append_runtime_identity() {
+    local result_file="$1"
+    local executor_alias="$2"
+    local configured_model="$3"
+    local output_file="$4"
+    local output="" configured_provider runtime_provider runtime_model mismatch="unknown"
+
+    configured_provider=$(octo_provider_identity_from_agent_type "$executor_alias")
+    runtime_provider="$configured_provider"
+    [[ -f "$output_file" ]] && output=$(cat "$output_file" 2>/dev/null || true)
+    runtime_model=$(octo_extract_runtime_model "$output")
+
+    if [[ "$configured_model" != "unresolved" && "$runtime_model" != "unknown" ]]; then
+        if [[ "$configured_model" == "$runtime_model" ]]; then mismatch="false"; else mismatch="true"; fi
+    fi
+
+    {
+        echo
+        echo "## Runtime Identity"
+        echo "- Role: executor"
+        echo "- Executor alias: ${executor_alias:-unknown}"
+        echo "- Configured provider: ${configured_provider}"
+        echo "- Configured model: ${configured_model:-unresolved}"
+        echo "- Runtime provider: ${runtime_provider}"
+        echo "- Runtime model: ${runtime_model}"
+        echo "- Routing mismatch: ${mismatch}"
+    } >> "$result_file"
+}
+
 wrap_cli_output() {
     local provider="$1"
     local output="$2"
@@ -220,8 +276,11 @@ wrap_cli_output() {
 
     case "$provider" in
         codex*|gemini*|agy*|antigravity|perplexity*|cursor-agent*)
+            local runtime_provider runtime_model
+            runtime_provider=$(octo_provider_identity_from_agent_type "$provider")
+            runtime_model=$(octo_extract_runtime_model "$output")
             cat << EOF
-<external-cli-output provider="$provider" trust="untrusted">
+<external-cli-output provider="$provider" executor-alias="$provider" provider-label-kind="legacy-alias" runtime-provider="$runtime_provider" runtime-model="$runtime_model" trust="untrusted">
 $output
 </external-cli-output>
 EOF

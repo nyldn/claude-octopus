@@ -862,7 +862,8 @@ search_similar_errors() {
     fi
 
     local match_count
-    match_count=$(grep -ci "$keywords" "$error_file" 2>/dev/null || echo "0")
+    match_count=$(grep -ci -- "$keywords" "$error_file" 2>/dev/null || true)
+    match_count="${match_count:-0}"
     echo "$match_count"
 }
 
