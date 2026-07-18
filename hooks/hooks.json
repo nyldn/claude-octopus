@@ -26,15 +26,6 @@
         "matcher": "Bash",
         "hooks": [
           {
-            "type": "prompt",
-            "prompt": "Before running tangle phase, check if there are existing validation results that need review."
-          }
-        ]
-      },
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/hooks/codex-exec-guard.sh",
             "timeout": 5
