@@ -35,6 +35,8 @@ source "$MODEL_RESOLVER"
 source "$DISPATCH"
 
 export PLUGIN_DIR="$PROJECT_ROOT"
+export OPENAI_COMPAT_BASE_URL="https://example.invalid/v1"
+export OPENAI_API_KEY="test-key"
 
 test_case "openai-compatible-agent honors OPENAI_COMPAT_MODEL"
 model=$(HOME="$TEST_HOME" USER="octo-test-$$" CLAUDE_CODE_SESSION="compat-agent" OPENAI_COMPAT_MODEL="vendor/model-pro" get_agent_model openai-compatible-agent 2>/dev/null)

@@ -79,6 +79,20 @@ octopus_execution_profile_provider() {
 }
 
 
+_octopus_provider_definition_json() {
+  local provider="$1" cfg
+  cfg="$(_octopus_profile_config_file)"
+  [[ -f "$cfg" ]] || { printf '%s\n' '{}'; return 0; }
+  jq -c --arg provider "$provider" '.providers[$provider] // {}' "$cfg" 2>/dev/null || printf '%s\n' '{}'
+}
+
+octopus_provider_definition_field() {
+  local provider="$1" field="$2" definition
+  definition="$(_octopus_provider_definition_json "$provider")"
+  jq -r --arg field "$field" '.[$field] // empty' <<<"$definition" 2>/dev/null || true
+}
+
+
 octopus_profile_provider() {
   local phase="$1" role="$2" default_provider="$3" value
   value="$(_octopus_profile_field "$phase" "$role" provider 2>/dev/null || true)"
