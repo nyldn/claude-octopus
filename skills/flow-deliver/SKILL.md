@@ -845,8 +845,9 @@ echo "📦 **Project ready! Run \`/octo:ship\` to finalize and archive.**"
 ## Terminal State
 
 The Deliver phase is complete ONLY when validation findings are synthesized and
-must-fix items are resolved or explicitly accepted by the user. Then invoke
-`skill-ship` (or `skill-finish-branch` for branch wrap-up: tests, PR, merge). Do NOT
-stop at a findings list — the phase ends with the work shipped or the handoff invoked.
+must-fix items are resolved or explicitly accepted by the user. If the user asked to
+ship or wrap the branch, then invoke `skill-ship` (or `skill-finish-branch` for tests,
+PR, and merge). For review-only requests, deliver the findings and stop; do NOT expand
+the request into shipping work without user authorization.
 
 **Ready to validate!** This skill activates automatically when users request code review, validation, or quality checks.
