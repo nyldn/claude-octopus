@@ -16,7 +16,7 @@ trap _octo_hook_exit EXIT
 # not user permission policy — so it runs regardless of bypassPermissions.
 
 INPUT=$(cat 2>/dev/null || true)
-[[ -z "$INPUT" ]] && echo '{"decision":"allow"}' && exit 0
+[[ -z "$INPUT" ]] && exit 0
 
 # Extract command
 if command -v jq &>/dev/null; then
@@ -24,16 +24,16 @@ if command -v jq &>/dev/null; then
 else
     COMMAND=$(echo "$INPUT" | grep -o '"command":"[^"]*"' | head -1 | cut -d'"' -f4)
 fi
-[[ -z "$COMMAND" ]] && echo '{"decision":"allow"}' && exit 0
+[[ -z "$COMMAND" ]] && exit 0
 
 # Match: starts with `codex` but NOT `codex exec`, `codex --version`, `codex --help`, `codex login`, `codex auth`
 # Also allow: `which codex`, `command -v codex`, variable assignments containing "codex"
 if echo "$COMMAND" | grep -qE '^\s*codex\s' && \
    ! echo "$COMMAND" | grep -qE '^\s*codex\s+(exec|--version|--help|-h|login|auth|completion)\b'; then
     cat <<'BLOCK'
-{"permissionDecision":"block","message":"BLOCKED: bare `codex \"prompt\"` launches interactive TUI and fails without a TTY. Flags such as `--approval-mode`, `--full-auto`, `-q`, and `--quiet` are not valid for current non-interactive Codex dispatch.\n\nUse `codex exec` instead:\n```bash\ncodex exec --skip-git-repo-check \"YOUR PROMPT\"\n```\n\nWith model: `codex exec --skip-git-repo-check --model gpt-5.4 \"YOUR PROMPT\"`\n\nFor long prompts, pipe stdin to `codex exec --skip-git-repo-check -`."}
+{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"BLOCKED: bare `codex \"prompt\"` launches interactive TUI and fails without a TTY. Flags such as `--approval-mode`, `--full-auto`, `-q`, and `--quiet` are not valid for current non-interactive Codex dispatch.\n\nUse `codex exec` instead:\n```bash\ncodex exec --skip-git-repo-check \"YOUR PROMPT\"\n```\n\nWith model: `codex exec --skip-git-repo-check --model gpt-5.4 \"YOUR PROMPT\"`\n\nFor long prompts, pipe stdin to `codex exec --skip-git-repo-check -`."}}
 BLOCK
     exit 0
 fi
 
-echo '{"decision":"allow"}'
+: # pass-through — current hook schema treats silence as continue

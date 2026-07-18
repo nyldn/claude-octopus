@@ -20,13 +20,13 @@ WEBHOOK_URL="${OCTOPUS_WEBHOOK_URL:-}"
 
 # Skip silently if no webhook configured
 if [[ -z "$WEBHOOK_URL" ]]; then
-    echo '{"decision": "continue"}'
+    : # pass-through — current hook schema treats silence as continue
     exit 0
 fi
 
 # Reject non-HTTPS URLs to prevent credential leakage (localhost exempted for dev)
 if [[ "$WEBHOOK_URL" != https://* && "$WEBHOOK_URL" != http://localhost* && "$WEBHOOK_URL" != http://127.0.0.1* ]]; then
-    echo '{"decision": "continue"}' # silent — don't block on misconfiguration
+    : # pass-through — current hook schema treats silence as continue # silent — don't block on misconfiguration
     exit 0
 fi
 
@@ -34,7 +34,7 @@ fi
 # in hooks.json fires first and handles telemetry directly. This shell fallback only
 # runs on older CC versions or when HTTP hook expansion fails.
 if [[ "${SUPPORTS_HTTP_HOOKS:-false}" == "true" ]]; then
-    echo '{"decision": "continue"}'
+    : # pass-through — current hook schema treats silence as continue
     exit 0
 fi
 
@@ -86,5 +86,5 @@ fi
 
 curl "${CURL_ARGS[@]}" >/dev/null 2>&1 &
 
-echo '{"decision": "continue"}'
+: # pass-through — current hook schema treats silence as continue
 exit 0

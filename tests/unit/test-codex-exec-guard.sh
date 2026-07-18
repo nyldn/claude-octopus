@@ -17,7 +17,7 @@ run_hook() {
 
 test_case "blocks obsolete approval-mode quiet dispatch"
 output="$(run_hook 'codex --approval-mode full-auto -q "hello"')"
-if [[ "$output" == *'"permissionDecision":"block"'* ]] \
+if [[ "$output" == *'"permissionDecision":"deny"'* ]] \
    && [[ "$output" == *'codex exec --skip-git-repo-check'* ]] \
    && [[ "$output" != *'codex exec --full-auto'* ]]; then
     test_pass
@@ -27,7 +27,7 @@ fi
 
 test_case "allows current codex exec dispatch"
 output="$(run_hook 'codex exec --skip-git-repo-check "hello"')"
-if [[ "$output" == '{"decision":"allow"}' ]]; then
+if [[ -z "$output" ]]; then
     test_pass
 else
     test_fail "expected allow for codex exec, got: ${output:-<empty>}"

@@ -105,7 +105,7 @@ main() {
     # Check if we should run validation
     if ! check_version_support; then
         # Return success to allow task creation to proceed
-        echo '{"decision": "continue", "reason": "Version check failed, skipping validation"}'
+        : # pass-through — current hook schema treats silence as continue
         exit 0
     fi
 
@@ -116,11 +116,11 @@ main() {
     # Validate dependencies
     if validate_dependencies "task" ""; then
         log "INFO" "Task dependencies validated successfully"
-        echo '{"decision": "continue", "reason": "Dependencies validated"}'
+        : # pass-through — current hook schema treats silence as continue
         exit 0
     else
         log "WARN" "Task dependency validation failed, but allowing to proceed"
-        echo '{"decision": "continue", "reason": "Validation failed but non-blocking"}'
+        : # pass-through — current hook schema treats silence as continue
         exit 0
     fi
 }

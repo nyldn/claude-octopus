@@ -123,5 +123,5 @@ check_reference_integrity() {
 [[ -f "$VALIDATION_FILE" ]] && check_reference_integrity
 
 # No validation file or quality gate passed
-echo '{"decision": "continue"}'
+: # pass-through — current hook schema treats silence as continue
 exit 0

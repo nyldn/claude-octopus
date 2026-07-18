@@ -14,7 +14,7 @@ trap _octo_hook_exit EXIT
 
 # If no budget configured, always continue
 if [[ -z "${OCTOPUS_MAX_COST_USD:-}" ]]; then
-    echo '{"decision": "continue"}'
+    : # pass-through — current hook schema treats silence as continue
     exit 0
 fi
 
@@ -30,13 +30,13 @@ metrics_dir="${WORKSPACE_DIR:-${HOME}/.claude-octopus}"
 metrics_file="${metrics_dir}/metrics-session.json"
 
 if [[ ! -f "$metrics_file" ]]; then
-    echo '{"decision": "continue"}'
+    : # pass-through — current hook schema treats silence as continue
     exit 0
 fi
 
 # Requires jq for JSON parsing
 if ! command -v jq &>/dev/null; then
-    echo '{"decision": "continue", "reason": "jq not available for budget check"}'
+    : # pass-through — current hook schema treats silence as continue
     exit 0
 fi
 
@@ -63,7 +63,7 @@ case "$budget_status" in
         echo "{\"decision\": \"continue\", \"reason\": \"Budget warning: \$${current_cost} of \$${OCTOPUS_MAX_COST_USD} used (80%+ threshold)\"}"
         ;;
     *)
-        echo '{"decision": "continue"}'
+        : # pass-through — current hook schema treats silence as continue
         ;;
 esac
 

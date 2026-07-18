@@ -18,7 +18,7 @@ output=$(cat 2>/dev/null || true)
 
 # If no output or very short, continue (likely non-analysis command)
 if [[ ${#output} -lt 100 ]]; then
-    echo '{"decision": "continue"}'
+    : # pass-through — current hook schema treats silence as continue
     exit 0
 fi
 
@@ -80,7 +80,7 @@ elif [[ ${#issues[@]} -eq 1 ]]; then
     echo "⚡ Performance gate warning: ${issues[0]}" >&2
     echo "{\"decision\": \"continue\", \"reason\": \"Warning: ${issues[0]}\"}"
 else
-    echo '{"decision": "continue"}'
+    : # pass-through — current hook schema treats silence as continue
 fi
 
 exit 0

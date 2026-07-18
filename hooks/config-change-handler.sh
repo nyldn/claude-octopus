@@ -64,5 +64,5 @@ if [[ -n "$CONFIG_CHANGE_DATA" ]]; then
     fi
 fi
 
-echo '{"decision": "continue"}'
+: # pass-through — current hook schema treats silence as continue
 exit 0

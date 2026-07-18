@@ -21,7 +21,7 @@ trap _octo_hook_exit EXIT
 # checkout directly, so there is no clone to seed. Short-circuit before any
 # stdin read or file writes.
 if [[ "${OCTOPUS_WORKTREE_BG_ISOLATION:-true}" == "false" ]]; then
-    echo '{"decision": "continue"}'
+    : # pass-through — current hook schema treats silence as continue
     exit 0
 fi
 
@@ -41,7 +41,7 @@ if [[ -n "$WORKTREE_DATA" ]]; then
 fi
 
 if [[ -z "$WORKTREE_PATH" || ! -d "$WORKTREE_PATH" ]]; then
-    echo '{"decision": "continue"}'
+    : # pass-through — current hook schema treats silence as continue
     exit 0
 fi
 
@@ -50,7 +50,7 @@ case "$WORKTREE_PATH" in
     "$HOME"/*|/tmp/*|/private/tmp/*|/var/folders/*) : ;;
     *)
         echo "worktree-setup: refusing to write outside \$HOME, /tmp, or macOS temp dirs: $WORKTREE_PATH" >&2
-        echo '{"decision": "continue"}'
+        : # pass-through — current hook schema treats silence as continue
         exit 0
         ;;
 esac
@@ -81,5 +81,5 @@ fi
 )
 chmod 600 "$WORKTREE_PATH/.octopus-env" 2>/dev/null || true
 
-echo '{"decision": "continue"}'
+: # pass-through — current hook schema treats silence as continue
 exit 0

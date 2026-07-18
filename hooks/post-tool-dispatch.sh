@@ -62,5 +62,5 @@ if [[ -n "$CONTEXTS" ]]; then
     escaped=$(echo "$CONTEXTS" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read().strip()))" 2>/dev/null | sed 's/^"//;s/"$//')
     echo "{\"decision\":\"continue\",\"additionalContext\":\"${escaped}\"}"
 else
-    echo '{"decision":"continue"}'
+    : # pass-through — current hook schema treats silence as continue
 fi
