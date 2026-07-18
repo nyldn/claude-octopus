@@ -60,7 +60,7 @@ fi
 # Emit combined response
 if [[ -n "$CONTEXTS" ]]; then
     escaped=$(echo "$CONTEXTS" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read().strip()))" 2>/dev/null | sed 's/^"//;s/"$//')
-    echo "{\"decision\":\"continue\",\"additionalContext\":\"${escaped}\"}"
+    echo "{\"hookSpecificOutput\":{\"hookEventName\":\"PostToolUse\",\"additionalContext\":\"${escaped}\"}}"
 else
     : # pass-through — current hook schema treats silence as continue
 fi
