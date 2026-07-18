@@ -1,6 +1,6 @@
 ---
 name: skill-native-escalation-routing
-description: "Routing decision for init, review, and security requests — use when choosing between Claude-native handling and multi-LLM orchestration"
+description: "Use when choosing native or multi-LLM handling for init, review, or security requests"
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.

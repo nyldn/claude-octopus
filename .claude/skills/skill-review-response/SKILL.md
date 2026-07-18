@@ -1,6 +1,6 @@
 ---
 name: skill-review-response
-description: "Respond to code review feedback — use whenever a reviewer, CI bot, or another AI has left comments to address"
+description: "Use when a reviewer, CI bot, or another AI leaves feedback to address"
 trigger: |
   AUTOMATICALLY ACTIVATE when:
   - Receiving code review feedback (PR comments, review agent output)

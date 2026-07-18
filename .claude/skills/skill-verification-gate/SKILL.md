@@ -1,7 +1,7 @@
 ---
 name: skill-verification-gate
 effort: low
-description: "Gate on completion claims — use before declaring any work complete, fixed, passing, or done"
+description: "Use when about to declare work complete, fixed, passing, or done"
 trigger: |
   AUTOMATICALLY ACTIVATE when:
   - About to claim work is complete, fixed, or passing

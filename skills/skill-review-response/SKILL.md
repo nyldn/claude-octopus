@@ -1,6 +1,6 @@
 ---
 name: skill-review-response
-description: "Respond to code review feedback — use whenever a reviewer, CI bot, or another AI has left comments to address"
+description: "Use when a reviewer, CI bot, or another AI leaves feedback to address"
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.

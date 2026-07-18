@@ -1,6 +1,6 @@
 ---
 name: skill-staged-review
-description: "Thorough PR or feature review — use when a change must be checked against both its spec and code quality standards"
+description: "Use when a PR or feature needs both specification and code-quality review"
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.

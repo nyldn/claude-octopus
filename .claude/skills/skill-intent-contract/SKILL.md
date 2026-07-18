@@ -1,6 +1,6 @@
 ---
 name: skill-intent-contract
-description: "Guard against scope drift — use at the start of complex or ambiguous tasks before any implementation"
+description: "Use when starting a complex or ambiguous task that risks scope drift"
 ---
 
 # Intent Contract System

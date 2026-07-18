@@ -3,7 +3,7 @@ name: skill-staged-review
 aliases:
   - staged-review
   - two-stage-review
-description: "Thorough PR or feature review — use when a change must be checked against both its spec and code quality standards"
+description: "Use when a PR or feature needs both specification and code-quality review"
 trigger: |
   Use when completing a major feature, preparing a PR, or when user says
   "staged review", "full review", "review against spec", or "two-stage review".

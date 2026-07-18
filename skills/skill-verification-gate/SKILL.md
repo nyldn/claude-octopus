@@ -1,6 +1,6 @@
 ---
 name: skill-verification-gate
-description: "Gate on completion claims — use before declaring any work complete, fixed, passing, or done"
+description: "Use when about to declare work complete, fixed, passing, or done"
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
