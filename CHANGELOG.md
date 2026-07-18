@@ -2,9 +2,16 @@
 
 ## [Unreleased]
 
+## [9.53.1] - 2026-07-18
+
+
 ### Fixed
 
+- **Removed a redundant LLM-evaluated if-gate on the careful-check Bash hook** (#629). `hooks/hooks.json` pre-filtered the `careful-check.sh` PreToolUse hook with a natural-language `if` condition; Claude Code's hook harness evaluates such conditions via a model rather than literal regex, and it could hallucinate unrelated preconditions and deny every Bash call for the rest of the session. `careful-check.sh` already gates itself deterministically in bash (Bash-only, `/octo:careful` state-file opt-in, then real pattern matching), so the outer `if` was pure redundant risk. Careful-mode behavior is unchanged.
+
 - **Auto-router no longer coerces skill routing and never routes on system events** (#632). The UserPromptSubmit auto-router injected "MANDATORY: Invoke Skill(...) before responding" even when intent detection mis-scored a prompt, pressuring the agent to hijack the turn into an unrelated multi-provider workflow; it also fired on harness-generated turns (task notifications, system reminders) that are not user input. Routing context is now explicitly advisory on both sides of the contract (`user-prompt-submit.sh` message and `auto-router-inject.sh` session instruction), and prompts beginning with system-event markers (`[SYSTEM NOTIFICATION`, `<task-notification>`, `<system-reminder>`, `<local-command-stdout>`) are skipped before intent detection.
+
+- **`post-tool-dispatch.sh` reads `additionalContext` from the current hook schema location** (#631). `context-awareness.sh` and `output-compressor.sh` already emit `hookSpecificOutput.additionalContext` (from #626), but `post-tool-dispatch.sh`'s own extraction still read a stale top-level `additionalContext` key, so its combined output was silently empty on nearly every Read/Bash/Write/Edit/WebFetch/Grep call. Both sub-hook extraction sites now read the nested field.
 
 ## [9.53.0] - 2026-07-18
 
