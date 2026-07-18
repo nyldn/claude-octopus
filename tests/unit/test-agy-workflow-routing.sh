@@ -40,7 +40,7 @@ test_no_functional_gemini_dispatch() {
 test_tangle_decompose_default_is_agy() {
     test_case "tangle decompose default agent is agy"
     if grep -q 'tangle_decompose_agent="agy"' "$PROJECT_ROOT/scripts/lib/workflows.sh" && \
-       grep -q 'octopus_agent_override "tangle" "decompose" "agy"' "$PROJECT_ROOT/scripts/lib/workflows.sh"; then
+       grep -q 'octopus_execution_profile_provider "tangle" "decompose" "researcher" "agy"' "$PROJECT_ROOT/scripts/lib/workflows.sh"; then
         test_pass
     else test_fail "tangle decompose still defaults to gemini"; fi
 }
