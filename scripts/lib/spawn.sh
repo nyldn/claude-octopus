@@ -112,6 +112,30 @@ _octopus_agent_lifecycle_event() {
     ) >>"$hook_log" 2>&1 || true
 }
 
+write_agent_result_header() {
+    local result_file="$1"
+    local agent_type="$2"
+    local model="$3"
+    local task_id="$4"
+    local role="${5:-none}"
+    local phase="${6:-none}"
+    local dispatch="${7:-legacy}"
+
+    {
+        if [[ "$dispatch" == "agent-teams" ]]; then
+            echo "# Agent: $agent_type (via Agent Teams)"
+        else
+            echo "# Agent: $agent_type"
+        fi
+        echo "# Executor alias: $agent_type"
+        echo "# Configured provider: $(octo_provider_identity_from_agent_type "$agent_type")"
+        echo "# Configured model: ${model:-unresolved}"
+        echo "# Task ID: $task_id"
+        echo "# Role: ${role:-none}"
+        echo "# Phase: ${phase:-none}"
+    } > "$result_file"
+}
+
 spawn_agent() {
     local _ts; _ts=$(date +%s)
     local agent_type="$1"
@@ -558,12 +582,7 @@ ${heuristic_ctx}"
         echo "AGENT_TEAMS_DISPATCH:${agent_type}:${task_id}:${role:-none}:${phase:-none}"
 
         # Write initial result file header
-        echo "# Agent: $agent_type (via Agent Teams)" > "$result_file"
-        echo "# Executor alias: $agent_type" >> "$result_file"
-        echo "# Configured model: ${model:-unresolved}" >> "$result_file"
-        echo "# Task ID: $task_id" >> "$result_file"
-        echo "# Role: ${role:-none}" >> "$result_file"
-        echo "# Phase: ${phase:-none}" >> "$result_file"
+        write_agent_result_header "$result_file" "$agent_type" "${model:-unresolved}" "$task_id" "${role:-none}" "${phase:-none}" "agent-teams"
         echo "# Dispatch: Agent Teams (native)" >> "$result_file"
         echo "# Started: $(date)" >> "$result_file"
         if [[ "$SUPPORTS_HOOK_LAST_MESSAGE" == "true" ]]; then
@@ -590,12 +609,7 @@ ${heuristic_ctx}"
         set -f  # Disable glob expansion
         set -o pipefail  # v9.15.1: Pipeline exit code = first failure (prevents silent codex/gemini errors)
 
-        echo "# Agent: $agent_type" > "$result_file"
-        echo "# Executor alias: $agent_type" >> "$result_file"
-        echo "# Configured model: ${model:-unresolved}" >> "$result_file"
-        echo "# Task ID: $task_id" >> "$result_file"
-        echo "# Role: ${role:-none}" >> "$result_file"
-        echo "# Phase: ${phase:-none}" >> "$result_file"
+        write_agent_result_header "$result_file" "$agent_type" "${model:-unresolved}" "$task_id" "${role:-none}" "${phase:-none}" "legacy"
         echo "# Prompt: $prompt" >> "$result_file"
         echo "# Started: $(date)" >> "$result_file"
         echo "" >> "$result_file"

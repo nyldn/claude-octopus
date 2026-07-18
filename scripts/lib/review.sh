@@ -1076,7 +1076,7 @@ ${round1_prompts[$retry_idx]}"
         if [[ "$agent_findings" != "[]" ]] && declare -f octo_event_emit >/dev/null 2>&1; then
             while IFS=$'\t' read -r _rf_sev _rf_title; do
                 [[ -z "${_rf_sev}${_rf_title}" ]] && continue
-                octo_event_emit "review.finding" provider="$provider_key" provider_label_kind="legacy-alias" executor_alias="$provider_key" configured_provider="$(octo_provider_identity_from_agent_type "${provider_key:-unknown}")" configured_model="$(get_agent_model "$provider_key" "review" "reviewer" 2>/dev/null || echo unresolved)" runtime_provider="unknown" runtime_model="unknown" role="reviewer" severity="${_rf_sev:-unknown}" message="${_rf_title:-}" round="1" || true
+                octo_event_emit "review.finding" provider="$provider_key" provider_label_kind="legacy-alias" executor_alias="$atype" configured_provider="$(octo_provider_identity_from_agent_type "${atype:-unknown}")" configured_model="$(get_agent_model "$atype" "review" "reviewer" 2>/dev/null || echo unresolved)" runtime_provider="unknown" runtime_model="unknown" role="reviewer" severity="${_rf_sev:-unknown}" message="${_rf_title:-}" round="1" || true
             done < <(printf '%s' "$agent_findings" | jq -r '.[]? | [(.severity // "unknown"), (.title // .message // "")] | @tsv' 2>/dev/null)
         fi
         if ! review_result_completed_successfully "$f"; then

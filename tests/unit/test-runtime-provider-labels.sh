@@ -4,10 +4,16 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
 source "$PROJECT_ROOT/scripts/lib/validation.sh"
+source "$PROJECT_ROOT/scripts/lib/spawn.sh"
+source "$PROJECT_ROOT/scripts/lib/workflows.sh"
+TEST_TMP_DIR="/tmp/octopus-tests-$$"
+mkdir -p "$TEST_TMP_DIR"
+trap 'rm -rf "$TEST_TMP_DIR"' EXIT
 test_suite "runtime provider labels"
 
 test_case "native OpenAI-compatible runtime identity is captured in artifacts"
-tmp=$(mktemp -d)
+tmp="$TEST_TMP_DIR/native-runtime"
+mkdir -p "$tmp"
 printf '%s\n' 'provider=generic base_url=https://example.invalid/v1 model=deepseek-ai/DeepSeek-V4-Pro cwd=/tmp/project' > "$tmp/raw.out"
 : > "$tmp/result.md"
 octo_append_runtime_identity "$tmp/result.md" openai-compatible deepseek-ai/DeepSeek-V4-Pro "$tmp/raw.out"
@@ -16,25 +22,27 @@ if grep -q -- '- Configured provider: openai-compatible' "$tmp/result.md" && gre
 else
   test_fail "native OpenAI-compatible provider/model identity was not captured"
 fi
-rm -rf "$tmp"
 
-test_case "spawn result headers identify executor alias and configured model"
-if grep -q '# Executor alias: $agent_type' "$PROJECT_ROOT/scripts/lib/spawn.sh" && grep -q '# Configured model: ${model:-unresolved}' "$PROJECT_ROOT/scripts/lib/spawn.sh"; then
+test_case "spawn result header function emits concrete identity values"
+header="$TEST_TMP_DIR/header.md"
+write_agent_result_header "$header" openai-compatible deepseek-ai/DeepSeek-V4-Pro task-1 reviewer review legacy
+if grep -q '^# Executor alias: openai-compatible$' "$header" && grep -q '^# Configured provider: openai-compatible$' "$header" && grep -q '^# Configured model: deepseek-ai/DeepSeek-V4-Pro$' "$header" && grep -q '^# Role: reviewer$' "$header"; then
   test_pass
 else
-  test_fail "spawn headers missing explicit executor/model labels"
+  test_fail "spawn header helper did not emit concrete runtime identity"
 fi
 
-test_case "correction log uses stable runtime identity field names"
-if grep -q 'executor_alias=${correction_agent}, configured_provider=$(octo_provider_identity_from_agent_type "${correction_agent}"), configured_model=${correction_model}, runtime_provider=unknown, runtime_model=unknown' "$PROJECT_ROOT/scripts/lib/workflows.sh" && ! grep -q 'with ${correction_agent}...' "$PROJECT_ROOT/scripts/lib/workflows.sh"; then
+test_case "correction log helper interpolates stable identity values"
+msg=$(tangle_correction_identity_message 2 delta 1800 openai-compatible deepseek-ai/DeepSeek-V4-Pro)
+if [[ "$msg" == *"round=2"* && "$msg" == *"executor_alias=openai-compatible"* && "$msg" == *"configured_provider=openai-compatible"* && "$msg" == *"configured_model=deepseek-ai/DeepSeek-V4-Pro"* ]]; then
   test_pass
 else
-  test_fail "correction log still uses ambiguous provider wording"
+  test_fail "correction identity message did not interpolate concrete values: $msg"
 fi
-
 
 test_case "runtime identity artifact detects routing mismatch"
-tmp=$(mktemp -d)
+tmp="$TEST_TMP_DIR/mismatch"
+mkdir -p "$tmp"
 printf '%s\n' 'provider=generic base_url=https://example.invalid/v1 model=deepseek-ai/DeepSeek-V4-Pro cwd=/tmp/project' > "$tmp/raw.out"
 : > "$tmp/result.md"
 octo_append_runtime_identity "$tmp/result.md" openai-compatible gpt-5.5 "$tmp/raw.out"
@@ -43,7 +51,6 @@ if grep -q -- '- Configured provider: openai-compatible' "$tmp/result.md" && gre
 else
   test_fail "runtime identity did not preserve reported provider/model and mismatch"
 fi
-rm -rf "$tmp"
 
 test_case "unknown runtime identity is explicit rather than inferred"
 out=$(wrap_cli_output codex "plain response without identity metadata")

@@ -232,7 +232,7 @@ octo_extract_runtime_model() {
     value=$(printf '%s\n' "$output" | sed -n -E \
         -e 's/^provider=[^[:space:]]+[[:space:]]+base_url=[^[:space:]]+[[:space:]]+model=([^[:space:]]+)[[:space:]]+cwd=.*/\1/p' \
         -e 's/^OCTOPUS_RUNTIME_MODEL=([^[:space:]]+)$/\1/p' \
-        | head -1)
+        | head -1 || true)
     printf '%s\n' "${value:-unknown}"
 }
 
