@@ -10,6 +10,10 @@ test_suite "PostToolUse dispatcher"
 
 HOOK="$PROJECT_ROOT/hooks/post-tool-dispatch.sh"
 
+SESSION="test-ptd-$$"
+DEBOUNCE_FILE="/tmp/octopus-compress-debounce-${SESSION}.count"
+trap 'rm -f "$DEBOUNCE_FILE"; cleanup_test_environment' EXIT
+
 # Build a >3000-char, >40-line, non-timestamped payload so output-compressor.sh
 # classifies it as "verbose" and produces a compressed summary.
 build_verbose_payload() {
@@ -20,8 +24,6 @@ build_verbose_payload() {
 }
 
 test_case "emits hookSpecificOutput (not legacy root decision) when a sub-hook adds context"
-SESSION="test-ptd-$$"
-DEBOUNCE_FILE="/tmp/octopus-compress-debounce-${SESSION}.count"
 rm -f "$DEBOUNCE_FILE"
 
 PAYLOAD="$(build_verbose_payload)"
