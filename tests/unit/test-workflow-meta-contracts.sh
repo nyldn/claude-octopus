@@ -10,15 +10,13 @@ trap 'rm -rf "$TEST_TMP_DIR"' EXIT
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "Workflow Meta Contracts"
 
-pass() { test_case "$1"; test_pass; }
-fail() { test_case "$1"; test_fail "${2:-$1}"; }
-
 DELIVER="$PROJECT_ROOT/skills/flow-deliver/SKILL.md"
 DISCOVER="$PROJECT_ROOT/skills/flow-discover/SKILL.md"
 VERIFY_GATE="$PROJECT_ROOT/skills/skill-verification-gate/SKILL.md"
 ENFORCEMENT="$PROJECT_ROOT/skills/blocks/enforcement-patterns.md"
 
 delivery_block=$(sed -n '/^## Post-Delivery: Route to Ship/,/^\*\*Ready to validate!/p' "$DELIVER")
+test_case "Review-only delivery stops without entering the shipping state"
 if grep -q "route according to the user's explicit" <<< "$delivery_block" &&
    grep -q '^\- \*\*Ship requested:\*\*' <<< "$delivery_block" &&
    grep -q '^\- \*\*Branch wrap-up requested:\*\*' <<< "$delivery_block" &&
@@ -26,10 +24,9 @@ if grep -q "route according to the user's explicit" <<< "$delivery_block" &&
    grep -q 'Do not update the project' <<< "$delivery_block" &&
    grep -q 'Run this block only when the user explicitly requested shipping' <<< "$delivery_block" &&
    ! grep -q '^Suggest:' <<< "$delivery_block"; then
-    pass "Review-only delivery stops without entering the shipping state"
+    test_pass
 else
-    fail "Review-only delivery stops without entering the shipping state" \
-        "Post-Delivery must explicitly keep review-only requests out of shipping"
+    test_fail "Post-Delivery must explicitly keep review-only requests out of shipping"
 fi
 
 discover_block=$(sed -n '/^## Post-Discovery: State Update/,/^## /p' "$DISCOVER")
@@ -39,22 +36,23 @@ present_line=$(grep -n 'sed -n' <<< "$discover_block" | head -1 | cut -d: -f1 ||
 project_line=$(grep -n 'update_project' <<< "$discover_block" | head -1 | cut -d: -f1 || true)
 complete_line=$(grep -n 'update_state' <<< "$discover_block" | head -1 | cut -d: -f1 || true)
 
+test_case "Discovery verifies, presents, and persists synthesis before completion"
 if [[ -n "$synthesis_line" && -n "$exit_line" && -n "$present_line" && -n "$project_line" && -n "$complete_line" ]] &&
    (( synthesis_line < exit_line && exit_line < present_line && present_line < project_line && project_line < complete_line )); then
-    pass "Discovery verifies, presents, and persists synthesis before completion"
+    test_pass
 else
-    fail "Discovery verifies, presents, and persists synthesis before completion" \
-        "Post-Discovery operations are missing or out of order"
+    test_fail "Post-Discovery operations are missing or out of order"
 fi
 
 iron_law_count=$(grep -c '^NO COMPLETION CLAIMS WITHOUT FRESH VERIFICATION EVIDENCE$' "$VERIFY_GATE" || true)
+test_case "Verification gate states its Iron Law exactly once"
 if [[ "$iron_law_count" -eq 1 ]]; then
-    pass "Verification gate states its Iron Law exactly once"
+    test_pass
 else
-    fail "Verification gate states its Iron Law exactly once" \
-        "found $iron_law_count copies"
+    test_fail "found $iron_law_count copies"
 fi
 
+test_case "Enforcement pattern examples use language-tagged fences"
 if awk '
     /^```/ {
         if (!inside && $0 == "```") bad = 1
@@ -62,10 +60,9 @@ if awk '
     }
     END { exit (bad || inside) ? 1 : 0 }
 ' "$ENFORCEMENT"; then
-    pass "Enforcement pattern examples use language-tagged fences"
+    test_pass
 else
-    fail "Enforcement pattern examples use language-tagged fences" \
-        "found an untagged fenced code block"
+    test_fail "found an untagged fenced code block"
 fi
 
 trigger_only_contracts=(
@@ -89,11 +86,11 @@ for contract in "${trigger_only_contracts[@]}"; do
     fi
 done
 
+test_case "Trigger-only skill descriptions state when to use the skill"
 if [[ "$metadata_ok" == true ]]; then
-    pass "Trigger-only skill descriptions state when to use the skill"
+    test_pass
 else
-    fail "Trigger-only skill descriptions state when to use the skill" \
-        "$skill description must be the exact trigger-only contract"
+    test_fail "$skill description must be the exact trigger-only contract"
 fi
 
 test_summary
