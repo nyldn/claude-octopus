@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **Auto-router no longer coerces skill routing and never routes on system events** (#632). The UserPromptSubmit auto-router injected "MANDATORY: Invoke Skill(...) before responding" even when intent detection mis-scored a prompt, pressuring the agent to hijack the turn into an unrelated multi-provider workflow; it also fired on harness-generated turns (task notifications, system reminders) that are not user input. Routing context is now explicitly advisory on both sides of the contract (`user-prompt-submit.sh` message and `auto-router-inject.sh` session instruction), and prompts beginning with system-event markers (`[SYSTEM NOTIFICATION`, `<task-notification>`, `<system-reminder>`, `<local-command-stdout>`) are skipped before intent detection.
+
 ## [9.53.0] - 2026-07-18
 
 
