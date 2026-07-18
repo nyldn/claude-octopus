@@ -21,7 +21,7 @@ case "${OCTOPUS_FABLE5_MODE:-auto}" in
 esac
 
 if [[ "$_active" != "true" ]]; then
-    echo '{}'
+    # Nothing to inject: EMPTY stdout (a bare {} fails v2.1.178 hook-output validation).
     exit 0
 fi
 
