@@ -1897,7 +1897,7 @@ council_write_synthesis() {
             local _chair_provider _member_count
             _chair_provider="$(printf '%s' "$chair_member" | jq -r '.provider // "chair"' 2>/dev/null || echo chair)"
             _member_count="$(printf '%s' "$COUNCIL_RESOLVED_MEMBERS" | tr ', ' '\n\n' | grep -c . 2>/dev/null || echo 0)"
-            octo_event_emit "synthesis" phase="council" provider="${_chair_provider:-chair}" count="${_member_count:-0}" || true
+            octo_event_emit "synthesis" phase="council" provider="${_chair_provider:-chair}" provider_label_kind="legacy-alias" executor_alias="${_chair_provider:-unknown}" configured_adapter="unknown" runtime_adapter="unknown" configured_model="$(get_agent_model "${_chair_provider:-}" "council" "chair" 2>/dev/null || echo unresolved)" runtime_provider="unknown" runtime_model="unknown" council_role="chair" synthesis_strategy="chair" count="${_member_count:-0}" || true
         fi
         return 0
     fi

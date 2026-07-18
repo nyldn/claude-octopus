@@ -37,6 +37,11 @@ _octopus_agent_lifecycle_event() {
     if declare -f octo_event_emit >/dev/null 2>&1; then
         octo_event_emit "$event_name" \
             provider="$provider" \
+            provider_label_kind="legacy-alias" \
+            executor_alias="$agent_type" \
+            configured_adapter="unknown" runtime_adapter="unknown" configured_model="$(get_agent_model "$agent_type" "$phase" "$role" 2>/dev/null || echo unresolved)" \
+            runtime_provider="unknown" \
+            runtime_model="unknown" \
             agent_type="$agent_type" \
             task_id="$task_id" \
             role="$role" \
@@ -399,7 +404,7 @@ ${heuristic_ctx}"
     fi
 
     # oco-aek: provider selected for dispatch (circuit closed). Opt-in event.
-    declare -f octo_event_emit >/dev/null 2>&1 && octo_event_emit "provider.selected" provider="$provider_prefix" agent_type="$agent_type" phase="${phase:-unknown}" || true
+    declare -f octo_event_emit >/dev/null 2>&1 && octo_event_emit "provider.selected" provider="$provider_prefix" provider_label_kind="legacy-alias" executor_alias="$agent_type" configured_adapter="unknown" runtime_adapter="unknown" configured_model="$(get_agent_model "$agent_type" "${phase:-}" "${role:-}" 2>/dev/null || echo unresolved)" runtime_provider="unknown" runtime_model="unknown" agent_type="$agent_type" role="${role:-none}" phase="${phase:-unknown}" || true
 
     local cmd
     if ! cmd=$(get_agent_command "$agent_type" "${phase:-}" "${role:-}"); then
@@ -858,6 +863,8 @@ ${heuristic_ctx}"
                 cat "$temp_errors" >> "$result_file"
                 echo '```' >> "$result_file"
             fi
+
+            octo_append_runtime_identity "$result_file" "$agent_type" "${model:-unresolved}" "$raw_output"
 
             # Mark agent as completed (v7.16.0 Feature 2)
             local end_time_ms elapsed_ms

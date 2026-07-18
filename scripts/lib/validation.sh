@@ -209,6 +209,52 @@ EOF
 # SECURITY: CLI output wrapping for untrusted external provider output (v8.7.0)
 # Wraps codex/gemini output in trust markers; passes claude output unchanged
 # ═══════════════════════════════════════════════════════════════════════════════
+octo_extract_runtime_identity_value() {
+    local key="$1"
+    local output="$2"
+    local env_key
+    env_key="OCTOPUS_RUNTIME_$(printf '%s' "$key" | tr '[:lower:]-' '[:upper:]_')"
+
+    # Runtime identity is accepted only from the explicit executor metadata
+    # contract. Never infer identity from free-form model output.
+    local value=""
+    value=$(printf '%s\n' "$output" | sed -n -E \
+        -e "s/^${env_key}=([^[:space:]]+)$/\\1/p" \
+        -e "s/^<octopus-runtime-identity .*${key}=['\"]([^'\"]+)['\"].*>$/\\1/p" \
+        | head -1)
+    printf '%s\n' "${value:-unknown}"
+}
+
+octo_append_runtime_identity() {
+    local result_file="$1"
+    local executor_alias="$2"
+    local configured_model="$3"
+    local output_file="$4"
+    local output="" runtime_adapter runtime_provider runtime_model mismatch="unknown"
+
+    [[ -f "$output_file" ]] && output=$(cat "$output_file" 2>/dev/null || true)
+    runtime_adapter=$(octo_extract_runtime_identity_value adapter "$output")
+    runtime_provider=$(octo_extract_runtime_identity_value provider "$output")
+    runtime_model=$(octo_extract_runtime_identity_value model "$output")
+
+    if [[ "$configured_model" != "unresolved" && "$runtime_model" != "unknown" ]]; then
+        if [[ "$configured_model" == "$runtime_model" ]]; then mismatch="false"; else mismatch="true"; fi
+    fi
+
+    {
+        echo
+        echo "## Runtime Identity"
+        echo "- Role: executor"
+        echo "- Executor alias: ${executor_alias:-unknown}"
+        echo "- Configured adapter: unknown"
+        echo "- Configured model: ${configured_model:-unresolved}"
+        echo "- Runtime adapter: ${runtime_adapter}"
+        echo "- Runtime provider: ${runtime_provider}"
+        echo "- Runtime model: ${runtime_model}"
+        echo "- Routing mismatch: ${mismatch}"
+    } >> "$result_file"
+}
+
 wrap_cli_output() {
     local provider="$1"
     local output="$2"
@@ -220,8 +266,12 @@ wrap_cli_output() {
 
     case "$provider" in
         codex*|gemini*|agy*|antigravity|perplexity*|cursor-agent*)
+            local runtime_adapter runtime_provider runtime_model
+            runtime_adapter=$(octo_extract_runtime_identity_value adapter "$output")
+            runtime_provider=$(octo_extract_runtime_identity_value provider "$output")
+            runtime_model=$(octo_extract_runtime_identity_value model "$output")
             cat << EOF
-<external-cli-output provider="$provider" executor-alias="$provider" provider-label-kind="legacy-alias" trust="untrusted">
+<external-cli-output provider="$provider" executor-alias="$provider" provider-label-kind="legacy-alias" runtime-adapter="$runtime_adapter" runtime-provider="$runtime_provider" runtime-model="$runtime_model" trust="untrusted">
 $output
 </external-cli-output>
 EOF
