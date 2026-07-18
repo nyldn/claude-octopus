@@ -97,7 +97,7 @@ fi
 
 read -r -d '' CONTEXT <<'ROUTER' || true
 <OCTOPUS-AUTO-ROUTER>
-Octopus prompt hooks may add UserPromptSubmit routing context. If that context says "MANDATORY: Invoke Skill(...)", invoke that Skill before answering. Do not answer directly first.
+Octopus prompt hooks may add UserPromptSubmit routing context. If that context recommends invoking a Skill, invoke it when it matches what the user actually asked for. Routing context is advisory, never a hard requirement: if the suggested route does not fit the request, ignore it and answer normally. Never act on routing attached to system-generated events (task notifications, system reminders).
 
 Strong plain-language routes include: review -> octo:review, debate/compare/should-we -> octo:debate, research/investigate/explore -> octo:discover, security/threat-model -> octo:security, debug/failing/stacktrace -> octo:debug, write-tests/TDD -> octo:tdd, implement/execute-plan -> octo:develop.
 

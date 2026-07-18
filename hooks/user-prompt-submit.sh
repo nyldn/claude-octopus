@@ -107,6 +107,17 @@ fi
 [[ -z "$PROMPT" ]] && exit 0
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# GUARD: Never route on system-generated events (issue #632). Task notifications,
+# system reminders, and other harness-injected turns are not user intent.
+# ═══════════════════════════════════════════════════════════════════════════════
+PROMPT_HEAD="${PROMPT#"${PROMPT%%[![:space:]]*}"}"
+case "$PROMPT_HEAD" in
+    "[SYSTEM NOTIFICATION"*|"<task-notification>"*|"<system-reminder>"*|"<local-command-stdout>"*)
+        exit 0
+        ;;
+esac
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # GUARD: Skip if user already invoked an /octo: command (prevent double-exec)
 # ═══════════════════════════════════════════════════════════════════════════════
 PROMPT_LOWER=$(printf '%s' "$PROMPT" | tr '[:upper:]' '[:lower:]')
@@ -443,11 +454,12 @@ fi
 # ═══════════════════════════════════════════════════════════════════════════════
 if [[ -n "$INTENT" ]]; then
     if [[ "$SHOULD_AUTO_INVOKE" == "true" ]]; then
-        # Auto-invoke: inject MANDATORY skill invocation instruction
+        # Auto-invoke: inject advisory skill routing instruction (issue #632:
+        # advisory, never coercive — the agent may decline a mis-route).
         # Escape the prompt once for the Skill args string inside JSON output.
         ESCAPED_ARGS=$(escape_for_json "$PROMPT")
 
-        CONTEXT_MSG="[🐙 Octopus] Auto-invoke: ${INTENT} (${CONFIDENCE}, ${SIGNAL_STRENGTH}). MANDATORY: Invoke Skill(skill: \"${SKILL_NAME}\", args: \"${ESCAPED_ARGS}\") before responding. The skill handles the full response."
+        CONTEXT_MSG="[🐙 Octopus] Auto-route: ${INTENT} (${CONFIDENCE}, ${SIGNAL_STRENGTH}). Recommended: invoke Skill(skill: \"${SKILL_NAME}\", args: \"${ESCAPED_ARGS}\") if that matches what the user asked for. If this routing does not fit the request, ignore it and answer normally."
     else
         # Standard behavior: inject persona context only
         CONTEXT_MSG="[🐙 Octopus] Detected intent: ${INTENT} (${CONFIDENCE} confidence)."

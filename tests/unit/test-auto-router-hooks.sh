@@ -87,6 +87,38 @@ else
     test_fail "expected suggest-only context, got: ${output:-<empty>}"
 fi
 
+test_case "auto-invoke wording is advisory, never MANDATORY"
+output="$(run_prompt_hook "should we use Redis or Memcached for session state?")"
+if [[ "$output" == *"Auto-route: debate"* ]] && [[ "$output" != *"MANDATORY"* ]]; then
+    test_pass
+else
+    test_fail "expected advisory auto-route without MANDATORY, got: ${output:-<empty>}"
+fi
+
+test_case "system notification prompts are never routed"
+output="$(run_prompt_hook "[SYSTEM NOTIFICATION - NOT USER INPUT] should we use Redis or Memcached?")"
+if [[ -z "$output" ]]; then
+    test_pass
+else
+    test_fail "expected no routing for system notification, got: $output"
+fi
+
+test_case "task-notification prompts are never routed"
+output="$(run_prompt_hook "<task-notification>research OAuth options for the deploy task</task-notification>")"
+if [[ -z "$output" ]]; then
+    test_pass
+else
+    test_fail "expected no routing for task-notification, got: $output"
+fi
+
+test_case "system-reminder prompts are never routed"
+output="$(run_prompt_hook "<system-reminder>review this PR for regressions</system-reminder>")"
+if [[ -z "$output" ]]; then
+    test_pass
+else
+    test_fail "expected no routing for system-reminder, got: $output"
+fi
+
 test_case "off mode leaves prompt untouched"
 output="$(run_prompt_hook "review this PR for regressions" "off")"
 if [[ -z "$output" ]]; then
