@@ -29,38 +29,12 @@ fi
 #   OCTOPUS_CODING_AGENT
 #   <default passed by caller>
 octopus_agent_override() {
-    local phase="$1"
-    local role="$2"
-    local default_agent="$3"
-    local phase_key role_key env_name value
-
-    phase_key=$(printf '%s' "$phase" | tr '[:lower:]-' '[:upper:]_' | sed -E 's/[^A-Z0-9_]+/_/g; s/^_+//; s/_+$//')
-    role_key=$(printf '%s' "$role" | tr '[:lower:]-' '[:upper:]_' | sed -E 's/[^A-Z0-9_]+/_/g; s/^_+//; s/_+$//')
-
-    if [[ -n "$phase_key" && -n "$role_key" ]]; then
-        env_name="OCTOPUS_${phase_key}_${role_key}_AGENT"
-        value="${!env_name:-}"
-        [[ -n "$value" ]] && { echo "$value"; return 0; }
-    fi
-
-    if [[ -n "$phase_key" ]]; then
-        env_name="OCTOPUS_${phase_key}_AGENT"
-        value="${!env_name:-}"
-        [[ -n "$value" ]] && { echo "$value"; return 0; }
-    fi
-
-    if [[ -n "$role_key" ]]; then
-        env_name="OCTOPUS_${role_key}_AGENT"
-        value="${!env_name:-}"
-        [[ -n "$value" ]] && { echo "$value"; return 0; }
-    fi
-
-    if declare -f octopus_profile_provider >/dev/null 2>&1; then
-        value="$(octopus_profile_provider "$phase" "$role" "$default_agent" 2>/dev/null || true)"
-        [[ -n "$value" ]] && { echo "$value"; return 0; }
-    fi
-    echo "$default_agent"
+    local phase="$1" operation="$2" default_agent="$3"
+    local explicit
+    explicit="$(octopus_explicit_provider_override "$phase" "$operation" 2>/dev/null || true)"
+    printf '%s\n' "${explicit:-$default_agent}"
 }
+
 
 # v9.19.0: Safe default for --bare flag (set by providers.sh, but guard for standalone sourcing)
 _BARE_OPT="${_BARE_OPT:-}"
@@ -129,6 +103,25 @@ log_role_assignment() {
     local has_persona="no"
     [[ -n "$(get_persona_instruction "$role" 2>/dev/null)" ]] && has_persona="yes"
     log DEBUG "Using ${role} role (${agent}, persona: ${has_persona}) for: ${purpose}"
+}
+
+
+# Resolve a phase/operation override on top of the configured execution-profile
+# role. Explicit env overrides keep their existing precedence; routing.roles is
+# used before the historical caller default.
+octopus_role_profile_agent_override() {
+    local phase="$1"
+    local override_role="$2"
+    local execution_role="$3"
+    local historical_default="$4"
+    local profile_default="$historical_default"
+
+    if declare -f octopus_profile_provider >/dev/null 2>&1; then
+        profile_default=$(octopus_profile_provider "$phase" "$execution_role" "$historical_default" 2>/dev/null || printf '%s\n' "$historical_default")
+        profile_default="${profile_default:-$historical_default}"
+    fi
+
+    octopus_agent_override "$phase" "$override_role" "$profile_default"
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
