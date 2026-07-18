@@ -17,10 +17,6 @@ description: "Gate on completion claims — use before declaring any work comple
 NO COMPLETION CLAIMS WITHOUT FRESH VERIFICATION EVIDENCE
 </HARD-GATE>
 
-```
-NO COMPLETION CLAIMS WITHOUT FRESH VERIFICATION EVIDENCE
-```
-
 If you haven't run the verification command in this turn, you cannot claim it passes.
 
 ## The Gate

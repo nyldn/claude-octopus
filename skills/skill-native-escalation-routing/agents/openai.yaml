@@ -1,3 +1,3 @@
 interface:
   display_name: "Native Escalation Routing"
-  short_description: "Route ordinary init, review, and security requests to Claude-native capabilities first; escalate to Octopus only when multi-LLM diversity adds value"
+  short_description: "Routing decision for init, review, and security requests — use when choosing between Claude-native handling and multi-LLM orchestration"

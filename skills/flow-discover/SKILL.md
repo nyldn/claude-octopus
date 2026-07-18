@@ -783,24 +783,34 @@ See **skill-security-framing.md** for complete documentation on:
 ## Post-Discovery: State Update
 
 After discovery completes:
-1. Update `.octo/STATE.md`:
+1. Verify the synthesis file exists and is non-empty.
+2. Present its findings to the user.
+3. Populate `.octo/PROJECT.md` with the research findings.
+4. Only then update `.octo/STATE.md`:
    - status: "complete" (for this phase)
    - Add history entry: "Discover phase completed"
-2. Populate `.octo/PROJECT.md` with research findings (vision, requirements)
 
 ```bash
-# Update state after Discovery completion
+# The phase remains incomplete unless there is a synthesis to present.
+if [[ ! -s "${SYNTHESIS_FILE:-}" ]]; then
+  echo "Discover incomplete: synthesis file is missing or empty." >&2
+  exit 1
+fi
+
+# Present findings before recording the phase as complete.
+echo "Discovery findings:"
+sed -n '1,100p' "$SYNTHESIS_FILE"
+
+# Populate PROJECT.md with research findings
+echo "📝 Updating .octo/PROJECT.md with discovery findings..."
+"${HOME}/.claude-octopus/plugin/scripts/octo-state.sh" update_project \
+  --section "vision" \
+  --content "$(head -100 "$SYNTHESIS_FILE" | grep -A 10 'Key.*Findings\|Summary' || echo 'See synthesis file')"
+
+# Mark complete only after the synthesis was presented and persisted.
 "${HOME}/.claude-octopus/plugin/scripts/octo-state.sh" update_state \
   --status "complete" \
   --history "Discover phase completed"
-
-# Populate PROJECT.md with research findings
-if [[ -f "$SYNTHESIS_FILE" ]]; then
-  echo "📝 Updating .octo/PROJECT.md with discovery findings..."
-  "${HOME}/.claude-octopus/plugin/scripts/octo-state.sh" update_project \
-    --section "vision" \
-    --content "$(head -100 "$SYNTHESIS_FILE" | grep -A 10 'Key.*Findings\|Summary' || echo 'See synthesis file')"
-fi
 ```
 
 

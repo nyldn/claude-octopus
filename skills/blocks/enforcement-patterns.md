@@ -9,7 +9,7 @@ New and revised skills should prefer them over adding more capitalized adjective
 
 One non-negotiable line per discipline, stated in a code block, repeated nowhere else:
 
-```
+```text
 NO COMPLETION CLAIMS WITHOUT FRESH VERIFICATION EVIDENCE
 ```
 
@@ -35,7 +35,7 @@ tables grow from observed failures, not speculation.
 A process skill ends by naming its successor, not by offering a menu. "Offer next steps"
 invites the model to stop; a terminal state hands off:
 
-```
+```text
 ## Terminal State
 This phase is complete ONLY when <artifact> exists and <check> passes.
 Then invoke `<next-skill>`. Do not begin <later-phase work> from here.

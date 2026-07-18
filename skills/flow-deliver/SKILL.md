@@ -816,14 +816,16 @@ The doc-sync skill will:
 
 ## Post-Delivery: Route to Ship
 
-After delivery validation and doc-sync complete:
-1. Update `.octo/STATE.md`:
-   - status: "complete"
-   - Add history entry: "All phases complete, ready to ship"
-2. Suggest: "Project ready! Run `/octo:ship` to finalize and archive."
+After delivery validation and doc-sync complete, route according to the user's explicit
+request:
+
+- **Ship requested:** update `.octo/STATE.md` and invoke `skill-ship`.
+- **Branch wrap-up requested:** invoke `skill-finish-branch`.
+- **Review only:** deliver the synthesized findings and stop. Do not update the project
+  to a ready-to-ship state or display a shipping instruction.
 
 ```bash
-# Update state after Delivery completion
+# Run this block only when the user explicitly requested shipping.
 "${HOME}/.claude-octopus/plugin/scripts/octo-state.sh" update_state \
   --status "complete" \
   --history "All phases complete, ready to ship"

@@ -1,3 +1,3 @@
 interface:
   display_name: "Staged Review"
-  short_description: "Review code in two passes: spec compliance then quality — use for thorough PR or feature reviews"
+  short_description: "Thorough PR or feature review — use when a change must be checked against both its spec and code quality standards"

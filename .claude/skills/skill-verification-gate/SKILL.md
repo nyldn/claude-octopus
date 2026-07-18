@@ -1,7 +1,7 @@
 ---
 name: skill-verification-gate
 effort: low
-description: "Evidence before claims — run verification commands before declaring work complete, fixed, or passing"
+description: "Gate on completion claims — use before declaring any work complete, fixed, passing, or done"
 trigger: |
   AUTOMATICALLY ACTIVATE when:
   - About to claim work is complete, fixed, or passing
@@ -20,10 +20,6 @@ paths:
 <HARD-GATE>
 NO COMPLETION CLAIMS WITHOUT FRESH VERIFICATION EVIDENCE
 </HARD-GATE>
-
-```
-NO COMPLETION CLAIMS WITHOUT FRESH VERIFICATION EVIDENCE
-```
 
 If you haven't run the verification command in this turn, you cannot claim it passes.
 

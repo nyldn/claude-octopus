@@ -1,6 +1,6 @@
 ---
 name: skill-verify
-description: "Verify a change end-to-end by exercising it — use before committing or shipping nontrivial changes"
+description: "Use when a nontrivial change needs end-to-end verification before committing or shipping"
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
