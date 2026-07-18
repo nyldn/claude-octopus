@@ -1,6 +1,6 @@
 ---
 name: skill-native-escalation-routing
-description: "Route ordinary init, review, and security requests to Claude-native capabilities first; escalate to Octopus only when multi-LLM diversity adds value"
+description: "Routing decision for init, review, and security requests — use when choosing between Claude-native handling and multi-LLM orchestration"
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.

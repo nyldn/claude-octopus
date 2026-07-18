@@ -804,4 +804,11 @@ fi
 ```
 
 
+## Terminal State
+
+The Discover phase is complete ONLY when the synthesis file exists and its findings are
+presented to the user. Then either invoke `flow-define` (embrace workflow, or the user
+wants requirements next) or stop with research delivered. Do NOT begin scoping,
+designing, or implementation from here — that work belongs to later phases.
+
 **Ready to research!** This skill activates automatically when users request research or exploration.

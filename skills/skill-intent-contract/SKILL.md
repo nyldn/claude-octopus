@@ -1,6 +1,6 @@
 ---
 name: skill-intent-contract
-description: "Lock in user goals upfront and validate outputs against them — use to prevent scope drift"
+description: "Guard against scope drift — use at the start of complex or ambiguous tasks before any implementation"
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
