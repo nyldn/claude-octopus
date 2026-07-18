@@ -1606,7 +1606,7 @@ ${normal_findings}
     local correction_model
     correction_model=$(get_agent_model "$correction_agent" "tangle" "implementer" 2>/dev/null || true)
     [[ -n "$correction_model" ]] || correction_model="unresolved"
-    log INFO "Step 5: Applying contextual review corrections (round=${round_num}, role=implementer, strategy=${correction_strategy}, stall_window=${stall_window}s, executor_alias=${correction_agent}, configured_adapter=unknown, configured_model=${correction_model}, runtime_adapter=unknown, runtime_provider=unknown, runtime_model=unknown)..."
+    log INFO "Step 5: Applying contextual review corrections (round=${round_num}, role=implementer, strategy=${correction_strategy}, stall_window=${stall_window}s, executor_alias=${correction_agent}, configured_provider=$(octo_provider_identity_from_agent_type "${correction_agent}"), configured_model=${correction_model}, runtime_provider=unknown, runtime_model=unknown)..."
     (
         OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="tangle-correction-stall-watchdog" run_agent_sync "$correction_agent" "$correction_prompt" 0 "implementer" "tangle" > "$correction_file" 2>&1
         echo "$?" > "$rc_file"

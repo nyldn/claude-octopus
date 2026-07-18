@@ -488,7 +488,7 @@ $(<"$raw_concat")"
             # #498: emit a synthesis lifecycle event on the success path, attributing
             # the provider that actually produced the artifact ($synth_used, which
             # reflects the claude-sonnet fallback above).
-            declare -f octo_event_emit >/dev/null 2>&1 && octo_event_emit "synthesis" phase="parallel" provider="$synth_used" provider_label_kind="legacy-alias" executor_alias="$synth_used" configured_adapter="unknown" runtime_adapter="unknown" configured_model="$(get_agent_model "$synth_used" "parallel" "synthesizer" 2>/dev/null || echo unresolved)" runtime_provider="unknown" runtime_model="unknown" council_role="synthesizer" synthesis_strategy="parallel" count="$result_count" || true
+            declare -f octo_event_emit >/dev/null 2>&1 && octo_event_emit "synthesis" phase="parallel" provider="$synth_used" provider_label_kind="legacy-alias" executor_alias="$synth_used" configured_provider="$(octo_provider_identity_from_agent_type "${synth_used:-unknown}")" configured_model="$(get_agent_model "$synth_used" "parallel" "synthesizer" 2>/dev/null || echo unresolved)" runtime_provider="unknown" runtime_model="unknown" council_role="synthesizer" synthesis_strategy="parallel" count="$result_count" || true
             echo ""
             echo -e "${GREEN}✓${NC} Results synthesized to: $aggregate_file"
             guard_output "$(<"$aggregate_file")" "aggregate-synthesis"
