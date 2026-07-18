@@ -1,5 +1,5 @@
 {
-  "$comment": "Claude Octopus routine manifest (v9.52.0). Saved automation configs for Claude Code routines: schedule triggers map to cron-style saved automations, github triggers map to repository event automations. All routines ship disabled; enable per-project after reviewing provider cost implications (external CLI seats bill to the user's API keys).",
+  "$comment": "Claude Octopus routine manifest (v9.53.0). Saved automation configs for Claude Code routines: schedule triggers map to cron-style saved automations, github triggers map to repository event automations. All routines ship disabled; enable per-project after reviewing provider cost implications (external CLI seats bill to the user's API keys).",
   "schemaVersion": 1,
   "routines": [
     {
@@ -13,7 +13,11 @@
       },
       "command": "/octo:security",
       "args": "--scope full",
-      "providers": ["claude", "codex", "agy"],
+      "providers": [
+        "claude",
+        "codex",
+        "agy"
+      ],
       "costNote": "Dispatches codex + agy seats; expect $0.10-0.60 per run"
     },
     {
@@ -27,7 +31,9 @@
       },
       "command": "/octo:setup",
       "args": "--check-only",
-      "providers": ["claude"],
+      "providers": [
+        "claude"
+      ],
       "costNote": "Detection only; no external provider dispatch"
     },
     {
@@ -41,7 +47,9 @@
       },
       "command": "/octo:usage",
       "args": "--format json",
-      "providers": ["claude"],
+      "providers": [
+        "claude"
+      ],
       "costNote": "Reads local RESULTS_DIR artifacts; no provider dispatch"
     },
     {
@@ -51,11 +59,18 @@
       "trigger": {
         "type": "github",
         "event": "pull_request",
-        "actions": ["opened", "synchronize"]
+        "actions": [
+          "opened",
+          "synchronize"
+        ]
       },
       "command": "/octo:review",
       "args": "--staged",
-      "providers": ["claude", "codex", "agy"],
+      "providers": [
+        "claude",
+        "codex",
+        "agy"
+      ],
       "costNote": "Dispatches codex + agy seats per PR update; gate on repo size"
     }
   ]

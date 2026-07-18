@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "9.52.0",
-  "description": "v9.52.0 - Reliability wave: tangle contextual review correction loop with hard round ceiling, progress-supervised review rounds (per-agent stall watch, descendant-tree kills), council diversity and agy pin fixes, marketplace generator source-of-truth fix, provider troubleshooting runbook and cost-expectations docs. Run /octo:setup.",
+  "version": "9.53.0",
+  "description": "v9.53.0 \u2014 Reliability wave: tangle contextual review correction loop with hard round ceiling, progress-supervised review rounds (per-agent stall watch, descendant-tree kills), council diversity and agy pin fixes, marketplace generator source-of-truth fix, provider troubleshooting runbook and cost-expectations docs. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"

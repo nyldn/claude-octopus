@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+## [9.53.0] - 2026-07-18
+
+
 ### Added
 
 - **Role-based execution profiles** (#616, community contribution by @Jhacarreiro; maintainer landing): unified resolver (`scripts/lib/execution-profile.sh`) for provider, model, reasoning level, and reasoning policy by role or phase. Backward compatible with `provider:model` string routes; object routes let one provider use different models per role. Reasoning translates to native controls (Codex `-c model_reasoning_effort`, Claude `--effort`, OpenAI-compatible `reasoning_effort` with `strict`/`best_effort` policy and unsupported-field retry). Maintainer fix on landing: `xhigh`/`max` profile levels clamp to `high` for OpenAI-compatible providers, whose reasoning domain and command validator only accept `low|medium|high`.
