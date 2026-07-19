@@ -114,6 +114,8 @@ set +e
     cd "$project_dir"
     HOME="$fake_home" \
     PATH="$fake_bin:$PATH" \
+    CI= \
+    GITHUB_ACTIONS= \
     CODEX_SANDBOX=workspace-write \
     OCTOPUS_SKIP_PROVIDER_PROBES=true \
     OCTOPUS_DEBUG=false \
