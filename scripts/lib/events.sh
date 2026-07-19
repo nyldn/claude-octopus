@@ -130,10 +130,6 @@ octo_event_emit() {
     local dir
     dir="$(dirname "$log_file")"
     mkdir -p "$dir" 2>/dev/null || return 1
-    # A directory that already existed read-only makes `mkdir -p` a no-op
-    # success; without this check, every emit would burn ~1s in
-    # _octo_event_lock's mkdir-retry spin before falling back lockless.
-    [[ -w "$dir" ]] || return 1
 
     local record
     printf -v record '{"timestamp":%s,"event":%s,"source":%s,"pid":%s,"session_id":%s,"attributes":{%s}}\n' \
@@ -158,7 +154,15 @@ octo_event_emit() {
     # left to right and reports a failure using whatever stderr is current
     # at that point, so `>> file 2>/dev/null` still leaks when `>>` itself
     # is what fails (e.g. log path is a directory, or ENOTDIR/EPERM).
-    if _octo_event_lock "$log_file"; then
+    #
+    # Only attempt the lock when the directory itself is writable: a
+    # directory that exists but rejects writes (e.g. locked down after the
+    # log file was created) would just make _octo_event_lock spin ~1s on a
+    # doomed `mkdir` before failing. This check must gate *locking*, not the
+    # append — appending to an existing file (e.g. /dev/null, or a file
+    # created before its directory went read-only) only requires write
+    # permission on the file itself, never on its containing directory.
+    if [[ -w "$dir" ]] && _octo_event_lock "$log_file"; then
         { printf '%s' "$record" 2>/dev/null >> "$log_file" && _octo_event_trim "$log_file"; } || {
             _octo_event_unlock "$log_file"
             return 1

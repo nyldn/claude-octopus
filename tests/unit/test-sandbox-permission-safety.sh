@@ -58,6 +58,20 @@ test_event_emit_enotdir_mkdir_no_stderr_leak() {
     else test_fail "expected no stderr, got: $err"; fi
 }
 
+test_event_emit_succeeds_when_only_directory_is_unwritable() {
+    test_case "octo_event_emit does not gate append on directory writability (dir check must only skip locking)"
+    # /dev is not writable by a non-root user, but /dev/null itself always is —
+    # a directory-writability check must never reject appending to an
+    # already-writable file just because its containing directory isn't.
+    export OCTO_EVENT_LOG="/dev/null"
+
+    local rc=0
+    octo_event_emit "octo.test" k=v >/dev/null 2>&1 || rc=$?
+
+    if [[ $rc -eq 0 ]]; then test_pass
+    else test_fail "expected success appending to /dev/null, got rc=$rc"; fi
+}
+
 test_event_emit_returns_nonzero_but_does_not_crash() {
     test_case "octo_event_emit returns non-zero on a blocked log path without killing the caller"
     local dir="$FIXTURE/events-return-check"
@@ -210,6 +224,7 @@ test_session_end_hook_writes_nothing_outside_home_when_blocked() {
 
 test_event_emit_isdir_append_no_stderr_leak
 test_event_emit_enotdir_mkdir_no_stderr_leak
+test_event_emit_succeeds_when_only_directory_is_unwritable
 test_event_emit_returns_nonzero_but_does_not_crash
 test_workspace_snippet_present
 test_workspace_falls_back_when_plugin_data_blocked
