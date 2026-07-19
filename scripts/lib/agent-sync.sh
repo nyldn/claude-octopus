@@ -209,6 +209,14 @@ ${provider_ctx}"
         fi
     fi
 
+    if [[ "${OCTOPUS_PERSISTENCE_AVAILABLE:-true}" == "false" ]]; then
+        local degraded_cmd
+        degraded_cmd=$(get_agent_command "$agent_type" "$phase" "$role") || return 1
+        octopus_run_provider_without_persistence \
+            "$agent_type" "$enhanced_prompt" "$timeout_secs" "$degraded_cmd"
+        return $?
+    fi
+
     record_agent_call "$agent_type" "$model" "$enhanced_prompt" "${phase:-unknown}" "${role:-none}" "0"
 
     # v7.25.0: Record metrics start

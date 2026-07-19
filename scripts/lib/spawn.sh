@@ -451,6 +451,14 @@ ${heuristic_ctx}"
         return 1
     fi
 
+    # A restricted host may deny the selected state root. Preserve the provider
+    # result by degrading this background/persistent path to synchronous stdout.
+    if [[ "${OCTOPUS_PERSISTENCE_AVAILABLE:-true}" == "false" ]]; then
+        octopus_run_provider_without_persistence \
+            "$agent_type" "$enhanced_prompt" "${TIMEOUT:-0}" "$cmd"
+        return $?
+    fi
+
     local log_file="${LOGS_DIR}/${agent_type}-${task_id}.log"
     local result_file="${RESULTS_DIR}/${agent_type}-${task_id}.md"
 
