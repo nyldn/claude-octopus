@@ -61,8 +61,9 @@ if [[ -f "$SESSION_FILE" ]] && command -v jq &>/dev/null; then
         done
     fi
 
-    if [[ -n "$TARGET_MEM_DIR" && -n "$AUTONOMY" && "$AUTONOMY" != "null" ]]; then
-        mkdir -p "$TARGET_MEM_DIR"
+    # Guard mkdir + write: a sandboxed/read-only HOME (issue #648) must degrade
+    # this to a no-op, not abort the hook under `set -e`.
+    if [[ -n "$TARGET_MEM_DIR" && -n "$AUTONOMY" && "$AUTONOMY" != "null" ]] && mkdir -p "$TARGET_MEM_DIR" 2>/dev/null; then
         OCTOPUS_MEM="${TARGET_MEM_DIR}/octopus-preferences.md"
         {
             echo "# Octopus User Preferences"
@@ -70,7 +71,7 @@ if [[ -f "$SESSION_FILE" ]] && command -v jq &>/dev/null; then
             echo "- Preferred autonomy: ${AUTONOMY}"
             [[ -n "$PROVIDERS" && "$PROVIDERS" != "null" ]] && echo "- Provider config: ${PROVIDERS}"
             echo "- Last updated: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-        } > "$OCTOPUS_MEM"
+        } 2>/dev/null > "$OCTOPUS_MEM" || true
     fi
 fi
 
@@ -88,7 +89,8 @@ if [[ -n "${TARGET_MEM_DIR:-}" ]] && [[ -f "$SESSION_FILE" ]] && command -v jq &
 
     # Only write if there's something meaningful to record
     if [[ "$AGENT_CALLS" -gt 0 || "$ERRORS" -gt 0 ]]; then
-        # Create header if file doesn't exist
+        # Create header if file doesn't exist. Guarded (issue #648): a
+        # sandboxed/read-only HOME must skip this entry, not abort the hook.
         if [[ ! -f "$LEARNINGS_FILE" ]]; then
             {
                 echo "# Octopus Session Learnings"
@@ -96,22 +98,25 @@ if [[ -n "${TARGET_MEM_DIR:-}" ]] && [[ -f "$SESSION_FILE" ]] && command -v jq &
                 echo "Auto-captured meta-reflection across sessions. Most recent first."
                 echo "Prune entries older than 30 days to keep this file lean."
                 echo ""
-            } > "$LEARNINGS_FILE"
+            } 2>/dev/null > "$LEARNINGS_FILE" || true
         fi
 
-        # Prepend new entry (most recent first, cap at 50 entries / ~200 lines)
-        TEMP_LEARNINGS=$(mktemp)
-        {
-            head -5 "$LEARNINGS_FILE"  # Keep header
-            echo "## $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-            echo "- Workflow: ${WORKFLOW}, Phase reached: ${PHASE}"
-            echo "- Agent calls: ${AGENT_CALLS}, Errors: ${ERRORS}, Debate: ${DEBATE_USED}"
-            [[ "$ERRORS" -gt 0 ]] && echo "- Note: Session had errors — review metrics for details"
-            echo ""
-            # Keep existing entries (skip header)
-            tail -n +6 "$LEARNINGS_FILE" | head -195
-        } > "$TEMP_LEARNINGS"
-        mv "$TEMP_LEARNINGS" "$LEARNINGS_FILE"
+        # Prepend new entry (most recent first, cap at 50 entries / ~200 lines).
+        # Only proceed if the header write above actually landed.
+        if [[ -f "$LEARNINGS_FILE" ]]; then
+            TEMP_LEARNINGS=$(mktemp)
+            {
+                head -5 "$LEARNINGS_FILE"  # Keep header
+                echo "## $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+                echo "- Workflow: ${WORKFLOW}, Phase reached: ${PHASE}"
+                echo "- Agent calls: ${AGENT_CALLS}, Errors: ${ERRORS}, Debate: ${DEBATE_USED}"
+                [[ "$ERRORS" -gt 0 ]] && echo "- Note: Session had errors — review metrics for details"
+                echo ""
+                # Keep existing entries (skip header)
+                tail -n +6 "$LEARNINGS_FILE" | head -195
+            } > "$TEMP_LEARNINGS"
+            mv "$TEMP_LEARNINGS" "$LEARNINGS_FILE" 2>/dev/null || rm -f "$TEMP_LEARNINGS"
+        fi
     fi
 fi
 
@@ -121,7 +126,10 @@ fi
 # to stay within budget. These are consumed at session start for relevance matching.
 LEARNINGS_DIR="${HOME}/.claude-octopus/learnings"
 if [[ -f "$SESSION_FILE" ]] && command -v jq &>/dev/null; then
-    mkdir -p "$LEARNINGS_DIR"
+    # Guarded (issue #648): on a sandboxed/read-only HOME this mkdir fails and
+    # LEARNINGS_DIR stays absent; the find calls below fall back to 0 instead
+    # of tripping `set -e -o pipefail` on a "no such directory" pipeline.
+    mkdir -p "$LEARNINGS_DIR" 2>/dev/null || true
 
     # Extract session signals for cross-task learning
     SESSION_WORKFLOW=$(jq -r '.workflow // "none"' "$SESSION_FILE" 2>/dev/null)
@@ -167,7 +175,7 @@ if [[ -f "$SESSION_FILE" ]] && command -v jq &>/dev/null; then
         LEARNING_FILE="${LEARNINGS_DIR}/${DATE_STAMP}-${LEARNING_SLUG}-${TIME_STAMP}.json"
 
         # Cap at 5 learnings per session — count files written today
-        TODAY_COUNT=$(find "$LEARNINGS_DIR" -name "${DATE_STAMP}-*" -maxdepth 1 2>/dev/null | wc -l | tr -d ' ')
+        TODAY_COUNT=$(find "$LEARNINGS_DIR" -name "${DATE_STAMP}-*" -maxdepth 1 2>/dev/null | wc -l | tr -d ' ') || TODAY_COUNT=0
         if [[ "$TODAY_COUNT" -lt 5 ]]; then
             jq -n \
                 --arg date "$DATE_STAMP" \
@@ -176,11 +184,11 @@ if [[ -f "$SESSION_FILE" ]] && command -v jq &>/dev/null; then
                 --arg outcome "$OUTCOME" \
                 --arg lesson "$LESSON" \
                 '{date: $date, task_type: $task_type, approach: $approach, outcome: $outcome, lesson: $lesson}' \
-                > "$LEARNING_FILE" 2>/dev/null || true
+                2>/dev/null > "$LEARNING_FILE" || true
         fi
 
         # Prune old learnings — keep at most 50 files, remove oldest beyond that
-        TOTAL_LEARNINGS=$(find "$LEARNINGS_DIR" -name "*.json" -maxdepth 1 2>/dev/null | wc -l | tr -d ' ')
+        TOTAL_LEARNINGS=$(find "$LEARNINGS_DIR" -name "*.json" -maxdepth 1 2>/dev/null | wc -l | tr -d ' ') || TOTAL_LEARNINGS=0
         if [[ "$TOTAL_LEARNINGS" -gt 50 ]]; then
             # Remove oldest files beyond the cap
             find "$LEARNINGS_DIR" -name "*.json" -maxdepth 1 -print0 2>/dev/null \

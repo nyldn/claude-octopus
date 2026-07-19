@@ -209,6 +209,20 @@ else
     WORKSPACE_DIR="${HOME}/.claude-octopus"
 fi
 
+# Confirm the selected workspace root is actually writable before committing to
+# it. A process nested under a restricted sandbox (e.g. Claude running as a
+# child of a Codex `workspace-write` sandbox) can inherit a CLAUDE_PLUGIN_DATA
+# or $HOME path that exists but rejects writes; fall back to a run-scoped temp
+# directory so persistence stays best-effort instead of failing the run.
+# See issue #648.
+if ! mkdir -p "$WORKSPACE_DIR" 2>/dev/null || [[ ! -w "$WORKSPACE_DIR" ]]; then
+    fallback_workspace_dir="${TMPDIR:-/tmp}/claude-octopus-$$"
+    if mkdir -p "$fallback_workspace_dir" 2>/dev/null && [[ -w "$fallback_workspace_dir" ]]; then
+        WORKSPACE_DIR="$fallback_workspace_dir"
+    fi
+    unset fallback_workspace_dir
+fi
+
 # Re-derive SESSION_FILE now that WORKSPACE_DIR is known
 # (quality.sh sets it at source-time before WORKSPACE_DIR is defined)
 SESSION_FILE="${WORKSPACE_DIR}/session.json"

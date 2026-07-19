@@ -144,14 +144,24 @@ octo_event_emit() {
     # its just-appended line clobbered by another emit's trim (mv). If the lock
     # can't be acquired (~1s spin), fall back to a lockless write — same
     # best-effort behavior as before, and it never blocks the caller.
+    #
+    # Both appends redirect stderr: an unwritable log path (e.g. a sandboxed
+    # host with a read-only HOME, issue #648) makes bash itself print
+    # "line N: file: Operation not permitted" for the failed redirection
+    # before our own `|| return 1` ever runs. That message is telemetry
+    # plumbing, not caller-visible output, so it must never leak to stderr.
+    # `2>/dev/null` MUST be listed before `>>`: bash applies redirections
+    # left to right and reports a failure using whatever stderr is current
+    # at that point, so `>> file 2>/dev/null` still leaks when `>>` itself
+    # is what fails (e.g. log path is a directory, or ENOTDIR/EPERM).
     if _octo_event_lock "$log_file"; then
-        { printf '%s' "$record" >> "$log_file" && _octo_event_trim "$log_file"; } || {
+        { printf '%s' "$record" 2>/dev/null >> "$log_file" && _octo_event_trim "$log_file"; } || {
             _octo_event_unlock "$log_file"
             return 1
         }
         _octo_event_unlock "$log_file"
     else
-        printf '%s' "$record" >> "$log_file" || return 1
+        printf '%s' "$record" 2>/dev/null >> "$log_file" || return 1
         _octo_event_trim "$log_file"
     fi
 }
