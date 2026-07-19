@@ -130,6 +130,10 @@ octo_event_emit() {
     local dir
     dir="$(dirname "$log_file")"
     mkdir -p "$dir" 2>/dev/null || return 1
+    # A directory that already existed read-only makes `mkdir -p` a no-op
+    # success; without this check, every emit would burn ~1s in
+    # _octo_event_lock's mkdir-retry spin before falling back lockless.
+    [[ -w "$dir" ]] || return 1
 
     local record
     printf -v record '{"timestamp":%s,"event":%s,"source":%s,"pid":%s,"session_id":%s,"attributes":{%s}}\n' \

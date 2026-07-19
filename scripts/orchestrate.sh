@@ -214,10 +214,11 @@ fi
 # child of a Codex `workspace-write` sandbox) can inherit a CLAUDE_PLUGIN_DATA
 # or $HOME path that exists but rejects writes; fall back to a run-scoped temp
 # directory so persistence stays best-effort instead of failing the run.
-# See issue #648.
+# See issue #648. Uses mktemp -d (not a `$$`-named path) so a shared /tmp
+# can't be pre-seeded with an attacker-owned, wide-permission directory at a
+# predictable name (CWE-379) — mktemp creates it atomically with 0700 perms.
 if ! mkdir -p "$WORKSPACE_DIR" 2>/dev/null || [[ ! -w "$WORKSPACE_DIR" ]]; then
-    fallback_workspace_dir="${TMPDIR:-/tmp}/claude-octopus-$$"
-    if mkdir -p "$fallback_workspace_dir" 2>/dev/null && [[ -w "$fallback_workspace_dir" ]]; then
+    if fallback_workspace_dir=$(mktemp -d "${TMPDIR:-/tmp}/claude-octopus.XXXXXX" 2>/dev/null); then
         WORKSPACE_DIR="$fallback_workspace_dir"
     fi
     unset fallback_workspace_dir
