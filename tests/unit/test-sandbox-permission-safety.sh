@@ -24,8 +24,8 @@ FIXTURE="$(mktemp -d)"
 # Safety net: if a lockdown test fails before its own unlock runs, a leftover
 # chattr +i / chflags uchg directory would make plain `rm -rf` fail silently.
 trap '
-    command -v chattr >/dev/null 2>&1 && chattr -iR "$FIXTURE" 2>/dev/null
-    command -v chflags >/dev/null 2>&1 && chflags -R nouchg "$FIXTURE" 2>/dev/null
+    { command -v chattr >/dev/null 2>&1 && chattr -iR "$FIXTURE" 2>/dev/null; } || true
+    { command -v chflags >/dev/null 2>&1 && chflags -R nouchg "$FIXTURE" 2>/dev/null; } || true
     rm -rf "$FIXTURE"
 ' EXIT
 
@@ -71,11 +71,11 @@ test_event_emit_succeeds_when_only_directory_is_unwritable() {
     # already-writable file just because its containing directory isn't.
     export OCTO_EVENT_LOG="/dev/null"
 
-    local rc=0
-    octo_event_emit "octo.test" k=v >/dev/null 2>&1 || rc=$?
+    local err rc=0
+    err="$(octo_event_emit "octo.test" k=v 2>&1 >/dev/null)" || rc=$?
 
-    if [[ $rc -eq 0 ]]; then test_pass
-    else test_fail "expected success appending to /dev/null, got rc=$rc"; fi
+    if [[ $rc -eq 0 && -z "$err" ]]; then test_pass
+    else test_fail "expected rc=0 and no stderr appending to /dev/null, got rc=$rc stderr='$err'"; fi
 }
 
 test_event_trim_skipped_without_leak_when_dir_locked_down() {
@@ -136,8 +136,13 @@ test_event_trim_skipped_without_leak_when_dir_locked_down() {
     unlock_dir
     unset OCTO_EVENT_MAX_LINES
 
-    if [[ -z "$err" ]]; then test_pass
-    else test_fail "expected no stderr from skipped trim, got: $err"; fi
+    # Both matter: stderr catches a leaked redirection error from trim itself;
+    # rc catches the append being reported as failed just because the
+    # (correctly) skipped trim's own writability check was false. A `[[ -w ]]
+    # && trim` guard passes the stderr half of this test while still failing
+    # the rc half, so check both or the regression can slip back in silently.
+    if [[ -z "$err" && $rc -eq 0 ]]; then test_pass
+    else test_fail "expected rc=0 and no stderr from skipped trim, got rc=$rc stderr='$err'"; fi
 }
 
 test_event_emit_returns_nonzero_but_does_not_crash() {

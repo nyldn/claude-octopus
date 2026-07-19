@@ -174,6 +174,12 @@ octo_event_emit() {
         # skip it here when that directory isn't writable (an existing
         # writable log file in an otherwise locked-down directory) so its
         # unguarded `> "$tmp"` can't leak a bash redirection error to stderr.
-        [[ -w "$dir" ]] && _octo_event_trim "$log_file"
+        # Must be `if`, not `[[ -w "$dir" ]] && ...`: the append above already
+        # succeeded, but `&&` would make the whole statement — and thus this
+        # function's return value — inherit the *failed* writability test's
+        # exit status (1) whenever trim is (correctly) skipped.
+        if [[ -w "$dir" ]]; then
+            _octo_event_trim "$log_file"
+        fi
     fi
 }
