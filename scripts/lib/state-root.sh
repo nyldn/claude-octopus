@@ -65,9 +65,11 @@ octopus_run_provider_without_persistence() {
     fi
 
     local exit_code=0
-    set +e
-    printf '%s' "$prompt" | run_with_timeout "$timeout_secs" "${cmd_array[@]}"
-    exit_code=${PIPESTATUS[1]:-1}
-    set -e
+    if printf '%s' "$prompt" | run_with_timeout "$timeout_secs" "${cmd_array[@]}"; then
+        exit_code=0
+    else
+        local -a pipeline_status=("${PIPESTATUS[@]}")
+        exit_code="${pipeline_status[1]:-1}"
+    fi
     return "$exit_code"
 }

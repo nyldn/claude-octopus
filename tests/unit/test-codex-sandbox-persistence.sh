@@ -28,7 +28,7 @@ trap cleanup_fixture EXIT INT TERM
 
 test_case "event logging fails open without stderr when its path is denied"
 readonly_events="$TEST_TMP_DIR/readonly-events"
-mkdir -p "$readonly_events"
+mkdir -p "$readonly_events/events.jsonl"
 chmod 500 "$readonly_events"
 
 set +e
@@ -44,7 +44,7 @@ set -e
 if [[ "$event_rc" -eq 0 ]] && \
    [[ ! -s "$TEST_TMP_DIR/event.stdout" ]] && \
    [[ ! -s "$TEST_TMP_DIR/event.stderr" ]] && \
-   [[ ! -e "$readonly_events/events.jsonl" ]]; then
+   [[ -d "$readonly_events/events.jsonl" ]]; then
     test_pass
 else
     test_fail "optional event logging changed command behavior (rc=$event_rc, stderr=$(<"$TEST_TMP_DIR/event.stderr"))"
@@ -77,8 +77,10 @@ test_case "Codex host streams provider output when legacy state root is denied"
 fake_home="$TEST_TMP_DIR/home"
 fake_bin="$TEST_TMP_DIR/bin"
 project_dir="$TEST_TMP_DIR/project"
+blocked_state_root="$fake_home/blocked-state-root"
 mkdir -p "$fake_home/.claude-octopus" "$fake_bin" "$project_dir"
 ln -s "$PROJECT_ROOT" "$fake_home/.claude-octopus/plugin"
+: >"$blocked_state_root"
 
 cat >"$fake_bin/claude" <<'FAKE_CLAUDE'
 #!/usr/bin/env bash
@@ -100,6 +102,7 @@ if [[ " $* " != *" --setting-sources project,local "* ]]; then
     exit 42
 fi
 
+[[ -n "${FAKE_CLAUDE_MARKER:-}" ]] && : >"$FAKE_CLAUDE_MARKER"
 cat >/dev/null
 echo "SANDBOX_PROVIDER_OK"
 FAKE_CLAUDE
@@ -114,6 +117,7 @@ set +e
     cd "$project_dir"
     HOME="$fake_home" \
     PATH="$fake_bin:$PATH" \
+    CLAUDE_PLUGIN_DATA="$blocked_state_root" \
     CI= \
     GITHUB_ACTIONS= \
     CODEX_SANDBOX=workspace-write \
@@ -131,6 +135,56 @@ if [[ "$spawn_rc" -eq 0 ]] && \
     test_pass
 else
     test_fail "restricted Codex dispatch failed (rc=$spawn_rc, stderr=$(<"$TEST_TMP_DIR/spawn.stderr"))"
+fi
+
+test_case "dry run never invokes a provider when persistence is unavailable"
+dry_run_marker="$TEST_TMP_DIR/dry-run-provider-invoked"
+set +e
+(
+    cd "$project_dir"
+    HOME="$fake_home" \
+    PATH="$fake_bin:$PATH" \
+    CLAUDE_PLUGIN_DATA="$blocked_state_root" \
+    CI= \
+    GITHUB_ACTIONS= \
+    CODEX_SANDBOX=workspace-write \
+    OCTOPUS_SKIP_PROVIDER_PROBES=true \
+    OCTOPUS_DEBUG=false \
+    FAKE_CLAUDE_MARKER="$dry_run_marker" \
+        bash "$PROJECT_ROOT/scripts/orchestrate.sh" --dry-run spawn claude \
+            "Do not execute this provider"
+) >"$TEST_TMP_DIR/dry-run.stdout" 2>"$TEST_TMP_DIR/dry-run.stderr"
+dry_run_rc=$?
+set -e
+
+if [[ "$dry_run_rc" -eq 0 ]] && [[ ! -e "$dry_run_marker" ]]; then
+    test_pass
+else
+    test_fail "dry run invoked the degraded provider (rc=$dry_run_rc)"
+fi
+
+test_case "degraded provider preserves the caller's disabled errexit state"
+set +e
+errexit_output=$(
+    set +e
+    source "$PROJECT_ROOT/scripts/lib/state-root.sh"
+    build_provider_env() { PROVIDER_ENV_ARRAY=(); }
+    run_with_timeout() { return 23; }
+    export OCTOPUS_PERSISTENCE_AVAILABLE=false
+    export OCTOPUS_DEBUG=false
+
+    octopus_run_provider_without_persistence claude "provider failure" 30 "ignored-command" >/dev/null
+    provider_rc=$?
+    [[ $- != *e* ]] || exit 90
+    printf 'provider_rc=%s' "$provider_rc"
+)
+errexit_shell_rc=$?
+set -e
+
+if [[ "$errexit_shell_rc" -eq 0 ]] && [[ "$errexit_output" == "provider_rc=23" ]]; then
+    test_pass
+else
+    test_fail "degraded provider changed caller errexit (shell_rc=$errexit_shell_rc, output=$errexit_output)"
 fi
 
 test_case "synchronous provider path also streams without persistent state"

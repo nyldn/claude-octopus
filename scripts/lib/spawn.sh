@@ -451,6 +451,11 @@ ${heuristic_ctx}"
         return 1
     fi
 
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log INFO "[DRY-RUN] Would execute: $cmd with role=${role:-none}"
+        return 0
+    fi
+
     # A restricted host may deny the selected state root. Preserve the provider
     # result by degrading this background/persistent path to synchronous stdout.
     if [[ "${OCTOPUS_PERSISTENCE_AVAILABLE:-true}" == "false" ]]; then
@@ -532,11 +537,6 @@ ${heuristic_ctx}"
     local metrics_id=""
     if command -v record_agent_start &> /dev/null; then
         metrics_id=$(record_agent_start "$agent_type" "$model" "$enhanced_prompt" "${phase:-unknown}") || true
-    fi
-
-    if [[ "$DRY_RUN" == "true" ]]; then
-        log INFO "[DRY-RUN] Would execute: $cmd with role=${role:-none}"
-        return 0
     fi
 
     # Store metrics mapping for batch completion recording (after DRY_RUN gate)
