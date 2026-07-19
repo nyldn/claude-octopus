@@ -170,6 +170,10 @@ octo_event_emit() {
         _octo_event_unlock "$log_file"
     else
         printf '%s' "$record" 2>/dev/null >> "$log_file" || return 1
-        _octo_event_trim "$log_file"
+        # _octo_event_trim writes a sibling tmp file in the same directory;
+        # skip it here when that directory isn't writable (an existing
+        # writable log file in an otherwise locked-down directory) so its
+        # unguarded `> "$tmp"` can't leak a bash redirection error to stderr.
+        [[ -w "$dir" ]] && _octo_event_trim "$log_file"
     fi
 }

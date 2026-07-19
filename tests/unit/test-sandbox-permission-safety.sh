@@ -21,7 +21,13 @@ source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "Sandbox/unwritable-path permission safety (issue #648)"
 
 FIXTURE="$(mktemp -d)"
-trap 'rm -rf "$FIXTURE"' EXIT
+# Safety net: if a lockdown test fails before its own unlock runs, a leftover
+# chattr +i / chflags uchg directory would make plain `rm -rf` fail silently.
+trap '
+    command -v chattr >/dev/null 2>&1 && chattr -iR "$FIXTURE" 2>/dev/null
+    command -v chflags >/dev/null 2>&1 && chflags -R nouchg "$FIXTURE" 2>/dev/null
+    rm -rf "$FIXTURE"
+' EXIT
 
 # ═══════════════════════════════════════════════════════════════════════════
 # octo_event_emit must never leak a bash-level redirection error to stderr,
@@ -70,6 +76,68 @@ test_event_emit_succeeds_when_only_directory_is_unwritable() {
 
     if [[ $rc -eq 0 ]]; then test_pass
     else test_fail "expected success appending to /dev/null, got rc=$rc"; fi
+}
+
+test_event_trim_skipped_without_leak_when_dir_locked_down() {
+    test_case "octo_event_emit skips trim (no stderr leak) when an existing log's directory is locked down"
+    # Real-world case the /dev/null fix (eb404c9) opened up: an existing,
+    # already-writable log file whose directory gets locked down afterward.
+    # Appending to it must still work, but _octo_event_trim's sibling tmp
+    # file lands in that same (now-blocked) directory — trimming must be
+    # skipped there, not attempted and left to leak a redirection error.
+    local dir="$FIXTURE/events-lockdown"
+    mkdir -p "$dir"
+    local log="$dir/events.jsonl"
+    export OCTO_EVENT_MAX_LINES=5
+    local i
+    for i in 1 2 3 4 5 6; do printf 'seed-%s\n' "$i" >> "$log"; done
+
+    # Directory-level immutability is the only lockdown a root-executed test
+    # can't bypass (plain chmod is a no-op for root, as seen elsewhere in
+    # this file). chattr is Linux-only; chflags is the BSD/macOS analog —
+    # this repo's CI runs both. Skip cleanly if neither is available/works.
+    local mech=""
+    if command -v chattr >/dev/null 2>&1 && chattr +i "$dir" 2>/dev/null; then
+        mech="chattr"
+    elif command -v chflags >/dev/null 2>&1 && chflags uchg "$dir" 2>/dev/null; then
+        mech="chflags"
+    fi
+
+    unlock_dir() { case "$mech" in
+        chattr) chattr -i "$dir" 2>/dev/null || true ;;
+        chflags) chflags nouchg "$dir" 2>/dev/null || true ;;
+    esac; }
+
+    if [[ -z "$mech" ]]; then
+        test_skip "no directory-lockdown mechanism available (need chattr +i or chflags uchg)"
+        unset OCTO_EVENT_MAX_LINES
+        return
+    fi
+
+    # Confirm the lockdown actually reproduces the real scenario on this
+    # platform/filesystem before trusting the result: existing file still
+    # appendable, new directory entries blocked. If not, skip rather than
+    # assert a result this mechanism didn't actually produce here.
+    local append_ok=1 create_blocked=1
+    ( : >> "$log" ) 2>/dev/null && append_ok=0
+    ( : > "$dir/should-fail" ) 2>/dev/null || create_blocked=0
+    rm -f "$dir/should-fail" 2>/dev/null
+
+    if [[ $append_ok -ne 0 || $create_blocked -ne 0 ]]; then
+        unlock_dir
+        test_skip "lockdown mechanism ($mech) did not produce append-ok/create-blocked semantics here"
+        unset OCTO_EVENT_MAX_LINES
+        return
+    fi
+
+    export OCTO_EVENT_LOG="$log"
+    local err rc=0
+    err="$(octo_event_emit "octo.test" k=v 2>&1 >/dev/null)" || rc=$?
+    unlock_dir
+    unset OCTO_EVENT_MAX_LINES
+
+    if [[ -z "$err" ]]; then test_pass
+    else test_fail "expected no stderr from skipped trim, got: $err"; fi
 }
 
 test_event_emit_returns_nonzero_but_does_not_crash() {
@@ -225,6 +293,7 @@ test_session_end_hook_writes_nothing_outside_home_when_blocked() {
 test_event_emit_isdir_append_no_stderr_leak
 test_event_emit_enotdir_mkdir_no_stderr_leak
 test_event_emit_succeeds_when_only_directory_is_unwritable
+test_event_trim_skipped_without_leak_when_dir_locked_down
 test_event_emit_returns_nonzero_but_does_not_crash
 test_workspace_snippet_present
 test_workspace_falls_back_when_plugin_data_blocked
