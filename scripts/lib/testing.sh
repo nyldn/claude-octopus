@@ -5,6 +5,11 @@
 # Validate tangle results with quality gate
 # v3.0: Supports configurable threshold and loop-until-approved retry logic
 
+if ! type pathrt_canon_existing >/dev/null 2>&1; then
+    _octo_path_runtime_lib="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/path-runtime.sh"
+    [[ -f "$_octo_path_runtime_lib" ]] && source "$_octo_path_runtime_lib"
+fi
+
 extract_explicit_file_refs() {
     local text="$1"
 
@@ -65,20 +70,7 @@ check_explicit_file_coverage() {
 }
 
 testing_git_compatible_path() {
-    local path="$1"
-    if declare -f tangle_git_compatible_path >/dev/null 2>&1; then
-        tangle_git_compatible_path "$path"
-        return $?
-    fi
-    case "$(uname -s 2>/dev/null || true)" in
-        MINGW*|MSYS*|CYGWIN*)
-            if [[ "$path" == /* ]] && command -v cygpath >/dev/null 2>&1; then
-                cygpath -m "$path"
-                return 0
-            fi
-            ;;
-    esac
-    printf '%s\n' "$path"
+    pathrt_for_git "$1"
 }
 
 snapshot_tangle_worktree_paths() {

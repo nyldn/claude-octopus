@@ -11,6 +11,11 @@
 # parse_review_md: reads REVIEW.md from repo root, outputs directive vars
 # WHY: CC Code Review supports REVIEW.md for customization; we match that
 # convention so repos already configured for CC work with /octo:review too.
+if ! type pathrt_canon_existing >/dev/null 2>&1; then
+    _octo_path_runtime_lib="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/path-runtime.sh"
+    [[ -f "$_octo_path_runtime_lib" ]] && source "$_octo_path_runtime_lib"
+fi
+
 parse_review_md() {
     local repo_root="${1:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
     local review_md="$repo_root/REVIEW.md"
@@ -731,8 +736,8 @@ review_run() {
         local review_root=""
         local context_file_resolved=""
         review_root=$(git rev-parse --show-toplevel 2>/dev/null || pwd -P)
-        review_root=$(cd "$review_root" 2>/dev/null && pwd -P || printf '%s' "$review_root")
-        context_file_resolved=$(realpath "$context_file" 2>/dev/null || true)
+        review_root=$(pathrt_canon_existing "$review_root" 2>/dev/null || true)
+        context_file_resolved=$(pathrt_canon_existing "$context_file" 2>/dev/null || true)
         if [[ -z "$context_file_resolved" || ! -r "$context_file_resolved" ]]; then
             log ERROR "review_run: contextFile is not readable: $context_file"
             echo '{"findings":[],"warning":"contextFile is not readable"}' > "$findings_file"
@@ -745,9 +750,7 @@ review_run() {
             render_terminal_report "$findings_file"
             return 1
         fi
-        case "$context_file_resolved" in
-            "$review_root"|"$review_root"/*) ;;
-            *)
+        if [[ -z "$review_root" ]] || ! pathrt_within_existing "$review_root" "$context_file"; then
                 log ERROR "review_run: contextFile escapes workspace root: $context_file"
                 echo '{"findings":[],"warning":"contextFile escapes workspace root"}' > "$findings_file"
                 if [[ -n "$proof_dir" ]]; then
@@ -758,8 +761,7 @@ review_run() {
                 rm -f "$provider_status_file"
                 render_terminal_report "$findings_file"
                 return 1
-                ;;
-        esac
+        fi
         context_file="$context_file_resolved"
         local context_file_bytes="0"
         context_file_bytes=$(wc -c < "$context_file" 2>/dev/null | tr -d '[:space:]' || echo 0)

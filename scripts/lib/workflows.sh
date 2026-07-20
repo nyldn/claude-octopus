@@ -8,6 +8,11 @@ if ! type probe_result_file_status >/dev/null 2>&1; then
     [[ -f "$_octo_probe_results_lib" ]] && source "$_octo_probe_results_lib"
 fi
 
+if ! type pathrt_canon_existing >/dev/null 2>&1; then
+    _octo_path_runtime_lib="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/path-runtime.sh"
+    [[ -f "$_octo_path_runtime_lib" ]] && source "$_octo_path_runtime_lib"
+fi
+
 # v8.54.0: Single-agent probe for multi-agentic skill dispatch
 # Runs one probe perspective synchronously and writes result to RESULTS_DIR.
 # Called by Claude's Agent tool (one per perspective) instead of probe_discover().
@@ -874,16 +879,7 @@ tangle_scopes_overlap() {
 }
 
 tangle_git_compatible_path() {
-    local path="$1"
-    case "$(uname -s 2>/dev/null || true)" in
-        MINGW*|MSYS*|CYGWIN*)
-            if [[ "$path" == /* ]] && command -v cygpath >/dev/null 2>&1; then
-                cygpath -m "$path"
-                return 0
-            fi
-            ;;
-    esac
-    printf '%s\n' "$path"
+    pathrt_for_git "$1"
 }
 
 tangle_resolve_repo_root() {

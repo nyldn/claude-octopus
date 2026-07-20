@@ -26,6 +26,58 @@
 # Populates PROVIDER_ENV_ARRAY with argv tokens that limit environment
 # variables to essentials only. This stays safe when PATH contains spaces.
 # ═══════════════════════════════════════════════════════════════════════════════
+
+octopus_codex_home_isolation_enabled() {
+    case "${OCTOPUS_CODEX_ISOLATE_HOME:-auto}" in
+        1|true|yes|on) return 0 ;;
+        0|false|no|off) return 1 ;;
+    esac
+
+    case "$(uname -s 2>/dev/null || true)" in
+        MINGW*|MSYS*|CYGWIN*) return 0 ;;
+    esac
+    return 1
+}
+
+# Codex Desktop and the separately installed Codex CLI can be different
+# versions on Windows. Sharing models_cache.json across those versions can make
+# the CLI fail before dispatch. Keep auth/config synchronized while letting the
+# Octopus runtime own its model cache independently.
+octopus_prepare_codex_runtime_home() {
+    octopus_codex_home_isolation_enabled || return 0
+
+    local source_home="${OCTOPUS_CODEX_SOURCE_HOME:-$HOME/.codex}"
+    local runtime_home="${OCTOPUS_CODEX_HOME:-${WORKSPACE_DIR:-$HOME/.claude-octopus}/codex-home}"
+    local source_file target_file name
+
+    if [[ -n "${CODEX_HOME:-}" && -z "${OCTOPUS_CODEX_HOME:-}" \
+        && "$CODEX_HOME" != "$source_home" && "$CODEX_HOME" != "$runtime_home" ]]; then
+        return 0
+    fi
+    [[ "$runtime_home" != "$source_home" ]] || return 0
+
+    mkdir -p "$runtime_home" || {
+        echo "codex runtime home: cannot create $runtime_home" >&2
+        return 1
+    }
+    chmod 700 "$runtime_home" 2>/dev/null || true
+
+    for name in auth.json config.toml; do
+        source_file="$source_home/$name"
+        target_file="$runtime_home/$name"
+        [[ -f "$source_file" ]] || continue
+        if [[ ! -f "$target_file" ]] || ! cmp -s "$source_file" "$target_file"; then
+            cp -p "$source_file" "$target_file" || {
+                echo "codex runtime home: cannot synchronize $name" >&2
+                return 1
+            }
+            chmod 600 "$target_file" 2>/dev/null || true
+        fi
+    done
+
+    export CODEX_HOME="$runtime_home"
+}
+
 build_provider_env() {
     local provider="$1"
     PROVIDER_ENV_ARRAY=()
@@ -49,6 +101,7 @@ build_provider_env() {
     # v9.2.1: Try resolving env vars before building isolated env (Issue #177)
     case "$provider" in
         codex*)
+            octopus_prepare_codex_runtime_home || return 1
             if [[ -z "${OPENAI_API_KEY:-}" ]]; then
                 resolve_provider_env "OPENAI_API_KEY" 2>/dev/null || true
             fi

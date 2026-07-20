@@ -103,6 +103,7 @@ source "${SCRIPT_DIR}/agent-teams-bridge.sh"
 source "${SCRIPT_DIR}/lib/common.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/utils.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/state-root.sh"
+source "${SCRIPT_DIR}/lib/path-runtime.sh"
 source "${SCRIPT_DIR}/lib/session-id.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/similarity.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/models.sh" 2>/dev/null || true
@@ -2783,13 +2784,23 @@ case "$COMMAND" in
         ;;
     spawn)
         [[ $# -lt 2 ]] && { log ERROR "Usage: spawn <agent> <prompt>"; exit 1; }
-        case "$1" in
+        _spawn_agent="$1"
+        _spawn_role=""
+        if [[ -n "$(get_agent_config "$1" "file" 2>/dev/null)" ]]; then
+            _spawn_role="$1"
+            if ! _spawn_agent=$(resolve_curated_agent_executor "$1"); then
+                log ERROR "No allowed and available provider for curated agent: $1"
+                exit 1
+            fi
+            log INFO "Resolved curated agent $1 to provider executor $_spawn_agent"
+        fi
+        case "$_spawn_agent" in
             agy|agy-*|antigravity)
-                log INFO "Running $1 synchronously because Antigravity CLI print mode does not emit output from background jobs"
-                run_agent_sync "$1" "$2" "$TIMEOUT" "none" "spawn"
+                log INFO "Running $_spawn_agent synchronously because Antigravity CLI print mode does not emit output from background jobs"
+                run_agent_sync "$_spawn_agent" "$2" "$TIMEOUT" "${_spawn_role:-none}" "spawn"
                 ;;
             *)
-                spawn_agent "$1" "$2"
+                spawn_agent "$_spawn_agent" "$2" "" "$_spawn_role" "spawn"
                 ;;
         esac
         ;;
