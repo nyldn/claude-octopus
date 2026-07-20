@@ -203,11 +203,16 @@ test_version_advisory_emits_on_version_change() {
     output=$(HOME="$tmpdir" CLAUDE_PLUGIN_ROOT="$PROJECT_ROOT" bash "$hook" 2>&1 || true)
     rm -rf "$tmpdir"
     if version_ge "$current_version" "$min_version" &&
-       [[ "$output" == *"$min_version"* && "$output" == *"$current_version"* ]] &&
-       grep -q '/octo:setup\|OCTOPUS_LEGACY_ROLES' <<< "$output"; then
+       jq -e --arg old "$min_version" --arg current "$current_version" '
+           (.hookSpecificOutput.additionalContext // "") as $ctx
+           | .hookSpecificOutput.hookEventName == "SessionStart"
+             and ($ctx | contains($old))
+             and ($ctx | contains($current))
+             and (($ctx | contains("/octo:setup")) or ($ctx | contains("OCTOPUS_LEGACY_ROLES")))
+       ' <<<"$output" >/dev/null 2>&1; then
         test_pass
     else
-        test_fail "advisory missing or malformed. Got: $output"
+        test_fail "advisory is not valid SessionStart hook JSON. Got: $output"
     fi
 }
 
