@@ -1,5 +1,5 @@
 {
-  "$comment": "Claude Octopus routine manifest (v9.53.0). Saved automation configs for Claude Code routines: schedule triggers map to cron-style saved automations, github triggers map to repository event automations. All routines ship disabled; enable per-project after reviewing provider cost implications (external CLI seats bill to the user's API keys).",
+  "$comment": "Claude Octopus routine manifest (v9.54.0). Saved automation configs for Claude Code routines: schedule triggers map to cron-style saved automations, github triggers map to repository event automations. All routines ship disabled; enable per-project after reviewing provider cost implications (external CLI seats bill to the user's API keys).",
   "schemaVersion": 1,
   "routines": [
     {

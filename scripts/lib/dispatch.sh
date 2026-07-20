@@ -32,6 +32,51 @@ _octopus_is_safe_openai_compatible_dispatch_value() {
     return 0
 }
 
+_octopus_is_safe_env_var_name() {
+    [[ "${1:-}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]
+}
+
+_octopus_openai_compatible_runtime_config() {
+    local provider="$1"
+    local config_provider="$provider" base_url api_key_env credential_value
+    case "$provider" in
+        openai-compatible|openai-tools|openai-compatible-agent) config_provider="openai-compatible-agent" ;;
+    esac
+
+    base_url="$(octopus_provider_definition_field "$config_provider" base_url)"
+    [[ -n "$base_url" ]] || base_url="${OPENAI_COMPAT_BASE_URL:-}"
+
+    api_key_env="$(octopus_provider_definition_field "$config_provider" api_key_env)"
+    [[ -n "$api_key_env" ]] || api_key_env="${OPENAI_COMPAT_API_KEY_ENV:-OPENAI_API_KEY}"
+
+    if [[ -z "$base_url" ]]; then
+        log ERROR "OpenAI-compatible provider '$config_provider' has no base_url in providers.json and OPENAI_COMPAT_BASE_URL is unset"
+        return 1
+    fi
+    case "$base_url" in
+        http://*|https://*) ;;
+        *)
+            log ERROR "OpenAI-compatible provider '$config_provider' requires an http(s) base_url"
+            return 1
+            ;;
+    esac
+    if ! _octopus_is_safe_openai_compatible_dispatch_value "$base_url"; then
+        log ERROR "Invalid OpenAI-compatible base_url for provider '$provider'"
+        return 1
+    fi
+    if ! _octopus_is_safe_env_var_name "$api_key_env"; then
+        log ERROR "Invalid api_key_env for OpenAI-compatible provider '$provider': '$api_key_env'"
+        return 1
+    fi
+    credential_value="$(printenv "$api_key_env" 2>/dev/null || true)"
+    if [[ -z "$credential_value" ]]; then
+        log ERROR "OpenAI-compatible provider '$config_provider' requires credential env '$api_key_env', but it is unset"
+        return 1
+    fi
+
+    printf '%s\t%s\n' "$base_url" "$api_key_env"
+}
+
 # ── Does a resolved codex model name indicate an OSS/local model that codex
 #    serves through ollama (and would silently auto-pull)? codex's built-in OSS
 #    family is gpt-oss*; ollama-served models also carry a size tag like ':120b'.
@@ -81,6 +126,14 @@ get_agent_command() {
     # for `claude -p`, instead of metered API). Default unchanged. May include
     # args (word-split downstream by read -ra), e.g. "clarp --strict-mcp-config".
     local _claude_bin="${OCTOPUS_CLAUDE_BIN:-claude}"
+    # A Claude provider nested under a non-Claude host must not recursively load
+    # user-scoped plugins/hooks. Unlike --bare, limiting setting sources keeps
+    # OAuth/keychain authentication available.
+    if [[ "${OCTOPUS_HOST:-standalone}" == "codex" || "${OCTOPUS_HOST:-standalone}" == "gemini" ]]; then
+        if [[ " $_claude_bin " != *" --setting-sources "* ]]; then
+            _claude_bin="${_claude_bin} --setting-sources project,local"
+        fi
+    fi
 
     # Configurable sandbox mode (v7.13.1 - Issue #9)
     # Priority: OCTOPUS_CODEX_SANDBOX env var > default (workspace-write)
@@ -249,11 +302,13 @@ get_agent_command() {
                 log ERROR "Invalid OpenAI-compatible cwd: ${PWD}"
                 return 1
             fi
-            local reasoning_level reasoning_policy reasoning_fragment
+            local reasoning_level reasoning_policy reasoning_fragment runtime_config base_url api_key_env
             reasoning_level="$(octopus_resolve_reasoning_level openai-compatible-agent "$phase" "$role")" || return 1
             reasoning_policy="$(octopus_resolve_reasoning_policy openai-compatible-agent "$phase" "$role")" || return 1
             reasoning_fragment="$(octopus_reasoning_cli_fragment openai-compatible-agent "$reasoning_level" "$reasoning_policy")" || return 1
-            echo "${PLUGIN_DIR}/scripts/helpers/openai-compatible-agent.py --provider generic --model ${model} ${reasoning_fragment} --cwd ${PWD}"
+            runtime_config="$(_octopus_openai_compatible_runtime_config "$agent_type")" || return 1
+            IFS=$'\t' read -r base_url api_key_env <<<"$runtime_config"
+            echo "${PLUGIN_DIR}/scripts/helpers/openai-compatible-agent.py --provider generic --base-url ${base_url} --api-key-env ${api_key_env} --model ${model} ${reasoning_fragment} --cwd ${PWD}"
             ;;
         atlascloud-agent)  # Atlas Cloud via the OpenAI-compatible tool-loop agent
             model="${ATLASCLOUD_MODEL:-${OCTOPUS_ATLASCLOUD_MODEL:-${OPENAI_COMPAT_MODEL:-}}}"

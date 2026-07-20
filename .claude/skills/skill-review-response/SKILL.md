@@ -1,6 +1,6 @@
 ---
 name: skill-review-response
-description: "How to handle code review feedback — verify before implementing, push back when wrong, never agree blindly"
+description: "Use when a reviewer, CI bot, or another AI leaves feedback to address"
 trigger: |
   AUTOMATICALLY ACTIVATE when:
   - Receiving code review feedback (PR comments, review agent output)
