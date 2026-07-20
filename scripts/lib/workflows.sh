@@ -873,23 +873,37 @@ tangle_scopes_overlap() {
     return 1
 }
 
+tangle_git_compatible_path() {
+    local path="$1"
+    case "$(uname -s 2>/dev/null || true)" in
+        MINGW*|MSYS*|CYGWIN*)
+            if [[ "$path" == /* ]] && command -v cygpath >/dev/null 2>&1; then
+                cygpath -m "$path"
+                return 0
+            fi
+            ;;
+    esac
+    printf '%s\n' "$path"
+}
+
 tangle_resolve_repo_root() {
     local repo_root
     local resolved_root
 
     if [[ -n "${PROJECT_ROOT:-}" ]]; then
         if [[ -d "$PROJECT_ROOT" ]]; then
-            resolved_root=$(git -C "$PROJECT_ROOT" rev-parse --show-toplevel 2>/dev/null || true)
+            repo_root=$(tangle_git_compatible_path "$PROJECT_ROOT")
+            resolved_root=$(git -C "$repo_root" rev-parse --show-toplevel 2>/dev/null || true)
             if [[ -z "$resolved_root" ]]; then
-                printf '%s\n' "$PROJECT_ROOT"
+                printf '%s\n' "$repo_root"
                 return 0
             fi
             printf '%s\n' "$resolved_root"
             return 0
         fi
-        repo_root="$(pwd)"
+        repo_root=$(tangle_git_compatible_path "$(pwd)")
     else
-        repo_root="$(pwd)"
+        repo_root=$(tangle_git_compatible_path "$(pwd)")
     fi
 
     resolved_root=$(git -C "$repo_root" rev-parse --show-toplevel 2>/dev/null || true)
