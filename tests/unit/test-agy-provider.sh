@@ -41,7 +41,7 @@ test_agy_dispatch_native_flags() {
     # message.
     if grep -q 'scripts/helpers/agy-exec.sh' "$PROJECT_ROOT/scripts/lib/dispatch.sh" && \
        grep -q 'cmd=(agy)' "$PROJECT_ROOT/scripts/helpers/agy-exec.sh" && \
-       grep -q -- '--print "$prompt_content"' "$PROJECT_ROOT/scripts/helpers/agy-exec.sh"; then
+       grep -q -- '--print "${AGY_INLINE_DIRECTIVE}${prompt_content}"' "$PROJECT_ROOT/scripts/helpers/agy-exec.sh"; then
         test_pass
     else
         test_fail "agy dispatch should use scripts/helpers/agy-exec.sh with the prompt as --print's argument"
@@ -68,7 +68,10 @@ MOCK_AGY
     AGY_ARG_CAPTURE="$capture"
     export AGY_ARG_CAPTURE
 
-    printf 'hello agy prompt' | bash "$PROJECT_ROOT/scripts/helpers/agy-exec.sh" >/dev/null
+    # OCTOPUS_AGY_FORCE_INLINE=0 disables the force-inline directive, so --print's
+    # argument is the untouched prompt. This keeps the original prompt-as-argument
+    # assertion exact while also covering the opt-out path.
+    printf 'hello agy prompt' | OCTOPUS_AGY_FORCE_INLINE=0 bash "$PROJECT_ROOT/scripts/helpers/agy-exec.sh" >/dev/null
 
     PATH="$old_path"
     unset AGY_ARG_CAPTURE
@@ -78,10 +81,61 @@ MOCK_AGY
     # prompt, leaving the sandbox off).
     local print_next
     print_next="$(grep -Fx -A1 -- '--print' "$capture" | tail -1)"
-    if [[ "$print_next" == "hello agy prompt" ]] && grep -Fxq -- '--sandbox' "$capture"; then
+    if [[ "$print_next" == "hello agy prompt" ]] && grep -Fxq -- '--sandbox' "$capture" && \
+       ! grep -Fq 'CRITICAL OUTPUT RULES' "$capture"; then
         test_pass
     else
-        test_fail "expected argv '--print' followed by the stdin prompt plus a real --sandbox flag; got: $(tr '\n' '|' < "$capture")"
+        test_fail "expected argv '--print' followed by the unmodified stdin prompt plus a real --sandbox flag, and no directive under OCTOPUS_AGY_FORCE_INLINE=0; got: $(tr '\n' '|' < "$capture")"
+    fi
+}
+
+test_agy_force_inline_directive_prepended_by_default() {
+    test_case "agy-exec prepends the force-inline directive by default"
+
+    local tmp_bin="$TEST_TMP_DIR/agy-inline-bin"
+    local capture="$TEST_TMP_DIR/agy-inline-argv.txt"
+    mkdir -p "$tmp_bin"
+    cat > "$tmp_bin/agy" <<'MOCK_AGY'
+#!/usr/bin/env bash
+printf '%s\n' "$@" > "${AGY_ARG_CAPTURE:?}"
+echo "mock-response"
+exit 0
+MOCK_AGY
+    chmod +x "$tmp_bin/agy"
+
+    local old_path="$PATH"
+    PATH="$tmp_bin:$PATH"
+    AGY_ARG_CAPTURE="$capture"
+    export AGY_ARG_CAPTURE
+
+    printf 'hello agy prompt' | bash "$PROJECT_ROOT/scripts/helpers/agy-exec.sh" >/dev/null
+
+    PATH="$old_path"
+    unset AGY_ARG_CAPTURE
+
+    # agy writes its real answer to a brain artifact and returns a stub unless it is
+    # told to answer inline, so the directive must reach agy ahead of the prompt --
+    # and the prompt itself must survive intact behind it.
+    if grep -Fq 'CRITICAL OUTPUT RULES' "$capture" && grep -Fq 'hello agy prompt' "$capture"; then
+        test_pass
+    else
+        test_fail "expected the force-inline directive prepended to the prompt; got: $(tr '\n' '|' < "$capture")"
+    fi
+}
+
+test_agy_file_prompt_directive_permits_reading_prompt_file() {
+    test_case "oversized-prompt directive permits reading the adapter's prompt file"
+
+    # The >100000 branch hands agy a file path to read. A blanket "do not use file
+    # tools" directive would contradict that instruction, so this branch must use
+    # the file-permitting variant while still forbidding artifacts.
+    local helper="$PROJECT_ROOT/scripts/helpers/agy-exec.sh"
+    if grep -q -- '--print "${AGY_INLINE_DIRECTIVE_FILE}Read the file' "$helper" && \
+       grep -q 'You may read ONLY the prompt file named below' "$helper" && \
+       grep -q 'AGY_INLINE_DIRECTIVE_FILE=""' "$helper"; then
+        test_pass
+    else
+        test_fail "the oversized-prompt branch should use AGY_INLINE_DIRECTIVE_FILE, which permits reading the supplied prompt file and is cleared by the opt-out"
     fi
 }
 
@@ -719,6 +773,8 @@ test_agy_config_exists
 test_agy_available_agent
 test_agy_dispatch_native_flags
 test_agy_print_receives_prompt_argument
+test_agy_force_inline_directive_prepended_by_default
+test_agy_file_prompt_directive_permits_reading_prompt_file
 test_gemini_via_agy_option
 test_agy_dynamic_model_validation
 test_agy_command_validation

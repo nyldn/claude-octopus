@@ -39,7 +39,10 @@ case "$(uname -s 2>/dev/null)" in
     MINGW*|MSYS*|CYGWIN*)
         if [[ -z "${USERPROFILE:-}" ]]; then
             if [[ -n "${HOME:-}" ]] && command -v cygpath >/dev/null 2>&1; then
-                USERPROFILE="$(cygpath -w "$HOME" 2>/dev/null)"
+                # `|| true` keeps set -e from killing the shim on a failed
+                # conversion, so the HOMEDRIVE+HOMEPATH and HOME fallbacks
+                # below still get their turn.
+                USERPROFILE="$(cygpath -w "$HOME" 2>/dev/null || true)"
             fi
             if [[ -z "${USERPROFILE:-}" && -n "${HOMEDRIVE:-}" && -n "${HOMEPATH:-}" ]]; then
                 USERPROFILE="${HOMEDRIVE}${HOMEPATH}"
@@ -114,15 +117,55 @@ if [[ -z "${prompt_content//[[:space:]]/}" ]]; then
     exit 2
 fi
 
+# Force-inline directive (default on; disable with OCTOPUS_AGY_FORCE_INLINE=0).
+# agy is an agentic CLI: given a council/analysis prompt it writes its real answer
+# to an internal "brain" artifact and returns only a "see the artifact" stub on
+# stdout, or nothing at all when a tool it wants needs a permission headless mode
+# cannot prompt for. Either way the council seat is silently empty, and the
+# silent-empty retry below cannot help because it reproduces the same behaviour.
+# This directive pins the full answer to the stdout response so the seat is captured.
+AGY_INLINE_DIRECTIVE="CRITICAL OUTPUT RULES: Respond with your COMPLETE answer directly inline as plain text in THIS response. Do NOT create files. Do NOT write artifacts or brain documents. Do NOT use terminal, command, or file tools. Do NOT say 'see the artifact' or reference any external document. Write the full answer here now, from your own expertise.
+
+"
+# Oversized prompts are handed over as a file path (see the size ceiling below), so
+# that branch needs a directive that permits reading exactly that one file. Reusing
+# the blanket no-file-tools wording above would contradict its own instruction to
+# read the prompt file.
+AGY_INLINE_DIRECTIVE_FILE="CRITICAL OUTPUT RULES: Respond with your COMPLETE answer directly inline as plain text in THIS response. You may read ONLY the prompt file named below. Apart from reading that one file, do NOT create files, do NOT write artifacts or brain documents, and do NOT use terminal or command tools. Do NOT say 'see the artifact' or reference any external document. Write the full answer here now.
+
+"
+if [[ "${OCTOPUS_AGY_FORCE_INLINE:-1}" != "1" ]]; then
+    AGY_INLINE_DIRECTIVE=""
+    AGY_INLINE_DIRECTIVE_FILE=""
+fi
+
+# Silent prompt mutation is hard to diagnose from the outside: someone debugging an
+# odd agy response should be able to see that the adapter modified the prompt.
+# Raw stderr echo rather than `log`: this file is a standalone shim exec'd
+# directly by dispatch.sh, like the sibling Gemini and Grok shims, and does
+# not source the logging library by design.
+if [[ -n "$AGY_INLINE_DIRECTIVE" && "${OCTOPUS_DEBUG:-false}" == "true" ]]; then
+    echo "agy-exec.sh: prepending force-inline directive to prompt (disable with OCTOPUS_AGY_FORCE_INLINE=0)" >&2
+fi
+
+# Byte length regardless of locale: MAX_ARG_STRLEN is a byte limit, and a
+# multibyte UTF-8 prompt has more bytes than ${#var} chars would suggest.
+byte_length() {
+    local LC_ALL=C
+    printf '%s' "${#1}"
+}
+
 # Single-argument size ceiling: Linux caps one argv string at MAX_ARG_STRLEN
 # (128 KiB). Oversized prompts stay in the cached temp file and agy is pointed
 # at it via --add-dir with a read-this-file --print instruction, instead of
-# failing the seat.
-if (( ${#prompt_content} > 100000 )); then
+# failing the seat. The ceiling is measured on the FULL --print argument the
+# inline branch would build (directive + prompt), not the prompt alone, so the
+# prepended directive can never push a near-ceiling prompt past the limit.
+if (( $(byte_length "${AGY_INLINE_DIRECTIVE}${prompt_content}") > 100000 )); then
     cmd+=(--add-dir "$(dirname "$prompt_file")")
-    cmd+=(--print "Read the file '${prompt_file}' and follow the instructions in it as your task prompt. Do not summarize the file; execute it.")
+    cmd+=(--print "${AGY_INLINE_DIRECTIVE_FILE}Read the file '${prompt_file}' and follow the instructions in it as your task prompt. Do not summarize the file; execute it.")
 else
-    cmd+=(--print "$prompt_content")
+    cmd+=(--print "${AGY_INLINE_DIRECTIVE}${prompt_content}")
 fi
 
 run_agy() {
