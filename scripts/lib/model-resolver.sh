@@ -150,6 +150,23 @@ resolve_octopus_model() {
         return 0
     fi
 
+    # OCTOPUS_OPUS_MODEL is the agent-specific override for claude-opus seats.
+    # It must bypass both memory and persistent caches just like the generic
+    # provider override above; otherwise a cache primed with Opus can conceal a
+    # later Fable pin in telemetry and policy checks.
+    if [[ "$canonical_provider" == "claude" && "$agent_type" == claude-opus* && -n "${OCTOPUS_OPUS_MODEL:-}" ]]; then
+        if ! validate_model_name_for_provider "$canonical_provider" "$OCTOPUS_OPUS_MODEL"; then
+            log ERROR "Invalid model name in OCTOPUS_OPUS_MODEL"
+            return 1
+        fi
+        if declare -f fable5_maybe_reroute >/dev/null 2>&1; then
+            fable5_maybe_reroute "$OCTOPUS_OPUS_MODEL" "$role" "$agent_type" "$phase"
+        else
+            echo "$OCTOPUS_OPUS_MODEL"
+        fi
+        return 0
+    fi
+
     # 0. Session Cache (v8.53.0)
     # Uses a process-local memory cache + optional file-based cache for cross-process speed
     local cache_key

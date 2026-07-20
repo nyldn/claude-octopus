@@ -31,4 +31,28 @@ grep -Fq 'fable5_model_unavailable "$temp_errors" "$temp_output"' "$ROOT_DIR/scr
     exit 1
 }
 
+# A user pin must outrank a model value cached before the pin was exported.
+# Otherwise dispatch can execute Fable while telemetry still reports Opus 4.8.
+export HOME="$TMP_DIR/home"
+export TMPDIR="$TMP_DIR/cache"
+mkdir -p "$HOME" "$TMPDIR"
+log() { :; }
+migrate_provider_config() { :; }
+source "$ROOT_DIR/scripts/lib/models.sh"
+source "$ROOT_DIR/scripts/lib/model-resolver.sh"
+source "$ROOT_DIR/scripts/lib/dispatch.sh"
+
+unset OCTOPUS_OPUS_MODEL
+export SUPPORTS_OPUS_4_8=true
+[[ "$(get_agent_model claude-opus review code-reviewer)" == "claude-opus-4.8" ]] || {
+    echo "FAIL: could not prime Opus 4.8 model cache" >&2
+    exit 1
+}
+
+export OCTOPUS_OPUS_MODEL="claude-fable-5"
+[[ "$(get_agent_model claude-opus review code-reviewer)" == "claude-fable-5" ]] || {
+    echo "FAIL: OCTOPUS_OPUS_MODEL did not bypass the stale model cache" >&2
+    exit 1
+}
+
 echo "PASS: Fable 5 primary routing and availability-only Opus fallback"

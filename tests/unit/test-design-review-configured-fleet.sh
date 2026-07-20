@@ -24,6 +24,10 @@ write_structured_decision() { :; }
 run_agent_sync() {
   local agent="$1" role="${4:-}" phase="${5:-}"
   printf '%s|%s|%s\n' "$agent" "$role" "$phase" >> "$CAPTURE_FILE"
+  if [[ "$agent" == "openrouter-kimi-k3" && ! -f "$TEST_HOME/kimi-failed-once" ]]; then
+    : > "$TEST_HOME/kimi-failed-once"
+    return 1
+  fi
   printf 'Approach from %s\n' "$agent"
 }
 
@@ -44,6 +48,12 @@ for expected in \
     exit 1
   }
 done
+
+[[ "$(grep -c '^openrouter-kimi-k3|' "$CAPTURE_FILE")" == "2" ]] || {
+  echo "FAIL: transient design-review failure was not retried once" >&2
+  cat "$CAPTURE_FILE" >&2
+  exit 1
+}
 
 if grep -Eq '^(agy|claude-sonnet)\|' "$CAPTURE_FILE"; then
   echo "FAIL: hardcoded legacy design-review seat was dispatched" >&2

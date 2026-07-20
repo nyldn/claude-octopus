@@ -91,8 +91,8 @@ quality_gate_is_acknowledged() {
 
 quality_gate_acknowledge() {
     local report="${1:-}"
-    [[ -n "$report" && "$report" != "latest" ]] || report=$(quality_gate_latest_report)
-    [[ -f "$report" ]] || { echo "No tangle validation report found." >&2; return 1; }
+    [[ -n "$report" && "$report" != "latest" ]] || report=$(quality_gate_find_matching_report 2>/dev/null || true)
+    [[ -f "$report" ]] || { echo "No active quality gate for this workspace/session." >&2; return 1; }
 
     local gate_id ack_file fingerprint
     gate_id=$(quality_gate_report_value "$report" "Gate ID")
@@ -108,8 +108,8 @@ quality_gate_acknowledge() {
 
 quality_gate_status() {
     local report="${1:-}"
-    [[ -n "$report" && "$report" != "latest" ]] || report=$(quality_gate_find_matching_report 2>/dev/null || quality_gate_latest_report)
-    [[ -f "$report" ]] || { echo "No tangle validation report found."; return 0; }
+    [[ -n "$report" && "$report" != "latest" ]] || report=$(quality_gate_find_matching_report 2>/dev/null || true)
+    [[ -f "$report" ]] || { echo "No active quality gate for this workspace/session."; return 0; }
     local gate_id status state="pending"
     gate_id=$(quality_gate_report_value "$report" "Gate ID")
     status=$(grep -E '^#{2,3}[[:space:]]+(Quality Gate|Status):' "$report" 2>/dev/null | head -1 || true)

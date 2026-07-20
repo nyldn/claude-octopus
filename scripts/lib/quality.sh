@@ -502,6 +502,7 @@ Be concise and specific. This is a planning exercise, not implementation."
     local design_synthesis_agent="${OCTOPUS_DESIGN_REVIEW_SYNTH_AGENT:-claude-opus}"
     local design_timeout="${OCTOPUS_DESIGN_REVIEW_TIMEOUT:-0}"
     local design_synth_timeout="${OCTOPUS_DESIGN_REVIEW_SYNTH_TIMEOUT:-0}"
+    local design_retries="${OCTOPUS_DESIGN_REVIEW_RETRIES:-1}"
     if [[ ! "$design_timeout" =~ ^[0-9]+$ ]]; then
         log WARN "Invalid OCTOPUS_DESIGN_REVIEW_TIMEOUT='${design_timeout}', defaulting to no wall timeout"
         design_timeout=0
@@ -509,6 +510,10 @@ Be concise and specific. This is a planning exercise, not implementation."
     if [[ ! "$design_synth_timeout" =~ ^[0-9]+$ ]]; then
         log WARN "Invalid OCTOPUS_DESIGN_REVIEW_SYNTH_TIMEOUT='${design_synth_timeout}', defaulting to no wall timeout"
         design_synth_timeout=0
+    fi
+    if [[ ! "$design_retries" =~ ^[0-9]+$ ]]; then
+        log WARN "Invalid OCTOPUS_DESIGN_REVIEW_RETRIES='${design_retries}', defaulting to 1"
+        design_retries=1
     fi
 
     local _design_timeout_label="none"
@@ -534,13 +539,26 @@ Be concise and specific. This is a planning exercise, not implementation."
 
     local design_agents=""
     local design_approaches=""
-    local design_agent design_role design_specialty design_approach
+    local design_agent design_role design_specialty design_approach design_attempt design_succeeded
     while IFS=':' read -r design_agent design_role design_specialty; do
         design_agent=${design_agent//$'\r'/}
         [[ -z "$design_agent" ]] && continue
         design_role="${design_role:-code-reviewer}"
         design_agents+="${design_agents:+, }${design_agent}"
-        design_approach=$(OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="design-review-ceremony" run_agent_sync "$design_agent" "$ceremony_prompt" "$design_timeout" "$design_role" "ceremony" 2>/dev/null) || true
+        design_approach=""
+        design_succeeded=false
+        for ((design_attempt = 0; design_attempt <= design_retries; design_attempt++)); do
+            if design_approach=$(OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="design-review-ceremony" run_agent_sync "$design_agent" "$ceremony_prompt" "$design_timeout" "$design_role" "ceremony" 2>/dev/null); then
+                design_succeeded=true
+                break
+            fi
+            if (( design_attempt < design_retries )); then
+                log WARN "Design review provider $design_agent failed; retrying ($((design_attempt + 1))/$design_retries)"
+            fi
+        done
+        if [[ "$design_succeeded" != "true" ]]; then
+            log WARN "Design review provider $design_agent unavailable after $((design_retries + 1)) attempts"
+        fi
         design_approaches+=$'\n\n'"${design_agent} APPROACH:"$'\n'"${design_approach:-[unavailable]}"
     done <<< "$design_fleet"
 

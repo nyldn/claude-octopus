@@ -41,6 +41,13 @@ other_session_output="$(cd "$WORKSPACE_A" && HOME="$TEST_HOME" CLAUDE_SESSION_ID
   exit 1
 }
 
+other_workspace_status="$(cd "$WORKSPACE_B" && HOME="$TEST_HOME" CLAUDE_SESSION_ID=session-a bash "$HOOK" --status)"
+grep -Fq 'No active quality gate for this workspace/session.' <<<"$other_workspace_status" || {
+  echo "FAIL: gate status displayed an unrelated report as active" >&2
+  printf '%s\n' "$other_workspace_status" >&2
+  exit 1
+}
+
 ack_output="$(cd "$WORKSPACE_A" && HOME="$TEST_HOME" CLAUDE_SESSION_ID=session-a bash "$HOOK" --ack "$REPORT")"
 grep -Fq 'Acknowledged quality gate tangle-test' <<<"$ack_output" || {
   echo "FAIL: acknowledgement command failed" >&2
