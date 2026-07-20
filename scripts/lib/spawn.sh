@@ -398,11 +398,11 @@ ${heuristic_ctx}"
         return "$_budget_rc"
     fi
 
-    # v8.4/v9.42: Auto-route claude-opus to fast mode when appropriate.
-    # Opus 4.8 fast is 2x standard ($10/$50 vs $5/$25 per MTok); legacy 4.6
-    # fast remains 6x standard.
-    # Only used for interactive single-shot tasks, never for multi-phase workflows
+    # Opus Fast is a distinct, more expensive tier. Never select it as an
+    # automatic fallback: callers must opt in explicitly with
+    # OCTOPUS_OPUS_MODE=fast (or request claude-opus-fast directly).
     if [[ "$agent_type" == "claude-opus" ]] && [[ "$SUPPORTS_FAST_OPUS" == "true" ]] \
+        && [[ "${OCTOPUS_OPUS_MODE:-auto}" == "fast" ]] \
         && [[ "${OCTOPUS_OPUS_MODEL:-}" != "claude-fable-5" ]]; then
         local opus_tier
         opus_tier=$(get_agent_config "${curated_agent:-}" "tier" 2>/dev/null) || opus_tier="premium"
@@ -412,7 +412,7 @@ ${heuristic_ctx}"
         opus_mode=$(select_opus_mode "$phase" "$opus_tier" "$session_autonomy")
         if [[ "$opus_mode" == "fast" ]]; then
             agent_type="claude-opus-fast"
-            log "INFO" "Auto-routing to Opus Fast mode (phase=$phase, tier=$opus_tier, autonomy=$session_autonomy)"
+            log "INFO" "Using explicitly requested Opus Fast mode (phase=$phase, tier=$opus_tier, autonomy=$session_autonomy)"
             if [[ "${SUPPORTS_OPUS_4_8:-false}" == "true" && "${OCTOPUS_OPUS_MODEL:-}" != "claude-opus-4.6" ]]; then
                 log "WARN" "Opus 4.8 fast is 2x standard: \$10/\$50 per MTok vs \$5/\$25 standard"
             else

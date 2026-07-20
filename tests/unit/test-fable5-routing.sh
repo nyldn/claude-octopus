@@ -60,4 +60,9 @@ grep -Fq '[[ "${OCTOPUS_OPUS_MODEL:-}" != "claude-fable-5" ]]' "$ROOT_DIR/script
     exit 1
 }
 
+grep -Fq '[[ "${OCTOPUS_OPUS_MODE:-auto}" == "fast" ]]' "$ROOT_DIR/scripts/lib/spawn.sh" || {
+    echo "FAIL: claude-opus can still auto-route to the more expensive Fast tier" >&2
+    exit 1
+}
+
 echo "PASS: Fable 5 primary routing and availability-only Opus fallback"
