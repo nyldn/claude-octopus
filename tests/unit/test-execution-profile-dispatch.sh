@@ -3,6 +3,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 export PLUGIN_DIR="$ROOT"
 export OCTOPUS_PLATFORM=Linux
+export OPENAI_COMPAT_BASE_URL=https://example.invalid/v1
+export OPENAI_API_KEY=test-key
 export _BARE_OPT=""
 log(){ :; }
 migrate_provider_config(){ :; }
