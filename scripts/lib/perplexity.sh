@@ -134,12 +134,10 @@ EOF
         log WARN "Empty response from OpenRouter ($model)"
         echo "$response"
     else
-        local result
-        result=$(echo "$content" | sed 's/\\n/\n/g; s/\\t/\t/g; s/\\"/"/g')
         if [[ -n "$output_file" ]]; then
-            echo "$result" > "$output_file"
+            printf '%s\n' "$content" > "$output_file"
         else
-            echo "$result"
+            printf '%s\n' "$content"
         fi
     fi
 }

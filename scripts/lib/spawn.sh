@@ -402,7 +402,8 @@ ${heuristic_ctx}"
     # Opus 4.8 fast is 2x standard ($10/$50 vs $5/$25 per MTok); legacy 4.6
     # fast remains 6x standard.
     # Only used for interactive single-shot tasks, never for multi-phase workflows
-    if [[ "$agent_type" == "claude-opus" ]] && [[ "$SUPPORTS_FAST_OPUS" == "true" ]]; then
+    if [[ "$agent_type" == "claude-opus" ]] && [[ "$SUPPORTS_FAST_OPUS" == "true" ]] \
+        && [[ "${OCTOPUS_OPUS_MODEL:-}" != "claude-fable-5" ]]; then
         local opus_tier
         opus_tier=$(get_agent_config "${curated_agent:-}" "tier" 2>/dev/null) || opus_tier="premium"
         local session_autonomy

@@ -55,4 +55,9 @@ export OCTOPUS_OPUS_MODEL="claude-fable-5"
     exit 1
 }
 
+grep -Fq '[[ "${OCTOPUS_OPUS_MODEL:-}" != "claude-fable-5" ]]' "$ROOT_DIR/scripts/lib/spawn.sh" || {
+    echo "FAIL: Fable 5 can be eagerly replaced by the Opus --fast alias" >&2
+    exit 1
+}
+
 echo "PASS: Fable 5 primary routing and availability-only Opus fallback"
