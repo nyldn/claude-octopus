@@ -25,6 +25,35 @@ set -euo pipefail
 model="${OCTOPUS_AGY_MODEL:-default}"
 print_timeout="${OCTOPUS_AGY_PRINT_TIMEOUT:-5m0s}"
 
+# agy (jetski) resolves its home/log/AppData config dir by expanding %USERPROFILE%.
+# On Windows/Git Bash the orchestrator's spawn context can drop USERPROFILE from
+# agy's environment, so agy crashes at startup (exit 1) with
+# "%userprofile% is not defined" before it ever reads the prompt, so the council
+# seat fails silently. Re-derive and export it from any available source so agy
+# always starts. Gated to Windows shell environments (MSYS/MinGW/Cygwin) so a
+# macOS/Linux host, where USERPROFILE is normally unset and unused, is never
+# given a spurious one; exported only when a fallback actually resolved a value,
+# so an empty USERPROFILE is never exported.
+# Reproduce with: env -u USERPROFILE agy --print "say ok"
+case "$(uname -s 2>/dev/null)" in
+    MINGW*|MSYS*|CYGWIN*)
+        if [[ -z "${USERPROFILE:-}" ]]; then
+            if [[ -n "${HOME:-}" ]] && command -v cygpath >/dev/null 2>&1; then
+                USERPROFILE="$(cygpath -w "$HOME" 2>/dev/null)"
+            fi
+            if [[ -z "${USERPROFILE:-}" && -n "${HOMEDRIVE:-}" && -n "${HOMEPATH:-}" ]]; then
+                USERPROFILE="${HOMEDRIVE}${HOMEPATH}"
+            fi
+            if [[ -z "${USERPROFILE:-}" && -n "${HOME:-}" ]]; then
+                USERPROFILE="$HOME"
+            fi
+            if [[ -n "${USERPROFILE:-}" ]]; then
+                export USERPROFILE
+            fi
+        fi
+        ;;
+esac
+
 # --dangerously-skip-permissions: auto-approve agy's folder-trust + tool prompts so
 # council seats don't block on a per-worktree trust prompt (already --sandbox'd).
 # OCTOPUS_AGY_SANDBOX=off drops the sandbox restriction; the default keeps it on.
