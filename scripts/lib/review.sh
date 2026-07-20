@@ -387,11 +387,14 @@ review_wait_for_result_status() {
     local results_dir="${4:-${RESULTS_DIR:-${HOME}/.claude-octopus/results}}"
     local stall_window="${5:-${OCTOPUS_REVIEW_STALL_WINDOW:-1800}}"
     local poll_secs="${6:-${OCTOPUS_REVIEW_POLL_SECS:-30}}"
-    local poll_start last_progress last_fp current_fp
+    local poll_start last_progress last_fp current_fp exit_seen=0 now
+    local result_flush_grace="${OCTOPUS_REVIEW_RESULT_FLUSH_GRACE_SECS:-90}"
     [[ "$stall_window" =~ ^[0-9]+$ ]] || stall_window=1800
     [[ "$poll_secs" =~ ^[0-9]+$ ]] || poll_secs=30
+    [[ "$result_flush_grace" =~ ^[0-9]+$ ]] || result_flush_grace=90
     stall_window=$((10#$stall_window))
     poll_secs=$((10#$poll_secs))
+    result_flush_grace=$((10#$result_flush_grace))
     [[ "$poll_secs" -lt 1 ]] && poll_secs=1
     poll_start=$(date +%s)
     last_progress="$poll_start"
@@ -403,9 +406,18 @@ review_wait_for_result_status() {
             break
         fi
         if ! review_process_is_running "$pid"; then
-            log WARN "review_run: ${label} exited without a terminal status"
-            break
+            now=$(date +%s)
+            if [[ "$exit_seen" -eq 0 ]]; then
+                exit_seen="$now"
+                log INFO "review_run: ${label} provider exited; waiting up to ${result_flush_grace}s for result footer flush"
+            elif [[ $((now - exit_seen)) -ge "$result_flush_grace" ]]; then
+                log WARN "review_run: ${label} exited without a terminal status after ${result_flush_grace}s flush grace"
+                break
+            fi
+            sleep "$poll_secs"
+            continue
         fi
+        exit_seen=0
         current_fp=$(review_progress_fingerprint_since "$poll_start" "$results_dir" "$own_pattern")
         if [[ "$current_fp" != "$last_fp" ]]; then
             last_fp="$current_fp"
@@ -431,14 +443,18 @@ review_supervise_round1() {
     local review_poll_secs="$2"
     local results_dir="$3"
     local _poll_start _now _idx _rf _pid _current_fp _round1_active
+    local result_flush_grace="${OCTOPUS_REVIEW_RESULT_FLUSH_GRACE_SECS:-90}"
     local round1_last_progress=()
     local round1_last_fp=()
     local round1_settled=()
+    local round1_exit_seen=()
 
     [[ "$review_stall_window" =~ ^[0-9]+$ ]] || review_stall_window=1800
     [[ "$review_poll_secs" =~ ^[0-9]+$ ]] || review_poll_secs=30
+    [[ "$result_flush_grace" =~ ^[0-9]+$ ]] || result_flush_grace=90
     review_stall_window=$((10#$review_stall_window))
     review_poll_secs=$((10#$review_poll_secs))
+    result_flush_grace=$((10#$result_flush_grace))
     [[ "$review_poll_secs" -lt 1 ]] && review_poll_secs=1
 
     _poll_start=$(date +%s)
@@ -448,6 +464,7 @@ review_supervise_round1() {
         round1_last_progress[$_idx]="$_poll_start"
         round1_last_fp[$_idx]=$(review_progress_fingerprint_since "$_poll_start" "$results_dir" "$(basename "$_rf")*")
         round1_settled[$_idx]=false
+        round1_exit_seen[$_idx]=0
         ((_idx++)) || true
     done
 
@@ -469,11 +486,20 @@ review_supervise_round1() {
                 continue
             fi
             if ! review_process_is_running "$_pid"; then
-                log WARN "review_run: Round 1 ${round1_agent_types[$_idx]}/${round1_roles[$_idx]} exited without a terminal status"
-                round1_settled[$_idx]=true
+                if [[ "${round1_exit_seen[$_idx]:-0}" -eq 0 ]]; then
+                    round1_exit_seen[$_idx]="$_now"
+                    log INFO "review_run: Round 1 ${round1_agent_types[$_idx]}/${round1_roles[$_idx]} provider exited; waiting up to ${result_flush_grace}s for result footer flush"
+                elif [[ $((_now - ${round1_exit_seen[$_idx]})) -ge "$result_flush_grace" ]]; then
+                    log WARN "review_run: Round 1 ${round1_agent_types[$_idx]}/${round1_roles[$_idx]} exited without a terminal status after ${result_flush_grace}s flush grace"
+                    round1_settled[$_idx]=true
+                fi
+                if [[ "${round1_settled[$_idx]:-false}" != "true" ]]; then
+                    _round1_active=true
+                fi
                 ((_idx++)) || true
                 continue
             fi
+            round1_exit_seen[$_idx]=0
 
             _current_fp=$(review_progress_fingerprint_since "$_poll_start" "$results_dir" "$(basename "$_rf")*")
             if [[ "$_current_fp" != "${round1_last_fp[$_idx]}" ]]; then
