@@ -235,13 +235,13 @@ fi
 
 # ── Hook ───────────────────────────────────────────────────────────────────
 
-test_case "hook emits empty JSON without pins"
+test_case "hook stays silent without pins"
 out=$(env -u OCTOPUS_OPUS_MODEL -u OCTOPUS_CLAUDE_SDK_MODEL -u OCTOPUS_FABLE5_MODE \
     bash "$PROJECT_ROOT/hooks/fable5-inject.sh" 2>/dev/null)
-if [[ "$out" == "{}" ]]; then
+if [[ -z "$out" ]]; then
     test_pass
 else
-    test_fail "expected {}, got '$out'"
+    test_fail "expected empty stdout, got '$out'"
 fi
 
 test_case "hook injects context with opus pin"
@@ -254,10 +254,10 @@ fi
 
 test_case "hook stays silent with OCTOPUS_FABLE5_MODE=off"
 out=$(OCTOPUS_FABLE5_MODE=off OCTOPUS_OPUS_MODEL=claude-fable-5 bash "$PROJECT_ROOT/hooks/fable5-inject.sh" 2>/dev/null)
-if [[ "$out" == "{}" ]]; then
+if [[ -z "$out" ]]; then
     test_pass
 else
-    test_fail "expected {} with mode off, got '$out'"
+    test_fail "expected empty stdout with mode off, got '$out'"
 fi
 
 test_case "hook output is valid JSON"
