@@ -634,64 +634,76 @@ print_provider_report() {
         return 0
     fi
 
-    # Determine status per provider
-    local codex_status="not used" gemini_status="not used" claude_status="✓ OK" perplexity_status="not used"
-    local codex_detail="" gemini_detail="" perplexity_detail=""
-    local had_fallback=false
+    # Collapse repeated round entries per exact executor alias. Preserve the
+    # configured fleet rather than projecting it onto the legacy four-provider
+    # dashboard, which hid OpenRouter GLM/Kimi successes.
+    local rows
+    rows=$(awk -F'|' '
+        function rank(s) {
+            if (s == "auth-failed" || s == "not-installed") return 4
+            if (s == "fallback" || s == "failed") return 3
+            if (s == "ok") return 1
+            return 2
+        }
+        {
+            provider = $1
+            detail = $3
+            for (i = 4; i <= NF; i++) detail = detail FS $i
+            if (!(provider in seen)) {
+                seen[provider] = 1
+                order[++count] = provider
+            }
+            if (!(provider in status) || rank($2) >= rank(status[provider])) {
+                status[provider] = $2
+                details[provider] = detail
+            }
+        }
+        END {
+            for (i = 1; i <= count; i++) {
+                provider = order[i]
+                print provider "|" status[provider] "|" details[provider]
+            }
+        }
+    ' "$status_file")
+    [[ -n "$rows" ]] || { rm -f "$status_file"; return 0; }
 
-    while IFS='|' read -r provider status detail; do
-        case "$provider" in
-            codex)
-                if [[ "$status" == "ok" ]]; then
-                    codex_status="✓ OK"
-                elif [[ "$status" == "fallback" ]]; then
-                    codex_status="✗ FALLBACK"
-                    codex_detail="$detail"
-                    had_fallback=true
-                elif [[ "$status" == "auth-failed" ]]; then
-                    codex_status="✗ AUTH FAILED"
-                    codex_detail="$detail"
-                    had_fallback=true
-                fi
-                ;;
-            gemini)
-                if [[ "$status" == "ok" ]]; then
-                    gemini_status="✓ OK"
-                elif [[ "$status" == "fallback" ]]; then
-                    gemini_status="✗ FALLBACK"
-                    gemini_detail="$detail"
-                    had_fallback=true
-                fi
-                ;;
-            perplexity)
-                if [[ "$status" == "ok" ]]; then
-                    perplexity_status="✓ OK"
-                elif [[ "$status" == "fallback" ]]; then
-                    perplexity_status="✗ FALLBACK"
-                    perplexity_detail="$detail"
-                    had_fallback=true
-                fi
-                ;;
-        esac
-    done < "$status_file"
+    local had_fallback=false
+    local provider status detail label display
 
     # Always print the report card
     echo ""
-    echo "┌─────────────────────────────────────────────┐"
-    echo "│ 🐙 Provider Status                          │"
-    echo "│                                             │"
-    printf "│ 🔴 Codex:      %-28s│\n" "$codex_status"
-    [[ -n "$codex_detail" ]] && printf "│    → %-38s│\n" "$codex_detail"
-    printf "│ 🟡 Gemini:     %-28s│\n" "$gemini_status"
-    [[ -n "$gemini_detail" ]] && printf "│    → %-38s│\n" "$gemini_detail"
-    printf "│ 🔵 Claude:     %-28s│\n" "$claude_status"
-    printf "│ 🟣 Perplexity: %-28s│\n" "$perplexity_status"
-    [[ -n "$perplexity_detail" ]] && printf "│    → %-38s│\n" "$perplexity_detail"
+    echo "+-----------------------------------------------------------------+"
+    echo "|  Octopus configured provider status                             |"
+    echo "+-----------------------------------------------------------------+"
+    while IFS='|' read -r provider status detail; do
+        case "$provider" in
+            codex)                 label="Codex" ;;
+            claude-opus)           label="Claude / Fable" ;;
+            claude*)               label="Claude / ${provider#claude-}" ;;
+            openrouter-glm52)      label="OpenRouter / GLM 5.2" ;;
+            openrouter-kimi-k3)    label="OpenRouter / Kimi K3" ;;
+            openrouter-*)          label="OpenRouter / ${provider#openrouter-}" ;;
+            gemini*)               label="Gemini" ;;
+            perplexity*)           label="Perplexity" ;;
+            *)                     label="$provider" ;;
+        esac
+        case "$status" in
+            ok)            display="OK" ;;
+            fallback)      display="FAILED / FALLBACK"; had_fallback=true ;;
+            auth-failed)   display="AUTH FAILED"; had_fallback=true ;;
+            not-installed) display="NOT INSTALLED"; had_fallback=true ;;
+            *)             display="${status:-UNKNOWN}"; had_fallback=true ;;
+        esac
+        printf "| %-29.29s %-31.31s |\n" "$label" "$display"
+        if [[ "$status" != "ok" && -n "$detail" ]]; then
+            printf "|   -> %-57.57s |\n" "$detail"
+        fi
+    done <<< "$rows"
     if [[ "$had_fallback" == "true" ]]; then
-        echo "│                                             │"
-        echo "│ ⚠ Some providers failed — run /octo:doctor  │"
+        echo "|                                                                 |"
+        echo "| Some providers failed - run /octo:doctor                       |"
     fi
-    echo "└─────────────────────────────────────────────┘"
+    echo "+-----------------------------------------------------------------+"
 
     # Persist failures for /octo:doctor
     if [[ "$had_fallback" == "true" ]]; then
@@ -1084,7 +1096,7 @@ ${round1_prompts[$retry_idx]}"
         local provider_key="${atype%%[-_]*}"
         if [[ ! -f "$f" ]]; then
             ((round1_partial_count++)) || true
-            echo "${provider_key}|fallback|Round 1 agent missing result" >> "$provider_status_file"
+            echo "${atype}|fallback|Round 1 agent missing result" >> "$provider_status_file"
             ((idx++)) || true
             continue
         fi
@@ -1113,9 +1125,9 @@ ${round1_prompts[$retry_idx]}"
         fi
         if ! review_result_completed_successfully "$f"; then
             ((round1_partial_count++)) || true
-            echo "${provider_key}|fallback|Round 1 agent did not complete successfully" >> "$provider_status_file"
+            echo "${atype}|fallback|Round 1 agent did not complete successfully" >> "$provider_status_file"
         else
-            echo "${provider_key}|ok|Round 1 completed" >> "$provider_status_file"
+            echo "${atype}|ok|Round 1 completed" >> "$provider_status_file"
         fi
         ((idx++)) || true
     done
