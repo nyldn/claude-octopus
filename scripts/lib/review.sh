@@ -64,82 +64,58 @@ _review_fleet_from_config() {
     local has_logic=false has_security=false has_arch=false has_cve=false has_diversity=false
 
     while IFS= read -r provider; do
+        # jq preserves CRLF from the host config on Windows. Normalize before
+        # exact matching so configured participants are not silently dropped.
+        provider=${provider//$'\r'/}
         [[ -z "$provider" ]] && continue
         case "$provider" in
             codex|codex-*)
-                if [[ "$has_logic" == "false" ]]; then
-                    fleet+="${provider}:logic-reviewer:correctness and logic bugs, edge cases, regressions"$'\n'
-                    has_logic=true
-                fi
+                fleet+="${provider}:logic-reviewer:correctness and logic bugs, edge cases, regressions"$'\n'
+                has_logic=true
                 ;;
             opencode|opencode-*)
-                if [[ "$has_logic" == "false" ]]; then
-                    fleet+="${provider}:logic-reviewer:correctness and logic bugs, edge cases, regressions"$'\n'
-                    has_logic=true
-                fi
+                fleet+="${provider}:logic-reviewer:correctness and logic bugs, edge cases, regressions"$'\n'
+                has_logic=true
                 ;;
             gemini|gemini-*)
-                if [[ "$has_security" == "false" ]]; then
-                    fleet+="${provider}:security-reviewer:OWASP vulnerabilities, injection, auth flaws, data exposure"$'\n'
-                    has_security=true
-                fi
+                fleet+="${provider}:security-reviewer:OWASP vulnerabilities, injection, auth flaws, data exposure"$'\n'
+                has_security=true
                 ;;
             claude|claude-sonnet|claude-opus)
-                if [[ "$has_arch" == "false" ]]; then
-                    local agent="${provider}"
-                    [[ "$provider" == "claude" ]] && agent="claude-sonnet"
-                    fleet+="${agent}:arch-reviewer:architecture, integration, API contracts, breaking changes"$'\n'
-                    has_arch=true
-                fi
+                local agent="${provider}"
+                [[ "$provider" == "claude" ]] && agent="claude-opus"
+                fleet+="${agent}:arch-reviewer:architecture, integration, API contracts, breaking changes"$'\n'
+                has_arch=true
                 ;;
             perplexity|perplexity-*)
-                if [[ "$has_cve" == "false" ]]; then
-                    fleet+="${provider}:cve-reviewer:known CVEs, library advisories, live web search"$'\n'
-                    has_cve=true
-                fi
+                fleet+="${provider}:cve-reviewer:known CVEs, library advisories, live web search"$'\n'
+                has_cve=true
                 ;;
             openrouter|openrouter-*)
-                if [[ "$has_diversity" == "false" ]]; then
-                    fleet+="${provider}:diversity-reviewer:cross-family perspective on logic, missed assumptions, training-data divergence from primary providers"$'\n'
-                    has_diversity=true
-                fi
+                fleet+="${provider}:diversity-reviewer:cross-family perspective on logic, missed assumptions, training-data divergence from primary providers"$'\n'
+                has_diversity=true
                 ;;
             openai-compatible|openai-tools|openai-compatible-agent)
-                if [[ "$has_logic" == "false" ]]; then
-                    fleet+="${provider}:logic-reviewer:correctness and logic bugs, edge cases, regressions"$'\n'
-                    has_logic=true
-                elif [[ "$has_diversity" == "false" ]]; then
-                    fleet+="${provider}:diversity-reviewer:OpenAI-compatible independent review path"$'\n'
-                    has_diversity=true
-                fi
+                fleet+="${provider}:logic-reviewer:correctness and logic bugs, edge cases, regressions"$'\n'
+                has_logic=true
                 ;;
             qwen|qwen-*)
-                if [[ "$has_security" == "false" ]]; then
-                    fleet+="${provider}:security-reviewer:OWASP vulnerabilities, injection, auth flaws, data exposure"$'\n'
-                    has_security=true
-                elif [[ "$has_diversity" == "false" ]]; then
-                    fleet+="${provider}:diversity-reviewer:cross-family perspective on logic and assumptions"$'\n'
-                    has_diversity=true
-                fi
+                fleet+="${provider}:security-reviewer:OWASP vulnerabilities, injection, auth flaws, data exposure"$'\n'
+                has_security=true
                 ;;
             copilot|copilot-*)
-                if [[ "$has_cve" == "false" ]]; then
-                    fleet+="${provider}:cve-reviewer:known CVEs via web search, library advisories"$'\n'
-                    has_cve=true
-                elif [[ "$has_diversity" == "false" ]]; then
-                    fleet+="${provider}:diversity-reviewer:cross-perspective review"$'\n'
-                    has_diversity=true
-                fi
+                fleet+="${provider}:cve-reviewer:known CVEs via web search, library advisories"$'\n'
+                has_cve=true
                 ;;
         esac
     done <<< "$participants"
 
     [[ -z "$fleet" ]] && return 0
 
-    # Anchor: always include arch-reviewer (claude-sonnet) if config didn't supply one.
+    # Anchor: always include Claude's Fable-primary route if config omitted one.
     # Architecture context bridges per-finding noise from the specialist agents.
     if [[ "$has_arch" == "false" ]]; then
-        fleet+="claude-sonnet:arch-reviewer:architecture, integration, API contracts, breaking changes"$'\n'
+        fleet+="claude-opus:arch-reviewer:architecture, integration, API contracts, breaking changes"$'\n'
     fi
 
     log INFO "review fleet: config-driven (.routing.features.review)"
@@ -187,8 +163,8 @@ build_review_fleet() {
         fleet+="claude-sonnet:security-reviewer:OWASP vulnerabilities, injection, auth flaws, data exposure"$'\n'
     fi
 
-    # arch-reviewer: claude-sonnet (always available — best at holistic analysis)
-    fleet+="claude-sonnet:arch-reviewer:architecture, integration, API contracts, breaking changes"$'\n'
+    # arch-reviewer: Fable 5 primary, Opus 4.8 only on model unavailability.
+    fleet+="claude-opus:arch-reviewer:architecture, integration, API contracts, breaking changes"$'\n'
 
     # cve-reviewer: Perplexity → Gemini search → Copilot → Qwen → claude WebSearch
     if command -v perplexity >/dev/null 2>&1 || [[ -n "${PERPLEXITY_API_KEY:-}" ]]; then

@@ -376,10 +376,16 @@ $challenge_result
 
         # Write validation report before branching so abort/escalate/retry paths
         # still leave an actionable artifact for embrace and post-run diagnosis.
+        local gate_workspace gate_session
+        gate_workspace=$(pwd -P)
+        gate_session="${CLAUDE_SESSION_ID:-${OCTOPUS_SESSION_ID:-unknown}}"
         cat > "$validation_file" << EOF
 # TANGLE Phase Validation Report
 ## Task: $original_prompt
 ## Generated: $(date)
+## Gate ID: tangle-${task_group}
+## Workspace: ${gate_workspace}
+## Session: ${gate_session}
 
 ### Quality Gate: ${gate_status}
 - Success Rate: ${success_rate}% (threshold: ${tangle_threshold}%)

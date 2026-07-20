@@ -288,7 +288,9 @@ get_agent_command() {
         claude-opus-legacy) echo "${_claude_bin}${_BARE_OPT} --print --model claude-opus-4-6 ${claude_perm}" ;; # v9.23: explicit 4.6 opt-in
         openrouter) echo "openrouter_execute" ;;                 # OpenRouter API (v4.8)
         openrouter-glm5) echo "openrouter_execute_model z-ai/glm-5" ;;           # v8.11.0: GLM-5 via OpenRouter
+        openrouter-glm52) echo "openrouter_execute_model z-ai/glm-5.2" ;;        # GLM 5.2 via OpenRouter
         openrouter-kimi) echo "openrouter_execute_model moonshotai/kimi-k2.5" ;; # v8.11.0: Kimi K2.5 via OpenRouter
+        openrouter-kimi-k3) echo "openrouter_execute_model moonshotai/kimi-k3" ;; # Kimi K3 via OpenRouter
         openrouter-deepseek) echo "openrouter_execute_model deepseek/deepseek-r1-0528" ;; # v8.11.0: DeepSeek R1 via OpenRouter
         openai-compatible|openai-tools|openai-compatible-agent)  # Generic OpenAI-compatible tool-loop agent
             if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
@@ -881,7 +883,7 @@ find_capable_fallback() {
         claude)
             candidates=(claude-sonnet-4.6 claude-opus-4.6) ;;
         openrouter)
-            candidates=(z-ai/glm-5 moonshotai/kimi-k2.5 deepseek/deepseek-r1-0528) ;;
+            candidates=(z-ai/glm-5.2 moonshotai/kimi-k3 z-ai/glm-5 moonshotai/kimi-k2.5 deepseek/deepseek-r1-0528) ;;
         perplexity)
             candidates=(sonar sonar-pro) ;;
         cursor-agent)

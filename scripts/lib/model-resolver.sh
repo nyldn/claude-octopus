@@ -369,6 +369,8 @@ resolve_octopus_model() {
             claude*)         resolved_model="claude-sonnet-4.6" ;;
             perplexity-fast)  resolved_model="sonar" ;;
             perplexity*)       resolved_model="sonar-pro" ;;
+            openrouter-glm52*) resolved_model="z-ai/glm-5.2" ;;
+            openrouter-kimi-k3*) resolved_model="moonshotai/kimi-k3" ;;
             openrouter-glm*)  resolved_model="z-ai/glm-5" ;;
             openrouter-kimi*) resolved_model="moonshotai/kimi-k2.5" ;;
             openrouter-deepseek*) resolved_model="deepseek/deepseek-r1-0528" ;;
@@ -583,7 +585,7 @@ get_fallback_agent() {
                 echo "$preferred"
             fi
             ;;
-        openrouter-glm5|openrouter-kimi|openrouter-deepseek)
+        openrouter-*)
             # v8.11.0: Model-specific OpenRouter → generic openrouter → codex → gemini
             if is_agent_available "openrouter"; then
                 [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: $preferred -> openrouter (model-specific unavailable)" || true

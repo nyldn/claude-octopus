@@ -12,6 +12,7 @@ set -eo pipefail
 # at itself (ELOOP). See #371.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 PLUGIN_DIR="$(dirname "$SCRIPT_DIR")"
+source "${SCRIPT_DIR}/lib/python-runtime.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/plugin-root.sh" 2>/dev/null || true
 
 # Self-heal: ensure the stable symlink exists for LLM Bash tool access.
@@ -601,7 +602,7 @@ CODEX_SUBAGENT_PREAMBLE="IMPORTANT: You are running as a non-interactive subagen
 
 "
 
-AVAILABLE_AGENTS="codex codex-standard codex-max codex-mini codex-general codex-spark codex-reasoning codex-large-context gemini gemini-fast gemini-image agy agy-research antigravity codex-review claude claude-sonnet claude-opus claude-opus-fast openrouter openrouter-glm5 openrouter-kimi openrouter-deepseek openai-compatible openai-tools openai-compatible-agent perplexity perplexity-fast ollama copilot copilot-research qwen qwen-research cursor-agent vibe vibe-research"
+AVAILABLE_AGENTS="codex codex-standard codex-max codex-mini codex-general codex-spark codex-reasoning codex-large-context gemini gemini-fast gemini-image agy agy-research antigravity codex-review claude claude-sonnet claude-opus claude-opus-fast openrouter openrouter-glm5 openrouter-glm52 openrouter-kimi openrouter-kimi-k3 openrouter-deepseek openai-compatible openai-tools openai-compatible-agent perplexity perplexity-fast ollama copilot copilot-research qwen qwen-research cursor-agent vibe vibe-research"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # USAGE TRACKING & COST REPORTING (v4.1)

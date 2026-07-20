@@ -691,6 +691,7 @@ ${heuristic_ctx}"
         fi
 
         local auth_attempt=0
+        local fable5_fallback_attempt=0
         local exit_code=0
         while true; do
             exit_code=0
@@ -736,6 +737,32 @@ ${heuristic_ctx}"
             fi
 
             stop_quota_watcher "$_quota_watcher_pid"
+
+            # Fable 5 is primary. Retry once on Opus 4.8 only when the provider
+            # explicitly reports that the Fable model is unavailable.
+            if [[ $exit_code -ne 0 ]] && [[ "$fable5_fallback_attempt" -eq 0 ]] \
+                && [[ "$agent_type" == "claude-opus" ]] \
+                && [[ "${OCTOPUS_OPUS_MODEL:-}" == "claude-fable-5" ]] \
+                && declare -f fable5_model_unavailable >/dev/null 2>&1 \
+                && fable5_model_unavailable "$temp_errors" "$temp_output"; then
+                local fable5_model_index=-1
+                local fable5_cmd_index
+                for fable5_cmd_index in "${!cmd_array[@]}"; do
+                    if [[ "${cmd_array[$fable5_cmd_index]}" == "claude-fable-5" ]]; then
+                        fable5_model_index="$fable5_cmd_index"
+                        break
+                    fi
+                done
+                if [[ "$fable5_model_index" -ge 0 ]]; then
+                    cmd_array[$fable5_model_index]="claude-opus-4-8"
+                    fable5_fallback_attempt=1
+                    log "WARN" "[$agent_type] Fable 5 unavailable; retrying once on Opus 4.8"
+                    > "$temp_output"
+                    > "$temp_errors"
+                    > "$raw_output"
+                    continue
+                fi
+            fi
 
             # v8.16: Check if failure is auth-related and retryable
             if [[ $exit_code -ne 0 ]] && [[ $auth_attempt -lt $max_auth_retries ]]; then

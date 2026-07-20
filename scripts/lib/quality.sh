@@ -494,12 +494,11 @@ State your HIGH-LEVEL approach in 3-5 bullet points:
 
 Be concise and specific. This is a planning exercise, not implementation."
 
-    # Gather approaches from available providers. Keep these configurable so
-    # operators can pick cheaper/faster review models without patching code.
-    local codex_approach="" gemini_approach="" sonnet_approach=""
+    # Configured review participants are the ceremony roster. Explicit legacy
+    # environment overrides remain supported for operators who set them.
     local design_codex_agent="${OCTOPUS_DESIGN_REVIEW_CODEX_AGENT:-codex-mini}"
     local design_agy_agent="${OCTOPUS_DESIGN_REVIEW_AGY_AGENT:-${OCTOPUS_DESIGN_REVIEW_GEMINI_AGENT:-agy}}"
-    local design_claude_agent="${OCTOPUS_DESIGN_REVIEW_CLAUDE_AGENT:-claude-sonnet}"
+    local design_claude_agent="${OCTOPUS_DESIGN_REVIEW_CLAUDE_AGENT:-claude-opus}"
     local design_synthesis_agent="${OCTOPUS_DESIGN_REVIEW_SYNTH_AGENT:-claude-opus}"
     local design_timeout="${OCTOPUS_DESIGN_REVIEW_TIMEOUT:-0}"
     local design_synth_timeout="${OCTOPUS_DESIGN_REVIEW_SYNTH_TIMEOUT:-0}"
@@ -517,27 +516,43 @@ Be concise and specific. This is a planning exercise, not implementation."
     local _synth_timeout_label="none"
     [[ "$design_synth_timeout" != "0" ]] && _synth_timeout_label="${design_synth_timeout}s"
 
-    log INFO "Design review: gathering provider approaches..."
-    log INFO "Design review agents: codex=${design_codex_agent}, agy=${design_agy_agent}, claude=${design_claude_agent}, synthesis=${design_synthesis_agent}, timeout=${_design_timeout_label}, synth_timeout=${_synth_timeout_label}"
+    local design_fleet=""
+    if [[ -n "${OCTOPUS_DESIGN_REVIEW_FLEET:-}" ]]; then
+        design_fleet="$OCTOPUS_DESIGN_REVIEW_FLEET"
+    elif [[ -n "${OCTOPUS_DESIGN_REVIEW_CODEX_AGENT:-}${OCTOPUS_DESIGN_REVIEW_AGY_AGENT:-}${OCTOPUS_DESIGN_REVIEW_GEMINI_AGENT:-}${OCTOPUS_DESIGN_REVIEW_CLAUDE_AGENT:-}" ]]; then
+        design_fleet="${design_codex_agent}:implementer:implementation approach"$'\n'
+        design_fleet+="${design_agy_agent}:researcher:independent architecture approach"$'\n'
+        design_fleet+="${design_claude_agent}:code-reviewer:integration and risk approach"$'\n'
+    elif declare -f build_review_fleet >/dev/null 2>&1; then
+        design_fleet=$(build_review_fleet)
+    fi
+    if [[ -z "$design_fleet" ]]; then
+        design_fleet="${design_codex_agent}:implementer:implementation approach"$'\n'
+        design_fleet+="${design_agy_agent}:researcher:independent architecture approach"$'\n'
+        design_fleet+="${design_claude_agent}:code-reviewer:integration and risk approach"$'\n'
+    fi
 
-    codex_approach=$(OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="design-review-ceremony" run_agent_sync "$design_codex_agent" "$ceremony_prompt" "$design_timeout" "implementer" "ceremony" 2>/dev/null) || true
-    gemini_approach=$(OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="design-review-ceremony" run_agent_sync "$design_agy_agent" "$ceremony_prompt" "$design_timeout" "researcher" "ceremony" 2>/dev/null) || true
-    sonnet_approach=$(OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="design-review-ceremony" run_agent_sync "$design_claude_agent" "$ceremony_prompt" "$design_timeout" "code-reviewer" "ceremony" 2>/dev/null) || true
+    local design_agents=""
+    local design_approaches=""
+    local design_agent design_role design_specialty design_approach
+    while IFS=':' read -r design_agent design_role design_specialty; do
+        design_agent=${design_agent//$'\r'/}
+        [[ -z "$design_agent" ]] && continue
+        design_role="${design_role:-code-reviewer}"
+        design_agents+="${design_agents:+, }${design_agent}"
+        design_approach=$(OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="design-review-ceremony" run_agent_sync "$design_agent" "$ceremony_prompt" "$design_timeout" "$design_role" "ceremony" 2>/dev/null) || true
+        design_approaches+=$'\n\n'"${design_agent} APPROACH:"$'\n'"${design_approach:-[unavailable]}"
+    done <<< "$design_fleet"
+
+    log INFO "Design review: gathered configured provider approaches"
+    log INFO "Design review agents: ${design_agents:-none}; synthesis=${design_synthesis_agent}, timeout=${_design_timeout_label}, synth_timeout=${_synth_timeout_label}"
 
     # Synthesize conflicts and resolution
     local synthesis
     synthesis=$(OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="design-review-ceremony" run_agent_sync "$design_synthesis_agent" "You are synthesizing a design review ceremony.
 
-Three providers stated their approach to this task:
-
-CODEX APPROACH:
-${codex_approach:-[unavailable]}
-
-GEMINI APPROACH:
-${gemini_approach:-[unavailable]}
-
-SONNET APPROACH:
-${sonnet_approach:-[unavailable]}
+The configured providers stated their approaches to this task:
+${design_approaches:-[all providers unavailable]}
 
 Identify:
 1. CONFLICTS: Where do the approaches disagree?

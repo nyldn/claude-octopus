@@ -1,0 +1,20 @@
+{
+  "version": "3.0",
+  "providers": {
+    "openrouter": {
+      "default": "z-ai/glm-5.2",
+      "glm52": "z-ai/glm-5.2",
+      "kimi-k3": "moonshotai/kimi-k3"
+    }
+  },
+  "routing": {
+    "features": {
+      "review": [
+        "codex",
+        "claude-opus",
+        "openrouter-glm52",
+        "openrouter-kimi-k3"
+      ]
+    }
+  }
+}

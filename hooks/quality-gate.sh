@@ -11,20 +11,141 @@ set -euo pipefail
 _octo_hook_exit() { local c=$?; if [[ $c -ne 0 ]]; then echo "[hook:$(basename "$0")] exit $c" >&2 2>/dev/null || true; fi; return 0; }
 trap _octo_hook_exit EXIT
 
+QUALITY_GATE_RESULTS_DIR="${HOME}/.claude-octopus/results"
+QUALITY_GATE_ACK_DIR="${QUALITY_GATE_RESULTS_DIR}/quality-gate-ack"
+QUALITY_GATE_HOOK_INPUT=""
+if [[ $# -eq 0 && ! -t 0 ]]; then
+    QUALITY_GATE_HOOK_INPUT=$(cat 2>/dev/null || true)
+fi
 
-VALIDATION_FILE=$(ls -t ~/.claude-octopus/results/tangle-validation-*.md 2>/dev/null | head -1 || true)
+quality_gate_latest_report() {
+    ls -t "${QUALITY_GATE_RESULTS_DIR}"/tangle-validation-*.md 2>/dev/null | head -1 || true
+}
+
+quality_gate_report_value() {
+    local report="$1" label="$2"
+    awk -v prefix="## ${label}: " '
+        index($0, prefix) == 1 {
+            sub(prefix, "")
+            sub(/\r$/, "")
+            print
+            exit
+        }
+    ' "$report" 2>/dev/null || true
+}
+
+quality_gate_fingerprint() {
+    cksum "$1" 2>/dev/null | awk '{print $1 ":" $2}'
+}
+
+quality_gate_current_session() {
+    local session="${CLAUDE_SESSION_ID:-${OCTOPUS_SESSION_ID:-}}"
+    if [[ -z "$session" && -n "$QUALITY_GATE_HOOK_INPUT" ]] && command -v jq >/dev/null 2>&1; then
+        session=$(printf '%s' "$QUALITY_GATE_HOOK_INPUT" | jq -r '.session_id // empty' 2>/dev/null || true)
+    fi
+    printf '%s\n' "$session"
+}
+
+quality_gate_context_matches() {
+    local report="$1"
+    local report_workspace report_session current_workspace current_session
+    report_workspace=$(quality_gate_report_value "$report" "Workspace")
+    report_session=$(quality_gate_report_value "$report" "Session")
+    current_workspace=$(pwd -P)
+    current_session=$(quality_gate_current_session)
+
+    # Legacy unscoped reports are retained as evidence but cannot globally
+    # intercept unrelated sessions or workspaces.
+    [[ -n "$report_workspace" && -n "$report_session" ]] || return 1
+    [[ "$report_session" != "unknown" && -n "$current_session" ]] || return 1
+    [[ "$report_workspace" == "$current_workspace" ]] || return 1
+    [[ "$report_session" == "$current_session" ]] || return 1
+}
+
+quality_gate_find_matching_report() {
+    local candidate
+    while IFS= read -r candidate; do
+        [[ -f "$candidate" ]] || continue
+        if quality_gate_context_matches "$candidate"; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done < <(ls -t "${QUALITY_GATE_RESULTS_DIR}"/tangle-validation-*.md 2>/dev/null || true)
+    return 1
+}
+
+quality_gate_ack_file() {
+    local report="$1" gate_id
+    gate_id=$(quality_gate_report_value "$report" "Gate ID")
+    [[ "$gate_id" =~ ^[A-Za-z0-9._-]+$ ]] || return 1
+    printf '%s/%s.ack\n' "$QUALITY_GATE_ACK_DIR" "$gate_id"
+}
+
+quality_gate_is_acknowledged() {
+    local report="$1" ack_file fingerprint
+    ack_file=$(quality_gate_ack_file "$report") || return 1
+    [[ -f "$ack_file" ]] || return 1
+    fingerprint=$(quality_gate_fingerprint "$report")
+    [[ "$(<"$ack_file")" == "$fingerprint" ]]
+}
+
+quality_gate_acknowledge() {
+    local report="${1:-}"
+    [[ -n "$report" && "$report" != "latest" ]] || report=$(quality_gate_latest_report)
+    [[ -f "$report" ]] || { echo "No tangle validation report found." >&2; return 1; }
+
+    local gate_id ack_file fingerprint
+    gate_id=$(quality_gate_report_value "$report" "Gate ID")
+    ack_file=$(quality_gate_ack_file "$report") || {
+        echo "Cannot acknowledge an unscoped legacy validation report." >&2
+        return 1
+    }
+    fingerprint=$(quality_gate_fingerprint "$report")
+    mkdir -p "$QUALITY_GATE_ACK_DIR"
+    printf '%s\n' "$fingerprint" > "$ack_file"
+    echo "Acknowledged quality gate ${gate_id}: ${report}"
+}
+
+quality_gate_status() {
+    local report="${1:-}"
+    [[ -n "$report" && "$report" != "latest" ]] || report=$(quality_gate_find_matching_report 2>/dev/null || quality_gate_latest_report)
+    [[ -f "$report" ]] || { echo "No tangle validation report found."; return 0; }
+    local gate_id status state="pending"
+    gate_id=$(quality_gate_report_value "$report" "Gate ID")
+    status=$(grep -E '^#{2,3}[[:space:]]+(Quality Gate|Status):' "$report" 2>/dev/null | head -1 || true)
+    quality_gate_is_acknowledged "$report" && state="acknowledged"
+    echo "Gate: ${gate_id:-legacy}"
+    echo "State: ${state}"
+    echo "Status: ${status:-unknown}"
+    echo "Report: ${report}"
+}
+
+case "${1:-}" in
+    --ack|ack|acknowledge)
+        shift
+        quality_gate_acknowledge "${1:-latest}"
+        exit $?
+        ;;
+    --status|status)
+        shift
+        quality_gate_status "${1:-latest}"
+        exit $?
+        ;;
+esac
+
+VALIDATION_FILE=$(quality_gate_find_matching_report 2>/dev/null || true)
 
 if [[ -f "$VALIDATION_FILE" ]]; then
     # Check if quality gate passed. `|| true` — grep-no-match must not cascade
     # under `set -o pipefail` and trigger the silent-fail path (issue #313).
-    STATUS=$(grep -E "^## (Quality Gate|Status):" "$VALIDATION_FILE" 2>/dev/null | head -1 || true)
+    STATUS=$(grep -E '^#{2,3}[[:space:]]+(Quality Gate|Status):' "$VALIDATION_FILE" 2>/dev/null | head -1 || true)
 
-    if echo "$STATUS" | grep -qi "failed"; then
+    if ! quality_gate_is_acknowledged "$VALIDATION_FILE" && echo "$STATUS" | grep -qi "failed"; then
         echo '{"decision": "block", "reason": "Quality gate validation failed. Review tangle output before proceeding."}'
         exit 0
     fi
 
-    if echo "$STATUS" | grep -qi "warning"; then
+    if ! quality_gate_is_acknowledged "$VALIDATION_FILE" && echo "$STATUS" | grep -qi "warning"; then
         echo '{"decision": "block", "reason": "Quality gate has warnings. Review tangle output before proceeding."}'
         exit 0
     fi
