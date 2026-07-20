@@ -39,7 +39,10 @@ case "$(uname -s 2>/dev/null)" in
     MINGW*|MSYS*|CYGWIN*)
         if [[ -z "${USERPROFILE:-}" ]]; then
             if [[ -n "${HOME:-}" ]] && command -v cygpath >/dev/null 2>&1; then
-                USERPROFILE="$(cygpath -w "$HOME" 2>/dev/null)"
+                # `|| true` keeps set -e from killing the shim on a failed
+                # conversion, so the HOMEDRIVE+HOMEPATH and HOME fallbacks
+                # below still get their turn.
+                USERPROFILE="$(cygpath -w "$HOME" 2>/dev/null || true)"
             fi
             if [[ -z "${USERPROFILE:-}" && -n "${HOMEDRIVE:-}" && -n "${HOMEPATH:-}" ]]; then
                 USERPROFILE="${HOMEDRIVE}${HOMEPATH}"
@@ -138,15 +141,27 @@ fi
 
 # Silent prompt mutation is hard to diagnose from the outside: someone debugging an
 # odd agy response should be able to see that the adapter modified the prompt.
+# Raw stderr echo rather than `log`: this file is a standalone shim exec'd
+# directly by dispatch.sh, like the sibling Gemini and Grok shims, and does
+# not source the logging library by design.
 if [[ -n "$AGY_INLINE_DIRECTIVE" && "${OCTOPUS_DEBUG:-false}" == "true" ]]; then
     echo "agy-exec.sh: prepending force-inline directive to prompt (disable with OCTOPUS_AGY_FORCE_INLINE=0)" >&2
 fi
 
+# Byte length regardless of locale: MAX_ARG_STRLEN is a byte limit, and a
+# multibyte UTF-8 prompt has more bytes than ${#var} chars would suggest.
+byte_length() {
+    local LC_ALL=C
+    printf '%s' "${#1}"
+}
+
 # Single-argument size ceiling: Linux caps one argv string at MAX_ARG_STRLEN
 # (128 KiB). Oversized prompts stay in the cached temp file and agy is pointed
 # at it via --add-dir with a read-this-file --print instruction, instead of
-# failing the seat.
-if (( ${#prompt_content} > 100000 )); then
+# failing the seat. The ceiling is measured on the FULL --print argument the
+# inline branch would build (directive + prompt), not the prompt alone, so the
+# prepended directive can never push a near-ceiling prompt past the limit.
+if (( $(byte_length "${AGY_INLINE_DIRECTIVE}${prompt_content}") > 100000 )); then
     cmd+=(--add-dir "$(dirname "$prompt_file")")
     cmd+=(--print "${AGY_INLINE_DIRECTIVE_FILE}Read the file '${prompt_file}' and follow the instructions in it as your task prompt. Do not summarize the file; execute it.")
 else
