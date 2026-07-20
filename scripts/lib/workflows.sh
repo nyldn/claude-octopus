@@ -1051,6 +1051,68 @@ tangle_parseable_coding_subtask_count() {
     echo "$count"
 }
 
+tangle_configured_decomposition_agents() {
+    local config_file="${OCTOPUS_PROVIDERS_CONFIG:-${HOME}/.claude-octopus/config/providers.json}"
+    [[ -f "$config_file" ]] || return 0
+    command -v jq >/dev/null 2>&1 || return 0
+
+    # Prefer a decomposition/develop-specific fleet when configured. Fall back
+    # to the general parallel fleet and finally the review fleet so installations
+    # with an explicit multi-provider roster do not silently dispatch to unrelated
+    # legacy seats.
+    jq -r '
+        [
+            .routing.features.tangle_decompose,
+            .routing.features.develop,
+            .routing.features.parallel,
+            .routing.features.review
+        ]
+        | map(select(type == "array" and length > 0))
+        | (first // [])[]
+    ' "$config_file" 2>/dev/null || true
+}
+
+tangle_decomposition_agents() {
+    local tangle_decompose_agent="agy" tangle_decompose_fallback_agent="codex"
+    if declare -f octopus_agent_override >/dev/null 2>&1; then
+        tangle_decompose_agent=$(octopus_execution_profile_provider "tangle" "decompose" "researcher" "agy")
+        tangle_decompose_fallback_agent=$(octopus_execution_profile_provider "tangle" "decompose_fallback" "implementer" "codex")
+    fi
+
+    local candidates="${tangle_decompose_agent}"$'\n'"${tangle_decompose_fallback_agent}"$'\n'
+    candidates+="$(tangle_configured_decomposition_agents)"$'\n'
+    candidates+="claude-opus"$'\n'"codex"$'\n'"agy"$'\n'"openrouter"
+
+    local candidate normalized seen=""
+    while IFS= read -r candidate; do
+        candidate=${candidate//$'\r'/}
+        [[ -n "$candidate" ]] || continue
+        normalized=$(printf '%s' "$candidate" | tr '[:upper:]_' '[:lower:]-')
+        [[ " $seen " == *" $normalized "* ]] && continue
+        seen="${seen:+$seen }$normalized"
+        if ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed "$candidate"; then
+            printf '%s\n' "$candidate"
+        fi
+    done <<< "$candidates"
+}
+
+tangle_run_decomposition() {
+    local prompt="$1"
+    local supervision_label="${2:-tangle-dispatch-watcher}"
+    local agent output
+
+    while IFS= read -r agent; do
+        [[ -n "$agent" ]] || continue
+        if output=$(OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="$supervision_label" run_agent_sync "$agent" "$prompt" 0 "researcher" "tangle"); then
+            printf '%s\n' "$output"
+            return 0
+        fi
+        log WARN "Tangle decomposition provider '$agent' failed; trying the next allowed candidate"
+    done < <(tangle_decomposition_agents)
+
+    return 1
+}
+
 tangle_reformat_decomposition() {
     local original_task="$1"
     local previous_decomposition="$2"
@@ -1083,14 +1145,7 @@ Previous decomposition:
 ${previous_decomposition}
 "
 
-    local tangle_decompose_agent="agy" tangle_decompose_fallback_agent="codex"
-    if declare -f octopus_agent_override >/dev/null 2>&1; then
-        tangle_decompose_agent=$(octopus_execution_profile_provider "tangle" "decompose" "researcher" "agy")
-        tangle_decompose_fallback_agent=$(octopus_execution_profile_provider "tangle" "decompose_fallback" "implementer" "codex")
-    fi
-
-    OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="tangle-reformat-validation" run_agent_sync "$tangle_decompose_agent" "$reformat_prompt" 0 "researcher" "tangle" || \
-    OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="tangle-reformat-validation" run_agent_sync "$tangle_decompose_fallback_agent" "$reformat_prompt" 0 "researcher" "tangle"
+    tangle_run_decomposition "$reformat_prompt" "tangle-reformat-validation"
 }
 
 tangle_validate_parallel_write_scopes() {
@@ -1864,18 +1919,8 @@ Required format:
 2. [REASONING] Short title — Task: specific reasoning work
 Every [CODING] line must include a same-line Files: clause."
 
-    # Tangle decomposition agents are overridable (OCTOPUS_TANGLE_DECOMPOSE_AGENT,
-    # OCTOPUS_TANGLE_DECOMPOSE_FALLBACK_AGENT, OCTOPUS_TANGLE_AGENT). Override only
-    # selects the dispatch agent; the fail-closed contract below is unchanged.
-    local tangle_decompose_agent="agy" tangle_decompose_fallback_agent="codex"
-    if declare -f octopus_agent_override >/dev/null 2>&1; then
-        tangle_decompose_agent=$(octopus_execution_profile_provider "tangle" "decompose" "researcher" "agy")
-        tangle_decompose_fallback_agent=$(octopus_execution_profile_provider "tangle" "decompose_fallback" "implementer" "codex")
-    fi
-
     local subtasks
-    subtasks=$(OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="tangle-dispatch-watcher" run_agent_sync "$tangle_decompose_agent" "$decompose_prompt" 0 "researcher" "tangle") || \
-    subtasks=$(OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="tangle-dispatch-watcher" run_agent_sync "$tangle_decompose_fallback_agent" "$decompose_prompt" 0 "researcher" "tangle") || {
+    subtasks=$(tangle_run_decomposition "$decompose_prompt" "tangle-dispatch-watcher") || {
         log ERROR "Decomposition failed with all providers; refusing monolithic direct fallback"
         return 1
     }

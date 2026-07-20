@@ -113,6 +113,11 @@ octo_provider_allowed() {
                     codex|codex-*) return 0 ;;
                 esac
                 ;;
+            openrouter)
+                case "$provider" in
+                    openrouter|openrouter-*) return 0 ;;
+                esac
+                ;;
             gemini)
                 case "$provider" in
                     gemini|gemini-*) return 0 ;;
