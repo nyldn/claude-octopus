@@ -1,6 +1,6 @@
 ---
 name: skill-staged-review
-description: "Review code in two passes: spec compliance then quality — use for thorough PR or feature reviews"
+description: "Use when a PR or feature needs both specification and code-quality review"
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.

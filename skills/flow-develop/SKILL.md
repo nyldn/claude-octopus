@@ -776,4 +776,11 @@ modified_files=$(git diff --name-only HEAD~1 2>/dev/null || echo "See git log")
 ```
 
 
+## Terminal State
+
+The Develop phase is complete ONLY when the implementation exists, the post-develop
+checkpoint tag is created, and targeted tests pass fresh (see `skill-verification-gate`).
+Then invoke `flow-deliver` for validation. Do NOT declare the work done from here —
+completion claims belong to the Deliver phase after review.
+
 **Ready to build!** This skill activates automatically when users request implementation or building features.

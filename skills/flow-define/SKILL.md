@@ -706,4 +706,11 @@ fi
 ```
 
 
+## Terminal State
+
+The Define phase is complete ONLY when requirements are synthesized and the user has
+approved the scope. Then invoke `flow-develop` (embrace workflow, or the user wants
+implementation) or stop with the requirements document delivered. Do NOT begin
+implementation from here without an approved scope.
+
 **Ready to define!** This skill activates automatically when users request requirement clarification or problem definition.

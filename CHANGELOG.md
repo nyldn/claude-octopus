@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **Restricted host sandboxes now preserve provider results when Octopus state is unwritable** (#648). The orchestrator probes only the host-selected state root and, when writes are denied, disables optional persistence and streams the provider result synchronously without inventing a project or temporary fallback. Event logging is strictly fail-open, nested Claude dispatches from Codex/Gemini exclude user-scoped plugin hooks while retaining authentication, and debug mode emits at most one structured persistence diagnostic.
+
+## [9.54.0] - 2026-07-18
+
+
 ### Added
 
 - **Anti-slop design taste layer** (`skills/blocks/design-taste.md`): binary, mechanically checkable rules distilled from the highest-starred public taste rulebooks — the three banned AI-slop looks, banned default fonts (Inter, Roboto, Space Grotesk, Fraunces, Instrument Serif), palette and layout tells, content tells (placeholder personas, fake-perfect stats), and a pre-ship checklist. Wired into `/octo:design-ui-ux` as generation constraints, a new SLOP critique dimension in the three-way adversarial review, and a Deliver-phase gate. The Design Shotgun example variants themselves shipped two banned looks (AI-purple gradient, Space Grotesk default) and were replaced.
@@ -9,8 +16,12 @@
 - **Design dials in `/octo:design-ui-ux`**: a fourth intake question maps to ui-ux-pro-max v2.11.0 `--variance/--motion/--density` flags (conservative/balanced/expressive/maximal presets), passed to searches and recorded in the design direction.
 - **Design-system persistence**: the design skill's final step now writes the design system to `~/.claude-octopus/designs/<slug>/` under the `skill-design-lineage` contract (branch-stamped, supersedes-chained), and downstream skills are directed to read the newest design document before inventing new tokens.
 
+- **Enforcement patterns block** (`skills/blocks/enforcement-patterns.md`): documents the three patterns that hold under generation pressure — one Iron Law per discipline, rationalization tables grown from observed excuses, and terminal states that name the successor skill instead of offering a next-steps menu. `skill-verification-gate` gains a rationalization table; the four flow skills gain explicit Terminal State sections chaining discover → define → develop → deliver → ship.
+- **Skill Quality Gate** (docs/DEVELOPER.md): new or substantially changed skills require a baseline-vs-with-skill eval pass (≥85% with-skill pass rate), a description trigger test (~10 should / ~10 should-not phrasings), and token budgets, before shipping.
+
 ### Changed
 
+- **Skill descriptions rewritten to triggers-only** for six skills (staged-review, review-response, verification-gate, verify, native-escalation-routing, intent-contract). Descriptions that summarize the workflow create a shortcut the model takes instead of loading the skill; the two verification skills also had identical descriptions, which broke routing between them.
 - **Vendored ui-ux-pro-max design intelligence refreshed from v2.0.1 to v2.11.0** (nextlevelbuilder/ui-ux-pro-max-skill, MIT). Brings 11 releases of new data and features into `/octo:design-ui-ux`: expanded databases (84 styles, 192 palettes, 74 font pairings, 161 UX reasoning rules), a Google Fonts collection, motion presets, design dials (`--variance/--motion/--density`), and `--persist` MASTER.md design-system persistence. The vendored subset is now slimmer (src/ plus license and docs; screenshots and the npm CLI are no longer copied) and carries a `VENDOR.json` manifest recording the pinned upstream tag. `scripts/check-vendor-updates.sh` was rewritten for plain-file vendoring (the old version silently exited because it still expected `.gitmodules`, dead since #253) and now compares the manifest tag against the latest upstream release; a nightly `Vendor Freshness` CI job fails when a vendored dependency goes stale.
 
 ### Fixed

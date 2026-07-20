@@ -129,7 +129,7 @@ octo_event_emit() {
 
     local dir
     dir="$(dirname "$log_file")"
-    mkdir -p "$dir" 2>/dev/null || return 1
+    mkdir -p "$dir" 2>/dev/null || return 0
 
     local record
     printf -v record '{"timestamp":%s,"event":%s,"source":%s,"pid":%s,"session_id":%s,"attributes":{%s}}\n' \
@@ -145,13 +145,15 @@ octo_event_emit() {
     # can't be acquired (~1s spin), fall back to a lockless write — same
     # best-effort behavior as before, and it never blocks the caller.
     if _octo_event_lock "$log_file"; then
-        { printf '%s' "$record" >> "$log_file" && _octo_event_trim "$log_file"; } || {
+        { printf '%s' "$record" 2>/dev/null >> "$log_file" && _octo_event_trim "$log_file"; } || {
             _octo_event_unlock "$log_file"
-            return 1
+            return 0
         }
         _octo_event_unlock "$log_file"
     else
-        printf '%s' "$record" >> "$log_file" || return 1
-        _octo_event_trim "$log_file"
+        printf '%s' "$record" 2>/dev/null >> "$log_file" || return 0
+        _octo_event_trim "$log_file" || return 0
     fi
+
+    return 0
 }

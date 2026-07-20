@@ -187,7 +187,9 @@ jobs:
   unit:
     name: Unit Tests (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 10
+    # The macOS matrix currently completes the full suite in just over 10 minutes.
+    # Leave enough headroom for teardown and artifact upload on slower runners.
+    timeout-minutes: 15
     needs: [classify-changes, smoke, portability-lint]
     if: needs.classify-changes.outputs.heavy_tests == 'true'
     strategy:
