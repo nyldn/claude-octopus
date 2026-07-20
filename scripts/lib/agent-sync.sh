@@ -76,6 +76,47 @@ should_use_agent_teams() {
     return 1
 }
 
+# Run a synchronous agent in a strictly consultative context.
+#
+# Council seats and pre-implementation design reviews are advisory: they may
+# inspect the workspace and execute read-only diagnostics, but must not mutate
+# project files. Keep the policy here so every consultative caller gets the same
+# sandbox/autonomy isolation and exact environment restoration on success or
+# failure.
+run_agent_sync_consultative() {
+    local old_security_set="${OCTOPUS_SECURITY_V870+x}"
+    local old_security="${OCTOPUS_SECURITY_V870:-}"
+    local old_gemini_sandbox_set="${OCTOPUS_GEMINI_SANDBOX+x}"
+    local old_gemini_sandbox="${OCTOPUS_GEMINI_SANDBOX:-}"
+    local old_codex_sandbox_set="${OCTOPUS_CODEX_SANDBOX+x}"
+    local old_codex_sandbox="${OCTOPUS_CODEX_SANDBOX:-}"
+    local old_autonomy_set="${CLAUDE_OCTOPUS_AUTONOMY+x}"
+    local old_autonomy="${CLAUDE_OCTOPUS_AUTONOMY:-}"
+    local rc
+
+    unset OCTOPUS_SECURITY_V870
+    unset OCTOPUS_GEMINI_SANDBOX
+    unset CLAUDE_OCTOPUS_AUTONOMY
+    export OCTOPUS_CODEX_SANDBOX="read-only"
+
+    if run_agent_sync "$@"; then
+        rc=0
+    else
+        rc=$?
+    fi
+
+    if [[ -n "$old_security_set" ]]; then export OCTOPUS_SECURITY_V870="$old_security"; else unset OCTOPUS_SECURITY_V870; fi
+    if [[ -n "$old_gemini_sandbox_set" ]]; then export OCTOPUS_GEMINI_SANDBOX="$old_gemini_sandbox"; else unset OCTOPUS_GEMINI_SANDBOX; fi
+    if [[ -n "$old_autonomy_set" ]]; then export CLAUDE_OCTOPUS_AUTONOMY="$old_autonomy"; else unset CLAUDE_OCTOPUS_AUTONOMY; fi
+    if [[ -n "$old_codex_sandbox_set" ]]; then
+        export OCTOPUS_CODEX_SANDBOX="$old_codex_sandbox"
+    else
+        unset OCTOPUS_CODEX_SANDBOX
+    fi
+
+    return "$rc"
+}
+
 # Synchronous agent execution (for sequential steps within phases)
 run_agent_sync() {
     local agent_type="$1"
