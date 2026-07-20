@@ -61,13 +61,13 @@ if [[ -z "$LAST_SEEN" ]]; then
     exit 0
 fi
 
-# Version changed — advisory. Keep it to one or two lines, non-blocking.
-# We echo to stdout so Claude Code surfaces it as session context.
-cat <<EOF
-🐙 Claude Octopus updated: ${LAST_SEEN} → ${CURRENT_VERSION}
+# Version changed — advisory. Keep it to one or two lines, non-blocking. Emit a
+# valid SessionStart hook-output object (bare text fails v2.1.178 validation); jq
+# JSON-escapes the multi-line message.
+jq -cn --arg ctx "🐙 Claude Octopus updated: ${LAST_SEEN} → ${CURRENT_VERSION}
    Review changes: /octo:setup (or see CHANGELOG for role routing / default model shifts).
-   Opt out of new routing: export OCTOPUS_LEGACY_ROLES=1
-EOF
+   Opt out of new routing: export OCTOPUS_LEGACY_ROLES=1" \
+    '{hookSpecificOutput:{hookEventName:"SessionStart",additionalContext:$ctx}}'
 
 # Persist new version so we don't advise again next session
 TMP=$(mktemp "${STATE_FILE}.XXXXXX")
