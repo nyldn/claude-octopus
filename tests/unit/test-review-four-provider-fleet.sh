@@ -54,5 +54,13 @@ done
   echo "FAIL: Kimi K3 model resolver target missing" >&2
   exit 1
 }
+[[ "$(get_agent_model codex review reviewer)" == "gpt-5.6-sol" ]] || {
+  echo "FAIL: Codex review seat is not GPT-5.6 Sol" >&2
+  exit 1
+}
+[[ "$(get_agent_command codex review reviewer)" == *"--model gpt-5.6-sol"* ]] || {
+  echo "FAIL: Codex review dispatch does not invoke GPT-5.6 Sol" >&2
+  exit 1
+}
 
 echo "PASS: four-provider review fleet and model dispatch"

@@ -157,9 +157,9 @@ echo ""
 echo -e "\033[0;34mTest Group 4: Model name consistency — no stale defaults (P1-B)\033[0m"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-# 4.1: resolve_octopus_model uses gpt-5.5 for codex default
-if grep -rA 10 "case \"\$agent_type\" in" $SCRIPTS_ALL | grep -A 1 "codex\*)" | grep -q 'gpt-5\.5'; then
-    pass "4.1 resolve_octopus_model returns gpt-5.5 for codex default"
+# 4.1: resolve_octopus_model uses GPT-5.6 Sol for codex default
+if grep -rA 10 "case \"\$agent_type\" in" $SCRIPTS_ALL | grep -A 1 "codex\*)" | grep -q 'gpt-5\.6-sol'; then
+    pass "4.1 resolve_octopus_model returns GPT-5.6 Sol for codex default"
 else
     fail "4.1 resolve_octopus_model uses stale model for codex default"
 fi
@@ -192,9 +192,9 @@ else
     fail "4.4 resolve_octopus_model missing role routing"
 fi
 
-# 4.5: codex fallbacks use gpt-5.5
-if grep -rA 20 "Fallback to hard-coded defaults" $SCRIPTS_ALL | grep -A 1 "codex\*)" | grep -q 'gpt-5\.5'; then
-    pass "4.5 codex fallback uses gpt-5.5"
+# 4.5: codex fallbacks use GPT-5.6 Sol
+if grep -rA 20 "Fallback to hard-coded defaults" $SCRIPTS_ALL | grep -A 1 "codex\*)" | grep -q 'gpt-5\.6-sol'; then
+    pass "4.5 codex fallback uses GPT-5.6 Sol"
 else
     fail "4.5 codex fallback uses stale model"
 fi

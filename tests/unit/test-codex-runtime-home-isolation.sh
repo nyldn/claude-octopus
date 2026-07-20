@@ -13,7 +13,7 @@ export OPENAI_API_KEY="test-key"
 unset CODEX_HOME
 
 mkdir -p "$HOME/.codex"
-printf '%s\n' '{"tokens":{"access_token":"test"}}' > "$HOME/.codex/auth.json"
+printf '%s\n' '{"auth_mode":"chatgpt","tokens":{"access_token":"test"}}' > "$HOME/.codex/auth.json"
 printf '%s\n' 'model = "gpt-5.4"' > "$HOME/.codex/config.toml"
 printf '%s\n' '{"client_version":"newer-desktop"}' > "$HOME/.codex/models_cache.json"
 
@@ -55,6 +55,18 @@ grep -Fq 'runtime-owned' "$CODEX_HOME/models_cache.json" || {
 build_provider_env codex
 [[ " ${PROVIDER_ENV_ARRAY[*]} " == *" CODEX_HOME=$expected "* ]] || {
     echo "FAIL: isolated CODEX_HOME was not propagated to Codex" >&2
+    exit 1
+}
+[[ " ${PROVIDER_ENV_ARRAY[*]} " != *" OPENAI_API_KEY="* ]] || {
+    echo "FAIL: ChatGPT subscription dispatch forwarded a metered API key" >&2
+    exit 1
+}
+
+printf '%s\n' '{"auth_mode":"apikey"}' > "$HOME/.codex/auth.json"
+octopus_prepare_codex_runtime_home
+build_provider_env codex
+[[ " ${PROVIDER_ENV_ARRAY[*]} " == *" OPENAI_API_KEY=test-key "* ]] || {
+    echo "FAIL: explicit API-key authentication lost its API key" >&2
     exit 1
 }
 

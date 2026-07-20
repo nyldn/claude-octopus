@@ -375,7 +375,7 @@ resolve_octopus_model() {
     # Fallback to hard-coded defaults (Priority 7)
     if [[ -z "$resolved_model" || "$resolved_model" == "null" ]]; then
         case "$agent_type" in
-            codex*)          resolved_model="gpt-5.5" ;;
+            codex*)          resolved_model="gpt-5.6-sol" ;;
             gemini-image)    resolved_model="gemini-3-pro-image" ;;  # image, not text — must precede gemini* (codex review)
             gemini-fast|gemini-flash) resolved_model="gemini-3-flash-preview" ;;
             gemini*)         resolved_model="gemini-3.1-pro-preview" ;;
@@ -399,7 +399,7 @@ resolve_octopus_model() {
             opencode-research*) resolved_model="opencode/glm-5.1" ;;
             opencode-fast*)  resolved_model="opencode/deepseek-v4-flash-free" ;;
             opencode*)       resolved_model="opencode/deepseek-v4-flash-free" ;;
-            *)              resolved_model="gpt-5.5" ;; # Safest universal fallback
+            *)              resolved_model="gpt-5.6-sol" ;; # Safest universal fallback
         esac
         [[ -n "$_trace" ]] && echo "[model-trace] Tier 7 (hardcoded fallback): $resolved_model ← SELECTED" >&2
     fi

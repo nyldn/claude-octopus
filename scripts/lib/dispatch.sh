@@ -875,7 +875,9 @@ find_capable_fallback() {
     local -a candidates=()
     case "$provider" in
         codex)
-            candidates=(gpt-5.4-mini gpt-5.2-codex gpt-5.3-codex gpt-5.4 gpt-5.4-pro o3) ;;
+            # The Codex seat is subscription-pinned. Never substitute a fast,
+            # mini, API-priced, or otherwise different model.
+            candidates=(gpt-5.6-sol) ;;
         gemini)
             candidates=(gemini-3-flash-preview gemini-3.1-pro-preview) ;;
         agy)

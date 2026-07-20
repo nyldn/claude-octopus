@@ -15,7 +15,7 @@
 
 # Agent configurations
 # Models (Mar 2026) - Premium defaults for Design Thinking workflows:
-# - OpenAI GPT-5.x: gpt-5.5 (premium, OAuth+API), gpt-5.4-pro (API-key only), gpt-5.3-codex, gpt-5.3-codex-spark (fast),
+# - OpenAI GPT-5.x: gpt-5.6-sol (ChatGPT subscription default), gpt-5.5, gpt-5.4-pro (API-key only),
 # [EXTRACTED to lib/dispatch.sh in v9.7.7]
 
 # NOTE: get_agent_command_array() removed in v9.7.7 — was dead code with broken
@@ -78,6 +78,27 @@ octopus_prepare_codex_runtime_home() {
     export CODEX_HOME="$runtime_home"
 }
 
+# A Codex CLI logged in through ChatGPT must not receive OPENAI_API_KEY from
+# Octopus's provider environment. Passing the key can silently change the
+# billing path from the user's subscription to metered API usage.
+octopus_codex_uses_chatgpt_auth() {
+    case "${OCTOPUS_CODEX_AUTH_MODE:-auto}" in
+        chatgpt|subscription|oauth) return 0 ;;
+        api|api-key|apikey) return 1 ;;
+    esac
+
+    local auth_file="${CODEX_HOME:-$HOME/.codex}/auth.json"
+    [[ -r "$auth_file" ]] || return 1
+    if command -v jq >/dev/null 2>&1; then
+        jq -e '.auth_mode == "chatgpt"' "$auth_file" >/dev/null 2>&1 && return 0
+        local jq_status=$?
+        # Native Windows jq cannot always open an MSYS /tmp path. A valid JSON
+        # false is definitive; parser/path failures fall through to grep.
+        [[ "$jq_status" -eq 1 ]] && return 1
+    fi
+    grep -Eq '"auth_mode"[[:space:]]*:[[:space:]]*"chatgpt"' "$auth_file" 2>/dev/null
+}
+
 build_provider_env() {
     local provider="$1"
     PROVIDER_ENV_ARRAY=()
@@ -102,7 +123,10 @@ build_provider_env() {
     case "$provider" in
         codex*)
             octopus_prepare_codex_runtime_home || return 1
-            if [[ -z "${OPENAI_API_KEY:-}" ]]; then
+            local _codex_subscription_auth=false
+            if octopus_codex_uses_chatgpt_auth; then
+                _codex_subscription_auth=true
+            elif [[ -z "${OPENAI_API_KEY:-}" ]]; then
                 resolve_provider_env "OPENAI_API_KEY" 2>/dev/null || true
             fi
 
@@ -120,7 +144,10 @@ build_provider_env() {
                 fi
             fi
 
-            PROVIDER_ENV_ARRAY=(env -i "PATH=$PATH" "HOME=$HOME" "OPENAI_API_KEY=${OPENAI_API_KEY:-}" "TMPDIR=${TMPDIR:-/tmp}")
+            PROVIDER_ENV_ARRAY=(env -i "PATH=$PATH" "HOME=$HOME" "TMPDIR=${TMPDIR:-/tmp}")
+            if [[ "$_codex_subscription_auth" != "true" && -n "${OPENAI_API_KEY:-}" ]]; then
+                PROVIDER_ENV_ARRAY+=("OPENAI_API_KEY=${OPENAI_API_KEY}")
+            fi
             if [[ -n "${CODEX_HOME:-}" ]]; then
                 PROVIDER_ENV_ARRAY+=("CODEX_HOME=${CODEX_HOME}")
             fi
@@ -310,7 +337,7 @@ migrate_provider_config() {
         
         # Extract existing model preferences to seed v3.0
         local codex_model gemini_model
-        codex_model=$(jq -r '.providers.codex.model // .providers.codex.default // "gpt-5.5"' "$config_file")
+        codex_model=$(jq -r '.providers.codex.model // .providers.codex.default // "gpt-5.6-sol"' "$config_file")
         gemini_model=$(jq -r '.providers.gemini.model // .providers.gemini.default // "gemini-3.1-pro-preview"' "$config_file")
         
         cat > "$tmp_file" << EOF
@@ -319,11 +346,11 @@ migrate_provider_config() {
   "providers": {
     "codex": {
       "default": "$codex_model",
-      "fallback": "gpt-5.5",
-      "spark": "gpt-5.5",
-      "mini": "gpt-5.4-mini",
-      "reasoning": "o3",
-      "large_context": "gpt-5.5"
+      "fallback": "gpt-5.6-sol",
+      "spark": "gpt-5.6-sol",
+      "mini": "gpt-5.6-sol",
+      "reasoning": "gpt-5.6-sol",
+      "large_context": "gpt-5.6-sol"
     },
     "gemini": {
       "default": "$gemini_model",
@@ -391,7 +418,7 @@ EOF
         local replacement=""
         case "$current_val" in
             claude-sonnet-4-5|claude-sonnet-4-5-20250514|claude-3-5-sonnet*|claude-sonnet-4*)
-                if [[ "$path" == *codex* ]]; then replacement="gpt-5.5"; fi ;;
+                if [[ "$path" == *codex* ]]; then replacement="gpt-5.6-sol"; fi ;;
             gemini-2.0-flash-thinking*|gemini-2.0-flash-exp*|gemini-exp-*)
                 replacement="gemini-3-flash-preview" ;;
             gemini-2.0-pro*|gemini-1.5-pro*|gemini-pro)
@@ -399,7 +426,7 @@ EOF
             gemini-3-pro-image-preview)
                 replacement="gemini-3-pro-image" ;;  # shutdown 2026-06-25 (codex review)
             gpt-4o*|gpt-4-turbo*|gpt-4-*|o1-*|chatgpt-*)
-                replacement="gpt-5.5" ;;
+                replacement="gpt-5.6-sol" ;;
         esac
 
         if [[ -n "$replacement" ]]; then
@@ -447,7 +474,7 @@ set_provider_model() {
     if ! validate_model_name "$model"; then
         echo "ERROR: Invalid model name: '$model'" >&2
         echo "  Model names must not contain shell metacharacters (spaces, ;, |, &, \$, \`, quotes)" >&2
-        echo "  Examples: gpt-5.5, gemini-3.1-pro-preview, claude-opus-4.6" >&2
+        echo "  Examples: gpt-5.6-sol, gemini-3.1-pro-preview, claude-opus-4.6" >&2
         return 1
     fi
 
@@ -459,12 +486,12 @@ set_provider_model() {
   "version": "3.0",
   "providers": {
     "codex": {
-      "default": "gpt-5.5",
-      "fallback": "gpt-5.5",
-      "spark": "gpt-5.5",
-      "mini": "gpt-5.4-mini",
-      "reasoning": "o3",
-      "large_context": "gpt-5.5"
+      "default": "gpt-5.6-sol",
+      "fallback": "gpt-5.6-sol",
+      "spark": "gpt-5.6-sol",
+      "mini": "gpt-5.6-sol",
+      "reasoning": "gpt-5.6-sol",
+      "large_context": "gpt-5.6-sol"
     },
     "gemini": {
       "default": "gemini-3.1-pro-preview",
