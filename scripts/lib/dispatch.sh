@@ -81,6 +81,14 @@ get_agent_command() {
     # for `claude -p`, instead of metered API). Default unchanged. May include
     # args (word-split downstream by read -ra), e.g. "clarp --strict-mcp-config".
     local _claude_bin="${OCTOPUS_CLAUDE_BIN:-claude}"
+    # A Claude provider nested under a non-Claude host must not recursively load
+    # user-scoped plugins/hooks. Unlike --bare, limiting setting sources keeps
+    # OAuth/keychain authentication available.
+    if [[ "${OCTOPUS_HOST:-standalone}" == "codex" || "${OCTOPUS_HOST:-standalone}" == "gemini" ]]; then
+        if [[ " $_claude_bin " != *" --setting-sources "* ]]; then
+            _claude_bin="${_claude_bin} --setting-sources project,local"
+        fi
+    fi
 
     # Configurable sandbox mode (v7.13.1 - Issue #9)
     # Priority: OCTOPUS_CODEX_SANDBOX env var > default (workspace-write)

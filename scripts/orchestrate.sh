@@ -101,6 +101,7 @@ source "${SCRIPT_DIR}/agent-teams-bridge.sh"
 # Source Wave 1 extractions (v9.3.0 decomposition)
 source "${SCRIPT_DIR}/lib/common.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/utils.sh" 2>/dev/null || true
+source "${SCRIPT_DIR}/lib/state-root.sh"
 source "${SCRIPT_DIR}/lib/session-id.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/similarity.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/models.sh" 2>/dev/null || true
@@ -507,11 +508,17 @@ RESULTS_DIR="$SESSION_RESULTS_DIR"
 LOGS_DIR="$SESSION_LOGS_DIR"
 PID_FILE="${WORKSPACE_DIR}/pids"
 
+# Probe only the state root selected above. Restricted hosts do not get an
+# automatic project/TMPDIR fallback: optional persistence degrades instead.
+octopus_configure_persistence "$WORKSPACE_DIR"
+
 # Telemetry: enable the opt-in JSONL event stream by default for every run so
 # provider.status + dispatch lifecycle events are captured (usage data + the
 # basis for a control-plane HUD). Stdout is unchanged (events.sh appends to the
 # log only). Opt out with OCTO_EVENT_LOG=off; override the path by setting it.
-if [[ -z "${OCTO_EVENT_LOG:-}" ]]; then
+if [[ "${OCTOPUS_PERSISTENCE_AVAILABLE}" == "false" ]]; then
+    unset OCTO_EVENT_LOG
+elif [[ -z "${OCTO_EVENT_LOG:-}" ]]; then
     export OCTO_EVENT_LOG="${RESULTS_DIR}/events.jsonl"
 elif [[ "${OCTO_EVENT_LOG}" == "off" ]]; then
     unset OCTO_EVENT_LOG
