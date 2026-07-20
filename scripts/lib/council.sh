@@ -60,6 +60,7 @@ _council_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 # shellcheck source=scripts/lib/benchmark-routing.sh
 source "${_council_lib_dir}/benchmark-routing.sh" 2>/dev/null || true
 source "${_council_lib_dir}/openai-compatible.sh" 2>/dev/null || true
+source "${_council_lib_dir}/agent-sync.sh" 2>/dev/null || true
 unset _council_lib_dir
 
 council_usage() {

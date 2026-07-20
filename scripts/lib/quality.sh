@@ -11,6 +11,11 @@
 # Source-safe: no main execution block.
 
 
+_quality_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+# shellcheck source=scripts/lib/agent-sync.sh
+source "${_quality_lib_dir}/agent-sync.sh" 2>/dev/null || true
+unset _quality_lib_dir
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # CONDITIONAL BRANCHING - Tentacle path selection based on task analysis
 # Enables decision trees for workflow routing

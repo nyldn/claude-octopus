@@ -88,6 +88,8 @@ run_agent_sync_consultative() {
     local old_security="${OCTOPUS_SECURITY_V870:-}"
     local old_gemini_sandbox_set="${OCTOPUS_GEMINI_SANDBOX+x}"
     local old_gemini_sandbox="${OCTOPUS_GEMINI_SANDBOX:-}"
+    local old_agy_sandbox_set="${OCTOPUS_AGY_SANDBOX+x}"
+    local old_agy_sandbox="${OCTOPUS_AGY_SANDBOX:-}"
     local old_codex_sandbox_set="${OCTOPUS_CODEX_SANDBOX+x}"
     local old_codex_sandbox="${OCTOPUS_CODEX_SANDBOX:-}"
     local old_autonomy_set="${CLAUDE_OCTOPUS_AUTONOMY+x}"
@@ -96,6 +98,7 @@ run_agent_sync_consultative() {
 
     unset OCTOPUS_SECURITY_V870
     unset OCTOPUS_GEMINI_SANDBOX
+    unset OCTOPUS_AGY_SANDBOX
     unset CLAUDE_OCTOPUS_AUTONOMY
     export OCTOPUS_CODEX_SANDBOX="read-only"
 
@@ -107,6 +110,7 @@ run_agent_sync_consultative() {
 
     if [[ -n "$old_security_set" ]]; then export OCTOPUS_SECURITY_V870="$old_security"; else unset OCTOPUS_SECURITY_V870; fi
     if [[ -n "$old_gemini_sandbox_set" ]]; then export OCTOPUS_GEMINI_SANDBOX="$old_gemini_sandbox"; else unset OCTOPUS_GEMINI_SANDBOX; fi
+    if [[ -n "$old_agy_sandbox_set" ]]; then export OCTOPUS_AGY_SANDBOX="$old_agy_sandbox"; else unset OCTOPUS_AGY_SANDBOX; fi
     if [[ -n "$old_autonomy_set" ]]; then export CLAUDE_OCTOPUS_AUTONOMY="$old_autonomy"; else unset CLAUDE_OCTOPUS_AUTONOMY; fi
     if [[ -n "$old_codex_sandbox_set" ]]; then
         export OCTOPUS_CODEX_SANDBOX="$old_codex_sandbox"
