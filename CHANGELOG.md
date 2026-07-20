@@ -2,9 +2,15 @@
 
 ## [Unreleased]
 
+## [9.54.1] - 2026-07-20
+
 ### Fixed
 
 - **Restricted host sandboxes now preserve provider results when Octopus state is unwritable** (#648). The orchestrator probes only the host-selected state root and, when writes are denied, disables optional persistence and streams the provider result synchronously without inventing a project or temporary fallback. Event logging is strictly fail-open, nested Claude dispatches from Codex/Gemini exclude user-scoped plugin hooks while retaining authentication, and debug mode emits at most one structured persistence diagnostic.
+- **OpenAI-compatible providers now fail fast on incomplete endpoint or credential configuration** (#646). Provider definitions can declare a custom `base_url` and the name of an `api_key_env`; dispatch validates the HTTP(S) endpoint, credential-variable name, and credential presence before starting an expensive workflow while preserving the legacy environment-variable fallbacks and keeping secret values out of commands and artifacts.
+- **Agy seats start reliably from Windows Git Bash when `USERPROFILE` is missing** (#652). The adapter reconstructs it from Windows-aware home sources without affecting macOS or Linux, so Jetski can resolve its log and AppData paths and read the prompt.
+- **Agy returns the complete provider answer to councils and reviews instead of a silent or artifact-only result** (#653). The adapter requests inline output by default, retains an opt-out, counts the complete UTF-8 argument against the size ceiling, and safely falls back when `cygpath` conversion fails.
+- **All wired SessionStart hooks now emit either silence or schema-valid context** (#651). The inactive Fable 5 hook no longer emits an invalid empty object, and version advisories use `hookSpecificOutput.additionalContext` instead of bare stdout text.
 
 ## [9.54.0] - 2026-07-18
 
