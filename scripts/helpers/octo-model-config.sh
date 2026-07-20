@@ -98,6 +98,11 @@ ensure_config() {
       "default": "opencode/deepseek-v4-flash-free",
       "fast": "opencode/deepseek-v4-flash-free",
       "research": "opencode/glm-5.1"
+    },
+    "openai-compatible-agent": {
+      "default": "example/model-id",
+      "base_url": "https://api.example.com/v1",
+      "api_key_env": "OPENAI_COMPAT_API_KEY"
     }
   },
   "routing": {
