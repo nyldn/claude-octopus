@@ -33,6 +33,27 @@ else
     test_pass
 fi
 
+test_case "validate_agent_command allows constrained Claude effort prefix"
+if validate_agent_command "env CLAUDE_CODE_EFFORT_LEVEL=high claude --print --model claude-fable-5 --allowed-tools Read,Glob,Grep"; then
+    test_pass
+else
+    test_fail "expected allowlisted Claude effort prefix to be accepted"
+fi
+
+test_case "validate_agent_command rejects invalid Claude effort value"
+if validate_agent_command "env CLAUDE_CODE_EFFORT_LEVEL=extreme claude --print --model claude-fable-5" >/dev/null 2>&1; then
+    test_fail "expected invalid Claude effort value to be rejected"
+else
+    test_pass
+fi
+
+test_case "validate_agent_command rejects extra environment assignments"
+if validate_agent_command "env CLAUDE_CODE_EFFORT_LEVEL=high UNSAFE=1 claude --print --model claude-fable-5" >/dev/null 2>&1; then
+    test_fail "expected extra environment assignment to be rejected"
+else
+    test_pass
+fi
+
 
 test_case "validate_agent_command allows openai-compatible helper path"
 if validate_agent_command "$PROJECT_ROOT/scripts/helpers/openai-compatible-agent.py --provider generic --model minimax/minimax-m3 --cwd /tmp/test"; then

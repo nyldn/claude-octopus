@@ -238,6 +238,15 @@ _validate_openai_compatible_agent_command() {
 # Only allows whitelisted command prefixes
 validate_agent_command() {
     local cmd="$1"
+
+    # Claude effort is passed through `env` because spawn.sh executes a parsed
+    # argv rather than shell assignment syntax. Strip only this exact,
+    # allowlisted assignment, then validate the underlying command normally.
+    # Any additional assignment remains at argv[0] and is rejected below.
+    if [[ "$cmd" =~ ^env[[:space:]]+CLAUDE_CODE_EFFORT_LEVEL=(low|medium|high|xhigh|max)[[:space:]]+(.+)$ ]]; then
+        cmd="${BASH_REMATCH[2]}"
+    fi
+
     local cmd_executable="${cmd%%[[:space:]]*}"
 
     # Allow helper shims only when they are the executable token, not when they
