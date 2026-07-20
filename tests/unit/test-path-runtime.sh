@@ -37,6 +37,11 @@ if pathrt_is_windows; then
         echo "FAIL: native Windows Git rejected shared execution path" >&2
         exit 1
     }
+    native_context="$(pathrt_for_native "$context_posix")"
+    [[ "$native_context" =~ ^[A-Za-z]:/ ]] || {
+        echo "FAIL: native execution path was not converted to drive form" >&2
+        exit 1
+    }
 else
     [[ "$(pathrt_canon_existing "$repo_posix")" == "$repo_posix" ]] || {
         echo "FAIL: POSIX canonical path changed unexpectedly" >&2
@@ -83,6 +88,10 @@ fi
 
 grep -Fq 'pathrt_within_existing "$review_root" "$context_file"' "$ROOT_DIR/scripts/lib/review.sh" || {
     echo "FAIL: review context guard does not use shared containment" >&2
+    exit 1
+}
+grep -Fq 'pathrt_for_native "$review_md"' "$ROOT_DIR/scripts/lib/review.sh" || {
+    echo "FAIL: review extractor does not use shared native path conversion" >&2
     exit 1
 }
 grep -Fq 'pathrt_for_git' "$ROOT_DIR/scripts/lib/workflows.sh" || {

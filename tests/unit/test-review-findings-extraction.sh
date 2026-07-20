@@ -26,6 +26,9 @@ EOF
 source "$ROOT_DIR/scripts/lib/python-runtime.sh"
 source "$ROOT_DIR/scripts/lib/review.sh"
 
+# Reproduce Codex Desktop's Windows hook environment, where automatic MSYS
+# argument conversion is disabled for native executables such as python.exe.
+export MSYS2_ARG_CONV_EXCL='*'
 findings=$(review_extract_findings_array "$RESULT")
 [[ "$(printf '%s' "$findings" | jq -r '.[0].title')" == "real final finding" ]] || {
     echo "FAIL: earlier empty output masked the provider's final findings" >&2

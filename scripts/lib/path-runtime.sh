@@ -114,10 +114,10 @@ pathrt_within_target() {
     _pathrt_within_canonical "$root" "$candidate"
 }
 
-# Native Windows Git cannot consume /c/... when MSYS argument conversion is
-# explicitly disabled. Convert only at the execution boundary; containment
-# always uses the canonical runtime form above.
-pathrt_for_git() {
+# Native Windows executables cannot consume /c/... when MSYS argument
+# conversion is explicitly disabled. Convert only at the execution boundary;
+# containment always uses the canonical runtime form above.
+pathrt_for_native() {
     local canonical
     canonical=$(pathrt_canon_existing "${1:-}") || return 2
     if pathrt_is_windows; then
@@ -126,4 +126,8 @@ pathrt_for_git() {
         return 0
     fi
     printf '%s\n' "$canonical"
+}
+
+pathrt_for_git() {
+    pathrt_for_native "${1:-}"
 }

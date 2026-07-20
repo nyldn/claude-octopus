@@ -122,6 +122,9 @@ assert_contains "$(grep -c 'OCTOPUS_REVIEW_OPENAI_COMPAT_EMPTY_RETRY_BACKOFF_SEC
 assert_contains "$(grep -c 'attempt1' "$ALL_SRC" 2>/dev/null || true)" \
   "[1-9]" "review_run: OpenAI-compatible Empty output retry preserves first artifact"
 
+assert_contains "$(grep -c 'OCTOPUS_REVIEW_OPENROUTER_RETRY_BACKOFF_SECS' "$ALL_SRC" 2>/dev/null || true)" \
+  "[1-9]" "review_run: OpenRouter transport retry has configurable backoff"
+
 # ── diff target file support ─────────────────────────────────────────────────
 
 source "$PROJECT_ROOT/scripts/lib/review.sh"
@@ -168,6 +171,27 @@ if review_openai_compat_empty_output_retryable "$OPENAI_COMPAT_EMPTY_RETRYABLE" 
   fail "review_run: non-OpenAI-compatible Empty output is not retried by adapter policy"
 else
   pass "review_run: non-OpenAI-compatible Empty output is not retried by adapter policy"
+fi
+
+OPENROUTER_TRANSPORT_RETRYABLE="$TMPDIR_TEST/openrouter-transport-retryable.md"
+cat > "$OPENROUTER_TRANSPORT_RETRYABLE" <<'EOF'
+# Agent: openrouter-kimi-k3
+## Status: FAILED (exit code: 1)
+## Error Log
+OpenRouter curl failed (timeout or network error, model=moonshotai/kimi-k3)
+# Completed: now
+EOF
+
+if review_openrouter_transport_retryable "$OPENROUTER_TRANSPORT_RETRYABLE" "openrouter-kimi-k3"; then
+  pass "review_run: transient OpenRouter transport failure is retryable"
+else
+  fail "review_run: transient OpenRouter transport failure is retryable"
+fi
+
+if review_openrouter_transport_retryable "$OPENROUTER_TRANSPORT_RETRYABLE" "codex"; then
+  fail "review_run: OpenRouter transport retry is provider-scoped"
+else
+  pass "review_run: OpenRouter transport retry is provider-scoped"
 fi
 
 # ── MCP schema ───────────────────────────────────────────────────────────────

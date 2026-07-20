@@ -342,18 +342,31 @@ review_openai_compat_empty_output_retryable() {
     [[ "${reconnect_count%%$'\n'*}" -gt 0 ]] || return 1
 }
 
+review_openrouter_transport_retryable() {
+    local result_file="$1"
+    local agent_type="$2"
+    [[ "$agent_type" == openrouter-* ]] || return 1
+    review_result_has_terminal_status "$result_file" || return 1
+    review_result_completed_successfully "$result_file" && return 1
+    grep -Fq 'OpenRouter curl failed (timeout or network error' "$result_file" 2>/dev/null
+}
+
 review_result_has_terminal_status() {
     local result_file="$1"
-    local terminal_count
+    local terminal_count final_line
     [[ -f "$result_file" ]] || return 1
+    final_line=$(awk 'NF { line = $0 } END { print line }' "$result_file" 2>/dev/null || true)
+    [[ "$final_line" == '# Completed:'* ]] || return 1
     terminal_count=$(grep -cE '^## Status: (SUCCESS|FAILED|TIMEOUT)([[:space:](]|$)' "$result_file" 2>/dev/null || true)
     [[ "${terminal_count:-0}" -gt 0 ]]
 }
 
 review_result_completed_successfully() {
     local result_file="$1"
-    local final_status
+    local final_status final_line
     [[ -f "$result_file" ]] || return 1
+    final_line=$(awk 'NF { line = $0 } END { print line }' "$result_file" 2>/dev/null || true)
+    [[ "$final_line" == '# Completed:'* ]] || return 1
     final_status=$(awk '
         /^## Status: (SUCCESS|FAILED|TIMEOUT)([[:space:](]|$)/ {
             status = $0
@@ -491,7 +504,7 @@ review_supervise_round1() {
 # for the last JSON object with a findings array.
 review_extract_findings_array() {
     local review_md="$1"
-    local output_text direct_json
+    local output_text direct_json native_review_md
     [[ -f "$review_md" ]] || { echo "[]"; return 1; }
 
     output_text=$(awk '/^## Output$/{found=1;next} /^## /{if(found)exit} found && !/^```(json|JSON)?$/{print}' "$review_md" 2>/dev/null || true)
@@ -504,7 +517,8 @@ review_extract_findings_array() {
     fi
 
     if command -v python3 >/dev/null 2>&1; then
-        python3 - "$review_md" <<'PYEXTRACT'
+        native_review_md=$(pathrt_for_native "$review_md") || { echo "[]"; return 1; }
+        python3 - "$native_review_md" <<'PYEXTRACT'
 import json, sys
 from pathlib import Path
 path = Path(sys.argv[1])
@@ -975,28 +989,42 @@ ${agent_prompt_base}"
     # after a short pause.
     local openai_compat_empty_retry_max="${OCTOPUS_REVIEW_OPENAI_COMPAT_EMPTY_RETRY_MAX:-1}"
     local openai_compat_empty_retry_backoff="${OCTOPUS_REVIEW_OPENAI_COMPAT_EMPTY_RETRY_BACKOFF_SECS:-90}"
+    local openrouter_retry_max="${OCTOPUS_REVIEW_OPENROUTER_RETRY_MAX:-1}"
+    local openrouter_retry_backoff="${OCTOPUS_REVIEW_OPENROUTER_RETRY_BACKOFF_SECS:-5}"
     [[ "$openai_compat_empty_retry_max" =~ ^[0-9]+$ ]] || openai_compat_empty_retry_max=1
     [[ "$openai_compat_empty_retry_backoff" =~ ^[0-9]+$ ]] || openai_compat_empty_retry_backoff=90
+    [[ "$openrouter_retry_max" =~ ^[0-9]+$ ]] || openrouter_retry_max=1
+    [[ "$openrouter_retry_backoff" =~ ^[0-9]+$ ]] || openrouter_retry_backoff=5
     openai_compat_empty_retry_max=$((10#$openai_compat_empty_retry_max))
     openai_compat_empty_retry_backoff=$((10#$openai_compat_empty_retry_backoff))
-    if [[ "$openai_compat_empty_retry_max" -gt 0 ]]; then
+    openrouter_retry_max=$((10#$openrouter_retry_max))
+    openrouter_retry_backoff=$((10#$openrouter_retry_backoff))
+    if [[ "$openai_compat_empty_retry_max" -gt 0 || "$openrouter_retry_max" -gt 0 ]]; then
         local retry_idx=0
         while [[ "$retry_idx" -lt "${#round1_files[@]}" ]]; do
             local retry_file="${round1_files[$retry_idx]}"
             local retry_agent_type="${round1_agent_types[$retry_idx]}"
-            if review_openai_compat_empty_output_retryable "$retry_file" "$retry_agent_type"; then
-                local reconnect_count retry_role retry_task_id retry_prompt retry_result_file retry_pid archived_file
+            local retry_reason="" retry_backoff=0 reconnect_count=0
+            if [[ "$openai_compat_empty_retry_max" -gt 0 ]] && review_openai_compat_empty_output_retryable "$retry_file" "$retry_agent_type"; then
                 reconnect_count=$(grep -c 'Reconnecting' "$retry_file" 2>/dev/null || true)
                 reconnect_count=${reconnect_count:-0}
                 reconnect_count=${reconnect_count%%$'\n'*}
+                retry_reason="Empty output after ${reconnect_count} reconnect(s)"
+                retry_backoff="$openai_compat_empty_retry_backoff"
+            elif [[ "$openrouter_retry_max" -gt 0 ]] && review_openrouter_transport_retryable "$retry_file" "$retry_agent_type"; then
+                retry_reason="a transient OpenRouter transport failure"
+                retry_backoff="$openrouter_retry_backoff"
+            fi
+            if [[ -n "$retry_reason" ]]; then
+                local retry_role retry_task_id retry_prompt retry_result_file retry_pid archived_file
                 retry_role="${round1_roles[$retry_idx]}"
                 retry_task_id="${round1_task_ids[$retry_idx]}-retry1"
                 retry_result_file="${RESULTS_DIR}/${retry_agent_type}-${retry_task_id}.md"
                 archived_file="${retry_file}.attempt1"
                 mv "$retry_file" "$archived_file" 2>/dev/null || true
-                log WARN "review_run: ${retry_agent_type}/${retry_role} ended Empty output after ${reconnect_count} reconnect(s); retrying once after ${openai_compat_empty_retry_backoff}s (artifact=$(basename "$archived_file"))"
-                sleep "$openai_compat_empty_retry_backoff"
-                retry_prompt="RETRY NOTICE: the previous ${retry_agent_type}/${retry_role} review attempt ended with Empty output after adapter reconnects. Review only the supplied diff/context; do not inspect the workspace unless strictly necessary. Return ONLY the required JSON object.
+                log WARN "review_run: ${retry_agent_type}/${retry_role} ended with ${retry_reason}; retrying once after ${retry_backoff}s (artifact=$(basename "$archived_file"))"
+                sleep "$retry_backoff"
+                retry_prompt="RETRY NOTICE: the previous ${retry_agent_type}/${retry_role} review attempt ended with ${retry_reason}. Review only the supplied diff/context; do not inspect the workspace unless strictly necessary. Return ONLY the required JSON object.
 
 ${round1_prompts[$retry_idx]}"
                 spawn_agent "$retry_agent_type" "$retry_prompt" "$retry_task_id" "$retry_role" "review" &
