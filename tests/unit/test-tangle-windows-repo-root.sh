@@ -9,6 +9,7 @@ source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "tangle Windows repository root normalization"
 
 source "$PROJECT_ROOT_SOURCE/scripts/lib/workflows.sh"
+source "$PROJECT_ROOT_SOURCE/scripts/lib/testing.sh"
 
 repo="$TEST_TMP_DIR/tangle-windows-root/repo"
 mkdir -p "$repo"
@@ -38,6 +39,32 @@ else
         test_pass
     else
         test_fail "tangle_resolve_repo_root did not preserve a usable repository root"
+    fi
+fi
+
+printf 'new artifact\n' > "$repo/PROOF.txt"
+
+test_case "worktree snapshot sees untracked files with MSYS conversion disabled"
+if [[ "$(uname -s)" == MINGW* ]] && command -v cygpath >/dev/null 2>&1; then
+    if (
+        export PROJECT_ROOT="$repo"
+        export MSYS2_ARG_CONV_EXCL='*'
+        snapshot=$(snapshot_tangle_worktree_paths)
+        grep -Fxq 'PROOF.txt' <<< "$snapshot"
+    ); then
+        test_pass
+    else
+        test_fail "snapshot_tangle_worktree_paths lost the Windows repository root"
+    fi
+else
+    if (
+        export PROJECT_ROOT="$repo"
+        snapshot=$(snapshot_tangle_worktree_paths)
+        grep -Fxq 'PROOF.txt' <<< "$snapshot"
+    ); then
+        test_pass
+    else
+        test_fail "snapshot_tangle_worktree_paths did not report the untracked artifact"
     fi
 fi
 

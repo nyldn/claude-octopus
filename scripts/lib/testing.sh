@@ -64,18 +64,39 @@ check_explicit_file_coverage() {
     printf '%s' "$missing"
 }
 
+testing_git_compatible_path() {
+    local path="$1"
+    if declare -f tangle_git_compatible_path >/dev/null 2>&1; then
+        tangle_git_compatible_path "$path"
+        return $?
+    fi
+    case "$(uname -s 2>/dev/null || true)" in
+        MINGW*|MSYS*|CYGWIN*)
+            if [[ "$path" == /* ]] && command -v cygpath >/dev/null 2>&1; then
+                cygpath -m "$path"
+                return 0
+            fi
+            ;;
+    esac
+    printf '%s\n' "$path"
+}
+
 snapshot_tangle_worktree_paths() {
     local repo_root=""
+    local repo_candidate=""
 
     if [[ -n "${PROJECT_ROOT:-}" ]]; then
         if [[ -d "$PROJECT_ROOT" ]]; then
-            repo_root=$(git -C "$PROJECT_ROOT" rev-parse --show-toplevel 2>/dev/null || true)
+            repo_candidate=$(testing_git_compatible_path "$PROJECT_ROOT")
+            repo_root=$(git -C "$repo_candidate" rev-parse --show-toplevel 2>/dev/null || true)
             [[ -n "$repo_root" ]] || return 0
         else
-            repo_root=$(git -C "$(pwd)" rev-parse --show-toplevel 2>/dev/null || true)
+            repo_candidate=$(testing_git_compatible_path "$(pwd)")
+            repo_root=$(git -C "$repo_candidate" rev-parse --show-toplevel 2>/dev/null || true)
         fi
     else
-        repo_root=$(git -C "$(pwd)" rev-parse --show-toplevel 2>/dev/null || true)
+        repo_candidate=$(testing_git_compatible_path "$(pwd)")
+        repo_root=$(git -C "$repo_candidate" rev-parse --show-toplevel 2>/dev/null || true)
     fi
     [[ -n "$repo_root" ]] || return 0
 
