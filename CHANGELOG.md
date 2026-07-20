@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **Restricted host sandboxes now preserve provider results when Octopus state is unwritable** (#648). The orchestrator probes only the host-selected state root and, when writes are denied, disables optional persistence and streams the provider result synchronously without inventing a project or temporary fallback. Event logging is strictly fail-open, nested Claude dispatches from Codex/Gemini exclude user-scoped plugin hooks while retaining authentication, and debug mode emits at most one structured persistence diagnostic.
+
 ## [9.54.0] - 2026-07-18
 
 
