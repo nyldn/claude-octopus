@@ -643,7 +643,15 @@ PYEXTRACT
 review_local_synthesis_json() {
     local findings_json="$1"
     local warning="${2:-}"
-    local sort_filter='def severity_rank: if .severity == "normal" then 0 elif .severity == "nit" then 1 elif .severity == "pre-existing" then 2 else 3 end; sort_by(severity_rank)'
+    local sort_filter='def severity_rank: if .severity == "normal" then 0 elif .severity == "nit" then 1 elif .severity == "pre-existing" then 2 else 3 end;
+        def dedupe_findings:
+          group_by([(.file // ""), (.line // 0), (.category // ""), (.severity // "")])
+          | map(.[0] as $base
+              | $base + {
+                  detail: (map(.detail // empty) | unique | join("\n\nCorroborating provider perspective: ")),
+                  confidence: (map(.confidence // 0) | max)
+                });
+        dedupe_findings | sort_by(severity_rank)'
     if [[ -n "$warning" ]]; then
         printf '%s' "$findings_json" | jq -c --arg warning "$warning" "{findings:(. // [] | ${sort_filter}), warning:\$warning}" 2>/dev/null \
             || printf '{"findings":[],"warning":%s}\n' "$(printf '%s' "$warning" | jq -R .)"
@@ -1054,7 +1062,11 @@ CRITICAL OUTPUT FORMAT: Return ONLY a valid JSON object. No markdown, no prose, 
     fleet_dispatch_begin
     while IFS=: read -r agent_type role specialty; do
         [[ -z "$agent_type" ]] && continue
-        local task_id="review-r1-${role}-${timestamp}"
+        # Include the executor alias because multiple configured seats can share
+        # one role (for example GLM and Kimi are both diversity reviewers).
+        # spawn_agent derives raw/temp filenames from task_id alone, so a
+        # role-only ID lets concurrent providers overwrite each other's output.
+        local task_id="review-r1-${agent_type}-${role}-${timestamp}"
         # Use spawn_agent's actual output path convention: ${RESULTS_DIR}/${agent_type}-${task_id}.md
         local result_file="${RESULTS_DIR}/${agent_type}-${task_id}.md"
         round1_files+=("$result_file")

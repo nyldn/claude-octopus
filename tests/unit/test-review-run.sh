@@ -125,6 +125,9 @@ assert_contains "$(grep -c 'attempt1' "$ALL_SRC" 2>/dev/null || true)" \
 assert_contains "$(grep -c 'OCTOPUS_REVIEW_OPENROUTER_RETRY_BACKOFF_SECS' "$ALL_SRC" 2>/dev/null || true)" \
   "[1-9]" "review_run: OpenRouter transport retry has configurable backoff"
 
+assert_contains "$(grep 'local task_id="review-r1-' "$PROJECT_ROOT/scripts/lib/review.sh" 2>/dev/null)" \
+  'review-r1-\$\{agent_type\}-\$\{role\}' "review_run: concurrent seats receive provider-unique task IDs"
+
 # ── diff target file support ─────────────────────────────────────────────────
 
 source "$PROJECT_ROOT/scripts/lib/review.sh"
@@ -154,6 +157,21 @@ if (
 else
   fail "review_run: Round 1 provider setup launches concurrently" \
     "four two-second setup paths did not overlap or PID ordering changed"
+fi
+
+local_synthesis=$(review_local_synthesis_json '[
+  {"file":"calc.js","line":2,"severity":"normal","category":"correctness","title":"wrong operation","detail":"first perspective","confidence":0.8},
+  {"file":"calc.js","line":2,"severity":"normal","category":"correctness","title":"subtracts instead of adds","detail":"second perspective","confidence":0.9},
+  {"file":"other.js","line":1,"severity":"nit","category":"style","title":"minor","detail":"third finding","confidence":0.7}
+]')
+if [[ "$(printf '%s' "$local_synthesis" | jq '.findings | length')" == "2" ]] &&
+   [[ "$(printf '%s' "$local_synthesis" | jq -r '.findings[0].confidence')" == "0.9" ]] &&
+   [[ "$(printf '%s' "$local_synthesis" | jq -r '.findings[0].detail')" == *"first perspective"* ]] &&
+   [[ "$(printf '%s' "$local_synthesis" | jq -r '.findings[0].detail')" == *"second perspective"* ]]; then
+  pass "review_run: local synthesis deduplicates corroborating provider findings"
+else
+  fail "review_run: local synthesis deduplicates corroborating provider findings" \
+    "fallback did not merge same-location/category findings deterministically"
 fi
 
 DIFF_TARGET="$TMPDIR_TEST/review-target.diff"
