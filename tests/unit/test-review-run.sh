@@ -129,6 +129,33 @@ assert_contains "$(grep -c 'OCTOPUS_REVIEW_OPENROUTER_RETRY_BACKOFF_SECS' "$ALL_
 
 source "$PROJECT_ROOT/scripts/lib/review.sh"
 
+if (
+  log() { :; }
+  round1_agent_types=(codex claude-opus openrouter-glm52 openrouter-kimi-k3)
+  round1_prompts=(one two three four)
+  round1_task_ids=(task-1 task-2 task-3 task-4)
+  round1_roles=(logic architecture diversity diversity)
+  round1_pids=()
+  spawn_agent_capture_pid() {
+    sleep 2
+    case "$1" in
+      codex) echo 9001 ;;
+      claude-opus) echo 9002 ;;
+      openrouter-glm52) echo 9003 ;;
+      openrouter-kimi-k3) echo 9004 ;;
+    esac
+  }
+  SECONDS=0
+  review_launch_round1_fleet
+  [[ "$SECONDS" -lt 5 ]] &&
+    [[ "${round1_pids[*]}" == "9001 9002 9003 9004" ]]
+); then
+  pass "review_run: Round 1 provider setup launches concurrently"
+else
+  fail "review_run: Round 1 provider setup launches concurrently" \
+    "four two-second setup paths did not overlap or PID ordering changed"
+fi
+
 DIFF_TARGET="$TMPDIR_TEST/review-target.diff"
 cat > "$DIFF_TARGET" <<'EOF'
 diff --git a/foo.txt b/foo.txt

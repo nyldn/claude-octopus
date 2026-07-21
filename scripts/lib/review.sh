@@ -445,6 +445,51 @@ review_wait_for_result_status() {
     wait "$pid" 2>/dev/null || true
 }
 
+# Launch all Round 1 provider setup paths concurrently. Each
+# spawn_agent_capture_pid call performs model/auth/context setup before it can
+# return the actual provider PID; doing those calls serially made a four-seat
+# "parallel" review spend minutes launching one provider at a time on Windows.
+# The round1_* arrays are owned by review_run and resolved through Bash dynamic
+# scope, matching review_supervise_round1 below.
+# shellcheck disable=SC2154
+review_launch_round1_fleet() {
+    local setup_pids=() pid_receipts=()
+    local idx receipt setup_status captured_pid
+
+    round1_pids=()
+    idx=0
+    while [[ "$idx" -lt "${#round1_agent_types[@]}" ]]; do
+        receipt=$(mktemp "${TMPDIR:-/tmp}/octo-review-spawn.XXXXXX") || return 1
+        pid_receipts[$idx]="$receipt"
+        (
+            spawn_agent_capture_pid \
+                "${round1_agent_types[$idx]}" \
+                "${round1_prompts[$idx]}" \
+                "${round1_task_ids[$idx]}" \
+                "${round1_roles[$idx]}" \
+                "review" > "$receipt"
+        ) &
+        setup_pids[$idx]=$!
+        round1_pids[$idx]=""
+        ((idx++)) || true
+    done
+
+    idx=0
+    while [[ "$idx" -lt "${#setup_pids[@]}" ]]; do
+        setup_status=0
+        wait "${setup_pids[$idx]}" || setup_status=$?
+        captured_pid=$(awk '/^[0-9]+$/ { value=$1 } END { print value }' \
+            "${pid_receipts[$idx]}" 2>/dev/null || true)
+        rm -f "${pid_receipts[$idx]}"
+        if [[ "$setup_status" -eq 0 && "$captured_pid" =~ ^[0-9]+$ ]]; then
+            round1_pids[$idx]="$captured_pid"
+        else
+            log ERROR "review_run: Round 1 ${round1_agent_types[$idx]}/${round1_roles[$idx]} failed to launch"
+        fi
+        ((idx++)) || true
+    done
+}
+
 # review_supervise_round1: monitor each Round 1 provider independently so
 # progress from one provider cannot keep a stalled peer alive. The round1_*
 # arrays are intentionally resolved through Bash's dynamic function scope;
@@ -1022,10 +1067,9 @@ CRITICAL OUTPUT FORMAT: Return ONLY a valid JSON object. No markdown, no prose, 
 ${agent_prompt_base}"
         round1_prompts+=("$agent_prompt")
 
-        local round1_pid
-        round1_pid=$(spawn_agent_capture_pid "$agent_type" "$agent_prompt" "$task_id" "$role" "review")
-        round1_pids+=("$round1_pid")
     done <<< "$fleet"
+
+    review_launch_round1_fleet
 
     fleet_dispatch_end
 

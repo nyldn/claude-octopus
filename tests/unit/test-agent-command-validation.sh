@@ -40,6 +40,20 @@ else
     test_fail "expected allowlisted Claude effort prefix to be accepted"
 fi
 
+test_case "validate_agent_command allows constrained Fable model and effort prefixes"
+if validate_agent_command "env OCTOPUS_OPUS_MODEL=claude-fable-5 CLAUDE_CODE_EFFORT_LEVEL=high claude --print --model claude-fable-5 --effort high --allowed-tools Read,Glob,Grep"; then
+    test_pass
+else
+    test_fail "expected the dispatched Fable model/effort prefix to be accepted"
+fi
+
+test_case "validate_agent_command rejects unapproved Claude model prefix"
+if validate_agent_command "env OCTOPUS_OPUS_MODEL=claude-fast CLAUDE_CODE_EFFORT_LEVEL=high claude --print --model claude-fast" >/dev/null 2>&1; then
+    test_fail "expected an unapproved Claude model prefix to be rejected"
+else
+    test_pass
+fi
+
 test_case "validate_agent_command rejects invalid Claude effort value"
 if validate_agent_command "env CLAUDE_CODE_EFFORT_LEVEL=extreme claude --print --model claude-fable-5" >/dev/null 2>&1; then
     test_fail "expected invalid Claude effort value to be rejected"

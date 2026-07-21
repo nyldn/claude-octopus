@@ -239,11 +239,14 @@ _validate_openai_compatible_agent_command() {
 validate_agent_command() {
     local cmd="$1"
 
-    # Claude effort is passed through `env` because spawn.sh executes a parsed
-    # argv rather than shell assignment syntax. Strip only this exact,
-    # allowlisted assignment, then validate the underlying command normally.
-    # Any additional assignment remains at argv[0] and is rejected below.
-    if [[ "$cmd" =~ ^env[[:space:]]+CLAUDE_CODE_EFFORT_LEVEL=(low|medium|high|xhigh|max)[[:space:]]+(.+)$ ]]; then
+    # Claude model/effort pins are passed through `env` because spawn.sh
+    # executes parsed argv rather than shell assignment syntax. Strip only the
+    # exact allowlisted assignments emitted by dispatch.sh, then validate the
+    # underlying Claude command normally. Any extra assignment remains at
+    # argv[0] and is rejected below.
+    if [[ "$cmd" =~ ^env[[:space:]]+OCTOPUS_OPUS_MODEL=(claude-fable-5|claude-opus-4\.6|claude-opus-4\.7|claude-opus-4\.8|opus)([[:space:]]+CLAUDE_CODE_EFFORT_LEVEL=(low|medium|high|xhigh|max))?[[:space:]]+(.+)$ ]]; then
+        cmd="${BASH_REMATCH[4]}"
+    elif [[ "$cmd" =~ ^env[[:space:]]+CLAUDE_CODE_EFFORT_LEVEL=(low|medium|high|xhigh|max)[[:space:]]+(.+)$ ]]; then
         cmd="${BASH_REMATCH[2]}"
     fi
 
