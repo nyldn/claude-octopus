@@ -40,10 +40,11 @@ fi
 test_case "consultative dispatch restores unset variables after failure"
 unset OCTOPUS_SECURITY_V870 OCTOPUS_GEMINI_SANDBOX OCTOPUS_AGY_SANDBOX OCTOPUS_CODEX_SANDBOX CLAUDE_OCTOPUS_AUTONOMY
 STUB_RC=7
-set +e
-run_agent_sync_consultative codex prompt 120 implementer ceremony >/dev/null
-rc=$?
-set -e
+if run_agent_sync_consultative codex prompt 120 implementer ceremony >/dev/null; then
+    rc=0
+else
+    rc=$?
+fi
 if [[ "$rc" -eq 7 && -z "${OCTOPUS_SECURITY_V870+x}" && -z "${OCTOPUS_GEMINI_SANDBOX+x}" && -z "${OCTOPUS_AGY_SANDBOX+x}" && -z "${OCTOPUS_CODEX_SANDBOX+x}" && -z "${CLAUDE_OCTOPUS_AUTONOMY+x}" ]]; then
     test_pass
 else
