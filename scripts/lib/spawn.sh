@@ -403,7 +403,7 @@ ${heuristic_ctx}"
     # OCTOPUS_OPUS_MODE=fast (or request claude-opus-fast directly).
     if [[ "$agent_type" == "claude-opus" ]] && [[ "$SUPPORTS_FAST_OPUS" == "true" ]] \
         && [[ "${OCTOPUS_OPUS_MODE:-auto}" == "fast" ]] \
-        && [[ "${OCTOPUS_OPUS_MODEL:-}" != "claude-fable-5" ]]; then
+        && { ! declare -f fable5_opus_pinned >/dev/null 2>&1 || ! fable5_opus_pinned; }; then
         local opus_tier
         opus_tier=$(get_agent_config "${curated_agent:-}" "tier" 2>/dev/null) || opus_tier="premium"
         local session_autonomy
@@ -743,7 +743,8 @@ ${heuristic_ctx}"
             # explicitly reports that the Fable model is unavailable.
             if [[ $exit_code -ne 0 ]] && [[ "$fable5_fallback_attempt" -eq 0 ]] \
                 && [[ "$agent_type" == "claude-opus" ]] \
-                && [[ "${OCTOPUS_OPUS_MODEL:-}" == "claude-fable-5" ]] \
+                && declare -f fable5_opus_pinned >/dev/null 2>&1 \
+                && fable5_opus_pinned \
                 && declare -f fable5_model_unavailable >/dev/null 2>&1 \
                 && fable5_model_unavailable "$temp_errors" "$temp_output"; then
                 local fable5_model_index=-1

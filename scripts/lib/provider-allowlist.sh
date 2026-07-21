@@ -13,7 +13,15 @@ set -eo pipefail
 # present, then the session file, then the global config file.
 
 octo_normalize_provider_name() {
-    printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]' | tr '_' '-' | tr -d ','
+    local value="${1:-}"
+    value="${value//_/-}"
+    value="${value//,/}"
+    # Provider aliases are normally already lowercase. Avoid three external
+    # processes per check on Windows; only pay for `tr` on unusual mixed case.
+    case "$value" in
+        *[A-Z]*) value="$(printf '%s' "$value" | tr '[:upper:]' '[:lower:]')" ;;
+    esac
+    printf '%s' "$value"
 }
 
 octo_provider_allowlist_config_dir() {
@@ -21,10 +29,21 @@ octo_provider_allowlist_config_dir() {
 }
 
 octo_provider_allowlist_session_id() {
-    local raw
+    local raw sanitized="" char index
     raw="${CLAUDE_CODE_SESSION_ID:-${CLAUDE_CODE_SESSION:-${OCTOPUS_SESSION_ID:-${CLAUDE_SESSION_ID:-global}}}}"
-    raw="$(printf '%s' "$raw" | tr -c 'A-Za-z0-9_.-' '-' | sed 's/--*/-/g;s/^-//;s/-$//')"
-    printf '%s\n' "${raw:-global}"
+    for ((index = 0; index < ${#raw}; index++)); do
+        char="${raw:index:1}"
+        case "$char" in
+            [A-Za-z0-9_.-]) sanitized+="$char" ;;
+            *) sanitized+="-" ;;
+        esac
+    done
+    while [[ "$sanitized" == *--* ]]; do
+        sanitized="${sanitized//--/-}"
+    done
+    sanitized="${sanitized#-}"
+    sanitized="${sanitized%-}"
+    printf '%s\n' "${sanitized:-global}"
 }
 
 octo_provider_allowlist_session_file() {

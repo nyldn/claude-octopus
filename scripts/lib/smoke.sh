@@ -1059,10 +1059,12 @@ _smoke_test_provider() {
 
     # Determine agent type and get model
     case "$provider" in
-        codex) agent_type="codex" ;;
-        gemini) agent_type="gemini" ;;
-        cursor-agent) agent_type="cursor-agent" ;;
-        agy) agent_type="agy" ;;
+        codex|codex-*) agent_type="$provider" ;;
+        gemini|gemini-*) agent_type="$provider" ;;
+        cursor-agent|cursor-agent-*) agent_type="$provider" ;;
+        agy|agy-*|antigravity) agent_type="$provider" ;;
+        claude|claude-*) agent_type="$provider" ;;
+        openrouter|openrouter-*) agent_type="$provider" ;;
         *) echo "SKIP" > "$result_file"; return 0 ;;
     esac
 
@@ -1082,7 +1084,7 @@ _smoke_test_provider() {
 
     # Send trivial prompt with timeout
     local smoke_exit=0
-    if [[ "$provider" == "codex" ]]; then
+    if [[ "$provider" == codex || "$provider" == codex-* ]]; then
         # Codex requires a git repo — use a temp one to avoid false negatives (#202)
         local smoke_dir
         smoke_dir=$(mktemp -d 2>/dev/null || mktemp -d -t 'octo-smoke')
@@ -1094,17 +1096,17 @@ _smoke_test_provider() {
             >/dev/null 2>"$stderr_file" || smoke_exit=$?
         popd >/dev/null 2>&1
         rm -rf "$smoke_dir" 2>/dev/null
-    elif [[ "$provider" == "gemini" ]]; then
+    elif [[ "$provider" == gemini || "$provider" == gemini-* ]]; then
         # Gemini: prompt via stdin with -p "" for headless trigger
         echo "Reply with exactly: ok" | run_with_timeout "$smoke_timeout" \
             $cmd_str -p "" \
             >/dev/null 2>"$stderr_file" || smoke_exit=$?
-    elif [[ "$provider" == "cursor-agent" ]]; then
+    elif [[ "$provider" == cursor-agent || "$provider" == cursor-agent-* ]]; then
         # --trust required for untrusted workspaces; matches cursor-agent.sh:143 dispatch path
         echo "Reply with exactly: ok" | run_with_timeout "$smoke_timeout" \
             $cmd_str -p "" --trust --output-format text \
             >/dev/null 2>"$stderr_file" || smoke_exit=$?
-    elif [[ "$provider" == "agy" ]]; then
+    elif [[ "$provider" == agy || "$provider" == agy-* || "$provider" == "antigravity" ]]; then
         # agy-exec.sh is a stdin adapter that builds its own argv and execs agy
         # directly — any argv appended here would be silently discarded, so the
         # prompt must go via stdin (like codex/gemini above). Explicitly forbid
@@ -1113,6 +1115,14 @@ _smoke_test_provider() {
         echo "Reply with exactly: ok. Answer from your own knowledge only — do not use web search or any tools." \
             | run_with_timeout "$smoke_timeout" \
             $cmd_str \
+            >/dev/null 2>"$stderr_file" || smoke_exit=$?
+    elif [[ "$provider" == claude || "$provider" == claude-* ]]; then
+        echo "Reply with exactly: ok" | run_with_timeout "$smoke_timeout" \
+            $cmd_str \
+            >/dev/null 2>"$stderr_file" || smoke_exit=$?
+    elif [[ "$provider" == openrouter || "$provider" == openrouter-* ]]; then
+        run_with_timeout "$smoke_timeout" \
+            $cmd_str "Reply with exactly: ok" \
             >/dev/null 2>"$stderr_file" || smoke_exit=$?
     else
         run_with_timeout "$smoke_timeout" \
@@ -1161,108 +1171,97 @@ provider_smoke_test() {
 
     log INFO "Running provider smoke test... 🐙"
 
-    # Determine which providers are available (from preflight state)
-    local has_codex=false has_gemini=false has_cursor_agent=false has_agy=false
-    command -v codex &>/dev/null && has_codex=true
-    command -v gemini &>/dev/null && has_gemini=true
-    if command -v agent &>/dev/null && _is_cursor_agent_binary && \
-       { [[ -n "${CURSOR_API_KEY:-}" ]] || grep -Eq '"authInfo"[[:space:]]*:[[:space:]]*\{' "${HOME}/.cursor/cli-config.json" 2>/dev/null; }; then
-        has_cursor_agent=true
+    # Use the exact configured review aliases when present. An installed CLI is
+    # not permission to probe it, and two OpenRouter seats are two distinct
+    # model checks even though they share one API key.
+    local configured_fleet="" require_all=false smoke_agents=""
+    if declare -f _review_fleet_from_config >/dev/null 2>&1; then
+        configured_fleet=$(_review_fleet_from_config)
     fi
-    command -v agy &>/dev/null && has_agy=true
+    if [[ -n "$configured_fleet" ]]; then
+        require_all=true
+        local configured_agent _configured_role _configured_specialty
+        while IFS=':' read -r configured_agent _configured_role _configured_specialty; do
+            configured_agent=${configured_agent//$'\r'/}
+            [[ -n "$configured_agent" ]] && smoke_agents+="${configured_agent}"$'\n'
+        done <<< "$configured_fleet"
+    else
+        local candidate family
+        for candidate in codex gemini cursor-agent agy claude-opus openrouter; do
+            case "$candidate" in
+                codex*) family=codex ;;
+                gemini*) family=gemini ;;
+                cursor-agent*) family=cursor-agent ;;
+                agy*) family=agy ;;
+                claude*) family=claude ;;
+                openrouter*) family=openrouter ;;
+            esac
+            if declare -f octo_provider_allowed >/dev/null 2>&1 && ! octo_provider_allowed "$family"; then
+                continue
+            fi
+            if declare -f check_provider_health >/dev/null 2>&1 && check_provider_health "$family" >/dev/null 2>&1; then
+                smoke_agents+="${candidate}"$'\n'
+            fi
+        done
+    fi
 
-    if [[ "$has_codex" == "false" && "$has_gemini" == "false" && "$has_cursor_agent" == "false" && "$has_agy" == "false" ]]; then
+    if [[ -z "$smoke_agents" ]]; then
         log WARN "Smoke test: no providers to test"
         return 0
     fi
 
-    # Launch parallel smoke tests
-    local codex_result_file gemini_result_file cursor_agent_result_file agy_result_file
-    codex_result_file=$(secure_tempfile "smoke-codex")
-    gemini_result_file=$(secure_tempfile "smoke-gemini")
-    cursor_agent_result_file=$(secure_tempfile "smoke-cursor-agent")
-    agy_result_file=$(secure_tempfile "smoke-agy")
-    local pids=()
-
-    if [[ "$has_codex" == "true" ]]; then
-        _smoke_test_provider "codex" "${OCTOPUS_CODEX_SMOKE_TIMEOUT:-45}" "$codex_result_file" &
+    # Launch exact model aliases in parallel.
+    local agents=() result_files=() pids=()
+    local agent result_file smoke_timeout
+    while IFS= read -r agent; do
+        [[ -z "$agent" ]] && continue
+        result_file=$(secure_tempfile "smoke-${agent}")
+        case "$agent" in
+            codex|codex-*) smoke_timeout="${OCTOPUS_CODEX_SMOKE_TIMEOUT:-45}" ;;
+            gemini|gemini-*) smoke_timeout="${OCTOPUS_GEMINI_SMOKE_TIMEOUT:-30}" ;;
+            cursor-agent|cursor-agent-*) smoke_timeout="${OCTOPUS_CURSOR_AGENT_TIMEOUT:-120}" ;;
+            agy|agy-*|antigravity) smoke_timeout="${OCTOPUS_AGY_SMOKE_TIMEOUT:-45}" ;;
+            claude|claude-*) smoke_timeout="${OCTOPUS_CLAUDE_SMOKE_TIMEOUT:-60}" ;;
+            openrouter|openrouter-*) smoke_timeout="${OCTOPUS_OPENROUTER_SMOKE_TIMEOUT:-75}" ;;
+            *) smoke_timeout="${OCTOPUS_PROVIDER_SMOKE_TIMEOUT:-60}" ;;
+        esac
+        agents+=("$agent")
+        result_files+=("$result_file")
+        _smoke_test_provider "$agent" "$smoke_timeout" "$result_file" &
         pids+=($!)
-    else
-        echo "SKIP" > "$codex_result_file"
-    fi
-
-    if [[ "$has_gemini" == "true" ]]; then
-        _smoke_test_provider "gemini" "${OCTOPUS_GEMINI_SMOKE_TIMEOUT:-30}" "$gemini_result_file" &
-        pids+=($!)
-    else
-        echo "SKIP" > "$gemini_result_file"
-    fi
-
-    if [[ "$has_cursor_agent" == "true" ]]; then
-        _smoke_test_provider "cursor-agent" "${OCTOPUS_CURSOR_AGENT_TIMEOUT:-120}" "$cursor_agent_result_file" &
-        pids+=($!)
-    else
-        echo "SKIP" > "$cursor_agent_result_file"
-    fi
-
-    if [[ "$has_agy" == "true" ]]; then
-        _smoke_test_provider "agy" "${OCTOPUS_AGY_SMOKE_TIMEOUT:-45}" "$agy_result_file" &
-        pids+=($!)
-    else
-        echo "SKIP" > "$agy_result_file"
-    fi
+    done <<< "$smoke_agents"
 
     # Wait for all background tests
     for pid in "${pids[@]}"; do
         wait "$pid" 2>/dev/null || true
     done
 
-    # Collect results
-    local codex_result gemini_result cursor_agent_result agy_result
-    codex_result=$(cat "$codex_result_file" 2>/dev/null || echo "SKIP")
-    gemini_result=$(cat "$gemini_result_file" 2>/dev/null || echo "SKIP")
-    cursor_agent_result=$(cat "$cursor_agent_result_file" 2>/dev/null || echo "SKIP")
-    agy_result=$(cat "$agy_result_file" 2>/dev/null || echo "SKIP")
-    rm -f "$codex_result_file" "$gemini_result_file" "$cursor_agent_result_file" "$agy_result_file" 2>/dev/null
-
     local pass_count=0 fail_count=0 skip_count=0
-
-    for result in "$codex_result" "$gemini_result" "$cursor_agent_result" "$agy_result"; do
+    local index result result_agent
+    for index in "${!agents[@]}"; do
+        result_agent="${agents[$index]}"
+        result=$(cat "${result_files[$index]}" 2>/dev/null || echo "SKIP")
+        rm -f "${result_files[$index]}" 2>/dev/null
         case "${result%%:*}" in
             PASS) ((++pass_count)) ;;
             SKIP) ((++skip_count)) ;;
-            *) ((++fail_count)) ;;
+            *)
+                ((++fail_count))
+                local smoke_error="${result%%:*}"
+                local smoke_model="${result#*:}"
+                _display_smoke_test_error "$result_agent" "$smoke_error" "$smoke_model"
+                ;;
         esac
     done
 
-    # Display results
     if [[ $fail_count -gt 0 ]]; then
-        echo ""
-        if [[ "$codex_result" != "PASS" && "$codex_result" != "SKIP" ]]; then
-            local codex_error="${codex_result%%:*}"
-            local codex_model="${codex_result#*:}"
-            _display_smoke_test_error "Codex" "$codex_error" "$codex_model"
-        fi
-        if [[ "$gemini_result" != "PASS" && "$gemini_result" != "SKIP" ]]; then
-            local gemini_error="${gemini_result%%:*}"
-            local gemini_model="${gemini_result#*:}"
-            _display_smoke_test_error "Gemini" "$gemini_error" "$gemini_model"
-        fi
-        if [[ "$cursor_agent_result" != "PASS" && "$cursor_agent_result" != "SKIP" ]]; then
-            local cursor_agent_error="${cursor_agent_result%%:*}"
-            local cursor_agent_model="${cursor_agent_result#*:}"
-            _display_smoke_test_error "Cursor Agent" "$cursor_agent_error" "$cursor_agent_model"
-        fi
-        if [[ "$agy_result" != "PASS" && "$agy_result" != "SKIP" ]]; then
-            local agy_error="${agy_result%%:*}"
-            local agy_model="${agy_result#*:}"
-            _display_smoke_test_error "Antigravity" "$agy_error" "$agy_model"
-        fi
         echo ""
     fi
 
-    # Pass if at least one provider succeeds (consistent with v7.9.1 single-provider mode)
-    if [[ $pass_count -gt 0 ]]; then
+    # A configured multi-provider roster is fail-closed: never claim success
+    # because one seat answered while GLM, Kimi, Claude, or Codex silently failed.
+    if [[ $pass_count -gt 0 ]] && \
+       { [[ "$require_all" != "true" ]] || [[ $fail_count -eq 0 ]]; }; then
         if [[ $fail_count -gt 0 ]]; then
             log WARN "Smoke test: degraded mode ($pass_count/$((pass_count + fail_count)) providers passed)"
         else
@@ -1272,14 +1271,22 @@ provider_smoke_test() {
         return 0
     fi
 
-    # All providers failed
-    log ERROR "Smoke test failed: no providers responded successfully"
+    if [[ "$require_all" == "true" && $fail_count -gt 0 ]]; then
+        log ERROR "Configured smoke test failed: $fail_count/${#agents[@]} exact seats failed"
+    else
+        log ERROR "Smoke test failed: no providers responded successfully"
+    fi
     echo -e "${RED}╔═══════════════════════════════════════════════════════════════╗${NC}"
     echo -e "${RED}║  ❌ PROVIDER SMOKE TEST FAILED                                ║${NC}"
     echo -e "${RED}╚═══════════════════════════════════════════════════════════════╝${NC}"
     echo ""
-    echo -e "No AI providers could process a test request."
-    echo -e "This means workflows will produce ${YELLOW}empty results${NC}."
+    if [[ "$require_all" == "true" && $fail_count -gt 0 ]]; then
+        echo -e "At least one configured provider/model route failed its exact test request."
+        echo -e "The workflow is blocked; no unconfigured fallback will be selected."
+    else
+        echo -e "No AI providers could process a test request."
+        echo -e "This means workflows will produce ${YELLOW}empty results${NC}."
+    fi
     echo ""
     echo -e "${DIM}Skip with: --skip-smoke-test  (not recommended)${NC}"
     echo -e "${DIM}Re-test:   bash orchestrate.sh doctor smoke${NC}"

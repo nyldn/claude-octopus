@@ -248,8 +248,13 @@ get_agent_command() {
             # then 4.7/4.6 on older hosts or enterprise backends.
             # Use `env VAR=val` prefix so the assignment survives read -ra word-splitting
             # in spawn.sh — a bare VAR=val prefix only works in shell eval context.
-            local opus_effort="high"
-            if declare -f get_effort_level >/dev/null 2>&1; then
+            local opus_effort="high" configured_claude_effort=""
+            if declare -f octopus_resolve_reasoning_level >/dev/null 2>&1; then
+                configured_claude_effort="$(octopus_resolve_reasoning_level claude "$phase" "$role" 2>/dev/null || true)"
+            fi
+            if [[ -n "$configured_claude_effort" ]]; then
+                opus_effort="$configured_claude_effort"
+            elif declare -f get_effort_level >/dev/null 2>&1; then
                 local opus_complexity="2"
                 case "${phase:-}" in
                     tangle|develop|ink|deliver) opus_complexity="3" ;;
@@ -259,23 +264,28 @@ get_agent_command() {
             elif [[ -n "${OCTOPUS_EFFORT_OVERRIDE:-}" ]]; then
                 opus_effort="$OCTOPUS_EFFORT_OVERRIDE"
             fi
+            if declare -f fable5_clamp_effort >/dev/null 2>&1; then
+                opus_effort="$(fable5_clamp_effort "$opus_effort")"
+            fi
             # v9.51: Honor a Fable 5 pin in the dispatched model flag. The bare
             # `opus` alias always resolves to the host's default Opus, so
             # without this the pin changed cost labels but never the model.
             # Security dispatches reroute to Opus 4.8 (lib/fable5.sh).
-            local opus_model_flag="opus"
-            if [[ "${OCTOPUS_OPUS_MODEL:-}" == "claude-fable-5" ]]; then
-                opus_model_flag="claude-fable-5"
-                if declare -f fable5_maybe_reroute >/dev/null 2>&1; then
-                    if [[ "$(fable5_maybe_reroute "claude-fable-5" "$role" "$agent_type" "$phase")" != "claude-fable-5" ]]; then
-                        opus_model_flag="claude-opus-4-8"
-                    fi
-                fi
+            local configured_opus_model="${OCTOPUS_OPUS_MODEL:-opus}"
+            if declare -f get_agent_model >/dev/null 2>&1; then
+                configured_opus_model="$(get_agent_model "$agent_type" "$phase" "$role")" || return 1
             fi
+            local opus_model_flag="$configured_opus_model"
+            case "$configured_opus_model" in
+                claude-opus-4.8) opus_model_flag="claude-opus-4-8" ;;
+                claude-opus-4.6) opus_model_flag="claude-opus-4-6" ;;
+            esac
             if [[ "${SUPPORTS_EFFORT_COMMAND:-false}" == "true" || "${SUPPORTS_XHIGH_EFFORT:-false}" == "true" ]]; then
-                echo "env CLAUDE_CODE_EFFORT_LEVEL=${opus_effort} ${_claude_bin}${_BARE_OPT} --print --model ${opus_model_flag} ${claude_perm}"
+                echo "env OCTOPUS_OPUS_MODEL=${configured_opus_model} CLAUDE_CODE_EFFORT_LEVEL=${opus_effort} ${_claude_bin}${_BARE_OPT:-} --print --model ${opus_model_flag} --effort ${opus_effort} ${claude_perm}"
+            elif [[ "$configured_opus_model" == "claude-fable-5" ]]; then
+                echo "env OCTOPUS_OPUS_MODEL=${configured_opus_model} ${_claude_bin}${_BARE_OPT:-} --print --model ${opus_model_flag} ${claude_perm}"
             else
-                echo "${_claude_bin}${_BARE_OPT} --print --model ${opus_model_flag} ${claude_perm}"
+                echo "${_claude_bin}${_BARE_OPT:-} --print --model ${opus_model_flag} ${claude_perm}"
             fi
             ;;
         claude-opus-fast)

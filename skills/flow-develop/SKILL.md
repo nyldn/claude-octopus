@@ -112,48 +112,33 @@ orchestrate.sh develop "<user prompt>\n\nQuality requirements for this deliverab
 
 ### STEP 2: Display Visual Indicators (MANDATORY - BLOCKING)
 
-**MANDATORY: You MUST use the native shell command tool to run this provider check BEFORE displaying the banner. Do NOT skip it. Do NOT assume availability.**
+**MANDATORY: Use the native shell command tool to resolve the exact configured fleet and provider health before displaying the banner. Do not infer a fleet from installed CLIs.**
 
 ```bash
-bash "${HOME}/.claude-octopus/plugin/scripts/helpers/check-providers.sh"
+provider_status=$(bash "${HOME}/.claude-octopus/plugin/scripts/helpers/check-providers.sh")
+fleet_output=$(bash "${HOME}/.claude-octopus/plugin/scripts/helpers/build-fleet.sh" develop standard "${PROMPT}")
 ```
 
-**Use the ACTUAL results below. PROHIBITED: Showing only "🔵 Claude: Available ✓" without listing all providers.**
+`fleet_output` is the roster; `provider_status` is health evidence. List every exact alias in `fleet_output` and no others. If a configured seat is unavailable, report it and stop before dispatch instead of substituting another provider.
 
 If `OCTO_ALLOWED_PROVIDERS` is set, treat it as the source of truth for which providers may participate. Providers filtered out by that allowlist are intentionally reported as unavailable; do not invoke or recommend them in the workflow.
 
 
 **Display this banner BEFORE orchestrate.sh execution:**
 
-**For Dev Context:**
+**For either context:**
 ```
 🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider implementation mode
-🛠️ [Dev] Develop Phase: [Brief description of what you're building]
+🛠️ [Dev or Knowledge] Develop Phase: [Brief description]
 
-Provider Availability:
-🔴 Codex CLI: ${codex_status} - Code generation and patterns
-🟡 Gemini CLI: ${gemini_status} - Alternative approaches
-🧭 Antigravity CLI: ${agy_status} - Additional external-model challenge
-🔵 Claude: Available ✓ - Integration and quality gates
+Configured fleet:
+[one line per exact alias from fleet_output, with health from provider_status]
 
-💰 Estimated Cost: $0.02-0.10
-⏱️  Estimated Time: 3-7 minutes
+Billing: [subscription-backed seats] + [metered API models actually present]
+No unconfigured fallback is enabled.
 ```
 
-**For Knowledge Context:**
-```
-🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider implementation mode
-🛠️ [Knowledge] Develop Phase: [Brief description of deliverable]
-
-Provider Availability:
-🔴 Codex CLI: ${codex_status} - Structure and framework application
-🟡 Gemini CLI: ${gemini_status} - Content and narrative development
-🧭 Antigravity CLI: ${agy_status} - Additional external-model challenge
-🔵 Claude: Available ✓ - Integration and quality review
-
-💰 Estimated Cost: $0.02-0.10
-⏱️  Estimated Time: 3-7 minutes
-```
+Never print a generic dollar estimate. Codex and Claude may be subscription-backed; OpenRouter models are metered. Report the actual routes without guessing token usage. Never select an alias containing `fast`. The Claude seat uses Fable 5 when available and Opus 4.8 only when Fable is unavailable.
 
 **DO NOT PROCEED TO STEP 3 until banner displayed.** The banner shows users which providers will run and what costs they'll incur — starting API calls without this visibility violates cost transparency.
 
@@ -223,8 +208,7 @@ ${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh develop "<user's implement
 If running in Claude Code v2.1.16+, users will see **real-time progress indicators** in the task spinner:
 
 **Phase 1 - External Provider Execution (Parallel):**
-- 🔴 Generating code and patterns (Codex)...
-- 🟡 Exploring alternative approaches (Gemini)...
+- One progress item per exact alias in `fleet_output`.
 
 **Phase 2 - Synthesis (Sequential):**
 - 🔵 Integrating and applying quality gates...
@@ -332,29 +316,7 @@ Analyze the user's prompt and project to determine context:
 
 ### Step 2: Output Context-Aware Banner
 
-**For Dev Context:**
-```
-🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider implementation mode
-🛠️ [Dev] Develop Phase: [Brief description of what you're building]
-📋 Session: ${CLAUDE_SESSION_ID}
-
-Providers:
-🔴 Codex CLI - Code generation and patterns
-🟡 Gemini CLI - Alternative approaches
-🔵 Claude - Integration and quality gates
-```
-
-**For Knowledge Context:**
-```
-🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider implementation mode
-🛠️ [Knowledge] Develop Phase: [Brief description of deliverable]
-📋 Session: ${CLAUDE_SESSION_ID}
-
-Providers:
-🔴 Codex CLI - Structure and framework application
-🟡 Gemini CLI - Content and narrative development
-🔵 Claude - Integration and quality review
-```
+Use the mandatory configured-fleet banner from EXECUTION CONTRACT Step 2. Do not duplicate or hand-author provider names.
 
 {{VISUAL_INDICATORS}}
 
@@ -376,11 +338,7 @@ Providers:
 
 ## What This Workflow Does
 
-The **develop** phase generates multiple implementation approaches using external CLI providers:
-
-1. **🔴 Codex CLI** - Implementation-focused, code generation, technical patterns
-2. **🟡 Gemini CLI** - Alternative approaches, edge cases, best practices
-3. **🔵 Claude (You)** - Integration, refinement, and final implementation
+The **develop** phase generates multiple implementation approaches from the exact aliases returned by `build-fleet.sh develop`. Configuration, not installed-CLI discovery, owns participation.
 
 This is the **divergent** phase for solutions - we explore different implementation paths before converging on the best approach.
 
@@ -413,17 +371,7 @@ Use develop when you need:
 
 ## Visual Indicators
 
-Before execution, you'll see:
-
-```
-🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider implementation
-🛠️ Develop Phase: Building and developing solutions
-
-Providers:
-🔴 Codex CLI - Code generation and patterns
-🟡 Gemini CLI - Alternative approaches
-🔵 Claude - Integration and refinement
-```
+Before execution, show the configured-fleet banner defined above.
 
 
 ## How It Works
@@ -436,11 +384,7 @@ ${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh develop "<user's implement
 
 ### Step 2: Multi-Provider Implementation
 
-The orchestrate.sh script will:
-1. Call **Codex CLI** with the implementation task
-2. Call **Gemini CLI** with the implementation task
-3. You (Claude) contribute implementation analysis
-4. Synthesize approaches and recommend best path
+The orchestrate.sh script will dispatch every configured alias, preserve exact model routing, and synthesize their approaches. It must not add an installed provider that is absent from the roster.
 
 ### Step 3: Review Quality Gates
 
@@ -530,11 +474,8 @@ After successful execution, present implementation plan with:
 
    ## Code Overview
 
-   ### Codex Approach
-   [Key implementation details from Codex]
-
-   ### Gemini Approach
-   [Alternative considerations from Gemini]
+   ### Configured Provider Approaches
+   [One subsection per exact alias that returned evidence]
 
    ### Final Implementation
    [Your integrated solution]
@@ -590,17 +531,9 @@ Based on multi-provider analysis, I recommend a layered approach:
 
 ## Code Overview
 
-### Codex Approach
-- Modern TypeScript with strict types
-- Express middleware pattern
-- Redis for token blacklisting
-- Comprehensive error handling
-
-### Gemini Approach
-- Passport.js integration suggestion
-- Rate limiting on auth endpoints
-- Multi-factor auth consideration
-- Session management alternatives
+### Configured Provider Approaches
+- Summarize each exact configured alias separately.
+- Mark unavailable or failed seats explicitly; do not invent their output.
 
 ### Final Implementation
 - Hybrid: Modern TypeScript + Express patterns
@@ -675,52 +608,9 @@ Before writing code, ensure:
 - [ ] Tests planned (if applicable)
 
 
-## After Implementation: Auto Code Review & E2E Verification (MANDATORY)
+## After Implementation: Configured Review & E2E Verification (MANDATORY)
 
-**After implementation completes and before presenting results to the user, you MUST launch two verification agents in parallel.** Do NOT skip this step or ask the user whether to run it — it is automatic.
-
-### Launch both agents simultaneously:
-
-**Agent 1 — Code Review (Sonnet):**
-```
-Agent(
-  model: "sonnet",
-  subagent_type: "feature-dev:code-reviewer",
-  background execution: true,
-  description: "Code review: post-develop",
-  prompt: "Review the code changes from this development session. Focus on:
-1. Bugs, logic errors, security vulnerabilities
-2. Hidden dependencies or coupling issues
-3. Whether error handling covers failure modes
-4. Adherence to project conventions (check CLAUDE.md)
-
-Check git diff for the changed files. Report only high-confidence issues."
-)
-```
-
-**Agent 2 — E2E Verification (Sonnet):**
-```
-Agent(
-  model: "sonnet",
-  background execution: true,
-  description: "E2E test: post-develop",
-  prompt: "Run end-to-end verification of the development changes:
-1. Run the project's test suite (detect from package.json scripts, Makefile, or pyproject.toml)
-2. Verify no regressions in existing tests
-3. Check that new files are properly integrated (imported, registered, sourced)
-4. Verify the implementation matches the original task requirements
-
-Report: tests passed/failed, any integration issues found."
-)
-```
-
-**After both agents complete:**
-- Present their findings to the user as part of the results
-- If the code reviewer found HIGH-confidence issues, flag them prominently
-- If tests failed, flag before the "what next?" prompt
-- Do NOT block on the review — present findings alongside results
-
-WHY: The user should never have to manually request a code review after development work. Fresh-eyes review from a different model (Sonnet vs Opus) catches issues the implementer is blind to. Running tests automatically catches regressions before the user discovers them.
+After implementation, run the canonical review pipeline so it reuses `.routing.features.review`; do not launch a hardcoded model. Run the project's own E2E/test commands separately and report both sets of evidence. A failed configured seat is a visible partial failure, not permission to select an unconfigured or `fast` alias.
 
 
 ## After Implementation Checklist
@@ -735,20 +625,15 @@ After writing code, ensure:
 - [ ] Tests written (if applicable)
 - [ ] Lint/typecheck commands run (detect from package.json, pyproject.toml, Cargo.toml, Makefile; if not found, ask the user)
 - [ ] If lint/test commands were discovered and not documented in CLAUDE.md, suggest adding them
-- [ ] **Auto code review completed** (Sonnet agent)
-- [ ] **E2E verification completed** (Sonnet agent)
+- [ ] **Configured multi-provider code review completed**
+- [ ] **E2E verification completed with project-native tests**
 - [ ] User notified of completion with review findings
 - [ ] Suggest running ink-workflow for validation
 
 
 ## Cost Awareness
 
-**External API Usage:**
-- 🔴 Codex CLI uses your OPENAI_API_KEY (costs apply)
-- 🟡 Gemini CLI uses your GEMINI_API_KEY (costs apply)
-- 🔵 Claude analysis included with Claude Code
-
-Tangle workflows typically cost $0.02-0.10 per task depending on complexity and code length.
+**Billing:** Report only the exact configured routes. Distinguish subscription-backed CLI seats from metered API seats. Do not claim Codex uses an API key when it is configured for ChatGPT subscription auth, and do not print a generic dollar range before token usage is known.
 
 
 ## Post-Development: Checkpoint

@@ -55,7 +55,7 @@ export OCTOPUS_OPUS_MODEL="claude-fable-5"
     exit 1
 }
 
-grep -Fq '[[ "${OCTOPUS_OPUS_MODEL:-}" != "claude-fable-5" ]]' "$ROOT_DIR/scripts/lib/spawn.sh" || {
+grep -Fq '! fable5_opus_pinned' "$ROOT_DIR/scripts/lib/spawn.sh" || {
     echo "FAIL: Fable 5 can be eagerly replaced by the Opus --fast alias" >&2
     exit 1
 }

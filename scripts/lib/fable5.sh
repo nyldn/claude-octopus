@@ -30,7 +30,14 @@ FABLE5_MODEL_ID="claude-fable-5"
 FABLE5_REROUTE_MODEL="claude-opus-4.8"
 
 fable5_opus_pinned() {
-    [[ "${OCTOPUS_OPUS_MODEL:-}" == "$FABLE5_MODEL_ID" ]]
+    if [[ "${OCTOPUS_OPUS_MODEL:-}" == "$FABLE5_MODEL_ID" ]]; then
+        return 0
+    fi
+    local config_file="${OCTOPUS_PROVIDERS_CONFIG:-${HOME}/.claude-octopus/config/providers.json}"
+    [[ -f "$config_file" ]] || return 1
+    command -v jq >/dev/null 2>&1 || return 1
+    jq -e --arg model "$FABLE5_MODEL_ID" \
+        '.providers.claude.default == $model' "$config_file" >/dev/null 2>&1
 }
 
 fable5_sdk_pinned() {

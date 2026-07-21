@@ -1,6 +1,16 @@
 {
   "version": "3.0",
   "providers": {
+    "codex": {
+      "default": "gpt-5.6-sol",
+      "fallback": "gpt-5.6-sol",
+      "reasoning_effort": "high"
+    },
+    "claude": {
+      "default": "claude-fable-5",
+      "fallback": "claude-opus-4.8",
+      "reasoning_effort": "high"
+    },
     "openrouter": {
       "default": "z-ai/glm-5.2",
       "glm52": "z-ai/glm-5.2",

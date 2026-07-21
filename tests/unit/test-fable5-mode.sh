@@ -10,6 +10,7 @@ test_suite "fable5 mode"
 
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
+export OCTOPUS_PROVIDERS_CONFIG="$TMP_DIR/no-providers.json"
 
 # Quiet logger for sourced libs
 log() { :; }
@@ -97,20 +98,20 @@ fi
 
 # ── Security reroute ───────────────────────────────────────────────────────
 
-test_case "reroutes security role off Fable 5"
+test_case "keeps Fable 5 primary for security role"
 out=$(OCTOPUS_OPUS_MODEL=claude-fable-5 bash -c "log(){ :; }; source '$PROJECT_ROOT/scripts/lib/fable5.sh'; fable5_maybe_reroute claude-fable-5 security-auditor claude-opus ink" 2>/dev/null)
-if [[ "$out" == "claude-opus-4.8" ]]; then
+if [[ "$out" == "claude-fable-5" ]]; then
     test_pass
 else
-    test_fail "expected claude-opus-4.8, got '$out'"
+    test_fail "expected claude-fable-5, got '$out'"
 fi
 
-test_case "reroutes squeeze phase off Fable 5"
+test_case "keeps Fable 5 primary for squeeze phase"
 out=$(OCTOPUS_OPUS_MODEL=claude-fable-5 bash -c "log(){ :; }; source '$PROJECT_ROOT/scripts/lib/fable5.sh'; fable5_maybe_reroute claude-fable-5 '' claude-opus squeeze" 2>/dev/null)
-if [[ "$out" == "claude-opus-4.8" ]]; then
+if [[ "$out" == "claude-fable-5" ]]; then
     test_pass
 else
-    test_fail "expected claude-opus-4.8, got '$out'"
+    test_fail "expected claude-fable-5, got '$out'"
 fi
 
 test_case "non-security dispatch keeps Fable 5"
@@ -139,17 +140,17 @@ fi
 
 # ── Resolver integration ───────────────────────────────────────────────────
 
-test_case "resolve_octopus_model reroutes security role under opus pin"
+test_case "resolve_octopus_model keeps Fable for security role under opus pin"
 out=$(cd "$TMP_DIR" && TMPDIR="$TMP_DIR" CLAUDE_CODE_SESSION="fable5-test-$$" \
     OCTOPUS_OPUS_MODEL=claude-fable-5 HOME="$TMP_DIR" bash -c "
     log(){ :; }
     source '$PROJECT_ROOT/scripts/lib/fable5.sh'
     source '$PROJECT_ROOT/scripts/lib/model-resolver.sh'
     resolve_octopus_model claude claude-opus ink security-auditor" 2>/dev/null)
-if [[ "$out" == "claude-opus-4.8" ]]; then
+if [[ "$out" == "claude-fable-5" ]]; then
     test_pass
 else
-    test_fail "expected claude-opus-4.8 from resolver, got '$out'"
+    test_fail "expected claude-fable-5 from resolver, got '$out'"
 fi
 
 test_case "resolve_octopus_model keeps Fable 5 for non-security role"
@@ -167,8 +168,8 @@ fi
 
 # ── Dispatch wiring ────────────────────────────────────────────────────────
 
-test_case "dispatch honors Fable 5 pin in claude-opus model flag"
-if grep -q 'opus_model_flag="claude-fable-5"' "$PROJECT_ROOT/scripts/lib/dispatch.sh"; then
+test_case "dispatch honors the configured claude-opus model flag"
+if grep -q 'configured_opus_model="$(get_agent_model' "$PROJECT_ROOT/scripts/lib/dispatch.sh"; then
     test_pass
 else
     test_fail "dispatch.sh claude-opus case does not honor the Fable 5 pin"

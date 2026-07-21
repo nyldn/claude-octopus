@@ -67,12 +67,22 @@ _review_fleet_from_config() {
 
     local fleet=""
     local has_logic=false has_security=false has_arch=false has_cve=false has_diversity=false
+    local configured_allowlist=""
+    if declare -f octo_provider_allowlist_value >/dev/null 2>&1; then
+        configured_allowlist="$(octo_provider_allowlist_value)"
+    fi
 
     while IFS= read -r provider; do
         # jq preserves CRLF from the host config on Windows. Normalize before
         # exact matching so configured participants are not silently dropped.
         provider=${provider//$'\r'/}
         [[ -z "$provider" ]] && continue
+        if [[ -n "$configured_allowlist" ]] && \
+           declare -f octo_provider_allowed >/dev/null 2>&1 && \
+           ! OCTO_ALLOWED_PROVIDERS="$configured_allowlist" octo_provider_allowed "$provider"; then
+            log WARN "review fleet: configured provider '$provider' excluded by provider allowlist"
+            continue
+        fi
         case "$provider" in
             codex|codex-*)
                 fleet+="${provider}:logic-reviewer:correctness and logic bugs, edge cases, regressions"$'\n'
@@ -119,7 +129,9 @@ _review_fleet_from_config() {
 
     # Anchor: always include Claude's Fable-primary route if config omitted one.
     # Architecture context bridges per-finding noise from the specialist agents.
-    if [[ "$has_arch" == "false" ]]; then
+    if [[ "$has_arch" == "false" ]] && \
+       { [[ -z "$configured_allowlist" ]] || \
+         OCTO_ALLOWED_PROVIDERS="$configured_allowlist" octo_provider_allowed claude; }; then
         fleet+="claude-opus:arch-reviewer:architecture, integration, API contracts, breaking changes"$'\n'
     fi
 
@@ -757,8 +769,8 @@ review_run() {
     # v9.0: Preflight — check Codex auth before review pipeline
     if command -v codex >/dev/null 2>&1; then
         if ! check_codex_auth_freshness 2>/dev/null; then
-            log "WARN" "review_run: Codex auth may be stale — review fleet may fall back to claude-sonnet"
-            log "USER" "⚠ Codex auth check failed. Run 'codex auth' or /octo:doctor to fix. Falling back to claude-sonnet for Codex roles."
+            log "WARN" "review_run: Codex auth may be stale — configured Codex rounds may fail"
+            log "USER" "⚠ Codex auth check failed. Run 'codex auth' or /octo:doctor to fix. No unconfigured or fast alias will be substituted."
             echo "codex|auth-failed|Run: codex auth" >> "$provider_status_file"
         fi
     else
@@ -1196,10 +1208,10 @@ Return ONLY valid JSON with 'findings' array including verdict field."
     verified_findings=$(review_run_agent_sync_progress "codex" "$verifier_prompt" "code-reviewer" "review" "verifier-codex") && {
         echo "codex|ok|Round 2 verification" >> "$provider_status_file"
     } || {
-        log WARN "review_run: codex verifier failed, falling back to claude-sonnet"
-        log "USER" "⚠ Round 2: Codex unavailable → claude-sonnet (fallback). Codex API usage will NOT change."
-        echo "codex|fallback|Round 2 → claude-sonnet" >> "$provider_status_file"
-        verified_findings=$(review_run_agent_sync_progress "claude-sonnet" "$verifier_prompt" "code-reviewer" "review" "verifier-claude-sonnet") || {
+        log WARN "review_run: codex verifier failed, using configured Claude Fable/Opus route"
+        log "USER" "⚠ Round 2: Codex unavailable → configured claude-opus route. No fast alias is used."
+        echo "codex|fallback|Round 2 → configured claude-opus" >> "$provider_status_file"
+        verified_findings=$(review_run_agent_sync_progress "claude-opus" "$verifier_prompt" "code-reviewer" "review" "verifier-claude-opus") || {
             log WARN "review_run: verification failed entirely, using all findings as confirmed"
             verified_findings="{\"findings\":$(echo "$all_findings" | \
                 jq 'map(. + {"verdict":"confirmed"})' 2>/dev/null || echo "[]")}"
@@ -1259,7 +1271,7 @@ Findings: $(echo "$confirmed_findings" | jq -c '.')
 Return ONLY JSON: {\"findings\": [...ranked, deduplicated findings...]}"
 
     local final_json synth_ok="true"
-    final_json=$(review_run_agent_sync_progress "claude-sonnet" "$synthesis_prompt" "code-reviewer" "review" "synthesis-claude-sonnet") || {
+    final_json=$(review_run_agent_sync_progress "claude-opus" "$synthesis_prompt" "code-reviewer" "review" "synthesis-claude-opus") || {
         synth_ok="false"
         log WARN "review_run: synthesis failed, using confirmed findings sorted as-is"
         final_json="$(review_local_synthesis_json "$confirmed_findings" "$round1_warning")"
@@ -1286,7 +1298,7 @@ Return ONLY JSON: {\"findings\": [...ranked, deduplicated findings...]}"
     if [[ "$synth_ok" == "true" ]] && declare -f octo_event_emit >/dev/null 2>&1; then
         local _synth_count
         _synth_count=$(printf '%s' "$final_json" | jq '.findings | length' 2>/dev/null || echo 0)
-        octo_event_emit "synthesis" phase="review" provider="claude-sonnet" provider_label_kind="legacy-alias" executor_alias="claude-sonnet" configured_provider="$(octo_provider_identity_from_agent_type "claude-sonnet")" configured_model="$(get_agent_model "claude-sonnet" "review" "synthesizer" 2>/dev/null || echo unresolved)" runtime_provider="unknown" runtime_model="unknown" council_role="synthesizer" synthesis_strategy="review" count="${_synth_count:-0}" || true
+        octo_event_emit "synthesis" phase="review" provider="claude-opus" provider_label_kind="configured-alias" executor_alias="claude-opus" configured_provider="$(octo_provider_identity_from_agent_type "claude-opus")" configured_model="$(get_agent_model "claude-opus" "review" "synthesizer" 2>/dev/null || echo unresolved)" runtime_provider="unknown" runtime_model="unknown" council_role="synthesizer" synthesis_strategy="review" count="${_synth_count:-0}" || true
     fi
 
     if [[ -n "$proof_dir" ]]; then
@@ -1501,6 +1513,6 @@ render_review_summary() {
     echo "| Nit | $nit_count |"
     echo "| Pre-existing | $preexisting_count |"
     echo ""
-    echo "_Reviewed by Codex + Gemini + Claude + Perplexity fleet_"
+    echo "_Reviewed by the configured multi-provider fleet_"
     echo "_See inline comments for details_"
 }
