@@ -97,6 +97,47 @@ fi
   exit 1
 }
 
+check_provider_health() { return 0; }
+status_output="$(show_provider_status)"
+for expected in \
+  'codex: ' \
+  'claude-opus: ' \
+  'openrouter-glm52: ' \
+  'openrouter-kimi-k3: '; do
+  grep -Fq "$expected" <<<"$status_output" || {
+    echo "FAIL: configured status omitted $expected" >&2
+    printf '%s\n' "$status_output" >&2
+    exit 1
+  }
+done
+if grep -Eiq 'Gemini|Antigravity|claude-sonnet' <<<"$status_output"; then
+  echo "FAIL: configured status advertised an unconfigured provider" >&2
+  printf '%s\n' "$status_output" >&2
+  exit 1
+fi
+
+# The live smoke path must use provider credential isolation too. This protects
+# a ChatGPT-subscription Codex seat from inheriting a metered OpenAI key.
+(
+  source "$ROOT_DIR/scripts/lib/smoke.sh"
+  fake_codex="$TEST_HOME/fake-codex"
+  command_capture="$TEST_HOME/codex-smoke-command.txt"
+  smoke_result="$TEST_HOME/codex-smoke-result.txt"
+  export OPENAI_API_KEY=metered-parent-key
+  get_agent_model() { echo gpt-5.6-sol; }
+  get_agent_command() { echo "$fake_codex -"; }
+  build_provider_env() { PROVIDER_ENV_ARRAY=(env -u OPENAI_API_KEY); }
+  run_with_timeout() { shift; printf '%s\n' "$@" > "$command_capture"; }
+  secure_tempfile() { mktemp "$TEST_HOME/smoke-env.XXXXXX"; }
+  _smoke_test_provider codex 5 "$smoke_result"
+  grep -Fqx PASS "$smoke_result"
+  [[ "$(tr '\n' ' ' < "$command_capture")" == \
+     "env -u OPENAI_API_KEY $fake_codex - " ]]
+) || {
+  echo "FAIL: Codex smoke bypassed subscription credential isolation" >&2
+  exit 1
+}
+
 [[ "$(get_agent_command openrouter-glm52 review review)" == *"z-ai/glm-5.2"* ]] || {
   echo "FAIL: GLM 5.2 dispatch target missing" >&2
   exit 1

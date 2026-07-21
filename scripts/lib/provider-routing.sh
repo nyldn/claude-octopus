@@ -283,6 +283,31 @@ resolve_provider_env() {
     # Already set — nothing to do
     [[ -n "${!var_name:-}" ]] && return 0
 
+    # Parse simple KEY=value / export KEY=value declarations without evaluating
+    # their files. ~/.bashrc is especially important on Windows, where the
+    # desktop app may predate a newly-set user environment variable and
+    # non-interactive Git Bash deliberately skips interactive startup files.
+    local direct_env_file direct_env_line direct_env_value
+    for direct_env_file in "$PWD/.env" "$HOME/.env" "$HOME/.bashrc"; do
+        [[ -f "$direct_env_file" ]] || continue
+        while IFS= read -r direct_env_line || [[ -n "$direct_env_line" ]]; do
+            direct_env_line=${direct_env_line%$'\r'}
+            if [[ "$direct_env_line" =~ ^[[:space:]]*(export[[:space:]]+)?${var_name}= ]]; then
+                direct_env_value=${direct_env_line#*=}
+                if [[ "$direct_env_value" == \"*\" && "$direct_env_value" == *\" ]]; then
+                    direct_env_value=${direct_env_value:1:${#direct_env_value}-2}
+                elif [[ "$direct_env_value" == \'*\' && "$direct_env_value" == *\' ]]; then
+                    direct_env_value=${direct_env_value:1:${#direct_env_value}-2}
+                fi
+                if [[ -n "$direct_env_value" ]]; then
+                    export "$var_name=$direct_env_value"
+                    log DEBUG "Resolved $var_name from $direct_env_file (non-interactive shell fallback)"
+                    return 0
+                fi
+            fi
+        done < "$direct_env_file"
+    done
+
     # Try sourcing from ~/.profile (login shell config, no interactive guard)
     # Use a sentinel to isolate the var value from any stdout the profile may emit
     if [[ -f "$HOME/.profile" ]]; then

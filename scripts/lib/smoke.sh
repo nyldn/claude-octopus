@@ -842,6 +842,72 @@ select_provider() {
 
 # Display provider status with subscription tiers
 show_provider_status() {
+    local configured_fleet=""
+    if declare -f _review_fleet_from_config >/dev/null 2>&1; then
+        configured_fleet=$(_review_fleet_from_config)
+    fi
+    if [[ -n "$configured_fleet" ]]; then
+        echo ""
+        echo -e "${CYAN:-}Configured provider status:${NC:-}"
+        # Status is display-only. Resolve the configured roster's common aliases
+        # with one jq process instead of invoking the full migration/model stack
+        # once per seat (very slow under Git Bash on Windows).
+        local configured_models="" configured_model_agent configured_model_value
+        local provider_config="${HOME}/.claude-octopus/config/providers.json"
+        if command -v jq >/dev/null 2>&1 && [[ -f "$provider_config" ]]; then
+            configured_models=$(jq -r '
+                .providers as $p
+                | [
+                    ["codex", ($p.codex.default // "gpt-5.6-sol")],
+                    ["codex-standard", ($p.codex.default // "gpt-5.6-sol")],
+                    ["codex-mini", ($p.codex.mini // $p.codex.default // "gpt-5.6-sol")],
+                    ["codex-spark", ($p.codex.spark // $p.codex.default // "gpt-5.6-sol")],
+                    ["codex-reasoning", ($p.codex.reasoning // $p.codex.default // "gpt-5.6-sol")],
+                    ["codex-large-context", ($p.codex.large_context // $p.codex.default // "gpt-5.6-sol")],
+                    ["claude-opus", ($p.claude.default // "claude-fable-5")],
+                    ["openrouter-glm52", ($p.openrouter.glm52 // "z-ai/glm-5.2")],
+                    ["openrouter-kimi-k3", ($p.openrouter["kimi-k3"] // "moonshotai/kimi-k3")],
+                    ["openrouter", ($p.openrouter.default // "unresolved")]
+                  ]
+                | .[] | @tsv
+            ' "$provider_config" 2>/dev/null || true)
+        fi
+        local configured_agent configured_role configured_specialty family model status billing
+        while IFS=':' read -r configured_agent configured_role configured_specialty; do
+            configured_agent=${configured_agent//$'\r'/}
+            [[ -z "$configured_agent" ]] && continue
+            case "$configured_agent" in
+                codex|codex-*) family="codex"; billing="ChatGPT subscription" ;;
+                claude|claude-*) family="claude"; billing="Claude subscription" ;;
+                openrouter|openrouter-*) family="openrouter"; billing="OpenRouter metered" ;;
+                gemini|gemini-*) family="gemini"; billing="Gemini route" ;;
+                cursor-agent|cursor-agent-*) family="cursor-agent"; billing="Cursor subscription" ;;
+                agy|agy-*|antigravity) family="agy"; billing="Antigravity subscription" ;;
+                *) family="${configured_agent%%-*}"; billing="configured route" ;;
+            esac
+            status="${RED:-}unavailable${NC:-}"
+            if declare -f check_provider_health >/dev/null 2>&1 && \
+               check_provider_health "$family" >/dev/null 2>&1; then
+                status="${GREEN:-}ready${NC:-}"
+            fi
+            model=""
+            while IFS=$'\t' read -r configured_model_agent configured_model_value; do
+                configured_model_value=${configured_model_value//$'\r'/}
+                if [[ "$configured_model_agent" == "$configured_agent" ]]; then
+                    model="$configured_model_value"
+                    break
+                fi
+            done <<< "$configured_models"
+            if [[ -z "$model" ]]; then
+                model="$(get_agent_model "$configured_agent" review "$configured_role" 2>/dev/null || echo unresolved)"
+            fi
+            echo -e "  ${configured_agent}: ${status} | ${model} | ${billing}"
+        done <<< "$configured_fleet"
+        echo -e "  Fast aliases: ${GREEN:-}disabled${NC:-} (none configured)"
+        echo ""
+        return 0
+    fi
+
     load_providers_config
 
     echo ""
@@ -1082,6 +1148,21 @@ _smoke_test_provider() {
         return 0
     fi
 
+    # Exercise the same credential-isolated command path as real dispatch.
+    # In particular, ChatGPT-authenticated Codex must not inherit a metered
+    # OPENAI_API_KEY merely because the parent desktop process has one.
+    local -a smoke_cmd_array=() smoke_provider_env=() smoke_external_command=()
+    if declare -f build_provider_env >/dev/null 2>&1; then
+        build_provider_env "$agent_type" || {
+            echo "AUTH:${model}" > "$result_file"
+            rm -f "$stderr_file" 2>/dev/null
+            return 0
+        }
+        smoke_provider_env=("${PROVIDER_ENV_ARRAY[@]}")
+    fi
+    read -ra smoke_cmd_array <<< "$cmd_str"
+    smoke_external_command=("${smoke_provider_env[@]}" "${smoke_cmd_array[@]}")
+
     # Send trivial prompt with timeout
     local smoke_exit=0
     if [[ "$provider" == codex || "$provider" == codex-* ]]; then
@@ -1092,19 +1173,19 @@ _smoke_test_provider() {
         pushd "$smoke_dir" >/dev/null 2>&1
         # codex cmd_str ends with `-` (stdin prompt); arg form is rejected.
         echo "Reply with exactly: ok" | run_with_timeout "$smoke_timeout" \
-            $cmd_str \
+            "${smoke_external_command[@]}" \
             >/dev/null 2>"$stderr_file" || smoke_exit=$?
         popd >/dev/null 2>&1
         rm -rf "$smoke_dir" 2>/dev/null
     elif [[ "$provider" == gemini || "$provider" == gemini-* ]]; then
         # Gemini: prompt via stdin with -p "" for headless trigger
         echo "Reply with exactly: ok" | run_with_timeout "$smoke_timeout" \
-            $cmd_str -p "" \
+            "${smoke_external_command[@]}" -p "" \
             >/dev/null 2>"$stderr_file" || smoke_exit=$?
     elif [[ "$provider" == cursor-agent || "$provider" == cursor-agent-* ]]; then
         # --trust required for untrusted workspaces; matches cursor-agent.sh:143 dispatch path
         echo "Reply with exactly: ok" | run_with_timeout "$smoke_timeout" \
-            $cmd_str -p "" --trust --output-format text \
+            "${smoke_external_command[@]}" -p "" --trust --output-format text \
             >/dev/null 2>"$stderr_file" || smoke_exit=$?
     elif [[ "$provider" == agy || "$provider" == agy-* || "$provider" == "antigravity" ]]; then
         # agy-exec.sh is a stdin adapter that builds its own argv and execs agy
@@ -1114,11 +1195,11 @@ _smoke_test_provider() {
         # web-search tool call, which hangs with no sandbox network permission.
         echo "Reply with exactly: ok. Answer from your own knowledge only — do not use web search or any tools." \
             | run_with_timeout "$smoke_timeout" \
-            $cmd_str \
+            "${smoke_external_command[@]}" \
             >/dev/null 2>"$stderr_file" || smoke_exit=$?
     elif [[ "$provider" == claude || "$provider" == claude-* ]]; then
         echo "Reply with exactly: ok" | run_with_timeout "$smoke_timeout" \
-            $cmd_str \
+            "${smoke_external_command[@]}" \
             >/dev/null 2>"$stderr_file" || smoke_exit=$?
     elif [[ "$provider" == openrouter || "$provider" == openrouter-* ]]; then
         run_with_timeout "$smoke_timeout" \
@@ -1126,7 +1207,7 @@ _smoke_test_provider() {
             >/dev/null 2>"$stderr_file" || smoke_exit=$?
     else
         run_with_timeout "$smoke_timeout" \
-            $cmd_str -p "Reply with exactly: ok" \
+            "${smoke_external_command[@]}" -p "Reply with exactly: ok" \
             >/dev/null 2>"$stderr_file" || smoke_exit=$?
     fi
 

@@ -153,4 +153,21 @@ else
     test_fail "preflight ignored the provider allowlist or omitted OpenRouter"
 fi
 
+test_case "provider env resolver reads a simple bashrc export without evaluation"
+resolver_home="$TEST_TMP_DIR/provider-env-home"
+mkdir -p "$resolver_home"
+printf '%s\n' 'export OPENROUTER_API_KEY="test-router-key"' > "$resolver_home/.bashrc"
+if HOME="$resolver_home" PROJECT_ROOT="$PROJECT_ROOT" bash -c '
+    set -euo pipefail
+    log() { :; }
+    source "$PROJECT_ROOT/scripts/lib/provider-routing.sh"
+    unset OPENROUTER_API_KEY
+    resolve_provider_env OPENROUTER_API_KEY
+    [[ "$OPENROUTER_API_KEY" == "test-router-key" ]]
+'; then
+    test_pass
+else
+    test_fail "resolver did not recover OPENROUTER_API_KEY from .bashrc"
+fi
+
 test_summary

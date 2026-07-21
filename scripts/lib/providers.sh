@@ -766,6 +766,9 @@ check_provider_health() {
             ;;
         openrouter)
             if [[ -z "${OPENROUTER_API_KEY:-}" ]]; then
+                resolve_provider_env "OPENROUTER_API_KEY" 2>/dev/null
+            fi
+            if [[ -z "${OPENROUTER_API_KEY:-}" ]]; then
                 echo "openrouter: OPENROUTER_API_KEY not set" >&2
                 return 1
             fi

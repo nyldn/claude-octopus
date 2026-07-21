@@ -2063,6 +2063,7 @@ show_status() {
 
     local running=0
     local total=0
+    local completed=0
 
     echo -e "${BLUE}Active Agents:${NC}"
     while IFS=: read -r pid agent task_id; do
@@ -2071,12 +2072,13 @@ show_status() {
             echo -e "  ${GREEN}●${NC} PID $pid - $agent ($task_id) - RUNNING"
             ((running++)) || true
         else
-            echo -e "  ${RED}○${NC} PID $pid - $agent ($task_id) - COMPLETED"
+            ((completed++)) || true
         fi
     done < "$PID_FILE"
 
     echo ""
-    echo -e "${BLUE}Summary:${NC} $running running / $total total"
+    [[ "$running" -eq 0 ]] && echo -e "  ${DIM}No agents currently running.${NC}"
+    echo -e "${BLUE}Summary:${NC} $running running / $completed completed ($total tracked)"
     echo ""
 
     if [[ -d "$RESULTS_DIR" ]]; then
@@ -2728,7 +2730,10 @@ case "$COMMAND" in
         fi
         ;;
     preflight)
-        preflight_check
+        case "${1:-}" in
+            --force|force|true) preflight_check true ;;
+            *) preflight_check ;;
+        esac
         ;;
     release)
         do_release
