@@ -12,6 +12,7 @@ set -eo pipefail
 # at itself (ELOOP). See #371.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 PLUGIN_DIR="$(dirname "$SCRIPT_DIR")"
+source "${SCRIPT_DIR}/lib/python-runtime.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/plugin-root.sh" 2>/dev/null || true
 
 # Self-heal: ensure the stable symlink exists for LLM Bash tool access.
@@ -102,6 +103,7 @@ source "${SCRIPT_DIR}/agent-teams-bridge.sh"
 source "${SCRIPT_DIR}/lib/common.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/utils.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/state-root.sh"
+source "${SCRIPT_DIR}/lib/path-runtime.sh"
 source "${SCRIPT_DIR}/lib/session-id.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/similarity.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/models.sh" 2>/dev/null || true
@@ -601,7 +603,7 @@ CODEX_SUBAGENT_PREAMBLE="IMPORTANT: You are running as a non-interactive subagen
 
 "
 
-AVAILABLE_AGENTS="codex codex-standard codex-max codex-mini codex-general codex-spark codex-reasoning codex-large-context gemini gemini-fast gemini-image agy agy-research antigravity codex-review claude claude-sonnet claude-opus claude-opus-fast openrouter openrouter-glm5 openrouter-kimi openrouter-deepseek openai-compatible openai-tools openai-compatible-agent perplexity perplexity-fast ollama copilot copilot-research qwen qwen-research cursor-agent vibe vibe-research"
+AVAILABLE_AGENTS="codex codex-standard codex-max codex-mini codex-general codex-spark codex-reasoning codex-large-context gemini gemini-fast gemini-image agy agy-research antigravity codex-review claude claude-sonnet claude-opus claude-opus-fast openrouter openrouter-glm5 openrouter-glm52 openrouter-kimi openrouter-kimi-k3 openrouter-deepseek openai-compatible openai-tools openai-compatible-agent perplexity perplexity-fast ollama copilot copilot-research qwen qwen-research cursor-agent vibe vibe-research"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # USAGE TRACKING & COST REPORTING (v4.1)
@@ -2061,6 +2063,7 @@ show_status() {
 
     local running=0
     local total=0
+    local completed=0
 
     echo -e "${BLUE}Active Agents:${NC}"
     while IFS=: read -r pid agent task_id; do
@@ -2069,12 +2072,13 @@ show_status() {
             echo -e "  ${GREEN}●${NC} PID $pid - $agent ($task_id) - RUNNING"
             ((running++)) || true
         else
-            echo -e "  ${RED}○${NC} PID $pid - $agent ($task_id) - COMPLETED"
+            ((completed++)) || true
         fi
     done < "$PID_FILE"
 
     echo ""
-    echo -e "${BLUE}Summary:${NC} $running running / $total total"
+    [[ "$running" -eq 0 ]] && echo -e "  ${DIM}No agents currently running.${NC}"
+    echo -e "${BLUE}Summary:${NC} $running running / $completed completed ($total tracked)"
     echo ""
 
     if [[ -d "$RESULTS_DIR" ]]; then
@@ -2726,7 +2730,10 @@ case "$COMMAND" in
         fi
         ;;
     preflight)
-        preflight_check
+        case "${1:-}" in
+            --force|force|true) preflight_check true ;;
+            *) preflight_check ;;
+        esac
         ;;
     release)
         do_release
@@ -2782,13 +2789,23 @@ case "$COMMAND" in
         ;;
     spawn)
         [[ $# -lt 2 ]] && { log ERROR "Usage: spawn <agent> <prompt>"; exit 1; }
-        case "$1" in
+        _spawn_agent="$1"
+        _spawn_role=""
+        if [[ -n "$(get_agent_config "$1" "file" 2>/dev/null)" ]]; then
+            _spawn_role="$1"
+            if ! _spawn_agent=$(resolve_curated_agent_executor "$1"); then
+                log ERROR "No allowed and available provider for curated agent: $1"
+                exit 1
+            fi
+            log INFO "Resolved curated agent $1 to provider executor $_spawn_agent"
+        fi
+        case "$_spawn_agent" in
             agy|agy-*|antigravity)
-                log INFO "Running $1 synchronously because Antigravity CLI print mode does not emit output from background jobs"
-                run_agent_sync "$1" "$2" "$TIMEOUT" "none" "spawn"
+                log INFO "Running $_spawn_agent synchronously because Antigravity CLI print mode does not emit output from background jobs"
+                run_agent_sync "$_spawn_agent" "$2" "$TIMEOUT" "${_spawn_role:-none}" "spawn"
                 ;;
             *)
-                spawn_agent "$1" "$2"
+                spawn_agent "$_spawn_agent" "$2" "" "$_spawn_role" "spawn"
                 ;;
         esac
         ;;

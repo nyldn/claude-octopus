@@ -15,6 +15,7 @@ ALLOWLIST_LIB="$PROJECT_ROOT/scripts/lib/provider-allowlist.sh"
 CHECK_PROVIDERS="$PROJECT_ROOT/scripts/helpers/check-providers.sh"
 BUILD_FLEET="$PROJECT_ROOT/scripts/helpers/build-fleet.sh"
 MODEL_CONFIG="$PROJECT_ROOT/scripts/helpers/octo-model-config.sh"
+PREFLIGHT_LIB="$PROJECT_ROOT/scripts/lib/preflight.sh"
 
 test_case "allowlist helper has valid bash syntax"
 if bash -n "$ALLOWLIST_LIB"; then
@@ -116,6 +117,57 @@ if assert_contains "$fleet" "gemini|" "gemini should be eligible" &&
    assert_contains "$fleet" "claude-sonnet|" "claude alias should allow claude-sonnet" &&
    assert_not_contains "$fleet" "codex|" "codex should not be emitted"; then
     test_pass
+fi
+
+test_case "preflight excludes disallowed Gemini and accepts configured OpenRouter"
+preflight_home="$TEST_TMP_DIR/preflight-home"
+preflight_bin="$TEST_TMP_DIR/preflight-bin"
+mkdir -p "$preflight_home/.claude-octopus" "$preflight_bin"
+printf '#!/usr/bin/env bash\nexit 0\n' > "$preflight_bin/gemini"
+chmod +x "$preflight_bin/gemini"
+set +e
+preflight_output=$(
+    export HOME="$preflight_home"
+    export WORKSPACE_DIR="$preflight_home/.claude-octopus"
+    export PATH="$preflight_bin:/usr/bin:/bin"
+    export OCTO_ALLOWED_PROVIDERS="openrouter"
+    export OPENROUTER_API_KEY="test-only-placeholder"
+    RED=""; YELLOW=""; CYAN=""; GREEN=""; DIM=""; NC=""
+    source "$ALLOWLIST_LIB"
+    source "$PREFLIGHT_LIB"
+    preflight_cache_valid() { return 1; }
+    preflight_cache_write() { :; }
+    provider_smoke_test() { return 0; }
+    detect_enterprise_backend() { :; }
+    init_workspace() { mkdir -p "$WORKSPACE_DIR"; }
+    log() { printf '%s\n' "$*"; }
+    preflight_check true
+)
+preflight_status=$?
+set -e
+if [[ $preflight_status -eq 0 ]] &&
+   assert_contains "$preflight_output" "OpenRouter" "configured OpenRouter should satisfy preflight" &&
+   assert_not_contains "$preflight_output" "Gemini" "disallowed Gemini must not appear in preflight"; then
+    test_pass
+else
+    test_fail "preflight ignored the provider allowlist or omitted OpenRouter"
+fi
+
+test_case "provider env resolver reads a simple bashrc export without evaluation"
+resolver_home="$TEST_TMP_DIR/provider-env-home"
+mkdir -p "$resolver_home"
+printf '%s\n' 'export OPENROUTER_API_KEY="test-router-key"' > "$resolver_home/.bashrc"
+if HOME="$resolver_home" PROJECT_ROOT="$PROJECT_ROOT" bash -c '
+    set -euo pipefail
+    log() { :; }
+    source "$PROJECT_ROOT/scripts/lib/provider-routing.sh"
+    unset OPENROUTER_API_KEY
+    resolve_provider_env OPENROUTER_API_KEY
+    [[ "$OPENROUTER_API_KEY" == "test-router-key" ]]
+'; then
+    test_pass
+else
+    test_fail "resolver did not recover OPENROUTER_API_KEY from .bashrc"
 fi
 
 test_summary

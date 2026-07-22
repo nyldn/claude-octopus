@@ -124,7 +124,12 @@ octopus_resolve_reasoning_level() {
   value="$(_octopus_profile_field "$phase" "$role" reasoning 2>/dev/null || true)"
   if [[ -z "$value" ]]; then
     cfg="$(_octopus_profile_config_file)"
-    [[ -f "$cfg" ]] && value=$(jq -r --arg p "$provider" '.providers[$p].reasoning.default // empty' "$cfg" 2>/dev/null || true)
+    [[ -f "$cfg" ]] && value=$(jq -r --arg p "$provider" '
+      (.providers[$p] // {}) as $provider
+      | (if ($provider.reasoning | type) == "object" then $provider.reasoning.default else empty end)
+        // $provider.reasoning_effort
+        // empty
+    ' "$cfg" 2>/dev/null || true)
   fi
   octopus_normalize_reasoning_level "$value"
 }

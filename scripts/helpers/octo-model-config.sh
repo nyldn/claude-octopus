@@ -68,12 +68,12 @@ ensure_config() {
   "version": "3.0",
   "providers": {
     "codex": {
-      "default": "gpt-5.4",
-      "fallback": "gpt-5.4",
-      "spark": "gpt-5.4",
-      "mini": "gpt-5.4-mini",
-      "reasoning": "o3",
-      "large_context": "gpt-5.4"
+      "default": "gpt-5.6-sol",
+      "fallback": "gpt-5.6-sol",
+      "spark": "gpt-5.6-sol",
+      "mini": "gpt-5.6-sol",
+      "reasoning": "gpt-5.6-sol",
+      "large_context": "gpt-5.6-sol"
     },
     "gemini": {
       "default": "gemini-3.1-pro-preview",
@@ -593,6 +593,7 @@ cmd_models() {
 
     # Inline catalog (matches orchestrate.sh get_model_catalog)
     local -a models=(
+        "gpt-5.6-sol|400|yes|yes|yes|codex|premium|active"
         "gpt-5.4|400|yes|yes|no|codex|standard|active"
         "gpt-5.4-pro|400|yes|yes|no|codex|premium|active"
         "gpt-5.3-codex|400|yes|yes|no|codex|standard|active"

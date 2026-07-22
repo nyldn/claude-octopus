@@ -5,6 +5,11 @@
 # Validate tangle results with quality gate
 # v3.0: Supports configurable threshold and loop-until-approved retry logic
 
+if ! type pathrt_canon_existing >/dev/null 2>&1; then
+    _octo_path_runtime_lib="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/path-runtime.sh"
+    [[ -f "$_octo_path_runtime_lib" ]] && source "$_octo_path_runtime_lib"
+fi
+
 extract_explicit_file_refs() {
     local text="$1"
 
@@ -64,18 +69,26 @@ check_explicit_file_coverage() {
     printf '%s' "$missing"
 }
 
+testing_git_compatible_path() {
+    pathrt_for_git "$1"
+}
+
 snapshot_tangle_worktree_paths() {
     local repo_root=""
+    local repo_candidate=""
 
     if [[ -n "${PROJECT_ROOT:-}" ]]; then
         if [[ -d "$PROJECT_ROOT" ]]; then
-            repo_root=$(git -C "$PROJECT_ROOT" rev-parse --show-toplevel 2>/dev/null || true)
+            repo_candidate=$(testing_git_compatible_path "$PROJECT_ROOT")
+            repo_root=$(git -C "$repo_candidate" rev-parse --show-toplevel 2>/dev/null || true)
             [[ -n "$repo_root" ]] || return 0
         else
-            repo_root=$(git -C "$(pwd)" rev-parse --show-toplevel 2>/dev/null || true)
+            repo_candidate=$(testing_git_compatible_path "$(pwd)")
+            repo_root=$(git -C "$repo_candidate" rev-parse --show-toplevel 2>/dev/null || true)
         fi
     else
-        repo_root=$(git -C "$(pwd)" rev-parse --show-toplevel 2>/dev/null || true)
+        repo_candidate=$(testing_git_compatible_path "$(pwd)")
+        repo_root=$(git -C "$repo_candidate" rev-parse --show-toplevel 2>/dev/null || true)
     fi
     [[ -n "$repo_root" ]] || return 0
 
@@ -376,10 +389,16 @@ $challenge_result
 
         # Write validation report before branching so abort/escalate/retry paths
         # still leave an actionable artifact for embrace and post-run diagnosis.
+        local gate_workspace gate_session
+        gate_workspace=$(pwd -P)
+        gate_session="${CLAUDE_SESSION_ID:-${OCTOPUS_SESSION_ID:-unknown}}"
         cat > "$validation_file" << EOF
 # TANGLE Phase Validation Report
 ## Task: $original_prompt
 ## Generated: $(date)
+## Gate ID: tangle-${task_group}
+## Workspace: ${gate_workspace}
+## Session: ${gate_session}
 
 ### Quality Gate: ${gate_status}
 - Success Rate: ${success_rate}% (threshold: ${tangle_threshold}%)

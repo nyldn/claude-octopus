@@ -320,11 +320,56 @@ get_agent_config() {
         found && /^  [a-z]/ { found=0 }
         found && $0 ~ "^    " field ":" {
             gsub(/^[[:space:]]*[a-z_]+:[[:space:]]*/, "")
+            sub(/[[:space:]]+#.*$/, "")
+            sub(/[[:space:]]+$/, "")
             gsub(/[\[\]"]/, "")
             print
             exit
         }
     ' "$AGENTS_CONFIG"
+}
+
+# Resolve an explicit curated persona to the first configured provider executor
+# that is both allowed and available. The persona name remains the dispatch role;
+# only the provider-facing agent alias is returned here.
+resolve_curated_agent_executor() {
+    local persona_name="$1"
+    local persona_file primary fallback candidate provider
+
+    persona_file=$(get_agent_config "$persona_name" "file")
+    [[ -n "$persona_file" ]] || return 1
+
+    primary=$(get_agent_config "$persona_name" "cli")
+    fallback=$(get_agent_config "$persona_name" "fallback_cli")
+    [[ -n "$primary" ]] || primary="codex"
+
+    for candidate in "$primary" "$fallback"; do
+        [[ -n "$candidate" ]] || continue
+        if [[ -n "${AVAILABLE_AGENTS:-}" && " $AVAILABLE_AGENTS " != *" $candidate "* ]]; then
+            continue
+        fi
+        if declare -F octo_provider_allowed >/dev/null 2>&1 \
+            && ! octo_provider_allowed "$candidate"; then
+            continue
+        fi
+        provider="${candidate%%-*}"
+        case "$candidate" in
+            antigravity) provider="agy" ;;
+            claude*) provider="claude" ;;
+            openrouter*) provider="openrouter" ;;
+            cursor-agent*) provider="cursor-agent" ;;
+        esac
+        if declare -F check_provider_health >/dev/null 2>&1; then
+            check_provider_health "$provider" >/dev/null 2>&1 || continue
+        elif declare -F is_agent_available_v2 >/dev/null 2>&1 \
+            && ! is_agent_available_v2 "$candidate"; then
+            continue
+        fi
+        printf '%s\n' "$candidate"
+        return 0
+    done
+
+    return 1
 }
 
 # v8.2.0: Get agent memory scope from config (project/none)
@@ -361,6 +406,20 @@ load_agent_skill_content() {
     fi
 
     if [[ -f "$skill_file" ]]; then
+        # Enforced command skills are host-side orchestration contracts. Injecting
+        # one into a provider prompt asks the child model to recursively launch
+        # Octopus (and can reintroduce disallowed providers). Keep domain-only
+        # skills, but never pass a host execution contract across the boundary.
+        if awk '
+            BEGIN { in_fm=0; enforced=0 }
+            /^---$/ { in_fm=!in_fm; if (!in_fm) exit }
+            in_fm && /^[[:space:]]*execution_mode:[[:space:]]*enforced[[:space:]]*$/ { enforced=1 }
+            END { exit enforced ? 0 : 1 }
+        ' "$skill_file" 2>/dev/null && grep -q 'orchestrate\.sh' "$skill_file" 2>/dev/null; then
+            log "DEBUG" "Skipping host-only orchestration skill in provider context: $skill_name" 2>/dev/null || true
+            return 0
+        fi
+
         # Extract content after YAML frontmatter
         awk '
             BEGIN { in_fm=0; past_fm=0 }

@@ -3,6 +3,9 @@
 # Comprehensive test framework for Claude Octopus
 # Provides assertions, mocks, fixtures, hooks, and reporting
 
+_TEST_FRAMEWORK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$_TEST_FRAMEWORK_DIR/../../scripts/lib/python-runtime.sh" 2>/dev/null || true
+
 set -euo pipefail
 
 # Colors for output

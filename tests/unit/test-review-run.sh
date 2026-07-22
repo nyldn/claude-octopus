@@ -122,9 +122,57 @@ assert_contains "$(grep -c 'OCTOPUS_REVIEW_OPENAI_COMPAT_EMPTY_RETRY_BACKOFF_SEC
 assert_contains "$(grep -c 'attempt1' "$ALL_SRC" 2>/dev/null || true)" \
   "[1-9]" "review_run: OpenAI-compatible Empty output retry preserves first artifact"
 
+assert_contains "$(grep -c 'OCTOPUS_REVIEW_OPENROUTER_RETRY_BACKOFF_SECS' "$ALL_SRC" 2>/dev/null || true)" \
+  "[1-9]" "review_run: OpenRouter transport retry has configurable backoff"
+
+assert_contains "$(grep 'local task_id="review-r1-' "$PROJECT_ROOT/scripts/lib/review.sh" 2>/dev/null)" \
+  'review-r1-\$\{agent_type\}-\$\{role\}' "review_run: concurrent seats receive provider-unique task IDs"
+
 # ── diff target file support ─────────────────────────────────────────────────
 
 source "$PROJECT_ROOT/scripts/lib/review.sh"
+
+if (
+  log() { :; }
+  round1_agent_types=(codex claude-opus openrouter-glm52 openrouter-kimi-k3)
+  round1_prompts=(one two three four)
+  round1_task_ids=(task-1 task-2 task-3 task-4)
+  round1_roles=(logic architecture diversity diversity)
+  round1_pids=()
+  spawn_agent_capture_pid() {
+    sleep 2
+    case "$1" in
+      codex) echo 9001 ;;
+      claude-opus) echo 9002 ;;
+      openrouter-glm52) echo 9003 ;;
+      openrouter-kimi-k3) echo 9004 ;;
+    esac
+  }
+  SECONDS=0
+  review_launch_round1_fleet
+  [[ "$SECONDS" -lt 5 ]] &&
+    [[ "${round1_pids[*]}" == "9001 9002 9003 9004" ]]
+); then
+  pass "review_run: Round 1 provider setup launches concurrently"
+else
+  fail "review_run: Round 1 provider setup launches concurrently" \
+    "four two-second setup paths did not overlap or PID ordering changed"
+fi
+
+local_synthesis=$(review_local_synthesis_json '[
+  {"file":"calc.js","line":2,"severity":"normal","category":"correctness","title":"wrong operation","detail":"first perspective","confidence":0.8},
+  {"file":"calc.js","line":2,"severity":"normal","category":"correctness","title":"subtracts instead of adds","detail":"second perspective","confidence":0.9},
+  {"file":"other.js","line":1,"severity":"nit","category":"style","title":"minor","detail":"third finding","confidence":0.7}
+]')
+if [[ "$(printf '%s' "$local_synthesis" | jq '.findings | length')" == "2" ]] &&
+   [[ "$(printf '%s' "$local_synthesis" | jq -r '.findings[0].confidence')" == "0.9" ]] &&
+   [[ "$(printf '%s' "$local_synthesis" | jq -r '.findings[0].detail')" == *"first perspective"* ]] &&
+   [[ "$(printf '%s' "$local_synthesis" | jq -r '.findings[0].detail')" == *"second perspective"* ]]; then
+  pass "review_run: local synthesis deduplicates corroborating provider findings"
+else
+  fail "review_run: local synthesis deduplicates corroborating provider findings" \
+    "fallback did not merge same-location/category findings deterministically"
+fi
 
 DIFF_TARGET="$TMPDIR_TEST/review-target.diff"
 cat > "$DIFF_TARGET" <<'EOF'
@@ -168,6 +216,27 @@ if review_openai_compat_empty_output_retryable "$OPENAI_COMPAT_EMPTY_RETRYABLE" 
   fail "review_run: non-OpenAI-compatible Empty output is not retried by adapter policy"
 else
   pass "review_run: non-OpenAI-compatible Empty output is not retried by adapter policy"
+fi
+
+OPENROUTER_TRANSPORT_RETRYABLE="$TMPDIR_TEST/openrouter-transport-retryable.md"
+cat > "$OPENROUTER_TRANSPORT_RETRYABLE" <<'EOF'
+# Agent: openrouter-kimi-k3
+## Status: FAILED (exit code: 1)
+## Error Log
+OpenRouter curl failed (timeout or network error, model=moonshotai/kimi-k3)
+# Completed: now
+EOF
+
+if review_openrouter_transport_retryable "$OPENROUTER_TRANSPORT_RETRYABLE" "openrouter-kimi-k3"; then
+  pass "review_run: transient OpenRouter transport failure is retryable"
+else
+  fail "review_run: transient OpenRouter transport failure is retryable"
+fi
+
+if review_openrouter_transport_retryable "$OPENROUTER_TRANSPORT_RETRYABLE" "codex"; then
+  fail "review_run: OpenRouter transport retry is provider-scoped"
+else
+  pass "review_run: OpenRouter transport retry is provider-scoped"
 fi
 
 # ── MCP schema ───────────────────────────────────────────────────────────────

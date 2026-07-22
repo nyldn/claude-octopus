@@ -136,8 +136,15 @@ write_agent_result_header() {
     } > "$result_file"
 }
 
+# Second-resolution timestamps collide when several independent orchestrate.sh
+# processes start together. Include process and random entropy while keeping the
+# leading epoch for operator readability and chronological sorting.
+octopus_new_task_id() {
+    printf '%s-%s-%s\n' "$(date +%s)" "${BASHPID:-$$}" "${RANDOM:-0}"
+}
+
 spawn_agent() {
-    local _ts; _ts=$(date +%s)
+    local _ts; _ts=$(octopus_new_task_id)
     local agent_type="$1"
     local prompt="$2"
     local task_id="${3:-$_ts}"
@@ -398,11 +405,12 @@ ${heuristic_ctx}"
         return "$_budget_rc"
     fi
 
-    # v8.4/v9.42: Auto-route claude-opus to fast mode when appropriate.
-    # Opus 4.8 fast is 2x standard ($10/$50 vs $5/$25 per MTok); legacy 4.6
-    # fast remains 6x standard.
-    # Only used for interactive single-shot tasks, never for multi-phase workflows
-    if [[ "$agent_type" == "claude-opus" ]] && [[ "$SUPPORTS_FAST_OPUS" == "true" ]]; then
+    # Opus Fast is a distinct, more expensive tier. Never select it as an
+    # automatic fallback: callers must opt in explicitly with
+    # OCTOPUS_OPUS_MODE=fast (or request claude-opus-fast directly).
+    if [[ "$agent_type" == "claude-opus" ]] && [[ "$SUPPORTS_FAST_OPUS" == "true" ]] \
+        && [[ "${OCTOPUS_OPUS_MODE:-auto}" == "fast" ]] \
+        && { ! declare -f fable5_opus_pinned >/dev/null 2>&1 || ! fable5_opus_pinned; }; then
         local opus_tier
         opus_tier=$(get_agent_config "${curated_agent:-}" "tier" 2>/dev/null) || opus_tier="premium"
         local session_autonomy
@@ -411,7 +419,7 @@ ${heuristic_ctx}"
         opus_mode=$(select_opus_mode "$phase" "$opus_tier" "$session_autonomy")
         if [[ "$opus_mode" == "fast" ]]; then
             agent_type="claude-opus-fast"
-            log "INFO" "Auto-routing to Opus Fast mode (phase=$phase, tier=$opus_tier, autonomy=$session_autonomy)"
+            log "INFO" "Using explicitly requested Opus Fast mode (phase=$phase, tier=$opus_tier, autonomy=$session_autonomy)"
             if [[ "${SUPPORTS_OPUS_4_8:-false}" == "true" && "${OCTOPUS_OPUS_MODEL:-}" != "claude-opus-4.6" ]]; then
                 log "WARN" "Opus 4.8 fast is 2x standard: \$10/\$50 per MTok vs \$5/\$25 standard"
             else
@@ -639,9 +647,12 @@ ${heuristic_ctx}"
 
         # IMPROVED: Use temp files for reliable output capture (v7.13.2 - Issue #10)
         # v7.19.0 P0.1: Real-time output streaming to result file
-        local temp_output="${RESULTS_DIR}/.tmp-${task_id}.out"
-        local temp_errors="${RESULTS_DIR}/.tmp-${task_id}.err"
-        local raw_output="${RESULTS_DIR}/.raw-${task_id}.out"  # Backup of unfiltered output
+        # A caller may deliberately reuse a group/task ID across providers. Keep
+        # provider subprocess capture isolated even in that case.
+        local capture_id="${agent_type}-${task_id}"
+        local temp_output="${RESULTS_DIR}/.tmp-${capture_id}.out"
+        local temp_errors="${RESULTS_DIR}/.tmp-${capture_id}.err"
+        local raw_output="${RESULTS_DIR}/.raw-${capture_id}.out"  # Backup of unfiltered output
 
         # Update task progress with context-aware spinner verb (v7.16.0 Feature 1)
         if [[ -n "$CLAUDE_TASK_ID" ]]; then
@@ -691,6 +702,7 @@ ${heuristic_ctx}"
         fi
 
         local auth_attempt=0
+        local fable5_fallback_attempt=0
         local exit_code=0
         while true; do
             exit_code=0
@@ -736,6 +748,33 @@ ${heuristic_ctx}"
             fi
 
             stop_quota_watcher "$_quota_watcher_pid"
+
+            # Fable 5 is primary. Retry once on Opus 4.8 only when the provider
+            # explicitly reports that the Fable model is unavailable.
+            if [[ $exit_code -ne 0 ]] && [[ "$fable5_fallback_attempt" -eq 0 ]] \
+                && [[ "$agent_type" == "claude-opus" ]] \
+                && declare -f fable5_opus_pinned >/dev/null 2>&1 \
+                && fable5_opus_pinned \
+                && declare -f fable5_model_unavailable >/dev/null 2>&1 \
+                && fable5_model_unavailable "$temp_errors" "$temp_output"; then
+                local fable5_model_index=-1
+                local fable5_cmd_index
+                for fable5_cmd_index in "${!cmd_array[@]}"; do
+                    if [[ "${cmd_array[$fable5_cmd_index]}" == "claude-fable-5" ]]; then
+                        fable5_model_index="$fable5_cmd_index"
+                        break
+                    fi
+                done
+                if [[ "$fable5_model_index" -ge 0 ]]; then
+                    cmd_array[$fable5_model_index]="claude-opus-4-8"
+                    fable5_fallback_attempt=1
+                    log "WARN" "[$agent_type] Fable 5 unavailable; retrying once on Opus 4.8"
+                    > "$temp_output"
+                    > "$temp_errors"
+                    > "$raw_output"
+                    continue
+                fi
+            fi
 
             # v8.16: Check if failure is auth-related and retryable
             if [[ $exit_code -ne 0 ]] && [[ $auth_attempt -lt $max_auth_retries ]]; then
@@ -808,7 +847,9 @@ ${heuristic_ctx}"
             else
                 # Clean stdout (e.g. codex exec) — pass through with noise filtering
                 # v9.15.1: Filter Gemini MCP status messages and CLI preamble from stdout
-                grep -v \
+                # Treat provider output as text and remove any embedded NULs so
+                # GNU grep never replaces a valid verdict with "Binary file ... matches".
+                LC_ALL=C tr -d '\000' < "$temp_output" | grep -a -v \
                     -e '^MCP issues detected' \
                     -e '^Loading extension:' \
                     -e '^YOLO mode is enabled' \
@@ -1122,7 +1163,7 @@ ${heuristic_ctx}"
 spawn_agent_capture_pid() {
     local agent_type="$1"
     local prompt="$2"
-    local task_id="${3:-$(date +%s)}"
+    local task_id="${3:-$(octopus_new_task_id)}"
     local role="${4:-}"
     local phase="${5:-}"
     local use_fork="${6:-false}"

@@ -398,7 +398,8 @@ EOF
 
 # Pre-flight dependency validation
 # Performance: Uses 1-hour cache to avoid repeated CLI checks
-# v7.9.1: Supports single-provider mode (only need ONE of Codex or Gemini or Cursor Agent)
+# Uses the configured review roster when present. This keeps preflight and its
+# paid smoke test from probing installed providers that are not workflow seats.
 preflight_check() {
     local force_check="${1:-false}"
 
@@ -417,12 +418,41 @@ preflight_check() {
     local has_codex=false
     local has_gemini=false
     local has_cursor_agent=false
+    local has_claude=false
+    local has_openrouter=false
     local codex_auth=false
     local gemini_auth=false
     local cursor_agent_auth=false
+    local claude_auth=false
+    local openrouter_auth=false
+
+    local want_codex=true want_gemini=true want_cursor_agent=true
+    local want_claude=true want_openrouter=true
+    local configured_fleet=""
+    if declare -f _review_fleet_from_config >/dev/null 2>&1; then
+        configured_fleet=$(_review_fleet_from_config)
+    fi
+    if [[ -n "$configured_fleet" ]]; then
+        want_codex=false; want_gemini=false; want_cursor_agent=false
+        want_claude=false; want_openrouter=false
+        local configured_agent _configured_role _configured_specialty
+        while IFS=':' read -r configured_agent _configured_role _configured_specialty; do
+            configured_agent=${configured_agent//$'\r'/}
+            case "$configured_agent" in
+                codex|codex-*) want_codex=true ;;
+                gemini|gemini-*) want_gemini=true ;;
+                cursor-agent|cursor-agent-*) want_cursor_agent=true ;;
+                claude|claude-*) want_claude=true ;;
+                openrouter|openrouter-*) want_openrouter=true ;;
+            esac
+        done <<< "$configured_fleet"
+        log INFO "Preflight roster: configured review fleet"
+    fi
 
     # Check Codex CLI
-    if command -v codex &>/dev/null; then
+    if [[ "$want_codex" == "true" ]] && \
+       { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed codex; } && \
+       command -v codex &>/dev/null; then
         has_codex=true
         log DEBUG "Codex CLI: $(command -v codex)"
         if [[ -f "$HOME/.codex/auth.json" ]] || [[ -n "${OPENAI_API_KEY:-}" ]]; then
@@ -431,7 +461,9 @@ preflight_check() {
     fi
 
     # Check Gemini CLI
-    if command -v gemini &>/dev/null; then
+    if [[ "$want_gemini" == "true" ]] && \
+       { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed gemini; } && \
+       command -v gemini &>/dev/null; then
         has_gemini=true
         log DEBUG "Gemini CLI: $(command -v gemini)"
         if [[ -f "$HOME/.gemini/oauth_creds.json" ]] || [[ -n "${GEMINI_API_KEY:-}" ]] || [[ -n "${GOOGLE_API_KEY:-}" ]]; then
@@ -440,7 +472,9 @@ preflight_check() {
     fi
 
     # Check Cursor Agent CLI
-    if declare -f _is_cursor_agent_binary >/dev/null 2>&1 && _is_cursor_agent_binary; then
+    if [[ "$want_cursor_agent" == "true" ]] && \
+       { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed cursor-agent; } && \
+       declare -f _is_cursor_agent_binary >/dev/null 2>&1 && _is_cursor_agent_binary; then
         has_cursor_agent=true
         log DEBUG "Cursor Agent CLI: $(command -v agent)"
         if [[ -n "${CURSOR_API_KEY:-}" ]] || grep -Eq '"authInfo"[[:space:]]*:[[:space:]]*\{' "${HOME}/.cursor/cli-config.json" 2>/dev/null; then
@@ -448,22 +482,58 @@ preflight_check() {
         fi
     fi
 
+    # Claude subscription route. Claude Code owns its own login state, so a
+    # callable CLI is the non-interactive readiness signal used by dispatch.
+    if [[ "$want_claude" == "true" ]] && \
+       { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed claude; } && \
+       command -v claude &>/dev/null; then
+        has_claude=true
+        claude_auth=true
+        log DEBUG "Claude CLI: $(command -v claude)"
+    fi
+
+    # OpenRouter seats share one credential but keep their exact model aliases
+    # for the smoke test. Do not substitute an installed Gemini CLI here.
+    if [[ "$want_openrouter" == "true" ]] && \
+       { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed openrouter; }; then
+        if [[ -z "${OPENROUTER_API_KEY:-}" ]] && declare -f resolve_provider_env >/dev/null 2>&1; then
+            resolve_provider_env "OPENROUTER_API_KEY" 2>/dev/null || true
+        fi
+        if [[ -n "${OPENROUTER_API_KEY:-}" ]]; then
+            has_openrouter=true
+            openrouter_auth=true
+        fi
+    fi
+
     # v7.9.1: Only need ONE provider to work
-    if [[ "$has_codex" == "false" && "$has_gemini" == "false" && "$has_cursor_agent" == "false" ]]; then
+    if [[ "$has_codex" == "false" && "$has_gemini" == "false" && \
+          "$has_cursor_agent" == "false" && "$has_claude" == "false" && \
+          "$has_openrouter" == "false" ]]; then
         echo ""
         echo -e "${RED}╔═══════════════════════════════════════════════════════════════╗${NC}"
         echo -e "${RED}║  ❌ NO AI PROVIDERS FOUND                                     ║${NC}"
         echo -e "${RED}╚═══════════════════════════════════════════════════════════════╝${NC}"
         echo ""
-        echo -e "Claude Octopus needs at least ${YELLOW}ONE${NC} external AI provider."
+        echo -e "Claude Octopus needs at least ${YELLOW}ONE${NC} configured AI provider."
         echo ""
         echo -e "${CYAN}Option 1: Install Codex CLI (OpenAI)${NC}"
         echo -e "  npm install -g @openai/codex"
         echo -e "  codex login  ${DIM}# OAuth recommended${NC}"
         echo ""
-        echo -e "${CYAN}Option 2: Install Gemini CLI (Google)${NC}"
-        echo -e "  npm install -g @google/gemini-cli"
-        echo -e "  gemini       ${DIM}# OAuth recommended${NC}"
+        if [[ "$want_claude" == "true" ]]; then
+            echo -e "${CYAN}Claude seat: install/login to Claude Code${NC}"
+            echo -e "  claude"
+            echo ""
+        fi
+        if [[ "$want_openrouter" == "true" ]]; then
+            echo -e "${CYAN}OpenRouter seats: configure OPENROUTER_API_KEY${NC}"
+            echo ""
+        fi
+        if [[ "$want_gemini" == "true" ]]; then
+            echo -e "${CYAN}Gemini seat: install/login to Gemini CLI${NC}"
+            echo -e "  gemini"
+            echo ""
+        fi
         echo ""
         echo -e "${CYAN}Option 3: Install Cursor Agent CLI${NC}"
         echo -e "  curl -fsSL https://cursor.com/install | bash"
@@ -476,7 +546,9 @@ preflight_check() {
     fi
 
     # Check if at least one provider is authenticated
-    if [[ "$codex_auth" == "false" && "$gemini_auth" == "false" && "$cursor_agent_auth" == "false" ]]; then
+    if [[ "$codex_auth" == "false" && "$gemini_auth" == "false" && \
+          "$cursor_agent_auth" == "false" && "$claude_auth" == "false" && \
+          "$openrouter_auth" == "false" ]]; then
         echo ""
         echo -e "${YELLOW}╔═══════════════════════════════════════════════════════════════╗${NC}"
         echo -e "${YELLOW}║  ⚠️  PROVIDERS FOUND BUT NOT AUTHENTICATED                    ║${NC}"
@@ -500,6 +572,14 @@ preflight_check() {
             echo -e "  ${DIM}OR export CURSOR_API_KEY=\"...\"${NC}"
             echo ""
         fi
+        if [[ "$want_claude" == "true" && "$has_claude" == "false" ]]; then
+            echo -e "${CYAN}Claude CLI is required by the configured fleet.${NC}"
+            echo ""
+        fi
+        if [[ "$want_openrouter" == "true" && "$has_openrouter" == "false" ]]; then
+            echo -e "${CYAN}OpenRouter is required by the configured fleet; set OPENROUTER_API_KEY.${NC}"
+            echo ""
+        fi
         echo -e "Run ${GREEN}/octo:setup${NC} for guided configuration."
         echo ""
         preflight_cache_write "1"
@@ -511,6 +591,8 @@ preflight_check() {
     [[ "$codex_auth" == "true" ]] && available_providers="${available_providers}Codex "
     [[ "$gemini_auth" == "true" ]] && available_providers="${available_providers}Gemini "
     [[ "$cursor_agent_auth" == "true" ]] && available_providers="${available_providers}Cursor-Agent "
+    [[ "$claude_auth" == "true" ]] && available_providers="${available_providers}Claude "
+    [[ "$openrouter_auth" == "true" ]] && available_providers="${available_providers}OpenRouter "
     log INFO "Available providers: $available_providers"
 
     # v8.48: Codex OAuth token freshness check (P1-A)
@@ -518,14 +600,9 @@ preflight_check() {
     if [[ "$codex_auth" == "true" ]]; then
         if ! check_codex_auth_freshness; then
             # Token expired but another authenticated provider may still work — degrade gracefully
-            if [[ "$gemini_auth" == "true" ]] || [[ "$cursor_agent_auth" == "true" ]]; then
-                if [[ "$gemini_auth" == "true" && "$cursor_agent_auth" == "true" ]]; then
-                    log WARN "Codex OAuth expired; continuing with Gemini/Cursor Agent only"
-                elif [[ "$gemini_auth" == "true" ]]; then
-                    log WARN "Codex OAuth expired; continuing with Gemini only"
-                else
-                    log WARN "Codex OAuth expired; continuing with Cursor Agent only"
-                fi
+            if [[ "$gemini_auth" == "true" || "$cursor_agent_auth" == "true" || \
+                  "$claude_auth" == "true" || "$openrouter_auth" == "true" ]]; then
+                log WARN "Codex OAuth expired; continuing with other configured providers only"
             else
                 log ERROR "Codex OAuth expired and no other authenticated provider"
                 preflight_cache_write "1"

@@ -8,6 +8,7 @@
 #   octopus session    — Show current session info
 #   octopus fleet      — Show provider fleet status
 #   octopus agent-summary — Show current run provider status
+#   octopus gate status|acknowledge — Inspect or acknowledge a failed gate
 # ═══════════════════════════════════════════════════════════════════════════════
 
 set -euo pipefail
@@ -43,6 +44,23 @@ case "${1:-help}" in
         shift
         "$ORCHESTRATE" agent-summary "$@"
         ;;
+    gate)
+        shift
+        gate_command="${1:-status}"
+        shift || true
+        case "$gate_command" in
+            status)
+                bash "${SCRIPT_DIR}/hooks/quality-gate.sh" --status "${1:-latest}"
+                ;;
+            ack|acknowledge)
+                bash "${SCRIPT_DIR}/hooks/quality-gate.sh" --ack "${1:-latest}"
+                ;;
+            *)
+                echo "Usage: octopus gate <status|acknowledge> [report]" >&2
+                exit 2
+                ;;
+        esac
+        ;;
     help|--help|-h|*)
         echo "octopus — Claude Octopus CLI"
         echo ""
@@ -54,6 +72,7 @@ case "${1:-help}" in
         echo "  session   Show current session info"
         echo "  fleet     Show provider fleet status"
         echo "  agent-summary  Show current run provider status"
+        echo "  gate      Show or acknowledge the current quality gate"
         echo "  help      Show this help"
         ;;
 esac

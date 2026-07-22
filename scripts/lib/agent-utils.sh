@@ -44,23 +44,23 @@ _BARE_OPT="${_BARE_OPT:-}"
 #
 # v9.29: Role defaults refreshed based on April 2026 benchmark + forum consensus.
 #   - architect/strategist/security-reviewer → claude-opus (SWE-bench Pro 64.3, LMArena #1, MCP-Atlas +9.2)
-#   - code-reviewer/implementer              → gpt-5.5    (Terminal-Bench 75.1, edge-case review)
+#   - code-reviewer/implementer              → gpt-5.6-sol (ChatGPT subscription Codex seat)
 # Opt-out:   OCTOPUS_LEGACY_ROLES=1 restores the v9.28 mapping.
 # Fallback:  consumers (see lib/agents.sh get_fallback_agent) silently downshift when the
-#            preferred CLI is unavailable (e.g. no Anthropic auth → architect → gpt-5.5).
+#            preferred CLI is unavailable (e.g. no Anthropic auth → architect → GPT-5.6 Sol).
 get_role_mapping() {
     local role="$1"
 
     # Legacy opt-out — v9.28 mapping, preserved verbatim.
     if [[ "${OCTOPUS_LEGACY_ROLES:-0}" == "1" ]]; then
         case "$role" in
-            architect)    echo "codex:gpt-5.5" ;;
+            architect)    echo "codex:gpt-5.6-sol" ;;
             researcher)   echo "gemini:gemini-3.1-pro-preview" ;;
-            reviewer|code-reviewer|security-reviewer) echo "codex-review:gpt-5.5" ;;
-            implementer|implementer-heavy) echo "codex:gpt-5.5" ;;
+            reviewer|code-reviewer|security-reviewer) echo "codex-review:gpt-5.6-sol" ;;
+            implementer|implementer-heavy) echo "codex:gpt-5.6-sol" ;;
             synthesizer)  echo "claude:claude-sonnet-4.6" ;;
             strategist)   echo "claude-opus:claude-opus-4.6" ;;
-            *)            echo "codex:gpt-5.5" ;;
+            *)            echo "codex:gpt-5.6-sol" ;;
         esac
         return 0
     fi
@@ -68,13 +68,13 @@ get_role_mapping() {
     case "$role" in
         architect)         echo "claude-opus:$(opus_default_model 2>/dev/null || echo claude-opus-4.7)" ;;  # Planning, UI/UX, architecture
         researcher)        echo "agy:Gemini 3.1 Pro (High)" ;;                                             # Deep investigation via Antigravity (Google seat)
-        reviewer|code-reviewer) echo "codex-review:gpt-5.5" ;;                                              # Code review, edge cases; `reviewer` = alias
+        reviewer|code-reviewer) echo "codex-review:gpt-5.6-sol" ;;                                          # Code review, edge cases; `reviewer` = alias
         security-reviewer) echo "claude-opus:$(opus_default_model 2>/dev/null || echo claude-opus-4.7)" ;;  # Adversarial reasoning
-        implementer)       echo "codex:gpt-5.5" ;;                                                          # Default code generation; terminal-heavy
+        implementer)       echo "codex:gpt-5.6-sol" ;;                                                      # Default code generation; terminal-heavy
         implementer-heavy) echo "claude-opus:$(opus_default_model 2>/dev/null || echo claude-opus-4.7)" ;;  # Opt-in: greenfield/refactor/UI-heavy
         synthesizer)       echo "claude:claude-sonnet-4.6" ;;                                               # Result aggregation
         strategist)        echo "claude-opus:$(opus_default_model 2>/dev/null || echo claude-opus-4.7)" ;;  # Premium synthesis
-        *)                 echo "codex:gpt-5.5" ;;                                                          # Safe default
+        *)                 echo "codex:gpt-5.6-sol" ;;                                                      # Safe default
     esac
 }
 

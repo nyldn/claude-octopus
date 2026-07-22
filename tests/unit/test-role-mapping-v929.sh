@@ -49,14 +49,14 @@ test_architect_is_opus() {
 }
 
 test_code_reviewer_is_gpt_54() {
-    test_case "code-reviewer → codex-review:gpt-5.5"
+    test_case "code-reviewer → codex-review:gpt-5.6-sol"
     unset OCTOPUS_LEGACY_ROLES
     local mapping
     mapping=$(get_role_mapping "code-reviewer")
-    if [[ "$mapping" == "codex-review:gpt-5.5" ]]; then
+    if [[ "$mapping" == "codex-review:gpt-5.6-sol" ]]; then
         test_pass
     else
-        test_fail "expected codex-review:gpt-5.5, got $mapping"
+        test_fail "expected codex-review:gpt-5.6-sol, got $mapping"
     fi
 }
 
@@ -86,14 +86,14 @@ test_security_reviewer_is_opus() {
 }
 
 test_implementer_stays_gpt_54() {
-    test_case "implementer → codex:gpt-5.5 (unchanged from v9.28)"
+    test_case "implementer → codex:gpt-5.6-sol"
     unset OCTOPUS_LEGACY_ROLES
     local mapping
     mapping=$(get_role_mapping "implementer")
-    if [[ "$mapping" == "codex:gpt-5.5" ]]; then
+    if [[ "$mapping" == "codex:gpt-5.6-sol" ]]; then
         test_pass
     else
-        test_fail "expected codex:gpt-5.5, got $mapping"
+        test_fail "expected codex:gpt-5.6-sol, got $mapping"
     fi
 }
 
@@ -138,28 +138,28 @@ test_synthesizer_is_sonnet() {
 # ═══════════════════════════════════════════════════════════════════════════════
 
 test_legacy_architect_is_gpt_54() {
-    test_case "OCTOPUS_LEGACY_ROLES=1: architect → codex:gpt-5.5 (v9.28 behavior)"
+    test_case "OCTOPUS_LEGACY_ROLES=1: architect → codex:gpt-5.6-sol"
     export OCTOPUS_LEGACY_ROLES=1
     local mapping
     mapping=$(get_role_mapping "architect")
     unset OCTOPUS_LEGACY_ROLES
-    if [[ "$mapping" == "codex:gpt-5.5" ]]; then
+    if [[ "$mapping" == "codex:gpt-5.6-sol" ]]; then
         test_pass
     else
-        test_fail "expected codex:gpt-5.5 under legacy, got $mapping"
+        test_fail "expected codex:gpt-5.6-sol under legacy, got $mapping"
     fi
 }
 
 test_legacy_security_reviewer_falls_back() {
-    test_case "OCTOPUS_LEGACY_ROLES=1: security-reviewer → codex-review:gpt-5.5 (unified v9.28 reviewer)"
+    test_case "OCTOPUS_LEGACY_ROLES=1: security-reviewer → codex-review:gpt-5.6-sol"
     export OCTOPUS_LEGACY_ROLES=1
     local mapping
     mapping=$(get_role_mapping "security-reviewer")
     unset OCTOPUS_LEGACY_ROLES
-    if [[ "$mapping" == "codex-review:gpt-5.5" ]]; then
+    if [[ "$mapping" == "codex-review:gpt-5.6-sol" ]]; then
         test_pass
     else
-        test_fail "expected codex-review:gpt-5.5 under legacy, got $mapping"
+        test_fail "expected codex-review:gpt-5.6-sol under legacy, got $mapping"
     fi
 }
 
@@ -193,14 +193,14 @@ test_get_role_agent_for_architect() {
 }
 
 test_get_role_model_for_code_reviewer() {
-    test_case "get_role_model code-reviewer → gpt-5.5"
+    test_case "get_role_model code-reviewer → gpt-5.6-sol"
     unset OCTOPUS_LEGACY_ROLES
     local model
     model=$(get_role_model "code-reviewer")
-    if [[ "$model" == "gpt-5.5" ]]; then
+    if [[ "$model" == "gpt-5.6-sol" ]]; then
         test_pass
     else
-        test_fail "expected gpt-5.5, got $model"
+        test_fail "expected gpt-5.6-sol, got $model"
     fi
 }
 

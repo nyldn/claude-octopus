@@ -150,6 +150,23 @@ resolve_octopus_model() {
         return 0
     fi
 
+    # OCTOPUS_OPUS_MODEL is the agent-specific override for claude-opus seats.
+    # It must bypass both memory and persistent caches just like the generic
+    # provider override above; otherwise a cache primed with Opus can conceal a
+    # later Fable pin in telemetry and policy checks.
+    if [[ "$canonical_provider" == "claude" && "$agent_type" == claude-opus* && -n "${OCTOPUS_OPUS_MODEL:-}" ]]; then
+        if ! validate_model_name_for_provider "$canonical_provider" "$OCTOPUS_OPUS_MODEL"; then
+            log ERROR "Invalid model name in OCTOPUS_OPUS_MODEL"
+            return 1
+        fi
+        if declare -f fable5_maybe_reroute >/dev/null 2>&1; then
+            fable5_maybe_reroute "$OCTOPUS_OPUS_MODEL" "$role" "$agent_type" "$phase"
+        else
+            echo "$OCTOPUS_OPUS_MODEL"
+        fi
+        return 0
+    fi
+
     # 0. Session Cache (v8.53.0)
     # Uses a process-local memory cache + optional file-based cache for cross-process speed
     local cache_key
@@ -358,7 +375,7 @@ resolve_octopus_model() {
     # Fallback to hard-coded defaults (Priority 7)
     if [[ -z "$resolved_model" || "$resolved_model" == "null" ]]; then
         case "$agent_type" in
-            codex*)          resolved_model="gpt-5.5" ;;
+            codex*)          resolved_model="gpt-5.6-sol" ;;
             gemini-image)    resolved_model="gemini-3-pro-image" ;;  # image, not text — must precede gemini* (codex review)
             gemini-fast|gemini-flash) resolved_model="gemini-3-flash-preview" ;;
             gemini*)         resolved_model="gemini-3.1-pro-preview" ;;
@@ -369,6 +386,8 @@ resolve_octopus_model() {
             claude*)         resolved_model="claude-sonnet-4.6" ;;
             perplexity-fast)  resolved_model="sonar" ;;
             perplexity*)       resolved_model="sonar-pro" ;;
+            openrouter-glm52*) resolved_model="z-ai/glm-5.2" ;;
+            openrouter-kimi-k3*) resolved_model="moonshotai/kimi-k3" ;;
             openrouter-glm*)  resolved_model="z-ai/glm-5" ;;
             openrouter-kimi*) resolved_model="moonshotai/kimi-k2.5" ;;
             openrouter-deepseek*) resolved_model="deepseek/deepseek-r1-0528" ;;
@@ -380,7 +399,7 @@ resolve_octopus_model() {
             opencode-research*) resolved_model="opencode/glm-5.1" ;;
             opencode-fast*)  resolved_model="opencode/deepseek-v4-flash-free" ;;
             opencode*)       resolved_model="opencode/deepseek-v4-flash-free" ;;
-            *)              resolved_model="gpt-5.5" ;; # Safest universal fallback
+            *)              resolved_model="gpt-5.6-sol" ;; # Safest universal fallback
         esac
         [[ -n "$_trace" ]] && echo "[model-trace] Tier 7 (hardcoded fallback): $resolved_model ← SELECTED" >&2
     fi
@@ -583,7 +602,7 @@ get_fallback_agent() {
                 echo "$preferred"
             fi
             ;;
-        openrouter-glm5|openrouter-kimi|openrouter-deepseek)
+        openrouter-*)
             # v8.11.0: Model-specific OpenRouter → generic openrouter → codex → gemini
             if is_agent_available "openrouter"; then
                 [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: $preferred -> openrouter (model-specific unavailable)" || true

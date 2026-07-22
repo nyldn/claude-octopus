@@ -5,7 +5,7 @@
 # Replaces hardcoded fleet tables in skill files.
 #
 # Usage: build-fleet.sh <workflow> <intensity> [prompt]
-#   workflow:  research | review | security | architecture | debate
+#   workflow:  research | review | develop | security | architecture | debate
 #   intensity: quick | standard | deep
 #   prompt:    (optional) the user's prompt, used for context-aware assignment
 #
@@ -24,6 +24,11 @@ source "${SCRIPT_DIR}/../lib/provider-allowlist.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/../lib/auth.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/../lib/qwen.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/../lib/grok.sh" 2>/dev/null || true
+# The code-review pipeline owns the configured review-roster parser. Reuse it
+# here so skill-facing banners and the runtime dispatch cannot build different
+# fleets from the same providers.json.
+if ! declare -f log >/dev/null 2>&1; then log() { :; }; fi
+source "${SCRIPT_DIR}/../lib/review.sh" 2>/dev/null || true
 
 WORKFLOW="${1:-research}"
 INTENSITY="${2:-standard}"
@@ -257,6 +262,29 @@ build_research_fleet() {
 
 # ── Review Fleet ──────────────────────────────────────────────────────────────
 build_review_fleet() {
+    local configured_fleet=""
+    if declare -f _review_fleet_from_config >/dev/null 2>&1; then
+        configured_fleet=$(_review_fleet_from_config)
+    fi
+    if [[ -n "$configured_fleet" ]]; then
+        local configured_agent configured_role configured_specialty configured_label
+        while IFS=':' read -r configured_agent configured_role configured_specialty; do
+            configured_agent=${configured_agent//$'\r'/}
+            [[ -z "$configured_agent" ]] && continue
+            case "$configured_role" in
+                logic-reviewer) configured_label="Logic Reviewer" ;;
+                security-reviewer) configured_label="Security Reviewer" ;;
+                arch-reviewer) configured_label="Architecture Reviewer" ;;
+                cve-reviewer) configured_label="CVE Reviewer" ;;
+                diversity-reviewer) configured_label="Diversity Reviewer" ;;
+                *) configured_label="Configured Reviewer" ;;
+            esac
+            emit "$configured_agent" "$configured_label" \
+                "Review $PROMPT for ${configured_specialty:-the configured perspective}."
+        done <<< "$configured_fleet"
+        return 0
+    fi
+
     local logic_provider
     logic_provider=$(pick_provider "claude-sonnet" codex opencode copilot)
     [[ -n "$logic_provider" ]] && emit "$logic_provider" "Logic Reviewer" "Review for correctness and logic bugs, edge cases, regressions in: $PROMPT"
@@ -353,7 +381,7 @@ build_architecture_fleet() {
 # Normalize workflow name
 case "$WORKFLOW" in
     research|discover)     build_research_fleet ;;
-    review|security)       build_review_fleet ;;
+    review|develop|development|security) build_review_fleet ;;
     debate)                build_debate_fleet ;;
     architecture)          build_architecture_fleet ;;
     *)                     build_research_fleet ;;

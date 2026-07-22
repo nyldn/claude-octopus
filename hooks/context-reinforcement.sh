@@ -13,6 +13,8 @@ set -euo pipefail
 # the hook's logic already handles. See issue #313.
 _octo_hook_exit() { local c=$?; if [[ $c -ne 0 ]]; then echo "[hook:$(basename "$0")] exit $c" >&2 2>/dev/null || true; fi; return 0; }
 trap _octo_hook_exit EXIT
+_OCTO_HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$_OCTO_HOOK_DIR/../scripts/lib/python-runtime.sh" 2>/dev/null || true
 
 
 # Read JSON payload from stdin (required by hook protocol)

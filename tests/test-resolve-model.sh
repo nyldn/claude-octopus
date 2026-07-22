@@ -67,7 +67,7 @@ clear_model_cache() {
 
 # Test 1: Hard-coded defaults
 clear_model_cache
-assert_eq "$(resolve_octopus_model "codex" "codex")" "gpt-5.5" "Default codex"
+assert_eq "$(resolve_octopus_model "codex" "codex")" "gpt-5.6-sol" "Default codex"
 clear_model_cache
 assert_eq "$(resolve_octopus_model "gemini" "gemini")" "gemini-3.1-pro-preview" "Default gemini"
 

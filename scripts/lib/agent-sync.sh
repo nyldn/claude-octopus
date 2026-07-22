@@ -39,6 +39,18 @@ fleet_dispatch_end() {
 should_use_agent_teams() {
     local agent_type="$1"
 
+    # Native Agent Teams instructions are consumed only by the Claude Code host.
+    # Codex/Gemini/standalone subprocesses can have a recent Claude CLI installed
+    # (and therefore SUPPORTS_STABLE_AGENT_TEAMS=true) without any host-side Agent
+    # tool to pick up the instruction. In those hosts, invoke Claude CLI directly.
+    case "${OCTOPUS_HOST:-claude}" in
+        claude) ;;
+        *)
+            log "DEBUG" "Non-Claude host (${OCTOPUS_HOST:-unknown}) — skipping Agent Teams for $agent_type"
+            return 1
+            ;;
+    esac
+
     # P0-B fix: When orchestrate.sh runs as a Bash tool subprocess (not inside
     # Claude Code's native context), Agent Teams JSON instruction files are never
     # picked up and SubagentStop hooks never fire.  Probe phase sets this flag
@@ -243,8 +255,18 @@ ${provider_ctx}"
     # Capture output and exit code separately
     local output
     local exit_code
-    local temp_err="${RESULTS_DIR}/.tmp-agent-error-$$.err"
-    local temp_out="${RESULTS_DIR}/.tmp-agent-out-$$.out"
+    local temp_err
+    local temp_out
+    mkdir -p "${RESULTS_DIR}" 2>/dev/null || true
+    if ! temp_err=$(mktemp "${RESULTS_DIR}/.tmp-agent-error.XXXXXX"); then
+        log ERROR "Could not create isolated stderr capture for $agent_type"
+        return 1
+    fi
+    if ! temp_out=$(mktemp "${RESULTS_DIR}/.tmp-agent-out.XXXXXX"); then
+        log ERROR "Could not create isolated stdout capture for $agent_type"
+        rm -f "$temp_err"
+        return 1
+    fi
 
     # v8.10.0: Gemini uses stdin-based prompt delivery (Issue #25)
     # -p "" triggers headless mode; prompt content comes via stdin to avoid OS arg limits
@@ -265,8 +287,7 @@ ${provider_ctx}"
     local _quota_watcher_pid=""
     local _dispatch_pid=""
 
-    # Always init temp files so readers never fail on missing file.
-    mkdir -p "${RESULTS_DIR}" 2>/dev/null || true
+    # Always initialize the per-call files so readers never see stale content.
     > "$temp_err"
     > "$temp_out"
 

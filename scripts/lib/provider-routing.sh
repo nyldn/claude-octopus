@@ -15,7 +15,7 @@
 
 # Agent configurations
 # Models (Mar 2026) - Premium defaults for Design Thinking workflows:
-# - OpenAI GPT-5.x: gpt-5.5 (premium, OAuth+API), gpt-5.4-pro (API-key only), gpt-5.3-codex, gpt-5.3-codex-spark (fast),
+# - OpenAI GPT-5.x: gpt-5.6-sol (ChatGPT subscription default), gpt-5.5, gpt-5.4-pro (API-key only),
 # [EXTRACTED to lib/dispatch.sh in v9.7.7]
 
 # NOTE: get_agent_command_array() removed in v9.7.7 — was dead code with broken
@@ -26,6 +26,79 @@
 # Populates PROVIDER_ENV_ARRAY with argv tokens that limit environment
 # variables to essentials only. This stays safe when PATH contains spaces.
 # ═══════════════════════════════════════════════════════════════════════════════
+
+octopus_codex_home_isolation_enabled() {
+    case "${OCTOPUS_CODEX_ISOLATE_HOME:-auto}" in
+        1|true|yes|on) return 0 ;;
+        0|false|no|off) return 1 ;;
+    esac
+
+    case "$(uname -s 2>/dev/null || true)" in
+        MINGW*|MSYS*|CYGWIN*) return 0 ;;
+    esac
+    return 1
+}
+
+# Codex Desktop and the separately installed Codex CLI can be different
+# versions on Windows. Sharing models_cache.json across those versions can make
+# the CLI fail before dispatch. Keep auth/config synchronized while letting the
+# Octopus runtime own its model cache independently.
+octopus_prepare_codex_runtime_home() {
+    octopus_codex_home_isolation_enabled || return 0
+
+    local source_home="${OCTOPUS_CODEX_SOURCE_HOME:-$HOME/.codex}"
+    local runtime_home="${OCTOPUS_CODEX_HOME:-${WORKSPACE_DIR:-$HOME/.claude-octopus}/codex-home}"
+    local source_file target_file name
+
+    if [[ -n "${CODEX_HOME:-}" && -z "${OCTOPUS_CODEX_HOME:-}" \
+        && "$CODEX_HOME" != "$source_home" && "$CODEX_HOME" != "$runtime_home" ]]; then
+        return 0
+    fi
+    [[ "$runtime_home" != "$source_home" ]] || return 0
+
+    mkdir -p "$runtime_home" || {
+        echo "codex runtime home: cannot create $runtime_home" >&2
+        return 1
+    }
+    chmod 700 "$runtime_home" 2>/dev/null || true
+
+    for name in auth.json config.toml; do
+        source_file="$source_home/$name"
+        target_file="$runtime_home/$name"
+        [[ -f "$source_file" ]] || continue
+        if [[ ! -f "$target_file" ]] || ! cmp -s "$source_file" "$target_file"; then
+            cp -p "$source_file" "$target_file" || {
+                echo "codex runtime home: cannot synchronize $name" >&2
+                return 1
+            }
+            chmod 600 "$target_file" 2>/dev/null || true
+        fi
+    done
+
+    export CODEX_HOME="$runtime_home"
+}
+
+# A Codex CLI logged in through ChatGPT must not receive OPENAI_API_KEY from
+# Octopus's provider environment. Passing the key can silently change the
+# billing path from the user's subscription to metered API usage.
+octopus_codex_uses_chatgpt_auth() {
+    case "${OCTOPUS_CODEX_AUTH_MODE:-auto}" in
+        chatgpt|subscription|oauth) return 0 ;;
+        api|api-key|apikey) return 1 ;;
+    esac
+
+    local auth_file="${CODEX_HOME:-$HOME/.codex}/auth.json"
+    [[ -r "$auth_file" ]] || return 1
+    if command -v jq >/dev/null 2>&1; then
+        jq -e '.auth_mode == "chatgpt"' "$auth_file" >/dev/null 2>&1 && return 0
+        local jq_status=$?
+        # Native Windows jq cannot always open an MSYS /tmp path. A valid JSON
+        # false is definitive; parser/path failures fall through to grep.
+        [[ "$jq_status" -eq 1 ]] && return 1
+    fi
+    grep -Eq '"auth_mode"[[:space:]]*:[[:space:]]*"chatgpt"' "$auth_file" 2>/dev/null
+}
+
 build_provider_env() {
     local provider="$1"
     PROVIDER_ENV_ARRAY=()
@@ -49,7 +122,11 @@ build_provider_env() {
     # v9.2.1: Try resolving env vars before building isolated env (Issue #177)
     case "$provider" in
         codex*)
-            if [[ -z "${OPENAI_API_KEY:-}" ]]; then
+            octopus_prepare_codex_runtime_home || return 1
+            local _codex_subscription_auth=false
+            if octopus_codex_uses_chatgpt_auth; then
+                _codex_subscription_auth=true
+            elif [[ -z "${OPENAI_API_KEY:-}" ]]; then
                 resolve_provider_env "OPENAI_API_KEY" 2>/dev/null || true
             fi
 
@@ -67,7 +144,10 @@ build_provider_env() {
                 fi
             fi
 
-            PROVIDER_ENV_ARRAY=(env -i "PATH=$PATH" "HOME=$HOME" "OPENAI_API_KEY=${OPENAI_API_KEY:-}" "TMPDIR=${TMPDIR:-/tmp}")
+            PROVIDER_ENV_ARRAY=(env -i "PATH=$PATH" "HOME=$HOME" "TMPDIR=${TMPDIR:-/tmp}")
+            if [[ "$_codex_subscription_auth" != "true" && -n "${OPENAI_API_KEY:-}" ]]; then
+                PROVIDER_ENV_ARRAY+=("OPENAI_API_KEY=${OPENAI_API_KEY}")
+            fi
             if [[ -n "${CODEX_HOME:-}" ]]; then
                 PROVIDER_ENV_ARRAY+=("CODEX_HOME=${CODEX_HOME}")
             fi
@@ -203,6 +283,31 @@ resolve_provider_env() {
     # Already set — nothing to do
     [[ -n "${!var_name:-}" ]] && return 0
 
+    # Parse simple KEY=value / export KEY=value declarations without evaluating
+    # their files. ~/.bashrc is especially important on Windows, where the
+    # desktop app may predate a newly-set user environment variable and
+    # non-interactive Git Bash deliberately skips interactive startup files.
+    local direct_env_file direct_env_line direct_env_value
+    for direct_env_file in "$PWD/.env" "$HOME/.env" "$HOME/.bashrc"; do
+        [[ -f "$direct_env_file" ]] || continue
+        while IFS= read -r direct_env_line || [[ -n "$direct_env_line" ]]; do
+            direct_env_line=${direct_env_line%$'\r'}
+            if [[ "$direct_env_line" =~ ^[[:space:]]*(export[[:space:]]+)?${var_name}= ]]; then
+                direct_env_value=${direct_env_line#*=}
+                if [[ "$direct_env_value" == \"*\" && "$direct_env_value" == *\" ]]; then
+                    direct_env_value=${direct_env_value:1:${#direct_env_value}-2}
+                elif [[ "$direct_env_value" == \'*\' && "$direct_env_value" == *\' ]]; then
+                    direct_env_value=${direct_env_value:1:${#direct_env_value}-2}
+                fi
+                if [[ -n "$direct_env_value" ]]; then
+                    export "$var_name=$direct_env_value"
+                    log DEBUG "Resolved $var_name from $direct_env_file (non-interactive shell fallback)"
+                    return 0
+                fi
+            fi
+        done < "$direct_env_file"
+    done
+
     # Try sourcing from ~/.profile (login shell config, no interactive guard)
     # Use a sentinel to isolate the var value from any stdout the profile may emit
     if [[ -f "$HOME/.profile" ]]; then
@@ -257,7 +362,7 @@ migrate_provider_config() {
         
         # Extract existing model preferences to seed v3.0
         local codex_model gemini_model
-        codex_model=$(jq -r '.providers.codex.model // .providers.codex.default // "gpt-5.5"' "$config_file")
+        codex_model=$(jq -r '.providers.codex.model // .providers.codex.default // "gpt-5.6-sol"' "$config_file")
         gemini_model=$(jq -r '.providers.gemini.model // .providers.gemini.default // "gemini-3.1-pro-preview"' "$config_file")
         
         cat > "$tmp_file" << EOF
@@ -266,11 +371,11 @@ migrate_provider_config() {
   "providers": {
     "codex": {
       "default": "$codex_model",
-      "fallback": "gpt-5.5",
-      "spark": "gpt-5.5",
-      "mini": "gpt-5.4-mini",
-      "reasoning": "o3",
-      "large_context": "gpt-5.5"
+      "fallback": "gpt-5.6-sol",
+      "spark": "gpt-5.6-sol",
+      "mini": "gpt-5.6-sol",
+      "reasoning": "gpt-5.6-sol",
+      "large_context": "gpt-5.6-sol"
     },
     "gemini": {
       "default": "$gemini_model",
@@ -338,7 +443,7 @@ EOF
         local replacement=""
         case "$current_val" in
             claude-sonnet-4-5|claude-sonnet-4-5-20250514|claude-3-5-sonnet*|claude-sonnet-4*)
-                if [[ "$path" == *codex* ]]; then replacement="gpt-5.5"; fi ;;
+                if [[ "$path" == *codex* ]]; then replacement="gpt-5.6-sol"; fi ;;
             gemini-2.0-flash-thinking*|gemini-2.0-flash-exp*|gemini-exp-*)
                 replacement="gemini-3-flash-preview" ;;
             gemini-2.0-pro*|gemini-1.5-pro*|gemini-pro)
@@ -346,7 +451,7 @@ EOF
             gemini-3-pro-image-preview)
                 replacement="gemini-3-pro-image" ;;  # shutdown 2026-06-25 (codex review)
             gpt-4o*|gpt-4-turbo*|gpt-4-*|o1-*|chatgpt-*)
-                replacement="gpt-5.5" ;;
+                replacement="gpt-5.6-sol" ;;
         esac
 
         if [[ -n "$replacement" ]]; then
@@ -394,7 +499,7 @@ set_provider_model() {
     if ! validate_model_name "$model"; then
         echo "ERROR: Invalid model name: '$model'" >&2
         echo "  Model names must not contain shell metacharacters (spaces, ;, |, &, \$, \`, quotes)" >&2
-        echo "  Examples: gpt-5.5, gemini-3.1-pro-preview, claude-opus-4.6" >&2
+        echo "  Examples: gpt-5.6-sol, gemini-3.1-pro-preview, claude-opus-4.6" >&2
         return 1
     fi
 
@@ -406,12 +511,12 @@ set_provider_model() {
   "version": "3.0",
   "providers": {
     "codex": {
-      "default": "gpt-5.5",
-      "fallback": "gpt-5.5",
-      "spark": "gpt-5.5",
-      "mini": "gpt-5.4-mini",
-      "reasoning": "o3",
-      "large_context": "gpt-5.5"
+      "default": "gpt-5.6-sol",
+      "fallback": "gpt-5.6-sol",
+      "spark": "gpt-5.6-sol",
+      "mini": "gpt-5.6-sol",
+      "reasoning": "gpt-5.6-sol",
+      "large_context": "gpt-5.6-sol"
     },
     "gemini": {
       "default": "gemini-3.1-pro-preview",

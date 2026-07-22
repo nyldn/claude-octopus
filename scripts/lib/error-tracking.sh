@@ -250,6 +250,11 @@ classify_agent_output() {
         return 0
     fi
 
+    if [[ "$agent" == openrouter* ]] && grep -qiE '<[[:space:]]*(tool_call|function_call|function_calls)\b' "$output_file" 2>/dev/null; then
+        echo "failed:Unevaluated OpenRouter tool call"
+        return 0
+    fi
+
     if grep -q 'OUTPUT TRUNCATED' "$output_file" 2>/dev/null; then
         echo "degraded:Output truncated"
         return 0

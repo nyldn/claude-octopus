@@ -11,6 +11,11 @@
 # parse_review_md: reads REVIEW.md from repo root, outputs directive vars
 # WHY: CC Code Review supports REVIEW.md for customization; we match that
 # convention so repos already configured for CC work with /octo:review too.
+if ! type pathrt_canon_existing >/dev/null 2>&1; then
+    _octo_path_runtime_lib="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/path-runtime.sh"
+    [[ -f "$_octo_path_runtime_lib" ]] && source "$_octo_path_runtime_lib"
+fi
+
 parse_review_md() {
     local repo_root="${1:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
     local review_md="$repo_root/REVIEW.md"
@@ -62,84 +67,72 @@ _review_fleet_from_config() {
 
     local fleet=""
     local has_logic=false has_security=false has_arch=false has_cve=false has_diversity=false
+    local configured_allowlist=""
+    if declare -f octo_provider_allowlist_value >/dev/null 2>&1; then
+        configured_allowlist="$(octo_provider_allowlist_value)"
+    fi
 
     while IFS= read -r provider; do
+        # jq preserves CRLF from the host config on Windows. Normalize before
+        # exact matching so configured participants are not silently dropped.
+        provider=${provider//$'\r'/}
         [[ -z "$provider" ]] && continue
+        if [[ -n "$configured_allowlist" ]] && \
+           declare -f octo_provider_allowed >/dev/null 2>&1 && \
+           ! OCTO_ALLOWED_PROVIDERS="$configured_allowlist" octo_provider_allowed "$provider"; then
+            log WARN "review fleet: configured provider '$provider' excluded by provider allowlist"
+            continue
+        fi
         case "$provider" in
             codex|codex-*)
-                if [[ "$has_logic" == "false" ]]; then
-                    fleet+="${provider}:logic-reviewer:correctness and logic bugs, edge cases, regressions"$'\n'
-                    has_logic=true
-                fi
+                fleet+="${provider}:logic-reviewer:correctness and logic bugs, edge cases, regressions"$'\n'
+                has_logic=true
                 ;;
             opencode|opencode-*)
-                if [[ "$has_logic" == "false" ]]; then
-                    fleet+="${provider}:logic-reviewer:correctness and logic bugs, edge cases, regressions"$'\n'
-                    has_logic=true
-                fi
+                fleet+="${provider}:logic-reviewer:correctness and logic bugs, edge cases, regressions"$'\n'
+                has_logic=true
                 ;;
             gemini|gemini-*)
-                if [[ "$has_security" == "false" ]]; then
-                    fleet+="${provider}:security-reviewer:OWASP vulnerabilities, injection, auth flaws, data exposure"$'\n'
-                    has_security=true
-                fi
+                fleet+="${provider}:security-reviewer:OWASP vulnerabilities, injection, auth flaws, data exposure"$'\n'
+                has_security=true
                 ;;
             claude|claude-sonnet|claude-opus)
-                if [[ "$has_arch" == "false" ]]; then
-                    local agent="${provider}"
-                    [[ "$provider" == "claude" ]] && agent="claude-sonnet"
-                    fleet+="${agent}:arch-reviewer:architecture, integration, API contracts, breaking changes"$'\n'
-                    has_arch=true
-                fi
+                local agent="${provider}"
+                [[ "$provider" == "claude" ]] && agent="claude-opus"
+                fleet+="${agent}:arch-reviewer:architecture, integration, API contracts, breaking changes"$'\n'
+                has_arch=true
                 ;;
             perplexity|perplexity-*)
-                if [[ "$has_cve" == "false" ]]; then
-                    fleet+="${provider}:cve-reviewer:known CVEs, library advisories, live web search"$'\n'
-                    has_cve=true
-                fi
+                fleet+="${provider}:cve-reviewer:known CVEs, library advisories, live web search"$'\n'
+                has_cve=true
                 ;;
             openrouter|openrouter-*)
-                if [[ "$has_diversity" == "false" ]]; then
-                    fleet+="${provider}:diversity-reviewer:cross-family perspective on logic, missed assumptions, training-data divergence from primary providers"$'\n'
-                    has_diversity=true
-                fi
+                fleet+="${provider}:diversity-reviewer:cross-family perspective on logic, missed assumptions, training-data divergence from primary providers"$'\n'
+                has_diversity=true
                 ;;
             openai-compatible|openai-tools|openai-compatible-agent)
-                if [[ "$has_logic" == "false" ]]; then
-                    fleet+="${provider}:logic-reviewer:correctness and logic bugs, edge cases, regressions"$'\n'
-                    has_logic=true
-                elif [[ "$has_diversity" == "false" ]]; then
-                    fleet+="${provider}:diversity-reviewer:OpenAI-compatible independent review path"$'\n'
-                    has_diversity=true
-                fi
+                fleet+="${provider}:logic-reviewer:correctness and logic bugs, edge cases, regressions"$'\n'
+                has_logic=true
                 ;;
             qwen|qwen-*)
-                if [[ "$has_security" == "false" ]]; then
-                    fleet+="${provider}:security-reviewer:OWASP vulnerabilities, injection, auth flaws, data exposure"$'\n'
-                    has_security=true
-                elif [[ "$has_diversity" == "false" ]]; then
-                    fleet+="${provider}:diversity-reviewer:cross-family perspective on logic and assumptions"$'\n'
-                    has_diversity=true
-                fi
+                fleet+="${provider}:security-reviewer:OWASP vulnerabilities, injection, auth flaws, data exposure"$'\n'
+                has_security=true
                 ;;
             copilot|copilot-*)
-                if [[ "$has_cve" == "false" ]]; then
-                    fleet+="${provider}:cve-reviewer:known CVEs via web search, library advisories"$'\n'
-                    has_cve=true
-                elif [[ "$has_diversity" == "false" ]]; then
-                    fleet+="${provider}:diversity-reviewer:cross-perspective review"$'\n'
-                    has_diversity=true
-                fi
+                fleet+="${provider}:cve-reviewer:known CVEs via web search, library advisories"$'\n'
+                has_cve=true
                 ;;
         esac
     done <<< "$participants"
 
     [[ -z "$fleet" ]] && return 0
 
-    # Anchor: always include arch-reviewer (claude-sonnet) if config didn't supply one.
+    # Anchor: always include Claude's Fable-primary route if config omitted one.
     # Architecture context bridges per-finding noise from the specialist agents.
-    if [[ "$has_arch" == "false" ]]; then
-        fleet+="claude-sonnet:arch-reviewer:architecture, integration, API contracts, breaking changes"$'\n'
+    if [[ "$has_arch" == "false" ]] && \
+       { [[ -z "$configured_allowlist" ]] || \
+         OCTO_ALLOWED_PROVIDERS="$configured_allowlist" octo_provider_allowed claude; }; then
+        fleet+="claude-opus:arch-reviewer:architecture, integration, API contracts, breaking changes"$'\n'
     fi
 
     log INFO "review fleet: config-driven (.routing.features.review)"
@@ -187,8 +180,8 @@ build_review_fleet() {
         fleet+="claude-sonnet:security-reviewer:OWASP vulnerabilities, injection, auth flaws, data exposure"$'\n'
     fi
 
-    # arch-reviewer: claude-sonnet (always available — best at holistic analysis)
-    fleet+="claude-sonnet:arch-reviewer:architecture, integration, API contracts, breaking changes"$'\n'
+    # arch-reviewer: Fable 5 primary, Opus 4.8 only on model unavailability.
+    fleet+="claude-opus:arch-reviewer:architecture, integration, API contracts, breaking changes"$'\n'
 
     # cve-reviewer: Perplexity → Gemini search → Copilot → Qwen → claude WebSearch
     if command -v perplexity >/dev/null 2>&1 || [[ -n "${PERPLEXITY_API_KEY:-}" ]]; then
@@ -361,18 +354,31 @@ review_openai_compat_empty_output_retryable() {
     [[ "${reconnect_count%%$'\n'*}" -gt 0 ]] || return 1
 }
 
+review_openrouter_transport_retryable() {
+    local result_file="$1"
+    local agent_type="$2"
+    [[ "$agent_type" == openrouter-* ]] || return 1
+    review_result_has_terminal_status "$result_file" || return 1
+    review_result_completed_successfully "$result_file" && return 1
+    grep -Fq 'OpenRouter curl failed (timeout or network error' "$result_file" 2>/dev/null
+}
+
 review_result_has_terminal_status() {
     local result_file="$1"
-    local terminal_count
+    local terminal_count final_line
     [[ -f "$result_file" ]] || return 1
+    final_line=$(awk 'NF { line = $0 } END { print line }' "$result_file" 2>/dev/null || true)
+    [[ "$final_line" == '# Completed:'* ]] || return 1
     terminal_count=$(grep -cE '^## Status: (SUCCESS|FAILED|TIMEOUT)([[:space:](]|$)' "$result_file" 2>/dev/null || true)
     [[ "${terminal_count:-0}" -gt 0 ]]
 }
 
 review_result_completed_successfully() {
     local result_file="$1"
-    local final_status
+    local final_status final_line
     [[ -f "$result_file" ]] || return 1
+    final_line=$(awk 'NF { line = $0 } END { print line }' "$result_file" 2>/dev/null || true)
+    [[ "$final_line" == '# Completed:'* ]] || return 1
     final_status=$(awk '
         /^## Status: (SUCCESS|FAILED|TIMEOUT)([[:space:](]|$)/ {
             status = $0
@@ -393,11 +399,14 @@ review_wait_for_result_status() {
     local results_dir="${4:-${RESULTS_DIR:-${HOME}/.claude-octopus/results}}"
     local stall_window="${5:-${OCTOPUS_REVIEW_STALL_WINDOW:-1800}}"
     local poll_secs="${6:-${OCTOPUS_REVIEW_POLL_SECS:-30}}"
-    local poll_start last_progress last_fp current_fp
+    local poll_start last_progress last_fp current_fp exit_seen=0 now
+    local result_flush_grace="${OCTOPUS_REVIEW_RESULT_FLUSH_GRACE_SECS:-90}"
     [[ "$stall_window" =~ ^[0-9]+$ ]] || stall_window=1800
     [[ "$poll_secs" =~ ^[0-9]+$ ]] || poll_secs=30
+    [[ "$result_flush_grace" =~ ^[0-9]+$ ]] || result_flush_grace=90
     stall_window=$((10#$stall_window))
     poll_secs=$((10#$poll_secs))
+    result_flush_grace=$((10#$result_flush_grace))
     [[ "$poll_secs" -lt 1 ]] && poll_secs=1
     poll_start=$(date +%s)
     last_progress="$poll_start"
@@ -409,9 +418,18 @@ review_wait_for_result_status() {
             break
         fi
         if ! review_process_is_running "$pid"; then
-            log WARN "review_run: ${label} exited without a terminal status"
-            break
+            now=$(date +%s)
+            if [[ "$exit_seen" -eq 0 ]]; then
+                exit_seen="$now"
+                log INFO "review_run: ${label} provider exited; waiting up to ${result_flush_grace}s for result footer flush"
+            elif [[ $((now - exit_seen)) -ge "$result_flush_grace" ]]; then
+                log WARN "review_run: ${label} exited without a terminal status after ${result_flush_grace}s flush grace"
+                break
+            fi
+            sleep "$poll_secs"
+            continue
         fi
+        exit_seen=0
         current_fp=$(review_progress_fingerprint_since "$poll_start" "$results_dir" "$own_pattern")
         if [[ "$current_fp" != "$last_fp" ]]; then
             last_fp="$current_fp"
@@ -427,6 +445,51 @@ review_wait_for_result_status() {
     wait "$pid" 2>/dev/null || true
 }
 
+# Launch all Round 1 provider setup paths concurrently. Each
+# spawn_agent_capture_pid call performs model/auth/context setup before it can
+# return the actual provider PID; doing those calls serially made a four-seat
+# "parallel" review spend minutes launching one provider at a time on Windows.
+# The round1_* arrays are owned by review_run and resolved through Bash dynamic
+# scope, matching review_supervise_round1 below.
+# shellcheck disable=SC2154
+review_launch_round1_fleet() {
+    local setup_pids=() pid_receipts=()
+    local idx receipt setup_status captured_pid
+
+    round1_pids=()
+    idx=0
+    while [[ "$idx" -lt "${#round1_agent_types[@]}" ]]; do
+        receipt=$(mktemp "${TMPDIR:-/tmp}/octo-review-spawn.XXXXXX") || return 1
+        pid_receipts[$idx]="$receipt"
+        (
+            spawn_agent_capture_pid \
+                "${round1_agent_types[$idx]}" \
+                "${round1_prompts[$idx]}" \
+                "${round1_task_ids[$idx]}" \
+                "${round1_roles[$idx]}" \
+                "review" > "$receipt"
+        ) &
+        setup_pids[$idx]=$!
+        round1_pids[$idx]=""
+        ((idx++)) || true
+    done
+
+    idx=0
+    while [[ "$idx" -lt "${#setup_pids[@]}" ]]; do
+        setup_status=0
+        wait "${setup_pids[$idx]}" || setup_status=$?
+        captured_pid=$(awk '/^[0-9]+$/ { value=$1 } END { print value }' \
+            "${pid_receipts[$idx]}" 2>/dev/null || true)
+        rm -f "${pid_receipts[$idx]}"
+        if [[ "$setup_status" -eq 0 && "$captured_pid" =~ ^[0-9]+$ ]]; then
+            round1_pids[$idx]="$captured_pid"
+        else
+            log ERROR "review_run: Round 1 ${round1_agent_types[$idx]}/${round1_roles[$idx]} failed to launch"
+        fi
+        ((idx++)) || true
+    done
+}
+
 # review_supervise_round1: monitor each Round 1 provider independently so
 # progress from one provider cannot keep a stalled peer alive. The round1_*
 # arrays are intentionally resolved through Bash's dynamic function scope;
@@ -437,14 +500,18 @@ review_supervise_round1() {
     local review_poll_secs="$2"
     local results_dir="$3"
     local _poll_start _now _idx _rf _pid _current_fp _round1_active
+    local result_flush_grace="${OCTOPUS_REVIEW_RESULT_FLUSH_GRACE_SECS:-90}"
     local round1_last_progress=()
     local round1_last_fp=()
     local round1_settled=()
+    local round1_exit_seen=()
 
     [[ "$review_stall_window" =~ ^[0-9]+$ ]] || review_stall_window=1800
     [[ "$review_poll_secs" =~ ^[0-9]+$ ]] || review_poll_secs=30
+    [[ "$result_flush_grace" =~ ^[0-9]+$ ]] || result_flush_grace=90
     review_stall_window=$((10#$review_stall_window))
     review_poll_secs=$((10#$review_poll_secs))
+    result_flush_grace=$((10#$result_flush_grace))
     [[ "$review_poll_secs" -lt 1 ]] && review_poll_secs=1
 
     _poll_start=$(date +%s)
@@ -454,6 +521,7 @@ review_supervise_round1() {
         round1_last_progress[$_idx]="$_poll_start"
         round1_last_fp[$_idx]=$(review_progress_fingerprint_since "$_poll_start" "$results_dir" "$(basename "$_rf")*")
         round1_settled[$_idx]=false
+        round1_exit_seen[$_idx]=0
         ((_idx++)) || true
     done
 
@@ -475,11 +543,20 @@ review_supervise_round1() {
                 continue
             fi
             if ! review_process_is_running "$_pid"; then
-                log WARN "review_run: Round 1 ${round1_agent_types[$_idx]}/${round1_roles[$_idx]} exited without a terminal status"
-                round1_settled[$_idx]=true
+                if [[ "${round1_exit_seen[$_idx]:-0}" -eq 0 ]]; then
+                    round1_exit_seen[$_idx]="$_now"
+                    log INFO "review_run: Round 1 ${round1_agent_types[$_idx]}/${round1_roles[$_idx]} provider exited; waiting up to ${result_flush_grace}s for result footer flush"
+                elif [[ $((_now - ${round1_exit_seen[$_idx]})) -ge "$result_flush_grace" ]]; then
+                    log WARN "review_run: Round 1 ${round1_agent_types[$_idx]}/${round1_roles[$_idx]} exited without a terminal status after ${result_flush_grace}s flush grace"
+                    round1_settled[$_idx]=true
+                fi
+                if [[ "${round1_settled[$_idx]:-false}" != "true" ]]; then
+                    _round1_active=true
+                fi
                 ((_idx++)) || true
                 continue
             fi
+            round1_exit_seen[$_idx]=0
 
             _current_fp=$(review_progress_fingerprint_since "$_poll_start" "$results_dir" "$(basename "$_rf")*")
             if [[ "$_current_fp" != "${round1_last_fp[$_idx]}" ]]; then
@@ -510,20 +587,21 @@ review_supervise_round1() {
 # for the last JSON object with a findings array.
 review_extract_findings_array() {
     local review_md="$1"
-    local output_text direct_json
+    local output_text direct_json native_review_md
     [[ -f "$review_md" ]] || { echo "[]"; return 1; }
 
     output_text=$(awk '/^## Output$/{found=1;next} /^## /{if(found)exit} found && !/^```(json|JSON)?$/{print}' "$review_md" 2>/dev/null || true)
     if [[ -n "$output_text" ]]; then
         direct_json=$(printf '%s' "$output_text" | jq -cs '[.[] | objects | .findings | select(type == "array" and length > 0)] | last // []' 2>/dev/null || true)
-        if [[ -n "$direct_json" && "$direct_json" != "null" ]]; then
+        if [[ -n "$direct_json" && "$direct_json" != "null" && "$direct_json" != "[]" ]]; then
             printf '%s\n' "$direct_json"
             return 0
         fi
     fi
 
     if command -v python3 >/dev/null 2>&1; then
-        python3 - "$review_md" <<'PYEXTRACT'
+        native_review_md=$(pathrt_for_native "$review_md") || { echo "[]"; return 1; }
+        python3 - "$native_review_md" <<'PYEXTRACT'
 import json, sys
 from pathlib import Path
 path = Path(sys.argv[1])
@@ -565,7 +643,15 @@ PYEXTRACT
 review_local_synthesis_json() {
     local findings_json="$1"
     local warning="${2:-}"
-    local sort_filter='def severity_rank: if .severity == "normal" then 0 elif .severity == "nit" then 1 elif .severity == "pre-existing" then 2 else 3 end; sort_by(severity_rank)'
+    local sort_filter='def severity_rank: if .severity == "normal" then 0 elif .severity == "nit" then 1 elif .severity == "pre-existing" then 2 else 3 end;
+        def dedupe_findings:
+          group_by([(.file // ""), (.line // 0), (.category // ""), (.severity // "")])
+          | map(.[0] as $base
+              | $base + {
+                  detail: (map(.detail // empty) | unique | join("\n\nCorroborating provider perspective: ")),
+                  confidence: (map(.confidence // 0) | max)
+                });
+        dedupe_findings | sort_by(severity_rank)'
     if [[ -n "$warning" ]]; then
         printf '%s' "$findings_json" | jq -c --arg warning "$warning" "{findings:(. // [] | ${sort_filter}), warning:\$warning}" 2>/dev/null \
             || printf '{"findings":[],"warning":%s}\n' "$(printf '%s' "$warning" | jq -R .)"
@@ -613,64 +699,76 @@ print_provider_report() {
         return 0
     fi
 
-    # Determine status per provider
-    local codex_status="not used" gemini_status="not used" claude_status="✓ OK" perplexity_status="not used"
-    local codex_detail="" gemini_detail="" perplexity_detail=""
-    local had_fallback=false
+    # Collapse repeated round entries per exact executor alias. Preserve the
+    # configured fleet rather than projecting it onto the legacy four-provider
+    # dashboard, which hid OpenRouter GLM/Kimi successes.
+    local rows
+    rows=$(awk -F'|' '
+        function rank(s) {
+            if (s == "auth-failed" || s == "not-installed") return 4
+            if (s == "fallback" || s == "failed") return 3
+            if (s == "ok") return 1
+            return 2
+        }
+        {
+            provider = $1
+            detail = $3
+            for (i = 4; i <= NF; i++) detail = detail FS $i
+            if (!(provider in seen)) {
+                seen[provider] = 1
+                order[++count] = provider
+            }
+            if (!(provider in status) || rank($2) >= rank(status[provider])) {
+                status[provider] = $2
+                details[provider] = detail
+            }
+        }
+        END {
+            for (i = 1; i <= count; i++) {
+                provider = order[i]
+                print provider "|" status[provider] "|" details[provider]
+            }
+        }
+    ' "$status_file")
+    [[ -n "$rows" ]] || { rm -f "$status_file"; return 0; }
 
-    while IFS='|' read -r provider status detail; do
-        case "$provider" in
-            codex)
-                if [[ "$status" == "ok" ]]; then
-                    codex_status="✓ OK"
-                elif [[ "$status" == "fallback" ]]; then
-                    codex_status="✗ FALLBACK"
-                    codex_detail="$detail"
-                    had_fallback=true
-                elif [[ "$status" == "auth-failed" ]]; then
-                    codex_status="✗ AUTH FAILED"
-                    codex_detail="$detail"
-                    had_fallback=true
-                fi
-                ;;
-            gemini)
-                if [[ "$status" == "ok" ]]; then
-                    gemini_status="✓ OK"
-                elif [[ "$status" == "fallback" ]]; then
-                    gemini_status="✗ FALLBACK"
-                    gemini_detail="$detail"
-                    had_fallback=true
-                fi
-                ;;
-            perplexity)
-                if [[ "$status" == "ok" ]]; then
-                    perplexity_status="✓ OK"
-                elif [[ "$status" == "fallback" ]]; then
-                    perplexity_status="✗ FALLBACK"
-                    perplexity_detail="$detail"
-                    had_fallback=true
-                fi
-                ;;
-        esac
-    done < "$status_file"
+    local had_fallback=false
+    local provider status detail label display
 
     # Always print the report card
     echo ""
-    echo "┌─────────────────────────────────────────────┐"
-    echo "│ 🐙 Provider Status                          │"
-    echo "│                                             │"
-    printf "│ 🔴 Codex:      %-28s│\n" "$codex_status"
-    [[ -n "$codex_detail" ]] && printf "│    → %-38s│\n" "$codex_detail"
-    printf "│ 🟡 Gemini:     %-28s│\n" "$gemini_status"
-    [[ -n "$gemini_detail" ]] && printf "│    → %-38s│\n" "$gemini_detail"
-    printf "│ 🔵 Claude:     %-28s│\n" "$claude_status"
-    printf "│ 🟣 Perplexity: %-28s│\n" "$perplexity_status"
-    [[ -n "$perplexity_detail" ]] && printf "│    → %-38s│\n" "$perplexity_detail"
+    echo "+-----------------------------------------------------------------+"
+    echo "|  Octopus configured provider status                             |"
+    echo "+-----------------------------------------------------------------+"
+    while IFS='|' read -r provider status detail; do
+        case "$provider" in
+            codex)                 label="Codex" ;;
+            claude-opus)           label="Claude / Fable" ;;
+            claude*)               label="Claude / ${provider#claude-}" ;;
+            openrouter-glm52)      label="OpenRouter / GLM 5.2" ;;
+            openrouter-kimi-k3)    label="OpenRouter / Kimi K3" ;;
+            openrouter-*)          label="OpenRouter / ${provider#openrouter-}" ;;
+            gemini*)               label="Gemini" ;;
+            perplexity*)           label="Perplexity" ;;
+            *)                     label="$provider" ;;
+        esac
+        case "$status" in
+            ok)            display="OK" ;;
+            fallback)      display="FAILED / FALLBACK"; had_fallback=true ;;
+            auth-failed)   display="AUTH FAILED"; had_fallback=true ;;
+            not-installed) display="NOT INSTALLED"; had_fallback=true ;;
+            *)             display="${status:-UNKNOWN}"; had_fallback=true ;;
+        esac
+        printf "| %-29.29s %-31.31s |\n" "$label" "$display"
+        if [[ "$status" != "ok" && -n "$detail" ]]; then
+            printf "|   -> %-57.57s |\n" "$detail"
+        fi
+    done <<< "$rows"
     if [[ "$had_fallback" == "true" ]]; then
-        echo "│                                             │"
-        echo "│ ⚠ Some providers failed — run /octo:doctor  │"
+        echo "|                                                                 |"
+        echo "| Some providers failed - run /octo:doctor                       |"
     fi
-    echo "└─────────────────────────────────────────────┘"
+    echo "+-----------------------------------------------------------------+"
 
     # Persist failures for /octo:doctor
     if [[ "$had_fallback" == "true" ]]; then
@@ -724,8 +822,8 @@ review_run() {
     # v9.0: Preflight — check Codex auth before review pipeline
     if command -v codex >/dev/null 2>&1; then
         if ! check_codex_auth_freshness 2>/dev/null; then
-            log "WARN" "review_run: Codex auth may be stale — review fleet may fall back to claude-sonnet"
-            log "USER" "⚠ Codex auth check failed. Run 'codex auth' or /octo:doctor to fix. Falling back to claude-sonnet for Codex roles."
+            log "WARN" "review_run: Codex auth may be stale — configured Codex rounds may fail"
+            log "USER" "⚠ Codex auth check failed. Run 'codex auth' or /octo:doctor to fix. No unconfigured or fast alias will be substituted."
             echo "codex|auth-failed|Run: codex auth" >> "$provider_status_file"
         fi
     else
@@ -755,8 +853,8 @@ review_run() {
         local review_root=""
         local context_file_resolved=""
         review_root=$(git rev-parse --show-toplevel 2>/dev/null || pwd -P)
-        review_root=$(cd "$review_root" 2>/dev/null && pwd -P || printf '%s' "$review_root")
-        context_file_resolved=$(realpath "$context_file" 2>/dev/null || true)
+        review_root=$(pathrt_canon_existing "$review_root" 2>/dev/null || true)
+        context_file_resolved=$(pathrt_canon_existing "$context_file" 2>/dev/null || true)
         if [[ -z "$context_file_resolved" || ! -r "$context_file_resolved" ]]; then
             log ERROR "review_run: contextFile is not readable: $context_file"
             echo '{"findings":[],"warning":"contextFile is not readable"}' > "$findings_file"
@@ -769,9 +867,7 @@ review_run() {
             render_terminal_report "$findings_file"
             return 1
         fi
-        case "$context_file_resolved" in
-            "$review_root"|"$review_root"/*) ;;
-            *)
+        if [[ -z "$review_root" ]] || ! pathrt_within_existing "$review_root" "$context_file"; then
                 log ERROR "review_run: contextFile escapes workspace root: $context_file"
                 echo '{"findings":[],"warning":"contextFile escapes workspace root"}' > "$findings_file"
                 if [[ -n "$proof_dir" ]]; then
@@ -782,8 +878,7 @@ review_run() {
                 rm -f "$provider_status_file"
                 render_terminal_report "$findings_file"
                 return 1
-                ;;
-        esac
+        fi
         context_file="$context_file_resolved"
         local context_file_bytes="0"
         context_file_bytes=$(wc -c < "$context_file" 2>/dev/null | tr -d '[:space:]' || echo 0)
@@ -967,7 +1062,11 @@ CRITICAL OUTPUT FORMAT: Return ONLY a valid JSON object. No markdown, no prose, 
     fleet_dispatch_begin
     while IFS=: read -r agent_type role specialty; do
         [[ -z "$agent_type" ]] && continue
-        local task_id="review-r1-${role}-${timestamp}"
+        # Include the executor alias because multiple configured seats can share
+        # one role (for example GLM and Kimi are both diversity reviewers).
+        # spawn_agent derives raw/temp filenames from task_id alone, so a
+        # role-only ID lets concurrent providers overwrite each other's output.
+        local task_id="review-r1-${agent_type}-${role}-${timestamp}"
         # Use spawn_agent's actual output path convention: ${RESULTS_DIR}/${agent_type}-${task_id}.md
         local result_file="${RESULTS_DIR}/${agent_type}-${task_id}.md"
         round1_files+=("$result_file")
@@ -980,10 +1079,9 @@ CRITICAL OUTPUT FORMAT: Return ONLY a valid JSON object. No markdown, no prose, 
 ${agent_prompt_base}"
         round1_prompts+=("$agent_prompt")
 
-        local round1_pid
-        round1_pid=$(spawn_agent_capture_pid "$agent_type" "$agent_prompt" "$task_id" "$role" "review")
-        round1_pids+=("$round1_pid")
     done <<< "$fleet"
+
+    review_launch_round1_fleet
 
     fleet_dispatch_end
 
@@ -997,28 +1095,42 @@ ${agent_prompt_base}"
     # after a short pause.
     local openai_compat_empty_retry_max="${OCTOPUS_REVIEW_OPENAI_COMPAT_EMPTY_RETRY_MAX:-1}"
     local openai_compat_empty_retry_backoff="${OCTOPUS_REVIEW_OPENAI_COMPAT_EMPTY_RETRY_BACKOFF_SECS:-90}"
+    local openrouter_retry_max="${OCTOPUS_REVIEW_OPENROUTER_RETRY_MAX:-1}"
+    local openrouter_retry_backoff="${OCTOPUS_REVIEW_OPENROUTER_RETRY_BACKOFF_SECS:-5}"
     [[ "$openai_compat_empty_retry_max" =~ ^[0-9]+$ ]] || openai_compat_empty_retry_max=1
     [[ "$openai_compat_empty_retry_backoff" =~ ^[0-9]+$ ]] || openai_compat_empty_retry_backoff=90
+    [[ "$openrouter_retry_max" =~ ^[0-9]+$ ]] || openrouter_retry_max=1
+    [[ "$openrouter_retry_backoff" =~ ^[0-9]+$ ]] || openrouter_retry_backoff=5
     openai_compat_empty_retry_max=$((10#$openai_compat_empty_retry_max))
     openai_compat_empty_retry_backoff=$((10#$openai_compat_empty_retry_backoff))
-    if [[ "$openai_compat_empty_retry_max" -gt 0 ]]; then
+    openrouter_retry_max=$((10#$openrouter_retry_max))
+    openrouter_retry_backoff=$((10#$openrouter_retry_backoff))
+    if [[ "$openai_compat_empty_retry_max" -gt 0 || "$openrouter_retry_max" -gt 0 ]]; then
         local retry_idx=0
         while [[ "$retry_idx" -lt "${#round1_files[@]}" ]]; do
             local retry_file="${round1_files[$retry_idx]}"
             local retry_agent_type="${round1_agent_types[$retry_idx]}"
-            if review_openai_compat_empty_output_retryable "$retry_file" "$retry_agent_type"; then
-                local reconnect_count retry_role retry_task_id retry_prompt retry_result_file retry_pid archived_file
+            local retry_reason="" retry_backoff=0 reconnect_count=0
+            if [[ "$openai_compat_empty_retry_max" -gt 0 ]] && review_openai_compat_empty_output_retryable "$retry_file" "$retry_agent_type"; then
                 reconnect_count=$(grep -c 'Reconnecting' "$retry_file" 2>/dev/null || true)
                 reconnect_count=${reconnect_count:-0}
                 reconnect_count=${reconnect_count%%$'\n'*}
+                retry_reason="Empty output after ${reconnect_count} reconnect(s)"
+                retry_backoff="$openai_compat_empty_retry_backoff"
+            elif [[ "$openrouter_retry_max" -gt 0 ]] && review_openrouter_transport_retryable "$retry_file" "$retry_agent_type"; then
+                retry_reason="a transient OpenRouter transport failure"
+                retry_backoff="$openrouter_retry_backoff"
+            fi
+            if [[ -n "$retry_reason" ]]; then
+                local retry_role retry_task_id retry_prompt retry_result_file retry_pid archived_file
                 retry_role="${round1_roles[$retry_idx]}"
                 retry_task_id="${round1_task_ids[$retry_idx]}-retry1"
                 retry_result_file="${RESULTS_DIR}/${retry_agent_type}-${retry_task_id}.md"
                 archived_file="${retry_file}.attempt1"
                 mv "$retry_file" "$archived_file" 2>/dev/null || true
-                log WARN "review_run: ${retry_agent_type}/${retry_role} ended Empty output after ${reconnect_count} reconnect(s); retrying once after ${openai_compat_empty_retry_backoff}s (artifact=$(basename "$archived_file"))"
-                sleep "$openai_compat_empty_retry_backoff"
-                retry_prompt="RETRY NOTICE: the previous ${retry_agent_type}/${retry_role} review attempt ended with Empty output after adapter reconnects. Review only the supplied diff/context; do not inspect the workspace unless strictly necessary. Return ONLY the required JSON object.
+                log WARN "review_run: ${retry_agent_type}/${retry_role} ended with ${retry_reason}; retrying once after ${retry_backoff}s (artifact=$(basename "$archived_file"))"
+                sleep "$retry_backoff"
+                retry_prompt="RETRY NOTICE: the previous ${retry_agent_type}/${retry_role} review attempt ended with ${retry_reason}. Review only the supplied diff/context; do not inspect the workspace unless strictly necessary. Return ONLY the required JSON object.
 
 ${round1_prompts[$retry_idx]}"
                 spawn_agent "$retry_agent_type" "$retry_prompt" "$retry_task_id" "$retry_role" "review" &
@@ -1052,7 +1164,7 @@ ${round1_prompts[$retry_idx]}"
         local provider_key="${atype%%[-_]*}"
         if [[ ! -f "$f" ]]; then
             ((round1_partial_count++)) || true
-            echo "${provider_key}|fallback|Round 1 agent missing result" >> "$provider_status_file"
+            echo "${atype}|fallback|Round 1 agent missing result" >> "$provider_status_file"
             ((idx++)) || true
             continue
         fi
@@ -1081,9 +1193,9 @@ ${round1_prompts[$retry_idx]}"
         fi
         if ! review_result_completed_successfully "$f"; then
             ((round1_partial_count++)) || true
-            echo "${provider_key}|fallback|Round 1 agent did not complete successfully" >> "$provider_status_file"
+            echo "${atype}|fallback|Round 1 agent did not complete successfully" >> "$provider_status_file"
         else
-            echo "${provider_key}|ok|Round 1 completed" >> "$provider_status_file"
+            echo "${atype}|ok|Round 1 completed" >> "$provider_status_file"
         fi
         ((idx++)) || true
     done
@@ -1152,10 +1264,10 @@ Return ONLY valid JSON with 'findings' array including verdict field."
     verified_findings=$(review_run_agent_sync_progress "codex" "$verifier_prompt" "code-reviewer" "review" "verifier-codex") && {
         echo "codex|ok|Round 2 verification" >> "$provider_status_file"
     } || {
-        log WARN "review_run: codex verifier failed, falling back to claude-sonnet"
-        log "USER" "⚠ Round 2: Codex unavailable → claude-sonnet (fallback). Codex API usage will NOT change."
-        echo "codex|fallback|Round 2 → claude-sonnet" >> "$provider_status_file"
-        verified_findings=$(review_run_agent_sync_progress "claude-sonnet" "$verifier_prompt" "code-reviewer" "review" "verifier-claude-sonnet") || {
+        log WARN "review_run: codex verifier failed, using configured Claude Fable/Opus route"
+        log "USER" "⚠ Round 2: Codex unavailable → configured claude-opus route. No fast alias is used."
+        echo "codex|fallback|Round 2 → configured claude-opus" >> "$provider_status_file"
+        verified_findings=$(review_run_agent_sync_progress "claude-opus" "$verifier_prompt" "code-reviewer" "review" "verifier-claude-opus") || {
             log WARN "review_run: verification failed entirely, using all findings as confirmed"
             verified_findings="{\"findings\":$(echo "$all_findings" | \
                 jq 'map(. + {"verdict":"confirmed"})' 2>/dev/null || echo "[]")}"
@@ -1215,7 +1327,7 @@ Findings: $(echo "$confirmed_findings" | jq -c '.')
 Return ONLY JSON: {\"findings\": [...ranked, deduplicated findings...]}"
 
     local final_json synth_ok="true"
-    final_json=$(review_run_agent_sync_progress "claude-sonnet" "$synthesis_prompt" "code-reviewer" "review" "synthesis-claude-sonnet") || {
+    final_json=$(review_run_agent_sync_progress "claude-opus" "$synthesis_prompt" "code-reviewer" "review" "synthesis-claude-opus") || {
         synth_ok="false"
         log WARN "review_run: synthesis failed, using confirmed findings sorted as-is"
         final_json="$(review_local_synthesis_json "$confirmed_findings" "$round1_warning")"
@@ -1242,7 +1354,7 @@ Return ONLY JSON: {\"findings\": [...ranked, deduplicated findings...]}"
     if [[ "$synth_ok" == "true" ]] && declare -f octo_event_emit >/dev/null 2>&1; then
         local _synth_count
         _synth_count=$(printf '%s' "$final_json" | jq '.findings | length' 2>/dev/null || echo 0)
-        octo_event_emit "synthesis" phase="review" provider="claude-sonnet" provider_label_kind="legacy-alias" executor_alias="claude-sonnet" configured_provider="$(octo_provider_identity_from_agent_type "claude-sonnet")" configured_model="$(get_agent_model "claude-sonnet" "review" "synthesizer" 2>/dev/null || echo unresolved)" runtime_provider="unknown" runtime_model="unknown" council_role="synthesizer" synthesis_strategy="review" count="${_synth_count:-0}" || true
+        octo_event_emit "synthesis" phase="review" provider="claude-opus" provider_label_kind="configured-alias" executor_alias="claude-opus" configured_provider="$(octo_provider_identity_from_agent_type "claude-opus")" configured_model="$(get_agent_model "claude-opus" "review" "synthesizer" 2>/dev/null || echo unresolved)" runtime_provider="unknown" runtime_model="unknown" council_role="synthesizer" synthesis_strategy="review" count="${_synth_count:-0}" || true
     fi
 
     if [[ -n "$proof_dir" ]]; then
@@ -1457,6 +1569,6 @@ render_review_summary() {
     echo "| Nit | $nit_count |"
     echo "| Pre-existing | $preexisting_count |"
     echo ""
-    echo "_Reviewed by Codex + Gemini + Claude + Perplexity fleet_"
+    echo "_Reviewed by the configured multi-provider fleet_"
     echo "_See inline comments for details_"
 }

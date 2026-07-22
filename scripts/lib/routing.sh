@@ -41,7 +41,7 @@ resolve_provider_to_agent() {
                                 agent="$provider" ;;
         agy|agy-research|antigravity)
                                 agent="$provider" ;;
-        openrouter|openrouter-glm5|openrouter-kimi|openrouter-deepseek)
+        openrouter|openrouter-*)
                                 agent="$provider" ;;
         openai-compatible|openai-tools|openai-compatible-agent)
                                 agent="$provider" ;;

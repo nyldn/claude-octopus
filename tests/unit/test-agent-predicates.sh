@@ -50,6 +50,40 @@ else
     test_fail "should_use_agent_teams does not use is_claude_agent_type"
 fi
 
+test_case "Agent Teams dispatch is disabled on a Codex host"
+# shellcheck source=/dev/null
+source "$AGENT_SYNC"
+log() { :; }
+unset OCTOPUS_FORCE_LEGACY_DISPATCH
+OCTOPUS_HOST=codex
+OCTOPUS_AGENT_TEAMS=auto
+SUPPORTS_STABLE_AGENT_TEAMS=true
+if should_use_agent_teams "claude-opus"; then
+    test_fail "Codex-hosted spawn emitted an Agent Teams stub instead of invoking Claude CLI"
+else
+    test_pass
+fi
+
+test_case "Agent Teams native override cannot bypass non-Claude host safety"
+OCTOPUS_HOST=codex
+OCTOPUS_AGENT_TEAMS=native
+SUPPORTS_STABLE_AGENT_TEAMS=true
+if should_use_agent_teams "claude-opus"; then
+    test_fail "native override enabled an unconsumable Agent Teams instruction on Codex"
+else
+    test_pass
+fi
+
+test_case "Agent Teams remains available on a Claude host"
+OCTOPUS_HOST=claude
+OCTOPUS_AGENT_TEAMS=auto
+SUPPORTS_STABLE_AGENT_TEAMS=true
+if should_use_agent_teams "claude-opus"; then
+    test_pass
+else
+    test_fail "Claude host lost supported native Agent Teams dispatch"
+fi
+
 test_case "Claude agent availability uses the shared predicate for fast variants"
 # shellcheck source=/dev/null
 source "$MODEL_RESOLVER"

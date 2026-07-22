@@ -20,6 +20,8 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
 
 test_suite "Opus 4.8 Routing (v9.42)"
+export HOME="$TEST_TMP_DIR/opus-home"
+mkdir -p "$HOME"
 
 # dispatch.sh calls log() on its sandbox-validation error path; stub it so the
 # functions can run outside orchestrate.sh. _BARE_OPT is empty in normal runs.
@@ -172,10 +174,10 @@ test_effort_omitted_when_unsupported() {
     reset_env
     export SUPPORTS_EFFORT_COMMAND=false SUPPORTS_XHIGH_EFFORT=false
     local got; got="$(get_agent_command claude-opus develop)"
-    if [[ "$got" != *"CLAUDE_CODE_EFFORT_LEVEL="* && "$got" == *"--model opus"* ]]; then
+    if [[ "$got" != *"CLAUDE_CODE_EFFORT_LEVEL="* && "$got" == *"--model claude-opus-4-6"* ]]; then
         test_pass
     else
-        test_fail "expected plain '--model opus' with no effort prefix, got: $got"
+        test_fail "expected resolved 4.6 model with no effort prefix, got: $got"
     fi
 }
 

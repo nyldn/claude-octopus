@@ -18,6 +18,7 @@ get_model_catalog() {
     local model="$1"
     case "$model" in
         # OpenAI GPT-5.x
+        gpt-5.6-sol)            echo "400|yes|yes|yes|codex|premium|active" ;;
         gpt-5.5)                echo "400|yes|yes|no|codex|premium|active" ;;
         gpt-5.5-pro)            echo "400|yes|yes|no|codex|premium|active" ;;
         gpt-5.4)                echo "400|yes|yes|no|codex|premium|active" ;;
@@ -56,7 +57,9 @@ get_model_catalog() {
         composer-2)             echo "200|yes|no|no|cursor-agent|premium|active" ;;
         # OpenRouter
         z-ai/glm-5)             echo "203|yes|no|no|openrouter|standard|active" ;;
+        z-ai/glm-5.2)           echo "1000|yes|no|yes|openrouter|premium|active" ;;
         moonshotai/kimi-k2.5)   echo "262|yes|yes|no|openrouter|standard|active" ;;
+        moonshotai/kimi-k3)     echo "1000|yes|yes|yes|openrouter|premium|active" ;;
         deepseek/deepseek-r1-0528) echo "164|yes|no|yes|openrouter|standard|active" ;;
         # OpenCode (multi-provider router — models use opencode/<model> namespace)
         opencode/deepseek-v4-flash-free) echo "128|yes|no|no|opencode|budget|active" ;;
@@ -118,14 +121,14 @@ list_models() {
     done
 
     local -a all_models=(
-        gpt-5.5 gpt-5.5-pro gpt-5.4 gpt-5.4-pro gpt-5.3-codex gpt-5.2-codex
+        gpt-5.6-sol gpt-5.5 gpt-5.5-pro gpt-5.4 gpt-5.4-pro gpt-5.3-codex gpt-5.2-codex
         gpt-5.4-mini gpt-5.1-codex-max
         o3 o3-pro o3-mini
         gemini-3.1-pro-preview gemini-3.5-flash gemini-3.1-flash-lite gemini-3-flash-preview gemini-3-pro-image gemini-3.1-flash-image gemini-3-pro-image-preview
         agy/default
         claude-sonnet-4.6 claude-fable-5 claude-opus-4.8 claude-opus-4.8-fast claude-opus-4.7 claude-opus-4.6 claude-opus-4.6-fast
         grok-4-20 grok-4-20-thinking composer-2-fast composer-2
-        z-ai/glm-5 moonshotai/kimi-k2.5 deepseek/deepseek-r1-0528
+        z-ai/glm-5 z-ai/glm-5.2 moonshotai/kimi-k2.5 moonshotai/kimi-k3 deepseek/deepseek-r1-0528
         opencode/deepseek-v4-flash-free opencode/gpt-5.4 opencode/gpt-5.4-mini opencode/glm-5.1
         sonar-pro sonar
     )

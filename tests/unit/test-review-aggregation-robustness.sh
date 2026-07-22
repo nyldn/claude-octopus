@@ -201,10 +201,10 @@ if ! declare -F review_result_completed_successfully >/dev/null 2>&1; then
     test_fail "missing terminal success classifier"
 else
     printf '{"findings":[{"title":"partial"}]}\n' > "$TEST_TMP_DIR/partial.md"
-    printf '## Status: FAILED (exit code: 1)\n' > "$TEST_TMP_DIR/failed.md"
-    printf '## Status: SUCCESS\n' > "$TEST_TMP_DIR/success.md"
-    printf '## Status: SUCCESS\n## Status: FAILED (exit code: 1)\n' > "$TEST_TMP_DIR/success-then-failed.md"
-    printf '## Status: SUCCESS\n## Status: TIMEOUT\n' > "$TEST_TMP_DIR/success-then-timeout.md"
+    printf '## Status: FAILED (exit code: 1)\n# Completed: now\n' > "$TEST_TMP_DIR/failed.md"
+    printf '## Status: SUCCESS\n# Completed: now\n' > "$TEST_TMP_DIR/success.md"
+    printf '## Status: SUCCESS\n## Status: FAILED (exit code: 1)\n# Completed: now\n' > "$TEST_TMP_DIR/success-then-failed.md"
+    printf '## Status: SUCCESS\n## Status: TIMEOUT\n# Completed: now\n' > "$TEST_TMP_DIR/success-then-timeout.md"
     if ! review_result_completed_successfully "$TEST_TMP_DIR/partial.md" &&
        ! review_result_completed_successfully "$TEST_TMP_DIR/failed.md" &&
        ! review_result_completed_successfully "$TEST_TMP_DIR/success-then-failed.md" &&
@@ -214,6 +214,14 @@ else
     else
         test_fail "terminal success classifier accepted a partial or failed result"
     fi
+fi
+
+test_case "embedded prompt status is not a terminal result"
+printf 'Prompt context:\n## Status: SUCCESS\nprovider still running\n' > "$TEST_TMP_DIR/embedded-status.md"
+if ! review_result_has_terminal_status "$TEST_TMP_DIR/embedded-status.md"; then
+    test_pass
+else
+    test_fail "embedded prompt status ended supervision before provider completion"
 fi
 
 test_case "Round 1 supervisor accepts leading-zero decimal timing values"
@@ -269,7 +277,7 @@ bash -c '
         printf "%s\n" "$tick" >> "$1.progress"
         sleep 1
     done
-    printf "## Status: SUCCESS\n" > "$1"
+    printf "## Status: SUCCESS\n# Completed: now\n" > "$1"
     touch "$2"
 ' _ "$healthy_result" "$healthy_completed" &
 healthy_pid=$!
