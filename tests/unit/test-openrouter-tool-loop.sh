@@ -136,6 +136,11 @@ mod.configure_utf8_stdio(legacy_stdout)
 legacy_stdout.write("Kimi verdict: ❌")
 legacy_stdout.flush()
 assert raw.getvalue().decode("utf-8") == "Kimi verdict: ❌"
+
+prompt_bytes = io.BytesIO("Prompt marker: ❌".encode("utf-8"))
+legacy_stdin = io.TextIOWrapper(prompt_bytes, encoding="cp1252")
+mod.configure_utf8_stdio(legacy_stdin)
+assert legacy_stdin.read() == "Prompt marker: ❌"
 PYTEST
 
 source "$ROOT_DIR/scripts/lib/error-tracking.sh"

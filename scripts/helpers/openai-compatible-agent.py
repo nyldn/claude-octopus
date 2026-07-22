@@ -23,7 +23,7 @@ PROVIDERS = {
 
 
 def configure_utf8_stdio(*streams) -> None:
-    targets = streams or (sys.stdout, sys.stderr)
+    targets = streams or (sys.stdin, sys.stdout, sys.stderr)
     for stream in targets:
         reconfigure = getattr(stream, "reconfigure", None)
         if callable(reconfigure):
