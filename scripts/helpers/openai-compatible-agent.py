@@ -22,6 +22,17 @@ PROVIDERS = {
 }
 
 
+def configure_utf8_stdio(*streams) -> None:
+    targets = streams or (sys.stdout, sys.stderr)
+    for stream in targets:
+        reconfigure = getattr(stream, "reconfigure", None)
+        if callable(reconfigure):
+            try:
+                reconfigure(encoding="utf-8", errors="replace")
+            except (AttributeError, ValueError, OSError):
+                pass
+
+
 def env_int(name: str, default: int, minimum: int = 0) -> int:
     raw = os.environ.get(name, "")
     if raw == "":
@@ -187,6 +198,7 @@ def is_unevaluated_tool_text(content: str) -> bool:
     )
 
 def main() -> int:
+    configure_utf8_stdio()
     ap = argparse.ArgumentParser()
     ap.add_argument("--provider", choices=sorted(PROVIDERS), default="generic")
     ap.add_argument("--base-url"); ap.add_argument("--api-key-env"); ap.add_argument("--model")

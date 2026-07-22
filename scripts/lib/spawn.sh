@@ -847,7 +847,9 @@ ${heuristic_ctx}"
             else
                 # Clean stdout (e.g. codex exec) — pass through with noise filtering
                 # v9.15.1: Filter Gemini MCP status messages and CLI preamble from stdout
-                grep -v \
+                # Treat provider output as text and remove any embedded NULs so
+                # GNU grep never replaces a valid verdict with "Binary file ... matches".
+                LC_ALL=C tr -d '\000' < "$temp_output" | grep -a -v \
                     -e '^MCP issues detected' \
                     -e '^Loading extension:' \
                     -e '^YOLO mode is enabled' \

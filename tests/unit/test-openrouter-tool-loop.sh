@@ -117,6 +117,15 @@ assert stdout.getvalue().strip() == "NO FINDINGS"
 assert len(seen_tools) == 3
 assert all("git_status" in names for names in seen_tools)
 assert all("write_file" not in names and "run_command" not in names for names in seen_tools)
+
+# Windows redirected stdout defaults to a legacy code page on some systems.
+# Kimi commonly returns symbols outside cp1252; the helper must emit UTF-8.
+raw = io.BytesIO()
+legacy_stdout = io.TextIOWrapper(raw, encoding="cp1252")
+mod.configure_utf8_stdio(legacy_stdout)
+legacy_stdout.write("Kimi verdict: ❌")
+legacy_stdout.flush()
+assert raw.getvalue().decode("utf-8") == "Kimi verdict: ❌"
 PYTEST
 
 source "$ROOT_DIR/scripts/lib/error-tracking.sh"
@@ -128,5 +137,10 @@ if [[ "$classification" != failed:* ]]; then
     echo "FAIL: unevaluated OpenRouter tool text was classified as $classification" >&2
     exit 1
 fi
+
+grep -q "tr -d '\\\\000'.*grep -a -v" "$ROOT_DIR/scripts/lib/spawn.sh" || {
+    echo "FAIL: spawn output filtering can replace Unicode provider output with a binary-file notice" >&2
+    exit 1
+}
 
 echo "PASS: OpenRouter aliases use a read-only structured tool loop"

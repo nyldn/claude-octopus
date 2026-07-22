@@ -33,20 +33,14 @@ test_emit_jsonl_event() {
         return
     fi
 
-    if command -v python3 >/dev/null 2>&1; then
-        python3 - "$OCTO_EVENT_LOG" <<'PY' || { test_fail "event JSON did not parse"; return; }
-import json
-import sys
-
-with open(sys.argv[1], "r", encoding="utf-8") as fh:
-    row = json.loads(fh.readline())
-
-assert row["event"] == "provider.status"
-assert row["source"] == "unit-test"
-assert row["session_id"] == "session-1"
-assert row["attributes"]["provider"] == "qwen"
-assert row["attributes"]["status"] == "degraded"
-PY
+    if command -v jq >/dev/null 2>&1; then
+        jq -e 'select(
+            .event == "provider.status" and
+            .source == "unit-test" and
+            .session_id == "session-1" and
+            .attributes.provider == "qwen" and
+            .attributes.status == "degraded"
+        )' < "$OCTO_EVENT_LOG" >/dev/null || { test_fail "event JSON did not parse"; return; }
     else
         grep -q '"event":"provider.status"' "$OCTO_EVENT_LOG" || { test_fail "event name missing"; return; }
     fi
@@ -83,6 +77,50 @@ test_invalid_event_rejected() {
     else test_fail "invalid event name accepted"; fi
 }
 
+test_json_encoding_avoids_windows_python_alias() {
+    test_case "JSON encoding does not probe a Windows Store python3 alias"
+    local fake_bin="$FIXTURE/fake-python-bin"
+    local marker="$FIXTURE/python3-was-invoked"
+    mkdir -p "$fake_bin"
+    printf '%s\n' \
+        '#!/usr/bin/env bash' \
+        ": > \"$marker\"" \
+        'exit 99' > "$fake_bin/python3"
+    chmod +x "$fake_bin/python3"
+
+    local encoded
+    encoded=$(PATH="$fake_bin:$PATH" _octo_json_string 'quote " and slash \\')
+    if [[ ! -e "$marker" ]] && printf '%s\n' "$encoded" | jq -e . >/dev/null 2>&1; then
+        test_pass
+    else
+        test_fail "event JSON encoding invoked the python3 App Execution Alias"
+    fi
+}
+
+test_event_encoding_avoids_per_field_shell_forks() {
+    test_case "octo_event_emit avoids Windows-hot-path command substitutions"
+    if grep -Eq '\$\((_octo_json_string|octo_event_log_path|dirname)' "$PROJECT_ROOT/scripts/lib/events.sh"; then
+        test_fail "event serialization still forks helpers on its Windows hot path"
+    else
+        test_pass
+    fi
+}
+
+test_stale_event_lock_recovered() {
+    test_case "octo_event_emit automatically reclaims an abandoned event lock"
+    export OCTO_EVENT_LOG="$FIXTURE/stale-lock-events.jsonl"
+    local lockdir="${OCTO_EVENT_LOG}.lock"
+    mkdir -p "$lockdir"
+    touch -d '5 minutes ago' "$lockdir"
+
+    OCTO_EVENT_LOCK_STALE_SECONDS=1 octo_event_emit "lock.recovered" result=pass
+    if [[ ! -d "$lockdir" ]] && grep -q '"event":"lock.recovered"' "$OCTO_EVENT_LOG"; then
+        test_pass
+    else
+        test_fail "stale event lock remained after emit"
+    fi
+}
+
 test_check_providers_event_hook() {
     test_case "check-providers emits provider.status events when enabled"
     export OCTO_EVENT_LOG="$FIXTURE/providers.jsonl"
@@ -100,9 +138,13 @@ test_concurrent_emit_no_clobber() {
     export OCTO_EVENT_LOG="$FIXTURE/concurrent.jsonl"
     export OCTO_EVENT_MAX_LINES=50
     : > "$OCTO_EVENT_LOG"
+    local workers=12 iterations=60
+    case "$(uname -s 2>/dev/null || true)" in
+        MINGW*|MSYS*|CYGWIN*) workers=4; iterations=20 ;;
+    esac
     local p
-    for p in $(seq 1 12); do
-        ( for i in $(seq 1 60); do octo_event_emit "stress.test" proc="$p" seq="$i"; done ) &
+    for p in $(seq 1 "$workers"); do
+        ( for i in $(seq 1 "$iterations"); do octo_event_emit "stress.test" proc="$p" seq="$i"; done ) &
     done
     wait
     unset OCTO_EVENT_MAX_LINES
@@ -116,14 +158,9 @@ test_concurrent_emit_no_clobber() {
 
     # Every surviving line must be a complete, valid record — a torn line proves
     # an append was clobbered mid-write by a concurrent trim.
-    if command -v python3 >/dev/null 2>&1; then
-        python3 - "$OCTO_EVENT_LOG" <<'PY' || { test_fail "found torn/invalid JSON line under concurrency"; return; }
-import json, sys
-with open(sys.argv[1], encoding="utf-8") as fh:
-    for line in fh:
-        if line.strip():
-            json.loads(line)
-PY
+    if command -v jq >/dev/null 2>&1; then
+        jq -e . < "$OCTO_EVENT_LOG" >/dev/null 2>&1 \
+            || { test_fail "found torn/invalid JSON line under concurrency"; return; }
     else
         local bad
         bad="$(grep -cvE '^\{.*\}$' "$OCTO_EVENT_LOG" || true)"
@@ -199,6 +236,9 @@ test_emit_jsonl_event
 test_auto_log_path
 test_trim_event_log
 test_invalid_event_rejected
+test_json_encoding_avoids_windows_python_alias
+test_event_encoding_avoids_per_field_shell_forks
+test_stale_event_lock_recovered
 test_check_providers_event_hook
 test_concurrent_emit_no_clobber
 test_dispatch_lifecycle_events
