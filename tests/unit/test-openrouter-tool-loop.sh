@@ -16,6 +16,11 @@ source "$ROOT_DIR/scripts/lib/model-resolver.sh"
 source "$ROOT_DIR/scripts/lib/dispatch.sh"
 source "$ROOT_DIR/scripts/lib/utils.sh"
 
+"$ROOT_DIR/scripts/helpers/openai-compatible-agent.sh" --help >/dev/null || {
+    echo "FAIL: Git Bash wrapper did not translate its MSYS helper path for native Python" >&2
+    exit 1
+}
+
 glm_cmd="$(get_agent_command openrouter-glm52 review reviewer)"
 kimi_cmd="$(get_agent_command openrouter-kimi-k3 review reviewer)"
 
