@@ -39,6 +39,18 @@ fleet_dispatch_end() {
 should_use_agent_teams() {
     local agent_type="$1"
 
+    # Native Agent Teams instructions are consumed only by the Claude Code host.
+    # Codex/Gemini/standalone subprocesses can have a recent Claude CLI installed
+    # (and therefore SUPPORTS_STABLE_AGENT_TEAMS=true) without any host-side Agent
+    # tool to pick up the instruction. In those hosts, invoke Claude CLI directly.
+    case "${OCTOPUS_HOST:-claude}" in
+        claude) ;;
+        *)
+            log "DEBUG" "Non-Claude host (${OCTOPUS_HOST:-unknown}) — skipping Agent Teams for $agent_type"
+            return 1
+            ;;
+    esac
+
     # P0-B fix: When orchestrate.sh runs as a Bash tool subprocess (not inside
     # Claude Code's native context), Agent Teams JSON instruction files are never
     # picked up and SubagentStop hooks never fire.  Probe phase sets this flag
