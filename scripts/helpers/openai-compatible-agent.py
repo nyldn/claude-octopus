@@ -33,6 +33,17 @@ def configure_utf8_stdio(*streams) -> None:
                 pass
 
 
+def normalize_cli_path(value: str) -> str:
+    if os.name != "nt":
+        return value
+    match = re.match(r"^/(?:cygdrive/)?([A-Za-z])(?:/(.*))?$", value)
+    if not match:
+        return value
+    drive = match.group(1).upper()
+    tail = (match.group(2) or "").replace("/", "\\")
+    return f"{drive}:\\{tail}"
+
+
 def env_int(name: str, default: int, minimum: int = 0) -> int:
     raw = os.environ.get(name, "")
     if raw == "":
@@ -224,7 +235,7 @@ def main() -> int:
     max_tokens = env_int("OPENAI_COMPAT_MAX_TOKENS", 1400, 0)
     request_timeout = env_float("OPENAI_COMPAT_REQUEST_TIMEOUT", 60.0)
     max_retries = env_int("OPENAI_COMPAT_MAX_RETRIES", 3, 1)
-    cwd = Path(args.cwd).resolve(); prompt = args.prompt if args.prompt is not None else sys.stdin.read()
+    cwd = Path(normalize_cli_path(args.cwd)).resolve(); prompt = args.prompt if args.prompt is not None else sys.stdin.read()
     system_prompt = (
         "You are a read-only code-review agent. Use the provided structured tools to inspect the worktree. "
         "Never modify files. Do not stop after announcing what you will inspect and never print tool calls as text. "

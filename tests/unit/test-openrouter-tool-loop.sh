@@ -67,6 +67,11 @@ spec.loader.exec_module(mod)
 
 assert mod.PROVIDERS["openrouter"]["base_url"] == "https://openrouter.ai/api/v1"
 assert mod.PROVIDERS["openrouter"]["api_key_env"] == "OPENROUTER_API_KEY"
+if os.name == "nt":
+    assert mod.normalize_cli_path("/c/Users/Wado/project") == r"C:\Users\Wado\project"
+    assert mod.normalize_cli_path("/cygdrive/d/work") == r"D:\work"
+else:
+    assert mod.normalize_cli_path("/c/Users/Wado/project") == "/c/Users/Wado/project"
 
 readonly_names = {
     item["function"]["name"] for item in mod.tools_for_mode("readonly")
