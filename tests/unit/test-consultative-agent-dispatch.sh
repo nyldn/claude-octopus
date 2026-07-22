@@ -7,16 +7,17 @@ source "$PROJECT_ROOT/scripts/lib/agent-sync.sh"
 
 test_suite "Consultative Agent Dispatch"
 
-TEST_ROOT="/tmp/octopus-consultative-test-$$"
-SOURCE_ROOT="$TEST_ROOT/source"
-OBSERVED_FILE="$TEST_ROOT/observed"
+TEST_TMP_DIR="/tmp/octopus-tests-$$"
+SOURCE_ROOT="$TEST_TMP_DIR/source"
+OBSERVED_FILE="$TEST_TMP_DIR/observed"
 mkdir -p "$SOURCE_ROOT"
 printf '%s\n' original > "$SOURCE_ROOT/protected.txt"
-trap 'rm -rf "$TEST_ROOT"' EXIT
+cleanup() { rm -rf "$TEST_TMP_DIR"; }
+trap cleanup EXIT INT TERM HUP
 
 _octopus_prepare_consultative_workspace() {
     local source_root="$1" temp_root workspace
-    temp_root="$(mktemp -d "$TEST_ROOT/workspace.XXXXXX")"
+    temp_root="$(mktemp -d "$TEST_TMP_DIR/workspace.XXXXXX")"
     workspace="$temp_root/workspace"
     mkdir -p "$workspace"
     cp -a "$source_root/." "$workspace/"
@@ -47,7 +48,7 @@ else
     test_fail "consultative isolation policy was not enforced: $output"
 fi
 
-test_case "consultative writes do not reach the source checkout"
+test_case "relative consultative writes remain in the disposable workspace"
 if [[ "$(cat "$SOURCE_ROOT/protected.txt")" == "original" ]]; then
     test_pass
 else
@@ -55,7 +56,8 @@ else
 fi
 
 test_case "prompt paths are rewritten to the disposable workspace"
-if [[ "$output" != *"prompt=inspect $SOURCE_ROOT/protected.txt"* && "$output" == *"prompt=inspect "*"/workspace/protected.txt"* ]]; then
+physical_source_root="$(cd "$SOURCE_ROOT" && pwd -P)"
+if [[ "$output" != *"prompt=inspect $SOURCE_ROOT/protected.txt"* && "$output" != *"prompt=inspect $physical_source_root/protected.txt"* && "$output" == *"prompt=inspect "*"/workspace/protected.txt"* ]]; then
     test_pass
 else
     test_fail "source checkout path remained in the agent task: $output"
@@ -76,7 +78,7 @@ if run_agent_sync_consultative codex "inspect $SOURCE_ROOT/protected.txt" 120 im
 else
     rc=$?
 fi
-if [[ "$rc" -eq 7 && "$(pwd -P)" == "$SOURCE_ROOT" && "$(cat "$SOURCE_ROOT/protected.txt")" == "original" && -z "${OCTOPUS_SECURITY_V870+x}" && -z "${OCTOPUS_GEMINI_SANDBOX+x}" && -z "${OCTOPUS_AGY_SANDBOX+x}" && -z "${OCTOPUS_CODEX_SANDBOX+x}" && -z "${CLAUDE_OCTOPUS_AUTONOMY+x}" ]]; then
+if [[ "$rc" -eq 7 && "$(pwd -P)" == "$physical_source_root" && "$(cat "$SOURCE_ROOT/protected.txt")" == "original" && -z "${OCTOPUS_SECURITY_V870+x}" && -z "${OCTOPUS_GEMINI_SANDBOX+x}" && -z "${OCTOPUS_AGY_SANDBOX+x}" && -z "${OCTOPUS_CODEX_SANDBOX+x}" && -z "${CLAUDE_OCTOPUS_AUTONOMY+x}" ]]; then
     test_pass
 else
     test_fail "failure cleanup/restoration incorrect: rc=$rc pwd=$(pwd -P)"
