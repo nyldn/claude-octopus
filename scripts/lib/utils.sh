@@ -181,13 +181,19 @@ _validate_openai_compatible_agent_command() {
     read -r -a parts <<< "$cmd"
 
     [[ "${#parts[@]}" -ge 7 ]] || return 1
-    [[ "${parts[0]}" == */scripts/helpers/openai-compatible-agent.py ]] || return 1
+    case "${parts[0]}" in
+        */scripts/helpers/openai-compatible-agent.py|*/scripts/helpers/openai-compatible-agent.sh) ;;
+        *) return 1 ;;
+    esac
 
     local provider=""
+    local base_url=""
+    local api_key_env=""
     local model=""
     local cwd=""
     local reasoning_effort=""
     local reasoning_policy=""
+    local tool_mode=""
     local i=1
 
     while [[ $i -lt ${#parts[@]} ]]; do
@@ -196,8 +202,25 @@ _validate_openai_compatible_agent_command() {
         local value="${parts[$((i + 1))]}"
         case "$flag" in
             --provider)
-                [[ -z "$provider" && "$value" == "generic" ]] || return 1
+                [[ -z "$provider" ]] || return 1
+                case "$value" in
+                    generic|openrouter|atlascloud) ;;
+                    *) return 1 ;;
+                esac
                 provider="$value"
+                ;;
+            --base-url)
+                [[ -z "$base_url" ]] || return 1
+                _octopus_is_safe_openai_compatible_value "$value" || return 1
+                case "$value" in
+                    http://*|https://*) ;;
+                    *) return 1 ;;
+                esac
+                base_url="$value"
+                ;;
+            --api-key-env)
+                [[ -z "$api_key_env" && "$value" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 1
+                api_key_env="$value"
                 ;;
             --model)
                 [[ -z "$model" ]] || return 1
@@ -221,6 +244,13 @@ _validate_openai_compatible_agent_command() {
                 [[ -z "$reasoning_policy" ]] || return 1
                 case "$value" in
                     strict|best_effort) reasoning_policy="$value" ;;
+                    *) return 1 ;;
+                esac
+                ;;
+            --tool-mode)
+                [[ -z "$tool_mode" ]] || return 1
+                case "$value" in
+                    full|readonly) tool_mode="$value" ;;
                     *) return 1 ;;
                 esac
                 ;;
@@ -256,7 +286,7 @@ validate_agent_command() {
     # appear later in the command string. OpenAI-compatible helper arguments are
     # validated strictly because model and cwd values are interpolated into the
     # command returned by dispatch.
-    if [[ "$cmd_executable" == */scripts/helpers/openai-compatible-agent.py ]]; then
+    if [[ "$cmd_executable" == */scripts/helpers/openai-compatible-agent.py || "$cmd_executable" == */scripts/helpers/openai-compatible-agent.sh ]]; then
         _validate_openai_compatible_agent_command "$cmd"
         return $?
     fi

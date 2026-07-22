@@ -136,8 +136,15 @@ write_agent_result_header() {
     } > "$result_file"
 }
 
+# Second-resolution timestamps collide when several independent orchestrate.sh
+# processes start together. Include process and random entropy while keeping the
+# leading epoch for operator readability and chronological sorting.
+octopus_new_task_id() {
+    printf '%s-%s-%s\n' "$(date +%s)" "${BASHPID:-$$}" "${RANDOM:-0}"
+}
+
 spawn_agent() {
-    local _ts; _ts=$(date +%s)
+    local _ts; _ts=$(octopus_new_task_id)
     local agent_type="$1"
     local prompt="$2"
     local task_id="${3:-$_ts}"
@@ -640,9 +647,12 @@ ${heuristic_ctx}"
 
         # IMPROVED: Use temp files for reliable output capture (v7.13.2 - Issue #10)
         # v7.19.0 P0.1: Real-time output streaming to result file
-        local temp_output="${RESULTS_DIR}/.tmp-${task_id}.out"
-        local temp_errors="${RESULTS_DIR}/.tmp-${task_id}.err"
-        local raw_output="${RESULTS_DIR}/.raw-${task_id}.out"  # Backup of unfiltered output
+        # A caller may deliberately reuse a group/task ID across providers. Keep
+        # provider subprocess capture isolated even in that case.
+        local capture_id="${agent_type}-${task_id}"
+        local temp_output="${RESULTS_DIR}/.tmp-${capture_id}.out"
+        local temp_errors="${RESULTS_DIR}/.tmp-${capture_id}.err"
+        local raw_output="${RESULTS_DIR}/.raw-${capture_id}.out"  # Backup of unfiltered output
 
         # Update task progress with context-aware spinner verb (v7.16.0 Feature 1)
         if [[ -n "$CLAUDE_TASK_ID" ]]; then
@@ -1151,7 +1161,7 @@ ${heuristic_ctx}"
 spawn_agent_capture_pid() {
     local agent_type="$1"
     local prompt="$2"
-    local task_id="${3:-$(date +%s)}"
+    local task_id="${3:-$(octopus_new_task_id)}"
     local role="${4:-}"
     local phase="${5:-}"
     local use_fork="${6:-false}"

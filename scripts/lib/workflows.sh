@@ -156,9 +156,10 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
         cmd_array=("${inner_cmd_array[@]}")
     fi
 
-    local temp_output="${RESULTS_DIR}/.tmp-${task_id}.out"
-    local temp_errors="${RESULTS_DIR}/.tmp-${task_id}.err"
-    local raw_output="${RESULTS_DIR}/.raw-${task_id}.out"
+    local capture_id="${agent_type}-${task_id}"
+    local temp_output="${RESULTS_DIR}/.tmp-${capture_id}.out"
+    local temp_errors="${RESULTS_DIR}/.tmp-${capture_id}.err"
+    local raw_output="${RESULTS_DIR}/.raw-${capture_id}.out"
 
     # Write result file header
     echo "# Agent: $agent_type" > "$result_file"

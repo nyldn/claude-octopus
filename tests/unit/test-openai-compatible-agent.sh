@@ -55,7 +55,7 @@ fi
 
 test_case "openai-compatible-agent dispatch uses generic helper and cwd"
 cmd=$(HOME="$TEST_HOME" USER="octo-test-$$" CLAUDE_CODE_SESSION="compat-cmd" PWD="/tmp/octo-cwd" OPENAI_COMPAT_MODEL="vendor/model-fast" get_agent_command openai-compatible-agent 2>/dev/null)
-if assert_contains "$cmd" "scripts/helpers/openai-compatible-agent.py" "helper path" &&
+if assert_contains "$cmd" "scripts/helpers/openai-compatible-agent.sh" "helper path" &&
    assert_contains "$cmd" "--provider generic" "generic provider" &&
    assert_contains "$cmd" "--model vendor/model-fast" "configured model" &&
    assert_contains "$cmd" "--cwd /tmp/octo-cwd" "cwd flag"; then
@@ -216,7 +216,7 @@ fi
 
 test_case "openai-tools alias dispatches through generic helper"
 cmd=$(HOME="$TEST_HOME" USER="octo-test-$$" CLAUDE_CODE_SESSION="compat-tools-alias" PWD="/tmp/octo-cwd" OPENAI_COMPAT_MODEL="vendor/model-fast" get_agent_command openai-tools 2>/dev/null)
-if assert_contains "$cmd" "scripts/helpers/openai-compatible-agent.py" "helper path" &&
+if assert_contains "$cmd" "scripts/helpers/openai-compatible-agent.sh" "helper path" &&
    assert_contains "$cmd" "--provider generic" "generic provider" &&
    assert_contains "$cmd" "--model vendor/model-fast" "configured model"; then
     test_pass

@@ -298,9 +298,21 @@ get_agent_command() {
         claude-opus-legacy) echo "${_claude_bin}${_BARE_OPT} --print --model claude-opus-4-6 ${claude_perm}" ;; # v9.23: explicit 4.6 opt-in
         openrouter) echo "openrouter_execute" ;;                 # OpenRouter API (v4.8)
         openrouter-glm5) echo "openrouter_execute_model z-ai/glm-5" ;;           # v8.11.0: GLM-5 via OpenRouter
-        openrouter-glm52) echo "openrouter_execute_model z-ai/glm-5.2" ;;        # GLM 5.2 via OpenRouter
+        openrouter-glm52)
+            if ! _octopus_is_safe_openai_compatible_dispatch_value "${PWD}"; then
+                log ERROR "Invalid OpenRouter cwd: ${PWD}"
+                return 1
+            fi
+            echo "${PLUGIN_DIR}/scripts/helpers/openai-compatible-agent.sh --provider openrouter --model z-ai/glm-5.2 --tool-mode readonly --cwd ${PWD}"
+            ;;
         openrouter-kimi) echo "openrouter_execute_model moonshotai/kimi-k2.5" ;; # v8.11.0: Kimi K2.5 via OpenRouter
-        openrouter-kimi-k3) echo "openrouter_execute_model moonshotai/kimi-k3" ;; # Kimi K3 via OpenRouter
+        openrouter-kimi-k3)
+            if ! _octopus_is_safe_openai_compatible_dispatch_value "${PWD}"; then
+                log ERROR "Invalid OpenRouter cwd: ${PWD}"
+                return 1
+            fi
+            echo "${PLUGIN_DIR}/scripts/helpers/openai-compatible-agent.sh --provider openrouter --model moonshotai/kimi-k3 --tool-mode readonly --cwd ${PWD}"
+            ;;
         openrouter-deepseek) echo "openrouter_execute_model deepseek/deepseek-r1-0528" ;; # v8.11.0: DeepSeek R1 via OpenRouter
         openai-compatible|openai-tools|openai-compatible-agent)  # Generic OpenAI-compatible tool-loop agent
             if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
@@ -320,7 +332,7 @@ get_agent_command() {
             reasoning_fragment="$(octopus_reasoning_cli_fragment openai-compatible-agent "$reasoning_level" "$reasoning_policy")" || return 1
             runtime_config="$(_octopus_openai_compatible_runtime_config "$agent_type")" || return 1
             IFS=$'\t' read -r base_url api_key_env <<<"$runtime_config"
-            echo "${PLUGIN_DIR}/scripts/helpers/openai-compatible-agent.py --provider generic --base-url ${base_url} --api-key-env ${api_key_env} --model ${model} ${reasoning_fragment} --cwd ${PWD}"
+            echo "${PLUGIN_DIR}/scripts/helpers/openai-compatible-agent.sh --provider generic --base-url ${base_url} --api-key-env ${api_key_env} --model ${model} ${reasoning_fragment} --cwd ${PWD}"
             ;;
         atlascloud-agent)  # Atlas Cloud via the OpenAI-compatible tool-loop agent
             model="${ATLASCLOUD_MODEL:-${OCTOPUS_ATLASCLOUD_MODEL:-${OPENAI_COMPAT_MODEL:-}}}"
@@ -352,7 +364,7 @@ get_agent_command() {
                 log ERROR "Invalid Atlas Cloud cwd: ${PWD}"
                 return 1
             fi
-            echo "${PLUGIN_DIR}/scripts/helpers/openai-compatible-agent.py --provider atlascloud --model ${model} --cwd ${PWD}"
+            echo "${PLUGIN_DIR}/scripts/helpers/openai-compatible-agent.sh --provider atlascloud --model ${model} --cwd ${PWD}"
             ;;
         perplexity|perplexity-fast)  # v8.24.0: Perplexity Sonar — web-grounded research (Issue #22)
             if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then

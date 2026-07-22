@@ -406,6 +406,20 @@ load_agent_skill_content() {
     fi
 
     if [[ -f "$skill_file" ]]; then
+        # Enforced command skills are host-side orchestration contracts. Injecting
+        # one into a provider prompt asks the child model to recursively launch
+        # Octopus (and can reintroduce disallowed providers). Keep domain-only
+        # skills, but never pass a host execution contract across the boundary.
+        if awk '
+            BEGIN { in_fm=0; enforced=0 }
+            /^---$/ { in_fm=!in_fm; if (!in_fm) exit }
+            in_fm && /^[[:space:]]*execution_mode:[[:space:]]*enforced[[:space:]]*$/ { enforced=1 }
+            END { exit enforced ? 0 : 1 }
+        ' "$skill_file" 2>/dev/null && grep -q 'orchestrate\.sh' "$skill_file" 2>/dev/null; then
+            log "DEBUG" "Skipping host-only orchestration skill in provider context: $skill_name" 2>/dev/null || true
+            return 0
+        fi
+
         # Extract content after YAML frontmatter
         awk '
             BEGIN { in_fm=0; past_fm=0 }
