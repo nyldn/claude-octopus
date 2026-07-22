@@ -1116,8 +1116,8 @@ EOF
     test_pass
 }
 
-test_council_dispatch_strips_blocked_env_but_sets_readonly() {
-    test_case "Council dispatch strips blocked caller env while setting read-only sandbox"
+test_council_dispatch_strips_blocked_env_but_sets_disposable_mode() {
+    test_case "Council dispatch strips blocked caller env while setting disposable-workspace mode"
     load_council_lib || return 1
 
     local tmp_dir env_capture
@@ -1136,7 +1136,7 @@ test_council_dispatch_strips_blocked_env_but_sets_readonly() {
     OCTOPUS_COUNCIL_PROVIDER_FIXTURE='codex:available' \
         council_run --providers codex --depth quick --members 3 --output-dir "$tmp_dir" "Review auth"
 
-    if grep -q '^OCTOPUS_CODEX_SANDBOX=read-only$' "$env_capture" &&
+    if grep -q '^OCTOPUS_CODEX_SANDBOX=danger-full-access$' "$env_capture" &&
        ! grep -q '^OCTOPUS_SECURITY_V870=' "$env_capture" &&
        ! grep -q '^OCTOPUS_GEMINI_SANDBOX=' "$env_capture" &&
        ! grep -q '^CLAUDE_OCTOPUS_AUTONOMY=' "$env_capture"; then
@@ -1144,7 +1144,7 @@ test_council_dispatch_strips_blocked_env_but_sets_readonly() {
         test_pass
     else
         unset -f run_agent_sync
-        test_fail "blocked env forwarding or read-only sandbox mismatch"
+        test_fail "blocked env forwarding or disposable-workspace mode mismatch"
         return 1
     fi
 }
@@ -1197,7 +1197,7 @@ test_council_prompt_task_block_is_authoritative
 test_council_scans_artifact_critical_veto
 test_council_structured_veto_requires_veto_role
 test_council_veto_scan_ignores_discussed_token
-test_council_dispatch_strips_blocked_env_but_sets_readonly
+test_council_dispatch_strips_blocked_env_but_sets_disposable_mode
 
 test_council_host_native_detection() {
     test_case "council_detect_providers marks host provider as host-native (issue #444)"
