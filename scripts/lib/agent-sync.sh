@@ -152,7 +152,13 @@ Treat ${workspace} as the working copy for this advisory task. Any relative-path
         rc=$?
     fi
 
-    rm -rf "$temp_root" 2>/dev/null || true
+    if ! rm -rf "$temp_root" 2>/dev/null; then
+        if declare -F log >/dev/null 2>&1; then
+            log WARN "Failed to remove consultative workspace: $temp_root"
+        else
+            printf 'WARN: failed to remove consultative workspace: %s\n' "$temp_root" >&2
+        fi
+    fi
 
     if [[ -n "$old_security_set" ]]; then export OCTOPUS_SECURITY_V870="$old_security"; else unset OCTOPUS_SECURITY_V870; fi
     if [[ -n "$old_gemini_sandbox_set" ]]; then export OCTOPUS_GEMINI_SANDBOX="$old_gemini_sandbox"; else unset OCTOPUS_GEMINI_SANDBOX; fi
