@@ -156,6 +156,70 @@ else
     test_fail "expected provider-default and max_tokens=0 to omit max_tokens from request payload"
 fi
 
+
+test_case "openai-compatible-agent main treats unset and zero as provider default"
+if HELPER="$HELPER" python3 - <<'PYTEST'
+import importlib.util, os, pathlib, sys, tempfile
+
+helper_path = os.environ["HELPER"]
+spec = importlib.util.spec_from_file_location("openai_compatible_agent_main_tokens", helper_path)
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+
+seen = []
+def fake_api_call(*args, **kwargs):
+    seen.append(kwargs.get("max_tokens"))
+    return {"choices": [{"message": {"content": "ok"}, "finish_reason": "stop"}]}
+mod.api_call = fake_api_call
+
+with tempfile.TemporaryDirectory() as cwd:
+    base_argv = [
+        "openai-compatible-agent.py",
+        "--provider", "generic",
+        "--base-url", "https://example.invalid/v1",
+        "--api-key-env", "TEST_PROVIDER_KEY",
+        "--model", "vendor/model",
+        "--cwd", cwd,
+        "--prompt", "verify",
+        "--max-turns", "1",
+    ]
+    old_argv = sys.argv[:]
+    old_key = os.environ.get("TEST_PROVIDER_KEY")
+    old_limit = os.environ.get("OPENAI_COMPAT_MAX_TOKENS")
+    try:
+        os.environ["TEST_PROVIDER_KEY"] = "test-key"
+
+        os.environ.pop("OPENAI_COMPAT_MAX_TOKENS", None)
+        sys.argv = base_argv
+        assert mod.main() == 0
+        assert seen[-1] == 0, seen
+
+        os.environ["OPENAI_COMPAT_MAX_TOKENS"] = "0"
+        sys.argv = base_argv
+        assert mod.main() == 0
+        assert seen[-1] == 0, seen
+
+        os.environ["OPENAI_COMPAT_MAX_TOKENS"] = "4096"
+        sys.argv = base_argv
+        assert mod.main() == 0
+        assert seen[-1] == 4096, seen
+    finally:
+        sys.argv = old_argv
+        if old_key is None:
+            os.environ.pop("TEST_PROVIDER_KEY", None)
+        else:
+            os.environ["TEST_PROVIDER_KEY"] = old_key
+        if old_limit is None:
+            os.environ.pop("OPENAI_COMPAT_MAX_TOKENS", None)
+        else:
+            os.environ["OPENAI_COMPAT_MAX_TOKENS"] = old_limit
+PYTEST
+then
+    test_pass
+else
+    test_fail "expected main() to omit provider limit for unset/0 and forward positive overrides"
+fi
+
 test_case "openai-compatible-agent retries transient HTTP errors"
 if HELPER="$HELPER" python3 - <<'PYTEST'
 import importlib.util, io, os, urllib.error
