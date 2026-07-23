@@ -70,7 +70,7 @@ def tool_exec(cwd: Path, name: str, args: dict) -> str:
     except Exception as e:
         return f"ERROR: {type(e).__name__}: {e}"
 
-def api_call(base_url, key, model, headers_extra, messages, max_tokens=1400, request_timeout=60.0, max_retries=3, reasoning_effort=None, reasoning_policy="best_effort"):
+def api_call(base_url, key, model, headers_extra, messages, max_tokens=0, request_timeout=60.0, max_retries=3, reasoning_effort=None, reasoning_policy="best_effort"):
     payload = {"model": model, "messages": messages, "tools": TOOLS, "tool_choice": "auto", "temperature": 0}
     if reasoning_effort:
         payload["reasoning_effort"] = reasoning_effort
@@ -148,7 +148,7 @@ def main() -> int:
     key = os.environ.get(key_env)
     if not key:
         print(f"ERROR: missing {key_env}", file=sys.stderr); return 2
-    max_tokens = env_int("OPENAI_COMPAT_MAX_TOKENS", 1400, 0)
+    max_tokens = env_int("OPENAI_COMPAT_MAX_TOKENS", 0, 0)
     request_timeout = env_float("OPENAI_COMPAT_REQUEST_TIMEOUT", 60.0)
     max_retries = env_int("OPENAI_COMPAT_MAX_RETRIES", 3, 1)
     cwd = Path(args.cwd).resolve(); prompt = args.prompt if args.prompt is not None else sys.stdin.read()
