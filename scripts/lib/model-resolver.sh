@@ -51,6 +51,45 @@ resolve_octopus_model() {
     local _trace="${OCTOPUS_TRACE_MODELS:-}"
     [[ -n "$_trace" ]] && echo "[model-trace] Resolving: provider=$provider type=$agent_type phase=${phase:-<none>} role=${role:-<none>}" >&2
 
+    # Priority 0.25: Code reviewer role ALWAYS uses Gemini 3.1-pro
+    if [[ "$role" == "code-reviewer" ]]; then
+        resolved_model="gemini-3.1-pro-preview"
+        [[ -n "$_trace" ]] && echo "[model-trace] Tier 0.25 (code-reviewer role): $resolved_model ← SELECTED" >&2
+        eval "_OCTO_MODEL_CACHE_${cache_key}=\"$resolved_model\""
+        echo "$resolved_model"
+        return 0
+    fi
+
+    # Priority 0.26: Phase-based provider routing (custom embrace workflow)
+    if [[ -z "$resolved_model" ]]; then
+        case "$phase" in
+            probe)
+                # Discover phase → Gemini 3.1-pro
+                resolved_model="gemini-3.1-pro-preview"
+                [[ -n "$_trace" ]] && echo "[model-trace] Tier 0.26 (probe phase): $resolved_model ← SELECTED" >&2
+                eval "_OCTO_MODEL_CACHE_${cache_key}=\"$resolved_model\""
+                echo "$resolved_model"
+                return 0
+                ;;
+            grasp)
+                # Define phase → Claude Opus 4.8
+                resolved_model="claude-opus-4.8"
+                [[ -n "$_trace" ]] && echo "[model-trace] Tier 0.26 (grasp phase): $resolved_model ← SELECTED" >&2
+                eval "_OCTO_MODEL_CACHE_${cache_key}=\"$resolved_model\""
+                echo "$resolved_model"
+                return 0
+                ;;
+            ink)
+                # Deliver phase → Gemini 3.1-pro
+                resolved_model="gemini-3.1-pro-preview"
+                [[ -n "$_trace" ]] && echo "[model-trace] Tier 0.26 (ink phase): $resolved_model ← SELECTED" >&2
+                eval "_OCTO_MODEL_CACHE_${cache_key}=\"$resolved_model\""
+                echo "$resolved_model"
+                return 0
+                ;;
+        esac
+    fi
+
     # 1. Force/Session Overrides (Env vars)
     local env_var="OCTOPUS_$(echo "$provider" | tr '[:lower:]' '[:upper:]' | tr '-' '_')_MODEL"
     if [[ -n "${!env_var:-}" ]]; then
@@ -163,7 +202,26 @@ resolve_octopus_model() {
     # Fallback to hard-coded defaults (Priority 7)
     if [[ -z "$resolved_model" || "$resolved_model" == "null" ]]; then
         case "$agent_type" in
-            codex*)          resolved_model="gpt-5.4" ;;
+            codex*)
+                # Detect complexity: env var OR smart-route by phase
+                local complexity="${OCTOPUS_COMPLEXITY:-}"
+                if [[ -z "$complexity" ]]; then
+                    case "$phase" in
+                        probe)              complexity="+" ;;    # Discover = trivial
+                        grasp|tangle|ink)   complexity="++" ;;   # Define/Develop/Deliver = normal
+                        *)                  complexity="++" ;;    # Default = normal
+                    esac
+                fi
+
+                # Map complexity to model
+                case "$complexity" in
+                    +++)  resolved_model="gpt-5.6-sol" ;;    # Robust
+                    ++)   resolved_model="gpt-5.6-terra" ;;  # Normal
+                    +)    resolved_model="gpt-5.6-luna" ;;   # Trivial
+                    *)    resolved_model="gpt-5.6-terra" ;;  # Default to normal
+                esac
+                ;;
+
             gemini-fast|gemini-flash) resolved_model="gemini-3-flash-preview" ;;
             gemini*)         resolved_model="gemini-3.1-pro-preview" ;;
             claude-opus*)    resolved_model="claude-opus-4.6" ;;
