@@ -78,10 +78,10 @@ get_agent_command() {
             esac
             ;;
         codex-review) echo "codex exec review" ;; # Code review mode (no sandbox support)
-        claude) echo "claude${_BARE_OPT} --print" ;;                         # Claude Sonnet 4.6
-        claude-sonnet) echo "claude${_BARE_OPT} --print --model sonnet" ;;        # Claude Sonnet explicit
-        claude-opus) echo "claude${_BARE_OPT} --print --model opus" ;;            # Claude Opus 4.6 (v8.0)
-        claude-opus-fast) echo "claude${_BARE_OPT} --print --model opus --fast" ;; # Claude Opus 4.6 Fast (v8.4: v2.1.36+)
+        claude) echo "claude --print" ;;                         # Claude Sonnet 4.6
+        claude-sonnet) echo "claude --print --model sonnet" ;;        # Claude Sonnet explicit
+        claude-opus) echo "claude --print --model opus" ;;            # Claude Opus 4.6 (v8.0)
+        claude-opus-fast) echo "claude --print --model opus --fast" ;; # Claude Opus 4.6 Fast (v8.4: v2.1.36+)
         openrouter) echo "openrouter_execute" ;;                 # OpenRouter API (v4.8)
         openrouter-glm5) echo "openrouter_execute_model z-ai/glm-5" ;;           # v8.11.0: GLM-5 via OpenRouter
         openrouter-kimi) echo "openrouter_execute_model moonshotai/kimi-k2.5" ;; # v8.11.0: Kimi K2.5 via OpenRouter
