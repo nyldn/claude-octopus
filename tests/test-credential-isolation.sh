@@ -182,12 +182,13 @@ tmp_home=$(mktemp -d)
 gemini_env_output=$(HOME="$tmp_home" bash -c '
     set -eo pipefail
     unset GEMINI_API_KEY GOOGLE_API_KEY
-    source "$1/scripts/lib/provider-routing.sh"
+    cd "$1"
+    source "$2/scripts/lib/provider-routing.sh"
     build_provider_env gemini
     printf "%s\n" "${PROVIDER_ENV_ARRAY[@]}"
-  ' _ "$PLUGIN_DIR" 2>&1)
-if echo "$gemini_env_output" | grep -qx 'GEMINI_API_KEY='; then
-  test_fail "GEMINI_API_KEY present as empty-but-set, blocks gemini-cli's own .env loading"
+  ' _ "$tmp_home" "$PLUGIN_DIR" 2>&1)
+if echo "$gemini_env_output" | grep -qE '^(GEMINI_API_KEY|GOOGLE_API_KEY)='; then
+  test_fail "Gemini credentials present as empty-but-set, blocks gemini-cli's own .env loading: $gemini_env_output"
 else
   test_pass
 fi
