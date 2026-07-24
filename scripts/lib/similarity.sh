@@ -82,7 +82,7 @@ generate_bigrams() {
     words=$(echo "$text" | tr '[:upper:]' '[:lower:]' | tr -cs '[:alnum:]' ' ' | tr -s ' ')
 
     local -a word_arr
-    read -ra word_arr <<< "$words"
+    eval "word_arr=( $words )"
 
     local i
     for (( i=0; i < ${#word_arr[@]} - 1; i++ )); do

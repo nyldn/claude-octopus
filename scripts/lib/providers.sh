@@ -14,8 +14,8 @@ version_compare() {
     local operator="$3"
 
     # Split versions into components
-    IFS='.' read -ra V1 <<< "$version1"
-    IFS='.' read -ra V2 <<< "$version2"
+    IFS='.' eval "V1=( $version1 )"
+    IFS='.' eval "V2=( $version2 )"
 
     # Compare major.minor.patch
     for i in 0 1 2; do

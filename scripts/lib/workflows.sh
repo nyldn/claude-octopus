@@ -124,9 +124,9 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
     local env_prefix
     env_prefix=$(build_provider_env "$agent_type")
     if [[ -n "$env_prefix" ]]; then
-        read -ra cmd_array <<< "$env_prefix $cmd"
+        eval "cmd_array=( $env_prefix $cmd )"
     else
-        read -ra cmd_array <<< "$cmd"
+        eval "cmd_array=( $cmd )"
     fi
 
     local temp_output="${RESULTS_DIR}/.tmp-${task_id}.out"
@@ -358,7 +358,7 @@ probe_discover() {
 
     # Build agent rotation from dispatch strategy
     local IFS_OLD="$IFS"
-    IFS=',' read -ra _strategy_providers <<< "$dispatch_providers"
+    IFS=',' eval "_strategy_providers=( $dispatch_providers )"
     IFS="$IFS_OLD"
     local probe_agents=()
     local _sp_count=${#_strategy_providers[@]}

@@ -172,7 +172,7 @@ ${provider_ctx}"
 
     # SECURITY: Use array-based execution to prevent word-splitting vulnerabilities
     local -a cmd_array
-    read -ra cmd_array <<< "$cmd"
+    eval "cmd_array=( $cmd )"
 
     # Capture output and exit code separately
     local output

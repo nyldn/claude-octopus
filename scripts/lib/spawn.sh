@@ -466,10 +466,10 @@ ${heuristic_ctx}"
         local env_prefix
         env_prefix=$(build_provider_env "$agent_type")
         if [[ -n "$env_prefix" ]]; then
-            read -ra cmd_array <<< "$env_prefix $cmd"
+            eval "cmd_array=( $env_prefix $cmd )"
             log "DEBUG" "Credential isolation active for $agent_type"
         else
-            read -ra cmd_array <<< "$cmd"
+            eval "cmd_array=( $cmd )"
         fi
 
         # IMPROVED: Use temp files for reliable output capture (v7.13.2 - Issue #10)
