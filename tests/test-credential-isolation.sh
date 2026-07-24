@@ -104,8 +104,11 @@ if [[ -n "$OLD_ROUTER_API_KEY" ]]; then export ROUTER_API_KEY="$OLD_ROUTER_API_K
 if [[ -n "$OLD_GEMINI_API_KEY" ]]; then export GEMINI_API_KEY="$OLD_GEMINI_API_KEY"; else unset GEMINI_API_KEY; fi
 rm -rf "$CODEX_RUNTIME_HOME" "$CODEX_RUNTIME_HOME-home"
 
-# 1.3 Gemini scoping — only GEMINI_API_KEY + GOOGLE_API_KEY
-GEMINI_ENV=$(grep -A16 'gemini\*)' "$ALL_SRC" | grep 'PROVIDER_ENV_ARRAY=.*env -i' | head -1 || true)
+# 1.3 Gemini scoping — only GEMINI_API_KEY + GOOGLE_API_KEY (conditionally
+# forwarded via a loop as of #660, so anchor on the isolated-env line's
+# unique GEMINI_CLI_TRUST_WORKSPACE marker and include the loop after it,
+# rather than the PROVIDER_ENV_ARRAY=(...) line alone)
+GEMINI_ENV=$(grep -A5 'GEMINI_CLI_TRUST_WORKSPACE' "$ALL_SRC" | head -5 || true)
 if echo "$GEMINI_ENV" | grep -q 'GEMINI_API_KEY'; then
   pass "Gemini env includes GEMINI_API_KEY"
 else
@@ -171,6 +174,42 @@ for provider in codex gemini perplexity openrouter; do
   fi
   rm -rf "$tmp_home" "$tmp_pwd"
 done
+
+# 1.7 Gemini: unset GEMINI_API_KEY must not become an empty-but-set var,
+# or gemini-cli's own ~/.gemini/.env dotenv loading is silently defeated (#660)
+test_case "Gemini env omits GEMINI_API_KEY entirely when unset (not empty-but-set)"
+tmp_home=$(mktemp -d)
+gemini_env_output=$(HOME="$tmp_home" bash -c '
+    set -eo pipefail
+    unset GEMINI_API_KEY GOOGLE_API_KEY
+    source "$1/scripts/lib/provider-routing.sh"
+    build_provider_env gemini
+    printf "%s\n" "${PROVIDER_ENV_ARRAY[@]}"
+  ' _ "$PLUGIN_DIR" 2>&1)
+if echo "$gemini_env_output" | grep -qx 'GEMINI_API_KEY='; then
+  test_fail "GEMINI_API_KEY present as empty-but-set, blocks gemini-cli's own .env loading"
+else
+  test_pass
+fi
+rm -rf "$tmp_home"
+
+# 1.8 Gemini: NODE_EXTRA_CA_CERTS and GOOGLE_GEMINI_BASE_URL survive isolation
+# when set, so TLS-relay setups don't die with "fetch failed" (#660)
+test_case "Gemini env forwards NODE_EXTRA_CA_CERTS and GOOGLE_GEMINI_BASE_URL when set"
+tmp_home=$(mktemp -d)
+gemini_env_output=$(HOME="$tmp_home" NODE_EXTRA_CA_CERTS="/tmp/extra-ca.pem" GOOGLE_GEMINI_BASE_URL="https://relay.example/v1" bash -c '
+    set -eo pipefail
+    source "$1/scripts/lib/provider-routing.sh"
+    build_provider_env gemini
+    printf "%s\n" "${PROVIDER_ENV_ARRAY[@]}"
+  ' _ "$PLUGIN_DIR" 2>&1)
+if echo "$gemini_env_output" | grep -qx 'NODE_EXTRA_CA_CERTS=/tmp/extra-ca.pem' \
+  && echo "$gemini_env_output" | grep -qx 'GOOGLE_GEMINI_BASE_URL=https://relay.example/v1'; then
+  test_pass
+else
+  test_fail "NODE_EXTRA_CA_CERTS/GOOGLE_GEMINI_BASE_URL not forwarded: $gemini_env_output"
+fi
+rm -rf "$tmp_home"
 
 # ─────────────────────────────────────────────────────────────────────
 # Suite 2: build_provider_env() is wired into spawn_agent()
