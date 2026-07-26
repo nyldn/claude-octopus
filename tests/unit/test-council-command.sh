@@ -1354,6 +1354,30 @@ test_council_seat_timeout_precedence() {
     fi
 }
 
+test_council_seat_timeout_rejects_zero_and_nonnumeric() {
+    test_case "--seat-timeout records a positive integer but rejects 0 and non-numeric"
+    load_council_lib || return 1
+    local out_file="$TEST_TMP_DIR/council-seat-timeout.out"
+
+    # A positive integer is accepted and recorded.
+    council_parse_args --seat-timeout 450 --dry-run "Review auth"
+    [[ "$COUNCIL_SEAT_TIMEOUT" == "450" ]] || { test_fail "positive value not recorded: [$COUNCIL_SEAT_TIMEOUT]"; return 1; }
+
+    # 0 must be rejected: run_with_timeout treats 0 as unbounded, so it would defeat
+    # the very cap the flag sets. Non-numeric must also fail with the usage error.
+    local z_status nn_status
+    set +e
+    council_parse_args --seat-timeout 0 "Review auth" >"$out_file" 2>&1; z_status=$?
+    council_parse_args --seat-timeout abc "Review auth" >"$out_file" 2>&1; nn_status=$?
+    set -e
+    if [[ $z_status -eq 2 ]] && [[ $nn_status -eq 2 ]]; then
+        test_pass
+    else
+        test_fail "expected exit 2 for both: zero=$z_status nonnumeric=$nn_status"
+        return 1
+    fi
+}
+
 test_council_response_has_verdict_salvage() {
     test_case "council_response_has_verdict distinguishes a finished seat from a truncated one (#2077)"
     load_council_lib || return 1
@@ -1382,5 +1406,6 @@ test_council_approving_providers_failsafe
 test_council_split_double_seat_fails_quorum
 test_council_all_approve_meets_quorum
 test_council_seat_timeout_precedence
+test_council_seat_timeout_rejects_zero_and_nonnumeric
 test_council_response_has_verdict_salvage
 test_summary

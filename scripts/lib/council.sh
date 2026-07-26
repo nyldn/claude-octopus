@@ -2298,7 +2298,16 @@ council_parse_args() {
                 ;;
             --seat-timeout)
                 [[ $# -ge 2 ]] || { council_error_usage "--seat-timeout requires a value (seconds)"; return 2; }
+                # Reject non-digits AND all-zero values. A zero timeout is not a
+                # tighter bound — run_with_timeout treats 0 as UNBOUNDED (heartbeat.sh),
+                # so `--seat-timeout 0` would silently remove the per-seat cap this flag
+                # exists to set. `10#` reads the all-digit operand as base 10 so a value
+                # like 08 can't trip Bash octal parsing.
                 case "$2" in ''|*[!0-9]*) council_error_usage "--seat-timeout must be a positive integer number of seconds"; return 2 ;; esac
+                if (( 10#$2 == 0 )); then
+                    council_error_usage "--seat-timeout must be a positive integer number of seconds"
+                    return 2
+                fi
                 COUNCIL_SEAT_TIMEOUT="$2"
                 shift 2
                 ;;
