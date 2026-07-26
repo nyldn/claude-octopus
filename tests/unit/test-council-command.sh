@@ -1365,11 +1365,11 @@ test_council_seat_timeout_rejects_zero_and_nonnumeric() {
 
     # 0 must be rejected: run_with_timeout treats 0 as unbounded, so it would defeat
     # the very cap the flag sets. Non-numeric must also fail with the usage error.
-    local z_status nn_status
-    set +e
-    council_parse_args --seat-timeout 0 "Review auth" >"$out_file" 2>&1; z_status=$?
-    council_parse_args --seat-timeout abc "Review auth" >"$out_file" 2>&1; nn_status=$?
-    set -e
+    # Capture each expected failure with an if-guard rather than `set +e`, so the
+    # runner's errexit stays on for the rest of the test.
+    local z_status=0 nn_status=0
+    if council_parse_args --seat-timeout 0 "Review auth" >"$out_file" 2>&1; then z_status=0; else z_status=$?; fi
+    if council_parse_args --seat-timeout abc "Review auth" >"$out_file" 2>&1; then nn_status=0; else nn_status=$?; fi
     if [[ $z_status -eq 2 ]] && [[ $nn_status -eq 2 ]]; then
         test_pass
     else
