@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **The chair seat no longer counts toward the distinct-approving-vendor quorum** (CodeRabbit #666). `council_run_advice_phase` added every substantive seat's provider to the responding/approving vendor sets, including the chair. Because the chair is the synthesizer rather than an independent cross-lab reviewer — and the count gate already excludes it via `received_non_chair` — a chair-only vendor could inflate `distinct_approving_providers`, letting a single independent approver plus the chair's own vendor pass a 2-vendor quorum. The vendor tally now skips the chair seat (the chair-fallback path never added to it either), so `seats[]` and `quorum` stay consistent and a chair-only approving vendor no longer satisfies consensus. A vendor that also holds an independent seat still counts through that seat, so the exclusion is seat-scoped, not vendor-scoped. The #577 quorum tests are unaffected (provider diversity is enforced among non-chair seats).
+
 ## [9.54.1] - 2026-07-20
 
 ### Fixed

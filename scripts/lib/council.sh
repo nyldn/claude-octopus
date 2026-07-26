@@ -1720,7 +1720,16 @@ council_run_advice_phase() {
             # a non-APPROVE marks the vendor dissenting so its seat can't count as an
             # approval, and a split double-seated vendor (one APPROVE, one REVISE)
             # can't cherry-pick its yes-seat into the quorum (#1992/#1994/#1983).
-            if council_response_nonempty "$output_path" && council_response_is_substantive "$output_path"; then
+            #
+            # The CHAIR seat is excluded from this vendor tally. The chair is the
+            # synthesizer, not an independent cross-lab reviewer, and the count gate
+            # already excludes it (received_non_chair). Counting its provider here let a
+            # chair-only vendor inflate distinct_approving_providers — so a single
+            # independent approver plus the chair's own vendor could pass a 2-vendor
+            # quorum. The chair-fallback path never added to this set either, so gating
+            # on non-chair seats keeps seats[] and quorum consistent (CodeRabbit #666).
+            if [[ "$seat" != "chair" ]] \
+                && council_response_nonempty "$output_path" && council_response_is_substantive "$output_path"; then
                 COUNCIL_RESPONDING_PROVIDERS="${COUNCIL_RESPONDING_PROVIDERS} ${mprovider}"
                 verdict="$(council_response_verdict "$output_path")"
                 if [[ "$verdict" != "APPROVE" ]]; then
