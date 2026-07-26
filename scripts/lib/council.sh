@@ -1581,6 +1581,23 @@ council_dispatch_member() {
     council_live_response "$provider" "$persona" "$prompt" "$phase"
 }
 
+_council_kill_tree() {
+    # Best-effort recursive SIGKILL of a pid AND all its descendants. Killing only the
+    # wrapper subshell would orphan its provider children and any in-flight `mv`, which
+    # could still rename .partial into output_path after cancellation and restore a
+    # stale response. setsid (which would give a single killable process group) is
+    # absent on macOS, so walk the tree via `pgrep -P`. Kill descendants before the
+    # parent so a reaped parent can't reparent them to init first. If pgrep is
+    # unavailable, degrade to killing just the pid.
+    local pid="$1" child
+    if command -v pgrep >/dev/null 2>&1; then
+        while IFS= read -r child; do
+            [[ -n "$child" ]] && _council_kill_tree "$child"
+        done < <(pgrep -P "$pid" 2>/dev/null)
+    fi
+    kill -KILL "$pid" 2>/dev/null || true
+}
+
 council_dispatch_member_detached() {
     # Serial-but-detached seat dispatch (sail-cruisey #2077). A council seat used to
     # run inline in the council's own process group: a SIGHUP/SIGINT/SIGTERM to the
@@ -1665,13 +1682,14 @@ council_dispatch_member_detached() {
     else
         # The reap window expired with no sentinel. If the seat is still alive it has
         # outlived run_agent_sync's own timeout; because it ignores HUP/INT/TERM by
-        # design, SIGKILL (untrappable) is the only way to stop it. Cancel it so it
-        # cannot rename a late .partial into output_path AFTER the council has already
-        # treated this seat as failed and moved on — a late publish would orphan a
-        # stale response into responses/ and could retroactively satisfy the chair
-        # fallback. Then discard any partial/late output for this seat.
+        # design, SIGKILL (untrappable) is the only way to stop it. Kill the WHOLE tree
+        # — wrapper, provider children, and any in-flight mv — so nothing can rename a
+        # late .partial into output_path AFTER the council has treated this seat as
+        # failed and moved on (a late publish would orphan a stale response into
+        # responses/ and could retroactively satisfy the chair fallback). Kill first,
+        # THEN remove output_path, so no surviving mv can recreate it after the rm.
         if kill -0 "$seat_pid" 2>/dev/null; then
-            kill -KILL "$seat_pid" 2>/dev/null || true
+            _council_kill_tree "$seat_pid"
         fi
         rm -f "$output_path"
     fi

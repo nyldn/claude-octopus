@@ -1441,30 +1441,37 @@ test_council_detached_seat_timeout_is_cancelled() {
     local d; d="$(mktemp -d "$TEST_TMP_DIR/detach-timeout.XXXXXX")"
     local member='{"provider":"codex","persona":"code-reviewer","seat":"member"}'
     local pidf="$d/seat.pid" out="$d/late.md"
-    # Force a ~1s reap window (timeout 1 + grace 0) against a seat that would take ~4s.
+    local childpidf="$d/child.pid" childmark="$d/child.mark"
+    # Force a ~1s reap window (timeout 1 + grace 0) against a seat that would take ~3s.
     export OCTOPUS_COUNCIL_AGENT_TIMEOUT=1
     export OCTOPUS_COUNCIL_REAP_GRACE_SECS=0
 
+    # The seat spawns a REAL descendant that would touch a marker after 3s. If only the
+    # wrapper were killed, that grandchild would survive and create the marker; a proper
+    # tree-kill takes it down too. The stub itself also sleeps and would publish late.
     council_dispatch_member() {
         sh -c 'echo $PPID' > "$pidf"
-        sleep 4
+        ( sleep 3; : > "$childmark" ) &
+        echo "$!" > "$childpidf"
+        sleep 3
         printf 'late publish\nVERDICT: APPROVE\n'
         return 0
     }
 
     local rc=0
     council_dispatch_member_detached "$member" "independent-advice" "$out" || rc=$?
-    local seat; seat="$(cat "$pidf" 2>/dev/null)"
-    # Wait past when the seat WOULD have finished had it not been cancelled; a late
-    # rename would appear here if cancellation failed.
-    sleep 2
+    local seat child; seat="$(cat "$pidf" 2>/dev/null)"; child="$(cat "$childpidf" 2>/dev/null)"
+    # Wait PAST the stub's natural 3s completion so a late publish / surviving child
+    # would have materialized by the time we assert.
+    sleep 4
 
     unset OCTOPUS_COUNCIL_AGENT_TIMEOUT OCTOPUS_COUNCIL_REAP_GRACE_SECS
-    if [[ $rc -ne 0 ]] && [[ ! -e "$out" ]] &&
-       [[ -n "$seat" ]] && ! kill -0 "$seat" 2>/dev/null; then
+    if [[ $rc -ne 0 ]] && [[ ! -e "$out" ]] && [[ ! -e "$childmark" ]] &&
+       [[ -n "$seat" ]] && ! kill -0 "$seat" 2>/dev/null &&
+       [[ -n "$child" ]] && ! kill -0 "$child" 2>/dev/null; then
         test_pass
     else
-        test_fail "timed-out seat not cancelled: rc=$rc late_file=$([[ -e "$out" ]] && echo yes || echo no) seat_alive=$(kill -0 "$seat" 2>/dev/null && echo yes || echo no)"
+        test_fail "timed-out seat/tree not cancelled: rc=$rc late_file=$([[ -e "$out" ]] && echo yes || echo no) child_marker=$([[ -e "$childmark" ]] && echo yes || echo no) seat_alive=$(kill -0 "$seat" 2>/dev/null && echo yes || echo no) child_alive=$(kill -0 "$child" 2>/dev/null && echo yes || echo no)"
         return 1
     fi
 }
