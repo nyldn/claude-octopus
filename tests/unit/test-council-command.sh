@@ -1417,16 +1417,20 @@ test_council_detached_seat_survives_interrupt() {
     local seat; seat="$(cat "$pidf" 2>/dev/null)"
     kill -INT "$seat" 2>/dev/null || true
     kill -HUP "$seat" 2>/dev/null || true
-    kill -TERM "$seat" 2>/dev/null || true
+    # Record TERM delivery. A successful kill -TERM proves the seat was still ALIVE
+    # (it had already ignored INT+HUP) AND that TERM was actually delivered — without
+    # this the test could green even if the signal never reached a live process.
+    local term_delivered="no"
+    kill -TERM "$seat" 2>/dev/null && term_delivered="yes"
     local premature="no"; [[ -f "$out" ]] && premature="yes"
     : > "$relf"
     local rc=0; wait "$helper" || rc=$?
 
-    if [[ -n "$seat" ]] && [[ "$premature" == "no" ]] && [[ $rc -eq 0 ]] &&
-       [[ -f "$out" ]] && grep -q 'survived interrupt' "$out"; then
+    if [[ -n "$seat" ]] && [[ "$term_delivered" == "yes" ]] && [[ "$premature" == "no" ]] &&
+       [[ $rc -eq 0 ]] && [[ -f "$out" ]] && grep -q 'survived interrupt' "$out"; then
         test_pass
     else
-        test_fail "detached seat did not survive interrupt: seat=$seat premature=$premature rc=$rc out=[$(tr '\n' '|' < "$out" 2>/dev/null)]"
+        test_fail "detached seat did not survive interrupt: seat=$seat term_delivered=$term_delivered premature=$premature rc=$rc out=[$(tr '\n' '|' < "$out" 2>/dev/null)]"
         return 1
     fi
 }

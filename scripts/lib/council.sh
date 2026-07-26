@@ -1622,7 +1622,12 @@ council_dispatch_member_detached() {
         if ! mv -f "$partial" "$output_path" 2>/dev/null; then
             rc=1
         fi
-        printf '%s' "$rc" > "$done_file"
+        # Publish the sentinel ATOMICALLY. A bare `> "$done_file"` creates the file
+        # before printf writes rc, so the polling parent can observe an empty .done,
+        # coerce it to 1, delete it, and discard a successfully finalized response.
+        # Write to a temp name and rename it into place so .done only ever appears
+        # complete (rename is atomic within a directory).
+        printf '%s' "$rc" > "${done_file}.tmp" && mv -f "${done_file}.tmp" "$done_file"
     ) &
     local seat_pid=$!
     # Remove the seat from the job table so bash never SIGHUPs it when the council
@@ -1654,7 +1659,7 @@ council_dispatch_member_detached() {
         rc="$(<"$done_file")"
         [[ "$rc" =~ ^[0-9]+$ ]] || rc=1
     fi
-    rm -f "$done_file"
+    rm -f "$done_file" "${done_file}.tmp"
     # Only reclaim a leftover .partial once the seat is truly gone: if a pathological
     # seat is still running past the reap window, its pending mv still needs it.
     kill -0 "$seat_pid" 2>/dev/null || rm -f "$partial"
