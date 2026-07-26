@@ -171,22 +171,24 @@ byte_length() {
 # bytes agy would read from the file — not the argv the inline branch would build.
 # Tunable; default 1 MiB (~250k tokens), already far larger than any real review.
 max_payload_bytes="${OCTOPUS_AGY_MAX_PAYLOAD_BYTES:-1048576}"
-# Reject non-digits, then canonicalize to base 10. A value like `08` is an all-digit
-# string but Bash arithmetic reads its leading zero as octal, so `(( x > 08 ))` errors
-# and the comparison silently evaluates false — disabling the ceiling entirely and
-# letting an oversized payload through. `10#` forces base 10.
-# Also guard the magnitude first: Bash arithmetic is signed 64-bit and WRAPS on
-# overflow, so a value beyond INT64 could flip negative and make `prompt_bytes > x`
-# always true (refusing every seat) or otherwise misbehave. A ceiling wider than 18
-# digits (~10^18 bytes ≈ an exabyte) is never a real cap, so fall back to the default;
-# capping at 18 digits keeps `10#` strictly within INT64 range.
+# Validate and normalize the ceiling. Reject non-digits, strip leading zeros (so a
+# padded value keeps its true magnitude and `08` isn't read as octal by `10#`), then
+# accept anything up to INT64_MAX and reject only genuine overflow. Bash arithmetic
+# is signed 64-bit and WRAPS on overflow, which could flip a huge ceiling negative and
+# make `prompt_bytes > x` always true (refusing every seat); so a value with more than
+# 19 digits, or a 19-digit value above 9223372036854775807, falls back to the default.
+# For equal-length all-digit strings a lexical `>` is the numeric comparison, which lets
+# us range-check without triggering the very overflow we're guarding against.
 case "$max_payload_bytes" in
-    ''|*[!0-9]*)      max_payload_bytes=1048576 ;;
-    *) if (( ${#max_payload_bytes} > 18 )); then
-           max_payload_bytes=1048576
-       else
-           max_payload_bytes=$((10#$max_payload_bytes))
-       fi ;;
+    ''|*[!0-9]*) max_payload_bytes=1048576 ;;
+    *)
+        _mpb="${max_payload_bytes#"${max_payload_bytes%%[!0]*}"}"; [[ -n "$_mpb" ]] || _mpb=0
+        if (( ${#_mpb} > 19 )) || { (( ${#_mpb} == 19 )) && [[ "$_mpb" > "9223372036854775807" ]]; }; then
+            max_payload_bytes=1048576
+        else
+            max_payload_bytes=$((10#$_mpb))
+        fi
+        ;;
 esac
 prompt_bytes="$(byte_length "$prompt_content")"
 if (( prompt_bytes > max_payload_bytes )); then
