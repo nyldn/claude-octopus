@@ -1347,12 +1347,17 @@ test_council_seats_array_makes_quorum_inspectable() {
     # and distinct_approving_providers is recomputable from seats[] alone (no reading
     # responses/* by hand).
     if jq -e '
-        (.seats | type == "array" and length >= 1)
+        (.seats | type == "array" and length >= 2)
         and (.seats | all(has("seat") and has("provider") and has("provider_org")
                           and has("model") and has("status") and has("verdict")
                           and has("response_bytes") and has("payload_kind")
                           and has("counted_as_approver")))
         and (.seats | all(.provider_org | type == "string" and length >= 1))
+        and (.seats | all(.seat | type == "string" and length >= 1))
+        and (.seats | all(.status | type == "string" and length >= 1))
+        # counted_as_approver drives quorum, so it must be a real boolean, not a
+        # truthy string that jq would still `select`.
+        and (.seats | all(.counted_as_approver | type == "boolean"))
         and (.seats | all(.response_bytes | type == "number"))
         # verdict is null (no substantive verdict) or a known token — never garbage.
         and (.seats | all((.verdict == null) or (.verdict | test("^(APPROVE|REVISE|BLOCK)$"))))
