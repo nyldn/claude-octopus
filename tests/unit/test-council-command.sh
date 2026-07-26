@@ -1364,9 +1364,9 @@ test_council_detached_dispatch_atomic_and_propagates_rc() {
 
     if [[ "$midwrite_absent" == "yes" ]] && [[ $ok_rc -eq 0 ]] &&
        grep -q 'VERDICT: APPROVE' "$d/ok.md" &&
-       [[ ! -e "$d/ok.md.partial" && ! -e "$d/ok.md.done" ]] &&
+       [[ ! -e "$d/ok.md.partial" && ! -e "$d/ok.md.done" && ! -e "$d/ok.md.done.tmp" ]] &&
        [[ $fail_rc -eq 3 ]] && grep -q 'junk-but-final' "$d/bad.md" &&
-       [[ ! -e "$d/bad.md.partial" && ! -e "$d/bad.md.done" ]]; then
+       [[ ! -e "$d/bad.md.partial" && ! -e "$d/bad.md.done" && ! -e "$d/bad.md.done.tmp" ]]; then
         test_pass
     else
         test_fail "atomic dispatch wrong: midwrite_absent=$midwrite_absent ok_rc=$ok_rc fail_rc=$fail_rc ok=[$(tr '\n' '|' < "$d/ok.md" 2>/dev/null)] bad=[$(tr '\n' '|' < "$d/bad.md" 2>/dev/null)]"
@@ -1467,6 +1467,7 @@ test_council_detached_seat_timeout_is_cancelled() {
 
     unset OCTOPUS_COUNCIL_AGENT_TIMEOUT OCTOPUS_COUNCIL_REAP_GRACE_SECS
     if [[ $rc -ne 0 ]] && [[ ! -e "$out" ]] && [[ ! -e "$childmark" ]] &&
+       [[ ! -e "$out.partial" && ! -e "$out.done" && ! -e "$out.done.tmp" ]] &&
        [[ -n "$seat" ]] && ! kill -0 "$seat" 2>/dev/null &&
        [[ -n "$child" ]] && ! kill -0 "$child" 2>/dev/null; then
         test_pass
