@@ -171,7 +171,15 @@ byte_length() {
 # bytes agy would read from the file — not the argv the inline branch would build.
 # Tunable; default 1 MiB (~250k tokens), already far larger than any real review.
 max_payload_bytes="${OCTOPUS_AGY_MAX_PAYLOAD_BYTES:-1048576}"
-case "$max_payload_bytes" in ''|*[!0-9]*) max_payload_bytes=1048576 ;; esac
+# Reject non-digits, then canonicalize to base 10. A value like `08` is an all-digit
+# string but Bash arithmetic reads its leading zero as octal, so `(( x > 08 ))` errors
+# and the comparison silently evaluates false — disabling the ceiling entirely and
+# letting an oversized payload through. `10#` forces base 10; the case guard above
+# guarantees the operand is all digits, so `10#` can never itself error.
+case "$max_payload_bytes" in
+    ''|*[!0-9]*) max_payload_bytes=1048576 ;;
+    *)           max_payload_bytes=$((10#$max_payload_bytes)) ;;
+esac
 prompt_bytes="$(byte_length "$prompt_content")"
 if (( prompt_bytes > max_payload_bytes )); then
     echo "agy-exec.sh: prompt input is too large (${prompt_bytes} bytes > OCTOPUS_AGY_MAX_PAYLOAD_BYTES=${max_payload_bytes}); refusing to dispatch to avoid exhausting agy memory" >&2

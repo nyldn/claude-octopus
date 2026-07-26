@@ -203,6 +203,41 @@ MOCK_AGY
     fi
 }
 
+test_agy_oversize_uses_documented_default_ceiling() {
+    test_case "the 1 MiB default ceiling applies when OCTOPUS_AGY_MAX_PAYLOAD_BYTES is unset"
+
+    local tmp_bin="$TEST_TMP_DIR/agy-default-bin"
+    local marker="$TEST_TMP_DIR/agy-default.called"
+    local err="$TEST_TMP_DIR/agy-default.err"
+    mkdir -p "$tmp_bin"
+    rm -f "$marker"
+    cat > "$tmp_bin/agy" <<'MOCK_AGY'
+#!/usr/bin/env bash
+echo called > "${AGY_CALLED_MARKER:?}"
+echo "mock-response"
+exit 0
+MOCK_AGY
+    chmod +x "$tmp_bin/agy"
+
+    # 1,048,577 bytes = 1 byte over the documented 1 MiB default. With no env
+    # override, a broken default/fallback would dispatch instead of refusing — the
+    # two override-based tests could not catch that. `unset` is scoped to the
+    # subshell so it cannot leak into sibling tests.
+    local out rc
+    out="$( { unset OCTOPUS_AGY_MAX_PAYLOAD_BYTES
+             head -c 1048577 /dev/zero | tr '\0' 'x' \
+               | AGY_CALLED_MARKER="$marker" PATH="$tmp_bin:$PATH" \
+                 bash "$PROJECT_ROOT/scripts/helpers/agy-exec.sh" 2>"$err"; } )"
+    rc=$?
+
+    if [[ $rc -eq 0 ]] && [[ -z "$out" ]] && [[ ! -f "$marker" ]] &&
+       grep -qiE 'input is too large' "$err"; then
+        test_pass
+    else
+        test_fail "default ceiling not enforced: rc=$rc out=[$out] agy_called=$([[ -f "$marker" ]] && echo yes || echo no) stderr=[$(tr '\n' ' ' < "$err")]"
+    fi
+}
+
 test_gemini_via_agy_option() {
     test_case "OCTOPUS_GEMINI_VIA_AGY serves gemini seats through agy"
 
@@ -841,6 +876,7 @@ test_agy_force_inline_directive_prepended_by_default
 test_agy_file_prompt_directive_permits_reading_prompt_file
 test_agy_oversize_payload_skips_gracefully
 test_agy_oversize_ceiling_is_configurable
+test_agy_oversize_uses_documented_default_ceiling
 test_gemini_via_agy_option
 test_agy_dynamic_model_validation
 test_agy_command_validation
