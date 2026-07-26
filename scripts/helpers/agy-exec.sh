@@ -174,11 +174,19 @@ max_payload_bytes="${OCTOPUS_AGY_MAX_PAYLOAD_BYTES:-1048576}"
 # Reject non-digits, then canonicalize to base 10. A value like `08` is an all-digit
 # string but Bash arithmetic reads its leading zero as octal, so `(( x > 08 ))` errors
 # and the comparison silently evaluates false — disabling the ceiling entirely and
-# letting an oversized payload through. `10#` forces base 10; the case guard above
-# guarantees the operand is all digits, so `10#` can never itself error.
+# letting an oversized payload through. `10#` forces base 10.
+# Also guard the magnitude first: Bash arithmetic is signed 64-bit and WRAPS on
+# overflow, so a value beyond INT64 could flip negative and make `prompt_bytes > x`
+# always true (refusing every seat) or otherwise misbehave. A ceiling wider than 18
+# digits (~10^18 bytes ≈ an exabyte) is never a real cap, so fall back to the default;
+# capping at 18 digits keeps `10#` strictly within INT64 range.
 case "$max_payload_bytes" in
-    ''|*[!0-9]*) max_payload_bytes=1048576 ;;
-    *)           max_payload_bytes=$((10#$max_payload_bytes)) ;;
+    ''|*[!0-9]*)      max_payload_bytes=1048576 ;;
+    *) if (( ${#max_payload_bytes} > 18 )); then
+           max_payload_bytes=1048576
+       else
+           max_payload_bytes=$((10#$max_payload_bytes))
+       fi ;;
 esac
 prompt_bytes="$(byte_length "$prompt_content")"
 if (( prompt_bytes > max_payload_bytes )); then

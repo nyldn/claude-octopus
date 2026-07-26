@@ -238,6 +238,39 @@ MOCK_AGY
     fi
 }
 
+test_agy_oversize_default_ceiling_dispatches_at_the_limit() {
+    test_case "a payload at exactly the 1 MiB default (unset env) dispatches, not refused"
+
+    local tmp_bin="$TEST_TMP_DIR/agy-atlimit-bin"
+    local marker="$TEST_TMP_DIR/agy-atlimit.called"
+    mkdir -p "$tmp_bin"
+    rm -f "$marker"
+    cat > "$tmp_bin/agy" <<'MOCK_AGY'
+#!/usr/bin/env bash
+echo called > "${AGY_CALLED_MARKER:?}"
+echo "mock-response"
+exit 0
+MOCK_AGY
+    chmod +x "$tmp_bin/agy"
+
+    # Exactly 1,048,576 bytes = the documented default. The refusal is strictly
+    # greater-than, so this must DISPATCH. Pairs with the 1-byte-over rejection test:
+    # together they pin the boundary, so a default that is too LOW (would refuse here)
+    # is also caught, not just one that is too high.
+    local out rc
+    out="$( { unset OCTOPUS_AGY_MAX_PAYLOAD_BYTES
+             head -c 1048576 /dev/zero | tr '\0' 'x' \
+               | AGY_CALLED_MARKER="$marker" PATH="$tmp_bin:$PATH" \
+                 bash "$PROJECT_ROOT/scripts/helpers/agy-exec.sh" 2>/dev/null; } )"
+    rc=$?
+
+    if [[ $rc -eq 0 ]] && [[ -f "$marker" ]] && [[ "$out" == *"mock-response"* ]]; then
+        test_pass
+    else
+        test_fail "at-limit payload should dispatch: rc=$rc agy_called=$([[ -f "$marker" ]] && echo yes || echo no) out=[$out]"
+    fi
+}
+
 test_gemini_via_agy_option() {
     test_case "OCTOPUS_GEMINI_VIA_AGY serves gemini seats through agy"
 
@@ -877,6 +910,7 @@ test_agy_file_prompt_directive_permits_reading_prompt_file
 test_agy_oversize_payload_skips_gracefully
 test_agy_oversize_ceiling_is_configurable
 test_agy_oversize_uses_documented_default_ceiling
+test_agy_oversize_default_ceiling_dispatches_at_the_limit
 test_gemini_via_agy_option
 test_agy_dynamic_model_validation
 test_agy_command_validation
