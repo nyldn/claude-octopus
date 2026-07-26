@@ -1342,19 +1342,29 @@ test_council_seats_array_makes_quorum_inspectable() {
         council_run --depth standard --output-dir "$tmp_dir" "Review X" >/dev/null 2>&1 || true
     rd="$(find "$tmp_dir" -mindepth 1 -maxdepth 1 -type d | head -1)"
     s="$rd/summary.json"
-    # Every seat carries the inspectable fields, and distinct_approving_providers is
-    # recomputable from seats[] alone (no reading responses/* by hand).
+    # Every seat carries the FULL documented contract (incl. provider_org, model,
+    # verdict), the fields are well-typed, the counted_as_approver invariant holds,
+    # and distinct_approving_providers is recomputable from seats[] alone (no reading
+    # responses/* by hand).
     if jq -e '
         (.seats | type == "array" and length >= 1)
-        and (.seats | all(has("seat") and has("provider") and has("status")
+        and (.seats | all(has("seat") and has("provider") and has("provider_org")
+                          and has("model") and has("status") and has("verdict")
                           and has("response_bytes") and has("payload_kind")
                           and has("counted_as_approver")))
+        and (.seats | all(.provider_org | type == "string" and length >= 1))
+        and (.seats | all(.response_bytes | type == "number"))
+        # verdict is null (no substantive verdict) or a known token — never garbage.
+        and (.seats | all((.verdict == null) or (.verdict | test("^(APPROVE|REVISE|BLOCK)$"))))
+        # a counted approver is, by construction, a responded APPROVE seat.
+        and (.seats | all((.counted_as_approver | not)
+                          or (.status == "responded" and .verdict == "APPROVE")))
         and (.quorum.distinct_approving_providers
              == ([.seats[] | select(.counted_as_approver) | .provider] | unique | length))
     ' "$s" >/dev/null; then
         test_pass
     else
-        test_fail "seats[] missing/!recomputable: $(jq -c '{q:.quorum.distinct_approving_providers, seats:(.seats|length)}' "$s" 2>/dev/null)"
+        test_fail "seats[] missing/!recomputable: $(jq -c '{q:.quorum.distinct_approving_providers, seats:.seats}' "$s" 2>/dev/null)"
         return 1
     fi
 }
