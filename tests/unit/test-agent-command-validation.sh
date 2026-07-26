@@ -77,6 +77,13 @@ else
     test_pass
 fi
 
+test_case "validate_agent_command rejects duplicate credential env args"
+if validate_agent_command "$PROJECT_ROOT/scripts/helpers/openai-compatible-agent.py --provider generic --base-url https://api.pioneer.ai/v1 --api-key-env PIONEER_API_KEY --api-key-env OPENAI_API_KEY --model deepseek-ai/DeepSeek-V4-Pro --cwd /tmp/test" >/dev/null 2>&1; then
+    test_fail "expected duplicate credential env args to be rejected"
+else
+    test_pass
+fi
+
 test_case "validate_agent_command rejects non-project openai-compatible helper path"
 if validate_agent_command "/tmp/openai-compatible-agent.py --provider generic --model minimax/minimax-m3 --cwd /tmp/test" >/dev/null 2>&1; then
     test_fail "expected non-project openai-compatible helper path to be rejected"

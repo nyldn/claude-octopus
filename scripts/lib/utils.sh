@@ -204,10 +204,8 @@ _validate_openai_compatible_agent_command() {
             --base-url)
                 [[ -z "$base_url" ]] || return 1
                 _octopus_is_safe_openai_compatible_value "$value" || return 1
-                case "$value" in
-                    http://*|https://*) base_url="$value" ;;
-                    *) return 1 ;;
-                esac
+                [[ "$value" =~ ^https?://[^/?#]+ ]] || return 1
+                base_url="$value"
                 ;;
             --api-key-env)
                 [[ -z "$api_key_env" ]] || return 1
