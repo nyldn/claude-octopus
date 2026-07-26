@@ -1699,17 +1699,23 @@ council_run_advice_phase() {
     COUNCIL_RESPONSES_RECEIVED="0"
     COUNCIL_CHAIR_RESPONSE_RECEIVED="false"
     COUNCIL_RESPONDING_PROVIDERS=""
+    COUNCIL_SEAT_RECORDS_JSON="[]"
     local dissenting_providers=""
 
     local index=0 member persona slug output_path seat mprovider verdict
+    local seat_org seat_model resp_bytes seat_status seat_rec
     while IFS= read -r member; do
         persona="$(jq -r '.persona' <<< "$member")"
         seat="$(jq -r '.seat' <<< "$member")"
         mprovider="$(jq -r '.provider' <<< "$member")"
+        seat_org="$(jq -r '.provider_org // ""' <<< "$member")"
+        seat_model="$(jq -r '.model // ""' <<< "$member")"
         slug="$(council_slug "$persona")"
         output_path="${COUNCIL_RUN_DIR}/responses/$(printf '%02d' "$index")-${slug}.md"
+        verdict=""; seat_status="no-response"; resp_bytes=0
         if council_dispatch_member "$member" "independent-advice" > "$output_path"; then
             COUNCIL_RESPONSES_RECEIVED=$((COUNCIL_RESPONSES_RECEIVED + 1))
+            resp_bytes="$(wc -c < "$output_path" 2>/dev/null | tr -d '[:space:]')"; [[ -z "$resp_bytes" ]] && resp_bytes=0
             if [[ "$seat" == "chair" ]]; then
                 COUNCIL_CHAIR_RESPONSE_RECEIVED="true"
             fi
@@ -1723,13 +1729,31 @@ council_run_advice_phase() {
             if council_response_nonempty "$output_path" && council_response_is_substantive "$output_path"; then
                 COUNCIL_RESPONDING_PROVIDERS="${COUNCIL_RESPONDING_PROVIDERS} ${mprovider}"
                 verdict="$(council_response_verdict "$output_path")"
+                seat_status="responded"
                 if [[ "$verdict" != "APPROVE" ]]; then
                     dissenting_providers="${dissenting_providers} ${mprovider}"
                 fi
+            elif council_response_nonempty "$output_path"; then
+                seat_status="degenerate"   # produced bytes but reviewed nothing (host stub / "cannot access")
+            else
+                seat_status="empty"
             fi
         else
             rm -f "$output_path"
+            seat_status="no-response"
         fi
+        # Per-seat record for summary.json — makes quorum integrity machine-checkable
+        # (a chair or degenerate seat can no longer masquerade as a distinct approving
+        # vendor). payload_kind is "full" here; #2 (agy chunking) populates delta/chunk,
+        # and #2/#3 extend `status` with degraded/timed_out. RATIONALE: sail-cruisey #2077.
+        seat_rec="$(jq -cn --argjson idx "$index" --arg persona "$persona" --arg seat "$seat" \
+            --arg provider "$mprovider" --arg org "$seat_org" --arg model "$seat_model" \
+            --argjson bytes "${resp_bytes:-0}" --arg verdict "$verdict" --arg status "$seat_status" \
+            '{index:$idx, persona:$persona, seat:$seat, provider:$provider, provider_org:$org,
+              model:$model, response_bytes:$bytes, payload_kind:"full",
+              verdict:(if $verdict=="" then null else $verdict end),
+              status:$status, counted_as_approver:false}')"
+        COUNCIL_SEAT_RECORDS_JSON="$(jq -c ". + [$seat_rec]" <<< "$COUNCIL_SEAT_RECORDS_JSON")"
         index=$((index + 1))
     done < <(jq -c '.[]' <<< "$COUNCIL_ROSTER_JSON")
 
@@ -1754,6 +1778,14 @@ council_run_advice_phase() {
     COUNCIL_APPROVING_PROVIDERS="$(council_compute_approving_providers "$COUNCIL_RESPONDING_PROVIDERS" "$dissenting_providers")"
     COUNCIL_DISTINCT_APPROVING_PROVIDERS="$(printf '%s' "$COUNCIL_APPROVING_PROVIDERS" | tr ' ' '\n' | sed '/^$/d' | sort -u | wc -l | tr -d '[:space:]')"
     [[ -z "$COUNCIL_DISTINCT_APPROVING_PROVIDERS" ]] && COUNCIL_DISTINCT_APPROVING_PROVIDERS=0
+
+    # Flag which seats' providers made the approving set so distinct_approving_providers
+    # is recomputable from the seats array alone: distinct providers among seats where
+    # counted_as_approver == true equals distinct_approving_providers.
+    COUNCIL_SEAT_RECORDS_JSON="$(jq -c --arg approving " ${COUNCIL_APPROVING_PROVIDERS} " '
+        map(.provider as $p
+            | .counted_as_approver = (.status == "responded" and .verdict == "APPROVE"
+                and ($approving | contains(" " + $p + " "))))' <<< "${COUNCIL_SEAT_RECORDS_JSON:-[]}")"
 
     if [[ "$COUNCIL_CHAIR_RESPONSE_RECEIVED" == "true" ]] && (( received_non_chair >= required )) \
         && { (( required < 2 )) || (( COUNCIL_DISTINCT_APPROVING_PROVIDERS >= required )); }; then
@@ -2372,6 +2404,7 @@ council_write_summary_json() {
         --arg task "$COUNCIL_TASK" \
         --arg personas_requested "$COUNCIL_PERSONAS" \
         --argjson council_roster "$COUNCIL_ROSTER_JSON" \
+        --argjson seat_records "${COUNCIL_SEAT_RECORDS_JSON:-[]}" \
         --arg responses_received "$COUNCIL_RESPONSES_RECEIVED" \
         --arg quorum_met "$COUNCIL_QUORUM_MET" \
         --arg distinct_providers "${COUNCIL_DISTINCT_PROVIDERS:-0}" \
@@ -2447,6 +2480,7 @@ council_write_summary_json() {
             chair_fallback_persona: (if $chair_fallback_persona == "" then null else $chair_fallback_persona end)
           },
           council: $council_roster,
+          seats: $seat_records,
           veto: {
             triggered: ($veto_triggered == "true"),
             severity: (if $veto_severity == "" then null else $veto_severity end),

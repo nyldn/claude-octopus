@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- **Council `summary.json` now records a per-seat `seats[]` array**, making quorum integrity machine-checkable without reading `responses/*` by hand. Each advice seat carries `seat` (role), `provider`, `provider_org`, `model`, `response_bytes`, `payload_kind` (currently `full`), `verdict`, `status` (`responded` / `degenerate` / `empty` / `no-response`), and `counted_as_approver`. `distinct_approving_providers` is recomputable as the count of distinct providers among seats where `counted_as_approver` is true — so a chair or degenerate seat can no longer masquerade as a distinct approving vendor. First of the sail-cruisey #2077 council-runner reliability fixes; later fixes extend `payload_kind` (agy chunking) and `status` (timeout/degraded).
+
 ## [9.54.1] - 2026-07-20
 
 ### Fixed

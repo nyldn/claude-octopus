@@ -1332,6 +1332,33 @@ test_council_all_approve_meets_quorum() {
     fi
 }
 
+test_council_seats_array_makes_quorum_inspectable() {
+    test_case "summary.json seats[] records per-seat state and quorum is recomputable from it"
+    load_council_lib || return 1
+    local tmp_dir rd s
+    tmp_dir="$(mktemp -d "$TEST_TMP_DIR/council-seats.XXXXXX")"
+    OCTOPUS_COUNCIL_FIXTURE=full-success \
+    OCTOPUS_COUNCIL_PROVIDER_FIXTURE='codex:available,agy:available' \
+        council_run --depth standard --output-dir "$tmp_dir" "Review X" >/dev/null 2>&1 || true
+    rd="$(find "$tmp_dir" -mindepth 1 -maxdepth 1 -type d | head -1)"
+    s="$rd/summary.json"
+    # Every seat carries the inspectable fields, and distinct_approving_providers is
+    # recomputable from seats[] alone (no reading responses/* by hand).
+    if jq -e '
+        (.seats | type == "array" and length >= 1)
+        and (.seats | all(has("seat") and has("provider") and has("status")
+                          and has("response_bytes") and has("payload_kind")
+                          and has("counted_as_approver")))
+        and (.quorum.distinct_approving_providers
+             == ([.seats[] | select(.counted_as_approver) | .provider] | unique | length))
+    ' "$s" >/dev/null; then
+        test_pass
+    else
+        test_fail "seats[] missing/!recomputable: $(jq -c '{q:.quorum.distinct_approving_providers, seats:(.seats|length)}' "$s" 2>/dev/null)"
+        return 1
+    fi
+}
+
 test_council_host_native_detection
 test_council_live_response_host_native_skips_subprocess
 test_council_live_response_host_native_fails_for_synthesis
@@ -1339,4 +1366,5 @@ test_council_verdict_parsing
 test_council_approving_providers_failsafe
 test_council_split_double_seat_fails_quorum
 test_council_all_approve_meets_quorum
+test_council_seats_array_makes_quorum_inspectable
 test_summary
