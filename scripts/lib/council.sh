@@ -1583,8 +1583,8 @@ council_dispatch_member() {
 
 council_dispatch_member_detached() {
     # Serial-but-detached seat dispatch (sail-cruisey #2077). A council seat used to
-    # run inline in the council's own process group: a SIGHUP/SIGINT to the council
-    # (a Claude Code tool timeout, a user Ctrl-C, an orchestrator-level signal)
+    # run inline in the council's own process group: a SIGHUP/SIGINT/SIGTERM to the
+    # council (a Claude Code tool timeout, a user Ctrl-C, an orchestrator-level signal)
     # propagated to the in-flight provider child, killing it mid-write and leaving a
     # torn response file — the council then hung or reported a false provider
     # shortage. This wrapper runs the seat in a signal-isolated, disowned background
@@ -1597,8 +1597,10 @@ council_dispatch_member_detached() {
     # preserved) — this is a reliability change, not a concurrency change.
     #
     # setsid is deliberately NOT used: it is absent on macOS (util-linux only). The
-    # portable equivalent — `disown` plus `trap '' HUP INT` inside the subshell — is
-    # the same primitive heartbeat.sh already relies on. Set OCTOPUS_COUNCIL_DETACH=0
+    # portable equivalent — `disown` plus `trap '' HUP INT TERM` inside the subshell —
+    # is the same primitive heartbeat.sh already relies on. TERM is included because a
+    # `timeout`-style tool-call/orchestrator kill delivers SIGTERM first (SIGKILL, which
+    # can't be trapped, only escalates after a grace window). Set OCTOPUS_COUNCIL_DETACH=0
     # to fall back to the legacy inline dispatch.
     local member_json="$1" phase="$2" output_path="$3"
     local partial="${output_path}.partial" done_file="${output_path}.done"
@@ -1610,10 +1612,16 @@ council_dispatch_member_detached() {
     fi
 
     (
-        trap '' HUP INT
+        trap '' HUP INT TERM
         rc=0
         council_dispatch_member "$member_json" "$phase" > "$partial" || rc=$?
-        mv -f "$partial" "$output_path" 2>/dev/null || true
+        # A swallowed mv failure would let the wrapper report success (rc unchanged)
+        # with no output_path — the caller then counts a phantom response and, for a
+        # chair seat, suppresses the chair fallback with nothing to show. Treat a
+        # failed rename as a seat failure so the caller discards it.
+        if ! mv -f "$partial" "$output_path" 2>/dev/null; then
+            rc=1
+        fi
         printf '%s' "$rc" > "$done_file"
     ) &
     local seat_pid=$!
