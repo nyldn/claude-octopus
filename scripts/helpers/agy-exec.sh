@@ -155,6 +155,29 @@ byte_length() {
     printf '%s' "${#1}"
 }
 
+# Hard payload ceiling. The argv-size fallback below hands agy an OVERSIZED prompt
+# as a file to read, which sidesteps MAX_ARG_STRLEN but not agy itself: a
+# multi-megabyte prompt is loaded whole into agy's context and OOM-kills the
+# headless process (or is rejected by the backend for context length). Either way
+# the seat dies opaquely — an exit-code failure or a silent-empty result the retry
+# can't fix, and #2077's finished-but-timed-out salvage can't recover because no
+# verdict was ever written. Above this ceiling, refuse to dispatch and emit a
+# provider-rejection marker the dispatch classifier already recognizes
+# ("input is too large" -> classify_agent_output -> skipped:oversize), so the
+# council records a STRUCTURED oversize skip and keeps its other seats instead of
+# crashing on this one. Exit 0 (not an error), matching how agent-sync.sh routes
+# around provider oversize rejections (#410): a too-big prompt is an input-size
+# mismatch to skip, not a hard run failure. Measured on prompt_content — the exact
+# bytes agy would read from the file — not the argv the inline branch would build.
+# Tunable; default 1 MiB (~250k tokens), already far larger than any real review.
+max_payload_bytes="${OCTOPUS_AGY_MAX_PAYLOAD_BYTES:-1048576}"
+case "$max_payload_bytes" in ''|*[!0-9]*) max_payload_bytes=1048576 ;; esac
+prompt_bytes="$(byte_length "$prompt_content")"
+if (( prompt_bytes > max_payload_bytes )); then
+    echo "agy-exec.sh: prompt input is too large (${prompt_bytes} bytes > OCTOPUS_AGY_MAX_PAYLOAD_BYTES=${max_payload_bytes}); refusing to dispatch to avoid exhausting agy memory" >&2
+    exit 0
+fi
+
 # Single-argument size ceiling: Linux caps one argv string at MAX_ARG_STRLEN
 # (128 KiB). Oversized prompts stay in the cached temp file and agy is pointed
 # at it via --add-dir with a read-this-file --print instruction, instead of

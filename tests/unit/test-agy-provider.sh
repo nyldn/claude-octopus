@@ -139,6 +139,70 @@ test_agy_file_prompt_directive_permits_reading_prompt_file() {
     fi
 }
 
+test_agy_oversize_payload_skips_gracefully() {
+    test_case "agy-exec refuses an over-ceiling payload as a structured oversize skip, not an OOM"
+
+    local tmp_bin="$TEST_TMP_DIR/agy-oversize-bin"
+    local marker="$TEST_TMP_DIR/agy-oversize.called"
+    local err="$TEST_TMP_DIR/agy-oversize.err"
+    mkdir -p "$tmp_bin"
+    rm -f "$marker"
+    cat > "$tmp_bin/agy" <<'MOCK_AGY'
+#!/usr/bin/env bash
+echo called > "${AGY_CALLED_MARKER:?}"
+echo "mock-response"
+exit 0
+MOCK_AGY
+    chmod +x "$tmp_bin/agy"
+
+    # A tiny ceiling + a payload above it: agy must NOT be invoked (a multi-MB
+    # prompt OOM-kills headless agy), the exit is 0 (route around, don't fail the
+    # council), stdout is empty, and stderr carries a marker the dispatch
+    # classifier recognizes as a provider oversize rejection -> skipped:oversize.
+    local out rc
+    out="$(printf 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' \
+        | AGY_CALLED_MARKER="$marker" OCTOPUS_AGY_MAX_PAYLOAD_BYTES=10 \
+          PATH="$tmp_bin:$PATH" bash "$PROJECT_ROOT/scripts/helpers/agy-exec.sh" 2>"$err")"
+    rc=$?
+
+    if [[ $rc -eq 0 ]] && [[ -z "$out" ]] && [[ ! -f "$marker" ]] &&
+       grep -qiE 'input is too large' "$err"; then
+        test_pass
+    else
+        test_fail "oversize skip wrong: rc=$rc out=[$out] agy_called=$([[ -f "$marker" ]] && echo yes || echo no) stderr=[$(tr '\n' ' ' < "$err")]"
+    fi
+}
+
+test_agy_oversize_ceiling_is_configurable() {
+    test_case "OCTOPUS_AGY_MAX_PAYLOAD_BYTES raises the ceiling so the same prompt dispatches"
+
+    local tmp_bin="$TEST_TMP_DIR/agy-ceiling-bin"
+    local marker="$TEST_TMP_DIR/agy-ceiling.called"
+    mkdir -p "$tmp_bin"
+    rm -f "$marker"
+    cat > "$tmp_bin/agy" <<'MOCK_AGY'
+#!/usr/bin/env bash
+echo called > "${AGY_CALLED_MARKER:?}"
+echo "mock-response"
+exit 0
+MOCK_AGY
+    chmod +x "$tmp_bin/agy"
+
+    # The exact prompt refused at a 10-byte ceiling must dispatch once the ceiling
+    # is raised above its size — proving the threshold is env-driven, not fixed.
+    local out rc
+    out="$(printf 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' \
+        | AGY_CALLED_MARKER="$marker" OCTOPUS_AGY_MAX_PAYLOAD_BYTES=100000 \
+          PATH="$tmp_bin:$PATH" bash "$PROJECT_ROOT/scripts/helpers/agy-exec.sh" 2>/dev/null)"
+    rc=$?
+
+    if [[ $rc -eq 0 ]] && [[ -f "$marker" ]] && [[ "$out" == *"mock-response"* ]]; then
+        test_pass
+    else
+        test_fail "raised ceiling should dispatch: rc=$rc agy_called=$([[ -f "$marker" ]] && echo yes || echo no) out=[$out]"
+    fi
+}
+
 test_gemini_via_agy_option() {
     test_case "OCTOPUS_GEMINI_VIA_AGY serves gemini seats through agy"
 
@@ -775,6 +839,8 @@ test_agy_dispatch_native_flags
 test_agy_print_receives_prompt_argument
 test_agy_force_inline_directive_prepended_by_default
 test_agy_file_prompt_directive_permits_reading_prompt_file
+test_agy_oversize_payload_skips_gracefully
+test_agy_oversize_ceiling_is_configurable
 test_gemini_via_agy_option
 test_agy_dynamic_model_validation
 test_agy_command_validation
