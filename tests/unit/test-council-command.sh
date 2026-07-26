@@ -1332,6 +1332,48 @@ test_council_all_approve_meets_quorum() {
     fi
 }
 
+test_council_seat_timeout_precedence() {
+    test_case "council_seat_timeout resolves per-provider > flag > global env > default (#2077)"
+    load_council_lib || return 1
+    local d f p g pp
+    # 4. built-in default when nothing set
+    d="$(COUNCIL_SEAT_TIMEOUT='' OCTOPUS_COUNCIL_AGENT_TIMEOUT='' council_seat_timeout agy)"
+    # 3. legacy global env
+    g="$(COUNCIL_SEAT_TIMEOUT='' OCTOPUS_COUNCIL_AGENT_TIMEOUT=200 council_seat_timeout agy)"
+    # 2. run-wide --seat-timeout flag beats the global env
+    f="$(COUNCIL_SEAT_TIMEOUT=300 OCTOPUS_COUNCIL_AGENT_TIMEOUT=200 council_seat_timeout agy)"
+    # 1. per-provider env beats everything, and only for that provider
+    p="$(OCTOPUS_COUNCIL_TIMEOUT_AGY=600 COUNCIL_SEAT_TIMEOUT=300 council_seat_timeout agy)"
+    pp="$(OCTOPUS_COUNCIL_TIMEOUT_AGY=600 COUNCIL_SEAT_TIMEOUT=300 council_seat_timeout codex)"
+    if [[ "$d" == "120" ]] && [[ "$g" == "200" ]] && [[ "$f" == "300" ]] &&
+       [[ "$p" == "600" ]] && [[ "$pp" == "300" ]]; then
+        test_pass
+    else
+        test_fail "timeout precedence wrong: default=$d global=$g flag=$f agy=$p codex=$pp"
+        return 1
+    fi
+}
+
+test_council_response_has_verdict_salvage() {
+    test_case "council_response_has_verdict distinguishes a finished seat from a truncated one (#2077)"
+    load_council_lib || return 1
+    local d; d="$(mktemp -d "$TEST_TMP_DIR/hasverdict.XXXXXX")"
+    printf 'full review body\nVERDICT: APPROVE\n'        > "$d/complete.md"
+    printf '  verdict: revise please\n'                  > "$d/lower.md"
+    printf 'review got cut off mid-sen'                  > "$d/partial.md"
+    printf ''                                            > "$d/empty.md"
+    if council_response_has_verdict "$d/complete.md" &&
+       council_response_has_verdict "$d/lower.md" &&
+       ! council_response_has_verdict "$d/partial.md" &&
+       ! council_response_has_verdict "$d/empty.md" &&
+       ! council_response_has_verdict "$d/missing.md"; then
+        test_pass
+    else
+        test_fail "has_verdict salvage detection wrong"
+        return 1
+    fi
+}
+
 test_council_host_native_detection
 test_council_live_response_host_native_skips_subprocess
 test_council_live_response_host_native_fails_for_synthesis
@@ -1339,4 +1381,6 @@ test_council_verdict_parsing
 test_council_approving_providers_failsafe
 test_council_split_double_seat_fails_quorum
 test_council_all_approve_meets_quorum
+test_council_seat_timeout_precedence
+test_council_response_has_verdict_salvage
 test_summary

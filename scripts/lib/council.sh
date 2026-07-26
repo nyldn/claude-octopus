@@ -15,6 +15,7 @@ COUNCIL_BENCHMARK=""
 COUNCIL_PROVIDERS=""
 COUNCIL_DEFAULT_PROVIDERS="claude,codex,agy,gemini,qwen,opencode,openrouter,openai-compatible,openai-tools"
 COUNCIL_MAX_COST=""
+COUNCIL_SEAT_TIMEOUT=""
 COUNCIL_DRY_RUN=""
 COUNCIL_JSON=""
 COUNCIL_OUTPUT_DIR=""
@@ -78,6 +79,7 @@ Options:
   --benchmark auto|on|off
   --providers auto|${COUNCIL_DEFAULT_PROVIDERS}
   --max-cost <usd>
+  --seat-timeout <seconds>
   --simulate
   --single-model
   --research-first
@@ -103,6 +105,7 @@ council_reset_defaults() {
     COUNCIL_BENCHMARK="auto"
     COUNCIL_PROVIDERS="auto"
     COUNCIL_MAX_COST=""
+    COUNCIL_SEAT_TIMEOUT=""
     COUNCIL_DRY_RUN="false"
     COUNCIL_JSON="false"
     COUNCIL_OUTPUT_DIR=""
@@ -1530,7 +1533,7 @@ EOF
         unset OCTOPUS_GEMINI_SANDBOX
         unset CLAUDE_OCTOPUS_AUTONOMY
         export OCTOPUS_CODEX_SANDBOX="read-only"
-        run_agent_sync "$agent_type" "$prompt" "${OCTOPUS_COUNCIL_AGENT_TIMEOUT:-120}" "$persona" "council" || {
+        run_agent_sync "$agent_type" "$prompt" "$(council_seat_timeout "$agent_type")" "$persona" "council" || {
             if [[ -n "$old_security_set" ]]; then export OCTOPUS_SECURITY_V870="$old_security"; else unset OCTOPUS_SECURITY_V870; fi
             if [[ -n "$old_gemini_sandbox_set" ]]; then export OCTOPUS_GEMINI_SANDBOX="$old_gemini_sandbox"; else unset OCTOPUS_GEMINI_SANDBOX; fi
             if [[ -n "$old_autonomy_set" ]]; then export CLAUDE_OCTOPUS_AUTONOMY="$old_autonomy"; else unset CLAUDE_OCTOPUS_AUTONOMY; fi
@@ -1678,6 +1681,31 @@ council_response_verdict() {
     esac
 }
 
+council_response_has_verdict() {
+    # True if the response contains an explicit VERDICT: line — a strong signal the
+    # seat FINISHED writing (vs. a truncated write killed mid-stream by a timeout),
+    # distinct from council_response_verdict's fail-safe REVISE default. Used to
+    # salvage a complete review whose dispatch reported a boundary timeout (#2077).
+    local f="$1"
+    [[ -f "$f" ]] || return 1
+    awk 'toupper($0) ~ /^[[:space:]]*VERDICT:/ { found = 1 } END { exit !found }' "$f"
+}
+
+council_seat_timeout() {
+    # Per-seat dispatch timeout (seconds). The single default is too tight for a
+    # large-diff review (#2077); resolve most-specific-first so a slow provider can
+    # be given more room without changing the others:
+    #   1. OCTOPUS_COUNCIL_TIMEOUT_<PROVIDER>  (e.g. OCTOPUS_COUNCIL_TIMEOUT_AGY=600)
+    #   2. COUNCIL_SEAT_TIMEOUT                 (the --seat-timeout flag, run-wide)
+    #   3. OCTOPUS_COUNCIL_AGENT_TIMEOUT        (legacy global env)
+    #   4. built-in default
+    local provider="$1" pvar
+    pvar="OCTOPUS_COUNCIL_TIMEOUT_$(printf '%s' "$provider" | tr '[:lower:]-' '[:upper:]_')"
+    if [[ -n "${!pvar:-}" ]]; then printf '%s' "${!pvar}"; return 0; fi
+    if [[ -n "${COUNCIL_SEAT_TIMEOUT:-}" ]]; then printf '%s' "$COUNCIL_SEAT_TIMEOUT"; return 0; fi
+    printf '%s' "${OCTOPUS_COUNCIL_AGENT_TIMEOUT:-120}"
+}
+
 council_compute_approving_providers() {
     # Derive the APPROVING vendor set from the space-separated RESPONDING
     # (substantive responders) and DISSENTING (any seat whose verdict != APPROVE)
@@ -1708,7 +1736,15 @@ council_run_advice_phase() {
         mprovider="$(jq -r '.provider' <<< "$member")"
         slug="$(council_slug "$persona")"
         output_path="${COUNCIL_RUN_DIR}/responses/$(printf '%02d' "$index")-${slug}.md"
-        if council_dispatch_member "$member" "independent-advice" > "$output_path"; then
+        local dispatch_rc=0
+        council_dispatch_member "$member" "independent-advice" > "$output_path" || dispatch_rc=$?
+        # Confirm-finish-before-shortage: a non-zero dispatch (e.g. the per-seat
+        # timeout fired) may still have left a COMPLETE, verdict-bearing review that
+        # the seat finished writing right at the boundary. Salvage that instead of
+        # discarding a usable verdict as a provider shortage (sail-cruisey #2077).
+        if (( dispatch_rc == 0 )) || { council_response_nonempty "$output_path" \
+                && council_response_is_substantive "$output_path" \
+                && council_response_has_verdict "$output_path"; }; then
             COUNCIL_RESPONSES_RECEIVED=$((COUNCIL_RESPONSES_RECEIVED + 1))
             if [[ "$seat" == "chair" ]]; then
                 COUNCIL_CHAIR_RESPONSE_RECEIVED="true"
@@ -2258,6 +2294,12 @@ council_parse_args() {
             --max-cost)
                 [[ $# -ge 2 ]] || { council_error_usage "--max-cost requires a value"; return 2; }
                 COUNCIL_MAX_COST="$(council_validate_budget "$2")" || return 2
+                shift 2
+                ;;
+            --seat-timeout)
+                [[ $# -ge 2 ]] || { council_error_usage "--seat-timeout requires a value (seconds)"; return 2; }
+                case "$2" in ''|*[!0-9]*) council_error_usage "--seat-timeout must be a positive integer number of seconds"; return 2 ;; esac
+                COUNCIL_SEAT_TIMEOUT="$2"
                 shift 2
                 ;;
             --simulate|--single-model)

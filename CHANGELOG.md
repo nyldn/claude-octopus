@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- **Councils configure per-seat dispatch timeouts and salvage a finished review that its dispatch reported as timed out** (#2077). A single global timeout was too tight for large-diff reviews and the strict pass/fail dispatch check discarded seats that had already written a complete `VERDICT:`-bearing response but were killed at the boundary. `council_seat_timeout` now resolves most-specific-first (`OCTOPUS_COUNCIL_TIMEOUT_<PROVIDER>` > the run-wide `--seat-timeout` flag > the legacy `OCTOPUS_COUNCIL_AGENT_TIMEOUT` > a 120s default), so a slow provider such as `agy` can be given more room without loosening the others. The advice phase now counts a seat whose response is non-empty, substantive, and carries an explicit verdict even when its dispatch return code was non-zero, so a complete review is no longer thrown away as a shortage.
+
 ## [9.54.1] - 2026-07-20
 
 ### Fixed
