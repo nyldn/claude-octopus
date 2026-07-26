@@ -41,6 +41,42 @@ else
     test_fail "expected openai-compatible helper path to be accepted"
 fi
 
+
+test_case "validate_agent_command allows configured OpenAI-compatible runtime args"
+if validate_agent_command "$PROJECT_ROOT/scripts/helpers/openai-compatible-agent.py --provider generic --base-url https://api.pioneer.ai/v1 --api-key-env PIONEER_API_KEY --model deepseek-ai/DeepSeek-V4-Pro --cwd /tmp/test"; then
+    test_pass
+else
+    test_fail "expected configured OpenAI-compatible runtime args to be accepted"
+fi
+
+test_case "validate_agent_command rejects non-http OpenAI-compatible base URL"
+if validate_agent_command "$PROJECT_ROOT/scripts/helpers/openai-compatible-agent.py --provider generic --base-url file:///tmp/api --api-key-env PIONEER_API_KEY --model deepseek-ai/DeepSeek-V4-Pro --cwd /tmp/test" >/dev/null 2>&1; then
+    test_fail "expected non-http base URL to be rejected"
+else
+    test_pass
+fi
+
+test_case "validate_agent_command rejects unsafe OpenAI-compatible base URL"
+if validate_agent_command "$PROJECT_ROOT/scripts/helpers/openai-compatible-agent.py --provider generic --base-url https://api.example/v1;touch --api-key-env PIONEER_API_KEY --model deepseek-ai/DeepSeek-V4-Pro --cwd /tmp/test" >/dev/null 2>&1; then
+    test_fail "expected unsafe base URL to be rejected"
+else
+    test_pass
+fi
+
+test_case "validate_agent_command rejects invalid credential env name"
+if validate_agent_command "$PROJECT_ROOT/scripts/helpers/openai-compatible-agent.py --provider generic --base-url https://api.pioneer.ai/v1 --api-key-env BAD-NAME --model deepseek-ai/DeepSeek-V4-Pro --cwd /tmp/test" >/dev/null 2>&1; then
+    test_fail "expected invalid credential env name to be rejected"
+else
+    test_pass
+fi
+
+test_case "validate_agent_command rejects duplicate OpenAI-compatible runtime args"
+if validate_agent_command "$PROJECT_ROOT/scripts/helpers/openai-compatible-agent.py --provider generic --base-url https://api.pioneer.ai/v1 --base-url https://api.example/v1 --api-key-env PIONEER_API_KEY --model deepseek-ai/DeepSeek-V4-Pro --cwd /tmp/test" >/dev/null 2>&1; then
+    test_fail "expected duplicate runtime args to be rejected"
+else
+    test_pass
+fi
+
 test_case "validate_agent_command rejects non-project openai-compatible helper path"
 if validate_agent_command "/tmp/openai-compatible-agent.py --provider generic --model minimax/minimax-m3 --cwd /tmp/test" >/dev/null 2>&1; then
     test_fail "expected non-project openai-compatible helper path to be rejected"
