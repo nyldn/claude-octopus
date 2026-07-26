@@ -1641,7 +1641,11 @@ council_dispatch_member_detached() {
     # at a fine interval so fixture-fast seats do not each cost a full second.
     local timeout_secs="${OCTOPUS_COUNCIL_AGENT_TIMEOUT:-120}"
     [[ "$timeout_secs" =~ ^[0-9]+$ ]] || timeout_secs=120
-    local max_ms=$(( (timeout_secs + 15) * 1000 )) waited_ms=0
+    # Grace margin for the mv+sentinel write after the provider timeout fires.
+    # Configurable so tests can force the timeout path deterministically.
+    local grace_secs="${OCTOPUS_COUNCIL_REAP_GRACE_SECS:-15}"
+    [[ "$grace_secs" =~ ^[0-9]+$ ]] || grace_secs=15
+    local max_ms=$(( (timeout_secs + grace_secs) * 1000 )) waited_ms=0
     while (( waited_ms < max_ms )); do
         [[ -f "$done_file" ]] && break
         if ! kill -0 "$seat_pid" 2>/dev/null; then
@@ -1658,11 +1662,20 @@ council_dispatch_member_detached() {
     if [[ -f "$done_file" ]]; then
         rc="$(<"$done_file")"
         [[ "$rc" =~ ^[0-9]+$ ]] || rc=1
+    else
+        # The reap window expired with no sentinel. If the seat is still alive it has
+        # outlived run_agent_sync's own timeout; because it ignores HUP/INT/TERM by
+        # design, SIGKILL (untrappable) is the only way to stop it. Cancel it so it
+        # cannot rename a late .partial into output_path AFTER the council has already
+        # treated this seat as failed and moved on — a late publish would orphan a
+        # stale response into responses/ and could retroactively satisfy the chair
+        # fallback. Then discard any partial/late output for this seat.
+        if kill -0 "$seat_pid" 2>/dev/null; then
+            kill -KILL "$seat_pid" 2>/dev/null || true
+        fi
+        rm -f "$output_path"
     fi
-    rm -f "$done_file" "${done_file}.tmp"
-    # Only reclaim a leftover .partial once the seat is truly gone: if a pathological
-    # seat is still running past the reap window, its pending mv still needs it.
-    kill -0 "$seat_pid" 2>/dev/null || rm -f "$partial"
+    rm -f "$done_file" "${done_file}.tmp" "$partial"
     return "$rc"
 }
 

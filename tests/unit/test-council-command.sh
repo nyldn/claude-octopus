@@ -1435,6 +1435,40 @@ test_council_detached_seat_survives_interrupt() {
     fi
 }
 
+test_council_detached_seat_timeout_is_cancelled() {
+    test_case "A seat that outlives the reap window is cancelled — no late response is published (#2077)"
+    load_council_lib || return 1
+    local d; d="$(mktemp -d "$TEST_TMP_DIR/detach-timeout.XXXXXX")"
+    local member='{"provider":"codex","persona":"code-reviewer","seat":"member"}'
+    local pidf="$d/seat.pid" out="$d/late.md"
+    # Force a ~1s reap window (timeout 1 + grace 0) against a seat that would take ~4s.
+    export OCTOPUS_COUNCIL_AGENT_TIMEOUT=1
+    export OCTOPUS_COUNCIL_REAP_GRACE_SECS=0
+
+    council_dispatch_member() {
+        sh -c 'echo $PPID' > "$pidf"
+        sleep 4
+        printf 'late publish\nVERDICT: APPROVE\n'
+        return 0
+    }
+
+    local rc=0
+    council_dispatch_member_detached "$member" "independent-advice" "$out" || rc=$?
+    local seat; seat="$(cat "$pidf" 2>/dev/null)"
+    # Wait past when the seat WOULD have finished had it not been cancelled; a late
+    # rename would appear here if cancellation failed.
+    sleep 2
+
+    unset OCTOPUS_COUNCIL_AGENT_TIMEOUT OCTOPUS_COUNCIL_REAP_GRACE_SECS
+    if [[ $rc -ne 0 ]] && [[ ! -e "$out" ]] &&
+       [[ -n "$seat" ]] && ! kill -0 "$seat" 2>/dev/null; then
+        test_pass
+    else
+        test_fail "timed-out seat not cancelled: rc=$rc late_file=$([[ -e "$out" ]] && echo yes || echo no) seat_alive=$(kill -0 "$seat" 2>/dev/null && echo yes || echo no)"
+        return 1
+    fi
+}
+
 test_council_host_native_detection
 test_council_live_response_host_native_skips_subprocess
 test_council_live_response_host_native_fails_for_synthesis
@@ -1445,4 +1479,5 @@ test_council_all_approve_meets_quorum
 test_council_detached_dispatch_atomic_and_propagates_rc
 test_council_detach_escape_hatch_uses_inline
 test_council_detached_seat_survives_interrupt
+test_council_detached_seat_timeout_is_cancelled
 test_summary
