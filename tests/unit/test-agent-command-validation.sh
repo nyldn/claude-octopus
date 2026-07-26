@@ -56,6 +56,20 @@ else
     test_pass
 fi
 
+test_case "validate_agent_command rejects http URL without host"
+if validate_agent_command "$PROJECT_ROOT/scripts/helpers/openai-compatible-agent.py --provider generic --base-url http:// --api-key-env PIONEER_API_KEY --model deepseek-ai/DeepSeek-V4-Pro --cwd /tmp/test" >/dev/null 2>&1; then
+    test_fail "expected http URL without host to be rejected"
+else
+    test_pass
+fi
+
+test_case "validate_agent_command rejects https URL without host"
+if validate_agent_command "$PROJECT_ROOT/scripts/helpers/openai-compatible-agent.py --provider generic --base-url https:// --api-key-env PIONEER_API_KEY --model deepseek-ai/DeepSeek-V4-Pro --cwd /tmp/test" >/dev/null 2>&1; then
+    test_fail "expected https URL without host to be rejected"
+else
+    test_pass
+fi
+
 test_case "validate_agent_command rejects unsafe OpenAI-compatible base URL"
 if validate_agent_command "$PROJECT_ROOT/scripts/helpers/openai-compatible-agent.py --provider generic --base-url https://api.example/v1;touch --api-key-env PIONEER_API_KEY --model deepseek-ai/DeepSeek-V4-Pro --cwd /tmp/test" >/dev/null 2>&1; then
     test_fail "expected unsafe base URL to be rejected"
