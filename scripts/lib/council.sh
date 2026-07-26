@@ -1581,6 +1581,78 @@ council_dispatch_member() {
     council_live_response "$provider" "$persona" "$prompt" "$phase"
 }
 
+council_dispatch_member_detached() {
+    # Serial-but-detached seat dispatch (sail-cruisey #2077). A council seat used to
+    # run inline in the council's own process group: a SIGHUP/SIGINT to the council
+    # (a Claude Code tool timeout, a user Ctrl-C, an orchestrator-level signal)
+    # propagated to the in-flight provider child, killing it mid-write and leaving a
+    # torn response file — the council then hung or reported a false provider
+    # shortage. This wrapper runs the seat in a signal-isolated, disowned background
+    # subshell that writes to a .partial file and atomically renames it into place on
+    # completion, dropping a .done sentinel carrying the exit code. The seat's write
+    # is thus decoupled from the parent's process group: an interrupted parent can no
+    # longer kill a seat mid-write or leave a half-written file, and reaping is
+    # authoritative via the .done sentinel rather than a synchronous return that a
+    # racing signal could truncate. Seats still run one at a time (serial ordering
+    # preserved) — this is a reliability change, not a concurrency change.
+    #
+    # setsid is deliberately NOT used: it is absent on macOS (util-linux only). The
+    # portable equivalent — `disown` plus `trap '' HUP INT` inside the subshell — is
+    # the same primitive heartbeat.sh already relies on. Set OCTOPUS_COUNCIL_DETACH=0
+    # to fall back to the legacy inline dispatch.
+    local member_json="$1" phase="$2" output_path="$3"
+    local partial="${output_path}.partial" done_file="${output_path}.done"
+    rm -f "$partial" "$done_file" "$output_path"
+
+    if [[ "${OCTOPUS_COUNCIL_DETACH:-1}" != "1" ]]; then
+        council_dispatch_member "$member_json" "$phase" > "$output_path"
+        return $?
+    fi
+
+    (
+        trap '' HUP INT
+        rc=0
+        council_dispatch_member "$member_json" "$phase" > "$partial" || rc=$?
+        mv -f "$partial" "$output_path" 2>/dev/null || true
+        printf '%s' "$rc" > "$done_file"
+    ) &
+    local seat_pid=$!
+    # Remove the seat from the job table so bash never SIGHUPs it when the council
+    # shell exits. `disown $pid` needs the pid to still be a known job; fall back to
+    # the bare form (most-recent job) if the shell has already reaped it.
+    disown "$seat_pid" 2>/dev/null || disown 2>/dev/null || true
+
+    # Bounded reap. run_agent_sync already enforces the per-seat provider timeout, so
+    # the subshell terminates on its own; this poll is a safety net keyed to the same
+    # timeout plus a grace margin for the mv+sentinel write. Poll the .done sentinel
+    # at a fine interval so fixture-fast seats do not each cost a full second.
+    local timeout_secs="${OCTOPUS_COUNCIL_AGENT_TIMEOUT:-120}"
+    [[ "$timeout_secs" =~ ^[0-9]+$ ]] || timeout_secs=120
+    local max_ms=$(( (timeout_secs + 15) * 1000 )) waited_ms=0
+    while (( waited_ms < max_ms )); do
+        [[ -f "$done_file" ]] && break
+        if ! kill -0 "$seat_pid" 2>/dev/null; then
+            # Subshell exited; its last act is to write .done, so give that write a
+            # beat to land before we stop waiting.
+            [[ -f "$done_file" ]] || sleep 0.05
+            break
+        fi
+        sleep 0.2
+        waited_ms=$(( waited_ms + 200 ))
+    done
+
+    local rc=1
+    if [[ -f "$done_file" ]]; then
+        rc="$(<"$done_file")"
+        [[ "$rc" =~ ^[0-9]+$ ]] || rc=1
+    fi
+    rm -f "$done_file"
+    # Only reclaim a leftover .partial once the seat is truly gone: if a pathological
+    # seat is still running past the reap window, its pending mv still needs it.
+    kill -0 "$seat_pid" 2>/dev/null || rm -f "$partial"
+    return "$rc"
+}
+
 council_write_config_json() {
     local config_path="${COUNCIL_RUN_DIR}/config.json"
     jq -n \
@@ -1708,7 +1780,7 @@ council_run_advice_phase() {
         mprovider="$(jq -r '.provider' <<< "$member")"
         slug="$(council_slug "$persona")"
         output_path="${COUNCIL_RUN_DIR}/responses/$(printf '%02d' "$index")-${slug}.md"
-        if council_dispatch_member "$member" "independent-advice" > "$output_path"; then
+        if council_dispatch_member_detached "$member" "independent-advice" "$output_path"; then
             COUNCIL_RESPONSES_RECEIVED=$((COUNCIL_RESPONSES_RECEIVED + 1))
             if [[ "$seat" == "chair" ]]; then
                 COUNCIL_CHAIR_RESPONSE_RECEIVED="true"
@@ -1807,7 +1879,7 @@ council_run_chair_fallback() {
         member_json="$(council_roster_entry_json "$persona" "$provider" | jq -c '.seat = "chair"')"
         index="$(find "${COUNCIL_RUN_DIR}/responses" -type f -name '*.md' | wc -l | tr -d ' ')"
         output_path="${COUNCIL_RUN_DIR}/responses/$(printf '%02d' "$index")-chair-fallback-${slug}.md"
-        if council_dispatch_member "$member_json" "independent-advice" > "$output_path"; then
+        if council_dispatch_member_detached "$member_json" "independent-advice" "$output_path"; then
             COUNCIL_RESPONSES_RECEIVED=$((COUNCIL_RESPONSES_RECEIVED + 1))
             COUNCIL_CHAIR_RESPONSE_RECEIVED="true"
             COUNCIL_CHAIR_FALLBACK_USED="true"

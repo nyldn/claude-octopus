@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **A council advice seat now survives an interrupt to the council process instead of dying mid-write** (#2077). Advice seats ran inline in the council's own process group, so a SIGHUP/SIGINT to the council (a Claude Code tool timeout, a user Ctrl-C, an orchestrator-level signal) propagated to the in-flight provider child, killing it mid-write and leaving a torn response file — the council then hung or reported a false provider shortage. `council_dispatch_member_detached` now runs each advice/chair-fallback seat in a signal-isolated, disowned background subshell (`trap '' HUP INT` + `disown` — the portable equivalent of `setsid`, which is absent on macOS) that writes to a `.partial` file and atomically renames it into place on completion, dropping a `.done` sentinel that carries the exit code. Reaping is authoritative via that sentinel rather than a synchronous return a racing signal could truncate. Seats still run one at a time; this is a reliability change, not a concurrency change. Set `OCTOPUS_COUNCIL_DETACH=0` to restore the legacy inline dispatch.
+
 ## [9.54.1] - 2026-07-20
 
 ### Fixed

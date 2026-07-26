@@ -1332,6 +1332,89 @@ test_council_all_approve_meets_quorum() {
     fi
 }
 
+test_council_detached_dispatch_atomic_and_propagates_rc() {
+    test_case "council_dispatch_member_detached writes an atomic result, propagates rc, leaves no temp files (#2077)"
+    load_council_lib || return 1
+    local d; d="$(mktemp -d "$TEST_TMP_DIR/detach.XXXXXX")"
+    local member='{"provider":"codex","persona":"code-reviewer","seat":"member"}'
+    export OCTOPUS_COUNCIL_AGENT_TIMEOUT=30
+
+    # Happy path: a complete verdict-bearing response lands atomically at the final
+    # path with rc 0 and no .partial/.done residue.
+    council_dispatch_member() { printf 'full review\nVERDICT: APPROVE\n'; return 0; }
+    local ok_rc=0
+    council_dispatch_member_detached "$member" "independent-advice" "$d/ok.md" || ok_rc=$?
+
+    # Failing seat: the inner exit code is propagated through the .done sentinel.
+    council_dispatch_member() { printf 'junk'; return 3; }
+    local fail_rc=0
+    council_dispatch_member_detached "$member" "independent-advice" "$d/bad.md" || fail_rc=$?
+
+    if [[ $ok_rc -eq 0 ]] && grep -q 'VERDICT: APPROVE' "$d/ok.md" &&
+       [[ ! -e "$d/ok.md.partial" && ! -e "$d/ok.md.done" ]] &&
+       [[ $fail_rc -eq 3 ]] && [[ ! -e "$d/bad.md.partial" && ! -e "$d/bad.md.done" ]]; then
+        test_pass
+    else
+        test_fail "detached dispatch wrong: ok_rc=$ok_rc fail_rc=$fail_rc ok=[$(tr '\n' '|' < "$d/ok.md" 2>/dev/null)]"
+        return 1
+    fi
+}
+
+test_council_detach_escape_hatch_uses_inline() {
+    test_case "OCTOPUS_COUNCIL_DETACH=0 falls back to inline dispatch (no sentinel)"
+    load_council_lib || return 1
+    local d; d="$(mktemp -d "$TEST_TMP_DIR/detach-off.XXXXXX")"
+    local member='{"provider":"codex","persona":"code-reviewer","seat":"member"}'
+    council_dispatch_member() { printf 'inline\nVERDICT: REVISE\n'; return 0; }
+    local rc=0
+    OCTOPUS_COUNCIL_DETACH=0 council_dispatch_member_detached "$member" "independent-advice" "$d/x.md" || rc=$?
+    # The inline path never creates a .done sentinel; output must still be correct.
+    if [[ $rc -eq 0 ]] && grep -q 'VERDICT: REVISE' "$d/x.md" && [[ ! -e "$d/x.md.done" ]]; then
+        test_pass
+    else
+        test_fail "escape hatch wrong: rc=$rc content=[$(tr '\n' '|' < "$d/x.md" 2>/dev/null)]"
+        return 1
+    fi
+}
+
+test_council_detached_seat_survives_interrupt() {
+    test_case "A detached seat survives SIGINT/SIGHUP to its process and still lands its result (#2077)"
+    load_council_lib || return 1
+    local d; d="$(mktemp -d "$TEST_TMP_DIR/detach-sig.XXXXXX")"
+    local member='{"provider":"codex","persona":"code-reviewer","seat":"member"}'
+    local pidf="$d/seat.pid" relf="$d/release" out="$d/sig.md"
+    export OCTOPUS_COUNCIL_AGENT_TIMEOUT=30
+
+    # PPID of the `sh -c` child is the seat subshell's pid — portable to bash 3.2
+    # (macOS), where $BASHPID does not exist. The stub blocks until released so the
+    # test can deliver signals while the seat is provably mid-run.
+    council_dispatch_member() {
+        sh -c 'echo $PPID' > "$pidf"
+        local i=0
+        while [[ ! -f "$relf" && $i -lt 200 ]]; do sleep 0.1; i=$((i + 1)); done
+        printf 'survived interrupt\nVERDICT: APPROVE\n'
+        return 0
+    }
+
+    council_dispatch_member_detached "$member" "independent-advice" "$out" & local helper=$!
+    local i=0
+    while [[ ! -f "$pidf" && $i -lt 100 ]]; do sleep 0.1; i=$((i + 1)); done
+    local seat; seat="$(cat "$pidf" 2>/dev/null)"
+    kill -INT "$seat" 2>/dev/null || true
+    kill -HUP "$seat" 2>/dev/null || true
+    local premature="no"; [[ -f "$out" ]] && premature="yes"
+    : > "$relf"
+    local rc=0; wait "$helper" || rc=$?
+
+    if [[ -n "$seat" ]] && [[ "$premature" == "no" ]] && [[ $rc -eq 0 ]] &&
+       [[ -f "$out" ]] && grep -q 'survived interrupt' "$out"; then
+        test_pass
+    else
+        test_fail "detached seat did not survive interrupt: seat=$seat premature=$premature rc=$rc out=[$(tr '\n' '|' < "$out" 2>/dev/null)]"
+        return 1
+    fi
+}
+
 test_council_host_native_detection
 test_council_live_response_host_native_skips_subprocess
 test_council_live_response_host_native_fails_for_synthesis
@@ -1339,4 +1422,7 @@ test_council_verdict_parsing
 test_council_approving_providers_failsafe
 test_council_split_double_seat_fails_quorum
 test_council_all_approve_meets_quorum
+test_council_detached_dispatch_atomic_and_propagates_rc
+test_council_detach_escape_hatch_uses_inline
+test_council_detached_seat_survives_interrupt
 test_summary
