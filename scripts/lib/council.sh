@@ -15,6 +15,7 @@ COUNCIL_BENCHMARK=""
 COUNCIL_PROVIDERS=""
 COUNCIL_DEFAULT_PROVIDERS="claude,codex,agy,gemini,qwen,opencode,openrouter,openai-compatible,openai-tools"
 COUNCIL_MAX_COST=""
+COUNCIL_SEAT_TIMEOUT=""
 COUNCIL_DRY_RUN=""
 COUNCIL_JSON=""
 COUNCIL_OUTPUT_DIR=""
@@ -79,6 +80,7 @@ Options:
   --benchmark auto|on|off
   --providers auto|${COUNCIL_DEFAULT_PROVIDERS}
   --max-cost <usd>
+  --seat-timeout <seconds>
   --simulate
   --single-model
   --research-first
@@ -104,6 +106,7 @@ council_reset_defaults() {
     COUNCIL_BENCHMARK="auto"
     COUNCIL_PROVIDERS="auto"
     COUNCIL_MAX_COST=""
+    COUNCIL_SEAT_TIMEOUT=""
     COUNCIL_DRY_RUN="false"
     COUNCIL_JSON="false"
     COUNCIL_OUTPUT_DIR=""
@@ -1516,9 +1519,9 @@ EOF
         return 1
     fi
 
-    if declare -f run_agent_sync >/dev/null 2>&1; then
+    if declare -f run_agent_sync_consultative >/dev/null 2>&1; then
         local agent_type="$provider"
-        run_agent_sync_consultative "$agent_type" "$prompt" "${OCTOPUS_COUNCIL_AGENT_TIMEOUT:-120}" "$persona" "council"
+        run_agent_sync_consultative "$agent_type" "$prompt" "$(council_seat_timeout "$agent_type")" "$persona" "council"
         return $?
     fi
 
@@ -1648,6 +1651,43 @@ council_response_verdict() {
     esac
 }
 
+council_response_has_verdict() {
+    # True if the response contains an explicit VERDICT: line — a strong signal the
+    # seat FINISHED writing (vs. a truncated write killed mid-stream by a timeout),
+    # distinct from council_response_verdict's fail-safe REVISE default. Used to
+    # salvage a complete review whose dispatch reported a boundary timeout (#2077).
+    local f="$1"
+    [[ -f "$f" ]] || return 1
+    awk 'toupper($0) ~ /^[[:space:]]*VERDICT:/ { found = 1 } END { exit !found }' "$f"
+}
+
+council_received_non_chair() {
+    # Derive this count from the execution records, not from the aggregate response
+    # counter. A chair fallback can reuse an already-counted member response without
+    # adding another response, so blindly subtracting one would erase that member.
+    jq '[.[] | select(.seat != "chair" and .status == "responded")] | length' \
+        <<< "${COUNCIL_SEAT_RECORDS_JSON:-[]}"
+}
+
+council_seat_timeout() {
+    # Per-seat dispatch timeout (seconds). The single default is too tight for a
+    # large-diff review (#2077); resolve most-specific-first so a slow provider can
+    # be given more room without changing the others:
+    #   1. OCTOPUS_COUNCIL_TIMEOUT_<PROVIDER>  (e.g. OCTOPUS_COUNCIL_TIMEOUT_AGY=600)
+    #   2. COUNCIL_SEAT_TIMEOUT                 (the --seat-timeout flag, run-wide)
+    #   3. OCTOPUS_COUNCIL_AGENT_TIMEOUT        (legacy global env)
+    #   4. built-in default
+    local provider="$1" pvar candidate
+    pvar="OCTOPUS_COUNCIL_TIMEOUT_$(printf '%s' "$provider" | tr '[:lower:]-' '[:upper:]_')"
+    candidate="${!pvar:-}"
+    if [[ "$candidate" =~ ^[1-9][0-9]*$ ]]; then printf '%s' "$candidate"; return 0; fi
+    candidate="${COUNCIL_SEAT_TIMEOUT:-}"
+    if [[ "$candidate" =~ ^[1-9][0-9]*$ ]]; then printf '%s' "$candidate"; return 0; fi
+    candidate="${OCTOPUS_COUNCIL_AGENT_TIMEOUT:-}"
+    if [[ "$candidate" =~ ^[1-9][0-9]*$ ]]; then printf '%s' "$candidate"; return 0; fi
+    printf '120'
+}
+
 council_compute_approving_providers() {
     # Derive the APPROVING vendor set from the space-separated RESPONDING
     # (substantive responders) and DISSENTING (any seat whose verdict != APPROVE)
@@ -1683,7 +1723,15 @@ council_run_advice_phase() {
         slug="$(council_slug "$persona")"
         output_path="${COUNCIL_RUN_DIR}/responses/$(printf '%02d' "$index")-${slug}.md"
         verdict=""; seat_status="no-response"; resp_bytes=0
-        if council_dispatch_member "$member" "independent-advice" > "$output_path"; then
+        local dispatch_rc=0
+        council_dispatch_member "$member" "independent-advice" > "$output_path" || dispatch_rc=$?
+        # Confirm-finish-before-shortage: a non-zero dispatch (e.g. the per-seat
+        # timeout fired) may still have left a COMPLETE, verdict-bearing review that
+        # the seat finished writing right at the boundary. Salvage that instead of
+        # discarding a usable verdict as a provider shortage (sail-cruisey #2077).
+        if council_response_nonempty "$output_path" \
+                && council_response_is_substantive "$output_path" \
+                && { (( dispatch_rc == 0 )) || council_response_has_verdict "$output_path"; }; then
             COUNCIL_RESPONSES_RECEIVED=$((COUNCIL_RESPONSES_RECEIVED + 1))
             resp_bytes="$(wc -c < "$output_path" 2>/dev/null | tr -d '[:space:]')"; [[ -z "$resp_bytes" ]] && resp_bytes=0
             if [[ "$seat" == "chair" ]]; then
@@ -1696,21 +1744,38 @@ council_run_advice_phase() {
             # a non-APPROVE marks the vendor dissenting so its seat can't count as an
             # approval, and a split double-seated vendor (one APPROVE, one REVISE)
             # can't cherry-pick its yes-seat into the quorum (#1992/#1994/#1983).
-            if council_response_nonempty "$output_path" && council_response_is_substantive "$output_path"; then
+            #
+            # The CHAIR seat is excluded from this vendor tally. The chair is the
+            # synthesizer, not an independent cross-lab reviewer, and the count gate
+            # already excludes it (received_non_chair). Counting its provider here let a
+            # chair-only vendor inflate distinct_approving_providers — so a single
+            # independent approver plus the chair's own vendor could pass a 2-vendor
+            # quorum. The chair-fallback path never added to this set either, so gating
+            # on non-chair seats keeps seats[] and quorum consistent (#670).
+            verdict="$(council_response_verdict "$output_path")"
+            seat_status="responded"
+            if [[ "$seat" != "chair" ]]; then
                 COUNCIL_RESPONDING_PROVIDERS="${COUNCIL_RESPONDING_PROVIDERS} ${mprovider}"
-                verdict="$(council_response_verdict "$output_path")"
-                seat_status="responded"
                 if [[ "$verdict" != "APPROVE" ]]; then
                     dissenting_providers="${dissenting_providers} ${mprovider}"
                 fi
-            elif council_response_nonempty "$output_path"; then
-                seat_status="degenerate"   # produced bytes but reviewed nothing (host stub / "cannot access")
+            fi
+        elif council_response_nonempty "$output_path"; then
+            resp_bytes="$(wc -c < "$output_path" 2>/dev/null | tr -d '[:space:]')"; [[ -z "$resp_bytes" ]] && resp_bytes=0
+            if council_response_is_substantive "$output_path"; then
+                # A timed-out/truncated review without a final verdict is preserved
+                # for diagnosis, but cannot count as a response or approver.
+                seat_status="no-response"
             else
-                seat_status="empty"
+                seat_status="degenerate"   # produced bytes but reviewed nothing (host stub / "cannot access")
             fi
         else
             rm -f "$output_path"
-            seat_status="no-response"
+            if (( dispatch_rc == 0 )); then
+                seat_status="empty"
+            else
+                seat_status="no-response"
+            fi
         fi
         # Per-seat record for summary.json — makes quorum integrity machine-checkable
         # (a chair or degenerate seat can no longer masquerade as a distinct approving
@@ -1733,7 +1798,7 @@ council_run_advice_phase() {
 
     local required received_non_chair
     required="$(council_required_non_chair)"
-    received_non_chair="$(( COUNCIL_RESPONSES_RECEIVED > 0 ? COUNCIL_RESPONSES_RECEIVED - 1 : 0 ))"
+    received_non_chair="$(council_received_non_chair)"
 
     # Distinct-vendor quorum, in two layers:
     #   distinct_providers  — vendors that returned a SUBSTANTIVE response.
@@ -1754,7 +1819,8 @@ council_run_advice_phase() {
     # counted_as_approver == true equals distinct_approving_providers.
     COUNCIL_SEAT_RECORDS_JSON="$(jq -c --arg approving " ${COUNCIL_APPROVING_PROVIDERS} " '
         map(.provider as $p
-            | .counted_as_approver = (.status == "responded" and .verdict == "APPROVE"
+            | .counted_as_approver = (.seat != "chair"
+                and .status == "responded" and .verdict == "APPROVE"
                 and ($approving | contains(" " + $p + " "))))' <<< "${COUNCIL_SEAT_RECORDS_JSON:-[]}")"
 
     if [[ "$COUNCIL_CHAIR_RESPONSE_RECEIVED" == "true" ]] && (( received_non_chair >= required )) \
@@ -1791,14 +1857,23 @@ council_synthesis_capable_persona() {
 
 council_run_chair_fallback() {
     local persona provider member_json slug output_path index
-    local seat_org seat_model resp_bytes verdict seat_status seat_rec
+    local seat_org seat_model resp_bytes verdict seat_status seat_rec existing_response dispatch_rc
 
     while IFS= read -r persona; do
         [[ -n "$persona" ]] || continue
         council_synthesis_capable_persona "$persona" || continue
         council_persona_should_fail "$persona" && continue
         slug="$(council_slug "$persona")"
-        if find "${COUNCIL_RUN_DIR}/responses" -type f -name "*-${slug}.md" | grep -q .; then
+        existing_response="$(find "${COUNCIL_RUN_DIR}/responses" -type f -name "*-${slug}.md" -print -quit)"
+        # Reuse an existing synthesis-capable member only when the advice phase
+        # accepted that seat. A timed-out partial or degenerate artifact is kept for
+        # diagnosis, but must not masquerade as a recovered chair response.
+        if [[ -n "$existing_response" ]] \
+                && council_response_nonempty "$existing_response" \
+                && council_response_is_substantive "$existing_response" \
+                && jq -e --arg persona "$persona" \
+                    'any(.[]; .persona == $persona and .status == "responded")' \
+                    <<< "${COUNCIL_SEAT_RECORDS_JSON:-[]}" >/dev/null; then
             COUNCIL_CHAIR_RESPONSE_RECEIVED="true"
             COUNCIL_CHAIR_FALLBACK_USED="true"
             COUNCIL_CHAIR_FALLBACK_PERSONA="$persona"
@@ -1813,7 +1888,11 @@ council_run_chair_fallback() {
         # existing index and make the execution record ambiguous.
         index="$(jq 'length' <<< "${COUNCIL_SEAT_RECORDS_JSON:-[]}")"
         output_path="${COUNCIL_RUN_DIR}/responses/$(printf '%02d' "$index")-chair-fallback-${slug}.md"
-        if council_dispatch_member "$member_json" "independent-advice" > "$output_path"; then
+        dispatch_rc=0
+        council_dispatch_member "$member_json" "independent-advice" > "$output_path" || dispatch_rc=$?
+        if council_response_nonempty "$output_path" \
+                && council_response_is_substantive "$output_path" \
+                && { (( dispatch_rc == 0 )) || council_response_has_verdict "$output_path"; }; then
             COUNCIL_RESPONSES_RECEIVED=$((COUNCIL_RESPONSES_RECEIVED + 1))
             COUNCIL_CHAIR_RESPONSE_RECEIVED="true"
             COUNCIL_CHAIR_FALLBACK_USED="true"
@@ -1826,14 +1905,8 @@ council_run_chair_fallback() {
             seat_model="$(jq -r '.model // ""' <<< "$member_json")"
             resp_bytes="$(wc -c < "$output_path" 2>/dev/null | tr -d '[:space:]')"
             [[ -z "$resp_bytes" ]] && resp_bytes=0
-            verdict=""
-            seat_status="empty"
-            if council_response_nonempty "$output_path" && council_response_is_substantive "$output_path"; then
-                verdict="$(council_response_verdict "$output_path")"
-                seat_status="responded"
-            elif council_response_nonempty "$output_path"; then
-                seat_status="degenerate"
-            fi
+            verdict="$(council_response_verdict "$output_path")"
+            seat_status="responded"
             seat_rec="$(jq -cn --argjson idx "$index" --arg persona "$persona" \
                 --arg provider "$provider" --arg org "$seat_org" --arg model "$seat_model" \
                 --argjson bytes "${resp_bytes:-0}" --arg verdict "$verdict" --arg status "$seat_status" \
@@ -2291,6 +2364,21 @@ council_parse_args() {
                 COUNCIL_MAX_COST="$(council_validate_budget "$2")" || return 2
                 shift 2
                 ;;
+            --seat-timeout)
+                [[ $# -ge 2 ]] || { council_error_usage "--seat-timeout requires a value (seconds)"; return 2; }
+                # Reject non-digits AND all-zero values. A zero timeout is not a
+                # tighter bound — run_with_timeout treats 0 as UNBOUNDED (heartbeat.sh),
+                # so `--seat-timeout 0` would silently remove the per-seat cap this flag
+                # exists to set. `10#` reads the all-digit operand as base 10 so a value
+                # like 08 can't trip Bash octal parsing.
+                case "$2" in ''|*[!0-9]*) council_error_usage "--seat-timeout must be a positive integer number of seconds"; return 2 ;; esac
+                if (( 10#$2 == 0 )); then
+                    council_error_usage "--seat-timeout must be a positive integer number of seconds"
+                    return 2
+                fi
+                COUNCIL_SEAT_TIMEOUT="$2"
+                shift 2
+                ;;
             --simulate|--single-model)
                 COUNCIL_EXECUTION_MODE="single-model-simulation"
                 COUNCIL_SIMULATION_EXPLICIT="true"
@@ -2366,10 +2454,12 @@ council_create_run_dir() {
 council_write_summary_json() {
     local status="$1"
     local summary_path="${COUNCIL_RUN_DIR}/summary.json"
+    local received_non_chair
 
     council_estimate_cost
     council_build_roster
     council_scan_veto_artifacts
+    received_non_chair="$(council_received_non_chair)"
 
     jq -n \
         --arg run_id "$COUNCIL_RUN_ID" \
@@ -2404,7 +2494,7 @@ council_write_summary_json() {
         --arg personas_requested "$COUNCIL_PERSONAS" \
         --argjson council_roster "$COUNCIL_ROSTER_JSON" \
         --argjson seat_records "${COUNCIL_SEAT_RECORDS_JSON:-[]}" \
-        --arg responses_received "$COUNCIL_RESPONSES_RECEIVED" \
+        --arg received_non_chair "$received_non_chair" \
         --arg quorum_met "$COUNCIL_QUORUM_MET" \
         --arg distinct_providers "${COUNCIL_DISTINCT_PROVIDERS:-0}" \
         --arg responding_providers "${COUNCIL_RESPONDING_PROVIDERS:+${COUNCIL_RESPONDING_PROVIDERS# }}" \
@@ -2447,7 +2537,7 @@ council_write_summary_json() {
           },
           quorum: {
             required_non_chair: (if $depth == "quick" then 1 else 2 end),
-            received_non_chair: (if ($responses_received | tonumber) > 0 then (($responses_received | tonumber) - 1) else 0 end),
+            received_non_chair: ($received_non_chair | tonumber),
             chair_received: ($chair_received == "true"),
             distinct_providers: ($distinct_providers | tonumber),
             responding_providers: $responding_providers,
