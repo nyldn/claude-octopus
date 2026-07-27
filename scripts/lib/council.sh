@@ -1966,14 +1966,23 @@ council_synthesis_capable_persona() {
 
 council_run_chair_fallback() {
     local persona provider member_json slug output_path index
-    local seat_org seat_model resp_bytes verdict seat_status seat_rec dispatch_rc
+    local seat_org seat_model resp_bytes verdict seat_status seat_rec existing_response dispatch_rc
 
     while IFS= read -r persona; do
         [[ -n "$persona" ]] || continue
         council_synthesis_capable_persona "$persona" || continue
         council_persona_should_fail "$persona" && continue
         slug="$(council_slug "$persona")"
-        if find "${COUNCIL_RUN_DIR}/responses" -type f -name "*-${slug}.md" | grep -q .; then
+        existing_response="$(find "${COUNCIL_RUN_DIR}/responses" -type f -name "*-${slug}.md" -print -quit)"
+        # Reuse an existing synthesis-capable member only when the advice phase
+        # accepted that seat. A timed-out partial or degenerate artifact is kept for
+        # diagnosis, but must not masquerade as a recovered chair response.
+        if [[ -n "$existing_response" ]] \
+                && council_response_nonempty "$existing_response" \
+                && council_response_is_substantive "$existing_response" \
+                && jq -e --arg persona "$persona" \
+                    'any(.[]; .persona == $persona and .status == "responded")' \
+                    <<< "${COUNCIL_SEAT_RECORDS_JSON:-[]}" >/dev/null; then
             COUNCIL_CHAIR_RESPONSE_RECEIVED="true"
             COUNCIL_CHAIR_FALLBACK_USED="true"
             COUNCIL_CHAIR_FALLBACK_PERSONA="$persona"

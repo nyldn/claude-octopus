@@ -1559,6 +1559,56 @@ test_council_detached_seat_survives_interrupt() {
     fi
 }
 
+test_council_chair_fallback_rejects_incomplete_responses() {
+    test_case "Chair fallback rejects timed-out partial and empty-success responses"
+    load_council_lib || return 1
+    local d rc=0
+    d="$(mktemp -d "$TEST_TMP_DIR/chair-partial.XXXXXX")"
+    mkdir -p "$d/responses"
+    printf 'review was cut off before its verdict\n' > "$d/responses/00-strategy-analyst.md"
+    COUNCIL_RUN_DIR="$d"
+    COUNCIL_SEAT_RECORDS_JSON='[{"persona":"strategy-analyst","status":"no-response"}]'
+    COUNCIL_CHAIR_RESPONSE_RECEIVED="false"
+    COUNCIL_CHAIR_FALLBACK_USED="false"
+    COUNCIL_CHAIR_FALLBACK_PERSONA=""
+    council_pick_provider() { printf 'codex'; }
+    council_provider_is_available() { return 1; }
+
+    council_run_chair_fallback || rc=$?
+    local partial_ok="no"
+    if [[ $rc -ne 0 ]] &&
+       [[ "$COUNCIL_CHAIR_RESPONSE_RECEIVED" == "false" ]] &&
+       [[ "$COUNCIL_CHAIR_FALLBACK_USED" == "false" ]]; then
+        partial_ok="yes"
+    fi
+
+    rm -f "$d/responses/"*.md
+    COUNCIL_SEAT_RECORDS_JSON='[]'
+    COUNCIL_CHAIR_RESPONSE_RECEIVED="false"
+    COUNCIL_CHAIR_FALLBACK_USED="false"
+    council_provider_is_available() { return 0; }
+    council_roster_entry_json() {
+        jq -cn --arg persona "$1" --arg provider "$2" \
+            '{persona:$persona,provider:$provider,provider_org:$provider,model:"fixture",seat:"member"}'
+    }
+    council_dispatch_member() { return 0; }
+    rc=0
+    council_run_chair_fallback || rc=$?
+    local empty_ok="no"
+    if [[ $rc -ne 0 ]] &&
+       [[ "$COUNCIL_CHAIR_RESPONSE_RECEIVED" == "false" ]] &&
+       [[ "$COUNCIL_CHAIR_FALLBACK_USED" == "false" ]]; then
+        empty_ok="yes"
+    fi
+
+    if [[ "$partial_ok" == "yes" && "$empty_ok" == "yes" ]]; then
+        test_pass
+    else
+        test_fail "incomplete chair accepted: partial_ok=$partial_ok empty_ok=$empty_ok rc=$rc received=$COUNCIL_CHAIR_RESPONSE_RECEIVED fallback=$COUNCIL_CHAIR_FALLBACK_USED"
+        return 1
+    fi
+}
+
 test_council_seat_timeout_rejects_zero_and_nonnumeric() {
     test_case "--seat-timeout records a positive integer but rejects 0 and non-numeric"
     load_council_lib || return 1
@@ -1731,5 +1781,6 @@ test_council_seat_timeout_precedence
 test_council_seat_timeout_rejects_zero_and_nonnumeric
 test_council_response_has_verdict_salvage
 test_council_chair_only_vendor_excluded_from_quorum
+test_council_chair_fallback_rejects_incomplete_responses
 test_council_seats_array_makes_quorum_inspectable
 test_summary
