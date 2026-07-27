@@ -44,13 +44,15 @@ the blockage and work in `AI_AGENT_HANDOFF.md`, then flag it to the maintainer.
 ## Finish a Session
 
 1. Run the proportional quality gates and verify generated files are current.
-2. Update or close the relevant `bd` issues. If writes are blocked, document
-   that fact in the handoff without migrating.
+2. File `bd` issues for every remaining item, then update or close the relevant
+   issues. If writes are blocked, document that fact in the handoff without
+   migrating.
 3. Update `AI_AGENT_HANDOFF.md` with decisions, evidence, commit/push state,
    blockers, and the exact next action.
 4. Commit only intended files, pull with rebase, push, and verify the branch is
    up to date with its remote.
-5. Check for unresolved review threads and open issues or pull requests before
+5. Clean up stashes and prune merged or stale remote branches.
+6. Check for unresolved review threads and open issues or pull requests before
    declaring the work complete.
 
 ## Task References

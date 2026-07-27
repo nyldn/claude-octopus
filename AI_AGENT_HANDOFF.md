@@ -77,9 +77,10 @@ could not be claimed or recorded as a new Beads issue.
 
 - Public `main` includes the Council reliability queue, Tangle PRs #672-#675,
   and the Opus 5 routing squash from PR #678 (`972d9597`).
-- Release v9.56.1 contains the complete Opus 5/GPT-5.6 documentation sync, agy
-  PTY fallback hardening, full-project security/correctness/performance review,
-  and fail-closed release automation; it is the resume baseline.
+- Release v9.56.1 contains the complete Opus 5/GPT-5.6 documentation sync,
+  Google Antigravity pseudo-terminal fallback hardening, full-project
+  security/correctness/performance review, and fail-closed release automation;
+  it is the resume baseline.
 - Release PR #687 squash-merged as
   `e040e287d6b6279fc673e237fa91d65d430430ab`. The annotated `v9.56.1` tag
   peels to that exact public `main` commit, the GitHub release is published,
