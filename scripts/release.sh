@@ -369,19 +369,60 @@ echo ""
 # --- 6. Merge + Release ---
 
 echo "6/8 Merging and creating release..."
-gh pr merge "$PR_NUM" -R "$REPO_SLUG" --squash --quiet 2>/dev/null || gh pr merge "$PR_NUM" -R "$REPO_SLUG" --squash
+merge_release_pr() {
+    gh pr merge "$PR_NUM" -R "$REPO_SLUG" --squash "$@"
+}
+
+read_release_pr_state() {
+    gh pr view "$PR_NUM" -R "$REPO_SLUG" --json state --jq '.state'
+}
+
+if ! merge_release_pr --quiet 2>/dev/null; then
+    if ! PR_STATE=$(read_release_pr_state); then
+        echo "   ERROR: Merge failed and the PR state could not be read."
+        exit 1
+    fi
+    if [[ "$PR_STATE" != "MERGED" ]]; then
+        if ! merge_release_pr; then
+            if ! PR_STATE=$(read_release_pr_state); then
+                echo "   ERROR: Merge retry failed and the PR state could not be read."
+                exit 1
+            fi
+            if [[ "$PR_STATE" != "MERGED" ]]; then
+                echo "   ERROR: Release PR is still ${PR_STATE} after the merge retry."
+                exit 1
+            fi
+        fi
+    fi
+fi
+
+if ! MERGE_SHA=$(gh pr view "$PR_NUM" \
+    -R "$REPO_SLUG" \
+    --json state,mergeCommit \
+    --jq 'select(.state == "MERGED") | .mergeCommit.oid // empty'); then
+    echo "   ERROR: Could not read the merged PR commit."
+    exit 1
+fi
+if [[ ! "$MERGE_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
+    echo "   ERROR: Merged PR returned an invalid merge commit: ${MERGE_SHA:-empty}"
+    exit 1
+fi
+
+git fetch --quiet "$REMOTE" main
+if ! git merge-base --is-ancestor "$MERGE_SHA" FETCH_HEAD; then
+    echo "   ERROR: PR merge commit ${MERGE_SHA} is not present on ${REMOTE}/main."
+    exit 1
+fi
 
 if [[ "$ON_RELEASE_BRANCH" == "true" ]]; then
     # main is normally still checked out in the worktree this release branch
-    # was cut from; don't touch this worktree's checkout or delete the
-    # branch we're standing on. Just fetch the merge commit to tag it.
-    git fetch --quiet "$REMOTE" main
-    MERGE_SHA=$(git rev-parse FETCH_HEAD)
+    # was cut from; don't touch this worktree's checkout or delete the branch
+    # we're standing on. The PR API above is the release SHA source of truth.
+    :
 else
     git checkout main --quiet
     git pull --quiet "$REMOTE" main
     git branch -d "$BRANCH" --quiet 2>/dev/null || true
-    MERGE_SHA=$(git rev-parse main)
 fi
 
 # Do not publish a tag while the exact post-squash main commit is unverified.

@@ -55,7 +55,7 @@ test_post_merge_skips_checkout_on_release_branch() {
 
     if grep -q 'ON_RELEASE_BRANCH" == "true"' <<< "$merge_block" \
         && grep -q 'git fetch --quiet "\$REMOTE" main' <<< "$merge_block" \
-        && grep -q 'MERGE_SHA=\$(git rev-parse FETCH_HEAD)' <<< "$merge_block" \
+        && grep -q -- '--json state,mergeCommit' <<< "$merge_block" \
         && ! grep -q 'ON_RELEASE_BRANCH" == "true"' <<< "$checkout_context"; then
         test_pass
     else
@@ -69,7 +69,11 @@ test_release_tags_merge_sha() {
     local merge_block
     merge_block=$(awk '/# --- 6\. Merge \+ Release/,/^# --- 7\. Sync shared marketplace/' "$RELEASE_SH")
 
-    if grep -q 'git tag -a "\$TAG_NAME" "\$MERGE_SHA"' <<< "$merge_block" \
+    if grep -q -- '--json state,mergeCommit' <<< "$merge_block" \
+        && grep -q 'mergeCommit\.oid // empty' <<< "$merge_block" \
+        && grep -q 'MERGE_SHA" =~ \^\[0-9a-fA-F\]' <<< "$merge_block" \
+        && grep -q 'git merge-base --is-ancestor "\$MERGE_SHA" FETCH_HEAD' <<< "$merge_block" \
+        && grep -q 'git tag -a "\$TAG_NAME" "\$MERGE_SHA"' <<< "$merge_block" \
         && grep -q 'git push --quiet "\$REMOTE" "\$TAG_NAME"' <<< "$merge_block" \
         && grep -q -- '--verify-tag' <<< "$merge_block"; then
         test_pass
@@ -82,10 +86,11 @@ test_release_uses_squash_merge() {
     test_case "release PR follows the repository squash-merge convention"
 
     local merge_commands
-    merge_commands=$(grep 'gh pr merge' "$RELEASE_SH" || true)
+    merge_commands=$(grep -E '^[[:space:]]*gh pr merge "\$PR_NUM"' "$RELEASE_SH" || true)
 
     if grep -q -- '--squash' <<< "$merge_commands" \
-        && ! grep -q -- '--merge' <<< "$merge_commands"; then
+        && ! grep -q -- '--merge' <<< "$merge_commands" \
+        && ! grep -q -- '--rebase' <<< "$merge_commands"; then
         test_pass
     else
         test_fail "release.sh merge commands must use --squash exclusively"
@@ -93,13 +98,27 @@ test_release_uses_squash_merge() {
 }
 
 test_release_ci_timeout_covers_macos() {
-    test_case "release CI timeout has configurable 15-minute headroom"
+    test_case "release CI timeout defaults to 900, accepts overrides, and rejects invalid values"
 
-    if grep -q 'CI_TIMEOUT_SECONDS="${OCTO_RELEASE_CI_TIMEOUT_SECONDS:-900}"' "$RELEASE_SH" \
-        && grep -q 'DEADLINE=\$((SECONDS + CI_TIMEOUT_SECONDS))' "$RELEASE_SH"; then
+    local default_trace override_trace invalid_output
+    default_trace=$(OCTO_RELEASE_REMOTE=__missing_release_test_remote__ \
+        bash -x "$RELEASE_SH" 9.99.0 "test release" 2>&1 || true)
+    override_trace=$(OCTO_RELEASE_REMOTE=__missing_release_test_remote__ \
+        OCTO_RELEASE_CI_TIMEOUT_SECONDS=1200 \
+        bash -x "$RELEASE_SH" 9.99.0 "test release" 2>&1 || true)
+
+    if invalid_output=$(OCTO_RELEASE_CI_TIMEOUT_SECONDS=invalid \
+        bash "$RELEASE_SH" 9.99.0 "test release" 2>&1); then
+        test_fail "release.sh accepted an invalid CI timeout"
+        return
+    fi
+
+    if grep -q '^+ CI_TIMEOUT_SECONDS=900$' <<< "$default_trace" \
+        && grep -q '^+ CI_TIMEOUT_SECONDS=1200$' <<< "$override_trace" \
+        && grep -q 'must be a positive integer' <<< "$invalid_output"; then
         test_pass
     else
-        test_fail "release.sh does not use the configurable 900-second CI timeout"
+        test_fail "release.sh timeout default, override, or validation behavior is incorrect"
     fi
 }
 

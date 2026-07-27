@@ -94,7 +94,7 @@ git push origin vX.Y.Z
 ## 8. GitHub Release
 
 ```bash
-gh release create vX.Y.Z --title "vX.Y.Z" --notes-file <(awk '/^## \[X.Y.Z\]/{f=1;next} /^## \[/{f=0} f' CHANGELOG.md)
+gh release create vX.Y.Z --verify-tag --title "vX.Y.Z" --notes-file <(awk '/^## \[X.Y.Z\]/{f=1;next} /^## \[/{f=0} f' CHANGELOG.md)
 ```
 
 Marketplace consumers pin by release; a bare tag is not enough.
