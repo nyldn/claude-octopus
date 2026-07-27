@@ -1,7 +1,7 @@
 # AI Agent Handoff
 
 Last updated: 2026-07-27
-Status: implementation verified; commit, rebase, push, and PR pending
+Status: implementation verified on the v9.54.2 base; publication pending
 Branch: `feat/opus-5-default-routing`
 
 ## Start Here
@@ -47,7 +47,8 @@ could not be claimed or recorded as a new Beads issue.
 
 ## Current Evidence
 
-- Working branch was created from `upstream/main` at `c9e28f54`.
+- Working branch is rebased onto `upstream/main` v9.54.2 at `c4a2f9b6`.
+- Implementation commit: `6e0e6863` (`feat: adopt Opus 5 frontier model routing`).
 - Installed Claude Code: 2.1.220.
 - Installed Codex CLI: 0.145.0.
 - Upstream model policy: `nyldn/fable5-optimizer` v2.0.0.
@@ -61,7 +62,5 @@ could not be claimed or recorded as a new Beads issue.
 
 ## Next Action
 
-Commit the scoped diff without the user-owned `.octo-continue.md`, resolve the
-ready upstream issue/release queue, rebase on the resulting `upstream/main`,
-push to `origin`, and open the upstream pull request. Update this section with
-the final commit and PR.
+Push the scoped branch to `origin` and `upstream`, open the upstream pull
+request, then update this section with the PR URL and review/check status.
