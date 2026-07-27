@@ -1849,14 +1849,23 @@ council_synthesis_capable_persona() {
 
 council_run_chair_fallback() {
     local persona provider member_json slug output_path index
-    local seat_org seat_model resp_bytes verdict seat_status seat_rec
+    local seat_org seat_model resp_bytes verdict seat_status seat_rec existing_response dispatch_rc
 
     while IFS= read -r persona; do
         [[ -n "$persona" ]] || continue
         council_synthesis_capable_persona "$persona" || continue
         council_persona_should_fail "$persona" && continue
         slug="$(council_slug "$persona")"
-        if find "${COUNCIL_RUN_DIR}/responses" -type f -name "*-${slug}.md" | grep -q .; then
+        existing_response="$(find "${COUNCIL_RUN_DIR}/responses" -type f -name "*-${slug}.md" -print -quit)"
+        # Reuse an existing synthesis-capable member only when the advice phase
+        # accepted that seat. A timed-out partial or degenerate artifact is kept for
+        # diagnosis, but must not masquerade as a recovered chair response.
+        if [[ -n "$existing_response" ]] \
+                && council_response_nonempty "$existing_response" \
+                && council_response_is_substantive "$existing_response" \
+                && jq -e --arg persona "$persona" \
+                    'any(.[]; .persona == $persona and .status == "responded")' \
+                    <<< "${COUNCIL_SEAT_RECORDS_JSON:-[]}" >/dev/null; then
             COUNCIL_CHAIR_RESPONSE_RECEIVED="true"
             COUNCIL_CHAIR_FALLBACK_USED="true"
             COUNCIL_CHAIR_FALLBACK_PERSONA="$persona"
@@ -1871,7 +1880,11 @@ council_run_chair_fallback() {
         # existing index and make the execution record ambiguous.
         index="$(jq 'length' <<< "${COUNCIL_SEAT_RECORDS_JSON:-[]}")"
         output_path="${COUNCIL_RUN_DIR}/responses/$(printf '%02d' "$index")-chair-fallback-${slug}.md"
-        if council_dispatch_member "$member_json" "independent-advice" > "$output_path"; then
+        dispatch_rc=0
+        council_dispatch_member "$member_json" "independent-advice" > "$output_path" || dispatch_rc=$?
+        if council_response_nonempty "$output_path" \
+                && council_response_is_substantive "$output_path" \
+                && { (( dispatch_rc == 0 )) || council_response_has_verdict "$output_path"; }; then
             COUNCIL_RESPONSES_RECEIVED=$((COUNCIL_RESPONSES_RECEIVED + 1))
             COUNCIL_CHAIR_RESPONSE_RECEIVED="true"
             COUNCIL_CHAIR_FALLBACK_USED="true"
@@ -1884,14 +1897,8 @@ council_run_chair_fallback() {
             seat_model="$(jq -r '.model // ""' <<< "$member_json")"
             resp_bytes="$(wc -c < "$output_path" 2>/dev/null | tr -d '[:space:]')"
             [[ -z "$resp_bytes" ]] && resp_bytes=0
-            verdict=""
-            seat_status="empty"
-            if council_response_nonempty "$output_path" && council_response_is_substantive "$output_path"; then
-                verdict="$(council_response_verdict "$output_path")"
-                seat_status="responded"
-            elif council_response_nonempty "$output_path"; then
-                seat_status="degenerate"
-            fi
+            verdict="$(council_response_verdict "$output_path")"
+            seat_status="responded"
             seat_rec="$(jq -cn --argjson idx "$index" --arg persona "$persona" \
                 --arg provider "$provider" --arg org "$seat_org" --arg model "$seat_model" \
                 --argjson bytes "${resp_bytes:-0}" --arg verdict "$verdict" --arg status "$seat_status" \
