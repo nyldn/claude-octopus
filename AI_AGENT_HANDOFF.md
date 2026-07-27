@@ -1,9 +1,9 @@
 # AI Agent Handoff
 
 Last updated: 2026-07-27
-Status: prerequisites merged; final integrated verification passed
-Branch: `feat/opus-5-default-routing`
-Pull request: https://github.com/nyldn/claude-octopus/pull/678
+Status: v9.55.0 released; no open delivery work
+Branch: `main`
+Release: https://github.com/nyldn/claude-octopus/releases/tag/v9.55.0
 
 ## Start Here
 
@@ -20,9 +20,9 @@ Read in order:
 5. `git status --short --branch`
 6. the latest commits on the current branch
 
-## Current Goal
+## Delivered Goal
 
-Make Opus 5 the default complex-work owner in Claude Octopus while keeping
+Opus 5 is the default complex-work owner in Claude Octopus while keeping
 Fable 5 as a capability escalation, Codex/GPT-5.6 as an independent peer,
 cheaper model tiers, user overrides, and legacy compatibility.
 
@@ -61,13 +61,9 @@ could not be claimed or recorded as a new Beads issue.
 
 ## Current Evidence
 
-- Public `main` is complete through the Council reliability queue and Tangle
-  PRs #673, #674, and #675 (`f3d7b276`).
-- This branch includes that exact `main` squash stack; the only remaining
-  public feature PR is #678.
-- Core implementation commit: `6e0e6863` (`feat: adopt Opus 5 frontier model
-  routing`); latest compliance fix: `4b96a2cf` (`fix: enforce Claude allowlists
-  for Opus routing`).
+- Public `main` includes the Council reliability queue, Tangle PRs #672-#675,
+  and the Opus 5 routing squash from PR #678 (`972d9597`).
+- Release v9.55.0 contains the complete integration and is the resume baseline.
 - Installed Claude Code: 2.1.220.
 - Installed Codex CLI: 0.145.0.
 - Upstream model policy: `nyldn/fable5-optimizer` v2.0.0.
@@ -82,19 +78,21 @@ could not be claimed or recorded as a new Beads issue.
 - `make sync-check` passes with no script mode changes.
 - The final integrated `make ci-local` passed 16 smoke, 183 unit, and 7
   integration suites, including the live plugin lifecycle test.
+- PR #678 passed 13 protected/review checks, including Ubuntu and macOS unit
+  matrices; the v9.55.0 release PR passed its required protected gates.
 
 ## Merge Queue
 
 - Merged: #656, #658, #664, #666, #667, #668, #669, #670, #672, #673, #674,
-  #675, and release PR #677 (v9.54.2).
-- In progress: #678 (Opus 5 routing), followed by the v9.55.0 minor release.
+  #675, #678, release PR #677 (v9.54.2), and release PR #680 (v9.55.0).
+- No public or private pull requests or issues remained open at release.
 - Private E2E issue classification fix merged in
   `nyldn/claude-octopus-dev#4`; the target VPS remains unreachable over SSH, so
   the repository fix is complete but the live script has not been refreshed.
 
 ## Next Action
 
-Commit and push the integrated head to both remotes. Merge #678 only after
-required review and protected verification gates pass. Finish the v9.55.0
-minor release workflow, tag the squash-merge commit on `main`, publish the
-GitHub release, and update this handoff to the released state.
+No delivery action remains. Future sessions should start from current `main`,
+read this file and the routing strategy, then use `bd ready` for new work. The
+private E2E repository fix is complete; retry the VPS refresh separately when
+the host is reachable.
