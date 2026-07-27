@@ -97,6 +97,21 @@ fi
 unset -f tangle_write_run_git_metadata
 eval "$ORIGINAL_WRITE_METADATA_DEFINITION"
 
+
+test_case "rollback reports cleanup failures"
+ROLLBACK_LOG="$TEST_ROOT/rollback-errors.log"
+log() { printf '%s %s\n' "$1" "$2" >> "$ROLLBACK_LOG"; }
+status=0
+tangle_rollback_run_worktree "$SOURCE_REPO" "$TEST_ROOT/missing-worktree" "octopus/run/missing/integration" || status=$?
+if [[ "$status" -ne 0 ]] \
+    && grep -Fq 'Failed to remove Tangle run worktree during rollback' "$ROLLBACK_LOG" \
+    && grep -Fq 'Failed to delete Tangle run branch during rollback' "$ROLLBACK_LOG"; then
+    test_pass
+else
+    test_fail "rollback cleanup failures were hidden"
+fi
+log() { :; }
+
 test_case "failed runs remain isolated and preserve worktree"
 OCTOPUS_TANGLE_RUN_ID="run-worktree-failure"
 STUB_TANGLE_RC=7

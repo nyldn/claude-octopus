@@ -1748,9 +1748,17 @@ tangle_rollback_run_worktree() {
     local source_root="$1"
     local worktree="$2"
     local branch="$3"
+    local rollback_rc=0
 
-    git -C "$source_root" worktree remove --force "$worktree" >/dev/null 2>&1 || true
-    git -C "$source_root" branch -D "$branch" >/dev/null 2>&1 || true
+    if ! git -C "$source_root" worktree remove --force "$worktree" >/dev/null 2>&1; then
+        log ERROR "Failed to remove Tangle run worktree during rollback: $worktree"
+        rollback_rc=1
+    fi
+    if ! git -C "$source_root" branch -D "$branch" >/dev/null 2>&1; then
+        log ERROR "Failed to delete Tangle run branch during rollback: $branch"
+        rollback_rc=1
+    fi
+    return "$rollback_rc"
 }
 
 tangle_prepare_run_worktree() {
