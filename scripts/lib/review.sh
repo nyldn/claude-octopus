@@ -11,6 +11,8 @@
 # parse_review_md: reads REVIEW.md from repo root, outputs directive vars
 # WHY: CC Code Review supports REVIEW.md for customization; we match that
 # convention so repos already configured for CC work with /octo:review too.
+# shellcheck disable=SC2120 # repo_root is optional by design; callers rely on
+# the git-toplevel default. Older ShellCheck releases flag this.
 parse_review_md() {
     local repo_root="${1:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
     local review_md="$repo_root/REVIEW.md"

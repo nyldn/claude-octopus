@@ -16,6 +16,8 @@ _PERSONAS_LOADED=1
 # Discover persona packs from standard search paths
 # Returns newline-separated list of pack directories
 # Usage: discover_persona_packs [additional_paths]
+# shellcheck disable=SC2120 # the path argument is optional by design; every
+# current caller relies on the default. Older ShellCheck releases flag this.
 discover_persona_packs() {
     local extra_paths="${1:-}"
     local found=""

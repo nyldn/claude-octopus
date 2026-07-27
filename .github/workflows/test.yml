@@ -111,7 +111,14 @@ jobs:
           echo "OK: No non-portable sed patterns found."
 
       - name: Install ShellCheck
-        run: sudo apt-get install -y shellcheck
+        run: |
+          sudo apt-get install -y shellcheck
+          # Print the version: the runner's ShellCheck can be older than a
+          # contributor's local build and emit codes local runs never show
+          # (SC2120 did exactly that). When CI flags something you cannot
+          # reproduce, compare this against your `shellcheck --version` and
+          # suppress with a targeted `# shellcheck disable=` plus a reason.
+          shellcheck --version
 
       # Enforcing, not advisory. This step used to end in `|| true`, so 406
       # warnings accumulated unseen — including the SC2221/SC2222 that marked a
