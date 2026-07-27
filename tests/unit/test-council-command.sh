@@ -1116,8 +1116,8 @@ EOF
     test_pass
 }
 
-test_council_dispatch_strips_blocked_env_but_sets_readonly() {
-    test_case "Council dispatch strips blocked caller env while setting read-only sandbox"
+test_council_dispatch_strips_blocked_env_but_sets_disposable_mode() {
+    test_case "Council dispatch strips blocked caller env while setting disposable-workspace mode"
     load_council_lib || return 1
 
     local tmp_dir env_capture
@@ -1136,7 +1136,7 @@ test_council_dispatch_strips_blocked_env_but_sets_readonly() {
     OCTOPUS_COUNCIL_PROVIDER_FIXTURE='codex:available' \
         council_run --providers codex --depth quick --members 3 --output-dir "$tmp_dir" "Review auth"
 
-    if grep -q '^OCTOPUS_CODEX_SANDBOX=read-only$' "$env_capture" &&
+    if grep -q '^OCTOPUS_CODEX_SANDBOX=danger-full-access$' "$env_capture" &&
        ! grep -q '^OCTOPUS_SECURITY_V870=' "$env_capture" &&
        ! grep -q '^OCTOPUS_GEMINI_SANDBOX=' "$env_capture" &&
        ! grep -q '^CLAUDE_OCTOPUS_AUTONOMY=' "$env_capture"; then
@@ -1144,7 +1144,7 @@ test_council_dispatch_strips_blocked_env_but_sets_readonly() {
         test_pass
     else
         unset -f run_agent_sync
-        test_fail "blocked env forwarding or read-only sandbox mismatch"
+        test_fail "blocked env forwarding or disposable-workspace mode mismatch"
         return 1
     fi
 }
@@ -1197,7 +1197,7 @@ test_council_prompt_task_block_is_authoritative
 test_council_scans_artifact_critical_veto
 test_council_structured_veto_requires_veto_role
 test_council_veto_scan_ignores_discussed_token
-test_council_dispatch_strips_blocked_env_but_sets_readonly
+test_council_dispatch_strips_blocked_env_but_sets_disposable_mode
 
 test_council_host_native_detection() {
     test_case "council_detect_providers marks host provider as host-native (issue #444)"
@@ -1335,21 +1335,27 @@ test_council_all_approve_meets_quorum() {
 test_council_seat_timeout_precedence() {
     test_case "council_seat_timeout resolves per-provider > flag > global env > default (#2077)"
     load_council_lib || return 1
-    local d f p g pp
+    local d f p g pp invalid_provider invalid_flag invalid_global
     # 4. built-in default when nothing set
-    d="$(COUNCIL_SEAT_TIMEOUT='' OCTOPUS_COUNCIL_AGENT_TIMEOUT='' council_seat_timeout agy)"
+    d="$(OCTOPUS_COUNCIL_TIMEOUT_AGY='' OCTOPUS_COUNCIL_TIMEOUT_CODEX='' COUNCIL_SEAT_TIMEOUT='' OCTOPUS_COUNCIL_AGENT_TIMEOUT='' council_seat_timeout agy)"
     # 3. legacy global env
-    g="$(COUNCIL_SEAT_TIMEOUT='' OCTOPUS_COUNCIL_AGENT_TIMEOUT=200 council_seat_timeout agy)"
+    g="$(OCTOPUS_COUNCIL_TIMEOUT_AGY='' OCTOPUS_COUNCIL_TIMEOUT_CODEX='' COUNCIL_SEAT_TIMEOUT='' OCTOPUS_COUNCIL_AGENT_TIMEOUT=200 council_seat_timeout agy)"
     # 2. run-wide --seat-timeout flag beats the global env
-    f="$(COUNCIL_SEAT_TIMEOUT=300 OCTOPUS_COUNCIL_AGENT_TIMEOUT=200 council_seat_timeout agy)"
+    f="$(OCTOPUS_COUNCIL_TIMEOUT_AGY='' OCTOPUS_COUNCIL_TIMEOUT_CODEX='' COUNCIL_SEAT_TIMEOUT=300 OCTOPUS_COUNCIL_AGENT_TIMEOUT=200 council_seat_timeout agy)"
     # 1. per-provider env beats everything, and only for that provider
-    p="$(OCTOPUS_COUNCIL_TIMEOUT_AGY=600 COUNCIL_SEAT_TIMEOUT=300 council_seat_timeout agy)"
-    pp="$(OCTOPUS_COUNCIL_TIMEOUT_AGY=600 COUNCIL_SEAT_TIMEOUT=300 council_seat_timeout codex)"
+    p="$(OCTOPUS_COUNCIL_TIMEOUT_AGY=600 OCTOPUS_COUNCIL_TIMEOUT_CODEX='' COUNCIL_SEAT_TIMEOUT=300 council_seat_timeout agy)"
+    pp="$(OCTOPUS_COUNCIL_TIMEOUT_AGY=600 OCTOPUS_COUNCIL_TIMEOUT_CODEX='' COUNCIL_SEAT_TIMEOUT=300 council_seat_timeout codex)"
+    # Invalid higher-priority overrides fall through without disabling the cap.
+    invalid_provider="$(OCTOPUS_COUNCIL_TIMEOUT_AGY=0 COUNCIL_SEAT_TIMEOUT=300 OCTOPUS_COUNCIL_AGENT_TIMEOUT=200 council_seat_timeout agy)"
+    invalid_flag="$(OCTOPUS_COUNCIL_TIMEOUT_AGY='' COUNCIL_SEAT_TIMEOUT=abc OCTOPUS_COUNCIL_AGENT_TIMEOUT=200 council_seat_timeout agy)"
+    invalid_global="$(OCTOPUS_COUNCIL_TIMEOUT_AGY='' COUNCIL_SEAT_TIMEOUT='' OCTOPUS_COUNCIL_AGENT_TIMEOUT=-1 council_seat_timeout agy)"
     if [[ "$d" == "120" ]] && [[ "$g" == "200" ]] && [[ "$f" == "300" ]] &&
-       [[ "$p" == "600" ]] && [[ "$pp" == "300" ]]; then
+       [[ "$p" == "600" ]] && [[ "$pp" == "300" ]] &&
+       [[ "$invalid_provider" == "300" ]] && [[ "$invalid_flag" == "200" ]] &&
+       [[ "$invalid_global" == "120" ]]; then
         test_pass
     else
-        test_fail "timeout precedence wrong: default=$d global=$g flag=$f agy=$p codex=$pp"
+        test_fail "timeout precedence wrong: default=$d global=$g flag=$f agy=$p codex=$pp invalid=$invalid_provider/$invalid_flag/$invalid_global"
         return 1
     fi
 }
@@ -1370,10 +1376,10 @@ test_council_seat_timeout_rejects_zero_and_nonnumeric() {
     local z_status=0 nn_status=0
     if council_parse_args --seat-timeout 0 "Review auth" >"$out_file" 2>&1; then z_status=0; else z_status=$?; fi
     if council_parse_args --seat-timeout abc "Review auth" >"$out_file" 2>&1; then nn_status=0; else nn_status=$?; fi
-    if [[ $z_status -eq 2 ]] && [[ $nn_status -eq 2 ]]; then
+    if [[ $z_status -eq 2 ]] && [[ $nn_status -eq 2 ]] && [[ -z "$COUNCIL_SEAT_TIMEOUT" ]]; then
         test_pass
     else
-        test_fail "expected exit 2 for both: zero=$z_status nonnumeric=$nn_status"
+        test_fail "expected exit 2 and reset timeout: zero=$z_status nonnumeric=$nn_status timeout=[$COUNCIL_SEAT_TIMEOUT]"
         return 1
     fi
 }

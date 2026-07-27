@@ -61,6 +61,7 @@ _council_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 # shellcheck source=scripts/lib/benchmark-routing.sh
 source "${_council_lib_dir}/benchmark-routing.sh" 2>/dev/null || true
 source "${_council_lib_dir}/openai-compatible.sh" 2>/dev/null || true
+source "${_council_lib_dir}/agent-sync.sh" 2>/dev/null || true
 unset _council_lib_dir
 
 council_usage() {
@@ -1520,39 +1521,8 @@ EOF
 
     if declare -f run_agent_sync >/dev/null 2>&1; then
         local agent_type="$provider"
-        local old_security_set="${OCTOPUS_SECURITY_V870+x}"
-        local old_security="${OCTOPUS_SECURITY_V870:-}"
-        local old_gemini_sandbox_set="${OCTOPUS_GEMINI_SANDBOX+x}"
-        local old_gemini_sandbox="${OCTOPUS_GEMINI_SANDBOX:-}"
-        local old_codex_sandbox="${OCTOPUS_CODEX_SANDBOX:-}"
-        local old_codex_sandbox_set="${OCTOPUS_CODEX_SANDBOX+x}"
-        local old_autonomy_set="${CLAUDE_OCTOPUS_AUTONOMY+x}"
-        local old_autonomy="${CLAUDE_OCTOPUS_AUTONOMY:-}"
-
-        unset OCTOPUS_SECURITY_V870
-        unset OCTOPUS_GEMINI_SANDBOX
-        unset CLAUDE_OCTOPUS_AUTONOMY
-        export OCTOPUS_CODEX_SANDBOX="read-only"
-        run_agent_sync "$agent_type" "$prompt" "$(council_seat_timeout "$agent_type")" "$persona" "council" || {
-            if [[ -n "$old_security_set" ]]; then export OCTOPUS_SECURITY_V870="$old_security"; else unset OCTOPUS_SECURITY_V870; fi
-            if [[ -n "$old_gemini_sandbox_set" ]]; then export OCTOPUS_GEMINI_SANDBOX="$old_gemini_sandbox"; else unset OCTOPUS_GEMINI_SANDBOX; fi
-            if [[ -n "$old_autonomy_set" ]]; then export CLAUDE_OCTOPUS_AUTONOMY="$old_autonomy"; else unset CLAUDE_OCTOPUS_AUTONOMY; fi
-            if [[ -n "$old_codex_sandbox_set" ]]; then
-                export OCTOPUS_CODEX_SANDBOX="$old_codex_sandbox"
-            else
-                unset OCTOPUS_CODEX_SANDBOX
-            fi
-            return 1
-        }
-        if [[ -n "$old_security_set" ]]; then export OCTOPUS_SECURITY_V870="$old_security"; else unset OCTOPUS_SECURITY_V870; fi
-        if [[ -n "$old_gemini_sandbox_set" ]]; then export OCTOPUS_GEMINI_SANDBOX="$old_gemini_sandbox"; else unset OCTOPUS_GEMINI_SANDBOX; fi
-        if [[ -n "$old_autonomy_set" ]]; then export CLAUDE_OCTOPUS_AUTONOMY="$old_autonomy"; else unset CLAUDE_OCTOPUS_AUTONOMY; fi
-        if [[ -n "$old_codex_sandbox_set" ]]; then
-            export OCTOPUS_CODEX_SANDBOX="$old_codex_sandbox"
-        else
-            unset OCTOPUS_CODEX_SANDBOX
-        fi
-        return 0
+        run_agent_sync_consultative "$agent_type" "$prompt" "$(council_seat_timeout "$agent_type")" "$persona" "council"
+        return $?
     fi
 
     return 1
@@ -1699,11 +1669,15 @@ council_seat_timeout() {
     #   2. COUNCIL_SEAT_TIMEOUT                 (the --seat-timeout flag, run-wide)
     #   3. OCTOPUS_COUNCIL_AGENT_TIMEOUT        (legacy global env)
     #   4. built-in default
-    local provider="$1" pvar
+    local provider="$1" pvar candidate
     pvar="OCTOPUS_COUNCIL_TIMEOUT_$(printf '%s' "$provider" | tr '[:lower:]-' '[:upper:]_')"
-    if [[ -n "${!pvar:-}" ]]; then printf '%s' "${!pvar}"; return 0; fi
-    if [[ -n "${COUNCIL_SEAT_TIMEOUT:-}" ]]; then printf '%s' "$COUNCIL_SEAT_TIMEOUT"; return 0; fi
-    printf '%s' "${OCTOPUS_COUNCIL_AGENT_TIMEOUT:-120}"
+    candidate="${!pvar:-}"
+    if [[ "$candidate" =~ ^[1-9][0-9]*$ ]]; then printf '%s' "$candidate"; return 0; fi
+    candidate="${COUNCIL_SEAT_TIMEOUT:-}"
+    if [[ "$candidate" =~ ^[1-9][0-9]*$ ]]; then printf '%s' "$candidate"; return 0; fi
+    candidate="${OCTOPUS_COUNCIL_AGENT_TIMEOUT:-}"
+    if [[ "$candidate" =~ ^[1-9][0-9]*$ ]]; then printf '%s' "$candidate"; return 0; fi
+    printf '120'
 }
 
 council_compute_approving_providers() {
@@ -1742,9 +1716,9 @@ council_run_advice_phase() {
         # timeout fired) may still have left a COMPLETE, verdict-bearing review that
         # the seat finished writing right at the boundary. Salvage that instead of
         # discarding a usable verdict as a provider shortage (sail-cruisey #2077).
-        if (( dispatch_rc == 0 )) || { council_response_nonempty "$output_path" \
+        if council_response_nonempty "$output_path" \
                 && council_response_is_substantive "$output_path" \
-                && council_response_has_verdict "$output_path"; }; then
+                && { (( dispatch_rc == 0 )) || council_response_has_verdict "$output_path"; }; then
             COUNCIL_RESPONSES_RECEIVED=$((COUNCIL_RESPONSES_RECEIVED + 1))
             if [[ "$seat" == "chair" ]]; then
                 COUNCIL_CHAIR_RESPONSE_RECEIVED="true"

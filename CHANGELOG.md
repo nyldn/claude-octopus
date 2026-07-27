@@ -4,7 +4,19 @@
 
 ### Added
 
-- **Councils configure per-seat dispatch timeouts and salvage a finished review that its dispatch reported as timed out** (#2077). A single global timeout was too tight for large-diff reviews and the strict pass/fail dispatch check discarded seats that had already written a complete `VERDICT:`-bearing response but were killed at the boundary. `council_seat_timeout` now resolves most-specific-first (`OCTOPUS_COUNCIL_TIMEOUT_<PROVIDER>` > the run-wide `--seat-timeout` flag > the legacy `OCTOPUS_COUNCIL_AGENT_TIMEOUT` > a 120s default), so a slow provider such as `agy` can be given more room without loosening the others. The advice phase now counts a seat whose response is non-empty, substantive, and carries an explicit verdict even when its dispatch return code was non-zero, so a complete review is no longer thrown away as a shortage.
+- **Councils configure per-seat dispatch timeouts and salvage a finished review that its dispatch reported as timed out** (#667). A single global timeout was too tight for large-diff reviews and the strict pass/fail dispatch check discarded seats that had already written a complete `VERDICT:`-bearing response but were killed at the boundary. `council_seat_timeout` now resolves most-specific-first (`OCTOPUS_COUNCIL_TIMEOUT_<PROVIDER>` > the run-wide `--seat-timeout` flag > the legacy `OCTOPUS_COUNCIL_AGENT_TIMEOUT` > a 120s default), so a slow provider such as `agy` can be given more room without loosening the others. The advice phase now counts a seat whose response is non-empty, substantive, and carries an explicit verdict even when its dispatch return code was non-zero, so a complete review is no longer thrown away as a shortage.
+
+### Fixed
+
+- **An oversized council prompt to `agy` now degrades to a structured skip instead of OOM-killing the seat** (#2077). The adapter's existing file-path fallback sidesteps the argv `MAX_ARG_STRLEN` limit but not agy itself — a multi-megabyte prompt is loaded whole into agy's context and OOM-kills the headless process (or is rejected by the backend for context length), leaving the seat dead with an opaque exit code or a silent-empty result the retry cannot recover. `agy-exec.sh` now enforces a configurable payload ceiling (`OCTOPUS_AGY_MAX_PAYLOAD_BYTES`, default 1 MiB): above it, the adapter refuses to dispatch, exits 0, and emits a provider-rejection marker that `classify_agent_output` already recognizes, so dispatch records a structured `skipped:oversize` seat and the council keeps its remaining seats rather than crashing on this one. The ceiling is measured in bytes on the exact prompt content agy would read.
+
+## [9.54.2] - 2026-07-27
+
+### Fixed
+
+- **OpenAI-compatible dispatch with a configured `base_url`/`api_key_env` no longer rejects itself** (#659). `_validate_openai_compatible_agent_command()` now accepts the `--base-url` and `--api-key-env` flags `dispatch.sh` emits for env-configured providers, with strict format validation (a non-empty HTTP(S) host, a safe environment-variable name) so the two functions stay in sync.
+- **Concurrent same-second spawns no longer share a task_id and interleave provider output** (#661). `spawn_agent()` and `spawn_agent_capture_pid()` derived an unsupplied `task_id` from `date +%s` alone, so two spawns starting in the same second collided and wrote to the same temp files, silently attributing one provider's answer to another's result. Default task_id generation now uses an OS-guaranteed-unique `mktemp` reservation.
+- **Gemini dispatch now preserves CLI dotenv fallback and custom CA certificates** (#660). The isolated provider environment omits empty API-key variables so gemini-cli can load `~/.gemini/.env`, while forwarding non-empty `GOOGLE_GEMINI_BASE_URL` and `NODE_EXTRA_CA_CERTS` values needed by relays and custom trust chains.
 
 ## [9.54.1] - 2026-07-20
 
