@@ -57,7 +57,7 @@ octo_release_unresolved_review_threads() {
     local repo_owner="$1"
     local repo_name="$2"
     local pr_number="$3"
-    local query response has_next cursor=""
+    local query response page_unresolved has_next cursor=""
     local unresolved_total=0
 
     query='query($owner:String!, $name:String!, $number:Int!, $cursor:String) {
@@ -88,10 +88,17 @@ octo_release_unresolved_review_threads() {
                 -f cursor="$cursor") || return 1
         fi
 
-        unresolved_total=$((unresolved_total + $(jq \
+        page_unresolved=$(jq -er \
             '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false)] | length' \
-            <<< "$response")))
-        has_next=$(jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.hasNextPage' <<< "$response")
+            <<< "$response") || return 1
+        [[ "$page_unresolved" =~ ^[0-9]+$ ]] || return 1
+        unresolved_total=$((unresolved_total + page_unresolved))
+
+        has_next=$(jq -r \
+            '.data.repository.pullRequest.reviewThreads.pageInfo.hasNextPage |
+             if type == "boolean" then . else error("invalid hasNextPage") end' \
+            <<< "$response") || return 1
+        [[ "$has_next" == "true" || "$has_next" == "false" ]] || return 1
         [[ "$has_next" == "true" ]] || break
 
         cursor=$(jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.endCursor // empty' <<< "$response")
