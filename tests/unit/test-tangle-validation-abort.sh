@@ -11,6 +11,9 @@ WORKFLOWS="$PROJECT_ROOT/scripts/lib/workflows.sh"
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "tangle validation hard abort"
 
+# This direct-library regression test exercises the validation gate itself,
+# independent of the orchestrator's clean-baseline policy.
+OCTOPUS_TANGLE_REQUIRE_CLEAN_BASELINE=false
 source "$WORKFLOWS"
 
 CYAN=""
