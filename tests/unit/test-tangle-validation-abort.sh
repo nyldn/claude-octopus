@@ -20,12 +20,13 @@ NC=""
 TMUX_MODE=false
 DRY_RUN=false
 SUPPORTS_PARALLEL_FILE_SAFETY=false
+TEST_TMP_DIR="${TEST_TMP_DIR:-/tmp/octopus-tests-$$}"
 RESULTS_DIR="$TEST_TMP_DIR/tangle-validation-abort"
 LOGS_DIR="$RESULTS_DIR/logs"
 WORKSPACE_DIR="$RESULTS_DIR/workspace"
 rm -rf "$RESULTS_DIR"
 mkdir -p "$WORKSPACE_DIR/.octo/agents"
-trap 'rm -rf "$RESULTS_DIR"' EXIT
+trap 'rm -rf "$RESULTS_DIR"' EXIT INT TERM
 
 REVIEW_CALLS=0
 VALIDATION_CALLS=0
