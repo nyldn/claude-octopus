@@ -13,10 +13,11 @@ test_suite "for credential isolation (v8.32.0)"
 PLUGIN_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 PROJECT_ROOT="$PLUGIN_DIR"
 ORCH="$PLUGIN_DIR/scripts/orchestrate.sh"
-# v9.12: Search orchestrate.sh + lib/*.sh for decomposed functions
-ALL_SRC=$(mktemp)
+# v9.12: Search orchestrate.sh + lib/*.sh for decomposed functions.
+# Keep all suite temporaries under the test framework's TEST_TMP_DIR so its
+# existing EXIT/INT/TERM cleanup remains authoritative.
+ALL_SRC="$TEST_TMP_DIR/all-src"
 cat "$ORCH" "$PLUGIN_DIR/scripts/lib/"*.sh > "$ALL_SRC" 2>/dev/null
-trap 'rm -f "$ALL_SRC"' EXIT
 
 PASS=0
 FAIL=0
@@ -58,7 +59,8 @@ else
 fi
 
 # 1.2b Codex CLI config preservation — CODEX_HOME + configured env_key
-CODEX_RUNTIME_HOME=$(mktemp -d)
+CODEX_RUNTIME_HOME="$TEST_TMP_DIR/codex-runtime"
+mkdir -p "$CODEX_RUNTIME_HOME"
 cat > "$CODEX_RUNTIME_HOME/config.toml" <<'EOF'
 model_provider = "router"
 model = "example/model"
@@ -104,9 +106,21 @@ if [[ -n "$OLD_ROUTER_API_KEY" ]]; then export ROUTER_API_KEY="$OLD_ROUTER_API_K
 if [[ -n "$OLD_GEMINI_API_KEY" ]]; then export GEMINI_API_KEY="$OLD_GEMINI_API_KEY"; else unset GEMINI_API_KEY; fi
 rm -rf "$CODEX_RUNTIME_HOME" "$CODEX_RUNTIME_HOME-home"
 
-# 1.3 Gemini scoping — only GEMINI_API_KEY + GOOGLE_API_KEY
-GEMINI_ENV=$(grep -A16 'gemini\*)' "$ALL_SRC" | grep 'PROVIDER_ENV_ARRAY=.*env -i' | head -1 || true)
-if echo "$GEMINI_ENV" | grep -q 'GEMINI_API_KEY'; then
+# 1.3 Gemini scoping — only GEMINI_API_KEY + GOOGLE_API_KEY (conditionally
+# forwarded via a loop as of #660, so anchor on the isolated-env line's
+# unique GEMINI_CLI_TRUST_WORKSPACE marker and read through to the case
+# arm's closing `;;` rather than a fixed line count, so this doesn't
+# silently truncate if the block grows.
+GEMINI_ENV=$(awk '/GEMINI_CLI_TRUST_WORKSPACE/{flag=1} flag{print; if (/^[[:space:]]*;;[[:space:]]*$/) exit}' "$ALL_SRC")
+if [[ -z "$GEMINI_ENV" ]]; then
+  fail "Gemini env block not found (GEMINI_CLI_TRUST_WORKSPACE marker missing)"
+elif echo "$GEMINI_ENV" | grep -qE 'for _gemini_var in [^;]*\bGEMINI_API_KEY\b'; then
+  # Full case-arm text now also includes resolve_provider_env calls and the
+  # for-loop's own variable list, both of which mention GEMINI_API_KEY
+  # unconditionally — a bare substring grep would trivially match even if
+  # forwarding were broken. Anchor on the allowlist for-loop itself, since
+  # that's the actual mechanism that decides whether GEMINI_API_KEY gets
+  # forwarded into PROVIDER_ENV_ARRAY.
   pass "Gemini env includes GEMINI_API_KEY"
 else
   fail "Gemini env missing GEMINI_API_KEY"
@@ -121,7 +135,7 @@ fi
 # 1.4 Perplexity — shell function provider, env -i skipped (#300)
 # perplexity_execute is a bash function dispatched by get_agent_command();
 # env -i cannot exec shell functions, so build_provider_env returns empty.
-PERP_CASE=$(grep -A70 'build_provider_env()' "$ALL_SRC" | grep -A10 'perplexity\*)' | head -11 || true)
+PERP_CASE=$(grep -A10 '^[[:space:]]*perplexity\*)' "$PLUGIN_DIR/scripts/lib/provider-routing.sh" | head -11 || true)
 PERP_ENV=$(echo "$PERP_CASE" | grep 'env -i' | head -1 || true)
 if echo "$PERP_CASE" | grep -q 'resolve_provider_env.*PERPLEXITY_API_KEY'; then
   pass "Perplexity resolves PERPLEXITY_API_KEY before dispatch"
@@ -150,8 +164,9 @@ fi
 # 1.6 Missing API keys are tolerated under set -e (#336)
 for provider in codex gemini perplexity openrouter; do
   test_case "build_provider_env $provider tolerates absent API keys under set -e"
-  tmp_home=$(mktemp -d)
-  tmp_pwd=$(mktemp -d)
+  tmp_home="$TEST_TMP_DIR/missing-${provider}-home"
+  tmp_pwd="$TEST_TMP_DIR/missing-${provider}-pwd"
+  mkdir -p "$tmp_home" "$tmp_pwd"
   case_output=""
   if case_output=$(HOME="$tmp_home" bash -c '
       set -eo pipefail
@@ -169,8 +184,44 @@ for provider in codex gemini perplexity openrouter; do
   else
     test_fail "build_provider_env $provider exited under set -e: $case_output"
   fi
-  rm -rf "$tmp_home" "$tmp_pwd"
 done
+
+# 1.7 Gemini: unset GEMINI_API_KEY must not become an empty-but-set var,
+# or gemini-cli's own ~/.gemini/.env dotenv loading is silently defeated (#660)
+test_case "Gemini env omits GEMINI_API_KEY entirely when unset (not empty-but-set)"
+tmp_home="$TEST_TMP_DIR/gemini-unset-home"
+mkdir -p "$tmp_home"
+gemini_env_output=$(HOME="$tmp_home" bash -c '
+    set -eo pipefail
+    unset GEMINI_API_KEY GOOGLE_API_KEY
+    cd "$1"
+    source "$2/scripts/lib/provider-routing.sh"
+    build_provider_env gemini
+    printf "%s\n" "${PROVIDER_ENV_ARRAY[@]}"
+  ' _ "$tmp_home" "$PLUGIN_DIR" 2>&1)
+if echo "$gemini_env_output" | grep -qE '^(GEMINI_API_KEY|GOOGLE_API_KEY)='; then
+  test_fail "Gemini credentials present as empty-but-set, blocks gemini-cli's own .env loading: $gemini_env_output"
+else
+  test_pass
+fi
+
+# 1.8 Gemini: NODE_EXTRA_CA_CERTS and GOOGLE_GEMINI_BASE_URL survive isolation
+# when set, so TLS-relay setups don't die with "fetch failed" (#660)
+test_case "Gemini env forwards NODE_EXTRA_CA_CERTS and GOOGLE_GEMINI_BASE_URL when set"
+tmp_home="$TEST_TMP_DIR/gemini-forward-home"
+mkdir -p "$tmp_home"
+gemini_env_output=$(HOME="$tmp_home" NODE_EXTRA_CA_CERTS="/tmp/extra-ca.pem" GOOGLE_GEMINI_BASE_URL="https://relay.example/v1" bash -c '
+    set -eo pipefail
+    source "$1/scripts/lib/provider-routing.sh"
+    build_provider_env gemini
+    printf "%s\n" "${PROVIDER_ENV_ARRAY[@]}"
+  ' _ "$PLUGIN_DIR" 2>&1)
+if echo "$gemini_env_output" | grep -qx 'NODE_EXTRA_CA_CERTS=/tmp/extra-ca.pem' \
+  && echo "$gemini_env_output" | grep -qx 'GOOGLE_GEMINI_BASE_URL=https://relay.example/v1'; then
+  test_pass
+else
+  test_fail "NODE_EXTRA_CA_CERTS/GOOGLE_GEMINI_BASE_URL not forwarded: $gemini_env_output"
+fi
 
 # ─────────────────────────────────────────────────────────────────────
 # Suite 2: build_provider_env() is wired into spawn_agent()
