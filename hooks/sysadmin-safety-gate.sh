@@ -47,7 +47,7 @@ fi
 # /Users is the macOS home root — this list was Linux-only (/home) even though
 # macOS is a primary platform. The trailing alternation also catches a bare
 # root target (`rm -rf /`, `rm -rf /*`), which previously matched nothing.
-RM_OPTION_RE='-[a-zA-Z-]+'
+RM_OPTION_RE='(-[a-zA-Z]+|--[a-zA-Z][a-zA-Z-]*(=[^[:space:]]+)?)'
 RM_RECURSIVE_RE='(-[rR]|--recursive)'
 RM_FORCE_RE='(-f|--force)'
 RM_COMBINED_RE='(-[a-zA-Z]*[rR][a-zA-Z]*f[a-zA-Z]*|-[a-zA-Z]*f[a-zA-Z]*[rR][a-zA-Z]*)'

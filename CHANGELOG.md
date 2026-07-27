@@ -5,8 +5,9 @@
 ### Security
 
 - Destructive-delete guards cover reversed and mixed short/long recursive-force
-  options (including uppercase `-R`) and quoted home prefixes with unquoted
-  suffixes such as `"$HOME"/cache`.
+  options (including uppercase `-R`), long options with attached values such as
+  `--preserve-root=all`, and quoted home prefixes with unquoted suffixes such as
+  `"$HOME"/cache`.
 
 ### Fixed
 

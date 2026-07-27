@@ -182,6 +182,9 @@ test_sysadmin_rm_flag_order() {
         'rm -f --recursive /etc' \
         'rm -R -f /etc' \
         'rm -i -R --force /etc' \
+        'rm --preserve-root=all -r --force /etc' \
+        'rm -r --preserve-root=all --force /etc' \
+        'rm -rf --preserve-root=all /etc' \
         'rm -rf "$HOME"/cache' \
         'rm -rf "${HOME}"/cache'; do
         output=$(jq -cn --arg command "$command" \
