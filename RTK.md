@@ -10,8 +10,8 @@ Read these sources in order before editing:
 1. `AGENTS.md` for repository rules and the session-completion contract.
 2. `AI_AGENT_HANDOFF.md` for the last verified state, decisions, blockers, and
    exact next action.
-3. the relevant `bd` issue; `bd` is the task system of record.
-4. `git status --short --branch` and the latest commits on the active branch.
+3. `git status --short --branch` and the latest commits on the active branch.
+4. the relevant `bd` issue; `bd` is the task system of record.
 5. the task-specific references linked below.
 
 If Beads reports pending schema migrations, do not migrate the database. Record
@@ -60,4 +60,3 @@ the blockage and work in `AI_AGENT_HANDOFF.md`, then flag it to the maintainer.
 - Release process: `RELEASING.md`
 - Architecture: `docs/ARCHITECTURE.md`
 - Developer and verification guidance: `docs/DEVELOPER.md`
-

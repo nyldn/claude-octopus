@@ -165,6 +165,9 @@ if [[ -f "$PROJECT_ROOT/RTK.md" ]] &&
    grep -q 'scripts/sync-readme.py.*owns' "$PROJECT_ROOT/RTK.md" &&
    grep -q 'scripts/sync-readme.py.*owns' "$PROJECT_ROOT/AGENTS.md" &&
    grep -q 'scripts/sync-readme.py' "$PROJECT_ROOT/CLAUDE.md" &&
+   grep -q 'make sync' "$PROJECT_ROOT/AGENTS.md" &&
+   grep -q 'make sync' "$PROJECT_ROOT/CLAUDE.md" &&
+   grep -q 'make sync' "$PROJECT_ROOT/RTK.md" &&
    grep -q 'make sync-check' "$PROJECT_ROOT/RTK.md" &&
    grep -q 'AI_AGENT_HANDOFF.md' "$PROJECT_ROOT/RTK.md"; then
     test_pass
