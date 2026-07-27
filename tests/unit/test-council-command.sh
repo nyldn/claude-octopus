@@ -791,7 +791,26 @@ test_council_chair_fallback_preserves_quorum() {
     summary="$(find "$tmp_dir" -name summary.json -type f | head -1)"
     [[ -n "$summary" ]] || { test_fail "summary.json not written"; return 1; }
 
-    if jq -e '.status == "completed" and .quorum.met == true and .warnings.chair_fallback == true and (.quorum.chair_received == true)' "$summary" >/dev/null; then
+    if jq -e '
+        .status == "completed"
+        and .quorum.met == true
+        and .warnings.chair_fallback == true
+        and (.quorum.chair_received == true)
+        # The failed roster chair remains visible, and the successfully dispatched
+        # fallback is an additional, fully typed execution record.
+        and (.seats[0].seat == "chair" and .seats[0].status == "no-response")
+        and ((.seats | length) == ((.council | length) + 1))
+        and (.seats[-1] as $fallback
+             | $fallback.index == (.council | length)
+             and $fallback.persona == .warnings.chair_fallback_persona
+             and $fallback.seat == "chair"
+             and ([$fallback.provider, $fallback.provider_org, $fallback.model,
+                   $fallback.payload_kind, $fallback.status]
+                  | all(type == "string" and length > 0))
+             and $fallback.response_bytes > 0
+             and $fallback.verdict == "APPROVE"
+             and ($fallback.counted_as_approver | type == "boolean"))
+    ' "$summary" >/dev/null; then
         test_pass
     else
         test_fail "chair fallback did not preserve quorum"
@@ -1350,8 +1369,9 @@ test_council_seats_array_makes_quorum_inspectable() {
         . as $summary
         | ($summary.seats | type == "array" and length >= 2)
         and ($summary.council | type == "array")
-        and (($summary.seats | length) == ($summary.council | length))
-        and (.seats | all(has("seat") and has("provider") and has("provider_org")
+        and (($summary.seats | length) >= ($summary.council | length))
+        and (.seats | all(has("index") and has("persona")
+                          and has("seat") and has("provider") and has("provider_org")
                           and has("model") and has("status") and has("verdict")
                           and has("response_bytes") and has("payload_kind")
                           and has("counted_as_approver")))
@@ -1369,6 +1389,15 @@ test_council_seats_array_makes_quorum_inspectable() {
             and ($summary.seats[$i].provider == $summary.council[$i].provider)
             and ($summary.seats[$i].provider_org == $summary.council[$i].provider_org)
             and ($summary.seats[$i].model == $summary.council[$i].model)))
+        # Any records beyond the roster must be the explicitly reported chair
+        # fallback dispatch; no unrelated extra seats are accepted.
+        and (if (($summary.seats | length) == ($summary.council | length))
+             then true
+             else ($summary.warnings.chair_fallback == true)
+                  and ($summary.seats[($summary.council | length):]
+                       | all(.seat == "chair"
+                             and .persona == $summary.warnings.chair_fallback_persona))
+             end)
         # counted_as_approver drives quorum, so it must be a real boolean, not a
         # truthy string that jq would still `select`.
         and (.seats | all(.counted_as_approver | type == "boolean"))

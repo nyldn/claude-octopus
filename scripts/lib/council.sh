@@ -1821,6 +1821,7 @@ council_synthesis_capable_persona() {
 
 council_run_chair_fallback() {
     local persona provider member_json slug output_path index
+    local seat_org seat_model resp_bytes verdict seat_status seat_rec
 
     while IFS= read -r persona; do
         [[ -n "$persona" ]] || continue
@@ -1837,13 +1838,41 @@ council_run_chair_fallback() {
         council_provider_is_available "$provider" || continue
 
         member_json="$(council_roster_entry_json "$persona" "$provider" | jq -c '.seat = "chair"')"
-        index="$(find "${COUNCIL_RUN_DIR}/responses" -type f -name '*.md' | wc -l | tr -d ' ')"
+        # Seat-record length is the canonical next index: failed roster seats remove
+        # their response files but remain in seats[], so counting files can reuse an
+        # existing index and make the execution record ambiguous.
+        index="$(jq 'length' <<< "${COUNCIL_SEAT_RECORDS_JSON:-[]}")"
         output_path="${COUNCIL_RUN_DIR}/responses/$(printf '%02d' "$index")-chair-fallback-${slug}.md"
         if council_dispatch_member "$member_json" "independent-advice" > "$output_path"; then
             COUNCIL_RESPONSES_RECEIVED=$((COUNCIL_RESPONSES_RECEIVED + 1))
             COUNCIL_CHAIR_RESPONSE_RECEIVED="true"
             COUNCIL_CHAIR_FALLBACK_USED="true"
             COUNCIL_CHAIR_FALLBACK_PERSONA="$persona"
+            # The fallback is an additional advice dispatch outside the resolved
+            # roster, so persist it as an additional seat execution record. Without
+            # this, summary.json claims to expose every seat while silently omitting
+            # the chair response that actually made synthesis possible.
+            seat_org="$(jq -r '.provider_org // ""' <<< "$member_json")"
+            seat_model="$(jq -r '.model // ""' <<< "$member_json")"
+            resp_bytes="$(wc -c < "$output_path" 2>/dev/null | tr -d '[:space:]')"
+            [[ -z "$resp_bytes" ]] && resp_bytes=0
+            verdict=""
+            seat_status="empty"
+            if council_response_nonempty "$output_path" && council_response_is_substantive "$output_path"; then
+                verdict="$(council_response_verdict "$output_path")"
+                seat_status="responded"
+            elif council_response_nonempty "$output_path"; then
+                seat_status="degenerate"
+            fi
+            seat_rec="$(jq -cn --argjson idx "$index" --arg persona "$persona" \
+                --arg provider "$provider" --arg org "$seat_org" --arg model "$seat_model" \
+                --argjson bytes "${resp_bytes:-0}" --arg verdict "$verdict" --arg status "$seat_status" \
+                '{index:$idx, persona:$persona, seat:"chair", provider:$provider,
+                  provider_org:$org, model:$model, response_bytes:$bytes,
+                  payload_kind:"full",
+                  verdict:(if $verdict=="" then null else $verdict end),
+                  status:$status, counted_as_approver:false}')"
+            COUNCIL_SEAT_RECORDS_JSON="$(jq -c ". + [$seat_rec]" <<< "${COUNCIL_SEAT_RECORDS_JSON:-[]}")"
             return 0
         fi
         rm -f "$output_path"
