@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [9.54.2] - 2026-07-27
+
+### Fixed
+
+- **OpenAI-compatible dispatch with a configured `base_url`/`api_key_env` no longer rejects itself** (#659). `_validate_openai_compatible_agent_command()` now accepts the `--base-url` and `--api-key-env` flags `dispatch.sh` emits for env-configured providers, with strict format validation (a non-empty HTTP(S) host, a safe environment-variable name) so the two functions stay in sync.
+- **Concurrent same-second spawns no longer share a task_id and interleave provider output** (#661). `spawn_agent()` and `spawn_agent_capture_pid()` derived an unsupplied `task_id` from `date +%s` alone, so two spawns starting in the same second collided and wrote to the same temp files, silently attributing one provider's answer to another's result. Default task_id generation now uses an OS-guaranteed-unique `mktemp` reservation.
+
 ## [9.54.1] - 2026-07-20
 
 ### Fixed
