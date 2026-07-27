@@ -76,6 +76,103 @@ should_use_agent_teams() {
     return 1
 }
 
+# Prepare an isolated copy-on-write workspace for advisory agents.
+# GNU cp uses reflinks when the backing filesystem supports them; otherwise it
+# falls back to an ordinary private copy. This protects the source checkout from
+# incidental relative-path mutations by keeping advisory work in a throwaway cwd.
+_octopus_prepare_consultative_workspace() {
+    local source_root="$1"
+    local temp_root workspace
+    temp_root="$(mktemp -d "${TMPDIR:-/tmp}/octopus-consultative.XXXXXX")" || return 1
+    workspace="${temp_root}/workspace"
+    mkdir -p "$workspace" || { rm -rf "$temp_root"; return 1; }
+
+    if ! cp -a --reflink=auto "${source_root}/." "${workspace}/" 2>/dev/null; then
+        rm -rf "$workspace"
+        mkdir -p "$workspace" || { rm -rf "$temp_root"; return 1; }
+        cp -a "${source_root}/." "${workspace}/" || { rm -rf "$temp_root"; return 1; }
+    fi
+
+    printf '%s\n' "$workspace"
+}
+
+# Run a synchronous agent in a strictly consultative context.
+#
+# Council seats and pre-implementation design reviews are advisory. Native
+# read-only sandboxing is not portable across all Codex runtimes (notably
+# Landlock-restricted hosts), so advisory agents run with the functional
+# danger-full-access mode inside a private disposable workspace. Relative-path
+# writes made during normal advisory work are discarded with that workspace.
+# This is mutation isolation for accidental workspace edits, not a security
+# boundary against deliberate access to absolute paths outside the workspace.
+run_agent_sync_consultative() {
+    local old_security_set="${OCTOPUS_SECURITY_V870+x}"
+    local old_security="${OCTOPUS_SECURITY_V870:-}"
+    local old_gemini_sandbox_set="${OCTOPUS_GEMINI_SANDBOX+x}"
+    local old_gemini_sandbox="${OCTOPUS_GEMINI_SANDBOX:-}"
+    local old_agy_sandbox_set="${OCTOPUS_AGY_SANDBOX+x}"
+    local old_agy_sandbox="${OCTOPUS_AGY_SANDBOX:-}"
+    local old_codex_sandbox_set="${OCTOPUS_CODEX_SANDBOX+x}"
+    local old_codex_sandbox="${OCTOPUS_CODEX_SANDBOX:-}"
+    local old_autonomy_set="${CLAUDE_OCTOPUS_AUTONOMY+x}"
+    local old_autonomy="${CLAUDE_OCTOPUS_AUTONOMY:-}"
+    local source_root source_root_logical workspace temp_root rc original_prompt isolated_prompt
+    local -a consultative_args
+
+    source_root_logical="$PWD"
+    source_root="$(pwd -P)"
+    workspace="$(_octopus_prepare_consultative_workspace "$source_root")" || {
+        log ERROR "Failed to prepare disposable consultative workspace from: $source_root"
+        return 1
+    }
+    temp_root="$(dirname "$workspace")"
+
+    consultative_args=("$@")
+    original_prompt="${consultative_args[1]:-}"
+    isolated_prompt="${original_prompt//$source_root/$workspace}"
+    if [[ "$source_root_logical" != "$source_root" ]]; then
+        isolated_prompt="${isolated_prompt//$source_root_logical/$workspace}"
+    fi
+    isolated_prompt="${isolated_prompt}
+
+## Consultative Workspace Boundary
+Work only inside this disposable workspace: ${workspace}
+Treat ${workspace} as the working copy for this advisory task. Any relative-path workspace changes are exploratory and will be discarded. Return analysis and recommendations only."
+    consultative_args[1]="$isolated_prompt"
+
+    unset OCTOPUS_SECURITY_V870
+    unset OCTOPUS_GEMINI_SANDBOX
+    unset OCTOPUS_AGY_SANDBOX
+    unset CLAUDE_OCTOPUS_AUTONOMY
+    export OCTOPUS_CODEX_SANDBOX="danger-full-access"
+
+    if (cd "$workspace" && run_agent_sync "${consultative_args[@]}"); then
+        rc=0
+    else
+        rc=$?
+    fi
+
+    if ! rm -rf "$temp_root" 2>/dev/null; then
+        if declare -F log >/dev/null 2>&1; then
+            log WARN "Failed to remove consultative workspace: $temp_root"
+        else
+            printf 'WARN: failed to remove consultative workspace: %s\n' "$temp_root" >&2
+        fi
+    fi
+
+    if [[ -n "$old_security_set" ]]; then export OCTOPUS_SECURITY_V870="$old_security"; else unset OCTOPUS_SECURITY_V870; fi
+    if [[ -n "$old_gemini_sandbox_set" ]]; then export OCTOPUS_GEMINI_SANDBOX="$old_gemini_sandbox"; else unset OCTOPUS_GEMINI_SANDBOX; fi
+    if [[ -n "$old_agy_sandbox_set" ]]; then export OCTOPUS_AGY_SANDBOX="$old_agy_sandbox"; else unset OCTOPUS_AGY_SANDBOX; fi
+    if [[ -n "$old_autonomy_set" ]]; then export CLAUDE_OCTOPUS_AUTONOMY="$old_autonomy"; else unset CLAUDE_OCTOPUS_AUTONOMY; fi
+    if [[ -n "$old_codex_sandbox_set" ]]; then
+        export OCTOPUS_CODEX_SANDBOX="$old_codex_sandbox"
+    else
+        unset OCTOPUS_CODEX_SANDBOX
+    fi
+
+    return "$rc"
+}
+
 # Synchronous agent execution (for sequential steps within phases)
 run_agent_sync() {
     local agent_type="$1"
