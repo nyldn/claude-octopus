@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "9.55.0",
-  "description": "v9.55.0 \u2014 Opus 5 default routing with GPT-5.6 Codex peer review, opt-in Fable 5 escalation, isolated Tangle verification, and resilient multi-provider councils. Run /octo:setup.",
+  "version": "9.55.1",
+  "description": "v9.55.1 \u2014 Opus 5 default routing with GPT-5.6 Codex peer review, opt-in Fable 5 escalation, isolated Tangle verification, and resilient multi-provider councils. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"

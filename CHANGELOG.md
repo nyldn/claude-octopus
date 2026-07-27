@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+## [9.55.1] - 2026-07-27
+
+
 ### Fixed
 
 - **Release metadata now describes the release being shipped.** `release.sh` uses its summary argument as the plugin description source and regenerates derived artifacts before committing, preventing a prior release's marketplace summary from carrying into the next version.

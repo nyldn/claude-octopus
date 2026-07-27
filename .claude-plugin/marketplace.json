@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "nyldn plugins for Claude Code workflows.",
-    "version": "9.55.0"
+    "version": "9.55.1"
   },
   "plugins": [
     {
@@ -15,8 +15,8 @@
         "source": "url",
         "url": "https://github.com/nyldn/claude-octopus.git"
       },
-      "description": "v9.55.0 - Opus 5 default routing with GPT-5.6 Codex peer review, opt-in Fable 5 escalation, isolated Tangle verification, and resilient multi-provider councils. 32 personas, 50 commands, 58 skills. Run /octo:setup.",
-      "version": "9.55.0",
+      "description": "v9.55.1 - Opus 5 default routing with GPT-5.6 Codex peer review, opt-in Fable 5 escalation, isolated Tangle verification, and resilient multi-provider councils. 32 personas, 50 commands, 58 skills. Run /octo:setup.",
+      "version": "9.55.1",
       "author": {
         "name": "nyldn",
         "url": "https://github.com/nyldn"
