@@ -2189,6 +2189,11 @@ Every [CODING] line must include a same-line Files: clause."
     local validation_rc=0
     validate_tangle_results "$task_group" "$resolved_prompt" "$worktree_before_file" || validation_rc=$?
 
+    if [[ "$validation_rc" -ne 0 ]]; then
+        log ERROR "Tangle validation failed with status ${validation_rc}; stopping before contextual review and corrections"
+        return "$validation_rc"
+    fi
+
     tangle_contextual_review_gate "$task_group" "$resolved_prompt" "$context" "$subtasks" \
         "$validation_file" "$worktree_before_file" "$validation_rc" "$tangle_coding_agent"
     return $?
