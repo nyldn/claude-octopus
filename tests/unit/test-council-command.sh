@@ -614,7 +614,12 @@ test_council_fixture_run_writes_phase_artifacts() {
 
     if [[ "$response_count" -eq 5 ]] &&
        [[ "$critique_count" -eq 5 ]] &&
-       jq -e '.status == "completed" and .quorum.met == true and .quorum.received_non_chair == 4' "$summary" >/dev/null; then
+       jq -e '
+           .status == "completed"
+           and .quorum.met == true
+           and .quorum.received_non_chair
+               == ([.seats[] | select(.seat != "chair" and .status == "responded")] | length)
+       ' "$summary" >/dev/null; then
         test_pass
     else
         test_fail "phase artifacts or quorum summary mismatch"
@@ -1351,6 +1356,229 @@ test_council_all_approve_meets_quorum() {
     fi
 }
 
+test_council_seat_timeout_precedence() {
+    test_case "council_seat_timeout resolves per-provider > flag > global env > default (#2077)"
+    load_council_lib || return 1
+    local d f p g pp invalid_provider invalid_flag invalid_global
+    # 4. built-in default when nothing set
+    d="$(OCTOPUS_COUNCIL_TIMEOUT_AGY='' OCTOPUS_COUNCIL_TIMEOUT_CODEX='' COUNCIL_SEAT_TIMEOUT='' OCTOPUS_COUNCIL_AGENT_TIMEOUT='' council_seat_timeout agy)"
+    # 3. legacy global env
+    g="$(OCTOPUS_COUNCIL_TIMEOUT_AGY='' OCTOPUS_COUNCIL_TIMEOUT_CODEX='' COUNCIL_SEAT_TIMEOUT='' OCTOPUS_COUNCIL_AGENT_TIMEOUT=200 council_seat_timeout agy)"
+    # 2. run-wide --seat-timeout flag beats the global env
+    f="$(OCTOPUS_COUNCIL_TIMEOUT_AGY='' OCTOPUS_COUNCIL_TIMEOUT_CODEX='' COUNCIL_SEAT_TIMEOUT=300 OCTOPUS_COUNCIL_AGENT_TIMEOUT=200 council_seat_timeout agy)"
+    # 1. per-provider env beats everything, and only for that provider
+    p="$(OCTOPUS_COUNCIL_TIMEOUT_AGY=600 OCTOPUS_COUNCIL_TIMEOUT_CODEX='' COUNCIL_SEAT_TIMEOUT=300 council_seat_timeout agy)"
+    pp="$(OCTOPUS_COUNCIL_TIMEOUT_AGY=600 OCTOPUS_COUNCIL_TIMEOUT_CODEX='' COUNCIL_SEAT_TIMEOUT=300 council_seat_timeout codex)"
+    # Invalid higher-priority overrides fall through without disabling the cap.
+    invalid_provider="$(OCTOPUS_COUNCIL_TIMEOUT_AGY=0 COUNCIL_SEAT_TIMEOUT=300 OCTOPUS_COUNCIL_AGENT_TIMEOUT=200 council_seat_timeout agy)"
+    invalid_flag="$(OCTOPUS_COUNCIL_TIMEOUT_AGY='' COUNCIL_SEAT_TIMEOUT=abc OCTOPUS_COUNCIL_AGENT_TIMEOUT=200 council_seat_timeout agy)"
+    invalid_global="$(OCTOPUS_COUNCIL_TIMEOUT_AGY='' COUNCIL_SEAT_TIMEOUT='' OCTOPUS_COUNCIL_AGENT_TIMEOUT=-1 council_seat_timeout agy)"
+    if [[ "$d" == "120" ]] && [[ "$g" == "200" ]] && [[ "$f" == "300" ]] &&
+       [[ "$p" == "600" ]] && [[ "$pp" == "300" ]] &&
+       [[ "$invalid_provider" == "300" ]] && [[ "$invalid_flag" == "200" ]] &&
+       [[ "$invalid_global" == "120" ]]; then
+        test_pass
+    else
+        test_fail "timeout precedence wrong: default=$d global=$g flag=$f agy=$p codex=$pp invalid=$invalid_provider/$invalid_flag/$invalid_global"
+        return 1
+    fi
+}
+
+_council_run_advice_with_roster() {
+    # Drive council_run_advice_phase against a hand-crafted roster in fixture mode.
+    # Provider assignment per seat can't be pinned through the public council_run path
+    # (diversity is auto-enforced among non-chair seats), so inject the roster directly.
+    local roster="$1" depth="${2:-standard}" failed_persona="${3:-}"
+    local d; d="$(mktemp -d "$TEST_TMP_DIR/advice.XXXXXX")"; mkdir -p "$d/responses"
+    COUNCIL_RUN_DIR="$d"; COUNCIL_DEPTH="$depth"; COUNCIL_FIXTURE="full-success"
+    COUNCIL_EXECUTION_MODE=""; COUNCIL_TASK="x"; COUNCIL_GOAL="advice"
+    COUNCIL_DOMAIN="auto"; COUNCIL_STYLE="balanced"
+    COUNCIL_ROSTER_JSON="$roster"
+    # The prompt builder and fail-check need deep state that's irrelevant in fixture
+    # mode; stub them. load_council_lib re-sources the lib for the next test, restoring them.
+    council_prompt_for_member() { echo "prompt"; }
+    council_persona_should_fail() { [[ -n "$failed_persona" && "$1" == "$failed_persona" ]]; }
+    council_run_advice_phase >/dev/null 2>&1 || true
+}
+
+test_council_chair_only_vendor_excluded_from_quorum() {
+    test_case "A chair-only vendor is excluded from the approving-provider quorum tally (#670)"
+    load_council_lib || return 1
+
+    # agy sits ONLY on the chair; the two independent (non-chair) reviewers are both
+    # codex. The chair is the synthesizer, not a cross-lab vote, so agy must NOT count
+    # as a distinct approving vendor — leaving a single non-chair approver (codex) that
+    # can't satisfy the 2-vendor standard quorum. Before the fix, agy leaked in and the
+    # council falsely reported a 2-vendor consensus.
+    _council_run_advice_with_roster '[
+      {"persona":"strategy-analyst","provider":"agy","seat":"chair"},
+      {"persona":"code-reviewer","provider":"codex","seat":"member"},
+      {"persona":"backend-architect","provider":"codex","seat":"member"}
+    ]'
+    local chair_only_ok="no"
+    if [[ "$COUNCIL_DISTINCT_APPROVING_PROVIDERS" == "1" ]] &&
+       [[ "$COUNCIL_APPROVING_PROVIDERS" == *codex* ]] &&
+       [[ "$COUNCIL_APPROVING_PROVIDERS" != *agy* ]] &&
+       [[ "$COUNCIL_QUORUM_MET" == "false" ]] &&
+       jq -e '
+         .[0].seat == "chair"
+         and .[0].status == "responded"
+         and .[0].verdict == "APPROVE"
+         and .[0].counted_as_approver == false
+         and ([.[] | select(.counted_as_approver) | .provider] | unique) == ["codex"]
+       ' <<< "$COUNCIL_SEAT_RECORDS_JSON" >/dev/null; then
+        chair_only_ok="yes"
+    fi
+
+    # Complement: the SAME vendor on the chair AND an independent seat still counts via
+    # its non-chair seat — proving the exclusion is seat-scoped, not vendor-scoped.
+    _council_run_advice_with_roster '[
+      {"persona":"strategy-analyst","provider":"agy","seat":"chair"},
+      {"persona":"code-reviewer","provider":"codex","seat":"member"},
+      {"persona":"backend-architect","provider":"agy","seat":"member"}
+    ]'
+    local also_member_ok="no"
+    if [[ "$COUNCIL_DISTINCT_APPROVING_PROVIDERS" == "2" ]] &&
+       [[ "$COUNCIL_APPROVING_PROVIDERS" == *codex* ]] &&
+       [[ "$COUNCIL_APPROVING_PROVIDERS" == *agy* ]] &&
+       [[ "$COUNCIL_QUORUM_MET" == "true" ]] &&
+       jq -e '
+         .[0].seat == "chair"
+         and .[0].status == "responded"
+         and .[0].counted_as_approver == false
+         and .[2].seat == "member"
+         and .[2].provider == "agy"
+         and .[2].counted_as_approver == true
+       ' <<< "$COUNCIL_SEAT_RECORDS_JSON" >/dev/null; then
+        also_member_ok="yes"
+    fi
+
+    if [[ "$chair_only_ok" == "yes" && "$also_member_ok" == "yes" ]]; then
+        test_pass
+    else
+        test_fail "chair exclusion wrong: chair_only_ok=$chair_only_ok also_member_ok=$also_member_ok (last: approving=[$COUNCIL_APPROVING_PROVIDERS] distinct=$COUNCIL_DISTINCT_APPROVING_PROVIDERS met=$COUNCIL_QUORUM_MET)"
+        return 1
+    fi
+}
+
+test_council_chair_fallback_rejects_incomplete_responses() {
+    test_case "Chair fallback rejects timed-out partial and empty-success responses"
+    load_council_lib || return 1
+    local d rc=0
+    d="$(mktemp -d "$TEST_TMP_DIR/chair-partial.XXXXXX")"
+    mkdir -p "$d/responses"
+    printf 'review was cut off before its verdict\n' > "$d/responses/00-strategy-analyst.md"
+    COUNCIL_RUN_DIR="$d"
+    COUNCIL_SEAT_RECORDS_JSON='[{"persona":"strategy-analyst","status":"no-response"}]'
+    COUNCIL_CHAIR_RESPONSE_RECEIVED="false"
+    COUNCIL_CHAIR_FALLBACK_USED="false"
+    COUNCIL_CHAIR_FALLBACK_PERSONA=""
+    council_pick_provider() { printf 'codex'; }
+    council_provider_is_available() { return 1; }
+
+    council_run_chair_fallback || rc=$?
+    local partial_ok="no"
+    if [[ $rc -ne 0 ]] &&
+       [[ "$COUNCIL_CHAIR_RESPONSE_RECEIVED" == "false" ]] &&
+       [[ "$COUNCIL_CHAIR_FALLBACK_USED" == "false" ]]; then
+        partial_ok="yes"
+    fi
+
+    rm -f "$d/responses/"*.md
+    COUNCIL_SEAT_RECORDS_JSON='[]'
+    COUNCIL_CHAIR_RESPONSE_RECEIVED="false"
+    COUNCIL_CHAIR_FALLBACK_USED="false"
+    council_provider_is_available() { return 0; }
+    council_roster_entry_json() {
+        jq -cn --arg persona "$1" --arg provider "$2" \
+            '{persona:$persona,provider:$provider,provider_org:$provider,model:"fixture",seat:"member"}'
+    }
+    council_dispatch_member() { return 0; }
+    rc=0
+    council_run_chair_fallback || rc=$?
+    local empty_ok="no"
+    if [[ $rc -ne 0 ]] &&
+       [[ "$COUNCIL_CHAIR_RESPONSE_RECEIVED" == "false" ]] &&
+       [[ "$COUNCIL_CHAIR_FALLBACK_USED" == "false" ]]; then
+        empty_ok="yes"
+    fi
+
+    if [[ "$partial_ok" == "yes" && "$empty_ok" == "yes" ]]; then
+        test_pass
+    else
+        test_fail "incomplete chair accepted: partial_ok=$partial_ok empty_ok=$empty_ok rc=$rc received=$COUNCIL_CHAIR_RESPONSE_RECEIVED fallback=$COUNCIL_CHAIR_FALLBACK_USED"
+        return 1
+    fi
+}
+
+test_council_reused_member_chair_fallback_preserves_quorum() {
+    test_case "A reused member chair fallback preserves the non-chair quorum count"
+    load_council_lib || return 1
+
+    # The original chair fails, but the synthesis-capable member already returned a
+    # complete review. The fallback reuses that member instead of adding a chair seat.
+    # Its one non-chair response must remain counted for quick-mode quorum.
+    _council_run_advice_with_roster '[
+      {"persona":"strategy-analyst","provider":"agy","seat":"chair"},
+      {"persona":"research-synthesizer","provider":"codex","seat":"member"}
+    ]' quick strategy-analyst
+
+    if [[ "$COUNCIL_CHAIR_FALLBACK_USED" == "true" ]] &&
+       [[ "$COUNCIL_CHAIR_FALLBACK_PERSONA" == "research-synthesizer" ]] &&
+       [[ "$COUNCIL_QUORUM_MET" == "true" ]] &&
+       [[ "$(council_received_non_chair)" == "1" ]] &&
+       [[ "$(jq 'length' <<< "$COUNCIL_SEAT_RECORDS_JSON")" == "2" ]]; then
+        test_pass
+    else
+        test_fail "reused fallback lost quorum: fallback=$COUNCIL_CHAIR_FALLBACK_USED persona=$COUNCIL_CHAIR_FALLBACK_PERSONA quorum=$COUNCIL_QUORUM_MET non_chair=$(council_received_non_chair) seats=$COUNCIL_SEAT_RECORDS_JSON"
+        return 1
+    fi
+}
+
+test_council_seat_timeout_rejects_zero_and_nonnumeric() {
+    test_case "--seat-timeout records a positive integer but rejects 0 and non-numeric"
+    load_council_lib || return 1
+    local out_file="$TEST_TMP_DIR/council-seat-timeout.out"
+
+    # A positive integer is accepted and recorded.
+    council_parse_args --seat-timeout 450 --dry-run "Review auth"
+    [[ "$COUNCIL_SEAT_TIMEOUT" == "450" ]] || { test_fail "positive value not recorded: [$COUNCIL_SEAT_TIMEOUT]"; return 1; }
+
+    # 0 must be rejected: run_with_timeout treats 0 as unbounded, so it would defeat
+    # the very cap the flag sets. Non-numeric must also fail with the usage error.
+    # Capture each expected failure with an if-guard rather than `set +e`, so the
+    # runner's errexit stays on for the rest of the test.
+    local z_status=0 nn_status=0
+    if council_parse_args --seat-timeout 0 "Review auth" >"$out_file" 2>&1; then z_status=0; else z_status=$?; fi
+    if council_parse_args --seat-timeout abc "Review auth" >"$out_file" 2>&1; then nn_status=0; else nn_status=$?; fi
+    if [[ $z_status -eq 2 ]] && [[ $nn_status -eq 2 ]] && [[ -z "$COUNCIL_SEAT_TIMEOUT" ]]; then
+        test_pass
+    else
+        test_fail "expected exit 2 and reset timeout: zero=$z_status nonnumeric=$nn_status timeout=[$COUNCIL_SEAT_TIMEOUT]"
+        return 1
+    fi
+}
+
+test_council_response_has_verdict_salvage() {
+    test_case "council_response_has_verdict distinguishes a finished seat from a truncated one (#2077)"
+    load_council_lib || return 1
+    local d; d="$(mktemp -d "$TEST_TMP_DIR/hasverdict.XXXXXX")"
+    printf 'full review body\nVERDICT: APPROVE\n'        > "$d/complete.md"
+    printf '  verdict: revise please\n'                  > "$d/lower.md"
+    printf 'review got cut off mid-sen'                  > "$d/partial.md"
+    printf ''                                            > "$d/empty.md"
+    if council_response_has_verdict "$d/complete.md" &&
+       council_response_has_verdict "$d/lower.md" &&
+       ! council_response_has_verdict "$d/partial.md" &&
+       ! council_response_has_verdict "$d/empty.md" &&
+       ! council_response_has_verdict "$d/missing.md"; then
+        test_pass
+    else
+        test_fail "has_verdict salvage detection wrong"
+        return 1
+    fi
+}
+
 test_council_seats_array_makes_quorum_inspectable() {
     test_case "summary.json seats[] records per-seat state and quorum is recomputable from it"
     load_council_lib || return 1
@@ -1424,5 +1652,11 @@ test_council_verdict_parsing
 test_council_approving_providers_failsafe
 test_council_split_double_seat_fails_quorum
 test_council_all_approve_meets_quorum
+test_council_seat_timeout_precedence
+test_council_seat_timeout_rejects_zero_and_nonnumeric
+test_council_response_has_verdict_salvage
+test_council_chair_only_vendor_excluded_from_quorum
+test_council_chair_fallback_rejects_incomplete_responses
+test_council_reused_member_chair_fallback_preserves_quorum
 test_council_seats_array_makes_quorum_inspectable
 test_summary
