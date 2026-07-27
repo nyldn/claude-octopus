@@ -614,7 +614,12 @@ test_council_fixture_run_writes_phase_artifacts() {
 
     if [[ "$response_count" -eq 5 ]] &&
        [[ "$critique_count" -eq 5 ]] &&
-       jq -e '.status == "completed" and .quorum.met == true and .quorum.received_non_chair == 4' "$summary" >/dev/null; then
+       jq -e '
+           .status == "completed"
+           and .quorum.met == true
+           and .quorum.received_non_chair
+               == ([.seats[] | select(.seat != "chair" and .status == "responded")] | length)
+       ' "$summary" >/dev/null; then
         test_pass
     else
         test_fail "phase artifacts or quorum summary mismatch"
@@ -1442,7 +1447,7 @@ _council_run_advice_with_roster() {
     # Drive council_run_advice_phase against a hand-crafted roster in fixture mode.
     # Provider assignment per seat can't be pinned through the public council_run path
     # (diversity is auto-enforced among non-chair seats), so inject the roster directly.
-    local roster="$1" depth="${2:-standard}"
+    local roster="$1" depth="${2:-standard}" failed_persona="${3:-}"
     local d; d="$(mktemp -d "$TEST_TMP_DIR/advice.XXXXXX")"; mkdir -p "$d/responses"
     COUNCIL_RUN_DIR="$d"; COUNCIL_DEPTH="$depth"; COUNCIL_FIXTURE="full-success"
     COUNCIL_EXECUTION_MODE=""; COUNCIL_TASK="x"; COUNCIL_GOAL="advice"
@@ -1451,7 +1456,7 @@ _council_run_advice_with_roster() {
     # The prompt builder and fail-check need deep state that's irrelevant in fixture
     # mode; stub them. load_council_lib re-sources the lib for the next test, restoring them.
     council_prompt_for_member() { echo "prompt"; }
-    council_persona_should_fail() { return 1; }
+    council_persona_should_fail() { [[ -n "$failed_persona" && "$1" == "$failed_persona" ]]; }
     council_run_advice_phase >/dev/null 2>&1 || true
 }
 
@@ -1605,6 +1610,30 @@ test_council_chair_fallback_rejects_incomplete_responses() {
         test_pass
     else
         test_fail "incomplete chair accepted: partial_ok=$partial_ok empty_ok=$empty_ok rc=$rc received=$COUNCIL_CHAIR_RESPONSE_RECEIVED fallback=$COUNCIL_CHAIR_FALLBACK_USED"
+        return 1
+    fi
+}
+
+test_council_reused_member_chair_fallback_preserves_quorum() {
+    test_case "A reused member chair fallback preserves the non-chair quorum count"
+    load_council_lib || return 1
+
+    # The original chair fails, but the synthesis-capable member already returned a
+    # complete review. The fallback reuses that member instead of adding a chair seat.
+    # Its one non-chair response must remain counted for quick-mode quorum.
+    _council_run_advice_with_roster '[
+      {"persona":"strategy-analyst","provider":"agy","seat":"chair"},
+      {"persona":"research-synthesizer","provider":"codex","seat":"member"}
+    ]' quick strategy-analyst
+
+    if [[ "$COUNCIL_CHAIR_FALLBACK_USED" == "true" ]] &&
+       [[ "$COUNCIL_CHAIR_FALLBACK_PERSONA" == "research-synthesizer" ]] &&
+       [[ "$COUNCIL_QUORUM_MET" == "true" ]] &&
+       [[ "$(council_received_non_chair)" == "1" ]] &&
+       [[ "$(jq 'length' <<< "$COUNCIL_SEAT_RECORDS_JSON")" == "2" ]]; then
+        test_pass
+    else
+        test_fail "reused fallback lost quorum: fallback=$COUNCIL_CHAIR_FALLBACK_USED persona=$COUNCIL_CHAIR_FALLBACK_PERSONA quorum=$COUNCIL_QUORUM_MET non_chair=$(council_received_non_chair) seats=$COUNCIL_SEAT_RECORDS_JSON"
         return 1
     fi
 }
@@ -1782,5 +1811,6 @@ test_council_seat_timeout_rejects_zero_and_nonnumeric
 test_council_response_has_verdict_salvage
 test_council_chair_only_vendor_excluded_from_quorum
 test_council_chair_fallback_rejects_incomplete_responses
+test_council_reused_member_chair_fallback_preserves_quorum
 test_council_seats_array_makes_quorum_inspectable
 test_summary

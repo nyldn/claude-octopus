@@ -1519,7 +1519,7 @@ EOF
         return 1
     fi
 
-    if declare -f run_agent_sync >/dev/null 2>&1; then
+    if declare -f run_agent_sync_consultative >/dev/null 2>&1; then
         local agent_type="$provider"
         run_agent_sync_consultative "$agent_type" "$prompt" "$(council_seat_timeout "$agent_type")" "$persona" "council"
         return $?
@@ -1778,6 +1778,14 @@ council_response_has_verdict() {
     awk 'toupper($0) ~ /^[[:space:]]*VERDICT:/ { found = 1 } END { exit !found }' "$f"
 }
 
+council_received_non_chair() {
+    # Derive this count from the execution records, not from the aggregate response
+    # counter. A chair fallback can reuse an already-counted member response without
+    # adding another response, so blindly subtracting one would erase that member.
+    jq '[.[] | select(.seat != "chair" and .status == "responded")] | length' \
+        <<< "${COUNCIL_SEAT_RECORDS_JSON:-[]}"
+}
+
 council_seat_timeout() {
     # Per-seat dispatch timeout (seconds). The single default is too tight for a
     # large-diff review (#2077); resolve most-specific-first so a slow provider can
@@ -1907,7 +1915,7 @@ council_run_advice_phase() {
 
     local required received_non_chair
     required="$(council_required_non_chair)"
-    received_non_chair="$(( COUNCIL_RESPONSES_RECEIVED > 0 ? COUNCIL_RESPONSES_RECEIVED - 1 : 0 ))"
+    received_non_chair="$(council_received_non_chair)"
 
     # Distinct-vendor quorum, in two layers:
     #   distinct_providers  — vendors that returned a SUBSTANTIVE response.
@@ -2563,10 +2571,12 @@ council_create_run_dir() {
 council_write_summary_json() {
     local status="$1"
     local summary_path="${COUNCIL_RUN_DIR}/summary.json"
+    local received_non_chair
 
     council_estimate_cost
     council_build_roster
     council_scan_veto_artifacts
+    received_non_chair="$(council_received_non_chair)"
 
     jq -n \
         --arg run_id "$COUNCIL_RUN_ID" \
@@ -2601,7 +2611,7 @@ council_write_summary_json() {
         --arg personas_requested "$COUNCIL_PERSONAS" \
         --argjson council_roster "$COUNCIL_ROSTER_JSON" \
         --argjson seat_records "${COUNCIL_SEAT_RECORDS_JSON:-[]}" \
-        --arg responses_received "$COUNCIL_RESPONSES_RECEIVED" \
+        --arg received_non_chair "$received_non_chair" \
         --arg quorum_met "$COUNCIL_QUORUM_MET" \
         --arg distinct_providers "${COUNCIL_DISTINCT_PROVIDERS:-0}" \
         --arg responding_providers "${COUNCIL_RESPONDING_PROVIDERS:+${COUNCIL_RESPONDING_PROVIDERS# }}" \
@@ -2644,7 +2654,7 @@ council_write_summary_json() {
           },
           quorum: {
             required_non_chair: (if $depth == "quick" then 1 else 2 end),
-            received_non_chair: (if ($responses_received | tonumber) > 0 then (($responses_received | tonumber) - 1) else 0 end),
+            received_non_chair: ($received_non_chair | tonumber),
             chair_received: ($chair_received == "true"),
             distinct_providers: ($distinct_providers | tonumber),
             responding_providers: $responding_providers,
