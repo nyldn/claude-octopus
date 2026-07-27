@@ -60,6 +60,12 @@ fi
 
 # Keep debug flag defined even when nounset is enabled by sourced scripts.
 OCTOPUS_DEBUG="${OCTOPUS_DEBUG:-false}"
+# Writing Tangle runs require a deterministic source baseline before they are
+# isolated in a Git worktree. Unit tests that source workflows.sh directly opt
+# in explicitly, avoiding hidden repository side effects.
+OCTOPUS_TANGLE_REQUIRE_CLEAN_BASELINE="${OCTOPUS_TANGLE_REQUIRE_CLEAN_BASELINE:-true}"
+OCTOPUS_TANGLE_RUN_WORKTREE="${OCTOPUS_TANGLE_RUN_WORKTREE:-true}"
+export OCTOPUS_TANGLE_REQUIRE_CLEAN_BASELINE OCTOPUS_TANGLE_RUN_WORKTREE
 
 # Workspace location — the directory whose files dispatched providers must read.
 # Callers historically `cd` into the plugin install before invoking orchestrate.sh,
@@ -2367,6 +2373,20 @@ case "$COMMAND" in
             exit 1
         fi
         grasp_define "$1" "${2:-}"
+        ;;
+    verify|verification-only)
+        if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+            echo "Usage: $(basename "$0") verify <prompt>"
+            echo "Runs diagnosis in a disposable Git worktree and never launches implementation agents."
+            echo "Exit codes: 0=verified no change, 1=needs diagnosis/error, 2=defect reproduced."
+            exit 0
+        fi
+        if [[ $# -lt 1 || -z "${*//[[:space:]]/}" ]]; then
+            log ERROR "Missing prompt for verification-only mode"
+            echo "Usage: $(basename "$0") verify <prompt>"
+            exit 1
+        fi
+        tangle_verify "$*"
         ;;
     develop|tangle)
         # Phase 3: Develop - Implementation with quality gates

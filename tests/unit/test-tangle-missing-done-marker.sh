@@ -10,6 +10,7 @@ test_suite "tangle missing done marker recovery"
 
 # These tests exercise tangle dispatch/validation behavior, not contextual review.
 export OCTOPUS_TANGLE_CODE_REVIEW=false
+export OCTOPUS_TANGLE_RUN_WORKTREE=false
 
 WORKFLOWS="$PROJECT_ROOT/scripts/lib/workflows.sh"
 TEST_TMP_DIR="${TEST_TMP_DIR:-/tmp/octopus-tests-$$}"

@@ -1,7 +1,7 @@
 # AI Agent Handoff
 
 Last updated: 2026-07-27
-Status: implementation verified; dependency merge queue in progress
+Status: prerequisites merged; final integrated verification passed
 Branch: `feat/opus-5-default-routing`
 Pull request: https://github.com/nyldn/claude-octopus/pull/678
 
@@ -38,6 +38,14 @@ cheaper model tiers, user overrides, and legacy compatibility.
 - Claude model allowlists remain a compliance boundary: direct normal and fast
   Opus dispatch validate the final rerouted model and any fallback before
   command serialization.
+- Tangle implementation isolation defaults on for orchestrated and direct
+  library calls; explicit `OCTOPUS_TANGLE_RUN_WORKTREE=false` is the opt-out.
+- Tangle uses one run ID across its branch, delegated tasks, markers, and
+  validation artifacts, and resolves caller-relative ignored context before
+  changing worktrees.
+- Verification-only results fail closed unless all declared evidence members
+  are strings and the baseline, reproduction, and implementation flags are
+  internally consistent.
 - Multi-model fan-out remains mandatory only for commands whose explicit
   contract is council, debate, parallel, or multi-provider research.
 - Tests and runtime evidence remain mandatory; redundant prompt-only
@@ -53,10 +61,10 @@ could not be claimed or recorded as a new Beads issue.
 
 ## Current Evidence
 
-- Public `main` is complete through Council reliability PRs #667 and #669 and
-  Tangle clean-baseline PR #674 (`48b446f9`).
-- This branch is integrated through Council PR #669 and will receive the
-  remaining Tangle squashes after #673 and #675 pass protected checks.
+- Public `main` is complete through the Council reliability queue and Tangle
+  PRs #673, #674, and #675 (`f3d7b276`).
+- This branch includes that exact `main` squash stack; the only remaining
+  public feature PR is #678.
 - Core implementation commit: `6e0e6863` (`feat: adopt Opus 5 frontier model
   routing`); latest compliance fix: `4b96a2cf` (`fix: enforce Claude allowlists
   for Opus routing`).
@@ -65,28 +73,28 @@ could not be claimed or recorded as a new Beads issue.
 - Upstream model policy: `nyldn/fable5-optimizer` v2.0.0.
 - Targeted routing, resolver, provider activation, model config, SDK, Fable,
   execution-mechanism, marketplace-sync, smoke-version, and council tests pass.
-- Latest focused evidence: Opus routing 21/21, Fable mode 27/27, and
-  SubagentStop 8/8.
+- Latest focused evidence: Opus routing 21/21, Fable mode 27/27,
+  SubagentStop 8/8, Tangle run-worktree 13/13, and verification-only 10/10.
+- The final #675 head passed protected smoke, unit, and integration gates on
+  Ubuntu and macOS; the complete local unit matrix passed 183/183.
 - Fresh configs adopt the frontier roster; existing v3 configs and explicit
   model pins remain unchanged.
 - `make sync-check` passes with no script mode changes.
-- `make ci-local` passes: 16 smoke, 178 unit, and 7 integration suites; the
-  probe dry-run timeout case is the suite's one expected skip.
+- The final integrated `make ci-local` passed 16 smoke, 183 unit, and 7
+  integration suites, including the live plugin lifecycle test.
 
 ## Merge Queue
 
-- Merged: #656, #658, #664, #666, #667, #668, #669, #670, #672, and release
-  PR #677 (v9.54.2).
-- In progress: #673 (Tangle run worktree), then #675 (verification-only), then
-  #678 (Opus 5 routing).
+- Merged: #656, #658, #664, #666, #667, #668, #669, #670, #672, #673, #674,
+  #675, and release PR #677 (v9.54.2).
+- In progress: #678 (Opus 5 routing), followed by the v9.55.0 minor release.
 - Private E2E issue classification fix merged in
   `nyldn/claude-octopus-dev#4`; the target VPS remains unreachable over SSH, so
   the repository fix is complete but the live script has not been refreshed.
 
 ## Next Action
 
-Wait for #673 protected CI, squash-merge it, integrate that squash into #675,
-and repeat. Then merge current `main` into #678, consolidate the Unreleased
-changelog, run `make sync` and full `make ci-local`, push both remotes, and
-merge only after required review and verification gates pass. Finish with the
-minor release workflow and update this handoff to the released state.
+Commit and push the integrated head to both remotes. Merge #678 only after
+required review and protected verification gates pass. Finish the v9.55.0
+minor release workflow, tag the squash-merge commit on `main`, publish the
+GitHub release, and update this handoff to the released state.
