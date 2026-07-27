@@ -1356,6 +1356,48 @@ test_council_all_approve_meets_quorum() {
     fi
 }
 
+test_council_detached_dispatch_atomic_and_propagates_rc() {
+    test_case "council_dispatch_member_detached only publishes via atomic rename, propagates rc, leaves no temp files (#2077)"
+    load_council_lib || return 1
+    local d; d="$(mktemp -d "$TEST_TMP_DIR/detach.XXXXXX")"
+    local member='{"provider":"codex","persona":"code-reviewer","seat":"member"}'
+    local startedf="$d/started" relf="$d/release"
+    export OCTOPUS_COUNCIL_AGENT_TIMEOUT=30
+
+    # Happy path, observed MID-WRITE. The stub signals it has started, then blocks.
+    # While it is blocked the final path must NOT exist — a regression that writes
+    # straight to the final path (skipping .partial + atomic mv) would expose a
+    # partial/empty file here and fail. After release the complete output must appear.
+    council_dispatch_member() {
+        : > "$startedf"
+        local i=0; while [[ ! -f "$relf" && $i -lt 200 ]]; do sleep 0.1; i=$((i + 1)); done
+        printf 'full review\nVERDICT: APPROVE\n'
+        return 0
+    }
+    council_dispatch_member_detached "$member" "independent-advice" "$d/ok.md" & local helper=$!
+    local i=0; while [[ ! -f "$startedf" && $i -lt 100 ]]; do sleep 0.1; i=$((i + 1)); done
+    local midwrite_absent="no"; [[ ! -e "$d/ok.md" ]] && midwrite_absent="yes"
+    : > "$relf"
+    local ok_rc=0; wait "$helper" || ok_rc=$?
+
+    # Failing seat: the inner exit code propagates AND the (failing) output still
+    # reaches the final path through the same rename.
+    council_dispatch_member() { printf 'junk-but-final\n'; return 3; }
+    local fail_rc=0
+    council_dispatch_member_detached "$member" "independent-advice" "$d/bad.md" || fail_rc=$?
+
+    if [[ "$midwrite_absent" == "yes" ]] && [[ $ok_rc -eq 0 ]] &&
+       grep -q 'VERDICT: APPROVE' "$d/ok.md" &&
+       [[ ! -e "$d/ok.md.partial" && ! -e "$d/ok.md.done" && ! -e "$d/ok.md.done.tmp" ]] &&
+       [[ $fail_rc -eq 3 ]] && grep -q 'junk-but-final' "$d/bad.md" &&
+       [[ ! -e "$d/bad.md.partial" && ! -e "$d/bad.md.done" && ! -e "$d/bad.md.done.tmp" ]]; then
+        test_pass
+    else
+        test_fail "atomic dispatch wrong: midwrite_absent=$midwrite_absent ok_rc=$ok_rc fail_rc=$fail_rc ok=[$(tr '\n' '|' < "$d/ok.md" 2>/dev/null)] bad=[$(tr '\n' '|' < "$d/bad.md" 2>/dev/null)]"
+        return 1
+    fi
+}
+
 test_council_seat_timeout_precedence() {
     test_case "council_seat_timeout resolves per-provider > flag > global env > default (#2077)"
     load_council_lib || return 1
@@ -1380,6 +1422,23 @@ test_council_seat_timeout_precedence() {
         test_pass
     else
         test_fail "timeout precedence wrong: default=$d global=$g flag=$f agy=$p codex=$pp invalid=$invalid_provider/$invalid_flag/$invalid_global"
+        return 1
+    fi
+}
+
+test_council_detach_escape_hatch_uses_inline() {
+    test_case "OCTOPUS_COUNCIL_DETACH=0 falls back to inline dispatch (no sentinel)"
+    load_council_lib || return 1
+    local d; d="$(mktemp -d "$TEST_TMP_DIR/detach-off.XXXXXX")"
+    local member='{"provider":"codex","persona":"code-reviewer","seat":"member"}'
+    council_dispatch_member() { printf 'inline\nVERDICT: REVISE\n'; return 0; }
+    local rc=0
+    OCTOPUS_COUNCIL_DETACH=0 council_dispatch_member_detached "$member" "independent-advice" "$d/x.md" || rc=$?
+    # The inline path never creates a .done sentinel; output must still be correct.
+    if [[ $rc -eq 0 ]] && grep -q 'VERDICT: REVISE' "$d/x.md" && [[ ! -e "$d/x.md.done" ]]; then
+        test_pass
+    else
+        test_fail "escape hatch wrong: rc=$rc content=[$(tr '\n' '|' < "$d/x.md" 2>/dev/null)]"
         return 1
     fi
 }
@@ -1457,6 +1516,50 @@ test_council_chair_only_vendor_excluded_from_quorum() {
         test_pass
     else
         test_fail "chair exclusion wrong: chair_only_ok=$chair_only_ok also_member_ok=$also_member_ok (last: approving=[$COUNCIL_APPROVING_PROVIDERS] distinct=$COUNCIL_DISTINCT_APPROVING_PROVIDERS met=$COUNCIL_QUORUM_MET)"
+        return 1
+    fi
+}
+
+test_council_detached_seat_survives_interrupt() {
+    test_case "A detached seat survives SIGINT/SIGHUP/SIGTERM to its process and still lands its result (#2077)"
+    load_council_lib || return 1
+    local d; d="$(mktemp -d "$TEST_TMP_DIR/detach-sig.XXXXXX")"
+    local member='{"provider":"codex","persona":"code-reviewer","seat":"member"}'
+    local pidf="$d/seat.pid" relf="$d/release" out="$d/sig.md"
+    export OCTOPUS_COUNCIL_AGENT_TIMEOUT=30
+
+    # PPID of the `sh -c` child is the seat subshell's pid — portable to bash 3.2
+    # (macOS), where $BASHPID does not exist. The stub blocks until released so the
+    # test can deliver signals while the seat is provably mid-run. TERM is included
+    # because a timeout-style tool/orchestrator kill sends SIGTERM first.
+    council_dispatch_member() {
+        sh -c 'echo $PPID' > "$pidf"
+        local i=0
+        while [[ ! -f "$relf" && $i -lt 200 ]]; do sleep 0.1; i=$((i + 1)); done
+        printf 'survived interrupt\nVERDICT: APPROVE\n'
+        return 0
+    }
+
+    council_dispatch_member_detached "$member" "independent-advice" "$out" & local helper=$!
+    local i=0
+    while [[ ! -f "$pidf" && $i -lt 100 ]]; do sleep 0.1; i=$((i + 1)); done
+    local seat; seat="$(cat "$pidf" 2>/dev/null)"
+    kill -INT "$seat" 2>/dev/null || true
+    kill -HUP "$seat" 2>/dev/null || true
+    # Record TERM delivery. A successful kill -TERM proves the seat was still ALIVE
+    # (it had already ignored INT+HUP) AND that TERM was actually delivered — without
+    # this the test could green even if the signal never reached a live process.
+    local term_delivered="no"
+    kill -TERM "$seat" 2>/dev/null && term_delivered="yes"
+    local premature="no"; [[ -f "$out" ]] && premature="yes"
+    : > "$relf"
+    local rc=0; wait "$helper" || rc=$?
+
+    if [[ -n "$seat" ]] && [[ "$term_delivered" == "yes" ]] && [[ "$premature" == "no" ]] &&
+       [[ $rc -eq 0 ]] && [[ -f "$out" ]] && grep -q 'survived interrupt' "$out"; then
+        test_pass
+    else
+        test_fail "detached seat did not survive interrupt: seat=$seat term_delivered=$term_delivered premature=$premature rc=$rc out=[$(tr '\n' '|' < "$out" 2>/dev/null)]"
         return 1
     fi
 }
@@ -1559,6 +1662,53 @@ test_council_seat_timeout_rejects_zero_and_nonnumeric() {
     fi
 }
 
+test_council_detached_seat_timeout_is_cancelled() {
+    test_case "A seat that outlives the reap window is cancelled — no late response is published (#2077)"
+    load_council_lib || return 1
+    local d; d="$(mktemp -d "$TEST_TMP_DIR/detach-timeout.XXXXXX")"
+    local member='{"provider":"codex","persona":"code-reviewer","seat":"member"}'
+    local pidf="$d/seat.pid" out="$d/late.md"
+    local childpidf="$d/child.pid" childmark="$d/child.mark"
+    # Force a ~1s reap window (provider timeout 1 + grace 0) against a seat that
+    # would take ~3s. The legacy global remains high so this also proves the detached
+    # reaper uses the same per-provider precedence as the inner dispatch.
+    export OCTOPUS_COUNCIL_TIMEOUT_CODEX=1
+    export COUNCIL_SEAT_TIMEOUT=""
+    export OCTOPUS_COUNCIL_AGENT_TIMEOUT=30
+    export OCTOPUS_COUNCIL_REAP_GRACE_SECS=0
+
+    # The seat spawns a REAL descendant that would touch a marker after 3s. If only the
+    # wrapper were killed, that grandchild would survive and create the marker; a proper
+    # tree-kill takes it down too. The stub itself also sleeps and would publish late.
+    council_dispatch_member() {
+        sh -c 'echo $PPID' > "$pidf"
+        ( sleep 3; : > "$childmark" ) &
+        echo "$!" > "$childpidf"
+        sleep 3
+        printf 'late publish\nVERDICT: APPROVE\n'
+        return 0
+    }
+
+    local rc=0
+    council_dispatch_member_detached "$member" "independent-advice" "$out" || rc=$?
+    local seat child; seat="$(cat "$pidf" 2>/dev/null)"; child="$(cat "$childpidf" 2>/dev/null)"
+    # Wait PAST the stub's natural 3s completion so a late publish / surviving child
+    # would have materialized by the time we assert.
+    sleep 4
+
+    unset OCTOPUS_COUNCIL_TIMEOUT_CODEX COUNCIL_SEAT_TIMEOUT
+    unset OCTOPUS_COUNCIL_AGENT_TIMEOUT OCTOPUS_COUNCIL_REAP_GRACE_SECS
+    if [[ $rc -ne 0 ]] && [[ ! -e "$out" ]] && [[ ! -e "$childmark" ]] &&
+       [[ ! -e "$out.partial" && ! -e "$out.done" && ! -e "$out.done.tmp" ]] &&
+       [[ -n "$seat" ]] && ! kill -0 "$seat" 2>/dev/null &&
+       [[ -n "$child" ]] && ! kill -0 "$child" 2>/dev/null; then
+        test_pass
+    else
+        test_fail "timed-out seat/tree not cancelled: rc=$rc late_file=$([[ -e "$out" ]] && echo yes || echo no) child_marker=$([[ -e "$childmark" ]] && echo yes || echo no) seat_alive=$(kill -0 "$seat" 2>/dev/null && echo yes || echo no) child_alive=$(kill -0 "$child" 2>/dev/null && echo yes || echo no)"
+        return 1
+    fi
+}
+
 test_council_response_has_verdict_salvage() {
     test_case "council_response_has_verdict distinguishes a finished seat from a truncated one (#2077)"
     load_council_lib || return 1
@@ -1652,6 +1802,10 @@ test_council_verdict_parsing
 test_council_approving_providers_failsafe
 test_council_split_double_seat_fails_quorum
 test_council_all_approve_meets_quorum
+test_council_detached_dispatch_atomic_and_propagates_rc
+test_council_detach_escape_hatch_uses_inline
+test_council_detached_seat_survives_interrupt
+test_council_detached_seat_timeout_is_cancelled
 test_council_seat_timeout_precedence
 test_council_seat_timeout_rejects_zero_and_nonnumeric
 test_council_response_has_verdict_salvage

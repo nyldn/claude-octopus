@@ -1554,6 +1554,123 @@ council_dispatch_member() {
     council_live_response "$provider" "$persona" "$prompt" "$phase"
 }
 
+_council_kill_tree() {
+    # Best-effort recursive SIGKILL of a pid AND all its descendants. Killing only the
+    # wrapper subshell would orphan its provider children and any in-flight `mv`, which
+    # could still rename .partial into output_path after cancellation and restore a
+    # stale response. setsid (which would give a single killable process group) is
+    # absent on macOS, so walk the tree via `pgrep -P`. Kill descendants before the
+    # parent so a reaped parent can't reparent them to init first. If pgrep is
+    # unavailable, degrade to killing just the pid.
+    local pid="$1" child
+    if command -v pgrep >/dev/null 2>&1; then
+        while IFS= read -r child; do
+            [[ -n "$child" ]] && _council_kill_tree "$child"
+        done < <(pgrep -P "$pid" 2>/dev/null)
+    fi
+    kill -KILL "$pid" 2>/dev/null || true
+}
+
+council_dispatch_member_detached() {
+    # Serial-but-detached seat dispatch (sail-cruisey #2077). A council seat used to
+    # run inline in the council's own process group: a SIGHUP/SIGINT/SIGTERM to the
+    # council (a Claude Code tool timeout, a user Ctrl-C, an orchestrator-level signal)
+    # propagated to the in-flight provider child, killing it mid-write and leaving a
+    # torn response file — the council then hung or reported a false provider
+    # shortage. This wrapper runs the seat in a signal-isolated, disowned background
+    # subshell that writes to a .partial file and atomically renames it into place on
+    # completion, dropping a .done sentinel carrying the exit code. The seat's write
+    # is thus decoupled from the parent's process group: an interrupted parent can no
+    # longer kill a seat mid-write or leave a half-written file, and reaping is
+    # authoritative via the .done sentinel rather than a synchronous return that a
+    # racing signal could truncate. Seats still run one at a time (serial ordering
+    # preserved) — this is a reliability change, not a concurrency change.
+    #
+    # setsid is deliberately NOT used: it is absent on macOS (util-linux only). The
+    # portable equivalent — `disown` plus `trap '' HUP INT TERM` inside the subshell —
+    # is the same primitive heartbeat.sh already relies on. TERM is included because a
+    # `timeout`-style tool-call/orchestrator kill delivers SIGTERM first (SIGKILL, which
+    # can't be trapped, only escalates after a grace window). Set OCTOPUS_COUNCIL_DETACH=0
+    # to fall back to the legacy inline dispatch.
+    local member_json="$1" phase="$2" output_path="$3"
+    local partial="${output_path}.partial" done_file="${output_path}.done"
+    rm -f "$partial" "$done_file" "$output_path"
+
+    if [[ "${OCTOPUS_COUNCIL_DETACH:-1}" != "1" ]]; then
+        council_dispatch_member "$member_json" "$phase" > "$output_path"
+        return $?
+    fi
+
+    (
+        trap '' HUP INT TERM
+        rc=0
+        council_dispatch_member "$member_json" "$phase" > "$partial" || rc=$?
+        # A swallowed mv failure would let the wrapper report success (rc unchanged)
+        # with no output_path — the caller then counts a phantom response and, for a
+        # chair seat, suppresses the chair fallback with nothing to show. Treat a
+        # failed rename as a seat failure so the caller discards it.
+        if ! mv -f "$partial" "$output_path" 2>/dev/null; then
+            rc=1
+        fi
+        # Publish the sentinel ATOMICALLY. A bare `> "$done_file"` creates the file
+        # before printf writes rc, so the polling parent can observe an empty .done,
+        # coerce it to 1, delete it, and discard a successfully finalized response.
+        # Write to a temp name and rename it into place so .done only ever appears
+        # complete (rename is atomic within a directory).
+        printf '%s' "$rc" > "${done_file}.tmp" && mv -f "${done_file}.tmp" "$done_file"
+    ) &
+    local seat_pid=$!
+    # Remove the seat from the job table so bash never SIGHUPs it when the council
+    # shell exits. `disown $pid` needs the pid to still be a known job; fall back to
+    # the bare form (most-recent job) if the shell has already reaped it.
+    disown "$seat_pid" 2>/dev/null || disown 2>/dev/null || true
+
+    # Bounded reap. run_agent_sync already enforces the per-seat provider timeout, so
+    # the subshell terminates on its own; this poll is a safety net keyed to the same
+    # timeout plus a grace margin for the mv+sentinel write. Poll the .done sentinel
+    # at a fine interval so fixture-fast seats do not each cost a full second.
+    local seat_provider timeout_secs
+    seat_provider="$(jq -r '.provider // ""' <<< "$member_json")"
+    timeout_secs="$(council_seat_timeout "$seat_provider")"
+    # Grace margin for the mv+sentinel write after the provider timeout fires.
+    # Configurable so tests can force the timeout path deterministically.
+    local grace_secs="${OCTOPUS_COUNCIL_REAP_GRACE_SECS:-15}"
+    [[ "$grace_secs" =~ ^[0-9]+$ ]] || grace_secs=15
+    local max_ms=$(( (timeout_secs + grace_secs) * 1000 )) waited_ms=0
+    while (( waited_ms < max_ms )); do
+        [[ -f "$done_file" ]] && break
+        if ! kill -0 "$seat_pid" 2>/dev/null; then
+            # Subshell exited; its last act is to write .done, so give that write a
+            # beat to land before we stop waiting.
+            [[ -f "$done_file" ]] || sleep 0.05
+            break
+        fi
+        sleep 0.2
+        waited_ms=$(( waited_ms + 200 ))
+    done
+
+    local rc=1
+    if [[ -f "$done_file" ]]; then
+        rc="$(<"$done_file")"
+        [[ "$rc" =~ ^[0-9]+$ ]] || rc=1
+    else
+        # The reap window expired with no sentinel. If the seat is still alive it has
+        # outlived run_agent_sync's own timeout; because it ignores HUP/INT/TERM by
+        # design, SIGKILL (untrappable) is the only way to stop it. Kill the WHOLE tree
+        # — wrapper, provider children, and any in-flight mv — so nothing can rename a
+        # late .partial into output_path AFTER the council has treated this seat as
+        # failed and moved on (a late publish would orphan a stale response into
+        # responses/ and could retroactively satisfy the chair fallback). Kill first,
+        # THEN remove output_path, so no surviving mv can recreate it after the rm.
+        if kill -0 "$seat_pid" 2>/dev/null; then
+            _council_kill_tree "$seat_pid"
+        fi
+        rm -f "$output_path"
+    fi
+    rm -f "$done_file" "${done_file}.tmp" "$partial"
+    return "$rc"
+}
+
 council_write_config_json() {
     local config_path="${COUNCIL_RUN_DIR}/config.json"
     jq -n \
@@ -1724,7 +1841,7 @@ council_run_advice_phase() {
         output_path="${COUNCIL_RUN_DIR}/responses/$(printf '%02d' "$index")-${slug}.md"
         verdict=""; seat_status="no-response"; resp_bytes=0
         local dispatch_rc=0
-        council_dispatch_member "$member" "independent-advice" > "$output_path" || dispatch_rc=$?
+        council_dispatch_member_detached "$member" "independent-advice" "$output_path" || dispatch_rc=$?
         # Confirm-finish-before-shortage: a non-zero dispatch (e.g. the per-seat
         # timeout fired) may still have left a COMPLETE, verdict-bearing review that
         # the seat finished writing right at the boundary. Salvage that instead of
@@ -1889,7 +2006,7 @@ council_run_chair_fallback() {
         index="$(jq 'length' <<< "${COUNCIL_SEAT_RECORDS_JSON:-[]}")"
         output_path="${COUNCIL_RUN_DIR}/responses/$(printf '%02d' "$index")-chair-fallback-${slug}.md"
         dispatch_rc=0
-        council_dispatch_member "$member_json" "independent-advice" > "$output_path" || dispatch_rc=$?
+        council_dispatch_member_detached "$member_json" "independent-advice" "$output_path" || dispatch_rc=$?
         if council_response_nonempty "$output_path" \
                 && council_response_is_substantive "$output_path" \
                 && { (( dispatch_rc == 0 )) || council_response_has_verdict "$output_path"; }; then
