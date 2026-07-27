@@ -1719,6 +1719,31 @@ ${normal_findings}
 
 # Phase 3: TANGLE (Develop) - Enhanced map-reduce with validation
 # Tentacles work together in a coordinated tangle of activity
+tangle_clean_baseline_guard_enabled() {
+    [[ "${OCTOPUS_TANGLE_REQUIRE_CLEAN_BASELINE:-false}" == "true" ]]
+}
+
+tangle_require_clean_git_baseline() {
+    local source_root status_output
+    source_root=$(git -C "${PROJECT_ROOT:-$PWD}" rev-parse --show-toplevel 2>/dev/null) || {
+        log ERROR "Tangle implementation requires a Git repository when clean-baseline enforcement is enabled"
+        return 1
+    }
+
+    status_output=$(git -C "$source_root" status --porcelain=v1 --untracked-files=all 2>/dev/null) || {
+        log ERROR "Unable to inspect Git baseline at: $source_root"
+        return 1
+    }
+    if [[ -n "$status_output" ]]; then
+        log ERROR "Tangle implementation requires a clean Git baseline: $source_root"
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && log ERROR "  $line"
+        done <<< "$status_output"
+        return 1
+    fi
+    return 0
+}
+
 tangle_run_worktree_enabled() {
     [[ "${OCTOPUS_TANGLE_RUN_WORKTREE:-false}" == "true" ]]
 }
@@ -1807,6 +1832,19 @@ tangle_prepare_run_worktree() {
 }
 
 tangle_develop() {
+    # Dry runs retain their historical side-effect-free behavior and do not
+    # create an otherwise unused run worktree.
+    if [[ "${DRY_RUN:-false}" == "true" ]]; then
+        _tangle_develop_in_workspace "$@"
+        return $?
+    fi
+
+    # Validate the caller's source checkout before creating an isolated run
+    # worktree; checking afterward would only prove that the new worktree is clean.
+    if tangle_clean_baseline_guard_enabled; then
+        tangle_require_clean_git_baseline || return 1
+    fi
+
     if ! tangle_run_worktree_enabled; then
         _tangle_develop_in_workspace "$@"
         return $?
@@ -2283,6 +2321,11 @@ Every [CODING] line must include a same-line Files: clause."
     local validation_file="${RESULTS_DIR:-${HOME}/.claude-octopus/results}/tangle-validation-${task_group}.md"
     local validation_rc=0
     validate_tangle_results "$task_group" "$resolved_prompt" "$worktree_before_file" || validation_rc=$?
+
+    if [[ "$validation_rc" -ne 0 ]]; then
+        log ERROR "Tangle validation failed with status ${validation_rc}; stopping before contextual review and corrections"
+        return "$validation_rc"
+    fi
 
     tangle_contextual_review_gate "$task_group" "$resolved_prompt" "$context" "$subtasks" \
         "$validation_file" "$worktree_before_file" "$validation_rc" "$tangle_coding_agent"

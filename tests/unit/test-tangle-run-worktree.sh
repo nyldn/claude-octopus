@@ -26,6 +26,7 @@ ORIGINAL_PROJECT_ROOT="$SOURCE_REPO"
 PROJECT_ROOT="$SOURCE_REPO"
 OCTOPUS_RUN_WORKTREE_ROOT="$RUNTIME_ROOT"
 OCTOPUS_TANGLE_RUN_WORKTREE=true
+OCTOPUS_TANGLE_REQUIRE_CLEAN_BASELINE=true
 OCTOPUS_TANGLE_RUN_ID="run-worktree-test"
 SEEN_PROJECT_ROOT=""
 
@@ -35,6 +36,22 @@ _tangle_develop_in_workspace() {
     printf 'agent write\n' > generated.txt
     return "${STUB_TANGLE_RC:-0}"
 }
+
+test_case "dirty source is rejected before run worktree creation"
+printf 'local-only\n' > "$SOURCE_REPO/untracked.txt"
+OCTOPUS_TANGLE_RUN_ID="dirty-source"
+status=0
+tangle_develop "dirty source" || status=$?
+if [[ "$status" -ne 0 \
+    && ! -e "$RUNTIME_ROOT/dirty-source/integration" \
+    && -z "$(git -C "$SOURCE_REPO" branch --list 'octopus/run/dirty-source/integration')" \
+    && -z "$SEEN_PROJECT_ROOT" ]]; then
+    test_pass
+else
+    test_fail "dirty source reached worktree creation or implementation"
+fi
+rm -f "$SOURCE_REPO/untracked.txt"
+OCTOPUS_TANGLE_RUN_ID="run-worktree-test"
 
 status=0
 tangle_develop "test prompt" || status=$?

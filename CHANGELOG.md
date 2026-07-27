@@ -2,8 +2,17 @@
 
 ## [Unreleased]
 
+### Added
+
+- **Tangle implementation runs now execute in an isolated Git worktree by default** (#673). Each real run gets a deterministic `octopus/run/<run-id>/integration` branch, records source and run metadata, restores the caller's project context afterward, and preserves failed worktrees for inspection; setup failures roll back both the worktree and branch.
+
+### Changed
+
+- **Real Tangle implementation runs now require a clean Git baseline by default** (#674). Modified tracked files, untracked files, and non-Git workspaces fail before provider dispatch with each blocking status entry reported; ignored files remain allowed and direct library consumers may explicitly opt out with `OCTOPUS_TANGLE_REQUIRE_CLEAN_BASELINE=false`.
+
 ### Fixed
 
+- **Tangle now stops immediately when its validation gate fails** (#672). A failed validation no longer falls through into contextual review and correction agents, preventing additional writes after the run has already been declared invalid while preserving the generated validation report for diagnosis.
 - **An oversized council prompt to `agy` now degrades to a structured skip instead of OOM-killing the seat** (#2077). The adapter's existing file-path fallback sidesteps the argv `MAX_ARG_STRLEN` limit but not agy itself — a multi-megabyte prompt is loaded whole into agy's context and OOM-kills the headless process (or is rejected by the backend for context length), leaving the seat dead with an opaque exit code or a silent-empty result the retry cannot recover. `agy-exec.sh` now enforces a configurable payload ceiling (`OCTOPUS_AGY_MAX_PAYLOAD_BYTES`, default 1 MiB): above it, the adapter refuses to dispatch, exits 0, and emits a provider-rejection marker that `classify_agent_output` already recognizes, so dispatch records a structured `skipped:oversize` seat and the council keeps its remaining seats rather than crashing on this one. The ceiling is measured in bytes on the exact prompt content agy would read.
 
 ## [9.54.2] - 2026-07-27
