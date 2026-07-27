@@ -729,7 +729,8 @@ setup_wizard() {
                 ;;
             2)
                 for tool in jq shellcheck; do
-                    if [[ " ${missing_tools[*]} " =~ " $tool " ]]; then
+                    # Plain substring membership test, not a regex match.
+                    if [[ " ${missing_tools[*]} " == *" $tool "* ]]; then
                         tools_to_install+=("$tool")
                     fi
                 done

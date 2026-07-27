@@ -250,7 +250,7 @@ aggregate_results() {
     # Phase 1: Collect results ranked by quality signals (v8.49.0)
     # Results are ordered best-first so the synthesis LLM sees highest-quality content first
     local result_count=0
-    > "$raw_concat"
+    : > "$raw_concat"
     local ranked_files=""
     if type agent_status_output_files >/dev/null 2>&1; then
         ranked_files=$(agent_status_output_files "$filter" 2>/dev/null || true)

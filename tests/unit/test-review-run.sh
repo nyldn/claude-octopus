@@ -113,8 +113,49 @@ assert_contains "$(grep -A4 'avg_confidence=$(jq' "$ALL_SRC" 2>/dev/null | head 
 assert_contains "$(grep -A2 'commit_id.*headRefOid' "$ALL_SRC" 2>/dev/null | head -10)" \
   'commit_id' "post_inline_comments: empty commit_id guarded"
 
-assert_contains "$(grep -c 'review_openai_compat_empty_output_retryable' "$ALL_SRC" 2>/dev/null || true)" \
-  "[1-9]" "review_run: OpenAI-compatible Empty output retry classifier exists"
+# Behavioural test for the retry classifier, not a grep for its name: the
+# grep passed whether or not the function actually classified anything.
+source "$PROJECT_ROOT/scripts/lib/review.sh" 2>/dev/null || true
+
+_retry_fixture_dir="$(mktemp -d)"
+_retry_both="$_retry_fixture_dir/both.md"
+printf '## Status: FAILED (Empty output)\nReconnecting to provider\n' > "$_retry_both"
+_retry_empty_only="$_retry_fixture_dir/empty-only.md"
+printf '## Status: FAILED (Empty output)\n' > "$_retry_empty_only"
+_retry_clean="$_retry_fixture_dir/clean.md"
+printf '## Status: OK\nall good\n' > "$_retry_clean"
+
+if review_openai_compat_empty_output_retryable "$_retry_both" "codex"; then
+  assert_contains "retryable" "retryable" "review_run: empty-output + reconnect is retryable"
+else
+  assert_contains "not-retryable" "retryable" "review_run: empty-output + reconnect is retryable"
+fi
+
+if review_openai_compat_empty_output_retryable "$_retry_empty_only" "codex"; then
+  assert_contains "retryable" "not-retryable" "review_run: empty output without reconnect is not retryable"
+else
+  assert_contains "not-retryable" "not-retryable" "review_run: empty output without reconnect is not retryable"
+fi
+
+if review_openai_compat_empty_output_retryable "$_retry_clean" "codex"; then
+  assert_contains "retryable" "not-retryable" "review_run: clean output is not retryable"
+else
+  assert_contains "not-retryable" "not-retryable" "review_run: clean output is not retryable"
+fi
+
+if review_openai_compat_empty_output_retryable "$_retry_both" "gemini"; then
+  assert_contains "retryable" "not-retryable" "review_run: retry classifier only applies to codex seats"
+else
+  assert_contains "not-retryable" "not-retryable" "review_run: retry classifier only applies to codex seats"
+fi
+
+if review_openai_compat_empty_output_retryable "$_retry_fixture_dir/missing.md" "codex"; then
+  assert_contains "retryable" "not-retryable" "review_run: missing result file is not retryable"
+else
+  assert_contains "not-retryable" "not-retryable" "review_run: missing result file is not retryable"
+fi
+
+rm -rf "$_retry_fixture_dir"
 
 assert_contains "$(grep -c 'OCTOPUS_REVIEW_OPENAI_COMPAT_EMPTY_RETRY_BACKOFF_SECS' "$ALL_SRC" 2>/dev/null || true)" \
   "[1-9]" "review_run: OpenAI-compatible Empty output retry has configurable backoff"

@@ -152,4 +152,23 @@ else
     test_fail "malformed verification did not fail closed"
 fi
 
+# ── caller traps must survive tangle_verify ──────────────────────────────────
+# tangle_cleanup_verification_context used to run `trap - EXIT INT TERM`, which
+# discarded orchestrate.sh's own EXIT trap (the one that removes
+# $OCTOPUS_TMP_DIR) and leaked a temp directory on every verify run.
+test_case "tangle_verify restores the caller's EXIT trap"
+trap_probe="$TEST_ROOT/trap-probe"
+rm -f "$trap_probe"
+(
+    trap 'printf caller-trap-ran > "'"$trap_probe"'"' EXIT
+    AGENT_RESULT='not-json'
+    OCTOPUS_VERIFY_RUN_ID="trap-restore"
+    tangle_verify "trap restore probe" >/dev/null 2>&1 || true
+) || true
+if [[ -f "$trap_probe" && "$(cat "$trap_probe")" == "caller-trap-ran" ]]; then
+    test_pass
+else
+    test_fail "caller EXIT trap was cleared by tangle_verify (temp dirs would leak)"
+fi
+
 test_summary

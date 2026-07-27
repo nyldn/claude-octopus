@@ -1087,12 +1087,20 @@ _smoke_test_provider() {
         local smoke_dir
         smoke_dir=$(mktemp -d 2>/dev/null || mktemp -d -t 'octo-smoke')
         git -C "$smoke_dir" init -q 2>/dev/null || true
-        pushd "$smoke_dir" >/dev/null 2>&1
+        # If we can't enter the temp repo, the probe would run in the caller's
+        # cwd (possibly not a git repo) and report a false negative, and the
+        # popd below would unwind an unrelated directory. Skip instead.
+        if ! pushd "$smoke_dir" >/dev/null 2>&1; then
+            log DEBUG "Smoke test codex: could not enter temp repo $smoke_dir; skipping"
+            rm -rf "$smoke_dir" 2>/dev/null
+            echo "SKIP" > "$result_file"
+            return 0
+        fi
         # codex cmd_str ends with `-` (stdin prompt); arg form is rejected.
         echo "Reply with exactly: ok" | run_with_timeout "$smoke_timeout" \
             $cmd_str \
             >/dev/null 2>"$stderr_file" || smoke_exit=$?
-        popd >/dev/null 2>&1
+        popd >/dev/null 2>&1 || cd "$OLDPWD" 2>/dev/null || true
         rm -rf "$smoke_dir" 2>/dev/null
     elif [[ "$provider" == "gemini" ]]; then
         # Gemini: prompt via stdin with -p "" for headless trigger

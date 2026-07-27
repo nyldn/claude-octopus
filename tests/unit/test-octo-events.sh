@@ -188,6 +188,34 @@ test_circuit_breaker_events() {
     fi
 }
 
+test_json_escaping_round_trips() {
+    test_case "attribute values survive JSON escaping (fast path + control chars)"
+    local log="$TEST_TMP_DIR/escaping.jsonl"
+    rm -f "$log" "$log.lock"
+    OCTO_EVENT_LOG="$log" octo_event_emit "escape.test" \
+        plain="hello world" \
+        quote='he said "hi"' \
+        backslash='a\b' \
+        tabbed="$(printf 'a\tb')" \
+        unicode="café"
+
+    if ! python3 -c "
+import json,sys
+line = open('$log').readline()
+rec = json.loads(line)
+a = rec['attributes']
+assert a['plain'] == 'hello world', a['plain']
+assert a['quote'] == 'he said \"hi\"', a['quote']
+assert a['backslash'] == 'a\\\\b', a['backslash']
+assert a['tabbed'] == 'a\tb', repr(a['tabbed'])
+assert a['unicode'] == 'café', a['unicode']
+" 2>"$TEST_TMP_DIR/escaping.err"; then
+        test_fail "escaped attributes did not round-trip: $(cat "$TEST_TMP_DIR/escaping.err")"
+        return
+    fi
+    test_pass
+}
+
 test_provider_selected_event_wired() {
     test_case "spawn.sh emits provider.selected after the circuit check (oco-aek)"
     grep -q 'octo_event_emit "provider.selected"' "$PROJECT_ROOT/scripts/lib/spawn.sh" \
@@ -204,6 +232,7 @@ test_concurrent_emit_no_clobber
 test_dispatch_lifecycle_events
 test_orchestrate_enables_telemetry_by_default
 
+test_json_escaping_round_trips
 test_circuit_breaker_events
 test_provider_selected_event_wired
 

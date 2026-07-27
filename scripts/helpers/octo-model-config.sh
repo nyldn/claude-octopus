@@ -5,9 +5,16 @@
 set -eo pipefail
 
 CONFIG_FILE="${HOME}/.claude-octopus/config/providers.json"
-CACHE_FILE="/tmp/octo-model-cache-${USER:-${USERNAME:-unknown}}-${CLAUDE_CODE_SESSION:-global}.json"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 source "${SCRIPT_DIR}/../lib/provider-allowlist.sh" 2>/dev/null || true
+source "${SCRIPT_DIR}/../lib/model-cache-path.sh" 2>/dev/null || true
+# Must match the path lib/model-resolver.sh writes; this was hardcoded to /tmp
+# while the resolver honoured $TMPDIR, so `clear_cache` was a no-op on macOS.
+if declare -f octo_model_cache_file >/dev/null 2>&1; then
+    CACHE_FILE="$(octo_model_cache_file 2>/dev/null || true)"
+else
+    CACHE_FILE="${TMPDIR:-/tmp}/octo-model-cache-${USER:-${USERNAME:-unknown}}-${CLAUDE_CODE_SESSION:-global}.json"
+fi
 
 # Known providers and phases for validation
 KNOWN_PROVIDERS="codex gemini agy grok claude perplexity openrouter opencode copilot ollama qwen cursor-agent vibe"
@@ -334,6 +341,7 @@ cmd_clear_allowlist() {
 
 # v8.49.0: Invalidate model resolution cache after config changes
 clear_cache() {
+    [[ -n "${CACHE_FILE:-}" ]] || return 0
     rm -f "$CACHE_FILE"
 }
 

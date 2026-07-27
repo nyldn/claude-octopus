@@ -12,6 +12,12 @@
 # Source-safe: no main execution block.
 # ═══════════════════════════════════════════════════════════════════════════════
 
+# count_words() lives in lib/utils.sh; pull it in when this file is sourced
+# standalone (tests do) rather than through orchestrate.sh's load order.
+if ! declare -f count_words >/dev/null 2>&1; then
+    source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/utils.sh" 2>/dev/null || true
+fi
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # SECURITY: Result integrity verification (v8.7.0)
 # SHA-256 hash recording and verification for agent result files
@@ -644,10 +650,16 @@ show_agent_recommendations() {
     [[ "$CI_MODE" == "true" ]] && return
     [[ "$DRY_RUN" == "true" ]] && return
 
-    # Count recommendations
+    # Split into an array. Globbing is disabled around the split so an agent
+    # name list containing `*` or `?` cannot expand into matching filenames.
+    local _had_noglob=false
+    case "$-" in *f*) _had_noglob=true ;; esac
+    set -f
+    # shellcheck disable=SC2206 # deliberate word splitting; globbing disabled above
     local rec_array=($recommendations)
-    local count=${#rec_array[@]}
+    [[ "$_had_noglob" == "true" ]] || set +f
 
+    local count=${#rec_array[@]}
     [[ $count -lt 2 ]] && return
 
     echo ""

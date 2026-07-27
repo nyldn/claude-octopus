@@ -53,9 +53,15 @@ if command -v jq &>/dev/null; then
 else
     COMMAND=$(echo "$INPUT" | grep -o '"command":"[^"]*"' 2>/dev/null | head -1 | cut -d'"' -f4 || true)
 fi
-# Also check raw input as fallback for escaped-quote edge cases
-CHECK_TEXT="${COMMAND}
-${INPUT}"
+# Scan the extracted command when we have one. Only fall back to the raw
+# payload when extraction produced nothing (grep-based extraction truncates at
+# escaped quotes) — otherwise every unrelated field in the hook JSON, including
+# cwd and transcript paths, becomes a match surface for the patterns below.
+if [[ -n "$COMMAND" ]]; then
+    CHECK_TEXT="$COMMAND"
+else
+    CHECK_TEXT="$INPUT"
+fi
 if [[ -z "$COMMAND" && -z "$INPUT" ]]; then
     : # pass-through — current hook schema treats silence as continue
     exit 0
@@ -87,7 +93,10 @@ if echo "$CHECK_TEXT" | grep -qiE 'DROP\s+TABLE|DROP\s+DATABASE|TRUNCATE'; then
 fi
 
 # 3. git push --force / -f
-if echo "$CHECK_TEXT" | grep -qE 'git\s+push\s+.*--force|git\s+push\s+.*-f'; then
+# `-f` must be matched as a standalone flag token. The previous `.*-f` matched
+# any branch name containing "-f" (e.g. `git push origin release-final`), so
+# ordinary pushes were flagged as force pushes.
+if echo "$CHECK_TEXT" | grep -qE 'git\s+push\s+([^|;&]*\s)?(-[a-zA-Z]*f|--force(-with-lease)?(=[^ ]*)?)(\s|$)'; then
     echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"⚠️ Destructive command detected: git push --force. This rewrites remote history and can cause data loss for collaborators. Confirm you want to proceed."}}'
     exit 0
 fi

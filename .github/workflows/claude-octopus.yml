@@ -188,8 +188,17 @@ jobs:
             });
 
   # Job for issue comment commands
+  #
+  # Trust gate: this job holds issues/pull-requests write and spends the repo's
+  # provider API keys, so it must never run for a drive-by commenter. Restrict
+  # to accounts GitHub already vouches for on this repo (same intent as the
+  # pr-review job's first-party guard above). author_association is computed by
+  # GitHub from repo permissions and cannot be set by the commenter.
   comment-command:
-    if: github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '/octopus')
+    if: >
+      github.event_name == 'issue_comment' &&
+      startsWith(github.event.comment.body, '/octopus') &&
+      contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)
     runs-on: ubuntu-latest
 
     permissions:

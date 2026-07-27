@@ -1965,7 +1965,7 @@ council_synthesis_capable_persona() {
     local capabilities
     capabilities="$(council_agent_config_value "$persona" "capabilities")"
     case "$capabilities" in
-        *synthesis*|*workshop-synthesis*|*executive-communication*|*stakeholder-analysis*|*architecture-review*|*requirements*)
+        *synthesis*|*executive-communication*|*stakeholder-analysis*|*architecture-review*|*requirements*)
             return 0
             ;;
     esac

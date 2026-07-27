@@ -394,7 +394,7 @@ aggregate_results() {
     # Phase 1: Collect results ranked by quality signals (v8.49.0)
     # Results are ordered best-first so the synthesis LLM sees highest-quality content first
     local result_count=0
-    > "$raw_concat"
+    : > "$raw_concat"
     local ranked_files
     ranked_files=$(rank_results_by_signals "$RESULTS_DIR" "$filter")
 

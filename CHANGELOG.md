@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### Security
+
+- **The `/octopus` issue-comment workflow now requires a trusted author.** The job held `issues: write` and `pull-requests: write` and spent the repository's provider API keys for any GitHub user who could comment; it is now gated on `author_association` being OWNER, MEMBER, or COLLABORATOR, matching the guard the sibling `pr-review` job already had.
+- **`enable-http-telemetry.sh` no longer accepts the bearer token on the command line.** A token in argv lands in shell history and is readable via `ps` by every local process. The token is read from `OCTOPUS_TELEMETRY_BEARER_TOKEN`, and writing it into the Git-tracked `hooks/hooks.json` now requires `--allow-plaintext-token`. **Breaking:** the second positional argument is rejected with an explanatory error.
+- **The sysadmin safety gate covers macOS home paths.** Its `rm -rf` path list was Linux-only (`/home`), so `rm -rf /Users/<you>/...` passed unchallenged on the project's primary platform. `/Users`, `/Library`, `/System`, `/Applications` and a bare `rm -rf /` are now caught.
+- **`run_command` in the OpenAI-compatible agent has guardrails.** `read_file`/`write_file` were confined to the working directory while the shell tool could reach anything the invoking user could. Privilege escalation, download-and-execute, credential-file reads, raw device writes and absolute-path recursive deletes are refused. Set `OPENAI_COMPAT_UNSAFE_COMMANDS=1` to opt out inside a disposable container. This is a guardrail, not a sandbox.
+- `resolve_provider_env` validates the variable name before it reaches `bash -c` and `export`.
+- `detect_project_quality_commands` shell-quotes the project path in the strings later passed to `eval`.
+
 ### Fixed
 
 - **A council `agy` seat that dies demanding a TTY is salvaged under a pseudo-terminal instead of silently failing.** agy is a bubbletea TUI app; in `--print` mode it is headless, but when it must render an interactive screen anyway — a folder-trust prompt on a brand-new worktree, or an auth flow — it opens `/dev/tty` and, in a session with no controlling terminal, dies with `bubbletea: could not open TTY` before producing an answer, sinking the seat. `agy-exec.sh` now detects that specific failure and retries once under a pseudo-terminal via `script`, so the auto-dismissed (`--dangerously-skip-permissions`) TUI has a terminal to draw on. The fallback is gated on the real error — a blanket no-TTY wrap would fire on every autonomous dispatch (which never has a TTY) and leak the pseudo-terminal's caret-notation echo into the answer — and the salvaged output is stripped of that echo (CR / backspace / EOT / leading caret-notation) so it stays byte-clean for the council response parser. Portable across BSD (`script … command`) and util-linux (`script -c`) `script`; opt out with `OCTOPUS_AGY_NO_PTY_FALLBACK=1`.
@@ -9,6 +18,34 @@
   `make sync` updates the root and plugin READMEs plus `PRODUCT.md` from plugin
   metadata, model resolver defaults, runtime capability gates, and the
   changelog; `make sync-check` and release preparation reject future drift.
+- **An `xai` provider allowlist silently denied every grok seat.** The `cursor|cursor-agent|xai)` arm shadowed the dedicated `xai)` arm below it, so only `cursor-agent` was authorised.
+- **`pr_review_state_classify_findings` never ran.** `$previous`/`$current` were expanded by the shell before jq received the filter, leaving an unparseable program; the function returned empty at exit 3 for every caller. Its test passed only because the fixture variables happened to share those names.
+- **`json_extract_multi` returned nothing on macOS.** It used a `local -n` nameref, which needs bash 4.3+, while the project supports bash 3.2 — still `/bin/bash` on macOS. Audit-log and pending-review output rendered with every field blank. Reimplemented with `printf -v`.
+- **`tangle_verify` leaked a temp directory on every run.** Cleanup cleared the caller's `EXIT` trap instead of restoring it, discarding `orchestrate.sh`'s own `$OCTOPUS_TMP_DIR` removal.
+- **Sourced libraries no longer leak shell options.** `provider-allowlist.sh`, `doctor.sh` and `user-config.sh` set `-eo pipefail` at file scope, which persisted in the sourcing shell — including `providers.sh`, which documents itself as source-safe and is full of probes where a nonzero exit is normal.
+- **`parse_factory_spec` no longer depends on dynamic scoping.** `maturity_json` was read out of the caller's frame, so any other caller wrote invalid JSON into `session.json`. It is now an explicit argument with a valid default.
+- **Careful mode stopped flagging ordinary pushes.** `git push .*-f` matched any branch name containing `-f` (`release-final`), and patterns were matched against the entire hook payload rather than the extracted command.
+- The `enable-http-telemetry.sh` version guard compares the major component, so a future Claude Code v3.0.0 is no longer rejected as older than v2.1.63.
+- The codex smoke probe skips rather than reporting a false negative when it cannot enter its temporary git repository.
+- Word-count splitting disables globbing, so a value containing `*` no longer expands to matching filenames.
+
+### Changed
+
+- **The OpenClaw registry is generated from the shipped `skills/` payload.** `build-openclaw.sh` and `skill-loader.ts` read `.claude/skills/` — this repository's own project-local skill set — so `skill-council` and `skill-verify` never reached OpenClaw users while `--check` stayed green by regenerating from the same wrong source. The registry grows from 102 to 104 entries.
+- **ShellCheck is an enforcing CI gate.** The step ended in `|| true` and had accumulated 406 unread warnings, two of which pinpointed the allowlist and jq defects above. The codebase is at zero with `SC2034`, `SC2155`, `SC1090` and `SC1091` excluded as stylistic.
+- **One source of truth for the model-resolution cache path** (`scripts/lib/model-cache-path.sh`). `model-resolver.sh` honoured `$TMPDIR` while `provider-routing.sh` and `octo-model-config.sh` hardcoded `/tmp`, so on macOS the writer and the invalidating `rm -f` addressed different files.
+- `set_provider_model` and `reset_provider_model` derive their matchers and messages from a single `OCTO_MODEL_CONFIG_PROVIDERS` list; the reset message had already drifted, omitting `openai-compatible` and `openai-tools`.
+
+### Performance
+
+- **Event emission is roughly ten times faster.** `octo_event_emit` cost ~175 ms per event because each record spawned `python3` five or more times for JSON escaping; a pure-bash fast path handles values without control characters. 100 sequential emits drop from 17.5 s to 1.8 s, and `test-octo-events.sh` from about seven minutes to fifteen seconds.
+
+### Tests
+
+- Regression coverage for the allowlist shadowing, the shell-option leak, the trap restore and JSON escaping — each verified to fail when its defect is reintroduced.
+- `test-review-run.sh` exercises the retry classifier's behaviour instead of grepping the source for its name.
+- `test-pr-review-state.sh` fixture variables are renamed so a name collision can no longer mask a broken jq filter.
+- `test-openclaw-compat.sh` scans the shipped `skills/` tree as well as `.claude/skills/`.
 
 ## [9.55.1] - 2026-07-27
 

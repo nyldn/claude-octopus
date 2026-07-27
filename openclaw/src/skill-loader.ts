@@ -101,7 +101,10 @@ function assertWithinDirectory(filePath: string, directory: string): void {
  * Load all skill metadata from the Claude Octopus skills directory.
  */
 export async function loadSkills(pluginRoot: string): Promise<SkillMetadata[]> {
-  const skillsDir = resolve(pluginRoot, ".claude/skills");
+  // skills/ is the plugin payload that ships to OpenClaw users. Must match
+  // SKILLS_DIR in scripts/build-openclaw.sh, which generates tools/index.ts —
+  // the two previously pointed at different trees.
+  const skillsDir = resolve(pluginRoot, "skills");
   const entries = await readdir(skillsDir, { withFileTypes: true });
   const skills: SkillMetadata[] = [];
 

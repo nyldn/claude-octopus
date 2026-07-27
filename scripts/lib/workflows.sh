@@ -216,7 +216,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
                 local backoff=$((auth_attempt * 5))
                 log "WARN" "Auth failure (attempt $auth_attempt/$max_auth_retries), retrying in ${backoff}s..."
                 sleep "$backoff"
-                > "$temp_output"; > "$temp_errors"; > "$raw_output"
+                : > "$temp_output"; : > "$temp_errors"; : > "$raw_output"
                 continue
             fi
         fi
@@ -1720,7 +1720,12 @@ ${normal_findings}
 # Phase 3: TANGLE (Develop) - Enhanced map-reduce with validation
 # Tentacles work together in a coordinated tangle of activity
 tangle_cleanup_verification_context() {
-    trap - EXIT INT TERM
+    # Restore the caller's traps (orchestrate.sh owns an EXIT trap that removes
+    # $OCTOPUS_TMP_DIR) instead of clobbering them with `trap - EXIT`. Same
+    # save/restore contract as atomic_json_update in lib/validation.sh.
+    eval "${TANGLE_VERIFY_PREV_EXIT_TRAP:-trap - EXIT}"
+    eval "${TANGLE_VERIFY_PREV_INT_TRAP:-trap - INT}"
+    eval "${TANGLE_VERIFY_PREV_TERM_TRAP:-trap - TERM}"
 
     if [[ -n "${TANGLE_VERIFY_ORIGINAL_PWD:-}" ]]; then
         cd "$TANGLE_VERIFY_ORIGINAL_PWD" 2>/dev/null || true
@@ -1743,6 +1748,7 @@ tangle_cleanup_verification_context() {
 
     unset TANGLE_VERIFY_SOURCE_ROOT TANGLE_VERIFY_WORKTREE
     unset TANGLE_VERIFY_ORIGINAL_PWD TANGLE_VERIFY_ORIGINAL_PROJECT_ROOT
+    unset TANGLE_VERIFY_PREV_EXIT_TRAP TANGLE_VERIFY_PREV_INT_TRAP TANGLE_VERIFY_PREV_TERM_TRAP
 }
 
 tangle_verify() {
@@ -1788,6 +1794,10 @@ tangle_verify() {
     TANGLE_VERIFY_ORIGINAL_PROJECT_ROOT="$original_project_root"
     export TANGLE_VERIFY_SOURCE_ROOT TANGLE_VERIFY_WORKTREE
     export TANGLE_VERIFY_ORIGINAL_PWD TANGLE_VERIFY_ORIGINAL_PROJECT_ROOT
+    # Capture the caller's traps so cleanup can restore rather than clear them.
+    TANGLE_VERIFY_PREV_EXIT_TRAP=$(trap -p EXIT)
+    TANGLE_VERIFY_PREV_INT_TRAP=$(trap -p INT)
+    TANGLE_VERIFY_PREV_TERM_TRAP=$(trap -p TERM)
     trap 'tangle_cleanup_verification_context' EXIT INT TERM
 
     if declare -f octopus_agent_override >/dev/null 2>&1; then

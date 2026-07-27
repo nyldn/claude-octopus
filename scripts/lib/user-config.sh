@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-set -eo pipefail
+# Sourced library: sets no shell options, because `set -e`/`set -o pipefail`
+# here would leak into the caller's shell and persist after this file returns.
 # Persistent user config for Claude Octopus.
 # Stores setup choices to ~/.claude-octopus/user-config.json.
 #

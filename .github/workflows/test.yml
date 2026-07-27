@@ -113,13 +113,25 @@ jobs:
       - name: Install ShellCheck
         run: sudo apt-get install -y shellcheck
 
+      # Enforcing, not advisory. This step used to end in `|| true`, so 406
+      # warnings accumulated unseen — including the SC2221/SC2222 that marked a
+      # dead `xai` allowlist arm and the SC2154 that marked a jq filter broken
+      # by premature shell expansion. Both were live bugs.
+      #
+      # Excluded codes are stylistic and pervasive in this codebase:
+      #   SC2034 unused variable (lib files export vars for their sourcers)
+      #   SC2155 declare-and-assign masks the return value
+      #   SC1090/SC1091 shellcheck cannot follow dynamic `source` paths
+      # Everything else must stay at zero. Suppress a genuine false positive
+      # with a targeted `# shellcheck disable=` and a reason, not by widening
+      # this list.
       - name: Run ShellCheck on core scripts
         run: |
           shellcheck -s bash -S warning \
+            -e SC2034,SC2155,SC1090,SC1091 \
             scripts/orchestrate.sh \
             scripts/lib/*.sh \
-            hooks/*.sh \
-            2>&1 || true
+            hooks/*.sh
 
       # Exec-bit lint: shell/python entrypoints must stay 100755. Both contributor
       # tooling and editor-based rewrites have silently dropped exec bits (root

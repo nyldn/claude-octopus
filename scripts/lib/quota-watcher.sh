@@ -57,8 +57,8 @@ start_quota_watcher() {
     local warning_message="${5:-Quota exhaustion detected - fast-failing}"
     local provider="${6:-}"   # optional: marked quota-dead for the session on match
 
-    > "$temp_err"
-    > "$temp_out"
+    : > "$temp_err"
+    : > "$temp_out"
 
     (
         _consecutive=0

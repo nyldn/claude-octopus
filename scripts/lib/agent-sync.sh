@@ -364,8 +364,8 @@ ${provider_ctx}"
 
     # Always init temp files so readers never fail on missing file.
     mkdir -p "${RESULTS_DIR}" 2>/dev/null || true
-    > "$temp_err"
-    > "$temp_out"
+    : > "$temp_err"
+    : > "$temp_out"
 
     # gemini* seats served via agy (OCTOPUS_GEMINI_VIA_AGY) take the agy path.
     if [[ "$agent_type" == agy* || "$agent_type" == "antigravity" ]] || \

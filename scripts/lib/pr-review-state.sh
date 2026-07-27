@@ -108,8 +108,8 @@ pr_review_state_classify_findings() {
         --argjson previous "$previous_json" \
         --argjson current "$current_json" \
         "$(_pr_review_state_finding_key_filter)
-         ($previous | map(. + {_key:key})) as \$prev
-         | ($current | map(. + {_key:key})) as \$curr
+         (\$previous | map(. + {_key:key})) as \$prev
+         | (\$current | map(. + {_key:key})) as \$curr
          | {
              addressed: ([\$prev[] | select((.status // \"open\") != \"addressed\") | select(. as \$p | [\$curr[] | select(._key == \$p._key)] | length == 0)] | length),
              persistent: ([\$curr[] | select(. as \$c | [\$prev[] | select(._key == \$c._key and ((.status // \"open\") != \"addressed\"))] | length > 0)] | length),

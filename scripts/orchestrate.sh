@@ -2146,7 +2146,7 @@ kill_agents() {
                 kill "$pid" 2>/dev/null && log INFO "Killed $agent ($pid)"
             fi
         done < "$PID_FILE"
-        > "$PID_FILE"
+        : > "$PID_FILE"
     else
         log INFO "Killing agent: $target"
         while IFS=: read -r pid agent task_id; do

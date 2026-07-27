@@ -773,9 +773,9 @@ ${heuristic_ctx}"
                     log "WARN" "Auth failure detected (attempt $auth_attempt/$max_auth_retries), retrying in ${backoff}s..."
                     sleep "$backoff"
                     # Clear temp files for retry
-                    > "$temp_output"
-                    > "$temp_errors"
-                    > "$raw_output"
+                    : > "$temp_output"
+                    : > "$temp_errors"
+                    : > "$raw_output"
                     continue
                 fi
             fi

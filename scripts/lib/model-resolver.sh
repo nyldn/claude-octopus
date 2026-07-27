@@ -11,6 +11,9 @@ fi
 # ═══════════════════════════════════════════════════════════════════════════════
 
 _model_resolver_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if ! declare -f octo_model_cache_file >/dev/null 2>&1; then
+    source "${_model_resolver_lib_dir}/model-cache-path.sh" 2>/dev/null || true
+fi
 if ! declare -f _is_cursor_agent_binary >/dev/null 2>&1; then
     source "${_model_resolver_lib_dir}/cursor-agent.sh" 2>/dev/null || true
 fi
@@ -191,14 +194,10 @@ resolve_octopus_model() {
         cached_val=""
     fi
 
-    # Persistent File Cache (optional, for parallel execution speed)
-    local cache_dir="${TMPDIR:-/tmp}"
+    # Persistent File Cache (optional, for parallel execution speed).
+    # Path comes from lib/model-cache-path.sh so writers and invalidators agree.
     local persistent_cache=""
-    if mkdir -p "$cache_dir" 2>/dev/null && [[ -d "$cache_dir" && -w "$cache_dir" ]]; then
-        persistent_cache="${cache_dir%/}/octo-model-cache-${USER:-${USERNAME:-unknown}}-${CLAUDE_CODE_SESSION:-global}.json"
-    elif mkdir -p /tmp 2>/dev/null && [[ -d /tmp && -w /tmp ]]; then
-        persistent_cache="/tmp/octo-model-cache-${USER:-${USERNAME:-unknown}}-${CLAUDE_CODE_SESSION:-global}.json"
-    fi
+    persistent_cache="$(octo_model_cache_file 2>/dev/null)" || persistent_cache=""
     # v8.49.0: Invalidate cache if config file changed since cache was written
     if [[ -n "$persistent_cache" && -f "$persistent_cache" && -f "$config_file" && "$config_file" -nt "$persistent_cache" ]]; then
         rm -f "$persistent_cache"

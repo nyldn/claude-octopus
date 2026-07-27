@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-# Sourced by orchestrator scripts; keep nounset off so this file does not leak
-# stricter unset-variable handling into callers after returning.
-set -eo pipefail
+# Sourced by orchestrator scripts. Deliberately sets NO shell options: `set -e`
+# and `set -o pipefail` in a sourced file leak into the caller's shell and stay
+# there after this file returns. Callers such as lib/providers.sh document
+# themselves as source-safe and run probe code where a nonzero exit is normal,
+# so inheriting errexit from here would abort them on the first failed probe.
 # provider-allowlist.sh - Shared provider allowlist helpers.
 #
 # OCTO_ALLOWED_PROVIDERS is a space/comma separated list of provider names.
@@ -141,7 +143,9 @@ octo_provider_allowed() {
                     atlascloud|atlascloud-agent) return 0 ;;
                 esac
                 ;;
-            cursor|cursor-agent|xai)
+            # Keep `xai` OUT of this arm: it would shadow the dedicated `xai)`
+            # arm below and silently deny grok seats (shellcheck SC2221/SC2222).
+            cursor|cursor-agent)
                 [[ "$provider" == "cursor-agent" ]] && return 0
                 ;;
             xai)

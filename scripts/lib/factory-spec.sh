@@ -71,6 +71,12 @@ MATEOF
 parse_factory_spec() {
     local spec_path="$1"
     local run_dir="$2"
+    # Maturity JSON from the caller's E27 pre-flight. Previously this was read
+    # straight off the caller's `local maturity_json` via dynamic scoping, so
+    # any other caller silently wrote `"maturity": ,` — invalid JSON — into
+    # session.json. Take it as an argument and keep a valid-JSON default.
+    local maturity_json_in="${3:-${maturity_json:-}}"
+    [[ -n "$maturity_json_in" ]] || maturity_json_in='{}'
 
     if [[ ! -f "$spec_path" ]]; then
         log ERROR "Factory spec not found: $spec_path"
@@ -129,9 +135,9 @@ parse_factory_spec() {
   "satisfaction_target": $satisfaction_target,
   "complexity": "$complexity",
   "behavior_count": $behavior_count,
-  "holdout_ratio": $OCTOPUS_FACTORY_HOLDOUT_RATIO,
-  "max_retries": $OCTOPUS_FACTORY_MAX_RETRIES,
-  "maturity": $maturity_json,
+  "holdout_ratio": ${OCTOPUS_FACTORY_HOLDOUT_RATIO:-0.20},
+  "max_retries": ${OCTOPUS_FACTORY_MAX_RETRIES:-1},
+  "maturity": $maturity_json_in,
   "status": "initialized",
   "started_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 }

@@ -118,4 +118,42 @@ if assert_contains "$fleet" "gemini|" "gemini should be eligible" &&
     test_pass
 fi
 
+# ── alias arms must not shadow one another (SC2221/SC2222) ───────────────────
+# `cursor|cursor-agent|xai)` used to swallow the dedicated `xai)` arm below it,
+# so an xai allowlist authorised cursor-agent but silently denied grok seats.
+source "$PROJECT_ROOT/scripts/lib/provider-allowlist.sh"
+
+test_case "xai allowlist authorises grok seats and cursor-agent"
+(
+    export OCTO_ALLOWED_PROVIDERS="xai"
+    ok=true
+    for seat in cursor-agent grok grok-4; do
+        octo_provider_allowed "$seat" || { echo "denied: $seat"; ok=false; }
+    done
+    [[ "$ok" == "true" ]]
+) && test_pass || test_fail "xai allowlist must authorise cursor-agent, grok and grok-* seats"
+
+test_case "cursor allowlist stays narrow and does not authorise grok"
+(
+    export OCTO_ALLOWED_PROVIDERS="cursor"
+    octo_provider_allowed "cursor-agent" || { echo "cursor-agent denied"; exit 1; }
+    octo_provider_allowed "grok" && { echo "grok wrongly allowed"; exit 1; }
+    exit 0
+) && test_pass || test_fail "cursor allowlist should allow cursor-agent only"
+
+# ── sourced libraries must not leak shell options into their callers ─────────
+test_case "sourcing provider-allowlist.sh leaves errexit and pipefail untouched"
+leak=$(bash -c '
+    set +e +o pipefail
+    source "'"$PROJECT_ROOT"'/scripts/lib/provider-allowlist.sh" 2>/dev/null
+    case "$-" in *e*) echo "errexit"; esac
+    shopt -qo pipefail && echo "pipefail"
+    exit 0
+')
+if [[ -z "$leak" ]]; then
+    test_pass
+else
+    test_fail "sourced lib leaked shell options: $leak"
+fi
+
 test_summary

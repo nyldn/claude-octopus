@@ -24,6 +24,23 @@ octo_event_enabled() {
 _octo_json_string() {
     local value="$1"
 
+    # Fast path: pure-bash escaping for values with no control characters, which
+    # covers essentially every real event attribute. The python3/jq paths below
+    # each cost a process spawn (~20ms), and octo_event_emit calls this helper
+    # 5+ times per record — that was ~175ms per emitted event. Only `"` and `\`
+    # need escaping here; control chars fall through to the slow paths.
+    # [[:cntrl:]] (not a $'\x01'-$'\x1f' range): bracket ranges collate by
+    # locale, so under a UTF-8 locale the range silently fails to match TAB/LF
+    # and raw control characters would reach the output as invalid JSON.
+    case "$value" in
+        *[[:cntrl:]]*) : ;;
+        *)
+            local _fast="${value//\\/\\\\}"
+            printf '"%s"\n' "${_fast//\"/\\\"}"
+            return 0
+            ;;
+    esac
+
     if command -v python3 >/dev/null 2>&1; then
         python3 - "$value" <<'PY' 2>/dev/null && return 0
 import json

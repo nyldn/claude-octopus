@@ -11,6 +11,30 @@
 #   build_provider_context
 # ═══════════════════════════════════════════════════════════════════════════════
 
+# Providers accepted by set_provider_model / reset_provider_model.
+#
+# Single source of truth. This used to be four hand-maintained copies (two
+# matchers plus two user-facing messages) and they had drifted: the reset error
+# message omitted openai-compatible and openai-tools even though the matcher
+# accepted them. Add a provider here and every site follows.
+OCTO_MODEL_CONFIG_PROVIDERS="codex gemini claude claude-sdk perplexity opencode openrouter atlascloud openai-compatible openai-tools openai-compatible-agent cursor-agent"
+
+octo_model_config_provider_valid() {
+    case " ${OCTO_MODEL_CONFIG_PROVIDERS} " in
+        *" ${1:-} "*) return 0 ;;
+    esac
+    return 1
+}
+
+octo_model_config_provider_list() {
+    printf '%s' "${OCTO_MODEL_CONFIG_PROVIDERS// /, }"
+}
+
+_provider_routing_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if ! declare -f octo_model_cache_file >/dev/null 2>&1; then
+    source "${_provider_routing_lib_dir}/model-cache-path.sh" 2>/dev/null || true
+fi
+
 # [EXTRACTED to lib/persona-loader.sh] select_opus_mode()
 
 # Agent configurations
@@ -210,6 +234,15 @@ build_provider_env() {
 resolve_provider_env() {
     local var_name="$1"
 
+    # var_name is interpolated into a `bash -c` program and into `export
+    # "$var_name=..."` below. Today's only dynamic caller (the Codex config.toml
+    # env_key path) filters it first, but validate here too so this stays safe
+    # if a future caller passes something less controlled.
+    if [[ ! "$var_name" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+        log DEBUG "resolve_provider_env: refusing invalid variable name '$var_name'"
+        return 1
+    fi
+
     # Already set — nothing to do
     [[ -n "${!var_name:-}" ]] && return 0
 
@@ -327,7 +360,9 @@ EOF
         log "INFO" "Migration to v3.0 complete"
 
         # v8.49.0: Clear stale model cache after migration
-        rm -f "/tmp/octo-model-cache-${USER:-${USERNAME:-unknown}}-${CLAUDE_CODE_SESSION:-global}.json"
+        _octo_cache_to_clear="$(octo_model_cache_file 2>/dev/null)" || _octo_cache_to_clear=""
+        [[ -n "$_octo_cache_to_clear" ]] && rm -f "$_octo_cache_to_clear" 2>/dev/null
+        unset _octo_cache_to_clear
     fi
 
     local changed=false
@@ -377,7 +412,9 @@ EOF
         echo "$content" > "$tmp_file" && mv "$tmp_file" "$config_file"
         log "INFO" "Updated ${config_file} with current model names"
         # v8.49.0: Clear model cache after stale name migration
-        rm -f "/tmp/octo-model-cache-${USER:-${USERNAME:-unknown}}-${CLAUDE_CODE_SESSION:-global}.json"
+        _octo_cache_to_clear="$(octo_model_cache_file 2>/dev/null)" || _octo_cache_to_clear=""
+        [[ -n "$_octo_cache_to_clear" ]] && rm -f "$_octo_cache_to_clear" 2>/dev/null
+        unset _octo_cache_to_clear
     fi
 }
 
@@ -390,21 +427,18 @@ set_provider_model() {
     local config_file="${HOME}/.claude-octopus/config/providers.json"
 
     # v8.49.0: Provider whitelist validation
-    case "$provider" in
-        codex|gemini|claude|claude-sdk|perplexity|opencode|openrouter|atlascloud|openai-compatible|openai-tools|openai-compatible-agent|cursor-agent) ;;
-        *)
-            if [[ "${4:-}" != "--force" ]]; then
-                echo "ERROR: Unknown provider '$provider'. Valid: codex, gemini, claude, claude-sdk, perplexity, opencode, openrouter, atlascloud, openai-compatible, openai-tools, openai-compatible-agent, cursor-agent" >&2
-                echo "  Use --force to set a custom provider (e.g., for local proxies)" >&2
-                return 1
-            fi
-            # With --force, still validate format
-            if [[ ! "$provider" =~ ^[a-z0-9-]+$ ]]; then
-                echo "ERROR: Invalid provider name format (must be lowercase alphanumeric with hyphens)" >&2
-                return 1
-            fi
-            ;;
-    esac
+    if ! octo_model_config_provider_valid "$provider"; then
+        if [[ "${4:-}" != "--force" ]]; then
+            echo "ERROR: Unknown provider '$provider'. Valid: $(octo_model_config_provider_list)" >&2
+            echo "  Use --force to set a custom provider (e.g., for local proxies)" >&2
+            return 1
+        fi
+        # With --force, still validate format
+        if [[ ! "$provider" =~ ^[a-z0-9-]+$ ]]; then
+            echo "ERROR: Invalid provider name format (must be lowercase alphanumeric with hyphens)" >&2
+            return 1
+        fi
+    fi
 
     # Validate model name (v8.49.0 hardened)
     if ! validate_model_name "$model"; then
@@ -483,7 +517,8 @@ EOF
     fi
 
     # v8.49.0: Clear model resolution cache after config change
-    local persistent_cache="/tmp/octo-model-cache-${USER:-${USERNAME:-unknown}}-${CLAUDE_CODE_SESSION:-global}.json"
+    local persistent_cache
+    persistent_cache="$(octo_model_cache_file 2>/dev/null)" || persistent_cache=""
     rm -f "$persistent_cache"
 }
 
@@ -507,17 +542,18 @@ reset_provider_model() {
         # Clear all overrides (v8.49.0: atomic)
         atomic_json_update "$config_file" '.overrides = {}'
         echo "✓ Cleared all model overrides"
-    elif [[ "$provider" =~ ^(codex|gemini|claude|claude-sdk|perplexity|opencode|openrouter|atlascloud|openai-compatible|openai-tools|openai-compatible-agent|cursor-agent)$ ]]; then
+    elif octo_model_config_provider_valid "$provider"; then
         # Clear specific override (v8.49.0: atomic + jq --arg)
         atomic_json_update "$config_file" 'del(.overrides[$p])' --arg p "$provider"
         echo "✓ Cleared $provider override"
     else
-        echo "ERROR: Invalid provider '$provider'. Use 'codex', 'gemini', 'claude', 'claude-sdk', 'perplexity', 'opencode', 'openrouter', 'atlascloud', 'openai-compatible-agent', 'cursor-agent', or 'all'" >&2
+        echo "ERROR: Invalid provider '$provider'. Use one of: $(octo_model_config_provider_list), or 'all'" >&2
         return 1
     fi
 
     # v8.49.0: Clear model resolution cache after config change
-    local persistent_cache="/tmp/octo-model-cache-${USER:-${USERNAME:-unknown}}-${CLAUDE_CODE_SESSION:-global}.json"
+    local persistent_cache
+    persistent_cache="$(octo_model_cache_file 2>/dev/null)" || persistent_cache=""
     rm -f "$persistent_cache"
 }
 

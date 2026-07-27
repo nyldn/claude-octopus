@@ -113,19 +113,28 @@ else
 fi
 
 test_case "finding classifier reports addressed persistent new and regressed"
+# The fixture variables must NOT be named `previous`/`current`. The jq program
+# inside pr_review_state_classify_findings once referenced $previous/$current
+# unescaped, so bash expanded them before jq ever saw the filter. This test
+# passed anyway only because it happened to define shell variables by those
+# exact names, feeding the right JSON in by accident while the function was
+# broken for every real caller. Distinct names keep the collision impossible.
 if declare -F pr_review_state_classify_findings >/dev/null 2>&1; then
-    previous='[
+    fixture_prev='[
       {"id":"a","file":"a.sh","line":1,"title":"A","status":"open"},
       {"id":"b","file":"b.sh","line":2,"title":"B","status":"open"},
       {"id":"c","file":"c.sh","line":3,"title":"C","status":"addressed"}
     ]'
-    current='[
+    fixture_curr='[
       {"file":"a.sh","line":1,"title":"A"},
       {"file":"c.sh","line":3,"title":"C"},
       {"file":"d.sh","line":4,"title":"D"}
     ]'
-    result=$(pr_review_state_classify_findings "$previous" "$current")
-    if jq -e '.addressed == 1 and .persistent == 1 and .new == 1 and .regressed == 1' <<< "$result" >/dev/null; then
+    classify_rc=0
+    result=$(pr_review_state_classify_findings "$fixture_prev" "$fixture_curr") || classify_rc=$?
+    if [[ "$classify_rc" -ne 0 || -z "$result" ]]; then
+        test_fail "classifier exited $classify_rc with output: ${result:-<empty>}"
+    elif jq -e '.addressed == 1 and .persistent == 1 and .new == 1 and .regressed == 1' <<< "$result" >/dev/null; then
         test_pass
     else
         test_fail "unexpected classification: $result"

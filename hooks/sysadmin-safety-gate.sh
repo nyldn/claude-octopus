@@ -1,8 +1,10 @@
 #!/bin/bash
 # Claude Octopus Sysadmin Safety Gate Hook
-# PostToolUse hook for openclaw-admin persona
-# Blocks destructive system commands without explicit confirmation patterns
-# Returns JSON decision: {"decision": "continue|block", "reason": "..."}
+# PreToolUse hook (matcher: Bash) for the openclaw-admin persona.
+# Blocks destructive system commands without explicit confirmation patterns.
+# Emits {"hookSpecificOutput":{"hookEventName":"PreToolUse",
+#        "permissionDecision":"deny","permissionDecisionReason":"..."}};
+# silence means continue.
 set -euo pipefail
 # EXIT trap — emits diagnostic stderr ONLY when the hook exits non-zero, so
 # the Claude Code harness error "No stderr output" can never recur. EXIT (not
@@ -42,7 +44,10 @@ fi
 # They are not a security boundary against determined adversaries.
 
 # 1. rm -rf on system paths (short-form and long-form flags)
-if echo "$COMMAND" | grep -qE '(rm\s+-[a-zA-Z]*r[a-zA-Z]*f|rm\s+--recursive\s+--force|rm\s+-r\s+-f|rm\s+-f\s+-r).*(/(etc|var|usr|boot|sys|proc|home)|~|\$HOME)'; then
+# /Users is the macOS home root — this list was Linux-only (/home) even though
+# macOS is a primary platform. The trailing alternation also catches a bare
+# root target (`rm -rf /`, `rm -rf /*`), which previously matched nothing.
+if echo "$COMMAND" | grep -qE '(rm\s+-[a-zA-Z]*r[a-zA-Z]*f|rm\s+--recursive\s+--force|rm\s+-r\s+-f|rm\s+-f\s+-r)\s+([^|;&]*\s)?(/(etc|var|usr|boot|sys|proc|home|Users|Library|System|Applications|opt|bin|sbin)\b|~|\$HOME|/(\s|\*|$))'; then
     echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Sysadmin safety gate: destructive rm -rf on system path blocked"}}'
     exit 0
 fi

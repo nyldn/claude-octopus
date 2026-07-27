@@ -1052,8 +1052,14 @@ detect_project_quality_commands() {
 
     # Python / pyproject.toml / setup.cfg
     if [[ -f "$project_dir/pyproject.toml" ]] || [[ -f "$project_dir/setup.cfg" ]]; then
-        command -v ruff &>/dev/null && commands+=("ruff check $project_dir")
-        command -v mypy &>/dev/null && commands+=("mypy $project_dir")
+        # These strings are handed to `eval` by run_project_quality_checks, so
+        # the path must be shell-quoted. Interpolated bare, a directory with a
+        # space split into two arguments and one containing `;` or `$(...)`
+        # executed as its own command.
+        local quoted_dir
+        printf -v quoted_dir '%q' "$project_dir"
+        command -v ruff &>/dev/null && commands+=("ruff check $quoted_dir")
+        command -v mypy &>/dev/null && commands+=("mypy $quoted_dir")
     fi
 
     # Rust / Cargo.toml

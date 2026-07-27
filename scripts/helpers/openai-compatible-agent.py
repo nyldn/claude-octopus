@@ -48,6 +48,47 @@ def resolve_path(cwd: Path, rel: str) -> Path:
         raise ValueError("path escapes cwd")
     return p
 
+
+# Guardrails for run_command.
+#
+# read_file/write_file are confined to cwd by resolve_path, but run_command
+# runs an arbitrary string through a shell, so that confinement was decorative:
+# the model could delete or exfiltrate anything the invoking user can reach.
+# This is a guardrail against an unsupervised model doing something destructive,
+# NOT a sandbox — a determined adversary can trivially encode around it. Real
+# isolation needs a container or a restricted user.
+#
+# Set OPENAI_COMPAT_UNSAFE_COMMANDS=1 to disable (e.g. inside a throwaway
+# container where the blast radius is already bounded).
+_BLOCKED_COMMAND_PATTERNS = [
+    # Destructive recursive deletes outside the working tree
+    (r'\brm\s+(-[a-zA-Z]*\s+)*-?[a-zA-Z]*[rR][a-zA-Z]*f?[a-zA-Z]*\s+[^|;&]*(/|~|\$HOME)(\s|$|/)',
+     "recursive delete targeting an absolute or home path"),
+    # Privilege escalation
+    (r'(^|[|;&]\s*)sudo\s', "sudo"),
+    (r'(^|[|;&]\s*)(doas|su)\s', "privilege escalation"),
+    # Download-and-execute
+    (r'(curl|wget)\b[^|;&]*\|\s*(sudo\s+)?(ba|z|k)?sh', "piping a download into a shell"),
+    # Reading credential stores
+    (r'(/etc/(shadow|sudoers)|\.ssh/id_[a-z0-9]+|\.aws/credentials|\.netrc|\.git-credentials)',
+     "reading a credential file"),
+    # Disk / device level writes
+    (r'\b(mkfs|dd)\b[^|;&]*\bof=/dev/', "raw device write"),
+    # Whole-history rewrites and forced pushes to a remote
+    (r'\bgit\s+push\b[^|;&]*(--force(?!-with-lease)|\s-f(\s|$))', "forced push"),
+]
+
+
+def command_is_blocked(cmd: str):
+    """Return a human-readable reason when cmd matches a guardrail, else None."""
+    if os.environ.get("OPENAI_COMPAT_UNSAFE_COMMANDS", "") == "1":
+        return None
+    import re as _re
+    for pattern, reason in _BLOCKED_COMMAND_PATTERNS:
+        if _re.search(pattern, cmd):
+            return reason
+    return None
+
 def tool_exec(cwd: Path, name: str, args: dict) -> str:
     try:
         if name == "read_file":
@@ -59,6 +100,11 @@ def tool_exec(cwd: Path, name: str, args: dict) -> str:
         if name == "run_command":
             cmd = str(args.get("command", ""))
             if len(cmd) > 600: return "ERROR: command too long"
+            blocked = command_is_blocked(cmd)
+            if blocked:
+                print(f"tool run_command BLOCKED ({blocked}): {cmd[:200]}", file=sys.stderr)
+                return (f"ERROR: refused — {blocked}. This agent may not run that. "
+                        f"Work within the project directory, or ask the operator to run it.")
             timeout = env_float("OPENAI_COMPAT_COMMAND_TIMEOUT", 20.0)
             r = subprocess.run(cmd, cwd=str(cwd), shell=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=timeout, check=False)  # noqa: S602 - intentional shell-command tool
             return (f"exit={r.returncode}\n" + r.stdout)[-20000:]

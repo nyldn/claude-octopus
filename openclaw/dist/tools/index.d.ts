@@ -13,4 +13,4 @@ export interface SkillRegistryEntry {
     file: string;
 }
 export declare const SKILL_REGISTRY: SkillRegistryEntry[];
-export declare const REGISTRY_COUNT = 102;
+export declare const REGISTRY_COUNT = 104;

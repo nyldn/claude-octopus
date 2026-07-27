@@ -431,12 +431,21 @@ test_plugin_json_unchanged() {
 }
 
 test_no_openclaw_in_skills() {
-    test_case "No OpenClaw-specific code in .claude/skills/ or commands/ (excluding claw files)"
+    test_case "No OpenClaw-specific code in skills/, .claude/skills/ or commands/ (excluding claw files)"
     local found=""
+    # skills/ is the shipped payload (and the OpenClaw registry source);
+    # .claude/skills/ is the dev repo's own project-local set. Scan both — only
+    # the latter was checked before, so payload drift went unnoticed.
     # skill-claw and claw.md are intentionally OpenClaw-specific (sysadmin skill for managing OpenClaw instances)
-    if grep -rl 'openclaw\|OpenClaw' "$PROJECT_ROOT/.claude/skills/" 2>/dev/null | grep -Ev 'skill-claw(\.md|/SKILL\.md)$' | head -1 | grep -q .; then
-        found="skills"
-    fi
+    local _skill_dir
+    for _skill_dir in "$PROJECT_ROOT/skills/" "$PROJECT_ROOT/.claude/skills/"; do
+        [[ -d "$_skill_dir" ]] || continue
+        # Exclude the whole skill-claw/ tree, not just its SKILL.md: sibling
+        # files (agents/*.yaml) are equally and intentionally OpenClaw-specific.
+        if grep -rl 'openclaw\|OpenClaw' "$_skill_dir" 2>/dev/null | grep -Ev 'skill-claw(\.md$|/)' | head -1 | grep -q .; then
+            found="skills"
+        fi
+    done
     if grep -rl 'openclaw\|OpenClaw' "$PROJECT_ROOT/commands/" 2>/dev/null | grep -v 'claw\.md' | head -1 | grep -q .; then
         found="$found commands"
     fi

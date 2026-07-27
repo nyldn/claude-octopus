@@ -6,7 +6,14 @@
 # Sourced by orchestrate.sh. All functions are prefixed or namespaced
 # to avoid collisions with the main script.
 
+# count_words() lives in lib/utils.sh; pull it in when this file is sourced
+# standalone (tests do) rather than through orchestrate.sh's load order.
+if ! declare -f count_words >/dev/null 2>&1; then
+    source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/utils.sh" 2>/dev/null || true
+fi
+
 # Source guard — prevent double-loading
+
 [[ -n "${_INTELLIGENCE_LOADED:-}" ]] && return 0
 _INTELLIGENCE_LOADED=1
 
@@ -857,7 +864,7 @@ run_file_validation() {
 
     if [[ -n "$missing" ]]; then
         local count
-        local _mw=($missing); count=${#_mw[@]}
+        count=$(count_words "$missing")
         log "WARN" "Agent $agent_type referenced $count nonexistent file(s): $missing" 2>/dev/null || true
     else
         log "DEBUG" "Agent $agent_type file references validated" 2>/dev/null || true

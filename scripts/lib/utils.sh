@@ -77,19 +77,50 @@ except Exception:
 # Extract multiple JSON fields at once (single pass, no subprocesses)
 # Usage: json_extract_multi "$json_string" field1 field2 field3
 # Sets variables: _field1, _field2, _field3
-# Uses bash nameref (4.3+) to avoid command injection via eval
+#
+# Assigns with `printf -v`, not a `local -n` nameref: namerefs need bash 4.3+,
+# but this project supports bash 3.2 (docs/CONTRIBUTING.md) — which is still the
+# /bin/bash on macOS. On 3.2 the nameref form aborted with "local: -n: invalid
+# option" on every field, so callers silently rendered empty values. printf -v
+# is a builtin (no eval, no injection) and works on 3.1+.
 json_extract_multi() {
     local json="$1"
     shift
 
+    local field
     for field in "$@"; do
-        local -n ref="_$field"
+        # Guard the indirect target: printf -v with a non-identifier name would
+        # error out, and field names must never come from untrusted JSON.
+        case "$field" in
+            [A-Za-z_]*) ;;
+            *) continue ;;
+        esac
+        case "$field" in
+            *[!A-Za-z0-9_]*) continue ;;
+        esac
+
         if [[ "$json" =~ \"$field\":\"([^\"]+)\" ]]; then
-            ref="${BASH_REMATCH[1]}"
+            printf -v "_$field" '%s' "${BASH_REMATCH[1]}"
         else
-            ref=""
+            printf -v "_$field" '%s' ""
         fi
     done
+}
+
+# Count whitespace-separated words in a string.
+# Splitting with a bare `arr=($str)` also performs pathname expansion, so a
+# value containing `*` or `?` silently expands to matching filenames and the
+# count comes out wrong. Disable globbing for the split, then restore whatever
+# the caller had. Echoes the count.
+count_words() {
+    local _cw_str="$1"
+    local _cw_had_noglob=false
+    case "$-" in *f*) _cw_had_noglob=true ;; esac
+    set -f
+    # shellcheck disable=SC2206 # deliberate word splitting; globbing disabled above
+    local _cw_words=($_cw_str)
+    [[ "$_cw_had_noglob" == "true" ]] || set +f
+    echo "${#_cw_words[@]}"
 }
 
 # Properly escape string for JSON

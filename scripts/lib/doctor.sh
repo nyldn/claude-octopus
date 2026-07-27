@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Claude Octopus — Environment Doctor Diagnostics
 # Extracted from orchestrate.sh
-# Source-safe: no main execution block.
-set -eo pipefail
+# Source-safe: no main execution block, and no `set -e`/`set -o pipefail` —
+# shell options set here would leak into the sourcing shell and persist.
 
 if ! declare -f _is_cursor_agent_binary >/dev/null 2>&1; then
     _doctor_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

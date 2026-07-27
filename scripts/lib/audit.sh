@@ -57,7 +57,11 @@ get_audit_trail() {
 format_audit_entry() {
     local line="$1"
 
-    # Performance: Single-pass JSON extraction using bash regex (no subprocesses)
+    # Performance: Single-pass JSON extraction using bash regex (no subprocesses).
+    # json_extract_multi writes each field into _<field> via a nameref, so the
+    # targets must be declared here — otherwise the nameref assignment lands in
+    # the global scope and leaks between entries.
+    local _timestamp="" _action="" _phase="" _decision="" _reviewer=""
     json_extract_multi "$line" timestamp action phase decision reviewer
 
     # Color-code decision
@@ -123,7 +127,10 @@ list_pending_reviews() {
     local count=0
     echo "$pending" | while read -r line; do
         ((count++)) || true
-        # Performance: Single-pass JSON extraction (no subprocesses)
+        # Performance: Single-pass JSON extraction (no subprocesses).
+        # Declare the nameref targets so json_extract_multi assigns into this
+        # scope rather than creating globals that persist across iterations.
+        local _id="" _phase="" _status="" _output_file="" _created_at=""
         json_extract_multi "$line" id phase status output_file created_at
 
         local status_color="$GREEN"

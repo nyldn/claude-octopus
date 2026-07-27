@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # build-openclaw.sh — Generate OpenClaw extension artifacts from Claude Octopus skills
 #
-# This script reads .claude/skills/*.md, .claude/skills/*/SKILL.md,
-# and commands/*.md,
+# This script reads skills/*.md, skills/*/SKILL.md, and commands/*.md,
 # extracts YAML frontmatter, and generates OpenClaw-compatible tool
 # registrations. It ensures the OpenClaw layer stays in sync with
 # the Claude Code plugin (source of truth).
@@ -18,7 +17,12 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-SKILLS_DIR="$PLUGIN_ROOT/.claude/skills"
+# The plugin payload under skills/ is what ships to OpenClaw users. This used
+# to read .claude/skills, which is the *dev repo's own* project-local skill set
+# — a near-duplicate that had drifted, so skill-council and skill-verify never
+# reached the OpenClaw registry while --check still reported "up to date"
+# (it regenerated from the same wrong source).
+SKILLS_DIR="$PLUGIN_ROOT/skills"
 COMMANDS_DIR="$PLUGIN_ROOT/commands"
 OUTPUT_DIR="$PLUGIN_ROOT/openclaw/src/tools"
 CHECK_MODE=false
