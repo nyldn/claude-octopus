@@ -343,27 +343,17 @@ if ! REVIEW_DECISION=$(gh pr view "$PR_NUM" -R "$REPO_SLUG" --json reviewDecisio
     echo "   ERROR: Could not read the PR review decision."
     exit 1
 fi
-if ! UNRESOLVED_THREADS=$(gh api graphql \
-    -f query='query($owner:String!, $name:String!, $number:Int!) {
-      repository(owner:$owner, name:$name) {
-        pullRequest(number:$number) {
-          reviewThreads(first:100) { nodes { isResolved } }
-        }
-      }
-    }' \
-    -f owner="$REPO_OWNER" \
-    -f name="$REPO_NAME" \
-    -F number="$PR_NUM" \
-    --jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false)] | length'); then
+if ! UNRESOLVED_THREADS=$(octo_release_unresolved_review_threads \
+    "$REPO_OWNER" "$REPO_NAME" "$PR_NUM"); then
     echo "   ERROR: Could not read PR review threads."
     exit 1
 fi
-if [[ "$REVIEW_DECISION" == "CHANGES_REQUESTED" || "$UNRESOLVED_THREADS" != "0" ]]; then
+if ! octo_release_review_gate "$REVIEW_DECISION" "$UNRESOLVED_THREADS"; then
     echo "   REVIEW BLOCKED — decision=${REVIEW_DECISION:-none} | unresolved threads=${UNRESOLVED_THREADS}"
-    echo "   Resolve every actionable finding and rerun the release."
+    echo "   An explicit approval and zero unresolved threads are required."
     exit 1
 fi
-echo "   Review: ${REVIEW_DECISION:-no blocking review} | unresolved threads: 0"
+echo "   Review: ${REVIEW_DECISION} | unresolved threads: 0"
 echo ""
 
 # --- 6. Merge + Release ---
@@ -445,7 +435,8 @@ if [[ -z "$MAIN_RUN_ID" ]]; then
     echo "   ERROR: Main Test Suite run did not appear for ${MERGE_SHA}."
     exit 1
 fi
-if ! gh run watch "$MAIN_RUN_ID" -R "$REPO_SLUG" --exit-status; then
+if ! octo_release_run_with_timeout "$CI_TIMEOUT_SECONDS" \
+    gh run watch "$MAIN_RUN_ID" -R "$REPO_SLUG" --exit-status; then
     echo "   ERROR: Main Test Suite failed for ${MERGE_SHA}; tag and release were not created."
     exit 1
 fi
