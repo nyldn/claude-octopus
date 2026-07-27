@@ -49,6 +49,21 @@ else
 fi
 rm -f "$REPO/untracked.txt"
 
+
+test_case "each blocking status entry is reported"
+: > "$LOG_CAPTURE"
+printf 'one\n' > "$REPO/untracked-one.txt"
+printf 'two\n' > "$REPO/untracked-two.txt"
+if tangle_require_clean_git_baseline >/dev/null 2>&1; then
+    test_fail "dirty repository was accepted"
+elif grep -Fq '?? untracked-one.txt' "$LOG_CAPTURE" \
+    && grep -Fq '?? untracked-two.txt' "$LOG_CAPTURE"; then
+    test_pass
+else
+    test_fail "not every blocking status entry was reported"
+fi
+rm -f "$REPO/untracked-one.txt" "$REPO/untracked-two.txt"
+
 test_case "ignored files do not block the baseline"
 printf 'ignored\n' > "$REPO/ignored.log"
 if tangle_require_clean_git_baseline; then
