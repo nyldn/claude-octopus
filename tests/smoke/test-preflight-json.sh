@@ -17,7 +17,11 @@ PREFLIGHT="$PROJECT_ROOT/scripts/helpers/preflight.sh"
 # (the latter trip on Windows python wrappers).
 _has_key() {
     local out="$1" key="$2"
-    echo "$out" | grep -qE "\"${key}\"[[:space:]]*:"
+    # grep -c (not -q) — -q exits on first match, closing the pipe before
+    # echo finishes writing, which under this script's inherited
+    # `set -o pipefail` (from test-framework.sh) can fail the whole
+    # pipeline on a SIGPIPE write error even though the key was found.
+    echo "$out" | grep -cE "\"${key}\"[[:space:]]*:" >/dev/null
 }
 
 test_preflight_exists() {

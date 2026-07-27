@@ -97,7 +97,17 @@ build_provider_env() {
             if [[ -z "${GOOGLE_API_KEY:-}" ]]; then
                 resolve_provider_env "GOOGLE_API_KEY" 2>/dev/null || true
             fi
-            PROVIDER_ENV_ARRAY=(env -i "PATH=$PATH" "HOME=$HOME" "GEMINI_API_KEY=${GEMINI_API_KEY:-}" "GOOGLE_API_KEY=${GOOGLE_API_KEY:-}" "GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT:-}" "GOOGLE_CLOUD_PROJECT_ID=${GOOGLE_CLOUD_PROJECT_ID:-}" "NODE_NO_WARNINGS=1" "TMPDIR=${TMPDIR:-/tmp}" "GEMINI_CLI_TRUST_WORKSPACE=${GEMINI_CLI_TRUST_WORKSPACE:-true}")
+            # v9.55: Don't preset GEMINI_API_KEY/GOOGLE_API_KEY as empty-but-set —
+            # gemini-cli's dotenv loader won't override an already-set var, so an
+            # empty preset silently defeats ~/.gemini/.env when the parent shell
+            # doesn't export the key (#660). Only forward vars that are non-empty,
+            # and pass through NODE_EXTRA_CA_CERTS/GOOGLE_GEMINI_BASE_URL so relay
+            # setups (extra CA root, custom base URL) survive env isolation.
+            PROVIDER_ENV_ARRAY=(env -i "PATH=$PATH" "HOME=$HOME" "NODE_NO_WARNINGS=1" "TMPDIR=${TMPDIR:-/tmp}" "GEMINI_CLI_TRUST_WORKSPACE=${GEMINI_CLI_TRUST_WORKSPACE:-true}")
+            local _gemini_var
+            for _gemini_var in GEMINI_API_KEY GOOGLE_API_KEY GOOGLE_CLOUD_PROJECT GOOGLE_CLOUD_PROJECT_ID GOOGLE_GEMINI_BASE_URL NODE_EXTRA_CA_CERTS; do
+                [[ -n "${!_gemini_var:-}" ]] && PROVIDER_ENV_ARRAY+=("${_gemini_var}=${!_gemini_var}")
+            done
             if [[ ${#_trace_env[@]} -gt 0 ]]; then
                 PROVIDER_ENV_ARRAY+=("${_trace_env[@]}")
             fi
