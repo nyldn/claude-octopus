@@ -1,8 +1,9 @@
 # AI Agent Handoff
 
 Last updated: 2026-07-27
-Status: implementation verified on the v9.54.2 base; publication pending
+Status: implementation verified and published for review
 Branch: `feat/opus-5-default-routing`
+Pull request: https://github.com/nyldn/claude-octopus/pull/678
 
 ## Start Here
 
@@ -62,5 +63,5 @@ could not be claimed or recorded as a new Beads issue.
 
 ## Next Action
 
-Push the scoped branch to `origin` and `upstream`, open the upstream pull
-request, then update this section with the PR URL and review/check status.
+Monitor PR #678 checks and reviews, address actionable findings, and merge
+only after the repository's required review and verification gates pass.
