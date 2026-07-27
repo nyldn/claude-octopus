@@ -83,6 +83,21 @@ else
     test_fail "reproduced defect status was not preserved"
 fi
 
+
+test_case "unsafe verification run IDs are rejected"
+for unsafe_id in "../escape" "/absolute" "nested/path" "bad id" ".."; do
+    OCTOPUS_VERIFY_RUN_ID="$unsafe_id"
+    status=0
+    tangle_verify "unsafe id" >/dev/null 2>&1 || status=$?
+    if [[ "$status" -eq 0 ]]; then
+        test_fail "unsafe run ID was accepted: $unsafe_id"
+        break
+    fi
+done
+if [[ "${status:-1}" -ne 0 ]]; then
+    test_pass
+fi
+
 AGENT_RESULT='not-json'
 OCTOPUS_VERIFY_RUN_ID="invalid-result"
 status=0

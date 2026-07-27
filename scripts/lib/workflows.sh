@@ -1719,14 +1719,45 @@ ${normal_findings}
 
 # Phase 3: TANGLE (Develop) - Enhanced map-reduce with validation
 # Tentacles work together in a coordinated tangle of activity
+tangle_cleanup_verification_context() {
+    trap - EXIT INT TERM
+
+    if [[ -n "${TANGLE_VERIFY_ORIGINAL_PWD:-}" ]]; then
+        cd "$TANGLE_VERIFY_ORIGINAL_PWD" 2>/dev/null || true
+    fi
+    if [[ -n "${TANGLE_VERIFY_ORIGINAL_PROJECT_ROOT:-}" ]]; then
+        PROJECT_ROOT="$TANGLE_VERIFY_ORIGINAL_PROJECT_ROOT"
+        export PROJECT_ROOT
+    fi
+
+    if [[ -n "${TANGLE_VERIFY_SOURCE_ROOT:-}" && -n "${TANGLE_VERIFY_WORKTREE:-}" ]]; then
+        if ! git -C "$TANGLE_VERIFY_SOURCE_ROOT" worktree remove --force "$TANGLE_VERIFY_WORKTREE" >/dev/null 2>&1; then
+            log WARN "Normal verification worktree removal failed; forcing filesystem cleanup: $TANGLE_VERIFY_WORKTREE"
+            rm -rf "$TANGLE_VERIFY_WORKTREE"
+            git -C "$TANGLE_VERIFY_SOURCE_ROOT" worktree prune >/dev/null 2>&1 ||                 log ERROR "Failed to prune verification worktree registrations: $TANGLE_VERIFY_SOURCE_ROOT"
+        fi
+        if [[ -e "$TANGLE_VERIFY_WORKTREE" ]]; then
+            log ERROR "Disposable verification worktree still exists after cleanup: $TANGLE_VERIFY_WORKTREE"
+        fi
+    fi
+
+    unset TANGLE_VERIFY_SOURCE_ROOT TANGLE_VERIFY_WORKTREE
+    unset TANGLE_VERIFY_ORIGINAL_PWD TANGLE_VERIFY_ORIGINAL_PROJECT_ROOT
+}
+
 tangle_verify() {
     local prompt="$1"
     local run_id="${OCTOPUS_VERIFY_RUN_ID:-$(date +%s)-$$}"
+    if [[ ! "$run_id" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ || "$run_id" == *..* ]]; then
+        log ERROR "Invalid OCTOPUS_VERIFY_RUN_ID: $run_id"
+        return 1
+    fi
     local source_root source_commit verify_root verify_worktree
     local original_project_root="${PROJECT_ROOT:-$PWD}"
     local original_pwd="$PWD"
     local verify_agent="agy" verify_fallback_agent="codex"
     local raw_result="" result_file status rc=1
+    local verify_cd_succeeded=false
 
     source_root=$(git -C "$original_project_root" rev-parse --show-toplevel 2>/dev/null) || {
         log ERROR "Verification-only mode requires a Git repository"
@@ -1751,6 +1782,14 @@ tangle_verify() {
         return 1
     fi
 
+    TANGLE_VERIFY_SOURCE_ROOT="$source_root"
+    TANGLE_VERIFY_WORKTREE="$verify_worktree"
+    TANGLE_VERIFY_ORIGINAL_PWD="$original_pwd"
+    TANGLE_VERIFY_ORIGINAL_PROJECT_ROOT="$original_project_root"
+    export TANGLE_VERIFY_SOURCE_ROOT TANGLE_VERIFY_WORKTREE
+    export TANGLE_VERIFY_ORIGINAL_PWD TANGLE_VERIFY_ORIGINAL_PROJECT_ROOT
+    trap 'tangle_cleanup_verification_context' EXIT INT TERM
+
     if declare -f octopus_agent_override >/dev/null 2>&1; then
         verify_agent=$(octopus_execution_profile_provider "tangle" "verify" "researcher" "agy")
         verify_fallback_agent=$(octopus_execution_profile_provider "tangle" "verify_fallback" "researcher" "codex")
@@ -1758,7 +1797,11 @@ tangle_verify() {
 
     PROJECT_ROOT="$verify_worktree"
     export PROJECT_ROOT
-    cd "$verify_worktree" || rc=1
+    if cd "$verify_worktree"; then
+        verify_cd_succeeded=true
+    else
+        log ERROR "Failed to enter disposable verification worktree: $verify_worktree"
+    fi
 
     local verify_prompt="Verification-only task. Inspect and test the committed project state without implementing fixes or changing product behavior.
 
@@ -1778,7 +1821,7 @@ Consistency rules:
 - If baseline passes and the defect is not reproduced, implementationRequired must be false.
 - If the defect is reproduced and needs a code change, implementationRequired must be true."
 
-    if [[ "$rc" -eq 1 && "$PWD" != "$verify_worktree" ]]; then
+    if [[ "$verify_cd_succeeded" != "true" || "$PWD" != "$verify_worktree" ]]; then
         raw_result=""
     else
         raw_result=$(OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="verification-only" run_agent_sync "$verify_agent" "$verify_prompt" 0 "researcher" "tangle-verify") || \
@@ -1823,9 +1866,7 @@ Consistency rules:
             '. + {status:$status,sourceCommit:$sourceCommit}' <<< "$raw_result" > "$result_file"
     fi
 
-    git -C "$source_root" worktree remove --force "$verify_worktree" >/dev/null 2>&1 || {
-        log WARN "Failed to remove disposable verification worktree: $verify_worktree"
-    }
+    tangle_cleanup_verification_context
 
     log INFO "Verification-only result: $status"
     log INFO "Verification artifact: $result_file"

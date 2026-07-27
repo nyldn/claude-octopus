@@ -2370,9 +2370,10 @@ case "$COMMAND" in
         if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
             echo "Usage: $(basename "$0") verify <prompt>"
             echo "Runs diagnosis in a disposable Git worktree and never launches implementation agents."
+            echo "Exit codes: 0=verified no change, 1=needs diagnosis/error, 2=defect reproduced."
             exit 0
         fi
-        if [[ $# -lt 1 ]]; then
+        if [[ $# -lt 1 || -z "${*//[[:space:]]/}" ]]; then
             log ERROR "Missing prompt for verification-only mode"
             echo "Usage: $(basename "$0") verify <prompt>"
             exit 1
