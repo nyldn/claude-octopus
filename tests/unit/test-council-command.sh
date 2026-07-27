@@ -1347,18 +1347,32 @@ test_council_seats_array_makes_quorum_inspectable() {
     # and distinct_approving_providers is recomputable from seats[] alone (no reading
     # responses/* by hand).
     if jq -e '
-        (.seats | type == "array" and length >= 2)
+        . as $summary
+        | ($summary.seats | type == "array" and length >= 2)
+        and ($summary.council | type == "array")
+        and (($summary.seats | length) == ($summary.council | length))
         and (.seats | all(has("seat") and has("provider") and has("provider_org")
                           and has("model") and has("status") and has("verdict")
                           and has("response_bytes") and has("payload_kind")
                           and has("counted_as_approver")))
-        and (.seats | all(.provider_org | type == "string" and length >= 1))
-        and (.seats | all(.seat | type == "string" and length >= 1))
-        and (.seats | all(.status | type == "string" and length >= 1))
+        and (.seats | all(
+            (.index | type == "number" and floor == .)
+            and ([.seat, .persona, .provider, .provider_org, .model, .status, .payload_kind]
+                 | all(type == "string" and length >= 1))
+        ))
+        # The seat list is a one-for-one, ordered execution record for the resolved
+        # council roster; a missing, duplicate, or invented seat must fail the contract.
+        and (all(range(0; ($summary.council | length)); . as $i
+            | ($summary.seats[$i].index == $i)
+            and ($summary.seats[$i].persona == $summary.council[$i].persona)
+            and ($summary.seats[$i].seat == $summary.council[$i].seat)
+            and ($summary.seats[$i].provider == $summary.council[$i].provider)
+            and ($summary.seats[$i].provider_org == $summary.council[$i].provider_org)
+            and ($summary.seats[$i].model == $summary.council[$i].model)))
         # counted_as_approver drives quorum, so it must be a real boolean, not a
         # truthy string that jq would still `select`.
         and (.seats | all(.counted_as_approver | type == "boolean"))
-        and (.seats | all(.response_bytes | type == "number"))
+        and (.seats | all(.response_bytes | type == "number" and . >= 0))
         # verdict is null (no substantive verdict) or a known token — never garbage.
         and (.seats | all((.verdict == null) or (.verdict | test("^(APPROVE|REVISE|BLOCK)$"))))
         # a counted approver is, by construction, a responded APPROVE seat.
