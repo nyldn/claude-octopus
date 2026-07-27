@@ -58,7 +58,11 @@ if [[ -z "$PLUGIN_DESC" ]]; then
     log ERROR "description missing in $PLUGIN_JSON"
     exit 1
 fi
-FEATURE_SUMMARY=$(echo "$PLUGIN_DESC" | sed -E 's/^v[0-9]+\.[0-9]+\.[0-9]+ [-—] //' | sed -E 's/[.,] [0-9]+ (agents|personas),[^.]*\.//g' | sed -E 's/\.? *Run \/octo:setup\.?$//' | sed -E 's/\.$//')
+# Note: match the dash via alternation, not a `[-—]` bracket expression — under
+# the C/POSIX locale (no LANG/LC_ALL set), sed's bracket-expression handling of
+# the multi-byte em-dash is unreliable and silently fails to match, leaving the
+# version prefix unstripped and doubling it when EXPECTED_DESC is assembled below.
+FEATURE_SUMMARY=$(echo "$PLUGIN_DESC" | sed -E 's/^v[0-9]+\.[0-9]+\.[0-9]+ (-|—) //' | sed -E 's/[.,] [0-9]+ (agents|personas),[^.]*\.//g' | sed -E 's/\.? *Run \/octo:setup\.?$//' | sed -E 's/\.$//')
 
 # Build expected description — version prefix derived from version field
 EXPECTED_DESC="v${VERSION} - ${FEATURE_SUMMARY}. ${PERSONA_COUNT} personas, ${COMMAND_COUNT} commands, ${SKILL_COUNT} skills. Run /octo:setup."
