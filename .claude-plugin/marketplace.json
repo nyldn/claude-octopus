@@ -15,7 +15,7 @@
         "source": "url",
         "url": "https://github.com/nyldn/claude-octopus.git"
       },
-      "description": "v9.55.0 - Reliability wave: tangle contextual review correction loop with hard round ceiling, progress-supervised review rounds (per-agent stall watch, descendant-tree kills), council diversity and agy pin fixes, marketplace generator source-of-truth fix, provider troubleshooting runbook and cost-expectations docs. 32 personas, 50 commands, 58 skills. Run /octo:setup.",
+      "description": "v9.55.0 - Opus 5 default routing with GPT-5.6 Codex peer review, opt-in Fable 5 escalation, isolated Tangle verification, and resilient multi-provider councils. 32 personas, 50 commands, 58 skills. Run /octo:setup.",
       "version": "9.55.0",
       "author": {
         "name": "nyldn",

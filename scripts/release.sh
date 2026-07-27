@@ -88,17 +88,19 @@ json.dump(p, open('package.json', 'w'), indent=2)
 print('   package.json')
 "
 
-# plugin.json — strip old version prefix, prepend new one from version field
-python3 -c "
-import json, re
+# plugin.json — use the release summary as the new marketplace source text
+python3 - "$VERSION" "$SUMMARY" <<'PY'
+import json
+import sys
+
+version, summary = sys.argv[1:]
+summary = summary.strip().rstrip(".")
 p = json.load(open('.claude-plugin/plugin.json'))
-p['version'] = '${VERSION}'
-# Strip any existing version prefix, then prepend the new one
-desc = re.sub(r'^v\d+\.\d+\.\d+\s*[\u2014\-]\s*', '', p['description'])
-p['description'] = 'v${VERSION} \u2014 ' + desc
+p['version'] = version
+p['description'] = f'v{version} \u2014 {summary}. Run /octo:setup.'
 json.dump(p, open('.claude-plugin/plugin.json', 'w'), indent=2)
 print('   .claude-plugin/plugin.json')
-"
+PY
 
 # marketplace.json — strip old version prefix, prepend new one
 python3 -c "
@@ -233,6 +235,9 @@ with open(path, 'w') as f:
     f.write('\\n')
 print(f'   {path}')
 "
+
+# Regenerate marketplace and OpenClaw artifacts from their source files.
+make sync
 
 octo_release_update_changelog CHANGELOG.md "$VERSION" "$DATE" "$SUMMARY"
 

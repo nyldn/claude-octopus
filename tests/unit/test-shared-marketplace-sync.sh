@@ -158,6 +158,18 @@ test_release_file_updates_are_portable() {
     fi
 }
 
+test_release_description_uses_current_summary() {
+    test_case "release.sh replaces stale plugin summary and regenerates derived artifacts"
+
+    if grep -q "version, summary = sys.argv\\[1:\\]" "$RELEASE_SCRIPT" &&
+       grep -q "p\\['description'\\] = f'v{version}" "$RELEASE_SCRIPT" &&
+       grep -q '^make sync$' "$RELEASE_SCRIPT"; then
+        test_pass
+    else
+        test_fail "release.sh does not derive plugin metadata from the current release summary"
+    fi
+}
+
 test_readme_provider_and_cost_contract() {
     test_case "README defines provider counting and auditable cost assumptions"
 
@@ -303,6 +315,7 @@ test_release_script_invokes_shared_marketplace_sync
 test_release_stages_routines_manifest
 test_release_updates_and_stages_browse_manifest
 test_release_file_updates_are_portable
+test_release_description_uses_current_summary
 test_readme_provider_and_cost_contract
 test_marketplace_description_error_uses_logger
 test_release_promotes_unreleased_changelog_notes
