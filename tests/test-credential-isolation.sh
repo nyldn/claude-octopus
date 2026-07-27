@@ -108,10 +108,13 @@ rm -rf "$CODEX_RUNTIME_HOME" "$CODEX_RUNTIME_HOME-home"
 
 # 1.3 Gemini scoping — only GEMINI_API_KEY + GOOGLE_API_KEY (conditionally
 # forwarded via a loop as of #660, so anchor on the isolated-env line's
-# unique GEMINI_CLI_TRUST_WORKSPACE marker and include the loop after it,
-# rather than the PROVIDER_ENV_ARRAY=(...) line alone)
-GEMINI_ENV=$(grep -A5 'GEMINI_CLI_TRUST_WORKSPACE' "$ALL_SRC" | head -5 || true)
-if echo "$GEMINI_ENV" | grep -q 'GEMINI_API_KEY'; then
+# unique GEMINI_CLI_TRUST_WORKSPACE marker and read through to the case
+# arm's closing `;;` rather than a fixed line count, so this doesn't
+# silently truncate if the block grows.
+GEMINI_ENV=$(awk '/GEMINI_CLI_TRUST_WORKSPACE/{flag=1} flag{print; if (/^[[:space:]]*;;[[:space:]]*$/) exit}' "$ALL_SRC")
+if [[ -z "$GEMINI_ENV" ]]; then
+  fail "Gemini env block not found (GEMINI_CLI_TRUST_WORKSPACE marker missing)"
+elif echo "$GEMINI_ENV" | grep -q 'GEMINI_API_KEY'; then
   pass "Gemini env includes GEMINI_API_KEY"
 else
   fail "Gemini env missing GEMINI_API_KEY"
