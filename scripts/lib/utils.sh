@@ -188,6 +188,8 @@ _validate_openai_compatible_agent_command() {
     local cwd=""
     local reasoning_effort=""
     local reasoning_policy=""
+    local base_url=""
+    local api_key_env=""
     local i=1
 
     while [[ $i -lt ${#parts[@]} ]]; do
@@ -209,6 +211,16 @@ _validate_openai_compatible_agent_command() {
                 [[ -z "$cwd" ]] || return 1
                 _octopus_is_safe_openai_compatible_value "$value" || return 1
                 cwd="$value"
+                ;;
+            --base-url)
+                [[ -z "$base_url" ]] || return 1
+                [[ "$value" =~ ^https?://[A-Za-z0-9][A-Za-z0-9.-]*(:[0-9]+)?(/[A-Za-z0-9._/:-]*)?$ ]] || return 1
+                base_url="$value"
+                ;;
+            --api-key-env)
+                [[ -z "$api_key_env" ]] || return 1
+                [[ "$value" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 1
+                api_key_env="$value"
                 ;;
             --reasoning-effort)
                 [[ -z "$reasoning_effort" ]] || return 1

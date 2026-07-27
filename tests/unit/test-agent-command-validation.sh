@@ -76,6 +76,34 @@ else
     test_fail "expected allowlisted reasoning flags to be accepted"
 fi
 
+test_case "validate_agent_command allows env-configured base-url and api-key-env"
+if validate_agent_command "$PROJECT_ROOT/scripts/helpers/openai-compatible-agent.py --provider generic --base-url https://ark.cn-beijing.volces.com/api/coding/v3 --api-key-env VOLCANO_API_KEY --model deepseek-v4-pro --cwd /tmp/test"; then
+    test_pass
+else
+    test_fail "expected dispatch.sh's env-configured base-url/api-key-env command to be accepted"
+fi
+
+test_case "validate_agent_command rejects unsafe base-url"
+if validate_agent_command "$PROJECT_ROOT/scripts/helpers/openai-compatible-agent.py --provider generic --base-url https://example.com/\$(whoami) --api-key-env MY_KEY --model deepseek-v4-pro --cwd /tmp/test" >/dev/null 2>&1; then
+    test_fail "expected unsafe base-url to be rejected"
+else
+    test_pass
+fi
+
+test_case "validate_agent_command rejects base-url without a host"
+if validate_agent_command "$PROJECT_ROOT/scripts/helpers/openai-compatible-agent.py --provider generic --base-url https:/// --api-key-env MY_KEY --model deepseek-v4-pro --cwd /tmp/test" >/dev/null 2>&1; then
+    test_fail "expected hostless base-url to be rejected"
+else
+    test_pass
+fi
+
+test_case "validate_agent_command rejects unsafe api-key-env"
+if validate_agent_command "$PROJECT_ROOT/scripts/helpers/openai-compatible-agent.py --provider generic --base-url https://example.com/v1 --api-key-env MY-KEY --model deepseek-v4-pro --cwd /tmp/test" >/dev/null 2>&1; then
+    test_fail "expected unsafe api-key-env to be rejected"
+else
+    test_pass
+fi
+
 test_case "validate_agent_command rejects invalid reasoning effort"
 if validate_agent_command "$PROJECT_ROOT/scripts/helpers/openai-compatible-agent.py --provider generic --model minimax/minimax-m3 --cwd /tmp/test --reasoning-effort extreme" >/dev/null 2>&1; then
     test_fail "expected invalid reasoning effort to be rejected"
