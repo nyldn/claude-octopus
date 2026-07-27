@@ -161,10 +161,10 @@ else
 fi
 
 test_case "cross-harness controller preserves the README sync contract"
-handoff_git_line="$(grep -n -m1 'git status --short --branch' "$PROJECT_ROOT/AI_AGENT_HANDOFF.md" | cut -d: -f1)"
-handoff_bd_line="$(grep -n -m1 'relevant `bd` issue' "$PROJECT_ROOT/AI_AGENT_HANDOFF.md" | cut -d: -f1)"
-rtk_git_line="$(grep -n -m1 'git status --short --branch' "$PROJECT_ROOT/RTK.md" | cut -d: -f1)"
-rtk_bd_line="$(grep -n -m1 'relevant `bd` issue' "$PROJECT_ROOT/RTK.md" | cut -d: -f1)"
+handoff_git_line="$(awk '/^## Start Here$/{section=1; next} section && /^## /{exit} section && /git status --short --branch/{print NR; exit}' "$PROJECT_ROOT/AI_AGENT_HANDOFF.md")"
+handoff_bd_line="$(awk '/^## Start Here$/{section=1; next} section && /^## /{exit} section && /relevant `bd` issue/{print NR; exit}' "$PROJECT_ROOT/AI_AGENT_HANDOFF.md")"
+rtk_git_line="$(awk '/^## Start a Session$/{section=1; next} section && /^## /{exit} section && /git status --short --branch/{print NR; exit}' "$PROJECT_ROOT/RTK.md")"
+rtk_bd_line="$(awk '/^## Start a Session$/{section=1; next} section && /^## /{exit} section && /relevant `bd` issue/{print NR; exit}' "$PROJECT_ROOT/RTK.md")"
 if [[ -f "$PROJECT_ROOT/RTK.md" ]] &&
    [[ -n "$handoff_git_line" && -n "$handoff_bd_line" && "$handoff_git_line" -lt "$handoff_bd_line" ]] &&
    [[ -n "$rtk_git_line" && -n "$rtk_bd_line" && "$rtk_git_line" -lt "$rtk_bd_line" ]] &&
