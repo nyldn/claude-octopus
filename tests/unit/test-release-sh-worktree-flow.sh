@@ -63,13 +63,43 @@ test_post_merge_skips_checkout_on_release_branch() {
     fi
 }
 
-test_release_targets_merge_sha() {
-    test_case "gh release create targets the resolved merge SHA"
+test_release_tags_merge_sha() {
+    test_case "release creates and pushes an annotated tag on the resolved merge SHA"
 
-    if grep -q -- '--target "\$MERGE_SHA"' "$RELEASE_SH"; then
+    local merge_block
+    merge_block=$(awk '/# --- 6\. Merge \+ Release/,/^# --- 7\. Sync shared marketplace/' "$RELEASE_SH")
+
+    if grep -q 'git tag -a "\$TAG_NAME" "\$MERGE_SHA"' <<< "$merge_block" \
+        && grep -q 'git push --quiet "\$REMOTE" "\$TAG_NAME"' <<< "$merge_block" \
+        && grep -q -- '--verify-tag' <<< "$merge_block"; then
         test_pass
     else
-        test_fail "gh release create does not pin --target to MERGE_SHA"
+        test_fail "release does not push and verify an annotated tag on MERGE_SHA"
+    fi
+}
+
+test_release_uses_squash_merge() {
+    test_case "release PR follows the repository squash-merge convention"
+
+    local merge_commands
+    merge_commands=$(grep 'gh pr merge' "$RELEASE_SH" || true)
+
+    if grep -q -- '--squash' <<< "$merge_commands" \
+        && ! grep -q -- '--merge' <<< "$merge_commands"; then
+        test_pass
+    else
+        test_fail "release.sh merge commands must use --squash exclusively"
+    fi
+}
+
+test_release_ci_timeout_covers_macos() {
+    test_case "release CI timeout has configurable 15-minute headroom"
+
+    if grep -q 'CI_TIMEOUT_SECONDS="${OCTO_RELEASE_CI_TIMEOUT_SECONDS:-900}"' "$RELEASE_SH" \
+        && grep -q 'DEADLINE=\$((SECONDS + CI_TIMEOUT_SECONDS))' "$RELEASE_SH"; then
+        test_pass
+    else
+        test_fail "release.sh does not use the configurable 900-second CI timeout"
     fi
 }
 
@@ -141,7 +171,9 @@ test_remote_configurable
 test_preflight_accepts_release_branch
 test_plugin_manifest_staged
 test_post_merge_skips_checkout_on_release_branch
-test_release_targets_merge_sha
+test_release_tags_merge_sha
+test_release_uses_squash_merge
+test_release_ci_timeout_covers_macos
 test_fetch_head_approach_works_when_main_checked_out_elsewhere
 
 test_summary

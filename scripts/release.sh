@@ -40,6 +40,12 @@ SUMMARY="$2"
 DATE=$(date +%Y-%m-%d)
 BRANCH="release/v${VERSION}"
 REMOTE="${OCTO_RELEASE_REMOTE:-origin}"
+CI_TIMEOUT_SECONDS="${OCTO_RELEASE_CI_TIMEOUT_SECONDS:-900}"
+
+if [[ ! "$CI_TIMEOUT_SECONDS" =~ ^[1-9][0-9]*$ ]]; then
+    echo "Error: OCTO_RELEASE_CI_TIMEOUT_SECONDS must be a positive integer."
+    exit 1
+fi
 
 cd "$PLUGIN_ROOT"
 
@@ -292,8 +298,9 @@ echo ""
 # --- 5. Wait for CI ---
 
 echo "5/8 Waiting for CI..."
-# Poll until required checks finish (max 5 minutes)
-DEADLINE=$((SECONDS + 300))
+# macOS unit jobs routinely take around 10 minutes, so leave enough headroom
+# while keeping the wait configurable for slower or faster repositories.
+DEADLINE=$((SECONDS + CI_TIMEOUT_SECONDS))
 while [[ $SECONDS -lt $DEADLINE ]]; do
     CHECKS=$(gh pr checks "$PR_NUM" -R "$REPO_SLUG" --json name,state 2>&1 || true)
     SMOKE=$(octo_pr_check_state "$CHECKS" "Smoke Tests")
@@ -307,7 +314,7 @@ while [[ $SECONDS -lt $DEADLINE ]]; do
 
     if [[ "$SMOKE" == "fail" || "$UNIT" == "fail" || "$INTEG" == "fail" ]]; then
         echo "   CI FAILED — Smoke: ${SMOKE} | Unit: ${UNIT} | Integration: ${INTEG}"
-        echo "   Fix failures, then run: gh pr merge ${PR_NUM} --merge -R ${REPO_SLUG}"
+        echo "   Fix failures, then run: gh pr merge ${PR_NUM} --squash -R ${REPO_SLUG}"
         exit 1
     fi
 
@@ -315,9 +322,9 @@ while [[ $SECONDS -lt $DEADLINE ]]; do
 done
 
 if [[ $SECONDS -ge $DEADLINE ]]; then
-    echo "   CI timed out after 5 minutes."
+    echo "   CI timed out after ${CI_TIMEOUT_SECONDS} seconds."
     echo "   Check manually: gh pr checks ${PR_NUM} -R ${REPO_SLUG}"
-    echo "   Then merge: gh pr merge ${PR_NUM} --merge -R ${REPO_SLUG}"
+    echo "   Then merge: gh pr merge ${PR_NUM} --squash -R ${REPO_SLUG}"
     exit 1
 fi
 echo ""
@@ -325,7 +332,7 @@ echo ""
 # --- 6. Merge + Release ---
 
 echo "6/8 Merging and creating release..."
-gh pr merge "$PR_NUM" -R "$REPO_SLUG" --merge --quiet 2>/dev/null || gh pr merge "$PR_NUM" -R "$REPO_SLUG" --merge
+gh pr merge "$PR_NUM" -R "$REPO_SLUG" --squash --quiet 2>/dev/null || gh pr merge "$PR_NUM" -R "$REPO_SLUG" --squash
 
 if [[ "$ON_RELEASE_BRANCH" == "true" ]]; then
     # main is normally still checked out in the worktree this release branch
@@ -340,9 +347,13 @@ else
     MERGE_SHA=$(git rev-parse main)
 fi
 
+TAG_NAME="v${VERSION}"
+git tag -a "$TAG_NAME" "$MERGE_SHA" -m "${TAG_NAME}: ${SUMMARY}"
+git push --quiet "$REMOTE" "$TAG_NAME"
+
 gh release create "v${VERSION}" \
     -R "$REPO_SLUG" \
-    --target "$MERGE_SHA" \
+    --verify-tag \
     --title "v${VERSION} — ${SUMMARY}" \
     --notes "### Changed
 - ${SUMMARY}
@@ -351,7 +362,7 @@ gh release create "v${VERSION}" \
     --quiet 2>/dev/null || \
 gh release create "v${VERSION}" \
     -R "$REPO_SLUG" \
-    --target "$MERGE_SHA" \
+    --verify-tag \
     --title "v${VERSION} — ${SUMMARY}" \
     --notes "### Changed
 - ${SUMMARY}

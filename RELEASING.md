@@ -71,10 +71,16 @@ Must be empty. Shell scripts and Python helpers must stay `100755`; both contrib
 - Open the PR against `main`. Same-repo branches run CI immediately; **fork PRs stall at `action_required`** until approved: `gh api -X POST repos/nyldn/claude-octopus/actions/runs/<run-id>/approve` (needed after every push to the fork branch).
 - Known flake: macOS runner timing in `tests/unit/test-agent-lifecycle-events.sh` ("hook timeout did not return promptly"). If it hits, `gh run rerun <run-id> --failed` once before investigating.
 - Squash-merge is the repo convention.
+- `scripts/release.sh` waits up to 15 minutes by default so the macOS unit
+  matrix can finish. Override only when necessary with
+  `OCTO_RELEASE_CI_TIMEOUT_SECONDS=<seconds>`.
 
 ## 7. Tag AFTER the squash-merge
 
 The tag must point at the merge commit on `main`, not at the branch head (squash rewrites the SHA):
+
+`scripts/release.sh` creates and pushes this annotated tag automatically. If a
+release is being recovered manually, use:
 
 ```bash
 sha=$(gh pr view <pr> --json mergeCommit --jq .mergeCommit.oid)

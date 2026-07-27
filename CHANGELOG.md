@@ -29,6 +29,8 @@
 
 - README synchronization derives smoke, unit, and integration suite counts from
   test discovery, keeping `PRODUCT.md` current when coverage grows.
+- Release automation waits for the real macOS CI duration, squash-merges release
+  PRs, and pushes an annotated tag on the post-squash commit before publishing.
 
 ### Tests
 
