@@ -1839,7 +1839,9 @@ Consistency rules:
         (.implementationRequired | type == "boolean") and
         (.evidence | type == "object") and
         (.evidence.commands | type == "array") and
+        all(.evidence.commands[]; type == "string") and
         (.evidence.failingTests | type == "array") and
+        all(.evidence.failingTests[]; type == "string") and
         (.evidence.summary | type == "string") and
         (
             if (.baselinePassed == true and .defectReproduced == false)

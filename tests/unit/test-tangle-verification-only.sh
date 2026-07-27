@@ -112,6 +112,34 @@ else
     test_fail "contradictory verification was accepted"
 fi
 
+AGENT_RESULT='{"baselinePassed":false,"defectReproduced":true,"implementationRequired":true,"evidence":{"commands":[7],"failingTests":[],"summary":"bad command evidence"}}'
+OCTOPUS_VERIFY_RUN_ID="non-string-command-evidence"
+status=0
+tangle_verify "reject non-string command evidence" || status=$?
+
+test_case "non-string command evidence fails closed"
+if [[ "$status" -eq 1 \
+    && "$TANGLE_VERIFICATION_STATUS" == "NEEDS_DIAGNOSIS" \
+    && "$(jq -r '.error' "$TANGLE_VERIFICATION_RESULT_FILE")" == "invalid verification result" ]]; then
+    test_pass
+else
+    test_fail "non-string command evidence was accepted"
+fi
+
+AGENT_RESULT='{"baselinePassed":false,"defectReproduced":true,"implementationRequired":true,"evidence":{"commands":["test"],"failingTests":[false],"summary":"bad failing-test evidence"}}'
+OCTOPUS_VERIFY_RUN_ID="non-string-failing-test-evidence"
+status=0
+tangle_verify "reject non-string failing-test evidence" || status=$?
+
+test_case "non-string failing-test evidence fails closed"
+if [[ "$status" -eq 1 \
+    && "$TANGLE_VERIFICATION_STATUS" == "NEEDS_DIAGNOSIS" \
+    && "$(jq -r '.error' "$TANGLE_VERIFICATION_RESULT_FILE")" == "invalid verification result" ]]; then
+    test_pass
+else
+    test_fail "non-string failing-test evidence was accepted"
+fi
+
 AGENT_RESULT='not-json'
 OCTOPUS_VERIFY_RUN_ID="invalid-result"
 status=0
