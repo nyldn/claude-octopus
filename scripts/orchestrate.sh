@@ -2366,6 +2366,19 @@ case "$COMMAND" in
         fi
         grasp_define "$1" "${2:-}"
         ;;
+    verify|verification-only)
+        if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+            echo "Usage: $(basename "$0") verify <prompt>"
+            echo "Runs diagnosis in a disposable Git worktree and never launches implementation agents."
+            exit 0
+        fi
+        if [[ $# -lt 1 ]]; then
+            log ERROR "Missing prompt for verification-only mode"
+            echo "Usage: $(basename "$0") verify <prompt>"
+            exit 1
+        fi
+        tangle_verify "$*"
+        ;;
     develop|tangle)
         # Phase 3: Develop - Implementation with quality gates
         # Handle help flag

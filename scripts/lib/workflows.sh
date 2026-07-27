@@ -1719,6 +1719,122 @@ ${normal_findings}
 
 # Phase 3: TANGLE (Develop) - Enhanced map-reduce with validation
 # Tentacles work together in a coordinated tangle of activity
+tangle_verify() {
+    local prompt="$1"
+    local run_id="${OCTOPUS_VERIFY_RUN_ID:-$(date +%s)-$$}"
+    local source_root source_commit verify_root verify_worktree
+    local original_project_root="${PROJECT_ROOT:-$PWD}"
+    local original_pwd="$PWD"
+    local verify_agent="agy" verify_fallback_agent="codex"
+    local raw_result="" result_file status rc=1
+
+    source_root=$(git -C "$original_project_root" rev-parse --show-toplevel 2>/dev/null) || {
+        log ERROR "Verification-only mode requires a Git repository"
+        return 1
+    }
+    source_commit=$(git -C "$source_root" rev-parse --verify HEAD 2>/dev/null) || {
+        log ERROR "Verification-only mode requires an existing commit"
+        return 1
+    }
+
+    verify_root="${OCTOPUS_VERIFY_WORKTREE_ROOT:-${WORKSPACE_DIR:-${HOME}/.claude-octopus}/worktrees/verify}"
+    verify_worktree="${verify_root}/${run_id}"
+    result_file="${RESULTS_DIR}/tangle-verification-${run_id}.json"
+
+    if [[ -e "$verify_worktree" ]]; then
+        log ERROR "Verification worktree path already exists: $verify_worktree"
+        return 1
+    fi
+    mkdir -p "$verify_root" "$RESULTS_DIR" || return 1
+    if ! git -C "$source_root" worktree add --detach "$verify_worktree" "$source_commit" >/dev/null; then
+        log ERROR "Failed to create verification worktree: $verify_worktree"
+        return 1
+    fi
+
+    if declare -f octopus_agent_override >/dev/null 2>&1; then
+        verify_agent=$(octopus_execution_profile_provider "tangle" "verify" "researcher" "agy")
+        verify_fallback_agent=$(octopus_execution_profile_provider "tangle" "verify_fallback" "researcher" "codex")
+    fi
+
+    PROJECT_ROOT="$verify_worktree"
+    export PROJECT_ROOT
+    cd "$verify_worktree" || rc=1
+
+    local verify_prompt="Verification-only task. Inspect and test the committed project state without implementing fixes or changing product behavior.
+
+Task: ${prompt}
+
+Rules:
+- Reproduce the reported defect using relevant existing tests and runtime inspection.
+- Run the relevant baseline tests when practical.
+- Do not implement, refactor, add features, update dependencies, edit documentation, or weaken tests.
+- Do not launch implementation agents.
+- Return exactly one JSON object and no Markdown fences or prose.
+
+Required schema:
+{\"baselinePassed\":true|false,\"defectReproduced\":true|false,\"implementationRequired\":true|false,\"evidence\":{\"commands\":[\"...\"],\"failingTests\":[\"...\"],\"summary\":\"...\"}}
+
+Consistency rules:
+- If baseline passes and the defect is not reproduced, implementationRequired must be false.
+- If the defect is reproduced and needs a code change, implementationRequired must be true."
+
+    if [[ "$rc" -eq 1 && "$PWD" != "$verify_worktree" ]]; then
+        raw_result=""
+    else
+        raw_result=$(OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="verification-only" run_agent_sync "$verify_agent" "$verify_prompt" 0 "researcher" "tangle-verify") || \
+        raw_result=$(OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="verification-only" run_agent_sync "$verify_fallback_agent" "$verify_prompt" 0 "researcher" "tangle-verify") || raw_result=""
+    fi
+
+    cd "$original_pwd" 2>/dev/null || true
+    PROJECT_ROOT="$original_project_root"
+    export PROJECT_ROOT
+
+    if [[ -z "$raw_result" ]] || ! jq -e '
+        type == "object" and
+        (.baselinePassed | type == "boolean") and
+        (.defectReproduced | type == "boolean") and
+        (.implementationRequired | type == "boolean") and
+        (.evidence | type == "object") and
+        (.evidence.commands | type == "array") and
+        (.evidence.failingTests | type == "array") and
+        (.evidence.summary | type == "string")
+    ' >/dev/null 2>&1 <<< "$raw_result"; then
+        status="NEEDS_DIAGNOSIS"
+        jq -n --arg status "$status" --arg sourceCommit "$source_commit" --arg raw "$raw_result" \
+            '{status:$status,sourceCommit:$sourceCommit,error:"invalid verification result",raw:$raw}' > "$result_file"
+        rc=1
+    else
+        local baseline_passed defect_reproduced implementation_required
+        baseline_passed=$(jq -r '.baselinePassed' <<< "$raw_result")
+        defect_reproduced=$(jq -r '.defectReproduced' <<< "$raw_result")
+        implementation_required=$(jq -r '.implementationRequired' <<< "$raw_result")
+
+        if [[ "$baseline_passed" == "true" && "$defect_reproduced" == "false" && "$implementation_required" == "false" ]]; then
+            status="VERIFIED_NO_CHANGE"
+            rc=0
+        elif [[ "$defect_reproduced" == "true" && "$implementation_required" == "true" ]]; then
+            status="DEFECT_REPRODUCED"
+            rc=2
+        else
+            status="NEEDS_DIAGNOSIS"
+            rc=1
+        fi
+        jq --arg status "$status" --arg sourceCommit "$source_commit" \
+            '. + {status:$status,sourceCommit:$sourceCommit}' <<< "$raw_result" > "$result_file"
+    fi
+
+    git -C "$source_root" worktree remove --force "$verify_worktree" >/dev/null 2>&1 || {
+        log WARN "Failed to remove disposable verification worktree: $verify_worktree"
+    }
+
+    log INFO "Verification-only result: $status"
+    log INFO "Verification artifact: $result_file"
+    TANGLE_VERIFICATION_RESULT_FILE="$result_file"
+    TANGLE_VERIFICATION_STATUS="$status"
+    export TANGLE_VERIFICATION_RESULT_FILE TANGLE_VERIFICATION_STATUS
+    return "$rc"
+}
+
 tangle_develop() {
     local prompt="$1"
     local grasp_file="${2:-}"
