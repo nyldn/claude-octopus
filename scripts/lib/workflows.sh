@@ -1744,6 +1744,15 @@ tangle_write_run_git_metadata() {
     export TANGLE_RUN_METADATA_FILE
 }
 
+tangle_rollback_run_worktree() {
+    local source_root="$1"
+    local worktree="$2"
+    local branch="$3"
+
+    git -C "$source_root" worktree remove --force "$worktree" >/dev/null 2>&1 || true
+    git -C "$source_root" branch -D "$branch" >/dev/null 2>&1 || true
+}
+
 tangle_prepare_run_worktree() {
     local task_group="$1"
     local source_root source_commit runtime_root run_parent
@@ -1782,6 +1791,7 @@ tangle_prepare_run_worktree() {
     export TANGLE_RUN_SOURCE_ROOT TANGLE_RUN_SOURCE_COMMIT TANGLE_RUN_BRANCH TANGLE_RUN_WORKTREE
     tangle_write_run_git_metadata "$task_group" || {
         log ERROR "Failed to write Tangle run Git metadata"
+        tangle_rollback_run_worktree "$source_root" "$TANGLE_RUN_WORKTREE" "$TANGLE_RUN_BRANCH"
         return 1
     }
     log INFO "Tangle run isolated in Git worktree: $TANGLE_RUN_WORKTREE"
@@ -1804,6 +1814,8 @@ tangle_develop() {
     PROJECT_ROOT="$TANGLE_RUN_WORKTREE"
     export PROJECT_ROOT
     cd "$PROJECT_ROOT" || {
+        log ERROR "Failed to enter Tangle run worktree: $PROJECT_ROOT"
+        tangle_rollback_run_worktree "$TANGLE_RUN_SOURCE_ROOT" "$TANGLE_RUN_WORKTREE" "$TANGLE_RUN_BRANCH"
         PROJECT_ROOT="$original_project_root"
         export PROJECT_ROOT
         return 1

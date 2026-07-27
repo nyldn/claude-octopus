@@ -80,6 +80,23 @@ else
     test_fail "run Git metadata is missing or incomplete"
 fi
 
+
+test_case "metadata failure rolls back worktree and branch"
+OCTOPUS_TANGLE_RUN_ID="run-worktree-metadata-failure"
+ORIGINAL_WRITE_METADATA_DEFINITION=$(declare -f tangle_write_run_git_metadata)
+tangle_write_run_git_metadata() { return 1; }
+status=0
+tangle_develop "metadata failure" || status=$?
+if [[ "$status" -ne 0 \
+    && ! -e "$RUNTIME_ROOT/run-worktree-metadata-failure/integration" \
+    && -z "$(git -C "$SOURCE_REPO" branch --list 'octopus/run/run-worktree-metadata-failure/integration')" ]]; then
+    test_pass
+else
+    test_fail "metadata failure left a worktree or branch behind"
+fi
+unset -f tangle_write_run_git_metadata
+eval "$ORIGINAL_WRITE_METADATA_DEFINITION"
+
 test_case "failed runs remain isolated and preserve worktree"
 OCTOPUS_TANGLE_RUN_ID="run-worktree-failure"
 STUB_TANGLE_RC=7
