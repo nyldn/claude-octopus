@@ -230,22 +230,35 @@ get_agent_command() {
         agy|agy-research|antigravity)
             echo "${PLUGIN_DIR}/scripts/helpers/agy-exec.sh"
             ;;
-        codex-review) echo "codex exec --skip-git-repo-check review" ;; # Code review mode (no sandbox support)
+        codex-review)
+            if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
+                return 1
+            fi
+            echo "codex exec review --model ${model} --skip-git-repo-check"
+            ;;
         claude)
             local reasoning_level reasoning_policy reasoning_fragment
             reasoning_level="$(octopus_resolve_reasoning_level claude "$phase" "$role")" || return 1
             reasoning_policy="$(octopus_resolve_reasoning_policy claude "$phase" "$role")" || return 1
             reasoning_fragment="$(octopus_reasoning_cli_fragment claude "$reasoning_level" "$reasoning_policy")" || return 1
-            echo "${_claude_bin}${_BARE_OPT} --print ${reasoning_fragment} ${claude_perm}" ;;                         # Claude Sonnet 4.6
+            if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
+                return 1
+            fi
+            model="${model//./-}"
+            echo "${_claude_bin}${_BARE_OPT} --print --model ${model} ${reasoning_fragment} ${claude_perm}" ;;
         claude-sonnet)
             local reasoning_level reasoning_policy reasoning_fragment
             reasoning_level="$(octopus_resolve_reasoning_level claude "$phase" "$role")" || return 1
             reasoning_policy="$(octopus_resolve_reasoning_policy claude "$phase" "$role")" || return 1
             reasoning_fragment="$(octopus_reasoning_cli_fragment claude "$reasoning_level" "$reasoning_policy")" || return 1
-            echo "${_claude_bin}${_BARE_OPT} --print --model sonnet ${reasoning_fragment} ${claude_perm}" ;;        # Claude Sonnet explicit
+            if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
+                return 1
+            fi
+            model="${model//./-}"
+            echo "${_claude_bin}${_BARE_OPT} --print --model ${model} ${reasoning_fragment} ${claude_perm}" ;;
         claude-opus)
-            # v9.42: Opus alias — resolves to 4.8 on Claude Code v2.1.154+,
-            # then 4.7/4.6 on older hosts or enterprise backends.
+            # Resolve a concrete model so current-host detection and user pins
+            # remain visible on the wire instead of depending on a moving alias.
             # Use `env VAR=val` prefix so the assignment survives read -ra word-splitting
             # in spawn.sh — a bare VAR=val prefix only works in shell eval context.
             local opus_effort="high"
@@ -259,19 +272,12 @@ get_agent_command() {
             elif [[ -n "${OCTOPUS_EFFORT_OVERRIDE:-}" ]]; then
                 opus_effort="$OCTOPUS_EFFORT_OVERRIDE"
             fi
-            # v9.51: Honor a Fable 5 pin in the dispatched model flag. The bare
-            # `opus` alias always resolves to the host's default Opus, so
-            # without this the pin changed cost labels but never the model.
-            # Security dispatches reroute to Opus 4.8 (lib/fable5.sh).
-            local opus_model_flag="opus"
-            if [[ "${OCTOPUS_OPUS_MODEL:-}" == "claude-fable-5" ]]; then
-                opus_model_flag="claude-fable-5"
-                if declare -f fable5_maybe_reroute >/dev/null 2>&1; then
-                    if [[ "$(fable5_maybe_reroute "claude-fable-5" "$role" "$agent_type" "$phase")" != "claude-fable-5" ]]; then
-                        opus_model_flag="claude-opus-4-8"
-                    fi
-                fi
+            local opus_model_flag
+            opus_model_flag="$(opus_default_model)"
+            if declare -f fable5_maybe_reroute >/dev/null 2>&1; then
+                opus_model_flag="$(fable5_maybe_reroute "$opus_model_flag" "$role" "$agent_type" "$phase")"
             fi
+            opus_model_flag="${opus_model_flag//./-}"
             if [[ "${SUPPORTS_EFFORT_COMMAND:-false}" == "true" || "${SUPPORTS_XHIGH_EFFORT:-false}" == "true" ]]; then
                 echo "env CLAUDE_CODE_EFFORT_LEVEL=${opus_effort} ${_claude_bin}${_BARE_OPT} --print --model ${opus_model_flag} ${claude_perm}"
             else
@@ -279,11 +285,13 @@ get_agent_command() {
             fi
             ;;
         claude-opus-fast)
-            if [[ "${SUPPORTS_OPUS_4_8:-false}" == "true" && "${OCTOPUS_OPUS_MODEL:-}" != "claude-opus-4.6" ]]; then
-                echo "${_claude_bin}${_BARE_OPT} --print --model claude-opus-4-8 --fast ${claude_perm}"
-            else
-                echo "${_claude_bin}${_BARE_OPT} --print --model claude-opus-4-6 --fast ${claude_perm}"
+            local opus_fast_model
+            opus_fast_model="$(opus_default_model)"
+            if [[ "$opus_fast_model" == "claude-fable-5" ]] && declare -f fable5_fallback_model >/dev/null 2>&1; then
+                opus_fast_model="$(fable5_fallback_model)"
             fi
+            opus_fast_model="${opus_fast_model//./-}"
+            echo "${_claude_bin}${_BARE_OPT} --print --model ${opus_fast_model} --fast ${claude_perm}"
             ;;
         claude-opus-legacy) echo "${_claude_bin}${_BARE_OPT} --print --model claude-opus-4-6 ${claude_perm}" ;; # v9.23: explicit 4.6 opt-in
         openrouter) echo "openrouter_execute" ;;                 # OpenRouter API (v4.8)
@@ -397,7 +405,7 @@ get_agent_command() {
             ;;
         claude-sdk|claude-sdk-agent|claude-sdk-research)  # v9.50.0: Claude Agent SDK seat
             # Routes to helpers/claude-sdk-exec.sh when CLAUDE_SDK_API_KEY is set —
-            # unlocks Opus 4.8 + 1M context independent of the host session. Model
+            # unlocks Opus 5 + 1M context independent of the host session. Model
             # wiring mirrors grok: env prefix so providers.json picks reach the shim.
             if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then return 1; fi
             if [[ -n "$model" && "$model" != "default" ]]; then
@@ -873,13 +881,13 @@ find_capable_fallback() {
     local -a candidates=()
     case "$provider" in
         codex)
-            candidates=(gpt-5.4-mini gpt-5.2-codex gpt-5.3-codex gpt-5.4 gpt-5.4-pro o3) ;;
+            candidates=(gpt-5.6-luna gpt-5.6-terra gpt-5.5 gpt-5.6-sol gpt-5.4-pro o3) ;;
         gemini)
             candidates=(gemini-3-flash-preview gemini-3.1-pro-preview) ;;
         agy)
             candidates=(default) ;;
         claude)
-            candidates=(claude-sonnet-4.6 claude-opus-4.6) ;;
+            candidates=(claude-haiku-4.5 claude-sonnet-5 claude-opus-4.8 claude-opus-5) ;;
         openrouter)
             candidates=(z-ai/glm-5 moonshotai/kimi-k2.5 deepseek/deepseek-r1-0528) ;;
         perplexity)

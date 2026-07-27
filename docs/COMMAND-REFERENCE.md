@@ -309,13 +309,13 @@ Configure which AI models are used across Claude Octopus workflows.
 
 | Mode | Codex | Gemini | Best for |
 |------|-------|--------|----------|
-| `budget` | gpt-5.4 | gemini-3-flash | High-volume, quick feedback |
-| `standard` | gpt-5.4 | gemini-3.1-pro-preview | Default — balanced cost/quality |
-| `premium` | gpt-5.4-pro | gemini-3.1-pro-preview | Critical decisions, maximum quality |
+| `budget` | GPT-5.6 Luna | Gemini Flash | High-volume, quick feedback |
+| `standard` | GPT-5.6 Sol | Gemini 3.1 Pro Preview | Default — frontier coding/quality |
+| `premium` | GPT-5.6 Sol | Gemini 3.1 Pro Preview | Critical decisions, maximum quality |
 
 **Per-phase routing:** Different models can be configured for Discover, Define, Develop, and Deliver phases. Use `show phases` to view the current routing table.
 
-**Role-based defaults (v9.29+):** `architect`, `strategist`, and `security-reviewer` use the current Claude Opus default (Opus 4.8 on Claude Code v2.1.154+, then 4.7/4.6 fallback); `code-reviewer` and `implementer` use GPT-5.4; `synthesizer` uses Claude Sonnet 4.6. See [ARCHITECTURE.md — Role → Model Mapping](../docs/ARCHITECTURE.md#role--model-mapping-v929) for rationale. Opt out with `OCTOPUS_LEGACY_ROLES=1`.
+**Role-based defaults:** `architect`, `strategist`, and `security-reviewer` use Opus 5 on Claude Code v2.1.219+ (then 4.8/4.7/4.6 fallback); `code-reviewer` and `implementer` use GPT-5.6 Sol; `synthesizer` uses Sonnet 5 on Claude Code v2.1.197+. See [the routing strategy](MODEL-ROUTING-STRATEGY.md). Opt out with `OCTOPUS_LEGACY_ROLES=1`.
 
 ---
 

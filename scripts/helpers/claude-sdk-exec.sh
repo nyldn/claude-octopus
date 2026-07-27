@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Claude Agent SDK stdin shim (v9.50.0). Routes the claude-sdk provider seat
-# to the Claude Agent SDK when CLAUDE_SDK_API_KEY is set, unlocking Opus 4.8
+# to the Claude Agent SDK when CLAUDE_SDK_API_KEY is set, unlocking Opus 5
 # and the 1M-token context window independent of the host Claude Code session.
 #
 # octo pipes prompts via stdin (spawn.sh contract). Resolution order:
@@ -11,8 +11,8 @@
 #
 # Env:
 #   CLAUDE_SDK_API_KEY            required — refuses to run without it
-#   OCTOPUS_CLAUDE_SDK_MODEL      default: claude-opus-4-8
-#   OCTOPUS_CLAUDE_SDK_MAX_TOKENS default: 8192
+#   OCTOPUS_CLAUDE_SDK_MODEL      default: claude-opus-5
+#   OCTOPUS_CLAUDE_SDK_MAX_TOKENS default: 32768
 set -euo pipefail
 
 if [[ -z "${CLAUDE_SDK_API_KEY:-}" ]]; then
@@ -29,8 +29,8 @@ if [[ -z "${prompt//[[:space:]]/}" ]]; then
     exit 64
 fi
 
-model="${OCTOPUS_CLAUDE_SDK_MODEL:-claude-opus-4-8}"
-max_tokens="${OCTOPUS_CLAUDE_SDK_MAX_TOKENS:-8192}"
+model="${OCTOPUS_CLAUDE_SDK_MODEL:-claude-opus-5}"
+max_tokens="${OCTOPUS_CLAUDE_SDK_MAX_TOKENS:-32768}"
 
 # Run one dispatch attempt against the given model. Prefers the Agent SDK CLI,
 # falls back to headless claude. Returns 69 when neither CLI exists.
@@ -56,7 +56,7 @@ _sdk_run() {
 
 # v9.51: Fable 5 refusal/empty retry. Fable 5's safety classifiers can return
 # a refusal (surfacing here as a non-zero exit or empty output) on prompts that
-# Opus 4.8 handles fine. Retry the identical prompt once on Opus 4.8 instead of
+# Opus 5 handles fine. Retry the identical prompt once on Opus 5 instead of
 # failing the seat. Opt out with OCTOPUS_FABLE5_NO_RETRY=1 or
 # OCTOPUS_FABLE5_MODE=off. Mirrors the agy-exec silent-empty replay pattern.
 if [[ "$model" == "claude-fable-5" \
@@ -73,8 +73,9 @@ if [[ "$model" == "claude-fable-5" \
         printf '%s\n' "$output"
         exit 0
     fi
-    echo "claude-sdk-exec: Fable 5 dispatch returned rc=${rc}, output_bytes=${#output} — retrying once on claude-opus-4-8 (OCTOPUS_FABLE5_NO_RETRY=1 to disable)" >&2
-    _sdk_run "claude-opus-4-8"
+    fallback_model="${OCTOPUS_FABLE5_FALLBACK_MODEL:-claude-opus-5}"
+    echo "claude-sdk-exec: Fable 5 dispatch returned rc=${rc}, output_bytes=${#output} — retrying once on ${fallback_model} (OCTOPUS_FABLE5_NO_RETRY=1 to disable)" >&2
+    _sdk_run "$fallback_model"
     exit $?
 fi
 

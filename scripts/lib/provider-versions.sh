@@ -2,7 +2,7 @@
 # Provider CLI version floors — minimum versions for stable orchestration.
 # Source this file to access floor constants and octo_version_ok().
 
-OCTO_CODEX_MIN_VERSION="${OCTO_CODEX_MIN_VERSION:-0.100.0}"
+OCTO_CODEX_MIN_VERSION="${OCTO_CODEX_MIN_VERSION:-0.144.0}"
 OCTO_GEMINI_MIN_VERSION="${OCTO_GEMINI_MIN_VERSION:-0.45.0}"
 OCTO_AGY_MIN_VERSION="${OCTO_AGY_MIN_VERSION:-1.0.6}"
 OCTO_QWEN_MIN_VERSION="${OCTO_QWEN_MIN_VERSION:-0.14.0}"

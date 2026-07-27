@@ -460,6 +460,8 @@ SUPPORTS_AGENT_SETTINGS_AGENT_FIELD=false # v9.42: Claude Code v2.1.157+ (claude
 SUPPORTS_SKILLS_AUTO_PLUGIN_LOAD=false  # v9.42: Claude Code v2.1.157+ (.claude/skills plugin autoload)
 SUPPORTS_ENTER_WORKTREE_SWITCH=false    # v9.42: Claude Code v2.1.157+ (EnterWorktree can switch Claude-managed worktrees)
 SUPPORTS_TOOL_DECISION_PARAMS_OTEL=false # v9.42: Claude Code v2.1.157+ (tool_decision tool_parameters with OTEL_LOG_TOOL_DETAILS=1)
+SUPPORTS_SONNET_5=false                  # Claude Code v2.1.197+ (claude-sonnet-5)
+SUPPORTS_OPUS_5=false                    # Claude Code v2.1.219+ (claude-opus-5 and default Opus alias)
 OCTOPUS_BACKEND="api"              # v8.16: Detected backend (api|bedrock|vertex|foundry)
 AGENT_TEAMS_ENABLED="${CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS:-0}"
 OCTOPUS_SECURITY_V870="${OCTOPUS_SECURITY_V870:-true}"
@@ -566,8 +568,8 @@ source "${SCRIPT_DIR}/async-tmux-features.sh"
 # Routes between fast/standard Opus based on task context
 #
 # IMPORTANT: Fast Opus is more expensive than standard:
-#   Opus 4.8 standard: $5/$25 per MTok (input/output)
-#   Opus 4.8 fast: $10/$50 per MTok (input/output)
+#   Opus 5 standard: $5/$25 per MTok (input/output)
+#   Opus 5 fast: $10/$50 per MTok (input/output)
 #   Legacy Opus 4.6 fast: $30/$150 per MTok (input/output)
 #
 # Fast mode trades cost for speed. Default is STANDARD (cost-efficient).

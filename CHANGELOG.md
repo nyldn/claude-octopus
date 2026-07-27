@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### Added
+
+- **Frontier model routing strategy and prompt policy** (`docs/MODEL-ROUTING-STRATEGY.md`, `docs/GPT-5.6-PROMPTING.md`, `skills/blocks/frontier-model-routing.md`): defines Opus 5 as the premium lead, GPT-5.6 Sol as the independent implementation/review peer, Sonnet 5 as the standard Claude seat, and Fable 5 as an explicit capability escalation rather than an automatic default.
+- **Cross-harness continuity contract** (`AI_AGENT_HANDOFF.md`, `AGENTS.md`, `CLAUDE.md`): gives Claude Code, Codex, Copilot, OpenCode, and other coding agents one committed resume point for active decisions, evidence, blockers, verification, and branch state while retaining Beads as the task system of record.
+
+### Changed
+
+- **Current-model defaults now prefer Opus 5, Sonnet 5, and GPT-5.6** when the installed Claude Code and Codex versions support them. Fresh provider configurations use GPT-5.6 Sol/Terra/Luna and Opus 5/Sonnet 5/Haiku 4.5; existing environment, session, and `providers.json` pins retain precedence.
+- **Fable 5 remains opt-in and falls back to Opus 5** for security routing or a refusal/empty response. `OCTOPUS_FABLE5_FALLBACK_MODEL` can select another fallback, and automatic Opus 5 `xhigh` phase routing is now opt-in through `OCTOPUS_OPUS5_AUTO_XHIGH=1`.
+- **Provider capability gates and cost reporting recognize the new roster**: Sonnet 5 requires Claude Code v2.1.197+, Opus 5 requires v2.1.219+, and GPT-5.6 routing requires Codex CLI v0.144.0+.
+
 ## [9.54.2] - 2026-07-27
 
 ### Fixed

@@ -44,7 +44,7 @@ cat
 STUB
 chmod +x "$TMP_DIR/claude-agent"
 out=$(printf 'test prompt' | PATH="$TMP_DIR:$PATH" CLAUDECODE=1 CLAUDE_SDK_API_KEY=sk-sdk-test bash "$SHIM")
-if [[ "$out" == *"--model claude-opus-4-8"* \
+if [[ "$out" == *"--model claude-opus-5"* \
    && "$out" == *"key:sk-sdk-test"* \
    && "$out" == *"nested:unset"* \
    && "$out" == *"test prompt"* ]]; then

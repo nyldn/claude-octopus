@@ -99,18 +99,26 @@ fi
 
 test_case "reroutes security role off Fable 5"
 out=$(OCTOPUS_OPUS_MODEL=claude-fable-5 bash -c "log(){ :; }; source '$PROJECT_ROOT/scripts/lib/fable5.sh'; fable5_maybe_reroute claude-fable-5 security-auditor claude-opus ink" 2>/dev/null)
-if [[ "$out" == "claude-opus-4.8" ]]; then
+if [[ "$out" == "claude-opus-5" ]]; then
     test_pass
 else
-    test_fail "expected claude-opus-4.8, got '$out'"
+    test_fail "expected claude-opus-5, got '$out'"
 fi
 
 test_case "reroutes squeeze phase off Fable 5"
 out=$(OCTOPUS_OPUS_MODEL=claude-fable-5 bash -c "log(){ :; }; source '$PROJECT_ROOT/scripts/lib/fable5.sh'; fable5_maybe_reroute claude-fable-5 '' claude-opus squeeze" 2>/dev/null)
+if [[ "$out" == "claude-opus-5" ]]; then
+    test_pass
+else
+    test_fail "expected claude-opus-5, got '$out'"
+fi
+
+test_case "explicit Fable fallback override wins"
+out=$(OCTOPUS_OPUS_MODEL=claude-fable-5 OCTOPUS_FABLE5_FALLBACK_MODEL=claude-opus-4.8 bash -c "log(){ :; }; source '$PROJECT_ROOT/scripts/lib/fable5.sh'; fable5_maybe_reroute claude-fable-5 security-auditor claude-opus ink" 2>/dev/null)
 if [[ "$out" == "claude-opus-4.8" ]]; then
     test_pass
 else
-    test_fail "expected claude-opus-4.8, got '$out'"
+    test_fail "expected explicit claude-opus-4.8 fallback, got '$out'"
 fi
 
 test_case "non-security dispatch keeps Fable 5"
@@ -146,10 +154,10 @@ out=$(cd "$TMP_DIR" && TMPDIR="$TMP_DIR" CLAUDE_CODE_SESSION="fable5-test-$$" \
     source '$PROJECT_ROOT/scripts/lib/fable5.sh'
     source '$PROJECT_ROOT/scripts/lib/model-resolver.sh'
     resolve_octopus_model claude claude-opus ink security-auditor" 2>/dev/null)
-if [[ "$out" == "claude-opus-4.8" ]]; then
+if [[ "$out" == "claude-opus-5" ]]; then
     test_pass
 else
-    test_fail "expected claude-opus-4.8 from resolver, got '$out'"
+    test_fail "expected claude-opus-5 from resolver, got '$out'"
 fi
 
 test_case "resolve_octopus_model keeps Fable 5 for non-security role"
@@ -168,15 +176,24 @@ fi
 # ── Dispatch wiring ────────────────────────────────────────────────────────
 
 test_case "dispatch honors Fable 5 pin in claude-opus model flag"
-if grep -q 'opus_model_flag="claude-fable-5"' "$PROJECT_ROOT/scripts/lib/dispatch.sh"; then
+out=$(OCTOPUS_OPUS_MODEL=claude-fable-5 SUPPORTS_SDK_MODEL_CAPS=false \
+    SUPPORTS_EFFORT_COMMAND=false SUPPORTS_XHIGH_EFFORT=false \
+    PLUGIN_DIR="$PROJECT_ROOT" bash -c "
+    log(){ :; }
+    export _BARE_OPT='' OCTOPUS_PLATFORM=Linux
+    source '$PROJECT_ROOT/scripts/lib/model-resolver.sh'
+    source '$PROJECT_ROOT/scripts/lib/agents.sh'
+    source '$PROJECT_ROOT/scripts/lib/dispatch.sh'
+    get_agent_command claude-opus tangle architect" 2>/dev/null)
+if [[ "$out" == *"--model claude-fable-5"* ]]; then
     test_pass
 else
-    test_fail "dispatch.sh claude-opus case does not honor the Fable 5 pin"
+    test_fail "dispatch did not honor Fable 5 pin: '$out'"
 fi
 
 # ── Shim refusal retry ─────────────────────────────────────────────────────
 
-test_case "shim retries empty Fable 5 output on claude-opus-4-8"
+test_case "shim retries empty Fable 5 output on claude-opus-5"
 STUB_DIR="$TMP_DIR/bin"
 mkdir -p "$STUB_DIR"
 CALL_LOG="$TMP_DIR/calls.log"
@@ -192,10 +209,10 @@ chmod 755 "$STUB_DIR/claude"
 out=$(printf 'test prompt' | env PATH="$STUB_DIR:/usr/bin:/bin" \
     CLAUDE_SDK_API_KEY=test-key OCTOPUS_CLAUDE_SDK_MODEL=claude-fable-5 \
     bash "$PROJECT_ROOT/scripts/helpers/claude-sdk-exec.sh" 2>/dev/null)
-if [[ "$out" == "opus fallback answer" ]] && grep -q -- "claude-opus-4-8" "$CALL_LOG"; then
+if [[ "$out" == "opus fallback answer" ]] && grep -q -- "claude-opus-5" "$CALL_LOG"; then
     test_pass
 else
-    test_fail "retry did not reach claude-opus-4-8: out='$out' calls='$(cat "$CALL_LOG" 2>/dev/null)'"
+    test_fail "retry did not reach claude-opus-5: out='$out' calls='$(cat "$CALL_LOG" 2>/dev/null)'"
 fi
 
 test_case "shim does not retry when Fable 5 output is non-empty"

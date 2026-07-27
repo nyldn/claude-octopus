@@ -281,9 +281,9 @@ display_workflow_cost_estimate() {
     echo -e "  ${RED}🔴 Codex${NC}  (~${num_codex_calls} requests): ${codex_status}"
     echo -e "  ${YELLOW}🟡 Gemini${NC} (~${num_gemini_calls} requests): ${gemini_status}"
     # Dynamic Claude model name based on workflow agents
-    local claude_model_label="Sonnet 4.6"
+    local claude_model_label="Sonnet 5"
     if [[ "${WORKFLOW_AGENTS:-}" == *"claude-opus"* ]]; then
-        claude_model_label="Opus 4.6"
+        claude_model_label="Opus 5"
     fi
     echo -e "  ${BLUE}🔵 Claude${NC} ($claude_model_label): ${DIM}Included in Claude Code subscription${NC}"
     if [[ "$perplexity_is_api" == "true" ]]; then
@@ -832,6 +832,9 @@ get_model_pricing() {
     local model="$1"
     case "$model" in
         # OpenAI GPT-5.x models (v9.44: updated to Jun 2026 pricing)
+        gpt-5.6|gpt-5.6-sol)    echo "5.00:30.00" ;;
+        gpt-5.6-terra)          echo "2.50:15.00" ;;
+        gpt-5.6-luna)           echo "1.00:6.00" ;;
         gpt-5.5)                echo "5.00:30.00" ;;   # v9.44: GPT-5.5 (OAuth + API) — new premium default
         gpt-5.5-pro)            echo "30.00:180.00" ;; # v9.44: GPT-5.5 Pro (API-key only)
         gpt-5.4)                echo "2.50:15.00" ;;   # v8.39.0: GPT-5.4 (OAuth + API)
@@ -856,9 +859,13 @@ get_model_pricing() {
         gemini-3.1-flash-image)     echo "0.25:1.00" ;;   # oco-803: Nano Banana 2 fast image tier (budget)
         gemini-3-pro-image-preview) echo "5.00:20.00" ;;  # deprecated 2026-06-25, kept for back-compat
         # Claude models
+        claude-haiku-4.5)       echo "1.00:5.00" ;;
+        claude-sonnet-5)        echo "3.00:15.00" ;;
         claude-sonnet-4.5)      echo "3.00:15.00" ;;
         claude-sonnet-4.6)      echo "3.00:15.00" ;;   # v8.17: Sonnet 4.6 (same pricing as 4.5)
         claude-fable-5)         echo "10.00:50.00" ;;  # v9.44: Fable 5 (Mythos-class) — opt-in, 1M ctx, 128K output
+        claude-opus-5)          echo "5.00:25.00" ;;
+        claude-opus-5-fast)     echo "10.00:50.00" ;;
         claude-opus-4.8)        echo "5.00:25.00" ;;   # v9.42: Opus 4.8 — same standard price as 4.7
         claude-opus-4.8-fast)   echo "10.00:50.00" ;;  # v9.42: Fast mode - 2x cost for ~2.5x output speed
         claude-opus-4.7)        echo "5.00:25.00" ;;   # legacy current-minus-one

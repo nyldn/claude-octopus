@@ -184,7 +184,7 @@ code-reviewer        —                          codex-review:gpt-5.4          
 security-reviewer    —                          claude-opus:claude-opus-4.7   (NEW, split from reviewer)
 implementer          codex:gpt-5.4              codex:gpt-5.4                 (unchanged)
 implementer-heavy    —                          claude-opus:claude-opus-4.7   (NEW, opt-in via role name)
-synthesizer          claude:claude-sonnet-4.6   claude:claude-sonnet-4.6      (unchanged)
+synthesizer          claude:claude-sonnet-5     claude:claude-sonnet-5        (current default)
 strategist           claude-opus:claude-opus-4.6 claude-opus:claude-opus-4.7  (already on 4.7 via resolver)
 researcher           gemini:gemini-3.1-pro      gemini:gemini-3.1-pro         (unchanged)
 

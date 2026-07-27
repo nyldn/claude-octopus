@@ -232,53 +232,53 @@ Providers:
 ## Cost Awareness
 
 Always be mindful that external CLIs cost money:
-- 🔴 Codex: ~$0.01-0.30 per query depending on model (GPT-5.5 $5/$30 MTok — premium default as of v9.44, GPT-5.4 $2.50/$15, GPT-5.3-Codex $1.75/$14, Mini $0.25/$2.00 MTok)
+- 🔴 Codex: ~$0.01-0.30 per query depending on model (GPT-5.6 Sol $5/$30 MTok — frontier default, Terra $2.50/$15, Luna $1/$6)
 - 🟡 Gemini: ~$0.01-0.03 per query (Gemini 3.1 Pro Preview $2.50/$10 MTok, 3 Flash Preview $0.25/$1)
 - 🧭 Antigravity CLI (`agy`): Included with the user's Antigravity access/subscription; backend cost depends on selected `OCTOPUS_AGY_MODEL`. Because Antigravity's model list is service-owned, explicit pins should use labels returned by `agy models` (for example `Gemini 3.5 Flash (Low)`) or `default`/`agy/default` to use the CLI default.
 - `OCTOPUS_GEMINI_VIA_AGY=1` serves `gemini*` seats through the Antigravity CLI (`agy-exec.sh`) — the migration path now that gemini-cli free-tier OAuth is sunset (`IneligibleTierError`). Model pins then follow `OCTOPUS_AGY_MODEL`.
 - 🟣 Perplexity: ~$0.01-0.05 per query (Sonar Pro $3/$15 MTok, Sonar $1/$1 MTok)
-- 🔵 Claude (Sonnet 4.6): Included with Claude Code subscription
-- 🔵 Claude (Fable 5, Mythos-class, opt-in via `OCTOPUS_OPUS_MODEL=claude-fable-5`): **$10/$50 per MTok** — 2x Opus 4.8 cost. 1M context, 128K output. Never auto-selected. Note: Anthropic retains prompts/outputs up to 30 days for safety classifiers. When pinned, apply the dispatch profile in `skills/blocks/fable5-prompting.md` (prompt anti-patterns, effort discipline, refusal fallback, judgment routing).
-- 🔵 Claude (Opus 4.8, default when `SUPPORTS_OPUS_4_8=true`): $5/$25 per MTok input/output. 1M context native. Use `high` effort by default; use `xhigh` for hard implementation, deep review, and long-running asynchronous workflows.
-- 🔵 Claude (Opus 4.8 Fast): $10/$50 per MTok — 2x standard cost for roughly 2.5x output speed. Use only when latency matters.
+- 🔵 Claude (Sonnet 5): Standard Claude seat, $3/$15 per MTok; included where the user's Claude Code subscription covers it
+- 🔵 Claude (Fable 5, Mythos-class, opt-in via `OCTOPUS_OPUS_MODEL=claude-fable-5`): **$10/$50 per MTok** — 2x Opus 5 cost. 1M context, 128K output. Never auto-selected. Note: Anthropic retains prompts/outputs up to 30 days for safety classifiers. When pinned, apply the dispatch profile in `skills/blocks/fable5-prompting.md` (prompt anti-patterns, effort discipline, refusal fallback, judgment routing).
+- 🔵 Claude (Opus 5, default when `SUPPORTS_OPUS_5=true`): $5/$25 per MTok input/output. 1M context, 128K output. Use `high` effort by default; raise it only for a bounded capability-sensitive step.
+- 🔵 Claude (Opus 5 Fast): $10/$50 per MTok — 2x standard cost. Use only when latency matters.
 - 🔵 Claude (Opus 4.7, legacy/current-minus-one): $5/$25 per MTok input/output. Used automatically on Claude Code versions before 2.1.154 when supported.
 - 🔵 Claude (Opus 4.6, legacy): $5/$25 per MTok — still selectable via `OCTOPUS_OPUS_MODEL=claude-opus-4.6` or `claude-opus-legacy` agent type
 - 🔵 Claude (Opus 4.6 Fast, legacy): **$30/$150 per MTok** (6x standard) — lower latency, extra-usage billing for pinned 4.6 sessions.
 - 🟤 OpenCode: Variable cost — free for native models, uses backend provider pricing when routing to OpenAI/Google
 
-Note: Some OpenAI models (o-series reasoning, gpt-4.1, gpt-5.4-pro, gpt-5.5-pro) require API keys and are NOT available via ChatGPT subscription/OAuth auth.
+Note: API availability and subscription/OAuth availability differ by model and account. GPT-5.6 routing requires Codex CLI v0.144.0+.
 
 For simple tasks that don't need multi-AI perspectives, suggest using Claude directly without orchestration.
 
-### Opus 4.8 Effort Levels (Claude Code v2.1.154+)
+### Opus 5 Effort Levels (Claude Code v2.1.219+)
 
-Opus 4.8 defaults to `high` effort across Claude Code and the API. Claude Code still supports `xhigh` between `high` and `max`; the plugin reserves it for work that benefits from deeper reasoning:
+Opus 5 defaults to `high` effort. The plugin keeps automatic phase routing at `high`; use `OCTOPUS_EFFORT_OVERRIDE` for a bounded step, or `OCTOPUS_OPUS5_AUTO_XHIGH=1` to restore the legacy automatic xhigh behavior:
 
 - **probe / discover** — `high`
-- **grasp / define** — `high`, or `xhigh` for explicitly complex planning
-- **tangle / develop** — `xhigh` for complex implementation, `high` otherwise
-- **ink / deliver** — `xhigh` for security/architecture/deep review, `high` otherwise
+- **grasp / define** — `high`
+- **tangle / develop** — `high`
+- **ink / deliver** — `high`
 
 `xhigh` falls back to `high` on older models where Claude Code does not expose it. Override per-session with `OCTOPUS_EFFORT_OVERRIDE=low|medium|high|xhigh|max`.
 
 ### Fable 5 Effort and Refusal Handling (opt-in pin only)
 
-The phase table above is Opus 4.8 guidance and does not carry over to a `claude-fable-5` pin. On Fable 5, run `high` everywhere: effort applies per tool call, so `xhigh` does not extend runs — it makes each step overthink and widen scope, at 2x the cost. Raise effort only for a single capability-sensitive step.
+The phase table above is Opus 5 guidance and does not carry over to a `claude-fable-5` pin. On Fable 5, run `high` everywhere: effort applies per tool call, so `xhigh` does not extend runs — it makes each step overthink and widen scope, at 2x the cost. Raise effort only for a single capability-sensitive step.
 
 When a `claude-fable-5` pin is detected (`OCTOPUS_OPUS_MODEL` or `OCTOPUS_CLAUDE_SDK_MODEL`), orchestrate.sh auto-enables three guards via `scripts/lib/fable5.sh` and prints a one-line banner (`OCTOPUS_FABLE5_MODE=off` disables; `=on` forces):
 
-- **Security reroute** — security-audit dispatches (security-auditor role, squeeze workflow) never run on Fable 5; the model resolver and dispatch swap in `claude-opus-4.8`. Its safety classifiers can refuse offensive-security phrasing even in authorized audits.
+- **Security reroute** — security-audit dispatches (security-auditor role, squeeze workflow) never run on Fable 5; the model resolver and dispatch swap in `claude-opus-5`. Its safety classifiers can refuse offensive-security phrasing even in authorized audits.
 - **Effort clamp** — `xhigh`/`max` clamp to `high` for opus-seat Fable dispatches, including explicit `OCTOPUS_EFFORT_OVERRIDE` values.
-- **Refusal retry** — the claude-sdk shim retries a refused/empty Fable 5 dispatch once on `claude-opus-4-8` (`OCTOPUS_FABLE5_NO_RETRY=1` to opt out) instead of rewording the prompt toward the classifier.
+- **Refusal retry** — the claude-sdk shim retries a refused/empty Fable 5 dispatch once on `claude-opus-5` (`OCTOPUS_FABLE5_NO_RETRY=1` to opt out, `OCTOPUS_FABLE5_FALLBACK_MODEL` to pin another fallback) instead of rewording the prompt toward the classifier.
 
 **Prompt hygiene (not machine-enforced):** never ask Fable 5 to reveal or transcribe its reasoning (triggers the `reasoning_extraction` refusal), avoid token countdowns, and drop "CRITICAL"/"MUST" emphasis unless strict compliance is required. Full profile: `skills/blocks/fable5-prompting.md`.
 
 ### Fast Opus Mode
 
-Fast mode is a latency control, not a reasoning-effort control. On Opus 4.8 it costs $10/$50 per MTok (2x standard) and should be used only when a human is actively waiting. Legacy Opus 4.6 fast remains much more expensive at $30/$150 per MTok.
+Fast mode is a latency control, not a reasoning-effort control. On Opus 5 it costs $10/$50 per MTok (2x standard) and should be used only when a human is actively waiting. Legacy Opus 4.6 fast remains much more expensive at $30/$150 per MTok.
 
 When `SUPPORTS_FAST_OPUS=true` is detected, orchestrate.sh routes conservatively:
-- **Default: Opus 4.8 standard** for all multi-phase workflows (embrace, discover, develop, etc.)
+- **Default: Opus 5 standard** for all multi-phase workflows (embrace, discover, develop, etc.)
 - **Fast mode: only** for interactive single-shot Opus queries where the user is actively waiting and latency matters
 - **Never fast in autonomous/background mode** (no human waiting = no latency benefit)
 - **User override**: Set `OCTOPUS_OPUS_MODE=fast` to force fast mode when supported
@@ -350,6 +350,22 @@ After changing commands, skills, agents, or `plugin.json`: run `make sync`. Befo
 ### Memory ruling (single source of truth)
 
 beads (`bd`) is the system of record. The Session Completion push mandate in this file is the "explicit authority" that bd's conservative-profile guidance asks for; the two do not conflict in this repo. Known failure mode: pending Dolt schema migrations block ALL bd writes with "refusing to auto-apply ... migrations". Do NOT run the migration (single-designated-migrator rule); instead record the work in your session handoff, note the blockage explicitly, and flag it to the maintainer. Do not silently drop tracking.
+
+## Cross-Harness Continuity
+
+`bd` is the task system of record. `AI_AGENT_HANDOFF.md` is the committed,
+harness-neutral context packet for Claude Code, Codex, Copilot, OpenCode, and
+other coding agents. It records the active branch, current decisions, evidence,
+known blockers, and exact next action; it does not replace issue tracking.
+
+At session start, read `RTK.md`, this file, `AI_AGENT_HANDOFF.md`, `git status`,
+and the relevant `bd` issue before editing. For model-routing work, also read
+`docs/MODEL-ROUTING-STRATEGY.md`. At session end, update the handoff with
+verified test results, commit/push state, and remaining work.
+
+Harness-local files such as `.octo-continue.md` may be generated or stale. Do
+not treat them as the repository source of truth and do not overwrite an
+untracked copy you did not create.
 
 ---
 

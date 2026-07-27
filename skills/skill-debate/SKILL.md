@@ -32,7 +32,7 @@ description: "Structured multi-provider AI debates between Claude and available 
 Participants:
 🔴 Codex CLI - Technical implementation perspective
 🟡 Gemini CLI - Ecosystem and strategic perspective
-🟠 Sonnet 4.6 - Pragmatic implementer perspective if host subagents are available
+🟠 Sonnet 5 - Pragmatic implementer perspective if host subagents are available
 🐙 current host model - Moderator and synthesis
 🟢 Copilot CLI - GitHub-native perspective (if available)
 🟤 Qwen CLI - Alternative model perspective (if available)
@@ -267,7 +267,7 @@ Provider Availability:
 🟡 Gemini CLI: [Available ✓ / Not installed ✗]
 🧭 Antigravity CLI: [Available ✓ / Not installed ✗]
 🤖 Grok CLI (xAI): [Available ✓ / Not installed ✗]
-🟠 Sonnet 4.6: available only when this Codex session exposes a compatible host subagent tool
+🟠 Sonnet 5: available only when this Codex session exposes a compatible host subagent tool
 🐙 current host model: Available ✓ (Moderator and participant)
 ```
 

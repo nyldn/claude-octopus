@@ -122,9 +122,9 @@ doctor_check_providers() {
         local codex_ver codex_path
         codex_ver=$(codex --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")
         codex_path=$(command -v codex)
-        if ! octo_version_ok "${codex_ver}" "${OCTO_CODEX_MIN_VERSION:-0.100.0}"; then
+        if ! octo_version_ok "${codex_ver}" "${OCTO_CODEX_MIN_VERSION:-0.144.0}"; then
             doctor_add "codex-cli" "providers" "warn" \
-                "Codex CLI v${codex_ver} (outdated, min: v${OCTO_CODEX_MIN_VERSION:-0.100.0})" \
+                "Codex CLI v${codex_ver} (outdated, min: v${OCTO_CODEX_MIN_VERSION:-0.144.0}; GPT-5.6 requires v0.144.0+)" \
                 "${codex_path} — run orchestrate.sh update-clis or: npm install -g @openai/codex"
         else
             doctor_add "codex-cli" "providers" "pass" \
@@ -1333,6 +1333,18 @@ doctor_check_skills() {
         doctor_add "opus-4-8" "skills" "pass" \
             "CC v2.1.154 Opus 4.8 available; claude-opus routes to the current premium model" \
             "Use OCTOPUS_OPUS_MODEL=claude-opus-4.6 only when you need legacy behavior"
+    fi
+
+    if [[ "${SUPPORTS_SONNET_5:-false}" == "true" ]]; then
+        doctor_add "sonnet-5" "skills" "pass" \
+            "CC v2.1.197 Sonnet 5 available for standard Claude seats" \
+            "Existing providers.json pins remain unchanged; new configs default to claude-sonnet-5"
+    fi
+
+    if [[ "${SUPPORTS_OPUS_5:-false}" == "true" ]]; then
+        doctor_add "opus-5" "skills" "pass" \
+            "CC v2.1.219 Opus 5 available; claude-opus routes to the current premium lead model" \
+            "Pin OCTOPUS_OPUS_MODEL only when you need Fable 5 or a legacy fallback"
     fi
 
     if [[ "${SUPPORTS_DYNAMIC_WORKFLOWS:-false}" == "true" ]]; then

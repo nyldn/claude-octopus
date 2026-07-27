@@ -51,8 +51,8 @@ Provider Cost Breakdown
 ============================================================
 Provider           Tokens In   Tokens Out   Queries   Est Cost
 ------------------------------------------------------------
-Claude Opus 4.6      45,200       12,800         3     $0.55
-Claude Sonnet 4.6   128,000       34,500        12     $0.24
+Claude Opus 5        45,200       12,800         3     $0.55
+Claude Sonnet 5     128,000       34,500        12     $0.90
 Codex CLI                 -            -         8     $0.64
 Gemini CLI                -            -         4     $0.08
 Perplexity                -            -         2     $0.06
@@ -123,18 +123,18 @@ These are the current per-provider cost estimates used for calculations:
 
 | Provider | Input | Output | Per-Query Estimate |
 |----------|-------|--------|--------------------|
-| Claude Opus 4.6 | $5/MTok | $25/MTok | varies by tokens |
-| Claude Sonnet 4.6 | $0.80/MTok | $4/MTok | varies by tokens |
+| Claude Opus 5 | $5/MTok | $25/MTok | varies by tokens |
+| Claude Sonnet 5 | $3/MTok | $15/MTok | varies by tokens |
+| Codex GPT-5.6 Sol | $5/MTok | $30/MTok | varies by tokens or subscription |
 | Codex CLI | - | - | ~$0.01-0.15/query |
 | Gemini CLI | - | - | ~$0.01-0.03/query |
 | Antigravity CLI (`agy`) | - | - | Included with user's Antigravity access/subscription |
 | Perplexity | - | - | ~$0.01-0.05/query |
 
 **Notes:**
-- Claude Sonnet 4.6 usage is included with Claude Code subscription (no extra cost for most users)
-- Claude Opus 4.6 usage is billed at the rates above when using `claude-opus` agent type
+- Claude Sonnet 5 and Opus 5 may be included with the user's Claude Code plan; API-key seats use the rates above
 - Codex, Gemini, Perplexity, and Antigravity usage are charged to the user's own provider credentials, subscriptions, or local auth
-- Fast Opus 4.6 mode ($30/$150 MTok) is 6x standard pricing — flagged separately if detected
+- Fast Opus 5 mode ($10/$50 MTok) is 2x standard pricing; legacy Opus 4.6 fast remains $30/$150
 
 ## Examples
 

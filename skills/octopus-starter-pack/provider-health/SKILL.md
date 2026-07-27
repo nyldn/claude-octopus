@@ -14,7 +14,7 @@ The user asks "what providers do I have?", a workflow banner showed `(unavailabl
 ## Steps
 
 1. **Detect.** Run `${CLAUDE_PLUGIN_ROOT}/scripts/helpers/check-providers.sh` and `${CLAUDE_PLUGIN_ROOT}/scripts/helpers/check-versions.sh`.
-2. **Summarize per provider.** For each seat report: available or not, auth method (env key, oauth session, subscription), and the model it would resolve to today. Include the claude-sdk seat when `CLAUDE_SDK_API_KEY` is set (Agent SDK, Opus 4.8, 1M context).
+2. **Summarize per provider.** For each seat report: available or not, auth method (env key, oauth session, subscription), and the model it would resolve to today. Include the claude-sdk seat when `CLAUDE_SDK_API_KEY` is set (Agent SDK, Opus 5 by default, 1M context). Flag Claude Code older than v2.1.219 for Opus 5 and Codex CLI older than v0.144.0 for GPT-5.6.
 3. **Flag problems, ranked.** Expired auth first (breaks dispatch), then version drift (behavior skew), then missing optional providers (reduced diversity). One line each with the exact fix command (`grok login`, `opencode auth login`, key export).
 4. **State the cost posture.** Split the roster into included (Claude, agy, copilot, ollama, cursor-agent) versus billed (codex, perplexity, grok, openrouter, atlascloud, claude-sdk) so the user can predict what a multi-provider workflow costs before running it.
 

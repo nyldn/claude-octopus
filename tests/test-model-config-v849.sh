@@ -310,7 +310,7 @@ else
 fi
 
 # Verify catalog covers key models
-for model in gpt-5.4 gpt-5.4 gemini-3.1-pro-preview claude-sonnet-4.6 sonar-pro o3; do
+for model in gpt-5.6-sol gpt-5.6-terra gpt-5.6-luna gemini-3.1-pro-preview claude-sonnet-5 claude-opus-5 sonar-pro o3; do
     if grep -A 60 'get_model_catalog()' "$_ORCH_ALL_TMP" | grep -q "$model"; then
         pass "Catalog includes $model"
     else

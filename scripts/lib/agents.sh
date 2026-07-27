@@ -31,7 +31,7 @@ record_result_hash() {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# EFFORT LEVEL MAPPING (v8.32.0; refreshed for Opus 4.8 in v9.42.0)
+# EFFORT LEVEL MAPPING (v8.32.0; refreshed for Opus 5)
 # Maps phase + complexity to Claude SDK effort levels.
 # Gated by SUPPORTS_SDK_MODEL_CAPS (Claude Code v2.1.49+)
 # Override: OCTOPUS_EFFORT_OVERRIDE=low|medium|high|xhigh|max
@@ -67,10 +67,12 @@ get_effort_level() {
         esac
     fi
 
-    # v9.42: Opus 4.8 defaults to high. Use xhigh only for difficult
-    # implementation, deep review, and long-running asynchronous workflows.
+    # Opus 5 defaults to high. Automatic xhigh remains available for legacy
+    # Opus hosts and can be re-enabled on Opus 5 with
+    # OCTOPUS_OPUS5_AUTO_XHIGH=1. Explicit OCTOPUS_EFFORT_OVERRIDE always wins.
     local _deep="high"
-    if [[ "${SUPPORTS_XHIGH_EFFORT:-false}" == "true" ]]; then
+    if [[ "${SUPPORTS_XHIGH_EFFORT:-false}" == "true" \
+          && ( "${SUPPORTS_OPUS_5:-false}" != "true" || "${OCTOPUS_OPUS5_AUTO_XHIGH:-0}" == "1" ) ]]; then
         _deep="xhigh"
     fi
 
@@ -78,7 +80,7 @@ get_effort_level() {
     local effort=""
     case "$phase" in
         probe|discover)
-            # Research: Opus 4.8 high is the balanced default.
+            # Research: Opus high is the balanced default.
             effort="high"
             ;;
         grasp|define)

@@ -55,7 +55,7 @@ No user action needed — mode detection happens automatically from the git diff
 
 ## Model Selection Caveat: Fable 5
 
-Never dispatch security-audit passes to Claude Fable 5, even when the session has `OCTOPUS_OPUS_MODEL=claude-fable-5` pinned. Fable 5's safety classifiers target offensive cybersecurity content and can refuse adversarial red-team phrasing in authorized audits. Route these passes to `claude-opus-4.8`, keep prompts defensively framed (find and report vulnerabilities; do not request working exploits), and on any refusal retry on Opus 4.8 rather than rewording toward the classifier. Details: `skills/blocks/fable5-prompting.md`.
+Never dispatch security-audit passes to Claude Fable 5, even when the session has `OCTOPUS_OPUS_MODEL=claude-fable-5` pinned. Fable 5's safety classifiers target offensive cybersecurity content and can refuse adversarial red-team phrasing in authorized audits. Route these passes to `claude-opus-5`, keep prompts defensively framed (find and report vulnerabilities; do not request working exploits), and on any refusal retry on Opus 5 rather than rewording toward the classifier. Details: `skills/blocks/fable5-prompting.md`.
 
 ## Capabilities
 

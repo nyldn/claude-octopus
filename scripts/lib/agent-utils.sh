@@ -42,12 +42,14 @@ _BARE_OPT="${_BARE_OPT:-}"
 # Role-to-agent mapping (function-based for bash 3.x compatibility)
 # Returns agent:model format for a given role
 #
-# v9.29: Role defaults refreshed based on April 2026 benchmark + forum consensus.
-#   - architect/strategist/security-reviewer → claude-opus (SWE-bench Pro 64.3, LMArena #1, MCP-Atlas +9.2)
-#   - code-reviewer/implementer              → gpt-5.5    (Terminal-Bench 75.1, edge-case review)
+# Current role defaults keep one capable owner per job and add a second model
+# only when it provides a distinct implementation/review perspective.
+#   - architect/strategist/security-reviewer → current Opus (Opus 5 on CC 2.1.219+)
+#   - code-reviewer/implementer              → current Codex (GPT-5.6 Sol)
+#   - synthesizer                            → current Sonnet (Sonnet 5 on CC 2.1.197+)
 # Opt-out:   OCTOPUS_LEGACY_ROLES=1 restores the v9.28 mapping.
 # Fallback:  consumers (see lib/agents.sh get_fallback_agent) silently downshift when the
-#            preferred CLI is unavailable (e.g. no Anthropic auth → architect → gpt-5.5).
+#            preferred CLI is unavailable (e.g. no Anthropic auth → architect → current Codex).
 get_role_mapping() {
     local role="$1"
 
@@ -66,15 +68,15 @@ get_role_mapping() {
     fi
 
     case "$role" in
-        architect)         echo "claude-opus:$(opus_default_model 2>/dev/null || echo claude-opus-4.7)" ;;  # Planning, UI/UX, architecture
+        architect)         echo "claude-opus:$(opus_default_model 2>/dev/null || echo claude-opus-5)" ;;  # Planning, UI/UX, architecture
         researcher)        echo "agy:Gemini 3.1 Pro (High)" ;;                                             # Deep investigation via Antigravity (Google seat)
-        reviewer|code-reviewer) echo "codex-review:gpt-5.5" ;;                                              # Code review, edge cases; `reviewer` = alias
-        security-reviewer) echo "claude-opus:$(opus_default_model 2>/dev/null || echo claude-opus-4.7)" ;;  # Adversarial reasoning
-        implementer)       echo "codex:gpt-5.5" ;;                                                          # Default code generation; terminal-heavy
-        implementer-heavy) echo "claude-opus:$(opus_default_model 2>/dev/null || echo claude-opus-4.7)" ;;  # Opt-in: greenfield/refactor/UI-heavy
-        synthesizer)       echo "claude:claude-sonnet-4.6" ;;                                               # Result aggregation
-        strategist)        echo "claude-opus:$(opus_default_model 2>/dev/null || echo claude-opus-4.7)" ;;  # Premium synthesis
-        *)                 echo "codex:gpt-5.5" ;;                                                          # Safe default
+        reviewer|code-reviewer) echo "codex-review:$(codex_default_model 2>/dev/null || echo gpt-5.6-sol)" ;; # Independent review; `reviewer` = alias
+        security-reviewer) echo "claude-opus:$(opus_default_model 2>/dev/null || echo claude-opus-5)" ;;     # Adversarial reasoning
+        implementer)       echo "codex:$(codex_default_model 2>/dev/null || echo gpt-5.6-sol)" ;;             # Default code generation; terminal-heavy
+        implementer-heavy) echo "claude-opus:$(opus_default_model 2>/dev/null || echo claude-opus-5)" ;;     # Opt-in: greenfield/refactor/UI-heavy
+        synthesizer)       echo "claude:$(sonnet_default_model 2>/dev/null || echo claude-sonnet-5)" ;;       # Result aggregation
+        strategist)        echo "claude-opus:$(opus_default_model 2>/dev/null || echo claude-opus-5)" ;;     # Premium synthesis
+        *)                 echo "codex:$(codex_default_model 2>/dev/null || echo gpt-5.6-sol)" ;;             # Safe default
     esac
 }
 

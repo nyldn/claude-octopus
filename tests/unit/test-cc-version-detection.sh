@@ -94,6 +94,15 @@ for flag in SUPPORTS_OPUS_4_8 SUPPORTS_DYNAMIC_WORKFLOWS \
     fi
 done
 
+# v2.1.197-219 model flags
+for flag in SUPPORTS_SONNET_5 SUPPORTS_OPUS_5; do
+    if grep -c "${flag}=false" "$ORCH" >/dev/null 2>&1; then
+        pass "Declaration: $flag"
+    else
+        fail "Declaration: $flag" "missing ${flag}=false"
+    fi
+done
+
 # ╔══════════════════════════════════════════════════════════════════════╗
 # ║  3. Detection blocks                                                ║
 # ╚══════════════════════════════════════════════════════════════════════╝
@@ -209,6 +218,22 @@ for flag in SUPPORTS_AGENT_SETTINGS_AGENT_FIELD SUPPORTS_SKILLS_AUTO_PLUGIN_LOAD
     fi
 done
 
+# --- v2.1.197 Sonnet 5 block ---
+v21197_block=$(grep -A6 'version_compare.*2\.1\.197' "$PROJECT_ROOT/scripts/lib/providers.sh" | head -6)
+if echo "$v21197_block" | grep -q 'SUPPORTS_SONNET_5=true'; then
+    pass "v2.1.197 block sets: SUPPORTS_SONNET_5"
+else
+    fail "v2.1.197 block sets: SUPPORTS_SONNET_5" "not found in v2.1.197 detection block"
+fi
+
+# --- v2.1.219 Opus 5 block ---
+v21219_block=$(grep -A6 'version_compare.*2\.1\.219' "$PROJECT_ROOT/scripts/lib/providers.sh" | head -6)
+if echo "$v21219_block" | grep -q 'SUPPORTS_OPUS_5=true'; then
+    pass "v2.1.219 block sets: SUPPORTS_OPUS_5"
+else
+    fail "v2.1.219 block sets: SUPPORTS_OPUS_5" "not found in v2.1.219 detection block"
+fi
+
 # ╔══════════════════════════════════════════════════════════════════════╗
 # ║  4. Logging lines                                                   ║
 # ╚══════════════════════════════════════════════════════════════════════╝
@@ -249,6 +274,14 @@ done
 for label in "Opus 4.8" "Dynamic Workflows" "Lean Prompt Default" \
              "Agent Settings Agent Field" "Skills Auto Plugin Load" \
              "EnterWorktree Switch" "Tool Decision Params OTel"; do
+    if grep -c "$label" "$ORCH" >/dev/null 2>&1; then
+        pass "Logged: $label"
+    else
+        fail "Logged: $label" "not found in detection logging"
+    fi
+done
+
+for label in "Sonnet 5" "Opus 5"; do
     if grep -c "$label" "$ORCH" >/dev/null 2>&1; then
         pass "Logged: $label"
     else

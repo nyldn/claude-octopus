@@ -129,7 +129,7 @@ AskUserQuestion({
     multiSelect: false,
     options: [
       // Always show:
-      {label: "🔵 Claude", description: "Current: claude-sonnet-4.6 / claude-opus-4.7 (legacy 4.6 available) — built-in, no config needed"},
+      {label: "🔵 Claude", description: "Current: claude-sonnet-5 / claude-opus-5 (legacy fallbacks available) — built-in, no config needed"},
       // Only if codex installed:
       {label: "🔴 Codex (OpenAI)", description: "Current: <current_model> — handles implementation, reasoning"},
       // Only if gemini installed:
@@ -296,7 +296,7 @@ AskUserQuestion({
     multiSelect: true,
     options: [
       // Only show installed/configured providers
-      {label: "🔵 Claude (Sonnet 4.6 / Opus 4.7)", description: "Moderator — instruction-following, synthesis"},
+      {label: "🔵 Claude (Sonnet 5 / Opus 5)", description: "Moderator — instruction-following, synthesis"},
       {label: "🔴 Codex (GPT-5.4)", description: "Technical depth — architecture, implementation"},
       {label: "🟡 Gemini", description: "Ecosystem perspective — alternatives, trends"},
       {label: "🧭 Antigravity (agy)", description: "Alternate model perspective via Antigravity CLI"},

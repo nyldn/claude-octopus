@@ -51,6 +51,22 @@ Mirror of the "Repo Orientation for Agents" section in `CLAUDE.md` (keep both in
 - **Secret-scan quoting**: write `"SOME_API_KEY=${VAR}"`, not `SOME_API_KEY="${VAR}"`.
 - **beads blocked?** If bd writes are blocked by pending schema migrations, do NOT migrate; record work in the session handoff and flag the blockage.
 
+## Cross-Harness Continuity
+
+`bd` is the task system of record. `AI_AGENT_HANDOFF.md` is the committed,
+harness-neutral context packet for Claude Code, Codex, Copilot, OpenCode, and
+other coding agents. It records the active branch, current decisions, evidence,
+known blockers, and exact next action; it does not replace issue tracking.
+
+At session start, read `RTK.md`, this file, `AI_AGENT_HANDOFF.md`, `git status`,
+and the relevant `bd` issue before editing. For model-routing work, also read
+`docs/MODEL-ROUTING-STRATEGY.md`. At session end, update the handoff with
+verified test results, commit/push state, and remaining work.
+
+Harness-local files such as `.octo-continue.md` may be generated or stale. Do
+not treat them as the repository source of truth and do not overwrite an
+untracked copy you did not create.
+
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:7510c1e2 -->
 ## Beads Issue Tracker
 

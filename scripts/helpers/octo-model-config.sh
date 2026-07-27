@@ -68,12 +68,12 @@ ensure_config() {
   "version": "3.0",
   "providers": {
     "codex": {
-      "default": "gpt-5.4",
-      "fallback": "gpt-5.4",
-      "spark": "gpt-5.4",
-      "mini": "gpt-5.4-mini",
-      "reasoning": "o3",
-      "large_context": "gpt-5.4"
+      "default": "gpt-5.6-sol",
+      "fallback": "gpt-5.6-terra",
+      "spark": "gpt-5.6-luna",
+      "mini": "gpt-5.6-luna",
+      "reasoning": "gpt-5.6-sol",
+      "large_context": "gpt-5.6-sol"
     },
     "gemini": {
       "default": "gemini-3.1-pro-preview",
@@ -87,8 +87,10 @@ ensure_config() {
       "flash": "Gemini 3.5 Flash (Low)"
     },
     "claude": {
-      "default": "claude-sonnet-4.6",
-      "opus": "claude-opus-4.8"
+      "default": "claude-sonnet-5",
+      "budget": "claude-haiku-4.5",
+      "opus": "claude-opus-5",
+      "fable": "claude-fable-5"
     },
     "perplexity": {
       "default": "sonar-pro",
@@ -117,9 +119,9 @@ ensure_config() {
     }
   },
   "tiers": {
-    "budget": { "codex": "mini", "gemini": "flash", "opencode": "fast" },
-    "standard": { "codex": "default", "gemini": "default", "opencode": "default" },
-    "premium": { "codex": "default", "gemini": "default", "opencode": "default" }
+    "budget": { "codex": "mini", "claude": "budget", "gemini": "flash", "opencode": "fast" },
+    "standard": { "codex": "default", "claude": "default", "gemini": "default", "opencode": "default" },
+    "premium": { "codex": "default", "claude": "opus", "gemini": "default", "opencode": "default" }
   },
   "overrides": {}
 }
@@ -593,6 +595,9 @@ cmd_models() {
 
     # Inline catalog (matches orchestrate.sh get_model_catalog)
     local -a models=(
+        "gpt-5.6-sol|1050|yes|yes|yes|codex|premium|active"
+        "gpt-5.6-terra|1050|yes|yes|yes|codex|standard|active"
+        "gpt-5.6-luna|1050|yes|yes|yes|codex|budget|active"
         "gpt-5.4|400|yes|yes|no|codex|standard|active"
         "gpt-5.4-pro|400|yes|yes|no|codex|premium|active"
         "gpt-5.3-codex|400|yes|yes|no|codex|standard|active"
@@ -606,7 +611,10 @@ cmd_models() {
         "gemini-3-pro-image|1000|yes|yes|no|gemini|premium|active"
         "gemini-3.1-flash-image|1000|yes|yes|no|gemini|budget|active"
         "gemini-3-pro-image-preview|1000|yes|yes|no|gemini|premium|deprecated"
+        "claude-haiku-4.5|200|yes|yes|yes|claude|budget|active"
+        "claude-sonnet-5|1000|yes|yes|yes|claude|standard|active"
         "claude-sonnet-4.6|200|yes|yes|no|claude|standard|active"
+        "claude-opus-5|1000|yes|yes|yes|claude|premium|active"
         "claude-opus-4.8|1000|yes|yes|yes|claude|premium|active"
         "claude-opus-4.7|1000|yes|yes|yes|claude|premium|legacy"
         "claude-opus-4.6|200|yes|yes|yes|claude|premium|legacy"

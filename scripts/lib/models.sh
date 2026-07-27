@@ -18,6 +18,9 @@ get_model_catalog() {
     local model="$1"
     case "$model" in
         # OpenAI GPT-5.x
+        gpt-5.6|gpt-5.6-sol)    echo "1050|yes|yes|yes|codex|premium|active" ;;
+        gpt-5.6-terra)          echo "1050|yes|yes|yes|codex|standard|active" ;;
+        gpt-5.6-luna)           echo "1050|yes|yes|yes|codex|budget|active" ;;
         gpt-5.5)                echo "400|yes|yes|no|codex|premium|active" ;;
         gpt-5.5-pro)            echo "400|yes|yes|no|codex|premium|active" ;;
         gpt-5.4)                echo "400|yes|yes|no|codex|premium|active" ;;
@@ -42,8 +45,12 @@ get_model_catalog() {
         # Antigravity CLI (agy routes to the user's configured Antigravity default)
         agy/default|default)       echo "1000|yes|yes|no|agy|standard|active" ;;
         # Claude
+        claude-haiku-4.5)      echo "200|yes|yes|yes|claude|budget|active" ;;
+        claude-sonnet-5)       echo "1000|yes|yes|yes|claude|standard|active" ;;
         claude-sonnet-4.6)      echo "200|yes|yes|no|claude|standard|active" ;;
         claude-fable-5)         echo "1000|yes|yes|yes|claude|premium|active" ;;  # v9.44: Mythos-class, opt-in via OCTOPUS_OPUS_MODEL
+        claude-opus-5)          echo "1000|yes|yes|yes|claude|premium|active" ;;
+        claude-opus-5-fast)     echo "1000|yes|yes|yes|claude|premium|active" ;;
         claude-opus-4.8)        echo "1000|yes|yes|yes|claude|premium|active" ;;
         claude-opus-4.7)        echo "1000|yes|yes|yes|claude|premium|legacy" ;;
         claude-opus-4.6)        echo "200|yes|yes|yes|claude|premium|legacy" ;;
@@ -118,12 +125,12 @@ list_models() {
     done
 
     local -a all_models=(
-        gpt-5.5 gpt-5.5-pro gpt-5.4 gpt-5.4-pro gpt-5.3-codex gpt-5.2-codex
+        gpt-5.6-sol gpt-5.6-terra gpt-5.6-luna gpt-5.5 gpt-5.5-pro gpt-5.4 gpt-5.4-pro gpt-5.3-codex gpt-5.2-codex
         gpt-5.4-mini gpt-5.1-codex-max
         o3 o3-pro o3-mini
         gemini-3.1-pro-preview gemini-3.5-flash gemini-3.1-flash-lite gemini-3-flash-preview gemini-3-pro-image gemini-3.1-flash-image gemini-3-pro-image-preview
         agy/default
-        claude-sonnet-4.6 claude-fable-5 claude-opus-4.8 claude-opus-4.8-fast claude-opus-4.7 claude-opus-4.6 claude-opus-4.6-fast
+        claude-haiku-4.5 claude-sonnet-5 claude-sonnet-4.6 claude-fable-5 claude-opus-5 claude-opus-5-fast claude-opus-4.8 claude-opus-4.8-fast claude-opus-4.7 claude-opus-4.6 claude-opus-4.6-fast
         grok-4-20 grok-4-20-thinking composer-2-fast composer-2
         z-ai/glm-5 moonshotai/kimi-k2.5 deepseek/deepseek-r1-0528
         opencode/deepseek-v4-flash-free opencode/gpt-5.4 opencode/gpt-5.4-mini opencode/glm-5.1

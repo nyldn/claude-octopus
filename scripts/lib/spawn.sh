@@ -423,8 +423,8 @@ ${heuristic_ctx}"
         return "$_budget_rc"
     fi
 
-    # v8.4/v9.42: Auto-route claude-opus to fast mode when appropriate.
-    # Opus 4.8 fast is 2x standard ($10/$50 vs $5/$25 per MTok); legacy 4.6
+    # Auto-route claude-opus to fast mode when appropriate.
+    # Current Opus fast is 2x standard ($10/$50 vs $5/$25 per MTok); legacy 4.6
     # fast remains 6x standard.
     # Only used for interactive single-shot tasks, never for multi-phase workflows
     if [[ "$agent_type" == "claude-opus" ]] && [[ "$SUPPORTS_FAST_OPUS" == "true" ]]; then
@@ -437,8 +437,8 @@ ${heuristic_ctx}"
         if [[ "$opus_mode" == "fast" ]]; then
             agent_type="claude-opus-fast"
             log "INFO" "Auto-routing to Opus Fast mode (phase=$phase, tier=$opus_tier, autonomy=$session_autonomy)"
-            if [[ "${SUPPORTS_OPUS_4_8:-false}" == "true" && "${OCTOPUS_OPUS_MODEL:-}" != "claude-opus-4.6" ]]; then
-                log "WARN" "Opus 4.8 fast is 2x standard: \$10/\$50 per MTok vs \$5/\$25 standard"
+            if [[ "${OCTOPUS_OPUS_MODEL:-}" != "claude-opus-4.6" ]]; then
+                log "WARN" "Current Opus fast is 2x standard: \$10/\$50 per MTok vs \$5/\$25 standard"
             else
                 log "WARN" "Legacy Opus 4.6 fast is 6x standard: \$30/\$150 per MTok vs \$5/\$25 standard"
             fi

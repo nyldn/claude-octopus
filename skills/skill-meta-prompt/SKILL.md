@@ -324,8 +324,9 @@ Before considering complete:
 
 Tune the assembled prompt to the model that will execute it:
 
+- **Current frontier roster**: apply `skills/blocks/frontier-model-routing.md` when choosing between Opus 5, GPT-5.6, Sonnet 5, Fable 5, or cheaper seats.
 - **Claude Fable 5** (any `claude-fable-5` pin): apply `skills/blocks/fable5-prompting.md`. In short: never instruct the model to reveal or transcribe its reasoning (triggers a refusal); replace step-by-step micromanagement with a boundary plus checkable acceptance criteria; drop "CRITICAL"/"MUST" emphasis unless strict compliance is required; add grounded-progress and act-when-ready language for long runs.
-- **Codex / GPT-5.5**: prompt simply and directly; keep it brief and self-contained. Codex models rarely act beyond what was asked, so skip guardrails they do not need.
+- **Codex / GPT-5.6**: apply `docs/GPT-5.6-PROMPTING.md`; give it a concrete outcome, scoped repository constraints, checkable acceptance criteria, non-goals, and the required verification.
 - **Older Claude models**: the fuller template below applies as written.
 
 ## Phase 6: Output & Iteration

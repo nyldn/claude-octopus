@@ -165,13 +165,16 @@ get_model_cost() {
 
     case "$model" in
         # Claude models (input cost, simplified)
-        claude-opus-4-8|claude-opus-4-7|claude-opus-4-6) echo "5.00" ;;
+        claude-opus-5|claude-opus-4-8|claude-opus-4-7|claude-opus-4-6) echo "5.00" ;;
         claude-opus-4-5)        echo "15.00" ;;    # legacy
-        claude-sonnet-4-5)      echo "3.00" ;;
+        claude-sonnet-5|claude-sonnet-4-6|claude-sonnet-4-5) echo "3.00" ;;
         claude-sonnet-4)        echo "3.00" ;;
         claude-haiku-*)         echo "0.25" ;;
 
         # OpenAI/Codex models (rough estimates)
+        gpt-5.6-sol)            echo "5.00" ;;
+        gpt-5.6-terra)          echo "2.50" ;;
+        gpt-5.6-luna)           echo "1.00" ;;
         gpt-5.3-codex)          echo "4.00" ;;
         gpt-5*)                 echo "3.00" ;;
         gpt-4*)                 echo "3.00" ;;
@@ -453,7 +456,7 @@ display_per_phase_cost_table() {
         notes+=("* = native metrics (from Task tool)")
     fi
     if [[ "$has_fast" == "true" ]]; then
-        notes+=("⚡ = fast mode (2x standard on Opus 4.8; legacy 4.6 fast remains 6x)")
+        notes+=("⚡ = fast mode (2x standard on Opus 5; legacy 4.6 fast remains 6x)")
     fi
     for note in "${notes[@]}"; do
         echo "  $note"

@@ -55,14 +55,14 @@ Claude's role is to:
 - No per-query costs
 - Unlimited usage within Claude Code limits
 
-## Model Selection: Opus 4.6 vs Sonnet 4.6
+## Model Selection: Opus 5 vs Sonnet 5
 
 Claude Octopus supports two Claude model tiers via the `claude` and `claude-opus` agent types:
 
-- **Claude Sonnet 4.6** (`claude`, `claude-sonnet`) - Default for most tasks. Balanced performance and cost. Pricing: $3/$15 per MTok input/output.
-- **Claude Opus 4.6** (`claude-opus`) - Premium tier for strategic synthesis, complex architecture decisions, and research aggregation. Pricing: $5/$25 per MTok input/output.
+- **Claude Sonnet 5** (`claude`, `claude-sonnet`) - Standard seat for routine orchestration and synthesis. Pricing: $3/$15 per MTok input/output.
+- **Claude Opus 5** (`claude-opus`) - Premium lead for strategic synthesis, complex architecture decisions, security reasoning, and final judgment. Pricing: $5/$25 per MTok input/output.
 
-### When to Route to Opus 4.6
+### When to Route to Opus 5
 
 Use `claude-opus` for:
 - Strategic synthesis across multiple provider outputs
@@ -70,7 +70,7 @@ Use `claude-opus` for:
 - Research synthesis requiring deep reasoning
 - Premium quality gates and validation
 
-Use `claude` (Sonnet 4.6) for:
+Use `claude` (Sonnet 5) for:
 - Standard orchestration and coordination
 - Routine synthesis and aggregation
 - Cost-sensitive workflows

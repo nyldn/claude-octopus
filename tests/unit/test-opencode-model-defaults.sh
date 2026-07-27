@@ -64,28 +64,57 @@ else
     test_fail "expected opencode namespaced models in catalog"
 fi
 
-test_case "claude-opus default prefers Opus 4.8 when supported"
-if [[ "$(HOME="$TEST_HOME" USER="octo-test-$$" CLAUDE_CODE_SESSION="opus48" SUPPORTS_OPUS_4_8=true SUPPORTS_OPUS_4_7=true resolve_octopus_model claude claude-opus 2>/dev/null)" == "claude-opus-4.8" ]]; then
+test_case "claude-opus default prefers Opus 5 when supported"
+if [[ "$(HOME="$TEST_HOME" USER="octo-test-$$" CLAUDE_CODE_SESSION="opus5" SUPPORTS_OPUS_5=true SUPPORTS_OPUS_4_8=true SUPPORTS_OPUS_4_7=true resolve_octopus_model claude claude-opus 2>/dev/null)" == "claude-opus-5" ]]; then
     test_pass
 else
-    test_fail "expected claude-opus-4.8"
+    test_fail "expected claude-opus-5"
 fi
 
-test_case "claude-opus default falls back to Opus 4.7 before 4.8"
-if [[ "$(HOME="$TEST_HOME" USER="octo-test-$$" CLAUDE_CODE_SESSION="opus47" SUPPORTS_OPUS_4_8=false SUPPORTS_OPUS_4_7=true resolve_octopus_model claude claude-opus 2>/dev/null)" == "claude-opus-4.7" ]]; then
+test_case "claude-opus default falls back to Opus 4.8 before 4.7"
+if [[ "$(HOME="$TEST_HOME" USER="octo-test-$$" CLAUDE_CODE_SESSION="opus48" SUPPORTS_OPUS_5=false SUPPORTS_OPUS_4_8=true SUPPORTS_OPUS_4_7=true resolve_octopus_model claude claude-opus 2>/dev/null)" == "claude-opus-4.8" ]]; then
     test_pass
 else
-    test_fail "expected claude-opus-4.7 fallback"
+    test_fail "expected claude-opus-4.8 fallback"
 fi
 
-test_case "model catalog includes Opus 4.8 and marks 4.7 legacy"
-if is_known_model "claude-opus-4.8" &&
-   [[ "$(get_model_capability "claude-opus-4.8" context_k)" == "1000" ]] &&
-   [[ "$(get_model_capability "claude-opus-4.8" status)" == "active" ]] &&
+test_case "model catalog includes Opus 5 and marks 4.7 legacy"
+if is_known_model "claude-opus-5" &&
+   [[ "$(get_model_capability "claude-opus-5" context_k)" == "1000" ]] &&
+   [[ "$(get_model_capability "claude-opus-5" status)" == "active" ]] &&
    [[ "$(get_model_capability "claude-opus-4.7" status)" == "legacy" ]]; then
     test_pass
 else
-    test_fail "expected Opus 4.8 active catalog entry and Opus 4.7 legacy status"
+    test_fail "expected Opus 5 active catalog entry and Opus 4.7 legacy status"
+fi
+
+test_case "fresh model config adopts frontier defaults"
+HOME="$TEST_HOME" USER="octo-test-$$" "$MODEL_CONFIG" list >/dev/null
+fresh_config="$TEST_HOME/.claude-octopus/config/providers.json"
+if jq -e '
+    .providers.codex.default == "gpt-5.6-sol" and
+    .providers.codex.fallback == "gpt-5.6-terra" and
+    .providers.codex.mini == "gpt-5.6-luna" and
+    .providers.claude.default == "claude-sonnet-5" and
+    .providers.claude.opus == "claude-opus-5" and
+    .providers.claude.fable == "claude-fable-5"
+' "$fresh_config" >/dev/null; then
+    test_pass
+else
+    test_fail "fresh providers.json did not contain frontier defaults"
+fi
+
+test_case "existing model config pins are not silently migrated"
+jq '.providers.codex.default = "gpt-5.5" | .providers.claude.default = "claude-sonnet-4.6"' \
+    "$fresh_config" > "${fresh_config}.tmp" && mv "${fresh_config}.tmp" "$fresh_config"
+HOME="$TEST_HOME" USER="octo-test-$$" "$MODEL_CONFIG" list >/dev/null
+if jq -e '
+    .providers.codex.default == "gpt-5.5" and
+    .providers.claude.default == "claude-sonnet-4.6"
+' "$fresh_config" >/dev/null; then
+    test_pass
+else
+    test_fail "existing provider pins were changed"
 fi
 
 test_case "model config catalog does not expose stale opencode metadata"

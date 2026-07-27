@@ -416,7 +416,7 @@ probe_discover() {
 
     if [[ "$DRY_RUN" == "true" ]]; then
         log INFO "[DRY-RUN] Would probe: $prompt"
-        log INFO "[DRY-RUN] Would spawn 5+ parallel research agents (Codex, Antigravity/agy, Sonnet 4.6, +codebase if in git repo, +Perplexity if API key set)"
+        log INFO "[DRY-RUN] Would spawn 5+ parallel research agents (Codex, Antigravity/agy, Sonnet 5, +codebase if in git repo, +Perplexity if API key set)"
         return 0
     fi
 
@@ -714,7 +714,7 @@ grasp_define() {
 
     if [[ "$DRY_RUN" == "true" ]]; then
         log INFO "[DRY-RUN] Would grasp: $prompt"
-        log INFO "[DRY-RUN] Would gather 4 perspectives (Codex, Antigravity/agy, Sonnet 4.6) and build consensus"
+        log INFO "[DRY-RUN] Would gather 4 perspectives (Codex, Antigravity/agy, Sonnet 5) and build consensus"
         return 0
     fi
 
@@ -2547,8 +2547,8 @@ ink_deliver() {
     result_count=$(grep -c '^## Source:' <<< "$all_results" 2>/dev/null || true)
     result_count="${result_count:-0}"
 
-    # Sonnet 4.6 quality review before synthesis
-    log INFO "Step 2a: Sonnet 4.6 quality review..."
+    # Sonnet 5 quality review before synthesis
+    log INFO "Step 2a: Sonnet 5 quality review..."
     local sonnet_review ink_review_timeout
     ink_review_timeout="${OCTOPUS_INK_REVIEW_TIMEOUT:-0}"
     [[ "$ink_review_timeout" =~ ^[0-9]+$ ]] || ink_review_timeout=0
@@ -2638,7 +2638,7 @@ Structure the output as:
 
 Original task: $prompt
 
-Quality Review (from Sonnet 4.6):
+Quality Review (from Sonnet 5):
 $sonnet_review
 
 Compact source context to synthesize:

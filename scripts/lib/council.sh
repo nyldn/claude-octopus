@@ -599,7 +599,7 @@ council_persona_model() {
     fi
 
     case "$1" in
-        strategy-analyst|exec-communicator) echo "anthropic/claude-sonnet-4.6" ;;
+        strategy-analyst|exec-communicator) echo "anthropic/claude-sonnet-5" ;;
         research-synthesizer|business-analyst|finance-analyst|academic-writer|ux-researcher) echo "Gemini 3.1 Pro (High)" ;;
         code-reviewer) echo "gpt-5.3-codex-spark" ;;
         *) echo "gpt-5.3-codex" ;;

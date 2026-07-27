@@ -497,6 +497,16 @@ detect_claude_code_version() {
         SUPPORTS_TOOL_DECISION_PARAMS_OTEL=true
     fi
 
+    # Claude Code v2.1.197+ adds the Sonnet 5 model alias/catalog.
+    if version_compare "$CLAUDE_CODE_VERSION" "2.1.197" ">="; then
+        SUPPORTS_SONNET_5=true
+    fi
+
+    # Claude Code v2.1.219+ adds Opus 5 and makes it the current Opus alias.
+    if version_compare "$CLAUDE_CODE_VERSION" "2.1.219" ">="; then
+        SUPPORTS_OPUS_5=true
+    fi
+
     log "INFO" "Claude Code v$CLAUDE_CODE_VERSION detected"
     log "INFO" "Task Management: $SUPPORTS_TASK_MANAGEMENT | Fork Context: $SUPPORTS_FORK_CONTEXT | Agent Teams: $SUPPORTS_AGENT_TEAMS"
     log "INFO" "Persistent Memory: $SUPPORTS_PERSISTENT_MEMORY | Hook Events: $SUPPORTS_HOOK_EVENTS | Agent Type Routing: $SUPPORTS_AGENT_TYPE_ROUTING"
@@ -544,6 +554,7 @@ detect_claude_code_version() {
     log "INFO" "Bash Session ID Env: $SUPPORTS_BASH_SESSION_ID_ENV"
     log "INFO" "Opus 4.8: $SUPPORTS_OPUS_4_8 | Dynamic Workflows: $SUPPORTS_DYNAMIC_WORKFLOWS | Lean Prompt Default: $SUPPORTS_LEAN_SYSTEM_PROMPT_DEFAULT"
     log "INFO" "Agent Settings Agent Field: $SUPPORTS_AGENT_SETTINGS_AGENT_FIELD | Skills Auto Plugin Load: $SUPPORTS_SKILLS_AUTO_PLUGIN_LOAD | EnterWorktree Switch: $SUPPORTS_ENTER_WORKTREE_SWITCH | Tool Decision Params OTel: $SUPPORTS_TOOL_DECISION_PARAMS_OTEL"
+    log "INFO" "Sonnet 5: $SUPPORTS_SONNET_5 | Opus 5: $SUPPORTS_OPUS_5"
 
     # v8.29.0: Context window control
     OCTOPUS_CONTEXT_WINDOW="${OCTOPUS_CONTEXT_WINDOW:-auto}"
@@ -1188,7 +1199,7 @@ detect_providers() {
         result="${result}grok:$(grok_auth_method) "
     fi
 
-    # Detect Claude Agent SDK seat (v9.50.0 — CLAUDE_SDK_API_KEY unlocks Opus 4.8 + 1M context)
+    # Detect Claude Agent SDK seat (CLAUDE_SDK_API_KEY unlocks Opus 5 + 1M context)
     if { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed claude-sdk; } && [[ -n "${CLAUDE_SDK_API_KEY:-}" ]]; then
         if command -v claude-agent &>/dev/null; then
             result="${result}claude-sdk:agent-sdk "

@@ -32,10 +32,10 @@ Claude Octopus coordinates **nine AI providers** to give you multi-perspective a
 
 | Provider | CLI Tool | Underlying Model | Cost Source |
 |----------|----------|------------------|-------------|
-| **Codex CLI** | `codex exec --model gpt-5.4` | GPT-5.4 | Your `OPENAI_API_KEY` |
+| **Codex CLI** | `codex exec --model gpt-5.6-sol` | GPT-5.6 Sol/Terra/Luna | ChatGPT OAuth or your `OPENAI_API_KEY` |
 | **Gemini CLI** | `gemini -y -m gemini-3.1-pro-preview` | Gemini 3.1 Pro Preview | Your `GEMINI_API_KEY` |
 | **Antigravity CLI** | `agy --print --sandbox` | `default`/`agy/default`, or an exact label from `agy models` | Your Antigravity CLI auth |
-| **Claude** | Built-in | Claude Sonnet 4.6 / Opus 4.7 | Your Claude Code subscription |
+| **Claude** | Built-in | Claude Sonnet 5 / Opus 5 | Your Claude Code subscription or API account |
 | **Perplexity** | API-only | Sonar Pro / Sonar | Your `PERPLEXITY_API_KEY` |
 | **OpenRouter** | API-only | 100+ models (GLM-5, Kimi K2.5, DeepSeek R1, etc.) | Your `OPENROUTER_API_KEY` |
 | **Ollama** *(optional)* | `ollama run <model>` | Local models (llama3.3, mistral, etc.) | Free (local) |
@@ -47,21 +47,21 @@ Claude Octopus coordinates **nine AI providers** to give you multi-perspective a
 
 ### Role → Model Mapping (v9.29+)
 
-Role defaults refreshed based on April 2026 benchmark consensus. See [GPT-5.4 prompting guide](./GPT-5.4-PROMPTING.md) for dispatcher patterns.
+Role defaults follow the accepted [frontier model routing strategy](./MODEL-ROUTING-STRATEGY.md).
 
 | Role                 | Default Model         | Why                                                                 |
 |----------------------|-----------------------|---------------------------------------------------------------------|
-| `architect`          | Claude Opus 4.7       | SWE-bench Pro 64.3, MCP-Atlas +9.2, LMArena #1; UI/UX taste         |
-| `strategist`         | Claude Opus 4.7       | Premium arbitration, architecture tradeoffs                         |
-| `security-reviewer`  | Claude Opus 4.7       | Adversarial reasoning                                               |
-| `code-reviewer`      | GPT-5.4               | Edge-case hunting; Terminal-Bench 75.1                              |
+| `architect`          | Claude Opus 5         | Architecture, planning, product and UI judgment                     |
+| `strategist`         | Claude Opus 5         | Premium arbitration, architecture tradeoffs                         |
+| `security-reviewer`  | Claude Opus 5         | Adversarial reasoning                                               |
+| `code-reviewer`      | GPT-5.6 Sol           | Independent edge-case and implementation review                     |
 | `reviewer` (alias)   | → `code-reviewer`     | Back-compat for v9.28 callers                                       |
-| `implementer`        | GPT-5.4               | Terminal-heavy execution, iterative patch/test loops                |
-| `implementer-heavy`  | Claude Opus 4.7       | Opt-in only; greenfield / large refactors / UI-heavy builds         |
-| `synthesizer`        | Claude Sonnet 4.6     | Best aggregator price/quality                                       |
-| `researcher`         | Gemini 3.1 Pro Preview| Broad research + synthesis                                          |
+| `implementer`        | GPT-5.6 Sol           | Terminal-heavy execution, iterative patch/test loops                |
+| `implementer-heavy`  | Claude Opus 5         | Opt-in only; greenfield / large refactors / UI-heavy builds         |
+| `synthesizer`        | Claude Sonnet 5       | Standard aggregator price/quality                                   |
+| `researcher`         | Antigravity           | Independent broad research + synthesis                              |
 
-**Opt-out:** `OCTOPUS_LEGACY_ROLES=1` restores the v9.28 mapping (GPT-5.4 everywhere for architect/reviewer/implementer, Opus 4.6 for strategist).
+**Opt-out:** `OCTOPUS_LEGACY_ROLES=1` restores the preserved pre-frontier mapping (GPT-5.5 for architect/reviewer/implementer, Sonnet 4.6 for synthesis, and Opus 4.6 for strategy).
 
 **Graceful fallback:** when the preferred CLI is unavailable (e.g. no Anthropic auth for architect), `lib/agents.sh` silently downshifts and logs a single notice instead of failing.
 
@@ -69,10 +69,10 @@ Role defaults refreshed based on April 2026 benchmark consensus. See [GPT-5.4 pr
 
 | Provider | Strengths | Best For |
 |----------|-----------|----------|
-| **Codex (OpenAI, GPT-5.4)** | Edge-case hunting, terminal execution, patch/test loops | Code review (`code-reviewer`), default implementation (`implementer`) |
+| **Codex (OpenAI, GPT-5.6)** | Edge-case hunting, terminal execution, patch/test loops | Code review (`code-reviewer`), default implementation (`implementer`) |
 | **Gemini (Google)** | Research synthesis, documentation, broad knowledge | Ecosystem research, best practices, alternative perspectives |
-| **Claude (Opus 4.7)** | Planning, architecture, adversarial reasoning, UI/UX taste | `architect`, `strategist`, `security-reviewer`, `implementer-heavy` |
-| **Claude (Sonnet 4.6)** | Aggregation, final synthesis, workhorse summarization | `synthesizer`; included with Claude Code subscription |
+| **Claude (Opus 5)** | Planning, architecture, adversarial reasoning, UI/UX taste | `architect`, `strategist`, `security-reviewer`, `implementer-heavy` |
+| **Claude (Sonnet 5)** | Aggregation, final synthesis, workhorse summarization | `synthesizer`; included where the user's Claude Code subscription covers it |
 | **Perplexity** | Live web search, CVE lookups, current docs | Discover phase research, dependency analysis |
 | **OpenRouter** | Access to 100+ models, cost routing | Alternative perspectives, budget-conscious workflows |
 | **Ollama** *(optional)* | Zero-cost, offline, privacy | Brainstorming, fallback, air-gapped environments |

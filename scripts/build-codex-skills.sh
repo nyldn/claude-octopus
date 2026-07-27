@@ -246,8 +246,8 @@ adapt_body_for_codex() {
         -e 's/`--full-auto`/`--skip-git-repo-check`/g' \
         -e 's/Do NOT pipe stdin to codex — pass prompt as positional argument after flags/Prefer stdin-based prompt delivery for long prompts; use scripts\/lib\/dispatch.sh when possible/g' \
         -e 's/Core four always participate:/Core participants must be selected from actual available providers:/g' \
-        -e 's/🟠 Sonnet 4\.6: Available ✓ \(via host subagent tool — no extra cost\)/🟠 Sonnet 4.6: available only when this Codex session exposes a compatible host subagent tool/g' \
-        -e 's/🟠 Sonnet 4\.6 - Pragmatic implementer perspective/🟠 Sonnet 4.6 - Pragmatic implementer perspective if host subagents are available/g' \
+        -e 's/🟠 Sonnet 5: Available ✓ \(via host subagent tool — no extra cost\)/🟠 Sonnet 5: available only when this Codex session exposes a compatible host subagent tool/g' \
+        -e 's/🟠 Sonnet 5 - Pragmatic implementer perspective/🟠 Sonnet 5 - Pragmatic implementer perspective if host subagents are available/g' \
         -e 's/Claude \(Opus\)/current host model/g' \
         -e 's/Claude\/Opus/current host model/g' \
         -e 's/You are Claude \(Opus\)/You are the current host model/g' \

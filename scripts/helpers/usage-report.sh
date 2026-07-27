@@ -46,9 +46,9 @@ fmt = os.environ["_OCTOPUS_FORMAT"]
 
 # $/MTok (input, output) — keep in sync with cost table in CLAUDE.md
 RATES = {
-    "claude":       (5.00, 25.00),   # Opus 4.8 default seat
-    "claude-sdk":   (5.00, 25.00),   # Agent SDK, Opus 4.8
-    "codex":        (5.00, 30.00),   # GPT-5.5 premium default
+    "claude":       (5.00, 25.00),   # Opus 5 premium seat
+    "claude-sdk":   (5.00, 25.00),   # Agent SDK, Opus 5
+    "codex":        (5.00, 30.00),   # GPT-5.6 Sol frontier default
     "agy":          (0.00, 0.00),    # included with Antigravity access
     "gemini":       (0.00, 0.00),    # sunset; legacy records only
     "perplexity":   (3.00, 15.00),   # Sonar Pro

@@ -49,7 +49,7 @@ trigger: |
 Participants:
 🔴 Codex CLI - Technical implementation perspective
 🟡 Gemini CLI - Ecosystem and strategic perspective
-🟠 Sonnet 4.6 - Pragmatic implementer perspective
+🟠 Sonnet 5 - Pragmatic implementer perspective
 🐙 Claude (Opus) - Moderator and synthesis
 🟢 Copilot CLI - GitHub-native perspective (if available)
 🟤 Qwen CLI - Alternative model perspective (if available)
@@ -291,7 +291,7 @@ Provider Availability:
 🟡 Gemini CLI: [Available ✓ / Not installed ✗]
 🧭 Antigravity CLI: [Available ✓ / Not installed ✗]
 🤖 Grok CLI (xAI): [Available ✓ / Not installed ✗]
-🟠 Sonnet 4.6: Available ✓ (via Agent tool — no extra cost)
+🟠 Sonnet 5: Available ✓ (via Agent tool — no extra cost)
 🐙 Claude (Opus): Available ✓ (Moderator and participant)
 ```
 
