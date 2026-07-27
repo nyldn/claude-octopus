@@ -440,10 +440,12 @@ test_no_openclaw_in_skills() {
     local _skill_dir
     for _skill_dir in "$PROJECT_ROOT/skills/" "$PROJECT_ROOT/.claude/skills/"; do
         [[ -d "$_skill_dir" ]] || continue
+        local _skill_label="${_skill_dir#"$PROJECT_ROOT/"}"
+        _skill_label="${_skill_label%/}"
         # Exclude the whole skill-claw/ tree, not just its SKILL.md: sibling
         # files (agents/*.yaml) are equally and intentionally OpenClaw-specific.
         if grep -rl 'openclaw\|OpenClaw' "$_skill_dir" 2>/dev/null | grep -Ev 'skill-claw(\.md$|/)' | head -1 | grep -q .; then
-            found="skills"
+            found="${found:+$found }$_skill_label"
         fi
     done
     if grep -rl 'openclaw\|OpenClaw' "$PROJECT_ROOT/commands/" 2>/dev/null | grep -v 'claw\.md' | head -1 | grep -q .; then

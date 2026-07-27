@@ -28,6 +28,32 @@ else
     fail "agent scripts have valid syntax" "syntax error"
 fi
 
+test_case "openai-compatible agent blocks quoted home-directory deletes"
+if python3 - "$HELPER" <<'PY'
+import importlib.util
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+spec = importlib.util.spec_from_file_location("openai_compatible_agent", path)
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+
+blocked = (
+    'rm -rf "$HOME"',
+    "rm -rf '${HOME}'",
+    'rm -fr "${HOME}/cache"',
+    "rm --recursive --force /Users/example",
+)
+assert all(module.command_is_blocked(command) for command in blocked)
+assert module.command_is_blocked("rm -rf relative-cache") is None
+PY
+then
+    test_pass
+else
+    test_fail "quoted or braced home-directory delete bypassed the command guardrail"
+fi
+
 TEST_HOME="$TEST_TMP_DIR/home"
 mkdir -p "$TEST_HOME"
 

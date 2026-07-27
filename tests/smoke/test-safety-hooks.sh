@@ -12,6 +12,7 @@ test_suite "Safety Hooks (careful/freeze/guard)"
 
 CAREFUL_HOOK="$PROJECT_ROOT/hooks/careful-check.sh"
 FREEZE_HOOK="$PROJECT_ROOT/hooks/freeze-check.sh"
+SYSADMIN_HOOK="$PROJECT_ROOT/hooks/sysadmin-safety-gate.sh"
 PLUGIN_JSON="$PROJECT_ROOT/.claude-plugin/plugin.json"
 HOOKS_JSON="$PROJECT_ROOT/hooks/hooks.json"
 COMMANDS_DIR="$PROJECT_ROOT/commands"
@@ -167,6 +168,24 @@ test_careful_returns_ask_decision() {
     fi
 }
 
+test_sysadmin_rm_flag_order() {
+    test_case "sysadmin safety gate blocks destructive rm flags in either order"
+    local command output
+    for command in \
+        'rm -rf /Users/example' \
+        'rm -fr /Users/example' \
+        'rm --recursive --force /home/example' \
+        'rm --force --recursive /home/example'; do
+        output=$(jq -cn --arg command "$command" \
+            '{tool_name:"Bash",tool_input:{command:$command}}' | bash "$SYSADMIN_HOOK")
+        if [[ "$output" != *'"permissionDecision":"deny"'* ]]; then
+            test_fail "failed to block: $command"
+            return
+        fi
+    done
+    test_pass
+}
+
 # ── Freeze hook: boundary enforcement ────────────────────────────────
 
 test_freeze_reads_state_file() {
@@ -318,6 +337,7 @@ test_careful_kubectl_delete
 test_careful_docker_destructive
 test_careful_reads_state_file
 test_careful_returns_ask_decision
+test_sysadmin_rm_flag_order
 
 test_freeze_reads_state_file
 test_freeze_checks_file_path

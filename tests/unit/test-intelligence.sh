@@ -72,6 +72,16 @@ test_db_append_cap() {
     fi
 }
 
+test_count_words_uses_whitespace_ifs() {
+    test_case "count_words ignores a caller-provided non-whitespace IFS"
+
+    local result
+    result=$(IFS=x count_words $'alpha\tbeta gamma')
+    if assert_equals "3" "$result" "Should always split on shell whitespace"; then
+        test_pass
+    fi
+}
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # Provider Intelligence Tests
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -713,6 +723,7 @@ test_persona_packs_off() {
 test_db_set_get
 test_db_get_default
 test_db_append_cap
+test_count_words_uses_whitespace_ifs
 
 # Provider Intelligence
 test_record_outcome

@@ -47,7 +47,7 @@ fi
 # /Users is the macOS home root — this list was Linux-only (/home) even though
 # macOS is a primary platform. The trailing alternation also catches a bare
 # root target (`rm -rf /`, `rm -rf /*`), which previously matched nothing.
-if echo "$COMMAND" | grep -qE '(rm\s+-[a-zA-Z]*r[a-zA-Z]*f|rm\s+--recursive\s+--force|rm\s+-r\s+-f|rm\s+-f\s+-r)\s+([^|;&]*\s)?(/(etc|var|usr|boot|sys|proc|home|Users|Library|System|Applications|opt|bin|sbin)\b|~|\$HOME|/(\s|\*|$))'; then
+if echo "$COMMAND" | grep -qE '(rm\s+-[a-zA-Z]*r[a-zA-Z]*f[a-zA-Z]*|rm\s+-[a-zA-Z]*f[a-zA-Z]*r[a-zA-Z]*|rm\s+--recursive\s+--force|rm\s+--force\s+--recursive|rm\s+-r\s+-f|rm\s+-f\s+-r)\s+([^|;&]*\s)?(/(etc|var|usr|boot|sys|proc|home|Users|Library|System|Applications|opt|bin|sbin)\b|~|\$HOME|/(\s|\*|$))'; then
     echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Sysadmin safety gate: destructive rm -rf on system path blocked"}}'
     exit 0
 fi

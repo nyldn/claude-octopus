@@ -71,15 +71,33 @@ MATEOF
 parse_factory_spec() {
     local spec_path="$1"
     local run_dir="$2"
-    # Maturity JSON from the caller's E27 pre-flight. Previously this was read
-    # straight off the caller's `local maturity_json` via dynamic scoping, so
-    # any other caller silently wrote `"maturity": ,` — invalid JSON — into
-    # session.json. Take it as an argument and keep a valid-JSON default.
-    local maturity_json_in="${3:-${maturity_json:-}}"
+    # Maturity JSON and the effective run parameters come from factory_run.
+    # Keep them explicit so Bash dynamic scoping and environment defaults cannot
+    # make session.json disagree with the run that produced it.
+    local maturity_json_in="${3:-}"
+    local holdout_ratio="${4:-${OCTOPUS_FACTORY_HOLDOUT_RATIO:-0.20}}"
+    local max_retries="${5:-${OCTOPUS_FACTORY_MAX_RETRIES:-1}}"
     [[ -n "$maturity_json_in" ]] || maturity_json_in='{}'
 
     if [[ ! -f "$spec_path" ]]; then
         log ERROR "Factory spec not found: $spec_path"
+        return 1
+    fi
+
+    if ! command -v jq >/dev/null 2>&1; then
+        log ERROR "jq is required to validate factory session metadata"
+        return 1
+    fi
+    if ! printf '%s' "$maturity_json_in" | jq empty >/dev/null 2>&1; then
+        log ERROR "Factory maturity metadata is not valid JSON"
+        return 1
+    fi
+    if [[ ! "$holdout_ratio" =~ ^(0([.][0-9]+)?|1([.]0+)?)$ ]]; then
+        log ERROR "Factory holdout ratio must be numeric and between 0 and 1: $holdout_ratio"
+        return 1
+    fi
+    if [[ ! "$max_retries" =~ ^[0-9]+$ ]]; then
+        log ERROR "Factory max retries must be a non-negative integer: $max_retries"
         return 1
     fi
 
@@ -117,6 +135,10 @@ parse_factory_spec() {
         satisfaction_target="$OCTOPUS_FACTORY_SATISFACTION_TARGET"
         log INFO "Satisfaction target overridden by env: $satisfaction_target"
     fi
+    if [[ ! "$satisfaction_target" =~ ^(0([.][0-9]+)?|1([.]0+)?)$ ]]; then
+        log ERROR "Factory satisfaction target must be numeric and between 0 and 1: $satisfaction_target"
+        return 1
+    fi
 
     # Extract behaviors (lines starting with "### " under Behaviors section, or numbered items)
     local behavior_count
@@ -135,8 +157,8 @@ parse_factory_spec() {
   "satisfaction_target": $satisfaction_target,
   "complexity": "$complexity",
   "behavior_count": $behavior_count,
-  "holdout_ratio": ${OCTOPUS_FACTORY_HOLDOUT_RATIO:-0.20},
-  "max_retries": ${OCTOPUS_FACTORY_MAX_RETRIES:-1},
+  "holdout_ratio": $holdout_ratio,
+  "max_retries": $max_retries,
   "maturity": $maturity_json_in,
   "status": "initialized",
   "started_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"

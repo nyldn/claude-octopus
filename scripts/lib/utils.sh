@@ -117,6 +117,7 @@ count_words() {
     local _cw_had_noglob=false
     case "$-" in *f*) _cw_had_noglob=true ;; esac
     set -f
+    local IFS=$' \t\n'
     # shellcheck disable=SC2206 # deliberate word splitting; globbing disabled above
     local _cw_words=($_cw_str)
     [[ "$_cw_had_noglob" == "true" ]] || set +f

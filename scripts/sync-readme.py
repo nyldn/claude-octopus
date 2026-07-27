@@ -144,6 +144,12 @@ def derive_facts(root: Path) -> dict[str, object]:
     command_count = len(plugin.get("commands", []))
     skill_count = len(plugin.get("skills", []))
     persona_count = len(list((root / "agents/personas").glob("*.md")))
+    test_suite_counts = {
+        category: len(list((root / "tests" / category).glob("test-*.sh")))
+        for category in ("smoke", "unit", "integration")
+    }
+    if not all(test_suite_counts.values()):
+        raise ValueError("unable to derive local CI suite counts")
 
     orchestrate = (root / "scripts/orchestrate.sh").read_text()
     providers = (root / "scripts/lib/providers.sh").read_text()
@@ -185,6 +191,9 @@ def derive_facts(root: Path) -> dict[str, object]:
         "command_count": command_count,
         "skill_count": skill_count,
         "persona_count": persona_count,
+        "smoke_suite_count": test_suite_counts["smoke"],
+        "unit_suite_count": test_suite_counts["unit"],
+        "integration_suite_count": test_suite_counts["integration"],
         "minimum_version": minimum_version,
         "capability_count": len(capability_flags),
         "capability_ceiling": capability_ceiling,
@@ -388,6 +397,9 @@ def sync_product(text: str, facts: dict[str, object]) -> str:
     ceiling = str(facts["capability_ceiling"])
     release_date = str(facts["release_date"])
     provider_count = int(facts["provider_count"])
+    smoke_suite_count = int(facts["smoke_suite_count"])
+    unit_suite_count = int(facts["unit_suite_count"])
+    integration_suite_count = int(facts["integration_suite_count"])
 
     text = re.sub(r"^last_reviewed: [0-9-]+$", f"last_reviewed: {release_date}", text, flags=re.MULTILINE)
     text = re.sub(
@@ -408,6 +420,15 @@ def sync_product(text: str, facts: dict[str, object]) -> str:
     text = re.sub(
         r"^- Version: [0-9]+\.[0-9]+\.[0-9]+ \(active release cadence\)$",
         f"- Version: {version} (active release cadence)",
+        text,
+        flags=re.MULTILINE,
+    )
+    text = re.sub(
+        r"^- Local CI parity: \d+ smoke, \d+ unit, and \d+ integration suites$",
+        (
+            f"- Local CI parity: {smoke_suite_count} smoke, "
+            f"{unit_suite_count} unit, and {integration_suite_count} integration suites"
+        ),
         text,
         flags=re.MULTILINE,
     )

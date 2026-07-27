@@ -32,6 +32,19 @@ test_agy_available_agent() {
     fi
 }
 
+test_agy_model_config_provider() {
+    test_case "model configuration accepts the canonical agy provider key"
+
+    if (
+        source "$PROJECT_ROOT/scripts/lib/provider-routing.sh"
+        octo_model_config_provider_valid agy
+    ) >/dev/null 2>&1; then
+        test_pass
+    else
+        test_fail "agy should be accepted by set/reset model configuration"
+    fi
+}
+
 test_agy_dispatch_native_flags() {
     test_case "dispatch.sh uses native agy helper"
 
@@ -969,6 +982,7 @@ test_provider_workflow_review_regressions() {
 
 test_agy_config_exists
 test_agy_available_agent
+test_agy_model_config_provider
 test_agy_dispatch_native_flags
 test_agy_print_receives_prompt_argument
 test_agy_force_inline_directive_prepended_by_default

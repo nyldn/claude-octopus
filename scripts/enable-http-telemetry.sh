@@ -40,7 +40,7 @@ while [[ $# -gt 0 ]]; do
     shift
 done
 
-BEARER_TOKEN="${OCTOPUS_TELEMETRY_BEARER_TOKEN:-}"
+BEARER_TOKEN=${OCTOPUS_TELEMETRY_BEARER_TOKEN:-}
 
 usage() {
     echo "Usage: enable-http-telemetry.sh <webhook-url> [--allow-plaintext-token]"
@@ -87,10 +87,14 @@ fi
 # Version guard: HTTP hooks require Claude Code v2.1.63+
 CC_VERSION=""
 if command -v claude &>/dev/null; then
-    CC_VERSION=$(claude --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+    CC_VERSION=$(claude --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)
 fi
 
 if [[ -n "$CC_VERSION" ]]; then
+    if [[ ! "$CC_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        echo "ERROR: HTTP hooks require a numeric Claude Code version (x.y.z). Detected: v${CC_VERSION}" >&2
+        exit 1
+    fi
     # Compare all three components. An earlier version of this guard read only
     # minor/patch, so any future major (v3.0.0) was misread as "older than
     # 2.1.63" and rejected outright.

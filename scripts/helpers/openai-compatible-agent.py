@@ -62,7 +62,11 @@ def resolve_path(cwd: Path, rel: str) -> Path:
 # container where the blast radius is already bounded).
 _BLOCKED_COMMAND_PATTERNS = [
     # Destructive recursive deletes outside the working tree
-    (r'\brm\s+(-[a-zA-Z]*\s+)*-?[a-zA-Z]*[rR][a-zA-Z]*f?[a-zA-Z]*\s+[^|;&]*(/|~|\$HOME)(\s|$|/)',
+    (r'\brm\s+(?:(?:(?:-[A-Za-z]+|--[A-Za-z-]+)\s+)*(?:-[A-Za-z]*[rR][A-Za-z]*|--recursive)'
+     r'(?:\s+(?:-[A-Za-z]+|--[A-Za-z-]+))*)\s+(?:[^\s|;&]+\s+)*'
+     r'(?:"(?:/[^"]*|\$(?:\{HOME\}|HOME)(?:/[^"]*)?)"|'
+     r"'(?:/[^']*|\$(?:\{HOME\}|HOME)(?:/[^']*)?)'|"
+     r'(?:/[^\s|;&]*|~(?:/[^\s|;&]*)?|\$(?:\{HOME\}|HOME)(?:/[^\s|;&]*)?))(?:\s|$)',
      "recursive delete targeting an absolute or home path"),
     # Privilege escalation
     (r'(^|[|;&]\s*)sudo\s', "sudo"),

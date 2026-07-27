@@ -17,7 +17,7 @@
 # matchers plus two user-facing messages) and they had drifted: the reset error
 # message omitted openai-compatible and openai-tools even though the matcher
 # accepted them. Add a provider here and every site follows.
-OCTO_MODEL_CONFIG_PROVIDERS="codex gemini claude claude-sdk perplexity opencode openrouter atlascloud openai-compatible openai-tools openai-compatible-agent cursor-agent"
+OCTO_MODEL_CONFIG_PROVIDERS="codex gemini agy claude claude-sdk perplexity opencode openrouter atlascloud openai-compatible openai-tools openai-compatible-agent cursor-agent"
 
 octo_model_config_provider_valid() {
     case " ${OCTO_MODEL_CONFIG_PROVIDERS} " in

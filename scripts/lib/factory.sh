@@ -258,8 +258,11 @@ factory_run() {
     # ── Phase 1: Parse spec ──────────────────────────────────────────────
     echo -e "${YELLOW}[1/7]${NC} Parsing factory spec..."
     local satisfaction_target
-    satisfaction_target=$(parse_factory_spec "$spec_path" "$run_dir" "$maturity_json")
-    if [[ $? -ne 0 || -z "$satisfaction_target" ]]; then
+    if ! satisfaction_target=$(parse_factory_spec "$spec_path" "$run_dir" "$maturity_json" "$holdout_ratio" "$max_retries"); then
+        log ERROR "Failed to parse factory spec"
+        return 1
+    fi
+    if [[ -z "$satisfaction_target" ]]; then
         log ERROR "Failed to parse factory spec"
         return 1
     fi

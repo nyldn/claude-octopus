@@ -9,7 +9,9 @@
 # count_words() lives in lib/utils.sh; pull it in when this file is sourced
 # standalone (tests do) rather than through orchestrate.sh's load order.
 if ! declare -f count_words >/dev/null 2>&1; then
-    source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/utils.sh" 2>/dev/null || true
+    if ! source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/utils.sh"; then
+        return 1 2>/dev/null || exit 1
+    fi
 fi
 
 # ═══════════════════════════════════════════════════════════════════════════════

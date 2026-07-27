@@ -1077,6 +1077,7 @@ _smoke_test_provider() {
 
     if [[ -z "$cmd_str" ]]; then
         echo "SKIP" > "$result_file"
+        rm -f "$stderr_file" 2>/dev/null || true
         return 0
     fi
 
@@ -1094,6 +1095,7 @@ _smoke_test_provider() {
             log DEBUG "Smoke test codex: could not enter temp repo $smoke_dir; skipping"
             rm -rf "$smoke_dir" 2>/dev/null
             echo "SKIP" > "$result_file"
+            rm -f "$stderr_file" 2>/dev/null || true
             return 0
         fi
         # codex cmd_str ends with `-` (stdin prompt); arg form is rejected.
