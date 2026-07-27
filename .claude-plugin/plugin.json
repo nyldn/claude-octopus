@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "9.56.0",
-  "description": "v9.56.0 \u2014 Security, correctness and performance fixes from a full-project code review. Run /octo:setup.",
+  "version": "9.56.1",
+  "description": "v9.56.1 \u2014 Harden release guardrails and close review findings. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"
