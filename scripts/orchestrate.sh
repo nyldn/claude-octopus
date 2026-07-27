@@ -60,6 +60,10 @@ fi
 
 # Keep debug flag defined even when nounset is enabled by sourced scripts.
 OCTOPUS_DEBUG="${OCTOPUS_DEBUG:-false}"
+# Writing Tangle runs start from a deterministic Git baseline. Direct unit tests
+# that source workflows.sh remain opt-in to avoid changing unrelated fixtures.
+OCTOPUS_TANGLE_REQUIRE_CLEAN_BASELINE="${OCTOPUS_TANGLE_REQUIRE_CLEAN_BASELINE:-true}"
+export OCTOPUS_TANGLE_REQUIRE_CLEAN_BASELINE
 
 # Workspace location — the directory whose files dispatched providers must read.
 # Callers historically `cd` into the plugin install before invoking orchestrate.sh,

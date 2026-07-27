@@ -1719,6 +1719,31 @@ ${normal_findings}
 
 # Phase 3: TANGLE (Develop) - Enhanced map-reduce with validation
 # Tentacles work together in a coordinated tangle of activity
+tangle_clean_baseline_guard_enabled() {
+    [[ "${OCTOPUS_TANGLE_REQUIRE_CLEAN_BASELINE:-false}" == "true" ]]
+}
+
+tangle_require_clean_git_baseline() {
+    local source_root status_output
+    source_root=$(git -C "${PROJECT_ROOT:-$PWD}" rev-parse --show-toplevel 2>/dev/null) || {
+        log ERROR "Tangle implementation requires a Git repository when clean-baseline enforcement is enabled"
+        return 1
+    }
+
+    status_output=$(git -C "$source_root" status --porcelain=v1 --untracked-files=all 2>/dev/null) || {
+        log ERROR "Unable to inspect Git baseline at: $source_root"
+        return 1
+    }
+    if [[ -n "$status_output" ]]; then
+        log ERROR "Tangle implementation requires a clean Git baseline: $source_root"
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && log ERROR "  $line"
+        done <<< "$status_output"
+        return 1
+    fi
+    return 0
+}
+
 tangle_develop() {
     local prompt="$1"
     local grasp_file="${2:-}"
@@ -1735,6 +1760,10 @@ tangle_develop() {
         log INFO "[DRY-RUN] Would tangle: $prompt"
         log INFO "[DRY-RUN] Would decompose into subtasks and execute in parallel"
         return 0
+    fi
+
+    if tangle_clean_baseline_guard_enabled; then
+        tangle_require_clean_git_baseline || return 1
     fi
 
     # Cost transparency (v7.18.0 - P0.0)
