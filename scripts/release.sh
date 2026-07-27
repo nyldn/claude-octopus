@@ -53,6 +53,13 @@ cd "$PLUGIN_ROOT"
 # clone pointing $REMOTE at the canonical repo (with origin left on a fork)
 # would otherwise create the PR/release against the wrong repo. Pin it.
 REPO_SLUG="$(git remote get-url "$REMOTE" | sed -E 's#^(git@|https://)([^:/]+)[:/]##; s#\.git$##')"
+REPO_OWNER="${REPO_SLUG%%/*}"
+REPO_NAME="${REPO_SLUG#*/}"
+
+if [[ -z "$REPO_OWNER" || -z "$REPO_NAME" || "$REPO_OWNER" == "$REPO_NAME" ]]; then
+    echo "Error: could not parse owner/repository from remote ${REMOTE}: ${REPO_SLUG}"
+    exit 1
+fi
 
 # --- Preflight ---
 
@@ -329,6 +336,36 @@ if [[ $SECONDS -ge $DEADLINE ]]; then
 fi
 echo ""
 
+# Required checks can pass while a review still has actionable findings.
+# Fail closed instead of relying on an owner/admin merge bypass.
+echo "   Checking review gate..."
+if ! REVIEW_DECISION=$(gh pr view "$PR_NUM" -R "$REPO_SLUG" --json reviewDecision --jq '.reviewDecision // ""'); then
+    echo "   ERROR: Could not read the PR review decision."
+    exit 1
+fi
+if ! UNRESOLVED_THREADS=$(gh api graphql \
+    -f query='query($owner:String!, $name:String!, $number:Int!) {
+      repository(owner:$owner, name:$name) {
+        pullRequest(number:$number) {
+          reviewThreads(first:100) { nodes { isResolved } }
+        }
+      }
+    }' \
+    -f owner="$REPO_OWNER" \
+    -f name="$REPO_NAME" \
+    -F number="$PR_NUM" \
+    --jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false)] | length'); then
+    echo "   ERROR: Could not read PR review threads."
+    exit 1
+fi
+if [[ "$REVIEW_DECISION" == "CHANGES_REQUESTED" || "$UNRESOLVED_THREADS" != "0" ]]; then
+    echo "   REVIEW BLOCKED — decision=${REVIEW_DECISION:-none} | unresolved threads=${UNRESOLVED_THREADS}"
+    echo "   Resolve every actionable finding and rerun the release."
+    exit 1
+fi
+echo "   Review: ${REVIEW_DECISION:-no blocking review} | unresolved threads: 0"
+echo ""
+
 # --- 6. Merge + Release ---
 
 echo "6/8 Merging and creating release..."
@@ -345,6 +382,31 @@ else
     git pull --quiet "$REMOTE" main
     git branch -d "$BRANCH" --quiet 2>/dev/null || true
     MERGE_SHA=$(git rev-parse main)
+fi
+
+# Do not publish a tag while the exact post-squash main commit is unverified.
+echo "   Waiting for main Test Suite on ${MERGE_SHA}..."
+MAIN_RUN_ID=""
+MAIN_RUN_DEADLINE=$((SECONDS + 120))
+while [[ -z "$MAIN_RUN_ID" && $SECONDS -lt $MAIN_RUN_DEADLINE ]]; do
+    MAIN_RUN_ID=$(gh run list \
+        -R "$REPO_SLUG" \
+        --workflow "Test Suite" \
+        --branch main \
+        --event push \
+        --limit 20 \
+        --json databaseId,headSha \
+        --jq ".[] | select(.headSha == \"${MERGE_SHA}\") | .databaseId" \
+        | head -n 1)
+    [[ -n "$MAIN_RUN_ID" ]] || sleep 5
+done
+if [[ -z "$MAIN_RUN_ID" ]]; then
+    echo "   ERROR: Main Test Suite run did not appear for ${MERGE_SHA}."
+    exit 1
+fi
+if ! gh run watch "$MAIN_RUN_ID" -R "$REPO_SLUG" --exit-status; then
+    echo "   ERROR: Main Test Suite failed for ${MERGE_SHA}; tag and release were not created."
+    exit 1
 fi
 
 TAG_NAME="v${VERSION}"

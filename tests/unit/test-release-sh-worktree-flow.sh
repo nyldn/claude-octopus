@@ -103,6 +103,36 @@ test_release_ci_timeout_covers_macos() {
     fi
 }
 
+test_release_requires_clean_review_state() {
+    test_case "release fails closed on requested changes or unresolved review threads"
+
+    if grep -q -- '--json reviewDecision' "$RELEASE_SH" \
+        && grep -q 'reviewThreads(first:100)' "$RELEASE_SH" \
+        && grep -q 'REVIEW_DECISION" == "CHANGES_REQUESTED"' "$RELEASE_SH" \
+        && grep -q 'UNRESOLVED_THREADS" != "0"' "$RELEASE_SH"; then
+        test_pass
+    else
+        test_fail "release.sh does not enforce the PR review gate"
+    fi
+}
+
+test_release_verifies_main_before_tag() {
+    test_case "release verifies the post-squash main commit before tagging"
+
+    local merge_block watch_line tag_line
+    merge_block=$(awk '/# --- 6\. Merge \+ Release/,/^# --- 7\. Sync shared marketplace/' "$RELEASE_SH")
+    watch_line=$(grep -n 'gh run watch "\$MAIN_RUN_ID"' <<< "$merge_block" | cut -d: -f1)
+    tag_line=$(grep -n 'git tag -a "\$TAG_NAME"' <<< "$merge_block" | cut -d: -f1)
+
+    if grep -q -- '--workflow "Test Suite"' <<< "$merge_block" \
+        && grep -q 'headSha == \\"${MERGE_SHA}\\"' <<< "$merge_block" \
+        && [[ -n "$watch_line" && -n "$tag_line" && "$watch_line" -lt "$tag_line" ]]; then
+        test_pass
+    else
+        test_fail "release.sh does not verify the exact main merge SHA before tagging"
+    fi
+}
+
 # Functional: reproduce the exact worktree scenario from RELEASING.md §0
 # (main checked out in one worktree, release/vX.Y.Z cut in another) and prove
 # the fetch+FETCH_HEAD approach release.sh now uses succeeds there, while the
@@ -174,6 +204,8 @@ test_post_merge_skips_checkout_on_release_branch
 test_release_tags_merge_sha
 test_release_uses_squash_merge
 test_release_ci_timeout_covers_macos
+test_release_requires_clean_review_state
+test_release_verifies_main_before_tag
 test_fetch_head_approach_works_when_main_checked_out_elsewhere
 
 test_summary

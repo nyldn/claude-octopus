@@ -74,6 +74,8 @@ Must be empty. Shell scripts and Python helpers must stay `100755`; both contrib
 - `scripts/release.sh` waits up to 15 minutes by default so the macOS unit
   matrix can finish. Override only when necessary with
   `OCTO_RELEASE_CI_TIMEOUT_SECONDS=<seconds>`.
+- Automatic merge fails closed while a review requests changes or any review
+  thread is unresolved.
 
 ## 7. Tag AFTER the squash-merge
 
@@ -99,4 +101,6 @@ Marketplace consumers pin by release; a bare tag is not enough.
 
 ## 9. Post-merge verification
 
-Watch the main-branch Test Suite run on the merge commit until `completed/success`. A release is not done while main is red.
+`scripts/release.sh` waits for the main-branch Test Suite on the exact squash
+commit before it creates the tag or GitHub release. For manual recovery, watch
+that run until `completed/success`. A release is not done while main is red.
