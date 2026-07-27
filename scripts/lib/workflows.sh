@@ -1899,6 +1899,10 @@ _tangle_develop_in_workspace() {
         return 0
     fi
 
+    if tangle_clean_baseline_guard_enabled; then
+        tangle_require_clean_git_baseline || return 1
+    fi
+
     # Cost transparency (v7.18.0 - P0.0)
     if ! display_workflow_cost_estimate "Tangle (Develop Phase)" 2 2 1800; then
         log "WARN" "Workflow cancelled by user after cost review"

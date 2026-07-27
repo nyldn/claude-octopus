@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **Real Tangle implementation runs now require a clean Git baseline by default** (#674). Modified tracked files, untracked files, and non-Git workspaces fail before provider dispatch with each blocking status entry reported; ignored files remain allowed and direct library consumers may explicitly opt out with `OCTOPUS_TANGLE_REQUIRE_CLEAN_BASELINE=false`.
+
 ### Added
 
 - **Tangle implementation runs now execute in an isolated Git worktree by default** (#673). Each real run gets a deterministic `octopus/run/<run-id>/integration` branch, records source and run metadata, restores the caller's project context afterward, and preserves failed worktrees for inspection; setup failures roll back both the worktree and branch.
