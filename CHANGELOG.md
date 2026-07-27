@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+## [9.56.0] - 2026-07-27
+
+
 ### Security
 
 - **The `/octopus` issue-comment workflow now requires a trusted author.** The job held `issues: write` and `pull-requests: write` and spent the repository's provider API keys for any GitHub user who could comment; it is now gated on `author_association` being OWNER, MEMBER, or COLLABORATOR, matching the guard the sibling `pr-review` job already had.
