@@ -614,7 +614,12 @@ test_council_fixture_run_writes_phase_artifacts() {
 
     if [[ "$response_count" -eq 5 ]] &&
        [[ "$critique_count" -eq 5 ]] &&
-       jq -e '.status == "completed" and .quorum.met == true and .quorum.received_non_chair == 4' "$summary" >/dev/null; then
+       jq -e '
+           .status == "completed"
+           and .quorum.met == true
+           and .quorum.received_non_chair
+               == ([.seats[] | select(.seat != "chair" and .status == "responded")] | length)
+       ' "$summary" >/dev/null; then
         test_pass
     else
         test_fail "phase artifacts or quorum summary mismatch"
@@ -791,7 +796,26 @@ test_council_chair_fallback_preserves_quorum() {
     summary="$(find "$tmp_dir" -name summary.json -type f | head -1)"
     [[ -n "$summary" ]] || { test_fail "summary.json not written"; return 1; }
 
-    if jq -e '.status == "completed" and .quorum.met == true and .warnings.chair_fallback == true and (.quorum.chair_received == true)' "$summary" >/dev/null; then
+    if jq -e '
+        .status == "completed"
+        and .quorum.met == true
+        and .warnings.chair_fallback == true
+        and (.quorum.chair_received == true)
+        # The failed roster chair remains visible, and the successfully dispatched
+        # fallback is an additional, fully typed execution record.
+        and (.seats[0].seat == "chair" and .seats[0].status == "no-response")
+        and ((.seats | length) == ((.council | length) + 1))
+        and (.seats[-1] as $fallback
+             | $fallback.index == (.council | length)
+             and $fallback.persona == .warnings.chair_fallback_persona
+             and $fallback.seat == "chair"
+             and ([$fallback.provider, $fallback.provider_org, $fallback.model,
+                   $fallback.payload_kind, $fallback.status]
+                  | all(type == "string" and length > 0))
+             and $fallback.response_bytes > 0
+             and $fallback.verdict == "APPROVE"
+             and ($fallback.counted_as_approver | type == "boolean"))
+    ' "$summary" >/dev/null; then
         test_pass
     else
         test_fail "chair fallback did not preserve quorum"
@@ -1116,8 +1140,8 @@ EOF
     test_pass
 }
 
-test_council_dispatch_strips_blocked_env_but_sets_readonly() {
-    test_case "Council dispatch strips blocked caller env while setting read-only sandbox"
+test_council_dispatch_strips_blocked_env_but_sets_disposable_mode() {
+    test_case "Council dispatch strips blocked caller env while setting disposable-workspace mode"
     load_council_lib || return 1
 
     local tmp_dir env_capture
@@ -1136,7 +1160,7 @@ test_council_dispatch_strips_blocked_env_but_sets_readonly() {
     OCTOPUS_COUNCIL_PROVIDER_FIXTURE='codex:available' \
         council_run --providers codex --depth quick --members 3 --output-dir "$tmp_dir" "Review auth"
 
-    if grep -q '^OCTOPUS_CODEX_SANDBOX=read-only$' "$env_capture" &&
+    if grep -q '^OCTOPUS_CODEX_SANDBOX=danger-full-access$' "$env_capture" &&
        ! grep -q '^OCTOPUS_SECURITY_V870=' "$env_capture" &&
        ! grep -q '^OCTOPUS_GEMINI_SANDBOX=' "$env_capture" &&
        ! grep -q '^CLAUDE_OCTOPUS_AUTONOMY=' "$env_capture"; then
@@ -1144,7 +1168,7 @@ test_council_dispatch_strips_blocked_env_but_sets_readonly() {
         test_pass
     else
         unset -f run_agent_sync
-        test_fail "blocked env forwarding or read-only sandbox mismatch"
+        test_fail "blocked env forwarding or disposable-workspace mode mismatch"
         return 1
     fi
 }
@@ -1197,7 +1221,7 @@ test_council_prompt_task_block_is_authoritative
 test_council_scans_artifact_critical_veto
 test_council_structured_veto_requires_veto_role
 test_council_veto_scan_ignores_discussed_token
-test_council_dispatch_strips_blocked_env_but_sets_readonly
+test_council_dispatch_strips_blocked_env_but_sets_disposable_mode
 
 test_council_host_native_detection() {
     test_case "council_detect_providers marks host provider as host-native (issue #444)"
@@ -1332,6 +1356,445 @@ test_council_all_approve_meets_quorum() {
     fi
 }
 
+test_council_detached_dispatch_atomic_and_propagates_rc() {
+    test_case "council_dispatch_member_detached only publishes via atomic rename, propagates rc, leaves no temp files (#2077)"
+    load_council_lib || return 1
+    local d; d="$(mktemp -d "$TEST_TMP_DIR/detach.XXXXXX")"
+    local member='{"provider":"codex","persona":"code-reviewer","seat":"member"}'
+    local startedf="$d/started" relf="$d/release"
+    export OCTOPUS_COUNCIL_AGENT_TIMEOUT=30
+
+    # Happy path, observed MID-WRITE. The stub signals it has started, then blocks.
+    # While it is blocked the final path must NOT exist — a regression that writes
+    # straight to the final path (skipping .partial + atomic mv) would expose a
+    # partial/empty file here and fail. After release the complete output must appear.
+    council_dispatch_member() {
+        : > "$startedf"
+        local i=0; while [[ ! -f "$relf" && $i -lt 200 ]]; do sleep 0.1; i=$((i + 1)); done
+        printf 'full review\nVERDICT: APPROVE\n'
+        return 0
+    }
+    council_dispatch_member_detached "$member" "independent-advice" "$d/ok.md" & local helper=$!
+    local i=0; while [[ ! -f "$startedf" && $i -lt 100 ]]; do sleep 0.1; i=$((i + 1)); done
+    local midwrite_absent="no"; [[ ! -e "$d/ok.md" ]] && midwrite_absent="yes"
+    : > "$relf"
+    local ok_rc=0; wait "$helper" || ok_rc=$?
+
+    # Failing seat: the inner exit code propagates AND the (failing) output still
+    # reaches the final path through the same rename.
+    council_dispatch_member() { printf 'junk-but-final\n'; return 3; }
+    local fail_rc=0
+    council_dispatch_member_detached "$member" "independent-advice" "$d/bad.md" || fail_rc=$?
+
+    if [[ "$midwrite_absent" == "yes" ]] && [[ $ok_rc -eq 0 ]] &&
+       grep -q 'VERDICT: APPROVE' "$d/ok.md" &&
+       [[ ! -e "$d/ok.md.partial" && ! -e "$d/ok.md.done" && ! -e "$d/ok.md.done.tmp" ]] &&
+       [[ $fail_rc -eq 3 ]] && grep -q 'junk-but-final' "$d/bad.md" &&
+       [[ ! -e "$d/bad.md.partial" && ! -e "$d/bad.md.done" && ! -e "$d/bad.md.done.tmp" ]]; then
+        test_pass
+    else
+        test_fail "atomic dispatch wrong: midwrite_absent=$midwrite_absent ok_rc=$ok_rc fail_rc=$fail_rc ok=[$(tr '\n' '|' < "$d/ok.md" 2>/dev/null)] bad=[$(tr '\n' '|' < "$d/bad.md" 2>/dev/null)]"
+        return 1
+    fi
+}
+
+test_council_seat_timeout_precedence() {
+    test_case "council_seat_timeout resolves per-provider > flag > global env > default (#2077)"
+    load_council_lib || return 1
+    local d f p g pp invalid_provider invalid_flag invalid_global
+    # 4. built-in default when nothing set
+    d="$(OCTOPUS_COUNCIL_TIMEOUT_AGY='' OCTOPUS_COUNCIL_TIMEOUT_CODEX='' COUNCIL_SEAT_TIMEOUT='' OCTOPUS_COUNCIL_AGENT_TIMEOUT='' council_seat_timeout agy)"
+    # 3. legacy global env
+    g="$(OCTOPUS_COUNCIL_TIMEOUT_AGY='' OCTOPUS_COUNCIL_TIMEOUT_CODEX='' COUNCIL_SEAT_TIMEOUT='' OCTOPUS_COUNCIL_AGENT_TIMEOUT=200 council_seat_timeout agy)"
+    # 2. run-wide --seat-timeout flag beats the global env
+    f="$(OCTOPUS_COUNCIL_TIMEOUT_AGY='' OCTOPUS_COUNCIL_TIMEOUT_CODEX='' COUNCIL_SEAT_TIMEOUT=300 OCTOPUS_COUNCIL_AGENT_TIMEOUT=200 council_seat_timeout agy)"
+    # 1. per-provider env beats everything, and only for that provider
+    p="$(OCTOPUS_COUNCIL_TIMEOUT_AGY=600 OCTOPUS_COUNCIL_TIMEOUT_CODEX='' COUNCIL_SEAT_TIMEOUT=300 council_seat_timeout agy)"
+    pp="$(OCTOPUS_COUNCIL_TIMEOUT_AGY=600 OCTOPUS_COUNCIL_TIMEOUT_CODEX='' COUNCIL_SEAT_TIMEOUT=300 council_seat_timeout codex)"
+    # Invalid higher-priority overrides fall through without disabling the cap.
+    invalid_provider="$(OCTOPUS_COUNCIL_TIMEOUT_AGY=0 COUNCIL_SEAT_TIMEOUT=300 OCTOPUS_COUNCIL_AGENT_TIMEOUT=200 council_seat_timeout agy)"
+    invalid_flag="$(OCTOPUS_COUNCIL_TIMEOUT_AGY='' COUNCIL_SEAT_TIMEOUT=abc OCTOPUS_COUNCIL_AGENT_TIMEOUT=200 council_seat_timeout agy)"
+    invalid_global="$(OCTOPUS_COUNCIL_TIMEOUT_AGY='' COUNCIL_SEAT_TIMEOUT='' OCTOPUS_COUNCIL_AGENT_TIMEOUT=-1 council_seat_timeout agy)"
+    if [[ "$d" == "120" ]] && [[ "$g" == "200" ]] && [[ "$f" == "300" ]] &&
+       [[ "$p" == "600" ]] && [[ "$pp" == "300" ]] &&
+       [[ "$invalid_provider" == "300" ]] && [[ "$invalid_flag" == "200" ]] &&
+       [[ "$invalid_global" == "120" ]]; then
+        test_pass
+    else
+        test_fail "timeout precedence wrong: default=$d global=$g flag=$f agy=$p codex=$pp invalid=$invalid_provider/$invalid_flag/$invalid_global"
+        return 1
+    fi
+}
+
+test_council_detach_escape_hatch_uses_inline() {
+    test_case "OCTOPUS_COUNCIL_DETACH=0 falls back to inline dispatch (no sentinel)"
+    load_council_lib || return 1
+    local d; d="$(mktemp -d "$TEST_TMP_DIR/detach-off.XXXXXX")"
+    local member='{"provider":"codex","persona":"code-reviewer","seat":"member"}'
+    council_dispatch_member() { printf 'inline\nVERDICT: REVISE\n'; return 0; }
+    local rc=0
+    OCTOPUS_COUNCIL_DETACH=0 council_dispatch_member_detached "$member" "independent-advice" "$d/x.md" || rc=$?
+    # The inline path never creates a .done sentinel; output must still be correct.
+    if [[ $rc -eq 0 ]] && grep -q 'VERDICT: REVISE' "$d/x.md" && [[ ! -e "$d/x.md.done" ]]; then
+        test_pass
+    else
+        test_fail "escape hatch wrong: rc=$rc content=[$(tr '\n' '|' < "$d/x.md" 2>/dev/null)]"
+        return 1
+    fi
+}
+
+_council_run_advice_with_roster() {
+    # Drive council_run_advice_phase against a hand-crafted roster in fixture mode.
+    # Provider assignment per seat can't be pinned through the public council_run path
+    # (diversity is auto-enforced among non-chair seats), so inject the roster directly.
+    local roster="$1" depth="${2:-standard}" failed_persona="${3:-}"
+    local d; d="$(mktemp -d "$TEST_TMP_DIR/advice.XXXXXX")"; mkdir -p "$d/responses"
+    COUNCIL_RUN_DIR="$d"; COUNCIL_DEPTH="$depth"; COUNCIL_FIXTURE="full-success"
+    COUNCIL_EXECUTION_MODE=""; COUNCIL_TASK="x"; COUNCIL_GOAL="advice"
+    COUNCIL_DOMAIN="auto"; COUNCIL_STYLE="balanced"
+    COUNCIL_ROSTER_JSON="$roster"
+    # The prompt builder and fail-check need deep state that's irrelevant in fixture
+    # mode; stub them. load_council_lib re-sources the lib for the next test, restoring them.
+    council_prompt_for_member() { echo "prompt"; }
+    council_persona_should_fail() { [[ -n "$failed_persona" && "$1" == "$failed_persona" ]]; }
+    council_run_advice_phase >/dev/null 2>&1 || true
+}
+
+test_council_chair_only_vendor_excluded_from_quorum() {
+    test_case "A chair-only vendor is excluded from the approving-provider quorum tally (#670)"
+    load_council_lib || return 1
+
+    # agy sits ONLY on the chair; the two independent (non-chair) reviewers are both
+    # codex. The chair is the synthesizer, not a cross-lab vote, so agy must NOT count
+    # as a distinct approving vendor — leaving a single non-chair approver (codex) that
+    # can't satisfy the 2-vendor standard quorum. Before the fix, agy leaked in and the
+    # council falsely reported a 2-vendor consensus.
+    _council_run_advice_with_roster '[
+      {"persona":"strategy-analyst","provider":"agy","seat":"chair"},
+      {"persona":"code-reviewer","provider":"codex","seat":"member"},
+      {"persona":"backend-architect","provider":"codex","seat":"member"}
+    ]'
+    local chair_only_ok="no"
+    if [[ "$COUNCIL_DISTINCT_APPROVING_PROVIDERS" == "1" ]] &&
+       [[ "$COUNCIL_APPROVING_PROVIDERS" == *codex* ]] &&
+       [[ "$COUNCIL_APPROVING_PROVIDERS" != *agy* ]] &&
+       [[ "$COUNCIL_QUORUM_MET" == "false" ]] &&
+       jq -e '
+         .[0].seat == "chair"
+         and .[0].status == "responded"
+         and .[0].verdict == "APPROVE"
+         and .[0].counted_as_approver == false
+         and ([.[] | select(.counted_as_approver) | .provider] | unique) == ["codex"]
+       ' <<< "$COUNCIL_SEAT_RECORDS_JSON" >/dev/null; then
+        chair_only_ok="yes"
+    fi
+
+    # Complement: the SAME vendor on the chair AND an independent seat still counts via
+    # its non-chair seat — proving the exclusion is seat-scoped, not vendor-scoped.
+    _council_run_advice_with_roster '[
+      {"persona":"strategy-analyst","provider":"agy","seat":"chair"},
+      {"persona":"code-reviewer","provider":"codex","seat":"member"},
+      {"persona":"backend-architect","provider":"agy","seat":"member"}
+    ]'
+    local also_member_ok="no"
+    if [[ "$COUNCIL_DISTINCT_APPROVING_PROVIDERS" == "2" ]] &&
+       [[ "$COUNCIL_APPROVING_PROVIDERS" == *codex* ]] &&
+       [[ "$COUNCIL_APPROVING_PROVIDERS" == *agy* ]] &&
+       [[ "$COUNCIL_QUORUM_MET" == "true" ]] &&
+       jq -e '
+         .[0].seat == "chair"
+         and .[0].status == "responded"
+         and .[0].counted_as_approver == false
+         and .[2].seat == "member"
+         and .[2].provider == "agy"
+         and .[2].counted_as_approver == true
+       ' <<< "$COUNCIL_SEAT_RECORDS_JSON" >/dev/null; then
+        also_member_ok="yes"
+    fi
+
+    if [[ "$chair_only_ok" == "yes" && "$also_member_ok" == "yes" ]]; then
+        test_pass
+    else
+        test_fail "chair exclusion wrong: chair_only_ok=$chair_only_ok also_member_ok=$also_member_ok (last: approving=[$COUNCIL_APPROVING_PROVIDERS] distinct=$COUNCIL_DISTINCT_APPROVING_PROVIDERS met=$COUNCIL_QUORUM_MET)"
+        return 1
+    fi
+}
+
+test_council_detached_seat_survives_interrupt() {
+    test_case "A detached seat survives SIGINT/SIGHUP/SIGTERM to its process and still lands its result (#2077)"
+    load_council_lib || return 1
+    local d; d="$(mktemp -d "$TEST_TMP_DIR/detach-sig.XXXXXX")"
+    local member='{"provider":"codex","persona":"code-reviewer","seat":"member"}'
+    local pidf="$d/seat.pid" relf="$d/release" out="$d/sig.md"
+    export OCTOPUS_COUNCIL_AGENT_TIMEOUT=30
+
+    # PPID of the `sh -c` child is the seat subshell's pid — portable to bash 3.2
+    # (macOS), where $BASHPID does not exist. The stub blocks until released so the
+    # test can deliver signals while the seat is provably mid-run. TERM is included
+    # because a timeout-style tool/orchestrator kill sends SIGTERM first.
+    council_dispatch_member() {
+        sh -c 'echo $PPID' > "$pidf"
+        local i=0
+        while [[ ! -f "$relf" && $i -lt 200 ]]; do sleep 0.1; i=$((i + 1)); done
+        printf 'survived interrupt\nVERDICT: APPROVE\n'
+        return 0
+    }
+
+    council_dispatch_member_detached "$member" "independent-advice" "$out" & local helper=$!
+    local i=0
+    while [[ ! -f "$pidf" && $i -lt 100 ]]; do sleep 0.1; i=$((i + 1)); done
+    local seat; seat="$(cat "$pidf" 2>/dev/null)"
+    kill -INT "$seat" 2>/dev/null || true
+    kill -HUP "$seat" 2>/dev/null || true
+    # Record TERM delivery. A successful kill -TERM proves the seat was still ALIVE
+    # (it had already ignored INT+HUP) AND that TERM was actually delivered — without
+    # this the test could green even if the signal never reached a live process.
+    local term_delivered="no"
+    kill -TERM "$seat" 2>/dev/null && term_delivered="yes"
+    local premature="no"; [[ -f "$out" ]] && premature="yes"
+    : > "$relf"
+    local rc=0; wait "$helper" || rc=$?
+
+    if [[ -n "$seat" ]] && [[ "$term_delivered" == "yes" ]] && [[ "$premature" == "no" ]] &&
+       [[ $rc -eq 0 ]] && [[ -f "$out" ]] && grep -q 'survived interrupt' "$out"; then
+        test_pass
+    else
+        test_fail "detached seat did not survive interrupt: seat=$seat term_delivered=$term_delivered premature=$premature rc=$rc out=[$(tr '\n' '|' < "$out" 2>/dev/null)]"
+        return 1
+    fi
+}
+
+test_council_chair_fallback_rejects_incomplete_responses() {
+    test_case "Chair fallback rejects timed-out partial and empty-success responses"
+    load_council_lib || return 1
+    local d rc=0
+    d="$(mktemp -d "$TEST_TMP_DIR/chair-partial.XXXXXX")"
+    mkdir -p "$d/responses"
+    printf 'review was cut off before its verdict\n' > "$d/responses/00-strategy-analyst.md"
+    COUNCIL_RUN_DIR="$d"
+    COUNCIL_SEAT_RECORDS_JSON='[{"persona":"strategy-analyst","status":"no-response"}]'
+    COUNCIL_CHAIR_RESPONSE_RECEIVED="false"
+    COUNCIL_CHAIR_FALLBACK_USED="false"
+    COUNCIL_CHAIR_FALLBACK_PERSONA=""
+    council_pick_provider() { printf 'codex'; }
+    council_provider_is_available() { return 1; }
+
+    council_run_chair_fallback || rc=$?
+    local partial_ok="no"
+    if [[ $rc -ne 0 ]] &&
+       [[ "$COUNCIL_CHAIR_RESPONSE_RECEIVED" == "false" ]] &&
+       [[ "$COUNCIL_CHAIR_FALLBACK_USED" == "false" ]]; then
+        partial_ok="yes"
+    fi
+
+    rm -f "$d/responses/"*.md
+    COUNCIL_SEAT_RECORDS_JSON='[]'
+    COUNCIL_CHAIR_RESPONSE_RECEIVED="false"
+    COUNCIL_CHAIR_FALLBACK_USED="false"
+    council_provider_is_available() { return 0; }
+    council_roster_entry_json() {
+        jq -cn --arg persona "$1" --arg provider "$2" \
+            '{persona:$persona,provider:$provider,provider_org:$provider,model:"fixture",seat:"member"}'
+    }
+    council_dispatch_member() { return 0; }
+    rc=0
+    council_run_chair_fallback || rc=$?
+    local empty_ok="no"
+    if [[ $rc -ne 0 ]] &&
+       [[ "$COUNCIL_CHAIR_RESPONSE_RECEIVED" == "false" ]] &&
+       [[ "$COUNCIL_CHAIR_FALLBACK_USED" == "false" ]]; then
+        empty_ok="yes"
+    fi
+
+    if [[ "$partial_ok" == "yes" && "$empty_ok" == "yes" ]]; then
+        test_pass
+    else
+        test_fail "incomplete chair accepted: partial_ok=$partial_ok empty_ok=$empty_ok rc=$rc received=$COUNCIL_CHAIR_RESPONSE_RECEIVED fallback=$COUNCIL_CHAIR_FALLBACK_USED"
+        return 1
+    fi
+}
+
+test_council_reused_member_chair_fallback_preserves_quorum() {
+    test_case "A reused member chair fallback preserves the non-chair quorum count"
+    load_council_lib || return 1
+
+    # The original chair fails, but the synthesis-capable member already returned a
+    # complete review. The fallback reuses that member instead of adding a chair seat.
+    # Its one non-chair response must remain counted for quick-mode quorum.
+    _council_run_advice_with_roster '[
+      {"persona":"strategy-analyst","provider":"agy","seat":"chair"},
+      {"persona":"research-synthesizer","provider":"codex","seat":"member"}
+    ]' quick strategy-analyst
+
+    if [[ "$COUNCIL_CHAIR_FALLBACK_USED" == "true" ]] &&
+       [[ "$COUNCIL_CHAIR_FALLBACK_PERSONA" == "research-synthesizer" ]] &&
+       [[ "$COUNCIL_QUORUM_MET" == "true" ]] &&
+       [[ "$(council_received_non_chair)" == "1" ]] &&
+       [[ "$(jq 'length' <<< "$COUNCIL_SEAT_RECORDS_JSON")" == "2" ]]; then
+        test_pass
+    else
+        test_fail "reused fallback lost quorum: fallback=$COUNCIL_CHAIR_FALLBACK_USED persona=$COUNCIL_CHAIR_FALLBACK_PERSONA quorum=$COUNCIL_QUORUM_MET non_chair=$(council_received_non_chair) seats=$COUNCIL_SEAT_RECORDS_JSON"
+        return 1
+    fi
+}
+
+test_council_seat_timeout_rejects_zero_and_nonnumeric() {
+    test_case "--seat-timeout records a positive integer but rejects 0 and non-numeric"
+    load_council_lib || return 1
+    local out_file="$TEST_TMP_DIR/council-seat-timeout.out"
+
+    # A positive integer is accepted and recorded.
+    council_parse_args --seat-timeout 450 --dry-run "Review auth"
+    [[ "$COUNCIL_SEAT_TIMEOUT" == "450" ]] || { test_fail "positive value not recorded: [$COUNCIL_SEAT_TIMEOUT]"; return 1; }
+
+    # 0 must be rejected: run_with_timeout treats 0 as unbounded, so it would defeat
+    # the very cap the flag sets. Non-numeric must also fail with the usage error.
+    # Capture each expected failure with an if-guard rather than `set +e`, so the
+    # runner's errexit stays on for the rest of the test.
+    local z_status=0 nn_status=0
+    if council_parse_args --seat-timeout 0 "Review auth" >"$out_file" 2>&1; then z_status=0; else z_status=$?; fi
+    if council_parse_args --seat-timeout abc "Review auth" >"$out_file" 2>&1; then nn_status=0; else nn_status=$?; fi
+    if [[ $z_status -eq 2 ]] && [[ $nn_status -eq 2 ]] && [[ -z "$COUNCIL_SEAT_TIMEOUT" ]]; then
+        test_pass
+    else
+        test_fail "expected exit 2 and reset timeout: zero=$z_status nonnumeric=$nn_status timeout=[$COUNCIL_SEAT_TIMEOUT]"
+        return 1
+    fi
+}
+
+test_council_detached_seat_timeout_is_cancelled() {
+    test_case "A seat that outlives the reap window is cancelled — no late response is published (#2077)"
+    load_council_lib || return 1
+    local d; d="$(mktemp -d "$TEST_TMP_DIR/detach-timeout.XXXXXX")"
+    local member='{"provider":"codex","persona":"code-reviewer","seat":"member"}'
+    local pidf="$d/seat.pid" out="$d/late.md"
+    local childpidf="$d/child.pid" childmark="$d/child.mark"
+    # Force a ~1s reap window (provider timeout 1 + grace 0) against a seat that
+    # would take ~3s. The legacy global remains high so this also proves the detached
+    # reaper uses the same per-provider precedence as the inner dispatch.
+    export OCTOPUS_COUNCIL_TIMEOUT_CODEX=1
+    export COUNCIL_SEAT_TIMEOUT=""
+    export OCTOPUS_COUNCIL_AGENT_TIMEOUT=30
+    export OCTOPUS_COUNCIL_REAP_GRACE_SECS=0
+
+    # The seat spawns a REAL descendant that would touch a marker after 3s. If only the
+    # wrapper were killed, that grandchild would survive and create the marker; a proper
+    # tree-kill takes it down too. The stub itself also sleeps and would publish late.
+    council_dispatch_member() {
+        sh -c 'echo $PPID' > "$pidf"
+        ( sleep 3; : > "$childmark" ) &
+        echo "$!" > "$childpidf"
+        sleep 3
+        printf 'late publish\nVERDICT: APPROVE\n'
+        return 0
+    }
+
+    local rc=0
+    council_dispatch_member_detached "$member" "independent-advice" "$out" || rc=$?
+    local seat child; seat="$(cat "$pidf" 2>/dev/null)"; child="$(cat "$childpidf" 2>/dev/null)"
+    # Wait PAST the stub's natural 3s completion so a late publish / surviving child
+    # would have materialized by the time we assert.
+    sleep 4
+
+    unset OCTOPUS_COUNCIL_TIMEOUT_CODEX COUNCIL_SEAT_TIMEOUT
+    unset OCTOPUS_COUNCIL_AGENT_TIMEOUT OCTOPUS_COUNCIL_REAP_GRACE_SECS
+    if [[ $rc -ne 0 ]] && [[ ! -e "$out" ]] && [[ ! -e "$childmark" ]] &&
+       [[ ! -e "$out.partial" && ! -e "$out.done" && ! -e "$out.done.tmp" ]] &&
+       [[ -n "$seat" ]] && ! kill -0 "$seat" 2>/dev/null &&
+       [[ -n "$child" ]] && ! kill -0 "$child" 2>/dev/null; then
+        test_pass
+    else
+        test_fail "timed-out seat/tree not cancelled: rc=$rc late_file=$([[ -e "$out" ]] && echo yes || echo no) child_marker=$([[ -e "$childmark" ]] && echo yes || echo no) seat_alive=$(kill -0 "$seat" 2>/dev/null && echo yes || echo no) child_alive=$(kill -0 "$child" 2>/dev/null && echo yes || echo no)"
+        return 1
+    fi
+}
+
+test_council_response_has_verdict_salvage() {
+    test_case "council_response_has_verdict distinguishes a finished seat from a truncated one (#2077)"
+    load_council_lib || return 1
+    local d; d="$(mktemp -d "$TEST_TMP_DIR/hasverdict.XXXXXX")"
+    printf 'full review body\nVERDICT: APPROVE\n'        > "$d/complete.md"
+    printf '  verdict: revise please\n'                  > "$d/lower.md"
+    printf 'review got cut off mid-sen'                  > "$d/partial.md"
+    printf ''                                            > "$d/empty.md"
+    if council_response_has_verdict "$d/complete.md" &&
+       council_response_has_verdict "$d/lower.md" &&
+       ! council_response_has_verdict "$d/partial.md" &&
+       ! council_response_has_verdict "$d/empty.md" &&
+       ! council_response_has_verdict "$d/missing.md"; then
+        test_pass
+    else
+        test_fail "has_verdict salvage detection wrong"
+        return 1
+    fi
+}
+
+test_council_seats_array_makes_quorum_inspectable() {
+    test_case "summary.json seats[] records per-seat state and quorum is recomputable from it"
+    load_council_lib || return 1
+    local tmp_dir rd s
+    tmp_dir="$(mktemp -d "$TEST_TMP_DIR/council-seats.XXXXXX")"
+    OCTOPUS_COUNCIL_FIXTURE=full-success \
+    OCTOPUS_COUNCIL_PROVIDER_FIXTURE='codex:available,agy:available' \
+        council_run --depth standard --output-dir "$tmp_dir" "Review X" >/dev/null 2>&1 || true
+    rd="$(find "$tmp_dir" -mindepth 1 -maxdepth 1 -type d | head -1)"
+    s="$rd/summary.json"
+    # Every seat carries the FULL documented contract (incl. provider_org, model,
+    # verdict), the fields are well-typed, the counted_as_approver invariant holds,
+    # and distinct_approving_providers is recomputable from seats[] alone (no reading
+    # responses/* by hand).
+    if jq -e '
+        . as $summary
+        | ($summary.seats | type == "array" and length >= 2)
+        and ($summary.council | type == "array")
+        and (($summary.seats | length) >= ($summary.council | length))
+        and (.seats | all(has("index") and has("persona")
+                          and has("seat") and has("provider") and has("provider_org")
+                          and has("model") and has("status") and has("verdict")
+                          and has("response_bytes") and has("payload_kind")
+                          and has("counted_as_approver")))
+        and (.seats | all(
+            (.index | type == "number" and floor == .)
+            and ([.seat, .persona, .provider, .provider_org, .model, .status, .payload_kind]
+                 | all(type == "string" and length >= 1))
+        ))
+        # The seat list is a one-for-one, ordered execution record for the resolved
+        # council roster; a missing, duplicate, or invented seat must fail the contract.
+        and (all(range(0; ($summary.council | length)); . as $i
+            | ($summary.seats[$i].index == $i)
+            and ($summary.seats[$i].persona == $summary.council[$i].persona)
+            and ($summary.seats[$i].seat == $summary.council[$i].seat)
+            and ($summary.seats[$i].provider == $summary.council[$i].provider)
+            and ($summary.seats[$i].provider_org == $summary.council[$i].provider_org)
+            and ($summary.seats[$i].model == $summary.council[$i].model)))
+        # Any records beyond the roster must be the explicitly reported chair
+        # fallback dispatch; no unrelated extra seats are accepted.
+        and (if (($summary.seats | length) == ($summary.council | length))
+             then true
+             else ($summary.warnings.chair_fallback == true)
+                  and ($summary.seats[($summary.council | length):]
+                       | all(.seat == "chair"
+                             and .persona == $summary.warnings.chair_fallback_persona))
+             end)
+        # counted_as_approver drives quorum, so it must be a real boolean, not a
+        # truthy string that jq would still `select`.
+        and (.seats | all(.counted_as_approver | type == "boolean"))
+        and (.seats | all(.response_bytes | type == "number" and . >= 0))
+        # verdict is null (no substantive verdict) or a known token — never garbage.
+        and (.seats | all((.verdict == null) or (.verdict | test("^(APPROVE|REVISE|BLOCK)$"))))
+        # a counted approver is, by construction, a responded APPROVE seat.
+        and (.seats | all((.counted_as_approver | not)
+                          or (.status == "responded" and .verdict == "APPROVE")))
+        and (.quorum.distinct_approving_providers
+             == ([.seats[] | select(.counted_as_approver) | .provider] | unique | length))
+    ' "$s" >/dev/null; then
+        test_pass
+    else
+        test_fail "seats[] missing/!recomputable: $(jq -c '{q:.quorum.distinct_approving_providers, seats:.seats}' "$s" 2>/dev/null)"
+        return 1
+    fi
+}
+
 test_council_host_native_detection
 test_council_live_response_host_native_skips_subprocess
 test_council_live_response_host_native_fails_for_synthesis
@@ -1339,4 +1802,15 @@ test_council_verdict_parsing
 test_council_approving_providers_failsafe
 test_council_split_double_seat_fails_quorum
 test_council_all_approve_meets_quorum
+test_council_detached_dispatch_atomic_and_propagates_rc
+test_council_detach_escape_hatch_uses_inline
+test_council_detached_seat_survives_interrupt
+test_council_detached_seat_timeout_is_cancelled
+test_council_seat_timeout_precedence
+test_council_seat_timeout_rejects_zero_and_nonnumeric
+test_council_response_has_verdict_salvage
+test_council_chair_only_vendor_excluded_from_quorum
+test_council_chair_fallback_rejects_incomplete_responses
+test_council_reused_member_chair_fallback_preserves_quorum
+test_council_seats_array_makes_quorum_inspectable
 test_summary
