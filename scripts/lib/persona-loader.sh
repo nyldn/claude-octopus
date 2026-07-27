@@ -92,7 +92,6 @@ select_opus_mode() {
             *)
                 # Single-shot task with /fast: honor user preference
                 log "INFO" "/fast mode active - using fast Opus for single-shot task"
-                log_opus_fast_pricing_warning "$phase"
                 echo "fast"
                 ;;
         esac

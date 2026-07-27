@@ -130,6 +130,19 @@ test_fast_legacy_pin_wins() {
     [[ "$got" == *"--model claude-opus-4-6 --fast"* ]] && test_pass || test_fail "expected legacy 4-6 fast, got: $got"
 }
 
+test_fast_model_override_rejects_word_split_injection() {
+    test_case "claude-opus-fast rejects a model override that would add CLI arguments"
+    reset_env
+    export SUPPORTS_OPUS_5=true
+    export OCTOPUS_OPUS_MODEL="claude-opus-5 --dangerously-skip-permissions"
+    local got=""
+    if got="$(get_agent_command claude-opus-fast 2>/dev/null)"; then
+        test_fail "unsafe fast-model override was serialized: $got"
+    else
+        test_pass
+    fi
+}
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # claude-opus — phase→effort policy (high default, xhigh for deep work)
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -239,6 +252,7 @@ test_default_respects_override
 test_fast_uses_5_when_supported
 test_fast_falls_back_to_48
 test_fast_legacy_pin_wins
+test_fast_model_override_rejects_word_split_injection
 
 test_effort_discover_is_high
 test_effort_develop_is_high_on_opus5

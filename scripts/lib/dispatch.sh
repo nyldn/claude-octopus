@@ -301,6 +301,10 @@ get_agent_command() {
             if [[ "$opus_fast_model" == "claude-fable-5" ]] && declare -f fable5_fallback_model >/dev/null 2>&1; then
                 opus_fast_model="$(fable5_fallback_model)"
             fi
+            if ! validate_model_name "$opus_fast_model"; then
+                log "ERROR" "Invalid resolved Claude Opus fast model: '${opus_fast_model}'"
+                return 1
+            fi
             opus_fast_model="${opus_fast_model//./-}"
             echo "${_claude_bin}${_BARE_OPT} --print --model ${opus_fast_model} --fast ${claude_perm}"
             ;;

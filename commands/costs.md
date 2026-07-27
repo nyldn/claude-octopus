@@ -73,7 +73,7 @@ Workflow Cost Breakdown
 Workflow             Providers Used         Queries   Est Cost
 ------------------------------------------------------------
 /octo:discover       Claude, Codex, Gemini, agy   8     $0.42
-/octo:develop        Claude, Codex                 6     $0.35
+/octo:develop        Claude, Codex                 6     $1.01
 /octo:review         Claude, Codex, Gemini, agy    9     $0.58
 /octo:debate         Claude, Codex, Gemini, agy    6     $0.22
 ------------------------------------------------------------
