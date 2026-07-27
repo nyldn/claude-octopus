@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **Real Tangle implementation runs now require a clean Git baseline by default** (#674). Modified tracked files, untracked files, and non-Git workspaces fail before provider dispatch with each blocking status entry reported; ignored files remain allowed and direct library consumers may explicitly opt out with `OCTOPUS_TANGLE_REQUIRE_CLEAN_BASELINE=false`.
+
 ### Added
 
 - **Tangle now has an explicit verification-only mode** (#675). `orchestrate.sh verify "<prompt>"` diagnoses the committed baseline in a disposable detached worktree, accepts only a structured result, reports `VERIFIED_NO_CHANGE`, `DEFECT_REPRODUCED`, or `NEEDS_DIAGNOSIS`, and never launches implementation agents or preserves diagnostic writes.
