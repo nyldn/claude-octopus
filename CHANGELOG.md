@@ -6,6 +6,10 @@
 
 - **Council `summary.json` now records a per-seat `seats[]` array**, making quorum integrity machine-checkable without reading `responses/*` by hand. Each advice seat carries `seat` (role), `provider`, `provider_org`, `model`, `response_bytes`, `payload_kind` (currently `full`), `verdict`, `status` (`responded` / `degenerate` / `empty` / `no-response`), and `counted_as_approver`. `distinct_approving_providers` is recomputable as the count of distinct providers among seats where `counted_as_approver` is true — so a chair or degenerate seat can no longer masquerade as a distinct approving vendor. First of the sail-cruisey #2077 council-runner reliability fixes; later fixes extend `payload_kind` (agy chunking) and `status` (timeout/degraded).
 
+### Fixed
+
+- **An oversized council prompt to `agy` now degrades to a structured skip instead of OOM-killing the seat** (#2077). The adapter's existing file-path fallback sidesteps the argv `MAX_ARG_STRLEN` limit but not agy itself — a multi-megabyte prompt is loaded whole into agy's context and OOM-kills the headless process (or is rejected by the backend for context length), leaving the seat dead with an opaque exit code or a silent-empty result the retry cannot recover. `agy-exec.sh` now enforces a configurable payload ceiling (`OCTOPUS_AGY_MAX_PAYLOAD_BYTES`, default 1 MiB): above it, the adapter refuses to dispatch, exits 0, and emits a provider-rejection marker that `classify_agent_output` already recognizes, so dispatch records a structured `skipped:oversize` seat and the council keeps its remaining seats rather than crashing on this one. The ceiling is measured in bytes on the exact prompt content agy would read.
+
 ## [9.54.2] - 2026-07-27
 
 ### Fixed
