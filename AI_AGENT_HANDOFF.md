@@ -50,6 +50,11 @@ cheaper model tiers, user overrides, and legacy compatibility.
   contract is council, debate, parallel, or multi-provider research.
 - Tests and runtime evidence remain mandatory; redundant prompt-only
   self-verification is removed.
+- Release summaries, model defaults, component counts, runtime compatibility,
+  and provider counts in the public README surfaces are generated from
+  repository sources rather than maintained as duplicated prose.
+- `make sync` repairs README drift and `make sync-check` rejects it. Release
+  preparation updates the changelog first, then runs the same synchronization.
 - `.octo-continue.md` predates this work and is preserved as user-owned state.
 
 ## Tracking Blocker
@@ -77,6 +82,12 @@ could not be claimed or recorded as a new Beads issue.
 - Fresh configs adopt the frontier roster; existing v3 configs and explicit
   model pins remain unchanged.
 - `make sync-check` passes with no script mode changes.
+- `scripts/sync-readme.py` keeps `README.md`, `.claude-plugin/README.md`, and
+  `PRODUCT.md` aligned with plugin metadata, runtime capability gates, model
+  resolver defaults, and the current changelog release.
+- The README release-sync regression suite passes 7/7, including deliberate
+  fixture drift detection and repair; current public model guidance names
+  Opus 5, GPT-5.6 Sol/Terra/Luna, Sonnet 5, and opt-in Fable 5 consistently.
 - The final integrated `make ci-local` passed 16 smoke, 183 unit, and 7
   integration suites, including the live plugin lifecycle test.
 - PRs #678 and #681 passed protected/review checks, including Ubuntu and macOS

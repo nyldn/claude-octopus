@@ -6,7 +6,7 @@ This document explains how Claude Octopus orchestrates multiple AI providers and
 
 ## Overview
 
-Claude Octopus coordinates **nine AI providers** to give you multi-perspective analysis:
+Claude Octopus coordinates **ten external AI integrations** alongside its built-in Claude host to give you multi-perspective analysis. The diagram shows the representative execution path; the full roster follows it.
 
 ```
     +------------------+
@@ -42,8 +42,9 @@ Claude Octopus coordinates **nine AI providers** to give you multi-perspective a
 | **Copilot** *(optional)* | `copilot -p` | GitHub models (Claude/GPT/Gemini) | GitHub Copilot subscription |
 | **Qwen** *(optional)* | `qwen -p` | Qwen3-Coder | `QWEN_API_KEY` or Coding-Plan auth |
 | **OpenCode** *(optional)* | `opencode run` | Multi-provider router | Your OpenCode auth |
+| **Grok** *(optional)* | OpenAI-compatible API | Grok models | Your `XAI_API_KEY` |
 
-> **Note:** Models are as of April 2026. The orchestrate.sh script uses the latest available models. Only Claude is required — all others are optional and auto-detected.
+> **Note:** Models are as of July 2026. The orchestrate.sh script uses the latest supported models. Only Claude is required — all others are optional and auto-detected.
 
 ### Role → Model Mapping (v9.29+)
 

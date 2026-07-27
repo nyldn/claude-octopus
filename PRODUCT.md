@@ -1,12 +1,12 @@
 ---
-last_reviewed: 2026-05-25
+last_reviewed: 2026-07-27
 ---
 
 # PRODUCT.md
 
 ## Mission
 
-Put up to 9 AI models on every task so blind spots surface before you ship — not after.
+Put up to 10 external AI integrations on every task so blind spots surface before you ship — not after.
 
 ## Vision
 
@@ -35,17 +35,17 @@ Claude Octopus is a **multi-runtime orchestration plugin** with three architectu
 
 | Layer | What it does | Gap it closes |
 |-------|-------------|---------------|
-| **Provider adapters** (`scripts/orchestrate.sh`, `bin/check-providers.sh`) | Detects, authenticates, and dispatches to up to 9 AI CLIs | Eliminates manual per-provider boilerplate |
+| **Provider adapters** (`scripts/orchestrate.sh`, `bin/check-providers.sh`) | Detects, authenticates, and dispatches to up to 10 external AI integrations | Eliminates manual per-provider boilerplate |
 | **Workflow engine** (`skills/`) | Structures every task into Discover → Define → Develop → Deliver with quality gates | Stops ad-hoc "just ask Claude" from shipping low-confidence output |
 | **Consensus layer** | 75% gate: flags disagreements across providers before code is finalized | The actual blind-spot catcher — surfaces the 1-in-5 case where Claude was wrong |
 
-49 slash commands, 54 skills, 32 specialized personas activate the right layer for the right job.
+50 slash commands, 58 skills, 32 specialized personas activate the right layer for the right job.
 
 ## Core Value Propositions
 
-- **Blind spot elimination:** Any model can be wrong; 9 providers rarely agree on the same wrong answer
+- **Blind spot elimination:** Any model can be wrong; 10 external integrations rarely agree on the same wrong answer
 - **Zero-friction escalation:** Claude-native for ordinary tasks, Octopus for anything that deserves a second opinion
-- **Six providers can cost nothing extra when you already have access:** Codex (OAuth), Gemini (OAuth), Antigravity CLI, Qwen (1K-2K free/day), Copilot (GitHub subscription), Ollama (local) — pay only when you add metered providers such as Perplexity or OpenRouter
+- **Five providers can cost nothing extra when you already have access:** Codex (OAuth), Gemini (OAuth), Antigravity CLI, Copilot (GitHub subscription), and Ollama (local) — Qwen now requires API-key or Coding-Plan auth, while Perplexity and OpenRouter are metered
 - **Dark Factory autonomy:** Spec in, software out — full Discover→Define→Develop→Deliver pipeline without step-by-step prompting
 - **Opinionated four-phase methodology:** Infrastructure plus the workflow that uses it correctly
 
@@ -74,17 +74,17 @@ Frontier AI models will remain individually overconfident for the foreseeable fu
 
 ## Evidence
 
-**Traction (as of 2026-05-25):**
-- GitHub stars: 3,410
-- GitHub forks: 302
-- Test suites passing: 117
-- Version: 9.40.3 (active release cadence)
+**Traction (as of 2026-07-27):**
+- GitHub stars: 3,889
+- GitHub forks: 365
+- Local CI parity: 16 smoke, 183 unit, and 7 integration suites
+- Version: 9.55.1 (active release cadence)
 - Runtimes supported: Claude Code, Codex CLI, Cursor (MCP), Gemini CLI
 
 **Measured Impact:**
 - 75% consensus gate: quantifiable disagreement detection before production
 - Token compression (`bin/octo-compress`): ~7,300 tokens saved per session
-- 170+ Claude Code feature flags tracked through v2.1.132
+- 182 Claude Code capability flags tracked through v2.1.219
 
 ## Claude Code 2026 Compatibility Layer (v9.50.0)
 

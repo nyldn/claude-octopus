@@ -759,8 +759,8 @@ test_agy_slash_command_visibility() {
        grep -q 'Antigravity CLI' "$PROJECT_ROOT/.claude/skills/skill-debate/SKILL.md" && \
        grep -q 'Antigravity CLI' "$PROJECT_ROOT/docs/COMMAND-REFERENCE.md" && \
        grep -q 'Antigravity CLI' "$PROJECT_ROOT/SECURITY.md" && \
-       grep -q 'up to 9 AI CLIs' "$PROJECT_ROOT/PRODUCT.md" && \
-       grep -q 'Six providers can cost nothing extra' "$PROJECT_ROOT/PRODUCT.md" && \
+       grep -q 'up to 10 external AI integrations' "$PROJECT_ROOT/PRODUCT.md" && \
+       grep -q 'Five providers can cost nothing extra' "$PROJECT_ROOT/PRODUCT.md" && \
        grep -q 'codex gemini agy' "$PROJECT_ROOT/tests/test-fleet-diversity.sh" && \
        grep -q 'codex, gemini, agy' "$PROJECT_ROOT/tests/unit/test-research-fanout-static.sh"; then
         test_pass

@@ -6,11 +6,13 @@ test: test-smoke test-unit
 # Regenerate ALL derived artifacts (run after changing commands/skills/agents or plugin.json)
 # See RELEASING.md step 3 for the artifact-to-generator map.
 sync:
+	@./scripts/sync-readme.py
 	@./scripts/sync-marketplace.sh
 	@./scripts/build-openclaw.sh
 
 # Verify derived artifacts are current (what CI enforces)
 sync-check:
+	@./scripts/sync-readme.py --check
 	@./scripts/sync-marketplace.sh --check
 	@./scripts/build-openclaw.sh --check
 

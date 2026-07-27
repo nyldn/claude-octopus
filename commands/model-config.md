@@ -72,7 +72,7 @@ Then display a compact dashboard:
 
 Providers                          Status
   🔵 Claude (Sonnet/Opus)          Built-in ✓
-  🔴 Codex (GPT-5.4)              [Installed ✓ / Missing ✗]  → current: <model>
+  🔴 Codex (GPT-5.6 Sol)          [Installed ✓ / Missing ✗]  → current: <model>
   🟡 Gemini                        [Installed ✓ / Missing ✗]  → current: <model>
   🧭 Antigravity (`agy`)           [Installed ✓ / Missing ✗]  → current: <model>
   🟣 Perplexity                    [Configured ✓ / Not set]
@@ -92,7 +92,7 @@ Only show providers that are installed or configured. Don't show rows for provid
 
 ## STEP 2: Route by Arguments
 
-**If arguments were provided** (e.g., `/octo:model-config codex gpt-5.4`), skip the interactive flow and execute the CLI-style command directly per the EXECUTION CONTRACT at the bottom.
+**If arguments were provided** (e.g., `/octo:model-config codex gpt-5.6-sol`), skip the interactive flow and execute the CLI-style command directly per the EXECUTION CONTRACT at the bottom.
 
 **If no arguments**, proceed to the interactive wizard:
 
@@ -157,9 +157,9 @@ AskUserQuestion({
     header: "Codex Model",
     multiSelect: false,
     options: [
-      {label: "gpt-5.4", description: "Flagship — 400K context, $2.50/$15 MTok, best for complex tasks"},
-      {label: "gpt-5.4 (fast/spark)", description: "1000+ tok/s — 128K context, Pro-only, best for reviews & iteration"},
-      {label: "gpt-5.4-mini", description: "Budget — 400K context, $0.25/$2 MTok, great for simple tasks"},
+      {label: "gpt-5.6-sol", description: "Frontier — 1M context, $5/$30 MTok, best for implementation and independent review"},
+      {label: "gpt-5.6-terra", description: "Balanced — 1M context, $2.50/$15 MTok, strong general-purpose Codex seat"},
+      {label: "gpt-5.6-luna", description: "Budget — 1M context, $1/$6 MTok, best for quick checks and prototypes"},
       {label: "o3", description: "Reasoning — 200K context, $2/$8 MTok, deep analysis & trade-offs"},
       {label: "Custom", description: "Enter a custom model name"}
     ]
@@ -245,8 +245,8 @@ AskUserQuestion({
     multiSelect: false,
     options: [
       // Show cross-provider options
-      {label: "codex:default (gpt-5.4)", description: "Deep reasoning, complex tasks"},
-      {label: "codex:spark (gpt-5.4 fast)", description: "15x faster, good for iteration"},
+      {label: "codex:default (gpt-5.6-sol)", description: "Frontier implementation and independent review"},
+      {label: "codex:spark (gpt-5.6-luna)", description: "Budget-friendly quick checks and iteration"},
       {label: "codex:reasoning (o3)", description: "Deep analysis with chain-of-thought"},
       {label: "gemini:default", description: "Broad research, creative approaches"},
       {label: "gemini:flash", description: "Fast, low-cost"},
@@ -297,7 +297,7 @@ AskUserQuestion({
     options: [
       // Only show installed/configured providers
       {label: "🔵 Claude (Sonnet 5 / Opus 5)", description: "Moderator — instruction-following, synthesis"},
-      {label: "🔴 Codex (GPT-5.4)", description: "Technical depth — architecture, implementation"},
+      {label: "🔴 Codex (GPT-5.6 Sol)", description: "Independent implementation and edge-case review"},
       {label: "🟡 Gemini", description: "Ecosystem perspective — alternatives, trends"},
       {label: "🧭 Antigravity (agy)", description: "Alternate model perspective via Antigravity CLI"},
       {label: "🟠 OpenRouter: GLM-5", description: "Code review specialist — quality focus"},
@@ -344,7 +344,7 @@ AskUserQuestion({
     header: "Cost Mode",
     multiSelect: false,
     options: [
-      {label: "💰 Budget", description: "Use cheapest models: gpt-5.4-mini, gemini-flash — best for prototyping"},
+      {label: "💰 Budget", description: "Use cheapest models: gpt-5.6-luna, gemini-flash — best for prototyping"},
       {label: "⚖️ Standard (current default)", description: "Balanced: use your configured defaults"},
       {label: "🚀 Premium", description: "Use best available models for every task — higher cost, best quality"}
     ]
@@ -438,7 +438,7 @@ AskUserQuestion({
     multiSelect: false,
     options: [
       {label: "Reset all", description: "Restore all providers and routing to defaults"},
-      {label: "Reset Codex only", description: "Reset Codex to gpt-5.4 default"},
+      {label: "Reset Codex only", description: "Reset Codex to gpt-5.6-sol default"},
       {label: "Reset Gemini only", description: "Reset Gemini to gemini-3.1-pro-preview default"},
       {label: "Reset phase routing only", description: "Restore default phase-to-model mapping"},
       {label: "Cancel", description: "Go back without changing anything"}
@@ -470,7 +470,7 @@ AskUserQuestion({
 
 ## CLI-STYLE EXECUTION CONTRACT (for direct arguments)
 
-When invoked WITH arguments (e.g., `/octo:model-config codex gpt-5.4`), skip the interactive flow and execute directly:
+When invoked WITH arguments (e.g., `/octo:model-config codex gpt-5.6-sol`), skip the interactive flow and execute directly:
 
 1. **Parse arguments** to determine action:
    - `show phases` → Display formatted phase routing table

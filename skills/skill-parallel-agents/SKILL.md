@@ -594,13 +594,13 @@ The `tangle` phase enforces quality gates:
 
 | Agent | Model | Best For |
 |-------|-------|----------|
-| `codex` | gpt-5.3-codex | Complex code, deep refactoring (premium default) |
-| `codex-standard` | gpt-5.2-codex | Standard tier implementation |
-| `codex-mini` | gpt-5.4-mini | Quick fixes, simple tasks |
-| `gemini` | gemini-3-pro-preview | Deep analysis, 1M context |
+| `codex` | gpt-5.6-sol | Frontier implementation and independent review |
+| `codex-standard` | gpt-5.6-terra | Balanced implementation and review |
+| `codex-mini` | gpt-5.6-luna | Quick fixes, simple tasks |
+| `gemini` | gemini-3.1-pro-preview | Deep analysis, 1M context |
 | `gemini-fast` | gemini-3-flash-preview | Speed-critical tasks |
 | `gemini-image` | gemini-3-pro-image-preview | Image generation |
-| `codex-review` | gpt-5.2-codex | Code review mode |
+| `codex-review` | gpt-5.6-sol | Code review mode |
 | `openrouter` | Various | Universal fallback (400+ models) |
 
 ## Provider-Aware Routing (v4.8)

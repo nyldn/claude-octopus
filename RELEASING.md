@@ -25,7 +25,9 @@ Run `scripts/release.sh <version> "<summary>"` — it bumps every location below
 | `.cursor-plugin/plugin.json` | `version` |
 | `.factory-plugin/plugin.json` | `version` |
 | `.factory-plugin/marketplace.json` | `metadata.version`, plugin entry `version` + `description` |
-| `README.md` | version badge (line ~15) |
+| `README.md` | version badge, current-release highlight/table row, component counts, model defaults, Claude Code capability floor/ceiling |
+| `.claude-plugin/README.md` | public provider roster, minimum runtime, component counts |
+| `PRODUCT.md` | current release, provider/component counts, Claude Code capability count/ceiling |
 | `CHANGELOG.md` | new `## [X.Y.Z] - YYYY-MM-DD` section (fold Unreleased into it) |
 
 ## 3. Regenerate derived artifacts (`make sync`)
@@ -34,14 +36,17 @@ Do NOT hand-edit these; CI diffs them against their generators:
 
 | Generated artifact | Generator | CI check that fails if stale |
 |--------------------|-----------|------------------------------|
+| `README.md`, `.claude-plugin/README.md`, `PRODUCT.md` mechanical release facts | `./scripts/sync-readme.py` | `tests/unit/test-readme-release-sync.sh` and `make sync-check` |
 | `.claude-plugin/marketplace.json` (octo entry description + counts) | `./scripts/sync-marketplace.sh` | Smoke job step "Verify marketplace.json is up to date" |
 | `openclaw/src/tools/index.ts` | `./scripts/build-openclaw.sh` | `tests/unit/test-openclaw-compat.sh` |
 
 Rules learned the hard way:
 - The marketplace generator derives the feature summary from `plugin.json`'s `description` and appends its own component counts ("32 personas, N commands, N skills"). To change the marketplace blurb, edit `plugin.json`'s description and run `make sync` — never edit `marketplace.json` directly. Never hand-write counts into `plugin.json`'s description; the generator appends them and `--check` will fail on the collision (the v9.50 description did this and shipped doubled counts until v9.51).
-- README body prose counts must match `plugin.json`: the "**N commands** ... **N skills**" sentence (README ~line 28) and the "[All N skills]" link (~line 367) are asserted by `tests/unit/test-docs-sync.sh`.
+- The README generator derives the current release copy from `plugin.json`, model defaults from `scripts/lib/model-resolver.sh`, and Claude Code floor/ceiling facts from `scripts/orchestrate.sh` plus `scripts/lib/providers.sh`. Keep the `CURRENT RELEASE` and `CURRENT MODEL DEFAULTS` markers intact, plus exactly one version-table row marked `(new)`.
+- README body prose counts must match `plugin.json`: the "**N commands** ... **N skills**" sentence and the "[All N skills]" link are asserted by `tests/unit/test-docs-sync.sh`.
 
-`make sync` runs both generators; `make sync-check` runs both `--check` modes.
+`make sync` runs all generators; `make sync-check` runs every corresponding
+check mode.
 
 ## 4. Validate locally with CI parity
 
