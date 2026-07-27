@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+## [9.55.0] - 2026-07-27
+
+
 ### Changed
 
 - **Real Tangle implementation runs now require a clean Git baseline by default** (#674). Modified tracked files, untracked files, and non-Git workspaces fail before provider dispatch with each blocking status entry reported; ignored files remain allowed and direct library consumers may explicitly opt out with `OCTOPUS_TANGLE_REQUIRE_CLEAN_BASELINE=false`.
