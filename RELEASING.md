@@ -74,8 +74,8 @@ Must be empty. Shell scripts and Python helpers must stay `100755`; both contrib
 - `scripts/release.sh` waits up to 15 minutes by default so the macOS unit
   matrix can finish. Override only when necessary with
   `OCTO_RELEASE_CI_TIMEOUT_SECONDS=<seconds>`.
-- Automatic merge fails closed while a review requests changes or any review
-  thread is unresolved.
+- Automatic merge requires an explicit approved review and zero unresolved
+  review threads across every paginated result page.
 
 ## 7. Tag AFTER the squash-merge
 
