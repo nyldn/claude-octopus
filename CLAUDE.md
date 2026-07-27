@@ -330,9 +330,12 @@ The rules below encode failures that have already cost real CI rounds. Every one
 |----------------|-----------------|------------------------------|
 | `.claude-plugin/marketplace.json` (octo description + counts) | `./scripts/sync-marketplace.sh` | Smoke job "Verify marketplace.json is up to date" |
 | `openclaw/src/tools/index.ts` | `./scripts/build-openclaw.sh` | `tests/unit/test-openclaw-compat.sh` |
-| README prose counts ("**N commands** ... **N skills**", "[All N skills]") | Edit by hand to match `plugin.json` | `tests/unit/test-docs-sync.sh` |
+| `README.md`, `.claude-plugin/README.md`, and `PRODUCT.md` current facts | `./scripts/sync-readme.py` (included in `make sync`) | `tests/unit/test-readme-release-sync.sh` |
 
-After changing commands, skills, agents, or `plugin.json`: run `make sync`. Before any push: run `make ci-local` (mirrors the required checks plus CI-only verifications; targeted test suites alone do NOT predict CI green).
+After changing commands, skills, agents, plugin metadata, release notes, models,
+providers, or public facts: run `make sync`. Before pushing code: run
+`make ci-local` (mirrors the required checks plus CI-only verifications;
+targeted test suites alone do NOT predict CI green).
 
 ### Hard rules (each one has broken a real PR)
 

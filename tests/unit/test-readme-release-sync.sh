@@ -160,6 +160,18 @@ else
     test_fail "release workflow does not regenerate and stage every synchronized doc surface"
 fi
 
+test_case "cross-harness controller preserves the README sync contract"
+if [[ -f "$PROJECT_ROOT/RTK.md" ]] &&
+   grep -q 'scripts/sync-readme.py.*owns' "$PROJECT_ROOT/RTK.md" &&
+   grep -q 'scripts/sync-readme.py.*owns' "$PROJECT_ROOT/AGENTS.md" &&
+   grep -q 'scripts/sync-readme.py' "$PROJECT_ROOT/CLAUDE.md" &&
+   grep -q 'make sync-check' "$PROJECT_ROOT/RTK.md" &&
+   grep -q 'AI_AGENT_HANDOFF.md' "$PROJECT_ROOT/RTK.md"; then
+    test_pass
+else
+    test_fail "RTK/agent guidance does not preserve the generated README contract"
+fi
+
 test_case "current model configuration guidance uses the frontier roster"
 if grep -q 'gpt-5.6-sol' "$PROJECT_ROOT/commands/model-config.md" &&
    grep -q 'gpt-5.6-terra' "$PROJECT_ROOT/commands/model-config.md" &&
