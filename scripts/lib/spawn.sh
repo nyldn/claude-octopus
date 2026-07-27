@@ -437,11 +437,7 @@ ${heuristic_ctx}"
         if [[ "$opus_mode" == "fast" ]]; then
             agent_type="claude-opus-fast"
             log "INFO" "Auto-routing to Opus Fast mode (phase=$phase, tier=$opus_tier, autonomy=$session_autonomy)"
-            if [[ "${OCTOPUS_OPUS_MODEL:-}" != "claude-opus-4.6" ]]; then
-                log "WARN" "Current Opus fast is 2x standard: \$10/\$50 per MTok vs \$5/\$25 standard"
-            else
-                log "WARN" "Legacy Opus 4.6 fast is 6x standard: \$30/\$150 per MTok vs \$5/\$25 standard"
-            fi
+            log_opus_fast_pricing_warning "$phase" "${role:-}"
         fi
     fi
 

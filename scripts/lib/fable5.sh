@@ -103,5 +103,5 @@ fable5_banner() {
     fable5_mode_active || return 0
     [[ -n "${_OCTO_FABLE5_BANNER_SHOWN:-}" ]] && return 0
     export _OCTO_FABLE5_BANNER_SHOWN=1
-    echo "🐙 Fable 5 mode active — security passes reroute to $(fable5_fallback_model), effort clamps to high, refusal retry on (OCTOPUS_FABLE5_MODE=off to disable)" >&2
+    echo "🐙 Fable 5 mode active — security passes reroute to $(fable5_fallback_model), effort clamps to high, refusal retry on $(fable5_fallback_model) (OCTOPUS_FABLE5_MODE=off to disable)" >&2
 }

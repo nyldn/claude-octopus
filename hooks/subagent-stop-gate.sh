@@ -49,6 +49,7 @@ _OCTOPUS_GATE_STRICT="${OCTOPUS_SUBAGENT_GATE_STRICT:-false}" \
 _OCTOPUS_MIN_QUALITY="${OCTOPUS_SUBAGENT_MIN_QUALITY:-0}" \
 _OCTOPUS_PHASE="${OCTOPUS_WORKFLOW_PHASE:-}" \
 _OCTOPUS_SKILL="${OCTOPUS_ACTIVE_SKILL:-}" \
+_OCTOPUS_MODEL="${OCTOPUS_RESOLVED_MODEL:-${OCTOPUS_MODEL:-}}" \
 python3 - <<'PYEOF' 2>/dev/null || exit 0
 import json, os, re, sys, time
 
@@ -60,6 +61,8 @@ except Exception:
 msg = d.get("last_assistant_message", "") or ""
 agent_id = d.get("agent_id", "") or ""
 agent_type = (d.get("agent_type", "") or "").lower()
+model = (d.get("model", "") or d.get("agent_model", "") or
+         os.environ.get("_OCTOPUS_MODEL", "")).lower()
 
 # --- 1. Provider attribution ---------------------------------------------
 PROVIDER_PREFIXES = [
@@ -99,6 +102,7 @@ record = {
     "agent_id": agent_id,
     "agent_type": agent_type,
     "provider": provider,
+    "model": model,
     "skill": os.environ.get("_OCTOPUS_SKILL", ""),
     "phase": os.environ.get("_OCTOPUS_PHASE", ""),
     "chars_out": len(msg),

@@ -214,7 +214,10 @@ test_get_role_model_for_code_reviewer() {
 test_codex_review_dispatch_uses_selected_model() {
     test_case "codex-review dispatch carries GPT-5.6 Sol onto the CLI"
     local command
-    command=$(OCTOPUS_CODEX_MODEL=gpt-5.6-sol get_agent_command codex-review review code-reviewer)
+    command=$(
+        export "OCTOPUS_CODEX_MODEL=gpt-5.6-sol"
+        get_agent_command codex-review review code-reviewer
+    )
     if [[ "$command" == *"codex exec review --model gpt-5.6-sol"* ]]; then
         test_pass
     else

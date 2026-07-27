@@ -13,10 +13,12 @@ harnesses. It is a context packet, not the task tracker.
 Read in order:
 
 1. `AGENTS.md` and `RTK.md`
-2. `docs/MODEL-ROUTING-STRATEGY.md`
-3. `docs/GPT-5.6-PROMPTING.md`
-4. `git status --short --branch`
-5. the latest commits on the current branch
+2. the relevant `bd` issue before editing; if Beads is blocked, read
+   `Tracking Blocker` below and do not migrate the database
+3. `docs/MODEL-ROUTING-STRATEGY.md`
+4. `docs/GPT-5.6-PROMPTING.md`
+5. `git status --short --branch`
+6. the latest commits on the current branch
 
 ## Current Goal
 

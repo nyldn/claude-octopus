@@ -14,9 +14,9 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 mkdir -p "$TMP_DIR/usage" "$TMP_DIR/results/run1"
 
 cat > "$TMP_DIR/usage/subagent-usage.jsonl" <<'EOF'
-{"provider":"codex","skill":"flow-discover","est_tokens_in":10000,"est_tokens_out":2000,"quality":80}
-{"provider":"codex","skill":"flow-develop","est_tokens_in":5000,"est_tokens_out":1000,"quality":70}
-{"provider":"claude","skill":"flow-discover","mcp_server":"perplexity-mcp","est_tokens_in":20000,"est_tokens_out":4000,"quality":90}
+{"provider":"codex","model":"gpt-5.6-sol","skill":"flow-discover","est_tokens_in":10000,"est_tokens_out":2000,"quality":80}
+{"provider":"codex","model":"gpt-5.6-terra","skill":"flow-develop","est_tokens_in":5000,"est_tokens_out":1000,"quality":70}
+{"provider":"claude","model":"claude-sonnet-5","skill":"flow-discover","mcp_server":"perplexity-mcp","est_tokens_in":20000,"est_tokens_out":4000,"quality":90}
 {"provider":"agy","skill":"flow-discover","est_tokens_in":8000,"est_tokens_out":3000,"quality":60}
 EOF
 
@@ -61,7 +61,8 @@ if python3 -c "
 import json, sys
 d = json.loads(sys.argv[1])
 prov = {p['name']: p for p in d['byProvider']}
-assert prov['codex']['est_cost_usd'] > 0
+assert prov['codex']['est_cost_usd'] == 0.1375, prov['codex']
+assert prov['claude']['est_cost_usd'] == 0.12, prov['claude']
 assert prov['agy']['est_cost_usd'] == 0
 " "$out" 2>/dev/null; then
     test_pass

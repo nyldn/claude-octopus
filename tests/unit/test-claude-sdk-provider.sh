@@ -61,6 +61,26 @@ else
     test_fail "model override ignored: $out"
 fi
 
+test_case "claude CLI fallback receives the configured output-token limit"
+CLI_DIR="$TMP_DIR/claude-only"
+mkdir -p "$CLI_DIR"
+cat > "$CLI_DIR/claude" <<'STUB'
+#!/usr/bin/env bash
+echo "argv:$*"
+echo "max:${CLAUDE_CODE_MAX_OUTPUT_TOKENS:-unset}"
+cat
+STUB
+chmod +x "$CLI_DIR/claude"
+out=$(printf 'fallback prompt' | env "PATH=$CLI_DIR:/usr/bin:/bin" \
+    "CLAUDE_SDK_API_KEY=k" "OCTOPUS_CLAUDE_SDK_MAX_TOKENS=777" bash "$SHIM")
+if [[ "$out" == *"--model claude-opus-5"* \
+   && "$out" == *"max:777"* \
+   && "$out" == *"fallback prompt"* ]]; then
+    test_pass
+else
+    test_fail "Claude CLI token limit missing: $out"
+fi
+
 test_case "dispatch maps claude-sdk agent types before the claude* glob"
 if grep -q 'claude-sdk\*).*provider="claude-sdk"' "$PROJECT_ROOT/scripts/lib/dispatch.sh" \
    && awk '/claude-sdk\*\).*claude-sdk/{sdk=NR} /claude\*\).*provider="claude"/{cl=NR} END{exit !(sdk && cl && sdk<cl)}' "$PROJECT_ROOT/scripts/lib/dispatch.sh"; then

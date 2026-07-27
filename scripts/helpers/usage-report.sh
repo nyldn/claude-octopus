@@ -63,6 +63,24 @@ RATES = {
     "opencode":     (0.00, 0.00),    # native models free
     "vibe":         (0.00, 0.00),
 }
+# Model-specific $/MTok rates take precedence over provider defaults. Provider
+# rates remain the compatibility fallback for older records that did not carry
+# a model identifier.
+MODEL_RATES = {
+    "gpt-5.6-sol":        (5.00, 30.00),
+    "gpt-5.6-terra":      (2.50, 15.00),
+    "gpt-5.6-luna":       (1.00, 6.00),
+    "claude-fable-5":     (10.00, 50.00),
+    "claude-opus-5-fast": (10.00, 50.00),
+    "claude-opus-5":      (5.00, 25.00),
+    "claude-opus-4.8":    (5.00, 25.00),
+    "claude-opus-4.7":    (5.00, 25.00),
+    "claude-opus-4.6":    (5.00, 25.00),
+    "claude-sonnet-5":    (3.00, 15.00),
+    "claude-sonnet-4.6":  (3.00, 15.00),
+    "claude-sonnet-4.5":  (3.00, 15.00),
+    "claude-haiku-4.5":   (1.00, 5.00),
+}
 DEFAULT_RATE = (2.00, 8.00)
 
 records = []
@@ -90,7 +108,9 @@ for path in sorted(glob.glob(os.path.join(results_dir, "**", "summary.json"),
     for seat in d.get("roster", d.get("seats", [])) or []:
         prov = (seat.get("provider") or "").lower()
         if prov:
-            records.append({"provider": prov, "skill": d.get("workflow", ""),
+            records.append({"provider": prov,
+                            "model": (seat.get("model") or "").lower(),
+                            "skill": d.get("workflow", ""),
                             "est_tokens_in": 0, "est_tokens_out": 0,
                             "source": "results-summary"})
 
@@ -104,9 +124,10 @@ totals = bucket()
 
 for r in records:
     prov = (r.get("provider") or "unknown").lower()
+    model = (r.get("model") or "").lower()
     tin = int(r.get("est_tokens_in") or r.get("tokens_in") or 0)
     tout = int(r.get("est_tokens_out") or r.get("tokens_out") or 0)
-    rate = RATES.get(prov, DEFAULT_RATE)
+    rate = MODEL_RATES.get(model, RATES.get(prov, DEFAULT_RATE))
     cost = tin / 1e6 * rate[0] + tout / 1e6 * rate[1]
     for target in (by_provider[prov], totals):
         target["queries"] += 1

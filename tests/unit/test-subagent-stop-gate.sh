@@ -19,12 +19,14 @@ run_hook() {
 
 USAGE_LOG="$TMP_DIR/usage/subagent-usage.jsonl"
 
-test_case "logs usage record with provider attribution from agent_type"
-run_hook '{"agent_id":"a1","agent_type":"codex-research","last_assistant_message":"## Findings\n- OAuth flow verified, SUCCESS"}' env >/dev/null
-if [[ -f "$USAGE_LOG" ]] && grep -q '"provider": "codex"' "$USAGE_LOG"; then
+test_case "logs usage record with provider attribution and selected model"
+run_hook '{"agent_id":"a1","agent_type":"codex-research","model":"gpt-5.6-terra","last_assistant_message":"## Findings\n- OAuth flow verified, SUCCESS"}' env >/dev/null
+if [[ -f "$USAGE_LOG" ]] \
+   && grep -q '"provider": "codex"' "$USAGE_LOG" \
+   && grep -q '"model": "gpt-5.6-terra"' "$USAGE_LOG"; then
     test_pass
 else
-    test_fail "expected usage log with provider codex, got: $(cat "$USAGE_LOG" 2>/dev/null || echo '<missing>')"
+    test_fail "expected usage log with provider/model, got: $(cat "$USAGE_LOG" 2>/dev/null || echo '<missing>')"
 fi
 
 test_case "quality score is a bounded integer"

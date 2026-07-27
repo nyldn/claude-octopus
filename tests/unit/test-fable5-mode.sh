@@ -19,35 +19,40 @@ source "$PROJECT_ROOT/scripts/lib/fable5.sh"
 # ── Detection ──────────────────────────────────────────────────────────────
 
 test_case "inactive with no pins (auto)"
-if ! OCTOPUS_FABLE5_MODE=auto OCTOPUS_OPUS_MODEL="" OCTOPUS_CLAUDE_SDK_MODEL="" bash -c "log(){ :; }; source '$PROJECT_ROOT/scripts/lib/fable5.sh'; fable5_mode_active"; then
+if ! env "OCTOPUS_FABLE5_MODE=auto" "OCTOPUS_OPUS_MODEL=" "OCTOPUS_CLAUDE_SDK_MODEL=" \
+    bash -c 'log(){ :; }; source "$1/scripts/lib/fable5.sh"; fable5_mode_active' _ "$PROJECT_ROOT"; then
     test_pass
 else
     test_fail "mode active without any pin"
 fi
 
 test_case "active with OCTOPUS_OPUS_MODEL pin"
-if OCTOPUS_OPUS_MODEL=claude-fable-5 bash -c "log(){ :; }; source '$PROJECT_ROOT/scripts/lib/fable5.sh'; fable5_mode_active"; then
+if env "OCTOPUS_OPUS_MODEL=claude-fable-5" \
+    bash -c 'log(){ :; }; source "$1/scripts/lib/fable5.sh"; fable5_mode_active' _ "$PROJECT_ROOT"; then
     test_pass
 else
     test_fail "opus pin not detected"
 fi
 
 test_case "active with OCTOPUS_CLAUDE_SDK_MODEL pin"
-if OCTOPUS_CLAUDE_SDK_MODEL=claude-fable-5 bash -c "log(){ :; }; source '$PROJECT_ROOT/scripts/lib/fable5.sh'; fable5_mode_active"; then
+if env "OCTOPUS_CLAUDE_SDK_MODEL=claude-fable-5" \
+    bash -c 'log(){ :; }; source "$1/scripts/lib/fable5.sh"; fable5_mode_active' _ "$PROJECT_ROOT"; then
     test_pass
 else
     test_fail "sdk pin not detected"
 fi
 
 test_case "OCTOPUS_FABLE5_MODE=off disables despite pin"
-if ! OCTOPUS_FABLE5_MODE=off OCTOPUS_OPUS_MODEL=claude-fable-5 bash -c "log(){ :; }; source '$PROJECT_ROOT/scripts/lib/fable5.sh'; fable5_mode_active"; then
+if ! env "OCTOPUS_FABLE5_MODE=off" "OCTOPUS_OPUS_MODEL=claude-fable-5" \
+    bash -c 'log(){ :; }; source "$1/scripts/lib/fable5.sh"; fable5_mode_active' _ "$PROJECT_ROOT"; then
     test_pass
 else
     test_fail "off did not disable"
 fi
 
 test_case "OCTOPUS_FABLE5_MODE=on forces active without pins"
-if OCTOPUS_FABLE5_MODE=on OCTOPUS_OPUS_MODEL="" OCTOPUS_CLAUDE_SDK_MODEL="" bash -c "log(){ :; }; source '$PROJECT_ROOT/scripts/lib/fable5.sh'; fable5_mode_active"; then
+if env "OCTOPUS_FABLE5_MODE=on" "OCTOPUS_OPUS_MODEL=" "OCTOPUS_CLAUDE_SDK_MODEL=" \
+    bash -c 'log(){ :; }; source "$1/scripts/lib/fable5.sh"; fable5_mode_active' _ "$PROJECT_ROOT"; then
     test_pass
 else
     test_fail "on did not force active"
@@ -56,7 +61,8 @@ fi
 # ── Effort clamp ───────────────────────────────────────────────────────────
 
 test_case "clamps xhigh to high with opus pin"
-out=$(OCTOPUS_OPUS_MODEL=claude-fable-5 bash -c "log(){ :; }; source '$PROJECT_ROOT/scripts/lib/fable5.sh'; fable5_clamp_effort xhigh" 2>/dev/null)
+out=$(env "OCTOPUS_OPUS_MODEL=claude-fable-5" \
+    bash -c 'log(){ :; }; source "$1/scripts/lib/fable5.sh"; fable5_clamp_effort xhigh' _ "$PROJECT_ROOT" 2>/dev/null)
 if [[ "$out" == "high" ]]; then
     test_pass
 else
@@ -64,7 +70,8 @@ else
 fi
 
 test_case "leaves high untouched with opus pin"
-out=$(OCTOPUS_OPUS_MODEL=claude-fable-5 bash -c "log(){ :; }; source '$PROJECT_ROOT/scripts/lib/fable5.sh'; fable5_clamp_effort high" 2>/dev/null)
+out=$(env "OCTOPUS_OPUS_MODEL=claude-fable-5" \
+    bash -c 'log(){ :; }; source "$1/scripts/lib/fable5.sh"; fable5_clamp_effort high' _ "$PROJECT_ROOT" 2>/dev/null)
 if [[ "$out" == "high" ]]; then
     test_pass
 else
@@ -72,7 +79,8 @@ else
 fi
 
 test_case "does not clamp without opus pin (sdk pin alone)"
-out=$(OCTOPUS_OPUS_MODEL="" OCTOPUS_CLAUDE_SDK_MODEL=claude-fable-5 bash -c "log(){ :; }; source '$PROJECT_ROOT/scripts/lib/fable5.sh'; fable5_clamp_effort xhigh" 2>/dev/null)
+out=$(env "OCTOPUS_OPUS_MODEL=" "OCTOPUS_CLAUDE_SDK_MODEL=claude-fable-5" \
+    bash -c 'log(){ :; }; source "$1/scripts/lib/fable5.sh"; fable5_clamp_effort xhigh' _ "$PROJECT_ROOT" 2>/dev/null)
 if [[ "$out" == "xhigh" ]]; then
     test_pass
 else
@@ -80,7 +88,8 @@ else
 fi
 
 test_case "does not clamp when mode off"
-out=$(OCTOPUS_FABLE5_MODE=off OCTOPUS_OPUS_MODEL=claude-fable-5 bash -c "log(){ :; }; source '$PROJECT_ROOT/scripts/lib/fable5.sh'; fable5_clamp_effort xhigh" 2>/dev/null)
+out=$(env "OCTOPUS_FABLE5_MODE=off" "OCTOPUS_OPUS_MODEL=claude-fable-5" \
+    bash -c 'log(){ :; }; source "$1/scripts/lib/fable5.sh"; fable5_clamp_effort xhigh' _ "$PROJECT_ROOT" 2>/dev/null)
 if [[ "$out" == "xhigh" ]]; then
     test_pass
 else
@@ -88,7 +97,10 @@ else
 fi
 
 test_case "get_effort_level override path clamps under pin"
-out=$(OCTOPUS_OPUS_MODEL=claude-fable-5 OCTOPUS_EFFORT_OVERRIDE=xhigh SUPPORTS_SDK_MODEL_CAPS=true bash -c "log(){ :; }; source '$PROJECT_ROOT/scripts/lib/fable5.sh'; source '$PROJECT_ROOT/scripts/lib/agents.sh' 2>/dev/null || true; get_effort_level tangle 3" 2>/dev/null)
+out=$(env "OCTOPUS_OPUS_MODEL=claude-fable-5" "OCTOPUS_EFFORT_OVERRIDE=xhigh" \
+    "SUPPORTS_SDK_MODEL_CAPS=true" bash -c \
+    'log(){ :; }; source "$1/scripts/lib/fable5.sh"; source "$1/scripts/lib/agents.sh" 2>/dev/null || true; get_effort_level tangle 3' \
+    _ "$PROJECT_ROOT" 2>/dev/null)
 if [[ "$out" == "high" ]]; then
     test_pass
 else
@@ -98,7 +110,9 @@ fi
 # ── Security reroute ───────────────────────────────────────────────────────
 
 test_case "reroutes security role off Fable 5"
-out=$(OCTOPUS_OPUS_MODEL=claude-fable-5 bash -c "log(){ :; }; source '$PROJECT_ROOT/scripts/lib/fable5.sh'; fable5_maybe_reroute claude-fable-5 security-auditor claude-opus ink" 2>/dev/null)
+out=$(env "OCTOPUS_OPUS_MODEL=claude-fable-5" \
+    bash -c 'log(){ :; }; source "$1/scripts/lib/fable5.sh"; fable5_maybe_reroute claude-fable-5 security-auditor claude-opus ink' \
+    _ "$PROJECT_ROOT" 2>/dev/null)
 if [[ "$out" == "claude-opus-5" ]]; then
     test_pass
 else
@@ -106,7 +120,9 @@ else
 fi
 
 test_case "reroutes squeeze phase off Fable 5"
-out=$(OCTOPUS_OPUS_MODEL=claude-fable-5 bash -c "log(){ :; }; source '$PROJECT_ROOT/scripts/lib/fable5.sh'; fable5_maybe_reroute claude-fable-5 '' claude-opus squeeze" 2>/dev/null)
+out=$(env "OCTOPUS_OPUS_MODEL=claude-fable-5" \
+    bash -c 'log(){ :; }; source "$1/scripts/lib/fable5.sh"; fable5_maybe_reroute claude-fable-5 "" claude-opus squeeze' \
+    _ "$PROJECT_ROOT" 2>/dev/null)
 if [[ "$out" == "claude-opus-5" ]]; then
     test_pass
 else
@@ -114,7 +130,9 @@ else
 fi
 
 test_case "explicit Fable fallback override wins"
-out=$(OCTOPUS_OPUS_MODEL=claude-fable-5 OCTOPUS_FABLE5_FALLBACK_MODEL=claude-opus-4.8 bash -c "log(){ :; }; source '$PROJECT_ROOT/scripts/lib/fable5.sh'; fable5_maybe_reroute claude-fable-5 security-auditor claude-opus ink" 2>/dev/null)
+out=$(env "OCTOPUS_OPUS_MODEL=claude-fable-5" "OCTOPUS_FABLE5_FALLBACK_MODEL=claude-opus-4.8" \
+    bash -c 'log(){ :; }; source "$1/scripts/lib/fable5.sh"; fable5_maybe_reroute claude-fable-5 security-auditor claude-opus ink' \
+    _ "$PROJECT_ROOT" 2>/dev/null)
 if [[ "$out" == "claude-opus-4.8" ]]; then
     test_pass
 else
@@ -122,7 +140,9 @@ else
 fi
 
 test_case "non-security dispatch keeps Fable 5"
-out=$(OCTOPUS_OPUS_MODEL=claude-fable-5 bash -c "log(){ :; }; source '$PROJECT_ROOT/scripts/lib/fable5.sh'; fable5_maybe_reroute claude-fable-5 architect claude-opus tangle" 2>/dev/null)
+out=$(env "OCTOPUS_OPUS_MODEL=claude-fable-5" \
+    bash -c 'log(){ :; }; source "$1/scripts/lib/fable5.sh"; fable5_maybe_reroute claude-fable-5 architect claude-opus tangle' \
+    _ "$PROJECT_ROOT" 2>/dev/null)
 if [[ "$out" == "claude-fable-5" ]]; then
     test_pass
 else
@@ -130,7 +150,9 @@ else
 fi
 
 test_case "non-Fable model passes through security dispatch untouched"
-out=$(OCTOPUS_OPUS_MODEL=claude-fable-5 bash -c "log(){ :; }; source '$PROJECT_ROOT/scripts/lib/fable5.sh'; fable5_maybe_reroute claude-opus-4.8 security-auditor claude-opus ink" 2>/dev/null)
+out=$(env "OCTOPUS_OPUS_MODEL=claude-fable-5" \
+    bash -c 'log(){ :; }; source "$1/scripts/lib/fable5.sh"; fable5_maybe_reroute claude-opus-4.8 security-auditor claude-opus ink' \
+    _ "$PROJECT_ROOT" 2>/dev/null)
 if [[ "$out" == "claude-opus-4.8" ]]; then
     test_pass
 else
@@ -138,7 +160,9 @@ else
 fi
 
 test_case "mode off keeps Fable 5 on security dispatch"
-out=$(OCTOPUS_FABLE5_MODE=off OCTOPUS_OPUS_MODEL=claude-fable-5 bash -c "log(){ :; }; source '$PROJECT_ROOT/scripts/lib/fable5.sh'; fable5_maybe_reroute claude-fable-5 security-auditor claude-opus ink" 2>/dev/null)
+out=$(env "OCTOPUS_FABLE5_MODE=off" "OCTOPUS_OPUS_MODEL=claude-fable-5" \
+    bash -c 'log(){ :; }; source "$1/scripts/lib/fable5.sh"; fable5_maybe_reroute claude-fable-5 security-auditor claude-opus ink' \
+    _ "$PROJECT_ROOT" 2>/dev/null)
 if [[ "$out" == "claude-fable-5" ]]; then
     test_pass
 else
@@ -148,12 +172,12 @@ fi
 # ── Resolver integration ───────────────────────────────────────────────────
 
 test_case "resolve_octopus_model reroutes security role under opus pin"
-out=$(cd "$TMP_DIR" && TMPDIR="$TMP_DIR" CLAUDE_CODE_SESSION="fable5-test-$$" \
-    OCTOPUS_OPUS_MODEL=claude-fable-5 HOME="$TMP_DIR" bash -c "
+out=$(cd "$TMP_DIR" && env "TMPDIR=$TMP_DIR" "CLAUDE_CODE_SESSION=fable5-test-$$" \
+    "OCTOPUS_OPUS_MODEL=claude-fable-5" "HOME=$TMP_DIR" bash -c '
     log(){ :; }
-    source '$PROJECT_ROOT/scripts/lib/fable5.sh'
-    source '$PROJECT_ROOT/scripts/lib/model-resolver.sh'
-    resolve_octopus_model claude claude-opus ink security-auditor" 2>/dev/null)
+    source "$1/scripts/lib/fable5.sh"
+    source "$1/scripts/lib/model-resolver.sh"
+    resolve_octopus_model claude claude-opus ink security-auditor' _ "$PROJECT_ROOT" 2>/dev/null)
 if [[ "$out" == "claude-opus-5" ]]; then
     test_pass
 else
@@ -161,12 +185,12 @@ else
 fi
 
 test_case "resolve_octopus_model keeps Fable 5 for non-security role"
-out=$(cd "$TMP_DIR" && TMPDIR="$TMP_DIR" CLAUDE_CODE_SESSION="fable5-test2-$$" \
-    OCTOPUS_OPUS_MODEL=claude-fable-5 HOME="$TMP_DIR" bash -c "
+out=$(cd "$TMP_DIR" && env "TMPDIR=$TMP_DIR" "CLAUDE_CODE_SESSION=fable5-test2-$$" \
+    "OCTOPUS_OPUS_MODEL=claude-fable-5" "HOME=$TMP_DIR" bash -c '
     log(){ :; }
-    source '$PROJECT_ROOT/scripts/lib/fable5.sh'
-    source '$PROJECT_ROOT/scripts/lib/model-resolver.sh'
-    resolve_octopus_model claude claude-opus tangle architect" 2>/dev/null)
+    source "$1/scripts/lib/fable5.sh"
+    source "$1/scripts/lib/model-resolver.sh"
+    resolve_octopus_model claude claude-opus tangle architect' _ "$PROJECT_ROOT" 2>/dev/null)
 if [[ "$out" == "claude-fable-5" ]]; then
     test_pass
 else
@@ -176,15 +200,15 @@ fi
 # ── Dispatch wiring ────────────────────────────────────────────────────────
 
 test_case "dispatch honors Fable 5 pin in claude-opus model flag"
-out=$(OCTOPUS_OPUS_MODEL=claude-fable-5 SUPPORTS_SDK_MODEL_CAPS=false \
-    SUPPORTS_EFFORT_COMMAND=false SUPPORTS_XHIGH_EFFORT=false \
-    PLUGIN_DIR="$PROJECT_ROOT" bash -c "
+out=$(env "OCTOPUS_OPUS_MODEL=claude-fable-5" "SUPPORTS_SDK_MODEL_CAPS=false" \
+    "SUPPORTS_EFFORT_COMMAND=false" "SUPPORTS_XHIGH_EFFORT=false" \
+    "PLUGIN_DIR=$PROJECT_ROOT" bash -c '
     log(){ :; }
-    export _BARE_OPT='' OCTOPUS_PLATFORM=Linux
-    source '$PROJECT_ROOT/scripts/lib/model-resolver.sh'
-    source '$PROJECT_ROOT/scripts/lib/agents.sh'
-    source '$PROJECT_ROOT/scripts/lib/dispatch.sh'
-    get_agent_command claude-opus tangle architect" 2>/dev/null)
+    export "_BARE_OPT=" "OCTOPUS_PLATFORM=Linux"
+    source "$1/scripts/lib/model-resolver.sh"
+    source "$1/scripts/lib/agents.sh"
+    source "$1/scripts/lib/dispatch.sh"
+    get_agent_command claude-opus tangle architect' _ "$PROJECT_ROOT" 2>/dev/null)
 if [[ "$out" == *"--model claude-fable-5"* ]]; then
     test_pass
 else

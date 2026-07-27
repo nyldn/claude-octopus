@@ -47,6 +47,7 @@ _sdk_run() {
         env -u CLAUDECODE -u CLAUDE_CODE_CHILD_SESSION -u CLAUDE_CODE_SESSION_ID \
             -u CLAUDE_CODE_ENTRYPOINT -u CLAUDE_CODE_EXECPATH \
             "ANTHROPIC_API_KEY=${CLAUDE_SDK_API_KEY}" \
+            "CLAUDE_CODE_MAX_OUTPUT_TOKENS=${max_tokens}" \
             claude --print --model "$run_model" <<<"$prompt"
         return $?
     fi
@@ -56,7 +57,8 @@ _sdk_run() {
 
 # v9.51: Fable 5 refusal/empty retry. Fable 5's safety classifiers can return
 # a refusal (surfacing here as a non-zero exit or empty output) on prompts that
-# Opus 5 handles fine. Retry the identical prompt once on Opus 5 instead of
+# the configured fallback handles fine. Retry the identical prompt once on
+# Opus 5 by default, or OCTOPUS_FABLE5_FALLBACK_MODEL when set, instead of
 # failing the seat. Opt out with OCTOPUS_FABLE5_NO_RETRY=1 or
 # OCTOPUS_FABLE5_MODE=off. Mirrors the agy-exec silent-empty replay pattern.
 if [[ "$model" == "claude-fable-5" \

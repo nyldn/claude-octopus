@@ -165,9 +165,12 @@ get_model_cost() {
 
     case "$model" in
         # Claude models (input cost, simplified)
-        claude-opus-5|claude-opus-4-8|claude-opus-4-7|claude-opus-4-6) echo "5.00" ;;
+        claude-opus-5)          echo "5.00" ;;
+        claude-opus-5-fast)     echo "10.00" ;;
+        claude-fable-5)         echo "10.00" ;;
+        claude-opus-4.8|claude-opus-4.7|claude-opus-4.6|claude-opus-4-8|claude-opus-4-7|claude-opus-4-6) echo "5.00" ;;
         claude-opus-4-5)        echo "15.00" ;;    # legacy
-        claude-sonnet-5|claude-sonnet-4-6|claude-sonnet-4-5) echo "3.00" ;;
+        claude-sonnet-5|claude-sonnet-4.6|claude-sonnet-4.5|claude-sonnet-4-6|claude-sonnet-4-5) echo "3.00" ;;
         claude-sonnet-4)        echo "3.00" ;;
         claude-haiku-*)         echo "0.25" ;;
 

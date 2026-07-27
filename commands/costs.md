@@ -57,7 +57,7 @@ Codex CLI                 -            -         8     $0.64
 Gemini CLI                -            -         4     $0.08
 Perplexity                -            -         2     $0.06
 ------------------------------------------------------------
-TOTAL                                           29     $1.57
+TOTAL                                           29     $2.23
 ============================================================
 ```
 
@@ -77,7 +77,7 @@ Workflow             Providers Used         Queries   Est Cost
 /octo:review         Claude, Codex, Gemini, agy    9     $0.58
 /octo:debate         Claude, Codex, Gemini, agy    6     $0.22
 ------------------------------------------------------------
-TOTAL                                             29     $1.57
+TOTAL                                             29     $2.23
 ============================================================
 ```
 
@@ -88,7 +88,7 @@ Show both the current session totals and cumulative totals (if historical data e
 ```text
 Session Summary
 ============================================================
-Current Session:   $1.57  (29 queries, started 2h 15m ago)
+Current Session:   $2.23  (29 queries, started 2h 15m ago)
 Cumulative (7d):   $8.42  (156 queries across 12 sessions)
 Cumulative (30d): $34.18  (612 queries across 47 sessions)
 ============================================================

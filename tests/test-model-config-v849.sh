@@ -415,6 +415,24 @@ else
     fail "find_capable_fallback() missing reasoning check"
 fi
 
+if grep -A 50 'find_capable_fallback()' "$_ORCH_ALL_TMP" | grep -q 'c_ctx < req_ctx'; then
+    pass "find_capable_fallback() preserves context capacity"
+else
+    fail "find_capable_fallback() can downgrade required context capacity"
+fi
+
+fallback_model="$(bash -c '
+    log(){ :; }
+    source "$1/models.sh"
+    source "$1/dispatch.sh"
+    find_capable_fallback claude-opus-5 claude
+' _ "${SCRIPT_DIR}/../scripts/lib")"
+if [[ "$fallback_model" == "claude-sonnet-5" ]]; then
+    pass "1M Claude fallback skips 200K Haiku and selects a 1M candidate"
+else
+    fail "1M Claude fallback selected '$fallback_model' instead of claude-sonnet-5"
+fi
+
 # Verify validate_model_allowed uses find_capable_fallback
 if grep -A 35 'validate_model_allowed()' "$_ORCH_ALL_TMP" | grep -q 'find_capable_fallback'; then
     pass "validate_model_allowed() uses capability-aware fallback"
@@ -450,6 +468,12 @@ if grep -q 'models) cmd_models' "$HELPER"; then
     pass "models subcommand wired in main dispatch"
 else
     fail "models subcommand not wired in dispatch"
+fi
+
+if grep -A 70 'cmd_models()' "$HELPER" | grep -q 'claude-fable-5|1000|yes|yes|yes|claude|premium|active'; then
+    pass "interactive model catalog includes active claude-fable-5"
+else
+    fail "interactive model catalog omits claude-fable-5"
 fi
 
 echo ""

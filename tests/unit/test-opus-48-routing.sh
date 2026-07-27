@@ -197,6 +197,35 @@ test_effort_omitted_when_unsupported() {
     fi
 }
 
+test_model_override_rejects_word_split_injection() {
+    test_case "claude-opus rejects a model override that would add CLI arguments"
+    reset_env
+    export SUPPORTS_OPUS_5=true
+    export OCTOPUS_OPUS_MODEL="claude-opus-5 --dangerously-skip-permissions"
+    local got=""
+    if got="$(get_agent_command claude-opus develop 2>/dev/null)"; then
+        test_fail "unsafe model override was serialized: $got"
+    else
+        test_pass
+    fi
+}
+
+test_effort_override_rejects_word_split_injection() {
+    test_case "claude-opus rejects an unsafe effort token before command serialization"
+    reset_env
+    export SUPPORTS_OPUS_5=true SUPPORTS_EFFORT_COMMAND=true
+    export OCTOPUS_EFFORT_OVERRIDE="high EXTRA_ARG"
+    # Exercise dispatch.sh's defensive path directly; agents.sh normally rejects
+    # this override earlier, but command construction must remain safe on its own.
+    unset -f get_effort_level
+    local got=""
+    if got="$(get_agent_command claude-opus develop 2>/dev/null)"; then
+        test_fail "unsafe effort override was serialized: $got"
+    else
+        test_pass
+    fi
+}
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # RUN
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -218,5 +247,9 @@ test_effort_opus5_xhigh_opt_in
 test_effort_define_is_high
 test_effort_override_respected
 test_effort_omitted_when_unsupported
+test_model_override_rejects_word_split_injection
+# Keep last: this test deliberately removes get_effort_level to cover dispatch's
+# standalone fallback path.
+test_effort_override_rejects_word_split_injection
 
 test_summary

@@ -35,7 +35,6 @@ Every AI model has blind spots. Claude Octopus supports ten external provider in
 ## What's New
 
 > 🆕 **v9.50 — Claude Code 2026 compatibility layer.** Routine manifest for scheduled and GitHub-event automations, a SubagentStop quality/cost gate, `/octo:usage` per-provider cost attribution in Claude Code's `/usage` schema, a `worktree.bgIsolation` opt-out for fast direct-edit runs, a Claude Agent SDK seat (`CLAUDE_SDK_API_KEY`, Opus 4.8, 1M context), a four-skill starter pack, and a `/plugin browse` manifest with projected context cost.
-
 > 🧭 **Frontier routing update.** Opus 5 is the premium lead, GPT-5.6 Sol is the independent implementation/review peer, Sonnet 5 is the standard Claude seat, and Fable 5 remains an opt-in judgment escalation. Existing pins win. See [the routing strategy](docs/MODEL-ROUTING-STRATEGY.md).
 >
 > ```bash

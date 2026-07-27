@@ -277,6 +277,17 @@ get_agent_command() {
             if declare -f fable5_maybe_reroute >/dev/null 2>&1; then
                 opus_model_flag="$(fable5_maybe_reroute "$opus_model_flag" "$role" "$agent_type" "$phase")"
             fi
+            if ! validate_model_name "$opus_model_flag"; then
+                log "ERROR" "Invalid resolved Claude Opus model: '${opus_model_flag}'"
+                return 1
+            fi
+            case "$opus_effort" in
+                low|medium|high|xhigh|max) ;;
+                *)
+                    log "ERROR" "Invalid resolved Claude effort: '${opus_effort}'"
+                    return 1
+                    ;;
+            esac
             opus_model_flag="${opus_model_flag//./-}"
             if [[ "${SUPPORTS_EFFORT_COMMAND:-false}" == "true" || "${SUPPORTS_XHIGH_EFFORT:-false}" == "true" ]]; then
                 echo "env CLAUDE_CODE_EFFORT_LEVEL=${opus_effort} ${_claude_bin}${_BARE_OPT} --print --model ${opus_model_flag} ${claude_perm}"
@@ -905,6 +916,8 @@ find_capable_fallback() {
         IFS='|' read -r c_ctx c_tools c_images c_reasoning _ _ _ <<< "$c_catalog"
 
         # Check capability match
+        [[ "$req_ctx" =~ ^[0-9]+$ && "$c_ctx" =~ ^[0-9]+$ ]] || continue
+        (( c_ctx < req_ctx )) && continue
         [[ "$req_tools" == "yes" && "$c_tools" != "yes" ]] && continue
         [[ "$req_images" == "yes" && "$c_images" != "yes" ]] && continue
         [[ "$req_reasoning" == "yes" && "$c_reasoning" != "yes" ]] && continue

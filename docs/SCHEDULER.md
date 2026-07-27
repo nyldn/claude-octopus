@@ -440,7 +440,7 @@ Creating `~/.claude-octopus/scheduler/switches/KILL_ALL` immediately terminates 
 | Gemini CLI | ~$0.01-0.03 | Gemini Pro |
 | Antigravity CLI (`agy`) | Included with access/subscription | Depends on selected Antigravity backend model |
 | Claude (Sonnet 5) | Included where covered | Part of the user's Claude Code plan when available |
-| Claude (Opus 4.6) | $5/$25 per MTok | Input/output pricing |
+| Claude (Opus 5) | $5/$25 per MTok | Current premium input/output pricing |
 
 A typical `squeeze` (security review) job using multiple external providers costs roughly $0.10-0.50 per run, depending on the selected fleet.
 

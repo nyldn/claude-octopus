@@ -614,6 +614,7 @@ cmd_models() {
         "claude-haiku-4.5|200|yes|yes|yes|claude|budget|active"
         "claude-sonnet-5|1000|yes|yes|yes|claude|standard|active"
         "claude-sonnet-4.6|200|yes|yes|no|claude|standard|active"
+        "claude-fable-5|1000|yes|yes|yes|claude|premium|active"
         "claude-opus-5|1000|yes|yes|yes|claude|premium|active"
         "claude-opus-4.8|1000|yes|yes|yes|claude|premium|active"
         "claude-opus-4.7|1000|yes|yes|yes|claude|premium|legacy"
