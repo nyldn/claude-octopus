@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **Real Tangle implementation runs now require a clean Git baseline by default** (#674). Modified tracked files, untracked files, and non-Git workspaces fail before provider dispatch with each blocking status entry reported; ignored files remain allowed and direct library consumers may explicitly opt out with `OCTOPUS_TANGLE_REQUIRE_CLEAN_BASELINE=false`.
+
 ### Fixed
 
 - **Tangle now stops immediately when its validation gate fails** (#672). A failed validation no longer falls through into contextual review and correction agents, preventing additional writes after the run has already been declared invalid while preserving the generated validation report for diagnosis.
