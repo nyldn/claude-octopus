@@ -114,7 +114,13 @@ rm -rf "$CODEX_RUNTIME_HOME" "$CODEX_RUNTIME_HOME-home"
 GEMINI_ENV=$(awk '/GEMINI_CLI_TRUST_WORKSPACE/{flag=1} flag{print; if (/^[[:space:]]*;;[[:space:]]*$/) exit}' "$ALL_SRC")
 if [[ -z "$GEMINI_ENV" ]]; then
   fail "Gemini env block not found (GEMINI_CLI_TRUST_WORKSPACE marker missing)"
-elif echo "$GEMINI_ENV" | grep -q 'GEMINI_API_KEY'; then
+elif echo "$GEMINI_ENV" | grep -qE 'for _gemini_var in [^;]*\bGEMINI_API_KEY\b'; then
+  # Full case-arm text now also includes resolve_provider_env calls and the
+  # for-loop's own variable list, both of which mention GEMINI_API_KEY
+  # unconditionally — a bare substring grep would trivially match even if
+  # forwarding were broken. Anchor on the allowlist for-loop itself, since
+  # that's the actual mechanism that decides whether GEMINI_API_KEY gets
+  # forwarded into PROVIDER_ENV_ARRAY.
   pass "Gemini env includes GEMINI_API_KEY"
 else
   fail "Gemini env missing GEMINI_API_KEY"
