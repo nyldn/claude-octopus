@@ -19,8 +19,13 @@ git -C "$SOURCE_REPO" init -q
 git -C "$SOURCE_REPO" config user.email octopus-tests@example.invalid
 git -C "$SOURCE_REPO" config user.name "Octopus Tests"
 printf 'baseline\n' > "$SOURCE_REPO/baseline.txt"
-git -C "$SOURCE_REPO" add baseline.txt
+printf 'ignored-context/\n' > "$SOURCE_REPO/.gitignore"
+git -C "$SOURCE_REPO" add baseline.txt .gitignore
 git -C "$SOURCE_REPO" commit -qm "baseline"
+mkdir -p "$SOURCE_REPO/ignored-context"
+printf 'grasp source context\n' > "$SOURCE_REPO/ignored-context/grasp.md"
+printf 'plan source context\n' > "$SOURCE_REPO/ignored-context/run-plan.md"
+SOURCE_REPO_PHYSICAL=$(cd "$SOURCE_REPO" && pwd -P)
 
 ORIGINAL_PROJECT_ROOT="$SOURCE_REPO"
 PROJECT_ROOT="$SOURCE_REPO"
@@ -29,10 +34,20 @@ OCTOPUS_TANGLE_RUN_WORKTREE=true
 OCTOPUS_TANGLE_REQUIRE_CLEAN_BASELINE=true
 OCTOPUS_TANGLE_RUN_ID="run-worktree-test"
 SEEN_PROJECT_ROOT=""
+SEEN_TASK_GROUP=""
+SEEN_GRASP_FILE=""
+SEEN_GRASP_CONTENT=""
+SEEN_PLAN_FILE=""
+SEEN_PLAN_CONTENT=""
 
 log() { :; }
 _tangle_develop_in_workspace() {
     SEEN_PROJECT_ROOT="$PROJECT_ROOT"
+    SEEN_GRASP_FILE="${2:-}"
+    SEEN_TASK_GROUP="${3:-}"
+    SEEN_PLAN_FILE="${4:-}"
+    [[ -n "$SEEN_GRASP_FILE" ]] && SEEN_GRASP_CONTENT=$(<"$SEEN_GRASP_FILE")
+    [[ -n "$SEEN_PLAN_FILE" ]] && SEEN_PLAN_CONTENT=$(<"$SEEN_PLAN_FILE")
     printf 'agent write\n' > generated.txt
     return "${STUB_TANGLE_RC:-0}"
 }
@@ -54,7 +69,7 @@ rm -f "$SOURCE_REPO/untracked.txt"
 OCTOPUS_TANGLE_RUN_ID="run-worktree-test"
 
 status=0
-tangle_develop "test prompt" || status=$?
+tangle_develop "Implement plan:ignored-context/run-plan.md" "ignored-context/grasp.md" || status=$?
 
 test_case "tangle implementation runs in isolated worktree"
 if [[ "$SEEN_PROJECT_ROOT" == "$RUNTIME_ROOT/run-worktree-test/integration" ]]; then
@@ -95,6 +110,23 @@ if [[ -f "$metadata" ]] \
     test_pass
 else
     test_fail "run Git metadata is missing or incomplete"
+fi
+
+test_case "delegated execution reuses the isolated run ID"
+if [[ "$SEEN_TASK_GROUP" == "run-worktree-test" ]]; then
+    test_pass
+else
+    test_fail "delegated task group diverged from isolated run ID: $SEEN_TASK_GROUP"
+fi
+
+test_case "ignored caller context remains available in isolated execution"
+if [[ "$SEEN_GRASP_FILE" == "$SOURCE_REPO_PHYSICAL/ignored-context/grasp.md" \
+    && "$SEEN_GRASP_CONTENT" == "grasp source context" \
+    && "$SEEN_PLAN_FILE" == "$SOURCE_REPO_PHYSICAL/ignored-context/run-plan.md" \
+    && "$SEEN_PLAN_CONTENT" == "plan source context" ]]; then
+    test_pass
+else
+    test_fail "caller context was not resolved before entering the run worktree"
 fi
 
 
