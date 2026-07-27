@@ -60,6 +60,10 @@ fi
 
 # Keep debug flag defined even when nounset is enabled by sourced scripts.
 OCTOPUS_DEBUG="${OCTOPUS_DEBUG:-false}"
+# Writing Tangle runs are isolated in a Git worktree by default. Unit tests that
+# source workflows.sh directly opt in explicitly, avoiding hidden repository side effects.
+OCTOPUS_TANGLE_RUN_WORKTREE="${OCTOPUS_TANGLE_RUN_WORKTREE:-true}"
+export OCTOPUS_TANGLE_RUN_WORKTREE
 
 # Workspace location — the directory whose files dispatched providers must read.
 # Callers historically `cd` into the plugin install before invoking orchestrate.sh,
