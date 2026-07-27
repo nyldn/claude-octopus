@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- **Council `summary.json` now records a per-seat `seats[]` array**, making quorum integrity machine-checkable without reading `responses/*` by hand. Each advice seat carries `seat` (role), `provider`, `provider_org`, `model`, `response_bytes`, `payload_kind` (currently `full`), `verdict`, `status` (`responded` / `degenerate` / `empty` / `no-response`), and `counted_as_approver`. `distinct_approving_providers` is recomputable as the count of distinct providers among seats where `counted_as_approver` is true — so a chair or degenerate seat can no longer masquerade as a distinct approving vendor. First of the sail-cruisey #2077 council-runner reliability fixes; later fixes extend `payload_kind` (agy chunking) and `status` (timeout/degraded).
+
 ### Fixed
 
 - **The chair seat no longer counts toward the distinct-approving-vendor quorum** (#670). `council_run_advice_phase` added every substantive seat's provider to the responding/approving vendor sets, including the chair. Because the chair is the synthesizer rather than an independent cross-lab reviewer — and the count gate already excludes it via `received_non_chair` — a chair-only vendor could inflate `distinct_approving_providers`, letting a single independent approver plus the chair's own vendor pass a 2-vendor quorum. The vendor tally now skips the chair seat (the chair-fallback path never added to it either), so `seats[]` and `quorum` stay consistent and a chair-only approving vendor no longer satisfies consensus. A vendor that also holds an independent seat still counts through that seat, so the exclusion is seat-scoped, not vendor-scoped. The #577 quorum tests are unaffected (provider diversity is enforced among non-chair seats).
