@@ -1,9 +1,9 @@
 # AI Agent Handoff
 
 Last updated: 2026-07-27
-Status: v9.55.0 released; no open delivery work
+Status: v9.55.1 released; no open delivery work
 Branch: `main`
-Release: https://github.com/nyldn/claude-octopus/releases/tag/v9.55.0
+Release: https://github.com/nyldn/claude-octopus/releases/tag/v9.55.1
 
 ## Start Here
 
@@ -63,7 +63,8 @@ could not be claimed or recorded as a new Beads issue.
 
 - Public `main` includes the Council reliability queue, Tangle PRs #672-#675,
   and the Opus 5 routing squash from PR #678 (`972d9597`).
-- Release v9.55.0 contains the complete integration and is the resume baseline.
+- Release v9.55.1 contains the complete integration and corrected marketplace
+  metadata; it is the resume baseline.
 - Installed Claude Code: 2.1.220.
 - Installed Codex CLI: 0.145.0.
 - Upstream model policy: `nyldn/fable5-optimizer` v2.0.0.
@@ -78,13 +79,15 @@ could not be claimed or recorded as a new Beads issue.
 - `make sync-check` passes with no script mode changes.
 - The final integrated `make ci-local` passed 16 smoke, 183 unit, and 7
   integration suites, including the live plugin lifecycle test.
-- PR #678 passed 13 protected/review checks, including Ubuntu and macOS unit
-  matrices; the v9.55.0 release PR passed its required protected gates.
+- PRs #678 and #681 passed protected/review checks, including Ubuntu and macOS
+  unit matrices; the v9.55.0 and v9.55.1 release PRs passed their required
+  protected gates.
 
 ## Merge Queue
 
 - Merged: #656, #658, #664, #666, #667, #668, #669, #670, #672, #673, #674,
-  #675, #678, release PR #677 (v9.54.2), and release PR #680 (v9.55.0).
+  #675, #678, #681, release PR #677 (v9.54.2), release PR #680 (v9.55.0), and
+  release PR #682 (v9.55.1).
 - No public or private pull requests or issues remained open at release.
 - Private E2E issue classification fix merged in
   `nyldn/claude-octopus-dev#4`; the target VPS remains unreachable over SSH, so
