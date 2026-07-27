@@ -1876,7 +1876,169 @@ Consistency rules:
     return "$rc"
 }
 
+tangle_clean_baseline_guard_enabled() {
+    [[ "${OCTOPUS_TANGLE_REQUIRE_CLEAN_BASELINE:-false}" == "true" ]]
+}
+
+tangle_require_clean_git_baseline() {
+    local source_root status_output
+    source_root=$(git -C "${PROJECT_ROOT:-$PWD}" rev-parse --show-toplevel 2>/dev/null) || {
+        log ERROR "Tangle implementation requires a Git repository when clean-baseline enforcement is enabled"
+        return 1
+    }
+
+    status_output=$(git -C "$source_root" status --porcelain=v1 --untracked-files=all 2>/dev/null) || {
+        log ERROR "Unable to inspect Git baseline at: $source_root"
+        return 1
+    }
+    if [[ -n "$status_output" ]]; then
+        log ERROR "Tangle implementation requires a clean Git baseline: $source_root"
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && log ERROR "  $line"
+        done <<< "$status_output"
+        return 1
+    fi
+    return 0
+}
+
+tangle_run_worktree_enabled() {
+    [[ "${OCTOPUS_TANGLE_RUN_WORKTREE:-false}" == "true" ]]
+}
+
+tangle_write_run_git_metadata() {
+    local task_group="$1"
+    local metadata_file="${RESULTS_DIR}/.tangle-${task_group}-git.json"
+    mkdir -p "$RESULTS_DIR"
+    if command -v jq >/dev/null 2>&1; then
+        jq -n \
+            --arg sourceRepository "$TANGLE_RUN_SOURCE_ROOT" \
+            --arg sourceCommit "$TANGLE_RUN_SOURCE_COMMIT" \
+            --arg runBranch "$TANGLE_RUN_BRANCH" \
+            --arg runWorktree "$TANGLE_RUN_WORKTREE" \
+            '{sourceRepository:$sourceRepository,sourceCommit:$sourceCommit,runBranch:$runBranch,runWorktree:$runWorktree}' \
+            > "$metadata_file"
+    else
+        printf '{"sourceRepository":"%s","sourceCommit":"%s","runBranch":"%s","runWorktree":"%s"}\n' \
+            "$TANGLE_RUN_SOURCE_ROOT" "$TANGLE_RUN_SOURCE_COMMIT" "$TANGLE_RUN_BRANCH" "$TANGLE_RUN_WORKTREE" \
+            > "$metadata_file"
+    fi
+    TANGLE_RUN_METADATA_FILE="$metadata_file"
+    export TANGLE_RUN_METADATA_FILE
+}
+
+tangle_rollback_run_worktree() {
+    local source_root="$1"
+    local worktree="$2"
+    local branch="$3"
+    local rollback_rc=0
+
+    if ! git -C "$source_root" worktree remove --force "$worktree" >/dev/null 2>&1; then
+        log ERROR "Failed to remove Tangle run worktree during rollback: $worktree"
+        rollback_rc=1
+    fi
+    if ! git -C "$source_root" branch -D "$branch" >/dev/null 2>&1; then
+        log ERROR "Failed to delete Tangle run branch during rollback: $branch"
+        rollback_rc=1
+    fi
+    return "$rollback_rc"
+}
+
+tangle_prepare_run_worktree() {
+    local task_group="$1"
+    local source_root source_commit runtime_root run_parent
+
+    source_root=$(git -C "${PROJECT_ROOT:-$PWD}" rev-parse --show-toplevel 2>/dev/null) || {
+        log ERROR "Tangle implementation requires a Git repository when run worktree isolation is enabled"
+        return 1
+    }
+    source_commit=$(git -C "$source_root" rev-parse --verify HEAD 2>/dev/null) || {
+        log ERROR "Tangle implementation requires a repository with an existing commit"
+        return 1
+    }
+
+    runtime_root="${OCTOPUS_RUN_WORKTREE_ROOT:-${WORKSPACE_DIR:-${HOME}/.claude-octopus}/worktrees/tangle}"
+    TANGLE_RUN_SOURCE_ROOT="$source_root"
+    TANGLE_RUN_SOURCE_COMMIT="$source_commit"
+    TANGLE_RUN_BRANCH="octopus/run/${task_group}/integration"
+    TANGLE_RUN_WORKTREE="${runtime_root}/${task_group}/integration"
+    run_parent=$(dirname "$TANGLE_RUN_WORKTREE")
+
+    if [[ -e "$TANGLE_RUN_WORKTREE" ]]; then
+        log ERROR "Tangle run worktree path already exists: $TANGLE_RUN_WORKTREE"
+        return 1
+    fi
+    if git -C "$source_root" show-ref --verify --quiet "refs/heads/$TANGLE_RUN_BRANCH"; then
+        log ERROR "Tangle run branch already exists: $TANGLE_RUN_BRANCH"
+        return 1
+    fi
+
+    mkdir -p "$run_parent" || return 1
+    if ! git -C "$source_root" worktree add -b "$TANGLE_RUN_BRANCH" "$TANGLE_RUN_WORKTREE" "$source_commit" >/dev/null; then
+        log ERROR "Failed to create Tangle run worktree: $TANGLE_RUN_WORKTREE"
+        return 1
+    fi
+
+    export TANGLE_RUN_SOURCE_ROOT TANGLE_RUN_SOURCE_COMMIT TANGLE_RUN_BRANCH TANGLE_RUN_WORKTREE
+    tangle_write_run_git_metadata "$task_group" || {
+        log ERROR "Failed to write Tangle run Git metadata"
+        tangle_rollback_run_worktree "$source_root" "$TANGLE_RUN_WORKTREE" "$TANGLE_RUN_BRANCH"
+        return 1
+    }
+    log INFO "Tangle run isolated in Git worktree: $TANGLE_RUN_WORKTREE"
+    log INFO "Tangle run branch: $TANGLE_RUN_BRANCH (base $TANGLE_RUN_SOURCE_COMMIT)"
+}
+
 tangle_develop() {
+    # Dry runs retain their historical side-effect-free behavior and do not
+    # create an otherwise unused run worktree.
+    if [[ "${DRY_RUN:-false}" == "true" ]]; then
+        _tangle_develop_in_workspace "$@"
+        return $?
+    fi
+
+    # Validate the caller's source checkout before creating an isolated run
+    # worktree; checking afterward would only prove that the new worktree is clean.
+    if tangle_clean_baseline_guard_enabled; then
+        tangle_require_clean_git_baseline || return 1
+    fi
+
+    if ! tangle_run_worktree_enabled; then
+        _tangle_develop_in_workspace "$@"
+        return $?
+    fi
+
+    local task_group="${OCTOPUS_TANGLE_RUN_ID:-$(date +%s)-$$}"
+    local original_project_root="${PROJECT_ROOT:-$PWD}"
+    local original_pwd="$PWD"
+    local rc=0
+
+    tangle_prepare_run_worktree "$task_group" || return 1
+
+    PROJECT_ROOT="$TANGLE_RUN_WORKTREE"
+    export PROJECT_ROOT
+    cd "$PROJECT_ROOT" || {
+        log ERROR "Failed to enter Tangle run worktree: $PROJECT_ROOT"
+        tangle_rollback_run_worktree "$TANGLE_RUN_SOURCE_ROOT" "$TANGLE_RUN_WORKTREE" "$TANGLE_RUN_BRANCH"
+        PROJECT_ROOT="$original_project_root"
+        export PROJECT_ROOT
+        return 1
+    }
+
+    _tangle_develop_in_workspace "$@" || rc=$?
+
+    cd "$original_pwd" 2>/dev/null || true
+    PROJECT_ROOT="$original_project_root"
+    export PROJECT_ROOT
+
+    if [[ "$rc" -ne 0 ]]; then
+        log WARN "Tangle run failed; preserving isolated branch and worktree for inspection: $TANGLE_RUN_BRANCH"
+    else
+        log INFO "Tangle run completed; preserving isolated branch and worktree for review: $TANGLE_RUN_BRANCH"
+    fi
+    return "$rc"
+}
+
+_tangle_develop_in_workspace() {
     local prompt="$1"
     local grasp_file="${2:-}"
     local task_group
@@ -2316,6 +2478,11 @@ Every [CODING] line must include a same-line Files: clause."
     local validation_file="${RESULTS_DIR:-${HOME}/.claude-octopus/results}/tangle-validation-${task_group}.md"
     local validation_rc=0
     validate_tangle_results "$task_group" "$resolved_prompt" "$worktree_before_file" || validation_rc=$?
+
+    if [[ "$validation_rc" -ne 0 ]]; then
+        log ERROR "Tangle validation failed with status ${validation_rc}; stopping before contextual review and corrections"
+        return "$validation_rc"
+    fi
 
     tangle_contextual_review_gate "$task_group" "$resolved_prompt" "$context" "$subtasks" \
         "$validation_file" "$worktree_before_file" "$validation_rc" "$tangle_coding_agent"
