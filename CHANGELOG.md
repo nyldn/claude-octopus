@@ -5,6 +5,10 @@
 ### Fixed
 
 - **A council `agy` seat that dies demanding a TTY is salvaged under a pseudo-terminal instead of silently failing.** agy is a bubbletea TUI app; in `--print` mode it is headless, but when it must render an interactive screen anyway — a folder-trust prompt on a brand-new worktree, or an auth flow — it opens `/dev/tty` and, in a session with no controlling terminal, dies with `bubbletea: could not open TTY` before producing an answer, sinking the seat. `agy-exec.sh` now detects that specific failure and retries once under a pseudo-terminal via `script`, so the auto-dismissed (`--dangerously-skip-permissions`) TUI has a terminal to draw on. The fallback is gated on the real error — a blanket no-TTY wrap would fire on every autonomous dispatch (which never has a TTY) and leak the pseudo-terminal's caret-notation echo into the answer — and the salvaged output is stripped of that echo (CR / backspace / EOT / leading caret-notation) so it stays byte-clean for the council response parser. Portable across BSD (`script … command`) and util-linux (`script -c`) `script`; opt out with `OCTOPUS_AGY_NO_PTY_FALLBACK=1`.
+- **Public release guidance now stays synchronized with repository truth.**
+  `make sync` updates the root and plugin READMEs plus `PRODUCT.md` from plugin
+  metadata, model resolver defaults, runtime capability gates, and the
+  changelog; `make sync-check` and release preparation reject future drift.
 
 ## [9.55.1] - 2026-07-27
 
