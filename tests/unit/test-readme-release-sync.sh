@@ -161,7 +161,13 @@ else
 fi
 
 test_case "cross-harness controller preserves the README sync contract"
+handoff_git_line="$(grep -n -m1 'git status --short --branch' "$PROJECT_ROOT/AI_AGENT_HANDOFF.md" | cut -d: -f1)"
+handoff_bd_line="$(grep -n -m1 'relevant `bd` issue' "$PROJECT_ROOT/AI_AGENT_HANDOFF.md" | cut -d: -f1)"
+rtk_git_line="$(grep -n -m1 'git status --short --branch' "$PROJECT_ROOT/RTK.md" | cut -d: -f1)"
+rtk_bd_line="$(grep -n -m1 'relevant `bd` issue' "$PROJECT_ROOT/RTK.md" | cut -d: -f1)"
 if [[ -f "$PROJECT_ROOT/RTK.md" ]] &&
+   [[ -n "$handoff_git_line" && -n "$handoff_bd_line" && "$handoff_git_line" -lt "$handoff_bd_line" ]] &&
+   [[ -n "$rtk_git_line" && -n "$rtk_bd_line" && "$rtk_git_line" -lt "$rtk_bd_line" ]] &&
    grep -q 'scripts/sync-readme.py.*owns' "$PROJECT_ROOT/RTK.md" &&
    grep -q 'scripts/sync-readme.py.*owns' "$PROJECT_ROOT/AGENTS.md" &&
    grep -q 'scripts/sync-readme.py' "$PROJECT_ROOT/CLAUDE.md" &&
