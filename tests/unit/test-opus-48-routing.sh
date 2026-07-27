@@ -52,6 +52,7 @@ fi
 
 reset_env() {
     unset OCTOPUS_OPUS_MODEL OCTOPUS_EFFORT_OVERRIDE OCTOPUS_OPUS_MODE OCTOPUS_OPUS5_AUTO_XHIGH
+    unset OCTOPUS_CLAUDE_ALLOWED_MODELS
     unset SUPPORTS_OPUS_5 SUPPORTS_OPUS_4_8 SUPPORTS_OPUS_4_7
     # orchestrate.sh initializes these to false before detection; mirror that so
     # agents.sh never trips over an unset var (it reads SUPPORTS_SDK_MODEL_CAPS bare).
@@ -143,6 +144,15 @@ test_fast_model_override_rejects_word_split_injection() {
     fi
 }
 
+test_fast_honors_claude_model_allowlist() {
+    test_case "claude-opus-fast honors OCTOPUS_CLAUDE_ALLOWED_MODELS"
+    reset_env
+    export SUPPORTS_OPUS_5=true OCTOPUS_CLAUDE_ALLOWED_MODELS="claude-opus-4.6"
+    local got; got="$(get_agent_command claude-opus-fast)"
+    [[ "$got" == *"--model claude-opus-4-6 --fast"* ]] &&
+        test_pass || test_fail "expected allowlisted 4.6 fast fallback, got: $got"
+}
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # claude-opus — phase→effort policy (high default, xhigh for deep work)
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -223,6 +233,28 @@ test_model_override_rejects_word_split_injection() {
     fi
 }
 
+test_opus_honors_claude_model_allowlist() {
+    test_case "claude-opus honors OCTOPUS_CLAUDE_ALLOWED_MODELS"
+    reset_env
+    export SUPPORTS_OPUS_5=true OCTOPUS_CLAUDE_ALLOWED_MODELS="claude-opus-4.6"
+    local got; got="$(get_agent_command claude-opus develop)"
+    [[ "$got" == *"--model claude-opus-4-6"* && "$got" != *"--model claude-opus-5"* ]] &&
+        test_pass || test_fail "expected allowlisted 4.6 fallback, got: $got"
+}
+
+test_opus_rejects_unsafe_allowlist_fallback() {
+    test_case "claude-opus rejects an unsafe allowlist fallback"
+    reset_env
+    export SUPPORTS_OPUS_5=true
+    export OCTOPUS_CLAUDE_ALLOWED_MODELS="claude-opus-4.6 --dangerously-skip-permissions"
+    local got=""
+    if got="$(get_agent_command claude-opus develop 2>/dev/null)"; then
+        test_fail "unsafe allowlist fallback was serialized: $got"
+    else
+        test_pass
+    fi
+}
+
 test_effort_override_rejects_word_split_injection() {
     test_case "claude-opus rejects an unsafe effort token before command serialization"
     reset_env
@@ -253,6 +285,7 @@ test_fast_uses_5_when_supported
 test_fast_falls_back_to_48
 test_fast_legacy_pin_wins
 test_fast_model_override_rejects_word_split_injection
+test_fast_honors_claude_model_allowlist
 
 test_effort_discover_is_high
 test_effort_develop_is_high_on_opus5
@@ -262,6 +295,8 @@ test_effort_define_is_high
 test_effort_override_respected
 test_effort_omitted_when_unsupported
 test_model_override_rejects_word_split_injection
+test_opus_honors_claude_model_allowlist
+test_opus_rejects_unsafe_allowlist_fallback
 # Keep last: this test deliberately removes get_effort_level to cover dispatch's
 # standalone fallback path.
 test_effort_override_rejects_word_split_injection

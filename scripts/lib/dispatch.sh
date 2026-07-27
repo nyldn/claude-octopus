@@ -117,6 +117,22 @@ _build_codex_exec_command() {
     fi
 }
 
+_octopus_allowed_model_or_fallback() {
+    local provider="$1"
+    local model="$2"
+    local fallback=""
+
+    if fallback="$(validate_model_allowed "$provider" "$model")"; then
+        printf '%s\n' "$model"
+        return 0
+    fi
+    if [[ -z "$fallback" ]] || ! validate_model_name "$fallback"; then
+        log ERROR "Invalid allowlist fallback model for $provider"
+        return 1
+    fi
+    printf '%s\n' "$fallback"
+}
+
 get_agent_command() {
     local agent_type="$1"
     local phase="${2:-}"
@@ -277,6 +293,7 @@ get_agent_command() {
             if declare -f fable5_maybe_reroute >/dev/null 2>&1; then
                 opus_model_flag="$(fable5_maybe_reroute "$opus_model_flag" "$role" "$agent_type" "$phase")"
             fi
+            opus_model_flag="$(_octopus_allowed_model_or_fallback "claude" "$opus_model_flag")" || return 1
             if ! validate_model_name "$opus_model_flag"; then
                 log "ERROR" "Invalid resolved Claude Opus model: '${opus_model_flag}'"
                 return 1
@@ -301,6 +318,7 @@ get_agent_command() {
             if [[ "$opus_fast_model" == "claude-fable-5" ]] && declare -f fable5_fallback_model >/dev/null 2>&1; then
                 opus_fast_model="$(fable5_fallback_model)"
             fi
+            opus_fast_model="$(_octopus_allowed_model_or_fallback "claude" "$opus_fast_model")" || return 1
             if ! validate_model_name "$opus_fast_model"; then
                 log "ERROR" "Invalid resolved Claude Opus fast model: '${opus_fast_model}'"
                 return 1
