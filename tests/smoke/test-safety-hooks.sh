@@ -176,6 +176,12 @@ test_sysadmin_rm_flag_order() {
         'rm -fr /Users/example' \
         'rm --recursive --force /home/example' \
         'rm --force --recursive /home/example' \
+        'rm -r --force /etc' \
+        'rm --force -r /etc' \
+        'rm --recursive -f /etc' \
+        'rm -f --recursive /etc' \
+        'rm -R -f /etc' \
+        'rm -i -R --force /etc' \
         'rm -rf "$HOME"/cache' \
         'rm -rf "${HOME}"/cache'; do
         output=$(jq -cn --arg command "$command" \

@@ -4,9 +4,9 @@
 
 ### Security
 
-- Destructive-delete guards cover reversed `rm -fr` / `--force --recursive`
-  flag order and quoted home prefixes with unquoted suffixes such as
-  `"$HOME"/cache`.
+- Destructive-delete guards cover reversed and mixed short/long recursive-force
+  options (including uppercase `-R`) and quoted home prefixes with unquoted
+  suffixes such as `"$HOME"/cache`.
 
 ### Fixed
 

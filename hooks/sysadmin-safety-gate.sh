@@ -47,7 +47,13 @@ fi
 # /Users is the macOS home root — this list was Linux-only (/home) even though
 # macOS is a primary platform. The trailing alternation also catches a bare
 # root target (`rm -rf /`, `rm -rf /*`), which previously matched nothing.
-if echo "$COMMAND" | grep -qE '(rm\s+-[a-zA-Z]*r[a-zA-Z]*f[a-zA-Z]*|rm\s+-[a-zA-Z]*f[a-zA-Z]*r[a-zA-Z]*|rm\s+--recursive\s+--force|rm\s+--force\s+--recursive|rm\s+-r\s+-f|rm\s+-f\s+-r)\s+([^|;&]*\s)?(/(etc|var|usr|boot|sys|proc|home|Users|Library|System|Applications|opt|bin|sbin)\b|~|\$HOME|\$\{HOME\}|"\$HOME"(/[^[:space:]|;&]*)?|"\$\{HOME\}"(/[^[:space:]|;&]*)?|/(\s|\*|$))'; then
+RM_OPTION_RE='-[a-zA-Z-]+'
+RM_RECURSIVE_RE='(-[rR]|--recursive)'
+RM_FORCE_RE='(-f|--force)'
+RM_COMBINED_RE='(-[a-zA-Z]*[rR][a-zA-Z]*f[a-zA-Z]*|-[a-zA-Z]*f[a-zA-Z]*[rR][a-zA-Z]*)'
+RM_DESTRUCTIVE_RE="rm[[:space:]]+(${RM_COMBINED_RE}|(${RM_OPTION_RE}[[:space:]]+)*${RM_RECURSIVE_RE}[[:space:]]+(${RM_OPTION_RE}[[:space:]]+)*${RM_FORCE_RE}|(${RM_OPTION_RE}[[:space:]]+)*${RM_FORCE_RE}[[:space:]]+(${RM_OPTION_RE}[[:space:]]+)*${RM_RECURSIVE_RE})"
+RM_PROTECTED_PATH_RE='(/(etc|var|usr|boot|sys|proc|home|Users|Library|System|Applications|opt|bin|sbin)\b|~|\$HOME|\$\{HOME\}|"\$HOME"(/[^[:space:]|;&]*)?|"\$\{HOME\}"(/[^[:space:]|;&]*)?|/([[:space:]]|\*|$))'
+if echo "$COMMAND" | grep -qE "${RM_DESTRUCTIVE_RE}[[:space:]]+(${RM_OPTION_RE}[[:space:]]+)*${RM_PROTECTED_PATH_RE}"; then
     echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Sysadmin safety gate: destructive rm -rf on system path blocked"}}'
     exit 0
 fi
