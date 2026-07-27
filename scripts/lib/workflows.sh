@@ -1840,7 +1840,13 @@ Consistency rules:
         (.evidence | type == "object") and
         (.evidence.commands | type == "array") and
         (.evidence.failingTests | type == "array") and
-        (.evidence.summary | type == "string")
+        (.evidence.summary | type == "string") and
+        (
+            if (.baselinePassed == true and .defectReproduced == false)
+            then .implementationRequired == false
+            else true
+            end
+        )
     ' >/dev/null 2>&1 <<< "$raw_result"; then
         status="NEEDS_DIAGNOSIS"
         jq -n --arg status "$status" --arg sourceCommit "$source_commit" --arg raw "$raw_result" \
@@ -1902,7 +1908,7 @@ tangle_require_clean_git_baseline() {
 }
 
 tangle_run_worktree_enabled() {
-    [[ "${OCTOPUS_TANGLE_RUN_WORKTREE:-false}" == "true" ]]
+    [[ "${OCTOPUS_TANGLE_RUN_WORKTREE:-true}" == "true" ]]
 }
 
 tangle_extract_plan_file_ref() {
@@ -2069,10 +2075,10 @@ tangle_develop() {
     # Ignored context files are valid inputs but are absent from a new Git
     # worktree, so delegated execution must retain their canonical source paths.
     if [[ -n "$grasp_file" ]]; then
-        resolved_grasp_file=$(tangle_resolve_context_file_path "$grasp_file" "$original_project_root" 2>/dev/null) \
+        resolved_grasp_file=$(tangle_resolve_context_file_path "$grasp_file" "$original_pwd" 2>/dev/null) \
             || resolved_grasp_file="$grasp_file"
     fi
-    resolved_plan_file=$(tangle_resolve_prompt_plan_file_path "$prompt" "$original_project_root" 2>/dev/null) || true
+    resolved_plan_file=$(tangle_resolve_prompt_plan_file_path "$prompt" "$original_pwd" 2>/dev/null) || true
 
     tangle_prepare_run_worktree "$task_group" || return 1
 

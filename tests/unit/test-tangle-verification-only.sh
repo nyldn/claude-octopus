@@ -98,6 +98,20 @@ if [[ "${status:-1}" -ne 0 ]]; then
     test_pass
 fi
 
+AGENT_RESULT='{"baselinePassed":true,"defectReproduced":false,"implementationRequired":true,"evidence":{"commands":["test"],"failingTests":[],"summary":"contradictory"}}'
+OCTOPUS_VERIFY_RUN_ID="contradictory-result"
+status=0
+tangle_verify "reject contradictory result" || status=$?
+
+test_case "contradictory verification fails closed"
+if [[ "$status" -eq 1 \
+    && "$TANGLE_VERIFICATION_STATUS" == "NEEDS_DIAGNOSIS" \
+    && "$(jq -r '.error' "$TANGLE_VERIFICATION_RESULT_FILE")" == "invalid verification result" ]]; then
+    test_pass
+else
+    test_fail "contradictory verification was accepted"
+fi
+
 AGENT_RESULT='not-json'
 OCTOPUS_VERIFY_RUN_ID="invalid-result"
 status=0

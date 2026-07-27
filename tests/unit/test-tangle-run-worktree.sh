@@ -12,6 +12,7 @@ SOURCE_REPO="$TEST_ROOT/source"
 RUNTIME_ROOT="$TEST_ROOT/runtime"
 RESULTS_DIR="$TEST_ROOT/results"
 WORKSPACE_DIR="$TEST_ROOT/state"
+TEST_START_PWD="$PWD"
 mkdir -p "$SOURCE_REPO" "$RESULTS_DIR" "$WORKSPACE_DIR"
 trap 'rm -rf "$TEST_ROOT"' EXIT INT TERM
 
@@ -30,7 +31,7 @@ SOURCE_REPO_PHYSICAL=$(cd "$SOURCE_REPO" && pwd -P)
 ORIGINAL_PROJECT_ROOT="$SOURCE_REPO"
 PROJECT_ROOT="$SOURCE_REPO"
 OCTOPUS_RUN_WORKTREE_ROOT="$RUNTIME_ROOT"
-OCTOPUS_TANGLE_RUN_WORKTREE=true
+unset OCTOPUS_TANGLE_RUN_WORKTREE
 OCTOPUS_TANGLE_REQUIRE_CLEAN_BASELINE=true
 OCTOPUS_TANGLE_RUN_ID="run-worktree-test"
 SEEN_PROJECT_ROOT=""
@@ -52,6 +53,22 @@ _tangle_develop_in_workspace() {
     return "${STUB_TANGLE_RC:-0}"
 }
 
+test_case "run worktree isolation defaults enabled"
+if tangle_run_worktree_enabled; then
+    test_pass
+else
+    test_fail "unset OCTOPUS_TANGLE_RUN_WORKTREE disabled isolation"
+fi
+
+test_case "explicit false disables run worktree isolation"
+OCTOPUS_TANGLE_RUN_WORKTREE=false
+if ! tangle_run_worktree_enabled; then
+    test_pass
+else
+    test_fail "explicit false did not disable isolation"
+fi
+unset OCTOPUS_TANGLE_RUN_WORKTREE
+
 test_case "dirty source is rejected before run worktree creation"
 printf 'local-only\n' > "$SOURCE_REPO/untracked.txt"
 OCTOPUS_TANGLE_RUN_ID="dirty-source"
@@ -69,7 +86,8 @@ rm -f "$SOURCE_REPO/untracked.txt"
 OCTOPUS_TANGLE_RUN_ID="run-worktree-test"
 
 status=0
-tangle_develop "Implement plan:ignored-context/run-plan.md" "ignored-context/grasp.md" || status=$?
+cd "$SOURCE_REPO/ignored-context"
+tangle_develop "Implement plan:run-plan.md" "grasp.md" || status=$?
 
 test_case "tangle implementation runs in isolated worktree"
 if [[ "$SEEN_PROJECT_ROOT" == "$RUNTIME_ROOT/run-worktree-test/integration" ]]; then
@@ -128,6 +146,7 @@ if [[ "$SEEN_GRASP_FILE" == "$SOURCE_REPO_PHYSICAL/ignored-context/grasp.md" \
 else
     test_fail "caller context was not resolved before entering the run worktree"
 fi
+cd "$TEST_START_PWD"
 
 
 test_case "metadata failure rolls back worktree and branch"
