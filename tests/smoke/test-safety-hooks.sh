@@ -175,7 +175,9 @@ test_sysadmin_rm_flag_order() {
         'rm -rf /Users/example' \
         'rm -fr /Users/example' \
         'rm --recursive --force /home/example' \
-        'rm --force --recursive /home/example'; do
+        'rm --force --recursive /home/example' \
+        'rm -rf "$HOME"/cache' \
+        'rm -rf "${HOME}"/cache'; do
         output=$(jq -cn --arg command "$command" \
             '{tool_name:"Bash",tool_input:{command:$command}}' | bash "$SYSADMIN_HOOK")
         if [[ "$output" != *'"permissionDecision":"deny"'* ]]; then

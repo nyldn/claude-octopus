@@ -2,6 +2,39 @@
 
 ## [Unreleased]
 
+### Security
+
+- Destructive-delete guards cover reversed `rm -fr` / `--force --recursive`
+  flag order and quoted home prefixes with unquoted suffixes such as
+  `"$HOME"/cache`.
+
+### Fixed
+
+- Factory session metadata validates exactly one maturity JSON value, numeric
+  ratios, retry counts, and satisfaction targets, and persists the effective
+  holdout/retry overrides used by `factory_run`.
+- HTTP telemetry setup fails closed when an installed Claude CLI returns no
+  parseable numeric version.
+- The codex smoke probe removes its diagnostic tempfile on every early-return
+  path.
+- Standalone context, agent, and intelligence libraries fail immediately if
+  their shared word-count helper cannot be loaded.
+- Word and provider-recommendation splitting disables globbing and uses a fixed
+  whitespace `IFS`.
+- `set_provider_model` and `reset_provider_model` accept the canonical `agy`
+  provider key used by generated configurations.
+
+### Changed
+
+- README synchronization derives smoke, unit, and integration suite counts from
+  test discovery, keeping `PRODUCT.md` current when coverage grows.
+
+### Tests
+
+- Dedicated regression coverage now exercises factory metadata, destructive
+  delete flag/path forms, telemetry version parsing, fixed-IFS word splitting,
+  `agy` model configuration, and README suite-count drift.
+
 ## [9.56.0] - 2026-07-27
 
 
@@ -11,7 +44,6 @@
 - **`enable-http-telemetry.sh` no longer accepts the bearer token on the command line.** A token in argv lands in shell history and is readable via `ps` by every local process. The token is read from `OCTOPUS_TELEMETRY_BEARER_TOKEN`, and writing it into the Git-tracked `hooks/hooks.json` now requires `--allow-plaintext-token`. **Breaking:** the second positional argument is rejected with an explanatory error.
 - **The sysadmin safety gate covers macOS home paths.** Its `rm -rf` path list was Linux-only (`/home`), so `rm -rf /Users/<you>/...` passed unchallenged on the project's primary platform. `/Users`, `/Library`, `/System`, `/Applications` and a bare `rm -rf /` are now caught.
 - **`run_command` in the OpenAI-compatible agent has guardrails.** `read_file`/`write_file` were confined to the working directory while the shell tool could reach anything the invoking user could. Privilege escalation, download-and-execute, credential-file reads, raw device writes and absolute-path recursive deletes are refused. Set `OPENAI_COMPAT_UNSAFE_COMMANDS=1` to opt out inside a disposable container. This is a guardrail, not a sandbox.
-- Destructive-delete guards also cover reversed `rm -fr` / `--force --recursive` flag order and quoted or braced home paths such as `"$HOME"` and `"${HOME}"`.
 - `resolve_provider_env` validates the variable name before it reaches `bash -c` and `export`.
 - `detect_project_quality_commands` shell-quotes the project path in the strings later passed to `eval`.
 
@@ -27,14 +59,11 @@
 - **`json_extract_multi` returned nothing on macOS.** It used a `local -n` nameref, which needs bash 4.3+, while the project supports bash 3.2 — still `/bin/bash` on macOS. Audit-log and pending-review output rendered with every field blank. Reimplemented with `printf -v`.
 - **`tangle_verify` leaked a temp directory on every run.** Cleanup cleared the caller's `EXIT` trap instead of restoring it, discarding `orchestrate.sh`'s own `$OCTOPUS_TMP_DIR` removal.
 - **Sourced libraries no longer leak shell options.** `provider-allowlist.sh`, `doctor.sh` and `user-config.sh` set `-eo pipefail` at file scope, which persisted in the sourcing shell — including `providers.sh`, which documents itself as source-safe and is full of probes where a nonzero exit is normal.
-- **Factory session metadata is valid and matches the effective run.** `parse_factory_spec` no longer reads `maturity_json` through dynamic scoping, validates JSON, ratios, retry counts, and satisfaction targets before writing, and persists the positional holdout/retry overrides actually used by `factory_run`.
+- **`parse_factory_spec` no longer depends on dynamic scoping.** `maturity_json` was read out of the caller's frame, so any other caller wrote invalid JSON into `session.json`. It is now an explicit argument with a valid default.
 - **Careful mode stopped flagging ordinary pushes.** `git push .*-f` matched any branch name containing `-f` (`release-final`), and patterns were matched against the entire hook payload rather than the extracted command.
 - The `enable-http-telemetry.sh` version guard compares the major component, so a future Claude Code v3.0.0 is no longer rejected as older than v2.1.63.
 - The codex smoke probe skips rather than reporting a false negative when it cannot enter its temporary git repository.
-- The codex smoke probe removes its diagnostic tempfile on every early-return path.
-- Standalone context, agent, and intelligence libraries fail immediately if their shared word-count helper cannot be loaded.
-- Word and provider-recommendation splitting now disables globbing and uses a fixed whitespace `IFS`, so wildcard input or a caller-modified `IFS` cannot change the result.
-- `set_provider_model` and `reset_provider_model` accept the canonical `agy` provider key used by generated configurations.
+- Word-count splitting disables globbing, so a value containing `*` no longer expands to matching filenames.
 
 ### Changed
 
@@ -42,7 +71,6 @@
 - **ShellCheck is an enforcing CI gate.** The step ended in `|| true` and had accumulated 406 unread warnings, two of which pinpointed the allowlist and jq defects above. The codebase is at zero with `SC2034`, `SC2155`, `SC1090` and `SC1091` excluded as stylistic.
 - **One source of truth for the model-resolution cache path** (`scripts/lib/model-cache-path.sh`). `model-resolver.sh` honoured `$TMPDIR` while `provider-routing.sh` and `octo-model-config.sh` hardcoded `/tmp`, so on macOS the writer and the invalidating `rm -f` addressed different files.
 - `set_provider_model` and `reset_provider_model` derive their matchers and messages from a single `OCTO_MODEL_CONFIG_PROVIDERS` list; the reset message had already drifted, omitting `openai-compatible` and `openai-tools`.
-- README synchronization derives the smoke, unit, and integration suite counts from test discovery, keeping `PRODUCT.md` current when coverage grows.
 
 ### Performance
 
@@ -54,7 +82,6 @@
 - `test-review-run.sh` exercises the retry classifier's behaviour instead of grepping the source for its name.
 - `test-pr-review-state.sh` fixture variables are renamed so a name collision can no longer mask a broken jq filter.
 - `test-openclaw-compat.sh` scans the shipped `skills/` tree as well as `.claude/skills/`.
-- Factory metadata, destructive-delete flag ordering, quoted home paths, fixed-IFS word splitting, `agy` model configuration, and README suite-count drift have dedicated regression coverage.
 
 ## [9.55.1] - 2026-07-27
 

@@ -88,7 +88,7 @@ parse_factory_spec() {
         log ERROR "jq is required to validate factory session metadata"
         return 1
     fi
-    if ! printf '%s' "$maturity_json_in" | jq empty >/dev/null 2>&1; then
+    if ! printf '%s' "$maturity_json_in" | jq -e -s 'length == 1' >/dev/null 2>&1; then
         log ERROR "Factory maturity metadata is not valid JSON"
         return 1
     fi

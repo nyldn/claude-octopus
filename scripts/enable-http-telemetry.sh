@@ -86,8 +86,15 @@ fi
 
 # Version guard: HTTP hooks require Claude Code v2.1.63+
 CC_VERSION=""
+CC_VERSION_OUTPUT=""
 if command -v claude &>/dev/null; then
-    CC_VERSION=$(claude --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)
+    CC_VERSION_OUTPUT=$(claude --version 2>&1 || true)
+    CC_VERSION=$(printf '%s\n' "$CC_VERSION_OUTPUT" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)
+    if [[ -z "$CC_VERSION" ]]; then
+        echo "ERROR: HTTP hooks require a numeric Claude Code version (x.y.z)," >&2
+        echo "  but 'claude --version' returned no parseable version: ${CC_VERSION_OUTPUT:-<empty>}" >&2
+        exit 1
+    fi
 fi
 
 if [[ -n "$CC_VERSION" ]]; then

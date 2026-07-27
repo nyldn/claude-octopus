@@ -49,6 +49,16 @@ else
     test_pass
 fi
 
+test_case "multiple top-level maturity JSON values are rejected"
+RUN_DIR="$TEST_TMP_DIR/multiple-maturity-values"
+mkdir -p "$RUN_DIR"
+if parse_factory_spec "$SPEC" "$RUN_DIR" '{} {}' 0.20 1 >/dev/null 2>&1 ||
+   [[ -e "$RUN_DIR/session.json" ]]; then
+    test_fail "multiple JSON documents should fail without writing session.json"
+else
+    test_pass
+fi
+
 test_case "invalid ratios and retries are rejected before session metadata is written"
 invalid_values_rejected=true
 for values in '1.5 1' 'word 1' '0.20 -1' '0.20 1.5'; do

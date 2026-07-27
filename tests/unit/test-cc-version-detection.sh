@@ -556,6 +556,28 @@ else
     fail "Version compare block count: $block_count" "expected >= 29 blocks"
 fi
 
+# The telemetry opt-in script has its own minimum-version gate. An installed
+# CLI with unexpected output must fail closed rather than silently bypassing it.
+telemetry_test_root="$TEST_TMP_DIR/telemetry-version"
+telemetry_mock_bin="$telemetry_test_root/mock-bin"
+mkdir -p "$telemetry_test_root/scripts" "$telemetry_mock_bin"
+cp "$PROJECT_ROOT/scripts/enable-http-telemetry.sh" "$telemetry_test_root/scripts/"
+printf '%s\n' '#!/usr/bin/env bash' 'echo "Claude Code development build"' \
+    > "$telemetry_mock_bin/claude"
+chmod +x "$telemetry_mock_bin/claude"
+telemetry_output="$telemetry_test_root/output.txt"
+if PATH="$telemetry_mock_bin:$PATH" \
+    bash "$telemetry_test_root/scripts/enable-http-telemetry.sh" \
+        "https://example.invalid/hook" >"$telemetry_output" 2>&1; then
+    fail "Telemetry rejects unparseable installed Claude versions" \
+        "unparseable claude --version output bypassed the minimum-version gate"
+elif grep -q "returned no parseable version" "$telemetry_output"; then
+    pass "Telemetry rejects unparseable installed Claude versions"
+else
+    fail "Telemetry rejects unparseable installed Claude versions" \
+        "the version failure was not reported explicitly"
+fi
+
 # ╔══════════════════════════════════════════════════════════════════════╗
 # ║  Summary                                                            ║
 # ╚══════════════════════════════════════════════════════════════════════╝

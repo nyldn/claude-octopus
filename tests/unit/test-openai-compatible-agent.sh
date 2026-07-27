@@ -43,6 +43,8 @@ blocked = (
     'rm -rf "$HOME"',
     "rm -rf '${HOME}'",
     'rm -fr "${HOME}/cache"',
+    'rm -rf "$HOME"/cache',
+    'rm -rf "${HOME}"/cache',
     "rm --recursive --force /Users/example",
 )
 assert all(module.command_is_blocked(command) for command in blocked)

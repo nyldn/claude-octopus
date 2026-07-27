@@ -4,6 +4,9 @@ Last updated: 2026-07-27
 Status: v9.56.0 released; no open delivery work
 Branch: `main`
 Release: https://github.com/nyldn/claude-octopus/releases/tag/v9.56.0
+Release squash: `7a5d44e5d46efd3e906b21de83ef9c3e8e6e1d1b` (pushed to
+`upstream/main`)
+Tag target: `v9.56.0` resolves to the same post-squash commit and is pushed
 
 ## Start Here
 
@@ -76,6 +79,9 @@ could not be claimed or recorded as a new Beads issue.
 - Release v9.56.0 contains the complete Opus 5/GPT-5.6 documentation sync,
   agy PTY salvage, and full-project security/correctness/performance review; it
   is the resume baseline.
+- The release squash and `v9.56.0` tag both resolve to
+  `7a5d44e5d46efd3e906b21de83ef9c3e8e6e1d1b` on public `main`. The commit,
+  tag, and GitHub release were verified after the squash merge.
 - Installed Claude Code: 2.1.220.
 - Installed Codex CLI: 0.145.0.
 - Upstream model policy: `nyldn/fable5-optimizer` v2.0.0.
@@ -88,6 +94,8 @@ could not be claimed or recorded as a new Beads issue.
 - Fresh configs adopt the frontier roster; existing v3 configs and explicit
   model pins remain unchanged.
 - `make sync-check` passes with no script mode changes.
+- The primary checkout's tracked working tree is clean and its only local item
+  is the preserved, user-owned untracked `.octo-continue.md`.
 - `scripts/sync-readme.py` keeps `README.md`, `.claude-plugin/README.md`, and
   `PRODUCT.md` aligned with plugin metadata, runtime capability gates, model
   resolver defaults, test discovery, and the current changelog release.
@@ -104,7 +112,8 @@ could not be claimed or recorded as a new Beads issue.
 
 - Merged: #656, #658, #664, #666, #667, #668, #669, #670, #672, #673, #674,
   #675, #678, #681, #683, #684, release PR #677 (v9.54.2), release PR #680
-  (v9.55.0), release PR #682 (v9.55.1), and release PR #685 (v9.56.0).
+  (v9.55.0), release PR #682 (v9.55.1), release PR #685 (v9.56.0), and review
+  follow-up PR #686.
 - No public or private pull requests or issues remained open at release.
 - Private E2E issue classification fix merged in
   `nyldn/claude-octopus-dev#4`; the target VPS remains unreachable over SSH, so
