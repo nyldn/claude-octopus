@@ -197,8 +197,17 @@ fi
 
 # ── Authorship-aware reviewer flip ───────────────────────────────────────────
 
+# The flip only fires when the Codex CLI is present, so these cases must supply a
+# mock rather than depend on whether the host happens to have codex installed.
+# Reading the real PATH made this suite pass locally and fail on CI, where codex
+# is absent and the flip correctly stayed inert.
+flip_bin="$TEST_TMP_DIR/flip-mock-bin"
+mkdir -p "$flip_bin"
+printf '#!/usr/bin/env bash\nexit 0\n' > "$flip_bin/codex"
+chmod +x "$flip_bin/codex"
+
 test_case "reviewer flip is off by default"
-got=$(bash -c "source '$FEATURES_LIB' 2>/dev/null; source '$AGENT_UTILS' 2>/dev/null; get_role_mapping code-reviewer")
+got=$(PATH="$flip_bin:$PATH" bash -c "source '$FEATURES_LIB' 2>/dev/null; source '$AGENT_UTILS' 2>/dev/null; get_role_mapping code-reviewer")
 if [[ "$got" == codex-review:* ]]; then
     test_pass
 else
@@ -206,7 +215,7 @@ else
 fi
 
 test_case "reviewer flip moves review off the implementing vendor"
-got=$(OCTOPUS_REVIEWER_FLIP=1 bash -c "source '$FEATURES_LIB' 2>/dev/null; source '$AGENT_UTILS' 2>/dev/null; get_role_mapping code-reviewer")
+got=$(PATH="$flip_bin:$PATH" OCTOPUS_REVIEWER_FLIP=1 bash -c "source '$FEATURES_LIB' 2>/dev/null; source '$AGENT_UTILS' 2>/dev/null; get_role_mapping code-reviewer")
 if [[ "$got" == claude-opus:* ]]; then
     test_pass
 else
@@ -214,7 +223,7 @@ else
 fi
 
 test_case "reviewer flip leaves the implementer seat on Codex"
-got=$(OCTOPUS_REVIEWER_FLIP=1 bash -c "source '$FEATURES_LIB' 2>/dev/null; source '$AGENT_UTILS' 2>/dev/null; get_role_mapping implementer")
+got=$(PATH="$flip_bin:$PATH" OCTOPUS_REVIEWER_FLIP=1 bash -c "source '$FEATURES_LIB' 2>/dev/null; source '$AGENT_UTILS' 2>/dev/null; get_role_mapping implementer")
 if [[ "$got" == codex:* ]]; then
     test_pass
 else
