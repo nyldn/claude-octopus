@@ -113,6 +113,10 @@ source "${SCRIPT_DIR}/lib/similarity.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/models.sh" 2>/dev/null || true
 
 # Fable 5 mode detection and dispatch guards (v9.51)
+# features.sh before fable5.sh: fable5_escalation_consented reads the feature
+# ledger through octo_features_enabled, and sourcing order decides whether that
+# function exists by the time an escalation decision is made.
+source "${SCRIPT_DIR}/lib/features.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/fable5.sh" 2>/dev/null || true
 
 # Source intelligence library (v8.20.0)

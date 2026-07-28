@@ -25,10 +25,25 @@ _octo_hook_exit() { local c=$?; if [[ $c -ne 0 ]]; then echo "[hook:$(basename "
 trap _octo_hook_exit EXIT
 
 
-STATE_DIR="${HOME}/.claude-octopus"
+STATE_DIR="${OCTOPUS_STATE_DIR:-${HOME}/.claude-octopus}"
 STATE_FILE="${STATE_DIR}/state.json"
 SETUP_MARKER="${STATE_DIR}/.setup-complete"
 PLUGIN_MANIFEST="${CLAUDE_PLUGIN_ROOT:-}/.claude-plugin/plugin.json"
+
+# Progressive feature disclosure (scripts/lib/features.sh). Sourced defensively:
+# this hook must never block or noisily fail a session, so a missing library just
+# means the advisory keeps its pre-existing one-line form.
+_HOOK_DIR="$(cd -P "$(dirname -- "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)" || _HOOK_DIR=""
+for _feat_lib in \
+    "${CLAUDE_PLUGIN_ROOT:-}/scripts/lib/features.sh" \
+    "${_HOOK_DIR}/../scripts/lib/features.sh"
+do
+    if [[ -n "$_feat_lib" && -f "$_feat_lib" ]]; then
+        # shellcheck source=../scripts/lib/features.sh
+        source "$_feat_lib" 2>/dev/null || true
+        break
+    fi
+done
 
 # Silent exit on missing prereqs — never block session start
 [[ ! -f "$PLUGIN_MANIFEST" ]] && exit 0
@@ -61,12 +76,30 @@ if [[ -z "$LAST_SEEN" ]]; then
     exit 0
 fi
 
+# Seed the disclosure watermark from the version the user is coming FROM, not the
+# one they are moving to. Seeding from CURRENT_VERSION would place every feature
+# shipped in this release below the watermark, so nothing would ever be offered.
+FEATURE_LINE=""
+if declare -f octo_features_seed_watermark >/dev/null 2>&1; then
+    OCTOPUS_STATE_DIR="$STATE_DIR" octo_features_seed_watermark "$LAST_SEEN" 2>/dev/null || true
+    _actionable="$(OCTOPUS_STATE_DIR="$STATE_DIR" octo_features_actionable_count 2>/dev/null || echo 0)"
+    if [[ "$_actionable" =~ ^[0-9]+$ ]] && (( _actionable > 0 )); then
+        if (( _actionable == 1 )); then
+            FEATURE_LINE="
+   1 new feature is available to enable: /octo:whats-new"
+        else
+            FEATURE_LINE="
+   ${_actionable} new features are available to enable: /octo:whats-new"
+        fi
+    fi
+fi
+
 # Version changed — advisory. Keep it to one or two lines, non-blocking. Emit a
 # valid SessionStart hook-output object (bare text fails v2.1.178 validation); jq
 # JSON-escapes the multi-line message.
 jq -cn --arg ctx "🐙 Claude Octopus updated: ${LAST_SEEN} → ${CURRENT_VERSION}
    Review changes: /octo:setup (or see CHANGELOG for role routing / default model shifts).
-   Opt out of new routing: export OCTOPUS_LEGACY_ROLES=1" \
+   Opt out of new routing: export OCTOPUS_LEGACY_ROLES=1${FEATURE_LINE}" \
     '{hookSpecificOutput:{hookEventName:"SessionStart",additionalContext:$ctx}}'
 
 # Persist new version so we don't advise again next session

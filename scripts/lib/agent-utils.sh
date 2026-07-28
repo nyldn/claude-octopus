@@ -50,6 +50,30 @@ _BARE_OPT="${_BARE_OPT:-}"
 # Opt-out:   OCTOPUS_LEGACY_ROLES=1 restores the v9.28 mapping.
 # Fallback:  consumers (see lib/agents.sh get_fallback_agent) silently downshift when the
 #            preferred CLI is unavailable (e.g. no Anthropic auth → architect → current Codex).
+
+# _octo_reviewer_flip_active — true when code review should move off the Codex
+# seat because Codex is the implementer.
+#
+# Gated on explicit consent (progressive disclosure feature `codex-reviewer-flip`,
+# or OCTOPUS_REVIEWER_FLIP as a session override) rather than on by default: it
+# shifts review spend from a Codex seat onto a premium Opus seat, which is a cost
+# change users should opt into knowingly.
+#
+# Also requires the Codex CLI to actually be present. Without it the implementer
+# falls back off Codex anyway, so flipping review away from Codex would remove
+# vendor diversity instead of creating it.
+_octo_reviewer_flip_active() {
+    command -v codex >/dev/null 2>&1 || return 1
+    if declare -f octo_features_enabled >/dev/null 2>&1; then
+        octo_features_enabled "codex-reviewer-flip"
+        return $?
+    fi
+    case "${OCTOPUS_REVIEWER_FLIP:-}" in
+        1|on|true|yes) return 0 ;;
+    esac
+    return 1
+}
+
 get_role_mapping() {
     local role="$1"
 
@@ -70,7 +94,19 @@ get_role_mapping() {
     case "$role" in
         architect)         echo "claude-opus:$(opus_default_model 2>/dev/null || echo claude-opus-5)" ;;  # Planning, UI/UX, architecture
         researcher)        echo "agy:Gemini 3.1 Pro (High)" ;;                                             # Deep investigation via Antigravity (Google seat)
-        reviewer|code-reviewer) echo "codex-review:$(codex_default_model 2>/dev/null || echo gpt-5.6-sol)" ;; # Independent review; `reviewer` = alias
+        reviewer|code-reviewer)
+            # Authorship-aware review. The static table sends both `implementer`
+            # and `code-reviewer` to Codex, so by default Codex reviews its own
+            # output — the same echo problem that makes Fable-reviews-Opus a weak
+            # check, just with the vendors swapped. When the flip is enabled and
+            # the implementer seat is Codex, review moves to the Claude opus seat
+            # so the reviewer and the author are different vendors.
+            if _octo_reviewer_flip_active; then
+                echo "claude-opus:$(opus_default_model 2>/dev/null || echo claude-opus-5)"
+            else
+                echo "codex-review:$(codex_default_model 2>/dev/null || echo gpt-5.6-sol)"
+            fi
+            ;;
         security-reviewer) echo "claude-opus:$(opus_default_model 2>/dev/null || echo claude-opus-5)" ;;     # Adversarial reasoning
         implementer)       echo "codex:$(codex_default_model 2>/dev/null || echo gpt-5.6-sol)" ;;             # Default code generation; terminal-heavy
         implementer-heavy) echo "claude-opus:$(opus_default_model 2>/dev/null || echo claude-opus-5)" ;;     # Opt-in: greenfield/refactor/UI-heavy

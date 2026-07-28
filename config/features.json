@@ -1,0 +1,53 @@
+{
+  "schema": "features_v1",
+  "features": [
+    {
+      "id": "fable5-escalation",
+      "added_in": "9.57.0",
+      "backfill": true,
+      "title": "Fable 5 escalation for judgment work",
+      "description": "Escalate PRD authoring, definition tradeoffs, and cross-vendor tie-breaks from Opus 5 to Fable 5. Costs 2x Opus 5 ($10/$50 per MTok); capped at one dispatch per command.",
+      "kind": "env",
+      "key": "OCTOPUS_FABLE5_ESCALATE",
+      "enabled_value": "1",
+      "default": "disabled",
+      "prereq": "claude-opus-seat"
+    },
+    {
+      "id": "codex-reviewer-flip",
+      "added_in": "9.57.0",
+      "backfill": true,
+      "title": "Authorship-aware code review",
+      "description": "When Codex implements, route code review to a Claude seat instead of Codex reviewing its own output.",
+      "kind": "env",
+      "key": "OCTOPUS_REVIEWER_FLIP",
+      "enabled_value": "1",
+      "default": "disabled",
+      "prereq": "codex-cli"
+    },
+    {
+      "id": "preflight-probe",
+      "added_in": "9.55.0",
+      "backfill": false,
+      "title": "Proactive provider health probe",
+      "description": "Validate API-key providers (Perplexity, OpenRouter) at preflight instead of discovering a dead key mid-workflow.",
+      "kind": "env",
+      "key": "OCTOPUS_PREFLIGHT_PROBE",
+      "enabled_value": "1",
+      "default": "disabled",
+      "prereq": "none"
+    },
+    {
+      "id": "gemini-via-agy",
+      "added_in": "9.52.0",
+      "backfill": false,
+      "title": "Route Gemini seats through Antigravity",
+      "description": "Serve gemini* seats via the Antigravity CLI. Gemini Code Assist free-tier OAuth is sunset, so the direct gemini-cli path returns IneligibleTierError.",
+      "kind": "env",
+      "key": "OCTOPUS_GEMINI_VIA_AGY",
+      "enabled_value": "1",
+      "default": "disabled",
+      "prereq": "agy-cli"
+    }
+  ]
+}

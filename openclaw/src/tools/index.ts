@@ -119,6 +119,7 @@ export const SKILL_REGISTRY: SkillRegistryEntry[] = [
   { name: "tdd", description: "Test-driven development with red-green-refactor discipline", type: "command", file: "tdd.md" },
   { name: "unfreeze", description: "[advanced] Remove freeze mode edit restriction", type: "command", file: "unfreeze.md" },
   { name: "usage", description: "[advanced] Per-provider, per-skill, and per-MCP-server cost and token breakdown (Claude Code /usage schema)", type: "command", file: "usage.md" },
+  { name: "whats-new", description: "Review and enable Claude Octopus features added since you installed", type: "command", file: "whats-new.md" },
 ];
 
-export const REGISTRY_COUNT = 104;
+export const REGISTRY_COUNT = 105;

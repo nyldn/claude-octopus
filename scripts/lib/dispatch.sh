@@ -290,8 +290,22 @@ get_agent_command() {
             fi
             local opus_model_flag
             opus_model_flag="$(opus_default_model)"
+            # Selective Fable 5 escalation for judgment-class roles, before the
+            # security reroute so a security dispatch can never end up on Fable
+            # even if the allowlist is later widened. Escalation is applied here
+            # rather than in the model resolver because the resolver's cache has
+            # no liveness component and would keep serving a cached Fable model
+            # after the seat was marked quota-dead.
+            if declare -f fable5_maybe_escalate >/dev/null 2>&1; then
+                opus_model_flag="$(fable5_maybe_escalate "$opus_model_flag" "$role" "$agent_type" "$phase")"
+            fi
             if declare -f fable5_maybe_reroute >/dev/null 2>&1; then
                 opus_model_flag="$(fable5_maybe_reroute "$opus_model_flag" "$role" "$agent_type" "$phase")"
+            fi
+            # Clamp on the resolved model, so an escalated dispatch is clamped
+            # while unrelated Opus 5 work in the same run keeps its effort.
+            if declare -f fable5_clamp_effort_for_model >/dev/null 2>&1; then
+                opus_effort="$(fable5_clamp_effort_for_model "$opus_effort" "$opus_model_flag")"
             fi
             opus_model_flag="$(_octopus_allowed_model_or_fallback "claude" "$opus_model_flag")" || return 1
             if ! validate_model_name "$opus_model_flag"; then
