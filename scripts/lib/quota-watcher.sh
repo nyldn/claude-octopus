@@ -47,9 +47,16 @@ octo_quota_mark_dead() {
 # now" guard, and it always fails toward retrying rather than suppressing.
 OCTOPUS_QUOTA_DEAD_TTL=${OCTOPUS_QUOTA_DEAD_TTL:-3600}
 
+# Portable mtime-in-epoch-seconds. Probe the GNU form FIRST and validate that
+# the result is actually a number: on Linux `stat -f` is --file-system, so
+# `stat -f %m` does not fail there — it succeeds and prints the mount point.
+# Probing BSD-style first therefore yields "/" on Linux, which silently defeats
+# any numeric comparison built on it. Echoes nothing if neither form works.
 _octo_quota_file_mtime() {
-    local f="$1"
-    stat -f %m "$f" 2>/dev/null || stat -c %Y "$f" 2>/dev/null
+    local f="$1" v
+    v="$(stat -c %Y "$f" 2>/dev/null)" || v=""
+    [[ "$v" =~ ^[0-9]+$ ]] || v="$(stat -f %m "$f" 2>/dev/null)" || v=""
+    [[ "$v" =~ ^[0-9]+$ ]] && printf '%s\n' "$v"
 }
 
 octo_quota_is_dead() {

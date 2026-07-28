@@ -24,6 +24,17 @@ fi
 # SECURITY: Result integrity verification (v8.7.0)
 # SHA-256 hash recording and verification for agent result files
 # ═══════════════════════════════════════════════════════════════════════════════
+# Portable mtime in epoch seconds. GNU form first, and the result is validated
+# as numeric: on Linux `stat -f` is --file-system, so `stat -f %m` SUCCEEDS and
+# prints the mount point. Probing BSD-style first therefore returned "/" on
+# Linux and every age comparison built on it silently misbehaved.
+_octo_file_mtime() {
+    local f="$1" v
+    v="$(stat -c %Y "$f" 2>/dev/null)" || v=""
+    [[ "$v" =~ ^[0-9]+$ ]] || v="$(stat -f %m "$f" 2>/dev/null)" || v=""
+    [[ "$v" =~ ^[0-9]+$ ]] && printf '%s\n' "$v" || printf '0\n'
+}
+
 record_result_hash() {
     local result_file="$1"
     local manifest_dir="${WORKSPACE_DIR:-${HOME}/.claude-octopus}"
@@ -217,11 +228,7 @@ save_agent_checkpoint() {
     # Debounce: skip if checkpoint < 5 minutes old
     if [[ -f "$checkpoint_file" ]]; then
         local mod_time now age
-        if stat -f %m "$checkpoint_file" &>/dev/null; then
-            mod_time=$(stat -f %m "$checkpoint_file")
-        else
-            mod_time=$(stat -c %Y "$checkpoint_file")
-        fi
+        mod_time="$(_octo_file_mtime "$checkpoint_file")"
         now=$(date +%s)
         age=$((now - mod_time))
         if [[ $age -lt 300 ]]; then
@@ -270,11 +277,7 @@ load_agent_checkpoint() {
 
     # Check age: expire after 24h
     local mod_time now age
-    if stat -f %m "$checkpoint_file" &>/dev/null; then
-        mod_time=$(stat -f %m "$checkpoint_file")
-    else
-        mod_time=$(stat -c %Y "$checkpoint_file")
-    fi
+    mod_time="$(_octo_file_mtime "$checkpoint_file")"
     now=$(date +%s)
     age=$((now - mod_time))
 
