@@ -1390,8 +1390,36 @@ _Reviewed by /octo:review (multi-LLM fleet)_"
 }
 
 # render_terminal_report: formats findings for terminal display
+# Emit one review.finding event per structured finding (oco-aek).
+#
+# Guarded by a per-file sentinel: render_terminal_report is also the fallback
+# path when inline PR comments cannot be posted, so it can run twice for one
+# review and would otherwise double-count every finding in the event stream.
+# Detail text is deliberately NOT emitted — it can be long and can quote source.
+review_emit_finding_events() {
+    local findings_file="$1"
+    declare -f octo_event_emit >/dev/null 2>&1 || return 0
+    [[ -f "$findings_file" ]] || return 0
+
+    local sentinel="${findings_file}.events-emitted"
+    [[ -e "$sentinel" ]] && return 0
+    : > "$sentinel" 2>/dev/null || true
+
+    jq -c '.findings[]?' "$findings_file" 2>/dev/null | while IFS= read -r _rf; do
+        octo_event_emit "review.finding" \
+            severity="$(printf '%s' "$_rf" | jq -r '.severity // "unknown"')" \
+            file="$(printf '%s' "$_rf" | jq -r '.file // "unknown"')" \
+            line="$(printf '%s' "$_rf" | jq -r '(.line // 0) | tostring')" \
+            category="$(printf '%s' "$_rf" | jq -r '.category // "unspecified"')" \
+            confidence="$(printf '%s' "$_rf" | jq -r '(.confidence // "") | tostring')" \
+            title="$(printf '%s' "$_rf" | jq -r '.title // ""')" || true
+    done
+}
+
 render_terminal_report() {
     local findings_file="$1"
+
+    review_emit_finding_events "$findings_file"
 
     local finding_count
     finding_count=$(jq '.findings | length' "$findings_file" 2>/dev/null || echo "0")

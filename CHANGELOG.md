@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **Two dead provider seats were reporting themselves as available and being dispatched into instant failure.** `check-providers.sh` classified a seat by whether its binary and credential file existed on disk, which no server-side refusal can affect. Both signatures are now recognised as terminal and recorded: agy's account-wide `Individual quota reached` (verified not per-model — `gemini-3.6-flash-low` and `gpt-oss-120b-medium` return the same reset window) and gemini-cli's `IneligibleTierError` from Google's Gemini Code Assist free-tier OAuth sunset. Both return faster than the quota-watcher's 2s poll, so each shim marks its own provider dead directly, the way `lib/perplexity.sh` already handles its 401.
+- **The quota-dead downgrade now applies to every provider, not four of thirteen.** It was opt-in per call site in `check-providers.sh`, so a seat marked dead at dispatch (agy) still advertised `available` and was seated again. The check moved into `provider_status`, the single choke point every provider already passes through, so it cannot be forgotten for a new provider.
+- **A quota-dead mark no longer suppresses a provider forever.** The marker was documented as session-scoped but nothing ever cleared it, so one transient quota window retired a seat until the file was deleted by hand. Marks now expire on the marker's mtime after `OCTOPUS_QUOTA_DEAD_TTL` (default 3600s; set `0` for the previous permanent behaviour). This mattered more once the downgrade became universal.
+
+### Added
+
+- **`review.finding` lifecycle events** (oco-aek) — one per structured finding, carrying severity, file, line, category, confidence and title. Finding *detail* is deliberately excluded: it can be long and can quote source. Emission is idempotent per findings file, because `render_terminal_report` also runs on the inline-comment fallback path and would otherwise double-count every finding.
+- **`synthesis.start` / `synthesis.end` events** (oco-aek) bracketing the design-review reduce step, with elapsed time, output size, and whether the synthesis produced anything. Previously only per-agent dispatch was visible and the synthesis boundary was not. This completes the structured lifecycle event vocabulary.
+- `docs/roadmaps/2026-07-28-control-plane-decomposition.md` — breaks the `oco-fgg` control-plane epic into three claimable children with ready-to-run `bd create` commands, a recommended order, and a record of which roadmap bullets the event work has now closed.
+
+
 ## [9.56.1] - 2026-07-27
 
 

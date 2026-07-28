@@ -43,6 +43,13 @@ _octo_provider_state() {
 provider_status() {
     local provider="$1"
     local status="$2"
+    # Apply the quota/auth-dead downgrade here, centrally, rather than at each
+    # call site. It used to be opt-in per provider and only four of thirteen
+    # opted in, so a seat marked dead at dispatch (agy hitting its account-wide
+    # "Individual quota reached") still advertised itself as `available` and was
+    # seated again. Routing it through the single choke point every provider
+    # already passes through makes the downgrade impossible to forget.
+    status="$(_octo_provider_state "$provider" "$status")"
     if declare -f octo_provider_allowed >/dev/null 2>&1 && ! octo_provider_allowed "$provider"; then
         status="missing"
     fi
@@ -61,7 +68,7 @@ fi
 
 echo "PROVIDER_CHECK_START"
 provider_status "codex" "$(command -v codex >/dev/null 2>&1 && echo available || echo missing)"
-provider_status "gemini" "$(_octo_provider_state gemini "$(command -v gemini >/dev/null 2>&1 && echo available || echo missing)")"
+provider_status "gemini" "$(command -v gemini >/dev/null 2>&1 && echo available || echo missing)"
 provider_status "agy" "$(command -v agy >/dev/null 2>&1 && echo available || echo missing)"
 # oco-cbb: opt-in proactive probe for API-key providers (perplexity, openrouter).
 # Only runs when OCTOPUS_PREFLIGHT_PROBE=1; result cached via quota-dead marker
@@ -70,7 +77,7 @@ if [[ "${OCTOPUS_PREFLIGHT_PROBE:-0}" == "1" ]] && declare -f octo_provider_prob
    && { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed "perplexity"; }; then
     [ -n "${PERPLEXITY_API_KEY:-}" ] && octo_provider_probe "perplexity" || true
 fi
-provider_status "perplexity" "$(_octo_provider_state perplexity "$([ -n "${PERPLEXITY_API_KEY:-}" ] && echo available || echo missing)")"
+provider_status "perplexity" "$([ -n "${PERPLEXITY_API_KEY:-}" ] && echo available || echo missing)"
 atlascloud_state="missing"
 if [ -n "${ATLASCLOUD_API_KEY:-}" ]; then
     if [ -n "${ATLASCLOUD_MODEL:-}" ] || [ -n "${OCTOPUS_ATLASCLOUD_MODEL:-}" ] || [ -n "${OPENAI_COMPAT_MODEL:-}" ]; then
@@ -79,7 +86,7 @@ if [ -n "${ATLASCLOUD_API_KEY:-}" ]; then
         atlascloud_state="degraded"
     fi
 fi
-provider_status "atlascloud" "$(_octo_provider_state atlascloud "$atlascloud_state")"
+provider_status "atlascloud" "$atlascloud_state"
 provider_status "opencode" "$(command -v opencode >/dev/null 2>&1 && echo available || echo missing)"
 provider_status "copilot" "$(command -v copilot >/dev/null 2>&1 && echo available || echo missing)"
 # qwen: binary-only is not enough — an expired OAuth token (free tier EOL
@@ -102,5 +109,5 @@ if [[ "${OCTOPUS_PREFLIGHT_PROBE:-0}" == "1" ]] && declare -f octo_provider_prob
    && { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed "openrouter"; }; then
     [ -n "${OPENROUTER_API_KEY:-}" ] && octo_provider_probe "openrouter" || true
 fi
-provider_status "openrouter" "$(_octo_provider_state openrouter "$([ -n "${OPENROUTER_API_KEY:-}" ] && echo available || echo missing)")"
+provider_status "openrouter" "$([ -n "${OPENROUTER_API_KEY:-}" ] && echo available || echo missing)"
 echo "PROVIDER_CHECK_END"

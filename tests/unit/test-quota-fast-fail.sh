@@ -88,11 +88,72 @@ test_gemini_timeout_override_present() {
     else test_fail "spawn.sh missing per-provider gemini timeout wiring"; fi
 }
 
+
+# ── agy/gemini terminal signatures + marker TTL (oco-004 follow-up) ──────────
+
+test_pattern_matches_agy_and_gemini_terminal_errors() {
+    test_case "quota pattern matches agy 'Individual quota reached' and gemini IneligibleTierError"
+    local errf="$FIXTURE/agy-gemini.err" outf="$FIXTURE/agy-gemini.out"
+    : > "$outf"
+    printf 'Error: Individual quota reached. Please upgrade your subscription to increase your limits. Resets in 156h9m1s.\n' > "$errf"
+    if ! quota_watcher_has_match "$errf" "$outf"; then
+        test_fail "agy 'Individual quota reached' not matched by OCTOPUS_QUOTA_PATTERN"
+        return
+    fi
+    printf 'An unexpected critical error occurred:IneligibleTierError: This client is no longer supported for Gemini Code Assist for individuals.\n' > "$errf"
+    if ! quota_watcher_has_match "$errf" "$outf"; then
+        test_fail "gemini IneligibleTierError not matched by OCTOPUS_QUOTA_PATTERN"
+        return
+    fi
+    test_pass
+}
+
+test_quota_dead_mark_expires() {
+    test_case "quota-dead mark expires after TTL so a recovered provider is not retired forever"
+    local f
+    f="$(octo_quota_dead_file)"
+    mkdir -p "$(dirname "$f")"
+    : > "$f"
+    octo_quota_mark_dead "ttl-probe"
+    if ! octo_quota_is_dead "ttl-probe"; then
+        test_fail "fresh mark should read as dead"
+        return
+    fi
+    # Age the marker well past the default TTL.
+    touch -t 202001010000 "$f"
+    if octo_quota_is_dead "ttl-probe"; then
+        test_fail "stale mark still reads as dead — provider would never recover"
+        return
+    fi
+    # TTL=0 preserves the previous permanent behaviour for operators who want it.
+    if ! OCTOPUS_QUOTA_DEAD_TTL=0 octo_quota_is_dead "ttl-probe"; then
+        test_fail "OCTOPUS_QUOTA_DEAD_TTL=0 should disable expiry"
+        return
+    fi
+    test_pass
+}
+
+test_check_providers_applies_dead_marker_to_every_provider() {
+    test_case "check-providers routes every provider through the quota-dead downgrade"
+    # The downgrade used to be opt-in per call site (4 of 13 providers), so a
+    # seat marked dead still advertised itself as available.
+    local src="$PROJECT_ROOT/scripts/helpers/check-providers.sh"
+    if grep -q '_octo_provider_state "$provider" "$status"' "$src" \
+       && [[ "$(grep -c '_octo_provider_state' "$src")" -le 2 ]]; then
+        test_pass
+    else
+        test_fail "expected a single central _octo_provider_state call inside provider_status"
+    fi
+}
+
 test_quota_dead_cache_roundtrip
 test_quota_dead_cache_dedup
 test_pattern_matches_terminal_errors
 test_watcher_marks_dead_on_match
 test_is_agent_available_skips_dead
 test_gemini_timeout_override_present
+test_pattern_matches_agy_and_gemini_terminal_errors
+test_quota_dead_mark_expires
+test_check_providers_applies_dead_marker_to_every_provider
 
 test_summary

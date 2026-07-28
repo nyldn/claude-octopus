@@ -52,6 +52,27 @@ is_model_error() {
     )
 }
 
+# Google sunset Gemini Code Assist free-tier OAuth for gemini-cli; affected
+# clients get IneligibleTierError at auth setup, before any model is contacted.
+# It is NOT a model error — walking the model fallback list cannot help, and the
+# failure returns instantly, so the 2s quota-watcher poll never sees it. Left
+# unclassified, the seat kept reporting `available` to check-providers.sh and
+# kept being dispatched. Treat it as terminal for the session.
+is_tier_error() {
+    (
+        shopt -s nocasematch
+        [[ "$1" =~ IneligibleTierError|no\ longer\ supported\ for\ Gemini\ Code\ Assist ]]
+    )
+}
+
+_gemini_mark_dead() {
+    if ! declare -f octo_quota_mark_dead >/dev/null 2>&1; then
+        # shellcheck source=/dev/null
+        source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib/quota-watcher.sh" 2>/dev/null || true
+    fi
+    declare -f octo_quota_mark_dead >/dev/null 2>&1 && octo_quota_mark_dead "gemini" || true
+}
+
 last_exit=0
 last_err=""
 attempt=0
@@ -90,6 +111,12 @@ for model in "${model_list[@]}"; do
 
     last_err=$(<"$err_file")
     rm -f "$err_file"
+
+    if is_tier_error "$last_err"; then
+        echo "gemini-exec: gemini-cli TerminalQuotaError (IneligibleTierError — Gemini Code Assist free-tier OAuth is sunset; migrate to Antigravity) — marking gemini unavailable for this session" >&2
+        _gemini_mark_dead
+        exit "$last_exit"
+    fi
 
     if is_model_error "$last_err" && [[ $attempt -lt $total ]]; then
         if [[ "${OCTOPUS_GEMINI_FALLBACK_QUIET:-false}" != "true" ]]; then

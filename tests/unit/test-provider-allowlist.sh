@@ -8,6 +8,12 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
 export OCTOPUS_CONFIG_DIR="$TEST_TMP_DIR/provider-allowlist-root"
+# Isolate the quota-dead marker too. check-providers.sh downgrades a seat marked
+# quota/auth-dead to `degraded`, and that marker lives under WORKSPACE_DIR — so
+# without this the assertions below read the developer's real provider health
+# and fail on any machine where, say, gemini has actually hit its tier sunset.
+export WORKSPACE_DIR="$TEST_TMP_DIR/provider-allowlist-workspace"
+mkdir -p "$WORKSPACE_DIR/state"
 unset CLAUDE_CODE_SESSION_ID OCTO_ALLOWED_PROVIDERS
 test_suite "Provider allowlist"
 

@@ -529,7 +529,17 @@ Be concise and specific. This is a planning exercise, not implementation."
     gemini_approach=$(OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="design-review-ceremony" run_agent_sync_consultative "$design_agy_agent" "$ceremony_prompt" "$design_timeout" "researcher" "ceremony" 2>/dev/null) || true
     sonnet_approach=$(OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="design-review-ceremony" run_agent_sync_consultative "$design_claude_agent" "$ceremony_prompt" "$design_timeout" "code-reviewer" "ceremony" 2>/dev/null) || true
 
-    # Synthesize conflicts and resolution
+    # Synthesize conflicts and resolution.
+    # synthesis.start/end bracket the call so the event stream shows how long the
+    # reduce step took and whether it produced anything — previously only the
+    # per-agent dispatch events were visible and the synthesis boundary was not.
+    local _synth_started_at
+    _synth_started_at=$(date +%s 2>/dev/null || echo 0)
+    if declare -f octo_event_emit >/dev/null 2>&1; then
+        octo_event_emit "synthesis.start" phase="ceremony" scope="design-review" \
+            provider="$design_synthesis_agent" inputs="3" || true
+    fi
+
     local synthesis
     synthesis=$(OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="design-review-ceremony" run_agent_sync_consultative "$design_synthesis_agent" "You are synthesizing a design review ceremony.
 
@@ -550,6 +560,17 @@ Identify:
 3. RESOLUTION: The recommended unified approach (2-3 sentences)
 
 Be brief and actionable." "$design_synth_timeout" "synthesizer" "ceremony" 2>/dev/null) || true
+
+    if declare -f octo_event_emit >/dev/null 2>&1; then
+        local _synth_now _synth_elapsed="unknown"
+        _synth_now=$(date +%s 2>/dev/null || echo 0)
+        [[ "$_synth_started_at" =~ ^[0-9]+$ && "$_synth_now" =~ ^[0-9]+$ && "$_synth_started_at" -gt 0 ]] \
+            && _synth_elapsed=$(( _synth_now - _synth_started_at ))
+        octo_event_emit "synthesis.end" phase="ceremony" scope="design-review" \
+            provider="$design_synthesis_agent" \
+            status="$([[ -n "$synthesis" ]] && echo produced || echo empty)" \
+            bytes="${#synthesis}" elapsed_s="$_synth_elapsed" || true
+    fi
 
     if [[ -n "$synthesis" ]]; then
         echo -e "${GREEN}Design Review Summary:${NC}"

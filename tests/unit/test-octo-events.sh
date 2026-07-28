@@ -216,6 +216,39 @@ assert a['unicode'] == 'café', a['unicode']
     test_pass
 }
 
+test_review_finding_events() {
+    test_case "review.finding emits once per structured finding and never twice (oco-aek)"
+    # shellcheck source=/dev/null
+    source "$PROJECT_ROOT/scripts/lib/review.sh" 2>/dev/null || true
+    if ! declare -f review_emit_finding_events >/dev/null 2>&1; then
+        test_fail "review_emit_finding_events is not defined"
+        return
+    fi
+    local log="$TEST_TMP_DIR/review-findings-events.jsonl"
+    local ff="$TEST_TMP_DIR/rf.json"
+    rm -f "$log" "$log.lock" "$ff" "$ff.events-emitted"
+    cat > "$ff" <<'JSON'
+{"findings":[{"severity":"normal","file":"a.sh","line":12,"title":"Missing null check","category":"logic","confidence":0.9,"detail":"secret detail"},
+             {"severity":"nit","file":"b.sh","line":3,"title":"Style","category":"style","confidence":0.4,"detail":"x"}]}
+JSON
+    OCTO_EVENT_LOG="$log" review_emit_finding_events "$ff"
+    # render_terminal_report also runs on the inline-comment fallback path, so a
+    # second pass over the same findings file must not double-count.
+    OCTO_EVENT_LOG="$log" review_emit_finding_events "$ff"
+
+    local n
+    n=$(grep -c '"event":"review.finding"' "$log" 2>/dev/null | tr -d ' ')
+    if [[ "$n" != "2" ]]; then
+        test_fail "expected 2 review.finding events, got ${n:-0}"
+        return
+    fi
+    if grep -q 'secret detail' "$log" 2>/dev/null; then
+        test_fail "finding detail text leaked into the event stream"
+        return
+    fi
+    test_pass
+}
+
 test_provider_selected_event_wired() {
     test_case "spawn.sh emits provider.selected after the circuit check (oco-aek)"
     grep -q 'octo_event_emit "provider.selected"' "$PROJECT_ROOT/scripts/lib/spawn.sh" \
@@ -233,6 +266,7 @@ test_dispatch_lifecycle_events
 test_orchestrate_enables_telemetry_by_default
 
 test_json_escaping_round_trips
+test_review_finding_events
 test_circuit_breaker_events
 test_provider_selected_event_wired
 

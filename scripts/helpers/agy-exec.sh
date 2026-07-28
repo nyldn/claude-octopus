@@ -221,6 +221,22 @@ run_agy() {
 # auth/login flow — it opens /dev/tty and, in a session with no controlling terminal,
 # dies with "bubbletea: could not open TTY" before producing any answer. Detect that
 # specific failure so we only pay the pseudo-TTY cost when it actually happens.
+_agy_quota_error() {
+    # agy's quota refusal ("Individual quota reached ... Resets in NNNhNNm") is
+    # account-wide, not per-model: gemini-3.6-flash-low and gpt-oss-120b-medium
+    # return the same window. It also returns instantly — far faster than the
+    # quota-watcher's 2s poll — so the watcher never sees it and the seat keeps
+    # reporting `available` to check-providers.sh. Detect it here and mark the
+    # provider dead directly, the same way lib/perplexity.sh handles its 401.
+    LC_ALL=C grep -ciE 'individual quota reached|quota reached\.|upgrade your subscription' \
+        "$stderr_file" "$stdout_file" >/dev/null 2>&1
+}
+
+_agy_quota_reset_window() {
+    # -h: two input files, so without it grep prefixes the match with a temp path.
+    LC_ALL=C grep -hoiE 'resets in [0-9]+h[0-9]+m([0-9]+s)?' "$stderr_file" "$stdout_file" 2>/dev/null | head -1
+}
+
 _agy_tty_error() {
     # Match only TTY-specific phrasing. A bare "bubbletea" would also catch unrelated
     # TUI failures a pseudo-terminal can't fix; the real error ("bubbletea: could not
@@ -291,6 +307,21 @@ if [[ "${OCTOPUS_AGY_NO_PTY_FALLBACK:-}" != "1" ]] && (( rc != 0 )) \
     rc=$?
 fi
 set -e
+
+# Terminal quota refusal: record it so preflight (check-providers.sh) and
+# is_agent_available report agy as `degraded` instead of `available` for the rest
+# of the run, rather than seating it again into the same instant failure. Emit a
+# quota-watcher-matchable keyword too, so consumers that scan output agree with
+# the marker file. Mirrors the perplexity 401 path in lib/perplexity.sh.
+if (( rc != 0 )) && _agy_quota_error; then
+    _agy_reset_window="$(_agy_quota_reset_window)"
+    echo "agy-exec.sh: agy TerminalQuotaError (Individual quota reached${_agy_reset_window:+; ${_agy_reset_window}}) — marking agy unavailable for this session" >&2
+    if ! declare -f octo_quota_mark_dead >/dev/null 2>&1; then
+        # shellcheck source=/dev/null
+        source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib/quota-watcher.sh" 2>/dev/null || true
+    fi
+    declare -f octo_quota_mark_dead >/dev/null 2>&1 && octo_quota_mark_dead "agy" || true
+fi
 
 # Surface agy's own stderr (folder-trust notes, diagnostics) that used to flow straight
 # through, now that we capture it to detect the TTY error.

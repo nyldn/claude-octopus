@@ -7,7 +7,15 @@
 # emits during its own backoff/retry cycle. Matching those caused premature SIGTERM before the
 # CLI's retry landed, silently dropping reviewer roles (exit 143, empty output). (issue #516)
 # Overridable via env var so operators can narrow the pattern without patching. (issue #536)
-OCTOPUS_QUOTA_PATTERN=${OCTOPUS_QUOTA_PATTERN:-'QUOTA_EXHAUSTED|TerminalQuotaError|exhausted your capacity|insufficient_quota|HTTP 401'}
+# Added signatures (oco-004 follow-up), both observed live and neither previously
+# matched, so the seats kept reporting `available` and kept being dispatched into
+# an immediate failure:
+#   "Individual quota reached"  — agy/Antigravity, account-wide (not per-model);
+#                                 carries a "Resets in NNNhNNm" window.
+#   "IneligibleTierError"       — gemini-cli after Google sunset Gemini Code
+#                                 Assist free-tier OAuth. Permanent for that
+#                                 auth mode, not a transient quota window.
+OCTOPUS_QUOTA_PATTERN=${OCTOPUS_QUOTA_PATTERN:-'QUOTA_EXHAUSTED|TerminalQuotaError|exhausted your capacity|insufficient_quota|HTTP 401|Individual quota reached|IneligibleTierError'}
 
 # Session-scoped "this provider is quota/auth-dead" cache (oco-cbb). When a
 # terminal quota/auth error is seen at dispatch, the provider is marked here so
@@ -26,10 +34,42 @@ octo_quota_mark_dead() {
     grep -qxF "$provider" "$f" 2>/dev/null || printf '%s\n' "$provider" >> "$f"
 }
 
+# How long a quota-dead mark stays in force, in seconds. The marker was
+# described as "session-scoped" but nothing ever cleared it, so a mark was in
+# practice permanent — a provider that hit one transient quota window stayed
+# suppressed until someone deleted the file by hand. That was survivable while
+# only four providers consulted the marker; now that check-providers.sh applies
+# it to every provider, a stale mark would silently retire a working seat.
+# Expire on the file's mtime (coarse but portable, and it keeps the on-disk
+# format as bare provider names, which existing tests and files depend on).
+# Note the mtime is per-file, so marking any provider refreshes the window for
+# all of them — acceptable for a "don't re-dispatch into the same failure right
+# now" guard, and it always fails toward retrying rather than suppressing.
+OCTOPUS_QUOTA_DEAD_TTL=${OCTOPUS_QUOTA_DEAD_TTL:-3600}
+
+_octo_quota_file_mtime() {
+    local f="$1"
+    stat -f %m "$f" 2>/dev/null || stat -c %Y "$f" 2>/dev/null
+}
+
 octo_quota_is_dead() {
     local provider="$1"
     [[ -n "$provider" ]] || return 1
-    grep -qxF "$provider" "$(octo_quota_dead_file)" 2>/dev/null
+    local f
+    f="$(octo_quota_dead_file)"
+    [[ -f "$f" ]] || return 1
+
+    if [[ "$OCTOPUS_QUOTA_DEAD_TTL" =~ ^[0-9]+$ ]] && (( OCTOPUS_QUOTA_DEAD_TTL > 0 )); then
+        local mtime now
+        mtime="$(_octo_quota_file_mtime "$f")"
+        now="$(date +%s 2>/dev/null)"
+        if [[ "$mtime" =~ ^[0-9]+$ && "$now" =~ ^[0-9]+$ ]] \
+           && (( now - mtime > OCTOPUS_QUOTA_DEAD_TTL )); then
+            return 1
+        fi
+    fi
+
+    grep -qxF "$provider" "$f" 2>/dev/null
 }
 
 quota_watcher_has_match() {
