@@ -99,6 +99,12 @@ PHASE*_COMPLETE.md
 *_NOTES.md
 scratch_*.md
 temp_*.md
+
+# Harness-local session handoff written by scripts/write-handoff.sh into CWD and
+# read back by skill-resume. It is per-machine, per-run state, never a shared
+# artifact, and a committed copy would point every checkout at one machine's
+# half-finished workflow.
+.octo-continue.md
 WIP_*.md
 
 # Test artifacts (from test infrastructure)
