@@ -221,6 +221,12 @@ fi
 SESSION_FILE="${WORKSPACE_DIR}/session.json"
 PROGRESS_FILE="${WORKSPACE_DIR}/progress.json"
 
+# Re-derive cost tracking paths for the same reason (cost.sh is sourced before
+# WORKSPACE_DIR is defined, which froze USAGE_FILE at "/usage-session.json" and
+# made every record_agent_call append fail — killing dispatches under set -e)
+USAGE_FILE="${WORKSPACE_DIR}/usage-session.json"
+USAGE_HISTORY_DIR="${WORKSPACE_DIR}/usage-history"
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # CLAUDE CODE INTEGRATION: Task Management (v7.16.0)
 # Capture Claude Code v2.1.16+ environment variables for enhanced progress tracking
