@@ -131,29 +131,50 @@ fable5_banner() {
 #     (skills/blocks/frontier-model-routing.md), so escalating review here would
 #     buy an echo at 2x price. Fable authors and arbitrates; Codex opposes.
 
-FABLE5_ESCALATION_FEATURE_ID="fable5-escalation"
+FABLE5_ESCALATION_FEATURE_ID="fable5-routing"
 
-# True when the user has consented to escalation. Consent is read through the
-# feature ledger, which also honours OCTOPUS_FABLE5_ESCALATE as a session
-# override in both directions.
-fable5_escalation_consented() {
-    if declare -f octo_features_enabled >/dev/null 2>&1; then
-        octo_features_enabled "$FABLE5_ESCALATION_FEATURE_ID"
-        return $?
+# The user's Fable 5 routing policy, not a boolean. Values:
+#   off              never (default)
+#   escalate         judgment authoring: architect, strategist
+#   escalate-reviews the above plus code review
+#   on-demand        never automatic; reachable only by an explicit model pin
+fable5_routing_policy() {
+    if declare -f octo_features_choice >/dev/null 2>&1; then
+        octo_features_choice "$FABLE5_ESCALATION_FEATURE_ID"
+        return 0
     fi
-    # features.sh unavailable: fall back to the bare env var so escalation is
-    # still reachable, but never default it on.
-    case "${OCTOPUS_FABLE5_ESCALATE:-}" in
-        1|on|true|yes) return 0 ;;
+    # features.sh unavailable: honour the env key directly, never defaulting on.
+    printf '%s\n' "${OCTOPUS_FABLE5_ROUTING:-off}"
+}
+
+# Which roles the chosen policy escalates.
+#
+# `escalate-reviews` deliberately includes code-reviewer even though a Fable
+# review of Opus-authored work is same-family agreement rather than an
+# independent cross-vendor check. That tradeoff is stated in the choice
+# description the user picked from, so it is theirs to make; it is simply not
+# the default.
+fable5_escalation_role_eligible() {
+    local role="${1:-}" policy
+    policy="$(fable5_routing_policy)"
+    case "$policy" in
+        escalate)
+            case "$role" in architect|strategist) return 0 ;; esac
+            ;;
+        escalate-reviews)
+            case "$role" in architect|strategist|code-reviewer|reviewer) return 0 ;; esac
+            ;;
     esac
     return 1
 }
 
-fable5_escalation_role_eligible() {
-    case "${1:-}" in
-        architect|strategist) return 0 ;;
-        *) return 1 ;;
+# Kept as the coarse gate so the dispatch path reads plainly: any policy that
+# escalates something at all.
+fable5_escalation_consented() {
+    case "$(fable5_routing_policy)" in
+        escalate|escalate-reviews) return 0 ;;
     esac
+    return 1
 }
 
 # fable5_maybe_escalate <model> <role> <agent_type> <phase>

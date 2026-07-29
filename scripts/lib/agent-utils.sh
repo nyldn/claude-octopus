@@ -64,12 +64,17 @@ _BARE_OPT="${_BARE_OPT:-}"
 # vendor diversity instead of creating it.
 _octo_reviewer_flip_active() {
     command -v codex >/dev/null 2>&1 || return 1
-    if declare -f octo_features_enabled >/dev/null 2>&1; then
-        octo_features_enabled "codex-reviewer-flip"
-        return $?
+    local choice
+    if declare -f octo_features_choice >/dev/null 2>&1; then
+        choice="$(octo_features_choice "codex-reviewer-flip")"
+    else
+        choice="${OCTOPUS_REVIEWER_FLIP:-codex}"
     fi
-    case "${OCTOPUS_REVIEWER_FLIP:-}" in
-        1|on|true|yes) return 0 ;;
+    # "claude" is the only value that moves review off the implementing vendor.
+    # Legacy truthy values are accepted so an existing OCTOPUS_REVIEWER_FLIP=1 in
+    # someone's profile keeps meaning what it used to.
+    case "$choice" in
+        claude|1|on|true|yes) return 0 ;;
     esac
     return 1
 }

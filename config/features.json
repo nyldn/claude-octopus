@@ -1,52 +1,83 @@
 {
   "schema": "features_v1",
+  "_comment": "decision=required means the feature needs a real user policy choice and is raised at session start after an upgrade. decision=none means it ships silently with a sensible default: no prompt, still documented, still settable via its env key. Most features should be 'none'. A prompt is for a genuine fork in behaviour or cost, not for announcing that work happened.",
   "features": [
     {
-      "id": "fable5-escalation",
+      "id": "fable5-routing",
       "added_in": "9.57.0",
       "backfill": true,
-      "title": "Fable 5 escalation for judgment work",
-      "description": "Escalate PRD authoring, definition tradeoffs, and cross-vendor tie-breaks from Opus 5 to Fable 5. Costs 2x Opus 5 ($10/$50 per MTok); capped at one dispatch per command.",
-      "kind": "env",
-      "key": "OCTOPUS_FABLE5_ESCALATE",
-      "enabled_value": "1",
-      "default": "disabled",
-      "prereq": "claude-opus-seat"
+      "decision": "required",
+      "title": "Claude Fable 5 routing",
+      "question": "How should Claude Fable 5 be used?",
+      "key": "OCTOPUS_FABLE5_ROUTING",
+      "default": "off",
+      "prereq": "claude-opus-seat",
+      "choices": [
+        {
+          "value": "off",
+          "label": "Not at all",
+          "description": "Opus 5 stays the lead for everything. No added cost. Changeable later with /octo:whats-new."
+        },
+        {
+          "value": "escalate",
+          "label": "Planning and PRDs",
+          "description": "Fable 5 authors PRDs, definition tradeoffs and cross-vendor tie-breaks. $10/$50 per MTok, twice Opus 5, capped at one dispatch per command."
+        },
+        {
+          "value": "escalate-reviews",
+          "label": "Planning, PRDs and reviews",
+          "description": "As above, plus plan and spec review. Fable 5 is Anthropic-family like Opus 5, so a Fable review of Opus work is not an independent cross-vendor check."
+        },
+        {
+          "value": "on-demand",
+          "label": "Only when I ask",
+          "description": "Never automatic. Available by pinning OCTOPUS_OPUS_MODEL=claude-fable-5 for a session."
+        }
+      ]
     },
     {
       "id": "codex-reviewer-flip",
       "added_in": "9.57.0",
       "backfill": true,
-      "title": "Authorship-aware code review",
-      "description": "When Codex implements, route code review to a Claude seat instead of Codex reviewing its own output.",
-      "kind": "env",
+      "decision": "required",
+      "title": "Who reviews Codex-written code",
+      "question": "When Codex writes the code, who should review it?",
       "key": "OCTOPUS_REVIEWER_FLIP",
-      "enabled_value": "1",
-      "default": "disabled",
-      "prereq": "codex-cli"
+      "default": "codex",
+      "prereq": "codex-cli",
+      "choices": [
+        {
+          "value": "claude",
+          "label": "A Claude seat",
+          "description": "Review moves to Opus 5 so author and reviewer are different vendors. Costs Opus 5 rates for the review step."
+        },
+        {
+          "value": "codex",
+          "label": "Keep Codex reviewing",
+          "description": "Current behaviour. Cheaper, but Codex reviews its own output, which catches less."
+        }
+      ]
     },
     {
       "id": "preflight-probe",
       "added_in": "9.55.0",
       "backfill": false,
+      "decision": "none",
       "title": "Proactive provider health probe",
-      "description": "Validate API-key providers (Perplexity, OpenRouter) at preflight instead of discovering a dead key mid-workflow.",
-      "kind": "env",
+      "description": "Validates API-key providers at preflight instead of discovering a dead key mid-workflow. Set OCTOPUS_PREFLIGHT_PROBE=1 to enable.",
       "key": "OCTOPUS_PREFLIGHT_PROBE",
-      "enabled_value": "1",
-      "default": "disabled",
+      "default": "0",
       "prereq": "none"
     },
     {
       "id": "gemini-via-agy",
       "added_in": "9.52.0",
       "backfill": false,
+      "decision": "none",
       "title": "Route Gemini seats through Antigravity",
-      "description": "Serve gemini* seats via the Antigravity CLI. Gemini Code Assist free-tier OAuth is sunset, so the direct gemini-cli path returns IneligibleTierError.",
-      "kind": "env",
+      "description": "Serves gemini* seats via the Antigravity CLI. Gemini Code Assist free-tier OAuth is sunset, so the direct path returns IneligibleTierError. Set OCTOPUS_GEMINI_VIA_AGY=1 to enable.",
       "key": "OCTOPUS_GEMINI_VIA_AGY",
-      "enabled_value": "1",
-      "default": "disabled",
+      "default": "0",
       "prereq": "agy-cli"
     }
   ]

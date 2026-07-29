@@ -38,16 +38,70 @@ else
     test_fail "config/features.json is not a non-empty features array"
 fi
 
-test_case "every manifest entry declares the required fields"
+test_case "every manifest entry declares the common required fields"
 missing=$(jq -r '
     .features[]
     | select((.id? | not) or (.added_in? | not) or (.key? | not)
-             or (.title? | not) or (.description? | not) or (.prereq? | not))
+             or (.title? | not) or (.prereq? | not) or (.decision? | not))
     | .id // "<no id>"' "$MANIFEST")
 if [[ -z "$missing" ]]; then
     test_pass
 else
-    test_fail "manifest entries missing required fields: $missing"
+    test_fail "manifest entries missing common fields: $missing"
+fi
+
+# The two shapes are not interchangeable. A decision=required entry with no
+# choices would raise a question the picker cannot answer; a decision=none entry
+# with no description is undocumented.
+test_case "decision=required entries carry a question and at least two choices"
+bad=$(jq -r '
+    .features[] | select(.decision == "required")
+    | select((.question? | not) or ((.choices // []) | length) < 2)
+    | .id' "$MANIFEST")
+if [[ -z "$bad" ]]; then
+    test_pass
+else
+    test_fail "decision=required entries lacking question/choices: $bad"
+fi
+
+test_case "decision=none entries carry a description and never a question"
+bad=$(jq -r '
+    .features[] | select(.decision == "none")
+    | select((.description? | not) or (.question? != null))
+    | .id' "$MANIFEST")
+if [[ -z "$bad" ]]; then
+    test_pass
+else
+    test_fail "decision=none entries malformed: $bad"
+fi
+
+test_case "decision is one of required or none"
+bad=$(jq -r '.features[] | select(.decision != "required" and .decision != "none") | .id' "$MANIFEST")
+if [[ -z "$bad" ]]; then
+    test_pass
+else
+    test_fail "unknown decision value on: $bad"
+fi
+
+# Every choice must be reachable: AskUserQuestion allows at most 4 options.
+test_case "no feature declares more than four choices"
+bad=$(jq -r '.features[] | select(((.choices // []) | length) > 4) | .id' "$MANIFEST")
+if [[ -z "$bad" ]]; then
+    test_pass
+else
+    test_fail "AskUserQuestion caps options at 4; over-long: $bad"
+fi
+
+test_case "each feature default is one of its own declared choices"
+bad=$(jq -r '
+    .features[] | select(((.choices // []) | length) > 0)
+    | . as $f
+    | select(([$f.choices[].value] | index($f.default)) == null)
+    | .id' "$MANIFEST")
+if [[ -z "$bad" ]]; then
+    test_pass
+else
+    test_fail "default not among choices for: $bad"
 fi
 
 # Manifest/reality drift guard: a feature whose env key was renamed would
@@ -150,69 +204,97 @@ else
     test_fail "gemini-via-agy (added 9.52.0) is below the 9.55.0 watermark and must not be offered"
 fi
 
-test_case "declined is sticky across repeated sessions"
+test_case "a recorded choice is sticky across repeated sessions"
 reset_ledger '{"last_seen_version":"9.55.0"}'
 out=$(bash -c "
     source '$FEATURES_LIB'
     octo_features_seed_watermark
-    octo_features_record fable5-escalation declined 9.57.0
+    octo_features_record fable5-routing off 9.57.0
     for _ in 1 2 3; do octo_features_offerable_ids; done
 ")
-if ! grep -qx "fable5-escalation" <<< "$out"; then
+if ! grep -qx "fable5-routing" <<< "$out"; then
     test_pass
 else
-    test_fail "a declined feature must never be re-offered"
+    test_fail "choosing a policy, including the default, must stop the question"
 fi
 
-test_case "enabled feature drops off the offer list and reads back enabled"
+# Choosing "off" is a real answer, not an absence of one. If it did not stick,
+# every upgrade would re-ask the user who already said no.
+test_case "choosing the default value still records and still sticks"
+if [[ "$(bash -c "source '$FEATURES_LIB'; octo_features_decision fable5-routing")" == "off" ]]; then
+    test_pass
+else
+    test_fail "the default choice must be recorded like any other"
+fi
+
+test_case "a recorded policy reads back through octo_features_choice"
 reset_ledger '{"last_seen_version":"9.55.0"}'
 out=$(bash -c "
     source '$FEATURES_LIB'
-    octo_features_seed_watermark
-    octo_features_record codex-reviewer-flip enabled 9.57.0
-    octo_features_offerable_ids
-    octo_features_enabled codex-reviewer-flip && echo ENABLED
+    octo_features_record fable5-routing escalate-reviews 9.57.0
+    octo_features_choice fable5-routing
 ")
-if grep -qx "ENABLED" <<< "$out" && ! grep -qx "codex-reviewer-flip" <<< "$out"; then
+if [[ "$out" == "escalate-reviews" ]]; then
     test_pass
 else
-    test_fail "enabling must record consent and stop the offer"
+    test_fail "expected escalate-reviews, got '$out'"
 fi
 
-test_case "disabled is distinct from declined and also suppresses offers"
+test_case "an unanswered feature resolves to its manifest default"
+reset_ledger '{"last_seen_version":"9.55.0"}'
+out=$(bash -c "source '$FEATURES_LIB'; octo_features_choice fable5-routing")
+if [[ "$out" == "off" ]]; then
+    test_pass
+else
+    test_fail "expected the manifest default 'off', got '$out'"
+fi
+
+test_case "silent features are never raised however new they are"
+reset_ledger '{"last_seen_version":"9.0.0"}'
+out=$(bash -c "source '$FEATURES_LIB'; octo_features_seed_watermark; octo_features_offerable_ids")
+if ! grep -qx "preflight-probe" <<< "$out" && ! grep -qx "gemini-via-agy" <<< "$out"; then
+    test_pass
+else
+    test_fail "decision=none features must never be prompted: $out"
+fi
+
+test_case "only decision=required features are ever offered"
+required=$(jq -r '.features[] | select(.decision == "required") | .id' "$MANIFEST" | sort)
+offered=$(bash -c "source '$FEATURES_LIB'; octo_features_seed_watermark; octo_features_offerable_ids" | sort)
+if [[ "$offered" == "$required" ]]; then
+    test_pass
+else
+    test_fail "offered [$offered] should equal the decision=required set [$required]"
+fi
+
+test_case "env key overrides a recorded policy"
 reset_ledger '{"last_seen_version":"9.55.0"}'
 out=$(bash -c "
     source '$FEATURES_LIB'
-    octo_features_seed_watermark
-    octo_features_record codex-reviewer-flip disabled 9.57.0
-    octo_features_offerable_ids
-    echo \"DECISION=\$(octo_features_decision codex-reviewer-flip)\"
+    octo_features_record fable5-routing off 9.57.0
+    OCTOPUS_FABLE5_ROUTING=escalate octo_features_choice fable5-routing
 ")
-if grep -qx "DECISION=disabled" <<< "$out" && ! grep -qx "codex-reviewer-flip" <<< "$out"; then
+if [[ "$out" == "escalate" ]]; then
     test_pass
 else
-    test_fail "disabled must be recorded distinctly and suppress offers"
+    test_fail "env override should win, got '$out'"
 fi
 
-test_case "env var overrides the ledger in both directions"
-reset_ledger '{"last_seen_version":"9.55.0"}'
+test_case "an invalid env value falls back to the recorded policy"
 out=$(bash -c "
     source '$FEATURES_LIB'
-    octo_features_record fable5-escalation declined 9.57.0
-    OCTOPUS_FABLE5_ESCALATE=1 octo_features_enabled fable5-escalation && echo ENV_ON
-    octo_features_record fable5-escalation enabled 9.57.0
-    OCTOPUS_FABLE5_ESCALATE=0 octo_features_enabled fable5-escalation || echo ENV_OFF
+    OCTOPUS_FABLE5_ROUTING=nonsense octo_features_choice fable5-routing
 ")
-if grep -qx "ENV_ON" <<< "$out" && grep -qx "ENV_OFF" <<< "$out"; then
+if [[ "$out" == "off" ]]; then
     test_pass
 else
-    test_fail "env var must win over the recorded decision both ways"
+    test_fail "a bogus env value must not become the policy, got '$out'"
 fi
 
-test_case "invalid decision values are rejected"
+test_case "recording a value outside the declared choices is rejected"
 reset_ledger '{"last_seen_version":"9.55.0"}'
-if bash -c "source '$FEATURES_LIB'; octo_features_record fable5-escalation maybe 9.57.0" 2>/dev/null; then
-    test_fail "record should reject a decision outside enabled/declined/disabled"
+if bash -c "source '$FEATURES_LIB'; octo_features_record fable5-routing maybe 9.57.0" 2>/dev/null; then
+    test_fail "record must validate against the feature's own choices"
 else
     test_pass
 fi
@@ -238,38 +320,38 @@ else
     test_pass
 fi
 
-test_case "reoffer_at above the declined version re-opens the offer"
+test_case "reoffer_at above the chosen version re-opens the question"
 reset_ledger '{"last_seen_version":"9.55.0"}'
 tmp_manifest="$TEST_TMP_DIR/reoffer-manifest.json"
-jq '(.features[] | select(.id == "fable5-escalation")) |= (. + {reoffer_at: "9.60.0"})' \
+jq '(.features[] | select(.id == "fable5-routing")) |= (. + {reoffer_at: "9.60.0"})' \
     "$MANIFEST" > "$tmp_manifest"
 out=$(OCTOPUS_FEATURES_MANIFEST="$tmp_manifest" bash -c "
     source '$FEATURES_LIB'
     octo_features_seed_watermark
-    octo_features_record fable5-escalation declined 9.57.0
+    octo_features_record fable5-routing off 9.57.0
     octo_features_offerable_ids
 ")
-if grep -qx "fable5-escalation" <<< "$out"; then
+if grep -qx "fable5-routing" <<< "$out"; then
     test_pass
 else
-    test_fail "reoffer_at 9.60.0 above a 9.57.0 decline should re-open the offer"
+    test_fail "reoffer_at 9.60.0 above a 9.57.0 choice should re-open the question"
 fi
 
-test_case "reoffer_at at or below the declined version stays suppressed"
+test_case "reoffer_at at or below the chosen version stays suppressed"
 reset_ledger '{"last_seen_version":"9.55.0"}'
 tmp_manifest2="$TEST_TMP_DIR/reoffer-equal-manifest.json"
-jq '(.features[] | select(.id == "fable5-escalation")) |= (. + {reoffer_at: "9.57.0"})' \
+jq '(.features[] | select(.id == "fable5-routing")) |= (. + {reoffer_at: "9.57.0"})' \
     "$MANIFEST" > "$tmp_manifest2"
 out=$(OCTOPUS_FEATURES_MANIFEST="$tmp_manifest2" bash -c "
     source '$FEATURES_LIB'
     octo_features_seed_watermark
-    octo_features_record fable5-escalation declined 9.57.0
+    octo_features_record fable5-routing off 9.57.0
     octo_features_offerable_ids
 ")
-if ! grep -qx "fable5-escalation" <<< "$out"; then
+if ! grep -qx "fable5-routing" <<< "$out"; then
     test_pass
 else
-    test_fail "reoffer_at equal to the declined version must not re-offer"
+    test_fail "reoffer_at equal to the chosen version must not re-ask"
 fi
 
 test_case "actionable count excludes features whose prereq is missing"
@@ -287,6 +369,168 @@ if [[ "$n" -lt "$total" ]]; then
     test_pass
 else
     test_fail "with provider CLIs hidden, actionable ($n) should be below offerable ($total)"
+fi
+
+# ── Interactive prompt on session start ──────────────────────────────────────
+# A pointer to a command is the weak form of disclosure: users do not run
+# commands they must remember, nor hand-edit env vars. The SessionStart advisory
+# therefore asks the assistant to raise a picker. These cases cover the guards
+# that keep that from becoming a nuisance.
+
+ADVISORY_HOOK="$PROJECT_ROOT/hooks/version-advisory.sh"
+MEMORY_HOOK="$PROJECT_ROOT/hooks/session-start-memory.sh"
+
+# Run the advisory hook against an isolated state dir that looks like an upgrade.
+advisory() {
+    local state="$1"; shift
+    # Reset only last_seen_version so the hook sees an upgrade again. Overwriting
+    # the whole file would also wipe features_prompt_attempts, and the budget
+    # cases below would then never accumulate a count.
+    if [[ -f "$state/state.json" ]]; then
+        jq '.last_seen_version = "9.55.0"' "$state/state.json" > "$state/state.tmp" \
+            && mv "$state/state.tmp" "$state/state.json"
+    else
+        printf '{"last_seen_version":"9.55.0"}\n' > "$state/state.json"
+    fi
+    touch "$state/.setup-complete"
+    env "$@" OCTOPUS_STATE_DIR="$state" CLAUDE_PLUGIN_ROOT="$PROJECT_ROOT" \
+        bash "$ADVISORY_HOOK" 2>/dev/null | jq -r '.hookSpecificOutput.additionalContext' 2>/dev/null
+}
+
+test_case "advisory emits an interactive picker directive on an upgrade"
+adv_state="$TEST_TMP_DIR/adv-a"; mkdir -p "$adv_state"
+out=$(advisory "$adv_state" -u CI -u OCTOPUS_NON_INTERACTIVE -u CLAUDE_CODE_REMOTE)
+if grep -q "OCTOPUS-NEW-FEATURES" <<<"$out" && grep -q "AskUserQuestion" <<<"$out"; then
+    test_pass
+else
+    test_fail "expected an AskUserQuestion directive, got: $(head -5 <<<"$out")"
+fi
+
+test_case "the directive names each offerable feature"
+if grep -q "fable5-routing" <<<"$out"; then
+    test_pass
+else
+    test_fail "directive must carry the feature ids so the picker can be built"
+fi
+
+# Choosing the default is an answer. If the directive let the assistant skip
+# recording it, the user who said "not at all" would be asked again every upgrade.
+test_case "the directive requires recording every answer, defaults included"
+if grep -q "octo_features_record" <<<"$out" && grep -qi "including any that picks the default" <<<"$out"; then
+    test_pass
+else
+    test_fail "an unrecorded default choice would be re-asked forever"
+fi
+
+test_case "the directive carries each feature's own choices, not a yes/no"
+if grep -qE "^C\tfable5-routing\tescalate\t" <<<"$out" \
+   && grep -qE "^C\tfable5-routing\ton-demand\t" <<<"$out"; then
+    test_pass
+else
+    test_fail "policy choices must reach the picker verbatim"
+fi
+
+test_case "the directive carries the question text, not just the feature title"
+if grep -qE "^Q\tfable5-routing\tHow should Claude Fable 5 be used\?" <<<"$out"; then
+    test_pass
+else
+    test_fail "the picker needs the feature's own question"
+fi
+
+# A cron or headless run has nobody to answer; prompting there burns the turn.
+test_case "a non-interactive session gets the pointer, never the picker"
+adv_state="$TEST_TMP_DIR/adv-ci"; mkdir -p "$adv_state"
+out=$(advisory "$adv_state" CI=1)
+if ! grep -q "OCTOPUS-NEW-FEATURES" <<<"$out" && grep -q "whats-new" <<<"$out"; then
+    test_pass
+else
+    test_fail "CI run should degrade to the pointer, got: $(head -5 <<<"$out")"
+fi
+
+test_case "a remote session gets the pointer, never the picker"
+adv_state="$TEST_TMP_DIR/adv-remote"; mkdir -p "$adv_state"
+out=$(advisory "$adv_state" -u CI CLAUDE_CODE_REMOTE=true)
+if ! grep -q "OCTOPUS-NEW-FEATURES" <<<"$out"; then
+    test_pass
+else
+    test_fail "remote sessions must not raise a picker"
+fi
+
+# Anti-nagware: an unanswered prompt leaves everything undecided, which is
+# indistinguishable from never-offered, so without a cap it re-asks forever.
+test_case "the picker is spent after OCTOPUS_FEATURES_PROMPT_MAX attempts"
+adv_state="$TEST_TMP_DIR/adv-budget"; mkdir -p "$adv_state"
+results=""
+for _ in 1 2 3; do
+    o=$(advisory "$adv_state" -u CI -u OCTOPUS_NON_INTERACTIVE -u CLAUDE_CODE_REMOTE)
+    if grep -q "OCTOPUS-NEW-FEATURES" <<<"$o"; then results="${results}P"; else results="${results}f"; fi
+done
+if [[ "$results" == "PPf" ]]; then
+    test_pass
+else
+    test_fail "expected prompt,prompt,fallback (PPf), got '$results'"
+fi
+
+test_case "a spent budget still emits the pointer rather than going silent"
+o=$(advisory "$adv_state" -u CI -u OCTOPUS_NON_INTERACTIVE -u CLAUDE_CODE_REMOTE)
+if grep -q "whats-new" <<<"$o"; then
+    test_pass
+else
+    test_fail "discoverability must degrade, not disappear"
+fi
+
+test_case "a newer plugin version resets the prompt budget"
+reset_ledger '{"features_prompt_version":"9.0.0","features_prompt_attempts":99}'
+if bash -c "source '$FEATURES_LIB'; octo_features_prompt_allowed 9.57.0"; then
+    test_pass
+else
+    test_fail "a version bump should hand out a fresh budget"
+fi
+
+test_case "the budget is not reset by the same version"
+reset_ledger '{"features_prompt_version":"9.57.0","features_prompt_attempts":99}'
+if ! bash -c "source '$FEATURES_LIB'; octo_features_prompt_allowed 9.57.0"; then
+    test_pass
+else
+    test_fail "an exhausted budget must stay exhausted within a version"
+fi
+
+test_case "prompt manifest is tab-separated id/title/description"
+reset_ledger '{"last_seen_version":"9.55.0"}'
+# sed -n 1p rather than head -1: head closes the pipe after one line, which
+# SIGPIPEs the producer and, under pipefail, aborts the suite with 141.
+line=$(bash -c "source '$FEATURES_LIB'; octo_features_seed_watermark; octo_features_prompt_manifest" | sed -n 1p)
+if [[ "$(awk -F'\t' '{print NF}' <<<"$line")" == "3" ]]; then
+    test_pass
+else
+    test_fail "expected 3 tab-separated fields, got: $line"
+fi
+
+# The first-run welcome claimed to trigger setup via additionalContext while only
+# echoing bare text, which SessionStart does not accept as context.
+test_case "first-run welcome emits a valid SessionStart object, not bare text"
+fr_home="$TEST_TMP_DIR/firstrun-home"
+rm -rf "$fr_home"; mkdir -p "$fr_home"
+out=$(env HOME="$fr_home" CLAUDE_PLUGIN_ROOT="$PROJECT_ROOT" bash "$MEMORY_HOOK" 2>/dev/null)
+if printf '%s' "$out" | jq -e '.hookSpecificOutput.hookEventName == "SessionStart"' >/dev/null 2>&1; then
+    test_pass
+else
+    test_fail "first-run must emit hookSpecificOutput, got: $(printf '%s' "$out" | head -2)"
+fi
+
+test_case "first-run directs the assistant to run setup"
+if printf '%s' "$out" | jq -r '.hookSpecificOutput.additionalContext' 2>/dev/null | grep -qi "octo:setup"; then
+    test_pass
+else
+    test_fail "the welcome must name the setup skill"
+fi
+
+test_case "first-run stays silent on the second session"
+out2=$(env HOME="$fr_home" CLAUDE_PLUGIN_ROOT="$PROJECT_ROOT" bash "$MEMORY_HOOK" 2>/dev/null)
+if ! grep -qi "Welcome to Claude Octopus" <<<"$out2"; then
+    test_pass
+else
+    test_fail "the welcome must not repeat once the setup marker exists"
 fi
 
 test_summary

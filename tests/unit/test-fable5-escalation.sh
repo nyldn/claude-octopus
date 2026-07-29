@@ -22,7 +22,7 @@ mkdir -p "$OCTOPUS_STATE_DIR" "$WORKSPACE_DIR/state"
 echo '{}' > "$OCTOPUS_STATE_DIR/state.json"
 
 # Escalation must never be reachable through an inherited pin during these runs.
-unset OCTOPUS_OPUS_MODEL OCTOPUS_CLAUDE_SDK_MODEL OCTOPUS_FABLE5_ESCALATE 2>/dev/null || true
+unset OCTOPUS_OPUS_MODEL OCTOPUS_CLAUDE_SDK_MODEL OCTOPUS_FABLE5_ROUTING 2>/dev/null || true
 
 # escalate <role> [extra env assignments...] — resolve one dispatch decision in a
 # clean subshell so the per-run cap marker never leaks between cases.
@@ -46,7 +46,7 @@ else
     test_fail "fable5.sh has syntax errors"
 fi
 
-test_case "no consent means no escalation"
+test_case "the default policy (off) escalates nothing"
 got=$(escalate architect)
 if [[ "$got" == "claude-opus-5" ]]; then
     test_pass
@@ -54,10 +54,10 @@ else
     test_fail "without consent the model must stay claude-opus-5, got '$got'"
 fi
 
-# Record consent for the remaining cases.
-bash -c "source '$FEATURES_LIB'; octo_features_record fable5-escalation enabled 9.57.0"
+# Choose the planning-and-PRDs policy for the remaining cases.
+bash -c "source '$FEATURES_LIB'; octo_features_record fable5-routing escalate 9.57.0"
 
-test_case "architect escalates to Fable 5 once consented"
+test_case "architect escalates under the escalate policy"
 got=$(escalate architect)
 if [[ "$got" == "claude-fable-5" ]]; then
     test_pass
@@ -74,17 +74,34 @@ else
 fi
 
 # The echo problem: Fable reviewing Opus-authored work is same-family agreement,
-# not an independent check, so review must stay on a different vendor.
-test_case "code-reviewer never escalates (same-family review is not a check)"
+# not an independent check. Under the default escalate policy, review stays off
+# Fable; the user can opt into it, but it is not what "escalate" buys.
+test_case "code-reviewer does not escalate under the escalate policy"
 got=$(escalate code-reviewer)
 if [[ "$got" == "claude-opus-5" ]]; then
     test_pass
 else
-    test_fail "code-reviewer must not escalate, got '$got'"
+    test_fail "code-reviewer must not escalate under 'escalate', got '$got'"
 fi
 
-test_case "security-reviewer never escalates"
-got=$(escalate security-reviewer)
+test_case "code-reviewer DOES escalate under the escalate-reviews policy"
+got=$(escalate code-reviewer OCTOPUS_FABLE5_ROUTING=escalate-reviews)
+if [[ "$got" == "claude-fable-5" ]]; then
+    test_pass
+else
+    test_fail "the user opted into Fable reviews; expected fable, got '$got'"
+fi
+
+test_case "the on-demand policy escalates nothing automatically"
+got=$(escalate architect OCTOPUS_FABLE5_ROUTING=on-demand)
+if [[ "$got" == "claude-opus-5" ]]; then
+    test_pass
+else
+    test_fail "on-demand must never auto-escalate, got '$got'"
+fi
+
+test_case "security-reviewer never escalates under any policy"
+got=$(escalate security-reviewer OCTOPUS_FABLE5_ROUTING=escalate-reviews)
 if [[ "$got" == "claude-opus-5" ]]; then
     test_pass
 else
@@ -108,12 +125,12 @@ else
     test_fail "user pin must beat escalation, got '$got'"
 fi
 
-test_case "session env override can disable escalation without touching consent"
-got=$(escalate architect OCTOPUS_FABLE5_ESCALATE=0)
+test_case "session env override can stand escalation down without touching the record"
+got=$(escalate architect OCTOPUS_FABLE5_ROUTING=off)
 if [[ "$got" == "claude-opus-5" ]]; then
     test_pass
 else
-    test_fail "OCTOPUS_FABLE5_ESCALATE=0 should stand down, got '$got'"
+    test_fail "OCTOPUS_FABLE5_ROUTING=off should stand down, got '$got'"
 fi
 
 test_case "a non-Opus model is passed through untouched"
@@ -195,6 +212,60 @@ else
     test_fail "reroute must run after escalation (escalate=$esc_line reroute=$rer_line)"
 fi
 
+# ── Each gate pinned on its own ──────────────────────────────────────────────
+# fable5_maybe_escalate consults two gates that both reject a non-escalating
+# policy: fable5_escalation_consented and fable5_escalation_role_eligible. That
+# redundancy is deliberate, but it means an end-to-end assertion cannot fail from
+# a single-gate regression — mutating either one alone is masked by the other.
+# These cases exercise the gates directly so each is genuinely covered.
+
+gate() {
+    env OCTOPUS_STATE_DIR="$OCTOPUS_STATE_DIR" WORKSPACE_DIR="$WORKSPACE_DIR" \
+        OCTOPUS_FABLE5_ROUTING="$1" bash -c "
+            source '$FEATURES_LIB'; source '$FABLE_LIB'
+            $2 && echo YES || echo NO"
+}
+
+test_case "consent gate: only escalate and escalate-reviews consent"
+res=""
+for pol in off on-demand escalate escalate-reviews; do
+    res="${res}$(gate "$pol" 'fable5_escalation_consented')|"
+done
+if [[ "$res" == "NO|NO|YES|YES|" ]]; then
+    test_pass
+else
+    test_fail "expected NO|NO|YES|YES| for off,on-demand,escalate,escalate-reviews; got $res"
+fi
+
+test_case "role gate: escalate covers judgment authoring only"
+res="$(gate escalate 'fable5_escalation_role_eligible architect')|$(gate escalate 'fable5_escalation_role_eligible strategist')|$(gate escalate 'fable5_escalation_role_eligible code-reviewer')"
+if [[ "$res" == "YES|YES|NO" ]]; then
+    test_pass
+else
+    test_fail "expected YES|YES|NO for architect,strategist,code-reviewer; got $res"
+fi
+
+test_case "role gate: escalate-reviews adds review, still not security"
+res="$(gate escalate-reviews 'fable5_escalation_role_eligible code-reviewer')|$(gate escalate-reviews 'fable5_escalation_role_eligible security-reviewer')"
+if [[ "$res" == "YES|NO" ]]; then
+    test_pass
+else
+    test_fail "expected YES|NO for code-reviewer,security-reviewer; got $res"
+fi
+
+test_case "role gate: off and on-demand make every role ineligible"
+res=""
+for pol in off on-demand; do
+    for role in architect strategist code-reviewer; do
+        res="${res}$(gate "$pol" "fable5_escalation_role_eligible $role")"
+    done
+done
+if [[ "$res" == "NONONONONONO" ]]; then
+    test_pass
+else
+    test_fail "no role may be eligible under off/on-demand; got $res"
+fi
+
 # ── Authorship-aware reviewer flip ───────────────────────────────────────────
 
 # The flip only fires when the Codex CLI is present, so these cases must supply a
@@ -215,7 +286,7 @@ else
 fi
 
 test_case "reviewer flip moves review off the implementing vendor"
-got=$(PATH="$flip_bin:$PATH" OCTOPUS_REVIEWER_FLIP=1 bash -c "source '$FEATURES_LIB' 2>/dev/null; source '$AGENT_UTILS' 2>/dev/null; get_role_mapping code-reviewer")
+got=$(PATH="$flip_bin:$PATH" OCTOPUS_REVIEWER_FLIP=claude bash -c "source '$FEATURES_LIB' 2>/dev/null; source '$AGENT_UTILS' 2>/dev/null; get_role_mapping code-reviewer")
 if [[ "$got" == claude-opus:* ]]; then
     test_pass
 else
@@ -235,7 +306,7 @@ fi
 test_case "reviewer flip stays inert when the Codex CLI is absent"
 empty_bin="$TEST_TMP_DIR/flip-empty-bin"
 mkdir -p "$empty_bin"
-got=$(PATH="$empty_bin:/bin:/usr/bin" OCTOPUS_REVIEWER_FLIP=1 \
+got=$(PATH="$empty_bin:/bin:/usr/bin" OCTOPUS_REVIEWER_FLIP=claude \
     bash -c "source '$FEATURES_LIB' 2>/dev/null; source '$AGENT_UTILS' 2>/dev/null; get_role_mapping code-reviewer")
 if [[ "$got" == codex-review:* ]]; then
     test_pass

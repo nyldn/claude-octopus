@@ -81,15 +81,67 @@ fi
 # shipped in this release below the watermark, so nothing would ever be offered.
 FEATURE_LINE=""
 if declare -f octo_features_seed_watermark >/dev/null 2>&1; then
-    OCTOPUS_STATE_DIR="$STATE_DIR" octo_features_seed_watermark "$LAST_SEEN" 2>/dev/null || true
-    _actionable="$(OCTOPUS_STATE_DIR="$STATE_DIR" octo_features_actionable_count 2>/dev/null || echo 0)"
+    export OCTOPUS_STATE_DIR="$STATE_DIR"
+    octo_features_seed_watermark "$LAST_SEEN" 2>/dev/null || true
+    _actionable="$(octo_features_actionable_count 2>/dev/null || echo 0)"
     if [[ "$_actionable" =~ ^[0-9]+$ ]] && (( _actionable > 0 )); then
-        if (( _actionable == 1 )); then
+        _noun="features are"; [[ "$_actionable" == "1" ]] && _noun="feature is"
+        _plural="s"; [[ "$_actionable" == "1" ]] && _plural=""
+
+        # Pointing at a command is the weak form of this: users do not run
+        # commands they have to remember, and they do not hand-edit env vars
+        # either. A SessionStart hook cannot raise a picker itself, but the
+        # context it injects is acted on by the assistant — the same mechanism
+        # auto-router-inject.sh uses to trigger a Skill. So ask the assistant to
+        # raise the picker on the first turn.
+        #
+        # Gated on three things, because an unwanted prompt is worse than a
+        # missed one:
+        #   - an interactive session (a cron/headless/remote run has nobody to
+        #     answer, and prompting there burns or stalls the turn);
+        #   - a remaining prompt budget for this version (an unanswered prompt
+        #     leaves everything undecided, which would otherwise re-ask forever);
+        #   - the assistant actually honouring the directive, which is advisory.
+        # When any of those fails, the plain pointer below is still emitted, so
+        # discoverability degrades rather than disappears.
+        if declare -f octo_features_session_interactive >/dev/null 2>&1 \
+           && octo_features_session_interactive \
+           && octo_features_prompt_allowed "$CURRENT_VERSION"; then
+            _offers="$(octo_features_prompt_manifest 2>/dev/null || true)"
+            if [[ -n "$_offers" ]]; then
+                octo_features_record_prompt_attempt "$CURRENT_VERSION" 2>/dev/null || true
+                FEATURE_LINE="
+<OCTOPUS-NEW-FEATURES>
+This upgrade added ${_actionable} setting${_plural} the user has not chosen yet.
+Each one is a real policy question, not an announcement.
+
+Before doing anything else this session, call AskUserQuestion ONCE with one
+question per feature below. Use each feature's own question text and its own
+choices verbatim; do not invent options, and do not collapse them into a yes/no.
+Keep each choice description's cost note, because that is what the choice turns
+on.
+
+The lines below are tab-separated:
+  Q<TAB>id<TAB>question
+  C<TAB>id<TAB>value<TAB>label<TAB>description
+
+${_offers}
+
+Record every answer, including any that picks the default:
+  source \"\${CLAUDE_PLUGIN_ROOT:-.}/scripts/lib/features.sh\"
+  octo_features_record <id> <chosen value> ${CURRENT_VERSION}
+
+Recording is what stops the question being asked again, so record all of them.
+Tell the user /octo:whats-new can change any of it later. Apply nothing they did
+not pick. If their first message is urgent, answer it first and ask right after.
+</OCTOPUS-NEW-FEATURES>"
+            fi
+        fi
+
+        # Fallback pointer, also used when the picker is suppressed or spent.
+        if [[ -z "$FEATURE_LINE" ]]; then
             FEATURE_LINE="
-   1 new feature is available to enable: /octo:whats-new"
-        else
-            FEATURE_LINE="
-   ${_actionable} new features are available to enable: /octo:whats-new"
+   ${_actionable} new ${_noun} available to enable: /octo:whats-new"
         fi
     fi
 fi

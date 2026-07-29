@@ -8,19 +8,25 @@ allowed-tools: Bash, Read
 
 **Your first output line MUST be:** `🐙 Octopus What's New`
 
-Show the features that landed after the user's install point, let them enable or
-decline each one, and record the decision so they are never asked twice.
+Show the settings added since the user's install point that still need a policy
+choice, ask each as its own question, and record the answers so they are never
+asked twice.
 
 ## Why this command exists
 
 Features added after a user installs are invisible to them. The SessionStart
-version advisory is one line and easy to miss, and a hook cannot run an
-interactive picker. This command is the interactive half: the advisory points
-here, and this is where consent is actually collected and written down.
+advisory asks for these choices automatically on the first session after an
+upgrade, but that prompt is capped and suppressed in non-interactive sessions,
+so this command is how the user reaches the same questions deliberately, and how
+they revisit a choice they already made.
+
+Only features declaring `decision: required` in the manifest appear here. A
+feature that ships with a sensible default and no real fork in behaviour is not
+a question and must not be raised as one.
 
 ## EXECUTION CONTRACT (Mandatory)
 
-### Step 1 — Load the offer list
+### Step 1 — Load the outstanding questions
 
 ```bash
 source "${CLAUDE_PLUGIN_ROOT:-.}/scripts/lib/features.sh" 2>/dev/null \
@@ -31,76 +37,68 @@ octo_features_available || {
     exit 0
 }
 
+# Tab-separated. Q<TAB>id<TAB>question, then C<TAB>id<TAB>value<TAB>label<TAB>description.
+octo_features_prompt_manifest
+
+# Features blocked on a missing prerequisite, listed but not askable.
 for id in $(octo_features_offerable_ids); do
     prereq="$(octo_features_prereq "$id")"
-    if octo_features_prereq_ok "$prereq"; then state="offerable"; else state="blocked:$prereq"; fi
-    printf '%s\t%s\t%s\t%s\t%s\n' \
-        "$id" "$state" "$(octo_features_key "$id")" \
-        "$(octo_features_title "$id")" "$(octo_features_description "$id")"
+    octo_features_prereq_ok "$prereq" || printf 'BLOCKED\t%s\t%s\n' "$id" "$prereq"
 done
 ```
 
-If the list is empty, say `Nothing new since your last upgrade.` and stop. Do not
-pad the output or invent features.
+If nothing is returned, say `Nothing new to decide since your last upgrade.` and
+stop. Do not pad the output or invent questions.
 
-### Step 2 — Present the list
+### Step 2 — Ask
 
-Render one block per feature: title, what it does, the env var it sets, and the
-cost implication when there is one. Features whose state is `blocked:<prereq>`
-are shown with the reason (for example `requires the Codex CLI`) and are NOT
-offered for enabling. Show them rather than hiding them, so the user learns the
-prerequisite exists and can install it.
+Call `AskUserQuestion` with one question per `Q` line, using that feature's
+question text and its own `C` choices verbatim. Do not invent options, do not
+reword a policy choice into a yes/no, and keep each choice description's cost
+note, because that is usually what the answer turns on.
 
-State the cost plainly for anything that spends money. `fable5-escalation` runs
-at $10/$50 per MTok, twice Opus 5, and the user needs that number before
-deciding, not after.
+`AskUserQuestion` takes at most 4 questions per call and 4 options per question.
+If there are more than 4 outstanding features, ask the first four, record them,
+then ask the rest in a second call.
 
-### Step 3 — Collect decisions
+`BLOCKED` features are shown with their missing prerequisite (for example
+`requires the Codex CLI`) and are NOT asked. Show them rather than hiding them,
+so the user learns the prerequisite exists.
 
-Use `AskUserQuestion` with one question per offerable feature, options
-`Enable` / `Not now`. Multiple features may be presented in a single call (up to
-the tool's 4-question limit; batch the remainder into a second call).
+WAIT for the answers. Apply nothing the user did not pick.
 
-WAIT for the answers. Do not assume, and do not enable anything the user did not
-explicitly choose.
-
-### Step 4 — Record and apply
-
-For each answer:
+### Step 3 — Record every answer
 
 ```bash
-# Enable
-octo_features_record "<id>" enabled "<current plugin version>"
-# Not now
-octo_features_record "<id>" declined "<current plugin version>"
+octo_features_record "<id>" "<chosen value>" "<current plugin version>"
 ```
 
-`declined` is sticky: that feature will not be offered again. Tell the user this
-so "Not now" is an informed choice, and tell them how to change their mind:
-`/octo:model-config` for routing features, or exporting the env var directly.
-
-For each enabled feature, the recorded consent is what the runtime reads, so
-nothing further is required for it to take effect in this repository. If the user
-wants it active in every shell, tell them to add the export to their profile:
-
-```bash
-echo 'export <KEY>=1' >> ~/.zshrc   # or ~/.bashrc
-```
+Record all of them, including any that picks the feature's default. Recording is
+what stops the question being asked again; an unrecorded answer means the user is
+asked the same thing after the next upgrade.
 
 Read the current plugin version from `.claude-plugin/plugin.json` (`.version`).
 Never hardcode it.
 
-### Step 5 — Confirm
+A recorded choice takes effect immediately for this repository. To pin one for
+every shell, tell the user to export the feature's key with the chosen value:
 
-Print a short summary: what is now enabled, what was declined, and what remains
-blocked on a missing prerequisite. End on the substantive state, no closer.
+```bash
+echo 'export <KEY>=<value>' >> ~/.zshrc   # or ~/.bashrc
+```
+
+### Step 4 — Confirm
+
+Print what is now set, one line per feature, plus anything still blocked on a
+missing prerequisite. End on the substantive state, no closer.
 
 ## Notes
 
 - Never write to `state.json` with anything other than `octo_features_record`
   and `octo_features_seed_watermark`. Hand-rolled `jq` edits here have raced the
   SessionStart hook's own write in the past.
-- Do not re-offer a feature the ledger already records a decision for. The
-  offer list already excludes them; do not work around it.
+- Do not re-ask a feature the ledger already records a choice for. The offer
+  list already excludes them; do not work around it. The user asking this
+  command directly is the supported way to revisit a settled choice.
 - This command never changes model routing, permissions, or quality gates by
   itself. It records consent; the runtime reads consent.

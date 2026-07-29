@@ -48,8 +48,22 @@ if [[ ! -f "$SETUP_MARKER" ]]; then
     mkdir -p "${HOME}/.claude-octopus"
     touch "$SETUP_MARKER"
     [[ "$REMOTE_SESSION" == "true" ]] && exit 0
-    echo "[🐙] Welcome to Claude Octopus! Running /octo:setup for first-time configuration..."
-    # This additionalContext triggers Claude to invoke the setup skill
+    # This has to be a hookSpecificOutput object, not bare text. The comment here
+    # used to claim "this additionalContext triggers Claude to invoke the setup
+    # skill" while the hook only echoed a plain line, which SessionStart does not
+    # accept as context on v2.1.178+ (see hooks/version-advisory.sh). The welcome
+    # message was therefore never injected and the intended auto-setup never
+    # fired. Falls back to the plain line when jq is unavailable so a user without
+    # jq still sees something.
+    if command -v jq >/dev/null 2>&1; then
+        jq -cn --arg ctx "🐙 Welcome to Claude Octopus. This is a first run and nothing is configured yet.
+Invoke the octo:setup skill now to walk the user through provider setup, unless
+their first message is urgent, in which case answer that first and offer setup
+immediately after." \
+            '{hookSpecificOutput:{hookEventName:"SessionStart",additionalContext:$ctx}}'
+    else
+        echo "[🐙] Welcome to Claude Octopus! Run /octo:setup for first-time configuration."
+    fi
     exit 0
 fi
 
