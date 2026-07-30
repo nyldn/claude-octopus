@@ -435,16 +435,21 @@ else
     test_fail "an unrecorded default choice would be re-asked forever"
 fi
 
+# A literal tab, not "\t" in the pattern: BSD grep -E (macOS) expands \t to a
+# tab while GNU grep -E (Linux) does not, so a \t pattern matches locally and
+# silently fails on the runner.
+TAB=$'\t'
+
 test_case "the directive carries each feature's own choices, not a yes/no"
-if grep -qE "^C\tfable5-routing\tescalate\t" <<<"$out" \
-   && grep -qE "^C\tfable5-routing\ton-demand\t" <<<"$out"; then
+if grep -qE "^C${TAB}fable5-routing${TAB}escalate${TAB}" <<<"$out" \
+   && grep -qE "^C${TAB}fable5-routing${TAB}on-demand${TAB}" <<<"$out"; then
     test_pass
 else
     test_fail "policy choices must reach the picker verbatim"
 fi
 
 test_case "the directive carries the question text, not just the feature title"
-if grep -qE "^Q\tfable5-routing\tHow should Claude Fable 5 be used\?" <<<"$out"; then
+if grep -qE "^Q${TAB}fable5-routing${TAB}How should Claude Fable 5 be used\?" <<<"$out"; then
     test_pass
 else
     test_fail "the picker needs the feature's own question"
