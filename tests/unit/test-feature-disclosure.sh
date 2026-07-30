@@ -18,6 +18,19 @@ MANIFEST="$PROJECT_ROOT/config/features.json"
 export OCTOPUS_STATE_DIR="$TEST_TMP_DIR/feature-state"
 mkdir -p "$OCTOPUS_STATE_DIR"
 
+# Provider CLIs the manifest prereqs probe. The runner has neither claude nor
+# codex, so without stubs every feature is prereq-blocked, actionable_count is 0,
+# and the advisory emits no directive at all — which passed locally and failed on
+# CI. Stub them for the whole suite so offers exist regardless of host. The one
+# case that asserts prereq-blocking sets its own PATH and so is unaffected.
+PREREQ_BIN="$TEST_TMP_DIR/prereq-bin"
+mkdir -p "$PREREQ_BIN"
+for _cli in claude codex agy; do
+    printf '#!/usr/bin/env bash\nexit 0\n' > "$PREREQ_BIN/$_cli"
+    chmod +x "$PREREQ_BIN/$_cli"
+done
+export PATH="$PREREQ_BIN:$PATH"
+
 reset_ledger() {
     rm -rf "$OCTOPUS_STATE_DIR"
     mkdir -p "$OCTOPUS_STATE_DIR"
