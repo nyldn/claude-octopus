@@ -293,7 +293,8 @@ validate_agent_command() {
         return $?
     fi
     if [[ "$cmd_executable" == */vibe-exec.sh || "$cmd_executable" == */ollama-run.sh || "$cmd_executable" == */codex-run.sh \
-        || "$cmd_executable" == */scripts/helpers/agy-exec.sh || "$cmd_executable" == */scripts/helpers/copilot-exec.sh ]]; then
+        || "$cmd_executable" == */scripts/helpers/agy-exec.sh || "$cmd_executable" == */scripts/helpers/copilot-exec.sh \
+        || "$cmd_executable" == */scripts/helpers/commandcode-exec.sh ]]; then
         return 0
     fi
 

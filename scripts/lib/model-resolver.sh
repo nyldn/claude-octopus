@@ -130,7 +130,7 @@ validate_model_name_for_provider() {
 
 _octo_is_known_provider_name() {
     case "$1" in
-        codex|gemini|claude|perplexity|qwen|copilot|opencode|ollama|openrouter|cursor-agent|vibe|agy|agy-research|antigravity)
+        codex|gemini|claude|perplexity|qwen|copilot|opencode|ollama|openrouter|cursor-agent|commandcode|vibe|agy|agy-research|antigravity)
             return 0 ;;
         *)
             return 1 ;;
@@ -375,6 +375,7 @@ resolve_octopus_model() {
             gemini-image)    resolved_model="gemini-3-pro-image" ;;  # image, not text — must precede gemini* (codex review)
             gemini-fast|gemini-flash) resolved_model="gemini-3-flash-preview" ;;
             gemini*)         resolved_model="gemini-3.1-pro-preview" ;;
+            commandcode*)    resolved_model="deepseek/deepseek-v4-pro" ;;
             agy*|antigravity) resolved_model="default" ;;
             claude-sdk*)     resolved_model="${OCTOPUS_CLAUDE_SDK_MODEL:-claude-opus-5}" ;;  # must precede claude* glob
             claude-opus-legacy*) resolved_model="claude-opus-4.6" ;;

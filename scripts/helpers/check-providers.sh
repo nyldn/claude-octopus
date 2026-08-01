@@ -68,6 +68,24 @@ fi
 
 echo "PROVIDER_CHECK_START"
 provider_status "codex" "$(command -v codex >/dev/null 2>&1 && echo available || echo missing)"
+commandcode_state="missing"
+[[ -n "${COMMAND_CODE_API_KEY:-}" ]] || resolve_provider_env "COMMAND_CODE_API_KEY" 2>/dev/null || true
+cc_bin="${OCTOPUS_COMMANDCODE_BIN:-}"
+if [[ -z "$cc_bin" ]]; then
+    if command -v command-code >/dev/null 2>&1; then
+        cc_bin="command-code"
+    elif command -v cmd >/dev/null 2>&1; then
+        cc_bin="cmd"
+    fi
+fi
+if [[ -n "$cc_bin" ]] && { [[ -x "$cc_bin" ]] || command -v "$cc_bin" >/dev/null 2>&1; }; then
+    if [[ -n "${COMMAND_CODE_API_KEY:-}" ]]; then
+        commandcode_state="available"
+    else
+        "$cc_bin" status --json >/dev/null 2>&1 && commandcode_state="available" || commandcode_state="degraded"
+    fi
+fi
+provider_status "commandcode" "$commandcode_state"
 provider_status "gemini" "$(command -v gemini >/dev/null 2>&1 && echo available || echo missing)"
 provider_status "agy" "$(command -v agy >/dev/null 2>&1 && echo available || echo missing)"
 # oco-cbb: opt-in proactive probe for API-key providers (perplexity, openrouter).

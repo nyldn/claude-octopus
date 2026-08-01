@@ -733,6 +733,29 @@ check_provider_health() {
                 fi
             fi
             ;;
+        commandcode)
+            local cc_bin="${OCTOPUS_COMMANDCODE_BIN:-}"
+            if [[ -z "$cc_bin" ]]; then
+                if command -v command-code >/dev/null 2>&1; then
+                    cc_bin="command-code"
+                elif command -v cmd >/dev/null 2>&1; then
+                    cc_bin="cmd"
+                fi
+            fi
+            if [[ -z "$cc_bin" ]] || ! { [[ -x "$cc_bin" ]] || command -v "$cc_bin" >/dev/null 2>&1; }; then
+                echo "commandcode CLI is not executable or not found" >&2
+                return 1
+            fi
+            if [[ -z "${COMMAND_CODE_API_KEY:-}" ]]; then
+                resolve_provider_env "COMMAND_CODE_API_KEY" 2>/dev/null || true
+            fi
+            if [[ -z "${COMMAND_CODE_API_KEY:-}" ]]; then
+                "$cc_bin" status --json >/dev/null 2>&1 || {
+                    echo "commandcode: no API key or authenticated CLI session" >&2
+                    return 1
+                }
+            fi
+            ;;
         gemini)
             if ! command -v gemini &>/dev/null; then
                 echo "gemini CLI not found in PATH" >&2

@@ -61,6 +61,23 @@ else
     test_pass
 fi
 
+# get_agent_command returns the commandcode shim WITH arguments (model and
+# permission mode), so the shim must be allowed via the executable-token check
+# rather than an exact-string case arm.
+test_case "validate_agent_command allows commandcode-exec shim path with args"
+if validate_agent_command "$PROJECT_ROOT/scripts/helpers/commandcode-exec.sh deepseek/deepseek-v4-pro plan"; then
+    test_pass
+else
+    test_fail "expected commandcode-exec shim path to be accepted"
+fi
+
+test_case "validate_agent_command rejects embedded commandcode-exec shim path"
+if validate_agent_command "echo $PROJECT_ROOT/scripts/helpers/commandcode-exec.sh" >/dev/null 2>&1; then
+    test_fail "expected embedded commandcode-exec shim path to be rejected"
+else
+    test_pass
+fi
+
 
 test_case "validate_agent_command allows openai-compatible helper path"
 if validate_agent_command "$PROJECT_ROOT/scripts/helpers/openai-compatible-agent.py --provider generic --model minimax/minimax-m3 --cwd /tmp/test"; then

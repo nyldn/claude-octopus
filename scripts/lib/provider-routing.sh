@@ -17,7 +17,7 @@
 # matchers plus two user-facing messages) and they had drifted: the reset error
 # message omitted openai-compatible and openai-tools even though the matcher
 # accepted them. Add a provider here and every site follows.
-OCTO_MODEL_CONFIG_PROVIDERS="codex gemini agy claude claude-sdk perplexity opencode openrouter atlascloud openai-compatible openai-tools openai-compatible-agent cursor-agent"
+OCTO_MODEL_CONFIG_PROVIDERS="codex gemini agy claude claude-sdk perplexity opencode openrouter atlascloud openai-compatible openai-tools openai-compatible-agent cursor-agent commandcode"
 
 octo_model_config_provider_valid() {
     case " ${OCTO_MODEL_CONFIG_PROVIDERS} " in
@@ -113,6 +113,18 @@ build_provider_env() {
             if [[ ${#_trace_env[@]} -gt 0 ]]; then
                 PROVIDER_ENV_ARRAY+=("${_trace_env[@]}")
             fi
+            ;;
+        commandcode*)
+            if [[ -z "${COMMAND_CODE_API_KEY:-}" ]]; then
+                resolve_provider_env "COMMAND_CODE_API_KEY" 2>/dev/null || true
+            fi
+            PROVIDER_ENV_ARRAY=(env -i "PATH=$PATH" "HOME=$HOME" "TMPDIR=${TMPDIR:-/tmp}")
+            [[ -n "${COMMAND_CODE_API_KEY:-}" ]] && PROVIDER_ENV_ARRAY+=("COMMAND_CODE_API_KEY=${COMMAND_CODE_API_KEY}")
+            [[ -n "${CMD_ZDR:-}" ]] && PROVIDER_ENV_ARRAY+=("CMD_ZDR=${CMD_ZDR}")
+            [[ -n "${OCTOPUS_COMMANDCODE_BIN:-}" ]] && PROVIDER_ENV_ARRAY+=("OCTOPUS_COMMANDCODE_BIN=${OCTOPUS_COMMANDCODE_BIN}")
+            [[ -n "${OCTOPUS_COMMANDCODE_MAX_TURNS:-}" ]] && PROVIDER_ENV_ARRAY+=("OCTOPUS_COMMANDCODE_MAX_TURNS=${OCTOPUS_COMMANDCODE_MAX_TURNS}")
+            [[ ${#_trace_env[@]} -gt 0 ]] && PROVIDER_ENV_ARRAY+=("${_trace_env[@]}")
+            return 0
             ;;
         gemini*)
             if [[ -z "${GEMINI_API_KEY:-}" ]]; then

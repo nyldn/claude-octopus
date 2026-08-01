@@ -461,6 +461,16 @@ get_agent_command() {
                 echo "${PLUGIN_DIR}/scripts/helpers/claude-sdk-exec.sh"
             fi
             ;;
+        commandcode|commandcode-research|commandcode-fast)
+            if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
+                return 1
+            fi
+            local commandcode_mode="plan"
+            case "$role" in
+                implementer|developer) commandcode_mode="yolo" ;;
+            esac
+            echo "${PLUGIN_DIR}/scripts/helpers/commandcode-exec.sh ${model} ${commandcode_mode}"
+            ;;
         cursor-agent)  # v9.23.0: Cursor Agent CLI — Grok 4.20 via Cursor subscription
             if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
                 return 1
@@ -712,6 +722,7 @@ get_agent_model() {
         openrouter*) provider="openrouter" ;;
         atlascloud*) provider="atlascloud" ;;
         openai-compatible|openai-tools|openai-compatible-agent*) provider="openai-compatible-agent" ;;
+        commandcode*) provider="commandcode" ;;
         perplexity*) provider="perplexity" ;;
         qwen*)       provider="qwen" ;;
         cursor-agent*) provider="cursor-agent" ;;
@@ -760,6 +771,7 @@ validate_model_allowed() {
         perplexity) allowlist_var="OCTOPUS_PERPLEXITY_ALLOWED_MODELS" ;;
         qwen)       allowlist_var="OCTOPUS_QWEN_ALLOWED_MODELS" ;;
         cursor-agent) allowlist_var="OCTOPUS_CURSOR_AGENT_ALLOWED_MODELS" ;;
+        commandcode) allowlist_var="OCTOPUS_COMMANDCODE_ALLOWED_MODELS" ;;
         opencode)   allowlist_var="OCTOPUS_OPENCODE_ALLOWED_MODELS" ;;
         *)          return 0 ;;  # Unknown provider — allow
     esac

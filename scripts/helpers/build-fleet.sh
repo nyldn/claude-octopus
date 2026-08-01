@@ -51,6 +51,7 @@ get_family() {
         cursor-agent|cursor-agent-*) echo "xai" ;;
         grok|grok-*)         echo "xai" ;;   # grok-provider (xAI Grok CLI)
         openrouter|openrouter-*) echo "multi" ;;
+        commandcode|commandcode-*) echo "multi" ;;
         *)                   echo "unknown" ;;
     esac
 }
@@ -59,6 +60,20 @@ get_family() {
 # Order = preference for primary slot assignment
 AVAILABLE_CLI=()
 if octo_provider_allowed codex && command -v codex >/dev/null 2>&1; then AVAILABLE_CLI+=(codex); fi
+if octo_provider_allowed commandcode; then
+    [[ -n "${COMMAND_CODE_API_KEY:-}" ]] || resolve_provider_env "COMMAND_CODE_API_KEY" 2>/dev/null || true
+    _commandcode_bin="${OCTOPUS_COMMANDCODE_BIN:-}"
+    if [[ -z "$_commandcode_bin" ]]; then
+        if command -v command-code >/dev/null 2>&1; then
+            _commandcode_bin="command-code"
+        elif command -v cmd >/dev/null 2>&1; then
+            _commandcode_bin="cmd"
+        fi
+    fi
+    if [[ -n "$_commandcode_bin" ]] && { [[ -x "$_commandcode_bin" ]] || command -v "$_commandcode_bin" >/dev/null 2>&1; } && { [[ -n "${COMMAND_CODE_API_KEY:-}" ]] || "$_commandcode_bin" status --json >/dev/null 2>&1; }; then
+        AVAILABLE_CLI+=(commandcode)
+    fi
+fi
 if octo_provider_allowed gemini && command -v gemini >/dev/null 2>&1; then AVAILABLE_CLI+=(gemini); fi
 if octo_provider_allowed grok && declare -f grok_is_available >/dev/null 2>&1 && grok_is_available; then AVAILABLE_CLI+=(grok); fi
 if octo_provider_allowed agy && command -v agy >/dev/null 2>&1; then AVAILABLE_CLI+=(agy); fi
@@ -144,8 +159,8 @@ build_diverse_order() {
     local diverse_first=""
     local diverse_rest=""
 
-    # Preferred order for primary diversity: codex, gemini, agy, copilot, qwen, cursor-agent, opencode, ollama
-    for p in codex gemini agy copilot qwen grok cursor-agent opencode ollama; do
+    # Preferred order for primary diversity: codex, commandcode, gemini, agy, copilot, qwen, cursor-agent, opencode, ollama
+    for p in codex commandcode gemini agy copilot qwen grok cursor-agent opencode ollama; do
         is_available "$p" || continue
         local fam
         fam=$(get_family "$p")
