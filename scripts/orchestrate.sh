@@ -2285,6 +2285,19 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     done
     set -- "${_late_args[@]}"
 
+    # v9.57.0: A global flag that isn't recognized by the late-args loop above
+    # (e.g. --timeout after the subcommand) lands here unconsumed and would
+    # otherwise be silently read as the prompt (#698) — the run "succeeds"
+    # having answered a question nobody asked. Fail loud instead.
+    case "$COMMAND" in
+        discover|research|probe|define|grasp|verify|verification-only|develop|tangle|deliver|ink|embrace|squeeze|red-team)
+            if [[ "${1:-}" == -* && "${1:-}" != "-h" && "${1:-}" != "--help" ]]; then
+                log ERROR "'$1' looks like a flag but was read as the prompt. Global flags must precede the subcommand: $(basename "$0") $1 ... $COMMAND \"...\""
+                exit 1
+            fi
+            ;;
+    esac
+
 # Check for first-run on commands that need setup (skip for help/setup/preflight)
 if [[ "$COMMAND" != "help" && "$COMMAND" != "setup" && "$COMMAND" != "preflight" && "$COMMAND" != "-h" && "$COMMAND" != "--help" ]]; then
     check_first_run || true  # Show hint but don't block
