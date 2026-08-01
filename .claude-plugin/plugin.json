@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "9.56.1",
-  "description": "v9.56.1 \u2014 Harden release guardrails and close review findings. Run /octo:setup.",
+  "version": "9.57.0",
+  "description": "v9.57.0 \u2014 Command Code provider, selective Fable 5 escalation, and progressive feature disclosure. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"

@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+## [9.57.0] - 2026-08-02
+
+
 ### Fixed
 
 - **Global flags placed after the subcommand were silently read as the prompt.** `orchestrate.sh define --timeout 540 "..."` ran a workflow whose task was literally `--timeout`, discarding the real prompt and reporting success — the run answered a question nobody asked. Any leading `-`-prefixed argument that the late-args loop did not consume now fails loud with the correct invocation order. `--help` is exempt, and flags the loop does consume (`--dry-run`, `--verbose`) are unaffected.
