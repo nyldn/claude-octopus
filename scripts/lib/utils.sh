@@ -306,6 +306,8 @@ validate_agent_command() {
             return 0 ;;
         *"/scripts/helpers/agy-exec.sh")
             return 0 ;;
+        *"/scripts/helpers/copilot-exec.sh")
+            return 0 ;;
         "claude "*|"claude")
             return 0 ;;
         "openrouter_execute"*) # openrouter_execute and openrouter_execute_model
