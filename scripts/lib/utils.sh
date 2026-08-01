@@ -292,7 +292,7 @@ validate_agent_command() {
         _validate_openai_compatible_agent_command "$cmd"
         return $?
     fi
-    if [[ "$cmd_executable" == */vibe-exec.sh || "$cmd_executable" == */ollama-run.sh || "$cmd_executable" == */codex-run.sh ]]; then
+    if [[ "$cmd_executable" == */vibe-exec.sh || "$cmd_executable" == */ollama-run.sh || "$cmd_executable" == */codex-run.sh || "$cmd_executable" == */scripts/helpers/copilot-exec.sh ]]; then
         return 0
     fi
 
@@ -305,8 +305,6 @@ validate_agent_command() {
         "agy "*|"agy")
             return 0 ;;
         *"/scripts/helpers/agy-exec.sh")
-            return 0 ;;
-        *"/scripts/helpers/copilot-exec.sh")
             return 0 ;;
         "claude "*|"claude")
             return 0 ;;
