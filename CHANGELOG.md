@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+## [9.56.2] - 2026-08-01
+
+
 ### Fixed
 
 - **`stat`-based file-age checks were silently broken on Linux.** All of them probed BSD-style `stat -f %m` first, but on Linux `-f` is `--file-system`: the call *succeeds* and prints the mount point, so the GNU fallback never ran and every age comparison built on the result misbehaved. Affected the new quota-dead TTL and, pre-existing, both agent-checkpoint age checks (debounce and 24h expiry) in `lib/agents.sh`. Now probes the GNU form first and validates the result is numeric.

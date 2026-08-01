@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "9.56.1",
-  "description": "v9.56.1 \u2014 Harden release guardrails and close review findings. Run /octo:setup.",
+  "version": "9.56.2",
+  "description": "v9.56.2 \u2014 Dead provider seat reporting, quota-dead TTL, and Linux stat file-age fixes. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"

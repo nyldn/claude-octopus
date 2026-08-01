@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "nyldn plugins for Claude Code workflows.",
-    "version": "9.56.1"
+    "version": "9.56.2"
   },
   "plugins": [
     {
@@ -15,8 +15,8 @@
         "source": "url",
         "url": "https://github.com/nyldn/claude-octopus.git"
       },
-      "description": "v9.56.1 - Harden release guardrails and close review findings. 32 personas, 50 commands, 58 skills. Run /octo:setup.",
-      "version": "9.56.1",
+      "description": "v9.56.2 - Dead provider seat reporting, quota-dead TTL, and Linux stat file-age fixes. 32 personas, 50 commands, 58 skills. Run /octo:setup.",
+      "version": "9.56.2",
       "author": {
         "name": "nyldn",
         "url": "https://github.com/nyldn"

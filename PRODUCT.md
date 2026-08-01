@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-07-27
+last_reviewed: 2026-08-01
 ---
 
 # PRODUCT.md
@@ -78,7 +78,7 @@ Frontier AI models will remain individually overconfident for the foreseeable fu
 - GitHub stars: 3,889
 - GitHub forks: 365
 - Local CI parity: 16 smoke, 188 unit, and 7 integration suites
-- Version: 9.56.1 (active release cadence)
+- Version: 9.56.2 (active release cadence)
 - Runtimes supported: Claude Code, Codex CLI, Cursor (MCP), Gemini CLI
 
 **Measured Impact:**
