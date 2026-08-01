@@ -3,8 +3,11 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# features.sh resolves paths with `cd -P && pwd` (physical, symlinks resolved).
+# Matching that here, not `cd && pwd` (logical), avoids a false mismatch on a
+# symlinked checkout (e.g. macOS /tmp -> /private/tmp).
+SCRIPT_DIR="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd -P "$SCRIPT_DIR/../.." && pwd)"
 
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "Feature disclosure"
