@@ -43,28 +43,53 @@ else
     test_fail "expected successful dry-run with the real prompt; got exit=$rc, output: $out"
 fi
 
-test_case "probe --parallel after subcommand fails loud"
-out="$(run_orchestrate probe --parallel 3 "topic" --dry-run)" && rc=0 || rc=$?
-if [[ "$rc" -ne 0 && "$out" == *"looks like a flag but was read as the prompt"* ]]; then
+# Table-driven coverage: every command that consumes a free-text prompt and
+# shares the vulnerable late-args loop should get the same guard. grapple and
+# probe-single are deliberately excluded — they run their own local flag
+# parsers instead of falling through to the shared late-args loop.
+GUARDED_COMMANDS=(
+    "discover:--parallel 3"
+    "research:--parallel 3"
+    "probe:--parallel 3"
+    "grasp:--timeout 540"
+    "verify:--branch foo"
+    "verification-only:--branch foo"
+    "develop:--branch foo"
+    "tangle:--branch foo"
+    "deliver:--branch foo"
+    "ink:--branch foo"
+    "embrace:--branch foo"
+    "squeeze:--branch foo"
+    "red-team:--branch foo"
+)
+
+for entry in "${GUARDED_COMMANDS[@]}"; do
+    cmd="${entry%%:*}"
+    flag="${entry#*:}"
+    test_case "$cmd $flag after subcommand fails loud"
+    # shellcheck disable=SC2086 # deliberate split of the "flag value" pair
+    out="$(run_orchestrate "$cmd" $flag "some prompt" --dry-run)" && rc=0 || rc=$?
+    if [[ "$rc" -ne 0 && "$out" == *"looks like a flag but was read as the prompt"* ]]; then
+        test_pass
+    else
+        test_fail "expected a loud error; got exit=$rc, output: $out"
+    fi
+done
+
+test_case "define -h prints usage and is not mistaken for the flag-guard error"
+out="$(run_orchestrate define -h)" && rc=0 || rc=$?
+if [[ "$rc" -eq 0 && "$out" == *"Usage:"* && "$out" != *"looks like a flag but was read as the prompt"* ]]; then
     test_pass
 else
-    test_fail "expected a loud error; got exit=$rc, output: $out"
+    test_fail "expected usage output; got exit=$rc, output: $out"
 fi
 
-test_case "develop --branch after subcommand fails loud"
-out="$(run_orchestrate develop --branch foo "build the thing" --dry-run)" && rc=0 || rc=$?
-if [[ "$rc" -ne 0 && "$out" == *"looks like a flag but was read as the prompt"* ]]; then
-    test_pass
-else
-    test_fail "expected a loud error; got exit=$rc, output: $out"
-fi
-
-test_case "define --help after subcommand is not mistaken for the flag-guard error"
+test_case "define --help prints usage and is not mistaken for the flag-guard error"
 out="$(run_orchestrate define --help)" && rc=0 || rc=$?
-if [[ "$rc" -eq 0 && "$out" != *"looks like a flag but was read as the prompt"* ]]; then
+if [[ "$rc" -eq 0 && "$out" == *"Usage:"* && "$out" != *"looks like a flag but was read as the prompt"* ]]; then
     test_pass
 else
-    test_fail "expected normal help output; got exit=$rc, output: $out"
+    test_fail "expected usage output; got exit=$rc, output: $out"
 fi
 
 test_summary
