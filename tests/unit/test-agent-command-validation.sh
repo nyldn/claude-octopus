@@ -33,6 +33,34 @@ else
     test_pass
 fi
 
+test_case "validate_agent_command allows agy-exec shim path"
+if validate_agent_command "$PROJECT_ROOT/scripts/helpers/agy-exec.sh"; then
+    test_pass
+else
+    test_fail "expected agy-exec shim path to be accepted"
+fi
+
+test_case "validate_agent_command rejects embedded agy-exec shim path"
+if validate_agent_command "echo $PROJECT_ROOT/scripts/helpers/agy-exec.sh" >/dev/null 2>&1; then
+    test_fail "expected embedded agy-exec shim path to be rejected"
+else
+    test_pass
+fi
+
+test_case "validate_agent_command allows copilot-exec shim path"
+if validate_agent_command "$PROJECT_ROOT/scripts/helpers/copilot-exec.sh"; then
+    test_pass
+else
+    test_fail "expected copilot-exec shim path to be accepted"
+fi
+
+test_case "validate_agent_command rejects embedded copilot-exec shim path"
+if validate_agent_command "echo $PROJECT_ROOT/scripts/helpers/copilot-exec.sh" >/dev/null 2>&1; then
+    test_fail "expected embedded copilot-exec shim path to be rejected"
+else
+    test_pass
+fi
+
 
 test_case "validate_agent_command allows openai-compatible helper path"
 if validate_agent_command "$PROJECT_ROOT/scripts/helpers/openai-compatible-agent.py --provider generic --model minimax/minimax-m3 --cwd /tmp/test"; then
