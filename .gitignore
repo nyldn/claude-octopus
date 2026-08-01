@@ -72,6 +72,12 @@ logs/
 results/
 .parallel-agents/
 
+# Auto-memory preferences written by hooks/session-end.sh / read by
+# hooks/session-start-memory.sh when CLAUDE_PROJECT_DIR resolves to this repo
+# (e.g. developing on the plugin itself). Per-machine session state, not a
+# shared artifact.
+/memory/
+
 # Temporary files
 tmp/
 temp/
