@@ -96,7 +96,7 @@ error_log="$FIXTURE_DIR/invalid-commandcode-permission-mode.err"
 invalid_cmd="$(get_agent_command commandcode tangle implementer 2>"$error_log")"
 unset OCTOPUS_COMMANDCODE_PERMISSION_MODE
 if [[ "$invalid_cmd" == *'commandcode-exec.sh deepseek/deepseek-v4-pro yolo' ]] &&
-   grep -F -- 'Invalid OCTOPUS_COMMANDCODE_PERMISSION_MODE value:' "$error_log" >/dev/null; then
+   grep -F -- 'ERROR: Invalid OCTOPUS_COMMANDCODE_PERMISSION_MODE value:' "$error_log" >/dev/null; then
     test_pass
 else
     test_fail "expected fallback to role default (yolo) with logged error, got: $invalid_cmd"
