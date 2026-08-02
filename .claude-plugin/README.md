@@ -21,7 +21,7 @@ You get:    A structured comparison with three independent viewpoints,
             scored for agreement. Disagreements are flagged, not hidden.
 ```
 
-This works for research, escalated code review, debugging, TDD, escalated security audits, UI design, PRDs, and full build-to-ship workflows — 50 commands, 58 skills, 32 specialized personas.
+This works for research, escalated code review, debugging, TDD, escalated security audits, UI design, PRDs, and full build-to-ship workflows — 50 commands, 62 skills, 32 specialized personas.
 
 Multi-provider runs show an agent summary before synthesis, so failed, timed out, or oversize-rejected Codex, Gemini, Antigravity, OpenRouter, and other perspectives are visible instead of being hidden behind a polished final answer.
 
