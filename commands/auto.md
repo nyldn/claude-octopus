@@ -57,6 +57,7 @@ Match the query against keywords below. Check categories **in priority order** â
 | Brainstorm | brainstorm, ideate, ideas, creative, thought experiment, what if | `octo:brainstorm` |
 | Deck | presentation, slides, deck, pitch deck, slide deck | `octo:deck` |
 | Docs | document, documentation, README, API docs, write docs, docstring | `octo:docs` |
+| Agent topology | too many agents, worth the overhead, coordination cost, agents keep agreeing, collapse agents, before adding an agent | `skill-agent-topology` |
 
 #### Priority 2 â€” Core Workflows
 
