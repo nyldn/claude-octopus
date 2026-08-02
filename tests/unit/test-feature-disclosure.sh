@@ -211,13 +211,57 @@ else
     test_fail "offered [$ids], expected backfill set [$expected]"
 fi
 
+# Tested against a synthetic manifest rather than a real feature id. Pinning this
+# to a shipped feature made the test rot the moment that feature's backfill or
+# decision classification changed, and it then failed for a reason unrelated to
+# the watermark gate it exists to protect.
 test_case "a pre-watermark feature is never offered"
 reset_ledger '{"last_seen_version":"9.55.0"}'
-ids=$(bash -c "source '$FEATURES_LIB'; octo_features_seed_watermark; octo_features_offerable_ids")
-if ! grep -qx "gemini-via-agy" <<< "$ids"; then
+watermark_fixture="$TEST_TMP_DIR/watermark-manifest.json"
+cat > "$watermark_fixture" <<'FIXTURE'
+{
+  "schema": "features_v1",
+  "features": [
+    {
+      "id": "below-watermark-probe",
+      "added_in": "9.52.0",
+      "backfill": false,
+      "decision": "required",
+      "title": "Below the watermark",
+      "question": "Should this ever be asked?",
+      "key": "OCTOPUS_BELOW_WATERMARK_PROBE",
+      "default": "0",
+      "prereq": "none",
+      "choices": [
+        { "value": "1", "label": "Yes", "description": "enabled" },
+        { "value": "0", "label": "No", "description": "disabled" }
+      ]
+    },
+    {
+      "id": "above-watermark-probe",
+      "added_in": "9.56.0",
+      "backfill": false,
+      "decision": "required",
+      "title": "Above the watermark",
+      "question": "Should this be asked?",
+      "key": "OCTOPUS_ABOVE_WATERMARK_PROBE",
+      "default": "0",
+      "prereq": "none",
+      "choices": [
+        { "value": "1", "label": "Yes", "description": "enabled" },
+        { "value": "0", "label": "No", "description": "disabled" }
+      ]
+    }
+  ]
+}
+FIXTURE
+ids=$(OCTOPUS_FEATURES_MANIFEST="$watermark_fixture" bash -c "source '$FEATURES_LIB'; octo_features_seed_watermark; octo_features_offerable_ids")
+# The above-watermark twin proves the gate discriminates rather than suppressing
+# everything, which a bare "not offered" assertion would not catch.
+if ! grep -qx "below-watermark-probe" <<< "$ids" && grep -qx "above-watermark-probe" <<< "$ids"; then
     test_pass
 else
-    test_fail "gemini-via-agy (added 9.52.0) is below the 9.55.0 watermark and must not be offered"
+    test_fail "watermark gate wrong: a non-backfill feature added at 9.52.0 must not be offered at watermark 9.55.0, and one added at 9.56.0 must be; got [$ids]"
 fi
 
 test_case "a recorded choice is sticky across repeated sessions"
@@ -265,13 +309,25 @@ else
     test_fail "expected the manifest default 'off', got '$out'"
 fi
 
+# Derived from the manifest rather than naming ids, so reclassifying a feature
+# cannot silently narrow what this covers.
 test_case "silent features are never raised however new they are"
 reset_ledger '{"last_seen_version":"9.0.0"}'
 out=$(bash -c "source '$FEATURES_LIB'; octo_features_seed_watermark; octo_features_offerable_ids")
-if ! grep -qx "preflight-probe" <<< "$out" && ! grep -qx "gemini-via-agy" <<< "$out"; then
-    test_pass
+silent_ids=$(jq -r '.features[] | select(.decision == "none") | .id' "$MANIFEST")
+if [[ -z "$silent_ids" ]]; then
+    test_fail "manifest has no decision=none feature, so this invariant is untested — add one or delete this case"
 else
-    test_fail "decision=none features must never be prompted: $out"
+    leaked=""
+    while IFS= read -r sid; do
+        [[ -n "$sid" ]] || continue
+        grep -qx "$sid" <<< "$out" && leaked="$leaked $sid"
+    done <<< "$silent_ids"
+    if [[ -z "$leaked" ]]; then
+        test_pass
+    else
+        test_fail "decision=none features must never be prompted, but these were:$leaked"
+    fi
 fi
 
 test_case "only decision=required features are ever offered"

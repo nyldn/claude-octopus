@@ -51,6 +51,32 @@ _BARE_OPT="${_BARE_OPT:-}"
 # Fallback:  consumers (see lib/agents.sh get_fallback_agent) silently downshift when the
 #            preferred CLI is unavailable (e.g. no Anthropic auth → architect → current Codex).
 
+# octo_gemini_via_agy_active — true when gemini* seats should be served through
+# the Antigravity CLI instead of gemini-cli.
+#
+# Reads the progressive-disclosure ledger first, with OCTOPUS_GEMINI_VIA_AGY as a
+# session override, mirroring _octo_reviewer_flip_active. The three dispatch
+# sites used to read the raw env var directly, which meant a user who answered
+# the disclosure question changed nothing: the answer was recorded and then
+# ignored. Routing every site through one accessor keeps the recorded choice and
+# the env override in agreement.
+# The env var is normalised here, before the ledger is consulted, rather than
+# being handed to octo_features_choice. That function only passes an env value
+# through when it is a declared choice for the feature, and this feature's
+# choices are the literal "1" and "0" — so `OCTOPUS_GEMINI_VIA_AGY=true` (which
+# the previous raw `^(1|on|true|yes)$` reads accepted) would be dropped and the
+# user silently returned to the failing direct path, and `=false` would lose to
+# a recorded "1". Normalising locally keeps the documented aliases working in
+# both directions without changing choice semantics for every other feature.
+octo_gemini_via_agy_active() {
+    case "${OCTOPUS_GEMINI_VIA_AGY:-}" in
+        1|on|true|yes)  return 0 ;;
+        0|off|false|no) return 1 ;;
+    esac
+    declare -f octo_features_choice >/dev/null 2>&1 || return 1
+    [[ "$(octo_features_choice "gemini-via-agy")" == "1" ]]
+}
+
 # _octo_reviewer_flip_active — true when code review should move off the Codex
 # seat because Codex is the implementer.
 #

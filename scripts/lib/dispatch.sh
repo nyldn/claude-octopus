@@ -204,7 +204,7 @@ get_agent_command() {
             # are unaffected. Model pins follow OCTOPUS_AGY_MODEL (labels from
             # `agy models`), not gemini model ids. Gemini reasoning policy does
             # not apply — the agy seat has its own model/reasoning controls.
-            if [[ "${OCTOPUS_GEMINI_VIA_AGY:-0}" =~ ^(1|on|true|yes)$ ]]; then
+            if octo_gemini_via_agy_active; then
                 echo "${PLUGIN_DIR}/scripts/helpers/agy-exec.sh"
                 return 0
             fi

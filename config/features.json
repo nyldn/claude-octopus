@@ -72,13 +72,25 @@
     {
       "id": "gemini-via-agy",
       "added_in": "9.52.0",
-      "backfill": false,
-      "decision": "none",
+      "backfill": true,
+      "decision": "required",
       "title": "Route Gemini seats through Antigravity",
-      "description": "Serves gemini* seats via the Antigravity CLI. Gemini Code Assist free-tier OAuth is sunset, so the direct path returns IneligibleTierError. Set OCTOPUS_GEMINI_VIA_AGY=1 to enable.",
+      "question": "Google sunset the Gemini Code Assist free tier. How should Gemini seats run?",
       "key": "OCTOPUS_GEMINI_VIA_AGY",
       "default": "0",
-      "prereq": "agy-cli"
+      "prereq": "gemini-cli",
+      "choices": [
+        {
+          "value": "1",
+          "label": "Through Antigravity",
+          "description": "Serves gemini seats via the Antigravity CLI, which is the supported path now. Needs the agy CLI installed; backend cost follows OCTOPUS_AGY_MODEL rather than being free."
+        },
+        {
+          "value": "0",
+          "label": "Keep the direct path",
+          "description": "Current behaviour. Correct only if you hold a paid Gemini Code Assist tier; on the free tier every dispatch returns IneligibleTierError after prompting for the gemini-cli keychain entry."
+        }
+      ]
     }
   ]
 }
