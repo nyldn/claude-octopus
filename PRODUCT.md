@@ -106,7 +106,7 @@ This file enables product-aware council reviews:
 
 - **`/pre-mortem`** — Automatically includes `product` perspectives (user-value, adoption-barriers, competitive-position) alongside plan-review judges when this file exists.
 - **`/vibe`** — Automatically includes `developer-experience` perspectives (api-clarity, error-experience, discoverability) alongside code-review judges when this file exists.
-- **`/council --preset=product`** — Run product review on demand.
-- **`/council --preset=developer-experience`** — Run DX review on demand.
+- **`/octo:council --preset=product`** — Run product review on demand.
+- **`/octo:council --preset=developer-experience`** — Run DX review on demand.
 
 Explicit `--preset` overrides from the user skip auto-include (user intent takes precedence).
