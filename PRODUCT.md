@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-08-02
+last_reviewed: 2026-08-03
 ---
 
 # PRODUCT.md
@@ -78,7 +78,7 @@ Frontier AI models will remain individually overconfident for the foreseeable fu
 - GitHub stars: 3,889
 - GitHub forks: 365
 - Local CI parity: `make ci-local` runs the same smoke, unit, and integration suites as CI
-- Version: 9.57.0 (active release cadence)
+- Version: 9.58.0 (active release cadence)
 - Runtimes supported: Claude Code, Codex CLI, Command Code CLI, Cursor (MCP), Gemini CLI
 
 **Measured Impact:**

@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+## [9.58.0] - 2026-08-03
+
+
 ### Added
 
 - **`skill-agent-topology`** — audits whether an existing multi-agent setup earns its coordination cost. Counts boundaries rather than agents, names what is lost at each crossing (compression, semantic drift, verification burden, governance), and weighs that against gains a single agent could not deliver. "Collapse to one agent" is a first-class outcome. Reuses the existing overlap gate (`council_persona_overlap_score`) rather than inventing a second metric. Cites arXiv:2606.30986 for the framing and ships none of its coefficients, keeping only the ordinal direction so the diagnostic has a default without asserting numbers about situations the study never measured.
