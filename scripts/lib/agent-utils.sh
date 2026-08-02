@@ -64,18 +64,19 @@ _BARE_OPT="${_BARE_OPT:-}"
 # vendor diversity instead of creating it.
 _octo_reviewer_flip_active() {
     command -v codex >/dev/null 2>&1 || return 1
-    local choice
-    if declare -f octo_features_choice >/dev/null 2>&1; then
-        choice="$(octo_features_choice "codex-reviewer-flip")"
-    else
-        choice="${OCTOPUS_REVIEWER_FLIP:-codex}"
-    fi
-    # "claude" is the only value that moves review off the implementing vendor.
-    # Legacy truthy values are accepted so an existing OCTOPUS_REVIEWER_FLIP=1 in
-    # someone's profile keeps meaning what it used to.
-    case "$choice" in
+    # Legacy truthy/falsy values are normalized here, before consulting
+    # octo_features_choice, because that resolver only passes an env value
+    # through when it matches a declared choice ("claude"/"codex") — "1",
+    # "on", etc. would otherwise be silently dropped in favor of the ledger
+    # or manifest default, breaking an existing OCTOPUS_REVIEWER_FLIP=1.
+    case "${OCTOPUS_REVIEWER_FLIP:-}" in
         claude|1|on|true|yes) return 0 ;;
+        codex|0|off|false|no) return 1 ;;
     esac
+    if declare -f octo_features_choice >/dev/null 2>&1; then
+        [[ "$(octo_features_choice "codex-reviewer-flip")" == "claude" ]]
+        return $?
+    fi
     return 1
 }
 
