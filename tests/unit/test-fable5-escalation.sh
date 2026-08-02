@@ -301,6 +301,30 @@ else
     test_fail "flip must not move implementation, got '$got'"
 fi
 
+# Regression for issue #720: octo_features_choice only passes an env value
+# through when it matches a declared choice (claude|codex), so legacy truthy
+# aliases must be normalized against the raw env var, not routed through it,
+# or they get silently dropped and the flip never fires on code-reviewer.
+for legacy in 1 on true yes; do
+    test_case "reviewer flip honours legacy truthy OCTOPUS_REVIEWER_FLIP=$legacy on code-reviewer"
+    got=$(PATH="$flip_bin:$PATH" OCTOPUS_REVIEWER_FLIP="$legacy" bash -c "source '$FEATURES_LIB' 2>/dev/null; source '$AGENT_UTILS' 2>/dev/null; get_role_mapping code-reviewer")
+    if [[ "$got" == claude-opus:* ]]; then
+        test_pass
+    else
+        test_fail "legacy value '$legacy' should flip review to the Claude opus seat, got '$got'"
+    fi
+done
+
+for legacy in 0 off false no; do
+    test_case "reviewer flip honours legacy falsy OCTOPUS_REVIEWER_FLIP=$legacy on code-reviewer"
+    got=$(PATH="$flip_bin:$PATH" OCTOPUS_REVIEWER_FLIP="$legacy" bash -c "source '$FEATURES_LIB' 2>/dev/null; source '$AGENT_UTILS' 2>/dev/null; get_role_mapping code-reviewer")
+    if [[ "$got" == codex-review:* ]]; then
+        test_pass
+    else
+        test_fail "legacy value '$legacy' should leave review on Codex, got '$got'"
+    fi
+done
+
 # Without Codex the implementer already falls back off Codex, so flipping review
 # away from it would remove vendor diversity rather than create it.
 test_case "reviewer flip stays inert when the Codex CLI is absent"
