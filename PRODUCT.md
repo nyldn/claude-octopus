@@ -77,7 +77,7 @@ Frontier AI models will remain individually overconfident for the foreseeable fu
 **Traction (as of 2026-07-27):**
 - GitHub stars: 3,889
 - GitHub forks: 365
-- Local CI parity: 16 smoke, 194 unit, and 7 integration suites
+- Local CI parity: `make ci-local` runs the same smoke, unit, and integration suites as CI
 - Version: 9.57.0 (active release cadence)
 - Runtimes supported: Claude Code, Codex CLI, Command Code CLI, Cursor (MCP), Gemini CLI
 

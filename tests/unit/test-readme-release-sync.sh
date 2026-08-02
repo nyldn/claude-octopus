@@ -12,9 +12,6 @@ test_suite "README Release Sync"
 SYNC_SCRIPT="$PROJECT_ROOT/scripts/sync-readme.py"
 TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/octo-readme-sync-test.XXXXXX")"
 CURRENT_VERSION="$(jq -r '.version' "$PROJECT_ROOT/.claude-plugin/plugin.json")"
-SMOKE_SUITE_COUNT="$(find "$PROJECT_ROOT/tests/smoke" -maxdepth 1 -name 'test-*.sh' | wc -l | tr -d ' ')"
-UNIT_SUITE_COUNT="$(find "$PROJECT_ROOT/tests/unit" -maxdepth 1 -name 'test-*.sh' | wc -l | tr -d ' ')"
-INTEGRATION_SUITE_COUNT="$(find "$PROJECT_ROOT/tests/integration" -maxdepth 1 -name 'test-*.sh' | wc -l | tr -d ' ')"
 
 cleanup() {
     rm -rf "$TMP_DIR"
@@ -112,9 +109,11 @@ product_text = product_text.replace(
     "up to 10 external AI integrations",
     "up to 9 AI CLIs",
 )
+# Any historical count line must normalise back to the stable phrase, so an
+# existing checkout converges on sync instead of carrying a stale number.
 product_text = re.sub(
-    r"Local CI parity: \d+ smoke, \d+ unit, and \d+ integration suites",
-    "Local CI parity: 1 smoke, 1 unit, and 1 integration suites",
+    r"Local CI parity: .*",
+    "Local CI parity: 3 smoke, 7 unit, and 2 integration suites",
     product_text,
 )
 product.write_text(product_text)
@@ -139,7 +138,8 @@ if "$SYNC_SCRIPT" --root "$fixture" >/tmp/octo-readme-sync-update.out 2>&1 &&
    grep -qE '[0-9]+ Claude Code capability flags through.*v[0-9]+\.[0-9]+\.[0-9]+' "$fixture/README.md" &&
    grep -q 'OpenCode CLI, and xAI API key (Grok)' "$fixture/.claude-plugin/README.md" &&
    grep -q 'up to 10 external AI integrations' "$fixture/PRODUCT.md" &&
-   grep -q "Local CI parity: ${SMOKE_SUITE_COUNT} smoke, ${UNIT_SUITE_COUNT} unit, and ${INTEGRATION_SUITE_COUNT} integration suites" "$fixture/PRODUCT.md" &&
+   grep -qF 'Local CI parity: `make ci-local` runs the same smoke, unit, and integration suites as CI' "$fixture/PRODUCT.md" &&
+   ! grep -qE 'Local CI parity: [0-9]+ smoke' "$fixture/PRODUCT.md" &&
    ! grep -qE 'Version-0\.0\.0-blue|stale release copy|v2\.1\.157' "$fixture/README.md"; then
     test_pass
 else
