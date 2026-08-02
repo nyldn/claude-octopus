@@ -50,7 +50,39 @@ fi
 # Populates PROVIDER_ENV_ARRAY with argv tokens that limit environment
 # variables to essentials only. This stays safe when PATH contains spaces.
 # ═══════════════════════════════════════════════════════════════════════════════
+# `env -i` wipes WORKSPACE_DIR, and two shims that run under it mark a provider
+# quota/auth-dead: gemini-exec.sh on `IneligibleTierError` and agy-exec.sh on
+# `Individual quota reached`. `octo_quota_dead_file` derives its path from
+# WORKSPACE_DIR with a `$HOME/.claude-octopus` fallback, so under `env -i` the
+# shim writes the marker to the fallback while orchestrate.sh and
+# check-providers.sh read it under `$CLAUDE_PLUGIN_DATA` (set by Claude Code
+# v2.1.78+). The mark lands where nobody reads it: the provider keeps
+# advertising `available`, is reseated every session, and the user is prompted
+# for the gemini keychain entry every single run.
+#
+# Applied as a wrapper rather than per-arm because several arms `return 0` from
+# inside the case and would skip a tail hook, and because a per-call-site fix is
+# exactly what let the quota downgrade cover four of thirteen providers before
+# it moved into `provider_status`.
+_octo_provider_env_forward_workspace_dir() {
+    [[ ${#PROVIDER_ENV_ARRAY[@]} -gt 0 ]] || return 0
+    [[ "${PROVIDER_ENV_ARRAY[0]}" == "env" ]] || return 0
+    local _entry
+    for _entry in "${PROVIDER_ENV_ARRAY[@]}"; do
+        [[ "$_entry" == WORKSPACE_DIR=* ]] && return 0
+    done
+    PROVIDER_ENV_ARRAY+=("WORKSPACE_DIR=${WORKSPACE_DIR:-$HOME/.claude-octopus}")
+    return 0
+}
+
 build_provider_env() {
+    _octo_build_provider_env_impl "$@"
+    local _rc=$?
+    _octo_provider_env_forward_workspace_dir
+    return "$_rc"
+}
+
+_octo_build_provider_env_impl() {
     local provider="$1"
     PROVIDER_ENV_ARRAY=()
 

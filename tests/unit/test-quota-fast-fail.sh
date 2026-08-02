@@ -146,8 +146,57 @@ test_check_providers_applies_dead_marker_to_every_provider() {
     fi
 }
 
+# A dead-mark written by a shim running under `env -i` must be visible to the
+# reader. gemini-exec.sh and agy-exec.sh both mark dead from inside the isolated
+# environment; if WORKSPACE_DIR is not forwarded they write to the
+# $HOME/.claude-octopus fallback while check-providers.sh reads
+# $CLAUDE_PLUGIN_DATA, so the provider keeps advertising `available` and is
+# reseated (and re-prompts for the gemini keychain entry) every session.
+test_provider_env_forwards_workspace_dir() {
+    test_case "build_provider_env forwards WORKSPACE_DIR into every isolated env"
+    local out missing=""
+    for p in gemini agy codex; do
+        out="$(WORKSPACE_DIR=/tmp/octo-wsdir-probe bash -c '
+            cd "$1" || exit 1
+            source scripts/lib/validation.sh 2>/dev/null
+            source scripts/lib/provider-routing.sh
+            build_provider_env "$2"
+            printf "%s\n" "${PROVIDER_ENV_ARRAY[@]}"
+        ' _ "$PROJECT_ROOT" "$p" 2>/dev/null)"
+        printf '%s\n' "$out" | grep -q '^WORKSPACE_DIR=/tmp/octo-wsdir-probe$' || missing="$missing $p"
+    done
+    if [[ -z "$missing" ]]; then
+        test_pass
+    else
+        test_fail "WORKSPACE_DIR not forwarded for:$missing"
+    fi
+}
+
+test_dead_mark_survives_isolated_env() {
+    test_case "a dead-mark written under the isolated env is visible to the reader"
+    local th pd res
+    th="$(mktemp -d)"; pd="$(mktemp -d)"
+    res="$(HOME="$th" WORKSPACE_DIR="$pd" bash -c '
+        cd "$1" || exit 1
+        source scripts/lib/validation.sh 2>/dev/null
+        source scripts/lib/provider-routing.sh
+        build_provider_env gemini
+        "${PROVIDER_ENV_ARRAY[@]}" bash -c "cd \"$1\"; source scripts/lib/quota-watcher.sh; octo_quota_mark_dead gemini 0" _ "$1"
+        source scripts/lib/quota-watcher.sh
+        octo_quota_is_dead gemini && echo DEAD || echo ALIVE
+    ' _ "$PROJECT_ROOT" 2>/dev/null)"
+    rm -rf "$th" "$pd"
+    if [[ "$res" == "DEAD" ]]; then
+        test_pass
+    else
+        test_fail "mark written under env -i was invisible to the reader (got '$res')"
+    fi
+}
+
 test_quota_dead_cache_roundtrip
 test_quota_dead_cache_dedup
+test_provider_env_forwards_workspace_dir
+test_dead_mark_survives_isolated_env
 test_pattern_matches_terminal_errors
 test_watcher_marks_dead_on_match
 test_is_agent_available_skips_dead
