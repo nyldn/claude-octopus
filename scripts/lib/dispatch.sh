@@ -469,6 +469,21 @@ get_agent_command() {
             case "$role" in
                 implementer|developer) commandcode_mode="yolo" ;;
             esac
+            # OCTOPUS_COMMANDCODE_PERMISSION_MODE env override (Issue #710),
+            # matching the OCTOPUS_CODEX_SANDBOX precedent above: dispatch
+            # always passes a positional arg to commandcode-exec.sh, so its
+            # own env-var fallback is dead unless honoured here first.
+            if [[ -n "${OCTOPUS_COMMANDCODE_PERMISSION_MODE:-}" ]]; then
+                case "$OCTOPUS_COMMANDCODE_PERMISSION_MODE" in
+                    plan|default|dont-ask|auto-accept|yolo)
+                        commandcode_mode="$OCTOPUS_COMMANDCODE_PERMISSION_MODE"
+                        ;;
+                    *)
+                        log "ERROR" "Invalid OCTOPUS_COMMANDCODE_PERMISSION_MODE value: '${OCTOPUS_COMMANDCODE_PERMISSION_MODE}'. Allowed: plan, default, dont-ask, auto-accept, yolo"
+                        log "ERROR" "Falling back to role-derived default (${commandcode_mode})."
+                        ;;
+                esac
+            fi
             echo "${PLUGIN_DIR}/scripts/helpers/commandcode-exec.sh ${model} ${commandcode_mode}"
             ;;
         cursor-agent)  # v9.23.0: Cursor Agent CLI — Grok 4.20 via Cursor subscription

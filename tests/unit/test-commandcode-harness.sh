@@ -73,6 +73,40 @@ else
     test_fail "unexpected role permission mapping"
 fi
 
+# Issue #710: OCTOPUS_COMMANDCODE_PERMISSION_MODE was accepted by
+# commandcode-exec.sh but dispatch always passed an explicit positional
+# argument, so the env var was dead on the dispatch path.
+test_case "OCTOPUS_COMMANDCODE_PERMISSION_MODE override is honoured on the dispatch path"
+export OCTOPUS_COMMANDCODE_PERMISSION_MODE=dont-ask
+override_cmd="$(get_agent_command commandcode tangle implementer)"
+unset OCTOPUS_COMMANDCODE_PERMISSION_MODE
+if [[ "$override_cmd" == *'commandcode-exec.sh deepseek/deepseek-v4-pro dont-ask' ]]; then
+    test_pass
+else
+    test_fail "expected env override to win over the role-derived default, got: $override_cmd"
+fi
+
+test_case "invalid OCTOPUS_COMMANDCODE_PERMISSION_MODE is rejected and falls back to the role default"
+export OCTOPUS_COMMANDCODE_PERMISSION_MODE=danger-full-access
+invalid_cmd="$(get_agent_command commandcode tangle implementer 2>/dev/null)"
+unset OCTOPUS_COMMANDCODE_PERMISSION_MODE
+if [[ "$invalid_cmd" == *'commandcode-exec.sh deepseek/deepseek-v4-pro yolo' ]]; then
+    test_pass
+else
+    test_fail "expected fallback to role default (yolo), got: $invalid_cmd"
+fi
+
+test_case "override dispatch command passes validate_agent_command"
+source "$PROJECT_ROOT/scripts/lib/utils.sh"
+export OCTOPUS_COMMANDCODE_PERMISSION_MODE=auto-accept
+override_valid_cmd="$(get_agent_command commandcode verify verifier)"
+unset OCTOPUS_COMMANDCODE_PERMISSION_MODE
+if validate_agent_command "$override_valid_cmd" >/dev/null 2>&1; then
+    test_pass
+else
+    test_fail "override dispatch command rejected by validate_agent_command"
+fi
+
 # The command dispatch actually returns must survive validate_agent_command, or
 # every commandcode dispatch aborts the phase before the CLI is ever invoked —
 # the same failure mode as #697 (copilot-exec.sh) and #705 (agy-exec.sh). Asserting
