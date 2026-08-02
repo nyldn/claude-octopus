@@ -59,11 +59,19 @@ What this should NOT be:
 ## Clarifying Context
 [Any answers from the 3-question pattern]
 
+## Task Allocation
+**Risk**: [low | intermediate | high]
+**Initiative**: [human | AI] — who starts and proposes
+**Control**: [human | AI] — who oversees execution as it runs
+**Decision rights**: [human | AI] — who has final say on the outcome
+**Resolved AUTONOMY_MODE**: [supervised | semi-autonomous | loop-until-approved | autonomous]
+
 ## Validation Checklist
 - [ ] Meets "good enough" criteria
 - [ ] Respects all boundaries
 - [ ] Works for all stakeholders
 - [ ] Builds on existing assets appropriately
+- [ ] Allocation still fits what the task turned out to be
 ```
 
 ---
@@ -81,6 +89,70 @@ Create an intent contract when:
 - Quick, single-action commands
 - Simple file reads or searches
 - Conversational questions
+
+### Step 0: Allocate the work before scoping it
+
+Run this before capturing intent. The question is not how to run the task across
+agents but whether it should be delegated at all, and if so, which parts of the
+authority go where. Framework: Afroogh, Varshney & D'Cruz (2025), *A Task-Driven
+Human-AI Collaboration* ([arXiv:2505.18422](https://arxiv.org/abs/2505.18422)).
+
+**Classify risk.** Complexity is already scored elsewhere — defer to
+`estimate_complexity` and `classify_cynefin` in `scripts/lib/routing.sh` rather
+than re-deriving it. Risk is a separate axis that nothing in the codebase
+measures, so judge it here on three questions:
+
+- **Irreversibility** — can the effect be undone, and at what cost?
+- **Consequence** — is anything material at stake: safety, money, data, users?
+- **Accountability** — is a specific person expected to answer for the outcome?
+
+| Risk | Reading |
+|------|---------|
+| **Low** | Reversible, no material consequence, no named accountability. |
+| **Intermediate** | Reversible only at real cost, or consequence is unclear. |
+| **High** | Irreversible, materially consequential, or someone must answer for it. |
+
+**Allocate the three dimensions separately.** They are independent, and treating
+them as one axis is the mistake this step exists to prevent. People readily hand
+AI the *initiative* on unfamiliar work while keeping control and decision rights
+— an allocation a single autonomy slider cannot express.
+
+- **Initiative** — who starts, proposes, drafts.
+- **Control** — who oversees execution while it runs.
+- **Decision rights** — who has final say on the result.
+
+Low risk with low complexity supports AI autonomy across all three. Low risk with
+high complexity is collaborative: shared initiative, human decision rights. High
+risk with low complexity is human oversight, with AI holding no direct authority.
+High risk with high complexity is adversarial: the human leads and AI is pointed
+at the decision to attack it, as a deliberate counterweight to the human's own
+bias.
+
+**The rule that inverts.** For **intermediate-risk** work where uncertainty is
+highest, the cited evidence says avoid AI entirely — "neither as a gatekeeper nor
+as a second opinion". This contradicts the smooth intuition that middling risk
+implies middling involvement, and it also sits in tension with the same paper's
+broader claim that complete human autonomy is rarely justified. That tension is
+real and unresolved; surface it to the user and let them decide rather than
+quietly picking a side.
+
+**Resolve to a setting.** The workflow engine reads one variable,
+`AUTONOMY_MODE`, with four values:
+
+| Allocation | `AUTONOMY_MODE` |
+|---|---|
+| Human holds control and decision rights, approving each phase | `supervised` |
+| AI runs; human is pulled in on failures and quality gates | `semi-autonomous` |
+| AI runs and iterates; human holds final decision rights | `loop-until-approved` |
+| AI holds all three | `autonomous` |
+
+Record the three dimensions *and* the resolved mode. The mapping is lossy: one
+axis cannot represent three independent allocations, so a contract that stores
+only the mode loses the reason it was chosen. That record is what a later
+reviewer needs when the allocation turns out to have been wrong.
+
+If the classification lands on intermediate risk, stop and raise it before
+proceeding rather than defaulting to a mode.
 
 ### Step 1: Capture Intent
 
