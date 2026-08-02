@@ -1,12 +1,12 @@
 # AI Agent Handoff
 
-Last updated: 2026-07-27
-Status: v9.56.1 released; no open delivery work
+Last updated: 2026-08-02
+Status: v9.57.0 released; two open PRs (#714 gemini marker fix, #713 test path fix)
 Branch: `main`
-Release: https://github.com/nyldn/claude-octopus/releases/tag/v9.56.1
-Release squash: `e040e287d6b6279fc673e237fa91d65d430430ab` (pushed to
+Release: https://github.com/nyldn/claude-octopus/releases/tag/v9.57.0
+Release squash: `37ba2af322766674b75d443126ce5b9005a81da4` (pushed to
 `upstream/main`)
-Tag target: `v9.56.1` is annotated, resolves to the same post-squash commit,
+Tag target: `v9.57.0` is annotated, resolves to the same post-squash commit,
 and is pushed
 
 ## Start Here
@@ -77,14 +77,37 @@ could not be claimed or recorded as a new Beads issue.
 
 - Public `main` includes the Council reliability queue, Tangle PRs #672-#675,
   and the Opus 5 routing squash from PR #678 (`972d9597`).
-- Release v9.56.1 contains the complete Opus 5/GPT-5.6 documentation sync,
-  Google Antigravity pseudo-terminal fallback hardening, full-project
-  security/correctness/performance review, and fail-closed release automation;
-  it is the resume baseline.
-- Release PR #687 squash-merged as
-  `e040e287d6b6279fc673e237fa91d65d430430ab`. The annotated `v9.56.1` tag
-  peels to that exact public `main` commit, the GitHub release is published,
-  and the shared `nyldn/plugins` marketplace advertises octo v9.56.1.
+- Release v9.57.0 is the resume baseline. It adds the Command Code CLI
+  provider (#696), selective Fable 5 escalation and authorship-aware review
+  (#691), and the progressive feature-disclosure framework (#691); it fixes
+  global flags after the subcommand (#706), helper-shim allowlist anchoring
+  (#702), `USAGE_FILE` ordering (#694), Linux `stat` age checks and the
+  provider quota-dead lifecycle (#690, #692).
+- Release PR #711 squash-merged as
+  `37ba2af322766674b75d443126ce5b9005a81da4`. The annotated `v9.57.0` tag
+  peels to that exact public `main` commit, all required checks (Smoke, Unit,
+  Integration on both platforms) passed on it, the GitHub release is
+  published, and the shared `nyldn/plugins` marketplace advertises octo
+  v9.57.0.
+- Version choice was a minor, not the 9.56.2 patch that PR #707 proposed:
+  #696 adds a provider and #691 adds hooks and env vars, which `RELEASING.md`
+  step 1 classifies as additive. `config/features.json` independently declares
+  `added_in: 9.57.0`, and the disclosure watermark compares that exact string.
+  #707 was closed in favour of #711.
+- Open at handoff: #714 forwards `WORKSPACE_DIR` into the `env -i` provider
+  isolation so quota dead-marks written by `gemini-exec.sh` and `agy-exec.sh`
+  are visible to the reader (they were landing under the `$HOME` fallback
+  while readers used `$CLAUDE_PLUGIN_DATA`); #713 resolves a symlinked-checkout
+  path mismatch in `test-feature-disclosure.sh`. Both verified locally.
+- Known gap, not yet fixed: `gemini-via-agy` is `decision: none` / default `0`,
+  so the migration path off the sunset Gemini Code Assist OAuth is never
+  offered. Tracked in #715. Note the keychain dialog precedes
+  `IneligibleTierError`, so a reactive dead-mark cannot suppress the first
+  prompt of a session that reseats gemini — #714 is necessary but not
+  sufficient.
+- `Vendor Freshness` fails on `main` pushes (exit 2 on any warning) because the
+  vendored `ui-ux-pro-max-skill` is one minor behind (v2.11.0 vs v2.12.0). Not
+  a required check and unrelated to the release.
 - Installed Claude Code: 2.1.220.
 - Installed Codex CLI: 0.145.0.
 - Upstream model policy: `nyldn/fable5-optimizer` v2.0.0.
