@@ -31,13 +31,18 @@ test_suite "Reviewer flip legacy env values (#720)"
 
 run_reviewer_flip() {
     local value="$1"
-    env "HOME=$tmp_home" "PATH=$tmp_bin:$PATH" "OCTOPUS_REVIEWER_FLIP=$value" \
+    env "HOME=$tmp_home" "PATH=$tmp_bin:$PATH" "OCTOPUS_REVIEWER_FLIP=$value" "OCTOPUS_LEGACY_ROLES=0" \
         bash -c '
             set -euo pipefail
             export PLUGIN_DIR="$1"
             source "$1/scripts/lib/features.sh"
             source "$1/scripts/lib/agent-utils.sh"
-            if _octo_reviewer_flip_active; then echo FLIPPED; else echo not-flipped; fi
+            mapping="$(get_role_mapping reviewer)"
+            case "$mapping" in
+                claude-opus:*) echo FLIPPED ;;
+                codex-review:*) echo not-flipped ;;
+                *) printf "unexpected reviewer mapping: %s\n" "$mapping" >&2; exit 1 ;;
+            esac
         ' bash "$PROJECT_ROOT"
 }
 
