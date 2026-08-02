@@ -15,7 +15,7 @@
         "source": "url",
         "url": "https://github.com/nyldn/claude-octopus.git"
       },
-      "description": "v9.57.0 - Command Code provider, selective Fable 5 escalation, and progressive feature disclosure. 32 personas, 50 commands, 59 skills. Run /octo:setup.",
+      "description": "v9.57.0 - Command Code provider, selective Fable 5 escalation, and progressive feature disclosure. 32 personas, 50 commands, 63 skills. Run /octo:setup.",
       "version": "9.57.0",
       "author": {
         "name": "nyldn",
