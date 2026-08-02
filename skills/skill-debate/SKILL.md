@@ -80,30 +80,30 @@ Users can invoke the debate skill in natural language. You parse the intent and 
 
 ### Basic Invocation
 ```
-/debate <question or task>
+/octo:debate <question or task>
 ```
 
 ### With Flags
 ```
-/debate -r 3 -d thorough <question>
-/debate --rounds 2 --debate-style adversarial <question>
-/debate --path debates/009-new-topic <question>
+/octo:debate -r 3 -d thorough <question>
+/octo:debate --rounds 2 --debate-style adversarial <question>
+/octo:debate --path debates/009-new-topic <question>
 ```
 
 ### With File References
 Users can mention files naturally - you resolve them to full paths:
 ```
-/debate Is our CLAUDE.md accurate?
+/octo:debate Is our CLAUDE.md accurate?
 -> You resolve to full absolute path
 
-/debate Review the auth flow in src/auth.ts
+/octo:debate Review the auth flow in src/auth.ts
 -> You find src/auth.ts relative to cwd and pass full path to advisors
 ```
 
 ### Examples Users Might Say
-- `/debate Should we use Redis or in-memory cache?`
-- `/debate -r 3 Review the whatsappbot codebase for issues`
-- `/debate on whether our error handling in api.ts is sufficient`
+- `/octo:debate Should we use Redis or in-memory cache?`
+- `/octo:debate -r 3 Review the whatsappbot codebase for issues`
+- `/octo:debate on whether our error handling in api.ts is sufficient`
 - `Run a debate about the database schema design`
 - `I want gemini and codex to review this PR`
 
@@ -244,7 +244,7 @@ Export debates to professional formats via the document-delivery skill:
 
 ## Implementation Steps
 
-When the user invokes `/debate`:
+When the user invokes `/octo:debate`:
 
 ### Step 1: Check Provider Availability & Display Banner
 
@@ -580,7 +580,7 @@ IMPORTANT: The deliverable is a PROPOSAL. Never auto-apply changes without user 
 
 ### Example 1: Quick Debate
 ```
-User: /debate Should we use Redis or in-memory cache?
+User: /octo:debate Should we use Redis or in-memory cache?
 
 Claude:
 1. Creates debate folder at ~/.claude-octopus/debates/${SESSION_ID}/042-redis-vs-memcached/
@@ -596,7 +596,7 @@ Claude:
 
 ### Example 2: Thorough Adversarial Debate
 ```
-User: /debate -r 3 -d adversarial Review our authentication implementation in src/auth.ts
+User: /octo:debate -r 3 -d adversarial Review our authentication implementation in src/auth.ts
 
 Claude:
 1. Reads src/auth.ts to understand context
@@ -641,7 +641,7 @@ After debate completes:
 ### Knowledge Mode
 Debates can be used in knowledge mode workflows:
 ```
-Knowledge mode "deliberate" phase → Run /debate to get multiple perspectives
+Knowledge mode "deliberate" phase → Run /octo:debate to get multiple perspectives
 → Use synthesis for final decision
 ```
 
@@ -684,4 +684,4 @@ After debate completes, export results via document-delivery skill:
 - **Enhancements**: Claude-Octopus integration (session-aware storage, quality gates, cost tracking, document export, provider debate with Sonnet)
 
 
-**Ready to debate!** Users can invoke with `/debate <question>` or natural language.
+**Ready to debate!** Users can invoke with `/octo:debate <question>` or natural language.

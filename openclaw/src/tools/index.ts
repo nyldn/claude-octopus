@@ -26,6 +26,7 @@ export const SKILL_REGISTRY: SkillRegistryEntry[] = [
   { name: "octopus-research", description: "Thorough research across multiple sources — use for complex topics needing broad synthesis", type: "skill", file: "octopus-research/SKILL.md" },
   { name: "octopus-security-audit", description: "OWASP compliance, vulnerability scanning, and adversarial red team testing — use for security reviews", type: "skill", file: "octopus-security-audit/SKILL.md" },
   { name: "octopus-ui-ux-design", description: "Design UI/UX systems with style guides, palettes, typography, and component specs for new interfaces", type: "skill", file: "octopus-ui-ux-design/SKILL.md" },
+  { name: "skill-agent-topology", description: "Audit whether a multi-agent setup earns its coordination cost — use before adding an agent, or when a workflow feels slow or agents agree without adding signal", type: "skill", file: "skill-agent-topology/SKILL.md" },
   { name: "skill-audit", description: "Audit codebases for quality, consistency, and broken patterns — use for pre-release or tech debt review", type: "skill", file: "skill-audit/SKILL.md" },
   { name: "skill-claw", description: "OpenClaw instance administration — manage hosts across macOS, Ubuntu/Debian, Docker, OCI, and Proxmox", type: "skill", file: "skill-claw/SKILL.md" },
   { name: "skill-code-review", description: "Expert multi-AI code review with inline PR comments — use for thorough quality and security analysis", type: "skill", file: "skill-code-review/SKILL.md" },
@@ -122,4 +123,4 @@ export const SKILL_REGISTRY: SkillRegistryEntry[] = [
   { name: "whats-new", description: "Review and enable Claude Octopus features added since you installed", type: "command", file: "whats-new.md" },
 ];
 
-export const REGISTRY_COUNT = 105;
+export const REGISTRY_COUNT = 106;

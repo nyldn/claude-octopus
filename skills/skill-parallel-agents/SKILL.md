@@ -109,7 +109,7 @@ Claude Octopus uses **visual indicators** so you always know which AI is respond
 
 **External CLIs execute when:**
 - Using `/parallel-agents` command explicitly
-- Using `/debate` command (AI Debate Hub)
+- Using `/octo:debate` command (AI Debate Hub)
 - Running orchestrate.sh workflows (probe, grasp, tangle, ink, embrace, grapple, squeeze)
 - Knowledge mode deliberation (when Knowledge Mode is ON)
 - Natural language that triggers this skill (research, build, review tasks)
