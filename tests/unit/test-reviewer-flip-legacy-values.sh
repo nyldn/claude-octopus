@@ -19,23 +19,28 @@ source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "Reviewer flip legacy env values (#720)"
 
 run_reviewer_flip() {
-    local value="$1" tmp_bin tmp_home result
-    tmp_bin="$(mktemp -d)"
-    tmp_home="$(mktemp -d)"
-    cat > "$tmp_bin/codex" <<'MOCK_CODEX'
+    local value="$1"
+    (
+        # Subshell so the EXIT trap below cleans up on any exit path
+        # (including an early failure under `set -e`), not just success.
+        set -euo pipefail
+        test_tmp_dir="$(mktemp -d "/tmp/octopus-tests-XXXXXX")"
+        trap 'rm -rf "$test_tmp_dir"' EXIT
+        tmp_bin="$test_tmp_dir/bin"
+        tmp_home="$test_tmp_dir/home"
+        mkdir -p "$tmp_bin" "$tmp_home"
+        cat > "$tmp_bin/codex" <<'MOCK_CODEX'
 #!/usr/bin/env bash
 exit 0
 MOCK_CODEX
-    chmod +x "$tmp_bin/codex"
-    result="$(
-        HOME="$tmp_home" PATH="$tmp_bin:$PATH" OCTOPUS_REVIEWER_FLIP="$value" bash -c '
-            source "$1/scripts/lib/features.sh" 2>/dev/null
-            source "$1/scripts/lib/agent-utils.sh" 2>/dev/null
-            if _octo_reviewer_flip_active; then echo FLIPPED; else echo not-flipped; fi
-        ' bash "$PROJECT_ROOT" 2>/dev/null
-    )"
-    rm -rf "$tmp_bin" "$tmp_home"
-    printf '%s' "$result"
+        chmod +x "$tmp_bin/codex"
+        env "HOME=$tmp_home" "PATH=$tmp_bin:$PATH" "OCTOPUS_REVIEWER_FLIP=$value" \
+            bash -c '
+                source "$1/scripts/lib/features.sh" 2>/dev/null
+                source "$1/scripts/lib/agent-utils.sh" 2>/dev/null
+                if _octo_reviewer_flip_active; then echo FLIPPED; else echo not-flipped; fi
+            ' bash "$PROJECT_ROOT" 2>/dev/null
+    )
 }
 
 for value in claude 1 on true yes; do
