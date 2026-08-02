@@ -26,8 +26,8 @@ export const SKILL_REGISTRY: SkillRegistryEntry[] = [
   { name: "octopus-research", description: "Thorough research across multiple sources — use for complex topics needing broad synthesis", type: "skill", file: "octopus-research/SKILL.md" },
   { name: "octopus-security-audit", description: "OWASP compliance, vulnerability scanning, and adversarial red team testing — use for security reviews", type: "skill", file: "octopus-security-audit/SKILL.md" },
   { name: "octopus-ui-ux-design", description: "Design UI/UX systems with style guides, palettes, typography, and component specs for new interfaces", type: "skill", file: "octopus-ui-ux-design/SKILL.md" },
+  { name: "skill-agent-topology", description: "Audit whether a multi-agent setup earns its coordination cost — use before adding an agent, or when a workflow feels slow or agents agree without adding signal", type: "skill", file: "skill-agent-topology/SKILL.md" },
   { name: "skill-audit", description: "Audit codebases for quality, consistency, and broken patterns — use for pre-release or tech debt review", type: "skill", file: "skill-audit/SKILL.md" },
-  { name: "skill-authoring", description: "Principles for writing skills that behave the same way every run — use when adding, editing, or reviewing a skill in this plugin", type: "skill", file: "skill-authoring/SKILL.md" },
   { name: "skill-claw", description: "OpenClaw instance administration — manage hosts across macOS, Ubuntu/Debian, Docker, OCI, and Proxmox", type: "skill", file: "skill-claw/SKILL.md" },
   { name: "skill-code-review", description: "Expert multi-AI code review with inline PR comments — use for thorough quality and security analysis", type: "skill", file: "skill-code-review/SKILL.md" },
   { name: "skill-content-pipeline", description: "Extract patterns and anatomy from URLs — use to reverse-engineer content strategies from live pages", type: "skill", file: "skill-content-pipeline/SKILL.md" },
@@ -47,7 +47,6 @@ export const SKILL_REGISTRY: SkillRegistryEntry[] = [
   { name: "skill-extract", description: "Reverse-engineer design systems, tokens, and components from live products or screenshots", type: "skill", file: "skill-extract/SKILL.md" },
   { name: "skill-factory", description: "Run a full build-and-ship pipeline from a spec — use for hands-off project generation", type: "skill", file: "skill-factory/SKILL.md" },
   { name: "skill-finish-branch", description: "Wrap up a branch — run tests, create PR, merge or discard — use when implementation is done", type: "skill", file: "skill-finish-branch/SKILL.md" },
-  { name: "skill-intake", description: "Move incoming issues and pull requests through triage states until each is actionable or closed — use when the queue has piled up or a report arrives unsorted", type: "skill", file: "skill-intake/SKILL.md" },
   { name: "skill-intent-contract", description: "Use when starting a complex or ambiguous task that risks scope drift", type: "skill", file: "skill-intent-contract/SKILL.md" },
   { name: "skill-issues", description: "Track project blockers, bugs, and gaps across sessions — use when issues pile up or need triage", type: "skill", file: "skill-issues/SKILL.md" },
   { name: "skill-iterative-loop", description: "Run tasks in a loop until goals are met — use for iterative refinement, polling, or convergence", type: "skill", file: "skill-iterative-loop/SKILL.md" },
@@ -56,7 +55,6 @@ export const SKILL_REGISTRY: SkillRegistryEntry[] = [
   { name: "skill-native-escalation-routing", description: "Use when choosing native or multi-LLM handling for init, review, or security requests", type: "skill", file: "skill-native-escalation-routing/SKILL.md" },
   { name: "skill-parallel-agents", description: "Decompose large tasks across parallel agents — use for migrations, multi-file refactors, or batch work", type: "skill", file: "skill-parallel-agents/SKILL.md" },
   { name: "skill-prd", description: "Write an AI-optimized PRD using multi-AI orchestration — use when scoping a new feature or product", type: "skill", file: "skill-prd/SKILL.md" },
-  { name: "skill-pressure-test", description: "Interrogate a plan, decision, or design one question at a time until it holds — use to stress-test your own thinking before committing to it", type: "skill", file: "skill-pressure-test/SKILL.md" },
   { name: "skill-resume", description: "Pick up where you left off from a previous session — use after context resets, compaction, or new conversations", type: "skill", file: "skill-resume/SKILL.md" },
   { name: "skill-review-response", description: "Use when a reviewer, CI bot, or another AI leaves feedback to address", type: "skill", file: "skill-review-response/SKILL.md" },
   { name: "skill-rollback", description: "Roll back to a previous checkpoint via git — use when a change went wrong and you need to revert", type: "skill", file: "skill-rollback/SKILL.md" },
@@ -70,7 +68,6 @@ export const SKILL_REGISTRY: SkillRegistryEntry[] = [
   { name: "skill-verification-gate", description: "Use when about to declare work complete, fixed, passing, or done", type: "skill", file: "skill-verification-gate/SKILL.md" },
   { name: "skill-verify", description: "Use when a nontrivial change needs end-to-end verification before committing or shipping", type: "skill", file: "skill-verify/SKILL.md" },
   { name: "skill-visual-feedback", description: "Process screenshot-based UI/UX feedback to fix visual issues — use when users share screenshots of bugs", type: "skill", file: "skill-visual-feedback/SKILL.md" },
-  { name: "skill-work-slicing", description: "Break a plan or spec into vertical slices that each declare what blocks them — use when work is agreed but not yet cut into fileable pieces", type: "skill", file: "skill-work-slicing/SKILL.md" },
   { name: "skill-writing-plans", description: "Create zero-context implementation plans with bite-sized tasks — use for multi-step feature planning", type: "skill", file: "skill-writing-plans/SKILL.md" },
   { name: "sys-configure", description: "Configure Claude Octopus — redirects to /octo:setup interactive wizard", type: "skill", file: "sys-configure/SKILL.md" },
   { name: "auto", description: "Smart router - Single entry point with natural language intent detection", type: "command", file: "auto.md" },
@@ -126,4 +123,4 @@ export const SKILL_REGISTRY: SkillRegistryEntry[] = [
   { name: "whats-new", description: "Review and enable Claude Octopus features added since you installed", type: "command", file: "whats-new.md" },
 ];
 
-export const REGISTRY_COUNT = 109;
+export const REGISTRY_COUNT = 106;

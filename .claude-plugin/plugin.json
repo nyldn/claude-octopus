@@ -35,6 +35,7 @@
     "./skills/octopus-research",
     "./skills/octopus-security-audit",
     "./skills/octopus-ui-ux-design",
+    "./skills/skill-agent-topology",
     "./skills/skill-audit",
     "./skills/skill-authoring",
     "./skills/skill-claw",
