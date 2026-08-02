@@ -81,13 +81,20 @@ fi
 # commandcode-exec.sh but dispatch always passed an explicit positional
 # argument, so the env var was dead on the dispatch path.
 test_case "OCTOPUS_COMMANDCODE_PERMISSION_MODE override is honoured on the dispatch path"
-export OCTOPUS_COMMANDCODE_PERMISSION_MODE=dont-ask
-override_cmd="$(get_agent_command commandcode tangle implementer)"
+override_mismatch=""
+for mode in plan default dont-ask auto-accept yolo; do
+    export OCTOPUS_COMMANDCODE_PERMISSION_MODE="$mode"
+    override_cmd="$(get_agent_command commandcode tangle implementer)"
+    if [[ "$override_cmd" != *"commandcode-exec.sh deepseek/deepseek-v4-pro ${mode}" ]]; then
+        override_mismatch="mode=${mode} got: ${override_cmd}"
+        break
+    fi
+done
 unset OCTOPUS_COMMANDCODE_PERMISSION_MODE
-if [[ "$override_cmd" == *'commandcode-exec.sh deepseek/deepseek-v4-pro dont-ask' ]]; then
+if [[ -z "$override_mismatch" ]]; then
     test_pass
 else
-    test_fail "expected env override to win over the role-derived default, got: $override_cmd"
+    test_fail "expected env override to win over the role-derived default, ${override_mismatch}"
 fi
 
 test_case "invalid OCTOPUS_COMMANDCODE_PERMISSION_MODE is rejected and falls back to the role default"
@@ -107,7 +114,9 @@ source "$PROJECT_ROOT/scripts/lib/utils.sh"
 export OCTOPUS_COMMANDCODE_PERMISSION_MODE=auto-accept
 override_valid_cmd="$(get_agent_command commandcode verify verifier)"
 unset OCTOPUS_COMMANDCODE_PERMISSION_MODE
-if validate_agent_command "$override_valid_cmd" >/dev/null 2>&1; then
+if [[ "$override_valid_cmd" != *' auto-accept' ]]; then
+    test_fail "expected auto-accept override to be forwarded, got: $override_valid_cmd"
+elif validate_agent_command "$override_valid_cmd" >/dev/null 2>&1; then
     test_pass
 else
     test_fail "override dispatch command rejected by validate_agent_command"
