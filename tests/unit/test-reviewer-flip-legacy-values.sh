@@ -36,6 +36,8 @@ MOCK_CODEX
         chmod +x "$tmp_bin/codex"
         env "HOME=$tmp_home" "PATH=$tmp_bin:$PATH" "OCTOPUS_REVIEWER_FLIP=$value" \
             bash -c '
+                set -euo pipefail
+                export PLUGIN_DIR="$1"
                 source "$1/scripts/lib/features.sh" 2>/dev/null
                 source "$1/scripts/lib/agent-utils.sh" 2>/dev/null
                 if _octo_reviewer_flip_active; then echo FLIPPED; else echo not-flipped; fi
