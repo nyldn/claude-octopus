@@ -60,7 +60,7 @@ fi
 test_case "codex-review never passes bare --sandbox (unsupported by codex exec review)"
 export OCTOPUS_CODEX_SANDBOX=danger-full-access
 cmd="$(get_agent_command codex-review tangle reviewer)"
-if [[ "$cmd" != *" --sandbox "* ]]; then
+if [[ " $cmd " != *" --sandbox "* ]]; then
     test_pass
 else
     test_fail "codex-review must not pass --sandbox, got: $cmd"
