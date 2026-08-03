@@ -1178,7 +1178,19 @@ spawn_agent_capture_pid() {
         if [[ -s "$pid_file" ]]; then
             tail -20 "$pid_file" >&2 || true
         fi
-        kill "$wrapper_pid" 2>/dev/null || true
+        # #736: the wait budget can expire while $wrapper_pid is still blocked
+        # inside the provider pipeline (e.g. summarization outran the PID-wait
+        # window). A bare `kill "$wrapper_pid"` only signals that one process —
+        # any already-forked pipeline children (timeout/codex/gemini) become
+        # orphans that keep running and spending tokens. Reap the whole tree
+        # with the same helper review.sh uses for stalled providers, falling
+        # back to the old single-PID kill if review.sh wasn't sourced (e.g.
+        # a test harness that loads only this file).
+        if declare -F review_terminate_process_tree >/dev/null 2>&1; then
+            review_terminate_process_tree "$wrapper_pid" 5
+        else
+            kill "$wrapper_pid" 2>/dev/null || true
+        fi
         wait "$wrapper_pid" 2>/dev/null || true
         rm -f "$pid_file"
         return 1
