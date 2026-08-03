@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [9.58.1] - 2026-08-03
+
+### Changed
+
+- Guard Round 1 spawn failures from aborting code review; repair OpenRouter council seat probe/wait/model resolution
+
 ## [9.58.0] - 2026-08-03
 
 
