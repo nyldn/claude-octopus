@@ -143,7 +143,17 @@ test_backends_detects_agentmemory_env() {
 test_scope_uses_repo_basename() {
     test_case "memory_scope falls back to git repo basename"
     local out expected
-    expected=$(basename "$PROJECT_ROOT")
+    # Derive the expectation from the same source memory_scope uses — git's
+    # toplevel — not from PROJECT_ROOT. PROJECT_ROOT is resolved logically
+    # (`cd && pwd`, line 7) while `git rev-parse --show-toplevel` resolves
+    # symlinks, so the two diverge behind a symlinked checkout and this case
+    # failed with `expected 'octo-linked', got: claude-octopus`. The code is
+    # right: a scope keyed on the link name would fragment one repo's memory
+    # across every path used to reach it. Same class as #712.
+    local scope_root
+    scope_root=$(git -C "$PROJECT_ROOT" rev-parse --show-toplevel 2>/dev/null || true)
+    [[ -n "$scope_root" ]] || scope_root=$(cd -P "$PROJECT_ROOT" && pwd)
+    expected=$(basename "$scope_root")
     # shellcheck disable=SC1090
     out=$(cd "$PROJECT_ROOT" && bash -c "source '$MEM'; memory_scope")
     [[ "$out" == "$expected" ]] \
