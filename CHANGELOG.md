@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [9.59.0] - 2026-08-03
+
+### Fixed
+
+- **A single failed provider in Round 1 of `/octo:review` could abort the entire code-review run.** `review_run()` treated any spawn failure in the parallel specialist fleet as fatal, so one dead seat took the whole review down with it instead of continuing with the roles that spawned successfully. (closes #736)
+- **The OpenRouter council seat was unusable regardless of a valid `OPENROUTER_API_KEY`**, from three independent bugs: `council_detect_providers()` probed for a nonexistent `openrouter` binary instead of the `OPENROUTER_API_KEY` env var (dispatch actually goes through a shell function); `run_with_timeout()`'s in-process fallback ran an unguarded `wait` after signaling its monitor, so `set -eo pipefail` killed the function — and the seat's already-captured output — right after the provider call succeeded; and `openrouter_execute()` ignored `OCTOPUS_OPENROUTER_MODEL`/`providers.json`, always resolving a model from a hardcoded table instead of the one advertised on the roster. (closes #738)
+
 ## [9.58.0] - 2026-08-03
 
 
