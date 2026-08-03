@@ -23,7 +23,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "Issue #738: OpenRouter council seat (probe, wait, model resolution)"
 
-TEST_TMP_DIR="/tmp/octopus-tests-738-$$"
+TEST_TMP_DIR="/tmp/octopus-tests-$$"
 trap 'rm -rf "$TEST_TMP_DIR"' EXIT
 mkdir -p "$TEST_TMP_DIR"
 
@@ -144,7 +144,7 @@ run_openrouter_execute() {
             *resolver*) resolve_octopus_model() { echo "resolver-model"; } ;;
         esac
         case "$1" in
-            *env*) export OCTOPUS_OPENROUTER_MODEL="env-pinned-model" ;;
+            *env*) export "OCTOPUS_OPENROUTER_MODEL=env-pinned-model" ;;
         esac
         # get_openrouter_model lives in providers.sh (not sourced here); stub it
         # to isolate this test to openrouter_execute'"'"'s own fallback ordering.
