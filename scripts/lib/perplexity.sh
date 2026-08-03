@@ -157,8 +157,14 @@ openrouter_execute() {
     local complexity="${3:-2}"
     local output_file="${4:-}"
 
-    local model
-    model=$(get_openrouter_model "$task_type" "$complexity")
+    # Prefer the configured model (OCTOPUS_OPENROUTER_MODEL / providers.json) over
+    # the hardcoded task-type table, so the roster's advertised model actually runs
+    # instead of silently duplicating the Anthropic chair's lab (#738).
+    local model="${OCTOPUS_OPENROUTER_MODEL:-}"
+    if [[ -z "$model" ]] && declare -f resolve_octopus_model >/dev/null 2>&1; then
+        model="$(resolve_octopus_model openrouter openrouter "" "" 2>/dev/null || true)"
+    fi
+    [[ -z "$model" ]] && model=$(get_openrouter_model "$task_type" "$complexity")
 
     openrouter_execute_model "$model" "$prompt" "$task_type" "$complexity" "$output_file"
 }
