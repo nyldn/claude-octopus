@@ -982,8 +982,18 @@ CRITICAL OUTPUT FORMAT: Return ONLY a valid JSON object. No markdown, no prose, 
 ${agent_prompt_base}"
         round1_prompts+=("$agent_prompt")
 
-        local round1_pid
-        round1_pid=$(spawn_agent_capture_pid "$agent_type" "$agent_prompt" "$task_id" "$role" "review")
+        # A single provider failing PID capture (e.g. a huge diff pushes prompt
+        # summarization past the wait budget) must not abort the whole round via
+        # `set -e` — that skips every remaining fleet member and leaves
+        # state.json stuck at status "running" forever (#736). Treat it the same
+        # as any other Round 1 agent that produced no result file: the existing
+        # missing-result accounting below already counts it toward
+        # round1_partial_count / _r1_failed and drives octo_proof_finalize.
+        local round1_pid=""
+        if ! round1_pid=$(spawn_agent_capture_pid "$agent_type" "$agent_prompt" "$task_id" "$role" "review"); then
+            log WARN "review_run: spawn_agent_capture_pid failed for ${agent_type}/${role}; continuing Round 1 with remaining fleet"
+            round1_pid=""
+        fi
         round1_pids+=("$round1_pid")
     done <<< "$fleet"
 
