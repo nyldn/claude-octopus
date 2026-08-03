@@ -52,8 +52,16 @@ _cursor_agent_run_with_timeout() {
     ( /bin/sleep "$timeout_secs"; kill -TERM "$cmd_pid" 2>/dev/null; /bin/sleep 1; kill -KILL "$cmd_pid" 2>/dev/null ) &
     monitor_pid=$!
 
-    wait "$cmd_pid" 2>/dev/null
-    exit_code=$?
+    # wait's own return reflects $cmd_pid's exit status, so a nonzero exit from
+    # the wrapped command would abort this function under set -e before
+    # exit_code is even captured. Branch on it instead of using `|| true`,
+    # which would discard the real exit code. Same idiom as heartbeat.sh's
+    # in-process fallback. (#751)
+    if wait "$cmd_pid" 2>/dev/null; then
+        exit_code=0
+    else
+        exit_code=$?
+    fi
 
     kill "$monitor_pid" 2>/dev/null || true
     wait "$monitor_pid" 2>/dev/null || true

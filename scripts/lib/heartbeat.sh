@@ -192,12 +192,16 @@ run_with_timeout() {
 
         # oco-dar: SIGTERM at the cap, then SIGKILL the process AND its children
         # 10s later so a TERM-ignoring tree cannot wedge the workflow.
+        # kill on a $cmd_pid that already exited (race with the wait below)
+        # returns non-zero; under set -e (inherited into this subshell) that
+        # would abort it and skip the pkill sweep and the SIGKILL escalation.
+        # Same class as the monitor kill/wait guarded below. (#751)
         (
             sleep "$timeout_secs"
-            kill -TERM "$cmd_pid" 2>/dev/null
+            kill -TERM "$cmd_pid" 2>/dev/null || true
             pkill -TERM -P "$cmd_pid" 2>/dev/null || true
             sleep 10
-            kill -KILL "$cmd_pid" 2>/dev/null
+            kill -KILL "$cmd_pid" 2>/dev/null || true
             pkill -KILL -P "$cmd_pid" 2>/dev/null || true
         ) &
         monitor_pid=$!
