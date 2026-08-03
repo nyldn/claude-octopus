@@ -35,6 +35,11 @@ mkdir -p "$TEST_TMP_DIR"
 # ═══════════════════════════════════════════════════════════════════════════
 
 test_case "kill/wait on an already-reaped monitor does not abort under set -e"
+# Illustrative repro of the underlying bash behavior (the maintainer's own
+# reproduction from the #739 review, lifted verbatim) — it carries its own
+# || true guards, so it passes on both sides of the fix and is not itself a
+# heartbeat.sh regression detector. The next test (source-anchored) is: it is
+# verified to fail against the pre-#739 heartbeat.sh and pass against the fix.
 out=$(bash -c '
     set -eo pipefail
     ( sleep 0.05 ) &
@@ -85,17 +90,21 @@ load_council_lib() {
     source "$lib"
 }
 
-# Confirms the test proves what it claims: no `openrouter` binary is
-# reachable from this shell's PATH while these assertions run.
-if command -v openrouter >/dev/null 2>&1; then
-    test_fail "an 'openrouter' binary is on PATH — this test cannot prove key-only detection"
-fi
+# Restrict PATH to a directory holding only what these two assertions need
+# (jq; bash builtins need no PATH entry at all), so a real `openrouter`
+# executable on the host/CI machine's PATH can never make this test prove
+# less than it claims.
+JQ_BIN="$(command -v jq)"
+NO_OPENROUTER_BIN_DIR="$TEST_TMP_DIR/no-openrouter-bin"
+mkdir -p "$NO_OPENROUTER_BIN_DIR"
+ln -sf "$JQ_BIN" "$NO_OPENROUTER_BIN_DIR/jq"
 
 test_case "council_detect_providers reports openrouter available on OPENROUTER_API_KEY alone (no binary on PATH)"
 load_council_lib || true
 (
+    export PATH="$NO_OPENROUTER_BIN_DIR"
     unset OCTOPUS_COUNCIL_PROVIDER_FIXTURE
-    export OPENROUTER_API_KEY="test-key-not-real"
+    export "OPENROUTER_API_KEY=test-key-not-real"
     COUNCIL_PROVIDERS="openrouter"
     council_detect_providers
     status="$(jq -r '.openrouter // "missing"' <<< "$COUNCIL_PROVIDER_STATUS_JSON")"
@@ -104,6 +113,7 @@ load_council_lib || true
 
 test_case "council_detect_providers reports openrouter missing when OPENROUTER_API_KEY is unset"
 (
+    export PATH="$NO_OPENROUTER_BIN_DIR"
     unset OCTOPUS_COUNCIL_PROVIDER_FIXTURE
     unset OPENROUTER_API_KEY 2>/dev/null || true
     COUNCIL_PROVIDERS="openrouter"
@@ -125,6 +135,10 @@ run_openrouter_execute() {
     bash -c '
         log() { :; }
         source "'"$PROJECT_ROOT"'/scripts/lib/perplexity.sh" 2>/dev/null
+        # Each scenario must validate its own precedence branch, not whatever
+        # this process happened to inherit from the ambient environment.
+        unset OCTOPUS_OPENROUTER_MODEL
+        unset -f resolve_octopus_model 2>/dev/null || true
         openrouter_execute_model() { printf "%s\n" "$1" > "'"$MODEL_ARGS_FILE"'"; echo "ok"; }
         case "$1" in
             *resolver*) resolve_octopus_model() { echo "resolver-model"; } ;;
