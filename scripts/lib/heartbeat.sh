@@ -209,10 +209,11 @@ run_with_timeout() {
         fi
 
         # Stop the monitor and sweep any stragglers parented to the command.
-        # `wait` on a just-SIGTERMed monitor returns 143 — under `set -e` that would
-        # kill this function (and the seat's already-captured output with it) after
-        # the provider call succeeded. Same class as the subshell kill fixed in #336. (#738)
-        kill "$monitor_pid" 2>/dev/null
+        # `kill`/`wait` on a monitor that already exited on its own (race with its
+        # sleep) return non-zero — under `set -e` that would kill this function (and
+        # the seat's already-captured output with it) after the provider call
+        # succeeded. Same class as the subshell kill fixed in #336. (#738)
+        kill "$monitor_pid" 2>/dev/null || true
         wait "$monitor_pid" 2>/dev/null || true
         pkill -KILL -P "$cmd_pid" 2>/dev/null || true
     fi
