@@ -102,7 +102,7 @@ ln -sf "$JQ_BIN" "$NO_OPENROUTER_BIN_DIR/jq"
 test_case "council_detect_providers reports openrouter available on OPENROUTER_API_KEY alone (no binary on PATH)"
 load_council_lib || true
 (
-    export PATH="$NO_OPENROUTER_BIN_DIR"
+    export "PATH=${NO_OPENROUTER_BIN_DIR}"
     unset OCTOPUS_COUNCIL_PROVIDER_FIXTURE
     export "OPENROUTER_API_KEY=test-key-not-real"
     COUNCIL_PROVIDERS="openrouter"
@@ -113,7 +113,7 @@ load_council_lib || true
 
 test_case "council_detect_providers reports openrouter missing when OPENROUTER_API_KEY is unset"
 (
-    export PATH="$NO_OPENROUTER_BIN_DIR"
+    export "PATH=${NO_OPENROUTER_BIN_DIR}"
     unset OCTOPUS_COUNCIL_PROVIDER_FIXTURE
     unset OPENROUTER_API_KEY 2>/dev/null || true
     COUNCIL_PROVIDERS="openrouter"
