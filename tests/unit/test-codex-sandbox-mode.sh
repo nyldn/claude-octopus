@@ -42,7 +42,7 @@ fi
 test_case "codex-review threads OCTOPUS_CODEX_SANDBOX via -c sandbox_mode"
 export OCTOPUS_CODEX_SANDBOX=read-only
 cmd="$(get_agent_command codex-review tangle reviewer)"
-if [[ "$cmd" == *"-c sandbox_mode=read-only"* ]]; then
+if [[ " $cmd " == *" -c sandbox_mode=read-only "* ]]; then
     test_pass
 else
     test_fail "expected -c sandbox_mode=read-only, got: $cmd"
@@ -51,7 +51,7 @@ fi
 test_case "codex-review defaults to workspace-write when unset"
 unset OCTOPUS_CODEX_SANDBOX
 cmd="$(get_agent_command codex-review tangle reviewer)"
-if [[ "$cmd" == *"-c sandbox_mode=workspace-write"* ]]; then
+if [[ " $cmd " == *" -c sandbox_mode=workspace-write "* ]]; then
     test_pass
 else
     test_fail "expected -c sandbox_mode=workspace-write default, got: $cmd"
