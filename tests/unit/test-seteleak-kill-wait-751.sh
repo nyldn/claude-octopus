@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # tests/unit/test-seteleak-kill-wait-751.sh
 # Regression coverage for #751: bare `kill`/`wait`/`pkill` on an
 # already-reaped PID returns non-zero and, under `set -eo pipefail`
@@ -109,8 +109,12 @@ test_heartbeat_kill_lines_guarded() {
 
     assert_contains "$snippet" 'kill -TERM "$cmd_pid" 2>/dev/null || true' \
         "kill -TERM on cmd_pid must be guarded" || return
+    assert_contains "$snippet" 'pkill -TERM -P "$cmd_pid" 2>/dev/null || true' \
+        "pkill -TERM on cmd_pid children must be guarded" || return
     assert_contains "$snippet" 'kill -KILL "$cmd_pid" 2>/dev/null || true' \
         "kill -KILL on cmd_pid must be guarded" || return
+    assert_contains "$snippet" 'pkill -KILL -P "$cmd_pid" 2>/dev/null || true' \
+        "pkill -KILL on cmd_pid children must be guarded" || return
     test_pass
 }
 
