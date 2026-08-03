@@ -52,8 +52,8 @@ _cursor_agent_run_with_timeout() {
     ( /bin/sleep "$timeout_secs"; kill -TERM "$cmd_pid" 2>/dev/null; /bin/sleep 1; kill -KILL "$cmd_pid" 2>/dev/null ) &
     monitor_pid=$!
 
-    wait "$cmd_pid" 2>/dev/null
-    exit_code=$?
+    exit_code=0
+    wait "$cmd_pid" 2>/dev/null || exit_code=$?
 
     kill "$monitor_pid" 2>/dev/null || true
     wait "$monitor_pid" 2>/dev/null || true

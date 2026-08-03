@@ -194,10 +194,10 @@ run_with_timeout() {
         # 10s later so a TERM-ignoring tree cannot wedge the workflow.
         (
             sleep "$timeout_secs"
-            kill -TERM "$cmd_pid" 2>/dev/null
+            kill -TERM "$cmd_pid" 2>/dev/null || true
             pkill -TERM -P "$cmd_pid" 2>/dev/null || true
             sleep 10
-            kill -KILL "$cmd_pid" 2>/dev/null
+            kill -KILL "$cmd_pid" 2>/dev/null || true
             pkill -KILL -P "$cmd_pid" 2>/dev/null || true
         ) &
         monitor_pid=$!
