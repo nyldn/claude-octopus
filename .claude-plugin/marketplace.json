@@ -15,7 +15,7 @@
         "source": "url",
         "url": "https://github.com/nyldn/claude-octopus.git"
       },
-      "description": "v9.59.0 - Two dispatch-reliability fixes: Round 1 review no longer aborts on a single failed spawn, and the OpenRouter council seat works again. 32 personas, 50 commands, 63 skills. Run /octo:setup.",
+      "description": "v9.59.0 - Three dispatch-reliability fixes: Round 1 review survives a failed spawn, the OpenRouter council seat works again, and five set -e status leaks no longer abort functions after their work succeeded. 32 personas, 50 commands, 63 skills. Run /octo:setup.",
       "version": "9.59.0",
       "author": {
         "name": "nyldn",

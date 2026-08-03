@@ -1,7 +1,7 @@
 {
   "name": "octo",
   "version": "9.59.0",
-  "description": "v9.59.0 \u2014 Two dispatch-reliability fixes: Round 1 review no longer aborts on a single failed spawn, and the OpenRouter council seat works again. Run /octo:setup.",
+  "description": "v9.59.0 \u2014 Three dispatch-reliability fixes: Round 1 review survives a failed spawn, the OpenRouter council seat works again, and five set -e status leaks no longer abort functions after their work succeeded. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"
