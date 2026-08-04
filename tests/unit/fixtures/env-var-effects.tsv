@@ -1,0 +1,57 @@
+# Env-var effect manifest (#749)
+#
+# Every OCTOPUS_* variable documented in CLAUDE.md, docs/*.md or
+# config/features.json must appear here. tests/unit/test-env-var-effects.sh
+# fails on any documented variable missing an entry — that inverted default is
+# the point: four variables shipped inert in one cycle (#715, #720, #710, and
+# OCTOPUS_COMMANDCODE_PERMISSION_MODE) and no test noticed.
+#
+# Format: <VAR><TAB><kind><TAB><detail>
+#   covered-by  <test file>  a suite that exercises this variable's effect
+#   skip        <reason>     real variable, assertion impractical — reason required
+#   placeholder <note>       not a variable; a template fragment in docs
+#
+# Prefer moving entries from skip to covered-by over time. A skip is a recorded
+# decision, not an excuse.
+
+OCTOPUS_AGENT_	placeholder	doc template fragment, not a real variable
+OCTOPUS_AGENT_LIFECYCLE_HOOK	covered-by	test-agent-lifecycle-events.sh
+OCTOPUS_AGENT_LIFECYCLE_HOOK_LOG	covered-by	test-agent-lifecycle-events.sh
+OCTOPUS_AGY_MODEL	covered-by	test-agy-provider.sh
+OCTOPUS_AUTO_TITLE	skip	sets the Claude Code session title; observable only in the host UI
+OCTOPUS_CLAUDE_SDK_MODEL	covered-by	test-claude-sdk-provider.sh
+OCTOPUS_CODEX_MODEL	covered-by	test-role-mapping-v929.sh
+OCTOPUS_COMMANDCODE_ALLOWED_MODELS	skip	allowlist for a provider with no CLI on CI runners
+OCTOPUS_COMMANDCODE_BIN	covered-by	test-commandcode-harness.sh
+OCTOPUS_COMMANDCODE_MAX_TURNS	covered-by	test-commandcode-harness.sh
+OCTOPUS_COMMANDCODE_MODEL	covered-by	test-commandcode-harness.sh
+OCTOPUS_COMPACT_BANNERS	skip	changes banner prose only; asserting it would pin cosmetic output
+OCTOPUS_EFFORT_OVERRIDE	covered-by	test-execution-mechanism.sh
+OCTOPUS_FABLE5_FALLBACK_MODEL	covered-by	test-fable5-mode.sh
+OCTOPUS_FABLE5_MODE	covered-by	test-fable5-mode.sh
+OCTOPUS_FABLE5_NO_RETRY	covered-by	test-fable5-mode.sh
+OCTOPUS_FABLE5_ROUTING	covered-by	test-fable5-escalation.sh
+OCTOPUS_GEMINI_VIA_AGY	covered-by	test-agy-provider.sh
+OCTOPUS_IDE_	placeholder	doc template fragment, not a real variable
+OCTOPUS_JOB_ID	skip	opaque correlation id passed through to logs; no behavioural delta
+OCTOPUS_LEGACY_ROLES	covered-by	test-agy-research-defaults.sh
+OCTOPUS_MAX_COST_USD	skip	aborts a run mid-dispatch; needs a live provider to reach the check
+OCTOPUS_MYPROV_ALLOWED_MODELS	placeholder	doc template fragment, not a real variable
+OCTOPUS_OLLAMA_ALLOW_PULL	covered-by	test-codex-pull-guard.sh
+OCTOPUS_OLLAMA_MAX_PULL_GB	covered-by	test-codex-pull-guard.sh
+OCTOPUS_OPUS5_AUTO_XHIGH	covered-by	test-opus-48-routing.sh
+OCTOPUS_OPUS_MODE	covered-by	test-execution-mechanism.sh
+OCTOPUS_OPUS_MODEL	covered-by	test-fable5-escalation.sh
+OCTOPUS_OVERSIZE_STRATEGY	covered-by	test-dispatch-oversize.sh
+OCTOPUS_PREFLIGHT_PROBE	covered-by	test-provider-health-probe.sh
+OCTOPUS_QUALITY_THRESHOLD	skip	gates a quality score produced by a live provider dispatch
+OCTOPUS_RELEASE_RUNTIME_SMOKE	covered-by	test-cc-v2126-131-sync.sh
+OCTOPUS_RELEASE_SMOKE_MAX_BUDGET_USD	skip	release-smoke harness only; not reachable from unit scope
+OCTOPUS_RELEASE_SMOKE_PORT	skip	release-smoke harness only; not reachable from unit scope
+OCTOPUS_REQUIRE_ALL	covered-by	test-agent-summary.sh
+OCTOPUS_RESEARCH_BREADTH	skip	changes how many provider seats a research run fans out to
+OCTOPUS_REVIEWER_FLIP	covered-by	test-fable5-escalation.sh
+OCTOPUS_RUN_ID	covered-by	test-agent-summary.sh
+OCTOPUS_SENTINEL_ENABLED	covered-by	test-sentinel.sh
+OCTOPUS_TRACE_MODELS	skip	emits trace lines to stderr; covered indirectly by model-resolver suites
+OCTOPUS_X_MODEL	placeholder	doc template fragment, not a real variable
