@@ -5,6 +5,12 @@ on:
     branches: [ main, develop ]
   pull_request:
     branches: [ main ]
+  # Required before a merge queue can be enabled on main. The queue dispatches
+  # merge_group events against a temporary branch holding the projected result
+  # of merging the queued PRs; if no workflow answers that event, the required
+  # checks never report and every queue entry hangs until it times out. Adding
+  # the trigger is inert until a queue exists, so it lands first, on its own.
+  merge_group:
   schedule:
     # Nightly builds at 2 AM UTC
     - cron: '0 2 * * *'
