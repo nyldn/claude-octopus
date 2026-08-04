@@ -2,13 +2,36 @@
 
 ## [Unreleased]
 
-## [9.59.0] - 2026-08-03
+## [9.59.0] - 2026-08-04
+
+### Added
+
+- **Literal provider-model routing objects.** Object-form `routing.roles` and `routing.phases` entries are now treated as literal provider/model selections, so an exact model ID such as `minimaxai/minimax-m3` is no longer reinterpreted as a capability alias. Legacy string routing, capability aliases, and cross-provider fallthrough are unchanged. (#734)
+- **Three test systems that catch the class of defect this release fixes**, rather than the instances. Documented `OCTOPUS_*` variables are now held accountable against a manifest, so a variable can no longer ship inert with its documentation promising otherwise — the root cause shared by four separate bugs last cycle (closes #749). Any new test file unreachable by a CI gate now fails a test instead of silently asserting nothing; 34 already-unreachable files are baselined so the debt cannot grow while #741 triages them (#752, #757). And the unit suite additionally runs through a symlinked path, which is where two hermiticity failures hid (#758).
+
+### Changed
+
+- **Provider identity and capability contracts now come from one registry.** `scripts/lib/provider-registry.sh` is the single declaration of provider IDs and per-surface capability sets; `OCTO_MODEL_CONFIG_PROVIDERS` is derived from it rather than hand-maintained. Duplicated whitelists were a standing hazard — a provider could be accepted on one surface and rejected on another, which is exactly how the Command Code dispatch rejection (#696) happened. Unsafe first-hyphen provider parsing is replaced with canonical ID resolution. Three files still carry independent lists (`intelligence.sh`, `provider-policy.sh`, `permissions-manager.sh`); consolidating those is follow-up work. (#762)
 
 ### Fixed
 
+- **Orphaned provider children survived a spawn PID-capture timeout.** When `spawn_agent_capture_pid()` exhausted its wait budget, the timeout path abandoned the process subtree instead of reaping it, leaving `codex exec` children spending tokens after the caller believed the run was cancelled. This is the process-leak root cause behind the nine identical `code-review` processes reported in #736. (#744)
+- **Cancelling a detached council seat raced its own teardown.** The subtree is now frozen before descendants are terminated, so intermediate shells cannot advance to the next command mid-cancel, and the detached-seat wrapper takes a dedicated `USR1` cancellation signal so it can reap its direct children and exit cleanly. `SIGKILL` remains only as a bounded fallback. (#761)
+- **Council cancellation depended on `pgrep`.** Where `pgrep` is absent, cancellation silently did nothing and left providers running. A `ps`-based child-discovery fallback restores it. Verified by mutation: with the fallback removed, cancelled seats survive. (#765)
+- **Codex silently skipped the telemetry-webhook hook.** The hook declared `async: true`, which Codex does not support, so it was dropped rather than run. The declaration was redundant with the script's own design: `telemetry-webhook.sh` already backgrounds its `curl` with output redirected, measured at 37ms against a deliberately five-second endpoint. (refs #766)
+- **Phase-output checkpoints were write-only for any hyphenated phase name.** `get_phase_output()` spliced the phase into a jq filter, so `debate-probe` parsed as subtraction and failed with `probe/0 is not defined` — every debate-gate checkpoint written by `workflows.sh` was unreadable. The phase is now bound with `--arg`, which also closes the injection path that splicing opened. (closes #724)
+- **Valid explicit write scopes were replaced by heuristic inference.** Explicitly declared new file and directory scopes are now preserved when safely anchored under an existing repository path, instead of being discarded in favour of context-file guessing. Unsafe absolute, traversal, glob, `.git`, and unanchored invented paths are still rejected, and parent/child overlap detection is retained for newly declared scopes. (#740)
+- **The `codex-review` seat ignored `OCTOPUS_CODEX_SANDBOX`.** `codex exec review` accepts neither `-s/--sandbox` nor `-p/--profile`, so the seat silently inherited `sandbox_mode` from the user's `~/.codex/config.toml`. The already-resolved `codex_sandbox` value is now threaded through as a `-c sandbox_mode=...` override, the mechanism that subcommand does support. (#747)
 - **A single failed provider in Round 1 of `/octo:review` could abort the entire code-review run.** `review_run()` treated any spawn failure in the parallel specialist fleet as fatal, so one dead seat took the whole review down with it instead of continuing with the roles that spawned successfully. (closes #736)
 - **The OpenRouter council seat was unusable regardless of a valid `OPENROUTER_API_KEY`**, from three independent bugs: `council_detect_providers()` probed for a nonexistent `openrouter` binary instead of the `OPENROUTER_API_KEY` env var (dispatch actually goes through a shell function); `run_with_timeout()`'s in-process fallback ran an unguarded `wait` after signaling its monitor, so `set -eo pipefail` killed the function — and the seat's already-captured output — right after the provider call succeeded; and `openrouter_execute()` ignored `OCTOPUS_OPENROUTER_MODEL`/`providers.json`, always resolving a model from a hardcoded table instead of the one advertised on the roster. (closes #738)
 - **Five more `set -e` status leaks on bare `kill`/`wait`.** Fixing the OpenRouter seat above addressed one instance and left five: two in `workflows.sh`'s progressive-synthesis monitor teardown, two in `heartbeat.sh`'s timeout escalation, and one in `cursor-agent.sh`'s fallback path. `kill` on an already-reaped PID returns non-zero, which under `set -eo pipefail` aborts the enclosing function after its work has already succeeded. The `cursor-agent.sh` site needed care rather than a blanket `|| true`: its `wait` result feeds `exit_code=$?`, so suppressing the failure would have silently reported a failed provider as successful. (closes #751)
+
+### Internal
+
+- Regression coverage for the three OpenRouter council-seat fixes above, which landed without tests of their own (#742).
+- `memory_scope` test expectations are derived from git rather than a logical path, so the suite stops failing on macOS where `/tmp` resolves to `/private/tmp` (#760).
+- CI answers `merge_group` events, so a merge queue can be enabled without a workflow change. Note this is currently latent: merge queues are an organization-only GitHub feature and unavailable on a user-owned repository (#763).
+- Nine independent PRs were merged through one integration branch rather than serially. Under `strict: true` branch protection every merge invalidates every other PR's status, so a queue of independent changes costs one full CI cycle each; batching them proved the serialization was pure overhead — all nine merged with zero conflicts (#764).
 
 ## [9.58.0] - 2026-08-03
 
