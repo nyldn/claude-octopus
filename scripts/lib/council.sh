@@ -1554,20 +1554,36 @@ council_dispatch_member() {
     council_live_response "$provider" "$persona" "$prompt" "$phase"
 }
 
-_council_kill_tree() {
-    # Best-effort recursive SIGKILL of a pid AND all its descendants. Killing only the
-    # wrapper subshell would orphan its provider children and any in-flight `mv`, which
-    # could still rename .partial into output_path after cancellation and restore a
-    # stale response. setsid (which would give a single killable process group) is
-    # absent on macOS, so walk the tree via `pgrep -P`. Kill descendants before the
-    # parent so a reaped parent can't reparent them to init first. If pgrep is
-    # unavailable, degrade to killing just the pid.
+_council_kill_descendants_frozen() {
+    # Freeze a subtree before killing descendants. Freezing prevents an intermediate
+    # shell from advancing to its next command when a child process is terminated.
+    # This helper deliberately does not kill the root pid; the detached-seat wrapper
+    # receives a dedicated USR1 cancellation signal afterwards so it can reap direct
+    # children and exit cleanly.
     local pid="$1" child
+    kill -STOP "$pid" 2>/dev/null || true
     if command -v pgrep >/dev/null 2>&1; then
         while IFS= read -r child; do
-            [[ -n "$child" ]] && _council_kill_tree "$child"
+            [[ -n "$child" ]] || continue
+            _council_kill_descendants_frozen "$child"
+            kill -KILL "$child" 2>/dev/null || true
         done < <(pgrep -P "$pid" 2>/dev/null)
     fi
+}
+
+_council_cancel_tree() {
+    # Controlled cancellation for a detached seat. HUP/INT/TERM remain ignored so the
+    # seat is isolated from orchestrator-level signals. USR1 is reserved for the local
+    # reaper: freeze the tree, kill descendants, then wake the wrapper with a pending
+    # USR1 so its trap exits before any publish step and lets bash reap direct children.
+    local pid="$1" i
+    _council_kill_descendants_frozen "$pid"
+    kill -USR1 "$pid" 2>/dev/null || true
+    kill -CONT "$pid" 2>/dev/null || true
+    for i in 1 2 3 4 5 6 7 8 9 10; do
+        kill -0 "$pid" 2>/dev/null || return 0
+        sleep 0.05
+    done
     kill -KILL "$pid" 2>/dev/null || true
 }
 
@@ -1603,6 +1619,7 @@ council_dispatch_member_detached() {
 
     (
         trap '' HUP INT TERM
+        trap 'exit 143' USR1
         rc=0
         council_dispatch_member "$member_json" "$phase" > "$partial" || rc=$?
         # A swallowed mv failure would let the wrapper report success (rc unchanged)
@@ -1663,7 +1680,7 @@ council_dispatch_member_detached() {
         # responses/ and could retroactively satisfy the chair fallback). Kill first,
         # THEN remove output_path, so no surviving mv can recreate it after the rm.
         if kill -0 "$seat_pid" 2>/dev/null; then
-            _council_kill_tree "$seat_pid"
+            _council_cancel_tree "$seat_pid"
         fi
         rm -f "$output_path"
     fi
