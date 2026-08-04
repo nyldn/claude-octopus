@@ -113,7 +113,6 @@
           {
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/hooks/telemetry-webhook.sh",
-            "async": true,
             "timeout": 10
           }
         ]
