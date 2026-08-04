@@ -250,7 +250,11 @@ get_agent_command() {
             if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
                 return 1
             fi
-            echo "codex exec review --model ${model} --skip-git-repo-check"
+            # `codex exec review` has no --sandbox/--profile flag (unlike plain
+            # `codex exec`), so it silently inherits sandbox_mode from the
+            # user's ~/.codex/config.toml — OCTOPUS_CODEX_SANDBOX would not
+            # constrain it otherwise. -c overrides the config value directly.
+            echo "codex exec review --model ${model} --skip-git-repo-check -c sandbox_mode=${codex_sandbox}"
             ;;
         claude)
             local reasoning_level reasoning_policy reasoning_fragment
