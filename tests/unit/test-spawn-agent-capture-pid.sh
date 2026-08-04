@@ -139,4 +139,51 @@ else
     test_fail "expected capture_pid's omitted task_id to match the shared helper's shape, got: $captured_id"
 fi
 
+# Regression for #736 (root cause 3): when the PID-wait budget expires,
+# $wrapper_pid may already have forked a real descendant (e.g. mid-pipeline
+# provider call). A bare `kill "$wrapper_pid"` only signals that one process,
+# orphaning the descendant. Load review.sh's tree-kill helper the same way
+# spawn.sh's fixed code path resolves it, and prove the descendant is reaped.
+test_case "descendant of a failed spawn is reaped, not left orphaned (#736)"
+eval "$(sed -n '/^review_process_tree_depth_first() {/,/^}/p' "$PROJECT_ROOT/scripts/lib/review.sh")"
+eval "$(sed -n '/^review_terminate_process_tree() {/,/^}/p' "$PROJECT_ROOT/scripts/lib/review.sh")"
+eval "$(sed -n '/^review_process_is_running() {/,/^}/p' "$PROJECT_ROOT/scripts/lib/review.sh")"
+: > "$TEST_TMP_DIR/leaked_child_pid"
+spawn_agent() {
+    # Simulate a wrapper that has already forked a long-running child (the
+    # provider pipeline) before the PID-wait budget runs out, then blocks
+    # without ever printing a provider PID.
+    ( sleep 30 & echo $! > "$TEST_TMP_DIR/leaked_child_pid"; wait )
+}
+# 3s of headroom (not the 0.3s a tight 3-attempt budget would give) so a
+# loaded CI runner has time to schedule the fixture's fork before the
+# wait budget expires — a slow scheduler shouldn't read as "cleanup
+# didn't run" when the real gap is "the descendant was never forked yet".
+export "OCTOPUS_SPAWN_PID_WAIT_ATTEMPTS=30"
+pid=$(spawn_agent_capture_pid codex prompt orphan-task implementer tangle 2>/dev/null) || true
+for _ in $(seq 1 50); do
+    [[ -s "$TEST_TMP_DIR/leaked_child_pid" ]] && break
+    sleep 0.1
+done
+leaked_pid=$(cat "$TEST_TMP_DIR/leaked_child_pid" 2>/dev/null || true)
+if [[ -z "$leaked_pid" ]]; then
+    test_fail "descendant PID was never recorded — fixture did not exercise the timeout path"
+else
+    # kill -0 alone would false-positive on an unreaped zombie (the PID slot
+    # stays allocated until something waits on it). review_process_is_running
+    # also checks `ps` state for 'Z' so a killed-but-not-yet-reaped descendant
+    # doesn't read as "still alive".
+    still_running=false
+    for _ in $(seq 1 20); do
+        review_process_is_running "$leaked_pid" || { still_running=false; break; }
+        still_running=true
+        sleep 0.1
+    done
+    if [[ "$still_running" == "true" ]]; then
+        test_fail "descendant PID $leaked_pid survived spawn_agent_capture_pid's timeout cleanup"
+    else
+        test_pass
+    fi
+fi
+
 test_summary
