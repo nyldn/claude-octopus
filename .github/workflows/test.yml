@@ -371,13 +371,16 @@ jobs:
   integration:
     name: Integration Tests
     runs-on: ubuntu-latest
-    needs: [classify-changes, integration-heavy]
+    needs: [classify-changes, unit-required, integration-heavy]
     if: always()
     steps:
       - name: Verify integration tests passed
         run: |
           if [[ "${{ needs.classify-changes.outputs.heavy_tests }}" == "false" ]]; then
             echo "Fast path: skipping integration tests for release/docs-only changes."
+          elif [[ "${{ needs.unit-required.result }}" != "success" ]]; then
+            echo "Integration Tests did not run: blocked by Unit Tests (${{ needs.unit-required.result }}), not an integration failure."
+            exit 1
           elif [[ "${{ needs.integration-heavy.result }}" != "success" ]]; then
             echo "Integration result: ${{ needs.integration-heavy.result }}"
             exit 1

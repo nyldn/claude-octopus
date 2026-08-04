@@ -169,20 +169,27 @@ sleep 1 &
 dead_provider_pid=$!
 review_wait_for_result_status "$dead_result" "$dead_provider_pid" dead-provider "$TEST_TMP_DIR" 02 01 &
 waiter_pid=$!
-waiter_finished=false
-for _ in 1 2 3 4; do
-    if ! review_process_is_running "$waiter_pid"; then
-        waiter_finished=true
-        break
-    fi
-    sleep 1
-done
+# Block on the waiter's own exit (SIGCHLD-driven) instead of racing a fixed
+# poll budget against scheduler jitter — the old 4x1s poll had only ~1-2s of
+# margin over the waiter's own ~2s internal cycle and went red intermittently
+# on loaded macOS runners. A generous watchdog still bounds the test so a
+# real regression (waiter never detects the dead process) fails instead of
+# hanging.
+(
+    sleep 15
+    kill -KILL "$waiter_pid" 2>/dev/null
+) &
+watchdog_pid=$!
+if wait "$waiter_pid" 2>/dev/null; then
+    waiter_finished=true
+else
+    waiter_finished=false
+fi
+kill "$watchdog_pid" 2>/dev/null || true
+wait "$watchdog_pid" 2>/dev/null || true
 if [[ "$waiter_finished" == "true" ]]; then
-    wait "$waiter_pid" 2>/dev/null || true
     test_pass
 else
-    kill -KILL "$waiter_pid" 2>/dev/null || true
-    wait "$waiter_pid" 2>/dev/null || true
     test_fail "waiter remained alive after provider exited"
 fi
 
