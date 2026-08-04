@@ -506,7 +506,13 @@ get_resume_phase() {
 get_phase_output() {
     local phase="$1"
     if [[ -f "$SESSION_FILE" ]] && command -v jq &> /dev/null; then
-        jq -r ".phases.$phase.output // \"\"" "$SESSION_FILE"
+        # Bind the phase as data, not as filter text. The previous form,
+        # `jq -r ".phases.$phase.output"`, parsed a hyphenated name as
+        # subtraction — `debate-probe` failed with `probe/0 is not defined` — so
+        # every checkpoint written by workflows.sh's `save_session_checkpoint
+        # "debate-${gate_slug}"` was unreadable. Splicing a phase name into a jq
+        # program is also an injection vector; the writer already used --arg.
+        jq -r --arg phase "$phase" '.phases[$phase].output // ""' "$SESSION_FILE"
     fi
 }
 
