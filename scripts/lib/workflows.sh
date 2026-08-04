@@ -979,10 +979,59 @@ ${resolved:-<none resolved>}
 EOF
 }
 
+tangle_scope_is_safe_relative_path() {
+    local scope="$1"
+    local normalized="${scope#./}"
+    normalized="${normalized%/}"
+
+    # Reject scopes that are empty once trimmed, not merely empty: a
+    # whitespace-only scope is non-empty here but names nothing.
+    [[ -n "${normalized//[[:space:]]/}" ]] || return 1
+    case "$normalized" in
+        /*|.|..|*\\*|*'*'*|*'?'*|*'['*|*']'*) return 1 ;;
+    esac
+    # Compare the .git check case-insensitively. macOS APFS/HFS+ is
+    # case-insensitive by default and is this project's primary platform, so a
+    # literal `.git` match let `.GIT/hooks/pre-commit` through — which resolves
+    # to the real hook and is arbitrary code execution on the next commit.
+    # Verified in a scratch repo: `mkdir -p .GIT/hooks && echo x > .GIT/hooks/p`
+    # creates `.git/hooks/p`.
+    local lower
+    lower=$(printf '%s' "$normalized" | tr '[:upper:]' '[:lower:]')
+    case "$lower" in
+        .git|.git/*) return 1 ;;
+    esac
+    case "/$normalized/" in
+        */../*|*/./*) return 1 ;;
+    esac
+    return 0
+}
+
+tangle_scope_has_existing_repo_ancestor() {
+    local repo_root="$1"
+    local normalized="$2"
+    local probe="$normalized"
+
+    while [[ "$probe" == */* ]]; do
+        probe="${probe%/*}"
+        [[ -n "$probe" ]] || break
+        if [[ -d "$repo_root/$probe" || -f "$repo_root/$probe" ]]; then
+            return 0
+        fi
+        if git -C "$repo_root" rev-parse --show-toplevel >/dev/null 2>&1; then
+            if [[ -n "$(git -C "$repo_root" ls-files "$probe/" 2>/dev/null || true)" ]]; then
+                return 0
+            fi
+        fi
+    done
+    return 1
+}
+
 tangle_scope_is_known_or_explicit_new_file() {
     local scope="$1"
-    local normalized="${scope%/}"
-    [[ -z "$normalized" ]] && return 1
+    local normalized="${scope#./}"
+    normalized="${normalized%/}"
+    tangle_scope_is_safe_relative_path "$scope" || return 1
 
     local repo_root
     if ! repo_root=$(tangle_resolve_repo_root 2>/dev/null); then
@@ -992,32 +1041,22 @@ tangle_scope_is_known_or_explicit_new_file() {
             repo_root=$(git -C "$(pwd)" rev-parse --show-toplevel 2>/dev/null || pwd)
         fi
     fi
+
     if git -C "$repo_root" rev-parse --show-toplevel >/dev/null 2>&1; then
         if git -C "$repo_root" ls-files --error-unmatch "$normalized" >/dev/null 2>&1; then
             return 0
         fi
-        local child_matches
-        child_matches=$(git -C "$repo_root" ls-files "$normalized/" 2>/dev/null || true)
-        if [[ -n "$child_matches" ]]; then
+        if [[ -n "$(git -C "$repo_root" ls-files "$normalized/" 2>/dev/null || true)" ]]; then
             return 0
         fi
     fi
 
     [[ -e "$repo_root/$normalized" ]] && return 0
 
-    if [[ "$scope" != */ && "${normalized##*/}" == *.* ]]; then
-        local parent="${normalized%/*}"
-        [[ "$parent" == "$normalized" ]] && return 0
-        [[ -d "$repo_root/$parent" ]] && return 0
-        if git -C "$repo_root" rev-parse --show-toplevel >/dev/null 2>&1; then
-            local parent_matches
-            parent_matches=$(git -C "$repo_root" ls-files "$parent/" 2>/dev/null || true)
-            if [[ -n "$parent_matches" ]]; then
-                return 0
-            fi
-        fi
-    fi
-    return 1
+    # Explicit new files or directories are valid when anchored below an
+    # existing repository path. Preserve the declared scope instead of
+    # replacing it with heuristic context-file inference.
+    tangle_scope_has_existing_repo_ancestor "$repo_root" "$normalized"
 }
 
 
