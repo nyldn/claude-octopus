@@ -325,9 +325,9 @@ validate_agent_command() {
             return 0 ;;
         "env NODE_NO_WARNINGS="*) # only allow env with NODE_NO_WARNINGS prefix
             return 0 ;;
-        "env OCTOPUS_GROK_MODEL="*)      # grok-exec.sh model prefix (v9.10.0)
+        "env OCTOPUS_GROK_MODEL="*"/scripts/helpers/grok-exec.sh") # grok-exec.sh model prefix (v9.10.0); bind the prefix to its shim so an arbitrary executable can't ride along after it
             return 0 ;;
-        "env OCTOPUS_CLAUDE_SDK_MODEL="*) # claude-sdk-exec.sh model prefix (v9.50.0)
+        "env OCTOPUS_CLAUDE_SDK_MODEL="*"/scripts/helpers/claude-sdk-exec.sh") # claude-sdk-exec.sh model prefix (v9.50.0); same binding
             return 0 ;;
         *)
             _utils_log ERROR "Invalid agent command: $cmd"

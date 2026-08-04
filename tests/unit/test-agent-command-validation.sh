@@ -218,6 +218,16 @@ else
     test_pass
 fi
 
+# CodeRabbit (#769): the OCTOPUS_GROK_MODEL/OCTOPUS_CLAUDE_SDK_MODEL env-prefix
+# arms must bind to their matching shim, or any executable can ride along
+# after the prefix — e.g. `env OCTOPUS_GROK_MODEL=x echo pwned` would pass.
+test_case "validate_agent_command rejects env-prefixed grok command with wrong executable"
+if validate_agent_command "env OCTOPUS_GROK_MODEL=x echo pwned" >/dev/null 2>&1; then
+    test_fail "expected env-prefixed command without the grok-exec shim to be rejected"
+else
+    test_pass
+fi
+
 test_case "validate_agent_command allows claude-sdk-exec shim path"
 if validate_agent_command "$PROJECT_ROOT/scripts/helpers/claude-sdk-exec.sh"; then
     test_pass
@@ -235,6 +245,13 @@ fi
 test_case "validate_agent_command rejects embedded claude-sdk-exec shim path"
 if validate_agent_command "echo $PROJECT_ROOT/scripts/helpers/claude-sdk-exec.sh" >/dev/null 2>&1; then
     test_fail "expected embedded claude-sdk-exec shim path to be rejected"
+else
+    test_pass
+fi
+
+test_case "validate_agent_command rejects env-prefixed claude-sdk command with wrong executable"
+if validate_agent_command "env OCTOPUS_CLAUDE_SDK_MODEL=x echo pwned" >/dev/null 2>&1; then
+    test_fail "expected env-prefixed command without the claude-sdk-exec shim to be rejected"
 else
     test_pass
 fi
