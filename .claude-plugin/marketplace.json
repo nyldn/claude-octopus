@@ -15,7 +15,7 @@
         "source": "url",
         "url": "https://github.com/nyldn/claude-octopus.git"
       },
-      "description": "v9.59.0 - Provider identity now comes from one registry, and ten reliability fixes: orphaned provider children are reaped, council seats cancel without a race or pgrep, the OpenRouter seat works again, and debate-gate checkpoints are readable. Adds literal provider-model routing. 32 personas, 50 commands, 63 skills. Run /octo:setup.",
+      "description": "v9.59.0 - Ten reliability fixes: orphaned provider children are reaped, council seats cancel without a race or pgrep, the OpenRouter seat works again, and debate-gate checkpoints are readable. Adds literal provider-model routing. 32 personas, 50 commands, 63 skills. Run /octo:setup.",
       "version": "9.59.0",
       "author": {
         "name": "nyldn",

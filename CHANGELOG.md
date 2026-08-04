@@ -9,10 +9,6 @@
 - **Literal provider-model routing objects.** Object-form `routing.roles` and `routing.phases` entries are now treated as literal provider/model selections, so an exact model ID such as `minimaxai/minimax-m3` is no longer reinterpreted as a capability alias. Legacy string routing, capability aliases, and cross-provider fallthrough are unchanged. (#734)
 - **Three test systems that catch the class of defect this release fixes**, rather than the instances. Documented `OCTOPUS_*` variables are now held accountable against a manifest, so a variable can no longer ship inert with its documentation promising otherwise — the root cause shared by four separate bugs last cycle (closes #749). Any new test file unreachable by a CI gate now fails a test instead of silently asserting nothing; 34 already-unreachable files are baselined so the debt cannot grow while #741 triages them (#752, #757). And the unit suite additionally runs through a symlinked path, which is where two hermiticity failures hid (#758).
 
-### Changed
-
-- **Provider identity and capability contracts now come from one registry.** `scripts/lib/provider-registry.sh` is the single declaration of provider IDs and per-surface capability sets; `OCTO_MODEL_CONFIG_PROVIDERS` is derived from it rather than hand-maintained. Duplicated whitelists were a standing hazard — a provider could be accepted on one surface and rejected on another, which is exactly how the Command Code dispatch rejection (#696) happened. Unsafe first-hyphen provider parsing is replaced with canonical ID resolution. Three files still carry independent lists (`intelligence.sh`, `provider-policy.sh`, `permissions-manager.sh`); consolidating those is follow-up work. (#762)
-
 ### Fixed
 
 - **Orphaned provider children survived a spawn PID-capture timeout.** When `spawn_agent_capture_pid()` exhausted its wait budget, the timeout path abandoned the process subtree instead of reaping it, leaving `codex exec` children spending tokens after the caller believed the run was cancelled. This is the process-leak root cause behind the nine identical `code-review` processes reported in #736. (#744)
