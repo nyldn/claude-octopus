@@ -3,8 +3,14 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# Resolve physically. session-manager.sh:43 writes the shim with
+# `cd "$plugin_root_raw" && pwd -P` deliberately — its header comment says the
+# recorded path must be "the real install path", and the assertion below is
+# named "shim points at real plugin root". A logically-derived PROJECT_ROOT
+# agrees under a normal checkout and diverges behind a symlink, so the case
+# failed in the symlinked-path job while the code was correct.
+SCRIPT_DIR="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd -P "$SCRIPT_DIR/../.." && pwd)"
 source "$PROJECT_ROOT/tests/helpers/test-framework.sh"
 
 test_suite "Windows doctor compatibility"
@@ -86,14 +92,25 @@ if assert_contains "$output" "hook check skipped on Windows Git Bash" "Windows R
     test_pass
 fi
 
+# Pass a SYMLINKED plugin root, not the real one. session-manager.sh:43 resolves
+# with `pwd -P` deliberately so the shim records the real install path — a shim
+# pointing at a symlink breaks once that link is replaced on upgrade. Handing it
+# the physical path (as this case used to) meant `pwd` and `pwd -P` returned the
+# same value and the assertion proved nothing; it passed with the resolution
+# removed entirely. Verified: reverting `pwd -P` to `pwd` now fails this case.
 test_case "session manager writes stable script shims when symlink root is unavailable"
 shim_home="$TEST_TMP_DIR/shim-home"
 mkdir -p "$shim_home/.claude-octopus/plugin"
-HOME="$shim_home" CLAUDE_PLUGIN_ROOT="$PROJECT_ROOT" bash "$PROJECT_ROOT/scripts/session-manager.sh" export >/dev/null
+linked_root="$TEST_TMP_DIR/linked-plugin-root"
+ln -sfn "$PROJECT_ROOT" "$linked_root"
+HOME="$shim_home" CLAUDE_PLUGIN_ROOT="$linked_root" bash "$PROJECT_ROOT/scripts/session-manager.sh" export >/dev/null
 shim="$shim_home/.claude-octopus/plugin/scripts/orchestrate.sh"
 if assert_file_exists "$shim" "orchestrate shim exists" &&
-   assert_file_contains "$shim" "$PROJECT_ROOT/scripts/orchestrate.sh" "shim points at real plugin root"; then
+   assert_file_contains "$shim" "$PROJECT_ROOT/scripts/orchestrate.sh" "shim points at real plugin root" &&
+   ! grep -q "$linked_root" "$shim"; then
     test_pass
+else
+    test_fail "shim should record the resolved plugin root, not the symlink it was reached through"
 fi
 
 test_summary

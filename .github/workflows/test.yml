@@ -251,6 +251,57 @@ jobs:
           path: /tmp/test_*.log
           retention-days: 7
 
+  # Catches tests that conflate logical and physical paths. This failure mode is
+  # invisible to every other job by construction: runners check out under a real
+  # path, so a test deriving PROJECT_ROOT with `cd && pwd` while the code under
+  # test resolves with `cd -P && pwd` agrees there and diverges anywhere behind a
+  # symlink. #712 hit exactly that — test-feature-disclosure.sh failed only in a
+  # /tmp release worktree on macOS, which is the workflow RELEASING.md §0
+  # recommends, so it bit at release time and CI could never have warned.
+  #
+  # Ubuntu only: the divergence is a property of symlinked paths, not of macOS,
+  # and the ubuntu unit run is the faster of the two. Runs in parallel with the
+  # existing matrix, so it adds no wall-clock.
+  symlinked-path:
+    name: Symlinked Path
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [classify-changes, smoke, portability-lint]
+    if: needs.classify-changes.outputs.heavy_tests == 'true'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Make scripts executable
+        run: |
+          chmod +x scripts/orchestrate.sh
+          find tests -name "*.sh" -type f -exec chmod +x {} \;
+
+      - name: Run unit tests through a symlinked path
+        run: |
+          set -euo pipefail
+          link="$(mktemp -d)/octo-linked"
+          ln -s "$GITHUB_WORKSPACE" "$link"
+          echo "Real path:    $GITHUB_WORKSPACE"
+          echo "Via symlink:  $link"
+          # Verify the link really is a distinct logical path, or this job would
+          # silently duplicate the ordinary unit run and prove nothing.
+          if [[ "$(cd "$link" && pwd)" == "$(cd "$link" && pwd -P)" ]]; then
+            echo "::error::logical and physical paths match — the symlink is not exercising anything"
+            exit 1
+          fi
+          cd "$link"
+          make test-unit
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: symlinked-path-logs
+          path: /tmp/test_*.log
+          retention-days: 7
+
   smoke-required:
     name: Smoke Tests
     runs-on: ubuntu-latest
