@@ -208,16 +208,9 @@ echo "Progress: 50%" > ~/.claude/scratchpad/$(cat ~/.claude/session-id)/phase1-p
 
 ## Provider Detection
 
-Before running workflows, check provider availability:
-- Codex CLI: `command -v codex` or check for OPENAI_API_KEY
-- Gemini CLI: `command -v gemini` or check for GEMINI_API_KEY
-- Antigravity CLI: `command -v agy`
-- Perplexity: check for PERPLEXITY_API_KEY (API-only, no CLI needed)
-- OpenRouter: check for OPENROUTER_API_KEY
-- Ollama: `command -v ollama` + server health at http://localhost:11434
-- Copilot CLI: `command -v copilot` + auth (COPILOT_GITHUB_TOKEN or gh CLI)
-- Qwen CLI: `command -v qwen` + auth (~/.qwen/oauth_creds.json or QWEN_API_KEY)
-- OpenCode CLI: `command -v opencode` + auth (`opencode auth list` exit code)
+Before running workflows, check provider availability with
+`scripts/helpers/check-providers.sh`, which is the single source of truth for
+how each provider is detected (binary presence, API key, and auth state).
 
 If a provider is unavailable, note it in the banner:
 ```
@@ -376,15 +369,6 @@ untracked copy you did not create.
 ## Beads Issue Tracker
 
 This project uses **bd (beads)** for issue tracking. Run `bd prime` to see full workflow context and commands.
-
-### Quick Reference
-
-```bash
-bd ready              # Find available work
-bd show <id>          # View issue details
-bd update <id> --claim  # Claim work
-bd close <id>         # Complete work
-```
 
 ### Rules
 
