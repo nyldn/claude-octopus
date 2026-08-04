@@ -191,6 +191,80 @@ else
     test_pass
 fi
 
+# get_agent_command emits these two shapes for grok (v9.10.0) and claude-sdk
+# (v9.50.0) — a bare shim path when no model override is set, or an
+# `env OCTOPUS_*_MODEL=<model> <shim>` prefix when one is. Neither shape was in
+# validate_agent_command's allowlist, so every grok/claude-sdk dispatch aborted
+# with "Invalid agent command" before the CLI ever ran — the same failure mode
+# as #697 (copilot-exec.sh) and #705 (agy-exec.sh), predicted by #750.
+test_case "validate_agent_command allows grok-exec shim path"
+if validate_agent_command "$PROJECT_ROOT/scripts/helpers/grok-exec.sh"; then
+    test_pass
+else
+    test_fail "expected bare grok-exec shim path to be accepted"
+fi
+
+test_case "validate_agent_command allows grok-exec shim path with model env prefix"
+if validate_agent_command "env OCTOPUS_GROK_MODEL=grok-4-fast $PROJECT_ROOT/scripts/helpers/grok-exec.sh"; then
+    test_pass
+else
+    test_fail "expected env-prefixed grok-exec shim path to be accepted"
+fi
+
+test_case "validate_agent_command rejects embedded grok-exec shim path"
+if validate_agent_command "echo $PROJECT_ROOT/scripts/helpers/grok-exec.sh" >/dev/null 2>&1; then
+    test_fail "expected embedded grok-exec shim path to be rejected"
+else
+    test_pass
+fi
+
+test_case "validate_agent_command allows claude-sdk-exec shim path"
+if validate_agent_command "$PROJECT_ROOT/scripts/helpers/claude-sdk-exec.sh"; then
+    test_pass
+else
+    test_fail "expected bare claude-sdk-exec shim path to be accepted"
+fi
+
+test_case "validate_agent_command allows claude-sdk-exec shim path with model env prefix"
+if validate_agent_command "env OCTOPUS_CLAUDE_SDK_MODEL=claude-opus-5 $PROJECT_ROOT/scripts/helpers/claude-sdk-exec.sh"; then
+    test_pass
+else
+    test_fail "expected env-prefixed claude-sdk-exec shim path to be accepted"
+fi
+
+test_case "validate_agent_command rejects embedded claude-sdk-exec shim path"
+if validate_agent_command "echo $PROJECT_ROOT/scripts/helpers/claude-sdk-exec.sh" >/dev/null 2>&1; then
+    test_fail "expected embedded claude-sdk-exec shim path to be rejected"
+else
+    test_pass
+fi
+
+# End-to-end: exercise the real get_agent_command output, not just hand-written
+# literals, so a future change to the grok/claude-sdk command shape is caught
+# here instead of shipping silently broken (the actual #750 failure mode).
+test_case "get_agent_command dispatch commands for grok and claude-sdk pass validate_agent_command"
+(
+    FIXTURE_HOME="$TEST_TMP_DIR/agent-command-validation-home"
+    mkdir -p "$FIXTURE_HOME/.claude-octopus/config"
+    export PLUGIN_DIR="$PROJECT_ROOT" OCTOPUS_PLATFORM=Linux HOME="$FIXTURE_HOME"
+    export OCTOPUS_GROK_MODEL=grok-4-fast OCTOPUS_CLAUDE_SDK_MODEL=claude-opus-5
+    log() { :; }
+    source "$PROJECT_ROOT/scripts/lib/validation.sh"
+    source "$PROJECT_ROOT/scripts/lib/model-cache-path.sh"
+    source "$PROJECT_ROOT/scripts/lib/model-resolver.sh"
+    source "$PROJECT_ROOT/scripts/lib/provider-routing.sh"
+    source "$PROJECT_ROOT/scripts/lib/dispatch.sh"
+    grok_cmd="$(get_agent_command grok tangle implementer)" || exit 1
+    sdk_cmd="$(get_agent_command claude-sdk tangle implementer)" || exit 1
+    validate_agent_command "$grok_cmd" >/dev/null 2>&1 || exit 1
+    validate_agent_command "$sdk_cmd" >/dev/null 2>&1 || exit 1
+)
+if [[ $? -eq 0 ]]; then
+    test_pass
+else
+    test_fail "get_agent_command output for grok/claude-sdk rejected by validate_agent_command"
+fi
+
 test_case "validate_agent_command rejects unsafe command"
 if validate_agent_command "rm -rf /" >/dev/null 2>&1; then
     test_fail "expected unsafe command to be rejected"

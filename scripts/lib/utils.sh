@@ -294,7 +294,8 @@ validate_agent_command() {
     fi
     if [[ "$cmd_executable" == */vibe-exec.sh || "$cmd_executable" == */ollama-run.sh || "$cmd_executable" == */codex-run.sh \
         || "$cmd_executable" == */scripts/helpers/agy-exec.sh || "$cmd_executable" == */scripts/helpers/copilot-exec.sh \
-        || "$cmd_executable" == */scripts/helpers/commandcode-exec.sh ]]; then
+        || "$cmd_executable" == */scripts/helpers/commandcode-exec.sh || "$cmd_executable" == */scripts/helpers/grok-exec.sh \
+        || "$cmd_executable" == */scripts/helpers/claude-sdk-exec.sh ]]; then
         return 0
     fi
 
@@ -323,6 +324,10 @@ validate_agent_command() {
         "agent "*|"agent")        # Cursor Agent CLI (v9.23.0)
             return 0 ;;
         "env NODE_NO_WARNINGS="*) # only allow env with NODE_NO_WARNINGS prefix
+            return 0 ;;
+        "env OCTOPUS_GROK_MODEL="*)      # grok-exec.sh model prefix (v9.10.0)
+            return 0 ;;
+        "env OCTOPUS_CLAUDE_SDK_MODEL="*) # claude-sdk-exec.sh model prefix (v9.50.0)
             return 0 ;;
         *)
             _utils_log ERROR "Invalid agent command: $cmd"
