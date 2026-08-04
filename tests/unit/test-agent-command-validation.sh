@@ -228,6 +228,16 @@ else
     test_pass
 fi
 
+# CodeRabbit (#769, round 2): binding on prefix+suffix alone still let a wrong
+# executable ride along as long as the shim path trailed it somewhere in the
+# string — the shim must be the *next token*, not merely present later.
+test_case "validate_agent_command rejects grok command with wrong executable trailed by the shim path"
+if validate_agent_command "env OCTOPUS_GROK_MODEL=x echo pwned $PROJECT_ROOT/scripts/helpers/grok-exec.sh" >/dev/null 2>&1; then
+    test_fail "expected wrong-executable-then-shim-path to be rejected"
+else
+    test_pass
+fi
+
 test_case "validate_agent_command allows claude-sdk-exec shim path"
 if validate_agent_command "$PROJECT_ROOT/scripts/helpers/claude-sdk-exec.sh"; then
     test_pass
@@ -252,6 +262,13 @@ fi
 test_case "validate_agent_command rejects env-prefixed claude-sdk command with wrong executable"
 if validate_agent_command "env OCTOPUS_CLAUDE_SDK_MODEL=x echo pwned" >/dev/null 2>&1; then
     test_fail "expected env-prefixed command without the claude-sdk-exec shim to be rejected"
+else
+    test_pass
+fi
+
+test_case "validate_agent_command rejects claude-sdk command with wrong executable trailed by the shim path"
+if validate_agent_command "env OCTOPUS_CLAUDE_SDK_MODEL=x echo pwned $PROJECT_ROOT/scripts/helpers/claude-sdk-exec.sh" >/dev/null 2>&1; then
+    test_fail "expected wrong-executable-then-shim-path to be rejected"
 else
     test_pass
 fi
