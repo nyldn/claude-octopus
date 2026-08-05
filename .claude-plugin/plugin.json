@@ -138,6 +138,7 @@
     "./commands/retro.md",
     "./commands/history.md",
     "./commands/discipline.md",
-    "./commands/usage.md"
+    "./commands/usage.md",
+    "./commands/whats-new.md"
   ]
 }
