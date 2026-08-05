@@ -280,7 +280,7 @@
           {
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/hooks/session-end.sh",
-            "timeout": 15
+            "timeout": 3
           }
         ]
       },
@@ -289,7 +289,7 @@
           {
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/hooks/workflow-verification.sh",
-            "timeout": 10
+            "timeout": 3
           }
         ]
       }
