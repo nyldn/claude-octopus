@@ -33,24 +33,11 @@ fi
 
 log() { :; }
 
-# Force the awk fallback paths even when yq is installed on the host: the
-# machines this bug bit had no yq, and the fallback must stand on its own.
-_no_yq_path() {
-    local dir
-    dir=$(mktemp -d)
-    cat > "$dir/yq" <<'EOF'
-#!/usr/bin/env bash
-exit 127
-EOF
-    rm -f "$dir/yq"
-    echo "$dir"
-}
-NO_YQ_BIN=$(_no_yq_path)
-command_v_real=$(command -v yq || true)
-
 # shellcheck source=/dev/null
 source "$YAML_LIB"
 
+# Force the awk fallback paths even when yq is installed on the host: the
+# machines this bug bit had no yq, and the fallback must stand on its own.
 # Shadow `command` so `command -v yq` fails inside the sourced functions
 command() {
     if [[ "$1" == "-v" && "$2" == "yq" ]]; then
@@ -100,7 +87,7 @@ fi
 
 # ── execute_workflow_phase behavior (stubbed spawns) ─────────────────────────
 
-TEST_TMP_DIR="/tmp/octopus-yaml-tests-$$"
+TEST_TMP_DIR="/tmp/octopus-tests-$$"
 trap 'rm -rf "$TEST_TMP_DIR"' EXIT INT TERM
 RESULTS_DIR="$TEST_TMP_DIR/results"
 WORKSPACE_DIR="$TEST_TMP_DIR/workspace"

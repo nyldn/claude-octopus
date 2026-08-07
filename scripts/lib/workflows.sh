@@ -3699,7 +3699,14 @@ ${obs_ctx}"
 
         local yaml_result
         if ! yaml_result=$(run_yaml_workflow "embrace" "$prompt" "$task_group"); then
-            _abort_embrace_phase "${OCTOPUS_WORKFLOW_PHASE:-unknown}" \
+            # run_yaml_workflow runs in a command-substitution subshell, so its
+            # phase exports cannot reach this scope. It records the failed
+            # phase in session.json before returning — read it from there.
+            local _failed_phase=""
+            if command -v jq &>/dev/null && [[ -f "${HOME}/.claude-octopus/session.json" ]]; then
+                _failed_phase=$(jq -r '.current_phase // empty' "${HOME}/.claude-octopus/session.json" 2>/dev/null)
+            fi
+            _abort_embrace_phase "${_failed_phase:-unknown}" \
                 "YAML runtime halted: quality gate failed" "$yaml_result"
             return 1
         fi
