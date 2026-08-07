@@ -3698,7 +3698,11 @@ ${obs_ctx}"
         echo ""
 
         local yaml_result
-        yaml_result=$(run_yaml_workflow "embrace" "$prompt" "$task_group")
+        if ! yaml_result=$(run_yaml_workflow "embrace" "$prompt" "$task_group"); then
+            _abort_embrace_phase "${OCTOPUS_WORKFLOW_PHASE:-unknown}" \
+                "YAML runtime halted: quality gate failed" "$yaml_result"
+            return 1
+        fi
 
         # Mark workflow complete
         export OCTOPUS_WORKFLOW_PHASE="complete"

@@ -74,24 +74,35 @@ yaml_get_phase_config() {
     local phase_name="$2"
     local field="$3"
 
+    local value=""
     if command -v yq &>/dev/null; then
-        yq eval ".phases[] | select(.name == \"$phase_name\") | .$field" "$yaml_file" 2>/dev/null
+        # Fall back to the phase quality_gate block for nested fields (threshold)
+        value=$(yq eval ".phases[] | select(.name == \"$phase_name\") | .$field // .quality_gate.$field // \"\"" "$yaml_file" 2>/dev/null)
     else
-        # awk fallback for simple fields
-        awk -v phase="$phase_name" -v field="$field" '
+        # awk fallback: match the field at any indent inside the phase block.
+        # Stops at the next top-level key so the last phase cannot bleed into
+        # the document-level quality_gates: block (that bug made ink report the
+        # consensus threshold 0.75 instead of its own 0.80).
+        value=$(awk -v phase="$phase_name" -v field="$field" '
+            in_phases && /^[a-zA-Z_]+:/ { exit }
+            /^phases:/ { in_phases=1 }
             /^  - name:/ {
                 gsub(/^  - name:[[:space:]]*/, "")
                 gsub(/["\047]/, "")
                 current_phase = $0
+                next
             }
-            current_phase == phase && $0 ~ "^    " field ":" {
-                gsub(/^[[:space:]]*[a-z_]+:[[:space:]]*/, "")
+            current_phase == phase && $0 ~ "^[[:space:]]+" field ":" {
+                gsub(/^[[:space:]]*[a-zA-Z_]+:[[:space:]]*/, "")
                 gsub(/["\047]/, "")
                 print
                 exit
             }
-        ' "$yaml_file"
+        ' "$yaml_file")
     fi
+    [[ "$value" == "null" ]] && value=""
+    [[ -n "$value" ]] && printf '%s\n' "$value"
+    [[ -n "$value" ]]
 }
 
 # Extract agents for a specific phase
@@ -144,10 +155,42 @@ yaml_get_agent_prompt() {
     local provider="$3"
 
     if command -v yq &>/dev/null; then
-        yq eval ".phases[] | select(.name == \"$phase_name\") | .agents[] | select(.provider == \"$provider\") | .prompt_template" "$yaml_file" 2>/dev/null
+        local yq_out
+        yq_out=$(yq eval ".phases[] | select(.name == \"$phase_name\") | .agents[] | select(.provider == \"$provider\") | .prompt_template // \"\"" "$yaml_file" 2>/dev/null)
+        [[ "$yq_out" == "null" ]] && yq_out=""
+        printf '%s\n' "$yq_out"
     else
-        # For awk fallback, return empty - hardcoded prompts will be used
-        echo ""
+        # awk fallback: extract the `prompt_template: |` block scalar for the
+        # matching phase+provider. Without this, every agent silently ran a
+        # bare "role: prompt" fallback whenever yq was not installed.
+        awk -v phase="$phase_name" -v provider="$provider" '
+            /^  - name:/ {
+                gsub(/^  - name:[[:space:]]*/, "")
+                gsub(/["\047]/, "")
+                current_phase = $0
+                current_provider = ""
+                in_block = 0
+                next
+            }
+            /^      - provider:/ {
+                if (in_block) exit
+                gsub(/^      - provider:[[:space:]]*/, "")
+                current_provider = $0
+                next
+            }
+            in_block {
+                if ($0 == "" || $0 ~ /^[[:space:]]{10}/) {
+                    line = $0
+                    sub(/^[[:space:]]{10}/, "", line)
+                    print line
+                    next
+                }
+                exit
+            }
+            current_phase == phase && current_provider == provider && /^        prompt_template:[[:space:]]*\|/ {
+                in_block = 1
+            }
+        ' "$yaml_file"
     fi
 }
 
@@ -191,6 +234,27 @@ _yaml_wait_for_pids() {
     return 0
 }
 
+# Wait for the .done completion markers of the given task ids. The spawn
+# wrapper writes the result file and marker AFTER the provider PID exits, so a
+# PID wait alone races the file writes. Markers hold the agent exit code.
+_yaml_wait_for_done_markers() {
+    local max_wait="$1"
+    shift || true
+    local done_dir="${WORKSPACE_DIR:-${HOME}/.claude-octopus}/.octo/agents"
+    local wait_start=$SECONDS
+
+    while [[ $(( SECONDS - wait_start )) -lt $max_wait ]]; do
+        local all_done=true
+        local task_id
+        for task_id in "$@"; do
+            [[ -f "${done_dir}/${task_id}.done" ]] || { all_done=false; break; }
+        done
+        [[ "$all_done" == "true" ]] && return 0
+        sleep 1
+    done
+    return 1
+}
+
 # Execute a single workflow phase from YAML definition
 # Spawns agents as defined, respects parallel/sequential flags, evaluates quality gates
 execute_workflow_phase() {
@@ -207,13 +271,19 @@ execute_workflow_phase() {
     local alias_name
     alias_name=$(yaml_get_phase_config "$yaml_file" "$phase_name" "alias") || alias_name="$phase_name"
 
-    echo ""
-    echo -e "${MAGENTA}${_BOX_TOP}${NC}"
-    local alias_upper
-    alias_upper=$(echo "$alias_name" | tr '[:lower:]' '[:upper:]')
-    echo -e "${MAGENTA}║  ${GREEN}${alias_upper}${MAGENTA} - ${description}${MAGENTA}${NC}"
-    echo -e "${MAGENTA}${_BOX_BOT}${NC}"
-    echo ""
+    # Decorative output goes to stderr: this function is invoked inside a
+    # command substitution and stdout is reserved for the synthesis file path.
+    # Banners on stdout corrupted that path, so downstream phases never
+    # received the previous phase's output.
+    {
+        echo ""
+        echo -e "${MAGENTA}${_BOX_TOP}${NC}"
+        local alias_upper
+        alias_upper=$(echo "$alias_name" | tr '[:lower:]' '[:upper:]')
+        echo -e "${MAGENTA}║  ${GREEN}${alias_upper}${MAGENTA} - ${description}${MAGENTA}${NC}"
+        echo -e "${MAGENTA}${_BOX_BOT}${NC}"
+        echo ""
+    } >&2
 
     log "INFO" "YAML Runtime: Executing phase '$phase_name' ($description)"
 
@@ -234,6 +304,7 @@ execute_workflow_phase() {
 
     local pids=()
     local agent_idx=0
+    local spawned_tasks=()
 
     # Update session state for hooks
     local session_dir="${HOME}/.claude-octopus"
@@ -309,8 +380,15 @@ $previous_output"
                 _yaml_wait_for_pids "${TIMEOUT:-600}" "${pids[@]}"
                 pids=()
             fi
-            spawn_agent "$agent_type" "$agent_prompt" "$task_id" "$role" "$phase_name"
+            # spawn_agent backgrounds the provider internally, so capture the
+            # PID and block until it exits. Without this the phase synthesized
+            # and moved on while its sequential agent was still running, losing
+            # that agent's output from the synthesis handed to the next phase.
+            local seq_pid
+            seq_pid=$(spawn_agent_capture_pid "$agent_type" "$agent_prompt" "$task_id" "$role" "$phase_name")
+            _yaml_wait_for_pids "${TIMEOUT:-600}" "$seq_pid"
         fi
+        spawned_tasks+=("$task_id")
 
         ((agent_idx++)) || true
         sleep 0.1
@@ -347,6 +425,31 @@ $previous_output"
         fi
     fi
 
+    # Result files land shortly after the provider PIDs exit; wait for the
+    # completion markers so the collection below sees every agent's output.
+    if [[ ${#spawned_tasks[@]} -gt 0 ]]; then
+        local marker_wait="${OCTOPUS_YAML_DONE_WAIT:-30}"
+        _yaml_wait_for_done_markers "$marker_wait" "${spawned_tasks[@]}" \
+            || log "WARN" "Phase $phase_name: not all completion markers appeared within ${marker_wait}s"
+    fi
+
+    # Record completions in the bridge ledger. bridge_evaluate_gate reads
+    # completed_tasks from the ledger, but nothing ever marked tasks complete,
+    # so every gate evaluated as 0/N and "did not pass" on every phase.
+    local done_dir="${WORKSPACE_DIR:-${HOME}/.claude-octopus}/.octo/agents"
+    local _task_id _agent_exit
+    if [[ ${#spawned_tasks[@]} -gt 0 ]]; then
+        for _task_id in "${spawned_tasks[@]}"; do
+            [[ -f "${done_dir}/${_task_id}.done" ]] || continue
+            _agent_exit=$(cat "${done_dir}/${_task_id}.done" 2>/dev/null)
+            if [[ "$_agent_exit" == "0" ]]; then
+                bridge_mark_task_complete "$_task_id" "completed" 2>/dev/null || true
+            else
+                bridge_mark_task_complete "$_task_id" "failed" 2>/dev/null || true
+            fi
+        done
+    fi
+
     # Collect phase output
     local phase_output=""
     local result_files
@@ -381,25 +484,37 @@ $previous_output"
         echo "$phase_output" >> "$synthesis_file"
     fi
 
-    # Evaluate quality gate
+    # Evaluate quality gate: results produced vs agents spawned
     local qg_threshold
     qg_threshold=$(yaml_get_phase_config "$yaml_file" "$phase_name" "threshold") || qg_threshold="0.5"
-    local result_count
-    result_count=$(echo "$result_files" | wc -l | tr -d ' ')
-    if [[ $result_count -ge 1 ]]; then
-        log "INFO" "Phase $phase_name quality gate: $result_count results (threshold: $qg_threshold)"
+    local result_count=0
+    [[ -n "$result_files" ]] && result_count=$(echo "$result_files" | wc -l | tr -d ' ')
+    local spawned_count=${#spawned_tasks[@]}
+
+    local gate_passed=false
+    if [[ $spawned_count -gt 0 && $result_count -gt 0 ]]; then
+        if awk -v r="$result_count" -v s="$spawned_count" -v t="$qg_threshold" \
+               'BEGIN { exit !((r / s) >= t) }'; then
+            gate_passed=true
+        fi
+    fi
+
+    if [[ "$gate_passed" == "true" ]]; then
+        log "INFO" "Phase $phase_name quality gate PASSED: $result_count/$spawned_count results (threshold: $qg_threshold)"
     else
-        log "WARN" "Phase $phase_name quality gate: no results produced"
+        log "ERROR" "Phase $phase_name quality gate FAILED: $result_count/$spawned_count results (threshold: $qg_threshold)"
     fi
 
     log "INFO" "YAML Runtime: Phase '$phase_name' complete ($result_count agent results)"
 
     # v8.7.0: Generate phase summary for bridge and refresh provider stats
     bridge_generate_phase_summary "$phase_name" "$synthesis_file"
-    bridge_evaluate_gate "$phase_name" || log "WARN" "Phase $phase_name quality gate did not pass"
+    bridge_evaluate_gate "$phase_name" 2>/dev/null \
+        || log "DEBUG" "Bridge ledger gate did not pass for $phase_name"
     refresh_provider_stats
 
     echo "$synthesis_file"
+    [[ "$gate_passed" == "true" ]]
 }
 
 # Top-level YAML workflow runner
@@ -440,11 +555,15 @@ run_yaml_workflow() {
         [[ -z "$phase_name" ]] && continue
         ((phase_num++)) || true
 
-        echo ""
-        local phase_upper
-        phase_upper=$(echo "$phase_name" | tr '[:lower:]' '[:upper:]')
-        echo -e "${CYAN}[${phase_num}/${phase_count}] Starting ${phase_upper} phase...${NC}"
-        echo ""
+        # Progress lines to stderr: run_yaml_workflow's stdout is captured by
+        # the caller and must carry only the final synthesis file path.
+        {
+            echo ""
+            local phase_upper
+            phase_upper=$(echo "$phase_name" | tr '[:lower:]' '[:upper:]')
+            echo -e "${CYAN}[${phase_num}/${phase_count}] Starting ${phase_upper} phase...${NC}"
+            echo ""
+        } >&2
 
         # Update workflow state
         export OCTOPUS_WORKFLOW_PHASE="$phase_name"
@@ -468,9 +587,20 @@ run_yaml_workflow() {
             local prev_content=""
         fi
 
-        # Execute phase
+        # Execute phase — halt the workflow when a phase's quality gate fails
+        # (fail fast; later phases would only compound on missing output)
         local phase_result
-        phase_result=$(execute_workflow_phase "$yaml_file" "$phase_name" "$prompt" "$prev_content" "$task_group")
+        if ! phase_result=$(execute_workflow_phase "$yaml_file" "$phase_name" "$prompt" "$prev_content" "$task_group"); then
+            log "ERROR" "YAML Runtime: Halting workflow '$workflow_name' — phase '$phase_name' failed its quality gate"
+            if command -v jq &>/dev/null && [[ -f "$session_dir/session.json" ]]; then
+                jq --arg phase "$phase_name" --arg status "failed" \
+                   '.current_phase = $phase | .phase_status = $status |
+                    .quality_gates = {passed: false, failed: true}' \
+                   "$session_dir/session.json" > "$session_dir/session.json.tmp" \
+                   && mv "$session_dir/session.json.tmp" "$session_dir/session.json" 2>/dev/null || true
+            fi
+            return 1
+        fi
 
         previous_output="$phase_result"
         all_outputs+=("$phase_result")
