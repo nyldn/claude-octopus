@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Session-level octo overrides (e.g. exported via ~/.claude/settings.json env)
+# change model resolution and must not leak into these assertions.
+unset OCTOPUS_GEMINI_VIA_AGY OCTOPUS_AGY_MODEL OCTOPUS_AGENT_TIMEOUT
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 

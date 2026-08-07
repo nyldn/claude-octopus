@@ -1,6 +1,10 @@
 #!/bin/bash
 set -euo pipefail
 
+# Session-level octo overrides (e.g. exported via ~/.claude/settings.json env)
+# change dispatch routing and must not leak into these assertions.
+unset OCTOPUS_GEMINI_VIA_AGY OCTOPUS_AGY_MODEL OCTOPUS_AGENT_TIMEOUT
+
 # tests/unit/test-orchestrate-cwd-routing.sh
 # Behavioral coverage for the orchestrate.sh dispatch fixes (bug report 260609):
 #   1. Bare provider names in routing.roles/.phases must never be returned as a
