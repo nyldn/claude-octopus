@@ -47,12 +47,16 @@ command() {
 }
 
 test_case "awk fallback parses per-phase quality gate thresholds"
-declare -A expected_thresholds=([probe]="0.5" [grasp]="0.75" [tangle]="0.75" [ink]="0.80")
+# Bash 3.2 floor (macOS /bin/bash 3.2.57) has no associative arrays: the
+# subscript is evaluated arithmetically and the suite aborts with
+# `probe: unbound variable` before reaching any runtime assertion.
 threshold_failures=""
-for phase in probe grasp tangle ink; do
+for pair in "probe=0.5" "grasp=0.75" "tangle=0.75" "ink=0.80"; do
+    phase="${pair%%=*}"
+    want="${pair#*=}"
     got=$(yaml_get_phase_config "$EMBRACE_YAML" "$phase" "threshold") || got="(empty)"
-    if [[ "$got" != "${expected_thresholds[$phase]}" ]]; then
-        threshold_failures+=" $phase=$got(want ${expected_thresholds[$phase]})"
+    if [[ "$got" != "$want" ]]; then
+        threshold_failures+=" $phase=$got(want $want)"
     fi
 done
 if [[ -z "$threshold_failures" ]]; then
