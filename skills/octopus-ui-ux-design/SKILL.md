@@ -367,6 +367,61 @@ Exit 1 means at least one pair fails WCAG AA — fix the palette and re-run befo
 4. **Implementation readiness** — confirm specs are detailed enough for frontend-developer
 5. **Figma push-back** (if connected) — offer to push design tokens to Figma
 
+### STEP 7b: AI Surface Audit (when the interface calls a model)
+
+Run this whenever the thing being designed sends input to a model and shows the
+result, and especially when it then **acts** on that result. Style guides and
+component specs do not answer what an AI feature must show and let the user
+control; this step does. Skip it entirely for interfaces with no model in the
+loop.
+
+Ask each question and record an explicit answer. "Not applicable" is a valid
+answer; silence is not.
+
+**1. Uncertainty.** Does the surface distinguish a confident answer from a
+guess? If it cannot, say so plainly rather than implying uniform reliability.
+Do not invent a numeric threshold — pick a representation the underlying system
+can actually justify.
+
+**2. Provenance.** Can the user see what the answer was derived from? Retrieval
+and search features need citations; a summariser needs the source it summarised.
+An answer with no traceable origin is unreviewable.
+
+**3. Interruption.** If output streams or the task is long-running, is there a
+cancel affordance, and does cancelling actually stop the work rather than just
+hiding it? A stop button that abandons a still-running job is worse than none,
+because it misreports the system's state.
+
+**4. The review gate.** Where does a human check the output, and is that
+placement load-bearing? A gate after an irreversible action is decoration.
+`skill-intent-contract` already elicits initiative, control, and decision rights
+separately — reuse those answers here rather than re-deriving them, and if they
+disagree with the placement, the contract wins.
+
+**5. Failure and degradation.** What does the surface show when the model is
+slow, unavailable, rate-limited, or returns something unusable? Each needs a
+distinct state. Collapsing them into one generic error teaches users to ignore
+it.
+
+**6. Consent and data use.** Does the user know what is sent, where, and whether
+it is retained? Required wherever input may contain someone else's data.
+
+**7. Rollback.** If the feature takes a real-world action — files, sends, pays,
+deletes — what undoes it, and is that path visible before the action, not only
+after it fails?
+
+**Output contract.** Answer all seven in the delivered document, each with the
+decision and its rationale. Where a question is unanswerable because the
+underlying system cannot support it, record that as a finding rather than
+leaving the row blank: an unanswerable question about rollback is a design
+constraint, not an omission.
+
+**Attribution.** The framing follows the AI Interaction Atlas by Brandon Harwood
+(ai-interaction.com). Depend on it, do not copy it: the Atlas deliberately ships
+no thresholds — no confidence cutoffs, no latency budgets — and inventing them
+here would attribute numbers to a source that does not publish them. State
+direction, cite the source, and let the product supply its own values.
+
 ### STEP 8: Present Results and Persist
 
 Format the final design system as a structured document with:

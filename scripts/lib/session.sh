@@ -516,6 +516,66 @@ get_phase_output() {
     fi
 }
 
+# --- Phase context slots (#724) -------------------------------------------
+#
+# Phases used to hand off by interpolating a prior phase's prose into the next
+# prompt: research.sh built phase 2 from "Based on this research synthesis:
+# $synthesis". Whatever the receiving agent needed and the sending agent held
+# but did not write into that string was gone at the boundary, with nothing
+# recording that it was lost.
+#
+# These slots give a phase somewhere to deposit a named finding that a later
+# phase reads by key. They sit alongside the existing .phases registry rather
+# than replacing it: that registry records status/output/timestamp per phase,
+# and slots record the phase's *content* under .phases[<phase>].slots.
+#
+# Deliberate choices:
+#   - Slots are additive within a phase and overwritten per key, so re-running a
+#     phase replaces its own findings without disturbing another phase's.
+#   - A slot that is never filled reads as empty rather than erroring. A missing
+#     handoff should degrade to the current free-text behaviour, not abort a
+#     workflow mid-run.
+#   - Both key and phase are bound with --arg. A phase name like `debate-probe`
+#     parses as subtraction if spliced into a jq filter (see get_phase_output),
+#     and slot keys come from workflow code, so the same rule applies.
+
+save_phase_slot() {
+    local phase="$1"
+    local key="$2"
+    local value="$3"
+
+    [[ -n "$phase" && -n "$key" ]] || return 0
+    if [[ ! -f "$SESSION_FILE" ]] || ! command -v jq &> /dev/null; then
+        return 0
+    fi
+
+    jq --arg phase "$phase" --arg key "$key" --arg value "$value" \
+       '.phases[$phase] //= {} | .phases[$phase].slots //= {} | .phases[$phase].slots[$key] = $value' \
+       "$SESSION_FILE" > "${SESSION_FILE}.tmp" && mv "${SESSION_FILE}.tmp" "$SESSION_FILE"
+}
+
+get_phase_slot() {
+    local phase="$1"
+    local key="$2"
+
+    [[ -n "$phase" && -n "$key" ]] || return 0
+    if [[ -f "$SESSION_FILE" ]] && command -v jq &> /dev/null; then
+        jq -r --arg phase "$phase" --arg key "$key" \
+           '.phases[$phase].slots[$key] // ""' "$SESSION_FILE"
+    fi
+}
+
+# Names the slots a phase actually filled, so a caller can tell "not recorded"
+# from "recorded empty" without guessing at key names.
+list_phase_slots() {
+    local phase="$1"
+    [[ -n "$phase" ]] || return 0
+    if [[ -f "$SESSION_FILE" ]] && command -v jq &> /dev/null; then
+        jq -r --arg phase "$phase" \
+           '(.phases[$phase].slots // {}) | keys[]?' "$SESSION_FILE"
+    fi
+}
+
 # Mark session as complete
 complete_session() {
     if [[ -f "$SESSION_FILE" ]] && command -v jq &> /dev/null; then
