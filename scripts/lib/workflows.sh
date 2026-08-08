@@ -3707,7 +3707,7 @@ ${obs_ctx}"
                 _failed_phase=$(jq -r '.current_phase // empty' "${HOME}/.claude-octopus/session.json" 2>/dev/null)
             fi
             _abort_embrace_phase "${_failed_phase:-unknown}" \
-                "YAML runtime halted: quality gate failed" "$yaml_result"
+                "YAML runtime failed" "$yaml_result"
             return 1
         fi
 
