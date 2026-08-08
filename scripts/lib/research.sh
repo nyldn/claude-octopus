@@ -44,10 +44,23 @@ Format as a structured research synthesis." "${TIMEOUT:-300}" "ux-researcher" "e
         synthesis=$(run_agent_sync "claude-sonnet" "You are a UX researcher. Synthesize user research for: $prompt. Provide: key insights, pain points, unmet needs, behavioral themes." "${TIMEOUT:-300}" "ux-researcher" "empathize") || true
     }
 
+    # Record phase 1's finding as a named slot before handing off (#724). The
+    # prompt below still interpolates the prose, so behaviour is unchanged if
+    # the slot cannot be written — but the finding is now addressable by key
+    # instead of existing only inside the next prompt string.
+    declare -f save_phase_slot >/dev/null 2>&1 && \
+        save_phase_slot "empathize" "synthesis" "$synthesis" 2>/dev/null || true
+
     echo -e "${CYAN}🦑 Phase 2/4: Creating personas and journey maps...${NC}"
     local personas
+    local _handoff_synthesis="$synthesis"
+    if declare -f get_phase_slot >/dev/null 2>&1; then
+        local _slot
+        _slot="$(get_phase_slot "empathize" "synthesis" 2>/dev/null || true)"
+        [[ -n "$_slot" ]] && _handoff_synthesis="$_slot"
+    fi
     personas=$(run_agent_sync "gemini" "Based on this research synthesis:
-$synthesis
+$_handoff_synthesis
 
 Create:
 1. 2-3 distinct user personas with goals, frustrations, and behaviors
