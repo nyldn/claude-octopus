@@ -501,7 +501,20 @@ fi
 
 # Serialize revision allocation per branch with an OS-managed lock. Closing the
 # descriptor releases the lock even after SIGKILL or a process/host crash.
-LOCK_FILE="${DESIGNS_DIR}/.${BRANCH_KEY}.lineage.lock"
+LOCK_DIGEST=""
+if command -v sha256sum >/dev/null 2>&1; then
+  LOCK_DIGEST=$(printf '%s' "$RAW_BRANCH" | sha256sum | awk '{print $1}') || LOCK_DIGEST=""
+elif command -v shasum >/dev/null 2>&1; then
+  LOCK_DIGEST=$(printf '%s' "$RAW_BRANCH" | shasum -a 256 | awk '{print $1}') || LOCK_DIGEST=""
+else
+  echo "Design persistence failed: no supported SHA-256 utility." >&2
+  exit 1
+fi
+if [[ ! "$LOCK_DIGEST" =~ ^[[:xdigit:]]{64}$ ]]; then
+  echo "Design persistence failed: could not derive the branch lock key." >&2
+  exit 1
+fi
+LOCK_FILE="${DESIGNS_DIR}/.${LOCK_DIGEST}.lineage.lock"
 LOCK_HELD=false
 FILEPATH=""
 TEMP_PATH=""

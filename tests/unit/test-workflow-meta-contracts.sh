@@ -163,6 +163,12 @@ for ui_skill in "${UI_UX_DESIGNS[@]}"; do
     unlock_line=$(grep -nF 'exec 9>&-' <<< "$persistence" | tail -1 | cut -d: -f1 || true)
     if [[ -z "$lock_line" || -z "$prior_line" || -z "$temp_line" || -z "$write_guard_line" || -z "$temp_check_line" || -z "$move_line" || -z "$unlock_line" ]] ||
        ! (( lock_line < prior_line && prior_line < temp_line && temp_line < write_guard_line && write_guard_line < temp_check_line && temp_check_line < move_line && move_line < unlock_line )) ||
+       ! grep -Fq 'sha256sum' <<< "$persistence" ||
+       ! grep -Fq 'shasum -a 256' <<< "$persistence" ||
+       ! grep -Fq 'printf '\''%s'\'' "$RAW_BRANCH" | sha256sum' <<< "$persistence" ||
+       ! grep -q 'no supported SHA-256 utility' <<< "$persistence" ||
+       ! grep -Fq 'LOCK_FILE="${DESIGNS_DIR}/.${LOCK_DIGEST}.lineage.lock"' <<< "$persistence" ||
+       grep -Fq 'LOCK_FILE="${DESIGNS_DIR}/.${BRANCH_KEY}.lineage.lock"' <<< "$persistence" ||
        ! grep -Fq 'flock -n 9' <<< "$persistence" ||
        ! grep -Fq 'lockf -s -t 0 9' <<< "$persistence" ||
        ! grep -q 'no supported file-lock utility' <<< "$persistence" ||
@@ -200,7 +206,7 @@ run_documented_ui_persistence() {
             in_code && /^```$/ { exit }
             in_code { print }
         ' "$CLAUDE_UI_UX_DESIGN" |
-            env HOME="$test_home" USER=octopus-test DESIGN_BODY="$design_body" bash
+            env "HOME=${test_home}" "USER=octopus-test" "DESIGN_BODY=${design_body}" bash
     )
 }
 
@@ -212,12 +218,17 @@ lock_slug=$(basename "$(git -C "$PROJECT_ROOT" rev-parse --show-toplevel)")
 lock_branch=$(git -C "$PROJECT_ROOT" branch --show-current || true)
 lock_revision=$(git -C "$PROJECT_ROOT" rev-parse HEAD)
 if [[ -n "$lock_branch" ]]; then
-    lock_branch_key=$(printf '%s' "$lock_branch" | tr '/' '-')
+    lock_raw_branch="$lock_branch"
 else
-    lock_branch_key="detached-${lock_revision}"
+    lock_raw_branch="detached:${lock_revision}"
 fi
 lock_designs_dir="$lock_home/.claude-octopus/designs/$lock_slug"
-lock_file="$lock_designs_dir/.${lock_branch_key}.lineage.lock"
+if command -v sha256sum >/dev/null 2>&1; then
+    lock_digest=$(printf '%s' "$lock_raw_branch" | sha256sum | awk '{print $1}')
+else
+    lock_digest=$(printf '%s' "$lock_raw_branch" | shasum -a 256 | awk '{print $1}')
+fi
+lock_file="$lock_designs_dir/.${lock_digest}.lineage.lock"
 mkdir -p "$lock_designs_dir"
 
 (

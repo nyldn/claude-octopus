@@ -94,7 +94,8 @@ claimed or recorded in `bd`; use this handoff for the blocked tracking record.
   returned variants, and checks persistence writes before validation and move.
   Its final approval follow-up serializes design-lineage allocation with an
   OS-managed per-branch lock so concurrent writers cannot fork the immutable
-  revision chain and terminated owners cannot leave a permanent lock.
+  revision chain, distinct branch names cannot alias the same lock, and
+  terminated owners cannot leave a permanent lock.
   The request to chmod the Codex generator in CI was rejected because the tracked
   `100755` mode is an enforced repository contract that CI must not mask.
 
@@ -138,8 +139,10 @@ Verification for the review follow-up:
   design persistence before the corresponding changes.
 - Final approval-follow-up red baseline: workflow contracts failed the targeted
   design-lineage serialization case before the per-branch lock was added.
-- Final stale-owner red baseline: the same targeted contract failed before the
-  directory lock was replaced with portable `flock` / `lockf` descriptor locking.
+- Final lock-hardening red baselines: the targeted contract failed before the
+  directory lock was replaced with portable `flock` / `lockf` descriptor
+  locking, and then the static and runtime cases failed before lock paths used
+  a SHA-256 digest of the complete branch identity.
 - Final focused results: `test-workflow-meta-contracts.sh` 13/13,
   `test-codex-enforcement-detection.sh` 6/6,
   `test-intent-contract-allocation.sh` 13/13, `test-octo-state.sh` 42/42, and
@@ -177,7 +180,9 @@ provider refactor; preserve the behavioural-test-first pattern used by `#805` an
 
 1. Check the live state of PR #813. If it is still open, verify each review
    response, keep it rebased on `main`, and merge only after local and remote
-   gates pass; if already merged, continue with step 2.
+   gates pass. If it was closed without merging, record that outcome and stop
+   before new work or open a replacement PR. If already merged, continue with
+   step 2.
 2. Re-check the release PR/state before starting new work; release activity may
    advance `main` while the follow-up is under review.
 3. Pick up #799, #800, and #801 as separate test-first fixes.
