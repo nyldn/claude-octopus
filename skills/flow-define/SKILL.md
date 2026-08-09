@@ -37,11 +37,11 @@ fi
 ```
 
 
-## ⚠️ EXECUTION CONTRACT (MANDATORY - CANNOT SKIP)
+## Execution Contract
 
 This skill uses **ENFORCED execution mode**. You MUST follow this exact sequence.
 
-### STEP 1: Display Visual Indicators (MANDATORY - BLOCKING)
+### STEP 1: Display Visual Indicators
 
 **MANDATORY: You MUST use the native shell command tool to run this provider check BEFORE displaying the banner. Do NOT skip it. Do NOT assume availability.**
 
@@ -49,7 +49,12 @@ This skill uses **ENFORCED execution mode**. You MUST follow this exact sequence
 bash "${HOME}/.claude-octopus/plugin/scripts/helpers/check-providers.sh"
 ```
 
-**Use the ACTUAL results below. PROHIBITED: Showing only "🔵 Claude: Available ✓" without listing all providers.**
+Task status for the banner's `Tasks:` line, if the session has one:
+```bash
+task_status=$("${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" get-task-status 2>/dev/null || echo "")
+```
+
+List every provider the check reports, not only Claude. A banner showing one seat when several ran misrepresents what the user is paying for.
 
 If `OCTO_ALLOWED_PROVIDERS` is set, treat it as the source of truth for which providers may participate. Providers filtered out by that allowlist are intentionally reported as unavailable; do not invoke or recommend them in the workflow.
 
@@ -59,6 +64,8 @@ If `OCTO_ALLOWED_PROVIDERS` is set, treat it as the source of truth for which pr
 ```
 🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider definition mode
 🎯 Define Phase: [Brief description of what you're defining/scoping]
+📋 Session: ${CLAUDE_SESSION_ID}
+📝 Tasks: ${task_status}
 
 Provider Availability:
 🔴 Codex CLI: [Available ✓ / Not installed ✗] - Technical requirements analysis
@@ -73,7 +80,7 @@ Provider Availability:
 **DO NOT PROCEED TO STEP 2 until banner displayed.** The banner shows users which providers will run and what costs they'll incur — starting API calls without this visibility violates cost transparency.
 
 
-### STEP 2: Read Prior State (MANDATORY - State Management)
+### STEP 2: Read Prior State
 
 **Before executing the workflow, read any prior context:**
 
@@ -111,7 +118,7 @@ fi
 **DO NOT PROCEED TO STEP 3 until state read.**
 
 
-### STEP 3: Phase Discussion - Capture User Vision (MANDATORY - Context Gathering)
+### STEP 3: Phase Discussion — Capture User Vision
 
 **Before executing expensive multi-AI orchestration, capture the user's vision to scope the work effectively.**
 
@@ -200,7 +207,7 @@ echo "📋 Context captured and saved to .claude-octopus/context/define-context.
 **DO NOT PROCEED TO STEP 4 until context captured.** User vision (UX approach, priorities, out-of-scope items) scopes the multi-AI research — without it, providers research too broadly and the definition misses the user's actual intent.
 
 
-### STEP 4: Execute orchestrate.sh define (MANDATORY - Use Bash Tool)
+### STEP 4: Execute orchestrate.sh define
 
 **You MUST execute this command via the native shell command tool:**
 
@@ -232,7 +239,7 @@ These spinner verb updates happen automatically - orchestrate.sh calls `update_t
 **If NOT running in Claude Code v2.1.16+:** Progress indicators are silently skipped, no errors shown.
 
 
-### STEP 5: Verify Execution (MANDATORY - Validation Gate)
+### STEP 5: Verify Execution
 
 **After orchestrate.sh completes, verify it succeeded:**
 
@@ -257,7 +264,7 @@ cat "$SYNTHESIS_FILE"
 4. DO NOT substitute with direct analysis — fallback to single-model analysis defeats the purpose of multi-provider consensus and produces narrower requirements
 
 
-### STEP 6: Update State (MANDATORY - Post-Execution)
+### STEP 6: Update State
 
 **After synthesis is verified, record findings and decisions in state:**
 
@@ -310,45 +317,7 @@ Read the synthesis file and present:
 
 # Define Workflow - Define Phase 🎯
 
-## ⚠️ MANDATORY: Visual Indicators Protocol
-
-**BEFORE executing ANY workflow actions, you MUST output this banner:**
-
-**First, check task status (if available):**
-```bash
-task_status=$("${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" get-task-status 2>/dev/null || echo "")
-```
-
-```
-🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider definition mode
-🎯 Define Phase: [Brief description of what you're defining/scoping]
-📋 Session: ${CLAUDE_SESSION_ID}
-📝 Tasks: ${task_status}
-
-Providers:
-🔴 Codex CLI - Technical requirements analysis
-🟡 Gemini CLI - Business context and constraints
-🧭 Antigravity CLI - Additional external-model challenge
-🔵 Claude - Consensus building and synthesis
-```
-
-{{VISUAL_INDICATORS}}
-
-
-**Part of Double Diamond: DEFINE** (convergent thinking)
-
-```
-        DEFINE (grasp)
-
-         \         /
-          \       /
-           \     /
-            \   /
-             \ /
-
-          Converge to
-           problem
-```
+<!-- Banner requirement lives in Execution Contract STEP 1 above. -->
 
 ## What This Workflow Does
 

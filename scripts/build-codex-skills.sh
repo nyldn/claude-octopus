@@ -204,7 +204,8 @@ body_has_enforcement() {
             }
             next
         }
-        in_body && /MANDATORY COMPLIANCE|EXECUTION CONTRACT.*MANDATORY|CANNOT SKIP/ {
+        in_body && (/MANDATORY COMPLIANCE|EXECUTION CONTRACT.*MANDATORY|CANNOT SKIP/ ||
+                    /^## Execution Contract[[:space:]]*$/) {
             found = 1
             exit
         }
