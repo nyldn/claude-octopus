@@ -7,7 +7,7 @@ source of truth for the PR, tag, and release state, and finish that release
 workflow before starting new work. Issues #799-#801 and streamlining Parts
 4b/4c/4d remain unstarted.
 Branch: `release/v9.61.1`
-Release: https://github.com/nyldn/claude-octopus/releases/tag/v9.61.1
+Release: not yet tagged — pending PR #811 merge, see "Next Action" below
 
 ## Start Here
 
