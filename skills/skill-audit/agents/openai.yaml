@@ -1,3 +1,3 @@
 interface:
   display_name: "Audit"
-  short_description: "Audit codebases for quality, consistency, and broken patterns — use for pre-release or tech debt review"
+  short_description: "Audit codebases for quality, consistency, and broken patterns..."

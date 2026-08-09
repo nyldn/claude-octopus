@@ -1,3 +1,3 @@
 interface:
   display_name: "Security Audit"
-  short_description: "OWASP compliance, vulnerability scanning, and adversarial red team testing — use for security reviews"
+  short_description: "OWASP compliance, vulnerability scanning, and adversarial red..."

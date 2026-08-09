@@ -100,8 +100,11 @@ AskUserQuestion({
 ```
 
 The dial answer maps to `--variance/--motion/--density` values (v/m/d above) passed to
-every `search.py` call and stated in the design direction. Infer instead of asking only
-when the user's brief already names a vibe ("brutalist", "playful", "corporate").
+every `search.py` call and stated in the design direction. When the user's brief already
+names a visual style (for example, "brutalist", "playful", or "corporate"), skip the
+Dials question and infer all three values from that style. Record the inferred values.
+If an explicit user answer is also available, the explicit user answer takes precedence
+over the inferred values. Otherwise, ask the Dials question normally.
 
 ### STEP 2: Display Banner
 
@@ -149,6 +152,9 @@ fi
 
 **If MISSING_SEARCH_PY**: The vendored design intelligence files are missing — tell the user to reinstall or update the plugin (the `vendors/ui-ux-pro-max-skill/` directory ships with it as plain files).
 **If MISSING_PYTHON**: Tell user python3 is required for design intelligence.
+
+Both missing states terminate this workflow after reporting the remediation. Only
+continue to Step 4 when preflight returns `READY`.
 
 ### STEP 4: Phase 1 — Discover (Design Research)
 
@@ -227,10 +233,10 @@ without a brief-tied reason.
 ```
 🎨 **Design Shotgun — 3 Variants**
 
-━━━ Variant A: "Warm Minimalism" (🔴 Codex) ━━━
-Colors: #F5F0EB, #2D2A26, #E07A5F, #81B29A, #F2CC8F
-Fonts: Inter + Source Serif 4
-Feel: Clean, approachable, content-first with warm accent touches
+━━━ Variant A: "Alpine Signal" (🔴 Codex) ━━━
+Colors: #EDF6F3, #10231D, #146C5A, #DDE7FF, #FFB000
+Fonts: Azeret Mono + Public Sans
+Feel: Crisp, field-ready, and content-first with one high-visibility signal color
 
 ━━━ Variant B: "Bold Industrial" (🟡 Gemini) ━━━
 Colors: #101418, #FFFFFF, #FF6B35, #004E89, #1A936F
@@ -315,7 +321,7 @@ done
 wait
 ```
 
-**🔵 Claude (Sonnet) — independent design critique.** You MUST also write your own adversarial critique. Do NOT just summarize what external providers said. Approach the design direction as if you didn't create it — actively look for problems across all four dimensions. This is your independent synthesis perspective, same as in `/octo:debate`.
+**🔵 Claude (Sonnet) — independent design critique.** You MUST also write your own adversarial critique. Do NOT just summarize what external providers said. Approach the design direction as if you didn't create it — actively look for problems across all five dimensions. This is your independent synthesis perspective, same as in `/octo:debate`.
 
 **Display all critiques with provider indicators:**
 ```
@@ -387,10 +393,10 @@ python3 "${HOME}/.claude-octopus/plugin/scripts/helpers/contrast-check.py" \
 
 Exit 1 means at least one pair fails WCAG AA — fix the palette and re-run before delivering. Include the checker output in the final document as evidence.
 
-2. **Slop check** — run the pre-ship checklist in `skills/blocks/design-taste.md`; two or more misses means revise before delivering
-3. **Completeness check** — verify all requested deliverables are present
-4. **Implementation readiness** — confirm specs are detailed enough for frontend-developer
-5. **Figma push-back** (if connected) — offer to push design tokens to Figma
+1. **Slop check** — run the pre-ship checklist in `skills/blocks/design-taste.md`; two or more misses means revise before delivering
+1. **Completeness check** — verify all requested deliverables are present
+1. **Implementation readiness** — confirm specs are detailed enough for frontend-developer
+1. **Figma push-back** (if connected) — offer to push design tokens to Figma
 
 ### STEP 7b: AI Surface Audit (when the interface calls a model)
 
@@ -461,17 +467,61 @@ Format the final design system as a structured document with:
 
 ```bash
 SLUG=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")
-BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null | tr '/' '-' || echo "no-branch")
+RAW_BRANCH=$(git branch --show-current 2>/dev/null || true)
+REVISION=$(git rev-parse HEAD 2>/dev/null || printf 'unborn')
+if [[ -n "$RAW_BRANCH" ]]; then
+  BRANCH_KEY=$(printf '%s' "$RAW_BRANCH" | tr '/' '-')
+else
+  RAW_BRANCH="detached:${REVISION}"
+  BRANCH_KEY="detached-${REVISION}"
+fi
 DATETIME=$(date -u +"%Y%m%d-%H%M%S")
 DESIGNS_DIR="${HOME}/.claude-octopus/designs/${SLUG}"
 mkdir -p "$DESIGNS_DIR"
-# Write the full design system document (with YAML frontmatter per skill-design-lineage)
-# to: ${DESIGNS_DIR}/${USER}-${BRANCH}-design-${DATETIME}.md
+
+# DESIGN_BODY must contain the complete structured design system from this step.
+if [[ -z "${DESIGN_BODY:-}" ]]; then
+  echo "Design persistence failed: DESIGN_BODY is empty." >&2
+  exit 1
+fi
+
+# Discover the newest prior document for this exact branch or detached revision.
+PRIOR=""
+for candidate in "$DESIGNS_DIR"/*.md; do
+  [[ -f "$candidate" ]] || continue
+  candidate_branch=$(awk -F ': ' '$1 == "branch" { print $2; exit }' "$candidate")
+  [[ "$candidate_branch" == "$RAW_BRANCH" ]] || continue
+  [[ -z "$PRIOR" || "$candidate" -nt "$PRIOR" ]] && PRIOR="$candidate"
+done
+SUPERSEDES=""
+[[ -n "$PRIOR" ]] && SUPERSEDES=$(basename "$PRIOR")
+
+USER_NAME="${USER:-$(whoami)}"
+FILEPATH="${DESIGNS_DIR}/${USER_NAME}-${BRANCH_KEY}-design-${DATETIME}.md"
+{
+  printf '%s\n' '---'
+  printf 'branch: %s\n' "$RAW_BRANCH"
+  printf 'user: %s\n' "$USER_NAME"
+  printf 'created: %s\n' "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+  printf 'git_revision: %s\n' "$REVISION"
+  [[ -n "$SUPERSEDES" ]] && printf 'supersedes: %s\n' "$SUPERSEDES"
+  printf '%s\n\n' '---'
+  printf '%s\n' "$DESIGN_BODY"
+} > "$FILEPATH"
+
+if [[ ! -s "$FILEPATH" ]]; then
+  echo "Design persistence failed: $FILEPATH is missing or empty." >&2
+  exit 1
+fi
+printf 'Persisted design: %s\n' "$FILEPATH"
 ```
 
-Later sessions (and `flow-develop` / `frontend-developer` handoffs) MUST check
-`~/.claude-octopus/designs/<slug>/` for the newest design document before inventing new
-tokens; a revision supersedes rather than edits (set the `supersedes:` frontmatter field).
+Later sessions (and `flow-develop` / `frontend-developer` handoffs) MUST filter
+`~/.claude-octopus/designs/<slug>/` to documents whose `branch:` matches the current Git
+branch before selecting the newest revision. Under detached HEAD, use the
+`detached:<full-commit>` branch value and only select documents for that exact revision.
+Follow `supersedes` only within the filtered set. A revision supersedes rather than edits
+the prior document.
 
 **Offer next steps:**
 - "Want me to implement these specs?" → hand off to frontend-developer persona

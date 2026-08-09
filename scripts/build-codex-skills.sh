@@ -80,6 +80,16 @@ display_name() {
     }'
 }
 
+ui_short_description() {
+    local description="$1"
+    local skill_display_name="$2"
+
+    if [[ ${#description} -lt 25 ]]; then
+        description="Help with ${skill_display_name} tasks and workflows"
+    fi
+    truncate "$description" 64
+}
+
 compat_alias_for() {
     local name="$1"
     case "$name" in
@@ -328,9 +338,13 @@ write_skill() {
     local codex_name="$3"
     local codex_desc="$4"
     local codex_display_name="${5:-}"
+    local codex_short_desc="${6:-}"
 
     if [[ -z "$codex_display_name" ]]; then
         codex_display_name="$(display_name "$codex_name")"
+    fi
+    if [[ -z "$codex_short_desc" ]]; then
+        codex_short_desc="$(ui_short_description "$codex_desc" "$codex_display_name")"
     fi
 
     mkdir -p "$skill_dir"
@@ -348,7 +362,7 @@ write_skill() {
     {
         echo "interface:"
         printf '  display_name: %s\n' "$(yaml_quote "$codex_display_name")"
-        printf '  short_description: %s\n' "$(yaml_quote "$codex_desc")"
+        printf '  short_description: %s\n' "$(yaml_quote "$codex_short_desc")"
     } > "$skill_dir/agents/openai.yaml"
 }
 
@@ -451,8 +465,12 @@ main() {
 
         local codex_display_name
         codex_display_name=$(extract_field "$file" "codex_display_name")
+        [[ -n "$codex_display_name" ]] || codex_display_name="$(display_name "$codex_name")"
 
-        write_skill "$file" "$target_dir/$codex_name" "$codex_name" "$codex_desc" "$codex_display_name"
+        local codex_short_desc
+        codex_short_desc="$(ui_short_description "$description" "$codex_display_name")"
+
+        write_skill "$file" "$target_dir/$codex_name" "$codex_name" "$codex_desc" "$codex_display_name" "$codex_short_desc"
 
         ((count++)) || true
         $VERBOSE && echo "  OK: $basename → skills/$codex_name/SKILL.md"
@@ -467,8 +485,12 @@ main() {
 
             local alias_display_name
             alias_display_name=$(extract_field "$file" "codex_alias_display_name")
+            [[ -n "$alias_display_name" ]] || alias_display_name="$(display_name "$alias_name")"
 
-            write_skill "$file" "$target_dir/$alias_name" "$alias_name" "$alias_desc" "$alias_display_name"
+            local alias_short_desc
+            alias_short_desc="$(ui_short_description "$alias_desc" "$alias_display_name")"
+
+            write_skill "$file" "$target_dir/$alias_name" "$alias_name" "$alias_desc" "$alias_display_name" "$alias_short_desc"
             ((count++)) || true
             $VERBOSE && echo "  OK: $basename → skills/$alias_name/SKILL.md (compat alias)"
         fi

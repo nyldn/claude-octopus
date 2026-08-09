@@ -66,10 +66,13 @@ What this should NOT be:
 
 ## Task Allocation
 **Risk**: [low | intermediate | high]
-**Initiative**: [human | AI] — who starts and proposes
-**Control**: [human | AI] — who oversees execution as it runs
+**Initiative**: [human | AI | shared] — who starts and proposes
+**Control**: [human | AI | shared] — who oversees execution as it runs
 **Decision rights**: [human | AI] — who has final say on the outcome
-**Resolved AUTONOMY_MODE**: [supervised | semi-autonomous | loop-until-approved | autonomous]
+**AI role**: [none | executor | collaborator | challenger]
+**Execution disposition**: [AI-assisted | human-only | pending-user-decision]
+**Escalation decision**: [not-needed | pending | user's recorded resolution]
+**Resolved AUTONOMY_MODE**: [supervised | semi-autonomous | loop-until-approved | autonomous | not-applicable]
 
 ## Validation Checklist
 - [ ] Meets "good enough" criteria
@@ -125,12 +128,18 @@ AI the *initiative* on unfamiliar work while keeping control and decision rights
 - **Control** — who oversees execution while it runs.
 - **Decision rights** — who has final say on the result.
 
-Low risk with low complexity supports AI autonomy across all three. Low risk with
-high complexity is collaborative: shared initiative, human decision rights. High
-risk with low complexity is human oversight, with AI holding no direct authority.
-High risk with high complexity is adversarial: the human leads and AI is pointed
-at the decision to attack it, as a deliberate counterweight to the human's own
-bias.
+Record every outcome explicitly:
+
+| Risk / complexity | Initiative | Control | Decision rights | AI role | Mode |
+|---|---|---|---|---|---|
+| Low / low | AI | AI | AI | executor | `autonomous` |
+| Low / high | shared | human | human | collaborator | `loop-until-approved` |
+| High / low | human | human | human | executor | `supervised` |
+| High / high | human | human | human | challenger | `supervised` |
+
+The High / high allocation is adversarial: the human leads while AI attacks the
+proposed decision as a deliberate counterweight to the human's own bias. In High /
+low work, AI may execute only the bounded actions the human directly approves.
 
 **The rule that inverts.** For **intermediate-risk** work where uncertainty is
 highest, the cited evidence says avoid AI entirely — "neither as a gatekeeper nor
@@ -155,8 +164,13 @@ axis cannot represent three independent allocations, so a contract that stores
 only the mode loses the reason it was chosen. That record is what a later
 reviewer needs when the allocation turns out to have been wrong.
 
-If the classification lands on intermediate risk, stop and raise it before
-proceeding rather than defaulting to a mode.
+If the classification lands on intermediate risk, set `Execution disposition` to
+`pending-user-decision`, set `Escalation decision` to `pending`, and stop before
+execution. Ask the user to choose human-only handling or a specific documented AI
+allocation. Record their answer, rewrite the Task Allocation fields to match it,
+and change `Escalation decision` to the user's resolution before continuing. A
+human-only choice uses `AI role: none` and `Resolved AUTONOMY_MODE: not-applicable`;
+the workflow does not execute AI work in that state.
 
 ### Step 1: Capture Intent
 

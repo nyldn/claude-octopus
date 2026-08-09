@@ -116,6 +116,25 @@ else
     test_fail "the inversion contradicts the paper's broader claim; the skill must say so rather than pick a side quietly"
 fi
 
+test_case "shared and adversarial allocations have explicit contract values"
+if grep -q '\[human | AI | shared\]' "$SKILL" &&
+   grep -q '\[none | executor | collaborator | challenger\]' "$SKILL" &&
+   grep -q 'High / high' "$SKILL" &&
+   grep -q 'challenger' "$SKILL"; then
+    test_pass
+else
+    test_fail "shared initiative and adversarial human-led work must be representable in the contract"
+fi
+
+test_case "intermediate-risk escalation records the user resolution before execution"
+if grep -q 'pending-user-decision' "$SKILL" &&
+   grep -q 'Escalation decision' "$SKILL" &&
+   grep -q 'rewrite the Task Allocation fields' "$SKILL"; then
+    test_pass
+else
+    test_fail "intermediate-risk escalation lacks a recorded resolution path"
+fi
+
 # Deferring the complexity axis is what keeps this a fold and not a second,
 # disagreeing classifier.
 test_case "defers complexity scoring to the existing classifiers"

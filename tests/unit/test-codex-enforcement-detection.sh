@@ -73,4 +73,34 @@ else
     test_fail "adapted output contained $real_contract_count execution-contract headings"
 fi
 
+test_case "generated primary and alias UI descriptions stay within 25-64 characters"
+fixture_root="$TEST_TMP_DIR/codex-generator"
+SKILLS_DIR="$fixture_root/source"
+OUTPUT_DIR="$fixture_root/output"
+mkdir -p "$SKILLS_DIR/skill-verification-gate"
+cat > "$SKILLS_DIR/skill-verification-gate/SKILL.md" <<'EOF'
+---
+name: skill-verification-gate
+description: "Use this deliberately long primary description to verify that SKILL metadata retains its full text while the separate Codex interface blurb is bounded correctly"
+codex_alias_description: "Use this deliberately long alias description to verify that compatibility aliases also receive bounded Codex interface metadata without truncating SKILL metadata"
+---
+
+# Fixture
+EOF
+main >/dev/null
+
+metadata_ok=true
+for generated in skill-verification-gate skill-verify; do
+    skill_desc=$(sed -n 's/^description: "\(.*\)"$/\1/p' "$OUTPUT_DIR/$generated/SKILL.md")
+    ui_desc=$(sed -n 's/^  short_description: "\(.*\)"$/\1/p' "$OUTPUT_DIR/$generated/agents/openai.yaml")
+    if (( ${#skill_desc} <= 64 || ${#ui_desc} < 25 || ${#ui_desc} > 64 )); then
+        metadata_ok=false
+    fi
+done
+if [[ "$metadata_ok" == true ]]; then
+    test_pass
+else
+    test_fail "primary or alias descriptions do not preserve SKILL text and bound UI metadata separately"
+fi
+
 test_summary

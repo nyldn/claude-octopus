@@ -324,5 +324,8 @@ Invoke this skill by asking Claude naturally, or run the orchestrator directly:
 |-------------------|--------|
 | "run Octopus doctor diagnostics" | Run all 11 categories |
 | "check Octopus providers" | Check provider installation only |
-| `bash scripts/orchestrate.sh doctor auth --verbose` | Detailed auth status |
-| `bash scripts/orchestrate.sh doctor --json` | Machine-readable output |
+| `bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor auth --verbose` | Detailed auth status |
+| `bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor --json` | Machine-readable output |
+
+Resolve and export `OCTO_PLUGIN_ROOT` with the Step 1 resolver before using either
+direct command.

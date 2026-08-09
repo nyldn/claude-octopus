@@ -2,10 +2,11 @@
 
 Last updated: 2026-08-09
 Status: v9.61.0 is released. The model-routing fixes for #797 and #798, the
-generator safety repair, and the flow-define pilot are merged. PR #812 carries
-the final #804 skill-tree reconciliation. Issues #799-#801 and streamlining
-Parts 4b/4c/4d remain unstarted.
-Branch: `fix/skill-tree-drift`
+generator safety repair, flow-define pilot, and #804 skill-tree reconciliation
+are merged. A review follow-up is in progress on
+`fix/skill-tree-review-followup`. Issues #799-#801 and streamlining Parts
+4b/4c/4d remain unstarted.
+Branch: `fix/skill-tree-review-followup`
 Release: https://github.com/nyldn/claude-octopus/releases/tag/v9.61.0
 
 ## Start Here
@@ -15,7 +16,7 @@ OpenCode, and other harnesses. It is a context packet, not the task tracker.
 
 Read in order:
 
-1. `AGENTS.md` and `RTK.md`
+1. `AGENTS.md`, `CLAUDE.md`, and `RTK.md`
 2. `git status --short --branch`
 3. the latest commits and live PR state
 4. the relevant `bd` issue; if Beads is still blocked, read `Tracking Blocker`
@@ -79,8 +80,12 @@ claimed or recorded in `bd`; use this handoff for the blocked tracking record.
   review pass made provider gating operational, clarified the terminal
   transition, scoped enforcement detection to real contract sections, and
   added caller-level generation regressions.
-- **#812** — final #804 reconciliation, based on `4ad6ddde`. The code commit is
-  `31cc5d03` plus this handoff update.
+- **#812 merged (`3b658269`)** — final #804 reconciliation. Issue #804 closed
+  automatically after the merge.
+- **Review follow-up in progress** — addresses the valid #812 review findings
+  with test-first workflow-state, design-lineage, allocation, and Codex metadata
+  fixes. The request to chmod the Codex generator in CI was rejected because the
+  tracked `100755` mode is an enforced repository contract that CI must not mask.
 
 ## PR #812 / Issue #804
 
@@ -108,6 +113,14 @@ Verification on the final rebased code commit:
 - `make ci-local`: 16 smoke, 245 unit, and 7 integration suites passed.
 - No executable-bit changes.
 
+Focused verification for the review follow-up:
+
+- `test-workflow-meta-contracts.sh`: 12/12 passed.
+- `test-codex-enforcement-detection.sh`: 5/5 passed.
+- `test-intent-contract-allocation.sh`: 12/12 passed.
+- `test-handoff.sh`: 12/12 passed.
+- `make sync-check`: passed; 58 Codex skills are up to date.
+
 The plugin-lifecycle integration test can overwrite canonical flow files in a
 long-lived checkout from the currently installed marketplace copy. The test
 run was therefore followed by recreating the isolated worktree from the
@@ -125,18 +138,16 @@ verified commit; do not mistake those test side effects for intended changes.
   and pricing still disagree across `models.sh`, `octo-model-config.sh`,
   `cost.sh`, and `usage-report.sh`.
 
-Each issue contains a concrete reproduction. Do not combine them into one
-large provider refactor; preserve the behavioural-test-first pattern used by
-#805 and #807.
+Each issue contains a concrete reproduction. Do not combine them into one large
+provider refactor; preserve the behavioural-test-first pattern used by `#805` and
+`#807`.
 
 ## Next Action
 
-1. If PR #812 is open, inspect the live head, resolve only valid review
-   findings, keep the branch rebased on `main`, and let auto-merge complete
-   after all checks pass. If it is merged, verify #804 closed and start from the
-   resulting `main` commit.
+1. Finish the `fix/skill-tree-review-followup` PR: verify each review response,
+   keep it rebased on `main`, and merge only after local and remote gates pass.
 2. Re-check the release PR/state before starting new work; release activity may
-   advance `main` while #812 is under review.
+   advance `main` while the follow-up is under review.
 3. Pick up #799, #800, and #801 as separate test-first fixes.
 4. Remaining streamlining work is still unstarted:
    - **4c:** remove obsolete drift detection, its unreachable duplicate, and

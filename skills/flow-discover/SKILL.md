@@ -799,13 +799,16 @@ fi
 
 # Present findings before recording the phase as complete.
 echo "Discovery findings:"
-sed -n '1,100p' "$SYNTHESIS_FILE"
+cat "$SYNTHESIS_FILE"
 
-# Populate PROJECT.md with research findings
+# Populate PROJECT.md with the complete research synthesis and fail closed.
 echo "📝 Updating .octo/PROJECT.md with discovery findings..."
-"${HOME}/.claude-octopus/plugin/scripts/octo-state.sh" update_project \
-  --section "vision" \
-  --content "$(head -100 "$SYNTHESIS_FILE" | grep -A 10 'Key.*Findings\|Summary' || echo 'See synthesis file')"
+if ! "${HOME}/.claude-octopus/plugin/scripts/octo-state.sh" update_project \
+    --section "vision" \
+    --content "$(cat "$SYNTHESIS_FILE")"; then
+  echo "Discover incomplete: could not persist findings to .octo/PROJECT.md." >&2
+  exit 1
+fi
 
 # Mark complete only after the synthesis was presented and persisted.
 "${HOME}/.claude-octopus/plugin/scripts/octo-state.sh" update_state \
@@ -816,9 +819,10 @@ echo "📝 Updating .octo/PROJECT.md with discovery findings..."
 
 ## Terminal State
 
-The Discover phase is complete ONLY when the synthesis file exists and its findings are
-presented to the user. Then either invoke `flow-define` (embrace workflow, or the user
-wants requirements next) or stop with research delivered. Do NOT begin scoping,
-designing, or implementation from here — that work belongs to later phases.
+The Discover phase is complete ONLY when the synthesis file exists, its complete findings
+are presented to the user, and those findings are persisted in `.octo/PROJECT.md`. Then
+either invoke `flow-define` (embrace workflow, or the user wants requirements next) or
+stop with research delivered. Do NOT begin scoping, designing, or implementation from
+here — that work belongs to later phases.
 
 **Ready to research!** This skill activates automatically when users request research or exploration.
