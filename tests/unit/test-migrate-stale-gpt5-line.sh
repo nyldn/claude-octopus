@@ -65,6 +65,34 @@ test_case "stale codex.fallback (gpt-5.4) migrates to the current default"
 val="$(jq -r '.providers.codex.fallback' "$CONFIG_FILE")"
 [[ "$val" == "gpt-5.6-sol" ]] && test_pass || test_fail "expected gpt-5.6-sol, got: $val"
 
+assert_stale_model_migrates() {
+    local stale_model="$1"
+    local fixture_home="$TEST_TMP_DIR/home-$stale_model"
+    local fixture_file="$fixture_home/.claude-octopus/config/providers.json"
+
+    mkdir -p "$(dirname "$fixture_file")"
+    jq -n --arg model "$stale_model" '{
+      version: "3.0",
+      providers: {codex: {default: $model}},
+      phases: {}, roles: {}, tiers: {}, overrides: {}
+    }' > "$fixture_file"
+
+    (
+        log() { :; }
+        HOME="$fixture_home"
+        source "$PROJECT_ROOT/scripts/lib/provider-routing.sh" >/dev/null 2>&1
+        migrate_provider_config
+    )
+
+    test_case "stale codex.default ($stale_model) migrates to the current default"
+    val="$(jq -r '.providers.codex.default' "$fixture_file")"
+    [[ "$val" == "gpt-5.6-sol" ]] && test_pass || test_fail "expected gpt-5.6-sol, got: $val"
+}
+
+for stale_model in gpt-5.5 gpt-5.4-pro gpt-5.3-codex gpt-5.2-codex gpt-5.1-codex-max; do
+    assert_stale_model_migrates "$stale_model"
+done
+
 test_case "already-current gemini default is left untouched"
 val="$(jq -r '.providers.gemini.default' "$CONFIG_FILE")"
 [[ "$val" == "gemini-3.1-pro-preview" ]] && test_pass || test_fail "expected gemini-3.1-pro-preview (unchanged), got: $val"
