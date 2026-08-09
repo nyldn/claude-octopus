@@ -201,6 +201,7 @@ body_has_enforcement() {
             in_body = 0
             in_fence = 0
             in_contract = 0
+            contract_level = 0
             found = 0
         }
         /^---$/ {
@@ -219,19 +220,25 @@ body_has_enforcement() {
         }
         in_fence { next }
 
-        /MANDATORY COMPLIANCE|EXECUTION CONTRACT.*MANDATORY|CANNOT SKIP/ {
-            found = 1
-            exit
-        }
-
-        /^## Execution Contract[[:space:]]*$/ {
+        /^#+[[:space:]]/ &&
+            (/Execution Contract/ || /EXECUTION CONTRACT/ || /MANDATORY COMPLIANCE/) {
+            match($0, /^#+/)
             in_contract = 1
+            contract_level = RLENGTH
+            if ($0 ~ /MANDATORY COMPLIANCE|EXECUTION CONTRACT.*MANDATORY|CANNOT SKIP/) {
+                found = 1
+                exit
+            }
             next
         }
-        in_contract && /^##[[:space:]]/ {
-            in_contract = 0
+        in_contract && /^#+[[:space:]]/ {
+            match($0, /^#+/)
+            if (RLENGTH <= contract_level) {
+                in_contract = 0
+            }
         }
-        in_contract && /(^|[^[:alnum:]_])(MUST|MANDATORY|PROHIBITED|CANNOT|DO NOT)([^[:alnum:]_]|$)/ {
+        in_contract &&
+            /(^|[^[:alnum:]_])(MUST|MANDATORY|PROHIBITED|CANNOT|CANNOT SKIP|DO NOT)([^[:alnum:]_]|$)/ {
             found = 1
             exit
         }
