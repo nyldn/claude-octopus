@@ -445,6 +445,9 @@ EOF
                 replacement="gemini-3-pro-image" ;;  # shutdown 2026-06-25 (codex review)
             gpt-4o*|gpt-4-turbo*|gpt-4-*|o1-*|chatgpt-*)
                 replacement="gpt-5.6-sol" ;;
+            gpt-5.5|gpt-5.5-pro|gpt-5.4|gpt-5.4-pro|gpt-5.3-codex|gpt-5.2-codex|gpt-5.1-codex-max)
+                replacement="gpt-5.6-sol" ;;  # gpt-5.x line predates GPT-5.6 (#798). Exact names, not wildcards —
+                                               # gpt-5.4-mini/gpt-5.3-codex-spark are distinct current tiers, not stale
         esac
 
         if [[ -n "$replacement" ]]; then
