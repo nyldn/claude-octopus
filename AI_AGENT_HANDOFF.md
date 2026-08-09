@@ -1,166 +1,166 @@
 # AI Agent Handoff
 
-Last updated: 2026-08-05
-Status: v9.59.0 released and tagged; `main` green; one open PR (#762, an
-external contributor's draft) and six open issues, all blocked or awaiting a
-maintainer decision
-Branch: `main`
-Release: https://github.com/nyldn/claude-octopus/releases/tag/v9.59.0
-Release squash: `a5d38ee325a823ba2cd4f9ef71f256cae4dec712` (pushed to
-`upstream/main`)
-Tag target: `v9.59.0` is annotated, resolves to that exact squash commit, and
-is pushed; the main-branch Test Suite passed on that commit before tagging
+Last updated: 2026-08-09
+Status: v9.61.0 is released. The model-routing fixes for #797 and #798, the
+generator safety repair, and the flow-define pilot are merged. PR #812 carries
+the final #804 skill-tree reconciliation. Issues #799-#801 and streamlining
+Parts 4b/4c/4d remain unstarted.
+Branch: `fix/skill-tree-drift`
+Release: https://github.com/nyldn/claude-octopus/releases/tag/v9.61.0
 
 ## Start Here
 
-This file is the portable resume point for Claude Code, Codex, and other LLM
-harnesses. It is a context packet, not the task tracker.
+This file is the portable resume point for Claude Code, Codex, Copilot,
+OpenCode, and other harnesses. It is a context packet, not the task tracker.
 
 Read in order:
 
 1. `AGENTS.md` and `RTK.md`
 2. `git status --short --branch`
-3. the latest commits on the current branch
-4. the relevant `bd` issue before editing; if Beads is blocked, read
-   `Tracking Blocker` below and do not migrate the database
-5. `docs/MODEL-ROUTING-STRATEGY.md`
-6. `docs/GPT-5.6-PROMPTING.md`
+3. the latest commits and live PR state
+4. the relevant `bd` issue; if Beads is still blocked, read `Tracking Blocker`
+   below and do not migrate the database
+5. `docs/MODEL-ROUTING-STRATEGY.md` for model-routing work
+6. `docs/GPT-5.6-PROMPTING.md` for GPT-5.6 prompt changes
+
+Harness-local files such as `.octo-continue.md` may be stale. The existing
+untracked copy predates this work and remains user-owned; do not overwrite it.
 
 ## Delivered Goal
 
-Opus 5 is the default complex-work owner in Claude Octopus while keeping
-Fable 5 as a capability escalation, Codex/GPT-5.6 as an independent peer,
-cheaper model tiers, user overrides, and legacy compatibility.
+Opus 5 remains the default complex-work owner while Fable 5 stays an explicit
+capability escalation, GPT-5.6 Sol remains the independent Codex peer, cheaper
+tiers remain available, and explicit user pins and role/phase routes continue
+to override defaults.
 
-## Decisions
+## Durable Decisions
 
 - Opus 5 is the default premium Claude owner, not the only workflow model.
-- Fable 5 is an explicit escalation and does not add an independent provider
-  organization beside Opus.
+- Fable 5 is an explicit escalation and does not create a second Claude
+  provider organization.
 - GPT-5.6 Sol is the default Codex peer; Terra and Luna are standard and budget
-  tiers.
-- Sonnet 5 is the standard Claude seat.
-- Explicit user pins and role/phase routes remain higher priority than defaults.
-- Claude model allowlists remain a compliance boundary: direct normal and fast
-  Opus dispatch validate the final rerouted model and any fallback before
-  command serialization.
-- Tangle implementation isolation defaults on for orchestrated and direct
-  library calls; explicit `OCTOPUS_TANGLE_RUN_WORKTREE=false` is the opt-out.
-- Tangle uses one run ID across its branch, delegated tasks, markers, and
-  validation artifacts, and resolves caller-relative ignored context before
-  changing worktrees.
-- Verification-only results fail closed unless all declared evidence members
-  are strings and the baseline, reproduction, and implementation flags are
-  internally consistent.
-- Multi-model fan-out remains mandatory only for commands whose explicit
-  contract is council, debate, parallel, or multi-provider research.
-- Tests and runtime evidence remain mandatory; redundant prompt-only
+  tiers. Sonnet 5 is the standard Claude seat.
+- Claude allowlists are a compliance boundary. Normal, fast, rerouted, and
+  fallback dispatches validate the final model before command serialization.
+- Tangle implementation isolation defaults on. One run ID spans its branch,
+  delegated tasks, markers, and validation artifacts.
+- Verification-only results fail closed unless evidence types and baseline,
+  reproduction, and implementation flags are internally consistent.
+- Multi-model fan-out is mandatory only where the command contract explicitly
+  requires council, debate, parallel, or multi-provider research.
+- Runtime evidence and tests remain mandatory; duplicated prompt-only
   self-verification is removed.
-- Release summaries, model defaults, component counts, runtime compatibility,
-  and provider counts in the public README surfaces are generated from
-  repository sources rather than maintained as duplicated prose.
-- `make sync` repairs README drift and `make sync-check` rejects it. Release
-  preparation updates the changelog first, then runs the same synchronization.
-- Public test-suite counts are derived from the same `test-*.sh` discovery used
-  by the smoke, unit, and integration runners.
-- Review findings are fixed on the release branch before merge; review comments
-  marked addressed are still checked against the actual head rather than
-  accepted as evidence.
-- `.octo-continue.md` predates this work and is preserved as user-owned state.
+- Public release/model/component/provider facts and test counts are generated
+  from repository sources. `make sync` repairs drift and `make sync-check`
+  rejects it.
+- Review findings are verified against the current head before being marked
+  resolved.
 
 ## Tracking Blocker
 
 Beads is readable but not writable. The remote-backed database is on schema
-v49 with four pending migrations to v53. Repository rules prohibit migrating
-without the single designated migrator. No migration was run, so this work
-could not be claimed or recorded as a new Beads issue.
+v49 with four pending migrations to v53. Repository rules reserve migration for
+the designated migrator. No migration was run, so this work could not be
+claimed or recorded in `bd`; use this handoff for the blocked tracking record.
 
-## Current Evidence
+## Delivered in This Cycle
 
-- Release v9.59.0 is the resume baseline: ten reliability fixes plus literal
-  provider-model routing (#734) and three test systems (#749, #752). Tagged on
-  the squash commit per `RELEASING.md` step 7, with main verified green first
-  per step 9.
-- The release notes were rewritten before publication because they described
-  three fixes while `main` had gained fifteen more. Every cited PR was verified
-  by content, not by label: the batch PRs show CLOSED rather than MERGED
-  because #764 squashed them, so a label check reads as though they never
-  landed.
-- #762 (provider-registry consolidation) is verified, CI-green and Bash 3.2
-  clean, but is still the author's **draft**. It was deliberately excluded from
-  v9.59.0 and the registry claim was removed from the notes rather than
-  shipping a description of a change users would not have. It should lead the
-  next release.
-- Main went red on the v9.59.0 commit and the tag was held. Root cause was a
-  single macOS timing flake, not the release: `integration-heavy` declares
-  `needs: [unit-required]`, so a failed unit gate skips it and the `integration`
-  gate then fails on `heavy_tests=true` with result `skipped`. One flake, two
-  red checks. Both halves fixed in #771.
-- The flake was never reproduced locally across eleven runs including three
-  under CPU load. What established nondeterminism was a re-run of the identical
-  commit going green with no code change.
-- #769 fixed a live dispatch break: `grok-exec.sh` and `claude-sdk-exec.sh`
-  existed but were absent from `validate_agent_command`'s allowlist, so every
-  grok and claude-sdk dispatch aborted before the CLI ran. Third occurrence of
-  this pattern after #697 and #705. The fix requires exactly three tokens
-  (`env`, `VAR=`, shim), and four injection shapes were confirmed rejected.
-- #774 lowered both SessionEnd timeouts to Codex's 3s cap. This reversed an
-  earlier judgement made without measurement: `session-end.sh` runs 142 ms
-  nominal and 360 ms against a 2.7 MB session file with 6000 errors, 3000
-  phases and 300 memory dirs; `workflow-verification.sh` runs 20 ms. Codex
-  clamps to 3s regardless, so the declared 15s only ever produced a startup
-  warning. `main` now declares zero async hooks and zero over-cap timeouts.
-- #775 registered `/octo:whats-new`, which had shipped unregistered since
-  2026-07-30 (51 command files, 50 registered). Found by
-  `tests/test-command-registration.sh`, one of the 34 files no CI gate runs.
-  That is the concrete payoff #752 predicted.
-- All 34 unreachable files are triaged: 27 pass and are misplaced (including
-  `test-credential-isolation.sh`, which is clean); 1 found the bug above; 1
-  (`test-enforcement-pattern.sh`) is stale, demanding an attribution footer
-  that **0 of 57** skills carry; 2 are version-named and need reading; 1
-  baseline entry points at a deleted file.
-- Relocating those 27 is **not** a `git mv`. `tests/` root resolves
-  `PROJECT_ROOT` as `$SCRIPT_DIR/..` while `tests/unit/` uses
-  `$SCRIPT_DIR/../..`. Demonstrated: a moved test dies on
-  `tests/unit/helpers/test-framework.sh: No such file or directory`. A path
-  error that resolves rather than errors yields a green test asserting nothing,
-  so each move needs verifying by content.
-- Three consecutive releases filed identical E2E reports. #717 and #735 are
-  closed: their `B2c /octo:model-config` failure no longer reproduces, with no
-  root cause identified — treat a recurrence as nondeterministic. The surviving
-  `gemini:degraded` is correct behaviour, not a defect:
-  `check-providers.sh:30-32` names "gemini exhausted" as a case that should
-  report degraded. The stale assertion lives in an external harness. Tracked
-  in #772.
-- Merged this session with `main` green on every commit: #771 (`ec52a786`),
-  #769 (`49e036c0`), #774 (`1b078482`), #775 (`a595a264`), #773 (`be1534b2`).
-- `make ci-local` on the #762 branch passed 16 smoke, 201 unit, 7 integration.
-  `test-hud-smart-mode.sh` fails in one long-lived local checkout and passes in
-  a fresh worktree and in CI; treat it as environmental.
-- Auto-merge is disabled at the repository level and merge queues are
-  org-only, so under `strict: true` every merge invalidates every other PR.
-  Five sequential rebases were needed today. Enabling auto-merge is a one-line
-  repository setting and was left for the maintainer.
-- `make sync-check` passes with no script mode changes; no stashes; working
-  tree clean on `main`.
+- **#805 merged (`f0586e73`)** — added vendor-correct no-config model fallbacks
+  for grok, OpenRouter, Vibe, and AtlasCloud, with behavioural regression tests.
+  Fixes #797.
+- **#806 closed** — duplicate of #805 and intentionally not merged.
+- **#807 merged (`b449bebb`)** — migrates stale GPT-5.x pins, not only pre-GPT-5
+  model IDs. Fixes #798.
+- **#808 merged (`6df8d231`)** — prevents the Codex generator from deleting the
+  hand-maintained `skill-council` and starter-pack directories.
+- **#809 merged (`c9cfd8b2`)** — removes a GNU grep SIGPIPE failure from the
+  agent-fields test under `set -o pipefail`.
+- **#810 merged (`4ad6ddde`)** — flow-define streamlining pilot. Its final
+  review pass made provider gating operational, clarified the terminal
+  transition, scoped enforcement detection to real contract sections, and
+  added caller-level generation regressions.
+- **#812** — final #804 reconciliation, based on `4ad6ddde`. The code commit is
+  `31cc5d03` plus this handoff update.
 
-## Merge Queue
+## PR #812 / Issue #804
 
-- Merged this session: #771, #769, #774, #775, #773. Earlier in the same cycle:
-  #765, #767, and the nine-PR integration batch #764 (#740, #742, #743, #744,
-  #747, #757, #758, #759, #761), plus #763, #734, #760, #754, #739, #737, and
-  release PR #748 (v9.59.0).
-- Open: **#762 only**, an external contributor's draft. Do not convert someone
-  else's draft to ready; the author has been asked and told it missed v9.59.0.
-- Open issues, none of them available work without a decision or an unblock:
-  #768 and the structural half of #750 are blocked on #762; #772 needs a change
-  in an external E2E harness; #724 is a phase-handoff contract change needing
-  design; #701 is a product-scope call (recommendation given: fold into
-  `octopus-ui-ux-design` rather than add a 58th skill); #741 has a scoped plan
-  and a ratchet preventing growth.
+The canonical `.claude/skills/` tree and generated `skills/` tree had real
+content drift mixed with expected generator transformations. The reconciliation
+does the following:
+
+- Back-ports generated-only operational guidance into canonical sources for
+  flow-deliver, flow-develop, flow-discover, security audit, UI/UX design,
+  doctor, meta-prompt, parallel agents, and verification gate.
+- Keeps expected name transformations such as `skill-ui-ux-design` to
+  `octopus-ui-ux-design`; those are not drift.
+- Treats `skill-intent-contract` as source-ahead and regenerates it.
+- Removes the duplicate generated Iron Law from the `skill-verify` alias while
+  retaining its rationalization table.
+- Adds explicit Codex display-name and alias-description overrides rather than
+  hand-editing generated frontmatter.
+- Wires `build-codex-skills.sh` into `make sync`, `make sync-check`, and the
+  portability CI job so future drift fails deterministically.
+
+Verification on the final rebased code commit:
+
+- `./scripts/build-codex-skills.sh --check`: 58 generated, 0 skipped, 0 errors;
+  `skills/` up to date.
+- `make ci-local`: 16 smoke, 245 unit, and 7 integration suites passed.
+- No executable-bit changes.
+
+The plugin-lifecycle integration test can overwrite canonical flow files in a
+long-lived checkout from the currently installed marketplace copy. The test
+run was therefore followed by recreating the isolated worktree from the
+verified commit; do not mistake those test side effects for intended changes.
+
+## Model Audit Still Open
+
+- **#799 — provider availability/auth parity.** `check-providers.sh` still uses
+  binary presence alone for several providers, while preflight has stronger
+  auth checks. `is_agent_available_v2` also has an optimistic default arm.
+- **#800 — stale pins and dead environment overrides.** Copilot and Ollama have
+  stale defaults, and some provider IDs do not map to their documented
+  `OCTOPUS_*_MODEL` variables.
+- **#801 — catalog and price-table consolidation.** Model membership, tiering,
+  and pricing still disagree across `models.sh`, `octo-model-config.sh`,
+  `cost.sh`, and `usage-report.sh`.
+
+Each issue contains a concrete reproduction. Do not combine them into one
+large provider refactor; preserve the behavioural-test-first pattern used by
+#805 and #807.
 
 ## Next Action
 
-Merge #762 when its author clears the draft flag, then fix all three #768 items
-in one pass. Two decisions belong to the maintainer: enabling repository
-auto-merge, and the Beads migration below.
+1. If PR #812 is open, inspect the live head, resolve only valid review
+   findings, keep the branch rebased on `main`, and let auto-merge complete
+   after all checks pass. If it is merged, verify #804 closed and start from the
+   resulting `main` commit.
+2. Re-check the release PR/state before starting new work; release activity may
+   advance `main` while #812 is under review.
+3. Pick up #799, #800, and #801 as separate test-first fixes.
+4. Remaining streamlining work is still unstarted:
+   - **4c:** remove obsolete drift detection, its unreachable duplicate, and
+     the deprecated wizard only after confirming all call sites.
+   - **4b:** cull unused/below-floor `SUPPORTS_*` flags together with the
+     `sync-readme.py` parser change required when the set becomes empty.
+   - **4d:** remove `tangle_reformat_decomposition` only after verifying whether
+     current agy/Codex decomposition still needs weak-format repair.
+
+Do not remove `lib/fable5.sh`, the Markdown-fence stripping in `review.sh`, or
+the provider-outage fallback ladder in `review.sh`; each handles a current
+runtime case rather than obsolete model weakness.
+
+## Standing Constraints
+
+- Bash floor is `/bin/bash` 3.2.57: no associative arrays or namerefs.
+- Provider wiring uses the 7-point checklist in `docs/PROVIDERS.md`; provider
+  case globs are order-sensitive (`claude-sdk*` before `claude*`).
+- Regenerate owned artifacts through their scripts. Never hand-edit
+  `.claude-plugin/marketplace.json`, `openclaw/src/tools/index.ts`, or generated
+  `skills/` output.
+- Run `make sync` after skill/provider/metadata changes and `make ci-local`
+  before pushing code.
+- Re-check script modes after local tests. The branch diff must contain no
+  unintended mode changes.
+- At session end, update this handoff, commit, pull/rebase, push, and verify the
+  branch is up to date with its remote.
