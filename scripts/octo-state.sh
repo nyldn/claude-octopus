@@ -26,6 +26,9 @@ VALID_STATUSES="ready planned planning building in_progress complete complete_wi
 # Valid context tiers
 VALID_TIERS="minimal planning execution brownfield full auto"
 
+# Keep project-section updates well below platform command and memory limits.
+MAX_PROJECT_SECTION_BYTES=1048576
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # UTILITY FUNCTIONS
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -327,6 +330,87 @@ init_project() {
     echo "  1. Edit $PROJECT_FILE with your project vision and requirements"
     echo "  2. Edit $ROADMAP_FILE with your phase breakdown"
     echo "  3. Run 'octo-state.sh read_state' to view current state"
+}
+
+# Replace one top-level PROJECT.md section from a bounded file input.
+# File input avoids ARG_MAX failures and preserves multiline synthesis content.
+update_project() {
+    local section=""
+    local content_file=""
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --section)
+                [[ $# -ge 2 ]] || error "--section requires a value"
+                section="$2"
+                shift 2
+                ;;
+            --content-file)
+                [[ $# -ge 2 ]] || error "--content-file requires a path"
+                content_file="$2"
+                shift 2
+                ;;
+            *)
+                error "Unknown update_project option: $1"
+                ;;
+        esac
+    done
+
+    local heading
+    case "$section" in
+        vision)       heading="## Vision" ;;
+        requirements) heading="## Requirements" ;;
+        constraints)  heading="## Constraints" ;;
+        decisions)    heading="## Decisions" ;;
+        *) error "Unsupported project section '$section'. Valid sections: vision requirements constraints decisions" ;;
+    esac
+
+    [[ -f "$PROJECT_FILE" ]] || error "Project file not found. Run 'init_project' first."
+    [[ -f "$content_file" && -r "$content_file" ]] || error "Content file is missing or unreadable: $content_file"
+    [[ -s "$content_file" ]] || error "Content file is empty: $content_file"
+
+    local content_bytes
+    content_bytes=$(LC_ALL=C wc -c < "$content_file")
+    content_bytes=${content_bytes//[[:space:]]/}
+    if [[ "$content_bytes" -gt "$MAX_PROJECT_SECTION_BYTES" ]]; then
+        error "Content file exceeds ${MAX_PROJECT_SECTION_BYTES} bytes: $content_file"
+    fi
+
+    local temp_file
+    if ! temp_file=$(mktemp "${PROJECT_FILE}.tmp.XXXXXX"); then
+        error "Failed to allocate temporary project file"
+    fi
+    if ! awk -v heading="$heading" -v content_file="$content_file" '
+        BEGIN {
+            while ((getline content_line < content_file) > 0) {
+                content = content content_line "\n"
+            }
+            close(content_file)
+        }
+        $0 == heading {
+            print
+            printf "%s\n", content
+            replacing = 1
+            found = 1
+            next
+        }
+        replacing && /^## / { replacing = 0 }
+        !replacing { print }
+        END { if (!found) exit 42 }
+    ' "$PROJECT_FILE" > "$temp_file"; then
+        rm -f "$temp_file"
+        error "Project section not found: $heading"
+    fi
+
+    if [[ ! -s "$temp_file" ]]; then
+        rm -f "$temp_file"
+        error "Failed to write updated project file"
+    fi
+    if ! mv "$temp_file" "$PROJECT_FILE"; then
+        rm -f "$temp_file"
+        error "Failed to publish updated project file"
+    fi
+    success "Updated PROJECT.md section: $section"
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -642,6 +726,11 @@ Commands:
                                      --status <status>  Set status (see valid values below)
                                      --blocker <text>   Set blocker description
 
+  update_project [options]           Replace one PROJECT.md section atomically
+                                     --section <name>   vision, requirements, constraints, decisions
+                                     --content-file <path>
+                                                        Read at most 1 MiB from a file
+
   update_phase <phase> [position] [status]
                                      Shorthand for updating phase with position and status
                                      Defaults: position="Phase N started", status="in_progress"
@@ -677,6 +766,7 @@ Examples:
   octo-state.sh init_project
   octo-state.sh read_state
   octo-state.sh write_state --phase 2 --status planning --position "Planning phase 2"
+  octo-state.sh update_project --section vision --content-file /path/to/synthesis.md
   octo-state.sh update_phase 3 "Building authentication module" building
   octo-state.sh get_context_tier planning
   octo-state.sh get_context_tier auto
@@ -700,6 +790,9 @@ main() {
             ;;
         write_state)
             write_state "$@"
+            ;;
+        update_project)
+            update_project "$@"
             ;;
         update_phase)
             update_phase "$@"

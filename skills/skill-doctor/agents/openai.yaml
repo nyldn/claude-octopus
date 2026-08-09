@@ -1,3 +1,3 @@
 interface:
   display_name: "Doctor"
-  short_description: "Environment diagnostics — check providers, auth, config, hooks, scheduler, and more"
+  short_description: "Environment diagnostics — check providers, auth, config,..."

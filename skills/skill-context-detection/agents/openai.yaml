@@ -1,3 +1,3 @@
 interface:
   display_name: "Context Detection"
-  short_description: "Auto-detect work context (Dev vs Knowledge) — use to tailor workflows based on current task type"
+  short_description: "Auto-detect work context (Dev vs Knowledge) — use to tailor..."

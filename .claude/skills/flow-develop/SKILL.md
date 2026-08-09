@@ -805,20 +805,21 @@ Tangle workflows typically cost $0.02-0.10 per task depending on complexity and 
 ## Post-Development: Checkpoint
 
 After development completes:
-1. Update `.octo/STATE.md` with completion
+1. Run fresh targeted tests for the changed behavior through
+   `skill-verification-gate`; stop if they fail.
 2. Create checkpoint: `git tag octo-checkpoint-post-develop-$(date +%Y%m%d-%H%M%S)`
-3. Add history entry with files modified
+3. Update `.octo/STATE.md` with completion and add a history entry with files modified.
 
 ```bash
-# Update state after Development completion
-"${HOME}/.claude-octopus/plugin/scripts/octo-state.sh" update_state \
-  --status "complete" \
-  --history "Develop phase completed"
-
-# Create git checkpoint tag
+# Enter this block only after fresh targeted tests pass.
 checkpoint_tag="octo-checkpoint-post-develop-$(date +%Y%m%d-%H%M%S)"
 git tag "$checkpoint_tag" -m "Post-develop checkpoint from embrace workflow"
 echo "📌 Created checkpoint: $checkpoint_tag"
+
+# Update state only after verification and checkpoint creation succeed.
+"${HOME}/.claude-octopus/plugin/scripts/octo-state.sh" update_state \
+  --status "complete" \
+  --history "Develop phase completed"
 
 # Record files modified in this phase
 modified_files=$(git diff --name-only HEAD~1 2>/dev/null || echo "See git log")

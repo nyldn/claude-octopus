@@ -31,7 +31,13 @@ FABLE5_MODEL_ID="claude-fable-5"
 FABLE5_REROUTE_MODEL="claude-opus-5"
 
 fable5_fallback_model() {
-    printf '%s\n' "${OCTOPUS_FABLE5_FALLBACK_MODEL:-$FABLE5_REROUTE_MODEL}"
+    local fallback_model="${OCTOPUS_FABLE5_FALLBACK_MODEL:-$FABLE5_REROUTE_MODEL}"
+    # A fallback that still targets Fable defeats both the security reroute and
+    # refusal recovery contracts. Fail safe to the built-in Opus target.
+    if [[ "$fallback_model" == "$FABLE5_MODEL_ID" ]]; then
+        fallback_model="$FABLE5_REROUTE_MODEL"
+    fi
+    printf '%s\n' "$fallback_model"
 }
 
 fable5_opus_pinned() {

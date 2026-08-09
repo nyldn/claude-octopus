@@ -1,3 +1,3 @@
 interface:
   display_name: "Rollback"
-  short_description: "Roll back to a previous checkpoint via git — use when a change went wrong and you need to revert"
+  short_description: "Roll back to a previous checkpoint via git — use when a..."

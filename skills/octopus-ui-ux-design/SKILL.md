@@ -76,8 +76,25 @@ AskUserQuestion({
 ```
 
 The dial answer maps to `--variance/--motion/--density` values (v/m/d above) passed to
-every `search.py` call and stated in the design direction. Infer instead of asking only
-when the user's brief already names a vibe ("brutalist", "playful", "corporate").
+every `search.py` call and stated in the design direction. When the user's brief already
+names a visual style (for example, "brutalist", "playful", or "corporate"), skip the
+Dials question and infer all three values from that style. Record the inferred values.
+If an explicit user answer is also available, the explicit user answer takes precedence
+over the inferred values. Otherwise, ask the Dials question normally.
+
+All three dial values MUST be integers from 1 through 10. Use these presets when
+inferring from named styles; choose the closest row for synonyms and record the
+selected row with the values:
+
+| Style cues | Variance | Motion | Density |
+|---|---:|---:|---:|
+| Corporate / enterprise / conservative | 3 | 2 | 4 |
+| Clean / modern / balanced | 5 | 4 | 5 |
+| Playful / expressive / retro | 7 | 6 | 5 |
+| Brutalist / maximal / experimental | 9 | 8 | 6 |
+
+Validate the range before every `search.py` call. If an explicit or inferred value is
+missing, non-numeric, or outside 1-10, stop and obtain a valid value rather than clamp it.
 
 ### STEP 2: Display Banner
 
@@ -125,6 +142,9 @@ fi
 
 **If MISSING_SEARCH_PY**: The vendored design intelligence files are missing — tell the user to reinstall or update the plugin (the `vendors/ui-ux-pro-max-skill/` directory ships with it as plain files).
 **If MISSING_PYTHON**: Tell user python3 is required for design intelligence.
+
+Both missing states terminate this workflow after reporting the remediation. Only
+continue to Step 4 when preflight returns `READY`.
 
 ### STEP 4: Phase 1 — Discover (Design Research)
 
@@ -198,25 +218,25 @@ without a brief-tied reason.
 - 🔵 Claude: user-centered direction (what serves the audience best)
 - 🟤 OpenCode / 🟢 Copilot / 🟣 Qwen: additional variants if available
 
-**After all variants return, present a comparison board:**
+**After all variants return, bind each complete returned result to its provider.** Record
+the providers as `VARIANT_A_PROVIDER`, `VARIANT_B_PROVIDER`, and `VARIANT_C_PROVIDER`,
+and record the corresponding complete outputs as `VARIANT_A_RESULT`,
+`VARIANT_B_RESULT`, and `VARIANT_C_RESULT`. Each result must contain the returned style
+name, palette, fonts, layout philosophy, and feel. If a field is missing, ask that agent
+to complete its result; do not invent or substitute example content. Present a
+comparison board using those actual values:
 
-```
+```text
 🎨 **Design Shotgun — 3 Variants**
 
-━━━ Variant A: "Warm Minimalism" (🔴 Codex) ━━━
-Colors: #F5F0EB, #2D2A26, #E07A5F, #81B29A, #F2CC8F
-Fonts: Inter + Source Serif 4
-Feel: Clean, approachable, content-first with warm accent touches
+━━━ Variant A (${VARIANT_A_PROVIDER}) ━━━
+${VARIANT_A_RESULT}
 
-━━━ Variant B: "Bold Industrial" (🟡 Gemini) ━━━
-Colors: #101418, #FFFFFF, #FF6B35, #004E89, #1A936F
-Fonts: Archivo + IBM Plex Sans
-Feel: High-contrast, technical authority, strong hierarchy
+━━━ Variant B (${VARIANT_B_PROVIDER}) ━━━
+${VARIANT_B_RESULT}
 
-━━━ Variant C: "Cobalt Editorial" (🔵 Claude) ━━━
-Colors: #1D4ED8, #F7F6F2, #14181F, #C8CFDB, #E8B04B
-Fonts: Newsreader + General Sans
-Feel: Confident print-inspired hierarchy with one saturated anchor color
+━━━ Variant C (${VARIANT_C_PROVIDER}) ━━━
+${VARIANT_C_RESULT}
 ```
 
 **Then ask the user to choose:**
@@ -290,7 +310,7 @@ done
 wait
 ```
 
-**🔵 Claude (Sonnet) — independent design critique.** You MUST also write your own adversarial critique. Do NOT just summarize what external providers said. Approach the design direction as if you didn't create it — actively look for problems across all four dimensions. This is your independent synthesis perspective, same as in `/octo:debate`.
+**🔵 Claude (Sonnet) — independent design critique.** You MUST also write your own adversarial critique. Do NOT just summarize what external providers said. Approach the design direction as if you didn't create it — actively look for problems across all five dimensions. This is your independent synthesis perspective, same as in `/octo:debate`.
 
 **Display all critiques with provider indicators:**
 ```
@@ -362,10 +382,10 @@ python3 "${HOME}/.claude-octopus/plugin/scripts/helpers/contrast-check.py" \
 
 Exit 1 means at least one pair fails WCAG AA — fix the palette and re-run before delivering. Include the checker output in the final document as evidence.
 
-2. **Slop check** — run the pre-ship checklist in `skills/blocks/design-taste.md`; two or more misses means revise before delivering
-3. **Completeness check** — verify all requested deliverables are present
-4. **Implementation readiness** — confirm specs are detailed enough for frontend-developer
-5. **Figma push-back** (if connected) — offer to push design tokens to Figma
+1. **Slop check** — run the pre-ship checklist in `skills/blocks/design-taste.md`; two or more misses means revise before delivering
+1. **Completeness check** — verify all requested deliverables are present
+1. **Implementation readiness** — confirm specs are detailed enough for frontend-developer
+1. **Figma push-back** (if connected) — offer to push design tokens to Figma
 
 ### STEP 7b: AI Surface Audit (when the interface calls a model)
 
@@ -436,17 +456,145 @@ Format the final design system as a structured document with:
 
 ```bash
 SLUG=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")
-BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null | tr '/' '-' || echo "no-branch")
+RAW_BRANCH=$(git branch --show-current 2>/dev/null || true)
+REVISION=$(git rev-parse HEAD 2>/dev/null || printf 'unborn')
+if [[ -n "$RAW_BRANCH" ]]; then
+  BRANCH_KEY=$(printf '%s' "$RAW_BRANCH" | tr '/' '-')
+else
+  RAW_BRANCH="detached:${REVISION}"
+  BRANCH_KEY="detached-${REVISION}"
+fi
 DATETIME=$(date -u +"%Y%m%d-%H%M%S")
 DESIGNS_DIR="${HOME}/.claude-octopus/designs/${SLUG}"
 mkdir -p "$DESIGNS_DIR"
-# Write the full design system document (with YAML frontmatter per skill-design-lineage)
-# to: ${DESIGNS_DIR}/${USER}-${BRANCH}-design-${DATETIME}.md
+
+# DESIGN_BODY must contain the complete structured design system from this step.
+if [[ -z "${DESIGN_BODY:-}" ]]; then
+  echo "Design persistence failed: DESIGN_BODY is empty." >&2
+  exit 1
+fi
+
+# Serialize revision allocation per branch with an OS-managed lock. Closing the
+# descriptor releases the lock even after SIGKILL or a process/host crash.
+LOCK_DIGEST=""
+if command -v sha256sum >/dev/null 2>&1; then
+  LOCK_DIGEST=$(printf '%s' "$RAW_BRANCH" | sha256sum | awk '{print $1}') || LOCK_DIGEST=""
+elif command -v shasum >/dev/null 2>&1; then
+  LOCK_DIGEST=$(printf '%s' "$RAW_BRANCH" | shasum -a 256 | awk '{print $1}') || LOCK_DIGEST=""
+else
+  echo "Design persistence failed: no supported SHA-256 utility." >&2
+  exit 1
+fi
+if [[ ! "$LOCK_DIGEST" =~ ^[[:xdigit:]]{64}$ ]]; then
+  echo "Design persistence failed: could not derive the branch lock key." >&2
+  exit 1
+fi
+LOCK_FILE="${DESIGNS_DIR}/.${LOCK_DIGEST}.lineage.lock"
+LOCK_HELD=false
+FILEPATH=""
+TEMP_PATH=""
+cleanup_design_persistence() {
+  [[ -n "${TEMP_PATH:-}" && -f "$TEMP_PATH" ]] && rm -f "$TEMP_PATH"
+  [[ -n "${FILEPATH:-}" && -f "$FILEPATH" && ! -s "$FILEPATH" ]] && rm -f "$FILEPATH"
+  if [[ "$LOCK_HELD" == true ]]; then
+    exec 9>&-
+    LOCK_HELD=false
+  fi
+}
+trap cleanup_design_persistence EXIT
+trap 'cleanup_design_persistence; exit 1' HUP INT TERM
+
+if ! exec 9>"$LOCK_FILE"; then
+  echo "Design persistence failed: could not open the lineage lock." >&2
+  exit 1
+fi
+if command -v flock >/dev/null 2>&1; then
+  if flock -n 9; then LOCK_STATUS=0; else LOCK_STATUS=$?; fi
+elif command -v lockf >/dev/null 2>&1; then
+  if lockf -s -t 0 9; then LOCK_STATUS=0; else LOCK_STATUS=$?; fi
+else
+  exec 9>&-
+  echo "Design persistence failed: no supported file-lock utility (flock or lockf)." >&2
+  exit 1
+fi
+if [[ "$LOCK_STATUS" -ne 0 ]]; then
+  exec 9>&-
+  echo "Design persistence failed: another revision is being persisted for $RAW_BRANCH." >&2
+  exit 1
+fi
+LOCK_HELD=true
+
+# Discover the newest prior document for this exact branch or detached revision.
+PRIOR=""
+for candidate in "$DESIGNS_DIR"/*.md; do
+  [[ -f "$candidate" ]] || continue
+  candidate_branch=$(awk -F ': ' '$1 == "branch" { print $2; exit }' "$candidate")
+  [[ "$candidate_branch" == "$RAW_BRANCH" ]] || continue
+  [[ -z "$PRIOR" || "$candidate" -nt "$PRIOR" ]] && PRIOR="$candidate"
+done
+SUPERSEDES=""
+[[ -n "$PRIOR" ]] && SUPERSEDES=$(basename "$PRIOR")
+
+USER_NAME="${USER:-$(whoami)}"
+REVISION_ID="${DATETIME}-$$-${RANDOM}"
+FILEPATH="${DESIGNS_DIR}/${USER_NAME}-${BRANCH_KEY}-design-${REVISION_ID}.md"
+
+# Reserve the final name atomically. The timestamp is readable; PID + RANDOM
+# prevents same-second runs from choosing the same immutable revision.
+if [[ -e "$FILEPATH" ]] || ! (set -o noclobber; : > "$FILEPATH") 2>/dev/null; then
+  echo "Design persistence failed: revision target already exists: $FILEPATH" >&2
+  exit 1
+fi
+
+if [[ -n "$SUPERSEDES" && "$SUPERSEDES" == "$(basename "$FILEPATH")" ]]; then
+  rm -f "$FILEPATH"
+  echo "Design persistence failed: a revision must not supersede itself." >&2
+  exit 1
+fi
+
+if ! TEMP_PATH=$(mktemp "${FILEPATH}.tmp.XXXXXX"); then
+  echo "Design persistence failed: could not allocate a temporary file." >&2
+  exit 1
+fi
+
+if ! {
+  printf '%s\n' '---'
+  printf 'branch: %s\n' "$RAW_BRANCH"
+  printf 'user: %s\n' "$USER_NAME"
+  printf 'created: %s\n' "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+  printf 'git_revision: %s\n' "$REVISION"
+  [[ -n "$SUPERSEDES" ]] && printf 'supersedes: %s\n' "$SUPERSEDES"
+  printf '%s\n\n' '---'
+  printf '%s\n' "$DESIGN_BODY"
+} > "$TEMP_PATH"; then
+  echo "Design persistence failed: could not write complete temporary document." >&2
+  exit 1
+fi
+
+if [[ ! -s "$TEMP_PATH" ]]; then
+  echo "Design persistence failed: temporary document is missing or empty." >&2
+  exit 1
+fi
+
+PUBLISHED_PATH="$FILEPATH"
+if ! mv "$TEMP_PATH" "$FILEPATH"; then
+  echo "Design persistence failed: could not publish $FILEPATH." >&2
+  exit 1
+fi
+TEMP_PATH=""
+FILEPATH=""
+exec 9>&-
+LOCK_HELD=false
+trap - EXIT HUP INT TERM
+printf 'Persisted design: %s\n' "$PUBLISHED_PATH"
 ```
 
-Later sessions (and `flow-develop` / `frontend-developer` handoffs) MUST check
-`~/.claude-octopus/designs/<slug>/` for the newest design document before inventing new
-tokens; a revision supersedes rather than edits (set the `supersedes:` frontmatter field).
+Later sessions (and `flow-develop` / `frontend-developer` handoffs) MUST filter
+`~/.claude-octopus/designs/<slug>/` to documents whose `branch:` matches the current Git
+branch before selecting the newest revision. Under detached HEAD, use the
+`detached:<full-commit>` branch value and only select documents for that exact revision.
+Follow `supersedes` only within the filtered set. A revision supersedes rather than edits
+the prior document.
 
 **Offer next steps:**
 - "Want me to implement these specs?" → hand off to frontend-developer persona

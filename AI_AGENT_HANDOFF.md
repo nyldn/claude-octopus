@@ -2,10 +2,11 @@
 
 Last updated: 2026-08-09
 Status: v9.61.0 is released. The model-routing fixes for #797 and #798, the
-generator safety repair, and the flow-define pilot are merged. PR #812 carries
-the final #804 skill-tree reconciliation. Issues #799-#801 and streamlining
-Parts 4b/4c/4d remain unstarted.
-Branch: `fix/skill-tree-drift`
+generator safety repair, flow-define pilot, and #804 skill-tree reconciliation
+are merged. Review follow-up PR #813 tracks the completed implementation on
+`fix/skill-tree-review-followup`; check its live state before further work.
+Issues #799-#801 and streamlining Parts 4b/4c/4d remain unstarted.
+Branch: `fix/skill-tree-review-followup`
 Release: https://github.com/nyldn/claude-octopus/releases/tag/v9.61.0
 
 ## Start Here
@@ -15,13 +16,15 @@ OpenCode, and other harnesses. It is a context packet, not the task tracker.
 
 Read in order:
 
-1. `AGENTS.md` and `RTK.md`
-2. `git status --short --branch`
-3. the latest commits and live PR state
-4. the relevant `bd` issue; if Beads is still blocked, read `Tracking Blocker`
+1. `RTK.md`
+2. `CLAUDE.md`
+3. `AI_AGENT_HANDOFF.md`
+4. `git status --short --branch`
+5. the latest commits and live PR state
+6. the relevant `bd` issue; if Beads is still blocked, read `Tracking Blocker`
    below and do not migrate the database
-5. `docs/MODEL-ROUTING-STRATEGY.md` for model-routing work
-6. `docs/GPT-5.6-PROMPTING.md` for GPT-5.6 prompt changes
+7. `docs/MODEL-ROUTING-STRATEGY.md` for model-routing work
+8. `docs/GPT-5.6-PROMPTING.md` for GPT-5.6 prompt changes
 
 Harness-local files such as `.octo-continue.md` may be stale. The existing
 untracked copy predates this work and remains user-owned; do not overwrite it.
@@ -79,8 +82,22 @@ claimed or recorded in `bd`; use this handoff for the blocked tracking record.
   review pass made provider gating operational, clarified the terminal
   transition, scoped enforcement detection to real contract sections, and
   added caller-level generation regressions.
-- **#812** — final #804 reconciliation, based on `4ad6ddde`. The code commit is
-  `31cc5d03` plus this handoff update.
+- **#812 merged (`3b658269`)** — final #804 reconciliation. Issue #804 closed
+  automatically after the merge.
+- **#813 review follow-up** — addresses the valid #812 review findings with
+  test-first workflow-state, design-lineage, allocation, and Codex metadata
+  fixes. Its second review round adds bounded PROJECT.md file input, collision-
+  safe design persistence, Fable self-fallback rejection, complete allocation
+  rows, provider attribution, dial presets, and word-boundary UI descriptions.
+  Its third review round makes unsupported runtime autonomy modes fail closed,
+  completes intermediate-risk AI resolution, binds comparison boards to full
+  returned variants, and checks persistence writes before validation and move.
+  Its final approval follow-up serializes design-lineage allocation with an
+  OS-managed per-branch lock so concurrent writers cannot fork the immutable
+  revision chain, distinct branch names cannot alias the same lock, and
+  terminated owners cannot leave a permanent lock.
+  The request to chmod the Codex generator in CI was rejected because the tracked
+  `100755` mode is an enforced repository contract that CI must not mask.
 
 ## PR #812 / Issue #804
 
@@ -108,10 +125,40 @@ Verification on the final rebased code commit:
 - `make ci-local`: 16 smoke, 245 unit, and 7 integration suites passed.
 - No executable-bit changes.
 
+Verification for the review follow-up:
+
+- `0c5ba9eb` is the historical first-round code commit, not the current branch
+  HEAD or the remote-equivalent state for PR #813. Its results are baseline
+  evidence only.
+- Second-round red baseline: workflow contracts failed 5 targeted cases,
+  allocation failed 3, Codex generator failed 2, state manager failed 2, and
+  Fable mode failed 2 before the corresponding changes.
+- Third-round red baseline: allocation failed 2 targeted cases for runtime
+  fail-closed handling and complete intermediate-risk resolution; workflow
+  contracts failed 2 targeted cases for complete variant binding and checked
+  design persistence before the corresponding changes.
+- Final approval-follow-up red baseline: workflow contracts failed the targeted
+  design-lineage serialization case before the per-branch lock was added.
+- Final lock-hardening red baselines: the targeted contract failed before the
+  directory lock was replaced with portable `flock` / `lockf` descriptor
+  locking, and then the static and runtime cases failed before lock paths used
+  a SHA-256 digest of the complete branch identity.
+- Final focused results: `test-workflow-meta-contracts.sh` 13/13,
+  `test-codex-enforcement-detection.sh` 6/6,
+  `test-intent-contract-allocation.sh` 13/13, `test-octo-state.sh` 42/42, and
+  `test-fable5-mode.sh` 29/29 passed.
+- `test-handoff.sh`: 12/12 passed.
+- `make sync-check`: passed; 58 Codex skills are up to date.
+- `make ci-local`: 16 smoke, 245 unit, and 7 integration suites passed on the
+  final PR branch HEAD after all code and handoff edits.
+- The tested local HEAD, `upstream/fix/skill-tree-review-followup`, and PR #813
+  head must remain identical; any later commit invalidates this evidence.
+- No executable-bit changes.
+
 The plugin-lifecycle integration test can overwrite canonical flow files in a
-long-lived checkout from the currently installed marketplace copy. The test
-run was therefore followed by recreating the isolated worktree from the
-verified commit; do not mistake those test side effects for intended changes.
+long-lived checkout from the currently installed marketplace copy. The full
+gate therefore ran in a disposable detached worktree; its expected side effects
+were removed with that worktree and did not contaminate the task branch.
 
 ## Model Audit Still Open
 
@@ -125,18 +172,19 @@ verified commit; do not mistake those test side effects for intended changes.
   and pricing still disagree across `models.sh`, `octo-model-config.sh`,
   `cost.sh`, and `usage-report.sh`.
 
-Each issue contains a concrete reproduction. Do not combine them into one
-large provider refactor; preserve the behavioural-test-first pattern used by
-#805 and #807.
+Each issue contains a concrete reproduction. Do not combine them into one large
+provider refactor; preserve the behavioural-test-first pattern used by `#805` and
+`#807`.
 
 ## Next Action
 
-1. If PR #812 is open, inspect the live head, resolve only valid review
-   findings, keep the branch rebased on `main`, and let auto-merge complete
-   after all checks pass. If it is merged, verify #804 closed and start from the
-   resulting `main` commit.
+1. Check the live state of PR #813. If it is still open, verify each review
+   response, keep it rebased on `main`, and merge only after local and remote
+   gates pass. If it was closed without merging, record that outcome and stop
+   before new work or open a replacement PR. If already merged, continue with
+   step 2.
 2. Re-check the release PR/state before starting new work; release activity may
-   advance `main` while #812 is under review.
+   advance `main` while the follow-up is under review.
 3. Pick up #799, #800, and #801 as separate test-first fixes.
 4. Remaining streamlining work is still unstarted:
    - **4c:** remove obsolete drift detection, its unreachable duplicate, and

@@ -83,6 +83,13 @@ else
     fail "Help missing init_project" "Should document init_project command"
 fi
 
+test_case "Help mentions update_project command"
+if "$OCTO_STATE" help 2>&1 | grep -q "update_project"; then
+    test_pass
+else
+    test_fail "Help should document bounded project-section updates"
+fi
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # TEST: init_project --dry-run
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -145,6 +152,33 @@ for file in STATE.md PROJECT.md ROADMAP.md config.json ISSUES.md LESSONS.md; do
         fail ".octo/$file not created" "Expected .octo/$file to exist"
     fi
 done
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TEST: update_project with bounded file input
+# ═══════════════════════════════════════════════════════════════════════════════
+
+echo ""
+echo "Test 5: Checking update_project bounded file input..."
+
+SYNTHESIS_FILE="$TEST_DIR/synthesis.md"
+printf '%s\n' 'Complete discovery finding one.' 'Complete discovery finding two.' > "$SYNTHESIS_FILE"
+test_case "update_project replaces one section from a content file"
+if output=$("$OCTO_STATE" update_project --section vision --content-file "$SYNTHESIS_FILE" 2>&1) &&
+   grep -q 'Complete discovery finding one.' .octo/PROJECT.md &&
+   grep -q '^## Requirements$' .octo/PROJECT.md; then
+    test_pass
+else
+    test_fail "${output:-update_project failed or damaged PROJECT.md}"
+fi
+
+OVERSIZED_FILE="$TEST_DIR/oversized-synthesis.md"
+dd if=/dev/zero of="$OVERSIZED_FILE" bs=1048577 count=1 2>/dev/null
+test_case "update_project rejects content above its one-MiB bound"
+if ! "$OCTO_STATE" update_project --section vision --content-file "$OVERSIZED_FILE" >/dev/null 2>&1; then
+    test_pass
+else
+    test_fail "Content-file input must be bounded"
+fi
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # TEST: init_project (idempotent)

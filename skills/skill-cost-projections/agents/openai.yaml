@@ -1,3 +1,3 @@
 interface:
   display_name: "Cost Projections"
-  short_description: "Project remaining workflow cost from per-phase averages — warns on budget ceiling overruns"
+  short_description: "Project remaining workflow cost from per-phase averages —..."

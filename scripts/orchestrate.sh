@@ -1789,6 +1789,22 @@ reconfigure_preferences() {
 # Controls human oversight level during workflow execution
 # ═══════════════════════════════════════════════════════════════════════════════
 
+validate_autonomy_mode() {
+    case "${AUTONOMY_MODE:-}" in
+        "supervised"|"semi-autonomous"|"loop-until-approved"|"autonomous")
+            return 0
+            ;;
+        "not-applicable")
+            log ERROR "AUTONOMY_MODE=not-applicable is a contract-only sentinel; refusing workflow execution"
+            return 64
+            ;;
+        *)
+            log ERROR "Unsupported AUTONOMY_MODE: ${AUTONOMY_MODE:-<empty>}"
+            return 64
+            ;;
+    esac
+}
+
 handle_autonomy_checkpoint() {
     local phase="$1"
     local status="$2"
@@ -1838,9 +1854,13 @@ handle_autonomy_checkpoint() {
         "loop-until-approved")
             # Handled in quality gate logic - LOOP_UNTIL_APPROVED flag
             ;;
-        "autonomous"|*)
+        "autonomous")
             # Always continue without prompts
             log DEBUG "Autonomy mode: continuing automatically"
+            ;;
+        *)
+            log ERROR "Unsupported AUTONOMY_MODE reached checkpoint: ${AUTONOMY_MODE:-<empty>}"
+            exit 64
             ;;
     esac
 }
@@ -2216,8 +2236,15 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# Reject contract-only and unknown modes before CI defaults or command dispatch
+# can turn them into unattended execution.
+validate_autonomy_mode || exit $?
+
 # Initialize CI mode from environment (v4.4)
 init_ci_mode
+
+# CI initialization may set the mode, so validate its final runtime value too.
+validate_autonomy_mode || exit $?
 
 # Detect Claude Code version for v2.1.12+ features (v7.12.0)
 detect_claude_code_version 2>/dev/null || true

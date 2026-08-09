@@ -893,6 +893,15 @@ echo ""
 echo "📦 **Project ready! Run \`/octo:ship\` to finalize and archive.**"
 ```
 
+After that block succeeds, perform the requested finalization immediately:
+
+```text
+Skill(skill: "skill-ship", args: "finalize and archive the validated project")
+```
+
+Do not stop after displaying the command. The ship-requested branch is incomplete until
+`skill-ship` has actually been invoked.
+
 ---
 
 ## Terminal State

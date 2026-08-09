@@ -139,6 +139,16 @@ else
     test_fail "expected explicit claude-opus-4.8 fallback, got '$out'"
 fi
 
+test_case "Fable fallback override cannot target Fable 5"
+out=$(env "OCTOPUS_OPUS_MODEL=claude-fable-5" "OCTOPUS_FABLE5_FALLBACK_MODEL=claude-fable-5" \
+    bash -c 'log(){ :; }; source "$1/scripts/lib/fable5.sh"; fable5_maybe_reroute claude-fable-5 security-auditor claude-opus ink' \
+    _ "$PROJECT_ROOT" 2>/dev/null)
+if [[ "$out" == "claude-opus-5" ]]; then
+    test_pass
+else
+    test_fail "unsafe fallback override kept Fable 5: '$out'"
+fi
+
 test_case "non-security dispatch keeps Fable 5"
 out=$(env "OCTOPUS_OPUS_MODEL=claude-fable-5" \
     bash -c 'log(){ :; }; source "$1/scripts/lib/fable5.sh"; fable5_maybe_reroute claude-fable-5 architect claude-opus tangle' \
@@ -230,13 +240,27 @@ fi
 echo "opus fallback answer"
 STUB
 chmod 755 "$STUB_DIR/claude"
-out=$(printf 'test prompt' | env PATH="$STUB_DIR:/usr/bin:/bin" \
+out=$(printf 'test prompt' | env "PATH=$STUB_DIR:/usr/bin:/bin" \
     CLAUDE_SDK_API_KEY=test-key OCTOPUS_CLAUDE_SDK_MODEL=claude-fable-5 \
     bash "$PROJECT_ROOT/scripts/helpers/claude-sdk-exec.sh" 2>/dev/null)
 if [[ "$out" == "opus fallback answer" ]] && grep -q -- "claude-opus-5" "$CALL_LOG"; then
     test_pass
 else
     test_fail "retry did not reach claude-opus-5: out='$out' calls='$(cat "$CALL_LOG" 2>/dev/null)'"
+fi
+
+test_case "shim rejects a Fable 5 retry target"
+: > "$CALL_LOG"
+out=$(printf 'test prompt' | env PATH="$STUB_DIR:/usr/bin:/bin" \
+    CLAUDE_SDK_API_KEY=test-key OCTOPUS_CLAUDE_SDK_MODEL=claude-fable-5 \
+    OCTOPUS_FABLE5_FALLBACK_MODEL=claude-fable-5 \
+    bash "$PROJECT_ROOT/scripts/helpers/claude-sdk-exec.sh" 2>/dev/null)
+if [[ "$out" == "opus fallback answer" ]] &&
+   [[ "$(grep -c -- 'claude-fable-5' "$CALL_LOG")" == "1" ]] &&
+   grep -q -- "claude-opus-5" "$CALL_LOG"; then
+    test_pass
+else
+    test_fail "shim retried on Fable 5: out='$out' calls='$(cat "$CALL_LOG" 2>/dev/null)'"
 fi
 
 test_case "shim does not retry when Fable 5 output is non-empty"

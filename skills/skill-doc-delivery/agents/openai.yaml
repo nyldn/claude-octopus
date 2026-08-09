@@ -1,3 +1,3 @@
 interface:
   display_name: "Doc Delivery"
-  short_description: "Convert markdown to DOCX, PPTX, XLSX, PDF office documents — use when you need exportable deliverables"
+  short_description: "Convert markdown to DOCX, PPTX, XLSX, PDF office documents..."
