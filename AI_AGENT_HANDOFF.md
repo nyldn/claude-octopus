@@ -1,13 +1,13 @@
 # AI Agent Handoff
 
 Last updated: 2026-08-09
-Status: v9.61.0 is released. The model-routing fixes for #797 and #798, the
-generator safety repair, flow-define pilot, and #804 skill-tree reconciliation
-are merged. Review follow-up PR #813 tracks the completed implementation on
-`fix/skill-tree-review-followup`; check its live state before further work.
-Issues #799-#801 and streamlining Parts 4b/4c/4d remain unstarted.
-Branch: `fix/skill-tree-review-followup`
-Release: https://github.com/nyldn/claude-octopus/releases/tag/v9.61.0
+Status: v9.61.1 packages the completed model-routing, generator-safety,
+flow-define, and #804 skill-tree work in release PR #811. Treat GitHub as the
+source of truth for the PR, tag, and release state, and finish that release
+workflow before starting new work. Issues #799-#801 and streamlining Parts
+4b/4c/4d remain unstarted.
+Branch: `release/v9.61.1`
+Release: https://github.com/nyldn/claude-octopus/releases/tag/v9.61.1
 
 ## Start Here
 
@@ -84,7 +84,7 @@ claimed or recorded in `bd`; use this handoff for the blocked tracking record.
   added caller-level generation regressions.
 - **#812 merged (`3b658269`)** — final #804 reconciliation. Issue #804 closed
   automatically after the merge.
-- **#813 review follow-up** — addresses the valid #812 review findings with
+- **#813 merged (`144704b8`)** — addresses the valid #812 review findings with
   test-first workflow-state, design-lineage, allocation, and Codex metadata
   fixes. Its second review round adds bounded PROJECT.md file input, collision-
   safe design persistence, Fable self-fallback rejection, complete allocation
@@ -151,8 +151,7 @@ Verification for the review follow-up:
 - `make sync-check`: passed; 58 Codex skills are up to date.
 - `make ci-local`: 16 smoke, 245 unit, and 7 integration suites passed on the
   final PR branch HEAD after all code and handoff edits.
-- The tested local HEAD, `upstream/fix/skill-tree-review-followup`, and PR #813
-  head must remain identical; any later commit invalidates this evidence.
+- The tested PR #813 head was `ba453bb3`; it was squash-merged as `144704b8`.
 - No executable-bit changes.
 
 The plugin-lifecycle integration test can overwrite canonical flow files in a
@@ -178,15 +177,12 @@ provider refactor; preserve the behavioural-test-first pattern used by `#805` an
 
 ## Next Action
 
-1. Check the live state of PR #813. If it is still open, verify each review
-   response, keep it rebased on `main`, and merge only after local and remote
-   gates pass. If it was closed without merging, record that outcome and stop
-   before new work or open a replacement PR. If already merged, continue with
-   step 2.
-2. Re-check the release PR/state before starting new work; release activity may
-   advance `main` while the follow-up is under review.
-3. Pick up #799, #800, and #801 as separate test-first fixes.
-4. Remaining streamlining work is still unstarted:
+1. Check the live state of release PR #811. If open, merge only after local and
+   remote gates pass. If closed without merging, record that outcome and stop.
+   If merged, verify the exact squash commit passes the `main` Test Suite, the
+   annotated `v9.61.1` tag points to it, and the GitHub Release exists.
+2. Pick up #799, #800, and #801 as separate test-first fixes.
+3. Remaining streamlining work is still unstarted:
    - **4c:** remove obsolete drift detection, its unreachable duplicate, and
      the deprecated wizard only after confirming all call sites.
    - **4b:** cull unused/below-floor `SUPPORTS_*` flags together with the

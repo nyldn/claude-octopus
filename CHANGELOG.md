@@ -6,7 +6,17 @@
 
 ### Changed
 
-- Vendor-correct model fallbacks, single-owner provider lockout, and skill-generator directory safety
+- **Flow definition has a shorter, operational enforcement contract.** Provider gates, terminal transitions, enforcement detection, and caller-level generation are now explicit and regression-tested. (#810)
+- **Canonical and generated skill trees are reconciled and checked together.** Codex metadata is generated from explicit overrides, `make sync-check` rejects future drift, and hand-maintained skill directories survive regeneration. (#808, #812)
+
+### Fixed
+
+- **Provider routing has one lockout owner and vendor-correct defaults.** The dropped fallback arm is restored, Grok, OpenRouter, Vibe, and AtlasCloud no longer inherit Codex's model, and stale GPT-5.x pins migrate with older legacy pins. (#803, #805, #807)
+- **Workflow state and design-lineage persistence now fail closed.** Terminal PR outcomes, autonomy allocation, bounded project input, complete design variants, checked atomic persistence, collision-safe branch identity, and crash-recoverable per-branch locking are covered by behavioral tests. (#813)
+
+### Internal
+
+- The agent-fields test no longer lets GNU `grep` turn an expected early pipe close into a SIGPIPE failure under `pipefail`. (#809)
 
 ## [9.61.0] - 2026-08-08
 
