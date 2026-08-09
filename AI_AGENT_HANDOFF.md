@@ -1,13 +1,11 @@
 # AI Agent Handoff
 
 Last updated: 2026-08-09
-Status: v9.61.1 packages the completed model-routing, generator-safety,
-flow-define, and #804 skill-tree work in release PR #811. Treat GitHub as the
-source of truth for the PR, tag, and release state, and finish that release
-workflow before starting new work. Issues #799-#801 and streamlining Parts
-4b/4c/4d remain unstarted.
-Branch: `release/v9.61.1`
-Release: not yet tagged — pending PR #811 merge, see "Next Action" below
+Status: v9.61.1 is published with the completed model-routing,
+generator-safety, flow-define, and #804 skill-tree work. Issues #799-#801 and
+streamlining Parts 4b/4c/4d remain unstarted.
+Branch: `main`
+Release: [v9.61.1](https://github.com/nyldn/claude-octopus/releases/tag/v9.61.1)
 
 ## Start Here
 
@@ -159,7 +157,7 @@ long-lived checkout from the currently installed marketplace copy. The full
 gate therefore ran in a disposable detached worktree; its expected side effects
 were removed with that worktree and did not contaminate the task branch.
 
-## Release PR #811
+## Release v9.61.1
 
 - The release branch was refreshed from `upstream/main` after #810, #812, and
   #813 merged, then the v9.61.1 summary and changelog were expanded to cover the
@@ -170,9 +168,13 @@ were removed with that worktree and did not contaminate the task branch.
   changes after the gate.
 - `make sync-check` passed with 58 Codex skills up to date;
   `test-handoff.sh` passed 12/12; no executable-bit changes were introduced.
-- Remote checks and the review gate still apply to the final PR head. After the
-  squash merge, wait for the exact `main` Test Suite commit before tagging or
-  publishing the GitHub Release.
+- PR #811 passed its remote checks and review gate, then squash-merged as
+  `fad71488`.
+- The exact merge commit passed the complete `main` Test Suite in run
+  `31304191215`: portability, smoke, Linux and macOS unit, symlinked-path,
+  integration, and final summary jobs all passed.
+- The annotated `v9.61.1` tag peels to `fad71488`, and the non-draft,
+  non-prerelease GitHub Release was published on 2026-08-09.
 
 ## Model Audit Still Open
 
@@ -192,12 +194,8 @@ provider refactor; preserve the behavioural-test-first pattern used by `#805` an
 
 ## Next Action
 
-1. Check the live state of release PR #811. If open, merge only after local and
-   remote gates pass. If closed without merging, record that outcome and stop.
-   If merged, verify the exact squash commit passes the `main` Test Suite, the
-   annotated `v9.61.1` tag points to it, and the GitHub Release exists.
-2. Pick up #799, #800, and #801 as separate test-first fixes.
-3. Remaining streamlining work is still unstarted:
+1. Pick up #799, #800, and #801 as separate test-first fixes.
+2. Remaining streamlining work is still unstarted:
    - **4c:** remove obsolete drift detection, its unreachable duplicate, and
      the deprecated wizard only after confirming all call sites.
    - **4b:** cull unused/below-floor `SUPPORTS_*` flags together with the
