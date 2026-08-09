@@ -84,8 +84,11 @@ claimed or recorded in `bd`; use this handoff for the blocked tracking record.
   automatically after the merge.
 - **#813 in progress** — addresses the valid #812 review findings with
   test-first workflow-state, design-lineage, allocation, and Codex metadata
-  fixes. The request to chmod the Codex generator in CI was rejected because the
-  tracked `100755` mode is an enforced repository contract that CI must not mask.
+  fixes. Its second review round adds bounded PROJECT.md file input, collision-
+  safe design persistence, Fable self-fallback rejection, complete allocation
+  rows, provider attribution, dial presets, and word-boundary UI descriptions.
+  The request to chmod the Codex generator in CI was rejected because the tracked
+  `100755` mode is an enforced repository contract that CI must not mask.
 
 ## PR #812 / Issue #804
 
@@ -113,15 +116,24 @@ Verification on the final rebased code commit:
 - `make ci-local`: 16 smoke, 245 unit, and 7 integration suites passed.
 - No executable-bit changes.
 
-Focused verification for the review follow-up:
+Verification for the review follow-up:
 
-- `test-workflow-meta-contracts.sh`: 12/12 passed.
-- `test-codex-enforcement-detection.sh`: 5/5 passed.
-- `test-intent-contract-allocation.sh`: 12/12 passed.
+- `0c5ba9eb` is the historical first-round code commit, not the current branch
+  HEAD or the remote-equivalent state for PR #813. Its results are baseline
+  evidence only.
+- Second-round red baseline: workflow contracts failed 5 targeted cases,
+  allocation failed 3, Codex generator failed 2, state manager failed 2, and
+  Fable mode failed 2 before the corresponding changes.
+- Final focused results: `test-workflow-meta-contracts.sh` 12/12,
+  `test-codex-enforcement-detection.sh` 6/6,
+  `test-intent-contract-allocation.sh` 13/13, `test-octo-state.sh` 42/42, and
+  `test-fable5-mode.sh` 29/29 passed.
 - `test-handoff.sh`: 12/12 passed.
 - `make sync-check`: passed; 58 Codex skills are up to date.
-- `make ci-local`: 16 smoke, 245 unit, and 7 integration suites passed on
-  `0c5ba9eb`.
+- `make ci-local`: 16 smoke, 245 unit, and 7 integration suites passed on the
+  final PR branch HEAD after all code and handoff edits.
+- The tested local HEAD, `upstream/fix/skill-tree-review-followup`, and PR #813
+  head must remain identical; any later commit invalidates this evidence.
 - No executable-bit changes.
 
 The plugin-lifecycle integration test can overwrite canonical flow files in a

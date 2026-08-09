@@ -18,6 +18,8 @@ SECURITY_AUDIT="$PROJECT_ROOT/skills/octopus-security-audit/SKILL.md"
 UI_UX_DESIGN="$PROJECT_ROOT/skills/octopus-ui-ux-design/SKILL.md"
 VERIFY_GATE="$PROJECT_ROOT/skills/skill-verification-gate/SKILL.md"
 ENFORCEMENT="$PROJECT_ROOT/skills/blocks/enforcement-patterns.md"
+FABLE_RUNTIME="$PROJECT_ROOT/scripts/lib/fable5.sh"
+CLAUDE_SDK_SHIM="$PROJECT_ROOT/scripts/helpers/claude-sdk-exec.sh"
 
 delivery_block=$(sed -n '/^## Post-Delivery: Route to Ship/,/^\*\*Ready to validate!/p' "$DELIVER")
 test_case "Review-only delivery stops without entering the shipping state"
@@ -58,6 +60,8 @@ test_case "Discovery verifies, presents, and persists synthesis before completio
 if [[ -n "$synthesis_line" && -n "$exit_line" && -n "$present_line" && -n "$project_line" && -n "$complete_line" ]] &&
    (( synthesis_line < exit_line && exit_line < present_line && present_line < project_line && project_line < complete_line )) &&
    grep -Fq 'cat "$SYNTHESIS_FILE"' <<< "$discover_block" &&
+   grep -Fq -- '--content-file "$SYNTHESIS_FILE"' <<< "$discover_block" &&
+   ! grep -q -- '--content ' <<< "$discover_block" &&
    ! grep -Eq 'head -100|sed -n .1,100p.|See synthesis file' <<< "$discover_block" &&
    grep -q 'if ! .*update_project' <<< "$(tr '\n' ' ' <<< "$discover_block")"; then
     test_pass
@@ -83,19 +87,29 @@ else
     test_fail "Doctor quick reference bypasses its plugin-root resolver"
 fi
 
-test_case "Security audit documents the configured Fable fallback and retry opt-out"
-if grep -q 'OCTOPUS_FABLE5_FALLBACK_MODEL' "$SECURITY_AUDIT" &&
+test_case "Security audit fallback matches the runtime safety contract"
+runtime_default=$(env -u OCTOPUS_FABLE5_FALLBACK_MODEL bash -c \
+    'log(){ :; }; source "$1"; fable5_fallback_model' _ "$FABLE_RUNTIME")
+runtime_invalid=$(env OCTOPUS_FABLE5_FALLBACK_MODEL=claude-fable-5 bash -c \
+    'log(){ :; }; source "$1"; fable5_fallback_model' _ "$FABLE_RUNTIME")
+if [[ "$runtime_default" == "claude-opus-5" && "$runtime_invalid" == "claude-opus-5" ]] &&
+   grep -q 'OCTOPUS_FABLE5_FALLBACK_MODEL' "$SECURITY_AUDIT" &&
    grep -q 'OCTOPUS_FABLE5_NO_RETRY=1' "$SECURITY_AUDIT" &&
-   grep -q 'claude-opus-5' "$SECURITY_AUDIT"; then
+   grep -qi 'reject.*claude-fable-5\|claude-fable-5.*reject' "$SECURITY_AUDIT" &&
+   grep -q 'OCTOPUS_FABLE5_NO_RETRY.*!=.*"1"' "$CLAUDE_SDK_SHIM" &&
+   grep -q 'fallback_model.*claude-fable-5' "$CLAUDE_SDK_SHIM"; then
     test_pass
 else
-    test_fail "Security audit Fable guidance drifted from runtime configuration"
+    test_fail "Security audit fallback, runtime default, invalid-target guard, or no-retry path drifted"
 fi
 
 test_case "UI/UX workflow resolves dials and stops on failed preflight"
 ui_flat=$(tr '\n' ' ' < "$UI_UX_DESIGN")
 if grep -q 'explicit user answer takes precedence' "$UI_UX_DESIGN" &&
    grep -q 'skip the Dials question' <<< "$ui_flat" &&
+   grep -q 'integers from 1 through 10' "$UI_UX_DESIGN" &&
+   grep -Eq '^\| Corporate / enterprise .*\| 3 \| 2 \| 4 \|' "$UI_UX_DESIGN" &&
+   grep -Eq '^\| Brutalist / maximal .*\| 9 \| 8 \| 6 \|' "$UI_UX_DESIGN" &&
    grep -q 'Only continue to Step 4 when preflight returns `READY`' <<< "$ui_flat"; then
     test_pass
 else
@@ -106,6 +120,8 @@ test_case "UI/UX examples and critique obey the design-taste contract"
 variant_a=$(sed -n '/Variant A:/,/Variant B:/p' "$UI_UX_DESIGN")
 critique=$(sed -n '/^Critique dimensions:/,/^For each issue found/p' "$UI_UX_DESIGN")
 if ! grep -qE 'Inter|cream|terracotta|#F5F0EB|#E07A5F' <<< "$variant_a" &&
+   grep -q 'VARIANT_A_PROVIDER' <<< "$variant_a" &&
+   ! grep -q '(🔴 Codex)' <<< "$variant_a" &&
    grep -q 'all five dimensions' "$UI_UX_DESIGN" &&
    [[ "$(grep -cE '^[1-5]\. (ACCESSIBILITY|PRACTICALITY|FIT|GAPS|SLOP)' <<< "$critique")" -eq 5 ]]; then
     test_pass
@@ -113,12 +129,20 @@ else
     test_fail "UI/UX example or five-dimension critique contradicts its hard constraints"
 fi
 
-test_case "UI/UX persistence writes and verifies branch-scoped lineage"
+test_case "UI/UX persistence atomically writes unique branch-scoped lineage"
 persistence=$(sed -n '/^### STEP 8: Present Results and Persist/,/^\*\*Offer next steps:/p' "$UI_UX_DESIGN")
-if grep -q 'git_revision:' <<< "$persistence" &&
+temp_line=$(grep -n 'TEMP_PATH=.*mktemp' <<< "$persistence" | head -1 | cut -d: -f1 || true)
+temp_check_line=$(grep -nF '[[ ! -s "$TEMP_PATH" ]]' <<< "$persistence" | head -1 | cut -d: -f1 || true)
+move_line=$(grep -nF 'mv "$TEMP_PATH" "$FILEPATH"' <<< "$persistence" | head -1 | cut -d: -f1 || true)
+if [[ -n "$temp_line" && -n "$temp_check_line" && -n "$move_line" ]] &&
+   (( temp_line < temp_check_line && temp_check_line < move_line )) &&
+   grep -q 'git_revision:' <<< "$persistence" &&
    grep -q 'supersedes:' <<< "$persistence" &&
    grep -q 'DESIGN_BODY' <<< "$persistence" &&
-   grep -Fq '[[ ! -s "$FILEPATH" ]]' <<< "$persistence" &&
+   grep -q 'XXXXXX' <<< "$persistence" &&
+   grep -Fq '[[ -e "$FILEPATH" ]]' <<< "$persistence" &&
+   grep -q 'must not supersede itself' <<< "$persistence" &&
+   ! grep -Fq '} > "$FILEPATH"' <<< "$persistence" &&
    grep -q 'matches the current Git branch' <<< "$(tr '\n' ' ' <<< "$persistence")" &&
    grep -q 'detached HEAD' <<< "$persistence"; then
     test_pass

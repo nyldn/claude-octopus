@@ -82,6 +82,15 @@ else
     test_fail "AUTONOMY_MODE values drifted in orchestrate.sh, missing:${missing} — update the skill to match"
 fi
 
+test_case "contract-only not-applicable never becomes a runtime AUTONOMY_MODE"
+if grep -q 'contract-only sentinel' "$SKILL" &&
+   grep -q 'must not be passed to the workflow engine' "$SKILL" &&
+   ! grep -q '"not-applicable"' "$ORCHESTRATE"; then
+    test_pass
+else
+    test_fail "not-applicable must remain persisted contract metadata, not a fifth runtime mode"
+fi
+
 test_case "states where collapsing the triad onto one mode loses information"
 if grep -qiE "loses information|cannot express|collapse[sd]? .*(onto|into) one|does not distinguish" "$SKILL"; then
     test_pass
@@ -116,23 +125,29 @@ else
     test_fail "the inversion contradicts the paper's broader claim; the skill must say so rather than pick a side quietly"
 fi
 
-test_case "shared and adversarial allocations have explicit contract values"
-if grep -q '\[human | AI | shared\]' "$SKILL" &&
-   grep -q '\[none | executor | collaborator | challenger\]' "$SKILL" &&
-   grep -q 'High / high' "$SKILL" &&
-   grep -q 'challenger' "$SKILL"; then
+test_case "every allocation row records the complete ordered contract"
+allocation_table=$(sed -n '/^| Risk \/ complexity |/,/^$/p' "$SKILL")
+if grep -Fq '| Low / low | AI | AI | AI | executor | AI-assisted | not-needed | `autonomous` |' <<< "$allocation_table" &&
+   grep -Fq '| Low / high | shared | human | human | collaborator | AI-assisted | not-needed | `loop-until-approved` |' <<< "$allocation_table" &&
+   grep -Fq '| High / low | human | human | human | executor | AI-assisted | not-needed | `supervised` |' <<< "$allocation_table" &&
+   grep -Fq '| High / high | human | human | human | challenger | AI-assisted | not-needed | `supervised` |' <<< "$allocation_table"; then
     test_pass
 else
-    test_fail "shared initiative and adversarial human-led work must be representable in the contract"
+    test_fail "allocation rows must keep ordered roles, execution disposition, escalation, and runtime mode together"
 fi
 
-test_case "intermediate-risk escalation records the user resolution before execution"
-if grep -q 'pending-user-decision' "$SKILL" &&
-   grep -q 'Escalation decision' "$SKILL" &&
-   grep -q 'rewrite the Task Allocation fields' "$SKILL"; then
+test_case "intermediate-risk escalation records an ordered resolution before execution"
+escalation=$(sed -n '/^For intermediate risk/,/^### Step 1:/p' "$SKILL")
+pending_disposition_line=$(grep -n 'Execution disposition.*pending-user-decision' <<< "$escalation" | head -1 | cut -d: -f1 || true)
+pending_decision_line=$(grep -n 'Escalation decision.*pending' <<< "$escalation" | head -1 | cut -d: -f1 || true)
+stop_line=$(grep -n 'stop before execution' <<< "$escalation" | head -1 | cut -d: -f1 || true)
+rewrite_line=$(grep -n 'rewrite the Task Allocation fields' <<< "$escalation" | head -1 | cut -d: -f1 || true)
+human_only_line=$(grep -n 'human-only.*must not be passed to the workflow engine' <<< "$escalation" | head -1 | cut -d: -f1 || true)
+if [[ -n "$pending_disposition_line" && -n "$pending_decision_line" && -n "$stop_line" && -n "$rewrite_line" && -n "$human_only_line" ]] &&
+   (( pending_disposition_line <= pending_decision_line && pending_decision_line <= stop_line && stop_line < rewrite_line && rewrite_line < human_only_line )); then
     test_pass
 else
-    test_fail "intermediate-risk escalation lacks a recorded resolution path"
+    test_fail "intermediate-risk path must record pending state, stop, rewrite the contract, then resolve human-only handling"
 fi
 
 # Deferring the complexity axis is what keeps this a fold and not a second,

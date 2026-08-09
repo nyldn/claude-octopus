@@ -67,7 +67,7 @@ What this should NOT be:
 **AI role**: [none | executor | collaborator | challenger]
 **Execution disposition**: [AI-assisted | human-only | pending-user-decision]
 **Escalation decision**: [not-needed | pending | user's recorded resolution]
-**Resolved AUTONOMY_MODE**: [supervised | semi-autonomous | loop-until-approved | autonomous | not-applicable]
+**Resolved AUTONOMY_MODE**: [supervised | semi-autonomous | loop-until-approved | autonomous | not-applicable (contract-only sentinel)]
 
 ## Validation Checklist
 - [ ] Meets "good enough" criteria
@@ -126,12 +126,12 @@ AI the *initiative* on unfamiliar work while keeping control and decision rights
 
 Record every outcome explicitly:
 
-| Risk / complexity | Initiative | Control | Decision rights | AI role | Mode |
-|---|---|---|---|---|---|
-| Low / low | AI | AI | AI | executor | `autonomous` |
-| Low / high | shared | human | human | collaborator | `loop-until-approved` |
-| High / low | human | human | human | executor | `supervised` |
-| High / high | human | human | human | challenger | `supervised` |
+| Risk / complexity | Initiative | Control | Decision rights | AI role | Execution disposition | Escalation decision | Mode |
+|---|---|---|---|---|---|---|---|
+| Low / low | AI | AI | AI | executor | AI-assisted | not-needed | `autonomous` |
+| Low / high | shared | human | human | collaborator | AI-assisted | not-needed | `loop-until-approved` |
+| High / low | human | human | human | executor | AI-assisted | not-needed | `supervised` |
+| High / high | human | human | human | challenger | AI-assisted | not-needed | `supervised` |
 
 The High / high allocation is adversarial: the human leads while AI attacks the
 proposed decision as a deliberate counterweight to the human's own bias. In High /
@@ -160,13 +160,17 @@ axis cannot represent three independent allocations, so a contract that stores
 only the mode loses the reason it was chosen. That record is what a later
 reviewer needs when the allocation turns out to have been wrong.
 
-If the classification lands on intermediate risk, set `Execution disposition` to
-`pending-user-decision`, set `Escalation decision` to `pending`, and stop before
-execution. Ask the user to choose human-only handling or a specific documented AI
-allocation. Record their answer, rewrite the Task Allocation fields to match it,
-and change `Escalation decision` to the user's resolution before continuing. A
-human-only choice uses `AI role: none` and `Resolved AUTONOMY_MODE: not-applicable`;
-the workflow does not execute AI work in that state.
+`not-applicable` is a persisted, contract-only sentinel for human-only work; it
+is not a fifth runtime value and must not be passed to the workflow engine.
+
+For intermediate risk, record `Execution disposition: pending-user-decision`.
+Record `Escalation decision: pending`, then stop before execution.
+Ask the user to choose human-only handling or a specific documented AI allocation.
+Record their answer, rewrite the Task Allocation fields to match it, and change
+`Escalation decision` to the user's resolution before continuing. For a human-only
+resolution, record `AI role: none` and `Resolved AUTONOMY_MODE: not-applicable`;
+human-only `not-applicable` must not be passed to the workflow engine. Resolve to the
+supported human-only behavior and do not execute AI work in that state.
 
 ### Step 1: Capture Intent
 

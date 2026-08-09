@@ -82,6 +82,20 @@ Dials question and infer all three values from that style. Record the inferred v
 If an explicit user answer is also available, the explicit user answer takes precedence
 over the inferred values. Otherwise, ask the Dials question normally.
 
+All three dial values MUST be integers from 1 through 10. Use these presets when
+inferring from named styles; choose the closest row for synonyms and record the
+selected row with the values:
+
+| Style cues | Variance | Motion | Density |
+|---|---:|---:|---:|
+| Corporate / enterprise / conservative | 3 | 2 | 4 |
+| Clean / modern / balanced | 5 | 4 | 5 |
+| Playful / expressive / retro | 7 | 6 | 5 |
+| Brutalist / maximal / experimental | 9 | 8 | 6 |
+
+Validate the range before every `search.py` call. If an explicit or inferred value is
+missing, non-numeric, or outside 1-10, stop and obtain a valid value rather than clamp it.
+
 ### STEP 2: Display Banner
 
 **MANDATORY: You MUST use the native shell command tool to run this provider check BEFORE displaying the banner. Do NOT skip it. Do NOT assume availability.**
@@ -204,22 +218,24 @@ without a brief-tied reason.
 - 🔵 Claude: user-centered direction (what serves the audience best)
 - 🟤 OpenCode / 🟢 Copilot / 🟣 Qwen: additional variants if available
 
-**After all variants return, present a comparison board:**
+**After all variants return, record the provider returned with each result as
+`VARIANT_A_PROVIDER`, `VARIANT_B_PROVIDER`, and `VARIANT_C_PROVIDER`, then present a
+comparison board using those actual values:**
 
 ```
 🎨 **Design Shotgun — 3 Variants**
 
-━━━ Variant A: "Alpine Signal" (🔴 Codex) ━━━
+━━━ Variant A: "Alpine Signal" (${VARIANT_A_PROVIDER}) ━━━
 Colors: #EDF6F3, #10231D, #146C5A, #DDE7FF, #FFB000
 Fonts: Azeret Mono + Public Sans
 Feel: Crisp, field-ready, and content-first with one high-visibility signal color
 
-━━━ Variant B: "Bold Industrial" (🟡 Gemini) ━━━
+━━━ Variant B: "Bold Industrial" (${VARIANT_B_PROVIDER}) ━━━
 Colors: #101418, #FFFFFF, #FF6B35, #004E89, #1A936F
 Fonts: Archivo + IBM Plex Sans
 Feel: High-contrast, technical authority, strong hierarchy
 
-━━━ Variant C: "Cobalt Editorial" (🔵 Claude) ━━━
+━━━ Variant C: "Cobalt Editorial" (${VARIANT_C_PROVIDER}) ━━━
 Colors: #1D4ED8, #F7F6F2, #14181F, #C8CFDB, #E8B04B
 Fonts: Newsreader + General Sans
 Feel: Confident print-inspired hierarchy with one saturated anchor color
@@ -472,7 +488,35 @@ SUPERSEDES=""
 [[ -n "$PRIOR" ]] && SUPERSEDES=$(basename "$PRIOR")
 
 USER_NAME="${USER:-$(whoami)}"
-FILEPATH="${DESIGNS_DIR}/${USER_NAME}-${BRANCH_KEY}-design-${DATETIME}.md"
+REVISION_ID="${DATETIME}-$$-${RANDOM}"
+FILEPATH="${DESIGNS_DIR}/${USER_NAME}-${BRANCH_KEY}-design-${REVISION_ID}.md"
+
+# Reserve the final name atomically. The timestamp is readable; PID + RANDOM
+# prevents same-second runs from choosing the same immutable revision.
+if [[ -e "$FILEPATH" ]] || ! (set -o noclobber; : > "$FILEPATH") 2>/dev/null; then
+  echo "Design persistence failed: revision target already exists: $FILEPATH" >&2
+  exit 1
+fi
+
+if [[ -n "$SUPERSEDES" && "$SUPERSEDES" == "$(basename "$FILEPATH")" ]]; then
+  rm -f "$FILEPATH"
+  echo "Design persistence failed: a revision must not supersede itself." >&2
+  exit 1
+fi
+
+TEMP_PATH=""
+cleanup_design_temp() {
+  [[ -n "${TEMP_PATH:-}" && -f "$TEMP_PATH" ]] && rm -f "$TEMP_PATH"
+  [[ -f "$FILEPATH" && ! -s "$FILEPATH" ]] && rm -f "$FILEPATH"
+}
+trap cleanup_design_temp EXIT
+trap 'cleanup_design_temp; exit 1' HUP INT TERM
+
+if ! TEMP_PATH=$(mktemp "${FILEPATH}.tmp.XXXXXX"); then
+  echo "Design persistence failed: could not allocate a temporary file." >&2
+  exit 1
+fi
+
 {
   printf '%s\n' '---'
   printf 'branch: %s\n' "$RAW_BRANCH"
@@ -482,12 +526,19 @@ FILEPATH="${DESIGNS_DIR}/${USER_NAME}-${BRANCH_KEY}-design-${DATETIME}.md"
   [[ -n "$SUPERSEDES" ]] && printf 'supersedes: %s\n' "$SUPERSEDES"
   printf '%s\n\n' '---'
   printf '%s\n' "$DESIGN_BODY"
-} > "$FILEPATH"
+} > "$TEMP_PATH"
 
-if [[ ! -s "$FILEPATH" ]]; then
-  echo "Design persistence failed: $FILEPATH is missing or empty." >&2
+if [[ ! -s "$TEMP_PATH" ]]; then
+  echo "Design persistence failed: temporary document is missing or empty." >&2
   exit 1
 fi
+
+if ! mv "$TEMP_PATH" "$FILEPATH"; then
+  echo "Design persistence failed: could not publish $FILEPATH." >&2
+  exit 1
+fi
+TEMP_PATH=""
+trap - EXIT HUP INT TERM
 printf 'Persisted design: %s\n' "$FILEPATH"
 ```
 

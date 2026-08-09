@@ -84,10 +84,33 @@ ui_short_description() {
     local description="$1"
     local skill_display_name="$2"
 
+    description="$(normalize_single_line "$description")"
     if [[ ${#description} -lt 25 ]]; then
         description="Help with ${skill_display_name} tasks and workflows"
     fi
-    truncate "$description" 64
+    if [[ ${#description} -le 64 ]]; then
+        printf '%s\n' "$description"
+        return 0
+    fi
+
+    local limit=61
+    local prefix="${description:0:$limit}"
+    local next_character="${description:$limit:1}"
+    prefix="$(printf '%s' "$prefix" | sed -E 's/[[:space:]]+$//')"
+
+    # If the boundary lands inside a word, remove that partial word. A string
+    # with no usable boundary gets a stable complete fallback phrase.
+    if [[ -n "$next_character" && "$next_character" != [[:space:]] ]]; then
+        if [[ "$prefix" == *" "* ]]; then
+            prefix="${prefix% *}"
+        else
+            prefix="Help with this skill and related workflows"
+        fi
+    fi
+    if [[ ${#prefix} -lt 22 ]]; then
+        prefix="Help with this skill and related workflows"
+    fi
+    printf '%s...\n' "$prefix"
 }
 
 compat_alias_for() {

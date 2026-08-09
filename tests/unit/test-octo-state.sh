@@ -83,6 +83,12 @@ else
     fail "Help missing init_project" "Should document init_project command"
 fi
 
+if "$OCTO_STATE" help 2>&1 | grep -q "update_project"; then
+    pass "Help mentions update_project command"
+else
+    fail "Help missing update_project" "Should document bounded project-section updates"
+fi
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # TEST: init_project --dry-run
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -145,6 +151,31 @@ for file in STATE.md PROJECT.md ROADMAP.md config.json ISSUES.md LESSONS.md; do
         fail ".octo/$file not created" "Expected .octo/$file to exist"
     fi
 done
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TEST: update_project with bounded file input
+# ═══════════════════════════════════════════════════════════════════════════════
+
+echo ""
+echo "Test 5: Checking update_project bounded file input..."
+
+SYNTHESIS_FILE="$TEST_DIR/synthesis.md"
+printf '%s\n' 'Complete discovery finding one.' 'Complete discovery finding two.' > "$SYNTHESIS_FILE"
+if output=$("$OCTO_STATE" update_project --section vision --content-file "$SYNTHESIS_FILE" 2>&1) &&
+   grep -q 'Complete discovery finding one.' .octo/PROJECT.md &&
+   grep -q '^## Requirements$' .octo/PROJECT.md; then
+    pass "update_project replaces one section from a content file"
+else
+    fail "update_project content-file failed" "${output:-command failed or damaged PROJECT.md}"
+fi
+
+OVERSIZED_FILE="$TEST_DIR/oversized-synthesis.md"
+dd if=/dev/zero of="$OVERSIZED_FILE" bs=1048577 count=1 2>/dev/null
+if ! "$OCTO_STATE" update_project --section vision --content-file "$OVERSIZED_FILE" >/dev/null 2>&1; then
+    pass "update_project rejects content above its one-MiB bound"
+else
+    fail "update_project accepted oversized input" "Content-file input must be bounded"
+fi
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # TEST: init_project (idempotent)

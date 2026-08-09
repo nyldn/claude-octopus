@@ -73,7 +73,7 @@ else
     test_fail "adapted output contained $real_contract_count execution-contract headings"
 fi
 
-test_case "generated primary and alias UI descriptions stay within 25-64 characters"
+test_case "generated primary and alias metadata preserve source text and bound UI descriptions"
 fixture_root="$TEST_TMP_DIR/codex-generator"
 SKILLS_DIR="$fixture_root/source"
 OUTPUT_DIR="$fixture_root/output"
@@ -89,18 +89,48 @@ codex_alias_description: "Use this deliberately long alias description to verify
 EOF
 main >/dev/null
 
+expected_primary="Use this deliberately long primary description to verify that SKILL metadata retains its full text while the separate Codex interface blurb is bounded correctly"
+expected_alias="Use this deliberately long alias description to verify that compatibility aliases also receive bounded Codex interface metadata without truncating SKILL metadata"
 metadata_ok=true
 for generated in skill-verification-gate skill-verify; do
     skill_desc=$(sed -n 's/^description: "\(.*\)"$/\1/p' "$OUTPUT_DIR/$generated/SKILL.md")
     ui_desc=$(sed -n 's/^  short_description: "\(.*\)"$/\1/p' "$OUTPUT_DIR/$generated/agents/openai.yaml")
-    if (( ${#skill_desc} <= 64 || ${#ui_desc} < 25 || ${#ui_desc} > 64 )); then
+    if [[ "$generated" == "skill-verification-gate" ]]; then
+        expected_skill_desc="$expected_primary"
+        expected_ui_desc="Use this deliberately long primary description to verify that..."
+    else
+        expected_skill_desc="$expected_alias"
+        expected_ui_desc="Use this deliberately long alias description to verify that..."
+    fi
+    if [[ "$skill_desc" != "$expected_skill_desc" ]] ||
+       (( ${#ui_desc} < 25 || ${#ui_desc} > 64 )) ||
+       [[ "$ui_desc" != "$expected_ui_desc" ]]; then
         metadata_ok=false
     fi
 done
 if [[ "$metadata_ok" == true ]]; then
     test_pass
 else
-    test_fail "primary or alias descriptions do not preserve SKILL text and bound UI metadata separately"
+    test_fail "primary or alias metadata lost exact SKILL text or produced invalid UI text"
+fi
+
+test_case "UI short descriptions honor 24, 25, 64, and 65 character boundaries"
+input_24="123456789012345678901234"
+input_25="${input_24}5"
+sixty_zeros=$(printf '%060d' 0)
+input_64="${sixty_zeros} cat"
+word_prefix=""
+for ((word_index = 0; word_index < 30; word_index++)); do
+    word_prefix="${word_prefix}a "
+done
+input_65="${word_prefix}words"
+if [[ "$(ui_short_description "$input_24" Fixture)" == "Help with Fixture tasks and workflows" ]] &&
+   [[ "$(ui_short_description "$input_25" Fixture)" == "$input_25" ]] &&
+   [[ "$(ui_short_description "$input_64" Fixture)" == "$input_64" ]] &&
+   [[ "$(ui_short_description "$input_65" Fixture)" == "${word_prefix% }..." ]]; then
+    test_pass
+else
+    test_fail "ui_short_description did not preserve exact boundaries or trim at a complete word"
 fi
 
 test_summary

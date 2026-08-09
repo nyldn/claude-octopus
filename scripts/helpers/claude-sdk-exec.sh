@@ -76,6 +76,10 @@ if [[ "$model" == "claude-fable-5" \
         exit 0
     fi
     fallback_model="${OCTOPUS_FABLE5_FALLBACK_MODEL:-claude-opus-5}"
+    if [[ "$fallback_model" == "claude-fable-5" ]]; then
+        echo "claude-sdk-exec: rejecting claude-fable-5 as its own fallback; using claude-opus-5" >&2
+        fallback_model="claude-opus-5"
+    fi
     echo "claude-sdk-exec: Fable 5 dispatch returned rc=${rc}, output_bytes=${#output} — retrying once on ${fallback_model} (OCTOPUS_FABLE5_NO_RETRY=1 to disable)" >&2
     _sdk_run "$fallback_model"
     exit $?
