@@ -327,6 +327,11 @@ write_skill() {
     local skill_dir="$2"
     local codex_name="$3"
     local codex_desc="$4"
+    local codex_display_name="${5:-}"
+
+    if [[ -z "$codex_display_name" ]]; then
+        codex_display_name="$(display_name "$codex_name")"
+    fi
 
     mkdir -p "$skill_dir"
 
@@ -342,7 +347,7 @@ write_skill() {
     mkdir -p "$skill_dir/agents"
     {
         echo "interface:"
-        printf '  display_name: %s\n' "$(yaml_quote "$(display_name "$codex_name")")"
+        printf '  display_name: %s\n' "$(yaml_quote "$codex_display_name")"
         printf '  short_description: %s\n' "$(yaml_quote "$codex_desc")"
     } > "$skill_dir/agents/openai.yaml"
 }
@@ -444,7 +449,10 @@ main() {
         local codex_desc
         codex_desc=$(truncate "$description" 1024)
 
-        write_skill "$file" "$target_dir/$codex_name" "$codex_name" "$codex_desc"
+        local codex_display_name
+        codex_display_name=$(extract_field "$file" "codex_display_name")
+
+        write_skill "$file" "$target_dir/$codex_name" "$codex_name" "$codex_desc" "$codex_display_name"
 
         ((count++)) || true
         $VERBOSE && echo "  OK: $basename → skills/$codex_name/SKILL.md"
@@ -452,7 +460,15 @@ main() {
         local alias_name
         alias_name="$(compat_alias_for "$codex_name")"
         if [[ -n "$alias_name" ]]; then
-            write_skill "$file" "$target_dir/$alias_name" "$alias_name" "$codex_desc"
+            local alias_desc
+            alias_desc=$(extract_field "$file" "codex_alias_description")
+            [[ -n "$alias_desc" ]] || alias_desc="$codex_desc"
+            alias_desc=$(truncate "$alias_desc" 1024)
+
+            local alias_display_name
+            alias_display_name=$(extract_field "$file" "codex_alias_display_name")
+
+            write_skill "$file" "$target_dir/$alias_name" "$alias_name" "$alias_desc" "$alias_display_name"
             ((count++)) || true
             $VERBOSE && echo "  OK: $basename → skills/$alias_name/SKILL.md (compat alias)"
         fi
