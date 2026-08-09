@@ -196,7 +196,13 @@ source_has_enforced_execution() {
 body_has_enforcement() {
     local file="$1"
     awk '
-        BEGIN { frontmatter_count = 0; in_body = 0; found = 0 }
+        BEGIN {
+            frontmatter_count = 0
+            in_body = 0
+            in_fence = 0
+            in_contract = 0
+            found = 0
+        }
         /^---$/ {
             frontmatter_count++
             if (frontmatter_count >= 2) {
@@ -204,8 +210,28 @@ body_has_enforcement() {
             }
             next
         }
-        in_body && (/MANDATORY COMPLIANCE|EXECUTION CONTRACT.*MANDATORY|CANNOT SKIP/ ||
-                    /^## Execution Contract[[:space:]]*$/) {
+
+        !in_body { next }
+
+        /^[[:space:]]*(```|~~~)/ {
+            in_fence = !in_fence
+            next
+        }
+        in_fence { next }
+
+        /MANDATORY COMPLIANCE|EXECUTION CONTRACT.*MANDATORY|CANNOT SKIP/ {
+            found = 1
+            exit
+        }
+
+        /^## Execution Contract[[:space:]]*$/ {
+            in_contract = 1
+            next
+        }
+        in_contract && /^##[[:space:]]/ {
+            in_contract = 0
+        }
+        in_contract && /(^|[^[:alnum:]_])(MUST|MANDATORY|PROHIBITED|CANNOT|DO NOT)([^[:alnum:]_]|$)/ {
             found = 1
             exit
         }
@@ -443,4 +469,6 @@ main() {
     fi
 }
 
-main
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    main "$@"
+fi
