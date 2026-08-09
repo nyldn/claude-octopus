@@ -101,7 +101,7 @@ test_atlascloud_no_config_fails_closed() {
     local rc out
     rc=0
     out="$(_resolve_in_empty_home atlascloud atlascloud 2>/dev/null)" || rc=$?
-    if [[ "$rc" -ne 0 && "$out" != "gpt-5.6-sol" ]]; then
+    if [[ "$rc" -ne 0 && "$out" != "$(codex_default_model)" ]]; then
         test_pass
     else
         test_fail "expected atlascloud resolution to fail closed with no config, got rc=$rc out='$out'"
