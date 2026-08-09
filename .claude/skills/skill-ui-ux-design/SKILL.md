@@ -499,6 +499,28 @@ if [[ -z "${DESIGN_BODY:-}" ]]; then
   exit 1
 fi
 
+# Serialize revision allocation per branch so concurrent writers cannot choose
+# the same predecessor and fork the immutable revision chain.
+LOCK_DIR="${DESIGNS_DIR}/.${BRANCH_KEY}.lineage.lock"
+LOCK_HELD=false
+FILEPATH=""
+TEMP_PATH=""
+cleanup_design_persistence() {
+  [[ -n "${TEMP_PATH:-}" && -f "$TEMP_PATH" ]] && rm -f "$TEMP_PATH"
+  [[ -n "${FILEPATH:-}" && -f "$FILEPATH" && ! -s "$FILEPATH" ]] && rm -f "$FILEPATH"
+  if [[ "$LOCK_HELD" == true && -d "$LOCK_DIR" ]]; then
+    rmdir "$LOCK_DIR" 2>/dev/null || true
+  fi
+}
+trap cleanup_design_persistence EXIT
+trap 'cleanup_design_persistence; exit 1' HUP INT TERM
+
+if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+  echo "Design persistence failed: another revision is being persisted for $RAW_BRANCH." >&2
+  exit 1
+fi
+LOCK_HELD=true
+
 # Discover the newest prior document for this exact branch or detached revision.
 PRIOR=""
 for candidate in "$DESIGNS_DIR"/*.md; do
@@ -527,14 +549,6 @@ if [[ -n "$SUPERSEDES" && "$SUPERSEDES" == "$(basename "$FILEPATH")" ]]; then
   exit 1
 fi
 
-TEMP_PATH=""
-cleanup_design_temp() {
-  [[ -n "${TEMP_PATH:-}" && -f "$TEMP_PATH" ]] && rm -f "$TEMP_PATH"
-  [[ -f "$FILEPATH" && ! -s "$FILEPATH" ]] && rm -f "$FILEPATH"
-}
-trap cleanup_design_temp EXIT
-trap 'cleanup_design_temp; exit 1' HUP INT TERM
-
 if ! TEMP_PATH=$(mktemp "${FILEPATH}.tmp.XXXXXX"); then
   echo "Design persistence failed: could not allocate a temporary file." >&2
   exit 1
@@ -559,13 +573,20 @@ if [[ ! -s "$TEMP_PATH" ]]; then
   exit 1
 fi
 
+PUBLISHED_PATH="$FILEPATH"
 if ! mv "$TEMP_PATH" "$FILEPATH"; then
   echo "Design persistence failed: could not publish $FILEPATH." >&2
   exit 1
 fi
 TEMP_PATH=""
+FILEPATH=""
+if ! rmdir "$LOCK_DIR"; then
+  echo "Design persistence failed: could not release the lineage lock." >&2
+  exit 1
+fi
+LOCK_HELD=false
 trap - EXIT HUP INT TERM
-printf 'Persisted design: %s\n' "$FILEPATH"
+printf 'Persisted design: %s\n' "$PUBLISHED_PATH"
 ```
 
 Later sessions (and `flow-develop` / `frontend-developer` handoffs) MUST filter

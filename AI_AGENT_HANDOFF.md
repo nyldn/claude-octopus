@@ -92,6 +92,8 @@ claimed or recorded in `bd`; use this handoff for the blocked tracking record.
   Its third review round makes unsupported runtime autonomy modes fail closed,
   completes intermediate-risk AI resolution, binds comparison boards to full
   returned variants, and checks persistence writes before validation and move.
+  Its final approval follow-up serializes design-lineage allocation per branch
+  so concurrent writers cannot fork the immutable revision chain.
   The request to chmod the Codex generator in CI was rejected because the tracked
   `100755` mode is an enforced repository contract that CI must not mask.
 
@@ -133,6 +135,8 @@ Verification for the review follow-up:
   fail-closed handling and complete intermediate-risk resolution; workflow
   contracts failed 2 targeted cases for complete variant binding and checked
   design persistence before the corresponding changes.
+- Final approval-follow-up red baseline: workflow contracts failed the targeted
+  design-lineage serialization case before the per-branch lock was added.
 - Final focused results: `test-workflow-meta-contracts.sh` 12/12,
   `test-codex-enforcement-detection.sh` 6/6,
   `test-intent-contract-allocation.sh` 13/13, `test-octo-state.sh` 42/42, and

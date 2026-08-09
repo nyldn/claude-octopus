@@ -154,12 +154,18 @@ test_case "UI/UX persistence atomically writes unique branch-scoped lineage"
 persistence_contract_ok=true
 for ui_skill in "${UI_UX_DESIGNS[@]}"; do
     persistence=$(sed -n '/^### STEP 8: Present Results and Persist/,/^\*\*Offer next steps:/p' "$ui_skill")
+    lock_line=$(grep -nF 'mkdir "$LOCK_DIR"' <<< "$persistence" | head -1 | cut -d: -f1 || true)
+    prior_line=$(grep -n '^PRIOR=""$' <<< "$persistence" | head -1 | cut -d: -f1 || true)
     temp_line=$(grep -n 'TEMP_PATH=.*mktemp' <<< "$persistence" | head -1 | cut -d: -f1 || true)
     write_guard_line=$(grep -n '^if ! {$' <<< "$persistence" | head -1 | cut -d: -f1 || true)
     temp_check_line=$(grep -nF '[[ ! -s "$TEMP_PATH" ]]' <<< "$persistence" | head -1 | cut -d: -f1 || true)
     move_line=$(grep -nF 'mv "$TEMP_PATH" "$FILEPATH"' <<< "$persistence" | head -1 | cut -d: -f1 || true)
-    if [[ -z "$temp_line" || -z "$write_guard_line" || -z "$temp_check_line" || -z "$move_line" ]] ||
-       ! (( temp_line < write_guard_line && write_guard_line < temp_check_line && temp_check_line < move_line )) ||
+    unlock_line=$(grep -nF 'if ! rmdir "$LOCK_DIR"; then' <<< "$persistence" | head -1 | cut -d: -f1 || true)
+    if [[ -z "$lock_line" || -z "$prior_line" || -z "$temp_line" || -z "$write_guard_line" || -z "$temp_check_line" || -z "$move_line" || -z "$unlock_line" ]] ||
+       ! (( lock_line < prior_line && prior_line < temp_line && temp_line < write_guard_line && write_guard_line < temp_check_line && temp_check_line < move_line && move_line < unlock_line )) ||
+       ! grep -Fq 'LOCK_HELD=true' <<< "$persistence" ||
+       ! grep -Fq '[[ "$LOCK_HELD" == true' <<< "$persistence" ||
+       ! grep -q 'another revision is being persisted' <<< "$persistence" ||
        ! grep -q 'git_revision:' <<< "$persistence" ||
        ! grep -q 'supersedes:' <<< "$persistence" ||
        ! grep -q 'DESIGN_BODY' <<< "$persistence" ||
