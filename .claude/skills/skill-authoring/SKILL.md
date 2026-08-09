@@ -1,6 +1,7 @@
 ---
 name: skill-authoring
 description: "Principles for writing skills that behave the same way every run — use when adding, editing, or reviewing a skill in this plugin"
+codex_display_name: "Skill Authoring"
 ---
 
 # Skill Authoring

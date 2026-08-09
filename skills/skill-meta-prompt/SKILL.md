@@ -319,7 +319,6 @@ Before considering complete:
 [Context or examples from user]
 ```
 
-
 ### Model-Specific Adjustments
 
 Tune the assembled prompt to the model that will execute it:
@@ -328,6 +327,7 @@ Tune the assembled prompt to the model that will execute it:
 - **Claude Fable 5** (any `claude-fable-5` pin): apply `skills/blocks/fable5-prompting.md`. In short: never instruct the model to reveal or transcribe its reasoning (triggers a refusal); replace step-by-step micromanagement with a boundary plus checkable acceptance criteria; drop "CRITICAL"/"MUST" emphasis unless strict compliance is required; add grounded-progress and act-when-ready language for long runs.
 - **Codex / GPT-5.6**: apply `docs/GPT-5.6-PROMPTING.md`; give it a concrete outcome, scoped repository constraints, checkable acceptance criteria, non-goals, and the required verification.
 - **Older Claude models**: the fuller template below applies as written.
+
 
 ## Phase 6: Output & Iteration
 

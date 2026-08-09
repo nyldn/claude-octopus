@@ -2,6 +2,7 @@
 name: skill-verification-gate
 effort: low
 description: "Use when about to declare work complete, fixed, passing, or done"
+codex_alias_description: "Use when a nontrivial change needs end-to-end verification before committing or shipping"
 trigger: |
   AUTOMATICALLY ACTIVATE when:
   - About to claim work is complete, fixed, or passing
@@ -34,6 +35,17 @@ Before claiming any success or expressing satisfaction:
 5. **ONLY THEN** — State the claim WITH evidence
 
 Skip any step = the claim is unverified.
+
+## Rationalization Table
+
+| Excuse | Reality |
+|--------|---------|
+| "I ran the tests earlier this session" | Earlier is not fresh. Code changed since. Run again. |
+| "The edit was trivial, it can't break anything" | Trivial edits break builds daily. The gate has no size exemption. |
+| "The subagent reported success" | Agent reports are claims, not evidence. Verify independently. |
+| "CI will catch it anyway" | CI is the safety net, not the verification. Verify before push. |
+| "I'm confident this works" | Confidence is not evidence. Run the command. |
+| "Running the full suite is slow" | Then run the targeted suite — but run something, fresh. |
 
 ## What Counts as Evidence
 

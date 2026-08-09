@@ -112,6 +112,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7
 
+      - name: Verify Codex skills are up to date
+        run: ./scripts/build-codex-skills.sh --check
+
       - name: Check for GNU-only sed patterns
         run: |
           echo "Checking for non-portable sed usage..."
