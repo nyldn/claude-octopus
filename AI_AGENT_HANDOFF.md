@@ -120,11 +120,14 @@ Focused verification for the review follow-up:
 - `test-intent-contract-allocation.sh`: 12/12 passed.
 - `test-handoff.sh`: 12/12 passed.
 - `make sync-check`: passed; 58 Codex skills are up to date.
+- `make ci-local`: 16 smoke, 245 unit, and 7 integration suites passed on
+  `0c5ba9eb`.
+- No executable-bit changes.
 
 The plugin-lifecycle integration test can overwrite canonical flow files in a
-long-lived checkout from the currently installed marketplace copy. The test
-run was therefore followed by recreating the isolated worktree from the
-verified commit; do not mistake those test side effects for intended changes.
+long-lived checkout from the currently installed marketplace copy. The full
+gate therefore ran in a disposable detached worktree; its expected side effects
+were removed with that worktree and did not contaminate the task branch.
 
 ## Model Audit Still Open
 
