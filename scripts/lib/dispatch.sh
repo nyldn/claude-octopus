@@ -747,6 +747,9 @@ get_agent_model() {
         cursor-agent*) provider="cursor-agent" ;;
         grok*)       provider="grok" ;;
         opencode*)   provider="opencode" ;;
+        ollama*)     provider="ollama" ;;
+        copilot*)    provider="copilot" ;;
+        vibe*)       provider="vibe" ;;
     esac
 
     local resolved_model
