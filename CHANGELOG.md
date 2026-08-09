@@ -4,9 +4,9 @@
 
 ## [9.61.2] - 2026-08-09
 
-### Changed
+### Fixed
 
-- Ollama, Copilot, and Vibe now honor model pins and allowlists
+- **Ollama, Copilot, and Vibe now honor model pins and allowlists.** `get_agent_model()` had no case arm for these three providers, so `OCTOPUS_OLLAMA_MODEL` / `OCTOPUS_COPILOT_MODEL` / `OCTOPUS_VIBE_MODEL` were silently ignored and dispatch always fell through to the hardcoded default. (#816) `validate_model_allowed()` had the same gap one function over — `OCTOPUS_OLLAMA_ALLOWED_MODELS` / `OCTOPUS_COPILOT_ALLOWED_MODELS` / `OCTOPUS_VIBE_ALLOWED_MODELS` fell through to the unknown-provider "allow" default, so the model restriction never applied. (closes #817, #819)
 
 ## [9.61.1] - 2026-08-09
 
