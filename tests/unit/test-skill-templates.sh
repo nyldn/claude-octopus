@@ -109,8 +109,10 @@ done
 # checkout. Copy the inputs gen-skill-docs.sh reads/writes into a throwaway
 # root and point it there via GEN_SKILL_DOCS_ROOT. ────────────────────────────
 
-FIXTURE_ROOT=$(mktemp -d)
-trap 'rm -rf "$FIXTURE_ROOT"' EXIT
+# Nest under TEST_TMP_DIR (already created by test_suite() and cleaned up by
+# the framework's own EXIT trap) instead of a standalone mktemp+trap, which
+# would clobber that trap.
+FIXTURE_ROOT="$TEST_TMP_DIR/gen-skill-docs-fixture"
 
 mkdir -p "$FIXTURE_ROOT/.claude/skills" "$FIXTURE_ROOT/skills/blocks" \
     "$FIXTURE_ROOT/commands" "$FIXTURE_ROOT/agents/personas" "$FIXTURE_ROOT/hooks"
@@ -121,7 +123,7 @@ cp -R "$PROJECT_ROOT/agents/personas/." "$FIXTURE_ROOT/agents/personas/" 2>/dev/
 [[ -d "$PROJECT_ROOT/hooks" ]] && cp -R "$PROJECT_ROOT/hooks/." "$FIXTURE_ROOT/hooks/" 2>/dev/null || true
 cp "$PROJECT_ROOT/package.json" "$FIXTURE_ROOT/package.json"
 
-run_gen() { GEN_SKILL_DOCS_ROOT="$FIXTURE_ROOT" "$GEN_SCRIPT" "$@"; }
+run_gen() { env "GEN_SKILL_DOCS_ROOT=${FIXTURE_ROOT}" "$GEN_SCRIPT" "$@"; }
 
 tracked_flow_hashes() {
     for f in flow-discover.md flow-define.md flow-develop.md flow-deliver.md; do
@@ -198,10 +200,10 @@ if [[ -x "$GEN_SCRIPT" && -d "$BLOCKS_DIR" ]]; then
     stale_exit=0
     stale_output=$(run_gen --dry-run 2>&1) || stale_exit=$?
 
-    if [[ $stale_exit -ne 0 ]]; then
+    if [[ $stale_exit -ne 0 ]] && echo "$stale_output" | grep -q 'STALE: flow-discover'; then
         pass "--dry-run exits non-zero when files are stale"
     else
-        fail "--dry-run exits non-zero when files are stale" "exit code was 0"
+        fail "--dry-run exits non-zero when files are stale" "exit code was $stale_exit, output: $stale_output"
     fi
 else
     pass "template generation skipped (blocks removed, skills directly authored)"
