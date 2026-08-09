@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [9.61.2] - 2026-08-09
+
+### Changed
+
+- Ollama, Copilot, and Vibe now honor model pins and allowlists
+
 ## [9.61.1] - 2026-08-09
 
 ### Changed
