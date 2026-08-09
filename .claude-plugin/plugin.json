@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "9.61.0",
-  "description": "v9.61.0 \u2014 AI surface audit, phase context slots, and full billed-provider disclosure in the permission prompt. Run /octo:setup.",
+  "version": "9.61.1",
+  "description": "v9.61.1 \u2014 Vendor-correct model fallbacks, single-owner provider lockout, and skill-generator directory safety. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"

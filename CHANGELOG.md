@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [9.61.1] - 2026-08-09
+
+### Changed
+
+- Vendor-correct model fallbacks, single-owner provider lockout, and skill-generator directory safety
+
 ## [9.61.0] - 2026-08-08
 
 ### Added
