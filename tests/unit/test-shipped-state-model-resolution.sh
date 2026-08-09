@@ -25,16 +25,32 @@ log() { :; }
 _resolve_in_empty_home() {
     local provider="$1" agent_type="$2"
     local empty_home="$TEST_TMP_DIR/empty-home-$$-$RANDOM"
+    local provider_model_env
     mkdir -p "$empty_home"
-    local old_home="$HOME"
-    HOME="$empty_home"
-    local out=""
-    out="$(resolve_octopus_model "$provider" "$agent_type" "" "" 2>/dev/null)" || true
-    HOME="$old_home"
-    printf '%s' "$out"
+    provider_model_env="OCTOPUS_$(printf '%s' "$provider" | tr '[:lower:]' '[:upper:]' | tr '-' '_')_MODEL"
+    (
+        HOME="$empty_home"
+        unset "$provider_model_env"
+        resolve_octopus_model "$provider" "$agent_type" "" ""
+    )
 }
 
-source "$PROJECT_ROOT/scripts/lib/model-resolver.sh" 2>/dev/null || true
+source "$PROJECT_ROOT/scripts/lib/provider-registry.sh"
+source "$PROJECT_ROOT/scripts/lib/utils.sh"
+source "$PROJECT_ROOT/scripts/lib/model-resolver.sh"
+source "$PROJECT_ROOT/scripts/lib/provider-routing.sh"
+source "$PROJECT_ROOT/scripts/lib/dispatch.sh"
+
+_get_agent_model_in_empty_home() {
+    local empty_home="$TEST_TMP_DIR/empty-agent-home-$$-$RANDOM"
+    mkdir -p "$empty_home"
+    (
+        HOME="$empty_home"
+        unset OCTOPUS_GROK_MODEL
+        _PROVIDER_CONFIG_MIGRATED=false
+        get_agent_model grok probe researcher
+    )
+}
 
 test_grok_no_config() {
     test_case "grok resolves to its own default, not an OpenAI model, with no config"
@@ -47,14 +63,25 @@ test_grok_no_config() {
     fi
 }
 
+test_grok_dispatch_resolution_no_config() {
+    test_case "get_agent_model keeps grok off the OpenAI model family with no config"
+    local resolved
+    resolved="$(_get_agent_model_in_empty_home)"
+    if [[ "$resolved" == "default" && "$resolved" != gpt-* ]]; then
+        test_pass
+    else
+        test_fail "expected grok's own default, got: '$resolved'"
+    fi
+}
+
 test_bare_openrouter_no_config() {
     test_case "bare openrouter resolves to a namespaced OpenRouter ID with no config"
     local resolved
     resolved="$(_resolve_in_empty_home openrouter openrouter)"
-    if [[ "$resolved" == */* && "$resolved" != "gpt-5.6-sol" ]]; then
+    if [[ "$resolved" == "anthropic/claude-sonnet-4" ]]; then
         test_pass
     else
-        test_fail "expected a namespaced OpenRouter model ID (vendor/model), got: '$resolved'"
+        test_fail "expected anthropic/claude-sonnet-4, got: '$resolved'"
     fi
 }
 
@@ -71,14 +98,9 @@ test_vibe_no_config() {
 
 test_atlascloud_no_config_fails_closed() {
     test_case "atlascloud fails closed with no config instead of guessing an OpenAI model"
-    local empty_home rc out
-    empty_home="$TEST_TMP_DIR/empty-home-atlascloud-$$"
-    mkdir -p "$empty_home"
-    local old_home="$HOME"
-    HOME="$empty_home"
+    local rc out
     rc=0
-    out="$(resolve_octopus_model atlascloud atlascloud "" "" 2>/dev/null)" || rc=$?
-    HOME="$old_home"
+    out="$(_resolve_in_empty_home atlascloud atlascloud 2>/dev/null)" || rc=$?
     if [[ "$rc" -ne 0 && "$out" != "gpt-5.6-sol" ]]; then
         test_pass
     else
@@ -86,12 +108,14 @@ test_atlascloud_no_config_fails_closed() {
     fi
 }
 
-test_no_provider_silently_inherits_codex_default() {
-    test_case "grok/openrouter/vibe/atlascloud never silently resolve to codex's default model"
-    local p resolved bad=""
-    for p in "grok grok" "openrouter openrouter" "vibe vibe"; do
-        resolved="$(_resolve_in_empty_home $p)"
-        [[ "$resolved" == "gpt-5.6-sol" ]] && bad="$bad $p"
+test_registry_providers_do_not_inherit_codex_default() {
+    test_case "registry providers outside OpenAI never silently inherit codex's default model"
+    local provider organization resolved bad=""
+    for provider in $(octo_provider_ids model-config); do
+        organization="$(octo_provider_org "$provider")"
+        [[ "$organization" == "openai" ]] && continue
+        resolved="$(_resolve_in_empty_home "$provider" "$provider" 2>/dev/null)" || continue
+        [[ "$resolved" == "$(codex_default_model)" ]] && bad="$bad $provider($organization)"
     done
     if [[ -z "$bad" ]]; then
         test_pass
@@ -101,9 +125,10 @@ test_no_provider_silently_inherits_codex_default() {
 }
 
 test_grok_no_config
+test_grok_dispatch_resolution_no_config
 test_bare_openrouter_no_config
 test_vibe_no_config
 test_atlascloud_no_config_fails_closed
-test_no_provider_silently_inherits_codex_default
+test_registry_providers_do_not_inherit_codex_default
 
 test_summary
