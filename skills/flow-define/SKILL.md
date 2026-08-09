@@ -37,19 +37,59 @@ fi
 ```
 
 
-## ⚠️ EXECUTION CONTRACT (MANDATORY - CANNOT SKIP)
+## Execution Contract
 
 This skill uses **ENFORCED execution mode**. You MUST follow this exact sequence.
 
-### STEP 1: Display Visual Indicators (MANDATORY - BLOCKING)
+### STEP 1: Display Visual Indicators
 
 **MANDATORY: You MUST use the native shell command tool to run this provider check BEFORE displaying the banner. Do NOT skip it. Do NOT assume availability.**
 
 ```bash
-bash "${HOME}/.claude-octopus/plugin/scripts/helpers/check-providers.sh"
+provider_check_output=$(bash "${HOME}/.claude-octopus/plugin/scripts/helpers/check-providers.sh")
+provider_status_lines=$(printf '%s\n' "$provider_check_output" | awk '
+  /^PROVIDER_CHECK_START$/ { capture=1; next }
+  /^PROVIDER_CHECK_END$/ { capture=0 }
+  capture && /^[a-z0-9-]+:(available|missing|degraded)$/ { print }
+')
+
+if [[ -z "$provider_status_lines" ]]; then
+  echo "Provider availability check returned no usable status lines."
+  exit 1
+fi
+
+# Exclude providers intentionally disabled by environment, session, or global
+# allowlist policy; show every allowed provider, including missing/degraded.
+source "${HOME}/.claude-octopus/plugin/scripts/lib/provider-allowlist.sh"
+provider_availability=""
+available_provider_count=0
+while IFS=: read -r provider status; do
+  octo_provider_allowed "$provider" || continue
+  case "$status" in
+    available)
+      provider_availability="${provider_availability}🟢 ${provider}: Available ✓"$'\n'
+      available_provider_count=$((available_provider_count + 1))
+      ;;
+    degraded)
+      provider_availability="${provider_availability}🟠 ${provider}: Degraded ⚠"$'\n'
+      ;;
+    missing)
+      provider_availability="${provider_availability}🔴 ${provider}: Missing/unavailable ✗"$'\n'
+      ;;
+  esac
+done <<< "$provider_status_lines"
+
+if [[ "$available_provider_count" -eq 0 ]]; then
+  printf '%s' "$provider_availability"
+  echo "No external provider is available. Run /octo:setup and retry."
+  exit 1
+fi
+
+# Task status for the banner's Tasks line, if the session has one.
+task_status=$("${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" get-task-status 2>/dev/null || echo "")
 ```
 
-**Use the ACTUAL results below. PROHIBITED: Showing only "🔵 Claude: Available ✓" without listing all providers.**
+List every provider the check reports, not only Claude. A banner showing one seat when several ran misrepresents what the user is paying for.
 
 If `OCTO_ALLOWED_PROVIDERS` is set, treat it as the source of truth for which providers may participate. Providers filtered out by that allowlist are intentionally reported as unavailable; do not invoke or recommend them in the workflow.
 
@@ -59,11 +99,11 @@ If `OCTO_ALLOWED_PROVIDERS` is set, treat it as the source of truth for which pr
 ```
 🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider definition mode
 🎯 Define Phase: [Brief description of what you're defining/scoping]
+📋 Session: ${CLAUDE_SESSION_ID}
+📝 Tasks: ${task_status}
 
 Provider Availability:
-🔴 Codex CLI: [Available ✓ / Not installed ✗] - Technical requirements analysis
-🟡 Gemini CLI: [Available ✓ / Not installed ✗] - Business context and constraints
-🧭 Antigravity CLI: [Available ✓ / Not installed ✗] - Additional external-model challenge
+${provider_availability}
 🔵 Claude: Available ✓ - Consensus building and synthesis
 
 💰 Estimated Cost: $0.01-0.05
@@ -73,7 +113,7 @@ Provider Availability:
 **DO NOT PROCEED TO STEP 2 until banner displayed.** The banner shows users which providers will run and what costs they'll incur — starting API calls without this visibility violates cost transparency.
 
 
-### STEP 2: Read Prior State (MANDATORY - State Management)
+### STEP 2: Read Prior State
 
 **Before executing the workflow, read any prior context:**
 
@@ -111,7 +151,7 @@ fi
 **DO NOT PROCEED TO STEP 3 until state read.**
 
 
-### STEP 3: Phase Discussion - Capture User Vision (MANDATORY - Context Gathering)
+### STEP 3: Phase Discussion — Capture User Vision
 
 **Before executing expensive multi-AI orchestration, capture the user's vision to scope the work effectively.**
 
@@ -200,7 +240,7 @@ echo "📋 Context captured and saved to .claude-octopus/context/define-context.
 **DO NOT PROCEED TO STEP 4 until context captured.** User vision (UX approach, priorities, out-of-scope items) scopes the multi-AI research — without it, providers research too broadly and the definition misses the user's actual intent.
 
 
-### STEP 4: Execute orchestrate.sh define (MANDATORY - Use Bash Tool)
+### STEP 4: Execute orchestrate.sh define
 
 **You MUST execute this command via the native shell command tool:**
 
@@ -212,7 +252,7 @@ ${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh define "<user's clarificat
 - ❌ Defining requirements directly without calling orchestrate.sh — single-model analysis misses the technical, business, and external-model perspective split that provider fanout supplies, producing requirements with blind spots
 - ❌ Using direct analysis instead of orchestrate.sh
 - ❌ Claiming you're "simulating" the workflow
-- ❌ Proceeding to Step 3 without running this command
+- ❌ Proceeding to Step 5 without running this command
 
 **You MUST use the native shell command tool to invoke orchestrate.sh.**
 
@@ -232,7 +272,7 @@ These spinner verb updates happen automatically - orchestrate.sh calls `update_t
 **If NOT running in Claude Code v2.1.16+:** Progress indicators are silently skipped, no errors shown.
 
 
-### STEP 5: Verify Execution (MANDATORY - Validation Gate)
+### STEP 5: Verify Execution
 
 **After orchestrate.sh completes, verify it succeeded:**
 
@@ -257,7 +297,7 @@ cat "$SYNTHESIS_FILE"
 4. DO NOT substitute with direct analysis — fallback to single-model analysis defeats the purpose of multi-provider consensus and produces narrower requirements
 
 
-### STEP 6: Update State (MANDATORY - Post-Execution)
+### STEP 6: Update State
 
 **After synthesis is verified, record findings and decisions in state:**
 
@@ -310,45 +350,7 @@ Read the synthesis file and present:
 
 # Define Workflow - Define Phase 🎯
 
-## ⚠️ MANDATORY: Visual Indicators Protocol
-
-**BEFORE executing ANY workflow actions, you MUST output this banner:**
-
-**First, check task status (if available):**
-```bash
-task_status=$("${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" get-task-status 2>/dev/null || echo "")
-```
-
-```
-🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider definition mode
-🎯 Define Phase: [Brief description of what you're defining/scoping]
-📋 Session: ${CLAUDE_SESSION_ID}
-📝 Tasks: ${task_status}
-
-Providers:
-🔴 Codex CLI - Technical requirements analysis
-🟡 Gemini CLI - Business context and constraints
-🧭 Antigravity CLI - Additional external-model challenge
-🔵 Claude - Consensus building and synthesis
-```
-
-{{VISUAL_INDICATORS}}
-
-
-**Part of Double Diamond: DEFINE** (convergent thinking)
-
-```
-        DEFINE (grasp)
-
-         \         /
-          \       /
-           \     /
-            \   /
-             \ /
-
-          Converge to
-           problem
-```
+<!-- Banner requirement lives in Execution Contract STEP 1 above. -->
 
 ## What This Workflow Does
 
@@ -381,29 +383,31 @@ Use define when you need:
 
 ## Visual Indicators
 
-Before execution, you'll see:
+Before execution, you'll see a banner in this shape. The provider rows below are illustrative; replace them with every live status from Step 1 and omit only providers excluded by the active allowlist:
 
-```
+```text
 🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider problem definition
 🎯 Define Phase: Clarifying requirements and scope
+📋 Session: ${CLAUDE_SESSION_ID}
+📝 Tasks: ${task_status}
 
-Providers:
-🔴 Codex CLI - Technical requirements
-🟡 Gemini CLI - Business needs and context
-🧭 Antigravity CLI - Additional external-model challenge
-🔵 Claude - Problem synthesis
+Provider Availability:
+🟢 codex: Available ✓
+🟠 gemini: Degraded ⚠
+🔴 agy: Missing/unavailable ✗
+🔵 Claude: Available ✓ - Consensus building and synthesis
 ```
 
 
 ## How It Works
 
-### Step 1: Invoke Grasp Phase
+### Stage A: Invoke Grasp Phase
 
 ```bash
 ${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh define "<user's clarification request>"
 ```
 
-### Step 2: Multi-Provider Problem Definition
+### Stage B: Multi-Provider Problem Definition
 
 The orchestrate.sh script will:
 1. Call **Codex CLI** for technical requirement analysis
@@ -412,14 +416,15 @@ The orchestrate.sh script will:
 4. You (Claude) synthesize into clear problem definition
 5. Identify gaps and missing requirements
 
-### Step 3: Read Results
+### Stage C: Read Results
 
 Results are saved to:
-```
+
+```text
 ~/.claude-octopus/results/${SESSION_ID}/grasp-synthesis-<timestamp>.md
 ```
 
-### Step 4: Present Problem Definition
+### Stage D: Present Problem Definition
 
 Read the synthesis and present clear, actionable requirements to the user.
 
@@ -428,10 +433,13 @@ Read the synthesis and present clear, actionable requirements to the user.
 
 When this skill is invoked, follow the EXECUTION CONTRACT above exactly. The contract includes:
 
-1. **Blocking Step 1**: Display visual indicators with provider status
-2. **Blocking Step 2**: Execute orchestrate.sh define via native shell command tool
-3. **Blocking Step 3**: Verify synthesis file exists
-4. **Step 4**: Present formatted problem definition
+1. **Blocking Step 1**: Check providers and display live visual indicators
+2. **Blocking Step 2**: Read prior workflow state
+3. **Blocking Step 3**: Capture and persist the user's vision
+4. **Blocking Step 4**: Execute orchestrate.sh define via native shell command tool
+5. **Blocking Step 5**: Verify the synthesis file exists
+6. **Blocking Step 6**: Update workflow state
+7. **Step 7**: Present the formatted problem definition
 
 Each step is **mandatory and blocking** - you cannot proceed to the next step until the current one completes successfully.
 
@@ -458,8 +466,8 @@ TaskUpdate({taskId: "...", status: "completed"})
 
 If any step fails:
 - **Step 1 (Providers)**: If all external providers are unavailable, suggest `/octo:setup` and STOP
-- **Step 2 (orchestrate.sh)**: Show bash error, check logs, report to user
-- **Step 3 (Validation)**: If synthesis missing, show orchestrate.sh logs, DO NOT substitute with direct analysis
+- **Step 4 (orchestrate.sh)**: Show bash error, check logs, report to user
+- **Step 5 (Validation)**: If synthesis is missing, show orchestrate.sh logs and do not substitute direct analysis
 
 Never fall back to direct analysis if orchestrate.sh execution fails. Report the failure and let the user decide how to proceed.
 
@@ -709,8 +717,8 @@ fi
 ## Terminal State
 
 The Define phase is complete ONLY when requirements are synthesized and the user has
-approved the scope. Then invoke `flow-develop` (embrace workflow, or the user wants
-implementation) or stop with the requirements document delivered. Do NOT begin
+approved the scope. After approval, invoke `flow-develop` if implementation is requested.
+Otherwise, deliver the requirements document and stop. Do NOT begin
 implementation from here without an approved scope.
 
 **Ready to define!** This skill activates automatically when users request requirement clarification or problem definition.

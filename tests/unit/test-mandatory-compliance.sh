@@ -40,7 +40,12 @@ done
 # ── Skills that call orchestrate.sh MUST have enforcement ────────────────────
 # Exceptions: utility skills, template-only skills
 
-EXEMPT_SKILLS="skill-doctor sys-configure skill-finish-branch skill-verification-gate skill-verify"
+# flow-define is a pilot for skills/blocks/enforcement-patterns.md, which names
+# stacked MANDATORY/CRITICAL as emphasis inflation, and for CLAUDE.md's guidance
+# that the same emphasis degrades Fable 5. It still states each step and what
+# would be wrong; it just states each rule once instead of three times. The
+# contract below is unchanged for every other skill until this one is reviewed.
+EXEMPT_SKILLS="skill-doctor sys-configure skill-finish-branch skill-verification-gate skill-verify flow-define"
 
 for f in "$PROJECT_ROOT"/skills/*/SKILL.md; do
     name=$(basename "$(dirname "$f")")
