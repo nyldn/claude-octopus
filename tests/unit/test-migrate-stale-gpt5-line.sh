@@ -89,8 +89,41 @@ assert_stale_model_migrates() {
     [[ "$val" == "gpt-5.6-sol" ]] && test_pass || test_fail "expected gpt-5.6-sol, got: $val"
 }
 
-for stale_model in gpt-5.5 gpt-5.4-pro gpt-5.3-codex gpt-5.2-codex gpt-5.1-codex-max; do
+for stale_model in gpt-5.5 gpt-5.5-pro gpt-5.4-pro gpt-5.3-codex gpt-5.2-codex gpt-5.1-codex-max; do
     assert_stale_model_migrates "$stale_model"
+done
+
+# Regression for a review finding on this fix (#807): the first pass used
+# gpt-5.4*/gpt-5.3-codex* wildcards, which also matched gpt-5.4-mini (budget
+# tier) and gpt-5.3-codex-spark (spark tier) — still-current, differently
+# tiered models a user may have deliberately pinned, not stale defaults. The
+# fix narrowed the case arm to exact names; these must NOT migrate.
+assert_current_tier_variant_is_untouched() {
+    local current_model="$1"
+    local fixture_home="$TEST_TMP_DIR/home-untouched-$current_model"
+    local fixture_file="$fixture_home/.claude-octopus/config/providers.json"
+
+    mkdir -p "$(dirname "$fixture_file")"
+    jq -n --arg model "$current_model" '{
+      version: "3.0",
+      providers: {codex: {default: $model}},
+      phases: {}, roles: {}, tiers: {}, overrides: {}
+    }' > "$fixture_file"
+
+    (
+        log() { :; }
+        HOME="$fixture_home"
+        source "$PROJECT_ROOT/scripts/lib/provider-routing.sh" >/dev/null 2>&1
+        migrate_provider_config
+    )
+
+    test_case "current tier variant ($current_model) is NOT migrated"
+    val="$(jq -r '.providers.codex.default' "$fixture_file")"
+    [[ "$val" == "$current_model" ]] && test_pass || test_fail "expected $current_model (unchanged), got: $val"
+}
+
+for current_model in gpt-5.4-mini gpt-5.3-codex-spark; do
+    assert_current_tier_variant_is_untouched "$current_model"
 done
 
 test_case "already-current gemini default is left untouched"
