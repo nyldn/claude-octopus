@@ -159,6 +159,21 @@ long-lived checkout from the currently installed marketplace copy. The full
 gate therefore ran in a disposable detached worktree; its expected side effects
 were removed with that worktree and did not contaminate the task branch.
 
+## Release PR #811
+
+- The release branch was refreshed from `upstream/main` after #810, #812, and
+  #813 merged, then the v9.61.1 summary and changelog were expanded to cover the
+  complete release scope.
+- Release candidate commit `9f531d02` passed `make ci-local`: 16 smoke, 245
+  unit, and 7 integration suites passed. The plugin-lifecycle test ran in a
+  disposable detached worktree, which was removed with its expected fixture
+  changes after the gate.
+- `make sync-check` passed with 58 Codex skills up to date;
+  `test-handoff.sh` passed 12/12; no executable-bit changes were introduced.
+- Remote checks and the review gate still apply to the final PR head. After the
+  squash merge, wait for the exact `main` Test Suite commit before tagging or
+  publishing the GitHub Release.
+
 ## Model Audit Still Open
 
 - **#799 — provider availability/auth parity.** `check-providers.sh` still uses
