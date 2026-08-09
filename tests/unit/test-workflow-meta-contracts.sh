@@ -154,18 +154,21 @@ test_case "UI/UX persistence atomically writes unique branch-scoped lineage"
 persistence_contract_ok=true
 for ui_skill in "${UI_UX_DESIGNS[@]}"; do
     persistence=$(sed -n '/^### STEP 8: Present Results and Persist/,/^\*\*Offer next steps:/p' "$ui_skill")
-    lock_line=$(grep -nF 'mkdir "$LOCK_DIR"' <<< "$persistence" | head -1 | cut -d: -f1 || true)
+    lock_line=$(grep -nF 'exec 9>"$LOCK_FILE"' <<< "$persistence" | head -1 | cut -d: -f1 || true)
     prior_line=$(grep -n '^PRIOR=""$' <<< "$persistence" | head -1 | cut -d: -f1 || true)
     temp_line=$(grep -n 'TEMP_PATH=.*mktemp' <<< "$persistence" | head -1 | cut -d: -f1 || true)
     write_guard_line=$(grep -n '^if ! {$' <<< "$persistence" | head -1 | cut -d: -f1 || true)
     temp_check_line=$(grep -nF '[[ ! -s "$TEMP_PATH" ]]' <<< "$persistence" | head -1 | cut -d: -f1 || true)
     move_line=$(grep -nF 'mv "$TEMP_PATH" "$FILEPATH"' <<< "$persistence" | head -1 | cut -d: -f1 || true)
-    unlock_line=$(grep -nF 'if ! rmdir "$LOCK_DIR"; then' <<< "$persistence" | head -1 | cut -d: -f1 || true)
+    unlock_line=$(grep -nF 'exec 9>&-' <<< "$persistence" | tail -1 | cut -d: -f1 || true)
     if [[ -z "$lock_line" || -z "$prior_line" || -z "$temp_line" || -z "$write_guard_line" || -z "$temp_check_line" || -z "$move_line" || -z "$unlock_line" ]] ||
        ! (( lock_line < prior_line && prior_line < temp_line && temp_line < write_guard_line && write_guard_line < temp_check_line && temp_check_line < move_line && move_line < unlock_line )) ||
+       ! grep -Fq 'flock -n 9' <<< "$persistence" ||
+       ! grep -Fq 'lockf -s -t 0 9' <<< "$persistence" ||
+       ! grep -q 'no supported file-lock utility' <<< "$persistence" ||
        ! grep -Fq 'LOCK_HELD=true' <<< "$persistence" ||
-       ! grep -Fq '[[ "$LOCK_HELD" == true' <<< "$persistence" ||
        ! grep -q 'another revision is being persisted' <<< "$persistence" ||
+       grep -Fq 'mkdir "$LOCK_DIR"' <<< "$persistence" ||
        ! grep -q 'git_revision:' <<< "$persistence" ||
        ! grep -q 'supersedes:' <<< "$persistence" ||
        ! grep -q 'DESIGN_BODY' <<< "$persistence" ||
@@ -183,6 +186,86 @@ if [[ "$persistence_contract_ok" == true ]]; then
     test_pass
 else
     test_fail "UI/UX persisted-design contract lacks a complete write, verification, or branch filter"
+fi
+
+run_documented_ui_persistence() {
+    local test_home="$1"
+    local design_body="$2"
+
+    (
+        cd "$PROJECT_ROOT"
+        awk '
+            /^### STEP 8: Present Results and Persist$/ { in_step = 1; next }
+            in_step && /^```bash$/ { in_code = 1; next }
+            in_code && /^```$/ { exit }
+            in_code { print }
+        ' "$CLAUDE_UI_UX_DESIGN" |
+            env HOME="$test_home" USER=octopus-test DESIGN_BODY="$design_body" bash
+    )
+}
+
+test_case "UI/UX OS lock blocks live writers and recovers after SIGKILL"
+lock_fixture="$TEST_TMP_DIR/ui-lock-runtime"
+lock_home="$lock_fixture/home"
+lock_ready="$lock_fixture/ready"
+lock_slug=$(basename "$(git -C "$PROJECT_ROOT" rev-parse --show-toplevel)")
+lock_branch=$(git -C "$PROJECT_ROOT" branch --show-current || true)
+lock_revision=$(git -C "$PROJECT_ROOT" rev-parse HEAD)
+if [[ -n "$lock_branch" ]]; then
+    lock_branch_key=$(printf '%s' "$lock_branch" | tr '/' '-')
+else
+    lock_branch_key="detached-${lock_revision}"
+fi
+lock_designs_dir="$lock_home/.claude-octopus/designs/$lock_slug"
+lock_file="$lock_designs_dir/.${lock_branch_key}.lineage.lock"
+mkdir -p "$lock_designs_dir"
+
+(
+    exec 9>"$lock_file" || exit 1
+    if command -v flock >/dev/null 2>&1; then
+        flock -n 9 || exit 1
+    elif command -v lockf >/dev/null 2>&1; then
+        lockf -s -t 0 9 || exit 1
+    else
+        exit 1
+    fi
+    : > "$lock_ready"
+    while :; do
+        # The child must not inherit fd 9; otherwise it could retain the lock
+        # briefly after the holder is killed and make recovery timing flaky.
+        sleep 1 9>&-
+    done
+) &
+lock_holder_pid=$!
+
+for lock_attempt in {1..50}; do
+    [[ -f "$lock_ready" ]] && break
+    sleep 0.1
+done
+
+set +e
+lock_contention_output=$(run_documented_ui_persistence "$lock_home" "blocked design" 2>&1)
+lock_contention_status=$?
+set -e
+
+kill -9 "$lock_holder_pid" 2>/dev/null || true
+wait "$lock_holder_pid" 2>/dev/null || true
+
+set +e
+lock_recovery_output=$(run_documented_ui_persistence "$lock_home" "recovered design" 2>&1)
+lock_recovery_status=$?
+set -e
+lock_document_count=$(find "$lock_designs_dir" -maxdepth 1 -type f -name '*.md' | wc -l | tr -d ' ')
+
+if [[ -f "$lock_ready" ]] &&
+   [[ "$lock_contention_status" -eq 1 ]] &&
+   grep -q 'another revision is being persisted' <<< "$lock_contention_output" &&
+   [[ "$lock_recovery_status" -eq 0 ]] &&
+   grep -q 'Persisted design:' <<< "$lock_recovery_output" &&
+   [[ "$lock_document_count" -eq 1 ]]; then
+    test_pass
+else
+    test_fail "descriptor lock did not block a live writer or recover after SIGKILL"
 fi
 
 iron_law_count=$(grep -c '^NO COMPLETION CLAIMS WITHOUT FRESH VERIFICATION EVIDENCE$' "$VERIFY_GATE" || true)

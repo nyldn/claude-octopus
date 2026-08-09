@@ -499,23 +499,38 @@ if [[ -z "${DESIGN_BODY:-}" ]]; then
   exit 1
 fi
 
-# Serialize revision allocation per branch so concurrent writers cannot choose
-# the same predecessor and fork the immutable revision chain.
-LOCK_DIR="${DESIGNS_DIR}/.${BRANCH_KEY}.lineage.lock"
+# Serialize revision allocation per branch with an OS-managed lock. Closing the
+# descriptor releases the lock even after SIGKILL or a process/host crash.
+LOCK_FILE="${DESIGNS_DIR}/.${BRANCH_KEY}.lineage.lock"
 LOCK_HELD=false
 FILEPATH=""
 TEMP_PATH=""
 cleanup_design_persistence() {
   [[ -n "${TEMP_PATH:-}" && -f "$TEMP_PATH" ]] && rm -f "$TEMP_PATH"
   [[ -n "${FILEPATH:-}" && -f "$FILEPATH" && ! -s "$FILEPATH" ]] && rm -f "$FILEPATH"
-  if [[ "$LOCK_HELD" == true && -d "$LOCK_DIR" ]]; then
-    rmdir "$LOCK_DIR" 2>/dev/null || true
+  if [[ "$LOCK_HELD" == true ]]; then
+    exec 9>&-
+    LOCK_HELD=false
   fi
 }
 trap cleanup_design_persistence EXIT
 trap 'cleanup_design_persistence; exit 1' HUP INT TERM
 
-if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+if ! exec 9>"$LOCK_FILE"; then
+  echo "Design persistence failed: could not open the lineage lock." >&2
+  exit 1
+fi
+if command -v flock >/dev/null 2>&1; then
+  if flock -n 9; then LOCK_STATUS=0; else LOCK_STATUS=$?; fi
+elif command -v lockf >/dev/null 2>&1; then
+  if lockf -s -t 0 9; then LOCK_STATUS=0; else LOCK_STATUS=$?; fi
+else
+  exec 9>&-
+  echo "Design persistence failed: no supported file-lock utility (flock or lockf)." >&2
+  exit 1
+fi
+if [[ "$LOCK_STATUS" -ne 0 ]]; then
+  exec 9>&-
   echo "Design persistence failed: another revision is being persisted for $RAW_BRANCH." >&2
   exit 1
 fi
@@ -580,10 +595,7 @@ if ! mv "$TEMP_PATH" "$FILEPATH"; then
 fi
 TEMP_PATH=""
 FILEPATH=""
-if ! rmdir "$LOCK_DIR"; then
-  echo "Design persistence failed: could not release the lineage lock." >&2
-  exit 1
-fi
+exec 9>&-
 LOCK_HELD=false
 trap - EXIT HUP INT TERM
 printf 'Persisted design: %s\n' "$PUBLISHED_PATH"

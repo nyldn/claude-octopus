@@ -3,9 +3,9 @@
 Last updated: 2026-08-09
 Status: v9.61.0 is released. The model-routing fixes for #797 and #798, the
 generator safety repair, flow-define pilot, and #804 skill-tree reconciliation
-are merged. Review follow-up PR #813 is in progress on
-`fix/skill-tree-review-followup`. Issues #799-#801 and streamlining Parts
-4b/4c/4d remain unstarted.
+are merged. Review follow-up PR #813 tracks the completed implementation on
+`fix/skill-tree-review-followup`; check its live state before further work.
+Issues #799-#801 and streamlining Parts 4b/4c/4d remain unstarted.
 Branch: `fix/skill-tree-review-followup`
 Release: https://github.com/nyldn/claude-octopus/releases/tag/v9.61.0
 
@@ -84,7 +84,7 @@ claimed or recorded in `bd`; use this handoff for the blocked tracking record.
   added caller-level generation regressions.
 - **#812 merged (`3b658269`)** — final #804 reconciliation. Issue #804 closed
   automatically after the merge.
-- **#813 in progress** — addresses the valid #812 review findings with
+- **#813 review follow-up** — addresses the valid #812 review findings with
   test-first workflow-state, design-lineage, allocation, and Codex metadata
   fixes. Its second review round adds bounded PROJECT.md file input, collision-
   safe design persistence, Fable self-fallback rejection, complete allocation
@@ -92,8 +92,9 @@ claimed or recorded in `bd`; use this handoff for the blocked tracking record.
   Its third review round makes unsupported runtime autonomy modes fail closed,
   completes intermediate-risk AI resolution, binds comparison boards to full
   returned variants, and checks persistence writes before validation and move.
-  Its final approval follow-up serializes design-lineage allocation per branch
-  so concurrent writers cannot fork the immutable revision chain.
+  Its final approval follow-up serializes design-lineage allocation with an
+  OS-managed per-branch lock so concurrent writers cannot fork the immutable
+  revision chain and terminated owners cannot leave a permanent lock.
   The request to chmod the Codex generator in CI was rejected because the tracked
   `100755` mode is an enforced repository contract that CI must not mask.
 
@@ -137,7 +138,9 @@ Verification for the review follow-up:
   design persistence before the corresponding changes.
 - Final approval-follow-up red baseline: workflow contracts failed the targeted
   design-lineage serialization case before the per-branch lock was added.
-- Final focused results: `test-workflow-meta-contracts.sh` 12/12,
+- Final stale-owner red baseline: the same targeted contract failed before the
+  directory lock was replaced with portable `flock` / `lockf` descriptor locking.
+- Final focused results: `test-workflow-meta-contracts.sh` 13/13,
   `test-codex-enforcement-detection.sh` 6/6,
   `test-intent-contract-allocation.sh` 13/13, `test-octo-state.sh` 42/42, and
   `test-fable5-mode.sh` 29/29 passed.
@@ -172,8 +175,9 @@ provider refactor; preserve the behavioural-test-first pattern used by `#805` an
 
 ## Next Action
 
-1. Finish PR #813: verify each review response, keep it rebased on `main`, and
-   merge only after local and remote gates pass.
+1. Check the live state of PR #813. If it is still open, verify each review
+   response, keep it rebased on `main`, and merge only after local and remote
+   gates pass; if already merged, continue with step 2.
 2. Re-check the release PR/state before starting new work; release activity may
    advance `main` while the follow-up is under review.
 3. Pick up #799, #800, and #801 as separate test-first fixes.
