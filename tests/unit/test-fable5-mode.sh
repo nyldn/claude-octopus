@@ -240,7 +240,7 @@ fi
 echo "opus fallback answer"
 STUB
 chmod 755 "$STUB_DIR/claude"
-out=$(printf 'test prompt' | env PATH="$STUB_DIR:/usr/bin:/bin" \
+out=$(printf 'test prompt' | env "PATH=$STUB_DIR:/usr/bin:/bin" \
     CLAUDE_SDK_API_KEY=test-key OCTOPUS_CLAUDE_SDK_MODEL=claude-fable-5 \
     bash "$PROJECT_ROOT/scripts/helpers/claude-sdk-exec.sh" 2>/dev/null)
 if [[ "$out" == "opus fallback answer" ]] && grep -q -- "claude-opus-5" "$CALL_LOG"; then

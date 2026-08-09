@@ -16,6 +16,8 @@ DISCOVER="$PROJECT_ROOT/skills/flow-discover/SKILL.md"
 DOCTOR="$PROJECT_ROOT/skills/skill-doctor/SKILL.md"
 SECURITY_AUDIT="$PROJECT_ROOT/skills/octopus-security-audit/SKILL.md"
 UI_UX_DESIGN="$PROJECT_ROOT/skills/octopus-ui-ux-design/SKILL.md"
+CLAUDE_UI_UX_DESIGN="$PROJECT_ROOT/.claude/skills/skill-ui-ux-design/SKILL.md"
+UI_UX_DESIGNS=("$UI_UX_DESIGN" "$CLAUDE_UI_UX_DESIGN")
 VERIFY_GATE="$PROJECT_ROOT/skills/skill-verification-gate/SKILL.md"
 ENFORCEMENT="$PROJECT_ROOT/skills/blocks/enforcement-patterns.md"
 FABLE_RUNTIME="$PROJECT_ROOT/scripts/lib/fable5.sh"
@@ -104,47 +106,74 @@ else
 fi
 
 test_case "UI/UX workflow resolves dials and stops on failed preflight"
-ui_flat=$(tr '\n' ' ' < "$UI_UX_DESIGN")
-if grep -q 'explicit user answer takes precedence' "$UI_UX_DESIGN" &&
-   grep -q 'skip the Dials question' <<< "$ui_flat" &&
-   grep -q 'integers from 1 through 10' "$UI_UX_DESIGN" &&
-   grep -Eq '^\| Corporate / enterprise .*\| 3 \| 2 \| 4 \|' "$UI_UX_DESIGN" &&
-   grep -Eq '^\| Brutalist / maximal .*\| 9 \| 8 \| 6 \|' "$UI_UX_DESIGN" &&
-   grep -q 'Only continue to Step 4 when preflight returns `READY`' <<< "$ui_flat"; then
+ui_contract_ok=true
+for ui_skill in "${UI_UX_DESIGNS[@]}"; do
+    ui_flat=$(tr '\n' ' ' < "$ui_skill")
+    if ! grep -q 'explicit user answer takes precedence' "$ui_skill" ||
+       ! grep -q 'skip the Dials question' <<< "$ui_flat" ||
+       ! grep -q 'integers from 1 through 10' "$ui_skill" ||
+       ! grep -Eq '^\| Corporate / enterprise .*\| 3 \| 2 \| 4 \|' "$ui_skill" ||
+       ! grep -Eq '^\| Brutalist / maximal .*\| 9 \| 8 \| 6 \|' "$ui_skill" ||
+       ! grep -q 'Only continue to Step 4 when preflight returns `READY`' <<< "$ui_flat"; then
+        ui_contract_ok=false
+        break
+    fi
+done
+if [[ "$ui_contract_ok" == true ]]; then
     test_pass
 else
     test_fail "UI/UX dial or preflight branches are incomplete"
 fi
 
 test_case "UI/UX examples and critique obey the design-taste contract"
-variant_a=$(sed -n '/Variant A:/,/Variant B:/p' "$UI_UX_DESIGN")
-critique=$(sed -n '/^Critique dimensions:/,/^For each issue found/p' "$UI_UX_DESIGN")
-if ! grep -qE 'Inter|cream|terracotta|#F5F0EB|#E07A5F' <<< "$variant_a" &&
-   grep -q 'VARIANT_A_PROVIDER' <<< "$variant_a" &&
-   ! grep -q '(🔴 Codex)' <<< "$variant_a" &&
-   grep -q 'all five dimensions' "$UI_UX_DESIGN" &&
-   [[ "$(grep -cE '^[1-5]\. (ACCESSIBILITY|PRACTICALITY|FIT|GAPS|SLOP)' <<< "$critique")" -eq 5 ]]; then
+variant_contract_ok=true
+for ui_skill in "${UI_UX_DESIGNS[@]}"; do
+    comparison=$(sed -n '/comparison board using those actual values:/,/^\*\*Then ask the user/p' "$ui_skill")
+    critique=$(sed -n '/^Critique dimensions:/,/^For each issue found/p' "$ui_skill")
+    if grep -qE 'Alpine Signal|Bold Industrial|Cobalt Editorial|#EDF6F3|Azeret Mono' <<< "$comparison" ||
+       ! grep -q 'VARIANT_A_PROVIDER' <<< "$comparison" ||
+       ! grep -q 'VARIANT_B_PROVIDER' <<< "$comparison" ||
+       ! grep -q 'VARIANT_C_PROVIDER' <<< "$comparison" ||
+       ! grep -q 'VARIANT_A_RESULT' <<< "$comparison" ||
+       ! grep -q 'VARIANT_B_RESULT' <<< "$comparison" ||
+       ! grep -q 'VARIANT_C_RESULT' <<< "$comparison" ||
+       ! grep -q '^```text$' <<< "$comparison" ||
+       ! grep -q 'all five dimensions' "$ui_skill" ||
+       [[ "$(grep -cE '^[1-5]\. (ACCESSIBILITY|PRACTICALITY|FIT|GAPS|SLOP)' <<< "$critique")" -ne 5 ]]; then
+        variant_contract_ok=false
+        break
+    fi
+done
+if [[ "$variant_contract_ok" == true ]]; then
     test_pass
 else
     test_fail "UI/UX example or five-dimension critique contradicts its hard constraints"
 fi
 
 test_case "UI/UX persistence atomically writes unique branch-scoped lineage"
-persistence=$(sed -n '/^### STEP 8: Present Results and Persist/,/^\*\*Offer next steps:/p' "$UI_UX_DESIGN")
-temp_line=$(grep -n 'TEMP_PATH=.*mktemp' <<< "$persistence" | head -1 | cut -d: -f1 || true)
-temp_check_line=$(grep -nF '[[ ! -s "$TEMP_PATH" ]]' <<< "$persistence" | head -1 | cut -d: -f1 || true)
-move_line=$(grep -nF 'mv "$TEMP_PATH" "$FILEPATH"' <<< "$persistence" | head -1 | cut -d: -f1 || true)
-if [[ -n "$temp_line" && -n "$temp_check_line" && -n "$move_line" ]] &&
-   (( temp_line < temp_check_line && temp_check_line < move_line )) &&
-   grep -q 'git_revision:' <<< "$persistence" &&
-   grep -q 'supersedes:' <<< "$persistence" &&
-   grep -q 'DESIGN_BODY' <<< "$persistence" &&
-   grep -q 'XXXXXX' <<< "$persistence" &&
-   grep -Fq '[[ -e "$FILEPATH" ]]' <<< "$persistence" &&
-   grep -q 'must not supersede itself' <<< "$persistence" &&
-   ! grep -Fq '} > "$FILEPATH"' <<< "$persistence" &&
-   grep -q 'matches the current Git branch' <<< "$(tr '\n' ' ' <<< "$persistence")" &&
-   grep -q 'detached HEAD' <<< "$persistence"; then
+persistence_contract_ok=true
+for ui_skill in "${UI_UX_DESIGNS[@]}"; do
+    persistence=$(sed -n '/^### STEP 8: Present Results and Persist/,/^\*\*Offer next steps:/p' "$ui_skill")
+    temp_line=$(grep -n 'TEMP_PATH=.*mktemp' <<< "$persistence" | head -1 | cut -d: -f1 || true)
+    write_guard_line=$(grep -n '^if ! {$' <<< "$persistence" | head -1 | cut -d: -f1 || true)
+    temp_check_line=$(grep -nF '[[ ! -s "$TEMP_PATH" ]]' <<< "$persistence" | head -1 | cut -d: -f1 || true)
+    move_line=$(grep -nF 'mv "$TEMP_PATH" "$FILEPATH"' <<< "$persistence" | head -1 | cut -d: -f1 || true)
+    if [[ -z "$temp_line" || -z "$write_guard_line" || -z "$temp_check_line" || -z "$move_line" ]] ||
+       ! (( temp_line < write_guard_line && write_guard_line < temp_check_line && temp_check_line < move_line )) ||
+       ! grep -q 'git_revision:' <<< "$persistence" ||
+       ! grep -q 'supersedes:' <<< "$persistence" ||
+       ! grep -q 'DESIGN_BODY' <<< "$persistence" ||
+       ! grep -q 'XXXXXX' <<< "$persistence" ||
+       ! grep -Fq '[[ -e "$FILEPATH" ]]' <<< "$persistence" ||
+       ! grep -q 'must not supersede itself' <<< "$persistence" ||
+       grep -Fq '} > "$FILEPATH"' <<< "$persistence" ||
+       ! grep -q 'matches the current Git branch' <<< "$(tr '\n' ' ' <<< "$persistence")" ||
+       ! grep -q 'detached HEAD' <<< "$persistence"; then
+        persistence_contract_ok=false
+        break
+    fi
+done
+if [[ "$persistence_contract_ok" == true ]]; then
     test_pass
 else
     test_fail "UI/UX persisted-design contract lacks a complete write, verification, or branch filter"

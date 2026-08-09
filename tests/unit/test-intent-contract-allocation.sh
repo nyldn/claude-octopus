@@ -18,12 +18,15 @@ PROJECT_ROOT="$(cd -P "$SCRIPT_DIR/../.." && pwd)"
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "intent-contract agency allocation (issue #700)"
 
-SKILL="$PROJECT_ROOT/.claude/skills/skill-intent-contract/SKILL.md"
+CLAUDE_SKILL="$PROJECT_ROOT/.claude/skills/skill-intent-contract/SKILL.md"
+CODEX_SKILL="$PROJECT_ROOT/skills/skill-intent-contract/SKILL.md"
+INTENT_SKILLS=("$CLAUDE_SKILL" "$CODEX_SKILL")
+SKILL="$CLAUDE_SKILL"
 META_CONTRACTS="$PROJECT_ROOT/tests/unit/test-workflow-meta-contracts.sh"
 ORCHESTRATE="$PROJECT_ROOT/scripts/orchestrate.sh"
 
-test_case "the intent-contract skill source exists"
-if [[ -f "$SKILL" ]]; then
+test_case "both intent-contract skill sources exist"
+if [[ -f "$CLAUDE_SKILL" && -f "$CODEX_SKILL" ]]; then
     test_pass
 else
     test_fail "missing $SKILL"
@@ -82,13 +85,24 @@ else
     test_fail "AUTONOMY_MODE values drifted in orchestrate.sh, missing:${missing} — update the skill to match"
 fi
 
-test_case "contract-only not-applicable never becomes a runtime AUTONOMY_MODE"
-if grep -q 'contract-only sentinel' "$SKILL" &&
-   grep -q 'must not be passed to the workflow engine' "$SKILL" &&
-   ! grep -q '"not-applicable"' "$ORCHESTRATE"; then
+test_case "runtime rejects contract-only and unsupported AUTONOMY_MODE values"
+set +e
+not_applicable_output=$("$ORCHESTRATE" --autonomy not-applicable status 2>&1)
+not_applicable_rc=$?
+unknown_output=$("$ORCHESTRATE" --autonomy unexpected-mode status 2>&1)
+unknown_rc=$?
+set -e
+if [[ "$not_applicable_rc" -eq 64 && "$unknown_rc" -eq 64 ]] &&
+   grep -q 'contract-only sentinel' "$CLAUDE_SKILL" &&
+   grep -q 'contract-only sentinel' "$CODEX_SKILL" &&
+   grep -q 'must not be passed to the workflow engine' "$CLAUDE_SKILL" &&
+   grep -q 'must not be passed to the workflow engine' "$CODEX_SKILL" &&
+   grep -q 'contract-only' <<< "$not_applicable_output" &&
+   grep -q 'Unsupported AUTONOMY_MODE' <<< "$unknown_output" &&
+   ! grep -q '"autonomous"|\*' "$ORCHESTRATE"; then
     test_pass
 else
-    test_fail "not-applicable must remain persisted contract metadata, not a fifth runtime mode"
+    test_fail "not-applicable and unknown modes must fail closed before workflow execution"
 fi
 
 test_case "states where collapsing the triad onto one mode loses information"
@@ -126,25 +140,47 @@ else
 fi
 
 test_case "every allocation row records the complete ordered contract"
-allocation_table=$(sed -n '/^| Risk \/ complexity |/,/^$/p' "$SKILL")
-if grep -Fq '| Low / low | AI | AI | AI | executor | AI-assisted | not-needed | `autonomous` |' <<< "$allocation_table" &&
-   grep -Fq '| Low / high | shared | human | human | collaborator | AI-assisted | not-needed | `loop-until-approved` |' <<< "$allocation_table" &&
-   grep -Fq '| High / low | human | human | human | executor | AI-assisted | not-needed | `supervised` |' <<< "$allocation_table" &&
-   grep -Fq '| High / high | human | human | human | challenger | AI-assisted | not-needed | `supervised` |' <<< "$allocation_table"; then
+allocation_contract_ok=true
+for intent_skill in "${INTENT_SKILLS[@]}"; do
+    allocation_table=$(sed -n '/^| Risk \/ complexity |/,/^$/p' "$intent_skill")
+    if ! grep -Fq '| Low / low | AI | AI | AI | executor | AI-assisted | not-needed | `autonomous` |' <<< "$allocation_table" ||
+       ! grep -Fq '| Low / high | shared | human | human | collaborator | AI-assisted | not-needed | `loop-until-approved` |' <<< "$allocation_table" ||
+       ! grep -Fq '| High / low | human | human | human | executor | AI-assisted | not-needed | `supervised` |' <<< "$allocation_table" ||
+       ! grep -Fq '| High / high | human | human | human | challenger | AI-assisted | not-needed | `supervised` |' <<< "$allocation_table"; then
+        allocation_contract_ok=false
+        break
+    fi
+done
+if [[ "$allocation_contract_ok" == true ]]; then
     test_pass
 else
     test_fail "allocation rows must keep ordered roles, execution disposition, escalation, and runtime mode together"
 fi
 
 test_case "intermediate-risk escalation records an ordered resolution before execution"
-escalation=$(sed -n '/^For intermediate risk/,/^### Step 1:/p' "$SKILL")
-pending_disposition_line=$(grep -n 'Execution disposition.*pending-user-decision' <<< "$escalation" | head -1 | cut -d: -f1 || true)
-pending_decision_line=$(grep -n 'Escalation decision.*pending' <<< "$escalation" | head -1 | cut -d: -f1 || true)
-stop_line=$(grep -n 'stop before execution' <<< "$escalation" | head -1 | cut -d: -f1 || true)
-rewrite_line=$(grep -n 'rewrite the Task Allocation fields' <<< "$escalation" | head -1 | cut -d: -f1 || true)
-human_only_line=$(grep -n 'human-only.*must not be passed to the workflow engine' <<< "$escalation" | head -1 | cut -d: -f1 || true)
-if [[ -n "$pending_disposition_line" && -n "$pending_decision_line" && -n "$stop_line" && -n "$rewrite_line" && -n "$human_only_line" ]] &&
-   (( pending_disposition_line <= pending_decision_line && pending_decision_line <= stop_line && stop_line < rewrite_line && rewrite_line < human_only_line )); then
+escalation_contract_ok=true
+for intent_skill in "${INTENT_SKILLS[@]}"; do
+    escalation=$(sed -n '/^For intermediate risk/,/^### Step 1:/p' "$intent_skill")
+    pending_disposition_line=$(grep -n 'Execution disposition.*pending-user-decision' <<< "$escalation" | head -1 | cut -d: -f1 || true)
+    pending_decision_line=$(grep -n 'Escalation decision.*pending' <<< "$escalation" | head -1 | cut -d: -f1 || true)
+    stop_line=$(grep -n 'stop before execution' <<< "$escalation" | head -1 | cut -d: -f1 || true)
+    rewrite_line=$(grep -n 'rewrite the Task Allocation fields' <<< "$escalation" | head -1 | cut -d: -f1 || true)
+    human_only_line=$(grep -n 'human-only.*must not be passed to the workflow engine' <<< "$escalation" | head -1 | cut -d: -f1 || true)
+    ai_modes_ok=true
+    for ai_mode in supervised semi-autonomous loop-until-approved autonomous; do
+        grep -q "$ai_mode" <<< "$escalation" || ai_modes_ok=false
+    done
+    if [[ -z "$pending_disposition_line" || -z "$pending_decision_line" || -z "$stop_line" || -z "$rewrite_line" || -z "$human_only_line" ]] ||
+       ! (( pending_disposition_line <= pending_decision_line && pending_decision_line <= stop_line && stop_line < rewrite_line && rewrite_line < human_only_line )) ||
+       ! grep -q 'documented AI-assisted resolution' <<< "$escalation" ||
+       ! grep -q 'Execution disposition: AI-assisted' <<< "$escalation" ||
+       [[ "$ai_modes_ok" != true ]] ||
+       ! grep -q "Escalation decision.*user's recorded resolution" <<< "$escalation"; then
+        escalation_contract_ok=false
+        break
+    fi
+done
+if [[ "$escalation_contract_ok" == true ]]; then
     test_pass
 else
     test_fail "intermediate-risk path must record pending state, stop, rewrite the contract, then resolve human-only handling"

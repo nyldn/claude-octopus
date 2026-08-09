@@ -172,6 +172,18 @@ resolution, record `AI role: none` and `Resolved AUTONOMY_MODE: not-applicable`;
 human-only `not-applicable` must not be passed to the workflow engine. Resolve to the
 supported human-only behavior and do not execute AI work in that state.
 
+For a documented AI-assisted resolution, record every Task Allocation field:
+
+- `Initiative`, `Control`, `Decision rights`, and `AI role` from the chosen allocation
+- `Execution disposition: AI-assisted`
+- `Escalation decision: user's recorded resolution`
+- `Resolved AUTONOMY_MODE`: exactly one of `supervised`, `semi-autonomous`,
+  `loop-until-approved`, or `autonomous`, mapped using the table above
+
+Validate the selected runtime mode and only then execute. The runtime must reject
+`not-applicable` and every unknown or unsupported mode before workflow execution rather
+than defaulting to autonomous behavior.
+
 ### Step 1: Capture Intent
 
 After asking the 3 clarifying questions in a workflow, prompt the user to define:

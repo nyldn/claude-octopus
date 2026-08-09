@@ -16,13 +16,15 @@ OpenCode, and other harnesses. It is a context packet, not the task tracker.
 
 Read in order:
 
-1. `AGENTS.md`, `CLAUDE.md`, and `RTK.md`
-2. `git status --short --branch`
-3. the latest commits and live PR state
-4. the relevant `bd` issue; if Beads is still blocked, read `Tracking Blocker`
+1. `RTK.md`
+2. `CLAUDE.md`
+3. `AI_AGENT_HANDOFF.md`
+4. `git status --short --branch`
+5. the latest commits and live PR state
+6. the relevant `bd` issue; if Beads is still blocked, read `Tracking Blocker`
    below and do not migrate the database
-5. `docs/MODEL-ROUTING-STRATEGY.md` for model-routing work
-6. `docs/GPT-5.6-PROMPTING.md` for GPT-5.6 prompt changes
+7. `docs/MODEL-ROUTING-STRATEGY.md` for model-routing work
+8. `docs/GPT-5.6-PROMPTING.md` for GPT-5.6 prompt changes
 
 Harness-local files such as `.octo-continue.md` may be stale. The existing
 untracked copy predates this work and remains user-owned; do not overwrite it.
@@ -87,6 +89,9 @@ claimed or recorded in `bd`; use this handoff for the blocked tracking record.
   fixes. Its second review round adds bounded PROJECT.md file input, collision-
   safe design persistence, Fable self-fallback rejection, complete allocation
   rows, provider attribution, dial presets, and word-boundary UI descriptions.
+  Its third review round makes unsupported runtime autonomy modes fail closed,
+  completes intermediate-risk AI resolution, binds comparison boards to full
+  returned variants, and checks persistence writes before validation and move.
   The request to chmod the Codex generator in CI was rejected because the tracked
   `100755` mode is an enforced repository contract that CI must not mask.
 
@@ -124,6 +129,10 @@ Verification for the review follow-up:
 - Second-round red baseline: workflow contracts failed 5 targeted cases,
   allocation failed 3, Codex generator failed 2, state manager failed 2, and
   Fable mode failed 2 before the corresponding changes.
+- Third-round red baseline: allocation failed 2 targeted cases for runtime
+  fail-closed handling and complete intermediate-risk resolution; workflow
+  contracts failed 2 targeted cases for complete variant binding and checked
+  design persistence before the corresponding changes.
 - Final focused results: `test-workflow-meta-contracts.sh` 12/12,
   `test-codex-enforcement-detection.sh` 6/6,
   `test-intent-contract-allocation.sh` 13/13, `test-octo-state.sh` 42/42, and

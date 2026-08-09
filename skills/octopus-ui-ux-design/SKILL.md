@@ -218,27 +218,25 @@ without a brief-tied reason.
 - 🔵 Claude: user-centered direction (what serves the audience best)
 - 🟤 OpenCode / 🟢 Copilot / 🟣 Qwen: additional variants if available
 
-**After all variants return, record the provider returned with each result as
-`VARIANT_A_PROVIDER`, `VARIANT_B_PROVIDER`, and `VARIANT_C_PROVIDER`, then present a
-comparison board using those actual values:**
+**After all variants return, bind each complete returned result to its provider.** Record
+the providers as `VARIANT_A_PROVIDER`, `VARIANT_B_PROVIDER`, and `VARIANT_C_PROVIDER`,
+and record the corresponding complete outputs as `VARIANT_A_RESULT`,
+`VARIANT_B_RESULT`, and `VARIANT_C_RESULT`. Each result must contain the returned style
+name, palette, fonts, layout philosophy, and feel. If a field is missing, ask that agent
+to complete its result; do not invent or substitute example content. Present a
+comparison board using those actual values:
 
-```
+```text
 🎨 **Design Shotgun — 3 Variants**
 
-━━━ Variant A: "Alpine Signal" (${VARIANT_A_PROVIDER}) ━━━
-Colors: #EDF6F3, #10231D, #146C5A, #DDE7FF, #FFB000
-Fonts: Azeret Mono + Public Sans
-Feel: Crisp, field-ready, and content-first with one high-visibility signal color
+━━━ Variant A (${VARIANT_A_PROVIDER}) ━━━
+${VARIANT_A_RESULT}
 
-━━━ Variant B: "Bold Industrial" (${VARIANT_B_PROVIDER}) ━━━
-Colors: #101418, #FFFFFF, #FF6B35, #004E89, #1A936F
-Fonts: Archivo + IBM Plex Sans
-Feel: High-contrast, technical authority, strong hierarchy
+━━━ Variant B (${VARIANT_B_PROVIDER}) ━━━
+${VARIANT_B_RESULT}
 
-━━━ Variant C: "Cobalt Editorial" (${VARIANT_C_PROVIDER}) ━━━
-Colors: #1D4ED8, #F7F6F2, #14181F, #C8CFDB, #E8B04B
-Fonts: Newsreader + General Sans
-Feel: Confident print-inspired hierarchy with one saturated anchor color
+━━━ Variant C (${VARIANT_C_PROVIDER}) ━━━
+${VARIANT_C_RESULT}
 ```
 
 **Then ask the user to choose:**
@@ -517,7 +515,7 @@ if ! TEMP_PATH=$(mktemp "${FILEPATH}.tmp.XXXXXX"); then
   exit 1
 fi
 
-{
+if ! {
   printf '%s\n' '---'
   printf 'branch: %s\n' "$RAW_BRANCH"
   printf 'user: %s\n' "$USER_NAME"
@@ -526,7 +524,10 @@ fi
   [[ -n "$SUPERSEDES" ]] && printf 'supersedes: %s\n' "$SUPERSEDES"
   printf '%s\n\n' '---'
   printf '%s\n' "$DESIGN_BODY"
-} > "$TEMP_PATH"
+} > "$TEMP_PATH"; then
+  echo "Design persistence failed: could not write complete temporary document." >&2
+  exit 1
+fi
 
 if [[ ! -s "$TEMP_PATH" ]]; then
   echo "Design persistence failed: temporary document is missing or empty." >&2
