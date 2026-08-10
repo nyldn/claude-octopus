@@ -8,7 +8,8 @@ source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "Codex plugin manifest"
 
 test_case "Codex default prompts stay within the host limit of three"
-if [[ "$(jq '.interface.defaultPrompt | length' "$PROJECT_ROOT/.codex-plugin/plugin.json")" -le 3 ]]; then
+if jq -e '.interface.defaultPrompt | (type == "array" and length <= 3)' \
+    "$PROJECT_ROOT/.codex-plugin/plugin.json" >/dev/null; then
     test_pass
 else
     test_fail "Codex supports at most three interface.defaultPrompt entries"
