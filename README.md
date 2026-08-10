@@ -224,9 +224,9 @@ calls; it only reports disabled auto-update, a locally known newer version, or
 a loaded session that needs a reload. Run focused diagnostics at any time:
 
 ```bash
-~/.claude-octopus/plugin/scripts/orchestrate.sh doctor config   # install path, version, manifest, Claude Code feature flags
-~/.claude-octopus/plugin/scripts/orchestrate.sh doctor skills   # skill loading, skillOverrides, plugin zip/URL capability notes
-~/.claude-octopus/plugin/scripts/orchestrate.sh doctor updates
+octopus doctor config   # install path, version, manifest, Claude Code feature flags
+octopus doctor skills   # skill loading, skillOverrides, plugin zip/URL capability notes
+octopus doctor updates  # loaded/install/catalog/cache versions and auto-update state
 ```
 
 This cannot make an arbitrarily old installation self-heal: code that predates

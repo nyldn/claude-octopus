@@ -119,7 +119,7 @@ Plugin executables available as bare commands (CC v2.1.91+). Also usable via ful
 
 | Command | Description |
 |---------|-------------|
-| `octopus doctor` | Run diagnostics (same as `/octo:doctor`) |
+| `octopus doctor` | Run Octopus environment diagnostics |
 | `octopus version` | Show plugin version |
 | `octopus session` | Show current session info |
 | `octopus fleet` | Show provider fleet status |
