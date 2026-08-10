@@ -97,20 +97,9 @@ if [[ -n "$cc_bin" ]] && { [[ -x "$cc_bin" ]] || command -v "$cc_bin" >/dev/null
     fi
 fi
 provider_status "commandcode" "$commandcode_state"
-# gemini: same fail-open gap as codex (#799) — the free-tier sunset means
-# `command -v gemini` succeeding says nothing about whether a dispatch works.
-# oauth_creds.json alone isn't enough either: free-tier OAuth is sunset
-# (IneligibleTierError), so only an API key or routing the seat through
-# Antigravity (OCTOPUS_GEMINI_VIA_AGY=1) is a reliable available signal.
-gemini_state="missing"
-if command -v gemini >/dev/null 2>&1; then
-    if [[ -n "${GEMINI_API_KEY:-}" ]] || [[ "${OCTOPUS_GEMINI_VIA_AGY:-}" == "1" ]]; then
-        gemini_state="available"
-    else
-        gemini_state="degraded"
-    fi
-fi
-provider_status "gemini" "$gemini_state"
+# gemini: dropped from this PR (#799) — #854 retires direct Gemini dispatch
+# entirely in favor of Antigravity (AGY), which will handle this properly.
+provider_status "gemini" "$(command -v gemini >/dev/null 2>&1 && echo available || echo missing)"
 provider_status "agy" "$(command -v agy >/dev/null 2>&1 && echo available || echo missing)"
 # oco-cbb: opt-in proactive probe for API-key providers (perplexity, openrouter).
 # Only runs when OCTOPUS_PREFLIGHT_PROBE=1; result cached via quota-dead marker

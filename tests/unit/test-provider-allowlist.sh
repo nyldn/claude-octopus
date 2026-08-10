@@ -110,10 +110,7 @@ SH
 done
 
 test_case "check-providers reports disallowed installed providers as missing"
-# gemini needs a mocked auth signal (#799: check-providers.sh now checks auth,
-# not just binary presence) so this test isolates the allowlist filter it's
-# actually exercising rather than the auth gate.
-output=$(env "PATH=${mock_bin}:/usr/bin:/bin" "OCTO_ALLOWED_PROVIDERS=gemini" "GEMINI_API_KEY=test-key" "$CHECK_PROVIDERS")
+output=$(PATH="$mock_bin:/usr/bin:/bin" OCTO_ALLOWED_PROVIDERS="gemini" "$CHECK_PROVIDERS")
 if assert_contains "$output" "gemini:available" "gemini should remain available" &&
    assert_contains "$output" "codex:missing" "codex should be hidden by allowlist"; then
     test_pass
