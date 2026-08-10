@@ -89,11 +89,11 @@ _octopus_agent_lifecycle_event() {
         elif command -v timeout >/dev/null 2>&1; then
             timeout "$hook_timeout" "$hook" "$event"
         else
-            # Built-in timeout fallback: run hook in background, wait with a
-            # SECONDS-based deadline, and kill if still running. Uses only
-            # Bash builtins plus the already-required sleep command, so
-            # systems without the Octopus run_with_timeout helper or GNU
-            # timeout do not execute hooks unbounded. See issue #511.
+            # Built-in timeout fallback: run the hook and an independent sleep
+            # watchdog in parallel, then kill the hook group if the watchdog
+            # finishes first. This avoids wall-clock deadlines (`SECONDS` can
+            # jump with the host clock) and uses only Bash builtins plus the
+            # already-required sleep command. See issues #511 and #837.
             #
             # `set -m` puts the backgrounded hook in its own process group
             # (Bash's job-control assigns pgid = pid of the group leader),
@@ -103,8 +103,9 @@ _octopus_agent_lifecycle_event() {
             "$hook" "$event" &
             local _hook_pid=$!
             set +m
-            local _hook_deadline=$((SECONDS + hook_timeout))
-            while kill -0 "$_hook_pid" 2>/dev/null && [[ "$SECONDS" -lt "$_hook_deadline" ]]; do
+            sleep "$hook_timeout" &
+            local _hook_watchdog_pid=$!
+            while kill -0 "$_hook_pid" 2>/dev/null && kill -0 "$_hook_watchdog_pid" 2>/dev/null; do
                 sleep 1
             done
             if kill -0 "$_hook_pid" 2>/dev/null; then
@@ -115,6 +116,8 @@ _octopus_agent_lifecycle_event() {
                 kill -KILL "$_hook_pid" 2>/dev/null || true
             fi
             wait "$_hook_pid" 2>/dev/null || true
+            kill "$_hook_watchdog_pid" 2>/dev/null || true
+            wait "$_hook_watchdog_pid" 2>/dev/null || true
         fi
     ) >>"$hook_log" 2>&1 || true
 }
