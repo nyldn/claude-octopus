@@ -114,9 +114,9 @@ octopus_normalize_reasoning_level() {
 
 octopus_resolve_reasoning_level() {
   local provider="$1" phase="${2:-}" role="${3:-}" phase_key role_key provider_key name value cfg
-  phase_key=$(printf "%s" "$phase" | tr "[:lower:]-" "[:upper:]_")
-  role_key=$(printf "%s" "$role" | tr "[:lower:]-" "[:upper:]_")
-  provider_key=$(printf "%s" "$provider" | tr "[:lower:]-" "[:upper:]_")
+  phase_key="$(_octopus_profile_env_key "$phase")"
+  role_key="$(_octopus_profile_env_key "$role")"
+  provider_key="$(_octopus_profile_env_key "$provider")"
   for name in     "OCTOPUS_${phase_key}_${role_key}_REASONING"     "OCTOPUS_${role_key}_REASONING"     "OCTOPUS_${phase_key}_REASONING"     "OCTOPUS_${provider_key}_REASONING"     OCTOPUS_REASONING_LEVEL; do
     value="${!name:-}"
     if [[ -n "$value" ]]; then octopus_normalize_reasoning_level "$value"; return $?; fi

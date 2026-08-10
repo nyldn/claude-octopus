@@ -36,4 +36,12 @@ unset OCTOPUS_OPENAI_COMPATIBLE_AGENT_REASONING
 # selects its own model/reasoning policy, so Octopus emits only the wrapper.
 cmd=$(get_agent_command gemini research researcher)
 assert_contains "$cmd" "agy-exec.sh"
+# Workflow roles are prose ("Technical implementation analysis"); the resolver
+# must sanitize them into valid env-var names instead of aborting dispatch.
+cmd=$(get_agent_command codex probe "Technical implementation analysis")
+assert_contains "$cmd" "--model gpt-5.6"
+export OCTOPUS_PROBE_TECHNICAL_IMPLEMENTATION_ANALYSIS_REASONING=medium
+cmd=$(get_agent_command codex probe "Technical implementation analysis")
+assert_contains "$cmd" 'model_reasoning_effort="medium"'
+unset OCTOPUS_PROBE_TECHNICAL_IMPLEMENTATION_ANALYSIS_REASONING
 printf "PASS test-execution-profile-dispatch\n"
