@@ -196,7 +196,7 @@ test_case "the unit matrix timeout has headroom for slow macOS runners"
 unit_timeout_minutes="$(awk '
     /^  unit:/ { in_unit = 1; next }
     in_unit && /^  [[:alnum:]_-]+:/ { exit }
-    in_unit && /timeout-minutes:/ { print $2; exit }
+    in_unit && /^    timeout-minutes:[[:space:]]/ { print $2; exit }
 ' "$WORKFLOW")"
 if [[ "$unit_timeout_minutes" =~ ^[0-9]+$ ]] && [[ "$unit_timeout_minutes" -ge 20 ]]; then
     test_pass
