@@ -20,6 +20,9 @@ fi
 if ! declare -f fable5_maybe_reroute >/dev/null 2>&1; then
     source "${_model_resolver_lib_dir}/fable5.sh" 2>/dev/null || true
 fi
+if ! declare -f _octo_assignment_has_nonempty_value >/dev/null 2>&1; then
+    source "${_model_resolver_lib_dir}/auth.sh" 2>/dev/null || true
+fi
 if ! declare -f is_claude_agent_type >/dev/null 2>&1; then
     source "${_model_resolver_lib_dir}/routing.sh" 2>/dev/null || true
 source "${_model_resolver_lib_dir}/openai-compatible.sh" 2>/dev/null || true
@@ -516,53 +519,6 @@ validate_model_name() {
 
 
 # ── v2 agent helpers (moved from orchestrate.sh v9.22.1) ──
-_octo_value_has_nonwhitespace() {
-    local value
-    value="$(printf '%s\n' "${1:-}" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
-    [[ -n "$value" ]]
-}
-
-_octo_strip_unquoted_comment() {
-    local input="$1" output="" quote="" char
-    local index=0 escaped=0 length=${#1}
-    while (( index < length )); do
-        char="${input:index:1}"
-        if (( escaped )); then
-            output="${output}${char}"
-            escaped=0
-        elif [[ "$quote" == '"' && "$char" == "\\" ]]; then
-            output="${output}${char}"
-            escaped=1
-        elif [[ -z "$quote" && "$char" == "#" ]]; then
-            break
-        else
-            output="${output}${char}"
-            if [[ -z "$quote" && ( "$char" == '"' || "$char" == "'" ) ]]; then
-                quote="$char"
-            elif [[ -n "$quote" && "$char" == "$quote" ]]; then
-                quote=""
-            fi
-        fi
-        index=$((index + 1))
-    done
-    printf '%s\n' "$output"
-}
-
-_octo_assignment_has_nonempty_value() {
-    local file="$1" key="$2" value
-    [[ -f "$file" ]] || return 1
-
-    value="$(sed -n "s/^[[:space:]]*${key}[[:space:]]*=[[:space:]]*//p" "$file" 2>/dev/null | tail -n 1)"
-    value="$(printf '%s\n' "$value" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
-    value="$(_octo_strip_unquoted_comment "$value")"
-    value="$(printf '%s\n' "$value" | sed 's/[[:space:]]*$//')"
-    case "$value" in
-        \"*\") value="${value#\"}"; value="${value%\"}" ;;
-        \'*\') value="${value#\'}"; value="${value%\'}" ;;
-    esac
-    _octo_value_has_nonwhitespace "$value"
-}
-
 is_agent_available_v2() {
     local agent="$1"
 

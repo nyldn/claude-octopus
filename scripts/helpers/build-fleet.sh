@@ -21,14 +21,6 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 source "${SCRIPT_DIR}/../lib/cursor-agent.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/../lib/provider-allowlist.sh" 2>/dev/null || true
-source "${SCRIPT_DIR}/../lib/auth.sh" 2>/dev/null || true
-source "${SCRIPT_DIR}/../lib/qwen.sh" 2>/dev/null || true
-source "${SCRIPT_DIR}/../lib/grok.sh" 2>/dev/null || true
-# Provider liveness. check-providers.sh reports a quota/auth-dead seat as
-# `degraded`, but nothing downstream consumed that: this script built its fleet
-# from `command -v` plus the allowlist alone, so a seat known to be dead was
-# still handed a role and dispatched into an immediate failure.
-source "${SCRIPT_DIR}/../lib/quota-watcher.sh" 2>/dev/null || true
 
 WORKFLOW="${1:-research}"
 INTENSITY="${2:-standard}"
@@ -39,6 +31,7 @@ get_family() {
     case "$1" in
         codex|codex-*)       echo "openai" ;;
         gemini|gemini-*|agy|agy-*|antigravity) echo "google-antigravity" ;;
+        claude-sdk|claude-sdk-*) echo "anthropic" ;;
         claude-sonnet|claude-opus|claude|claude-*) echo "anthropic" ;;
         perplexity|perplexity-*) echo "perplexity" ;;
         copilot|copilot-*)   echo "microsoft" ;;
@@ -49,70 +42,37 @@ get_family() {
         grok|grok-*)         echo "xai" ;;   # grok-provider (xAI Grok CLI)
         openrouter|openrouter-*) echo "multi" ;;
         commandcode|commandcode-*) echo "multi" ;;
+        openai-compatible|openai-compatible-*) echo "multi" ;;
+        atlascloud|atlascloud-*) echo "multi" ;;
+        vibe|vibe-*)         echo "mistral" ;;
         *)                   echo "unknown" ;;
     esac
 }
 
 # ── Provider Detection ────────────────────────────────────────────────────────
-# Order = preference for primary slot assignment
+# check-providers.sh is the single admission gate for both the activation banner
+# and fleet construction. Do not duplicate binary/auth probes here: that was the
+# source of #799's green-banner/failed-dispatch split.
 AVAILABLE_CLI=()
-if octo_provider_allowed codex && command -v codex >/dev/null 2>&1; then AVAILABLE_CLI+=(codex); fi
-if octo_provider_allowed commandcode; then
-    [[ -n "${COMMAND_CODE_API_KEY:-}" ]] || resolve_provider_env "COMMAND_CODE_API_KEY" 2>/dev/null || true
-    _commandcode_bin="${OCTOPUS_COMMANDCODE_BIN:-}"
-    if [[ -z "$_commandcode_bin" ]]; then
-        if command -v command-code >/dev/null 2>&1; then
-            _commandcode_bin="command-code"
-        elif command -v cmd >/dev/null 2>&1; then
-            _commandcode_bin="cmd"
-        fi
-    fi
-    if [[ -n "$_commandcode_bin" ]] && { [[ -x "$_commandcode_bin" ]] || command -v "$_commandcode_bin" >/dev/null 2>&1; } && { [[ -n "${COMMAND_CODE_API_KEY:-}" ]] || "$_commandcode_bin" status --json >/dev/null 2>&1; }; then
-        AVAILABLE_CLI+=(commandcode)
-    fi
-fi
-if octo_provider_allowed grok && declare -f grok_is_available >/dev/null 2>&1 && grok_is_available; then AVAILABLE_CLI+=(grok); fi
-if octo_provider_allowed agy && command -v agy >/dev/null 2>&1; then AVAILABLE_CLI+=(agy); fi
-if octo_provider_allowed copilot && command -v copilot >/dev/null 2>&1; then AVAILABLE_CLI+=(copilot); fi
-if octo_provider_allowed qwen; then
-    if declare -f qwen_is_usable >/dev/null 2>&1; then
-        qwen_is_usable && AVAILABLE_CLI+=(qwen)
-    elif command -v qwen >/dev/null 2>&1; then
-        AVAILABLE_CLI+=(qwen)
-    fi
-fi
-if octo_provider_allowed opencode && command -v opencode >/dev/null 2>&1; then AVAILABLE_CLI+=(opencode); fi
-if octo_provider_allowed ollama && command -v ollama >/dev/null 2>&1 && curl -sf http://localhost:11434/api/tags >/dev/null 2>&1; then AVAILABLE_CLI+=(ollama); fi
-if octo_provider_allowed cursor-agent && declare -f _is_cursor_agent_binary >/dev/null 2>&1 && _is_cursor_agent_binary; then
-    if [[ -n "${CURSOR_API_KEY:-}" ]] || grep -Eq '"authInfo"[[:space:]]*:[[:space:]]*\{' "${HOME}/.cursor/cli-config.json" 2>/dev/null; then
-        AVAILABLE_CLI+=(cursor-agent)
-    fi
-fi
-octo_provider_allowed perplexity && [[ -n "${PERPLEXITY_API_KEY:-}" ]] && AVAILABLE_CLI+=(perplexity)
-octo_provider_allowed openrouter && [[ -n "${OPENROUTER_API_KEY:-}" ]] && AVAILABLE_CLI+=(openrouter)
+PROVIDER_STATUS_OUTPUT="$(bash "${SCRIPT_DIR}/check-providers.sh" 2>/dev/null || true)"
 
-# Drop seats already known quota/auth-dead this session. Applied as a filter over
-# the assembled list rather than as another condition on each detection line: the
-# detection conditions differ per provider (binary, API key, health function), and
-# adding a 13th variant of the same check to each was how the original omission
-# happened. One choke point, same as provider_status() in check-providers.sh.
-if declare -f octo_quota_is_dead >/dev/null 2>&1 && [[ -n "${AVAILABLE_CLI[*]:-}" ]]; then
-    _LIVE_CLI=()
-    for _p in "${AVAILABLE_CLI[@]}"; do
-        if octo_quota_is_dead "$_p"; then
-            [[ "${OCTOPUS_FLEET_DEBUG:-0}" == "1" ]] && \
-                echo "build-fleet: skipping ${_p} (quota/auth-dead this session)" >&2
-            continue
-        fi
-        _LIVE_CLI+=("$_p")
-    done
-    AVAILABLE_CLI=("${_LIVE_CLI[@]:-}")
-    # An all-dead list collapses to a single empty element under bash 3.2's
-    # ${arr[@]:-} expansion; normalise so CLI_COUNT does not report a phantom seat.
-    if [[ ${#AVAILABLE_CLI[@]} -eq 1 && -z "${AVAILABLE_CLI[0]}" ]]; then
-        AVAILABLE_CLI=()
-    fi
-fi
+provider_status_is_available() {
+    local provider="$1"
+    case $'\n'"$PROVIDER_STATUS_OUTPUT"$'\n' in
+        *$'\n'"${provider}:available"$'\n'*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+# Preference order for primary slot assignment. Every entry is still admitted
+# only when the shared status source reports exactly `available`.
+for _provider in codex commandcode grok agy copilot qwen cursor-agent opencode \
+    ollama vibe claude-sdk openrouter openai-compatible perplexity; do
+    provider_status_is_available "$_provider" && AVAILABLE_CLI+=("$_provider")
+done
+# Atlas Cloud's canonical provider status is `atlascloud`, while its executable
+# agent type is `atlascloud-agent` (the Python tool-loop dispatch shim).
+provider_status_is_available atlascloud && AVAILABLE_CLI+=("atlascloud-agent")
 
 CLI_COUNT=0
 if [[ -n "${AVAILABLE_CLI[*]:-}" ]]; then
@@ -140,9 +100,7 @@ pick_provider() {
     if octo_provider_allowed "$fallback"; then
         echo "$fallback"
     elif [[ -n "${AVAILABLE_CLI[*]:-}" ]]; then
-        # shellcheck disable=SC2086 # Intentional split to read the first provider.
-        set -- ${AVAILABLE_CLI[*]}
-        echo "$1"
+        echo "${AVAILABLE_CLI[0]}"
     else
         echo ""
     fi
@@ -155,8 +113,9 @@ build_diverse_order() {
     local diverse_first=""
     local diverse_rest=""
 
-    # Preferred order for primary diversity: codex, commandcode, agy, copilot, qwen, cursor-agent, opencode, ollama
-    for p in codex commandcode agy copilot qwen grok cursor-agent opencode ollama; do
+    # Preferred order for primary diversity.
+    for p in codex commandcode agy copilot qwen grok cursor-agent opencode ollama \
+        vibe claude-sdk openrouter openai-compatible atlascloud-agent perplexity; do
         is_available "$p" || continue
         local fam
         fam=$(get_family "$p")
@@ -274,7 +233,7 @@ build_research_fleet() {
             octo_provider_allowed claude-sonnet && used_providers="$used_providers claude-sonnet"
             is_available perplexity && used_providers="$used_providers perplexity"
 
-            for extra in ${AVAILABLE_CLI[*]:-}; do
+            for extra in "${AVAILABLE_CLI[@]+"${AVAILABLE_CLI[@]}"}"; do
                 _contains "$used_providers" "$extra" && continue
                 case "$extra" in
                     copilot)
@@ -289,6 +248,12 @@ build_research_fleet() {
                         emit "ollama" "Local Model Perspective" "Analyze: $PROMPT. Provide a grounded, practical perspective focusing on simplicity and maintainability over complexity." ;;
                     openrouter)
                         emit "openrouter" "Diverse Model Check" "Cross-check the analysis of: $PROMPT. Identify any blind spots, groupthink, or consensus bias that other models might share due to similar training data." ;;
+                    vibe)
+                        emit "vibe" "Mistral Perspective" "Analyze: $PROMPT. Focus on pragmatic implementation choices and assumptions worth challenging." ;;
+                    claude-sdk)
+                        emit "claude-sdk" "Agent SDK Perspective" "Analyze: $PROMPT. Focus on long-context integration concerns and reliable agent execution." ;;
+                    openai-compatible|atlascloud-agent)
+                        emit "$extra" "Independent Model Check" "Cross-check the analysis of: $PROMPT. Identify blind spots and implementation trade-offs." ;;
                 esac
             done
             ;;
@@ -332,9 +297,9 @@ build_debate_fleet() {
     local used_families=""
     local debater_count=0
 
-    for p in ${AVAILABLE_CLI[*]:-}; do
+    for p in "${AVAILABLE_CLI[@]+"${AVAILABLE_CLI[@]}"}"; do
         # Skip providers not suited for debate (API-only, local models)
-        case "$p" in perplexity|openrouter|ollama) continue ;; esac
+        case "$p" in perplexity|openrouter|ollama|atlascloud-agent|claude-sdk|vibe) continue ;; esac
 
         local fam
         fam=$(get_family "$p")
@@ -363,7 +328,8 @@ build_architecture_fleet() {
     local used_families=""
     local arch_count=0
 
-    for p in codex agy copilot qwen cursor-agent opencode; do
+    for p in codex agy copilot qwen cursor-agent opencode vibe claude-sdk \
+        openai-compatible atlascloud-agent; do
         is_available "$p" || continue
         local fam
         fam=$(get_family "$p")
@@ -402,8 +368,7 @@ esac
 
 # ── Fleet Summary (stderr — for diagnostic/logging) ──────────────────────────
 if [[ -n "${AVAILABLE_CLI[*]:-}" ]]; then
-    # shellcheck disable=SC2086 # Provider names are single shell words.
-    families=$(count_families ${AVAILABLE_CLI[*]})
+    families=$(count_families "${AVAILABLE_CLI[@]}")
 else
     families=$(count_families)
 fi

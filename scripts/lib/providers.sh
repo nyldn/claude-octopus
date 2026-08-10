@@ -923,9 +923,9 @@ check_provider_health() {
                 resolve_provider_env "MISTRAL_API_KEY" 2>/dev/null
             fi
             # Check auth: env-file with MISTRAL_API_KEY, env var, or config.toml api_key
-            if [[ -z "${MISTRAL_API_KEY:-}" ]] && \
-               ! { [[ -f "${HOME}/.vibe/.env" ]] && grep -Eq '^[[:space:]]*MISTRAL_API_KEY=' "${HOME}/.vibe/.env" 2>/dev/null; } && \
-               ! { [[ -f "${HOME}/.vibe/config.toml" ]] && grep -Eq '^[[:space:]]*api_key[[:space:]]*=' "${HOME}/.vibe/config.toml" 2>/dev/null; }; then
+            if ! _octo_value_has_nonwhitespace "${MISTRAL_API_KEY:-}" && \
+               ! _octo_assignment_has_nonempty_value "${HOME}/.vibe/.env" "MISTRAL_API_KEY" && \
+               ! _octo_assignment_has_nonempty_value "${HOME}/.vibe/config.toml" "api_key"; then
                 echo "vibe: not authenticated (run: vibe --setup or set MISTRAL_API_KEY)" >&2
                 return 1
             fi
@@ -1217,7 +1217,8 @@ detect_providers() {
     fi
 
     # Detect Claude Agent SDK seat (CLAUDE_SDK_API_KEY unlocks Opus 5 + 1M context)
-    if { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed claude-sdk; } && [[ -n "${CLAUDE_SDK_API_KEY:-}" ]]; then
+    if { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed claude-sdk; } && \
+       _octo_value_has_nonwhitespace "${CLAUDE_SDK_API_KEY:-}"; then
         if command -v claude-agent &>/dev/null; then
             result="${result}claude-sdk:agent-sdk "
         elif command -v claude &>/dev/null; then
@@ -1228,11 +1229,11 @@ detect_providers() {
     # Detect Vibe CLI (Mistral Vibe interactive CLI)
     if { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed vibe; } && command -v vibe &>/dev/null; then
         local vibe_auth="none"
-        if [[ -f "${HOME}/.vibe/.env" ]] && grep -Eq '^[[:space:]]*MISTRAL_API_KEY=' "${HOME}/.vibe/.env" 2>/dev/null; then
+        if _octo_assignment_has_nonempty_value "${HOME}/.vibe/.env" "MISTRAL_API_KEY"; then
             vibe_auth="env-file"
-        elif [[ -n "${MISTRAL_API_KEY:-}" ]]; then
+        elif _octo_value_has_nonwhitespace "${MISTRAL_API_KEY:-}"; then
             vibe_auth="api-key"
-        elif [[ -f "${HOME}/.vibe/config.toml" ]] && grep -Eq '^[[:space:]]*api_key[[:space:]]*=' "${HOME}/.vibe/config.toml" 2>/dev/null; then
+        elif _octo_assignment_has_nonempty_value "${HOME}/.vibe/config.toml" "api_key"; then
             vibe_auth="config"
         fi
         result="${result}vibe:${vibe_auth} "

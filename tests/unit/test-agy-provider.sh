@@ -702,7 +702,8 @@ test_agy_fleet_builder() {
     test_case "build-fleet includes agy as distinct provider family"
 
     if grep -q 'google-antigravity' "$PROJECT_ROOT/scripts/helpers/build-fleet.sh" && \
-       grep -q 'AVAILABLE_CLI+=(agy)' "$PROJECT_ROOT/scripts/helpers/build-fleet.sh"; then
+       grep -q 'for _provider in codex commandcode grok agy' "$PROJECT_ROOT/scripts/helpers/build-fleet.sh" && \
+       grep -q 'provider_status "agy"' "$PROJECT_ROOT/scripts/helpers/check-providers.sh"; then
         test_pass
     else
         test_fail "build-fleet.sh should include agy provider family and availability"

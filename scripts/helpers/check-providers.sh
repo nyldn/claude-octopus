@@ -24,6 +24,7 @@ source "${SCRIPT_DIR}/../lib/grok.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/../lib/provider-allowlist.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/../lib/auth.sh" 2>/dev/null || true   # octo_oauth_token_valid (oco-dar)
 source "${SCRIPT_DIR}/../lib/qwen.sh" 2>/dev/null || true   # qwen_is_usable (oco-dar)
+source "${SCRIPT_DIR}/../lib/openai-compatible.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/../lib/events.sh" 2>/dev/null || true  # opt-in JSONL lifecycle stream
 source "${SCRIPT_DIR}/../lib/quota-watcher.sh" 2>/dev/null || true  # octo_quota_is_dead (oco-cbb)
 
@@ -97,6 +98,10 @@ if [[ -n "$cc_bin" ]] && { [[ -x "$cc_bin" ]] || command -v "$cc_bin" >/dev/null
     fi
 fi
 provider_status "commandcode" "$commandcode_state"
+# AGY intentionally remains a local binary check. The CLI exposes no bounded,
+# non-interactive auth-status command, and invoking login/model commands from a
+# startup/banner hook can open a browser or keychain prompt. Runtime quota/auth
+# failures are remembered by provider_status() and suppress later dispatches.
 provider_status "agy" "$(command -v agy >/dev/null 2>&1 && echo available || echo missing)"
 # oco-cbb: opt-in proactive probe for API-key providers (perplexity, openrouter).
 # Only runs when OCTOPUS_PREFLIGHT_PROBE=1; result cached via quota-dead marker
@@ -115,6 +120,41 @@ if [ -n "${ATLASCLOUD_API_KEY:-}" ]; then
     fi
 fi
 provider_status "atlascloud" "$atlascloud_state"
+
+claude_sdk_state="missing"
+if command -v claude-agent >/dev/null 2>&1 || command -v claude >/dev/null 2>&1; then
+    if _octo_value_has_nonwhitespace "${CLAUDE_SDK_API_KEY:-}"; then
+        claude_sdk_state="available"
+    else
+        claude_sdk_state="degraded"
+    fi
+fi
+provider_status "claude-sdk" "$claude_sdk_state"
+
+vibe_state="missing"
+if command -v vibe >/dev/null 2>&1; then
+    if _octo_value_has_nonwhitespace "${MISTRAL_API_KEY:-}" || \
+       _octo_assignment_has_nonempty_value "${HOME}/.vibe/.env" "MISTRAL_API_KEY" || \
+       _octo_assignment_has_nonempty_value "${HOME}/.vibe/config.toml" "api_key"; then
+        vibe_state="available"
+    else
+        vibe_state="degraded"
+    fi
+fi
+provider_status "vibe" "$vibe_state"
+
+openai_compatible_state="missing"
+openai_compatible_key_value="$(openai_compatible_api_key_value 2>/dev/null || true)"
+if [[ -n "${OPENAI_COMPAT_BASE_URL:-}" || -n "${OPENAI_COMPAT_API_KEY:-}" || \
+      -n "$openai_compatible_key_value" ]]; then
+    if openai_compatible_is_available; then
+        openai_compatible_state="available"
+    else
+        openai_compatible_state="degraded"
+    fi
+fi
+provider_status "openai-compatible" "$openai_compatible_state"
+
 # opencode/copilot: same fail-open gap as codex (#799) — reuse the auth
 # signals preflight.sh already checks instead of trusting binary presence.
 opencode_state="missing"

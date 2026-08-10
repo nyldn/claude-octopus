@@ -221,7 +221,8 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 check_output=$(bash "$CHECK_SCRIPT" 2>/dev/null)
 
 # 4.1: Checks all supported providers in this detection surface
-for provider in codex agy perplexity opencode copilot qwen ollama openrouter; do
+for provider in codex agy commandcode perplexity atlascloud claude-sdk vibe \
+    openai-compatible opencode copilot qwen cursor-agent grok ollama openrouter; do
     if echo "$check_output" | grep -q "^${provider}:"; then
         pass "4.1.$provider check-providers.sh reports $provider"
     else
