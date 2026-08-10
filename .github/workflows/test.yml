@@ -251,9 +251,10 @@ jobs:
   unit:
     name: Unit Tests (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    # The macOS matrix currently completes the full suite in just over 10 minutes.
-    # Leave enough headroom for teardown and artifact upload on slower runners.
-    timeout-minutes: 15
+    # The macOS matrix crossed the old 15-minute ceiling as the suite grew to
+    # 248 files (run 31411222295). Keep enough headroom for slower runners,
+    # teardown, and artifact upload instead of canceling an otherwise-green run.
+    timeout-minutes: 25
     needs: [classify-changes, smoke, portability-lint]
     if: needs.classify-changes.outputs.heavy_tests == 'true'
     strategy:

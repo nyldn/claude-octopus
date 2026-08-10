@@ -34,6 +34,9 @@
 - Release validation now recognizes nested `SKILL.md` directories instead of
   falsely reporting registered skills as missing during a release. (closes
   #829, #830)
+- The CI unit matrix now has a 25-minute budget and a regression floor after
+  the 248-suite macOS job exhausted the old 15-minute ceiling while tests were
+  still passing. (closes #846)
 
 ### Documentation
 

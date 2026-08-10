@@ -192,6 +192,18 @@ else
     test_fail "found only ${n_targets} 'make test-*' invocations in the workflow — the grep or the workflow changed, so the assertion above would be vacuous"
 fi
 
+test_case "the unit matrix timeout has headroom for slow macOS runners"
+unit_timeout_minutes="$(awk '
+    /^  unit:/ { in_unit = 1; next }
+    in_unit && /^  [[:alnum:]_-]+:/ { exit }
+    in_unit && /timeout-minutes:/ { print $2; exit }
+' "$WORKFLOW")"
+if [[ "$unit_timeout_minutes" =~ ^[0-9]+$ ]] && [[ "$unit_timeout_minutes" -ge 20 ]]; then
+    test_pass
+else
+    test_fail "unit timeout is ${unit_timeout_minutes:-missing} minutes; the 248-suite macOS job exceeded 15 minutes in run 31411222295 — keep at least 20 minutes of budget"
+fi
+
 test_case "at least one test is actually discovered (guards a silent empty set)"
 n="$(reachable_files | grep -c . || true)"
 if [[ "${n:-0}" -gt 50 ]]; then

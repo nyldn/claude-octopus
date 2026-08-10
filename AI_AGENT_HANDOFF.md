@@ -121,6 +121,10 @@ claimed or recorded in `bd`; use this handoff for the blocked tracking record.
   while a later PASS clears marker and expiry state immediately. The final
   minimal-strategy regression includes a real fake agy executable and is
   mutation-proven. Issue #840 closed.
+- **#846 filed and fixed in the release candidate** — the 248-suite macOS unit
+  job exhausted the old 15-minute GitHub Actions ceiling while its individual
+  tests were still passing. The unit matrix now has a 25-minute budget, guarded
+  by a workflow-contract regression.
 - **#836** — the update guide explains that Claude Code owns plugin updates,
   third-party marketplace auto-update is off by default, and users can enable
   it under `/plugin` -> Marketplaces -> `nyldn-plugins`; Codex retains its host
