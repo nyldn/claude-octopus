@@ -14,12 +14,26 @@
   sync now validates both host manifests, preventing stale Codex bundles from
   being stranded behind an identifier mismatch. (#818)
 - **Ollama, Copilot, and Vibe now honor model pins and allowlists.** `get_agent_model()` had no case arm for these three providers, so `OCTOPUS_OLLAMA_MODEL` / `OCTOPUS_COPILOT_MODEL` / `OCTOPUS_VIBE_MODEL` were silently ignored and dispatch always fell through to the hardcoded default. (#816) `validate_model_allowed()` had the same gap one function over — `OCTOPUS_OLLAMA_ALLOWED_MODELS` / `OCTOPUS_COPILOT_ALLOWED_MODELS` / `OCTOPUS_VIBE_ALLOWED_MODELS` fell through to the unknown-provider "allow" default, so the model restriction never applied. (closes #817, #819)
-- **Lifecycle observer timeouts now reap the hook's entire process group without `pkill`.** The built-in fallback works on minimal and macOS-style environments where GNU `timeout` and `pkill` are unavailable, so a timed-out observer cannot leave background descendants running. The regression forces that fallback, proves both descendants started, uses monotonic timing, and runs through the symlinked install path. (closes #827, #828)
+- **Provider availability now fails closed without disabling supported seats.**
+  Unknown agent IDs no longer default to available; Grok, Command Code, Atlas
+  Cloud, and Vibe have explicit contracts. Atlas Cloud requires a key and
+  model, while Vibe requires CLI plus nonblank auth with quote-aware config
+  parsing. This addresses the optimistic-predicate portion of #799; the broader
+  provider detection/auth-parity work remains open. (#842)
+- **Smoke-failed providers are excluded from the current workflow fleet.**
+  Full, minimal, and smart dispatch honor the shared provider-health marker;
+  a later passing smoke test clears both marker and expiry metadata immediately
+  so repaired credentials or model configuration recover without a stale
+  one-hour lockout. (closes #840, #843)
+- **Lifecycle observer timeouts now reap the hook's entire process group without `pkill` or wall-clock deadlines.** The built-in fallback uses an independent, reaped `sleep` watchdog on minimal and macOS-style environments where GNU `timeout` and `pkill` are unavailable, so timed-out observers cannot leave descendants running and host clock jumps cannot fabricate timeout failures. Regressions require the timeout exit, dead process evidence, watchdog creation/kill/wait cleanup, true monotonic test timing, and the symlinked install path. (closes #827, #828, #832, #837, #844)
 - **Council approval gates no longer prompt in non-interactive sessions.** PTY-backed automation can carry inherited terminal signals even when no user can answer; the shared session-interactivity detector now prevents those false prompts while preserving real interactive approval gates. (closes #825, #826)
 
 ### Internal
 
 - Skill-template tests generate into an isolated temporary copy instead of rewriting the live checkout, permanently removing a test-side source of hook and working-tree noise. (closes #822, #824)
+- Release validation now recognizes nested `SKILL.md` directories instead of
+  falsely reporting registered skills as missing during a release. (closes
+  #829, #830)
 
 ### Documentation
 

@@ -1,11 +1,12 @@
 # AI Agent Handoff
 
-Last updated: 2026-08-09
-Status: v9.61.1 is published with the completed model-routing,
-generator-safety, flow-define, and #804 skill-tree work. Issues #799-#801 and
-streamlining Parts 4b/4c/4d remain unstarted.
+Last updated: 2026-08-10
+Status: v9.61.2 is the active release, with permanent hook-timeout cleanup,
+careful-mode false-positive fixes, Codex marketplace update recovery, and
+provider availability/health hardening. The Gemini macOS keychain modal remains
+tracked as future issue #838; cancellation cleanup remains #841.
 Branch: `main`
-Release: [v9.61.1](https://github.com/nyldn/claude-octopus/releases/tag/v9.61.1)
+Release: [v9.61.2](https://github.com/nyldn/claude-octopus/releases/tag/v9.61.2)
 
 ## Start Here
 
@@ -64,7 +65,89 @@ v49 with four pending migrations to v53. Repository rules reserve migration for
 the designated migrator. No migration was run, so this work could not be
 claimed or recorded in `bd`; use this handoff for the blocked tracking record.
 
-## Delivered in This Cycle
+## Release v9.61.2
+
+- Release vehicle: [PR #823](https://github.com/nyldn/claude-octopus/pull/823)
+  on `release/v9.61.2`, refreshed through main commit `52db2f8e` (PR #843).
+- Exact combined-candidate `OCTOPUS_NON_INTERACTIVE=1 make ci-local` result:
+  16 smoke suites, 248 unit suites, and 7 integration suites passed.
+- `make sync`, `make sync-check`, `./scripts/validate-release.sh 9.61.2`,
+  `bash tests/unit/test-handoff.sh`, `git diff --check`, and the executable-mode
+  check passed. Release validation reported only the two expected pre-release
+  warnings: the tag and GitHub Release do not exist until PR #823 is merged.
+- PR #843's current-head remote matrix passed on Ubuntu, macOS, the symlinked
+  install path, and integration tests; CodeRabbit approved it with zero
+  unresolved threads.
+- Publication must follow `RELEASING.md`: squash-merge PR #823, wait for the
+  exact main commit's Test Suite, tag that squash commit as `v9.61.2`, create
+  the GitHub Release, sync `nyldn/plugins`, and verify real Claude and Codex
+  upgrades from the installed v9.61.1 baseline.
+
+## Delivered in v9.61.2 Cycle
+
+- **#816 / #819 merged (`53629216`, `3d3f972f`)** — Ollama, Copilot, and
+  Vibe model pins and allowlists now reach dispatch instead of falling through
+  to defaults or the unknown-provider allow arm. Issues #817 and #819 closed.
+- **#820 merged (`104400d6`)** — restored the stable
+  `claude-octopus@nyldn-plugins` Codex marketplace identity, added shared
+  marketplace validation, and verified the real Claude/Codex symlink resolver.
+  Issues #818 and #820 closed.
+- **#824 merged (`3c4830aa`)** — skill-template tests now generate in an
+  isolated copy instead of mutating the checkout. Issues #822 and #824 closed.
+- **#826 merged (`5233de11`)** — council approval gates deny when automation
+  lacks a controlling TTY even if inherited terminal signals are present.
+  Issues #825 and #826 closed.
+- **#828 merged (`8d879c24`)** — lifecycle timeout cleanup owns and reaps the
+  hook process group without a `pkill` dependency. Issues #827 and #828 closed.
+- **#830 merged (`e3e2f87c`)** — the release validator recognizes nested
+  `SKILL.md` directories. Issues #829 and #830 closed.
+- **#833 merged (`cf4ec6fd`)** — provider timeout evidence and every lifecycle
+  duration assertion use true monotonic time; the production no-`timeout`
+  fallback uses a reaped `sleep` watchdog instead of wall-clock-backed Bash
+  `SECONDS`. Issues #832 and #837 closed.
+- **#845 merged (`6cca4d3b`)** — the watchdog contract now requires creation,
+  kill, and wait cleanup. Mutation testing proved deleting cleanup fails the
+  case. Issue #844 closed.
+- **#831 merged (`91f765be`)** — careful-mode SQL, `rm`, and whole-tree Git
+  guards are scoped to executable context and token boundaries. Source-search,
+  quoted-documentation, incomplete-SQL, dotfile, and subpath false positives
+  stay quiet while actual destructive commands still fire. Issue #835 closed.
+- **#842 merged (`e1be285b`)** — unknown agents fail closed without disabling
+  supported Grok, Command Code, Atlas Cloud, or Vibe seats. Vibe credential
+  parsing rejects blank/whitespace auth and handles TOML comments without
+  dropping `#` inside quoted values. This addresses one bounded part of #799;
+  #799 intentionally remains open.
+- **#843 merged (`52db2f8e`)** — smoke-failed providers are removed from smart/full/minimal fleets,
+  while a later PASS clears marker and expiry state immediately. The final
+  minimal-strategy regression includes a real fake agy executable and is
+  mutation-proven. Issue #840 closed.
+- **#836** — the update guide explains that Claude Code owns plugin updates,
+  third-party marketplace auto-update is off by default, and users can enable
+  it under `/plugin` -> Marketplaces -> `nyldn-plugins`; Codex retains its host
+  marketplace upgrade flow. The plugin does not rewrite its own loaded cache or
+  enablement state.
+- **#838 filed for the reported Gemini popup** — unattended workflow dispatch
+  can still trigger macOS Keychain access for `gemini-cli-workspace-oauth` via
+  the Node-based Gemini CLI. The issue records the screenshot text, suspected
+  detection/config paths, and non-prompting acceptance criteria. It is a future
+  task, not part of v9.61.2.
+
+Verification completed before the release candidate:
+
+- PR #833 final local `make ci-local`: 16 smoke, 247 unit, and 7 integration
+  suites passed; Linux, macOS, symlink, and integration checks also passed
+  remotely.
+- Lifecycle focused suites: 10/10 and provider auth timeout 18/18.
+- Careful-hook safety suite: 26/26 plus direct real-hook probes for quiet and
+  destructive cases.
+- Provider predicates: 13/13; Vibe 5/5; feature detection 20/20;
+  OpenAI-compatible agent 19/19.
+- Smoke dispatch exclusion: 9/9; quota watcher 2/2; embrace fail-fast 6/6;
+  Gemini provider 52/52.
+- Bash syntax, relevant ShellCheck gates, diff checks, and executable-mode
+  checks were clean. Test-created stale worktree records were pruned.
+
+## Delivered in v9.61.1 Cycle
 
 - **#805 merged (`f0586e73`)** — added vendor-correct no-config model fallbacks
   for grok, OpenRouter, Vibe, and AtlasCloud, with behavioural regression tests.
@@ -180,10 +263,12 @@ were removed with that worktree and did not contaminate the task branch.
 
 - **#799 — provider availability/auth parity.** `check-providers.sh` still uses
   binary presence alone for several providers, while preflight has stronger
-  auth checks. `is_agent_available_v2` also has an optimistic default arm.
+  auth checks. PR #842 fixed `is_agent_available_v2`'s optimistic default and
+  added missing explicit contracts; do not close #799 until the remaining
+  active detection surfaces agree.
 - **#800 — stale pins and dead environment overrides.** Copilot and Ollama have
-  stale defaults, and some provider IDs do not map to their documented
-  `OCTOPUS_*_MODEL` variables.
+  stale defaults/version floors. The missing Ollama/Copilot/Vibe model and
+  allowlist wiring was fixed in #816/#819, but the broader issue remains.
 - **#801 — catalog and price-table consolidation.** Model membership, tiering,
   and pricing still disagree across `models.sh`, `octo-model-config.sh`,
   `cost.sh`, and `usage-report.sh`.
@@ -194,8 +279,17 @@ provider refactor; preserve the behavioural-test-first pattern used by `#805` an
 
 ## Next Action
 
-1. Pick up #799, #800, and #801 as separate test-first fixes.
-2. Remaining streamlining work is still unstarted:
+1. **#838:** reproduce the current Gemini CLI macOS Keychain behavior and make
+   unattended dispatch fail closed before any prompt-capable OAuth invocation.
+   Correct the current false "keychain bypass active" assurance and preserve
+   explicit interactive use.
+2. **#841:** add workflow cancellation cleanup for provider trees, PID and
+   heartbeat registries, incomplete result stubs, terminal events, and
+   project-local state pollution.
+3. Continue #799, #800, and #801 as separate test-first fixes; do not reopen
+   the bounded portions already delivered in v9.61.2.
+4. Revisit #815 alongside #838 for Gemini environment-level E2E coverage.
+5. Remaining streamlining work is still unstarted:
    - **4c:** remove obsolete drift detection, its unreachable duplicate, and
      the deprecated wizard only after confirming all call sites.
    - **4b:** cull unused/below-floor `SUPPORTS_*` flags together with the
