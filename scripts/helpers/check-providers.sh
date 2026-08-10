@@ -125,9 +125,10 @@ if command -v opencode >/dev/null 2>&1; then
         elif command -v gtimeout >/dev/null 2>&1; then
             gtimeout 3 opencode auth list >/dev/null 2>&1 && opencode_state="available" || opencode_state="degraded"
         else
-            # No timeout binary on this host — trust the auth file rather than
-            # risk hanging on an interactive `opencode auth list` prompt.
-            opencode_state="available"
+            # An auth file alone is not proof that its credentials are still
+            # valid. Without a bounded probe, fail closed instead of either
+            # hanging on an interactive prompt or advertising a dead seat.
+            opencode_state="degraded"
         fi
     else
         opencode_state="degraded"
