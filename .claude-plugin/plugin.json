@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "9.61.2",
-  "description": "v9.61.2 \u2014 Codex updates, hook reliability, and provider model controls. Run /octo:setup.",
+  "version": "9.61.3",
+  "description": "v9.61.3 \u2014 Auth-aware provider status for codex/opencode/copilot in the availability banner. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"

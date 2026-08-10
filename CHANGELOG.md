@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [9.61.3] - 2026-08-10
+
+### Changed
+
+- Auth-aware provider status for codex/opencode/copilot in the availability banner
+
 ## [9.61.2] - 2026-08-10
 
 ### Fixed
