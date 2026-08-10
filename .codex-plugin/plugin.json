@@ -46,8 +46,7 @@
     "defaultPrompt": [
       "Research OAuth patterns across providers",
       "Build a feature using multi-AI implementation",
-      "Review this code with adversarial multi-provider analysis",
-      "Run a structured debate between AI providers"
+      "Review this code with adversarial multi-provider analysis"
     ],
     "brandColor": "#6366F1"
   }
