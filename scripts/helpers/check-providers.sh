@@ -99,9 +99,12 @@ fi
 provider_status "commandcode" "$commandcode_state"
 # gemini: same fail-open gap as codex (#799) — the free-tier sunset means
 # `command -v gemini` succeeding says nothing about whether a dispatch works.
+# oauth_creds.json alone isn't enough either: free-tier OAuth is sunset
+# (IneligibleTierError), so only an API key or routing the seat through
+# Antigravity (OCTOPUS_GEMINI_VIA_AGY=1) is a reliable available signal.
 gemini_state="missing"
 if command -v gemini >/dev/null 2>&1; then
-    if [[ -f "${HOME}/.gemini/oauth_creds.json" ]] || [[ -n "${GEMINI_API_KEY:-}" ]]; then
+    if [[ -n "${GEMINI_API_KEY:-}" ]] || [[ "${OCTOPUS_GEMINI_VIA_AGY:-}" == "1" ]]; then
         gemini_state="available"
     else
         gemini_state="degraded"
@@ -130,8 +133,16 @@ provider_status "atlascloud" "$atlascloud_state"
 # signals preflight.sh already checks instead of trusting binary presence.
 opencode_state="missing"
 if command -v opencode >/dev/null 2>&1; then
-    if [[ -f "${HOME}/.local/share/opencode/auth.json" ]] && timeout 3 opencode auth list >/dev/null 2>&1; then
-        opencode_state="available"
+    if [[ -f "${HOME}/.local/share/opencode/auth.json" ]]; then
+        if command -v timeout >/dev/null 2>&1; then
+            timeout 3 opencode auth list >/dev/null 2>&1 && opencode_state="available" || opencode_state="degraded"
+        elif command -v gtimeout >/dev/null 2>&1; then
+            gtimeout 3 opencode auth list >/dev/null 2>&1 && opencode_state="available" || opencode_state="degraded"
+        else
+            # No timeout binary on this host — trust the auth file rather than
+            # risk hanging on an interactive `opencode auth list` prompt.
+            opencode_state="available"
+        fi
     else
         opencode_state="degraded"
     fi
