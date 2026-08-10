@@ -1,12 +1,14 @@
 # AI Agent Handoff
 
 Last updated: 2026-08-10
-Status: v9.61.2 is the active release, with permanent hook-timeout cleanup,
-careful-mode false-positive fixes, Codex marketplace update recovery, and
-provider availability/health hardening. The Gemini macOS keychain modal remains
-tracked as future issue #838; cancellation cleanup remains #841.
+Status: v9.61.2 is the release candidate in PR #823, with permanent
+hook-timeout cleanup, careful-mode false-positive fixes, Codex marketplace
+update recovery, and provider availability/health hardening. Publication is
+pending the exact-main CI, tag, GitHub Release, and marketplace verification.
+The Gemini macOS keychain modal remains future issue #838; cancellation cleanup
+remains #841.
 Branch: `main`
-Release: [v9.61.2](https://github.com/nyldn/claude-octopus/releases/tag/v9.61.2)
+Candidate: [PR #823](https://github.com/nyldn/claude-octopus/pull/823)
 
 ## Start Here
 
@@ -65,7 +67,7 @@ v49 with four pending migrations to v53. Repository rules reserve migration for
 the designated migrator. No migration was run, so this work could not be
 claimed or recorded in `bd`; use this handoff for the blocked tracking record.
 
-## Release v9.61.2
+## Release Candidate v9.61.2
 
 - Release vehicle: [PR #823](https://github.com/nyldn/claude-octopus/pull/823)
   on `release/v9.61.2`, refreshed through main commit `52db2f8e` (PR #843).
@@ -83,7 +85,7 @@ claimed or recorded in `bd`; use this handoff for the blocked tracking record.
   the GitHub Release, sync `nyldn/plugins`, and verify real Claude and Codex
   upgrades from the installed v9.61.1 baseline.
 
-## Delivered in v9.61.2 Cycle
+## Included in v9.61.2 Candidate
 
 - **#816 / #819 merged (`53629216`, `3d3f972f`)** — Ollama, Copilot, and
   Vibe model pins and allowlists now reach dispatch instead of falling through
@@ -141,7 +143,7 @@ Verification completed before the release candidate:
 - PR #833 final local `make ci-local`: 16 smoke, 247 unit, and 7 integration
   suites passed; Linux, macOS, symlink, and integration checks also passed
   remotely.
-- Lifecycle focused suites: 10/10 and provider auth timeout 18/18.
+- Lifecycle-focused suites: 10/10 and provider auth timeout 18/18.
 - Careful-hook safety suite: 26/26 plus direct real-hook probes for quiet and
   destructive cases.
 - Provider predicates: 13/13; Vibe 5/5; feature detection 20/20;
