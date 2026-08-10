@@ -249,26 +249,32 @@ test_fleet_includes_openai_compat_qwen() {
 test_timeout_kills_term_ignorer() {
     test_case "run_with_timeout: SIGTERM-ignoring process is SIGKILLed"
     local stubborn="$FIXTURE/stubborn.sh"
+    local started="$FIXTURE/stubborn.started"
     cat > "$stubborn" <<'EOF'
 #!/bin/bash
+printf '%s\n' "$$" > "$1"
 trap '' TERM        # ignore SIGTERM — only SIGKILL can stop us
 sleep 600
 EOF
     chmod +x "$stubborn"
 
-    local start_ms end_ms dur_ms ec
+    local start_ms end_ms dur_ms ec started_pid="" still_alive=false
     start_ms=$(python3 -c 'import time; print(time.monotonic_ns() // 1000000)')
     set +e
-    run_with_timeout 2 "$stubborn" >/dev/null 2>&1
+    run_with_timeout 2 "$stubborn" "$started" >/dev/null 2>&1
     ec=$?
     set -e
     end_ms=$(python3 -c 'import time; print(time.monotonic_ns() // 1000000)')
     dur_ms=$((end_ms - start_ms))
+    [[ -s "$started" ]] && started_pid=$(cat "$started")
+    if [[ -n "$started_pid" ]] && kill -0 "$started_pid" 2>/dev/null; then
+        still_alive=true
+    fi
 
-    if [[ "$ec" -ne 0 && "$dur_ms" -lt 20000 ]]; then
+    if [[ "$ec" -eq 137 && -n "$started_pid" && "$still_alive" == "false" && "$dur_ms" -lt 20000 ]]; then
         test_pass
     else
-        test_fail "stubborn process not killed promptly (exit=$ec, dur=${dur_ms}ms; expected non-zero exit, <20000ms)"
+        test_fail "stubborn process did not prove SIGKILL escalation (exit=$ec, pid=${started_pid:-missing}, alive=$still_alive, dur=${dur_ms}ms; expected exit=137, started+dead pid, <20000ms)"
     fi
 }
 
