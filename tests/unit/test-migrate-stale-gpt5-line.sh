@@ -126,9 +126,11 @@ for current_model in gpt-5.4-mini gpt-5.3-codex-spark; do
     assert_current_tier_variant_is_untouched "$current_model"
 done
 
-test_case "already-current gemini default is left untouched"
-val="$(jq -r '.providers.gemini.default' "$CONFIG_FILE")"
-[[ "$val" == "gemini-3.1-pro-preview" ]] && test_pass || test_fail "expected gemini-3.1-pro-preview (unchanged), got: $val"
+test_case "legacy gemini provider config migrates one-way to agy"
+legacy_val="$(jq -r '.providers.gemini // "missing"' "$CONFIG_FILE")"
+agy_val="$(jq -r '.providers.agy.default' "$CONFIG_FILE")"
+[[ "$legacy_val" == "missing" && "$agy_val" == "Gemini 3.1 Pro (High)" ]] && test_pass || \
+    test_fail "expected gemini removal and the AGY default, got gemini=$legacy_val agy=$agy_val"
 
 # Known, deliberately out-of-scope gap this fix does NOT close: stale_paths
 # only lists .providers.codex.{default,fallback} and the gemini equivalents,

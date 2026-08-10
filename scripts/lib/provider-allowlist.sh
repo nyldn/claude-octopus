@@ -111,11 +111,11 @@ octo_provider_allowed() {
         [[ "$requested_canonical" == "$token_canonical" ]] && return 0
 
         # Ambiguous organization/group aliases remain policy rather than
-        # provider identity. `google` intentionally authorizes both Gemini and
-        # Antigravity; `xai` retains the historical Cursor/Grok grouping.
+        # provider identity. `google` authorizes the Antigravity Google seat;
+        # `xai` retains the historical Cursor/Grok grouping.
         case "$normalized" in
             google)
-                case "$requested_canonical" in gemini|agy) return 0 ;; esac
+                [[ "$requested_canonical" == "agy" ]] && return 0
                 ;;
             xai)
                 case "$requested_canonical" in cursor-agent|grok) return 0 ;; esac

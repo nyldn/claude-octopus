@@ -277,7 +277,6 @@ octo_features_prereq_ok() {
         none|"")           return 0 ;;
         codex-cli)         command -v codex >/dev/null 2>&1 ;;
         agy-cli)           command -v agy   >/dev/null 2>&1 ;;
-        gemini-cli)        command -v gemini >/dev/null 2>&1 ;;
         claude-opus-seat)  command -v claude >/dev/null 2>&1 ;;
         *)                 return 1 ;;   # unknown check: fail closed
     esac

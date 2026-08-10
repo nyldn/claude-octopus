@@ -54,14 +54,14 @@ fi
 # variables to essentials only. This stays safe when PATH contains spaces.
 # ═══════════════════════════════════════════════════════════════════════════════
 # `env -i` wipes WORKSPACE_DIR, and two shims that run under it mark a provider
-# quota/auth-dead: gemini-exec.sh on `IneligibleTierError` and agy-exec.sh on
+# quota/auth-dead: provider adapters report terminal quota and auth failures
 # `Individual quota reached`. `octo_quota_dead_file` derives its path from
 # WORKSPACE_DIR with a `$HOME/.claude-octopus` fallback, so under `env -i` the
 # shim writes the marker to the fallback while orchestrate.sh and
 # check-providers.sh read it under `$CLAUDE_PLUGIN_DATA` (set by Claude Code
 # v2.1.78+). The mark lands where nobody reads it: the provider keeps
 # advertising `available`, is reseated every session, and the user is prompted
-# for the gemini keychain entry every single run.
+# for a retired provider's keychain entry every single run.
 #
 # Applied as a wrapper rather than per-arm because several arms `return 0` from
 # inside the case and would skip a tail hook, and because a per-call-site fix is
@@ -86,7 +86,8 @@ build_provider_env() {
 }
 
 _octo_build_provider_env_impl() {
-    local provider="$1"
+    local provider
+    provider="$(octo_provider_canonical "${1:-}" 2>/dev/null || printf '%s' "${1:-}")"
     PROVIDER_ENV_ARRAY=()
 
     if [[ "${OCTOPUS_SECURITY_V870:-true}" != "true" ]]; then
@@ -94,7 +95,7 @@ _octo_build_provider_env_impl() {
     fi
 
     # v9.23: Propagate W3C trace headers into isolated env when present so
-    # external CLIs (codex/gemini/perplexity) participate in distributed traces.
+    # external CLIs (codex/agy/perplexity) participate in distributed traces.
     # SUPPORTS_TRACEPARENT was detected in v2.1.98+ (Bash subprocesses) and
     # v2.1.110+ added the same for SDK/headless sessions.
     local -a _trace_env=()
@@ -161,28 +162,6 @@ _octo_build_provider_env_impl() {
             [[ ${#_trace_env[@]} -gt 0 ]] && PROVIDER_ENV_ARRAY+=("${_trace_env[@]}")
             return 0
             ;;
-        gemini*)
-            if [[ -z "${GEMINI_API_KEY:-}" ]]; then
-                resolve_provider_env "GEMINI_API_KEY" 2>/dev/null || true
-            fi
-            if [[ -z "${GOOGLE_API_KEY:-}" ]]; then
-                resolve_provider_env "GOOGLE_API_KEY" 2>/dev/null || true
-            fi
-            # v9.55: Don't preset GEMINI_API_KEY/GOOGLE_API_KEY as empty-but-set —
-            # gemini-cli's dotenv loader won't override an already-set var, so an
-            # empty preset silently defeats ~/.gemini/.env when the parent shell
-            # doesn't export the key (#660). Only forward vars that are non-empty,
-            # and pass through NODE_EXTRA_CA_CERTS/GOOGLE_GEMINI_BASE_URL so relay
-            # setups (extra CA root, custom base URL) survive env isolation.
-            PROVIDER_ENV_ARRAY=(env -i "PATH=$PATH" "HOME=$HOME" "NODE_NO_WARNINGS=1" "TMPDIR=${TMPDIR:-/tmp}" "GEMINI_CLI_TRUST_WORKSPACE=${GEMINI_CLI_TRUST_WORKSPACE:-true}")
-            local _gemini_var
-            for _gemini_var in GEMINI_API_KEY GOOGLE_API_KEY GOOGLE_CLOUD_PROJECT GOOGLE_CLOUD_PROJECT_ID GOOGLE_GEMINI_BASE_URL NODE_EXTRA_CA_CERTS; do
-                [[ -n "${!_gemini_var:-}" ]] && PROVIDER_ENV_ARRAY+=("${_gemini_var}=${!_gemini_var}")
-            done
-            if [[ ${#_trace_env[@]} -gt 0 ]]; then
-                PROVIDER_ENV_ARRAY+=("${_trace_env[@]}")
-            fi
-            ;;
         agy*|antigravity)
             # Antigravity defaults to a minimal environment. Users who need
             # desktop/session inheritance can explicitly allow the full env.
@@ -208,7 +187,7 @@ _octo_build_provider_env_impl() {
             fi
             ;;
         grok*)
-            # Grok defaults to a minimal environment (parity with codex/gemini/agy).
+            # Grok defaults to a minimal environment (parity with codex/agy).
             # Users needing full desktop/session inheritance can opt out.
             if [[ "${OCTOPUS_ALLOW_FULL_GROK_ENV:-false}" == "true" ]]; then
                 if [[ "${OCTOPUS_SECURITY_V870:-true}" == "true" ]] && declare -f log_warn >/dev/null 2>&1; then
@@ -346,9 +325,8 @@ migrate_provider_config() {
         local tmp_file="${config_file}.tmp.$$"
         
         # Extract existing model preferences to seed v3.0
-        local codex_model gemini_model
+        local codex_model
         codex_model=$(jq -r '.providers.codex.model // .providers.codex.default // "gpt-5.6-sol"' "$config_file")
-        gemini_model=$(jq -r '.providers.gemini.model // .providers.gemini.default // "gemini-3.1-pro-preview"' "$config_file")
         
         cat > "$tmp_file" << EOF
 {
@@ -361,12 +339,6 @@ migrate_provider_config() {
       "mini": "gpt-5.6-luna",
       "reasoning": "gpt-5.6-sol",
       "large_context": "gpt-5.6-sol"
-    },
-    "gemini": {
-      "default": "$gemini_model",
-      "fallback": "gemini-3-flash-preview",
-      "flash": "gemini-3-flash-preview",
-      "image": "gemini-3-pro-image"
     },
     "agy": {
       "default": "Gemini 3.1 Pro (High)",
@@ -392,9 +364,9 @@ migrate_provider_config() {
     }
   },
   "tiers": {
-    "budget": { "codex": "mini", "claude": "budget", "gemini": "flash" },
-    "standard": { "codex": "default", "claude": "default", "gemini": "default" },
-    "premium": { "codex": "default", "claude": "opus", "gemini": "default" }
+    "budget": { "codex": "mini", "claude": "budget", "agy": "flash" },
+    "standard": { "codex": "default", "claude": "default", "agy": "default" },
+    "premium": { "codex": "default", "claude": "opus", "agy": "default" }
   },
   "overrides": {}
 }
@@ -417,15 +389,60 @@ EOF
     local content
     content=$(<"$config_file")
 
+    # Gemini CLI no longer serves individual Google seats. Keep old provider
+    # IDs as input aliases, but rewrite persisted config so no future process
+    # can rediscover or launch the retired executable. Direct Gemini model IDs
+    # are not valid Antigravity CLI labels, so stale exact-model overrides are
+    # intentionally reset to Antigravity defaults/capabilities.
+    if echo "$content" | jq -e '
+        (.providers.gemini? != null) or
+        (.overrides.gemini? != null) or
+        ([.tiers[]?.gemini?] | any(. != null)) or
+        ([.routing.phases[]?, .routing.roles[]?] | any(
+            (type == "string" and (startswith("gemini"))) or
+            (type == "object" and .provider? == "gemini")
+        ))
+    ' >/dev/null 2>&1; then
+        content=$(echo "$content" | jq '
+            def migrate_google_target:
+                if type == "string" then
+                    if . == "gemini" then "agy"
+                    elif startswith("gemini:") then
+                        (split(":")[1]) as $cap |
+                        if ($cap == "default" or $cap == "flash" or $cap == "fallback")
+                        then "agy:" + $cap else "agy" end
+                    else . end
+                elif type == "object" and .provider? == "gemini" then
+                    .provider = "agy" | if .model? then .model = "default" else . end
+                else . end;
+            .providers.agy //= {
+                "default": "Gemini 3.1 Pro (High)",
+                "fallback": "Gemini 3.5 Flash (High)",
+                "flash": "Gemini 3.5 Flash (Low)"
+            } |
+            del(.providers.gemini) |
+            if .overrides.gemini? != null and .overrides.agy? == null
+                then .overrides.agy = "default" else . end |
+            del(.overrides.gemini) |
+            .tiers = ((.tiers // {}) | with_entries(
+                .value |= (
+                    if .gemini? != null and .agy? == null then .agy = .gemini else . end |
+                    del(.gemini)
+                )
+            )) |
+            .routing = (.routing // {}) |
+            .routing.phases = ((.routing.phases // {}) | with_entries(.value |= migrate_google_target)) |
+            .routing.roles = ((.routing.roles // {}) | with_entries(.value |= migrate_google_target))
+        ' 2>/dev/null) || return 0
+        changed=true
+        log "INFO" "Migrating retired Gemini provider settings to Antigravity"
+    fi
+
     # Map of paths to check for stale models
     local -a stale_paths=(
         '.providers.codex.default'
         '.providers.codex.fallback'
-        '.providers.gemini.default'
-        '.providers.gemini.fallback'
-        '.providers.gemini.image'
         '.overrides.codex'
-        '.overrides.gemini'
     )
 
     for path in "${stale_paths[@]}"; do
@@ -437,12 +454,6 @@ EOF
         case "$current_val" in
             claude-sonnet-4-5|claude-sonnet-4-5-20250514|claude-3-5-sonnet*|claude-sonnet-4*)
                 if [[ "$path" == *codex* ]]; then replacement="gpt-5.6-sol"; fi ;;
-            gemini-2.0-flash-thinking*|gemini-2.0-flash-exp*|gemini-exp-*)
-                replacement="gemini-3-flash-preview" ;;
-            gemini-2.0-pro*|gemini-1.5-pro*|gemini-pro)
-                replacement="gemini-3.1-pro-preview" ;;
-            gemini-3-pro-image-preview)
-                replacement="gemini-3-pro-image" ;;  # shutdown 2026-06-25 (codex review)
             gpt-4o*|gpt-4-turbo*|gpt-4-*|o1-*|chatgpt-*)
                 replacement="gpt-5.6-sol" ;;
             gpt-5.5|gpt-5.5-pro|gpt-5.4|gpt-5.4-pro|gpt-5.3-codex|gpt-5.2-codex|gpt-5.1-codex-max)
@@ -471,7 +482,8 @@ EOF
 # Set provider model in config file
 # Usage: set_provider_model <provider> <model> [--session]
 set_provider_model() {
-    local provider="$1"
+    local provider
+    provider="$(octo_provider_canonical "${1:-}" 2>/dev/null || printf '%s' "${1:-}")"
     local model="$2"
     local session_only="${3:-}"
     local config_file="${HOME}/.claude-octopus/config/providers.json"
@@ -494,7 +506,7 @@ set_provider_model() {
     if ! validate_model_name "$model"; then
         echo "ERROR: Invalid model name: '$model'" >&2
         echo "  Model names must not contain shell metacharacters (spaces, ;, |, &, \$, \`, quotes)" >&2
-        echo "  Examples: gpt-5.6-sol, gemini-3.1-pro-preview, claude-opus-5" >&2
+        echo "  Examples: gpt-5.6-sol, default, claude-opus-5" >&2
         return 1
     fi
 
@@ -512,12 +524,6 @@ set_provider_model() {
       "mini": "gpt-5.6-luna",
       "reasoning": "gpt-5.6-sol",
       "large_context": "gpt-5.6-sol"
-    },
-    "gemini": {
-      "default": "gemini-3.1-pro-preview",
-      "fallback": "gemini-3-flash-preview",
-      "flash": "gemini-3-flash-preview",
-      "image": "gemini-3-pro-image"
     },
     "agy": {
       "default": "Gemini 3.1 Pro (High)",
@@ -540,9 +546,9 @@ set_provider_model() {
     }
   },
   "tiers": {
-    "budget": { "codex": "mini", "claude": "budget", "gemini": "flash" },
-    "standard": { "codex": "default", "claude": "default", "gemini": "default" },
-    "premium": { "codex": "default", "claude": "opus", "gemini": "default" }
+    "budget": { "codex": "mini", "claude": "budget", "agy": "flash" },
+    "standard": { "codex": "default", "claude": "default", "agy": "default" },
+    "premium": { "codex": "default", "claude": "opus", "agy": "default" }
   },
   "overrides": {}
 }
@@ -575,7 +581,10 @@ EOF
 # Reset provider model to defaults
 # Usage: reset_provider_model <provider|all>
 reset_provider_model() {
-    local provider="$1"
+    local provider="${1:-}"
+    if [[ "$provider" != "all" ]]; then
+        provider="$(octo_provider_canonical "$provider" 2>/dev/null || printf '%s' "$provider")"
+    fi
     local config_file="${HOME}/.claude-octopus/config/providers.json"
 
     if [[ ! -f "$config_file" ]]; then
@@ -625,7 +634,8 @@ fi
 
 # Check if provider is using API keys (costs money per call)
 is_api_based_provider() {
-    local provider="$1"
+    local provider
+    provider="$(octo_provider_canonical "${1:-}" 2>/dev/null || printf '%s' "${1:-}")"
 
     case "$provider" in
         codex)
@@ -633,9 +643,8 @@ is_api_based_provider() {
             [[ -n "${OPENAI_API_KEY:-}" ]] && return 0
             return 1
             ;;
-        gemini)
-            # Check if using API key (GEMINI_API_KEY) vs auth
-            [[ -n "${GEMINI_API_KEY:-}" ]] && return 0
+        agy)
+            # Antigravity CLI uses the user's Google seat, not a direct Gemini API key.
             return 1
             ;;
         claude)

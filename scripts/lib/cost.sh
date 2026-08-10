@@ -123,27 +123,27 @@ estimate_workflow_cost() {
 
     # Define expected agent calls per workflow
     local codex_calls=0
-    local gemini_calls=0
+    local agy_calls=0
     local claude_calls=0
 
     case "$workflow_name" in
         embrace)
-            codex_calls=8; gemini_calls=6; claude_calls=8 ;;
+            codex_calls=8; agy_calls=6; claude_calls=8 ;;
         probe|discover)
-            codex_calls=3; gemini_calls=2; claude_calls=2 ;;
+            codex_calls=3; agy_calls=2; claude_calls=2 ;;
         grasp|define)
-            codex_calls=2; gemini_calls=1; claude_calls=2 ;;
+            codex_calls=2; agy_calls=1; claude_calls=2 ;;
         tangle|develop)
-            codex_calls=2; gemini_calls=2; claude_calls=3 ;;
+            codex_calls=2; agy_calls=2; claude_calls=3 ;;
         ink|deliver)
-            codex_calls=2; gemini_calls=2; claude_calls=2 ;;
+            codex_calls=2; agy_calls=2; claude_calls=2 ;;
         *)
-            codex_calls=2; gemini_calls=2; claude_calls=2 ;;
+            codex_calls=2; agy_calls=2; claude_calls=2 ;;
     esac
 
     local codex_cost="0.00"
-    local gemini_cost="0.00"
-    local codex_label="" gemini_label="" claude_label=""
+    local agy_cost="0.00"
+    local codex_label="" agy_label="" claude_label=""
     local has_any_cost=false
 
     # Codex cost
@@ -159,29 +159,20 @@ estimate_workflow_cost() {
         codex_label="Included (auth-connected)"
     fi
 
-    # Gemini cost
-    if is_api_based_provider "gemini"; then
-        local per_call
-        per_call=$(calculate_agent_cost "gemini" "$prompt_length")
-        gemini_cost=$(awk "BEGIN {printf \"%.2f\", $per_call * $gemini_calls}")
-        local gemini_high
-        gemini_high=$(awk "BEGIN {printf \"%.2f\", $gemini_cost * 1.5}")
-        gemini_label="~\$${gemini_cost}-${gemini_high} (${gemini_calls} calls, API key)"
-        has_any_cost=true
-    else
-        gemini_label="Included (auth-connected)"
-    fi
+    # Antigravity is a bundled Google seat; Octopus never uses a direct Gemini
+    # API key or CLI for these calls.
+    agy_label="Included (Antigravity access; ${agy_calls} calls)"
 
     # Claude is always subscription-based
     claude_label="Included (subscription)"
 
     local total_low
-    total_low=$(awk "BEGIN {printf \"%.2f\", $codex_cost + $gemini_cost}")
+    total_low=$(awk "BEGIN {printf \"%.2f\", $codex_cost + $agy_cost}")
     local total_high
-    total_high=$(awk "BEGIN {printf \"%.2f\", ($codex_cost + $gemini_cost) * 1.5}")
+    total_high=$(awk "BEGIN {printf \"%.2f\", ($codex_cost + $agy_cost) * 1.5}")
 
     # Return structured result (pipe-delimited for easy parsing)
-    echo "${has_any_cost}|${codex_label}|${gemini_label}|${claude_label}|${total_low}|${total_high}"
+    echo "${has_any_cost}|${codex_label}|${agy_label}|${claude_label}|${total_low}|${total_high}"
 }
 
 # v8.5: Compact cost estimate display (non-interactive, no approval prompt)
@@ -193,8 +184,8 @@ show_cost_estimate() {
     local estimate
     estimate=$(estimate_workflow_cost "$workflow_name" "$prompt_length")
 
-    local has_cost codex_label gemini_label claude_label total_low total_high
-    IFS='|' read -r has_cost codex_label gemini_label claude_label total_low total_high <<< "$estimate"
+    local has_cost codex_label agy_label claude_label total_low total_high
+    IFS='|' read -r has_cost codex_label agy_label claude_label total_low total_high <<< "$estimate"
 
     # If ALL providers are auth-connected, skip the cost estimate entirely
     if [[ "$has_cost" == "false" ]]; then
@@ -204,7 +195,7 @@ show_cost_estimate() {
 
     echo -e "  ${BOLD}Estimated Costs:${NC}"
     echo -e "    ${RED}🔴${NC} Codex:  ${codex_label}"
-    echo -e "    ${YELLOW}🟡${NC} Gemini: ${gemini_label}"
+    echo -e "    ${YELLOW}🟡${NC} Antigravity: ${agy_label}"
     echo -e "    ${BLUE}🔵${NC} Claude: ${claude_label}"
 
     if [[ "$USER_FAST_MODE" == "true" ]] && [[ "$SUPPORTS_FAST_OPUS" == "true" ]]; then
@@ -219,7 +210,7 @@ show_cost_estimate() {
 display_workflow_cost_estimate() {
     local workflow_name="$1"
     local num_codex_calls="${2:-4}"
-    local num_gemini_calls="${3:-4}"
+    local num_agy_calls="${3:-4}"
     local prompt_size="${4:-2000}"
 
     # Skip in non-interactive mode, if disabled, or if called from embrace workflow
@@ -230,12 +221,10 @@ display_workflow_cost_estimate() {
 
     # Check which providers are API-based (cost money)
     local codex_is_api=false
-    local gemini_is_api=false
     local perplexity_is_api=false
     local has_costs=false
 
     is_api_based_provider "codex" && codex_is_api=true && has_costs=true
-    is_api_based_provider "gemini" && gemini_is_api=true && has_costs=true
     is_api_based_provider "perplexity" && perplexity_is_api=true && has_costs=true
 
     # If no API-based providers, skip cost display
@@ -246,10 +235,9 @@ display_workflow_cost_estimate() {
 
     # Calculate costs
     local codex_cost="0.00"
-    local gemini_cost="0.00"
     local perplexity_cost="0.00"
     local codex_status="Subscription (no per-call cost)"
-    local gemini_status="Subscription (no per-call cost)"
+    local agy_status="Antigravity access (no per-call cost)"
     local perplexity_status="Not configured"
 
     if [[ "$codex_is_api" == "true" ]]; then
@@ -257,17 +245,12 @@ display_workflow_cost_estimate() {
         codex_status="~\$$codex_cost (API key detected)"
     fi
 
-    if [[ "$gemini_is_api" == "true" ]]; then
-        gemini_cost=$(awk "BEGIN {printf \"%.2f\", $(calculate_agent_cost \"gemini\" \"$prompt_size\") * $num_gemini_calls}")
-        gemini_status="~\$$gemini_cost (API key detected)"
-    fi
-
     if [[ "$perplexity_is_api" == "true" ]]; then
         perplexity_cost=$(awk "BEGIN {printf \"%.2f\", $(calculate_agent_cost \"perplexity\" \"$prompt_size\") * 1}")
         perplexity_status="~\$$perplexity_cost (API key detected)"
     fi
 
-    local total_cost=$(awk "BEGIN {printf \"%.2f\", $codex_cost + $gemini_cost + $perplexity_cost}")
+    local total_cost=$(awk "BEGIN {printf \"%.2f\", $codex_cost + $perplexity_cost}")
 
     # Display cost estimate
     echo ""
@@ -279,7 +262,7 @@ display_workflow_cost_estimate() {
     echo ""
     echo -e "${BOLD}Estimated Costs:${NC}"
     echo -e "  ${RED}🔴 Codex${NC}  (~${num_codex_calls} requests): ${codex_status}"
-    echo -e "  ${YELLOW}🟡 Gemini${NC} (~${num_gemini_calls} requests): ${gemini_status}"
+    echo -e "  ${YELLOW}🟡 Antigravity${NC} (~${num_agy_calls} requests): ${agy_status}"
     # Resolve the actual Claude model after pins, role/phase routing, capability
     # fallback, and Fable guards. Agent-type labels alone are insufficient:
     # claude-opus may resolve to a legacy Opus, while Fable is a distinct 2x tier.
@@ -319,7 +302,7 @@ display_workflow_cost_estimate() {
     if [[ $(awk "BEGIN {print ($total_cost > 0)}") -eq 1 ]]; then
         echo -e "${BOLD}Total API Costs: ~\$${total_cost}${NC}"
         echo ""
-        echo -e "${DIM}Note: Costs shown only for providers using API keys (OPENAI_API_KEY/GEMINI_API_KEY/PERPLEXITY_API_KEY).${NC}"
+        echo -e "${DIM}Note: Costs shown only for providers using API keys (OPENAI_API_KEY/PERPLEXITY_API_KEY and other metered seats).${NC}"
         echo -e "${DIM}Actual costs may vary. Disable prompt with: OCTOPUS_SKIP_COST_PROMPT=true${NC}"
     else
         echo -e "${GREEN}✓ All providers using subscription/auth-based access (no per-call costs)${NC}"
@@ -541,7 +524,7 @@ display_session_metrics() {
     generate_usage_table
 }
 
-# v8.49.0: Display per-provider breakdown (codex/gemini/claude)
+# v8.49.0: Display per-provider breakdown (codex/agy/claude)
 display_provider_breakdown() {
     local log_file="${USAGE_FILE}.log"
     [[ -f "$log_file" ]] || return 0
@@ -823,13 +806,8 @@ get_cost_tier_for_subscription() {
                 *) echo "pay-per-use" ;;
             esac
             ;;
-        gemini)
-            case "$sub_tier" in
-                free) echo "free" ;;
-                workspace) echo "bundled" ;;
-                api-only) echo "pay-per-use" ;;
-                *) echo "pay-per-use" ;;
-            esac
+        agy)
+            echo "bundled"
             ;;
         claude)
             case "$sub_tier" in
@@ -877,12 +855,6 @@ get_model_pricing() {
         o3)                     echo "2.00:8.00" ;;
         o3-pro)                 echo "20.00:80.00" ;;  # v8.39.0: API-key only
         o3-mini)                echo "1.10:4.40" ;;    # v8.39.0: API-key only
-        # Google Gemini 3.0 models
-        gemini-3.1-pro-preview)   echo "2.50:10.00" ;;
-        gemini-3-flash-preview) echo "0.25:1.00" ;;
-        gemini-3-pro-image)         echo "5.35:21.40" ;;  # oco-803: Nano Banana Pro GA (~$0.134/1K-2K img, June 2026)
-        gemini-3.1-flash-image)     echo "0.25:1.00" ;;   # oco-803: Nano Banana 2 fast image tier (budget)
-        gemini-3-pro-image-preview) echo "5.00:20.00" ;;  # deprecated 2026-06-25, kept for back-compat
         # Claude models
         claude-haiku-4.5)       echo "1.00:5.00" ;;
         claude-sonnet-5)        echo "3.00:15.00" ;;

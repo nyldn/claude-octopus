@@ -108,8 +108,6 @@ _octopus_prepare_consultative_workspace() {
 run_agent_sync_consultative() {
     local old_security_set="${OCTOPUS_SECURITY_V870+x}"
     local old_security="${OCTOPUS_SECURITY_V870:-}"
-    local old_gemini_sandbox_set="${OCTOPUS_GEMINI_SANDBOX+x}"
-    local old_gemini_sandbox="${OCTOPUS_GEMINI_SANDBOX:-}"
     local old_agy_sandbox_set="${OCTOPUS_AGY_SANDBOX+x}"
     local old_agy_sandbox="${OCTOPUS_AGY_SANDBOX:-}"
     local old_codex_sandbox_set="${OCTOPUS_CODEX_SANDBOX+x}"
@@ -141,7 +139,6 @@ Treat ${workspace} as the working copy for this advisory task. Any relative-path
     consultative_args[1]="$isolated_prompt"
 
     unset OCTOPUS_SECURITY_V870
-    unset OCTOPUS_GEMINI_SANDBOX
     unset OCTOPUS_AGY_SANDBOX
     unset CLAUDE_OCTOPUS_AUTONOMY
     export OCTOPUS_CODEX_SANDBOX="danger-full-access"
@@ -161,7 +158,6 @@ Treat ${workspace} as the working copy for this advisory task. Any relative-path
     fi
 
     if [[ -n "$old_security_set" ]]; then export OCTOPUS_SECURITY_V870="$old_security"; else unset OCTOPUS_SECURITY_V870; fi
-    if [[ -n "$old_gemini_sandbox_set" ]]; then export OCTOPUS_GEMINI_SANDBOX="$old_gemini_sandbox"; else unset OCTOPUS_GEMINI_SANDBOX; fi
     if [[ -n "$old_agy_sandbox_set" ]]; then export OCTOPUS_AGY_SANDBOX="$old_agy_sandbox"; else unset OCTOPUS_AGY_SANDBOX; fi
     if [[ -n "$old_autonomy_set" ]]; then export CLAUDE_OCTOPUS_AUTONOMY="$old_autonomy"; else unset CLAUDE_OCTOPUS_AUTONOMY; fi
     if [[ -n "$old_codex_sandbox_set" ]]; then
@@ -284,11 +280,7 @@ ${provider_ctx}"
     local _provider_for_health=""
     case "$agent_type" in
         codex*)      _provider_for_health="codex" ;;
-        gemini*)
-            _provider_for_health="gemini"
-            # gemini seats served via agy health-check agy instead.
-            octo_gemini_via_agy_active && _provider_for_health="agy"
-            ;;
+        gemini*)     _provider_for_health="agy" ;;
         agy*|antigravity) _provider_for_health="agy" ;;
         claude*)     _provider_for_health="claude" ;;
         openrouter*) _provider_for_health="openrouter" ;;
@@ -343,11 +335,11 @@ ${provider_ctx}"
     local temp_err="${RESULTS_DIR}/.tmp-agent-error-$$.err"
     local temp_out="${RESULTS_DIR}/.tmp-agent-out-$$.out"
 
-    # v8.10.0: Gemini uses stdin-based prompt delivery (Issue #25)
-    # -p "" triggers headless mode; prompt content comes via stdin to avoid OS arg limits
-    # Qwen and Cursor Agent follow the same headless contract; Copilot parity is
+    # -p "" triggers headless mode for CLIs that require it while prompt content
+    # comes via stdin to avoid OS argument limits. Qwen and Cursor Agent follow
+    # the same headless contract; Copilot parity is
     # maintained with spawn/workflows dispatch paths.
-    if [[ "$agent_type" == gemini* || "$agent_type" == copilot* || "$agent_type" == qwen* || "$agent_type" == cursor-agent* ]]; then
+    if [[ "$agent_type" == copilot* || "$agent_type" == qwen* || "$agent_type" == cursor-agent* ]]; then
         cmd_array+=(-p "")
     fi
 
@@ -357,47 +349,18 @@ ${provider_ctx}"
     _dispatch_start=$(date +%s)
     _dispatch_cwd=$(pwd)
 
-    # Quota fast-fail watcher for Gemini. Gemini CLI retries internally for
-    # hours on QUOTA_EXHAUSTED instead of exiting; kill early.
     local _quota_watcher_pid=""
-    local _dispatch_pid=""
 
     # Always init temp files so readers never fail on missing file.
     mkdir -p "${RESULTS_DIR}" 2>/dev/null || true
     : > "$temp_err"
     : > "$temp_out"
 
-    # gemini* seats served via agy (OCTOPUS_GEMINI_VIA_AGY) take the agy path.
-    if [[ "$agent_type" == agy* || "$agent_type" == "antigravity" ]] || \
-       { [[ "$agent_type" == gemini* ]] && octo_gemini_via_agy_active; }; then
-        set +e
-        printf '%s' "$enhanced_prompt" | run_with_timeout "$timeout_secs" "${cmd_array[@]}" 2>"$temp_err" >"$temp_out"
-        exit_code=$?
-        set -e
-        output=$(cat "$temp_out")
-    elif [[ "$agent_type" == gemini* ]]; then
-        # Option B (4/4 debate verdict): background dispatch + targeted PID kill
-        printf '%s' "$enhanced_prompt" \
-            | run_with_timeout "$timeout_secs" "${cmd_array[@]}" 2>"$temp_err" >"$temp_out" &
-        _dispatch_pid=$!
-
-        _quota_watcher_pid=$(start_quota_watcher \
-            "$_dispatch_pid" \
-            "$temp_err" \
-            "$temp_out" \
-            quota_watcher_kill_sync_dispatch \
-            "[$agent_type] Quota exhaustion detected in sync agent - fast-failing")
-
-        wait "$_dispatch_pid" 2>/dev/null && exit_code=0 || exit_code=$?
-        [[ $exit_code -eq 137 ]] && exit_code=1
-        output=$(cat "$temp_out")
-    else
-        set +e
-        printf '%s' "$enhanced_prompt" | run_with_timeout "$timeout_secs" "${cmd_array[@]}" 2>"$temp_err" >"$temp_out"
-        exit_code=$?
-        set -e
-        output=$(cat "$temp_out")
-    fi
+    set +e
+    printf '%s' "$enhanced_prompt" | run_with_timeout "$timeout_secs" "${cmd_array[@]}" 2>"$temp_err" >"$temp_out"
+    exit_code=$?
+    set -e
+    output=$(cat "$temp_out")
 
     stop_quota_watcher "$_quota_watcher_pid"
 

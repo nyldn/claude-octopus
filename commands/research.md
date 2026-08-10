@@ -97,7 +97,7 @@ Just use natural language:
 ## What Is Research?
 
 A dedicated research workflow aligned with the **Discover** phase of the Double Diamond methodology:
-- Multi-AI research (Claude + Gemini + Codex)
+- Multi-AI research (Claude + Antigravity + Codex)
 - Comprehensive analysis of options
 - Trade-off evaluation
 - Best practice identification

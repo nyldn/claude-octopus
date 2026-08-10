@@ -31,7 +31,7 @@ probe_single_agent() {
     mkdir -p "$RESULTS_DIR" "$LOGS_DIR"
 
     # Dispatch from the user's project so provider sandboxes (codex workdir,
-    # gemini workspace) can read project files (bug 260609). probe-single runs
+    # provider sandboxes can read project files (bug 260609). probe-single runs
     # in its own orchestrate.sh process, so cd here cannot leak to other work.
     if [[ -n "${PROJECT_ROOT:-}" && -d "$PROJECT_ROOT" ]]; then
         cd "$PROJECT_ROOT" || log "WARN" "probe_single_agent: cannot cd to PROJECT_ROOT=$PROJECT_ROOT"
@@ -122,8 +122,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
     local provider_name
     case "$agent_type" in
         codex*) provider_name="codex" ;;
-        gemini*) provider_name="gemini" ;;
-        agy*|antigravity) provider_name="agy" ;;
+        gemini*|agy*|antigravity) provider_name="agy" ;;
         claude*) provider_name="claude" ;;
         perplexity*) provider_name="perplexity" ;;
         copilot*) provider_name="copilot" ;;
@@ -167,8 +166,8 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
     echo '```' >> "$result_file"
 
     # Append headless flag (-p "" triggers stdin reading) for CLI providers
-    # Qwen and Cursor Agent are forks of Gemini CLI — same flags
-    if [[ "$agent_type" == gemini* ]] || [[ "$agent_type" == copilot* ]] || [[ "$agent_type" == qwen* ]] || [[ "$agent_type" == cursor-agent* ]]; then
+    # Qwen and Cursor Agent require the same stdin headless trigger.
+    if [[ "$agent_type" == copilot* ]] || [[ "$agent_type" == qwen* ]] || [[ "$agent_type" == cursor-agent* ]]; then
         cmd_array+=(-p "")
     fi
 
@@ -250,7 +249,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
                 BEGIN { in_response = 0; header_done = 0; }
                 /^--------$/ { header_done = 1; next; }
                 !header_done { next; }
-                /^(codex|gemini|assistant)$/ { in_response = 1; next; }
+                /^(codex|assistant)$/ { in_response = 1; next; }
                 /^thinking$/ { next; }
                 /^tokens used$/ { next; }
                 /^[0-9,]+$/ && in_response { next; }
@@ -262,9 +261,6 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
                 -e '^MCP issues detected' \
                 -e '^Loading extension:' \
                 -e '^YOLO mode is enabled' \
-                -e '^Keychain initialization' \
-                -e '^Using FileKeychain' \
-                -e '^Loaded cached credentials' \
                 -e '^Run /mcp' \
                 "$temp_output" >> "$result_file" 2>/dev/null || cat "$temp_output" >> "$result_file"
         fi
@@ -285,7 +281,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
         fi
 
         # Trust marker for external CLI output
-        case "$agent_type" in codex*|gemini*|perplexity*|cursor-agent*)
+        case "$agent_type" in codex*|gemini*|agy*|antigravity|perplexity*|cursor-agent*)
             if [[ "${OCTOPUS_SECURITY_V870:-true}" == "true" ]]; then
                 sed -i.bak '1s/^/<!-- trust=untrusted provider='"$agent_type"' -->\n/' "$result_file" 2>/dev/null || true
                 rm -f "${result_file}.bak"
@@ -345,7 +341,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
                     BEGIN { in_response = 0; header_done = 0; }
                     /^--------$/ { header_done = 1; next; }
                     !header_done { next; }
-                    /^(codex|gemini|assistant)$/ { in_response = 1; next; }
+                    /^(codex|assistant)$/ { in_response = 1; next; }
                     /^thinking$/ { next; }
                     /^tokens used$/ { next; }
                     /^[0-9,]+$/ && in_response { next; }
@@ -669,7 +665,7 @@ ${_blind_spot_checklist}"
 
     # v8.48.0: Write synthesis marker before attempting synthesis
     # WHY: The Bash tool's 120s timeout frequently kills the process during
-    # the Gemini synthesis call (~30-60s) that follows ~60-90s of agent work.
+    # the synthesis call (~30-60s) that follows ~60-90s of agent work.
     # This marker lets the user recover by running `synthesize-probe <task_group>`.
     local synthesis_marker="${RESULTS_DIR}/probe-needs-synthesis-${task_group}.marker"
     {
@@ -2530,7 +2526,7 @@ Every [CODING] line must include a same-line Files: clause."
     # though the provider health check already flagged agy as absent.
     if ! command -v "$tangle_reasoning_agent" >/dev/null 2>&1; then
         local _tangle_reasoning_fb
-        for _tangle_reasoning_fb in gemini codex; do
+        for _tangle_reasoning_fb in codex; do
             command -v "$_tangle_reasoning_fb" >/dev/null 2>&1 \
                 && tangle_reasoning_agent="$_tangle_reasoning_fb" && break
         done
@@ -3253,7 +3249,7 @@ format_workflow_banner() {
         # Compact: 2 lines
         local providers=""
         command -v codex &>/dev/null && providers+="🔴"
-        command -v gemini &>/dev/null && providers+="🟡"
+        command -v agy &>/dev/null && providers+="🧭"
         [[ -n "${PERPLEXITY_API_KEY:-}" ]] && providers+="🟣"
         providers+="🔵"
         echo "🐙 ${workflow} — ${description} | ${providers}"

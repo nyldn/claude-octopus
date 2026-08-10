@@ -19,7 +19,6 @@
     ".codex-plugin/",
     ".cursor-plugin/",
     ".factory-plugin/",
-    ".gemini/",
     ".opencode/",
     ".mcp.json",
     "scripts/",
@@ -55,7 +54,7 @@
     "multi-agent",
     "orchestration",
     "codex",
-    "gemini",
+    "antigravity",
     "multi-ai"
   ],
   "author": "nyldn",

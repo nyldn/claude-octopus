@@ -65,7 +65,6 @@ set -euo pipefail
 
 echo "PROVIDER_CHECK_START"
 printf "codex:%s\n" "$(command -v codex >/dev/null 2>&1 && echo available || echo missing)"
-printf "gemini:%s\n" "$(command -v gemini >/dev/null 2>&1 && echo available || echo missing)"
 printf "perplexity:%s\n" "$([ -n "${PERPLEXITY_API_KEY:-}" ] && echo available || echo missing)"
 printf "opencode:%s\n" "$(command -v opencode >/dev/null 2>&1 && echo available || echo missing)"
 printf "copilot:%s\n" "$(command -v copilot >/dev/null 2>&1 && echo available || echo missing)"
@@ -83,7 +82,6 @@ Then render the provider banner from actual provider checks. Do not hand-write o
 status_cli() { command -v "$1" >/dev/null 2>&1 && echo "Available ✓" || echo "Not installed ✗"; }
 status_env() { [[ -n "${1:-}" ]] && echo "Configured ✓" || echo "Not configured ✗"; }
 codex_status="$(status_cli codex)"
-gemini_status="$(status_cli gemini)"
 agy_status="$(status_cli agy)"
 if command -v grok >/dev/null 2>&1 && { [ -n "${XAI_API_KEY:-}" ] || [ -f "${HOME}/.grok/auth.json" ]; }; then grok_status="Available ✓"; else grok_status="Not installed ✗"; fi
 opencode_status="$(status_cli opencode)"
@@ -97,7 +95,6 @@ cat <<BANNER
 
 Providers:
 🔴 Codex CLI: ${codex_status}
-🟡 Gemini CLI: ${gemini_status}
 🧭 Antigravity CLI: ${agy_status}
 🤖 Grok CLI (xAI): ${grok_status}
 🟤 OpenCode: ${opencode_status}
@@ -111,13 +108,12 @@ BANNER
 
 The rendered banner must look like this shape, with ACTUAL statuses:
 
-```
+```text
 🐙 **CLAUDE OCTOPUS ACTIVATED** — Multi-AI Brainstorm
 🔍 Brainstorm: [Topic being explored]
 
 Providers:
 🔴 Codex CLI: [Available ✓ / Not installed ✗]
-🟡 Gemini CLI: [Available ✓ / Not installed ✗]
 🧭 Antigravity CLI: [Available ✓ / Not installed ✗]
 🤖 Grok CLI (xAI): [Available ✓ / Not installed ✗]
 🟤 OpenCode: [Available ✓ / Not installed ✗]
@@ -146,7 +142,7 @@ TOPIC="[TOPIC]"
 ORCH="${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh"
 [[ -x "$ORCH" ]] || { echo "Octopus orchestrator not found: $ORCH"; exit 1; }
 ORCH_HELP="$("$ORCH" 2>&1 || true)"
-printf '%s\n' "$ORCH_HELP" | grep -q 'spawn <agent>' || { echo "Octopus orchestrator does not expose spawn"; exit 1; }
+printf '%s\n' "$ORCH_HELP" | grep -c 'spawn <agent>' >/dev/null || { echo "Octopus orchestrator does not expose spawn"; exit 1; }
 
 RUN_DIR="$(mktemp -d "${TMPDIR:-/tmp}/octopus-brainstorm.XXXXXX")"
 trap 'rm -rf "$RUN_DIR"' EXIT
@@ -156,7 +152,6 @@ if [[ -z "$ADVISORS" ]]; then
   fallback_advisors=()
   command -v codex >/dev/null 2>&1 && fallback_advisors+=(codex)
   command -v agy >/dev/null 2>&1 && fallback_advisors+=(agy)
-  command -v gemini >/dev/null 2>&1 && fallback_advisors+=(gemini)
   ADVISORS=$(IFS=,; echo "${fallback_advisors[*]}")
 fi
 
@@ -182,7 +177,8 @@ wait
 ```
 
 **Claude Agent** (always available — use Agent tool with run_in_background):
-```
+
+```text
 Think creatively about: [TOPIC]
 
 Your role: Pattern spotter and paradox hunter.
@@ -199,12 +195,12 @@ Be specific and creative. Avoid generic advice.
 
 Once all agents return, present results with provider indicators:
 
-```
+```text
 🔴 **Codex Ideas:**
 [Codex response summary — key ideas only, not full dump]
 
-🟡 **Gemini Ideas:**
-[Gemini response summary]
+🧭 **Antigravity Ideas:**
+[Antigravity response summary]
 
 🔵 **Claude Ideas:**
 [Claude response summary]
@@ -212,7 +208,7 @@ Once all agents return, present results with provider indicators:
 
 Then synthesize:
 
-```
+```text
 🐙 **Cross-Perspective Synthesis:**
 
 **Convergence** — Ideas that multiple providers surfaced:
@@ -246,7 +242,7 @@ Generate the same export format as Solo mode (see skill-thought-partner Phase 4)
 | Provider | Key Contribution | Unique Insight |
 |----------|-----------------|----------------|
 | 🔴 Codex | [Summary] | [What only Codex surfaced] |
-| 🟡 Gemini | [Summary] | [What only Gemini surfaced] |
+| 🧭 Antigravity | [Summary] | [What only Antigravity surfaced] |
 | 🔵 Claude | [Summary] | [What only Claude surfaced] |
 
 ### Cross-Provider Patterns

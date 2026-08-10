@@ -62,7 +62,7 @@ if [[ -d "$RESULTS_DIR" ]]; then
     if [[ $recent_results -eq 0 ]]; then
         echo "⚠️  WORKFLOW VERIFICATION: The '${workflow}' workflow ran but produced no result files."
         echo "   This suggests orchestrate.sh was not called and multi-LLM dispatch did not execute."
-        echo "   The agent may have used only Claude-native tools instead of dispatching to Codex/Gemini."
+        echo "   The agent may have used only Claude-native tools instead of dispatching to Codex/Antigravity."
         echo "   Consider re-running with /octo:embrace to get proper multi-provider perspectives."
     fi
 fi

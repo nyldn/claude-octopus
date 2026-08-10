@@ -34,18 +34,12 @@ _fan_out_agents_from_config() {
 }
 
 # Resolve the preferred non-Codex dispatch seat for fan-out / map-reduce.
-# The Gemini CLI was sunset 2026-06-18; agy (Antigravity) is the default Google
-# seat (#524). Order: agy → gemini (legacy, only when still installed, to
-# preserve behavior for existing setups) → claude-sonnet (always available in
-# Claude Code). Always echoes a usable agent.
+# AGY (Antigravity) is the sole Google seat. Legacy gemini* configuration is
+# canonicalized to AGY at the provider boundary. Always echoes a usable agent.
 _parallel_google_seat() {
     if { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed agy; } \
         && command -v agy >/dev/null 2>&1; then
         echo "agy"; return 0
-    fi
-    if { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed gemini; } \
-        && command -v gemini >/dev/null 2>&1; then
-        echo "gemini"; return 0
     fi
     echo "claude-sonnet"; return 0
 }
@@ -73,7 +67,7 @@ fan_out() {
     fi
 
     # Fallback to default pair when config absent or all entries invalid.
-    # Second seat prefers agy (Google seat) over the sunset Gemini CLI (#524).
+    # Second seat prefers AGY, the sole Google seat.
     [[ ${#agents[@]} -eq 0 ]] && agents=("codex" "$(_parallel_google_seat)")
 
     log INFO "Fan-out: Sending prompt to ${#agents[@]} agents (${agents[*]})"

@@ -106,30 +106,23 @@ if [[ -n "$OLD_ROUTER_API_KEY" ]]; then export ROUTER_API_KEY="$OLD_ROUTER_API_K
 if [[ -n "$OLD_GEMINI_API_KEY" ]]; then export GEMINI_API_KEY="$OLD_GEMINI_API_KEY"; else unset GEMINI_API_KEY; fi
 rm -rf "$CODEX_RUNTIME_HOME" "$CODEX_RUNTIME_HOME-home"
 
-# 1.3 Gemini scoping — only GEMINI_API_KEY + GOOGLE_API_KEY (conditionally
-# forwarded via a loop as of #660, so anchor on the isolated-env line's
-# unique GEMINI_CLI_TRUST_WORKSPACE marker and read through to the case
-# arm's closing `;;` rather than a fixed line count, so this doesn't
-# silently truncate if the block grows.
-GEMINI_ENV=$(awk '/GEMINI_CLI_TRUST_WORKSPACE/{flag=1} flag{print; if (/^[[:space:]]*;;[[:space:]]*$/) exit}' "$ALL_SRC")
-if [[ -z "$GEMINI_ENV" ]]; then
-  fail "Gemini env block not found (GEMINI_CLI_TRUST_WORKSPACE marker missing)"
-elif echo "$GEMINI_ENV" | grep -qE 'for _gemini_var in [^;]*\bGEMINI_API_KEY\b'; then
-  # Full case-arm text now also includes resolve_provider_env calls and the
-  # for-loop's own variable list, both of which mention GEMINI_API_KEY
-  # unconditionally — a bare substring grep would trivially match even if
-  # forwarding were broken. Anchor on the allowlist for-loop itself, since
-  # that's the actual mechanism that decides whether GEMINI_API_KEY gets
-  # forwarded into PROVIDER_ENV_ARRAY.
-  pass "Gemini env includes GEMINI_API_KEY"
+# 1.3 AGY scoping — only Antigravity's explicit credentials/config are
+# forwarded into its minimal environment. Legacy gemini IDs canonicalize to
+# this same case arm and can never recover the retired Gemini credential path.
+AGY_ENV=$(awk 'index($0, "agy*|antigravity)"){flag=1} flag{print; if (/^[[:space:]]*;;[[:space:]]*$/) exit}' "$PLUGIN_DIR/scripts/lib/provider-routing.sh")
+if [[ -z "$AGY_ENV" ]]; then
+  fail "AGY env block not found"
+elif echo "$AGY_ENV" | grep -q 'AGY_AUTH_TOKEN' && \
+     echo "$AGY_ENV" | grep -q 'ANTIGRAVITY_API_KEY'; then
+  pass "AGY env includes Antigravity credentials"
 else
-  fail "Gemini env missing GEMINI_API_KEY"
+  fail "AGY env missing Antigravity credentials"
 fi
 
-if echo "$GEMINI_ENV" | grep -q 'OPENAI_API_KEY'; then
-  fail "Gemini env leaks OPENAI_API_KEY"
+if echo "$AGY_ENV" | grep -q 'OPENAI_API_KEY'; then
+  fail "AGY env leaks OPENAI_API_KEY"
 else
-  pass "Gemini env does NOT contain OPENAI_API_KEY"
+  pass "AGY env does NOT contain OPENAI_API_KEY"
 fi
 
 # 1.4 Perplexity — shell function provider, env -i skipped (#300)
@@ -162,7 +155,7 @@ else
 fi
 
 # 1.6 Missing API keys are tolerated under set -e (#336)
-for provider in codex gemini perplexity openrouter; do
+for provider in codex agy perplexity openrouter; do
   test_case "build_provider_env $provider tolerates absent API keys under set -e"
   tmp_home="$TEST_TMP_DIR/missing-${provider}-home"
   tmp_pwd="$TEST_TMP_DIR/missing-${provider}-pwd"
@@ -186,41 +179,39 @@ for provider in codex gemini perplexity openrouter; do
   fi
 done
 
-# 1.7 Gemini: unset GEMINI_API_KEY must not become an empty-but-set var,
-# or gemini-cli's own ~/.gemini/.env dotenv loading is silently defeated (#660)
-test_case "Gemini env omits GEMINI_API_KEY entirely when unset (not empty-but-set)"
-tmp_home="$TEST_TMP_DIR/gemini-unset-home"
+# 1.7 AGY: unset credentials must not become empty-but-set variables.
+test_case "AGY env omits Antigravity credentials entirely when unset"
+tmp_home="$TEST_TMP_DIR/agy-unset-home"
 mkdir -p "$tmp_home"
-gemini_env_output=$(HOME="$tmp_home" bash -c '
+agy_env_output=$(HOME="$tmp_home" bash -c '
     set -eo pipefail
-    unset GEMINI_API_KEY GOOGLE_API_KEY
+    unset AGY_AUTH_TOKEN ANTIGRAVITY_API_KEY
     cd "$1"
     source "$2/scripts/lib/provider-routing.sh"
-    build_provider_env gemini
+    build_provider_env agy
     printf "%s\n" "${PROVIDER_ENV_ARRAY[@]}"
   ' _ "$tmp_home" "$PLUGIN_DIR" 2>&1)
-if echo "$gemini_env_output" | grep -qE '^(GEMINI_API_KEY|GOOGLE_API_KEY)='; then
-  test_fail "Gemini credentials present as empty-but-set, blocks gemini-cli's own .env loading: $gemini_env_output"
+if echo "$agy_env_output" | grep -qE '^(AGY_AUTH_TOKEN|ANTIGRAVITY_API_KEY)='; then
+  test_fail "AGY credentials present as empty-but-set: $agy_env_output"
 else
   test_pass
 fi
 
-# 1.8 Gemini: NODE_EXTRA_CA_CERTS and GOOGLE_GEMINI_BASE_URL survive isolation
-# when set, so TLS-relay setups don't die with "fetch failed" (#660)
-test_case "Gemini env forwards NODE_EXTRA_CA_CERTS and GOOGLE_GEMINI_BASE_URL when set"
-tmp_home="$TEST_TMP_DIR/gemini-forward-home"
+# 1.8 AGY forwards its explicit config and API-key inputs.
+test_case "AGY env forwards AGY_CONFIG and ANTIGRAVITY_API_KEY when set"
+tmp_home="$TEST_TMP_DIR/agy-forward-home"
 mkdir -p "$tmp_home"
-gemini_env_output=$(HOME="$tmp_home" NODE_EXTRA_CA_CERTS="/tmp/extra-ca.pem" GOOGLE_GEMINI_BASE_URL="https://relay.example/v1" bash -c '
+agy_env_output=$(HOME="$tmp_home" AGY_CONFIG="/tmp/agy-config" ANTIGRAVITY_API_KEY="agy-key" bash -c '
     set -eo pipefail
     source "$1/scripts/lib/provider-routing.sh"
-    build_provider_env gemini
+    build_provider_env agy
     printf "%s\n" "${PROVIDER_ENV_ARRAY[@]}"
   ' _ "$PLUGIN_DIR" 2>&1)
-if echo "$gemini_env_output" | grep -qx 'NODE_EXTRA_CA_CERTS=/tmp/extra-ca.pem' \
-  && echo "$gemini_env_output" | grep -qx 'GOOGLE_GEMINI_BASE_URL=https://relay.example/v1'; then
+if echo "$agy_env_output" | grep -qx 'AGY_CONFIG=/tmp/agy-config' \
+  && echo "$agy_env_output" | grep -qx 'ANTIGRAVITY_API_KEY=agy-key'; then
   test_pass
 else
-  test_fail "NODE_EXTRA_CA_CERTS/GOOGLE_GEMINI_BASE_URL not forwarded: $gemini_env_output"
+  test_fail "AGY_CONFIG/ANTIGRAVITY_API_KEY not forwarded: $agy_env_output"
 fi
 
 # ─────────────────────────────────────────────────────────────────────
@@ -256,10 +247,10 @@ else
   fail "launch.sh template does NOT strip OPENAI_API_KEY"
 fi
 
-if grep -q 'unset.*GEMINI_API_KEY' "$PARALLEL_SKILL"; then
-  pass "launch.sh template strips GEMINI_API_KEY"
+if grep -q 'unset.*AGY_AUTH_TOKEN.*ANTIGRAVITY_API_KEY' "$PARALLEL_SKILL"; then
+  pass "launch.sh template strips AGY credentials"
 else
-  fail "launch.sh template does NOT strip GEMINI_API_KEY"
+  fail "launch.sh template does NOT strip AGY credentials"
 fi
 
 if grep -q 'unset.*PERPLEXITY_API_KEY' "$PARALLEL_SKILL"; then
@@ -322,11 +313,11 @@ else
   pass "Codex env free of escaped quotes"
 fi
 
-# 6.2 Gemini env line must not contain escaped quotes around values
-if echo "$GEMINI_ENV" | grep -q '\\\"'; then
-  fail "Gemini env contains escaped quotes — causes literal quote chars after read -ra (Issue #117)"
+# 6.2 AGY env line must not contain escaped quotes around values
+if echo "$AGY_ENV" | grep -q '\\\"'; then
+  fail "AGY env contains escaped quotes — causes literal quote chars after read -ra (Issue #117)"
 else
-  pass "Gemini env free of escaped quotes"
+  pass "AGY env free of escaped quotes"
 fi
 
 # 6.3 Perplexity env line must not contain escaped quotes around values

@@ -51,7 +51,7 @@ body:
       multiple: true
       options:
         - Codex CLI
-        - Gemini CLI
+        - Antigravity CLI (agy)
         - Perplexity API
         - OpenRouter API
         - Ollama

@@ -58,7 +58,7 @@ This hook leverages the `additionalContext` feature (v2.1.9+) to inject workflow
   },
   "providers": {
     "codex": "available",
-    "gemini": "available"
+    "agy": "available"
   }
 }
 ```

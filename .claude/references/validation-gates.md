@@ -50,7 +50,6 @@ This skill uses **ENFORCED execution mode**. You MUST follow this exact sequence
 
 ```bash
 command -v codex &> /dev/null && codex_status="Available ✓" || codex_status="Not installed ✗"
-command -v gemini &> /dev/null && gemini_status="Available ✓" || gemini_status="Not installed ✗"
 command -v agy &> /dev/null && agy_status="Available ✓" || agy_status="Not installed ✗"
 ```
 
@@ -62,7 +61,6 @@ command -v agy &> /dev/null && agy_status="Available ✓" || agy_status="Not ins
 
 Provider Availability:
 🔴 Codex CLI: ${codex_status} - [Role in this workflow]
-🟡 Gemini CLI: ${gemini_status} - [Role in this workflow]
 🧭 Antigravity CLI: ${agy_status} - [Role in this workflow]
 🔵 Claude: Available ✓ - [Role in this workflow]
 
@@ -71,7 +69,7 @@ Provider Availability:
 ```
 
 **Validation:**
-- If zero external providers (Codex, Gemini, Antigravity) are available → STOP, suggest: `/octo:setup`
+- If zero external providers (Codex or Antigravity) are available → STOP, suggest: `/octo:setup`
 - If one or more external providers are available → Proceed normally with available provider(s)
 
 **DO NOT PROCEED TO STEP 2 until banner displayed.**
@@ -129,7 +127,7 @@ Read the output file and format results for the user.
 ```
 ---
 *Multi-AI [Task Type] powered by Claude Octopus*
-*Providers: 🔴 Codex | 🟡 Gemini | 🔵 Claude*
+*Providers: 🔴 Codex | 🧭 Antigravity | 🔵 Claude*
 *Full output: $OUTPUT_FILE*
 ```
 ```

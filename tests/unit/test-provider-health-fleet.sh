@@ -22,7 +22,7 @@ reset_markers() { rm -f "$DEAD_FILE" "$DEAD_FILE.meta"; }
 # Mock CLIs so fleet composition does not depend on what the developer has installed.
 mock_bin="$TEST_TMP_DIR/health-bin"
 mkdir -p "$mock_bin"
-for cmd in codex gemini; do
+for cmd in codex agy; do
     printf '#!/usr/bin/env bash\nexit 0\n' > "$mock_bin/$cmd"
     chmod +x "$mock_bin/$cmd"
 done
@@ -32,16 +32,15 @@ if bash -n "$QUOTA_LIB"; then test_pass; else test_fail "quota-watcher.sh syntax
 
 # ── Per-signature expiry ─────────────────────────────────────────────────────
 
-# gemini's IneligibleTierError is the sunset of an auth mode, not a quota window.
-# A marker that expires only relaunches the CLI (and its keychain prompt).
+# Some terminal auth failures are permanent until the user reconfigures a seat.
 test_case "ttl 0 marks a seat dead permanently"
 reset_markers
 out=$(WORKSPACE_DIR="$WORKSPACE_DIR" OCTOPUS_QUOTA_DEAD_TTL=1 bash -c "
     source '$QUOTA_LIB'
-    octo_quota_mark_dead gemini 0
+    octo_quota_mark_dead perplexity 0
     # Backdate far beyond any plausible default TTL.
     touch -t 202001010000 '$DEAD_FILE'
-    octo_quota_is_dead gemini && echo DEAD || echo ALIVE
+    octo_quota_is_dead perplexity && echo DEAD || echo ALIVE
 ")
 if [[ "$out" == "DEAD" ]]; then
     test_pass
@@ -84,15 +83,15 @@ test_case "per-provider windows are independent"
 reset_markers
 out=$(WORKSPACE_DIR="$WORKSPACE_DIR" bash -c "
     source '$QUOTA_LIB'
-    octo_quota_mark_dead gemini 0
+    octo_quota_mark_dead qwen 0
     octo_quota_mark_dead agy 1
     meta=\"\$(octo_quota_dead_meta_file)\"
     now=\$(date +%s)
-    printf 'gemini\t%s\t0\nagy\t%s\t1\n' \"\$now\" \"\$((now - 7200))\" > \"\$meta\"
-    octo_quota_is_dead gemini && echo GEMINI_DEAD
+    printf 'qwen\t%s\t0\nagy\t%s\t1\n' \"\$now\" \"\$((now - 7200))\" > \"\$meta\"
+    octo_quota_is_dead qwen && echo QWEN_DEAD
     octo_quota_is_dead agy || echo AGY_ALIVE
 ")
-if grep -qx "GEMINI_DEAD" <<<"$out" && grep -qx "AGY_ALIVE" <<<"$out"; then
+if grep -qx "QWEN_DEAD" <<<"$out" && grep -qx "AGY_ALIVE" <<<"$out"; then
     test_pass
 else
     test_fail "expiry must be per provider, got '$out'"
@@ -156,24 +155,23 @@ fi
 
 # ── Fleet excludes dead seats ────────────────────────────────────────────────
 
-test_case "a healthy gemini seat is assigned a fleet role"
+test_case "a healthy Antigravity seat is assigned a fleet role"
 reset_markers
 fleet=$(PATH="$mock_bin:/usr/bin:/bin" WORKSPACE_DIR="$WORKSPACE_DIR" \
-    OCTO_ALLOWED_PROVIDERS="codex gemini" "$BUILD_FLEET" review standard "x" 2>/dev/null)
-if grep -q "^gemini|" <<<"$fleet"; then
+    OCTO_ALLOWED_PROVIDERS="codex agy" "$BUILD_FLEET" review standard "x" 2>/dev/null)
+if grep -q "^agy|" <<<"$fleet"; then
     test_pass
 else
-    test_fail "gemini should be in the fleet when healthy: $fleet"
+    test_fail "Antigravity should be in the fleet when healthy: $fleet"
 fi
 
-# This is the defect that made every /octo:review launch the dead gemini CLI and
-# raise a macOS keychain prompt for gemini-cli-workspace-oauth.
-test_case "a quota-dead gemini seat is excluded from the fleet"
+# A dead seat must not be retried repeatedly by every workflow.
+test_case "a quota-dead Antigravity seat is excluded from the fleet"
 reset_markers
-WORKSPACE_DIR="$WORKSPACE_DIR" bash -c "source '$QUOTA_LIB'; octo_quota_mark_dead gemini 0"
+WORKSPACE_DIR="$WORKSPACE_DIR" bash -c "source '$QUOTA_LIB'; octo_quota_mark_dead agy 0"
 fleet=$(PATH="$mock_bin:/usr/bin:/bin" WORKSPACE_DIR="$WORKSPACE_DIR" \
-    OCTO_ALLOWED_PROVIDERS="codex gemini" "$BUILD_FLEET" review standard "x" 2>/dev/null)
-if ! grep -q "^gemini|" <<<"$fleet"; then
+    OCTO_ALLOWED_PROVIDERS="codex agy" "$BUILD_FLEET" review standard "x" 2>/dev/null)
+if ! grep -q "^agy|" <<<"$fleet"; then
     test_pass
 else
     test_fail "a dead seat must not be dispatched: $fleet"
@@ -190,11 +188,11 @@ test_case "fleet building survives every CLI seat being dead"
 reset_markers
 WORKSPACE_DIR="$WORKSPACE_DIR" bash -c "
     source '$QUOTA_LIB'
-    octo_quota_mark_dead gemini 0
+    octo_quota_mark_dead agy 0
     octo_quota_mark_dead codex 0"
 if fleet=$(PATH="$mock_bin:/usr/bin:/bin" WORKSPACE_DIR="$WORKSPACE_DIR" \
-    OCTO_ALLOWED_PROVIDERS="codex gemini" "$BUILD_FLEET" review standard "x" 2>/dev/null); then
-    if ! grep -qE "^(gemini|codex)\|" <<<"$fleet"; then
+    OCTO_ALLOWED_PROVIDERS="codex agy" "$BUILD_FLEET" review standard "x" 2>/dev/null); then
+    if ! grep -qE "^(agy|codex)\|" <<<"$fleet"; then
         test_pass
     else
         test_fail "dead seats leaked into an all-dead fleet: $fleet"

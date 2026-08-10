@@ -17,13 +17,13 @@ Adding or modifying a provider touches **seven wiring points across five files**
 Plus, usually:
 - `scripts/helpers/<provider>-exec.sh` shim (stdin prompt contract; see `grok-exec.sh` as the minimal template)
 - Context budget arm in `scripts/lib/dispatch.sh` (~line 345) if the provider has a non-default window
-- `config/providers/<provider>/CLAUDE.md` if unit tests expect one (agy, ollama, gemini do)
+- `config/providers/<provider>/CLAUDE.md` if unit tests expect one (agy and ollama do)
 - Unit test in `tests/unit/test-<provider>-provider.sh`
 - `docs/DEVELOPER.md` / README provider tables
 
 ## Traps (each has bitten a real PR)
 
-1. **Case glob ordering.** `claude-sdk*` must precede `claude*`; `gemini-image` must precede `gemini*`. A late arm behind an earlier glob is silently unreachable; there is no error.
+1. **Case glob ordering.** More-specific aliases must precede broader globs (for example, `claude-sdk*` before `claude*`). A late arm behind an earlier glob is silently unreachable; there is no error.
 2. **Two whitelist sites in provider-routing.sh, not one.** PR #579 resolved the first and initially missed the second (~line 480). Grep the file for the existing provider list and count matches: expect at least 4 (two lists, two error messages).
 3. **Exec bits.** New shims and any rewritten script must be `100755`. `git diff origin/main...HEAD --summary | grep "mode change"` must come back empty (see RELEASING.md step 5).
 4. **Stdin contract.** spawn.sh pipes the prompt on stdin. CLIs that want argv prompts need a shim that reads stdin and re-passes it (`grok-exec.sh`, `vibe-exec.sh` pattern). Model selection reaches shims via an `env OCTOPUS_X_MODEL=... shim.sh` prefix emitted by the command builder, not via shell export.
@@ -32,7 +32,9 @@ Plus, usually:
 
 ## Current providers
 
-codex, gemini (legacy, sunset), agy (Antigravity, Google seat), claude, claude-sdk (Agent SDK seat), perplexity, openrouter, atlascloud, openai-compatible-agent, ollama, copilot, qwen, cursor-agent, grok, vibe, opencode.
+codex, agy (Antigravity, Google seat), claude, claude-sdk (Agent SDK seat), perplexity, openrouter, atlascloud, openai-compatible-agent, ollama, copilot, qwen, cursor-agent, grok, vibe, opencode.
+
+Retired `gemini` and `gemini-*` IDs are accepted only as compatibility aliases and canonicalize to `agy`. They are not executable providers, are never probed, and are not written to new configuration.
 
 ## Longer term
 

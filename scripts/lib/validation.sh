@@ -207,7 +207,7 @@ EOF
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # SECURITY: CLI output wrapping for untrusted external provider output (v8.7.0)
-# Wraps codex/gemini output in trust markers; passes claude output unchanged
+# Wraps external provider output in trust markers; passes Claude output unchanged
 # ═══════════════════════════════════════════════════════════════════════════════
 octo_provider_identity_from_agent_type() {
     local agent_type="$1"
@@ -217,7 +217,7 @@ octo_provider_identity_from_agent_type() {
         codex*) echo "codex" ;;
         commandcode*) echo "commandcode" ;;
         claude*) echo "anthropic" ;;
-        gemini*) echo "google" ;;
+        gemini*|agy*|antigravity) echo "google" ;;
         perplexity*) echo "perplexity" ;;
         openrouter*) echo "openrouter" ;;
         *) echo "unknown" ;;

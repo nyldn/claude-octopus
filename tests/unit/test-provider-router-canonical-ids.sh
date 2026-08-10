@@ -46,9 +46,9 @@ fi
 test_case "circuit breaker reports registry-backed dispatch providers at runtime"
 source "$PROJECT_ROOT/scripts/lib/provider-registry.sh"
 mkdir -p "$_PROVIDER_STATE_DIR"
-printf '%s\n' "$(( $(date +%s) + 60 ))" > "$_PROVIDER_STATE_DIR/gemini.cooldown"
+printf '%s\n' "$(( $(date +%s) + 60 ))" > "$_PROVIDER_STATE_DIR/agy.cooldown"
 status=$(get_circuit_breaker_status)
-rm -f "$_PROVIDER_STATE_DIR/gemini.cooldown"
-if [[ "$status" == *"gemini: OPEN"* || "$status" == *"gemini: half-open"* ]] && [[ -n "$(octo_provider_ids dispatch)" ]]; then test_pass; else test_fail "runtime circuit breaker omitted Gemini: $status"; fi
+rm -f "$_PROVIDER_STATE_DIR/agy.cooldown"
+if [[ "$status" == *"agy: OPEN"* || "$status" == *"agy: half-open"* ]] && [[ -n "$(octo_provider_ids dispatch)" ]]; then test_pass; else test_fail "runtime circuit breaker omitted Antigravity: $status"; fi
 
 test_summary

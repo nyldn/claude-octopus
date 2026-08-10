@@ -29,8 +29,11 @@
         "multi-agent",
         "orchestration",
         "claude-code-plugin",
+        "double-diamond",
         "codex",
-        "gemini",
+        "antigravity",
+        "agy",
+        "copilot",
         "code-review",
         "automation"
       ],

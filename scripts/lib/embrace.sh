@@ -41,16 +41,14 @@ get_dispatch_strategy() {
         full)
             local all_p="claude-sonnet"
             _gds_provider_allowed codex && _gds_not_quota_dead codex && command -v codex >/dev/null 2>&1 && all_p="codex,${all_p}"
-            _gds_provider_allowed gemini && _gds_not_quota_dead gemini && command -v gemini >/dev/null 2>&1 && all_p="gemini,${all_p}"
             # Antigravity (agy) is the Google seat since the Gemini CLI sunset (#524)
             _gds_provider_allowed agy && _gds_not_quota_dead agy && command -v agy >/dev/null 2>&1 && all_p="agy,${all_p}"
             local _full_count; _full_count=$(awk -F, '{print NF}' <<< "$all_p")
             echo "${_full_count}:${all_p}:high"
             return 0 ;;
         minimal)
-            # agy (Google seat) preferred over the sunset Gemini CLI (#524)
+            # AGY is the sole Google seat.
             if _gds_provider_allowed agy && _gds_not_quota_dead agy && command -v agy >/dev/null 2>&1; then echo "2:agy,claude-sonnet:high"
-            elif _gds_provider_allowed gemini && _gds_not_quota_dead gemini && command -v gemini >/dev/null 2>&1; then echo "2:gemini,claude-sonnet:high"
             elif _gds_provider_allowed codex && _gds_not_quota_dead codex && command -v codex >/dev/null 2>&1; then echo "2:codex,claude-sonnet:high"
             else echo "1:claude-sonnet:high"; fi
             return 0 ;;
@@ -78,9 +76,8 @@ get_dispatch_strategy() {
     # v9.45.1: agy (Antigravity) added as the Google seat — the probe/discover
     # fan-out never seated it before, so Antigravity-only setups fell back to
     # Claude-only dispatch (Gemini CLI sunset 2026-06-18, #524).
-    local has_codex=false has_gemini=false has_copilot=false has_qwen=false has_ollama=false has_cursor_agent=false has_agy=false
+    local has_codex=false has_copilot=false has_qwen=false has_ollama=false has_cursor_agent=false has_agy=false
     _gds_provider_allowed codex  && _gds_not_quota_dead codex  && command -v codex  >/dev/null 2>&1 && has_codex=true
-    _gds_provider_allowed gemini && _gds_not_quota_dead gemini && command -v gemini >/dev/null 2>&1 && has_gemini=true
     _gds_provider_allowed agy    && _gds_not_quota_dead agy    && command -v agy    >/dev/null 2>&1 && has_agy=true
     _gds_provider_allowed copilot && _gds_not_quota_dead copilot && command -v copilot >/dev/null 2>&1 && has_copilot=true
     if _gds_provider_allowed qwen && _gds_not_quota_dead qwen; then
@@ -104,7 +101,6 @@ get_dispatch_strategy() {
     # Build available CLI providers list (excluding Claude which is always available)
     local -a cli_providers=()
     [[ "$has_codex" == true ]] && cli_providers+=(codex)
-    [[ "$has_gemini" == true ]] && cli_providers+=(gemini)
     [[ "$has_agy" == true ]] && cli_providers+=(agy)
     [[ "$has_copilot" == true ]] && cli_providers+=(copilot)
     [[ "$has_qwen" == true ]] && cli_providers+=(qwen)
@@ -120,7 +116,6 @@ get_dispatch_strategy() {
                 echo "$((cli_count + 1)):${providers_str},claude-sonnet:high"
             elif [[ "$has_agy" == true ]]; then echo "2:agy,claude-sonnet:high"
             elif [[ "$has_codex" == true ]]; then echo "2:codex,claude-sonnet:high"
-            elif [[ "$has_gemini" == true ]]; then echo "2:gemini,claude-sonnet:high"
             elif [[ "$has_qwen" == true ]]; then echo "2:qwen,claude-sonnet:medium"
             else echo "1:claude-sonnet:medium"; fi ;;
         architecture)
@@ -139,7 +134,6 @@ get_dispatch_strategy() {
                 providers_str=$(IFS=,; echo "${cli_providers[*]}")
                 echo "$((cli_count + 1)):${providers_str},claude-sonnet:high"
             elif [[ "$has_agy" == true ]]; then echo "2:agy,claude-sonnet:high"
-            elif [[ "$has_gemini" == true ]]; then echo "2:gemini,claude-sonnet:high"
             elif [[ "$has_codex" == true ]]; then echo "2:codex,claude-sonnet:medium"
             elif [[ "$has_qwen" == true ]]; then echo "2:qwen,claude-sonnet:medium"
             elif [[ "$has_copilot" == true ]]; then echo "2:copilot,claude-sonnet:medium"

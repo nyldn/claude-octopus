@@ -58,6 +58,17 @@ if [[ -z "$PLUGIN_DESC" ]]; then
     log ERROR "description missing in $PLUGIN_JSON"
     exit 1
 fi
+PLUGIN_KEYWORDS=$(python3 -c "import json; print(json.dumps(json.load(open('$PLUGIN_JSON')).get('keywords', []), separators=(',', ':')))")
+CURRENT_KEYWORDS=$(python3 -c "
+import json, sys
+m = json.load(open('$ROOT_DIR/.claude-plugin/marketplace.json'))
+for p in m.get('plugins', []):
+    if p.get('name') == 'octo':
+        print(json.dumps(p.get('keywords', []), separators=(',', ':')))
+        break
+else:
+    sys.exit(1)
+")
 # Note: match the dash via alternation, not a `[-—]` bracket expression — under
 # the C/POSIX locale (no LANG/LC_ALL set), sed's bracket-expression handling of
 # the multi-byte em-dash is unreliable and silently fails to match, leaving the
@@ -67,7 +78,7 @@ FEATURE_SUMMARY=$(echo "$PLUGIN_DESC" | sed -E 's/^v[0-9]+\.[0-9]+\.[0-9]+ (-|�
 # Build expected description — version prefix derived from version field
 EXPECTED_DESC="v${VERSION} - ${FEATURE_SUMMARY}. ${PERSONA_COUNT} personas, ${COMMAND_COUNT} commands, ${SKILL_COUNT} skills. Run /octo:setup."
 
-if [[ "$CURRENT_DESC" == "$EXPECTED_DESC" ]]; then
+if [[ "$CURRENT_DESC" == "$EXPECTED_DESC" && "$CURRENT_KEYWORDS" == "$PLUGIN_KEYWORDS" ]]; then
     echo "✓ marketplace.json is up to date (${PERSONA_COUNT} personas, ${COMMAND_COUNT} commands, ${SKILL_COUNT} skills)"
     exit 0
 fi
@@ -76,12 +87,13 @@ if $CHECK_ONLY; then
     echo "✗ marketplace.json is out of date"
     echo "  Current:  $CURRENT_DESC"
     echo "  Expected: $EXPECTED_DESC"
+    [[ "$CURRENT_KEYWORDS" == "$PLUGIN_KEYWORDS" ]] || echo "  Plugin keywords differ from plugin.json"
     exit 1
 fi
 
 # Update marketplace.json
-python3 -c "
-import json
+OCTO_MARKETPLACE_KEYWORDS_JSON="$PLUGIN_KEYWORDS" python3 -c "
+import json, os
 
 with open('$ROOT_DIR/.claude-plugin/marketplace.json') as f:
     m = json.load(f)
@@ -90,6 +102,7 @@ for p in m.get('plugins', []):
     if p.get('name') == 'octo':
         p['description'] = '''$EXPECTED_DESC'''
         p['version'] = '$VERSION'
+        p['keywords'] = json.loads(os.environ['OCTO_MARKETPLACE_KEYWORDS_JSON'])
         break
 
 with open('$ROOT_DIR/.claude-plugin/marketplace.json', 'w') as f:

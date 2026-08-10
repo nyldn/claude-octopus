@@ -31,7 +31,6 @@ OCTOPUS_FABLE5_FALLBACK_MODEL	covered-by	test-fable5-mode.sh
 OCTOPUS_FABLE5_MODE	covered-by	test-fable5-mode.sh
 OCTOPUS_FABLE5_NO_RETRY	covered-by	test-fable5-mode.sh
 OCTOPUS_FABLE5_ROUTING	covered-by	test-fable5-escalation.sh
-OCTOPUS_GEMINI_VIA_AGY	covered-by	test-agy-provider.sh
 OCTOPUS_IDE_	placeholder	doc template fragment, not a real variable
 OCTOPUS_JOB_ID	skip	opaque correlation id passed through to logs; no behavioural delta
 OCTOPUS_LEGACY_ROLES	covered-by	test-agy-research-defaults.sh

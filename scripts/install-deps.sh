@@ -61,11 +61,11 @@ check_deps() {
         missing+=("codex:Codex CLI — npm install -g @openai/codex")
     fi
 
-    # Gemini CLI
-    if has_cmd gemini; then
-        ok+=("gemini:Gemini CLI installed")
+    # Antigravity CLI (Google seat)
+    if has_cmd agy; then
+        ok+=("agy:Antigravity CLI installed")
     else
-        missing+=("gemini:Gemini CLI — npm install -g @google/gemini-cli")
+        warnings+=("agy:Antigravity CLI not installed (optional) — install agy from Google Antigravity")
     fi
 
     # Ollama (optional — local LLM)
@@ -302,17 +302,6 @@ install_all() {
             npm install -g @openai/codex 2>&1 && echo "✓ Codex CLI installed" || echo "⚠ Codex install failed — try: sudo npm install -g @openai/codex"
         else
             echo "⚠ Cannot install Codex CLI — npm not found. Install Node.js first: https://nodejs.org/"
-        fi
-        echo ""
-    fi
-
-    # Gemini CLI
-    if ! has_cmd gemini; then
-        if has_cmd npm; then
-            echo "Installing Gemini CLI..."
-            npm install -g @google/gemini-cli 2>&1 && echo "✓ Gemini CLI installed" || echo "⚠ Gemini install failed — try: sudo npm install -g @google/gemini-cli"
-        else
-            echo "⚠ Cannot install Gemini CLI — npm not found. Install Node.js first: https://nodejs.org/"
         fi
         echo ""
     fi

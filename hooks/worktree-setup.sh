@@ -72,7 +72,6 @@ fi
     umask 077
     {
         [[ -n "${OPENAI_API_KEY:-}" ]] && echo "export OPENAI_API_KEY=\"${OPENAI_API_KEY}\""
-        [[ -n "${GEMINI_API_KEY:-}" ]] && echo "export GEMINI_API_KEY=\"${GEMINI_API_KEY}\""
         [[ -n "${PERPLEXITY_API_KEY:-}" ]] && echo "export PERPLEXITY_API_KEY=\"${PERPLEXITY_API_KEY}\""
         [[ -n "${OCTOPUS_WORKFLOW_PHASE:-}" ]] && echo "export OCTOPUS_WORKFLOW_PHASE=\"${OCTOPUS_WORKFLOW_PHASE}\""
         echo "# Worktree created: $(date -u +%Y-%m-%dT%H:%M:%SZ)"

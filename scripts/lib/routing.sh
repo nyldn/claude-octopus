@@ -38,7 +38,7 @@ resolve_provider_to_agent() {
         codex|codex-standard|codex-max|codex-mini|codex-general|codex-spark|codex-reasoning|codex-large-context|codex-review)
                                 agent="$provider" ;;
         gemini|gemini-fast|gemini-image)
-                                agent="$provider" ;;
+                                agent="agy" ;;
         agy|agy-research|antigravity)
                                 agent="$provider" ;;
         openrouter|openrouter-glm5|openrouter-kimi|openrouter-deepseek)
@@ -69,7 +69,7 @@ agent_display_label() {
         claude-opus*) echo "Opus" ;;
         claude*) echo "Sonnet" ;;
         codex*) echo "Codex" ;;
-        gemini*) echo "Gemini" ;;
+        gemini*) echo "Antigravity" ;;
         agy*|antigravity) echo "Antigravity" ;;
         openrouter*) echo "OpenRouter" ;;
         openai-compatible|openai-tools|openai-compatible-agent) echo "OpenAI-compatible" ;;

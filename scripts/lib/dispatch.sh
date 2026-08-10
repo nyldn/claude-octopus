@@ -15,7 +15,6 @@ fi
 #                    gpt-5.2-codex, gpt-5.4-mini (budget), gpt-5 (standard), gpt-5.2, gpt-5.1
 # - OpenAI Reasoning: o3, o3-pro (API-key only), o3 (API-key only), o3-mini (API-key only)
 # - OpenAI Large Context: gpt-4.1 (1M ctx, API-key only), gpt-5.4 (1M ctx, API-key only)
-# - Google Gemini 3.0: gemini-3.1-pro-preview, gemini-3-flash-preview, gemini-3-pro-image (GA; gemini-3-pro-image-preview deprecated 2026-06-25)
 # - Google Antigravity CLI: agy --print stdin dispatch, optional OCTOPUS_AGY_MODEL
 # Note: "API-key only" models require OPENAI_API_KEY; they are NOT available via ChatGPT subscription/OAuth.
 
@@ -145,7 +144,7 @@ get_agent_command() {
     # A Claude provider nested under a non-Claude host must not recursively load
     # user-scoped plugins/hooks. Unlike --bare, limiting setting sources keeps
     # OAuth/keychain authentication available.
-    if [[ "${OCTOPUS_HOST:-standalone}" == "codex" || "${OCTOPUS_HOST:-standalone}" == "gemini" ]]; then
+    if [[ "${OCTOPUS_HOST:-standalone}" == "codex" ]]; then
         if [[ " $_claude_bin " != *" --setting-sources "* ]]; then
             _claude_bin="${_claude_bin} --setting-sources project,local"
         fi
@@ -194,56 +193,9 @@ get_agent_command() {
             reasoning_fragment="$(octopus_reasoning_cli_fragment codex "$reasoning_level" "$reasoning_policy")" || return 1
             _build_codex_exec_command "$model" "$sandbox_flag" "$reasoning_fragment"
             ;;
-        gemini|gemini-fast|gemini-image)
-            local gemini_flags="-o text --approval-mode yolo"
-            # OCTOPUS_GEMINI_VIA_AGY=1 serves gemini seats through the
-            # Antigravity CLI instead of gemini-cli. Google sunset Gemini Code
-            # Assist free-tier OAuth for gemini-cli (IneligibleTierError — every
-            # call fails in seconds), while Antigravity subscriptions still
-            # work. agy-exec.sh shares the stdin prompt contract, so callers
-            # are unaffected. Model pins follow OCTOPUS_AGY_MODEL (labels from
-            # `agy models`), not gemini model ids. Gemini reasoning policy does
-            # not apply — the agy seat has its own model/reasoning controls.
-            if octo_gemini_via_agy_active; then
-                echo "${PLUGIN_DIR}/scripts/helpers/agy-exec.sh"
-                return 0
-            fi
-            local reasoning_level reasoning_policy
-            reasoning_level="$(octopus_resolve_reasoning_level gemini "$phase" "$role")" || return 1
-            reasoning_policy="$(octopus_resolve_reasoning_policy gemini "$phase" "$role")" || return 1
-            octopus_reasoning_cli_fragment gemini "$reasoning_level" "$reasoning_policy" >/dev/null || {
-                log ERROR "Reasoning level '$reasoning_level' is unsupported for gemini under strict policy"
-                return 1
-            }
-            if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
-                return 1
-            fi
-            # v8.10.0: Fixed headless mode (Issue #25)
-            # Prompt delivered via stdin by callers (avoids OS arg limits)
-            # Callers add -p "" for headless mode trigger
-            # -o text: clean output, --approval-mode yolo: auto-accept (replaces deprecated -y)
-            # v8.32.0: GEMINI_FORCE_FILE_STORAGE=true on macOS avoids Keychain prompts
-            # when calling Gemini CLI from bash subprocesses (OAuth still works)
-            # NOTE: .toml custom commands exist in .gemini/commands/octo/ for human use,
-            # but stdin+slash-command don't compose in headless mode (Codex source analysis)
-            # Routed through helpers/gemini-exec.sh for 404/ModelNotFound fallback.
-            local gemini_env="env NODE_NO_WARNINGS=1"
-            if [[ "$OCTOPUS_PLATFORM" == "Darwin" && -z "${GEMINI_API_KEY:-}" ]]; then
-                gemini_env="env NODE_NO_WARNINGS=1 GEMINI_FORCE_FILE_STORAGE=true"
-            fi
-            local gemini_exec="${PLUGIN_DIR}/scripts/helpers/gemini-exec.sh"
-            case "${OCTOPUS_GEMINI_SANDBOX:-headless}" in
-                interactive|prompt-mode) gemini_flags="" ;;
-            esac
-            # Gemini confines reads to its cwd workspace; prompts that reference
-            # files outside PROJECT_ROOT (e.g. /tmp staging dirs) need those dirs
-            # whitelisted. Comma-separated, no spaces (read -ra word-splitting).
-            if [[ -n "${OCTOPUS_GEMINI_INCLUDE_DIRS:-}" ]]; then
-                gemini_flags="${gemini_flags} --include-directories ${OCTOPUS_GEMINI_INCLUDE_DIRS}"
-            fi
-            echo "${gemini_env} ${gemini_exec} ${model} ${gemini_flags}"
-            ;;
-        agy|agy-research|antigravity)
+        # gemini* is a compatibility alias for stale saved workflows. It must
+        # never invoke gemini-cli; all Google seats execute through AGY.
+        gemini|gemini-fast|gemini-image|agy|agy-research|antigravity)
             echo "${PLUGIN_DIR}/scripts/helpers/agy-exec.sh"
             ;;
         codex-review)
@@ -555,8 +507,7 @@ get_provider_context_limit() {
 
     case "$provider" in
         codex)      echo "${OCTOPUS_CODEX_CONTEXT_BUDGET:-${default_budget}}" ;;
-        gemini)     echo "${OCTOPUS_GEMINI_CONTEXT_BUDGET:-${default_budget}}" ;;
-        agy|antigravity) echo "${OCTOPUS_AGY_CONTEXT_BUDGET:-${default_budget}}" ;;
+        gemini|agy|antigravity) echo "${OCTOPUS_AGY_CONTEXT_BUDGET:-${default_budget}}" ;;
         claude)     echo "${OCTOPUS_CLAUDE_CONTEXT_BUDGET:-${default_budget}}" ;;
         perplexity) echo "${OCTOPUS_PERPLEXITY_CONTEXT_BUDGET:-${default_budget}}" ;;
         openrouter) echo "${OCTOPUS_OPENROUTER_CONTEXT_BUDGET:-${default_budget}}" ;;
@@ -612,7 +563,7 @@ ${summary_input}"
     if [[ -n "${OCTOPUS_OVERSIZE_SUMMARIZER:-}" ]]; then
         candidates+=("$OCTOPUS_OVERSIZE_SUMMARIZER")
     fi
-    candidates+=("gemini-fast" "codex-mini" "claude-sonnet" "codex")
+    candidates+=("agy" "codex-mini" "claude-sonnet" "codex")
 
     local candidate summary previous_strategy previous_debug
     previous_strategy="${OCTOPUS_OVERSIZE_STRATEGY-}"
@@ -727,14 +678,18 @@ get_agent_model() {
     local phase="${2:-}"
     local role="${3:-}"
     
-    # Auto-migrate stale model names on first call
-    migrate_provider_config
+    # Auto-migrate stale model names on first call when the routing helper is
+    # part of the current harness. dispatch.sh is also sourced independently by
+    # hooks and compatibility tests, where the migration helper is optional.
+    if declare -F migrate_provider_config >/dev/null 2>&1; then
+        migrate_provider_config
+    fi
 
     # Determine base provider type
     local provider=""
     case "$agent_type" in
         codex*)      provider="codex" ;;
-        gemini*)     provider="gemini" ;;
+        gemini*)     provider="agy" ;;  # legacy Google-seat IDs migrate to AGY
         agy*|antigravity) provider="agy" ;;
         claude-sdk*) provider="claude-sdk" ;;  # v9.50.0: must precede claude* glob
         claude*)     provider="claude" ;;
@@ -774,16 +729,20 @@ get_agent_model() {
 }
 
 # v8.31.0: Model restriction service — per-provider allowlists for cost/compliance control
-# Set OCTOPUS_CODEX_ALLOWED_MODELS, OCTOPUS_GEMINI_ALLOWED_MODELS, etc. (comma-separated)
+# Set OCTOPUS_CODEX_ALLOWED_MODELS, OCTOPUS_AGY_ALLOWED_MODELS, etc. (comma-separated)
 # Empty or unset = no restriction (all models allowed)
 validate_model_allowed() {
     local provider="$1"
     local model="$2"
 
+    case "$provider" in
+        gemini|gemini-*) provider="agy" ;;
+        antigravity|agy-research) provider="agy" ;;
+    esac
+
     local allowlist_var=""
     case "$provider" in
         codex)      allowlist_var="OCTOPUS_CODEX_ALLOWED_MODELS" ;;
-        gemini)     allowlist_var="OCTOPUS_GEMINI_ALLOWED_MODELS" ;;
         agy)        allowlist_var="OCTOPUS_AGY_ALLOWED_MODELS" ;;
         claude-sdk) allowlist_var="OCTOPUS_CLAUDE_SDK_ALLOWED_MODELS" ;;
         claude)     allowlist_var="OCTOPUS_CLAUDE_ALLOWED_MODELS" ;;
@@ -966,9 +925,7 @@ find_capable_fallback() {
     case "$provider" in
         codex)
             candidates=(gpt-5.6-luna gpt-5.6-terra gpt-5.5 gpt-5.6-sol gpt-5.4-pro o3) ;;
-        gemini)
-            candidates=(gemini-3-flash-preview gemini-3.1-pro-preview) ;;
-        agy)
+        gemini|agy)
             candidates=(default) ;;
         claude)
             candidates=(claude-haiku-4.5 claude-sonnet-5 claude-opus-4.8 claude-opus-5) ;;

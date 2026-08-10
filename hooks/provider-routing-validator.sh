@@ -36,12 +36,12 @@ check_provider() {
                 return 1
             fi
             ;;
-        gemini)
-            if command -v gemini &>/dev/null; then
-                log "INFO" "Gemini CLI available"
+        agy)
+            if command -v agy &>/dev/null; then
+                log "INFO" "Antigravity CLI available"
                 return 0
             else
-                log "WARN" "Gemini CLI not found"
+                log "WARN" "Antigravity CLI not found"
                 return 1
             fi
             ;;
@@ -60,12 +60,12 @@ parse_workflow_command() {
 
     # Detect workflow type
     if [[ "$command" =~ (probe|discover) ]]; then
-        log "INFO" "Discover workflow detected - will use Codex + Gemini"
+        log "INFO" "Discover workflow detected - will use Codex + Antigravity"
         check_provider "codex" || echo "⚠️  Codex CLI unavailable - workflow will run in degraded mode"
-        check_provider "gemini" || echo "⚠️  Gemini CLI unavailable - workflow will run in degraded mode"
+        check_provider "agy" || echo "⚠️  Antigravity CLI unavailable - workflow will run in degraded mode"
     elif [[ "$command" =~ (grasp|define) ]]; then
-        log "INFO" "Define workflow detected - will use Gemini + Claude"
-        check_provider "gemini" || echo "⚠️  Gemini CLI unavailable - workflow will run in degraded mode"
+        log "INFO" "Define workflow detected - will use Antigravity + Claude"
+        check_provider "agy" || echo "⚠️  Antigravity CLI unavailable - workflow will run in degraded mode"
     elif [[ "$command" =~ (tangle|develop) ]]; then
         log "INFO" "Develop workflow detected - will use Codex"
         check_provider "codex" || echo "⚠️  Codex CLI unavailable - workflow will run in degraded mode"
@@ -74,7 +74,7 @@ parse_workflow_command() {
     elif [[ "$command" =~ embrace ]]; then
         log "INFO" "Full embrace workflow detected - will use all providers"
         check_provider "codex" || echo "⚠️  Codex CLI unavailable - some phases will run in degraded mode"
-        check_provider "gemini" || echo "⚠️  Gemini CLI unavailable - some phases will run in degraded mode"
+        check_provider "agy" || echo "⚠️  Antigravity CLI unavailable - some phases will run in degraded mode"
     fi
 }
 

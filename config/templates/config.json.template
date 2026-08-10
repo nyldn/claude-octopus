@@ -7,7 +7,7 @@
   },
   "providers": {
     "codex": { "enabled": true },
-    "gemini": { "enabled": true },
+    "agy": { "enabled": true },
     "claude": { "enabled": true }
   },
   "context_tier": "auto",

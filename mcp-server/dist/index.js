@@ -41,7 +41,7 @@ let editorContext = {};
 // They control security hardening, sandbox modes, and autonomy levels.
 const BLOCKED_ENV_VARS = new Set([
     "OCTOPUS_SECURITY_V870",
-    "OCTOPUS_GEMINI_SANDBOX",
+    "OCTOPUS_AGY_SANDBOX",
     "OCTOPUS_CODEX_SANDBOX",
     "CLAUDE_OCTOPUS_AUTONOMY",
 ]);
@@ -65,8 +65,8 @@ async function runOrchestrate(command, prompt, flags = [], postFlags = []) {
                 // per-agent credential isolation via build_provider_env().
                 // Only forward keys that are set (avoid undefined in env).
                 ...(process.env.OPENAI_API_KEY && { OPENAI_API_KEY: process.env.OPENAI_API_KEY }),
-                ...(process.env.GEMINI_API_KEY && { GEMINI_API_KEY: process.env.GEMINI_API_KEY }),
-                ...(process.env.GOOGLE_API_KEY && { GOOGLE_API_KEY: process.env.GOOGLE_API_KEY }),
+                ...(process.env.AGY_AUTH_TOKEN && { AGY_AUTH_TOKEN: process.env.AGY_AUTH_TOKEN }),
+                ...(process.env.ANTIGRAVITY_API_KEY && { ANTIGRAVITY_API_KEY: process.env.ANTIGRAVITY_API_KEY }),
                 ...(process.env.OPENROUTER_API_KEY && { OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY }),
                 ...(process.env.PERPLEXITY_API_KEY && { PERPLEXITY_API_KEY: process.env.PERPLEXITY_API_KEY }),
                 // Ollama Anthropic-compatible path (ANTHROPIC_BASE_URL=http://localhost:11434)
@@ -131,7 +131,7 @@ const server = new McpServer({
 });
 const registerTool = server.tool.bind(server);
 // --- Double Diamond Phase Tools ---
-registerTool("octopus_discover", "Run the Discover (Probe) phase — multi-provider research using Codex and Gemini CLIs for broad exploration of a topic.", { prompt: z.string().describe("The topic or question to research") }, async ({ prompt }) => {
+registerTool("octopus_discover", "Run the Discover (Probe) phase — multi-provider research using Codex and Antigravity CLIs for broad exploration of a topic.", { prompt: z.string().describe("The topic or question to research") }, async ({ prompt }) => {
     const { text, isError } = await runOrchestrate("probe", prompt);
     return { content: [{ type: "text", text }], isError };
 });
@@ -170,7 +170,7 @@ registerTool("octopus_embrace", "Run the full Double Diamond workflow (Discover 
     return { content: [{ type: "text", text }], isError };
 });
 // --- Utility Tools ---
-registerTool("octopus_debate", "Run a structured four-way AI debate between Claude, Sonnet, Gemini, and Codex on a topic.", {
+registerTool("octopus_debate", "Run a structured AI debate between Claude, Sonnet, Antigravity, and Codex on a topic.", {
     question: z.string().describe("The question or topic to debate"),
     rounds: z
         .number()
@@ -229,7 +229,7 @@ registerTool("octopus_council", "Run a configurable multi-LLM council with perso
     providers: z
         .string()
         .optional()
-        .describe("auto or comma-separated provider list: claude,codex,gemini,opencode,openrouter"),
+        .describe("auto or comma-separated provider list: claude,codex,agy,opencode,openrouter"),
     max_cost: z
         .string()
         .optional()
@@ -271,7 +271,7 @@ registerTool("octopus_council", "Run a configurable multi-LLM council with perso
     const { text, isError } = await runOrchestrate("council", prompt, [], postFlags);
     return { content: [{ type: "text", text }], isError };
 });
-registerTool("octopus_review", "Run multi-LLM code review pipeline (Codex + Gemini + Claude + Perplexity fleet). Loads REVIEW.md customization if present. Supports inline PR comment publishing.", {
+registerTool("octopus_review", "Run multi-LLM code review pipeline (Codex + Antigravity + Claude + Perplexity fleet). Loads REVIEW.md customization if present. Supports inline PR comment publishing.", {
     target: z
         .string()
         .optional()

@@ -53,7 +53,7 @@ let editorContext: {
 // They control security hardening, sandbox modes, and autonomy levels.
 const BLOCKED_ENV_VARS = new Set([
   "OCTOPUS_SECURITY_V870",
-  "OCTOPUS_GEMINI_SANDBOX",
+  "OCTOPUS_AGY_SANDBOX",
   "OCTOPUS_CODEX_SANDBOX",
   "CLAUDE_OCTOPUS_AUTONOMY",
 ]);
@@ -85,8 +85,8 @@ async function runOrchestrate(
         // per-agent credential isolation via build_provider_env().
         // Only forward keys that are set (avoid undefined in env).
         ...(process.env.OPENAI_API_KEY && { OPENAI_API_KEY: process.env.OPENAI_API_KEY }),
-        ...(process.env.GEMINI_API_KEY && { GEMINI_API_KEY: process.env.GEMINI_API_KEY }),
-        ...(process.env.GOOGLE_API_KEY && { GOOGLE_API_KEY: process.env.GOOGLE_API_KEY }),
+        ...(process.env.AGY_AUTH_TOKEN && { AGY_AUTH_TOKEN: process.env.AGY_AUTH_TOKEN }),
+        ...(process.env.ANTIGRAVITY_API_KEY && { ANTIGRAVITY_API_KEY: process.env.ANTIGRAVITY_API_KEY }),
         ...(process.env.OPENROUTER_API_KEY && { OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY }),
         ...(process.env.PERPLEXITY_API_KEY && { PERPLEXITY_API_KEY: process.env.PERPLEXITY_API_KEY }),
         // Ollama Anthropic-compatible path (ANTHROPIC_BASE_URL=http://localhost:11434)
@@ -173,7 +173,7 @@ type ToolParams = Record<string, any>;
 
 registerTool(
   "octopus_discover",
-  "Run the Discover (Probe) phase — multi-provider research using Codex and Gemini CLIs for broad exploration of a topic.",
+  "Run the Discover (Probe) phase — multi-provider research using Codex and Antigravity CLIs for broad exploration of a topic.",
   { prompt: z.string().describe("The topic or question to research") },
   async ({ prompt }: ToolParams) => {
     const { text, isError } = await runOrchestrate("probe", prompt);
@@ -243,7 +243,7 @@ registerTool(
 
 registerTool(
   "octopus_debate",
-  "Run a structured four-way AI debate between Claude, Sonnet, Gemini, and Codex on a topic.",
+  "Run a structured AI debate between Claude, Sonnet, Antigravity, and Codex on a topic.",
   {
     question: z.string().describe("The question or topic to debate"),
     rounds: z
@@ -309,7 +309,7 @@ registerTool(
     providers: z
       .string()
       .optional()
-      .describe("auto or comma-separated provider list: claude,codex,gemini,opencode,openrouter"),
+      .describe("auto or comma-separated provider list: claude,codex,agy,opencode,openrouter"),
     max_cost: z
       .string()
       .optional()
@@ -371,7 +371,7 @@ registerTool(
 
 registerTool(
   "octopus_review",
-  "Run multi-LLM code review pipeline (Codex + Gemini + Claude + Perplexity fleet). Loads REVIEW.md customization if present. Supports inline PR comment publishing.",
+  "Run multi-LLM code review pipeline (Codex + Antigravity + Claude + Perplexity fleet). Loads REVIEW.md customization if present. Supports inline PR comment publishing.",
   {
     target: z
       .string()

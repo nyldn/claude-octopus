@@ -14,11 +14,11 @@ export WORKSPACE_DIR="$TEST_TMP_DIR/agent-summary-workspace"
 export OCTOPUS_RUN_ID="test-run"
 mkdir -p "$WORKSPACE_DIR/results"
 printf 'codex output\n' > "$WORKSPACE_DIR/results/codex.md"
-printf 'gemini output\n' > "$WORKSPACE_DIR/results/gemini.md"
+printf 'agy output\n' > "$WORKSPACE_DIR/results/agy.md"
 
 test_case "write_agent_status creates jsonl and snapshot"
 write_agent_status "codex" "ok" 100 50 "" 1200 "$WORKSPACE_DIR/results/codex.md" "researcher"
-write_agent_status "gemini" "failed" 100 0 "Prompt rejected by provider (oversize)" 900 "$WORKSPACE_DIR/results/gemini.md" "researcher"
+write_agent_status "agy" "failed" 100 0 "Prompt rejected by provider (oversize)" 900 "$WORKSPACE_DIR/results/agy.md" "researcher"
 
 if [[ -s "$WORKSPACE_DIR/runs/test-run/agents.jsonl" && -s "$WORKSPACE_DIR/runs/test-run/agents.json" ]]; then
     test_pass
@@ -28,7 +28,7 @@ fi
 
 test_case "agent_status_output_files excludes failed providers"
 files="$(agent_status_output_files)"
-if [[ "$files" == *"codex.md"* && "$files" != *"gemini.md"* ]]; then
+if [[ "$files" == *"codex.md"* && "$files" != *"agy.md"* ]]; then
     test_pass
 else
     test_fail "expected only usable output files, got: ${files:-<empty>}"
@@ -36,7 +36,7 @@ fi
 
 test_case "render_agent_summary shows provider table"
 summary="$(render_agent_summary)"
-if [[ "$summary" == *"codex"* && "$summary" == *"gemini"* && "$summary" == *"failed"* ]]; then
+if [[ "$summary" == *"codex"* && "$summary" == *"agy"* && "$summary" == *"failed"* ]]; then
     test_pass
 else
     test_fail "expected provider status table, got: ${summary:-<empty>}"
@@ -107,7 +107,7 @@ else
 fi
 
 test_case "classify_agent_output keeps empty non-Codex output failed"
-classification="$(classify_agent_output "$codex_empty_output" 0 "gemini" "$codex_stderr_transcript")"
+classification="$(classify_agent_output "$codex_empty_output" 0 "agy" "$codex_stderr_transcript")"
 if [[ "$classification" == "failed:Empty output" ]]; then
     test_pass
 else

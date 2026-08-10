@@ -66,7 +66,7 @@ model = (d.get("model", "") or d.get("agent_model", "") or
 
 # --- 1. Provider attribution ---------------------------------------------
 PROVIDER_PREFIXES = [
-    ("codex", "codex"), ("gemini", "gemini"), ("agy", "agy"),
+    ("codex", "codex"), ("gemini", "agy"), ("agy", "agy"),
     ("antigravity", "agy"), ("claude-sdk", "claude-sdk"),
     ("claude", "claude"), ("openrouter", "openrouter"),
     ("atlascloud", "atlascloud"), ("openai-", "openai-compatible-agent"),

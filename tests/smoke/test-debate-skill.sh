@@ -87,7 +87,7 @@ test_debate_skill_content() {
     fi
 
     if grep -q "Debate" "$skill_file" && \
-       grep -q "Gemini" "$skill_file" && \
+       grep -q "Antigravity" "$skill_file" && \
        grep -q "Codex" "$skill_file"; then
         test_pass
     else

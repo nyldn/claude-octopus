@@ -27,9 +27,7 @@ source "${SCRIPT_DIR}/../lib/grok.sh" 2>/dev/null || true
 # Provider liveness. check-providers.sh reports a quota/auth-dead seat as
 # `degraded`, but nothing downstream consumed that: this script built its fleet
 # from `command -v` plus the allowlist alone, so a seat known to be dead was
-# still handed a role and dispatched into an immediate failure. For gemini that
-# also means launching the CLI, which triggers a macOS keychain prompt for
-# gemini-cli-workspace-oauth on every review.
+# still handed a role and dispatched into an immediate failure.
 source "${SCRIPT_DIR}/../lib/quota-watcher.sh" 2>/dev/null || true
 
 WORKFLOW="${1:-research}"
@@ -40,8 +38,7 @@ PROMPT="${3:-}"
 get_family() {
     case "$1" in
         codex|codex-*)       echo "openai" ;;
-        gemini|gemini-*)     echo "google" ;;
-        agy|agy-*|antigravity) echo "google-antigravity" ;;
+        gemini|gemini-*|agy|agy-*|antigravity) echo "google-antigravity" ;;
         claude-sonnet|claude-opus|claude|claude-*) echo "anthropic" ;;
         perplexity|perplexity-*) echo "perplexity" ;;
         copilot|copilot-*)   echo "microsoft" ;;
@@ -74,7 +71,6 @@ if octo_provider_allowed commandcode; then
         AVAILABLE_CLI+=(commandcode)
     fi
 fi
-if octo_provider_allowed gemini && command -v gemini >/dev/null 2>&1; then AVAILABLE_CLI+=(gemini); fi
 if octo_provider_allowed grok && declare -f grok_is_available >/dev/null 2>&1 && grok_is_available; then AVAILABLE_CLI+=(grok); fi
 if octo_provider_allowed agy && command -v agy >/dev/null 2>&1; then AVAILABLE_CLI+=(agy); fi
 if octo_provider_allowed copilot && command -v copilot >/dev/null 2>&1; then AVAILABLE_CLI+=(copilot); fi
@@ -159,8 +155,8 @@ build_diverse_order() {
     local diverse_first=""
     local diverse_rest=""
 
-    # Preferred order for primary diversity: codex, commandcode, gemini, agy, copilot, qwen, cursor-agent, opencode, ollama
-    for p in codex commandcode gemini agy copilot qwen grok cursor-agent opencode ollama; do
+    # Preferred order for primary diversity: codex, commandcode, agy, copilot, qwen, cursor-agent, opencode, ollama
+    for p in codex commandcode agy copilot qwen grok cursor-agent opencode ollama; do
         is_available "$p" || continue
         local fam
         fam=$(get_family "$p")
@@ -307,7 +303,7 @@ build_review_fleet() {
     [[ -n "$logic_provider" ]] && emit "$logic_provider" "Logic Reviewer" "Review for correctness and logic bugs, edge cases, regressions in: $PROMPT"
 
     local sec_provider
-    sec_provider=$(pick_provider "claude-sonnet" gemini qwen copilot)
+    sec_provider=$(pick_provider "claude-sonnet" agy qwen copilot)
     # Ensure different from logic reviewer
     if [[ -n "$sec_provider" && "$sec_provider" == "$logic_provider" && "$sec_provider" != "claude-sonnet" ]]; then
         local alternate_provider
@@ -324,7 +320,7 @@ build_review_fleet() {
     if is_available perplexity; then
         cve_provider="perplexity"
     else
-        cve_provider=$(pick_provider "claude-sonnet" gemini copilot qwen)
+        cve_provider=$(pick_provider "claude-sonnet" agy copilot qwen)
     fi
     [[ -n "$cve_provider" ]] && emit "$cve_provider" "CVE Reviewer" "Check for known CVEs, library advisories, and security bulletins related to: $PROMPT"
     return 0
@@ -367,7 +363,7 @@ build_architecture_fleet() {
     local used_families=""
     local arch_count=0
 
-    for p in codex gemini copilot qwen cursor-agent opencode; do
+    for p in codex agy copilot qwen cursor-agent opencode; do
         is_available "$p" || continue
         local fam
         fam=$(get_family "$p")

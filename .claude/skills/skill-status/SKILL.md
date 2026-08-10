@@ -366,7 +366,7 @@ Build a concise summary grouped by theme:
 - [theme 2]: brief summary of related commits
 
 ### Releases
-- v8.10.0 - Gemini CLI headless fix
+- v8.10.0 - Antigravity CLI headless fix
 - v8.9.0 - Contextual Codex model routing
 
 ### Active Branches

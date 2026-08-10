@@ -84,7 +84,7 @@ The **Define** phase of the Double Diamond methodology (convergent thinking):
 
 ## What You Get
 
-- Multi-AI consensus on requirements (Claude + Gemini + Codex)
+- Multi-AI consensus on requirements (Claude + Antigravity + Codex)
 - Clear problem statement
 - Scoped requirements
 - Edge case identification

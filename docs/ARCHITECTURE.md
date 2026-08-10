@@ -6,7 +6,7 @@ This document explains how Claude Octopus orchestrates multiple AI providers and
 
 ## Overview
 
-Claude Octopus coordinates **ten external AI integrations** alongside its built-in Claude host to give you multi-perspective analysis. The diagram shows the representative execution path; the full roster follows it.
+Claude Octopus coordinates **nine external AI integrations** alongside its built-in Claude host to give you multi-perspective analysis. The diagram shows the representative execution path; the full roster follows it.
 
 ```
     +------------------+
@@ -33,13 +33,12 @@ Claude Octopus coordinates **ten external AI integrations** alongside its built-
 | Provider | CLI Tool | Underlying Model | Cost Source |
 |----------|----------|------------------|-------------|
 | **Codex CLI** | `codex exec --model gpt-5.6-sol` | GPT-5.6 Sol/Terra/Luna | ChatGPT OAuth or your `OPENAI_API_KEY` |
-| **Gemini CLI** | `gemini -y -m gemini-3.1-pro-preview` | Gemini 3.1 Pro Preview | Your `GEMINI_API_KEY` |
 | **Antigravity CLI** | `agy --print --sandbox` | `default`/`agy/default`, or an exact label from `agy models` | Your Antigravity CLI auth |
 | **Claude** | Built-in | Claude Sonnet 5 / Opus 5 | Your Claude Code subscription or API account |
 | **Perplexity** | API-only | Sonar Pro / Sonar | Your `PERPLEXITY_API_KEY` |
 | **OpenRouter** | API-only | 100+ models (GLM-5, Kimi K2.5, DeepSeek R1, etc.) | Your `OPENROUTER_API_KEY` |
 | **Ollama** *(optional)* | `ollama run <model>` | Local models (llama3.3, mistral, etc.) | Free (local) |
-| **Copilot** *(optional)* | `copilot -p` | GitHub models (Claude/GPT/Gemini) | GitHub Copilot subscription |
+| **Copilot** *(optional)* | `copilot -p` | GitHub models (Claude/GPT/Google models) | GitHub Copilot subscription |
 | **Qwen** *(optional)* | `qwen -p` | Qwen3-Coder | `QWEN_API_KEY` or Coding-Plan auth |
 | **OpenCode** *(optional)* | `opencode run` | Multi-provider router | Your OpenCode auth |
 | **Grok** *(optional)* | OpenAI-compatible API | Grok models | Your `XAI_API_KEY` |
@@ -71,7 +70,7 @@ Role defaults follow the accepted [frontier model routing strategy](./MODEL-ROUT
 | Provider | Strengths | Best For |
 |----------|-----------|----------|
 | **Codex (OpenAI, GPT-5.6)** | Edge-case hunting, terminal execution, patch/test loops | Code review (`code-reviewer`), default implementation (`implementer`) |
-| **Gemini (Google)** | Research synthesis, documentation, broad knowledge | Ecosystem research, best practices, alternative perspectives |
+| **Antigravity (Google)** | Research synthesis, documentation, broad knowledge | Ecosystem research, best practices, alternative perspectives |
 | **Claude (Opus 5)** | Planning, architecture, adversarial reasoning, UI/UX taste | `architect`, `strategist`, `security-reviewer`, `implementer-heavy` |
 | **Claude (Sonnet 5)** | Aggregation, final synthesis, workhorse summarization | `synthesizer`; included where the user's Claude Code subscription covers it |
 | **Perplexity** | Live web search, CVE lookups, current docs | Discover phase research, dependency analysis |
@@ -100,7 +99,7 @@ User Request
     |           |
     v           v
 +-------+   +-------+
-| Codex |   |Gemini |   <- Run in PARALLEL
+| Codex |   |Antigravity |   <- Run in PARALLEL
 | CLI   |   | CLI   |
 +---+---+   +---+---+
     |           |
@@ -122,7 +121,7 @@ User Request
 ```
 
 **Execution:**
-1. Codex CLI and Gemini CLI run **in parallel** with the research prompt
+1. Codex CLI and Antigravity CLI run **in parallel** with the research prompt
 2. Both responses are collected
 3. Claude synthesizes both perspectives into a unified report
 
@@ -150,17 +149,17 @@ User Request
           |
           v
     +-----------+
-    |  Gemini   |   <- Step 2: Success criteria
+    |  Antigravity   |   <- Step 2: Success criteria
     +-----------+
           |
           v
     +-----------+
-    |  Gemini   |   <- Step 3: Constraints
+    |  Antigravity   |   <- Step 3: Constraints
     +-----------+
           |
           v
     +-----------+
-    |  Gemini   |   <- Step 4: Build consensus
+    |  Antigravity   |   <- Step 4: Build consensus
     | Consensus |
     +-----------+
           |
@@ -171,9 +170,9 @@ User Request
 
 **Execution:** (Sequential for coherent problem definition)
 1. Codex defines the core problem statement (2-3 sentences)
-2. Gemini defines success criteria (3-5 measurable criteria)
-3. Gemini defines constraints and boundaries
-4. Gemini synthesizes all perspectives into unified requirements
+2. Antigravity defines success criteria (3-5 measurable criteria)
+3. Antigravity defines constraints and boundaries
+4. Antigravity synthesizes all perspectives into unified requirements
 
 ---
 
@@ -193,7 +192,7 @@ User Request
     |           |
     v           v
 +-------+   +-------+
-| Codex |   |Gemini |   <- PARALLEL: Implementation proposals
+| Codex |   |Antigravity |   <- PARALLEL: Implementation proposals
 +---+---+   +---+---+
     |           |
     v           v
@@ -220,7 +219,7 @@ User Request
 ```
 
 **Execution:**
-1. Available external providers such as Codex, Gemini, and Antigravity each propose implementation approaches
+1. Available external providers such as Codex and Antigravity each propose implementation approaches
 2. Claude merges the best elements from the provider responses
 3. **Quality Gate** checks if merged approach meets 75% consensus threshold
 4. If failed: Loop back for revision
@@ -250,7 +249,7 @@ User Request
     |           |
     v           v
 +-------+   +-------+
-| Codex |   |Gemini |   <- PARALLEL: Different review angles
+| Codex |   |Antigravity |   <- PARALLEL: Different review angles
 +---+---+   +---+---+
     |           |
     v           v
@@ -278,7 +277,7 @@ User Request
 
 **Execution:**
 1. Codex reviews code quality, patterns, maintainability
-2. Gemini reviews security, edge cases, compliance
+2. Antigravity reviews security, edge cases, compliance
 3. Claude synthesizes into validation report
 4. Quality score determines go/no-go recommendation
 
@@ -389,14 +388,14 @@ All four phases run sequentially. Each phase uses the output of the previous pha
 
 ### Per-Query Estimates
 
-| Workflow | Codex Cost | Gemini Cost | Total |
+| Workflow | Codex Cost | Antigravity Cost | Total |
 |----------|------------|-------------|-------|
-| discover | $0.01-0.02 | $0.01-0.02 | $0.02-0.04 |
-| define | $0.01-0.02 | $0.01-0.02 | $0.02-0.04 |
-| develop | $0.02-0.05 | $0.02-0.05 | $0.04-0.10 |
-| deliver | $0.01-0.03 | $0.01-0.03 | $0.02-0.06 |
-| debate | $0.02-0.05 | $0.02-0.05 | $0.05-0.15 |
-| embrace | $0.05-0.10 | $0.05-0.10 | $0.10-0.30 |
+| discover | $0.01-0.02 | Included with access | $0.01-0.02 |
+| define | $0.01-0.02 | Included with access | $0.01-0.02 |
+| develop | $0.02-0.05 | Included with access | $0.02-0.05 |
+| deliver | $0.01-0.03 | Included with access | $0.01-0.03 |
+| debate | $0.02-0.05 | Included with access | $0.02-0.05 |
+| embrace | $0.05-0.10 | Included with access | $0.05-0.10 |
 
 **Note:** Claude costs are included in your Claude Code subscription (Pro, Max 5x, Max 20x).
 
@@ -404,7 +403,7 @@ All four phases run sequentially. Each phase uses the output of the previous pha
 
 | Strategy | How |
 |----------|-----|
-| **Use one provider** | Only install Codex OR Gemini (not both) |
+| **Use one provider** | Only install Codex OR Antigravity (not both) |
 | **Skip unnecessary phases** | Use `/octo:develop` instead of `/octo:embrace` for simple tasks |
 | **Use Claude-only** | For simple tasks, don't use "octo" prefix - just ask directly |
 
@@ -421,7 +420,6 @@ Claude Octopus auto-detects which providers are available:
 # Output example:
 # Providers:
 #   Codex CLI: ready (OPENAI_API_KEY found)
-#   Gemini CLI: ready (OAuth authenticated)
 #   Antigravity CLI: ready (agy authenticated)
 ```
 
@@ -432,7 +430,6 @@ Claude Octopus auto-detects which providers are available:
 | Three or more external providers | Full multi-AI orchestration with broad external perspective coverage |
 | Any one or two external providers | Multi-AI orchestration with available perspectives |
 | Codex only | Dual perspective (Codex + Claude) |
-| Gemini only | Dual perspective (Gemini + Claude) |
 | Antigravity only | Dual perspective (Antigravity + Claude) |
 | Neither | Claude-only mode (basic functionality) |
 
@@ -446,7 +443,7 @@ When multi-AI mode is active, you'll see these indicators:
 |-----------|---------|
 | 🐙 | Claude Octopus orchestration active |
 | 🔴 | Codex CLI executing (OpenAI) |
-| 🟡 | Gemini CLI executing (Google) |
+| 🟡 | Antigravity CLI executing (Google) |
 | 🔵 | Claude subagent processing |
 
 **Example output:**
@@ -455,7 +452,7 @@ When multi-AI mode is active, you'll see these indicators:
 🔍 Discover Phase: Researching authentication patterns
 
 🔴 Codex CLI: Analyzing implementation patterns...
-🟡 Gemini CLI: Researching ecosystem best practices...
+🟡 Antigravity CLI: Researching ecosystem best practices...
 🔵 Claude: Synthesizing perspectives...
 
 [Final synthesis report]

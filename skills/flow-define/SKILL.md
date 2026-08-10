@@ -262,7 +262,7 @@ If running in Claude Code v2.1.16+, users will see **real-time progress indicato
 
 **Phase 1 - External Provider Execution (Parallel):**
 - 🔴 Analyzing technical requirements (Codex)...
-- 🟡 Clarifying user needs and context (Gemini)...
+- 🟡 Clarifying user needs and context (Antigravity)...
 
 **Phase 2 - Synthesis (Sequential):**
 - 🔵 Building consensus on problem definition...
@@ -357,7 +357,7 @@ Read the synthesis file and present:
 The **define** phase clarifies and scopes problems using external CLI providers:
 
 1. **🔴 Codex CLI** - Technical requirements analysis, edge cases, constraints
-2. **🟡 Gemini CLI** - User needs, business requirements, context understanding
+2. **🟡 Antigravity CLI** - User needs, business requirements, context understanding
 3. **🧭 Antigravity CLI** - Additional external-model challenge
 4. **🔵 Claude (You)** - Problem synthesis and requirement definition
 
@@ -393,7 +393,7 @@ Before execution, you'll see a banner in this shape. The provider rows below are
 
 Provider Availability:
 🟢 codex: Available ✓
-🟠 gemini: Degraded ⚠
+🧭 agy: Degraded ⚠
 🔴 agy: Missing/unavailable ✗
 🔵 Claude: Available ✓ - Consensus building and synthesis
 ```
@@ -411,7 +411,7 @@ ${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh define "<user's clarificat
 
 The orchestrate.sh script will:
 1. Call **Codex CLI** for technical requirement analysis
-2. Call **Gemini CLI** for business/user need analysis
+2. Call **Antigravity CLI** for business/user need analysis
 3. Call **Antigravity CLI** for additional external-model challenge
 4. You (Claude) synthesize into clear problem definition
 5. Identify gaps and missing requirements
@@ -497,7 +497,7 @@ After successful execution, present problem definition with:
    ### Codex Analysis (Technical)
    [Technical requirements and constraints]
 
-   ### Gemini Analysis (Business/User)
+   ### Antigravity Analysis (Business/User)
    [User needs and business context]
 
    ### Claude Synthesis
@@ -597,7 +597,7 @@ Claude:
 - Middleware for auth verification
 - Security: HTTPS only, secure cookies, CSRF protection
 
-### Gemini Analysis (Business/User)
+### Antigravity Analysis (Business/User)
 - User journey: Registration -> Email verification -> Login -> Access app
 - Error handling: Clear messages without security leaks
 - Performance: Auth checks < 50ms
@@ -686,7 +686,7 @@ Before completing grasp workflow, ensure:
 
 **External API Usage:**
 - 🔴 Codex CLI uses your OPENAI_API_KEY (costs apply)
-- 🟡 Gemini CLI uses your GEMINI_API_KEY (costs apply)
+- 🟡 Antigravity CLI uses your AGY_AUTH_TOKEN (costs apply)
 - 🧭 Antigravity CLI uses your Antigravity account/model configuration (costs may apply)
 - 🔵 Claude analysis included with Claude Code
 

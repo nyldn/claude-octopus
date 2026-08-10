@@ -208,17 +208,17 @@ echo -e "\033[0;34mTest Group 5: Probe agent slot configuration\033[0m"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # 5.1: smart dispatch includes codex for review/security workflows
-if grep -rc 'codex.*gemini.*claude-sonnet\|codex,claude-sonnet' $SCRIPTS_ALL >/dev/null 2>&1; then
+if grep -rc 'codex.*agy.*claude-sonnet\|codex,claude-sonnet' $SCRIPTS_ALL >/dev/null 2>&1; then
     pass "5.1 smart dispatch includes codex for review/security"
 else
     fail "5.1 smart dispatch missing codex for review/security"
 fi
 
-# 5.2: smart dispatch includes gemini for research workflows
-if grep -rc 'gemini,claude-sonnet' $SCRIPTS_ALL >/dev/null 2>&1; then
-    pass "5.2 smart dispatch includes gemini for research"
+# 5.2: smart dispatch includes Antigravity for research workflows
+if grep -rc 'agy,claude-sonnet' $SCRIPTS_ALL >/dev/null 2>&1; then
+    pass "5.2 smart dispatch includes Antigravity for research"
 else
-    fail "5.2 smart dispatch missing gemini for research"
+    fail "5.2 smart dispatch missing Antigravity for research"
 fi
 
 # 5.3: get_dispatch_strategy function exists

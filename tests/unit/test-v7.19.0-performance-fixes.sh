@@ -370,30 +370,29 @@ test_p21_log_management() {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# P2.2: Gemini Warnings Suppression Tests
+# P2.2: Retired Gemini CLI Dispatch Tests
 # ═══════════════════════════════════════════════════════════════════════════════
 
 test_p22_gemini_warnings() {
-    test_header "P2.2 - Gemini CLI Warnings Suppression"
+    test_header "P2.2 - Retired Gemini CLI Dispatch"
 
-    test_case "NODE_NO_WARNINGS=1 in Gemini commands"
+    test_case "Gemini CLI is never invoked directly"
 
-    # Check for NODE_NO_WARNINGS in gemini commands
-    if grep -q "NODE_NO_WARNINGS=1" "$ALL_SRC" && grep -q 'gemini_env.*gemini' "$ALL_SRC"; then
-        echo -e "${GREEN}✓${NC} Found NODE_NO_WARNINGS in gemini commands (via env variable)"
+    if ! grep -Eq 'gemini-exec\.sh|@google/gemini-cli|GEMINI_API_KEY|OCTOPUS_GEMINI_MIN_VERSION|command -v gemini' "$ALL_SRC"; then
+        echo -e "${GREEN}✓${NC} No direct Gemini CLI command remains"
         TESTS_PASSED=$((TESTS_PASSED + 1))
     else
-        echo -e "${RED}✗${NC} Missing NODE_NO_WARNINGS environment variable"
+        echo -e "${RED}✗${NC} Direct Gemini CLI command remains"
         TESTS_FAILED=$((TESTS_FAILED + 1))
     fi
 
-    # Count gemini command occurrences with suppression
-    local gemini_count=$(grep -c "NODE_NO_WARNINGS=1" "$ALL_SRC" || echo "0")
-    if [[ $gemini_count -ge 3 ]]; then
-        echo -e "${GREEN}✓${NC} Found $gemini_count gemini commands with warning suppression"
+    if grep -q 'gemini|gemini-fast|gemini-image|agy|agy-research|antigravity' "$ALL_SRC" && \
+       grep -q 'agy-exec.sh' "$ALL_SRC"; then
+        echo -e "${GREEN}✓${NC} Legacy Gemini identifiers route through AGY"
         TESTS_PASSED=$((TESTS_PASSED + 1))
     else
-        echo -e "${YELLOW}⚠${NC}  Only found $gemini_count gemini commands with suppression"
+        echo -e "${RED}✗${NC} Legacy Gemini identifiers do not route through AGY"
+        TESTS_FAILED=$((TESTS_FAILED + 1))
     fi
 }
 

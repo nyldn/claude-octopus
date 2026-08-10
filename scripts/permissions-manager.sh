@@ -8,7 +8,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Provider disclosure below is derived from the registry, not hardcoded. This
 # prompt asks the user to approve spending their own money, and it previously
-# named only Codex and Gemini — so a workflow dispatching grok, qwen, copilot,
+# named only two providers — so a workflow dispatching grok, qwen, copilot,
 # perplexity, openrouter, agy, atlascloud, opencode, commandcode or cursor-agent
 # asked for approval without ever telling the user those seats would bill them.
 if ! declare -f octo_provider_org >/dev/null 2>&1; then
@@ -151,7 +151,7 @@ request_background_permission() {
 check_background_permission() {
     local workflow="$1"
     local autonomy_mode="${2:-supervised}"
-    local providers="${3:-codex gemini claude}"
+    local providers="${3:-codex agy claude}"
 
     local permission_result
     permission_result=$(request_background_permission "$workflow" "$autonomy_mode" "$providers")
@@ -190,19 +190,19 @@ log_background_end() {
 # Main command dispatcher
 case "${1:-}" in
     request)
-        request_background_permission "$2" "${3:-supervised}" "${4:-codex gemini claude}"
+        request_background_permission "$2" "${3:-supervised}" "${4:-codex agy claude}"
         ;;
     check)
-        check_background_permission "$2" "${3:-supervised}" "${4:-codex gemini claude}"
+        check_background_permission "$2" "${3:-supervised}" "${4:-codex agy claude}"
         ;;
     log-start)
-        log_background_start "$2" "${3:-codex gemini claude}"
+        log_background_start "$2" "${3:-codex agy claude}"
         ;;
     log-end)
         log_background_end "$2" "$3"
         ;;
     estimate)
-        estimate_cost "$2" "${3:-codex gemini claude}"
+        estimate_cost "$2" "${3:-codex agy claude}"
         ;;
     *)
         cat <<EOF
@@ -221,7 +221,7 @@ Commands:
 
 Workflows: discover, define, develop, deliver, embrace
 Autonomy: supervised, semi-autonomous, autonomous
-Providers: Space-separated list (e.g., "codex gemini claude")
+Providers: Space-separated list (e.g., "codex agy claude")
 
 EOF
         exit 1

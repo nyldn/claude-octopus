@@ -166,7 +166,7 @@ else
     fail "3.3 skill-debate/SKILL.md missing build-fleet.sh reference"
 fi
 
-# 3.4: ADVISORS is dynamically set from build-fleet.sh (fallback to "gemini,codex" is OK)
+# 3.4: ADVISORS is dynamically set from build-fleet.sh (AGY is the Google seat)
 if grep -rq 'build-fleet.sh.*debate' "$PLUGIN_DIR/skills/skill-debate/SKILL.md" 2>/dev/null; then
     pass "3.4 skill-debate uses build-fleet.sh for advisor selection"
 else
@@ -194,7 +194,7 @@ if [[ $stale_codex_skills -eq 0 ]]; then
     pass "3.6 All Codex-format skills use check-providers.sh"
 fi
 
-# 3.7: No hardcoded state metrics (update_metrics "provider" "codex/gemini/claude")
+# 3.7: No hardcoded state metrics
 stale_metrics=0
 while IFS= read -r skill_file; do
     [[ ! -f "$skill_file" ]] && continue
@@ -220,8 +220,8 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 
 check_output=$(bash "$CHECK_SCRIPT" 2>/dev/null)
 
-# 4.1: Checks all 9 providers
-for provider in codex gemini agy perplexity opencode copilot qwen ollama openrouter; do
+# 4.1: Checks all supported providers in this detection surface
+for provider in codex agy perplexity opencode copilot qwen ollama openrouter; do
     if echo "$check_output" | grep -q "^${provider}:"; then
         pass "4.1.$provider check-providers.sh reports $provider"
     else

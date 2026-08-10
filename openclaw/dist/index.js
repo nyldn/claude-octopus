@@ -43,8 +43,8 @@ async function executeOrchestrate(command, prompt, flags = [], postFlags = []) {
                 USER: process.env.USER,
                 // AI provider keys
                 OPENAI_API_KEY: process.env.OPENAI_API_KEY,
-                GEMINI_API_KEY: process.env.GEMINI_API_KEY,
-                GOOGLE_API_KEY: process.env.GOOGLE_API_KEY,
+                AGY_AUTH_TOKEN: process.env.AGY_AUTH_TOKEN,
+                ANTIGRAVITY_API_KEY: process.env.ANTIGRAVITY_API_KEY,
                 OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
                 PERPLEXITY_API_KEY: process.env.PERPLEXITY_API_KEY,
                 // Ollama Anthropic-compatible path (ANTHROPIC_BASE_URL=http://localhost:11434)
@@ -71,7 +71,7 @@ const WORKFLOW_DEFS = [
     {
         name: "octopus_discover",
         label: "Octopus Discover",
-        description: "Run multi-provider research using Codex and Gemini CLIs for broad exploration.",
+        description: "Run multi-provider research using Codex and Antigravity CLIs for broad exploration.",
         parameters: Type.Object({
             prompt: Type.String({ description: "Topic to research" }),
         }),
@@ -134,7 +134,7 @@ const WORKFLOW_DEFS = [
     {
         name: "octopus_debate",
         label: "Octopus Debate",
-        description: "Four-way AI debate between Claude, Sonnet, Gemini, and Codex on any topic.",
+        description: "Multi-provider AI debate between Claude, Sonnet, Antigravity, and Codex on any topic.",
         parameters: Type.Object({
             question: Type.String({ description: "Question to debate" }),
             rounds: Type.Optional(Type.Number({ default: 1, description: "Debate rounds" })),
@@ -207,7 +207,7 @@ const WORKFLOW_DEFS = [
                 Type.Literal("on"),
                 Type.Literal("off"),
             ], { description: "BullshitBench snapshot usage" })),
-            providers: Type.Optional(Type.String({ description: "auto or comma-separated provider list: claude,codex,gemini,opencode,openrouter" })),
+            providers: Type.Optional(Type.String({ description: "auto or comma-separated provider list: claude,codex,agy,opencode,openrouter" })),
             max_cost: Type.Optional(Type.String({ description: "USD decimal budget cap, for example 2.00" })),
             simulate: Type.Optional(Type.Boolean({ description: "Explicit single-model simulation mode; never used implicitly" })),
             single_model: Type.Optional(Type.Boolean({ description: "Alias for explicit single-model simulation mode" })),
@@ -256,7 +256,7 @@ const WORKFLOW_DEFS = [
     {
         name: "octopus_review",
         label: "Octopus Review",
-        description: "Multi-LLM code review pipeline (Codex + Gemini + Claude + Perplexity fleet). Loads REVIEW.md customization, supports inline PR comment publishing.",
+        description: "Multi-LLM code review pipeline (Codex + Antigravity + Claude + Perplexity fleet). Loads REVIEW.md customization, supports inline PR comment publishing.",
         parameters: Type.Object({
             target: Type.Optional(Type.String({ description: "What to review: 'staged' (default), 'working-tree', PR number, or file path" })),
             focus: Type.Optional(Type.Array(Type.Union([

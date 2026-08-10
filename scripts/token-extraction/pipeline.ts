@@ -478,7 +478,7 @@ export class TokenExtractionPipeline {
     const debateOptions = {
       rounds: this.options.debate?.rounds || 2,
       consensusThreshold: this.options.debate?.consensusThreshold || 0.67,
-      providers: this.options.debate?.providers || ['claude', 'codex', 'gemini'],
+      providers: this.options.debate?.providers || ['claude', 'codex', 'agy'],
       autoApply: this.options.debate?.autoApply ?? false,
       minConfidence: this.options.debate?.minConfidence || 0.75,
     };

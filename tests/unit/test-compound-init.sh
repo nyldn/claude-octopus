@@ -39,9 +39,9 @@ for field in workflow providers models capabilities files paths; do
     fi
 done
 
-# ── Provider detection for all 4 providers ──────────────────────────────────
+# ── Provider detection for the primary external seats ──────────────────────
 
-for provider in codex gemini claude perplexity; do
+for provider in codex agy claude perplexity; do
     if grep -q "${provider}" <<< "$INIT_BLOCK"; then
         pass "init-workflow detects $provider provider"
     else

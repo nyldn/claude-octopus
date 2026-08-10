@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Session-level octo overrides (e.g. exported via ~/.claude/settings.json env)
 # change dispatch routing and must not leak into these assertions.
-unset OCTOPUS_GEMINI_VIA_AGY OCTOPUS_AGY_MODEL OCTOPUS_AGENT_TIMEOUT
+unset OCTOPUS_AGY_MODEL OCTOPUS_AGENT_TIMEOUT
 
 # tests/unit/test-orchestrate-cwd-routing.sh
 # Behavioral coverage for the orchestrate.sh dispatch fixes (bug report 260609):
@@ -93,14 +93,14 @@ test_role_route_not_leaked_to_codex() {
     fi
 }
 
-test_role_route_not_leaked_to_gemini() {
-    test_case "routing.roles researcher=perplexity is not returned as a gemini model"
+test_role_route_not_leaked_to_legacy_google_alias() {
+    test_case "routing.roles researcher=perplexity is not returned as an Antigravity model"
     local got
     got="$(resolve_with_fixture gemini gemini probe researcher)"
     if [[ "$got" != "perplexity" ]]; then
         test_pass
     else
-        test_fail "gemini resolved model 'perplexity' — would 404 and burn a fallback retry"
+        test_fail "legacy Google alias resolved model 'perplexity' — would 404 and burn a fallback retry"
     fi
 }
 
@@ -200,29 +200,32 @@ test_claude_researcher_no_write_grant() {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Gemini external directory whitelisting
+# Retired provider compatibility
 # ═══════════════════════════════════════════════════════════════════════════════
 
-test_gemini_include_dirs_flag() {
-    test_case "OCTOPUS_GEMINI_INCLUDE_DIRS adds --include-directories to gemini dispatch"
-    # gemini branch calls get_agent_model → stub to avoid full resolver deps
+test_legacy_google_alias_uses_agy_adapter() {
+    test_case "legacy Gemini provider ID resolves to the Antigravity adapter"
     local got
     got="$(
-        get_agent_model() { echo "gemini-3-flash-preview"; }
-        OCTOPUS_GEMINI_INCLUDE_DIRS="/tmp/staging" get_agent_command gemini probe researcher
-    )"
-    [[ "$got" == *"--include-directories /tmp/staging"* ]] && test_pass || test_fail "flag missing, got: $got"
-}
-
-test_gemini_no_include_dirs_by_default() {
-    test_case "gemini dispatch has no --include-directories when env unset"
-    local got
-    got="$(
-        get_agent_model() { echo "gemini-3-flash-preview"; }
-        unset OCTOPUS_GEMINI_INCLUDE_DIRS
+        get_agent_model() { echo "default"; }
         get_agent_command gemini probe researcher
     )"
-    [[ "$got" != *"--include-directories"* ]] && test_pass || test_fail "unexpected flag: $got"
+    [[ "$got" == *"agy-exec.sh"* && "$got" != *"gemini-exec.sh"* ]] && test_pass || test_fail "legacy alias did not use AGY adapter: $got"
+}
+
+test_dispatch_without_optional_migration_helper_stays_silent() {
+    test_case "dispatch stays silent when provider-routing migration helper is not sourced"
+    local err_out err
+    err_out=$(mktemp)
+    unset -f migrate_provider_config 2>/dev/null || true
+    get_agent_model codex probe researcher >/dev/null 2>"$err_out" || true
+    err=$(<"$err_out")
+    rm -f "$err_out"
+    if [[ "$err" != *"migrate_provider_config: command not found"* ]]; then
+        test_pass
+    else
+        test_fail "dispatch called an optional helper that was not sourced: $err"
+    fi
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -273,7 +276,7 @@ test_docs_do_not_cd_into_plugin() {
 # ═══════════════════════════════════════════════════════════════════════════════
 
 test_role_route_not_leaked_to_codex
-test_role_route_not_leaked_to_gemini
+test_role_route_not_leaked_to_legacy_google_alias
 test_role_route_not_a_model_for_perplexity_itself
 test_colon_route_still_resolves
 test_invalid_nested_route_fails_closed
@@ -284,8 +287,8 @@ test_claude_implementer_accepts_edits
 test_claude_developer_accepts_edits
 test_claude_researcher_no_write_grant
 
-test_gemini_include_dirs_flag
-test_gemini_no_include_dirs_by_default
+test_legacy_google_alias_uses_agy_adapter
+test_dispatch_without_optional_migration_helper_stays_silent
 
 test_warns_when_cwd_is_plugin
 test_no_warn_with_claude_project_dir

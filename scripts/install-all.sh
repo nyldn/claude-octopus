@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Single-command dependency installer for Claude Octopus providers.
-# Installs Codex CLI, Gemini CLI, Qwen CLI, and jq.
+# Installs supported package-managed CLIs and jq. Antigravity is detected separately.
 #
 # Usage:
 #   bash scripts/install-all.sh           # install all missing deps
@@ -61,7 +61,7 @@ install_jq
 echo ""
 echo "Provider CLIs:"
 command -v codex  &>/dev/null && log INFO "Codex CLI already installed"  || install_npm_pkg "@openai/codex"          "Codex CLI"
-command -v gemini &>/dev/null && log INFO "Gemini CLI already installed" || install_npm_pkg "@google/gemini-cli"    "Gemini CLI"
+command -v agy    &>/dev/null && log INFO "Antigravity CLI already installed" || log WARN "Antigravity CLI missing — install agy from Google Antigravity"
 command -v qwen   &>/dev/null && log INFO "Qwen CLI already installed"   || install_npm_pkg "@qwen-code/qwen-code"  "Qwen CLI (API-key/Coding-Plan)"
 
 echo ""
@@ -70,7 +70,7 @@ echo "  ✓ install-all complete."
 echo ""
 echo "  Providers requiring auth after install:"
 echo "    Codex:  codex login"
-echo "    Gemini: gemini auth login"
+echo "    Antigravity: agy login"
 echo ""
 echo "  Run /octo:preflight to verify provider status."
 echo ""

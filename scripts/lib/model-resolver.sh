@@ -130,7 +130,7 @@ validate_model_name_for_provider() {
 
 _octo_is_known_provider_name() {
     case "$1" in
-        codex|gemini|claude|perplexity|qwen|copilot|opencode|ollama|openrouter|cursor-agent|commandcode|vibe|agy|agy-research|antigravity)
+        codex|claude|perplexity|qwen|copilot|opencode|ollama|openrouter|cursor-agent|commandcode|vibe|agy|agy-research|antigravity)
             return 0 ;;
         *)
             return 1 ;;
@@ -150,8 +150,9 @@ resolve_octopus_model() {
     # session state and take precedence over any cached value.
     local canonical_provider="$provider"
     case "$canonical_provider" in
-        antigravity|agy-research) canonical_provider="agy" ;;
+        antigravity|agy-research|gemini|gemini-*) canonical_provider="agy" ;;
     esac
+    provider="$canonical_provider"
     local env_var="OCTOPUS_$(echo "$canonical_provider" | tr '[:lower:]' '[:upper:]' | tr '-' '_')_MODEL"
     if [[ -n "${!env_var:-}" ]]; then
         if ! validate_model_name_for_provider "$canonical_provider" "${!env_var}"; then
@@ -421,11 +422,8 @@ resolve_octopus_model() {
     if [[ -z "$resolved_model" || "$resolved_model" == "null" ]]; then
         case "$agent_type" in
             codex*)          resolved_model="$(codex_default_model)" ;;
-            gemini-image)    resolved_model="gemini-3-pro-image" ;;  # image, not text — must precede gemini* (codex review)
-            gemini-fast|gemini-flash) resolved_model="gemini-3-flash-preview" ;;
-            gemini*)         resolved_model="gemini-3.1-pro-preview" ;;
+            gemini*|agy*|antigravity) resolved_model="default" ;;
             commandcode*)    resolved_model="deepseek/deepseek-v4-pro" ;;
-            agy*|antigravity) resolved_model="default" ;;
             claude-sdk*)     resolved_model="${OCTOPUS_CLAUDE_SDK_MODEL:-claude-opus-5}" ;;  # must precede claude* glob
             claude-opus-legacy*) resolved_model="claude-opus-4.6" ;;
             claude-opus*)    resolved_model="$(opus_default_model)" ;;
@@ -585,10 +583,7 @@ is_agent_available_v2() {
         codex|codex-standard|codex-mini|codex-max|codex-general|codex-review|codex-spark|codex-reasoning|codex-large-context)
             [[ "$PROVIDER_CODEX_INSTALLED" == "true" && "$PROVIDER_CODEX_AUTH_METHOD" != "none" ]]
             ;;
-        gemini|gemini-fast|gemini-image)
-            [[ "$PROVIDER_GEMINI_INSTALLED" == "true" && "$PROVIDER_GEMINI_AUTH_METHOD" != "none" ]]
-            ;;
-        agy|agy-research|antigravity)
+        gemini|gemini-fast|gemini-image|agy|agy-research|antigravity)
             command -v agy &>/dev/null
             ;;
         openrouter|openrouter-*)
@@ -672,17 +667,12 @@ get_fallback_agent() {
 
     # Fallback logic (v8.9.0: extended with spark, reasoning, large-context fallbacks)
     case "$preferred" in
-        gemini|gemini-fast)
-            # Gemini unavailable, try codex
-            if is_agent_available "codex"; then
-                [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: $preferred -> codex (no Gemini)" || true
-                echo "codex"
-            else
-                echo "$preferred"  # Return anyway, will error
-            fi
+        gemini|gemini-fast|gemini-image)
+            # Retired Gemini IDs are compatibility aliases for Antigravity.
+            echo "agy"
             ;;
         codex|codex-standard|codex-mini)
-            # Codex unavailable, try gemini
+            # Codex unavailable, try Antigravity
             if is_agent_available "agy"; then
                 [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: $preferred -> agy (no OpenAI)" || true
                 echo "agy"
@@ -691,7 +681,7 @@ get_fallback_agent() {
             fi
             ;;
         codex-spark)
-            # Spark unavailable or unsupported → fall back to standard codex → gemini
+            # Spark unavailable or unsupported → fall back to standard codex → Antigravity
             if is_agent_available "codex"; then
                 [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: codex-spark -> codex (spark unavailable)" || true
                 echo "codex"
@@ -703,7 +693,7 @@ get_fallback_agent() {
             fi
             ;;
         codex-reasoning)
-            # Reasoning model unavailable → fall back to codex (deep reasoning) → gemini
+            # Reasoning model unavailable → fall back to codex (deep reasoning) → Antigravity
             if is_agent_available "codex"; then
                 [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: codex-reasoning -> codex (reasoning unavailable)" || true
                 echo "codex"
@@ -715,7 +705,7 @@ get_fallback_agent() {
             fi
             ;;
         codex-large-context)
-            # Large context unavailable → fall back to codex (400K ctx) → gemini
+            # Large context unavailable → fall back to codex (400K ctx) → Antigravity
             if is_agent_available "codex"; then
                 [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: codex-large-context -> codex (large-ctx unavailable)" || true
                 echo "codex"
@@ -727,7 +717,7 @@ get_fallback_agent() {
             fi
             ;;
         openrouter-glm5|openrouter-kimi|openrouter-deepseek)
-            # v8.11.0: Model-specific OpenRouter → generic openrouter → codex → gemini
+            # v8.11.0: Model-specific OpenRouter → generic openrouter → codex → Antigravity
             if is_agent_available "openrouter"; then
                 [[ "$VERBOSE" == "true" ]] && log DEBUG "Fallback: $preferred -> openrouter (model-specific unavailable)" || true
                 echo "openrouter"

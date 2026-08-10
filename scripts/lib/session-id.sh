@@ -37,9 +37,6 @@ octo_resolve_session_id() {
         codex)
             sid="${CODEX_SESSION_ID:-${CODEX_TASK_ID:-}}"
             ;;
-        gemini)
-            sid="${GEMINI_SESSION_ID:-}"
-            ;;
         *)
             # Claude Code v2.1.132+ exposes this to Bash tool subprocesses.
             # Keep CLAUDE_SESSION_ID/CLAUDE_CODE_SESSION for older runtimes.

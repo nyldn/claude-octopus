@@ -29,7 +29,7 @@ if [[ " $OCTO_MODEL_CONFIG_PROVIDERS " == *" commandcode "* ]] && [[ "$OCTO_MODE
 
 test_case "Council support derives from registry while default policy is preserved"
 source "$PROJECT_ROOT/scripts/lib/council.sh"
-if [[ "$COUNCIL_DEFAULT_PROVIDERS" == "claude,codex,agy,gemini,qwen,opencode,openrouter,openai-compatible,openai-tools" ]] && council_validate_provider_list commandcode; then
+if [[ "$COUNCIL_DEFAULT_PROVIDERS" == "claude,codex,agy,qwen,opencode,openrouter,openai-compatible,openai-tools" ]] && council_validate_provider_list commandcode; then
     test_pass
 else
     test_fail "Council provider support or default policy drift"

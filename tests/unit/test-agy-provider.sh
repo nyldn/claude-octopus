@@ -379,23 +379,6 @@ MOCK_AGY
     fi
 }
 
-test_gemini_via_agy_option() {
-    test_case "OCTOPUS_GEMINI_VIA_AGY serves gemini seats through agy"
-
-    local gemini_block
-    gemini_block="$(sed -n '/gemini|gemini-fast|gemini-image)/,/;;/p' "$PROJECT_ROOT/scripts/lib/dispatch.sh")"
-
-    if [[ "$gemini_block" == *"OCTOPUS_GEMINI_VIA_AGY"* ]] && \
-       [[ "$gemini_block" == *"agy-exec.sh"* ]] && \
-       grep -q 'OCTOPUS_GEMINI_VIA_AGY' "$PROJECT_ROOT/scripts/lib/spawn.sh" && \
-       grep -q 'OCTOPUS_GEMINI_VIA_AGY' "$PROJECT_ROOT/scripts/lib/agent-sync.sh"; then
-        test_pass
-    else
-        test_fail "gemini dispatch, spawn, and sync paths should honor OCTOPUS_GEMINI_VIA_AGY"
-    fi
-}
-
-
 test_agy_dynamic_model_validation() {
     test_case "explicit agy model pins validate against agy models"
 
@@ -610,7 +593,7 @@ test_agy_sync_bypasses_timeout_wrapper() {
     test_case "sync dispatch enforces timeout wrapper for agy"
 
     if grep -q 'agent_type.*agy' "$PROJECT_ROOT/scripts/lib/agent-sync.sh" && \
-       sed -n '/agent_type.*agy/,/elif.*gemini/p' "$PROJECT_ROOT/scripts/lib/agent-sync.sh" | grep -q 'run_with_timeout'; then
+       sed -n '/^run_agent_sync() {/,/^}/p' "$PROJECT_ROOT/scripts/lib/agent-sync.sh" | grep -q 'run_with_timeout'; then
         test_pass
     else
         test_fail "agent-sync.sh should wrap agy in run_with_timeout"
@@ -781,7 +764,7 @@ test_agy_docs_cost_and_marker() {
     test_case "docs show agy cost controls and distinct provider marker"
 
     if grep -q 'OCTOPUS_AGY_MODEL' "$PROJECT_ROOT/CLAUDE.md" && \
-       grep -q 'Five providers cost nothing extra' "$PROJECT_ROOT/README.md" && \
+       grep -q 'Four providers cost nothing extra' "$PROJECT_ROOT/README.md" && \
        grep -q '🧭 Antigravity CLI (`agy`)' "$PROJECT_ROOT/README.md" && \
        ! grep -q '🟢 Antigravity CLI (`agy`)' "$PROJECT_ROOT/README.md"; then
         test_pass
@@ -793,7 +776,7 @@ test_agy_docs_cost_and_marker() {
 test_agy_slash_command_visibility() {
     test_case "commands and skills include agy in provider-facing prompts"
 
-    if grep -q 'Codex, Gemini, and Antigravity' "$PROJECT_ROOT/commands/security.md" && \
+    if grep -q 'Codex and Antigravity' "$PROJECT_ROOT/commands/security.md" && \
        grep -q 'command -v agy' "$PROJECT_ROOT/commands/plan.md" && \
        grep -q 'command -v agy' "$PROJECT_ROOT/commands/review.md" && \
        grep -q 'command -v agy' "$PROJECT_ROOT/commands/factory.md" && \
@@ -801,7 +784,7 @@ test_agy_slash_command_visibility() {
        grep -q 'checkCommandAvailable.*agy' "$PROJECT_ROOT/commands/multi.md" && \
        grep -q 'Antigravity CLI' "$PROJECT_ROOT/commands/brainstorm.md" && \
        grep -q 'Antigravity (agy)' "$PROJECT_ROOT/commands/model-config.md" && \
-       grep -q 'claude,codex,gemini,agy' "$PROJECT_ROOT/commands/council.md" && \
+       grep -q 'claude,codex,agy' "$PROJECT_ROOT/commands/council.md" && \
        grep -q 'Antigravity CLI' "$PROJECT_ROOT/commands/debate.md" && \
        grep -q 'Antigravity CLI' "$PROJECT_ROOT/.claude/skills/flow-discover/SKILL.md" && \
        grep -q 'Antigravity CLI' "$PROJECT_ROOT/.claude/skills/flow-develop/SKILL.md" && \
@@ -810,10 +793,10 @@ test_agy_slash_command_visibility() {
        grep -q 'Antigravity CLI' "$PROJECT_ROOT/.claude/skills/skill-debate/SKILL.md" && \
        grep -q 'Antigravity CLI' "$PROJECT_ROOT/docs/COMMAND-REFERENCE.md" && \
        grep -q 'Antigravity CLI' "$PROJECT_ROOT/SECURITY.md" && \
-       grep -q 'up to 10 external AI integrations' "$PROJECT_ROOT/PRODUCT.md" && \
-       grep -q 'Five providers can cost nothing extra' "$PROJECT_ROOT/PRODUCT.md" && \
-       grep -q 'codex gemini agy' "$PROJECT_ROOT/tests/test-fleet-diversity.sh" && \
-       grep -q 'codex, gemini, agy' "$PROJECT_ROOT/tests/unit/test-research-fanout-static.sh"; then
+       grep -q 'up to 9 external AI integrations' "$PROJECT_ROOT/PRODUCT.md" && \
+       grep -q 'Four providers can cost nothing extra' "$PROJECT_ROOT/PRODUCT.md" && \
+       grep -q 'codex agy' "$PROJECT_ROOT/tests/test-fleet-diversity.sh" && \
+       grep -q 'codex, agy' "$PROJECT_ROOT/tests/unit/test-research-fanout-static.sh"; then
         test_pass
     else
         test_fail "provider-facing commands, skills, and docs should expose agy alongside other external providers"
@@ -884,7 +867,7 @@ test_user_facing_docs_route_external_provider_dispatch() {
 }
 
 test_provider_aware_commands_show_core_provider_status() {
-    test_case "provider-aware slash commands show Codex, Gemini, Antigravity, and Perplexity status"
+    test_case "provider-aware slash commands show Codex, Antigravity, and Perplexity status"
 
     local missing=""
     local commands=(
@@ -911,7 +894,6 @@ test_provider_aware_commands_show_core_provider_status() {
             fi
 
             grep -q 'Codex CLI: \[Available ✓ / Not installed ✗\]' "$file" || missing+="${file}: missing Codex status"$'\n'
-            grep -q 'Gemini CLI: \[Available ✓ / Not installed ✗\]' "$file" || missing+="${file}: missing Gemini status"$'\n'
             grep -q 'Antigravity CLI: \[Available ✓ / Not installed ✗\]' "$file" || missing+="${file}: missing Antigravity status"$'\n'
             grep -q 'Perplexity: \[Configured ✓ / Not configured ✗\]' "$file" || missing+="${file}: missing Perplexity status"$'\n'
         done
@@ -1032,7 +1014,6 @@ test_agy_oversize_uses_documented_default_ceiling
 test_agy_oversize_default_ceiling_dispatches_at_the_limit
 test_agy_pty_fallback_salvages_tty_error
 test_agy_pty_fallback_opt_out
-test_gemini_via_agy_option
 test_agy_dynamic_model_validation
 test_agy_command_validation
 test_agy_dispatch_not_gemini_wrapper

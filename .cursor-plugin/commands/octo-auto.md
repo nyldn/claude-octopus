@@ -51,6 +51,7 @@ Match the query against keywords below. Check categories **in priority order** �
 | Brainstorm | brainstorm, ideate, ideas, creative, thought experiment, what if | `octo:brainstorm` |
 | Deck | presentation, slides, deck, pitch deck, slide deck | `octo:deck` |
 | Docs | document, documentation, README, API docs, write docs, docstring | `octo:docs` |
+| Agent topology | too many agents, worth the overhead, coordination cost, agents keep agreeing, collapse agents, before adding an agent | `skill-agent-topology` |
 
 #### Priority 2 — Core Workflows
 
@@ -147,14 +148,14 @@ Engineering:
 12. Parallel    (/octo:parallel)       — Team of Teams decomposition
 
 Creative & Documentation:
-12. Design      (/octo:design-ui-ux)   — UI/UX design workflow
-13. PRD         (/octo:prd)            — Product requirements document
-14. Docs        (/octo:docs)           — Documentation delivery
-15. Brainstorm  (/octo:brainstorm)     — Creative ideation
-16. Deck        (/octo:deck)           — Slide deck generation
+13. Design      (/octo:design-ui-ux)   — UI/UX design workflow
+14. PRD         (/octo:prd)            — Product requirements document
+15. Docs        (/octo:docs)           — Documentation delivery
+16. Brainstorm  (/octo:brainstorm)     — Creative ideation
+17. Deck        (/octo:deck)           — Slide deck generation
 
 Quick:
-17. Quick       (/octo:quick)          — Fast ad-hoc execution
+18. Quick       (/octo:quick)          — Fast ad-hoc execution
 ```
 
 ### STEP 6: Display Visual Indicators
@@ -164,7 +165,6 @@ Quick:
 ```bash
 echo "PROVIDER_CHECK_START"
 printf "codex:%s\n" "$(command -v codex >/dev/null 2>&1 && echo available || echo missing)"
-printf "gemini:%s\n" "$(command -v gemini >/dev/null 2>&1 && echo available || echo missing)"
 printf "agy:%s\n" "$(command -v agy >/dev/null 2>&1 && echo available || echo missing)"
 printf "perplexity:%s\n" "$([ -n "${PERPLEXITY_API_KEY:-}" ] && echo available || echo missing)"
 printf "opencode:%s\n" "$(command -v opencode >/dev/null 2>&1 && echo available || echo missing)"
@@ -181,7 +181,6 @@ Then render the provider banner from actual provider checks. Do not hand-write o
 status_cli() { command -v "$1" >/dev/null 2>&1 && echo "Available ✓" || echo "Not installed ✗"; }
 status_env() { [[ -n "${1:-}" ]] && echo "Configured ✓" || echo "Not configured ✗"; }
 codex_status="$(status_cli codex)"
-gemini_status="$(status_cli gemini)"
 agy_status="$(status_cli agy)"
 opencode_status="$(status_cli opencode)"
 copilot_status="$(status_cli copilot)"
@@ -194,7 +193,6 @@ cat <<BANNER
 
 Providers:
 🔴 Codex CLI: ${codex_status}
-🟡 Gemini CLI: ${gemini_status}
 🧭 Antigravity CLI: ${agy_status}
 🟤 OpenCode: ${opencode_status}
 🟢 Copilot CLI: ${copilot_status}
@@ -213,7 +211,6 @@ The rendered banner must look like this shape, with ACTUAL statuses:
 
 Providers:
 🔴 Codex CLI: [Available ✓ / Not installed ✗]
-🟡 Gemini CLI: [Available ✓ / Not installed ✗]
 🧭 Antigravity CLI: [Available ✓ / Not installed ✗]
 🟤 OpenCode: [Available ✓ / Not installed ✗]
 🟢 Copilot CLI: [Available ✓ / Not installed ✗]

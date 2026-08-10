@@ -555,7 +555,7 @@ ${heuristic_ctx}"
     local provider_name
     case "$agent_type" in
         codex*) provider_name="codex" ;;
-        gemini*) provider_name="gemini" ;;
+        gemini*) provider_name="agy" ;;
         claude*) provider_name="claude" ;;
         *) provider_name="$agent_type" ;;
     esac
@@ -639,14 +639,14 @@ ${heuristic_ctx}"
     fi
 
     # ═══════════════════════════════════════════════════════════════════════════
-    # LEGACY PATH: Execute agent in bash subprocess (Codex/Gemini or teams unavailable)
+    # LEGACY PATH: Execute an external agent in a Bash subprocess when teams are unavailable.
     # ═══════════════════════════════════════════════════════════════════════════
 
     # Execute agent in background
     (
         cd "$PROJECT_ROOT" || exit 1
         set -f  # Disable glob expansion
-        set -o pipefail  # v9.15.1: Pipeline exit code = first failure (prevents silent codex/gemini errors)
+        set -o pipefail  # v9.15.1: Pipeline exit code = first failure
 
         write_agent_result_header "$result_file" "$agent_type" "${model:-unresolved}" "$task_id" "${role:-none}" "${phase:-none}" "legacy"
         echo "# Prompt: $prompt" >> "$result_file"
@@ -689,9 +689,6 @@ ${heuristic_ctx}"
         type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "running" "$tokens_in" 0 "" 0 "$result_file" "${role:-none}" || true
 
         # v7.19.0 P0.1: Use tee to stream output to both temp file and raw backup
-        # v8.10.0: Gemini uses stdin-based prompt delivery (Issue #25)
-        # -p "" triggers headless mode; prompt content comes via stdin to avoid OS arg limits
-
         # v8.16: Auth-aware retry for enterprise backends
         local max_auth_retries=0
         if [[ "$OCTOPUS_BACKEND" != "api" ]]; then
@@ -703,22 +700,8 @@ ${heuristic_ctx}"
         fi
 
         # Append headless flag (-p "") for CLI providers that read prompt from stdin
-        if [[ "$agent_type" == gemini* ]] || [[ "$agent_type" == cursor-agent* ]] || [[ "$agent_type" == copilot* ]] || [[ "$agent_type" == qwen* ]]; then
+        if [[ "$agent_type" == cursor-agent* ]] || [[ "$agent_type" == copilot* ]] || [[ "$agent_type" == qwen* ]]; then
             cmd_array+=(-p "")
-        fi
-        # Belt-and-suspenders: bypass Gemini's interactive trust check in headless mode (#405).
-        # Newer Gemini CLI versions removed --skip-trust; detect support once per spawn process.
-        if [[ "$agent_type" == gemini* ]]; then
-            if [[ -z "${_GEMINI_SUPPORTS_SKIP_TRUST+x}" ]]; then
-                if [[ $(gemini --help 2>&1 | grep -c -- --skip-trust || true) -gt 0 ]]; then
-                    _GEMINI_SUPPORTS_SKIP_TRUST=true
-                else
-                    _GEMINI_SUPPORTS_SKIP_TRUST=false
-                fi
-            fi
-            if [[ "$_GEMINI_SUPPORTS_SKIP_TRUST" == "true" ]]; then
-                cmd_array+=(--skip-trust)
-            fi
         fi
 
         local auth_attempt=0
@@ -727,24 +710,17 @@ ${heuristic_ctx}"
             exit_code=0
 
             # Per-provider timeout. TIMEOUT=0 means no absolute timeout; higher-level
-            # workflows supervise progress/stalls. Gemini only gets its legacy cap when
-            # TIMEOUT is non-zero and OCTOPUS_GEMINI_TIMEOUT is not explicitly set.
+            # workflows supervise progress/stalls.
             local _eff_timeout="${TIMEOUT:-0}"
-            if [[ "$agent_type" == gemini* ]]; then
-                if [[ -n "${OCTOPUS_GEMINI_TIMEOUT:-}" ]]; then
-                    _eff_timeout="$OCTOPUS_GEMINI_TIMEOUT"
-                elif [[ "$_eff_timeout" != "0" ]]; then
-                    _eff_timeout="180"
-                fi
-            fi
 
             # oco-48z: quota/terminal-error fast-fail watcher for ALL providers (was
-            # gemini-only). Greps temp files every 2s; on match it kills the provider
+            # provider-specific). Greps temp files every 2s; on match it kills the provider
             # early and marks it quota-dead for the session (oco-cbb), so preflight and
             # is_agent_available skip it instead of re-dispatching into the same failure.
             local _quota_watcher_pid=""
             local _spawn_pid=$BASHPID
-            local _provider_prefix="${agent_type%%-*}"
+            local _provider_prefix
+            _provider_prefix="$(octo_provider_canonical "$agent_type" 2>/dev/null || printf '%s' "${agent_type%%-*}")"
             _quota_watcher_pid=$(start_quota_watcher \
                 "$_spawn_pid" \
                 "$temp_errors" \
@@ -753,11 +729,9 @@ ${heuristic_ctx}"
                 "[$agent_type] Quota/terminal error detected - fast-failing (saves ~${_eff_timeout}s wait)" \
                 "$_provider_prefix")
 
-            # v9.2.2: All agents use stdin-based prompt delivery to avoid ARG_MAX limits (Issue #173)
-            # Previously only gemini used stdin; codex/claude passed prompt as CLI arg which fails on large diffs.
-            # gemini* seats served via agy (OCTOPUS_GEMINI_VIA_AGY) take the agy path.
-            if [[ "$agent_type" == agy* || "$agent_type" == "antigravity" ]] || \
-               { [[ "$agent_type" == gemini* ]] && octo_gemini_via_agy_active; }; then
+            # v9.2.2: All agents use stdin-based prompt delivery to avoid ARG_MAX limits (Issue #173).
+            # Legacy gemini* IDs execute via the same AGY path.
+            if [[ "$agent_type" == agy* || "$agent_type" == "antigravity" || "$agent_type" == gemini* ]]; then
                 printf '%s' "$enhanced_prompt" | OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="spawn-agent-heartbeat" run_with_timeout "$_eff_timeout" "${cmd_array[@]}" 2> "$temp_errors" | tee "$raw_output" > "$temp_output"
                 exit_code=${PIPESTATUS[1]:-0}
             elif printf '%s' "$enhanced_prompt" | OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="spawn-agent-heartbeat" run_with_timeout "$_eff_timeout" "${cmd_array[@]}" 2> "$temp_errors" | tee "$raw_output" > "$temp_output"; then
@@ -838,7 +812,7 @@ ${heuristic_ctx}"
                 ' "$temp_output" >> "$result_file"
             else
                 # Clean stdout (e.g. codex exec) — pass through with noise filtering
-                # v9.15.1: Filter Gemini MCP status messages and CLI preamble from stdout
+                # Filter known external-CLI status noise from stdout.
                 grep -v \
                     -e '^MCP issues detected' \
                     -e '^Loading extension:' \

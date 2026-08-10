@@ -12,14 +12,14 @@ if [[ "$BASH_COMMAND" =~ orchestrate\.sh.*(probe|grasp|tangle|ink|embrace|grappl
 {
   "octopus_active": true,
   "indicator": "🐙 Multi-provider orchestration active",
-  "providers": ["codex", "gemini"],
+  "providers": ["codex", "agy"],
   "note": "This uses external CLI tools, not Claude subagents"
 }
 EOF
 elif [[ "$BASH_COMMAND" =~ "codex exec" ]]; then
     echo '{"provider": "codex", "indicator": "🔴 Codex CLI executing"}'
-elif [[ "$BASH_COMMAND" =~ "gemini" ]]; then
-    echo '{"provider": "gemini", "indicator": "🟡 Gemini CLI executing"}'
+elif [[ "$BASH_COMMAND" =~ (agy|antigravity|gemini) ]]; then
+    echo '{"provider": "agy", "indicator": "🧭 Antigravity CLI executing"}'
 fi
 
 exit 0
