@@ -518,6 +518,53 @@ validate_model_name() {
 
 
 # ── v2 agent helpers (moved from orchestrate.sh v9.22.1) ──
+_octo_value_has_nonwhitespace() {
+    local value
+    value="$(printf '%s\n' "${1:-}" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+    [[ -n "$value" ]]
+}
+
+_octo_strip_unquoted_comment() {
+    local input="$1" output="" quote="" char
+    local index=0 escaped=0 length=${#1}
+    while (( index < length )); do
+        char="${input:index:1}"
+        if (( escaped )); then
+            output="${output}${char}"
+            escaped=0
+        elif [[ "$quote" == '"' && "$char" == "\\" ]]; then
+            output="${output}${char}"
+            escaped=1
+        elif [[ -z "$quote" && "$char" == "#" ]]; then
+            break
+        else
+            output="${output}${char}"
+            if [[ -z "$quote" && ( "$char" == '"' || "$char" == "'" ) ]]; then
+                quote="$char"
+            elif [[ -n "$quote" && "$char" == "$quote" ]]; then
+                quote=""
+            fi
+        fi
+        index=$((index + 1))
+    done
+    printf '%s\n' "$output"
+}
+
+_octo_assignment_has_nonempty_value() {
+    local file="$1" key="$2" value
+    [[ -f "$file" ]] || return 1
+
+    value="$(sed -n "s/^[[:space:]]*${key}[[:space:]]*=[[:space:]]*//p" "$file" 2>/dev/null | tail -n 1)"
+    value="$(printf '%s\n' "$value" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+    value="$(_octo_strip_unquoted_comment "$value")"
+    value="$(printf '%s\n' "$value" | sed 's/[[:space:]]*$//')"
+    case "$value" in
+        \"*\") value="${value#\"}"; value="${value%\"}" ;;
+        \'*\') value="${value#\'}"; value="${value%\'}" ;;
+    esac
+    _octo_value_has_nonwhitespace "$value"
+}
+
 is_agent_available_v2() {
     local agent="$1"
 
@@ -579,8 +626,37 @@ is_agent_available_v2() {
                 grep -Eq '"authInfo"[[:space:]]*:[[:space:]]*\{' "${HOME}/.cursor/cli-config.json" 2>/dev/null
             }
             ;;
+        grok|grok-*)
+            declare -f grok_is_available >/dev/null 2>&1 && grok_is_available
+            ;;
+        commandcode|commandcode-*)
+            local cc_bin="${OCTOPUS_COMMANDCODE_BIN:-}"
+            [[ -z "$cc_bin" ]] && command -v command-code &>/dev/null && cc_bin="command-code"
+            [[ -z "$cc_bin" ]] && command -v cmd &>/dev/null && cc_bin="cmd"
+            [[ -n "$cc_bin" ]] && { [[ -x "$cc_bin" ]] || command -v "$cc_bin" &>/dev/null; } && \
+                { [[ -n "${COMMAND_CODE_API_KEY:-}" ]] || "$cc_bin" status --json &>/dev/null; }
+            ;;
+        atlascloud|atlascloud-*)
+            if [[ -z "${ATLASCLOUD_API_KEY:-}" ]] && declare -f resolve_provider_env >/dev/null 2>&1; then
+                resolve_provider_env "ATLASCLOUD_API_KEY" 2>/dev/null || true
+            fi
+            [[ -n "${ATLASCLOUD_API_KEY:-}" ]] && \
+                { [[ -n "${ATLASCLOUD_MODEL:-}" ]] || [[ -n "${OCTOPUS_ATLASCLOUD_MODEL:-}" ]] || [[ -n "${OPENAI_COMPAT_MODEL:-}" ]]; }
+            ;;
+        vibe|vibe-*)
+            if [[ -z "${MISTRAL_API_KEY:-}" ]] && declare -f resolve_provider_env >/dev/null 2>&1; then
+                resolve_provider_env "MISTRAL_API_KEY" 2>/dev/null || true
+            fi
+            command -v vibe &>/dev/null && {
+                _octo_value_has_nonwhitespace "${MISTRAL_API_KEY:-}" || \
+                _octo_assignment_has_nonempty_value "${HOME}/.vibe/.env" "MISTRAL_API_KEY" || \
+                _octo_assignment_has_nonempty_value "${HOME}/.vibe/config.toml" "api_key"
+            }
+            ;;
         *)
-            return 0  # Unknown agents assumed available
+            return 1  # Unknown agents fail closed (#799: was `return 0`, which
+                      # could seat a provider with no availability contract and
+                      # defer the failure until mid-workflow)
             ;;
     esac
 }

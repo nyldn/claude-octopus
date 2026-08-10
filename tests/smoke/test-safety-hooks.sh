@@ -168,6 +168,72 @@ test_careful_returns_ask_decision() {
     fi
 }
 
+test_careful_statement_shape_not_substring() {
+    test_case "careful-check.sh gates on executable context and command boundaries"
+    # Activate careful mode for a pinned session so the hook and this test resolve the
+    # same state-file path (CLAUDE_CODE_SESSION_ID pins octo_session_state_file).
+    local sid="octo-careful-fp-$$"
+    local sf="/tmp/octopus-careful-${sid}.txt"
+    : > "$sf"
+
+    # Returns `fire` (explicit ask decision), `quiet` (exit 0, no decision — the hook's
+    # pass-through), or `error:<rc>` when the hook itself exits non-zero. A crashed hook
+    # must NOT read as `quiet`, or the negative cases would pass spuriously.
+    _cc_decides() {
+        local out rc=0
+        out=$(jq -cn --arg c "$1" '{tool_name:"Bash",tool_input:{command:$c}}' \
+            | env "CLAUDE_CODE_SESSION_ID=${sid}" bash "$CAREFUL_HOOK" 2>/dev/null) || rc=$?
+        if (( rc != 0 )); then echo "error:$rc"; return 0; fi
+        [[ "$out" == *'"permissionDecision":"ask"'* ]] && echo fire || echo quiet
+    }
+
+    local fails=""
+    # False positives that must stay QUIET (the reported bug + same-class cases).
+    [[ "$(_cc_decides 'grep -n "SelectValue\|truncate\|line-clamp\|overflow" src/ui/select.tsx')" == quiet ]] || fails+=" css-truncate"
+    [[ "$(_cc_decides 'grep truncate somefile')"        == quiet ]] || fails+=" grep-truncate"
+    [[ "$(_cc_decides 'rg "DROP TABLE" src')"          == quiet ]] || fails+=" rg-drop-table"
+    [[ "$(_cc_decides 'rg '\''psql -c "DROP TABLE users"'\'' docs')" == quiet ]] || fails+=" rg-sql-client-example"
+    [[ "$(_cc_decides 'printf "TRUNCATE users"')"      == quiet ]] || fails+=" printf-truncate"
+    [[ "$(_cc_decides 'TRUNCATE TABLE')"               == quiet ]] || fails+=" truncate-no-target"
+    [[ "$(_cc_decides 'psql -c "TRUNCATE TABLE;"')"    == quiet ]] || fails+=" truncate-table-no-target"
+    [[ "$(_cc_decides 'DROP TABLE')"                   == quiet ]] || fails+=" drop-table-no-target"
+    [[ "$(_cc_decides 'psql -c "DROP DATABASE;')"      == quiet ]] || fails+=" drop-database-no-target"
+    [[ "$(_cc_decides 'charm -rf out')"            == quiet ]] || fails+=" charm-rf"
+    [[ "$(_cc_decides 'git checkout .gitignore')"  == quiet ]] || fails+=" checkout-dotfile"
+    [[ "$(_cc_decides 'git checkout ./.gitignore')" == quiet ]] || fails+=" checkout-slash-dotfile"
+    [[ "$(_cc_decides 'git restore ./.env')"       == quiet ]] || fails+=" restore-slash-dotfile"
+    [[ "$(_cc_decides 'git checkout ./src')"       == quiet ]] || fails+=" checkout-subpath"
+    [[ "$(_cc_decides 'git checkout "./src"')"     == quiet ]] || fails+=" checkout-quoted-subpath"
+    # Real destructive ops that must still FIRE (no false negative introduced).
+    [[ "$(_cc_decides 'psql -c "TRUNCATE users"')" == fire ]] || fails+=" truncate-sql"
+    [[ "$(_cc_decides 'PGPASSWORD=x psql -c "TRUNCATE users"')" == fire ]] || fails+=" assigned-psql"
+    [[ "$(_cc_decides 'env PGPASSWORD=x psql -c "TRUNCATE users"')" == fire ]] || fails+=" env-psql"
+    [[ "$(_cc_decides 'mysql -e "DROP TABLE users"')" == fire ]] || fails+=" drop-mysql"
+    [[ "$(_cc_decides 'psql -c "DROP TABLE users"')"  == fire ]] || fails+=" drop-psql"
+    [[ "$(_cc_decides 'mysql -e "DROP DATABASE IF EXISTS sample"')" == fire ]] || fails+=" drop-if-exists"
+    [[ "$(_cc_decides 'printf "DROP TABLE users" | sqlite3 app.db')" == fire ]] || fails+=" piped-sqlite"
+    [[ "$(_cc_decides 'TRUNCATE TABLE foo')"       == fire ]] || fails+=" truncate-table"
+    [[ "$(_cc_decides 'rm -rf /tmp/somewhere')"    == fire ]] || fails+=" rm-rf"
+    [[ "$(_cc_decides 'foo; rm -rf /etc')"         == fire ]] || fails+=" rm-rf-chained"
+    [[ "$(_cc_decides 'git checkout .')"           == fire ]] || fails+=" checkout-dot"
+    [[ "$(_cc_decides 'git checkout ./')"          == fire ]] || fails+=" checkout-dotslash"
+    [[ "$(_cc_decides 'git restore .')"            == fire ]] || fails+=" restore-dot"
+    [[ "$(_cc_decides 'git restore ./')"           == fire ]] || fails+=" restore-dotslash"
+    [[ "$(_cc_decides 'git checkout "."')"         == fire ]] || fails+=" checkout-quoted-dot"
+    [[ "$(_cc_decides 'git restore "./"')"         == fire ]] || fails+=" restore-quoted-dotslash"
+    [[ "$(_cc_decides 'git checkout -- .')"        == fire ]] || fails+=" checkout-separator-dot"
+    [[ "$(_cc_decides 'git restore -- "./"')"      == fire ]] || fails+=" restore-separator-dotslash"
+    [[ "$(_cc_decides 'git checkout .; printf done')" == fire ]] || fails+=" checkout-dot-chained"
+    [[ "$(_cc_decides 'git restore ./&&printf done')" == fire ]] || fails+=" restore-dotslash-chained"
+
+    rm -f "$sf"
+    if [[ -z "$fails" ]]; then
+        test_pass
+    else
+        test_fail "wrong careful decision for:$fails"
+    fi
+}
+
 test_sysadmin_rm_flag_order() {
     test_case "sysadmin safety gate blocks destructive rm flags in either order"
     local command output
@@ -348,6 +414,7 @@ test_careful_kubectl_delete
 test_careful_docker_destructive
 test_careful_reads_state_file
 test_careful_returns_ask_decision
+test_careful_statement_shape_not_substring
 test_sysadmin_rm_flag_order
 
 test_freeze_reads_state_file

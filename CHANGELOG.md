@@ -6,6 +6,8 @@
 
 ### Fixed
 
+- **Careful-mode destructive guards gate on executable context and command boundaries** (`hooks/careful-check.sh`). SQL-looking text in read-only source searches and output commands (`grep truncate`, `rg "DROP TABLE"`, `printf "TRUNCATE users"`) stays quiet; direct destructive statements and statements executed by known SQL clients still ask for confirmation. The `rm` guard now needs a word boundary (so `charm -rf`/`farm -rf` no longer match while `;rm -rf`/`sudo rm -rf` still do), and `git checkout/restore .` requires the `.` to be the whole-tree path rather than a dotfile or `./src` subpath. Fixes #835.
+
 - **Existing Codex marketplace installs can update again.** The Codex adapter
   preserves its original `claude-octopus` marketplace identity instead of
   borrowing Claude Code's separate `octo` selector. Shared-marketplace release

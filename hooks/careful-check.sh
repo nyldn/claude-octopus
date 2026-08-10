@@ -70,7 +70,7 @@ fi
 # ── Destructive pattern checks ────────────────────────────────────────
 
 # 1. rm -rf — but allow safe exceptions (node_modules, dist, .next, __pycache__, build, coverage, .turbo)
-if echo "$CHECK_TEXT" | grep -qE 'rm\s+-[a-zA-Z]*r[a-zA-Z]*f|rm\s+-r\s+-f|rm\s+-f\s+-r|rm\s+--recursive\s+--force'; then
+if echo "$CHECK_TEXT" | grep -qE '(^|[^[:alnum:]_])rm\s+(-[a-zA-Z]*r[a-zA-Z]*f|-r\s+-f|-f\s+-r|--recursive\s+--force)'; then
     # Check if the target is a safe exception
     safe=false
     for safe_dir in node_modules dist .next __pycache__ build coverage .turbo; do
@@ -85,9 +85,71 @@ if echo "$CHECK_TEXT" | grep -qE 'rm\s+-[a-zA-Z]*r[a-zA-Z]*f|rm\s+-r\s+-f|rm\s+-
     fi
 fi
 
-# 2. SQL destructive operations
-if echo "$CHECK_TEXT" | grep -qiE 'DROP\s+TABLE|DROP\s+DATABASE|TRUNCATE'; then
-    matched=$(echo "$CHECK_TEXT" | grep -oiE 'DROP\s+TABLE|DROP\s+DATABASE|TRUNCATE' | head -1)
+# 2. SQL destructive operations. A SQL-looking string alone is not execution: source
+# searches and output commands routinely contain examples such as `DROP TABLE` and
+# `TRUNCATE users`. Gate only when the statement is either a direct shell command or
+# appears alongside a known SQL client. This keeps read-only grep/rg/printf commands
+# quiet while retaining coverage for client flags, stdin pipes, and heredocs.
+_octo_drop_pat='DROP\s+(TABLE|DATABASE)(\s+IF\s+EXISTS)?(\s+["'\''`]?[[:alnum:]_.$-]+["'\''`]?)?'
+_octo_truncate_pat='TRUNCATE\s+["'\''`]?[[:alnum:]_.$-]+["'\''`]?(\s+["'\''`]?[[:alnum:]_.$-]+["'\''`]?)?'
+_octo_sql_pat="${_octo_drop_pat}|${_octo_truncate_pat}"
+_octo_sql_client_pat='(^|[;&|][[:space:]]*)((sudo|command|env)[[:space:]]+)?([[:alpha:]_][[:alnum:]_]*=[^[:space:]]+[[:space:]]+)*(psql|mysql|mariadb|sqlite3|sqlcmd|cockroach\s+sql)([[:space:]]|$)'
+_octo_direct_sql_pat="^[[:space:]]*(${_octo_sql_pat})"
+
+# ERE alternation alone cannot distinguish `TRUNCATE TABLE foo` from the
+# incomplete `TRUNCATE TABLE`: the optional TABLE branch can backtrack and
+# consume TABLE as the identifier. Inspect candidate tokens so TABLE requires a
+# third token, while `TRUNCATE users` and quoted identifiers remain protected.
+_octo_has_destructive_sql() {
+    local drop_matches truncate_matches
+    drop_matches=$(echo "$CHECK_TEXT" | grep -oiE "$_octo_drop_pat" || true)
+    if [[ -n "$drop_matches" ]] && printf '%s\n' "$drop_matches" | awk '
+        {
+            if (NF < 3) next
+            if (tolower($3) == "if") {
+                if (NF < 5 || tolower($4) != "exists") next
+                target = $5
+            } else {
+                target = $3
+            }
+            quote = substr(target, 1, 1)
+            apostrophe = sprintf("%c", 39)
+            if ((quote == "\"" || quote == "`" || quote == apostrophe) &&
+                substr(target, length(target), 1) != quote) next
+            found = 1
+            exit
+        }
+        END { exit(found ? 0 : 1) }
+    '; then
+        return 0
+    fi
+    truncate_matches=$(echo "$CHECK_TEXT" | grep -oiE "$_octo_truncate_pat" || true)
+    [[ -n "$truncate_matches" ]] || return 1
+    printf '%s\n' "$truncate_matches" | awk '
+        {
+            raw = $2
+            token = tolower(raw)
+            gsub(/^["`]/, "", token)
+            gsub(/["`;]$/, "", token)
+            apostrophe = sprintf("%c", 39)
+            first = substr(raw, 1, 1)
+            quoted = (first == "\"" || first == "`" || first == apostrophe)
+            if (token == "table" && !quoted && NF < 3) next
+            target = (token == "table" && !quoted) ? $3 : $2
+            quote = substr(target, 1, 1)
+            if ((quote == "\"" || quote == "`" || quote == apostrophe) &&
+                substr(target, length(target), 1) != quote) next
+            found = 1
+            exit
+        }
+        END { exit(found ? 0 : 1) }
+    '
+}
+
+if _octo_has_destructive_sql \
+    && { echo "$CHECK_TEXT" | grep -qiE "$_octo_sql_client_pat" \
+        || echo "$CHECK_TEXT" | grep -qiE "$_octo_direct_sql_pat"; }; then
+    matched=$(echo "$CHECK_TEXT" | grep -oiE "$_octo_sql_pat" | head -1)
     echo "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"ask\",\"permissionDecisionReason\":\"⚠️ Destructive SQL detected: ${matched}. This permanently destroys data. Confirm you want to proceed.\"}}"
     exit 0
 fi
@@ -107,8 +169,13 @@ if echo "$CHECK_TEXT" | grep -qE 'git\s+reset\s+--hard'; then
     exit 0
 fi
 
-# 5. git checkout . / git restore .
-if echo "$CHECK_TEXT" | grep -qE 'git\s+checkout\s+\.|git\s+restore\s+\.'; then
+# 5. git checkout . / git restore . — only the WHOLE-TREE discard (`.` or bare `./`)
+# should warn "discards all unstaged changes". Bare `\.` also matched a single dotfile
+# (`git checkout .gitignore`), and `\.(/)` also matched a `./`-prefixed single path
+# (`git checkout ./.gitignore`, `git restore ./.env`) — both discard one file, not all.
+# Allow shell-equivalent quoting and `--`, but require the dot path to end at a
+# shell boundary so dotfiles and `./subpaths` remain quiet.
+if echo "$CHECK_TEXT" | grep -qE "git\\s+(checkout|restore)\\s+(--\\s+)?[\"']?\\.(/)?[\"']?([[:space:];|&]|$)"; then
     echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"⚠️ Destructive command detected: git checkout/restore. This discards all unstaged changes. Confirm you want to proceed."}}'
     exit 0
 fi
