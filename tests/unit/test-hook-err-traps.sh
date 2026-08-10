@@ -28,11 +28,19 @@ HOOK_TIMEOUT_SECONDS="${HOOK_TIMEOUT_SECONDS:-5}"
 PLUGIN_ROOT_FIXTURE="$TEST_TMP_DIR/plugin-root-fixture"
 if [[ ! -d "$PLUGIN_ROOT_FIXTURE" ]]; then
     mkdir -p "$PLUGIN_ROOT_FIXTURE"
-    # Copy tracked files only (git ls-files + null-delimited tar -T works on both
-    # GNU and BSD tar); preserves the tree a hook may read (hooks.json, hooks/,
-    # scripts/, config/) without touching the real repo. Copying "." here broke on
-    # gitignored local dirs whose filenames exceed tar's metadata limits.
-    ( cd "$PROJECT_ROOT" && git ls-files -z | tar --null -T - -cf - ) | ( cd "$PLUGIN_ROOT_FIXTURE" && tar -xf - )
+    # Copy tracked files that still exist (git ls-files also reports staged or
+    # unstaged deletions). The null-delimited filter works with both GNU and BSD
+    # tar and lets provider/artifact retirement branches exercise hook tests.
+    # Copying "." here broke on gitignored local dirs whose filenames exceed
+    # tar's metadata limits.
+    (
+        cd "$PROJECT_ROOT"
+        while IFS= read -r -d '' tracked_path; do
+            if [[ -e "$tracked_path" || -L "$tracked_path" ]]; then
+                printf '%s\0' "$tracked_path"
+            fi
+        done < <(git ls-files -z)
+    ) | ( cd "$PROJECT_ROOT" && tar --null -T - -cf - ) | ( cd "$PLUGIN_ROOT_FIXTURE" && tar -xf - )
 fi
 
 run_hook_with_deadline() {

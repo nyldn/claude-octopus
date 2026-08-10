@@ -8,8 +8,8 @@ set -euo pipefail
 # bare `gemini` binary and both fan_out()/map_reduce() defaulted their second
 # dispatch seat to `gemini`. When the (sunset) Gemini CLI is absent these paths
 # break or skip agy. These tests pin the fix:
-#   1. _parallel_google_seat() prefers agy, keeps gemini when still installed,
-#      and falls back to claude-sonnet.
+#   1. _parallel_google_seat() uses agy and falls back to claude-sonnet. A
+#      lingering Gemini CLI installation is never selected.
 #   2. map_reduce() decomposition routes through run_agent_sync (agy), not the
 #      bare gemini CLI.
 #   3. fan_out()/map_reduce() default pairs prefer agy over gemini.
@@ -81,10 +81,10 @@ test_seat_prefers_agy() {
     [[ "$out" == "agy" ]] && test_pass || test_fail "expected agy, got: $out"
 }
 
-test_seat_keeps_gemini_when_no_agy() {
-    test_case "_parallel_google_seat keeps gemini when agy absent but gemini still installed"
+test_seat_ignores_stale_gemini_when_no_agy() {
+    test_case "_parallel_google_seat ignores a stale gemini binary when agy is absent"
     local out; out="$(_seat_with_clis gemini)"
-    [[ "$out" == "gemini" ]] && test_pass || test_fail "expected gemini, got: $out"
+    [[ "$out" == "claude-sonnet" ]] && test_pass || test_fail "expected claude-sonnet, got: $out"
 }
 
 test_seat_claude_fallback() {
@@ -170,7 +170,7 @@ test_no_bare_gemini_decompose
 test_decompose_routes_run_agent_sync
 test_default_pairs_use_google_seat
 test_seat_prefers_agy
-test_seat_keeps_gemini_when_no_agy
+test_seat_ignores_stale_gemini_when_no_agy
 test_seat_claude_fallback
 test_mapreduce_decomposes_via_agy
 test_fanout_default_pair_prefers_agy

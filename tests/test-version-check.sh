@@ -93,10 +93,10 @@ else
     test_fail "Output missing CODEX_STATUS"
 fi
 
-if echo "$output" | grep -q "GEMINI_STATUS="; then
-    test_pass "Output contains GEMINI_STATUS"
+if echo "$output" | grep -q "AGY_STATUS="; then
+    test_pass "Output contains AGY_STATUS"
 else
-    test_fail "Output missing GEMINI_STATUS"
+    test_fail "Output missing AGY_STATUS"
 fi
 
 # Test 5: Verify version check runs before provider detection
@@ -168,10 +168,10 @@ if [[ -f "$cache_file" ]]; then
         test_fail "Cache missing CODEX_STATUS"
     fi
 
-    if grep -q "GEMINI_STATUS=" "$cache_file"; then
-        test_pass "Cache contains GEMINI_STATUS"
+    if grep -q "AGY_STATUS=" "$cache_file"; then
+        test_pass "Cache contains AGY_STATUS"
     else
-        test_fail "Cache missing GEMINI_STATUS"
+        test_fail "Cache missing AGY_STATUS"
     fi
 
     if grep -q "CACHE_TIME=" "$cache_file"; then

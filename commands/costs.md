@@ -54,14 +54,13 @@ Provider           Tokens In   Tokens Out   Queries   Est Cost
 Claude Opus 5        45,200       12,800         3     $0.55
 Claude Sonnet 5     128,000       34,500        12     $0.90
 Codex CLI                 -            -         8     $0.64
-Gemini CLI                -            -         4     $0.08
 Perplexity                -            -         2     $0.06
 ------------------------------------------------------------
 TOTAL                                           29     $2.23
 ============================================================
 ```
 
-For providers where only query counts are available (Codex, Gemini, Antigravity, Perplexity), use the midpoint or included-access estimate from the reference table. Show $0.00 for free providers or unused providers.
+For providers where only query counts are available (Codex, Antigravity, Perplexity), use the midpoint or included-access estimate from the reference table. Show $0.00 for free providers or unused providers.
 
 ### STEP 4: Display Per-Workflow Breakdown
 
@@ -72,10 +71,10 @@ Workflow Cost Breakdown
 ============================================================
 Workflow             Providers Used         Queries   Est Cost
 ------------------------------------------------------------
-/octo:discover       Claude, Codex, Gemini, agy   8     $0.42
+/octo:discover       Claude, Codex, agy           8     $0.42
 /octo:develop        Claude, Codex                 6     $1.01
-/octo:review         Claude, Codex, Gemini, agy    9     $0.58
-/octo:debate         Claude, Codex, Gemini, agy    6     $0.22
+/octo:review         Claude, Codex, agy            9     $0.58
+/octo:debate         Claude, Codex, agy            6     $0.22
 ------------------------------------------------------------
 TOTAL                                             29     $2.23
 ============================================================
@@ -127,13 +126,12 @@ These are the current per-provider cost estimates used for calculations:
 | Claude Sonnet 5 | $3/MTok | $15/MTok | varies by tokens |
 | Codex GPT-5.6 Sol | $5/MTok | $30/MTok | varies by tokens or subscription |
 | Codex CLI | - | - | ~$0.01-0.15/query |
-| Gemini CLI | - | - | ~$0.01-0.03/query |
 | Antigravity CLI (`agy`) | - | - | Included with user's Antigravity access/subscription |
 | Perplexity | - | - | ~$0.01-0.05/query |
 
 **Notes:**
 - Claude Sonnet 5 and Opus 5 may be included with the user's Claude Code plan; API-key seats use the rates above
-- Codex, Gemini, Perplexity, and Antigravity usage are charged to the user's own provider credentials, subscriptions, or local auth
+- Codex, Perplexity, and Antigravity usage are charged to the user's own provider credentials, subscriptions, or local auth
 - Fast Opus 5 mode ($10/$50 MTok) is 2x standard pricing; legacy Opus 4.6 fast remains $30/$150
 
 ## Examples

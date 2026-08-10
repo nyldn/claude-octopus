@@ -22,7 +22,6 @@ CURRENT_MODELS_END = "<!-- END CURRENT MODEL DEFAULTS -->"
 
 PUBLIC_EXTERNAL_PROVIDERS = (
     ("Codex", "Codex CLI"),
-    ("Gemini", "Gemini CLI"),
     ("Antigravity CLI", "Antigravity CLI (`agy`)"),
     ("Copilot", "Copilot"),
     ("Qwen", "Qwen"),

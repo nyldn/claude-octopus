@@ -620,10 +620,10 @@ get_codex_agent_for_phase() {
 get_agent_for_task() {
     local task_type="$1"
     case "$task_type" in
-        image) echo "gemini-image" ;;
+        image) echo "agy" ;;
         review) echo "codex-review" ;;
         coding) echo "codex" ;;
-        design) echo "agy" ;;          # Antigravity (Google seat) — Gemini CLI sunset 2026-06-18
+        design) echo "agy" ;;          # Antigravity Google seat
         copywriting) echo "agy" ;;     # Antigravity — creative writing
         research) echo "agy" ;;        # Antigravity — analysis/synthesis
         general) echo "codex" ;;       # Default to codex for general tasks
@@ -705,8 +705,8 @@ get_tiered_agent() {
 
     case "$task_type" in
         image)
-            # Image generation always uses gemini-image
-            agent="gemini-image"
+            # Antigravity selects the compatible image-capable service model.
+            agent="agy"
             ;;
         review)
             # Reviews use standard tier (already cost-effective)
@@ -722,7 +722,7 @@ get_tiered_agent() {
             esac
             ;;
         design|copywriting|research)
-            # Antigravity (agy) is the Google seat (Gemini CLI sunset 2026-06-18).
+            # Antigravity (agy) is the Google seat.
             # Model tier is selected via OCTOPUS_AGY_MODEL, not separate agents.
             agent="agy"
             ;;

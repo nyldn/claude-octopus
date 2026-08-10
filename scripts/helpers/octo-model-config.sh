@@ -54,7 +54,6 @@ usage() {
     echo ""
     echo "Environment Variables:"
     echo "  OCTOPUS_CODEX_MODEL         Override codex model (highest priority)"
-    echo "  OCTOPUS_GEMINI_MODEL        Override gemini model"
     echo "  OCTOPUS_AGY_MODEL           Override Antigravity model (default, agy/default, or exact agy models label)"
     echo "  OCTOPUS_CURSOR_AGENT_MODEL  Override cursor-agent model"
     echo "  OCTOPUS_GROK_MODEL          Override xAI Grok CLI model"
@@ -82,12 +81,6 @@ ensure_config() {
       "mini": "gpt-5.6-luna",
       "reasoning": "gpt-5.6-sol",
       "large_context": "gpt-5.6-sol"
-    },
-    "gemini": {
-      "default": "gemini-3.1-pro-preview",
-      "fallback": "gemini-3-flash-preview",
-      "flash": "gemini-3-flash-preview",
-      "image": "gemini-3-pro-image"
     },
     "agy": {
       "default": "Gemini 3.1 Pro (High)",
@@ -127,9 +120,9 @@ ensure_config() {
     }
   },
   "tiers": {
-    "budget": { "codex": "mini", "claude": "budget", "gemini": "flash", "opencode": "fast" },
-    "standard": { "codex": "default", "claude": "default", "gemini": "default", "opencode": "default" },
-    "premium": { "codex": "default", "claude": "opus", "gemini": "default", "opencode": "default" }
+    "budget": { "codex": "mini", "claude": "budget", "agy": "flash", "opencode": "fast" },
+    "standard": { "codex": "default", "claude": "default", "agy": "default", "opencode": "default" },
+    "premium": { "codex": "default", "claude": "opus", "agy": "default", "opencode": "default" }
   },
   "overrides": {}
 }
@@ -140,6 +133,56 @@ EOF
         log_error "jq is not installed. Please install it (brew install jq or apt install jq)."
         exit 1
     fi
+
+    migrate_retired_gemini_config
+}
+
+migrate_retired_gemini_config() {
+    [[ -f "$CONFIG_FILE" ]] || return 0
+    if ! jq -e '
+        (.providers.gemini? != null) or
+        (.overrides.gemini? != null) or
+        ([.tiers[]?.gemini?] | any(. != null)) or
+        ([.routing.phases[]?, .routing.roles[]?] | any(
+            (type == "string" and startswith("gemini")) or
+            (type == "object" and .provider? == "gemini")
+        ))
+    ' "$CONFIG_FILE" >/dev/null 2>&1; then
+        return 0
+    fi
+
+    jq '
+        def migrate_google_target:
+            if type == "string" then
+                if . == "gemini" then "agy"
+                elif startswith("gemini:") then
+                    (split(":")[1]) as $cap |
+                    if ($cap == "default" or $cap == "flash" or $cap == "fallback")
+                    then "agy:" + $cap else "agy" end
+                else . end
+            elif type == "object" and .provider? == "gemini" then
+                .provider = "agy" | if .model? then .model = "default" else . end
+            else . end;
+        .providers.agy //= {
+            "default": "Gemini 3.1 Pro (High)",
+            "fallback": "Gemini 3.5 Flash (High)",
+            "flash": "Gemini 3.5 Flash (Low)"
+        } |
+        del(.providers.gemini) |
+        if .overrides.gemini? != null and .overrides.agy? == null
+            then .overrides.agy = "default" else . end |
+        del(.overrides.gemini) |
+        .tiers = ((.tiers // {}) | with_entries(
+            .value |= (
+                if .gemini? != null and .agy? == null then .agy = .gemini else . end |
+                del(.gemini)
+            )
+        )) |
+        .routing = (.routing // {}) |
+        .routing.phases = ((.routing.phases // {}) | with_entries(.value |= migrate_google_target)) |
+        .routing.roles = ((.routing.roles // {}) | with_entries(.value |= migrate_google_target))
+    ' "$CONFIG_FILE" > "${CONFIG_FILE}.tmp.$$" && mv "${CONFIG_FILE}.tmp.$$" "$CONFIG_FILE"
+    log_info "Migrated retired Gemini provider settings to Antigravity"
 }
 
 # v8.49.0: Validate model name for shell safety
@@ -168,7 +211,7 @@ canonical_provider() {
     case "$provider" in
         anthropic|sonnet) echo "claude" ;;
         openai) echo "codex" ;;
-        google) echo "gemini" ;;
+        google) echo "agy" ;;
         cursor|xai) echo "cursor-agent" ;;
         local) echo "ollama" ;;
         *) octo_provider_canonical "$provider" 2>/dev/null || echo "$provider" ;;
@@ -275,7 +318,7 @@ cmd_provider_allowlist() {
     fi
     echo ""
     echo "  Session command examples:"
-    echo "    octo-model-config allow claude gemini --session"
+    echo "    octo-model-config allow claude agy --session"
     echo "    octo-model-config disable codex --session"
     echo "    octo-model-config clear-allowlist --session"
 }
@@ -354,7 +397,7 @@ cmd_list() {
     # Environment overrides
     echo -e "\n${YELLOW}Environment Overrides:${NC}"
     local has_env=false
-    for var in OCTOPUS_CODEX_MODEL OCTOPUS_GEMINI_MODEL OCTOPUS_AGY_MODEL OCTOPUS_GROK_MODEL OCTOPUS_CURSOR_AGENT_MODEL OCTOPUS_PERPLEXITY_MODEL OCTOPUS_OPENCODE_MODEL OCTOPUS_COST_MODE OCTO_ALLOWED_PROVIDERS OCTOPUS_TRACE_MODELS; do
+    for var in OCTOPUS_CODEX_MODEL OCTOPUS_AGY_MODEL OCTOPUS_GROK_MODEL OCTOPUS_CURSOR_AGENT_MODEL OCTOPUS_PERPLEXITY_MODEL OCTOPUS_OPENCODE_MODEL OCTOPUS_COST_MODE OCTO_ALLOWED_PROVIDERS OCTOPUS_TRACE_MODELS; do
         if [[ -n "${!var:-}" ]]; then
             echo "  $var=${!var}"
             has_env=true
@@ -459,7 +502,7 @@ cmd_verify() {
     log_info "Verifying model accessibility..."
 
     local errors=0
-    for cli in codex gemini claude opencode; do
+    for cli in codex agy claude opencode; do
         if command -v "$cli" &>/dev/null; then
             local model
             model=$(jq -r --arg p "$cli" '.providers[$p].default // "n/a"' "$CONFIG_FILE")
@@ -490,6 +533,7 @@ cmd_set() {
         provider="${provider_arg%%.*}"
         capability="${provider_arg#*.}"
     fi
+    provider="$(canonical_provider "$provider")"
 
     for arg in "${@:3}"; do
         [[ "$arg" == "--session" ]] && session=true
@@ -615,11 +659,6 @@ cmd_models() {
         "gpt-5.1-codex-max|400|yes|yes|no|codex|premium|active"
         "o3|200|yes|no|yes|codex|premium|active"
         "o3-mini|200|yes|no|yes|codex|budget|active"
-        "gemini-3.1-pro-preview|1000|yes|yes|no|gemini|premium|active"
-        "gemini-3-flash-preview|1000|yes|yes|no|gemini|budget|active"
-        "gemini-3-pro-image|1000|yes|yes|no|gemini|premium|active"
-        "gemini-3.1-flash-image|1000|yes|yes|no|gemini|budget|active"
-        "gemini-3-pro-image-preview|1000|yes|yes|no|gemini|premium|deprecated"
         "claude-haiku-4.5|200|yes|yes|yes|claude|budget|active"
         "claude-sonnet-5|1000|yes|yes|yes|claude|standard|active"
         "claude-sonnet-4.6|200|yes|yes|no|claude|standard|active"
@@ -668,6 +707,9 @@ cmd_models() {
 
 cmd_reset() {
     local provider="${1:-all}"
+    if [[ "$provider" != "all" ]]; then
+        provider="$(canonical_provider "$provider")"
+    fi
     if [[ "$provider" == "all" ]]; then
         rm -f "$CONFIG_FILE"
         ensure_config

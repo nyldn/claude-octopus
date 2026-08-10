@@ -28,7 +28,7 @@ source "${SCRIPT_DIR}/../lib/events.sh" 2>/dev/null || true  # opt-in JSONL life
 source "${SCRIPT_DIR}/../lib/quota-watcher.sh" 2>/dev/null || true  # octo_quota_is_dead (oco-cbb)
 
 # oco-cbb: report degraded when a key/binary-present provider was marked
-# quota/auth-dead earlier this session (perplexity 401, gemini exhausted), so it
+# quota/auth-dead earlier this session, so it
 # is skipped instead of re-dispatched into the same failure + timeout.
 _octo_provider_state() {
     local provider="$1" present_state="$2"
@@ -97,9 +97,6 @@ if [[ -n "$cc_bin" ]] && { [[ -x "$cc_bin" ]] || command -v "$cc_bin" >/dev/null
     fi
 fi
 provider_status "commandcode" "$commandcode_state"
-# gemini: dropped from this PR (#799) — #854 retires direct Gemini dispatch
-# entirely in favor of Antigravity (AGY), which will handle this properly.
-provider_status "gemini" "$(command -v gemini >/dev/null 2>&1 && echo available || echo missing)"
 provider_status "agy" "$(command -v agy >/dev/null 2>&1 && echo available || echo missing)"
 # oco-cbb: opt-in proactive probe for API-key providers (perplexity, openrouter).
 # Only runs when OCTOPUS_PREFLIGHT_PROBE=1; result cached via quota-dead marker
@@ -118,7 +115,7 @@ if [ -n "${ATLASCLOUD_API_KEY:-}" ]; then
     fi
 fi
 provider_status "atlascloud" "$atlascloud_state"
-# opencode/copilot: same fail-open gap as codex/gemini (#799) — reuse the auth
+# opencode/copilot: same fail-open gap as codex (#799) — reuse the auth
 # signals preflight.sh already checks instead of trusting binary presence.
 opencode_state="missing"
 if command -v opencode >/dev/null 2>&1; then

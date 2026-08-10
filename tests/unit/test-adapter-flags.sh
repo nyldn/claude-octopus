@@ -121,9 +121,9 @@ test_mcp_forwards_gh_token() {
 # Debate Description Accuracy
 # ═══════════════════════════════════════════════════════════════════════════════
 
-test_oc_debate_says_four_way() {
-    test_case "OpenClaw debate description says Four-way"
-    if grep -q 'Four-way' "$OC_SRC"; then test_pass; else test_fail "should say Four-way"; fi
+test_oc_debate_says_multi_provider() {
+    test_case "OpenClaw debate description says Multi-provider"
+    if grep -q 'Multi-provider' "$OC_SRC"; then test_pass; else test_fail "should say Multi-provider"; fi
 }
 
 test_oc_debate_has_mode_param() {
@@ -238,7 +238,7 @@ test_oc_forwards_copilot_token
 test_mcp_forwards_gh_token
 
 # Description
-test_oc_debate_says_four_way
+test_oc_debate_says_multi_provider
 test_oc_debate_has_mode_param
 
 # Council adapters

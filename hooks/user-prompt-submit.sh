@@ -387,15 +387,15 @@ if [[ -n "$INTENT" && -f "$SESSION_FILE" ]] && command -v jq &>/dev/null; then
 
     # Provider pre-warming
     PRIMED="[]"
-    _codex=false; _gemini=false; _opencode=false
+    _codex=false; _agy=false; _opencode=false
     command -v codex &>/dev/null && [[ -n "${OPENAI_API_KEY:-}" || -f "${HOME}/.codex/auth.json" ]] && _codex=true
-    command -v gemini &>/dev/null && [[ -n "${GEMINI_API_KEY:-}" || -f "${HOME}/.gemini/oauth_creds.json" ]] && _gemini=true
+    command -v agy &>/dev/null && _agy=true
     command -v opencode &>/dev/null && _opencode=true
     PRIMED=$(python3 -c "
 import json
 p = ['claude']
 if $_codex: p.insert(0, 'codex')
-if $_gemini: p.insert(1 if $_codex else 0, 'gemini')
+if $_agy: p.insert(1 if $_codex else 0, 'agy')
 if $_opencode: p.append('opencode')
 print(json.dumps(p))
 " 2>/dev/null) || PRIMED='["claude"]'

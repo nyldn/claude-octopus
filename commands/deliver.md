@@ -100,7 +100,7 @@ The **Deliver** phase of the Double Diamond methodology (convergent thinking):
 
 ## What You Get
 
-- Multi-AI validation (Claude + Gemini + Codex)
+- Multi-AI validation (Claude + Antigravity + Codex)
 - Security audit (OWASP compliance, vulnerability detection)
 - Code quality review
 - Edge case analysis

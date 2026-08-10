@@ -73,7 +73,7 @@ test_costs_has_provider_cost_references() {
     local content
     content=$(<"$COSTS_CMD")
     local found=0
-    for provider in "Claude Opus" "Claude Sonnet" "Codex CLI" "Gemini CLI" "Perplexity"; do
+    for provider in "Claude Opus" "Claude Sonnet" "Codex CLI" "Antigravity" "Perplexity"; do
         if echo "$content" | grep -c "$provider" >/dev/null 2>&1; then
             found=$((found + 1))
         fi

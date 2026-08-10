@@ -47,7 +47,12 @@ test_case "model-config consumers exactly match registry capability"
 source "$PROJECT_ROOT/scripts/lib/provider-routing.sh"
 expected=$(octo_provider_ids model-config)
 [[ "$OCTO_MODEL_CONFIG_PROVIDERS" == "$expected" ]] || { test_fail "provider-routing model list drift"; exit 0; }
+registry_home="$(mktemp -d)"
+original_home="$HOME"
+HOME="$registry_home"
 source "$PROJECT_ROOT/scripts/helpers/octo-model-config.sh"
+HOME="$original_home"
+rm -rf "$registry_home"
 [[ "$KNOWN_PROVIDERS" == "$expected" ]] || { test_fail "model-config helper list drift"; exit 0; }
 test_pass
 
@@ -98,7 +103,7 @@ fi
 test_case "Council default policy is configurable without changing registry support"
 defaults=$(bash -c 'source "'$PROJECT_ROOT'/scripts/lib/council.sh"; printf "%s" "$COUNCIL_DEFAULT_PROVIDERS"')
 override=$(env "OCTOPUS_COUNCIL_DEFAULT_PROVIDERS=commandcode,claude" bash -c 'source "'$PROJECT_ROOT'/scripts/lib/council.sh"; printf "%s" "$COUNCIL_DEFAULT_PROVIDERS"')
-if [[ "$defaults" == "claude,codex,agy,gemini,qwen,opencode,openrouter,openai-compatible,openai-tools" && "$override" == "commandcode,claude" ]]; then
+if [[ "$defaults" == "claude,codex,agy,qwen,opencode,openrouter,openai-compatible,openai-tools" && "$override" == "commandcode,claude" ]]; then
     test_pass
 else
     test_fail "Council default/override mismatch"

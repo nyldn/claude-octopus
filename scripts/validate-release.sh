@@ -129,7 +129,6 @@ EOF
 .codex-plugin/
 .cursor-plugin/
 .factory-plugin/
-.gemini/
 .opencode/
 .mcp.json
 bin/

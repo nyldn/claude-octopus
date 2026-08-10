@@ -51,32 +51,6 @@ _BARE_OPT="${_BARE_OPT:-}"
 # Fallback:  consumers (see lib/agents.sh get_fallback_agent) silently downshift when the
 #            preferred CLI is unavailable (e.g. no Anthropic auth → architect → current Codex).
 
-# octo_gemini_via_agy_active — true when gemini* seats should be served through
-# the Antigravity CLI instead of gemini-cli.
-#
-# Reads the progressive-disclosure ledger first, with OCTOPUS_GEMINI_VIA_AGY as a
-# session override, mirroring _octo_reviewer_flip_active. The three dispatch
-# sites used to read the raw env var directly, which meant a user who answered
-# the disclosure question changed nothing: the answer was recorded and then
-# ignored. Routing every site through one accessor keeps the recorded choice and
-# the env override in agreement.
-# The env var is normalised here, before the ledger is consulted, rather than
-# being handed to octo_features_choice. That function only passes an env value
-# through when it is a declared choice for the feature, and this feature's
-# choices are the literal "1" and "0" — so `OCTOPUS_GEMINI_VIA_AGY=true` (which
-# the previous raw `^(1|on|true|yes)$` reads accepted) would be dropped and the
-# user silently returned to the failing direct path, and `=false` would lose to
-# a recorded "1". Normalising locally keeps the documented aliases working in
-# both directions without changing choice semantics for every other feature.
-octo_gemini_via_agy_active() {
-    case "${OCTOPUS_GEMINI_VIA_AGY:-}" in
-        1|on|true|yes)  return 0 ;;
-        0|off|false|no) return 1 ;;
-    esac
-    declare -f octo_features_choice >/dev/null 2>&1 || return 1
-    [[ "$(octo_features_choice "gemini-via-agy")" == "1" ]]
-}
-
 # _octo_reviewer_flip_active — true when code review should move off the Codex
 # seat because Codex is the implementer.
 #
@@ -113,7 +87,7 @@ get_role_mapping() {
     if [[ "${OCTOPUS_LEGACY_ROLES:-0}" == "1" ]]; then
         case "$role" in
             architect)    echo "codex:gpt-5.5" ;;
-            researcher)   echo "gemini:gemini-3.1-pro-preview" ;;
+            researcher)   echo "agy:default" ;;
             reviewer|code-reviewer|security-reviewer) echo "codex-review:gpt-5.5" ;;
             implementer|implementer-heavy) echo "codex:gpt-5.5" ;;
             synthesizer)  echo "claude:claude-sonnet-4.6" ;;
@@ -532,9 +506,9 @@ Output ONLY the refined prompt, nothing else."
             ;;
     esac
 
-    # Use Gemini for intelligent prompt refinement
+    # Use Antigravity for intelligent prompt refinement
     local refined
-    refined=$(run_agent_sync "gemini-fast" "$refinement_prompt" 60 2>/dev/null) || {
+    refined=$(run_agent_sync "agy" "$refinement_prompt" 60 2>/dev/null) || {
         log WARN "Prompt refinement failed, using original"
         echo "$raw_prompt"
         return
@@ -1030,7 +1004,7 @@ MEMORY_INJECTION_ENABLED="${OCTOPUS_MEMORY_INJECTION:-true}"
 # ═══════════════════════════════════════════════════════════════════════════════
 # AGENT TEAMS CONDITIONAL MIGRATION (v8.5 - Claude Code v2.1.34+)
 # Claude-to-Claude agents can use native Agent Teams instead of bash subprocesses
-# Codex and Gemini remain bash-spawned (external CLIs)
+# External providers remain bash-spawned CLIs.
 # ═══════════════════════════════════════════════════════════════════════════════
 OCTOPUS_AGENT_TEAMS="${OCTOPUS_AGENT_TEAMS:-auto}"  # auto | native | legacy
 

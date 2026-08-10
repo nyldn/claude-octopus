@@ -119,7 +119,7 @@ Pipeline:
 
 Providers:
 🔴 Codex CLI: [Available ✓ / Not installed ✗] — Implementation critique
-🟡 Gemini CLI: [Available ✓ / Not installed ✗] — Ecosystem critique
+🟡 Antigravity CLI: [Available ✓ / Not installed ✗] — Ecosystem critique
 🧭 Antigravity CLI: [Available ✓ / Not installed ✗] — Additional external-model challenge
 🔵 Claude (Sonnet): Available ✓ — Design + independent critique
 
@@ -214,7 +214,7 @@ without a brief-tied reason.
 
 **Dispatch to different providers for maximum diversity:**
 - 🔴 Codex: implementation-pragmatic direction (what builds fast and scales)
-- 🟡 Gemini: trend-aware direction (what's current in the design ecosystem)
+- 🧭 Antigravity: trend-aware direction (what's current in the design ecosystem)
 - 🔵 Claude: user-centered direction (what serves the audience best)
 - 🟤 OpenCode / 🟢 Copilot / 🟣 Qwen: additional variants if available
 
@@ -299,7 +299,6 @@ For each issue found, state: what's wrong, why it matters, and what to do instea
 providers=()
 command -v codex >/dev/null 2>&1 && providers+=(codex)
 command -v agy >/dev/null 2>&1 && providers+=(agy)
-command -v gemini >/dev/null 2>&1 && providers+=(gemini)
 
 for provider in "${providers[@]}"; do
     safe_provider=$(printf '%s' "$provider" | tr -c '[:alnum:]_-' '_')

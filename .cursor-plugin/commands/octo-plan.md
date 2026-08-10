@@ -15,6 +15,45 @@ description: "\"Intelligent plan builder - creates strategic execution plans (do
 
 ## 🤖 INSTRUCTIONS FOR CLAUDE
 
+### MANDATORY: Detect Plan Mode Write Conflict Before Starting
+
+**THIS CHECK RUNS FIRST — before intent capture, before any artifact write.**
+
+Native plan mode blocks all Write/Edit tool calls until `ExitPlanMode` is
+called. If you are currently in plan mode (you entered it earlier this session
+or the harness placed you in it), attempting to write `.claude/session-intent.md`
+or `.claude/session-plan.md` will silently fail, producing a degraded native
+plan instead of a full octo multi-provider plan.
+
+**If you are in plan mode when /octo:plan is invoked, you MUST:**
+
+1. Emit this exact warning as the very first output:
+
+   ```text
+   ⚠️  OCTO PLAN DEGRADED — Plan Mode Write Conflict
+
+   Native plan mode is active. Octo cannot save its planning artifacts
+   (.claude/session-intent.md, .claude/session-plan.md) while plan mode
+   restricts writes. You are getting display-only output — this is NOT
+   a full octo multi-provider plan.
+
+   To get the full octo plan:
+     1. Exit or cancel native plan mode
+     2. Re-run /octo:plan
+
+   Continuing with plan visualization only (no artifacts saved)…
+   ```
+
+2. Skip Step 2 (Create Intent Contract) and Step 5 (Save the Plan) entirely.
+   Do not attempt these writes — they will silently fail.
+3. Complete Steps 1, 3, 4, and 6 so the user sees the visualization.
+4. Repeat the re-run reminder at the end of Step 6.
+
+**Do NOT silently fall through to generic native planning. The user invoked
+/octo:plan deliberately. A visible degradation warning is mandatory.**
+
+---
+
 ### MANDATORY COMPLIANCE — DO NOT SKIP
 
 **When the user explicitly invokes `/octo:plan`, you MUST execute the structured planning workflow below.** You are PROHIBITED from doing the task directly, skipping the intent capture questions, or deciding the task is "too simple" for structured planning. The user chose this command deliberately — respect that choice.
@@ -239,7 +278,6 @@ recommend debate gates. Include the debate checkpoint markers in the saved plan
 ```bash
 echo "PROVIDER_CHECK_START"
 printf "codex:%s\n" "$(command -v codex >/dev/null 2>&1 && echo available || echo missing)"
-printf "gemini:%s\n" "$(command -v gemini >/dev/null 2>&1 && echo available || echo missing)"
 printf "agy:%s\n" "$(command -v agy >/dev/null 2>&1 && echo available || echo missing)"
 printf "perplexity:%s\n" "$([ -n "${PERPLEXITY_API_KEY:-}" ] && echo available || echo missing)"
 printf "opencode:%s\n" "$(command -v opencode >/dev/null 2>&1 && echo available || echo missing)"
@@ -256,7 +294,6 @@ Render provider availability from actual provider checks before the plan visuali
 status_cli() { command -v "$1" >/dev/null 2>&1 && echo "Available ✓" || echo "Not installed ✗"; }
 status_env() { [[ -n "${1:-}" ]] && echo "Configured ✓" || echo "Not configured ✗"; }
 codex_status="$(status_cli codex)"
-gemini_status="$(status_cli gemini)"
 agy_status="$(status_cli agy)"
 opencode_status="$(status_cli opencode)"
 copilot_status="$(status_cli copilot)"
@@ -266,7 +303,6 @@ perplexity_status="$(status_env "${PERPLEXITY_API_KEY:-}")"
 cat <<BANNER
 Provider Availability:
 🔴 Codex CLI: ${codex_status}
-🟡 Gemini CLI: ${gemini_status}
 🧭 Antigravity CLI: ${agy_status}
 🟤 OpenCode: ${opencode_status}
 🟢 Copilot CLI: ${copilot_status}
@@ -305,7 +341,6 @@ Validate quality — Review and refine
 
 Provider Availability:
 🔴 Codex CLI: [Available ✓ / Not installed ✗]
-🟡 Gemini CLI: [Available ✓ / Not installed ✗]
 🧭 Antigravity CLI: [Available ✓ / Not installed ✗]
 🟤 OpenCode: [Available ✓ / Not installed ✗]
 🟢 Copilot CLI: [Available ✓ / Not installed ✗]
@@ -358,7 +393,6 @@ Or execute phases individually:
 
 ## Provider Requirements
 🔴 Codex CLI: [Available ✓ / Not installed ✗]
-🟡 Gemini CLI: [Available ✓ / Not installed ✗]
 🧭 Antigravity CLI: [Available ✓ / Not installed ✗]
 🟣 Perplexity: [Configured ✓ / Not configured ✗]
 🔵 Claude: Available ✓

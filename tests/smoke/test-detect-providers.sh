@@ -11,7 +11,7 @@ source "$SCRIPT_DIR/../helpers/mock-helpers.sh"
 test_suite "Provider Detection"
 
 test_detect_both_providers() {
-    test_case "Detects both codex and gemini when available"
+    test_case "Detects both Codex and Antigravity when available"
 
     # Test detection logic (dry run) - flag must come before command
     local output exit_code=0
@@ -51,17 +51,17 @@ test_provider_version_check() {
 
     # Check if real providers exist
     local has_codex=false
-    local has_gemini=false
+    local has_agy=false
 
     if command -v codex &>/dev/null; then
         has_codex=true
     fi
 
-    if command -v gemini &>/dev/null; then
-        has_gemini=true
+    if command -v agy &>/dev/null; then
+        has_agy=true
     fi
 
-    if [[ "$has_codex" == "true" ]] || [[ "$has_gemini" == "true" ]]; then
+    if [[ "$has_codex" == "true" ]] || [[ "$has_agy" == "true" ]]; then
         test_pass
     else
         test_skip "No real providers installed"

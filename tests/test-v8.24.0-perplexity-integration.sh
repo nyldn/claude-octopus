@@ -52,7 +52,7 @@ else
 fi
 
 # Test 1.3: get_agent_command has perplexity case
-if grep -A3 "perplexity|perplexity-fast" "$_ORCH_ALL_TMP" | grep -q "perplexity_execute"; then
+if grep -F -A8 '        perplexity|perplexity-fast)' "$PROJECT_ROOT/scripts/lib/dispatch.sh" | grep -q "perplexity_execute"; then
     pass "get_agent_command() handles perplexity"
 else
     fail "get_agent_command() missing perplexity case"
@@ -74,7 +74,7 @@ fi
 
 # Test 1.5: perplexity provider handled in get_agent_command
 # Refactored: provider mapping now via get_agent_command case + perplexity_execute
-if grep -q 'perplexity|perplexity-fast)' "$_ORCH_ALL_TMP" && grep -A 3 'perplexity|perplexity-fast)' "$_ORCH_ALL_TMP" | grep -q 'perplexity_execute\|provider.*perplexity'; then
+if grep -F -A8 '        perplexity|perplexity-fast)' "$PROJECT_ROOT/scripts/lib/dispatch.sh" | grep -q 'perplexity_execute'; then
     pass "get_agent_command() handles perplexity provider"
 else
     fail "get_agent_command() perplexity handling missing"

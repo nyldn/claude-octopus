@@ -17,7 +17,7 @@ When the user invokes `/octo:costs`, you MUST follow these steps in order.
 
 Search for session usage data in these locations (check all, use whichever exist):
 
-```
+```text
 ~/.claude-octopus/usage/           # Per-session usage logs
 ~/.claude-octopus/routing.log      # Routing decisions with timestamps
 ~/.claude-octopus/sessions/        # Session state files
@@ -45,38 +45,37 @@ For each provider found in the usage data, extract:
 
 Format as a clean ASCII table:
 
-```
+```text
 Provider Cost Breakdown
 ============================================================
 Provider           Tokens In   Tokens Out   Queries   Est Cost
 ------------------------------------------------------------
-Claude Opus 4.6      45,200       12,800         3     $0.55
-Claude Sonnet 4.6   128,000       34,500        12     $0.24
+Claude Opus 5        45,200       12,800         3     $0.55
+Claude Sonnet 5     128,000       34,500        12     $0.90
 Codex CLI                 -            -         8     $0.64
-Gemini CLI                -            -         4     $0.08
 Perplexity                -            -         2     $0.06
 ------------------------------------------------------------
-TOTAL                                           29     $1.57
+TOTAL                                           29     $2.23
 ============================================================
 ```
 
-For providers where only query counts are available (Codex, Gemini, Antigravity, Perplexity), use the midpoint or included-access estimate from the reference table. Show $0.00 for free providers or unused providers.
+For providers where only query counts are available (Codex, Antigravity, Perplexity), use the midpoint or included-access estimate from the reference table. Show $0.00 for free providers or unused providers.
 
 ### STEP 4: Display Per-Workflow Breakdown
 
 Group costs by workflow/command that triggered them:
 
-```
+```text
 Workflow Cost Breakdown
 ============================================================
 Workflow             Providers Used         Queries   Est Cost
 ------------------------------------------------------------
-/octo:discover       Claude, Codex, Gemini, agy   8     $0.42
-/octo:develop        Claude, Codex                 6     $0.35
-/octo:review         Claude, Codex, Gemini, agy    9     $0.58
-/octo:debate         Claude, Codex, Gemini, agy    6     $0.22
+/octo:discover       Claude, Codex, agy           8     $0.42
+/octo:develop        Claude, Codex                 6     $1.01
+/octo:review         Claude, Codex, agy            9     $0.58
+/octo:debate         Claude, Codex, agy            6     $0.22
 ------------------------------------------------------------
-TOTAL                                             29     $1.57
+TOTAL                                             29     $2.23
 ============================================================
 ```
 
@@ -84,10 +83,10 @@ TOTAL                                             29     $1.57
 
 Show both the current session totals and cumulative totals (if historical data exists):
 
-```
+```text
 Session Summary
 ============================================================
-Current Session:   $1.57  (29 queries, started 2h 15m ago)
+Current Session:   $2.23  (29 queries, started 2h 15m ago)
 Cumulative (7d):   $8.42  (156 queries across 12 sessions)
 Cumulative (30d): $34.18  (612 queries across 47 sessions)
 ============================================================
@@ -99,7 +98,7 @@ If cumulative data is not available, show only the current session.
 
 If no usage data exists at all, display:
 
-```
+```text
 No usage data found.
 
 Claude Octopus tracks provider usage in:
@@ -122,22 +121,21 @@ These are the current per-provider cost estimates used for calculations:
 
 | Provider | Input | Output | Per-Query Estimate |
 |----------|-------|--------|--------------------|
-| Claude Opus 4.6 | $5/MTok | $25/MTok | varies by tokens |
-| Claude Sonnet 4.6 | $0.80/MTok | $4/MTok | varies by tokens |
+| Claude Opus 5 | $5/MTok | $25/MTok | varies by tokens |
+| Claude Sonnet 5 | $3/MTok | $15/MTok | varies by tokens |
+| Codex GPT-5.6 Sol | $5/MTok | $30/MTok | varies by tokens or subscription |
 | Codex CLI | - | - | ~$0.01-0.15/query |
-| Gemini CLI | - | - | ~$0.01-0.03/query |
 | Antigravity CLI (`agy`) | - | - | Included with user's Antigravity access/subscription |
 | Perplexity | - | - | ~$0.01-0.05/query |
 
 **Notes:**
-- Claude Sonnet 4.6 usage is included with Claude Code subscription (no extra cost for most users)
-- Claude Opus 4.6 usage is billed at the rates above when using `claude-opus` agent type
-- Codex, Gemini, Perplexity, and Antigravity usage are charged to the user's own provider credentials, subscriptions, or local auth
-- Fast Opus 4.6 mode ($30/$150 MTok) is 6x standard pricing — flagged separately if detected
+- Claude Sonnet 5 and Opus 5 may be included with the user's Claude Code plan; API-key seats use the rates above
+- Codex, Perplexity, and Antigravity usage are charged to the user's own provider credentials, subscriptions, or local auth
+- Fast Opus 5 mode ($10/$50 MTok) is 2x standard pricing; legacy Opus 4.6 fast remains $30/$150
 
 ## Examples
 
-```
+```text
 /octo:costs                    # Show current session costs
 /octo:costs                    # After running several workflows
 ```

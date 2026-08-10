@@ -2,7 +2,7 @@
 
 # Claude Octopus
 
-**One prompt. Up to ten external AI integrations checking each other's work.** Claude Octopus turns Claude Code into a multi-LLM orchestration engine — Codex, Gemini, Antigravity CLI, Copilot, Qwen, Ollama, Perplexity, OpenRouter, OpenCode, and Grok all contribute perspectives, then a 75% consensus gate catches disagreements before they ship.
+**One prompt. Up to nine external AI integrations checking each other's work.** Claude Octopus turns Claude Code into a multi-LLM orchestration engine — Codex, Antigravity CLI, Copilot, Qwen, Ollama, Perplexity, OpenRouter, OpenCode, and Grok all contribute perspectives, then a 75% consensus gate catches disagreements before they ship.
 
 **Claude-native first, Octopus for escalation.** Use Claude-native `/init`, `/review`, and `/security-review` when Claude is enough. Use Octopus when you want multiple model opinions, adversarial review, or stricter multi-LLM workflows.
 
@@ -14,7 +14,7 @@ Without Octopus, you ask one model and trust the answer. With it:
 You:        /octo:auto should I use Redis or DynamoDB for sessions?
 
 What runs:  🔴 Codex analyzes implementation trade-offs
-            🟡 Gemini researches ecosystem patterns
+            🧭 Antigravity researches ecosystem patterns
             🔵 Claude synthesizes + applies consensus gate
 
 You get:    A structured comparison with three independent viewpoints,
@@ -23,7 +23,7 @@ You get:    A structured comparison with three independent viewpoints,
 
 This works for research, escalated code review, debugging, TDD, escalated security audits, UI design, PRDs, and full build-to-ship workflows — 51 commands, 63 skills, 32 specialized personas.
 
-Multi-provider runs show an agent summary before synthesis, so failed, timed out, or oversize-rejected Codex, Gemini, Antigravity, OpenRouter, and other perspectives are visible instead of being hidden behind a polished final answer.
+Multi-provider runs show an agent summary before synthesis, so failed, timed out, or oversize-rejected Codex, Antigravity, OpenRouter, and other perspectives are visible instead of being hidden behind a polished final answer.
 
 ## Install
 
@@ -58,7 +58,7 @@ Don't know the command? Describe what you need — `/octo:auto <anything>` route
 
 - Claude Code v2.1.14+
 - Zero external providers needed (Claude is built in)
-- Optional: Codex CLI, Gemini CLI, Antigravity CLI (`agy`), Copilot, Qwen, Ollama, Perplexity API key, OpenRouter API key, OpenCode CLI, and xAI API key (Grok)
+- Optional: Codex CLI, Antigravity CLI (`agy`), Copilot, Qwen, Ollama, Perplexity API key, OpenRouter API key, OpenCode CLI, and xAI API key (Grok)
 - Five external integrations cost nothing extra when you already have the relevant subscriptions or local runtime (OAuth or local)
 
 ## One Limitation

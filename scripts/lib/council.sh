@@ -1049,9 +1049,9 @@ council_enforce_provider_diversity() {
     # Represent every AVAILABLE provider org on the council (the requested provider
     # list, or the auto list, filtered by availability), bounded by the number of
     # non-chair seats. The previous implementation only guaranteed >=2 orgs and
-    # bailed at quick depth, so a low-scoring-but-available provider (e.g. gemini,
+    # bailed at quick depth, so a low-scoring-but-available provider (e.g. agy,
     # whose personas score below codex's) could be seated 0 times even when the
-    # user explicitly passed `--providers claude,codex,gemini` — chair(claude)+codex
+    # user explicitly passed `--providers claude,codex,agy` — chair(claude)+codex
     # already satisfied the 2-org floor. Only duplicate-org seats are replaced
     # (never displace a seat that is the sole representative of a needed org, so the
     # loop can't thrash when more orgs are available than seats), the chair seat is

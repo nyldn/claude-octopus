@@ -10,7 +10,7 @@ description: "\"[advanced] Force multi-provider parallel execution for any task 
 
 ### EXECUTION MECHANISM — NON-NEGOTIABLE
 
-**You MUST dispatch work to external providers (Codex, Gemini, Antigravity, etc.) for this command. You are PROHIBITED from:**
+**You MUST dispatch work to external providers (Codex, Antigravity, etc.) for this command. You are PROHIBITED from:**
 - ❌ Executing the entire task using only Claude-native tools
 - ❌ Using a single Agent subagent instead of multi-provider dispatch
 - ❌ Skipping provider dispatch because "I can handle this alone"
@@ -67,7 +67,6 @@ Check which AI providers are available:
 
 ```javascript
 const codexAvailable = await checkCommandAvailable('codex');
-const geminiAvailable = await checkCommandAvailable('gemini');
 const agyAvailable = await checkCommandAvailable('agy');
 const copilotAvailable = await checkCommandAvailable('copilot');
 const qwenAvailable = await checkCommandAvailable('qwen');
@@ -75,7 +74,6 @@ const opencodeAvailable = await checkCommandAvailable('opencode');
 const ollamaAvailable = await checkCommandAvailable('ollama');
 const anyProviderAvailable = [
   codexAvailable,
-  geminiAvailable,
   agyAvailable,
   copilotAvailable,
   qwenAvailable,
@@ -115,7 +113,7 @@ The whole point of multi-provider execution is diversity of opinion. Presenting 
 
 ### Divergence
 - 🔴 **Codex**: "[direct quote or close paraphrase]"
-- 🟡 **Gemini**: "[direct quote or close paraphrase]"
+- 🧭 **Antigravity**: "[direct quote or close paraphrase]"
 - 🔵 **Claude**: "[direct quote or close paraphrase]"
 
 ### Resolution
@@ -150,7 +148,7 @@ Or use explicit commands:
 
 This command activates the multi-provider skill in **forced mode**, which:
 - Executes multi-provider analysis even for simple tasks
-- Uses Claude plus all available external providers, including Codex, Gemini, and Antigravity when installed
+- Uses Claude plus all available external providers, including Codex and Antigravity when installed
 - Provides multiple perspectives when you need comprehensive analysis
 - Bypasses automatic routing that might use only Claude
 
@@ -184,7 +182,6 @@ Forcing parallel mode uses external CLIs for every task:
 | Provider | Cost per Query | What It Uses |
 |----------|----------------|--------------|
 | 🔴 Codex CLI | ~$0.01-0.05 | Your OPENAI_API_KEY |
-| 🟡 Gemini CLI | ~$0.01-0.03 | Your GEMINI_API_KEY |
 | 🧭 Antigravity CLI (`agy`) | Included with access/subscription | Antigravity CLI auth |
 | 🔵 Claude | Included | Claude Code subscription |
 
@@ -231,7 +228,6 @@ Force parallel execution
 
 Providers:
 🔴 Codex CLI - [Role in this task]
-🟡 Gemini CLI - [Role in this task]
 🧭 Antigravity CLI - [Role in this task]
 🔵 Claude - [Role in this task]
 ```

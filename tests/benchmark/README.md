@@ -335,7 +335,7 @@ mv ~/.claude/plugins/claude-octopus{.disabled,}
 This is expected in dry-run mode. The script validates infrastructure without making API calls.
 
 To run with real API:
-1. Ensure Codex CLI and Gemini CLI are installed and configured
+1. Ensure Codex CLI and Antigravity CLI are installed and configured
 2. Remove `-n` or `--dry-run` flags from orchestrate.sh calls
 3. Expect costs: ~4× normal Claude API usage (4 parallel agents)
 

@@ -16,8 +16,7 @@ codex|openai,gpt*|codex|openai|model-config,council,health,detect,dispatch,env
 commandcode|command-code*|command-code|commandcode|model-config,council,health,detect,dispatch,env
 claude|anthropic,sonnet*,opus*|claude|anthropic|model-config,council,health,detect,dispatch,env
 claude-sdk|claude-agent*|claude-agent|anthropic|model-config,health,detect,dispatch,env
-gemini|gemini-cli*|gemini|google|model-config,council,health,detect,dispatch,env
-agy|antigravity*|agy|google|model-config,council,health,detect,dispatch,env
+agy|antigravity*,gemini,gemini-*|agy|google|model-config,council,health,detect,dispatch,env
 perplexity||perplexity|perplexity|model-config,health,detect,dispatch,env
 opencode||opencode|opencode|model-config,council,detect,dispatch,env
 openrouter||openrouter|openrouter|model-config,council,health,detect,dispatch,env

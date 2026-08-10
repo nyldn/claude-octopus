@@ -294,7 +294,7 @@ bridge_get_idle_dispatch_target() {
          | canonical_provider(.value.agent_type)] |
         unique |
         . as $busy |
-        ["codex", "gemini", "claude"] - $busy |
+        ["codex", "agy", "claude"] - $busy |
         .[]
     ' "$_BRIDGE_LEDGER" 2>/dev/null)
 

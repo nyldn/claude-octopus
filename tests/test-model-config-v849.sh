@@ -73,7 +73,7 @@ else
 fi
 
 # Verify set_provider_model clears cache
-if grep -A 5 'Set default model' "$_ORCH_ALL_TMP" | grep -q 'rm -f.*persistent_cache\|rm -f.*octo-model-cache'; then
+if grep -A 120 '^set_provider_model()' "$_ORCH_ALL_TMP" | grep -q 'rm -f.*persistent_cache\|rm -f.*octo-model-cache'; then
     pass "set_provider_model() clears model cache after change"
 else
     fail "set_provider_model() does not clear cache after change"
@@ -87,7 +87,7 @@ else
 fi
 
 # Verify migrate_provider_config clears cache
-if grep -A 5 'Migration to v3.0 complete' "$_ORCH_ALL_TMP" | grep -q 'rm -f.*octo-model-cache'; then
+if grep -A 15 'Migration to v3.0 complete' "$_ORCH_ALL_TMP" | grep -q 'rm -f.*_octo_cache_to_clear\|rm -f.*octo-model-cache'; then
     pass "migrate_provider_config() clears cache after migration"
 else
     fail "migrate_provider_config() does not clear cache after migration"
@@ -108,7 +108,7 @@ else
 fi
 
 # Verify provider dispatch validates agent types (acts as implicit whitelist)
-if grep -q 'codex' "$_ORCH_ALL_TMP" && grep -q 'gemini' "$_ORCH_ALL_TMP" && grep -q 'perplexity' "$_ORCH_ALL_TMP"; then
+if grep -q 'codex' "$_ORCH_ALL_TMP" && grep -q 'agy' "$_ORCH_ALL_TMP" && grep -q 'perplexity' "$_ORCH_ALL_TMP"; then
     pass "Provider whitelist validation present (via dispatch cases)"
 else
     fail "Provider whitelist validation missing"
@@ -201,7 +201,7 @@ else
 fi
 
 # Verify atomic_json_update is used in reset_provider_model
-reset_calls=$(grep -A 20 'reset_provider_model()' "$_ORCH_ALL_TMP" | grep -c 'atomic_json_update' 2>/dev/null || echo "0")
+reset_calls=$(grep -A 45 'reset_provider_model()' "$_ORCH_ALL_TMP" | grep -c 'atomic_json_update' 2>/dev/null || echo "0")
 if [[ "$reset_calls" -ge 2 ]]; then
     pass "reset_provider_model() uses atomic_json_update ($reset_calls calls)"
 else
@@ -310,7 +310,7 @@ else
 fi
 
 # Verify catalog covers key models
-for model in gpt-5.6-sol gpt-5.6-terra gpt-5.6-luna gemini-3.1-pro-preview claude-sonnet-5 claude-opus-5 sonar-pro o3; do
+for model in gpt-5.6-sol gpt-5.6-terra gpt-5.6-luna agy/default claude-sonnet-5 claude-opus-5 sonar-pro o3; do
     if grep -A 60 'get_model_catalog()' "$_ORCH_ALL_TMP" | grep -q "$model"; then
         pass "Catalog includes $model"
     else
@@ -360,8 +360,8 @@ else
 fi
 
 # Verify health checks cover all 5 providers
-for provider in codex gemini claude perplexity openrouter; do
-    if grep -A 120 'check_provider_health()' "$_ORCH_ALL_TMP" | grep -q "$provider)"; then
+for provider in codex agy claude perplexity openrouter; do
+    if grep -A 120 'check_provider_health()' "$_ORCH_ALL_TMP" | grep -Eq "(^|[|[:space:]])${provider}([|)]|$)"; then
         pass "Health check covers $provider"
     else
         fail "Health check missing $provider"
@@ -434,7 +434,7 @@ else
 fi
 
 # Verify validate_model_allowed uses find_capable_fallback
-if grep -A 35 'validate_model_allowed()' "$_ORCH_ALL_TMP" | grep -q 'find_capable_fallback'; then
+if grep -A 60 'validate_model_allowed()' "$_ORCH_ALL_TMP" | grep -q 'find_capable_fallback'; then
     pass "validate_model_allowed() uses capability-aware fallback"
 else
     fail "validate_model_allowed() not wired to capability-aware fallback"

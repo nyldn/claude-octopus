@@ -112,7 +112,7 @@ When adding new tests:
 - ❌ Quality of AI responses (subjective)
 - ❌ Multi-AI orchestration results (dependent on external CLIs)
 
-**Exception:** Integration tests can verify external CLI execution (codex, gemini) when invoked directly, but cannot verify Claude's decision to invoke them.
+**Exception:** Integration tests can verify external CLI execution (for example, Codex or Antigravity) when invoked directly, but cannot verify Claude's decision to invoke them.
 
 ## CI/CD Integration
 

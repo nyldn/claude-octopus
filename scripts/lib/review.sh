@@ -80,9 +80,9 @@ _review_fleet_from_config() {
                     has_logic=true
                 fi
                 ;;
-            gemini|gemini-*)
+            agy|agy-*|antigravity|gemini|gemini-*)
                 if [[ "$has_security" == "false" ]]; then
-                    fleet+="${provider}:security-reviewer:OWASP vulnerabilities, injection, auth flaws, data exposure"$'\n'
+                    fleet+="agy:security-reviewer:OWASP vulnerabilities, injection, auth flaws, data exposure"$'\n'
                     has_security=true
                 fi
                 ;;
@@ -177,10 +177,10 @@ build_review_fleet() {
         fleet+="claude-sonnet:logic-reviewer:correctness and logic bugs, edge cases, regressions"$'\n'
     fi
 
-    # security-reviewer: Gemini (Google) → Qwen → Copilot → claude-sonnet fallback
+    # security-reviewer: AGY (Google) → Qwen → Copilot → claude-sonnet fallback
     # Prefer different family from logic-reviewer for diversity
-    if command -v gemini >/dev/null 2>&1; then
-        fleet+="gemini:security-reviewer:OWASP vulnerabilities, injection, auth flaws, data exposure"$'\n'
+    if command -v agy >/dev/null 2>&1; then
+        fleet+="agy:security-reviewer:OWASP vulnerabilities, injection, auth flaws, data exposure"$'\n'
     elif command -v qwen >/dev/null 2>&1; then
         fleet+="qwen:security-reviewer:OWASP vulnerabilities, injection, auth flaws, data exposure"$'\n'
     elif command -v copilot >/dev/null 2>&1; then
@@ -192,18 +192,18 @@ build_review_fleet() {
     # arch-reviewer: claude-sonnet (always available — best at holistic analysis)
     fleet+="claude-sonnet:arch-reviewer:architecture, integration, API contracts, breaking changes"$'\n'
 
-    # cve-reviewer: Perplexity → Gemini search → Copilot → Qwen → claude WebSearch
+    # cve-reviewer: Perplexity → AGY → Copilot → Qwen → claude WebSearch
     if command -v perplexity >/dev/null 2>&1 || [[ -n "${PERPLEXITY_API_KEY:-}" ]]; then
         fleet+="perplexity:cve-reviewer:known CVEs, library advisories, live web search"$'\n'
-    elif command -v gemini >/dev/null 2>&1; then
-        fleet+="gemini:cve-reviewer:known CVEs via web search, library advisories"$'\n'
-        log INFO "CVE lookup: Perplexity unavailable, using Gemini search"
+    elif command -v agy >/dev/null 2>&1; then
+        fleet+="agy:cve-reviewer:known CVEs and library advisories"$'\n'
+        log INFO "CVE lookup: Perplexity unavailable, using AGY"
     elif command -v copilot >/dev/null 2>&1; then
         fleet+="copilot:cve-reviewer:known CVEs via web search, library advisories"$'\n'
-        log INFO "CVE lookup: Perplexity+Gemini unavailable, using Copilot"
+        log INFO "CVE lookup: Perplexity+AGY unavailable, using Copilot"
     elif command -v qwen >/dev/null 2>&1; then
         fleet+="qwen:cve-reviewer:known CVEs via web search, library advisories"$'\n'
-        log INFO "CVE lookup: Perplexity+Gemini unavailable, using Qwen"
+        log INFO "CVE lookup: Perplexity+AGY unavailable, using Qwen"
     else
         fleet+="claude-sonnet:cve-reviewer:known CVEs via WebSearch tool, library advisories"$'\n'
         log WARN "CVE lookup: no dedicated web-search provider, using Claude WebSearch (degraded)"
@@ -616,8 +616,8 @@ print_provider_report() {
     fi
 
     # Determine status per provider
-    local codex_status="not used" gemini_status="not used" claude_status="✓ OK" perplexity_status="not used"
-    local codex_detail="" gemini_detail="" perplexity_detail=""
+    local codex_status="not used" agy_status="not used" claude_status="✓ OK" perplexity_status="not used"
+    local codex_detail="" agy_detail="" perplexity_detail=""
     local had_fallback=false
 
     while IFS='|' read -r provider status detail; do
@@ -635,12 +635,12 @@ print_provider_report() {
                     had_fallback=true
                 fi
                 ;;
-            gemini)
+            agy|gemini)
                 if [[ "$status" == "ok" ]]; then
-                    gemini_status="✓ OK"
+                    agy_status="✓ OK"
                 elif [[ "$status" == "fallback" ]]; then
-                    gemini_status="✗ FALLBACK"
-                    gemini_detail="$detail"
+                    agy_status="✗ FALLBACK"
+                    agy_detail="$detail"
                     had_fallback=true
                 fi
                 ;;
@@ -663,8 +663,8 @@ print_provider_report() {
     echo "│                                             │"
     printf "│ 🔴 Codex:      %-28s│\n" "$codex_status"
     [[ -n "$codex_detail" ]] && printf "│    → %-38s│\n" "$codex_detail"
-    printf "│ 🟡 Gemini:     %-28s│\n" "$gemini_status"
-    [[ -n "$gemini_detail" ]] && printf "│    → %-38s│\n" "$gemini_detail"
+    printf "│ 🧭 AGY:        %-28s│\n" "$agy_status"
+    [[ -n "$agy_detail" ]] && printf "│    → %-38s│\n" "$agy_detail"
     printf "│ 🔵 Claude:     %-28s│\n" "$claude_status"
     printf "│ 🟣 Perplexity: %-28s│\n" "$perplexity_status"
     [[ -n "$perplexity_detail" ]] && printf "│    → %-38s│\n" "$perplexity_detail"
@@ -1497,6 +1497,6 @@ render_review_summary() {
     echo "| Nit | $nit_count |"
     echo "| Pre-existing | $preexisting_count |"
     echo ""
-    echo "_Reviewed by Codex + Gemini + Claude + Perplexity fleet_"
+    echo "_Reviewed by Codex + Antigravity + Claude + Perplexity fleet_"
     echo "_See inline comments for details_"
 }

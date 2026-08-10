@@ -813,8 +813,8 @@ function providerIndicators() {
   if (process.env.OPENAI_API_KEY || existsSync(join(HOME, ".codex", "auth.json"))) {
     indicators.push(`${C.red}\u{1F534}${C.reset}`);
   }
-  if (process.env.GEMINI_API_KEY || existsSync(join(HOME, ".gemini", "oauth_creds.json"))) {
-    indicators.push(`${C.yellow}\u{1F7E1}${C.reset}`);
+  if (process.env.AGY_AUTH_TOKEN || process.env.ANTIGRAVITY_API_KEY || existsSync(join(HOME, ".agy"))) {
+    indicators.push(`${C.yellow}\u{1F9ED}${C.reset}`);
   }
   indicators.push(`${C.blue}\u{1F535}${C.reset}`);
   return indicators.join("");

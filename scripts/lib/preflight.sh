@@ -99,22 +99,6 @@ cmd_detect_providers() {
     fi
     echo ""
 
-    # Check Gemini CLI
-    if command -v gemini &>/dev/null; then
-        echo "GEMINI_STATUS=ok"
-        if [[ -f "$HOME/.gemini/oauth_creds.json" ]]; then
-            echo "GEMINI_AUTH=oauth"
-        elif [[ -n "${GEMINI_API_KEY:-}" ]]; then
-            echo "GEMINI_AUTH=api-key"
-        else
-            echo "GEMINI_AUTH=none"
-        fi
-    else
-        echo "GEMINI_STATUS=missing"
-        echo "GEMINI_AUTH=none"
-    fi
-    echo ""
-
     # Check Antigravity CLI (agy)
     if command -v agy &>/dev/null; then
         echo "AGY_STATUS=ok"
@@ -241,8 +225,6 @@ cmd_detect_providers() {
     elif command -v command-code >/dev/null 2>&1; then commandcode_status="unauthenticated"
     else commandcode_status="missing"; commandcode_auth="none"
     fi
-    local gemini_status=$(command -v gemini &>/dev/null && echo "ok" || echo "missing")
-    local gemini_auth=$([[ -f "$HOME/.gemini/oauth_creds.json" ]] && echo "oauth" || [[ -n "${GEMINI_API_KEY:-}" ]] && echo "api-key" || echo "none")
     local agy_status=$(command -v agy &>/dev/null && echo "ok" || echo "not-installed")
     local agy_auth=$([[ "$agy_status" == "ok" ]] && echo "cli" || echo "none")
     local agy_model="${OCTOPUS_AGY_MODEL:-}"
@@ -272,10 +254,6 @@ CODEX_AUTH=$(printf '%q' "$codex_auth")
 # Command Code Status
 COMMANDCODE_STATUS=$(printf '%q' "$commandcode_status")
 COMMANDCODE_AUTH=$(printf '%q' "$commandcode_auth")
-
-# Gemini Status
-GEMINI_STATUS=$(printf '%q' "$gemini_status")
-GEMINI_AUTH=$(printf '%q' "$gemini_auth")
 
 # Antigravity Status
 AGY_STATUS=$(printf '%q' "$agy_status")
@@ -325,14 +303,6 @@ EOF
         echo "  ⚠ Command Code: Installed but unauthenticated"
     else
         echo "  ○ Command Code: Not installed (optional)"
-    fi
-
-    if [[ "$gemini_status" == "ok" && "$gemini_auth" != "none" ]]; then
-        echo "  ✓ Gemini: Installed and authenticated ($gemini_auth)"
-    elif [[ "$gemini_status" == "ok" ]]; then
-        echo "  ⚠ Gemini: Installed but not authenticated (run: gemini  OR  export GEMINI_API_KEY=\"AIza...\")"
-    else
-        echo "  ✗ Gemini: Not installed (run: npm install -g @google/gemini-cli)"
     fi
 
     if [[ "$agy_status" == "ok" ]]; then
@@ -386,28 +356,23 @@ EOF
     echo ""
 
     # Provide guidance based on results
-    if [[ "$codex_status" == "missing" && "$gemini_status" == "missing" && "$agy_status" != "ok" && "$cursor_agent_status" != "ok" ]]; then
+    if [[ "$codex_status" == "missing" && "$agy_status" != "ok" && "$cursor_agent_status" != "ok" ]]; then
         echo "⚠ No providers installed. You need at least ONE provider to use Claude Octopus."
         echo ""
         echo "Next steps:"
         echo "  1. Install Codex CLI: npm install -g @openai/codex"
         echo "     OR"
-        echo "  2. Install Gemini CLI: npm install -g @google/gemini-cli"
+        echo "  2. Install Antigravity CLI, then run: agy login"
         echo "     OR"
-        echo "  3. Install Antigravity CLI: agy install"
-        echo "     OR"
-        echo "  4. Install Cursor Agent CLI: https://cursor.com/install"
+        echo "  3. Install Cursor Agent CLI: https://cursor.com/install"
         echo ""
         echo "Then configure authentication - see: /claude-octopus:setup"
-    elif ! { [[ "$codex_status" == "ok" && "$codex_auth" != "none" ]] || [[ "$gemini_status" == "ok" && "$gemini_auth" != "none" ]] || [[ "$agy_status" == "ok" ]] || [[ "$cursor_agent_status" == "ok" && "$cursor_agent_auth" != "none" ]]; }; then
+    elif ! { [[ "$codex_status" == "ok" && "$codex_auth" != "none" ]] || [[ "$agy_status" == "ok" ]] || [[ "$cursor_agent_status" == "ok" && "$cursor_agent_auth" != "none" ]]; }; then
         echo "⚠ Provider(s) installed but not authenticated."
         echo ""
         echo "Next steps:"
         if [[ "$codex_status" == "ok" && "$codex_auth" == "none" ]]; then
             echo "  Codex: export OPENAI_API_KEY=\"sk-...\" (or run: codex login)"
-        fi
-        if [[ "$gemini_status" == "ok" && "$gemini_auth" == "none" ]]; then
-            echo "  Gemini: export GEMINI_API_KEY=\"AIza...\" (or run: gemini)"
         fi
         if [[ "$cursor_agent_status" == "ok" && "$cursor_agent_auth" == "none" ]]; then
             echo "  Cursor Agent: export CURSOR_API_KEY=\"...\" (or run: agent login)"
@@ -417,16 +382,14 @@ EOF
     else
         echo "✓ You're all set! At least one provider is ready to use."
         echo ""
-        if [[ "$codex_status" == "ok" && "$codex_auth" != "none" && "$gemini_status" == "ok" && "$gemini_auth" != "none" ]]; then
-            echo "  Both Codex and Gemini are configured - you'll get the best results!"
+        if [[ "$codex_status" == "ok" && "$codex_auth" != "none" && "$agy_status" == "ok" ]]; then
+            echo "  Both Codex and Antigravity are configured - you'll get the best results!"
         elif [[ "$codex_status" == "ok" && "$codex_auth" != "none" ]]; then
-            echo "  Codex is configured. You can optionally add Gemini for multi-provider workflows."
-        elif [[ "$gemini_status" == "ok" && "$gemini_auth" != "none" ]]; then
-            echo "  Gemini is configured. You can optionally add Codex for multi-provider workflows."
+            echo "  Codex is configured. You can optionally add Antigravity for multi-provider workflows."
         elif [[ "$agy_status" == "ok" ]]; then
-            echo "  Antigravity is configured. You can optionally add Codex or Gemini for multi-provider workflows."
+            echo "  Antigravity is configured. You can optionally add Codex for multi-provider workflows."
         elif [[ "$cursor_agent_status" == "ok" && "$cursor_agent_auth" != "none" ]]; then
-            echo "  Cursor Agent is configured. You can optionally add Codex or Gemini for multi-provider workflows."
+            echo "  Cursor Agent is configured. You can optionally add Codex or Antigravity for multi-provider workflows."
         fi
         if [[ "$perplexity_status" != "ok" ]]; then
             echo ""
@@ -445,7 +408,7 @@ EOF
 
 # Pre-flight dependency validation
 # Performance: Uses 1-hour cache to avoid repeated CLI checks
-# v7.9.1: Supports single-provider mode (only need ONE of Codex or Gemini or Cursor Agent)
+# Supports single-provider mode (only need one of Codex, AGY, or Cursor Agent).
 preflight_check() {
     local force_check="${1:-false}"
 
@@ -462,10 +425,10 @@ preflight_check() {
     log INFO "Running pre-flight checks... 🐙"
     local errors=0
     local has_codex=false
-    local has_gemini=false
+    local has_agy=false
     local has_cursor_agent=false
     local codex_auth=false
-    local gemini_auth=false
+    local agy_auth=false
     local cursor_agent_auth=false
 
     # Check Codex CLI
@@ -477,13 +440,11 @@ preflight_check() {
         fi
     fi
 
-    # Check Gemini CLI
-    if command -v gemini &>/dev/null; then
-        has_gemini=true
-        log DEBUG "Gemini CLI: $(command -v gemini)"
-        if [[ -f "$HOME/.gemini/oauth_creds.json" ]] || [[ -n "${GEMINI_API_KEY:-}" ]] || [[ -n "${GOOGLE_API_KEY:-}" ]]; then
-            gemini_auth=true
-        fi
+    # Check Antigravity CLI. A present AGY binary owns Google-seat auth.
+    if command -v agy &>/dev/null; then
+        has_agy=true
+        agy_auth=true
+        log DEBUG "Antigravity CLI: $(command -v agy)"
     fi
 
     # Check Cursor Agent CLI
@@ -496,7 +457,7 @@ preflight_check() {
     fi
 
     # v7.9.1: Only need ONE provider to work
-    if [[ "$has_codex" == "false" && "$has_gemini" == "false" && "$has_cursor_agent" == "false" ]]; then
+    if [[ "$has_codex" == "false" && "$has_agy" == "false" && "$has_cursor_agent" == "false" ]]; then
         echo ""
         echo -e "${RED}╔═══════════════════════════════════════════════════════════════╗${NC}"
         echo -e "${RED}║  ❌ NO AI PROVIDERS FOUND                                     ║${NC}"
@@ -508,9 +469,8 @@ preflight_check() {
         echo -e "  npm install -g @openai/codex"
         echo -e "  codex login  ${DIM}# OAuth recommended${NC}"
         echo ""
-        echo -e "${CYAN}Option 2: Install Gemini CLI (Google)${NC}"
-        echo -e "  npm install -g @google/gemini-cli"
-        echo -e "  gemini       ${DIM}# OAuth recommended${NC}"
+        echo -e "${CYAN}Option 2: Install Antigravity CLI (Google)${NC}"
+        echo -e "  agy login    ${DIM}# after installing agy${NC}"
         echo ""
         echo -e "${CYAN}Option 3: Install Cursor Agent CLI${NC}"
         echo -e "  curl -fsSL https://cursor.com/install | bash"
@@ -523,7 +483,7 @@ preflight_check() {
     fi
 
     # Check if at least one provider is authenticated
-    if [[ "$codex_auth" == "false" && "$gemini_auth" == "false" && "$cursor_agent_auth" == "false" ]]; then
+    if [[ "$codex_auth" == "false" && "$agy_auth" == "false" && "$cursor_agent_auth" == "false" ]]; then
         echo ""
         echo -e "${YELLOW}╔═══════════════════════════════════════════════════════════════╗${NC}"
         echo -e "${YELLOW}║  ⚠️  PROVIDERS FOUND BUT NOT AUTHENTICATED                    ║${NC}"
@@ -533,12 +493,6 @@ preflight_check() {
             echo -e "${CYAN}Codex CLI installed but needs authentication:${NC}"
             echo -e "  codex login  ${DIM}# OAuth (recommended)${NC}"
             echo -e "  ${DIM}OR export OPENAI_API_KEY=\"sk-...\"${NC}"
-            echo ""
-        fi
-        if [[ "$has_gemini" == "true" ]]; then
-            echo -e "${CYAN}Gemini CLI installed but needs authentication:${NC}"
-            echo -e "  gemini       ${DIM}# OAuth (recommended)${NC}"
-            echo -e "  ${DIM}OR export GEMINI_API_KEY=\"...\"${NC}"
             echo ""
         fi
         if [[ "$has_cursor_agent" == "true" ]]; then
@@ -556,7 +510,7 @@ preflight_check() {
     # Show what's available
     local available_providers=""
     [[ "$codex_auth" == "true" ]] && available_providers="${available_providers}Codex "
-    [[ "$gemini_auth" == "true" ]] && available_providers="${available_providers}Gemini "
+    [[ "$agy_auth" == "true" ]] && available_providers="${available_providers}Antigravity "
     [[ "$cursor_agent_auth" == "true" ]] && available_providers="${available_providers}Cursor-Agent "
     log INFO "Available providers: $available_providers"
 
@@ -565,11 +519,11 @@ preflight_check() {
     if [[ "$codex_auth" == "true" ]]; then
         if ! check_codex_auth_freshness; then
             # Token expired but another authenticated provider may still work — degrade gracefully
-            if [[ "$gemini_auth" == "true" ]] || [[ "$cursor_agent_auth" == "true" ]]; then
-                if [[ "$gemini_auth" == "true" && "$cursor_agent_auth" == "true" ]]; then
-                    log WARN "Codex OAuth expired; continuing with Gemini/Cursor Agent only"
-                elif [[ "$gemini_auth" == "true" ]]; then
-                    log WARN "Codex OAuth expired; continuing with Gemini only"
+            if [[ "$agy_auth" == "true" ]] || [[ "$cursor_agent_auth" == "true" ]]; then
+                if [[ "$agy_auth" == "true" && "$cursor_agent_auth" == "true" ]]; then
+                    log WARN "Codex OAuth expired; continuing with Antigravity/Cursor Agent only"
+                elif [[ "$agy_auth" == "true" ]]; then
+                    log WARN "Codex OAuth expired; continuing with Antigravity only"
                 else
                     log WARN "Codex OAuth expired; continuing with Cursor Agent only"
                 fi
@@ -588,12 +542,6 @@ preflight_check() {
 
     # v8.16: Detect enterprise backend
     detect_enterprise_backend
-
-    # Support legacy GOOGLE_API_KEY
-    if [[ -z "${GEMINI_API_KEY:-}" && -n "${GOOGLE_API_KEY:-}" ]]; then
-        export GEMINI_API_KEY="$GOOGLE_API_KEY"
-        log DEBUG "Using GOOGLE_API_KEY as GEMINI_API_KEY (legacy fallback)"
-    fi
 
     # Check workspace
     if [[ ! -d "$WORKSPACE_DIR" ]]; then

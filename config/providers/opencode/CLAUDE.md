@@ -85,7 +85,7 @@ OpenCode serves as an independent multi-provider router:
 - **Fast iteration** (`opencode-fast`) — quick feedback via fast/budget model
 - **Research** (`opencode-research`) — deep analysis via research-grade model
 
-OpenCode is a standalone provider, not a replacement for Codex or Gemini.
+OpenCode is a standalone provider, not a replacement for Codex or Antigravity.
 
 ## Limitations
 

@@ -60,7 +60,7 @@ Use the actual preflight output to display the workflow indicator before dispatc
 List available providers and mark missing providers as `(unavailable - skipping)`. If `OCTOPUS_COMPACT_BANNERS=true`, use this compact single-line format:
 
 ```text
-🐙 develop — Multi-provider implementation mode | codex ✓ | gemini (unavailable - skipping)
+🐙 develop — Multi-provider implementation mode | codex ✓ | agy (unavailable - skipping)
 ```
 
 If no external provider is available, stop and tell the user to run `/octo:setup`; do not fall back to Claude-native implementation.
@@ -133,7 +133,7 @@ The **Develop** phase of the Double Diamond methodology (divergent thinking for 
 
 ## What You Get
 
-- Multi-AI implementation (Claude + Gemini + Codex)
+- Multi-AI implementation (Claude + Antigravity + Codex)
 - Multiple implementation approaches
 - Quality gate validation (75% consensus threshold)
 - Security checks (OWASP compliance)

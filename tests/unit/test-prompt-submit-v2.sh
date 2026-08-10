@@ -81,10 +81,10 @@ else
     fail "Checks for Codex/OpenAI provider" "missing codex check"
 fi
 
-if grep -q 'GEMINI_API_KEY\|gemini' "$HOOK" 2>/dev/null; then
-    pass "Checks for Gemini provider"
+if grep -q 'AGY_AUTH_TOKEN\|command -v agy\|agy' "$HOOK" 2>/dev/null; then
+    pass "Checks for Antigravity provider"
 else
-    fail "Checks for Gemini provider" "missing gemini check"
+    fail "Checks for Antigravity provider" "missing agy check"
 fi
 
 # ── Octopus branding ────────────────────────────────────────────────

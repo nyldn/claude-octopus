@@ -80,12 +80,13 @@ test_is_agent_available_skips_dead() {
     else test_fail "quota-dead skip gate wrong"; fi
 }
 
-test_gemini_timeout_override_present() {
-    test_case "spawn.sh applies OCTOPUS_GEMINI_TIMEOUT to gemini dispatch (oco-2kw)"
-    if grep -q 'OCTOPUS_GEMINI_TIMEOUT' "$PROJECT_ROOT/scripts/lib/spawn.sh" && \
+test_retired_gemini_timeout_override_absent() {
+    test_case "spawn.sh uses the supervised workflow timeout without a Gemini-only override"
+    if ! grep -q 'OCTOPUS_GEMINI_TIMEOUT' "$PROJECT_ROOT/scripts/lib/spawn.sh" && \
+       grep -q 'local _eff_timeout="${TIMEOUT:-0}"' "$PROJECT_ROOT/scripts/lib/spawn.sh" && \
        grep -q 'run_with_timeout "\$_eff_timeout"' "$PROJECT_ROOT/scripts/lib/spawn.sh"; then
         test_pass
-    else test_fail "spawn.sh missing per-provider gemini timeout wiring"; fi
+    else test_fail "spawn.sh still exposes retired Gemini timeout behavior"; fi
 }
 
 
@@ -147,15 +148,15 @@ test_check_providers_applies_dead_marker_to_every_provider() {
 }
 
 # A dead-mark written by a shim running under `env -i` must be visible to the
-# reader. gemini-exec.sh and agy-exec.sh both mark dead from inside the isolated
+# reader. agy-exec.sh marks dead from inside the isolated
 # environment; if WORKSPACE_DIR is not forwarded they write to the
 # $HOME/.claude-octopus fallback while check-providers.sh reads
 # $CLAUDE_PLUGIN_DATA, so the provider keeps advertising `available` and is
-# reseated (and re-prompts for the gemini keychain entry) every session.
+# reseated every session.
 test_provider_env_forwards_workspace_dir() {
     test_case "build_provider_env forwards WORKSPACE_DIR into every isolated env"
     local out missing=""
-    for p in gemini agy codex; do
+    for p in agy codex; do
         out="$(WORKSPACE_DIR=/tmp/octo-wsdir-probe bash -c '
             cd "$1" || exit 1
             source scripts/lib/validation.sh 2>/dev/null
@@ -180,10 +181,10 @@ test_dead_mark_survives_isolated_env() {
         cd "$1" || exit 1
         source scripts/lib/validation.sh 2>/dev/null
         source scripts/lib/provider-routing.sh
-        build_provider_env gemini
-        "${PROVIDER_ENV_ARRAY[@]}" bash -c "cd \"$1\"; source scripts/lib/quota-watcher.sh; octo_quota_mark_dead gemini 0" _ "$1"
+        build_provider_env agy
+        "${PROVIDER_ENV_ARRAY[@]}" bash -c "cd \"$1\"; source scripts/lib/quota-watcher.sh; octo_quota_mark_dead agy 0" _ "$1"
         source scripts/lib/quota-watcher.sh
-        octo_quota_is_dead gemini && echo DEAD || echo ALIVE
+        octo_quota_is_dead agy && echo DEAD || echo ALIVE
     ' _ "$PROJECT_ROOT" 2>/dev/null)"
     rm -rf "$th" "$pd"
     if [[ "$res" == "DEAD" ]]; then
@@ -200,7 +201,7 @@ test_dead_mark_survives_isolated_env
 test_pattern_matches_terminal_errors
 test_watcher_marks_dead_on_match
 test_is_agent_available_skips_dead
-test_gemini_timeout_override_present
+test_retired_gemini_timeout_override_absent
 test_pattern_matches_agy_and_gemini_terminal_errors
 test_quota_dead_mark_expires
 test_check_providers_applies_dead_marker_to_every_provider

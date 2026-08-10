@@ -10,7 +10,7 @@ This hook runs automatically when Claude Code is started with `--init`, `--init-
 ## What It Does
 
 1. Creates session-aware workspace directories
-2. Verifies provider availability (Codex/Gemini)
+2. Verifies provider availability (Codex/Antigravity)
 3. Validates Claude Code version compatibility
 4. Initializes analytics tracking
 

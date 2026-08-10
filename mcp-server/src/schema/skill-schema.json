@@ -70,7 +70,7 @@
       "type": "array",
       "items": {
         "type": "string",
-        "enum": ["claude", "codex", "gemini"]
+        "enum": ["claude", "codex", "agy"]
       },
       "description": "AI providers this skill uses."
     },

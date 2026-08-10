@@ -6,7 +6,7 @@ last_reviewed: 2026-08-10
 
 ## Mission
 
-Put up to 10 external AI integrations on every task so blind spots surface before you ship — not after.
+Put up to 9 external AI integrations on every task so blind spots surface before you ship — not after.
 
 ## Vision
 
@@ -25,7 +25,7 @@ A world where every significant code decision gets adversarial review from multi
 - **Gap exposure:** Missing team-configuration primitives, council consensus scoring not yet surfaced in PRs
 
 ### Persona 3: Power user / AI-native developer
-- **Goal:** Squeeze maximum quality from the full frontier model ecosystem (Claude, Codex, Gemini, Qwen, Ollama)
+- **Goal:** Squeeze maximum quality from the full frontier model ecosystem (Claude, Codex, Antigravity, Qwen, Ollama)
 - **Pain point:** Orchestrating multiple CLIs manually is brittle and repetitive
 - **Gap exposure:** Provider CLI version drift, cost surprises from multi-model dispatch
 
@@ -35,7 +35,7 @@ Claude Octopus is a **multi-runtime orchestration plugin** with three architectu
 
 | Layer | What it does | Gap it closes |
 |-------|-------------|---------------|
-| **Provider adapters** (`scripts/orchestrate.sh`, `bin/check-providers.sh`) | Detects, authenticates, and dispatches to up to 10 external AI integrations | Eliminates manual per-provider boilerplate |
+| **Provider adapters** (`scripts/orchestrate.sh`, `bin/check-providers.sh`) | Detects, authenticates, and dispatches to up to 9 external AI integrations | Eliminates manual per-provider boilerplate |
 | **Workflow engine** (`skills/`) | Structures every task into Discover → Define → Develop → Deliver with quality gates | Stops ad-hoc "just ask Claude" from shipping low-confidence output |
 | **Consensus layer** | 75% gate: flags disagreements across providers before code is finalized | The actual blind-spot catcher — surfaces the 1-in-5 case where Claude was wrong |
 
@@ -43,9 +43,9 @@ Claude Octopus is a **multi-runtime orchestration plugin** with three architectu
 
 ## Core Value Propositions
 
-- **Blind spot elimination:** Any model can be wrong; 10 external integrations rarely agree on the same wrong answer
+- **Blind spot elimination:** Any model can be wrong; 9 external integrations rarely agree on the same wrong answer
 - **Zero-friction escalation:** Claude-native for ordinary tasks, Octopus for anything that deserves a second opinion
-- **Five providers can cost nothing extra when you already have access:** Codex (OAuth), Gemini (OAuth), Antigravity CLI, Copilot (GitHub subscription), and Ollama (local) — Qwen now requires API-key or Coding-Plan auth, while Perplexity and OpenRouter are metered
+- **Four providers can cost nothing extra when you already have access:** Codex (OAuth), Antigravity CLI, Copilot (GitHub subscription), and Ollama (local) — Qwen now requires API-key or Coding-Plan auth, while Perplexity and OpenRouter are metered
 - **Dark Factory autonomy:** Spec in, software out — full Discover→Define→Develop→Deliver pipeline without step-by-step prompting
 - **Opinionated four-phase methodology:** Infrastructure plus the workflow that uses it correctly
 
@@ -79,7 +79,7 @@ Frontier AI models will remain individually overconfident for the foreseeable fu
 - GitHub forks: 365
 - Local CI parity: `make ci-local` runs the same smoke, unit, and integration suites as CI
 - Version: 9.61.2 (active release cadence)
-- Runtimes supported: Claude Code, Codex CLI, Command Code CLI, Cursor (MCP), Gemini CLI
+- Runtimes supported: Claude Code, Codex CLI, Command Code CLI, Cursor (MCP), Antigravity CLI
 
 **Measured Impact:**
 - 75% consensus gate: quantifiable disagreement detection before production

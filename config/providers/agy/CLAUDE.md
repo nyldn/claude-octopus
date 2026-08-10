@@ -53,16 +53,11 @@ The helper builds the command as a Bash argv array, preserving spaces in
 Antigravity also uses `agy --print-timeout`; Octopus enforces its own
 orchestration timeout as a fallback around the provider command.
 
-## Serving gemini seats through agy
+## Legacy Google-seat IDs
 
-`OCTOPUS_GEMINI_VIA_AGY=1` (also `on`/`true`/`yes`) makes `scripts/lib/dispatch.sh`
-return `agy-exec.sh` for the `gemini|gemini-fast|gemini-image` agent types, so
-existing workflows, phase routing, and role routing that seat gemini keep
-working on Antigravity subscriptions. Google sunset Gemini Code Assist
-free-tier OAuth for gemini-cli (`IneligibleTierError`); this option is the
-migration path that does not require re-routing every gemini seat by hand.
-Model pins follow `OCTOPUS_AGY_MODEL` (labels from `agy models`), not gemini
-model ids, and provider health checks for gemini seats probe agy instead.
+Legacy `gemini`, `gemini-fast`, and `gemini-image` agent IDs are unconditional
+aliases for AGY. They resolve to `agy-exec.sh`, use `OCTOPUS_AGY_MODEL`, and
+health-check the `agy` binary. No Gemini CLI executable or credential is read.
 
 ## Security Note
 

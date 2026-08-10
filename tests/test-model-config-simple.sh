@@ -55,7 +55,7 @@ echo ""
 echo "Test 2: Default provider models"
 echo "--------------------------------"
 
-for provider in codex gemini; do
+for provider in codex agy; do
     TESTS_RUN=$((TESTS_RUN + 1))
     model=$(jq -r ".providers.${provider}.model // .providers.${provider}.default // empty" "$CONFIG_FILE" 2>/dev/null || echo "")
     if [[ -n "$model" && "$model" != "null" ]]; then
@@ -126,8 +126,8 @@ else
 fi
 
 TESTS_RUN=$((TESTS_RUN + 1))
-if grep -q "OCTOPUS_GEMINI_MODEL" "$ALL_SRC"; then
-    echo -e "${GREEN}✓${NC} Environment variable support (OCTOPUS_GEMINI_MODEL)"
+if grep -q "OCTOPUS_AGY_MODEL" "$ALL_SRC"; then
+    echo -e "${GREEN}✓${NC} Environment variable support (OCTOPUS_AGY_MODEL)"
     TESTS_PASSED=$((TESTS_PASSED + 1))
 else
     echo -e "${RED}✗${NC} Missing environment variable support"

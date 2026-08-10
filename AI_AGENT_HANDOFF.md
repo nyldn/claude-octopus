@@ -1,13 +1,13 @@
 # AI Agent Handoff
 
 Last updated: 2026-08-10
-Status: v9.61.2 is published, with permanent
-hook-timeout cleanup, careful-mode false-positive fixes, Codex marketplace
-update recovery, and provider availability/health hardening. The exact-main CI,
-tag, GitHub Release, shared marketplace sync, and real Claude/Codex upgrades
-from v9.61.1 all passed. The Gemini macOS keychain modal remains future issue
-#838; cancellation cleanup remains #841.
-Branch: `main`
+Status: v9.61.2 is published. Issue #838 is implemented on
+`fix/issue-838-retire-gemini`: direct Gemini CLI support is retired, legacy
+Gemini provider IDs migrate one-way to AGY, and inert help rendering can no
+longer execute `agy login`. Final local CI passed. The branch still needs its
+commit, push, PR, remote checks, merge, and release. Stale-install update
+hardening is tracked in #851; cancellation cleanup remains #841.
+Branch: `fix/issue-838-retire-gemini`
 Release: [v9.61.2](https://github.com/nyldn/claude-octopus/releases/tag/v9.61.2)
 
 ## Start Here
@@ -66,6 +66,34 @@ Beads is readable but not writable. The remote-backed database is on schema
 v49 with four pending migrations to v53. Repository rules reserve migration for
 the designated migrator. No migration was run, so this work could not be
 claimed or recorded in `bd`; use this handoff for the blocked tracking record.
+
+## Issue #838 Candidate
+
+- Direct Gemini CLI dispatch, detection, authentication, installer, model,
+  pricing, generated command, and provider-documentation surfaces are removed.
+  `gemini`, `gemini-fast`, and `gemini-*` remain compatibility inputs only and
+  canonicalize to AGY; stale config is migrated one-way and the obsolete
+  `.providers.gemini` object is deleted.
+- The retired helper, Gemini provider overlay, Gemini command pack, and obsolete
+  direct-provider tests are deleted. AGY is the sole Google-family execution
+  seat in orchestration and agent configuration.
+- The reported popup had a second concrete trigger: unescaped backticks around
+  `agy login` in an unquoted help heredoc caused `help --full` to execute the
+  login command. The text is now inert and a smoke regression proves help
+  rendering cannot invoke provider login.
+- Final verification on the uncommitted candidate: `make sync`,
+  `make sync-check`, `git diff --check`, strict direct-Gemini execution-path
+  search, model-config 93/93, smoke 16/16 suites, unit 247/247 suites, and
+  integration 7/7 suites passed. No mode changes are present.
+- The local Claude lifecycle test temporarily replaced the installed plugin as
+  part of its normal uninstall/install coverage and finished successfully.
+- An unrelated host hook failure was diagnosed as a stale `claude-mem` runtime;
+  `claude-mem@13.15.0 repair` and `start` restored its worker. No external
+  claude-mem files are part of this branch.
+- #851 records the permanent stale-install design: local-only startup
+  detection and cooldown guidance, doctor visibility, and explicit handoff to
+  Claude Code's updater. Hooks must never perform network access, mutate the
+  loaded cache, or launch an updater themselves.
 
 ## Release v9.61.2
 
@@ -137,11 +165,10 @@ claimed or recorded in `bd`; use this handoff for the blocked tracking record.
   it under `/plugin` -> Marketplaces -> `nyldn-plugins`; Codex retains its host
   marketplace upgrade flow. The plugin does not rewrite its own loaded cache or
   enablement state.
-- **#838 filed for the reported Gemini popup** — unattended workflow dispatch
-  can still trigger macOS Keychain access for `gemini-cli-workspace-oauth` via
-  the Node-based Gemini CLI. The issue records the screenshot text, suspected
-  detection/config paths, and non-prompting acceptance criteria. It is a future
-  task, not part of v9.61.2.
+- **#838 was filed for the reported Gemini popup** and is addressed by the
+  current post-v9.61.2 candidate. Its former requirement to preserve direct
+  interactive Gemini use is superseded by the active `oco-004` decision that
+  AGY is the sole Google-family execution seat.
 
 Verification completed before the release candidate:
 
@@ -154,7 +181,7 @@ Verification completed before the release candidate:
 - Provider predicates: 13/13; Vibe 5/5; feature detection 20/20;
   OpenAI-compatible agent 19/19.
 - Smoke dispatch exclusion: 9/9; quota watcher 2/2; embrace fail-fast 6/6;
-  Gemini provider 52/52.
+  pre-retirement Gemini provider 52/52.
 - Bash syntax, relevant ShellCheck gates, diff checks, and executable-mode
   checks were clean. Test-created stale worktree records were pruned.
 
@@ -290,17 +317,19 @@ provider refactor; preserve the behavioural-test-first pattern used by `#805` an
 
 ## Next Action
 
-1. **#838:** reproduce the current Gemini CLI macOS Keychain behavior and make
-   unattended dispatch fail closed before any prompt-capable OAuth invocation.
-   Correct the current false "keychain bypass active" assurance and preserve
-   explicit interactive use.
-2. **#841:** add workflow cancellation cleanup for provider trees, PID and
+1. Commit and push the verified #838 candidate, open its PR, resolve remote
+   review/CI, squash-merge it, and release/tag the exact main commit.
+2. **#851:** implement the local-only stale-install guard and doctor/update
+   health surface. Delegate mutation to explicit Claude Code host commands;
+   never self-update from a hook or alter the currently loaded cache.
+3. **#841:** add workflow cancellation cleanup for provider trees, PID and
    heartbeat registries, incomplete result stubs, terminal events, and
    project-local state pollution.
-3. Continue #799, #800, and #801 as separate test-first fixes; do not reopen
+4. Continue #799, #800, and #801 as separate test-first fixes; do not reopen
    the bounded portions already delivered in v9.61.2.
-4. Revisit #815 alongside #838 for Gemini environment-level E2E coverage.
-5. Remaining streamlining work is still unstarted:
+5. Close #815 when the #838 PR lands because the obsolete Gemini E2E seat is
+   removed rather than repaired.
+6. Remaining streamlining work is still unstarted:
    - **4c:** remove obsolete drift detection, its unreachable duplicate, and
      the deprecated wizard only after confirming all call sites.
    - **4b:** cull unused/below-floor `SUPPORTS_*` flags together with the

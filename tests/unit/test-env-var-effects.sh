@@ -3,9 +3,6 @@
 #
 # Four variables shipped inert in a single release cycle and no test noticed:
 #
-#   #715  OCTOPUS_GEMINI_VIA_AGY                three dispatch sites read the raw
-#                                               env var, so a recorded answer never
-#                                               reached them
 #   #720  OCTOPUS_REVIEWER_FLIP                 octo_features_choice only forwards
 #                                               values matching a declared choice,
 #                                               so =1 was dropped — while a comment
@@ -16,7 +13,7 @@
 #   —     invocation: human_only                custom key stripped at build time;
 #                                               enforcement was a hardcoded list
 #
-# Three of those four share one root cause. Every one had passing tests around it.
+# These share one root cause. Every one had passing tests around it.
 # The failure was never "nobody tested this function" — it was that the
 # documentation and the enforcement live in different files with nothing linking
 # them. This suite is the link: it derives its work list FROM the documentation.
@@ -120,9 +117,10 @@ while IFS= read -r v; do
 done < <(manifest_vars)
 if [[ -z "$bad" ]]; then test_pass; else test_fail "skip without a reason (or still TODO):$bad"; fi
 
-# Ratchet: coverage may improve, never regress.
+# Ratchet: coverage may improve, never regress. The floor decreases only when a
+# covered variable is deliberately retired; direct Gemini routing removed one.
 test_case "covered-by count has not fallen below its recorded floor"
-FLOOR=27
+FLOOR=26
 now="$(grep -c $'\tcovered-by\t' "$MANIFEST" || true)"
 if [[ "${now:-0}" -ge "$FLOOR" ]]; then
     test_pass

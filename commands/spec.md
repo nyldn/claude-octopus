@@ -46,7 +46,7 @@ NLSpec (Natural Language Specification) authoring:
 
 ## What You Get
 
-- Multi-AI research (Claude + Gemini + Codex) on the domain
+- Multi-AI research (Claude + Antigravity + Codex) on the domain
 - Structured NLSpec with behaviors, actors, constraints
 - Adversarial completeness challenge from a second provider (surfaces missing requirements and overlooked edge cases)
 - Completeness validation with scoring

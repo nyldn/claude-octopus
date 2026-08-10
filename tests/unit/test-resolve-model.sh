@@ -69,7 +69,9 @@ clear_model_cache() {
 clear_model_cache
 assert_eq "$(resolve_octopus_model "codex" "codex")" "gpt-5.6-sol" "Default codex"
 clear_model_cache
-assert_eq "$(resolve_octopus_model "gemini" "gemini")" "gemini-3.1-pro-preview" "Default gemini"
+assert_eq "$(resolve_octopus_model "agy" "agy")" "default" "Default Antigravity"
+clear_model_cache
+assert_eq "$(resolve_octopus_model "gemini" "gemini")" "default" "Legacy Gemini ID resolves through Antigravity"
 
 # Test 2: Env var overrides
 clear_model_cache
@@ -222,7 +224,7 @@ cat > "$CONFIG_FILE" << EOF
   "providers": {
     "codex": { "default": "deepseek-ai/DeepSeek-V4-Pro", "logic_review": "gpt-5.5" },
     "claude": { "default": "claude-sonnet-4.6", "review": "claude-review-phase" },
-    "gemini": { "default": "gemini-3.1-pro-preview" }
+    "agy": { "default": "default" }
   },
   "routing": {
     "phases": { "review": "claude:review" },
@@ -234,7 +236,7 @@ assert_eq "$(resolve_octopus_model "codex" "codex" "review" "logic-reviewer")" "
 clear_model_cache
 assert_eq "$(resolve_octopus_model "claude" "claude-sonnet" "review" "logic-reviewer")" "claude-review-phase" "Cross-provider role routing falls back to matching phase routing for claude"
 clear_model_cache
-assert_eq "$(resolve_octopus_model "gemini" "gemini" "review" "logic-reviewer")" "gemini-3.1-pro-preview" "Provider-scoped role routing does not leak codex or claude models to gemini"
+assert_eq "$(resolve_octopus_model "gemini" "gemini" "review" "logic-reviewer")" "default" "Legacy Gemini routing resolves through Antigravity without cross-provider model leakage"
 clear_model_cache
 assert_eq "$(resolve_octopus_model "codex" "codex" "review" "arch-reviewer")" "deepseek-ai/DeepSeek-V4-Pro" "Cross-provider phase routing does not leak claude model to codex"
 

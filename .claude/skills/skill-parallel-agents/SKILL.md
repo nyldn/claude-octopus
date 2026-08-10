@@ -125,7 +125,7 @@ Claude Octopus uses **visual indicators** so you always know which AI is respond
 |-----------|---------|------|
 | 🐙 | **Parallel Mode** | Multiple CLIs orchestrated via orchestrate.sh |
 | 🔴 | **Codex CLI** | OpenAI Codex (your OPENAI_API_KEY) |
-| 🟡 | **Gemini CLI** | Google Gemini (your GEMINI_API_KEY) |
+| 🧭 | **Antigravity CLI** | Google Antigravity (your authenticated seat) |
 | 🔵 | **Claude Subagent** | Claude Code Task tool (built-in) |
 
 ### What Triggers External CLIs vs Subagents
@@ -146,7 +146,7 @@ Claude Octopus uses **visual indicators** so you always know which AI is respond
 
 **Why this matters:** External CLIs use your OpenAI/Google API quotas and incur costs. Claude subagents are included with Claude Code at no additional charge.
 
-When you see 🐙 **CLAUDE OCTOPUS ACTIVATED**, external CLI providers such as Codex, Gemini, Antigravity, and others will be invoked for multi-perspective analysis.
+When you see 🐙 **CLAUDE OCTOPUS ACTIVATED**, external CLI providers such as Codex, Antigravity, and others will be invoked for multi-perspective analysis.
 
 ---
 
@@ -199,7 +199,7 @@ Forcing parallel mode uses external CLIs for every task, which incurs API costs:
 | Provider | Cost per Query | What It Uses |
 |----------|----------------|--------------|
 | 🔴 Codex CLI | ~$0.01-0.05 | Your OPENAI_API_KEY |
-| 🟡 Gemini CLI | ~$0.01-0.03 | Your GEMINI_API_KEY |
+| 🧭 Antigravity CLI | Included with access/subscription | Antigravity CLI auth |
 | 🔵 Claude | Included | Claude Code subscription |
 
 **Total cost per forced query: ~$0.02-0.08**
@@ -216,7 +216,7 @@ Force parallel execution
 
 Providers:
 🔴 Codex CLI - [Role in this task]
-🟡 Gemini CLI - [Role in this task]
+🧭 Antigravity CLI - [Role in this task]
 🔵 Claude - [Role in this task]
 ```
 
@@ -237,7 +237,7 @@ ${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh detect-providers
 ```
 
 **IMPORTANT - First Time Setup Detection:**
-If the detect-providers command shows BOTH providers are missing (CODEX_STATUS=missing AND GEMINI_STATUS=missing), this is likely a first-time user. Before showing error messages, provide a friendly welcome message:
+If the detect-providers command shows both Codex and AGY are missing, this is likely a first-time user. Before showing error messages, provide a friendly welcome message:
 
 > "👋 Welcome to Claude Octopus! I see this is your first time using the plugin.
 >
@@ -251,13 +251,11 @@ If the detect-providers command shows BOTH providers are missing (CODEX_STATUS=m
 > Or set API key: `export OPENAI_API_KEY="sk-..."`
 > Get key from: https://platform.openai.com/api-keys
 >
-> **Option 2: Google Gemini** (best for analysis)
+> **Option 2: Google Antigravity CLI** (best for analysis)
 > ```
-> npm install -g @google/gemini-cli
-> gemini  # OAuth recommended
+> agy login
 > ```
-> Or set API key: `export GEMINI_API_KEY="AIza..."`
-> Get key from: https://aistudio.google.com/app/apikey
+> Install `agy` from Google Antigravity first if it is not already present.
 >
 > Once you've installed one provider, you can start using Claude Octopus by just talking naturally:
 > - 'Research OAuth authentication patterns'
@@ -283,12 +281,12 @@ Detecting providers...
 CODEX_STATUS=ok
 CODEX_AUTH=oauth
 
-GEMINI_STATUS=ok
-GEMINI_AUTH=none
+AGY_STATUS=ok
+AGY_AUTH=none
 
 Summary:
   ✓ Codex: Installed and authenticated (oauth)
-  ⚠ Gemini: Installed but not authenticated
+  ⚠ Antigravity: Installed but not authenticated
 ```
 
 ### Step 2: Route Based on Detection Results
@@ -331,13 +329,13 @@ Do NOT proceed with the task until the user has updated and restarted. The detec
 ```
 CODEX_STATUS=missing
 CODEX_AUTH=none
-GEMINI_STATUS=missing
-GEMINI_AUTH=none
+AGY_STATUS=missing
+AGY_AUTH=none
 ```
 
 **Action:** STOP and tell the user:
 
-> "Claude Octopus needs at least one AI provider (Codex or Gemini) to work.
+> "Claude Octopus needs at least one AI provider (Codex or Antigravity) to work.
 >
 > You have two options:
 >
@@ -348,10 +346,9 @@ GEMINI_AUTH=none
 > ```
 > Get API key from: https://platform.openai.com/api-keys
 >
-> **Option 2: Install Gemini CLI**
+> **Option 2: Install Antigravity CLI**
 > ```
-> npm install -g @google/gemini-cli
-> gemini  # Run OAuth setup
+> agy login
 > ```
 >
 > After installing one, run `/octo:setup` to verify everything works."
@@ -360,7 +357,7 @@ GEMINI_AUTH=none
 ```
 CODEX_STATUS=ok
 CODEX_AUTH=oauth (or api-key)
-GEMINI_STATUS=missing (or ok with AUTH=none)
+AGY_STATUS=missing (or ok with AUTH=none)
 ```
 
 **Action:** IMMEDIATELY proceed with the user's task using the available provider. No need to announce setup status - just execute the task. The user doesn't care about which provider you're using, they just want their task done.
@@ -369,8 +366,8 @@ GEMINI_STATUS=missing (or ok with AUTH=none)
 ```
 CODEX_STATUS=ok
 CODEX_AUTH=oauth
-GEMINI_STATUS=ok
-GEMINI_AUTH=oauth
+AGY_STATUS=ok
+AGY_AUTH=oauth
 ```
 
 **Action:** IMMEDIATELY proceed with the user's task using both providers for comprehensive results. No need to announce setup status - just execute the task.
@@ -466,7 +463,7 @@ Available providers each propose solutions, then critique each other's work. A s
 
 ```
 ┌─────────────┐     ┌─────────────┐
-│   Codex     │     │   Gemini    │
+│   Codex     │     │ Antigravity │
 │ (Proposer)  │     │ (Proposer)  │
 └──────┬──────┘     └──────┬──────┘
        │                   │
@@ -477,7 +474,7 @@ Available providers each propose solutions, then critique each other's work. A s
        │                   │
        ▼                   ▼
 ┌─────────────┐     ┌─────────────┐
-│  Gemini     │     │   Codex     │
+│ Antigravity │     │   Codex     │
 │ (Critic)    │     │  (Critic)   │
 └──────┬──────┘     └──────┬──────┘
        │                   │
@@ -504,7 +501,7 @@ ${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh grapple --principles perfo
 
 *Octopus squeezes prey to test for weaknesses*
 
-Blue Team (Codex) implements secure code. Red Team (Gemini) attacks to find vulnerabilities. Then remediation and validation.
+Blue Team (Codex) implements secure code. Red Team (Antigravity) attacks to find vulnerabilities. Then remediation and validation.
 
 ```
 Phase 1: Blue Team implements secure solution
@@ -547,7 +544,7 @@ The `auto` command detects intent keywords and routes to the appropriate workflo
 | security audit, red team, pentest | `squeeze` | Red Team |
 | adversarial, cross-model, debate | `grapple` | Debate |
 | (other coding keywords) | `codex` agent | Single agent |
-| (other design keywords) | `gemini` agent | Single agent |
+| (other design keywords) | `agy` agent | Single agent |
 
 **Examples:**
 ```bash
@@ -586,7 +583,7 @@ The `tangle` phase enforces quality gates:
 
 | Command | Description |
 |---------|-------------|
-| `grapple <prompt>` | Codex vs Gemini debate until consensus |
+| `grapple <prompt>` | Codex vs Antigravity debate until consensus |
 | `grapple --principles TYPE <prompt>` | Debate with domain principles (security, performance, maintainability) |
 | `squeeze <prompt>` | Red Team security review (Blue Team vs Red Team) |
 
@@ -622,9 +619,8 @@ The `tangle` phase enforces quality gates:
 | `codex` | gpt-5.6-sol | Frontier implementation and independent review |
 | `codex-standard` | gpt-5.6-terra | Balanced implementation and review |
 | `codex-mini` | gpt-5.6-luna | Quick fixes, simple tasks |
-| `gemini` | gemini-3.1-pro-preview | Deep analysis, 1M context |
-| `gemini-fast` | gemini-3-flash-preview | Speed-critical tasks |
-| `gemini-image` | gemini-3-pro-image-preview | Image generation |
+| `agy` | service-selected default | Deep analysis and external review |
+| `agy-research` | service-selected default | Research-focused Antigravity seat |
 | `codex-review` | gpt-5.6-sol | Code review mode |
 | `openrouter` | Various | Universal fallback (400+ models) |
 
@@ -637,7 +633,7 @@ Claude Octopus now intelligently routes tasks based on your subscription tiers a
 | Provider | Tiers | Monthly Cost | Capabilities |
 |----------|-------|--------------|--------------|
 | **Codex/OpenAI** | Free, Plus, Pro, API | $0-200 | code, chat, review |
-| **Gemini** | Free, Google One, Workspace, API | $0-20 or bundled | code, chat, vision, long-context (2M) |
+| **Antigravity** | Google access/subscription | Included with access | code, analysis, external review |
 | **Claude** | Pro, Max 5x, Max 20x, API | $20-200 | code, chat, analysis, long-context |
 | **OpenRouter** | Pay-per-use | Variable | 400+ models, routing variants |
 
@@ -649,13 +645,13 @@ Claude Octopus now intelligently routes tasks based on your subscription tiers a
 | `cost-first` | Prefer cheapest capable provider |
 | `quality-first` | Prefer highest-tier provider |
 
-**Example:** If you have Google Workspace (bundled Gemini Pro), the system prefers Gemini for heavy analysis tasks since it's "free" with your work account.
+**Example:** If your Google seat includes Antigravity access, the system can prefer AGY for analysis without invoking the retired Gemini CLI.
 
 ### Routing CLI Flags
 
 ```bash
 # Force a specific provider
-${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh --provider gemini auto "analyze code structure"
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh --provider agy auto "analyze code structure"
 
 # Prefer cheapest option
 ${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh --cost-first auto "research best practices"
@@ -691,10 +687,10 @@ providers:
     subscription_tier: "plus"    # free|plus|pro|api-only
     cost_tier: "low"             # free|low|medium|high|bundled|pay-per-use
 
-  gemini:
+  agy:
     installed: true
     auth_method: "oauth"
-    subscription_tier: "workspace"  # free|google-one|workspace|api-only
+    subscription_tier: "google"     # service-managed Google access
     cost_tier: "bundled"
 
   openrouter:
@@ -775,7 +771,7 @@ ${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh embrace "Create a user not
 ### Pre-flight check fails
 ```bash
 ${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh preflight
-# Verify: codex CLI, gemini CLI, OPENAI_API_KEY, GOOGLE_API_KEY
+# Verify: codex CLI, agy CLI, and task-relevant provider credentials
 ```
 
 ### Quality gate failures

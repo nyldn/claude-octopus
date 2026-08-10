@@ -75,7 +75,7 @@ assert_file_has "$DEBATE" '\$\{label_a_upper\}, \$\{label_b_upper\}, \$\{label_c
     "debate synthesis choices use dynamic labels"
 
 test_case "provider resolver maps configured tokens to available agents"
-AVAILABLE_AGENTS="codex gemini claude-sonnet claude-opus openrouter qwen perplexity"
+AVAILABLE_AGENTS="codex agy claude-sonnet claude-opus openrouter qwen perplexity"
 source "$ROUTING"
 if [[ "$(resolve_provider_to_agent claude)" == "claude-sonnet" ]] \
    && [[ "$(resolve_provider_to_agent openrouter)" == "openrouter" ]] \
@@ -94,7 +94,9 @@ if (
     cat > "$HOME/.claude-octopus/config/providers.json" <<'JSON'
 {"routing":{"features":{"parallel":["claude","gemini","missing-provider"]}}}
 JSON
-    AVAILABLE_AGENTS="claude-sonnet gemini"
+    # The persisted gemini token represents a stale config and must be
+    # canonicalized to the available AGY seat before dispatch.
+    AVAILABLE_AGENTS="claude-sonnet agy"
     RESULTS_DIR="$tmp_home/results"
     CYAN=""
     NC=""
@@ -107,7 +109,7 @@ JSON
     source "$PARALLEL"
     fan_out "runtime provider config" >/dev/null
     grep -qx "claude-sonnet" "$tmp_home/spawned" && \
-        grep -qx "gemini" "$tmp_home/spawned" && \
+        grep -qx "agy" "$tmp_home/spawned" && \
         ! grep -qx "missing-provider" "$tmp_home/spawned"
 ); then
     test_pass

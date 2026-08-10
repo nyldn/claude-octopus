@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Session-level octo overrides (e.g. exported via ~/.claude/settings.json env)
 # change model resolution and must not leak into these assertions.
-unset OCTOPUS_GEMINI_VIA_AGY OCTOPUS_AGY_MODEL OCTOPUS_AGENT_TIMEOUT
+unset OCTOPUS_AGY_MODEL OCTOPUS_AGENT_TIMEOUT
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -19,12 +19,12 @@ else
     test_fail "expected agy:Gemini 3.1 Pro (High), got: $role_mapping"
 fi
 
-test_case "legacy researcher mapping is preserved"
+test_case "legacy role mode also migrates the researcher to agy"
 legacy_mapping="$(bash -c 'export OCTOPUS_LEGACY_ROLES=1; source "$1/scripts/lib/agent-utils.sh" 2>/dev/null; get_role_mapping researcher' bash "$PROJECT_ROOT")"
-if [[ "$legacy_mapping" == gemini:gemini-* ]]; then
+if [[ "$legacy_mapping" == "agy:default" ]]; then
     test_pass
 else
-    test_fail "expected legacy gemini provider mapping, got: $legacy_mapping"
+    test_fail "expected legacy role mode to use agy:default, got: $legacy_mapping"
 fi
 
 test_case "new model config routes research phase to agy"

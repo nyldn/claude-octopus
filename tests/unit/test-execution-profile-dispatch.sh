@@ -32,13 +32,8 @@ cmd=$(get_agent_command openai-compatible-agent develop implementer)
 assert_contains "$cmd" "--model deepseek-ai/DeepSeek-V4-Pro"
 assert_contains "$cmd" "--reasoning-effort medium"
 unset OCTOPUS_OPENAI_COMPATIBLE_AGENT_REASONING
-export OCTOPUS_GEMINI_REASONING=high
-set +e
-get_agent_command gemini research researcher >/dev/null 2>&1
-rc=$?
-set -e
-[[ "$rc" -ne 0 ]] || { echo "FAIL strict Gemini reasoning should fail" >&2; exit 1; }
-export OCTOPUS_REASONING_POLICY=best_effort
+# Legacy Gemini identifiers are canonicalized to the AGY Google seat. AGY
+# selects its own model/reasoning policy, so Octopus emits only the wrapper.
 cmd=$(get_agent_command gemini research researcher)
-assert_contains "$cmd" "gemini-exec.sh"
+assert_contains "$cmd" "agy-exec.sh"
 printf "PASS test-execution-profile-dispatch\n"

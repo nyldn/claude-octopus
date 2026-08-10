@@ -30,7 +30,7 @@
 # phases[].outputs: (required) Expected output artifacts
 
 # --- Agent configuration ---
-# phases[].agents[].provider: (required) codex | gemini | claude
+# phases[].agents[].provider: (required) codex | agy | claude
 # phases[].agents[].role: (required) What this agent does in the phase
 # phases[].agents[].model: (optional) Model override
 # phases[].agents[].prompt_template: (required) Prompt with {{variable}} placeholders

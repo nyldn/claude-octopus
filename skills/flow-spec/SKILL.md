@@ -58,7 +58,6 @@ If user says "skip" for any question, note assumptions and proceed.
 ```bash
 provider_status=$(bash "${HOME}/.claude-octopus/plugin/scripts/helpers/check-providers.sh")
 codex_status=$(echo "$provider_status" | grep -q '^codex:available' && echo "Available" || echo "Not installed")
-gemini_status=$(echo "$provider_status" | grep -q '^gemini:available' && echo "Available" || echo "Not installed")
 agy_status=$(echo "$provider_status" | grep -q '^agy:available' && echo "Available" || echo "Not installed")
 ```
 
@@ -70,7 +69,6 @@ Spec Phase: Generating structured specification for [project name]
 
 Provider Availability:
 Codex CLI: ${codex_status}
-Gemini CLI: ${gemini_status}
 Antigravity CLI: ${agy_status}
 Claude: Available (Synthesis & NLSpec generation)
 
@@ -245,7 +243,6 @@ Synthesize into the NLSpec template below. This is YOUR (Claude's) synthesis rol
 review_provider=""
 command -v codex >/dev/null 2>&1 && review_provider="codex"
 [[ -z "$review_provider" ]] && command -v agy >/dev/null 2>&1 && review_provider="agy"
-[[ -z "$review_provider" ]] && command -v gemini >/dev/null 2>&1 && review_provider="gemini"
 
 if [[ -n "$review_provider" ]]; then
   "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" spawn "$review_provider" \
@@ -375,7 +372,7 @@ Next steps:
 **Include attribution:**
 ```
 Multi-AI Research powered by Claude Octopus
-Providers: Codex | Gemini | Antigravity | Claude
+Providers: Codex | Antigravity | Claude
 ```
 
 

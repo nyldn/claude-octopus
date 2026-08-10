@@ -71,6 +71,6 @@ Test logs are saved to `/tmp/claude-octopus-live-tests/logs/`
 
 Live tests make real API calls. Each test typically uses:
 - Claude: Included with subscription
-- Codex/Gemini: $0.01-0.10 per test (if invoked)
+- Codex/Antigravity: subscription usage per test (if invoked)
 
 Run sparingly and use `--timeout` to limit runaway tests.

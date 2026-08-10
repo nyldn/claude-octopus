@@ -30,7 +30,7 @@ empathize_research() {
 
     echo -e "${CYAN}🦑 Phase 1/4: Synthesizing research data...${NC}"
     local synthesis
-    synthesis=$(run_agent_sync "gemini" "You are a UX researcher. Synthesize user research for: $prompt
+    synthesis=$(run_agent_sync "agy" "You are a UX researcher. Synthesize user research for: $prompt
 
 Analyze the research context and provide:
 1. Key user insights and patterns observed
@@ -39,8 +39,8 @@ Analyze the research context and provide:
 4. Behavioral themes across user segments
 
 Format as a structured research synthesis." "${TIMEOUT:-300}" "ux-researcher" "empathize") || {
-        log WARN "Gemini failed for research synthesis, falling back to Claude"
-        echo -e " ${YELLOW}⚠${NC}  Gemini unavailable — falling back to Claude"
+        log WARN "Antigravity failed for research synthesis, falling back to Claude"
+        echo -e " ${YELLOW}⚠${NC}  Antigravity unavailable — falling back to Claude"
         synthesis=$(run_agent_sync "claude-sonnet" "You are a UX researcher. Synthesize user research for: $prompt. Provide: key insights, pain points, unmet needs, behavioral themes." "${TIMEOUT:-300}" "ux-researcher" "empathize") || true
     }
 
@@ -59,7 +59,7 @@ Format as a structured research synthesis." "${TIMEOUT:-300}" "ux-researcher" "e
         _slot="$(get_phase_slot "empathize" "synthesis" 2>/dev/null || true)"
         [[ -n "$_slot" ]] && _handoff_synthesis="$_slot"
     fi
-    personas=$(run_agent_sync "gemini" "Based on this research synthesis:
+    personas=$(run_agent_sync "agy" "Based on this research synthesis:
 $_handoff_synthesis
 
 Create:
@@ -68,8 +68,8 @@ Create:
 3. Key moments of truth and emotional highs/lows
 
 Use evidence-based persona development." "${TIMEOUT:-300}" "ux-researcher" "empathize") || {
-        log WARN "Gemini failed for personas, falling back to Claude"
-        echo -e " ${YELLOW}⚠${NC}  Gemini unavailable — falling back to Claude"
+        log WARN "Antigravity failed for personas, falling back to Claude"
+        echo -e " ${YELLOW}⚠${NC}  Antigravity unavailable — falling back to Claude"
         personas=$(run_agent_sync "claude-sonnet" "Based on this research: $synthesis. Create 2-3 user personas and a journey map for the primary persona." "${TIMEOUT:-300}" "ux-researcher" "empathize") || true
     }
 
@@ -97,7 +97,7 @@ Original context: $prompt" "${TIMEOUT:-300}" "product-writer" "empathize") || {
 
     echo -e "${CYAN}🦑 Phase 4/4: Validating through adversarial review...${NC}"
     local validation
-    validation=$(run_agent_sync "gemini" "Critically review this UX research and requirements:
+    validation=$(run_agent_sync "agy" "Critically review this UX research and requirements:
 
 Research: $synthesis
 Personas: $personas
@@ -110,8 +110,8 @@ Challenge:
 4. What biases might be present in the analysis?
 
 Provide constructive critique and recommendations." 120 "ux-researcher" "empathize") || {
-        log WARN "Gemini failed for validation, falling back to Claude"
-        echo -e " ${YELLOW}⚠${NC}  Gemini unavailable — falling back to Claude"
+        log WARN "Antigravity failed for validation, falling back to Claude"
+        echo -e " ${YELLOW}⚠${NC}  Antigravity unavailable — falling back to Claude"
         validation=$(run_agent_sync "claude-sonnet" "Critically review this UX research. Research: $synthesis. Personas: $personas. Requirements: $requirements. Challenge assumptions and identify biases." 120 "ux-researcher" "empathize") || true
     }
 
@@ -181,7 +181,7 @@ synthesize_research() {
 
     echo -e "${CYAN}🦑 Phase 1/4: Gathering and categorizing sources...${NC}"
     local gathering
-    gathering=$(run_agent_sync "gemini" "You are a research synthesizer. For the topic: $prompt
+    gathering=$(run_agent_sync "agy" "You are a research synthesizer. For the topic: $prompt
 
 Provide:
 1. Key research areas and sub-topics to explore
@@ -190,14 +190,14 @@ Provide:
 4. Taxonomy for organizing the literature
 
 Create a structure for systematic review." "${TIMEOUT:-300}" "research-synthesizer" "synthesize") || {
-        log WARN "Gemini failed for literature gathering, falling back to Claude"
-        echo -e " ${YELLOW}⚠${NC}  Gemini unavailable — falling back to Claude"
+        log WARN "Antigravity failed for literature gathering, falling back to Claude"
+        echo -e " ${YELLOW}⚠${NC}  Antigravity unavailable — falling back to Claude"
         gathering=$(run_agent_sync "claude-sonnet" "You are a research synthesizer. For: $prompt. Provide: key research areas, theoretical frameworks, seminal works, taxonomy for systematic review." "${TIMEOUT:-300}" "research-synthesizer" "synthesize") || true
     }
 
     echo -e "${CYAN}🦑 Phase 2/4: Conducting thematic analysis...${NC}"
     local themes
-    themes=$(run_agent_sync "gemini" "Based on this literature structure:
+    themes=$(run_agent_sync "agy" "Based on this literature structure:
 $gathering
 
 Conduct thematic analysis:
@@ -207,8 +207,8 @@ Conduct thematic analysis:
 4. Trace the evolution of thinking on this topic
 
 Topic: $prompt" "${TIMEOUT:-300}" "research-synthesizer" "synthesize") || {
-        log WARN "Gemini failed for thematic analysis, falling back to Claude"
-        echo -e " ${YELLOW}⚠${NC}  Gemini unavailable — falling back to Claude"
+        log WARN "Antigravity failed for thematic analysis, falling back to Claude"
+        echo -e " ${YELLOW}⚠${NC}  Antigravity unavailable — falling back to Claude"
         themes=$(run_agent_sync "claude-sonnet" "Based on: $gathering. Identify 4-6 themes, consensus points, conflicts, and evolution of thinking. Topic: $prompt" "${TIMEOUT:-300}" "research-synthesizer" "synthesize") || true
     }
 
@@ -234,7 +234,7 @@ Original topic: $prompt" "${TIMEOUT:-300}" "research-synthesizer" "synthesize") 
 
     echo -e "${CYAN}🦑 Phase 4/4: Drafting synthesis narrative...${NC}"
     local narrative
-    narrative=$(run_agent_sync "gemini" "Write a literature review synthesis for:
+    narrative=$(run_agent_sync "agy" "Write a literature review synthesis for:
 
 Topic: $prompt
 Structure: $gathering
@@ -248,8 +248,8 @@ Create:
 4. Conclusion with gaps and future directions
 
 Use academic writing conventions." "${TIMEOUT:-300}" "academic-writer" "synthesize") || {
-        log WARN "Gemini failed for synthesis narrative, falling back to Claude"
-        echo -e " ${YELLOW}⚠${NC}  Gemini unavailable — falling back to Claude"
+        log WARN "Antigravity failed for synthesis narrative, falling back to Claude"
+        echo -e " ${YELLOW}⚠${NC}  Antigravity unavailable — falling back to Claude"
         narrative=$(run_agent_sync "claude-sonnet" "Write a literature review for: $prompt. Structure: $gathering. Themes: $themes. Gaps: $gaps. Use academic writing conventions, organize by themes." "${TIMEOUT:-300}" "academic-writer" "synthesize") || true
     }
 

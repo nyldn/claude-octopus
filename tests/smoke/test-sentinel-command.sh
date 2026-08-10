@@ -41,8 +41,33 @@ test_sentinel_in_help() {
     test_pass
 }
 
+test_full_help_does_not_execute_provider_login() {
+    test_case "Full help renders provider login guidance without executing it"
+
+    local fake_bin marker
+    fake_bin=$(mktemp -d "$TEST_TMP_DIR/fake-bin.XXXXXX")
+    marker="$fake_bin/agy-invoked"
+    cat > "$fake_bin/agy" <<'EOF'
+#!/usr/bin/env bash
+: > "$AGY_INVOKED_MARKER"
+exit 99
+EOF
+    chmod +x "$fake_bin/agy"
+
+    AGY_INVOKED_MARKER="$marker" PATH="$fake_bin:$PATH" \
+        OCTOPUS_PROJECT_DIR="$PROJECT_ROOT" \
+        bash "$PROJECT_ROOT/scripts/orchestrate.sh" help --full >/dev/null 2>&1 || true
+
+    if [[ ! -e "$marker" ]]; then
+        test_pass
+    else
+        test_fail "help output executed 'agy login' from an unescaped heredoc"
+    fi
+}
+
 # Run tests
 test_sentinel_accessible
 test_sentinel_in_help
+test_full_help_does_not_execute_provider_login
 
 test_summary
