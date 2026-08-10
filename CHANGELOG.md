@@ -19,6 +19,10 @@
 
 - Skill-template tests generate into an isolated temporary copy instead of rewriting the live checkout, permanently removing a test-side source of hook and working-tree noise. (closes #822, #824)
 
+### Documentation
+
+- The update guide now surfaces Claude Code's host-managed auto-update opt-in for the third-party `nyldn-plugins` marketplace, retains the manual recovery commands, and explains how to reload the updated plugin. The plugin never rewrites its own loaded cache or user enablement state. (closes #836)
+
 ## [9.61.1] - 2026-08-09
 
 ### Changed

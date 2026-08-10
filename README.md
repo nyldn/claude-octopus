@@ -197,8 +197,14 @@ droid plugin install octo@nyldn-plugins
 <details>
 <summary>Update / Troubleshooting</summary>
 
+[Claude Code leaves auto-update off by default for third-party marketplaces](https://code.claude.com/docs/en/discover-plugins#configure-auto-updates).
+To opt in to host-managed startup updates, run `/plugin`, open
+**Marketplaces**, select **nyldn-plugins**, and choose **Enable auto-update**.
+When Claude reports that Octopus was updated, run `/reload-plugins` (or restart
+Claude Code) before using the new version.
+
 ```bash
-# Update
+# Manual update
 claude plugin marketplace update nyldn-plugins
 claude plugin update octo@nyldn-plugins
 
