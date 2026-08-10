@@ -12,6 +12,12 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
+log() {
+    local level="$1"
+    shift
+    printf '[%s] %s\n' "$level" "$*" >&2
+}
+
 errors=0
 warnings=0
 
@@ -27,10 +33,11 @@ echo "🔒 Checking plugin names..."
 PLUGIN_NAME=$(grep '"name"' "$ROOT_DIR/.claude-plugin/plugin.json" | head -1 | sed 's/.*: *"\([^"]*\)".*/\1/')
 CODEX_PLUGIN_JSON="$ROOT_DIR/.codex-plugin/plugin.json"
 if [[ ! -f "$CODEX_PLUGIN_JSON" ]]; then
-    echo -e "  ${RED}CRITICAL ERROR: Codex plugin manifest not found at $CODEX_PLUGIN_JSON${NC}"
+    log ERROR "CRITICAL: Codex plugin manifest not found at $CODEX_PLUGIN_JSON"
     exit 1
 fi
 CODEX_PLUGIN_NAME=$(grep '"name"' "$CODEX_PLUGIN_JSON" | head -1 | sed 's/.*: *"\([^"]*\)".*/\1/')
+EXPECTED_CODEX_PLUGIN_NAME="claude-octopus"
 MARKETPLACE_PLUGIN_NAME=$(sed -n '/"plugins"/,/]/p' "$ROOT_DIR/.claude-plugin/marketplace.json" | grep '"name"' | head -1 | sed 's/.*: *"\([^"]*\)".*/\1/')
 
 if [[ "$PLUGIN_NAME" != "octo" ]]; then
@@ -49,12 +56,12 @@ else
     echo -e "  ${GREEN}✓ marketplace.json plugin name: octo (matches plugin.json for /plugin UI)${NC}"
 fi
 
-if [[ "$CODEX_PLUGIN_NAME" != "$MARKETPLACE_PLUGIN_NAME" ]]; then
-    echo -e "  ${RED}CRITICAL ERROR: Codex plugin name '$CODEX_PLUGIN_NAME' does not match marketplace name '$MARKETPLACE_PLUGIN_NAME'${NC}"
-    echo -e "  ${RED}Codex rejects installation when these names differ${NC}"
+if [[ "$CODEX_PLUGIN_NAME" != "$EXPECTED_CODEX_PLUGIN_NAME" ]]; then
+    log ERROR "CRITICAL: Codex plugin name '$CODEX_PLUGIN_NAME' - MUST remain '$EXPECTED_CODEX_PLUGIN_NAME'"
+    log ERROR "Existing Codex installs and the Codex marketplace use '$EXPECTED_CODEX_PLUGIN_NAME'"
     ((errors++)) || true
 else
-    echo -e "  ${GREEN}✓ Codex plugin name: $CODEX_PLUGIN_NAME (matches marketplace selector)${NC}"
+    log INFO "Codex plugin name: $CODEX_PLUGIN_NAME (stable Codex marketplace selector)"
 fi
 
 echo ""

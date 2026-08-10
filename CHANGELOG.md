@@ -2,11 +2,22 @@
 
 ## [Unreleased]
 
-## [9.61.2] - 2026-08-09
+## [9.61.2] - 2026-08-10
 
 ### Fixed
 
+- **Existing Codex marketplace installs can update again.** The Codex adapter
+  preserves its original `claude-octopus` marketplace identity instead of
+  borrowing Claude Code's separate `octo` selector. Shared-marketplace release
+  sync now validates both host manifests, preventing stale Codex bundles from
+  being stranded behind an identifier mismatch. (#818)
 - **Ollama, Copilot, and Vibe now honor model pins and allowlists.** `get_agent_model()` had no case arm for these three providers, so `OCTOPUS_OLLAMA_MODEL` / `OCTOPUS_COPILOT_MODEL` / `OCTOPUS_VIBE_MODEL` were silently ignored and dispatch always fell through to the hardcoded default. (#816) `validate_model_allowed()` had the same gap one function over — `OCTOPUS_OLLAMA_ALLOWED_MODELS` / `OCTOPUS_COPILOT_ALLOWED_MODELS` / `OCTOPUS_VIBE_ALLOWED_MODELS` fell through to the unknown-provider "allow" default, so the model restriction never applied. (closes #817, #819)
+- **Lifecycle observer timeouts now reap the hook's entire process group without `pkill`.** The built-in fallback works on minimal and macOS-style environments where GNU `timeout` and `pkill` are unavailable, so a timed-out observer cannot leave background descendants running. The regression forces that fallback, proves both descendants started, uses monotonic timing, and runs through the symlinked install path. (closes #827, #828)
+- **Council approval gates no longer prompt in non-interactive sessions.** PTY-backed automation can carry inherited terminal signals even when no user can answer; the shared session-interactivity detector now prevents those false prompts while preserving real interactive approval gates. (closes #825, #826)
+
+### Internal
+
+- Skill-template tests generate into an isolated temporary copy instead of rewriting the live checkout, permanently removing a test-side source of hook and working-tree noise. (closes #822, #824)
 
 ## [9.61.1] - 2026-08-09
 

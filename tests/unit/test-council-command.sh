@@ -731,6 +731,165 @@ test_council_approved_gates_start_worktree_handoff() {
     fi
 }
 
+# PTY-backed helper shared by the gate-approval tests below. `script`'s
+# argument convention differs between Linux (util-linux: `-c "cmd" file`)
+# and macOS (BSD: `file cmd args...`, and no COMMAND_EXIT_CODE trailer in the
+# transcript) — see tests/unit/test-agy-provider.sh for the same split. To
+# stay portable we write the case to a real script file and have it record
+# its own exit status, instead of parsing either platform's transcript
+# format for it.
+_council_gate_pty_run() {
+    local env_prefix="$1" log_file="$2" status_file="$3" answer="$4"
+    local tmp_script
+    tmp_script="$(mktemp "$TEST_TMP_DIR/gate-pty.XXXXXX")"
+    cat > "$tmp_script" <<SCRIPT
+#!/usr/bin/env bash
+$env_prefix
+unset OCTOPUS_COUNCIL_APPROVED_GATES
+source "$PROJECT_ROOT/scripts/lib/council.sh"
+council_prompt_gate_approval gate-a "Gate A: accept council synthesis?"
+echo \$? > "$status_file"
+SCRIPT
+    chmod +x "$tmp_script"
+
+    if [[ "$(uname)" == "Darwin" ]]; then
+        printf '%s\n' "$answer" | script -q "$log_file" bash "$tmp_script" >/dev/null 2>&1
+    else
+        printf '%s\n' "$answer" | script -q -c "bash \"$tmp_script\"" "$log_file" >/dev/null 2>&1
+    fi
+}
+
+test_council_gate_approval_suppresses_prompt_when_non_interactive() {
+    test_case "council_prompt_gate_approval stays closed without prompting when OCTOPUS_NON_INTERACTIVE is set, even under a PTY"
+    command -v script >/dev/null 2>&1 || { test_skip "script (PTY allocator) not available"; return 0; }
+
+    local log="$TEST_TMP_DIR/council-gate-non-interactive.log"
+    local status_file="$TEST_TMP_DIR/council-gate-non-interactive.status"
+    rm -f "$log" "$status_file"
+    # A 'y' is waiting on stdin: if the gate still prompted and read it, this
+    # would return approved (0) instead of the expected denied (1).
+    _council_gate_pty_run 'OCTOPUS_NON_INTERACTIVE=1' "$log" "$status_file" y
+    local status
+    status="$(cat "$status_file" 2>/dev/null)"
+
+    if [[ "$status" == "1" ]] && ! grep -q '\[y/N\]' "$log"; then
+        test_pass
+    else
+        test_fail "gate should deny (rc=1) and never print the prompt under OCTOPUS_NON_INTERACTIVE; got rc=${status:-?} log=$(tr '\n' '|' < "$log")"
+        return 1
+    fi
+}
+
+test_council_gate_approval_respects_remote_session_flag() {
+    test_case "council_prompt_gate_approval stays closed under CLAUDE_CODE_REMOTE without prompting"
+    command -v script >/dev/null 2>&1 || { test_skip "script (PTY allocator) not available"; return 0; }
+
+    local log="$TEST_TMP_DIR/council-gate-remote.log"
+    local status_file="$TEST_TMP_DIR/council-gate-remote.status"
+    rm -f "$log" "$status_file"
+    _council_gate_pty_run 'CLAUDE_CODE_REMOTE=true' "$log" "$status_file" y
+    local status
+    status="$(cat "$status_file" 2>/dev/null)"
+
+    if [[ "$status" == "1" ]] && ! grep -q '\[y/N\]' "$log"; then
+        test_pass
+    else
+        test_fail "gate should deny (rc=1) and never print the prompt under CLAUDE_CODE_REMOTE; got rc=${status:-?} log=$(tr '\n' '|' < "$log")"
+        return 1
+    fi
+}
+
+test_council_gate_approval_respects_remaining_non_interactive_signals() {
+    test_case "council_prompt_gate_approval suppresses the prompt for CI, CLAUDE_CODE_WEB, OCTOPUS_REMOTE_SESSION, and OCTOPUS_AUTONOMY=autonomous"
+    command -v script >/dev/null 2>&1 || { test_skip "script (PTY allocator) not available"; return 0; }
+
+    local signal safe_name log status_file status
+    for signal in 'CI=1' 'CLAUDE_CODE_WEB=true' 'OCTOPUS_REMOTE_SESSION=true' 'OCTOPUS_AUTONOMY=autonomous'; do
+        safe_name="$(printf '%s' "$signal" | tr -c 'A-Za-z0-9' '-')"
+        log="$TEST_TMP_DIR/council-gate-${safe_name}.log"
+        status_file="$TEST_TMP_DIR/council-gate-${safe_name}.status"
+        rm -f "$log" "$status_file"
+
+        _council_gate_pty_run "$signal" "$log" "$status_file" y
+        status="$(cat "$status_file" 2>/dev/null)"
+
+        if [[ "$status" != "1" ]] || grep -q '\[y/N\]' "$log"; then
+            test_fail "$signal did not suppress the gate prompt: rc=${status:-?} log=$(tr '\n' '|' < "$log")"
+            return 1
+        fi
+    done
+    test_pass
+}
+
+test_council_gate_approval_denies_when_no_tty_present() {
+    test_case "council_prompt_gate_approval denies without a controlling TTY even with no non-interactive env signal set"
+    load_council_lib || return 1
+
+    local out status
+    set +e
+    out="$(unset CI OCTOPUS_NON_INTERACTIVE CLAUDE_CODE_REMOTE CLAUDE_CODE_WEB OCTOPUS_REMOTE_SESSION OCTOPUS_AUTONOMY OCTOPUS_COUNCIL_APPROVED_GATES
+        council_prompt_gate_approval gate-a "Gate A: accept council synthesis?" </dev/null 2>&1)"
+    status=$?
+    set -e
+
+    if [[ $status -eq 1 ]] && [[ "$out" != *'[y/N]'* ]]; then
+        test_pass
+    else
+        test_fail "expected deny with no prompt when no TTY and no signal is present, got rc=$status out=[$out]"
+        return 1
+    fi
+}
+
+test_council_gate_approval_still_prompts_when_truly_interactive() {
+    test_case "council_prompt_gate_approval still prompts and honors the answer with no non-interactive signal present"
+    command -v script >/dev/null 2>&1 || { test_skip "script (PTY allocator) not available"; return 0; }
+    # A live capability probe was tried here and proved non-deterministic on a
+    # macOS GitHub Actions runner: it reported a real controlling TTY moments
+    # before the actual case below still saw [[ -t 0 && -t 1 ]] read false and
+    # denied both the yes and no cases. Rather than chase that intermittently,
+    # skip outright on Darwin — the four deny-path tests above already cover
+    # the fail-closed behavior this bug is about, on every platform.
+    if [[ "$(uname)" == "Darwin" ]]; then
+        test_skip "script(1) pty allocation for stdin/stdout has proven unreliable in CI on macOS; deny-path coverage above already exercises the fix"
+        return 0
+    fi
+
+    local log_yes="$TEST_TMP_DIR/council-gate-interactive-yes.log"
+    local log_no="$TEST_TMP_DIR/council-gate-interactive-no.log"
+    local status_file_yes="$TEST_TMP_DIR/council-gate-interactive-yes.status"
+    local status_file_no="$TEST_TMP_DIR/council-gate-interactive-no.status"
+    rm -f "$log_yes" "$log_no" "$status_file_yes" "$status_file_no"
+
+    local unset_env='unset CLAUDE_CODE_REMOTE CLAUDE_CODE_WEB OCTOPUS_REMOTE_SESSION OCTOPUS_AUTONOMY CI OCTOPUS_NON_INTERACTIVE'
+
+    _council_gate_pty_run "$unset_env" "$log_yes" "$status_file_yes" y
+    local status_yes
+    status_yes="$(cat "$status_file_yes" 2>/dev/null)"
+
+    _council_gate_pty_run "$unset_env" "$log_no" "$status_file_no" n
+    local status_no
+    status_no="$(cat "$status_file_no" 2>/dev/null)"
+
+    if [[ "$status_yes" == "0" ]] && grep -q '\[y/N\]' "$log_yes" &&
+       [[ "$status_no" == "1" ]] && grep -q '\[y/N\]' "$log_no"; then
+        test_pass
+    else
+        test_fail "interactive prompt/answer behavior regressed: yes-rc=${status_yes:-?} no-rc=${status_no:-?}"
+        return 1
+    fi
+}
+
+test_council_gate_approval_explicit_approval_needs_no_tty() {
+    test_case "OCTOPUS_COUNCIL_APPROVED_GATES approves without any TTY or interactivity check"
+    load_council_lib || return 1
+
+    OCTOPUS_COUNCIL_APPROVED_GATES='gate-a' council_prompt_gate_approval gate-a "Gate A: accept council synthesis?" </dev/null
+    local status=$?
+
+    [[ $status -eq 0 ]] || { test_fail "explicit approval should short-circuit to approved, got rc=$status"; return 1; }
+    test_pass
+}
+
 test_council_critical_veto_aborts_implementation_run() {
     test_case "Council critical veto aborts implementation run"
     load_council_lib || return 1
@@ -1207,6 +1366,12 @@ test_council_synthesis_is_chair_generated
 test_council_plan_only_writes_implementation_plan_without_handoff
 test_council_after_approval_does_not_handoff_without_gate
 test_council_approved_gates_start_worktree_handoff
+test_council_gate_approval_suppresses_prompt_when_non_interactive
+test_council_gate_approval_respects_remote_session_flag
+test_council_gate_approval_respects_remaining_non_interactive_signals
+test_council_gate_approval_denies_when_no_tty_present
+test_council_gate_approval_still_prompts_when_truly_interactive
+test_council_gate_approval_explicit_approval_needs_no_tty
 test_council_critical_veto_aborts_implementation_run
 test_council_chair_fallback_preserves_quorum
 test_council_diversity_warning_prints_to_cli

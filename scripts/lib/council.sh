@@ -66,6 +66,7 @@ _council_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 source "${_council_lib_dir}/benchmark-routing.sh" 2>/dev/null || true
 source "${_council_lib_dir}/openai-compatible.sh" 2>/dev/null || true
 source "${_council_lib_dir}/agent-sync.sh" 2>/dev/null || true
+source "${_council_lib_dir}/features.sh" 2>/dev/null || true
 unset _council_lib_dir
 
 council_usage() {
@@ -2279,6 +2280,14 @@ council_prompt_gate_approval() {
 
     if council_gate_approved "$gate"; then
         return 0
+    fi
+
+    # CI, remote/web sessions, and OCTOPUS_NON_INTERACTIVE/autonomous runs must
+    # never block on a read even when a PTY is attached (e.g. `script`-wrapped
+    # automation) — octo_features_session_interactive is the repo's shared
+    # detector for that. Fall back to the raw tty check if it isn't loaded.
+    if declare -f octo_features_session_interactive >/dev/null 2>&1; then
+        octo_features_session_interactive || return 1
     fi
 
     if [[ -t 0 && -t 1 ]]; then

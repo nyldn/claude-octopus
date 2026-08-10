@@ -5,11 +5,15 @@
 # Templates use {{PLACEHOLDER}} syntax. Shared blocks from skills/blocks/
 # are resolved first, then metadata placeholders (COMMAND_COUNT, etc.).
 # --dry-run exits non-zero if any generated file differs from committed file.
+#
+# GEN_SKILL_DOCS_ROOT overrides the plugin root the generator reads from and
+# writes into — used by tests to run the generator against a throwaway
+# fixture instead of the tracked checkout.
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PLUGIN_ROOT="$(dirname "$SCRIPT_DIR")"
+PLUGIN_ROOT="${GEN_SKILL_DOCS_ROOT:-$(dirname "$SCRIPT_DIR")}"
 SKILLS_DIR="$PLUGIN_ROOT/.claude/skills"
 BLOCKS_DIR="$PLUGIN_ROOT/skills/blocks"
 DRY_RUN=false

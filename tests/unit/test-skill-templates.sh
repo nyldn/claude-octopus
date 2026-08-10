@@ -105,16 +105,43 @@ for tmpl_name in flow-develop.tmpl flow-deliver.tmpl; do
     fi
 done
 
+# ── Hermetic fixture: generator mutation checks must never touch the tracked
+# checkout. Copy the inputs gen-skill-docs.sh reads/writes into a throwaway
+# root and point it there via GEN_SKILL_DOCS_ROOT. ────────────────────────────
+
+# Nest under TEST_TMP_DIR (already created by test_suite() and cleaned up by
+# the framework's own EXIT trap) instead of a standalone mktemp+trap, which
+# would clobber that trap.
+FIXTURE_ROOT="$TEST_TMP_DIR/gen-skill-docs-fixture"
+
+mkdir -p "$FIXTURE_ROOT/.claude/skills" "$FIXTURE_ROOT/skills/blocks" \
+    "$FIXTURE_ROOT/commands" "$FIXTURE_ROOT/agents/personas" "$FIXTURE_ROOT/hooks"
+cp -R "$SKILLS_DIR/." "$FIXTURE_ROOT/.claude/skills/"
+[[ -d "$BLOCKS_DIR" ]] && cp -R "$BLOCKS_DIR/." "$FIXTURE_ROOT/skills/blocks/"
+cp -R "$PROJECT_ROOT/commands/." "$FIXTURE_ROOT/commands/" 2>/dev/null || true
+cp -R "$PROJECT_ROOT/agents/personas/." "$FIXTURE_ROOT/agents/personas/" 2>/dev/null || true
+[[ -d "$PROJECT_ROOT/hooks" ]] && cp -R "$PROJECT_ROOT/hooks/." "$FIXTURE_ROOT/hooks/" 2>/dev/null || true
+cp "$PROJECT_ROOT/package.json" "$FIXTURE_ROOT/package.json"
+
+run_gen() { env "GEN_SKILL_DOCS_ROOT=${FIXTURE_ROOT}" "$GEN_SCRIPT" "$@"; }
+
+tracked_flow_hashes() {
+    for f in flow-discover.md flow-define.md flow-develop.md flow-deliver.md; do
+        local p; p="$(resolve_claude_skill_path "$f" 2>/dev/null)" || continue
+        [[ -f "$p" ]] && sha256sum "$p"
+    done
+}
+TRACKED_HASHES_BEFORE="$(tracked_flow_hashes)"
+
 # ── --dry-run mode works (files are fresh after generation) ──────────────────
 
-dry_run_output=$("$GEN_SCRIPT" --dry-run 2>&1) || true
-dry_run_exit=$?
+dry_run_output=$(run_gen --dry-run 2>&1) || true
 
-# First regenerate to ensure freshness
-"$GEN_SCRIPT" > /dev/null 2>&1
+# First regenerate the fixture to ensure freshness
+run_gen > /dev/null 2>&1
 
 # Now dry-run should pass
-dry_run_output=$("$GEN_SCRIPT" --dry-run 2>&1)
+dry_run_output=$(run_gen --dry-run 2>&1)
 dry_run_exit=$?
 
 if [[ $dry_run_exit -eq 0 ]]; then
@@ -165,21 +192,31 @@ done
 # ── Template system dry-run (only if gen-skill-docs.sh and blocks exist) ─────
 
 if [[ -x "$GEN_SCRIPT" && -d "$BLOCKS_DIR" ]]; then
-    # Intentionally make a file stale
-    echo "# stale marker" >> "$(resolve_claude_skill_path "flow-discover")"
+    # Intentionally make the fixture copy stale — never the tracked file
+    stale_target="$FIXTURE_ROOT/.claude/skills/flow-discover/SKILL.md"
+    [[ -f "$stale_target" ]] || stale_target="$FIXTURE_ROOT/.claude/skills/flow-discover.md"
+    echo "# stale marker" >> "$stale_target"
 
     stale_exit=0
-    stale_output=$("$GEN_SCRIPT" --dry-run 2>&1) || stale_exit=$?
+    stale_output=$(run_gen --dry-run 2>&1) || stale_exit=$?
 
-    if [[ $stale_exit -ne 0 ]]; then
+    if [[ $stale_exit -ne 0 ]] && echo "$stale_output" | grep -q 'STALE: flow-discover'; then
         pass "--dry-run exits non-zero when files are stale"
     else
-        fail "--dry-run exits non-zero when files are stale" "exit code was 0"
+        fail "--dry-run exits non-zero when files are stale" "exit code was $stale_exit, output: $stale_output"
     fi
-
-    # Restore fresh state
-    "$GEN_SCRIPT" > /dev/null 2>&1
 else
     pass "template generation skipped (blocks removed, skills directly authored)"
 fi
+
+# ── Regression: none of the fixture-based generator runs above may have
+# touched the real tracked flow-*.md files ───────────────────────────────────
+
+TRACKED_HASHES_AFTER="$(tracked_flow_hashes)"
+if [[ "$TRACKED_HASHES_BEFORE" == "$TRACKED_HASHES_AFTER" ]]; then
+    pass "generator fixture runs do not mutate tracked skill files"
+else
+    fail "generator fixture runs do not mutate tracked skill files" "tracked flow-*.md changed on disk"
+fi
+
 test_summary

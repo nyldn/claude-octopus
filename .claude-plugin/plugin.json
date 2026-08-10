@@ -1,7 +1,7 @@
 {
   "name": "octo",
   "version": "9.61.2",
-  "description": "v9.61.2 \u2014 Ollama, Copilot, and Vibe now honor model pins and allowlists. Run /octo:setup.",
+  "description": "v9.61.2 \u2014 Codex updates, hook reliability, and provider model controls. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"

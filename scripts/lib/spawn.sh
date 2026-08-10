@@ -90,22 +90,29 @@ _octopus_agent_lifecycle_event() {
             timeout "$hook_timeout" "$hook" "$event"
         else
             # Built-in timeout fallback: run hook in background, wait with a
-            # SECONDS-based deadline, and kill if still running. Uses Bash plus
-            # the already-required sleep command, so systems without the Octopus
-            # run_with_timeout helper or GNU timeout do not execute hooks
-            # unbounded. See issue #511.
+            # SECONDS-based deadline, and kill if still running. Uses only
+            # Bash builtins plus the already-required sleep command, so
+            # systems without the Octopus run_with_timeout helper or GNU
+            # timeout do not execute hooks unbounded. See issue #511.
+            #
+            # `set -m` puts the backgrounded hook in its own process group
+            # (Bash's job-control assigns pgid = pid of the group leader),
+            # so `kill -SIG -- -pid` on teardown signals the hook AND any
+            # children it forks — no pkill dependency required. See #827.
+            set -m
             "$hook" "$event" &
             local _hook_pid=$!
+            set +m
             local _hook_deadline=$((SECONDS + hook_timeout))
             while kill -0 "$_hook_pid" 2>/dev/null && [[ "$SECONDS" -lt "$_hook_deadline" ]]; do
                 sleep 1
             done
             if kill -0 "$_hook_pid" 2>/dev/null; then
+                kill -TERM -- "-$_hook_pid" 2>/dev/null || true
                 kill -TERM "$_hook_pid" 2>/dev/null || true
-                pkill -TERM -P "$_hook_pid" 2>/dev/null || true
                 sleep 1
+                kill -KILL -- "-$_hook_pid" 2>/dev/null || true
                 kill -KILL "$_hook_pid" 2>/dev/null || true
-                pkill -KILL -P "$_hook_pid" 2>/dev/null || true
             fi
             wait "$_hook_pid" 2>/dev/null || true
         fi

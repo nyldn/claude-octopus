@@ -1,13 +1,21 @@
 #!/usr/bin/env bash
-# sync-shared-marketplace.sh - Sync the octo entry into nyldn/plugins.
+# sync-shared-marketplace.sh - Sync and validate Octopus entries in nyldn/plugins.
 #
 # The shared marketplace contains multiple plugins. Never copy this repo's
-# whole marketplace.json over it; only replace plugins[].name == "octo".
+# whole marketplace.json over it; only replace the Claude marketplace's
+# plugins[].name == "octo" entry. The Codex marketplace intentionally uses the
+# stable public selector "claude-octopus" so existing installs can update.
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(dirname "$SCRIPT_DIR")"
+
+log() {
+    local level="$1"
+    shift
+    printf '[%s] %s\n' "$level" "$*" >&2
+}
 
 MARKETPLACE_REPO="${OCTOPUS_SHARED_MARKETPLACE_REPO:-https://github.com/nyldn/plugins.git}"
 MARKETPLACE_BRANCH="${OCTOPUS_SHARED_MARKETPLACE_BRANCH:-main}"
@@ -79,6 +87,19 @@ if [[ ! -f "$LOCAL_MARKETPLACE" ]]; then
     exit 1
 fi
 
+LOCAL_CODEX_MANIFEST="$ROOT_DIR/.codex-plugin/plugin.json"
+if [[ ! -f "$LOCAL_CODEX_MANIFEST" ]]; then
+    log ERROR "missing local Codex plugin manifest: $LOCAL_CODEX_MANIFEST"
+    exit 1
+fi
+
+EXPECTED_CODEX_PLUGIN_NAME="claude-octopus"
+CODEX_PLUGIN_NAME="$(jq -r '.name // empty' "$LOCAL_CODEX_MANIFEST")"
+if [[ "$CODEX_PLUGIN_NAME" != "$EXPECTED_CODEX_PLUGIN_NAME" ]]; then
+    log ERROR "Codex plugin name must remain '$EXPECTED_CODEX_PLUGIN_NAME' for installed marketplace upgrades (found '$CODEX_PLUGIN_NAME')"
+    exit 1
+fi
+
 LOCAL_ENTRY="$(mktemp "${TMPDIR:-/tmp}/octo-marketplace-entry.XXXXXX")"
 cleanup_entry() {
     rm -f "$LOCAL_ENTRY"
@@ -137,6 +158,29 @@ if [[ ! -f "$SHARED_MARKETPLACE" ]]; then
     echo "ERROR: shared marketplace checkout is missing .claude-plugin/marketplace.json" >&2
     exit 1
 fi
+
+SHARED_CODEX_MARKETPLACE="$WORKDIR/.agents/plugins/marketplace.json"
+if [[ ! -f "$SHARED_CODEX_MARKETPLACE" ]]; then
+    log ERROR "shared marketplace checkout is missing .agents/plugins/marketplace.json"
+    exit 1
+fi
+
+if ! jq -e --arg name "$CODEX_PLUGIN_NAME" \
+    '.plugins | map(select(.name == $name)) | length == 1' \
+    "$SHARED_CODEX_MARKETPLACE" >/dev/null; then
+    log ERROR "shared Codex marketplace must have exactly one '$CODEX_PLUGIN_NAME' plugin entry"
+    exit 1
+fi
+
+SHARED_CODEX_SOURCE="$(jq -r --arg name "$CODEX_PLUGIN_NAME" \
+    '.plugins[] | select(.name == $name) | .source.url // empty' \
+    "$SHARED_CODEX_MARKETPLACE")"
+if [[ "$SHARED_CODEX_SOURCE" != "https://github.com/nyldn/claude-octopus.git" ]]; then
+    log ERROR "shared Codex marketplace '$CODEX_PLUGIN_NAME' source is invalid: ${SHARED_CODEX_SOURCE:-missing}"
+    exit 1
+fi
+
+log INFO "OK: shared Codex marketplace selector is compatible ($CODEX_PLUGIN_NAME)"
 
 if ! jq -e '.plugins | map(select(.name == "octo")) | length == 1' "$SHARED_MARKETPLACE" >/dev/null; then
     echo "ERROR: shared marketplace must have exactly one octo plugin entry" >&2
