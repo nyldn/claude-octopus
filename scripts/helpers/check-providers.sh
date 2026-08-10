@@ -67,7 +67,18 @@ if { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed
 fi
 
 echo "PROVIDER_CHECK_START"
-provider_status "codex" "$(command -v codex >/dev/null 2>&1 && echo available || echo missing)"
+# codex: binary-only is not enough — an installed-but-unauthenticated CLI
+# would seat and then fail dispatch. Mirror the auth check preflight.sh
+# already does (#799) so the banner and the real dispatch gate agree.
+codex_state="missing"
+if command -v codex >/dev/null 2>&1; then
+    if [[ -f "${HOME}/.codex/auth.json" ]] || [[ -n "${OPENAI_API_KEY:-}" ]]; then
+        codex_state="available"
+    else
+        codex_state="degraded"
+    fi
+fi
+provider_status "codex" "$codex_state"
 commandcode_state="missing"
 [[ -n "${COMMAND_CODE_API_KEY:-}" ]] || resolve_provider_env "COMMAND_CODE_API_KEY" 2>/dev/null || true
 cc_bin="${OCTOPUS_COMMANDCODE_BIN:-}"
@@ -86,7 +97,17 @@ if [[ -n "$cc_bin" ]] && { [[ -x "$cc_bin" ]] || command -v "$cc_bin" >/dev/null
     fi
 fi
 provider_status "commandcode" "$commandcode_state"
-provider_status "gemini" "$(command -v gemini >/dev/null 2>&1 && echo available || echo missing)"
+# gemini: same fail-open gap as codex (#799) — the free-tier sunset means
+# `command -v gemini` succeeding says nothing about whether a dispatch works.
+gemini_state="missing"
+if command -v gemini >/dev/null 2>&1; then
+    if [[ -f "${HOME}/.gemini/oauth_creds.json" ]] || [[ -n "${GEMINI_API_KEY:-}" ]]; then
+        gemini_state="available"
+    else
+        gemini_state="degraded"
+    fi
+fi
+provider_status "gemini" "$gemini_state"
 provider_status "agy" "$(command -v agy >/dev/null 2>&1 && echo available || echo missing)"
 # oco-cbb: opt-in proactive probe for API-key providers (perplexity, openrouter).
 # Only runs when OCTOPUS_PREFLIGHT_PROBE=1; result cached via quota-dead marker
@@ -105,8 +126,27 @@ if [ -n "${ATLASCLOUD_API_KEY:-}" ]; then
     fi
 fi
 provider_status "atlascloud" "$atlascloud_state"
-provider_status "opencode" "$(command -v opencode >/dev/null 2>&1 && echo available || echo missing)"
-provider_status "copilot" "$(command -v copilot >/dev/null 2>&1 && echo available || echo missing)"
+# opencode/copilot: same fail-open gap as codex/gemini (#799) — reuse the auth
+# signals preflight.sh already checks instead of trusting binary presence.
+opencode_state="missing"
+if command -v opencode >/dev/null 2>&1; then
+    if [[ -f "${HOME}/.local/share/opencode/auth.json" ]] && timeout 3 opencode auth list >/dev/null 2>&1; then
+        opencode_state="available"
+    else
+        opencode_state="degraded"
+    fi
+fi
+provider_status "opencode" "$opencode_state"
+copilot_state="missing"
+if command -v copilot >/dev/null 2>&1; then
+    if [[ -n "${COPILOT_GITHUB_TOKEN:-}" ]] || [[ -n "${GH_TOKEN:-}" ]] || [[ -n "${GITHUB_TOKEN:-}" ]] || \
+       [[ -f "${HOME}/.copilot/config.json" ]] || { command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; }; then
+        copilot_state="available"
+    else
+        copilot_state="degraded"
+    fi
+fi
+provider_status "copilot" "$copilot_state"
 # qwen: binary-only is not enough — an expired OAuth token (free tier EOL
 # 2026-04-15) would dispatch and hang on interactive device-auth (oco-dar).
 # Report "degraded" when the binary is present but auth is expired/missing so
