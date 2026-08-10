@@ -20,9 +20,14 @@ if ! declare -f qwen_auth_method >/dev/null 2>&1; then
     source "${_doctor_lib_dir}/qwen.sh" 2>/dev/null || true
 fi
 
+if ! declare -f octo_plugin_update_load >/dev/null 2>&1; then
+    _doctor_lib_dir="${_doctor_lib_dir:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
+    source "${_doctor_lib_dir}/plugin-update.sh" 2>/dev/null || true
+fi
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # MODULAR DOCTOR SYSTEM (v8.16.0)
-# 8 check categories, structured results, category filtering, JSON output
+# 14 check categories, structured results, category filtering, JSON output
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # Result accumulator (parallel arrays for bash 3.x compat)
@@ -736,6 +741,73 @@ doctor_check_config() {
             doctor_add "mcp-workspace-reserved" "config" "pass" \
                 "No reserved MCP server name 'workspace' detected" ""
         fi
+    fi
+}
+
+# --- Plugin update health (issue #851) ---
+# Local-only by design. Network/package-manager work is reserved for the
+# explicit `update-plugin` command so doctor and SessionStart stay non-blocking.
+doctor_check_updates() {
+    if ! declare -f octo_plugin_update_load >/dev/null 2>&1; then
+        doctor_add "plugin-update-health" "updates" "info" \
+            "Plugin update health unavailable" "scripts/lib/plugin-update.sh could not be loaded"
+        return
+    fi
+
+    local plugin_root="${CLAUDE_PLUGIN_ROOT:-${PLUGIN_DIR:-}}"
+    local host="${OCTOPUS_HOST:-}"
+    if [[ -z "$plugin_root" ]]; then
+        plugin_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+    fi
+    [[ -n "$host" ]] || host="$(octo_plugin_detect_host "$plugin_root")"
+    octo_plugin_update_load "$plugin_root" "$host"
+
+    if [[ "$OCTO_PLUGIN_LOADED_VERSION" == "unknown" ]]; then
+        doctor_add "plugin-loaded-version" "updates" "warn" \
+            "Loaded Octopus version is unknown" "Expected .claude-plugin/plugin.json under $plugin_root"
+    else
+        doctor_add "plugin-loaded-version" "updates" "pass" \
+            "Loaded Octopus v${OCTO_PLUGIN_LOADED_VERSION}" "$plugin_root"
+    fi
+
+    if [[ "$host" == "claude" ]]; then
+        case "$OCTO_PLUGIN_AUTO_UPDATE" in
+            enabled)
+                doctor_add "plugin-auto-update" "updates" "pass" \
+                    "nyldn-plugins auto-update enabled" "Claude Code checks the marketplace in the background; reload after an update"
+                ;;
+            disabled|missing)
+                doctor_add "plugin-auto-update" "updates" "warn" \
+                    "nyldn-plugins auto-update ${OCTO_PLUGIN_AUTO_UPDATE}" \
+                    "Use /plugin → Marketplaces → nyldn-plugins → Enable auto-update"
+                ;;
+            malformed)
+                doctor_add "plugin-auto-update" "updates" "fail" \
+                    "Claude marketplace state is malformed" \
+                    "Repair ~/.claude/plugins/known_marketplaces.json through /plugin; do not hand-edit it during a session"
+                ;;
+            *)
+                doctor_add "plugin-auto-update" "updates" "info" \
+                    "Claude marketplace auto-update state unavailable" "No Claude marketplace state was found"
+                ;;
+        esac
+    else
+        doctor_add "plugin-auto-update" "updates" "info" \
+            "Host-managed auto-update state is not exposed for ${host}" "Use the ${host} plugin manager and restart after updating"
+    fi
+
+    local versions="installed ${OCTO_PLUGIN_INSTALLED_VERSION}; catalog ${OCTO_PLUGIN_CATALOG_VERSION}; cache ${OCTO_PLUGIN_CACHE_VERSION}"
+    if [[ "$OCTO_PLUGIN_RELOAD_REQUIRED" == "true" ]]; then
+        doctor_add "plugin-reload" "updates" "warn" \
+            "Installed Octopus v${OCTO_PLUGIN_INSTALLED_VERSION} is newer than this loaded session" \
+            "Run /reload-plugins or restart the host — ${versions}"
+    elif [[ "$OCTO_PLUGIN_UPDATE_AVAILABLE" == "true" ]]; then
+        doctor_add "plugin-update-available" "updates" "warn" \
+            "A newer Octopus version is known locally" \
+            "Run orchestrate.sh update-plugin explicitly — ${versions}"
+    else
+        doctor_add "plugin-update-current" "updates" "pass" \
+            "No newer local Octopus version detected" "$versions"
     fi
 }
 
@@ -1761,7 +1833,7 @@ do_doctor() {
     DOCTOR_RESULTS_DETAIL=()
 
     # Run checks (filtered if category specified)
-    local categories=(providers companions auth config state smoke hooks scheduler skills conflicts agents recurrence cache)
+    local categories=(providers companions auth config updates state smoke hooks scheduler skills conflicts agents recurrence cache)
     for cat in "${categories[@]}"; do
         if [[ -z "$category_filter" || "$category_filter" == "$cat" ]]; then
             "doctor_check_${cat}"

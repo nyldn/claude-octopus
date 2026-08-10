@@ -34,6 +34,9 @@ _claude_octopus() {
         'setup:Interactive configuration wizard'
         'init:Initialize workspace'
         'status:Show running agents'
+        'doctor:Run local environment and update diagnostics'
+        'update-plugin:Explicitly update Octopus through the host plugin manager'
+        'update-clis:Update external provider CLIs'
         'kill:Stop agents'
         'clean:Clean workspace'
         'aggregate:Combine results'
@@ -137,6 +140,21 @@ ${YELLOW}Options:${NC}
   -Q, --quick       Use faster/cheaper models
   -P, --premium     Use most capable models
   -v, --verbose     Show detailed progress
+EOF
+            ;;
+        update-plugin)
+            cat << EOF
+${YELLOW}update-plugin${NC} - Explicitly update Claude Octopus through the active host
+
+${YELLOW}Usage:${NC} $(basename "$0") update-plugin
+
+Refreshes nyldn-plugins and Octopus through the supported Claude Code or Codex
+plugin manager. This command performs network and package-manager work, so it
+only runs when explicitly requested; SessionStart hooks and doctor diagnostics
+never invoke it.
+
+After Claude Code updates, run /reload-plugins or restart. After Codex updates,
+restart Codex. A stale process cannot replace the plugin code it already loaded.
 EOF
             ;;
         embrace)
@@ -651,6 +669,8 @@ ${MAGENTA}═══════════════════════�
   clean                   Clean workspace
   aggregate               Combine all results
   preflight               Validate dependencies
+  doctor [updates]        Run local diagnostics (use 'doctor updates' for plugin freshness)
+  update-plugin           Explicitly update Octopus through the active host
 
 ${BLUE}═══════════════════════════════════════════════════════════════════════════${NC}
 ${BLUE}COST & USAGE REPORTING${NC} (v4.1)

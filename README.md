@@ -206,6 +206,9 @@ Claude Code) before using the new version.
 claude plugin marketplace update nyldn-plugins
 claude plugin update octo@nyldn-plugins
 
+# Or let Octopus select the active host's supported plugin-manager commands
+~/.claude-octopus/plugin/scripts/orchestrate.sh update-plugin
+
 # Clean reinstall (if update fails)
 claude plugin uninstall claude-octopus 2>/dev/null
 claude plugin uninstall octo 2>/dev/null
@@ -215,12 +218,21 @@ claude plugin marketplace add https://github.com/nyldn/plugins.git
 claude plugin install octo@nyldn-plugins
 ```
 
-Run focused diagnostics after updating:
+Octopus also checks local host metadata at SessionStart. The advisory is
+cooldown-limited and performs no network, package-manager, or authentication
+calls; it only reports disabled auto-update, a locally known newer version, or
+a loaded session that needs a reload. Run focused diagnostics at any time:
 
 ```bash
 /octo:doctor config   # install path, version, manifest, Claude Code feature flags
 /octo:doctor skills   # skill loading, skillOverrides, plugin zip/URL capability notes
+~/.claude-octopus/plugin/scripts/orchestrate.sh doctor updates
 ```
+
+This cannot make an arbitrarily old installation self-heal: code that predates
+the advisory must be updated once manually. It does make future stale states
+visible and hands the actual mutation to Claude Code or Codex, which own their
+plugin caches and lifecycle. See [Plugin Update Safety](docs/PLUGIN-UPDATES.md).
 
 For Anthropic-compatible gateways, Claude Code v2.1.129+ requires an explicit opt-in before `/model` discovers models from `/v1/models`:
 

@@ -156,6 +156,12 @@
           },
           {
             "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/plugin-update-advisory.sh",
+            "additionalContext": "Local-only plugin update health advisory; never runs an updater or network request",
+            "timeout": 5
+          },
+          {
+            "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/hooks/fable5-inject.sh",
             "additionalContext": "Inject Fable 5 dispatch guards and prompt hygiene when a claude-fable-5 pin is detected",
             "timeout": 3

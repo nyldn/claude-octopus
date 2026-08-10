@@ -44,7 +44,7 @@ _claude_octopus_completions() {
     prev="${COMP_WORDS[COMP_CWORD-1]}"
 
     # Main commands
-    commands="auto embrace research probe define grasp develop tangle deliver ink spawn fan-out map-reduce ralph iterate optimize setup init status kill clean aggregate preflight cost cost-json cost-csv cost-clear auth login logout completion help"
+    commands="auto embrace research probe define grasp develop tangle deliver ink spawn fan-out map-reduce ralph iterate optimize setup init status doctor update-plugin update-clis kill clean aggregate preflight cost cost-json cost-csv cost-clear auth login logout completion help"
 
     # Agents for spawn command
     agents="codex codex-standard codex-max codex-mini codex-general agy agy-research antigravity codex-review"
@@ -124,6 +124,9 @@ complete -c orchestrate.sh -n "__fish_use_subcommand" -a "optimize" -d "Auto-det
 complete -c orchestrate.sh -n "__fish_use_subcommand" -a "setup" -d "Interactive configuration"
 complete -c orchestrate.sh -n "__fish_use_subcommand" -a "init" -d "Initialize workspace"
 complete -c orchestrate.sh -n "__fish_use_subcommand" -a "status" -d "Show running agents"
+complete -c orchestrate.sh -n "__fish_use_subcommand" -a "doctor" -d "Run local environment and update diagnostics"
+complete -c orchestrate.sh -n "__fish_use_subcommand" -a "update-plugin" -d "Explicitly update Octopus through the host plugin manager"
+complete -c orchestrate.sh -n "__fish_use_subcommand" -a "update-clis" -d "Update external provider CLIs"
 complete -c orchestrate.sh -n "__fish_use_subcommand" -a "cost" -d "Show usage report"
 complete -c orchestrate.sh -n "__fish_use_subcommand" -a "auth" -d "Authentication management"
 complete -c orchestrate.sh -n "__fish_use_subcommand" -a "completion" -d "Generate shell completion"

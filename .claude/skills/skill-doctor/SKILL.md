@@ -20,7 +20,7 @@ trigger: |
 
 ## Overview
 
-Run environment diagnostics across 11 check categories. Identifies misconfigured providers, stale state, broken hooks, and other issues that prevent Claude Octopus from working correctly.
+Run environment diagnostics across 14 check categories. Identifies misconfigured providers, stale plugin installations, stale state, broken hooks, and other issues that prevent Claude Octopus from working correctly.
 
 **Core principle:** Detect problems before they surface in workflows.
 
@@ -83,7 +83,7 @@ export OCTO_PLUGIN_ROOT
 bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor
 ```
 
-This runs all 11 check categories and displays a formatted report.
+This runs all 14 check categories and displays a formatted report.
 
 ### Step 2: Filter by Category (Optional)
 
@@ -93,6 +93,7 @@ If the user asks about a specific area, filter:
 bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor providers
 bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor auth
 bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor config
+bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor updates
 bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor state
 bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor smoke
 bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor hooks
@@ -200,8 +201,10 @@ Offer to run the login command for the expired provider.
 | Category | What it checks |
 |----------|---------------|
 | `providers` | Claude Code version, Codex CLI installed, Antigravity CLI installed, Perplexity API key, Ollama local LLM (server + models), circuit breaker status, provider fallback history |
+| `companions` | Optional companion tools and integrations |
 | `auth` | Authentication status for each provider |
 | `config` | Plugin version, install scope, feature flags |
+| `updates` | Loaded, installed, catalog, and cache versions; Claude marketplace auto-update; reload requirement |
 | `state` | Project state.json, stale results, workspace writable |
 | `smoke` | Smoke test cache, model configuration |
 | `hooks` | hooks.json validity, hook scripts |
@@ -210,7 +213,11 @@ Offer to run the login command for the expired provider.
 | `conflicts` | Conflicting plugins detection |
 | `agents` | Agent definitions, worktree isolation, CLI registration, version compatibility |
 | `recurrence` | Failure pattern detection — flags repeated quality gate failures, source hotspots, 48h trends |
-| `deps` | Software dependencies — Node.js, jq, Codex, Antigravity CLIs, RTK token compression (gain stats + hook status), statusline resolver, recommended plugins |
+| `cache` | Cache size, freshness, and hygiene |
+
+Software dependency installation is checked separately by
+`scripts/install-deps.sh check` in Step 3, including Node.js, jq, provider CLIs,
+RTK token compression, the statusline resolver, and recommended plugins.
 
 ---
 

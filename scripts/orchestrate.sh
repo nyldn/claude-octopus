@@ -40,6 +40,10 @@ elif [[ -n "${CODEX_HOME:-}" || -n "${CODEX_SANDBOX:-}" || -n "${CODEX_PLUGIN_RO
     OCTOPUS_HOST="codex"  # HOST:codex — Codex CLI is the host runtime
 elif [[ -n "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
     OCTOPUS_HOST="claude"
+elif [[ "$PLUGIN_DIR" == *"/.codex/"* ]]; then
+    OCTOPUS_HOST="codex"
+elif [[ "$PLUGIN_DIR" == *"/.claude/"* ]]; then
+    OCTOPUS_HOST="claude"
 else
     OCTOPUS_HOST="standalone"
 fi
@@ -141,6 +145,7 @@ source "${SCRIPT_DIR}/lib/proof-packet.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/graphify.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/review.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/workflows.sh"
+source "${SCRIPT_DIR}/lib/plugin-update.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/doctor.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/quota-watcher.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/agent-sync.sh" 2>/dev/null || true
@@ -2801,6 +2806,9 @@ case "$COMMAND" in
         ;;
     doctor)
         do_doctor "$@"
+        ;;
+    update-plugin)
+        octo_plugin_update_run "$PLUGIN_DIR" "$OCTOPUS_HOST"
         ;;
     octopus-configure)
         setup_wizard
