@@ -1096,7 +1096,7 @@ ${heuristic_ctx}"
         _octopus_agent_lifecycle_event "completed" "$agent_type" "$task_id" "$role" "$phase" "$BASHPID" "$result_file" "$_spawn_exit" "$_hook_final_status"
 
         # v8.19.0: Cleanup heartbeat (self-terminating monitor handles this too)
-        cleanup_heartbeat "$$" 2>/dev/null || true
+        cleanup_heartbeat "$BASHPID" 2>/dev/null || true
     ) &
 
     local pid=$!

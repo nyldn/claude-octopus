@@ -18,6 +18,7 @@ TESTS_FAILED=0
 
 # Change to plugin directory
 cd "$(dirname "$0")/../.."
+export OCTOPUS_WORKFLOW_STATE_DIR="$PROJECT_ROOT/.claude-octopus"
 
 echo -e "${BLUE}═══════════════════════════════════════════════════════${NC}"
 echo -e "${BLUE}  Phase 1-3 Integration Test Suite${NC}"

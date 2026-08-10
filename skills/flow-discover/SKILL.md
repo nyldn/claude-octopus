@@ -67,7 +67,7 @@ fi
 
 **How it works:**
 - Native plan mode may clear Claude's memory via `ExitPlanMode`
-- claude-octopus state persists in `.claude-octopus/state.json`
+- Claude Octopus workflow state persists in the host workspace, namespaced by project; resolve its exact path with `state-manager.sh state_path`
 - Each workflow phase reads prior state at startup
 - Context is automatically restored from files
 

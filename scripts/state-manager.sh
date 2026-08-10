@@ -7,10 +7,44 @@
 # ${VAR} in the 14K+ line caller and its libraries (#108, #189).
 set -eo pipefail
 
-# Configuration
-STATE_DIR=".claude-octopus"
-STATE_FILE="$STATE_DIR/state.json"
-BACKUP_FILE="$STATE_DIR/state.json.backup"
+# Configuration. Both standalone and orchestrated calls default to the
+# host/plugin-data workspace, namespaced by project, so merely inspecting or
+# starting a workflow never dirties the user's repository (#841). Set
+# OCTOPUS_WORKFLOW_STATE_DIR to opt into a different location.
+configure_state_paths() {
+    STATE_DIR="${1:-.claude-octopus}"
+    STATE_FILE="$STATE_DIR/state.json"
+    BACKUP_FILE="$STATE_DIR/state.json.backup"
+}
+
+state_project_id() {
+    local project_root="${1:-$PWD}"
+    local identity digest
+    identity="$(git -C "$project_root" config --get remote.origin.url 2>/dev/null || true)"
+    identity="${identity:-$(cd "$project_root" 2>/dev/null && pwd -P || printf '%s' "$project_root")}"
+
+    if command -v sha256sum >/dev/null 2>&1; then
+        digest="$(printf '%s' "$identity" | sha256sum | awk '{print $1}')"
+    elif command -v shasum >/dev/null 2>&1; then
+        digest="$(printf '%s' "$identity" | shasum -a 256 | awk '{print $1}')"
+    elif command -v md5sum >/dev/null 2>&1; then
+        digest="$(printf '%s' "$identity" | md5sum | awk '{print $1}')"
+    elif command -v md5 >/dev/null 2>&1; then
+        digest="$(printf '%s' "$identity" | md5 -q)"
+    else
+        digest="$(printf '%s' "$identity" | cksum | awk '{print $1 "-" $2}')"
+    fi
+    printf '%s\n' "$digest"
+}
+
+if [[ -n "${OCTOPUS_WORKFLOW_STATE_DIR:-}" ]]; then
+    configure_state_paths "$OCTOPUS_WORKFLOW_STATE_DIR"
+else
+    _octopus_workflow_project_root="${OCTOPUS_STATE_PROJECT_ROOT:-$PWD}"
+    _octopus_workflow_state_base="${CLAUDE_PLUGIN_DATA:-${CLAUDE_OCTOPUS_WORKSPACE:-${HOME:-$PWD}/.claude-octopus}}"
+    configure_state_paths "${_octopus_workflow_state_base}/projects/$(state_project_id "$_octopus_workflow_project_root")"
+    unset _octopus_workflow_project_root _octopus_workflow_state_base
+fi
 
 # Colors for output
 RED='\033[0;31m'
@@ -51,14 +85,9 @@ init_state() {
         fi
     fi
 
-    # Generate project ID from git remote or directory name
-    local remote_url
-    remote_url=$(git config --get remote.origin.url 2>/dev/null || true)
-    if [[ -n "$remote_url" ]]; then
-        project_id=$(printf '%s' "$remote_url" | md5sum | cut -d' ' -f1)
-    else
-        project_id=$(printf '%s' "$(basename "$PWD")" | md5sum | cut -d' ' -f1)
-    fi
+    # Generate a stable project ID without assuming GNU md5sum is installed.
+    local project_id
+    project_id="$(state_project_id "${OCTOPUS_STATE_PROJECT_ROOT:-$PWD}")"
 
     # Create initial state
     cat > "$STATE_FILE" <<EOF
@@ -424,6 +453,9 @@ main() {
         read_state)
             read_state
             ;;
+        state_path)
+            printf '%s\n' "$STATE_FILE"
+            ;;
         get_current_phase)
             get_current_phase
             ;;
@@ -472,6 +504,7 @@ Usage: state-manager.sh <command> [args]
 Commands:
   init_state                                  Initialize state file
   read_state                                  Display current state (JSON)
+  state_path                                  Display the resolved state file path
   get_current_phase                           Get current phase
   get_current_workflow                        Get current workflow
   set_current_workflow <workflow> [phase]     Set current workflow and phase

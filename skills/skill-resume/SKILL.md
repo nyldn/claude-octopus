@@ -485,16 +485,18 @@ Otherwise → User loses previous context and wastes time re-discovering where t
 When context is cleared (compaction, plan mode exit, new session), detect and reload automatically:
 
 ```bash
-# Auto-detect context loss
-if [[ -f .claude-octopus/state.json ]] && [[ -z "${WORKFLOW_CONTEXT_LOADED}" ]]; then
+# Auto-detect context loss without writing into the project checkout.
+# The plugin executable resolves its own installation root on every host.
+WORKFLOW_STATE_FILE="$(octopus state-path)"
+if [[ -f "$WORKFLOW_STATE_FILE" ]] && [[ -z "${WORKFLOW_CONTEXT_LOADED}" ]]; then
     echo "⚠️  Context was cleared — reloading from persistent state..."
     NEEDS_RESUME=true
 fi
 ```
 
 **What survives context clearing:**
-- `.claude-octopus/state.json` (decisions, context, metrics)
-- `.claude-octopus/context/*.md` (phase outputs)
+- Host-workspace project state (decisions, context, metrics; resolve with `state-manager.sh state_path`)
+- The resolved state directory's `context/*.md` files (phase outputs)
 - Native tasks (TaskList still works)
 - Git commits and WIP checkpoints
 - Multi-AI synthesis files in `~/.claude-octopus/results/`

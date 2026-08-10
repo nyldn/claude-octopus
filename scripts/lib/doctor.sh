@@ -819,14 +819,15 @@ doctor_check_updates() {
 
 # --- Category 4: State ---
 doctor_check_state() {
+    local workflow_state_file="${STATE_FILE:-.claude-octopus/state.json}"
     # state.json integrity
-    if [[ -f ".claude-octopus/state.json" ]]; then
-        if jq empty ".claude-octopus/state.json" 2>/dev/null; then
+    if [[ -f "$workflow_state_file" ]]; then
+        if jq empty "$workflow_state_file" 2>/dev/null; then
             doctor_add "state-json" "state" "pass" \
-                "state.json valid" ".claude-octopus/state.json"
+                "state.json valid" "$workflow_state_file"
         else
             doctor_add "state-json" "state" "fail" \
-                "state.json is invalid JSON" "File exists but cannot be parsed"
+                "state.json is invalid JSON" "$workflow_state_file cannot be parsed"
         fi
     else
         doctor_add "state-json" "state" "pass" \

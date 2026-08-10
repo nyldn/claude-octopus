@@ -7,6 +7,7 @@
 #   octopus version    — Show version
 #   octopus session    — Show current session info
 #   octopus fleet      — Show provider fleet status
+#   octopus state-path — Show the current project's workflow state path
 #   octopus agent-summary — Show current run provider status
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -39,6 +40,10 @@ case "${1:-help}" in
             echo "Fleet builder not available"
         fi
         ;;
+    state-path)
+        OCTOPUS_STATE_PROJECT_ROOT="$PWD" \
+            "${SCRIPT_DIR}/scripts/state-manager.sh" state_path
+        ;;
     agent-summary|summary)
         shift
         "$ORCHESTRATE" agent-summary "$@"
@@ -53,6 +58,7 @@ case "${1:-help}" in
         echo "  version   Show plugin version"
         echo "  session   Show current session info"
         echo "  fleet     Show provider fleet status"
+        echo "  state-path  Show the current project's workflow state path"
         echo "  agent-summary  Show current run provider status"
         echo "  help      Show this help"
         ;;
