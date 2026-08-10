@@ -103,7 +103,7 @@ done
 [[ "$failed" == true ]] || test_pass
 
 test_case "Production routing cannot invoke the Gemini executable"
-if rg -n \
+if grep -Ern \
     'gemini-exec\.sh|command[[:space:]]+-v[[:space:]]+gemini|(run_agent(_sync)?|spawn_agent(_capture_pid)?)[[:space:]]+"gemini"|cmd=\(gemini|agent_type="gemini"|check_version[[:space:]]+"gemini"|cli:[[:space:]]+gemini(-fast)?([[:space:]]|$)' \
     "$PROJECT_ROOT/scripts" "$PROJECT_ROOT/hooks" "$PROJECT_ROOT/agents" \
     "$PROJECT_ROOT/.claude/hooks" >/dev/null; then
@@ -113,7 +113,7 @@ else
 fi
 
 test_case "Public setup no longer installs or advertises Gemini CLI as a provider"
-if rg -n \
+if grep -Ern \
     '@google/gemini-cli|command[[:space:]]+-v[[:space:]]+gemini|\|[^|]*Gemini CLI[^|]*\|' \
     "$PROJECT_ROOT/README.md" "$PROJECT_ROOT/PRODUCT.md" \
     "$PROJECT_ROOT/docs/PROVIDERS.md" "$PROJECT_ROOT/.claude-plugin/README.md" \
@@ -129,8 +129,8 @@ if jq -e '
       (.keywords | index("gemini") | not) and
       (.keywords | index("antigravity") != null)
     ' "$PROJECT_ROOT/package.json" >/dev/null && \
-   rg -q 'OCTO_AGY_MIN_VERSION' "$PROJECT_ROOT/scripts/lib/provider-versions.sh" && \
-   ! rg -n 'OCTO_GEMINI_MIN_VERSION|"gemini"[[:space:]]*:' \
+   grep -Eq 'OCTO_AGY_MIN_VERSION' "$PROJECT_ROOT/scripts/lib/provider-versions.sh" && \
+   ! grep -En 'OCTO_GEMINI_MIN_VERSION|"gemini"[[:space:]]*:' \
       "$PROJECT_ROOT/scripts/lib/provider-versions.sh" \
       "$PROJECT_ROOT/config/templates/config.json.template" >/dev/null; then
     test_pass
