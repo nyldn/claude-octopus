@@ -482,7 +482,7 @@ User runs /octo:resume
 
 | User Input | Action Required |
 |------------|-----------------|
-| "resume" | Check .octo/ → Read state → Load context → Display summary → Route |
+| "resume" | Resolve state with `octopus state-path` → Load context → Display summary → Route |
 | "continue" | Same as resume |
 | "pick up where I left off" | Same as resume |
 | "what was I doing" | Same as resume, emphasize history |
@@ -493,7 +493,7 @@ User runs /octo:resume
 ## The Bottom Line
 
 ```
-Check .octo/ → Read state → Load adaptive context → Show history + blockers → Route intelligently
+Run `octopus state-path` → Read state → Load adaptive context → Show history + blockers → Route intelligently
 Otherwise → User loses previous context and wastes time re-discovering where they were
 ```
 
@@ -508,7 +508,10 @@ When context is cleared (compaction, plan mode exit, new session), detect and re
 ```bash
 # Auto-detect context loss without writing into the project checkout.
 # The plugin executable resolves its own installation root on every host.
-WORKFLOW_STATE_FILE="$(octopus state-path)"
+if ! WORKFLOW_STATE_FILE="$(octopus state-path)" || [[ -z "$WORKFLOW_STATE_FILE" ]]; then
+    echo "Unable to resolve persistent workflow state; refusing an incomplete resume." >&2
+    exit 1
+fi
 if [[ -f "$WORKFLOW_STATE_FILE" ]] && [[ -z "${WORKFLOW_CONTEXT_LOADED}" ]]; then
     echo "⚠️  Context was cleared — reloading from persistent state..."
     NEEDS_RESUME=true
@@ -516,8 +519,8 @@ fi
 ```
 
 **What survives context clearing:**
-- Host-workspace project state (decisions, context, metrics; resolve with `state-manager.sh state_path`)
-- The resolved state directory's `context/*.md` files (phase outputs)
+- Host-workspace project state (decisions, context, metrics; resolve with `octopus state-path`)
+- `context/*.md` beside the path returned by `octopus state-path` (phase outputs)
 - Native tasks (TaskList still works)
 - Git commits and WIP checkpoints
 - Multi-AI synthesis files in `~/.claude-octopus/results/`

@@ -57,10 +57,11 @@ exit_line=$(grep -n '^[[:space:]]*exit 1$' <<< "$discover_block" | head -1 | cut
 present_line=$(grep -nF 'cat "$SYNTHESIS_FILE"' <<< "$discover_block" | head -1 | cut -d: -f1 || true)
 project_line=$(grep -n 'update_project' <<< "$discover_block" | head -1 | cut -d: -f1 || true)
 complete_line=$(grep -n 'update_state' <<< "$discover_block" | head -1 | cut -d: -f1 || true)
+opt_in_line=$(grep -n 'OCTOPUS_PROJECT_PERSISTENCE' <<< "$discover_block" | head -1 | cut -d: -f1 || true)
 
-test_case "Discovery verifies, presents, and persists synthesis before completion"
-if [[ -n "$synthesis_line" && -n "$exit_line" && -n "$present_line" && -n "$project_line" && -n "$complete_line" ]] &&
-   (( synthesis_line < exit_line && exit_line < present_line && present_line < project_line && project_line < complete_line )) &&
+test_case "Discovery verifies and presents before optional project persistence"
+if [[ -n "$synthesis_line" && -n "$exit_line" && -n "$present_line" && -n "$opt_in_line" && -n "$project_line" && -n "$complete_line" ]] &&
+   (( synthesis_line < exit_line && exit_line < present_line && present_line < opt_in_line && opt_in_line < project_line && project_line < complete_line )) &&
    grep -Fq 'cat "$SYNTHESIS_FILE"' <<< "$discover_block" &&
    grep -Fq -- '--content-file "$SYNTHESIS_FILE"' <<< "$discover_block" &&
    ! grep -q -- '--content ' <<< "$discover_block" &&
@@ -68,15 +69,16 @@ if [[ -n "$synthesis_line" && -n "$exit_line" && -n "$present_line" && -n "$proj
    grep -q 'if ! .*update_project' <<< "$(tr '\n' ' ' <<< "$discover_block")"; then
     test_pass
 else
-    test_fail "Post-Discovery must persist the complete synthesis and fail closed before update_state"
+    test_fail "Post-Discovery must present the complete synthesis and gate project persistence explicitly"
 fi
 
-test_case "Discovery terminal state requires PROJECT.md persistence"
+test_case "Discovery terminal state makes PROJECT.md persistence explicit opt-in"
 discover_terminal=$(sed -n '/^## Terminal State/,/^\*\*Ready to research!/p' "$DISCOVER")
-if grep -q '\.octo/PROJECT\.md' <<< "$discover_terminal"; then
+if grep -q '\.octo/PROJECT\.md' <<< "$discover_terminal" &&
+   grep -q 'OCTOPUS_PROJECT_PERSISTENCE=true' <<< "$discover_terminal"; then
     test_pass
 else
-    test_fail "Discover terminal state omitted PROJECT.md persistence"
+    test_fail "Discover terminal state omitted the project persistence opt-in boundary"
 fi
 
 test_case "Doctor quick-reference commands use the resolved plugin root"

@@ -819,7 +819,7 @@ doctor_check_updates() {
 
 # --- Category 4: State ---
 doctor_check_state() {
-    local workflow_state_file="${STATE_FILE:-.claude-octopus/state.json}"
+    local workflow_state_file="${STATE_FILE:-}"
     # state.json integrity
     if [[ -f "$workflow_state_file" ]]; then
         if jq empty "$workflow_state_file" 2>/dev/null; then

@@ -4,8 +4,9 @@
 
 set -euo pipefail
 
-# Configuration
-CONTEXT_DIR=".claude-octopus/context"
+# Configuration. Keep context beside the resolved workflow state when the
+# caller opts into or exports a state directory.
+CONTEXT_DIR="${OCTOPUS_WORKFLOW_STATE_DIR:-.claude-octopus}/context"
 
 # Colors for output
 RED='\033[0;31m'

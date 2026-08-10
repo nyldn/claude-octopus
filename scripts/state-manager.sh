@@ -17,11 +17,25 @@ configure_state_paths() {
     BACKUP_FILE="$STATE_DIR/state.json.backup"
 }
 
+# Resolve the persistent host workspace identically for standalone commands and
+# the orchestrator. CLAUDE_PLUGIN_DATA is host-owned; the user override remains
+# second in precedence. A missing HOME falls back to the physical caller path.
+resolve_octopus_workspace() {
+    local workspace home_base
+    home_base="${HOME:-$PWD}"
+    workspace="${CLAUDE_PLUGIN_DATA:-${CLAUDE_OCTOPUS_WORKSPACE:-${home_base}/.claude-octopus}}"
+    if [[ "$workspace" == \~* ]]; then
+        workspace="${home_base}${workspace#\~}"
+    fi
+    printf '%s\n' "$workspace"
+}
+
 state_project_id() {
     local project_root="${1:-$PWD}"
-    local identity digest
-    identity="$(git -C "$project_root" config --get remote.origin.url 2>/dev/null || true)"
-    identity="${identity:-$(cd "$project_root" 2>/dev/null && pwd -P || printf '%s' "$project_root")}"
+    local identity digest remote resolved_root
+    remote="$(git -C "$project_root" config --get remote.origin.url 2>/dev/null || true)"
+    resolved_root="$(cd "$project_root" 2>/dev/null && pwd -P || printf '%s' "$project_root")"
+    identity="${remote}|${resolved_root}"
 
     if command -v sha256sum >/dev/null 2>&1; then
         digest="$(printf '%s' "$identity" | sha256sum | awk '{print $1}')"
@@ -41,7 +55,7 @@ if [[ -n "${OCTOPUS_WORKFLOW_STATE_DIR:-}" ]]; then
     configure_state_paths "$OCTOPUS_WORKFLOW_STATE_DIR"
 else
     _octopus_workflow_project_root="${OCTOPUS_STATE_PROJECT_ROOT:-$PWD}"
-    _octopus_workflow_state_base="${CLAUDE_PLUGIN_DATA:-${CLAUDE_OCTOPUS_WORKSPACE:-${HOME:-$PWD}/.claude-octopus}}"
+    _octopus_workflow_state_base="$(resolve_octopus_workspace)"
     configure_state_paths "${_octopus_workflow_state_base}/projects/$(state_project_id "$_octopus_workflow_project_root")"
     unset _octopus_workflow_project_root _octopus_workflow_state_base
 fi

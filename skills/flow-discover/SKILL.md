@@ -18,28 +18,23 @@ description: "Multi-AI research using available external providers (Double Diamo
 - Before synthesis, run `${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh agent-summary` and use only providers reported as `ok`, `degraded`, or `timeout` with usable output.
 - For `standard` and `deep` research, require at least 2 usable provider outputs unless fewer providers are installed; failed/rejected providers are reported as gaps, not cited as evidence.
 
-## Pre-Discovery: Project Initialization
+## Pre-Discovery: Optional Project Persistence
 
-Before starting discovery:
-1. Check if `.octo/` directory exists
-2. If NOT exists: Call `./scripts/octo-state.sh init_project` to create it
-3. Update `.octo/STATE.md`:
-   - current_phase: 1
-   - phase_position: "Discovery"
-   - status: "in_progress"
+Workflow state is stored in the host workspace by default. Only create the
+project-local `.octo/` lifecycle artifacts when the user explicitly opts in by
+setting `OCTOPUS_PROJECT_PERSISTENCE=true`.
 
 ```bash
-# Check and initialize .octo/ state
-if [[ ! -d ".octo" ]]; then
-  echo "📁 Initializing .octo/ project state..."
-  "${HOME}/.claude-octopus/plugin/scripts/octo-state.sh" init_project
+if [[ "${OCTOPUS_PROJECT_PERSISTENCE:-false}" == "true" ]]; then
+  if [[ ! -d ".octo" ]]; then
+    echo "📁 Initializing opt-in .octo/ project state..."
+    "${HOME}/.claude-octopus/plugin/scripts/octo-state.sh" init_project
+  fi
+  "${HOME}/.claude-octopus/plugin/scripts/octo-state.sh" update_state \
+    --phase 1 \
+    --position "Discovery" \
+    --status "in_progress"
 fi
-
-# Update state for Discovery phase
-"${HOME}/.claude-octopus/plugin/scripts/octo-state.sh" update_state \
-  --phase 1 \
-  --position "Discovery" \
-  --status "in_progress"
 ```
 
 
@@ -56,7 +51,7 @@ Check if native plan mode is active:
 if [[ -n "${PLAN_MODE_ACTIVE}" ]] || claude-code plan status 2>/dev/null | grep -q "active"; then
     echo "⚠️  Native plan mode detected"
     echo ""
-    echo "   Claude Octopus uses file-based state (.claude-octopus/)"
+    echo "   Resolve Claude Octopus workflow state with: octopus state-path"
     echo "   State will persist across plan mode context clears"
     echo "   Multi-AI orchestration will continue normally"
     echo ""
@@ -785,8 +780,8 @@ See **skill-security-framing.md** for complete documentation on:
 After discovery completes:
 1. Verify the synthesis file exists and is non-empty.
 2. Present its findings to the user.
-3. Populate `.octo/PROJECT.md` with the research findings.
-4. Only then update `.octo/STATE.md`:
+3. If project-local persistence was explicitly enabled, populate
+   `.octo/PROJECT.md`, then update `.octo/STATE.md`:
    - status: "complete" (for this phase)
    - Add history entry: "Discover phase completed"
 
@@ -801,26 +796,27 @@ fi
 echo "Discovery findings:"
 cat "$SYNTHESIS_FILE"
 
-# Populate PROJECT.md with the complete research synthesis and fail closed.
-echo "📝 Updating .octo/PROJECT.md with discovery findings..."
-if ! "${HOME}/.claude-octopus/plugin/scripts/octo-state.sh" update_project \
-    --section "vision" \
-    --content-file "$SYNTHESIS_FILE"; then
-  echo "Discover incomplete: could not persist findings to .octo/PROJECT.md." >&2
-  exit 1
+# Project-local lifecycle documents are a separate, explicit opt-in.
+if [[ "${OCTOPUS_PROJECT_PERSISTENCE:-false}" == "true" ]]; then
+  echo "📝 Updating opt-in .octo/PROJECT.md with discovery findings..."
+  if ! "${HOME}/.claude-octopus/plugin/scripts/octo-state.sh" update_project \
+      --section "vision" \
+      --content-file "$SYNTHESIS_FILE"; then
+    echo "Discover incomplete: could not persist findings to .octo/PROJECT.md." >&2
+    exit 1
+  fi
+  "${HOME}/.claude-octopus/plugin/scripts/octo-state.sh" update_state \
+    --status "complete" \
+    --history "Discover phase completed"
 fi
-
-# Mark complete only after the synthesis was presented and persisted.
-"${HOME}/.claude-octopus/plugin/scripts/octo-state.sh" update_state \
-  --status "complete" \
-  --history "Discover phase completed"
 ```
 
 
 ## Terminal State
 
-The Discover phase is complete ONLY when the synthesis file exists, its complete findings
-are presented to the user, and those findings are persisted in `.octo/PROJECT.md`. Then
+The Discover phase is complete ONLY when the synthesis file exists and its complete findings
+are presented to the user. When `OCTOPUS_PROJECT_PERSISTENCE=true`, the findings must also
+be persisted in `.octo/PROJECT.md`. Then
 either invoke `flow-define` (embrace workflow, or the user wants requirements next) or
 stop with research delivered. Do NOT begin scoping, designing, or implementation from
 here — that work belongs to later phases.

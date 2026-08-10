@@ -214,13 +214,12 @@ source "${SCRIPT_DIR}/lib/council.sh" 2>/dev/null || true
 # Prevents path traversal attacks and restricts to safe locations
 # ═══════════════════════════════════════════════════════════════════════════════
 
-# Apply workspace path — prefer CLAUDE_PLUGIN_DATA (CC v2.1.78+), then user override, then default
-if [[ -n "${CLAUDE_PLUGIN_DATA:-}" ]]; then
-    WORKSPACE_DIR="${CLAUDE_PLUGIN_DATA}"
-elif [[ -n "${CLAUDE_OCTOPUS_WORKSPACE:-}" ]]; then
-    WORKSPACE_DIR=$(validate_workspace_path "$CLAUDE_OCTOPUS_WORKSPACE") || exit 1
-else
-    WORKSPACE_DIR="${HOME}/.claude-octopus"
+# Use the same workspace resolver as standalone `octopus state-path`. Preserve
+# path validation for the user-controlled override; CLAUDE_PLUGIN_DATA is
+# supplied by the host and retains precedence.
+WORKSPACE_DIR="$(resolve_octopus_workspace)"
+if [[ -z "${CLAUDE_PLUGIN_DATA:-}" && -n "${CLAUDE_OCTOPUS_WORKSPACE:-}" ]]; then
+    WORKSPACE_DIR="$(validate_workspace_path "$WORKSPACE_DIR")" || exit 1
 fi
 
 # Re-derive SESSION_FILE now that WORKSPACE_DIR is known

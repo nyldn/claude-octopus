@@ -4,7 +4,6 @@
 
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "Comprehensive test suite for Phases 1-3"
 
@@ -18,7 +17,7 @@ TESTS_FAILED=0
 
 # Change to plugin directory
 cd "$(dirname "$0")/../.."
-export OCTOPUS_WORKFLOW_STATE_DIR="$PROJECT_ROOT/.claude-octopus"
+export OCTOPUS_WORKFLOW_STATE_DIR="$TEST_TMP_DIR/.claude-octopus"
 
 echo -e "${BLUE}═══════════════════════════════════════════════════════${NC}"
 echo -e "${BLUE}  Phase 1-3 Integration Test Suite${NC}"
@@ -89,19 +88,19 @@ echo -e "${BLUE}═════════════════════�
 echo ""
 
 # Clean up any existing state
-rm -rf .claude-octopus 2>/dev/null || true
+rm -rf "$OCTOPUS_WORKFLOW_STATE_DIR" 2>/dev/null || true
 
 # Test 1: State initialization
 test_start "State initialization"
 if assert_command_succeeds ./scripts/state-manager.sh init_state; then
-    if assert_file_exists ".claude-octopus/state.json"; then
+    if assert_file_exists "$OCTOPUS_WORKFLOW_STATE_DIR/state.json"; then
         test_pass
     fi
 fi
 
 # Test 2: State file is valid JSON
 test_start "State file is valid JSON"
-if jq empty .claude-octopus/state.json 2>/dev/null; then
+if jq empty "$OCTOPUS_WORKFLOW_STATE_DIR/state.json" 2>/dev/null; then
     test_pass
 else
     test_fail "State file is not valid JSON"
@@ -112,7 +111,7 @@ test_start "State has required fields"
 required_fields=("version" "decisions" "blockers" "context" "metrics")
 all_present=true
 for field in "${required_fields[@]}"; do
-    if ! jq -e ".$field" .claude-octopus/state.json > /dev/null 2>&1; then
+    if ! jq -e ".$field" "$OCTOPUS_WORKFLOW_STATE_DIR/state.json" > /dev/null 2>&1; then
         test_fail "Missing required field: $field"
         all_present=false
     fi
@@ -125,7 +124,7 @@ fi
 test_start "Write decision"
 if assert_command_succeeds ./scripts/state-manager.sh write_decision \
     "define" "React 19 + Next.js 15" "Modern stack with best DX"; then
-    decision_count=$(jq '.decisions | length' .claude-octopus/state.json)
+    decision_count=$(jq '.decisions | length' "$OCTOPUS_WORKFLOW_STATE_DIR/state.json")
     if assert_equals "$decision_count" "1"; then
         test_pass
     fi
@@ -135,7 +134,7 @@ fi
 test_start "Update context"
 if assert_command_succeeds ./scripts/state-manager.sh update_context \
     "discover" "Researched auth patterns, chose JWT"; then
-    discover_context=$(jq -r '.context.discover' .claude-octopus/state.json)
+    discover_context=$(jq -r '.context.discover' "$OCTOPUS_WORKFLOW_STATE_DIR/state.json")
     if assert_equals "$discover_context" "Researched auth patterns, chose JWT"; then
         test_pass
     fi
@@ -144,7 +143,7 @@ fi
 # Test 6: Update metrics
 test_start "Update metrics - phases completed"
 if assert_command_succeeds ./scripts/state-manager.sh update_metrics "phases_completed" "1"; then
-    phases=$(jq '.metrics.phases_completed' .claude-octopus/state.json)
+    phases=$(jq '.metrics.phases_completed' "$OCTOPUS_WORKFLOW_STATE_DIR/state.json")
     if assert_equals "$phases" "1"; then
         test_pass
     fi
@@ -153,7 +152,7 @@ fi
 # Test 7: Update provider metrics
 test_start "Update metrics - provider usage"
 if assert_command_succeeds ./scripts/state-manager.sh update_metrics "provider" "gemini"; then
-    gemini_usage=$(jq '.metrics.provider_usage.gemini' .claude-octopus/state.json)
+    gemini_usage=$(jq '.metrics.provider_usage.gemini' "$OCTOPUS_WORKFLOW_STATE_DIR/state.json")
     if assert_equals "$gemini_usage" "1"; then
         test_pass
     fi
@@ -163,7 +162,7 @@ fi
 test_start "Write blocker"
 if assert_command_succeeds ./scripts/state-manager.sh write_blocker \
     "Waiting for API deployment" "develop" "active"; then
-    blocker_count=$(jq '.blockers | length' .claude-octopus/state.json)
+    blocker_count=$(jq '.blockers | length' "$OCTOPUS_WORKFLOW_STATE_DIR/state.json")
     if assert_equals "$blocker_count" "1"; then
         test_pass
     fi
@@ -178,7 +177,7 @@ fi
 
 # Test 10: State backup created
 test_start "State backup created on write"
-if assert_file_exists ".claude-octopus/state.json.backup"; then
+if assert_file_exists "$OCTOPUS_WORKFLOW_STATE_DIR/state.json.backup"; then
     test_pass
 fi
 
@@ -274,10 +273,10 @@ fi
 # Test 18: Context directory initialization
 test_start "Context directory initialization"
 if assert_command_succeeds ./scripts/context-manager.sh init_context_dir; then
-    if [ -d ".claude-octopus/context" ]; then
+    if [ -d "$OCTOPUS_WORKFLOW_STATE_DIR/context" ]; then
         test_pass
     else
-        test_fail "Directory .claude-octopus/context not created"
+        test_fail "Directory $OCTOPUS_WORKFLOW_STATE_DIR/context not created"
     fi
 fi
 
@@ -285,14 +284,14 @@ fi
 test_start "Create templated context"
 if assert_command_succeeds ./scripts/context-manager.sh create_templated_context \
     "test-workflow" "Test Feature" "Test vision" "Test approach"; then
-    if assert_file_exists ".claude-octopus/context/test-workflow-context.md"; then
+    if assert_file_exists "$OCTOPUS_WORKFLOW_STATE_DIR/context/test-workflow-context.md"; then
         test_pass
     fi
 fi
 
 # Test 20: Context file has required sections
 test_start "Context file has required sections"
-context_file=".claude-octopus/context/test-workflow-context.md"
+context_file="$OCTOPUS_WORKFLOW_STATE_DIR/context/test-workflow-context.md"
 required_sections=("User Vision" "Technical Approach" "Scope" "Decisions Made")
 all_sections_present=true
 for section in "${required_sections[@]}"; do
@@ -399,10 +398,10 @@ fi
 # Test 30: Directory structure is complete
 test_start "Directory structure is complete"
 required_dirs=(
-    ".claude-octopus"
-    ".claude-octopus/context"
-    ".claude-octopus/summaries"
-    ".claude-octopus/quick"
+    "$OCTOPUS_WORKFLOW_STATE_DIR"
+    "$OCTOPUS_WORKFLOW_STATE_DIR/context"
+    "$OCTOPUS_WORKFLOW_STATE_DIR/summaries"
+    "$OCTOPUS_WORKFLOW_STATE_DIR/quick"
 )
 all_dirs_exist=true
 for dir in "${required_dirs[@]}"; do

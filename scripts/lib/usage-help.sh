@@ -730,6 +730,7 @@ ${YELLOW}Examples:${NC}
 ${YELLOW}Environment:${NC}
   CLAUDE_OCTOPUS_WORKSPACE  Override workspace (default: ~/.claude-octopus)
   OCTOPUS_WORKFLOW_STATE_DIR Override project workflow state location (default: workspace/projects/<project-id>)
+  OCTOPUS_PROJECT_PERSISTENCE Set true to opt into project-local .octo/ lifecycle files
   OPENAI_API_KEY            Codex CLI (or 'codex login' OAuth)
   COMMAND_CODE_API_KEY       Command Code CLI (or authenticated CLI session)
   AGY_AUTH_TOKEN            Antigravity CLI auth token (optional; run 'agy login' instead when possible)

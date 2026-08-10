@@ -23,7 +23,7 @@ validate_workspace_path() {
     local proposed_path="$1"
 
     # Expand ~ if present
-    proposed_path="${proposed_path/#\~/$HOME}"
+    proposed_path="${proposed_path/#\~/${HOME:-$PWD}}"
 
     # Reject paths with path traversal attempts
     if [[ "$proposed_path" =~ \.\. ]]; then
@@ -45,7 +45,8 @@ validate_workspace_path() {
 
     # Restrict to safe locations ($HOME or /tmp)
     local is_safe=false
-    for safe_prefix in "$HOME" "/tmp" "/var/tmp"; do
+    for safe_prefix in "${HOME:-}" "/tmp" "/var/tmp"; do
+        [[ -n "$safe_prefix" ]] || continue
         if [[ "$proposed_path" == "$safe_prefix"* ]]; then
             is_safe=true
             break

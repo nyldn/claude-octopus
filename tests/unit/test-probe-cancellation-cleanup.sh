@@ -38,6 +38,14 @@ cleanup_probe_processes() {
 }
 after_all cleanup_probe_processes
 
+probe_processes_gone() {
+    local pid
+    for pid in "$@"; do
+        kill -0 "$pid" 2>/dev/null && return 1
+    done
+    return 0
+}
+
 test_case "probe cancellation helper is available"
 if declare -F octopus_probe_cancel_active >/dev/null 2>&1; then
     test_pass
@@ -90,6 +98,7 @@ OCTOPUS_ACTIVE_PROBE_SYNTHESIS_PID="$synthesis_pid"
 OCTOPUS_ACTIVE_PROBE_TMUX="false"
 OCTOPUS_ACTIVE_PROBE_PIDS=("$provider_pid")
 OCTOPUS_ACTIVE_PROBE_AGENTS=("codex")
+OCTOPUS_ACTIVE_PROBE_TASK_IDS=("$task_id")
 
 if declare -F octopus_probe_cancel_active >/dev/null 2>&1; then
     octopus_probe_cancel_active TERM
@@ -101,9 +110,13 @@ fi
 wait "$provider_pid" 2>/dev/null || true
 wait "$synthesis_pid" 2>/dev/null || true
 
-if ! kill -0 "$provider_pid" 2>/dev/null \
-   && ! kill -0 "$provider_child_pid" 2>/dev/null \
-   && ! kill -0 "$synthesis_pid" 2>/dev/null; then
+attempt=0
+while ! probe_processes_gone "$provider_pid" "$provider_child_pid" "$synthesis_pid" \
+      && [[ "$attempt" -lt 100 ]]; do
+    sleep 0.05
+    attempt=$((attempt + 1))
+done
+if probe_processes_gone "$provider_pid" "$provider_child_pid" "$synthesis_pid"; then
     test_pass
 else
     test_fail "provider tree or synthesis monitor survived cancellation"
@@ -131,6 +144,27 @@ if jq -e --arg task "$task_id" \
     test_pass
 else
     test_fail "agent.cancelled event missing for $task_id"
+fi
+
+test_case "registered task without PID is still marked and terminated logically"
+no_pid_group="841002"
+no_pid_task="probe-${no_pid_group}-0"
+no_pid_result="$RESULTS_DIR/codex-${no_pid_task}.md"
+printf '# Agent: codex\n\npartial before PID assignment\n' > "$no_pid_result"
+OCTOPUS_ACTIVE_PROBE_TASK_GROUP="$no_pid_group"
+OCTOPUS_ACTIVE_PROBE_SYNTHESIS_PID=""
+OCTOPUS_ACTIVE_PROBE_TMUX="false"
+OCTOPUS_ACTIVE_PROBE_PIDS=()
+OCTOPUS_ACTIVE_PROBE_AGENTS=("codex")
+OCTOPUS_ACTIVE_PROBE_TASK_IDS=("$no_pid_task")
+octopus_probe_cancel_active TERM
+if grep -q '^## Status: CANCELLED - PARTIAL RESULTS' "$no_pid_result" \
+   && jq -e --arg task "$no_pid_task" \
+        'select(.event == "agent.cancelled" and .attributes.task_id == $task)' \
+        "$OCTO_EVENT_LOG" >/dev/null 2>&1; then
+    test_pass
+else
+    test_fail "task registered before PID assignment was not reconciled"
 fi
 
 test_case "probe signal handler maps TERM to exit 143"
@@ -195,7 +229,9 @@ direct_project="$TEST_TMP_DIR/direct-project"
 mkdir -p "$direct_home" "$direct_project"
 (
     cd "$direct_project"
-    env "HOME=$direct_home" "$PROJECT_ROOT/scripts/state-manager.sh" init_state \
+    unset OCTOPUS_WORKFLOW_STATE_DIR OCTOPUS_STATE_PROJECT_ROOT \
+        CLAUDE_PLUGIN_DATA CLAUDE_OCTOPUS_WORKSPACE
+    HOME="$direct_home" "$PROJECT_ROOT/scripts/state-manager.sh" init_state \
         >/dev/null 2>&1
 )
 direct_state_file="$(find "$direct_home/.claude-octopus/projects" -name state.json -type f -print -quit 2>/dev/null || true)"
@@ -209,12 +245,65 @@ fi
 test_case "portable CLI resolves the namespaced workflow state path"
 cli_state_file=$(
     cd "$direct_project"
-    env "HOME=$direct_home" "$PROJECT_ROOT/bin/octopus" state-path
+    unset OCTOPUS_WORKFLOW_STATE_DIR OCTOPUS_STATE_PROJECT_ROOT \
+        CLAUDE_PLUGIN_DATA CLAUDE_OCTOPUS_WORKSPACE
+    HOME="$direct_home" "$PROJECT_ROOT/bin/octopus" state-path
 )
 if [[ "$cli_state_file" == "$direct_state_file" ]]; then
     test_pass
 else
     test_fail "octopus state-path returned $cli_state_file instead of $direct_state_file"
+fi
+
+test_case "workspace resolver expands tilde consistently"
+literal_tilde='~'
+tilde_state_file=$(
+    cd "$direct_project"
+    unset OCTOPUS_WORKFLOW_STATE_DIR OCTOPUS_STATE_PROJECT_ROOT CLAUDE_PLUGIN_DATA
+    HOME="$direct_home" CLAUDE_OCTOPUS_WORKSPACE="${literal_tilde}/custom-octopus" \
+        "$PROJECT_ROOT/bin/octopus" state-path
+)
+case "$tilde_state_file" in
+    "$direct_home/custom-octopus/projects/"*/state.json) test_pass ;;
+    *) test_fail "tilde workspace resolved unexpectedly: $tilde_state_file" ;;
+esac
+
+test_case "workspace resolver has a deterministic fallback without HOME"
+no_home_state_file=$(
+    cd "$direct_project"
+    env -u HOME -u OCTOPUS_WORKFLOW_STATE_DIR -u OCTOPUS_STATE_PROJECT_ROOT \
+        -u CLAUDE_PLUGIN_DATA -u CLAUDE_OCTOPUS_WORKSPACE \
+        "$PROJECT_ROOT/bin/octopus" state-path
+)
+case "$no_home_state_file" in
+    "$direct_project/.claude-octopus/projects/"*/state.json) test_pass ;;
+    *) test_fail "HOME-less workspace resolved unexpectedly: $no_home_state_file" ;;
+esac
+
+test_case "same remote in separate checkouts gets separate state namespaces"
+clone_a="$TEST_TMP_DIR/clone-a"
+clone_b="$TEST_TMP_DIR/clone-b"
+mkdir -p "$clone_a" "$clone_b"
+git -C "$clone_a" init -q
+git -C "$clone_b" init -q
+git -C "$clone_a" remote add origin https://example.invalid/shared/repo.git
+git -C "$clone_b" remote add origin https://example.invalid/shared/repo.git
+clone_a_state=$(
+    cd "$clone_a"
+    unset OCTOPUS_WORKFLOW_STATE_DIR OCTOPUS_STATE_PROJECT_ROOT \
+        CLAUDE_PLUGIN_DATA CLAUDE_OCTOPUS_WORKSPACE
+    HOME="$direct_home" "$PROJECT_ROOT/bin/octopus" state-path
+)
+clone_b_state=$(
+    cd "$clone_b"
+    unset OCTOPUS_WORKFLOW_STATE_DIR OCTOPUS_STATE_PROJECT_ROOT \
+        CLAUDE_PLUGIN_DATA CLAUDE_OCTOPUS_WORKSPACE
+    HOME="$direct_home" "$PROJECT_ROOT/bin/octopus" state-path
+)
+if [[ "$clone_a_state" != "$clone_b_state" ]]; then
+    test_pass
+else
+    test_fail "separate checkouts with one remote shared $clone_a_state"
 fi
 
 test_case "project-local workflow state requires explicit opt-in"

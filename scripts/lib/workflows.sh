@@ -414,6 +414,23 @@ octopus_probe_clear_active() {
     OCTOPUS_ACTIVE_PROBE_TASK_IDS=()
 }
 
+_octopus_probe_restore_traps() {
+    local previous_int_trap="${1:-}"
+    local previous_term_trap="${2:-}"
+
+    octopus_probe_clear_active
+    if [[ -n "$previous_int_trap" ]]; then
+        eval "$previous_int_trap"
+    else
+        trap - INT
+    fi
+    if [[ -n "$previous_term_trap" ]]; then
+        eval "$previous_term_trap"
+    else
+        trap - TERM
+    fi
+}
+
 _octopus_probe_terminate_tree() {
     local pid="$1"
     [[ "$pid" =~ ^[0-9]+$ ]] || return 0
@@ -458,7 +475,7 @@ octopus_probe_cancel_active() {
     local -a cancel_tasks=("${OCTOPUS_ACTIVE_PROBE_TASK_IDS[@]+"${OCTOPUS_ACTIVE_PROBE_TASK_IDS[@]}"}")
     local ledger_pid ledger_agent ledger_task existing found found_idx idx
 
-    for idx in "${!cancel_pids[@]}"; do
+    for idx in "${!cancel_tasks[@]}"; do
         [[ -n "${cancel_agents[$idx]:-}" ]] || cancel_agents[$idx]="unknown"
         [[ -n "${cancel_tasks[$idx]:-}" ]] \
             || cancel_tasks[$idx]="probe-${task_group}-${idx}"
@@ -498,13 +515,13 @@ octopus_probe_cancel_active() {
         wait "$synthesis_pid" 2>/dev/null || true
     fi
 
-    for idx in "${!cancel_pids[@]}"; do
+    for idx in "${!cancel_tasks[@]}"; do
         ledger_pid="${cancel_pids[$idx]:-}"
         _octopus_probe_terminate_tree "$ledger_pid"
     done
 
     local result_file done_file completed task_id agent
-    for idx in "${!cancel_pids[@]}"; do
+    for idx in "${!cancel_tasks[@]}"; do
         ledger_pid="${cancel_pids[$idx]:-}"
         agent="${cancel_agents[$idx]:-unknown}"
         task_id="${cancel_tasks[$idx]:-probe-${task_group}-${idx}}"
@@ -517,12 +534,14 @@ octopus_probe_cancel_active() {
             completed=true
         fi
 
-        wait "$ledger_pid" 2>/dev/null || true
-        rm -f "${WORKSPACE_DIR:-${HOME}/.claude-octopus}/.octo/agents/${ledger_pid}.heartbeat" \
-            2>/dev/null || true
+        if [[ "$ledger_pid" =~ ^[0-9]+$ ]]; then
+            wait "$ledger_pid" 2>/dev/null || true
+            rm -f "${WORKSPACE_DIR:-${HOME}/.claude-octopus}/.octo/agents/${ledger_pid}.heartbeat" \
+                2>/dev/null || true
+        fi
 
         if [[ "$completed" == "false" ]]; then
-            if [[ -f "$result_file" ]] && ! grep -q '^## Status: CANCELLED' "$result_file" 2>/dev/null; then
+            if [[ -f "$result_file" ]] && ! grep -c '^## Status: CANCELLED' "$result_file" >/dev/null 2>&1; then
                 {
                     echo '```'
                     echo ""
@@ -837,7 +856,17 @@ ${_blind_spot_checklist}"
     # can tell which LLMs actually contributed and fail-fast if all providers
     # are required.
     if type render_agent_summary >/dev/null 2>&1; then
-        render_agent_summary || return $?
+        local summary_status=0
+        render_agent_summary || summary_status=$?
+        if [[ "$summary_status" -ne 0 ]]; then
+            if [[ -n "$synthesis_monitor_pid" ]]; then
+                kill "$synthesis_monitor_pid" 2>/dev/null || true
+                wait "$synthesis_monitor_pid" 2>/dev/null || true
+                OCTOPUS_ACTIVE_PROBE_SYNTHESIS_PID=""
+            fi
+            _octopus_probe_restore_traps "$probe_previous_int_trap" "$probe_previous_term_trap"
+            return "$summary_status"
+        fi
     fi
 
     # v8.48.0: Write synthesis marker before attempting synthesis
@@ -871,17 +900,7 @@ ${_blind_spot_checklist}"
     # Display workflow summary (v7.16.0 Feature 2)
     display_progress_summary
 
-    octopus_probe_clear_active
-    if [[ -n "$probe_previous_int_trap" ]]; then
-        eval "$probe_previous_int_trap"
-    else
-        trap - INT
-    fi
-    if [[ -n "$probe_previous_term_trap" ]]; then
-        eval "$probe_previous_term_trap"
-    else
-        trap - TERM
-    fi
+    _octopus_probe_restore_traps "$probe_previous_int_trap" "$probe_previous_term_trap"
 }
 
 # Phase 2: GRASP (Define) - Consensus building on approach

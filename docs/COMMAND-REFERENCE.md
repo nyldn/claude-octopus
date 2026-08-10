@@ -123,6 +123,7 @@ Plugin executables available as bare commands (CC v2.1.91+). Also usable via ful
 | `octopus version` | Show plugin version |
 | `octopus session` | Show current session info |
 | `octopus fleet` | Show provider fleet status |
+| `octopus state-path` | Print the checkout-specific workflow `state.json` path resolved by `OCTOPUS_WORKFLOW_STATE_DIR`, `CLAUDE_PLUGIN_DATA`, `CLAUDE_OCTOPUS_WORKSPACE`, or the default host workspace |
 | `octopus agent-summary` | Show which providers ran, degraded, failed, timed out, or contributed usable output |
 | `octo-compress` | Pipe verbose output for token savings: `npm install 2>&1 \| octo-compress` |
 | `octo-compress json` | Force JSON array/object compression |
