@@ -1,7 +1,7 @@
 {
   "name": "octo",
   "version": "9.61.3",
-  "description": "v9.61.3 \u2014 Auth-aware provider status for codex/opencode/copilot in the availability banner. Run /octo:setup.",
+  "description": "v9.61.3 \u2014 Auth-aware provider status for codex/opencode/copilot, Gemini CLI retirement in favor of Antigravity, capped Codex default prompts, and stale-install detection/repair. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"

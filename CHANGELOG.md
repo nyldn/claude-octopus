@@ -6,7 +6,10 @@
 
 ### Changed
 
-- Auth-aware provider status for codex/opencode/copilot in the availability banner
+- Auth-aware provider status for codex/opencode/copilot in the availability banner (#852)
+- Retire direct Gemini CLI dispatch in favor of Antigravity (AGY) (#854)
+- Cap Codex default prompts at the host limit (#855)
+- Detect and repair stale plugin installs (#856)
 
 ## [9.61.2] - 2026-08-10
 
