@@ -1,14 +1,14 @@
 # AI Agent Handoff
 
 Last updated: 2026-08-10
-Status: v9.61.2 is the release candidate in PR #823, with permanent
+Status: v9.61.2 is published, with permanent
 hook-timeout cleanup, careful-mode false-positive fixes, Codex marketplace
-update recovery, and provider availability/health hardening. Publication is
-pending the exact-main CI, tag, GitHub Release, and marketplace verification.
-The Gemini macOS keychain modal remains future issue #838; cancellation cleanup
-remains #841.
+update recovery, and provider availability/health hardening. The exact-main CI,
+tag, GitHub Release, shared marketplace sync, and real Claude/Codex upgrades
+from v9.61.1 all passed. The Gemini macOS keychain modal remains future issue
+#838; cancellation cleanup remains #841.
 Branch: `main`
-Candidate: [PR #823](https://github.com/nyldn/claude-octopus/pull/823)
+Release: [v9.61.2](https://github.com/nyldn/claude-octopus/releases/tag/v9.61.2)
 
 ## Start Here
 
@@ -67,25 +67,30 @@ v49 with four pending migrations to v53. Repository rules reserve migration for
 the designated migrator. No migration was run, so this work could not be
 claimed or recorded in `bd`; use this handoff for the blocked tracking record.
 
-## Release Candidate v9.61.2
+## Release v9.61.2
 
 - Release vehicle: [PR #823](https://github.com/nyldn/claude-octopus/pull/823)
-  on `release/v9.61.2`, refreshed through main commit `52db2f8e` (PR #843).
+  squash-merged to `main` as `4301b60f` after being refreshed through main
+  commit `52db2f8e` (PR #843).
 - Exact combined-candidate `OCTOPUS_NON_INTERACTIVE=1 make ci-local` result:
   16 smoke suites, 248 unit suites, and 7 integration suites passed.
 - `make sync`, `make sync-check`, `./scripts/validate-release.sh 9.61.2`,
   `bash tests/unit/test-handoff.sh`, `git diff --check`, and the executable-mode
-  check passed. Release validation reported only the two expected pre-release
-  warnings: the tag and GitHub Release do not exist until PR #823 is merged.
-- PR #843's current-head remote matrix passed on Ubuntu, macOS, the symlinked
-  install path, and integration tests; CodeRabbit approved it with zero
-  unresolved threads.
-- Publication must follow `RELEASING.md`: squash-merge PR #823, wait for the
-  exact main commit's Test Suite, tag that squash commit as `v9.61.2`, create
-  the GitHub Release, sync `nyldn/plugins`, and verify real Claude and Codex
-  upgrades from the installed v9.61.1 baseline.
+  check passed. The exact PR-head Test Suite passed as run `31414428547`;
+  CodeRabbit approved the head with zero unresolved threads.
+- The exact squash commit's main-branch Test Suite passed as run `31415623371`.
+  Annotated tag `v9.61.2` dereferences to `4301b60f`, and the non-draft,
+  non-prerelease GitHub Release was published on 2026-08-10.
+- `scripts/sync-shared-marketplace.sh` pushed the Claude `octo` entry at
+  v9.61.2 while validating the stable Codex `claude-octopus` selector; its
+  post-push check passed.
+- Real installed-host verification started with enabled v9.61.1 copies.
+  `codex plugin marketplace upgrade nyldn-plugins` plus `codex plugin add
+  claude-octopus@nyldn-plugins` installed v9.61.2, while `claude plugin
+  marketplace update nyldn-plugins` advanced `octo@nyldn-plugins` to v9.61.2
+  and the explicit plugin update confirmed it was current.
 
-## Included in v9.61.2 Candidate
+## Included in v9.61.2
 
 - **#816 / #819 merged (`53629216`, `3d3f972f`)** — Ollama, Copilot, and
   Vibe model pins and allowlists now reach dispatch instead of falling through
@@ -123,7 +128,7 @@ claimed or recorded in `bd`; use this handoff for the blocked tracking record.
   while a later PASS clears marker and expiry state immediately. The final
   minimal-strategy regression includes a real fake agy executable and is
   mutation-proven. Issue #840 closed.
-- **#846 filed and fixed in the release candidate** — the 248-suite macOS unit
+- **#846 filed and fixed in v9.61.2** — the 248-suite macOS unit
   job exhausted the old 15-minute GitHub Actions ceiling while its individual
   tests were still passing. The unit matrix now has a 25-minute budget, guarded
   by a workflow-contract regression.
