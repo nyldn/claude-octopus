@@ -256,14 +256,13 @@ sleep 600
 EOF
     chmod +x "$stubborn"
 
-    local start end dur ec
-    start="$(date +%s)"
+    local start dur ec
+    start=$SECONDS
     set +e
     run_with_timeout 2 "$stubborn" >/dev/null 2>&1
     ec=$?
     set -e
-    end="$(date +%s)"
-    dur=$(( end - start ))
+    dur=$((SECONDS - start))
 
     if [[ "$ec" -ne 0 && "$dur" -lt 20 ]]; then
         test_pass
