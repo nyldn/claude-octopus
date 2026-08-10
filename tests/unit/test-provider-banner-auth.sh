@@ -70,11 +70,12 @@ chmod +x "$FAKE_BIN/timeout"
 provider_state() {
     local provider="$1"
     local opencode_mode="${2:-success}"
+    local command_path="${3:-$FAKE_BIN:$PATH}"
     (
         unset OPENAI_API_KEY COPILOT_GITHUB_TOKEN GH_TOKEN GITHUB_TOKEN
         env \
             "HOME=$FAKE_HOME" \
-            "PATH=$FAKE_BIN:$PATH" \
+            "PATH=$command_path" \
             "OCTO_ALLOWED_PROVIDERS=$provider" \
             "OCTO_TEST_OPENCODE_MODE=$opencode_mode" \
             bash "$PROJECT_ROOT/scripts/helpers/check-providers.sh" 2>/dev/null \
@@ -117,6 +118,27 @@ printf '#!/usr/bin/env bash\nexit 127\n' > "$FAKE_BIN/timeout"
 chmod +x "$FAKE_BIN/timeout"
 if [[ "$(provider_state opencode)" == "opencode:degraded" ]]; then test_pass; else test_fail "OpenCode auth file was trusted without a usable bounded check"; fi
 mv "$FAKE_BIN/timeout.disabled" "$FAKE_BIN/timeout"
+
+test_case "OpenCode uses gtimeout when timeout is unavailable"
+GTIMEOUT_BIN="$TEST_TMP_DIR/gtimeout-bin"
+mkdir -p "$GTIMEOUT_BIN"
+for utility in bash cat date dirname head mkdir sed sleep tr; do
+    utility_path="$(command -v "$utility")"
+    ln -s "$utility_path" "$GTIMEOUT_BIN/$utility"
+done
+ln -s "$FAKE_BIN/opencode" "$GTIMEOUT_BIN/opencode"
+cat > "$GTIMEOUT_BIN/gtimeout" <<'EOF'
+#!/usr/bin/env bash
+[[ "${1:-}" =~ ^[0-9]+$ ]] || exit 64
+shift
+exec "$@"
+EOF
+chmod +x "$GTIMEOUT_BIN/gtimeout"
+if [[ "$(provider_state opencode success "$GTIMEOUT_BIN")" == "opencode:available" ]]; then
+    test_pass
+else
+    test_fail "OpenCode did not use the gtimeout fallback"
+fi
 
 test_case "installed Copilot without auth is degraded"
 if [[ "$(provider_state copilot)" == "copilot:degraded" ]]; then test_pass; else test_fail "Copilot binary alone must not be available"; fi
