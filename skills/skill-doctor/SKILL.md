@@ -82,6 +82,7 @@ If the user asks about a specific area, filter:
 
 ```bash
 bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor providers
+bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor companions
 bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor auth
 bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor config
 bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor updates
@@ -93,6 +94,7 @@ bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor skills
 bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor conflicts
 bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor agents
 bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor recurrence
+bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor cache
 ```
 
 ### Step 3: Check & Install Dependencies
@@ -327,7 +329,7 @@ Invoke this skill by asking Claude naturally, or run the orchestrator directly:
 
 | What to say / run | Action |
 |-------------------|--------|
-| "run Octopus doctor diagnostics" | Run all 11 categories |
+| "run Octopus doctor diagnostics" | Run all 14 categories |
 | "check Octopus providers" | Check provider installation only |
 | `bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor auth --verbose` | Detailed auth status |
 | `bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor --json` | Machine-readable output |

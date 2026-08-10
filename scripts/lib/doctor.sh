@@ -753,6 +753,12 @@ doctor_check_updates() {
             "Plugin update health unavailable" "scripts/lib/plugin-update.sh could not be loaded"
         return
     fi
+    if ! command -v jq >/dev/null 2>&1; then
+        doctor_add "plugin-update-dependency" "updates" "warn" \
+            "Plugin update health unavailable: jq is not installed" \
+            "Install jq, then rerun orchestrate.sh doctor updates"
+        return
+    fi
 
     local plugin_root="${CLAUDE_PLUGIN_ROOT:-${PLUGIN_DIR:-}}"
     local host="${OCTOPUS_HOST:-}"

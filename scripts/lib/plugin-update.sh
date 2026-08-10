@@ -37,6 +37,30 @@ EOF
     printf '%s\n' "${newest:-unknown}"
 }
 
+octo_plugin_version_gte() {
+    local candidate="${1:-}" baseline="${2:-}"
+    [[ "$candidate" == "$baseline" && "$candidate" != "unknown" ]] \
+        || octo_plugin_version_gt "$candidate" "$baseline"
+}
+
+octo_plugin_update_confirmed() {
+    local expected="${1:-unknown}"
+    local confirmed
+    confirmed="$(octo_plugin_newest_version "${OCTO_PLUGIN_INSTALLED_VERSION}
+${OCTO_PLUGIN_CACHE_VERSION}")"
+
+    if [[ "$expected" == "unknown" ]]; then
+        printf 'Host update commands completed, but no expected plugin version could be determined from local metadata.\n' >&2
+        return 1
+    fi
+    if ! octo_plugin_version_gte "$confirmed" "$expected"; then
+        printf 'Host update commands exited successfully, but local state did not confirm the update (expected %s; installed %s; cache %s).\n' \
+            "$expected" "$OCTO_PLUGIN_INSTALLED_VERSION" "$OCTO_PLUGIN_CACHE_VERSION" >&2
+        return 1
+    fi
+    return 0
+}
+
 octo_plugin_detect_host() {
     local plugin_root="${1:-}"
     if [[ -n "${OCTOPUS_PLUGIN_HOST:-}" ]]; then
@@ -150,6 +174,10 @@ ${OCTO_PLUGIN_CACHE_VERSION}")"
 octo_plugin_update_run() {
     local plugin_root="${1:-${CLAUDE_PLUGIN_ROOT:-}}"
     local host="${2:-$(octo_plugin_detect_host "$plugin_root")}"
+    local expected_before="unknown" expected_after="unknown"
+
+    octo_plugin_update_load "$plugin_root" "$host"
+    expected_before="$OCTO_PLUGIN_NEWEST_VERSION"
 
     case "$host" in
         claude)
@@ -161,6 +189,9 @@ octo_plugin_update_run() {
             claude plugin marketplace update nyldn-plugins || return $?
             claude plugin update octo@nyldn-plugins || return $?
             octo_plugin_update_load "$plugin_root" claude
+            expected_after="$(octo_plugin_newest_version "${expected_before}
+${OCTO_PLUGIN_CATALOG_VERSION}")"
+            octo_plugin_update_confirmed "$expected_after" || return $?
             printf 'Host update commands completed (loaded %s; installed %s; newest local %s).\n' \
                 "$OCTO_PLUGIN_LOADED_VERSION" "$OCTO_PLUGIN_INSTALLED_VERSION" \
                 "$OCTO_PLUGIN_NEWEST_VERSION"
@@ -175,6 +206,9 @@ octo_plugin_update_run() {
             codex plugin marketplace upgrade nyldn-plugins || return $?
             codex plugin add claude-octopus@nyldn-plugins || return $?
             octo_plugin_update_load "$plugin_root" codex
+            expected_after="$(octo_plugin_newest_version "${expected_before}
+${OCTO_PLUGIN_CATALOG_VERSION}")"
+            octo_plugin_update_confirmed "$expected_after" || return $?
             printf 'Host update commands completed (loaded %s; installed %s; newest local %s).\n' \
                 "$OCTO_PLUGIN_LOADED_VERSION" "$OCTO_PLUGIN_INSTALLED_VERSION" \
                 "$OCTO_PLUGIN_NEWEST_VERSION"

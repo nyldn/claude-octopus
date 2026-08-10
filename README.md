@@ -224,8 +224,8 @@ calls; it only reports disabled auto-update, a locally known newer version, or
 a loaded session that needs a reload. Run focused diagnostics at any time:
 
 ```bash
-/octo:doctor config   # install path, version, manifest, Claude Code feature flags
-/octo:doctor skills   # skill loading, skillOverrides, plugin zip/URL capability notes
+~/.claude-octopus/plugin/scripts/orchestrate.sh doctor config   # install path, version, manifest, Claude Code feature flags
+~/.claude-octopus/plugin/scripts/orchestrate.sh doctor skills   # skill loading, skillOverrides, plugin zip/URL capability notes
 ~/.claude-octopus/plugin/scripts/orchestrate.sh doctor updates
 ```
 
