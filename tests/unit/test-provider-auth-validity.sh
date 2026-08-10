@@ -256,18 +256,19 @@ sleep 600
 EOF
     chmod +x "$stubborn"
 
-    local start dur ec
-    start=$SECONDS
+    local start_ms end_ms dur_ms ec
+    start_ms=$(python3 -c 'import time; print(time.monotonic_ns() // 1000000)')
     set +e
     run_with_timeout 2 "$stubborn" >/dev/null 2>&1
     ec=$?
     set -e
-    dur=$((SECONDS - start))
+    end_ms=$(python3 -c 'import time; print(time.monotonic_ns() // 1000000)')
+    dur_ms=$((end_ms - start_ms))
 
-    if [[ "$ec" -ne 0 && "$dur" -lt 20 ]]; then
+    if [[ "$ec" -ne 0 && "$dur_ms" -lt 20000 ]]; then
         test_pass
     else
-        test_fail "stubborn process not killed promptly (exit=$ec, dur=${dur}s; expected non-zero exit, <20s)"
+        test_fail "stubborn process not killed promptly (exit=$ec, dur=${dur_ms}ms; expected non-zero exit, <20000ms)"
     fi
 }
 
