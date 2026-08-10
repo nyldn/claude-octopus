@@ -58,6 +58,31 @@ octo_quota_mark_dead() {
     return 0
 }
 
+# octo_quota_clear_dead <provider>
+# A successful health probe is stronger evidence than a cached failure. Remove
+# both the compatibility marker and any per-provider expiry metadata so a
+# recovered provider becomes selectable immediately after its smoke test.
+octo_quota_clear_dead() {
+    local provider="$1"
+    [[ -n "$provider" ]] || return 0
+
+    local f meta tmp
+    f="$(octo_quota_dead_file)"
+    if [[ -f "$f" ]]; then
+        tmp="$(mktemp "${f}.XXXXXX")" 2>/dev/null || return 0
+        grep -vxF "$provider" "$f" > "$tmp" 2>/dev/null || true
+        mv "$tmp" "$f" 2>/dev/null || rm -f "$tmp" 2>/dev/null
+    fi
+
+    meta="$(octo_quota_dead_meta_file)"
+    if [[ -f "$meta" ]]; then
+        tmp="$(mktemp "${meta}.XXXXXX")" 2>/dev/null || return 0
+        grep -v "^${provider}	" "$meta" > "$tmp" 2>/dev/null || true
+        mv "$tmp" "$meta" 2>/dev/null || rm -f "$tmp" 2>/dev/null
+    fi
+    return 0
+}
+
 # _octo_quota_meta_expired <provider> — 0 when a recorded per-provider window has
 # elapsed, 1 when it is still in force, 2 when no metadata exists (caller falls
 # back to the file-mtime default).

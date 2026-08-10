@@ -22,6 +22,16 @@ _gds_provider_allowed() {
     ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed "$1"
 }
 
+# Providers that just failed the current run's smoke test are marked
+# quota/auth-dead for the rest of the session (quota-watcher.sh); every other
+# dispatch path (is_agent_available_v2, build-fleet.sh, check-providers.sh)
+# already excludes on that marker. get_dispatch_strategy() did not, so a
+# provider that had just failed smoke testing was still selected into the
+# fleet a moment later. (#840)
+_gds_not_quota_dead() {
+    ! declare -f octo_quota_is_dead >/dev/null 2>&1 || ! octo_quota_is_dead "$1"
+}
+
 get_dispatch_strategy() {
     local prompt="$1"
     local workflow="${2:-auto}"
@@ -30,18 +40,18 @@ get_dispatch_strategy() {
     case "$strategy" in
         full)
             local all_p="claude-sonnet"
-            _gds_provider_allowed codex && command -v codex >/dev/null 2>&1 && all_p="codex,${all_p}"
-            _gds_provider_allowed gemini && command -v gemini >/dev/null 2>&1 && all_p="gemini,${all_p}"
+            _gds_provider_allowed codex && _gds_not_quota_dead codex && command -v codex >/dev/null 2>&1 && all_p="codex,${all_p}"
+            _gds_provider_allowed gemini && _gds_not_quota_dead gemini && command -v gemini >/dev/null 2>&1 && all_p="gemini,${all_p}"
             # Antigravity (agy) is the Google seat since the Gemini CLI sunset (#524)
-            _gds_provider_allowed agy && command -v agy >/dev/null 2>&1 && all_p="agy,${all_p}"
+            _gds_provider_allowed agy && _gds_not_quota_dead agy && command -v agy >/dev/null 2>&1 && all_p="agy,${all_p}"
             local _full_count; _full_count=$(awk -F, '{print NF}' <<< "$all_p")
             echo "${_full_count}:${all_p}:high"
             return 0 ;;
         minimal)
             # agy (Google seat) preferred over the sunset Gemini CLI (#524)
-            if _gds_provider_allowed agy && command -v agy >/dev/null 2>&1; then echo "2:agy,claude-sonnet:high"
-            elif _gds_provider_allowed gemini && command -v gemini >/dev/null 2>&1; then echo "2:gemini,claude-sonnet:high"
-            elif _gds_provider_allowed codex && command -v codex >/dev/null 2>&1; then echo "2:codex,claude-sonnet:high"
+            if _gds_provider_allowed agy && _gds_not_quota_dead agy && command -v agy >/dev/null 2>&1; then echo "2:agy,claude-sonnet:high"
+            elif _gds_provider_allowed gemini && _gds_not_quota_dead gemini && command -v gemini >/dev/null 2>&1; then echo "2:gemini,claude-sonnet:high"
+            elif _gds_provider_allowed codex && _gds_not_quota_dead codex && command -v codex >/dev/null 2>&1; then echo "2:codex,claude-sonnet:high"
             else echo "1:claude-sonnet:high"; fi
             return 0 ;;
     esac
@@ -69,19 +79,19 @@ get_dispatch_strategy() {
     # fan-out never seated it before, so Antigravity-only setups fell back to
     # Claude-only dispatch (Gemini CLI sunset 2026-06-18, #524).
     local has_codex=false has_gemini=false has_copilot=false has_qwen=false has_ollama=false has_cursor_agent=false has_agy=false
-    _gds_provider_allowed codex  && command -v codex  >/dev/null 2>&1 && has_codex=true
-    _gds_provider_allowed gemini && command -v gemini >/dev/null 2>&1 && has_gemini=true
-    _gds_provider_allowed agy    && command -v agy    >/dev/null 2>&1 && has_agy=true
-    _gds_provider_allowed copilot && command -v copilot >/dev/null 2>&1 && has_copilot=true
-    if _gds_provider_allowed qwen; then
+    _gds_provider_allowed codex  && _gds_not_quota_dead codex  && command -v codex  >/dev/null 2>&1 && has_codex=true
+    _gds_provider_allowed gemini && _gds_not_quota_dead gemini && command -v gemini >/dev/null 2>&1 && has_gemini=true
+    _gds_provider_allowed agy    && _gds_not_quota_dead agy    && command -v agy    >/dev/null 2>&1 && has_agy=true
+    _gds_provider_allowed copilot && _gds_not_quota_dead copilot && command -v copilot >/dev/null 2>&1 && has_copilot=true
+    if _gds_provider_allowed qwen && _gds_not_quota_dead qwen; then
         if declare -f qwen_is_usable >/dev/null 2>&1; then
             qwen_is_usable && has_qwen=true
         elif command -v qwen >/dev/null 2>&1; then
             has_qwen=true
         fi
     fi
-    _gds_provider_allowed ollama && command -v ollama >/dev/null 2>&1 && curl -sf http://localhost:11434/api/tags &>/dev/null && has_ollama=true
-    if _gds_provider_allowed cursor-agent; then
+    _gds_provider_allowed ollama && _gds_not_quota_dead ollama && command -v ollama >/dev/null 2>&1 && curl -sf http://localhost:11434/api/tags &>/dev/null && has_ollama=true
+    if _gds_provider_allowed cursor-agent && _gds_not_quota_dead cursor-agent; then
         if declare -f cursor_agent_is_available >/dev/null 2>&1; then
             cursor_agent_is_available && has_cursor_agent=true
         elif declare -f _is_cursor_agent_binary >/dev/null 2>&1 && _is_cursor_agent_binary; then

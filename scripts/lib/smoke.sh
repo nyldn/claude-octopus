@@ -1155,6 +1155,28 @@ _smoke_test_provider() {
     rm -f "$stderr_file" 2>/dev/null
 }
 
+# Tally one provider's smoke-test result and, on failure, mark it quota/auth-dead
+# for the rest of this session so get_dispatch_strategy() (embrace.sh) and the
+# other octo_quota_is_dead() consumers stop selecting it. Without this, a smoke
+# test failure was only ever logged — the provider stayed selectable and got
+# dispatched into the same failure a moment later. (#840)
+_smoke_tally_result() {
+    local provider="$1" result="$2"
+    case "${result%%:*}" in
+        PASS)
+            ((++pass_count))
+            if declare -f octo_quota_clear_dead >/dev/null 2>&1; then
+                octo_quota_clear_dead "$provider"
+            fi
+            ;;
+        SKIP) ((++skip_count)) ;;
+        *)
+            ((++fail_count))
+            declare -f octo_quota_mark_dead >/dev/null 2>&1 && octo_quota_mark_dead "$provider"
+            ;;
+    esac
+}
+
 # Orchestrate parallel smoke tests for all available providers
 provider_smoke_test() {
     local force_check="${1:-false}"
@@ -1244,13 +1266,10 @@ provider_smoke_test() {
 
     local pass_count=0 fail_count=0 skip_count=0
 
-    for result in "$codex_result" "$gemini_result" "$cursor_agent_result" "$agy_result"; do
-        case "${result%%:*}" in
-            PASS) ((++pass_count)) ;;
-            SKIP) ((++skip_count)) ;;
-            *) ((++fail_count)) ;;
-        esac
-    done
+    _smoke_tally_result "codex" "$codex_result"
+    _smoke_tally_result "gemini" "$gemini_result"
+    _smoke_tally_result "cursor-agent" "$cursor_agent_result"
+    _smoke_tally_result "agy" "$agy_result"
 
     # Display results
     if [[ $fail_count -gt 0 ]]; then
