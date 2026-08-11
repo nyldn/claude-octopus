@@ -140,6 +140,21 @@ else
   test_fail "hook left the registered task running or counted it more than once"
 fi
 
+test_case "SubagentStop releases the shared lock for later shell progress updates"
+if [[ ! -e "$HOOK_WORKSPACE/progress.json.lock" ]] && (
+  source "$PLUGIN_DIR/scripts/lib/validation.sh"
+  source "$PLUGIN_DIR/scripts/lib/agents.sh"
+  log() { :; }
+  PROGRESS_TRACKING_ENABLED=true
+  PROGRESS_FILE="$HOOK_WORKSPACE/progress.json"
+  update_agent_status "claude" "completed" 123 0 600 \
+    "task-1" "develop" "$HOOK_RESULT_FILE"
+); then
+  test_pass
+else
+  test_fail "hook left a lock path that blocks later shell progress updates"
+fi
+
 test_case "concurrent SubagentStop hooks do not lose progress completions"
 CONCURRENT_WORKSPACE="$TEST_TMP_DIR/concurrent-hook-workspace"
 CONCURRENT_RESULTS="$CONCURRENT_WORKSPACE/results"

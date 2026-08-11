@@ -112,20 +112,56 @@ fi
 PROGRESS_FILE="${WORKSPACE_DIR}/progress.json"
 if [[ -f "$PROGRESS_FILE" ]] && command -v python3 &>/dev/null; then
     python3 - "$PROGRESS_FILE" "$RESULT_FILE" <<'PYEOF' 2>/dev/null || true
-import datetime, json, os, sys
+import datetime, json, os, shutil, sys, time
 path, result_file = sys.argv[1:3]
-lock_handle = open(path + '.lock', 'a+b')
-if os.name == 'nt':
-    import msvcrt
-    lock_handle.seek(0, os.SEEK_END)
-    if lock_handle.tell() == 0:
-        lock_handle.write(b'0')
-        lock_handle.flush()
-    lock_handle.seek(0)
-    msvcrt.locking(lock_handle.fileno(), msvcrt.LK_LOCK, 1)
-else:
-    import fcntl
-    fcntl.flock(lock_handle.fileno(), fcntl.LOCK_EX)
+lock_dir = path + '.lock'
+deadline = time.monotonic() + 5
+try:
+    stale_age = max(1, int(os.environ.get('OCTO_LOCK_STALE_SECS', '30')))
+except ValueError:
+    stale_age = 30
+
+def lock_is_stale():
+    try:
+        with open(os.path.join(lock_dir, 'pid')) as f:
+            owner = int(f.read().strip())
+        try:
+            os.kill(owner, 0)
+        except ProcessLookupError:
+            return True
+        except PermissionError:
+            pass
+    except (OSError, TypeError, ValueError):
+        pass
+    try:
+        with open(os.path.join(lock_dir, 'ts')) as f:
+            return time.time() - int(f.read().strip()) >= stale_age
+    except (OSError, TypeError, ValueError):
+        return False
+
+while True:
+    try:
+        os.mkdir(lock_dir)
+        try:
+            with open(os.path.join(lock_dir, 'pid'), 'w') as f:
+                f.write(str(os.getpid()))
+            with open(os.path.join(lock_dir, 'ts'), 'w') as f:
+                f.write(str(int(time.time())))
+        except OSError:
+            pass
+        break
+    except FileExistsError:
+        if os.path.isdir(lock_dir) and lock_is_stale():
+            stale_dir = lock_dir + '.stale.' + str(os.getpid())
+            try:
+                os.rename(lock_dir, stale_dir)
+                shutil.rmtree(stale_dir, ignore_errors=True)
+                continue
+            except OSError:
+                pass
+        if time.monotonic() >= deadline:
+            raise TimeoutError('timed out acquiring progress lock')
+        time.sleep(0.1)
 try:
     with open(path) as f:
         d = json.load(f)
@@ -161,12 +197,7 @@ try:
 except Exception:
     pass
 finally:
-    if os.name == 'nt':
-        lock_handle.seek(0)
-        msvcrt.locking(lock_handle.fileno(), msvcrt.LK_UNLCK, 1)
-    else:
-        fcntl.flock(lock_handle.fileno(), fcntl.LOCK_UN)
-    lock_handle.close()
+    shutil.rmtree(lock_dir, ignore_errors=True)
 PYEOF
 fi
 
