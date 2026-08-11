@@ -39,6 +39,9 @@ else
     update_agent_status "codex" "completed" 1000 0.25 600 "task-1" "define"
     update_agent_status "codex" "running" 0 0.50 1200 "task-2" "develop"
     update_agent_status "codex" "timeout" 2000 0.50 1200 "task-2" "develop"
+    # A late terminal event from an earlier phase must not move the workflow
+    # summary backward from develop to probe.
+    update_agent_status "codex" "completed" 1000 0.25 600 "task-1" "probe"
 
     if jq -e '
         .phase == "develop" and

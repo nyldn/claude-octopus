@@ -210,8 +210,23 @@ update_agent_status() {
         def terminal:
           .status as $status
           | (["completed", "ok", "degraded", "failed", "timeout", "skipped"] | index($status)) != null;
+        def phase_rank($phase):
+          if ($phase == "probe" or $phase == "discover") then 1
+          elif ($phase == "grasp" or $phase == "define") then 2
+          elif ($phase == "tangle" or $phase == "develop") then 3
+          elif ($phase == "ink" or $phase == "deliver") then 4
+          else 0 end;
+        def canonical_phase($phase):
+          if phase_rank($phase) == 1 then "discover"
+          elif phase_rank($phase) == 2 then "define"
+          elif phase_rank($phase) == 3 then "develop"
+          elif phase_rank($phase) == 4 then "deliver"
+          else $phase end;
         ([.agents[]? | select(.task_id == $agent.task_id)] | first) as $previous
-        | .phase = (if ($agent.phase | length) > 0 then $agent.phase else .phase end)
+        | .phase = (
+            if phase_rank($agent.phase) >= phase_rank(.phase) and phase_rank($agent.phase) > 0
+            then canonical_phase($agent.phase)
+            else .phase end)
         | .updated_at = $agent.updated_at
         | .agents = (
             if $previous == null then
