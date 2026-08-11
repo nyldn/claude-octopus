@@ -56,7 +56,10 @@ for command in \
     'q\wen -p hello' \
     'command -- qwen -p hello' \
     'command -p qwen -p hello' \
-    'command -p codex "hello"'; do
+    'command -p codex "hello"' \
+    'exec qwen -p hello' \
+    'exec -- gemini -p hello' \
+    'exec -a provider codex "hello"'; do
     output="$(run_hook "$command")"
     if [[ "$output" != *'"permissionDecision":"deny"'* ]]; then
         test_fail "expected wrapped provider dispatch to be denied for $command, got: ${output:-<empty>}"
@@ -66,12 +69,16 @@ done
 [[ "$output" == *'"permissionDecision":"deny"'* ]] && test_pass
 
 test_case "allows safe command-wrapped Codex exec"
-output="$(run_hook 'command -p codex exec --skip-git-repo-check "hello"')"
-if [[ -z "$output" ]]; then
-    test_pass
-else
-    test_fail "expected command-wrapped codex exec to be allowed, got: $output"
-fi
+for command in \
+    'command -p codex exec --skip-git-repo-check "hello"' \
+    'exec codex exec --skip-git-repo-check "hello"'; do
+    output="$(run_hook "$command")"
+    if [[ -n "$output" ]]; then
+        test_fail "expected command-wrapped codex exec to be allowed for $command, got: $output"
+        break
+    fi
+done
+[[ -z "${output:-}" ]] && test_pass
 
 test_case "blocks direct Gemini dispatch and points to Antigravity"
 output="$(run_hook 'cd /tmp && (gemini -p "hello")')"
@@ -91,6 +98,29 @@ else
     test_fail "expected multiline direct Qwen dispatch to be denied, got: ${output:-<empty>}"
 fi
 
+test_case "blocks provider dispatch in shell substitutions"
+for command in \
+    'echo `qwen -p hello`' \
+    'echo "$(qwen -p hello)"' \
+    'echo $(gemini -p hello)'; do
+    output="$(run_hook "$command")"
+    if [[ "$output" != *'"permissionDecision":"deny"'* ]]; then
+        test_fail "expected substitution dispatch to be denied for $command, got: ${output:-<empty>}"
+        break
+    fi
+done
+[[ "$output" == *'"permissionDecision":"deny"'* ]] && test_pass
+
+test_case "blocks quoted and absolute provider executables"
+for command in '"qwen" -p hello' '/opt/homebrew/bin/qwen -p hello'; do
+    output="$(run_hook "$command")"
+    if [[ "$output" != *'"permissionDecision":"deny"'* ]]; then
+        test_fail "expected executable to be denied for $command, got: ${output:-<empty>}"
+        break
+    fi
+done
+[[ "$output" == *'"permissionDecision":"deny"'* ]] && test_pass
+
 test_case "allows harmless provider introspection"
 for command in 'qwen --version' '/opt/homebrew/bin/qwen --help' 'gemini --version' 'command -v qwen'; do
     output="$(run_hook "$command")"
@@ -102,7 +132,7 @@ done
 [[ -z "${output:-}" ]] && test_pass
 
 test_case "does not block provider names inside data"
-output="$(run_hook 'printf "%s\\n" "qwen -p is unsafe"')"
+output="$(run_hook 'printf "%s\\n" "safe; qwen -p is unsafe text"')"
 if [[ -z "$output" ]]; then
     test_pass
 else

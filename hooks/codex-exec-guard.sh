@@ -29,15 +29,95 @@ else
 fi
 [[ -z "$COMMAND" ]] && exit 0
 
-# Emit unquoted shell command segments, one per line. This deliberately ignores
-# provider names in prompt/data strings while recognizing subshell, pipeline,
-# background, chained, and multiline command positions. Bash 3.2 compatible.
+# Find the closing parenthesis for a $(...) command substitution. Parentheses
+# inside quotes/backticks do not close the substitution; nested substitutions
+# and grouping parentheses increase its depth. Bash 3.2 compatible.
+_octo_command_sub_end() {
+    local source="$1" start="$2" state="plain" escaped="false" depth=1
+    local i char next
+
+    for ((i = start; i < ${#source}; i++)); do
+        char="${source:i:1}"
+        next="${source:i+1:1}"
+
+        if [[ "$escaped" == "true" ]]; then
+            escaped="false"
+            continue
+        fi
+
+        case "$state" in
+            single)
+                [[ "$char" == "'" ]] && state="plain"
+                ;;
+            double)
+                case "$char" in
+                    '"') state="plain" ;;
+                    "\\") escaped="true" ;;
+                    '$')
+                        if [[ "$next" == '(' ]]; then
+                            depth=$((depth + 1))
+                            i=$((i + 1))
+                        fi
+                        ;;
+                esac
+                ;;
+            backtick)
+                case "$char" in
+                    '`') state="plain" ;;
+                    "\\") escaped="true" ;;
+                esac
+                ;;
+            plain)
+                case "$char" in
+                    "'") state="single" ;;
+                    '"') state="double" ;;
+                    '`') state="backtick" ;;
+                    "\\") escaped="true" ;;
+                    '(') depth=$((depth + 1)) ;;
+                    ')')
+                        depth=$((depth - 1))
+                        if [[ $depth -eq 0 ]]; then
+                            printf '%s\n' "$i"
+                            return 0
+                        fi
+                        ;;
+                esac
+                ;;
+        esac
+    done
+
+    return 1
+}
+
+_octo_backtick_end() {
+    local source="$1" start="$2" escaped="false" i char
+
+    for ((i = start; i < ${#source}; i++)); do
+        char="${source:i:1}"
+        if [[ "$escaped" == "true" ]]; then
+            escaped="false"
+        elif [[ "$char" == "\\" ]]; then
+            escaped="true"
+        elif [[ "$char" == '`' ]]; then
+            printf '%s\n' "$i"
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+# Emit shell command segments, one per line. Quoted text remains a single
+# sanitized word, so a quoted executable is visible without treating provider
+# names in prompt/data strings as command positions. Command substitutions are
+# scanned recursively because they execute even inside double quotes.
 _octo_command_segments() {
     local source="$1" segment="" state="plain" escaped="false"
-    local i char
+    local i char next end inner
 
     for ((i = 0; i < ${#source}; i++)); do
         char="${source:i:1}"
+        next="${source:i+1:1}"
 
         if [[ "$escaped" == "true" ]]; then
             # An unquoted backslash preserves the next character as part of the
@@ -53,23 +133,55 @@ _octo_command_segments() {
             continue
         fi
 
+        if [[ "$state" != "single" && "$char" == '$' && "$next" == '(' ]]; then
+            if end=$(_octo_command_sub_end "$source" "$((i + 2))"); then
+                printf '%s\n' "$segment"
+                inner="${source:i+2:end-i-2}"
+                _octo_command_segments "$inner"
+                segment="${segment}_"
+                i="$end"
+                continue
+            fi
+        fi
+
+        if [[ "$state" != "single" && "$char" == '`' ]]; then
+            if end=$(_octo_backtick_end "$source" "$((i + 1))"); then
+                printf '%s\n' "$segment"
+                inner="${source:i+1:end-i-1}"
+                _octo_command_segments "$inner"
+                segment="${segment}_"
+                i="$end"
+                continue
+            fi
+        fi
+
         case "$state" in
             single)
-                [[ "$char" == "'" ]] && state="plain"
-                segment="${segment} "
+                if [[ "$char" == "'" ]]; then
+                    state="plain"
+                else
+                    case "$char" in
+                        ' '|$'\t'|';'|'&'|'|'|'('|')'|'{'|'}'|$'\n') segment="${segment}_" ;;
+                        *) segment="${segment}${char}" ;;
+                    esac
+                fi
                 ;;
             double)
                 if [[ "$char" == '"' ]]; then
                     state="plain"
                 elif [[ "$char" == "\\" ]]; then
                     escaped="true"
+                else
+                    case "$char" in
+                        ' '|$'\t'|';'|'&'|'|'|'('|')'|'{'|'}'|$'\n') segment="${segment}_" ;;
+                        *) segment="${segment}${char}" ;;
+                    esac
                 fi
-                segment="${segment} "
                 ;;
             plain)
                 case "$char" in
-                    "'") state="single"; segment="${segment} " ;;
-                    '"') state="double"; segment="${segment} " ;;
+                    "'") state="single" ;;
+                    '"') state="double" ;;
                     "\\") escaped="true" ;;
                     ';'|'&'|'|'|'('|')'|'{'|'}'|$'\n')
                         printf '%s\n' "$segment"
@@ -86,7 +198,7 @@ _octo_command_segments() {
 
 _octo_segment_provider() {
     local segment="$1" token="" provider="" first_arg=""
-    local saw_env="false" saw_command="false"
+    local saw_env="false" saw_command="false" saw_exec="false"
 
     # Shell word splitting is intentional here; glob expansion is not.
     set -f
@@ -110,6 +222,10 @@ _octo_segment_provider() {
                 saw_command="true"
                 continue
                 ;;
+            exec)
+                saw_exec="true"
+                continue
+                ;;
             -v|-V)
                 # `command -v/-V provider` is harmless introspection.
                 [[ "$saw_command" == "true" ]] && return 1
@@ -117,10 +233,22 @@ _octo_segment_provider() {
                 return 1
                 ;;
             -p|--)
-                # Both are valid `command` prefixes; env also accepts `--`.
-                if [[ "$saw_command" == "true" || "$saw_env" == "true" ]]; then
+                # Both are valid `command` prefixes; env/exec accept `--`.
+                if [[ "$saw_command" == "true" || "$saw_env" == "true" || "$saw_exec" == "true" ]]; then
                     continue
                 fi
+                return 1
+                ;;
+            -a)
+                # `exec -a name command` supplies an alternate argv[0].
+                if [[ "$saw_exec" == "true" && $# -gt 0 ]]; then
+                    shift
+                    continue
+                fi
+                return 1
+                ;;
+            -c|-l)
+                [[ "$saw_exec" == "true" ]] && continue
                 return 1
                 ;;
             -*)
