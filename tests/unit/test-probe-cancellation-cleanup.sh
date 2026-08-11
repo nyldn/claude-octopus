@@ -242,6 +242,24 @@ else
     test_fail "standalone state manager dirtied the project or lost state"
 fi
 
+test_case "standalone context manager also defaults outside the project"
+context_home="$TEST_TMP_DIR/context-home"
+context_project="$TEST_TMP_DIR/context-project"
+mkdir -p "$context_home" "$context_project"
+(
+    cd "$context_project"
+    env -u OCTOPUS_WORKFLOW_STATE_DIR -u OCTOPUS_STATE_PROJECT_ROOT \
+        -u CLAUDE_PLUGIN_DATA -u CLAUDE_OCTOPUS_WORKSPACE \
+        "HOME=$context_home" \
+        "$PROJECT_ROOT/scripts/context-manager.sh" init_context_dir >/dev/null 2>&1
+)
+context_dir="$(find "$context_home/.claude-octopus/projects" -name context -type d -print -quit 2>/dev/null || true)"
+if [[ ! -d "$context_project/.claude-octopus/context" && -n "$context_dir" ]]; then
+    test_pass
+else
+    test_fail "standalone context manager dirtied the project or lost context state"
+fi
+
 test_case "portable CLI resolves the namespaced workflow state path"
 cli_state_file=$(
     cd "$direct_project"
@@ -320,6 +338,17 @@ if [[ -f "$opt_in_project/.claude-octopus/state.json" ]]; then
     test_pass
 else
     test_fail "explicit project-local state directory was not honored"
+fi
+
+test_case "probe synthesis failure keeps recovery marker and returns non-zero"
+probe_tail="$(sed -n '/# Intelligent synthesis (v7.19.0 P1.1/,/^}/p' "$PROJECT_ROOT/scripts/lib/workflows.sh")"
+if grep -q 'local synthesis_status=0' <<< "$probe_tail" \
+   && grep -q 'synthesize_probe_results.*synthesis_status' <<< "$(tr '\n' ' ' <<< "$probe_tail")" \
+   && grep -q 'if \[\[ "$synthesis_status" -eq 0 \]\]' <<< "$probe_tail" \
+   && grep -q 'return "$synthesis_status"' <<< "$probe_tail"; then
+    test_pass
+else
+    test_fail "probe_discover does not preserve synthesis failure through cleanup"
 fi
 
 test_summary

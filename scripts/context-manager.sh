@@ -4,9 +4,12 @@
 
 set -euo pipefail
 
-# Configuration. Keep context beside the resolved workflow state when the
-# caller opts into or exports a state directory.
-CONTEXT_DIR="${OCTOPUS_WORKFLOW_STATE_DIR:-.claude-octopus}/context"
+# Configuration. Use the same project-namespaced host workspace as every other
+# workflow-state consumer, while preserving explicit state-directory opt-ins.
+SCRIPT_DIR="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=/dev/null
+source "$SCRIPT_DIR/state-manager.sh"
+CONTEXT_DIR="$STATE_DIR/context"
 
 # Colors for output
 RED='\033[0;31m'

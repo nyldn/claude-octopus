@@ -883,11 +883,15 @@ ${_blind_spot_checklist}"
     log DEBUG "Synthesis marker written: $synthesis_marker"
 
     # Intelligent synthesis (v7.19.0 P1.1: allow with partial results)
-    synthesize_probe_results "$task_group" "$prompt" "$usable_results"
+    local synthesis_status=0
+    synthesize_probe_results "$task_group" "$prompt" "$usable_results" \
+        || synthesis_status=$?
 
-    # Synthesis succeeded — remove the marker
-    rm -f "$synthesis_marker"
-    log DEBUG "Synthesis marker removed (synthesis completed successfully)"
+    # Preserve the marker on failure so synthesize-probe can recover the run.
+    if [[ "$synthesis_status" -eq 0 ]]; then
+        rm -f "$synthesis_marker"
+        log DEBUG "Synthesis marker removed (synthesis completed successfully)"
+    fi
 
     # v7.19.0 P2.4: Stop progressive synthesis monitor
     if [[ -n "$synthesis_monitor_pid" ]]; then
@@ -901,6 +905,7 @@ ${_blind_spot_checklist}"
     display_progress_summary
 
     _octopus_probe_restore_traps "$probe_previous_int_trap" "$probe_previous_term_trap"
+    return "$synthesis_status"
 }
 
 # Phase 2: GRASP (Define) - Consensus building on approach

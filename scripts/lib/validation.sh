@@ -47,7 +47,8 @@ validate_workspace_path() {
     local is_safe=false
     for safe_prefix in "${HOME:-}" "/tmp" "/var/tmp"; do
         [[ -n "$safe_prefix" ]] || continue
-        if [[ "$proposed_path" == "$safe_prefix"* ]]; then
+        if [[ "$proposed_path" == "$safe_prefix" \
+           || "$proposed_path" == "$safe_prefix/"* ]]; then
             is_safe=true
             break
         fi

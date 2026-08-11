@@ -147,6 +147,27 @@ test_url_rejects_long_urls() {
 }
 
 #==============================================================================
+# Test: workspace paths respect directory boundaries
+#==============================================================================
+test_workspace_path_boundaries() {
+    info "\n=== Testing: workspace path safe prefixes require directory boundaries ==="
+
+    # shellcheck source=/dev/null
+    source "$PROJECT_ROOT/scripts/lib/validation.sh"
+    local fixture_home="/safe/octopus-security-home-$$"
+
+    if HOME="$fixture_home" validate_workspace_path "$fixture_home/workspace" >/dev/null 2>&1 \
+       && HOME="$fixture_home" validate_workspace_path "/tmp/octopus-workspace" >/dev/null 2>&1 \
+       && ! HOME="$fixture_home" validate_workspace_path "${fixture_home}-sibling/workspace" >/dev/null 2>&1 \
+       && ! HOME="$fixture_home" validate_workspace_path "/tmp-escape/workspace" >/dev/null 2>&1 \
+       && ! HOME="$fixture_home" validate_workspace_path "/var/tmp-escape/workspace" >/dev/null 2>&1; then
+        pass "Workspace safe prefixes require an exact path or slash boundary"
+    else
+        fail "Workspace validation accepted a similarly-prefixed unsafe path"
+    fi
+}
+
+#==============================================================================
 # Test: transform_twitter_url function exists
 #==============================================================================
 test_transform_twitter_function_exists() {
@@ -283,6 +304,7 @@ test_url_rejects_private_10
 test_url_rejects_private_192
 test_url_rejects_metadata
 test_url_rejects_long_urls
+test_workspace_path_boundaries
 
 # Security skill tests
 test_security_skill_exists

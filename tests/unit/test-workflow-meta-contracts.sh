@@ -81,6 +81,17 @@ else
     test_fail "Discover terminal state omitted the project persistence opt-in boundary"
 fi
 
+test_case "Discovery project persistence fails closed on every lifecycle write"
+discover_pre=$(sed -n '/^## Pre-Discovery: Optional Project Persistence/,/^---$/p' "$DISCOVER")
+if grep -q 'if ! .*init_project' <<< "$(tr '\n' ' ' <<< "$discover_pre")" \
+   && grep -q 'if ! .*update_state' <<< "$(tr '\n' ' ' <<< "$discover_pre")" \
+   && grep -q 'if ! .*update_project' <<< "$(tr '\n' ' ' <<< "$discover_block")" \
+   && grep -q 'if ! .*update_state' <<< "$(tr '\n' ' ' <<< "$discover_block")"; then
+    test_pass
+else
+    test_fail "Discover persistence can continue after an init/update failure"
+fi
+
 test_case "Doctor quick-reference commands use the resolved plugin root"
 doctor_quick_ref=$(sed -n '/^## Quick Reference/,$p' "$DOCTOR")
 if grep -q '\$OCTO_PLUGIN_ROOT/scripts/orchestrate\.sh.*doctor auth --verbose' <<< "$doctor_quick_ref" &&

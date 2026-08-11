@@ -28,12 +28,18 @@ setting `OCTOPUS_PROJECT_PERSISTENCE=true`.
 if [[ "${OCTOPUS_PROJECT_PERSISTENCE:-false}" == "true" ]]; then
   if [[ ! -d ".octo" ]]; then
     echo "📁 Initializing opt-in .octo/ project state..."
-    "${HOME}/.claude-octopus/plugin/scripts/octo-state.sh" init_project
+    if ! "${HOME}/.claude-octopus/plugin/scripts/octo-state.sh" init_project; then
+      echo "Discover incomplete: could not initialize opt-in project state." >&2
+      exit 1
+    fi
   fi
-  "${HOME}/.claude-octopus/plugin/scripts/octo-state.sh" update_state \
-    --phase 1 \
-    --position "Discovery" \
-    --status "in_progress"
+  if ! "${HOME}/.claude-octopus/plugin/scripts/octo-state.sh" update_state \
+      --phase 1 \
+      --position "Discovery" \
+      --status "in_progress"; then
+    echo "Discover incomplete: could not persist in-progress state." >&2
+    exit 1
+  fi
 fi
 ```
 
@@ -805,9 +811,12 @@ if [[ "${OCTOPUS_PROJECT_PERSISTENCE:-false}" == "true" ]]; then
     echo "Discover incomplete: could not persist findings to .octo/PROJECT.md." >&2
     exit 1
   fi
-  "${HOME}/.claude-octopus/plugin/scripts/octo-state.sh" update_state \
-    --status "complete" \
-    --history "Discover phase completed"
+  if ! "${HOME}/.claude-octopus/plugin/scripts/octo-state.sh" update_state \
+      --status "complete" \
+      --history "Discover phase completed"; then
+    echo "Discover incomplete: could not persist completion state." >&2
+    exit 1
+  fi
 fi
 ```
 
