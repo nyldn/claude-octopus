@@ -146,7 +146,7 @@ try:
         break
     agents = d.get('agents', [])
     finished = [a for a in agents if a.get('status') in terminal]
-    d['total_agents'] = len(agents)
+    d['total_agents'] = max(d.get('total_agents', 0), len(agents))
     d['completed_agents'] = len(finished)
     d['successful_agents'] = sum(a.get('status') in {'completed', 'ok', 'degraded'} for a in agents)
     d['failed_agents'] = sum(a.get('status') == 'failed' for a in agents)

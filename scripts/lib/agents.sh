@@ -237,7 +237,7 @@ update_agent_status() {
                   ($agent + {started_at: ($previous.started_at // $agent.started_at)})
                 else . end]
             end)
-        | .total_agents = (.agents | length)
+        | .total_agents = ([.total_agents // 0, (.agents | length)] | max)
         | .completed_agents = ([.agents[] | select(terminal)] | length)
         | .successful_agents = ([.agents[] | select(.status == "completed" or .status == "ok" or .status == "degraded")] | length)
         | .failed_agents = ([.agents[] | select(.status == "failed")] | length)

@@ -28,6 +28,15 @@ trap 'rm -rf "$TEST_ROOT"' EXIT
 
 log() { :; }
 
+test_case "planned phase width does not shrink while the first tasks register"
+init_progress_tracking "discover" 3
+update_agent_status "codex" "running" 0 0 600 "planned-task-1" "discover"
+if jq -e '.total_agents == 3 and (.agents | length) == 1' "$PROGRESS_FILE" >/dev/null; then
+    test_pass
+else
+    test_fail "the first task registration replaced the planned phase width"
+fi
+
 test_case "phase transitions preserve task totals and terminal rows are counted once"
 init_progress_tracking "discover" 0
 if ! declare -F begin_progress_phase >/dev/null 2>&1; then
