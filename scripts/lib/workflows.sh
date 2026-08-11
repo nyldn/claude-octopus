@@ -1032,11 +1032,19 @@ grasp_define() {
         echo -e " ${YELLOW}⚠${NC}  Codex unavailable for problem definition — falling back to Claude"
         def1=$(run_agent_sync "claude-sonnet" "Based on: $prompt\n${context}Define the core problem statement in 2-3 sentences. What is the essential challenge?" 120 "backend-architect" "grasp") || true
     }
-    def2=$(run_agent_sync "agy" "Based on: $prompt\n${context}Define success criteria. How will we know when this is solved correctly? List 3-5 measurable criteria." 120 "researcher" "grasp") || {
-        log WARN "Antigravity (agy) failed for success criteria, falling back to Claude"
-        echo -e " ${YELLOW}⚠${NC}  Antigravity (agy) unavailable for success criteria — falling back to Claude"
+    if octo_provider_allowed agy && command -v agy >/dev/null 2>&1; then
+        def2=$(run_agent_sync "agy" "Based on: $prompt\n${context}Define success criteria. How will we know when this is solved correctly? List 3-5 measurable criteria." 120 "researcher" "grasp") || {
+            log WARN "Antigravity (agy) failed for success criteria, falling back to Claude"
+            echo -e " ${YELLOW}⚠${NC}  Antigravity (agy) unavailable for success criteria — falling back to Claude"
+            def2=""
+        }
+    else
+        log WARN "Antigravity (agy) not installed/allowed, using Claude for success criteria"
+        echo -e " ${YELLOW}⚠${NC}  Antigravity (agy) not installed — using Claude for success criteria"
+    fi
+    if [[ -z "$def2" ]]; then
         def2=$(run_agent_sync "claude-sonnet" "Based on: $prompt\n${context}Define success criteria. How will we know when this is solved correctly? List 3-5 measurable criteria." 120 "researcher" "grasp") || true
-    }
+    fi
     def3=$(run_agent_sync "claude-sonnet" "Based on: $prompt\n${context}Define constraints and boundaries. What are we NOT solving? What are hard limits?" 120 "researcher" "grasp")
 
     # Build consensus
@@ -1063,9 +1071,14 @@ Output a single, clear problem definition document with:
 4. Recommended Approach"
 
     local consensus
-    consensus=$(run_agent_sync "agy" "$consensus_prompt" 180 "synthesizer" "grasp") || {
-        consensus="[Auto-consensus failed - manual review required]\n\nProblem: $def1\n\nSuccess Criteria: $def2\n\nConstraints: $def3"
-    }
+    if octo_provider_allowed agy && command -v agy >/dev/null 2>&1; then
+        consensus=$(run_agent_sync "agy" "$consensus_prompt" 180 "synthesizer" "grasp") || {
+            consensus="[Auto-consensus failed - manual review required]\n\nProblem: $def1\n\nSuccess Criteria: $def2\n\nConstraints: $def3"
+        }
+    else
+        log WARN "Antigravity (agy) not installed/allowed, skipping automated consensus synthesis"
+        consensus="[Auto-consensus skipped - Antigravity (agy) not installed]\n\nProblem: $def1\n\nSuccess Criteria: $def2\n\nConstraints: $def3"
+    fi
 
     cat > "$consensus_file" << EOF
 # GRASP Phase - Problem Definition Consensus
@@ -3497,9 +3510,14 @@ Compact source context to synthesize:
 $all_results"
 
     local delivery
-    delivery=$(OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="ink-delivery-watchdog" run_agent_sync "agy" "$synthesis_prompt" 0 "synthesizer" "ink") || {
+    if octo_provider_allowed agy && command -v agy >/dev/null 2>&1; then
+        delivery=$(OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="ink-delivery-watchdog" run_agent_sync "agy" "$synthesis_prompt" 0 "synthesizer" "ink") || {
+            delivery=$(build_ink_fallback_delivery "$prompt" "$sonnet_review" "$all_results")
+        }
+    else
+        log WARN "Antigravity (agy) not installed/allowed, using fallback delivery synthesis"
         delivery=$(build_ink_fallback_delivery "$prompt" "$sonnet_review" "$all_results")
-    }
+    fi
 
     # Step 3: Generate final document
     local delivery_file="${RESULTS_DIR}/delivery-${task_group}.md"
@@ -3674,7 +3692,7 @@ Return a concise gate review with:
         fi
     fi
     # Antigravity (agy) is the Google seat since the Gemini CLI sunset (#524)
-    if agy_view=$(run_agent_sync "agy" "$gate_prompt" 120 "researcher" "embrace-gate" 2>/dev/null); then
+    if octo_provider_allowed agy && command -v agy >/dev/null 2>&1 && agy_view=$(run_agent_sync "agy" "$gate_prompt" 120 "researcher" "embrace-gate" 2>/dev/null); then
         if [[ -n "$agy_view" ]]; then
             agy_status="ok"
             successful=$((successful + 1))
