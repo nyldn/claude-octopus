@@ -1021,7 +1021,9 @@ grasp_define() {
         return 1
     fi
 
-    begin_progress_phase "define"
+    if declare -F begin_progress_phase >/dev/null 2>&1; then
+        begin_progress_phase "define"
+    fi
 
     mkdir -p "$RESULTS_DIR"
 
@@ -2627,7 +2629,9 @@ _tangle_develop_in_workspace() {
         return 1
     fi
 
-    begin_progress_phase "develop"
+    if declare -F begin_progress_phase >/dev/null 2>&1; then
+        begin_progress_phase "develop"
+    fi
 
     # v8.18.0: Reset lockouts for new tangle phase
     reset_provider_lockouts
@@ -3401,7 +3405,9 @@ ink_deliver() {
         return 1
     fi
 
-    begin_progress_phase "deliver"
+    if declare -F begin_progress_phase >/dev/null 2>&1; then
+        begin_progress_phase "deliver"
+    fi
 
     mkdir -p "$RESULTS_DIR"
 

@@ -80,6 +80,14 @@ else
     test_fail "define, develop, and deliver do not all advance progress tracking"
 fi
 
+test_case "source-safe workflow phases tolerate progress tracking not being loaded"
+guard_count=$(grep -c 'declare -F begin_progress_phase' "$PROJECT_ROOT/scripts/lib/workflows.sh" || true)
+if [[ "$guard_count" -eq 3 ]]; then
+    test_pass
+else
+    test_fail "workflow phase calls are not guarded for standalone source-safe harnesses"
+fi
+
 test_case "probe, sync, and background dispatches report task identity and estimated cost"
 if grep -q '"\$estimated_cost" "\$TIMEOUT" "\$task_id" "\$phase" "\$result_file"' "$PROJECT_ROOT/scripts/lib/workflows.sh" &&
    grep -q '"\$_progress_task_id" "\${phase:-unknown}"' "$PROJECT_ROOT/scripts/lib/agent-sync.sh" &&
