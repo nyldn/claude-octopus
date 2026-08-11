@@ -1,13 +1,13 @@
 # AI Agent Handoff
 
 Last updated: 2026-08-10
-Status: v9.61.3 release candidate combines the completed hook, provider,
-stale-install, lifecycle, and model-metadata repairs from PRs #852, #854
-through #857, #859, #861, and #863. All implementation issues are closed.
-Release PR #858 is refreshed on current `main` and requires final checks,
-merge, tag, shared marketplace sync, and installed-host verification.
-Branch: `claude/release-v9.61.3`
-Release candidate: v9.61.3
+Status: v9.61.3 is published with the completed hook, provider, stale-install,
+lifecycle, and model-metadata repairs from PRs #852, #854 through #857, #859,
+PR #861, and PR #863. Release PR #858 is merged, all implementation issues are
+closed, the shared marketplace is synchronized, and Claude/Codex installed-host
+verification passed.
+Branch: `main`
+Release: [v9.61.3](https://github.com/nyldn/claude-octopus/releases/tag/v9.61.3)
 
 ## Start Here
 
@@ -66,7 +66,7 @@ v49 with four pending migrations to v53. Repository rules reserve migration for
 the designated migrator. No migration was run, so this work could not be
 claimed or recorded in `bd`; use this handoff for the blocked tracking record.
 
-## Release v9.61.3 Candidate
+## Release v9.61.3
 
 - **PR #854 / #838:** Direct Gemini CLI dispatch, detection, authentication, installer, model,
   pricing, generated command, and provider-documentation surfaces are removed.
@@ -109,6 +109,18 @@ claimed or recorded in `bd`; use this handoff for the blocked tracking record.
 - An unrelated host hook failure was diagnosed as a stale `claude-mem` runtime;
   `claude-mem@13.15.0 repair` and `start` restored its worker. No external
   claude-mem files are part of this release.
+- Release PR #858 exact head `cb66d485` passed Test Suite run `31455145611`:
+  254 unit suites on Ubuntu, macOS, and a symlinked path, plus all smoke,
+  integration, portability, and summary jobs. CodeRabbit approved with zero
+  unresolved threads.
+- PR #858 squash-merged as `47204470`. The exact `main` commit passed Test Suite
+  run `31455875057` before annotated tag `v9.61.3` and the non-draft,
+  non-prerelease GitHub Release were published.
+- `scripts/sync-shared-marketplace.sh` pushed the Claude `octo` entry at
+  v9.61.3 while preserving the Codex `claude-octopus` selector.
+- Real host verification upgraded and enabled both `octo@nyldn-plugins` and
+  `claude-octopus@nyldn-plugins` at v9.61.3. The stable
+  `~/.claude-octopus/plugin` link resolves to the v9.61.3 Claude cache.
 
 ## Release v9.61.2
 
@@ -312,35 +324,22 @@ were removed with that worktree and did not contaminate the task branch.
 - The annotated `v9.61.1` tag peels to `fad71488`, and the non-draft,
   non-prerelease GitHub Release was published on 2026-08-09.
 
-## Model Audit Still Open
+## Model Audit Closed in v9.61.3
 
-- **#799 — provider availability/auth parity.** `check-providers.sh` still uses
-  binary presence alone for several providers, while preflight has stronger
-  auth checks. PR #842 fixed `is_agent_available_v2`'s optimistic default and
-  added missing explicit contracts; do not close #799 until the remaining
-  active detection surfaces agree.
-- **#800 — stale pins and dead environment overrides.** Copilot and Ollama have
-  stale defaults/version floors. The missing Ollama/Copilot/Vibe model and
-  allowlist wiring was fixed in #816/#819, but the broader issue remains.
-- **#801 — catalog and price-table consolidation.** Model membership, tiering,
-  and pricing still disagree across `models.sh`, `octo-model-config.sh`,
-  `cost.sh`, and `usage-report.sh`.
-
-Each issue contains a concrete reproduction. Do not combine them into one large
-provider refactor; preserve the behavioural-test-first pattern used by `#805` and
-`#807`.
+- **#799:** PR #859 unified auth-aware availability, banner reporting, smoke
+  health, and fleet admission behind the shared provider predicate.
+- **#800:** PR #863 refreshed Copilot, Ollama, DeepSeek, and generic
+  OpenAI-compatible defaults and fail-closed behavior.
+- **#801:** PR #863 added the canonical model catalog and pricing table used by
+  both Bash and Python reporting surfaces.
 
 ## Next Action
 
-All implementation issues (#838, #841, #799, #800, #801, #851, #815, and the
-other issues folded into PRs #852, #854-#857, #859, #861, #863) are closed.
-The only remaining work is finishing release PR #858:
+No active implementation or release work remains. All GitHub issues and pull
+requests are closed as of this handoff. If streamlining work resumes, the
+unstarted candidates are:
 
-1. Resolve remaining CI/review feedback on PR #858, then squash-merge it.
-2. Tag and release the exact merged `main` commit per `RELEASING.md` §7-8.
-3. Sync the shared `nyldn/plugins` marketplace entry.
-4. Verify on an installed host that the release picks up correctly.
-5. Remaining streamlining work is still unstarted:
+1. Remaining streamlining work:
    - **4c:** remove obsolete drift detection, its unreachable duplicate, and
      the deprecated wizard only after confirming all call sites.
    - **4b:** cull unused/below-floor `SUPPORTS_*` flags together with the
