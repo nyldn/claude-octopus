@@ -123,7 +123,7 @@ else
 fi
 
 
-test_case "openai-compatible-agent reads valid memory cache and replaces unsafe entries"
+test_case "openai-compatible-agent reads valid memory cache and clears unsafe entries"
 cache_key="MC_openai_compatible_agent_A_openai_compatible_agent_P_memcache_R__C_no_config"
 cache_var="_OCTO_MODEL_CACHE_${cache_key}"
 out_file="$TEST_TMP_DIR/openai-compatible-memory-cache-model.out"
@@ -134,12 +134,12 @@ elif [[ "$(cat "$out_file")" != "vendor/model-fast" ]]; then
     test_fail "expected resolver to return the seeded valid memory cache entry"
 else
     printf -v "$cache_var" "%s" "bad;touch"
-    if ! HOME="$TEST_HOME" USER="octo-test-$$" CLAUDE_CODE_SESSION="compat-memcache" resolve_octopus_model openai-compatible-agent openai-compatible-agent memcache "" >"$out_file" 2>/dev/null; then
-        test_fail "expected resolver to self-heal unsafe memory cache entry"
+    if HOME="$TEST_HOME" USER="octo-test-$$" CLAUDE_CODE_SESSION="compat-memcache" resolve_octopus_model openai-compatible-agent openai-compatible-agent memcache "" >"$out_file" 2>/dev/null; then
+        test_fail "expected resolver to fail closed after rejecting an unsafe cache entry without an explicit generic model"
     elif [[ "$(cat "$out_file")" == "bad;touch" ]]; then
         test_fail "expected unsafe memory cache model not to be returned"
-    elif [[ "${!cache_var:-}" == "bad;touch" ]]; then
-        test_fail "expected unsafe memory cache entry to be replaced after being read"
+    elif [[ -n "${!cache_var:-}" ]]; then
+        test_fail "expected unsafe memory cache entry to be cleared after being read"
     else
         test_pass
     fi
