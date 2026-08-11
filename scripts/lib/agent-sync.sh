@@ -294,6 +294,17 @@ ${provider_ctx}"
     # Record usage (get model from agent type)
     local model
     model=$(get_agent_model "$agent_type" "$phase" "$role")
+    local _progress_unique
+    if declare -F _octopus_next_spawn_task_id >/dev/null 2>&1; then
+        _progress_unique="$(_octopus_next_spawn_task_id)"
+    else
+        _progress_unique="$(date +%s)-$$-${RANDOM:-0}"
+    fi
+    local _progress_task_id="sync-${phase:-unknown}-${agent_type}-${_progress_unique}"
+    local _estimated_cost="0.000000"
+    if type estimate_agent_call_cost >/dev/null 2>&1; then
+        _estimated_cost=$(estimate_agent_call_cost "$agent_type" "$model" "$enhanced_prompt")
+    fi
 
     # v8.49.0: Pre-dispatch health check — verify provider is reachable
     local _provider_for_health=""
@@ -374,6 +385,9 @@ ${provider_ctx}"
     mkdir -p "${RESULTS_DIR}" 2>/dev/null || true
     : > "$temp_err"
     : > "$temp_out"
+    type update_agent_status >/dev/null 2>&1 && update_agent_status \
+        "$agent_type" "running" 0 "$_estimated_cost" "$timeout_secs" \
+        "$_progress_task_id" "${phase:-unknown}" "" || true
 
     set +e
     printf '%s' "$enhanced_prompt" | run_with_timeout "$timeout_secs" "${cmd_array[@]}" 2>"$temp_err" >"$temp_out"
@@ -455,6 +469,9 @@ ${provider_ctx}"
             _sync_status="timeout"
             _sync_reason="Timed out before completion"
         fi
+        type update_agent_status >/dev/null 2>&1 && update_agent_status \
+            "$agent_type" "$_sync_status" "$_elapsed_ms" "$_estimated_cost" "$timeout_secs" \
+            "$_progress_task_id" "${phase:-unknown}" "" || true
         type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "$_sync_status" "$tokens_in" "$(octo_estimate_tokens_for_file "$temp_out" 2>/dev/null || echo 0)" "$_sync_reason" "$_elapsed_ms" "" "$role" || true
         rm -f "$temp_err" "$temp_out"
         return $exit_code
@@ -471,12 +488,18 @@ ${provider_ctx}"
             # loops continue to gather perspectives from remaining providers (#410).
             if [[ "$_sync_reason" == *"oversize"* || "$_sync_reason" == *"Prompt rejected by provider"* ]]; then
                 log WARN "Agent $agent_type prompt rejected as oversized — skipping provider (reduce session context or lower OCTOPUS_CONTEXT_BUDGET)"
+                type update_agent_status >/dev/null 2>&1 && update_agent_status \
+                    "$agent_type" "skipped" "$_elapsed_ms" "$_estimated_cost" "$timeout_secs" \
+                    "$_progress_task_id" "${phase:-unknown}" "" || true
                 type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "skipped" "$tokens_in" 0 "Prompt rejected by provider (oversize)" "$_elapsed_ms" "" "$role" || true
                 rm -f "$temp_err" "$temp_out"
                 echo ""
                 return 0
             fi
             log ERROR "Agent $agent_type returned unusable output: $_sync_reason"
+            type update_agent_status >/dev/null 2>&1 && update_agent_status \
+                "$agent_type" "failed" "$_elapsed_ms" "$_estimated_cost" "$timeout_secs" \
+                "$_progress_task_id" "${phase:-unknown}" "" || true
             type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" "$(octo_estimate_tokens_for_file "$temp_out" 2>/dev/null || echo 0)" "$_sync_reason" "$_elapsed_ms" "" "$role" || true
             rm -f "$temp_err" "$temp_out"
             return 1
@@ -486,6 +509,13 @@ ${provider_ctx}"
             _sync_reason="Output truncated"
         fi
         type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "$_sync_status" "$tokens_in" "$(octo_estimate_tokens_for_file "$temp_out" 2>/dev/null || echo 0)" "$_sync_reason" "$_elapsed_ms" "" "$role" || true
+        type update_agent_status >/dev/null 2>&1 && update_agent_status \
+            "$agent_type" "$_sync_status" "$_elapsed_ms" "$_estimated_cost" "$timeout_secs" \
+            "$_progress_task_id" "${phase:-unknown}" "" || true
+    else
+        type update_agent_status >/dev/null 2>&1 && update_agent_status \
+            "$agent_type" "completed" "$_elapsed_ms" "$_estimated_cost" "$timeout_secs" \
+            "$_progress_task_id" "${phase:-unknown}" "" || true
     fi
 
     # v8.7.0: Wrap external CLI output with trust markers

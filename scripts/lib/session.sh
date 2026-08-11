@@ -30,6 +30,10 @@ init_progress_tracking() {
   "started_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
   "total_agents": $total_agents,
   "completed_agents": 0,
+  "successful_agents": 0,
+  "failed_agents": 0,
+  "timeout_agents": 0,
+  "skipped_agents": 0,
   "total_cost": 0.0,
   "total_time_ms": 0,
   "agents": []
@@ -38,6 +42,29 @@ EOF
     mv "${PROGRESS_FILE}.tmp.$$" "$PROGRESS_FILE"
 
     log DEBUG "Progress tracking initialized for phase: $phase ($total_agents agents)"
+}
+
+# Advance the workflow phase without resetting the task ledger accumulated by
+# earlier phases. Standalone phase commands initialize the ledger on demand.
+begin_progress_phase() {
+    local phase="$1"
+
+    if [[ "$PROGRESS_TRACKING_ENABLED" != "true" ]]; then
+        return 0
+    fi
+    if [[ ! -f "$PROGRESS_FILE" ]]; then
+        init_progress_tracking "$phase" 0
+        return
+    fi
+
+    atomic_json_update "$PROGRESS_FILE" \
+        --arg phase "$phase" \
+        --arg updated "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
+        '.phase = $phase | .updated_at = $updated' || {
+        log WARN "Failed to advance progress phase to $phase"
+        return 1
+    }
+    log DEBUG "Progress tracking advanced to phase: $phase"
 }
 
 # Update agent status in progress file
@@ -70,7 +97,7 @@ display_progress_summary() {
 
     # Read agents and format status with timeout info (v7.16.0 Feature 3)
     jq -r '.agents[] |
-        if .status == "completed" then
+        if (["completed", "ok", "degraded"] | index(.status)) != null then
             "✅ \(.name): Completed (\(.elapsed_ms / 1000)s) - $\(.cost)"
         elif .status == "running" then
             if .timeout_warning then
@@ -78,8 +105,12 @@ display_progress_summary() {
             else
                 "⏳ \(.name): Running... (\(.elapsed_ms / 1000)s / \(.timeout_ms / 1000)s timeout)"
             end
+        elif .status == "timeout" then
+            "⏱️  \(.name): Timed out with partial results (\(.elapsed_ms / 1000)s)"
         elif .status == "failed" then
             "❌ \(.name): Failed"
+        elif .status == "skipped" then
+            "⏭️  \(.name): Skipped"
         else
             "⏸️  \(.name): Waiting"
         end
@@ -106,8 +137,8 @@ display_progress_summary() {
     fi
 
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    printf "Progress: %s/%s providers completed\n" "$completed" "$total"
-    printf "💰 Total Cost: \$%s\n" "$total_cost"
+    printf "Progress: %s/%s agent tasks finished\n" "$completed" "$total"
+    printf "💰 Estimated API Cost: \$%s (subscription seats excluded)\n" "$total_cost"
     printf "⏱️  Total Time: %ss\n" "$total_time"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""

@@ -147,10 +147,13 @@ get_effort_level() {
 # Update agent status in progress file
 update_agent_status() {
     local agent_name="$1"
-    local status="$2"  # waiting, running, completed, failed
+    local status="$2"  # waiting, running, completed, failed, timeout, skipped
     local elapsed_ms="${3:-0}"
     local cost="${4:-0.0}"
     local timeout_secs="${5:-${TIMEOUT:-300}}"  # Use provided or global timeout
+    local task_id="${6:-legacy-${agent_name}}"
+    local phase="${7:-}"
+    local output_file="${8:-}"
 
     # Skip if progress tracking disabled or no progress file
     if [[ "$PROGRESS_TRACKING_ENABLED" != "true" ]]; then
@@ -163,12 +166,13 @@ update_agent_status() {
     fi
 
     # Calculate timeout tracking (v7.16.0 Feature 3)
+    [[ "$timeout_secs" =~ ^[0-9]+$ ]] || timeout_secs=0
     local timeout_ms=$((timeout_secs * 1000))
     local timeout_warning="false"
     local remaining_ms=0
     local timeout_pct=0
 
-    if [[ "$status" == "running" && $elapsed_ms -gt 0 ]]; then
+    if [[ "$status" == "running" && $elapsed_ms -gt 0 && $timeout_ms -gt 0 ]]; then
         # Calculate percentage of timeout used
         timeout_pct=$((elapsed_ms * 100 / timeout_ms))
 
@@ -184,33 +188,52 @@ update_agent_status() {
     local agent_record
     agent_record=$(jq -n \
         --arg name "$agent_name" \
+        --arg task_id "$task_id" \
+        --arg phase "$phase" \
         --arg status "$status" \
         --arg started "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
+        --arg updated "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
+        --arg output_file "$output_file" \
         --argjson elapsed "$elapsed_ms" \
         --argjson cost "$cost" \
         --argjson timeout_ms "$timeout_ms" \
         --arg timeout_warning "$timeout_warning" \
         --argjson remaining_ms "$remaining_ms" \
         --argjson timeout_pct "$timeout_pct" \
-        '{name: $name, status: $status, started_at: $started, elapsed_ms: $elapsed, cost: $cost, timeout_ms: $timeout_ms, timeout_warning: ($timeout_warning == "true"), remaining_ms: $remaining_ms, timeout_pct: $timeout_pct}')
+        '{name: $name, task_id: $task_id, phase: $phase, status: $status, started_at: $started, updated_at: $updated, output_file: $output_file, elapsed_ms: $elapsed, cost: $cost, timeout_ms: $timeout_ms, timeout_warning: ($timeout_warning == "true"), remaining_ms: $remaining_ms, timeout_pct: $timeout_pct}')
 
-    # Use atomic_json_update for race-free updates
+    # Upsert by task identity, then derive totals from the terminal rows. This
+    # makes retries/idempotent hook updates safe and prevents stale running rows.
     atomic_json_update "$PROGRESS_FILE" \
         --argjson agent "$agent_record" \
-        '.agents += [$agent]' || {
+        '
+        def terminal:
+          .status as $status
+          | (["completed", "ok", "degraded", "failed", "timeout", "skipped"] | index($status)) != null;
+        ([.agents[]? | select(.task_id == $agent.task_id)] | first) as $previous
+        | .phase = (if ($agent.phase | length) > 0 then $agent.phase else .phase end)
+        | .updated_at = $agent.updated_at
+        | .agents = (
+            if $previous == null then
+              (.agents // []) + [$agent]
+            else
+              [(.agents // [])[] |
+                if .task_id == $agent.task_id then
+                  ($agent + {started_at: ($previous.started_at // $agent.started_at)})
+                else . end]
+            end)
+        | .total_agents = (.agents | length)
+        | .completed_agents = ([.agents[] | select(terminal)] | length)
+        | .successful_agents = ([.agents[] | select(.status == "completed" or .status == "ok" or .status == "degraded")] | length)
+        | .failed_agents = ([.agents[] | select(.status == "failed")] | length)
+        | .timeout_agents = ([.agents[] | select(.status == "timeout")] | length)
+        | .skipped_agents = ([.agents[] | select(.status == "skipped")] | length)
+        | .total_time_ms = ([.agents[] | select(terminal) | .elapsed_ms] | add // 0)
+        | .total_cost = ([.agents[] | select(terminal) | .cost] | add // 0)
+        ' || {
         log WARN "Failed to update agent status for $agent_name"
         return 1
     }
-
-    # Update totals if completed
-    if [[ "$status" == "completed" ]]; then
-        atomic_json_update "$PROGRESS_FILE" \
-            --argjson elapsed "$elapsed_ms" \
-            --argjson cost "$cost" \
-            '.completed_agents += 1 | .total_time_ms += $elapsed | .total_cost += $cost' || {
-            log WARN "Failed to update progress totals"
-        }
-    fi
 
     log DEBUG "Updated agent status: $agent_name -> $status (${elapsed_ms}ms, \$${cost})"
 }

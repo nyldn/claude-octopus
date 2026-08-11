@@ -10,7 +10,8 @@ SESSION_FILE="${HOME}/.claude-octopus/session.json"
 STATE_FILE=".octo/STATE.md"
 HANDOFF_FILE=".octo-continue.md"
 SESSION_ID="${CLAUDE_SESSION_ID:-unknown}"
-PROGRESS_FILE="${HOME}/.claude-octopus/progress-${SESSION_ID}.json"
+WORKSPACE_DIR="${CLAUDE_PLUGIN_DATA:-${OCTOPUS_WORKSPACE:-${HOME}/.claude-octopus}}"
+PROGRESS_FILE="${WORKSPACE_DIR}/progress.json"
 
 # Only write if there's session state worth preserving
 [[ -f "$SESSION_FILE" ]] || exit 0
@@ -39,7 +40,7 @@ fi
 # Get active agent name from progress file
 ACTIVE_AGENT=""
 if [[ -f "$PROGRESS_FILE" ]]; then
-    ACTIVE_AGENT=$(jq -r '[.agents // {} | to_entries[] | select(.value.status == "running") | .key] | first // empty' "$PROGRESS_FILE" 2>/dev/null) || ACTIVE_AGENT=""
+    ACTIVE_AGENT=$(jq -r '[.agents[]? | select(.status == "running") | .name] | first // empty' "$PROGRESS_FILE" 2>/dev/null) || ACTIVE_AGENT=""
 fi
 
 # Write handoff file

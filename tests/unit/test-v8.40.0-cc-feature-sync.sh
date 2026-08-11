@@ -111,6 +111,35 @@ else
   fail "agent_type not written to result file"
 fi
 
+test_case "SubagentStop completion upserts the matching progress task exactly once"
+HOOK_WORKSPACE="$TEST_TMP_DIR/hook-workspace"
+HOOK_RESULTS="$HOOK_WORKSPACE/results"
+HOOK_TEAMS="$HOOK_WORKSPACE/agent-teams"
+mkdir -p "$HOOK_RESULTS" "$HOOK_TEAMS"
+HOOK_RESULT_FILE="$HOOK_RESULTS/claude-task-1.md"
+cat > "$HOOK_TEAMS/task-1.json" <<EOF
+{"dispatch_method":"agent_teams","result_file":"$HOOK_RESULT_FILE"}
+EOF
+cat > "$HOOK_WORKSPACE/progress.json" <<EOF
+{"phase":"develop","total_agents":1,"completed_agents":0,"total_time_ms":0,"agents":[{"name":"claude","task_id":"task-1","phase":"develop","status":"running","started_at":"2026-08-11T00:00:00Z","elapsed_ms":0,"cost":0,"output_file":"$HOOK_RESULT_FILE"}]}
+EOF
+HOOK_INPUT='{"last_assistant_message":"Implemented the requested change.","agent_id":"agent-1","agent_type":"claude"}'
+printf '%s' "$HOOK_INPUT" | OCTOPUS_WORKSPACE="$HOOK_WORKSPACE" "$HOOK"
+printf '%s' "$HOOK_INPUT" | OCTOPUS_WORKSPACE="$HOOK_WORKSPACE" "$HOOK"
+if jq -e '
+  .total_agents == 1 and
+  .completed_agents == 1 and
+  .successful_agents == 1 and
+  (.agents | length) == 1 and
+  .agents[0].task_id == "task-1" and
+  .agents[0].status == "completed" and
+  ([.agents[] | select(.status == "running")] | length) == 0
+' "$HOOK_WORKSPACE/progress.json" >/dev/null; then
+  test_pass
+else
+  test_fail "hook left the registered task running or counted it more than once"
+fi
+
 # ─────────────────────────────────────────────────────────────────────
 # Suite 6: Wired flag — SUPPORTS_MEMORY_LEAK_FIXES
 # ─────────────────────────────────────────────────────────────────────

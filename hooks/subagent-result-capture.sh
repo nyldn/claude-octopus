@@ -78,8 +78,8 @@ fi
 [[ -z "$RESULT_FILE" ]] && exit 0
 
 # Security: validate result_file resolves within WORKSPACE_DIR (prevent path traversal)
-RESOLVED_RESULT=$(realpath -m "$RESULT_FILE" 2>/dev/null) || exit 0
-RESOLVED_WORKSPACE=$(realpath -m "$WORKSPACE_DIR" 2>/dev/null) || exit 0
+RESOLVED_RESULT=$(_OCTO_PATH="$RESULT_FILE" python3 -c 'import os; print(os.path.realpath(os.environ["_OCTO_PATH"]))' 2>/dev/null) || exit 0
+RESOLVED_WORKSPACE=$(_OCTO_PATH="$WORKSPACE_DIR" python3 -c 'import os; print(os.path.realpath(os.environ["_OCTO_PATH"]))' 2>/dev/null) || exit 0
 case "$RESOLVED_RESULT" in
     "$RESOLVED_WORKSPACE"/*) ;; # OK — within workspace
     *) exit 0 ;; # Path traversal attempt — bail silently
@@ -106,17 +106,42 @@ fi
     fi
 } >> "$RESULT_FILE"
 
-# Increment progress counter — Agent Teams path never calls update_agent_status,
-# so completed_agents drifts low. Fix by writing directly to progress.json here.
+# Complete the matching task in place. This hook can fire more than once for a
+# native teammate, so counters must be derived from the task ledger rather than
+# incremented blindly.
 PROGRESS_FILE="${WORKSPACE_DIR}/progress.json"
 if [[ -f "$PROGRESS_FILE" ]] && command -v python3 &>/dev/null; then
-    python3 - "$PROGRESS_FILE" <<'PYEOF' 2>/dev/null || true
-import json, sys, os, tempfile
-path = sys.argv[1]
+    python3 - "$PROGRESS_FILE" "$RESULT_FILE" <<'PYEOF' 2>/dev/null || true
+import datetime, json, os, sys
+path, result_file = sys.argv[1:3]
 try:
     with open(path) as f:
         d = json.load(f)
-    d['completed_agents'] = d.get('completed_agents', 0) + 1
+    now = datetime.datetime.now(datetime.timezone.utc)
+    terminal = {'completed', 'ok', 'degraded', 'failed', 'timeout', 'skipped'}
+    for agent in d.get('agents', []):
+        if agent.get('output_file') != result_file:
+            continue
+        if agent.get('status') not in terminal:
+            agent['status'] = 'completed'
+            agent['updated_at'] = now.strftime('%Y-%m-%dT%H:%M:%SZ')
+            started = agent.get('started_at', '')
+            try:
+                start = datetime.datetime.fromisoformat(started.replace('Z', '+00:00'))
+                agent['elapsed_ms'] = max(0, int((now - start).total_seconds() * 1000))
+            except (TypeError, ValueError):
+                agent['elapsed_ms'] = agent.get('elapsed_ms', 0)
+        break
+    agents = d.get('agents', [])
+    finished = [a for a in agents if a.get('status') in terminal]
+    d['total_agents'] = len(agents)
+    d['completed_agents'] = len(finished)
+    d['successful_agents'] = sum(a.get('status') in {'completed', 'ok', 'degraded'} for a in agents)
+    d['failed_agents'] = sum(a.get('status') == 'failed' for a in agents)
+    d['timeout_agents'] = sum(a.get('status') == 'timeout' for a in agents)
+    d['skipped_agents'] = sum(a.get('status') == 'skipped' for a in agents)
+    d['total_time_ms'] = sum(a.get('elapsed_ms', 0) for a in finished)
+    d['total_cost'] = sum(a.get('cost', 0) for a in finished)
     tmp = path + '.tmp'
     with open(tmp, 'w') as f:
         json.dump(d, f, indent=2)

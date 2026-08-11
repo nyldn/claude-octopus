@@ -60,6 +60,27 @@ estimate_tokens() {
     echo $(( (char_count + 3) / 4 ))  # Round up
 }
 
+# Estimate per-call API spend for progress reporting. Subscription and OAuth
+# seats intentionally remain zero because they have no attributable call price.
+estimate_agent_call_cost() {
+    local agent_type="$1"
+    local model="$2"
+    local prompt="$3"
+
+    if ! is_api_based_provider "$agent_type"; then
+        printf '%s\n' "0.000000"
+        return 0
+    fi
+
+    local input_tokens output_tokens pricing input_price output_price
+    input_tokens=$(estimate_tokens "$prompt")
+    output_tokens=$((input_tokens * 2))
+    pricing=$(get_model_pricing "$model" "$agent_type")
+    input_price="${pricing%%:*}"
+    output_price="${pricing##*:}"
+    awk "BEGIN {printf \"%.6f\\n\", ($input_tokens * $input_price + $output_tokens * $output_price) / 1000000}"
+}
+
 # Parse native Task tool metrics from <usage> blocks (v8.6.0, enhanced v8.8.0)
 # Sets globals: _PARSED_TOKENS, _PARSED_TOOL_USES, _PARSED_DURATION_MS, _PARSED_SPEED
 # Guards on SUPPORTS_NATIVE_TASK_METRICS. Falls back gracefully on parse failure.
@@ -350,15 +371,8 @@ record_agent_call() {
     local output_tokens=$((input_tokens * 2))  # Estimate output as 2x input
     local total_tokens=$((input_tokens + output_tokens))
 
-    # Calculate estimated cost
-    local pricing
-    pricing=$(get_model_pricing "$model" "$agent_type")
-    local input_price="${pricing%%:*}"
-    local output_price="${pricing##*:}"
-
-    # Cost = (tokens / 1,000,000) * price_per_million
     local cost
-    cost=$(awk "BEGIN {printf \"%.6f\", ($input_tokens * $input_price + $output_tokens * $output_price) / 1000000}")
+    cost=$(estimate_agent_call_cost "$agent_type" "$model" "$prompt")
 
     local timestamp
     timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")

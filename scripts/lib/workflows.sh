@@ -117,6 +117,10 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
 
     # Record agent call
     record_agent_call "$agent_type" "$model" "$enhanced_prompt" "$phase" "$role" "0"
+    local estimated_cost="0.000000"
+    if type estimate_agent_call_cost >/dev/null 2>&1; then
+        estimated_cost=$(estimate_agent_call_cost "$agent_type" "$model" "$enhanced_prompt")
+    fi
 
     # Track provider usage
     local provider_name
@@ -138,6 +142,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
     bridge_register_task "$task_id" "$agent_type" "$phase" "$role" || true
 
     local result_file="${RESULTS_DIR}/${agent_type}-${task_id}.md"
+    update_agent_status "$agent_type" "running" 0 "$estimated_cost" "$TIMEOUT" "$task_id" "$phase" "$result_file"
 
     # Build command array with credential isolation
     local -a cmd_array
@@ -312,21 +317,21 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
                     cat "$temp_errors" >> "$result_file"
                     echo '```' >> "$result_file"
                 fi
-                update_agent_status "$agent_type" "failed" "$elapsed_ms" 0.0
+                update_agent_status "$agent_type" "failed" "$elapsed_ms" "$estimated_cost" "$TIMEOUT" "$task_id" "$phase" "$result_file"
                 record_outcome "$agent_type" "$agent_type" "research" "$phase" "fail" "$elapsed_ms" 2>/dev/null || true
                 type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" "$tokens_out" "${reason:-unusable output}" "$elapsed_ms" "$result_file" "$role" || true
                 final_rc=1
                 ;;
             degraded)
                 echo "## Status: SUCCESS (DEGRADED: ${reason:-partial output})" >> "$result_file"
-                update_agent_status "$agent_type" "completed" "$elapsed_ms" 0.0
+                update_agent_status "$agent_type" "degraded" "$elapsed_ms" "$estimated_cost" "$TIMEOUT" "$task_id" "$phase" "$result_file"
                 record_outcome "$agent_type" "$agent_type" "research" "$phase" "success" "$elapsed_ms" 2>/dev/null || true
                 record_run_pattern "$agent_type" "${enhanced_prompt:-$original_prompt}" "$result_file" 2>/dev/null || true
                 type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "degraded" "$tokens_in" "$tokens_out" "${reason:-partial output}" "$elapsed_ms" "$result_file" "$role" || true
                 ;;
             *)
                 echo "## Status: SUCCESS" >> "$result_file"
-                update_agent_status "$agent_type" "completed" "$elapsed_ms" 0.0
+                update_agent_status "$agent_type" "completed" "$elapsed_ms" "$estimated_cost" "$TIMEOUT" "$task_id" "$phase" "$result_file"
                 record_outcome "$agent_type" "$agent_type" "research" "$phase" "success" "$elapsed_ms" 2>/dev/null || true
                 # v9.3.0: Record file co-occurrence pattern for heuristic learning
                 record_run_pattern "$agent_type" "${enhanced_prompt:-$original_prompt}" "$result_file" 2>/dev/null || true
@@ -359,6 +364,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
         end_time_ms=$(( $(date +%s) * 1000 ))
         elapsed_ms=$((end_time_ms - start_time_ms))
         tokens_out=$(octo_estimate_tokens_for_file "$temp_output" 2>/dev/null || echo 0)
+        update_agent_status "$agent_type" "timeout" "$elapsed_ms" "$estimated_cost" "$TIMEOUT" "$task_id" "$phase" "$result_file"
         type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "timeout" "$tokens_in" "$tokens_out" "Timed out before completion" "$elapsed_ms" "$result_file" "$role" || true
         final_rc=$exit_code
     else
@@ -381,6 +387,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
         end_time_ms=$(( $(date +%s) * 1000 ))
         elapsed_ms=$((end_time_ms - start_time_ms))
         tokens_out=$(octo_estimate_tokens_for_file "$temp_output" 2>/dev/null || echo 0)
+        update_agent_status "$agent_type" "failed" "$elapsed_ms" "$estimated_cost" "$TIMEOUT" "$task_id" "$phase" "$result_file"
         type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" "$tokens_out" "Exit code $exit_code" "$elapsed_ms" "$result_file" "$role" || true
         final_rc=$exit_code
     fi
@@ -1013,6 +1020,8 @@ grasp_define() {
         log "WARN" "Workflow cancelled by user after cost review"
         return 1
     fi
+
+    begin_progress_phase "define"
 
     mkdir -p "$RESULTS_DIR"
 
@@ -2618,6 +2627,8 @@ _tangle_develop_in_workspace() {
         return 1
     fi
 
+    begin_progress_phase "develop"
+
     # v8.18.0: Reset lockouts for new tangle phase
     reset_provider_lockouts
 
@@ -3389,6 +3400,8 @@ ink_deliver() {
         log "WARN" "Workflow cancelled by user after cost review"
         return 1
     fi
+
+    begin_progress_phase "deliver"
 
     mkdir -p "$RESULTS_DIR"
 
