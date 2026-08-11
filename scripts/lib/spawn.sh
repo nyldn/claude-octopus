@@ -522,11 +522,17 @@ ${heuristic_ctx}"
         return 0
     fi
 
+    # Resolve one effective wall-clock budget before selecting a persistence
+    # path. The degraded synchronous fallback must enforce the same phase floor
+    # as the normal subprocess, while TIMEOUT=0 remains unlimited.
+    local _eff_timeout
+    _eff_timeout=$(octopus_effective_agent_timeout "${TIMEOUT:-0}" "$phase" "$role")
+
     # A restricted host may deny the selected state root. Preserve the provider
     # result by degrading this background/persistent path to synchronous stdout.
     if [[ "${OCTOPUS_PERSISTENCE_AVAILABLE:-true}" == "false" ]]; then
         octopus_run_provider_without_persistence \
-            "$agent_type" "$enhanced_prompt" "${TIMEOUT:-0}" "$cmd"
+            "$agent_type" "$enhanced_prompt" "$_eff_timeout" "$cmd"
         return $?
     fi
 
@@ -715,11 +721,6 @@ ${heuristic_ctx}"
             active_verb=$(get_active_form_verb "$phase" "$agent_type" "$prompt")
             update_task_progress "$CLAUDE_TASK_ID" "$active_verb"
         fi
-
-        # Resolve one effective wall-clock budget before recording progress.
-        # Auth retries consume the same budget rather than resetting it.
-        local _eff_timeout
-        _eff_timeout=$(octopus_effective_agent_timeout "${TIMEOUT:-0}" "$phase" "$role")
 
         # Mark agent as running and capture start time (v7.16.0 Feature 2)
         local start_time_secs start_time_ms _timeout_deadline=0
