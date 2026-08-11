@@ -172,6 +172,41 @@ write_agent_result_header() {
     } > "$result_file"
 }
 
+# Resolve the single wall-clock budget owned by spawn_agent. TIMEOUT=0 remains
+# explicitly unlimited; phase floors only raise positive configured budgets.
+octopus_effective_agent_timeout() {
+    local configured_timeout="${1:-0}"
+    local phase="${2:-}"
+    local role="${3:-}"
+
+    if [[ "$phase" == "tangle" && "$role" == "implementer" ]]; then
+        local tangle_floor="${OCTOPUS_TANGLE_TIMEOUT:-1200}"
+        if ! [[ "$tangle_floor" =~ ^[1-9][0-9]*$ ]]; then
+            log "WARN" "OCTOPUS_TANGLE_TIMEOUT='$tangle_floor' is not a positive integer; using default 1200s floor"
+            tangle_floor=1200
+        fi
+        if [[ "$configured_timeout" =~ ^[0-9]+$ ]] && \
+           [[ "$configured_timeout" -gt 0 ]] && \
+           [[ "$tangle_floor" -gt "$configured_timeout" ]]; then
+            configured_timeout="$tangle_floor"
+        fi
+    fi
+
+    printf '%s\n' "$configured_timeout"
+}
+
+# Print the positive number of seconds left before a fixed deadline. Returning
+# nonzero at/after the deadline prevents callers from accidentally translating
+# an expired budget to run_with_timeout's special unlimited value (0).
+octopus_timeout_remaining() {
+    local deadline="$1"
+    local now="${2:-$(date +%s)}"
+
+    [[ "$deadline" =~ ^[0-9]+$ && "$now" =~ ^[0-9]+$ ]] || return 1
+    [[ "$deadline" -gt "$now" ]] || return 1
+    printf '%s\n' "$((deadline - now))"
+}
+
 spawn_agent() {
     local agent_type="$1"
     local prompt="$2"
@@ -681,11 +716,20 @@ ${heuristic_ctx}"
             update_task_progress "$CLAUDE_TASK_ID" "$active_verb"
         fi
 
+        # Resolve one effective wall-clock budget before recording progress.
+        # Auth retries consume the same budget rather than resetting it.
+        local _eff_timeout
+        _eff_timeout=$(octopus_effective_agent_timeout "${TIMEOUT:-0}" "$phase" "$role")
+
         # Mark agent as running and capture start time (v7.16.0 Feature 2)
-        local start_time_ms
+        local start_time_secs start_time_ms _timeout_deadline=0
         # Use seconds instead of milliseconds for compatibility (macOS date doesn't support %N)
-        start_time_ms=$(( $(date +%s) * 1000 ))
-        update_agent_status "$agent_type" "running" 0 0.0
+        start_time_secs=$(date +%s)
+        start_time_ms=$((start_time_secs * 1000))
+        if [[ "$_eff_timeout" =~ ^[0-9]+$ ]] && [[ "$_eff_timeout" -gt 0 ]]; then
+            _timeout_deadline=$((start_time_secs + _eff_timeout))
+        fi
+        update_agent_status "$agent_type" "running" 0 0.0 "$_eff_timeout"
         type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "running" "$tokens_in" 0 "" 0 "$result_file" "${role:-none}" || true
 
         # v7.19.0 P0.1: Use tee to stream output to both temp file and raw backup
@@ -708,27 +752,11 @@ ${heuristic_ctx}"
         local exit_code=0
         while true; do
             exit_code=0
-
-            # Per-provider timeout. TIMEOUT=0 means no absolute timeout; higher-level
-            # workflows supervise progress/stalls.
-            local _eff_timeout="${TIMEOUT:-0}"
-
-            # #869: TIMEOUT's global default (600s) is tuned for probe researchers,
-            # not tangle implementers writing multi-file diffs — those were being
-            # SIGTERMed mid-write with real, unmerged work already on disk. Give
-            # tangle implementers a longer floor without touching the global
-            # default other phases rely on.
-            if [[ "$phase" == "tangle" && "$role" == "implementer" ]]; then
-                local _tangle_floor="${OCTOPUS_TANGLE_TIMEOUT:-1200}"
-                if ! [[ "$_tangle_floor" =~ ^[0-9]+$ ]]; then
-                    log "WARN" "OCTOPUS_TANGLE_TIMEOUT='$_tangle_floor' is not a positive integer; using default 1200s floor"
-                    _tangle_floor=1200
-                fi
-                # _eff_timeout=0 means unlimited (see comment above) — the floor
-                # must never turn "unlimited" into "capped at 1200s".
-                if [[ "$_eff_timeout" =~ ^[0-9]+$ ]] && [[ "$_eff_timeout" -gt 0 ]] && [[ "$_tangle_floor" -gt "$_eff_timeout" ]]; then
-                    _eff_timeout="$_tangle_floor"
-                fi
+            local _attempt_timeout="$_eff_timeout"
+            if [[ "$_timeout_deadline" -gt 0 ]] && \
+               ! _attempt_timeout=$(octopus_timeout_remaining "$_timeout_deadline"); then
+                exit_code=124
+                break
             fi
 
             # oco-48z: quota/terminal-error fast-fail watcher for ALL providers (was
@@ -750,9 +778,9 @@ ${heuristic_ctx}"
             # v9.2.2: All agents use stdin-based prompt delivery to avoid ARG_MAX limits (Issue #173).
             # Legacy gemini* IDs execute via the same AGY path.
             if [[ "$agent_type" == agy* || "$agent_type" == "antigravity" || "$agent_type" == gemini* ]]; then
-                printf '%s' "$enhanced_prompt" | OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="spawn-agent-heartbeat" run_with_timeout "$_eff_timeout" "${cmd_array[@]}" 2> "$temp_errors" | tee "$raw_output" > "$temp_output"
+                printf '%s' "$enhanced_prompt" | OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="spawn-agent-heartbeat" run_with_timeout "$_attempt_timeout" "${cmd_array[@]}" 2> "$temp_errors" | tee "$raw_output" > "$temp_output"
                 exit_code=${PIPESTATUS[1]:-0}
-            elif printf '%s' "$enhanced_prompt" | OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="spawn-agent-heartbeat" run_with_timeout "$_eff_timeout" "${cmd_array[@]}" 2> "$temp_errors" | tee "$raw_output" > "$temp_output"; then
+            elif printf '%s' "$enhanced_prompt" | OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="spawn-agent-heartbeat" run_with_timeout "$_attempt_timeout" "${cmd_array[@]}" 2> "$temp_errors" | tee "$raw_output" > "$temp_output"; then
                 exit_code=0
             else
                 exit_code=$?
@@ -761,7 +789,8 @@ ${heuristic_ctx}"
             stop_quota_watcher "$_quota_watcher_pid"
 
             # v8.16: Check if failure is auth-related and retryable
-            if [[ $exit_code -ne 0 ]] && [[ $auth_attempt -lt $max_auth_retries ]]; then
+            if [[ $exit_code -ne 0 ]] && [[ $exit_code -ne 124 ]] && [[ $exit_code -ne 143 ]] && \
+               [[ $auth_attempt -lt $max_auth_retries ]]; then
                 local stderr_content=""
                 [[ -s "$temp_errors" ]] && stderr_content=$(<"$temp_errors")
                 if [[ "$stderr_content" == *"unauthorized"* ]] || \
@@ -772,6 +801,15 @@ ${heuristic_ctx}"
                    [[ "$stderr_content" == *"refresh"* ]]; then
                     ((auth_attempt++)) || true
                     local backoff=$((auth_attempt * 5))
+                    if [[ "$_timeout_deadline" -gt 0 ]]; then
+                        local _retry_remaining
+                        if ! _retry_remaining=$(octopus_timeout_remaining "$_timeout_deadline") || \
+                           [[ "$_retry_remaining" -le "$backoff" ]]; then
+                            log "WARN" "Auth retry skipped: agent wall-clock budget exhausted"
+                            exit_code=124
+                            break
+                        fi
+                    fi
                     log "WARN" "Auth failure detected (attempt $auth_attempt/$max_auth_retries), retrying in ${backoff}s..."
                     sleep "$backoff"
                     # Clear temp files for retry
@@ -919,12 +957,12 @@ ${heuristic_ctx}"
             end_time_ms=$(( $(date +%s) * 1000 ))
             elapsed_ms=$((end_time_ms - start_time_ms))
             if [[ "$_octo_success_status" == "failed" ]]; then
-                update_agent_status "$agent_type" "failed" "$elapsed_ms" 0.0
+                update_agent_status "$agent_type" "failed" "$elapsed_ms" 0.0 "$_eff_timeout"
                 record_outcome "$agent_type" "$agent_type" "${task_type:-unknown}" "${phase:-unknown}" "fail" "$elapsed_ms" 2>/dev/null || true
                 type record_failure &>/dev/null && record_failure "$provider_prefix" "provider_rejection" 2>/dev/null || true
                 type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" "$_octo_tokens_out" "${_octo_success_reason:-unusable output}" "$elapsed_ms" "$result_file" "${role:-none}" || true
             else
-                update_agent_status "$agent_type" "completed" "$elapsed_ms" 0.0
+                update_agent_status "$agent_type" "completed" "$elapsed_ms" 0.0 "$_eff_timeout"
                 # v8.18.0: Record provider learning
                 local result_summary
                 result_summary=$(head -c 200 "$result_file" 2>/dev/null | tr '\n' ' ')
@@ -1002,7 +1040,7 @@ ${heuristic_ctx}"
             local end_time_ms elapsed_ms
             end_time_ms=$(( $(date +%s) * 1000 ))
             elapsed_ms=$((end_time_ms - start_time_ms))
-            update_agent_status "$agent_type" "timeout" "$elapsed_ms" 0.0
+            update_agent_status "$agent_type" "timeout" "$elapsed_ms" 0.0 "$_eff_timeout"
             # #869: tokens_out must be estimated from whichever file actually holds
             # more of the salvaged content — otherwise a timeout whose real output
             # only reached raw_output (or whose result_file gets a later raw_output
@@ -1058,7 +1096,7 @@ ${heuristic_ctx}"
             local end_time_ms elapsed_ms
             end_time_ms=$(( $(date +%s) * 1000 ))
             elapsed_ms=$((end_time_ms - start_time_ms))
-            update_agent_status "$agent_type" "failed" "$elapsed_ms" 0.0
+            update_agent_status "$agent_type" "failed" "$elapsed_ms" 0.0 "$_eff_timeout"
             local tokens_out
             tokens_out=$(octo_estimate_tokens_for_file "$temp_output" 2>/dev/null || echo 0)
             type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" "$tokens_out" "Exit code $exit_code" "$elapsed_ms" "$result_file" "${role:-none}" || true
