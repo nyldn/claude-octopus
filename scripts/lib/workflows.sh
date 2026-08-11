@@ -1027,13 +1027,13 @@ grasp_define() {
     log INFO "Gathering problem definitions from multiple perspectives..."
 
     local def1 def2="" def3
-    def1=$(run_agent_sync "codex" "Based on: $prompt\n${context}Define the core problem statement in 2-3 sentences. What is the essential challenge?" 120 "backend-architect" "grasp") || {
+    def1=$(run_agent_sync "codex" "Based on: $prompt\n${context}Define the core problem statement in 2-3 sentences. What is the essential challenge?" 300 "backend-architect" "grasp") || {
         log WARN "Codex failed for problem definition, falling back to Claude"
         echo -e " ${YELLOW}⚠${NC}  Codex unavailable for problem definition — falling back to Claude"
-        def1=$(run_agent_sync "claude-sonnet" "Based on: $prompt\n${context}Define the core problem statement in 2-3 sentences. What is the essential challenge?" 120 "backend-architect" "grasp") || true
+        def1=$(run_agent_sync "claude-sonnet" "Based on: $prompt\n${context}Define the core problem statement in 2-3 sentences. What is the essential challenge?" 300 "backend-architect" "grasp") || true
     }
     if octo_provider_allowed agy && command -v agy >/dev/null 2>&1; then
-        def2=$(run_agent_sync "agy" "Based on: $prompt\n${context}Define success criteria. How will we know when this is solved correctly? List 3-5 measurable criteria." 120 "researcher" "grasp") || {
+        def2=$(run_agent_sync "agy" "Based on: $prompt\n${context}Define success criteria. How will we know when this is solved correctly? List 3-5 measurable criteria." 300 "researcher" "grasp") || {
             log WARN "Antigravity (agy) dispatch failed for success criteria, falling back to Claude"
             def2=""
         }
@@ -1041,9 +1041,9 @@ grasp_define() {
         log WARN "Antigravity (agy) unavailable or not allowed, using Claude for success criteria"
     fi
     if [[ -z "$def2" ]]; then
-        def2=$(run_agent_sync "claude-sonnet" "Based on: $prompt\n${context}Define success criteria. How will we know when this is solved correctly? List 3-5 measurable criteria." 120 "researcher" "grasp") || true
+        def2=$(run_agent_sync "claude-sonnet" "Based on: $prompt\n${context}Define success criteria. How will we know when this is solved correctly? List 3-5 measurable criteria." 300 "researcher" "grasp") || true
     fi
-    def3=$(run_agent_sync "claude-sonnet" "Based on: $prompt\n${context}Define constraints and boundaries. What are we NOT solving? What are hard limits?" 120 "researcher" "grasp")
+    def3=$(run_agent_sync "claude-sonnet" "Based on: $prompt\n${context}Define constraints and boundaries. What are we NOT solving? What are hard limits?" 300 "researcher" "grasp")
 
     # Build consensus
     local consensus_file="${RESULTS_DIR}/grasp-consensus-${task_group}.md"
@@ -1070,7 +1070,9 @@ Output a single, clear problem definition document with:
 
     local consensus
     if octo_provider_allowed agy && command -v agy >/dev/null 2>&1; then
-        consensus=$(run_agent_sync "agy" "$consensus_prompt" 180 "synthesizer" "grasp") || {
+        if ! consensus=$(run_agent_sync "agy" "$consensus_prompt" 300 "synthesizer" "grasp") || \
+            [[ ! "$consensus" =~ [^[:space:]] ]]; then
+            log WARN "Antigravity (agy) returned no usable consensus; preserving source perspectives"
             consensus="[Auto-consensus failed - manual review required]
 
 Problem: $def1
@@ -1078,7 +1080,7 @@ Problem: $def1
 Success Criteria: $def2
 
 Constraints: $def3"
-        }
+        fi
     else
         log WARN "Antigravity (agy) unavailable or not allowed, skipping automated consensus synthesis"
         consensus="[Auto-consensus skipped - Antigravity (agy) unavailable or not allowed]
@@ -3521,9 +3523,11 @@ $all_results"
 
     local delivery
     if octo_provider_allowed agy && command -v agy >/dev/null 2>&1; then
-        delivery=$(OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="ink-delivery-watchdog" run_agent_sync "agy" "$synthesis_prompt" 0 "synthesizer" "ink") || {
+        if ! delivery=$(OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="ink-delivery-watchdog" run_agent_sync "agy" "$synthesis_prompt" 0 "synthesizer" "ink") || \
+            [[ ! "$delivery" =~ [^[:space:]] ]]; then
+            log WARN "Antigravity (agy) returned no usable delivery; using bounded fallback synthesis"
             delivery=$(build_ink_fallback_delivery "$prompt" "$sonnet_review" "$all_results")
-        }
+        fi
     else
         log WARN "Antigravity (agy) unavailable or not allowed, using fallback delivery synthesis"
         delivery=$(build_ink_fallback_delivery "$prompt" "$sonnet_review" "$all_results")

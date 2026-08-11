@@ -83,6 +83,7 @@ NC=""
 DRY_RUN=false
 SUPPORTS_BATCH_COMMAND=false
 OCTOPUS_REVIEW_4X10=false
+AGY_EMPTY_SUCCESS=false
 
 log() { :; }
 octopus_phase_banner() { :; }
@@ -92,9 +93,14 @@ score_cross_model_review() { echo "10:10:10:10"; }
 format_review_scorecard() { :; }
 write_structured_decision() { :; }
 octopus_complete() { :; }
+octo_provider_allowed() { return 0; }
+agy() { :; }
 run_agent_sync() {
     local provider="$1"
     local phase="${5:-}"
+    if [[ "$provider" == "agy" && "$AGY_EMPTY_SUCCESS" == "true" ]]; then
+        return 0
+    fi
     if [[ "$provider" == "claude-sonnet" && "$phase" == "ink" ]]; then
         printf '%s\n' \
             "Security: 10/10" \
@@ -122,6 +128,20 @@ if ink_deliver "Implement the requested feature" "$tangle_file" >/dev/null 2>&1;
     fi
 else
     test_fail "ink_deliver returned non-zero in fallback scenario"
+fi
+
+test_case "ink falls back when agy succeeds with empty synthesis"
+AGY_EMPTY_SUCCESS=true
+if ink_deliver "Implement the requested feature" "$tangle_file" >/dev/null 2>&1; then
+    delivery_file="$(ls -t "$RESULTS_DIR"/delivery-*.md 2>/dev/null | head -1)"
+    delivery_content="$(cat "$delivery_file")"
+    if [[ "$delivery_content" == *"Automated synthesis unavailable."* ]]; then
+        test_pass
+    else
+        test_fail "empty successful agy synthesis produced an empty delivery"
+    fi
+else
+    test_fail "ink_deliver returned non-zero for empty successful agy synthesis"
 fi
 
 test_summary
