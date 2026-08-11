@@ -8,6 +8,7 @@ CONFIG_FILE="${HOME}/.claude-octopus/config/providers.json"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 source "${SCRIPT_DIR}/../lib/provider-allowlist.sh" || { echo "ERROR: failed to load provider-allowlist.sh" >&2; exit 1; }
 source "${SCRIPT_DIR}/../lib/provider-registry.sh" || { echo "ERROR: failed to load provider-registry.sh" >&2; exit 1; }
+source "${SCRIPT_DIR}/../lib/models.sh" || { echo "ERROR: failed to load models.sh" >&2; exit 1; }
 source "${SCRIPT_DIR}/../lib/model-cache-path.sh" 2>/dev/null || true
 # Must match the path lib/model-resolver.sh writes; this was hardcoded to /tmp
 # while the resolver honoured $TMPDIR, so `clear_cache` was a no-op on macOS.
@@ -646,45 +647,11 @@ cmd_models() {
     printf "  %-24s %-8s %-6s %-6s %-5s %-10s %-8s %s\n" "Model" "Ctx(K)" "Tools" "Image" "Reas" "Provider" "Tier" "Status"
     echo "  ───────────────────────────────────────────────────────────────────────────"
 
-    # Inline catalog (matches orchestrate.sh get_model_catalog)
-    local -a models=(
-        "gpt-5.6-sol|1050|yes|yes|yes|codex|premium|active"
-        "gpt-5.6-terra|1050|yes|yes|yes|codex|standard|active"
-        "gpt-5.6-luna|1050|yes|yes|yes|codex|budget|active"
-        "gpt-5.4|400|yes|yes|no|codex|standard|active"
-        "gpt-5.4-pro|400|yes|yes|no|codex|premium|active"
-        "gpt-5.3-codex|400|yes|yes|no|codex|standard|active"
-        "gpt-5.2-codex|400|yes|yes|no|codex|standard|active"
-        "gpt-5.4-mini|400|yes|no|no|codex|budget|active"
-        "gpt-5.1-codex-max|400|yes|yes|no|codex|premium|active"
-        "o3|200|yes|no|yes|codex|premium|active"
-        "o3-mini|200|yes|no|yes|codex|budget|active"
-        "claude-haiku-4.5|200|yes|yes|yes|claude|budget|active"
-        "claude-sonnet-5|1000|yes|yes|yes|claude|standard|active"
-        "claude-sonnet-4.6|200|yes|yes|no|claude|standard|active"
-        "claude-fable-5|1000|yes|yes|yes|claude|premium|active"
-        "claude-opus-5|1000|yes|yes|yes|claude|premium|active"
-        "claude-opus-4.8|1000|yes|yes|yes|claude|premium|active"
-        "claude-opus-4.7|1000|yes|yes|yes|claude|premium|legacy"
-        "claude-opus-4.6|200|yes|yes|yes|claude|premium|legacy"
-        "grok-4-20|200|yes|no|no|cursor-agent|standard|active"
-        "grok-4-20-thinking|200|yes|no|yes|cursor-agent|premium|active"
-        "composer-2-fast|200|yes|no|no|cursor-agent|standard|active"
-        "composer-2|200|yes|no|no|cursor-agent|premium|active"
-        "sonar-pro|128|no|no|no|perplexity|standard|active"
-        "sonar|128|no|no|no|perplexity|budget|active"
-        "z-ai/glm-5|203|yes|no|no|openrouter|standard|active"
-        "moonshotai/kimi-k2.5|262|yes|yes|no|openrouter|standard|active"
-        "deepseek/deepseek-r1-0528|164|yes|no|yes|openrouter|standard|active"
-        "opencode/deepseek-v4-flash-free|128|yes|no|no|opencode|budget|active"
-        "opencode/gpt-5.4|400|yes|yes|no|opencode|premium|active"
-        "opencode/gpt-5.4-mini|400|yes|no|no|opencode|budget|active"
-        "opencode/glm-5.1|203|yes|no|no|opencode|standard|active"
-    )
-
-    for entry in "${models[@]}"; do
-        local name ctx tools images reasoning provider tier status
-        IFS='|' read -r name ctx tools images reasoning provider tier status <<< "$entry"
+    local name catalog ctx tools images reasoning provider tier status
+    while IFS= read -r name; do
+        [[ -n "$name" ]] || continue
+        catalog="$(get_model_catalog "$name")"
+        IFS='|' read -r ctx tools images reasoning provider tier status <<< "$catalog"
 
         # Apply filter
         if [[ -n "$filter" ]]; then
@@ -700,7 +667,7 @@ cmd_models() {
 
         printf "  %-24s %-8s %-6s %-6s %-5s %-10s %-8s %s\n" \
             "$name" "${ctx}K" "$tools" "$images" "$reasoning" "$provider" "$tier" "$status"
-    done
+    done < <(octo_model_ids)
     echo ""
     echo "  Filters: --tools, --images, --reasoning, --budget, --premium, or text search"
 }

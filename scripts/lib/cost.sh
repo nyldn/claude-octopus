@@ -3,6 +3,9 @@
 # Extracted from orchestrate.sh
 # Source-safe: no main execution block.
 
+_octopus_cost_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+OCTOPUS_MODEL_PRICING_FILE="${OCTOPUS_MODEL_PRICING_FILE:-${_octopus_cost_lib_dir}/../../config/model-pricing.tsv}"
+
 # Session usage tracking file
 USAGE_FILE="${WORKSPACE_DIR}/usage-session.json"
 USAGE_HISTORY_DIR="${WORKSPACE_DIR}/usage-history"
@@ -104,7 +107,7 @@ calculate_agent_cost() {
     local output_tokens=$((input_tokens * 2))
 
     local pricing
-    pricing=$(get_model_pricing "$model")
+    pricing=$(get_model_pricing "$model" "$agent_type")
     local input_price="${pricing%%:*}"
     local output_price="${pricing##*:}"
 
@@ -349,7 +352,7 @@ record_agent_call() {
 
     # Calculate estimated cost
     local pricing
-    pricing=$(get_model_pricing "$model")
+    pricing=$(get_model_pricing "$model" "$agent_type")
     local input_price="${pricing%%:*}"
     local output_price="${pricing##*:}"
 
@@ -612,7 +615,7 @@ record_agent_complete() {
 
         # Calculate cost with actual tokens
         local pricing
-        pricing=$(get_model_pricing "$model")
+        pricing=$(get_model_pricing "$model" "$agent_type")
         local input_price="${pricing%%:*}"
         local output_price="${pricing##*:}"
         # Assume 40% input, 60% output split for actual tokens
@@ -833,49 +836,44 @@ get_cost_tier_for_subscription() {
 
 get_model_pricing() {
     local model="$1"
-    case "$model" in
-        # OpenAI GPT-5.x models (v9.44: updated to Jun 2026 pricing)
-        gpt-5.6|gpt-5.6-sol)    echo "5.00:30.00" ;;
-        gpt-5.6-terra)          echo "2.50:15.00" ;;
-        gpt-5.6-luna)           echo "1.00:6.00" ;;
-        gpt-5.5)                echo "5.00:30.00" ;;   # v9.44: GPT-5.5 (OAuth + API) — new premium default
-        gpt-5.5-pro)            echo "30.00:180.00" ;; # v9.44: GPT-5.5 Pro (API-key only)
-        gpt-5.4)                echo "2.50:15.00" ;;   # v8.39.0: GPT-5.4 (OAuth + API)
-        gpt-5.4-pro)            echo "30.00:180.00" ;; # v8.39.0: GPT-5.4 Pro (API-key only)
-        gpt-5.3-codex)          echo "1.75:14.00" ;;
-        gpt-5.3-codex-spark)    echo "1.75:14.00" ;;   # Spark - same API price, Pro-only
-        gpt-5.2-codex)          echo "1.75:14.00" ;;
-        gpt-5.1-codex-max)      echo "1.25:10.00" ;;
-        gpt-5.4-mini)           echo "0.25:2.00" ;;    # v8.39.0: Budget tier
-        gpt-5)                  echo "1.25:10.00" ;;   # v8.39.0: GPT-5 base
-        gpt-5.2)                echo "1.75:14.00" ;;
-        gpt-5.1)                echo "1.25:10.00" ;;
-        gpt-5-codex)            echo "1.25:10.00" ;;
-        # OpenAI Reasoning models (v8.9.0; v8.39.0: added o3-pro, o3-mini — all API-key only)
-        o3)                     echo "2.00:8.00" ;;
-        o3-pro)                 echo "20.00:80.00" ;;  # v8.39.0: API-key only
-        o3-mini)                echo "1.10:4.40" ;;    # v8.39.0: API-key only
-        # Claude models
-        claude-haiku-4.5)       echo "1.00:5.00" ;;
-        claude-sonnet-5)        echo "3.00:15.00" ;;
-        claude-sonnet-4.5)      echo "3.00:15.00" ;;
-        claude-sonnet-4.6)      echo "3.00:15.00" ;;   # v8.17: Sonnet 4.6 (same pricing as 4.5)
-        claude-fable-5)         echo "10.00:50.00" ;;  # v9.44: Fable 5 (Mythos-class) — opt-in, 1M ctx, 128K output
-        claude-opus-5)          echo "5.00:25.00" ;;
-        claude-opus-5-fast)     echo "10.00:50.00" ;;
-        claude-opus-4.8)        echo "5.00:25.00" ;;   # v9.42: Opus 4.8 — same standard price as 4.7
-        claude-opus-4.8-fast)   echo "10.00:50.00" ;;  # v9.42: Fast mode - 2x cost for ~2.5x output speed
-        claude-opus-4.7)        echo "5.00:25.00" ;;   # legacy current-minus-one
-        claude-opus-4.6)        echo "5.00:25.00" ;;   # legacy — still available for --fast use case
-        claude-opus-4.6-fast)   echo "30.00:150.00" ;;  # legacy fast mode - 6x cost for lower latency
-        # OpenRouter models (v8.11.0)
-        z-ai/glm-5)             echo "0.80:2.56" ;;    # GLM-5: code review specialist
-        moonshotai/kimi-k2.5)   echo "0.45:2.25" ;;    # Kimi K2.5: research, 262K context
-        deepseek/deepseek-r1-0528) echo "0.70:2.50" ;; # DeepSeek R1: visible reasoning traces
-        # Perplexity Sonar models (v8.24.0 - Issue #22)
-        sonar-pro)              echo "3.00:15.00" ;;   # Sonar Pro: deep web research
-        sonar)                  echo "1.00:1.00" ;;    # Sonar: fast web search
-        # Default fallback
-        *)                      echo "1.00:5.00" ;;
+    local provider="${2:-}" kind="" id="" input_price="" output_price="" _notes=""
+    local model_price="" provider_price="" provider_override="" default_price="1.00:5.00"
+
+    case "$provider" in
+        claude-sdk*) provider="claude-sdk" ;;
+        claude*) provider="claude" ;;
+        codex*) provider="codex" ;;
+        agy*|antigravity|gemini*) provider="agy" ;;
+        openrouter*) provider="openrouter" ;;
+        openai-compatible*|openai-tools) provider="openai-compatible-agent" ;;
+        atlascloud*) provider="atlascloud" ;;
+        perplexity*) provider="perplexity" ;;
+        cursor-agent*) provider="cursor-agent" ;;
+        copilot*) provider="copilot" ;;
+        ollama*) provider="ollama" ;;
+        qwen*) provider="qwen" ;;
+        grok*) provider="grok" ;;
+        opencode*) provider="opencode" ;;
+        vibe*) provider="vibe" ;;
     esac
+
+    if [[ ! -r "$OCTOPUS_MODEL_PRICING_FILE" ]]; then
+        printf '%s\n' "$default_price"
+        return 0
+    fi
+
+    while IFS=$'\t' read -r kind id input_price output_price _notes; do
+        [[ -n "$kind" && "$kind" != \#* ]] || continue
+        if [[ "$kind" == "model" && "$id" == "$model" ]]; then
+            model_price="${input_price}:${output_price}"
+        elif [[ "$kind" == "provider-override" && "$id" == "$provider" ]]; then
+            provider_override="${input_price}:${output_price}"
+        elif [[ "$kind" == "provider" && "$id" == "$provider" ]]; then
+            provider_price="${input_price}:${output_price}"
+        elif [[ "$kind" == "provider" && "$id" == "default" ]]; then
+            default_price="${input_price}:${output_price}"
+        fi
+    done < "$OCTOPUS_MODEL_PRICING_FILE"
+
+    printf '%s\n' "${provider_override:-${model_price:-${provider_price:-$default_price}}}"
 }

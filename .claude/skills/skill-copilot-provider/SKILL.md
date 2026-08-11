@@ -132,7 +132,7 @@ When missing: `ℹ Copilot CLI not installed (optional)`
 2. **Premium request quota** — Each `copilot -p` prompt = 1 premium request from your monthly allowance
 3. **Graceful degradation** — When unavailable, silently skip with no errors or warnings
 4. **No provider cascade** — If unavailable, the role is reassigned to another provider
-5. **Model selection** — Copilot CLI selects the model internally (default: Claude Sonnet 4.5, configurable via `/model`)
+5. **Model selection** — Octopus uses Copilot's `auto` selector by default; pin `OCTOPUS_COPILOT_MODEL` to pass an explicit `--model` value
 6. **Multi-model access** — Copilot subscription includes access to Claude, GPT, and Gemini models
 
 ---

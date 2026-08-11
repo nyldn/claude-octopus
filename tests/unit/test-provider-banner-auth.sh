@@ -15,10 +15,16 @@ FAKE_HOME="$TEST_TMP_DIR/home"
 FAKE_BIN="$TEST_TMP_DIR/bin"
 mkdir -p "$FAKE_HOME" "$FAKE_BIN"
 
-for provider_bin in codex copilot; do
-    printf '#!/usr/bin/env bash\nexit 0\n' > "$FAKE_BIN/$provider_bin"
-    chmod +x "$FAKE_BIN/$provider_bin"
-done
+printf '#!/usr/bin/env bash\nexit 0\n' > "$FAKE_BIN/codex"
+chmod +x "$FAKE_BIN/codex"
+cat > "$FAKE_BIN/copilot" <<'EOF'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "--help" ]]; then
+    printf '%s\n' '--prompt --model --silent --no-ask-user --disable-builtin-mcps'
+fi
+exit 0
+EOF
+chmod +x "$FAKE_BIN/copilot"
 cat > "$FAKE_BIN/opencode" <<'EOF'
 #!/usr/bin/env bash
 [[ "${1:-}" == "auth" && "${2:-}" == "list" ]] || exit 64

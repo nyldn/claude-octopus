@@ -19,6 +19,9 @@ source "${_providers_lib_dir}/openai-compatible.sh" 2>/dev/null || true
 if ! declare -f grok_is_available >/dev/null 2>&1 || ! declare -f grok_auth_method >/dev/null 2>&1; then
     source "${_providers_lib_dir}/grok.sh" 2>/dev/null || true
 fi
+if ! declare -f copilot_is_available >/dev/null 2>&1; then
+    source "${_providers_lib_dir}/copilot.sh" 2>/dev/null || true
+fi
 
 # Version comparison utility
 version_compare() {
@@ -831,15 +834,14 @@ check_provider_health() {
                 echo "copilot CLI not found in PATH" >&2
                 return 1
             fi
-            # Check auth via the same precedence chain as copilot_is_available()
-            if [[ -z "${COPILOT_GITHUB_TOKEN:-}" ]] && \
-               [[ -z "${GH_TOKEN:-}" ]] && \
-               [[ -z "${GITHUB_TOKEN:-}" ]] && \
-               [[ ! -f "${HOME}/.copilot/config.json" ]]; then
-                if ! command -v gh &>/dev/null || ! gh auth status &>/dev/null 2>&1; then
-                    echo "copilot: not authenticated (run: copilot login)" >&2
-                    return 1
-                fi
+            if ! declare -f copilot_has_required_capabilities >/dev/null 2>&1 || \
+               ! copilot_has_required_capabilities; then
+                echo "copilot: installed CLI lacks required non-interactive flags; update Copilot CLI" >&2
+                return 1
+            fi
+            if ! copilot_is_available; then
+                echo "copilot: not authenticated (run: copilot login)" >&2
+                return 1
             fi
             ;;
         qwen)

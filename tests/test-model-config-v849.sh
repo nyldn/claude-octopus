@@ -470,7 +470,8 @@ else
     fail "models subcommand not wired in dispatch"
 fi
 
-if grep -A 70 'cmd_models()' "$HELPER" | grep -q 'claude-fable-5|1000|yes|yes|yes|claude|premium|active'; then
+model_catalog_output="$(env "HOME=${TMPDIR:-/tmp}/octopus-model-config-v849-$$" bash "$HELPER" models 2>/dev/null)"
+if grep -q 'claude-fable-5.*1000K.*yes.*yes.*yes.*claude.*premium.*active' <<< "$model_catalog_output"; then
     pass "interactive model catalog includes active claude-fable-5"
 else
     fail "interactive model catalog omits claude-fable-5"

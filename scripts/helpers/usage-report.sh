@@ -10,32 +10,46 @@
 set -euo pipefail
 
 FORMAT="table"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MODEL_PRICING_FILE="${OCTOPUS_MODEL_PRICING_FILE:-${SCRIPT_DIR}/../../config/model-pricing.tsv}"
 WORKSPACE_DIR="${OCTOPUS_WORKSPACE:-${HOME}/.claude-octopus}"
 USAGE_DIR="${WORKSPACE_DIR}/usage"
 RESULTS_DIR="${WORKSPACE_DIR}/results"
+
+log() {
+    local level="$1"
+    shift
+    printf 'usage-report: %s\n' "$*" >&2
+}
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --format)      FORMAT="${2:-table}"; shift 2 ;;
         --usage-dir)   USAGE_DIR="${2:?}"; shift 2 ;;
         --results-dir) RESULTS_DIR="${2:?}"; shift 2 ;;
-        *) echo "usage-report: unknown argument: $1" >&2; exit 64 ;;
+        *) log ERROR "unknown argument: $1"; exit 64 ;;
     esac
 done
 
 if [[ "$FORMAT" != "table" && "$FORMAT" != "json" ]]; then
-    echo "usage-report: --format must be 'table' or 'json'" >&2
+    log ERROR "--format must be 'table' or 'json'"
     exit 64
 fi
 
 if ! command -v python3 &>/dev/null; then
-    echo "usage-report: python3 is required" >&2
+    log ERROR "python3 is required"
+    exit 69
+fi
+if [[ ! -r "$MODEL_PRICING_FILE" ]]; then
+    log ERROR "pricing table not found: $MODEL_PRICING_FILE"
     exit 69
 fi
 
-_OCTOPUS_USAGE_DIR="$USAGE_DIR" \
-_OCTOPUS_RESULTS_DIR="$RESULTS_DIR" \
-_OCTOPUS_FORMAT="$FORMAT" \
+env \
+"_OCTOPUS_USAGE_DIR=${USAGE_DIR}" \
+"_OCTOPUS_RESULTS_DIR=${RESULTS_DIR}" \
+"_OCTOPUS_FORMAT=${FORMAT}" \
+"_OCTOPUS_MODEL_PRICING_FILE=${MODEL_PRICING_FILE}" \
 python3 - <<'PYEOF'
 import glob, json, os, sys
 from collections import defaultdict
@@ -43,45 +57,28 @@ from collections import defaultdict
 usage_dir = os.environ["_OCTOPUS_USAGE_DIR"]
 results_dir = os.environ["_OCTOPUS_RESULTS_DIR"]
 fmt = os.environ["_OCTOPUS_FORMAT"]
+pricing_file = os.environ["_OCTOPUS_MODEL_PRICING_FILE"]
 
-# $/MTok (input, output) — keep in sync with cost table in CLAUDE.md
-RATES = {
-    "claude":       (5.00, 25.00),   # Opus 5 premium seat
-    "claude-sdk":   (5.00, 25.00),   # Agent SDK, Opus 5
-    "codex":        (5.00, 30.00),   # GPT-5.6 Sol frontier default
-    "agy":          (0.00, 0.00),    # included with Antigravity access
-    "gemini":       (0.00, 0.00),    # sunset; legacy records only
-    "perplexity":   (3.00, 15.00),   # Sonar Pro
-    "openrouter":   (2.00, 8.00),    # blended estimate
-    "atlascloud":   (2.00, 8.00),    # blended estimate
-    "openai-compatible-agent": (2.00, 8.00),
-    "ollama":       (0.00, 0.00),    # local
-    "copilot":      (0.00, 0.00),    # subscription
-    "qwen":         (0.00, 0.00),    # oauth/free tier
-    "grok":         (3.00, 15.00),
-    "cursor-agent": (0.00, 0.00),    # subscription
-    "opencode":     (0.00, 0.00),    # native models free
-    "vibe":         (0.00, 0.00),
-}
-# Model-specific $/MTok rates take precedence over provider defaults. Provider
-# rates remain the compatibility fallback for older records that did not carry
-# a model identifier.
-MODEL_RATES = {
-    "gpt-5.6-sol":        (5.00, 30.00),
-    "gpt-5.6-terra":      (2.50, 15.00),
-    "gpt-5.6-luna":       (1.00, 6.00),
-    "claude-fable-5":     (10.00, 50.00),
-    "claude-opus-5-fast": (10.00, 50.00),
-    "claude-opus-5":      (5.00, 25.00),
-    "claude-opus-4.8":    (5.00, 25.00),
-    "claude-opus-4.7":    (5.00, 25.00),
-    "claude-opus-4.6":    (5.00, 25.00),
-    "claude-sonnet-5":    (3.00, 15.00),
-    "claude-sonnet-4.6":  (3.00, 15.00),
-    "claude-sonnet-4.5":  (3.00, 15.00),
-    "claude-haiku-4.5":   (1.00, 5.00),
-}
-DEFAULT_RATE = (2.00, 8.00)
+# One checked-in table is shared with scripts/lib/cost.sh. Model-specific rates
+# take precedence; provider rows cover legacy records without model identifiers.
+RATES = {}
+MODEL_RATES = {}
+PROVIDER_OVERRIDES = {}
+DEFAULT_RATE = (1.00, 5.00)
+with open(pricing_file, encoding="utf-8") as pricing:
+    for raw in pricing:
+        if not raw.strip() or raw.startswith("#"):
+            continue
+        kind, ident, input_rate, output_rate, *_ = raw.rstrip("\n").split("\t")
+        rate = (float(input_rate), float(output_rate))
+        if kind == "model":
+            MODEL_RATES[ident.lower()] = rate
+        elif kind == "provider-override":
+            PROVIDER_OVERRIDES[ident.lower()] = rate
+        elif kind == "provider" and ident == "default":
+            DEFAULT_RATE = rate
+        elif kind == "provider":
+            RATES[ident.lower()] = rate
 
 records = []
 for path in sorted(glob.glob(os.path.join(usage_dir, "*.jsonl"))):
@@ -117,6 +114,36 @@ for path in sorted(glob.glob(os.path.join(results_dir, "**", "summary.json"),
 def bucket():
     return {"queries": 0, "tokens_in": 0, "tokens_out": 0, "est_cost_usd": 0.0}
 
+def pricing_provider(provider):
+    """Match the provider-family normalization used by scripts/lib/cost.sh."""
+    provider = provider.lower().replace("_", "-")
+    prefixes = (
+        ("claude-sdk", "claude-sdk"),
+        ("claude", "claude"),
+        ("codex", "codex"),
+        ("agy", "agy"),
+        ("gemini", "agy"),
+        ("openrouter", "openrouter"),
+        ("openai-compatible", "openai-compatible-agent"),
+        ("atlascloud", "atlascloud"),
+        ("perplexity", "perplexity"),
+        ("cursor-agent", "cursor-agent"),
+        ("copilot", "copilot"),
+        ("ollama", "ollama"),
+        ("qwen", "qwen"),
+        ("grok", "grok"),
+        ("opencode", "opencode"),
+        ("vibe", "vibe"),
+    )
+    if provider in ("antigravity",):
+        return "agy"
+    if provider in ("openai-tools",):
+        return "openai-compatible-agent"
+    for prefix, canonical in prefixes:
+        if provider.startswith(prefix):
+            return canonical
+    return provider
+
 by_provider = defaultdict(bucket)
 by_skill = defaultdict(bucket)
 by_mcp = defaultdict(bucket)
@@ -124,10 +151,12 @@ totals = bucket()
 
 for r in records:
     prov = (r.get("provider") or "unknown").lower()
+    price_prov = pricing_provider(prov)
     model = (r.get("model") or "").lower()
     tin = int(r.get("est_tokens_in") or r.get("tokens_in") or 0)
     tout = int(r.get("est_tokens_out") or r.get("tokens_out") or 0)
-    rate = MODEL_RATES.get(model, RATES.get(prov, DEFAULT_RATE))
+    rate = PROVIDER_OVERRIDES.get(
+        price_prov, MODEL_RATES.get(model, RATES.get(price_prov, DEFAULT_RATE)))
     cost = tin / 1e6 * rate[0] + tout / 1e6 * rate[1]
     for target in (by_provider[prov], totals):
         target["queries"] += 1

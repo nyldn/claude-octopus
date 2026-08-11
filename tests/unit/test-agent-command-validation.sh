@@ -54,9 +54,30 @@ else
     test_fail "expected copilot-exec shim path to be accepted"
 fi
 
+test_case "validate_agent_command allows copilot-exec shim path with model env prefix"
+if validate_agent_command "env OCTOPUS_COPILOT_MODEL=auto $PROJECT_ROOT/scripts/helpers/copilot-exec.sh"; then
+    test_pass
+else
+    test_fail "expected env-prefixed copilot-exec shim path to be accepted"
+fi
+
 test_case "validate_agent_command rejects embedded copilot-exec shim path"
 if validate_agent_command "echo $PROJECT_ROOT/scripts/helpers/copilot-exec.sh" >/dev/null 2>&1; then
     test_fail "expected embedded copilot-exec shim path to be rejected"
+else
+    test_pass
+fi
+
+test_case "validate_agent_command rejects env-prefixed copilot command with wrong executable"
+if validate_agent_command "env OCTOPUS_COPILOT_MODEL=auto echo pwned" >/dev/null 2>&1; then
+    test_fail "expected env-prefixed command without the copilot-exec shim to be rejected"
+else
+    test_pass
+fi
+
+test_case "validate_agent_command rejects copilot command with wrong executable trailed by the shim path"
+if validate_agent_command "env OCTOPUS_COPILOT_MODEL=auto echo pwned $PROJECT_ROOT/scripts/helpers/copilot-exec.sh" >/dev/null 2>&1; then
+    test_fail "expected wrong-executable-then-shim-path to be rejected"
 else
     test_pass
 fi

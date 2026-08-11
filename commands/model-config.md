@@ -173,7 +173,7 @@ AskUserQuestion({
     options: [
       {label: "z-ai/glm-5", description: "GLM-5 — 203K context, $0.80/$2.56 MTok, code review specialist"},
       {label: "moonshotai/kimi-k2.5", description: "Kimi K2.5 — 262K context, $0.45/$2.25 MTok, research & multimodal"},
-      {label: "deepseek/deepseek-r1-0528", description: "DeepSeek R1 — 164K context, $0.70/$2.50 MTok, deep reasoning"},
+      {label: "deepseek/deepseek-v4-pro", description: "DeepSeek V4 Pro — 1M context, $0.435/$0.87 MTok, reasoning"},
       {label: "Custom", description: "Enter a custom model ID"}
     ]
   }]

@@ -36,6 +36,8 @@ get_model_catalog() {
         o3-mini)                echo "200|yes|no|yes|codex|budget|active" ;;
         # Antigravity CLI (agy routes to the user's configured Antigravity default)
         agy/default|default)       echo "1000|yes|yes|no|agy|standard|active" ;;
+        # GitHub Copilot CLI service-owned automatic model selection
+        auto)                      echo "128|yes|no|no|copilot|standard|active" ;;
         # Claude
         claude-haiku-4.5)      echo "200|yes|yes|yes|claude|budget|active" ;;
         claude-sonnet-5)       echo "1000|yes|yes|yes|claude|standard|active" ;;
@@ -56,7 +58,8 @@ get_model_catalog() {
         # OpenRouter
         z-ai/glm-5)             echo "203|yes|no|no|openrouter|standard|active" ;;
         moonshotai/kimi-k2.5)   echo "262|yes|yes|no|openrouter|standard|active" ;;
-        deepseek/deepseek-r1-0528) echo "164|yes|no|yes|openrouter|standard|active" ;;
+        deepseek/deepseek-v4-pro)  echo "1000|yes|no|yes|openrouter|standard|active" ;;
+        deepseek/deepseek-r1-0528) echo "164|yes|no|yes|openrouter|standard|legacy" ;;
         # OpenCode (multi-provider router — models use opencode/<model> namespace)
         opencode/deepseek-v4-flash-free) echo "128|yes|no|no|opencode|budget|active" ;;
         opencode/gpt-5.4)       echo "400|yes|yes|no|opencode|premium|active" ;;
@@ -99,6 +102,55 @@ get_model_capability() {
     esac
 }
 
+# Print every canonical model ID, one per line. Consumers such as model-config
+# must use this instead of maintaining another hand-written catalog.
+octo_model_ids() {
+    cat <<'EOF'
+gpt-5.6-sol
+gpt-5.6-terra
+gpt-5.6-luna
+gpt-5.5
+gpt-5.5-pro
+gpt-5.4
+gpt-5.4-pro
+gpt-5.3-codex
+gpt-5.3-codex-spark
+gpt-5.2-codex
+gpt-5.4-mini
+gpt-5.1-codex-max
+o3
+o3-pro
+o3-mini
+agy/default
+auto
+claude-haiku-4.5
+claude-sonnet-5
+claude-sonnet-4.6
+claude-fable-5
+claude-opus-5
+claude-opus-5-fast
+claude-opus-4.8
+claude-opus-4.8-fast
+claude-opus-4.7
+claude-opus-4.6
+claude-opus-4.6-fast
+grok-4-20
+grok-4-20-thinking
+composer-2-fast
+composer-2
+z-ai/glm-5
+moonshotai/kimi-k2.5
+deepseek/deepseek-v4-pro
+deepseek/deepseek-r1-0528
+opencode/deepseek-v4-flash-free
+opencode/gpt-5.4
+opencode/gpt-5.4-mini
+opencode/glm-5.1
+sonar-pro
+sonar
+EOF
+}
+
 # List all known models for a provider, optionally filtered by capability
 # Usage: list_models [provider] [--tools] [--images] [--reasoning] [--tier budget|standard|premium]
 # Note: calls get_model_pricing() which remains in orchestrate.sh or lib/cost-tracking.sh
@@ -116,19 +168,9 @@ list_models() {
         shift
     done
 
-    local -a all_models=(
-        gpt-5.6-sol gpt-5.6-terra gpt-5.6-luna gpt-5.5 gpt-5.5-pro gpt-5.4 gpt-5.4-pro gpt-5.3-codex gpt-5.2-codex
-        gpt-5.4-mini gpt-5.1-codex-max
-        o3 o3-pro o3-mini
-        agy/default
-        claude-haiku-4.5 claude-sonnet-5 claude-sonnet-4.6 claude-fable-5 claude-opus-5 claude-opus-5-fast claude-opus-4.8 claude-opus-4.8-fast claude-opus-4.7 claude-opus-4.6 claude-opus-4.6-fast
-        grok-4-20 grok-4-20-thinking composer-2-fast composer-2
-        z-ai/glm-5 moonshotai/kimi-k2.5 deepseek/deepseek-r1-0528
-        opencode/deepseek-v4-flash-free opencode/gpt-5.4 opencode/gpt-5.4-mini opencode/glm-5.1
-        sonar-pro sonar
-    )
-
-    for model in "${all_models[@]}"; do
+    local model
+    while IFS= read -r model; do
+        [[ -n "$model" ]] || continue
         local catalog
         catalog=$(get_model_catalog "$model")
         local ctx tools images reasoning provider tier status
@@ -147,5 +189,5 @@ list_models() {
         local out_price="${pricing##*:}"
         printf "%-25s %5sK  tools=%-3s img=%-3s rsn=%-3s  \$%s/\$%s MTok  [%s]\n" \
             "$model" "$ctx" "$tools" "$images" "$reasoning" "$in_price" "$out_price" "$tier"
-    done
+    done < <(octo_model_ids)
 }

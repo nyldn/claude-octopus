@@ -32,6 +32,7 @@ fi
 source "${SCRIPT_DIR}/../lib/provider-routing.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/../lib/qwen.sh" 2>/dev/null || true   # qwen_is_usable (oco-dar)
 source "${SCRIPT_DIR}/../lib/openai-compatible.sh" 2>/dev/null || true
+source "${SCRIPT_DIR}/../lib/copilot.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/../lib/events.sh" 2>/dev/null || true  # opt-in JSONL lifecycle stream
 source "${SCRIPT_DIR}/../lib/quota-watcher.sh" 2>/dev/null || true  # octo_quota_is_dead (oco-cbb)
 
@@ -188,8 +189,7 @@ fi
 provider_status "opencode" "$opencode_state"
 copilot_state="missing"
 if command -v copilot >/dev/null 2>&1; then
-    if [[ -n "${COPILOT_GITHUB_TOKEN:-}" ]] || [[ -n "${GH_TOKEN:-}" ]] || [[ -n "${GITHUB_TOKEN:-}" ]] || \
-       [[ -f "${HOME}/.copilot/config.json" ]] || { command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; }; then
+    if declare -f copilot_is_available >/dev/null 2>&1 && copilot_is_available; then
         copilot_state="available"
     else
         copilot_state="degraded"

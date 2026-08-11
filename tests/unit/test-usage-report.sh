@@ -18,6 +18,10 @@ cat > "$TMP_DIR/usage/subagent-usage.jsonl" <<'EOF'
 {"provider":"codex","model":"gpt-5.6-terra","skill":"flow-develop","est_tokens_in":5000,"est_tokens_out":1000,"quality":70}
 {"provider":"claude","model":"claude-sonnet-5","skill":"flow-discover","mcp_server":"perplexity-mcp","est_tokens_in":20000,"est_tokens_out":4000,"quality":90}
 {"provider":"agy","skill":"flow-discover","est_tokens_in":8000,"est_tokens_out":3000,"quality":60}
+{"provider":"cursor-agent","model":"grok-4-20","skill":"flow-review","est_tokens_in":1000000,"est_tokens_out":0,"quality":75}
+{"provider":"cursor-agent-preview","model":"gpt-5.4","skill":"flow-review","est_tokens_in":1000000,"est_tokens_out":0,"quality":75}
+{"provider":"grok","model":"default","skill":"flow-review","est_tokens_in":1000000,"est_tokens_out":0,"quality":75}
+{"provider":"copilot","model":"gpt-5.4","skill":"flow-review","est_tokens_in":1000000,"est_tokens_out":0,"quality":75}
 EOF
 
 cat > "$TMP_DIR/results/run1/summary.json" <<'EOF'
@@ -68,6 +72,21 @@ assert prov['agy']['est_cost_usd'] == 0
     test_pass
 else
     test_fail "cost computation wrong: $out"
+fi
+
+test_case "distinguishes subscription Cursor Grok from standalone metered Grok"
+if python3 -c "
+import json, sys
+d = json.loads(sys.argv[1])
+prov = {p['name']: p for p in d['byProvider']}
+assert prov['cursor-agent']['est_cost_usd'] == 0, prov['cursor-agent']
+assert prov['cursor-agent-preview']['est_cost_usd'] == 0, prov['cursor-agent-preview']
+assert prov['grok']['est_cost_usd'] == 3.0, prov['grok']
+assert prov['copilot']['est_cost_usd'] == 0, prov['copilot']
+" "$out" 2>/dev/null; then
+    test_pass
+else
+    test_fail "provider-aware Grok pricing wrong: $out"
 fi
 
 test_case "groups by skill and by mcp server"

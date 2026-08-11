@@ -14,4 +14,5 @@ if [[ -z "${prompt//[[:space:]]/}" ]]; then
     echo "copilot-exec: no prompt provided on stdin" >&2
     exit 64
 fi
-exec copilot -p "$prompt" --no-ask-user -s --disable-builtin-mcps
+model="${OCTOPUS_COPILOT_MODEL:-auto}"
+exec copilot -p "$prompt" --model "$model" --no-ask-user -s --disable-builtin-mcps

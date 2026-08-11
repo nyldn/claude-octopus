@@ -23,6 +23,9 @@ fi
 if ! declare -f _octo_assignment_has_nonempty_value >/dev/null 2>&1; then
     source "${_model_resolver_lib_dir}/auth.sh" 2>/dev/null || true
 fi
+if ! declare -f copilot_is_available >/dev/null 2>&1; then
+    source "${_model_resolver_lib_dir}/copilot.sh" 2>/dev/null || true
+fi
 if ! declare -f is_claude_agent_type >/dev/null 2>&1; then
     source "${_model_resolver_lib_dir}/routing.sh" 2>/dev/null || true
 source "${_model_resolver_lib_dir}/openai-compatible.sh" 2>/dev/null || true
@@ -68,6 +71,31 @@ sonnet_default_model() {
 
 codex_default_model() {
     echo "gpt-5.6-sol"
+}
+
+# Select only from the live local Ollama inventory. A hardcoded fallback can
+# make `ollama run` pull many gigabytes, so an empty/unreachable inventory must
+# fail closed and ask the user for an explicit installed model.
+ollama_default_model() {
+    local tags="" model=""
+    if ! tags="$(curl -sf --max-time 3 http://localhost:11434/api/tags 2>/dev/null)" || [[ -z "$tags" ]]; then
+        log ERROR "Ollama is unavailable; start it and set OCTOPUS_OLLAMA_MODEL to an installed model"
+        return 1
+    fi
+
+    if command -v jq >/dev/null 2>&1; then
+        model="$(printf '%s' "$tags" | jq -r '.models[0].name // empty' 2>/dev/null)"
+    elif command -v python3 >/dev/null 2>&1; then
+        model="$(printf '%s' "$tags" | python3 -c 'import json,sys; d=json.load(sys.stdin); print((d.get("models") or [{}])[0].get("name", ""))' 2>/dev/null)"
+    else
+        model="$(printf '%s' "$tags" | sed -n 's/.*"models"[[:space:]]*:[[:space:]]*\[[[:space:]]*{[^}]*"name"[[:space:]]*:[[:space:]]*"\([^"]*\)"[^}]*}.*/\1/p' | head -1)"
+    fi
+
+    if [[ -z "$model" ]]; then
+        log ERROR "No local Ollama models are installed; install one or set OCTOPUS_OLLAMA_MODEL to an installed model"
+        return 1
+    fi
+    printf '%s\n' "$model"
 }
 
 # Validate Antigravity CLI model labels against the live CLI catalog.
@@ -435,11 +463,21 @@ resolve_octopus_model() {
             perplexity*)       resolved_model="sonar-pro" ;;
             openrouter-glm*)  resolved_model="z-ai/glm-5" ;;
             openrouter-kimi*) resolved_model="moonshotai/kimi-k2.5" ;;
-            openrouter-deepseek*) resolved_model="deepseek/deepseek-r1-0528" ;;
+            openrouter-deepseek*) resolved_model="deepseek/deepseek-v4-pro" ;;
             openrouter)      resolved_model="anthropic/claude-sonnet-4" ;; # bare OpenRouter needs a namespaced ID, not an OpenAI model string (#797)
-            openai-compatible|openai-tools|openai-compatible-agent*) resolved_model="${OPENAI_COMPAT_MODEL:-gpt-5.4}" ;;
-            ollama*)         resolved_model="llama3.3" ;;
-            copilot*)        resolved_model="claude-sonnet-4.5" ;; # Copilot default; actual model selected by copilot CLI
+            openai-compatible|openai-tools|openai-compatible-agent*)
+                if [[ -z "${OPENAI_COMPAT_MODEL:-}" ]]; then
+                    log ERROR "OPENAI_COMPAT_MODEL or providers.json openai-compatible-agent.default is required"
+                    return 1
+                fi
+                resolved_model="$OPENAI_COMPAT_MODEL"
+                ;;
+            ollama*)
+                if ! resolved_model="$(ollama_default_model)"; then
+                    return 1
+                fi
+                ;;
+            copilot*)        resolved_model="auto" ;; # Let the current Copilot CLI choose its supported default.
             qwen*)           resolved_model="qwen3-coder" ;;
             cursor-agent*)   resolved_model="grok-4-20" ;;
             opencode-research*) resolved_model="opencode/glm-5.1" ;;
@@ -555,11 +593,7 @@ is_agent_available_v2() {
             command -v ollama &>/dev/null && curl -sf http://localhost:11434/api/tags &>/dev/null
             ;;
         copilot|copilot-research)
-            command -v copilot &>/dev/null && {
-                [[ -n "${COPILOT_GITHUB_TOKEN:-}" ]] || [[ -n "${GH_TOKEN:-}" ]] || \
-                [[ -n "${GITHUB_TOKEN:-}" ]] || [[ -f "${HOME}/.copilot/config.json" ]] || \
-                { command -v gh &>/dev/null && gh auth status &>/dev/null 2>&1; }
-            }
+            declare -f copilot_is_available >/dev/null 2>&1 && copilot_is_available
             ;;
         qwen|qwen-research)
             command -v qwen &>/dev/null && {

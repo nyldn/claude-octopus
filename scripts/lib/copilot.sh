@@ -5,12 +5,27 @@
 # Source-safe: no main execution block.
 # ═══════════════════════════════════════════════════════════════════════════════
 
-# Check if Copilot CLI is available and authenticated
+# Check that the installed CLI exposes every flag the non-interactive adapter
+# relies on. Capability detection is safer than inventing an undocumented
+# version floor and remains correct if GitHub backports or changes versions.
+copilot_has_required_capabilities() {
+    local help_text="" required=""
+    if ! help_text="$(copilot --help </dev/null 2>/dev/null)" || [[ -z "$help_text" ]]; then
+        return 1
+    fi
+    for required in --prompt --model --silent --no-ask-user --disable-builtin-mcps; do
+        grep -E -c -- "(^|[[:space:],])${required}([[:space:],=]|$)" <<< "$help_text" >/dev/null || return 1
+    done
+    return 0
+}
+
+# Check if Copilot CLI is available, capable, and authenticated.
 # Returns 0 if ready, 1 if not
 copilot_is_available() {
     if ! command -v copilot &>/dev/null; then
         return 1
     fi
+    copilot_has_required_capabilities || return 1
     # Check auth: env vars first (fast), then keychain/gh (slower)
     if [[ -n "${COPILOT_GITHUB_TOKEN:-}" ]] || \
        [[ -n "${GH_TOKEN:-}" ]] || \
@@ -49,7 +64,7 @@ copilot_auth_method() {
 
 # Execute a prompt via Copilot CLI programmatic mode
 # Args: $1=model (agent type, e.g. copilot, copilot-research), $2=prompt, $3=output_file (optional)
-# The model arg is used for logging/tracking; copilot -p uses whatever model is configured.
+# OCTOPUS_COPILOT_MODEL defaults to the CLI's service-owned auto selector.
 copilot_execute() {
     local agent_type="$1"
     local prompt="$2"
@@ -71,14 +86,15 @@ copilot_execute() {
     fi
 
     local timeout="${OCTOPUS_COPILOT_TIMEOUT:-90}"
+    local model="${OCTOPUS_COPILOT_MODEL:-auto}"
 
     [[ "${VERBOSE:-}" == "true" ]] && log DEBUG "copilot_execute: type=$agent_type, timeout=${timeout}s, auth=$(copilot_auth_method)" || true
 
     local response exit_code
     if [[ ${#auth_env[@]} -gt 0 ]]; then
-        response=$("${auth_env[@]}" timeout "$timeout" copilot -p "$prompt" --no-ask-user -s --disable-builtin-mcps 2>&1) && exit_code=0 || exit_code=$?
+        response=$("${auth_env[@]}" timeout "$timeout" copilot -p "$prompt" --model "$model" --no-ask-user -s --disable-builtin-mcps 2>&1) && exit_code=0 || exit_code=$?
     else
-        response=$(timeout "$timeout" copilot -p "$prompt" --no-ask-user -s --disable-builtin-mcps 2>&1) && exit_code=0 || exit_code=$?
+        response=$(timeout "$timeout" copilot -p "$prompt" --model "$model" --no-ask-user -s --disable-builtin-mcps 2>&1) && exit_code=0 || exit_code=$?
     fi
 
     # Handle errors

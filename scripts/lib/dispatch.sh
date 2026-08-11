@@ -300,7 +300,7 @@ get_agent_command() {
         openrouter) echo "openrouter_execute" ;;                 # OpenRouter API (v4.8)
         openrouter-glm5) echo "openrouter_execute_model z-ai/glm-5" ;;           # v8.11.0: GLM-5 via OpenRouter
         openrouter-kimi) echo "openrouter_execute_model moonshotai/kimi-k2.5" ;; # v8.11.0: Kimi K2.5 via OpenRouter
-        openrouter-deepseek) echo "openrouter_execute_model deepseek/deepseek-r1-0528" ;; # v8.11.0: DeepSeek R1 via OpenRouter
+        openrouter-deepseek) echo "openrouter_execute_model deepseek/deepseek-v4-pro" ;;
         openai-compatible|openai-tools|openai-compatible-agent)  # Generic OpenAI-compatible tool-loop agent
             if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
                 return 1
@@ -364,7 +364,10 @@ get_agent_command() {
             # contract feeds the prompt via stdin. The shim bridges stdin -> -p so the
             # advisor does not open an interactive session and hang (silent drop).
             # -s: silent (no footer noise); --disable-builtin-mcps: skip MCP startup latency.
-            echo "${PLUGIN_DIR}/scripts/helpers/copilot-exec.sh"
+            if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
+                return 1
+            fi
+            echo "env OCTOPUS_COPILOT_MODEL=${model} ${PLUGIN_DIR}/scripts/helpers/copilot-exec.sh"
             ;;
         ollama|ollama-*)  # v9.9.0: Ollama local LLM — ollama run
             if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
@@ -930,7 +933,7 @@ find_capable_fallback() {
         claude)
             candidates=(claude-haiku-4.5 claude-sonnet-5 claude-opus-4.8 claude-opus-5) ;;
         openrouter)
-            candidates=(z-ai/glm-5 moonshotai/kimi-k2.5 deepseek/deepseek-r1-0528) ;;
+            candidates=(z-ai/glm-5 moonshotai/kimi-k2.5 deepseek/deepseek-v4-pro deepseek/deepseek-r1-0528) ;;
         perplexity)
             candidates=(sonar sonar-pro) ;;
         cursor-agent)
