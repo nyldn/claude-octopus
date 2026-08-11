@@ -1026,17 +1026,22 @@ grasp_define() {
     # Multiple agents define the problem from their perspective
     log INFO "Gathering problem definitions from multiple perspectives..."
 
-    local def1 def2 def3
+    local def1 def2="" def3
     def1=$(run_agent_sync "codex" "Based on: $prompt\n${context}Define the core problem statement in 2-3 sentences. What is the essential challenge?" 300 "backend-architect" "grasp") || {
         log WARN "Codex failed for problem definition, falling back to Claude"
-        echo -e " ${YELLOW}⚠${NC}  Codex unavailable for problem definition — falling back to Claude"
         def1=$(run_agent_sync "claude-sonnet" "Based on: $prompt\n${context}Define the core problem statement in 2-3 sentences. What is the essential challenge?" 300 "backend-architect" "grasp") || true
     }
-    def2=$(run_agent_sync "agy" "Based on: $prompt\n${context}Define success criteria. How will we know when this is solved correctly? List 3-5 measurable criteria." 300 "researcher" "grasp") || {
-        log WARN "Antigravity (agy) failed for success criteria, falling back to Claude"
-        echo -e " ${YELLOW}⚠${NC}  Antigravity (agy) unavailable for success criteria — falling back to Claude"
+    if octo_provider_allowed agy && command -v agy >/dev/null 2>&1; then
+        def2=$(run_agent_sync "agy" "Based on: $prompt\n${context}Define success criteria. How will we know when this is solved correctly? List 3-5 measurable criteria." 300 "researcher" "grasp") || {
+            log WARN "Antigravity (agy) dispatch failed for success criteria, falling back to Claude"
+            def2=""
+        }
+    else
+        log WARN "Antigravity (agy) unavailable or not allowed, using Claude for success criteria"
+    fi
+    if [[ -z "$def2" ]]; then
         def2=$(run_agent_sync "claude-sonnet" "Based on: $prompt\n${context}Define success criteria. How will we know when this is solved correctly? List 3-5 measurable criteria." 300 "researcher" "grasp") || true
-    }
+    fi
     def3=$(run_agent_sync "claude-sonnet" "Based on: $prompt\n${context}Define constraints and boundaries. What are we NOT solving? What are hard limits?" 300 "researcher" "grasp")
 
     # Build consensus
@@ -1063,9 +1068,28 @@ Output a single, clear problem definition document with:
 4. Recommended Approach"
 
     local consensus
-    consensus=$(run_agent_sync "agy" "$consensus_prompt" 300 "synthesizer" "grasp") || {
-        consensus="[Auto-consensus failed - manual review required]\n\nProblem: $def1\n\nSuccess Criteria: $def2\n\nConstraints: $def3"
-    }
+    if octo_provider_allowed agy && command -v agy >/dev/null 2>&1; then
+        if ! consensus=$(run_agent_sync "agy" "$consensus_prompt" 300 "synthesizer" "grasp") || \
+            [[ ! "$consensus" =~ [^[:space:]] ]]; then
+            log WARN "Antigravity (agy) returned no usable consensus; preserving source perspectives"
+            consensus="[Auto-consensus failed - manual review required]
+
+Problem: $def1
+
+Success Criteria: $def2
+
+Constraints: $def3"
+        fi
+    else
+        log WARN "Antigravity (agy) unavailable or not allowed, skipping automated consensus synthesis"
+        consensus="[Auto-consensus skipped - Antigravity (agy) unavailable or not allowed]
+
+Problem: $def1
+
+Success Criteria: $def2
+
+Constraints: $def3"
+    fi
 
     cat > "$consensus_file" << EOF
 # GRASP Phase - Problem Definition Consensus
@@ -3497,9 +3521,16 @@ Compact source context to synthesize:
 $all_results"
 
     local delivery
-    delivery=$(OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="ink-delivery-watchdog" run_agent_sync "agy" "$synthesis_prompt" 0 "synthesizer" "ink") || {
+    if octo_provider_allowed agy && command -v agy >/dev/null 2>&1; then
+        if ! delivery=$(OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="ink-delivery-watchdog" run_agent_sync "agy" "$synthesis_prompt" 0 "synthesizer" "ink") || \
+            [[ ! "$delivery" =~ [^[:space:]] ]]; then
+            log WARN "Antigravity (agy) returned no usable delivery; using bounded fallback synthesis"
+            delivery=$(build_ink_fallback_delivery "$prompt" "$sonnet_review" "$all_results")
+        fi
+    else
+        log WARN "Antigravity (agy) unavailable or not allowed, using fallback delivery synthesis"
         delivery=$(build_ink_fallback_delivery "$prompt" "$sonnet_review" "$all_results")
-    }
+    fi
 
     # Step 3: Generate final document
     local delivery_file="${RESULTS_DIR}/delivery-${task_group}.md"
@@ -3674,11 +3705,15 @@ Return a concise gate review with:
         fi
     fi
     # Antigravity (agy) is the Google seat since the Gemini CLI sunset (#524)
-    if agy_view=$(run_agent_sync "agy" "$gate_prompt" 120 "researcher" "embrace-gate" 2>/dev/null); then
-        if [[ -n "$agy_view" ]]; then
-            agy_status="ok"
-            successful=$((successful + 1))
+    if octo_provider_allowed agy && command -v agy >/dev/null 2>&1; then
+        if agy_view=$(run_agent_sync "agy" "$gate_prompt" 120 "researcher" "embrace-gate" 2>/dev/null); then
+            if [[ -n "$agy_view" ]]; then
+                agy_status="ok"
+                successful=$((successful + 1))
+            fi
         fi
+    else
+        agy_status="skipped"
     fi
     if claude_view=$(run_agent_sync "claude-sonnet" "$gate_prompt" 120 "code-reviewer" "embrace-gate" 2>/dev/null); then
         if [[ -n "$claude_view" ]]; then
