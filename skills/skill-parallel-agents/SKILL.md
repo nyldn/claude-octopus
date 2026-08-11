@@ -599,6 +599,7 @@ The `tangle` phase enforces quality gates:
 | `agy-research` | service-selected default | Research-focused Antigravity seat |
 | `codex-review` | gpt-5.6-sol | Code review mode |
 | `openrouter` | Various | Universal fallback (400+ models) |
+| `orcarouter` | Various | Universal fallback via OrcaRouter gateway |
 
 ## Provider-Aware Routing (v4.8)
 
@@ -612,6 +613,7 @@ Claude Octopus now intelligently routes tasks based on your subscription tiers a
 | **Antigravity** | Google access/subscription | Included with access | code, analysis, external review |
 | **Claude** | Pro, Max 5x, Max 20x, API | $20-200 | code, chat, analysis, long-context |
 | **OpenRouter** | Pay-per-use | Variable | 400+ models, routing variants |
+| **OrcaRouter** | Pay-per-use | Variable | Single gateway, namespaced model IDs |
 
 ### Cost Optimization Strategies
 
@@ -673,6 +675,9 @@ providers:
     enabled: false
     routing_preference: "default"   # default|nitro|floor
 
+  orcarouter:
+    enabled: false
+
 cost_optimization:
   strategy: "balanced"  # cost-first|quality-first|balanced
 ```
@@ -684,6 +689,18 @@ OpenRouter provides 400+ models as a universal fallback when direct external CLI
 ```bash
 # Set up OpenRouter API key
 export OPENROUTER_API_KEY="sk-or-..."
+
+# Re-run setup to configure
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh setup
+```
+
+### OrcaRouter Fallback
+
+OrcaRouter provides a single gateway to many models as a universal fallback when direct external CLIs are unavailable:
+
+```bash
+# Set up OrcaRouter API key
+export ORCAROUTER_API_KEY="sk-orca-..."
 
 # Re-run setup to configure
 ${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh setup

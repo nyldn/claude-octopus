@@ -232,4 +232,10 @@ if [[ "${OCTOPUS_PREFLIGHT_PROBE:-0}" == "1" ]] && declare -f octo_provider_prob
     [ -n "${OPENROUTER_API_KEY:-}" ] && octo_provider_probe "openrouter" || true
 fi
 provider_status "openrouter" "$([ -n "${OPENROUTER_API_KEY:-}" ] && echo available || echo missing)"
+# orcarouter: API-key gateway (OpenAI-compatible), same shape as openrouter.
+if [[ "${OCTOPUS_PREFLIGHT_PROBE:-0}" == "1" ]] && declare -f octo_provider_probe >/dev/null 2>&1 \
+   && { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed "orcarouter"; }; then
+    [ -n "${ORCAROUTER_API_KEY:-}" ] && octo_provider_probe "orcarouter" || true
+fi
+provider_status "orcarouter" "$([ -n "${ORCAROUTER_API_KEY:-}" ] && echo available || echo missing)"
 echo "PROVIDER_CHECK_END"

@@ -917,6 +917,12 @@ check_provider_health() {
                 return 1
             fi
             ;;
+        orcarouter)
+            if [[ -z "${ORCAROUTER_API_KEY:-}" ]]; then
+                echo "orcarouter: ORCAROUTER_API_KEY not set" >&2
+                return 1
+            fi
+            ;;
         atlascloud)
             if [[ -z "${ATLASCLOUD_API_KEY:-}" ]]; then
                 resolve_provider_env "ATLASCLOUD_API_KEY" 2>/dev/null
@@ -1170,6 +1176,38 @@ EOF
     fi
 }
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# ORCAROUTER INTEGRATION
+# Universal fallback via the OrcaRouter gateway (https://www.orcarouter.ai),
+# which serves OpenAI-compatible /v1/chat/completions and accepts namespaced
+# model IDs (anthropic/*, deepseek/*, ...).
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Select OrcaRouter model based on task type
+get_orcarouter_model() {
+    local task_type="$1"
+    local complexity="${2:-2}"
+
+    case "$task_type" in
+        coding|review)
+            case "$complexity" in
+                3) echo "anthropic/claude-opus-4.8" ;;   # premium tier
+                1) echo "anthropic/claude-haiku-4.5" ;;
+                *) echo "anthropic/claude-sonnet-4.6" ;;
+            esac
+            ;;
+        image)
+            echo "anthropic/claude-sonnet-4.6"
+            ;;
+        research|design)
+            echo "anthropic/claude-sonnet-4.6"
+            ;;
+        *)
+            echo "anthropic/claude-sonnet-4.6"
+            ;;
+    esac
+}
+
 # ── agy_current_model: resolve the model the Antigravity CLI will actually use ──
 # agy-exec.sh runs `agy --print` with `--model default` (no --model flag) unless
 # OCTOPUS_AGY_MODEL is set, so agy uses whatever is selected in its own /model UI —
@@ -1242,6 +1280,11 @@ detect_providers() {
     # Detect OpenRouter (API key only)
     if { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed openrouter; } && [[ -n "${OPENROUTER_API_KEY:-}" ]]; then
         result="${result}openrouter:api-key "
+    fi
+
+    # Detect OrcaRouter (API key only)
+    if { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed orcarouter; } && [[ -n "${ORCAROUTER_API_KEY:-}" ]]; then
+        result="${result}orcarouter:api-key "
     fi
 
     # Detect generic OpenAI-compatible tool-loop provider (API key only)
@@ -1374,6 +1417,7 @@ detect_providers() {
         log WARN "  - Antigravity (Google seat): install agy, then launch plain agy and complete browser sign-in"
         log WARN "  - Claude: Available in Claude Code context"
         log WARN "  - OpenRouter: Set OPENROUTER_API_KEY environment variable"
+        log WARN "  - OrcaRouter: Set ORCAROUTER_API_KEY environment variable"
         log WARN "  - Atlas Cloud: Set ATLASCLOUD_API_KEY and ATLASCLOUD_MODEL"
         log WARN "  - Copilot: brew install copilot-cli (zero additional cost)"
         log WARN "  - Ollama: brew install ollama (free local LLM)"

@@ -28,6 +28,7 @@ PUBLIC_EXTERNAL_PROVIDERS = (
     ("Ollama", "Ollama"),
     ("Perplexity", "Perplexity API key"),
     ("OpenRouter", "OpenRouter API key"),
+    ("OrcaRouter", "OrcaRouter API key"),
     ("OpenCode", "OpenCode CLI"),
     ("Grok", "xAI API key (Grok)"),
 )

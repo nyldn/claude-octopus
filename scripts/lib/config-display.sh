@@ -107,6 +107,22 @@ show_config_summary() {
     fi
     echo ""
 
+    # OrcaRouter Status
+    echo -e "  ${CYAN}┌─ ORCAROUTER (Universal Fallback)${NC}"
+    if [[ "$PROVIDER_ORCAROUTER_ENABLED" == "true" && "$PROVIDER_ORCAROUTER_API_KEY_SET" == "true" ]]; then
+        echo -e "  ${CYAN}│${NC}  ${GREEN}✓${NC} Configured (Optional)"
+        if [[ -n "${ORCAROUTER_API_KEY:-}" ]]; then
+            local masked_orca_key
+            masked_orca_key=$(mask_api_key "$ORCAROUTER_API_KEY")
+            echo -e "  ${CYAN}│${NC}  API Key:   ${YELLOW}$masked_orca_key${NC}"
+        fi
+    else
+        echo -e "  ${CYAN}│${NC}  ${YELLOW}○${NC} Not configured (Optional)"
+        echo -e "  ${CYAN}│${NC}  ${YELLOW}→${NC} Sign up: ${CYAN}https://www.orcarouter.ai${NC}"
+        echo -e "  ${CYAN}│${NC}  ${YELLOW}→${NC} Set: ${CYAN}export ORCAROUTER_API_KEY='sk-orca-...'${NC}"
+    fi
+    echo ""
+
     # Cost Optimization Strategy
     echo -e "  ${CYAN}┌─ COST OPTIMIZATION${NC}"
     echo -e "  ${CYAN}│${NC}  Strategy:  ${GREEN}$COST_OPTIMIZATION_STRATEGY${NC}"
@@ -271,7 +287,7 @@ setup_wizard() {
     echo -e "  This wizard will help you install dependencies and configure API keys."
     echo ""
 
-    local total_steps=10
+    local total_steps=11
     local current_step=0
     local shell_profile=""
     local keys_to_add=""
@@ -291,6 +307,8 @@ setup_wizard() {
     PROVIDER_CLAUDE_COST_TIER="medium"
     PROVIDER_OPENROUTER_ENABLED="false"
     PROVIDER_OPENROUTER_API_KEY_SET="false"
+    PROVIDER_ORCAROUTER_ENABLED="false"
+    PROVIDER_ORCAROUTER_API_KEY_SET="false"
     COST_OPTIMIZATION_STRATEGY="balanced"
 
     # Detect shell profile
@@ -511,6 +529,46 @@ setup_wizard() {
             fi
         else
             echo -e "  ${YELLOW}⚠${NC} OpenRouter skipped. Add later: export OPENROUTER_API_KEY=\"your-key\""
+        fi
+    fi
+    echo ""
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # STEP 8b: OrcaRouter (Universal Fallback, OpenAI-compatible)
+    # ═══════════════════════════════════════════════════════════════════════════
+    ((++current_step))
+    echo -e "${CYAN}Step $current_step/$total_steps: OrcaRouter (Universal Fallback)${NC}"
+    echo -e "  ${YELLOW}OrcaRouter provides a single gateway to many models as a backup when other CLIs are unavailable.${NC}"
+    echo ""
+
+    if [[ -n "${ORCAROUTER_API_KEY:-}" ]]; then
+        PROVIDER_ORCAROUTER_ENABLED="true"
+        PROVIDER_ORCAROUTER_API_KEY_SET="true"
+        echo -e "  ${GREEN}✓${NC} ORCAROUTER_API_KEY already set"
+    else
+        if [[ "$NON_INTERACTIVE" == "true" ]]; then
+            echo -e "  ${YELLOW}⚠${NC} OrcaRouter not configured (optional - skipping in auto mode)"
+        else
+            echo -e "  ${YELLOW}✗${NC} ORCAROUTER_API_KEY not set (optional)"
+            echo ""
+            read -p "  Configure OrcaRouter? [y/N] " -n 1 -r
+            echo
+        fi
+        if [[ "${NON_INTERACTIVE}" != "true" ]] && [[ $REPLY =~ ^[Yy]$ ]]; then
+            echo -e "  ${CYAN}→${NC} Get an API key from: https://www.orcarouter.ai"
+            echo ""
+            read -p "  Paste your OrcaRouter API key (starts with 'sk-orca-'): " orcarouter_key
+            if [[ -n "$orcarouter_key" ]]; then
+                export ORCAROUTER_API_KEY="$orcarouter_key"
+                keys_to_add="${keys_to_add}export ORCAROUTER_API_KEY=\"$orcarouter_key\"\n"
+                PROVIDER_ORCAROUTER_ENABLED="true"
+                PROVIDER_ORCAROUTER_API_KEY_SET="true"
+                echo -e "  ${GREEN}✓${NC} ORCAROUTER_API_KEY set for this session"
+            else
+                echo -e "  ${YELLOW}⚠${NC} Skipped OrcaRouter configuration"
+            fi
+        else
+            echo -e "  ${YELLOW}⚠${NC} OrcaRouter skipped. Add later: export ORCAROUTER_API_KEY=\"your-key\""
         fi
     fi
     echo ""

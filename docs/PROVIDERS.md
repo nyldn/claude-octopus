@@ -32,7 +32,7 @@ Plus, usually:
 
 ## Current providers
 
-codex, agy (Antigravity, Google seat), claude, claude-sdk (Agent SDK seat), perplexity, openrouter, atlascloud, openai-compatible-agent, ollama, copilot, qwen, cursor-agent, grok, vibe, opencode.
+codex, agy (Antigravity, Google seat), claude, claude-sdk (Agent SDK seat), perplexity, openrouter, orcarouter, atlascloud, openai-compatible-agent, ollama, copilot, qwen, cursor-agent, grok, vibe, opencode.
 
 Retired `gemini` and `gemini-*` IDs are accepted only as compatibility aliases and canonicalize to `agy`. They are not executable providers, are never probed, and are not written to new configuration.
 

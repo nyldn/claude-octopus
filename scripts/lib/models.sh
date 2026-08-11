@@ -60,6 +60,10 @@ get_model_catalog() {
         moonshotai/kimi-k2.5)   echo "262|yes|yes|no|openrouter|standard|active" ;;
         deepseek/deepseek-v4-pro)  echo "1000|yes|no|yes|openrouter|standard|active" ;;
         deepseek/deepseek-r1-0528) echo "164|yes|no|yes|openrouter|standard|legacy" ;;
+        # OrcaRouter (gateway exposes anthropic/* namespace)
+        anthropic/claude-sonnet-4.6) echo "200|yes|yes|no|orcarouter|standard|active" ;;
+        anthropic/claude-opus-4.8)   echo "1000|yes|yes|yes|orcarouter|premium|active" ;;
+        anthropic/claude-haiku-4.5)  echo "200|yes|yes|yes|orcarouter|budget|active" ;;
         # OpenCode (multi-provider router — models use opencode/<model> namespace)
         opencode/deepseek-v4-flash-free) echo "128|yes|no|no|opencode|budget|active" ;;
         opencode/gpt-5.4)       echo "400|yes|yes|no|opencode|premium|active" ;;

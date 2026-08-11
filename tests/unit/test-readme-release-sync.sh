@@ -75,7 +75,7 @@ text = readme.read_text()
 text = re.sub(r"Version-\d+\.\d+\.\d+-blue", "Version-0.0.0-blue", text)
 text = re.sub(r"Version \d+\.\d+\.\d+", "Version 0.0.0", text)
 text = text.replace(
-    "supports nine external provider integrations",
+    "supports ten external provider integrations",
     "supports eight external provider integrations",
     1,
 )
@@ -106,7 +106,7 @@ plugin_readme.write_text(plugin_text)
 product = root / "PRODUCT.md"
 product_text = product.read_text()
 product_text = product_text.replace(
-    "up to 9 external AI integrations",
+    "up to 10 external AI integrations",
     "up to 8 AI CLIs",
 )
 # Any historical count line must normalise back to the stable phrase, so an
@@ -131,13 +131,13 @@ if "$SYNC_SCRIPT" --root "$fixture" >/tmp/octo-readme-sync-update.out 2>&1 &&
    "$SYNC_SCRIPT" --root "$fixture" --check >/tmp/octo-readme-sync-recheck.out 2>&1 &&
    grep -q "Version-${CURRENT_VERSION}-blue" "$fixture/README.md" &&
    grep -q "v${CURRENT_VERSION}.*(new)" "$fixture/README.md" &&
-   grep -q 'supports nine external provider integrations.*Grok' "$fixture/README.md" &&
+   grep -q 'supports ten external provider integrations.*Grok' "$fixture/README.md" &&
    grep -q 'GPT-5.6 Sol' "$fixture/README.md" &&
    grep -q 'Claude Opus 5' "$fixture/README.md" &&
    grep -q 'Claude Sonnet 5' "$fixture/README.md" &&
    grep -qE '[0-9]+ Claude Code capability flags through.*v[0-9]+\.[0-9]+\.[0-9]+' "$fixture/README.md" &&
    grep -q 'OpenCode CLI, and xAI API key (Grok)' "$fixture/.claude-plugin/README.md" &&
-   grep -q 'up to 9 external AI integrations' "$fixture/PRODUCT.md" &&
+   grep -q 'up to 10 external AI integrations' "$fixture/PRODUCT.md" &&
    grep -qF 'Local CI parity: `make ci-local` runs the same smoke, unit, and integration suites as CI' "$fixture/PRODUCT.md" &&
    ! grep -qE 'Local CI parity: [0-9]+ smoke' "$fixture/PRODUCT.md" &&
    ! grep -qE 'Version-0\.0\.0-blue|stale release copy|v2\.1\.157' "$fixture/README.md"; then
@@ -197,11 +197,11 @@ else
     test_fail "model-config command still presents pre-GPT-5.6 defaults"
 fi
 
-test_case "public documentation names all nine external integrations"
-if grep -q 'nine external provider integrations' "$PROJECT_ROOT/README.md" &&
-   grep -q 'Up to nine external AI integrations' "$PROJECT_ROOT/.claude-plugin/README.md" &&
+test_case "public documentation names all ten external integrations"
+if grep -q 'ten external provider integrations' "$PROJECT_ROOT/README.md" &&
+   grep -q 'Up to ten external AI integrations' "$PROJECT_ROOT/.claude-plugin/README.md" &&
    grep -q 'Grok' "$PROJECT_ROOT/.claude-plugin/README.md" &&
-   grep -q 'nine external AI integrations' "$PROJECT_ROOT/docs/ARCHITECTURE.md"; then
+   grep -q 'ten external AI integrations' "$PROJECT_ROOT/docs/ARCHITECTURE.md"; then
     test_pass
 else
     test_fail "provider count/list differs across public documentation"

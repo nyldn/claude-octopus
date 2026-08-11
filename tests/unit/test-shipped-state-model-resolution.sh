@@ -85,6 +85,17 @@ test_bare_openrouter_no_config() {
     fi
 }
 
+test_bare_orcarouter_no_config() {
+    test_case "bare orcarouter resolves to a namespaced OrcaRouter ID with no config"
+    local resolved
+    resolved="$(_resolve_in_empty_home orcarouter orcarouter)"
+    if [[ "$resolved" == "anthropic/claude-sonnet-4.6" ]]; then
+        test_pass
+    else
+        test_fail "expected anthropic/claude-sonnet-4.6, got: '$resolved'"
+    fi
+}
+
 test_vibe_no_config() {
     test_case "vibe resolves to its own default (config lives in ~/.vibe/config.toml), not an OpenAI model"
     local resolved
@@ -127,6 +138,7 @@ test_registry_providers_do_not_inherit_codex_default() {
 test_grok_no_config
 test_grok_dispatch_resolution_no_config
 test_bare_openrouter_no_config
+test_bare_orcarouter_no_config
 test_vibe_no_config
 test_atlascloud_no_config_fails_closed
 test_registry_providers_do_not_inherit_codex_default

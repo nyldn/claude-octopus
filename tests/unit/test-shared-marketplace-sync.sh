@@ -188,7 +188,7 @@ test_release_description_uses_current_summary() {
 test_readme_provider_and_cost_contract() {
     test_case "README defines provider counting and auditable cost assumptions"
 
-    if grep -q 'nine external provider integrations' "$PROJECT_ROOT/README.md" &&
+    if grep -q 'ten external provider integrations' "$PROJECT_ROOT/README.md" &&
        ! grep -q 'Up to 9 providers' "$PROJECT_ROOT/README.md" &&
        grep -q 'developers.openai.com/api/docs/models/gpt-5.6-sol' "$PROJECT_ROOT/README.md" &&
        grep -q 'docs.perplexity.ai/docs/getting-started/pricing' "$PROJECT_ROOT/README.md" &&

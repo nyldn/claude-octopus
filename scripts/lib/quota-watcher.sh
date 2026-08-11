@@ -261,6 +261,15 @@ octo_provider_probe() {
                 -H "Authorization: Bearer ${OPENROUTER_API_KEY}" \
                 2>/dev/null) || curl_exit=$?
             ;;
+        orcarouter)
+            [[ -n "${ORCAROUTER_API_KEY:-}" ]] || return 0
+            # GET /v1/models returns 200 with model list or 401 on bad key.
+            http_code=$(curl -s -o /dev/null -w "%{http_code}" \
+                --max-time 10 \
+                -X GET "https://api.orcarouter.ai/v1/models" \
+                -H "Authorization: Bearer ${ORCAROUTER_API_KEY}" \
+                2>/dev/null) || curl_exit=$?
+            ;;
         *)
             # Unknown provider: no probe defined, fail open.
             return 0

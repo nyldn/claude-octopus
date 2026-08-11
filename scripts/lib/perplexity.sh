@@ -169,6 +169,171 @@ openrouter_execute() {
     openrouter_execute_model "$model" "$prompt" "$task_type" "$complexity" "$output_file"
 }
 
+# OrcaRouter model-specific agent wrapper
+# Mirrors openrouter_execute_model against the OrcaRouter gateway
+# (https://api.orcarouter.ai), which is OpenAI-compatible on
+# /v1/chat/completions and accepts namespaced model IDs (anthropic/*, etc.).
+# First arg is the fixed model ID, remaining args are prompt/task/complexity/output
+# Features: --max-time 60, HTTP status code handling (429 retry w/ Retry-After,
+#           502/503/524 error reporting)
+orcarouter_execute_model() {
+    local model="$1"
+    local prompt="$2"
+    local task_type="${3:-general}"
+    local complexity="${4:-2}"
+    local output_file="${5:-}"
+
+    # stdin fallback: probe_single_agent pipes prompt via stdin (#305)
+    if [[ -z "$prompt" && ! -t 0 ]]; then
+        prompt=$(cat)
+    fi
+
+    if [[ -z "${ORCAROUTER_API_KEY:-}" ]]; then
+        log ERROR "ORCAROUTER_API_KEY not set"
+        return 1
+    fi
+
+    [[ "$VERBOSE" == "true" ]] && log DEBUG "OrcaRouter request: model=$model" || true
+
+    # Build JSON payload
+    local escaped_prompt
+    escaped_prompt=$(json_escape "$prompt")
+
+    local payload
+    payload=$(cat << EOF
+{
+  "model": "$model",
+  "messages": [
+    {"role": "user", "content": "$escaped_prompt"}
+  ]
+}
+EOF
+)
+
+    # Temporary file for response headers (needed for Retry-After parsing)
+    local header_file
+    header_file=$(mktemp "${TMPDIR:-/tmp}/octo-orca-headers.XXXXXX")
+
+    local raw_response http_code response
+    local attempt=0
+    local max_attempts=2  # Initial + 1 retry on 429
+
+    while (( attempt < max_attempts )); do
+        raw_response=$(curl -s -X POST "https://api.orcarouter.ai/v1/chat/completions" \
+            --max-time 60 \
+            -w "%{http_code}" \
+            -D "$header_file" \
+            -H "Authorization: Bearer ${ORCAROUTER_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -H "Connection: keep-alive" \
+            -H "HTTP-Referer: https://github.com/nyldn/claude-octopus" \
+            -H "X-Title: Claude Octopus" \
+            -d "$payload") || {
+            log ERROR "OrcaRouter curl failed (timeout or network error, model=$model)"
+            rm -f "$header_file"
+            return 1
+        }
+
+        # Split response body from HTTP status code (last 3 chars)
+        http_code="${raw_response: -3}"
+        response="${raw_response:0:${#raw_response}-3}"
+
+        case "$http_code" in
+            200) break ;;  # Success
+            429)
+                if (( attempt + 1 >= max_attempts )); then
+                    log ERROR "OrcaRouter rate limited (429) after retry (model=$model)"
+                    rm -f "$header_file"
+                    return 1
+                fi
+                # Parse Retry-After header (seconds); default to 5s if absent
+                local retry_after=5
+                local header_val
+                header_val=$(grep -i '^retry-after:' "$header_file" 2>/dev/null | tr -d '\r' | sed 's/[^:]*: *//' | head -n1) || true
+                if [[ -n "$header_val" && "$header_val" =~ ^[0-9]+$ ]]; then
+                    retry_after="$header_val"
+                    # Cap at 30s to avoid hanging
+                    (( retry_after > 30 )) && retry_after=30
+                fi
+                log WARN "OrcaRouter rate limited (429), retrying in ${retry_after}s (model=$model)"
+                sleep "$retry_after"
+                ;;
+            502)
+                log ERROR "OrcaRouter bad gateway (502) — upstream provider down (model=$model)"
+                rm -f "$header_file"
+                return 1
+                ;;
+            503)
+                log ERROR "OrcaRouter service unavailable (503) — model may be overloaded (model=$model)"
+                rm -f "$header_file"
+                return 1
+                ;;
+            524)
+                log ERROR "OrcaRouter timeout (524) — upstream request took too long (model=$model)"
+                rm -f "$header_file"
+                return 1
+                ;;
+            *)
+                if [[ "${http_code:0:1}" != "2" ]]; then
+                    log ERROR "OrcaRouter HTTP $http_code (model=$model)"
+                    rm -f "$header_file"
+                    return 1
+                fi
+                break ;;
+        esac
+        (( attempt++ ))
+    done
+
+    rm -f "$header_file"
+
+    # Extract content from OpenAI-compatible nested path .choices[0].message.content.
+    local content=""
+    if command -v jq &>/dev/null; then
+        content=$(printf '%s' "$response" | jq -re '.choices[0].message.content // empty' 2>/dev/null) || content=""
+    fi
+
+    if [[ -z "$content" ]]; then
+        if [[ "$response" =~ \"error\":\{([^\}]*)\} ]]; then
+            log ERROR "OrcaRouter error: ${BASH_REMATCH[1]}"
+            return 1
+        fi
+        log WARN "Empty response from OrcaRouter ($model)"
+        echo "$response"
+    else
+        local result
+        result=$(echo "$content" | sed 's/\\n/\n/g; s/\\t/\t/g; s/\\"/"/g')
+        if [[ -n "$output_file" ]]; then
+            echo "$result" > "$output_file"
+        else
+            echo "$result"
+        fi
+    fi
+}
+
+# OrcaRouter agent wrapper for spawn_agent compatibility
+# Resolves model from task_type/complexity, then calls the core implementation
+orcarouter_execute() {
+    local prompt="$1"
+    local task_type="${2:-general}"
+
+    # stdin fallback: probe_single_agent pipes prompt via stdin (#305)
+    if [[ -z "$prompt" && ! -t 0 ]]; then
+        prompt=$(cat)
+    fi
+    local complexity="${3:-2}"
+    local output_file="${4:-}"
+
+    # Prefer the configured model (OCTOPUS_ORCAROUTER_MODEL / providers.json) over
+    # the hardcoded task-type table, so the roster's advertised model actually runs.
+    local model="${OCTOPUS_ORCAROUTER_MODEL:-}"
+    if [[ -z "$model" ]] && declare -f resolve_octopus_model >/dev/null 2>&1; then
+        model="$(resolve_octopus_model orcarouter orcarouter "" "" 2>/dev/null || true)"
+    fi
+    [[ -z "$model" ]] && model=$(get_orcarouter_model "$task_type" "$complexity")
+
+    orcarouter_execute_model "$model" "$prompt" "$task_type" "$complexity" "$output_file"
+}
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # PERPLEXITY SONAR API (v8.24.0 - Issue #22)
 # Web-grounded research provider — live internet search with citations

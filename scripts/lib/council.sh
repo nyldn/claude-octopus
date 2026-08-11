@@ -2433,6 +2433,16 @@ council_detect_providers() {
                         status="missing"
                     fi
                     ;;
+                orcarouter)
+                    # API-key provider, not a CLI binary — no `orcarouter` executable
+                    # ships with the plugin. Dispatch goes through the shell function
+                    # orcarouter_execute, so probe the key instead of `command -v`.
+                    if [[ -n "${ORCAROUTER_API_KEY:-}" ]]; then
+                        status="available"
+                    else
+                        status="missing"
+                    fi
+                    ;;
                 *)
                     cmd="$(council_provider_command "$provider")"
                     if command -v "$cmd" >/dev/null 2>&1; then

@@ -20,6 +20,7 @@ agy|antigravity*,gemini,gemini-*|agy|google|model-config,council,health,detect,d
 perplexity||perplexity|perplexity|model-config,health,detect,dispatch,env
 opencode||opencode|opencode|model-config,council,detect,dispatch,env
 openrouter||openrouter|openrouter|model-config,council,health,detect,dispatch,env
+orcarouter||orcarouter|orcarouter|model-config,council,health,detect,dispatch,env
 atlascloud|atlas,atlas-cloud|atlascloud|atlascloud|model-config,health,detect,dispatch,env
 openai-compatible||openai-compatible|openai-compatible|model-config,council,detect,dispatch,env
 openai-tools||openai-compatible|openai-compatible|model-config,council,dispatch,env

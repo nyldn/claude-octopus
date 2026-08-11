@@ -9,7 +9,7 @@ _provider_policy_registry_dir="$(cd "$_provider_policy_registry_dir" && pwd)"
 source "${_provider_policy_registry_dir}/provider-registry.sh" 2>/dev/null || true
 
 OCTOPUS_COUNCIL_DEFAULT_PROVIDERS_DEFAULT="claude,codex,agy,qwen,opencode,openrouter,openai-compatible,openai-tools"
-OCTOPUS_SMOKE_ROUTING_PROVIDERS_DEFAULT="codex agy claude opencode openrouter"
+OCTOPUS_SMOKE_ROUTING_PROVIDERS_DEFAULT="codex agy claude opencode openrouter orcarouter"
 
 octo_validate_provider_policy_list() {
     local raw="$1" capability="$2" label="$3"

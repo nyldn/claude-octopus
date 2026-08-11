@@ -42,6 +42,10 @@ PROVIDER_OPENROUTER_API_KEY_SET="false"
 PROVIDER_OPENROUTER_ROUTING_PREF="default"
 PROVIDER_OPENROUTER_PRIORITY=99
 
+PROVIDER_ORCAROUTER_ENABLED="false"
+PROVIDER_ORCAROUTER_API_KEY_SET="false"
+PROVIDER_ORCAROUTER_PRIORITY=99
+
 # Cost optimization strategy: cost-first, quality-first, balanced
 COST_OPTIMIZATION_STRATEGY="balanced"
 
@@ -72,6 +76,9 @@ get_provider_capabilities() {
             echo "code,chat,analysis"
             ;;
         openrouter)
+            echo "code,chat,vision,analysis,long-context"
+            ;;
+        orcarouter)
             echo "code,chat,vision,analysis,long-context"
             ;;
         *)
@@ -105,6 +112,9 @@ get_provider_context_limit() {
             echo "128000"  # Varies by backend model (generic)
             ;;
         openrouter:*)
+            echo "128000"  # Varies by model (generic)
+            ;;
+        orcarouter:*)
             echo "128000"  # Varies by model (generic)
             ;;
         openrouter-glm5:*)
@@ -142,7 +152,7 @@ load_providers_config() {
         [[ -z "${line// }" ]] && continue
 
         # Detect provider section headers (e.g., "  codex:")
-        if [[ "$line" =~ ^[[:space:]]*(codex|agy|claude|opencode|openrouter): ]]; then
+        if [[ "$line" =~ ^[[:space:]]*(codex|agy|claude|opencode|openrouter|orcarouter): ]]; then
             current_provider="${BASH_REMATCH[1]}"
             continue
         fi
@@ -207,6 +217,13 @@ load_providers_config() {
                         priority) PROVIDER_OPENROUTER_PRIORITY="$value" ;;
                     esac
                     ;;
+                orcarouter)
+                    case "$key" in
+                        enabled) PROVIDER_ORCAROUTER_ENABLED="$value" ;;
+                        api_key_set) PROVIDER_ORCAROUTER_API_KEY_SET="$value" ;;
+                        priority) PROVIDER_ORCAROUTER_PRIORITY="$value" ;;
+                    esac
+                    ;;
                 cost_optimization)
                     case "$key" in
                         strategy) COST_OPTIMIZATION_STRATEGY="$value" ;;
@@ -251,6 +268,10 @@ load_providers_config() {
     PROVIDER_OPENROUTER_API_KEY_SET="${PROVIDER_OPENROUTER_API_KEY_SET:-false}"
     PROVIDER_OPENROUTER_ROUTING_PREF="${PROVIDER_OPENROUTER_ROUTING_PREF:-default}"
     PROVIDER_OPENROUTER_PRIORITY="${PROVIDER_OPENROUTER_PRIORITY:-99}"
+
+    PROVIDER_ORCAROUTER_ENABLED="${PROVIDER_ORCAROUTER_ENABLED:-false}"
+    PROVIDER_ORCAROUTER_API_KEY_SET="${PROVIDER_ORCAROUTER_API_KEY_SET:-false}"
+    PROVIDER_ORCAROUTER_PRIORITY="${PROVIDER_ORCAROUTER_PRIORITY:-99}"
 
     COST_OPTIMIZATION_STRATEGY="${COST_OPTIMIZATION_STRATEGY:-balanced}"
 
@@ -297,6 +318,10 @@ auto_detect_provider_config() {
             openrouter)
                 PROVIDER_OPENROUTER_ENABLED="true"
                 PROVIDER_OPENROUTER_API_KEY_SET="true"
+                ;;
+            orcarouter)
+                PROVIDER_ORCAROUTER_ENABLED="true"
+                PROVIDER_ORCAROUTER_API_KEY_SET="true"
                 ;;
         esac
     done
@@ -546,6 +571,11 @@ providers:
     routing_preference: "$PROVIDER_OPENROUTER_ROUTING_PREF"
     priority: $PROVIDER_OPENROUTER_PRIORITY
 
+  orcarouter:
+    enabled: $PROVIDER_ORCAROUTER_ENABLED
+    api_key_set: $PROVIDER_ORCAROUTER_API_KEY_SET
+    priority: $PROVIDER_ORCAROUTER_PRIORITY
+
 cost_optimization:
   strategy: "$COST_OPTIMIZATION_STRATEGY"
 EOF
@@ -598,6 +628,12 @@ score_provider() {
             cost_tier="pay-per-use"
             sub_tier="api-only"
             priority="$PROVIDER_OPENROUTER_PRIORITY"
+            ;;
+        orcarouter)
+            [[ "$PROVIDER_ORCAROUTER_ENABLED" == "true" && "$PROVIDER_ORCAROUTER_API_KEY_SET" == "true" ]] && is_available="true"
+            cost_tier="pay-per-use"
+            sub_tier="api-only"
+            priority="$PROVIDER_ORCAROUTER_PRIORITY"
             ;;
     esac
 
@@ -743,6 +779,8 @@ select_provider() {
             echo "agy"
         elif [[ "$PROVIDER_OPENROUTER_ENABLED" == "true" ]]; then
             echo "openrouter"
+        elif [[ "$PROVIDER_ORCAROUTER_ENABLED" == "true" ]]; then
+            echo "orcarouter"
         else
             echo "codex"  # Default fallback
         fi
@@ -789,6 +827,11 @@ show_provider_status() {
     local openrouter_status="${RED}✗${NC}"
     [[ "$PROVIDER_OPENROUTER_ENABLED" == "true" ]] && openrouter_status="${GREEN}✓${NC}"
     echo -e "${CYAN}║${NC}  OpenRouter:     $openrouter_status  [api-key]  $PROVIDER_OPENROUTER_ROUTING_PREF (pay-per-use)  ${CYAN}║${NC}"
+
+    # OrcaRouter
+    local orcarouter_status="${RED}✗${NC}"
+    [[ "$PROVIDER_ORCAROUTER_ENABLED" == "true" ]] && orcarouter_status="${GREEN}✓${NC}"
+    echo -e "${CYAN}║${NC}  OrcaRouter:     $orcarouter_status  [api-key]  pay-per-use  ${CYAN}║${NC}"
 
     # Perplexity (v8.24.0)
     local perplexity_status="${RED}✗${NC}"

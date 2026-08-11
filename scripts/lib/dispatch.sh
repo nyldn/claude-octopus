@@ -298,6 +298,7 @@ get_agent_command() {
             ;;
         claude-opus-legacy) echo "${_claude_bin}${_BARE_OPT} --print --model claude-opus-4-6 ${claude_perm}" ;; # v9.23: explicit 4.6 opt-in
         openrouter) echo "openrouter_execute" ;;                 # OpenRouter API (v4.8)
+        orcarouter) echo "orcarouter_execute" ;;                 # OrcaRouter gateway (OpenAI-compatible)
         openrouter-glm5) echo "openrouter_execute_model z-ai/glm-5" ;;           # v8.11.0: GLM-5 via OpenRouter
         openrouter-kimi) echo "openrouter_execute_model moonshotai/kimi-k2.5" ;; # v8.11.0: Kimi K2.5 via OpenRouter
         openrouter-deepseek) echo "openrouter_execute_model deepseek/deepseek-v4-pro" ;;
@@ -519,6 +520,7 @@ get_provider_context_limit() {
         claude)     echo "${OCTOPUS_CLAUDE_CONTEXT_BUDGET:-${default_budget}}" ;;
         perplexity) echo "${OCTOPUS_PERPLEXITY_CONTEXT_BUDGET:-${default_budget}}" ;;
         openrouter) echo "${OCTOPUS_OPENROUTER_CONTEXT_BUDGET:-${default_budget}}" ;;
+        orcarouter) echo "${OCTOPUS_ORCAROUTER_CONTEXT_BUDGET:-${default_budget}}" ;;
         atlascloud) echo "${OCTOPUS_ATLASCLOUD_CONTEXT_BUDGET:-${default_budget}}" ;;
         copilot)    echo "${OCTOPUS_COPILOT_CONTEXT_BUDGET:-${default_budget}}" ;;
         qwen)       echo "${OCTOPUS_QWEN_CONTEXT_BUDGET:-${default_budget}}" ;;
@@ -702,6 +704,7 @@ get_agent_model() {
         claude-sdk*) provider="claude-sdk" ;;  # v9.50.0: must precede claude* glob
         claude*)     provider="claude" ;;
         openrouter*) provider="openrouter" ;;
+        orcarouter*) provider="orcarouter" ;;
         atlascloud*) provider="atlascloud" ;;
         openai-compatible|openai-tools|openai-compatible-agent*) provider="openai-compatible-agent" ;;
         commandcode*) provider="commandcode" ;;
@@ -755,6 +758,7 @@ validate_model_allowed() {
         claude-sdk) allowlist_var="OCTOPUS_CLAUDE_SDK_ALLOWED_MODELS" ;;
         claude)     allowlist_var="OCTOPUS_CLAUDE_ALLOWED_MODELS" ;;
         openrouter) allowlist_var="OCTOPUS_OPENROUTER_ALLOWED_MODELS" ;;
+        orcarouter) allowlist_var="OCTOPUS_ORCAROUTER_ALLOWED_MODELS" ;;
         atlascloud) allowlist_var="ATLASCLOUD_ALLOWED_MODELS" ;;
         openai-compatible|openai-tools|openai-compatible-agent) allowlist_var="OPENAI_COMPAT_ALLOWED_MODELS" ;;
         perplexity) allowlist_var="OCTOPUS_PERPLEXITY_ALLOWED_MODELS" ;;
@@ -939,6 +943,8 @@ find_capable_fallback() {
             candidates=(claude-haiku-4.5 claude-sonnet-5 claude-opus-4.8 claude-opus-5) ;;
         openrouter)
             candidates=(z-ai/glm-5 moonshotai/kimi-k2.5 deepseek/deepseek-v4-pro deepseek/deepseek-r1-0528) ;;
+        orcarouter)
+            candidates=(anthropic/claude-haiku-4.5 anthropic/claude-sonnet-4.6 anthropic/claude-opus-4.8) ;;
         perplexity)
             candidates=(sonar sonar-pro) ;;
         cursor-agent)

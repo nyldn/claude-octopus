@@ -220,6 +220,13 @@ _octo_build_provider_env_impl() {
             fi
             return 0
             ;;
+        orcarouter*)
+            # orcarouter_execute is a shell function — env -i cannot exec it (#300)
+            if [[ -z "${ORCAROUTER_API_KEY:-}" ]]; then
+                resolve_provider_env "ORCAROUTER_API_KEY" 2>/dev/null || true
+            fi
+            return 0
+            ;;
         claude-sdk*)
             # v9.50.0: Agent SDK seat — the shim strips session markers and sets
             # ANTHROPIC_API_KEY itself; just make sure the SDK key is resolvable.

@@ -183,7 +183,7 @@ validate_model_name_for_provider() {
 
 _octo_is_known_provider_name() {
     case "$1" in
-        codex|claude|perplexity|qwen|copilot|opencode|ollama|openrouter|cursor-agent|commandcode|vibe|agy|agy-research|antigravity)
+        codex|claude|perplexity|qwen|copilot|opencode|ollama|openrouter|orcarouter|cursor-agent|commandcode|vibe|agy|agy-research|antigravity)
             return 0 ;;
         *)
             return 1 ;;
@@ -513,6 +513,7 @@ resolve_octopus_model() {
             openrouter-kimi*) resolved_model="moonshotai/kimi-k2.5" ;;
             openrouter-deepseek*) resolved_model="deepseek/deepseek-v4-pro" ;;
             openrouter)      resolved_model="anthropic/claude-sonnet-4" ;; # bare OpenRouter needs a namespaced ID, not an OpenAI model string (#797)
+            orcarouter*)     resolved_model="anthropic/claude-sonnet-4.6" ;; # bare OrcaRouter needs a namespaced ID, not an OpenAI model string (#797)
             openai-compatible|openai-tools|openai-compatible-agent*)
                 if [[ -z "${OPENAI_COMPAT_MODEL:-}" ]]; then
                     log ERROR "OPENAI_COMPAT_MODEL or providers.json openai-compatible-agent.default is required"
@@ -630,6 +631,9 @@ is_agent_available_v2() {
             ;;
         openrouter|openrouter-*)
             [[ "$PROVIDER_OPENROUTER_ENABLED" == "true" && "$PROVIDER_OPENROUTER_API_KEY_SET" == "true" ]]
+            ;;
+        orcarouter|orcarouter-*)
+            [[ "$PROVIDER_ORCAROUTER_ENABLED" == "true" && "$PROVIDER_ORCAROUTER_API_KEY_SET" == "true" ]]
             ;;
         openai-compatible|openai-tools|openai-compatible-agent*)
             declare -f openai_compatible_is_available >/dev/null 2>&1 && openai_compatible_is_available
