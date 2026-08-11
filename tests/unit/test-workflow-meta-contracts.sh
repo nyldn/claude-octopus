@@ -90,7 +90,7 @@ else
 fi
 
 test_case "Discovery project persistence fails closed on every lifecycle write"
-discover_pre=$(sed -n '/^## Pre-Discovery: Optional Project Persistence/,/^---$/p' "$DISCOVER")
+discover_pre=$(sed -n '/^## Pre-Discovery: Optional Project Persistence/,/^## /p' "$DISCOVER")
 discover_pre_code=$(extract_bash_fence <<< "$discover_pre")
 discover_post_code=$(extract_bash_fence <<< "$discover_block")
 persistence_home="$TEST_TMP_DIR/persistence-home"
@@ -104,6 +104,21 @@ cat > "$persistence_home/.claude-octopus/plugin/scripts/octo-state.sh" <<'EOF'
 exit 0
 EOF
 chmod +x "$persistence_home/.claude-octopus/plugin/scripts/octo-state.sh"
+
+persistence_baseline_ok=true
+for lifecycle_code in "$discover_pre_code" "$discover_post_code"; do
+    if ! (
+        cd "$persistence_project"
+        rm -rf .octo
+        HOME="$persistence_home" \
+        OCTOPUS_PROJECT_PERSISTENCE=true \
+        SYNTHESIS_FILE="$persistence_synthesis" \
+        bash -c "$lifecycle_code"
+    ) >/dev/null 2>&1; then
+        persistence_baseline_ok=false
+        break
+    fi
+done
 
 persistence_failed_closed=true
 for lifecycle_case in init_project pre_update_state update_project post_update_state; do
@@ -126,7 +141,9 @@ for lifecycle_case in init_project pre_update_state update_project post_update_s
         break
     fi
 done
-if [[ "$persistence_failed_closed" == "true" ]]; then
+if [[ "$persistence_baseline_ok" != "true" ]]; then
+    test_fail "Discover persistence fixture never succeeds; failure injection would prove nothing"
+elif [[ "$persistence_failed_closed" == "true" ]]; then
     test_pass
 else
     test_fail "Discover persistence continued after $lifecycle_case failed"
