@@ -23,6 +23,13 @@ source "${SCRIPT_DIR}/../lib/cursor-agent.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/../lib/grok.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/../lib/provider-allowlist.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/../lib/auth.sh" 2>/dev/null || true   # octo_oauth_token_valid (oco-dar)
+# provider-routing owns the non-interactive shell/profile credential resolver.
+# It normally logs through orchestrate.sh; this standalone status helper stays
+# quiet because its stdout is a machine-readable provider-state protocol.
+if ! declare -f log >/dev/null 2>&1; then
+    log() { :; }
+fi
+source "${SCRIPT_DIR}/../lib/provider-routing.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/../lib/qwen.sh" 2>/dev/null || true   # qwen_is_usable (oco-dar)
 source "${SCRIPT_DIR}/../lib/openai-compatible.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/../lib/events.sh" 2>/dev/null || true  # opt-in JSONL lifecycle stream
@@ -133,6 +140,10 @@ provider_status "claude-sdk" "$claude_sdk_state"
 
 vibe_state="missing"
 if command -v vibe >/dev/null 2>&1; then
+    if ! _octo_value_has_nonwhitespace "${MISTRAL_API_KEY:-}" && \
+       declare -f resolve_provider_env >/dev/null 2>&1; then
+        resolve_provider_env "MISTRAL_API_KEY" 2>/dev/null || true
+    fi
     if _octo_value_has_nonwhitespace "${MISTRAL_API_KEY:-}" || \
        _octo_assignment_has_nonempty_value "${HOME}/.vibe/.env" "MISTRAL_API_KEY" || \
        _octo_assignment_has_nonempty_value "${HOME}/.vibe/config.toml" "api_key"; then

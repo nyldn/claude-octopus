@@ -699,14 +699,29 @@ test_agy_preflight_visibility() {
 }
 
 test_agy_fleet_builder() {
-    test_case "build-fleet includes agy as distinct provider family"
+    test_case "runtime admission seats agy in the fleet"
 
-    if grep -q 'google-antigravity' "$PROJECT_ROOT/scripts/helpers/build-fleet.sh" && \
-       grep -q 'for _provider in codex commandcode grok agy' "$PROJECT_ROOT/scripts/helpers/build-fleet.sh" && \
-       grep -q 'provider_status "agy"' "$PROJECT_ROOT/scripts/helpers/check-providers.sh"; then
+    local fixture_home="$TEST_TMP_DIR/agy-admission-home"
+    local fixture_bin="$TEST_TMP_DIR/agy-admission-bin"
+    local status fleet
+    mkdir -p "$fixture_home" "$fixture_bin"
+    printf '#!/usr/bin/env bash\nexit 0\n' > "$fixture_bin/agy"
+    chmod +x "$fixture_bin/agy"
+    status=$(env \
+        "HOME=$fixture_home" \
+        "PATH=$fixture_bin:/usr/bin:/bin" \
+        "OCTO_ALLOWED_PROVIDERS=agy" \
+        bash "$PROJECT_ROOT/scripts/helpers/check-providers.sh" 2>/dev/null)
+    fleet=$(env \
+        "HOME=$fixture_home" \
+        "PATH=$fixture_bin:/usr/bin:/bin" \
+        "OCTO_ALLOWED_PROVIDERS=agy" \
+        "$PROJECT_ROOT/scripts/helpers/build-fleet.sh" research quick fixture 2>/dev/null)
+
+    if grep -q '^agy:available$' <<< "$status" && grep -q '^agy|' <<< "$fleet"; then
         test_pass
     else
-        test_fail "build-fleet.sh should include agy provider family and availability"
+        test_fail "AGY admission or fleet seating failed: status=$status fleet=$fleet"
     fi
 }
 

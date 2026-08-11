@@ -54,7 +54,14 @@ get_family() {
 # and fleet construction. Do not duplicate binary/auth probes here: that was the
 # source of #799's green-banner/failed-dispatch split.
 AVAILABLE_CLI=()
-PROVIDER_STATUS_OUTPUT="$(bash "${SCRIPT_DIR}/check-providers.sh" 2>/dev/null || true)"
+PROVIDER_CHECKER="${OCTOPUS_PROVIDER_CHECKER:-${SCRIPT_DIR}/check-providers.sh}"
+if PROVIDER_STATUS_OUTPUT="$(bash "$PROVIDER_CHECKER" 2>/dev/null)"; then
+    :
+else
+    provider_checker_status=$?
+    echo "ERROR: provider admission check failed: $PROVIDER_CHECKER" >&2
+    exit "$provider_checker_status"
+fi
 
 provider_status_is_available() {
     local provider="$1"

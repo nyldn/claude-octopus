@@ -62,6 +62,15 @@ else
     test_fail "Vibe trusted a blank config credential"
 fi
 
+printf 'export MISTRAL_API_KEY=profile-fixture-key\n' > "$FAKE_HOME/.profile"
+test_case "Vibe resolves a profile-backed credential before admission"
+if [[ "$(provider_state vibe)" == "vibe:available" ]]; then
+    test_pass
+else
+    test_fail "Vibe ignored a profile-backed credential"
+fi
+rm -f "$FAKE_HOME/.profile"
+
 printf 'api_key = "fixture#value" # valid quoted hash\n' > "$FAKE_HOME/.vibe/config.toml"
 test_case "Vibe accepts a nonblank quoted credential"
 if [[ "$(provider_state vibe)" == "vibe:available" ]]; then
@@ -82,6 +91,34 @@ if [[ "$(provider_state openai-compatible OPENAI_COMPAT_BASE_URL=https://example
     test_pass
 else
     test_fail "complete OpenAI-compatible configuration was not available"
+fi
+
+test_case "OpenAI-compatible provider rejects whitespace-only configuration"
+whitespace_states="$(
+    provider_state openai-compatible OPENAI_COMPAT_BASE_URL='   ' OPENAI_COMPAT_API_KEY=fixture-key
+    provider_state openai-compatible OPENAI_COMPAT_BASE_URL=https://example.test/v1 OPENAI_COMPAT_API_KEY='   '
+    provider_state openai-compatible OPENAI_COMPAT_BASE_URL=https://example.test/v1 OPENAI_COMPAT_API_KEY_ENV=CUSTOM_KEY CUSTOM_KEY='   '
+)"
+if [[ "$(grep -c '^openai-compatible:degraded$' <<< "$whitespace_states")" -eq 3 ]]; then
+    test_pass
+else
+    test_fail "whitespace-only OpenAI-compatible settings were admitted: $whitespace_states"
+fi
+
+failing_checker="$TEST_TMP_DIR/failing-provider-checker.sh"
+printf '#!/usr/bin/env bash\nexit 23\n' > "$failing_checker"
+chmod +x "$failing_checker"
+test_case "fleet fails closed when the shared provider checker fails"
+if checker_error=$(env \
+    "HOME=$FAKE_HOME" \
+    "PATH=$FAKE_BIN:/usr/bin:/bin" \
+    "OCTOPUS_PROVIDER_CHECKER=$failing_checker" \
+    "$BUILD_FLEET" research quick fixture 2>&1); then
+    test_fail "fleet ignored a failed provider admission gate"
+elif grep -q 'provider admission check failed' <<< "$checker_error"; then
+    test_pass
+else
+    test_fail "fleet failed without reporting the provider gate: $checker_error"
 fi
 
 test_case "fleet rejects an installed but unauthenticated Codex seat"

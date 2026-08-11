@@ -21,7 +21,9 @@ reset_markers() { rm -f "$DEAD_FILE" "$DEAD_FILE.meta"; }
 
 # Mock CLIs so fleet composition does not depend on what the developer has installed.
 mock_bin="$TEST_TMP_DIR/health-bin"
-mkdir -p "$mock_bin"
+mock_home="$TEST_TMP_DIR/health-home"
+mkdir -p "$mock_bin" "$mock_home/.codex"
+printf '{}\n' > "$mock_home/.codex/auth.json"
 for cmd in codex agy; do
     printf '#!/usr/bin/env bash\nexit 0\n' > "$mock_bin/$cmd"
     chmod +x "$mock_bin/$cmd"
@@ -157,7 +159,7 @@ fi
 
 test_case "a healthy Antigravity seat is assigned a fleet role"
 reset_markers
-fleet=$(PATH="$mock_bin:/usr/bin:/bin" WORKSPACE_DIR="$WORKSPACE_DIR" \
+fleet=$(HOME="$mock_home" PATH="$mock_bin:/usr/bin:/bin" WORKSPACE_DIR="$WORKSPACE_DIR" \
     OCTO_ALLOWED_PROVIDERS="codex agy" "$BUILD_FLEET" review standard "x" 2>/dev/null)
 if grep -q "^agy|" <<<"$fleet"; then
     test_pass
@@ -169,7 +171,7 @@ fi
 test_case "a quota-dead Antigravity seat is excluded from the fleet"
 reset_markers
 WORKSPACE_DIR="$WORKSPACE_DIR" bash -c "source '$QUOTA_LIB'; octo_quota_mark_dead agy 0"
-fleet=$(PATH="$mock_bin:/usr/bin:/bin" WORKSPACE_DIR="$WORKSPACE_DIR" \
+fleet=$(HOME="$mock_home" PATH="$mock_bin:/usr/bin:/bin" WORKSPACE_DIR="$WORKSPACE_DIR" \
     OCTO_ALLOWED_PROVIDERS="codex agy" "$BUILD_FLEET" review standard "x" 2>/dev/null)
 if ! grep -q "^agy|" <<<"$fleet"; then
     test_pass
@@ -190,7 +192,7 @@ WORKSPACE_DIR="$WORKSPACE_DIR" bash -c "
     source '$QUOTA_LIB'
     octo_quota_mark_dead agy 0
     octo_quota_mark_dead codex 0"
-if fleet=$(PATH="$mock_bin:/usr/bin:/bin" WORKSPACE_DIR="$WORKSPACE_DIR" \
+if fleet=$(HOME="$mock_home" PATH="$mock_bin:/usr/bin:/bin" WORKSPACE_DIR="$WORKSPACE_DIR" \
     OCTO_ALLOWED_PROVIDERS="codex agy" "$BUILD_FLEET" review standard "x" 2>/dev/null); then
     if ! grep -qE "^(agy|codex)\|" <<<"$fleet"; then
         test_pass
