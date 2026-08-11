@@ -111,17 +111,18 @@ fi
 # ── Reads the canonical progress.json array shape ───────────────────
 
 test_case "write-handoff reads active agent from canonical progress.json"
-TEST_ROOT=$(mktemp -d)
-mkdir -p "$TEST_ROOT/home/.claude-octopus" "$TEST_ROOT/work/.octo"
+TEST_ROOT="$TEST_TMP_DIR/handoff-fixture"
+PLUGIN_DATA="$TEST_ROOT/plugin-data"
+mkdir -p "$TEST_ROOT/home/.claude-octopus" "$PLUGIN_DATA" "$TEST_ROOT/work/.octo"
 cat > "$TEST_ROOT/home/.claude-octopus/session.json" <<'EOF'
 {"current_phase":"develop","workflow":"embrace","status":"running"}
 EOF
-cat > "$TEST_ROOT/home/.claude-octopus/progress.json" <<'EOF'
+cat > "$PLUGIN_DATA/progress.json" <<'EOF'
 {"agents":[{"name":"codex","task_id":"task-1","status":"running"}]}
 EOF
 if (cd "$TEST_ROOT/work" && \
     HOME="$TEST_ROOT/home" \
-    CLAUDE_PLUGIN_DATA="$TEST_ROOT/home/.claude-octopus" \
+    CLAUDE_PLUGIN_DATA="$PLUGIN_DATA" \
     CLAUDE_SESSION_ID="test-session" \
     "$HANDOFF") && \
    grep -q '\*\*Active Agent:\*\* codex' "$TEST_ROOT/work/.octo-continue.md"; then
@@ -129,5 +130,4 @@ if (cd "$TEST_ROOT/work" && \
 else
     test_fail "handoff did not read the active agent from progress.json's agents array"
 fi
-rm -rf "$TEST_ROOT"
 test_summary

@@ -58,6 +58,15 @@ should_use_agent_teams() {
         return 1
     fi
 
+    # Native dispatch returns before a provider process can report completion.
+    # Older Claude Code builds have stable Agent Teams but no
+    # last_assistant_message hook, so those tasks would remain "running"
+    # forever. Route them through the supervised subprocess instead.
+    if [[ "${SUPPORTS_HOOK_LAST_MESSAGE:-false}" != "true" ]]; then
+        log "DEBUG" "Native Agent Teams requires SubagentStop result capture; using supervised dispatch for $agent_type"
+        return 1
+    fi
+
     # P0-B fix: When orchestrate.sh runs as a Bash tool subprocess (not inside
     # Claude Code's native context), Agent Teams JSON instruction files are never
     # picked up and SubagentStop hooks never fire.  Probe phase sets this flag
@@ -489,7 +498,7 @@ ${provider_ctx}"
             if [[ "$_sync_reason" == *"oversize"* || "$_sync_reason" == *"Prompt rejected by provider"* ]]; then
                 log WARN "Agent $agent_type prompt rejected as oversized — skipping provider (reduce session context or lower OCTOPUS_CONTEXT_BUDGET)"
                 type update_agent_status >/dev/null 2>&1 && update_agent_status \
-                    "$agent_type" "skipped" "$_elapsed_ms" "$_estimated_cost" "$timeout_secs" \
+                    "$agent_type" "skipped" "$_elapsed_ms" 0 "$timeout_secs" \
                     "$_progress_task_id" "${phase:-unknown}" "" || true
                 type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "skipped" "$tokens_in" 0 "Prompt rejected by provider (oversize)" "$_elapsed_ms" "" "$role" || true
                 rm -f "$temp_err" "$temp_out"

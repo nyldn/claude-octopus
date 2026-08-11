@@ -15,8 +15,8 @@ source "$PROJECT_ROOT/scripts/lib/validation.sh"
 
 test_suite "atomic_json_update stale-lock recovery (#559)"
 
-FIXTURE="$(mktemp -d)"
-trap 'rm -rf "$FIXTURE"' EXIT INT TERM
+FIXTURE="$TEST_TMP_DIR/atomic-lock"
+mkdir -p "$FIXTURE"
 
 # a PID that is guaranteed not running: spawn a trivial child and reap it
 dead_pid() { ( : ) & local p=$!; wait "$p" 2>/dev/null; echo "$p"; }
@@ -58,7 +58,8 @@ test_respects_live_holder() {
     test_case "a live holder's lock is NOT reclaimed"
     local f="$FIXTURE/c.json"; echo '{"n":1}' > "$f"
     sleep 20 & local live=$!
-    mkdir -p "$f.lock"; echo "$live" > "$f.lock/pid"; date +%s > "$f.lock/ts"
+    mkdir -p "$f.lock"; echo "$live" > "$f.lock/pid"
+    echo $(( $(date +%s) - 120 )) > "$f.lock/ts"
     # reclaim helper must leave a live holder's lock intact
     _atomic_reclaim_stale_lock "$f.lock" 30
     local intact="no"; [[ -d "$f.lock" && "$(cat "$f.lock/pid" 2>/dev/null)" == "$live" ]] && intact="yes"

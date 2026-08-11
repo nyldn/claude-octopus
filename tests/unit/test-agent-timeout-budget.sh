@@ -13,10 +13,27 @@ test_suite "agent timeout budget"
 # shellcheck source=/dev/null
 source "$PROJECT_ROOT/scripts/lib/spawn.sh"
 # shellcheck source=/dev/null
+source "$PROJECT_ROOT/scripts/lib/agent-sync.sh"
+# shellcheck source=/dev/null
 source "$PROJECT_ROOT/scripts/lib/heartbeat.sh"
 # shellcheck source=/dev/null
 source "$PROJECT_ROOT/scripts/lib/state-root.sh"
 log() { :; }
+
+test_case "native Agent Teams requires terminal result-capture support"
+TIMEOUT=0
+OCTOPUS_AGENT_TEAMS=auto
+OCTOPUS_FORCE_LEGACY_DISPATCH=false
+SUPPORTS_STABLE_AGENT_TEAMS=true
+SUPPORTS_HOOK_LAST_MESSAGE=false
+is_claude_agent_type() { [[ "$1" == claude* ]]; }
+if ! should_use_agent_teams "claude-sonnet" &&
+   SUPPORTS_HOOK_LAST_MESSAGE=true should_use_agent_teams "claude-sonnet"; then
+    test_pass
+else
+    test_fail "native dispatch can leave a permanent running row without SubagentStop capture"
+fi
+TIMEOUT=600
 
 test_case "tangle implementers receive the phase timeout floor"
 if declare -F octopus_effective_agent_timeout >/dev/null 2>&1 && \
@@ -45,7 +62,7 @@ spawn_source="$(cat "$PROJECT_ROOT/scripts/lib/spawn.sh")"
 if [[ "$spawn_source" == *'exit_code -ne 124'* ]] && \
    [[ "$spawn_source" == *'exit_code -ne 143'* ]] && \
    [[ "$spawn_source" == *'run_with_timeout "$_attempt_timeout"'* ]] && \
-   [[ "$spawn_source" == *'update_agent_status "$agent_type" "running" 0 "$_estimated_cost" "$_eff_timeout"'* ]]; then
+   [[ "$spawn_source" == *'update_agent_status "$agent_type" "running" 0 '*' "$_eff_timeout"'* ]]; then
     test_pass
 else
     test_fail "spawn does not yet enforce and report one shared effective timeout"

@@ -78,7 +78,11 @@ estimate_agent_call_cost() {
     pricing=$(get_model_pricing "$model" "$agent_type")
     input_price="${pricing%%:*}"
     output_price="${pricing##*:}"
-    awk "BEGIN {printf \"%.6f\\n\", ($input_tokens * $input_price + $output_tokens * $output_price) / 1000000}"
+    [[ "$input_price" =~ ^[0-9]+([.][0-9]+)?$ ]] || input_price=0
+    [[ "$output_price" =~ ^[0-9]+([.][0-9]+)?$ ]] || output_price=0
+    awk -v input_tokens="$input_tokens" -v output_tokens="$output_tokens" \
+        -v input_price="$input_price" -v output_price="$output_price" \
+        'BEGIN {printf "%.6f\n", (input_tokens * input_price + output_tokens * output_price) / 1000000}'
 }
 
 # Parse native Task tool metrics from <usage> blocks (v8.6.0, enhanced v8.8.0)

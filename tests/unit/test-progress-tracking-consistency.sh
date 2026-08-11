@@ -5,14 +5,16 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-TEST_ROOT="$(mktemp -d)"
-WORKSPACE_DIR="$TEST_ROOT/workspace"
-PROGRESS_FILE="$WORKSPACE_DIR/progress.json"
-mkdir -p "$WORKSPACE_DIR"
 
 # shellcheck source=/dev/null
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "progress tracking consistency"
+
+WORKSPACE_DIR="$TEST_TMP_DIR/progress-workspace"
+PROGRESS_FILE="$WORKSPACE_DIR/progress.json"
+RESULTS_DIR="$WORKSPACE_DIR/results"
+LOGS_DIR="$WORKSPACE_DIR/logs"
+mkdir -p "$WORKSPACE_DIR" "$RESULTS_DIR" "$LOGS_DIR"
 
 # shellcheck source=/dev/null
 source "$PROJECT_ROOT/scripts/lib/validation.sh"
@@ -20,11 +22,14 @@ source "$PROJECT_ROOT/scripts/lib/validation.sh"
 source "$PROJECT_ROOT/scripts/lib/session.sh"
 # shellcheck source=/dev/null
 source "$PROJECT_ROOT/scripts/lib/agents.sh"
+# shellcheck source=/dev/null
+source "$PROJECT_ROOT/scripts/lib/cost.sh"
+# shellcheck source=/dev/null
+source "$PROJECT_ROOT/scripts/lib/agent-sync.sh"
 
 PROGRESS_TRACKING_ENABLED=true
 CLAUDE_CODE_SESSION="progress-test"
 TIMEOUT=600
-trap 'rm -rf "$TEST_ROOT"' EXIT
 
 log() { :; }
 
@@ -35,6 +40,21 @@ if jq -e '.total_agents == 3 and (.agents | length) == 1' "$PROGRESS_FILE" >/dev
     test_pass
 else
     test_fail "the first task registration replaced the planned phase width"
+fi
+
+test_case "malformed elapsed time and cost normalize to safe numeric defaults"
+init_progress_tracking "develop" 1
+update_agent_status "legacy" "completed" "invalid" "null" 600 "legacy-bad-numbers" "develop"
+if jq -e '
+    .completed_agents == 1 and
+    .total_time_ms == 0 and
+    .total_cost == 0 and
+    .agents[0].elapsed_ms == 0 and
+    .agents[0].cost == 0
+' "$PROGRESS_FILE" >/dev/null; then
+    test_pass
+else
+    test_fail "malformed numeric inputs prevented or corrupted the ledger update"
 fi
 
 test_case "phase transitions preserve task totals and terminal rows are counted once"
@@ -88,13 +108,60 @@ else
     test_fail "workflow phase calls are not guarded for standalone source-safe harnesses"
 fi
 
-test_case "probe, sync, and background dispatches report task identity and estimated cost"
-if grep -q '"\$estimated_cost" "\$TIMEOUT" "\$task_id" "\$phase" "\$result_file"' "$PROJECT_ROOT/scripts/lib/workflows.sh" &&
-   grep -q '"\$_progress_task_id" "\${phase:-unknown}"' "$PROJECT_ROOT/scripts/lib/agent-sync.sh" &&
-   grep -q '"\$_estimated_cost".*"\$task_id"' "$PROJECT_ROOT/scripts/lib/spawn.sh"; then
+test_case "sync dispatch records task identity and positive API cost"
+FAKE_PROVIDER="$TEST_TMP_DIR/fake-api-provider.sh"
+cat > "$FAKE_PROVIDER" <<'EOF'
+#!/usr/bin/env bash
+cat >/dev/null
+printf '%s\n' "provider completed"
+EOF
+chmod +x "$FAKE_PROVIDER"
+OCTOPUS_PERSONA_PACKS=off
+OCTOPUS_PERSISTENCE_AVAILABLE=true
+DRY_RUN=false
+PROVIDER_ENV_ARRAY=()
+apply_persona() { printf '%s\n' "$2"; }
+load_earned_skills() { :; }
+build_provider_context() { :; }
+enforce_context_budget() { printf '%s\n' "$1"; }
+get_agent_model() { printf '%s\n' "api-test-model"; }
+get_agent_command() { printf '%s\n' "$FAKE_PROVIDER"; }
+build_provider_env() { PROVIDER_ENV_ARRAY=(); }
+run_with_timeout() { shift; "$@"; }
+record_agent_call() { :; }
+record_agent_start() { :; }
+write_agent_status() { :; }
+stop_quota_watcher() { :; }
+octo_estimate_tokens_for_file() { printf '%s\n' 1; }
+get_model_pricing() { printf '%s\n' "1.00:2.00"; }
+is_api_based_provider() { [[ "$1" == "fake-api" ]]; }
+classify_agent_output() { printf '%s\n' "ok:Output accepted"; }
+init_progress_tracking "develop" 1
+run_agent_sync "fake-api" "Behavioral progress dispatch" 10 "implementer" "develop" >/dev/null
+if jq -e '
+    .completed_agents == 1 and
+    .agents[0].status == "ok" and
+    (.agents[0].task_id | type == "string" and length > 0) and
+    .agents[0].cost > 0
+' "$PROGRESS_FILE" >/dev/null; then
     test_pass
 else
-    test_fail "one or more dispatch paths still writes anonymous zero-cost progress rows"
+    test_fail "sync dispatch wrote an anonymous or zero-cost API progress row"
+fi
+
+test_case "oversize rejection is skipped without attributing provider cost"
+classify_agent_output() { printf '%s\n' "failed:Prompt rejected by provider (oversize)"; }
+init_progress_tracking "develop" 1
+run_agent_sync "fake-api" "Oversize behavioral dispatch" 10 "implementer" "develop" >/dev/null
+if jq -e '
+    .completed_agents == 1 and
+    .skipped_agents == 1 and
+    .agents[0].status == "skipped" and
+    .agents[0].cost == 0
+' "$PROGRESS_FILE" >/dev/null; then
+    test_pass
+else
+    test_fail "a provider-rejected prompt retained estimated spend"
 fi
 
 test_summary

@@ -361,11 +361,14 @@ _atomic_reclaim_stale_lock() {
     ts=$(cat "$lockfile/ts" 2>/dev/null || true)
 
     if [[ "$pid" =~ ^[0-9]+$ ]]; then
-        kill -0 "$pid" 2>/dev/null || stale=1        # recorded holder is gone
-    fi
-    if [[ $stale -eq 0 && "$ts" =~ ^[0-9]+$ ]]; then
+        # A live holder is authoritative regardless of age. Long provider or
+        # hook operations must not lose mutual exclusion merely because their
+        # timestamp crossed the stale-age threshold.
+        kill -0 "$pid" 2>/dev/null && return 0
+        stale=1                                      # recorded holder is gone
+    elif [[ "$ts" =~ ^[0-9]+$ ]]; then
         now=$(date +%s 2>/dev/null || echo 0)
-        [[ $((now - ts)) -ge "$stale_age" ]] && stale=1   # outlived threshold
+        [[ $((now - ts)) -ge "$stale_age" ]] && stale=1   # owner unknown and aged
     fi
     [[ $stale -eq 1 ]] || return 0
 
@@ -399,9 +402,15 @@ atomic_json_update() {
     # _octo_event_lock for the same pattern). The lock is still a ".lock"
     # path — it's just a directory now instead of a plain file.
     local lockfile="${json_file}.lock"
-    local timeout=5
+    local timeout="${OCTO_LOCK_WAIT_SECS:-5}"
+    local retry_ms="${OCTO_LOCK_RETRY_MILLIS:-100}"
     local waited=0
-    local max_waits=$((timeout * 10))
+    [[ "$timeout" =~ ^[1-9][0-9]*$ ]] || timeout=5
+    [[ "$retry_ms" =~ ^[1-9][0-9]*$ ]] || retry_ms=100
+    local max_waits=$((timeout * 1000 / retry_ms))
+    [[ $max_waits -gt 0 ]] || max_waits=1
+    local retry_sleep
+    printf -v retry_sleep '%d.%03d' "$((retry_ms / 1000))" "$((retry_ms % 1000))"
     local stale_age="${OCTO_LOCK_STALE_SECS:-30}"
 
     while ! mkdir "$lockfile" 2>/dev/null; do
@@ -413,7 +422,7 @@ atomic_json_update() {
             log WARN "Timeout acquiring lock for $json_file"
             return 1
         fi
-        sleep 0.1
+        sleep "$retry_sleep"
     done
 
     # #559: record ownership so a later contender can tell a live holder from a

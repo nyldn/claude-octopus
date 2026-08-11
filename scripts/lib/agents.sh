@@ -147,13 +147,19 @@ get_effort_level() {
 # Update agent status in progress file
 update_agent_status() {
     local agent_name="$1"
-    local status="$2"  # waiting, running, completed, failed, timeout, skipped
+    local status="$2"  # waiting, running, completed, ok, degraded, failed, timeout, skipped
     local elapsed_ms="${3:-0}"
     local cost="${4:-0.0}"
     local timeout_secs="${5:-${TIMEOUT:-300}}"  # Use provided or global timeout
     local task_id="${6:-legacy-${agent_name}}"
     local phase="${7:-}"
     local output_file="${8:-}"
+
+    # Legacy rows and optional integrations can supply blank, null, or textual
+    # metrics. Normalize before arithmetic and jq --argjson so progress updates
+    # remain fail-safe instead of aborting the caller.
+    [[ "$elapsed_ms" =~ ^[0-9]+$ ]] || elapsed_ms=0
+    [[ "$cost" =~ ^[0-9]+([.][0-9]+)?$ ]] || cost=0.0
 
     # Skip if progress tracking disabled or no progress file
     if [[ "$PROGRESS_TRACKING_ENABLED" != "true" ]]; then
