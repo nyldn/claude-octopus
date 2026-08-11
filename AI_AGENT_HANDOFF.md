@@ -1,11 +1,12 @@
 # AI Agent Handoff
 
-Last updated: 2026-08-10
+Last updated: 2026-08-11
 Status: v9.61.3 is published with the completed hook, provider, stale-install,
 lifecycle, and model-metadata repairs from PRs #852, #854 through #857, #859,
 PR #861, and PR #863. Release PR #858 is merged, all implementation issues are
-closed, the shared marketplace is synchronized, and Claude/Codex installed-host
-verification passed.
+closed, the shared marketplace is synchronized, Claude/Codex installed-host
+verification passed, and the external release E2E runner's retired Gemini
+assertion is permanently replaced with an AGY contract check.
 Branch: `main`
 Release: [v9.61.3](https://github.com/nyldn/claude-octopus/releases/tag/v9.61.3)
 
@@ -121,6 +122,17 @@ claimed or recorded in `bd`; use this handoff for the blocked tracking record.
 - Real host verification upgraded and enabled both `octo@nyldn-plugins` and
   `claude-octopus@nyldn-plugins` at v9.61.3. The stable
   `~/.claude-octopus/plugin` link resolves to the v9.61.3 Claude cache.
+- **Post-release #865:** The Oracle `amy` E2E runner still asserted direct
+  Gemini detection and probed Gemini after the provider was retired. Its
+  durable source is the separate `nyldn/claude-octopus-dev` repository. PR #5
+  there squash-merged as `218c3a7f` and the exact merged tree was deployed to
+  `~/.octopus-e2e/e2e-command-test.sh` on `amy`.
+- The runner now asserts an `agy:*` registration with no executable `gemini:*`
+  seat, probes AGY rather than Gemini, and classifies approval, weekly/session
+  limit, quota, auth, and capacity responses as infrastructure skips. The
+  deployed regression test and targeted live AGY contract both passed. The
+  pre-classifier full run reached B4 successfully; its sole 16/17 failure was
+  the exact approval-wall response now covered by the merged classifier.
 
 ## Release v9.61.2
 
@@ -335,9 +347,10 @@ were removed with that worktree and did not contaminate the task branch.
 
 ## Next Action
 
-No active implementation or release work remains. Before creating this handoff
-PR, live queries found no other open issues or pull requests. If streamlining
-work resumes, the unstarted candidates are:
+No active implementation or release work remains. After closing post-release
+E2E issue #865 and merging the external runner fix, live queries found no open
+issues or pull requests in either repository. If streamlining work resumes, the
+unstarted candidates are:
 
 1. Remaining streamlining work:
    - **4c:** remove obsolete drift detection, its unreachable duplicate, and
