@@ -720,7 +720,13 @@ ${heuristic_ctx}"
             # default other phases rely on.
             if [[ "$phase" == "tangle" && "$role" == "implementer" ]]; then
                 local _tangle_floor="${OCTOPUS_TANGLE_TIMEOUT:-1200}"
-                if [[ "$_tangle_floor" =~ ^[0-9]+$ ]] && [[ "$_tangle_floor" -gt "$_eff_timeout" ]]; then
+                if ! [[ "$_tangle_floor" =~ ^[0-9]+$ ]]; then
+                    log "WARN" "OCTOPUS_TANGLE_TIMEOUT='$_tangle_floor' is not a positive integer; using default 1200s floor"
+                    _tangle_floor=1200
+                fi
+                # _eff_timeout=0 means unlimited (see comment above) — the floor
+                # must never turn "unlimited" into "capped at 1200s".
+                if [[ "$_eff_timeout" =~ ^[0-9]+$ ]] && [[ "$_eff_timeout" -gt 0 ]] && [[ "$_tangle_floor" -gt "$_eff_timeout" ]]; then
                     _eff_timeout="$_tangle_floor"
                 fi
             fi
@@ -997,13 +1003,17 @@ ${heuristic_ctx}"
             end_time_ms=$(( $(date +%s) * 1000 ))
             elapsed_ms=$((end_time_ms - start_time_ms))
             update_agent_status "$agent_type" "timeout" "$elapsed_ms" 0.0
-            # #869: tokens_out must be estimated from whichever file was actually
-            # salvaged into result_file above (temp_output, falling back to
-            # raw_output) — otherwise a timeout whose real content only reached
-            # raw_output gets reported as tokens_out=0 next to a result_file full of
-            # preserved output, making completed work look discarded.
+            # #869: tokens_out must be estimated from whichever file actually holds
+            # more of the salvaged content — otherwise a timeout whose real output
+            # only reached raw_output (or whose result_file gets a later raw_output
+            # append below, when it's under 1KB) gets reported as tokens_out=0 or an
+            # undercount next to a result_file full of preserved output, making
+            # completed work look discarded.
             local _tokens_out_source="$temp_output"
-            [[ ! -s "$_tokens_out_source" ]] && _tokens_out_source="$raw_output"
+            local _tos_size=0 _ros_size=0
+            [[ -s "$temp_output" ]] && _tos_size=$(wc -c < "$temp_output" 2>/dev/null || echo 0)
+            [[ -s "$raw_output" ]] && _ros_size=$(wc -c < "$raw_output" 2>/dev/null || echo 0)
+            [[ "$_ros_size" -gt "$_tos_size" ]] && _tokens_out_source="$raw_output"
             local tokens_out
             tokens_out=$(octo_estimate_tokens_for_file "$_tokens_out_source" 2>/dev/null || echo 0)
             type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "timeout" "$tokens_in" "$tokens_out" "Timed out before completion" "$elapsed_ms" "$result_file" "${role:-none}" || true
