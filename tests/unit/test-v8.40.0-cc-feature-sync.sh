@@ -140,6 +140,46 @@ else
   test_fail "hook left the registered task running or counted it more than once"
 fi
 
+test_case "concurrent SubagentStop hooks do not lose progress completions"
+CONCURRENT_WORKSPACE="$TEST_TMP_DIR/concurrent-hook-workspace"
+CONCURRENT_RESULTS="$CONCURRENT_WORKSPACE/results"
+CONCURRENT_TEAMS="$CONCURRENT_WORKSPACE/agent-teams"
+mkdir -p "$CONCURRENT_RESULTS" "$CONCURRENT_TEAMS"
+CONCURRENT_AGENTS="$TEST_TMP_DIR/concurrent-agents.jsonl"
+: > "$CONCURRENT_AGENTS"
+for i in $(seq 1 24); do
+  concurrent_result="$CONCURRENT_RESULTS/claude-task-${i}.md"
+  jq -cn --arg id "agent-${i}" --arg result "$concurrent_result" \
+    '{agent_id:$id,dispatch_method:"agent_teams",result_file:$result}' \
+    > "$CONCURRENT_TEAMS/task-${i}.json"
+  jq -cn --arg task "task-${i}" --arg result "$concurrent_result" \
+    '{name:"claude",task_id:$task,phase:"develop",status:"running",started_at:"2026-08-11T00:00:00Z",elapsed_ms:0,cost:0,output_file:$result}' \
+    >> "$CONCURRENT_AGENTS"
+done
+jq -s '{phase:"develop",total_agents:length,completed_agents:0,total_time_ms:0,agents:.}' \
+  "$CONCURRENT_AGENTS" > "$CONCURRENT_WORKSPACE/progress.json"
+
+concurrent_pids=""
+for i in $(seq 1 24); do
+  (printf '{"last_assistant_message":"Done %s","agent_id":"agent-%s","agent_type":"claude"}' "$i" "$i" |
+    OCTOPUS_WORKSPACE="$CONCURRENT_WORKSPACE" "$HOOK") &
+  concurrent_pids="$concurrent_pids $!"
+done
+for concurrent_pid in $concurrent_pids; do
+  wait "$concurrent_pid"
+done
+if jq -e '
+  .total_agents == 24 and
+  .completed_agents == 24 and
+  .successful_agents == 24 and
+  (.agents | length) == 24 and
+  ([.agents[] | select(.status == "running")] | length) == 0
+' "$CONCURRENT_WORKSPACE/progress.json" >/dev/null; then
+  test_pass
+else
+  test_fail "concurrent hook rewrites lost one or more terminal updates"
+fi
+
 # ─────────────────────────────────────────────────────────────────────
 # Suite 6: Wired flag — SUPPORTS_MEMORY_LEAK_FIXES
 # ─────────────────────────────────────────────────────────────────────

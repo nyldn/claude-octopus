@@ -114,6 +114,18 @@ if [[ -f "$PROGRESS_FILE" ]] && command -v python3 &>/dev/null; then
     python3 - "$PROGRESS_FILE" "$RESULT_FILE" <<'PYEOF' 2>/dev/null || true
 import datetime, json, os, sys
 path, result_file = sys.argv[1:3]
+lock_handle = open(path + '.lock', 'a+b')
+if os.name == 'nt':
+    import msvcrt
+    lock_handle.seek(0, os.SEEK_END)
+    if lock_handle.tell() == 0:
+        lock_handle.write(b'0')
+        lock_handle.flush()
+    lock_handle.seek(0)
+    msvcrt.locking(lock_handle.fileno(), msvcrt.LK_LOCK, 1)
+else:
+    import fcntl
+    fcntl.flock(lock_handle.fileno(), fcntl.LOCK_EX)
 try:
     with open(path) as f:
         d = json.load(f)
@@ -142,12 +154,19 @@ try:
     d['skipped_agents'] = sum(a.get('status') == 'skipped' for a in agents)
     d['total_time_ms'] = sum(a.get('elapsed_ms', 0) for a in finished)
     d['total_cost'] = sum(a.get('cost', 0) for a in finished)
-    tmp = path + '.tmp'
+    tmp = path + '.tmp.' + str(os.getpid())
     with open(tmp, 'w') as f:
         json.dump(d, f, indent=2)
     os.replace(tmp, path)
 except Exception:
     pass
+finally:
+    if os.name == 'nt':
+        lock_handle.seek(0)
+        msvcrt.locking(lock_handle.fileno(), msvcrt.LK_UNLCK, 1)
+    else:
+        fcntl.flock(lock_handle.fileno(), fcntl.LOCK_UN)
+    lock_handle.close()
 PYEOF
 fi
 
