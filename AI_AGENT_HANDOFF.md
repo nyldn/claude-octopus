@@ -2,10 +2,10 @@
 
 Last updated: 2026-08-10
 Status: v9.61.3 release candidate combines the completed hook, provider,
-stale-install, lifecycle, and model-metadata repairs from PRs #852, #854-#857,
-#859, #861, and #863. All implementation issues are closed. Release PR #858
-is refreshed on current `main` and requires final checks, merge, tag, shared
-marketplace sync, and installed-host verification.
+stale-install, lifecycle, and model-metadata repairs from PRs #852, #854
+through #857, #859, #861, and #863. All implementation issues are closed.
+Release PR #858 is refreshed on current `main` and requires final checks,
+merge, tag, shared marketplace sync, and installed-host verification.
 Branch: `claude/release-v9.61.3`
 Release candidate: v9.61.3
 
@@ -332,19 +332,15 @@ provider refactor; preserve the behavioural-test-first pattern used by `#805` an
 
 ## Next Action
 
-1. Commit and push the verified #838 candidate, open its PR, resolve remote
-   review/CI, squash-merge it, and release/tag the exact main commit.
-2. **#851:** implement the local-only stale-install guard and doctor/update
-   health surface. Delegate mutation to explicit Claude Code host commands;
-   never self-update from a hook or alter the currently loaded cache.
-3. **#841:** add workflow cancellation cleanup for provider trees, PID and
-   heartbeat registries, incomplete result stubs, terminal events, and
-   project-local state pollution.
-4. Continue #799, #800, and #801 as separate test-first fixes; do not reopen
-   the bounded portions already delivered in v9.61.2.
-5. Close #815 when the #838 PR lands because the obsolete Gemini E2E seat is
-   removed rather than repaired.
-6. Remaining streamlining work is still unstarted:
+All implementation issues (#838, #841, #799, #800, #801, #851, #815, and the
+other issues folded into PRs #852, #854-#857, #859, #861, #863) are closed.
+The only remaining work is finishing release PR #858:
+
+1. Resolve remaining CI/review feedback on PR #858, then squash-merge it.
+2. Tag and release the exact merged `main` commit per `RELEASING.md` §7-8.
+3. Sync the shared `nyldn/plugins` marketplace entry.
+4. Verify on an installed host that the release picks up correctly.
+5. Remaining streamlining work is still unstarted:
    - **4c:** remove obsolete drift detection, its unreachable duplicate, and
      the deprecated wizard only after confirming all call sites.
    - **4b:** cull unused/below-floor `SUPPORTS_*` flags together with the
