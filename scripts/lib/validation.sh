@@ -360,6 +360,13 @@ _atomic_lock_is_stale() {
     local pid ts now age
     pid=$(cat "$lockfile/pid" 2>/dev/null || true)
     ts=$(cat "$lockfile/ts" 2>/dev/null || true)
+    if [[ ! "$ts" =~ ^[0-9]+$ ]]; then
+        if stat -c %Y "$lockfile" >/dev/null 2>&1; then
+            ts=$(stat -c %Y "$lockfile" 2>/dev/null || true)
+        else
+            ts=$(stat -f %m "$lockfile" 2>/dev/null || true)
+        fi
+    fi
     now=$(date +%s 2>/dev/null || echo 0)
 
     if [[ "$pid" =~ ^[0-9]+$ ]]; then
@@ -404,6 +411,17 @@ _atomic_release_owned_lock() {
     rm -rf "$lockfile" 2>/dev/null || true
 }
 
+_atomic_reraise_signal() {
+    local signal="$1" owner_pid="$2" exit_code=1
+    case "$signal" in
+        INT) exit_code=130 ;;
+        TERM) exit_code=143 ;;
+    esac
+    trap - "$signal"
+    kill -s "$signal" "$owner_pid" 2>/dev/null || true
+    exit "$exit_code"
+}
+
 atomic_json_update() (
     local json_file="$1"
     local jq_expression="$2"
@@ -433,10 +451,21 @@ atomic_json_update() (
     printf -v retry_sleep '%d.%03d' "$((retry_ms / 1000))" "$((retry_ms % 1000))"
     local stale_age="${OCTO_LOCK_STALE_SECS:-30}"
     [[ "$stale_age" =~ ^[1-9][0-9]*$ ]] || stale_age=30
+    local pending_signal=""
+    trap 'pending_signal=INT' INT
+    trap 'pending_signal=TERM' TERM
 
     while ! mkdir "$lockfile" 2>/dev/null; do
+        case "$pending_signal" in
+            INT) exit 130 ;;
+            TERM) exit 143 ;;
+        esac
         # #559: a leaked lock from a crashed holder would otherwise block forever.
         _atomic_reclaim_stale_lock "$lockfile" "$stale_age"
+        case "$pending_signal" in
+            INT) exit 130 ;;
+            TERM) exit 143 ;;
+        esac
         mkdir "$lockfile" 2>/dev/null && break
         waited=$((waited + 1))
         if [[ $waited -ge $max_waits ]]; then
@@ -472,9 +501,9 @@ atomic_json_update() (
     local lock_cleanup_cmd lock_int_cmd lock_term_cmd
     printf -v lock_cleanup_cmd 'rm -f %q; _atomic_release_owned_lock %q %q' \
         "$tmp_file" "$lockfile" "$lock_token"
-    printf -v lock_int_cmd '%s; trap - INT; kill -s INT %q; exit 130' \
+    printf -v lock_int_cmd '%s; _atomic_reraise_signal INT %q' \
         "$lock_cleanup_cmd" "$owner_pid"
-    printf -v lock_term_cmd '%s; trap - TERM; kill -s TERM %q; exit 143' \
+    printf -v lock_term_cmd '%s; _atomic_reraise_signal TERM %q' \
         "$lock_cleanup_cmd" "$owner_pid"
     # shellcheck disable=SC2064 # Freeze subshell-local paths and token in each handler.
     trap "$lock_cleanup_cmd" EXIT
@@ -482,6 +511,10 @@ atomic_json_update() (
     trap "$lock_int_cmd" INT
     # shellcheck disable=SC2064 # Freeze subshell-local paths, token, and PID.
     trap "$lock_term_cmd" TERM
+    case "$pending_signal" in
+        INT) _atomic_reraise_signal INT "$owner_pid" ;;
+        TERM) _atomic_reraise_signal TERM "$owner_pid" ;;
+    esac
 
     jq "$jq_expression" "$@" "$json_file" > "$tmp_file" && mv "$tmp_file" "$json_file"
     local result=$?

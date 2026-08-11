@@ -90,6 +90,15 @@ test_reclaims_aged_out_lock() {
     if [[ ! -e "$f.lock" ]]; then test_pass; else test_fail "aged lock not reclaimed"; fi
 }
 
+test_reclaims_aged_empty_lock() {
+    test_case "an aged lock with no initialized metadata is reclaimed"
+    local f="$FIXTURE/i.json"; echo '{"n":1}' > "$f"
+    mkdir -p "$f.lock"
+    touch -t 202001010000 "$f.lock"
+    _atomic_reclaim_stale_lock "$f.lock" 30
+    if [[ ! -e "$f.lock" ]]; then test_pass; else test_fail "aged empty lock not reclaimed"; fi
+}
+
 test_release_requires_matching_owner_token() {
     test_case "an old writer cannot release a successor's lock"
     local f="$FIXTURE/f.json"; echo '{"n":1}' > "$f"
@@ -116,15 +125,58 @@ sleep 0.1
 EOF
     chmod +x "$fake_bin/jq"
 
+    local prior_term_trap
+    prior_term_trap=$(trap -p TERM)
     trap ':' TERM
     local trap_before trap_after
     trap_before=$(trap -p TERM)
     local rc=0
-    PATH="$fake_bin:$PATH" atomic_json_update "$f" '.n=2' 2>/dev/null || rc=$?
+    (
+        PATH="$fake_bin:$PATH"
+        atomic_json_update "$f" '.n=2' 2>/dev/null
+    ) || rc=$?
     trap_after=$(trap -p TERM)
-    trap - TERM
+    if [[ -n "$prior_term_trap" ]]; then eval "$prior_term_trap"; else trap - TERM; fi
     if [[ "$rc" -ne 0 && ! -e "$f.lock" && "$trap_after" == "$trap_before" ]]; then test_pass
     else test_fail "interrupted update returned rc=$rc lock=$([[ -e "$f.lock" ]] && echo left || echo clean) caller_trap_preserved=$([[ "$trap_after" == "$trap_before" ]] && echo yes || echo no)"; fi
+}
+
+test_signal_during_lock_initialization() {
+    test_case "TERM during post-mkdir initialization does not leak an empty lock"
+    local f="$FIXTURE/h.json"; echo '{"n":1}' > "$f"
+    local fake_bin="$FIXTURE/init-signal-bin"
+    local pid_marker="$FIXTURE/init-owner.pid" release_marker="$FIXTURE/init-release"
+    mkdir -p "$fake_bin"
+    cat > "$fake_bin/sh" <<'EOF'
+#!/usr/bin/env bash
+if [[ -n "${OCTO_TEST_PID_MARKER:-}" ]]; then
+    printf '%s\n' "$PPID" > "$OCTO_TEST_PID_MARKER"
+    i=0
+    while [[ ! -f "${OCTO_TEST_RELEASE_MARKER:-}" && "$i" -lt 100 ]]; do
+        sleep 0.1
+        i=$((i + 1))
+    done
+fi
+exec /bin/sh "$@"
+EOF
+    chmod +x "$fake_bin/sh"
+
+    local rc=0
+    (
+        PATH="$fake_bin:$PATH"
+        hash -r
+        export OCTO_TEST_PID_MARKER="$pid_marker"
+        export OCTO_TEST_RELEASE_MARKER="$release_marker"
+        atomic_json_update "$f" '.n=2' 2>/dev/null
+    ) & local worker=$!
+    local i=0
+    while [[ ! -s "$pid_marker" && "$i" -lt 100 ]]; do sleep 0.1; i=$((i + 1)); done
+    local target=""; target=$(cat "$pid_marker" 2>/dev/null || true)
+    if [[ "$target" =~ ^[0-9]+$ ]]; then kill -TERM "$target" 2>/dev/null || true; fi
+    : > "$release_marker"
+    wait "$worker" || rc=$?
+    if [[ "$target" =~ ^[0-9]+$ && "$rc" -ne 0 && ! -e "$f.lock" ]]; then test_pass
+    else test_fail "initialization signal target=${target:-missing} returned rc=$rc lock=$([[ -e "$f.lock" ]] && echo left || echo clean)"; fi
 }
 
 test_empty_path_guard
@@ -133,7 +185,9 @@ test_reclaims_dead_holder_lock
 test_respects_live_holder
 test_reclaims_hard_aged_live_pid_lock
 test_reclaims_aged_out_lock
+test_reclaims_aged_empty_lock
 test_release_requires_matching_owner_token
 test_signal_cleanup_terminates_operation
+test_signal_during_lock_initialization
 
 test_summary
