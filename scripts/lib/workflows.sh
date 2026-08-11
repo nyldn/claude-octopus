@@ -1029,7 +1029,6 @@ grasp_define() {
     local def1 def2="" def3
     def1=$(run_agent_sync "codex" "Based on: $prompt\n${context}Define the core problem statement in 2-3 sentences. What is the essential challenge?" 300 "backend-architect" "grasp") || {
         log WARN "Codex failed for problem definition, falling back to Claude"
-        echo -e " ${YELLOW}⚠${NC}  Codex unavailable for problem definition — falling back to Claude"
         def1=$(run_agent_sync "claude-sonnet" "Based on: $prompt\n${context}Define the core problem statement in 2-3 sentences. What is the essential challenge?" 300 "backend-architect" "grasp") || true
     }
     if octo_provider_allowed agy && command -v agy >/dev/null 2>&1; then

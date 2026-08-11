@@ -13,10 +13,8 @@ test_suite "grasp empty synthesis fallback"
 # shellcheck source=/dev/null
 source "$PROJECT_ROOT/scripts/lib/workflows.sh"
 
-TEST_ROOT="$(mktemp -d)"
-RESULTS_DIR="$TEST_ROOT/results"
-LOGS_DIR="$TEST_ROOT/logs"
-trap 'rm -rf "$TEST_ROOT"' EXIT
+RESULTS_DIR="$TEST_TMP_DIR/results"
+LOGS_DIR="$TEST_TMP_DIR/logs"
 mkdir -p "$RESULTS_DIR" "$LOGS_DIR"
 
 CYAN=""
