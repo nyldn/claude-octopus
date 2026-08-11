@@ -83,8 +83,8 @@ test_is_agent_available_skips_dead() {
 test_retired_gemini_timeout_override_absent() {
     test_case "spawn.sh uses the supervised workflow timeout without a Gemini-only override"
     if ! grep -q 'OCTOPUS_GEMINI_TIMEOUT' "$PROJECT_ROOT/scripts/lib/spawn.sh" && \
-       grep -q 'local _eff_timeout="${TIMEOUT:-0}"' "$PROJECT_ROOT/scripts/lib/spawn.sh" && \
-       grep -q 'run_with_timeout "\$_eff_timeout"' "$PROJECT_ROOT/scripts/lib/spawn.sh"; then
+       grep -q 'octopus_effective_agent_timeout "${TIMEOUT:-0}"' "$PROJECT_ROOT/scripts/lib/spawn.sh" && \
+       grep -q 'run_with_timeout "\$_attempt_timeout"' "$PROJECT_ROOT/scripts/lib/spawn.sh"; then
         test_pass
     else test_fail "spawn.sh still exposes retired Gemini timeout behavior"; fi
 }
