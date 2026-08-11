@@ -2,9 +2,12 @@
 # spawn_agent — extracted from orchestrate.sh (v9.7.x)
 # Agent spawning and lifecycle management
 
+_octopus_spawn_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if ! type start_quota_watcher >/dev/null 2>&1; then
-    _octopus_spawn_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     source "${_octopus_spawn_lib_dir}/quota-watcher.sh" 2>/dev/null || true
+fi
+if ! type octopus_agent_teams_can_honor_timeout >/dev/null 2>&1; then
+    source "${_octopus_spawn_lib_dir}/agent-sync.sh" 2>/dev/null || true
 fi
 
 quota_watcher_kill_spawn_children() {
@@ -621,8 +624,18 @@ ${heuristic_ctx}"
     mkdir -p "$RESULTS_DIR" "$LOGS_DIR"
     touch "$PID_FILE"
 
-    # v8.5: Agent Teams dispatch for Claude agents
+    # v8.5: Agent Teams dispatch for Claude agents. Native teammates have no
+    # plugin-accessible cancellation handle, so positive bounded work must stay
+    # on the supervised subprocess path where the timeout is enforceable.
+    local _use_agent_teams=false
     if should_use_agent_teams "$agent_type"; then
+        if octopus_agent_teams_can_honor_timeout "$_eff_timeout"; then
+            _use_agent_teams=true
+        else
+            log "INFO" "Bounded dispatch (${_eff_timeout}s) uses the supervised provider subprocess; native Agent Teams cannot enforce a wall-clock timeout"
+        fi
+    fi
+    if [[ "$_use_agent_teams" == "true" ]]; then
         log "INFO" "Dispatching via Agent Teams: $agent_type (task: $task_id)"
 
         # Write structured agent instruction for Claude Code's native team dispatch
@@ -642,10 +655,12 @@ ${heuristic_ctx}"
                 --arg result_file "$result_file" \
                 --arg effort "${effort_level:-medium}" \
                 --arg model_override "$SUPPORTS_AGENT_MODEL_OVERRIDE" \
+                --argjson timeout_seconds "$_eff_timeout" \
                 '{agent_type: $agent_type, task_id: $task_id, role: $role,
                   phase: $phase, model: $model, prompt: $prompt,
                   result_file: $result_file, dispatch_method: "agent_teams",
                   effort: $effort,
+                  timeout_seconds: $timeout_seconds,
                   model_override_supported: ($model_override == "true"),
                   agent_id: "", dispatched_at: now | todate}' \
                 > "$agent_instruction_file" 2>/dev/null
@@ -669,7 +684,7 @@ ${heuristic_ctx}"
             echo "# Result-capture: SubagentStop hook" >> "$result_file"
         fi
         echo "" >> "$result_file"
-        type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "running" "$tokens_in" 0 "Dispatched via Agent Teams" 0 "$result_file" "${role:-none}" || true
+        type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "running" "$tokens_in" 0 "Dispatched via Agent Teams" "$_eff_timeout" "$result_file" "${role:-none}" || true
 
         log "DEBUG" "Agent Teams instruction written to: $agent_instruction_file"
         if [[ "$SUPPORTS_HOOK_LAST_MESSAGE" == "true" ]]; then

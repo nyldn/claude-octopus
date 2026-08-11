@@ -34,10 +34,29 @@ fleet_dispatch_end() {
     unset OCTOPUS_FORCE_LEGACY_DISPATCH
 }
 
+# Claude Code's native Agent Teams API does not expose a provider PID or a
+# timeout/cancellation handle to plugin scripts. A positive Octopus timeout
+# therefore cannot be enforced on that path: Claude Code documents that team
+# shutdown waits for the teammate's current request/tool call. Keep native
+# dispatch only for explicitly unlimited work; bounded work uses the supervised
+# provider subprocess where run_with_timeout owns the process tree.
+octopus_agent_teams_can_honor_timeout() {
+    local effective_timeout="${1:-}"
+    [[ "$effective_timeout" =~ ^[0-9]+$ ]] || return 1
+    [[ "$effective_timeout" -eq 0 ]]
+}
+
 # Check if an agent should use Agent Teams dispatch
 # Returns 0 (true) if agent should use native teams, 1 (false) for legacy bash
 should_use_agent_teams() {
     local agent_type="$1"
+
+    # Keep every caller (including retry/resume routing) consistent with
+    # spawn_agent(): a bounded task needs the subprocess watchdog and PID tree.
+    if ! octopus_agent_teams_can_honor_timeout "${TIMEOUT:-0}"; then
+        log "DEBUG" "Bounded dispatch (${TIMEOUT}s) requires the supervised provider subprocess"
+        return 1
+    fi
 
     # P0-B fix: When orchestrate.sh runs as a Bash tool subprocess (not inside
     # Claude Code's native context), Agent Teams JSON instruction files are never

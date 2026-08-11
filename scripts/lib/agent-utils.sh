@@ -1028,6 +1028,20 @@ resume_agent() {
         return 1
     fi
 
+    # Native continuation has the same Claude Code limitation as a fresh
+    # teammate: plugins receive no PID or cancellation handle. A bounded retry
+    # must cold-spawn through the supervised subprocess instead of escaping its
+    # timeout budget via SendMessage.
+    if declare -F octopus_agent_teams_can_honor_timeout >/dev/null 2>&1; then
+        if ! octopus_agent_teams_can_honor_timeout "${TIMEOUT:-0}"; then
+            log "DEBUG" "resume_agent: bounded dispatch requires the supervised provider subprocess"
+            return 1
+        fi
+    elif [[ "${TIMEOUT:-0}" =~ ^[1-9][0-9]*$ ]]; then
+        log "DEBUG" "resume_agent: timeout policy unavailable; refusing bounded native continuation"
+        return 1
+    fi
+
     # Gate: agent_id must be non-empty
     if [[ -z "$agent_id" ]]; then
         log "DEBUG" "resume_agent: empty agent_id, falling back"
