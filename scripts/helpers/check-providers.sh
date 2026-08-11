@@ -111,6 +111,16 @@ provider_status "commandcode" "$commandcode_state"
 # startup/banner hook can open a browser or keychain prompt. Runtime quota/auth
 # failures are remembered by provider_status() and suppress later dispatches.
 provider_status "agy" "$(command -v agy >/dev/null 2>&1 && echo available || echo missing)"
+# #871: gemini* seats have routed through the `agy` binary, not the `gemini`
+# CLI, since #854 retired direct Gemini dispatch. A host that still has
+# `gemini` on PATH but never installed Antigravity used to get working
+# gemini* seats; now every one of them fails at dispatch with no signal
+# before that point. Warn once on stderr so it reaches interactive preflight
+# banners (skills/blocks/provider-check.md runs this script unredirected)
+# without perturbing the name:state stdout protocol other callers parse.
+if command -v gemini >/dev/null 2>&1 && ! command -v agy >/dev/null 2>&1; then
+    echo "WARNING: gemini CLI found but Antigravity (agy) is not installed — gemini* seats route through agy since #854 and will fail. Install Antigravity (agy) to restore Google seats." >&2
+fi
 # oco-cbb: opt-in proactive probe for API-key providers (perplexity, openrouter).
 # Only runs when OCTOPUS_PREFLIGHT_PROBE=1; result cached via quota-dead marker
 # so subsequent octo_quota_is_dead reads pick it up automatically.
