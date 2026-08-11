@@ -101,6 +101,32 @@ test_release_requires_matching_owner_token() {
     else test_fail "release removed the wrong owner or retained the matching owner"; fi
 }
 
+test_signal_cleanup_terminates_operation() {
+    test_case "TERM cleans the lock and terminates the interrupted update"
+    local f="$FIXTURE/g.json"; echo '{"n":1}' > "$f"
+    local fake_bin="$FIXTURE/signal-bin"
+    mkdir -p "$fake_bin"
+    cat > "$fake_bin/jq" <<'EOF'
+#!/usr/bin/env bash
+last=""
+for arg in "$@"; do last="$arg"; done
+kill -TERM "$PPID"
+sleep 0.1
+/bin/cat "$last"
+EOF
+    chmod +x "$fake_bin/jq"
+
+    trap ':' TERM
+    local trap_before trap_after
+    trap_before=$(trap -p TERM)
+    local rc=0
+    PATH="$fake_bin:$PATH" atomic_json_update "$f" '.n=2' 2>/dev/null || rc=$?
+    trap_after=$(trap -p TERM)
+    trap - TERM
+    if [[ "$rc" -ne 0 && ! -e "$f.lock" && "$trap_after" == "$trap_before" ]]; then test_pass
+    else test_fail "interrupted update returned rc=$rc lock=$([[ -e "$f.lock" ]] && echo left || echo clean) caller_trap_preserved=$([[ "$trap_after" == "$trap_before" ]] && echo yes || echo no)"; fi
+}
+
 test_empty_path_guard
 test_normal_update_no_lock_left
 test_reclaims_dead_holder_lock
@@ -108,5 +134,6 @@ test_respects_live_holder
 test_reclaims_hard_aged_live_pid_lock
 test_reclaims_aged_out_lock
 test_release_requires_matching_owner_token
+test_signal_cleanup_terminates_operation
 
 test_summary
