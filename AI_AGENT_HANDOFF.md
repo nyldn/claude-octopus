@@ -335,9 +335,9 @@ were removed with that worktree and did not contaminate the task branch.
 
 ## Next Action
 
-No active implementation or release work remains. All GitHub issues and pull
-requests are closed as of this handoff. If streamlining work resumes, the
-unstarted candidates are:
+No active implementation or release work remains. Before creating this handoff
+PR, live queries found no other open issues or pull requests. If streamlining
+work resumes, the unstarted candidates are:
 
 1. Remaining streamlining work:
    - **4c:** remove obsolete drift detection, its unreachable duplicate, and
