@@ -202,8 +202,8 @@ assert_contains "$QUALITY" "_design_timeout_label" "design review reports effect
 HEARTBEAT="$PROJECT_ROOT/scripts/lib/heartbeat.sh"
 assert_contains "$HEARTBEAT" "timeout_secs=0 means no absolute timeout" "timeout zero disables absolute timeout"
 SPAWN="$PROJECT_ROOT/scripts/lib/spawn.sh"
-assert_contains "$SPAWN" "TIMEOUT=0 means no absolute timeout" "spawn respects TIMEOUT=0"
-assert_contains "$SPAWN" 'local _eff_timeout="${TIMEOUT:-0}"' "all providers use the supervised workflow timeout"
+assert_contains "$SPAWN" "TIMEOUT=0 remains" "spawn respects TIMEOUT=0"
+assert_contains "$SPAWN" 'octopus_effective_agent_timeout "${TIMEOUT:-0}"' "all providers use the supervised workflow timeout"
 
 TESTING="$PROJECT_ROOT/scripts/lib/testing.sh"
 assert_contains "$TESTING" "OCTOPUS_TANGLE_VALIDATION_CORRECTION_FILE" "post-correction validation overlay is wired"
