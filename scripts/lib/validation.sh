@@ -346,42 +346,62 @@ verify_result_integrity() {
 # #559: reclaim a mkdir-lock whose holder died before releasing it (SIGKILL,
 # crash, OOM, power loss all skip the EXIT trap, leaving the lock dir behind and
 # blocking every later caller until timeout). A lock is stale when its recorded
-# holder PID is no longer running, or it has outlived the age threshold.
+# holder PID is no longer running, its unknown owner outlives the age threshold,
+# or a nominally live PID persists past a larger hard limit (PID reuse).
 #
 # Reclaim is race-safe via grab-verify-restore: we atomically `mv` the lock
 # aside (only one contender can win that rename), then re-check the holder — if
 # it turns out to be alive (we grabbed a lock another reclaimer had just
-# re-created), we move it back untouched. Only a confirmed-dead holder is dropped.
+# re-created), we move it back untouched. Only a confirmed-stale holder is dropped.
+_atomic_lock_is_stale() {
+    local lockfile="$1" stale_age="$2"
+    [[ "$stale_age" =~ ^[1-9][0-9]*$ ]] || stale_age=30
+
+    local pid ts now age
+    pid=$(cat "$lockfile/pid" 2>/dev/null || true)
+    ts=$(cat "$lockfile/ts" 2>/dev/null || true)
+    now=$(date +%s 2>/dev/null || echo 0)
+
+    if [[ "$pid" =~ ^[0-9]+$ ]]; then
+        kill -0 "$pid" 2>/dev/null || return 0
+        # A live PID is authoritative for normal lock lifetimes. Cap that
+        # trust at 10x stale_age so a recycled PID cannot wedge every writer.
+        if [[ "$ts" =~ ^[0-9]+$ && "$now" =~ ^[0-9]+$ && "$now" -ge "$ts" ]]; then
+            age=$((now - ts))
+            [[ "$age" -ge $((stale_age * 10)) ]] && return 0
+        fi
+        return 1
+    fi
+
+    if [[ "$ts" =~ ^[0-9]+$ && "$now" =~ ^[0-9]+$ && "$now" -ge "$ts" ]]; then
+        age=$((now - ts))
+        [[ "$age" -ge "$stale_age" ]] && return 0
+    fi
+    return 1
+}
+
 _atomic_reclaim_stale_lock() {
     local lockfile="$1" stale_age="$2"
     [[ -d "$lockfile" ]] || return 0
-
-    local pid ts now stale=0
-    pid=$(cat "$lockfile/pid" 2>/dev/null || true)
-    ts=$(cat "$lockfile/ts" 2>/dev/null || true)
-
-    if [[ "$pid" =~ ^[0-9]+$ ]]; then
-        # A live holder is authoritative regardless of age. Long provider or
-        # hook operations must not lose mutual exclusion merely because their
-        # timestamp crossed the stale-age threshold.
-        kill -0 "$pid" 2>/dev/null && return 0
-        stale=1                                      # recorded holder is gone
-    elif [[ "$ts" =~ ^[0-9]+$ ]]; then
-        now=$(date +%s 2>/dev/null || echo 0)
-        [[ $((now - ts)) -ge "$stale_age" ]] && stale=1   # owner unknown and aged
-    fi
-    [[ $stale -eq 1 ]] || return 0
+    _atomic_lock_is_stale "$lockfile" "$stale_age" || return 0
 
     local stolen="${lockfile}.stale.${BASHPID:-$$}"
     mv "$lockfile" "$stolen" 2>/dev/null || return 0   # lost the race to reclaim
     # We exclusively hold the moved dir. Re-verify it was actually stale before
     # dropping it, in case we grabbed a lock another process had just re-created.
-    local spid; spid=$(cat "$stolen/pid" 2>/dev/null || true)
-    if [[ "$spid" =~ ^[0-9]+$ ]] && kill -0 "$spid" 2>/dev/null; then
-        mv "$stolen" "$lockfile" 2>/dev/null || rm -rf "$stolen" 2>/dev/null || true
-    else
+    if _atomic_lock_is_stale "$stolen" "$stale_age"; then
         rm -rf "$stolen" 2>/dev/null || true
+    else
+        mv "$stolen" "$lockfile" 2>/dev/null || true
     fi
+}
+
+_atomic_release_owned_lock() {
+    local lockfile="$1" owner_token="$2" current_token
+    [[ -d "$lockfile" ]] || return 0
+    current_token=$(cat "$lockfile/token" 2>/dev/null || true)
+    [[ -n "$current_token" && "$current_token" == "$owner_token" ]] || return 0
+    rm -rf "$lockfile" 2>/dev/null || true
 }
 
 atomic_json_update() {
@@ -412,6 +432,7 @@ atomic_json_update() {
     local retry_sleep
     printf -v retry_sleep '%d.%03d' "$((retry_ms / 1000))" "$((retry_ms % 1000))"
     local stale_age="${OCTO_LOCK_STALE_SECS:-30}"
+    [[ "$stale_age" =~ ^[1-9][0-9]*$ ]] || stale_age=30
 
     while ! mkdir "$lockfile" 2>/dev/null; do
         # #559: a leaked lock from a crashed holder would otherwise block forever.
@@ -426,9 +447,11 @@ atomic_json_update() {
     done
 
     # #559: record ownership so a later contender can tell a live holder from a
-    # crashed one. Best-effort — failure to write these never blocks the update.
+    # crashed one. The token also keeps an old writer from releasing a successor.
+    local lock_token="${BASHPID:-$$}-$(date +%s)-${RANDOM:-0}"
     printf '%s\n' "${BASHPID:-$$}" > "$lockfile/pid" 2>/dev/null || true
     date +%s > "$lockfile/ts" 2>/dev/null || true
+    printf '%s\n' "$lock_token" > "$lockfile/token" 2>/dev/null || true
 
     # This function can run in the same shell as a caller's own long-lived
     # EXIT/INT/TERM traps (e.g. orchestrate.sh's temp-dir cleanup), so save
@@ -437,8 +460,9 @@ atomic_json_update() {
     prev_exit_trap=$(trap -p EXIT)
     prev_int_trap=$(trap -p INT)
     prev_term_trap=$(trap -p TERM)
-    # rm -rf (not rmdir): the lock dir now holds pid/ts ownership files (#559).
-    trap 'rm -rf "'"$lockfile"'" 2>/dev/null' EXIT INT TERM
+    local lock_cleanup_cmd
+    printf -v lock_cleanup_cmd '_atomic_release_owned_lock %q %q' "$lockfile" "$lock_token"
+    trap "$lock_cleanup_cmd" EXIT INT TERM
 
     # BASHPID (not $$, which stays constant across every subshell spawned
     # from the same parent) keeps concurrent callers from colliding on one
@@ -448,7 +472,7 @@ atomic_json_update() {
     local result=$?
     [[ $result -ne 0 ]] && rm -f "$tmp_file"
 
-    rm -rf "$lockfile" 2>/dev/null
+    _atomic_release_owned_lock "$lockfile" "$lock_token"
     eval "${prev_exit_trap:-trap - EXIT}"
     eval "${prev_int_trap:-trap - INT}"
     eval "${prev_term_trap:-trap - TERM}"

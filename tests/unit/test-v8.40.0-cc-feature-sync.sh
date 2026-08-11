@@ -238,7 +238,7 @@ cat > "$LOCK_WORKSPACE/progress.json" <<EOF
 {"phase":"develop","total_agents":1,"completed_agents":0,"agents":[{"name":"claude","task_id":"lock-task","phase":"develop","status":"running","started_at":"2026-08-11T00:00:00Z","elapsed_ms":0,"cost":0,"output_file":"$LOCK_RESULT_FILE"}]}
 EOF
 printf '%s\n' "$$" > "$LOCK_WORKSPACE/progress.json.lock/pid"
-printf '%s\n' "$(( $(date +%s) - 3600 ))" > "$LOCK_WORKSPACE/progress.json.lock/ts"
+printf '%s\n' "$(( $(date +%s) - 120 ))" > "$LOCK_WORKSPACE/progress.json.lock/ts"
 LOCK_INPUT='{"last_assistant_message":"Finished after lock release.","agent_id":"lock-agent","agent_type":"claude"}'
 printf '%s' "$LOCK_INPUT" | OCTO_LOCK_WAIT_SECS=1 OCTO_LOCK_RETRY_MILLIS=100 \
   OCTOPUS_WORKSPACE="$LOCK_WORKSPACE" "$HOOK"
@@ -257,6 +257,31 @@ if [[ "$lock_preserved" == "true" ]] &&
   test_pass
 else
   test_fail "hook reclaimed a live lock or could not reconcile after the lock cleared"
+fi
+
+test_case "hard-aged progress lock with a recycled live PID is reclaimed"
+AGED_LOCK_WORKSPACE="$TEST_TMP_DIR/aged-live-lock-workspace"
+AGED_LOCK_RESULTS="$AGED_LOCK_WORKSPACE/results"
+AGED_LOCK_TEAMS="$AGED_LOCK_WORKSPACE/agent-teams"
+AGED_LOCK_RESULT_FILE="$AGED_LOCK_RESULTS/claude-aged-lock-task.md"
+mkdir -p "$AGED_LOCK_RESULTS" "$AGED_LOCK_TEAMS" "$AGED_LOCK_WORKSPACE/progress.json.lock"
+cat > "$AGED_LOCK_TEAMS/aged-lock-task.json" <<EOF
+{"agent_id":"aged-lock-agent","dispatch_method":"agent_teams","result_file":"$AGED_LOCK_RESULT_FILE"}
+EOF
+cat > "$AGED_LOCK_WORKSPACE/progress.json" <<EOF
+{"phase":"develop","total_agents":1,"completed_agents":0,"agents":[{"name":"claude","task_id":"aged-lock-task","phase":"develop","status":"running","started_at":"2026-08-11T00:00:00Z","elapsed_ms":0,"cost":0,"output_file":"$AGED_LOCK_RESULT_FILE"}]}
+EOF
+printf '%s\n' "$$" > "$AGED_LOCK_WORKSPACE/progress.json.lock/pid"
+printf '%s\n' "$(( $(date +%s) - 301 ))" > "$AGED_LOCK_WORKSPACE/progress.json.lock/ts"
+AGED_LOCK_INPUT='{"last_assistant_message":"Finished after stale lock recovery.","agent_id":"aged-lock-agent","agent_type":"claude"}'
+printf '%s' "$AGED_LOCK_INPUT" | OCTO_LOCK_STALE_SECS=30 OCTO_LOCK_WAIT_SECS=1 \
+  OCTO_LOCK_RETRY_MILLIS=100 OCTOPUS_WORKSPACE="$AGED_LOCK_WORKSPACE" "$HOOK"
+if [[ ! -e "$AGED_LOCK_WORKSPACE/progress.json.lock" ]] &&
+   jq -e '.completed_agents == 1 and .agents[0].status == "completed"' \
+     "$AGED_LOCK_WORKSPACE/progress.json" >/dev/null; then
+  test_pass
+else
+  test_fail "hook preserved a hard-aged recycled-PID lock"
 fi
 
 # ─────────────────────────────────────────────────────────────────────

@@ -158,16 +158,24 @@ def pid_is_alive(owner):
     except ProcessLookupError:
         return False
 
-def lock_is_stale(directory):
-    owner = read_pid(directory)
-    if owner is not None:
-        # Age is not a reason to steal from a process that is still alive.
-        return not pid_is_alive(owner)
+def lock_age_seconds(directory):
     try:
         with open(os.path.join(directory, 'ts')) as f:
-            return time.time() - int(f.read().strip()) >= stale_age
+            timestamp = int(f.read().strip())
+        return max(0, time.time() - timestamp)
     except (OSError, TypeError, ValueError):
-        return False
+        return None
+
+def lock_is_stale(directory):
+    owner = read_pid(directory)
+    age = lock_age_seconds(directory)
+    if owner is not None:
+        if not pid_is_alive(owner):
+            return True
+        # A live PID normally proves ownership. Bound that trust so a PID
+        # recycled after a crash cannot preserve an abandoned lock forever.
+        return age is not None and age >= stale_age * 10
+    return age is not None and age >= stale_age
 
 def restore_live_lock(stale_dir):
     try:
@@ -201,8 +209,10 @@ def safe_number(value, default=0):
 acquired = False
 try:
     while True:
+        created = False
         try:
             os.mkdir(lock_dir)
+            created = True
             with open(os.path.join(lock_dir, 'pid'), 'w') as f:
                 f.write(str(os.getpid()))
             with open(os.path.join(lock_dir, 'ts'), 'w') as f:
@@ -216,11 +226,10 @@ try:
                 stale_dir = lock_dir + '.stale.' + lock_token
                 try:
                     os.rename(lock_dir, stale_dir)
-                    moved_owner = read_pid(stale_dir)
-                    if moved_owner is not None and pid_is_alive(moved_owner):
-                        restore_live_lock(stale_dir)
-                    else:
+                    if lock_is_stale(stale_dir):
                         shutil.rmtree(stale_dir, ignore_errors=True)
+                    else:
+                        restore_live_lock(stale_dir)
                     continue
                 except OSError:
                     pass
@@ -228,7 +237,8 @@ try:
                 raise TimeoutError('timed out acquiring progress lock')
             time.sleep(retry_ms / 1000.0)
         except OSError:
-            shutil.rmtree(lock_dir, ignore_errors=True)
+            if created:
+                shutil.rmtree(lock_dir, ignore_errors=True)
             raise
 
     with open(path) as f:

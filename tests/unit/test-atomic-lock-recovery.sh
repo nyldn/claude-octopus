@@ -68,6 +68,19 @@ test_respects_live_holder() {
     if [[ "$intact" == "yes" ]]; then test_pass; else test_fail "live holder's lock was reclaimed"; fi
 }
 
+test_reclaims_hard_aged_live_pid_lock() {
+    test_case "a hard-aged lock is reclaimed when its PID was recycled"
+    local f="$FIXTURE/e.json"; echo '{"n":1}' > "$f"
+    sleep 20 & local recycled=$!
+    mkdir -p "$f.lock"; echo "$recycled" > "$f.lock/pid"
+    echo $(( $(date +%s) - 301 )) > "$f.lock/ts"
+    _atomic_reclaim_stale_lock "$f.lock" 30
+    local reclaimed="no"; [[ ! -e "$f.lock" ]] && reclaimed="yes"
+    kill "$recycled" 2>/dev/null || true
+    rm -rf "$f.lock"
+    if [[ "$reclaimed" == "yes" ]]; then test_pass; else test_fail "hard-aged recycled-PID lock was preserved"; fi
+}
+
 test_reclaims_aged_out_lock() {
     test_case "a lock older than the age threshold is reclaimed even if PID unknown"
     local f="$FIXTURE/d.json"; echo '{"n":1}' > "$f"
@@ -77,10 +90,23 @@ test_reclaims_aged_out_lock() {
     if [[ ! -e "$f.lock" ]]; then test_pass; else test_fail "aged lock not reclaimed"; fi
 }
 
+test_release_requires_matching_owner_token() {
+    test_case "an old writer cannot release a successor's lock"
+    local f="$FIXTURE/f.json"; echo '{"n":1}' > "$f"
+    mkdir -p "$f.lock"; echo "successor-token" > "$f.lock/token"
+    _atomic_release_owned_lock "$f.lock" "old-token"
+    local preserved="no"; [[ -d "$f.lock" ]] && preserved="yes"
+    _atomic_release_owned_lock "$f.lock" "successor-token"
+    if [[ "$preserved" == "yes" && ! -e "$f.lock" ]]; then test_pass
+    else test_fail "release removed the wrong owner or retained the matching owner"; fi
+}
+
 test_empty_path_guard
 test_normal_update_no_lock_left
 test_reclaims_dead_holder_lock
 test_respects_live_holder
+test_reclaims_hard_aged_live_pid_lock
 test_reclaims_aged_out_lock
+test_release_requires_matching_owner_token
 
 test_summary
