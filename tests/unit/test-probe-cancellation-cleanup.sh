@@ -340,15 +340,142 @@ else
     test_fail "explicit project-local state directory was not honored"
 fi
 
-test_case "probe synthesis failure keeps recovery marker and returns non-zero"
-probe_tail="$(sed -n '/# Intelligent synthesis (v7.19.0 P1.1/,/^}/p' "$PROJECT_ROOT/scripts/lib/workflows.sh")"
-if grep -q 'local synthesis_status=0' <<< "$probe_tail" \
-   && grep -q 'synthesize_probe_results.*synthesis_status' <<< "$(tr '\n' ' ' <<< "$probe_tail")" \
-   && grep -q 'if \[\[ "$synthesis_status" -eq 0 \]\]' <<< "$probe_tail" \
-   && grep -q 'return "$synthesis_status"' <<< "$probe_tail"; then
+test_case "failed agent spawn cancels the probe and closes fleet dispatch"
+preflight_check() { return 0; }
+display_workflow_cost_estimate() { return 0; }
+get_cache_key() { printf '%s\n' fixture-key; }
+check_cache() { return 1; }
+cleanup_cache() { :; }
+get_dispatch_strategy() { printf '%s\n' standard:codex; }
+load_blind_spot_checklist() { :; }
+init_progress_tracking() { :; }
+fleet_dispatch_begin() { fleet_begin_count=$((fleet_begin_count + 1)); }
+fleet_dispatch_end() { fleet_end_count=$((fleet_end_count + 1)); }
+spawn_agent_capture_pid() { return 23; }
+fleet_begin_count=0
+fleet_end_count=0
+DRY_RUN=false
+TMUX_MODE=false
+PERPLEXITY_API_KEY=""
+probe_test_magenta="${MAGENTA:-}"
+probe_test_cyan="${CYAN:-}"
+probe_test_green="${GREEN:-}"
+probe_test_yellow="${YELLOW:-}"
+probe_test_red="${RED:-}"
+probe_test_nc="${NC:-}"
+MAGENTA=""
+CYAN=""
+GREEN=""
+YELLOW=""
+RED=""
+NC=""
+RESULTS_DIR="$TEST_TMP_DIR/spawn-failure-results"
+LOGS_DIR="$TEST_TMP_DIR/spawn-failure-logs"
+WORKSPACE_DIR="$TEST_TMP_DIR/spawn-failure-workspace"
+PID_FILE="$WORKSPACE_DIR/pids"
+CACHE_DIR="$TEST_TMP_DIR/spawn-failure-cache"
+mkdir -p "$RESULTS_DIR" "$LOGS_DIR" "$CACHE_DIR"
+spawn_failure_log="$TEST_TMP_DIR/spawn-failure.log"
+if probe_discover "spawn failure fixture" >"$spawn_failure_log" 2>&1; then
+    spawn_failure_status=0
+else
+    spawn_failure_status=$?
+fi
+MAGENTA="$probe_test_magenta"
+CYAN="$probe_test_cyan"
+GREEN="$probe_test_green"
+YELLOW="$probe_test_yellow"
+RED="$probe_test_red"
+NC="$probe_test_nc"
+if [[ "$spawn_failure_status" -eq 23 && "$fleet_begin_count" -eq 1 \
+   && "$fleet_end_count" -eq 1 && -z "$OCTOPUS_ACTIVE_PROBE_TASK_GROUP" ]]; then
     test_pass
 else
-    test_fail "probe_discover does not preserve synthesis failure through cleanup"
+    test_fail "spawn failure was not cancelled cleanly (rc=$spawn_failure_status begin=$fleet_begin_count end=$fleet_end_count)"
+fi
+
+test_case "synthesis monitor cancellation closes the PID handoff window"
+progressive_synthesis_monitor() { sleep 300; }
+handoff_monitor_pid=""
+_octopus_test_after_synthesis_spawn() {
+    handoff_monitor_pid="$1"
+    octopus_probe_cancel_active TERM
+}
+OCTOPUS_ACTIVE_PROBE_TASK_GROUP="handoff-fixture"
+OCTOPUS_ACTIVE_PROBE_SYNTHESIS_PID=""
+OCTOPUS_ACTIVE_PROBE_PIDS=()
+OCTOPUS_ACTIVE_PROBE_AGENTS=()
+OCTOPUS_ACTIVE_PROBE_TASK_IDS=()
+if _octopus_probe_start_synthesis_monitor "handoff-fixture" "fixture" 2; then
+    handoff_status=0
+else
+    handoff_status=$?
+fi
+unset -f _octopus_test_after_synthesis_spawn
+if [[ "$handoff_status" -eq 143 && "$handoff_monitor_pid" =~ ^[0-9]+$ ]] \
+   && ! kill -0 "$handoff_monitor_pid" 2>/dev/null \
+   && [[ -z "$OCTOPUS_ACTIVE_PROBE_TASK_GROUP" \
+      && "$OCTOPUS_ACTIVE_PROBE_SYNTHESIS_LAUNCHING" == "false" ]]; then
+    test_pass
+else
+    test_fail "synthesis monitor survived or was re-registered during PID handoff"
+fi
+
+test_case "probe synthesis success removes its recovery marker at runtime"
+success_marker="$TEST_TMP_DIR/synthesis-success.marker"
+touch "$success_marker"
+synthesize_probe_results() { return 0; }
+display_progress_summary() { return 0; }
+OCTOPUS_ACTIVE_PROBE_TASK_GROUP="synthesis-success"
+if _octopus_probe_finalize_synthesis "synthesis-success" "fixture" 1 \
+    "$success_marker" "" "" ""; then
+    synthesis_success_status=0
+else
+    synthesis_success_status=$?
+fi
+if [[ "$synthesis_success_status" -eq 0 && ! -e "$success_marker" \
+   && -z "$OCTOPUS_ACTIVE_PROBE_TASK_GROUP" ]]; then
+    test_pass
+else
+    test_fail "successful synthesis kept its marker or leaked active state"
+fi
+
+test_case "probe synthesis failure keeps recovery marker and returns non-zero"
+failure_marker="$TEST_TMP_DIR/synthesis-failure.marker"
+touch "$failure_marker"
+synthesize_probe_results() { return 41; }
+display_progress_summary() { return 0; }
+OCTOPUS_ACTIVE_PROBE_TASK_GROUP="synthesis-failure"
+if _octopus_probe_finalize_synthesis "synthesis-failure" "fixture" 1 \
+    "$failure_marker" "" "" ""; then
+    synthesis_failure_status=0
+else
+    synthesis_failure_status=$?
+fi
+if [[ "$synthesis_failure_status" -eq 41 && -e "$failure_marker" \
+   && -z "$OCTOPUS_ACTIVE_PROBE_TASK_GROUP" ]]; then
+    test_pass
+else
+    test_fail "failed synthesis lost its marker/status or leaked active state"
+fi
+
+test_case "summary failure restores probe state and returns its status"
+summary_marker="$TEST_TMP_DIR/summary-failure.marker"
+touch "$summary_marker"
+synthesize_probe_results() { return 0; }
+display_progress_summary() { return 37; }
+OCTOPUS_ACTIVE_PROBE_TASK_GROUP="summary-failure"
+if _octopus_probe_finalize_synthesis "summary-failure" "fixture" 1 \
+    "$summary_marker" "" "" ""; then
+    summary_failure_status=0
+else
+    summary_failure_status=$?
+fi
+if [[ "$summary_failure_status" -eq 37 && ! -e "$summary_marker" \
+   && -z "$OCTOPUS_ACTIVE_PROBE_TASK_GROUP" ]]; then
+    test_pass
+else
+    test_fail "summary failure bypassed cleanup or lost its status"
 fi
 
 test_summary

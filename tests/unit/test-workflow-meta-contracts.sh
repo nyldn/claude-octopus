@@ -52,6 +52,14 @@ else
 fi
 
 discover_block=$(sed -n '/^## Post-Discovery: State Update/,/^## /p' "$DISCOVER")
+
+extract_bash_fence() {
+    awk '
+        /^```bash$/ { if (!inside) { inside=1; next } }
+        inside && /^```$/ { exit }
+        inside { print }
+    '
+}
 synthesis_line=$(grep -n 'if \[\[ ! -s' <<< "$discover_block" | head -1 | cut -d: -f1 || true)
 exit_line=$(grep -n '^[[:space:]]*exit 1$' <<< "$discover_block" | head -1 | cut -d: -f1 || true)
 present_line=$(grep -nF 'cat "$SYNTHESIS_FILE"' <<< "$discover_block" | head -1 | cut -d: -f1 || true)
@@ -83,13 +91,45 @@ fi
 
 test_case "Discovery project persistence fails closed on every lifecycle write"
 discover_pre=$(sed -n '/^## Pre-Discovery: Optional Project Persistence/,/^---$/p' "$DISCOVER")
-if grep -q 'if ! .*init_project' <<< "$(tr '\n' ' ' <<< "$discover_pre")" \
-   && grep -q 'if ! .*update_state' <<< "$(tr '\n' ' ' <<< "$discover_pre")" \
-   && grep -q 'if ! .*update_project' <<< "$(tr '\n' ' ' <<< "$discover_block")" \
-   && grep -q 'if ! .*update_state' <<< "$(tr '\n' ' ' <<< "$discover_block")"; then
+discover_pre_code=$(extract_bash_fence <<< "$discover_pre")
+discover_post_code=$(extract_bash_fence <<< "$discover_block")
+persistence_home="$TEST_TMP_DIR/persistence-home"
+persistence_project="$TEST_TMP_DIR/persistence-project"
+persistence_synthesis="$TEST_TMP_DIR/persistence-synthesis.md"
+mkdir -p "$persistence_home/.claude-octopus/plugin/scripts" "$persistence_project"
+printf '%s\n' fixture > "$persistence_synthesis"
+cat > "$persistence_home/.claude-octopus/plugin/scripts/octo-state.sh" <<'EOF'
+#!/usr/bin/env bash
+[[ "${1:-}" == "${OCTOPUS_TEST_FAIL_COMMAND:-}" ]] && exit 42
+exit 0
+EOF
+chmod +x "$persistence_home/.claude-octopus/plugin/scripts/octo-state.sh"
+
+persistence_failed_closed=true
+for lifecycle_case in init_project pre_update_state update_project post_update_state; do
+    case "$lifecycle_case" in
+        init_project) failure_command=init_project; lifecycle_code="$discover_pre_code" ;;
+        pre_update_state) failure_command=update_state; lifecycle_code="$discover_pre_code" ;;
+        update_project) failure_command=update_project; lifecycle_code="$discover_post_code" ;;
+        post_update_state) failure_command=update_state; lifecycle_code="$discover_post_code" ;;
+    esac
+    if (
+        cd "$persistence_project"
+        rm -rf .octo
+        HOME="$persistence_home" \
+        OCTOPUS_PROJECT_PERSISTENCE=true \
+        OCTOPUS_TEST_FAIL_COMMAND="$failure_command" \
+        SYNTHESIS_FILE="$persistence_synthesis" \
+        bash -c "$lifecycle_code"
+    ) >/dev/null 2>&1; then
+        persistence_failed_closed=false
+        break
+    fi
+done
+if [[ "$persistence_failed_closed" == "true" ]]; then
     test_pass
 else
-    test_fail "Discover persistence can continue after an init/update failure"
+    test_fail "Discover persistence continued after $lifecycle_case failed"
 fi
 
 test_case "Doctor quick-reference commands use the resolved plugin root"

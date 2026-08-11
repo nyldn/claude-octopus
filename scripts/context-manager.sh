@@ -6,7 +6,7 @@ set -euo pipefail
 
 # Configuration. Use the same project-namespaced host workspace as every other
 # workflow-state consumer, while preserving explicit state-directory opt-ins.
-SCRIPT_DIR="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "$SCRIPT_DIR/state-manager.sh"
 CONTEXT_DIR="$STATE_DIR/context"

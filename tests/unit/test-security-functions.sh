@@ -151,6 +151,7 @@ test_url_rejects_long_urls() {
 #==============================================================================
 test_workspace_path_boundaries() {
     info "\n=== Testing: workspace path safe prefixes require directory boundaries ==="
+    test_case "Workspace safe prefixes require an exact path or slash boundary"
 
     # shellcheck source=/dev/null
     source "$PROJECT_ROOT/scripts/lib/validation.sh"
@@ -161,9 +162,9 @@ test_workspace_path_boundaries() {
        && ! HOME="$fixture_home" validate_workspace_path "${fixture_home}-sibling/workspace" >/dev/null 2>&1 \
        && ! HOME="$fixture_home" validate_workspace_path "/tmp-escape/workspace" >/dev/null 2>&1 \
        && ! HOME="$fixture_home" validate_workspace_path "/var/tmp-escape/workspace" >/dev/null 2>&1; then
-        pass "Workspace safe prefixes require an exact path or slash boundary"
+        test_pass
     else
-        fail "Workspace validation accepted a similarly-prefixed unsafe path"
+        test_fail "Workspace validation accepted a similarly-prefixed unsafe path"
     fi
 }
 
