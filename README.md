@@ -35,7 +35,7 @@ Every AI model has blind spots. Claude Octopus supports nine external provider i
 ## What's New
 
 <!-- BEGIN CURRENT RELEASE -->
-> 🆕 **v9.61.3 — Auth-aware provider status for codex/opencode/copilot, Gemini CLI retirement in favor of Antigravity, capped Codex default prompts, and stale-install detection/repair.**
+> 🆕 **v9.61.3 — Auth-aware provider status for codex/opencode/copilot, direct Google CLI retirement in favor of Antigravity, capped Codex default prompts, and stale-install detection/repair.**
 >
 > **Default roster:** Claude Opus 5 leads architecture, planning, security reasoning, and final judgment; GPT-5.6 Sol is the independent implementation/review peer; Claude Sonnet 5 is the standard Claude seat; Fable 5 remains an opt-in judgment escalation. Existing model pins and provider configuration still win. See [the routing strategy](docs/MODEL-ROUTING-STRATEGY.md).
 <!-- END CURRENT RELEASE -->
@@ -55,7 +55,7 @@ Every AI model has blind spots. Claude Octopus supports nine external provider i
 
 | Version | Best Features |
 |---------|--------------|
-| **v9.61.3** (new) | Auth-aware provider status for codex/opencode/copilot, Gemini CLI retirement in favor of Antigravity, capped Codex default prompts, and stale-install detection/repair. |
+| **v9.61.3** (new) | Auth-aware provider status for codex/opencode/copilot, direct Google CLI retirement in favor of Antigravity, capped Codex default prompts, and stale-install detection/repair. |
 | **v9.50** | **Claude Code 2026 compatibility layer** — routines manifest (schedule + GitHub-event automations), SubagentStop quality/cost gate, `/octo:usage` cost attribution, `worktree.bgIsolation` opt-out, Claude Agent SDK seat (introduced with Opus 4.8 and now following the current Opus 5 default), starter skills pack, `/plugin browse` manifest with projected context cost. |
 | **v9.41** | **`/octo:council`** promoted to first-class workflow — structured multi-LLM deliberation with goal modes, adversarial/red-team styles, benchmark-aware persona routing, quorum and critical-veto gates, budget preflight, and gated worktree handoff for approved implementation plans. |
 | **v9** | Up to 9 external provider integrations (Codex, Antigravity CLI, Copilot, Qwen, Ollama, Perplexity, OpenRouter, OpenCode, and Grok) alongside the Claude Code host. Structured provider debates and configurable multi-LLM councils. Smart router — just say what you need. Agent summary tables show which providers actually contributed. Provider-aware prompt preflight prevents silent oversize failures. Research breadth modes fan out light, standard, or exhaustive investigations. Setup aliases and fuzzy `/octo:*` corrections reduce command friction. Discipline mode with 8 auto-invoke gates. Two-stage review. Circuit breakers with automatic provider recovery. Cursor + OpenCode + Codex cross-compatibility. Token compression: `bin/octo-compress` pipe + auto PostToolUse hook save ~7,300 tokens/session. PostCompact context recovery. `bin/octopus` CLI. 182 Claude Code capability flags through v2.1.219, including Opus 5, Sonnet 5, and dynamic workflow awareness. |
