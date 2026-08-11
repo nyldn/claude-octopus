@@ -978,12 +978,12 @@ ${heuristic_ctx}"
             end_time_ms=$(( $(date +%s) * 1000 ))
             elapsed_ms=$((end_time_ms - start_time_ms))
             if [[ "$_octo_success_status" == "failed" ]]; then
-                update_agent_status "$agent_type" "failed" "$elapsed_ms" "$_estimated_cost" "${_eff_timeout:-${TIMEOUT:-0}}" "$task_id" "${phase:-unknown}" "$result_file"
+                update_agent_status "$agent_type" "failed" "$elapsed_ms" "$_estimated_cost" "$_eff_timeout" "$task_id" "${phase:-unknown}" "$result_file"
                 record_outcome "$agent_type" "$agent_type" "${task_type:-unknown}" "${phase:-unknown}" "fail" "$elapsed_ms" 2>/dev/null || true
                 type record_failure &>/dev/null && record_failure "$provider_prefix" "provider_rejection" 2>/dev/null || true
                 type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" "$_octo_tokens_out" "${_octo_success_reason:-unusable output}" "$elapsed_ms" "$result_file" "${role:-none}" || true
             else
-                update_agent_status "$agent_type" "$_octo_success_status" "$elapsed_ms" "$_estimated_cost" "${_eff_timeout:-${TIMEOUT:-0}}" "$task_id" "${phase:-unknown}" "$result_file"
+                update_agent_status "$agent_type" "$_octo_success_status" "$elapsed_ms" "$_estimated_cost" "$_eff_timeout" "$task_id" "${phase:-unknown}" "$result_file"
                 # v8.18.0: Record provider learning
                 local result_summary
                 result_summary=$(head -c 200 "$result_file" 2>/dev/null | tr '\n' ' ')
@@ -1061,7 +1061,7 @@ ${heuristic_ctx}"
             local end_time_ms elapsed_ms
             end_time_ms=$(( $(date +%s) * 1000 ))
             elapsed_ms=$((end_time_ms - start_time_ms))
-            update_agent_status "$agent_type" "timeout" "$elapsed_ms" "$_estimated_cost" "${_eff_timeout:-${TIMEOUT:-0}}" "$task_id" "${phase:-unknown}" "$result_file"
+            update_agent_status "$agent_type" "timeout" "$elapsed_ms" "$_estimated_cost" "$_eff_timeout" "$task_id" "${phase:-unknown}" "$result_file"
             # #869: tokens_out must be estimated from whichever file actually holds
             # more of the salvaged content — otherwise a timeout whose real output
             # only reached raw_output (or whose result_file gets a later raw_output
@@ -1117,7 +1117,7 @@ ${heuristic_ctx}"
             local end_time_ms elapsed_ms
             end_time_ms=$(( $(date +%s) * 1000 ))
             elapsed_ms=$((end_time_ms - start_time_ms))
-            update_agent_status "$agent_type" "failed" "$elapsed_ms" "$_estimated_cost" "${_eff_timeout:-${TIMEOUT:-0}}" "$task_id" "${phase:-unknown}" "$result_file"
+            update_agent_status "$agent_type" "failed" "$elapsed_ms" "$_estimated_cost" "$_eff_timeout" "$task_id" "${phase:-unknown}" "$result_file"
             local tokens_out
             tokens_out=$(octo_estimate_tokens_for_file "$temp_output" 2>/dev/null || echo 0)
             type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" "$tokens_out" "Exit code $exit_code" "$elapsed_ms" "$result_file" "${role:-none}" || true

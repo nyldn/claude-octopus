@@ -45,7 +45,7 @@ spawn_source="$(cat "$PROJECT_ROOT/scripts/lib/spawn.sh")"
 if [[ "$spawn_source" == *'exit_code -ne 124'* ]] && \
    [[ "$spawn_source" == *'exit_code -ne 143'* ]] && \
    [[ "$spawn_source" == *'run_with_timeout "$_attempt_timeout"'* ]] && \
-   [[ "$spawn_source" == *'update_agent_status "$agent_type" "running" 0 0.0 "$_eff_timeout"'* ]]; then
+   [[ "$spawn_source" == *'update_agent_status "$agent_type" "running" 0 "$_estimated_cost" "$_eff_timeout"'* ]]; then
     test_pass
 else
     test_fail "spawn does not yet enforce and report one shared effective timeout"
