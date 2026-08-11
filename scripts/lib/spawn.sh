@@ -713,6 +713,18 @@ ${heuristic_ctx}"
             # workflows supervise progress/stalls.
             local _eff_timeout="${TIMEOUT:-0}"
 
+            # #869: TIMEOUT's global default (600s) is tuned for probe researchers,
+            # not tangle implementers writing multi-file diffs — those were being
+            # SIGTERMed mid-write with real, unmerged work already on disk. Give
+            # tangle implementers a longer floor without touching the global
+            # default other phases rely on.
+            if [[ "$phase" == "tangle" && "$role" == "implementer" ]]; then
+                local _tangle_floor="${OCTOPUS_TANGLE_TIMEOUT:-1200}"
+                if [[ "$_tangle_floor" =~ ^[0-9]+$ ]] && [[ "$_tangle_floor" -gt "$_eff_timeout" ]]; then
+                    _eff_timeout="$_tangle_floor"
+                fi
+            fi
+
             # oco-48z: quota/terminal-error fast-fail watcher for ALL providers (was
             # provider-specific). Greps temp files every 2s; on match it kills the provider
             # early and marks it quota-dead for the session (oco-cbb), so preflight and
@@ -985,8 +997,15 @@ ${heuristic_ctx}"
             end_time_ms=$(( $(date +%s) * 1000 ))
             elapsed_ms=$((end_time_ms - start_time_ms))
             update_agent_status "$agent_type" "timeout" "$elapsed_ms" 0.0
+            # #869: tokens_out must be estimated from whichever file was actually
+            # salvaged into result_file above (temp_output, falling back to
+            # raw_output) — otherwise a timeout whose real content only reached
+            # raw_output gets reported as tokens_out=0 next to a result_file full of
+            # preserved output, making completed work look discarded.
+            local _tokens_out_source="$temp_output"
+            [[ ! -s "$_tokens_out_source" ]] && _tokens_out_source="$raw_output"
             local tokens_out
-            tokens_out=$(octo_estimate_tokens_for_file "$temp_output" 2>/dev/null || echo 0)
+            tokens_out=$(octo_estimate_tokens_for_file "$_tokens_out_source" 2>/dev/null || echo 0)
             type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "timeout" "$tokens_in" "$tokens_out" "Timed out before completion" "$elapsed_ms" "$result_file" "${role:-none}" || true
             # v8.20.0: Record timeout for provider intelligence
             record_outcome "$agent_type" "$agent_type" "${task_type:-unknown}" "${phase:-unknown}" "timeout" "$elapsed_ms" 2>/dev/null || true
