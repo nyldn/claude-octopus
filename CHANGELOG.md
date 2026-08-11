@@ -10,6 +10,15 @@
 - Retire direct Gemini CLI dispatch in favor of Antigravity (AGY) (#854)
 - Cap Codex default prompts at the host limit (#855)
 - Detect and repair stale plugin installs (#856)
+- Unify provider availability, authentication, smoke health, and fleet admission (#859)
+- Refresh Copilot, Ollama, DeepSeek, and generic OpenAI-compatible model defaults,
+  backed by one canonical model and pricing catalog (#863)
+
+### Fixed
+
+- Clean interrupted probe state, traps, descendants, and temporary artifacts (#857)
+- Block direct Qwen, retired Gemini, and unsafe Codex commands before automated
+  workflows can launch an interactive browser or login flow (#861)
 
 ## [9.61.2] - 2026-08-10
 

@@ -1,14 +1,13 @@
 # AI Agent Handoff
 
 Last updated: 2026-08-10
-Status: v9.61.2 is published. Issue #838 is implemented on
-`fix/issue-838-retire-gemini`: direct Gemini CLI support is retired, legacy
-Gemini provider IDs migrate one-way to AGY, and inert help rendering can no
-longer execute `agy login`. Final local CI passed. The branch still needs its
-commit, push, PR, remote checks, merge, and release. Stale-install update
-hardening is tracked in #851; cancellation cleanup remains #841.
-Branch: `fix/issue-838-retire-gemini`
-Release: [v9.61.2](https://github.com/nyldn/claude-octopus/releases/tag/v9.61.2)
+Status: v9.61.3 release candidate combines the completed hook, provider,
+stale-install, lifecycle, and model-metadata repairs from PRs #852, #854-#857,
+#859, #861, and #863. All implementation issues are closed. Release PR #858
+is refreshed on current `main` and requires final checks, merge, tag, shared
+marketplace sync, and installed-host verification.
+Branch: `claude/release-v9.61.3`
+Release candidate: v9.61.3
 
 ## Start Here
 
@@ -67,9 +66,9 @@ v49 with four pending migrations to v53. Repository rules reserve migration for
 the designated migrator. No migration was run, so this work could not be
 claimed or recorded in `bd`; use this handoff for the blocked tracking record.
 
-## Issue #838 Candidate
+## Release v9.61.3 Candidate
 
-- Direct Gemini CLI dispatch, detection, authentication, installer, model,
+- **PR #854 / #838:** Direct Gemini CLI dispatch, detection, authentication, installer, model,
   pricing, generated command, and provider-documentation surfaces are removed.
   `gemini`, `gemini-fast`, and `gemini-*` remain compatibility inputs only and
   canonicalize to AGY; stale config is migrated one-way and the obsolete
@@ -81,19 +80,35 @@ claimed or recorded in `bd`; use this handoff for the blocked tracking record.
   `agy login` in an unquoted help heredoc caused `help --full` to execute the
   login command. The text is now inert and a smoke regression proves help
   rendering cannot invoke provider login.
-- Final verification on the uncommitted candidate: `make sync`,
-  `make sync-check`, `git diff --check`, strict direct-Gemini execution-path
-  search, model-config 93/93, smoke 16/16 suites, unit 247/247 suites, and
-  integration 7/7 suites passed. No mode changes are present.
+- **PR #856 / #851:** The permanent stale-install design adds local-only startup
+  detection and cooldown guidance, doctor visibility, and explicit handoff to
+  Claude Code's updater. Hooks must never perform network access, mutate the
+  loaded cache, or launch an updater themselves.
+- **PR #861 / #860:** Direct workflow command validation blocks Qwen when its
+  credential is missing or expired, blocks retired Gemini, and rejects unsafe
+  Codex command shapes. This prevents automation from opening provider login
+  pages. The observed `https://chat.qwen.ai/` launch came from Qwen CLI device
+  authorization after its OAuth token expired, not from a browser provider.
+- **PR #857 / #841:** Interrupted probes now cancel and reap their owned process
+  tree and clean phase state, traps, and temporary files without deleting
+  unrelated user state.
+- **PR #859 / #799:** One auth-aware provider predicate now owns availability,
+  banner reporting, smoke health, and fleet admission, eliminating optimistic
+  direct-binary checks.
+- **PR #863 / #800 / #801:** Copilot delegates unpinned selection to CLI
+  `auto`, Ollama selects only an installed local model, OpenRouter DeepSeek uses
+  V4 Pro, generic OpenAI-compatible routing requires an explicit model, and a
+  canonical catalog/pricing table drives both Bash and Python reports.
+- **PRs #852 and #855:** Provider banners are auth-aware and default Codex
+  prompts stay within the host CLI limit.
+- Exact PR #863 head `a13223a9` passed Test Suite run `31452888521`: 16 smoke
+  suites, 254 unit suites on Ubuntu, macOS, and a symlinked install path, plus
+  7 integration suites. CodeRabbit approved with zero unresolved threads.
 - The local Claude lifecycle test temporarily replaced the installed plugin as
   part of its normal uninstall/install coverage and finished successfully.
 - An unrelated host hook failure was diagnosed as a stale `claude-mem` runtime;
   `claude-mem@13.15.0 repair` and `start` restored its worker. No external
-  claude-mem files are part of this branch.
-- #851 records the permanent stale-install design: local-only startup
-  detection and cooldown guidance, doctor visibility, and explicit handoff to
-  Claude Code's updater. Hooks must never perform network access, mutate the
-  loaded cache, or launch an updater themselves.
+  claude-mem files are part of this release.
 
 ## Release v9.61.2
 
