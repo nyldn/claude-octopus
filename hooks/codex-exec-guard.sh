@@ -40,7 +40,15 @@ _octo_command_segments() {
         char="${source:i:1}"
 
         if [[ "$escaped" == "true" ]]; then
-            segment="${segment} "
+            # An unquoted backslash preserves the next character as part of the
+            # same shell word. Keep ordinary characters (`q\wen` -> `qwen`),
+            # but use a non-separator placeholder when the escaped character
+            # would otherwise create a false token boundary.
+            case "$char" in
+                $'\n') ;;
+                ' '|$'\t'|';'|'&'|'|'|'('|')'|'{'|'}') segment="${segment}_" ;;
+                *) segment="${segment}${char}" ;;
+            esac
             escaped="false"
             continue
         fi
@@ -62,7 +70,7 @@ _octo_command_segments() {
                 case "$char" in
                     "'") state="single"; segment="${segment} " ;;
                     '"') state="double"; segment="${segment} " ;;
-                    "\\") escaped="true"; segment="${segment} " ;;
+                    "\\") escaped="true" ;;
                     ';'|'&'|'|'|'('|')'|'{'|'}'|$'\n')
                         printf '%s\n' "$segment"
                         segment=""
@@ -78,7 +86,7 @@ _octo_command_segments() {
 
 _octo_segment_provider() {
     local segment="$1" token="" provider="" first_arg=""
-    local saw_env="false"
+    local saw_env="false" saw_command="false"
 
     # Shell word splitting is intentional here; glob expansion is not.
     set -f
@@ -98,18 +106,28 @@ _octo_segment_provider() {
                 saw_env="true"
                 continue
                 ;;
+            command)
+                saw_command="true"
+                continue
+                ;;
+            -v|-V)
+                # `command -v/-V provider` is harmless introspection.
+                [[ "$saw_command" == "true" ]] && return 1
+                [[ "$saw_env" == "true" ]] && continue
+                return 1
+                ;;
+            -p|--)
+                # Both are valid `command` prefixes; env also accepts `--`.
+                if [[ "$saw_command" == "true" || "$saw_env" == "true" ]]; then
+                    continue
+                fi
+                return 1
+                ;;
             -*)
                 [[ "$saw_env" == "true" ]] && continue
                 return 1
                 ;;
             [A-Za-z_][A-Za-z0-9_]*=*)
-                continue
-                ;;
-            command)
-                # `command -v qwen` and `command -V qwen` are introspection.
-                if [[ "${1:-}" == "-v" || "${1:-}" == "-V" ]]; then
-                    return 1
-                fi
                 continue
                 ;;
             nohup)
@@ -133,6 +151,15 @@ _octo_segment_provider() {
             printf '%s\n' "$provider"
             return 0
             ;;
+        codex)
+            case "$first_arg" in
+                exec|--version|--help|-h|login|auth|completion)
+                    return 1
+                    ;;
+            esac
+            printf '%s\n' "$provider"
+            return 0
+            ;;
     esac
 
     return 1
@@ -145,6 +172,13 @@ while IFS= read -r segment; do
     fi
 done < <(_octo_command_segments "$COMMAND")
 
+if [[ "$DIRECT_PROVIDER" == "codex" ]]; then
+    cat <<'BLOCK'
+{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"BLOCKED: bare `codex \"prompt\"` launches interactive TUI and fails without a TTY. Flags such as `--approval-mode`, `--full-auto`, `-q`, and `--quiet` are not valid for current non-interactive Codex dispatch.\n\nUse `codex exec` instead:\n```bash\ncodex exec --skip-git-repo-check \"YOUR PROMPT\"\n```\n\nWith model: `codex exec --skip-git-repo-check --model gpt-5.4 \"YOUR PROMPT\"`\n\nFor long prompts, pipe stdin to `codex exec --skip-git-repo-check -`."}}
+BLOCK
+    exit 0
+fi
+
 if [[ "$DIRECT_PROVIDER" == "qwen" ]]; then
     cat <<'BLOCK'
 {"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"BLOCKED: direct Qwen CLI prompt dispatch bypasses Octopus provider admission and authentication checks. If Qwen OAuth is absent or expired, the CLI opens chat.qwen.ai and waits for interactive authorization.\n\nRun the workflow through an Octopus command or skill so Qwen is invoked non-interactively only after authentication is validated. Use `qwen --version` or `qwen --help` only for harmless inspection."}}
@@ -155,16 +189,6 @@ fi
 if [[ "$DIRECT_PROVIDER" == "gemini" ]]; then
     cat <<'BLOCK'
 {"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"BLOCKED: the direct Gemini CLI individual client is retired and must not be dispatched by Octopus workflows. It can trigger obsolete OAuth/keychain flows before failing.\n\nUse the Antigravity provider through an Octopus command or skill. `gemini --version` and `gemini --help` remain available for harmless inspection."}}
-BLOCK
-    exit 0
-fi
-
-# Match: starts with `codex` but NOT `codex exec`, `codex --version`, `codex --help`, `codex login`, `codex auth`
-# Also allow: `which codex`, `command -v codex`, variable assignments containing "codex"
-if echo "$COMMAND" | grep -qE '^\s*codex\s' && \
-   ! echo "$COMMAND" | grep -qE '^\s*codex\s+(exec|--version|--help|-h|login|auth|completion)\b'; then
-    cat <<'BLOCK'
-{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"BLOCKED: bare `codex \"prompt\"` launches interactive TUI and fails without a TTY. Flags such as `--approval-mode`, `--full-auto`, `-q`, and `--quiet` are not valid for current non-interactive Codex dispatch.\n\nUse `codex exec` instead:\n```bash\ncodex exec --skip-git-repo-check \"YOUR PROMPT\"\n```\n\nWith model: `codex exec --skip-git-repo-check --model gpt-5.4 \"YOUR PROMPT\"`\n\nFor long prompts, pipe stdin to `codex exec --skip-git-repo-check -`."}}
 BLOCK
     exit 0
 fi

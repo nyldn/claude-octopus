@@ -51,6 +51,28 @@ else
     test_fail "expected prefixed Qwen dispatch to be denied, got: ${output:-<empty>}"
 fi
 
+test_case "blocks escaped and command-wrapped provider dispatch"
+for command in \
+    'q\wen -p hello' \
+    'command -- qwen -p hello' \
+    'command -p qwen -p hello' \
+    'command -p codex "hello"'; do
+    output="$(run_hook "$command")"
+    if [[ "$output" != *'"permissionDecision":"deny"'* ]]; then
+        test_fail "expected wrapped provider dispatch to be denied for $command, got: ${output:-<empty>}"
+        break
+    fi
+done
+[[ "$output" == *'"permissionDecision":"deny"'* ]] && test_pass
+
+test_case "allows safe command-wrapped Codex exec"
+output="$(run_hook 'command -p codex exec --skip-git-repo-check "hello"')"
+if [[ -z "$output" ]]; then
+    test_pass
+else
+    test_fail "expected command-wrapped codex exec to be allowed, got: $output"
+fi
+
 test_case "blocks direct Gemini dispatch and points to Antigravity"
 output="$(run_hook 'cd /tmp && (gemini -p "hello")')"
 if [[ "$output" == *'"permissionDecision":"deny"'* ]] \
