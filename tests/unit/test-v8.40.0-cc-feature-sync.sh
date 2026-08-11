@@ -155,7 +155,7 @@ else
   test_fail "hook left a lock path that blocks later shell progress updates"
 fi
 
-test_case "concurrent SubagentStop hooks do not lose progress completions"
+test_case "concurrent SubagentStop and shell writers do not lose progress completions"
 CONCURRENT_WORKSPACE="$TEST_TMP_DIR/concurrent-hook-workspace"
 CONCURRENT_RESULTS="$CONCURRENT_WORKSPACE/results"
 CONCURRENT_TEAMS="$CONCURRENT_WORKSPACE/agent-teams"
@@ -180,6 +180,16 @@ for i in $(seq 1 24); do
     OCTOPUS_WORKSPACE="$CONCURRENT_WORKSPACE" "$HOOK") &
   concurrent_pids="$concurrent_pids $!"
 done
+(
+  source "$PLUGIN_DIR/scripts/lib/validation.sh"
+  source "$PLUGIN_DIR/scripts/lib/agents.sh"
+  log() { :; }
+  PROGRESS_TRACKING_ENABLED=true
+  PROGRESS_FILE="$CONCURRENT_WORKSPACE/progress.json"
+  update_agent_status "claude" "completed" 456 0 600 \
+    "task-1" "develop" "$CONCURRENT_RESULTS/claude-task-1.md"
+) &
+concurrent_pids="$concurrent_pids $!"
 for concurrent_pid in $concurrent_pids; do
   wait "$concurrent_pid"
 done
@@ -192,7 +202,7 @@ if jq -e '
 ' "$CONCURRENT_WORKSPACE/progress.json" >/dev/null; then
   test_pass
 else
-  test_fail "concurrent hook rewrites lost one or more terminal updates"
+  test_fail "concurrent hook/shell rewrites lost one or more terminal updates"
 fi
 
 # ─────────────────────────────────────────────────────────────────────
