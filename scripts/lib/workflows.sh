@@ -1026,7 +1026,7 @@ grasp_define() {
     # Multiple agents define the problem from their perspective
     log INFO "Gathering problem definitions from multiple perspectives..."
 
-    local def1 def2 def3
+    local def1 def2="" def3
     def1=$(run_agent_sync "codex" "Based on: $prompt\n${context}Define the core problem statement in 2-3 sentences. What is the essential challenge?" 120 "backend-architect" "grasp") || {
         log WARN "Codex failed for problem definition, falling back to Claude"
         echo -e " ${YELLOW}⚠${NC}  Codex unavailable for problem definition — falling back to Claude"
