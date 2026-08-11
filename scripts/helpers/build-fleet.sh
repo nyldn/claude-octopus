@@ -26,6 +26,12 @@ WORKFLOW="${1:-research}"
 INTENSITY="${2:-standard}"
 PROMPT="${3:-}"
 
+log() {
+    local level="$1"
+    shift
+    printf '[%s] %s\n' "$level" "$*" >&2
+}
+
 # ── Provider → Model Family Mapping ──────────────────────────────────────────
 get_family() {
     case "$1" in
@@ -59,7 +65,7 @@ if PROVIDER_STATUS_OUTPUT="$(bash "$PROVIDER_CHECKER" 2>/dev/null)"; then
     :
 else
     provider_checker_status=$?
-    echo "ERROR: provider admission check failed: $PROVIDER_CHECKER" >&2
+    log ERROR "provider admission check failed: $PROVIDER_CHECKER"
     exit "$provider_checker_status"
 fi
 

@@ -95,9 +95,9 @@ fi
 
 test_case "OpenAI-compatible provider rejects whitespace-only configuration"
 whitespace_states="$(
-    provider_state openai-compatible OPENAI_COMPAT_BASE_URL='   ' OPENAI_COMPAT_API_KEY=fixture-key
-    provider_state openai-compatible OPENAI_COMPAT_BASE_URL=https://example.test/v1 OPENAI_COMPAT_API_KEY='   '
-    provider_state openai-compatible OPENAI_COMPAT_BASE_URL=https://example.test/v1 OPENAI_COMPAT_API_KEY_ENV=CUSTOM_KEY CUSTOM_KEY='   '
+    provider_state openai-compatible "OPENAI_COMPAT_BASE_URL=   " "OPENAI_COMPAT_API_KEY=fixture-key"
+    provider_state openai-compatible "OPENAI_COMPAT_BASE_URL=https://example.test/v1" "OPENAI_COMPAT_API_KEY=   "
+    provider_state openai-compatible "OPENAI_COMPAT_BASE_URL=https://example.test/v1" "OPENAI_COMPAT_API_KEY_ENV=CUSTOM_KEY" "CUSTOM_KEY=   "
 )"
 if [[ "$(grep -c '^openai-compatible:degraded$' <<< "$whitespace_states")" -eq 3 ]]; then
     test_pass
