@@ -462,6 +462,7 @@ atomic_json_update() {
     prev_term_trap=$(trap -p TERM)
     local lock_cleanup_cmd
     printf -v lock_cleanup_cmd '_atomic_release_owned_lock %q %q' "$lockfile" "$lock_token"
+    # shellcheck disable=SC2064 # Intentionally freeze these local values before the function returns.
     trap "$lock_cleanup_cmd" EXIT INT TERM
 
     # BASHPID (not $$, which stays constant across every subshell spawned
