@@ -1027,17 +1027,17 @@ grasp_define() {
     log INFO "Gathering problem definitions from multiple perspectives..."
 
     local def1 def2 def3
-    def1=$(run_agent_sync "codex" "Based on: $prompt\n${context}Define the core problem statement in 2-3 sentences. What is the essential challenge?" 120 "backend-architect" "grasp") || {
+    def1=$(run_agent_sync "codex" "Based on: $prompt\n${context}Define the core problem statement in 2-3 sentences. What is the essential challenge?" 300 "backend-architect" "grasp") || {
         log WARN "Codex failed for problem definition, falling back to Claude"
         echo -e " ${YELLOW}⚠${NC}  Codex unavailable for problem definition — falling back to Claude"
-        def1=$(run_agent_sync "claude-sonnet" "Based on: $prompt\n${context}Define the core problem statement in 2-3 sentences. What is the essential challenge?" 120 "backend-architect" "grasp") || true
+        def1=$(run_agent_sync "claude-sonnet" "Based on: $prompt\n${context}Define the core problem statement in 2-3 sentences. What is the essential challenge?" 300 "backend-architect" "grasp") || true
     }
-    def2=$(run_agent_sync "agy" "Based on: $prompt\n${context}Define success criteria. How will we know when this is solved correctly? List 3-5 measurable criteria." 120 "researcher" "grasp") || {
+    def2=$(run_agent_sync "agy" "Based on: $prompt\n${context}Define success criteria. How will we know when this is solved correctly? List 3-5 measurable criteria." 300 "researcher" "grasp") || {
         log WARN "Antigravity (agy) failed for success criteria, falling back to Claude"
         echo -e " ${YELLOW}⚠${NC}  Antigravity (agy) unavailable for success criteria — falling back to Claude"
-        def2=$(run_agent_sync "claude-sonnet" "Based on: $prompt\n${context}Define success criteria. How will we know when this is solved correctly? List 3-5 measurable criteria." 120 "researcher" "grasp") || true
+        def2=$(run_agent_sync "claude-sonnet" "Based on: $prompt\n${context}Define success criteria. How will we know when this is solved correctly? List 3-5 measurable criteria." 300 "researcher" "grasp") || true
     }
-    def3=$(run_agent_sync "claude-sonnet" "Based on: $prompt\n${context}Define constraints and boundaries. What are we NOT solving? What are hard limits?" 120 "researcher" "grasp")
+    def3=$(run_agent_sync "claude-sonnet" "Based on: $prompt\n${context}Define constraints and boundaries. What are we NOT solving? What are hard limits?" 300 "researcher" "grasp")
 
     # Build consensus
     local consensus_file="${RESULTS_DIR}/grasp-consensus-${task_group}.md"
@@ -1063,7 +1063,7 @@ Output a single, clear problem definition document with:
 4. Recommended Approach"
 
     local consensus
-    consensus=$(run_agent_sync "agy" "$consensus_prompt" 180 "synthesizer" "grasp") || {
+    consensus=$(run_agent_sync "agy" "$consensus_prompt" 300 "synthesizer" "grasp") || {
         consensus="[Auto-consensus failed - manual review required]\n\nProblem: $def1\n\nSuccess Criteria: $def2\n\nConstraints: $def3"
     }
 
