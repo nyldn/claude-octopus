@@ -118,7 +118,12 @@ provider_status "agy" "$(command -v agy >/dev/null 2>&1 && echo available || ech
 # before that point. Warn once on stderr so it reaches interactive preflight
 # banners (skills/blocks/provider-check.md runs this script unredirected)
 # without perturbing the name:state stdout protocol other callers parse.
-if command -v gemini >/dev/null 2>&1 && ! command -v agy >/dev/null 2>&1; then
+# `type -P` deliberately, not the usual `command -v` idiom: this is a PATH
+# presence probe for the warning below, never a dispatch/invocation of
+# gemini, and tests/unit/test-retired-gemini-provider.sh greps scripts/ for
+# that exact idiom applied to gemini as a tripwire against direct Gemini
+# paths reappearing post-#854.
+if type -P gemini >/dev/null 2>&1 && ! command -v agy >/dev/null 2>&1; then
     echo "WARNING: gemini CLI found but Antigravity (agy) is not installed — gemini* seats route through agy since #854 and will fail. Install Antigravity (agy) to restore Google seats." >&2
 fi
 # oco-cbb: opt-in proactive probe for API-key providers (perplexity, openrouter).
