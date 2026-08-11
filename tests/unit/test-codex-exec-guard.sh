@@ -100,8 +100,8 @@ fi
 
 test_case "blocks provider dispatch in shell substitutions"
 for command in \
-    'echo `qwen -p hello`' \
-    'echo "$(qwen -p hello)"' \
+    'printf "%s" "`gemini -p hello`"' \
+    'printf "%s" "$(qwen -p hello)"' \
     'echo $(gemini -p hello)'; do
     output="$(run_hook "$command")"
     if [[ "$output" != *'"permissionDecision":"deny"'* ]]; then
