@@ -47,7 +47,7 @@ else
 fi
 
 test_case "Claude SDK key plus executable shim is available"
-if [[ "$(provider_state claude-sdk CLAUDE_SDK_API_KEY=fixture-key)" == "claude-sdk:available" ]]; then
+if [[ "$(provider_state claude-sdk "CLAUDE_SDK_API_KEY=fixture-key")" == "claude-sdk:available" ]]; then
     test_pass
 else
     test_fail "Claude SDK authenticated state was not reported as available"
@@ -80,14 +80,14 @@ else
 fi
 
 test_case "partial OpenAI-compatible configuration is degraded"
-if [[ "$(provider_state openai-compatible OPENAI_COMPAT_BASE_URL=https://example.test/v1)" == "openai-compatible:degraded" ]]; then
+if [[ "$(provider_state openai-compatible "OPENAI_COMPAT_BASE_URL=https://example.test/v1")" == "openai-compatible:degraded" ]]; then
     test_pass
 else
     test_fail "partial OpenAI-compatible configuration was not degraded"
 fi
 
 test_case "complete OpenAI-compatible configuration is available"
-if [[ "$(provider_state openai-compatible OPENAI_COMPAT_BASE_URL=https://example.test/v1 OPENAI_COMPAT_API_KEY=fixture-key)" == "openai-compatible:available" ]]; then
+if [[ "$(provider_state openai-compatible "OPENAI_COMPAT_BASE_URL=https://example.test/v1" "OPENAI_COMPAT_API_KEY=fixture-key")" == "openai-compatible:available" ]]; then
     test_pass
 else
     test_fail "complete OpenAI-compatible configuration was not available"
