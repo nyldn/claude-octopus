@@ -36,6 +36,16 @@ else
     test_fail "Claude Code npm installation requires the workflow's Node 22 runtime"
 fi
 
+test_case "PR review preserves provider diagnostics when orchestration fails"
+if grep -q 'name: Upload PR Review Diagnostics' "$WORKFLOW" &&
+   grep -A10 'name: Upload PR Review Diagnostics' "$WORKFLOW" | grep -q 'if: always()' &&
+   grep -A10 'name: Upload PR Review Diagnostics' "$WORKFLOW" | grep -q '~/.claude-octopus/results/' &&
+   grep -A10 'name: Upload PR Review Diagnostics' "$WORKFLOW" | grep -q '~/.claude-octopus/runs/'; then
+    test_pass
+else
+    test_fail "failed PR reviews discard the provider result/error evidence needed for diagnosis"
+fi
+
 test_case "PR review materializes the base-to-head diff for review"
 if grep -q 'git diff .*origin/.*\.\.\.HEAD.*> pr-review\.diff' "$WORKFLOW" &&
    grep -q '"target":"pr-review\.diff"' "$WORKFLOW"; then

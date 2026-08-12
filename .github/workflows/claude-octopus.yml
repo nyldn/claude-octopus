@@ -149,6 +149,18 @@ jobs:
 
           ./scripts/orchestrate.sh --ci code-review '{"target":"pr-review.diff","publish":"never"}' 2>&1 | tee review-output.txt
 
+      - name: Upload PR Review Diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: octopus-pr-review-${{ github.run_id }}
+          path: |
+            review-output.txt
+            ~/.claude-octopus/results/
+            ~/.claude-octopus/runs/
+          if-no-files-found: warn
+          retention-days: 7
+
       - name: Post Review Comment
         if: always() && steps.review.outcome != 'skipped'
         uses: actions/github-script@v9

@@ -26,7 +26,9 @@
   Gemini CLI. First-party jobs install Claude Code on Node 22, bind the
   repository's Claude OAuth token, and disable bare authentication so the
   installed provider and configured credential match. Provider reports no
-  longer claim Claude succeeded without execution evidence. (#889, #891)
+  longer claim Claude succeeded without execution evidence, and failed PR
+  reviews retain provider results and proof packets as a short-lived diagnostic
+  artifact. (#889, #891)
 - Provider output is captured through private, file-backed stdin/stdout instead
   of a `tee` pipeline. A provider hook or helper that inherits stdout can no
   longer hold the pipeline open after the provider has completed and leave

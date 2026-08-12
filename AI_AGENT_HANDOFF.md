@@ -98,7 +98,9 @@ record.
   research was run through Octopus before implementation. The jobs now use
   Node 22, install Claude Code, bind the OAuth token, and set
   `OCTOPUS_DISABLE_BARE=1`; the provider report no longer initializes Claude
-  to healthy without a successful Claude execution.
+  to healthy without a successful Claude execution. A failed review now uploads
+  its provider results and proof packet for seven days instead of discarding the
+  only evidence that distinguishes auth, model, and invocation failures.
 - **#892:** An orchestrated research run produced complete provider raw output
   while rich progress stayed at 0/7. Provider stdout flowed through `tee`; a
   provider hook or descendant retained that pipe, so the worker waited for EOF
@@ -108,9 +110,11 @@ record.
 - Regression-first evidence: cost-mode coverage failed 7/9 before the initial
   implementation and now passes 12/12. Factory regeneration reproduced the
   missing Doctor adapter. The provider-report suite failed 0/2 before #891;
-  workflow auth coverage failed 6/9 before #891; output-capture coverage failed
-  1/2 before #892 and was extended after review to verify the prompt file is
-  mode 600. All focused suites are now green: Factory 4/4, PR workflow 9/9,
+  workflow auth coverage failed 6/9 before #891; diagnostic retention failed
+  9/10 before the remote failure exposed the evidence gap; output-capture
+  coverage failed 1/2 before #892 and was extended after review to verify the
+  prompt file is mode 600. All focused suites are now green: Factory 4/4,
+  PR workflow 10/10,
   provider report 2/2, output capture 3/3, descriptor performance 35/35,
   stable-link Doctor 5/5, Windows Doctor 5/5, retired Gemini 11/11,
   environment accountability 9/9, OpenAI-compatible cache 19/19, probe single
