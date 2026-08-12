@@ -12,6 +12,7 @@ source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "Shared Marketplace Sync"
 
 SYNC_SCRIPT="$PROJECT_ROOT/scripts/sync-shared-marketplace.sh"
+LOCAL_SYNC_SCRIPT="$PROJECT_ROOT/scripts/sync-marketplace.sh"
 RELEASE_SCRIPT="$PROJECT_ROOT/scripts/release.sh"
 CHANGELOG_LIB="$PROJECT_ROOT/scripts/lib/release-changelog.sh"
 CI_LIB="$PROJECT_ROOT/scripts/lib/release-ci.sh"
@@ -215,6 +216,59 @@ test_marketplace_description_error_uses_logger() {
     fi
 }
 
+test_local_marketplace_sync_aligns_all_versions() {
+    test_case "sync-marketplace rejects and repairs stale marketplace version fields"
+
+    local fixture="$TMP_DIR/local-sync"
+    local check_before_rc=0
+    local check_after_rc=0
+    local plugin_version metadata_version entry_version
+
+    mkdir -p "$fixture/scripts" "$fixture/.claude-plugin" "$fixture/agents/personas"
+    cp "$LOCAL_SYNC_SCRIPT" "$fixture/scripts/sync-marketplace.sh"
+
+    cat > "$fixture/.claude-plugin/plugin.json" <<'JSON'
+{
+  "version": "9.99.0",
+  "description": "v9.99.0 — Fixture release. Run /octo:setup.",
+  "keywords": ["fixture"],
+  "skills": ["./skills/fixture"],
+  "commands": ["./commands/fixture"]
+}
+JSON
+
+    cat > "$fixture/.claude-plugin/marketplace.json" <<'JSON'
+{
+  "metadata": {"version": "1.0.0"},
+  "plugins": [
+    {
+      "name": "octo",
+      "description": "v9.99.0 - Fixture release. 0 personas, 1 commands, 1 skills. Run /octo:setup.",
+      "version": "9.99.0",
+      "keywords": ["fixture"]
+    }
+  ]
+}
+JSON
+
+    bash "$fixture/scripts/sync-marketplace.sh" --check > "$TMP_DIR/local-sync-check-before.out" 2>&1 || check_before_rc=$?
+    bash "$fixture/scripts/sync-marketplace.sh" > "$TMP_DIR/local-sync-update.out" 2>&1
+    bash "$fixture/scripts/sync-marketplace.sh" --check > "$TMP_DIR/local-sync-check-after.out" 2>&1 || check_after_rc=$?
+
+    plugin_version="$(jq -r '.version' "$fixture/.claude-plugin/plugin.json")"
+    metadata_version="$(jq -r '.metadata.version' "$fixture/.claude-plugin/marketplace.json")"
+    entry_version="$(jq -r '.plugins[] | select(.name == "octo") | .version' "$fixture/.claude-plugin/marketplace.json")"
+
+    if [[ "$check_before_rc" -ne 0 &&
+          "$check_after_rc" -eq 0 &&
+          "$metadata_version" == "$plugin_version" &&
+          "$entry_version" == "$plugin_version" ]]; then
+        test_pass
+    else
+        test_fail "expected stale metadata rejection and synchronized versions; before=$check_before_rc after=$check_after_rc plugin=$plugin_version metadata=$metadata_version entry=$entry_version"
+    fi
+}
+
 test_release_promotes_unreleased_changelog_notes() {
     test_case "release changelog helper promotes Unreleased notes into version entry"
 
@@ -383,6 +437,7 @@ test_release_file_updates_are_portable
 test_release_description_uses_current_summary
 test_readme_provider_and_cost_contract
 test_marketplace_description_error_uses_logger
+test_local_marketplace_sync_aligns_all_versions
 test_release_promotes_unreleased_changelog_notes
 test_release_ci_parser_matches_exact_aggregate_checks
 test_shared_marketplace_sync_updates_only_octo

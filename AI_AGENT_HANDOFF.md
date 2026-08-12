@@ -107,6 +107,11 @@ claimed or recorded in `bd`; use this handoff for the blocked tracking record.
   `./scripts/validate-release.sh 9.62.0`, the handoff/README/version release
   regressions, and `OCTOPUS_DISABLE_BARE=1 make ci-local`: 16 smoke suites,
   259 unit suites, and 7 integration suites.
+- Release review exposed that `sync-marketplace.sh` updated the Octopus entry
+  but neither validated nor regenerated `.metadata.version`. The behavioral
+  regression failed first with plugin `9.99.0` versus metadata `1.0.0`, then
+  passed 17/17 after the generator and `--check` contract were corrected. The
+  amended tree passed the complete 16/259/7 local gate again.
 
 ## Release v9.61.3
 
@@ -389,7 +394,7 @@ were removed with that worktree and did not contaminate the task branch.
 ## Next Action
 
 No issue-backed implementation remains; the live issue query was empty after
-#882 closed with PR #883. Contributor PRs #867 (reasoning-role env-key
+issue #882 closed with PR #883. Contributor PRs #867 (reasoning-role env-key
 sanitization) and #877 (OrcaRouter provider) were intentionally not folded into
 this issue-driven reliability release. Re-query their current review and base
 state before acting on either one.

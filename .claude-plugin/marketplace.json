@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "nyldn plugins for Claude Code workflows.",
-    "version": "9.61.3"
+    "version": "9.62.0"
   },
   "plugins": [
     {

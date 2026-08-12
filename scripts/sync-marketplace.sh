@@ -69,6 +69,21 @@ for p in m.get('plugins', []):
 else:
     sys.exit(1)
 ")
+CURRENT_ENTRY_VERSION=$(python3 -c "
+import json, sys
+m = json.load(open('$ROOT_DIR/.claude-plugin/marketplace.json'))
+for p in m.get('plugins', []):
+    if p.get('name') == 'octo':
+        print(p.get('version', ''))
+        break
+else:
+    sys.exit(1)
+")
+CURRENT_METADATA_VERSION=$(python3 -c "
+import json
+m = json.load(open('$ROOT_DIR/.claude-plugin/marketplace.json'))
+print(m.get('metadata', {}).get('version', ''))
+")
 # Note: match the dash via alternation, not a `[-—]` bracket expression — under
 # the C/POSIX locale (no LANG/LC_ALL set), sed's bracket-expression handling of
 # the multi-byte em-dash is unreliable and silently fails to match, leaving the
@@ -78,7 +93,10 @@ FEATURE_SUMMARY=$(echo "$PLUGIN_DESC" | sed -E 's/^v[0-9]+\.[0-9]+\.[0-9]+ (-|�
 # Build expected description — version prefix derived from version field
 EXPECTED_DESC="v${VERSION} - ${FEATURE_SUMMARY}. ${PERSONA_COUNT} personas, ${COMMAND_COUNT} commands, ${SKILL_COUNT} skills. Run /octo:setup."
 
-if [[ "$CURRENT_DESC" == "$EXPECTED_DESC" && "$CURRENT_KEYWORDS" == "$PLUGIN_KEYWORDS" ]]; then
+if [[ "$CURRENT_DESC" == "$EXPECTED_DESC" &&
+      "$CURRENT_KEYWORDS" == "$PLUGIN_KEYWORDS" &&
+      "$CURRENT_ENTRY_VERSION" == "$VERSION" &&
+      "$CURRENT_METADATA_VERSION" == "$VERSION" ]]; then
     echo "✓ marketplace.json is up to date (${PERSONA_COUNT} personas, ${COMMAND_COUNT} commands, ${SKILL_COUNT} skills)"
     exit 0
 fi
@@ -88,6 +106,8 @@ if $CHECK_ONLY; then
     echo "  Current:  $CURRENT_DESC"
     echo "  Expected: $EXPECTED_DESC"
     [[ "$CURRENT_KEYWORDS" == "$PLUGIN_KEYWORDS" ]] || echo "  Plugin keywords differ from plugin.json"
+    [[ "$CURRENT_ENTRY_VERSION" == "$VERSION" ]] || echo "  Plugin version: $CURRENT_ENTRY_VERSION (expected $VERSION)"
+    [[ "$CURRENT_METADATA_VERSION" == "$VERSION" ]] || echo "  Metadata version: $CURRENT_METADATA_VERSION (expected $VERSION)"
     exit 1
 fi
 
@@ -97,6 +117,8 @@ import json, os
 
 with open('$ROOT_DIR/.claude-plugin/marketplace.json') as f:
     m = json.load(f)
+
+m.setdefault('metadata', {})['version'] = '$VERSION'
 
 for p in m.get('plugins', []):
     if p.get('name') == 'octo':

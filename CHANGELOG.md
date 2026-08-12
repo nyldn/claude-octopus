@@ -38,6 +38,12 @@
   auto-update opt-in, the manual recovery path required for installs older than
   v9.61.3, and the required `/reload-plugins` or restart step.
 
+### Internal
+
+- Marketplace generation and `--check` now synchronize both the Octopus entry
+  and top-level metadata version, preventing one release manifest from
+  publishing conflicting versions.
+
 ## [9.61.3] - 2026-08-10
 
 ### Changed
