@@ -110,6 +110,18 @@ test_follow_up_commands_use_resolved_root() {
     fi
 }
 
+test_root_fallback_is_pipefail_safe() {
+    test_case "Doctor root discovery tolerates an empty plugin search under pipefail"
+
+    local doctor_skill="$PROJECT_ROOT/.claude/skills/skill-doctor/SKILL.md"
+    if grep -Fq "{ grep -E '(nyldn-plugins|claude-octopus|/octo(/[0-9]|\$))' || true; }" \
+        "$doctor_skill"; then
+        test_pass
+    else
+        test_fail "Doctor root resolver can abort when grep finds no installed plugin"
+    fi
+}
+
 test_remediation_fences_are_markdown_safe() {
     test_case "Doctor remediation fences have surrounding blank lines"
 
@@ -125,7 +137,7 @@ test_remediation_fences_are_markdown_safe() {
             closing = 1
         }
         { previous = $0 }
-        END { if (closing) bad = 1; exit bad }
+        END { if (closing || in_javascript) bad = 1; exit bad }
     ' "$PROJECT_ROOT/.claude/skills/skill-doctor/SKILL.md"; then
         test_pass
     else
@@ -142,6 +154,7 @@ assert_resolver_preserves_stable_link \
     "$PROJECT_ROOT/skills/skill-doctor/SKILL.md" \
     "codex"
 test_follow_up_commands_use_resolved_root
+test_root_fallback_is_pipefail_safe
 test_remediation_fences_are_markdown_safe
 test_codex_package_is_generated_from_guarded_source
 

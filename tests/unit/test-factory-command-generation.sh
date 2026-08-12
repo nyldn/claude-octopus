@@ -53,10 +53,13 @@ SKILL
 if output="$(bash "$fixture/scripts/build-factory-skills.sh" 2>&1)" &&
    [[ "$output" == *"SKIP (no description): missing.md"* ]] &&
    [[ -f "$fixture/.cursor-plugin/commands/octo-valid.md" ]] &&
-   [[ -f "$fixture/.cursor-plugin/commands/octo-doctor.md" ]]; then
+   [[ -f "$fixture/.cursor-plugin/commands/octo-doctor.md" ]] &&
+   [[ ! -e "$fixture/.cursor-plugin/commands/octo-missing.md" ]] &&
+   grep -Fq 'allowed-tools: Bash, Read, Glob, Grep, AskUserQuestion' \
+       "$fixture/.cursor-plugin/commands/octo-doctor.md"; then
     test_pass
 else
-    test_fail "generation skipped a valid command or Doctor adapter: $output"
+    test_fail "generation skipped a valid command or complete Doctor adapter: $output"
 fi
 
 test_case "check mode accepts generated output without modifying it"

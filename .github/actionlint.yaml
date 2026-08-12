@@ -1,0 +1,6 @@
+paths:
+  .github/workflows/claude-octopus.yml:
+    ignore:
+      # GitHub requires this scope for Copilot CLI job-token authentication,
+      # but actionlint 1.7.12 predates the permission (GitHub Docs, 2026-08).
+      - 'unknown permission scope "copilot-requests"'

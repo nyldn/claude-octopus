@@ -81,6 +81,7 @@ CMD_STRIP_KEYS="command|aliases|redirect|version|category|tags|created|updated|a
 generate_cursor_command() {
     local src="$1"
     local out_filename="$2"
+    local allowed_tools_override="${3:-}"
     local filename
     filename="$(basename "$src")"
 
@@ -103,6 +104,7 @@ generate_cursor_command() {
     arg_hint="$(normalize_single_line "$arg_hint")"
     disable_model="$(echo "$frontmatter" | grep "^disable-model-invocation:" | head -1 | sed 's/^disable-model-invocation: *//' || true)"
     allowed_tools="$(echo "$frontmatter" | grep "^allowed-tools:" | head -1 | sed 's/^allowed-tools: *//' || true)"
+    [[ -n "$allowed_tools_override" ]] && allowed_tools="$allowed_tools_override"
 
     # Extract body (everything after the closing --- of frontmatter)
     local cmd_body
@@ -150,7 +152,8 @@ fi
 # source so a clean rebuild cannot silently delete the shipped command.
 DOCTOR_SKILL_SRC="$SKILLS_SRC/skill-doctor/SKILL.md"
 if [[ -f "$DOCTOR_SKILL_SRC" ]]; then
-  if generate_cursor_command "$DOCTOR_SKILL_SRC" "octo-doctor.md"; then
+  if generate_cursor_command "$DOCTOR_SKILL_SRC" "octo-doctor.md" \
+      "Bash, Read, Glob, Grep, AskUserQuestion"; then
     cmd_count=$((cmd_count + 1))
   else
     cmd_skipped=$((cmd_skipped + 1))

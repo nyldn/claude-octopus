@@ -21,6 +21,15 @@ run_model_config() {
         "CLAUDE_CODE_SESSION=cost-mode-test" "$MODEL_CONFIG" "$@"
 }
 
+run_model_config_with_path() {
+    local command_path="$1"
+    shift
+    env "HOME=${TEST_HOME}" "USER=octo-cost-mode-test" \
+        "CLAUDE_CODE_SESSION=cost-mode-test" \
+        "PATH=${command_path}" "OCTOPUS_TEST_REAL_JQ=$(command -v jq)" \
+        "$MODEL_CONFIG" "$@"
+}
+
 resolve_codex_model() {
     local env_mode="${1:-}"
     env "HOME=${TEST_HOME}" "USER=octo-cost-mode-test" \
@@ -178,13 +187,22 @@ fake_bin="$TEST_TMP_DIR/failing-jq-bin"
 mkdir -p "$fake_bin"
 cat > "$fake_bin/jq" <<'EOF'
 #!/usr/bin/env bash
-exit 42
+if [[ "${1:-}" == "--arg" && "${2:-}" == "p" ]]; then
+    exit 42
+fi
+exec "$OCTOPUS_TEST_REAL_JQ" "$@"
 EOF
 chmod +x "$fake_bin/jq"
-if PATH="$fake_bin:$PATH" run_model_config reset codex >/dev/null 2>&1; then
+set +e
+reset_output="$(run_model_config_with_path "$fake_bin:$PATH" reset codex 2>&1)"
+reset_rc=$?
+set -e
+if (( reset_rc == 0 )); then
     test_fail "reset reported success after jq failed"
-else
+elif [[ "$reset_output" == *"Failed to rewrite configuration while resetting provider: codex"* ]]; then
     test_pass
+else
+    test_fail "reset failed outside the intended rewrite path: $reset_output"
 fi
 
 test_case "model configuration helper remains valid Bash"

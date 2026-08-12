@@ -10,6 +10,7 @@ source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "PR review workflow uses the actual diff and fails closed"
 
 WORKFLOW="$PROJECT_ROOT/.github/workflows/claude-octopus.yml"
+ACTIONLINT_CONFIG="$PROJECT_ROOT/.github/actionlint.yaml"
 
 test_case "first-party jobs install the provider that has a configured credential"
 if grep -q 'npm install -g @anthropic-ai/claude-code' "$WORKFLOW" &&
@@ -78,6 +79,15 @@ if grep -q 'contents: read' <<< "$pr_permissions" &&
     test_pass
 else
     test_fail "PR review does not use the supported Copilot job-token permission set"
+fi
+
+test_case "actionlint suppresses only its stale Copilot permission diagnostic"
+if [[ -f "$ACTIONLINT_CONFIG" ]] &&
+   grep -Fq '.github/workflows/claude-octopus.yml:' "$ACTIONLINT_CONFIG" &&
+   grep -Fq 'unknown permission scope "copilot-requests"' "$ACTIONLINT_CONFIG"; then
+    test_pass
+else
+    test_fail "actionlint is not scoped to ignore its stale copilot-requests diagnostic"
 fi
 
 test_case "Claude quota failure triggers a GitHub Copilot fallback"
