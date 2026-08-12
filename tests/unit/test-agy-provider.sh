@@ -581,11 +581,11 @@ test_agy_inherits_environment() {
 test_agy_spawn_bypasses_timeout_wrapper() {
     test_case "spawn enforces timeout wrapper for agy"
 
-    if grep -q 'agent_type.*agy' "$PROJECT_ROOT/scripts/lib/spawn.sh" && \
-       sed -n '/agent_type.*agy/,/elif printf/p' "$PROJECT_ROOT/scripts/lib/spawn.sh" | grep -q 'run_with_timeout'; then
+    if grep -q 'octopus_capture_provider_output' "$PROJECT_ROOT/scripts/lib/spawn.sh" && \
+       grep -q 'run_with_timeout "$timeout_secs"' "$PROJECT_ROOT/scripts/lib/heartbeat.sh"; then
         test_pass
     else
-        test_fail "spawn.sh should wrap agy in run_with_timeout"
+        test_fail "spawn capture should wrap every provider, including agy, in run_with_timeout"
     fi
 }
 

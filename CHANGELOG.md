@@ -15,21 +15,29 @@
 - Persisted cost-mode changes participate in model-cache identity and the
   configurable standard tier is resolved just like budget and premium, so a
   long-lived process cannot reuse a model selected under the previous mode.
-  (#885)
+  Resetting one provider now removes its stale mappings from every cost tier,
+  and the quick-toggle commands fail closed if persistence fails. (#885)
 - The first-party PR review workflow now reviews the actual base-to-head diff,
   preserves review failures through `tee`, and posts diagnostic output even
   when review fails instead of reporting a zero-provider run as green. (#888)
 - Issue-comment automation likewise preserves orchestration failures through
   `tee` while still posting the captured diagnostic response. (#890)
 - GitHub automation no longer installs or credentials the retired direct
-  Gemini CLI; headless jobs use only providers they actually install and
-  authenticate. (#889)
+  Gemini CLI. First-party jobs install Claude Code on Node 22, bind the
+  repository's Claude OAuth token, and disable bare authentication so the
+  installed provider and configured credential match. Provider reports no
+  longer claim Claude succeeded without execution evidence. (#889, #891)
+- Provider output is captured through private, file-backed stdin/stdout instead
+  of a `tee` pipeline. A provider hook or helper that inherits stdout can no
+  longer hold the pipeline open after the provider has completed and leave
+  progress stuck at zero until the fleet watchdog fires. (#892)
 
 ### Internal
 
 - Factory/Cursor command generation now retains the canonical Doctor adapter,
   includes the complete command set, and supports a non-mutating `--check`
-  path used by `make sync-check`. (#886)
+  path used by `make sync-check`. Doctor follow-ups reuse the resolved install
+  root, and portable commands fall back to the stable installed root. (#886)
 
 ## [9.62.0] - 2026-08-12
 

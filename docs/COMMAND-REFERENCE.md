@@ -303,7 +303,7 @@ Configure which AI models are used across Claude Octopus workflows.
 /octo:model-config cost-mode budget         # Use cheaper models
 /octo:model-config cost-mode premium        # Use best models
 /octo:budget-mode                            # One-step persistent budget toggle
-/octo:standard-mode                          # Return to balanced defaults
+/octo:standard-mode                          # Select the configured standard tier
 /octo:premium-mode                           # One-step persistent premium toggle
 /octo:model-config trace                    # Debug model resolution
 /octo:model-config reset                    # Reset to defaults

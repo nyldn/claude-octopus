@@ -2,10 +2,10 @@
 # This workflow runs Claude Octopus in CI mode for automated code review and development
 #
 # Required secrets:
-#   OPENAI_API_KEY - Your OpenAI API key for Codex CLI
+#   CLAUDE_CODE_OAUTH_TOKEN - Long-lived Claude Code token for CI
 #
 # Optional secrets:
-#   ANTHROPIC_API_KEY - For Claude API integration
+#   ANTHROPIC_API_KEY - Alternative Claude API authentication
 
 name: Claude Octopus
 
@@ -60,17 +60,16 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: '20'
+          node-version: '22'
 
-      - name: Install Codex CLI
-        run: npm install -g @openai/codex
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
 
       - name: Run Claude Octopus
         id: octopus
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          OCTOPUS_DISABLE_BARE: 1
           CI: true
           GITHUB_OUTPUT: ${{ github.output }}
           # SECURITY: Pass inputs via env vars to prevent shell injection
@@ -127,12 +126,10 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: '20'
+          node-version: '22'
 
-      - name: Install Codex CLI
-        run: npm install -g @openai/codex
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
 
       - name: Materialize PR Diff
         env:
@@ -143,7 +140,8 @@ jobs:
       - name: Run Code Review
         id: review
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          OCTOPUS_DISABLE_BARE: 1
           CI: true
         run: |
           set -o pipefail
@@ -199,12 +197,10 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: '20'
+          node-version: '22'
 
-      - name: Install Codex CLI
-        run: npm install -g @openai/codex
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
 
       - name: Parse Command
         id: parse
@@ -229,7 +225,8 @@ jobs:
       - name: Run Claude Octopus
         id: octopus
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          OCTOPUS_DISABLE_BARE: 1
           CI: true
           # SECURITY: Pass prompt via env var
           OCTOPUS_PROMPT: ${{ steps.parse.outputs.prompt }}

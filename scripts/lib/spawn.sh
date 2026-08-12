@@ -733,6 +733,7 @@ ${heuristic_ctx}"
         # v7.19.0 P0.1: Real-time output streaming to result file
         local temp_output="${RESULTS_DIR}/.tmp-${task_id}.out"
         local temp_errors="${RESULTS_DIR}/.tmp-${task_id}.err"
+        local temp_input="${RESULTS_DIR}/.tmp-${task_id}.in"
         local raw_output="${RESULTS_DIR}/.raw-${task_id}.out"  # Backup of unfiltered output
 
         # Update task progress with context-aware spinner verb (v7.16.0 Feature 1)
@@ -791,21 +792,22 @@ ${heuristic_ctx}"
             _quota_watcher_pid=$(start_quota_watcher \
                 "$_spawn_pid" \
                 "$temp_errors" \
-                "$temp_output" \
+                "$raw_output" \
                 quota_watcher_kill_spawn_children \
                 "[$agent_type] Quota/terminal error detected - fast-failing (saves ~${_eff_timeout}s wait)" \
                 "$_provider_prefix")
 
-            # v9.2.2: All agents use stdin-based prompt delivery to avoid ARG_MAX limits (Issue #173).
-            # Legacy gemini* IDs execute via the same AGY path.
-            if [[ "$agent_type" == agy* || "$agent_type" == "antigravity" || "$agent_type" == gemini* ]]; then
-                printf '%s' "$enhanced_prompt" | OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="spawn-agent-heartbeat" run_with_timeout "$_attempt_timeout" "${cmd_array[@]}" 2> "$temp_errors" | tee "$raw_output" > "$temp_output"
-                exit_code=${PIPESTATUS[1]:-0}
-            elif printf '%s' "$enhanced_prompt" | OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="spawn-agent-heartbeat" run_with_timeout "$_attempt_timeout" "${cmd_array[@]}" 2> "$temp_errors" | tee "$raw_output" > "$temp_output"; then
+            # v9.2.2: All agents use stdin-based prompt delivery to avoid ARG_MAX
+            # limits. File-backed capture avoids waiting for EOF from a provider
+            # descendant that inherited stdout (#892).
+            if octopus_capture_provider_output \
+                "$enhanced_prompt" "$_attempt_timeout" "$temp_input" \
+                "$raw_output" "$temp_errors" "${cmd_array[@]}"; then
                 exit_code=0
             else
                 exit_code=$?
             fi
+            cp "$raw_output" "$temp_output" 2>/dev/null || : > "$temp_output"
 
             stop_quota_watcher "$_quota_watcher_pid"
 
@@ -1146,7 +1148,7 @@ ${heuristic_ctx}"
         fi
 
         # Cleanup temp files (keep raw_output for debugging if result is empty)
-        rm -f "$temp_output" "$temp_errors"
+        rm -f "$temp_input" "$temp_output" "$temp_errors"
         if [[ $result_size -ge 1024 ]]; then
             rm -f "$raw_output"  # Clean up if result looks good
         fi

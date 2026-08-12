@@ -17,8 +17,8 @@ asked twice.
 Features added after a user installs are invisible to them. The SessionStart
 advisory asks for these choices automatically on the first session after an
 upgrade, but that prompt is capped and suppressed in non-interactive sessions,
-so this command is how the user reaches the same questions deliberately, and how
-they revisit a choice they already made.
+so this command is how the user reaches the same outstanding questions
+deliberately.
 
 Only features declaring `decision: required` in the manifest appear here. A
 feature that ships with a sensible default and no real fork in behaviour is not
@@ -29,8 +29,8 @@ a question and must not be raised as one.
 ### Step 1 — Load the outstanding questions
 
 ```bash
-source "${CLAUDE_PLUGIN_ROOT:-.}/scripts/lib/features.sh" 2>/dev/null \
-  || source ./scripts/lib/features.sh
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"
+source "$OCTO_ROOT/scripts/lib/features.sh"
 
 octo_features_available || {
     echo "Feature disclosure unavailable (jq missing, or manifest/ledger unreadable)."
@@ -98,7 +98,7 @@ missing prerequisite. End on the substantive state, no closer.
   and `octo_features_seed_watermark`. Hand-rolled `jq` edits here have raced the
   SessionStart hook's own write in the past.
 - Do not re-ask a feature the ledger already records a choice for. The offer
-  list already excludes them; do not work around it. The user asking this
-  command directly is the supported way to revisit a settled choice.
+  list already excludes them; do not work around it. This command shows only
+  outstanding choices.
 - This command never changes model routing, permissions, or quality gates by
   itself. It records consent; the runtime reads consent.

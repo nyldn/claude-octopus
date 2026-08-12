@@ -17,8 +17,8 @@ if [[ ! -x "$helper" ]]; then
   echo "ERROR: Claude Octopus model-config helper is unavailable. Run /octo:setup." >&2
   exit 1
 fi
-"$helper" cost-mode premium
-"$helper" cost-mode status
+"$helper" cost-mode premium &&
+  "$helper" cost-mode status
 ```
 
 Report the helper output exactly. The selection persists in

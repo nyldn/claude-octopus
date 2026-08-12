@@ -157,6 +157,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
 
     local temp_output="${RESULTS_DIR}/.tmp-${task_id}.out"
     local temp_errors="${RESULTS_DIR}/.tmp-${task_id}.err"
+    local temp_input="${RESULTS_DIR}/.tmp-${task_id}.in"
     local raw_output="${RESULTS_DIR}/.raw-${task_id}.out"
 
     # Write result file header
@@ -193,19 +194,16 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
 
     while true; do
         exit_code=0
-        # v9.2.2: All agents use stdin to avoid ARG_MAX "Argument list too long" on large diffs (Issue #173)
-        # v9.17.1: Windows/MINGW fallback — pipe chain through tee loses stdout on Git Bash (fixes #235)
-        # Use file-based capture instead of pipe chain when on Windows
-        if [[ "${OCTOPUS_PLATFORM:-}" == MINGW* ]] || [[ "${OCTOPUS_PLATFORM:-}" == MSYS* ]]; then
-            printf '%s' "$enhanced_prompt" | run_with_timeout "$TIMEOUT" "${cmd_array[@]}" > "$raw_output" 2> "$temp_errors" || exit_code=$?
-            if [[ $exit_code -eq 0 ]]; then
-                cp "$raw_output" "$temp_output"
-            fi
-        elif printf '%s' "$enhanced_prompt" | run_with_timeout "$TIMEOUT" "${cmd_array[@]}" 2> "$temp_errors" | tee "$raw_output" > "$temp_output"; then
+        # v9.2.2: All agents use stdin to avoid ARG_MAX. File-backed capture is
+        # portable to Git Bash and cannot be held open by provider descendants.
+        if octopus_capture_provider_output \
+            "$enhanced_prompt" "$TIMEOUT" "$temp_input" \
+            "$raw_output" "$temp_errors" "${cmd_array[@]}"; then
             exit_code=0
         else
             exit_code=$?
         fi
+        cp "$raw_output" "$temp_output" 2>/dev/null || : > "$temp_output"
 
         if [[ $exit_code -ne 0 ]] && [[ $auth_attempt -lt $max_auth_retries ]]; then
             local stderr_content=""
@@ -393,7 +391,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
     fi
 
     # Cleanup temp files
-    rm -f "$temp_output" "$temp_errors" "$raw_output"
+    rm -f "$temp_input" "$temp_output" "$temp_errors" "$raw_output"
 
     log "INFO" "probe_single_agent complete: $result_file"
     # Output the result file path for the caller

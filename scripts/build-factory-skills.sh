@@ -19,10 +19,16 @@ COMMANDS_OUT="$PLUGIN_ROOT/.cursor-plugin/commands"
 CHECK_MODE=false
 CHECK_ROOT=""
 
+log() {
+  local level="$1"
+  shift
+  printf '[%s] %s\n' "$level" "$*" >&2
+}
+
 if [[ "${1:-}" == "--check" ]]; then
   CHECK_MODE=true
   CHECK_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/octo-factory-check.XXXXXX")"
-  trap 'rm -rf "$CHECK_ROOT"' EXIT
+  trap 'rm -rf "$CHECK_ROOT"' EXIT INT TERM
 fi
 
 normalize_single_line() {
@@ -41,9 +47,9 @@ yaml_quote() {
 STRIP_KEYS="agent|aliases|category|context|cost_optimization|created|execution_mode|invocation|pattern|pre_execution_contract|providers|tags|task_dependencies|task_management|trigger|updated|use_native_tasks|validation_gates|version"
 
 if [[ "${1:-}" == "--clean" ]]; then
-  echo "Cleaning generated skills and cursor command directories..."
+  log INFO "Cleaning generated skills and cursor command directories..."
   rm -rf "$SKILLS_OUT" "$COMMANDS_OUT"
-  echo "Done."
+  log INFO "Done."
   exit 0
 fi
 
@@ -87,7 +93,7 @@ generate_cursor_command() {
     cmd_desc="$(echo "$frontmatter" | grep "^description:" | head -1 | sed 's/^description: *//')"
     cmd_desc="$(normalize_single_line "$cmd_desc")"
     if [[ -z "$cmd_desc" ]]; then
-      echo "  SKIP (no description): $filename"
+      log WARN "SKIP (no description): $filename"
       return 1
     fi
 
@@ -113,7 +119,7 @@ generate_cursor_command() {
       echo "$cmd_body"
     } > "$COMMANDS_DEST/$out_filename"
 
-    echo "  GEN: $out_filename"
+    log INFO "GEN: $out_filename"
 }
 
 if [[ -d "$COMMANDS_SRC" ]]; then
@@ -151,13 +157,12 @@ if [[ -f "$DOCTOR_SKILL_SRC" ]]; then
   fi
 fi
 
-echo ""
-echo "Factory commands generated: $cmd_count"
-[[ $cmd_skipped -gt 0 ]] && echo "Skipped: $cmd_skipped"
-echo "Output: $COMMANDS_OUT/"
+log INFO "Factory commands generated: $cmd_count"
+[[ $cmd_skipped -gt 0 ]] && log WARN "Skipped: $cmd_skipped"
+log INFO "Output: $COMMANDS_OUT/"
 
 if $CHECK_MODE && ! diff -qr "$COMMANDS_DEST" "$COMMANDS_OUT" >/dev/null 2>&1; then
-  echo "CHECK: .cursor-plugin/commands is out of date — run scripts/build-factory-skills.sh" >&2
+  log ERROR "CHECK: .cursor-plugin/commands is out of date — run scripts/build-factory-skills.sh"
   diff -ru "$COMMANDS_OUT" "$COMMANDS_DEST" >&2 || true
   exit 1
 fi
@@ -212,16 +217,15 @@ if [[ -d "$AGENTS_SRC" ]]; then
       printf '%s\n' "$body"
     } > "$DROIDS_DEST/$out_filename"
 
-    echo "  GEN droid: $out_name"
+    log INFO "GEN droid: $out_name"
     droid_count=$((droid_count + 1))
   done
 
-  echo ""
-  echo "Factory droids generated: $droid_count"
-  echo "Output: $DROIDS_OUT/"
+  log INFO "Factory droids generated: $droid_count"
+  log INFO "Output: $DROIDS_OUT/"
 
   if $CHECK_MODE && ! diff -qr "$DROIDS_DEST" "$DROIDS_OUT" >/dev/null 2>&1; then
-    echo "CHECK: agents/droids is out of date — run scripts/build-factory-skills.sh" >&2
+    log ERROR "CHECK: agents/droids is out of date — run scripts/build-factory-skills.sh"
     diff -ru "$DROIDS_OUT" "$DROIDS_DEST" >&2 || true
     exit 1
   fi

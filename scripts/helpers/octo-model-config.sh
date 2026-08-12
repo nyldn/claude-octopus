@@ -774,7 +774,11 @@ cmd_reset() {
         log_info "Reset all configuration to defaults"
     else
         ensure_config
-        jq --arg p "$provider" 'del(.providers[$p]) | del(.overrides[$p])' "$CONFIG_FILE" > "${CONFIG_FILE}.tmp.$$" && mv "${CONFIG_FILE}.tmp.$$" "$CONFIG_FILE"
+        jq --arg p "$provider" '
+            del(.providers[$p])
+            | del(.overrides[$p])
+            | .tiers = ((.tiers // {}) | with_entries(.value |= del(.[$p])))
+        ' "$CONFIG_FILE" > "${CONFIG_FILE}.tmp.$$" && mv "${CONFIG_FILE}.tmp.$$" "$CONFIG_FILE"
         log_info "Reset configuration for provider: $provider"
     fi
     clear_cache

@@ -14,13 +14,15 @@ Produce a per-provider, per-skill, and per-MCP-server cost and token breakdown f
 ### STEP 1: Run the report helper
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/helpers/usage-report.sh --format table
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"
+"$OCTO_ROOT/scripts/helpers/usage-report.sh" --format table
 ```
 
 If the user asked for machine-readable output (or passed `--format json`):
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/helpers/usage-report.sh --format json
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"
+"$OCTO_ROOT/scripts/helpers/usage-report.sh" --format json
 ```
 
 The helper reads:

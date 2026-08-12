@@ -252,3 +252,33 @@ run_with_timeout() {
 
     return $exit_code
 }
+
+# Capture provider stdin/stdout through files rather than a tee pipeline.
+# Provider CLIs may spawn hooks or helpers that outlive the main process while
+# retaining stdout. If stdout is a pipe, tee never receives EOF and the
+# completed provider remains stuck until the fleet watchdog fires (#892).
+octopus_capture_provider_output() {
+    local prompt="$1"
+    local timeout_secs="$2"
+    local temp_input="$3"
+    local raw_output="$4"
+    local temp_errors="$5"
+    shift 5
+
+    rm -f "$temp_input"
+    if ! (umask 077 && printf '%s' "$prompt" > "$temp_input"); then
+        rm -f "$temp_input"
+        return 1
+    fi
+
+    local exit_code=0
+    if OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="spawn-agent-heartbeat" \
+        run_with_timeout "$timeout_secs" "$@" < "$temp_input" > "$raw_output" 2> "$temp_errors"; then
+        exit_code=0
+    else
+        exit_code=$?
+    fi
+
+    rm -f "$temp_input"
+    return "$exit_code"
+}

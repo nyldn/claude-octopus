@@ -1,10 +1,12 @@
 # AI Agent Handoff
 
 Last updated: 2026-08-12
-Status: Issues #885 through #890 are being resolved on an isolated feature branch.
+Status: Issues #885 through #892 are being resolved on an isolated feature branch.
 The implementation adds persistent budget, standard, and premium model-cost
 toggles and repairs Factory/Cursor generation so the Doctor adapter and full
-command set cannot silently disappear. Direct Qwen prompting with unusable
+command set cannot silently disappear. First-party automation now uses its
+configured Claude OAuth credential, and provider output capture cannot be held
+open by a descendant that inherited stdout. Direct Qwen prompting with unusable
 credentials and retired Gemini execution remain blocked; Google-family workflow
 seats execute through AGY.
 Branch: `fix/issue-885-cost-mode-toggle`
@@ -69,7 +71,7 @@ migration for the designated migrator. No migration was run, so this work could
 not be claimed or recorded in `bd`; use this handoff for the blocked tracking
 record.
 
-## Active Issues #885 through #890
+## Active Issues #885 through #892
 
 - **#885:** Cost-tier definitions already existed, but `/octo:model-config`
   only printed a shell `export` instruction. A slash-command subprocess cannot
@@ -86,26 +88,47 @@ record.
   materializes `origin/<base>...HEAD`, reviews that diff artifact, fails closed,
   and posts diagnostics even on failure.
 - **#889:** The same workflow still installed and credentialed the retired
-  direct Gemini CLI. Those CI paths now use only the Codex provider they install
-  and authenticate; the retired-provider boundary scans workflow files.
+  direct Gemini CLI. The retired-provider boundary now scans workflow files,
+  and first-party automation no longer installs or credentials Gemini.
 - **#890:** Issue-comment orchestration used the same false-green `tee` pattern.
   It now preserves the Octopus exit while still posting captured diagnostics.
-- Regression-first evidence: `tests/unit/test-cost-mode-toggle.sh` failed 7/9
-  before implementation and passes 10/10 after it. Regenerating Factory
-  artifacts reproduced the missing Doctor adapter; the Windows Doctor contract
-  then passes 5/5 after the generator fix. The environment-variable
-  accountability gate exposed one missing manifest mapping during the first full
-  run and passes 9/9 after mapping `OCTOPUS_COST_MODE` to the behavioral suite.
-- Verification state: the corrected tree passed `make sync-check` and a fresh
-  `OCTOPUS_DISABLE_BARE=1 make ci-local`: 16 smoke suites, 261 unit suites, and
-  7 integration suites. Focused results are cost mode 10/10, environment
-  accountability 9/9, OpenAI-compatible cache 19/19, stable-link Doctor 3/3,
-  and Windows Doctor 5/5. The workflow regressions failed before their fixes
-  and now pass at 6/6; the retired-Gemini boundary passes 11/11.
-- Delivery state: commits through `f7f85d3d` are pushed on
-  `fix/issue-885-cost-mode-toggle`; verified workflow fixes for #888 through
-  #890 are local pending commit. [PR #887](https://github.com/nyldn/claude-octopus/pull/887)
-  will close all five issues after the corrected head passes review and CI.
+- **#891:** The repaired review exposed a second first-party automation defect:
+  the repository had a `CLAUDE_CODE_OAUTH_TOKEN`, but the workflow installed
+  unauthenticated Codex and ignored that credential. Official Anthropic CLI
+  research was run through Octopus before implementation. The jobs now use
+  Node 22, install Claude Code, bind the OAuth token, and set
+  `OCTOPUS_DISABLE_BARE=1`; the provider report no longer initializes Claude
+  to healthy without a successful Claude execution.
+- **#892:** An orchestrated research run produced complete provider raw output
+  while rich progress stayed at 0/7. Provider stdout flowed through `tee`; a
+  provider hook or descendant retained that pipe, so the worker waited for EOF
+  until the global watchdog. Provider prompts and output now use private,
+  file-backed descriptors, the quota watcher observes the raw file, and the
+  prompt file is removed after dispatch.
+- Regression-first evidence: cost-mode coverage failed 7/9 before the initial
+  implementation and now passes 12/12. Factory regeneration reproduced the
+  missing Doctor adapter. The provider-report suite failed 0/2 before #891;
+  workflow auth coverage failed 6/9 before #891; output-capture coverage failed
+  1/2 before #892 and was extended after review to verify the prompt file is
+  mode 600. All focused suites are now green: Factory 4/4, PR workflow 9/9,
+  provider report 2/2, output capture 3/3, descriptor performance 35/35,
+  stable-link Doctor 5/5, Windows Doctor 5/5, retired Gemini 11/11,
+  environment accountability 9/9, OpenAI-compatible cache 19/19, probe single
+  32/32, spawn PID 9/9, cancellation 21/21, AGY parallel 8/8, review
+  aggregation 19/19, and handoff 13/13.
+- Verification state: the expanded review patch passes `make sync-check` and
+  a fresh `OCTOPUS_NON_INTERACTIVE=1 OCTOPUS_DISABLE_BARE=1 make ci-local`:
+  16/16 smoke suites, 264/264 unit suites, and 7/7 integration suites. The
+  first sweep exposed three stale white-box tests that required
+  `run_with_timeout` to appear directly in `spawn.sh`; each failed before its
+  contract was updated to verify the shared capture helper and passed in the
+  final complete run. The last pushed head `0990f7d9` also passed its normal
+  GitHub Test Suite.
+- Delivery state: commits through `0990f7d9` are pushed on
+  `fix/issue-885-cost-mode-toggle`. The review, authentication, portable-command,
+  provider-reset, and descriptor-safe capture fixes are local pending commit.
+  [PR #887](https://github.com/nyldn/claude-octopus/pull/887) will close all
+  seven issues after the corrected head passes review and CI.
 
 ## Release v9.62.0
 

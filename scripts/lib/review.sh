@@ -616,8 +616,8 @@ print_provider_report() {
     fi
 
     # Determine status per provider
-    local codex_status="not used" agy_status="not used" claude_status="✓ OK" perplexity_status="not used"
-    local codex_detail="" agy_detail="" perplexity_detail=""
+    local codex_status="not used" agy_status="not used" claude_status="not used" perplexity_status="not used"
+    local codex_detail="" agy_detail="" claude_detail="" perplexity_detail=""
     local had_fallback=false
 
     while IFS='|' read -r provider status detail; do
@@ -644,6 +644,19 @@ print_provider_report() {
                     had_fallback=true
                 fi
                 ;;
+            claude)
+                if [[ "$status" == "ok" ]]; then
+                    claude_status="✓ OK"
+                elif [[ "$status" == "fallback" ]]; then
+                    claude_status="✗ FALLBACK"
+                    claude_detail="$detail"
+                    had_fallback=true
+                elif [[ "$status" == "auth-failed" ]]; then
+                    claude_status="✗ AUTH FAILED"
+                    claude_detail="$detail"
+                    had_fallback=true
+                fi
+                ;;
             perplexity)
                 if [[ "$status" == "ok" ]]; then
                     perplexity_status="✓ OK"
@@ -666,6 +679,7 @@ print_provider_report() {
     printf "│ 🧭 AGY:        %-28s│\n" "$agy_status"
     [[ -n "$agy_detail" ]] && printf "│    → %-38s│\n" "$agy_detail"
     printf "│ 🔵 Claude:     %-28s│\n" "$claude_status"
+    [[ -n "$claude_detail" ]] && printf "│    → %-38s│\n" "$claude_detail"
     printf "│ 🟣 Perplexity: %-28s│\n" "$perplexity_status"
     [[ -n "$perplexity_detail" ]] && printf "│    → %-38s│\n" "$perplexity_detail"
     if [[ "$had_fallback" == "true" ]]; then

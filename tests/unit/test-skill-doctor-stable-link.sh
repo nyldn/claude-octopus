@@ -89,6 +89,32 @@ test_codex_package_is_generated_from_guarded_source() {
     fi
 }
 
+test_follow_up_commands_use_resolved_root() {
+    test_case "Doctor follow-up commands reuse the resolved plugin root"
+
+    if grep -q '${HOME}/.claude-octopus/plugin/scripts/' \
+        "$PROJECT_ROOT/.claude/skills/skill-doctor/SKILL.md"; then
+        test_fail "Doctor bypasses OCTO_PLUGIN_ROOT after resolving the installed plugin"
+    else
+        test_pass
+    fi
+}
+
+test_remediation_fences_are_markdown_safe() {
+    test_case "Doctor remediation fences have surrounding blank lines"
+
+    if awk '
+        /^```javascript$/ && previous != "" { bad = 1 }
+        previous == "```" && /^If user chooses/ { bad = 1 }
+        { previous = $0 }
+        END { exit bad }
+    ' "$PROJECT_ROOT/.claude/skills/skill-doctor/SKILL.md"; then
+        test_pass
+    else
+        test_fail "Doctor remediation fences violate MD031"
+    fi
+}
+
 assert_resolver_preserves_stable_link \
     "Claude skill" \
     "$PROJECT_ROOT/.claude/skills/skill-doctor/SKILL.md" \
@@ -97,6 +123,8 @@ assert_resolver_preserves_stable_link \
     "Codex skill" \
     "$PROJECT_ROOT/skills/skill-doctor/SKILL.md" \
     "codex"
+test_follow_up_commands_use_resolved_root
+test_remediation_fences_are_markdown_safe
 test_codex_package_is_generated_from_guarded_source
 
 test_summary

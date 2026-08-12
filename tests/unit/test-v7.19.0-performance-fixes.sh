@@ -109,12 +109,15 @@ test_p01_result_file_pipeline() {
         return
     fi
 
-    # Check for tee usage in spawn_agent (real-time streaming)
-    if grep -q "tee.*raw_output" "$ALL_SRC"; then
-        echo -e "${GREEN}✓${NC} Found tee for real-time output streaming"
+    # Provider descendants can inherit stdout. A tee pipeline then waits for
+    # EOF after the provider itself has completed, leaving progress at 0/N.
+    # File-backed capture preserves raw output without that descriptor hazard.
+    if grep -q 'run_with_timeout.*<.*temp_input.*>.*raw_output' "$ALL_SRC" &&
+       ! grep -q 'tee.*raw_output' "$ALL_SRC"; then
+        echo -e "${GREEN}✓${NC} Found descriptor-safe file-backed output capture"
         TESTS_PASSED=$((TESTS_PASSED + 1))
     else
-        echo -e "${RED}✗${NC} Missing tee for output streaming"
+        echo -e "${RED}✗${NC} Provider output still uses a descriptor-blocking tee pipeline"
         TESTS_FAILED=$((TESTS_FAILED + 1))
     fi
 

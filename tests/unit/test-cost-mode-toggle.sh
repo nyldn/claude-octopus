@@ -17,14 +17,15 @@ CONFIG_FILE="$TEST_HOME/.claude-octopus/config/providers.json"
 mkdir -p "$TEST_HOME"
 
 run_model_config() {
-    HOME="$TEST_HOME" USER="octo-cost-mode-test" CLAUDE_CODE_SESSION="cost-mode-test" \
-        "$MODEL_CONFIG" "$@"
+    env "HOME=${TEST_HOME}" "USER=octo-cost-mode-test" \
+        "CLAUDE_CODE_SESSION=cost-mode-test" "$MODEL_CONFIG" "$@"
 }
 
 resolve_codex_model() {
     local env_mode="${1:-}"
-    HOME="$TEST_HOME" USER="octo-cost-mode-test" CLAUDE_CODE_SESSION="cost-mode-test-${RANDOM}" \
-        OCTOPUS_COST_MODE="$env_mode" bash -c '
+    env "HOME=${TEST_HOME}" "USER=octo-cost-mode-test" \
+        "CLAUDE_CODE_SESSION=cost-mode-test-${RANDOM}" \
+        "OCTOPUS_COST_MODE=${env_mode}" bash -c '
             if [[ -z "$OCTOPUS_COST_MODE" ]]; then
                 unset OCTOPUS_COST_MODE
             fi
@@ -54,6 +55,20 @@ if [[ -z "$missing" ]]; then
     test_pass
 else
     test_fail "$missing"
+fi
+
+test_case "quick commands cannot mask a failed mode write with status output"
+masked_commands=""
+for mode in budget standard premium; do
+    command_file="$PROJECT_ROOT/commands/${mode}-mode.md"
+    if ! grep -Eq "cost-mode ${mode}[[:space:]]*&&" "$command_file"; then
+        masked_commands+="${mode}-mode does not fail before status when persistence fails"$'\n'
+    fi
+done
+if [[ -z "$masked_commands" ]]; then
+    test_pass
+else
+    test_fail "$masked_commands"
 fi
 
 test_case "cost-mode persists budget selection in providers.json"
@@ -117,8 +132,8 @@ fi
 
 test_case "changing cost mode in one process cannot reuse a stale model cache entry"
 cache_results="$(
-    HOME="$TEST_HOME" USER="octo-cost-mode-test" CLAUDE_CODE_SESSION="cost-mode-cache-test" \
-        bash -c '
+    env "HOME=${TEST_HOME}" "USER=octo-cost-mode-test" \
+        "CLAUDE_CODE_SESSION=cost-mode-cache-test" bash -c '
             log() { :; }
             source "$1"
             OCTOPUS_COST_MODE=budget
@@ -132,6 +147,30 @@ if [[ "$cache_results" == "tier-budget-model|tier-premium-model" ]]; then
     test_pass
 else
     test_fail "cost-mode cache key reused the wrong model: $cache_results"
+fi
+
+test_case "resetting a provider removes stale mappings from every cost tier"
+if run_model_config reset codex >/dev/null; then
+    stale_tiers="$(jq -r '[.tiers | to_entries[] | select(.value.codex != null) | .key] | join(",")' "$CONFIG_FILE")"
+    reset_failures=""
+    for mode in budget standard premium; do
+        resolved="$(resolve_codex_model "$mode")"
+        case "$resolved" in
+            tier-budget-model|tier-standard-model|tier-premium-model)
+                reset_failures+="${mode} resolved stale model ${resolved}"$'\n'
+                ;;
+            "")
+                reset_failures+="${mode} did not fall through to a default model"$'\n'
+                ;;
+        esac
+    done
+    if [[ -z "$stale_tiers" && -z "$reset_failures" ]]; then
+        test_pass
+    else
+        test_fail "stale tiers=${stale_tiers:-none}${reset_failures:+; ${reset_failures}}"
+    fi
+else
+    test_fail "reset codex failed"
 fi
 
 test_case "model configuration helper remains valid Bash"

@@ -59,9 +59,11 @@ fi
 
 test_case "spawn retry loop excludes timed-out attempts and reports effective timeout"
 spawn_source="$(cat "$PROJECT_ROOT/scripts/lib/spawn.sh")"
+heartbeat_source="$(cat "$PROJECT_ROOT/scripts/lib/heartbeat.sh")"
 if [[ "$spawn_source" == *'exit_code -ne 124'* ]] && \
    [[ "$spawn_source" == *'exit_code -ne 143'* ]] && \
-   [[ "$spawn_source" == *'run_with_timeout "$_attempt_timeout"'* ]] && \
+   [[ "$spawn_source" == *'"$enhanced_prompt" "$_attempt_timeout" "$temp_input"'* ]] && \
+   [[ "$heartbeat_source" == *'run_with_timeout "$timeout_secs" "$@" < "$temp_input" > "$raw_output"'* ]] && \
    [[ "$spawn_source" == *'update_agent_status "$agent_type" "running" 0 '*' "$_eff_timeout"'* ]]; then
     test_pass
 else

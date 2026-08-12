@@ -87,52 +87,58 @@ This runs all 14 check categories and displays a formatted report.
 
 ### Step 2: Filter by Category (Optional)
 
-If the user asks about a specific area, filter:
+If the user asks about a specific area, reuse the resolver from Step 1 and
+replace its final `doctor --verbose` invocation with one of these lines. These
+are replacement lines, not standalone shell calls; `OCTO_PLUGIN_ROOT` must be
+resolved in the same Bash call.
 
 ```bash
-bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor providers
-bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor companions
-bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor auth
-bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor config
-bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor updates
-bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor state
-bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor smoke
-bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor hooks
-bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor scheduler
-bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor skills
-bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor conflicts
-bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor agents
-bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor recurrence
-bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor cache
+bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor providers
+bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor companions
+bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor auth
+bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor config
+bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor updates
+bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor state
+bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor smoke
+bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor hooks
+bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor scheduler
+bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor skills
+bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor conflicts
+bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor agents
+bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor recurrence
+bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor cache
 ```
 
 ### Step 3: Check & Install Dependencies
 
-Run the dependency checker to find missing CLIs, statusline config, and recommended plugins:
+Reuse the Step 1 resolver and replace its final invocation with the dependency
+checker to find missing CLIs, statusline config, and recommended plugins:
 
 ```bash
-bash "${HOME}/.claude-octopus/plugin/scripts/install-deps.sh" check
+bash "$OCTO_PLUGIN_ROOT/scripts/install-deps.sh" check
 ```
 
 If the check reports missing deps, offer to install them:
 
 ```bash
-bash "${HOME}/.claude-octopus/plugin/scripts/install-deps.sh" install
+bash "$OCTO_PLUGIN_ROOT/scripts/install-deps.sh" install
 ```
 
 This auto-installs Codex CLI, jq, and the statusline resolver. Antigravity CLI (`agy`) setup is detected and reported with install guidance. For plugins (claude-mem, document-skills), it prints `/plugin install` commands the user must run manually.
 
 ### Step 4: Verbose or JSON Output
 
+As above, run these as the final line of the Step 1 resolver call:
+
 ```bash
 # Detailed output for troubleshooting
-bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor --verbose
+bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor --verbose
 
 # Machine-readable output
-bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor --json
+bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor --json
 
 # Combine: specific category + verbose
-bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor auth --verbose
+bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor auth --verbose
 ```
 
 ### Step 5: Interactive Remediation (MANDATORY for fixable issues)
@@ -140,6 +146,7 @@ bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor auth --verbo
 After running diagnostics, if ANY fixable issues are found, you MUST use AskUserQuestion to offer fixes. Do NOT just print instructions — offer to execute them.
 
 **RTK not installed:**
+
 ```javascript
 AskUserQuestion({
   questions: [{
@@ -154,6 +161,7 @@ AskUserQuestion({
   }]
 })
 ```
+
 If user chooses install, run it, then offer hook setup.
 
 **RTK installed but hook not configured on macOS/Linux:**
@@ -176,6 +184,7 @@ AskUserQuestion({
 ```
 
 **Missing optional providers:**
+
 ```javascript
 AskUserQuestion({
   questions: [{
