@@ -15,8 +15,8 @@
         "source": "url",
         "url": "https://github.com/nyldn/claude-octopus.git"
       },
-      "description": "v9.61.3 - Auth-aware provider status for codex/opencode/copilot, direct Google CLI retirement in favor of Antigravity, capped Codex default prompts, and stale-install detection/repair. 32 personas, 51 commands, 63 skills. Run /octo:setup.",
-      "version": "9.61.3",
+      "description": "v9.62.0 - Permanent workflow reliability: bounded retries and auth probes, race-safe progress hooks, and AGY fleet guards. 32 personas, 51 commands, 63 skills. Run /octo:setup.",
+      "version": "9.62.0",
       "author": {
         "name": "nyldn",
         "url": "https://github.com/nyldn"

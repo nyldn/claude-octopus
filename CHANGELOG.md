@@ -2,6 +2,42 @@
 
 ## [Unreleased]
 
+## [9.62.0] - 2026-08-12
+
+### Added
+
+- Positive tangle-implementer timeouts have a configurable floor through
+  `OCTOPUS_TANGLE_TIMEOUT` (default 1200 seconds); `TIMEOUT=0` remains
+  explicitly unlimited. (#869)
+
+### Fixed
+
+- Definition seats receive realistic reasoning budgets instead of terminating
+  mid-answer. (#868)
+- One wall-clock agent deadline now covers every authentication retry; timeout
+  and termination exits are terminal, recovered output is counted consistently,
+  and restricted hosts receive the same effective phase budget. (#869)
+- Preflight explains that legacy `gemini*` inputs require AGY, while grasp,
+  ink, and embrace-gate skip unavailable AGY seats and retain safe synthesis
+  fallbacks. Direct Gemini CLI execution remains retired. (#870, #871)
+- Workflow progress is a task-keyed monotonic ledger with idempotent terminal
+  totals, honest API-cost attribution, subscription-seat labels, and one atomic
+  lock protocol shared by shell and `SubagentStop` writers. (#872)
+- Atomic progress updates preserve caller signal traps, use a real lock-owner
+  PID on Bash 3.2, reclaim abandoned initialization locks, and re-raise
+  interruptions instead of reporting a cancelled write as successful. (#880)
+- Claude `--bare` authentication probes have a five-second default and hard
+  30-second total cap, terminate their complete process tree, and are suppressed
+  in non-live tests. Doctor degrades safely when an optional probe cannot run,
+  preventing stale auth, Keychain, or hook state from hanging unrelated work.
+  (#882)
+
+### Documentation
+
+- Update guidance retains Claude Code's host-managed third-party marketplace
+  auto-update opt-in, the manual recovery path required for installs older than
+  v9.61.3, and the required `/reload-plugins` or restart step.
+
 ## [9.61.3] - 2026-08-10
 
 ### Changed

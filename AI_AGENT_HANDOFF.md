@@ -1,14 +1,13 @@
 # AI Agent Handoff
 
-Last updated: 2026-08-11
-Status: v9.61.3 is published with the completed hook, provider, stale-install,
-lifecycle, and model-metadata repairs from PRs #852, #854 through #857, #859,
-PR #861, and PR #863. Release PR #858 is merged, all implementation issues are
-closed, the shared marketplace is synchronized, Claude/Codex installed-host
-verification passed, and the external release E2E runner's retired Gemini
-assertion is permanently replaced with an AGY contract check.
+Last updated: 2026-08-12
+Status: v9.62.0 consolidates the completed timeout, progress-hook, and AGY
+reliability pass from issues #868 through #872, #880, and #882. Direct Qwen
+prompting with unusable credentials and retired Gemini execution remain blocked;
+Google-family workflow seats execute through AGY. The release retains the local
+stale-install advisory and Claude Code's explicit host-managed update path.
 Branch: `main`
-Release: [v9.61.3](https://github.com/nyldn/claude-octopus/releases/tag/v9.61.3)
+Release: [v9.62.0](https://github.com/nyldn/claude-octopus/releases/tag/v9.62.0)
 
 ## Start Here
 
@@ -66,6 +65,48 @@ Beads is readable but not writable. The remote-backed database is on schema
 v49 with four pending migrations to v53. Repository rules reserve migration for
 the designated migrator. No migration was run, so this work could not be
 claimed or recorded in `bd`; use this handoff for the blocked tracking record.
+
+## Release v9.62.0
+
+- **PR #873 / #868:** definition seats use realistic reasoning budgets instead
+  of terminating mid-answer; squash merge `3a096728`.
+- **PR #874 / #871:** preflight explicitly reports that legacy `gemini*` seats
+  require AGY. Octopus does not restore direct Gemini CLI dispatch; squash merge
+  `65960ced`.
+- **PR #875 / #870:** grasp, ink, and embrace-gate check AGY fleet availability
+  and retain safe empty-result synthesis fallbacks; squash merge `d7d74647`.
+- **PR #876 / #869:** one wall-clock deadline covers every auth retry; timeout
+  and termination exits are terminal, `TIMEOUT=0` stays unlimited, positive
+  tangle implementer budgets have a configurable 1200-second floor, and
+  recovered output is counted consistently. Restricted hosts receive the same
+  effective phase budget. Positive bounded dispatches and continuation retries
+  use the supervised subprocess because native Agent Teams exposes no
+  plugin-accessible cancellation handle; squash merge `cc28531e`.
+- **PR #879 / #872:** `progress.json` is a task-keyed monotonic ledger. Terminal
+  totals are idempotent, estimated API spend is distinguished from subscription
+  seats, phase and output identity reach every dispatch path, and the handoff
+  reads the canonical file. `SubagentStop` and shell lifecycle writers share
+  one atomic directory-lock protocol; squash merge `c5eb5bfb`.
+- **PR #881 / #880:** atomic progress writes cannot replace caller EXIT, INT,
+  or TERM traps. Bash 3.2 records the real lock owner, interrupted writes clean
+  up and re-raise the signal, and abandoned initialization locks are reclaimable;
+  squash merge `cc790499`. Exact `main` Test Suite run `31567827995` passed.
+- **PR #883 / #882:** every Claude `--bare` authentication probe has a
+  five-second default and hard 30-second total cap. The portable path supervises
+  the complete process group, skips rather than launches when safe isolation is
+  unavailable, and non-live tests never invoke the real provider. Exact PR head
+  `79b3f7e7` passed 16/259/7 locally, Test Suite run `31573941934`, the Claude
+  Octopus review workflow, and CodeRabbit approval. Squash merge `332282c8`
+  passed exact `main` Test Suite run `31575017498`.
+- Claude Code owns third-party marketplace mutation. Users enable automatic
+  updates in `/plugin` under **Marketplaces → nyldn-plugins → Enable
+  auto-update**, then run `/reload-plugins` or restart after an update. An
+  installation older than v9.61.3 needs one manual marketplace/plugin update;
+  a newer plugin cannot retroactively install itself into an older loaded copy.
+- The v9.62.0 release-candidate tree passed `make sync-check`,
+  `./scripts/validate-release.sh 9.62.0`, the handoff/README/version release
+  regressions, and `OCTOPUS_DISABLE_BARE=1 make ci-local`: 16 smoke suites,
+  259 unit suites, and 7 integration suites.
 
 ## Release v9.61.3
 
@@ -347,10 +388,13 @@ were removed with that worktree and did not contaminate the task branch.
 
 ## Next Action
 
-No active implementation or release work remains. After closing post-release
-E2E issue #865 and merging the external runner fix, live queries found no open
-issues or pull requests in either repository. If streamlining work resumes, the
-unstarted candidates are:
+No issue-backed implementation remains; the live issue query was empty after
+#882 closed with PR #883. Contributor PRs #867 (reasoning-role env-key
+sanitization) and #877 (OrcaRouter provider) were intentionally not folded into
+this issue-driven reliability release. Re-query their current review and base
+state before acting on either one.
+
+If streamlining work resumes, the unstarted candidates are:
 
 1. Remaining streamlining work:
    - **4c:** remove obsolete drift detection, its unreachable duplicate, and
