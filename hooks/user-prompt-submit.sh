@@ -401,11 +401,13 @@ print(json.dumps(p))
 " 2>/dev/null) || PRIMED='["claude"]'
 
     # Update session state
-    TMP="${SESSION_FILE}.tmp"
-    jq --arg intent "$INTENT" --arg conf "$CONFIDENCE" --argjson providers "$PRIMED" \
-        '.detected_intent = $intent | .intent_confidence = $conf | .primed_providers = $providers' \
-        "$SESSION_FILE" > "$TMP" 2>/dev/null && \
-        mv "$TMP" "$SESSION_FILE" 2>/dev/null || rm -f "$TMP"
+    TMP=""
+    if TMP=$(mktemp "${SESSION_FILE}.tmp.XXXXXX"); then
+        jq --arg intent "$INTENT" --arg conf "$CONFIDENCE" --argjson providers "$PRIMED" \
+            '.detected_intent = $intent | .intent_confidence = $conf | .primed_providers = $providers' \
+            "$SESSION_FILE" > "$TMP" 2>/dev/null && \
+            mv "$TMP" "$SESSION_FILE" 2>/dev/null || rm -f "$TMP"
+    fi
 fi
 
 # ═══════════════════════════════════════════════════════════════════════════════

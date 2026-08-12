@@ -22,11 +22,14 @@ SESSION_FILE="${HOME}/.claude-octopus/session.json"
 
 # Check if a workflow was active this session
 workflow=""
-if [[ -f "$SESSION_FILE" ]] && command -v jq &>/dev/null; then
-    workflow=$(jq -r '.workflow // empty' "$SESSION_FILE" 2>/dev/null)
+if [[ -f "$SESSION_FILE" ]] && command -v jq &>/dev/null &&
+   jq -e 'type == "object"' "$SESSION_FILE" >/dev/null 2>&1; then
+    workflow=$(jq -r '.workflow // empty' "$SESSION_FILE" 2>/dev/null) || workflow=""
 fi
-if [[ -z "$workflow" || "$workflow" == "null" ]] && [[ -f "$SNAPSHOT" ]]; then
-    workflow=$(jq -r '.workflow // empty' "$SNAPSHOT" 2>/dev/null)
+if [[ -z "$workflow" || "$workflow" == "null" ]] &&
+   [[ -f "$SNAPSHOT" ]] && command -v jq &>/dev/null &&
+   jq -e 'type == "object"' "$SNAPSHOT" >/dev/null 2>&1; then
+    workflow=$(jq -r '.workflow // empty' "$SNAPSHOT" 2>/dev/null) || workflow=""
 fi
 
 # No workflow active — nothing to verify

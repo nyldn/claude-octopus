@@ -15,6 +15,19 @@ set -euo pipefail
 _octo_hook_exit() { local c=$?; if [[ $c -ne 0 ]]; then echo "[hook:$(basename "$0")] exit $c" >&2 2>/dev/null || true; fi; return 0; }
 trap _octo_hook_exit EXIT
 
+_publish_session_state() {
+    local destination="$1"
+    shift
+    local state_tmp=""
+    state_tmp=$(mktemp "${destination}.tmp.XXXXXX") || return 1
+    if "$@" > "$state_tmp" 2>/dev/null &&
+       mv "$state_tmp" "$destination" 2>/dev/null; then
+        return 0
+    fi
+    rm -f "$state_tmp"
+    return 1
+}
+
 REMOTE_SESSION=false
 if [[ "${CLAUDE_CODE_REMOTE:-}" == "true" || "${CLAUDE_CODE_WEB:-}" == "true" || "${OCTOPUS_REMOTE_SESSION:-false}" == "true" ]]; then
     REMOTE_SESSION=true
@@ -26,17 +39,18 @@ if [[ "${CLAUDE_CODE_REMOTE:-}" == "true" || "${CLAUDE_CODE_WEB:-}" == "true" ||
         SESSION_FILE="${HOME}/.claude-octopus/session.json"
         if command -v jq >/dev/null 2>&1; then
             if [[ -f "$SESSION_FILE" ]]; then
-                TMP="${SESSION_FILE}.tmp"
-                jq --arg autonomy "$OCTOPUS_AUTONOMY" \
+                _publish_session_state "$SESSION_FILE" jq --arg autonomy "$OCTOPUS_AUTONOMY" \
                     '.remote_session = true | .autonomy = (.autonomy // $autonomy)' \
-                    "$SESSION_FILE" > "$TMP" 2>/dev/null && mv "$TMP" "$SESSION_FILE" 2>/dev/null || rm -f "$TMP"
+                    "$SESSION_FILE" || true
             else
-                jq -n --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg autonomy "$OCTOPUS_AUTONOMY" \
-                    '{"remote_session": true, "autonomy": $autonomy, "session_start": $ts}' \
-                    > "$SESSION_FILE" 2>/dev/null || true
+                _publish_session_state "$SESSION_FILE" jq -n \
+                    --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+                    --arg autonomy "$OCTOPUS_AUTONOMY" \
+                    '{"remote_session": true, "autonomy": $autonomy, "session_start": $ts}' || true
             fi
         elif [[ ! -f "$SESSION_FILE" ]]; then
-            printf '{"remote_session":true,"autonomy":"%s"}\n' "$OCTOPUS_AUTONOMY" > "$SESSION_FILE" 2>/dev/null || true
+            _publish_session_state "$SESSION_FILE" printf \
+                '{"remote_session":true,"autonomy":"%s"}\n' "$OCTOPUS_AUTONOMY" || true
         fi
     fi
 fi
@@ -118,18 +132,16 @@ if [[ -n "$AUTONOMY" ]] && command -v jq &>/dev/null; then
     mkdir -p "$(dirname "$SESSION_FILE")"
 
     if [[ -f "$SESSION_FILE" ]]; then
-        TMP="${SESSION_FILE}.tmp"
-        jq --arg autonomy "$AUTONOMY" \
+        _publish_session_state "$SESSION_FILE" jq --arg autonomy "$AUTONOMY" \
            --arg providers "${PROVIDERS:-}" \
            '.autonomy = $autonomy | .restored_from_memory = true | if $providers != "" then .providers = $providers else . end' \
-           "$SESSION_FILE" > "$TMP" 2>/dev/null && mv "$TMP" "$SESSION_FILE" 2>/dev/null || rm -f "$TMP"
+           "$SESSION_FILE" || true
     else
         # Create initial session with restored preferences (jq --arg for safe escaping)
-        jq -n \
+        _publish_session_state "$SESSION_FILE" jq -n \
             --arg autonomy "$AUTONOMY" \
             --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            '{"autonomy": $autonomy, "restored_from_memory": true, "session_start": $ts}' \
-            > "$SESSION_FILE" 2>/dev/null || true
+            '{"autonomy": $autonomy, "restored_from_memory": true, "session_start": $ts}' || true
     fi
 
     echo "[🐙] restored: autonomy=${AUTONOMY}"

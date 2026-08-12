@@ -31,6 +31,12 @@ if ! command -v jq &>/dev/null; then
     exit 0
 fi
 
+# Persistent workflow state is an optional cache. A malformed file from a stale
+# or interrupted writer must not break every InstructionsLoaded event (#894).
+if ! jq -e 'type == "object"' "$SESSION_FILE" >/dev/null 2>&1; then
+    exit 0
+fi
+
 # Extract current workflow state
 PHASE=$(jq -r '.current_phase // .phase // empty' "$SESSION_FILE" 2>/dev/null)
 WORKFLOW=$(jq -r '.workflow // empty' "$SESSION_FILE" 2>/dev/null)
@@ -40,7 +46,8 @@ EFFORT=$(jq -r '.effort_level // empty' "$SESSION_FILE" 2>/dev/null)
 # v8.41.0: Check for pre-compact snapshot (written by PreCompact hook before compaction)
 # If session.json has no phase but a snapshot exists, restore from snapshot
 SNAPSHOT_FILE="${HOME}/.claude-octopus/.octo/pre-compact-snapshot.json"
-if [[ -z "$PHASE" || "$PHASE" == "null" ]] && [[ -f "$SNAPSHOT_FILE" ]]; then
+if [[ -z "$PHASE" || "$PHASE" == "null" ]] && [[ -f "$SNAPSHOT_FILE" ]] &&
+   jq -e 'type == "object"' "$SNAPSHOT_FILE" >/dev/null 2>&1; then
     PHASE=$(jq -r '.phase // empty' "$SNAPSHOT_FILE" 2>/dev/null)
     WORKFLOW=$(jq -r '.workflow // empty' "$SNAPSHOT_FILE" 2>/dev/null)
     AUTONOMY=$(jq -r '.autonomy // "supervised"' "$SNAPSHOT_FILE" 2>/dev/null)

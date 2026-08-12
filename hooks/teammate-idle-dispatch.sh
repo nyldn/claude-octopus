@@ -24,6 +24,23 @@ if ! command -v jq &>/dev/null; then
     exit 0
 fi
 
+if ! jq -e 'type == "object"' "$SESSION_FILE" >/dev/null 2>&1; then
+    exit 0
+fi
+
+_update_session_state() {
+    local filter="$1"
+    shift
+    local session_tmp=""
+    session_tmp=$(mktemp "${SESSION_FILE}.tmp.XXXXXX") || return 1
+    if jq "$@" "$filter" "$SESSION_FILE" > "$session_tmp" 2>/dev/null &&
+       mv "$session_tmp" "$SESSION_FILE" 2>/dev/null; then
+        return 0
+    fi
+    rm -f "$session_tmp"
+    return 1
+}
+
 CURRENT_PHASE=$(jq -r '.phase // empty' "$SESSION_FILE" 2>/dev/null)
 if [[ -z "$CURRENT_PHASE" ]]; then
     exit 0
@@ -37,8 +54,7 @@ if [[ "$QUEUE_LENGTH" -gt 0 ]]; then
     NEXT_ROLE=$(jq -r '.agent_queue[0].role // "general"' "$SESSION_FILE" 2>/dev/null)
 
     # Remove from queue
-    jq '.agent_queue = .agent_queue[1:]' "$SESSION_FILE" > "${SESSION_FILE}.tmp" \
-        && mv "${SESSION_FILE}.tmp" "$SESSION_FILE"
+    _update_session_state '.agent_queue = .agent_queue[1:]' || exit 0
 
     # Track idle event in metrics
     METRICS_DIR="${HOME}/.claude-octopus/metrics"

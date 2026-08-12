@@ -24,6 +24,23 @@ if ! command -v jq &>/dev/null; then
     exit 0
 fi
 
+if ! jq -e 'type == "object"' "$SESSION_FILE" >/dev/null 2>&1; then
+    exit 0
+fi
+
+_update_session_state() {
+    local filter="$1"
+    shift
+    local session_tmp=""
+    session_tmp=$(mktemp "${SESSION_FILE}.tmp.XXXXXX") || return 1
+    if jq "$@" "$filter" "$SESSION_FILE" > "$session_tmp" 2>/dev/null &&
+       mv "$session_tmp" "$SESSION_FILE" 2>/dev/null; then
+        return 0
+    fi
+    rm -f "$session_tmp"
+    return 1
+}
+
 CURRENT_PHASE=$(jq -r '.phase // empty' "$SESSION_FILE" 2>/dev/null)
 if [[ -z "$CURRENT_PHASE" ]]; then
     exit 0
@@ -35,8 +52,8 @@ TOTAL=$(jq -r '.phase_tasks.total // 0' "$SESSION_FILE" 2>/dev/null)
 AUTONOMY=$(jq -r '.autonomy // "supervised"' "$SESSION_FILE" 2>/dev/null)
 COMPLETED=$((COMPLETED + 1))
 
-jq ".phase_tasks.completed = $COMPLETED" "$SESSION_FILE" > "${SESSION_FILE}.tmp" \
-    && mv "${SESSION_FILE}.tmp" "$SESSION_FILE"
+_update_session_state '.phase_tasks.completed = $completed' \
+    --argjson completed "$COMPLETED" || exit 0
 
 # Record metrics
 METRICS_DIR="${HOME}/.claude-octopus/metrics"
@@ -63,15 +80,14 @@ if [[ "$COMPLETED" -ge "$TOTAL" ]] && [[ "$TOTAL" -gt 0 ]]; then
 
     if [[ "$NEXT_PHASE" == "complete" ]]; then
         echo "🐙 TaskCompleted: All workflow phases complete! ✅"
-        jq '.phase = "complete" | .workflow_status = "finished"' "$SESSION_FILE" > "${SESSION_FILE}.tmp" \
-            && mv "${SESSION_FILE}.tmp" "$SESSION_FILE"
+        _update_session_state '.phase = "complete" | .workflow_status = "finished"' || exit 0
     else
         case "$AUTONOMY" in
             autonomous|semi-autonomous)
                 # Auto-transition to next phase
-                jq ".phase = \"$NEXT_PHASE\" | .phase_tasks = {\"total\": 0, \"completed\": 0}" \
-                    "$SESSION_FILE" > "${SESSION_FILE}.tmp" \
-                    && mv "${SESSION_FILE}.tmp" "$SESSION_FILE"
+                _update_session_state \
+                    '.phase = $next_phase | .phase_tasks = {"total": 0, "completed": 0}' \
+                    --arg next_phase "$NEXT_PHASE" || exit 0
                 echo "🐙 TaskCompleted: Phase '$CURRENT_PHASE' complete → Auto-transitioning to '$NEXT_PHASE'"
                 ;;
             *)

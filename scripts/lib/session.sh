@@ -432,19 +432,34 @@ init_session() {
 
     mkdir -p "$(dirname "$SESSION_FILE")"
 
-    cat > "$SESSION_FILE" << EOF
-{
-  "session_id": "$session_id",
-  "session_name": $(printf '%s' "$session_name" | jq -Rs .),
-  "workflow": "$workflow",
-  "status": "in_progress",
-  "current_phase": null,
-  "started_at": "$(date -Iseconds 2>/dev/null || date +%Y-%m-%dT%H:%M:%S)",
-  "last_checkpoint": null,
-  "prompt": $(printf '%s' "$prompt" | jq -Rs .),
-  "phases": {}
-}
-EOF
+    # Render beside the destination and rename only after jq has produced a
+    # complete object. Readers then see either the previous valid state or the
+    # complete new state, never a partially truncated session file (#894).
+    local started_at session_tmp
+    started_at=$(date -Iseconds 2>/dev/null || date +%Y-%m-%dT%H:%M:%S)
+    session_tmp=$(mktemp "${SESSION_FILE}.tmp.XXXXXX") || {
+        log ERROR "Could not allocate temporary session state"
+        return 1
+    }
+    if ! jq -n \
+        --arg session_id "$session_id" \
+        --arg session_name "$session_name" \
+        --arg workflow "$workflow" \
+        --arg started_at "$started_at" \
+        --arg prompt "$prompt" \
+        '{session_id: $session_id, session_name: $session_name,
+          workflow: $workflow, status: "in_progress", current_phase: null,
+          started_at: $started_at, last_checkpoint: null,
+          prompt: $prompt, phases: {}}' > "$session_tmp" 2>/dev/null; then
+        rm -f "$session_tmp"
+        log ERROR "Could not render session state"
+        return 1
+    fi
+    if ! mv "$session_tmp" "$SESSION_FILE"; then
+        rm -f "$session_tmp"
+        log ERROR "Could not publish session state"
+        return 1
+    fi
     log INFO "Session initialized: $session_id (name: $session_name)"
 
     # v8.14.0: Initialize persistent state tracking
@@ -465,12 +480,17 @@ save_session_checkpoint() {
     local timestamp
     timestamp=$(date -Iseconds 2>/dev/null || date +%Y-%m-%dT%H:%M:%S)
 
-    jq --arg phase "$phase" \
+    local session_tmp=""
+    session_tmp=$(mktemp "${SESSION_FILE}.tmp.XXXXXX") || return 1
+    if ! jq --arg phase "$phase" \
        --arg status "$status" \
        --arg output "$output_file" \
        --arg time "$timestamp" \
        '.phases[$phase] = {status: $status, output: $output, timestamp: $time} | .last_checkpoint = $time | .current_phase = $phase' \
-       "$SESSION_FILE" > "${SESSION_FILE}.tmp" && mv "${SESSION_FILE}.tmp" "$SESSION_FILE"
+       "$SESSION_FILE" > "$session_tmp" || ! mv "$session_tmp" "$SESSION_FILE"; then
+        rm -f "$session_tmp"
+        return 1
+    fi
 
     # v8.14.0: Sync to persistent state
     set_current_workflow "$(jq -r '.workflow // ""' "$SESSION_FILE" 2>/dev/null)" "$phase" 2>/dev/null || true
@@ -580,9 +600,14 @@ save_phase_slot() {
         return 0
     fi
 
-    jq --arg phase "$phase" --arg key "$key" --arg value "$value" \
+    local session_tmp=""
+    session_tmp=$(mktemp "${SESSION_FILE}.tmp.XXXXXX") || return 1
+    if ! jq --arg phase "$phase" --arg key "$key" --arg value "$value" \
        '.phases[$phase] //= {} | .phases[$phase].slots //= {} | .phases[$phase].slots[$key] = $value' \
-       "$SESSION_FILE" > "${SESSION_FILE}.tmp" && mv "${SESSION_FILE}.tmp" "$SESSION_FILE"
+       "$SESSION_FILE" > "$session_tmp" || ! mv "$session_tmp" "$SESSION_FILE"; then
+        rm -f "$session_tmp"
+        return 1
+    fi
 }
 
 get_phase_slot() {
@@ -610,8 +635,13 @@ list_phase_slots() {
 # Mark session as complete
 complete_session() {
     if [[ -f "$SESSION_FILE" ]] && command -v jq &> /dev/null; then
-        jq '.status = "completed"' "$SESSION_FILE" > "${SESSION_FILE}.tmp" && \
-            mv "${SESSION_FILE}.tmp" "$SESSION_FILE"
+        local session_tmp=""
+        session_tmp=$(mktemp "${SESSION_FILE}.tmp.XXXXXX") || return 1
+        if ! jq '.status = "completed"' "$SESSION_FILE" > "$session_tmp" ||
+           ! mv "$session_tmp" "$SESSION_FILE"; then
+            rm -f "$session_tmp"
+            return 1
+        fi
         log INFO "Session marked complete"
     fi
 

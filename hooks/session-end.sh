@@ -20,10 +20,20 @@ SESSION_FILE="${HOME}/.claude-octopus/session.json"
 METRICS_DIR="${HOME}/.claude-octopus/metrics"
 MEMORY_DIR="${HOME}/.claude/projects"
 
+# Session state is a best-effort cache shared by workflow commands and hooks.
+# A stale install, interrupted write, or concurrent process can leave it
+# malformed. Lifecycle hooks must fail open in that case instead of turning one
+# bad cache file into a persistent error at the end of every Claude session.
+SESSION_JSON_VALID=false
+if [[ -f "$SESSION_FILE" ]] && command -v jq &>/dev/null &&
+   jq -e 'type == "object"' "$SESSION_FILE" >/dev/null 2>&1; then
+    SESSION_JSON_VALID=true
+fi
+
 # --- 1. Finalize session metrics ---
 if [[ -d "$METRICS_DIR" ]]; then
     SUMMARY="${METRICS_DIR}/session-summary-$(date +%Y%m%d-%H%M%S).json"
-    if command -v jq &>/dev/null && [[ -f "$SESSION_FILE" ]]; then
+    if [[ "$SESSION_JSON_VALID" == "true" ]]; then
         jq '{
             session_end: (now | tostring),
             phase: (.current_phase // .phase // "none"),
@@ -37,7 +47,7 @@ fi
 # --- 2. Persist preferences to auto-memory ---
 # When native auto-memory is available, write key preferences so
 # the next session starts with user context pre-loaded.
-if [[ -f "$SESSION_FILE" ]] && command -v jq &>/dev/null; then
+if [[ "$SESSION_JSON_VALID" == "true" ]]; then
     AUTONOMY=$(jq -r '.autonomy // empty' "$SESSION_FILE" 2>/dev/null)
     PROVIDERS=$(jq -r '.providers // empty' "$SESSION_FILE" 2>/dev/null)
 
@@ -77,7 +87,7 @@ fi
 # --- 3. Learnings layer — meta-reflection across sessions (v8.41.0) ---
 # Appends session-level learnings (errors hit, patterns discovered, tools used)
 # to octopus-learnings.md for cross-session meta-reflection.
-if [[ -n "${TARGET_MEM_DIR:-}" ]] && [[ -f "$SESSION_FILE" ]] && command -v jq &>/dev/null; then
+if [[ -n "${TARGET_MEM_DIR:-}" ]] && [[ "$SESSION_JSON_VALID" == "true" ]]; then
     LEARNINGS_FILE="${TARGET_MEM_DIR}/octopus-learnings.md"
     # Extract session signals for learnings
     PHASE=$(jq -r '.current_phase // .phase // "none"' "$SESSION_FILE" 2>/dev/null)
@@ -120,7 +130,7 @@ fi
 # JSON files in .claude-octopus/learnings/. Capped at 5 learnings per session
 # to stay within budget. These are consumed at session start for relevance matching.
 LEARNINGS_DIR="${HOME}/.claude-octopus/learnings"
-if [[ -f "$SESSION_FILE" ]] && command -v jq &>/dev/null; then
+if [[ "$SESSION_JSON_VALID" == "true" ]]; then
     mkdir -p "$LEARNINGS_DIR"
 
     # Extract session signals for cross-task learning

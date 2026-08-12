@@ -316,10 +316,13 @@ execute_workflow_phase() {
 
     # Write phase task info for task-completed-transition.sh
     if command -v jq &>/dev/null && [[ -f "$session_dir/session.json" ]]; then
-        jq --argjson total "$total_agents" \
+        local phase_tasks_tmp=""
+        if phase_tasks_tmp=$(mktemp "$session_dir/session.json.tmp.XXXXXX"); then
+            jq --argjson total "$total_agents" \
            '.phase_tasks = {total: $total, completed: 0}' \
-           "$session_dir/session.json" > "$session_dir/session.json.tmp" \
-           && mv "$session_dir/session.json.tmp" "$session_dir/session.json" 2>/dev/null || true
+           "$session_dir/session.json" > "$phase_tasks_tmp" \
+           && mv "$phase_tasks_tmp" "$session_dir/session.json" 2>/dev/null || rm -f "$phase_tasks_tmp"
+        fi
     fi
 
     # Spawn agents
@@ -572,11 +575,14 @@ run_yaml_workflow() {
         # Update session.json for hooks
         local session_dir="${HOME}/.claude-octopus"
         if command -v jq &>/dev/null && [[ -f "$session_dir/session.json" ]]; then
-            jq --arg phase "$phase_name" --arg status "running" \
+            local phase_start_tmp=""
+            if phase_start_tmp=$(mktemp "$session_dir/session.json.tmp.XXXXXX"); then
+                jq --arg phase "$phase_name" --arg status "running" \
                --argjson completed "$((phase_num - 1))" \
                '.current_phase = $phase | .phase_status = $status | .completed_phases = $completed' \
-               "$session_dir/session.json" > "$session_dir/session.json.tmp" \
-               && mv "$session_dir/session.json.tmp" "$session_dir/session.json" 2>/dev/null || true
+               "$session_dir/session.json" > "$phase_start_tmp" \
+               && mv "$phase_start_tmp" "$session_dir/session.json" 2>/dev/null || rm -f "$phase_start_tmp"
+            fi
         fi
 
         # Read previous phase output if available
@@ -593,11 +599,14 @@ run_yaml_workflow() {
         if ! phase_result=$(execute_workflow_phase "$yaml_file" "$phase_name" "$prompt" "$prev_content" "$task_group"); then
             log "ERROR" "YAML Runtime: Halting workflow '$workflow_name' — phase '$phase_name' failed its quality gate"
             if command -v jq &>/dev/null && [[ -f "$session_dir/session.json" ]]; then
-                jq --arg phase "$phase_name" --arg status "failed" \
+                local phase_failed_tmp=""
+                if phase_failed_tmp=$(mktemp "$session_dir/session.json.tmp.XXXXXX"); then
+                    jq --arg phase "$phase_name" --arg status "failed" \
                    '.current_phase = $phase | .phase_status = $status |
                     .quality_gates = {passed: false, failed: true}' \
-                   "$session_dir/session.json" > "$session_dir/session.json.tmp" \
-                   && mv "$session_dir/session.json.tmp" "$session_dir/session.json" 2>/dev/null || true
+                   "$session_dir/session.json" > "$phase_failed_tmp" \
+                   && mv "$phase_failed_tmp" "$session_dir/session.json" 2>/dev/null || rm -f "$phase_failed_tmp"
+                fi
             fi
             return 1
         fi
@@ -607,11 +616,14 @@ run_yaml_workflow() {
 
         # Update session state
         if command -v jq &>/dev/null && [[ -f "$session_dir/session.json" ]]; then
-            jq --arg phase "$phase_name" --arg status "completed" \
+            local phase_complete_tmp=""
+            if phase_complete_tmp=$(mktemp "$session_dir/session.json.tmp.XXXXXX"); then
+                jq --arg phase "$phase_name" --arg status "completed" \
                --argjson completed "$phase_num" \
                '.current_phase = $phase | .phase_status = $status | .completed_phases = $completed' \
-               "$session_dir/session.json" > "$session_dir/session.json.tmp" \
-               && mv "$session_dir/session.json.tmp" "$session_dir/session.json" 2>/dev/null || true
+               "$session_dir/session.json" > "$phase_complete_tmp" \
+               && mv "$phase_complete_tmp" "$session_dir/session.json" 2>/dev/null || rm -f "$phase_complete_tmp"
+            fi
         fi
 
         # Handle autonomy checkpoint

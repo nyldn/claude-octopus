@@ -3894,9 +3894,12 @@ ${obs_ctx}"
         local phase="$1"
         local status="$2"
         local session_dir="${HOME}/.claude-octopus"
+        local session_file="${HOME}/.claude-octopus/session.json"
+        local session_tmp=""
         mkdir -p "$session_dir"
         if command -v jq &> /dev/null; then
-            jq -n \
+            session_tmp=$(mktemp "${session_file}.tmp.XXXXXX") || return 0
+            if jq -n \
                 --arg phase "$phase" \
                 --arg status "$status" \
                 --arg workflow "embrace" \
@@ -3912,7 +3915,12 @@ ${obs_ctx}"
                   agent_queue: [],
                   quality_gates: {passed: false, failed: false},
                   updated_at: now | todate}' \
-                > "$session_dir/session.json" 2>/dev/null || true
+                > "$session_tmp" 2>/dev/null &&
+               mv "$session_tmp" "$session_file" 2>/dev/null; then
+                :
+            else
+                rm -f "$session_tmp"
+            fi
         fi
     }
 

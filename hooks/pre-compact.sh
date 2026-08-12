@@ -23,14 +23,23 @@ if [[ ! -f "$SESSION_FILE" ]]; then
     exit 0
 fi
 
+# A corrupt optional cache cannot safely be snapshotted and must never block
+# compaction or fail the hook (#894).
+if ! command -v jq &>/dev/null ||
+   ! jq -e 'type == "object"' "$SESSION_FILE" >/dev/null 2>&1; then
+    exit 0
+fi
+
 # Snapshot current workflow state before compaction wipes context
 mkdir -p "$STATE_DIR"
 
 SNAPSHOT="${STATE_DIR}/pre-compact-snapshot.json"
 
-if command -v jq &>/dev/null; then
-    # Capture phase, workflow, decisions, blockers for post-compaction recovery
-    jq '{
+snapshot_tmp=""
+if snapshot_tmp=$(mktemp "${SNAPSHOT}.tmp.XXXXXX"); then
+    # Capture phase, workflow, decisions, blockers for post-compaction recovery.
+    # Publish by rename so InstructionsLoaded never sees a partial snapshot.
+    if jq '{
         phase: (.current_phase // .phase // null),
         workflow: (.workflow // null),
         autonomy: (.autonomy // "supervised"),
@@ -39,7 +48,12 @@ if command -v jq &>/dev/null; then
         decisions: (.decisions // []),
         blockers: (.blockers // []),
         snapshot_time: now | tostring
-    }' "$SESSION_FILE" > "$SNAPSHOT" 2>/dev/null || true
+    }' "$SESSION_FILE" > "$snapshot_tmp" 2>/dev/null &&
+       mv "$snapshot_tmp" "$SNAPSHOT" 2>/dev/null; then
+        :
+    else
+        rm -f "$snapshot_tmp"
+    fi
 fi
 
 # v9.6.0: Write session handoff file for cross-session resumption
