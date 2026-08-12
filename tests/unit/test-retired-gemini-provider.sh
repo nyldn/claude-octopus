@@ -123,6 +123,15 @@ else
     test_pass
 fi
 
+test_case "CI workflows do not install or credential the retired Gemini CLI"
+if grep -Ern \
+    '@google/gemini-cli|GEMINI_API_KEY' \
+    "$PROJECT_ROOT/.github/workflows" >/dev/null; then
+    test_fail "a CI workflow still installs or credentials direct Gemini"
+else
+    test_pass
+fi
+
 test_case "Package, version checks, and provider configuration expose agy without Gemini"
 if jq -e '
       (.files | index(".gemini/") | not) and

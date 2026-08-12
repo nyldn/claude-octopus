@@ -16,6 +16,14 @@
   configurable standard tier is resolved just like budget and premium, so a
   long-lived process cannot reuse a model selected under the previous mode.
   (#885)
+- The first-party PR review workflow now reviews the actual base-to-head diff,
+  preserves review failures through `tee`, and posts diagnostic output even
+  when review fails instead of reporting a zero-provider run as green. (#888)
+- Issue-comment automation likewise preserves orchestration failures through
+  `tee` while still posting the captured diagnostic response. (#890)
+- GitHub automation no longer installs or credentials the retired direct
+  Gemini CLI; headless jobs use only providers they actually install and
+  authenticate. (#889)
 
 ### Internal
 

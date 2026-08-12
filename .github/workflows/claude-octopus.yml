@@ -3,7 +3,6 @@
 #
 # Required secrets:
 #   OPENAI_API_KEY - Your OpenAI API key for Codex CLI
-#   GEMINI_API_KEY - Your Google AI key for Gemini CLI
 #
 # Optional secrets:
 #   ANTHROPIC_API_KEY - For Claude API integration
@@ -68,16 +67,10 @@ jobs:
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
-      - name: Install Gemini CLI
-        run: npm install -g @google/gemini-cli
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-
       - name: Run Claude Octopus
         id: octopus
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           CI: true
           GITHUB_OUTPUT: ${{ github.output }}
           # SECURITY: Pass inputs via env vars to prevent shell injection
@@ -136,37 +129,30 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install CLIs
-        run: |
-          npm install -g @openai/codex
-          npm install -g @google/gemini-cli
+      - name: Install Codex CLI
+        run: npm install -g @openai/codex
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
-      - name: Get Changed Files
-        id: changed
+      - name: Materialize PR Diff
+        env:
+          BASE_REF: ${{ github.base_ref }}
         run: |
-          FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | tr '\n' ' ')
-          echo "files=$FILES" >> $GITHUB_OUTPUT
+          git diff --no-ext-diff "origin/${BASE_REF}...HEAD" > pr-review.diff
 
       - name: Run Code Review
         id: review
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           CI: true
-          # SECURITY: Pass file list via env var to prevent shell injection
-          CHANGED_FILES: ${{ steps.changed.outputs.files }}
         run: |
+          set -o pipefail
           chmod +x ./scripts/orchestrate.sh
 
-          # SECURITY: Sanitize file list - remove special characters except safe ones
-          SAFE_FILES=$(echo "$CHANGED_FILES" | tr -cd 'a-zA-Z0-9_./ \n-' | head -c 10000)
-
-          ./scripts/orchestrate.sh --ci code-review '{"target":"staged","publish":"never"}' 2>&1 | tee review-output.txt
+          ./scripts/orchestrate.sh --ci code-review '{"target":"pr-review.diff","publish":"never"}' 2>&1 | tee review-output.txt
 
       - name: Post Review Comment
+        if: always() && steps.review.outcome != 'skipped'
         uses: actions/github-script@v9
         with:
           script: |
@@ -215,13 +201,10 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install CLIs
-        run: |
-          npm install -g @openai/codex
-          npm install -g @google/gemini-cli
+      - name: Install Codex CLI
+        run: npm install -g @openai/codex
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
       - name: Parse Command
         id: parse
@@ -247,15 +230,16 @@ jobs:
         id: octopus
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           CI: true
           # SECURITY: Pass prompt via env var
           OCTOPUS_PROMPT: ${{ steps.parse.outputs.prompt }}
         run: |
+          set -o pipefail
           chmod +x ./scripts/orchestrate.sh
           ./scripts/orchestrate.sh --ci auto "$OCTOPUS_PROMPT" 2>&1 | tee octopus-output.txt
 
       - name: Reply to Comment
+        if: always() && steps.octopus.outcome != 'skipped'
         uses: actions/github-script@v9
         with:
           script: |

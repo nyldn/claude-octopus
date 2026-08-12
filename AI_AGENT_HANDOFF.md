@@ -1,7 +1,7 @@
 # AI Agent Handoff
 
 Last updated: 2026-08-12
-Status: Issues #885 and #886 are being resolved on an isolated feature branch.
+Status: Issues #885 through #890 are being resolved on an isolated feature branch.
 The implementation adds persistent budget, standard, and premium model-cost
 toggles and repairs Factory/Cursor generation so the Doctor adapter and full
 command set cannot silently disappear. Direct Qwen prompting with unusable
@@ -69,7 +69,7 @@ migration for the designated migrator. No migration was run, so this work could
 not be claimed or recorded in `bd`; use this handoff for the blocked tracking
 record.
 
-## Active Issues #885 and #886
+## Active Issues #885 through #890
 
 - **#885:** Cost-tier definitions already existed, but `/octo:model-config`
   only printed a shell `export` instruction. A slash-command subprocess cannot
@@ -81,6 +81,15 @@ record.
   Doctor adapter and did not emit every canonical command. The generator now
   builds Doctor from the canonical Doctor skill, generates the full command
   surface, and has a non-mutating `--check` path wired into `make sync-check`.
+- **#888:** The first-party PR review checked a clean Actions index with
+  `target=staged`, then `tee` masked the review command's non-zero exit. It now
+  materializes `origin/<base>...HEAD`, reviews that diff artifact, fails closed,
+  and posts diagnostics even on failure.
+- **#889:** The same workflow still installed and credentialed the retired
+  direct Gemini CLI. Those CI paths now use only the Codex provider they install
+  and authenticate; the retired-provider boundary scans workflow files.
+- **#890:** Issue-comment orchestration used the same false-green `tee` pattern.
+  It now preserves the Octopus exit while still posting captured diagnostics.
 - Regression-first evidence: `tests/unit/test-cost-mode-toggle.sh` failed 7/9
   before implementation and passes 10/10 after it. Regenerating Factory
   artifacts reproduced the missing Doctor adapter; the Windows Doctor contract
@@ -88,13 +97,15 @@ record.
   accountability gate exposed one missing manifest mapping during the first full
   run and passes 9/9 after mapping `OCTOPUS_COST_MODE` to the behavioral suite.
 - Verification state: the corrected tree passed `make sync-check` and a fresh
-  `OCTOPUS_DISABLE_BARE=1 make ci-local`: 16 smoke suites, 260 unit suites, and
+  `OCTOPUS_DISABLE_BARE=1 make ci-local`: 16 smoke suites, 261 unit suites, and
   7 integration suites. Focused results are cost mode 10/10, environment
   accountability 9/9, OpenAI-compatible cache 19/19, stable-link Doctor 3/3,
-  and Windows Doctor 5/5.
-- Delivery state: implementation commit `2a2f3f91` is pushed on
-  `fix/issue-885-cost-mode-toggle`; [PR #887](https://github.com/nyldn/claude-octopus/pull/887)
-  closes #885 and #886. Await the exact PR-head checks and review before merge.
+  and Windows Doctor 5/5. The workflow regressions failed before their fixes
+  and now pass at 6/6; the retired-Gemini boundary passes 11/11.
+- Delivery state: commits through `f7f85d3d` are pushed on
+  `fix/issue-885-cost-mode-toggle`; verified workflow fixes for #888 through
+  #890 are local pending commit. [PR #887](https://github.com/nyldn/claude-octopus/pull/887)
+  will close all five issues after the corrected head passes review and CI.
 
 ## Release v9.62.0
 
