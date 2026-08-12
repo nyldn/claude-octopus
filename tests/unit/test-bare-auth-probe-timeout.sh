@@ -93,8 +93,11 @@ SH
 chmod +x "$stubborn_probe"
 SECONDS=0
 rc=0
-PATH="$manual_bin" _octo_run_bare_probe_with_timeout 1 1 0 "$stubborn_probe" \
-    >/dev/null 2>&1 || rc=$?
+(
+    PATH="$manual_bin"
+    _octo_run_bare_probe_with_timeout 1 1 0 "$stubborn_probe" \
+        >/dev/null 2>&1
+) || rc=$?
 elapsed=$SECONDS
 if [[ "$rc" -ne 0 && "$elapsed" -le 2 ]]; then
     test_pass
@@ -122,8 +125,11 @@ chmod +x "$descendant_wrapper" "$descendant_probe"
 export OCTO_GRANDCHILD_PID_FILE="$grandchild_pid_file"
 export OCTO_DESCENDANT_WRAPPER="$descendant_wrapper"
 rc=0
-PATH="$manual_bin" _octo_run_bare_probe_with_timeout 1 1 0 "$descendant_probe" \
-    >/dev/null 2>&1 || rc=$?
+(
+    PATH="$manual_bin"
+    _octo_run_bare_probe_with_timeout 1 1 0 "$descendant_probe" \
+        >/dev/null 2>&1
+) || rc=$?
 grandchild_pid=$(cat "$grandchild_pid_file" 2>/dev/null || true)
 if [[ -n "$grandchild_pid" ]] && kill -0 "$grandchild_pid" 2>/dev/null; then
     kill -KILL "$grandchild_pid" 2>/dev/null || true
