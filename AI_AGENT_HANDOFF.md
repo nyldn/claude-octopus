@@ -116,7 +116,9 @@ claimed or recorded in `bd`; use this handoff for the blocked tracking record.
   diagnostics. The strengthened regression failed first against the raw-output
   path, then passed 17/17 after routing both version diagnostics through the
   logger; release wording now distinguishes generation from check-only
-  validation.
+  validation. The final review strengthened the same fixture to prove update
+  mode also repairs entry-only drift and that the repaired manifest passes a
+  subsequent `--check`, with warning assertions derived from fixture data.
 
 ## Release v9.61.3
 

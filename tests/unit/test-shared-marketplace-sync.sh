@@ -223,7 +223,9 @@ test_local_marketplace_sync_aligns_all_versions() {
     local check_before_rc=0
     local check_after_rc=0
     local check_entry_rc=0
-    local plugin_version metadata_version entry_version
+    local check_entry_repaired_rc=0
+    local plugin_version metadata_version stale_entry_version
+    local repaired_metadata_version repaired_entry_version
 
     mkdir -p "$fixture/scripts" "$fixture/.claude-plugin" "$fixture/agents/personas"
     cp "$LOCAL_SYNC_SCRIPT" "$fixture/scripts/sync-marketplace.sh"
@@ -263,17 +265,26 @@ JSON
 
     plugin_version="$(jq -r '.version' "$fixture/.claude-plugin/plugin.json")"
     metadata_version="$(jq -r '.metadata.version' "$fixture/.claude-plugin/marketplace.json")"
-    entry_version="$(jq -r '.plugins[] | select(.name == "octo") | .version' "$fixture/.claude-plugin/marketplace.json")"
+    stale_entry_version="$(jq -r '.plugins[] | select(.name == "octo") | .version' "$fixture/.claude-plugin/marketplace.json")"
+
+    bash "$fixture/scripts/sync-marketplace.sh" > "$TMP_DIR/local-sync-entry-repair.out" 2>&1
+    bash "$fixture/scripts/sync-marketplace.sh" --check > "$TMP_DIR/local-sync-check-entry-repaired.out" 2>&1 || check_entry_repaired_rc=$?
+    repaired_metadata_version="$(jq -r '.metadata.version' "$fixture/.claude-plugin/marketplace.json")"
+    repaired_entry_version="$(jq -r '.plugins[] | select(.name == "octo") | .version' "$fixture/.claude-plugin/marketplace.json")"
 
     if [[ "$check_before_rc" -ne 0 &&
           "$check_after_rc" -eq 0 &&
           "$check_entry_rc" -ne 0 &&
+          "$check_entry_repaired_rc" -eq 0 &&
           "$metadata_version" == "$plugin_version" &&
-          "$entry_version" != "$plugin_version" ]] &&
-       grep -q '^\[WARN\] Plugin version: 1.0.0 (expected 9.99.0)$' "$TMP_DIR/local-sync-check-entry.out"; then
+          "$stale_entry_version" != "$plugin_version" &&
+          "$repaired_metadata_version" == "$plugin_version" &&
+          "$repaired_entry_version" == "$plugin_version" ]] &&
+       grep -Fqx "[WARN] Plugin version: $stale_entry_version (expected $plugin_version)" \
+           "$TMP_DIR/local-sync-check-entry.out"; then
         test_pass
     else
-        test_fail "expected independent entry-version rejection through WARN logger; before=$check_before_rc after=$check_after_rc entry_check=$check_entry_rc plugin=$plugin_version metadata=$metadata_version entry=$entry_version"
+        test_fail "expected independent entry-version rejection and repair; before=$check_before_rc after=$check_after_rc entry_check=$check_entry_rc entry_repaired=$check_entry_repaired_rc plugin=$plugin_version metadata=$metadata_version stale_entry=$stale_entry_version repaired_metadata=$repaired_metadata_version repaired_entry=$repaired_entry_version"
     fi
 }
 
