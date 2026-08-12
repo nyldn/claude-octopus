@@ -1,7 +1,7 @@
 # AI Agent Handoff
 
 Last updated: 2026-08-12
-Status: Issues #885 through #893 are being resolved on an isolated feature branch.
+Status: Issues #885 through #894 are being resolved on an isolated feature branch.
 The implementation adds persistent budget, standard, and premium model-cost
 toggles and repairs Factory/Cursor generation so the Doctor adapter and full
 command set cannot silently disappear. First-party automation now uses its
@@ -11,7 +11,9 @@ credentials and retired Gemini execution remain blocked; Google-family workflow
 seats execute through AGY. If the Claude subscription reaches its independent
 weekly quota, first-party PR review retries through GitHub Copilot CLI with the
 short-lived Actions token and an empty model-tool inventory, while remaining
-fail-closed.
+fail-closed. Lifecycle hooks now treat malformed shared session state as an
+optional-cache miss, and every shared session writer publishes through a unique
+temporary file and atomic rename.
 Branch: `fix/issue-885-cost-mode-toggle`
 Release: [v9.62.0](https://github.com/nyldn/claude-octopus/releases/tag/v9.62.0)
 
@@ -74,7 +76,7 @@ migration for the designated migrator. No migration was run, so this work could
 not be claimed or recorded in `bd`; use this handoff for the blocked tracking
 record.
 
-## Active Issues #885 through #893
+## Active Issues #885 through #894
 
 - **#885:** Cost-tier definitions already existed, but `/octo:model-config`
   only printed a shell `export` instruction. A slash-command subprocess cannot
@@ -123,6 +125,16 @@ record.
   output plus hidden proof artifacts remain available. Provider reports surface
   the last actionable stdout or stderr error instead of replacing quota, auth,
   policy, retirement, and service failures with a generic message.
+- **#894:** A real Claude lifecycle probe reproduced persistent SessionEnd
+  failures from malformed `~/.claude-octopus/session.json`: both hooks ran
+  unguarded `jq` substitutions under `set -e`, so one stale extra brace made
+  every session end with exit 5. The same audit found three more registered
+  state-reading hooks with the failure mode and multiple writers sharing the
+  predictable `session.json.tmp` path. Seven lifecycle hooks now fail open on
+  malformed optional state, session and compaction snapshots publish through
+  atomic renames, and all shared-session updates use unique temporary paths.
+  Regression coverage proves malformed state is silent, valid workflow
+  verification still fires, and fixed temporary paths cannot return.
 - Regression-first evidence: cost-mode coverage failed 7/9 before the initial
   implementation, moved to 12/12 with the first fix, and now passes 13/13 with
   the reset-failure path covered. Factory regeneration reproduced the
@@ -142,10 +154,10 @@ record.
   environment accountability 9/9, probe single 32/32, spawn PID 9/9,
   cancellation 21/21, AGY parallel 8/8, review
   aggregation 19/19, and handoff 13/13.
-- Verification state: source commit `095eefb4` passes `make sync-check`, all
+- Verification state: source commit `29a4a3f2` passes `make sync-check`, all
   focused suites listed above, and a fresh
-  `OCTOPUS_NON_INTERACTIVE=1 OCTOPUS_DISABLE_BARE=1 make ci-local`: 16/16 smoke
-  suites, 264/264 unit suites, and 7/7 integration suites. The
+  `make ci-local`: 16/16 smoke suites, 265/265 unit suites, and 7/7 integration
+  suites. The new session-state regression passes 12/12. The
   first sweep exposed three stale white-box tests that required
   `run_with_timeout` to appear directly in `spawn.sh`; each failed before its
   contract was updated to verify the shared capture helper and passed in the
@@ -164,10 +176,36 @@ record.
   review's remaining validation gaps: Cursor Doctor tools survive regeneration,
   empty Doctor scans remain safe under `pipefail`, the known actionlint permission
   lag is ignored only for the affected workflow, and reset, generation, and
-  JavaScript-fence regressions are covered. The current source head is delivered
-  with this handoff on `fix/issue-885-cost-mode-toggle`.
+  JavaScript-fence regressions are covered. Source commit `29a4a3f2` adds the
+  fail-open lifecycle readers, collision-safe session writers, and #894
+  regression. The current source head is delivered with this handoff on
+  `fix/issue-885-cost-mode-toggle`.
   [PR #887](https://github.com/nyldn/claude-octopus/pull/887) will close all
-  eight issues after the corrected head passes review and CI.
+  nine issues after the corrected head passes review and CI.
+
+## Host Diagnostics and Transcript Audit
+
+- The recurring historical `UserPromptSubmit` exit 127 was not an Octopus
+  hook. Archived Claude transcripts identify the Caveman hook command
+  `Tracking caveman mode...` failing with `/bin/sh: node: command not found`
+  under the GUI hook PATH. Caveman was disabled but still installed; it has now
+  been uninstalled and a fresh Claude prompt completed without a
+  UserPromptSubmit error. Already-running Claude processes may retain hooks
+  loaded at startup until `/reload-plugins` or restart.
+- A real-world design-record transcript showed strong evidence habits: Claude
+  read the implementation before advising, preserved raw provider output after
+  orchestration timeouts, visually inspected generated pages, found an internal
+  path leak that text-only gates missed, and was transparent about provider
+  failures. Its durable design conclusion was progressive emphasis rather than
+  hiding primary content.
+- The same audit showed avoidable orchestration cost: one parent session mixed
+  repositories and workstreams for eleven days, delegated agents inherited a
+  large unrelated plugin/skill context, provider presence was mistaken for
+  usable quota, boilerplate unrelated to the task reached research prompts,
+  and useful partial results were labelled only as timeouts. Product follow-up
+  should keep delegated profiles lean, add quota-aware admission and circuit
+  breaking, distinguish salvageable partial output, and make synthesis record
+  agreements, conflicts, and evidence explicitly.
 
 ## Release v9.62.0
 
