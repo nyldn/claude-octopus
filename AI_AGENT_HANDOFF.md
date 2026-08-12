@@ -1,7 +1,8 @@
 # AI Agent Handoff
 
 Last updated: 2026-08-12
-Status: Issues #885 through #894 are resolved and released in v9.63.0.
+Status: Issues #885, #886, and #888 through #894 are resolved and released in
+v9.63.0.
 The implementation adds persistent budget, standard, and premium model-cost
 toggles and repairs Factory/Cursor generation so the Doctor adapter and full
 command set cannot silently disappear. First-party automation now uses its
@@ -76,7 +77,7 @@ migration for the designated migrator. No migration was run, so this work could
 not be claimed or recorded in `bd`; use this handoff for the blocked tracking
 record.
 
-## Resolved Issues #885 through #894
+## Resolved Issues #885, #886, and #888 through #894
 
 - **#885:** Cost-tier definitions already existed, but `/octo:model-config`
   only printed a shell `export` instruction. A slash-command subprocess cannot
@@ -183,7 +184,8 @@ record.
   writers, semantically safe task-ledger handling, and #894 regression. The
   corrected source head passed review and CI on
   [PR #887](https://github.com/nyldn/claude-octopus/pull/887), which squash
-  merged as `99ee2c63` and closed all nine issues.
+  merged as `99ee2c63` and closed the nine listed issues: #885, #886, and
+  #888 through #894.
 
 ## Release v9.63.0
 
