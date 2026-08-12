@@ -124,9 +124,9 @@ record.
   contract was updated to verify the shared capture helper and passed in the
   final complete run. The last pushed head `0990f7d9` also passed its normal
   GitHub Test Suite.
-- Delivery state: commits through `0990f7d9` are pushed on
-  `fix/issue-885-cost-mode-toggle`. The review, authentication, portable-command,
-  provider-reset, and descriptor-safe capture fixes are local pending commit.
+- Delivery state: implementation commit `f7dd6c52` contains the review,
+  authentication, portable-command, provider-reset, and descriptor-safe capture
+  fixes and is pushed with this handoff on `fix/issue-885-cost-mode-toggle`.
   [PR #887](https://github.com/nyldn/claude-octopus/pull/887) will close all
   seven issues after the corrected head passes review and CI.
 
