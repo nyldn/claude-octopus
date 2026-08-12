@@ -72,6 +72,23 @@ else
     test_fail "valid state no longer verifies dispatch (exit=${valid_rc}; output=${valid_output})"
 fi
 
+test_case "TaskCompleted ignores a phase whose task ledger is not initialized"
+printf '{"phase":"probe","phase_tasks":{"total":0,"completed":0}}\n' \
+    > "$sandbox/.claude-octopus/session.json"
+zero_total_rc=0
+env HOME="$sandbox" \
+    CLAUDE_PLUGIN_ROOT="$PROJECT_ROOT" \
+    CLAUDE_PLUGIN_DATA="$sandbox/plugin-data" \
+    bash "$PROJECT_ROOT/hooks/task-completed-transition.sh" </dev/null \
+    >"$sandbox/zero-total.stdout" 2>"$sandbox/zero-total.stderr" || zero_total_rc=$?
+zero_total_completed="$(jq -r '.phase_tasks.completed' "$sandbox/.claude-octopus/session.json")"
+if [[ "$zero_total_rc" -eq 0 && ! -s "$sandbox/zero-total.stderr" &&
+      "$zero_total_completed" == "0" ]]; then
+    test_pass
+else
+    test_fail "exit=${zero_total_rc}; completed=${zero_total_completed}; stderr=$(<"$sandbox/zero-total.stderr")"
+fi
+
 test_case "init_session publishes state through an atomic rename"
 init_session_source="$(awk '
     /^init_session\(\)/ { capture=1 }

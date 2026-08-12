@@ -47,6 +47,7 @@ if [[ -z "$CURRENT_PHASE" ]]; then
 fi
 
 QUEUE_LENGTH=$(jq -r '.agent_queue // [] | length' "$SESSION_FILE" 2>/dev/null)
+[[ "$QUEUE_LENGTH" =~ ^[0-9]+$ ]] || exit 0
 
 if [[ "$QUEUE_LENGTH" -gt 0 ]]; then
     # Dequeue next task
@@ -73,6 +74,10 @@ else
     # No more work - check if phase should transition
     COMPLETED=$(jq -r '.phase_tasks.completed // 0' "$SESSION_FILE" 2>/dev/null)
     TOTAL=$(jq -r '.phase_tasks.total // 0' "$SESSION_FILE" 2>/dev/null)
+
+    if [[ ! "$COMPLETED" =~ ^[0-9]+$ || ! "$TOTAL" =~ ^[0-9]+$ ]]; then
+        exit 0
+    fi
 
     if [[ "$COMPLETED" -ge "$TOTAL" ]] && [[ "$TOTAL" -gt 0 ]]; then
         echo "🐙 TeammateIdle: All phase tasks complete. Ready for phase transition."

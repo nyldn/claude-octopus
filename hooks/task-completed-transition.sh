@@ -50,6 +50,13 @@ fi
 COMPLETED=$(jq -r '.phase_tasks.completed // 0' "$SESSION_FILE" 2>/dev/null)
 TOTAL=$(jq -r '.phase_tasks.total // 0' "$SESSION_FILE" 2>/dev/null)
 AUTONOMY=$(jq -r '.autonomy // "supervised"' "$SESSION_FILE" 2>/dev/null)
+
+# A phase can be visible before its task ledger is initialized. Treat missing,
+# zero, or non-integer totals as no work instead of incrementing stale state and
+# dividing by zero in the progress message (#894).
+if [[ ! "$COMPLETED" =~ ^[0-9]+$ || ! "$TOTAL" =~ ^[0-9]+$ || "$TOTAL" -eq 0 ]]; then
+    exit 0
+fi
 COMPLETED=$((COMPLETED + 1))
 
 _update_session_state '.phase_tasks.completed = $completed' \
