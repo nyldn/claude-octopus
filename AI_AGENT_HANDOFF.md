@@ -92,7 +92,9 @@ record.
   7 integration suites. Focused results are cost mode 10/10, environment
   accountability 9/9, OpenAI-compatible cache 19/19, stable-link Doctor 3/3,
   and Windows Doctor 5/5.
-- Delivery state: changes are not yet committed or pushed.
+- Delivery state: implementation commit `2a2f3f91` is pushed on
+  `fix/issue-885-cost-mode-toggle`; [PR #887](https://github.com/nyldn/claude-octopus/pull/887)
+  closes #885 and #886. Await the exact PR-head checks and review before merge.
 
 ## Release v9.62.0
 
