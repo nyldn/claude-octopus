@@ -1,7 +1,7 @@
 # AI Agent Handoff
 
 Last updated: 2026-08-12
-Status: Issues #885 through #894 are being resolved on an isolated feature branch.
+Status: Issues #885 through #894 are resolved and released in v9.63.0.
 The implementation adds persistent budget, standard, and premium model-cost
 toggles and repairs Factory/Cursor generation so the Doctor adapter and full
 command set cannot silently disappear. First-party automation now uses its
@@ -14,8 +14,8 @@ short-lived Actions token and an empty model-tool inventory, while remaining
 fail-closed. Lifecycle hooks now treat malformed shared session state as an
 optional-cache miss, and every shared session writer publishes through a unique
 temporary file and atomic rename.
-Branch: `fix/issue-885-cost-mode-toggle`
-Release: [v9.62.0](https://github.com/nyldn/claude-octopus/releases/tag/v9.62.0)
+Branch: `main`
+Release: [v9.63.0](https://github.com/nyldn/claude-octopus/releases/tag/v9.63.0)
 
 ## Start Here
 
@@ -76,7 +76,7 @@ migration for the designated migrator. No migration was run, so this work could
 not be claimed or recorded in `bd`; use this handoff for the blocked tracking
 record.
 
-## Active Issues #885 through #894
+## Resolved Issues #885 through #894
 
 - **#885:** Cost-tier definitions already existed, but `/octo:model-config`
   only printed a shell `export` instruction. A slash-command subprocess cannot
@@ -181,10 +181,22 @@ record.
   JavaScript-fence regressions are covered. Source commits `29a4a3f2` and
   `ea34b64f` add the fail-open lifecycle readers, collision-safe session
   writers, semantically safe task-ledger handling, and #894 regression. The
-  current source head is delivered with this handoff on
-  `fix/issue-885-cost-mode-toggle`.
-  [PR #887](https://github.com/nyldn/claude-octopus/pull/887) will close all
-  nine issues after the corrected head passes review and CI.
+  corrected source head passed review and CI on
+  [PR #887](https://github.com/nyldn/claude-octopus/pull/887), which squash
+  merged as `99ee2c63` and closed all nine issues.
+
+## Release v9.63.0
+
+- [Release PR #895](https://github.com/nyldn/claude-octopus/pull/895)
+  passed CodeRabbit, the Octopus PR-review gate, portability, smoke, symlinked
+  path, macOS and Ubuntu unit, and full integration checks before squash merge
+  `e35c7ecb`.
+- Main Test Suite run `31626631725` passed on that exact squash commit before
+  the annotated `v9.63.0` tag and non-prerelease GitHub Release were published.
+  The shared `nyldn/plugins` marketplace was then updated to v9.63.0.
+- A brand-new Claude process loaded the released `octo@nyldn-plugins` v9.63.0
+  install inside the audited IA project and completed a prompt/session lifecycle
+  with exit 0 and no UserPromptSubmit or SessionEnd hook errors.
 
 ## Host Diagnostics and Transcript Audit
 
