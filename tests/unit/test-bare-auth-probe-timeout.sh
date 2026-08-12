@@ -19,25 +19,81 @@ if [[ "$rc" -eq 125 && ! -e "$probe_marker" ]]; then test_pass
 else test_fail "suppressed probe rc=$rc launched=$([[ -e "$probe_marker" ]] && echo yes || echo no)"; fi
 unset -f claude
 
-test_case "probe uses the shared timeout with a bounded default"
+fake_bin="$TEST_TMP_DIR/bin"
 timeout_args="$TEST_TMP_DIR/timeout-args"
-run_with_timeout() {
-    printf '%s\n' "$*" > "$timeout_args"
-    return 124
-}
+mkdir -p "$fake_bin"
+cat > "$fake_bin/gtimeout" <<'SH'
+#!/bin/sh
+printf '%s\n' "$*" > "$OCTO_TIMEOUT_ARGS_FILE"
+exit 124
+SH
+chmod +x "$fake_bin/gtimeout"
+export OCTO_TIMEOUT_ARGS_FILE="$timeout_args"
+export PATH="$fake_bin:$PATH"
+
+test_case "probe keeps the TERM-to-KILL grace inside its total default budget"
 rc=0
 OCTOPUS_SKIP_PROVIDER_PROBES=false _octo_bare_auth_probe >/dev/null 2>&1 || rc=$?
 args=$(cat "$timeout_args" 2>/dev/null || true)
-if [[ "$rc" -eq 124 && "$args" == "5 claude --bare --print --model claude-haiku-4-5-20251001" ]]; then test_pass
-else test_fail "unexpected timeout contract: rc=$rc args=$args"; fi
+if [[ "$rc" -eq 124 && "$args" == "-k 2 3 claude --bare --print --model claude-haiku-4-5-20251001" ]]; then
+    test_pass
+else
+    test_fail "unexpected total-budget timeout contract: rc=$rc args=$args"
+fi
 
-test_case "invalid and excessive timeout overrides are clamped"
-OCTOPUS_BARE_PROBE_TIMEOUT=bogus OCTOPUS_SKIP_PROVIDER_PROBES=false _octo_bare_auth_probe >/dev/null 2>&1 || true
+test_case "invalid and arbitrarily large timeout overrides are normalized before arithmetic"
+OCTOPUS_BARE_PROBE_TIMEOUT=bogus OCTOPUS_SKIP_PROVIDER_PROBES=false \
+    _octo_bare_auth_probe >/dev/null 2>&1 || true
 invalid_args=$(cat "$timeout_args" 2>/dev/null || true)
-OCTOPUS_BARE_PROBE_TIMEOUT=999 OCTOPUS_SKIP_PROVIDER_PROBES=false _octo_bare_auth_probe >/dev/null 2>&1 || true
+OCTOPUS_BARE_PROBE_TIMEOUT=999999999999999999999999999999999999999 \
+    OCTOPUS_SKIP_PROVIDER_PROBES=false _octo_bare_auth_probe >/dev/null 2>&1 || true
 clamped_args=$(cat "$timeout_args" 2>/dev/null || true)
-if [[ "$invalid_args" == 5\ * && "$clamped_args" == 30\ * ]]; then test_pass
-else test_fail "timeout validation failed: invalid=$invalid_args clamped=$clamped_args"; fi
+if [[ "$invalid_args" == "-k 2 3 "* && "$clamped_args" == "-k 2 28 "* ]]; then
+    test_pass
+else
+    test_fail "timeout validation failed: invalid=$invalid_args clamped=$clamped_args"
+fi
+
+test_case "zero-padded positive timeout overrides retain their numeric value"
+OCTOPUS_BARE_PROBE_TIMEOUT=00029 OCTOPUS_SKIP_PROVIDER_PROBES=false \
+    _octo_bare_auth_probe >/dev/null 2>&1 || true
+padded_args=$(cat "$timeout_args" 2>/dev/null || true)
+if [[ "$padded_args" == "-k 2 27 "* ]]; then
+    test_pass
+else
+    test_fail "zero-padded timeout did not normalize to 29 seconds: args=$padded_args"
+fi
+
+test_case "one-second probe budgets use a hard cap without extending for grace"
+OCTOPUS_BARE_PROBE_TIMEOUT=1 OCTOPUS_SKIP_PROVIDER_PROBES=false \
+    _octo_bare_auth_probe >/dev/null 2>&1 || true
+short_args=$(cat "$timeout_args" 2>/dev/null || true)
+if [[ "$short_args" == "-s KILL 1 claude --bare --print --model claude-haiku-4-5-20251001" ]]; then
+    test_pass
+else
+    test_fail "short timeout extended past the configured cap: args=$short_args"
+fi
+
+test_case "portable fallback hard-kills a TERM-ignoring probe at the total cap"
+manual_bin="$TEST_TMP_DIR/manual-bin"
+mkdir -p "$manual_bin"
+ln -sf /bin/sleep "$manual_bin/sleep"
+ln -sf /usr/bin/pkill "$manual_bin/pkill"
+stubborn_probe() {
+    trap '' TERM
+    while :; do sleep 1; done
+}
+SECONDS=0
+rc=0
+PATH="$manual_bin" _octo_run_bare_probe_with_timeout 1 1 0 stubborn_probe \
+    >/dev/null 2>&1 || rc=$?
+elapsed=$SECONDS
+unset -f stubborn_probe
+if [[ "$rc" -ne 0 && "$elapsed" -le 2 ]]; then
+    test_pass
+else
+    test_fail "portable fallback exceeded cap or lost failure: rc=$rc elapsed=${elapsed}s"
+fi
 
 test_case "non-live suite runner suppresses provider probes without changing live suites"
 runner="$PROJECT_ROOT/tests/run-all-tests.sh"

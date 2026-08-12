@@ -23,32 +23,100 @@ if ! declare -f copilot_is_available >/dev/null 2>&1; then
     source "${_providers_lib_dir}/copilot.sh" 2>/dev/null || true
 fi
 
+# Normalize before arithmetic: Bash 3.2 wraps sufficiently long digit strings,
+# which can otherwise turn an oversized value into a small positive timeout.
+_octo_bare_probe_timeout() {
+    local value="${1:-5}"
+
+    case "$value" in
+        ''|*[!0-9]*) printf '%s\n' 5; return ;;
+    esac
+    while [[ "$value" == 0* ]]; do
+        value="${value#0}"
+    done
+    case "$value" in
+        '') printf '%s\n' 5 ;;
+        [1-9]|[1-2][0-9]|30) printf '%s\n' "$value" ;;
+        *) printf '%s\n' 30 ;;
+    esac
+}
+
+# This startup probe has a strict total wall-clock budget. Normal dispatch uses
+# run_with_timeout's ten-second TERM grace, but adding that grace here would let
+# a five-second auth check block startup for up to fifteen seconds. Reserve a
+# two-second grace inside budgets above two seconds; shorter budgets hard-kill
+# at their cap.
+_octo_run_bare_probe_with_timeout() {
+    local total_timeout="$1"
+    local term_timeout="$2"
+    local kill_grace="$3"
+    shift 3
+
+    if command -v gtimeout >/dev/null 2>&1; then
+        if [[ "$kill_grace" -gt 0 ]]; then
+            gtimeout -k "$kill_grace" "$term_timeout" "$@"
+        else
+            gtimeout -s KILL "$total_timeout" "$@"
+        fi
+        return $?
+    elif command -v timeout >/dev/null 2>&1; then
+        if [[ "$kill_grace" -gt 0 ]]; then
+            timeout -k "$kill_grace" "$term_timeout" "$@"
+        else
+            timeout -s KILL "$total_timeout" "$@"
+        fi
+        return $?
+    fi
+
+    local cmd_pid monitor_pid exit_code
+    "$@" <&0 &
+    cmd_pid=$!
+
+    (
+        sleep "$term_timeout"
+        if [[ "$kill_grace" -gt 0 ]]; then
+            pkill -TERM -P "$cmd_pid" 2>/dev/null || true
+            kill -TERM "$cmd_pid" 2>/dev/null || true
+            sleep "$kill_grace"
+        fi
+        pkill -KILL -P "$cmd_pid" 2>/dev/null || true
+        kill -KILL "$cmd_pid" 2>/dev/null || true
+    ) &
+    monitor_pid=$!
+
+    if wait "$cmd_pid" 2>/dev/null; then
+        exit_code=0
+    else
+        exit_code=$?
+    fi
+    pkill -KILL -P "$monitor_pid" 2>/dev/null || true
+    kill "$monitor_pid" 2>/dev/null || true
+    wait "$monitor_pid" 2>/dev/null || true
+    pkill -KILL -P "$cmd_pid" 2>/dev/null || true
+    return "$exit_code"
+}
+
 # Keep the Claude Code --bare authentication check from wedging every Octopus
-# command when the CLI is waiting on auth, Keychain, or a broken hook. The main
-# orchestrator has run_with_timeout available by the time feature detection
-# runs; the external timeout fallbacks keep this helper safe when providers.sh
-# is sourced on its own.
+# command when the CLI is waiting on auth, Keychain, or a broken hook. The
+# dedicated runner keeps its termination grace inside the configured total cap
+# whether providers.sh is loaded by the orchestrator or sourced on its own.
 _octo_bare_auth_probe() {
-    local probe_timeout="${OCTOPUS_BARE_PROBE_TIMEOUT:-5}"
-    [[ "$probe_timeout" =~ ^[1-9][0-9]*$ ]] || probe_timeout=5
-    if [[ "$probe_timeout" -gt 30 ]]; then probe_timeout=30; fi
+    local probe_timeout term_timeout kill_grace
+    probe_timeout="$(_octo_bare_probe_timeout "${OCTOPUS_BARE_PROBE_TIMEOUT:-5}")"
+    term_timeout="$probe_timeout"
+    kill_grace=0
+    if [[ "$probe_timeout" -gt 2 ]]; then
+        kill_grace=2
+        term_timeout=$((probe_timeout - kill_grace))
+    fi
 
     if [[ "${OCTOPUS_SKIP_PROVIDER_PROBES:-false}" == "true" ]]; then
         return 125
     fi
 
-    if declare -f run_with_timeout >/dev/null 2>&1; then
-        printf 'x\n' | run_with_timeout "$probe_timeout" \
-            claude --bare --print --model claude-haiku-4-5-20251001
-    elif command -v gtimeout >/dev/null 2>&1; then
-        printf 'x\n' | gtimeout -k 2 "$probe_timeout" \
-            claude --bare --print --model claude-haiku-4-5-20251001
-    elif command -v timeout >/dev/null 2>&1; then
-        printf 'x\n' | timeout -k 2 "$probe_timeout" \
-            claude --bare --print --model claude-haiku-4-5-20251001
-    else
-        return 125
-    fi
+    printf 'x\n' | _octo_run_bare_probe_with_timeout \
+        "$probe_timeout" "$term_timeout" "$kill_grace" \
+        claude --bare --print --model claude-haiku-4-5-20251001
 }
 
 # Version comparison utility
