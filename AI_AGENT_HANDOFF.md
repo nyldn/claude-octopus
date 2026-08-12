@@ -9,8 +9,9 @@ configured Claude OAuth credential, and provider output capture cannot be held
 open by a descendant that inherited stdout. Direct Qwen prompting with unusable
 credentials and retired Gemini execution remain blocked; Google-family workflow
 seats execute through AGY. If the Claude subscription reaches its independent
-weekly quota, first-party PR review retries through GitHub Models with the
-short-lived Actions token and no model tools, while remaining fail-closed.
+weekly quota, first-party PR review retries through GitHub Copilot CLI with the
+short-lived Actions token and an empty model-tool inventory, while remaining
+fail-closed.
 Branch: `fix/issue-885-cost-mode-toggle`
 Release: [v9.62.0](https://github.com/nyldn/claude-octopus/releases/tag/v9.62.0)
 
@@ -107,18 +108,21 @@ record.
   while rich progress stayed at 0/7. Provider stdout flowed through `tee`; a
   provider hook or descendant retained that pipe, so the worker waited for EOF
   until the global watchdog. Provider prompts and output now use private,
-  file-backed descriptors, the quota watcher observes the raw file, and the
-  prompt file is removed after dispatch.
+  atomically randomized file-backed descriptors, the quota watcher observes the
+  raw file, and the prompt file is removed after dispatch.
 - **#893:** The corrected remote PR review proved installation and OAuth were
   healthy but all four Claude review phases failed with `You've hit your weekly
   limit · resets Aug 15, 7am (UTC)` in Actions run `31613318006`. The workflow
-  keeps Claude as primary and, after a primary failure, retries the complete
-  review through GitHub Models using `models: read` and the job-scoped token.
-  The compatible review path disables model tools so a prompt-injected diff
-  cannot access CI files or environment credentials. If both paths fail, the
-  check stays red and the combined output plus hidden proof artifacts remain
-  available. Provider reports now surface the first actionable CLI error rather
-  than replacing quota and auth failures with a generic message.
+  first retried through GitHub Models, but Actions run `31615705396` returned
+  HTTP 410 because GitHub fully retired that inference service on 2026-07-30.
+  The supported replacement keeps Claude primary and retries through GitHub
+  Copilot CLI using `copilot-requests: write` and the job-scoped token. Copilot
+  CLI is pinned to `1.0.79`; its built-in MCP server is disabled, its available
+  tool set is empty, and shell, read, write, URL, and memory permissions are
+  explicitly denied. If both paths fail, the check stays red and the combined
+  output plus hidden proof artifacts remain available. Provider reports surface
+  the last actionable stdout or stderr error instead of replacing quota, auth,
+  policy, retirement, and service failures with a generic message.
 - Regression-first evidence: cost-mode coverage failed 7/9 before the initial
   implementation and now passes 12/12. Factory regeneration reproduced the
   missing Doctor adapter. The provider-report suite failed 0/2 before #891;
@@ -129,16 +133,18 @@ record.
   at 9/13, compatible-agent coverage at 19/21, and a missing provider-report
   helper; the debate phase also failed a deliberate single-provider escape
   regression before it was routed through the override. All focused suites are
-  now green: Factory 4/4, PR workflow 13/13, provider report 5/5,
-  compatible-agent 21/21, agent command validation 42/42, output capture 3/3,
+  now green: Factory 5/5, PR workflow 15/15, provider report 8/8,
+  compatible-agent 21/21, agent command validation 42/42, output capture 4/4,
+  cost mode 13/13, current provider defaults 11/11,
   descriptor performance 35/35,
   stable-link Doctor 5/5, Windows Doctor 5/5, retired Gemini 11/11,
   environment accountability 9/9, probe single 32/32, spawn PID 9/9,
   cancellation 21/21, AGY parallel 8/8, review
   aggregation 19/19, and handoff 13/13.
-- Verification state: the expanded review patch passes `make sync-check` and
-  a fresh `OCTOPUS_NON_INTERACTIVE=1 OCTOPUS_DISABLE_BARE=1 make ci-local`:
-  16/16 smoke suites, 264/264 unit suites, and 7/7 integration suites. The
+- Verification state: source commit `434f6c05` passes `make sync-check`, all
+  focused suites listed above, and a fresh
+  `OCTOPUS_NON_INTERACTIVE=1 OCTOPUS_DISABLE_BARE=1 make ci-local`: 16/16 smoke
+  suites, 264/264 unit suites, and 7/7 integration suites. The
   first sweep exposed three stale white-box tests that required
   `run_with_timeout` to appear directly in `spawn.sh`; each failed before its
   contract was updated to verify the shared capture helper and passed in the
@@ -147,8 +153,10 @@ record.
   that #893 now covers.
 - Delivery state: implementation commit `f7dd6c52` contains the review,
   authentication, portable-command, provider-reset, and descriptor-safe capture
-  fixes. Commit `fc3829ef` adds the no-tools GitHub Models fallback and
-  actionable failure diagnostics. Both are delivered with this handoff on
+  fixes. Commit `fc3829ef` records the retired GitHub Models attempt; source
+  commit `434f6c05` replaces it with the no-tools Copilot CLI fallback, resolves
+  the remaining review findings, pins workflow dependencies, and adds actionable
+  stdout/stderr failure diagnostics. All are delivered with this handoff on
   `fix/issue-885-cost-mode-toggle`.
   [PR #887](https://github.com/nyldn/claude-octopus/pull/887) will close all
   eight issues after the corrected head passes review and CI.
