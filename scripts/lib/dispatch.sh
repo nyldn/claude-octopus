@@ -313,13 +313,18 @@ get_agent_command() {
                 log ERROR "Invalid OpenAI-compatible cwd: ${PWD}"
                 return 1
             fi
-            local reasoning_level reasoning_policy reasoning_fragment runtime_config base_url api_key_env
+            local reasoning_level reasoning_policy reasoning_fragment runtime_config base_url api_key_env tool_fragment=""
             reasoning_level="$(octopus_resolve_reasoning_level openai-compatible-agent "$phase" "$role")" || return 1
             reasoning_policy="$(octopus_resolve_reasoning_policy openai-compatible-agent "$phase" "$role")" || return 1
             reasoning_fragment="$(octopus_reasoning_cli_fragment openai-compatible-agent "$reasoning_level" "$reasoning_policy")" || return 1
             runtime_config="$(_octopus_openai_compatible_runtime_config "$agent_type")" || return 1
             IFS=$'\t' read -r base_url api_key_env <<<"$runtime_config"
-            echo "${PLUGIN_DIR}/scripts/helpers/openai-compatible-agent.py --provider generic --base-url ${base_url} --api-key-env ${api_key_env} --model ${model} ${reasoning_fragment} --cwd ${PWD}"
+            # Review prompts already contain the complete diff and context. Do
+            # not expose file/shell tools in this phase: a malicious diff could
+            # otherwise prompt-inject a model into reading or exfiltrating CI
+            # credentials inherited by the provider process (#893).
+            [[ "$phase" == "review" ]] && tool_fragment="--tool-policy none"
+            echo "${PLUGIN_DIR}/scripts/helpers/openai-compatible-agent.py --provider generic --base-url ${base_url} --api-key-env ${api_key_env} --model ${model} ${reasoning_fragment} ${tool_fragment} --cwd ${PWD}"
             ;;
         atlascloud-agent)  # Atlas Cloud via the OpenAI-compatible tool-loop agent
             model="${ATLASCLOUD_MODEL:-${OCTOPUS_ATLASCLOUD_MODEL:-${OPENAI_COMPAT_MODEL:-}}}"

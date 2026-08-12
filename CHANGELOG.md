@@ -33,6 +33,12 @@
   of a `tee` pipeline. A provider hook or helper that inherits stdout can no
   longer hold the pipeline open after the provider has completed and leave
   progress stuck at zero until the fleet watchdog fires. (#892)
+- First-party PR review keeps Claude Code as its primary provider but retries
+  through GitHub Models with the short-lived Actions token when the shared
+  Claude subscription quota is exhausted. The fallback is read-only and
+  tool-free, remains fail-closed if both paths fail, retains hidden raw
+  diagnostics, and surfaces the provider's actionable quota or auth error.
+  (#893)
 
 ### Internal
 

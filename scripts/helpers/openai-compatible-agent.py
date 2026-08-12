@@ -120,8 +120,11 @@ def tool_exec(cwd: Path, name: str, args: dict) -> str:
     except Exception as e:
         return f"ERROR: {type(e).__name__}: {e}"
 
-def api_call(base_url, key, model, headers_extra, messages, max_tokens=0, request_timeout=60.0, max_retries=3, reasoning_effort=None, reasoning_policy="best_effort"):
-    payload = {"model": model, "messages": messages, "tools": TOOLS, "tool_choice": "auto", "temperature": 0}
+def api_call(base_url, key, model, headers_extra, messages, max_tokens=0, request_timeout=60.0, max_retries=3, reasoning_effort=None, reasoning_policy="best_effort", tool_policy="auto"):
+    payload = {"model": model, "messages": messages, "temperature": 0}
+    if tool_policy == "auto":
+        payload["tools"] = TOOLS
+        payload["tool_choice"] = "auto"
     if reasoning_effort:
         payload["reasoning_effort"] = reasoning_effort
     if max_tokens > 0:
@@ -159,6 +162,7 @@ def api_call(base_url, key, model, headers_extra, messages, max_tokens=0, reques
                     max_retries=max_retries,
                     reasoning_effort=None,
                     reasoning_policy="strict",
+                    tool_policy=tool_policy,
                 )
             last_error = RuntimeError(f"HTTP {e.code}: {body_text}")
             print(f"chat_error attempt={attempt}/{max(1, max_retries)} status={e.code} elapsed={time.time() - started:.2f}s", file=sys.stderr)
@@ -183,6 +187,7 @@ def main() -> int:
     ap.add_argument("--cwd", required=True); ap.add_argument("--max-turns", type=int, default=env_int("OPENAI_COMPAT_MAX_TURNS", 20, 1)); ap.add_argument("--prompt")
     ap.add_argument("--reasoning-effort", choices=["low", "medium", "high", "xhigh", "max"])
     ap.add_argument("--reasoning-policy", choices=["strict", "best_effort"], default="best_effort")
+    ap.add_argument("--tool-policy", choices=["auto", "none"], default="auto")
     args = ap.parse_args(); cfg = PROVIDERS[args.provider]
     base_url = args.base_url or os.environ.get("OPENAI_COMPAT_BASE_URL") or cfg["base_url"]
     key_env = args.api_key_env or os.environ.get("OPENAI_COMPAT_API_KEY_ENV") or cfg["api_key_env"]
@@ -210,7 +215,7 @@ def main() -> int:
     requested_reasoning = args.reasoning_effort or "none"
     print(f"chat_reasoning requested={requested_reasoning} policy={args.reasoning_policy}", file=sys.stderr)
     for turn in range(1, args.max_turns + 1):
-        d = api_call(base_url, key, model, cfg.get("headers", {}), messages, max_tokens=max_tokens, request_timeout=request_timeout, max_retries=max_retries, reasoning_effort=args.reasoning_effort, reasoning_policy=args.reasoning_policy)
+        d = api_call(base_url, key, model, cfg.get("headers", {}), messages, max_tokens=max_tokens, request_timeout=request_timeout, max_retries=max_retries, reasoning_effort=args.reasoning_effort, reasoning_policy=args.reasoning_policy, tool_policy=args.tool_policy)
         ch = d.get("choices", [{}])[0]; msg = ch.get("message", {})
         finish = ch.get("finish_reason")
         raw_content = msg.get("content")
@@ -223,6 +228,9 @@ def main() -> int:
         calls = msg.get("tool_calls") or []
         print(f"turn={turn} finish={finish} content_len={len(content)} tool_calls={len(calls)}", file=sys.stderr)
         if calls:
+            if args.tool_policy == "none":
+                print("ERROR: provider returned tool calls while tool policy is none", file=sys.stderr)
+                return 1
             messages.append({"role":"assistant", "content": content, "tool_calls": calls})
             for tc in calls:
                 fn = (tc.get("function") or {}).get("name", ""); raw = (tc.get("function") or {}).get("arguments", "{}")

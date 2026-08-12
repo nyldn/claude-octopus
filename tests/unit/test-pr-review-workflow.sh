@@ -40,10 +40,57 @@ test_case "PR review preserves provider diagnostics when orchestration fails"
 if grep -q 'name: Upload PR Review Diagnostics' "$WORKFLOW" &&
    grep -A10 'name: Upload PR Review Diagnostics' "$WORKFLOW" | grep -q 'if: always()' &&
    grep -A10 'name: Upload PR Review Diagnostics' "$WORKFLOW" | grep -q '~/.claude-octopus/results/' &&
-   grep -A10 'name: Upload PR Review Diagnostics' "$WORKFLOW" | grep -q '~/.claude-octopus/runs/'; then
+   grep -A12 'name: Upload PR Review Diagnostics' "$WORKFLOW" | grep -q '~/.claude-octopus/runs/' &&
+   grep -A12 'name: Upload PR Review Diagnostics' "$WORKFLOW" | grep -q 'include-hidden-files: true'; then
     test_pass
 else
-    test_fail "failed PR reviews discard the provider result/error evidence needed for diagnosis"
+    test_fail "failed PR reviews discard hidden provider result/error evidence needed for diagnosis"
+fi
+
+test_case "PR review grants the job-scoped token read-only model access"
+pr_permissions="$(awk '
+    /pr-review:/ { job=1 }
+    job && /permissions:/ { capture=1 }
+    capture { print }
+    capture && /steps:/ { exit }
+' "$WORKFLOW")"
+if grep -q 'contents: read' <<< "$pr_permissions" &&
+   grep -q 'pull-requests: write' <<< "$pr_permissions" &&
+   grep -q 'models: read' <<< "$pr_permissions"; then
+    test_pass
+else
+    test_fail "PR review does not use the minimum GitHub Models permission set"
+fi
+
+test_case "Claude quota failure triggers a GitHub Models fallback"
+fallback_block="$(awk '
+    /- name: Run GitHub Models Fallback Review/ { capture=1 }
+    capture { print }
+    capture && /- name: Finalize Review Outcome/ { exit }
+' "$WORKFLOW")"
+if grep -q "steps.review.outcome == 'failure'" <<< "$fallback_block" &&
+   grep -q 'OCTOPUS_REVIEW_SINGLE_PROVIDER: openai-compatible-agent' <<< "$fallback_block" &&
+   grep -q 'OPENAI_COMPAT_BASE_URL: https://models.github.ai/inference' <<< "$fallback_block" &&
+   grep -q 'OPENAI_COMPAT_MODEL: openai/gpt-4.1' <<< "$fallback_block" &&
+   grep -q 'OCTOPUS_GITHUB_MODELS_TOKEN:.*github.token' <<< "$fallback_block" &&
+   ! grep -q 'CLAUDE_CODE_OAUTH_TOKEN' <<< "$fallback_block"; then
+    test_pass
+else
+    test_fail "PR review does not isolate or correctly configure the GitHub Models fallback"
+fi
+
+test_case "PR review fails closed when primary and fallback both fail"
+finalize_block="$(awk '
+    /- name: Finalize Review Outcome/ { capture=1 }
+    capture { print }
+    capture && /- name: Upload PR Review Diagnostics/ { exit }
+' "$WORKFLOW")"
+if grep -q 'PRIMARY_OUTCOME:.*steps.review.outcome' <<< "$finalize_block" &&
+   grep -q 'FALLBACK_OUTCOME:.*steps.review_fallback.outcome' <<< "$finalize_block" &&
+   grep -Eq 'exit[[:space:]]+1' <<< "$finalize_block"; then
+    test_pass
+else
+    test_fail "PR review can pass after both provider paths fail"
 fi
 
 test_case "PR review materializes the base-to-head diff for review"

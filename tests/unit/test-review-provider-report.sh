@@ -38,4 +38,51 @@ else
     test_fail "Claude failure was hidden by the provider report: $report"
 fi
 
+test_case "review failure detail preserves the actionable provider error"
+failure_file="$TEST_TMP_DIR/openai-compatible-failed.md"
+cat > "$failure_file" <<'EOF'
+# Agent result
+
+## Output
+```
+You've hit your weekly limit · resets Aug 15, 7am (UTC)
+```
+
+## Status: FAILED (Provider exited 1)
+EOF
+detail="$(review_result_failure_detail "$failure_file")"
+if [[ "$detail" == "You've hit your weekly limit · resets Aug 15, 7am (UTC)" ]]; then
+    test_pass
+else
+    test_fail "provider error was replaced by a generic failure: ${detail:-<empty>}"
+fi
+
+test_case "single-provider override keeps every review phase on the requested provider"
+override_fleet="$(OCTOPUS_REVIEW_SINGLE_PROVIDER=openai-compatible-agent build_review_fleet)"
+override_phase="$(OCTOPUS_REVIEW_SINGLE_PROVIDER=openai-compatible-agent review_phase_provider claude-sonnet)"
+debate_block="$(sed -n '/# ── Debate gate/,/# ── ROUND 3/p' "$PROJECT_ROOT/scripts/lib/review.sh")"
+if [[ "$(wc -l <<< "$override_fleet" | tr -d ' ')" -eq 1 ]] &&
+   [[ "$override_fleet" == openai-compatible-agent:general-reviewer:* ]] &&
+   [[ "$override_phase" == "openai-compatible-agent" ]] &&
+   [[ "$override_fleet" != *"claude"* ]] &&
+   grep -q 'review_phase_provider' <<< "$debate_block" &&
+   ! grep -q 'review_run_agent_sync_progress "codex"' <<< "$debate_block"; then
+    test_pass
+else
+    test_fail "single-provider review escaped to another provider: fleet=$override_fleet phase=$override_phase"
+fi
+
+test_case "OpenAI-compatible failures are visible with their full detail"
+printf '%s\n' "openai-compatible|fallback|You've hit your weekly limit · resets Aug 15, 7am (UTC)" > "$status_file"
+report="$(env "HOME=${TEST_TMP_DIR}" bash -c '
+    source "$1"
+    print_provider_report "$2"
+' _ "$PROJECT_ROOT/scripts/lib/review.sh" "$status_file")"
+if grep -Eq 'Compatible:[[:space:]]+.*FALLBACK' <<< "$report" &&
+   [[ "$report" == *"You've hit your weekly limit · resets Aug 15, 7am (UTC)"* ]]; then
+    test_pass
+else
+    test_fail "OpenAI-compatible provider failure was hidden or truncated: $report"
+fi
+
 test_summary

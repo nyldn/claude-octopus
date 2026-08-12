@@ -236,6 +236,7 @@ _validate_openai_compatible_agent_command() {
     local cwd=""
     local reasoning_effort=""
     local reasoning_policy=""
+    local tool_policy=""
     local base_url=""
     local api_key_env=""
     local i=1
@@ -281,6 +282,13 @@ _validate_openai_compatible_agent_command() {
                 [[ -z "$reasoning_policy" ]] || return 1
                 case "$value" in
                     strict|best_effort) reasoning_policy="$value" ;;
+                    *) return 1 ;;
+                esac
+                ;;
+            --tool-policy)
+                [[ -z "$tool_policy" ]] || return 1
+                case "$value" in
+                    auto|none) tool_policy="$value" ;;
                     *) return 1 ;;
                 esac
                 ;;

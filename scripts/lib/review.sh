@@ -154,8 +154,43 @@ _review_fleet_from_config() {
 # command -v cascade so existing installations are unchanged.
 # Returns a newline-separated list of "agent_type:role:specialty" triples.
 # NOTE: Uses command -v for provider detection — safe with set -euo pipefail.
+review_single_provider_override() {
+    local provider="${OCTOPUS_REVIEW_SINGLE_PROVIDER:-}"
+    [[ -n "$provider" ]] || return 1
+    [[ "$provider" =~ ^[A-Za-z0-9_-]+$ ]] || {
+        log ERROR "Invalid OCTOPUS_REVIEW_SINGLE_PROVIDER: $provider"
+        return 2
+    }
+    if [[ -n "${AVAILABLE_AGENTS:-}" && " $AVAILABLE_AGENTS " != *" $provider "* ]]; then
+        log ERROR "Unknown OCTOPUS_REVIEW_SINGLE_PROVIDER: $provider"
+        return 2
+    fi
+    printf '%s\n' "$provider"
+}
+
+review_phase_provider() {
+    local default_provider="$1"
+    local override=""
+    if [[ -n "${OCTOPUS_REVIEW_SINGLE_PROVIDER:-}" ]]; then
+        override="$(review_single_provider_override)" || return $?
+        printf '%s\n' "$override"
+    else
+        printf '%s\n' "$default_provider"
+    fi
+}
+
 build_review_fleet() {
     local fleet=""
+
+    if [[ -n "${OCTOPUS_REVIEW_SINGLE_PROVIDER:-}" ]]; then
+        local override_provider
+        override_provider="$(review_single_provider_override)" || return $?
+        printf '%s:%s:%s\n' \
+            "$override_provider" \
+            "general-reviewer" \
+            "correctness, security, architecture, API contracts, regressions, and dependency risks"
+        return 0
+    fi
 
     # v9.31.0: honor wizard-configured participants if present
     fleet=$(_review_fleet_from_config)
@@ -384,6 +419,38 @@ review_result_completed_successfully() {
         END { print status }
     ' "$result_file" 2>/dev/null || true)
     [[ "$final_status" == "SUCCESS" ]]
+}
+
+# Return the first meaningful line from an agent result's Output section. This
+# is where spawn.sh preserves provider CLI errors (quota, auth, rate limits).
+# Keep the status-file delimiter out of the detail and cap pathological output,
+# while retaining enough text for an actionable CI comment (#893).
+review_result_failure_detail() {
+    local result_file="$1"
+    [[ -f "$result_file" ]] || return 1
+    awk '
+        /^## Output$/ { in_output=1; next }
+        in_output && /^## / { exit }
+        in_output {
+            line=$0
+            if (line ~ /^```/ || line ~ /^[[:space:]]*$/) next
+            gsub(/\|/, "/", line)
+            gsub(/\033\[[0-9;]*[[:alpha:]]/, "", line)
+            print substr(line, 1, 240)
+            exit
+        }
+    ' "$result_file" 2>/dev/null
+}
+
+review_provider_key_from_agent_type() {
+    case "${1:-}" in
+        openai-compatible*|openai-tools*) echo "openai-compatible" ;;
+        claude*) echo "claude" ;;
+        codex*) echo "codex" ;;
+        agy*|antigravity|gemini*) echo "agy" ;;
+        perplexity*) echo "perplexity" ;;
+        *) printf '%s\n' "${1%%[-_]*}" ;;
+    esac
 }
 
 # review_wait_for_result_status: waits for one result file to become terminal,
@@ -616,8 +683,8 @@ print_provider_report() {
     fi
 
     # Determine status per provider
-    local codex_status="not used" agy_status="not used" claude_status="not used" perplexity_status="not used"
-    local codex_detail="" agy_detail="" claude_detail="" perplexity_detail=""
+    local codex_status="not used" agy_status="not used" claude_status="not used" perplexity_status="not used" compatible_status="not used"
+    local codex_detail="" agy_detail="" claude_detail="" perplexity_detail="" compatible_detail=""
     local had_fallback=false
 
     while IFS='|' read -r provider status detail; do
@@ -666,6 +733,19 @@ print_provider_report() {
                     had_fallback=true
                 fi
                 ;;
+            openai-compatible|openai-tools|openai-compatible-agent)
+                if [[ "$status" == "ok" ]]; then
+                    compatible_status="✓ OK"
+                elif [[ "$status" == "fallback" ]]; then
+                    compatible_status="✗ FALLBACK"
+                    compatible_detail="$detail"
+                    had_fallback=true
+                elif [[ "$status" == "auth-failed" ]]; then
+                    compatible_status="✗ AUTH FAILED"
+                    compatible_detail="$detail"
+                    had_fallback=true
+                fi
+                ;;
         esac
     done < "$status_file"
 
@@ -675,18 +755,30 @@ print_provider_report() {
     echo "│ 🐙 Provider Status                          │"
     echo "│                                             │"
     printf "│ 🔴 Codex:      %-28s│\n" "$codex_status"
-    [[ -n "$codex_detail" ]] && printf "│    → %-38s│\n" "$codex_detail"
+    [[ -n "$codex_detail" ]] && printf "│    → %-38.38s│\n" "$codex_detail"
     printf "│ 🧭 AGY:        %-28s│\n" "$agy_status"
-    [[ -n "$agy_detail" ]] && printf "│    → %-38s│\n" "$agy_detail"
+    [[ -n "$agy_detail" ]] && printf "│    → %-38.38s│\n" "$agy_detail"
     printf "│ 🔵 Claude:     %-28s│\n" "$claude_status"
-    [[ -n "$claude_detail" ]] && printf "│    → %-38s│\n" "$claude_detail"
+    [[ -n "$claude_detail" ]] && printf "│    → %-38.38s│\n" "$claude_detail"
     printf "│ 🟣 Perplexity: %-28s│\n" "$perplexity_status"
-    [[ -n "$perplexity_detail" ]] && printf "│    → %-38s│\n" "$perplexity_detail"
+    [[ -n "$perplexity_detail" ]] && printf "│    → %-38.38s│\n" "$perplexity_detail"
+    printf "│ 🟢 Compatible:  %-25s│\n" "$compatible_status"
+    [[ -n "$compatible_detail" ]] && printf "│    → %-38.38s│\n" "$compatible_detail"
     if [[ "$had_fallback" == "true" ]]; then
         echo "│                                             │"
         echo "│ ⚠ Some providers failed — run /octo:doctor  │"
     fi
     echo "└─────────────────────────────────────────────┘"
+
+    if [[ "$had_fallback" == "true" ]]; then
+        echo ""
+        echo "Provider failure details:"
+        while IFS='|' read -r provider status detail; do
+            if [[ "$status" == "fallback" || "$status" == "auth-failed" ]]; then
+                printf -- '- %s: %s\n' "$provider" "$detail"
+            fi
+        done < "$status_file"
+    fi
 
     # Persist failures for /octo:doctor
     if [[ "$had_fallback" == "true" ]]; then
@@ -737,8 +829,15 @@ review_run() {
     local provider_status_file
     provider_status_file=$(mktemp "${TMPDIR:-/tmp}/octopus-provider-status.XXXXXX")
 
-    # v9.0: Preflight — check Codex auth before review pipeline
-    if command -v codex >/dev/null 2>&1; then
+    # v9.0: Preflight — check Codex auth before review pipeline. A deliberate
+    # single-provider run keeps all phases on that provider and should not emit
+    # unrelated Codex installation/auth warnings.
+    if [[ -n "${OCTOPUS_REVIEW_SINGLE_PROVIDER:-}" ]]; then
+        review_single_provider_override >/dev/null || {
+            rm -f "$provider_status_file"
+            return 1
+        }
+    elif command -v codex >/dev/null 2>&1; then
         if ! check_codex_auth_freshness 2>/dev/null; then
             log "WARN" "review_run: Codex auth may be stale — review fleet may fall back to claude-sonnet"
             log "USER" "⚠ Codex auth check failed. Run 'codex auth' or /octo:doctor to fix. Falling back to claude-sonnet for Codex roles."
@@ -1075,7 +1174,8 @@ ${round1_prompts[$retry_idx]}"
     local round1_parse_miss_count=0
     for f in "${round1_files[@]}"; do
         local atype="${round1_agent_types[$idx]}"
-        local provider_key="${atype%%[-_]*}"
+        local provider_key
+        provider_key="$(review_provider_key_from_agent_type "$atype")"
         if [[ ! -f "$f" ]]; then
             ((round1_partial_count++)) || true
             echo "${provider_key}|fallback|Round 1 agent missing result" >> "$provider_status_file"
@@ -1107,7 +1207,10 @@ ${round1_prompts[$retry_idx]}"
         fi
         if ! review_result_completed_successfully "$f"; then
             ((round1_partial_count++)) || true
-            echo "${provider_key}|fallback|Round 1 agent did not complete successfully" >> "$provider_status_file"
+            local failure_detail
+            failure_detail="$(review_result_failure_detail "$f" 2>/dev/null || true)"
+            failure_detail="${failure_detail:-Round 1 agent did not complete successfully}"
+            echo "${provider_key}|fallback|${failure_detail}" >> "$provider_status_file"
         else
             echo "${provider_key}|ok|Round 1 completed" >> "$provider_status_file"
         fi
@@ -1174,19 +1277,34 @@ $(echo "$all_findings" | jq -c '.')
 
 Return ONLY valid JSON with 'findings' array including verdict field."
 
-    local verified_findings
-    verified_findings=$(review_run_agent_sync_progress "codex" "$verifier_prompt" "code-reviewer" "review" "verifier-codex") && {
-        echo "codex|ok|Round 2 verification" >> "$provider_status_file"
-    } || {
-        log WARN "review_run: codex verifier failed, falling back to claude-sonnet"
-        log "USER" "⚠ Round 2: Codex unavailable → claude-sonnet (fallback). Codex API usage will NOT change."
-        echo "codex|fallback|Round 2 → claude-sonnet" >> "$provider_status_file"
-        verified_findings=$(review_run_agent_sync_progress "claude-sonnet" "$verifier_prompt" "code-reviewer" "review" "verifier-claude-sonnet") || {
-            log WARN "review_run: verification failed entirely, using all findings as confirmed"
-            verified_findings="{\"findings\":$(echo "$all_findings" | \
-                jq 'map(. + {"verdict":"confirmed"})' 2>/dev/null || echo "[]")}"
+    local verified_findings verifier_provider verifier_provider_key
+    verifier_provider="$(review_phase_provider "codex")" || return 1
+    verifier_provider_key="$(review_provider_key_from_agent_type "$verifier_provider")"
+    if [[ -n "${OCTOPUS_REVIEW_SINGLE_PROVIDER:-}" ]]; then
+        verified_findings=$(review_run_agent_sync_progress "$verifier_provider" "$verifier_prompt" "code-reviewer" "review" "verifier-${verifier_provider}") && {
+            echo "${verifier_provider_key}|ok|Round 2 verification" >> "$provider_status_file"
+        } || {
+            log WARN "review_run: ${verifier_provider} verification failed, using all findings as confirmed"
+            echo "${verifier_provider_key}|fallback|Round 2 verification failed; preserving Round 1 findings" >> "$provider_status_file"
+            verified_findings=$(printf '{"findings":%s}' "$(
+                echo "$all_findings" | jq 'map(. + {"verdict":"confirmed"})' 2>/dev/null || echo "[]"
+            )")
         }
-    }
+    else
+        verified_findings=$(review_run_agent_sync_progress "codex" "$verifier_prompt" "code-reviewer" "review" "verifier-codex") && {
+            echo "codex|ok|Round 2 verification" >> "$provider_status_file"
+        } || {
+            log WARN "review_run: codex verifier failed, falling back to claude-sonnet"
+            log "USER" "⚠ Round 2: Codex unavailable → claude-sonnet (fallback). Codex API usage will NOT change."
+            echo "codex|fallback|Round 2 → claude-sonnet" >> "$provider_status_file"
+            verified_findings=$(review_run_agent_sync_progress "claude-sonnet" "$verifier_prompt" "code-reviewer" "review" "verifier-claude-sonnet") || {
+                log WARN "review_run: verification failed entirely, using all findings as confirmed"
+                verified_findings=$(printf '{"findings":%s}' "$(
+                    echo "$all_findings" | jq 'map(. + {"verdict":"confirmed"})' 2>/dev/null || echo "[]"
+                )")
+            }
+        }
+    fi
     # v9.3.1: Strip markdown fences that LLMs wrap around JSON responses (#188)
     verified_findings=$(echo "$verified_findings" | sed '/^```json$/d; /^```JSON$/d; /^```$/d')
 
@@ -1208,13 +1326,15 @@ Return ONLY valid JSON with 'findings' array including verdict field."
             local debate_prompt="Challenge these $debate_count contested code review findings. For each, state whether it is a real bug (include) or false positive (exclude). Be adversarial.
 Findings: $(echo "$debate_candidates" | jq -c '.')
 Return JSON: {\"include\": [...finding titles...], \"exclude\": [...finding titles...]}"
-            local debate_result
-            debate_result=$(review_run_agent_sync_progress "codex" "$debate_prompt" "code-reviewer" "review" "debate-codex") && {
-                echo "codex|ok|Round 3 debate" >> "$provider_status_file"
+            local debate_result debate_provider debate_provider_key
+            debate_provider="$(review_phase_provider "codex")" || return 1
+            debate_provider_key="$(review_provider_key_from_agent_type "$debate_provider")"
+            debate_result=$(review_run_agent_sync_progress "$debate_provider" "$debate_prompt" "code-reviewer" "review" "debate-${debate_provider}") && {
+                echo "${debate_provider_key}|ok|Round 3 debate" >> "$provider_status_file"
             } || {
-                log WARN "review_run: debate agent failed, including all contested findings"
-                log "USER" "⚠ Round 3: Codex debate gate unavailable — including all contested findings without debate."
-                echo "codex|fallback|Round 3 debate → skipped" >> "$provider_status_file"
+                log WARN "review_run: ${debate_provider} debate agent failed, including all contested findings"
+                log "USER" "⚠ Round 3: ${debate_provider} debate gate unavailable — including all contested findings without debate."
+                echo "${debate_provider_key}|fallback|Round 3 debate → skipped" >> "$provider_status_file"
                 debate_result="{\"include\":[],\"exclude\":[]}"
             }
             # v9.3.1: Strip markdown fences from debate result (#188)
@@ -1240,10 +1360,13 @@ Findings: $(echo "$confirmed_findings" | jq -c '.')
 
 Return ONLY JSON: {\"findings\": [...ranked, deduplicated findings...]}"
 
-    local final_json synth_ok="true"
-    final_json=$(review_run_agent_sync_progress "claude-sonnet" "$synthesis_prompt" "code-reviewer" "review" "synthesis-claude-sonnet") || {
+    local final_json synth_ok="true" synthesis_provider synthesis_provider_key
+    synthesis_provider="$(review_phase_provider "claude-sonnet")" || return 1
+    synthesis_provider_key="$(review_provider_key_from_agent_type "$synthesis_provider")"
+    final_json=$(review_run_agent_sync_progress "$synthesis_provider" "$synthesis_prompt" "code-reviewer" "review" "synthesis-${synthesis_provider}") || {
         synth_ok="false"
-        log WARN "review_run: synthesis failed, using confirmed findings sorted as-is"
+        log WARN "review_run: ${synthesis_provider} synthesis failed, using confirmed findings sorted as-is"
+        echo "${synthesis_provider_key}|fallback|Round 3 synthesis failed; using local deterministic fallback" >> "$provider_status_file"
         final_json="$(review_local_synthesis_json "$confirmed_findings" "$round1_warning")"
     }
 
@@ -1268,7 +1391,7 @@ Return ONLY JSON: {\"findings\": [...ranked, deduplicated findings...]}"
     if [[ "$synth_ok" == "true" ]] && declare -f octo_event_emit >/dev/null 2>&1; then
         local _synth_count
         _synth_count=$(printf '%s' "$final_json" | jq '.findings | length' 2>/dev/null || echo 0)
-        octo_event_emit "synthesis" phase="review" provider="claude-sonnet" provider_label_kind="legacy-alias" executor_alias="claude-sonnet" configured_provider="$(octo_provider_identity_from_agent_type "claude-sonnet")" configured_model="$(get_agent_model "claude-sonnet" "review" "synthesizer" 2>/dev/null || echo unresolved)" runtime_provider="unknown" runtime_model="unknown" council_role="synthesizer" synthesis_strategy="review" count="${_synth_count:-0}" || true
+        octo_event_emit "synthesis" phase="review" provider="$synthesis_provider" provider_label_kind="legacy-alias" executor_alias="$synthesis_provider" configured_provider="$(octo_provider_identity_from_agent_type "$synthesis_provider")" configured_model="$(get_agent_model "$synthesis_provider" "review" "synthesizer" 2>/dev/null || echo unresolved)" runtime_provider="unknown" runtime_model="unknown" council_role="synthesizer" synthesis_strategy="review" count="${_synth_count:-0}" || true
     fi
 
     if [[ -n "$proof_dir" ]]; then

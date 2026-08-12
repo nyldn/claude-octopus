@@ -142,6 +142,20 @@ else
     test_fail "expected allowlisted reasoning flags to be accepted"
 fi
 
+test_case "validate_agent_command allows no-tools review policy"
+if validate_agent_command "$PROJECT_ROOT/scripts/helpers/openai-compatible-agent.py --provider generic --model minimax/minimax-m3 --tool-policy none --cwd /tmp/test"; then
+    test_pass
+else
+    test_fail "expected allowlisted no-tools policy to be accepted"
+fi
+
+test_case "validate_agent_command rejects invalid tool policy"
+if validate_agent_command "$PROJECT_ROOT/scripts/helpers/openai-compatible-agent.py --provider generic --model minimax/minimax-m3 --cwd /tmp/test --tool-policy unrestricted" >/dev/null 2>&1; then
+    test_fail "expected invalid tool policy to be rejected"
+else
+    test_pass
+fi
+
 test_case "validate_agent_command allows env-configured base-url and api-key-env"
 if validate_agent_command "$PROJECT_ROOT/scripts/helpers/openai-compatible-agent.py --provider generic --base-url https://ark.cn-beijing.volces.com/api/coding/v3 --api-key-env VOLCANO_API_KEY --model deepseek-v4-pro --cwd /tmp/test"; then
     test_pass

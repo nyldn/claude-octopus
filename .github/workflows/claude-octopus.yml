@@ -116,6 +116,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
+      models: read
 
     steps:
       - name: Checkout repository
@@ -139,6 +140,7 @@ jobs:
 
       - name: Run Code Review
         id: review
+        continue-on-error: true
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           OCTOPUS_DISABLE_BARE: 1
@@ -147,7 +149,52 @@ jobs:
           set -o pipefail
           chmod +x ./scripts/orchestrate.sh
 
-          ./scripts/orchestrate.sh --ci code-review '{"target":"pr-review.diff","publish":"never"}' 2>&1 | tee review-output.txt
+          ./scripts/orchestrate.sh --ci code-review '{"target":"pr-review.diff","publish":"never"}' 2>&1 | tee review-output-primary.txt
+
+      # Claude subscription quotas are independent of Actions and can exhaust
+      # while the workflow credential remains valid. Retry only the read-only
+      # review through GitHub Models, using the short-lived job token and a
+      # no-tools OpenAI-compatible review path (#893).
+      - name: Run GitHub Models Fallback Review
+        id: review_fallback
+        if: steps.review.outcome == 'failure'
+        env:
+          OCTOPUS_REVIEW_SINGLE_PROVIDER: openai-compatible-agent
+          OPENAI_COMPAT_BASE_URL: https://models.github.ai/inference
+          OPENAI_COMPAT_API_KEY_ENV: OCTOPUS_GITHUB_MODELS_TOKEN
+          OPENAI_COMPAT_MODEL: openai/gpt-4.1
+          OCTOPUS_GITHUB_MODELS_TOKEN: ${{ github.token }}
+          OPENAI_COMPAT_REQUEST_TIMEOUT: 180
+          OCTOPUS_DISABLE_BARE: 1
+          CI: true
+        run: |
+          set -o pipefail
+          chmod +x ./scripts/orchestrate.sh
+
+          ./scripts/orchestrate.sh --ci code-review '{"target":"pr-review.diff","publish":"never"}' 2>&1 | tee review-output-fallback.txt
+
+      - name: Finalize Review Outcome
+        id: review_outcome
+        if: always()
+        env:
+          PRIMARY_OUTCOME: ${{ steps.review.outcome }}
+          FALLBACK_OUTCOME: ${{ steps.review_fallback.outcome }}
+        run: |
+          : > review-output.txt
+          if [[ -f review-output-primary.txt ]]; then
+            sed -n '1,$p' review-output-primary.txt >> review-output.txt
+          fi
+          if [[ -f review-output-fallback.txt ]]; then
+            printf '\n## GitHub Models fallback\n\n' >> review-output.txt
+            sed -n '1,$p' review-output-fallback.txt >> review-output.txt
+          fi
+
+          if [[ "$PRIMARY_OUTCOME" == "success" || "$FALLBACK_OUTCOME" == "success" ]]; then
+            exit 0
+          fi
+
+          echo "::error::Both the primary and GitHub Models review paths failed"
+          exit 1
 
       - name: Upload PR Review Diagnostics
         if: always()
@@ -160,9 +207,10 @@ jobs:
             ~/.claude-octopus/runs/
           if-no-files-found: warn
           retention-days: 7
+          include-hidden-files: true
 
       - name: Post Review Comment
-        if: always() && steps.review.outcome != 'skipped'
+        if: always() && steps.review_outcome.outcome != 'skipped'
         uses: actions/github-script@v9
         with:
           script: |

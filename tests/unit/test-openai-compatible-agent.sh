@@ -90,6 +90,12 @@ if assert_contains "$cmd" "scripts/helpers/openai-compatible-agent.py" "helper p
     test_pass
 fi
 
+test_case "openai-compatible review dispatch disables model tools"
+cmd=$(HOME="$TEST_HOME" USER="octo-test-$$" CLAUDE_CODE_SESSION="compat-review-no-tools" PWD="/tmp/octo-cwd" OPENAI_COMPAT_MODEL="vendor/model-fast" get_agent_command openai-compatible-agent review code-reviewer 2>/dev/null)
+if assert_contains "$cmd" "--tool-policy none" "review tool policy"; then
+    test_pass
+fi
+
 
 test_case "openai-compatible-agent rejects unsafe model names before dispatch"
 if HOME="$TEST_HOME" USER="octo-test-$$" CLAUDE_CODE_SESSION="compat-cmd-unsafe" PWD="/tmp/octo-cwd" OPENAI_COMPAT_MODEL="bad;touch" get_agent_command openai-compatible-agent unsafe-phase >/dev/null 2>&1; then
@@ -182,6 +188,36 @@ then
     test_pass
 else
     test_fail "expected provider-default and max_tokens=0 to omit max_tokens from request payload"
+fi
+
+test_case "openai-compatible-agent omits tools in no-tools mode"
+if HELPER="$HELPER" python3 - <<'PYTEST'
+import importlib.util, json, os
+helper_path = os.environ["HELPER"]
+spec = importlib.util.spec_from_file_location("openai_compatible_agent_no_tools", helper_path)
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+seen = []
+class Response:
+    def __enter__(self): return self
+    def __exit__(self, *args): return False
+    def read(self): return b'{"choices":[{"message":{"content":"ok"}}]}'
+def fake_urlopen(req, timeout):
+    seen.append(json.loads(req.data.decode()))
+    return Response()
+mod.urllib.request.urlopen = fake_urlopen
+messages = [{"role":"user","content":"review"}]
+mod.api_call("https://example.invalid/v1", "key", "model", {}, messages, request_timeout=1, max_retries=1, tool_policy="none")
+assert "tools" not in seen[-1], seen[-1]
+assert "tool_choice" not in seen[-1], seen[-1]
+mod.api_call("https://example.invalid/v1", "key", "model", {}, messages, request_timeout=1, max_retries=1, tool_policy="auto")
+assert seen[-1]["tools"], seen[-1]
+assert seen[-1]["tool_choice"] == "auto", seen[-1]
+PYTEST
+then
+    test_pass
+else
+    test_fail "no-tools mode still exposed file or shell tools to the review model"
 fi
 
 
