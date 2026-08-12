@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+## [9.63.0] - 2026-08-12
+
+
 ### Added
 
 - `/octo:budget-mode`, `/octo:standard-mode`, and `/octo:premium-mode` persist

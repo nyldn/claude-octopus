@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "9.62.0",
-  "description": "v9.62.0 \u2014 Permanent workflow reliability: bounded retries and auth probes, race-safe progress hooks, and AGY fleet guards. Run /octo:setup.",
+  "version": "9.63.0",
+  "description": "v9.63.0 \u2014 Add cost modes and harden provider and hook reliability. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"

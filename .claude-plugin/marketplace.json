@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "nyldn plugins for Claude Code workflows.",
-    "version": "9.62.0"
+    "version": "9.63.0"
   },
   "plugins": [
     {
@@ -15,8 +15,8 @@
         "source": "url",
         "url": "https://github.com/nyldn/claude-octopus.git"
       },
-      "description": "v9.62.0 - Permanent workflow reliability: bounded retries and auth probes, race-safe progress hooks, and AGY fleet guards. 32 personas, 54 commands, 63 skills. Run /octo:setup.",
-      "version": "9.62.0",
+      "description": "v9.63.0 - Add cost modes and harden provider and hook reliability. 32 personas, 54 commands, 63 skills. Run /octo:setup.",
+      "version": "9.63.0",
       "author": {
         "name": "nyldn",
         "url": "https://github.com/nyldn"
