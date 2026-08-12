@@ -79,20 +79,60 @@ manual_bin="$TEST_TMP_DIR/manual-bin"
 mkdir -p "$manual_bin"
 ln -sf /bin/sleep "$manual_bin/sleep"
 ln -sf /usr/bin/pkill "$manual_bin/pkill"
-stubborn_probe() {
-    trap '' TERM
-    while :; do sleep 1; done
-}
+if command -v setsid >/dev/null 2>&1; then
+    ln -sf "$(command -v setsid)" "$manual_bin/setsid"
+elif command -v perl >/dev/null 2>&1; then
+    ln -sf "$(command -v perl)" "$manual_bin/perl"
+fi
+stubborn_probe="$TEST_TMP_DIR/stubborn-probe.sh"
+cat > "$stubborn_probe" <<'SH'
+#!/bin/sh
+trap '' TERM
+while :; do sleep 1; done
+SH
+chmod +x "$stubborn_probe"
 SECONDS=0
 rc=0
-PATH="$manual_bin" _octo_run_bare_probe_with_timeout 1 1 0 stubborn_probe \
+PATH="$manual_bin" _octo_run_bare_probe_with_timeout 1 1 0 "$stubborn_probe" \
     >/dev/null 2>&1 || rc=$?
 elapsed=$SECONDS
-unset -f stubborn_probe
 if [[ "$rc" -ne 0 && "$elapsed" -le 2 ]]; then
     test_pass
 else
     test_fail "portable fallback exceeded cap or lost failure: rc=$rc elapsed=${elapsed}s"
+fi
+
+test_case "portable fallback kills the complete probe process tree"
+grandchild_pid_file="$TEST_TMP_DIR/grandchild.pid"
+descendant_wrapper="$TEST_TMP_DIR/descendant-wrapper.sh"
+descendant_probe="$TEST_TMP_DIR/descendant-probe.sh"
+cat > "$descendant_wrapper" <<'SH'
+#!/bin/sh
+sleep 30 &
+printf '%s\n' "$!" > "$OCTO_GRANDCHILD_PID_FILE"
+wait
+SH
+cat > "$descendant_probe" <<'SH'
+#!/bin/sh
+trap '' TERM
+"$OCTO_DESCENDANT_WRAPPER" &
+wait
+SH
+chmod +x "$descendant_wrapper" "$descendant_probe"
+export OCTO_GRANDCHILD_PID_FILE="$grandchild_pid_file"
+export OCTO_DESCENDANT_WRAPPER="$descendant_wrapper"
+rc=0
+PATH="$manual_bin" _octo_run_bare_probe_with_timeout 1 1 0 "$descendant_probe" \
+    >/dev/null 2>&1 || rc=$?
+grandchild_pid=$(cat "$grandchild_pid_file" 2>/dev/null || true)
+if [[ -n "$grandchild_pid" ]] && kill -0 "$grandchild_pid" 2>/dev/null; then
+    kill -KILL "$grandchild_pid" 2>/dev/null || true
+    wait "$grandchild_pid" 2>/dev/null || true
+    test_fail "portable fallback left grandchild pid=$grandchild_pid running"
+elif [[ "$rc" -ne 0 && -n "$grandchild_pid" ]]; then
+    test_pass
+else
+    test_fail "portable fallback did not exercise descendant fixture: rc=$rc pid=$grandchild_pid"
 fi
 
 test_case "non-live suite runner suppresses provider probes without changing live suites"

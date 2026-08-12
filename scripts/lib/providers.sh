@@ -68,19 +68,31 @@ _octo_run_bare_probe_with_timeout() {
         return $?
     fi
 
+    # The portable path must own the whole probe tree, not only the immediate
+    # claude process. A hook may add wrapper processes below claude; killing
+    # direct children can orphan their descendants. Start a fresh session when
+    # the platform provides either setsid(1) or Perl's POSIX::setsid. If neither
+    # safe launcher exists, treat the optional auth probe as unavailable rather
+    # than launching a process tree that cannot be bounded.
     local cmd_pid monitor_pid exit_code
-    "$@" <&0 &
+    if command -v setsid >/dev/null 2>&1; then
+        setsid "$@" <&0 &
+    elif command -v perl >/dev/null 2>&1; then
+        perl -MPOSIX -e \
+            'defined POSIX::setsid() or exit 125; exec @ARGV; exit 126' \
+            -- "$@" <&0 &
+    else
+        return 125
+    fi
     cmd_pid=$!
 
     (
         sleep "$term_timeout"
         if [[ "$kill_grace" -gt 0 ]]; then
-            pkill -TERM -P "$cmd_pid" 2>/dev/null || true
-            kill -TERM "$cmd_pid" 2>/dev/null || true
+            kill -TERM -- "-$cmd_pid" 2>/dev/null || true
             sleep "$kill_grace"
         fi
-        pkill -KILL -P "$cmd_pid" 2>/dev/null || true
-        kill -KILL "$cmd_pid" 2>/dev/null || true
+        kill -KILL -- "-$cmd_pid" 2>/dev/null || true
     ) &
     monitor_pid=$!
 
@@ -92,7 +104,7 @@ _octo_run_bare_probe_with_timeout() {
     pkill -KILL -P "$monitor_pid" 2>/dev/null || true
     kill "$monitor_pid" 2>/dev/null || true
     wait "$monitor_pid" 2>/dev/null || true
-    pkill -KILL -P "$cmd_pid" 2>/dev/null || true
+    kill -KILL -- "-$cmd_pid" 2>/dev/null || true
     return "$exit_code"
 }
 
