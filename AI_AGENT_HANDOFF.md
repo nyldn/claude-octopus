@@ -133,8 +133,10 @@ record.
   predictable `session.json.tmp` path. Seven lifecycle hooks now fail open on
   malformed optional state, session and compaction snapshots publish through
   atomic renames, and all shared-session updates use unique temporary paths.
-  Regression coverage proves malformed state is silent, valid workflow
-  verification still fires, and fixed temporary paths cannot return.
+  TaskCompleted also treats an uninitialized zero-task ledger as no work instead
+  of incrementing it and dividing by zero. Regression coverage proves malformed
+  state is silent, valid workflow verification still fires, and fixed temporary
+  paths cannot return.
 - Regression-first evidence: cost-mode coverage failed 7/9 before the initial
   implementation, moved to 12/12 with the first fix, and now passes 13/13 with
   the reset-failure path covered. Factory regeneration reproduced the
@@ -154,10 +156,10 @@ record.
   environment accountability 9/9, probe single 32/32, spawn PID 9/9,
   cancellation 21/21, AGY parallel 8/8, review
   aggregation 19/19, and handoff 13/13.
-- Verification state: source commit `29a4a3f2` passes `make sync-check`, all
+- Verification state: source commit `ea34b64f` passes `make sync-check`, all
   focused suites listed above, and a fresh
   `make ci-local`: 16/16 smoke suites, 265/265 unit suites, and 7/7 integration
-  suites. The new session-state regression passes 12/12. The
+  suites. The new session-state regression passes 13/13. The
   first sweep exposed three stale white-box tests that required
   `run_with_timeout` to appear directly in `spawn.sh`; each failed before its
   contract was updated to verify the shared capture helper and passed in the
@@ -176,9 +178,10 @@ record.
   review's remaining validation gaps: Cursor Doctor tools survive regeneration,
   empty Doctor scans remain safe under `pipefail`, the known actionlint permission
   lag is ignored only for the affected workflow, and reset, generation, and
-  JavaScript-fence regressions are covered. Source commit `29a4a3f2` adds the
-  fail-open lifecycle readers, collision-safe session writers, and #894
-  regression. The current source head is delivered with this handoff on
+  JavaScript-fence regressions are covered. Source commits `29a4a3f2` and
+  `ea34b64f` add the fail-open lifecycle readers, collision-safe session
+  writers, semantically safe task-ledger handling, and #894 regression. The
+  current source head is delivered with this handoff on
   `fix/issue-885-cost-mode-toggle`.
   [PR #887](https://github.com/nyldn/claude-octopus/pull/887) will close all
   nine issues after the corrected head passes review and CI.
