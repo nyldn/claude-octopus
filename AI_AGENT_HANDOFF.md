@@ -124,7 +124,8 @@ record.
   the last actionable stdout or stderr error instead of replacing quota, auth,
   policy, retirement, and service failures with a generic message.
 - Regression-first evidence: cost-mode coverage failed 7/9 before the initial
-  implementation and now passes 12/12. Factory regeneration reproduced the
+  implementation, moved to 12/12 with the first fix, and now passes 13/13 with
+  the reset-failure path covered. Factory regeneration reproduced the
   missing Doctor adapter. The provider-report suite failed 0/2 before #891;
   workflow auth coverage failed 6/9 before #891; diagnostic retention failed
   9/10 before the remote failure exposed the evidence gap; output-capture
@@ -133,15 +134,15 @@ record.
   at 9/13, compatible-agent coverage at 19/21, and a missing provider-report
   helper; the debate phase also failed a deliberate single-provider escape
   regression before it was routed through the override. All focused suites are
-  now green: Factory 5/5, PR workflow 15/15, provider report 8/8,
+  now green: Factory 5/5, PR workflow 16/16, provider report 8/8,
   compatible-agent 21/21, agent command validation 42/42, output capture 4/4,
   cost mode 13/13, current provider defaults 11/11,
   descriptor performance 35/35,
-  stable-link Doctor 5/5, Windows Doctor 5/5, retired Gemini 11/11,
+  stable-link Doctor 6/6, Windows Doctor 5/5, retired Gemini 11/11,
   environment accountability 9/9, probe single 32/32, spawn PID 9/9,
   cancellation 21/21, AGY parallel 8/8, review
   aggregation 19/19, and handoff 13/13.
-- Verification state: source commit `434f6c05` passes `make sync-check`, all
+- Verification state: source commit `095eefb4` passes `make sync-check`, all
   focused suites listed above, and a fresh
   `OCTOPUS_NON_INTERACTIVE=1 OCTOPUS_DISABLE_BARE=1 make ci-local`: 16/16 smoke
   suites, 264/264 unit suites, and 7/7 integration suites. The
@@ -150,14 +151,21 @@ record.
   contract was updated to verify the shared capture helper and passed in the
   final complete run. The pre-fallback pushed head `09fed83b` passed its normal
   GitHub Test Suite; its PR review failure supplied the exact quota evidence
-  that #893 now covers.
+  that #893 now covers. Actions run `31618867031` then exercised the corrected
+  fallback on commit `cb8e0c3b`: Claude reached its weekly quota, Copilot CLI
+  completed every review phase, the finalizer passed, and the combined review
+  artifact and PR comment were published.
 - Delivery state: implementation commit `f7dd6c52` contains the review,
   authentication, portable-command, provider-reset, and descriptor-safe capture
   fixes. Commit `fc3829ef` records the retired GitHub Models attempt; source
   commit `434f6c05` replaces it with the no-tools Copilot CLI fallback, resolves
-  the remaining review findings, pins workflow dependencies, and adds actionable
-  stdout/stderr failure diagnostics. All are delivered with this handoff on
-  `fix/issue-885-cost-mode-toggle`.
+  the first review findings, pins workflow dependencies, and adds actionable
+  stdout/stderr failure diagnostics. Source commit `095eefb4` closes the live
+  review's remaining validation gaps: Cursor Doctor tools survive regeneration,
+  empty Doctor scans remain safe under `pipefail`, the known actionlint permission
+  lag is ignored only for the affected workflow, and reset, generation, and
+  JavaScript-fence regressions are covered. The current source head is delivered
+  with this handoff on `fix/issue-885-cost-mode-toggle`.
   [PR #887](https://github.com/nyldn/claude-octopus/pull/887) will close all
   eight issues after the corrected head passes review and CI.
 
