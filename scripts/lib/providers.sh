@@ -23,6 +23,34 @@ if ! declare -f copilot_is_available >/dev/null 2>&1; then
     source "${_providers_lib_dir}/copilot.sh" 2>/dev/null || true
 fi
 
+# Keep the Claude Code --bare authentication check from wedging every Octopus
+# command when the CLI is waiting on auth, Keychain, or a broken hook. The main
+# orchestrator has run_with_timeout available by the time feature detection
+# runs; the external timeout fallbacks keep this helper safe when providers.sh
+# is sourced on its own.
+_octo_bare_auth_probe() {
+    local probe_timeout="${OCTOPUS_BARE_PROBE_TIMEOUT:-5}"
+    [[ "$probe_timeout" =~ ^[1-9][0-9]*$ ]] || probe_timeout=5
+    if [[ "$probe_timeout" -gt 30 ]]; then probe_timeout=30; fi
+
+    if [[ "${OCTOPUS_SKIP_PROVIDER_PROBES:-false}" == "true" ]]; then
+        return 125
+    fi
+
+    if declare -f run_with_timeout >/dev/null 2>&1; then
+        printf 'x\n' | run_with_timeout "$probe_timeout" \
+            claude --bare --print --model claude-haiku-4-5-20251001
+    elif command -v gtimeout >/dev/null 2>&1; then
+        printf 'x\n' | gtimeout -k 2 "$probe_timeout" \
+            claude --bare --print --model claude-haiku-4-5-20251001
+    elif command -v timeout >/dev/null 2>&1; then
+        printf 'x\n' | timeout -k 2 "$probe_timeout" \
+            claude --bare --print --model claude-haiku-4-5-20251001
+    else
+        return 125
+    fi
+}
+
 # Version comparison utility
 version_compare() {
     local version1="$1"
@@ -582,11 +610,15 @@ detect_claude_code_version() {
     # and honour OCTOPUS_DISABLE_BARE=1 opt-out.
     _BARE_OPT=""
     if [[ "$SUPPORTS_BARE_FLAG" == "true" && "${OCTOPUS_DISABLE_BARE:-0}" != "1" ]]; then
-        # Quick auth probe: pipe a trivial prompt and check for login nag
-        local _bare_probe
-        _bare_probe=$(echo "x" | claude --bare --print --model claude-haiku-4-5-20251001 2>/dev/null | head -1 || true)
+        # Quick bounded auth probe: a CLI waiting on Keychain, auth, or hooks
+        # must not wedge unrelated commands such as `octopus dev` or `status`.
+        local _bare_probe="" _bare_probe_rc=0
+        _bare_probe=$(_octo_bare_auth_probe 2>/dev/null) || _bare_probe_rc=$?
+        _bare_probe="${_bare_probe%%$'\n'*}"
         if [[ "$_bare_probe" == *"Not logged in"* || "$_bare_probe" == *"Please run /login"* ]]; then
             log "WARN" "--bare flag breaks subprocess auth on this install (issue #288) — disabled. Set OCTOPUS_DISABLE_BARE=1 to suppress this probe."
+        elif [[ "$_bare_probe_rc" -ne 0 ]]; then
+            log "WARN" "--bare authentication probe did not complete (exit ${_bare_probe_rc}) — disabled for this run. Set OCTOPUS_DISABLE_BARE=1 to skip it explicitly."
         else
             _BARE_OPT=" --bare"
             log "INFO" "Subprocess synthesis uses --bare flag for faster claude -p calls"

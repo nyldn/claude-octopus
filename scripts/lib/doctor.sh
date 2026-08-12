@@ -25,6 +25,11 @@ if ! declare -f octo_plugin_update_load >/dev/null 2>&1; then
     source "${_doctor_lib_dir}/plugin-update.sh" 2>/dev/null || true
 fi
 
+if ! declare -f _octo_bare_auth_probe >/dev/null 2>&1; then
+    _doctor_lib_dir="${_doctor_lib_dir:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
+    source "${_doctor_lib_dir}/providers.sh" 2>/dev/null || true
+fi
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # MODULAR DOCTOR SYSTEM (v8.16.0)
 # 14 check categories, structured results, category filtering, JSON output
@@ -1218,13 +1223,19 @@ doctor_check_skills() {
                 "--bare flag disabled via OCTOPUS_DISABLE_BARE=1" \
                 "Subprocess synthesis falls back to standard claude -p (slower but avoids auth issues)"
         else
-            # Probe whether --bare can authenticate (CC v2.1.114 regression, issue #288)
-            local _bare_test
-            _bare_test=$(echo "x" | claude --bare --print --model claude-haiku-4-5-20251001 2>/dev/null | head -1 || true)
+            # Probe whether --bare can authenticate (CC v2.1.114 regression,
+            # issue #288) without allowing auth or Keychain waits to wedge doctor.
+            local _bare_test="" _bare_test_rc=0
+            _bare_test=$(_octo_bare_auth_probe 2>/dev/null) || _bare_test_rc=$?
+            _bare_test="${_bare_test%%$'\n'*}"
             if [[ "$_bare_test" == *"Not logged in"* || "$_bare_test" == *"Please run /login"* ]]; then
                 doctor_add "bare-flag" "skills" "fail" \
                     "--bare flag breaks subprocess auth on this install (issue #288)" \
                     "Set OCTOPUS_DISABLE_BARE=1 in your shell profile or ~/.claude/settings.json env block to fix"
+            elif [[ "$_bare_test_rc" -ne 0 ]]; then
+                doctor_add "bare-flag" "skills" "warn" \
+                    "--bare authentication probe did not complete (exit ${_bare_test_rc})" \
+                    "Octopus disabled --bare for this run instead of waiting indefinitely"
             else
                 doctor_add "bare-flag" "skills" "pass" \
                     "CC v2.1.87 --bare flag active — subprocess synthesis runs faster" \

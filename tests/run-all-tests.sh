@@ -53,7 +53,16 @@ run_test_suite() {
 
     TOTAL_SUITES=$((TOTAL_SUITES + 1))
 
-    if bash "$test_file"; then
+    # Non-live suites must never launch real provider/auth probes. Besides
+    # spending API quota, a CLI blocked on Keychain can stall the entire gate.
+    local test_rc=0
+    if [[ "$test_file" == "$SCRIPT_DIR/live/"* ]]; then
+        bash "$test_file" || test_rc=$?
+    else
+        OCTOPUS_SKIP_PROVIDER_PROBES=true bash "$test_file" || test_rc=$?
+    fi
+
+    if [[ "$test_rc" -eq 0 ]]; then
         PASSED_SUITES=$((PASSED_SUITES + 1))
         echo ""
         echo -e "${GREEN}  PASS: ${test_name}${NC}"
