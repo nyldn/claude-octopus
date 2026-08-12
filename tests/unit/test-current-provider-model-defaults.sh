@@ -62,6 +62,21 @@ else
     test_fail "Copilot shim omitted the model argument: $(tr '\n' ' ' < "$capture")"
 fi
 
+test_case "Copilot shim can deny every model tool for untrusted review diffs"
+printf 'fixture review prompt' | PATH="$fake_bin:/usr/bin:/bin" \
+    OCTOPUS_TEST_CAPTURE="$capture" \
+    OCTOPUS_COPILOT_MODEL="auto" \
+    OCTOPUS_COPILOT_TOOL_POLICY="none" \
+    "$PROJECT_ROOT/scripts/helpers/copilot-exec.sh"
+if grep -Fxq -- '--deny-tool=shell,write,read,url,memory' "$capture" &&
+   grep -Fxq -- '--available-tools=' "$capture" &&
+   grep -Fxq -- '--no-ask-user' "$capture" &&
+   grep -Fxq -- '--disable-builtin-mcps' "$capture"; then
+    test_pass
+else
+    test_fail "Copilot no-tools review policy was not forwarded: $(tr '\n' ' ' < "$capture")"
+fi
+
 test_case "Copilot availability fails closed when required CLI flags are absent"
 mkdir -p "$empty_home/.copilot"
 printf '{}\n' > "$empty_home/.copilot/config.json"

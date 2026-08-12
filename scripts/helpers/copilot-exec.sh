@@ -15,4 +15,23 @@ if [[ -z "${prompt//[[:space:]]/}" ]]; then
     exit 64
 fi
 model="${OCTOPUS_COPILOT_MODEL:-auto}"
-exec copilot -p "$prompt" --model "$model" --no-ask-user -s --disable-builtin-mcps
+tool_policy="${OCTOPUS_COPILOT_TOOL_POLICY:-auto}"
+case "$tool_policy" in
+    auto)
+        exec copilot -p "$prompt" --model "$model" --no-ask-user -s \
+            --disable-builtin-mcps
+        ;;
+    none)
+        # Review prompts already contain the complete diff. Deny every built-in
+        # tool kind and expose an empty tool inventory so untrusted code cannot
+        # read files, execute commands, delegate, write state, fetch URLs, or
+        # persist memory in CI (#893).
+        exec copilot -p "$prompt" --model "$model" --no-ask-user -s \
+            --disable-builtin-mcps --available-tools='' \
+            --deny-tool=shell,write,read,url,memory
+        ;;
+    *)
+        echo "copilot-exec: invalid tool policy: $tool_policy" >&2
+        exit 64
+        ;;
+esac

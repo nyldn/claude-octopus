@@ -173,6 +173,20 @@ else
     test_fail "reset codex failed"
 fi
 
+test_case "provider reset propagates a failed configuration rewrite"
+fake_bin="$TEST_TMP_DIR/failing-jq-bin"
+mkdir -p "$fake_bin"
+cat > "$fake_bin/jq" <<'EOF'
+#!/usr/bin/env bash
+exit 42
+EOF
+chmod +x "$fake_bin/jq"
+if PATH="$fake_bin:$PATH" run_model_config reset codex >/dev/null 2>&1; then
+    test_fail "reset reported success after jq failed"
+else
+    test_pass
+fi
+
 test_case "model configuration helper remains valid Bash"
 if bash -n "$MODEL_CONFIG" "$MODEL_RESOLVER"; then
     test_pass

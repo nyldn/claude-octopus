@@ -16,7 +16,8 @@
   configurable standard tier is resolved just like budget and premium, so a
   long-lived process cannot reuse a model selected under the previous mode.
   Resetting one provider now removes its stale mappings from every cost tier,
-  and the quick-toggle commands fail closed if persistence fails. (#885)
+  and both reset writes and quick-toggle commands fail closed if persistence
+  fails. (#885)
 - The first-party PR review workflow now reviews the actual base-to-head diff,
   preserves review failures through `tee`, and posts diagnostic output even
   when review fails instead of reporting a zero-provider run as green. (#888)
@@ -29,16 +30,17 @@
   longer claim Claude succeeded without execution evidence, and failed PR
   reviews retain provider results and proof packets as a short-lived diagnostic
   artifact. (#889, #891)
-- Provider output is captured through private, file-backed stdin/stdout instead
-  of a `tee` pipeline. A provider hook or helper that inherits stdout can no
-  longer hold the pipeline open after the provider has completed and leave
-  progress stuck at zero until the fleet watchdog fires. (#892)
+- Provider output is captured through private, atomically randomized,
+  file-backed stdin/stdout instead of a `tee` pipeline. A provider hook or
+  helper that inherits stdout can no longer hold the pipeline open after the
+  provider has completed and leave progress stuck at zero until the fleet
+  watchdog fires. (#892)
 - First-party PR review keeps Claude Code as its primary provider but retries
-  through GitHub Models with the short-lived Actions token when the shared
-  Claude subscription quota is exhausted. The fallback is read-only and
-  tool-free, remains fail-closed if both paths fail, retains hidden raw
-  diagnostics, and surfaces the provider's actionable quota or auth error.
-  (#893)
+  through GitHub Copilot CLI with the short-lived Actions token when the shared
+  Claude subscription quota is exhausted. This replaces the retired GitHub
+  Models inference API. The fallback denies model tools, remains fail-closed if
+  both paths fail, retains hidden raw diagnostics, and surfaces the provider's
+  actionable quota, auth, policy, or service error. (#893)
 
 ### Internal
 
@@ -46,6 +48,9 @@
   includes the complete command set, and supports a non-mutating `--check`
   path used by `make sync-check`. Doctor follow-ups reuse the resolved install
   root, and portable commands fall back to the stable installed root. (#886)
+- First-party workflow dependencies are reproducible: Claude Code and Copilot
+  CLI use exact tested package versions, and artifact uploads use the immutable
+  commit behind the declared action release.
 
 ## [9.62.0] - 2026-08-12
 

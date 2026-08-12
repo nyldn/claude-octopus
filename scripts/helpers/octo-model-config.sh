@@ -774,11 +774,21 @@ cmd_reset() {
         log_info "Reset all configuration to defaults"
     else
         ensure_config
-        jq --arg p "$provider" '
+        local reset_tmp="${CONFIG_FILE}.tmp.$$"
+        if ! jq --arg p "$provider" '
             del(.providers[$p])
             | del(.overrides[$p])
             | .tiers = ((.tiers // {}) | with_entries(.value |= del(.[$p])))
-        ' "$CONFIG_FILE" > "${CONFIG_FILE}.tmp.$$" && mv "${CONFIG_FILE}.tmp.$$" "$CONFIG_FILE"
+        ' "$CONFIG_FILE" > "$reset_tmp"; then
+            rm -f "$reset_tmp"
+            log_error "Failed to rewrite configuration while resetting provider: $provider"
+            return 1
+        fi
+        if ! mv "$reset_tmp" "$CONFIG_FILE"; then
+            rm -f "$reset_tmp"
+            log_error "Failed to install reset configuration for provider: $provider"
+            return 1
+        fi
         log_info "Reset configuration for provider: $provider"
     fi
     clear_cache

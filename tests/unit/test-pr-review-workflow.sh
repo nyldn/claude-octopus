@@ -36,6 +36,23 @@ else
     test_fail "Claude Code npm installation requires the workflow's Node 22 runtime"
 fi
 
+test_case "first-party jobs pin the tested Claude Code package"
+install_count="$(grep -c 'npm install -g @anthropic-ai/claude-code@2.1.228' "$WORKFLOW" || true)"
+if [[ "$install_count" -eq 3 ]] &&
+   ! grep -Eq 'npm install -g @anthropic-ai/claude-code([[:space:]]|$)' "$WORKFLOW"; then
+    test_pass
+else
+    test_fail "expected all three jobs to pin Claude Code 2.1.228, found ${install_count}"
+fi
+
+test_case "artifact uploads use the immutable v7 commit"
+artifact_count="$(grep -c 'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a' "$WORKFLOW" || true)"
+if [[ "$artifact_count" -eq 2 ]] && ! grep -q 'actions/upload-artifact@v7' "$WORKFLOW"; then
+    test_pass
+else
+    test_fail "artifact upload references remain mutable"
+fi
+
 test_case "PR review preserves provider diagnostics when orchestration fails"
 if grep -q 'name: Upload PR Review Diagnostics' "$WORKFLOW" &&
    grep -A10 'name: Upload PR Review Diagnostics' "$WORKFLOW" | grep -q 'if: always()' &&
@@ -47,7 +64,7 @@ else
     test_fail "failed PR reviews discard hidden provider result/error evidence needed for diagnosis"
 fi
 
-test_case "PR review grants the job-scoped token read-only model access"
+test_case "PR review grants the job-scoped token Copilot request access"
 pr_permissions="$(awk '
     /pr-review:/ { job=1 }
     job && /permissions:/ { capture=1 }
@@ -56,27 +73,29 @@ pr_permissions="$(awk '
 ' "$WORKFLOW")"
 if grep -q 'contents: read' <<< "$pr_permissions" &&
    grep -q 'pull-requests: write' <<< "$pr_permissions" &&
-   grep -q 'models: read' <<< "$pr_permissions"; then
+   grep -q 'copilot-requests: write' <<< "$pr_permissions" &&
+   ! grep -q 'models: read' <<< "$pr_permissions"; then
     test_pass
 else
-    test_fail "PR review does not use the minimum GitHub Models permission set"
+    test_fail "PR review does not use the supported Copilot job-token permission set"
 fi
 
-test_case "Claude quota failure triggers a GitHub Models fallback"
+test_case "Claude quota failure triggers a GitHub Copilot fallback"
 fallback_block="$(awk '
-    /- name: Run GitHub Models Fallback Review/ { capture=1 }
+    /- name: Install GitHub Copilot CLI Fallback/ { capture=1 }
     capture { print }
     capture && /- name: Finalize Review Outcome/ { exit }
 ' "$WORKFLOW")"
 if grep -q "steps.review.outcome == 'failure'" <<< "$fallback_block" &&
-   grep -q 'OCTOPUS_REVIEW_SINGLE_PROVIDER: openai-compatible-agent' <<< "$fallback_block" &&
-   grep -q 'OPENAI_COMPAT_BASE_URL: https://models.github.ai/inference' <<< "$fallback_block" &&
-   grep -q 'OPENAI_COMPAT_MODEL: openai/gpt-4.1' <<< "$fallback_block" &&
-   grep -q 'OCTOPUS_GITHUB_MODELS_TOKEN:.*github.token' <<< "$fallback_block" &&
+   grep -q 'npm install -g @github/copilot@1.0.79' <<< "$fallback_block" &&
+   grep -q 'OCTOPUS_REVIEW_SINGLE_PROVIDER: copilot' <<< "$fallback_block" &&
+   grep -q 'OCTOPUS_COPILOT_TOOL_POLICY: none' <<< "$fallback_block" &&
+   grep -q 'GITHUB_TOKEN:.*github.token' <<< "$fallback_block" &&
+   ! grep -q 'models.github.ai' <<< "$fallback_block" &&
    ! grep -q 'CLAUDE_CODE_OAUTH_TOKEN' <<< "$fallback_block"; then
     test_pass
 else
-    test_fail "PR review does not isolate or correctly configure the GitHub Models fallback"
+    test_fail "PR review does not isolate or correctly configure the GitHub Copilot fallback"
 fi
 
 test_case "PR review fails closed when primary and fallback both fail"
@@ -87,6 +106,7 @@ finalize_block="$(awk '
 ' "$WORKFLOW")"
 if grep -q 'PRIMARY_OUTCOME:.*steps.review.outcome' <<< "$finalize_block" &&
    grep -q 'FALLBACK_OUTCOME:.*steps.review_fallback.outcome' <<< "$finalize_block" &&
+   grep -Eq 'PRIMARY_OUTCOME.*success.*\|\|.*FALLBACK_OUTCOME.*success' <<< "$finalize_block" &&
    grep -Eq 'exit[[:space:]]+1' <<< "$finalize_block"; then
     test_pass
 else

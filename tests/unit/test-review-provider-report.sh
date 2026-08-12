@@ -57,6 +57,32 @@ else
     test_fail "provider error was replaced by a generic failure: ${detail:-<empty>}"
 fi
 
+test_case "review failure detail falls back to the actionable stderr error"
+stderr_failure_file="$TEST_TMP_DIR/provider-stderr-failed.md"
+cat > "$stderr_failure_file" <<'EOF'
+# Agent result
+
+## Output
+```
+(no output captured — provider produced no stdout)
+```
+
+## Status: FAILED (Provider exited 1)
+
+## Error Log
+```
+provider=generic
+urllib.error.HTTPError: HTTP Error 410: Gone
+RuntimeError: HTTP 410: GitHub Models is retired; use GitHub Copilot
+```
+EOF
+detail="$(review_result_failure_detail "$stderr_failure_file")"
+if [[ "$detail" == "RuntimeError: HTTP 410: GitHub Models is retired; use GitHub Copilot" ]]; then
+    test_pass
+else
+    test_fail "provider stderr error was hidden: ${detail:-<empty>}"
+fi
+
 test_case "single-provider override keeps every review phase on the requested provider"
 override_fleet="$(OCTOPUS_REVIEW_SINGLE_PROVIDER=openai-compatible-agent build_review_fleet)"
 override_phase="$(OCTOPUS_REVIEW_SINGLE_PROVIDER=openai-compatible-agent review_phase_provider claude-sonnet)"
@@ -72,6 +98,15 @@ else
     test_fail "single-provider review escaped to another provider: fleet=$override_fleet phase=$override_phase"
 fi
 
+test_case "review provider mapping keeps claude-sdk before the broad Claude glob"
+sdk_line="$(grep -n 'claude-sdk\*)' "$PROJECT_ROOT/scripts/lib/review.sh" | head -1 | cut -d: -f1)"
+claude_line="$(grep -n '^[[:space:]]*claude\*)' "$PROJECT_ROOT/scripts/lib/review.sh" | head -1 | cut -d: -f1)"
+if [[ -n "$sdk_line" && -n "$claude_line" && "$sdk_line" -lt "$claude_line" ]]; then
+    test_pass
+else
+    test_fail "claude-sdk must precede claude* in review provider mapping"
+fi
+
 test_case "OpenAI-compatible failures are visible with their full detail"
 printf '%s\n' "openai-compatible|fallback|You've hit your weekly limit · resets Aug 15, 7am (UTC)" > "$status_file"
 report="$(env "HOME=${TEST_TMP_DIR}" bash -c '
@@ -83,6 +118,19 @@ if grep -Eq 'Compatible:[[:space:]]+.*FALLBACK' <<< "$report" &&
     test_pass
 else
     test_fail "OpenAI-compatible provider failure was hidden or truncated: $report"
+fi
+
+test_case "Copilot fallback failures are visible with their full detail"
+printf '%s\n' "copilot|fallback|Copilot request denied by repository policy" > "$status_file"
+report="$(env "HOME=${TEST_TMP_DIR}" bash -c '
+    source "$1"
+    print_provider_report "$2"
+' _ "$PROJECT_ROOT/scripts/lib/review.sh" "$status_file")"
+if grep -Eq 'Copilot:[[:space:]]+.*FALLBACK' <<< "$report" &&
+   [[ "$report" == *"Copilot request denied by repository policy"* ]]; then
+    test_pass
+else
+    test_fail "Copilot provider failure was hidden or truncated: $report"
 fi
 
 test_summary

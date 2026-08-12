@@ -52,10 +52,20 @@ description: Fixture Doctor
 SKILL
 if output="$(bash "$fixture/scripts/build-factory-skills.sh" 2>&1)" &&
    [[ "$output" == *"SKIP (no description): missing.md"* ]] &&
-   [[ -f "$fixture/.cursor-plugin/commands/octo-valid.md" ]]; then
+   [[ -f "$fixture/.cursor-plugin/commands/octo-valid.md" ]] &&
+   [[ -f "$fixture/.cursor-plugin/commands/octo-doctor.md" ]]; then
     test_pass
 else
-    test_fail "missing-description command aborted generation: $output"
+    test_fail "generation skipped a valid command or Doctor adapter: $output"
+fi
+
+test_case "check mode accepts generated output without modifying it"
+before_check="$(find "$fixture/.cursor-plugin/commands" -type f -exec cksum {} \; | sort)"
+if check_output="$(bash "$fixture/scripts/build-factory-skills.sh" --check 2>&1)" &&
+   [[ "$(find "$fixture/.cursor-plugin/commands" -type f -exec cksum {} \; | sort)" == "$before_check" ]]; then
+    test_pass
+else
+    test_fail "Factory --check failed or modified generated output: ${check_output:-<empty>}"
 fi
 
 test_case "portable commands resolve the installed plugin root"

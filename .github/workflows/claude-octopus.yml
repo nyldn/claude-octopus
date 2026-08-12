@@ -63,7 +63,7 @@ jobs:
           node-version: '22'
 
       - name: Install Claude Code
-        run: npm install -g @anthropic-ai/claude-code
+        run: npm install -g @anthropic-ai/claude-code@2.1.228
 
       - name: Run Claude Octopus
         id: octopus
@@ -97,7 +97,7 @@ jobs:
           esac
 
       - name: Upload Results
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: octopus-results
           path: ~/.claude-octopus/results/
@@ -116,7 +116,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
-      models: read
+      copilot-requests: write
 
     steps:
       - name: Checkout repository
@@ -130,7 +130,7 @@ jobs:
           node-version: '22'
 
       - name: Install Claude Code
-        run: npm install -g @anthropic-ai/claude-code
+        run: npm install -g @anthropic-ai/claude-code@2.1.228
 
       - name: Materialize PR Diff
         env:
@@ -152,19 +152,21 @@ jobs:
           ./scripts/orchestrate.sh --ci code-review '{"target":"pr-review.diff","publish":"never"}' 2>&1 | tee review-output-primary.txt
 
       # Claude subscription quotas are independent of Actions and can exhaust
-      # while the workflow credential remains valid. Retry only the read-only
-      # review through GitHub Models, using the short-lived job token and a
-      # no-tools OpenAI-compatible review path (#893).
-      - name: Run GitHub Models Fallback Review
+      # while the workflow credential remains valid. GitHub Models was retired
+      # on 2026-07-30, so use its supported Copilot CLI successor with the
+      # short-lived job token and no model tools (#893).
+      - name: Install GitHub Copilot CLI Fallback
+        if: steps.review.outcome == 'failure'
+        run: npm install -g @github/copilot@1.0.79
+
+      - name: Run GitHub Copilot Fallback Review
         id: review_fallback
         if: steps.review.outcome == 'failure'
         env:
-          OCTOPUS_REVIEW_SINGLE_PROVIDER: openai-compatible-agent
-          OPENAI_COMPAT_BASE_URL: https://models.github.ai/inference
-          OPENAI_COMPAT_API_KEY_ENV: OCTOPUS_GITHUB_MODELS_TOKEN
-          OPENAI_COMPAT_MODEL: openai/gpt-4.1
-          OCTOPUS_GITHUB_MODELS_TOKEN: ${{ github.token }}
-          OPENAI_COMPAT_REQUEST_TIMEOUT: 180
+          OCTOPUS_REVIEW_SINGLE_PROVIDER: copilot
+          OCTOPUS_COPILOT_MODEL: auto
+          OCTOPUS_COPILOT_TOOL_POLICY: none
+          GITHUB_TOKEN: ${{ github.token }}
           OCTOPUS_DISABLE_BARE: 1
           CI: true
         run: |
@@ -185,7 +187,7 @@ jobs:
             sed -n '1,$p' review-output-primary.txt >> review-output.txt
           fi
           if [[ -f review-output-fallback.txt ]]; then
-            printf '\n## GitHub Models fallback\n\n' >> review-output.txt
+            printf '\n## GitHub Copilot fallback\n\n' >> review-output.txt
             sed -n '1,$p' review-output-fallback.txt >> review-output.txt
           fi
 
@@ -193,12 +195,12 @@ jobs:
             exit 0
           fi
 
-          echo "::error::Both the primary and GitHub Models review paths failed"
+          echo "::error::Both the primary and GitHub Copilot review paths failed"
           exit 1
 
       - name: Upload PR Review Diagnostics
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: octopus-pr-review-${{ github.run_id }}
           path: |
@@ -260,7 +262,7 @@ jobs:
           node-version: '22'
 
       - name: Install Claude Code
-        run: npm install -g @anthropic-ai/claude-code
+        run: npm install -g @anthropic-ai/claude-code@2.1.228
 
       - name: Parse Command
         id: parse

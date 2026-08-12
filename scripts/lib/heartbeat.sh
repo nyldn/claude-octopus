@@ -260,13 +260,14 @@ run_with_timeout() {
 octopus_capture_provider_output() {
     local prompt="$1"
     local timeout_secs="$2"
-    local temp_input="$3"
+    local temp_input_hint="$3"
+    local temp_input=""
     local raw_output="$4"
     local temp_errors="$5"
     shift 5
 
-    rm -f "$temp_input"
-    if ! (umask 077 && printf '%s' "$prompt" > "$temp_input"); then
+    temp_input="$(umask 077 && mktemp "${temp_input_hint}.XXXXXX")" || return 1
+    if ! printf '%s' "$prompt" > "$temp_input"; then
         rm -f "$temp_input"
         return 1
     fi

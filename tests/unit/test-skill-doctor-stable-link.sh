@@ -92,9 +92,19 @@ test_codex_package_is_generated_from_guarded_source() {
 test_follow_up_commands_use_resolved_root() {
     test_case "Doctor follow-up commands reuse the resolved plugin root"
 
-    if grep -q '${HOME}/.claude-octopus/plugin/scripts/' \
-        "$PROJECT_ROOT/.claude/skills/skill-doctor/SKILL.md"; then
+    local doctor_skill="$PROJECT_ROOT/.claude/skills/skill-doctor/SKILL.md"
+    local category missing=""
+    for category in providers companions auth config updates state smoke hooks scheduler skills conflicts agents recurrence cache; do
+        grep -Fq "bash \"\$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh\" doctor ${category}" "$doctor_skill" ||
+            missing+="${category} "
+    done
+    grep -Fq 'bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor --verbose' "$doctor_skill" || missing+="verbose "
+    grep -Fq 'bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor --json' "$doctor_skill" || missing+="json "
+
+    if grep -q '${HOME}/.claude-octopus/plugin/scripts/' "$doctor_skill"; then
         test_fail "Doctor bypasses OCTO_PLUGIN_ROOT after resolving the installed plugin"
+    elif [[ -n "$missing" ]]; then
+        test_fail "Doctor omits resolved-root commands for: $missing"
     else
         test_pass
     fi
@@ -104,10 +114,18 @@ test_remediation_fences_are_markdown_safe() {
     test_case "Doctor remediation fences have surrounding blank lines"
 
     if awk '
-        /^```javascript$/ && previous != "" { bad = 1 }
-        previous == "```" && /^If user chooses/ { bad = 1 }
+        closing && $0 != "" { bad = 1 }
+        { closing = 0 }
+        /^```javascript$/ {
+            if (previous != "") bad = 1
+            in_javascript = 1
+        }
+        in_javascript && /^```$/ {
+            in_javascript = 0
+            closing = 1
+        }
         { previous = $0 }
-        END { exit bad }
+        END { if (closing) bad = 1; exit bad }
     ' "$PROJECT_ROOT/.claude/skills/skill-doctor/SKILL.md"; then
         test_pass
     else

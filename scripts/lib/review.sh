@@ -421,23 +421,48 @@ review_result_completed_successfully() {
     [[ "$final_status" == "SUCCESS" ]]
 }
 
-# Return the first meaningful line from an agent result's Output section. This
-# is where spawn.sh preserves provider CLI errors (quota, auth, rate limits).
+# Return the first meaningful provider failure. Prefer real Output, then scan
+# Error Log for the last actionable line when the provider produced no stdout.
 # Keep the status-file delimiter out of the detail and cap pathological output,
 # while retaining enough text for an actionable CI comment (#893).
 review_result_failure_detail() {
     local result_file="$1"
     [[ -f "$result_file" ]] || return 1
     awk '
-        /^## Output$/ { in_output=1; next }
-        in_output && /^## / { exit }
-        in_output {
-            line=$0
-            if (line ~ /^```/ || line ~ /^[[:space:]]*$/) next
+        function clean(line) {
             gsub(/\|/, "/", line)
             gsub(/\033\[[0-9;]*[[:alpha:]]/, "", line)
-            print substr(line, 1, 240)
-            exit
+            return substr(line, 1, 240)
+        }
+        /^## Output$/ { section="output"; next }
+        /^## Error Log$/ { section="error"; next }
+        /^## / { section=""; next }
+        section != "" {
+            line=$0
+            if (line ~ /^```/ || line ~ /^[[:space:]]*$/) next
+            line=clean(line)
+            if (section == "output") {
+                if (line !~ /^\(no output captured/) {
+                    print line
+                    found=1
+                    exit
+                }
+                output_fallback=line
+            } else {
+                lower=tolower(line)
+                if (lower ~ /(error|failed|denied|forbidden|unauthor|quota|limit|retir|unavailable|http [0-9])/) {
+                    error_match=line
+                } else if (error_fallback == "") {
+                    error_fallback=line
+                }
+            }
+        }
+        END {
+            if (!found) {
+                if (error_match != "") print error_match
+                else if (error_fallback != "") print error_fallback
+                else if (output_fallback != "") print output_fallback
+            }
         }
     ' "$result_file" 2>/dev/null
 }
@@ -445,7 +470,9 @@ review_result_failure_detail() {
 review_provider_key_from_agent_type() {
     case "${1:-}" in
         openai-compatible*|openai-tools*) echo "openai-compatible" ;;
+        claude-sdk*) echo "claude" ;;
         claude*) echo "claude" ;;
+        copilot*) echo "copilot" ;;
         codex*) echo "codex" ;;
         agy*|antigravity|gemini*) echo "agy" ;;
         perplexity*) echo "perplexity" ;;
@@ -683,8 +710,8 @@ print_provider_report() {
     fi
 
     # Determine status per provider
-    local codex_status="not used" agy_status="not used" claude_status="not used" perplexity_status="not used" compatible_status="not used"
-    local codex_detail="" agy_detail="" claude_detail="" perplexity_detail="" compatible_detail=""
+    local codex_status="not used" agy_status="not used" claude_status="not used" perplexity_status="not used" compatible_status="not used" copilot_status="not used"
+    local codex_detail="" agy_detail="" claude_detail="" perplexity_detail="" compatible_detail="" copilot_detail=""
     local had_fallback=false
 
     while IFS='|' read -r provider status detail; do
@@ -746,6 +773,19 @@ print_provider_report() {
                     had_fallback=true
                 fi
                 ;;
+            copilot)
+                if [[ "$status" == "ok" ]]; then
+                    copilot_status="✓ OK"
+                elif [[ "$status" == "fallback" ]]; then
+                    copilot_status="✗ FALLBACK"
+                    copilot_detail="$detail"
+                    had_fallback=true
+                elif [[ "$status" == "auth-failed" ]]; then
+                    copilot_status="✗ AUTH FAILED"
+                    copilot_detail="$detail"
+                    had_fallback=true
+                fi
+                ;;
         esac
     done < "$status_file"
 
@@ -764,6 +804,8 @@ print_provider_report() {
     [[ -n "$perplexity_detail" ]] && printf "│    → %-38.38s│\n" "$perplexity_detail"
     printf "│ 🟢 Compatible:  %-25s│\n" "$compatible_status"
     [[ -n "$compatible_detail" ]] && printf "│    → %-38.38s│\n" "$compatible_detail"
+    printf "│ 🟡 Copilot:     %-27s│\n" "$copilot_status"
+    [[ -n "$copilot_detail" ]] && printf "│    → %-38.38s│\n" "$copilot_detail"
     if [[ "$had_fallback" == "true" ]]; then
         echo "│                                             │"
         echo "│ ⚠ Some providers failed — run /octo:doctor  │"

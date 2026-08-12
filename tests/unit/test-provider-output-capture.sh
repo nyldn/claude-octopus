@@ -20,7 +20,9 @@ run_with_timeout() {
 
 child_pid_file="$TEST_TMP_DIR/inherited-stdout-child.pid"
 input_mode_file="$TEST_TMP_DIR/provider-input.mode"
+input_path_file="$TEST_TMP_DIR/provider-input.path"
 provider_with_inherited_stdout() {
+    printf '%s\n' "$temp_input" > "$input_path_file"
     if stat -f '%Lp' "$temp_input" >/dev/null 2>&1; then
         stat -f '%Lp' "$temp_input" > "$input_mode_file"
     else
@@ -73,6 +75,16 @@ if [[ "$(cat "$input_mode_file" 2>/dev/null || true)" == "600" ]]; then
     test_pass
 else
     test_fail "provider prompt input was not created with mode 600"
+fi
+
+test_case "temporary prompt input uses an atomic randomized path"
+actual_input="$(cat "$input_path_file" 2>/dev/null || true)"
+if [[ "$actual_input" == "${temp_input}."* ]] &&
+   [[ "$actual_input" != "$temp_input" ]] &&
+   [[ ! -e "$actual_input" ]]; then
+    test_pass
+else
+    test_fail "provider input was not an atomically-created randomized file: ${actual_input:-<empty>}"
 fi
 
 test_summary
