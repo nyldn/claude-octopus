@@ -222,6 +222,7 @@ test_local_marketplace_sync_aligns_all_versions() {
     local fixture="$TMP_DIR/local-sync"
     local check_before_rc=0
     local check_after_rc=0
+    local check_entry_rc=0
     local plugin_version metadata_version entry_version
 
     mkdir -p "$fixture/scripts" "$fixture/.claude-plugin" "$fixture/agents/personas"
@@ -255,17 +256,24 @@ JSON
     bash "$fixture/scripts/sync-marketplace.sh" > "$TMP_DIR/local-sync-update.out" 2>&1
     bash "$fixture/scripts/sync-marketplace.sh" --check > "$TMP_DIR/local-sync-check-after.out" 2>&1 || check_after_rc=$?
 
+    jq '(.plugins[] | select(.name == "octo") | .version) = "1.0.0"' \
+        "$fixture/.claude-plugin/marketplace.json" > "$TMP_DIR/local-sync-entry-stale.json"
+    mv "$TMP_DIR/local-sync-entry-stale.json" "$fixture/.claude-plugin/marketplace.json"
+    bash "$fixture/scripts/sync-marketplace.sh" --check > "$TMP_DIR/local-sync-check-entry.out" 2>&1 || check_entry_rc=$?
+
     plugin_version="$(jq -r '.version' "$fixture/.claude-plugin/plugin.json")"
     metadata_version="$(jq -r '.metadata.version' "$fixture/.claude-plugin/marketplace.json")"
     entry_version="$(jq -r '.plugins[] | select(.name == "octo") | .version' "$fixture/.claude-plugin/marketplace.json")"
 
     if [[ "$check_before_rc" -ne 0 &&
           "$check_after_rc" -eq 0 &&
+          "$check_entry_rc" -ne 0 &&
           "$metadata_version" == "$plugin_version" &&
-          "$entry_version" == "$plugin_version" ]]; then
+          "$entry_version" != "$plugin_version" ]] &&
+       grep -q '^\[WARN\] Plugin version: 1.0.0 (expected 9.99.0)$' "$TMP_DIR/local-sync-check-entry.out"; then
         test_pass
     else
-        test_fail "expected stale metadata rejection and synchronized versions; before=$check_before_rc after=$check_after_rc plugin=$plugin_version metadata=$metadata_version entry=$entry_version"
+        test_fail "expected independent entry-version rejection through WARN logger; before=$check_before_rc after=$check_after_rc entry_check=$check_entry_rc plugin=$plugin_version metadata=$metadata_version entry=$entry_version"
     fi
 }
 

@@ -106,8 +106,8 @@ if $CHECK_ONLY; then
     echo "  Current:  $CURRENT_DESC"
     echo "  Expected: $EXPECTED_DESC"
     [[ "$CURRENT_KEYWORDS" == "$PLUGIN_KEYWORDS" ]] || echo "  Plugin keywords differ from plugin.json"
-    [[ "$CURRENT_ENTRY_VERSION" == "$VERSION" ]] || echo "  Plugin version: $CURRENT_ENTRY_VERSION (expected $VERSION)"
-    [[ "$CURRENT_METADATA_VERSION" == "$VERSION" ]] || echo "  Metadata version: $CURRENT_METADATA_VERSION (expected $VERSION)"
+    [[ "$CURRENT_ENTRY_VERSION" == "$VERSION" ]] || log WARN "Plugin version: $CURRENT_ENTRY_VERSION (expected $VERSION)"
+    [[ "$CURRENT_METADATA_VERSION" == "$VERSION" ]] || log WARN "Metadata version: $CURRENT_METADATA_VERSION (expected $VERSION)"
     exit 1
 fi
 

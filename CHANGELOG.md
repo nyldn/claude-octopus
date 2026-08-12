@@ -40,9 +40,8 @@
 
 ### Internal
 
-- Marketplace generation and `--check` now synchronize both the Octopus entry
-  and top-level metadata version, preventing one release manifest from
-  publishing conflicting versions.
+- Marketplace generation now synchronizes the Octopus entry and top-level
+  metadata version; `--check` validates both values before release.
 
 ## [9.61.3] - 2026-08-10
 

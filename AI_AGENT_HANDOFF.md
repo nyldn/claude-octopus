@@ -111,7 +111,12 @@ claimed or recorded in `bd`; use this handoff for the blocked tracking record.
   but neither validated nor regenerated `.metadata.version`. The behavioral
   regression failed first with plugin `9.99.0` versus metadata `1.0.0`, then
   passed 17/17 after the generator and `--check` contract were corrected. The
-  amended tree passed the complete 16/259/7 local gate again.
+  amended tree passed the complete 16/259/7 local gate again. Follow-up review
+  confirmed that entry-only drift needed independent coverage and WARN-level
+  diagnostics. The strengthened regression failed first against the raw-output
+  path, then passed 17/17 after routing both version diagnostics through the
+  logger; release wording now distinguishes generation from check-only
+  validation.
 
 ## Release v9.61.3
 
