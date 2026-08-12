@@ -40,6 +40,9 @@ usage() {
     echo "  route <phase> <target>      Route a phase to a specific model/capability"
     echo "  route-role <role> <target>  Route a role/persona to a model/capability"
     echo "  unroute-role <role>         Remove an explicit role route override"
+    echo "  cost-mode [mode|status]     Select budget, standard, or premium routing"
+    echo "  tier <mode> <provider> <target>"
+    echo "                              Configure a provider model/capability for a tier"
     echo "  reset [provider|all]        Reset configuration to defaults"
     echo "  models [filter]             List all known models with capabilities"
     echo "  providers                   Show active provider allowlist"
@@ -74,6 +77,7 @@ ensure_config() {
         cat > "$CONFIG_FILE" << 'EOF'
 {
   "version": "3.0",
+  "cost_mode": "standard",
   "providers": {
     "codex": {
       "default": "gpt-5.6-sol",
@@ -390,6 +394,89 @@ clear_cache() {
     rm -f "$CACHE_FILE"
 }
 
+validate_cost_mode() {
+    case "${1:-}" in
+        budget|standard|premium) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+configured_cost_mode() {
+    ensure_config
+    jq -r '.cost_mode // "standard"' "$CONFIG_FILE" 2>/dev/null || echo "standard"
+}
+
+cmd_cost_mode() {
+    local mode="${1:-status}"
+    ensure_config
+
+    if [[ "$mode" == "status" || -z "$mode" ]]; then
+        if [[ -n "${OCTOPUS_COST_MODE:-}" ]]; then
+            echo -e "${CYAN}Cost Mode${NC}"
+            echo "  ${OCTOPUS_COST_MODE} (environment: OCTOPUS_COST_MODE)"
+        else
+            echo -e "${CYAN}Cost Mode${NC}"
+            echo "  $(configured_cost_mode) (providers.json)"
+        fi
+        return 0
+    fi
+
+    if ! validate_cost_mode "$mode"; then
+        log_error "Invalid cost mode '$mode'. Valid modes: budget, standard, premium"
+        return 1
+    fi
+
+    local tmp_file="${CONFIG_FILE}.tmp.$$"
+    if ! jq --arg mode "$mode" '.cost_mode = $mode' "$CONFIG_FILE" > "$tmp_file" ||
+       ! mv "$tmp_file" "$CONFIG_FILE"; then
+        rm -f "$tmp_file"
+        log_error "Failed to persist cost mode"
+        return 1
+    fi
+
+    clear_cache
+    log_info "Cost mode → $mode"
+    echo "  Saved: $CONFIG_FILE"
+    if [[ -n "${OCTOPUS_COST_MODE:-}" && "${OCTOPUS_COST_MODE}" != "$mode" ]]; then
+        log_warn "OCTOPUS_COST_MODE=${OCTOPUS_COST_MODE} still overrides the saved mode in this environment"
+    fi
+}
+
+cmd_tier() {
+    local mode="${1:-}"
+    local provider="${2:-}"
+    local target="${3:-}"
+
+    if ! validate_cost_mode "$mode"; then
+        log_error "Invalid cost mode '$mode'. Valid modes: budget, standard, premium"
+        return 1
+    fi
+
+    provider="$(canonical_provider "$provider")"
+    if ! provider_known "$provider"; then
+        log_error "Unknown provider '${2:-}'. Valid: $KNOWN_PROVIDERS"
+        return 1
+    fi
+
+    if ! validate_model "$target"; then
+        log_error "Invalid tier target: '$target'"
+        return 1
+    fi
+
+    ensure_config
+    local tmp_file="${CONFIG_FILE}.tmp.$$"
+    if ! jq --arg mode "$mode" --arg provider "$provider" --arg target "$target" \
+        '.tiers[$mode][$provider] = $target' "$CONFIG_FILE" > "$tmp_file" ||
+       ! mv "$tmp_file" "$CONFIG_FILE"; then
+        rm -f "$tmp_file"
+        log_error "Failed to persist tier mapping"
+        return 1
+    fi
+
+    clear_cache
+    log_info "Cost tier ${mode}.${provider} → $target"
+}
+
 cmd_list() {
     ensure_config
     echo -e "${CYAN}Current Model Configuration (v3.0)${NC}"
@@ -424,7 +511,11 @@ cmd_list() {
 
     # Cost mode
     echo -e "\n${YELLOW}Cost Mode:${NC}"
-    echo "  ${OCTOPUS_COST_MODE:-standard} (set via OCTOPUS_COST_MODE env var)"
+    if [[ -n "${OCTOPUS_COST_MODE:-}" ]]; then
+        echo "  ${OCTOPUS_COST_MODE} (environment: OCTOPUS_COST_MODE)"
+    else
+        echo "  $(configured_cost_mode) (providers.json)"
+    fi
 
     # Provider allowlist
     echo -e "\n${YELLOW}Provider Allowlist:${NC}"
@@ -706,6 +797,8 @@ case "$COMMAND" in
     route) cmd_route "$@" ;;
     route-role|role-route) cmd_route_role "$@" ;;
     unroute-role|role-unroute) cmd_unroute_role "$@" ;;
+    cost-mode|mode) cmd_cost_mode "$@" ;;
+    tier|set-tier) cmd_tier "$@" ;;
     reset) cmd_reset "$@" ;;
     models) cmd_models "$@" ;;
     providers|allowlist) cmd_provider_allowlist ;;

@@ -124,7 +124,7 @@ fi
 
 
 test_case "openai-compatible-agent reads valid memory cache and clears unsafe entries"
-cache_key="MC_openai_compatible_agent_A_openai_compatible_agent_P_memcache_R__C_no_config"
+cache_key="MC_openai_compatible_agent_A_openai_compatible_agent_P_memcache_R__M_standard_C_no_config"
 cache_var="_OCTO_MODEL_CACHE_${cache_key}"
 out_file="$TEST_TMP_DIR/openai-compatible-memory-cache-model.out"
 printf -v "$cache_var" "%s" "vendor/model-fast"

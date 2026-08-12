@@ -331,13 +331,21 @@ AskUserQuestion({
 })
 ```
 
-Apply by showing the user the export command:
-```
-To activate: export OCTOPUS_COST_MODE=<mode>
-To make permanent: add to ~/.zshrc or ~/.bashrc
+Apply the selection with the shared helper:
+
+```bash
+${HOME}/.claude-octopus/plugin/scripts/helpers/octo-model-config.sh cost-mode <mode>
 ```
 
-Or offer to set it in the config file.
+The helper persists the selection in `providers.json`. Do not edit the user's
+shell profile. Mention the matching quick command: `/octo:budget-mode`,
+`/octo:standard-mode`, or `/octo:premium-mode`.
+
+To configure which model or capability a provider uses in a tier:
+
+```bash
+${HOME}/.claude-octopus/plugin/scripts/helpers/octo-model-config.sh tier <budget|standard|premium> <provider> <model-or-capability>
+```
 
 
 ### Route: Role Routing Overrides
@@ -458,6 +466,8 @@ When invoked WITH arguments (e.g., `/octo:model-config codex gpt-5.6-sol`), skip
    - `<provider>.<capability> <model>` → Set capability-specific model
    - `<provider> <model> --session` → Set model (session only)
    - `phase <phase> <model>` → Set phase-specific model routing
+   - `cost-mode <budget|standard|premium|status>` → Persist or inspect the active cost mode
+   - `tier <budget|standard|premium> <provider> <model-or-capability>` → Configure a tier mapping
    - `route-role <role> <target>` → Set role/persona routing override
    - `unroute-role <role>` → Remove role/persona routing override
    - `providers` → Show current provider allowlist source and value
@@ -491,7 +501,13 @@ When invoked WITH arguments (e.g., `/octo:model-config codex gpt-5.6-sol`), skip
 
 5. **Provider Availability**: Use `scripts/helpers/octo-model-config.sh providers|allow|enable|disable|clear-allowlist`. These commands write to `~/.claude-octopus/config/provider-allowlist.<session>` by default. Global files are supported with `--global`, but prefer session scope unless the user explicitly asks for a persistent change.
 
-5. Always show confirmation and the updated value after any change.
+6. **Cost Mode**: Use `scripts/helpers/octo-model-config.sh cost-mode <mode>`
+   for the active selection and `scripts/helpers/octo-model-config.sh tier
+   <mode> <provider> <target>` for per-provider tier mappings. The
+   `OCTOPUS_COST_MODE` environment variable remains the highest-priority
+   override.
+
+7. Always show confirmation and the updated value after any change.
 
 ### Validation Gates
 

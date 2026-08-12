@@ -302,6 +302,9 @@ Configure which AI models are used across Claude Octopus workflows.
 /octo:model-config clear-allowlist --session # Restore default provider availability
 /octo:model-config cost-mode budget         # Use cheaper models
 /octo:model-config cost-mode premium        # Use best models
+/octo:budget-mode                            # One-step persistent budget toggle
+/octo:standard-mode                          # Return to balanced defaults
+/octo:premium-mode                           # One-step persistent premium toggle
 /octo:model-config trace                    # Debug model resolution
 /octo:model-config reset                    # Reset to defaults
 ```
@@ -313,6 +316,11 @@ Configure which AI models are used across Claude Octopus workflows.
 | `budget` | GPT-5.6 Luna | Haiku 4.5 | Fast service tier | High-volume, quick feedback |
 | `standard` | GPT-5.6 Sol | Sonnet 5 | Service-selected default | Default — frontier coding/quality |
 | `premium` | GPT-5.6 Sol | Opus 5 | Service-selected default | Critical decisions and premium Claude judgment |
+
+Quick toggles persist the selected mode in
+`~/.claude-octopus/config/providers.json`. Configure a provider target for any
+tier with `/octo:model-config tier <mode> <provider> <model-or-capability>`.
+An explicit `OCTOPUS_COST_MODE` environment variable still takes precedence.
 
 **Per-phase routing:** Different models can be configured for Discover, Define, Develop, and Deliver phases. Use `show phases` to view the current routing table.
 

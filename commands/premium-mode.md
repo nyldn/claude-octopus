@@ -1,0 +1,25 @@
+---
+command: premium-mode
+description: Switch Octopus model routing to the configured premium tier
+allowed-tools: Bash
+---
+
+# Premium Cost Mode
+
+**Your first output line MUST be:** `🐙 Octopus Cost Mode: Premium`
+
+Run this command with the Bash tool:
+
+```bash
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"
+helper="$OCTO_ROOT/scripts/helpers/octo-model-config.sh"
+if [[ ! -x "$helper" ]]; then
+  echo "ERROR: Claude Octopus model-config helper is unavailable. Run /octo:setup." >&2
+  exit 1
+fi
+"$helper" cost-mode premium
+"$helper" cost-mode status
+```
+
+Report the helper output exactly. The selection persists in
+`~/.claude-octopus/config/providers.json`; do not edit the user's shell profile.

@@ -6,7 +6,7 @@
 # Cursor command format: .cursor-plugin/commands/<name>.md with frontmatter: description
 # Our source format: .claude/skills/*.md and commands/*.md
 #
-# Usage: bash scripts/build-factory-skills.sh [--clean]
+# Usage: bash scripts/build-factory-skills.sh [--check|--clean]
 
 set -euo pipefail
 
@@ -16,6 +16,14 @@ SKILLS_SRC="$PLUGIN_ROOT/.claude/skills"
 SKILLS_OUT="$PLUGIN_ROOT/skills"
 COMMANDS_SRC="$PLUGIN_ROOT/commands"
 COMMANDS_OUT="$PLUGIN_ROOT/.cursor-plugin/commands"
+CHECK_MODE=false
+CHECK_ROOT=""
+
+if [[ "${1:-}" == "--check" ]]; then
+  CHECK_MODE=true
+  CHECK_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/octo-factory-check.XXXXXX")"
+  trap 'rm -rf "$CHECK_ROOT"' EXIT
+fi
 
 normalize_single_line() {
   printf '%s' "$1" | tr '\n' ' ' | sed -E 's/[[:space:]]+/ /g; s/^ //; s/ $//'
@@ -41,20 +49,72 @@ fi
 
 # --- Shared skills generation ---
 
-bash "$SCRIPT_DIR/build-codex-skills.sh"
+if $CHECK_MODE; then
+  bash "$SCRIPT_DIR/build-codex-skills.sh" --check
+else
+  bash "$SCRIPT_DIR/build-codex-skills.sh"
+fi
 
 # --- Commands generation ---
 # Factory only supports: description, argument-hint, allowed-tools, disable-model-invocation
 # Strip Claude Code-specific keys: command, aliases, redirect, version, category, tags, created, updated
 
-rm -rf "$COMMANDS_OUT"
-mkdir -p "$COMMANDS_OUT"
+COMMANDS_DEST="$COMMANDS_OUT"
+if $CHECK_MODE; then
+  COMMANDS_DEST="$CHECK_ROOT/commands"
+fi
+rm -rf "$COMMANDS_DEST"
+mkdir -p "$COMMANDS_DEST"
 
 cmd_count=0
 cmd_skipped=0
 
 # Frontmatter keys to strip from commands (Claude Code / Octopus-specific)
 CMD_STRIP_KEYS="command|aliases|redirect|version|category|tags|created|updated|agent|context|cost_optimization|execution_mode|invocation|pattern|pre_execution_contract|providers|task_dependencies|task_management|trigger|use_native_tasks|validation_gates"
+
+generate_cursor_command() {
+    local src="$1"
+    local out_filename="$2"
+    local filename
+    filename="$(basename "$src")"
+
+    # Extract frontmatter (only first block between --- delimiters)
+    local frontmatter
+    frontmatter="$(awk 'BEGIN{c=0} /^---$/{c++; if(c==2) exit; next} c==1{print}' "$src")"
+
+    # Extract description
+    local cmd_desc
+    cmd_desc="$(echo "$frontmatter" | grep "^description:" | head -1 | sed 's/^description: *//')"
+    cmd_desc="$(normalize_single_line "$cmd_desc")"
+    if [[ -z "$cmd_desc" ]]; then
+      echo "  SKIP (no description): $filename"
+      return 1
+    fi
+
+    # Extract optional Factory-compatible fields (|| true to avoid exit on no-match)
+    local arg_hint disable_model allowed_tools
+    arg_hint="$(echo "$frontmatter" | grep "^argument-hint:" | head -1 | sed 's/^argument-hint: *//' || true)"
+    arg_hint="$(normalize_single_line "$arg_hint")"
+    disable_model="$(echo "$frontmatter" | grep "^disable-model-invocation:" | head -1 | sed 's/^disable-model-invocation: *//' || true)"
+    allowed_tools="$(echo "$frontmatter" | grep "^allowed-tools:" | head -1 | sed 's/^allowed-tools: *//' || true)"
+
+    # Extract body (everything after the closing --- of frontmatter)
+    local cmd_body
+    cmd_body="$(awk 'BEGIN{c=0} /^---$/{c++; if(c==2){found=1; next}} found{print}' "$src")"
+
+    # Build Factory-compatible command file
+    {
+      echo "---"
+      printf 'description: %s\n' "$(yaml_quote "$cmd_desc")"
+      [[ -n "$arg_hint" ]] && printf 'argument-hint: %s\n' "$(yaml_quote "$arg_hint")"
+      [[ -n "$disable_model" ]] && echo "disable-model-invocation: $disable_model"
+      [[ -n "$allowed_tools" ]] && echo "allowed-tools: $allowed_tools"
+      echo "---"
+      echo "$cmd_body"
+    } > "$COMMANDS_DEST/$out_filename"
+
+    echo "  GEN: $out_filename"
+}
 
 if [[ -d "$COMMANDS_SRC" ]]; then
   for src in "$COMMANDS_SRC"/*.md; do
@@ -71,47 +131,36 @@ if [[ -d "$COMMANDS_SRC" ]]; then
       out_filename="octo-${filename}"
     fi
 
-    # Extract frontmatter (only first block between --- delimiters)
-    frontmatter="$(awk 'BEGIN{c=0} /^---$/{c++; if(c==2) exit; next} c==1{print}' "$src")"
-
-    # Extract description
-    cmd_desc="$(echo "$frontmatter" | grep "^description:" | head -1 | sed 's/^description: *//')"
-    cmd_desc="$(normalize_single_line "$cmd_desc")"
-    if [[ -z "$cmd_desc" ]]; then
-      echo "  SKIP (no description): $filename"
+    if generate_cursor_command "$src" "$out_filename"; then
+      cmd_count=$((cmd_count + 1))
+    else
       cmd_skipped=$((cmd_skipped + 1))
-      continue
     fi
-
-    # Extract optional Factory-compatible fields (|| true to avoid exit on no-match)
-    arg_hint="$(echo "$frontmatter" | grep "^argument-hint:" | head -1 | sed 's/^argument-hint: *//' || true)"
-    arg_hint="$(normalize_single_line "$arg_hint")"
-    disable_model="$(echo "$frontmatter" | grep "^disable-model-invocation:" | head -1 | sed 's/^disable-model-invocation: *//' || true)"
-    allowed_tools="$(echo "$frontmatter" | grep "^allowed-tools:" | head -1 | sed 's/^allowed-tools: *//' || true)"
-
-    # Extract body (everything after the closing --- of frontmatter)
-    cmd_body="$(awk 'BEGIN{c=0} /^---$/{c++; if(c==2){found=1; next}} found{print}' "$src")"
-
-    # Build Factory-compatible command file
-    {
-      echo "---"
-      printf 'description: %s\n' "$(yaml_quote "$cmd_desc")"
-      [[ -n "$arg_hint" ]] && printf 'argument-hint: %s\n' "$(yaml_quote "$arg_hint")"
-      [[ -n "$disable_model" ]] && echo "disable-model-invocation: $disable_model"
-      [[ -n "$allowed_tools" ]] && echo "allowed-tools: $allowed_tools"
-      echo "---"
-      echo "$cmd_body"
-    } > "$COMMANDS_OUT/$out_filename"
-
-    echo "  GEN: $out_filename"
-    cmd_count=$((cmd_count + 1))
   done
+fi
+
+# Doctor is a canonical skill rather than a Claude command, but Cursor users
+# still need the established /octo-doctor adapter. Generate it from the skill
+# source so a clean rebuild cannot silently delete the shipped command.
+DOCTOR_SKILL_SRC="$SKILLS_SRC/skill-doctor/SKILL.md"
+if [[ -f "$DOCTOR_SKILL_SRC" ]]; then
+  if generate_cursor_command "$DOCTOR_SKILL_SRC" "octo-doctor.md"; then
+    cmd_count=$((cmd_count + 1))
+  else
+    cmd_skipped=$((cmd_skipped + 1))
+  fi
 fi
 
 echo ""
 echo "Factory commands generated: $cmd_count"
 [[ $cmd_skipped -gt 0 ]] && echo "Skipped: $cmd_skipped"
 echo "Output: $COMMANDS_OUT/"
+
+if $CHECK_MODE && ! diff -qr "$COMMANDS_DEST" "$COMMANDS_OUT" >/dev/null 2>&1; then
+  echo "CHECK: .cursor-plugin/commands is out of date — run scripts/build-factory-skills.sh" >&2
+  diff -ru "$COMMANDS_OUT" "$COMMANDS_DEST" >&2 || true
+  exit 1
+fi
 
 # --- Agents/Droids generation (v8.41.0) ---
 # Factory discovers droids from agents/ directory. The personas are already there
@@ -121,10 +170,14 @@ echo "Output: $COMMANDS_OUT/"
 
 AGENTS_SRC="$PLUGIN_ROOT/.claude/agents"
 DROIDS_OUT="$PLUGIN_ROOT/agents/droids"
+DROIDS_DEST="$DROIDS_OUT"
+if $CHECK_MODE; then
+  DROIDS_DEST="$CHECK_ROOT/droids"
+fi
 
 if [[ -d "$AGENTS_SRC" ]]; then
-  rm -rf "$DROIDS_OUT"
-  mkdir -p "$DROIDS_OUT"
+  rm -rf "$DROIDS_DEST"
+  mkdir -p "$DROIDS_DEST"
 
   droid_count=0
 
@@ -157,7 +210,7 @@ if [[ -d "$AGENTS_SRC" ]]; then
       echo "model: ${model:-inherit}"
       echo "---"
       printf '%s\n' "$body"
-    } > "$DROIDS_OUT/$out_filename"
+    } > "$DROIDS_DEST/$out_filename"
 
     echo "  GEN droid: $out_name"
     droid_count=$((droid_count + 1))
@@ -166,4 +219,10 @@ if [[ -d "$AGENTS_SRC" ]]; then
   echo ""
   echo "Factory droids generated: $droid_count"
   echo "Output: $DROIDS_OUT/"
+
+  if $CHECK_MODE && ! diff -qr "$DROIDS_DEST" "$DROIDS_OUT" >/dev/null 2>&1; then
+    echo "CHECK: agents/droids is out of date — run scripts/build-factory-skills.sh" >&2
+    diff -ru "$DROIDS_OUT" "$DROIDS_DEST" >&2 || true
+    exit 1
+  fi
 fi

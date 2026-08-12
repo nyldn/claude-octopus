@@ -70,7 +70,7 @@ assert_resolver_preserves_stable_link() {
         test_fail "$label resolver replaced the stable symlink"
     elif [[ "$(readlink "$stable_link")" != "$plugin_root" ]]; then
         test_fail "$label resolver rewrote the stable link to $(readlink "$stable_link")"
-    elif [[ "$(cat "$call_log" 2>/dev/null || true)" != "doctor" ]]; then
+    elif [[ "$(cat "$call_log" 2>/dev/null || true)" != "doctor --verbose" ]]; then
         test_fail "$label resolver did not invoke doctor through the stable link"
     elif ! test -x "$stable_link/scripts/orchestrate.sh"; then
         test_fail "$label stable link no longer resolves to the plugin"

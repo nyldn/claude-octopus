@@ -658,9 +658,11 @@ AVAILABLE_AGENTS="codex codex-standard codex-max codex-mini codex-general codex-
 # ═══════════════════════════════════════════════════════════════════════════════
 # PERFORMANCE: Phase-optimized model tier selection (v8.7.0)
 # Selects budget/standard/premium model tier based on phase, role, and agent type
-# Config: OCTOPUS_COST_MODE=premium|standard|budget (default: standard)
+# Config: OCTOPUS_COST_MODE=premium|standard|budget (environment override).
+# When unset, model-resolver.sh reads the persisted providers.json cost_mode,
+# then defaults to standard.
 # ═══════════════════════════════════════════════════════════════════════════════
-OCTOPUS_COST_MODE="${OCTOPUS_COST_MODE:-standard}"
+OCTOPUS_COST_MODE="${OCTOPUS_COST_MODE:-}"
 
 # [EXTRACTED to lib/model-resolver.sh]
 

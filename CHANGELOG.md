@@ -2,6 +2,27 @@
 
 ## [Unreleased]
 
+### Added
+
+- `/octo:budget-mode`, `/octo:standard-mode`, and `/octo:premium-mode` persist
+  the active model-cost tier without requiring shell-profile edits. Provider
+  targets for each tier are configurable through `/octo:model-config`, while
+  an explicit `OCTOPUS_COST_MODE` environment variable retains precedence.
+  (#885)
+
+### Fixed
+
+- Persisted cost-mode changes participate in model-cache identity and the
+  configurable standard tier is resolved just like budget and premium, so a
+  long-lived process cannot reuse a model selected under the previous mode.
+  (#885)
+
+### Internal
+
+- Factory/Cursor command generation now retains the canonical Doctor adapter,
+  includes the complete command set, and supports a non-mutating `--check`
+  path used by `make sync-check`. (#886)
+
 ## [9.62.0] - 2026-08-12
 
 ### Added

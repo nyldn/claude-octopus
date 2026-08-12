@@ -71,7 +71,7 @@ if [[ ! -L "$_octo_stable" ]] || [[ "$(cd "$OCTO_PLUGIN_ROOT" 2>/dev/null && pwd
 fi
 unset _octo_stable
 export OCTO_PLUGIN_ROOT
-bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor
+bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor --verbose
 ```
 
 This runs all 14 check categories and displays a formatted report.

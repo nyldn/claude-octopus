@@ -1,23 +1,42 @@
 ---
-description: "Environment diagnostics with interactive fixes — providers, auth, RTK, hooks, token optimization"
-allowed-tools: Bash, Read, Glob, Grep, AskUserQuestion
+description: "\"Environment diagnostics — check providers, auth, config, hooks, scheduler, and more\""
 ---
 
-# Doctor - Environment Diagnostics
+# Environment Doctor
 
-**Your first output line MUST be:** `🐙 Octopus Doctor`
+## Overview
 
-Run environment diagnostics across 12 check categories. Identifies issues AND offers to fix them interactively.
+Run environment diagnostics across 14 check categories. Identifies misconfigured providers, stale plugin installations, stale state, broken hooks, and other issues that prevent Claude Octopus from working correctly.
 
-## Step 1: Resolve Plugin Root and Run Full Diagnostics
+**Core principle:** Detect problems before they surface in workflows.
 
-Use this resolver before running any Octopus script. It avoids relying on the
-`~/.claude-octopus/plugin` symlink, which may be unavailable on Windows Git
-Bash installs. Run this as a single Bash call.
+---
+
+## When to Use
+
+**Use this skill when:**
+- Something isn't working and you're not sure why
+- After installing or updating the plugin
+- Before a demo or important workflow run
+- Checking if providers are properly authenticated
+- Verifying scheduler, hooks, or skills are correctly configured
+
+**Do NOT use for:**
+- First-time setup (use `/octo:setup` — it guides configuration)
+- Project workflow status (use `/octo:status`)
+- Debugging application code (use `/octo:debug`)
+
+---
+
+## The Process
+
+### Step 1: Resolve Plugin Root and Run Full Diagnostics
+
+Use this resolver before running Octopus scripts. Do not assume
+`~/.claude-octopus/plugin` exists; Windows Git Bash installs may not support the
+stable symlink. Run this as a single Bash call.
 
 ```bash
-set -euo pipefail
-
 OCTO_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
 if [[ -z "$OCTO_PLUGIN_ROOT" || ! -x "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" ]]; then
   OCTO_PLUGIN_ROOT="${HOME}/.claude-octopus/plugin"
@@ -30,13 +49,13 @@ if [[ ! -x "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" ]]; then
   OCTO_PLUGIN_ROOT="$(
     find "${HOME}/.claude/plugins" -type f -path "*/scripts/orchestrate.sh" -print 2>/dev/null \
       | sed 's#/scripts/orchestrate.sh$##' \
-      | { grep -E '(nyldn-plugins|claude-octopus|/octo(/[0-9]|$))' || true; } \
+      | grep -E '(nyldn-plugins|claude-octopus|/octo(/[0-9]|$))' \
       | sort \
       | tail -1
   )"
 fi
 if [[ -z "$OCTO_PLUGIN_ROOT" || ! -x "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" ]]; then
-  echo "Claude Octopus plugin root not found. Reinstall the octo plugin, then retry /octo:doctor."
+  echo "Claude Octopus plugin root not found. Reinstall the octo plugin, then retry doctor diagnostics."
   exit 1
 fi
 mkdir -p "${HOME}/.claude-octopus"
@@ -50,81 +69,274 @@ export OCTO_PLUGIN_ROOT
 bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor --verbose
 ```
 
-## Step 2: Run Dependency Check
+This runs all 14 check categories and displays a formatted report.
+
+### Step 2: Filter by Category (Optional)
+
+If the user asks about a specific area, filter:
 
 ```bash
-bash "${OCTO_PLUGIN_ROOT}/scripts/install-deps.sh" check
+bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor providers
+bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor companions
+bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor auth
+bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor config
+bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor updates
+bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor state
+bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor smoke
+bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor hooks
+bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor scheduler
+bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor skills
+bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor conflicts
+bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor agents
+bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor recurrence
+bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor cache
 ```
 
-## Step 3: Interactive Remediation (MANDATORY)
+### Step 3: Check & Install Dependencies
 
-After diagnostics complete, analyze the output for fixable issues. For EACH fixable issue found, use AskUserQuestion to offer the fix — do NOT just print instructions.
+Run the dependency checker to find missing CLIs, statusline config, and recommended plugins:
 
-**Priority order for fixes:**
+```bash
+bash "${HOME}/.claude-octopus/plugin/scripts/install-deps.sh" check
+```
 
-1. **Missing providers** — offer to install available external provider CLIs such as Codex, Gemini, or Antigravity
-2. **Expired auth** — offer to run login commands
-3. **RTK not installed** — offer brew/cargo install (saves 60-90% tokens)
-4. **RTK hook not configured on macOS/Linux** — offer `rtk init -g`
-5. **Missing deps** — offer `install-deps.sh install`
-6. **Stale state** — offer cleanup
+If the check reports missing deps, offer to install them:
 
-On Windows Git Bash, do not offer `rtk init -g` for hook remediation. RTK uses
-CLAUDE.md injection mode there, so treat the hook check as skipped.
+```bash
+bash "${HOME}/.claude-octopus/plugin/scripts/install-deps.sh" install
+```
 
-**Example: Multiple fixable issues found:**
+This auto-installs Codex CLI, jq, and the statusline resolver. Antigravity CLI (`agy`) setup is detected and reported with install guidance. For plugins (claude-mem, document-skills), it prints `/plugin install` commands the user must run manually.
+
+### Step 4: Verbose or JSON Output
+
+```bash
+# Detailed output for troubleshooting
+bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor --verbose
+
+# Machine-readable output
+bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor --json
+
+# Combine: specific category + verbose
+bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" doctor auth --verbose
+```
+
+### Step 5: Interactive Remediation (MANDATORY for fixable issues)
+
+After running diagnostics, if ANY fixable issues are found, you MUST use AskUserQuestion to offer fixes. Do NOT just print instructions — offer to execute them.
+
+**RTK not installed:**
+```javascript
+AskUserQuestion({
+  questions: [{
+    question: "RTK saves 60-90% on bash output tokens. Install it now?",
+    header: "Install RTK",
+    multiSelect: false,
+    options: [
+      {label: "Install via brew (Recommended)", description: "brew install rtk — fast, macOS"},
+      {label: "Install via cargo", description: "cargo install rtk-token-killer"},
+      {label: "Skip", description: "Continue without RTK"}
+    ]
+  }]
+})
+```
+If user chooses install, run it, then offer hook setup.
+
+**RTK installed but hook not configured on macOS/Linux:**
+
+On Windows Git Bash, do not offer `rtk init -g`. RTK uses CLAUDE.md injection
+mode there, so report the hook check as skipped.
 
 ```javascript
 AskUserQuestion({
   questions: [{
-    question: "Doctor found fixable issues. What should we fix?",
-    header: "Fix Issues",
-    multiSelect: true,
+    question: "RTK is installed but the Claude Code hook isn't active. Configure it?",
+    header: "RTK Hook",
+    multiSelect: false,
     options: [
-      {label: "Install RTK", description: "brew install rtk — saves 60-90% tokens on bash output"},
-      {label: "Configure RTK hook", description: "rtk init -g — auto-compress bash output on macOS/Linux"},
-      {label: "Install missing deps", description: "Run install-deps.sh install"},
-      {label: "Skip all", description: "I'll fix these manually"}
+      {label: "Run rtk init -g (Recommended)", description: "Auto-installs Claude Code bash hook on macOS/Linux"},
+      {label: "Skip", description: "I'll configure it later"}
     ]
   }]
 })
 ```
 
-Execute each selected fix, verify it worked, report results.
-
-## Step 4: Filter by Category (Optional)
-
-If the user asks about a specific area:
-
-```bash
-cd "${OCTO_PLUGIN_ROOT}" && bash scripts/orchestrate.sh doctor providers
-cd "${OCTO_PLUGIN_ROOT}" && bash scripts/orchestrate.sh doctor auth
-cd "${OCTO_PLUGIN_ROOT}" && bash scripts/orchestrate.sh doctor config
-cd "${OCTO_PLUGIN_ROOT}" && bash scripts/orchestrate.sh doctor hooks
-cd "${OCTO_PLUGIN_ROOT}" && bash scripts/orchestrate.sh doctor scheduler
-cd "${OCTO_PLUGIN_ROOT}" && bash scripts/orchestrate.sh doctor skills
-cd "${OCTO_PLUGIN_ROOT}" && bash scripts/orchestrate.sh doctor agents
+**Missing optional providers:**
+```javascript
+AskUserQuestion({
+  questions: [{
+    question: "Some providers are missing. Install them?",
+    header: "Providers",
+    multiSelect: true,
+    options: [
+      {label: "Codex CLI", description: "npm install -g @openai/codex"},
+      {label: "Antigravity CLI", description: "Install agy, then verify with agy --version && agy models"},
+      {label: "Skip all", description: "Continue with available providers"}
+    ]
+  }]
+})
 ```
 
-## Step 5: Token Optimization Report
+**Auth expired:**
+Offer to run the login command for the expired provider.
 
-Always include at the end of doctor output:
+**Multiple fixable issues:** Batch them into a single AskUserQuestion with multiSelect where appropriate, rather than asking one at a time.
 
-```bash
-echo "=== Token Optimization ==="
-echo "RTK: $(command -v rtk >/dev/null 2>&1 && echo "installed $(rtk --version 2>&1 | head -1)" || echo "not installed")"
-case "$(uname -s 2>/dev/null)" in
-  MINGW*|MSYS*|CYGWIN*) rtk_hook_status="skipped (Windows Git Bash uses RTK CLAUDE.md injection mode)" ;;
-  *) rtk_hook_status="$(grep -q 'rtk' "${HOME}/.claude/settings.json" 2>/dev/null && echo "active" || echo "not configured")" ;;
-esac
-echo "RTK Hook: $rtk_hook_status"
-echo "Compressor: $(wc -l < "${HOME}/.claude-octopus/analytics/compression.jsonl" 2>/dev/null || echo 0) events"
-echo "octo-compress: $(command -v octo-compress >/dev/null 2>&1 && echo "available" || echo "not in PATH")"
-```
+---
 
-## Presenting Results
+## Check Categories
 
-- Show a summary table with pass/warn/fail counts per category
-- Highlight fixable issues with clear action items
-- Use AskUserQuestion for any issue that can be fixed with a command
-- End with token optimization status
+| Category | What it checks |
+|----------|---------------|
+| `providers` | Claude Code version, Codex CLI installed, Antigravity CLI installed, Perplexity API key, Ollama local LLM (server + models), circuit breaker status, provider fallback history |
+| `companions` | Optional companion tools and integrations |
+| `auth` | Authentication status for each provider |
+| `config` | Plugin version, install scope, feature flags |
+| `updates` | Loaded, installed, catalog, and cache versions; Claude marketplace auto-update; reload requirement |
+| `state` | Project state.json, stale results, workspace writable |
+| `smoke` | Smoke test cache, model configuration |
+| `hooks` | hooks.json validity, hook scripts |
+| `scheduler` | Scheduler daemon, jobs, budget gates, kill switches |
+| `skills` | Skill files loaded and valid |
+| `conflicts` | Conflicting plugins detection |
+| `agents` | Agent definitions, worktree isolation, CLI registration, version compatibility |
+| `recurrence` | Failure pattern detection — flags repeated quality gate failures, source hotspots, 48h trends |
+| `cache` | Cache size, freshness, and hygiene |
+
+Software dependency installation is checked separately by
+`scripts/install-deps.sh check` in Step 3, including Node.js, jq, provider CLIs,
+RTK token compression, the statusline resolver, and recommended plugins.
+
+---
+
+## Interpreting Results
+
+### Healthy Output
+
+All checks pass — no action needed.
+
+### Common Issues and Fixes
+
+| Issue | Fix |
+|-------|-----|
+| Codex CLI not found | `npm install -g @openai/codex` or install via `codex login` |
+| Antigravity CLI not found | Install `agy`, then verify with `agy --version` and `agy models` |
+| Perplexity not configured | `export PERPLEXITY_API_KEY="pplx-..."` (optional) |
+| Auth expired | Re-run `codex login` or `agy login` |
+| Circuit breaker OPEN | Provider had 3+ consecutive transient failures — wait for cooldown or check provider status |
+| Stale state | Delete `.octo/state.json` and re-initialize |
+| Invalid hooks.json | Check `hooks.json` syntax — must be valid JSON |
+| RTK not installed | Offer to install: `brew install rtk && rtk init -g` (saves 60-90% tokens). Use AskUserQuestion to offer brew vs cargo install. |
+| RTK installed but hook not configured | On macOS/Linux, offer `rtk init -g`; on Windows Git Bash, report skipped because RTK uses CLAUDE.md injection mode |
+| RTK gain stats unavailable | Run some bash commands first, then check `rtk gain` to see token savings |
+| Conflicting plugins | Uninstall conflicting plugins or adjust scope |
+
+---
+
+## Integration with Other Skills
+
+| Scenario | Route |
+|----------|-------|
+| Doctor finds missing provider | Suggest `/octo:setup` to configure |
+| Doctor finds stale project state | Suggest `/octo:status` to review |
+| Doctor finds hook errors | Guide user to fix hooks.json |
+| All checks pass, user still has issues | Suggest `/octo:debug` for deeper investigation |
+
+---
+
+## Hook Profile
+
+Claude Octopus hooks can run in different profiles to balance cost and coverage.
+
+Current profile: `$OCTO_HOOK_PROFILE` (default: standard)
+
+Available profiles:
+- **minimal** — Only session lifecycle and cost tracking hooks (lowest overhead)
+- **standard** — All hooks except expensive review/security gates (default)
+- **strict** — All hooks enabled including quality and security gates
+
+Override: Set `OCTO_PROFILE=budget|balanced|quality` or `OCTO_DISABLED_HOOKS=hook1,hook2` to fine-tune. Legacy `OCTO_HOOK_PROFILE` still works (minimal→budget, standard→balanced, strict→quality).
+
+---
+
+## Intensity Profile
+
+The doctor reports the active intensity profile — a single knob controlling hook gating, model selection, phase skipping, and context verbosity.
+
+### What the Doctor Checks
+
+- **Current profile**: `OCTO_PROFILE` value (budget/balanced/quality, default: balanced)
+- **Profile source**: env var, legacy `OCTO_HOOK_PROFILE`, or auto-selected from intent
+- **Hook gating**: which hooks are enabled/disabled at this profile level
+- **Model hints**: which model (sonnet/opus) is recommended for each phase
+- **Context verbosity**: compressed/standard/full
+
+### Profile Summary
+
+| Dimension | budget | balanced | quality |
+|-----------|--------|----------|---------|
+| Hooks | essential only | standard (no quality gates) | all hooks |
+| Models | Sonnet everywhere | Sonnet + Opus for synthesis | Opus for most phases |
+| Phases | Skip discover if context given | Skip re-discovery | All phases run |
+| Context | Compressed | Standard | Full inlining |
+
+---
+
+## Project Tier Hint
+
+Also report `OCTO_TIER` when set. This is a recommendation hint, not a hard policy.
+
+| Tier | Doctor guidance |
+|------|-----------------|
+| `prototype` | Prefer faster checks and warn before high-cost provider fanout |
+| `mvp` | Use balanced defaults and consensus on risky changes |
+| `production` | Recommend full verification, security review, and stricter release gates |
+
+If unset, show `OCTO_TIER=unset` and suggest setting it only when the project has a stable risk profile.
+
+---
+
+## Remote Session Checks
+
+If `CLAUDE_CODE_REMOTE=true` or `OCTOPUS_REMOTE_SESSION=true`, report:
+
+- remote session detected
+- autonomous mode default active when no explicit autonomy is set
+- provider probes skipped to conserve time/quota
+- full HUD disabled unless `OCTOPUS_REMOTE_STATUSLINE=full`
+- provider CLIs may need to be installed in the cloud setup script
+
+Suggest `/octo:setup` only for configuration guidance; do not recommend interactive provider logins inside the remote session.
+
+---
+
+## Runtime Context
+
+The doctor checks for project-level `RUNTIME.md` — a file that provides project-specific context (API endpoints, env vars, test commands, build steps) to orchestration prompts.
+
+### What the Doctor Checks
+
+- **RUNTIME.md exists** in the project root (also checks `.octopus/RUNTIME.md` and `.claude-octopus/RUNTIME.md`)
+- If missing, suggest creating one from the template: `cp "${HOME}/.claude-octopus/plugin/config/templates/RUNTIME.md" ./RUNTIME.md`
+- If present, confirm it contains at least one populated section (not just the template defaults)
+
+### Why It Matters
+
+Without a `RUNTIME.md`, orchestration prompts lack project-specific details — leading to generic advice about test commands, environment variables, and build steps. A populated `RUNTIME.md` makes every workflow more accurate.
+
+---
+
+## Quick Reference
+
+`/octo:doctor` was removed in v9.41.0 to preserve Claude Code's native `/doctor` command.
+Invoke this skill by asking Claude naturally, or run the orchestrator directly:
+
+| What to say / run | Action |
+|-------------------|--------|
+| "run Octopus doctor diagnostics" | Run all 14 categories |
+| "check Octopus providers" | Check provider installation only |
+| `bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor auth --verbose` | Detailed auth status |
+| `bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor --json` | Machine-readable output |
+
+Resolve and export `OCTO_PLUGIN_ROOT` with the Step 1 resolver before using either
+direct command.

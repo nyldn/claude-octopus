@@ -167,6 +167,29 @@ _octo_is_known_provider_name() {
             return 1 ;;
     esac
 }
+
+_octo_effective_cost_mode() {
+    local config_file="${1:-}"
+    local mode="${OCTOPUS_COST_MODE:-}"
+
+    if [[ -z "$mode" && -f "$config_file" ]] && command -v jq >/dev/null 2>&1; then
+        mode="$(jq -r '.cost_mode // "standard"' "$config_file" 2>/dev/null || true)"
+    fi
+    mode="${mode:-standard}"
+
+    case "$mode" in
+        budget|standard|premium)
+            printf '%s\n' "$mode"
+            ;;
+        *)
+            if declare -f log >/dev/null 2>&1; then
+                log WARN "Invalid cost mode '$mode'; using standard"
+            fi
+            printf '%s\n' "standard"
+            ;;
+    esac
+}
+
 # resolve_octopus_model <provider> <agent_type> <phase> <role>
 resolve_octopus_model() {
     local provider="$1"
@@ -175,6 +198,8 @@ resolve_octopus_model() {
     local role="${4:-}"
     local config_file="${HOME}/.claude-octopus/config/providers.json"
     local resolved_model=""
+    local cost_mode
+    cost_mode="$(_octo_effective_cost_mode "$config_file")"
 
     # Env overrides must bypass caches. A prior default resolution can be cached
     # for the same provider/agent/phase tuple, but explicit user overrides are
@@ -208,12 +233,13 @@ resolve_octopus_model() {
     local safe_a="${agent_type//[^a-zA-Z0-9]/_}"
     local safe_ph="${phase//[^a-zA-Z0-9]/_}"
     local safe_r="${role//[^a-zA-Z0-9]/_}"
+    local safe_cm="${cost_mode//[^a-zA-Z0-9]/_}"
     local safe_cfg="no_config"
     if [[ -f "$config_file" ]]; then
         safe_cfg="$(cksum < "$config_file" 2>/dev/null | awk '{print $1 "_" $2}')"
         safe_cfg="${safe_cfg//[^a-zA-Z0-9_]/_}"
     fi
-    cache_key="MC_${safe_p}_A_${safe_a}_P_${safe_ph}_R_${safe_r}_C_${safe_cfg}"
+    cache_key="MC_${safe_p}_A_${safe_a}_P_${safe_ph}_R_${safe_r}_M_${safe_cm}_C_${safe_cfg}"
     local cached_val
     eval "cached_val=\"\${_OCTO_MODEL_CACHE_${cache_key}:-}\""
     if [[ -n "$cached_val" ]]; then
@@ -426,15 +452,15 @@ resolve_octopus_model() {
 
         # 4. Tier Mapping
         if [[ -z "$resolved_model" || "$resolved_model" == "null" ]]; then
-            if [[ -n "${OCTOPUS_COST_MODE:-}" && "${OCTOPUS_COST_MODE:-}" != "standard" ]]; then
-                resolved_model=$(echo "$config_data" | jq -r --arg mode "$OCTOPUS_COST_MODE" --arg p "$canonical_provider" '.tiers[$mode][$p] // empty' 2>/dev/null)
+            if [[ -n "$cost_mode" ]]; then
+                resolved_model=$(echo "$config_data" | jq -r --arg mode "$cost_mode" --arg p "$canonical_provider" '.tiers[$mode][$p] // empty' 2>/dev/null)
                 if [[ -n "$resolved_model" && "$resolved_model" =~ ^[a-z_]+$ ]]; then
                     # Capability ref in tier map
                     local tier_mapped_model
                     tier_mapped_model=$(echo "$config_data" | jq -r --arg p "$canonical_provider" --arg model "$resolved_model" '.providers[$p][$model] // .providers[$p][($model + "_model")] // empty' 2>/dev/null)
                     [[ -n "$tier_mapped_model" && "$tier_mapped_model" != "null" ]] && resolved_model="$tier_mapped_model"
                 fi
-                [[ -n "$_trace" ]] && echo "[model-trace] Tier 5 (cost mode ${OCTOPUS_COST_MODE}): ${resolved_model:-—}" >&2
+                [[ -n "$_trace" ]] && echo "[model-trace] Tier 5 (cost mode ${cost_mode}): ${resolved_model:-—}" >&2
             fi
         fi
 

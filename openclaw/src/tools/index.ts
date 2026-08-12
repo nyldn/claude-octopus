@@ -76,6 +76,7 @@ export const SKILL_REGISTRY: SkillRegistryEntry[] = [
   { name: "sys-configure", description: "Configure Claude Octopus — redirects to /octo:setup interactive wizard", type: "skill", file: "sys-configure/SKILL.md" },
   { name: "auto", description: "Smart router - Single entry point with natural language intent detection", type: "command", file: "auto.md" },
   { name: "brainstorm", description: "Start a creative thought partner brainstorming session", type: "command", file: "brainstorm.md" },
+  { name: "budget-mode", description: "Switch Octopus model routing to the configured budget tier", type: "command", file: "budget-mode.md" },
   { name: "careful", description: "[advanced] Activate destructive command warnings for the session", type: "command", file: "careful.md" },
   { name: "claw", description: "[advanced] OpenClaw instance administration — manage hosts across macOS, Ubuntu/Debian, Docker, OCI, and Proxmox", type: "command", file: "claw.md" },
   { name: "costs", description: "[advanced] Show cost breakdown by provider and workflow for the current session", type: "command", file: "costs.md" },
@@ -109,6 +110,7 @@ export const SKILL_REGISTRY: SkillRegistryEntry[] = [
   { name: "prd-score", description: "Score an existing PRD against the 100-point AI-optimization framework", type: "command", file: "prd-score.md" },
   { name: "prd", description: "Write an AI-optimized PRD using multi-AI orchestration and 100-point scoring framework", type: "command", file: "prd.md" },
   { name: "preflight", description: "Check provider health before running multi-LLM workflows", type: "command", file: "preflight.md" },
+  { name: "premium-mode", description: "Switch Octopus model routing to the configured premium tier", type: "command", file: "premium-mode.md" },
   { name: "quick", description: "Quick execution mode for ad-hoc tasks without full workflow overhead", type: "command", file: "quick.md" },
   { name: "research", description: "Deep research with multi-source synthesis and comprehensive analysis", type: "command", file: "research.md" },
   { name: "resume", description: "[advanced] Resume a previous agent by ID — continue an interrupted task where it left off", type: "command", file: "resume.md" },
@@ -121,10 +123,11 @@ export const SKILL_REGISTRY: SkillRegistryEntry[] = [
   { name: "setup", description: "Interactive setup wizard — install providers, configure auth, RTK, token optimization", type: "command", file: "setup.md" },
   { name: "spec", description: "NLSpec authoring - Structured specification from multi-AI research", type: "command", file: "spec.md" },
   { name: "staged-review", description: "[advanced] Two-stage review: spec compliance then code quality", type: "command", file: "staged-review.md" },
+  { name: "standard-mode", description: "Switch Octopus model routing to the configured standard tier", type: "command", file: "standard-mode.md" },
   { name: "tdd", description: "Test-driven development with red-green-refactor discipline", type: "command", file: "tdd.md" },
   { name: "unfreeze", description: "[advanced] Remove freeze mode edit restriction", type: "command", file: "unfreeze.md" },
   { name: "usage", description: "[advanced] Per-provider, per-skill, and per-MCP-server cost and token breakdown (Claude Code /usage schema)", type: "command", file: "usage.md" },
   { name: "whats-new", description: "Review and enable Claude Octopus features added since you installed", type: "command", file: "whats-new.md" },
 ];
 
-export const REGISTRY_COUNT = 110;
+export const REGISTRY_COUNT = 113;

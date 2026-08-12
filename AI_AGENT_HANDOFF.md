@@ -1,12 +1,13 @@
 # AI Agent Handoff
 
 Last updated: 2026-08-12
-Status: v9.62.0 consolidates the completed timeout, progress-hook, and AGY
-reliability pass from issues #868 through #872, #880, and #882. Direct Qwen
-prompting with unusable credentials and retired Gemini execution remain blocked;
-Google-family workflow seats execute through AGY. The release retains the local
-stale-install advisory and Claude Code's explicit host-managed update path.
-Branch: `main`
+Status: Issues #885 and #886 are being resolved on an isolated feature branch.
+The implementation adds persistent budget, standard, and premium model-cost
+toggles and repairs Factory/Cursor generation so the Doctor adapter and full
+command set cannot silently disappear. Direct Qwen prompting with unusable
+credentials and retired Gemini execution remain blocked; Google-family workflow
+seats execute through AGY.
+Branch: `fix/issue-885-cost-mode-toggle`
 Release: [v9.62.0](https://github.com/nyldn/claude-octopus/releases/tag/v9.62.0)
 
 ## Start Here
@@ -61,10 +62,37 @@ to override defaults.
 
 ## Tracking Blocker
 
-Beads is readable but not writable. The remote-backed database is on schema
-v49 with four pending migrations to v53. Repository rules reserve migration for
-the designated migrator. No migration was run, so this work could not be
-claimed or recorded in `bd`; use this handoff for the blocked tracking record.
+Beads command help is readable, but issue queries are blocked. The remote-backed
+database is on schema v49 with 16 pending migrations to v65, and the current
+query fails because the `leases` table is missing. Repository rules reserve
+migration for the designated migrator. No migration was run, so this work could
+not be claimed or recorded in `bd`; use this handoff for the blocked tracking
+record.
+
+## Active Issues #885 and #886
+
+- **#885:** Cost-tier definitions already existed, but `/octo:model-config`
+  only printed a shell `export` instruction. A slash-command subprocess cannot
+  mutate its parent shell, the resolver ignored the configurable standard tier,
+  and its cache key omitted cost mode. The fix persists `cost_mode` beside the
+  existing tier maps, keeps `OCTOPUS_COST_MODE` as the highest-priority override,
+  applies all three tiers, and includes mode in cache identity.
+- **#886:** `scripts/build-factory-skills.sh` erased the hand-maintained Cursor
+  Doctor adapter and did not emit every canonical command. The generator now
+  builds Doctor from the canonical Doctor skill, generates the full command
+  surface, and has a non-mutating `--check` path wired into `make sync-check`.
+- Regression-first evidence: `tests/unit/test-cost-mode-toggle.sh` failed 7/9
+  before implementation and passes 10/10 after it. Regenerating Factory
+  artifacts reproduced the missing Doctor adapter; the Windows Doctor contract
+  then passes 5/5 after the generator fix. The environment-variable
+  accountability gate exposed one missing manifest mapping during the first full
+  run and passes 9/9 after mapping `OCTOPUS_COST_MODE` to the behavioral suite.
+- Verification state: the corrected tree passed `make sync-check` and a fresh
+  `OCTOPUS_DISABLE_BARE=1 make ci-local`: 16 smoke suites, 260 unit suites, and
+  7 integration suites. Focused results are cost mode 10/10, environment
+  accountability 9/9, OpenAI-compatible cache 19/19, stable-link Doctor 3/3,
+  and Windows Doctor 5/5.
+- Delivery state: changes are not yet committed or pushed.
 
 ## Release v9.62.0
 

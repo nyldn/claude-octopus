@@ -9,14 +9,14 @@ sync:
 	@./scripts/sync-readme.py
 	@./scripts/sync-marketplace.sh
 	@./scripts/build-openclaw.sh
-	@./scripts/build-codex-skills.sh
+	@./scripts/build-factory-skills.sh
 
 # Verify derived artifacts are current (what CI enforces)
 sync-check:
 	@./scripts/sync-readme.py --check
 	@./scripts/sync-marketplace.sh --check
 	@./scripts/build-openclaw.sh --check
-	@./scripts/build-codex-skills.sh --check
+	@./scripts/build-factory-skills.sh --check
 
 # CI parity: everything the required checks run, locally.
 # Local green here predicts remote green; targeted suites alone do not.
