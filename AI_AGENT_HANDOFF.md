@@ -1,14 +1,16 @@
 # AI Agent Handoff
 
 Last updated: 2026-08-12
-Status: Issues #885 through #892 are being resolved on an isolated feature branch.
+Status: Issues #885 through #893 are being resolved on an isolated feature branch.
 The implementation adds persistent budget, standard, and premium model-cost
 toggles and repairs Factory/Cursor generation so the Doctor adapter and full
 command set cannot silently disappear. First-party automation now uses its
 configured Claude OAuth credential, and provider output capture cannot be held
 open by a descendant that inherited stdout. Direct Qwen prompting with unusable
 credentials and retired Gemini execution remain blocked; Google-family workflow
-seats execute through AGY.
+seats execute through AGY. If the Claude subscription reaches its independent
+weekly quota, first-party PR review retries through GitHub Models with the
+short-lived Actions token and no model tools, while remaining fail-closed.
 Branch: `fix/issue-885-cost-mode-toggle`
 Release: [v9.62.0](https://github.com/nyldn/claude-octopus/releases/tag/v9.62.0)
 
@@ -71,7 +73,7 @@ migration for the designated migrator. No migration was run, so this work could
 not be claimed or recorded in `bd`; use this handoff for the blocked tracking
 record.
 
-## Active Issues #885 through #892
+## Active Issues #885 through #893
 
 - **#885:** Cost-tier definitions already existed, but `/octo:model-config`
   only printed a shell `export` instruction. A slash-command subprocess cannot
@@ -107,18 +109,32 @@ record.
   until the global watchdog. Provider prompts and output now use private,
   file-backed descriptors, the quota watcher observes the raw file, and the
   prompt file is removed after dispatch.
+- **#893:** The corrected remote PR review proved installation and OAuth were
+  healthy but all four Claude review phases failed with `You've hit your weekly
+  limit · resets Aug 15, 7am (UTC)` in Actions run `31613318006`. The workflow
+  keeps Claude as primary and, after a primary failure, retries the complete
+  review through GitHub Models using `models: read` and the job-scoped token.
+  The compatible review path disables model tools so a prompt-injected diff
+  cannot access CI files or environment credentials. If both paths fail, the
+  check stays red and the combined output plus hidden proof artifacts remain
+  available. Provider reports now surface the first actionable CLI error rather
+  than replacing quota and auth failures with a generic message.
 - Regression-first evidence: cost-mode coverage failed 7/9 before the initial
   implementation and now passes 12/12. Factory regeneration reproduced the
   missing Doctor adapter. The provider-report suite failed 0/2 before #891;
   workflow auth coverage failed 6/9 before #891; diagnostic retention failed
   9/10 before the remote failure exposed the evidence gap; output-capture
   coverage failed 1/2 before #892 and was extended after review to verify the
-  prompt file is mode 600. All focused suites are now green: Factory 4/4,
-  PR workflow 10/10,
-  provider report 2/2, output capture 3/3, descriptor performance 35/35,
+  prompt file is mode 600. The quota fallback began with PR workflow coverage
+  at 9/13, compatible-agent coverage at 19/21, and a missing provider-report
+  helper; the debate phase also failed a deliberate single-provider escape
+  regression before it was routed through the override. All focused suites are
+  now green: Factory 4/4, PR workflow 13/13, provider report 5/5,
+  compatible-agent 21/21, agent command validation 42/42, output capture 3/3,
+  descriptor performance 35/35,
   stable-link Doctor 5/5, Windows Doctor 5/5, retired Gemini 11/11,
-  environment accountability 9/9, OpenAI-compatible cache 19/19, probe single
-  32/32, spawn PID 9/9, cancellation 21/21, AGY parallel 8/8, review
+  environment accountability 9/9, probe single 32/32, spawn PID 9/9,
+  cancellation 21/21, AGY parallel 8/8, review
   aggregation 19/19, and handoff 13/13.
 - Verification state: the expanded review patch passes `make sync-check` and
   a fresh `OCTOPUS_NON_INTERACTIVE=1 OCTOPUS_DISABLE_BARE=1 make ci-local`:
@@ -126,13 +142,16 @@ record.
   first sweep exposed three stale white-box tests that required
   `run_with_timeout` to appear directly in `spawn.sh`; each failed before its
   contract was updated to verify the shared capture helper and passed in the
-  final complete run. The last pushed head `0990f7d9` also passed its normal
-  GitHub Test Suite.
+  final complete run. The pre-fallback pushed head `09fed83b` passed its normal
+  GitHub Test Suite; its PR review failure supplied the exact quota evidence
+  that #893 now covers.
 - Delivery state: implementation commit `f7dd6c52` contains the review,
   authentication, portable-command, provider-reset, and descriptor-safe capture
-  fixes and is pushed with this handoff on `fix/issue-885-cost-mode-toggle`.
+  fixes. Commit `fc3829ef` adds the no-tools GitHub Models fallback and
+  actionable failure diagnostics. Both are delivered with this handoff on
+  `fix/issue-885-cost-mode-toggle`.
   [PR #887](https://github.com/nyldn/claude-octopus/pull/887) will close all
-  seven issues after the corrected head passes review and CI.
+  eight issues after the corrected head passes review and CI.
 
 ## Release v9.62.0
 
