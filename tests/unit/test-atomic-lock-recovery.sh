@@ -144,31 +144,30 @@ EOF
 test_signal_during_lock_initialization() {
     test_case "TERM during post-mkdir initialization does not leak an empty lock"
     local f="$FIXTURE/h.json"; echo '{"n":1}' > "$f"
-    local fake_bin="$FIXTURE/init-signal-bin"
     local pid_marker="$FIXTURE/init-owner.pid" release_marker="$FIXTURE/init-release"
-    mkdir -p "$fake_bin"
-    cat > "$fake_bin/sh" <<'EOF'
-#!/usr/bin/env bash
-if [[ -n "${OCTO_TEST_PID_MARKER:-}" ]]; then
-    printf '%s\n' "$PPID" > "$OCTO_TEST_PID_MARKER"
-    i=0
-    while [[ ! -f "${OCTO_TEST_RELEASE_MARKER:-}" && "$i" -lt 100 ]]; do
-        sleep 0.1
-        i=$((i + 1))
-    done
-fi
-exec /bin/sh "$@"
-EOF
-    chmod +x "$fake_bin/sh"
 
     local rc=0
     (
-        PATH="$fake_bin:$PATH"
-        hash -r
-        export OCTO_TEST_PID_MARKER="$pid_marker"
-        export OCTO_TEST_RELEASE_MARKER="$release_marker"
+        # Pause the successful lock mkdir after the directory exists but before
+        # atomic_json_update can initialize pid/ts/token. Intercepting the
+        # Bash-3-only owner-PID fallback misses this window on Bash 4+, where
+        # BASHPID is available (and made this regression test fail on Ubuntu).
+        mkdir() {
+            command mkdir "$@"
+            local mkdir_rc=$?
+            if [[ "$mkdir_rc" -eq 0 && "$1" == "$f.lock" ]]; then
+                /bin/sh -c 'printf "%s\n" "$PPID"' > "$pid_marker"
+                local i=0
+                while [[ ! -f "$release_marker" && "$i" -lt 100 ]]; do
+                    sleep 0.1
+                    i=$((i + 1))
+                done
+            fi
+            return "$mkdir_rc"
+        }
         atomic_json_update "$f" '.n=2' 2>/dev/null
-    ) & local worker=$!
+    ) &
+    local worker=$!
     local i=0
     while [[ ! -s "$pid_marker" && "$i" -lt 100 ]]; do sleep 0.1; i=$((i + 1)); done
     local target=""; target=$(cat "$pid_marker" 2>/dev/null || true)
