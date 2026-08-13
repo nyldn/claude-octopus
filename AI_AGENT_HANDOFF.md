@@ -14,16 +14,18 @@ findings were reproduced against the supported entrypoints and rejected as false
 CodeRabbit then exposed valid live-doctor consistency and timeout gaps; their TDD
 fixes pass the expanded 50-case AGY suite. The final changed-scope gate selected
 and passed the full matrix, and the real authenticated AGY probe passed again on
-that exact implementation. Push and matching remote checks remain. Release is
-deferred.
+that exact implementation. Commit `7f3b1567` is pushed to both remotes;
+CodeRabbit passed that head, while the separate provider-review job is quota
+blocked and reported no code finding. Matching remote checks and merge remain.
+Release is deferred.
 Branch: `fix/904-agy-model`
 Current release: [v9.64.0](https://github.com/nyldn/claude-octopus/releases/tag/v9.64.0)
 Tracking: [issue #904](https://github.com/nyldn/claude-octopus/issues/904),
 [issue #915](https://github.com/nyldn/claude-octopus/issues/915)
 PR: [#912](https://github.com/nyldn/claude-octopus/pull/912)
-Next action: commit and push the review-response fixes, resolve the verified
-CodeRabbit threads, rerun the AGY review against the new remote head, and merge
-only if matching remote checks and review permit it. Release is deferred.
+Next action: push the final handoff-only review cleanup, verify its matching
+remote checks, dismiss only obsolete resolved review requests, and merge PR #912.
+Release is deferred.
 
 ## Issue #910: Fail-Closed Changed-Scope Local Gate
 
@@ -118,6 +120,7 @@ only if matching remote checks and review permit it. Release is deferred.
   matching-head checks and review before merge. The separate `pr-review` job is
   red because Claude hit its weekly limit and the Copilot fallback hit its
   monthly quota; it reported no code finding.
+
 ## Issue #904: AGY Catalog IDs and Preflight
 
 - Root cause: current `agy models` emits `model-id<TAB>display label`, but
@@ -178,7 +181,7 @@ only if matching remote checks and review permit it. Release is deferred.
   use Keychain Access, find the Antigravity CLI item, and allow `agy` under
   Access Control. Every stale user-facing instruction was corrected and a
   repository-wide regression prevents that nonexistent command from returning.
-- Live evidence: the installed `/Users/chris/.local/bin/agy` v1.1.12 passed all
+- Live evidence: AGY CLI v1.1.12 passed all
   four doctor stages with `gemini-3.1-pro-high`. The repaired adapter then ran a
   full three-round AGY-only review of PR #913; its three findings were checked
   against the code and rejected as false positives rather than applied blindly.
