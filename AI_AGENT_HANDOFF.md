@@ -7,16 +7,15 @@ INT/TERM and unexpected orchestrator exits cancel active work, completion
 watchers recover from idle wrappers, and redirected progress changes only when
 the count changes. The implementation commits through `696aafd2` are pushed to
 both remotes and [PR #909](https://github.com/nyldn/claude-octopus/pull/909) is
-open. The review response is complete and passes the final full local gate; its
-commit and push are the remaining branch actions. Release remains explicitly
-deferred.
+open. Review-response commit `1342083a` is pushed to both remotes and passes the
+final full local gate. Release remains explicitly deferred.
 Branch: `fix/900-tangle-lifecycle`
 Current release: [v9.64.0](https://github.com/nyldn/claude-octopus/releases/tag/v9.64.0)
 Tracking: [issue #900](https://github.com/nyldn/claude-octopus/issues/900),
 [issue #902](https://github.com/nyldn/claude-octopus/issues/902)
 PR: [#909](https://github.com/nyldn/claude-octopus/pull/909)
-Next action: commit and push the PR #909 review response, answer its review
-threads, and verify the rerun checks. Merge and release remain deferred.
+Next action: answer the PR #909 review threads and verify the rerun checks.
+Merge and release remain deferred.
 
 ## Issues #900 and #902: Tangle Lifecycle Ownership
 
