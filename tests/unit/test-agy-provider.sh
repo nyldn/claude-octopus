@@ -114,10 +114,10 @@ test_agy_review_sized_prompt_dispatches_promptly() {
     mkdir -p "$tmp_bin"
     rm -f "$capture" "$stdout_file"
 
-    # Double a mixed content/whitespace fragment to a realistic 64 KiB review
+    # Double a mixed content/whitespace fragment to a realistic 128 KiB review
     # prompt. The old Bash 3.2 `${value//[[:space:]]/}` emptiness check becomes
     # pathologically slow on this input before the real CLI is ever launched.
-    for ((i = 0; i < 15; i++)); do
+    for ((i = 0; i < 16; i++)); do
         prompt="${prompt}${prompt}"
     done
     printf '%s' "$prompt" > "$prompt_file"
@@ -126,7 +126,13 @@ test_agy_review_sized_prompt_dispatches_promptly() {
 #!/usr/bin/env bash
 while (( $# > 0 )); do
     if [[ "$1" == "--print" && $# -ge 2 ]]; then
-        printf '%s' "$2" > "${AGY_ARG_CAPTURE:?}"
+        prompt_arg="$2"
+        prompt_path="$(printf '%s\n' "$prompt_arg" | sed -n "s/.*Read the file '\([^']*\)'.*/\1/p")"
+        if [[ -n "$prompt_path" && -r "$prompt_path" ]]; then
+            cat "$prompt_path" > "${AGY_ARG_CAPTURE:?}"
+        else
+            printf '%s' "$prompt_arg" > "${AGY_ARG_CAPTURE:?}"
+        fi
         printf '%s\n' 'mock-response'
         exit 0
     fi
@@ -159,7 +165,7 @@ MOCK_AGY
         sleep 0.1
         kill -KILL "$adapter_pid" 2>/dev/null || true
         wait "$adapter_pid" 2>/dev/null || true
-        test_fail "agy was not launched within 2 seconds for a 64 KiB prompt"
+        test_fail "agy was not launched within 2 seconds for a 128 KiB prompt"
         return
     fi
 
@@ -170,6 +176,60 @@ MOCK_AGY
         test_pass
     else
         test_fail "large prompt dispatch failed or did not preserve the prompt (rc=$adapter_rc)"
+    fi
+}
+
+test_agy_review_sized_silent_output_retries_promptly() {
+    test_case "agy-exec retries a review-sized whitespace-only response without preprocessing stall"
+
+    local tmp_bin="$TEST_TMP_DIR/agy-large-empty-bin"
+    local calls="$TEST_TMP_DIR/agy-large-empty.calls"
+    local stdout_file="$TEST_TMP_DIR/agy-large-empty.stdout"
+    local adapter_pid i retried=false
+    mkdir -p "$tmp_bin"
+    rm -f "$calls" "$stdout_file"
+    cat > "$tmp_bin/agy" <<'MOCK_AGY'
+#!/usr/bin/env bash
+count=0
+[[ -f "${AGY_CALL_CAPTURE:?}" ]] && count="$(cat "$AGY_CALL_CAPTURE")"
+count=$((count + 1))
+printf '%s\n' "$count" > "$AGY_CALL_CAPTURE"
+if [[ "$count" -eq 1 ]]; then
+    head -c 131072 /dev/zero | tr '\0' ' '
+else
+    printf '%s\n' 'mock-response-after-retry'
+fi
+MOCK_AGY
+    chmod +x "$tmp_bin/agy"
+
+    printf 'review prompt' \
+        | AGY_CALL_CAPTURE="$calls" OCTOPUS_AGY_FORCE_INLINE=0 PATH="$tmp_bin:$PATH" \
+          bash "$PROJECT_ROOT/scripts/helpers/agy-exec.sh" > "$stdout_file" 2>/dev/null &
+    adapter_pid=$!
+
+    for ((i = 0; i < 20; i++)); do
+        if [[ -f "$calls" ]] && [[ "$(cat "$calls")" == "2" ]]; then
+            retried=true
+            break
+        fi
+        sleep 0.1
+    done
+
+    if [[ "$retried" != "true" ]]; then
+        kill -TERM "$adapter_pid" 2>/dev/null || true
+        sleep 0.1
+        kill -KILL "$adapter_pid" 2>/dev/null || true
+        wait "$adapter_pid" 2>/dev/null || true
+        test_fail "agy whitespace-only output retry did not start within 2 seconds"
+        return
+    fi
+
+    local adapter_rc=0
+    wait "$adapter_pid" || adapter_rc=$?
+    if [[ "$adapter_rc" -eq 0 ]] && grep -Fxq 'mock-response-after-retry' "$stdout_file"; then
+        test_pass
+    else
+        test_fail "agy whitespace-only output retry failed (rc=$adapter_rc)"
     fi
 }
 
@@ -506,6 +566,11 @@ MOCK_AGY
         test_fail "real agy model IDs from tab-separated agy models output should be accepted"
         return
     fi
+    if validate_agy_model_name 'gemini-3.5-flash' >/dev/null 2>&1; then
+        restore_agy_dynamic_model_env
+        test_fail "partial agy model IDs must be rejected"
+        return
+    fi
     if validate_model_name 'Gemini 3.5 Flash (Low)'; then
         restore_agy_dynamic_model_env
         test_fail "generic model validator should remain strict for shell-token providers"
@@ -839,11 +904,23 @@ MOCK_AGY
     chmod +x "$tmp_bin/agy"
 
     output="$(
-        HOME="$tmp_home" \
-        OCTO_ROOT="$PROJECT_ROOT" \
-        AGY_DISPATCH_MARKER="$marker" \
-        PATH="$tmp_bin:$PATH" \
-            bash "$PROJECT_ROOT/scripts/doctor.sh" providers --live --json
+        export HOME="$tmp_home"
+        export OCTO_ROOT="$PROJECT_ROOT"
+        export AGY_DISPATCH_MARKER="$marker"
+        export PATH="$tmp_bin:$PATH"
+        export OPENAI_API_KEY=''
+        export CURSOR_API_KEY=''
+        source "$PROJECT_ROOT/scripts/lib/doctor.sh"
+        DOCTOR_LIVE_PROBE=true
+        DOCTOR_AGY_LIVE_AUTH_STATUS=not-run
+        DOCTOR_RESULTS_NAME=()
+        DOCTOR_RESULTS_CAT=()
+        DOCTOR_RESULTS_STATUS=()
+        DOCTOR_RESULTS_MSG=()
+        DOCTOR_RESULTS_DETAIL=()
+        doctor_check_providers
+        doctor_check_auth
+        doctor_output_json
     )"
     detail="$(jq -r '.[] | select(.name == "agy-live-catalog") | .detail' <<< "$output")"
 
@@ -852,10 +929,65 @@ MOCK_AGY
        [[ "$detail" == *"plain 'agy'"* ]] && \
        [[ "$detail" == *"Keychain Access"* ]] && \
        [[ "$detail" != *"agy login"* ]] && \
+       ! jq -e '.[] | select(.name == "agy-auth" and .status == "pass")' \
+           <<< "$output" >/dev/null && \
+       jq -e '.[] | select(.name == "any-provider-auth" and .status == "fail")' \
+           <<< "$output" >/dev/null && \
        [[ ! -e "$marker" ]]; then
         test_pass
     else
         test_fail "AGY auth remediation was inaccurate or dispatch ran after catalog failure: $output"
+    fi
+}
+
+test_agy_doctor_version_probe_is_bounded() {
+    test_case "AGY live doctor bounds a stalled version lookup"
+
+    local tmp_bin="$TEST_TMP_DIR/agy-doctor-version-bin"
+    local tmp_home="$TEST_TMP_DIR/agy-doctor-version-home"
+    local output started elapsed
+    mkdir -p "$tmp_bin" "$tmp_home"
+    cat > "$tmp_bin/agy" <<'MOCK_AGY'
+#!/usr/bin/env bash
+case "${1:-}" in
+    --version)
+        sleep 5
+        exit 0
+        ;;
+    models)
+        printf '%s\t%s\n' 'gemini-test' 'Gemini Test'
+        exit 0
+        ;;
+esac
+while (( $# > 0 )); do
+    if [[ "$1" == "--print" && $# -ge 2 ]]; then
+        printf '%s\n' 'OCTOPUS_AGY_HEALTH_OK'
+        printf '%s\n' 'LOCAL_PROVIDER_DISPATCH_WORKS'
+        exit 0
+    fi
+    shift
+done
+exit 2
+MOCK_AGY
+    chmod +x "$tmp_bin/agy"
+
+    started=$(date +%s)
+    output="$(
+        HOME="$tmp_home" \
+        OCTO_ROOT="$PROJECT_ROOT" \
+        OCTOPUS_AGY_MODEL='gemini-test' \
+        OCTOPUS_AGY_HEALTH_TIMEOUT=1 \
+        PATH="$tmp_bin:$PATH" \
+            bash "$PROJECT_ROOT/scripts/doctor.sh" providers --live --json
+    )"
+    elapsed=$(( $(date +%s) - started ))
+
+    if [[ "$elapsed" -le 4 ]] && \
+       jq -e '.[] | select(.name == "agy-live-dispatch" and .status == "pass")' \
+           <<< "$output" >/dev/null; then
+        test_pass
+    else
+        test_fail "stalled agy --version was not bounded (elapsed=${elapsed}s): $output"
     fi
 }
 
@@ -1314,6 +1446,7 @@ test_agy_dispatch_native_flags
 test_agy_print_timeout_gets_a_unit
 test_agy_print_receives_prompt_argument
 test_agy_review_sized_prompt_dispatches_promptly
+test_agy_review_sized_silent_output_retries_promptly
 test_agy_force_inline_directive_prepended_by_default
 test_agy_file_prompt_directive_permits_reading_prompt_file
 test_agy_oversize_payload_skips_gracefully
@@ -1335,6 +1468,7 @@ test_agy_check_providers
 test_agy_doctor_provider_check
 test_agy_doctor_live_probe
 test_agy_doctor_auth_remediation
+test_agy_doctor_version_probe_is_bounded
 test_agy_auth_guidance_uses_real_cli_flow
 test_agy_setup_visibility
 test_agy_status_visibility

@@ -7,18 +7,23 @@ preflight excludes invalid configured models, review-sized prompts no longer
 stall in Bash before the CLI launches, and an opt-in live doctor verifies the
 installed CLI, catalog/keyring auth, configured model, and real print dispatch.
 [PR #912](https://github.com/nyldn/claude-octopus/pull/912) carries both fixes.
-It is rebased onto merged PR #913, the matching changed-scope gate selected and
-passed the full matrix, and the real authenticated AGY health probe passed all
-four stages. The rebased head still needs its lease-protected push, provider
-review, and matching remote checks. Release is deferred.
+It is rebased onto merged PR #913, the first matching changed-scope gate selected
+and passed the full matrix, and the real authenticated AGY health probe passed
+all four stages. A matching-head three-round AGY review completed; its two
+findings were reproduced against the supported entrypoints and rejected as false.
+CodeRabbit then exposed valid live-doctor consistency and timeout gaps; their TDD
+fixes pass the expanded 50-case AGY suite. The final changed-scope gate selected
+and passed the full matrix, and the real authenticated AGY probe passed again on
+that exact implementation. Push and matching remote checks remain. Release is
+deferred.
 Branch: `fix/904-agy-model`
 Current release: [v9.64.0](https://github.com/nyldn/claude-octopus/releases/tag/v9.64.0)
 Tracking: [issue #904](https://github.com/nyldn/claude-octopus/issues/904),
 [issue #915](https://github.com/nyldn/claude-octopus/issues/915)
 PR: [#912](https://github.com/nyldn/claude-octopus/pull/912)
-Next action: force-push the verified rebased head with an explicit lease, run the
-AGY review against that exact PR head, verify every finding, then merge only if
-matching remote checks and review permit it. Release is deferred.
+Next action: commit and push the review-response fixes, resolve the verified
+CodeRabbit threads, rerun the AGY review against the new remote head, and merge
+only if matching remote checks and review permit it. Release is deferred.
 
 ## Issue #910: Fail-Closed Changed-Scope Local Gate
 
@@ -132,7 +137,7 @@ matching remote checks and review permit it. Release is deferred.
   the supported Antigravity CLI seat even when that service exposes Gemini
   models.
 - Evidence: the real installed catalog reproduces the tab-separated shape; both
-  the live ID and label now validate. The AGY provider suite passes 48/48,
+  the live ID and label now validate. The AGY provider suite passes 50/50,
   including a red-to-green one-second stalled catalog test and behavioral
   `cmd_detect_providers` output/cache checks for valid and invalid models. The
   AGY research defaults, resolver, council selection, and provider-detection
@@ -162,6 +167,12 @@ matching remote checks and review permit it. Release is deferred.
   catalog/keyring access, exact configured model resolution, and a real
   print-mode response. Normal startup/preflight remains non-billable and never
   launches this probe.
+- Review-response hardening: `agy --version` now uses the same portable bounded
+  process-group probe before live checks, a failed live catalog/keyring check can
+  no longer coexist with a passing AGY auth result, and environment assignments
+  are quoted as complete `env` arguments. The new tests failed 2/50 before these
+  changes and pass 50/50 after them; the stalled five-second version fixture is
+  terminated and the complete doctor case finishes in two seconds.
 - Authentication contract: AGY v1.1.12 has no separate login shell subcommand.
   Launch plain `agy` and complete its browser sign-in. On macOS keyring errors,
   use Keychain Access, find the Antigravity CLI item, and allow `agy` under
@@ -171,12 +182,25 @@ matching remote checks and review permit it. Release is deferred.
   four doctor stages with `gemini-3.1-pro-high`. The repaired adapter then ran a
   full three-round AGY-only review of PR #913; its three findings were checked
   against the code and rejected as false positives rather than applied blindly.
-- Verification: AGY provider coverage passes 48/48. `make sync-check` passes.
+- Verification: AGY provider coverage passes 50/50. `make sync-check` passes.
   On the post-#913 rebased head, `make ci-changed` selected the full matrix and
   passed 16/16 smoke suites, 268/268 unit suites, 7/7 integration suites, and
   the CI-only verifications. The real `doctor providers --live --json` probe
   then passed CLI install/version, catalog/keyring auth, exact model resolution,
   and substantive print dispatch for `gemini-3.1-pro-high`.
+- Final review-response verification: `make ci-changed` again selected the full
+  matrix and exited 0 after all smoke, unit, integration, and CI-only checks; the
+  expanded AGY suite passed 50/50 within it. A matching real live probe then
+  passed CLI v1.1.12, catalog/keyring authentication, exact resolution of
+  `gemini-3.1-pro-high`, and substantive dispatch on the final implementation.
+- Matching-head review: the three-round AGY-only review completed for
+  `e68a848c` and returned two findings. Direct sourcing proved doctor timeout
+  helpers are loaded, and production `detect-providers` returned `model-invalid`
+  for a fake pin and `ok` for the real configured pin, so neither finding was
+  applied. CodeRabbit's later feedback was independently checked: the two live
+  doctor defects and coverage gaps above were fixed, while its raw-`echo` style
+  claim was rejected because the cited lines are inside established formatted
+  UI blocks that intentionally use the same output convention throughout.
 - Tracking blocker: Beads remains unreadable on schema v49 because its reserved
   v65 migration has not been applied. No migration was run; GitHub issue #915
   is the temporary tracker.
