@@ -4,15 +4,16 @@ Last updated: 2026-08-13
 Status: Issue #908 is implemented and proposed in PR #911 on
 `fix/908-review-aggregation`. Review
 findings now cross a single-document normalization boundary before persistence,
-counting, event emission, rendering, or publishing; duplicate findings collapse
-without changing synthesis rank. PR, merge, and release are the remaining
-steps, and release remains explicitly deferred.
+counting, event emission, rendering, or publishing; non-object entries are
+rejected and duplicate findings collapse without changing synthesis rank or
+equal-severity input order. Review-response commit `878d41d8` and its final full
+gate are complete; push and review-thread responses remain. Release is deferred.
 Branch: `fix/908-review-aggregation`
 Current release: [v9.64.0](https://github.com/nyldn/claude-octopus/releases/tag/v9.64.0)
 Tracking: [issue #908](https://github.com/nyldn/claude-octopus/issues/908)
 PR: [#911](https://github.com/nyldn/claude-octopus/pull/911)
-Next action: review PR #911 checks and feedback, then merge when approved.
-Release remains deferred.
+Next action: push the latest PR #911 review response and answer its three
+threads, then verify rerun checks. Merge and release remain deferred.
 
 ## Issue #908: Canonical Review Findings
 
@@ -33,12 +34,12 @@ Release remains deferred.
   or duplicate output. The missing-repository inline-comment fallback renders
   once.
 - TDD evidence: aggregation coverage failed on the missing normalizer, scalar
-  count, multi-document renderer, and initially on rank preservation. It now
-  passes 25/25; the broader review-focused bundle passes all 166 existing
-  assertions plus the new cases.
-- Full-gate evidence: the fresh final `make ci-local` after the stable-order and
-  single-render refinements passed 16/16 smoke, 267/267 unit, and 7/7
-  integration suites, plus all CI-only verifications.
+  count, multi-document renderer, rank preservation, non-object entry, and
+  equal-severity order cases. It now passes 27/27; review-run passes 31/31 and
+  PR-review workflow passes 16/16.
+- Full-gate evidence: the final `make ci-local` after the non-object and stable
+  order review changes passed 16/16 smoke, 267/267 unit, and 7/7 integration
+  suites, plus all CI-only verifications.
 - Throughput follow-up: [issue #910](https://github.com/nyldn/claude-octopus/issues/910)
   proposes a fail-closed changed-files local gate while retaining the full CI
   and release matrix.

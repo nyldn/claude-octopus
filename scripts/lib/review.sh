@@ -667,6 +667,7 @@ review_normalize_findings_json() {
         if length == 1
            and (.[0] | type == "object")
            and (.[0].findings | type == "array")
+           and all(.[0].findings[]; type == "object")
         then .[0]
              | .findings |= (
                  reduce .[] as $finding
@@ -697,6 +698,7 @@ review_findings_count() {
         if length == 1
            and (.[0] | type == "object")
            and (.[0].findings | type == "array")
+           and all(.[0].findings[]; type == "object")
         then (.[0].findings | length)
         else error("invalid findings document")
         end
@@ -706,7 +708,7 @@ review_findings_count() {
 review_local_synthesis_json() {
     local findings_json="$1"
     local warning="${2:-}"
-    local sort_filter='def severity_rank: if .severity == "normal" then 0 elif .severity == "nit" then 1 elif .severity == "pre-existing" then 2 else 3 end; unique_by([(.file // ""), ((.line // 0) | tostring), (.category // ""), (.title // .message // "")]) | sort_by(severity_rank)'
+    local sort_filter='def severity_rank: if .severity == "normal" then 0 elif .severity == "nit" then 1 elif .severity == "pre-existing" then 2 else 3 end; if all(.[]; type == "object") then to_entries | reduce .[] as $entry ({seen:{}, ordered:[]}; ($entry.value | [(.file // ""), ((.line // 0) | tostring), (.category // ""), (.title // .message // "")] | @json) as $key | if .seen[$key] then . else .seen[$key] = true | .ordered += [$entry] end) | .ordered | sort_by([(.value | severity_rank), .key]) | map(.value) else error("expected object findings entries") end'
     if [[ -n "$warning" ]]; then
         printf '%s' "$findings_json" | jq -c --arg warning "$warning" "{findings:(. // [] | ${sort_filter}), warning:\$warning}" 2>/dev/null \
             || printf '{"findings":[],"warning":%s}\n' "$(printf '%s' "$warning" | jq -R .)"

@@ -93,6 +93,14 @@ else
     test_fail "single-document findings were not normalized and deduplicated: $single_normalized"
 fi
 
+test_case "findings normalizer rejects non-object entries"
+non_object_document='{"findings":[null]}'
+if printf '%s' "$non_object_document" | review_normalize_findings_json >/dev/null 2>&1; then
+    test_fail "non-object finding was accepted"
+else
+    test_pass
+fi
+
 test_case "findings normalizer preserves synthesis ranking while deduplicating"
 ranked_document='{"findings":[{"file":"z-last-path.js","line":9,"severity":"normal","title":"Highest-ranked"},{"file":"a-first-path.js","line":1,"severity":"nit","title":"Lower-ranked"},{"file":"z-last-path.js","line":9,"severity":"normal","title":"Highest-ranked"}]}'
 ranked_normalized="$(printf '%s' "$ranked_document" | review_normalize_findings_json 2>/dev/null || true)"
@@ -101,6 +109,15 @@ if [[ "$ranked_titles" == $'Highest-ranked\nLower-ranked' ]]; then
     test_pass
 else
     test_fail "normalization reordered synthesized findings: $ranked_titles"
+fi
+
+test_case "local synthesis preserves first occurrence order within a severity"
+same_severity='[{"file":"z-last-path.js","line":9,"severity":"normal","title":"First-seen"},{"file":"a-first-path.js","line":1,"severity":"normal","title":"Second-seen"},{"file":"z-last-path.js","line":9,"severity":"normal","title":"First-seen"}]'
+same_severity_titles="$(review_local_synthesis_json "$same_severity" | jq -r '.findings[].title' 2>/dev/null || true)"
+if [[ "$same_severity_titles" == $'First-seen\nSecond-seen' ]]; then
+    test_pass
+else
+    test_fail "local synthesis reordered equal-severity findings: $same_severity_titles"
 fi
 
 test_case "findings normalizer rejects multiple JSON documents"
@@ -114,7 +131,7 @@ else
     test_pass
 fi
 
-test_case "findings count returns one integer or fails without output"
+test_case "findings count returns one integer or rejects malformed input without output"
 valid_count="$(review_findings_count "$single_normalized" 2>/dev/null || true)"
 invalid_count_file="$TEST_TMP_DIR/invalid-count.out"
 if review_findings_count "$(cat "$multi_document_file")" > "$invalid_count_file" 2>/dev/null; then
@@ -122,10 +139,17 @@ if review_findings_count "$(cat "$multi_document_file")" > "$invalid_count_file"
 else
     invalid_count_rc=$?
 fi
-if [[ "$valid_count" == "1" && "$invalid_count_rc" -ne 0 && ! -s "$invalid_count_file" ]]; then
+non_object_count_file="$TEST_TMP_DIR/non-object-count.out"
+if review_findings_count "$non_object_document" > "$non_object_count_file" 2>/dev/null; then
+    non_object_count_rc=0
+else
+    non_object_count_rc=$?
+fi
+if [[ "$valid_count" == "1" && "$invalid_count_rc" -ne 0 && ! -s "$invalid_count_file" &&
+      "$non_object_count_rc" -ne 0 && ! -s "$non_object_count_file" ]]; then
     test_pass
 else
-    test_fail "count helper returned valid='$valid_count' invalid_rc='$invalid_count_rc' invalid_output='$(cat "$invalid_count_file")'"
+    test_fail "count helper returned valid='$valid_count' multi_rc='$invalid_count_rc' non_object_rc='$non_object_count_rc'"
 fi
 
 test_case "terminal rendering fails closed on multi-document findings"
