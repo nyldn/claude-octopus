@@ -1,31 +1,47 @@
 # AI Agent Handoff
 
 Last updated: 2026-08-13
-Status: Issues #904 and #915 are implemented on `fix/904-agy-model`. AGY model
-validation accepts the exact machine ID or display label from the live catalog,
-preflight excludes invalid configured models, review-sized prompts no longer
-stall in Bash before the CLI launches, and an opt-in live doctor verifies the
-installed CLI, catalog/keyring auth, configured model, and real print dispatch.
-[PR #912](https://github.com/nyldn/claude-octopus/pull/912) carries both fixes.
-It is rebased onto merged PR #913, the first matching changed-scope gate selected
-and passed the full matrix, and the real authenticated AGY health probe passed
-all four stages. A matching-head three-round AGY review completed; its two
-findings were reproduced against the supported entrypoints and rejected as false.
-CodeRabbit then exposed valid live-doctor consistency and timeout gaps; their TDD
-fixes pass the expanded 50-case AGY suite. The final changed-scope gate selected
-and passed the full matrix, and the real authenticated AGY probe passed again on
-that exact implementation. Commit `7f3b1567` is pushed to both remotes;
-CodeRabbit passed that head, while the separate provider-review job is quota
-blocked and reported no code finding. Matching remote checks and merge remain.
-Release is deferred.
-Branch: `fix/904-agy-model`
+Status: Issue #908 is implemented and proposed in PR #911 on
+`fix/908-review-aggregation`. Review
+findings now cross a single-document normalization boundary before persistence,
+counting, event emission, rendering, or publishing; duplicate findings collapse
+without changing synthesis rank. PR, merge, and release are the remaining
+steps, and release remains explicitly deferred.
+Branch: `fix/908-review-aggregation`
 Current release: [v9.64.0](https://github.com/nyldn/claude-octopus/releases/tag/v9.64.0)
-Tracking: [issue #904](https://github.com/nyldn/claude-octopus/issues/904),
-[issue #915](https://github.com/nyldn/claude-octopus/issues/915)
-PR: [#912](https://github.com/nyldn/claude-octopus/pull/912)
-Next action: push the final handoff-only review cleanup, verify its matching
-remote checks, dismiss only obsolete resolved review requests, and merge PR #912.
-Release is deferred.
+Tracking: [issue #908](https://github.com/nyldn/claude-octopus/issues/908)
+PR: [#911](https://github.com/nyldn/claude-octopus/pull/911)
+Next action: review PR #911 checks and feedback, then merge when approved.
+Release remains deferred.
+
+## Issue #908: Canonical Review Findings
+
+- Root cause: several consumers ran `jq '.findings | length'` directly on an
+  artifact that could contain more than one top-level JSON document. `jq`
+  emitted one scalar per document (`0\\n0` or `1\\n1`), breaking Bash arithmetic
+  and rendering the same finding once per document.
+- Trust boundary: verifier and synthesis output must normalize to exactly one
+  object containing a findings array. Invalid and multi-document output falls
+  back locally before the final artifact is written.
+- Consumers: debate, synthesis events, proof packets, terminal reports, PR
+  summaries, and inline comments now use a scalar count helper that either
+  returns one non-negative integer or fails with no output.
+- Deduplication: exact duplicates use file, line, category, and title/message as
+  identity. Stable first-occurrence reduction preserves the synthesizer's
+  severity/rank ordering.
+- Rendering: invalid artifacts fail closed without findings, arithmetic errors,
+  or duplicate output. The missing-repository inline-comment fallback renders
+  once.
+- TDD evidence: aggregation coverage failed on the missing normalizer, scalar
+  count, multi-document renderer, and initially on rank preservation. It now
+  passes 25/25; the broader review-focused bundle passes all 166 existing
+  assertions plus the new cases.
+- Full-gate evidence: the fresh final `make ci-local` after the stable-order and
+  single-render refinements passed 16/16 smoke, 267/267 unit, and 7/7
+  integration suites, plus all CI-only verifications.
+- Throughput follow-up: [issue #910](https://github.com/nyldn/claude-octopus/issues/910)
+  proposes a fail-closed changed-files local gate while retaining the full CI
+  and release matrix.
 
 ## Issue #910: Fail-Closed Changed-Scope Local Gate
 
