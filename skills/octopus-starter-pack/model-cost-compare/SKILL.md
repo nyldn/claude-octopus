@@ -1,5 +1,6 @@
 ---
 name: model-cost-compare
+disable-model-invocation: true
 description: "Starter: compare model costs for a described task — maps task shape to the cheapest adequate seat and shows the price spread"
 ---
 

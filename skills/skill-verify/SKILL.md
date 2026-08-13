@@ -1,6 +1,7 @@
 ---
 name: skill-verify
 description: "Use when a nontrivial change needs end-to-end verification before committing or shipping"
+disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.

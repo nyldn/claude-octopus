@@ -1,6 +1,7 @@
 ---
 name: skill-decision-support
 description: "Present options with trade-offs for informed decision-making — use when choosing between approaches"
+disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.

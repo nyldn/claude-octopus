@@ -1,5 +1,6 @@
 ---
 name: skill-parallel-agents
+disable-model-invocation: true
 effort: high
 description: Decompose large tasks across parallel agents — use for migrations, multi-file refactors, or batch work
 trigger: |
@@ -9,7 +10,7 @@ trigger: |
   - "I want multiple AI models to look at", "use all providers for"
   - "get multiple perspectives on", "force multi-provider analysis"
 
-  AUTOMATICALLY ACTIVATE (without asking user) when the user requests:
+  EXPLICITLY USE (without asking user) when the user requests:
   - Research, explore, investigate, or analyze topics (e.g., "octo research OAuth patterns", "octo analyze technical debt", "octo explore different approaches")
   - Build, implement, create, or develop features (e.g., "octo build a login system", "octo implement caching", "octo create a dashboard")
   - Review, validate, test, or check code quality (e.g., "octo review this code", "octo validate the API", "octo check for issues")

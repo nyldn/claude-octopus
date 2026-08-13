@@ -1,5 +1,6 @@
 ---
 command: budget-mode
+disable-model-invocation: true
 description: Switch Octopus model routing to the configured budget tier
 allowed-tools: Bash
 ---

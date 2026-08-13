@@ -1,5 +1,6 @@
 ---
 command: whats-new
+disable-model-invocation: true
 description: "Review and enable Claude Octopus features added since you installed"
 allowed-tools: Bash, Read
 ---

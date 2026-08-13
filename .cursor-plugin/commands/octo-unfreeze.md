@@ -1,5 +1,6 @@
 ---
 description: "\"[advanced] Remove freeze mode edit restriction\""
+disable-model-invocation: true
 ---
 
 # Unfreeze - Remove Edit Boundary

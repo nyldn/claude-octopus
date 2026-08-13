@@ -1,5 +1,6 @@
 ---
 name: flow-discover
+disable-model-invocation: true
 aliases:
   - discover
   - discover-workflow
@@ -28,7 +29,7 @@ validation_gates:
   - orchestrate_sh_executed
   - synthesis_file_exists
 trigger: |
-  AUTOMATICALLY ACTIVATE when user requests research or exploration:
+  EXPLICITLY USE when user requests research or exploration:
   - "research X" or "explore Y" or "investigate Z"
   - "what are the options for X" or "what are my choices for Y"
   - "find information about Y" or "look up Z"
@@ -891,4 +892,4 @@ either invoke `flow-define` (embrace workflow, or the user wants requirements ne
 stop with research delivered. Do NOT begin scoping, designing, or implementation from
 here — that work belongs to later phases.
 
-**Ready to research!** This skill activates automatically when users request research or exploration.
+**Ready to research!** This skill is used after explicit invocation when users request research or exploration.

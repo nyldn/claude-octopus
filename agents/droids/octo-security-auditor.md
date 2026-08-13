@@ -1,6 +1,6 @@
 ---
 name: octo-security-auditor
-description: "Security auditor for DevSecOps, OWASP compliance, vulnerability assessment, and threat modeling"
+description: "Security auditor. Delegate only when the user explicitly starts an Octopus workflow."
 model: opus
 ---
 

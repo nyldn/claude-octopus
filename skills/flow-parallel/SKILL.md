@@ -1,6 +1,7 @@
 ---
 name: flow-parallel
 description: "Decompose and execute large changes, migrations, or multi-issue fixes in parallel with quality gates"
+disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.

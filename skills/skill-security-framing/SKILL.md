@@ -1,6 +1,7 @@
 ---
 name: skill-security-framing
 description: "URL validation and content sanitization for untrusted sources — use when handling external input safely"
+disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.

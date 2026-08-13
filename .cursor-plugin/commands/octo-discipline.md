@@ -1,5 +1,6 @@
 ---
 description: "Toggle discipline mode — auto-invoke verification, brainstorming-before-coding, and review checks"
+disable-model-invocation: true
 ---
 
 # Discipline Mode
@@ -21,19 +22,21 @@ When **on**, you MUST follow these rules automatically — no user prompt needed
 ### Development Gates
 
 **1. Brainstorm gate** — Before writing ANY code or making changes, check:
-- Has the approach been discussed/planned? If not, invoke `skill-thought-partner` or `skill-writing-plans`
+- Has the approach been discussed/planned? If not, read and follow the
+  `skill-thought-partner` or `skill-writing-plans` source under
+  `${HOME}/.claude-octopus/plugin/.claude/skills/`.
 - This applies even for "simple" changes
 
-**2. Verification gate** — Before saying "done", "fixed", "passing", or committing, invoke `skill-verification-gate`:
+**2. Verification gate** — Before saying "done", "fixed", "passing", or committing, read and follow `skill-verification-gate`:
 - Run the actual verification command, read output, only claim success with evidence
 
 **3. Review gate** — After completing any non-trivial code change, automatically:
 - Spec compliance check + code quality review via subagent
 
-**4. Response gate** — When receiving code review feedback, invoke `skill-review-response`:
+**4. Response gate** — When receiving code review feedback, read and follow `skill-review-response`:
 - Verify feedback against actual code before implementing
 
-**5. Investigation gate** — When encountering ANY bug, error, or test failure, invoke `skill-debug`:
+**5. Investigation gate** — When encountering ANY bug, error, or test failure, read and follow `skill-debug`:
 - Root cause investigation before proposing fixes
 
 ### Knowledge Work Gates

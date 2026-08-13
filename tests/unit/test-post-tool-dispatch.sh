@@ -30,7 +30,7 @@ PAYLOAD="$(build_verbose_payload)"
 output=""
 # output-compressor.sh only analyzes every 3rd call (debounce); drive it there.
 for _ in 1 2 3; do
-    output="$(CLAUDE_SESSION_ID="$SESSION" printf '%s' "$PAYLOAD" | CLAUDE_SESSION_ID="$SESSION" bash "$HOOK")"
+    output="$(printf '%s' "$PAYLOAD" | CLAUDE_SESSION_ID="$SESSION" OCTOPUS_COMPRESS_ENABLED=true bash "$HOOK")"
 done
 rm -f "$DEBOUNCE_FILE"
 
@@ -60,6 +60,26 @@ if [[ -z "$output" ]]; then
     test_pass
 else
     test_fail "expected silence for small/uninteresting output, got: ${output:-<empty>}"
+fi
+
+
+test_case "large output is also silent when compression is not opted in"
+output="$(build_verbose_payload | CLAUDE_SESSION_ID="$SESSION-default-off" bash "$HOOK")"
+if [[ -z "$output" ]]; then
+    test_pass
+else
+    test_fail "expected default silence for large output, got: ${output:-<empty>}"
+fi
+
+test_case "statusline bridge alone does not activate context injection"
+bridge="/tmp/octopus-ctx-${SESSION-default-off}.json"
+printf '{"used_pct":60}\n' > "$bridge"
+output="$(printf 'ok' | CLAUDE_SESSION_ID="$SESSION-default-off" bash "$HOOK")"
+rm -f "$bridge"
+if [[ -z "$output" ]]; then
+    test_pass
+else
+    test_fail "statusline state activated PostToolUse context: ${output:-<empty>}"
 fi
 
 test_summary

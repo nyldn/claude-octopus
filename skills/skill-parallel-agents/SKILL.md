@@ -1,6 +1,7 @@
 ---
 name: skill-parallel-agents
 description: "Decompose large tasks across parallel agents — use for migrations, multi-file refactors, or batch work"
+disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.

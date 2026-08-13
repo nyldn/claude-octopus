@@ -6,7 +6,7 @@ last_reviewed: 2026-08-12
 
 ## Mission
 
-Put up to 9 external AI integrations on every task so blind spots surface before you ship — not after.
+Make up to 9 external AI integrations available for explicit escalation, so blind spots surface on the work that warrants multi-model scrutiny without taxing every ordinary task.
 
 ## Vision
 
@@ -39,7 +39,7 @@ Claude Octopus is a **multi-runtime orchestration plugin** with three architectu
 | **Workflow engine** (`skills/`) | Structures every task into Discover → Define → Develop → Deliver with quality gates | Stops ad-hoc "just ask Claude" from shipping low-confidence output |
 | **Consensus layer** | 75% gate: flags disagreements across providers before code is finalized | The actual blind-spot catcher — surfaces the 1-in-5 case where Claude was wrong |
 
-54 slash commands, 63 skills, 32 specialized personas activate the right layer for the right job.
+54 slash commands, 63 skills, and 32 specialized personas provide explicit escalation entrypoints. Installation alone activates none of them.
 
 ## Core Value Propositions
 
@@ -58,6 +58,7 @@ Claude Octopus is a **multi-runtime orchestration plugin** with three architectu
 3. **Cost transparency always** — Display provider indicators (🔴🟡🔵) and per-provider cost context before every multi-model dispatch
 4. **Consensus gate, not consensus override** — 75% agreement flags disagreement; it does not suppress the minority view
 5. **Zero providers to start** — Claude is built in; every additional provider is opt-in, not required
+6. **Dormant until asked** — Ordinary prompts stay on Claude's native path; only `/octo:*` or an explicit automation preference activates Octopus
 
 ## Competitive Positioning
 

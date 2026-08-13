@@ -1,10 +1,11 @@
 ---
 name: skill-verification-gate
+disable-model-invocation: true
 effort: low
 description: "Use when about to declare work complete, fixed, passing, or done"
 codex_alias_description: "Use when a nontrivial change needs end-to-end verification before committing or shipping"
 trigger: |
-  AUTOMATICALLY ACTIVATE when:
+  EXPLICITLY USE when:
   - About to claim work is complete, fixed, or passing
   - Before committing, creating PRs, or marking tasks done
   - After subagent reports success (verify independently)

@@ -1,5 +1,6 @@
 ---
 name: skill-security-framing
+disable-model-invocation: true
 paths:
   - "**/*.env*"
   - "**/auth*"

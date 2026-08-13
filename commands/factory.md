@@ -1,5 +1,6 @@
 ---
 command: factory
+disable-model-invocation: true
 description: "[advanced] Dark Factory Mode - Spec-in, software-out autonomous pipeline"
 aliases:
   - dark-factory

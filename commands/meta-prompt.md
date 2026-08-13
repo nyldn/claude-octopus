@@ -1,5 +1,6 @@
 ---
 command: meta-prompt
+disable-model-invocation: true
 description: "[advanced] Generate an optimized prompt for any task using meta-prompting techniques"
 ---
 

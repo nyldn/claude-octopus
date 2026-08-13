@@ -1,5 +1,6 @@
 ---
 name: skill-pressure-test
+disable-model-invocation: true
 description: "Interrogate a plan, decision, or design one question at a time until it holds — use to stress-test your own thinking before committing to it"
 ---
 

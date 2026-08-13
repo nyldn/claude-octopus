@@ -1,12 +1,13 @@
 ---
 name: skill-deck
+disable-model-invocation: true
 aliases:
   - deck
   - slides
   - presentation
 description: Generate slide deck presentations from briefs — use when you need slides, pitch decks, or visual summaries
 trigger: |
-  AUTOMATICALLY ACTIVATE when user requests:
+  EXPLICITLY USE when user requests:
   - "create a deck", "build slides", "make a presentation"
   - "generate a pitch deck", "create board presentation"
   - "slide deck for [topic]", "presentation about [topic]"

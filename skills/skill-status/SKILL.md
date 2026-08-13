@@ -1,6 +1,7 @@
 ---
 name: skill-status
 description: "Show where you are in the workflow and what to do next — use for progress checks and orientation"
+disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.

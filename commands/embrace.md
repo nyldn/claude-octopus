@@ -1,5 +1,6 @@
 ---
 command: embrace
+disable-model-invocation: true
 description: "Full Double Diamond workflow - Research → Define → Develop → Deliver"
 aliases:
   - full-cycle

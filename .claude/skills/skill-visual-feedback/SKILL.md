@@ -1,12 +1,13 @@
 ---
 name: skill-visual-feedback
+disable-model-invocation: true
 aliases:
   - visual-feedback
   - ui-ux-fixes
   - image-feedback
 description: Process screenshot-based UI/UX feedback to fix visual issues — use when users share screenshots of bugs
 trigger: |
-  AUTOMATICALLY ACTIVATE when user provides visual feedback:
+  EXPLICITLY USE when user provides visual feedback:
   - "[Image X] The /settings should be Y"
   - "[Image X] these button styles need to be fixed"
   - "[Image X] When X is set to Y, it shows as Z"

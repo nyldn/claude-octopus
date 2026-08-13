@@ -1,5 +1,6 @@
 ---
 description: "Smart router - Single entry point with natural language intent detection"
+disable-model-invocation: true
 ---
 
 # Smart Router (/octo:auto)
@@ -107,9 +108,13 @@ Display:
 Routing to [Workflow Name] (/octo:[command])
 ```
 
-Then display the visual indicator banner (STEP 6) and invoke:
+Then display the visual indicator banner (STEP 6), read the selected command
+file from `${HOME}/.claude-octopus/plugin/commands/[command].md`, and execute it
+with the full query. Do not use the Skill tool; Octopus components are hidden
+from model invocation by design.
 ```
-Skill(skill: "octo:[command]", args: "<full user query>")
+Read: ${HOME}/.claude-octopus/plugin/commands/[command].md
+Arguments: <full user query>
 ```
 
 **STEP 5b — MEDIUM confidence (confirm first):**
@@ -123,7 +128,7 @@ I detected [intent]. Route to:
 Which would you prefer, or rephrase your request?
 ```
 
-Wait for user confirmation before invoking the Skill tool.
+Wait for user confirmation before loading the selected command file.
 
 **STEP 5c — LOW confidence (show complete menu):**
 
@@ -244,7 +249,7 @@ This allows the router to learn user preferences over time.
 - Intent detected via priority-ordered keyword matching
 - Confidence determined via decision tree (not percentage formula)
 - User confirmation obtained (if MEDIUM confidence)
-- Target workflow executed via Skill tool
+- Target workflow executed from its explicit command file
 - Visual indicators displayed (for multi-AI workflows)
 
 ### Prohibited Actions
@@ -253,6 +258,6 @@ This allows the router to learn user preferences over time.
 - Routing without checking keyword priority order
 - Routing to non-existent skills
 - Skipping visual indicators for multi-AI workflows
-- Simulating workflow execution (MUST use Skill tool)
+- Simulating workflow execution instead of following the selected command file
 - Using percentage-based confidence scoring (use the decision tree above)
-- Passing queries to Skill tool without the full original text
+- Dropping any of the full original query when handing off to the command

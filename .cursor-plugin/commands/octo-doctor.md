@@ -1,5 +1,6 @@
 ---
 description: "\"Environment diagnostics — check providers, auth, config, hooks, scheduler, and more\""
+disable-model-invocation: true
 allowed-tools: Bash, Read, Glob, Grep, AskUserQuestion
 ---
 

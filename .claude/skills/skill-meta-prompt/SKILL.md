@@ -1,5 +1,6 @@
 ---
 name: skill-meta-prompt
+disable-model-invocation: true
 aliases:
   - meta-prompt
   - prompt-generator
@@ -7,7 +8,7 @@ aliases:
   - prompt-engineering
 description: "Craft better prompts using proven optimization techniques — use when your prompt needs refinement"
 trigger: |
-  Use PROACTIVELY when user wants to:
+  Invoke explicitly when the user wants to:
   - "create a prompt for", "write a prompt for"
   - "optimize this prompt", "improve this prompt"
   - "generate a meta-prompt", "help me write a prompt"

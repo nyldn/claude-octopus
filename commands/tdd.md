@@ -1,5 +1,6 @@
 ---
 command: tdd
+disable-model-invocation: true
 description: Test-driven development with red-green-refactor discipline
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: code-reviewer
-description: Code review expert for quality analysis, security vulnerabilities, and production reliability
+description: Code reviewer. Delegate only when the user explicitly starts an Octopus workflow.
 model: opus
 readonly: true
 tools:

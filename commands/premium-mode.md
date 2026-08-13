@@ -1,5 +1,6 @@
 ---
 command: premium-mode
+disable-model-invocation: true
 description: Switch Octopus model routing to the configured premium tier
 allowed-tools: Bash
 ---

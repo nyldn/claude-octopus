@@ -1,6 +1,6 @@
 ---
 name: performance-engineer
-description: Performance engineer for optimization, observability, and scalable system performance
+description: Octopus-only performance engineer. Use only when the user explicitly selects this agent or starts an Octopus workflow; never for an ordinary request.
 tools:
   - read
   - search

@@ -1,11 +1,12 @@
 ---
 name: skill-debug
+disable-model-invocation: true
 aliases:
   - debug
   - systematic-debugging
 description: "Debug issues methodically — use when stuck on errors, test failures, or unexpected behavior"
 trigger: |
-  AUTOMATICALLY ACTIVATE when encountering bugs or failures:
+  EXPLICITLY USE when encountering bugs or failures:
   - "fix this bug" or "debug Y" or "troubleshoot X"
   - "why is X failing" or "why isn't X working" or "why doesn't X work"
   - "why did X not work" or "why didn't X happen"
@@ -315,7 +316,8 @@ If you suspect the issue is with the Claude Code environment itself (e.g., netwo
 
 ## Auto-Freeze on Debug
 
-When debugging a specific module, automatically activate freeze mode to prevent accidental edits outside the investigated area. This is a safety measure that keeps your debugging focused.
+Inside this explicitly invoked debugging workflow, activate freeze mode for the
+specific module before editing. This safety measure keeps the investigation focused.
 
 ### How It Works
 

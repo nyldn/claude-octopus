@@ -15,6 +15,11 @@ set -euo pipefail
 _octo_hook_exit() { local c=$?; if [[ $c -ne 0 ]]; then echo "[hook:$(basename "$0")] exit $c" >&2 2>/dev/null || true; fi; return 0; }
 trap _octo_hook_exit EXIT
 
+SESSION_INPUT=""
+if [[ ! -t 0 ]]; then
+    SESSION_INPUT="$(cat 2>/dev/null || true)"
+fi
+
 _publish_session_state() {
     local destination="$1"
     shift
@@ -29,7 +34,9 @@ _publish_session_state() {
 }
 
 REMOTE_SESSION=false
-if [[ "${CLAUDE_CODE_REMOTE:-}" == "true" || "${CLAUDE_CODE_WEB:-}" == "true" || "${OCTOPUS_REMOTE_SESSION:-false}" == "true" ]]; then
+# Remote hosting alone is not consent to autonomous Octopus behavior. Hosted
+# routines that need it set OCTOPUS_REMOTE_SESSION=true explicitly.
+if [[ "${OCTOPUS_REMOTE_SESSION:-false}" == "true" ]]; then
     REMOTE_SESSION=true
     export OCTOPUS_REMOTE_SESSION=true
     export CLAUDE_OCTOPUS_AUTONOMY="${CLAUDE_OCTOPUS_AUTONOMY:-${OCTOPUS_AUTONOMY:-autonomous}}"
@@ -46,7 +53,8 @@ if [[ "${CLAUDE_CODE_REMOTE:-}" == "true" || "${CLAUDE_CODE_WEB:-}" == "true" ||
                 _publish_session_state "$SESSION_FILE" jq -n \
                     --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
                     --arg autonomy "$OCTOPUS_AUTONOMY" \
-                    '{"remote_session": true, "autonomy": $autonomy, "session_start": $ts}' || true
+                    --arg host_session_id "${CLAUDE_CODE_SESSION_ID:-${CLAUDE_SESSION_ID:-}}" \
+                    '{"remote_session": true, "autonomy": $autonomy, "session_start": $ts, "host_session_id": $host_session_id}' || true
             fi
         elif [[ ! -f "$SESSION_FILE" ]]; then
             _publish_session_state "$SESSION_FILE" printf \
@@ -62,23 +70,25 @@ if [[ ! -f "$SETUP_MARKER" ]]; then
     mkdir -p "${HOME}/.claude-octopus"
     touch "$SETUP_MARKER"
     [[ "$REMOTE_SESSION" == "true" ]] && exit 0
-    # This has to be a hookSpecificOutput object, not bare text. The comment here
-    # used to claim "this additionalContext triggers Claude to invoke the setup
-    # skill" while the hook only echoed a plain line, which SessionStart does not
-    # accept as context on v2.1.178+ (see hooks/version-advisory.sh). The welcome
-    # message was therefore never injected and the intended auto-setup never
-    # fired. Falls back to the plain line when jq is unavailable so a user without
-    # jq still sees something.
+    # First run is an offer, never an invocation. Installation must not take over
+    # an unrelated first prompt.
     if command -v jq >/dev/null 2>&1; then
-        jq -cn --arg ctx "🐙 Welcome to Claude Octopus. This is a first run and nothing is configured yet.
-Invoke the octo:setup skill now to walk the user through provider setup, unless
-their first message is urgent, in which case answer that first and offer setup
-immediately after." \
-            '{hookSpecificOutput:{hookEventName:"SessionStart",additionalContext:$ctx}}'
+        jq -cn --arg msg "🐙 Claude Octopus is installed but dormant. Run /octo:setup when you want to configure providers; nothing will start automatically." \
+            '{systemMessage:$msg}'
     else
         echo "[🐙] Welcome to Claude Octopus! Run /octo:setup for first-time configuration."
     fi
     exit 0
+fi
+
+# Outside an active workflow, memory injection and managed-settings writes are
+# opt-in. The prompt router reads its own preference file directly.
+ACTIVATION_LIB="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd -P)}/scripts/lib/hook-activation.sh"
+if [[ "${OCTOPUS_SESSION_MEMORY:-off}" != "on" ]]; then
+    [[ -r "$ACTIVATION_LIB" ]] || exit 0
+    # shellcheck source=../scripts/lib/hook-activation.sh
+    source "$ACTIVATION_LIB" 2>/dev/null || exit 0
+    octo_hook_workflow_active "$SESSION_INPUT" || exit 0
 fi
 
 # --- 0b. Session sync (merged from session-sync.sh to reduce hook spawns) ---

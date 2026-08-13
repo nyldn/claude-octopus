@@ -6,7 +6,8 @@
 # Compound task detection uses heuristics (numbered lists, bullet lists,
 # multiple action verbs with conjunctions) — no LLM calls.
 #
-# Kill switch: OCTO_DONE_CRITERIA=off
+# Opt in with OCTO_DONE_CRITERIA=on. An active, session-affine Octopus workflow
+# also enables it automatically.
 #
 # Hook event: UserPromptSubmit
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -20,6 +21,12 @@ _octo_hook_exit() { local c=$?; if [[ $c -ne 0 ]]; then echo "[hook:$(basename "
 trap _octo_hook_exit EXIT
 
 
+# Default-off fast path: avoid reading/parsing every ordinary user prompt.
+if [[ "${OCTO_DONE_CRITERIA:-}" != "on" ]]; then
+    _activation_lib="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}/scripts/lib/hook-activation.sh"
+    [[ -r "$_activation_lib" ]] || exit 0
+fi
+
 # Read input with timeout guard
 if [ -t 0 ]; then exit 0; fi
 if command -v timeout &>/dev/null; then
@@ -29,8 +36,12 @@ else
 fi
 [[ -z "$input" ]] && exit 0
 
-# Kill switch
-[[ "${OCTO_DONE_CRITERIA:-on}" == "off" ]] && exit 0
+# Require an explicit preference or a session-affine active workflow.
+if [[ "${OCTO_DONE_CRITERIA:-}" != "on" ]]; then
+    # shellcheck source=../scripts/lib/hook-activation.sh
+    source "$_activation_lib" 2>/dev/null || exit 0
+    octo_hook_workflow_active "$input" || exit 0
+fi
 
 # Extract user prompt text from JSON
 prompt=""

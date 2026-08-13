@@ -1,6 +1,6 @@
 ---
 name: security-auditor
-description: Security auditor for DevSecOps, OWASP compliance, vulnerability assessment, and threat modeling
+description: Octopus-only security auditor. Use only when the user explicitly selects this agent or starts an Octopus workflow; never for an ordinary request.
 tools:
   - read
   - search

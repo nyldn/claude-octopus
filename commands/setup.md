@@ -1,5 +1,6 @@
 ---
 command: setup
+disable-model-invocation: true
 description: Interactive setup wizard — install providers, configure auth, RTK, token optimization
 aliases:
   - sys-setup
@@ -12,7 +13,8 @@ allowed-tools: Bash, Read, Glob, Grep, AskUserQuestion
 
 Interactive setup wizard. Detects what's installed, offers to install what's missing, configures auth, and optimizes token usage.
 
-**This command auto-runs on first install** (via SessionStart hook). It also runs when users invoke `/octo:setup` manually.
+**This command runs only when the user invokes `/octo:setup`.** SessionStart may
+offer the command once after installation, but never starts it.
 
 **CRITICAL: This command MUST always run its interactive flow when invoked.** Never silently dismiss the user. Never say "you're already set up" without showing the dashboard and offering choices via AskUserQuestion. Even if everything is configured, the user invoked this command for a reason — show them their status and ask what they want to do.
 

@@ -1,5 +1,6 @@
 ---
 command: standard-mode
+disable-model-invocation: true
 description: Switch Octopus model routing to the configured standard tier
 allowed-tools: Bash
 ---

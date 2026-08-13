@@ -1,5 +1,6 @@
 ---
 name: skill-resume
+disable-model-invocation: true
 user-invocable: true
 description: "Pick up where you left off from a previous session — use after context resets, compaction, or new conversations"
 aliases:
@@ -7,7 +8,7 @@ aliases:
   - resume-session
   - context-resume
 trigger: |
-  AUTOMATICALLY ACTIVATE when user mentions:
+  EXPLICITLY USE when user mentions:
   - "resume" or "continue" or "pick up where I left off"
   - "what was I doing" or "restore session"
   - Detecting persistent workflow state exists but no prior context in memory

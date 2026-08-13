@@ -1,8 +1,9 @@
 ---
 name: skill-finish-branch
+disable-model-invocation: true
 description: "Wrap up a branch — run tests, create PR, merge or discard — use when implementation is done"
 trigger: |
-  AUTOMATICALLY ACTIVATE when user requests task completion with git operations:
+  EXPLICITLY USE when user requests task completion with git operations:
   - "commit and push" or "git commit and push"
   - "complete all tasks and commit and push"
   - "proceed with all todos in sequence and push"

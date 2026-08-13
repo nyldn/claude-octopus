@@ -1,6 +1,7 @@
 ---
 name: flow-spec
 description: "NLSpec authoring — use when you need a structured specification from multi-AI research and consensus"
+disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.

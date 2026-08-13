@@ -1,5 +1,6 @@
 ---
 command: sentinel
+disable-model-invocation: true
 description: GitHub-aware work monitor - triages issues, PRs, and CI failures
 version: 1.0.0
 category: monitoring

@@ -1,6 +1,6 @@
 ---
 name: cloud-architect
-description: Cloud architect for AWS/Azure/GCP infrastructure, IaC, FinOps, and multi-cloud strategies
+description: Cloud architect. Delegate only when the user explicitly starts an Octopus workflow.
 model: inherit
 readonly: true
 tools:

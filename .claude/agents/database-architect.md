@@ -1,6 +1,6 @@
 ---
 name: database-architect
-description: Database architect for data modeling, technology selection, schema design, and migration planning
+description: Database architect. Delegate only when the user explicitly starts an Octopus workflow.
 model: inherit
 readonly: true
 tools:

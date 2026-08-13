@@ -11,6 +11,21 @@ set -euo pipefail
 _octo_hook_exit() { local c=$?; if [[ $c -ne 0 ]]; then echo "[hook:$(basename "$0")] exit $c" >&2 2>/dev/null || true; fi; return 0; }
 trap _octo_hook_exit EXIT
 
+# Claude Code before v2.1.85 ignores hook-handler `if` filters. Keep the same
+# guard in-process so stale clients do not scan the workspace after every Bash
+# command. Current clients avoid spawning this hook altogether.
+HOOK_INPUT=""
+if [[ ! -t 0 ]]; then
+    if command -v timeout >/dev/null 2>&1; then
+        HOOK_INPUT=$(timeout 3 cat 2>/dev/null || true)
+    else
+        HOOK_INPUT=$(cat 2>/dev/null || true)
+    fi
+fi
+case "$HOOK_INPUT" in
+    *orchestrate.sh*) ;;
+    *) exit 0 ;;
+esac
 
 VALIDATION_FILE=$(ls -t ~/.claude-octopus/results/tangle-validation-*.md 2>/dev/null | head -1 || true)
 

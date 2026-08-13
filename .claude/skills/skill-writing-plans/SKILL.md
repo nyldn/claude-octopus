@@ -1,9 +1,10 @@
 ---
 name: skill-writing-plans
+disable-model-invocation: true
 description: Create zero-context implementation plans with bite-sized tasks — use for multi-step feature planning
 trigger: |
-  Use when you have a spec or requirements for a multi-step task.
-  Auto-invoke when user says "plan how to implement X", "create implementation plan", 
+  Invoke explicitly when you have a spec or requirements for a multi-step task.
+  Example requests include "plan how to implement X", "create implementation plan",
   "break down this feature into tasks".
   Use BEFORE writing any implementation code.
 execution_mode: enforced

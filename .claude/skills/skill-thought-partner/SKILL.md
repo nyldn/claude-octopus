@@ -1,5 +1,6 @@
 ---
 name: skill-thought-partner
+disable-model-invocation: true
 aliases:
   - thought-partner
   - brainstorm
@@ -7,7 +8,7 @@ aliases:
   - creative-session
 description: "Brainstorm creatively with pattern spotting and paradox hunting — use for ideation and exploration"
 trigger: |
-  Use PROACTIVELY when user wants to:
+  Invoke explicitly when the user wants to:
   - "brainstorm", "think through this with me"
   - "help me explore ideas", "creative session"
   - "thought partner", "thinking partner"

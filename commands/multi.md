@@ -1,5 +1,6 @@
 ---
 command: multi
+disable-model-invocation: true
 description: "[advanced] Force multi-provider parallel execution for any task - manual override mode"
 ---
 

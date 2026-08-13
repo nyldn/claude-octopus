@@ -1,5 +1,6 @@
 ---
 command: octo
+disable-model-invocation: true
 description: "[Legacy] Redirects to /octo:auto — the smart router"
 version: 3.0.0
 category: workflow
@@ -17,7 +18,9 @@ This command has been renamed to `/octo:auto`. Invoking `/octo:octo` still works
 When the user invokes `/octo:octo <query>`, you MUST:
 
 1. Inform the user: "Note: `/octo:octo` has been renamed to `/octo:auto`. Routing your request now."
-2. Immediately invoke: `Skill(skill: "octo:auto", args: "<full user query>")`
+2. Immediately read `${HOME}/.claude-octopus/plugin/commands/auto.md` and
+   execute it with the full user query. Do not use the Skill tool; Octopus
+   commands are explicit-only and hidden from model invocation.
 3. If the routed workflow dispatches multiple providers, surface `${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh agent-summary` before final synthesis when available.
 
 Do NOT duplicate the routing logic here — delegate entirely to `/octo:auto`.

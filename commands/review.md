@@ -1,5 +1,6 @@
 ---
 command: review
+disable-model-invocation: true
 description: Enhanced multi-LLM review with inline PR comments — escalation path beyond Claude-native /review
 ---
 

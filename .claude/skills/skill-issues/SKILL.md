@@ -1,12 +1,13 @@
 ---
 name: skill-issues
+disable-model-invocation: true
 user-invocable: true
 aliases:
   - issues
   - issue-tracking
 description: "Track project blockers, bugs, and gaps across sessions — use when issues pile up or need triage"
 trigger: |
-  AUTOMATICALLY ACTIVATE when user mentions:
+  EXPLICITLY USE when user mentions:
   - "issue" or "issues" or "problem"
   - "track this" or "remember this blocker"
   - "add issue" or "create issue"

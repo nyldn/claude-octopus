@@ -1,10 +1,11 @@
 ---
 name: skill-status
+disable-model-invocation: true
 effort: low
 user-invocable: true
 description: "Show where you are in the workflow and what to do next — use for progress checks and orientation"
 trigger: |
-  AUTOMATICALLY ACTIVATE when user asks about:
+  EXPLICITLY USE when user asks about:
   - "status" or "progress" or "where am I"
   - "what's next" or "next step"
   - "show status" or "project status"

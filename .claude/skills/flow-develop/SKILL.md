@@ -1,5 +1,6 @@
 ---
 name: flow-develop
+disable-model-invocation: true
 aliases:
   - develop
   - develop-workflow
@@ -24,7 +25,7 @@ validation_gates:
   - orchestrate_sh_executed
   - synthesis_file_exists
 trigger: |
-  AUTOMATICALLY ACTIVATE when user requests building or implementation:
+  EXPLICITLY USE when user requests building or implementation:
   - "build X" or "implement Y" or "create Z"
   - "develop a feature for X"
   - "write code to do Y"
@@ -836,4 +837,4 @@ checkpoint tag is created, and targeted tests pass fresh (see `skill-verificatio
 Then invoke `flow-deliver` for validation. Do NOT declare the work done from here —
 completion claims belong to the Deliver phase after review.
 
-**Ready to build!** This skill activates automatically when users request implementation or building features.
+**Ready to build!** This skill is used after explicit invocation when users request implementation or building features.

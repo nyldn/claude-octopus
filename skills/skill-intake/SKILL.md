@@ -1,6 +1,7 @@
 ---
 name: skill-intake
 description: "Move incoming issues and pull requests through triage states until each is actionable or closed — use when the queue has piled up or a report arrives unsorted"
+disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.

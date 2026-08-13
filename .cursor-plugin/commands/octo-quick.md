@@ -1,5 +1,6 @@
 ---
 description: "Quick execution mode for ad-hoc tasks without full workflow overhead"
+disable-model-invocation: true
 ---
 
 # Quick Mode Command

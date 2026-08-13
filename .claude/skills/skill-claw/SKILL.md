@@ -1,12 +1,13 @@
 ---
 name: skill-claw
+disable-model-invocation: true
 aliases:
   - claw
   - openclaw-admin
   - sysadmin
 description: "OpenClaw instance administration — manage hosts across macOS, Ubuntu/Debian, Docker, OCI, and Proxmox"
 trigger: |
-  AUTOMATICALLY ACTIVATE when user asks about:
+  EXPLICITLY USE when user asks about:
   - "manage openclaw" or "openclaw status" or "openclaw health"
   - "update openclaw" or "upgrade openclaw" or "openclaw doctor"
   - "setup openclaw" or "install openclaw" or "deploy openclaw"

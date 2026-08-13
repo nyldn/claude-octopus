@@ -1,8 +1,9 @@
 ---
 name: skill-review-response
+disable-model-invocation: true
 description: "Use when a reviewer, CI bot, or another AI leaves feedback to address"
 trigger: |
-  AUTOMATICALLY ACTIVATE when:
+  EXPLICITLY USE when:
   - Receiving code review feedback (PR comments, review agent output)
   - Processing suggestions from /octo:review or /octo:staged-review
   - Responding to CI failure feedback

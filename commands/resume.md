@@ -1,5 +1,6 @@
 ---
 command: resume
+disable-model-invocation: true
 description: "[advanced] Resume a previous agent by ID — continue an interrupted task where it left off"
 ---
 

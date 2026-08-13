@@ -1,5 +1,6 @@
 ---
 description: "Score an existing PRD against the 100-point AI-optimization framework"
+disable-model-invocation: true
 ---
 
 ## STOP - DO NOT INVOKE /skill OR Skill() AGAIN

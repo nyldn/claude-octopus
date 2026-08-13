@@ -1,5 +1,6 @@
 ---
 description: "\"[advanced] Manage the scheduled workflow runner daemon (start/stop/status)\""
+disable-model-invocation: true
 ---
 
 # Scheduler

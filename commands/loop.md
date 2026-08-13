@@ -1,5 +1,6 @@
 ---
 command: loop
+disable-model-invocation: true
 description: "[advanced] Execute tasks in loops with conditions, iterative improvements until goals are met"
 ---
 

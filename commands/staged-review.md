@@ -1,5 +1,6 @@
 ---
 command: staged-review
+disable-model-invocation: true
 description: "[advanced] Two-stage review: spec compliance then code quality"
 aliases:
   - two-stage-review

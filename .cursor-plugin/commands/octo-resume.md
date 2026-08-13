@@ -1,5 +1,6 @@
 ---
 description: "\"[advanced] Resume a previous agent by ID — continue an interrupted task where it left off\""
+disable-model-invocation: true
 ---
 
 # /octo:resume — Agent Resume

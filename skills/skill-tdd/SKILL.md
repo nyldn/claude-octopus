@@ -1,6 +1,7 @@
 ---
 name: skill-tdd
 description: "Build features with tests-before-code rigor — use for new features needing test coverage"
+disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.

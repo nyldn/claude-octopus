@@ -1,5 +1,6 @@
 ---
 description: "\"[advanced] Show cost breakdown by provider and workflow for the current session\""
+disable-model-invocation: true
 allowed-tools: Bash, Read, Glob, Grep
 ---
 

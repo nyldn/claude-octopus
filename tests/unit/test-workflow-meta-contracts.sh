@@ -31,7 +31,7 @@ if grep -q "route according to the user's explicit" <<< "$delivery_block" &&
    grep -q '^\- \*\*Review only:\*\*' <<< "$delivery_block" &&
    grep -q 'Do not update the project' <<< "$delivery_block" &&
    grep -q 'Run this block only when the user explicitly requested shipping' <<< "$delivery_block" &&
-   grep -q 'Skill(skill: "skill-ship"' <<< "$delivery_block" &&
+   grep -q 'Read .*skill-ship/SKILL.md' <<< "$delivery_block" &&
    ! grep -q '^Suggest:' <<< "$delivery_block"; then
     test_pass
 else

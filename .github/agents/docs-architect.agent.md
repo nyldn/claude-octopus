@@ -1,6 +1,6 @@
 ---
 name: docs-architect
-description: Technical documentation architect for comprehensive system docs and architecture guides
+description: Octopus-only documentation architect. Use only when the user explicitly selects this agent or starts an Octopus workflow; never for an ordinary request.
 tools:
   - read
   - search

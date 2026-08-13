@@ -1,5 +1,6 @@
 ---
 description: "\"[advanced] Activate both careful mode and freeze mode together\""
+disable-model-invocation: true
 ---
 
 # Guard Mode - Full Safety Activation

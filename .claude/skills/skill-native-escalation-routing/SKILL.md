@@ -1,5 +1,6 @@
 ---
 name: skill-native-escalation-routing
+disable-model-invocation: true
 description: "Use when choosing native or multi-LLM handling for init, review, or security requests"
 ---
 

@@ -1,9 +1,10 @@
 ---
 name: skill-rollback
+disable-model-invocation: true
 user-invocable: true
 description: "Roll back to a previous checkpoint via git — use when a change went wrong and you need to revert"
 trigger: |
-  AUTOMATICALLY ACTIVATE when user mentions:
+  EXPLICITLY USE when user mentions:
   - "rollback" or "revert" or "undo"
   - "go back to" or "restore checkpoint"
 argument-hint: "[list|<checkpoint-tag>]"

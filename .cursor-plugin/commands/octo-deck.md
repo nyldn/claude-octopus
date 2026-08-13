@@ -1,5 +1,6 @@
 ---
 description: "Generate slide deck presentations from briefs or research"
+disable-model-invocation: true
 ---
 
 # Deck - Slide Deck Generator

@@ -1,5 +1,6 @@
 ---
 description: "\"Multi-LLM council for advice, decision support, implementation plans, and gated implementation\""
+disable-model-invocation: true
 ---
 
 # Council

@@ -1,6 +1,6 @@
 ---
 name: tdd-orchestrator
-description: TDD orchestrator enforcing red-green-refactor discipline and test-driven development
+description: Octopus-only TDD orchestrator. Use only when the user explicitly selects this agent or starts an Octopus workflow; never for an ordinary request.
 tools:
   - read
   - edit

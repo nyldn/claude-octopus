@@ -75,6 +75,7 @@ def require_frontmatter(
     errors: list[str],
     *,
     validate_name: bool = False,
+    expected: dict[str, str] | None = None,
 ) -> None:
     text = file.read_text(encoding="utf-8", errors="replace")
     meta, err = extract_frontmatter(text)
@@ -85,6 +86,12 @@ def require_frontmatter(
     for field in required:
         if not meta.get(field):
             errors.append(f"{rel(root, file)}: missing required frontmatter field: {field}")
+
+    for field, value in (expected or {}).items():
+        if meta.get(field) != value:
+            errors.append(
+                f"{rel(root, file)}: frontmatter {field} must be {value}"
+            )
 
     if validate_name and meta.get("name") and not KEBAB_RE.match(meta["name"]):
         errors.append(f"{rel(root, file)}: name must be kebab-case: {meta['name']}")
@@ -128,14 +135,22 @@ def validate_json_files(root: Path, errors: list[str]) -> None:
 
 def validate_skills(root: Path, errors: list[str]) -> int:
     checked = 0
-    for file in sorted(root.glob("skills/*/SKILL.md")):
-        require_frontmatter(root, file, ("name", "description"), errors, validate_name=True)
+    for file in sorted((root / "skills").rglob("SKILL.md")):
+        require_frontmatter(
+            root, file, ("name", "description"), errors,
+            validate_name=True,
+            expected={"disable-model-invocation": "true"},
+        )
         checked += 1
 
     legacy = root / ".claude" / "skills"
     if legacy.is_dir():
-        for file in sorted(legacy.glob("*.md")):
-            require_frontmatter(root, file, ("name", "description"), errors, validate_name=True)
+        for file in sorted(legacy.rglob("SKILL.md")):
+            require_frontmatter(
+                root, file, ("name", "description"), errors,
+                validate_name=True,
+                expected={"disable-model-invocation": "true"},
+            )
             checked += 1
 
     return checked
@@ -147,7 +162,10 @@ def validate_commands(root: Path, errors: list[str]) -> int:
         if not directory.is_dir():
             continue
         for file in sorted(directory.glob("*.md")):
-            require_frontmatter(root, file, ("description",), errors)
+            require_frontmatter(
+                root, file, ("description",), errors,
+                expected={"disable-model-invocation": "true"},
+            )
             checked += 1
 
     return checked
@@ -163,6 +181,12 @@ def validate_agents(root: Path, errors: list[str]) -> int:
     for pattern in patterns:
         for file in sorted(root.glob(pattern)):
             require_frontmatter(root, file, ("name", "description"), errors, validate_name=True)
+            if pattern in ("agents/droids/*.md", ".claude/agents/*.md"):
+                meta, _ = extract_frontmatter(file.read_text(encoding="utf-8", errors="replace"))
+                if "explicitly starts an Octopus workflow" not in meta.get("description", ""):
+                    errors.append(
+                        f"{rel(root, file)}: subagent description must require an explicit Octopus workflow"
+                    )
             checked += 1
     return checked
 

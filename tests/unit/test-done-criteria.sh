@@ -110,10 +110,26 @@ else
     fail "Has OCTO_DONE_CRITERIA kill switch" "missing kill switch"
 fi
 
-if grep -qE 'OCTO_DONE_CRITERIA.*off' "$HOOK" 2>/dev/null; then
-    pass "Kill switch disables on 'off'"
+if grep -qE 'OCTO_DONE_CRITERIA.*on' "$HOOK" 2>/dev/null; then
+    pass "Feature requires explicit 'on' opt-in"
 else
-    fail "Kill switch disables on 'off'" "kill switch not wired to off"
+    fail "Feature requires explicit 'on' opt-in" "opt-in gate not wired to on"
+fi
+
+test_case "ordinary prompts are silent by default"
+output=$(printf '%s' '{"session_id":"ordinary","prompt":"fix the parser and then add regression tests for it"}' | HOME="$TEST_TMP_DIR/done-default" CLAUDE_PLUGIN_ROOT="$PROJECT_ROOT" "$HOOK")
+if [[ -z "$output" ]]; then
+    test_pass
+else
+    test_fail "expected default silence, got: $output"
+fi
+
+test_case "explicit opt-in enables compound-task guidance"
+output=$(printf '%s' '{"session_id":"opt-in","prompt":"fix the parser and then add regression tests for it"}' | HOME="$TEST_TMP_DIR/done-opt-in" CLAUDE_PLUGIN_ROOT="$PROJECT_ROOT" OCTO_DONE_CRITERIA=on "$HOOK")
+if [[ "$output" == *'completion criteria'* ]]; then
+    test_pass
+else
+    test_fail "expected opt-in guidance, got: ${output:-<empty>}"
 fi
 
 # ── Timeout guard on stdin ────────────────────────────────────────────────────

@@ -1,6 +1,7 @@
 ---
 name: skill-pressure-test
 description: "Interrogate a plan, decision, or design one question at a time until it holds — use to stress-test your own thinking before committing to it"
+disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.

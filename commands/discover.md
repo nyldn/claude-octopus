@@ -1,5 +1,6 @@
 ---
 command: discover
+disable-model-invocation: true
 description: "Discovery phase - Multi-AI research and exploration"
 aliases:
   - probe

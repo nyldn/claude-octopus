@@ -1,5 +1,6 @@
 ---
 name: skill-factory
+disable-model-invocation: true
 aliases:
   - factory
   - dark-factory

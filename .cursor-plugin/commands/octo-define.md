@@ -1,5 +1,6 @@
 ---
 description: "\"Definition phase - Clarify and scope problems with multi-AI consensus\""
+disable-model-invocation: true
 ---
 
 # Define - Definition Phase 🎯
@@ -12,7 +13,7 @@ description: "\"Definition phase - Clarify and scope problems with multi-AI cons
 
 ### EXECUTION MECHANISM — NON-NEGOTIABLE
 
-**You MUST execute this command by invoking the corresponding skill via the Skill tool. You are PROHIBITED from:**
+**You MUST execute this command by reading and following the corresponding workflow source. You are PROHIBITED from:**
 - ❌ Using the Agent tool to research/implement yourself instead of invoking the skill
 - ❌ Using WebFetch/Read/Grep as a substitute for multi-provider dispatch
 - ❌ Skipping `orchestrate.sh` calls because "I can do this faster directly"
@@ -24,14 +25,14 @@ description: "\"Definition phase - Clarify and scope problems with multi-AI cons
 
 When the user invokes this command (e.g., `/octo:define <arguments>`):
 
-**✓ CORRECT - Use the Skill tool:**
+**✓ CORRECT - Read the explicit workflow source:**
 ```
-Skill(skill: "octo:define", args: "<user's arguments>")
+Read ${HOME}/.claude-octopus/plugin/.claude/skills/flow-define/SKILL.md, then execute it with <user's arguments>
 ```
 
 **✗ INCORRECT:**
 ```
-Skill(skill: "flow-define", ...)  ❌ Wrong! Internal skill name, not resolvable by Skill tool
+Skill(skill: "flow-define", ...)  ❌ Wrong! Octopus skills are model-invocation disabled
 Task(subagent_type: "octo:define", ...)  ❌ Wrong! This is a skill, not an agent type
 ```
 

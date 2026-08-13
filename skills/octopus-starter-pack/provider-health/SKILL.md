@@ -1,5 +1,6 @@
 ---
 name: provider-health
+disable-model-invocation: true
 description: "Starter: one-screen provider health summary — availability, auth method, version drift, and cost posture for every seatable provider"
 ---
 

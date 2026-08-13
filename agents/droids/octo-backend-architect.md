@@ -1,6 +1,6 @@
 ---
 name: octo-backend-architect
-description: "Backend architect for scalable API design, microservices, and distributed systems"
+description: "Backend architect. Delegate only when the user explicitly starts an Octopus workflow."
 model: inherit
 ---
 

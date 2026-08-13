@@ -1,5 +1,6 @@
 ---
 command: usage
+disable-model-invocation: true
 description: "[advanced] Per-provider, per-skill, and per-MCP-server cost and token breakdown (Claude Code /usage schema)"
 allowed-tools: Bash, Read, Glob
 ---

@@ -1,5 +1,6 @@
 ---
 command: research
+disable-model-invocation: true
 description: Deep research with multi-source synthesis and comprehensive analysis
 ---
 
@@ -15,7 +16,7 @@ description: Deep research with multi-source synthesis and comprehensive analysi
 
 ### EXECUTION MECHANISM — NON-NEGOTIABLE
 
-**You MUST execute this command by invoking the corresponding skill via the Skill tool. You are PROHIBITED from:**
+**You MUST execute this command by reading and following the dedicated research source. You are PROHIBITED from:**
 - ❌ Using the Agent tool to research/implement yourself instead of invoking the skill
 - ❌ Using WebFetch/Read/Grep as a substitute for multi-provider dispatch
 - ❌ Skipping `orchestrate.sh` calls because "I can do this faster directly"
@@ -62,16 +63,16 @@ Map the answer to an intensity value:
 - "Standard" → `standard`
 - "Deep" → `deep`
 
-### Step 2: Invoke Skill with Intensity
+### Step 2: Load Research Workflow with Intensity
 
-**✓ CORRECT - Use the Skill tool:**
+**✓ CORRECT - Read the explicit workflow source:**
 ```
-Skill(skill: "octopus-research", args: "[breadth=light|standard|exhaustive] [intensity=quick|standard|deep] <user's arguments without routing flags>")
+Read `${HOME}/.claude-octopus/plugin/.claude/skills/skill-deep-research/SKILL.md`, then execute it with `[breadth=light|standard|exhaustive] [intensity=quick|standard|deep] <user's arguments without routing flags>`.
 ```
 
 Examples:
-- `Skill(skill: "octopus-research", args: "[breadth=standard] [intensity=standard] OAuth 2.0 authentication patterns")`
-- `/octo:research --breadth=exhaustive current agent orchestration patterns` -> `Skill(skill: "octopus-research", args: "[breadth=exhaustive] [intensity=deep] current agent orchestration patterns")`
+- Read the source above and execute with `[breadth=standard] [intensity=standard] OAuth 2.0 authentication patterns`.
+- `/octo:research --breadth=exhaustive current agent orchestration patterns` -> execute the source with `[breadth=exhaustive] [intensity=deep] current agent orchestration patterns`.
 
 **✗ INCORRECT - Do NOT use these:**
 ```
@@ -83,7 +84,7 @@ Task(subagent_type: "octo:discover", ...)  ❌ Wrong! This is a skill, not an ag
 
 ---
 
-**Auto-loads the dedicated research skill for comprehensive multi-provider research tasks.**
+**Loads the dedicated research workflow only after this explicit command.**
 
 ## Quick Usage
 

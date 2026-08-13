@@ -1,6 +1,7 @@
 ---
 name: skill-iterative-loop
 description: "Run tasks in a loop until goals are met — use for iterative refinement, polling, or convergence"
+disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.

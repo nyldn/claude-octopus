@@ -1,5 +1,6 @@
 ---
 command: develop
+disable-model-invocation: true
 description: "Development phase - Build solutions with multi-AI implementation and quality gates"
 aliases:
   - tangle

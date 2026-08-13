@@ -1,6 +1,7 @@
 ---
 name: skill-meta-prompt
 description: "Craft better prompts using proven optimization techniques — use when your prompt needs refinement"
+disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.

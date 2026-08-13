@@ -1,6 +1,6 @@
 ---
 name: frontend-developer
-description: Frontend developer for React, Next.js, responsive layouts, and accessible UI components
+description: Octopus-only frontend developer. Use only when the user explicitly selects this agent or starts an Octopus workflow; never for an ordinary request.
 tools:
   - read
   - edit

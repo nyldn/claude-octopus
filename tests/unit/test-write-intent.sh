@@ -204,11 +204,11 @@ test_version_advisory_emits_on_version_change() {
     rm -rf "$tmpdir"
     if version_ge "$current_version" "$min_version" &&
        jq -e --arg old "$min_version" --arg current "$current_version" '
-           (.hookSpecificOutput.additionalContext // "") as $ctx
-           | .hookSpecificOutput.hookEventName == "SessionStart"
-             and ($ctx | contains($old))
-             and ($ctx | contains($current))
-             and (($ctx | contains("/octo:setup")) or ($ctx | contains("OCTOPUS_LEGACY_ROLES")))
+           (.systemMessage // "") as $msg
+           | (has("hookSpecificOutput") | not)
+             and ($msg | contains($old))
+             and ($msg | contains($current))
+             and ($msg | contains("/octo:whats-new"))
        ' <<<"$output" >/dev/null 2>&1; then
         test_pass
     else

@@ -52,12 +52,12 @@ else
   fail "hooks.json missing context-reinforcement.sh reference"
 fi
 
-# 1.4 Hook outputs valid JSON when given empty stdin
+# 1.4 Hook stays dormant without an active, matching workflow
 HOOK_OUTPUT=$(echo '{}' | bash "$PLUGIN_DIR/hooks/context-reinforcement.sh" 2>/dev/null || true)
-if echo "$HOOK_OUTPUT" | python3 -c "import sys,json; json.load(sys.stdin)" 2>/dev/null; then
-  pass "context-reinforcement.sh outputs valid JSON"
+if [[ -z "$HOOK_OUTPUT" ]]; then
+  pass "context-reinforcement.sh is silent outside an active workflow"
 else
-  fail "context-reinforcement.sh does not output valid JSON"
+  fail "context-reinforcement.sh engaged outside an active workflow" "$HOOK_OUTPUT"
 fi
 
 # ─────────────────────────────────────────────────────────────────────

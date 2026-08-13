@@ -1,5 +1,6 @@
 ---
 command: history
+disable-model-invocation: true
 description: "[advanced] Query past workflow results — filter by workflow type, date, or provider"
 allowed-tools: Bash, Read, Grep
 ---

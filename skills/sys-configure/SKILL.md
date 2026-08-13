@@ -1,6 +1,7 @@
 ---
 name: sys-configure
 description: "Configure Claude Octopus — redirects to /octo:setup interactive wizard"
+disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
@@ -19,4 +20,6 @@ This skill is an alias for `/octo:setup`. When triggered, invoke the setup comma
 - Work mode selection
 - First-run onboarding
 
-Do NOT duplicate setup logic here. Just invoke the setup skill.
+Do NOT duplicate setup logic here. Read
+`${HOME}/.claude-octopus/plugin/commands/setup.md` and follow it only because
+the user explicitly invoked this configuration skill.

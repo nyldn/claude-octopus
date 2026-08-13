@@ -1,5 +1,6 @@
 ---
 description: "\"[advanced] Two-stage review: spec compliance then code quality\""
+disable-model-invocation: true
 ---
 
 # Staged Review — Two-Stage Pipeline

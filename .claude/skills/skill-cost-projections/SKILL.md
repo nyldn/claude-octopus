@@ -1,5 +1,6 @@
 ---
 name: skill-cost-projections
+disable-model-invocation: true
 effort: low
 aliases:
   - cost-projections
@@ -7,7 +8,7 @@ aliases:
   - budget-projection
 description: "Project remaining workflow cost from per-phase averages — warns on budget ceiling overruns"
 trigger: |
-  AUTOMATICALLY ACTIVATE when user asks about workflow costs:
+  EXPLICITLY USE when user asks about workflow costs:
   - "cost projection", "estimate remaining cost"
   - "budget forecast", "how much will this cost"
   - "project cost", "cost estimate", "spending forecast"

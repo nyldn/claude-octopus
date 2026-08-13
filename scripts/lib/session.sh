@@ -443,11 +443,12 @@ init_session() {
     }
     if ! jq -n \
         --arg session_id "$session_id" \
+        --arg host_session_id "${CLAUDE_CODE_SESSION:-}" \
         --arg session_name "$session_name" \
         --arg workflow "$workflow" \
         --arg started_at "$started_at" \
         --arg prompt "$prompt" \
-        '{session_id: $session_id, session_name: $session_name,
+        '{session_id: $session_id, host_session_id: $host_session_id, session_name: $session_name,
           workflow: $workflow, status: "in_progress", current_phase: null,
           started_at: $started_at, last_checkpoint: null,
           prompt: $prompt, phases: {}}' > "$session_tmp" 2>/dev/null; then

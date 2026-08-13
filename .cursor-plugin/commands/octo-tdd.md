@@ -1,5 +1,6 @@
 ---
 description: "Test-driven development with red-green-refactor discipline"
+disable-model-invocation: true
 ---
 
 # TDD - Test-Driven Development Skill

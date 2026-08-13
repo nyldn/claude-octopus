@@ -1,5 +1,6 @@
 ---
 command: retro
+disable-model-invocation: true
 description: "[advanced] Generate engineering retrospectives from git history with trends and team analysis"
 allowed-tools: Bash, Read, Glob, Grep, Write
 ---

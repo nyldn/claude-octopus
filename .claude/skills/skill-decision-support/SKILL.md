@@ -1,11 +1,12 @@
 ---
 name: skill-decision-support
+disable-model-invocation: true
 aliases:
   - decision-support
   - options-presentation
 description: Present options with trade-offs for informed decision-making — use when choosing between approaches
 trigger: |
-  AUTOMATICALLY ACTIVATE when user requests options or choices:
+  EXPLICITLY USE when user requests options or choices:
   - "fix or provide options" or "fix them or provide me options"
   - "give me options" or "what are my options"
   - "show me alternatives" or "what else can we do"

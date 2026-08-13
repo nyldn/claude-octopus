@@ -1,5 +1,6 @@
 ---
 description: "Document delivery with export to PPTX, DOCX, PDF formats"
+disable-model-invocation: true
 ---
 
 # Docs - Document Delivery Skill

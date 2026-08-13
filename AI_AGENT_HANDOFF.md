@@ -1,22 +1,74 @@
 # AI Agent Handoff
 
-Last updated: 2026-08-12
-Status: Issues #885, #886, and #888 through #894 are resolved and released in
-v9.63.0.
-The implementation adds persistent budget, standard, and premium model-cost
-toggles and repairs Factory/Cursor generation so the Doctor adapter and full
-command set cannot silently disappear. First-party automation now uses its
-configured Claude OAuth credential, and provider output capture cannot be held
-open by a descendant that inherited stdout. Direct Qwen prompting with unusable
-credentials and retired Gemini execution remain blocked; Google-family workflow
-seats execute through AGY. If the Claude subscription reaches its independent
-weekly quota, first-party PR review retries through GitHub Copilot CLI with the
-short-lived Actions token and an empty model-tool inventory, while remaining
-fail-closed. Lifecycle hooks now treat malformed shared session state as an
-optional-cache miss, and every shared session writer publishes through a unique
-temporary file and atomic rename.
-Branch: `main`
-Release: [v9.63.0](https://github.com/nyldn/claude-octopus/releases/tag/v9.63.0)
+Last updated: 2026-08-13
+Status: Issue #898 is implemented and passes the complete local gate on branch
+`fix/898-explicit-activation`; PR, merge, and release are the remaining steps.
+Octopus is now dormant until explicit invocation. Native command/skill gates,
+session-affine workflow hooks, passive startup notices, host-filtered tool
+hooks, and opt-in automation replace the previous install-wide engagement.
+The stable plugin entrypoint also advances to the host-loaded version so an old
+but still-present cache cannot strand explicit commands on stale hooks.
+Branch: `fix/898-explicit-activation`
+Current release: [v9.63.0](https://github.com/nyldn/claude-octopus/releases/tag/v9.63.0)
+Tracking: [issue #898](https://github.com/nyldn/claude-octopus/issues/898)
+
+## Issue #898: Explicit Activation and Hook Latency
+
+- Root cause: every prompt ran two classifiers plus a GitHub queue watcher;
+  common phrases defaulted to workflow invocation; every tool call could spawn
+  provider, quality, guard, and PostToolUse hooks; SessionStart injected router,
+  memory, update, and setup instructions into model context; and all shipped
+  skills remained eligible for model invocation. A valid
+  `~/.claude-octopus/session.json` from another Claude session could also keep
+  enforcement alive.
+- Native activation boundary: every canonical command, source skill, generated
+  Codex skill, and generated Cursor command carries
+  `disable-model-invocation: true`. Explicit commands compose reusable method by
+  loading the canonical skill source rather than asking the model to invoke a
+  disabled skill. Claude and Copilot agent descriptions require an explicitly
+  started Octopus workflow.
+- Hook boundary: plain-language routing defaults to `off`; done-criteria,
+  session memory, context reinforcement, GitHub work-queue checks, remote
+  autonomy, output compression, strategy rotation, and statusline context are
+  opt-in or tied to the active matching host session. First-run, version, and
+  update notices use passive `systemMessage` output and never instruct the
+  model to act. Statusline repair only repairs an existing Octopus statusline.
+- Speed: current Claude Code uses handler-level permission-rule `if` filters so
+  provider validation and quality checks do not spawn outside
+  `orchestrate.sh`, while direct-provider guards spawn only for Codex, Qwen, or
+  retired Gemini commands. Stale clients that predate conditional hooks retain
+  in-process fast exits. The PostToolUse matcher no longer includes Read,
+  WebFetch, or Grep.
+- Stale-version recovery: `scripts/helpers/ensure-plugin-root.sh` compares the
+  physical stable entrypoint with `CLAUDE_PLUGIN_ROOT` on SessionStart. It now
+  replaces a valid old symlink when the host loaded a newer cache, closing the
+  gap where an update succeeded but `/octo:*` continued to execute old hooks.
+  Host-owned auto-update remains opt-in and startup hooks remain local-only and
+  non-mutating.
+- Official platform verification: Anthropic documents
+  `disable-model-invocation: true` as the manual-only skill control; custom
+  agents have no equivalent flag and are selected from their descriptions;
+  UserPromptSubmit cannot be matcher-filtered; and handler-level `if` avoids
+  process spawn for tool events on Claude Code v2.1.85 and newer.
+- TDD evidence: the new activation regression began with 9 of 12 cases failing.
+  It now passes 18/18, stable-entrypoint coverage passes 2/2, plugin assembly
+  validates every manual gate, and affected legacy suites have been updated to
+  assert the native contract rather than the removed advisory behavior.
+- Performance evidence: before the fix, inactive user-prompt and done-criteria
+  hooks averaged roughly 38-41 ms each, PostToolUse averaged 39 ms, and one
+  unrelated provider-validator path blocked for about 18 seconds per call.
+  After the fix, defense-in-depth inactive paths measured roughly 6-14 ms each;
+  supported Claude Code versions skip the filtered process spawn entirely.
+- Verification: `make sync`, `git diff --check`, `make sync-check`, and a fresh
+  `make ci-local` all pass. The final complete run passed every smoke, unit,
+  integration, and CI-only verification group. The first complete sweep exposed
+  five stale tests whose old contracts required auto-invocation plus one
+  pre-existing one-second macOS process-fixture race; the contracts now assert
+  explicit activation, and the unchanged process-tree behavior has a reliable
+  three-second fixture setup window.
+- Tracking blocker: Beads remains unreadable on schema v49 because the `leases`
+  table requires the reserved v65 migration. No migration was run. GitHub issue
+  #898 is the temporary tracker and this handoff records the blocked `bd` state.
 
 ## Start Here
 

@@ -149,7 +149,7 @@ assert_contains "$OCTO_MD" "CLAUDE OCTOPUS ACTIVATED" "has visual indicator bann
 # ── Prohibited actions ────────────────────────────────────────────────────────
 
 assert_contains "$OCTO_MD" "Prohibited" "has Prohibited Actions section"
-assert_contains "$OCTO_MD" "MUST use Skill tool" "prohibits simulating workflow execution"
+assert_contains "$OCTO_MD" "following the selected command file" "prohibits simulating workflow execution"
 
 # ── No chain workflows documentation (removed — not implemented) ──────────────
 

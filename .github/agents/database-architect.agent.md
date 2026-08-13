@@ -1,6 +1,6 @@
 ---
 name: database-architect
-description: Database architect for data modeling, technology selection, schema design, and migration planning
+description: Octopus-only database architect. Use only when the user explicitly selects this agent or starts an Octopus workflow; never for an ordinary request.
 tools:
   - read
   - search

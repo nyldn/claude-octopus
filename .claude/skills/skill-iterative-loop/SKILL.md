@@ -1,12 +1,13 @@
 ---
 name: skill-iterative-loop
+disable-model-invocation: true
 aliases:
   - iterative-loop
   - loop-execution
   - repeat-until
 description: "Run tasks in a loop until goals are met — use for iterative refinement, polling, or convergence"
 trigger: |
-  AUTOMATICALLY ACTIVATE when user requests iterative execution:
+  EXPLICITLY USE when user requests iterative execution:
   - "loop X times" or "loop around N times"
   - "loop around 5 times auditing, enhancing, testing"
   - "keep trying until" or "iterate until"

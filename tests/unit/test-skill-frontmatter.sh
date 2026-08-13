@@ -122,11 +122,12 @@ validate_frontmatter() {
     if echo "$frontmatter" | grep -A 1 "^trigger:" | grep -q "|"; then
       pass "$filename: 'trigger' uses multi-line format"
 
-      # Check for "AUTOMATICALLY ACTIVATE" pattern
-      if echo "$frontmatter" | grep -q "AUTOMATICALLY ACTIVATE"; then
-        pass "$filename: 'trigger' contains activation pattern"
+      # Manual-only skills use the trigger field as slash-menu guidance, never
+      # as permission for model invocation.
+      if echo "$frontmatter" | grep -q "EXPLICITLY USE"; then
+        pass "$filename: 'trigger' contains explicit-use pattern"
       else
-        warn "$filename: 'trigger' missing 'AUTOMATICALLY ACTIVATE' pattern"
+        warn "$filename: 'trigger' missing 'EXPLICITLY USE' pattern"
       fi
 
       # Check for "DO NOT activate" pattern

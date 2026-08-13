@@ -1,6 +1,7 @@
 ---
 name: skill-issues
 description: "Track project blockers, bugs, and gaps across sessions — use when issues pile up or need triage"
+disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.

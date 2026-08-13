@@ -1,6 +1,7 @@
 ---
 name: skill-finish-branch
 description: "Wrap up a branch — run tests, create PR, merge or discard — use when implementation is done"
+disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.

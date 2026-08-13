@@ -1,5 +1,6 @@
 ---
 command: preflight
+disable-model-invocation: true
 description: Check provider health before running multi-LLM workflows
 allowed-tools: Bash
 ---

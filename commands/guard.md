@@ -1,5 +1,6 @@
 ---
 command: guard
+disable-model-invocation: true
 description: "[advanced] Activate both careful mode and freeze mode together"
 ---
 

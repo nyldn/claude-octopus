@@ -1,6 +1,7 @@
 ---
 name: skill-coverage-audit
 description: "Trace codepaths in diffs, map against tests, auto-generate missing coverage — use before shipping PRs"
+disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.

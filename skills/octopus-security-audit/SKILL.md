@@ -1,6 +1,7 @@
 ---
 name: octopus-security-audit
 description: "OWASP compliance, vulnerability scanning, and adversarial red team testing — use for security reviews"
+disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.

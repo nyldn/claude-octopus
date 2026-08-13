@@ -1,11 +1,12 @@
 ---
 name: skill-task-management
+disable-model-invocation: true
 aliases:
   - task-management
   - todo-orchestration
 description: "Manage tasks with Claude Code native tools — use to track TODOs, delegate work, and monitor progress"
 trigger: |
-  AUTOMATICALLY ACTIVATE when user requests task management:
+  EXPLICITLY USE when user requests task management:
   - "add to the todo's" or "add this to todos"
   - "resume tasks" or "continue tasks" or "pick up where we left off"
   - "save progress" or "save progress for Claude to pick up"

@@ -1,5 +1,6 @@
 ---
 name: flow-deliver
+disable-model-invocation: true
 aliases:
   - deliver
   - deliver-workflow
@@ -21,7 +22,7 @@ validation_gates:
   - orchestrate_sh_executed
   - validation_file_exists
 trigger: |
-  AUTOMATICALLY ACTIVATE when user requests validation, scoring, or review:
+  EXPLICITLY USE when user requests validation, scoring, or review:
   - "review X" or "validate Y" or "test Z"
   - "score this", "quality check", "validate before shipping"
   - "check if X works correctly"
@@ -844,9 +845,9 @@ Ink workflows typically cost $0.02-0.08 per validation depending on codebase siz
 
 After validation passes (go decision), run documentation synchronization to keep project docs current with shipped code. This step is **automatic** when running as part of `/octo:embrace` and **offered** when running standalone.
 
-**Invoke the doc-sync skill:**
+**Load the doc-sync source after delivery has been explicitly requested:**
 ```
-Skill(skill: "octo:auto", args: "sync docs for the changes on this branch")
+Read ${HOME}/.claude-octopus/plugin/.claude/skills/skill-doc-sync/SKILL.md and execute it for "sync docs for the changes on this branch"
 ```
 
 The doc-sync skill will:
@@ -869,8 +870,10 @@ The doc-sync skill will:
 After delivery validation and doc-sync complete, route according to the user's explicit
 request:
 
-- **Ship requested:** update `.octo/STATE.md` and invoke `skill-ship`.
-- **Branch wrap-up requested:** invoke `skill-finish-branch`.
+- **Ship requested:** update `.octo/STATE.md`, then read and follow
+  `.claude/skills/skill-ship/SKILL.md` from the stable plugin root.
+- **Branch wrap-up requested:** read and follow
+  `.claude/skills/skill-finish-branch/SKILL.md` from the stable plugin root.
 - **Review only:** deliver the synthesized findings and stop. Do not update the project
   to a ready-to-ship state or display a shipping instruction.
 
@@ -896,11 +899,11 @@ echo "📦 **Project ready! Run \`/octo:ship\` to finalize and archive.**"
 After that block succeeds, perform the requested finalization immediately:
 
 ```text
-Skill(skill: "skill-ship", args: "finalize and archive the validated project")
+Read ${HOME}/.claude-octopus/plugin/.claude/skills/skill-ship/SKILL.md and execute it for "finalize and archive the validated project"
 ```
 
 Do not stop after displaying the command. The ship-requested branch is incomplete until
-`skill-ship` has actually been invoked.
+the explicit ship workflow has actually been executed.
 
 ---
 
@@ -908,8 +911,8 @@ Do not stop after displaying the command. The ship-requested branch is incomplet
 
 The Deliver phase is complete ONLY when validation findings are synthesized and
 must-fix items are resolved or explicitly accepted by the user. If the user asked to
-ship or wrap the branch, then invoke `skill-ship` (or `skill-finish-branch` for tests,
+ship or wrap the branch, then read and execute `skill-ship` (or `skill-finish-branch` for tests,
 PR, and merge). For review-only requests, deliver the findings and stop; do NOT expand
 the request into shipping work without user authorization.
 
-**Ready to validate!** This skill activates automatically when users request code review, validation, or quality checks.
+**Ready to validate!** This skill runs only after explicit invocation.

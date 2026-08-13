@@ -26,6 +26,14 @@ else
     test_fail "github-work-queue-watch.sh not registered in UserPromptSubmit hooks"
 fi
 
+test_case "hook is silent unless explicitly enabled"
+output=$(HOME="$TEST_TMP_DIR/github-work-queue-default-off" "$HOOK" <<<'{"prompt":"what should we work on"}')
+if [[ -z "$output" ]]; then
+    test_pass
+else
+    test_fail "default hook output: $output"
+fi
+
 mock_bin="$TEST_TMP_DIR/github-work-queue-bin"
 mock_home="$TEST_TMP_DIR/github-work-queue-home"
 mkdir -p "$mock_bin" "$mock_home"
@@ -51,7 +59,7 @@ SH
 chmod +x "$mock_bin/gh"
 
 test_case "hook emits open issues and PRs as additional context"
-output=$(cd "$PROJECT_ROOT" && HOME="$mock_home" PATH="$mock_bin:$PATH" OCTOPUS_GITHUB_WORK_QUEUE_FORCE=1 OCTOPUS_GITHUB_WORK_QUEUE_ISSUE=370 "$HOOK" <<'JSON'
+output=$(cd "$PROJECT_ROOT" && HOME="$mock_home" PATH="$mock_bin:$PATH" OCTOPUS_GITHUB_WORK_QUEUE=on OCTOPUS_GITHUB_WORK_QUEUE_FORCE=1 OCTOPUS_GITHUB_WORK_QUEUE_ISSUE=370 "$HOOK" <<'JSON'
 {"prompt":"what should we work on"}
 JSON
 )
@@ -65,11 +73,11 @@ fi
 test_case "hook debounces repeated checks"
 debounce_home="$TEST_TMP_DIR/github-work-queue-debounce-home"
 mkdir -p "$debounce_home"
-first=$(cd "$PROJECT_ROOT" && HOME="$debounce_home" PATH="$mock_bin:$PATH" "$HOOK" <<'JSON'
+first=$(cd "$PROJECT_ROOT" && HOME="$debounce_home" PATH="$mock_bin:$PATH" OCTOPUS_GITHUB_WORK_QUEUE=on "$HOOK" <<'JSON'
 {"prompt":"first"}
 JSON
 )
-second=$(cd "$PROJECT_ROOT" && HOME="$debounce_home" PATH="$mock_bin:$PATH" "$HOOK" <<'JSON'
+second=$(cd "$PROJECT_ROOT" && HOME="$debounce_home" PATH="$mock_bin:$PATH" OCTOPUS_GITHUB_WORK_QUEUE=on "$HOOK" <<'JSON'
 {"prompt":"second"}
 JSON
 )

@@ -1,6 +1,6 @@
 ---
 name: performance-engineer
-description: Performance engineer for optimization, observability, and scalable system performance
+description: Performance engineer. Delegate only when the user explicitly starts an Octopus workflow.
 model: opus
 readonly: true
 tools:

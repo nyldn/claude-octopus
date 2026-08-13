@@ -15,8 +15,7 @@ DISCIPLINE_CONF="${HOME}/.claude-octopus/config/discipline.conf"
 
 # Check if discipline mode is enabled
 if [[ ! -f "$DISCIPLINE_CONF" ]] || ! grep -q "OCTOPUS_DISCIPLINE=on" "$DISCIPLINE_CONF" 2>/dev/null; then
-    # Not enabled — output empty JSON (no injection)
-    echo '{}'
+    # Not enabled — silence is the current pass-through contract.
     exit 0
 fi
 

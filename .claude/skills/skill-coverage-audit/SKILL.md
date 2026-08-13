@@ -1,5 +1,6 @@
 ---
 name: skill-coverage-audit
+disable-model-invocation: true
 paths:
   - "**/*.test.*"
   - "**/*.spec.*"
@@ -9,7 +10,7 @@ aliases:
   - test-coverage
 description: "Trace codepaths in diffs, map against tests, auto-generate missing coverage — use before shipping PRs"
 trigger: |
-  AUTOMATICALLY ACTIVATE when user requests coverage analysis:
+  EXPLICITLY USE when user requests coverage analysis:
   - "check test coverage" or "coverage audit"
   - "what's not tested" or "find untested code"
   - "generate tests for gaps"

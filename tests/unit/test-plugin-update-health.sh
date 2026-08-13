@@ -157,6 +157,13 @@ test_case "hook gives host UI remediation"
 if assert_contains "$HOOK_OUTPUT" "Enable auto-update"; then test_pass; fi
 test_case "hook explains loaded-session refresh"
 if assert_contains "$HOOK_OUTPUT" "/reload-plugins"; then test_pass; fi
+test_case "hook is user-visible and never directs model action"
+if jq -e 'has("systemMessage") and (has("hookSpecificOutput") | not)' <<<"$HOOK_OUTPUT" >/dev/null 2>&1 \
+   && ! grep -q 'Ask to run' <<<"$HOOK_OUTPUT"; then
+    test_pass
+else
+    test_fail "update advisory should be a passive systemMessage: $HOOK_OUTPUT"
+fi
 test_case "SessionStart advisory performs no CLI or network calls"
 if [[ ! -s "$CALL_LOG" ]]; then test_pass; else test_fail "advisory invoked forbidden tools"; fi
 

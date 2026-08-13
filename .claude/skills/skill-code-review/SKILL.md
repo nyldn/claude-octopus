@@ -1,5 +1,6 @@
 ---
 name: skill-code-review
+disable-model-invocation: true
 aliases:
   - review
   - code-review

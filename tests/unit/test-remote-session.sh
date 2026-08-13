@@ -84,28 +84,28 @@ else
     fail "Node HUD exits early in remote sessions" "HUD remote early exit missing"
 fi
 
-if grep -q 'remote_session.*true' "$SESSION_START" && grep -q 'setup-complete' "$SESSION_START"; then
-    pass "SessionStart records remote sessions without first-run setup"
+if grep -q 'OCTOPUS_REMOTE_SESSION.*true' "$SESSION_START" && grep -q 'setup-complete' "$SESSION_START"; then
+    pass "SessionStart requires an explicit remote-workflow signal"
 else
-    fail "SessionStart records remote sessions without first-run setup" "remote session state missing"
+    fail "SessionStart requires an explicit remote-workflow signal" "explicit remote gate missing"
 fi
 
 tmp_home=$(mktemp -d)
 session_output=$(HOME="$tmp_home" CLAUDE_CODE_REMOTE=true "$SESSION_START" 2>/dev/null || true)
 session_file="$tmp_home/.claude-octopus/session.json"
-if [[ -f "$tmp_home/.claude-octopus/.setup-complete" && -f "$session_file" && -z "$session_output" ]] &&
-   jq -e '.remote_session == true and .autonomy == "autonomous"' "$session_file" >/dev/null 2>&1; then
-    pass "SessionStart remote mode records state and suppresses first-run prompt"
+if [[ -f "$tmp_home/.claude-octopus/.setup-complete" && ! -f "$session_file" ]] &&
+   grep -q '/octo:setup' <<<"$session_output"; then
+    pass "Claude hosting alone does not activate a remote Octopus workflow"
 else
-    fail "SessionStart remote mode records state and suppresses first-run prompt" "remote state was not recorded correctly"
+    fail "Claude hosting alone does not activate a remote Octopus workflow" "unexpected automatic remote state"
 fi
 
 tmp_home=$(mktemp -d)
-HOME="$tmp_home" CLAUDE_CODE_REMOTE=true OCTOPUS_AUTONOMY=supervised "$SESSION_START" >/dev/null 2>&1 || true
+HOME="$tmp_home" CLAUDE_CODE_REMOTE=true OCTOPUS_REMOTE_SESSION=true OCTOPUS_AUTONOMY=supervised "$SESSION_START" >/dev/null 2>&1 || true
 if jq -e '.remote_session == true and .autonomy == "supervised"' "$tmp_home/.claude-octopus/session.json" >/dev/null 2>&1; then
-    pass "SessionStart preserves explicit remote autonomy"
+    pass "explicit remote workflow preserves explicit autonomy"
 else
-    fail "SessionStart preserves explicit remote autonomy" "explicit autonomy was not preserved"
+    fail "explicit remote workflow preserves explicit autonomy" "explicit remote state was not recorded"
 fi
 
 readme_content=$(read_repo_file "README.md")

@@ -1,5 +1,6 @@
 ---
 command: unfreeze
+disable-model-invocation: true
 description: "[advanced] Remove freeze mode edit restriction"
 ---
 

@@ -1,5 +1,6 @@
 ---
 description: "\"[advanced] OpenClaw instance administration — manage hosts across macOS, Ubuntu/Debian, Docker, OCI, and Proxmox\""
+disable-model-invocation: true
 ---
 
 # Claw - OpenClaw System Administration

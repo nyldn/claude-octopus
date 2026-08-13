@@ -1,5 +1,6 @@
 ---
 description: "\"[advanced] Execute tasks in loops with conditions, iterative improvements until goals are met\""
+disable-model-invocation: true
 ---
 
 # Loop - Iterative Execution Skill

@@ -1,6 +1,7 @@
 ---
 name: skill-prd
 description: "Write an AI-optimized PRD using multi-AI orchestration — use when scoping a new feature or product"
+disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.

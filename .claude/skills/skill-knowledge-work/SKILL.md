@@ -1,5 +1,6 @@
 ---
 name: skill-knowledge-work
+disable-model-invocation: true
 description: "Switch to Knowledge Work mode for research and writing — use when task is non-code focused"
 triggerPatterns:
   - "switch.*mode"

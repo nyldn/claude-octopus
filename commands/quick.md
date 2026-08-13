@@ -1,5 +1,6 @@
 ---
 command: quick
+disable-model-invocation: true
 description: Quick execution mode for ad-hoc tasks without full workflow overhead
 skill: octopus-quick
 ---

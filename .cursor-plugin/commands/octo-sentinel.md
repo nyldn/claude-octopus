@@ -1,5 +1,6 @@
 ---
 description: "GitHub-aware work monitor - triages issues, PRs, and CI failures"
+disable-model-invocation: true
 ---
 
 # Sentinel (/octo:sentinel)

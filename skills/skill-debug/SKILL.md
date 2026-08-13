@@ -1,6 +1,7 @@
 ---
 name: skill-debug
 description: "Debug issues methodically — use when stuck on errors, test failures, or unexpected behavior"
+disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
@@ -286,7 +287,8 @@ If you suspect the issue is with the Claude Code environment itself (e.g., netwo
 
 ## Auto-Freeze on Debug
 
-When debugging a specific module, automatically activate freeze mode to prevent accidental edits outside the investigated area. This is a safety measure that keeps your debugging focused.
+Inside this explicitly invoked debugging workflow, activate freeze mode for the
+specific module before editing. This safety measure keeps the investigation focused.
 
 ### How It Works
 

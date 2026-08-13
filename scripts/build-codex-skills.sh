@@ -362,6 +362,8 @@ write_skill() {
     local codex_desc="$4"
     local codex_display_name="${5:-}"
     local codex_short_desc="${6:-}"
+    local disable_model
+    disable_model="$(extract_field "$file" "disable-model-invocation")"
 
     if [[ -z "$codex_display_name" ]]; then
         codex_display_name="$(display_name "$codex_name")"
@@ -376,6 +378,7 @@ write_skill() {
         echo "---"
         echo "name: $codex_name"
         echo "description: \"$codex_desc\""
+        [[ -n "$disable_model" ]] && echo "disable-model-invocation: $disable_model"
         echo "---"
         host_preamble
         adapt_body_for_codex "$file"

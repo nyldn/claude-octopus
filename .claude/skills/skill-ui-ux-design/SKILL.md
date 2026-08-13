@@ -1,5 +1,6 @@
 ---
 name: octopus-ui-ux-design
+disable-model-invocation: true
 aliases:
   - design-ui-ux
   - ui-ux-design

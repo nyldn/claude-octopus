@@ -1,5 +1,6 @@
 ---
 command: freeze
+disable-model-invocation: true
 description: "[advanced] Restrict file edits to a specific directory boundary"
 ---
 

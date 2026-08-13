@@ -1,5 +1,6 @@
 ---
 name: octopus-security-audit
+disable-model-invocation: true
 aliases:
   - security
   - security-audit

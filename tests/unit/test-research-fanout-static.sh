@@ -17,10 +17,11 @@ else
 fi
 
 test_case "research command routes to dedicated research skill"
-if [[ "$research_cmd" == *'Skill(skill: "octopus-research"'* && "$research_cmd" != *'Skill(skill: "octo:discover"'* ]]; then
+if [[ "$research_cmd" == *'.claude/skills/skill-deep-research/SKILL.md'* \
+   && "$research_cmd" != *'Read `${HOME}/.claude-octopus/plugin/.claude/skills/flow-discover/'* ]]; then
     test_pass
 else
-    test_fail "expected /octo:research to invoke octopus-research, not octo:discover"
+    test_fail "expected /octo:research to load its dedicated source, not discover"
 fi
 
 test_case "discover skill requires dynamic multi-provider fleet"

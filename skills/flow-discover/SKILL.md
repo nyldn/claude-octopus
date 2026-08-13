@@ -1,6 +1,7 @@
 ---
 name: flow-discover
 description: "Multi-AI research using available external providers (Double Diamond Discover phase)"
+disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
@@ -830,4 +831,4 @@ either invoke `flow-define` (embrace workflow, or the user wants requirements ne
 stop with research delivered. Do NOT begin scoping, designing, or implementation from
 here — that work belongs to later phases.
 
-**Ready to research!** This skill activates automatically when users request research or exploration.
+**Ready to research!** This skill is used after explicit invocation when users request research or exploration.

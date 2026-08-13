@@ -1,6 +1,7 @@
 ---
 name: skill-writing-plans
 description: "Create zero-context implementation plans with bite-sized tasks — use for multi-step feature planning"
+disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.

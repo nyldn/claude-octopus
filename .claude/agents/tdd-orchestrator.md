@@ -1,6 +1,6 @@
 ---
 name: tdd-orchestrator
-description: TDD orchestrator enforcing red-green-refactor discipline and test-driven development
+description: TDD orchestrator. Delegate only when the user explicitly starts an Octopus workflow.
 model: opus
 tools:
   - Read

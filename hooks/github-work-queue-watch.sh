@@ -4,6 +4,10 @@
 
 set -euo pipefail
 
+# Maintainer convenience must never make network requests for ordinary plugin
+# users. Enable explicitly in a maintainer environment when desired.
+[[ "${OCTOPUS_GITHUB_WORK_QUEUE:-off}" == "on" ]] || exit 0
+
 _octo_hook_exit() {
     local c=$?
     if [[ $c -ne 0 ]]; then

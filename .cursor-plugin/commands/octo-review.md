@@ -1,5 +1,6 @@
 ---
 description: "Enhanced multi-LLM review with inline PR comments — escalation path beyond Claude-native /review"
+disable-model-invocation: true
 ---
 
 # /octo:review

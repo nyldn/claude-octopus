@@ -1,6 +1,6 @@
 # Command and Usage Reference
 
-Complete reference for all 49 Claude Octopus slash commands, CLI tools (`octopus` + `octo-compress`), plus activation rules, provider indicators, and the project-lifecycle features that are triggered by natural language rather than slash commands.
+Complete reference for all 49 Claude Octopus slash commands, CLI tools (`octopus` + `octo-compress`), plus activation rules, provider indicators, and manual-only project-lifecycle skills.
 
 ---
 
@@ -134,9 +134,11 @@ Plugin executables available as bare commands (CC v2.1.91+). Also usable via ful
 
 ### Project Lifecycle (Skill-Based)
 
-These are invoked via natural language or skill triggers — not slash commands.
+These are manual-only plugin skills, not standalone `/octo:*` commands. Choose
+one explicitly from the host's skill menu or start an Octopus workflow that
+loads it as a source; ordinary natural-language prompts do not activate them.
 
-| Feature | Natural Language | Description |
+| Feature | Example request after explicit selection | Description |
 |---------|-----------------|-------------|
 | Status | "show status", "where am I" | Project progress dashboard |
 | Resume | "resume", "continue", "pick up where I left off" | Restore context from previous session |
@@ -150,11 +152,13 @@ These are invoked via natural language or skill triggers — not slash commands.
 
 ### `/octo:auto`
 
-Single entry point with natural language intent detection. Analyzes your request and routes to the optimal workflow automatically.
+Explicit single entry point with natural language intent detection. Analyzes the
+request supplied to `/octo:auto` and routes to the optimal workflow.
 
-**You can invoke the router in two ways:**
-- Slash command: `/octo:auto <request>`
-- Plain language: `octo <request>`
+**Default invocation:** `/octo:auto <request>`
+
+Plain-prompt routing is disabled by default. Users who deliberately want it can
+set `OCTOPUS_AUTO_ROUTER_MODE=suggest` or `invoke`.
 
 **Usage:**
 ```
@@ -1452,13 +1456,15 @@ Toggle discipline mode — automatic verification, brainstorming, and review gat
 
 ## Project Lifecycle (Skill-Based)
 
-These features are triggered by natural language — they are not slash commands. Claude auto-activates them based on context.
+These lifecycle skills are manual-only. Choose the plugin-scoped skill from the
+host's slash or skill menu, or let an explicitly started Octopus workflow load
+it as a source. Ordinary natural-language prompts do not auto-activate them.
 
 ### `Status`
 
 Show where you are in the workflow and what to do next.
 
-**Invocation:** Skill-based — triggered by natural language: "show status", "where am I", "what's next", "progress", "what have I been working on"
+**Invocation:** Select the skill explicitly; example requests include "show status", "where am I", "what's next", "progress", and "what have I been working on".
 
 **Output:**
 - Current phase and position

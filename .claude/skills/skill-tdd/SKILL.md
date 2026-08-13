@@ -1,5 +1,6 @@
 ---
 name: skill-tdd
+disable-model-invocation: true
 paths:
   - "**/*.test.*"
   - "**/*.spec.*"
@@ -10,8 +11,8 @@ aliases:
   - test-driven-development
 description: "Build features with tests-before-code rigor — use for new features needing test coverage"
 trigger: |
-  Use when implementing any feature, bugfix, or behavior change.
-  Auto-invoke when user says "implement X", "add feature Y", "fix bug Z".
+  Invoke explicitly for a feature, bugfix, or behavior change that needs TDD.
+  Example requests include "implement X", "add feature Y", and "fix bug Z".
   DO NOT use for: throwaway prototypes, config files, documentation.
 ---
 

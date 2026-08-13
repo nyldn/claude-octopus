@@ -1,5 +1,6 @@
 ---
 description: "\"Design UI/UX systems with style guides, palettes, typography, and component specs\""
+disable-model-invocation: true
 ---
 
 # /octo:design-ui-ux - UI/UX Design Workflow

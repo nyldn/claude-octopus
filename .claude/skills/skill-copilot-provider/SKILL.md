@@ -1,10 +1,11 @@
 ---
 name: skill-copilot-provider
+disable-model-invocation: true
 version: 2.0.0
 aliases: [copilot-provider, github-copilot, copilot]
 description: GitHub Copilot CLI as optional zero-cost provider via copilot -p programmatic mode
 trigger: |
-  AUTOMATICALLY ACTIVATE when user says:
+  EXPLICITLY USE when user says:
   "copilot provider" or "add copilot" or "github copilot" or "use copilot"
   DO NOT activate for general copilot IDE usage or copilot chat in editor.
 paths:

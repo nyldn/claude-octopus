@@ -1,6 +1,6 @@
 ---
 name: octo-debugger
-description: "Debugging specialist for errors, test failures, and unexpected behavior"
+description: "Debugger. Delegate only when the user explicitly starts an Octopus workflow."
 model: opus
 ---
 

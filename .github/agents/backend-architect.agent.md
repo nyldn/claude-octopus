@@ -1,6 +1,6 @@
 ---
 name: backend-architect
-description: Backend architect for scalable API design, microservices, and distributed systems
+description: Octopus-only backend architect. Use only when the user explicitly selects this agent or starts an Octopus workflow; never for an ordinary request.
 tools:
   - read
   - search

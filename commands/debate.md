@@ -1,5 +1,6 @@
 ---
 command: debate
+disable-model-invocation: true
 description: "AI Debate Hub - Structured debates across Claude and available external providers"
 skill: skill-debate
 ---

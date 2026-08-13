@@ -1,5 +1,6 @@
 ---
 name: skill-content-pipeline
+disable-model-invocation: true
 aliases:
   - content-pipeline
   - content-analysis
@@ -7,7 +8,7 @@ aliases:
 description: "Extract patterns and anatomy from URLs — use to reverse-engineer content strategies from live pages"
 context: fork
 trigger: |
-  Use PROACTIVELY when user wants to:
+  Invoke explicitly when the user wants to:
   - "analyze this article", "analyze this content"
   - "deconstruct this content", "break down this post"
   - "extract patterns from this", "learn from this example"

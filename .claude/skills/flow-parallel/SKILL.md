@@ -1,5 +1,6 @@
 ---
 name: flow-parallel
+disable-model-invocation: true
 effort: high
 aliases:
   - parallel

@@ -1,6 +1,6 @@
 ---
 name: octo-frontend-developer
-description: "Frontend developer for React, Next.js, responsive layouts, and accessible UI components"
+description: "Frontend developer. Delegate only when the user explicitly starts an Octopus workflow."
 model: inherit
 ---
 

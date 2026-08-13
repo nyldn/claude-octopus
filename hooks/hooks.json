@@ -7,6 +7,7 @@
           {
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/hooks/provider-routing-validator.sh",
+            "if": "Bash(*orchestrate.sh*)",
             "additionalContext": "Session: ${CLAUDE_SESSION_ID}, Workflow: ${OCTOPUS_WORKFLOW_PHASE:-unknown}",
             "timeout": 10
           }
@@ -25,11 +26,24 @@
       {
         "matcher": "Bash",
         "hooks": [
-          {
-            "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/codex-exec-guard.sh",
-            "timeout": 5
-          }
+      {
+        "type": "command",
+        "command": "${CLAUDE_PLUGIN_ROOT}/hooks/codex-exec-guard.sh",
+        "if": "Bash(codex *)",
+        "timeout": 5
+      },
+      {
+        "type": "command",
+        "command": "${CLAUDE_PLUGIN_ROOT}/hooks/codex-exec-guard.sh",
+        "if": "Bash(qwen *)",
+        "timeout": 5
+      },
+      {
+        "type": "command",
+        "command": "${CLAUDE_PLUGIN_ROOT}/hooks/codex-exec-guard.sh",
+        "if": "Bash(gemini *)",
+        "timeout": 5
+      }
         ]
       },
       {
@@ -77,7 +91,7 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "Bash|Agent|Write|Edit|Read|WebFetch|Grep",
+        "matcher": "Bash|Agent|Write|Edit",
         "hooks": [
           {
             "type": "command",
@@ -92,6 +106,7 @@
           {
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/hooks/quality-gate.sh",
+            "if": "Bash(*orchestrate.sh*)",
             "timeout": 60
           }
         ]
@@ -123,9 +138,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/session-manager.sh export",
-            "additionalContext": "Initializing Octopus session variables for multi-provider orchestration",
-            "timeout": 60
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/helpers/ensure-plugin-root.sh",
+            "timeout": 5
           },
           {
             "type": "command",

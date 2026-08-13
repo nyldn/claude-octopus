@@ -1,5 +1,6 @@
 ---
 command: pipeline
+disable-model-invocation: true
 description: "Run content analysis pipeline on URL(s) to extract patterns and create anatomy guides"
 ---
 

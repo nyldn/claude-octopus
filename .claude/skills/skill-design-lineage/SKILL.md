@@ -1,12 +1,13 @@
 ---
 name: skill-design-lineage
+disable-model-invocation: true
 aliases:
   - design-lineage
   - design-docs
   - design-history
 description: "Persist design documents with branch tracking, revision chains, and cross-session discovery"
 trigger: |
-  AUTOMATICALLY ACTIVATE when user says:
+  EXPLICITLY USE when user says:
   - "save design" or "save this design"
   - "design document" or "create a design doc"
   - "design history" or "show design history"

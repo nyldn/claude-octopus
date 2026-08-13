@@ -1,6 +1,7 @@
 ---
 name: skill-deck
 description: "Generate slide deck presentations from briefs — use when you need slides, pitch decks, or visual summaries"
+disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.

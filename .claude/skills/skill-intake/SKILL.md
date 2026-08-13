@@ -1,5 +1,6 @@
 ---
 name: skill-intake
+disable-model-invocation: true
 description: "Move incoming issues and pull requests through triage states until each is actionable or closed — use when the queue has piled up or a report arrives unsorted"
 ---
 

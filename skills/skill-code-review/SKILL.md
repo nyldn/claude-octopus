@@ -1,6 +1,7 @@
 ---
 name: skill-code-review
 description: "Expert multi-AI code review with inline PR comments — use for thorough quality and security analysis"
+disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.

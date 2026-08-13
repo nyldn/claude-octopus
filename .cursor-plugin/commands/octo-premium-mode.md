@@ -1,5 +1,6 @@
 ---
 description: "Switch Octopus model routing to the configured premium tier"
+disable-model-invocation: true
 allowed-tools: Bash
 ---
 

@@ -1,5 +1,6 @@
 ---
 description: "\"Intelligent plan builder - creates strategic execution plans (doesn't execute). Use /octo:embrace to execute plans.\""
+disable-model-invocation: true
 ---
 
 # Plan - Intelligent Plan Builder
@@ -11,7 +12,7 @@ description: "\"Intelligent plan builder - creates strategic execution plans (do
 - **Creates plans** - Captures intent, analyzes requirements, generates weighted execution strategy
 - **Saves to files** - Stores plan (`.claude/session-plan.md`) and intent contract (`.claude/session-intent.md`)
 - **Doesn't execute** - Plans are saved for review; execution requires user confirmation
-- **Optional execution** - Can invoke `/octo:embrace` immediately or user can execute later
+- **Optional execution** - Can load `/octo:embrace` after explicit user approval or execute later
 
 ## 🤖 INSTRUCTIONS FOR CLAUDE
 
@@ -455,12 +456,12 @@ AskUserQuestion({
 - Return to Step 6 (ask again what to do)
 
 **If "Execute now":**
-- Invoke `/octo:embrace` skill with the user's goal
+- Read `${HOME}/.claude-octopus/plugin/commands/embrace.md` and execute it with the user's goal
 - Pass the intent contract and phase weights
 - Let embrace workflow handle execution
 
 **If "Multi-LLM debate the plan first":**
-- Invoke `/octo:debate` with the plan as context (Claude plus available providers deliberate):
+- Read `${HOME}/.claude-octopus/plugin/commands/debate.md` and execute it with the plan as context (Claude plus available providers deliberate):
   - Topic: "Should we proceed with this plan? What are the risks and blind spots?"
   - `--rounds 2 --debate-style adversarial --context-file .claude/session-plan.md`
 - After the Multi-LLM debate completes, present the synthesis and return to Step 6
@@ -476,7 +477,7 @@ AskUserQuestion({
 
 **If user chose "Execute now" in Step 6:**
 
-The plan command should invoke the `/octo:embrace` skill, which handles:
+The plan command should load the explicit `/octo:embrace` command source, which handles:
 - Execution of all 4 phases (Discover → Define → Develop → Deliver)
 - Using the phase weights from the plan
 - Referencing the intent contract
@@ -490,7 +491,7 @@ The plan command should invoke the `/octo:embrace` skill, which handles:
 **The plan command exits after:**
 - Creating and saving the plan (`.claude/session-plan.md`)
 - Creating the intent contract (`.claude/session-intent.md`)
-- Optionally invoking `/octo:embrace` if user requested immediate execution
+- Optionally loading `/octo:embrace` if user requested immediate execution
 
 **The plan command does NOT:**
 - Execute workflows directly (delegates to `/octo:embrace`)

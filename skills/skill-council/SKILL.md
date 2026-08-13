@@ -1,5 +1,6 @@
 ---
 name: skill-council
+disable-model-invocation: true
 description: "Run a configurable multi-LLM council with personas, budget caps, synthesis, veto gates, and optional implementation handoff."
 ---
 

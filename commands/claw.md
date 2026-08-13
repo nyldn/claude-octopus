@@ -1,5 +1,6 @@
 ---
 command: claw
+disable-model-invocation: true
 description: "[advanced] OpenClaw instance administration — manage hosts across macOS, Ubuntu/Debian, Docker, OCI, and Proxmox"
 ---
 

@@ -1,5 +1,6 @@
 ---
 name: sys-configure
+disable-model-invocation: true
 effort: low
 user-invocable: true
 aliases:
@@ -21,4 +22,6 @@ This skill is an alias for `/octo:setup`. When triggered, invoke the setup comma
 - Work mode selection
 - First-run onboarding
 
-Do NOT duplicate setup logic here. Just invoke the setup skill.
+Do NOT duplicate setup logic here. Read
+`${HOME}/.claude-octopus/plugin/commands/setup.md` and follow it only because
+the user explicitly invoked this configuration skill.

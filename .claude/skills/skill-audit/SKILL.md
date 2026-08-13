@@ -1,5 +1,6 @@
 ---
 name: skill-audit
+disable-model-invocation: true
 effort: high
 aliases:
   - audit
@@ -7,7 +8,7 @@ aliases:
   - comprehensive-audit
 description: "Audit codebases for quality, consistency, and broken patterns — use for pre-release or tech debt review"
 trigger: |
-  AUTOMATICALLY ACTIVATE when user requests auditing:
+  EXPLICITLY USE when user requests auditing:
   - "audit and check the entire app"
   - "audit X for Y" or "check for broken features"
   - "process to audit" or "systematic check"

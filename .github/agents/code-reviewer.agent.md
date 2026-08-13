@@ -1,6 +1,6 @@
 ---
 name: code-reviewer
-description: Code review expert for quality analysis, security vulnerabilities, and production reliability
+description: Octopus-only code reviewer. Use only when the user explicitly selects this agent or starts an Octopus workflow; never for an ordinary request.
 tools:
   - read
   - search

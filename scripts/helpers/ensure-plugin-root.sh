@@ -20,9 +20,17 @@ if [[ -f "$PLUGIN_ROOT_LIB" ]]; then
     source "$PLUGIN_ROOT_LIB"
 fi
 
-# Fast path — already exists and points to a valid directory
+# Fast path — already points to the version that invoked this helper. Merely
+# checking that the old target still exists strands users on a stale cache after
+# the host installs a newer version but keeps older cache directories around.
 if [[ -d "$STABLE_ROOT" && -x "$STABLE_ROOT/scripts/orchestrate.sh" ]]; then
-    exit 0
+    expected_root="${CLAUDE_PLUGIN_ROOT:-}"
+    [[ -n "$expected_root" ]] || expected_root="$(dirname "$(dirname "$SCRIPT_DIR")")"
+    expected_physical="$(cd "$expected_root" 2>/dev/null && pwd -P || true)"
+    stable_physical="$(cd "$STABLE_ROOT" 2>/dev/null && pwd -P || true)"
+    if [[ -n "$expected_physical" && "$stable_physical" == "$expected_physical" ]]; then
+        exit 0
+    fi
 fi
 
 # --- Resolve plugin root ---

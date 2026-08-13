@@ -21,7 +21,7 @@ validation_gates:
   - orchestrate_sh_executed
   - validation_file_exists
 trigger: |
-  AUTOMATICALLY ACTIVATE when user requests validation, scoring, or review:
+  EXPLICITLY USE when user requests validation, scoring, or review:
   - "review X" or "validate Y" or "test Z"
   - "score this", "quality check", "validate before shipping"
   - "check if X works correctly"
@@ -835,9 +835,9 @@ Ink workflows typically cost $0.02-0.08 per validation depending on codebase siz
 
 After validation passes (go decision), run documentation synchronization to keep project docs current with shipped code. This step is **automatic** when running as part of `/octo:embrace` and **offered** when running standalone.
 
-**Invoke the doc-sync skill:**
+**Load the doc-sync source after delivery has been explicitly requested:**
 ```
-Skill(skill: "octo:auto", args: "sync docs for the changes on this branch")
+Read ${HOME}/.claude-octopus/plugin/.claude/skills/skill-doc-sync/SKILL.md and execute it for "sync docs for the changes on this branch"
 ```
 
 The doc-sync skill will:
@@ -857,7 +857,8 @@ The doc-sync skill will:
 
 ## Post-Delivery: Route to Ship
 
-After delivery validation and doc-sync complete:
+After delivery validation and doc-sync complete, only continue to shipping when
+the user explicitly requested it:
 1. Update `.octo/STATE.md`:
    - status: "complete"
    - Add history entry: "All phases complete, ready to ship"
@@ -884,4 +885,4 @@ echo "📦 **Project ready! Run \`/octo:ship\` to finalize and archive.**"
 
 ---
 
-**Ready to validate!** This skill activates automatically when users request code review, validation, or quality checks.
+**Ready to validate!** This skill runs only after explicit invocation.

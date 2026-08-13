@@ -24,7 +24,7 @@ validation_gates:
   - orchestrate_sh_executed
   - synthesis_file_exists
 trigger: |
-  AUTOMATICALLY ACTIVATE when user requests building or implementation:
+  EXPLICITLY USE when user requests building or implementation:
   - "build X" or "implement Y" or "create Z"
   - "develop a feature for X"
   - "write code to do Y"
@@ -819,4 +819,4 @@ modified_files=$(git diff --name-only HEAD~1 2>/dev/null || echo "See git log")
 
 ---
 
-**Ready to build!** This skill activates automatically when users request implementation or building features.
+**Ready to build!** This skill is used after explicit invocation when users request implementation or building features.

@@ -1,5 +1,6 @@
 ---
 command: deck
+disable-model-invocation: true
 description: Generate slide deck presentations from briefs or research
 ---
 

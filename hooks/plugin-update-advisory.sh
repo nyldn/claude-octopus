@@ -49,7 +49,7 @@ Enable auto-update in /plugin → Marketplaces → nyldn-plugins → Enable auto
 fi
 if [[ "$OCTO_PLUGIN_UPDATE_AVAILABLE" == "true" ]]; then
     MESSAGE="${MESSAGE}
-A newer version is already known locally. Ask to run 'orchestrate.sh update-plugin' explicitly; this startup hook will never update by itself."
+A newer version is already known locally. Run /octo:doctor to review the explicit update path; this startup hook never updates by itself."
 fi
 MESSAGE="${MESSAGE}
 After an update, run /reload-plugins or restart Claude Code so this session stops using the stale loaded copy."
@@ -65,5 +65,5 @@ if [[ -n "$TMP_FILE" ]]; then
     fi
 fi
 
-jq -cn --arg ctx "$MESSAGE" '{hookSpecificOutput:{hookEventName:"SessionStart",additionalContext:$ctx}}'
+jq -cn --arg msg "$MESSAGE" '{systemMessage:$msg}'
 exit 0

@@ -1,5 +1,6 @@
 ---
 command: debug
+disable-model-invocation: true
 description: Systematic debugging with methodical problem investigation
 ---
 

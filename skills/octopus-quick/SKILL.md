@@ -1,6 +1,7 @@
 ---
 name: octopus-quick
 description: "Quick execution for ad-hoc tasks without full workflow overhead — use for small, self-contained requests"
+disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.

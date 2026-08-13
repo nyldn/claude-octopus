@@ -1,6 +1,6 @@
 ---
 name: docs-architect
-description: Technical documentation architect for comprehensive system docs and architecture guides
+description: Documentation architect. Delegate only when the user explicitly starts an Octopus workflow.
 model: inherit
 tools:
   - Read

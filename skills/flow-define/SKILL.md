@@ -1,6 +1,7 @@
 ---
 name: flow-define
 description: "Multi-AI requirements scoping using available external providers (Double Diamond Define phase)"
+disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
@@ -721,4 +722,4 @@ approved the scope. After approval, invoke `flow-develop` if implementation is r
 Otherwise, deliver the requirements document and stop. Do NOT begin
 implementation from here without an approved scope.
 
-**Ready to define!** This skill activates automatically when users request requirement clarification or problem definition.
+**Ready to define!** This skill is used after explicit invocation when users request requirement clarification or problem definition.

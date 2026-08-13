@@ -1,5 +1,6 @@
 ---
 description: "Enhanced multi-LLM or adversarial security audit — escalation path beyond Claude-native /security-review"
+disable-model-invocation: true
 ---
 
 # Security - Security Audit Skill

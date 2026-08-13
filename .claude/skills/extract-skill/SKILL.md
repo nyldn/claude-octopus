@@ -1,5 +1,6 @@
 ---
 name: skill-extract
+disable-model-invocation: true
 description: "Reverse-engineer design systems, tokens, and components from live products or screenshots"
 ---
 

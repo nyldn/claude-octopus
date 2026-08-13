@@ -1,5 +1,6 @@
 ---
 command: prd-score
+disable-model-invocation: true
 description: Score an existing PRD against the 100-point AI-optimization framework
 arguments:
   - name: file

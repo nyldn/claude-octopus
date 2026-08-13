@@ -103,12 +103,10 @@ check_smoke_test_status() {
 
 # Main validation logic
 main() {
-    log "INFO" "Provider routing validation hook triggered"
-
     # Read hook input from stdin (CC hook protocol: JSON with tool_input.command)
     local stdin_data=""
     if [[ ! -t 0 ]]; then
-        stdin_data=$(cat 2>/dev/null || true)
+        IFS= read -r stdin_data || true
     fi
 
     # Extract the bash command from hook JSON input
@@ -127,10 +125,11 @@ print(d.get('tool_input', {}).get('command', ''))" 2>/dev/null) || true
     # Fallback to positional arg (for manual testing)
     [[ -z "$bash_command" ]] && bash_command="${1:-}"
 
-    if [[ -z "$bash_command" ]]; then
-        log "DEBUG" "No command to validate, proceeding"
-        exit 0
-    fi
+    # Defense in depth for hosts that do not support hook-level `if`: unrelated
+    # Bash commands are silent and never probe providers.
+    [[ "$bash_command" == *"orchestrate.sh"* ]] || exit 0
+
+    log "INFO" "Provider routing validation hook triggered"
 
     # Check smoke test status (non-blocking warning)
     check_smoke_test_status

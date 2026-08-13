@@ -1,5 +1,6 @@
 ---
 command: security
+disable-model-invocation: true
 description: Enhanced multi-LLM or adversarial security audit — escalation path beyond Claude-native /security-review
 ---
 

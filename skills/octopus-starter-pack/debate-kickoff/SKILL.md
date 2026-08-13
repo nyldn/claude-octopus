@@ -1,5 +1,6 @@
 ---
 name: debate-kickoff
+disable-model-invocation: true
 description: "Starter: frame a decision as a multi-model debate — picks sides, seats providers, and launches /octo:debate with a well-formed motion"
 ---
 

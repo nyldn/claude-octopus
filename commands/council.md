@@ -1,5 +1,6 @@
 ---
 command: council
+disable-model-invocation: true
 description: "Multi-LLM council for advice, decision support, implementation plans, and gated implementation"
 skill: skill-council
 ---

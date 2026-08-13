@@ -1,5 +1,6 @@
 ---
 description: "\"Full Double Diamond workflow - Research → Define → Develop → Deliver\""
+disable-model-invocation: true
 ---
 
 # Embrace - Complete Double Diamond Workflow

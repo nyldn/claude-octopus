@@ -1,5 +1,6 @@
 ---
 command: dev
+disable-model-invocation: true
 description: "[advanced] Switch to Dev Work mode - optimized for software development"
 aliases:
   - dev-mode

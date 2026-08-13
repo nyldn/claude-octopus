@@ -1,5 +1,6 @@
 ---
 description: "Check provider health before running multi-LLM workflows"
+disable-model-invocation: true
 allowed-tools: Bash
 ---
 

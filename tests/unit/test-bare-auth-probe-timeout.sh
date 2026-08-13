@@ -127,7 +127,9 @@ export OCTO_DESCENDANT_WRAPPER="$descendant_wrapper"
 rc=0
 (
     PATH="$manual_bin"
-    _octo_run_bare_probe_with_timeout 1 1 0 "$descendant_probe" \
+    # Process creation can exceed one second on loaded macOS CI hosts. Give the
+    # fixture enough time to publish its PID before asserting whole-tree kill.
+    _octo_run_bare_probe_with_timeout 3 3 0 "$descendant_probe" \
         >/dev/null 2>&1
 ) || rc=$?
 grandchild_pid=$(cat "$grandchild_pid_file" 2>/dev/null || true)

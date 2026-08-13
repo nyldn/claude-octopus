@@ -1,6 +1,7 @@
 ---
 name: skill-doc-sync
 description: "Post-ship doc sync across project markdown. Use when: sync docs, update docs, document changes, release notes."
+disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.

@@ -1,6 +1,6 @@
 ---
 name: cloud-architect
-description: Cloud architect for AWS/Azure/GCP infrastructure, IaC, FinOps, and multi-cloud strategies
+description: Octopus-only cloud architect. Use only when the user explicitly selects this agent or starts an Octopus workflow; never for an ordinary request.
 tools:
   - read
   - search

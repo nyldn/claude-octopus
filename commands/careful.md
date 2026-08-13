@@ -1,5 +1,6 @@
 ---
 command: careful
+disable-model-invocation: true
 description: "[advanced] Activate destructive command warnings for the session"
 ---
 

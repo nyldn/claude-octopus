@@ -1,5 +1,6 @@
 ---
 command: costs
+disable-model-invocation: true
 description: "[advanced] Show cost breakdown by provider and workflow for the current session"
 allowed-tools: Bash, Read, Glob, Grep
 ---

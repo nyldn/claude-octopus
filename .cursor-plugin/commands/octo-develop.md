@@ -1,5 +1,6 @@
 ---
 description: "\"Development phase - Build solutions with multi-AI implementation and quality gates\""
+disable-model-invocation: true
 ---
 
 # Develop - Development Phase 🛠️

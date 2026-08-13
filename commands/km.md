@@ -1,5 +1,6 @@
 ---
 command: km
+disable-model-invocation: true
 description: "[advanced] Switch to Knowledge Work mode (or toggle with off)"
 usage: "/octo:km [on|off]"
 examples:

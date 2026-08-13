@@ -1,5 +1,6 @@
 ---
 command: design-ui-ux
+disable-model-invocation: true
 description: "Design UI/UX systems with style guides, palettes, typography, and component specs"
 aliases:
   - design

@@ -2,6 +2,39 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Octopus is dormant by default. All shipped commands and skills use Claude
+  Code's native `disable-model-invocation` gate, and Claude/Copilot agent
+  adapters require an explicitly started Octopus workflow. Plain-prompt
+  routing remains available through an explicit
+  `OCTOPUS_AUTO_ROUTER_MODE=suggest|invoke` preference. (#898)
+- Completion coaching, output compression, strategy rotation, statusline
+  context injection, session-memory restoration, GitHub queue checks, remote
+  workflow behavior, and statusline installation no longer engage merely
+  because the plugin is installed. Each is scoped to an active workflow or an
+  explicit opt-in. First-run, upgrade, and update-health notices are passive
+  system messages rather than model instructions. (#898)
+
+### Performance
+
+- Provider routing validation now uses Claude Code's host-side `if` filter and
+  no longer spawns for every Bash call. Direct Codex/Qwen/Gemini safety checks
+  are likewise host-filtered to those provider commands, blanket PostToolUse
+  matching is narrower, and inactive hook paths exit before JSON parsing,
+  provider discovery, state mutation, or network access. (#898)
+
+### Fixed
+
+- Session-affine workflow state prevents a stale workflow record from
+  injecting enforcement into a different Claude session. Explicit command
+  composition loads manual-only skill sources directly, preserving workflows
+  without reopening automatic model invocation. (#898)
+- The stable `~/.claude-octopus/plugin` entrypoint now advances to the plugin
+  version loaded by the host, even when its previous cache directory remains
+  valid. Older cached releases can no longer keep explicit commands pinned to
+  stale hooks after a successful update. (#898)
+
 ## [9.63.0] - 2026-08-12
 
 

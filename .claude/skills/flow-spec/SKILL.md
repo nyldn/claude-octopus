@@ -1,5 +1,6 @@
 ---
 name: flow-spec
+disable-model-invocation: true
 effort: high
 aliases:
   - spec

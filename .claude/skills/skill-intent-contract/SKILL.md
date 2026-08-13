@@ -1,5 +1,6 @@
 ---
 name: skill-intent-contract
+disable-model-invocation: true
 description: "Use when starting a complex or ambiguous task that risks scope drift"
 ---
 

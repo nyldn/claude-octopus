@@ -25,6 +25,9 @@ Each skill must include YAML frontmatter with:
   file name.
 - `description`: a concise trigger/use statement. Prefer one direct sentence
   over a broad capability list.
+- `disable-model-invocation: true`: Octopus is an explicit escalation surface;
+  installed skills must not enter model context or self-activate on an ordinary
+  request.
 
 Skill bodies should use this shape when practical:
 
@@ -66,10 +69,16 @@ Agent configuration must keep referenced files resolvable from the plugin root.
 If `agents/config.yaml` references `file: personas/foo.md`, the validator must
 be able to prove that file exists.
 
+Claude Code has no manual-only frontmatter field for subagents: it delegates
+from their descriptions. Plugin subagent descriptions must state that they are
+available only after the user explicitly starts an Octopus workflow. Ordinary
+requests stay on the host's native path.
+
 ## Command Assembly Contract
 
-Commands are explicit entrypoints. They should be thin, predictable, and easy to
-scan. A command can gather arguments, choose a mode, and invoke a skill or
+Commands are explicit entrypoints and must set
+`disable-model-invocation: true`. They should be thin, predictable, and easy to
+scan. A command can gather arguments, choose a mode, and load a skill source or
 orchestration script. It should not silently fork into a separate product.
 
 Every command markdown file in `.cursor-plugin/commands/*.md` or `commands/*.md` must

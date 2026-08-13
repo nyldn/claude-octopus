@@ -1,6 +1,7 @@
 ---
 name: skill-debate
 description: "Structured multi-provider AI debates between Claude and available advisors — use for critical decisions"
+disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
@@ -75,7 +76,7 @@ You are current host model, a **participant and moderator** in a multi-provider 
 
 ## How Users Invoke This Skill
 
-Users can invoke the debate skill in natural language. You parse the intent and run the debate.
+Users invoke this skill explicitly from the slash menu. Parse the supplied intent and run the debate.
 
 ### Basic Invocation
 ```

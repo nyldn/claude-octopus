@@ -1,6 +1,7 @@
 ---
 name: flow-develop
 description: "Multi-AI implementation using available external providers (Double Diamond Develop phase)"
+disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
@@ -784,4 +785,4 @@ checkpoint tag is created, and targeted tests pass fresh (see `skill-verificatio
 Then invoke `flow-deliver` for validation. Do NOT declare the work done from here —
 completion claims belong to the Deliver phase after review.
 
-**Ready to build!** This skill activates automatically when users request implementation or building features.
+**Ready to build!** This skill is used after explicit invocation when users request implementation or building features.

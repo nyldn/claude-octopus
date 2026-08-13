@@ -1,5 +1,6 @@
 ---
 name: skill-debate
+disable-model-invocation: true
 effort: high
 user-invocable: true
 aliases:
@@ -7,7 +8,7 @@ aliases:
 description: Structured multi-provider AI debates between Claude and available advisors — use for critical decisions
 context: fork
 trigger: |
-  AUTOMATICALLY ACTIVATE when user says:
+  EXPLICITLY USE when user says:
   - "/debate <question>"
   - "run a debate about X"
   - "I want Antigravity and Codex to review X"
@@ -95,7 +96,7 @@ You are Claude (Opus), a **participant and moderator** in a multi-provider AI de
 
 ## How Users Invoke This Skill
 
-Users can invoke the debate skill in natural language. You parse the intent and run the debate.
+Users invoke this skill explicitly from the slash menu. Parse the supplied intent and run the debate.
 
 ### Basic Invocation
 ```

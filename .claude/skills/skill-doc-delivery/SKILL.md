@@ -1,12 +1,13 @@
 ---
 name: skill-doc-delivery
+disable-model-invocation: true
 aliases:
   - docs
   - document-delivery
   - doc-delivery
 description: Convert markdown to DOCX, PPTX, XLSX, PDF office documents — use when you need exportable deliverables
 trigger: |
-  AUTOMATICALLY ACTIVATE when user requests:
+  EXPLICITLY USE when user requests:
   - Export knowledge work to office formats (e.g., "export to Word", "create PowerPoint", "convert to DOCX")
   - Generate professional documents from research (e.g., "create presentation from this synthesis")
   - Deliver knowledge work as polished documents (e.g., "make this a business case document")
@@ -334,7 +335,7 @@ Knowledge Work Flow:
 1. Run workflow: /octo:empathize (or advise/synthesize)
 2. Review markdown output in ~/.claude-octopus/results/
 3. Request conversion: "Export to PowerPoint"
-4. This skill activates automatically
+4. This skill is used after explicit invocation
 5. Professional document delivered
 ```
 

@@ -1,5 +1,6 @@
 ---
 command: model-config
+disable-model-invocation: true
 description: Configure AI provider models for Claude Octopus workflows
 version: 4.0.1
 category: configuration

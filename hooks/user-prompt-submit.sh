@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
 # Claude Octopus — UserPromptSubmit Hook (v9.11.0)
-# Fires before user prompt is processed. Classifies task intent
-# with confidence levels, injects routing context, and optionally
-# auto-invokes matching /octo: workflows.
+# Explicit /octo:* commands always get alias/title handling. Plain-language
+# classification and routing are opt-in.
 #
-# v9.11.0: Auto-invoke mode — strong signals fire immediately,
+# v9.11.0: Opt-in auto-invoke mode — strong signals fire immediately,
 # weak signals fire on repeat intent in the same session.
 # Controlled by OCTOPUS_AUTO_ROUTER_MODE=off|suggest|invoke.
 # Legacy OCTOPUS_AUTO_INVOKE remains supported.
@@ -91,6 +90,27 @@ else
     INPUT=$(cat 2>/dev/null || true)
 fi
 [[ -z "$INPUT" ]] && exit 0
+
+# Fast path for the default-off mode. Avoid starting Python/jq on ordinary
+# prompts; only explicit /octo:* input needs parsing when no opt-in is present.
+_router_override="${OCTOPUS_AUTO_ROUTER_MODE:-${OCTOPUS_AUTO_INVOKE:-}}"
+_router_setting_present=false
+for _router_file in \
+    "${CLAUDE_PLUGIN_ROOT:-.}/settings.json" \
+    "${CLAUDE_PLUGIN_ROOT:-.}/.claude-plugin/settings.json" \
+    "${HOME}/.claude-octopus/preferences.json"
+do
+    if [[ -r "$_router_file" ]] && grep -qE '"(OCTOPUS_AUTO_ROUTER_MODE|OCTOPUS_AUTO_INVOKE|auto_router_mode|auto_invoke)"' "$_router_file" 2>/dev/null; then
+        _router_setting_present=true
+        break
+    fi
+done
+if [[ -z "$_router_override" && "$_router_setting_present" == "false" ]]; then
+    case "$INPUT" in
+        *'"prompt":"/octo:'*|*'"prompt": "/octo:'*|*'"prompt":"octo:'*|*'"prompt": "octo:'*) ;;
+        *) exit 0 ;;
+    esac
+fi
 
 # Extract the user's prompt text (python3 preferred, jq fallback)
 if command -v python3 &>/dev/null; then
@@ -202,7 +222,7 @@ if [[ "$PROMPT_LOWER" == /octo:* ]] || [[ "$PROMPT_LOWER" == "octo:"* ]]; then
     if [[ -n "$_CMD" ]] && ! octo_command_exists "$_CMD"; then
         if _ALIAS=$(octo_alias_for "$_CMD") && octo_command_exists "$_ALIAS"; then
             octo_log_alias_event "alias" "$_RAW_CMD" "$_ALIAS"
-            emit_user_prompt_context "[🐙 Octopus] Alias resolved: /octo:${_RAW_CMD} -> /octo:${_ALIAS}. Treat this invocation as /octo:${_ALIAS}; invoke Skill(skill: \"octo:${_ALIAS}\", args: \"$(escape_for_json "$_ARGS")\") before responding."
+            emit_user_prompt_context "[🐙 Octopus] Alias resolved: /octo:${_RAW_CMD} -> /octo:${_ALIAS}. Treat this explicit invocation as /octo:${_ALIAS}; load and follow ${OCTO_COMMANDS_DIR}/${_ALIAS}.md with arguments \"$(escape_for_json "$_ARGS")\" before responding."
             exit 0
         fi
         _SUGGESTIONS=$(octo_fuzzy_suggestions "$_CMD" || true)
@@ -240,7 +260,7 @@ fi
 # SETTINGS: Load auto-router preference
 # Precedence (highest wins): Env var > preferences.json > settings.json > default
 # ═══════════════════════════════════════════════════════════════════════════════
-AUTO_ROUTER_MODE="invoke"  # Default preserves legacy strong-signal auto-invoke.
+AUTO_ROUTER_MODE="off"
 
 # Tier 1: settings.json (plugin default). Prefer the current plugin-root
 # settings.json path, but keep the old .claude-plugin/settings.json fallback.
@@ -461,7 +481,8 @@ if [[ -n "$INTENT" ]]; then
         # Escape the prompt once for the Skill args string inside JSON output.
         ESCAPED_ARGS=$(escape_for_json "$PROMPT")
 
-        CONTEXT_MSG="[🐙 Octopus] Auto-route: ${INTENT} (${CONFIDENCE}, ${SIGNAL_STRENGTH}). Recommended: invoke Skill(skill: \"${SKILL_NAME}\", args: \"${ESCAPED_ARGS}\") if that matches what the user asked for. If this routing does not fit the request, ignore it and answer normally."
+        _ROUTED_COMMAND="${SKILL_NAME#octo:}"
+        CONTEXT_MSG="[🐙 Octopus] Opt-in auto-route: ${INTENT} (${CONFIDENCE}, ${SIGNAL_STRENGTH}). If that matches what the user asked for, load and follow ${OCTO_COMMANDS_DIR}/${_ROUTED_COMMAND}.md with arguments \"${ESCAPED_ARGS}\". If this routing does not fit the request, ignore it and answer normally."
     else
         # Standard behavior: inject persona context only
         CONTEXT_MSG="[🐙 Octopus] Detected intent: ${INTENT} (${CONFIDENCE} confidence)."

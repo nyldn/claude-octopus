@@ -170,10 +170,10 @@ echo "Test 12: Checking COMMAND-REFERENCE.md updated..."
 CMD_REF="$PROJECT_ROOT/docs/COMMAND-REFERENCE.md"
 if [[ -f "$CMD_REF" ]]; then
     lifecycle_features=("Status" "Issues" "Rollback" "Resume" "Ship")
-    if grep -q "These features are triggered by natural language — they are not slash commands." "$CMD_REF"; then
-        pass "COMMAND-REFERENCE.md marks lifecycle features as non-slash commands"
+    if grep -q "These are manual-only plugin skills, not standalone.*commands" "$CMD_REF"; then
+        pass "COMMAND-REFERENCE.md marks lifecycle features as explicit-only skills"
     else
-        fail "COMMAND-REFERENCE.md missing lifecycle note" "Should explain these are natural-language skill triggers"
+        fail "COMMAND-REFERENCE.md missing lifecycle note" "Should explain these are explicit-only skills"
     fi
     for feature in "${lifecycle_features[@]}"; do
         if grep -q "### \`$feature\`" "$CMD_REF"; then

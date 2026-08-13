@@ -108,11 +108,13 @@ else
     test_fail "must require completion criteria the agent can actually evaluate"
 fi
 
-test_case "authoring: records this repo's real invocation constraint"
-if [[ -f "$AU" ]] && grep -q "disable-model-invocation" "$AU" && grep -qi "invocation: human_only" "$AU"; then
+test_case "authoring: records the native explicit-invocation contract"
+if [[ -f "$AU" ]] \
+    && grep -q "disable-model-invocation: true" "$AU" \
+    && grep -q '\.claude/skills/<name>/SKILL\.md' "$AU"; then
     test_pass
 else
-    test_fail "must explain that human_only is advisory here and why disable-model-invocation would break command routes"
+    test_fail "must require the native invocation gate and direct source loading for explicit command composition"
 fi
 
 test_case "authoring: points at the repo's own structural standard"

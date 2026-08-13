@@ -1,5 +1,6 @@
 ---
 description: "\"Discovery phase - Multi-AI research and exploration\""
+disable-model-invocation: true
 ---
 
 # Discover - Discovery Phase 🔍

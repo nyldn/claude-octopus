@@ -1,5 +1,6 @@
 ---
 description: "Systematic debugging with methodical problem investigation"
+disable-model-invocation: true
 ---
 
 # Debug - Systematic Debugging Skill

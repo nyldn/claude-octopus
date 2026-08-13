@@ -1,6 +1,7 @@
 ---
 name: skill-thought-partner
 description: "Brainstorm creatively with pattern spotting and paradox hunting — use for ideation and exploration"
+disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.

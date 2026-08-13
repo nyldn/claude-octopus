@@ -1,6 +1,7 @@
 ---
 name: octopus-ui-ux-design
 description: "Design UI/UX systems with style guides, palettes, typography, and component specs for new interfaces"
+disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.

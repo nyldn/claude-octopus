@@ -1,6 +1,7 @@
 ---
 name: skill-visual-feedback
 description: "Process screenshot-based UI/UX feedback to fix visual issues — use when users share screenshots of bugs"
+disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.

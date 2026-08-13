@@ -1,5 +1,6 @@
 ---
 name: flow-define
+disable-model-invocation: true
 aliases:
   - define
   - define-workflow
@@ -25,7 +26,7 @@ validation_gates:
   - orchestrate_sh_executed
   - synthesis_file_exists
 trigger: |
-  AUTOMATICALLY ACTIVATE when user requests clarification or scoping:
+  EXPLICITLY USE when user requests clarification or scoping:
   - "define the requirements for X"
   - "clarify the scope of Y"
   - "what exactly does X need to do"
@@ -771,4 +772,4 @@ approved the scope. After approval, invoke `flow-develop` if implementation is r
 Otherwise, deliver the requirements document and stop. Do NOT begin
 implementation from here without an approved scope.
 
-**Ready to define!** This skill activates automatically when users request requirement clarification or problem definition.
+**Ready to define!** This skill is used after explicit invocation when users request requirement clarification or problem definition.

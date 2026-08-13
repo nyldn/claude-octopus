@@ -1,6 +1,7 @@
 ---
 name: skill-design-lineage
 description: "Persist design documents with branch tracking, revision chains, and cross-session discovery"
+disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.

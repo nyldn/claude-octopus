@@ -1,5 +1,6 @@
 ---
 description: "\"[advanced] Team of Teams - Decompose compound tasks across independent claude instances\""
+disable-model-invocation: true
 ---
 
 # Parallel - Team of Teams
@@ -8,14 +9,14 @@ description: "\"[advanced] Team of Teams - Decompose compound tasks across indep
 
 When the user invokes this command (e.g., `/octo:parallel <arguments>`):
 
-**CORRECT - Use the Skill tool:**
+**CORRECT - Read the explicit workflow source:**
 ```
-Skill(skill: "octo:parallel", args: "<user's arguments>")
+Read ${HOME}/.claude-octopus/plugin/.claude/skills/flow-parallel/SKILL.md, then execute it with <user's arguments>
 ```
 
 **INCORRECT:**
 ```
-Skill(skill: "flow-parallel", ...)  ❌ Wrong! Internal skill name, not resolvable by Skill tool
+Skill(skill: "flow-parallel", ...)  ❌ Wrong! Octopus skills are model-invocation disabled
 Task(subagent_type: "octo:parallel", ...)  ❌ Wrong! This is a skill, not an agent type
 ```
 

@@ -1,5 +1,6 @@
 ---
 name: skill-staged-review
+disable-model-invocation: true
 aliases:
   - staged-review
   - two-stage-review

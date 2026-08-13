@@ -18,6 +18,16 @@ RESOLVER_DST="$HOME/.claude-octopus/statusline.sh"
 SETTINGS="$HOME/.claude/settings.json"
 STABLE_CMD="bash ~/.claude-octopus/statusline.sh"
 
+# Do not install or configure a statusline merely because Octopus is present.
+# Repair only an existing Octopus statusline installation or a stale settings
+# entry left by an older version.
+has_existing_octopus_statusline=false
+[[ -f "$RESOLVER_DST" ]] && has_existing_octopus_statusline=true
+if [[ -f "$SETTINGS" ]] && grep -qE 'claude-octopus/statusline\.sh|plugins/cache/nyldn-plugins/octo/[0-9].*octopus-statusline\.sh' "$SETTINGS" 2>/dev/null; then
+    has_existing_octopus_statusline=true
+fi
+[[ "$has_existing_octopus_statusline" == "true" ]] || exit 0
+
 # ── Step 1: Install/update the resolver if missing or outdated ────────────────
 if [[ -f "$RESOLVER_SRC" ]]; then
     needs_update=false

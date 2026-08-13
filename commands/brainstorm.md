@@ -1,5 +1,6 @@
 ---
 command: brainstorm
+disable-model-invocation: true
 description: "Start a creative thought partner brainstorming session"
 ---
 

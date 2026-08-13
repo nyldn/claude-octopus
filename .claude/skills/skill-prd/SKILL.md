@@ -1,5 +1,6 @@
 ---
 name: skill-prd
+disable-model-invocation: true
 description: Write an AI-optimized PRD using multi-AI orchestration — use when scoping a new feature or product
 context: fork
 agent: Plan

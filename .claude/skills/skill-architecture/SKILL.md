@@ -1,5 +1,6 @@
 ---
 name: octopus-architecture
+disable-model-invocation: true
 description: System architecture and API design with multi-AI consensus — use for design reviews and new subsystems
 execution_mode: enforced
 pre_execution_contract:

@@ -44,6 +44,11 @@ continues using the plugin version it loaded at session start. Run
 `/reload-plugins` or restart Claude Code after an update; restart Codex after a
 Codex plugin update.
 
+On the next session, Octopus compares the stable
+`~/.claude-octopus/plugin` entrypoint with the version supplied by the host and
+repairs it when they differ. The check uses physical paths, so an older cache
+that still exists cannot keep commands pinned to stale scripts.
+
 An installation older than this advisory cannot discover the new code by
 itself. It needs one manual marketplace/plugin update. From then on, the local
 advisory detects disabled auto-update and stale loaded sessions without adding

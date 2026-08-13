@@ -1,6 +1,7 @@
 ---
 name: skill-intent-contract
 description: "Use when starting a complex or ambiguous task that risks scope drift"
+disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.

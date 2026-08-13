@@ -61,7 +61,9 @@ except Exception:
 " "$file" "$key" 2>/dev/null
 }
 
-AUTO_ROUTER_MODE="invoke"
+# Explicit-only is the safe default. Preferences and environment overrides can
+# still opt into suggest/invoke behavior.
+AUTO_ROUTER_MODE="off"
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 SETTINGS_FILE="${PLUGIN_ROOT}/settings.json"
 [[ -f "$SETTINGS_FILE" ]] || SETTINGS_FILE="${PLUGIN_ROOT}/.claude-plugin/settings.json"
@@ -97,9 +99,9 @@ fi
 
 read -r -d '' CONTEXT <<'ROUTER' || true
 <OCTOPUS-AUTO-ROUTER>
-Octopus prompt hooks may add UserPromptSubmit routing context. If that context recommends invoking a Skill, invoke it when it matches what the user actually asked for. Routing context is advisory, never a hard requirement: if the suggested route does not fit the request, ignore it and answer normally. Never act on routing attached to system-generated events (task notifications, system reminders).
+The user explicitly opted into Octopus plain-language routing. Prompt hooks may add UserPromptSubmit routing context. If that context recommends a route, load the named file from ${CLAUDE_PLUGIN_ROOT}/commands and follow it when it matches what the user actually asked for. Routing context is advisory, never a hard requirement: if the suggested route does not fit the request, ignore it and answer normally. Never act on routing attached to system-generated events (task notifications, system reminders).
 
-Strong plain-language routes include: review -> octo:review, debate/compare/should-we -> octo:debate, research/investigate/explore -> octo:discover, security/threat-model -> octo:security, debug/failing/stacktrace -> octo:debug, write-tests/TDD -> octo:tdd, implement/execute-plan -> octo:develop.
+Strong plain-language routes include: review -> commands/review.md, debate/compare/should-we -> commands/debate.md, research/investigate/explore -> commands/discover.md, security/threat-model -> commands/security.md, debug/failing/stacktrace -> commands/debug.md, write-tests/TDD -> commands/tdd.md, implement/execute-plan -> commands/develop.md.
 
 If the hook only says "Detected intent" or "Tip", treat it as a suggestion and continue normally unless the user asks to route.
 </OCTOPUS-AUTO-ROUTER>

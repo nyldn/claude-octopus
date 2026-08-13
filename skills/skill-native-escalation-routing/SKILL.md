@@ -1,6 +1,7 @@
 ---
 name: skill-native-escalation-routing
 description: "Use when choosing native or multi-LLM handling for init, review, or security requests"
+disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.

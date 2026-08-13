@@ -1,5 +1,6 @@
 ---
 name: skill-doc-sync
+disable-model-invocation: true
 paths:
   - "**/*.md"
   - "**/docs/**"

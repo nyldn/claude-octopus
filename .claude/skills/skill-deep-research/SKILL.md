@@ -1,5 +1,6 @@
 ---
 name: octopus-research
+disable-model-invocation: true
 effort: high
 aliases:
   - research

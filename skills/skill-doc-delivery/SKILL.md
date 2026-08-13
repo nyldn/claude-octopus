@@ -1,6 +1,7 @@
 ---
 name: skill-doc-delivery
 description: "Convert markdown to DOCX, PPTX, XLSX, PDF office documents — use when you need exportable deliverables"
+disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
@@ -317,7 +318,7 @@ Knowledge Work Flow:
 1. Run workflow: /octo:empathize (or advise/synthesize)
 2. Review markdown output in ~/.claude-octopus/results/
 3. Request conversion: "Export to PowerPoint"
-4. This skill activates automatically
+4. This skill is used after explicit invocation
 5. Professional document delivered
 ```
 

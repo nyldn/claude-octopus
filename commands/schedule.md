@@ -1,5 +1,6 @@
 ---
 command: schedule
+disable-model-invocation: true
 description: "[advanced] Manage scheduled workflow jobs (add via wizard, dashboard, list, remove, enable, disable, logs)"
 aliases:
   - jobs

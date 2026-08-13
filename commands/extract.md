@@ -1,5 +1,6 @@
 ---
 command: extract
+disable-model-invocation: true
 description: "Design System & Product Reverse-Engineering - Extract tokens, components, architecture, and PRDs from codebases or live products"
 aliases:
   - reverse-engineer

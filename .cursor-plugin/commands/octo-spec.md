@@ -1,5 +1,6 @@
 ---
 description: "\"NLSpec authoring - Structured specification from multi-AI research\""
+disable-model-invocation: true
 ---
 
 # Spec - NLSpec Authoring
@@ -8,14 +9,14 @@ description: "\"NLSpec authoring - Structured specification from multi-AI resear
 
 When the user invokes this command (e.g., `/octo:spec <arguments>`):
 
-**CORRECT - Use the Skill tool:**
+**CORRECT - Read the explicit workflow source:**
 ```
-Skill(skill: "octo:spec", args: "<user's arguments>")
+Read ${HOME}/.claude-octopus/plugin/.claude/skills/flow-spec/SKILL.md, then execute it with <user's arguments>
 ```
 
 **INCORRECT:**
 ```
-Skill(skill: "flow-spec", ...)  ❌ Wrong! Internal skill name, not resolvable by Skill tool
+Skill(skill: "flow-spec", ...)  ❌ Wrong! Octopus skills are model-invocation disabled
 Task(subagent_type: "octo:spec", ...)  ❌ Wrong! This is a skill, not an agent type
 ```
 

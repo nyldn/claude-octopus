@@ -1,5 +1,6 @@
 ---
 command: docs
+disable-model-invocation: true
 description: Document delivery with export to PPTX, DOCX, PDF formats
 ---
 

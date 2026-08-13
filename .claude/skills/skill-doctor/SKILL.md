@@ -1,9 +1,10 @@
 ---
 name: skill-doctor
+disable-model-invocation: true
 effort: low
 description: "Environment diagnostics — check providers, auth, config, hooks, scheduler, and more"
 trigger: |
-  AUTOMATICALLY ACTIVATE when user asks about:
+  EXPLICITLY USE when user asks about:
   - "doctor" or "run doctor" or "diagnostics"
   - "check my setup" or "is everything working"
   - "health check" or "environment check"

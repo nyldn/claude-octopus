@@ -3903,11 +3903,12 @@ ${obs_ctx}"
                 --arg phase "$phase" \
                 --arg status "$status" \
                 --arg workflow "embrace" \
+                --arg host_session_id "${CLAUDE_CODE_SESSION_ID:-${CLAUDE_SESSION_ID:-${CLAUDE_CODE_SESSION:-}}}" \
                 --arg group "$task_group" \
                 --arg autonomy "$AUTONOMY_MODE" \
                 --argjson completed "$OCTOPUS_COMPLETED_PHASES" \
                 --argjson total "$OCTOPUS_TOTAL_PHASES" \
-                '{workflow: $workflow, current_phase: $phase, phase_status: $status,
+                '{workflow: $workflow, host_session_id: $host_session_id, current_phase: $phase, phase_status: $status,
                   task_group: $group, autonomy_mode: $autonomy,
                   completed_phases: $completed, total_phases: $total,
                   phase_map: {probe: "grasp", grasp: "tangle", tangle: "ink", ink: "complete"},

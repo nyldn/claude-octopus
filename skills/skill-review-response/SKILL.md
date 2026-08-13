@@ -1,6 +1,7 @@
 ---
 name: skill-review-response
 description: "Use when a reviewer, CI bot, or another AI leaves feedback to address"
+disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.

@@ -1,6 +1,7 @@
 ---
 name: skill-content-pipeline
 description: "Extract patterns and anatomy from URLs — use to reverse-engineer content strategies from live pages"
+disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.

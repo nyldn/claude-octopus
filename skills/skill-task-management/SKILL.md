@@ -1,6 +1,7 @@
 ---
 name: skill-task-management
 description: "Manage tasks with Claude Code native tools — use to track TODOs, delegate work, and monitor progress"
+disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.

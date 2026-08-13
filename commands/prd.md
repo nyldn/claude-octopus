@@ -1,5 +1,6 @@
 ---
 command: prd
+disable-model-invocation: true
 description: Write an AI-optimized PRD using multi-AI orchestration and 100-point scoring framework
 arguments:
   - name: feature

@@ -1,5 +1,6 @@
 ---
 description: "Write an AI-optimized PRD using multi-AI orchestration and 100-point scoring framework"
+disable-model-invocation: true
 ---
 
 ### MANDATORY COMPLIANCE — DO NOT SKIP

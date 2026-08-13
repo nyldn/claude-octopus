@@ -1,6 +1,7 @@
 ---
 name: skill-factory
 description: "Run a full build-and-ship pipeline from a spec — use for hands-off project generation"
+disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.

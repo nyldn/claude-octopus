@@ -1,5 +1,6 @@
 ---
 name: council-verdicts
+disable-model-invocation: true
 description: "Starter: interpret a council run's verdict artifacts — quorum, dissent, cross-lab validity, and what to do next"
 ---
 

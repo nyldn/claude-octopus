@@ -443,11 +443,9 @@ else
     test_fail "with provider CLIs hidden, actionable ($n) should be below offerable ($total)"
 fi
 
-# ── Interactive prompt on session start ──────────────────────────────────────
-# A pointer to a command is the weak form of disclosure: users do not run
-# commands they must remember, nor hand-edit env vars. The SessionStart advisory
-# therefore asks the assistant to raise a picker. These cases cover the guards
-# that keep that from becoming a nuisance.
+# ── Non-invasive SessionStart disclosure ─────────────────────────────────────
+# Upgrade and first-run notices are user-visible system messages. They must not
+# inject model context, call AskUserQuestion, or take over an unrelated prompt.
 
 ADVISORY_HOOK="$PROJECT_ROOT/hooks/version-advisory.sh"
 MEMORY_HOOK="$PROJECT_ROOT/hooks/session-start-memory.sh"
@@ -466,94 +464,62 @@ advisory() {
     fi
     touch "$state/.setup-complete"
     env "$@" OCTOPUS_STATE_DIR="$state" CLAUDE_PLUGIN_ROOT="$PROJECT_ROOT" \
-        bash "$ADVISORY_HOOK" 2>/dev/null | jq -r '.hookSpecificOutput.additionalContext' 2>/dev/null
+        bash "$ADVISORY_HOOK" 2>/dev/null | jq -r '.systemMessage // .hookSpecificOutput.additionalContext // empty' 2>/dev/null
 }
 
-test_case "advisory emits an interactive picker directive on an upgrade"
+test_case "upgrade advisory is a user-visible system message"
 adv_state="$TEST_TMP_DIR/adv-a"; mkdir -p "$adv_state"
-out=$(advisory "$adv_state" -u CI -u OCTOPUS_NON_INTERACTIVE -u CLAUDE_CODE_REMOTE)
-if grep -q "OCTOPUS-NEW-FEATURES" <<<"$out" && grep -q "AskUserQuestion" <<<"$out"; then
+printf '{"last_seen_version":"9.55.0"}\n' > "$adv_state/state.json"
+touch "$adv_state/.setup-complete"
+raw=$(env -u CI -u OCTOPUS_NON_INTERACTIVE -u CLAUDE_CODE_REMOTE \
+    OCTOPUS_STATE_DIR="$adv_state" CLAUDE_PLUGIN_ROOT="$PROJECT_ROOT" \
+    bash "$ADVISORY_HOOK" 2>/dev/null)
+out=$(jq -r '.systemMessage // empty' <<<"$raw")
+if grep -q "Claude Octopus updated" <<<"$out" && jq -e 'has("systemMessage") and (has("hookSpecificOutput") | not)' <<<"$raw" >/dev/null; then
     test_pass
 else
-    test_fail "expected an AskUserQuestion directive, got: $(head -5 <<<"$out")"
+    test_fail "expected a systemMessage-only advisory, got: $(head -5 <<<"$raw")"
 fi
 
-test_case "the directive names each offerable feature"
-if grep -q "fable5-routing" <<<"$out"; then
+test_case "upgrade advisory never directs the model to act"
+if ! grep -qE "AskUserQuestion|Before doing anything else|OCTOPUS-NEW-FEATURES" <<<"$out" \
+   && grep -q "/octo:whats-new" <<<"$out"; then
     test_pass
 else
-    test_fail "directive must carry the feature ids so the picker can be built"
+    test_fail "advisory should be a passive explicit-command pointer: $(head -5 <<<"$out")"
 fi
 
-# Choosing the default is an answer. If the directive let the assistant skip
-# recording it, the user who said "not at all" would be asked again every upgrade.
-test_case "the directive requires recording every answer, defaults included"
-if grep -q "octo_features_record" <<<"$out" && grep -qi "including any that picks the default" <<<"$out"; then
+test_case "upgrade advisory records the version after one notice"
+if jq -e --arg v "$(jq -r .version "$PROJECT_ROOT/.claude-plugin/plugin.json")" '.last_seen_version == $v' "$adv_state/state.json" >/dev/null; then
     test_pass
 else
-    test_fail "an unrecorded default choice would be re-asked forever"
+    test_fail "last_seen_version was not advanced"
 fi
 
-# A literal tab, not "\t" in the pattern: BSD grep -E (macOS) expands \t to a
-# tab while GNU grep -E (Linux) does not, so a \t pattern matches locally and
-# silently fails on the runner.
-TAB=$'\t'
-
-test_case "the directive carries each feature's own choices, not a yes/no"
-if grep -qE "^C${TAB}fable5-routing${TAB}escalate${TAB}" <<<"$out" \
-   && grep -qE "^C${TAB}fable5-routing${TAB}on-demand${TAB}" <<<"$out"; then
+test_case "second SessionStart is silent after the upgrade notice"
+second=$(env OCTOPUS_STATE_DIR="$adv_state" CLAUDE_PLUGIN_ROOT="$PROJECT_ROOT" bash "$ADVISORY_HOOK" 2>/dev/null)
+if [[ -z "$second" ]]; then
     test_pass
 else
-    test_fail "policy choices must reach the picker verbatim"
+    test_fail "upgrade advisory repeated: $second"
 fi
 
-test_case "the directive carries the question text, not just the feature title"
-if grep -qE "^Q${TAB}fable5-routing${TAB}How should Claude Fable 5 be used\?" <<<"$out"; then
-    test_pass
-else
-    test_fail "the picker needs the feature's own question"
-fi
-
-# A cron or headless run has nobody to answer; prompting there burns the turn.
-test_case "a non-interactive session gets the pointer, never the picker"
+test_case "non-interactive upgrades also avoid model directives"
 adv_state="$TEST_TMP_DIR/adv-ci"; mkdir -p "$adv_state"
 out=$(advisory "$adv_state" CI=1)
-if ! grep -q "OCTOPUS-NEW-FEATURES" <<<"$out" && grep -q "whats-new" <<<"$out"; then
+if ! grep -qE "AskUserQuestion|OCTOPUS-NEW-FEATURES" <<<"$out"; then
     test_pass
 else
-    test_fail "CI run should degrade to the pointer, got: $(head -5 <<<"$out")"
+    test_fail "CI run received a model directive: $(head -5 <<<"$out")"
 fi
 
-test_case "a remote session gets the pointer, never the picker"
+test_case "remote upgrades also avoid model directives"
 adv_state="$TEST_TMP_DIR/adv-remote"; mkdir -p "$adv_state"
 out=$(advisory "$adv_state" -u CI CLAUDE_CODE_REMOTE=true)
-if ! grep -q "OCTOPUS-NEW-FEATURES" <<<"$out"; then
+if ! grep -qE "AskUserQuestion|OCTOPUS-NEW-FEATURES" <<<"$out"; then
     test_pass
 else
-    test_fail "remote sessions must not raise a picker"
-fi
-
-# Anti-nagware: an unanswered prompt leaves everything undecided, which is
-# indistinguishable from never-offered, so without a cap it re-asks forever.
-test_case "the picker is spent after OCTOPUS_FEATURES_PROMPT_MAX attempts"
-adv_state="$TEST_TMP_DIR/adv-budget"; mkdir -p "$adv_state"
-results=""
-for _ in 1 2 3; do
-    o=$(advisory "$adv_state" -u CI -u OCTOPUS_NON_INTERACTIVE -u CLAUDE_CODE_REMOTE)
-    if grep -q "OCTOPUS-NEW-FEATURES" <<<"$o"; then results="${results}P"; else results="${results}f"; fi
-done
-if [[ "$results" == "PPf" ]]; then
-    test_pass
-else
-    test_fail "expected prompt,prompt,fallback (PPf), got '$results'"
-fi
-
-test_case "a spent budget still emits the pointer rather than going silent"
-o=$(advisory "$adv_state" -u CI -u OCTOPUS_NON_INTERACTIVE -u CLAUDE_CODE_REMOTE)
-if grep -q "whats-new" <<<"$o"; then
-    test_pass
-else
-    test_fail "discoverability must degrade, not disappear"
+    test_fail "remote run received a model directive"
 fi
 
 test_case "a newer plugin version resets the prompt budget"
@@ -585,21 +551,22 @@ fi
 
 # The first-run welcome claimed to trigger setup via additionalContext while only
 # echoing bare text, which SessionStart does not accept as context.
-test_case "first-run welcome emits a valid SessionStart object, not bare text"
+test_case "first-run welcome is a user-visible system message"
 fr_home="$TEST_TMP_DIR/firstrun-home"
 rm -rf "$fr_home"; mkdir -p "$fr_home"
 out=$(env HOME="$fr_home" CLAUDE_PLUGIN_ROOT="$PROJECT_ROOT" bash "$MEMORY_HOOK" 2>/dev/null)
-if printf '%s' "$out" | jq -e '.hookSpecificOutput.hookEventName == "SessionStart"' >/dev/null 2>&1; then
+if printf '%s' "$out" | jq -e 'has("systemMessage") and (has("hookSpecificOutput") | not)' >/dev/null 2>&1; then
     test_pass
 else
-    test_fail "first-run must emit hookSpecificOutput, got: $(printf '%s' "$out" | head -2)"
+    test_fail "first-run must emit systemMessage only, got: $(printf '%s' "$out" | head -2)"
 fi
 
-test_case "first-run directs the assistant to run setup"
-if printf '%s' "$out" | jq -r '.hookSpecificOutput.additionalContext' 2>/dev/null | grep -qi "octo:setup"; then
+test_case "first-run offers setup without directing model action"
+message=$(printf '%s' "$out" | jq -r '.systemMessage // empty' 2>/dev/null)
+if grep -qi "octo:setup" <<<"$message" && ! grep -qiE "invoke|before doing anything|auto-run" <<<"$message"; then
     test_pass
 else
-    test_fail "the welcome must name the setup skill"
+    test_fail "the welcome must passively offer setup: $message"
 fi
 
 test_case "first-run stays silent on the second session"

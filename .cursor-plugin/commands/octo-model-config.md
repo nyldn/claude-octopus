@@ -1,5 +1,6 @@
 ---
 description: "Configure AI provider models for Claude Octopus workflows"
+disable-model-invocation: true
 ---
 
 # Model Configuration

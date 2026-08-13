@@ -1,5 +1,6 @@
 ---
 name: skill-authoring
+disable-model-invocation: true
 description: "Principles for writing skills that behave the same way every run — use when adding, editing, or reviewing a skill in this plugin"
 codex_display_name: "Skill Authoring"
 ---
@@ -38,29 +39,20 @@ agent do differently because this exists?
 
 ## Workflow
 
-### Invocation: how this plugin differs
+### Invocation: explicit by default
 
-Upstream draws a clean line between a **model-invoked** skill (carries a
-description, the agent can fire it autonomously, costs context every turn) and a
-**user-invoked** one (`disable-model-invocation: true`, zero context cost, but
-the user must remember it exists).
+Every shipped command and skill carries `disable-model-invocation: true`.
+Claude Code therefore keeps Octopus out of model context until the user chooses
+an `/octo:*` command. This is a hard platform gate, not a prose reminder.
 
-**That line does not transfer cleanly here, and getting it wrong breaks
-routing.** Six skills in this repo declare `invocation: human_only`. That key is
-custom — `scripts/build-codex-skills.sh` strips it from the generated tree, and
-nothing reads it. The real effect comes from an advisory reminder in
-`hooks/context-reinforcement.sh`, kept in step by
-`tests/unit/test-human-only-skill-list.sh`.
+Command bodies that need reusable instructions load the source file directly
+from `${CLAUDE_PLUGIN_ROOT}/.claude/skills/<name>/SKILL.md`; they do not call the
+Skill tool. That keeps explicit commands composable without reopening automatic
+model invocation.
 
-Do **not** reach for `disable-model-invocation: true` to express "human-only"
-here. Four of those six are named in command bodies (`commands/parallel.md`,
-`factory.md`, `research.md`, `security.md`) and the model reaches them on the
-user's behalf when running those commands. Disabling model invocation would break
-`/octo:parallel`, `/octo:factory`, `/octo:research`, `/octo:security`.
-
-So in this plugin: "human-only" means *do not fire from prompt-keyword
-auto-routing*. Declare it with `invocation: human_only`, add the skill to the
-hook's list, and accept that it is advisory.
+Plain-language routing is a separate, legacy-compatible opt-in controlled by
+`OCTOPUS_AUTO_ROUTER_MODE=suggest|invoke`. Its default is `off`. New skills must
+never depend on prompt-keyword auto-routing for reachability.
 
 ### Writing the description
 
@@ -76,9 +68,8 @@ pruning than the body.
   skill needs this" clause, and nothing else.
 - Beware collision. With this many skills the scarce resource is trigger space,
   not skill count. Before adding a trigger phrase, check whether an existing
-  skill or `hooks/user-prompt-submit.sh` already claims it — that hook
-  auto-invokes on strong matches, and a new overlapping phrase degrades a working
-  route rather than adding one.
+  skill or `hooks/user-prompt-submit.sh` already claims it. The hook is opt-in,
+  but overlapping phrases still degrade routing for users who enable it.
 
 ### Information hierarchy
 
@@ -150,5 +141,6 @@ When reviewing, report:
   skill's description.
 - The skill is registered in `.claude-plugin/plugin.json` and `make sync` is
   clean.
-- If it declares `invocation: human_only`, it is in the hook list and
-  `tests/unit/test-human-only-skill-list.sh` passes.
+- It declares `disable-model-invocation: true`, and any command that composes it
+  loads its source file directly.
+- `tests/unit/test-explicit-activation.sh` passes.
