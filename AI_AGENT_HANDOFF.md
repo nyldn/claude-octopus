@@ -1,17 +1,17 @@
 # AI Agent Handoff
 
 Last updated: 2026-08-13
-Status: Issues #901, #903, and #905 are implemented on a combined branch and
-pass the complete local gate. PR #914 is open; review, merge, and release are
-the remaining steps.
+Status: Issues #901, #903, and #905 are implemented on a combined branch.
+PR #914 review-response regressions pass; matching-head local and remote gates
+and merge are the remaining steps.
 Branch: `fix/901-tangle-integrity`
 Current release: [v9.64.0](https://github.com/nyldn/claude-octopus/releases/tag/v9.64.0)
 Tracking: [issue #901](https://github.com/nyldn/claude-octopus/issues/901),
 [issue #903](https://github.com/nyldn/claude-octopus/issues/903), and
 [issue #905](https://github.com/nyldn/claude-octopus/issues/905); implementation
 PR [#914](https://github.com/nyldn/claude-octopus/pull/914)
-Next action: finish the review-response rebase, run matching local and remote
-gates, then merge PR #914. Release remains deferred.
+Next action: commit and push the final review response, run matching local and
+remote gates, then merge PR #914. Release remains deferred.
 
 ## Issues #900 and #902: Tangle Lifecycle Ownership
 
@@ -28,16 +28,18 @@ gates, then merge PR #914. Release remains deferred.
   the PID ledger to close the post-spawn handoff race, marks cancelled outputs
   and completion records, prunes runtime metadata, restores caller traps, and
   handles both explicit signals and unexpected `set -e` exits.
-- Stalled progress: `OCTOPUS_TANGLE_IDLE_WORKER_GRACE` defaults to 180 seconds.
-  A living wrapper with no active provider descendants becomes
-  `stalled-worker`; non-TTY progress is emitted only when its count changes.
+- Provider liveness: `spawn_agent_capture_pid` returns the provider root, not a
+  wrapper, so a living PID with no descendants remains active until it writes
+  its completion marker. The explicit `OCTOPUS_TANGLE_DEADLINE` remains the
+  operator-controlled bound; dead providers enter missing-marker recovery.
+  Non-TTY progress is emitted only when its count changes.
 - Run isolation: default Tangle IDs now use an atomic reservation instead of
   `date +%s` plus `$$`, preventing same-second worktree and branch collisions
   exposed when the old final two-second sleep was removed. Explicit run-ID
   overrides now reject traversal, and zero-byte reservations older than seven
   days are pruned once daily without weakening same-day atomic uniqueness.
-- Review hardening: cancellation refuses to proceed without its process
-  helpers, never signals the orchestrator PID/group, snapshots reachable legacy
+- Review hardening: Tangle refuses provider dispatch when either cancellation
+  helper is unavailable, never signals the orchestrator PID/group, snapshots reachable legacy
   descendants before STOP, uses portable `ps -A`, serializes PID-ledger pruning
   with spawn appends, stops before pruning when `flock` acquisition fails, and
   ignores dead targeted PIDs. Status checks are SIGPIPE-safe and the integration
@@ -48,9 +50,9 @@ gates, then merge PR #914. Release remains deferred.
   `echo` received SIGPIPE, and `set -o pipefail` failed the integration job.
   Here-strings with non-early-closing `grep -c` preserve the semantic assertions
   without a producer-side broken pipe; the focused suite passes 19/19.
-- TDD evidence: lifecycle cancellation passes 15/15, missing-marker recovery
-  6/6, run-worktree isolation 14/14, Markdown plan/run-ID resolution 13/13,
-  contextual review wiring 56/56, spawn PID capture 10/10, and the
+- TDD evidence: lifecycle cancellation passes 16/16, missing-marker recovery
+  4/4, run-worktree isolation 16/16, Markdown plan/run-ID resolution 15/15,
+  contextual review wiring 54/54, spawn PID capture 10/10, and the
   value-proposition integration test passes 19/19.
 - Full-gate evidence: the latest non-interactive `make ci-local` after all review
   fixes passed 16/16 smoke suites, 268/268 unit suites, 7/7 integration suites,
@@ -293,17 +295,20 @@ gates, then merge PR #914. Release remains deferred.
   Its contents are injected into the isolated run while unrelated untracked
   paths, modified tracked inputs, and symlinked context remain blocking. Users
   no longer need to disable either clean-baseline enforcement or run-worktree
-  isolation for this common workflow.
+  isolation for this common workflow. Exactly one untracked context file is
+  supported per run; additional untracked inputs remain blocking.
 - TDD evidence: the migration-drift helper and validation regression initially
   failed, the consultative provenance regression failed before output wrapping,
   and the untracked-context regressions failed before the baseline allowlist and
   pre-worktree resolution. A later spec review added a failing regression proving
   migration validation incorrectly depended on prompt classification; the gate
   now derives migration changes independently from the actual diff.
-- Current verification: Bash syntax, diff whitespace, and mode checks pass.
-  All 24 related unit suites pass, including 15/15 migration/worktree evidence,
-  14/14 run-worktree isolation, 13/13 Markdown context resolution, 11/11 clean
-  baseline, 9/9 ceremonies, 8/8 subtask context, 7/7 consultative dispatch, and
+- Current verification: the combined review-response regression set passes,
+  including 15/15 migration/worktree evidence, 16/16 run-worktree isolation,
+  15/15 Markdown context resolution, 11/11 clean baseline, 9/9 ceremonies,
+  8/8 subtask context, 8/8 consultative dispatch, 16/16 cancellation cleanup,
+  4/4 live-provider/missing-marker recovery, 27/27 review aggregation, and
+  19/19 value-proposition integration. The prior branch head also passed
   Council compatibility at 72 passed with one known macOS PTY skip. A fresh
   complete `make ci-local` exits 0 with 16/16 smoke suites, 267/267 unit suites,
   and 7/7 integration suites. The first complete sweep exposed three newly
@@ -315,8 +320,9 @@ gates, then merge PR #914. Release remains deferred.
   table requires the reserved v65 migration. No migration was run. These GitHub
   issues are the temporary tracker and this handoff records the blocked `bd`
   state.
-- Push state: implementation commit `b2ac6790` is pushed to both `origin` and
-  `upstream` on `fix/901-tangle-integrity`; PR #914 targets `upstream/main`.
+- Push state: the rebased implementation head `6b7718bc` is pushed to both
+  `origin` and `upstream` on `fix/901-tangle-integrity`; the final review-response
+  commit is local until the matching gates begin. PR #914 targets `upstream/main`.
 
 ## Issue #898: Explicit Activation and Hook Latency
 

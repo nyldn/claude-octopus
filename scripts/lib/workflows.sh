@@ -2872,6 +2872,12 @@ _tangle_develop_in_workspace() {
         return 0
     fi
 
+    if ! declare -F review_kill_process_tree_frozen >/dev/null 2>&1 \
+       || ! declare -F review_kill_descendants_frozen >/dev/null 2>&1; then
+        log ERROR "Tangle cancellation helpers are unavailable; refusing to start provider work"
+        return 1
+    fi
+
     if tangle_clean_baseline_guard_enabled; then
         tangle_require_clean_git_baseline || return 1
     fi
@@ -3205,8 +3211,6 @@ Every [CODING] line must include a same-line Files: clause."
     [[ "$_tangle_max_wait" =~ ^[0-9]+$ ]] || _tangle_max_wait=0
     local _missing_marker_grace="${OCTOPUS_TANGLE_MISSING_MARKER_GRACE:-180}"
     [[ "$_missing_marker_grace" =~ ^[0-9]+$ ]] || _missing_marker_grace=180
-    local _idle_worker_grace="${OCTOPUS_TANGLE_IDLE_WORKER_GRACE:-180}"
-    [[ "$_idle_worker_grace" =~ ^[0-9]+$ ]] || _idle_worker_grace=180
     local _deadline=0
     if [[ "$_tangle_max_wait" -gt 0 ]]; then
         _deadline=$(( $(date +%s) + _tangle_max_wait ))
@@ -3215,7 +3219,6 @@ Every [CODING] line must include a same-line Files: clause."
     local _failed_tasks=()
     local _terminal_task_ids=""
     local _missing_marker_since=()
-    local _idle_worker_since=()
     local _last_progress=-1
     while [[ $completed -lt ${#task_ids[@]} ]]; do
         completed=0
@@ -3265,36 +3268,6 @@ Every [CODING] line must include a same-line Files: clause."
                             fi
                         fi
                     fi
-                elif [[ -n "$_worker_pid" ]] \
-                     && ! review_process_has_active_descendant "$_worker_pid"; then
-                    local _idle_now
-                    _idle_now=$(date +%s)
-                    if [[ -z "${_idle_worker_since[$i]:-}" ]]; then
-                        _idle_worker_since[$i]="$_idle_now"
-                        log WARN "Thread ${task_ids[$i]} worker is alive without provider descendants — waiting up to ${_idle_worker_grace}s for completion"
-                    fi
-                    if [[ "$_idle_worker_grace" -eq 0 ]] \
-                       || (( _idle_now - ${_idle_worker_since[$i]} >= _idle_worker_grace )); then
-                        log WARN "Thread ${task_ids[$i]} remained idle without provider descendants for ${_idle_worker_grace}s — killing and marking stalled"
-                        review_kill_process_tree_frozen "$_worker_pid"
-                        wait "$_worker_pid" 2>/dev/null || true
-                        mkdir -p "$_done_dir" 2>/dev/null || true
-                        [[ -f "$_done_file" ]] || printf '%s\n' "stalled-worker" > "$_done_file" 2>/dev/null || true
-                        [[ " $_terminal_task_ids " == *" ${task_ids[$i]} "* ]] \
-                            || _terminal_task_ids="${_terminal_task_ids:+$_terminal_task_ids }${task_ids[$i]}"
-                        local _idle_result_file
-                        _idle_result_file=$(find "${RESULTS_DIR:-${HOME}/.claude-octopus/results}" -maxdepth 1 -type f -name "*-${task_ids[$i]}.md" 2>/dev/null | head -1 || true)
-                        if [[ -n "$_idle_result_file" ]] \
-                           && ! grep -c '^## Status:' "$_idle_result_file" >/dev/null 2>&1; then
-                            {
-                                echo ""
-                                echo "## Status: FAILED (Stalled worker without provider descendants)"
-                                echo "# Completed: $(date)"
-                            } >> "$_idle_result_file" 2>/dev/null || true
-                        fi
-                    fi
-                else
-                    unset "_idle_worker_since[$i]"
                 fi
             fi
         done

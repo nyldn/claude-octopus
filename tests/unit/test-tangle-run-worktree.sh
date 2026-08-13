@@ -233,4 +233,13 @@ else
     test_fail "failed run isolation was not preserved"
 fi
 
+test_case "developer docs limit untracked Tangle context to one explicit file"
+developer_docs="$SCRIPT_DIR/../../docs/DEVELOPER.md"
+if grep -Fq 'may contain one explicit untracked context input' "$developer_docs" \
+   && ! grep -Fq 'one or more explicit untracked context inputs' "$developer_docs"; then
+    test_pass
+else
+    test_fail "developer docs overstate the supported untracked context cardinality"
+fi
+
 test_summary

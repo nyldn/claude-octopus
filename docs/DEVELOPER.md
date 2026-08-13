@@ -123,11 +123,12 @@ remains mandatory.
 ## Tangle Input and Migration Safety
 
 Keep `OCTOPUS_TANGLE_RUN_WORKTREE=true` (the default). A clean source checkout
-may contain one or more explicit untracked context inputs: reference a bare
+may contain one explicit untracked context input: reference a bare
 `PLAN.md`, `SPEC.md`, or `BRIEF.md` name, or prefix another Markdown path with
 `plan:`, `spec:`, or `brief:`. Octopus injects that file's contents into the
 isolated run; it does not admit unrelated dirty paths or copy the input into the
-implementation branch. Commit or stash every other source change.
+implementation branch. Additional untracked context files are unsupported;
+commit or stash every other source change.
 
 Tangle does not authorize agents to apply, push, or repair migrations on a
 persistent local, linked, remote, or shared database by default. When a run

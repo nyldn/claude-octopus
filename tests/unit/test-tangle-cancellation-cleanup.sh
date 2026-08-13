@@ -104,6 +104,23 @@ else
     test_fail "workflow cancellation helper loading can still fail silently"
 fi
 
+test_case "Tangle refuses dispatch when cancellation helpers are unavailable"
+workspace_definition="$(declare -f _tangle_develop_in_workspace)"
+helper_guard_line=$(awk '/declare -F review_kill_process_tree_frozen/ { print NR; exit }' <<< "$workspace_definition")
+dispatch_line=$(awk '/run_agent_sync/ { print NR; exit }' <<< "$workspace_definition")
+trap_line=$(awk "/trap 'octopus_tangle_handle_signal/ { print NR; exit }" <<< "$workspace_definition")
+if [[ "$helper_guard_line" =~ ^[0-9]+$ ]] \
+   && [[ "$dispatch_line" =~ ^[0-9]+$ ]] \
+   && [[ "$trap_line" =~ ^[0-9]+$ ]] \
+   && (( helper_guard_line < dispatch_line )) \
+   && (( helper_guard_line < trap_line )) \
+   && grep -Fq 'declare -F review_kill_descendants_frozen' <<< "$workspace_definition" \
+   && grep -Fq 'refusing to start provider work' <<< "$workspace_definition"; then
+    test_pass
+else
+    test_fail "Tangle does not fail closed before provider dispatch and signal-trap installation"
+fi
+
 test_case "TERM reaps ledger-only worker tree and prevents late writes"
 WORKSPACE_DIR="$TEST_TMP_DIR/workspace"
 RESULTS_DIR="$WORKSPACE_DIR/results"
