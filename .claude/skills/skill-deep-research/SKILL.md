@@ -19,7 +19,6 @@ pre_execution_contract:
 validation_gates:
   - orchestrate_sh_executed
   - synthesis_file_exists
-invocation: human_only
 trigger: |
   Use this skill when the user wants to "research this topic", "investigate how X works",
   "analyze the architecture", "explore different approaches to Y", or "what are the options for Z".

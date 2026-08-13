@@ -14,7 +14,6 @@ pre_execution_contract:
 validation_gates:
   - orchestrate_sh_executed
   - output_artifact_exists
-invocation: human_only
 paths:
   - "**/.env*"
   - "**/auth*"

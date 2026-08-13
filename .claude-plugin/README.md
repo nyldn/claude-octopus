@@ -29,7 +29,10 @@ delegate to Octopus agents. Every command and skill is manual-only: use
 you set `OCTOPUS_AUTO_ROUTER_MODE=suggest` or `invoke`. This legacy opt-in
 examines ordinary prompts and can route them into paid external-provider
 workflows; use `suggest` unless you intentionally want automatic invocation and
-are comfortable sharing the routed prompt context with configured providers.
+are comfortable sending the workflow prompt and any context that workflow
+explicitly gathers to configured providers. Provider-side retention follows
+those providers' account policies. Unset the variable (or set it to `off`) to
+opt out; direct `/octo:*` commands remain available.
 
 Multi-provider runs show an agent summary before synthesis, so failed, timed out, or oversize-rejected Codex, Antigravity, OpenRouter, and other perspectives are visible instead of being hidden behind a polished final answer.
 

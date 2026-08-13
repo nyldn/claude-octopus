@@ -130,10 +130,10 @@ suite "4. Human-Only Invocation Flag"
 # 4.1-4.5 Check each skill for human_only
 for skill in skill-factory skill-deep-research skill-security-audit flow-parallel skill-ship; do
   SKILL_FILE="$(resolve_claude_skill_path "$skill")"
-  if grep -q 'invocation: human_only' "$SKILL_FILE"; then
-    pass "${skill} has invocation: human_only"
+  if grep -q 'disable-model-invocation: true' "$SKILL_FILE"; then
+    pass "${skill} has native manual-only invocation"
   else
-    fail "${skill} missing invocation: human_only"
+    fail "${skill} missing disable-model-invocation: true"
   fi
 done
 

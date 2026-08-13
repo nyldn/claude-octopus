@@ -7,7 +7,6 @@ trigger: |
   EXPLICITLY USE when user mentions:
   - "ship" or "deliver" or "finalize"
   - "done" or "complete the project"
-invocation: human_only
 ---
 
 # Ship Project - Multi-AI Delivery Validation

@@ -15,7 +15,6 @@ validation_gates:
   - instructions_written
   - processes_launched
   - all_work_packages_complete
-invocation: human_only
 ---
 
 # STOP - SKILL ALREADY LOADED

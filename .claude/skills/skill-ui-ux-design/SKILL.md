@@ -19,7 +19,6 @@ pre_execution_contract:
 validation_gates:
   - search_py_executed
   - design_spec_produced
-invocation: human_only
 trigger: |
   Use this skill when the user wants to "design a UI", "create a design system",
   "pick a color palette", "choose fonts for", "design a dashboard", "create component specs",
