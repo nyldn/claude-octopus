@@ -85,6 +85,19 @@ else
     test_fail "same-second Tangle run IDs collided: $first_run_id"
 fi
 
+test_case "direct Tangle ID allocation prunes expired reservations"
+tangle_reservation_dir="$WORKSPACE_DIR/.octo/task-ids"
+expired_tangle_reservation="$tangle_reservation_dir/expired-tangle-reservation"
+find "$tangle_reservation_dir" -type f -name '.pruned-*' -delete 2>/dev/null || true
+: > "$expired_tangle_reservation"
+touch -t 202001010000 "$expired_tangle_reservation"
+tangle_next_run_id >/dev/null
+if [[ ! -e "$expired_tangle_reservation" ]]; then
+    test_pass
+else
+    test_fail "expired direct Tangle reservation was not pruned"
+fi
+
 log() { :; }
 octopus_phase_banner() { :; }
 design_review_ceremony() { :; }

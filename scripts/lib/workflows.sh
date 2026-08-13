@@ -9,7 +9,13 @@ if ! type probe_result_file_status >/dev/null 2>&1; then
 fi
 if ! type review_kill_process_tree_frozen >/dev/null 2>&1; then
     _octo_review_lib="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/review.sh"
-    [[ -f "$_octo_review_lib" ]] && source "$_octo_review_lib"
+    if [[ -f "$_octo_review_lib" ]]; then
+        # shellcheck source=/dev/null
+        source "$_octo_review_lib" || printf 'ERROR: failed to load Tangle cancellation helpers: %s\n' "$_octo_review_lib" >&2
+    else
+        printf 'ERROR: missing Tangle cancellation helpers: %s\n' "$_octo_review_lib" >&2
+    fi
+    unset _octo_review_lib
 fi
 
 # v8.54.0: Single-agent probe for multi-agentic skill dispatch
@@ -1763,10 +1769,11 @@ _octopus_tangle_restore_traps() {
     if [[ -n "$previous_term_trap" ]]; then eval "$previous_term_trap"; else trap - TERM; fi
 }
 
-_octopus_tangle_prune_pid_ledger() {
+_octopus_tangle_prune_pid_ledger_unlocked() {
     local task_group="$1"
     [[ -n "${PID_FILE:-}" && -f "$PID_FILE" ]] || return 0
-    local tmp_file="${PID_FILE}.cancel.$$"
+    local tmp_file
+    tmp_file=$(mktemp "${PID_FILE}.cancel.XXXXXX") || return 1
     if awk -F: -v prefix="tangle-${task_group}-" \
         'index($3, prefix) != 1 { print }' "$PID_FILE" > "$tmp_file"; then
         mv -f "$tmp_file" "$PID_FILE"
@@ -1775,10 +1782,28 @@ _octopus_tangle_prune_pid_ledger() {
     fi
 }
 
+_octopus_tangle_prune_pid_ledger() {
+    local task_group="$1"
+    [[ -n "${PID_FILE:-}" && -f "$PID_FILE" ]] || return 0
+    if command -v flock >/dev/null 2>&1; then
+        (
+            flock -x 200
+            _octopus_tangle_prune_pid_ledger_unlocked "$task_group"
+        ) 200>"${PID_FILE}.lock"
+    else
+        _octopus_tangle_prune_pid_ledger_unlocked "$task_group"
+    fi
+}
+
 octopus_tangle_cancel_active() {
     local signal_name="${1:-TERM}"
     local task_group="${OCTOPUS_ACTIVE_TANGLE_TASK_GROUP:-}"
     [[ -n "$task_group" ]] || return 0
+    if ! declare -F review_kill_process_tree_frozen >/dev/null 2>&1 \
+       || ! declare -F review_kill_descendants_frozen >/dev/null 2>&1; then
+        log ERROR "Tangle cancellation helpers are unavailable; refusing incomplete cleanup"
+        return 1
+    fi
 
     local exit_code=143
     [[ "$signal_name" == "INT" ]] && exit_code=130
@@ -1829,7 +1854,7 @@ octopus_tangle_cancel_active() {
         fi
         [[ -f "$done_file" ]] || printf '%s\n' "cancelled" > "$done_file" 2>/dev/null || true
         if [[ -f "$result_file" ]] \
-           && ! grep -Eq '^## Status: (SUCCESS|FAILED|TIMEOUT|CANCELLED)' "$result_file" 2>/dev/null; then
+           && ! grep -Ec '^## Status: (SUCCESS|FAILED|TIMEOUT|CANCELLED)' "$result_file" >/dev/null 2>&1; then
             {
                 echo ""
                 echo "## Status: CANCELLED - PARTIAL RESULTS"
@@ -1849,7 +1874,8 @@ octopus_tangle_cancel_active() {
     # race-closing step before clearing lifecycle state.
     review_kill_descendants_frozen "$$"
 
-    _octopus_tangle_prune_pid_ledger "$task_group"
+    _octopus_tangle_prune_pid_ledger "$task_group" \
+        || log ERROR "Failed to prune cancelled Tangle tasks from the PID ledger"
     if [[ "${OCTOPUS_ACTIVE_TANGLE_TMUX:-false}" == "true" ]] \
        && declare -F tmux_cleanup >/dev/null 2>&1; then
         tmux_cleanup 2>/dev/null || true
@@ -2549,8 +2575,16 @@ tangle_next_run_id() {
     fi
 
     local reservation_dir="${WORKSPACE_DIR:-${HOME}/.claude-octopus}/.octo/task-ids"
-    local reservation unique_suffix
+    local reservation unique_suffix prune_day marker lock_dir
     mkdir -p "$reservation_dir" 2>/dev/null || true
+    prune_day=$(date +%Y%m%d 2>/dev/null || printf 'unknown')
+    marker="${reservation_dir}/.pruned-${prune_day}"
+    lock_dir="${marker}.lock"
+    if [[ ! -e "$marker" ]] && mkdir "$lock_dir" 2>/dev/null; then
+        find "$reservation_dir" -type f -mtime +7 -delete 2>/dev/null || true
+        : > "$marker"
+        rmdir "$lock_dir" 2>/dev/null || true
+    fi
     reservation=$(mktemp "${reservation_dir}/XXXXXX" 2>/dev/null) && unique_suffix="${reservation##*/}"
     printf '%s-%s\n' "$(date +%s)" "${unique_suffix:-${BASHPID:-$$}${RANDOM}}"
 }
@@ -2709,7 +2743,12 @@ tangle_develop() {
     fi
 
     local task_group="${OCTOPUS_TANGLE_RUN_ID:-}"
-    if [[ -z "$task_group" ]]; then
+    if [[ -n "$task_group" ]]; then
+        if [[ ! "$task_group" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ || "$task_group" == *..* ]]; then
+            log ERROR "Invalid OCTOPUS_TANGLE_RUN_ID: $task_group"
+            return 1
+        fi
+    else
         task_group=$(tangle_next_run_id) || return 1
     fi
     local original_project_root="${PROJECT_ROOT:-$PWD}"
@@ -3184,7 +3223,7 @@ Every [CODING] line must include a same-line Files: clause."
                         local _idle_result_file
                         _idle_result_file=$(find "${RESULTS_DIR:-${HOME}/.claude-octopus/results}" -maxdepth 1 -type f -name "*-${task_ids[$i]}.md" 2>/dev/null | head -1 || true)
                         if [[ -n "$_idle_result_file" ]] \
-                           && ! grep -q '^## Status:' "$_idle_result_file" 2>/dev/null; then
+                           && ! grep -c '^## Status:' "$_idle_result_file" >/dev/null 2>&1; then
                             {
                                 echo ""
                                 echo "## Status: FAILED (Stalled worker without provider descendants)"

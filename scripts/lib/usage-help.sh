@@ -241,7 +241,7 @@ ${YELLOW}Environment:${NC}
   OCTOPUS_TANGLE_CODE_REVIEW=false              Skip contextual code review
   OCTOPUS_TANGLE_REVIEW_CORRECTION_MODE=unbounded Progress-supervised loop (default)
   OCTOPUS_TANGLE_TIMEOUT=1200                    Minimum positive implementer budget; TIMEOUT=0 stays unlimited
-  OCTOPUS_TANGLE_IDLE_WORKER_GRACE=180           Mark live wrappers with no provider descendants stalled
+  OCTOPUS_TANGLE_IDLE_WORKER_GRACE=180           Seconds to wait before a live wrapper with no provider descendants is marked stalled (0 = immediate)
   OCTOPUS_TANGLE_REVIEW_CORRECTION_MODE=bounded   Opt into explicit round cap
   OCTOPUS_TANGLE_REVIEW_CORRECTION_ROUNDS=3       Bound count when mode=bounded
   OCTOPUS_TANGLE_CORRECTION_STALL_WINDOW=1800     Stop only after silence/no progress

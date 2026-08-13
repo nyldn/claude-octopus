@@ -69,6 +69,26 @@ else
 fi
 unset OCTOPUS_TANGLE_RUN_WORKTREE
 
+test_case "invalid run ID override is rejected before execution"
+OCTOPUS_TANGLE_RUN_ID="../../escape"
+SEEN_TASK_GROUP=""
+SEEN_PROJECT_ROOT=""
+run_id_log="$TEST_ROOT/invalid-run-id.log"
+log() { printf '%s %s\n' "$1" "$2" >> "$run_id_log"; }
+status=0
+tangle_develop "invalid run id" || status=$?
+log() { :; }
+if [[ "$status" -ne 0 \
+    && -z "$SEEN_PROJECT_ROOT" \
+    && "$(grep -c 'Invalid OCTOPUS_TANGLE_RUN_ID' "$run_id_log" 2>/dev/null || true)" -eq 1 ]]; then
+    test_pass
+else
+    test_fail "invalid run ID reached delegated execution: ${SEEN_PROJECT_ROOT:-none}"
+fi
+OCTOPUS_TANGLE_RUN_ID="run-worktree-test"
+SEEN_PROJECT_ROOT=""
+SEEN_TASK_GROUP=""
+
 test_case "dirty source is rejected before run worktree creation"
 printf 'local-only\n' > "$SOURCE_REPO/untracked.txt"
 OCTOPUS_TANGLE_RUN_ID="dirty-source"

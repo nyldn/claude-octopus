@@ -2213,6 +2213,10 @@ kill_agents() {
     if [[ "$target" == "all" || -z "$target" ]]; then
         log INFO "Killing all tracked agents..."
         while IFS=: read -r pid agent task_id; do
+            if [[ ! "$pid" =~ ^[1-9][0-9]*$ || "$pid" == "1" ]]; then
+                log WARN "Skipping invalid tracked PID: $pid"
+                continue
+            fi
             if kill -0 "$pid" 2>/dev/null; then
                 if declare -F review_kill_process_tree_frozen >/dev/null 2>&1; then
                     review_kill_process_tree_frozen "$pid"
@@ -2228,6 +2232,14 @@ kill_agents() {
         log INFO "Killing agent: $target"
         while IFS=: read -r pid agent task_id; do
             if [[ "$pid" == "$target" || "$task_id" == "$target" ]]; then
+                if [[ ! "$pid" =~ ^[1-9][0-9]*$ || "$pid" == "1" ]]; then
+                    log WARN "Skipping invalid tracked PID: $pid"
+                    continue
+                fi
+                if ! kill -0 "$pid" 2>/dev/null; then
+                    log WARN "Agent $agent ($pid) is no longer running"
+                    continue
+                fi
                 if declare -F review_kill_process_tree_frozen >/dev/null 2>&1; then
                     review_kill_process_tree_frozen "$pid"
                 else

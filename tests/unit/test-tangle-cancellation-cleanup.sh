@@ -50,6 +50,43 @@ else
     octopus_tangle_cancel_active() { :; }
 fi
 
+test_case "portable child enumeration prefers POSIX ps selection"
+if declare -f review_child_pids | grep -Fq 'ps -A -o pid= -o ppid='; then
+    test_pass
+else
+    test_fail "review_child_pids lacks the POSIX ps -A fallback"
+fi
+
+test_case "frozen cancellation never signals its own worker group"
+self_guard_definition="$(declare -f review_kill_process_tree_frozen)"
+if grep -Fq '^[1-9][0-9]*$' <<< "$self_guard_definition" \
+   && grep -Fq 'root_pid" != "1' <<< "$self_guard_definition" \
+   && grep -Fq 'root_pid" == "$$' <<< "$self_guard_definition" \
+   && grep -Fq 'current_pgid' <<< "$self_guard_definition"; then
+    test_pass
+else
+    test_fail "cancellation helper lacks orchestrator PID/group self-protection"
+fi
+
+test_case "PID ledger pruning uses the spawn ledger lock"
+prune_definition="$(declare -f _octopus_tangle_prune_pid_ledger)"
+if grep -Fq 'flock -x' <<< "$prune_definition" \
+   && grep -Fq '${PID_FILE}.lock' <<< "$prune_definition"; then
+    test_pass
+else
+    test_fail "Tangle PID ledger pruning is not serialized with spawn appends"
+fi
+
+test_case "workflow loader reports missing cancellation helpers and clears its path variable"
+workflow_loader="$(sed -n '1,28p' "$PROJECT_ROOT/scripts/lib/workflows.sh")"
+if grep -Fq 'missing Tangle cancellation helpers' <<< "$workflow_loader" \
+   && grep -Fq 'unset _octo_review_lib' <<< "$workflow_loader" \
+   && grep -Fq 'Tangle cancellation helpers are unavailable' "$PROJECT_ROOT/scripts/lib/workflows.sh"; then
+    test_pass
+else
+    test_fail "workflow cancellation helper loading can still fail silently"
+fi
+
 test_case "TERM reaps ledger-only worker tree and prevents late writes"
 WORKSPACE_DIR="$TEST_TMP_DIR/workspace"
 RESULTS_DIR="$WORKSPACE_DIR/results"
@@ -199,6 +236,47 @@ else
     test_fail "top-level orchestrator still swallows INT/TERM without cancellation and exit"
 fi
 
+test_case "targeted kill ignores a dead or recycled PID"
+if declare -F kill_agents >/dev/null 2>&1; then
+    unset -f kill_agents
+fi
+eval "$(sed -n '/^kill_agents() {/,/^}/p' "$orchestrator_source")"
+dead_target="2147480000"
+printf '%s:%s:%s\n' "$dead_target" "codex" "dead-target" > "$PID_FILE"
+targeted_kill_log="$TEST_TMP_DIR/targeted-kill.log"
+targeted_kill_invoked="$TEST_TMP_DIR/targeted-kill-invoked"
+log() { printf '%s %s\n' "$1" "$2" >> "$targeted_kill_log"; }
+original_frozen_kill_definition="$(declare -f review_kill_process_tree_frozen)"
+review_kill_process_tree_frozen() { : > "$targeted_kill_invoked"; }
+kill_agents "dead-target"
+unset -f review_kill_process_tree_frozen
+eval "$original_frozen_kill_definition"
+log() { :; }
+if [[ ! -e "$targeted_kill_invoked" ]] \
+   && ! grep -Fq "Killed codex ($dead_target)" "$targeted_kill_log" 2>/dev/null; then
+    test_pass
+else
+    test_fail "targeted kill signaled or reported a dead PID"
+fi
+
+test_case "targeted kill rejects PID zero before liveness probing"
+: > "$targeted_kill_log"
+rm "$targeted_kill_invoked" 2>/dev/null || true
+printf '%s:%s:%s\n' "0" "codex" "zero-target" > "$PID_FILE"
+log() { printf '%s %s\n' "$1" "$2" >> "$targeted_kill_log"; }
+review_kill_process_tree_frozen() { : > "$targeted_kill_invoked"; }
+kill_agents "zero-target"
+unset -f review_kill_process_tree_frozen
+eval "$original_frozen_kill_definition"
+log() { :; }
+if [[ ! -e "$targeted_kill_invoked" ]] \
+   && grep -Fq 'invalid tracked PID: 0' "$targeted_kill_log" \
+   && ! grep -Fq 'Killed codex (0)' "$targeted_kill_log"; then
+    test_pass
+else
+    test_fail "targeted kill accepted PID zero"
+fi
+
 test_case "unexpected orchestrator exit cancels registered Tangle work"
 if declare -F octopus_orchestrator_handle_exit >/dev/null 2>&1; then
     unset -f octopus_orchestrator_handle_exit
@@ -208,7 +286,7 @@ exit_cleanup_log="$TEST_TMP_DIR/exit-cleanup.log"
 octopus_orchestrator_cancel_active() { printf 'cancel:%s\n' "$1" >> "$exit_cleanup_log"; }
 octopus_cleanup_tmp() { printf 'tmp\n' >> "$exit_cleanup_log"; }
 if declare -F octopus_orchestrator_handle_exit >/dev/null 2>&1; then
-    if octopus_orchestrator_handle_exit 37; then exit_handler_rc=0; else exit_handler_rc=$?; fi
+    if ( octopus_orchestrator_handle_exit 37 ); then exit_handler_rc=0; else exit_handler_rc=$?; fi
 else
     exit_handler_rc=127
 fi

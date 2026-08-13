@@ -39,6 +39,7 @@ DATE_COUNTER_FILE="$TEST_TMP_DIR/date-counter"
 SLEEP_COUNTER_FILE="$TEST_TMP_DIR/sleep-counter"
 IDLE_WORKER_PID_FILE="$TEST_TMP_DIR/idle-worker.pid"
 FIXTURE_MODE="dead"
+DATE_MODE="constant"
 mkdir -p "$RESULTS_DIR" "$WORKSPACE_DIR/.octo/agents"
 
 log() {
@@ -104,7 +105,11 @@ date() {
         count=$(<"$DATE_COUNTER_FILE")
         count=$((count + 1))
         printf '%s' "$count" > "$DATE_COUNTER_FILE"
-        printf '%s\n' "100"
+        if [[ "$DATE_MODE" == "advancing" ]]; then
+            printf '%s\n' "$((100 + count))"
+        else
+            printf '%s\n' "100"
+        fi
         return 0
     fi
     command date "$@"
@@ -118,6 +123,8 @@ reset_fixture() {
     : > "$IDLE_WORKER_PID_FILE"
     : > "$PID_FILE"
     FIXTURE_MODE="dead"
+    DATE_MODE="constant"
+    OCTOPUS_TANGLE_IDLE_WORKER_GRACE=0
 }
 
 test_case "dead wrapper writes missing-done-marker and failed status before deadline"
@@ -166,10 +173,36 @@ fi
 
 test_case "redirected progress prints only when the count changes"
 progress_count=$(grep -o 'Progress:' "$idle_output" 2>/dev/null | wc -l | tr -d ' ')
-if [[ "${progress_count:-0}" -le 2 ]]; then
+if [[ "${progress_count:-0}" -eq 2 ]]; then
     test_pass
 else
-    test_fail "redirected progress repeated $progress_count unchanged lines"
+    test_fail "expected exactly 2 redirected progress lines, found $progress_count"
+fi
+
+test_case "nonzero idle grace waits until the exact threshold"
+reset_fixture
+FIXTURE_MODE="idle"
+DATE_MODE="advancing"
+OCTOPUS_TANGLE_IDLE_WORKER_GRACE=2
+tangle_develop "idle worker grace task" >/dev/null 2>&1 || true
+grace_sleep_count="$(<"$SLEEP_COUNTER_FILE")"
+grace_idle_pid="$(cat "$IDLE_WORKER_PID_FILE" 2>/dev/null || true)"
+if [[ "$grace_sleep_count" -eq 3 ]] \
+   && grep -Fq 'remained idle without provider descendants for 2s' "$LOG_CAPTURE_FILE" \
+   && [[ -n "$grace_idle_pid" ]] \
+   && ! kill -0 "$grace_idle_pid" 2>/dev/null; then
+    test_pass
+else
+    kill -KILL "$grace_idle_pid" 2>/dev/null || true
+    test_fail "idle grace boundary was not enforced exactly (sleep_count=$grace_sleep_count)"
+fi
+
+test_case "idle result status check is SIGPIPE-safe"
+if grep -Fq "grep -c '^## Status:'" "$WORKFLOWS" \
+   && ! grep -Fq "grep -q '^## Status:' \"\$_idle_result_file\"" "$WORKFLOWS"; then
+    test_pass
+else
+    test_fail "idle result status check still uses grep -q"
 fi
 
 unset -f date
