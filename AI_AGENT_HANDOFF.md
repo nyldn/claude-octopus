@@ -11,14 +11,15 @@ open. Review-response commits through `afbaa8cc` are pushed to both remotes.
 The remote Linux integration job exposed a pipefail-only SIGPIPE in two test
 assertions, and a follow-up review found a failed-lock path plus a test lifecycle
 override. All three corrections pass focused coverage and the latest full gate;
-commit and push remain. Release remains explicitly deferred.
+commit `29fa740e` is pushed to both remotes. Review replies and rerun checks
+remain. Release remains explicitly deferred.
 Branch: `fix/900-tangle-lifecycle`
 Current release: [v9.64.0](https://github.com/nyldn/claude-octopus/releases/tag/v9.64.0)
 Tracking: [issue #900](https://github.com/nyldn/claude-octopus/issues/900),
 [issue #902](https://github.com/nyldn/claude-octopus/issues/902)
 PR: [#909](https://github.com/nyldn/claude-octopus/pull/909)
-Next action: commit and push the Linux/review corrections, answer the two new
-review threads, then verify the rerun checks. Merge and release remain deferred.
+Next action: answer the two new review threads, then verify the rerun checks.
+Merge and release remain deferred.
 
 ## Issues #900 and #902: Tangle Lifecycle Ownership
 
