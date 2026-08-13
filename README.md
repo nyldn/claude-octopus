@@ -107,6 +107,10 @@ export OCTOPUS_CONTEXT_AWARENESS=on      # statusline-to-context reinforcement
 export OCTOPUS_SESSION_MEMORY=on         # SessionStart preference restoration
 ```
 
+This legacy opt-in examines ordinary prompts. `invoke` can start paid
+external-provider workflows and share the routed prompt context with configured
+providers; prefer `suggest` unless that behavior is intentional.
+
 Safety guards that prevent invalid direct Codex, Qwen, or retired Gemini CLI
 dispatch remain available, but host-side command filters keep them out of
 unrelated tool calls.

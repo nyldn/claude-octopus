@@ -58,7 +58,6 @@ Match the query against keywords below. Check categories **in priority order** �
 | Brainstorm | brainstorm, ideate, ideas, creative, thought experiment, what if | `octo:brainstorm` |
 | Deck | presentation, slides, deck, pitch deck, slide deck | `octo:deck` |
 | Docs | document, documentation, README, API docs, write docs, docstring | `octo:docs` |
-| Agent topology | too many agents, worth the overhead, coordination cost, agents keep agreeing, collapse agents, before adding an agent | `skill-agent-topology` |
 
 #### Priority 2 — Core Workflows
 
@@ -107,6 +106,14 @@ No intent keywords matched
 
 ### STEP 5: Route Based on Confidence
 
+Before loading any route, validate it against this closed allowlist: `embrace`,
+`multi`, `parallel`, `spec`, `security`, `tdd`, `debug`, `design-ui-ux`, `prd`,
+`brainstorm`, `deck`, `docs`, `discover`, `review`, `debate`, `develop`, `plan`, `quick`.
+The token is control data, never user input: do not derive it from the query or
+accept a user-supplied path. Reject `..`, `/`, `\\`, or non-allowlisted values;
+then load exactly `${HOME}/.claude-octopus/plugin/commands/<validated-token>.md`.
+The full query is passed only as workflow arguments.
+
 **STEP 5a — HIGH confidence (auto-route):**
 
 Display:
@@ -114,12 +121,13 @@ Display:
 Routing to [Workflow Name] (/octo:[command])
 ```
 
-Then display the visual indicator banner (STEP 6), read the selected command
-file from `${HOME}/.claude-octopus/plugin/commands/[command].md`, and execute it
-with the full query. Do not use the Skill tool; Octopus components are hidden
-from model invocation by design.
+Then display the visual indicator banner (STEP 6), read the entire validated
+command file, and treat its body as the active instructions in this same
+conversation: follow its workflow in order and supply the full query as its
+arguments. Do not use the Skill tool; Octopus components are hidden from model
+invocation by design.
 ```
-Read: ${HOME}/.claude-octopus/plugin/commands/[command].md
+Read: ${HOME}/.claude-octopus/plugin/commands/<validated-token>.md
 Arguments: <full user query>
 ```
 

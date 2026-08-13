@@ -26,7 +26,10 @@ This works for research, escalated code review, debugging, TDD, escalated securi
 Octopus is dormant by default. Installing it does not route ordinary prompts or
 delegate to Octopus agents. Every command and skill is manual-only: use
 `/octo:*` when you want escalation. Plain-prompt routing is available only after
-you set `OCTOPUS_AUTO_ROUTER_MODE=suggest` or `invoke`.
+you set `OCTOPUS_AUTO_ROUTER_MODE=suggest` or `invoke`. This legacy opt-in
+examines ordinary prompts and can route them into paid external-provider
+workflows; use `suggest` unless you intentionally want automatic invocation and
+are comfortable sharing the routed prompt context with configured providers.
 
 Multi-provider runs show an agent summary before synthesis, so failed, timed out, or oversize-rejected Codex, Antigravity, OpenRouter, and other perspectives are visible instead of being hidden behind a polished final answer.
 

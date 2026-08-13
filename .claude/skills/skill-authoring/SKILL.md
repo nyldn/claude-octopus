@@ -45,9 +45,15 @@ Every shipped command and skill carries `disable-model-invocation: true`.
 Claude Code therefore keeps Octopus out of model context until the user chooses
 an `/octo:*` command. This is a hard platform gate, not a prose reminder.
 
-Command bodies that need reusable instructions load the source file directly
-from `${CLAUDE_PLUGIN_ROOT}/.claude/skills/<name>/SKILL.md`; they do not call the
-Skill tool. That keeps explicit commands composable without reopening automatic
+Command bodies that need reusable instructions load the entire source file
+directly from
+`${HOME}/.claude-octopus/plugin/.claude/skills/<name>/SKILL.md`; they do not call
+the Skill tool. `${HOME}/.claude-octopus/plugin` is the stable, self-healed path
+available to model tool calls; `CLAUDE_PLUGIN_ROOT` is a hook/runtime variable
+and may be absent from that context. The command must treat the loaded body as
+the active instructions in the current conversation, follow its steps in order,
+and pass the user's text as workflow arguments rather than executable path
+content. This keeps explicit commands composable without reopening automatic
 model invocation.
 
 Plain-language routing is a separate, legacy-compatible opt-in controlled by

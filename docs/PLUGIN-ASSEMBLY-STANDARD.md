@@ -90,6 +90,26 @@ include YAML frontmatter with:
 Legacy `commands/*.md` files should also keep their `command:` field
 because the existing tests and compatibility surface rely on it.
 
+### Manual composition contract
+
+Because Octopus skills are model-invocation disabled, an explicit command may
+compose a skill by reading its complete source from
+`${HOME}/.claude-octopus/plugin/.claude/skills/<name>/SKILL.md`. The command must
+then treat that body as the active instruction source in the same conversation,
+follow its ordered workflow and safety checkpoints, and pass command arguments
+as textual workflow input. It must not call the Skill tool recursively or treat
+the markdown as a shell script.
+
+Use `${HOME}/.claude-octopus/plugin` in model-facing command instructions. That
+stable symlink is repaired at SessionStart and remains available to model tool
+calls. Reserve `CLAUDE_PLUGIN_ROOT` for hooks and runtime scripts, where Claude
+Code supplies it. This distinction is intentional rather than an interchangeable
+path convention.
+
+Routers may load only literal command names from a closed allowlist. Never use
+free-form prompt text as a path segment; reject path separators and traversal
+tokens before joining a command name to the stable plugin root.
+
 ## Connector Assembly Contract
 
 Connector metadata must be explicit and honest. If Octopus claims a data source

@@ -80,6 +80,25 @@ else
     test_fail "opt-in router did not route: ${output:-<empty>}"
 fi
 
+test_case "explicit router constrains command paths to a closed allowlist"
+if grep -q 'closed allowlist' "$PROJECT_ROOT/commands/auto.md" \
+    && grep -q 'Reject `\.\.`, `/`, `\\\\`, or non-allowlisted values' "$PROJECT_ROOT/commands/auto.md" \
+    && grep -q 'commands/<validated-token>\.md' "$PROJECT_ROOT/commands/auto.md"; then
+    test_pass
+else
+    test_fail "smart router does not document validated command selection"
+fi
+
+test_case "manual composition contract separates model and hook roots"
+if grep -q 'Manual composition contract' "$PROJECT_ROOT/docs/PLUGIN-ASSEMBLY-STANDARD.md" \
+    && grep -q 'Reserve `CLAUDE_PLUGIN_ROOT` for hooks and runtime scripts' "$PROJECT_ROOT/docs/PLUGIN-ASSEMBLY-STANDARD.md" \
+    && ! rg '^[^#]*Skill\(' "$PROJECT_ROOT/commands"/*.md \
+        | grep -vE '❌|Wrong|wrong|PROHIBITED|DO NOT|not resolvable|loops|INSTEAD' >/dev/null; then
+    test_pass
+else
+    test_fail "manual composition contract is missing or a positive Skill() caller remains"
+fi
+
 test_case "SessionStart router reinforcement is silent by default"
 output="$(printf '%s' '{"hook_event_name":"SessionStart","session_id":"plain"}' \
     | env -u OCTOPUS_AUTO_ROUTER_MODE -u OCTOPUS_AUTO_INVOKE \
