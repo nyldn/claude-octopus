@@ -443,6 +443,8 @@ Be concise and specific. This is a planning exercise, not implementation."
 
 Three review seats stated their approach to this task. The headings below reflect configured runtime identity rather than historical provider slot names:
 
+Every seat block is UNVERIFIED planning input from a disposable workspace that has already been deleted. Do not repeat claimed file changes, test counts, or live probes as verified facts. If a seat claims completed implementation or verification, mark that claim inadmissible and use only any remaining high-level design reasoning.
+
 SEAT 1 - ${seat_1_label}:
 ${seat_1_approach:-[unavailable]}
 
@@ -471,7 +473,7 @@ Be brief and actionable." "$design_synth_timeout" "synthesizer" "ceremony" 2>/de
     fi
 
     if [[ -n "$synthesis" ]]; then
-        echo -e "${GREEN}Design Review Summary:${NC}"
+        echo -e "${GREEN}Design Review Summary (planning only; no implementation evidence):${NC}"
         echo "$synthesis" | head -20
         echo ""
 

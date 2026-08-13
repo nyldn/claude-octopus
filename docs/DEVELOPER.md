@@ -120,6 +120,24 @@ new source surface has a proven focused regression set, add its path and suites
 to `tests/changed-scope.tsv`; otherwise leave it unmapped so the full matrix
 remains mandatory.
 
+## Tangle Input and Migration Safety
+
+Keep `OCTOPUS_TANGLE_RUN_WORKTREE=true` (the default). A clean source checkout
+may contain one or more explicit untracked context inputs: reference a bare
+`PLAN.md`, `SPEC.md`, or `BRIEF.md` name, or prefix another Markdown path with
+`plan:`, `spec:`, or `brief:`. Octopus injects that file's contents into the
+isolated run; it does not admit unrelated dirty paths or copy the input into the
+implementation branch. Commit or stash every other source change.
+
+Tangle does not authorize agents to apply, push, or repair migrations on a
+persistent local, linked, remote, or shared database by default. When a run
+changes `supabase/migrations/*.sql` and the Supabase CLI is available, validation
+runs the read-only `supabase migration list --local` check and fails if applied
+versions differ from disk. Use a project-owned disposable reset/test workflow.
+`OCTOPUS_TANGLE_ALLOW_DB_APPLY=true` authorizes application but never permits
+history drift; `OCTOPUS_TANGLE_ALLOW_UNVERIFIED_MIGRATIONS=true` explicitly
+accepts the risk when local history cannot be queried.
+
 ---
 
 ## E2E Testing Infrastructure

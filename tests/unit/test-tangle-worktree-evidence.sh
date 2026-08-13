@@ -13,7 +13,6 @@ RESULTS_DIR="$TEST_TMP_DIR/tangle-worktree-evidence-results"
 REPO_DIR="$TEST_TMP_DIR/tangle-worktree-evidence-repo"
 rm -rf "$RESULTS_DIR" "$REPO_DIR"
 mkdir -p "$RESULTS_DIR" "$REPO_DIR"
-trap 'rm -rf "$TEST_TMP_DIR"' EXIT INT TERM
 
 GREEN=""
 RED=""
@@ -36,6 +35,14 @@ run_agent_sync() { echo "GENUINELY_CLEAN_TEST"; }
 get_gate_threshold() { echo 70; }
 
 source "$PROJECT_ROOT/scripts/lib/testing.sh"
+
+test_case "Supabase migration consistency helper is available"
+if declare -F tangle_check_supabase_migration_history >/dev/null 2>&1; then
+    test_pass
+else
+    test_fail "tangle_check_supabase_migration_history is missing"
+    tangle_check_supabase_migration_history() { return 127; }
+fi
 
 write_success_result() {
     local path="$1"
@@ -137,6 +144,8 @@ fi
 test_case "runtime-only .claude-octopus changes do not satisfy implementation evidence"
 if (
     cd "$REPO_DIR"
+    PROJECT_ROOT="$REPO_DIR"
+    export PROJECT_ROOT
     rm -f "$RESULTS_DIR"/codex-tangle-evidence-*.md "$RESULTS_DIR"/tangle-validation-evidence-*.md
     snapshot_tangle_worktree_paths > "$RESULTS_DIR/before-runtime-only.txt"
     mkdir -p .claude-octopus
@@ -187,6 +196,130 @@ if (
     test_pass
 else
     test_fail "validation failed despite a new worktree path"
+fi
+
+test_case "applied Supabase migration missing from disk fails validation"
+if (
+    cd "$REPO_DIR"
+    PROJECT_ROOT="$REPO_DIR"
+    export PROJECT_ROOT
+    rm -f "$RESULTS_DIR"/codex-tangle-evidence-*.md "$RESULTS_DIR"/tangle-validation-evidence-*.md
+    mkdir -p supabase/migrations "$TEST_TMP_DIR/supabase-bin"
+    snapshot_tangle_worktree_paths > "$RESULTS_DIR/before-migration-mismatch.txt"
+    printf '%s\n' '-- replacement migration' > supabase/migrations/20260813130000_replacement.sql
+    cat > "$TEST_TMP_DIR/supabase-bin/supabase" <<'MOCK_SUPABASE'
+#!/usr/bin/env bash
+if [[ "$*" == "migration list --local" ]]; then
+    case "${SUPABASE_LIST_FIXTURE:-mismatch}" in
+        aligned)
+            printf '%s\n' \
+                '        LOCAL      │     REMOTE     │     TIME (UTC)' \
+                '  20260813130000   │ 20260813130000 │ 2026-08-13 13:00:00'
+            ;;
+        empty) : ;;
+        *)
+            printf '%s\n' \
+                '        LOCAL      │     REMOTE     │     TIME (UTC)' \
+                '                   │ 20260813120500 │ 2026-08-13 12:05:00' \
+                '  20260813130000   │                │ 2026-08-13 13:00:00'
+            ;;
+    esac
+fi
+MOCK_SUPABASE
+    chmod +x "$TEST_TMP_DIR/supabase-bin/supabase"
+    write_success_result "$RESULTS_DIR/codex-tangle-evidence-migration.md" \
+        "Added supabase/migrations/20260813130000_replacement.sql and verified the schema."
+    if PATH="$TEST_TMP_DIR/supabase-bin:$PATH" RESULTS_DIR="$RESULTS_DIR" \
+        validate_tangle_results "evidence-migration" \
+        "Implement the database migration" \
+        "$RESULTS_DIR/before-migration-mismatch.txt" >/dev/null 2>&1; then
+        exit 1
+    fi
+    grep -q "Migration History: FAILED" "$RESULTS_DIR/tangle-validation-evidence-migration.md" && \
+    grep -q "20260813120500" "$RESULTS_DIR/tangle-validation-evidence-migration.md"
+); then
+    test_pass
+else
+    test_fail "validation accepted migration history that no longer exists on disk"
+fi
+
+test_case "aligned Supabase migration history passes the read-only gate"
+if (
+    cd "$REPO_DIR"
+    PROJECT_ROOT="$REPO_DIR"
+    export PROJECT_ROOT
+    PATH="$TEST_TMP_DIR/supabase-bin:$PATH"
+    SUPABASE_LIST_FIXTURE=aligned
+    export PATH SUPABASE_LIST_FIXTURE
+    tangle_check_supabase_migration_history \
+        "supabase/migrations/20260813130000_replacement.sql" >/dev/null
+); then
+    test_pass
+else
+    test_fail "matching local migration history was rejected"
+fi
+
+test_case "empty Supabase migration output is not accepted as proof"
+if (
+    cd "$REPO_DIR"
+    PROJECT_ROOT="$REPO_DIR"
+    export PROJECT_ROOT
+    PATH="$TEST_TMP_DIR/supabase-bin:$PATH"
+    SUPABASE_LIST_FIXTURE=empty
+    export PATH SUPABASE_LIST_FIXTURE
+    ! tangle_check_supabase_migration_history \
+        "supabase/migrations/20260813130000_replacement.sql" >/dev/null
+); then
+    test_pass
+else
+    test_fail "empty migration history was treated as consistent"
+fi
+
+test_case "changed migrations are checked regardless of prompt classification"
+if (
+    cd "$REPO_DIR"
+    PROJECT_ROOT="$REPO_DIR"
+    export PROJECT_ROOT
+    rm -f "$RESULTS_DIR"/codex-tangle-evidence-*.md "$RESULTS_DIR"/tangle-validation-evidence-*.md
+    snapshot_tangle_worktree_paths > "$RESULTS_DIR/before-unclassified-migration.txt"
+    printf '%s\n' '-- migration from an unclassified prompt' > supabase/migrations/20260813140000_unclassified.sql
+    write_success_result "$RESULTS_DIR/codex-tangle-evidence-unclassified-migration.md" \
+        "Assessed database integrity and left a migration artifact."
+    if PATH="$TEST_TMP_DIR/supabase-bin:$PATH" RESULTS_DIR="$RESULTS_DIR" \
+        validate_tangle_results "evidence-unclassified-migration" \
+        "Assess database integrity" \
+        "$RESULTS_DIR/before-unclassified-migration.txt" >/dev/null 2>&1; then
+        exit 1
+    fi
+    grep -q "Migration History: FAILED" \
+        "$RESULTS_DIR/tangle-validation-evidence-unclassified-migration.md"
+); then
+    test_pass
+else
+    test_fail "migration history gate depended on prompt classification instead of the diff"
+fi
+
+test_case "explicit unverified-migration override records the skipped gate"
+if (
+    cd "$REPO_DIR"
+    PROJECT_ROOT="$REPO_DIR"
+    export PROJECT_ROOT
+    rm -f "$RESULTS_DIR"/codex-tangle-evidence-*.md "$RESULTS_DIR"/tangle-validation-evidence-*.md
+    snapshot_tangle_worktree_paths > "$RESULTS_DIR/before-unverified-override.txt"
+    printf '%s\n' '-- explicitly unverified migration' > supabase/migrations/20260813150000_unverified.sql
+    write_success_result "$RESULTS_DIR/codex-tangle-evidence-unverified-override.md" \
+        "Added supabase/migrations/20260813150000_unverified.sql."
+    PATH="$TEST_TMP_DIR/supabase-bin:$PATH" SUPABASE_LIST_FIXTURE=empty \
+        OCTOPUS_TANGLE_ALLOW_UNVERIFIED_MIGRATIONS=true RESULTS_DIR="$RESULTS_DIR" \
+        validate_tangle_results "evidence-unverified-override" \
+        "Implement supabase/migrations/20260813150000_unverified.sql" \
+        "$RESULTS_DIR/before-unverified-override.txt" >/dev/null 2>&1
+    grep -q "Migration History: SKIPPED BY EXPLICIT OVERRIDE" \
+        "$RESULTS_DIR/tangle-validation-evidence-unverified-override.md"
+); then
+    test_pass
+else
+    test_fail "explicit unverified migration override did not bypass and record the unavailable history gate"
 fi
 
 test_case "analysis prompt does not require worktree changes"

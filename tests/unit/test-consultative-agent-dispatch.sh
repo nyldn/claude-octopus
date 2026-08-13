@@ -7,13 +7,10 @@ source "$PROJECT_ROOT/scripts/lib/agent-sync.sh"
 
 test_suite "Consultative Agent Dispatch"
 
-TEST_TMP_DIR="/tmp/octopus-tests-$$"
-SOURCE_ROOT="$TEST_TMP_DIR/source"
+SOURCE_ROOT="$TEST_TMP_DIR/consultative-source"
 OBSERVED_FILE="$TEST_TMP_DIR/observed"
 mkdir -p "$SOURCE_ROOT"
 printf '%s\n' original > "$SOURCE_ROOT/protected.txt"
-cleanup() { rm -rf "$TEST_TMP_DIR"; }
-trap cleanup EXIT INT TERM HUP
 
 _octopus_prepare_consultative_workspace() {
     local source_root="$1" temp_root workspace
@@ -25,9 +22,11 @@ _octopus_prepare_consultative_workspace() {
 }
 
 STUB_RC=0
+STUB_RESPONSE=""
 run_agent_sync() {
     printf '%s\n' "pwd=$PWD;codex=${OCTOPUS_CODEX_SANDBOX-unset};security=${OCTOPUS_SECURITY_V870-unset};agy=${OCTOPUS_AGY_SANDBOX-unset};autonomy=${CLAUDE_OCTOPUS_AUTONOMY-unset};prompt=$2" > "$OBSERVED_FILE"
     printf '%s\n' changed > protected.txt
+    [[ -z "$STUB_RESPONSE" ]] || printf '%s\n' "$STUB_RESPONSE"
     return "$STUB_RC"
 }
 
@@ -60,6 +59,20 @@ if [[ "$output" != *"prompt=inspect $SOURCE_ROOT/protected.txt"* && "$output" !=
     test_pass
 else
     test_fail "source checkout path remained in the agent task: $output"
+fi
+
+test_case "consultative output is marked unverified and non-deliverable"
+STUB_RESPONSE="Implemented files in /tmp/disposable and verified 417 tests plus live probes."
+consultative_output=$(run_agent_sync_consultative codex "design only" 120 implementer ceremony)
+STUB_RESPONSE=""
+if [[ "$consultative_output" == *"Implemented files in /tmp/disposable"* \
+   && "$consultative_output" == *"UNVERIFIED CONSULTATIVE OUTPUT"* \
+   && "$consultative_output" == *"non-deliverable"* \
+   && "$consultative_output" == *"test counts"* \
+   && "$consultative_output" == *"live probes"* ]]; then
+    test_pass
+else
+    test_fail "consultative claims lacked durable provenance: $consultative_output"
 fi
 
 test_case "consultative dispatch restores existing environment after success"

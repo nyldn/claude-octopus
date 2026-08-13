@@ -94,6 +94,57 @@ test_ceremony_called_in_tangle() {
     fi
 }
 
+test_ceremony_rejects_implementation_claims() {
+    test_case "design synthesis treats seat completion claims as unverified"
+
+    if grep -Fq "UNVERIFIED CONSULTATIVE OUTPUT" "$PROJECT_ROOT/scripts/lib/agent-sync.sh" && \
+       grep -Fq "Do not repeat claimed file changes, test counts, or live probes as verified facts" "$PROJECT_ROOT/scripts/lib/quality.sh"; then
+        test_pass
+    else
+        test_fail "ceremony output can still surface disposable-workspace claims as evidence"
+    fi
+}
+
+test_ceremony_synthesis_receives_provenance_boundary() {
+    test_case "design synthesis receives disposable-seat provenance boundary"
+
+    local capture="$TEST_TMP_DIR/ceremony-synthesis.prompt"
+    local counter="$TEST_TMP_DIR/ceremony-seat-count"
+    printf '0\n' > "$counter"
+    if (
+        WORKSPACE_DIR="$TEST_TMP_DIR/ceremony-workspace"
+        # shellcheck source=/dev/null
+        source "$PROJECT_ROOT/scripts/lib/quality.sh"
+        DRY_RUN=false
+        OCTOPUS_CEREMONIES=true
+        CYAN="" GREEN="" NC="" _BOX_TOP="" _BOX_BOT=""
+        log() { :; }
+        octo_provider_identity_label() { printf '%s\n' "$1 / fixture"; }
+        write_structured_decision() { :; }
+        run_agent_sync_consultative() {
+            local count
+            count=$(cat "$counter")
+            count=$((count + 1))
+            printf '%s\n' "$count" > "$counter"
+            if [[ "$count" -le 3 ]]; then
+                printf '%s\n' \
+                    '## UNVERIFIED CONSULTATIVE OUTPUT' \
+                    'Implemented disposable files and verified 417 tests plus live probes.'
+            else
+                printf '%s' "$2" > "$capture"
+                printf '%s\n' 'Planning-only synthesis.'
+            fi
+        }
+        design_review_ceremony "Design the change" >/dev/null
+        grep -Fq "Do not repeat claimed file changes, test counts, or live probes as verified facts" "$capture" && \
+        grep -Fq "UNVERIFIED CONSULTATIVE OUTPUT" "$capture"
+    ); then
+        test_pass
+    else
+        test_fail "synthesis did not receive the unverified-seat boundary"
+    fi
+}
+
 test_retrospective_in_ink() {
     test_case "retrospective_ceremony reference exists"
 
@@ -112,6 +163,8 @@ test_dry_run_skips_ceremony
 test_embrace_dry_run
 test_ceremony_functions_exist
 test_ceremony_called_in_tangle
+test_ceremony_rejects_implementation_claims
+test_ceremony_synthesis_receives_provenance_boundary
 test_retrospective_in_ink
 
 test_summary

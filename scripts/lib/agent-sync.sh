@@ -142,7 +142,7 @@ run_agent_sync_consultative() {
     local old_codex_sandbox="${OCTOPUS_CODEX_SANDBOX:-}"
     local old_autonomy_set="${CLAUDE_OCTOPUS_AUTONOMY+x}"
     local old_autonomy="${CLAUDE_OCTOPUS_AUTONOMY:-}"
-    local source_root source_root_logical workspace temp_root rc original_prompt isolated_prompt
+    local source_root source_root_logical workspace temp_root rc original_prompt isolated_prompt agent_output
     local -a consultative_args
 
     source_root_logical="$PWD"
@@ -171,7 +171,7 @@ Treat ${workspace} as the working copy for this advisory task. Any relative-path
     unset CLAUDE_OCTOPUS_AUTONOMY
     export OCTOPUS_CODEX_SANDBOX="danger-full-access"
 
-    if (cd "$workspace" && run_agent_sync "${consultative_args[@]}"); then
+    if agent_output=$(cd "$workspace" && run_agent_sync "${consultative_args[@]}"); then
         rc=0
     else
         rc=$?
@@ -192,6 +192,18 @@ Treat ${workspace} as the working copy for this advisory task. Any relative-path
         export OCTOPUS_CODEX_SANDBOX="$old_codex_sandbox"
     else
         unset OCTOPUS_CODEX_SANDBOX
+    fi
+
+    if [[ -n "$agent_output" ]]; then
+        cat <<EOF
+## UNVERIFIED CONSULTATIVE OUTPUT
+
+This output came from a disposable workspace that Octopus deleted before returning. It is advisory and non-deliverable. Claimed file changes, test counts, live probes, or completed implementation are not verified evidence and must not be reported as delivered work.
+
+${agent_output}
+
+## END UNVERIFIED CONSULTATIVE OUTPUT
+EOF
     fi
 
     return "$rc"

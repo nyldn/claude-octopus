@@ -1140,8 +1140,13 @@ build_tangle_subtask_prompt() {
         return 64
     fi
 
-    local repo_context
+    local repo_context migration_safety
     repo_context=$(tangle_build_repo_context_block "$assigned_subtask")
+    if [[ "${OCTOPUS_TANGLE_ALLOW_DB_APPLY:-false}" == "true" ]]; then
+        migration_safety="- External migration application is explicitly authorized for this run. Never rename, delete, or rewrite a migration after any database has applied its version, and prove the applied history still matches the files on disk."
+    else
+        migration_safety="- Do not apply, push, repair, or mark database migrations on a persistent local, linked, remote, or shared database. Use only the project's disposable reset/test workflow; if verification requires persistent mutation, report a blocker. Never rename, delete, or rewrite a migration after any database has applied its version."
+    fi
 
     cat <<EOF
 Original task context:
@@ -1159,6 +1164,8 @@ Execution instructions:
 - For [CODING] work, treat file paths/directories named in the assigned subtask as approximate exclusive write scope intent. Use the resolved repository context files above as the concrete targets. Do not edit files clearly owned by another subtask; report a blocker if the required change crosses scopes.
 - If the subtask creates a new exported component, command, event type, route, hook, or helper, wire it into at least one production call site unless the original task explicitly asks for an isolated artifact.
 - Tests alone are not integration evidence. User-facing features must be reachable from the relevant user flow or the subtask must report a blocker.
+Migration safety:
+${migration_safety}
 - In the final output, include "## Worktree Changes", "## Integration Evidence", and "## Verification" sections.
 - If the assigned subtask is incomplete, contradictory, or omits required context, report the blocker instead of inventing scope.
 EOF
@@ -2539,21 +2546,56 @@ tangle_clean_baseline_guard_enabled() {
 }
 
 tangle_require_clean_git_baseline() {
-    local source_root status_output
+    local source_root source_root_physical status_output line path allowed_path allowed_relative_entry
+    local allowed_dir allowed_name allowed_physical allowed_relative
+    local blocking_output=""
+    local -a allowed_untracked=()
     source_root=$(git -C "${PROJECT_ROOT:-$PWD}" rev-parse --show-toplevel 2>/dev/null) || {
         log ERROR "Tangle implementation requires a Git repository when clean-baseline enforcement is enabled"
         return 1
     }
 
+    source_root_physical=$(cd "$source_root" 2>/dev/null && pwd -P) || return 1
+    for allowed_path in "$@"; do
+        [[ -n "$allowed_path" && -f "$allowed_path" && ! -L "$allowed_path" ]] || continue
+        allowed_dir=$(dirname "$allowed_path")
+        allowed_name=$(basename "$allowed_path")
+        allowed_dir=$(cd "$allowed_dir" 2>/dev/null && pwd -P) || continue
+        allowed_physical="${allowed_dir}/${allowed_name}"
+        case "$allowed_physical" in
+            "$source_root_physical"/*)
+                allowed_relative="${allowed_physical#"$source_root_physical"/}"
+                allowed_untracked+=("$allowed_relative")
+                ;;
+        esac
+    done
+
     status_output=$(git -C "$source_root" status --porcelain=v1 --untracked-files=all 2>/dev/null) || {
         log ERROR "Unable to inspect Git baseline at: $source_root"
         return 1
     }
-    if [[ -n "$status_output" ]]; then
+    while IFS= read -r line; do
+        [[ -n "$line" ]] || continue
+        if [[ "$line" == "?? "* ]]; then
+            path="${line#?? }"
+            local path_is_allowed=false
+            for allowed_relative_entry in ${allowed_untracked[@]+"${allowed_untracked[@]}"}; do
+                [[ "$path" == "$allowed_relative_entry" ]] && path_is_allowed=true && break
+            done
+            if [[ "$path_is_allowed" == "true" ]]; then
+                continue
+            fi
+        fi
+        blocking_output="${blocking_output}${blocking_output:+$'\n'}${line}"
+    done <<< "$status_output"
+
+    if [[ -n "$blocking_output" ]]; then
         log ERROR "Tangle implementation requires a clean Git baseline: $source_root"
         while IFS= read -r line; do
             [[ -n "$line" ]] && log ERROR "  $line"
-        done <<< "$status_output"
+        done <<< "$blocking_output"
+        log ERROR "Commit or stash unrelated changes. To use one untracked brief safely, reference PLAN.md, SPEC.md, or BRIEF.md explicitly (or prefix a path with plan:, spec:, or brief:) while run-worktree isolation remains enabled."
+        log ERROR "Advanced bypass: OCTOPUS_TANGLE_REQUIRE_CLEAN_BASELINE=false keeps isolation enabled, but accepts responsibility for the dirty source state."
         return 1
     fi
     return 0
@@ -2591,18 +2633,31 @@ tangle_next_run_id() {
 
 tangle_extract_plan_file_ref() {
     local prompt="$1"
-    local token candidate_ref candidate_basename raw_file_ref
+    local token token_lower candidate_ref candidate_basename candidate_basename_lower raw_file_ref
     local noglob_was_set=false
     [[ "$-" == *f* ]] && noglob_was_set=true || set -f
     for token in $prompt; do
+        token_lower=$(printf '%s' "$token" | tr '[:upper:]' '[:lower:]')
         candidate_ref="$token"
-        candidate_ref="${candidate_ref#plan:}"
-        candidate_ref="${candidate_ref#plan=}"
+        case "$token_lower" in
+            plan:*|spec:*|brief:*) candidate_ref="${token#*:}" ;;
+            plan=*|spec=*|brief=*) candidate_ref="${token#*=}" ;;
+        esac
         candidate_basename="${candidate_ref##*/}"
-        if [[ "$token" == plan:* || "$token" == plan=* || "$candidate_basename" == "plan.md" || "$candidate_basename" == *.plan.md || "$candidate_basename" == *-plan.md ]]; then
-            raw_file_ref="$token"
-            raw_file_ref="${raw_file_ref#plan:}"
-            raw_file_ref="${raw_file_ref#plan=}"
+        candidate_basename_lower=$(printf '%s' "$candidate_basename" | tr '[:upper:]' '[:lower:]')
+        if [[ "$token_lower" == plan:* || "$token_lower" == plan=* \
+           || "$token_lower" == spec:* || "$token_lower" == spec=* \
+           || "$token_lower" == brief:* || "$token_lower" == brief=* \
+           || "$candidate_basename_lower" == "plan.md" \
+           || "$candidate_basename_lower" == "spec.md" \
+           || "$candidate_basename_lower" == "brief.md" \
+           || "$candidate_basename_lower" == *.plan.md \
+           || "$candidate_basename_lower" == *-plan.md \
+           || "$candidate_basename_lower" == *.spec.md \
+           || "$candidate_basename_lower" == *-spec.md \
+           || "$candidate_basename_lower" == *.brief.md \
+           || "$candidate_basename_lower" == *-brief.md ]]; then
+            raw_file_ref="$candidate_ref"
             [[ "$noglob_was_set" == "false" ]] && set +f
             printf '%s' "$raw_file_ref"
             return 0
@@ -2723,6 +2778,7 @@ tangle_prepare_run_worktree() {
 tangle_develop() {
     local prompt="$1"
     local grasp_file="${2:-}"
+    local task_group original_project_root original_pwd resolved_grasp_file resolved_plan_file rc
 
     # Dry runs retain their historical side-effect-free behavior and do not
     # create an otherwise unused run worktree.
@@ -2731,10 +2787,31 @@ tangle_develop() {
         return $?
     fi
 
+    original_project_root="${PROJECT_ROOT:-$PWD}"
+    original_pwd="$PWD"
+    resolved_grasp_file="$grasp_file"
+    resolved_plan_file=""
+    rc=0
+
+    # Resolve explicit caller context before the clean-baseline gate. A single
+    # repo-contained untracked input can be safely read and injected into the
+    # isolated run without admitting any unrelated dirty path.
+    if tangle_run_worktree_enabled; then
+        if [[ -n "$grasp_file" ]]; then
+            resolved_grasp_file=$(tangle_resolve_context_file_path "$grasp_file" "$original_pwd" 2>/dev/null) \
+                || resolved_grasp_file="$grasp_file"
+        fi
+        resolved_plan_file=$(tangle_resolve_prompt_plan_file_path "$prompt" "$original_pwd" 2>/dev/null) || true
+    fi
+
     # Validate the caller's source checkout before creating an isolated run
     # worktree; checking afterward would only prove that the new worktree is clean.
     if tangle_clean_baseline_guard_enabled; then
-        tangle_require_clean_git_baseline || return 1
+        if tangle_run_worktree_enabled; then
+            tangle_require_clean_git_baseline "$resolved_plan_file" "$resolved_grasp_file" || return 1
+        else
+            tangle_require_clean_git_baseline || return 1
+        fi
     fi
 
     if ! tangle_run_worktree_enabled; then
@@ -2742,7 +2819,7 @@ tangle_develop() {
         return $?
     fi
 
-    local task_group="${OCTOPUS_TANGLE_RUN_ID:-}"
+    task_group="${OCTOPUS_TANGLE_RUN_ID:-}"
     if [[ -n "$task_group" ]]; then
         if [[ ! "$task_group" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ || "$task_group" == *..* ]]; then
             log ERROR "Invalid OCTOPUS_TANGLE_RUN_ID: $task_group"
@@ -2751,21 +2828,6 @@ tangle_develop() {
     else
         task_group=$(tangle_next_run_id) || return 1
     fi
-    local original_project_root="${PROJECT_ROOT:-$PWD}"
-    local original_pwd="$PWD"
-    local resolved_grasp_file="$grasp_file"
-    local resolved_plan_file=""
-    local rc=0
-
-    # Resolve caller-supplied context while still in the source checkout.
-    # Ignored context files are valid inputs but are absent from a new Git
-    # worktree, so delegated execution must retain their canonical source paths.
-    if [[ -n "$grasp_file" ]]; then
-        resolved_grasp_file=$(tangle_resolve_context_file_path "$grasp_file" "$original_pwd" 2>/dev/null) \
-            || resolved_grasp_file="$grasp_file"
-    fi
-    resolved_plan_file=$(tangle_resolve_prompt_plan_file_path "$prompt" "$original_pwd" 2>/dev/null) || true
-
     tangle_prepare_run_worktree "$task_group" || return 1
 
     PROJECT_ROOT="$TANGLE_RUN_WORKTREE"

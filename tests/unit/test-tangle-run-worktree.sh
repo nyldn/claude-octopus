@@ -14,7 +14,6 @@ RESULTS_DIR="$TEST_ROOT/results"
 WORKSPACE_DIR="$TEST_ROOT/state"
 TEST_START_PWD="$PWD"
 mkdir -p "$SOURCE_REPO" "$RESULTS_DIR" "$WORKSPACE_DIR"
-trap 'rm -rf "$TEST_ROOT"' EXIT INT TERM
 
 git -C "$SOURCE_REPO" init -q
 git -C "$SOURCE_REPO" config user.email octopus-tests@example.invalid
@@ -103,6 +102,27 @@ else
     test_fail "dirty source reached worktree creation or implementation"
 fi
 rm -f "$SOURCE_REPO/untracked.txt"
+OCTOPUS_TANGLE_RUN_ID="run-worktree-test"
+
+test_case "explicit untracked spec is injected without disabling isolation"
+printf 'untracked spec context\n' > "$SOURCE_REPO/SPEC.md"
+OCTOPUS_TANGLE_RUN_ID="untracked-spec"
+SEEN_PROJECT_ROOT=""
+SEEN_PLAN_FILE=""
+SEEN_PLAN_CONTENT=""
+status=0
+cd "$SOURCE_REPO"
+tangle_develop "Implement SPEC.md" || status=$?
+if [[ "$status" -eq 0 \
+    && "$SEEN_PROJECT_ROOT" == "$RUNTIME_ROOT/untracked-spec/integration" \
+    && "$SEEN_PLAN_FILE" == "$SOURCE_REPO_PHYSICAL/SPEC.md" \
+    && "$SEEN_PLAN_CONTENT" == "untracked spec context" \
+    && -f "$SOURCE_REPO/SPEC.md" ]]; then
+    test_pass
+else
+    test_fail "untracked spec was not safely injected into isolated execution"
+fi
+rm -f "$SOURCE_REPO/SPEC.md"
 OCTOPUS_TANGLE_RUN_ID="run-worktree-test"
 
 status=0

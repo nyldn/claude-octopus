@@ -122,6 +122,69 @@ check_tangle_worktree_changes() {
     rm -f "$current_file"
 }
 
+tangle_check_supabase_migration_history() {
+    local changed_paths="$1"
+    local repo_root cli output migration_rows mismatches
+
+    if ! grep -qE '^supabase/migrations/[^/]+\.sql$' <<< "$changed_paths"; then
+        printf '%s\n' "No changed Supabase migrations."
+        return 0
+    fi
+
+    repo_root=$(git -C "${PROJECT_ROOT:-$PWD}" rev-parse --show-toplevel 2>/dev/null \
+        || git -C "$PWD" rev-parse --show-toplevel 2>/dev/null) || {
+        printf '%s\n' "Unable to resolve the repository for Supabase migration validation."
+        return 3
+    }
+    if command -v supabase >/dev/null 2>&1; then
+        cli=$(command -v supabase)
+    elif [[ -x "$repo_root/node_modules/.bin/supabase" ]]; then
+        cli="$repo_root/node_modules/.bin/supabase"
+    else
+        printf '%s\n' "Supabase CLI is unavailable; local migration history was not verified."
+        return 2
+    fi
+
+    if declare -F run_with_timeout >/dev/null 2>&1; then
+        output=$(cd "$repo_root" && run_with_timeout 20 "$cli" migration list --local </dev/null 2>&1) || {
+            printf '%s\n' "Supabase local migration history query failed or timed out."
+            return 3
+        }
+    else
+        output=$(cd "$repo_root" && "$cli" migration list --local </dev/null 2>&1) || {
+            printf '%s\n' "Supabase local migration history query failed."
+            return 3
+        }
+    fi
+
+    migration_rows=$(printf '%s\n' "$output" | sed 's/│/|/g' | awk -F '|' '
+        NF >= 2 {
+            disk = $1
+            database = $2
+            gsub(/[[:space:]]/, "", disk)
+            gsub(/[[:space:]]/, "", database)
+            if (disk ~ /^[0-9]+$/ || database ~ /^[0-9]+$/) {
+                if (disk == "") disk = "missing"
+                if (database == "") database = "missing"
+                print disk "|" database
+            }
+        }
+    ')
+    if [[ -z "$migration_rows" ]]; then
+        printf '%s\n' "Supabase local migration history returned no comparable versions."
+        return 3
+    fi
+    mismatches=$(printf '%s\n' "$migration_rows" | awk -F '|' \
+        '$1 != $2 { print "disk=" $1 ", database=" $2 }')
+    if [[ -n "$mismatches" ]]; then
+        printf '%s\n' "Supabase local migration history does not match files on disk:" "$mismatches"
+        return 1
+    fi
+
+    printf '%s\n' "Supabase local migration history matches files on disk."
+    return 0
+}
+
 tangle_result_latest_status() {
     local result="$1"
     local status_line=""
@@ -222,10 +285,40 @@ validate_tangle_results() {
 
         local worktree_changes=""
         local requires_worktree_changes=false
-        if [[ -n "$worktree_before_file" && -f "$worktree_before_file" ]] && \
-           tangle_prompt_requires_worktree_changes "$original_prompt"; then
-            requires_worktree_changes=true
+        local migration_history_status="NOT REQUIRED"
+        local migration_history_details="No changed Supabase migrations."
+        local migration_history_failed=false
+        if [[ -n "$worktree_before_file" && -f "$worktree_before_file" ]]; then
             worktree_changes=$(check_tangle_worktree_changes "$worktree_before_file")
+            if tangle_prompt_requires_worktree_changes "$original_prompt"; then
+                requires_worktree_changes=true
+            fi
+        fi
+
+        if grep -qE '^supabase/migrations/[^/]+\.sql$' <<< "$worktree_changes"; then
+            local migration_history_rc=0
+            migration_history_details=$(tangle_check_supabase_migration_history "$worktree_changes") || migration_history_rc=$?
+            case "$migration_history_rc" in
+                0)
+                    migration_history_status="PASSED"
+                    ;;
+                1)
+                    migration_history_status="FAILED"
+                    migration_history_failed=true
+                    hard_gate_retry_feedback="${hard_gate_retry_feedback}"$'Hard gate failure: Supabase migration history differs from the files on disk. Reset disposable local state from the current tree before verification; do not repair history to hide a renamed migration.\n'
+                    hard_gate_retry_feedback="${hard_gate_retry_feedback}${migration_history_details}"$'\n\n'
+                    ;;
+                2|3)
+                    if [[ "${OCTOPUS_TANGLE_ALLOW_UNVERIFIED_MIGRATIONS:-false}" == "true" ]]; then
+                        migration_history_status="SKIPPED BY EXPLICIT OVERRIDE"
+                    else
+                        migration_history_status="FAILED"
+                        migration_history_failed=true
+                        hard_gate_retry_feedback="${hard_gate_retry_feedback}"$'Hard gate failure: changed Supabase migrations could not be checked against local applied history. Start the disposable local stack and make the CLI available, or explicitly set OCTOPUS_TANGLE_ALLOW_UNVERIFIED_MIGRATIONS=true to accept this risk.\n'
+                        hard_gate_retry_feedback="${hard_gate_retry_feedback}${migration_history_details}"$'\n\n'
+                    fi
+                    ;;
+            esac
         fi
 
         local correction_result_body=""
@@ -279,6 +372,11 @@ $(<"$correction_file")
         elif [[ $success_rate -lt 90 ]]; then
             gate_status="WARNING"
             gate_color="${YELLOW}"
+        fi
+
+        if [[ "$migration_history_failed" == "true" ]]; then
+            gate_status="FAILED"
+            gate_color="${RED}"
         fi
 
         if [[ -n "$missing_explicit_files" ]]; then
@@ -414,6 +512,9 @@ $(if [[ "$requires_worktree_changes" == "true" ]]; then
 else
     echo "Not required for this prompt."
 fi)
+
+### Migration History: ${migration_history_status}
+${migration_history_details}
 
 ### Subtask Results
 $results

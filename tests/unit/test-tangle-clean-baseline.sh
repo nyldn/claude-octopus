@@ -10,7 +10,6 @@ source "$PROJECT_ROOT/scripts/lib/workflows.sh"
 TEST_ROOT="$TEST_TMP_DIR/tangle-clean-baseline"
 REPO="$TEST_ROOT/repo"
 mkdir -p "$REPO"
-trap 'rm -rf "$TEST_ROOT"' EXIT INT TERM
 
 git -C "$REPO" init -q
 git -C "$REPO" config user.email octopus-tests@example.invalid
@@ -48,6 +47,42 @@ else
     test_pass
 fi
 rm -f "$REPO/untracked.txt"
+
+test_case "one explicit untracked context file is accepted"
+printf 'implementation brief\n' > "$REPO/SPEC.md"
+if tangle_require_clean_git_baseline "$REPO/SPEC.md"; then
+    test_pass
+else
+    test_fail "explicit untracked context file was rejected"
+fi
+
+test_case "an unrelated untracked file still blocks an allowed context file"
+printf 'unrelated\n' > "$REPO/unrelated.txt"
+if tangle_require_clean_git_baseline "$REPO/SPEC.md" >/dev/null 2>&1; then
+    test_fail "unrelated dirty path was hidden by the context allowlist"
+else
+    test_pass
+fi
+rm -f "$REPO/SPEC.md" "$REPO/unrelated.txt"
+
+test_case "a modified tracked context file is never allowlisted"
+printf 'changed tracked input\n' >> "$REPO/tracked.txt"
+if tangle_require_clean_git_baseline "$REPO/tracked.txt" >/dev/null 2>&1; then
+    test_fail "modified tracked context bypassed the clean baseline"
+else
+    test_pass
+fi
+git -C "$REPO" checkout -- tracked.txt
+
+test_case "an untracked context symlink is never allowlisted"
+printf 'outside context\n' > "$TEST_ROOT/outside.md"
+ln -s "$TEST_ROOT/outside.md" "$REPO/SPEC.md"
+if tangle_require_clean_git_baseline "$REPO/SPEC.md" >/dev/null 2>&1; then
+    test_fail "symlinked context bypassed the clean baseline"
+else
+    test_pass
+fi
+rm -f "$REPO/SPEC.md"
 
 
 test_case "each blocking status entry is reported"

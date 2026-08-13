@@ -59,12 +59,11 @@ NC=""
 TMUX_MODE=false
 DRY_RUN=false
 SUPPORTS_PARALLEL_FILE_SAFETY=false
-RESULTS_DIR="$(mktemp -d)"
+RESULTS_DIR="$TEST_TMP_DIR/develop-md-resolution"
 LOGS_DIR="$RESULTS_DIR/logs"
 WORKSPACE_DIR="$RESULTS_DIR/workspace"
 mkdir -p "$WORKSPACE_DIR/.octo/agents"
 DECOMPOSE_CAPTURE_FILE="$RESULTS_DIR/decompose.prompt"
-trap 'rm -rf "$RESULTS_DIR"' EXIT
 
 test_case "default Tangle run IDs stay unique within the same second"
 date() {
@@ -165,6 +164,26 @@ if [[ "$CAPTURED_DECOMPOSE_PROMPT" == *"Apply the bare plan.md workflow fix."* ]
     test_pass
 else
     test_fail "bare plan.md was not treated as an eligible plan file"
+fi
+
+test_case "bare SPEC.md references inject content case-insensitively"
+spec_file="$RESULTS_DIR/SPEC.md"
+printf '%s\n' "Apply the explicit specification safely." > "$spec_file"
+run_tangle_case "implement $spec_file"
+if [[ "$CAPTURED_DECOMPOSE_PROMPT" == *"Apply the explicit specification safely."* ]]; then
+    test_pass
+else
+    test_fail "bare SPEC.md was not treated as an eligible context file"
+fi
+
+test_case "bare BRIEF.md references inject content case-insensitively"
+brief_file="$RESULTS_DIR/BRIEF.md"
+printf '%s\n' "Apply the explicit brief safely." > "$brief_file"
+run_tangle_case "implement $brief_file"
+if [[ "$CAPTURED_DECOMPOSE_PROMPT" == *"Apply the explicit brief safely."* ]]; then
+    test_pass
+else
+    test_fail "bare BRIEF.md was not treated as an eligible context file"
 fi
 
 test_case "wildcard-looking Markdown tokens are not glob-expanded"
