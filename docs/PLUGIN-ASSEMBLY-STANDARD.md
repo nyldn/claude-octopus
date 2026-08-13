@@ -102,9 +102,11 @@ the markdown as a shell script.
 
 Use `${HOME}/.claude-octopus/plugin` in model-facing command instructions. That
 stable symlink is repaired at SessionStart and remains available to model tool
-calls. Reserve `CLAUDE_PLUGIN_ROOT` for hooks and runtime scripts, where Claude
-Code supplies it. This distinction is intentional rather than an interchangeable
-path convention.
+calls. The repair target is the plugin root loaded by the host, so direct source
+loading does not introduce a second plugin trust boundary. Reserve
+`CLAUDE_PLUGIN_ROOT` for hooks and runtime scripts, where Claude Code supplies
+it. This distinction is intentional rather than an interchangeable path
+convention.
 
 Routers may load only literal command names from a closed allowlist. Never use
 free-form prompt text as a path segment; reject path separators and traversal

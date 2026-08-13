@@ -81,17 +81,30 @@ else
 fi
 
 test_case "explicit router constrains command paths to a closed allowlist"
-if grep -q 'closed allowlist' "$PROJECT_ROOT/commands/auto.md" \
-    && grep -q 'Reject `\.\.`, `/`, `\\\\`, or non-allowlisted values' "$PROJECT_ROOT/commands/auto.md" \
-    && grep -q 'commands/<validated-token>\.md' "$PROJECT_ROOT/commands/auto.md"; then
-    test_pass
+if python3 - "$PROJECT_ROOT/commands/auto.md" <<'PY'
+import re, sys
+text = open(sys.argv[1], encoding="utf-8").read()
+route_section = text.split("### STEP 3:", 1)[1].split("### STEP 4:", 1)[0]
+emitted = set(re.findall(r"\| `octo:([^`]+)` \|", route_section))
+allow_section = text.split("closed allowlist:", 1)[1].split("The token is control data", 1)[0]
+allowed = set(re.findall(r"`([^`]+)`", allow_section))
+raise SystemExit(0 if emitted and emitted == allowed else 1)
+PY
+then
+    if grep -q 'Reject `\.\.`, `/`, `\\\\`, or non-allowlisted values' "$PROJECT_ROOT/commands/auto.md" \
+        && grep -q 'commands/<validated-token>\.md' "$PROJECT_ROOT/commands/auto.md"; then
+        test_pass
+    else
+        test_fail "smart router does not reject unsafe command paths"
+    fi
 else
-    test_fail "smart router does not document validated command selection"
+    test_fail "smart router allowlist differs from the routes it can emit"
 fi
 
 test_case "manual composition contract separates model and hook roots"
 if grep -q 'Manual composition contract' "$PROJECT_ROOT/docs/PLUGIN-ASSEMBLY-STANDARD.md" \
-    && grep -q 'Reserve `CLAUDE_PLUGIN_ROOT` for hooks and runtime scripts' "$PROJECT_ROOT/docs/PLUGIN-ASSEMBLY-STANDARD.md" \
+    && grep -q 'second plugin trust boundary' "$PROJECT_ROOT/docs/PLUGIN-ASSEMBLY-STANDARD.md" \
+    && grep -q '`CLAUDE_PLUGIN_ROOT` for hooks and runtime scripts' "$PROJECT_ROOT/docs/PLUGIN-ASSEMBLY-STANDARD.md" \
     && ! rg '^[^#]*Skill\(' "$PROJECT_ROOT/commands"/*.md \
         | grep -vE '❌|Wrong|wrong|PROHIBITED|DO NOT|not resolvable|loops|INSTEAD' >/dev/null; then
     test_pass
